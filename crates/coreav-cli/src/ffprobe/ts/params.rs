@@ -3,8 +3,9 @@
 //! H.264 (ITU-T H.264 7.3.2.1.1, E.1.1) and H.265 (ITU-T H.265 7.3.2.2,
 //! E.2.1), the MPEG-1 and MPEG-2 video sequence header and its extensions
 //! (ISO/IEC 11172-2 2.4.2.3, ISO/IEC 13818-2 6.2.2 and 6.2.3.1), and the
-//! frame headers of MPEG audio (ISO/IEC 11172-3 2.4.1.3, 13818-3) and
-//! AC-3 / E-AC-3 (ATSC A/52 5.3 and E.1.2).
+//! frame headers of MPEG audio (ISO/IEC 11172-3 2.4.1.3, 13818-3),
+//! AC-3 / E-AC-3 (ATSC A/52 5.3 and E.1.2) and DTS (ETSI TS 102 114 5.3
+//! and 7.5).
 //!
 //! Sans-IO and bounded: every read stops at the end of its bytes, and a
 //! field that cannot be read is `None`, never a panic.
@@ -1390,6 +1391,308 @@ fn eac3_atmos(bits: &mut Bits<'_>, f: &Eac3Info) -> Option<bool> {
     bits.flag()
 }
 
+/// What a DTS access unit states, as `ffprobe` reports it: a core frame
+/// (ETSI TS 102 114 5.3.1) and the extension substream after it (7.5), or
+/// a substream alone.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Dts {
+    pub profile: &'static str,
+    pub sample_rate: u32,
+    pub channels: u32,
+    pub layout: Option<&'static str>,
+    /// The bits per sample of a lossless asset, which it decodes to.
+    pub lossless_bits: Option<u32>,
+    /// The bit rate of a core frame's `RATE`. A unit with an extension
+    /// substream gives none here: `ffprobe` reports none for a lossless
+    /// asset, and for DTS Express one this reader does not derive
+    /// (`docs/design/mpegts.md`, "DTS").
+    pub bit_rate: Option<u64>,
+}
+
+const DTS_CORE_SYNC: [u8; 4] = [0x7F, 0xFE, 0x80, 0x01];
+const DTS_SUBSTREAM_SYNC: [u8; 4] = [0x64, 0x58, 0x20, 0x25];
+/// The sync words of the coding components an extension substream's
+/// assets carry (TS 102 114 7.6 to 7.9 and the lossless and low bit rate
+/// annexes): XLL (lossless), LBR (DTS Express), and XBR, X96 and XXCH
+/// (the high resolution extensions).
+const DTS_XLL_SYNC: [u8; 4] = [0x41, 0xA2, 0x95, 0x47];
+const DTS_LBR_SYNC: [u8; 4] = [0x0A, 0x80, 0x19, 0x21];
+const DTS_HRA_SYNCS: [[u8; 4]; 3] = [
+    [0x65, 0x5E, 0x31, 0x5E],
+    [0x1D, 0x95, 0xF2, 0x62],
+    [0x47, 0x00, 0x4A, 0x03],
+];
+
+/// The core `RATE` table (TS 102 114 table 5-7), bits per second; the
+/// last three codes (open, variable, lossless) state no rate.
+const DTS_CORE_BIT_RATES: [u32; 29] = [
+    32_000, 56_000, 64_000, 96_000, 112_000, 128_000, 192_000, 224_000, 256_000, 320_000, 384_000,
+    448_000, 512_000, 576_000, 640_000, 768_000, 960_000, 1_024_000, 1_152_000, 1_280_000,
+    1_344_000, 1_408_000, 1_411_200, 1_472_000, 1_536_000, 1_920_000, 2_048_000, 3_072_000,
+    3_840_000,
+];
+const DTS_CORE_RATES: [u32; 16] = [
+    0, 8_000, 16_000, 32_000, 0, 0, 11_025, 22_050, 44_100, 0, 0, 12_000, 24_000, 48_000, 0, 0,
+];
+/// An asset's `nuMaxSampleRate` (TS 102 114 table 7-6).
+const DTS_ASSET_RATES: [u32; 16] = [
+    8_000, 16_000, 32_000, 64_000, 128_000, 22_050, 44_100, 88_200, 176_400, 352_800, 12_000,
+    24_000, 48_000, 96_000, 192_000, 384_000,
+];
+
+/// The layout `ffprobe` names for a core `AMODE` and LFE flag (TS 102 114
+/// table 5-4): the surround pair of 5.0 and 5.1 are side channels.
+/// `None` for the arrangements whose name is not known.
+fn dts_core_layout(amode: u32, lfe: bool) -> Option<&'static str> {
+    Some(match (amode, lfe) {
+        (0, false) => "mono",
+        (2, false) => "stereo",
+        (2, true) => "2.1",
+        (5, false) => "3.0",
+        (5, true) => "3.1",
+        (8, false) => "quad(side)",
+        (9, false) => "5.0(side)",
+        (9, true) => "5.1(side)",
+        _ => return None,
+    })
+}
+
+/// The layout `ffprobe` names for an asset's speaker activity mask (TS 102
+/// 114 7.5.3, `nuSpkrActivityMask`): each bit is a speaker or a pair, and
+/// the speakers map to the channels `ffprobe` names -- the surround pair
+/// (Ls/Rs) and the side surround pair (Lss/Rss) to the side pair, the rear
+/// surround pair (Lsr/Rsr) to the back pair, the centre surround (Cs) to
+/// the back centre. `None` for a mask of other speakers, of two speakers
+/// on one channel, or whose arrangement has no name known here.
+fn dts_mask_layout(mask: u32) -> Option<(&'static str, u32)> {
+    // Channels, one bit each: FL, FR, FC, LFE, BL, BR, BC, SL, SR.
+    const FRONT: u16 = 0b11;
+    const FC: u16 = 1 << 2;
+    const LFE: u16 = 1 << 3;
+    const BACK: u16 = 0b11 << 4;
+    const BC: u16 = 1 << 6;
+    const SIDE: u16 = 0b11 << 7;
+    const SPEAKERS: [(u32, u16); 7] = [
+        (0x0001, FC),
+        (0x0002, FRONT),
+        (0x0004, SIDE),
+        (0x0008, LFE),
+        (0x0010, BC),
+        (0x0040, BACK),
+        (0x0800, SIDE),
+    ];
+    let known = SPEAKERS.iter().fold(0, |all, (bit, _)| all | bit);
+    if mask & !known != 0 {
+        return None;
+    }
+    let mut channels = 0u16;
+    for (bit, set) in SPEAKERS {
+        if mask & bit != 0 {
+            if channels & set != 0 {
+                return None;
+            }
+            channels |= set;
+        }
+    }
+    let name = match channels {
+        c if c == FC => "mono",
+        c if c == FRONT => "stereo",
+        c if c == FRONT | LFE => "2.1",
+        c if c == FRONT | FC => "3.0",
+        c if c == FRONT | FC | LFE => "3.1",
+        c if c == FRONT | BC => "3.0(back)",
+        c if c == FRONT | FC | BC => "4.0",
+        c if c == FRONT | FC | LFE | BC => "4.1",
+        c if c == FRONT | SIDE => "quad(side)",
+        c if c == FRONT | BACK => "quad",
+        c if c == FRONT | FC | SIDE => "5.0(side)",
+        c if c == FRONT | FC | LFE | SIDE => "5.1(side)",
+        c if c == FRONT | FC | BACK => "5.0",
+        c if c == FRONT | FC | LFE | BACK => "5.1",
+        c if c == FRONT | FC | BC | SIDE => "6.0",
+        c if c == FRONT | FC | LFE | BC | SIDE => "6.1",
+        c if c == FRONT | FC | BACK | SIDE => "7.0",
+        c if c == FRONT | FC | LFE | BACK | SIDE => "7.1",
+        _ => return None,
+    };
+    Some((name, channels.count_ones()))
+}
+
+/// What the first asset of an extension substream states (TS 102 114
+/// 7.5.2 and 7.5.3): its sample rate, channels, speaker mask and bits per
+/// sample.
+struct DtsAsset {
+    sample_rate: u32,
+    channels: u32,
+    mask: Option<u32>,
+    bits: u32,
+}
+
+/// Reads an extension substream's header up to its first asset
+/// descriptor's speaker mask. `None` without the static fields, which
+/// carry everything read here.
+fn dts_asset(substream: &[u8]) -> Option<DtsAsset> {
+    let mut bits = Bits::new(substream.get(4..)?);
+    bits.skip(8)?; // UserDefinedBits
+    let index = bits.bits(2)?;
+    let wide = bits.flag()?;
+    let (header_bits, size_bits) = if wide { (12, 20) } else { (8, 16) };
+    bits.skip(header_bits + size_bits)?;
+    if !bits.flag()? {
+        return None; // bStaticFieldsPresent
+    }
+    bits.skip(2 + 3)?; // nuRefClockCode, nuExSSFrameDurationCode
+    if bits.flag()? {
+        bits.skip(32 + 4)?; // nuTimeStamp, nLSB
+    }
+    let presentations = bits.bits(3)? + 1;
+    let assets = bits.bits(3)? + 1;
+    let mut masks = Vec::new();
+    for _ in 0..presentations {
+        masks.push(bits.bits(index + 1)?);
+    }
+    for mask in masks {
+        for ss in 0..=index {
+            if (mask >> ss) & 1 == 1 {
+                bits.skip(8)?; // nuActiveAssetMask
+            }
+        }
+    }
+    if bits.flag()? {
+        // bMixMetadataEnbl: nuMixMetadataAdjLevel, the mask width, the
+        // configurations and their masks.
+        bits.skip(2)?;
+        let width = (bits.bits(2)? + 1) << 2;
+        let configs = bits.bits(2)? + 1;
+        bits.skip(width * configs)?;
+    }
+    bits.skip(size_bits * assets)?; // nuAssetFsize
+    // The first asset descriptor: nuAssetDescriptFsize, nuAssetIndex.
+    bits.skip(9 + 3)?;
+    if bits.flag()? {
+        bits.skip(4)?; // nuAssetTypeDescriptor
+    }
+    if bits.flag()? {
+        bits.skip(24)?; // LanguageDescriptor
+    }
+    if bits.flag()? {
+        let text = bits.bits(10)? + 1;
+        bits.skip(text * 8)?;
+    }
+    let bit_depth = bits.bits(5)? + 1;
+    let sample_rate = *DTS_ASSET_RATES.get(usize::try_from(bits.bits(4)?).ok()?)?;
+    let channels = bits.bits(8)? + 1;
+    let mut mask = None;
+    if bits.flag()? {
+        // bOne2OneMapChannels2Speakers
+        if channels > 2 {
+            bits.skip(1)?; // bEmbeddedStereoFlag
+        }
+        if channels > 6 {
+            bits.skip(1)?; // bEmbeddedSixChFlag
+        }
+        if bits.flag()? {
+            let width = (bits.bits(2)? + 1) << 2;
+            mask = Some(bits.bits(width)?);
+        }
+    }
+    Some(DtsAsset {
+        sample_rate,
+        channels,
+        mask,
+        bits: bit_depth,
+    })
+}
+
+/// Reads a DTS access unit: a core frame and the extension substream after
+/// it, or a substream alone. The profile is the one `ffprobe` names for
+/// what the unit carries: `DTS-HD MA` for a lossless component, `DTS
+/// Express` for a low bit rate one, `DTS-HD HRA` for the other substream
+/// components; for a core alone `DTS`, `DTS-ES` with a channel extension
+/// (`EXT_AUDIO_ID` 0 or 6) and `DTS 96/24` with the 96 kHz one (2). A
+/// substream's first asset gives the rate, channels and layout, as the
+/// decoder `ffprobe` runs outputs that asset.
+pub fn dts(unit: &[u8]) -> Option<Dts> {
+    let core = unit.starts_with(&DTS_CORE_SYNC);
+    let mut out = None;
+    let mut substream_at = 0usize;
+    if core {
+        let mut bits = Bits::new(unit.get(4..)?);
+        bits.skip(1 + 5 + 1 + 7)?;
+        let len = usize::try_from(bits.bits(14)?).ok()? + 1;
+        let amode = bits.bits(6)?;
+        let sample_rate = *DTS_CORE_RATES.get(usize::try_from(bits.bits(4)?).ok()?)?;
+        let rate = bits.bits(5)?;
+        bits.skip(1 + 1 + 1 + 1 + 1)?;
+        let extension = bits.bits(3)?;
+        let extended = bits.flag()?;
+        bits.skip(1)?; // ASPF
+        let lfe = bits.bits(2)? != 0;
+        if sample_rate == 0 {
+            return None;
+        }
+        const CHANNELS: [u32; 16] = [1, 2, 2, 2, 2, 3, 3, 4, 4, 5, 6, 6, 6, 7, 8, 8];
+        let channels = CHANNELS.get(usize::try_from(amode).ok()?).copied()? + u32::from(lfe);
+        let profile = match (extended, extension) {
+            (true, 0 | 6) => "DTS-ES",
+            (true, 2) => "DTS 96/24",
+            _ => "DTS",
+        };
+        out = Some(Dts {
+            profile,
+            sample_rate,
+            channels,
+            layout: (profile == "DTS")
+                .then(|| dts_core_layout(amode, lfe))
+                .flatten(),
+            lossless_bits: None,
+            bit_rate: DTS_CORE_BIT_RATES
+                .get(usize::try_from(rate).ok()?)
+                .map(|r| u64::from(*r)),
+        });
+        substream_at = len;
+    }
+    let Some(substream) = unit
+        .get(substream_at..)
+        .filter(|rest| rest.starts_with(&DTS_SUBSTREAM_SYNC))
+    else {
+        return out;
+    };
+    let has = |sync: &[u8; 4]| substream.windows(4).any(|w| w == sync);
+    let lossless = has(&DTS_XLL_SYNC);
+    let express = !lossless && has(&DTS_LBR_SYNC);
+    let profile = if lossless {
+        "DTS-HD MA"
+    } else if express {
+        "DTS Express"
+    } else if DTS_HRA_SYNCS.iter().any(has) {
+        "DTS-HD HRA"
+    } else {
+        return out;
+    };
+    let Some(asset) = dts_asset(substream) else {
+        return out.map(|core| Dts {
+            profile,
+            bit_rate: None,
+            ..core
+        });
+    };
+    Some(Dts {
+        profile,
+        sample_rate: asset.sample_rate,
+        channels: asset.channels,
+        // A mask that names other speakers than the asset has channels is
+        // not taken for its layout.
+        layout: asset
+            .mask
+            .and_then(dts_mask_layout)
+            .filter(|(_, n)| *n == asset.channels)
+            .map(|(name, _)| name),
+        lossless_bits: lossless.then_some(asset.bits),
+        bit_rate: None,
+    })
+}
+
 /// The sampling rates of `sampling_frequency_index` (ISO/IEC 14496-3
 /// 1.6.3.4, table 1.18).
 pub const AAC_RATES: [u32; 13] = [
@@ -1779,5 +2082,119 @@ mod tests {
         assert_eq!(hd.bit_rate(), 4_608_000);
         assert_eq!(hd.duration(2164), Some(337));
         assert_eq!(bluray_lpcm(&[0x03, 0xC0, 0x51, 0x40]), None);
+    }
+
+    /// Packs `(value, bits)` fields most significant bit first.
+    fn pack(fields: &[(u32, u32)]) -> Vec<u8> {
+        let mut out = Vec::new();
+        let mut at = 0usize;
+        for &(value, n) in fields {
+            for i in (0..n).rev() {
+                if at % 8 == 0 {
+                    out.push(0);
+                }
+                if (value >> i) & 1 == 1 {
+                    *out.last_mut().unwrap() |= 0x80 >> (at % 8);
+                }
+                at += 1;
+            }
+        }
+        out
+    }
+
+    /// An extension substream of 116 bytes with one asset of `bits` bits,
+    /// 48 kHz, `channels` channels and a 12-bit speaker mask, followed by
+    /// a component's sync word.
+    fn substream(bits: u32, channels: u32, mask: u32, component: [u8; 4]) -> Vec<u8> {
+        let mut out = DTS_SUBSTREAM_SYNC.to_vec();
+        let six = if channels > 6 { vec![(1, 1)] } else { vec![] };
+        let stereo = if channels > 2 { vec![(0, 1)] } else { vec![] };
+        let mut fields = vec![
+            (0, 8),
+            (0, 2),
+            (0, 1),
+            (31, 8),
+            (115, 16),
+            (1, 1),
+            (2, 2),
+            (0, 3),
+            (0, 1),
+            (0, 3),
+            (0, 3),
+            (1, 1),
+            (1, 8),
+            (0, 1),
+            (83, 16),
+            (14, 9),
+            (0, 3),
+            (0, 3),
+            (bits - 1, 5),
+            (12, 4),
+            (channels - 1, 8),
+            (1, 1),
+        ];
+        fields.extend(stereo);
+        fields.extend(six);
+        fields.extend([(1, 1), (2, 2), (mask, 12)]);
+        out.extend(pack(&fields));
+        out.extend(component);
+        out.resize(116, 0);
+        out
+    }
+
+    #[test]
+    fn dts_units() {
+        // A core frame of 1,024 bytes: C L R Ls Rs (AMODE 9) and LFE at
+        // 48 kHz and 768 kbit/s (RATE 15).
+        let mut core = DTS_CORE_SYNC.to_vec();
+        core.extend(pack(&[
+            (1, 1),
+            (31, 5),
+            (0, 1),
+            (15, 7),
+            (1023, 14),
+            (9, 6),
+            (13, 4),
+            (15, 5),
+            (0, 10),
+            (1, 2),
+        ]));
+        core.resize(1024, 0);
+        assert_eq!(
+            dts(&core),
+            Some(Dts {
+                profile: "DTS",
+                sample_rate: 48_000,
+                channels: 6,
+                layout: Some("5.1(side)"),
+                lossless_bits: None,
+                bit_rate: Some(768_000),
+            })
+        );
+        // The same core with a lossless asset of 24 bits on eight speakers:
+        // C, L/R, LFE, Lsr/Rsr and Lss/Rss (0x84B) are 7.1.
+        let lossless = [core.clone(), substream(24, 8, 0x84B, DTS_XLL_SYNC)].concat();
+        assert_eq!(
+            dts(&lossless),
+            Some(Dts {
+                profile: "DTS-HD MA",
+                sample_rate: 48_000,
+                channels: 8,
+                layout: Some("7.1"),
+                lossless_bits: Some(24),
+                bit_rate: None,
+            })
+        );
+        // A low bit rate asset alone, stereo.
+        let express = substream(16, 2, 0x002, DTS_LBR_SYNC);
+        assert_eq!(
+            dts(&express).map(|d| (d.profile, d.channels, d.layout, d.lossless_bits)),
+            Some(("DTS Express", 2, Some("stereo"), None))
+        );
+        // A mask that names more speakers than the asset has channels
+        // gives no layout.
+        let odd = substream(16, 2, 0x00F, DTS_XLL_SYNC);
+        assert_eq!(dts(&odd).and_then(|d| d.layout), None);
+        assert_eq!(dts(&core[..6]), None);
     }
 }

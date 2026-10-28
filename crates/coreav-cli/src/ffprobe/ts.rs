@@ -242,8 +242,9 @@ struct FileTiming {
 }
 
 /// Where `ffprobe` ends a stream: where its last access unit ends, except
-/// that it adds none of that unit for E-AC-3 and Opus and half of it for
-/// MPEG-1 video (`docs/known-divergences-ts.md`, KD-TS-END-ESTIMATE). An
+/// that it adds none of that unit for E-AC-3, Opus and DTS (every DTS
+/// stream of the corpus ends at its last PES packet's time) and half of it
+/// for MPEG-1 video (`docs/known-divergences-ts.md`, KD-TS-END-ESTIMATE). An
 /// H.264 stream ends one period of the base rate `ffprobe` reports for it
 /// (`r_frame_rate`, [`Facts::rate`]) after its latest presentation time,
 /// rounded down: on every H.264 stream of the corpus that the tail times,
@@ -263,7 +264,7 @@ fn reported_end(st: &coreav_mpegts::Stream, facts: &Facts) -> Option<i64> {
     }
     let end = st.end?;
     Some(match (st.codec, st.last_pts) {
-        (Codec::Eac3 | Codec::Opus, Some(last)) => last,
+        (Codec::Eac3 | Codec::Opus | Codec::Dts, Some(last)) => last,
         (Codec::Mpeg1Video, Some(last)) => last + (end - last) / 2,
         _ => end,
     })
@@ -756,6 +757,12 @@ fn configures(codec: Codec, data: &[u8]) -> bool {
         Codec::Mpeg4 => data
             .windows(4)
             .any(|w| matches!(*w, [0, 0, 1, 0x20..=0x2F])),
+        // A frame header (for DTS a core frame or an extension substream),
+        // not the tail of a frame that began before the file, which
+        // `ffprobe` lists as a packet of its own and which states nothing.
+        Codec::Dts => data.starts_with(&[0x7F, 0xFE, 0x80, 0x01]) || data.starts_with(b"dX %"),
+        Codec::MpegAudio => matches!(data, [0xFF, b, ..] if b & 0xE0 == 0xE0),
+        Codec::Ac3 | Codec::Eac3 => data.starts_with(&[0x0B, 0x77]),
         _ => !data.is_empty(),
     }
 }
@@ -929,6 +936,8 @@ struct Facts {
     frames: Option<(u64, u64)>,
     /// For Blu-ray LPCM: what its first frame's header states.
     lpcm: Option<params::Lpcm>,
+    /// For DTS: what its first access unit states.
+    dts: Option<params::Dts>,
     /// For AAC: whether its frames carry SBR data, which `ffprobe` finds
     /// by decoding them and reports as HE-AAC at twice the rate of the
     /// AAC frames: every frame read or nearly does, none does, or not
@@ -1004,6 +1013,7 @@ impl Facts {
             }
             Codec::AacLatm => facts.extradata = st.config.as_ref().map(Vec::len),
             Codec::BlurayPcm => facts.lpcm = params::bluray_lpcm(unit),
+            Codec::Dts => facts.dts = params::dts(unit),
             Codec::Opus => {
                 facts.extradata = opus_channels(st).and_then(|channels| match channels {
                     1 | 2 => Some(19),
@@ -1741,6 +1751,7 @@ fn stream(
             .vol
             .and_then(|v| v.profile_level)
             .map(|pl| mpeg4_profile(pl).to_owned()),
+        (Codec::Dts, _) => facts.dts.map(|d| d.profile.to_owned()),
         _ => profile(st),
     };
     e.push(("profile", profile.map_or(unknown(), s)));
@@ -1763,9 +1774,10 @@ fn stream(
     if video {
         video_entries(st, head, facts, &mut e);
     } else if audio {
-        let (rate, channels) = match facts.lpcm {
-            Some(l) => (l.sample_rate, u8::try_from(l.channels).unwrap_or(0)),
-            None => rate_and_channels(st),
+        let (rate, channels) = match (facts.lpcm, facts.dts) {
+            (Some(l), _) => (l.sample_rate, u8::try_from(l.channels).unwrap_or(0)),
+            (None, Some(d)) => (d.sample_rate, u8::try_from(d.channels).unwrap_or(0)),
+            (None, None) => rate_and_channels(st),
         };
         // SBR doubles the rate of the AAC frames.
         let rate = match (st.codec, facts.sbr) {
@@ -1783,8 +1795,10 @@ fn stream(
         };
         let sbr_mono = st.codec == Codec::Aac && facts.sbr != Some(false) && channels != 2;
         // 24-bit LPCM is decoded to 32-bit samples.
-        let sample_fmt = match facts.lpcm {
-            Some(l) if l.bits > 16 => Some("s32"),
+        // A lossless DTS asset decodes to integer planes of its depth.
+        let sample_fmt = match (facts.lpcm, lossless_bits(facts)) {
+            (Some(l), _) if l.bits > 16 => Some("s32"),
+            (_, Some(bits)) => Some(if bits > 16 { "s32p" } else { "s16p" }),
             _ => codec_name.and_then(|n| names::sample_fmt(n, None)),
         };
         e.push(("sample_fmt", sample_fmt.map_or(unknown(), s)));
@@ -1805,7 +1819,8 @@ fn stream(
             facts
                 .lpcm
                 .map(|l| l.layout)
-                .or_else(|| channel_layout(st, head))
+                .or(facts.dts.and_then(|d| d.layout))
+                .or_else(|| channel_layout(st, head).filter(|_| facts.dts.is_none()))
                 .filter(|_| !sbr_mono)
                 .map_or(unknown(), s),
         ));
@@ -1823,11 +1838,9 @@ fn stream(
         e.push(("width", size.map_or(Value::Na, |(w, _)| int(w))));
         e.push(("height", size.map_or(Value::Na, |(_, h)| int(h))));
     }
-    e.push((
-        "ts_id",
-        ts.transport_stream_id
-            .map_or(Value::Na, |id| s(id.to_string())),
-    ));
+    // A file without a Program Association Table states no
+    // `transport_stream_id`; `ffprobe` reports 0.
+    e.push(("ts_id", s(ts.transport_stream_id.unwrap_or(0).to_string())));
     e.push(("ts_packetsize", s(packet_size(ts.packet_size).to_string())));
     e.push(("id", s(format!("0x{:x}", st.pid))));
     let (r_frame_rate, avg_frame_rate) = if video {
@@ -1863,6 +1876,7 @@ fn stream(
         _ if audio => facts
             .lpcm
             .map(params::Lpcm::bit_rate)
+            .or(facts.dts.and_then(|d| d.bit_rate))
             .or_else(|| audio_bit_rate(st, head).map(u64::from)),
         _ => None,
     };
@@ -1874,7 +1888,8 @@ fn stream(
     let raw_bits = (st.codec == Codec::H264)
         .then(|| facts.sps.map(|sps| sps.bit_depth))
         .flatten()
-        .or(facts.lpcm.map(|l| l.bits).filter(|b| *b > 16));
+        .or(facts.lpcm.map(|l| l.bits).filter(|b| *b > 16))
+        .or(lossless_bits(facts));
     e.push((
         "bits_per_raw_sample",
         raw_bits.map_or(Value::Na, |b| s(b.to_string())),
@@ -1924,6 +1939,12 @@ fn stream(
         tags,
         side_data,
     }
+}
+
+/// The bits per sample of a lossless DTS asset, which `ffprobe` reports
+/// as `bits_per_raw_sample`.
+fn lossless_bits(facts: &Facts) -> Option<u32> {
+    facts.dts.and_then(|d| d.lossless_bits)
 }
 
 /// `r_frame_rate` and `avg_frame_rate` of a video stream: the picture rate

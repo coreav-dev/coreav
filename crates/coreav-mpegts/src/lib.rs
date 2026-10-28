@@ -114,6 +114,7 @@ pub mod fuzzing {
             frames::Syntax::Ac3,
             frames::Syntax::Latm,
             frames::Syntax::Opus,
+            frames::Syntax::Dts,
         ] {
             let mut at = 0usize;
             while let Some(frame) = payload

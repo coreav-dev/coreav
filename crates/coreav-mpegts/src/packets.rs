@@ -91,6 +91,11 @@ struct Frames {
     /// that no dependent substream follows it, and the dependent
     /// substreams joined to it.
     held: Option<(Packet, u8)>,
+    /// A DTS stream has shown a core frame: its extension substreams
+    /// extend the core frame before them (TS 102 114 7.5), rather than
+    /// being access units of their own as in a stream without a core
+    /// (DTS Express).
+    dts_core: bool,
     /// The PTS and position of the PES packet in which the frame
     /// `leftover` starts, when it is the first frame that starts there.
     cut: Option<(Option<i64>, i64, u64)>,
@@ -974,10 +979,9 @@ impl<S: Source> Packets<'_, S> {
         // ended: the last frame of a PES packet waits for the next PES
         // packet.
         let as_ffprobe = self.as_ffprobe;
-        let hold = self
-            .streams
-            .get(index)
-            .is_some_and(|s| s.codec == Codec::Eac3 || (as_ffprobe && s.codec == Codec::Ac3));
+        let hold = self.streams.get(index).is_some_and(|s| {
+            matches!(s.codec, Codec::Eac3 | Codec::Dts) || (as_ffprobe && s.codec == Codec::Ac3)
+        });
         let Some(state) = self.frames.get_mut(index) else {
             return;
         };
@@ -1018,6 +1022,20 @@ impl<S: Source> Packets<'_, S> {
                 // Not a frame header here: look for the next one.
                 at += 1;
                 continue;
+            };
+            // A DTS extension substream after a core frame is part of its
+            // access unit, as an E-AC-3 dependent substream is (the core
+            // and the substream may be in PES packets of their own, as on
+            // Blu-ray).
+            let frame = if syntax == frames::Syntax::Dts {
+                let substream = frame.detail == frames::DTS_SUBSTREAM;
+                state.dts_core |= !substream;
+                frames::Frame {
+                    dependent: substream && state.dts_core,
+                    ..frame
+                }
+            } else {
+                frame
             };
             let Some(bytes) = data.get(at..at + frame.len) else {
                 // Cut by the end of the PES packet. If it is the first

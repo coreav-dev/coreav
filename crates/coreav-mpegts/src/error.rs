@@ -30,7 +30,8 @@ pub enum Error {
     /// The input is not a transport stream: no sync byte repeats at a
     /// packet stride near its start.
     NotTransportStream,
-    /// No Program Association Table, or no Program Map Table, was found
+    /// A Program Association Table and none of its Program Map Tables,
+    /// or neither a Program Association Table nor a PES packet, was found
     /// within `max_probe_bytes`.
     NoPrograms,
     /// A structure is invalid in a way the reader cannot skip.

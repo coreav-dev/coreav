@@ -85,8 +85,28 @@ fn timestamps_near_the_wrap_are_placed_on_one_timeline() {
 }
 
 #[test]
-fn no_tables_is_an_error() {
+fn a_file_without_tables_lists_its_pes_pids() {
+    // No Program Association Table: the PIDs that carry PES packets are
+    // the streams, in the order of their first PES packets, each named by
+    // its payload, in no program.
     let mut mux = Mux::default();
+    mux.pes(0x102, 0xC0, 0, &adts(100), true);
+    mux.pes(0x101, 0xC0, 0, &adts(120), true);
+    mux.pes(0x102, 0xC0, 1_920, &adts(100), true);
+    let ts = probe(
+        SliceSource::new(&mux.out),
+        &Limits::default(),
+        &Allowlist::default(),
+    )
+    .unwrap();
+    let streams: Vec<_> = ts.streams.iter().map(|s| (s.pid, s.codec)).collect();
+    assert_eq!(streams, vec![(0x102, Codec::Aac), (0x101, Codec::Aac)]);
+    assert!(ts.programs.is_empty());
+    assert_eq!(ts.transport_stream_id, None);
+    // A table without its Program Map Table is an error still, and so is
+    // a file with neither tables nor PES packets.
+    let mut mux = Mux::default();
+    mux.pat(&[(1, 0x1000)]);
     mux.pes(0x101, 0xC0, 0, &adts(100), true);
     let got = probe(
         SliceSource::new(&mux.out),
@@ -94,6 +114,15 @@ fn no_tables_is_an_error() {
         &Allowlist::default(),
     );
     assert_eq!(got, Err(Error::NoPrograms));
+    // Three null packets.
+    assert_eq!(
+        probe(
+            SliceSource::new(&[0x47u8, 0x1F, 0xFF, 0x10].repeat(47 * 3)),
+            &Limits::default(),
+            &Allowlist::default()
+        ),
+        Err(Error::NoPrograms)
+    );
     assert_eq!(
         probe(
             SliceSource::new(&[0u8; 2000]),

@@ -22,7 +22,7 @@ ingest and of broadcast captures, and, by FFmpeg's vulnerability history, a demu
   every kept stream in storage order (an E-AC-3 access unit once the next
   independent frame shows its dependent substreams are all there): one packet per PES packet for video,
   one per frame for audio whose frames can be delimited (ADTS and LOAS
-  AAC, MPEG audio, AC-3, E-AC-3, Opus), with the byte position of the
+  AAC, MPEG audio, AC-3, E-AC-3, Opus, DTS), with the byte position of the
   transport packet that starts it, timestamps unwrapped past the 33-bit
   wrap, and the keyframe flag.
 - `coreav probe` prints the result as `coreav.probe-mpegts/1`
@@ -45,9 +45,10 @@ headers), the HLS specification (RFC 8216: transport stream segments, ID3
 timed metadata, packed audio) and the BDAV MPEG-2 transport stream layout
 of the Blu-ray format for 192-byte packets (the 4-byte arrival timestamp
 prefix), ISO/IEC 14496-15 (the `avcC` and `hvcC` records the in-band
-parameter sets make), and the Opus transport multiplexing draft (ETSI TS
+parameter sets make), the Opus transport multiplexing draft (ETSI TS
 1xx xxx V0.1.3, the latest the Opus project publishes) for Opus access
-units. H.264 frames are walked for keyframes by `coreav-isobmff`'s
+units, and ETSI TS 102 114 (DTS core frames, the extension substream and
+its asset descriptors). H.264 frames are walked for keyframes by `coreav-isobmff`'s
 reader, and the configuration records are described by it; the fields a
 record repeats from its SPS are read here. `ffprobe`
 and `ffmpeg` are black-box oracles only; never FFmpeg's `mpegts.c` or any
@@ -72,7 +73,8 @@ other implementation.
   packet with a warning, as before, which left a stream with a packet in
   `ffprobe`'s listing and none in ours.
 - `frames`: audio frame delimiting inside a PES payload (ADTS, LOAS,
-  MPEG audio, AC-3 and E-AC-3 sync frames, Opus access units).
+  MPEG audio, AC-3 and E-AC-3 sync frames, Opus access units, DTS core
+  frames and extension substreams).
 - `probe`, `packets`: the I/O shell over a `Source`, the trait and
   `BufferedSource` of `coreav-isobmff`, as `coreav-mkv` uses them.
 
@@ -155,7 +157,8 @@ table's loop, so that the table's order is in the document whatever order
 
 A PID that carries PES packets and that no table declares is listed too,
 after the declared streams and with no stream type of its own: its packets
-are the file's, and `ffprobe` lists them. One broadcast capture of
+are the file's, and `ffprobe` lists them, named by their payload ("Codecs
+that the PMT leaves unnamed"). One broadcast capture of
 the v1-ts-audio top-up has such a PID, and it is the only one of the forty
 development files that does. A private stream (type 0x06) whose data
 component descriptor (ARIB STD-B10 part 2 6.2.20) names a caption
@@ -240,8 +243,17 @@ nothing is ignored whole, as a decoder ignores it.
     substream (`strmtyp` 1) joins the access unit of the independent frame
     before it, up to eight (`substreamid` 0 to 7), whichever PES packet it
     is in. An AC-3 `bsid` of 9 or 10 halves or quarters the sample rate
-    `fscod` names. Rejected: PES packets for audio too (a PES packet
-    commonly holds several frames, and frames may straddle PES packets).
+    `fscod` names. A DTS extension substream (ETSI TS 102 114 7.5) joins
+    the access unit of the core frame before it in the same way, once the
+    stream has shown a core frame, whichever PES packet it is in: Blu-ray
+    puts the core and the substream in PES packets of their own with one
+    PTS, and `ffprobe` lists the two as one packet. In a stream without a
+    core (DTS Express) each substream is an access unit, lasting the
+    `nuExSSFrameDuration` its static fields state at the reference clock.
+    Rejected: PES packets for audio too (a PES packet
+    commonly holds several frames, and frames may straddle PES packets;
+    an `ffmpeg`-written DTS stream of 4,096-byte PES packets holds four
+    frames in each, which `ffprobe` lists one by one).
   - MPEG-1 and MPEG-2 video, data and subtitle streams, and streams whose
     codec this crate cannot name: one packet per PES packet, the unit the
     file delivers.
@@ -461,14 +473,94 @@ analysis at a point no time, byte or timestamp change moved.
 
 ### Codecs that the PMT leaves unnamed
 
-A private stream (type 0x06) with no descriptor that names its codec is
-identified from its first PES packet: an AC-3 or E-AC-3 sync frame, an
-ADTS header, or an MPEG audio header in an audio stream (`stream_id` 0xC0
-to 0xDF). MPEG-1 and MPEG-2 video are told apart by the sequence header:
-without a sequence extension it is MPEG-1 (13818-2 6.1.1.6), whatever the
-stream type says. Rejected: trusting the stream type alone (`ffmpeg`
-writes MPEG-1 video as type 0x02, and Blu-ray style muxers leave AAC as a
-bare private stream).
+A stream whose type and descriptors name no codec is identified from its
+payload. `ffprobe` does this whatever the type: a DTS stream relabelled
+with twenty-three stream types, from 0x00 and 0x05 through the user
+private range, is listed as DTS for every type it does not map itself
+(and as AC-3 for 0x81), so the rule applies to every unnamed type, not only to
+private streams (0x06). The PES packets of such a stream are joined, up to
+16 KiB or eight packets, until they show one of:
+
+- at the start of the payload, an AC-3 or E-AC-3 sync frame, a DTS core
+  frame or extension substream, an ADTS header, or an MPEG audio header in
+  an audio stream (`stream_id` 0xC0 to 0xDF);
+- in a video stream (`stream_id` 0xE0 to 0xEF), the start code of an
+  MPEG video sequence header, group of pictures or picture (13818-2 table
+  6-1), an H.264 access unit delimiter or sequence parameter set, or an
+  H.265 access unit delimiter or video parameter set of layer 0;
+- further into the payload, one of those audio headers followed by two
+  more of the same syntax, kind and rate, each where the frame before it
+  ends. A PES packet need not start at a frame (13818-1 2.4.3.7 asks it
+  only of the unit its PTS times), and a sync word of a few bits turns up
+  in other bytes: two headers in a row appear in the MPEG-H audio stream
+  of a capture of the corpus (as MPEG audio layer I), which `ffprobe`
+  leaves unnamed, and three do not.
+
+A stream whose first unit is not a PES packet (sections) has nothing to
+read and stays unnamed, so the probe does not wait for it. MPEG-1 and
+MPEG-2 video are told apart by the sequence header: without a sequence
+extension it is MPEG-1 (13818-2 6.1.1.6), whatever the stream type says.
+Rejected: trusting the stream type alone (`ffmpeg` writes MPEG-1 video as
+type 0x02, and Blu-ray style muxers leave AAC as a bare private stream);
+reading only the first PES packet (a capture without tables starts its
+AC-3 PES packets mid-frame); a single header further in (the MPEG-H stream
+above).
+
+The same rule names the PIDs no table declares. Once the tables are read,
+such a PID is taken as a stream when one of its PES packets starts, after
+the declared streams (those that started PES packets before the tables
+first, in the order of their first ones), and named by its payload:
+`ffprobe` lists AC-3 and DTS moved to a PID the PMT leaves out as `ac3`
+and `dts` with tag 0. A PID first seen only in the tail is listed
+unnamed, as before.
+
+A file without a Program Association Table is read the same way: its
+streams are the PIDs that carry PES packets, in the order of their first
+ones, in no program, each named by its payload, and `ts_id` is 0 -- what
+`ffprobe` lists for the two development captures without tables (MPEG-2
+video with AC-3, and with MPEG audio) and for `ffmpeg`-written files with
+their tables taken out. The probe reads the head once to find that there
+is no table, and again with those PIDs as streams. Rejected: rejecting
+such a file (`NoPrograms`), the rule before, which listed nothing of a
+capture `ffprobe` reads whole. A PAT whose Program Map Tables never come
+is still `NoPrograms`, as is a file with neither tables nor PES packets.
+
+What `ffprobe` does with too little payload is not followed: a short DTS
+stream of a type `ffprobe` does not map (0x82 without `HDMV`, as `ffmpeg`
+writes it) is listed by `ffprobe` as `mp3` with no channels, which no
+reading of the payload explains, and as `dts` once there are more frames.
+How many depends on their size, not as a fixed byte count: crafted core
+streams need 14 frames of 428 bytes, 8 of 1,024, 6 of 2,048 and 5 of
+4,096; a corpus file cut short needs six 2,128-byte DTS-HD frames. This
+reader names it DTS either way. An MPEG-H audio stream (type 0x2D) is listed unnamed, where
+`ffprobe` lists one capture's as `mp3` with no channels and another's as
+unknown.
+
+### DTS
+
+The codec is DTS for stream types 0x82, 0x85 and 0x86 and the Blu-ray
+secondary audio type 0xA2 with the registration `HDMV`, for a DVB DTS
+descriptor (EN 300 468, tag 0x7B), or from the payload. `coreav ffprobe`
+reads the parameters from the stream's first access unit (ETSI TS 102 114
+5.3.1 for the core, 7.5 for the extension substream's header and first
+asset descriptor): the core's `SFREQ`, `AMODE` and `LFF` give the rate,
+channels and layout (the surround pair of `AMODE` 9 is the side pair,
+`5.1(side)`) and `RATE` the bit rate; an asset gives the rate
+(`nuMaxSampleRate`), the channels (`nuTotalNumChs`) and the layout from
+its speaker mask (Ls/Rs and Lss/Rss the side pair, Lsr/Rsr the back pair),
+which is what the decoder `ffprobe` runs puts out. The profile is
+`ffprobe`'s name for the components the unit carries, found by their sync
+words in the substream: `DTS-HD MA` for a lossless one (decoded to `s16p`
+or `s32p` of the asset's bits, which `bits_per_raw_sample` reports),
+`DTS Express` for a low bit rate one, `DTS-HD HRA` for the other substream
+components, `DTS-ES` and `DTS 96/24` for the core's channel and 96 kHz
+extensions, `DTS` for a core alone. A stream with a substream reports no
+bit rate: `ffprobe` gives none for the lossless streams of the corpus, and
+the one it gives a DTS Express stream (187,872 bit/s on a capture whose
+substreams are 2,048 bytes every 4,096 samples) is not the substream's
+size over its duration, so it is not derived. A DTS stream ends at its
+last PES packet's time, as an E-AC-3 stream does: on every DTS stream of
+the corpus `ffprobe` adds none of the last unit.
 
 ### Timestamps
 

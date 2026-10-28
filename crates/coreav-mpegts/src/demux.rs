@@ -46,6 +46,13 @@ pub(crate) struct Pes {
     pub continuation: bool,
 }
 
+/// Most payload bytes, and PES packets, read to learn the codec of a
+/// stream the tables leave unnamed ([`Demux::sniffed`]): enough for the
+/// three frames in a row [`crate::codec::sniff`] asks for of the longest
+/// AC-3 frames (3,840 bytes).
+const SNIFF_BYTES: usize = 16 << 10;
+const SNIFF_PACKETS: u8 = 8;
+
 /// A stream as the PMTs declare it.
 #[derive(Clone, Debug)]
 pub(crate) struct Entry {
@@ -62,9 +69,14 @@ pub(crate) struct Entry {
     /// Event Information Table).
     pub pmt_index: Option<usize>,
     pub kept: bool,
-    /// A private stream no descriptor names: its first PES packet is read
-    /// to learn its codec ([`crate::codec::sniff`]).
+    /// A stream whose type and descriptors name no codec: its first PES
+    /// packets are read to learn its codec ([`crate::codec::sniff`]). A
+    /// stream whose first unit is not a PES packet (sections), or whose
+    /// packets are scrambled, has none to read and stays unnamed.
     pub sniff: bool,
+    /// The payloads of its PES packets read so far for that, joined, and
+    /// how many: a frame that a PES packet cuts goes on in the next.
+    pub sniffed: (Vec<u8>, u8),
     /// Where the stream was found (a byte offset): the packet that
     /// completed the Program Map Table naming it, or that completed the
     /// first Event Information Table section; `u64::MAX` for a PID no
@@ -128,6 +140,14 @@ pub(crate) struct Demux {
     pub sdt_before_pat: Option<bool>,
     pub programs: Vec<ProgramEntry>,
     pub streams: Vec<Entry>,
+    /// The file has no Program Association Table: its streams are the PIDs
+    /// that carry PES packets ([`Demux::without_tables`]).
+    pub tableless: bool,
+    /// Once the tables are read, a PID that carries PES packets and that
+    /// no table declares is taken as a stream as soon as one of its PES
+    /// packets starts, to be named by its payload (the probe's head; a
+    /// later read takes the probe's streams).
+    pub name_undeclared: bool,
     by_pid: BTreeMap<u16, usize>,
     sections: BTreeMap<u16, Assembler>,
     builders: BTreeMap<u16, Builder>,
@@ -181,6 +201,8 @@ impl Demux {
             sdt_before_pat: None,
             programs: Vec::new(),
             streams: Vec::new(),
+            tableless: false,
+            name_undeclared: false,
             by_pid: BTreeMap::new(),
             sections: BTreeMap::new(),
             builders: BTreeMap::new(),
@@ -218,6 +240,8 @@ impl Demux {
             sdt_before_pat: self.sdt_before_pat,
             programs: self.programs.clone(),
             streams: self.streams.clone(),
+            tableless: self.tableless,
+            name_undeclared: false,
             by_pid: self.by_pid.clone(),
             sections: BTreeMap::new(),
             builders: BTreeMap::new(),
@@ -237,6 +261,44 @@ impl Demux {
         self.buffered
     }
 
+    /// The stream on `pid` shows no payload to name it by: it is not
+    /// waited for.
+    fn stays_unnamed(&mut self, pid: u16) {
+        if let Some(entry) = self
+            .by_pid
+            .get(&pid)
+            .and_then(|&index| self.streams.get_mut(index))
+        {
+            entry.sniff = false;
+        }
+    }
+
+    /// Whether a Program Association Table was read.
+    pub(crate) fn pat_read(&self) -> bool {
+        self.pat_version.is_some()
+    }
+
+    /// Takes the PIDs that carried PES packets in a file without a Program
+    /// Association Table as its streams, in the order of their first PES
+    /// packets (`pids` gives where each is), each named by its payload
+    /// ([`crate::codec::sniff`]).
+    pub(crate) fn without_tables(&mut self, pids: &BTreeMap<u16, u64>) -> Result<(), Error> {
+        self.tableless = true;
+        let mut order: Vec<(u64, u16)> = pids.iter().map(|(pid, at)| (*at, *pid)).collect();
+        order.sort_unstable();
+        for (at, pid) in order {
+            if self.by_pid.contains_key(&pid) {
+                continue;
+            }
+            self.undeclared(pid)?;
+            if let Some(entry) = self.streams.last_mut() {
+                entry.sniff = true;
+                entry.found_at = at;
+            }
+        }
+        Ok(())
+    }
+
     /// Whether the PAT and the PMT of every program it names were read.
     pub(crate) fn tables_complete(&self) -> bool {
         let (seen, last) = self.pat_sections;
@@ -244,15 +306,24 @@ impl Demux {
         self.pat_version.is_some() && all && self.programs.iter().all(|p| p.pmt_version.is_some())
     }
 
-    /// Learns the codec of a stream from its first PES packet, if the
-    /// PMT left it unnamed.
+    /// Learns the codec of a stream from its first PES packets, if the
+    /// PMT left it unnamed: their payloads are joined, up to
+    /// [`SNIFF_BYTES`] and [`SNIFF_PACKETS`], until they name one.
     pub(crate) fn sniffed(&mut self, index: usize, pes: &Pes) {
         let allowlist = &self.allowlist;
         if let Some(entry) = self.streams.get_mut(index) {
             if entry.sniff {
-                entry.sniff = false;
-                entry.codec = crate::codec::sniff(pes.header.stream_id, &pes.payload);
-                entry.kept = allowlist.reads(entry.codec);
+                let (data, packets) = &mut entry.sniffed;
+                let room = SNIFF_BYTES.saturating_sub(data.len());
+                data.extend_from_slice(pes.payload.get(..room).unwrap_or(&pes.payload));
+                *packets = packets.saturating_add(1);
+                let codec = crate::codec::sniff(pes.header.stream_id, data);
+                if codec != Codec::Other || data.len() >= SNIFF_BYTES || *packets >= SNIFF_PACKETS {
+                    entry.sniff = false;
+                    entry.sniffed = (Vec::new(), 0);
+                    entry.codec = codec;
+                    entry.kept = allowlist.reads(codec);
+                }
             }
         }
     }
@@ -342,6 +413,23 @@ impl Demux {
                 }
             }
         }
+        // A PID no table declares, once the tables are read: `ffprobe`
+        // names it by its payload, as it names a stream whose type names
+        // no codec (crafted files: AC-3 and DTS on a PID the PMT leaves
+        // out). The PIDs that started PES packets before the tables were
+        // read come first, in the order of their first ones.
+        if self.name_undeclared
+            && header.unit_start
+            && !self.by_pid.contains_key(&pid)
+            && self.pes_pids.contains_key(&pid)
+            && self.tables_complete()
+        {
+            let before = self.streams.len();
+            self.add_undeclared(&BTreeMap::new())?;
+            for entry in self.streams.iter_mut().skip(before) {
+                entry.sniff = true;
+            }
+        }
         // Where the PID's data first shows once a program is known: a
         // stream of a program whose table comes later is found there.
         if header.unit_start
@@ -366,7 +454,11 @@ impl Demux {
         }
         if header.scrambled {
             warn(warnings, Warning::Scrambled { pid });
+            self.stays_unnamed(pid);
             return Ok(());
+        }
+        if header.unit_start && matches!(pes::parse(payload), pes::Parsed::Invalid(_)) {
+            self.stays_unnamed(pid);
         }
         if header.unit_start {
             self.complete(pid, warnings);
@@ -686,6 +778,7 @@ impl Demux {
             pmt_index: None,
             kept: self.allowlist.reads(Codec::Other),
             sniff: false,
+            sniffed: (Vec::new(), 0),
             found_at: u64::MAX,
         });
         Ok(())
@@ -715,6 +808,7 @@ impl Demux {
             pmt_index: None,
             kept: self.allowlist.allows(Codec::Epg),
             sniff: false,
+            sniffed: (Vec::new(), 0),
             found_at: self.current,
         });
         Ok(())
@@ -804,7 +898,13 @@ impl Demux {
                 codec,
                 pmt_index: Some(place),
                 kept: self.allowlist.reads(codec),
-                sniff: codec == Codec::Other && es.stream_type == 0x06,
+                // `ffprobe` identifies a stream from its payload whatever
+                // its type when the type names no codec: a stream of type
+                // 0x82 without the Blu-ray registration that carries DTS
+                // frames is DTS (crafted files of twenty-three types, and
+                // two of the corpus).
+                sniff: codec == Codec::Other,
+                sniffed: (Vec::new(), 0),
                 found_at: self.current,
             });
         }
