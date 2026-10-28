@@ -329,7 +329,13 @@ fixtures of `scripts/gen-fixtures.sh`, the Matroska and WebM copies of
 `scripts/gen-fixtures-ts.sh`). `out-of-scope`: exit non-zero, a message,
 nothing on standard output (B1). `native`: exit 0 (B2), and standard output
 **identical** to the pinned `ffprobe`'s, once the values of unknown keys and
-documented divergences are set aside (B3a on the fixtures, 100%).
+documented divergences are set aside (B3a on the fixtures, 100%). A
+fixture made to show a documented divergence is listed in `run.py`
+(`SET_ASIDE`) with its record and the keys the record names; its
+differences are set aside, and counted apart, only when every key the two
+tools print differently over the whole file (the stream and the packet
+listings of `run.py keys`) is one of those. The size fixtures stand under
+`KD-DECLARED-SIZE`, `ts_duplicates.ts` under `KD-TS-DUPLICATE`.
 
 **B3a on the corpus.** Every corpus v1 `real` file whose container
 `coreav ffprobe` reads (MP4, MOV, M4A, M4B, M4V, 3GP, Matroska, WebM), and
@@ -432,17 +438,49 @@ prints keep its derivations, which the stream oracle checks. The others:
   side data element on the first packet.
 - Stream durations: without an edit list, the shorter of the media
   header's and the samples' (the samples' when fragments follow); with one
-  edit, no longer than the edit presents. A data or subtitle track without
+  edit, no longer than the edit presents; with several, all of them, empty
+  ones in between included, rounded to the nearest tick. A data or subtitle track without
   an edit list lasts at least as long as the longest track, in its own
   ticks rounded to the nearest; a timecode track keeps its own.
 - The stream `bit_rate`: PCM and IMA ADPCM their constant rate (sample
   rate, channels and bits); audio whose edit starts inside the media
   (priming), or with several edits, the average the container declares
   (`btrt`, else `esds`); otherwise the bytes over the duration, truncated,
-  where video takes its whole media (edits aside) and a data track its own
-  span. In a fragmented movie with a segment index (`sidx`), `ffprobe`
-  counts only the first fragment's bytes, over the whole duration, rounded
-  to the nearest.
+  where video, and audio whose edit starts inside the media, take their
+  whole media (edits aside) and a data track its own span. A fragmented
+  movie's rate is rounded to the nearest, and with a segment index
+  (`sidx`) `ffprobe` counts only the first fragment's bytes, over the
+  whole duration.
+- The format's duration ends where the last audio, video or subtitle
+  stream ends (a data stream's end does not count: GoPro's `gpmd` a
+  millisecond past the video), and starts where the first audio or video
+  stream starts.
+- `field_order` of H.265, VP9 and AV1, which their configuration records
+  do not state, is the QuickTime `fiel` box's: one field is progressive,
+  two fields are named by the detail (1 `tt`, 6 `bb`, 9 `tb`, 14 `bt`),
+  anything else unknown (entries crafted with each value; the corpus's
+  AV1 and H.265 without the box are unknown).
+- `has_b_frames` of an H.264 stream that reorders frames and has several
+  edits is 16: `ffprobe` feeds the decoder edit after edit, and reports
+  its deepest delay (two and three edits, contiguous, overlapping or
+  around an empty one; not one edit, nor H.265).
+- `coded_width` and `coded_height`: the H.264 sequence parameter set's
+  cropped size, or the sample entry's when it is no larger and falls in
+  the same macroblocks in both directions and the cropping keeps the top
+  left corner (entries patched around a 1920×1080 set: 1905×1080 and
+  1920×1073 are taken, 1904×1080, 1920×1072 and 1921×1080 are not); the
+  H.265 set's uncropped size; the size the first ProRes frame header
+  states.
+- Audio: AAC's `channel_layout` from the `AudioSpecificConfig`'s
+  `channelConfiguration` (6 is `5.1`, 7 is `7.1`), and for 0 from its
+  program config element, which `ffprobe` names only as a front pair with
+  an LFE (`2.1`) or with a back pair (`quad`) among every layout `ffmpeg`
+  encodes with one; the ISO/IEC 23003-5 PCM
+  entries (`ipcm`, `fpcm`) from their `chnl` box, by `definedLayout` or
+  by the list of speaker positions, as `ffprobe` names every layout
+  `ffmpeg` writes, and none without the box; Opus's `initial_padding` is
+  the `dOps` pre-skip; integer PCM of 24 and 32 bits has a
+  `bits_per_raw_sample`.
 - A timecode stream's `avg_frame_rate` is its `tmcd` entry's timescale
   over its frame duration, unreduced.
 - A protected stream of a movie with protection system headers (`pssh`)
@@ -484,7 +522,25 @@ headers and picture timing, MPEG-1/2 sequence headers, audio frame
 headers), streams numbered as `ffprobe` numbers them (which removes
 `KD-TS-STREAM-ORDER` for this command), and packets in `ffprobe`'s order
 with the "MPEGTS Stream ID" side data and its rebuilt decode times
-(`docs/design/mpegts.md`).
+(`docs/design/mpegts.md`). The `bit_rate` of ADTS AAC is a running mean
+over the frames `ffprobe`'s analysis reads: whole PES packets in file
+order, up to and including the first after which some stream's latest
+decoding time lies more than five seconds (450,000 ticks, strictly) past
+its first timed frame's presentation time, or the first that starts past
+five million bytes (a 35 Mb/s stream crafted for it; of two AAC streams
+past that limit, `ffprobe` counts a few more frames of the second, which
+this window does not model); each frame's rate is its
+`frame_length` bytes over 1024 samples at its sampling rate, and the mean
+is truncated toward zero at every frame (`m += (rate − m) / n`). It agrees
+on every AAC transport stream of the fixtures and on 11 of the 14 AAC
+files of the development set; on the others `ffprobe`'s mean starts or
+ends at frames this window does not explain.
+
+**Selections.** `-show_streams` also prints the disposition and the tags of
+a program's streams, empty unless `-show_entries` names their entries,
+whenever the program's streams are printed; a printed program prints its
+streams, as empty objects when none of their entries is selected
+(`-show_entries program=program_id`).
 
 **Prior art.** None read: every rule above was found by running the
 pinned `ffprobe` on the fixtures, the development files and files crafted
@@ -494,8 +550,7 @@ around each standard rate's grid); a variant that also fits the grid moved
 by half a frame is not used, since no measured file needs it.
 
 **Gaps, each printed as unknown or left out, never guessed:**
-`nb_read_frames` (refused when named: it needs decoding); AAC `bit_rate` in a
-transport stream (no rule from the stored frames reproduces it); the
+`nb_read_frames` (refused when named: it needs decoding); the
 `amve` ambient viewing environment of MP4 video, and other values only
 decoding shows;
 TrueHD's sample format and DTS-HD profiles in Matroska; `r_frame_rate` where

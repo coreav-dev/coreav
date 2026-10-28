@@ -1046,6 +1046,13 @@ pub fn ac3(header: &[u8]) -> Option<Ac3> {
     })
 }
 
+/// The sampling rates of `sampling_frequency_index` (ISO/IEC 14496-3
+/// 1.6.3.4, table 1.18).
+pub const AAC_RATES: [u32; 13] = [
+    96_000, 88_200, 64_000, 48_000, 44_100, 32_000, 24_000, 22_050, 16_000, 12_000, 11_025, 8_000,
+    7_350,
+];
+
 /// Whether an AAC `raw_data_block()` (ISO/IEC 14496-3 4.4.2.1) ends with
 /// a fill element that carries SBR data (`extension_type` EXT_SBR_DATA
 /// or EXT_SBR_DATA_CRC, 4.4.2.7 and table 4.121) just before its

@@ -448,6 +448,23 @@ pub fn probe<S: Source>(source: &mut S, size: u64, name: &str) -> Result<IsoProb
                 }
             }
         }
+        // A `fiel` box names the field order where the codec's own
+        // configuration does not (H.265 written by `ffmpeg`, which adds
+        // the box for an encoder that reports its order).
+        if let Some(Some(order)) = meta.field_orders.get(i) {
+            for (k, v) in &mut stream.entries {
+                if *k == "field_order" && matches!(v, Value::Unset(_)) {
+                    *v = s(*order);
+                }
+            }
+        }
+        if let Some(Some(layout)) = meta.pcm_layouts.get(i) {
+            for (k, v) in &mut stream.entries {
+                if *k == "channel_layout" {
+                    *v = layout.map_or(Value::Unset("unknown"), s);
+                }
+            }
+        }
         stream.entries.retain(|(k, _)| *k != "extradata_size");
         if let Some(Some(n)) = meta.extradata_sizes.get(i) {
             let at = stream
@@ -590,6 +607,85 @@ fn unprotected(track: &Track, wrapped: &super::iso_meta::Protected) -> Track {
         }
     }
     t
+}
+
+/// The channel layout `ffprobe` names for an AAC track, from its
+/// `AudioSpecificConfig` (ISO/IEC 14496-3 1.6.2.1): its
+/// `channelConfiguration`, or for 0 the program config element of its
+/// `GASpecificConfig` (4.4.1.1). `ffprobe` names an element list only as
+/// below, measured on every layout `ffmpeg` encodes with one: a front
+/// channel pair with an LFE is `2.1`, with a back pair `quad`; lists with
+/// a front centre after the pair (hexagonal, 3.1, 6.0 and the others) are
+/// not named. `None` when the track is not AAC or its configuration
+/// cannot be read.
+fn aac_layout(d: &coreav_isobmff::SampleDescription) -> Option<Option<&'static str>> {
+    if d.codec != Codec::Aac {
+        return None;
+    }
+    let config = d
+        .codec_config
+        .as_ref()
+        .filter(|c| c.kind.0 == *b"esds")
+        .and_then(|c| esds_config(&c.data))?;
+    let mut bits = video::Bits::new(config);
+    let mut object_type = bits.bits(5)?;
+    if object_type == 31 {
+        object_type = 32 + bits.bits(6)?;
+    }
+    if bits.bits(4)? == 15 {
+        bits.bits(24)?;
+    }
+    let config = bits.bits(4)?;
+    if config != 0 {
+        return Some(u8::try_from(config).ok().and_then(names::aac_layout));
+    }
+    // `GASpecificConfig` of the general audio object types.
+    if !matches!(object_type, 1..=4 | 6 | 7 | 17 | 19..=23) {
+        return Some(None);
+    }
+    bits.bits(1)?;
+    if bits.bits(1)? == 1 {
+        bits.bits(14)?;
+    }
+    bits.bits(1)?;
+    // `program_config_element()`.
+    bits.bits(4 + 2 + 4)?;
+    let front = bits.bits(4)?;
+    let side = bits.bits(4)?;
+    let back = bits.bits(4)?;
+    let lfe = bits.bits(2)?;
+    bits.bits(3 + 4)?;
+    for width in [4, 4, 3] {
+        if bits.bits(1)? == 1 {
+            bits.bits(width)?;
+        }
+    }
+    let mut pairs = |n: u32| -> Option<Vec<bool>> {
+        (0..n)
+            .map(|_| {
+                let pair = bits.bits(1)? == 1;
+                bits.bits(4)?;
+                Some(pair)
+            })
+            .collect()
+    };
+    let front = pairs(front)?;
+    let side = pairs(side)?;
+    let back = pairs(back)?;
+    Some(
+        match (front.as_slice(), side.as_slice(), back.as_slice(), lfe) {
+            ([true], [], [], 1) => Some("2.1"),
+            ([true], [], [true], 0) => Some("quad"),
+            _ => None,
+        },
+    )
+}
+
+/// `bits_per_raw_sample` of integer PCM of 24 and 32 bits, which
+/// `ffprobe` states and does not for 16 bits or floating point.
+fn pcm_raw_bits(track: &Track) -> Option<u32> {
+    let pcm = track.description.pcm?;
+    (!pcm.float && matches!(pcm.bits, 24 | 32)).then_some(u32::from(pcm.bits))
 }
 
 /// The `DecoderSpecificInfo` of an `esds` payload (ISO/IEC 14496-1
@@ -900,14 +996,36 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
         let h = d.height.map(u32::from);
         e.push(("width", w.map_or(Value::Na, int)));
         e.push(("height", h.map_or(Value::Na, int)));
-        let (cw, ch) = info
-            .coded_size
-            .map_or((w, h), |(cw, ch)| (Some(cw), Some(ch)));
+        // An H.264 decoder takes the entry's size as its coded size when it
+        // is no larger than the parameter set's cropped size and falls in
+        // the same macroblocks, in both directions, and the cropping keeps
+        // the top left corner; else the cropped size. Found on entries
+        // patched to sizes around a 1920×1080 set (1905×1080 and 1920×1073
+        // are taken, 1904×1080, 1920×1072 and 1921×1080 are not), and on
+        // the development set (854×480 in a 864×480 set, 581×375 in
+        // 582×376, but not 356×365 in 356×364).
+        let fits = |entry: u32, set: u32| entry <= set && entry.div_ceil(16) == set.div_ceil(16);
+        let coded = match (info.h264_corner, w, h) {
+            (Some((sw, sh)), Some(w), Some(h)) if fits(w, sw) && fits(h, sh) => Some((w, h)),
+            _ => info.coded_size,
+        };
+        let (cw, ch) = coded.map_or((w, h), |(cw, ch)| (Some(cw), Some(ch)));
         e.push(("coded_width", cw.map_or(Value::Na, int)));
         e.push(("coded_height", ch.map_or(Value::Na, int)));
         e.push(("closed_captions", Value::Int(0)));
         e.push(("film_grain", Value::Int(0)));
-        e.push(("has_b_frames", info.has_b_frames.map_or(Value::Na, int)));
+        // An H.264 stream that reorders frames, played through several
+        // edits, is fed to the decoder edit after edit, its presentation
+        // times going back at every edit, and `ffprobe` then reports the
+        // decoder's deepest delay, 16 frames: on streams crafted with two
+        // and three edits, contiguous, overlapping or around an empty one;
+        // not with one edit, nor for H.265.
+        let multiple = track.edit_list == coreav_isobmff::EditList::Multiple;
+        let has_b_frames = match info.has_b_frames {
+            Some(n) if n > 0 && multiple && d.codec == Codec::H264 => Some(16),
+            other => other,
+        };
+        e.push(("has_b_frames", has_b_frames.map_or(Value::Na, int)));
         // The container's ratio (`pasp`), else the one the stream signals.
         let (sar, dar) = match (d.pixel_aspect.or(info.sar), w, h) {
             (Some((hs, vs)), Some(w), Some(h)) => (
@@ -1020,17 +1138,29 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
             rate.map_or(Value::Na, |r| Value::Unit(i64::from(r), Unit::Hertz)),
         ));
         e.push(("channels", channels.map_or(Value::Na, int)));
-        e.push((
-            "channel_layout",
-            channels
-                .and_then(names::default_layout)
-                .map_or(Value::Unset("unknown"), s),
-        ));
+        // AAC is named by its own configuration ([`aac_layout`]).
+        let layout = aac_layout(d).unwrap_or_else(|| channels.and_then(names::default_layout));
+        e.push(("channel_layout", layout.map_or(Value::Unset("unknown"), s)));
         e.push(("bits_per_sample", int(coded_bits.map_or(0, i64::from))));
-        e.push(("initial_padding", Value::Int(0)));
+        // Opus states its pre-skip (RFC 7845 5.1, in the `dOps` box of
+        // the Opus in ISOBMFF encapsulation 4.3.2).
+        let padding = d
+            .codec_config
+            .as_ref()
+            .filter(|c| d.codec == Codec::Opus && c.kind.0 == *b"dOps")
+            .and_then(|c| match *c.data.get(2..4)? {
+                [hi, lo] => Some(i64::from(u16::from_be_bytes([hi, lo]))),
+                _ => None,
+            })
+            .unwrap_or(0);
+        e.push(("initial_padding", Value::Int(padding)));
     } else if let Some((w, h)) = compat::text_size(movie, track) {
         e.push(("width", int(w)));
         e.push(("height", int(h)));
+    } else if track.kind == TrackKind::Subtitle && !chapter_data(movie, track) && !as_data(track) {
+        // A subtitle stream has a size, unknown when the entry states none.
+        e.push(("width", Value::Na));
+        e.push(("height", Value::Na));
     }
     e.push(("id", s(format!("0x{:x}", track.track_id))));
     let frames = u64::from(track.sample_count).saturating_add(track.fragment_samples);
@@ -1098,8 +1228,15 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
         track.sample_bytes
     };
     // Video over its whole media, edits aside (8 of 8 edited video streams
-    // of the development set whose bit rate differed otherwise).
-    let span = if video {
+    // of the development set whose bit rate differed otherwise), and audio
+    // whose edit starts inside the media when it declares no average (MP3
+    // in QuickTime's `.mp3` entry: bytes over the 97,105 ticks of media,
+    // not the 96,000 of the edit).
+    let primed = matches!(
+        track.edit_list,
+        coreav_isobmff::EditList::Simple { media_time, .. } if media_time > 0
+    );
+    let span = if video || (audio && primed) {
         let samples = i64::try_from(track.sample_duration).ok().filter(|d| *d > 0);
         let header = i64::try_from(track.mdhd_duration).ok().filter(|d| *d > 0);
         match (samples, header) {
@@ -1115,8 +1252,10 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
         let bits = u128::from(bytes?)
             .checked_mul(8)?
             .checked_mul(u128::from(track.timescale))?;
-        // That count is rounded to the nearest, the whole one truncated.
-        let rounded = if first_only { ticks / 2 } else { 0 };
+        // The rate of a fragmented movie is rounded to the nearest (the
+        // fixtures, with and without a segment index), that of a whole one
+        // truncated.
+        let rounded = if movie.has_fragments() { ticks / 2 } else { 0 };
         i64::try_from(bits.checked_add(rounded)? / ticks).ok()
     });
     e.push((
@@ -1129,6 +1268,7 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
     e.push((
         "bits_per_raw_sample",
         info.bits_per_raw_sample
+            .or_else(|| pcm_raw_bits(track))
             .map_or(Value::Na, |b| s(b.to_string())),
     ));
     // The samples of the movie box's tables: `ffprobe` counts none of a
@@ -1218,6 +1358,19 @@ fn media_duration(movie: &Movie, track: &Track) -> Option<i64> {
             Some(edited.map_or(samples, |e| e.min(samples)))
         }
         (_, None) => edited.filter(|d| *d > 0).or(header),
+        // Several edits last as long as all of them, empty ones in
+        // between included (`edit_multi_empty.mp4`: 4 s of media, 1 s
+        // empty, 5 s of media last 10 s), rounded to the nearest tick.
+        (coreav_isobmff::EditList::Multiple, _) if movie.timescale > 0 => {
+            let total = track.edits.iter().try_fold(0u128, |sum, e| {
+                sum.checked_add(u128::from(e.segment_duration))
+            });
+            let den = u128::from(movie.timescale);
+            total
+                .and_then(|t| t.checked_mul(u128::from(track.timescale)))
+                .and_then(|t| i64::try_from((t + den / 2) / den).ok())
+                .or(edited)
+        }
         _ => edited,
     }
 }
@@ -1357,16 +1510,20 @@ fn span(streams: &[(StreamKind, i64, Option<i64>, Option<i64>)]) -> (Option<i64>
     let mut first: Option<i64> = None;
     let mut last: Option<i64> = None;
     for (kind, timescale, start, duration) in streams {
-        if av && !matches!(kind, StreamKind::Video | StreamKind::Audio) {
-            continue;
-        }
+        let other = av && !matches!(kind, StreamKind::Video | StreamKind::Audio);
         let Some(start) = start.and_then(|s| us(s, *timescale)) else {
             continue;
         };
-        first = Some(first.map_or(start, |f| f.min(start)));
+        if !other {
+            first = Some(first.map_or(start, |f| f.min(start)));
+        }
+        // A subtitle stream's end counts (`text_shifted.mp4`), a data
+        // stream's does not (GoPro's `gpmd` a millisecond past the video).
+        let ends = !other || *kind == StreamKind::Subtitle;
         if let Some(end) = duration
             .and_then(|d| us(d, *timescale))
             .and_then(|d| start.checked_add(d))
+            .filter(|_| ends)
         {
             last = Some(last.map_or(end, |l| l.max(end)));
         }

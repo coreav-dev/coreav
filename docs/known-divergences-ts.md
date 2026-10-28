@@ -120,7 +120,9 @@ KD-TS-FRAME-TIME.
 ## KD-TS-DUPLICATE
 
 - Fields: packet `size`, `pts`, `dts`, `pos` and `keyframe`, and packets
-  one side lists and the other does not.
+  one side lists and the other does not; in `coreav ffprobe`, also the
+  stream's `bit_rate`, which both tools average over the frames they list
+  (`docs/design/compat-cli.md`).
 - When: a transport packet of an ADTS AAC stream repeats the previous
   packet of its PID: the same continuity counter and the same bytes, its
   PCR aside. The same counter on other bytes is a lost packet, which

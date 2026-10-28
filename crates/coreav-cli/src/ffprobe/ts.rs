@@ -446,6 +446,9 @@ struct Head {
     /// were read and how many end with SBR data
     /// ([`params::aac_ends_with_sbr`]).
     sbr: (u32, u32),
+    /// For an ADTS stream: the bit rate `ffprobe` reports and how many
+    /// frames it averages ([`Analysis`]).
+    aac_rate: (i64, i64),
 }
 
 /// How many frames of an AAC stream are read for SBR data.
@@ -558,6 +561,98 @@ impl Order {
     }
 }
 
+/// The part of the file `ffprobe` analyses before it reports the streams,
+/// as far as the bit rate of an ADTS stream shows it: whole PES packets in
+/// file order, up to and including the first after which some stream's
+/// latest decoding time lies more than [`ANALYSIS_SPAN`] past the
+/// presentation time of its first timed frame. On every AAC transport
+/// stream of the fixtures and on 11 of 14 AAC files of the development
+/// set, the bit rate `ffprobe` reports is the running mean of the bit
+/// rates of the ADTS frames listed in that part (each frame's
+/// `frame_length` bytes over 1024 samples at its sampling rate),
+/// truncated to an integer at every frame as C's division does; files
+/// crafted with frames of chosen sizes show it frame by frame.
+#[derive(Default)]
+struct Analysis {
+    /// Per stream: the presentation time of its first timed frame and the
+    /// decoding time of its latest one.
+    spans: Vec<Option<(i64, i64)>>,
+    /// The stream of the PES packet being read, and where it starts.
+    current: Option<(usize, u64)>,
+    /// The analysis ended.
+    over: bool,
+}
+
+/// How far the analysis reads into a stream, in 90 kHz ticks: past five
+/// seconds, strictly.
+const ANALYSIS_SPAN: i64 = 5 * 90_000;
+
+/// How far the analysis reads into the file: it ends after the first PES
+/// packet that starts past five million bytes (a 35 Mb/s stream ends
+/// there, 1 s in, and not after five seconds).
+const ANALYSIS_BYTES: u64 = 5_000_000;
+
+impl Analysis {
+    /// Notes a frame of `stream`, the first of its PES packet when
+    /// `starts` is set, and tells whether it is part of the analysis.
+    fn note(
+        &mut self,
+        stream: usize,
+        offset: u64,
+        starts: bool,
+        pts: Option<i64>,
+        dts: Option<i64>,
+    ) -> bool {
+        if self.over {
+            return false;
+        }
+        let new = starts || self.current.is_none_or(|(s, _)| s != stream);
+        if let Some((_, at)) = self.current.filter(|_| new) {
+            let past = at > ANALYSIS_BYTES
+                || self
+                    .spans
+                    .iter()
+                    .flatten()
+                    .any(|(first, last)| last - first > ANALYSIS_SPAN);
+            if past {
+                self.over = true;
+                return false;
+            }
+        }
+        if new {
+            self.current = Some((stream, offset));
+        }
+        if self.spans.len() <= stream {
+            self.spans.resize(stream + 1, None);
+        }
+        if let (Some(dts), Some(span)) = (dts, self.spans.get_mut(stream)) {
+            let first = span.map_or(pts.unwrap_or(dts), |(first, _)| first);
+            *span = Some((first, dts));
+        }
+        true
+    }
+}
+
+/// The bit rate of an ADTS frame, as `ffprobe` averages it
+/// ([`Analysis`]), when `data` holds the whole frame.
+fn adts_bit_rate(data: &[u8]) -> Option<i64> {
+    let [0xFF, b1, b2, b3, b4, b5, ..] = *data else {
+        return None;
+    };
+    if b1 & 0xF6 != 0xF0 {
+        return None;
+    }
+    let rate = params::AAC_RATES.get(usize::from((b2 >> 2) & 0x0F))?;
+    let len = (usize::from(b3 & 0x03) << 11) | (usize::from(b4) << 3) | usize::from(b5 >> 5);
+    if data.len() < len {
+        return None;
+    }
+    i64::try_from(len * 8)
+        .ok()?
+        .checked_mul(i64::from(*rate))
+        .map(|b| b / 1024)
+}
+
 /// What the head of the file shows, per stream of the probe.
 struct HeadRead {
     streams: Vec<Head>,
@@ -601,6 +696,8 @@ fn head<S: Source>(
 ) -> Result<HeadRead, Failure> {
     let mut streams: Vec<Head> = ts.streams.iter().map(|_| Head::default()).collect();
     let end = ts.first_packet.saturating_add(HEAD_BYTES);
+    let mut analysis = Analysis::default();
+    let adts = ts.streams.iter().any(|st| st.codec == Codec::Aac);
     let mut packets = ts.packets(&mut *source, limits).listing_as_ffprobe();
     // Whether the head read to the end of the file or of its budget, which
     // covers what `ffprobe` decodes of every stream ([`Order`]).
@@ -620,7 +717,21 @@ fn head<S: Source>(
         let Some(st) = ts.streams.get(packet.stream) else {
             continue;
         };
+        let analysed = analysis.note(
+            packet.stream,
+            packet.pes_offset,
+            packet.pos.is_some(),
+            packet.pts,
+            packet.dts,
+        );
         if let Some(h) = streams.get_mut(packet.stream) {
+            if analysed && st.codec == Codec::Aac {
+                if let Some(rate) = adts_bit_rate(&packet.data) {
+                    let (mean, n) = &mut h.aac_rate;
+                    *n += 1;
+                    *mean += (rate - *mean) / *n;
+                }
+            }
             let keep = h.unit.is_none()
                 && packet.data.len() <= MAX_KEPT_UNIT
                 && configures(st.codec, &packet.data);
@@ -675,6 +786,7 @@ fn head<S: Source>(
         // names; when it found none, the head waits a little longer for
         // them.
         let named = !ts.services.is_empty() || !packets.services().is_empty();
+        let done = done && (analysis.over || !adts);
         if done && (named || packet.pes_offset > ts.first_packet.saturating_add(SDT_WAIT)) {
             whole = false;
             break;
@@ -1191,12 +1303,17 @@ fn channel_layout(st: &coreav_mpegts::Stream, head: &Head) -> Option<&'static st
     }
 }
 
-/// The bit rate an audio stream's frame headers state.
+/// The bit rate an audio stream's frame headers state, or for ADTS the
+/// mean [`Analysis`] takes.
 fn audio_bit_rate(st: &coreav_mpegts::Stream, head: &Head) -> Option<u32> {
     let unit = head.unit.as_deref()?;
     match st.codec {
         Codec::MpegAudio => params::mpeg_audio_bit_rate(unit),
         Codec::Ac3 | Codec::Eac3 => params::ac3(unit).map(|h| h.bit_rate),
+        Codec::Aac => match head.aac_rate {
+            (mean, n) if n > 0 => u32::try_from(mean).ok(),
+            _ => None,
+        },
         _ => None,
     }
 }
@@ -2094,6 +2211,36 @@ mod tests {
         let mut partial = order(&[0, 3600]);
         partial.covered = false;
         assert_eq!(partial.reorder(), None);
+    }
+
+    #[test]
+    fn the_analysis_ends_after_the_pes_packet_past_five_seconds() {
+        let mut a = Analysis::default();
+        assert!(a.note(0, 0, true, Some(0), Some(0)));
+        assert!(a.note(1, 0, true, Some(100), Some(100)));
+        // Exactly five seconds is not past them.
+        assert!(a.note(0, 0, true, Some(450_000), Some(450_000)));
+        assert!(a.note(0, 0, true, Some(450_001), Some(450_001)));
+        // The frames of the same PES packet are still read.
+        assert!(a.note(0, 0, false, None, Some(452_000)));
+        assert!(!a.note(1, 0, true, Some(9_000), Some(9_000)));
+        assert!(!a.note(0, 0, true, Some(460_000), Some(460_000)));
+        // Five million bytes end it too, after the PES packet that starts
+        // past them.
+        let mut a = Analysis::default();
+        assert!(a.note(0, 4_999_000, true, Some(0), Some(0)));
+        assert!(a.note(0, 5_000_100, true, Some(10), Some(10)));
+        assert!(a.note(0, 5_000_100, false, None, Some(20)));
+        assert!(!a.note(1, 5_000_300, true, Some(30), Some(30)));
+    }
+
+    #[test]
+    fn adts_frames_count_their_whole_length() {
+        // 48 kHz (index 3), frame_length 371.
+        let mut frame = vec![0xFF, 0xF1, 0x4C, 0x80, 0x2E, 0x7F, 0xFC];
+        assert_eq!(adts_bit_rate(&frame), None);
+        frame.resize(371, 0);
+        assert_eq!(adts_bit_rate(&frame), Some(371 * 8 * 48_000 / 1024));
     }
 
     #[test]

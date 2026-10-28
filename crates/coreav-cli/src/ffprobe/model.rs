@@ -306,6 +306,8 @@ pub struct Selection {
     /// The named entries, per section; `Some` of an empty list when the
     /// section was named with `=` and no key.
     keys: [Option<Vec<String>>; SECTIONS],
+    /// Printed, with no entry unless named, whenever the parent is.
+    bare: [bool; SECTIONS],
     /// Printed: selected, or holding a selected section.
     shown: [bool; SECTIONS],
 }
@@ -349,7 +351,19 @@ impl Selection {
         }
     }
 
+    /// Prints `sid` whenever its parent is printed, with no entry unless
+    /// one is named. `-show_streams` does this for the disposition and the
+    /// tags of a program's streams: `-show_streams -show_entries
+    /// stream=index` prints them as empty objects there.
+    pub fn select_bare(&mut self, sid: Sid) {
+        if let Some(bare) = self.bare.get_mut(sid.index()) {
+            *bare = true;
+        }
+    }
+
     /// Works out which sections are printed, once every selection is in.
+    /// A printed program prints its streams, as empty objects when no
+    /// entry of theirs is selected (`-show_entries program=program_id`).
     pub fn finish(&mut self) {
         let mut shown = [false; SECTIONS];
         for sid in Sid::ALL {
@@ -365,6 +379,17 @@ impl Selection {
                     break;
                 }
                 at = at.def().parent;
+            }
+        }
+        // The table lists parents before their sections.
+        for sid in Sid::ALL {
+            let parent = sid.def().parent;
+            let bare = self.bare.get(sid.index()).copied().unwrap_or(false)
+                || matches!(sid, Sid::ProgramStreams | Sid::ProgramStream);
+            if bare && sid != Sid::Root && shown.get(parent.index()).copied().unwrap_or(false) {
+                if let Some(s) = shown.get_mut(sid.index()) {
+                    *s = true;
+                }
             }
         }
         self.shown = shown;
@@ -436,6 +461,23 @@ mod tests {
         sel.select_all(Sid::Stream);
         sel.finish();
         assert!(sel.entry(Sid::Stream, "width"));
+    }
+
+    #[test]
+    fn show_streams_prints_the_program_streams_dispositions_bare() {
+        let mut sel = Selection::default();
+        sel.select_all(Sid::Stream);
+        sel.select_bare(Sid::ProgramStreamDisposition);
+        sel.finish();
+        assert!(!sel.shown(Sid::Programs) && !sel.shown(Sid::ProgramStreamDisposition));
+        sel.select_keys(Sid::ProgramStream, &["index".to_owned()]);
+        sel.finish();
+        assert!(sel.shown(Sid::ProgramStreamDisposition));
+        assert!(!sel.entry(Sid::ProgramStreamDisposition, "default"));
+        let mut sel = Selection::default();
+        sel.select_keys(Sid::Program, &["program_id".to_owned()]);
+        sel.finish();
+        assert!(sel.shown(Sid::ProgramStream) && !sel.shown(Sid::ProgramStreamDisposition));
     }
 
     #[test]

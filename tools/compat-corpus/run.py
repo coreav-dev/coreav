@@ -71,9 +71,60 @@ def load_commands():
         return [json.loads(line) for line in f if line.strip()]
 
 
+# Fixtures crafted to show a documented divergence: the record, and the keys
+# it names. A difference on such a fixture is set aside, and counted apart,
+# only when every key the two tools print differently over the whole file
+# (the stream listing and the packet listing of `run.py keys`) is one the
+# record names; `packets.*` stands for whole packets, which the record lets
+# one side list and the other not. Any other difference fails.
+DECLARED_SIZE = ('KD-DECLARED-SIZE (docs/known-divergences.md)',
+                 {'streams.width', 'streams.height', 'streams.display_aspect_ratio'})
+SET_ASIDE = {
+    'size_entry_understated.mp4': DECLARED_SIZE,
+    'size_prores_understated.mov': DECLARED_SIZE,
+    'size_hevc_window.mp4': DECLARED_SIZE,
+    'size_hevc_mixed_window.mp4': DECLARED_SIZE,
+    'ts_duplicates.ts': ('KD-TS-DUPLICATE (docs/known-divergences-ts.md)',
+                         {'packets.*', 'streams.bit_rate', 'programs.streams.bit_rate'}),
+}
+
+
+def covered_by_record(coreav, path):
+    """The record that covers every difference of `path`, or None. Keys
+    CoreAV prints and ffprobe does not, and a packet listing of another
+    length, count as differences too."""
+    record, fields = SET_ASIDE.get(path.name, (None, set()))
+    if record is None:
+        return None
+    _, ref_out, _ = run(['ffprobe'] + SECTION_ARGS + [str(path)])
+    code, out, _ = run([coreav, 'ffprobe'] + SECTION_ARGS + [str(path)])
+    try:
+        extra = set(flatten(json.loads(out))) - set(flatten(json.loads(ref_out)))
+    except ValueError:
+        return None
+    if code != 0 or extra:
+        return None
+    if 'packets.*' not in fields:
+        listings = [run(tool + PACKET_ARGS + [str(path)])[1].count(b'\n')
+                    for tool in (['ffprobe'], [coreav, 'ffprobe'])]
+        if listings[0] != listings[1]:
+            return None
+    for args in (SECTION_ARGS, PACKET_ARGS):
+        r = compare_file(coreav, path, args)
+        if r is None or r[2] != 0:
+            return None
+        for name, ok in r[0].items():
+            if ok or name in fields or ('packets.*' in fields and name.startswith('packets.')):
+                continue
+            return None
+    return record
+
+
 def cmd_commands(opts):
     files = media_files(opts.media)
     records = [r for r in load_commands() if r['tool'] == 'ffprobe']
+    aside = {p.name: covered_by_record(opts.coreav, p) for p in files if p.name in SET_ASIDE}
+    set_aside = collections.Counter()
 
     b1 = collections.Counter()
     b2 = collections.Counter()
@@ -113,16 +164,19 @@ def cmd_commands(opts):
             b2['pass'] += 1
             if out == ref_out:
                 b3['pass'] += 1
+            elif aside.get(path.name):
+                b3['set aside'] += 1
+                set_aside[aside[path.name]] += 1
             else:
                 b3['fail'] += 1
                 failures.append({'bar': 'B3', 'args': args, 'file': path.name,
                                  'diff': first_difference(ref_out, out)})
     b1_ffmpeg, _ = ffmpeg_refusals(opts, files, collections.Counter(), failures)
     report = {'B1': dict(b1), 'B1 ffmpeg': dict(b1_ffmpeg), 'B2': dict(b2), 'B3': dict(b3),
-              'failures': failures}
+              'set aside': dict(set_aside), 'failures': failures}
     if opts.report:
         pathlib.Path(opts.report).write_text(json.dumps(report, indent=1))
-    print(json.dumps({k: report[k] for k in ('B1', 'B1 ffmpeg', 'B2', 'B3')}))
+    print(json.dumps({k: report[k] for k in ('B1', 'B1 ffmpeg', 'B2', 'B3', 'set aside')}))
     by = collections.Counter((f['bar'], ' '.join(f['args'])) for f in failures)
     for (bar, args), n in by.most_common(opts.top):
         print(f'{bar} x{n}: {args}')
