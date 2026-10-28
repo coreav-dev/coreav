@@ -57,7 +57,20 @@ without an edit list).
 - With `--exact`, the **first frame presented at or after `TIME`**, the
   frame `ffmpeg -ss TIME` (accurate seeking, its default) outputs. The
   packets from the keyframe before it through that frame, in decode order,
-  are decoded; frames after it in decode order are not.
+  are decoded; frames after it in decode order are not, unless the
+  decoder holds the frame back: FFmpeg's H.264 decoder keeps the pictures
+  after an open GOP's I picture (a recovery point, ITU-T H.264 D.2.8)
+  until later packets arrive, and drops them at the end of the stream.
+  When no frame comes, the packets are decoded again with those after the
+  frame, in decode order up to the next keyframe and at most 32 of them
+  (the seek window's margin), within what is left of the timeout; decoded
+  from the I picture, it is the frame a decode from the start gives. The
+  second pass stops once the frame comes, which through the sandbox is
+  some packets after the decoder output it. Rejected:
+  sending the later packets in the first pass whenever the frame has not
+  come yet, which the sandboxed decoder, whose frames arrive late, would
+  pay on every image; and starting from the keyframe before, which
+  decodes a whole extra GOP and meets the same held-back frame.
 - When no keyframe is presented at or before `TIME` (a time before the
   first keyframe, or an edit list that starts after the stream's only
   keyframe, as trimmed files do), keyframe mode gives the frame `--exact`
