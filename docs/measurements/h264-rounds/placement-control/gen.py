@@ -1,4 +1,4 @@
-"""gen.py N OUT: a no-op patch: Decoder::new calls an opaque never-taken branch into a function of N multiply steps."""
+"""gen.py N OUT: a no-op patch: Decoder::with_kernels takes an opaque never-taken branch into a function of N multiply steps."""
 import random, sys, subprocess
 n, out = int(sys.argv[1]), sys.argv[2]
 src = open('crates/coreav-h264/src/decoder.rs').read()
