@@ -65,12 +65,12 @@ In:
 - Output: MP4 with the movie box first, written as the other writing
   commands write (a temporary file renamed over `OUT` on success).
 
-Out, each needing its own item of section 8.8:
-- Audio re-encoding: section 8.8 item 3, which needs an encoder backend
-  and the policy record "encoders are a policy prerequisite" asks for.
-- Other encoders (NVENC, SVT-AV1, `rav1e`, libopus): the same record.
-- Smart rendering (8.8 item 1), the copy-when-possible router (item 2),
-  ladders (item 5), other filters (item 6), MKV output, MPEG-TS input,
+Out, each needing its own roadmap item:
+- Audio re-encoding, which needs an encoder backend and a recorded
+  encoder policy, which the roadmap makes a prerequisite of any encoder.
+- Other encoders (NVENC, SVT-AV1, `rav1e`, libopus): the same policy.
+- Smart rendering, the copy-when-possible router, ladders, other
+  filters, MKV output, MPEG-TS input,
   trimming (`-ss`, `-t`), two-pass rate control.
 
 ## Pipeline
@@ -117,7 +117,7 @@ decoder returns.
 
 ### The encoder program
 
-Section 8.8 leaves the choice between an `x264` binary and
+The roadmap leaves the choice between an `x264` binary and
 `ffmpeg -c:v libx264` to the first design note that needs it. Both are
 supported behind one boundary, raw frames in and an H.264 Annex B byte
 stream out:
@@ -513,10 +513,10 @@ is linked or bundled; the operator installs the encoder.
 
 ## Rejected alternatives
 
-- **Linking libx264.** GPL: section 8.8 never bundles it, and FFmpeg's
+- **Linking libx264.** GPL: CoreAV never bundles it, and FFmpeg's
   libraries are never linked.
 - **An encoder crate in this item** (OpenH264, NVENC, or an AV1 encoder
-  for AV1 output). Each needs the encoder policy record of section 8.8
+  for AV1 output). Each needs a recorded encoder policy
   first; OpenH264 adds a patent question of its own.
 - **Encoder output in a container** (x264's `--muxer mkv` or `flv`,
   `ffmpeg -f matroska`) for its timestamps. The two programs would need
@@ -711,7 +711,7 @@ information command once).
    which `ffprobe` lists as a video stream with the attached-picture
    disposition, has to be read but is not a written track.) Where the build has the native decoder, it
    also decodes the output's video, and its frames equal FFmpeg's
-   `framemd5` of it (decoder conformance, section 8.8): 100% of the
+   `framemd5` of it (decoder conformance): 100% of the
    outputs within that decoder's scope (`docs/design/h264.md`: 8-bit
    4:2:0); the others are counted apart by profile.
 2. **B2, frames and timestamps exact.** The output's video frames
@@ -782,7 +782,7 @@ information command once).
    they differ by more than 5% (the gate command is the baseline
    without audio, `-an`: it measures the host, not the job).
    - **Why above 1.00.** The encoder is the same libx264 with the same
-     settings, and its time is most of the job; section 8.7 says "with the
+     settings, and its time is most of the job; the roadmap says "with the
      same encoder and settings, encoding itself is no faster than
      FFmpeg's". What CoreAV adds is set by policy: the encoder must run as
      a separate program (GPL), and third-party decoders in a sandboxed
@@ -792,8 +792,9 @@ information command once).
      starts one. FFmpeg passes frames by reference in one process. 1.05
      bounds that cost at 5% of the median file's time. A "faster" claim
      still needs the upper bound of its interval below 1.00, and none is
-     expected from this item: CoreAV's wins in section 8.8 come from
-     encoding fewer frames (items 1, 2 and 5).
+     expected from this item: the roadmap expects CoreAV's transcoding
+     wins from encoding fewer frames (smart rendering, the
+     copy-when-possible router and ladders).
 6. **B6, hostile input.** Every file of the hostile-input suite
    (`tools/hostile/generate.py`) through `coreav transcode`:
    exit 0, or 1 with a `coreav.error/1` object; no crash, signal, hang

@@ -45,8 +45,8 @@ without an edit list).
 
 - By default, the **latest keyframe presented at or before `TIME`**: the
   frame `ffmpeg -ss K` outputs for that keyframe's own time `K`. It needs
-  one packet decoded, which is the point of section 3.2's "decoding only
-  the frame a thumbnail needs". (`ffmpeg -noaccurate_seek -ss TIME` does
+  one packet decoded, which is the point of the principle "decoding
+  only the frame a thumbnail needs". (`ffmpeg -noaccurate_seek -ss TIME` does
   not give it for MP4: on a fixture with a keyframe at 10.0 s,
   `-noaccurate_seek -ss 10.5` output the frame at 10.467 s, so FFmpeg's
   MP4 demuxer still drops the frames before `TIME` after its seek.) A keyframe is a sync sample whose coded data agrees,
@@ -118,7 +118,7 @@ royalty-free and permissively licensed:
 
 Rejected: an image encoder through FFI (libjpeg-turbo, libwebp):
 permissively licensed, but C code in the parent process would need a
-backend exception crate (principle 1) for a few milliseconds of work on a
+backend exception crate for a few milliseconds of work on a
 small image.
 
 ## Frames nothing depends on

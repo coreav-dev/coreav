@@ -675,7 +675,7 @@ mod threshold_tests {
     use super::*;
 
     #[test]
-    fn proposal_thresholds_and_minimum_counts_are_enforced() {
+    fn thresholds_and_minimum_counts_are_enforced() {
         let mut report = Report {
             stream_eligible: 100,
             stream_agree: 98,

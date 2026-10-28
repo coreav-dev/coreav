@@ -2,8 +2,8 @@
 """Apply the documented transport stream known divergences to coreav-oracle
 reports.
 
-Decision 3 (oracle and correctness policy) and proposal 6.2: a mismatch counts
-as agreement only when a documented entry's predicate covers it; covered items
+Under the oracle and correctness policy, a mismatch counts as agreement
+only when a documented entry's predicate covers it; covered items
 stay in the denominator and are reported apart from direct agreement. The
 entries live in docs/known-divergences-ts.md with the twin
 docs/known-divergences-ts.json; the captures come from tools/ts-adapter and

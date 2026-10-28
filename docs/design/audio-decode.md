@@ -560,8 +560,8 @@ Fixed before the measured runs; the evidence goes to
    taps for each of 96,000 output samples a second, FFmpeg's resampler
    does it in about half our time per output sample on this machine, and
    our filter loop keeps output bit-identical across CPUs (no fused
-   multiply-add, above). (a) is the use the roadmap names (section 8.7,
-   step 1: "for transcription pipelines"); the per-sample cost of (b) is
+   multiply-add, above). (a) is the use the roadmap names for audio
+   decoding ("for transcription pipelines"); the per-sample cost of (b) is
    the next speed item for this crate, with a new run of this pair. The
    command pairs gate both, as a user runs them.
 6. **Safety.** The `decode` fuzz target with conversions (16 kHz mono, 48
@@ -619,7 +619,7 @@ Native, written from RFC 9639 (`coreav_audio::flac`).
 - **Native, not libFLAC.** The format is small and completely specified,
   lossless output makes correctness binary (bit-exact or wrong), and a
   native decoder removes C code from the untrusted-input path, which is
-  the point of section 8.7's safety criterion. Rejected: libFLAC (BSD) in a
+  the point of the roadmap's safety criterion. Rejected: libFLAC (BSD) in a
   backend crate, which would add `unsafe` and C for no capability the
   native decoder lacks.
 - **Configuration**: Matroska's `CodecPrivate` (`fLaC` and the metadata
@@ -649,7 +649,7 @@ Native, written from RFC 9639 (`coreav_audio::flac`).
   - Only FLAC sample entries (`fLaC`) and `A_FLAC` tracks are FLAC. An
     encrypted entry (`enca`) cannot be decoded without its keys, and an
     IAMF stream (`iamf`, AOMedia's Immersive Audio Model and Formats) that carries FLAC
-    is a format of its own, outside section 8.7: both are refused with
+    is a format of its own, outside the roadmap's scope: both are refused with
     their names. Two corpus files of each kind exist.
   - The streaminfo MD5 is not checked while decoding (the conformance
     tests check it); `ffmpeg` does not check it either.
@@ -772,7 +772,7 @@ Choices:
   of start-up (bench-guard: +8.7%).
 - **Scope**: Layer III of MPEG-1, MPEG-2 and MPEG 2.5, every mode, free
   format, CRC. Layers I and II (`mp1`, `mp2`) are refused with their name:
-  they are not in section 8.7's list.
+  they are not in the roadmap's list of audio codecs.
 - **Format**: the first frame is the stream's configuration (MP3 has no
   other). Its sample rate holds for the stream: a frame with another is
   refused (`unsupported_feature`), as a FLAC frame that changes the
@@ -938,7 +938,7 @@ decoder's design note, in `coreav-opus`, names the reference code read.
 
 ### The decoder: native or libopus
 
-Two ways meet section 8.7's rule ("CoreAV's own or permissively licensed
+Two ways meet the roadmap's rule ("CoreAV's own or permissively licensed
 backends"): a native decoder in safe Rust, or libopus (BSD-3-Clause, the
 reference implementation) in a decoder-backend crate run in the sandboxed
 worker.

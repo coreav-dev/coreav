@@ -32,7 +32,6 @@ members = [
     "tools/decode-oracle",
     "tools/counting-alloc",
 ]
-exclude = ["spikes", "tools/package-reservations"]
 
 [workspace.package]
 version = "0.0.1"

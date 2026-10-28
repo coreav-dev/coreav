@@ -10,8 +10,8 @@ one-hour MP4 4.65x, 2.2 GB fragmented MOV 3.13x. Per file, 28 of 33 eligible
 fixtures are at or above parity in run-04 (30 in run-03); the three large-frame
 ProRes fixtures (`prores_hq`, `prores_4444`, `prores_4444xq`) are below it in
 both runs (0.70x to 0.84x in run-04), and `prores_lt` (0.98x) and `pcm_f32le`
-(0.95x) are below it with intervals that include 1. The memory bounds of
-section 5.7 are numerically met again in run-04 (whole-process peak heap 1.06 MiB
+(0.95x) are below it with intervals that include 1. The roadmap's memory
+bounds are numerically met again in run-04 (whole-process peak heap 1.06 MiB
 on the 2.2 GB fragmented file, largest read exactly 1 MiB, 10,000-level nesting
 rejected in at most 0.28 ms); the test-only allocator and heap meter
 were accepted at the stage gate. The
@@ -32,7 +32,7 @@ a defective compact representation**.
 Hypothesis: **H6**, safe parsers meeting oracle criteria. Spike C has no separate
 H-number. Its pass criterion is unchanged:
 
-> Pass: at least on par with libavformat; memory within the section 5.7 bounds.
+> Pass: at least on par with libavformat; memory within the roadmap's memory bounds.
 
 No additional kill threshold is invented. The human stage-gate decision
 is no longer pending: graduated at the stage gate (PASS), which also accepts

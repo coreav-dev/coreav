@@ -104,8 +104,7 @@ pub struct DecoderInfo {
 }
 
 impl DecoderInfo {
-    /// Whether this is the FFmpeg fallback: C decoders, sandboxed
-    /// (section 5.4, "whether it fell back").
+    /// Whether this is the FFmpeg fallback: C decoders, sandboxed.
     pub fn fell_back(&self) -> bool {
         self.backend == BackendKind::Fallback
     }

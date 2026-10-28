@@ -155,7 +155,7 @@ the check leaves alone.
 - **The list lives in the script, not in each crate's manifest**
   (`[package.metadata]`). A marker in the manifest would let a new codec
   crate declare itself, but a crate that forgets the marker passes either
-  way, and the list is the patent review's result (section 12.2). It
+  way, and the list is the patent review's result. It
   belongs with the check and changes in the pull request that adds such a
   crate.
 - **`cargo tree`, not `cargo metadata`'s resolve.** The workspace resolve

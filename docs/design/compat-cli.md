@@ -2,7 +2,7 @@
 
 Status: Proposed
 
-Roadmap step 8.7 (1) and an earlier change: a command that accepts the common `ffmpeg`
+Roadmap step 1 and an earlier change: a command that accepts the common `ffmpeg`
 and `ffprobe` invocations of the jobs CoreAV does natively, and refuses
 every option it does not implement with a clear error, so that an
 unsupported command never runs with different behaviour.
@@ -364,7 +364,7 @@ do not explain, and any rejection of a Matroska or MPEG-TS file, still
 disagrees on every key. Rejected: reading such files in `coreav ffprobe`
 as `ffprobe` does (stopping at a box past the end, skipping a second movie
 box), which would loosen for one command the policy the library keeps for
-every reader (proposal section 6.2); and counting them as disagreement, as
+every reader; and counting them as disagreement, as
 rounds 2 to 4 did, which counted a documented divergence as a bug,
 contrary to the bar's own "after the documented known divergences".
 Development and fixes use the non-holdout files only.
