@@ -160,9 +160,8 @@ non-sync. `ffprobe` lists every sample of a subtitle track as a key frame
 whatever the flags say (`fragmented_text.mp4`), and a cue does not depend
 on the cue before it, so the fragment walk reports every subtitle sample
 as a sync sample. Video and audio keep their flags. Rejected: keeping the
-flags and recording a known divergence, which would make every cut, clip
-and seek on such a track refuse a start the reader needs no earlier
-sample for.
+flags and recording a known divergence, which would report as needing an
+earlier sample a cue that needs none.
 
 ## Bars
 

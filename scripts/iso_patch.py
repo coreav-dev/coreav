@@ -21,7 +21,6 @@ Python 3 standard library only.
 import struct
 import sys
 
-CONTAINERS = {b'moov', b'trak', b'mdia', b'minf', b'stbl', b'moof', b'traf', b'mfra'}
 # Sample entry header: 6 reserved bytes and a data reference index, then
 # the audio (8.5.2.2, 20 bytes) or visual (8.5.2.2, 70 bytes) fields.
 ENTRY_FIELDS = {b'soun': 8 + 20, b'vide': 8 + 70}
@@ -78,12 +77,14 @@ def shift_tfdt(data, seconds):
             raise SystemExit(f'a fragment of track {track_id} has no tfdt')
         (t, _), = tfdt
         add(data, t + 12, data[t + 8] == 1, seconds * scale[track_id])
-    for s, _ in find(data, 0, len(data), [b'mfra', b'tfra']):
+    for s, e in find(data, 0, len(data), [b'mfra', b'tfra']):
         wide = data[s + 8] == 1
         track_id, sizes, count = struct.unpack('>III', data[s + 12:s + 24])
         # traf, trun and sample number fields of 1 to 4 bytes each.
         numbers = sum(((sizes >> shift) & 3) + 1 for shift in (4, 2, 0))
         at = s + 24
+        if at + count * ((16 if wide else 8) + numbers) > e:
+            raise SystemExit('tfra entries run past the box')
         for _ in range(count):
             add(data, at, wide, seconds * scale[track_id])
             at += (16 if wide else 8) + numbers
@@ -144,6 +145,8 @@ def patch_esds(data, at, end, bits):
     if tag != 0x04:
         raise SystemExit('ES descriptor without a decoder configuration')
     # objectTypeIndication, streamType and bufferSizeDB, maxBitrate, avgBitrate.
+    if config + 13 > body_end:
+        raise SystemExit('decoder configuration too short')
     data[config + 9:config + 13] = struct.pack('>I', bits)
     return 1
 
