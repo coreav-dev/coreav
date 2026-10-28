@@ -1,0 +1,8 @@
+bin-fp-k
+  CABAC  n=26 median 1.0033 [1.0004, 1.0090] faster 7/26
+  CAVLC  n= 6 median 0.9509 [0.9344, 1.0002] faster 5/6
+  all    n=32 median 1.0027 [0.9967, 1.0072] faster 12/32
+  sd     n= 8 median 0.9868 [0.9388, 1.0004] faster 6/8
+  720p   n= 8 median 1.0042 [1.0022, 1.0164] faster 1/8
+  1080p  n= 8 median 1.0010 [0.9952, 1.0222] faster 3/8
+  4k     n= 8 median 1.0079 [0.9921, 1.0090] faster 2/8

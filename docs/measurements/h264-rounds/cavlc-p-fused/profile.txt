@@ -1,0 +1,58 @@
+# Profile summary: instructions per coded P macroblock by inline group (callgrind --dump-instr, addr2line -i; /tmp/fp/tools/grp.py)
+# binaries with line tables, same code as bin-fp-base / bin-fp-k: /tmp/fp/prof-base, /tmp/fp/prof-v4
+# coded P macroblocks (mb_type 0-4) at a tenth of the frames: 5185721dda11 16,840; f9e973f44570 8,238 (a counting build of k)
+# groups: parse_inter = parse_inter_pred/parse_mb_pred/parse_sub_mb_pred/parse_mvd/partition_shape/set_ref_gt0/store_mvd;
+#  predict_parts = predict_partitions/predict_sub_partitions; store = store_motion/store_mb/resolve; fused = the new path (p_cavlc.rs, parse_p_inter)
+#  inter_pred/fill_ctx/mv_predictor/store include the P_Skip non-zero-vector path, which is unchanged
+== 5185721dda11.0.sd base (per coded P MB, 16840 of them)
+total 202,947,396 = 12051.5/MB
+   361.3/MB   3.00%  parse_inter
+   149.9/MB   1.24%  predict_parts
+   125.4/MB   1.04%  mv_predictor
+    92.3/MB   0.77%  inter_pred
+    86.7/MB   0.72%  store
+    85.5/MB   0.71%  fill_ctx
+== 5185721dda11.0.sd v4 (per coded P MB, 16840 of them)
+total 192,001,056 = 11401.5/MB
+   183.0/MB   1.61%  fused
+    44.7/MB   0.39%  parse_inter
+    24.7/MB   0.22%  inter_pred
+     6.4/MB   0.06%  store
+     1.1/MB   0.01%  mv_predictor
+     1.0/MB   0.01%  fill_ctx
+== f9e973f44570.0.sd base (per coded P MB, 8238 of them)
+total 135,204,717 = 16412.3/MB
+   450.4/MB   2.74%  parse_inter
+   202.8/MB   1.24%  predict_parts
+   179.5/MB   1.09%  mv_predictor
+   176.3/MB   1.07%  store
+    93.9/MB   0.57%  fill_ctx
+    76.5/MB   0.47%  inter_pred
+== f9e973f44570.0.sd v4 (per coded P MB, 8238 of them)
+total 128,348,143 = 15580.0/MB
+   297.3/MB   1.91%  fused
+    63.4/MB   0.41%  parse_inter
+     8.2/MB   0.05%  mv_predictor
+     7.0/MB   0.04%  fill_ctx
+     4.0/MB   0.03%  inter_pred
+     1.0/MB   0.01%  store
+
+# P-inter path total per coded P MB: 5185721dda11 901 -> 261 (-71%); f9e973f44570 1,180 -> 381 (-68%)
+# (ref_idx/mvd Exp-Golomb reads are attributed to the window's own functions in both builds)
+
+# MB mix (stats build: [skip, P0..P4, intra-in-P, B, I-slice, sub0..sub3, coded total])
+5185721dda11.0.sd STATS [51817, 14574, 973, 872, 0, 421, 1435, 0, 1584, 1684, 0, 0, 0, 19859, 0, 0]
+6f7799768413.0.sd STATS [211170, 7, 0, 0, 0, 0, 23, 0, 4800, 0, 0, 0, 0, 4830, 0, 0]
+9db41aa16b5a.0.720p STATS [87853, 5778, 601, 205, 0, 102, 51800, 37261, 2040, 408, 0, 0, 0, 97787, 0, 0]
+b71b6b31e54f.0.1080p STATS [261463, 3490, 124, 232, 441, 0, 825, 2705, 8160, 1764, 0, 0, 0, 15977, 0, 0]
+ec473c99c538.0.sd STATS [38886, 1177, 218, 347, 33, 122, 737, 0, 1920, 620, 0, 0, 0, 4554, 0, 0]
+f9e973f44570.0.sd STATS [8183, 4779, 1575, 1026, 177, 681, 3627, 0, 224, 3432, 0, 0, 0, 12089, 0, 0]
+
+# Variants tried (callgrind on the six CAVLC + two CABAC sd streams; decode_cavlc v3 size)
+k1  everything inlined, syntax returned as Result<Option<PPred>>: 49.7 KB; base->k1 5185 0.9492, f9e9 0.9512
+V1  derivation all out of line (tier.enter), unrolled reads: 36.6 KB; vs k1 +0.05..0.10%
+V2  V1 + one loop per element for all shapes: 30.6 KB; vs k1 +0.16..0.23%
+V3  V2 + 16x16 unrolled and inlined: 34.9 KB; vs k1 +0.11..0.25%
+V4  V3 + PPred written in place by &mut, mvd as i32 (final k): 33.8 KB; vs k1 5185 0.9967, f9e9 0.9980
+V5  V4 with 16x16 out of line too: 32.5 KB; vs V4 +0.02..0.07%
+V6  V4 with every shape inlined: 43.4 KB; vs V4 -0.01..-0.05% (6f -0.12%, loop register allocation)
