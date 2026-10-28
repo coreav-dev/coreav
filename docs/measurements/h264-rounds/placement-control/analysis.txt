@@ -1,0 +1,17 @@
+d-copy over d-base: n=32 median 1.0001 [0.9973, 1.0034]  spread S 0.0050  range 0.9763 to 1.0292  faster 15/32
+d-n1   over d-base: n=32 median 1.0021 [0.9993, 1.0047]  spread S 0.0047  range 0.9752 to 1.0452  faster 12/32
+d-n2   over d-base: n=32 median 1.0020 [1.0000, 1.0039]  spread S 0.0037  range 0.9918 to 1.0157  faster 10/32
+d-dk   over d-base: n=26 median 1.0014 [0.9967, 1.0055]  spread S 0.0040  range 0.9852 to 1.0314  faster 11/26
+f-copy over f-base: n=32 median 0.9995 [0.9964, 1.0045]  spread S 0.0049  range 0.9812 to 1.0133  faster 17/32
+f-n1   over f-base: n=32 median 1.0020 [0.9986, 1.0035]  spread S 0.0035  range 0.9842 to 1.0255  faster 12/32
+f-n2   over f-base: n=32 median 0.9996 [0.9982, 1.0014]  spread S 0.0025  range 0.9828 to 1.0230  faster 17/32
+f-dk   over f-base: n=26 median 1.0018 [0.9987, 1.0076]  spread S 0.0066  range 0.9857 to 1.0195  faster 11/26
+f-base over d-base (information): median 1.0007 [0.9981, 1.0065], faster 14/32
+d-dk over d-base on the six CAVLC streams (information): median 0.9597
+f-dk over f-base on the six CAVLC streams (information): median 0.9399
+mean no-op spread: d 0.0041 (A/A 0.0050), f 0.0042 (A/A 0.0049)
+validity (A/A medians within 0.002 of 1): met
+PN-0 (premise: d no-op spread >= 1.5 x d A/A): not met: inconclusive
+PN-1 (f removes at least half of d excess spread): met (f excess -0.0006, half of d excess -0.0004)
+PN-2 (each f no-op median within 0.0025 of 1): met (largest 0.0020; d largest 0.0021)
+verdict: inconclusive
