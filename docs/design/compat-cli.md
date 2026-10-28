@@ -470,18 +470,23 @@ prints keep its derivations, which the stream oracle checks. The others:
   without an edit list the iTunes `iTunSMPB` delay, are a "Skip Samples"
   side data element on the first packet.
 - Stream durations: without an edit list, the shorter of the media
-  header's and the samples' (the samples' when fragments follow); with one
+  header's and the samples' (the samples' when fragments follow, and
+  when every sample is in fragments the first of which is decoded from a
+  later time, `tfdt`, until the last sample ends, that start included); with one
   edit, no longer than the edit presents; with several, all of them, empty
   ones in between included, rounded to the nearest tick. A data or subtitle track without
   an edit list lasts at least as long as the longest track, in its own
   ticks rounded to the nearest; a timecode track keeps its own.
 - The stream `bit_rate`: PCM and IMA ADPCM their constant rate (sample
-  rate, channels and bits); audio whose edit starts inside the media
-  (priming), or with several edits, the average the container declares
-  (`btrt`, else `esds`); otherwise the bytes over the duration, truncated,
-  where video, and audio whose edit starts inside the media, take their
-  whole media (edits aside) and a data track its own span. A fragmented
-  movie's rate is rounded to the nearest, and with a segment index
+  rate, channels and bits); audio with several edits the average the
+  container declares (`btrt`, else `esds`); otherwise the bytes over a
+  duration, truncated. Video and audio take their whole media, edits
+  aside (the shorter of the media header's duration and the samples'),
+  whatever average `esds` or `btrt` declares: 176 of the 176 audio
+  streams of the development set with an edit from media time 0, from a
+  later one or none, sample-size-one QuickTime sound aside. A data track
+  takes its own span. A fragmented movie's rate is over the stream's
+  duration as printed, rounded to the nearest, and with a segment index
   (`sidx`) `ffprobe` counts only the first fragment's bytes, over the
   whole duration.
 - The format's duration ends where the last audio, video or subtitle
