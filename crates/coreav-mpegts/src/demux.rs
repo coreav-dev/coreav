@@ -903,7 +903,7 @@ impl Demux {
                 // 0x82 without the Blu-ray registration that carries DTS
                 // frames is DTS (crafted files of twenty-three types, and
                 // two of the corpus).
-                sniff: codec == Codec::Other,
+                sniff: codec == Codec::Other && crate::codec::sniffed_type(es.stream_type),
                 sniffed: (Vec::new(), 0),
                 found_at: self.current,
             });

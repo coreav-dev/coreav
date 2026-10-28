@@ -246,6 +246,11 @@ const DTS_CORE_CHANNELS: [u8; 16] = [1, 2, 2, 2, 2, 3, 3, 4, 4, 5, 6, 6, 6, 7, 8
 /// substream extends the core frame before it or is an access unit of its
 /// own is the stream's, not the header's: the listing decides
 /// (`packets.rs`).
+///
+/// Kept out of [`header`]: inlined, its frame setup costs every call of
+/// the byte-by-byte search for the other syntaxes (the `probe-ts-no-frames`
+/// guard case counted 8% more instructions).
+#[inline(never)]
 fn dts(data: &[u8]) -> Option<Frame> {
     let sync = data.get(..4)?;
     let mut bits = Bits {

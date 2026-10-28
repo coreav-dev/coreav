@@ -305,6 +305,14 @@ pub(crate) fn codec(stream_type: u8, stream: &[Descriptor], program: &[Descripto
         0x82 | 0x85 | 0x86 | 0xA2 if hdmv => Codec::Dts,
         0x86 => Codec::Scte35,
         0x87 => Codec::Eac3,
+        // Named from the type alone whatever the payload, as `ffprobe`
+        // names them: DTS, and the HLS sample encryption types (AC-3,
+        // E-AC-3, ADTS AAC and H.264 whose headers stay in the clear).
+        0x8A => Codec::Dts,
+        0xC1 => Codec::Ac3,
+        0xC2 => Codec::Eac3,
+        0xCF => Codec::Aac,
+        0xDB => Codec::H264,
         0x90 if hdmv => Codec::PgsSubtitle,
         0x06 => {
             if has(DVB_AC3) || registrations(stream).any(|f| &f == b"AC-3") {
@@ -327,6 +335,22 @@ pub(crate) fn codec(stream_type: u8, stream: &[Descriptor], program: &[Descripto
         }
         _ => Codec::Other,
     }
+}
+
+/// Whether a stream of `stream_type` that this crate leaves unnamed is
+/// named by its payload ([`sniff`]). `ffprobe` names the types below from
+/// the type alone, whatever the payload; those whose codec this crate does
+/// not read stay unnamed here rather than take a payload's codec `ffprobe`
+/// would not report: 0x1C (AAC without a transport syntax), 0x21 (JPEG
+/// 2000), 0x42 (AVS), 0xD1 (Dirac), 0xD2 and 0xD4 (AVS2, AVS3) and 0xEA;
+/// and 0x13 (SL-packetized sections) is not read for a codec at all
+/// (relabelled `ffmpeg` files of every type, MPEG-2 video, MPEG audio and
+/// AC-3 payloads).
+pub(crate) fn sniffed_type(stream_type: u8) -> bool {
+    !matches!(
+        stream_type,
+        0x13 | 0x1C | 0x21 | 0x42 | 0xD1 | 0xD2 | 0xD4 | 0xEA
+    )
 }
 
 /// The codec of a stream whose type and descriptors name none (a private
@@ -616,6 +640,7 @@ mod tests {
     fn payloads_name_unnamed_streams() {
         // A frame header at the start of the payload.
         assert_eq!(sniff(0xBD, &ac3_frame()), Codec::Ac3);
+        assert!(sniffed_type(0x82) && sniffed_type(0x06) && !sniffed_type(0xD2));
         let dts = [
             0x7F, 0xFE, 0x80, 0x01, 0xFC, 0x3C, 0x3F, 0xF2, 0x75, 0xE0, 0x02, 0x00,
         ];

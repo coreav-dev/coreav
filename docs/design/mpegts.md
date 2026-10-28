@@ -478,7 +478,18 @@ payload. `ffprobe` does this whatever the type: a DTS stream relabelled
 with twenty-three stream types, from 0x00 and 0x05 through the user
 private range, is listed as DTS for every type it does not map itself
 (and as AC-3 for 0x81), so the rule applies to every unnamed type, not only to
-private streams (0x06). The PES packets of such a stream are joined, up to
+private streams (0x06). The types `ffprobe` maps that this crate does not
+are the exception (`codec::sniffed_type`): relabelling MPEG-2 video, MPEG
+audio and AC-3 streams with each of the 256 types shows `ffprobe` naming
+0x1C, 0x21, 0x42, 0x8A, 0xC1, 0xC2, 0xCF, 0xD1, 0xD2, 0xD4, 0xDB and 0xEA
+from the type whatever the payload, and 0x13 never from the payload. Of
+these, 0x8A (DTS) and the HLS sample encryption types 0xC1, 0xC2, 0xCF and
+0xDB (AC-3, E-AC-3, ADTS AAC and H.264, headers in the clear; one
+development file carries the last two) are mapped to their codecs; the
+others stay unnamed (`unknown`), as before payloads were read. Rejected:
+naming those from the payload, which reports a codec `ffprobe` does not;
+mapping them, which needs parameter reading for codecs this crate does not
+parse (AVS, Dirac, JPEG 2000, AAC without a transport syntax). The PES packets of such a stream are joined, up to
 16 KiB or eight packets, until they show one of:
 
 - at the start of the payload, an AC-3 or E-AC-3 sync frame, a DTS core
