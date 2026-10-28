@@ -231,7 +231,7 @@ pub fn aac_layout(config: u8) -> Option<&'static str> {
         4 => "4.0",
         5 => "5.0",
         6 => "5.1",
-        7 => "7.1(wide)",
+        7 => "7.1",
         _ => return None,
     })
 }

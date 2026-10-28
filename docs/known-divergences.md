@@ -592,3 +592,7 @@ directly.
 - Coverage requires: CoreAV's values equal the sample entry's, `ffprobe`'s
   differ from them, and `ffprobe`'s equal the first frame `ffprobe -show_frames`
   decodes.
+- `coreav ffprobe` prints the same declared `width` and `height`, and the
+  coded size the bitstream gives, as `ffprobe` does; its fixtures with a
+  declared size other than the decoded one are set aside under this record
+  (`tools/compat-corpus/run.py`, `SET_ASIDE`).

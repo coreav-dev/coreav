@@ -268,6 +268,8 @@ pub fn parse(args: &[String]) -> Result<Options, Refusal> {
             }
             "-show_streams" => {
                 selection.select_all(Sid::Stream);
+                selection.select_bare(Sid::ProgramStreamDisposition);
+                selection.select_bare(Sid::ProgramStreamTags);
                 sections = true;
             }
             "-show_chapters" => {

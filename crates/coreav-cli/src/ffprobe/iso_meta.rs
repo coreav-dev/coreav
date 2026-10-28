@@ -79,6 +79,13 @@ pub struct IsoMeta {
     /// Per track: a timecode entry's `timescale` and `frameDuration`, the
     /// rate `ffprobe` prints as its stream's `avg_frame_rate`, unreduced.
     pub timecode_rates: Vec<Option<(u32, u32)>>,
+    /// Per track: for the integer and floating-point PCM entries of
+    /// ISO/IEC 23003-5 (`ipcm`, `fpcm`), the channel layout `ffprobe`
+    /// names from their `chnl` box, `Some(None)` when it names none.
+    pub pcm_layouts: Vec<Option<Option<&'static str>>>,
+    /// Per track: the field order a QuickTime `fiel` box of the sample
+    /// entry states.
+    pub field_orders: Vec<Option<&'static str>>,
     /// The movie box holds protection system headers (`pssh`), which
     /// `ffprobe` gives each protected stream as its "Encryption
     /// initialization data".
@@ -97,6 +104,10 @@ pub struct IsoMeta {
 pub struct StreamMeta {
     /// The stream tags in `ffprobe`'s order.
     pub tags: Vec<(String, String)>,
+    /// See [`IsoMeta::field_orders`].
+    pub field_order: Option<&'static str>,
+    /// See [`IsoMeta::pcm_layouts`].
+    pub pcm_layout: Option<Option<&'static str>>,
     /// The 18 disposition flags in `ffprobe`'s order.
     pub disposition: Entries,
     /// `extradata_size`, `None` where `ffprobe` prints none.
@@ -232,6 +243,8 @@ pub fn read<S: Source>(movie: &Movie, source: &mut S) -> Result<IsoMeta, Failure
             disposition: disposition(track),
             extradata_size: track.sample_entry.as_ref().and_then(extradata_size),
             protected: track.sample_entry.as_ref().and_then(protected),
+            pcm_layout: track.sample_entry.as_ref().and_then(pcm_layout),
+            field_order: track.sample_entry.as_ref().and_then(field_order),
             timecode_rate: track
                 .sample_entry
                 .as_ref()
@@ -261,6 +274,8 @@ pub fn read<S: Source>(movie: &Movie, source: &mut S) -> Result<IsoMeta, Failure
         out.extradata_sizes.push(stream.extradata_size);
         out.protected.push(stream.protected);
         out.timecode_rates.push(stream.timecode_rate);
+        out.pcm_layouts.push(stream.pcm_layout);
+        out.field_orders.push(stream.field_order);
     }
     out.all_streams = all_streams;
     Ok(out)
@@ -830,6 +845,71 @@ fn disposition(track: &TrackMetadata) -> Entries {
         }
     }
     entries
+}
+
+/// The field order of a QuickTime `fiel` box (QuickTime File Format,
+/// "Field handling"): one field is progressive whatever the detail, two
+/// fields are named by their detail (1 top first, 6 bottom first, 9 and
+/// 14 the same with the other field stored first), and anything else is
+/// not named, as `ffprobe` reports entries crafted with each value.
+fn field_order(entry: &SampleEntry) -> Option<&'static str> {
+    let fiel = entry.children.iter().find(|c| c.kind.0 == *b"fiel")?;
+    match fiel.payload.get(..2)? {
+        [1, _] => Some("progressive"),
+        [2, 1] => Some("tt"),
+        [2, 6] => Some("bb"),
+        [2, 9] => Some("tb"),
+        [2, 14] => Some("bt"),
+        _ => None,
+    }
+}
+
+/// The channel layout of an `ipcm` or `fpcm` entry (ISO/IEC 23003-5),
+/// from its `chnl` box (ISO/IEC 14496-12 12.2.4): none without the box
+/// (`ffmpeg` writes none for mono), else the layout of its
+/// `definedLayout` (a `ChannelConfiguration` of ISO/IEC 23091-3) or of
+/// its explicit speaker positions. The table is what `ffprobe` names on
+/// files `ffmpeg` wrote with each of its named layouts; anything else is
+/// not named.
+fn pcm_layout(entry: &SampleEntry) -> Option<Option<&'static str>> {
+    if !matches!(&entry.kind.0, b"ipcm" | b"fpcm") {
+        return None;
+    }
+    let Some(chnl) = entry.children.iter().find(|c| c.kind.0 == *b"chnl") else {
+        return Some(None);
+    };
+    // Version 0 and a channel structure (`stream_structure` 1).
+    let Some([0, _, _, _, 1, defined, positions @ ..]) = chnl.payload.get(..) else {
+        return Some(None);
+    };
+    Some(match (defined, positions) {
+        (2, _) => Some("stereo"),
+        (3, _) => Some("3.0"),
+        (4, _) => Some("4.0"),
+        (5, _) => Some("5.0(side)"),
+        (6, _) => Some("5.1(side)"),
+        (7, _) => Some("7.1(wide-side)"),
+        (9, _) => Some("3.0(back)"),
+        (10, _) => Some("quad(side)"),
+        (11, _) => Some("6.1"),
+        (12, _) => Some("7.1"),
+        (13, _) => Some("22.2"),
+        (14, _) => Some("5.1.2"),
+        (0, [0, 1, 3]) => Some("2.1"),
+        (0, [0, 1, 8, 9]) => Some("quad"),
+        (0, [0, 1, 2, 3]) => Some("3.1"),
+        (0, [0, 1, 2, 8, 9]) => Some("5.0"),
+        (0, [0, 1, 2, 3, 10]) => Some("4.1"),
+        (0, [0, 1, 2, 3, 8, 9]) => Some("5.1"),
+        (0, [0, 1, 2, 10, 13, 14]) => Some("6.0"),
+        (0, [0, 1, 2, 3, 8, 9, 10]) => Some("6.1(back)"),
+        (0, [0, 1, 2, 8, 9, 13, 14]) => Some("7.0"),
+        (0, [0, 1, 2, 3, 8, 9, 6, 7]) => Some("7.1(wide)"),
+        (0, [0, 1, 2, 8, 9, 10]) => Some("hexagonal"),
+        (0, [0, 1, 2, 8, 9, 10, 13, 14]) => Some("octagonal"),
+        (0, [0, 1, 2, 3, 8, 9, 13, 14, 17, 18, 20, 21]) => Some("7.1.4"),
+        _ => None,
+    })
 }
 
 /// The size of the extradata `ffprobe` gives the stream.

@@ -50,13 +50,13 @@ const SAR_TABLE: [(u32, u32); 16] = [
 ];
 
 /// A bit reader over an RBSP (emulation prevention removed).
-struct Bits<'a> {
+pub(super) struct Bits<'a> {
     data: &'a [u8],
     pos: usize,
 }
 
 impl<'a> Bits<'a> {
-    fn new(data: &'a [u8]) -> Self {
+    pub(super) fn new(data: &'a [u8]) -> Self {
         Bits { data, pos: 0 }
     }
 
@@ -67,7 +67,7 @@ impl<'a> Bits<'a> {
         Some(u32::from(bit))
     }
 
-    fn bits(&mut self, n: u32) -> Option<u32> {
+    pub(super) fn bits(&mut self, n: u32) -> Option<u32> {
         let mut v = 0u32;
         for _ in 0..n {
             v = (v << 1) | self.bit()?;
@@ -209,20 +209,39 @@ pub fn avc_sps(nal: &[u8], full_range: bool) -> Option<VideoInfo> {
     }
     b.ue()?;
     b.bit()?;
-    b.ue()?;
-    b.ue()?;
+    let width_mbs = b.ue()?.checked_add(1)?;
+    let height_units = b.ue()?.checked_add(1)?;
     let frame_mbs_only = b.flag()?;
     if !frame_mbs_only {
         b.bit()?;
     }
     b.bit()?;
+    let mut crop = [0u32; 4];
     if b.flag()? {
-        for _ in 0..4 {
-            b.ue()?;
+        for c in &mut crop {
+            *c = b.ue()?;
         }
     }
+    // The cropped size (7.4.2.1.1), which `ffprobe` prints as the coded
+    // size of H.264 too.
+    let fields = if frame_mbs_only { 1 } else { 2 };
+    let (unit_x, unit_y) = match chroma_format {
+        1 => (2, 2 * fields),
+        2 => (2, fields),
+        _ => (1, fields),
+    };
+    let [left, right, top, bottom] = crop;
+    let coded_size = width_mbs
+        .checked_mul(16)?
+        .checked_sub(left.checked_add(right)?.checked_mul(unit_x)?)
+        .zip(
+            height_units
+                .checked_mul(16 * fields)?
+                .checked_sub(top.checked_add(bottom)?.checked_mul(unit_y)?),
+        );
     let mut info = VideoInfo {
         pix_fmt: yuv(chroma_format, bit_depth, full_range),
+        coded_size,
         bits_per_raw_sample: Some(bit_depth),
         field_order: frame_mbs_only.then_some("progressive"),
         chroma_location: (chroma_format == 1).then_some("left"),
@@ -572,7 +591,8 @@ pub fn av1(av1c: &[u8]) -> Option<VideoInfo> {
         pix_fmt: yuv(chroma_format, bits, false),
         has_b_frames: Some(0),
         chroma_location: Some(location),
-        field_order: Some("progressive"),
+        // Named by the entry's `fiel` box alone (`iso_meta`).
+        field_order: None,
         bits_per_raw_sample: None,
         coded_size: None,
         frame_rate: None,
@@ -596,7 +616,8 @@ pub fn vp9(vpcc: &[u8]) -> Option<VideoInfo> {
         pix_fmt: yuv(chroma_format, bits, false),
         has_b_frames: Some(0),
         chroma_location: Some("unspecified"),
-        field_order: Some("progressive"),
+        // Named by the entry's `fiel` box alone (`iso_meta`).
+        field_order: None,
         bits_per_raw_sample: None,
         coded_size: None,
         frame_rate: None,
@@ -642,6 +663,8 @@ pub fn prores(frame: &[u8]) -> Option<VideoInfo> {
     if frame.get(4..8)? != b"icpf" {
         return None;
     }
+    let width = u32::try_from(u16_at(frame, 16)?).ok()?;
+    let height = u32::try_from(u16_at(frame, 18)?).ok()?;
     let packed = *frame.get(20)?;
     let chroma = (packed >> 6) & 0x03;
     let interlace = (packed >> 2) & 0x03;
@@ -664,7 +687,7 @@ pub fn prores(frame: &[u8]) -> Option<VideoInfo> {
             _ => return None,
         }),
         bits_per_raw_sample: Some(bits),
-        coded_size: None,
+        coded_size: Some((width, height)),
         frame_rate: None,
         sar: None,
         profile: None,
