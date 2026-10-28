@@ -63,7 +63,14 @@ other implementation.
   span packets, several sections in one packet), CRC-32 check, and the PAT
   and PMT with their descriptor loops.
 - `pes`: PES header (stream id, PTS, DTS, header length) and the
-  reassembly of a PES packet's payload from its transport packets.
+  reassembly of a PES packet's payload from its transport packets. The
+  two fixed bits `'10'` that open the optional header (ISO/IEC 13818-1
+  2.4.3.6) are not checked: the MPEG-1 system syntax they tell apart is
+  not used in transport streams, and `ffprobe` reads the header whatever
+  they hold, so a PES packet with other bits there is listed as it lists
+  it, its timestamps from the flags that follow. Rejected: dropping such a
+  packet with a warning, as before, which left a stream with a packet in
+  `ffprobe`'s listing and none in ours.
 - `frames`: audio frame delimiting inside a PES payload (ADTS, LOAS,
   MPEG audio, AC-3 and E-AC-3 sync frames, Opus access units).
 - `probe`, `packets`: the I/O shell over a `Source`, the trait and

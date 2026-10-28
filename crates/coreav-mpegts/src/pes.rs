@@ -51,13 +51,13 @@ pub(crate) fn parse(data: &[u8]) -> Parsed {
             header_len: 6,
         });
     }
-    let [_, _, _, _, _, _, b6, b7, data_length, ..] = *data else {
+    // The two fixed bits '10' that open the optional header (2.4.3.6) are
+    // not checked: MPEG-1 system stream syntax is not used in transport
+    // streams, so the optional header is read whatever they hold, as
+    // `ffprobe` reads it (docs/design/mpegts.md, "Layers").
+    let [_, _, _, _, _, _, _, b7, data_length, ..] = *data else {
         return Parsed::NeedMore(9);
     };
-    if b6 & 0xC0 != 0x80 {
-        // MPEG-1 system stream syntax is not used in transport streams.
-        return Parsed::Invalid("a PES header without its marker bits");
-    }
     let header_len = 9 + usize::from(data_length);
     let Some(fields) = data.get(9..header_len) else {
         return Parsed::NeedMore(header_len);
@@ -127,6 +127,13 @@ pub(crate) mod tests {
         let mut bad = h.clone();
         bad[7] = 0x40;
         assert!(matches!(parse(&bad), Parsed::Invalid(_)));
+        // The fixed bits before the flags are not checked.
+        let mut unmarked = h.clone();
+        unmarked[6] = 0x38;
+        let Parsed::Done(p) = parse(&unmarked) else {
+            panic!()
+        };
+        assert_eq!((p.pts, p.header_len), (Some(0x1_2345_6789), 19));
         // Padding streams have no optional header.
         let Parsed::Done(p) = parse(&[0, 0, 1, 0xBE, 0, 4, 0xFF]) else {
             panic!()
