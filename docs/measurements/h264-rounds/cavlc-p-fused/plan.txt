@@ -1,0 +1,57 @@
+CAVLC P macroblock path: coded P macroblocks of mb_type 0 to 4 in a CAVLC slice parse and derive their motion on a path
+of their own (written before any timing).
+
+Why: in a CAVLC P slice, a coded inter macroblock went through the path CABAC and B slices share (parse_inter_pred,
+fill_ctx over the whole motion grid, mv_predictor with cell indices per partition, store_motion and the partition walk):
+about 900 instructions a coded P macroblock on 5185721dda11 and 1,180 on f9e973f44570, 7.5% and 7.2% of their
+instructions (profile.txt). The design note's section "MB layer round: the CAVLC P macroblock path" has the design and
+the rejected alternatives.
+
+Base: public main 5aec713a. k: this branch's code commit 7935727b (the H.264 crate of the binaries in binaries.sha256).
+
+Instructions (r-count.txt, callgrind, a tenth of the class frame counts): CAVLC 6 median 0.98653 (5185721dda11 0.946,
+6f7799768413 0.9989, 9db41aa16b5a 0.9953, b71b6b31e54f 0.9921, ec473c99c538 0.9810, f9e973f44570 0.9493); CABAC 26
+median 1.00000 (largest deviation 0.0063%); all 32 1.00000. The coded P macroblocks' inter path goes from about 901 to
+261 instructions on 5185721dda11 and from 1,180 to 381 on f9e973f44570.
+
+Code size: the CABAC instance's functions are identical in normalized disassembly (0 of 12,795 lines differ). The v3
+CAVLC slice loop grows from 25.3 KB to 33.8 KB, and the out-of-line function for 16x8, 8x16 and 8x8 is 9.9 KB. Two
+guards below are for that growth: the CABAC streams (their code is unchanged, so only layout can move them) and the
+training stream with almost no macroblocks on the new path, 6f7799768413 (7 coded P macroblocks of mb_type 0 to 4 in
+its first 180 frames: it pays for the larger loop and gains nothing).
+
+Output: identical to base on the 32 streams at 1 and 8 threads, with and without fast (identity.txt); conformance at 1,
+2 and 8 threads, detected and scalar kernels, without fast, and a debug build (conformance.txt). Both before the timing.
+
+Local timing: ab3.py, 12 rounds, the 32 training streams at the class frame counts, one thread, --discard, pinned to one
+CPU, order rotated each round, CPU time; per stream the median of k over base, bootstrap 95% interval of the median
+(abq.py). Host: this development VM (directional). A gating run is requested only if all of these hold:
+- CAVLC 6: median at most 0.996, upper end below 1.000;
+- all 32: median at most 1.000;
+- CABAC 26: median at most 1.003.
+Otherwise the code goes to a rejected/ branch for a bundle round, and the result is recorded.
+
+Gating bars (fixed now; in the design note before the gating run). k over base, median per-stream ratio, 95% bootstrap
+interval over streams, scripts/h264_parity.py with --null-arm base and the host-health gate, main's harness at the run.
+One-thread calls on the one-thread class: the Compute Engine c4-standard-8 through scripts/h264_parity_gcp.py
+--one-thread-class. The eight-thread call only if FD-1 to FD-5 pass, on the c4-standard-16, one thread a core.
+- FD-1 (gain): one thread, discard, the six CAVLC streams: at most 0.995, upper end below 1.000.
+- FD-2: one thread, discard and write: all 32 at most 1.000 in each; each class (sd, 720p, 1080p, 4k) at most 1.005 in
+  each.
+- FD-3 (code-growth guard, CABAC): one thread, discard and write, the 26 CABAC streams: at most 1.003 in each.
+- FD-4 (code-growth guard, few coded macroblocks): one thread, discard and write, 6f7799768413's own ratio (median over
+  the run's rounds): at most 1.005 in each.
+- FD-5 (held-out): one thread, discard, the 64 held-out streams (docs/measurements/h264-n2-heldout/list.json): at most
+  1.000; their 15 CAVLC streams: at most 1.000.
+- FD-6 (guard): eight threads, discard, all 32: at most 1.005; each class at most 1.010.
+- FD-7: output identical to base on the 32 training streams at 1 and 8 threads, with and without fast; conformance as
+  above.
+Why FD-1 is 0.995: the instruction cut is 1.35% on the CAVLC median. In the CABAC macroblock start round the time gain
+was about 40% of the instruction cut; this round removes branchy parse and lookup code, where a larger share may show,
+so the bar asks for about 40%, with the upper end below 1.000 so that the null cannot give it. Why FD-3 is 1.003 and
+not 1.000: those streams run identical code, so their bar is a guard against a layout cost, set above the noise of a
+null's median over 26 streams. Why FD-4 is a single stream at 1.005: it is the one training stream that runs the larger
+loop with nothing to gain; a single stream's ratio is noisier than a median, hence 1.005 rather than 1.003.
+Reported as information: the ratio to FFmpeg 9.0.2, overall, per class and for the six CAVLC streams, with the share of
+streams faster; the held-out 15 CAVLC streams in write mode. One valid run decides; a re-run of the same arms only for a
+recorded host fault.
