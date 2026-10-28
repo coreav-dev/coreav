@@ -1,0 +1,4060 @@
+{
+ "all": {
+  "(tag keys in fewer than 5 files, together)": {
+   "agree": 204,
+   "keys": 126,
+   "occurrences": 210,
+   "rate": 97.14
+  },
+  "chapters.end": {
+   "agree": 18,
+   "files": 20,
+   "rate": 90.0
+  },
+  "chapters.end_time": {
+   "agree": 18,
+   "files": 20,
+   "rate": 90.0
+  },
+  "chapters.id": {
+   "agree": 18,
+   "files": 20,
+   "rate": 90.0
+  },
+  "chapters.start": {
+   "agree": 18,
+   "files": 20,
+   "rate": 90.0
+  },
+  "chapters.start_time": {
+   "agree": 18,
+   "files": 20,
+   "rate": 90.0
+  },
+  "chapters.tags.title": {
+   "agree": 18,
+   "files": 19,
+   "rate": 94.74
+  },
+  "chapters.time_base": {
+   "agree": 18,
+   "files": 20,
+   "rate": 90.0
+  },
+  "format.bit_rate": {
+   "agree": 1261,
+   "files": 1298,
+   "rate": 97.15
+  },
+  "format.duration": {
+   "agree": 1259,
+   "files": 1299,
+   "rate": 96.92
+  },
+  "format.filename": {
+   "agree": 1297,
+   "files": 1303,
+   "rate": 99.54
+  },
+  "format.format_long_name": {
+   "agree": 1297,
+   "files": 1303,
+   "rate": 99.54
+  },
+  "format.format_name": {
+   "agree": 1297,
+   "files": 1303,
+   "rate": 99.54
+  },
+  "format.nb_programs": {
+   "agree": 1297,
+   "files": 1303,
+   "rate": 99.54
+  },
+  "format.nb_stream_groups": {
+   "agree": 1297,
+   "files": 1303,
+   "rate": 99.54
+  },
+  "format.nb_streams": {
+   "agree": 1288,
+   "files": 1303,
+   "rate": 98.85
+  },
+  "format.probe_score": {
+   "agree": 1295,
+   "files": 1303,
+   "rate": 99.39
+  },
+  "format.size": {
+   "agree": 1297,
+   "files": 1303,
+   "rate": 99.54
+  },
+  "format.start_time": {
+   "agree": 1285,
+   "files": 1299,
+   "rate": 98.92
+  },
+  "format.tags.ARTIST": {
+   "agree": 7,
+   "files": 7,
+   "rate": 100.0
+  },
+  "format.tags.COM.ANDROID.VERSION": {
+   "agree": 10,
+   "files": 10,
+   "rate": 100.0
+  },
+  "format.tags.COM.APPLE.QUICKTIME.CREATIONDATE": {
+   "agree": 7,
+   "files": 7,
+   "rate": 100.0
+  },
+  "format.tags.COM.APPLE.QUICKTIME.MAKE": {
+   "agree": 6,
+   "files": 6,
+   "rate": 100.0
+  },
+  "format.tags.COM.APPLE.QUICKTIME.MODEL": {
+   "agree": 6,
+   "files": 6,
+   "rate": 100.0
+  },
+  "format.tags.COM.APPLE.QUICKTIME.SOFTWARE": {
+   "agree": 6,
+   "files": 6,
+   "rate": 100.0
+  },
+  "format.tags.COMMENT": {
+   "agree": 7,
+   "files": 7,
+   "rate": 100.0
+  },
+  "format.tags.COMPATIBLE_BRANDS": {
+   "agree": 70,
+   "files": 70,
+   "rate": 100.0
+  },
+  "format.tags.DATE": {
+   "agree": 8,
+   "files": 8,
+   "rate": 100.0
+  },
+  "format.tags.ENCODER": {
+   "agree": 134,
+   "files": 134,
+   "rate": 100.0
+  },
+  "format.tags.Encoding Params": {
+   "agree": 8,
+   "files": 8,
+   "rate": 100.0
+  },
+  "format.tags.MAJOR_BRAND": {
+   "agree": 70,
+   "files": 70,
+   "rate": 100.0
+  },
+  "format.tags.MINOR_VERSION": {
+   "agree": 70,
+   "files": 70,
+   "rate": 100.0
+  },
+  "format.tags.aigc_info": {
+   "agree": 15,
+   "files": 15,
+   "rate": 100.0
+  },
+  "format.tags.album": {
+   "agree": 19,
+   "files": 19,
+   "rate": 100.0
+  },
+  "format.tags.album_artist": {
+   "agree": 6,
+   "files": 6,
+   "rate": 100.0
+  },
+  "format.tags.artist": {
+   "agree": 29,
+   "files": 29,
+   "rate": 100.0
+  },
+  "format.tags.artist-eng": {
+   "agree": 5,
+   "files": 5,
+   "rate": 100.0
+  },
+  "format.tags.com.android.capture.fps": {
+   "agree": 6,
+   "files": 6,
+   "rate": 100.0
+  },
+  "format.tags.com.android.version": {
+   "agree": 67,
+   "files": 69,
+   "rate": 97.1
+  },
+  "format.tags.com.apple.quicktime.author": {
+   "agree": 7,
+   "files": 7,
+   "rate": 100.0
+  },
+  "format.tags.com.apple.quicktime.creationdate": {
+   "agree": 28,
+   "files": 28,
+   "rate": 100.0
+  },
+  "format.tags.com.apple.quicktime.full-frame-rate-playback-intent": {
+   "agree": 5,
+   "files": 5,
+   "rate": 100.0
+  },
+  "format.tags.com.apple.quicktime.location.ISO6709": {
+   "agree": 12,
+   "files": 12,
+   "rate": 100.0
+  },
+  "format.tags.com.apple.quicktime.location.accuracy.horizontal": {
+   "agree": 11,
+   "files": 11,
+   "rate": 100.0
+  },
+  "format.tags.com.apple.quicktime.make": {
+   "agree": 28,
+   "files": 28,
+   "rate": 100.0
+  },
+  "format.tags.com.apple.quicktime.model": {
+   "agree": 28,
+   "files": 28,
+   "rate": 100.0
+  },
+  "format.tags.com.apple.quicktime.software": {
+   "agree": 33,
+   "files": 33,
+   "rate": 100.0
+  },
+  "format.tags.com.panasonic.Semi-Pro.metadata.xml": {
+   "agree": 9,
+   "files": 9,
+   "rate": 100.0
+  },
+  "format.tags.comment": {
+   "agree": 57,
+   "files": 58,
+   "rate": 98.28
+  },
+  "format.tags.comment-eng": {
+   "agree": 16,
+   "files": 17,
+   "rate": 94.12
+  },
+  "format.tags.compatible_brands": {
+   "agree": 1016,
+   "files": 1019,
+   "rate": 99.71
+  },
+  "format.tags.copyright": {
+   "agree": 11,
+   "files": 11,
+   "rate": 100.0
+  },
+  "format.tags.copyright-eng": {
+   "agree": 5,
+   "files": 5,
+   "rate": 100.0
+  },
+  "format.tags.creation_time": {
+   "agree": 597,
+   "files": 603,
+   "rate": 99.0
+  },
+  "format.tags.date": {
+   "agree": 17,
+   "files": 17,
+   "rate": 100.0
+  },
+  "format.tags.description": {
+   "agree": 29,
+   "files": 29,
+   "rate": 100.0
+  },
+  "format.tags.encoder": {
+   "agree": 635,
+   "files": 636,
+   "rate": 99.84
+  },
+  "format.tags.encoder-eng": {
+   "agree": 10,
+   "files": 11,
+   "rate": 90.91
+  },
+  "format.tags.firmware": {
+   "agree": 40,
+   "files": 40,
+   "rate": 100.0
+  },
+  "format.tags.genre": {
+   "agree": 12,
+   "files": 12,
+   "rate": 100.0
+  },
+  "format.tags.hd_video": {
+   "agree": 5,
+   "files": 5,
+   "rate": 100.0
+  },
+  "format.tags.iTunNORM": {
+   "agree": 15,
+   "files": 15,
+   "rate": 100.0
+  },
+  "format.tags.iTunSMPB": {
+   "agree": 17,
+   "files": 17,
+   "rate": 100.0
+  },
+  "format.tags.location": {
+   "agree": 10,
+   "files": 10,
+   "rate": 100.0
+  },
+  "format.tags.location-eng": {
+   "agree": 6,
+   "files": 6,
+   "rate": 100.0
+  },
+  "format.tags.major_brand": {
+   "agree": 1016,
+   "files": 1019,
+   "rate": 99.71
+  },
+  "format.tags.make": {
+   "agree": 8,
+   "files": 8,
+   "rate": 100.0
+  },
+  "format.tags.make-eng": {
+   "agree": 8,
+   "files": 8,
+   "rate": 100.0
+  },
+  "format.tags.media_type": {
+   "agree": 15,
+   "files": 15,
+   "rate": 100.0
+  },
+  "format.tags.minor_version": {
+   "agree": 1016,
+   "files": 1019,
+   "rate": 99.71
+  },
+  "format.tags.model": {
+   "agree": 7,
+   "files": 7,
+   "rate": 100.0
+  },
+  "format.tags.model-eng": {
+   "agree": 7,
+   "files": 7,
+   "rate": 100.0
+  },
+  "format.tags.original_format": {
+   "agree": 12,
+   "files": 12,
+   "rate": 100.0
+  },
+  "format.tags.original_format-eng": {
+   "agree": 12,
+   "files": 12,
+   "rate": 100.0
+  },
+  "format.tags.playback_requirements": {
+   "agree": 6,
+   "files": 6,
+   "rate": 100.0
+  },
+  "format.tags.season_number": {
+   "agree": 6,
+   "files": 6,
+   "rate": 100.0
+  },
+  "format.tags.timecode": {
+   "agree": 39,
+   "files": 39,
+   "rate": 100.0
+  },
+  "format.tags.title": {
+   "agree": 65,
+   "files": 65,
+   "rate": 100.0
+  },
+  "format.tags.title-eng": {
+   "agree": 5,
+   "files": 5,
+   "rate": 100.0
+  },
+  "format.tags.vid_md5": {
+   "agree": 20,
+   "files": 20,
+   "rate": 100.0
+  },
+  "packets.codec_type": {
+   "agree": 1269,
+   "files": 1303,
+   "rate": 97.39
+  },
+  "packets.dts": {
+   "agree": 1268,
+   "files": 1303,
+   "rate": 97.31
+  },
+  "packets.dts_time": {
+   "agree": 1268,
+   "files": 1303,
+   "rate": 97.31
+  },
+  "packets.duration": {
+   "agree": 1250,
+   "files": 1303,
+   "rate": 95.93
+  },
+  "packets.duration_time": {
+   "agree": 1250,
+   "files": 1303,
+   "rate": 95.93
+  },
+  "packets.flags": {
+   "agree": 1277,
+   "files": 1303,
+   "rate": 98.0
+  },
+  "packets.pos": {
+   "agree": 1270,
+   "files": 1303,
+   "rate": 97.47
+  },
+  "packets.pts": {
+   "agree": 1268,
+   "files": 1303,
+   "rate": 97.31
+  },
+  "packets.pts_time": {
+   "agree": 1268,
+   "files": 1303,
+   "rate": 97.31
+  },
+  "packets.side_data_list.discard_padding": {
+   "agree": 279,
+   "files": 279,
+   "rate": 100.0
+  },
+  "packets.side_data_list.discard_reason": {
+   "agree": 279,
+   "files": 279,
+   "rate": 100.0
+  },
+  "packets.side_data_list.id": {
+   "agree": 42,
+   "files": 44,
+   "rate": 95.45
+  },
+  "packets.side_data_list.side_data_type": {
+   "agree": 349,
+   "files": 351,
+   "rate": 99.43
+  },
+  "packets.side_data_list.skip_reason": {
+   "agree": 279,
+   "files": 279,
+   "rate": 100.0
+  },
+  "packets.side_data_list.skip_samples": {
+   "agree": 279,
+   "files": 279,
+   "rate": 100.0
+  },
+  "packets.size": {
+   "agree": 1269,
+   "files": 1303,
+   "rate": 97.39
+  },
+  "packets.stream_index": {
+   "agree": 1272,
+   "files": 1303,
+   "rate": 97.62
+  },
+  "programs.nb_streams": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.pcr_pid": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.pmt_pid": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.program_id": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.program_num": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.avg_frame_rate": {
+   "agree": 44,
+   "files": 45,
+   "rate": 97.78
+  },
+  "programs.streams.bit_rate": {
+   "agree": 34,
+   "files": 39,
+   "rate": 87.18
+  },
+  "programs.streams.bits_per_raw_sample": {
+   "agree": 36,
+   "files": 36,
+   "rate": 100.0
+  },
+  "programs.streams.bits_per_sample": {
+   "agree": 42,
+   "files": 42,
+   "rate": 100.0
+  },
+  "programs.streams.channel_layout": {
+   "agree": 39,
+   "files": 40,
+   "rate": 97.5
+  },
+  "programs.streams.channels": {
+   "agree": 41,
+   "files": 42,
+   "rate": 97.62
+  },
+  "programs.streams.chroma_location": {
+   "agree": 40,
+   "files": 40,
+   "rate": 100.0
+  },
+  "programs.streams.closed_captions": {
+   "agree": 39,
+   "files": 40,
+   "rate": 97.5
+  },
+  "programs.streams.codec_long_name": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.codec_name": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.codec_tag": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.codec_tag_string": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.codec_type": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.coded_height": {
+   "agree": 40,
+   "files": 40,
+   "rate": 100.0
+  },
+  "programs.streams.coded_width": {
+   "agree": 40,
+   "files": 40,
+   "rate": 100.0
+  },
+  "programs.streams.color_primaries": {
+   "agree": 10,
+   "files": 10,
+   "rate": 100.0
+  },
+  "programs.streams.color_range": {
+   "agree": 15,
+   "files": 15,
+   "rate": 100.0
+  },
+  "programs.streams.color_space": {
+   "agree": 10,
+   "files": 10,
+   "rate": 100.0
+  },
+  "programs.streams.color_transfer": {
+   "agree": 10,
+   "files": 10,
+   "rate": 100.0
+  },
+  "programs.streams.display_aspect_ratio": {
+   "agree": 33,
+   "files": 33,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.attached_pic": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.captions": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.clean_effects": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.comment": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.default": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.dependent": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.descriptions": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.dub": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.forced": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.hearing_impaired": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.karaoke": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.lyrics": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.metadata": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.non_diegetic": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.original": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.still_image": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.timed_thumbnails": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.visual_impaired": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.duration": {
+   "agree": 43,
+   "files": 44,
+   "rate": 97.73
+  },
+  "programs.streams.duration_ts": {
+   "agree": 43,
+   "files": 44,
+   "rate": 97.73
+  },
+  "programs.streams.extradata_size": {
+   "agree": 40,
+   "files": 40,
+   "rate": 100.0
+  },
+  "programs.streams.field_order": {
+   "agree": 39,
+   "files": 39,
+   "rate": 100.0
+  },
+  "programs.streams.film_grain": {
+   "agree": 40,
+   "files": 40,
+   "rate": 100.0
+  },
+  "programs.streams.has_b_frames": {
+   "agree": 40,
+   "files": 40,
+   "rate": 100.0
+  },
+  "programs.streams.height": {
+   "agree": 40,
+   "files": 40,
+   "rate": 100.0
+  },
+  "programs.streams.id": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.index": {
+   "agree": 44,
+   "files": 45,
+   "rate": 97.78
+  },
+  "programs.streams.initial_padding": {
+   "agree": 42,
+   "files": 42,
+   "rate": 100.0
+  },
+  "programs.streams.is_avc": {
+   "agree": 36,
+   "files": 36,
+   "rate": 100.0
+  },
+  "programs.streams.level": {
+   "agree": 40,
+   "files": 40,
+   "rate": 100.0
+  },
+  "programs.streams.nal_length_size": {
+   "agree": 36,
+   "files": 36,
+   "rate": 100.0
+  },
+  "programs.streams.pix_fmt": {
+   "agree": 40,
+   "files": 40,
+   "rate": 100.0
+  },
+  "programs.streams.profile": {
+   "agree": 40,
+   "files": 42,
+   "rate": 95.24
+  },
+  "programs.streams.r_frame_rate": {
+   "agree": 44,
+   "files": 45,
+   "rate": 97.78
+  },
+  "programs.streams.refs": {
+   "agree": 40,
+   "files": 40,
+   "rate": 100.0
+  },
+  "programs.streams.sample_aspect_ratio": {
+   "agree": 33,
+   "files": 33,
+   "rate": 100.0
+  },
+  "programs.streams.sample_fmt": {
+   "agree": 42,
+   "files": 42,
+   "rate": 100.0
+  },
+  "programs.streams.sample_rate": {
+   "agree": 40,
+   "files": 42,
+   "rate": 95.24
+  },
+  "programs.streams.side_data_list.avg_bitrate": {
+   "agree": 4,
+   "files": 4,
+   "rate": 100.0
+  },
+  "programs.streams.side_data_list.buffer_size": {
+   "agree": 4,
+   "files": 4,
+   "rate": 100.0
+  },
+  "programs.streams.side_data_list.max_bitrate": {
+   "agree": 4,
+   "files": 4,
+   "rate": 100.0
+  },
+  "programs.streams.side_data_list.min_bitrate": {
+   "agree": 4,
+   "files": 4,
+   "rate": 100.0
+  },
+  "programs.streams.side_data_list.side_data_type": {
+   "agree": 4,
+   "files": 4,
+   "rate": 100.0
+  },
+  "programs.streams.side_data_list.vbv_delay": {
+   "agree": 4,
+   "files": 4,
+   "rate": 100.0
+  },
+  "programs.streams.start_pts": {
+   "agree": 44,
+   "files": 44,
+   "rate": 100.0
+  },
+  "programs.streams.start_time": {
+   "agree": 44,
+   "files": 44,
+   "rate": 100.0
+  },
+  "programs.streams.tags.language": {
+   "agree": 7,
+   "files": 8,
+   "rate": 87.5
+  },
+  "programs.streams.time_base": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.ts_id": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.ts_packetsize": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.width": {
+   "agree": 40,
+   "files": 40,
+   "rate": 100.0
+  },
+  "streams.avg_frame_rate": {
+   "agree": 1291,
+   "files": 1303,
+   "rate": 99.08
+  },
+  "streams.bit_rate": {
+   "agree": 988,
+   "files": 1098,
+   "rate": 89.98
+  },
+  "streams.bits_per_raw_sample": {
+   "agree": 782,
+   "files": 804,
+   "rate": 97.26
+  },
+  "streams.bits_per_sample": {
+   "agree": 832,
+   "files": 838,
+   "rate": 99.28
+  },
+  "streams.channel_layout": {
+   "agree": 745,
+   "files": 770,
+   "rate": 96.75
+  },
+  "streams.channels": {
+   "agree": 824,
+   "files": 838,
+   "rate": 98.33
+  },
+  "streams.chroma_location": {
+   "agree": 950,
+   "files": 984,
+   "rate": 96.54
+  },
+  "streams.closed_captions": {
+   "agree": 1195,
+   "files": 1202,
+   "rate": 99.42
+  },
+  "streams.codec_long_name": {
+   "agree": 1287,
+   "files": 1297,
+   "rate": 99.23
+  },
+  "streams.codec_name": {
+   "agree": 1287,
+   "files": 1297,
+   "rate": 99.23
+  },
+  "streams.codec_tag": {
+   "agree": 1296,
+   "files": 1303,
+   "rate": 99.46
+  },
+  "streams.codec_tag_string": {
+   "agree": 1296,
+   "files": 1303,
+   "rate": 99.46
+  },
+  "streams.codec_type": {
+   "agree": 1293,
+   "files": 1303,
+   "rate": 99.23
+  },
+  "streams.coded_height": {
+   "agree": 1193,
+   "files": 1202,
+   "rate": 99.25
+  },
+  "streams.coded_width": {
+   "agree": 1192,
+   "files": 1202,
+   "rate": 99.17
+  },
+  "streams.color_primaries": {
+   "agree": 535,
+   "files": 542,
+   "rate": 98.71
+  },
+  "streams.color_range": {
+   "agree": 672,
+   "files": 702,
+   "rate": 95.73
+  },
+  "streams.color_space": {
+   "agree": 551,
+   "files": 571,
+   "rate": 96.5
+  },
+  "streams.color_transfer": {
+   "agree": 534,
+   "files": 550,
+   "rate": 97.09
+  },
+  "streams.display_aspect_ratio": {
+   "agree": 828,
+   "files": 853,
+   "rate": 97.07
+  },
+  "streams.disposition.attached_pic": {
+   "agree": 1296,
+   "files": 1303,
+   "rate": 99.46
+  },
+  "streams.disposition.captions": {
+   "agree": 1297,
+   "files": 1303,
+   "rate": 99.54
+  },
+  "streams.disposition.clean_effects": {
+   "agree": 1297,
+   "files": 1303,
+   "rate": 99.54
+  },
+  "streams.disposition.comment": {
+   "agree": 1297,
+   "files": 1303,
+   "rate": 99.54
+  },
+  "streams.disposition.default": {
+   "agree": 1297,
+   "files": 1303,
+   "rate": 99.54
+  },
+  "streams.disposition.dependent": {
+   "agree": 1297,
+   "files": 1303,
+   "rate": 99.54
+  },
+  "streams.disposition.descriptions": {
+   "agree": 1297,
+   "files": 1303,
+   "rate": 99.54
+  },
+  "streams.disposition.dub": {
+   "agree": 1297,
+   "files": 1303,
+   "rate": 99.54
+  },
+  "streams.disposition.forced": {
+   "agree": 1297,
+   "files": 1303,
+   "rate": 99.54
+  },
+  "streams.disposition.hearing_impaired": {
+   "agree": 1297,
+   "files": 1303,
+   "rate": 99.54
+  },
+  "streams.disposition.karaoke": {
+   "agree": 1297,
+   "files": 1303,
+   "rate": 99.54
+  },
+  "streams.disposition.lyrics": {
+   "agree": 1297,
+   "files": 1303,
+   "rate": 99.54
+  },
+  "streams.disposition.metadata": {
+   "agree": 1297,
+   "files": 1303,
+   "rate": 99.54
+  },
+  "streams.disposition.non_diegetic": {
+   "agree": 1297,
+   "files": 1303,
+   "rate": 99.54
+  },
+  "streams.disposition.original": {
+   "agree": 1297,
+   "files": 1303,
+   "rate": 99.54
+  },
+  "streams.disposition.still_image": {
+   "agree": 1297,
+   "files": 1303,
+   "rate": 99.54
+  },
+  "streams.disposition.timed_thumbnails": {
+   "agree": 1296,
+   "files": 1303,
+   "rate": 99.46
+  },
+  "streams.disposition.visual_impaired": {
+   "agree": 1297,
+   "files": 1303,
+   "rate": 99.54
+  },
+  "streams.divx_packed": {
+   "agree": 41,
+   "files": 41,
+   "rate": 100.0
+  },
+  "streams.duration": {
+   "agree": 1062,
+   "files": 1103,
+   "rate": 96.28
+  },
+  "streams.duration_ts": {
+   "agree": 1062,
+   "files": 1103,
+   "rate": 96.28
+  },
+  "streams.extradata_size": {
+   "agree": 1198,
+   "files": 1212,
+   "rate": 98.84
+  },
+  "streams.field_order": {
+   "agree": 895,
+   "files": 898,
+   "rate": 99.67
+  },
+  "streams.film_grain": {
+   "agree": 1193,
+   "files": 1202,
+   "rate": 99.25
+  },
+  "streams.has_b_frames": {
+   "agree": 1157,
+   "files": 1202,
+   "rate": 96.26
+  },
+  "streams.height": {
+   "agree": 1187,
+   "files": 1202,
+   "rate": 98.75
+  },
+  "streams.id": {
+   "agree": 1087,
+   "files": 1094,
+   "rate": 99.36
+  },
+  "streams.index": {
+   "agree": 1297,
+   "files": 1303,
+   "rate": 99.54
+  },
+  "streams.initial_padding": {
+   "agree": 833,
+   "files": 838,
+   "rate": 99.4
+  },
+  "streams.is_avc": {
+   "agree": 746,
+   "files": 747,
+   "rate": 99.87
+  },
+  "streams.level": {
+   "agree": 1195,
+   "files": 1202,
+   "rate": 99.42
+  },
+  "streams.nal_length_size": {
+   "agree": 746,
+   "files": 747,
+   "rate": 99.87
+  },
+  "streams.nb_frames": {
+   "agree": 942,
+   "files": 948,
+   "rate": 99.37
+  },
+  "streams.pix_fmt": {
+   "agree": 1158,
+   "files": 1202,
+   "rate": 96.34
+  },
+  "streams.profile": {
+   "agree": 1223,
+   "files": 1242,
+   "rate": 98.47
+  },
+  "streams.quarter_sample": {
+   "agree": 41,
+   "files": 41,
+   "rate": 100.0
+  },
+  "streams.r_frame_rate": {
+   "agree": 1242,
+   "files": 1303,
+   "rate": 95.32
+  },
+  "streams.refs": {
+   "agree": 1195,
+   "files": 1202,
+   "rate": 99.42
+  },
+  "streams.sample_aspect_ratio": {
+   "agree": 833,
+   "files": 853,
+   "rate": 97.66
+  },
+  "streams.sample_fmt": {
+   "agree": 810,
+   "files": 836,
+   "rate": 96.89
+  },
+  "streams.sample_rate": {
+   "agree": 823,
+   "files": 838,
+   "rate": 98.21
+  },
+  "streams.side_data_list.ambient_illuminance": {
+   "agree": 0,
+   "files": 2,
+   "rate": 0.0
+  },
+  "streams.side_data_list.ambient_light_x": {
+   "agree": 0,
+   "files": 2,
+   "rate": 0.0
+  },
+  "streams.side_data_list.ambient_light_y": {
+   "agree": 0,
+   "files": 2,
+   "rate": 0.0
+  },
+  "streams.side_data_list.avg_bitrate": {
+   "agree": 5,
+   "files": 6,
+   "rate": 83.33
+  },
+  "streams.side_data_list.bl_present_flag": {
+   "agree": 3,
+   "files": 3,
+   "rate": 100.0
+  },
+  "streams.side_data_list.blue_x": {
+   "agree": 2,
+   "files": 2,
+   "rate": 100.0
+  },
+  "streams.side_data_list.blue_y": {
+   "agree": 2,
+   "files": 2,
+   "rate": 100.0
+  },
+  "streams.side_data_list.buffer_size": {
+   "agree": 5,
+   "files": 6,
+   "rate": 83.33
+  },
+  "streams.side_data_list.displaymatrix": {
+   "agree": 14,
+   "files": 18,
+   "rate": 77.78
+  },
+  "streams.side_data_list.dv_bl_signal_compatibility_id": {
+   "agree": 3,
+   "files": 3,
+   "rate": 100.0
+  },
+  "streams.side_data_list.dv_level": {
+   "agree": 3,
+   "files": 3,
+   "rate": 100.0
+  },
+  "streams.side_data_list.dv_profile": {
+   "agree": 3,
+   "files": 3,
+   "rate": 100.0
+  },
+  "streams.side_data_list.dv_version_major": {
+   "agree": 3,
+   "files": 3,
+   "rate": 100.0
+  },
+  "streams.side_data_list.dv_version_minor": {
+   "agree": 3,
+   "files": 3,
+   "rate": 100.0
+  },
+  "streams.side_data_list.el_present_flag": {
+   "agree": 3,
+   "files": 3,
+   "rate": 100.0
+  },
+  "streams.side_data_list.green_x": {
+   "agree": 2,
+   "files": 2,
+   "rate": 100.0
+  },
+  "streams.side_data_list.green_y": {
+   "agree": 2,
+   "files": 2,
+   "rate": 100.0
+  },
+  "streams.side_data_list.inverted": {
+   "agree": 12,
+   "files": 12,
+   "rate": 100.0
+  },
+  "streams.side_data_list.max_average": {
+   "agree": 1,
+   "files": 1,
+   "rate": 100.0
+  },
+  "streams.side_data_list.max_bitrate": {
+   "agree": 5,
+   "files": 6,
+   "rate": 83.33
+  },
+  "streams.side_data_list.max_content": {
+   "agree": 1,
+   "files": 1,
+   "rate": 100.0
+  },
+  "streams.side_data_list.max_luminance": {
+   "agree": 2,
+   "files": 2,
+   "rate": 100.0
+  },
+  "streams.side_data_list.min_bitrate": {
+   "agree": 5,
+   "files": 6,
+   "rate": 83.33
+  },
+  "streams.side_data_list.min_luminance": {
+   "agree": 2,
+   "files": 2,
+   "rate": 100.0
+  },
+  "streams.side_data_list.pitch": {
+   "agree": 11,
+   "files": 11,
+   "rate": 100.0
+  },
+  "streams.side_data_list.projection": {
+   "agree": 11,
+   "files": 11,
+   "rate": 100.0
+  },
+  "streams.side_data_list.red_x": {
+   "agree": 2,
+   "files": 2,
+   "rate": 100.0
+  },
+  "streams.side_data_list.red_y": {
+   "agree": 2,
+   "files": 2,
+   "rate": 100.0
+  },
+  "streams.side_data_list.roll": {
+   "agree": 11,
+   "files": 11,
+   "rate": 100.0
+  },
+  "streams.side_data_list.rotation": {
+   "agree": 14,
+   "files": 18,
+   "rate": 77.78
+  },
+  "streams.side_data_list.rpu_present_flag": {
+   "agree": 3,
+   "files": 3,
+   "rate": 100.0
+  },
+  "streams.side_data_list.service_type": {
+   "agree": 0,
+   "files": 4,
+   "rate": 0.0
+  },
+  "streams.side_data_list.side_data_type": {
+   "agree": 62,
+   "files": 73,
+   "rate": 84.93
+  },
+  "streams.side_data_list.type": {
+   "agree": 12,
+   "files": 12,
+   "rate": 100.0
+  },
+  "streams.side_data_list.vbv_delay": {
+   "agree": 5,
+   "files": 6,
+   "rate": 83.33
+  },
+  "streams.side_data_list.white_point_x": {
+   "agree": 2,
+   "files": 2,
+   "rate": 100.0
+  },
+  "streams.side_data_list.white_point_y": {
+   "agree": 2,
+   "files": 2,
+   "rate": 100.0
+  },
+  "streams.side_data_list.yaw": {
+   "agree": 11,
+   "files": 11,
+   "rate": 100.0
+  },
+  "streams.start_pts": {
+   "agree": 1282,
+   "files": 1299,
+   "rate": 98.69
+  },
+  "streams.start_time": {
+   "agree": 1282,
+   "files": 1299,
+   "rate": 98.69
+  },
+  "streams.tags.BPS": {
+   "agree": 8,
+   "files": 8,
+   "rate": 100.0
+  },
+  "streams.tags.BPS-eng": {
+   "agree": 6,
+   "files": 6,
+   "rate": 100.0
+  },
+  "streams.tags.CREATION_TIME": {
+   "agree": 8,
+   "files": 8,
+   "rate": 100.0
+  },
+  "streams.tags.DURATION": {
+   "agree": 132,
+   "files": 132,
+   "rate": 100.0
+  },
+  "streams.tags.DURATION-eng": {
+   "agree": 6,
+   "files": 6,
+   "rate": 100.0
+  },
+  "streams.tags.ENCODER": {
+   "agree": 67,
+   "files": 67,
+   "rate": 100.0
+  },
+  "streams.tags.HANDLER_NAME": {
+   "agree": 61,
+   "files": 61,
+   "rate": 100.0
+  },
+  "streams.tags.LANGUAGE": {
+   "agree": 9,
+   "files": 9,
+   "rate": 100.0
+  },
+  "streams.tags.NUMBER_OF_BYTES": {
+   "agree": 8,
+   "files": 8,
+   "rate": 100.0
+  },
+  "streams.tags.NUMBER_OF_BYTES-eng": {
+   "agree": 6,
+   "files": 6,
+   "rate": 100.0
+  },
+  "streams.tags.NUMBER_OF_FRAMES": {
+   "agree": 8,
+   "files": 8,
+   "rate": 100.0
+  },
+  "streams.tags.NUMBER_OF_FRAMES-eng": {
+   "agree": 6,
+   "files": 6,
+   "rate": 100.0
+  },
+  "streams.tags.VENDOR_ID": {
+   "agree": 35,
+   "files": 35,
+   "rate": 100.0
+  },
+  "streams.tags._STATISTICS_TAGS": {
+   "agree": 8,
+   "files": 8,
+   "rate": 100.0
+  },
+  "streams.tags._STATISTICS_TAGS-eng": {
+   "agree": 6,
+   "files": 6,
+   "rate": 100.0
+  },
+  "streams.tags._STATISTICS_WRITING_APP": {
+   "agree": 8,
+   "files": 8,
+   "rate": 100.0
+  },
+  "streams.tags._STATISTICS_WRITING_APP-eng": {
+   "agree": 6,
+   "files": 6,
+   "rate": 100.0
+  },
+  "streams.tags._STATISTICS_WRITING_DATE_UTC": {
+   "agree": 8,
+   "files": 8,
+   "rate": 100.0
+  },
+  "streams.tags._STATISTICS_WRITING_DATE_UTC-eng": {
+   "agree": 6,
+   "files": 6,
+   "rate": 100.0
+  },
+  "streams.tags.alpha_mode": {
+   "agree": 7,
+   "files": 7,
+   "rate": 100.0
+  },
+  "streams.tags.creation_time": {
+   "agree": 551,
+   "files": 557,
+   "rate": 98.92
+  },
+  "streams.tags.encoder": {
+   "agree": 322,
+   "files": 326,
+   "rate": 98.77
+  },
+  "streams.tags.handler_name": {
+   "agree": 964,
+   "files": 970,
+   "rate": 99.38
+  },
+  "streams.tags.language": {
+   "agree": 1148,
+   "files": 1156,
+   "rate": 99.31
+  },
+  "streams.tags.timecode": {
+   "agree": 111,
+   "files": 127,
+   "rate": 87.4
+  },
+  "streams.tags.title": {
+   "agree": 31,
+   "files": 31,
+   "rate": 100.0
+  },
+  "streams.tags.vendor_id": {
+   "agree": 1038,
+   "files": 1044,
+   "rate": 99.43
+  },
+  "streams.time_base": {
+   "agree": 1297,
+   "files": 1303,
+   "rate": 99.54
+  },
+  "streams.ts_id": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "streams.ts_packetsize": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "streams.width": {
+   "agree": 1190,
+   "files": 1202,
+   "rate": 99.0
+  }
+ },
+ "binary_commit": "501e685a",
+ "by_status": {
+  "compared": 1303,
+  "ffprobe_failed": 12
+ },
+ "files": 1315,
+ "holdout_files": 389,
+ "isobmff": {
+  "(tag keys in fewer than 5 files, together)": {
+   "agree": 147,
+   "keys": 89,
+   "occurrences": 152,
+   "rate": 96.71
+  },
+  "chapters.end": {
+   "agree": 13,
+   "files": 15,
+   "rate": 86.67
+  },
+  "chapters.end_time": {
+   "agree": 13,
+   "files": 15,
+   "rate": 86.67
+  },
+  "chapters.id": {
+   "agree": 13,
+   "files": 15,
+   "rate": 86.67
+  },
+  "chapters.start": {
+   "agree": 13,
+   "files": 15,
+   "rate": 86.67
+  },
+  "chapters.start_time": {
+   "agree": 13,
+   "files": 15,
+   "rate": 86.67
+  },
+  "chapters.tags.title": {
+   "agree": 13,
+   "files": 14,
+   "rate": 92.86
+  },
+  "chapters.time_base": {
+   "agree": 13,
+   "files": 15,
+   "rate": 86.67
+  },
+  "format.bit_rate": {
+   "agree": 1012,
+   "files": 1048,
+   "rate": 96.56
+  },
+  "format.duration": {
+   "agree": 1010,
+   "files": 1049,
+   "rate": 96.28
+  },
+  "format.filename": {
+   "agree": 1043,
+   "files": 1049,
+   "rate": 99.43
+  },
+  "format.format_long_name": {
+   "agree": 1043,
+   "files": 1049,
+   "rate": 99.43
+  },
+  "format.format_name": {
+   "agree": 1043,
+   "files": 1049,
+   "rate": 99.43
+  },
+  "format.nb_programs": {
+   "agree": 1043,
+   "files": 1049,
+   "rate": 99.43
+  },
+  "format.nb_stream_groups": {
+   "agree": 1043,
+   "files": 1049,
+   "rate": 99.43
+  },
+  "format.nb_streams": {
+   "agree": 1034,
+   "files": 1049,
+   "rate": 98.57
+  },
+  "format.probe_score": {
+   "agree": 1041,
+   "files": 1049,
+   "rate": 99.24
+  },
+  "format.size": {
+   "agree": 1043,
+   "files": 1049,
+   "rate": 99.43
+  },
+  "format.start_time": {
+   "agree": 1033,
+   "files": 1046,
+   "rate": 98.76
+  },
+  "format.tags.Encoding Params": {
+   "agree": 8,
+   "files": 8,
+   "rate": 100.0
+  },
+  "format.tags.aigc_info": {
+   "agree": 15,
+   "files": 15,
+   "rate": 100.0
+  },
+  "format.tags.album": {
+   "agree": 19,
+   "files": 19,
+   "rate": 100.0
+  },
+  "format.tags.album_artist": {
+   "agree": 6,
+   "files": 6,
+   "rate": 100.0
+  },
+  "format.tags.artist": {
+   "agree": 29,
+   "files": 29,
+   "rate": 100.0
+  },
+  "format.tags.artist-eng": {
+   "agree": 5,
+   "files": 5,
+   "rate": 100.0
+  },
+  "format.tags.com.android.capture.fps": {
+   "agree": 6,
+   "files": 6,
+   "rate": 100.0
+  },
+  "format.tags.com.android.version": {
+   "agree": 67,
+   "files": 69,
+   "rate": 97.1
+  },
+  "format.tags.com.apple.quicktime.author": {
+   "agree": 7,
+   "files": 7,
+   "rate": 100.0
+  },
+  "format.tags.com.apple.quicktime.creationdate": {
+   "agree": 28,
+   "files": 28,
+   "rate": 100.0
+  },
+  "format.tags.com.apple.quicktime.full-frame-rate-playback-intent": {
+   "agree": 5,
+   "files": 5,
+   "rate": 100.0
+  },
+  "format.tags.com.apple.quicktime.location.ISO6709": {
+   "agree": 12,
+   "files": 12,
+   "rate": 100.0
+  },
+  "format.tags.com.apple.quicktime.location.accuracy.horizontal": {
+   "agree": 11,
+   "files": 11,
+   "rate": 100.0
+  },
+  "format.tags.com.apple.quicktime.make": {
+   "agree": 28,
+   "files": 28,
+   "rate": 100.0
+  },
+  "format.tags.com.apple.quicktime.model": {
+   "agree": 28,
+   "files": 28,
+   "rate": 100.0
+  },
+  "format.tags.com.apple.quicktime.software": {
+   "agree": 33,
+   "files": 33,
+   "rate": 100.0
+  },
+  "format.tags.com.panasonic.Semi-Pro.metadata.xml": {
+   "agree": 9,
+   "files": 9,
+   "rate": 100.0
+  },
+  "format.tags.comment": {
+   "agree": 57,
+   "files": 58,
+   "rate": 98.28
+  },
+  "format.tags.comment-eng": {
+   "agree": 16,
+   "files": 17,
+   "rate": 94.12
+  },
+  "format.tags.compatible_brands": {
+   "agree": 1016,
+   "files": 1019,
+   "rate": 99.71
+  },
+  "format.tags.copyright": {
+   "agree": 11,
+   "files": 11,
+   "rate": 100.0
+  },
+  "format.tags.copyright-eng": {
+   "agree": 5,
+   "files": 5,
+   "rate": 100.0
+  },
+  "format.tags.creation_time": {
+   "agree": 549,
+   "files": 555,
+   "rate": 98.92
+  },
+  "format.tags.date": {
+   "agree": 17,
+   "files": 17,
+   "rate": 100.0
+  },
+  "format.tags.description": {
+   "agree": 29,
+   "files": 29,
+   "rate": 100.0
+  },
+  "format.tags.encoder": {
+   "agree": 560,
+   "files": 561,
+   "rate": 99.82
+  },
+  "format.tags.encoder-eng": {
+   "agree": 10,
+   "files": 11,
+   "rate": 90.91
+  },
+  "format.tags.firmware": {
+   "agree": 40,
+   "files": 40,
+   "rate": 100.0
+  },
+  "format.tags.genre": {
+   "agree": 12,
+   "files": 12,
+   "rate": 100.0
+  },
+  "format.tags.hd_video": {
+   "agree": 5,
+   "files": 5,
+   "rate": 100.0
+  },
+  "format.tags.iTunNORM": {
+   "agree": 15,
+   "files": 15,
+   "rate": 100.0
+  },
+  "format.tags.iTunSMPB": {
+   "agree": 17,
+   "files": 17,
+   "rate": 100.0
+  },
+  "format.tags.location": {
+   "agree": 10,
+   "files": 10,
+   "rate": 100.0
+  },
+  "format.tags.location-eng": {
+   "agree": 6,
+   "files": 6,
+   "rate": 100.0
+  },
+  "format.tags.major_brand": {
+   "agree": 1016,
+   "files": 1019,
+   "rate": 99.71
+  },
+  "format.tags.make": {
+   "agree": 8,
+   "files": 8,
+   "rate": 100.0
+  },
+  "format.tags.make-eng": {
+   "agree": 8,
+   "files": 8,
+   "rate": 100.0
+  },
+  "format.tags.media_type": {
+   "agree": 15,
+   "files": 15,
+   "rate": 100.0
+  },
+  "format.tags.minor_version": {
+   "agree": 1016,
+   "files": 1019,
+   "rate": 99.71
+  },
+  "format.tags.model": {
+   "agree": 7,
+   "files": 7,
+   "rate": 100.0
+  },
+  "format.tags.model-eng": {
+   "agree": 7,
+   "files": 7,
+   "rate": 100.0
+  },
+  "format.tags.original_format": {
+   "agree": 12,
+   "files": 12,
+   "rate": 100.0
+  },
+  "format.tags.original_format-eng": {
+   "agree": 12,
+   "files": 12,
+   "rate": 100.0
+  },
+  "format.tags.playback_requirements": {
+   "agree": 6,
+   "files": 6,
+   "rate": 100.0
+  },
+  "format.tags.season_number": {
+   "agree": 6,
+   "files": 6,
+   "rate": 100.0
+  },
+  "format.tags.timecode": {
+   "agree": 39,
+   "files": 39,
+   "rate": 100.0
+  },
+  "format.tags.title": {
+   "agree": 48,
+   "files": 48,
+   "rate": 100.0
+  },
+  "format.tags.title-eng": {
+   "agree": 5,
+   "files": 5,
+   "rate": 100.0
+  },
+  "format.tags.vid_md5": {
+   "agree": 20,
+   "files": 20,
+   "rate": 100.0
+  },
+  "packets.codec_type": {
+   "agree": 1018,
+   "files": 1049,
+   "rate": 97.04
+  },
+  "packets.dts": {
+   "agree": 1019,
+   "files": 1049,
+   "rate": 97.14
+  },
+  "packets.dts_time": {
+   "agree": 1019,
+   "files": 1049,
+   "rate": 97.14
+  },
+  "packets.duration": {
+   "agree": 1005,
+   "files": 1049,
+   "rate": 95.81
+  },
+  "packets.duration_time": {
+   "agree": 1005,
+   "files": 1049,
+   "rate": 95.81
+  },
+  "packets.flags": {
+   "agree": 1026,
+   "files": 1049,
+   "rate": 97.81
+  },
+  "packets.pos": {
+   "agree": 1020,
+   "files": 1049,
+   "rate": 97.24
+  },
+  "packets.pts": {
+   "agree": 1019,
+   "files": 1049,
+   "rate": 97.14
+  },
+  "packets.pts_time": {
+   "agree": 1019,
+   "files": 1049,
+   "rate": 97.14
+  },
+  "packets.side_data_list.discard_padding": {
+   "agree": 218,
+   "files": 218,
+   "rate": 100.0
+  },
+  "packets.side_data_list.discard_reason": {
+   "agree": 218,
+   "files": 218,
+   "rate": 100.0
+  },
+  "packets.side_data_list.side_data_type": {
+   "agree": 243,
+   "files": 243,
+   "rate": 100.0
+  },
+  "packets.side_data_list.skip_reason": {
+   "agree": 218,
+   "files": 218,
+   "rate": 100.0
+  },
+  "packets.side_data_list.skip_samples": {
+   "agree": 218,
+   "files": 218,
+   "rate": 100.0
+  },
+  "packets.size": {
+   "agree": 1019,
+   "files": 1049,
+   "rate": 97.14
+  },
+  "packets.stream_index": {
+   "agree": 1021,
+   "files": 1049,
+   "rate": 97.33
+  },
+  "streams.avg_frame_rate": {
+   "agree": 1039,
+   "files": 1049,
+   "rate": 99.05
+  },
+  "streams.bit_rate": {
+   "agree": 940,
+   "files": 1044,
+   "rate": 90.04
+  },
+  "streams.bits_per_raw_sample": {
+   "agree": 724,
+   "files": 746,
+   "rate": 97.05
+  },
+  "streams.bits_per_sample": {
+   "agree": 646,
+   "files": 651,
+   "rate": 99.23
+  },
+  "streams.channel_layout": {
+   "agree": 562,
+   "files": 585,
+   "rate": 96.07
+  },
+  "streams.channels": {
+   "agree": 639,
+   "files": 651,
+   "rate": 98.16
+  },
+  "streams.chroma_location": {
+   "agree": 820,
+   "files": 853,
+   "rate": 96.13
+  },
+  "streams.closed_captions": {
+   "agree": 967,
+   "files": 973,
+   "rate": 99.38
+  },
+  "streams.codec_long_name": {
+   "agree": 1034,
+   "files": 1043,
+   "rate": 99.14
+  },
+  "streams.codec_name": {
+   "agree": 1034,
+   "files": 1043,
+   "rate": 99.14
+  },
+  "streams.codec_tag": {
+   "agree": 1043,
+   "files": 1049,
+   "rate": 99.43
+  },
+  "streams.codec_tag_string": {
+   "agree": 1043,
+   "files": 1049,
+   "rate": 99.43
+  },
+  "streams.codec_type": {
+   "agree": 1040,
+   "files": 1049,
+   "rate": 99.14
+  },
+  "streams.coded_height": {
+   "agree": 965,
+   "files": 973,
+   "rate": 99.18
+  },
+  "streams.coded_width": {
+   "agree": 964,
+   "files": 973,
+   "rate": 99.08
+  },
+  "streams.color_primaries": {
+   "agree": 442,
+   "files": 448,
+   "rate": 98.66
+  },
+  "streams.color_range": {
+   "agree": 522,
+   "files": 551,
+   "rate": 94.74
+  },
+  "streams.color_space": {
+   "agree": 452,
+   "files": 471,
+   "rate": 95.97
+  },
+  "streams.color_transfer": {
+   "agree": 441,
+   "files": 456,
+   "rate": 96.71
+  },
+  "streams.display_aspect_ratio": {
+   "agree": 607,
+   "files": 631,
+   "rate": 96.2
+  },
+  "streams.disposition.attached_pic": {
+   "agree": 1042,
+   "files": 1049,
+   "rate": 99.33
+  },
+  "streams.disposition.captions": {
+   "agree": 1043,
+   "files": 1049,
+   "rate": 99.43
+  },
+  "streams.disposition.clean_effects": {
+   "agree": 1043,
+   "files": 1049,
+   "rate": 99.43
+  },
+  "streams.disposition.comment": {
+   "agree": 1043,
+   "files": 1049,
+   "rate": 99.43
+  },
+  "streams.disposition.default": {
+   "agree": 1043,
+   "files": 1049,
+   "rate": 99.43
+  },
+  "streams.disposition.dependent": {
+   "agree": 1043,
+   "files": 1049,
+   "rate": 99.43
+  },
+  "streams.disposition.descriptions": {
+   "agree": 1043,
+   "files": 1049,
+   "rate": 99.43
+  },
+  "streams.disposition.dub": {
+   "agree": 1043,
+   "files": 1049,
+   "rate": 99.43
+  },
+  "streams.disposition.forced": {
+   "agree": 1043,
+   "files": 1049,
+   "rate": 99.43
+  },
+  "streams.disposition.hearing_impaired": {
+   "agree": 1043,
+   "files": 1049,
+   "rate": 99.43
+  },
+  "streams.disposition.karaoke": {
+   "agree": 1043,
+   "files": 1049,
+   "rate": 99.43
+  },
+  "streams.disposition.lyrics": {
+   "agree": 1043,
+   "files": 1049,
+   "rate": 99.43
+  },
+  "streams.disposition.metadata": {
+   "agree": 1043,
+   "files": 1049,
+   "rate": 99.43
+  },
+  "streams.disposition.non_diegetic": {
+   "agree": 1043,
+   "files": 1049,
+   "rate": 99.43
+  },
+  "streams.disposition.original": {
+   "agree": 1043,
+   "files": 1049,
+   "rate": 99.43
+  },
+  "streams.disposition.still_image": {
+   "agree": 1043,
+   "files": 1049,
+   "rate": 99.43
+  },
+  "streams.disposition.timed_thumbnails": {
+   "agree": 1042,
+   "files": 1049,
+   "rate": 99.33
+  },
+  "streams.disposition.visual_impaired": {
+   "agree": 1043,
+   "files": 1049,
+   "rate": 99.43
+  },
+  "streams.divx_packed": {
+   "agree": 40,
+   "files": 40,
+   "rate": 100.0
+  },
+  "streams.duration": {
+   "agree": 1010,
+   "files": 1049,
+   "rate": 96.28
+  },
+  "streams.duration_ts": {
+   "agree": 1010,
+   "files": 1049,
+   "rate": 96.28
+  },
+  "streams.extradata_size": {
+   "agree": 1004,
+   "files": 1017,
+   "rate": 98.72
+  },
+  "streams.field_order": {
+   "agree": 742,
+   "files": 744,
+   "rate": 99.73
+  },
+  "streams.film_grain": {
+   "agree": 965,
+   "files": 973,
+   "rate": 99.18
+  },
+  "streams.has_b_frames": {
+   "agree": 929,
+   "files": 973,
+   "rate": 95.48
+  },
+  "streams.height": {
+   "agree": 959,
+   "files": 973,
+   "rate": 98.56
+  },
+  "streams.id": {
+   "agree": 1043,
+   "files": 1049,
+   "rate": 99.43
+  },
+  "streams.index": {
+   "agree": 1043,
+   "files": 1049,
+   "rate": 99.43
+  },
+  "streams.initial_padding": {
+   "agree": 647,
+   "files": 651,
+   "rate": 99.39
+  },
+  "streams.is_avc": {
+   "agree": 688,
+   "files": 689,
+   "rate": 99.85
+  },
+  "streams.level": {
+   "agree": 967,
+   "files": 973,
+   "rate": 99.38
+  },
+  "streams.nal_length_size": {
+   "agree": 688,
+   "files": 689,
+   "rate": 99.85
+  },
+  "streams.nb_frames": {
+   "agree": 942,
+   "files": 948,
+   "rate": 99.37
+  },
+  "streams.pix_fmt": {
+   "agree": 930,
+   "files": 973,
+   "rate": 95.58
+  },
+  "streams.profile": {
+   "agree": 996,
+   "files": 1012,
+   "rate": 98.42
+  },
+  "streams.quarter_sample": {
+   "agree": 40,
+   "files": 40,
+   "rate": 100.0
+  },
+  "streams.r_frame_rate": {
+   "agree": 990,
+   "files": 1049,
+   "rate": 94.38
+  },
+  "streams.refs": {
+   "agree": 967,
+   "files": 973,
+   "rate": 99.38
+  },
+  "streams.sample_aspect_ratio": {
+   "agree": 612,
+   "files": 631,
+   "rate": 96.99
+  },
+  "streams.sample_fmt": {
+   "agree": 624,
+   "files": 649,
+   "rate": 96.15
+  },
+  "streams.sample_rate": {
+   "agree": 639,
+   "files": 651,
+   "rate": 98.16
+  },
+  "streams.side_data_list.ambient_illuminance": {
+   "agree": 0,
+   "files": 2,
+   "rate": 0.0
+  },
+  "streams.side_data_list.ambient_light_x": {
+   "agree": 0,
+   "files": 2,
+   "rate": 0.0
+  },
+  "streams.side_data_list.ambient_light_y": {
+   "agree": 0,
+   "files": 2,
+   "rate": 0.0
+  },
+  "streams.side_data_list.bl_present_flag": {
+   "agree": 3,
+   "files": 3,
+   "rate": 100.0
+  },
+  "streams.side_data_list.displaymatrix": {
+   "agree": 14,
+   "files": 18,
+   "rate": 77.78
+  },
+  "streams.side_data_list.dv_bl_signal_compatibility_id": {
+   "agree": 3,
+   "files": 3,
+   "rate": 100.0
+  },
+  "streams.side_data_list.dv_level": {
+   "agree": 3,
+   "files": 3,
+   "rate": 100.0
+  },
+  "streams.side_data_list.dv_profile": {
+   "agree": 3,
+   "files": 3,
+   "rate": 100.0
+  },
+  "streams.side_data_list.dv_version_major": {
+   "agree": 3,
+   "files": 3,
+   "rate": 100.0
+  },
+  "streams.side_data_list.dv_version_minor": {
+   "agree": 3,
+   "files": 3,
+   "rate": 100.0
+  },
+  "streams.side_data_list.el_present_flag": {
+   "agree": 3,
+   "files": 3,
+   "rate": 100.0
+  },
+  "streams.side_data_list.rotation": {
+   "agree": 14,
+   "files": 18,
+   "rate": 77.78
+  },
+  "streams.side_data_list.rpu_present_flag": {
+   "agree": 3,
+   "files": 3,
+   "rate": 100.0
+  },
+  "streams.side_data_list.service_type": {
+   "agree": 0,
+   "files": 4,
+   "rate": 0.0
+  },
+  "streams.side_data_list.side_data_type": {
+   "agree": 43,
+   "files": 53,
+   "rate": 81.13
+  },
+  "streams.start_pts": {
+   "agree": 1031,
+   "files": 1046,
+   "rate": 98.57
+  },
+  "streams.start_time": {
+   "agree": 1031,
+   "files": 1046,
+   "rate": 98.57
+  },
+  "streams.tags.creation_time": {
+   "agree": 551,
+   "files": 557,
+   "rate": 98.92
+  },
+  "streams.tags.encoder": {
+   "agree": 322,
+   "files": 326,
+   "rate": 98.77
+  },
+  "streams.tags.handler_name": {
+   "agree": 964,
+   "files": 970,
+   "rate": 99.38
+  },
+  "streams.tags.language": {
+   "agree": 1043,
+   "files": 1049,
+   "rate": 99.43
+  },
+  "streams.tags.timecode": {
+   "agree": 111,
+   "files": 127,
+   "rate": 87.4
+  },
+  "streams.tags.vendor_id": {
+   "agree": 1038,
+   "files": 1044,
+   "rate": 99.43
+  },
+  "streams.time_base": {
+   "agree": 1043,
+   "files": 1049,
+   "rate": 99.43
+  },
+  "streams.width": {
+   "agree": 962,
+   "files": 973,
+   "rate": 98.87
+  }
+ },
+ "matroska": {
+  "(tag keys in fewer than 5 files, together)": {
+   "agree": 55,
+   "keys": 35,
+   "occurrences": 56,
+   "rate": 98.21
+  },
+  "chapters.end": {
+   "agree": 5,
+   "files": 5,
+   "rate": 100.0
+  },
+  "chapters.end_time": {
+   "agree": 5,
+   "files": 5,
+   "rate": 100.0
+  },
+  "chapters.id": {
+   "agree": 5,
+   "files": 5,
+   "rate": 100.0
+  },
+  "chapters.start": {
+   "agree": 5,
+   "files": 5,
+   "rate": 100.0
+  },
+  "chapters.start_time": {
+   "agree": 5,
+   "files": 5,
+   "rate": 100.0
+  },
+  "chapters.tags.title": {
+   "agree": 5,
+   "files": 5,
+   "rate": 100.0
+  },
+  "chapters.time_base": {
+   "agree": 5,
+   "files": 5,
+   "rate": 100.0
+  },
+  "format.bit_rate": {
+   "agree": 206,
+   "files": 206,
+   "rate": 100.0
+  },
+  "format.duration": {
+   "agree": 206,
+   "files": 206,
+   "rate": 100.0
+  },
+  "format.filename": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "format.format_long_name": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "format.format_name": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "format.nb_programs": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "format.nb_stream_groups": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "format.nb_streams": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "format.probe_score": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "format.size": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "format.start_time": {
+   "agree": 208,
+   "files": 209,
+   "rate": 99.52
+  },
+  "format.tags.ARTIST": {
+   "agree": 7,
+   "files": 7,
+   "rate": 100.0
+  },
+  "format.tags.COM.ANDROID.VERSION": {
+   "agree": 10,
+   "files": 10,
+   "rate": 100.0
+  },
+  "format.tags.COM.APPLE.QUICKTIME.CREATIONDATE": {
+   "agree": 7,
+   "files": 7,
+   "rate": 100.0
+  },
+  "format.tags.COM.APPLE.QUICKTIME.MAKE": {
+   "agree": 6,
+   "files": 6,
+   "rate": 100.0
+  },
+  "format.tags.COM.APPLE.QUICKTIME.MODEL": {
+   "agree": 6,
+   "files": 6,
+   "rate": 100.0
+  },
+  "format.tags.COM.APPLE.QUICKTIME.SOFTWARE": {
+   "agree": 6,
+   "files": 6,
+   "rate": 100.0
+  },
+  "format.tags.COMMENT": {
+   "agree": 7,
+   "files": 7,
+   "rate": 100.0
+  },
+  "format.tags.COMPATIBLE_BRANDS": {
+   "agree": 70,
+   "files": 70,
+   "rate": 100.0
+  },
+  "format.tags.DATE": {
+   "agree": 8,
+   "files": 8,
+   "rate": 100.0
+  },
+  "format.tags.ENCODER": {
+   "agree": 134,
+   "files": 134,
+   "rate": 100.0
+  },
+  "format.tags.MAJOR_BRAND": {
+   "agree": 70,
+   "files": 70,
+   "rate": 100.0
+  },
+  "format.tags.MINOR_VERSION": {
+   "agree": 70,
+   "files": 70,
+   "rate": 100.0
+  },
+  "format.tags.creation_time": {
+   "agree": 48,
+   "files": 48,
+   "rate": 100.0
+  },
+  "format.tags.encoder": {
+   "agree": 75,
+   "files": 75,
+   "rate": 100.0
+  },
+  "format.tags.title": {
+   "agree": 17,
+   "files": 17,
+   "rate": 100.0
+  },
+  "packets.codec_type": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "packets.dts": {
+   "agree": 207,
+   "files": 209,
+   "rate": 99.04
+  },
+  "packets.dts_time": {
+   "agree": 207,
+   "files": 209,
+   "rate": 99.04
+  },
+  "packets.duration": {
+   "agree": 203,
+   "files": 209,
+   "rate": 97.13
+  },
+  "packets.duration_time": {
+   "agree": 203,
+   "files": 209,
+   "rate": 97.13
+  },
+  "packets.flags": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "packets.pos": {
+   "agree": 208,
+   "files": 209,
+   "rate": 99.52
+  },
+  "packets.pts": {
+   "agree": 207,
+   "files": 209,
+   "rate": 99.04
+  },
+  "packets.pts_time": {
+   "agree": 207,
+   "files": 209,
+   "rate": 99.04
+  },
+  "packets.side_data_list.discard_padding": {
+   "agree": 61,
+   "files": 61,
+   "rate": 100.0
+  },
+  "packets.side_data_list.discard_reason": {
+   "agree": 61,
+   "files": 61,
+   "rate": 100.0
+  },
+  "packets.side_data_list.side_data_type": {
+   "agree": 64,
+   "files": 64,
+   "rate": 100.0
+  },
+  "packets.side_data_list.skip_reason": {
+   "agree": 61,
+   "files": 61,
+   "rate": 100.0
+  },
+  "packets.side_data_list.skip_samples": {
+   "agree": 61,
+   "files": 61,
+   "rate": 100.0
+  },
+  "packets.size": {
+   "agree": 208,
+   "files": 209,
+   "rate": 99.52
+  },
+  "packets.stream_index": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "streams.avg_frame_rate": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "streams.bit_rate": {
+   "agree": 15,
+   "files": 15,
+   "rate": 100.0
+  },
+  "streams.bits_per_raw_sample": {
+   "agree": 22,
+   "files": 22,
+   "rate": 100.0
+  },
+  "streams.bits_per_sample": {
+   "agree": 145,
+   "files": 145,
+   "rate": 100.0
+  },
+  "streams.channel_layout": {
+   "agree": 145,
+   "files": 145,
+   "rate": 100.0
+  },
+  "streams.channels": {
+   "agree": 145,
+   "files": 145,
+   "rate": 100.0
+  },
+  "streams.chroma_location": {
+   "agree": 91,
+   "files": 91,
+   "rate": 100.0
+  },
+  "streams.closed_captions": {
+   "agree": 189,
+   "files": 189,
+   "rate": 100.0
+  },
+  "streams.codec_long_name": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "streams.codec_name": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "streams.codec_tag": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "streams.codec_tag_string": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "streams.codec_type": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "streams.coded_height": {
+   "agree": 189,
+   "files": 189,
+   "rate": 100.0
+  },
+  "streams.coded_width": {
+   "agree": 189,
+   "files": 189,
+   "rate": 100.0
+  },
+  "streams.color_primaries": {
+   "agree": 84,
+   "files": 84,
+   "rate": 100.0
+  },
+  "streams.color_range": {
+   "agree": 136,
+   "files": 136,
+   "rate": 100.0
+  },
+  "streams.color_space": {
+   "agree": 90,
+   "files": 90,
+   "rate": 100.0
+  },
+  "streams.color_transfer": {
+   "agree": 84,
+   "files": 84,
+   "rate": 100.0
+  },
+  "streams.display_aspect_ratio": {
+   "agree": 189,
+   "files": 189,
+   "rate": 100.0
+  },
+  "streams.disposition.attached_pic": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "streams.disposition.captions": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "streams.disposition.clean_effects": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "streams.disposition.comment": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "streams.disposition.default": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "streams.disposition.dependent": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "streams.disposition.descriptions": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "streams.disposition.dub": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "streams.disposition.forced": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "streams.disposition.hearing_impaired": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "streams.disposition.karaoke": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "streams.disposition.lyrics": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "streams.disposition.metadata": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "streams.disposition.non_diegetic": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "streams.disposition.original": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "streams.disposition.still_image": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "streams.disposition.timed_thumbnails": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "streams.disposition.visual_impaired": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "streams.divx_packed": {
+   "agree": 1,
+   "files": 1,
+   "rate": 100.0
+  },
+  "streams.duration": {
+   "agree": 10,
+   "files": 10,
+   "rate": 100.0
+  },
+  "streams.duration_ts": {
+   "agree": 10,
+   "files": 10,
+   "rate": 100.0
+  },
+  "streams.extradata_size": {
+   "agree": 155,
+   "files": 155,
+   "rate": 100.0
+  },
+  "streams.field_order": {
+   "agree": 115,
+   "files": 115,
+   "rate": 100.0
+  },
+  "streams.film_grain": {
+   "agree": 189,
+   "files": 189,
+   "rate": 100.0
+  },
+  "streams.has_b_frames": {
+   "agree": 189,
+   "files": 189,
+   "rate": 100.0
+  },
+  "streams.height": {
+   "agree": 189,
+   "files": 189,
+   "rate": 100.0
+  },
+  "streams.index": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "streams.initial_padding": {
+   "agree": 145,
+   "files": 145,
+   "rate": 100.0
+  },
+  "streams.is_avc": {
+   "agree": 22,
+   "files": 22,
+   "rate": 100.0
+  },
+  "streams.level": {
+   "agree": 189,
+   "files": 189,
+   "rate": 100.0
+  },
+  "streams.nal_length_size": {
+   "agree": 22,
+   "files": 22,
+   "rate": 100.0
+  },
+  "streams.pix_fmt": {
+   "agree": 189,
+   "files": 189,
+   "rate": 100.0
+  },
+  "streams.profile": {
+   "agree": 188,
+   "files": 188,
+   "rate": 100.0
+  },
+  "streams.quarter_sample": {
+   "agree": 1,
+   "files": 1,
+   "rate": 100.0
+  },
+  "streams.r_frame_rate": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "streams.refs": {
+   "agree": 189,
+   "files": 189,
+   "rate": 100.0
+  },
+  "streams.sample_aspect_ratio": {
+   "agree": 189,
+   "files": 189,
+   "rate": 100.0
+  },
+  "streams.sample_fmt": {
+   "agree": 145,
+   "files": 145,
+   "rate": 100.0
+  },
+  "streams.sample_rate": {
+   "agree": 145,
+   "files": 145,
+   "rate": 100.0
+  },
+  "streams.side_data_list.avg_bitrate": {
+   "agree": 2,
+   "files": 2,
+   "rate": 100.0
+  },
+  "streams.side_data_list.blue_x": {
+   "agree": 2,
+   "files": 2,
+   "rate": 100.0
+  },
+  "streams.side_data_list.blue_y": {
+   "agree": 2,
+   "files": 2,
+   "rate": 100.0
+  },
+  "streams.side_data_list.buffer_size": {
+   "agree": 2,
+   "files": 2,
+   "rate": 100.0
+  },
+  "streams.side_data_list.green_x": {
+   "agree": 2,
+   "files": 2,
+   "rate": 100.0
+  },
+  "streams.side_data_list.green_y": {
+   "agree": 2,
+   "files": 2,
+   "rate": 100.0
+  },
+  "streams.side_data_list.inverted": {
+   "agree": 12,
+   "files": 12,
+   "rate": 100.0
+  },
+  "streams.side_data_list.max_average": {
+   "agree": 1,
+   "files": 1,
+   "rate": 100.0
+  },
+  "streams.side_data_list.max_bitrate": {
+   "agree": 2,
+   "files": 2,
+   "rate": 100.0
+  },
+  "streams.side_data_list.max_content": {
+   "agree": 1,
+   "files": 1,
+   "rate": 100.0
+  },
+  "streams.side_data_list.max_luminance": {
+   "agree": 2,
+   "files": 2,
+   "rate": 100.0
+  },
+  "streams.side_data_list.min_bitrate": {
+   "agree": 2,
+   "files": 2,
+   "rate": 100.0
+  },
+  "streams.side_data_list.min_luminance": {
+   "agree": 2,
+   "files": 2,
+   "rate": 100.0
+  },
+  "streams.side_data_list.pitch": {
+   "agree": 11,
+   "files": 11,
+   "rate": 100.0
+  },
+  "streams.side_data_list.projection": {
+   "agree": 11,
+   "files": 11,
+   "rate": 100.0
+  },
+  "streams.side_data_list.red_x": {
+   "agree": 2,
+   "files": 2,
+   "rate": 100.0
+  },
+  "streams.side_data_list.red_y": {
+   "agree": 2,
+   "files": 2,
+   "rate": 100.0
+  },
+  "streams.side_data_list.roll": {
+   "agree": 11,
+   "files": 11,
+   "rate": 100.0
+  },
+  "streams.side_data_list.side_data_type": {
+   "agree": 16,
+   "files": 16,
+   "rate": 100.0
+  },
+  "streams.side_data_list.type": {
+   "agree": 12,
+   "files": 12,
+   "rate": 100.0
+  },
+  "streams.side_data_list.vbv_delay": {
+   "agree": 2,
+   "files": 2,
+   "rate": 100.0
+  },
+  "streams.side_data_list.white_point_x": {
+   "agree": 2,
+   "files": 2,
+   "rate": 100.0
+  },
+  "streams.side_data_list.white_point_y": {
+   "agree": 2,
+   "files": 2,
+   "rate": 100.0
+  },
+  "streams.side_data_list.yaw": {
+   "agree": 11,
+   "files": 11,
+   "rate": 100.0
+  },
+  "streams.start_pts": {
+   "agree": 208,
+   "files": 209,
+   "rate": 99.52
+  },
+  "streams.start_time": {
+   "agree": 208,
+   "files": 209,
+   "rate": 99.52
+  },
+  "streams.tags.BPS": {
+   "agree": 8,
+   "files": 8,
+   "rate": 100.0
+  },
+  "streams.tags.BPS-eng": {
+   "agree": 6,
+   "files": 6,
+   "rate": 100.0
+  },
+  "streams.tags.CREATION_TIME": {
+   "agree": 8,
+   "files": 8,
+   "rate": 100.0
+  },
+  "streams.tags.DURATION": {
+   "agree": 132,
+   "files": 132,
+   "rate": 100.0
+  },
+  "streams.tags.DURATION-eng": {
+   "agree": 6,
+   "files": 6,
+   "rate": 100.0
+  },
+  "streams.tags.ENCODER": {
+   "agree": 67,
+   "files": 67,
+   "rate": 100.0
+  },
+  "streams.tags.HANDLER_NAME": {
+   "agree": 61,
+   "files": 61,
+   "rate": 100.0
+  },
+  "streams.tags.LANGUAGE": {
+   "agree": 9,
+   "files": 9,
+   "rate": 100.0
+  },
+  "streams.tags.NUMBER_OF_BYTES": {
+   "agree": 8,
+   "files": 8,
+   "rate": 100.0
+  },
+  "streams.tags.NUMBER_OF_BYTES-eng": {
+   "agree": 6,
+   "files": 6,
+   "rate": 100.0
+  },
+  "streams.tags.NUMBER_OF_FRAMES": {
+   "agree": 8,
+   "files": 8,
+   "rate": 100.0
+  },
+  "streams.tags.NUMBER_OF_FRAMES-eng": {
+   "agree": 6,
+   "files": 6,
+   "rate": 100.0
+  },
+  "streams.tags.VENDOR_ID": {
+   "agree": 35,
+   "files": 35,
+   "rate": 100.0
+  },
+  "streams.tags._STATISTICS_TAGS": {
+   "agree": 8,
+   "files": 8,
+   "rate": 100.0
+  },
+  "streams.tags._STATISTICS_TAGS-eng": {
+   "agree": 6,
+   "files": 6,
+   "rate": 100.0
+  },
+  "streams.tags._STATISTICS_WRITING_APP": {
+   "agree": 8,
+   "files": 8,
+   "rate": 100.0
+  },
+  "streams.tags._STATISTICS_WRITING_APP-eng": {
+   "agree": 6,
+   "files": 6,
+   "rate": 100.0
+  },
+  "streams.tags._STATISTICS_WRITING_DATE_UTC": {
+   "agree": 8,
+   "files": 8,
+   "rate": 100.0
+  },
+  "streams.tags._STATISTICS_WRITING_DATE_UTC-eng": {
+   "agree": 6,
+   "files": 6,
+   "rate": 100.0
+  },
+  "streams.tags.alpha_mode": {
+   "agree": 7,
+   "files": 7,
+   "rate": 100.0
+  },
+  "streams.tags.language": {
+   "agree": 99,
+   "files": 99,
+   "rate": 100.0
+  },
+  "streams.tags.title": {
+   "agree": 31,
+   "files": 31,
+   "rate": 100.0
+  },
+  "streams.time_base": {
+   "agree": 209,
+   "files": 209,
+   "rate": 100.0
+  },
+  "streams.width": {
+   "agree": 189,
+   "files": 189,
+   "rate": 100.0
+  }
+ },
+ "method": "tools/compat-corpus/ (the keys run)",
+ "mpegts": {
+  "(tag keys in fewer than 5 files, together)": {
+   "agree": 2,
+   "keys": 2,
+   "occurrences": 2,
+   "rate": 100.0
+  },
+  "format.bit_rate": {
+   "agree": 43,
+   "files": 44,
+   "rate": 97.73
+  },
+  "format.duration": {
+   "agree": 43,
+   "files": 44,
+   "rate": 97.73
+  },
+  "format.filename": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "format.format_long_name": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "format.format_name": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "format.nb_programs": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "format.nb_stream_groups": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "format.nb_streams": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "format.probe_score": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "format.size": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "format.start_time": {
+   "agree": 44,
+   "files": 44,
+   "rate": 100.0
+  },
+  "packets.codec_type": {
+   "agree": 42,
+   "files": 45,
+   "rate": 93.33
+  },
+  "packets.dts": {
+   "agree": 42,
+   "files": 45,
+   "rate": 93.33
+  },
+  "packets.dts_time": {
+   "agree": 42,
+   "files": 45,
+   "rate": 93.33
+  },
+  "packets.duration": {
+   "agree": 42,
+   "files": 45,
+   "rate": 93.33
+  },
+  "packets.duration_time": {
+   "agree": 42,
+   "files": 45,
+   "rate": 93.33
+  },
+  "packets.flags": {
+   "agree": 42,
+   "files": 45,
+   "rate": 93.33
+  },
+  "packets.pos": {
+   "agree": 42,
+   "files": 45,
+   "rate": 93.33
+  },
+  "packets.pts": {
+   "agree": 42,
+   "files": 45,
+   "rate": 93.33
+  },
+  "packets.pts_time": {
+   "agree": 42,
+   "files": 45,
+   "rate": 93.33
+  },
+  "packets.side_data_list.id": {
+   "agree": 42,
+   "files": 44,
+   "rate": 95.45
+  },
+  "packets.side_data_list.side_data_type": {
+   "agree": 42,
+   "files": 44,
+   "rate": 95.45
+  },
+  "packets.size": {
+   "agree": 42,
+   "files": 45,
+   "rate": 93.33
+  },
+  "packets.stream_index": {
+   "agree": 42,
+   "files": 45,
+   "rate": 93.33
+  },
+  "programs.nb_streams": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.pcr_pid": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.pmt_pid": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.program_id": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.program_num": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.avg_frame_rate": {
+   "agree": 44,
+   "files": 45,
+   "rate": 97.78
+  },
+  "programs.streams.bit_rate": {
+   "agree": 34,
+   "files": 39,
+   "rate": 87.18
+  },
+  "programs.streams.bits_per_raw_sample": {
+   "agree": 36,
+   "files": 36,
+   "rate": 100.0
+  },
+  "programs.streams.bits_per_sample": {
+   "agree": 42,
+   "files": 42,
+   "rate": 100.0
+  },
+  "programs.streams.channel_layout": {
+   "agree": 39,
+   "files": 40,
+   "rate": 97.5
+  },
+  "programs.streams.channels": {
+   "agree": 41,
+   "files": 42,
+   "rate": 97.62
+  },
+  "programs.streams.chroma_location": {
+   "agree": 40,
+   "files": 40,
+   "rate": 100.0
+  },
+  "programs.streams.closed_captions": {
+   "agree": 39,
+   "files": 40,
+   "rate": 97.5
+  },
+  "programs.streams.codec_long_name": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.codec_name": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.codec_tag": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.codec_tag_string": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.codec_type": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.coded_height": {
+   "agree": 40,
+   "files": 40,
+   "rate": 100.0
+  },
+  "programs.streams.coded_width": {
+   "agree": 40,
+   "files": 40,
+   "rate": 100.0
+  },
+  "programs.streams.color_primaries": {
+   "agree": 10,
+   "files": 10,
+   "rate": 100.0
+  },
+  "programs.streams.color_range": {
+   "agree": 15,
+   "files": 15,
+   "rate": 100.0
+  },
+  "programs.streams.color_space": {
+   "agree": 10,
+   "files": 10,
+   "rate": 100.0
+  },
+  "programs.streams.color_transfer": {
+   "agree": 10,
+   "files": 10,
+   "rate": 100.0
+  },
+  "programs.streams.display_aspect_ratio": {
+   "agree": 33,
+   "files": 33,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.attached_pic": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.captions": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.clean_effects": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.comment": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.default": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.dependent": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.descriptions": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.dub": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.forced": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.hearing_impaired": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.karaoke": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.lyrics": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.metadata": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.non_diegetic": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.original": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.still_image": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.timed_thumbnails": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.disposition.visual_impaired": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.duration": {
+   "agree": 43,
+   "files": 44,
+   "rate": 97.73
+  },
+  "programs.streams.duration_ts": {
+   "agree": 43,
+   "files": 44,
+   "rate": 97.73
+  },
+  "programs.streams.extradata_size": {
+   "agree": 40,
+   "files": 40,
+   "rate": 100.0
+  },
+  "programs.streams.field_order": {
+   "agree": 39,
+   "files": 39,
+   "rate": 100.0
+  },
+  "programs.streams.film_grain": {
+   "agree": 40,
+   "files": 40,
+   "rate": 100.0
+  },
+  "programs.streams.has_b_frames": {
+   "agree": 40,
+   "files": 40,
+   "rate": 100.0
+  },
+  "programs.streams.height": {
+   "agree": 40,
+   "files": 40,
+   "rate": 100.0
+  },
+  "programs.streams.id": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.index": {
+   "agree": 44,
+   "files": 45,
+   "rate": 97.78
+  },
+  "programs.streams.initial_padding": {
+   "agree": 42,
+   "files": 42,
+   "rate": 100.0
+  },
+  "programs.streams.is_avc": {
+   "agree": 36,
+   "files": 36,
+   "rate": 100.0
+  },
+  "programs.streams.level": {
+   "agree": 40,
+   "files": 40,
+   "rate": 100.0
+  },
+  "programs.streams.nal_length_size": {
+   "agree": 36,
+   "files": 36,
+   "rate": 100.0
+  },
+  "programs.streams.pix_fmt": {
+   "agree": 40,
+   "files": 40,
+   "rate": 100.0
+  },
+  "programs.streams.profile": {
+   "agree": 40,
+   "files": 42,
+   "rate": 95.24
+  },
+  "programs.streams.r_frame_rate": {
+   "agree": 44,
+   "files": 45,
+   "rate": 97.78
+  },
+  "programs.streams.refs": {
+   "agree": 40,
+   "files": 40,
+   "rate": 100.0
+  },
+  "programs.streams.sample_aspect_ratio": {
+   "agree": 33,
+   "files": 33,
+   "rate": 100.0
+  },
+  "programs.streams.sample_fmt": {
+   "agree": 42,
+   "files": 42,
+   "rate": 100.0
+  },
+  "programs.streams.sample_rate": {
+   "agree": 40,
+   "files": 42,
+   "rate": 95.24
+  },
+  "programs.streams.side_data_list.avg_bitrate": {
+   "agree": 4,
+   "files": 4,
+   "rate": 100.0
+  },
+  "programs.streams.side_data_list.buffer_size": {
+   "agree": 4,
+   "files": 4,
+   "rate": 100.0
+  },
+  "programs.streams.side_data_list.max_bitrate": {
+   "agree": 4,
+   "files": 4,
+   "rate": 100.0
+  },
+  "programs.streams.side_data_list.min_bitrate": {
+   "agree": 4,
+   "files": 4,
+   "rate": 100.0
+  },
+  "programs.streams.side_data_list.side_data_type": {
+   "agree": 4,
+   "files": 4,
+   "rate": 100.0
+  },
+  "programs.streams.side_data_list.vbv_delay": {
+   "agree": 4,
+   "files": 4,
+   "rate": 100.0
+  },
+  "programs.streams.start_pts": {
+   "agree": 44,
+   "files": 44,
+   "rate": 100.0
+  },
+  "programs.streams.start_time": {
+   "agree": 44,
+   "files": 44,
+   "rate": 100.0
+  },
+  "programs.streams.tags.language": {
+   "agree": 7,
+   "files": 8,
+   "rate": 87.5
+  },
+  "programs.streams.time_base": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.ts_id": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.ts_packetsize": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "programs.streams.width": {
+   "agree": 40,
+   "files": 40,
+   "rate": 100.0
+  },
+  "streams.avg_frame_rate": {
+   "agree": 43,
+   "files": 45,
+   "rate": 95.56
+  },
+  "streams.bit_rate": {
+   "agree": 33,
+   "files": 39,
+   "rate": 84.62
+  },
+  "streams.bits_per_raw_sample": {
+   "agree": 36,
+   "files": 36,
+   "rate": 100.0
+  },
+  "streams.bits_per_sample": {
+   "agree": 41,
+   "files": 42,
+   "rate": 97.62
+  },
+  "streams.channel_layout": {
+   "agree": 38,
+   "files": 40,
+   "rate": 95.0
+  },
+  "streams.channels": {
+   "agree": 40,
+   "files": 42,
+   "rate": 95.24
+  },
+  "streams.chroma_location": {
+   "agree": 39,
+   "files": 40,
+   "rate": 97.5
+  },
+  "streams.closed_captions": {
+   "agree": 39,
+   "files": 40,
+   "rate": 97.5
+  },
+  "streams.codec_long_name": {
+   "agree": 44,
+   "files": 45,
+   "rate": 97.78
+  },
+  "streams.codec_name": {
+   "agree": 44,
+   "files": 45,
+   "rate": 97.78
+  },
+  "streams.codec_tag": {
+   "agree": 44,
+   "files": 45,
+   "rate": 97.78
+  },
+  "streams.codec_tag_string": {
+   "agree": 44,
+   "files": 45,
+   "rate": 97.78
+  },
+  "streams.codec_type": {
+   "agree": 44,
+   "files": 45,
+   "rate": 97.78
+  },
+  "streams.coded_height": {
+   "agree": 39,
+   "files": 40,
+   "rate": 97.5
+  },
+  "streams.coded_width": {
+   "agree": 39,
+   "files": 40,
+   "rate": 97.5
+  },
+  "streams.color_primaries": {
+   "agree": 9,
+   "files": 10,
+   "rate": 90.0
+  },
+  "streams.color_range": {
+   "agree": 14,
+   "files": 15,
+   "rate": 93.33
+  },
+  "streams.color_space": {
+   "agree": 9,
+   "files": 10,
+   "rate": 90.0
+  },
+  "streams.color_transfer": {
+   "agree": 9,
+   "files": 10,
+   "rate": 90.0
+  },
+  "streams.display_aspect_ratio": {
+   "agree": 32,
+   "files": 33,
+   "rate": 96.97
+  },
+  "streams.disposition.attached_pic": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "streams.disposition.captions": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "streams.disposition.clean_effects": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "streams.disposition.comment": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "streams.disposition.default": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "streams.disposition.dependent": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "streams.disposition.descriptions": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "streams.disposition.dub": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "streams.disposition.forced": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "streams.disposition.hearing_impaired": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "streams.disposition.karaoke": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "streams.disposition.lyrics": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "streams.disposition.metadata": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "streams.disposition.non_diegetic": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "streams.disposition.original": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "streams.disposition.still_image": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "streams.disposition.timed_thumbnails": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "streams.disposition.visual_impaired": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "streams.duration": {
+   "agree": 42,
+   "files": 44,
+   "rate": 95.45
+  },
+  "streams.duration_ts": {
+   "agree": 42,
+   "files": 44,
+   "rate": 95.45
+  },
+  "streams.extradata_size": {
+   "agree": 39,
+   "files": 40,
+   "rate": 97.5
+  },
+  "streams.field_order": {
+   "agree": 38,
+   "files": 39,
+   "rate": 97.44
+  },
+  "streams.film_grain": {
+   "agree": 39,
+   "files": 40,
+   "rate": 97.5
+  },
+  "streams.has_b_frames": {
+   "agree": 39,
+   "files": 40,
+   "rate": 97.5
+  },
+  "streams.height": {
+   "agree": 39,
+   "files": 40,
+   "rate": 97.5
+  },
+  "streams.id": {
+   "agree": 44,
+   "files": 45,
+   "rate": 97.78
+  },
+  "streams.index": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "streams.initial_padding": {
+   "agree": 41,
+   "files": 42,
+   "rate": 97.62
+  },
+  "streams.is_avc": {
+   "agree": 36,
+   "files": 36,
+   "rate": 100.0
+  },
+  "streams.level": {
+   "agree": 39,
+   "files": 40,
+   "rate": 97.5
+  },
+  "streams.nal_length_size": {
+   "agree": 36,
+   "files": 36,
+   "rate": 100.0
+  },
+  "streams.pix_fmt": {
+   "agree": 39,
+   "files": 40,
+   "rate": 97.5
+  },
+  "streams.profile": {
+   "agree": 39,
+   "files": 42,
+   "rate": 92.86
+  },
+  "streams.r_frame_rate": {
+   "agree": 43,
+   "files": 45,
+   "rate": 95.56
+  },
+  "streams.refs": {
+   "agree": 39,
+   "files": 40,
+   "rate": 97.5
+  },
+  "streams.sample_aspect_ratio": {
+   "agree": 32,
+   "files": 33,
+   "rate": 96.97
+  },
+  "streams.sample_fmt": {
+   "agree": 41,
+   "files": 42,
+   "rate": 97.62
+  },
+  "streams.sample_rate": {
+   "agree": 39,
+   "files": 42,
+   "rate": 92.86
+  },
+  "streams.side_data_list.avg_bitrate": {
+   "agree": 3,
+   "files": 4,
+   "rate": 75.0
+  },
+  "streams.side_data_list.buffer_size": {
+   "agree": 3,
+   "files": 4,
+   "rate": 75.0
+  },
+  "streams.side_data_list.max_bitrate": {
+   "agree": 3,
+   "files": 4,
+   "rate": 75.0
+  },
+  "streams.side_data_list.min_bitrate": {
+   "agree": 3,
+   "files": 4,
+   "rate": 75.0
+  },
+  "streams.side_data_list.side_data_type": {
+   "agree": 3,
+   "files": 4,
+   "rate": 75.0
+  },
+  "streams.side_data_list.vbv_delay": {
+   "agree": 3,
+   "files": 4,
+   "rate": 75.0
+  },
+  "streams.start_pts": {
+   "agree": 43,
+   "files": 44,
+   "rate": 97.73
+  },
+  "streams.start_time": {
+   "agree": 43,
+   "files": 44,
+   "rate": 97.73
+  },
+  "streams.tags.language": {
+   "agree": 6,
+   "files": 8,
+   "rate": 75.0
+  },
+  "streams.time_base": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "streams.ts_id": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "streams.ts_packetsize": {
+   "agree": 45,
+   "files": 45,
+   "rate": 100.0
+  },
+  "streams.width": {
+   "agree": 39,
+   "files": 40,
+   "rate": 97.5
+  }
+ },
+ "per_container_files": {
+  "isobmff": 1049,
+  "matroska": 209,
+  "mpegts": 57
+ },
+ "rejected_by_coreav": 8,
+ "round": 4,
+ "schema": "coreav.compat-b3a/1"
+}
