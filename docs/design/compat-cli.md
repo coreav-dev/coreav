@@ -527,7 +527,9 @@ over the frames `ffprobe`'s analysis reads: whole PES packets in file
 order, up to and including the first after which some stream's latest
 decoding time lies more than five seconds (450,000 ticks, strictly) past
 its first timed frame's presentation time, or the first that starts past
-five million bytes (a 35 Mb/s stream crafted for it); each frame's rate is its
+five million bytes (a 35 Mb/s stream crafted for it; of two AAC streams
+past that limit, `ffprobe` counts a few more frames of the second, which
+this window does not model); each frame's rate is its
 `frame_length` bytes over 1024 samples at its sampling rate, and the mean
 is truncated toward zero at every frame (`m += (rate − m) / n`). It agrees
 on every AAC transport stream of the fixtures and on 11 of the 14 AAC
