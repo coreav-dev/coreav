@@ -121,18 +121,20 @@ holds the option sequence and not the names an answer happened to use.
 | **B6 Guard** | the set runs in CI on the generated fixtures on every change, and the speed bar has a regression guard |
 
 **Where the bars stand.** In the last round
-(`docs/measurements/compat-ffprobe.md`, round 3) B1 and B4 are met, and
-B2 and B3a are missed. B3a misses on both of its parts: on the corpus,
-37 of 101 ISO base media keys and 65 of 157 MPEG-TS keys agree on fewer
-than 98% of files (Matroska and WebM: 2 of 101), and the fixtures print
-byte-identical output for 91.5% (ISO base media) and 82.1% (MPEG-TS) of
-the commands that run, not 100% (Matroska and WebM: 100%). B2 misses on
-refusals by design (the commands without a section, intervals that need a
-seek) and on the fixtures CoreAV rejects, not on wrong values, so it does
-not gate the label. B3b waits for `coreav ffmpeg`. The bars stay as
-registered. Until B3a is met, `coreav ffprobe` is labelled experimental
-where users see it (its help and `coreav --help`), with these
-numbers; the label goes when a later round, run on new code, meets B3a.
+(`docs/measurements/compat-ffprobe.md`, round 4) B1 is met, B2 and B3a
+are missed, and B4 was last measured in round 3 (met) and not run again on
+this code. B3a now misses on the
+corpus only: the fixtures print byte-identical output for every command
+that runs, in all three containers (100%, with the runs a recorded known
+divergence explains set aside), but on the corpus 37 of 101 ISO base media
+keys and 65 of 157 MPEG-TS keys agree on fewer than 98% of files
+(Matroska and WebM: 2 of 101). B2 misses on refusals by design (the
+commands without a section, intervals that need a seek) and on the
+fixtures CoreAV rejects, not on wrong values, so it does not gate the
+label. B3b waits for `coreav ffmpeg`. The bars stay as registered. Until
+B3a is met, `coreav ffprobe` is labelled experimental where users see it
+(its help and `coreav --help`), with these numbers; the label goes when a
+later round, run on new code, meets B3a.
 
 **What the set does not reach.** The vocabulary is wider than the set
 exercises: seventeen of its options appear in no native command of
@@ -348,6 +350,19 @@ by index and packets by position in the listing. A key's rate is the share
 of files it appears in on which every occurrence agrees. A key CoreAV
 prints as unknown counts as disagreeing. Bar: 98% per key, as above.
 Development and fixes use the non-holdout files only.
+From round 5, each container's rates are also reported for the
+development and the held-out files apart. In rounds 2 to 4 the
+development files of ISO base media and Matroska were, by a selection
+error, held-out files (224 of 303 and 69 of 69); those two held-out sets
+are marked as used for development in every later report. The B3a
+verdict stays over all files, as registered: B3a is a correctness bar, and
+its held-out part shows whether a fix generalizes, not a performance
+claim. Of the B4 files of round 3, 19 of the 20 ISO base media files and
+all 20 Matroska and WebM files were among those development files (the
+MPEG-TS files were not); speed was not tuned on them, so the round 3
+result is kept, but a new claim that
+`coreav ffprobe` is faster than `ffprobe` is measured on held-out files
+that no development has used.
 
 **B4 Speed.** On held-out files only: from each of the three containers,
 the first 20 held-out `real` files of at most 256 MB in the order
