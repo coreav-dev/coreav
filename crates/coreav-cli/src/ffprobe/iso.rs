@@ -1196,19 +1196,6 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
         "duration",
         duration_ts.map_or(Value::Na, |v| time(v, 1, timescale)),
     ));
-    // Audio with several edits takes the average the container declares
-    // (`btrt`, else `esds`; the fixtures); other streams the bytes over a
-    // duration.
-    let declared = d
-        .declared_bit_rate
-        .filter(|_| {
-            audio
-                && !movie.has_fragments()
-                && matches!(track.edit_list, coreav_isobmff::EditList::Multiple)
-        })
-        .map(|b| b.average)
-        .filter(|b| *b > 0)
-        .map(i64::from);
     // The track's own duration: a data track's filled span does not count.
     // In a fragmented movie with a segment index, `ffprobe` counts the
     // bytes of the first fragment only (found on the development set: the
@@ -1222,10 +1209,11 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
     // Video and audio over their whole media, edits aside: the shorter of
     // the media header's duration and the samples'. Read from `ffprobe`'s
     // output on the development set: 8 of 8 edited video streams whose
-    // rate differed otherwise, and 176 of 176 audio streams with an edit
-    // from media time 0, from a later one (priming) or none, whatever
-    // average `esds` or `btrt` declares (the 10 others are QuickTime sound
-    // of one-byte samples, whose rate is the codec's).
+    // rate differed otherwise, and all 176 audio streams of regular
+    // samples, with an edit from media time 0, from a later one (priming)
+    // or none, whatever average `esds` or `btrt` declares; with several
+    // edits too (fixtures whose declared averages were patched). QuickTime
+    // sound of one-byte samples has the codec's rate above.
     let span = if video || audio {
         let samples = i64::try_from(track.sample_duration).ok().filter(|d| *d > 0);
         let header = i64::try_from(track.mdhd_duration).ok().filter(|d| *d > 0);
@@ -1236,7 +1224,7 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
     } else {
         None
     };
-    let bit_rate = coded_rate.or(declared).or_else(|| {
+    let bit_rate = coded_rate.or_else(|| {
         // A fragmented movie's video and audio bytes are over the stream's
         // duration as it is printed, its start included (the development
         // set: 18 of the 19 fragmented movies with audio agree, 10 before);
