@@ -240,6 +240,62 @@ impl SampleTables {
         Ok(())
     }
 
+    /// For a QuickTime compressed audio track whose samples are single
+    /// audio samples (`stsz` of 1, a version 1 sound description's
+    /// `samplesPerPacket` = `per_packet` and `bytesPerFrame` = `frame_bytes`,
+    /// QuickTime File Format, sound sample descriptions): whether every
+    /// chunk's compressed frames, `ceil(samples / per_packet)` of
+    /// `frame_bytes` each from the chunk's offset, lie inside the file, and
+    /// a frame within `max_packet_bytes`. Chunks are read as iteration reads
+    /// them: up to the last sample. `work` counts chunks visited. The tables
+    /// must have passed [`SampleTables::validate`].
+    pub(crate) fn frames_inside(
+        &self,
+        (per_packet, frame_bytes): (u32, u32),
+        file_len: u64,
+        max_packet_bytes: u64,
+        work: &mut Work,
+    ) -> Result<bool, Error> {
+        let (Some(stsc), Some((chunks, width)), Some(stsz)) =
+            (&self.stsc, &self.chunks, &self.stsz)
+        else {
+            return Ok(false);
+        };
+        if stsz.constant != 1 || per_packet == 0 || u64::from(frame_bytes) > max_packet_bytes {
+            return Ok(false);
+        }
+        let mut left = stsz.count;
+        let mut entry = 0u32;
+        let mut index = 0u32;
+        while left > 0 && index < chunks.count {
+            work.add(1)?;
+            let number = index.checked_add(1).ok_or_else(inconsistent)?;
+            while entry + 1 < stsc.count
+                && stsc.u32(entry + 1, 0, 12).ok_or_else(inconsistent)? <= number
+            {
+                entry += 1;
+            }
+            let samples = stsc.u32(entry, 4, 12).ok_or_else(inconsistent)?.min(left);
+            let at = index as usize;
+            let offset = if *width == 8 {
+                be_u64_at(&chunks.entries, at.checked_mul(8).ok_or_else(inconsistent)?)
+            } else {
+                be_u32_at(&chunks.entries, at.checked_mul(4).ok_or_else(inconsistent)?)
+                    .map(u64::from)
+            }
+            .ok_or_else(inconsistent)?;
+            let end = u64::from(samples.div_ceil(per_packet))
+                .checked_mul(u64::from(frame_bytes))
+                .and_then(|bytes| offset.checked_add(bytes));
+            if samples > 0 && end.is_none_or(|end| end > file_len) {
+                return Ok(false);
+            }
+            left -= samples;
+            index = number;
+        }
+        Ok(left == 0)
+    }
+
     pub(crate) fn sample_count(&self) -> u32 {
         self.stsz.as_ref().map_or(0, |t| t.count)
     }

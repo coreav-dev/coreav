@@ -158,6 +158,15 @@ pub struct Packets<'a, S> {
     window: Window,
     /// The media edits of an [`EditList::Multiple`] list, in media order.
     spans: Vec<Span>,
+    /// The end the byte ranges of the sample tables are checked against:
+    /// the file's length, except for a QuickTime compressed audio track
+    /// whose samples are single audio samples (`sound_packet` with an
+    /// `stsz` of 1). The tables count one byte a sample there, which does
+    /// not say where the bytes are; they are the compressed frames from
+    /// each chunk's offset, all checked inside the file when the iteration
+    /// is made (`SampleTables::frames_inside`), and the tables' own
+    /// ranges are then not checked (`u64::MAX`).
+    table_end: u64,
     failed: bool,
 }
 
@@ -186,6 +195,15 @@ impl Movie {
         // to the retained bytes; building them is charged here, one visit
         // each (docs/design/edit-list-writers.md, common decision 2).
         budget.charge(u64::try_from(spans.len()).unwrap_or(u64::MAX))?;
+        let framed = match track.description.sound_packet {
+            Some(frame) if usable && track.trex.is_none() => track.tables.frames_inside(
+                frame,
+                self.file_len,
+                limits.max_packet_bytes,
+                &mut budget.work,
+            )?,
+            _ => false,
+        };
         Ok(Packets {
             track,
             movie: self,
@@ -206,6 +224,7 @@ impl Movie {
             timeline,
             window,
             spans,
+            table_end: if framed { u64::MAX } else { self.file_len },
             failed: false,
         })
     }
@@ -248,7 +267,7 @@ impl<S: Source> Packets<'_, S> {
             match Cursor::at(
                 tables,
                 in_tables,
-                self.movie.file_len,
+                self.table_end,
                 self.limits.max_packet_bytes,
                 &mut self.budget.work,
             )? {
@@ -438,7 +457,7 @@ impl<S: Source> Packets<'_, S> {
         let start = out.len();
         if let Some(mut cursor) = self.cursor.take() {
             let max_packet_bytes = self.limits.max_packet_bytes;
-            let file_len = self.movie.file_len;
+            let file_len = self.table_end;
             let sample = &mut self.sample;
             let result = cursor.fill(
                 &self.track.tables,
@@ -510,7 +529,7 @@ impl<S: Source> Packets<'_, S> {
         if let Some(mut cursor) = self.cursor.take() {
             let bounds = Bounds {
                 max_packet_bytes: self.limits.max_packet_bytes,
-                file_len: self.movie.file_len,
+                file_len: self.table_end,
             };
             let result = cursor.visit(
                 &self.track.tables,
@@ -578,7 +597,7 @@ impl<S: Source> Packets<'_, S> {
         checked_run(
             raw,
             self.limits.max_packet_bytes,
-            self.movie.file_len,
+            self.table_end,
             &mut self.sample,
         )
     }
@@ -594,7 +613,7 @@ impl<S: Source> Packets<'_, S> {
         let end = offset
             .checked_add(u64::from(raw.size))
             .ok_or(Error::Overflow { offset })?;
-        if end > self.movie.file_len {
+        if end > self.table_end {
             return Err(Error::Truncated { offset });
         }
         let cts = raw

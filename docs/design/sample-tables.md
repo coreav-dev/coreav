@@ -124,6 +124,33 @@ the sample's flags, size and composition offset, the presentation mapping)
 is unchanged; what goes away is the run record between the table and that
 work, and the per-batch charge, which becomes the walk's per-sample charge.
 
+### QuickTime compressed audio counted in audio samples
+
+A QuickTime version 1 sound description of a compressed format (QDM2,
+IMA 4:1 and others) may come with an `stsz` of 1 and one table sample per
+audio sample: `samplesPerPacket` audio samples make one compressed frame
+of `bytesPerFrame` bytes (QuickTime File Format, sound sample
+descriptions). The tables' one byte a sample then says nothing about
+where the bytes are; they are the frames, `ceil(samples / samplesPerPacket)`
+of them back to back from each chunk's offset. Checking each run's
+nominal bytes against the file rejected valid files whose last chunk has
+fewer bytes than samples, as QDM2 files usually have.
+
+So when `Movie::packets` makes the iteration of such a track (without
+movie fragments), it walks the chunks once, one visit each charged to the
+work budget, and checks that every chunk's frames lie inside the file and
+that a frame is within `max_packet_bytes`. If they do, the tables'
+nominal ranges are not checked against the file by any of the three ways
+or by `packets_from` (the overflow checks stay); if not, the nominal
+checks stay, so the track still stops as truncated. The runs keep the
+tables' units: a caller that wants the frames, as `coreav ffprobe` does,
+groups them from the chunk's offset. Rejected: rewriting the tables into
+one sample per frame, as uncompressed audio is rewritten, which changes
+the samples every reader sees and needs whole frames in every chunk; and
+carrying each run's chunk offset to check the frames run by run, which
+widens the run every hot loop moves for a codec the library does not
+decode.
+
 ## Bars
 
 Fixed here before any measured run (the project's pre-registration rule).

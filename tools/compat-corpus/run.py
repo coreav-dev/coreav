@@ -24,6 +24,8 @@ library only.
 import argparse
 import collections
 import concurrent.futures
+import functools
+import importlib.util
 import json
 import os
 import pathlib
@@ -345,45 +347,108 @@ def compare_file(coreav, path, args):
     return result, examples, code
 
 
+ISO_EXTS = {'.mp4', '.mov', '.m4a', '.m4b', '.m4v', '.3gp', '.3g2', '.qt'}
+STRICT = 'KD-STRICT (docs/known-divergences.md)'
+
+
+def strict_rejection(coreav, path):
+    """Whether KD-STRICT covers CoreAV rejecting `path`, an ISO base media
+    file: `coreav probe` names the kind of defect (truncated or invalid
+    structure, a limit), and the file's bytes independently show that kind,
+    read by the walk of `scripts/oracle_kd.py` that the library oracle uses
+    for the same record. A valid file CoreAV rejects is never covered."""
+    if path.suffix.lower() not in ISO_EXTS:
+        return False
+    _, _, err = run([coreav, 'probe', str(path)])
+    try:
+        kind = json.loads(err).get('kind')
+    except (ValueError, AttributeError):
+        return False
+    kd = oracle_kd()
+    evidence = kd.EVIDENCE.get(kind, set())
+    return bool(evidence and evidence & kd.media_defects(path.parent, path.name))
+
+
+@functools.cache
+def oracle_kd():
+    """`scripts/oracle_kd.py`, from the repository or beside this file."""
+    for d in (HERE.parent.parent / 'scripts', HERE):
+        if (d / 'oracle_kd.py').exists():
+            spec = importlib.util.spec_from_file_location('oracle_kd', d / 'oracle_kd.py')
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            return module
+    raise FileNotFoundError('oracle_kd.py')
+
+
+def compare_all(coreav, path):
+    """Both listings of `path` compared key by key: (keys, examples, failed,
+    record), or None when ffprobe reads neither. `keys` maps each key
+    ffprobe prints to whether every occurrence agrees; on a file CoreAV
+    rejects, `record` names the known divergence that covers the rejection
+    (every key of the file then agrees through it, and stays in the
+    denominator), else None."""
+    keys, examples, failed = {}, {}, False
+    for args in (SECTION_ARGS, PACKET_ARGS):
+        r = compare_file(coreav, path, args)
+        if r is None:
+            continue
+        result, ex, code = r
+        failed = failed or code != 0
+        for name, ok in result.items():
+            keys[name] = keys.get(name, True) and ok
+        for name, e in ex.items():
+            examples.setdefault(name, e)
+    if not keys:
+        return None
+    record = STRICT if failed and strict_rejection(coreav, path) else None
+    if record:
+        keys = dict.fromkeys(keys, True)
+        examples = {}
+    return keys, examples, failed, record
+
+
 def cmd_keys(opts):
     files = media_files(opts.media)
     if opts.list:
         files = [pathlib.Path(line.strip()) for line in open(opts.list) if line.strip()]
     seen = collections.Counter()
     agree = collections.Counter()
+    covered = collections.Counter()
     examples = collections.defaultdict(list)
     rejected = []
-    jobs = [(path, args) for path in files for args in (SECTION_ARGS, PACKET_ARGS)]
     with concurrent.futures.ThreadPoolExecutor(opts.jobs) as pool:
-        results = list(pool.map(lambda j: (j[0], j[1], compare_file(opts.coreav, j[0], j[1])), jobs))
-    for path, args, r in results:
-        if True:
-            if r is None:
-                continue
-            result, ex, code = r
-            if code != 0:
-                rejected.append({'file': str(path), 'args': args[4:], 'exit': code})
-            for name, ok in result.items():
-                seen[name] += 1
-                agree[name] += ok
-            for name, e in ex.items():
-                if len(examples[name]) < 5:
-                    examples[name].append({'file': path.name, 'path': e[0],
-                                           'ffprobe': e[1], 'coreav': e[2]})
+        results = list(pool.map(lambda path: (path, compare_all(opts.coreav, path)), files))
+    for path, r in results:
+        if r is None:
+            continue
+        result, ex, failed, record = r
+        if failed:
+            rejected.append({'file': str(path), 'covered_by': record})
+        for name, ok in result.items():
+            seen[name] += 1
+            agree[name] += ok
+            covered[name] += bool(record)
+        for name, e in ex.items():
+            if len(examples[name]) < 5:
+                examples[name].append({'file': path.name, 'path': e[0],
+                                       'ffprobe': e[1], 'coreav': e[2]})
     rows = []
     for name in sorted(seen, key=lambda n: (agree[n] / seen[n], n)):
         rows.append({'key': name, 'files': seen[name], 'agree': agree[name],
+                     'via_known_divergence': covered[name],
                      'rate': round(100.0 * agree[name] / seen[name], 2)})
     report = {'files': len(files), 'rejected': rejected, 'keys': rows,
               'examples': examples}
     if opts.report:
         pathlib.Path(opts.report).write_text(json.dumps(report, indent=1))
     below = [r for r in rows if r['rate'] < opts.bar]
+    uncovered = [r for r in rejected if not r['covered_by']]
     print(json.dumps({'files': len(files), 'keys': len(rows), 'below_bar': len(below),
-                      'rejected': len(rejected)}))
+                      'rejected': len(rejected), 'rejected_uncovered': len(uncovered)}))
     for r in below[:opts.top]:
         print(f"{r['rate']:6.2f}% {r['agree']}/{r['files']} {r['key']}")
-    return 1 if below or rejected else 0
+    return 1 if below or uncovered else 0
 
 
 def main():

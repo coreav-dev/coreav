@@ -349,6 +349,21 @@ file, both tools run `-v error -of json -show_format -show_streams
 by index and packets by position in the listing. A key's rate is the share
 of files it appears in on which every occurrence agrees. A key CoreAV
 prints as unknown counts as disagreeing. Bar: 98% per key, as above.
+From round 5 the known divergences the bar sets aside are applied to the
+corpus too, as the library's oracle applies them: an ISO base media file
+CoreAV rejects comes under `KD-STRICT` (`docs/known-divergences.md`) when
+`coreav probe` names the defect (a truncated or invalid structure, or a
+limit) and the file's bytes show that kind of defect by the walk of
+`scripts/oracle_kd.py`. Every key of such a file then agrees through the
+record and stays in the denominator; the report counts these files and
+keys apart (`run.py keys`, `via_known_divergence`). A rejection the bytes
+do not explain, and any rejection of a Matroska or MPEG-TS file, still
+disagrees on every key. Rejected: reading such files in `coreav ffprobe`
+as `ffprobe` does (stopping at a box past the end, skipping a second movie
+box), which would loosen for one command the policy the library keeps for
+every reader (proposal section 6.2); and counting them as disagreement, as
+rounds 2 to 4 did, which counted a documented divergence as a bug,
+contrary to the bar's own "after the documented known divergences".
 Development and fixes use the non-holdout files only.
 From round 5, each container's rates are also reported for the
 development and the held-out files apart. In rounds 2 to 4 the
