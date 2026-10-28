@@ -53,6 +53,9 @@ pub(crate) struct Pes {
 const SNIFF_BYTES: usize = 16 << 10;
 const SNIFF_PACKETS: u8 = 8;
 
+/// `stream_id` of a padding stream (ISO/IEC 13818-1 table 2-22).
+const PADDING_STREAM: u8 = 0xBE;
+
 /// A stream as the PMTs declare it.
 #[derive(Clone, Debug)]
 pub(crate) struct Entry {
@@ -82,6 +85,17 @@ pub(crate) struct Entry {
     /// first Event Information Table section; `u64::MAX` for a PID no
     /// table declares.
     pub found_at: u64,
+}
+
+/// A Program Map Table section read before the first PAT named its PID.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct EarlyPmt {
+    /// The packet that completed it.
+    pub at: u64,
+    pub pmt_pid: u16,
+    pub number: u16,
+    /// Its elementary streams' PIDs, in its order.
+    pub pids: Vec<u16>,
 }
 
 /// A program as the PAT and its PMT declare it.
@@ -115,13 +129,21 @@ pub(crate) struct Demux {
     /// it, and those packets are the stream's too.
     pub first_pes: BTreeMap<u16, (u64, u64)>,
     /// Where each PID's first PES packet is, whether or not it states a
-    /// time: a PID no table declares is a stream all the same.
+    /// time: a PID no table declares is a stream all the same. A padding
+    /// stream's PES packets (`stream_id` 0xBE, ISO/IEC 13818-1 table 2-22)
+    /// carry no data and do not count: `ffprobe` lists no stream for a PID
+    /// that carries only those, and does not place a stream at one
+    /// (crafted files).
     pub pes_pids: BTreeMap<u16, u64>,
     /// Where the first Program Map Table was read.
     pub first_pmt_at: Option<u64>,
-    /// Where each PID's first PES packet starts after the first Program
-    /// Map Table was read.
-    pub pes_after_pmt: BTreeMap<u16, u64>,
+    /// The Program Map Table sections that came before the first PAT, at
+    /// most one for each PMT PID and program number: where each was
+    /// complete, and its PIDs in its order ([`EarlyPmt`]).
+    pub early_pmts: Vec<EarlyPmt>,
+    /// The sections being reassembled on PIDs that may carry a Program
+    /// Map Table, before the first PAT says which do.
+    early_sections: BTreeMap<u16, Assembler>,
     /// The offset of the packet being read.
     current: u64,
     max_programs: usize,
@@ -190,7 +212,8 @@ impl Demux {
             first_pes: BTreeMap::new(),
             pes_pids: BTreeMap::new(),
             first_pmt_at: None,
-            pes_after_pmt: BTreeMap::new(),
+            early_pmts: Vec::new(),
+            early_sections: BTreeMap::new(),
             current: 0,
             max_programs: usize::try_from(limits.max_programs).unwrap_or(usize::MAX),
             max_streams: usize::try_from(limits.max_streams).unwrap_or(usize::MAX),
@@ -229,7 +252,8 @@ impl Demux {
             first_pes: BTreeMap::new(),
             pes_pids: BTreeMap::new(),
             first_pmt_at: self.first_pmt_at,
-            pes_after_pmt: BTreeMap::new(),
+            early_pmts: Vec::new(),
+            early_sections: BTreeMap::new(),
             current: 0,
             max_programs: self.max_programs,
             max_streams: self.max_streams,
@@ -396,6 +420,9 @@ impl Demux {
         {
             return self.section_payload(pid, payload, header.unit_start, warnings);
         }
+        if !self.pat_read() {
+            self.early_section(pid, payload, header.unit_start);
+        }
         // The first timestamp of the PID, recorded before any table names
         // it: the stream starts where its first PES packet does, not where
         // the reader learnt that the PID carries one. Bounded by the
@@ -404,7 +431,11 @@ impl Demux {
             && !self.first_pes.contains_key(&pid)
             && self.pes_pids.len() < self.max_streams
         {
-            if let pes::Parsed::Done(first) = pes::parse(payload) {
+            let header = match pes::parse(payload) {
+                pes::Parsed::Done(first) if first.stream_id != PADDING_STREAM => Some(first),
+                _ => None,
+            };
+            if let Some(first) = header {
                 self.pes_pids.entry(pid).or_insert(offset);
                 // A PES packet of the stream may state no time; the first
                 // that does gives the stream its start.
@@ -429,16 +460,6 @@ impl Demux {
             for entry in self.streams.iter_mut().skip(before) {
                 entry.sniff = true;
             }
-        }
-        // Where the PID's data first shows once a program is known: a
-        // stream of a program whose table comes later is found there.
-        if header.unit_start
-            && self.first_pmt_at.is_some()
-            && !self.pes_after_pmt.contains_key(&pid)
-            && self.pes_after_pmt.len() < self.max_streams
-            && matches!(pes::parse(payload), pes::Parsed::Done(_))
-        {
-            self.pes_after_pmt.insert(pid, offset);
         }
         if !self.collect {
             return Ok(());
@@ -643,6 +664,58 @@ impl Demux {
                     reason,
                 },
             ),
+        }
+    }
+
+    /// Reads a Program Map Table section on a PID before the first PAT
+    /// says which PIDs carry one: `ffprobe` reads the file again from its
+    /// start once it has the PAT, and a stream such a section names is
+    /// found there ([`EarlyPmt`]). Only PIDs whose unit starts open a PMT
+    /// section are reassembled, at most `max_programs` of them at a time.
+    fn early_section(&mut self, pid: u16, payload: &[u8], unit_start: bool) {
+        let opens_pmt = unit_start
+            && payload
+                .first()
+                .and_then(|&pointer| payload.get(usize::from(pointer).saturating_add(1)))
+                == Some(&PMT);
+        if opens_pmt
+            && !self.early_sections.contains_key(&pid)
+            && self.early_sections.len() < self.max_programs
+        {
+            self.early_sections.insert(pid, Assembler::new(MAX_SECTION));
+        }
+        let Some(assembler) = self.early_sections.get_mut(&pid) else {
+            return;
+        };
+        let mut sections = Vec::new();
+        let pushed = assembler.push(payload, unit_start, &mut sections);
+        // A unit that opens no PMT section (a PES packet) ends the PID's
+        // reassembly, once it has completed the section before it.
+        if pushed.is_err() || (unit_start && !opens_pmt) {
+            self.early_sections.remove(&pid);
+        }
+        for data in sections {
+            let Ok((long, body)) = section::long(&data) else {
+                continue;
+            };
+            if long.table_id != PMT || !long.current {
+                continue;
+            }
+            let Ok(parsed) = section::pmt(body) else {
+                continue;
+            };
+            let known = self
+                .early_pmts
+                .iter()
+                .any(|e| e.pmt_pid == pid && e.number == long.id);
+            if !known && self.early_pmts.len() < self.max_programs {
+                self.early_pmts.push(EarlyPmt {
+                    at: self.current,
+                    pmt_pid: pid,
+                    number: long.id,
+                    pids: parsed.streams.iter().map(|es| es.pid).collect(),
+                });
+            }
         }
     }
 

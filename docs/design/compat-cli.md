@@ -581,6 +581,32 @@ on every AAC transport stream of the fixtures and on 11 of the 14 AAC
 files of the development set; on the others `ffprobe`'s mean starts or
 ends at frames this window does not explain.
 
+Streams are numbered in two steps, as if `ffprobe` read the file twice:
+first the streams of the first Program Map Table completed after the PAT,
+in that table's order (after the Event Information Table if its first
+section comes earlier); then, reading again from the first packet, every
+other stream where the file first shows it -- a Program Map Table section
+that names it, even one that comes before the PAT, or a PES packet on its
+PID whatever the tables have said so far, padding (`stream_id` 0xBE)
+aside; streams one table names at once keep its order
+(`Stream::with_first_table`, `Stream::found_at`). A PID that carries only
+padding is no stream. Each program lists its streams in its own table's
+order, whatever their indexes, so a PID two programs share sits where each
+table puts it. Found on files crafted with `ffmpeg -program` and edited
+packet by packet (a program's table delayed behind its streams' data, or
+placed before the PAT; a PES packet moved before every table; padding on
+a declared and on an undeclared PID), and checked on the seven
+multi-program captures of the development set, whose numbering (up to 37
+streams) and program lists this reproduces exactly, where before all
+seven disagreed on both. Rejected: the first
+PES packet after the first Program Map Table (the earlier rule), which
+misses the data a capture carries before its tables, where `ffprobe`
+places most streams of a capture whose PAT comes late; the packet that
+completes a stream's first PES packet, which puts behind the video the
+audio streams of a capture that `ffprobe` numbers before it; and listing a
+program's streams in index order, which put a PID sixteen programs
+share first in each where every table, and `ffprobe`, has it last.
+
 Codec-level fields of a transport stream's first access units, each found
 on crafted files and the development set:
 - LOAS/LATM AAC takes the `AudioSpecificConfig` its `StreamMuxConfig`

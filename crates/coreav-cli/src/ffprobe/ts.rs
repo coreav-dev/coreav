@@ -123,14 +123,17 @@ pub fn probe<'a, S: Source + 'a>(
         }
     }
     let mut report = Report::default();
-    // `ffprobe` numbers the streams in the order the file shows them once
-    // a program is known: a table that names them, or their data
-    // (KD-TS-STREAM-ORDER); the probe's order breaks ties.
+    // `ffprobe` numbers first the streams of the first Program Map Table
+    // it reads, then the others in the order the file shows them from its
+    // start: a table that names them, or their data (KD-TS-STREAM-ORDER,
+    // `Stream::found_at`); the probe's order breaks ties.
     let mut order: Vec<usize> = (0..ts.streams.len()).collect();
     order.sort_by_key(|&i| {
         ts.streams
             .get(i)
-            .map_or((u64::MAX, usize::MAX), |st| (st.found_at, st.stream_index))
+            .map_or((true, u64::MAX, usize::MAX), |st| {
+                (!st.with_first_table, st.found_at, st.stream_index)
+            })
     });
     let facts: Vec<Facts> = ts
         .streams
@@ -2088,7 +2091,8 @@ fn utf8_bytewise(bytes: &[u8]) -> String {
     out
 }
 
-/// The programs, in the order of the PAT, each with its streams.
+/// The programs, in the order of the PAT, each with its streams in the
+/// order of its Program Map Table.
 ///
 /// A service the Service Description Table names and the PAT does not is
 /// a program too, with no table and no streams, as `ffprobe` lists it
@@ -2109,16 +2113,24 @@ fn programs(ts: &TransportStream, order: &[usize], services: &[Service]) -> Vec<
         tags
     };
     let from_pat = ts.programs.iter().map(|p| {
-        let streams: Vec<usize> = order
-            .iter()
-            .enumerate()
-            .filter(|(_, i)| {
-                ts.streams
-                    .get(**i)
-                    .is_some_and(|st| st.programs.contains(&p.number))
-            })
-            .map(|(position, _)| position)
+        // A program lists its streams in its table's order, whatever
+        // their indexes (a stream two programs share is in both); a stream
+        // of the program its table does not list follows, by index.
+        let member = |position: usize| {
+            order
+                .get(position)
+                .and_then(|&i| ts.streams.get(i))
+                .filter(|st| st.programs.contains(&p.number))
+        };
+        let rank = |position: usize| {
+            member(position)
+                .and_then(|st| p.pids.iter().position(|&pid| pid == st.pid))
+                .unwrap_or(usize::MAX)
+        };
+        let mut streams: Vec<usize> = (0..order.len())
+            .filter(|&position| member(position).is_some())
             .collect();
+        streams.sort_by_key(|&position| (rank(position), position));
         let program = Program {
             entries: vec![
                 ("program_id", Value::Int(i64::from(p.number))),

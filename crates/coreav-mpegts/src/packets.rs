@@ -467,6 +467,7 @@ impl<S: Source> Packets<'_, S> {
             end: None,
             last_pts: None,
             found_at: entry.found_at,
+            with_first_table: false,
         });
         self.by_pid.insert(entry.pid, index);
         self.frames.push(Frames::default());

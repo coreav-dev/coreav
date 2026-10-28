@@ -12,6 +12,8 @@
 
 #[path = "../../coreav-isobmff/tests/common/mod.rs"]
 mod common;
+#[path = "../../coreav-mpegts/tests/common/mod.rs"]
+mod ts;
 
 use common::{aac_entry, av_movie_with};
 use std::path::{Path, PathBuf};
@@ -236,4 +238,40 @@ fn coreav_ffmpeg_refuses_every_command_for_now() {
     assert!(r.stdout.is_empty());
     assert!(!r.stderr.is_empty());
     assert!(!out.exists());
+}
+
+#[test]
+fn transport_streams_are_numbered_and_their_programs_listed_as_ffprobe_does() {
+    // `ffprobe` numbers the streams of the first Program Map Table after
+    // the PAT first, then the others where the file first shows them from
+    // its start (a PES packet before any table here, then a table read
+    // before the PAT, then program 2's table); a program lists its streams
+    // in its table's order, whatever their numbers (the same file through
+    // `ffprobe`).
+    let mut mux = ts::Mux::default();
+    mux.pes(0x201, 0xC0, 90_000, &ts::adts(300), true);
+    mux.pmt(0x1002, 3, &[(0x0F, 0x300)]);
+    mux.pat(&[(1, 0x1000), (2, 0x1001), (3, 0x1002)]);
+    mux.pmt(0x1000, 1, &[(0x0F, 0x100), (0x0F, 0x101)]);
+    mux.pmt(0x1001, 2, &[(0x0F, 0x202), (0x0F, 0x201), (0x0F, 0x200)]);
+    mux.pmt(0x1002, 3, &[(0x0F, 0x300)]);
+    for pid in [0x100, 0x101, 0x200, 0x202, 0x300, 0x201] {
+        mux.pes(pid, 0xC0, 90_000, &ts::adts(300), true);
+    }
+    let path = file("ffprobe-order.ts", &mux.out);
+    let r = ffprobe(&[
+        "-v",
+        "error",
+        "-show_entries",
+        "program=program_id:stream=id",
+        "-of",
+        "csv=p=0",
+        &path.to_string_lossy(),
+    ]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    assert_eq!(
+        r.stdout,
+        "1,0x100\n0x101\n\n2,0x202\n0x201\n0x200\n\n3,0x300\n\n\
+         0x100\n0x101\n0x201\n0x300\n0x202\n0x200\n"
+    );
 }
