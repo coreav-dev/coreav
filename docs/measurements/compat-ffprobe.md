@@ -586,6 +586,181 @@ The held-out files of ISO base media and Matroska were not held out in rounds 2 
 | `streams.codec_type` | 45 | 44 | 97.78% |
 | `streams.id` | 45 | 44 | 97.78% |
 
+## Round 5
+
+The code of round 4 with QuickTime compressed audio read (a version 1
+sound description with a sample size of 1, whose packets are checked
+against the file chunk by chunk; `docs/design/sample-tables.md`) and PES
+headers read without their `10` marker bits, as `ffprobe` reads them
+(`docs/design/mpegts.md`). The corpus method changes as committed before
+this round (`docs/design/compat-cli.md`, "B3a on the corpus"): a file
+`coreav ffprobe` rejects that `KD-STRICT` explains agrees through the
+record, and every container is also reported for its development and
+held-out files apart. B3a, on the fixtures and on the corpus, ran on the
+binary of `151656b`. B4 was last measured in round 3 and was not run
+again on this code.
+
+### B1, B2 and the writers (B3a on the fixtures)
+
+Binary of `151656b`, as in round 1. Every count is that of round 4:
+
+| Fixtures | B1 `ffprobe` refusals | B1 `ffmpeg` refusals | B2 runs | B3a identical output |
+|---|---|---|---|---|
+| ISO base media (96 files) | 48 / 48 | 897 / 897 | 8,178 / 8,831 | 8,036 / 8,036 (100%), 142 set aside |
+| Matroska and WebM (38) | 48 / 48 | 897 / 897 | 3,306 / 3,497 | 3,306 / 3,306 (100%) |
+| MPEG-TS (45) | 48 / 48 | 897 / 897 | 3,960 / 4,181 | 3,933 / 3,933 (100%), 27 set aside |
+
+The set-aside runs are those of round 4 (`KD-DECLARED-SIZE` and
+`KD-TS-DUPLICATE`). **B1 met; B2 missed** as in round 1. **B3a on the
+fixtures met** for all three containers.
+
+### B3a on the corpus
+
+Binary of `151656b`: 1315 files, the files of round 1 (1049 ISO base
+media: 746 development, 303 held out; 209 Matroska and WebM: 140 and 69;
+57 MPEG-TS: 40 and 17). 12 that `ffprobe` rejects are not compared (9
+development and 3 held-out MPEG-TS files). `coreav ffprobe` rejects 6
+files (round 4: 8; the two with QuickTime compressed audio are now read),
+all ISO base media, and `KD-STRICT` explains all 6: `coreav probe` names
+a truncated or invalid structure and the walk of `scripts/oracle_kd.py`
+finds that kind of defect in the bytes. Their keys
+agree through the record (`via_known_divergence` in the tables). The held-out
+ISO base media and Matroska files were used for development in rounds 2
+to 4 (round 4), so only the held-out MPEG-TS column shows whether a fix
+generalizes. Full tables, overall and per part:
+`compat-ffprobe/b3a-round5.json`.
+
+**B3a missed.** Keys below 98% (in at least five files, outside the tags):
+ISO base media 35 of 101 (round 4: 37; development 32 of 101, held out
+24 of 95), Matroska and WebM 2 of 101 (development 2 of 95, held out 0 of
+92), MPEG-TS 65 of 157 (development 6 of 157, held out 62 of 151). No
+key's rate fell against round 4. ISO base media `packets.size`,
+`packets.dts` and `packets.pts` rose from 97.14% to 97.90%, stream
+`has_b_frames` from 95.48% to 96.09%, `format.duration` from 96.28% to
+96.85%; `packets.stream_index` and `packets.flags` crossed 98%, and
+`packets.pos` reached 1028 of 1049 files (97.998%, below the bar; a key
+is below 98% on its unrounded share). On MPEG-TS the packet keys rose
+from 93.33% to 95.56%: every development file now agrees on them, and two of the 14 held-out files
+compared still disagree on every packet key, which keeps most of the 62
+held-out keys below 98%.
+
+**ISO base media**: 101 keys found in at least five files; 66 at or above 98%, 35 below:
+
+| Key | All files | Rate | Development | Held out |
+|---|---|---|---|---|
+| `streams.side_data_list.side_data_type` | 44/53 | 83.02% | 31/39 (79.49%) | 13/14 (92.86%) |
+| `streams.side_data_list.displaymatrix` | 15/18 | 83.33% | 9/12 (75.00%) | 6/6 (100.00%) |
+| `streams.side_data_list.rotation` | 15/18 | 83.33% | 9/12 (75.00%) | 6/6 (100.00%) |
+| `chapters.end` | 13/15 | 86.67% | 9/11 (81.82%) | 4/4 (100.00%) |
+| `chapters.end_time` | 13/15 | 86.67% | 9/11 (81.82%) | 4/4 (100.00%) |
+| `chapters.id` | 13/15 | 86.67% | 9/11 (81.82%) | 4/4 (100.00%) |
+| `chapters.start` | 13/15 | 86.67% | 9/11 (81.82%) | 4/4 (100.00%) |
+| `chapters.start_time` | 13/15 | 86.67% | 9/11 (81.82%) | 4/4 (100.00%) |
+| `chapters.time_base` | 13/15 | 86.67% | 9/11 (81.82%) | 4/4 (100.00%) |
+| `streams.bit_rate` | 946/1044 | 90.61% | 665/743 (89.50%) | 281/301 (93.36%) |
+| `streams.r_frame_rate` | 996/1049 | 94.95% | 704/746 (94.37%) | 292/303 (96.37%) |
+| `streams.color_range` | 527/551 | 95.64% | 377/395 (95.44%) | 150/156 (96.15%) |
+| `streams.has_b_frames` | 935/973 | 96.09% | 667/692 (96.39%) | 268/281 (95.37%) |
+| `streams.pix_fmt` | 936/973 | 96.20% | 667/692 (96.39%) | 269/281 (95.73%) |
+| `streams.display_aspect_ratio` | 608/631 | 96.35% | 434/451 (96.23%) | 174/180 (96.67%) |
+| `packets.duration` | 1013/1049 | 96.57% | 720/746 (96.51%) | 293/303 (96.70%) |
+| `packets.duration_time` | 1013/1049 | 96.57% | 720/746 (96.51%) | 293/303 (96.70%) |
+| `streams.channel_layout` | 565/585 | 96.58% | 402/419 (95.94%) | 163/166 (98.19%) |
+| `streams.chroma_location` | 824/853 | 96.60% | 587/606 (96.86%) | 237/247 (95.95%) |
+| `streams.color_space` | 455/471 | 96.60% | 321/334 (96.11%) | 134/137 (97.81%) |
+| `streams.sample_fmt` | 628/649 | 96.76% | 442/462 (95.67%) | 186/187 (99.47%) |
+| `format.duration` | 1016/1049 | 96.85% | 721/746 (96.65%) | 295/303 (97.36%) |
+| `streams.duration` | 1016/1049 | 96.85% | 720/746 (96.51%) | 296/303 (97.69%) |
+| `streams.duration_ts` | 1016/1049 | 96.85% | 720/746 (96.51%) | 296/303 (97.69%) |
+| `format.bit_rate` | 1018/1048 | 97.14% | 722/746 (96.78%) | 296/302 (98.01%) |
+| `streams.sample_aspect_ratio` | 613/631 | 97.15% | 438/451 (97.12%) | 175/180 (97.22%) |
+| `streams.color_transfer` | 444/456 | 97.37% | 313/324 (96.60%) | 131/132 (99.24%) |
+| `streams.bits_per_raw_sample` | 727/746 | 97.45% | 510/523 (97.51%) | 217/223 (97.31%) |
+| `packets.codec_type` | 1026/1049 | 97.81% | 731/746 (97.99%) | 295/303 (97.36%) |
+| `packets.dts` | 1027/1049 | 97.90% | 732/746 (98.12%) | 295/303 (97.36%) |
+| `packets.dts_time` | 1027/1049 | 97.90% | 732/746 (98.12%) | 295/303 (97.36%) |
+| `packets.pts` | 1027/1049 | 97.90% | 731/746 (97.99%) | 296/303 (97.69%) |
+| `packets.pts_time` | 1027/1049 | 97.90% | 731/746 (97.99%) | 296/303 (97.69%) |
+| `packets.size` | 1027/1049 | 97.90% | 731/746 (97.99%) | 296/303 (97.69%) |
+| `packets.pos` | 1028/1049 | 97.998% | 732/746 (98.12%) | 296/303 (97.69%) |
+
+**Matroska and WebM**: 101 keys found in at least five files; 99 at or above 98%, 2 below:
+
+| Key | All files | Rate | Development | Held out |
+|---|---|---|---|---|
+| `packets.duration` | 203/209 | 97.13% | 135/140 (96.43%) | 68/69 (98.55%) |
+| `packets.duration_time` | 203/209 | 97.13% | 135/140 (96.43%) | 68/69 (98.55%) |
+
+**MPEG-TS**: 157 keys found in at least five files; 92 at or above 98%, 65 below:
+
+| Key | All files | Rate | Development | Held out |
+|---|---|---|---|---|
+| `streams.bit_rate` | 33/39 | 84.62% | 24/27 (88.89%) | 9/12 (75.00%) |
+| `programs.streams.bit_rate` | 34/39 | 87.18% | 24/27 (88.89%) | 10/12 (83.33%) |
+| `streams.color_primaries` | 9/10 | 90.00% | 7/7 (100.00%) | 2/3 (66.67%) |
+| `streams.color_space` | 9/10 | 90.00% | 7/7 (100.00%) | 2/3 (66.67%) |
+| `streams.color_transfer` | 9/10 | 90.00% | 7/7 (100.00%) | 2/3 (66.67%) |
+| `streams.profile` | 39/42 | 92.86% | 28/29 (96.55%) | 11/13 (84.62%) |
+| `streams.sample_rate` | 39/42 | 92.86% | 27/28 (96.43%) | 12/14 (85.71%) |
+| `streams.color_range` | 14/15 | 93.33% | 10/10 (100.00%) | 4/5 (80.00%) |
+| `streams.channel_layout` | 38/40 | 95.00% | 28/28 (100.00%) | 10/12 (83.33%) |
+| `programs.streams.profile` | 40/42 | 95.24% | 28/29 (96.55%) | 12/13 (92.31%) |
+| `programs.streams.sample_rate` | 40/42 | 95.24% | 27/28 (96.43%) | 13/14 (92.86%) |
+| `streams.channels` | 40/42 | 95.24% | 28/28 (100.00%) | 12/14 (85.71%) |
+| `streams.duration` | 42/44 | 95.45% | 30/30 (100.00%) | 12/14 (85.71%) |
+| `streams.duration_ts` | 42/44 | 95.45% | 30/30 (100.00%) | 12/14 (85.71%) |
+| `packets.codec_type` | 43/45 | 95.56% | 31/31 (100.00%) | 12/14 (85.71%) |
+| `packets.dts` | 43/45 | 95.56% | 31/31 (100.00%) | 12/14 (85.71%) |
+| `packets.dts_time` | 43/45 | 95.56% | 31/31 (100.00%) | 12/14 (85.71%) |
+| `packets.duration` | 43/45 | 95.56% | 31/31 (100.00%) | 12/14 (85.71%) |
+| `packets.duration_time` | 43/45 | 95.56% | 31/31 (100.00%) | 12/14 (85.71%) |
+| `packets.flags` | 43/45 | 95.56% | 31/31 (100.00%) | 12/14 (85.71%) |
+| `packets.pos` | 43/45 | 95.56% | 31/31 (100.00%) | 12/14 (85.71%) |
+| `packets.pts` | 43/45 | 95.56% | 31/31 (100.00%) | 12/14 (85.71%) |
+| `packets.pts_time` | 43/45 | 95.56% | 31/31 (100.00%) | 12/14 (85.71%) |
+| `packets.size` | 43/45 | 95.56% | 31/31 (100.00%) | 12/14 (85.71%) |
+| `packets.stream_index` | 43/45 | 95.56% | 31/31 (100.00%) | 12/14 (85.71%) |
+| `streams.avg_frame_rate` | 43/45 | 95.56% | 31/31 (100.00%) | 12/14 (85.71%) |
+| `streams.r_frame_rate` | 43/45 | 95.56% | 31/31 (100.00%) | 12/14 (85.71%) |
+| `streams.display_aspect_ratio` | 32/33 | 96.97% | 21/21 (100.00%) | 11/12 (91.67%) |
+| `streams.sample_aspect_ratio` | 32/33 | 96.97% | 21/21 (100.00%) | 11/12 (91.67%) |
+| `streams.field_order` | 38/39 | 97.44% | 27/27 (100.00%) | 11/12 (91.67%) |
+| `programs.streams.channel_layout` | 39/40 | 97.50% | 28/28 (100.00%) | 11/12 (91.67%) |
+| `programs.streams.closed_captions` | 39/40 | 97.50% | 27/27 (100.00%) | 12/13 (92.31%) |
+| `streams.chroma_location` | 39/40 | 97.50% | 27/27 (100.00%) | 12/13 (92.31%) |
+| `streams.closed_captions` | 39/40 | 97.50% | 27/27 (100.00%) | 12/13 (92.31%) |
+| `streams.coded_height` | 39/40 | 97.50% | 27/27 (100.00%) | 12/13 (92.31%) |
+| `streams.coded_width` | 39/40 | 97.50% | 27/27 (100.00%) | 12/13 (92.31%) |
+| `streams.extradata_size` | 39/40 | 97.50% | 27/27 (100.00%) | 12/13 (92.31%) |
+| `streams.film_grain` | 39/40 | 97.50% | 27/27 (100.00%) | 12/13 (92.31%) |
+| `streams.has_b_frames` | 39/40 | 97.50% | 27/27 (100.00%) | 12/13 (92.31%) |
+| `streams.height` | 39/40 | 97.50% | 27/27 (100.00%) | 12/13 (92.31%) |
+| `streams.level` | 39/40 | 97.50% | 27/27 (100.00%) | 12/13 (92.31%) |
+| `streams.pix_fmt` | 39/40 | 97.50% | 27/27 (100.00%) | 12/13 (92.31%) |
+| `streams.refs` | 39/40 | 97.50% | 27/27 (100.00%) | 12/13 (92.31%) |
+| `streams.width` | 39/40 | 97.50% | 27/27 (100.00%) | 12/13 (92.31%) |
+| `programs.streams.channels` | 41/42 | 97.62% | 28/28 (100.00%) | 13/14 (92.86%) |
+| `streams.bits_per_sample` | 41/42 | 97.62% | 28/28 (100.00%) | 13/14 (92.86%) |
+| `streams.initial_padding` | 41/42 | 97.62% | 28/28 (100.00%) | 13/14 (92.86%) |
+| `streams.sample_fmt` | 41/42 | 97.62% | 28/28 (100.00%) | 13/14 (92.86%) |
+| `format.bit_rate` | 43/44 | 97.73% | 30/30 (100.00%) | 13/14 (92.86%) |
+| `format.duration` | 43/44 | 97.73% | 30/30 (100.00%) | 13/14 (92.86%) |
+| `packets.side_data_list.id` | 43/44 | 97.73% | 31/31 (100.00%) | 12/13 (92.31%) |
+| `packets.side_data_list.side_data_type` | 43/44 | 97.73% | 31/31 (100.00%) | 12/13 (92.31%) |
+| `programs.streams.duration` | 43/44 | 97.73% | 30/30 (100.00%) | 13/14 (92.86%) |
+| `programs.streams.duration_ts` | 43/44 | 97.73% | 30/30 (100.00%) | 13/14 (92.86%) |
+| `streams.start_pts` | 43/44 | 97.73% | 30/30 (100.00%) | 13/14 (92.86%) |
+| `streams.start_time` | 43/44 | 97.73% | 30/30 (100.00%) | 13/14 (92.86%) |
+| `programs.streams.avg_frame_rate` | 44/45 | 97.78% | 31/31 (100.00%) | 13/14 (92.86%) |
+| `programs.streams.index` | 44/45 | 97.78% | 31/31 (100.00%) | 13/14 (92.86%) |
+| `programs.streams.r_frame_rate` | 44/45 | 97.78% | 31/31 (100.00%) | 13/14 (92.86%) |
+| `streams.codec_long_name` | 44/45 | 97.78% | 31/31 (100.00%) | 13/14 (92.86%) |
+| `streams.codec_name` | 44/45 | 97.78% | 31/31 (100.00%) | 13/14 (92.86%) |
+| `streams.codec_tag` | 44/45 | 97.78% | 31/31 (100.00%) | 13/14 (92.86%) |
+| `streams.codec_tag_string` | 44/45 | 97.78% | 31/31 (100.00%) | 13/14 (92.86%) |
+| `streams.codec_type` | 44/45 | 97.78% | 31/31 (100.00%) | 13/14 (92.86%) |
+| `streams.id` | 44/45 | 97.78% | 31/31 (100.00%) | 13/14 (92.86%) |
+
 ## B6
 
 `scripts/bench_guard.py` has six `coreav ffprobe` cases (`ffprobe-mp4`,
