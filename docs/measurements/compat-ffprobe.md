@@ -424,7 +424,7 @@ The `dist` binary of `c794eec2`, same files and method as round 1, on the develo
 | Slowest command | 0.282 (`-v error -select_streams v:0 -count_packets -show_entries stream=nb_read_packets -of csv=p=0 INPUT`) |
 | Slowest command in one container | 0.495 |
 
-**B4 met**: no command, container or overall median is over 1.00, and every interval's upper bound is below 1.00, so `coreav ffprobe` is faster than `ffprobe` on these commands and files. Most of these files were later used for development (round 4, below; `docs/design/compat-cli.md`). The five refused commands (the four without a section and `-read_intervals 999999`) have no ratio. Pairs and summaries: `compat-ffprobe/b4-round3.json`.
+**B4 met**: no command, container or overall median is over 1.00, and every interval's upper bound is below 1.00, so `coreav ffprobe` is faster than `ffprobe` on these commands and files. Most of these files were used for development in rounds 2 to 4 (round 4, below; `docs/design/compat-cli.md`). The five refused commands (the four without a section and `-read_intervals 999999`) have no ratio. Pairs and summaries: `compat-ffprobe/b4-round3.json`.
 
 ## Round 4
 
