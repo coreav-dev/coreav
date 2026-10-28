@@ -536,6 +536,13 @@ such a file (`NoPrograms`), the rule before, which listed nothing of a
 capture `ffprobe` reads whole. A PAT whose Program Map Tables never come
 is still `NoPrograms`, as is a file with neither tables nor PES packets.
 
+A frame header at the very start of a payload names the stream without a
+second to confirm it, as a PES packet's first access unit is meant to start
+there; bytes that only look like one (a payload of repeated `0B 77`) are
+then named E-AC-3 where `ffprobe` lists them unknown. Rejected: asking for
+the chain there too, which leaves a stream of one short PES packet
+unnamed.
+
 What `ffprobe` does with too little payload is not followed: a short DTS
 stream of a type `ffprobe` does not map (0x82 without `HDMV`, as `ffmpeg`
 writes it) is listed by `ffprobe` as `mp3` with no channels, which no
