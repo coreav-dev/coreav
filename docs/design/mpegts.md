@@ -441,6 +441,21 @@ language and `ffprobe` omits it, a transport stream only has the tag when
 the multiplexer wrote a descriptor, and `ffprobe` prints what it says
 (17 development files that print `und`; none omits it).
 
+An ADTS stream's `bit_rate` is the running mean of each frame's
+`frame_length * 8 * sample_rate / 1024`, truncated at every frame, over
+the whole PES packets of the analysis window. Two rules, each fitted on
+crafted files (cuts at every byte of the header; 1 to 30 frames in the
+first packet) and kept because four audio-only development files then
+agree exactly and none gets worse:
+- a frame whose 7-byte header ends in one PES packet and whose payload
+  continues in the next is listed but not counted (`Packet::split`); a
+  cut inside the header leaves the frame counted;
+- with no video stream, a stream's window starts at its second PES
+  packet. With video it starts at the first: the second-packet start
+  breaks five audio-and-video files.
+Not explained yet, so left: nine files whose video stream ends the
+analysis at a point no time, byte or timestamp change moved.
+
 ### Codecs that the PMT leaves unnamed
 
 A private stream (type 0x06) with no descriptor that names its codec is

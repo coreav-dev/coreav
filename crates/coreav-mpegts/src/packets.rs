@@ -55,6 +55,10 @@ pub struct Packet {
     /// `None` for the later units of one reading, and for the units only
     /// the end of the file released.
     pub fed: Option<u8>,
+    /// An audio frame whose header an earlier PES packet held whole, and
+    /// whose last bytes a later one gave (a frame cut inside its header
+    /// is read again from its start, once whole, and is not).
+    pub split: bool,
 }
 
 /// Per stream: the bytes of an audio frame cut by the end of its PES
@@ -505,6 +509,7 @@ impl<S: Source> Packets<'_, S> {
                     data: section,
                     corrupt: false,
                     fed: None,
+                    split: false,
                 });
             }
         }
@@ -609,6 +614,7 @@ impl<S: Source> Packets<'_, S> {
             data: pes.payload,
             corrupt: false,
             fed: None,
+            split: false,
         };
         // A picture of MPEG-1 or MPEG-2 video ends where the next one
         // starts, in the next PES packet: in the listing as `ffprobe` gives
@@ -773,6 +779,7 @@ impl<S: Source> Packets<'_, S> {
             data,
             corrupt: false,
             fed: au.fed,
+            split: false,
         });
     }
 
@@ -848,6 +855,7 @@ impl<S: Source> Packets<'_, S> {
                     data,
                     corrupt: false,
                     fed: None,
+                    split: false,
                 },
                 k,
                 units,
@@ -956,6 +964,8 @@ impl<S: Source> Packets<'_, S> {
         }
         let carried = state.leftover.len();
         self.carried = self.carried.saturating_sub(carried);
+        // The carried frame's header was read in an earlier PES packet.
+        let header_read = state.need > 0;
         state.need = 0;
         if carried == 0 {
             state.cut = None;
@@ -1052,6 +1062,7 @@ impl<S: Source> Packets<'_, S> {
                     data: data.get(..at).unwrap_or_default().to_vec(),
                     corrupt: false,
                     fed: None,
+                    split: false,
                 });
             }
             state.started = true;
@@ -1134,6 +1145,7 @@ impl<S: Source> Packets<'_, S> {
                 data: payload.to_vec(),
                 corrupt: false,
                 fed: None,
+                split: at == 0 && header_read,
             };
             if hold {
                 self.carried = self.carried.saturating_add(packet.data.len());
@@ -1247,6 +1259,7 @@ impl<S: Source> Packets<'_, S> {
             data: leftover.get(frame.header..).unwrap_or_default().to_vec(),
             corrupt: false,
             fed: None,
+            split: false,
         });
     }
 }

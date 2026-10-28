@@ -566,17 +566,41 @@ impl Order {
 /// file order, up to and including the first after which some stream's
 /// latest decoding time lies more than [`ANALYSIS_SPAN`] past the
 /// presentation time of its first timed frame. On every AAC transport
-/// stream of the fixtures and on 11 of 14 AAC files of the development
-/// set, the bit rate `ffprobe` reports is the running mean of the bit
-/// rates of the ADTS frames listed in that part (each frame's
-/// `frame_length` bytes over 1024 samples at its sampling rate),
-/// truncated to an integer at every frame as C's division does; files
-/// crafted with frames of chosen sizes show it frame by frame.
+/// stream of the fixtures and on most AAC files of the development set,
+/// the bit rate `ffprobe` reports is the running mean of the bit rates of
+/// the ADTS frames listed in that part (each frame's `frame_length` bytes
+/// over 1024 samples at its sampling rate), truncated to an integer at
+/// every frame as C's division does; files crafted with frames of chosen
+/// sizes show it frame by frame.
+///
+/// Two refinements, both seen on crafted files as well as on the
+/// development set:
+///
+/// - A frame whose 7-byte header ends in one PES packet and whose payload
+///   goes on in the next is listed but left out of the mean
+///   ([`coreav_mpegts::Packet::split`]). Cutting one frame at each byte
+///   shows it: cut inside its header, the frame counts; cut after it, it
+///   does not.
+/// - When the file has no video stream, a stream's span starts at the
+///   first frame listed from its second PES packet, not its first:
+///   audio-only files crafted with 2 to 30 frames in the first PES packet
+///   and 2 to 12 in the others end where that span passes five seconds,
+///   and so do 4 audio-only files of the development set
+///   (`-analyzeduration` scans place the start within 10 ms of the second
+///   PES packet's time). Files with video do not follow it, and how their
+///   video stream ends the analysis is not modelled beyond the rule above.
+///   One case is left out: with a single frame in each of the first PES
+///   packets, crafted files start at the third.
 #[derive(Default)]
 struct Analysis {
     /// Per stream: the presentation time of its first timed frame and the
     /// decoding time of its latest one.
     spans: Vec<Option<(i64, i64)>>,
+    /// Per stream: where its first PES packet starts.
+    firsts: Vec<Option<u64>>,
+    /// The spans start at each stream's second PES packet (a file without
+    /// video).
+    from_second: bool,
     /// The stream of the PES packet being read, and where it starts.
     current: Option<(usize, u64)>,
     /// The analysis ended.
@@ -624,6 +648,14 @@ impl Analysis {
         }
         if self.spans.len() <= stream {
             self.spans.resize(stream + 1, None);
+            self.firsts.resize(stream + 1, None);
+        }
+        let first_pes = self
+            .firsts
+            .get_mut(stream)
+            .map(|first| *first.get_or_insert(offset));
+        if self.from_second && first_pes == Some(offset) {
+            return true;
         }
         if let (Some(dts), Some(span)) = (dts, self.spans.get_mut(stream)) {
             let first = span.map_or(pts.unwrap_or(dts), |(first, _)| first);
@@ -696,7 +728,10 @@ fn head<S: Source>(
 ) -> Result<HeadRead, Failure> {
     let mut streams: Vec<Head> = ts.streams.iter().map(|_| Head::default()).collect();
     let end = ts.first_packet.saturating_add(HEAD_BYTES);
-    let mut analysis = Analysis::default();
+    let mut analysis = Analysis {
+        from_second: !ts.streams.iter().any(|st| st.kind == Kind::Video),
+        ..Analysis::default()
+    };
     let adts = ts.streams.iter().any(|st| st.codec == Codec::Aac);
     let mut packets = ts.packets(&mut *source, limits).listing_as_ffprobe();
     // Whether the head read to the end of the file or of its budget, which
@@ -725,7 +760,7 @@ fn head<S: Source>(
             packet.dts,
         );
         if let Some(h) = streams.get_mut(packet.stream) {
-            if analysed && st.codec == Codec::Aac {
+            if analysed && st.codec == Codec::Aac && !packet.split {
                 if let Some(rate) = adts_bit_rate(&packet.data) {
                     let (mean, n) = &mut h.aac_rate;
                     *n += 1;
@@ -2232,6 +2267,22 @@ mod tests {
         assert!(a.note(0, 5_000_100, true, Some(10), Some(10)));
         assert!(a.note(0, 5_000_100, false, None, Some(20)));
         assert!(!a.note(1, 5_000_300, true, Some(30), Some(30)));
+    }
+
+    #[test]
+    fn without_video_the_span_starts_at_the_second_pes_packet() {
+        let mut a = Analysis {
+            from_second: true,
+            ..Analysis::default()
+        };
+        // The first PES packet of stream 0 does not start its span.
+        assert!(a.note(0, 0, true, Some(0), Some(0)));
+        assert!(a.note(0, 0, false, None, Some(100_000)));
+        assert!(a.note(0, 188, true, Some(200_000), Some(200_000)));
+        // 650 000 is more than five seconds past 0, not past 200 000.
+        assert!(a.note(0, 376, true, Some(650_000), Some(650_000)));
+        assert!(a.note(0, 564, true, Some(650_001), Some(650_001)));
+        assert!(!a.note(0, 752, true, Some(660_000), Some(660_000)));
     }
 
     #[test]
