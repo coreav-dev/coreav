@@ -581,6 +581,45 @@ on every AAC transport stream of the fixtures and on 11 of the 14 AAC
 files of the development set; on the others `ffprobe`'s mean starts or
 ends at frames this window does not explain.
 
+Codec-level fields of a transport stream's first access units, each found
+on crafted files and the development set:
+- LOAS/LATM AAC takes the `AudioSpecificConfig` its `StreamMuxConfig`
+  carries, copied to its syntactic end (ISO/IEC 14496-3 1.6.2.1, 4.4.1),
+  as `extradata`; explicit SBR (object type 5 or 29) gives `HE-AAC` at the
+  extension rate. A configuration this reader cannot end (a program config
+  element, `epConfig` 2 or 3) falls back to the two-byte one. Parametric
+  stereo signalled implicitly inside SBR data is not found: that needs the
+  raw data blocks, as `KD-TS-AAC-PROFILE` describes.
+- Audio frames before a stream's first stated time take that time minus
+  the durations between, and the stream's start moves with them (crafted
+  AAC, MPEG audio, AC-3 and Opus files). Rejected: leaving them untimed,
+  which put the start a whole PES packet late. At rates whose frames are
+  not a whole number of 90 kHz ticks (44.1 kHz) several untimed PES
+  packets drift by a few ticks from `ffprobe`'s. Video is not timed back.
+- MPEG-4 part 2 video reads the visual object sequence, visual object and
+  video object layer headers (ISO/IEC 14496-2 6.2.2, 6.2.3): size, aspect,
+  profile (the high nibble of `profile_and_level_indication`) and level
+  (the low one, mapped from files crafted with all 256 values),
+  `has_b_frames` as not `low_delay`, DivX packed bitstreams from their user
+  data, and the first configuration up to the first group or picture as
+  `extradata`.
+- HEVC `coded_width`/`coded_height` are the uncropped picture size, and a
+  display aspect ratio whose terms pass 2^20 is the closest fraction with
+  both terms within it. Rejected: reducing by the greatest common divisor
+  alone, which printed ratios `ffprobe` does not.
+- E-AC-3 reads `bsi()` to its additional information and reports `Dolby
+  Digital Plus + Dolby Atmos` when `flag_ec3_extension_type_a` is set
+  (ETSI TS 103 420 8.3; clearing it in a capture drops the profile).
+- H.264 `extradata` is every SPS and PPS from the first SPS to the first
+  slice after it, across access units. Rejected: the first access unit's
+  only, which halved it on streams that repeat their sets.
+- An H.264 stream whose VUI clock cannot time one picture (a picture lasts
+  under one tick) has `avg_frame_rate` 0/0 unless the first 64 units step
+  evenly, within one tick; then it is `r_frame_rate`.
+- Opus channel layouts follow the Vorbis order (RFC 7845 5.1.1.2), and an
+  ISO 639 `audio_type` 3 sets the `visual_impaired` and `descriptions`
+  dispositions.
+
 **Selections.** `-show_streams` also prints the disposition and the tags of
 a program's streams, empty unless `-show_entries` names their entries,
 whenever the program's streams are printed; a printed program prints its

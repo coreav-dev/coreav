@@ -3,7 +3,8 @@
 //! (ISO/IEC 11172-3 2.4.2.3 and 13818-3 2.4.2.3), AC-3 and E-AC-3 (ATSC
 //! A/52 5.3 and annex E), and Opus access units (the Opus transport
 //! multiplexing draft, ETSI TS 1xx xxx V0.1.3, section 6; RFC 6716 3.1 for
-//! the packet's duration). Each frame is one packet of the listing.
+//! the packet's duration), and DTS core frames and extension substreams
+//! (ETSI TS 102 114 5.3 and 7.5). Each frame is one packet of the listing.
 //! Sans-IO.
 
 /// What a frame header says.
@@ -39,7 +40,13 @@ pub(crate) enum Syntax {
     Latm,
     /// Opus access units.
     Opus,
+    /// DTS: core frames and extension substreams share a stream; the
+    /// header tells them apart ([`DTS_SUBSTREAM`]).
+    Dts,
 }
+
+/// [`Frame::detail`] of a DTS extension substream; a core frame's is 0.
+pub(crate) const DTS_SUBSTREAM: u8 = 1;
 
 /// Whether `data`, shorter than a frame header of `syntax`, could be the
 /// start of one: its bytes so far agree with the sync word. Such a tail of
@@ -83,6 +90,14 @@ pub(crate) fn may_start(syntax: Syntax, data: &[u8]) -> bool {
                 data.get(1).is_none_or(|b| b & 0xE0 == 0xE0),
             ),
         ),
+        // Either sync word, as far as the bytes go.
+        Syntax::Dts => {
+            let agrees = |sync: &[u8; 4]| sync.iter().zip(data).all(|(a, b)| a == b);
+            (
+                DTS_HEADER_BYTES,
+                (agrees(&DTS_CORE_SYNC) || agrees(&DTS_SUBSTREAM_SYNC), true),
+            )
+        }
     };
     !data.is_empty() && data.len() < need && sync.0 && sync.1
 }
@@ -108,7 +123,7 @@ fn longest_frame(syntax: Syntax) -> usize {
         Syntax::Latm => 8_194,
         Syntax::Ac3 => 4_096,
         Syntax::MpegAudio => 2_881,
-        Syntax::Opus => MAX_SEARCH_BYTES,
+        Syntax::Opus | Syntax::Dts => MAX_SEARCH_BYTES,
     }
 }
 
@@ -200,7 +215,109 @@ pub(crate) fn header(syntax: Syntax, data: &[u8]) -> Option<Frame> {
         Syntax::Ac3 => ac3(data),
         Syntax::Latm => latm(data),
         Syntax::Opus => opus(data),
+        Syntax::Dts => dts(data),
     }
+}
+
+/// The sync words of a DTS core frame and of an extension substream (ETSI
+/// TS 102 114 5.3.1 and 7.5.2).
+const DTS_CORE_SYNC: [u8; 4] = [0x7F, 0xFE, 0x80, 0x01];
+const DTS_SUBSTREAM_SYNC: [u8; 4] = [0x64, 0x58, 0x20, 0x25];
+/// Bytes that hold every field [`dts`] reads of either header: the core
+/// header's first fields (88 bits after the sync word), the substream
+/// header's sizes and its static fields up to the first asset size.
+const DTS_HEADER_BYTES: usize = 16;
+
+/// Core sample rates by `SFREQ` (TS 102 114 table 5-5); 0 is not allowed.
+const DTS_CORE_RATES: [u32; 16] = [
+    0, 8_000, 16_000, 32_000, 0, 0, 11_025, 22_050, 44_100, 0, 0, 12_000, 24_000, 48_000, 0, 0,
+];
+/// Channels by `AMODE` (table 5-4), the low-frequency effects channel
+/// apart.
+const DTS_CORE_CHANNELS: [u8; 16] = [1, 2, 2, 2, 2, 3, 3, 4, 4, 5, 6, 6, 6, 7, 8, 8];
+
+/// A DTS core frame (TS 102 114 5.3.1) or an extension substream (7.5.2).
+///
+/// A core frame lasts `(NBLKS + 1) * 32` samples at the rate of `SFREQ`
+/// and is `FSIZE + 1` bytes long. An extension substream is
+/// `nuExtSSFsize + 1` bytes long and, when its header carries the static
+/// fields, lasts `nuExSSFrameDuration` samples of the reference clock;
+/// without them it states no duration (0 samples and no rate). Whether a
+/// substream extends the core frame before it or is an access unit of its
+/// own is the stream's, not the header's: the listing decides
+/// (`packets.rs`).
+///
+/// Kept out of [`header`]: inlined, its frame setup costs every call of
+/// the byte-by-byte search for the other syntaxes (the `probe-ts-no-frames`
+/// guard case counted 8% more instructions).
+#[inline(never)]
+fn dts(data: &[u8]) -> Option<Frame> {
+    let sync = data.get(..4)?;
+    let mut bits = Bits {
+        data: data.get(4..)?,
+        at: 0,
+    };
+    if sync == DTS_CORE_SYNC {
+        // FTYPE, SHORT, CPF.
+        bits.read(1 + 5 + 1)?;
+        let blocks = bits.read(7)? + 1;
+        let len = usize::try_from(bits.read(14)?).ok()? + 1;
+        let amode = usize::try_from(bits.read(6)?).ok()?;
+        let rate = *DTS_CORE_RATES.get(usize::try_from(bits.read(4)?).ok()?)?;
+        // RATE, the fixed bit, DYNF, TIMEF, AUXF, HDCD, EXT_AUDIO_ID,
+        // EXT_AUDIO, ASPF.
+        bits.read(5 + 1 + 1 + 1 + 1 + 1 + 3 + 1 + 1)?;
+        let lfe = bits.read(2)?;
+        // Table 5-2 allows `NBLKS` of 5 to 127 and `FSIZE` of 95 to 16,383;
+        // `LFF` 3 is not allowed.
+        if blocks < 6 || len < 96 || rate == 0 || lfe == 3 {
+            return None;
+        }
+        let channels = DTS_CORE_CHANNELS.get(amode).copied().unwrap_or(0) + u8::from(lfe != 0);
+        return Some(Frame {
+            len,
+            header: 0,
+            dependent: false,
+            samples: blocks * 32,
+            sample_rate: rate,
+            channels,
+            detail: 0,
+        });
+    }
+    if sync != DTS_SUBSTREAM_SYNC {
+        return None;
+    }
+    // UserDefinedBits, nExtSSIndex.
+    bits.read(8 + 2)?;
+    let wide = bits.read(1)? == 1;
+    let (header_bits, size_bits) = if wide { (12, 20) } else { (8, 16) };
+    let header_len = bits.read(header_bits)? + 1;
+    let len = usize::try_from(bits.read(size_bits)?).ok()? + 1;
+    // The header is part of the substream and holds at least the fields
+    // read so far.
+    if usize::try_from(header_len).ok()? > len || header_len < 6 {
+        return None;
+    }
+    let (samples, sample_rate) = if bits.read(1)? == 1 {
+        let clock = match bits.read(2)? {
+            0 => 32_000,
+            1 => 44_100,
+            2 => 48_000,
+            _ => return None,
+        };
+        (512 * (bits.read(3)? + 1), clock)
+    } else {
+        (0, 0)
+    };
+    Some(Frame {
+        len,
+        header: 0,
+        dependent: false,
+        samples,
+        sample_rate,
+        channels: 0,
+        detail: DTS_SUBSTREAM,
+    })
 }
 
 /// A LOAS frame: the 11-bit sync word 0x2B7 and a 13-bit length, then an
@@ -259,6 +376,93 @@ pub(crate) fn latm_config(element: &[u8]) -> Option<(u32, u8, u8)> {
         u8::try_from(channels).ok()?,
         u8::try_from(object).ok()?,
     ))
+}
+
+/// The `AudioSpecificConfig` of an `AudioMuxElement` that starts with a
+/// `StreamMuxConfig` of `audioMuxVersion` 0 (14496-3 1.7.3), copied out
+/// of the bit stream to whole bytes, the last one padded with zero bits.
+///
+/// In this version of the syntax nothing states the configuration's
+/// length, so it ends where its own syntax does (1.6.2.1): the object
+/// type, the sampling frequency and the channel configuration, the
+/// extension frequency and core object type of explicit hierarchical SBR
+/// signalling (object types 5 and 29), and the `GASpecificConfig` of the
+/// general audio object types (4.4.1) with the `epConfig` of the
+/// error-resilient ones. `None` for a configuration whose length this
+/// does not read: another object type, a program config element
+/// (channel configuration 0), or error protection (`epConfig` 2 or 3).
+pub(crate) fn latm_audio_specific_config(element: &[u8]) -> Option<Vec<u8>> {
+    let mut bits = Bits {
+        data: element,
+        at: 0,
+    };
+    if bits.read(2)? != 0 {
+        return None; // useSameStreamMux, or audioMuxVersion 1.
+    }
+    bits.read(1 + 6 + 4 + 3)?;
+    let start = bits.at;
+    let object_type = |bits: &mut Bits<'_>| -> Option<u32> {
+        let object = bits.read(5)?;
+        if object == 31 {
+            return Some(32 + bits.read(6)?);
+        }
+        Some(object)
+    };
+    let frequency = |bits: &mut Bits<'_>| -> Option<()> {
+        if bits.read(4)? == 15 {
+            bits.read(24)?;
+        }
+        Some(())
+    };
+    let mut object = object_type(&mut bits)?;
+    frequency(&mut bits)?;
+    let channels = bits.read(4)?;
+    if matches!(object, 5 | 29) {
+        frequency(&mut bits)?;
+        object = object_type(&mut bits)?;
+        if object == 22 {
+            bits.read(4)?; // extensionChannelConfiguration
+        }
+    }
+    if !matches!(object, 1..=4 | 6 | 7 | 17 | 19..=23) || channels == 0 {
+        return None;
+    }
+    // GASpecificConfig: frameLengthFlag, dependsOnCoreCoder (and the
+    // 14-bit coreCoderDelay), extensionFlag.
+    bits.read(1)?;
+    if bits.read(1)? == 1 {
+        bits.read(14)?;
+    }
+    let extension = bits.read(1)? == 1;
+    if matches!(object, 6 | 20) {
+        bits.read(3)?; // layerNr
+    }
+    if extension {
+        if object == 22 {
+            bits.read(5 + 11)?; // numOfSubFrame, layer_length
+        }
+        if matches!(object, 17 | 19 | 20 | 23) {
+            bits.read(3)?; // the three resilience flags
+        }
+        bits.read(1)?; // extensionFlag3
+    }
+    if matches!(object, 17 | 19..=23) && bits.read(2)? >= 2 {
+        return None; // ErrorProtectionSpecificConfig follows.
+    }
+    let len = bits.at - start;
+    let mut copy = Bits {
+        data: element,
+        at: start,
+    };
+    let mut out = Vec::with_capacity(len.div_ceil(8));
+    let mut left = len;
+    while left > 0 {
+        let n = left.min(8);
+        let byte = copy.read(u32::try_from(n).ok()?)? << (8 - n);
+        out.push(u8::try_from(byte).ok()?);
+        left -= n;
+    }
+    Some(out)
 }
 
 /// Reads bits most significant first.
@@ -719,6 +923,24 @@ mod tests {
     }
 
     #[test]
+    fn latm_configuration_bytes() {
+        // AAC LC, 48 kHz, 2 channels: the 16 bits of the configuration.
+        let element = [0b0000_0000, 0b0000_0000, 0b0001_0001, 0b1001_0000];
+        assert_eq!(latm_audio_specific_config(&element), Some(vec![0x11, 0x90]));
+        // Explicit SBR (object type 5) at 22.05 kHz, mono, 44.1 kHz out,
+        // over an LC core: 25 bits, four bytes.
+        let element = [0x20, 0x00, 0x2B, 0x8A, 0x08, 0x0F, 0xF3];
+        assert_eq!(
+            latm_audio_specific_config(&element),
+            Some(vec![0x2B, 0x8A, 0x08, 0x00])
+        );
+        // useSameStreamMux: no configuration; channel configuration 0: a
+        // program config element, whose length is not read.
+        assert_eq!(latm_audio_specific_config(&[0x80, 0, 0, 0]), None);
+        assert_eq!(latm_audio_specific_config(&[0x00, 0x00, 0x11, 0x80]), None);
+    }
+
+    #[test]
     fn eac3_dependent_substreams_and_low_rate_ac3() {
         // strmtyp 1: a dependent substream.
         let f = header(Syntax::Ac3, &[0x0B, 0x77, 0x41, 0x7F, 0x3F, 0x80, 0, 0]).unwrap();
@@ -753,5 +975,76 @@ mod tests {
             (768, 1536, 48_000, 6, 1)
         );
         assert!(header(Syntax::Ac3, &[0x0B, 0x78, 0, 0, 0, 0, 0, 0]).is_none());
+    }
+
+    /// Packs `(value, bits)` fields most significant bit first.
+    fn pack(fields: &[(u32, u32)]) -> Vec<u8> {
+        let mut out = Vec::new();
+        let mut at = 0usize;
+        for &(value, n) in fields {
+            for i in (0..n).rev() {
+                if at % 8 == 0 {
+                    out.push(0);
+                }
+                if (value >> i) & 1 == 1 {
+                    *out.last_mut().unwrap() |= 0x80 >> (at % 8);
+                }
+                at += 1;
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn dts_core_frames_and_substreams() {
+        // A core frame: 16 blocks of 32 samples, 1,024 bytes, C L R Ls Rs
+        // (AMODE 9) and LFE at 48 kHz.
+        let mut core = DTS_CORE_SYNC.to_vec();
+        core.extend(pack(&[
+            (1, 1),
+            (31, 5),
+            (0, 1),
+            (15, 7),
+            (1023, 14),
+            (9, 6),
+            (13, 4),
+            (15, 5),
+            (0, 1 + 1 + 1 + 1 + 1 + 3 + 1 + 1),
+            (1, 2),
+            (0, 8),
+        ]));
+        let f = header(Syntax::Dts, &core).unwrap();
+        assert_eq!(
+            (f.len, f.samples, f.sample_rate, f.channels, f.detail),
+            (1024, 512, 48_000, 6, 0)
+        );
+        // A substream of 116 bytes whose static fields give 512 samples of
+        // the 48 kHz reference clock.
+        let mut substream = DTS_SUBSTREAM_SYNC.to_vec();
+        substream.extend(pack(&[
+            (0, 8),
+            (0, 2),
+            (0, 1),
+            (31, 8),
+            (115, 16),
+            (1, 1),
+            (2, 2),
+            (0, 3),
+            (0, 8),
+        ]));
+        let f = header(Syntax::Dts, &substream).unwrap();
+        assert_eq!(
+            (f.len, f.samples, f.sample_rate, f.detail),
+            (116, 512, 48_000, DTS_SUBSTREAM)
+        );
+        // A core frame shorter than the standard allows is not one, and
+        // the start of either sync word may go on in the next payload.
+        let mut short = core.clone();
+        short[6] = 0;
+        short[7] &= 0x0F;
+        assert!(header(Syntax::Dts, &short).is_none());
+        assert!(may_start(Syntax::Dts, &[0x7F, 0xFE]));
+        assert!(may_start(Syntax::Dts, &[0x64, 0x58, 0x20]));
+        assert!(!may_start(Syntax::Dts, &[0x7F, 0xFF]));
     }
 }

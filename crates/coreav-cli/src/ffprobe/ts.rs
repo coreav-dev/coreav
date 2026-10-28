@@ -25,7 +25,10 @@
 //!   times are rebuilt from presentation times only for a stream that
 //!   reorders one picture or never states one ([`DecodeTimes`]). Audio
 //!   frame times follow a grid of frames for AAC, the durations summed for
-//!   AC-3 and the samples rounded once for MPEG audio (`coreav-mpegts`).
+//!   AC-3 and the samples rounded once for MPEG audio (`coreav-mpegts`);
+//!   audio frames before a stream's first stated time are timed back from
+//!   it ([`Head::lead`]), which moves the stream's start too. An MPEG-4
+//!   Visual picture lasts what its layer's clock gives ([`mpeg4_ticks`]).
 //! - Streams. `has_b_frames` of H.264 without `bitstream_restriction` is
 //!   what the order of its first frames shows within what `ffprobe`
 //!   decodes ([`Order`]); `avg_frame_rate` counts frames, not fields, and
@@ -36,7 +39,13 @@
 //!   H.264 never reports closed captions. HE-AAC is read from the SBR data
 //!   that ends its frames ([`params::aac_ends_with_sbr`]); Blu-ray LPCM
 //!   from its frame header ([`params::bluray_lpcm`]); MPEG-2 video's bit
-//!   rate is the header's unless the stream is of variable rate.
+//!   rate is the header's unless the stream is of variable rate. LATM AAC
+//!   keeps its `AudioSpecificConfig` as the frames carry it, and explicit
+//!   SBR names HE-AAC at the extension rate; E-AC-3 names Dolby Atmos from
+//!   its additional bit stream information ([`params::ac3`]); MPEG-4
+//!   Visual reports its configuration headers ([`params::mpeg4_visual`]);
+//!   H.265's coded size is the uncropped picture's, and a display aspect
+//!   ratio keeps terms of at most 2^20 ([`bounded_ratio`]).
 //! - The file. Its duration is the latest end less the earliest start in
 //!   microseconds, each stream's start and duration rounded on their own
 //!   ([`file_micros`]). A service the SDT names alone is a program
@@ -54,7 +63,7 @@ use coreav_isobmff::Source;
 use coreav_mpegts::{
     Allowlist, Codec, Error, Limits, PacketSize, Service, StreamKind as Kind, TransportStream,
 };
-use params::{Mpeg2, Sps};
+use params::{Mpeg2, Mpeg4Visual, Sps};
 
 /// `ffprobe`'s format names for every transport stream.
 const FORMAT_NAME: &str = "mpegts";
@@ -103,9 +112,16 @@ pub fn probe<'a, S: Source + 'a>(
         tail_retries: TAIL_RETRIES,
         ..Limits::default()
     };
-    let ts = coreav_mpegts::probe(&mut source, &limits, &Allowlist::default())
+    let mut ts = coreav_mpegts::probe(&mut source, &limits, &Allowlist::default())
         .map_err(Failure::Mpegts)?;
     let head = head(&ts, &mut source, &limits)?;
+    // An audio stream whose first frames state no time starts where the
+    // times `ffprobe` gives them put it ([`Head::lead`]).
+    for (st, h) in ts.streams.iter_mut().zip(&head.streams) {
+        if let Some(&first) = h.lead.first() {
+            st.start = Some(first);
+        }
+    }
     let mut report = Report::default();
     // `ffprobe` numbers the streams in the order the file shows them once
     // a program is known: a table that names them, or their data
@@ -145,6 +161,7 @@ pub fn probe<'a, S: Source + 'a>(
             reorder: None,
             clock: None,
             lpcm: None,
+            lead: Vec::new(),
         })
         .collect();
     for (rank, &i) in order.iter().enumerate() {
@@ -157,6 +174,7 @@ pub fn probe<'a, S: Source + 'a>(
             slot.index = rank;
             slot.ticks = facts.frame_ticks;
             slot.lpcm = facts.lpcm;
+            slot.lead.clone_from(&h.lead);
             // A video stream nothing configures: its packets last one
             // period of the time base `ffprobe` reports as its rate.
             if facts.unconfigured
@@ -224,8 +242,9 @@ struct FileTiming {
 }
 
 /// Where `ffprobe` ends a stream: where its last access unit ends, except
-/// that it adds none of that unit for E-AC-3 and Opus and half of it for
-/// MPEG-1 video (`docs/known-divergences-ts.md`, KD-TS-END-ESTIMATE). An
+/// that it adds none of that unit for E-AC-3, Opus and DTS (every DTS
+/// stream of the corpus ends at its last PES packet's time) and half of it
+/// for MPEG-1 video (`docs/known-divergences-ts.md`, KD-TS-END-ESTIMATE). An
 /// H.264 stream ends one period of the base rate `ffprobe` reports for it
 /// (`r_frame_rate`, [`Facts::rate`]) after its latest presentation time,
 /// rounded down: on every H.264 stream of the corpus that the tail times,
@@ -245,7 +264,7 @@ fn reported_end(st: &coreav_mpegts::Stream, facts: &Facts) -> Option<i64> {
     }
     let end = st.end?;
     Some(match (st.codec, st.last_pts) {
-        (Codec::Eac3 | Codec::Opus, Some(last)) => last,
+        (Codec::Eac3 | Codec::Opus | Codec::Dts, Some(last)) => last,
         (Codec::Mpeg1Video, Some(last)) => last + (end - last) / 2,
         _ => end,
     })
@@ -449,7 +468,27 @@ struct Head {
     /// For an ADTS stream: the bit rate `ffprobe` reports and how many
     /// frames it averages ([`Analysis`]).
     aac_rate: (i64, i64),
+    /// For an audio stream whose first frames state no time: their
+    /// durations, until a frame states one ([`MAX_LEAD`] at most).
+    untimed: Vec<Option<i64>>,
+    /// A frame of the stream stated a time, or the head gave up on it.
+    timed: bool,
+    /// The times of those first frames, each the stated time less the
+    /// durations of the frames from it to the one that states it, which
+    /// is where `ffprobe` lists them (streams of AAC, MPEG audio, AC-3 and
+    /// Opus crafted with the time of their first PES packet taken out, and
+    /// a capture of the corpus); empty when no frame of the head states a
+    /// time or a duration is not known.
+    lead: Vec<i64>,
+    /// For H.264 and H.265: the bytes of the parameter sets
+    /// [`params::sets_before_slice`] keeps, whether a sequence parameter
+    /// set was read, and whether the slice that ends them was.
+    sets: ((usize, bool), bool),
 }
+
+/// How many frames before an audio stream's first stated time are timed
+/// back from it.
+const MAX_LEAD: usize = 256;
 
 /// How many frames of an AAC stream are read for SBR data.
 const SBR_FRAMES: u32 = 16;
@@ -566,17 +605,41 @@ impl Order {
 /// file order, up to and including the first after which some stream's
 /// latest decoding time lies more than [`ANALYSIS_SPAN`] past the
 /// presentation time of its first timed frame. On every AAC transport
-/// stream of the fixtures and on 11 of 14 AAC files of the development
-/// set, the bit rate `ffprobe` reports is the running mean of the bit
-/// rates of the ADTS frames listed in that part (each frame's
-/// `frame_length` bytes over 1024 samples at its sampling rate),
-/// truncated to an integer at every frame as C's division does; files
-/// crafted with frames of chosen sizes show it frame by frame.
+/// stream of the fixtures and on most AAC files of the development set,
+/// the bit rate `ffprobe` reports is the running mean of the bit rates of
+/// the ADTS frames listed in that part (each frame's `frame_length` bytes
+/// over 1024 samples at its sampling rate), truncated to an integer at
+/// every frame as C's division does; files crafted with frames of chosen
+/// sizes show it frame by frame.
+///
+/// Two refinements, both seen on crafted files as well as on the
+/// development set:
+///
+/// - A frame whose 7-byte header ends in one PES packet and whose payload
+///   goes on in the next is listed but left out of the mean
+///   ([`coreav_mpegts::Packet::split`]). Cutting one frame at each byte
+///   shows it: cut inside its header, the frame counts; cut after it, it
+///   does not.
+/// - When the file has no video stream, a stream's span starts at the
+///   first frame listed from its second PES packet, not its first:
+///   audio-only files crafted with 2 to 30 frames in the first PES packet
+///   and 2 to 12 in the others end where that span passes five seconds,
+///   and so do 4 audio-only files of the development set
+///   (`-analyzeduration` scans place the start within 10 ms of the second
+///   PES packet's time). Files with video do not follow it, and how their
+///   video stream ends the analysis is not modelled beyond the rule above.
+///   One case is left out: with a single frame in each of the first PES
+///   packets, crafted files start at the third.
 #[derive(Default)]
 struct Analysis {
     /// Per stream: the presentation time of its first timed frame and the
     /// decoding time of its latest one.
     spans: Vec<Option<(i64, i64)>>,
+    /// Per stream: where its first PES packet starts.
+    firsts: Vec<Option<u64>>,
+    /// The spans start at each stream's second PES packet (a file without
+    /// video).
+    from_second: bool,
     /// The stream of the PES packet being read, and where it starts.
     current: Option<(usize, u64)>,
     /// The analysis ended.
@@ -624,6 +687,14 @@ impl Analysis {
         }
         if self.spans.len() <= stream {
             self.spans.resize(stream + 1, None);
+            self.firsts.resize(stream + 1, None);
+        }
+        let first_pes = self
+            .firsts
+            .get_mut(stream)
+            .map(|first| *first.get_or_insert(offset));
+        if self.from_second && first_pes == Some(offset) {
+            return true;
         }
         if let (Some(dts), Some(span)) = (dts, self.spans.get_mut(stream)) {
             let first = span.map_or(pts.unwrap_or(dts), |(first, _)| first);
@@ -653,6 +724,19 @@ fn adts_bit_rate(data: &[u8]) -> Option<i64> {
         .map(|b| b / 1024)
 }
 
+/// The times of frames that state none, from the `time` the frame after
+/// them states and their `durations`, in order.
+fn time_back(time: i64, durations: &[Option<i64>]) -> Option<Vec<i64>> {
+    let mut at = time;
+    let mut out = Vec::with_capacity(durations.len());
+    for duration in durations.iter().rev() {
+        at = at.checked_sub((*duration)?)?;
+        out.push(at);
+    }
+    out.reverse();
+    Some(out)
+}
+
 /// What the head of the file shows, per stream of the probe.
 struct HeadRead {
     streams: Vec<Head>,
@@ -669,6 +753,16 @@ fn configures(codec: Codec, data: &[u8]) -> bool {
             .iter()
             .any(|(_, nal)| nal.first().is_some_and(|b| (b >> 1) & 0x3F == 33)),
         Codec::Mpeg1Video | Codec::Mpeg2Video => data.windows(4).any(|w| w == [0, 0, 1, 0xB3]),
+        // A video object layer header (ISO/IEC 14496-2 6.2.3).
+        Codec::Mpeg4 => data
+            .windows(4)
+            .any(|w| matches!(*w, [0, 0, 1, 0x20..=0x2F])),
+        // A frame header (for DTS a core frame or an extension substream),
+        // not the tail of a frame that began before the file, which
+        // `ffprobe` lists as a packet of its own and which states nothing.
+        Codec::Dts => data.starts_with(&[0x7F, 0xFE, 0x80, 0x01]) || data.starts_with(b"dX %"),
+        Codec::MpegAudio => matches!(data, [0xFF, b, ..] if b & 0xE0 == 0xE0),
+        Codec::Ac3 | Codec::Eac3 => data.starts_with(&[0x0B, 0x77]),
         _ => !data.is_empty(),
     }
 }
@@ -696,7 +790,10 @@ fn head<S: Source>(
 ) -> Result<HeadRead, Failure> {
     let mut streams: Vec<Head> = ts.streams.iter().map(|_| Head::default()).collect();
     let end = ts.first_packet.saturating_add(HEAD_BYTES);
-    let mut analysis = Analysis::default();
+    let mut analysis = Analysis {
+        from_second: !ts.streams.iter().any(|st| st.kind == Kind::Video),
+        ..Analysis::default()
+    };
     let adts = ts.streams.iter().any(|st| st.codec == Codec::Aac);
     let mut packets = ts.packets(&mut *source, limits).listing_as_ffprobe();
     // Whether the head read to the end of the file or of its budget, which
@@ -725,7 +822,7 @@ fn head<S: Source>(
             packet.dts,
         );
         if let Some(h) = streams.get_mut(packet.stream) {
-            if analysed && st.codec == Codec::Aac {
+            if analysed && st.codec == Codec::Aac && !packet.split {
                 if let Some(rate) = adts_bit_rate(&packet.data) {
                     let (mean, n) = &mut h.aac_rate;
                     *n += 1;
@@ -756,6 +853,20 @@ fn head<S: Source>(
                 if !second {
                     h.order.note(packet.pts, packet.dts, packet.pes_offset);
                 }
+            }
+            if st.kind == Kind::Audio && !h.timed {
+                match packet.pts.or(packet.dts) {
+                    Some(time) => {
+                        h.timed = true;
+                        h.lead = time_back(time, &h.untimed).unwrap_or_default();
+                    }
+                    None if h.untimed.len() < MAX_LEAD => h.untimed.push(packet.duration),
+                    None => h.timed = true,
+                }
+            }
+            if matches!(st.codec, Codec::H264 | Codec::Hevc) && !h.sets.1 {
+                h.sets.1 =
+                    params::sets_before_slice(&packet.data, st.codec == Codec::Hevc, &mut h.sets.0);
             }
             if st.codec == Codec::Aac && h.sbr.0 < SBR_FRAMES {
                 h.sbr.0 += 1;
@@ -806,6 +917,8 @@ fn head<S: Source>(
 struct Facts {
     sps: Option<Sps>,
     mpeg: Option<Mpeg2>,
+    /// For MPEG-4 Visual: its configuration headers.
+    vol: Option<Mpeg4Visual>,
     /// The bytes `ffprobe` keeps as the stream's extradata.
     extradata: Option<usize>,
     /// The duration of one picture, in 90 kHz ticks, from the stream's own
@@ -813,6 +926,8 @@ struct Facts {
     frame_ticks: Option<i64>,
     /// The picture rate the times of the first pictures show.
     rate: Option<(u64, u64)>,
+    /// Those times step evenly at that rate ([`steps_evenly`]).
+    even: bool,
     /// How many access units the head saw.
     units: usize,
     /// For an H.264 stream that states its clock: how many frames the
@@ -821,6 +936,8 @@ struct Facts {
     frames: Option<(u64, u64)>,
     /// For Blu-ray LPCM: what its first frame's header states.
     lpcm: Option<params::Lpcm>,
+    /// For DTS: what its first access unit states.
+    dts: Option<params::Dts>,
     /// For AAC: whether its frames carry SBR data, which `ffprobe` finds
     /// by decoding them and reports as HE-AAC at twice the rate of the
     /// AAC frames: every frame read or nearly does, none does, or not
@@ -841,6 +958,7 @@ impl Facts {
             rate: picture_rate(&head.times),
             ..Facts::default()
         };
+        facts.even = facts.rate.is_some_and(|r| steps_evenly(&head.times, r));
         if head.clock.is_some_and(|c| c.tick.is_some()) && !head.ticks.is_empty() {
             let ticks: u64 = head.ticks.iter().map(|t| u64::from(*t)).sum();
             let pictures = u64::try_from(head.ticks.len()).unwrap_or(u64::MAX);
@@ -863,7 +981,7 @@ impl Facts {
         match st.codec {
             Codec::H264 => {
                 facts.sps = h264_sps(unit);
-                facts.extradata = params::annex_b_extradata(unit, false);
+                facts.extradata = sets_or(head, params::annex_b_extradata(unit, false));
                 facts.frame_ticks = facts
                     .sps
                     .and_then(|sps| sps.vui.timing)
@@ -874,7 +992,7 @@ impl Facts {
                     nal.first().is_some_and(|b| (b >> 1) & 0x3F == 33)
                 })
                 .and_then(|nal| params::hevc_sps(&nal));
-                facts.extradata = params::annex_b_extradata(unit, true);
+                facts.extradata = sets_or(head, params::annex_b_extradata(unit, true));
                 facts.frame_ticks = facts
                     .sps
                     .and_then(|sps| sps.vui.timing)
@@ -888,8 +1006,14 @@ impl Facts {
                     .and_then(|m| mpeg_rate(&m))
                     .and_then(|(n, d)| exact_ticks(u64::from(d), u64::from(n)));
             }
+            Codec::Mpeg4 => {
+                facts.vol = params::mpeg4_visual(unit);
+                facts.extradata = facts.vol.and_then(|v| v.extradata);
+                facts.frame_ticks = facts.vol.as_ref().and_then(mpeg4_ticks);
+            }
             Codec::AacLatm => facts.extradata = st.config.as_ref().map(Vec::len),
             Codec::BlurayPcm => facts.lpcm = params::bluray_lpcm(unit),
+            Codec::Dts => facts.dts = params::dts(unit),
             Codec::Opus => {
                 facts.extradata = opus_channels(st).and_then(|channels| match channels {
                     1 | 2 => Some(19),
@@ -923,6 +1047,33 @@ impl Facts {
         }
         facts
     }
+}
+
+/// The extradata of an H.264 or H.265 stream: the parameter sets the head
+/// read before the first slice, or where it read no slice, `fallback`.
+fn sets_or(head: &Head, fallback: Option<usize>) -> Option<usize> {
+    match head.sets {
+        ((bytes, _), true) if bytes > 0 => Some(bytes),
+        _ => fallback,
+    }
+}
+
+/// How long an MPEG-4 Visual picture lasts in 90 kHz ticks, as `ffprobe`
+/// lists it: one `fixed_vop_time_increment` (one tick of
+/// `vop_time_increment_resolution` without `fixed_vop_rate`), rounded
+/// down, when that clock runs slower than 1,000 pictures a second, and
+/// none otherwise. Streams crafted with resolutions of 7 to 999 and with
+/// fixed increments list those durations (25 a second lasts 3,600 ticks,
+/// 7 a second 12,857, 30,000/1,001 with a fixed increment 3,003), and
+/// those of resolution 1,000, 24,000 and 30,000 without one list none.
+fn mpeg4_ticks(vol: &Mpeg4Visual) -> Option<i64> {
+    let increment = u64::from(vol.fixed_increment.unwrap_or(1));
+    let resolution = u64::from(vol.resolution);
+    if increment == 0 || resolution >= increment.saturating_mul(1000) {
+        return None;
+    }
+    let ticks = increment.checked_mul(90_000)?.checked_div(resolution)?;
+    i64::try_from(ticks).ok().filter(|t| *t > 0)
 }
 
 /// `seconds * 90 000` ticks for a duration of `num / den` seconds, when it
@@ -1002,6 +1153,78 @@ fn picture_rate(times: &[Option<i64>]) -> Option<(u64, u64)> {
         }
     }
     (d <= 1001).then_some((n, d))
+}
+
+/// The largest term of a display aspect ratio `ffprobe` prints.
+const MAX_RATIO_TERM: u64 = 1 << 20;
+
+/// `num / den` as the closest fraction whose terms are both at most
+/// [`MAX_RATIO_TERM`], which is how `ffprobe` prints a display aspect
+/// ratio that does not reduce that far (1045314:784271 for a 914x686
+/// picture of samples 2740:2739, exactly 1252180:939477): the best of
+/// the convergents and intermediate fractions of its continued fraction
+/// within the bound. `None` when either term is 0.
+fn bounded_ratio(num: u64, den: u64) -> Option<(u64, u64)> {
+    if num == 0 || den == 0 {
+        return None;
+    }
+    let g = crate::compat::gcd(num, den);
+    let (num, den) = (num / g, den / g);
+    if num <= MAX_RATIO_TERM && den <= MAX_RATIO_TERM {
+        return Some((num, den));
+    }
+    // Convergents p/q of num/den, and between two of them the
+    // intermediate fractions, kept while both terms stay in bounds.
+    let (mut p0, mut q0, mut p1, mut q1) = (0u64, 1u64, 1u64, 0u64);
+    let (mut a, mut b) = (num, den);
+    let mut best: Option<(u64, u64)> = None;
+    // |p/q - num/den| times q * den, exactly.
+    let off = |(p, q): (u64, u64)| {
+        (u128::from(p) * u128::from(den)).abs_diff(u128::from(num) * u128::from(q))
+    };
+    // Whether x lies closer to num/den than y does.
+    let closer = |x: (u64, u64), y: (u64, u64)| off(x) * u128::from(y.1) < off(y) * u128::from(x.1);
+    while b != 0 {
+        let q = a / b;
+        for t in 1..=q {
+            let p = t.checked_mul(p1).and_then(|v| v.checked_add(p0));
+            let k = t.checked_mul(q1).and_then(|v| v.checked_add(q0));
+            let (Some(p), Some(k)) = (p, k) else {
+                return best;
+            };
+            if p > MAX_RATIO_TERM || k > MAX_RATIO_TERM {
+                return best;
+            }
+            if best.is_none_or(|b| closer((p, k), b)) {
+                best = Some((p, k));
+            }
+        }
+        (p0, p1) = (p1, q * p1 + p0);
+        (q0, q1) = (q1, q * q1 + q0);
+        (a, b) = (b, a % b);
+    }
+    best
+}
+
+/// Whether `times`, in order, step from one to the next by the period of
+/// `num / den` pictures a second, give or take a 90 kHz tick: no picture
+/// missing, and no drift from the rate.
+fn steps_evenly(times: &[Option<i64>], (num, den): (u64, u64)) -> bool {
+    let mut known: Vec<i64> = times.iter().flatten().copied().collect();
+    known.sort_unstable();
+    known.dedup();
+    let Some(period) = den
+        .checked_mul(90_000)
+        .and_then(|n| n.checked_div(num))
+        .and_then(|p| i64::try_from(p).ok())
+    else {
+        return false;
+    };
+    known.len() > 1
+        && known.windows(2).all(|w| match *w {
+            [a, b] => (b - a - period).abs() <= 1,
+            _ => false,
+        })
 }
 
 /// A rate of `num / den` per second as `ffprobe` prints one, reduced.
@@ -1091,6 +1314,38 @@ fn mpeg_sar(m: &Mpeg2, mpeg1: bool, width: u32, height: u32) -> Option<(u64, u64
     }
 }
 
+/// The profile `ffprobe` names for an MPEG-4 Visual
+/// `profile_and_level_indication` (14496-2 annex G): the high four bits,
+/// which streams crafted with each of the 256 values show `ffprobe`
+/// reading alone.
+fn mpeg4_profile(pl: u8) -> &'static str {
+    match pl >> 4 {
+        0x0 => "Simple Profile",
+        0x1 => "Simple Scalable Profile",
+        0x2 => "Core Profile",
+        0x3 => "Main Profile",
+        0x4 => "N-bit Profile",
+        0x5 => "Scalable Texture Profile",
+        0x6 => "Simple Face Animation Profile",
+        0x7 => "Basic Animated Texture Profile",
+        0x8 => "Hybrid Profile",
+        0x9 => "Advanced Real Time Simple Profile",
+        0xA => "Code Scalable Profile",
+        0xB => "Advanced Coding Profile",
+        0xC => "Advanced Core Profile",
+        0xD => "Advanced Scalable Texture Profile",
+        0xE => "Simple Studio Profile",
+        _ => "Advanced Simple Profile",
+    }
+}
+
+/// The level `ffprobe` reports for a `profile_and_level_indication`: its
+/// low four bits, but 0 for `0x08` (Simple Profile at level 0), as the
+/// same crafted streams show.
+fn mpeg4_level(pl: u8) -> u8 {
+    if pl == 0x08 { 0 } else { pl & 0x0F }
+}
+
 /// `ffprobe`'s `field_order` of MPEG-2 video.
 fn mpeg_field_order(m: &Mpeg2) -> Value {
     let Some(ext) = m.extension else {
@@ -1131,6 +1386,11 @@ fn has_b_frames(st: &coreav_mpegts::Stream, facts: &Facts) -> Option<u32> {
         }),
         Codec::Hevc => facts.sps.and_then(|sps| sps.reorder),
         Codec::Mpeg1Video => facts.mpeg.map(|_| 1),
+        // A layer that is not low delay may hold B-VOPs (14496-2 6.3.3).
+        Codec::Mpeg4 => facts
+            .vol
+            .and_then(|v| v.low_delay)
+            .map(|low| u32::from(!low)),
         Codec::Mpeg2Video => facts
             .mpeg
             .and_then(|m| m.extension)
@@ -1141,12 +1401,24 @@ fn has_b_frames(st: &coreav_mpegts::Stream, facts: &Facts) -> Option<u32> {
 
 /// The video entries, from `width` to `refs` and the H.264 pair after.
 fn video_entries(st: &coreav_mpegts::Stream, head: &Head, facts: &Facts, e: &mut Entries) {
-    let (w, h) = st.video.map_or((0, 0), |v| (v.width, v.height));
-    let coded = matches!(st.codec, Codec::H264 | Codec::Hevc);
+    let (w, h) = match facts.vol {
+        Some(v) if st.codec == Codec::Mpeg4 => (v.width, v.height),
+        _ => st.video.map_or((0, 0), |v| (v.width, v.height)),
+    };
+    let coded = matches!(st.codec, Codec::H264 | Codec::Hevc)
+        || (st.codec == Codec::Mpeg4 && facts.vol.is_some());
     e.push(("width", int(w)));
     e.push(("height", int(h)));
-    e.push(("coded_width", int(if coded { w } else { 0 })));
-    e.push(("coded_height", int(if coded { h } else { 0 })));
+    // H.265's coded picture is the size its parameter set states, before
+    // the conformance window crops it (`ffprobe` reports 920x688 for a
+    // 914x686 picture); H.264's, as `ffprobe` reports it, the cropped size.
+    let (cw, ch) = match facts.sps.and_then(|sps| sps.coded) {
+        Some(size) if st.codec == Codec::Hevc => size,
+        _ if coded => (w, h),
+        _ => (0, 0),
+    };
+    e.push(("coded_width", int(cw)));
+    e.push(("coded_height", int(ch)));
     // `ffprobe` reports no captions for an H.264 stream whatever its
     // pictures carry: three captures of the corpus whose pictures carry
     // A/53 captions, and a stream crafted with valid ones in every
@@ -1166,6 +1438,10 @@ fn video_entries(st: &coreav_mpegts::Stream, head: &Head, facts: &Facts, e: &mut
             .and_then(|sps| sps.vui.sar)
             .map(|(a, b)| (u64::from(a), u64::from(b))),
         Codec::Mpeg1Video | Codec::Mpeg2Video => mpeg.and_then(|m| mpeg_sar(&m, mpeg1, w, h)),
+        Codec::Mpeg4 => facts
+            .vol
+            .and_then(|v| v.sar)
+            .map(|(a, b)| (u64::from(a), u64::from(b))),
         _ => None,
     };
     e.push((
@@ -1174,12 +1450,21 @@ fn video_entries(st: &coreav_mpegts::Stream, head: &Head, facts: &Facts, e: &mut
     ));
     e.push((
         "display_aspect_ratio",
-        sar.and_then(|(a, b)| ratio(u64::from(w).checked_mul(a)?, u64::from(h).checked_mul(b)?))
-            .map_or(Value::Na, s),
+        sar.and_then(|(a, b)| {
+            let (n, d) = bounded_ratio(u64::from(w).checked_mul(a)?, u64::from(h).checked_mul(b)?)?;
+            ratio(n, d)
+        })
+        .map_or(Value::Na, s),
     ));
     let pix = match st.codec {
         Codec::H264 | Codec::Hevc => sps.as_ref().and_then(pix_fmt),
         Codec::Mpeg1Video => mpeg.map(|_| "yuv420p".to_owned()),
+        // 4:2:0 is the only chroma format of MPEG-4 Visual's
+        // `chroma_format` (14496-2 6.3.3) outside the studio profiles.
+        Codec::Mpeg4 => facts
+            .vol
+            .filter(|v| v.profile_level.is_none_or(|pl| pl >> 4 != 0xE))
+            .map(|_| "yuv420p".to_owned()),
         Codec::Mpeg2Video => mpeg.and_then(|m| match m.extension?.chroma_format {
             1 => Some("yuv420p".to_owned()),
             2 => Some("yuv422p".to_owned()),
@@ -1189,10 +1474,11 @@ fn video_entries(st: &coreav_mpegts::Stream, head: &Head, facts: &Facts, e: &mut
         _ => None,
     };
     e.push(("pix_fmt", pix.map_or(unknown(), s)));
-    e.push((
-        "level",
-        Value::Int(native::level(st).map_or(-99, i64::from)),
-    ));
+    let level = match facts.vol.and_then(|v| v.profile_level) {
+        Some(pl) if st.codec == Codec::Mpeg4 => Some(i64::from(mpeg4_level(pl))),
+        _ => native::level(st).map(i64::from),
+    };
+    e.push(("level", Value::Int(level.unwrap_or(-99))));
     let (range, colour) = match st.codec {
         Codec::H264 | Codec::Hevc => (
             sps.and_then(|sps| sps.vui.full_range),
@@ -1247,6 +1533,9 @@ fn video_entries(st: &coreav_mpegts::Stream, head: &Head, facts: &Facts, e: &mut
             )
         }),
         Codec::Mpeg1Video => mpeg.map(|_| "center"),
+        // MPEG-4 Visual places 4:2:0 chroma as MPEG-2 video does
+        // (14496-2 6.1.3.3).
+        Codec::Mpeg4 => facts.vol.map(|_| "left"),
         Codec::Mpeg2Video => mpeg.and_then(|m| match m.extension?.chroma_format {
             1 => Some("left"),
             2 => Some("topleft"),
@@ -1277,6 +1566,12 @@ fn video_entries(st: &coreav_mpegts::Stream, head: &Head, facts: &Facts, e: &mut
         e.push(("is_avc", s("false")));
         e.push(("nal_length_size", s("0")));
     }
+    if st.codec == Codec::Mpeg4 {
+        let flag = |on: bool| s(if on { "true" } else { "false" });
+        let vol = facts.vol.unwrap_or_default();
+        e.push(("quarter_sample", flag(vol.quarter_sample)));
+        e.push(("divx_packed", flag(vol.packed)));
+    }
 }
 
 /// The channel layout `ffprobe` names for an audio stream.
@@ -1293,10 +1588,18 @@ fn channel_layout(st: &coreav_mpegts::Stream, head: &Head) -> Option<&'static st
             .as_deref()
             .and_then(params::ac3)
             .and_then(|h| params::ac3_layout(h.acmod, h.lfe)),
+        // The layouts of the Vorbis channel order (RFC 7845 5.1.1.2),
+        // as `ffprobe` names them on streams crafted with one to eight
+        // channels.
         Codec::Opus => match channels {
             1 => Some("mono"),
             2 => Some("stereo"),
+            3 => Some("3.0"),
+            4 => Some("quad"),
+            5 => Some("5.0"),
             6 => Some("5.1"),
+            7 => Some("6.1"),
+            8 => Some("7.1"),
             _ => None,
         },
         _ => names::default_layout(u32::from(channels)),
@@ -1338,7 +1641,9 @@ fn disposition(st: &coreav_mpegts::Stream) -> Entries {
         "hearing_impaired" => {
             audio_type == Some(2) || subtitling.is_some_and(|t| (0x20..=0x25).contains(&t))
         }
-        "visual_impaired" => audio_type == Some(3),
+        // Commentary for the visually impaired describes the pictures:
+        // `ffprobe` sets both flags for it.
+        "visual_impaired" | "descriptions" => audio_type == Some(3),
         _ => false,
     };
     super::iso::disposition(false)
@@ -1432,7 +1737,21 @@ fn stream(
     let profile = match (st.codec, facts.sbr) {
         (Codec::Aac, Some(true)) if aac_channels == Some(2) => Some("HE-AAC".to_owned()),
         (Codec::Aac, Some(true) | None) => None,
+        (Codec::Eac3, _)
+            if head
+                .unit
+                .as_deref()
+                .and_then(params::ac3)
+                .is_some_and(|h| h.atmos) =>
+        {
+            Some("Dolby Digital Plus + Dolby Atmos".to_owned())
+        }
         _ if latm_may_hide_sbr(st) => None,
+        (Codec::Mpeg4, _) => facts
+            .vol
+            .and_then(|v| v.profile_level)
+            .map(|pl| mpeg4_profile(pl).to_owned()),
+        (Codec::Dts, _) => facts.dts.map(|d| d.profile.to_owned()),
         _ => profile(st),
     };
     e.push(("profile", profile.map_or(unknown(), s)));
@@ -1455,21 +1774,31 @@ fn stream(
     if video {
         video_entries(st, head, facts, &mut e);
     } else if audio {
-        let (rate, channels) = match facts.lpcm {
-            Some(l) => (l.sample_rate, u8::try_from(l.channels).unwrap_or(0)),
-            None => rate_and_channels(st),
+        let (rate, channels) = match (facts.lpcm, facts.dts) {
+            (Some(l), _) => (l.sample_rate, u8::try_from(l.channels).unwrap_or(0)),
+            (None, Some(d)) => (d.sample_rate, u8::try_from(d.channels).unwrap_or(0)),
+            (None, None) => rate_and_channels(st),
         };
         // SBR doubles the rate of the AAC frames.
         let rate = match (st.codec, facts.sbr) {
             (Codec::Aac, Some(true)) => Some(rate.saturating_mul(2)),
             (Codec::Aac, None) => None,
             _ if latm_may_hide_sbr(st) => None,
+            // Explicitly signalled SBR states the rate it decodes to.
+            (Codec::AacLatm, _) => Some(
+                st.config
+                    .as_deref()
+                    .and_then(params::aac_explicit_sbr_rate)
+                    .unwrap_or(rate),
+            ),
             _ => Some(rate),
         };
         let sbr_mono = st.codec == Codec::Aac && facts.sbr != Some(false) && channels != 2;
         // 24-bit LPCM is decoded to 32-bit samples.
-        let sample_fmt = match facts.lpcm {
-            Some(l) if l.bits > 16 => Some("s32"),
+        // A lossless DTS asset decodes to integer planes of its depth.
+        let sample_fmt = match (facts.lpcm, lossless_bits(facts)) {
+            (Some(l), _) if l.bits > 16 => Some("s32"),
+            (_, Some(bits)) => Some(if bits > 16 { "s32p" } else { "s16p" }),
             _ => codec_name.and_then(|n| names::sample_fmt(n, None)),
         };
         e.push(("sample_fmt", sample_fmt.map_or(unknown(), s)));
@@ -1490,7 +1819,8 @@ fn stream(
             facts
                 .lpcm
                 .map(|l| l.layout)
-                .or_else(|| channel_layout(st, head))
+                .or(facts.dts.and_then(|d| d.layout))
+                .or_else(|| channel_layout(st, head).filter(|_| facts.dts.is_none()))
                 .filter(|_| !sbr_mono)
                 .map_or(unknown(), s),
         ));
@@ -1508,11 +1838,9 @@ fn stream(
         e.push(("width", size.map_or(Value::Na, |(w, _)| int(w))));
         e.push(("height", size.map_or(Value::Na, |(_, h)| int(h))));
     }
-    e.push((
-        "ts_id",
-        ts.transport_stream_id
-            .map_or(Value::Na, |id| s(id.to_string())),
-    ));
+    // A file without a Program Association Table states no
+    // `transport_stream_id`; `ffprobe` reports 0.
+    e.push(("ts_id", s(ts.transport_stream_id.unwrap_or(0).to_string())));
     e.push(("ts_packetsize", s(packet_size(ts.packet_size).to_string())));
     e.push(("id", s(format!("0x{:x}", st.pid))));
     let (r_frame_rate, avg_frame_rate) = if video {
@@ -1548,6 +1876,7 @@ fn stream(
         _ if audio => facts
             .lpcm
             .map(params::Lpcm::bit_rate)
+            .or(facts.dts.and_then(|d| d.bit_rate))
             .or_else(|| audio_bit_rate(st, head).map(u64::from)),
         _ => None,
     };
@@ -1559,7 +1888,8 @@ fn stream(
     let raw_bits = (st.codec == Codec::H264)
         .then(|| facts.sps.map(|sps| sps.bit_depth))
         .flatten()
-        .or(facts.lpcm.map(|l| l.bits).filter(|b| *b > 16));
+        .or(facts.lpcm.map(|l| l.bits).filter(|b| *b > 16))
+        .or(lossless_bits(facts));
     e.push((
         "bits_per_raw_sample",
         raw_bits.map_or(Value::Na, |b| s(b.to_string())),
@@ -1575,7 +1905,7 @@ fn stream(
         .language
         .clone()
         .or_else(|| entry_languages(st))
-        .filter(|l| !l.is_empty() && l != "und")
+        .filter(|l| !l.is_empty())
     {
         tags.push(("language".to_owned(), language));
     }
@@ -1611,6 +1941,12 @@ fn stream(
     }
 }
 
+/// The bits per sample of a lossless DTS asset, which `ffprobe` reports
+/// as `bits_per_raw_sample`.
+fn lossless_bits(facts: &Facts) -> Option<u32> {
+    facts.dts.and_then(|d| d.lossless_bits)
+}
+
 /// `r_frame_rate` and `avg_frame_rate` of a video stream: the picture rate
 /// its first pictures' times show ([`picture_rate`]); with a single
 /// picture, the clock its parameter sets state and no average.
@@ -1641,12 +1977,27 @@ fn frame_rates(st: &coreav_mpegts::Stream, facts: &Facts) -> (Value, Value) {
     } else {
         base.clone()
     };
+    // A clock so fast that a picture lasts less than a 90 kHz tick times
+    // no picture (`ffprobe` lists no durations): the average is the rate
+    // the times show, when they step evenly, and none otherwise (streams
+    // crafted at 2 MHz with timestamps that step evenly, jitter by one
+    // tick, drift, or miss pictures; a capture of the corpus that misses
+    // some).
+    let fast_clock = facts
+        .sps
+        .filter(|sps| sps.vui.timing.is_some())
+        .is_some_and(|sps| Clock::of(sps).duration(2).is_none());
     let avg = if st.codec == Codec::H264 && facts.sps.is_some() {
         // The average counts frames, not pictures: two fields make one,
         // and a picture whose timing message repeats it counts for as
         // many frames as it is shown for. A stream that states no clock
         // has none (`0/0`), whatever its timestamps show.
         match facts.frames {
+            Some(_) if fast_clock => Some(if facts.even {
+                base.clone().unwrap_or_else(|| "0/0".to_owned())
+            } else {
+                "0/0".to_owned()
+            }),
             Some((ticks, halves)) => num
                 .checked_mul(ticks)
                 .zip(den.checked_mul(halves))
@@ -1876,6 +2227,9 @@ struct Listed {
     /// The header of a Blu-ray LPCM stream's first frame, which gives each
     /// frame its duration from its size.
     lpcm: Option<params::Lpcm>,
+    /// The times of an audio stream's frames before its first stated time
+    /// ([`Head::lead`]).
+    lead: Vec<i64>,
 }
 
 /// The most reordered pictures the decoding times are rebuilt for: far
@@ -1952,6 +2306,9 @@ impl<S: Source> PacketSource for TsPackets<S> {
         let mut decode: Vec<DecodeTimes> =
             self.listed.iter().map(|_| DecodeTimes::default()).collect();
         let mut fields: Vec<OpenField> = self.listed.iter().map(|_| None).collect();
+        // Per stream, how many of its first frames were timed back, or
+        // `None` once a frame stated a time.
+        let mut leading: Vec<Option<usize>> = self.listed.iter().map(|_| Some(0)).collect();
         let shift = if self.ts.packet_size == PacketSize::Ts204 {
             16
         } else {
@@ -1970,6 +2327,16 @@ impl<S: Source> PacketSource for TsPackets<S> {
             // probe's.
             let stream = listed.map_or(p.stream.max(known), |l| l.index);
             let (mut pts, mut dts) = (p.pts, p.dts);
+            if let (Some(l), Some(slot)) = (listed.filter(|l| l.audio), leading.get_mut(p.stream)) {
+                if pts.is_some() || dts.is_some() {
+                    *slot = None;
+                } else if let Some(n) = *slot {
+                    if let Some(&time) = l.lead.get(n) {
+                        (pts, dts) = (Some(time), Some(time));
+                        *slot = Some(n + 1);
+                    }
+                }
+            }
             if let (Some(reorder), Some(t), Some(times)) = (
                 listed.and_then(|l| l.reorder),
                 p.pts,
@@ -2056,6 +2423,60 @@ impl<S: Source> PacketSource for TsPackets<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn display_aspect_ratios_within_twenty_bits() {
+        // 914x686 at 2740:2739 is 1252180:939477, which `ffprobe` prints
+        // as the closest fraction of terms up to 2^20.
+        assert_eq!(
+            bounded_ratio(914 * 2740, 686 * 2739),
+            Some((1_045_314, 784_271))
+        );
+        assert_eq!(bounded_ratio(1920, 1080), Some((16, 9)));
+        assert_eq!(bounded_ratio(0, 9), None);
+    }
+
+    #[test]
+    fn frames_before_the_first_time_are_timed_back() {
+        assert_eq!(time_back(1839, &[Some(1800)]), Some(vec![39]));
+        assert_eq!(
+            time_back(9000, &[Some(1000), Some(2000)]),
+            Some(vec![6000, 7000])
+        );
+        assert_eq!(time_back(9000, &[None, Some(2000)]), None);
+    }
+
+    #[test]
+    fn even_steps() {
+        let times = |t: &[i64]| t.iter().map(|v| Some(*v)).collect::<Vec<_>>();
+        assert!(steps_evenly(&times(&[0, 3751, 7500, 11250]), (24, 1)));
+        // A picture missing, or a drift of four ticks a picture.
+        assert!(!steps_evenly(&times(&[0, 7500, 11250]), (24, 1)));
+        assert!(!steps_evenly(&times(&[0, 3754, 7508]), (24, 1)));
+    }
+
+    #[test]
+    fn mpeg4_picture_durations() {
+        let vol = |resolution, fixed_increment| Mpeg4Visual {
+            resolution,
+            fixed_increment,
+            ..Mpeg4Visual::default()
+        };
+        assert_eq!(mpeg4_ticks(&vol(25, None)), Some(3600));
+        assert_eq!(mpeg4_ticks(&vol(7, None)), Some(12_857));
+        assert_eq!(mpeg4_ticks(&vol(999, None)), Some(90));
+        assert_eq!(mpeg4_ticks(&vol(1000, None)), None);
+        assert_eq!(mpeg4_ticks(&vol(30_000, Some(1001))), Some(3003));
+        assert_eq!(mpeg4_ticks(&vol(30_000, None)), None);
+        assert_eq!(
+            (mpeg4_profile(0xF5), mpeg4_level(0xF5)),
+            ("Advanced Simple Profile", 5)
+        );
+        assert_eq!(
+            (mpeg4_profile(0x08), mpeg4_level(0x08)),
+            ("Simple Profile", 0)
+        );
+    }
 
     #[test]
     fn picture_rates_from_times() {
@@ -2232,6 +2653,22 @@ mod tests {
         assert!(a.note(0, 5_000_100, true, Some(10), Some(10)));
         assert!(a.note(0, 5_000_100, false, None, Some(20)));
         assert!(!a.note(1, 5_000_300, true, Some(30), Some(30)));
+    }
+
+    #[test]
+    fn without_video_the_span_starts_at_the_second_pes_packet() {
+        let mut a = Analysis {
+            from_second: true,
+            ..Analysis::default()
+        };
+        // The first PES packet of stream 0 does not start its span.
+        assert!(a.note(0, 0, true, Some(0), Some(0)));
+        assert!(a.note(0, 0, false, None, Some(100_000)));
+        assert!(a.note(0, 188, true, Some(200_000), Some(200_000)));
+        // 650 000 is more than five seconds past 0, not past 200 000.
+        assert!(a.note(0, 376, true, Some(650_000), Some(650_000)));
+        assert!(a.note(0, 564, true, Some(650_001), Some(650_001)));
+        assert!(!a.note(0, 752, true, Some(660_000), Some(660_000)));
     }
 
     #[test]

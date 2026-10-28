@@ -31,7 +31,9 @@ pub enum Codec {
     Ac3,
     /// E-AC-3 (0x87, or a DVB enhanced AC-3 descriptor or `EAC3`).
     Eac3,
-    /// DTS (0x82, 0x85, 0x86, or a DVB DTS descriptor).
+    /// DTS (0x82, 0x85, 0x86 and the secondary audio type 0xA2 with
+    /// registration `HDMV`, a DVB DTS descriptor, or DTS frames in a
+    /// stream whose type names no codec).
     Dts,
     /// Blu-ray LPCM (0x80 with registration `HDMV`).
     BlurayPcm,
@@ -159,6 +161,7 @@ impl Codec {
             Self::Ac3 | Self::Eac3 => Some(crate::frames::Syntax::Ac3),
             Self::AacLatm => Some(crate::frames::Syntax::Latm),
             Self::Opus => Some(crate::frames::Syntax::Opus),
+            Self::Dts => Some(crate::frames::Syntax::Dts),
             _ => None,
         }
     }
@@ -296,9 +299,20 @@ pub(crate) fn codec(stream_type: u8, stream: &[Descriptor], program: &[Descripto
         0x15 if registrations(stream).any(|f| &f == b"ID3 ") || metadata(b"ID3 ") => Codec::Id3,
         0x80 if hdmv => Codec::BlurayPcm,
         0x81 => Codec::Ac3,
-        0x82 | 0x85 | 0x86 if hdmv => Codec::Dts,
+        // The Blu-ray types (BD-ROM part 3-1): DTS, DTS-HD and the DTS-HD
+        // secondary audio of picture-in-picture (0xA2, commonly DTS
+        // Express).
+        0x82 | 0x85 | 0x86 | 0xA2 if hdmv => Codec::Dts,
         0x86 => Codec::Scte35,
         0x87 => Codec::Eac3,
+        // Named from the type alone whatever the payload, as `ffprobe`
+        // names them: DTS, and the HLS sample encryption types (AC-3,
+        // E-AC-3, ADTS AAC and H.264 whose headers stay in the clear).
+        0x8A => Codec::Dts,
+        0xC1 => Codec::Ac3,
+        0xC2 => Codec::Eac3,
+        0xCF => Codec::Aac,
+        0xDB => Codec::H264,
         0x90 if hdmv => Codec::PgsSubtitle,
         0x06 => {
             if has(DVB_AC3) || registrations(stream).any(|f| &f == b"AC-3") {
@@ -323,28 +337,127 @@ pub(crate) fn codec(stream_type: u8, stream: &[Descriptor], program: &[Descripto
     }
 }
 
-/// The codec of a private stream (type 0x06) that no descriptor names,
-/// from its first PES packet: an ADTS, AC-3 or E-AC-3 frame header, or an
-/// MPEG audio frame header in an audio stream (`stream_id` 0xC0 to 0xDF).
+/// Whether a stream of `stream_type` that this crate leaves unnamed is
+/// named by its payload ([`sniff`]). `ffprobe` names the types below from
+/// the type alone, whatever the payload; those whose codec this crate does
+/// not read stay unnamed here rather than take a payload's codec `ffprobe`
+/// would not report: 0x1C (AAC without a transport syntax), 0x21 (JPEG
+/// 2000), 0x42 (AVS), 0xD1 (Dirac), 0xD2 and 0xD4 (AVS2, AVS3) and 0xEA;
+/// and 0x13 (SL-packetized sections) is not read for a codec at all
+/// (relabelled `ffmpeg` files of every type, MPEG-2 video, MPEG audio and
+/// AC-3 payloads).
+pub(crate) fn sniffed_type(stream_type: u8) -> bool {
+    !matches!(
+        stream_type,
+        0x13 | 0x1C | 0x21 | 0x42 | 0xD1 | 0xD2 | 0xD4 | 0xEA
+    )
+}
+
+/// The codec of a stream whose type and descriptors name none (a private
+/// stream, type 0x06, a type this crate does not map, or a PID of a file
+/// without tables) from one of its PES packets.
+///
+/// A frame header at the start of the payload names it: AC-3, E-AC-3,
+/// DTS, ADTS, or MPEG audio in an audio stream (`stream_id` 0xC0 to
+/// 0xDF); in a video stream (0xE0 to 0xEF), the start code of an MPEG
+/// video sequence header, group of pictures or picture (ISO/IEC 13818-2
+/// 6.2), or an H.264 or H.265 access unit delimiter or parameter set. A
+/// PES packet need not start at a frame (ISO/IEC 13818-1 2.4.3.7 asks it
+/// only of the first access unit its PTS times), so an audio frame header
+/// further into the payload names it too, when the frame it heads ends at
+/// another header of the same syntax: a sync word alone is a few bits, and
+/// arbitrary bytes hold one every few kilobytes.
 pub(crate) fn sniff(stream_id: u8, payload: &[u8]) -> Codec {
     use crate::frames::{Syntax, header};
     let audio_id = (0xC0..=0xDF).contains(&stream_id);
-    if let Some(frame) = header(Syntax::Ac3, payload) {
-        return if frame.detail == 1 {
-            Codec::Eac3
-        } else {
-            Codec::Ac3
-        };
+    let video_id = (0xE0..=0xEF).contains(&stream_id);
+    if video_id {
+        let video = sniff_video(payload);
+        if video != Codec::Other {
+            return video;
+        }
     }
+    let audio = |syntax: Syntax, frame: &crate::frames::Frame| match syntax {
+        Syntax::Ac3 if frame.detail == 1 => Codec::Eac3,
+        Syntax::Ac3 => Codec::Ac3,
+        Syntax::Dts => Codec::Dts,
+        Syntax::Adts => Codec::Aac,
+        _ => Codec::MpegAudio,
+    };
     // An ADTS header is a valid MPEG audio header too (layer bits 00 are
     // what tells them apart), so ADTS is tried first.
-    if header(Syntax::Adts, payload).is_some() {
-        return Codec::Aac;
+    const ALL: [Syntax; 4] = [Syntax::Ac3, Syntax::Dts, Syntax::Adts, Syntax::MpegAudio];
+    let syntaxes = ALL.get(..if audio_id { 4 } else { 3 }).unwrap_or_default();
+    for syntax in syntaxes {
+        if let Some(frame) = header(*syntax, payload) {
+            return audio(*syntax, &frame);
+        }
     }
-    if audio_id && header(Syntax::MpegAudio, payload).is_some() {
-        return Codec::MpegAudio;
+    let bound = payload.len().min(MAX_SNIFF_BYTES);
+    for at in 1..bound {
+        for syntax in syntaxes {
+            if let Some(frame) = chained(*syntax, payload, at) {
+                return audio(*syntax, &frame);
+            }
+        }
     }
     Codec::Other
+}
+
+/// The frame header at `at` in `data`, when the frame it heads and the
+/// one after it each end at another header of the same syntax, all three
+/// of one sample rate and one kind (the AAC object type, the MPEG audio
+/// layer, AC-3 or E-AC-3; a DTS core frame and the extension substream
+/// after it differ in kind). Two headers in a row still turn up in other
+/// codecs' bytes (an MPEG-H audio stream of the corpus shows MPEG audio
+/// layer I headers one frame apart); three are what a stream of the
+/// syntax shows.
+fn chained(syntax: crate::frames::Syntax, data: &[u8], at: usize) -> Option<crate::frames::Frame> {
+    use crate::frames::{Syntax, header};
+    let first = header(syntax, data.get(at..)?)?;
+    let mut next = at;
+    let mut frame = first;
+    for _ in 0..2 {
+        if frame.len == 0 {
+            return None;
+        }
+        next = next.checked_add(frame.len)?;
+        let after = header(syntax, data.get(next..)?)?;
+        let rates_agree = frame.sample_rate == 0
+            || after.sample_rate == 0
+            || frame.sample_rate == after.sample_rate;
+        if !rates_agree || (syntax != Syntax::Dts && after.detail != first.detail) {
+            return None;
+        }
+        frame = after;
+    }
+    Some(first)
+}
+
+/// Most bytes of a PES payload searched for a frame header that does not
+/// start it: more than the longest AC-3 frame and than an MPEG audio or
+/// ADTS frame of the common rates, so that two whole frames fit.
+const MAX_SNIFF_BYTES: usize = 16 << 10;
+
+/// The video codec the start of a PES payload names (see [`sniff`]).
+fn sniff_video(payload: &[u8]) -> Codec {
+    let after_start_code = match payload {
+        [0, 0, 0, 1, rest @ ..] | [0, 0, 1, rest @ ..] => rest,
+        _ => return Codec::Other,
+    };
+    match *after_start_code {
+        // A three-byte start code then a sequence header, group of
+        // pictures or picture start code (13818-2 table 6-1). A four-byte
+        // one is a zero byte before it, which video PES packets carry too.
+        [0xB3 | 0xB8 | 0x00, ..] => Codec::Mpeg2Video,
+        // H.265 7.3.1.2: an access unit delimiter (type 35) or a video
+        // parameter set (32) of layer 0 and temporal id 0.
+        [0x46 | 0x40, 0x01, ..] => Codec::Hevc,
+        // H.264 7.3.1: an access unit delimiter (type 9, `nal_ref_idc` 0)
+        // or a sequence parameter set (type 7, `nal_ref_idc` not 0).
+        [0x09, ..] | [0x27 | 0x47 | 0x67, ..] => Codec::H264,
+        _ => Codec::Other,
+    }
 }
 
 /// Which codecs a caller accepts, and what happens to a stream outside it:
@@ -511,5 +624,39 @@ mod tests {
         assert!(mpeg1.reads(Codec::Mpeg2Video) && mpeg1.reads(Codec::Mpeg1Video));
         assert!(!mpeg1.allows(Codec::Mpeg2Video));
         assert!(!mpeg1.reads(Codec::H264));
+        // The Blu-ray secondary audio type is DTS with the registration.
+        assert_eq!(codec(0xA2, &[], &[d(0x05, b"HDMV")]), Codec::Dts);
+        assert_eq!(codec(0xA2, &[], &[]), Codec::Other);
+    }
+
+    /// An AC-3 frame of 128 bytes (64 words at 48 kHz, stereo).
+    fn ac3_frame() -> Vec<u8> {
+        let mut frame = vec![0x0B, 0x77, 0, 0, 0x00, 0x40, 0x40, 0x00];
+        frame.resize(128, 0);
+        frame
+    }
+
+    #[test]
+    fn payloads_name_unnamed_streams() {
+        // A frame header at the start of the payload.
+        assert_eq!(sniff(0xBD, &ac3_frame()), Codec::Ac3);
+        assert!(sniffed_type(0x82) && sniffed_type(0x06) && !sniffed_type(0xD2));
+        let dts = [
+            0x7F, 0xFE, 0x80, 0x01, 0xFC, 0x3C, 0x3F, 0xF2, 0x75, 0xE0, 0x02, 0x00,
+        ];
+        assert_eq!(sniff(0xBD, &dts), Codec::Dts);
+        // Further in, three frames in a row; two are not enough.
+        let mut cut = vec![0x11; 37];
+        cut.extend(ac3_frame().repeat(3));
+        assert_eq!(sniff(0xBD, &cut), Codec::Ac3);
+        cut.truncate(37 + 2 * 128);
+        assert_eq!(sniff(0xBD, &cut), Codec::Other);
+        // Video start codes, in a video stream only.
+        assert_eq!(sniff(0xE0, &[0, 0, 1, 0xB3, 0x14]), Codec::Mpeg2Video);
+        assert_eq!(sniff(0xE4, &[0, 0, 1, 0x00, 0x00]), Codec::Mpeg2Video);
+        assert_eq!(sniff(0xE0, &[0, 0, 0, 1, 0x09, 0xF0]), Codec::H264);
+        assert_eq!(sniff(0xE0, &[0, 0, 0, 1, 0x46, 0x01, 0x50]), Codec::Hevc);
+        assert_eq!(sniff(0xC0, &[0, 0, 0, 1, 0x09, 0xF0]), Codec::Other);
+        assert_eq!(sniff(0xE0, &[0, 0, 1, 0x06, 0x05]), Codec::Other);
     }
 }

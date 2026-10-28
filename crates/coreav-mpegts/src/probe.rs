@@ -396,8 +396,14 @@ impl Learn {
                 if syntax == Syntax::Adts {
                     self.config = adts_config(rest);
                 }
+                // The configuration as the frame carries it, or, where
+                // its length is not read, the two bytes that state what
+                // the frame header does.
                 if syntax == Syntax::Latm {
-                    self.config = asc(frame.detail, frame.sample_rate, frame.channels);
+                    self.config = rest
+                        .get(3..)
+                        .and_then(frames::latm_audio_specific_config)
+                        .or_else(|| asc(frame.detail, frame.sample_rate, frame.channels));
                 }
                 self.done = true;
             }
@@ -511,7 +517,7 @@ fn read_tail<S: Source>(
                 tail.sniffed(index, &pes);
                 if let (Some(entry), Some(learn)) = (tail.streams.get(index), learnt.get_mut(index))
                 {
-                    if entry.kept {
+                    if entry.kept && !entry.sniff {
                         learn.take(entry.codec, &pes);
                     }
                 }
@@ -637,53 +643,58 @@ fn learn_ready(demux: &mut Demux, learnt: &mut [Learn], reference: &mut Option<u
         };
         demux.sniffed(index, &pes);
         if let (Some(entry), Some(learn)) = (demux.streams.get(index), learnt.get_mut(index)) {
-            if entry.kept {
+            // A stream still being identified has nothing to learn yet.
+            if entry.kept && !entry.sniff {
                 learn.take(entry.codec, &pes);
             }
         }
     }
 }
 
-/// Reads the tables and each kept stream's parameters, and the last
-/// timestamps from the end of the file.
-///
-/// # Errors
-///
-/// [`Error::NotTransportStream`] when no packet size fits the start of the
-/// file, [`Error::NoPrograms`] when no PAT and PMT are found within
-/// `max_probe_bytes`, and errors of the source.
-pub fn probe<S: Source>(
-    mut source: S,
+/// Where the transport packets of a file are.
+struct HeadAt {
+    packet_size: PacketSize,
+    len: u64,
+    first_packet: u64,
+}
+
+/// Reads the head of the file, from its first packet, until the tables are
+/// complete (or the demultiplexer was given its streams without them) and
+/// every stream has shown what it states, or `max_probe_bytes` are read.
+fn read_head<S: Source>(
+    source: &mut S,
+    at: &HeadAt,
     limits: &Limits,
-    allowlist: &Allowlist,
-) -> Result<TransportStream, Error> {
-    let len = source.len()?;
-    let (packet_size, first_packet) = detect(&mut source, len, limits)?;
-    let mut warnings = Vec::new();
-    let mut reader = Reader::new(packet_size, len, first_packet, limits);
-    let mut demux = Demux::new(allowlist, limits);
-    let mut learnt: Vec<Learn> = Vec::new();
-    let mut reference: Option<u64> = None;
-    let budget_end = first_packet.saturating_add(limits.max_probe_bytes);
+    demux: &mut Demux,
+    learnt: &mut Vec<Learn>,
+    reference: &mut Option<u64>,
+    warnings: &mut Vec<Warning>,
+) -> Result<(), Error> {
+    let mut reader = Reader::new(at.packet_size, at.len, at.first_packet, limits);
+    let budget_end = at.first_packet.saturating_add(limits.max_probe_bytes);
     let mut at_end = false;
     while reader.position() < budget_end {
-        let Some((offset, packet)) = reader.next(&mut source, &mut warnings)? else {
+        let Some((offset, packet)) = reader.next(source, warnings)? else {
             at_end = true;
             break;
         };
-        demux.feed(offset, &packet, &mut warnings)?;
+        demux.feed(offset, &packet, warnings)?;
         learnt.resize_with(demux.streams.len(), Learn::default);
-        learn_ready(&mut demux, &mut learnt, &mut reference);
+        learn_ready(demux, learnt, reference);
         // A stream whose codec this crate cannot name has no parameters to
         // learn and may carry sections rather than PES packets, so waiting
         // for one would read to `max_probe_bytes` on every file with one.
-        let all_learnt = demux.streams.iter().zip(&learnt).all(|(entry, learn)| {
-            !entry.sniff
-                && (!entry.kept
-                    || entry.codec == Codec::Other
-                    || (learn.done && learn.start_raw.is_some()))
-        });
-        if demux.tables_complete() && all_learnt {
+        let all_learnt = demux
+            .streams
+            .iter()
+            .zip(learnt.iter())
+            .all(|(entry, learn)| {
+                !entry.sniff
+                    && (!entry.kept
+                        || entry.codec == Codec::Other
+                        || (learn.done && learn.start_raw.is_some()))
+            });
+        if (demux.tables_complete() || demux.tableless) && all_learnt {
             break;
         }
     }
@@ -696,11 +707,77 @@ pub fn probe<S: Source>(
     // cut by the probe's budget is incomplete, and its payload would
     // describe the stream from bytes the file does not end at.
     if at_end {
-        demux.finish(&mut warnings);
+        demux.finish(warnings);
         learnt.resize_with(demux.streams.len(), Learn::default);
-        learn_ready(&mut demux, &mut learnt, &mut reference);
+        learn_ready(demux, learnt, reference);
     }
-    if !demux.tables_complete() && demux.programs.iter().all(|p| p.pmt_version.is_none()) {
+    Ok(())
+}
+
+/// Reads the tables and each kept stream's parameters, and the last
+/// timestamps from the end of the file.
+///
+/// # Errors
+///
+/// [`Error::NotTransportStream`] when no packet size fits the start of the
+/// file, [`Error::NoPrograms`] when a PAT is found within
+/// `max_probe_bytes` and none of the PMTs it names, or neither a PAT nor a
+/// PES packet is (a file without a PAT lists the PIDs that carry PES
+/// packets), and errors of the source.
+pub fn probe<S: Source>(
+    mut source: S,
+    limits: &Limits,
+    allowlist: &Allowlist,
+) -> Result<TransportStream, Error> {
+    let len = source.len()?;
+    let (packet_size, first_packet) = detect(&mut source, len, limits)?;
+    let mut warnings = Vec::new();
+    let at = HeadAt {
+        packet_size,
+        len,
+        first_packet,
+    };
+    let mut demux = Demux::new(allowlist, limits);
+    demux.name_undeclared = true;
+    let mut learnt: Vec<Learn> = Vec::new();
+    let mut reference: Option<u64> = None;
+    read_head(
+        &mut source,
+        &at,
+        limits,
+        &mut demux,
+        &mut learnt,
+        &mut reference,
+        &mut warnings,
+    )?;
+    // A file without a Program Association Table names no stream, and
+    // `ffprobe` lists the PIDs that carry PES packets all the same, in the
+    // order their first PES packets come, each with the codec its payload
+    // shows and in no program. The head is read again with those PIDs
+    // as its streams, from the start: their first PES packets were read
+    // before the reader knew there would be no table.
+    let tableless = !demux.pat_read() && !demux.pes_pids.is_empty();
+    if tableless {
+        let pids = demux.pes_pids.clone();
+        demux = Demux::new(allowlist, limits);
+        demux.without_tables(&pids)?;
+        learnt.clear();
+        reference = None;
+        warnings.clear();
+        read_head(
+            &mut source,
+            &at,
+            limits,
+            &mut demux,
+            &mut learnt,
+            &mut reference,
+            &mut warnings,
+        )?;
+    }
+    if !tableless
+        && !demux.tables_complete()
+        && demux.programs.iter().all(|p| p.pmt_version.is_none())
+    {
         return Err(Error::NoPrograms);
     }
     // A program has a system time base of its own (ISO/IEC 13818-1
