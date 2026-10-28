@@ -259,7 +259,7 @@ fn remux<S: Source, R: Source, W: Write>(
             .map(|r| (r.samples, r.last_duration));
         let listed = match replaced {
             Some((samples, last_duration)) => {
-                list_replaced(&mut muxer, index, samples, last_duration)
+                list_replaced(&mut muxer, index, samples, last_duration).map(|first| (first, 0))
             }
             None => list(
                 &movie,
@@ -274,7 +274,7 @@ fn remux<S: Source, R: Source, W: Write>(
             ),
         };
         match listed {
-            Ok(first_dts) => {
+            Ok((first_dts, composition_end)) => {
                 cleared.extend(plan.cleared);
                 let codec = match replaced_codec.filter(|_| plan.replaced) {
                     Some(codec) => codec.isobmff(),
@@ -288,6 +288,7 @@ fn remux<S: Source, R: Source, W: Write>(
                     gone_more: 0,
                     edits: plan.edits,
                     first_dts,
+                    composition_end,
                     codec,
                     replaced: plan.replaced,
                     declared: plan.declared.filter(|_| !plan.replaced),
@@ -325,7 +326,7 @@ fn remux<S: Source, R: Source, W: Write>(
     if movie.has_fragments() {
         for (index, k) in kept.iter().enumerate().filter(|(_, k)| !k.replaced) {
             let sum = muxer.duration(index).ok_or_else(overflow)?;
-            let computed = computed_ticks(&k.edits, k.first_dts, sum);
+            let computed = computed_ticks(&k.edits, k.first_dts, sum, k.composition_end);
             let rounds = computed.iter().flatten().any(|ticks| {
                 u128::from(*ticks)
                     .saturating_mul(u128::from(movie_timescale))
@@ -379,7 +380,7 @@ fn remux<S: Source, R: Source, W: Write>(
                 .filter(|(_, o)| !o.replaced)
                 .any(|(i, o)| {
                     let sum = muxer.duration(i).unwrap_or(0);
-                    computed_ticks(&o.edits, o.first_dts, sum)
+                    computed_ticks(&o.edits, o.first_dts, sum, o.composition_end)
                         .iter()
                         .flatten()
                         .any(|ticks| {
@@ -445,6 +446,7 @@ fn remux<S: Source, R: Source, W: Write>(
             &source_edits,
             k.first_dts,
             sum,
+            k.composition_end,
         );
         muxer.set_edits(index, edits?)?;
     }
@@ -816,6 +818,9 @@ struct Kept<'m> {
     /// The source's edit list as stored, and the first decode time.
     edits: Vec<Edit>,
     first_dts: i64,
+    /// Where the frame presented last ends, in media ticks from the first
+    /// decode time (0 for a replacement's samples).
+    composition_end: u64,
     /// The output's codec: the source's, or the replacement's.
     codec: Codec,
     /// The stream's samples are a replacement's.
@@ -1516,7 +1521,8 @@ impl ReplacedEdits {
 }
 
 /// Pass 1 for one stream: pushes every sample to the muxer and sets the
-/// declared durations; returns the first decode time.
+/// declared durations; returns the first decode time and where the frame
+/// presented last ends, in media ticks from it.
 #[allow(clippy::too_many_arguments)]
 fn list<S: Source>(
     movie: &Movie,
@@ -1528,9 +1534,12 @@ fn list<S: Source>(
     source: &mut S,
     limits: &Limits,
     budget: &mut Budget,
-) -> Result<i64, ExtractError> {
+) -> Result<(i64, u64), ExtractError> {
     let mut first_dts = None;
     let mut next_dts: Option<i64> = None;
+    // The latest composition end, a frame's composition time plus its
+    // duration (ISO/IEC 14496-12 8.6.1.3).
+    let mut end: Option<i64> = None;
     for packet in movie.packets(track.index, &mut *source, limits, budget)? {
         let packet = packet?;
         // The output stores durations only, so each sample must start where
@@ -1545,6 +1554,11 @@ fn list<S: Source>(
                 .ok_or_else(overflow)?,
         );
         first_dts.get_or_insert(packet.dts);
+        let ends = packet
+            .cts
+            .checked_add(i64::from(packet.duration))
+            .ok_or_else(overflow)?;
+        end = Some(end.map_or(ends, |e| e.max(ends)));
         muxer.push_sample(
             index,
             Sample {
@@ -1563,7 +1577,23 @@ fn list<S: Source>(
     // The edits are written once every stream is listed, in the movie
     // timescale chosen then; whether they fit this stream is known now.
     let sum = muxer.duration(index).ok_or_else(overflow)?;
-    edits(movie, track, movie.timescale, source_edits, first, sum)?;
+    // Frames that all end before the first decode time (offsets below
+    // the durations) present nothing; the decode durations' sum stands in
+    // rather than a media edit of length 0.
+    let composition_end = end
+        .and_then(|e| e.checked_sub(first))
+        .and_then(|e| u64::try_from(e).ok())
+        .filter(|e| *e > 0)
+        .unwrap_or(sum);
+    edits(
+        movie,
+        track,
+        movie.timescale,
+        source_edits,
+        first,
+        sum,
+        composition_end,
+    )?;
     // The declared media and track durations are copied, also when they
     // disagree with the sample durations or the edits, as audio extraction
     // does; with fragments the movie header durations cover
@@ -1574,17 +1604,24 @@ fn list<S: Source>(
         }
         muxer.set_duration(index, declared)?;
     }
-    Ok(first)
+    Ok((first, composition_end))
 }
 
 /// The media durations a fragmented stream's output turns into movie ticks
 /// ([`edits`] and the track duration): the first decode time and the
-/// samples' sum without an edit list, else what a last edit of duration 0
-/// presents.
-fn computed_ticks(edits: &[Edit], first_dts: i64, sum: u64) -> [Option<u64>; 2] {
+/// composition end without an edit list, else what a last edit of
+/// duration 0 presents.
+fn computed_ticks(
+    edits: &[Edit],
+    first_dts: i64,
+    sum: u64,
+    composition_end: u64,
+) -> [Option<u64>; 2] {
     let first = u64::try_from(first_dts).unwrap_or(0);
     match edits.last() {
-        None => [Some(first), Some(sum)],
+        // Decoded from 0: no edit list, and the track lasts the media.
+        None if first == 0 => [Some(0), Some(sum)],
+        None => [Some(first), Some(composition_end)],
         Some(last) if last.duration == 0 && last.media_time >= 0 => {
             let media = u64::try_from(last.media_time).unwrap_or(0);
             [Some(sum.saturating_sub(media.saturating_sub(first))), None]
@@ -1610,8 +1647,12 @@ fn lcm(a: u32, b: u32) -> Option<u32> {
 /// in those ticks), with media times moved by the first decode time
 /// (output decode times start at 0). Without an edit list, a first decode
 /// time above 0 becomes an empty edit of that length, rounded to the movie
-/// timescale. A last edit of duration 0 in a source with fragments, which
-/// lasts to the end of the media, gets that length.
+/// timescale, then a media edit from media time 0 to `composition_end`,
+/// where the frame presented last ends (from the first decode time): the
+/// source presents every frame at its composition time, and with B-frames
+/// that runs past the sum of the decode durations. A last edit of
+/// duration 0 in a source with fragments, which lasts to the end of the
+/// media, gets that length.
 fn edits(
     movie: &Movie,
     track: &Track,
@@ -1619,6 +1660,7 @@ fn edits(
     entries: &[Edit],
     first_dts: i64,
     sample_sum: u64,
+    composition_end: u64,
 ) -> Result<Vec<Edit>, Error> {
     let first = u64::try_from(first_dts).map_err(|_| overflow())?;
     if entries.is_empty() {
@@ -1632,7 +1674,7 @@ fn edits(
                 rate: Edit::UNIT_RATE,
             },
             Edit {
-                duration: rescale(sample_sum, track.timescale, movie_timescale)?,
+                duration: rescale(composition_end, track.timescale, movie_timescale)?,
                 media_time: 0,
                 rate: Edit::UNIT_RATE,
             },

@@ -124,7 +124,11 @@ round (below), so:
 - **Fragmented sources** become one unfragmented file. Decode times must be
   contiguous within a stream (the output stores durations only); a gap
   drops the stream. Without an edit list, a first decode time above 0
-  becomes an empty edit of that length; a last edit of duration 0, which in
+  becomes an empty edit of that length, then a media edit from media time
+  0 to where the frame presented last ends: the source presents every
+  frame at its composition time, which with reordered frames runs past
+  the decode durations' sum (a media edit of that sum left the last
+  presented frame out); a last edit of duration 0, which in
   a fragmented file lasts to the end of the media, gets that length. These
   and the track durations are computed. Where one would round in the
   source's movie timescale, the movie timescale becomes the least common
