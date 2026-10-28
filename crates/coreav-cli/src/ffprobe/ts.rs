@@ -1575,7 +1575,7 @@ fn stream(
         .language
         .clone()
         .or_else(|| entry_languages(st))
-        .filter(|l| !l.is_empty() && l != "und")
+        .filter(|l| !l.is_empty())
     {
         tags.push(("language".to_owned(), language));
     }

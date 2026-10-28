@@ -434,6 +434,13 @@ for again in a tail twice as long. The probe's `services_first` and
 `Program::pmt_read` are facts of the file, read at no cost, and are
 always there.
 
+A stream's `language` tag is the code its ISO 639 language descriptor
+(or a teletext or subtitling descriptor) carries, `und` included: unlike
+an MP4 or Matroska track, where `und` is the format's default for no
+language and `ffprobe` omits it, a transport stream only has the tag when
+the multiplexer wrote a descriptor, and `ffprobe` prints what it says
+(17 development files that print `und`; none omits it).
+
 ### Codecs that the PMT leaves unnamed
 
 A private stream (type 0x06) with no descriptor that names its codec is
