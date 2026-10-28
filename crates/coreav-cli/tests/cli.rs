@@ -2646,6 +2646,38 @@ fn hls_failures_leave_files_alone() {
     );
 }
 
+/// `-` is standard output to the other writing commands; a package cannot
+/// be one stream, so it is a usage error and no directory named `-` is made.
+/// `./-` still names such a directory.
+#[test]
+fn hls_package_refuses_standard_output() {
+    let input = file("hls_dash_in.mp4", &av_movie_with(aac_entry(), false));
+    let cwd = fresh_path("hls_dash_cwd");
+    std::fs::create_dir(&cwd).unwrap();
+    let package = |dir: &str| {
+        Command::new(bin())
+            .current_dir(&cwd)
+            .args(["hls", "package", "--audio", "none"])
+            .arg(&input)
+            .arg(dir)
+            .output()
+            .unwrap()
+    };
+    let out = package("-");
+    assert_eq!(out.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("must be a directory"));
+    assert!(out.stdout.is_empty());
+    assert!(!cwd.join("-").exists());
+    let out = package("./-");
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(cwd.join("-").join("master.m3u8").exists());
+}
+
 /// Found by review: an existing empty directory, a symlink to one included,
 /// is packaged in place and kept.
 #[test]

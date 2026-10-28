@@ -39,7 +39,9 @@ file is written to a temporary file next to it and renamed into place, so a
 failed command never leaves a partial output or destroys an existing one;
 `get` checks the source's length before it opens the output, and refuses an
 output that is the input or the index. `package` writes into a new or empty
-directory and removes what it wrote if it fails. Segment
+directory and removes what it wrote if it fails. It refuses `-` as that
+directory with a usage error: a package is several files, which one stream
+cannot hold (`./-` names a directory called `-`). Segment
 ranges are copied with `std::io::copy` between files, which Linux turns
 into `copy_file_range`.
 

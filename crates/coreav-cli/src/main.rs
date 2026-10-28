@@ -484,7 +484,8 @@ struct HlsGetArgs {
 struct HlsPackageArgs {
     /// The file to package.
     input: PathBuf,
-    /// A new or empty directory for the index and the resources.
+    /// A new or empty directory for the index and the resources (not `-`:
+    /// a package is several files; `./-` names a directory called `-`).
     dir: PathBuf,
     #[command(flatten)]
     tracks: HlsTrackArgs,
@@ -1718,6 +1719,12 @@ fn run_hls_get(args: &HlsGetArgs) -> ExitCode {
 }
 
 fn run_hls_package(args: &HlsPackageArgs) -> ExitCode {
+    // `-` means standard output to every other writing command; a package
+    // is a playlist and many segments, which it cannot hold (`./-` names a
+    // directory called `-`).
+    if args.dir.as_os_str() == "-" {
+        return usage("the output must be a directory: a package is several files, not a stream");
+    }
     let (options, allowlist) = match hls_options(&args.tracks) {
         Ok(parsed) => parsed,
         Err(code) => return code,
