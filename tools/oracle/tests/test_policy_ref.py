@@ -302,7 +302,7 @@ class KnownDivergences(unittest.TestCase):
             self.assertIsNone(ref._kd_edited_bit_rate(probe(), {**evidence, 'timing': {0: changed}}))
         self.assertIsNone(ref._kd_edited_bit_rate(probe(), {**evidence, 'fragmented': True}))
 
-    def test_decision13_duration(self):
+    def test_edited_track_duration(self):
         track = {'timescale': 600, 'mdhd': 6000, 'edits': [], 'bytes': 1, 'btrt': None}
         cases = [([(1000, -1, 0x10000), (5000, 0, 0x10000)], 3000),
                  ([(3000, 0, 0x10000), (1000, -1, 0x10000), (2000, 2400, 0x10000)], 3000),
@@ -310,7 +310,7 @@ class KnownDivergences(unittest.TestCase):
                  ([(3000, 1200, 0x10000), (3000, 0, 0x10000)], None),
                  ([], None)]
         for edits, expected in cases:
-            self.assertEqual(ref.decision13_duration(dict(track, edits=edits), 1000), expected, edits)
+            self.assertEqual(ref.edited_track_duration(dict(track, edits=edits), 1000), expected, edits)
 
     def test_track_timing_reads_the_boxes(self):
         def bx(kind, body):

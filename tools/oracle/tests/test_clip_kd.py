@@ -444,7 +444,7 @@ class Predicates(unittest.TestCase):
             c['video_frames'] = (frames, frames[:9])
             self.assertFalse(cc.edit_midframe('video:framemd5', fields, c))
 
-    def test_audio_window_follows_decision_31(self):
+    def test_audio_window_is_one_preroll_packet_then_the_clip(self):
         from fractions import Fraction
         # Frames of 1,024 ticks; a clip from 2,500 to 10,000 ticks: pre-roll
         # #1, then #2 (presented at 2,500) to #9 (presented at 10,000).

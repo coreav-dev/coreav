@@ -739,7 +739,7 @@ implemented in this isolated throughput experiment.
 
 Both paths run sequentially on one L4 host. Tool order remains fixed, CPU
 frequency/host placement are unpinned, and only three repetitions are retained;
-these limitations still prevent section 6.5 graduation evidence. FFmpeg CUVID
+these limitations still keep it from counting as graduation evidence. FFmpeg CUVID
 is remeasured as the prior **CPU NV12** baseline and remains an unequal-output
 comparison. The decode-worker experiment retains identical one-slot backpressure,
 120 frames per repetition and full parent checksum consumption for both transports.

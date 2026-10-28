@@ -146,7 +146,7 @@ Rejected:
 `DecodeAllowlist` names the codecs that may be decoded at all; a stream
 outside it fails with `CodecNotAllowed` before any backend sees a byte.
 The default is H.264, HEVC, AV1, VP9, VP8 and ProRes, the mainstream
-codecs of section 5.4. MPEG-4 Part 2, MPEG-1 and MPEG-2 video, Motion JPEG,
+codecs. MPEG-4 Part 2, MPEG-1 and MPEG-2 video, Motion JPEG,
 Theora and FFV1 are known to the boundary but are long-tail decoders, the
 class that produced PixelSmash: they are decoded only when an operator
 adds them.
@@ -181,7 +181,7 @@ the backend says:
 3. The result names the backend, whether it is the fallback (`fell_back`:
    FFmpeg's C decoders ran, sandboxed), and every candidate skipped, with
    its reason. `coreav thumbnail` prints it, so operators can see how much
-   of their traffic avoids C decoders (section 5.4).
+   of their traffic avoids C decoders.
 
 CoreAV's own H.264 decoder is the `native` backend
 (`crates/coreav-backend-h264`, `docs/design/h264.md`), and dav1d decodes
@@ -216,8 +216,7 @@ picture for the same file.
 
 ## The sandboxed worker
 
-Third-party decoders run in a worker process by default (section 5.4,
-"Isolation"). The parent treats the worker as untrusted and possibly
+Third-party decoders run in a worker process by default. The parent treats the worker as untrusted and possibly
 compromised.
 
 **Process.** The worker is a program that calls `coreav_worker::worker_main`:
@@ -229,7 +228,7 @@ itself before it starts any decoder, inherited by any process it starts:
 address space, CPU seconds, no core files, no regular-file writes
 (`RLIMIT_FSIZE` 0: decoders write only to pipes), and a small file
 descriptor count. It sets them through `rustix`'s safe `setrlimit`, a
-vetted crate (principle 8), not through CoreAV-authored `unsafe`.
+vetted crate, not through CoreAV-authored `unsafe`.
 
 **Exec.** The same limits serve a program that is not a decoder: the
 encoder of `coreav transcode` (`docs/design/transcode.md`, "Sandbox").
@@ -487,7 +486,7 @@ Rejected:
 
 ## The FFmpeg fallback
 
-A separately packaged backend, never in the default build (section 5.4):
+A separately packaged backend, never in the default build:
 `coreav-backend-ffmpeg`, compiled into the worker and the CLI only with
 the `ffmpeg-fallback` feature. It runs an `ffmpeg` binary, the system's or
 one the operator names, as a child of the worker, so FFmpeg's C code never
@@ -659,7 +658,7 @@ Rejected:
 
 Not in this change; it comes next, behind the same trait, and the bars
 below apply to it when it does. NVDEC decodes H.264 and HEVC on GPU
-hosts, in-process (section 5.4): CoreAV parses the parameter sets and
+hosts, in-process: CoreAV parses the parameter sets and
 slice headers in safe Rust and fills NVDEC's picture parameters itself,
 with no CUVID parser and no FFmpeg on the path (spike B, H2).
 The production code is written fresh, with the divergence

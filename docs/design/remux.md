@@ -9,7 +9,7 @@ lists, sample groups), ISO/IEC 14496-14 (MP4), ISO/IEC 14496-15 (AVC and
 HEVC sample entries), the AV1 and VP codec ISO media file format bindings,
 the Opus in ISOBMFF encapsulation, ISO/IEC 14496-3 (AAC) and the QuickTime
 File Format (sound sample entry versions, Macintosh language codes). No
-multimedia implementation source is read (principle 4); `ffmpeg`,
+multimedia implementation source is read; `ffmpeg`,
 `ffprobe` and MediaInfo are black-box oracles only.
 
 ## What it does
@@ -428,7 +428,7 @@ once per output.
   - **100%** of outputs have `ftyp`, `moov`, `mdat` in that order and pass
     the library round trip;
   - no panic, crash or timeout (one hour per file).
-  These are tighter than the stage 3 criteria of section 8.3 (98% of files,
+  These are tighter than the roadmap's stage 3 criteria (98% of files,
   99% of packets): a copy that keeps every sample should reach them.
 - **Reported, not gated:** streams dropped, by reason; dropped boxes, by
   path.

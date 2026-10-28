@@ -52,7 +52,7 @@ Choices, and what was rejected:
   counts whatever runs beside the body, a test binary that uses it holds
   that one test, which the binary's layout enforces rather than a
   command-line flag. One process-wide region runs at a time.
-- **Regions, not process totals.** Section 5.7 asks for the peak memory
+- **Regions, not process totals.** The memory bound is on the peak memory
   *growth* of one request, so a region starts at zero and the test binary's
   start-up and the fixture built before the region are excluded. Memory a
   region frees that was allocated before it offsets later growth, exactly

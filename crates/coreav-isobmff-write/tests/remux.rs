@@ -1954,7 +1954,7 @@ fn json_string(value: &str) -> String {
     out
 }
 
-/// Fixtures that must remux (section 6.3) when they were generated.
+/// Fixtures that must remux when they were generated.
 const REQUIRED: &[&str] = &[
     "basic.mp4",
     "basic.mov",

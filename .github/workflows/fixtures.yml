@@ -88,8 +88,8 @@ jobs:
         with:
           path: ${{ runner.temp }}/coreav-fixtures
           key: linux-x64-fixtures-ffmpeg-7.0.2-${{ hashFiles('scripts/gen-fixtures.sh') }}
-      # Regenerate even after a cache hit: section 6.3 requires every run to
-      # exercise generation, and required cases must never silently disappear.
+      # Regenerate even after a cache hit: every run must exercise
+      # generation, and required cases must never silently disappear.
       - name: Generate all required fixtures
         env:
           COREAV_REQUIRE_ALL_FIXTURES: '1'

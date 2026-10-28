@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Apply documented known divergences to a coreav-oracle comparison report.
 
-Decision 3 (oracle and correctness policy) and proposal 6.2: a mismatch counts
-as agreement only when a documented entry's predicate covers it; covered items
+Under the oracle and correctness policy, a mismatch counts as agreement
+only when a documented entry's predicate covers it; covered items
 stay in the denominator and are reported apart from direct agreement. The
 entries live in docs/known-divergences.md with the twin
 docs/known-divergences.json. Captures are read, never rewritten.
@@ -63,7 +63,7 @@ def fraction(pair):
 
 # Box header layout and the parent of each container below are those of
 # ISO/IEC 14496-12 (section 4.2 and each box's "Container" line); the depth
-# limit is the default of Decision 4 (resource limits).
+# limit is the default of CoreAV's resource limits.
 CONTAINERS = {b'moov', b'trak', b'mdia', b'minf', b'stbl', b'edts', b'dinf', b'mvex', b'moof', b'traf'}
 PARENTS = {b'trak': b'moov', b'mdia': b'trak', b'minf': b'mdia', b'stbl': b'minf', b'edts': b'trak',
            b'mvex': b'moov', b'traf': b'moof'}
@@ -881,7 +881,7 @@ def pcm_reference_units(reference_stream, candidate_stream, movie=None):
     return len(refs) + len(stretches), direct, dict(covered), uncovered, notes
 
 
-# AAC profile (Decision 25). AudioSpecificConfig layout: ISO/IEC 14496-3
+# AAC profile, from the configuration. AudioSpecificConfig layout: ISO/IEC 14496-3
 # 1.6.2.1; implicit SBR signalling: ISO/IEC 14496-3 1.6.5 and 4.6.18.
 AAC_LC_CODE_POINTS = 'Aac { object_type: 2, sbr: false, ps: false }'
 MAX_IMPLICIT_SBR_CORE_RATE = 24000
@@ -2872,7 +2872,7 @@ def overlay(report, reference_dir, candidate_dir, media_dir):
                     g[{'direct': 'direct', 'kd': 'via_kd', 'uncovered': 'uncovered'}[status]] += 1
                     g['by_kd'].update(ids if status == 'kd' else ())
                     if status == 'kd':
-                        # Read by scripts/compat_check.py (Decision 28 point 10).
+                        # Read by scripts/compat_check.py.
                         g['covered_items'].append({'file': file, 'kd': sorted(ids), 'paths': covered_paths})
                     if status == 'uncovered':
                         g['uncovered_items'].append({'file': file, 'fields': missing})

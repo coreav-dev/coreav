@@ -608,7 +608,7 @@ def track_timing(path):
     return found
 
 
-def decision13_duration(track, movie_timescale):
+def edited_track_duration(track, movie_timescale):
     """The duration CoreAV gives a track with an edit list (docs/design/edit-lists.md decision 5), in media ticks: the media edits'
     durations capped by the media header, for a simple list (one media edit
     after at most one empty edit) or for several edits CoreAV applies
@@ -1573,7 +1573,7 @@ def _kd_edited_bit_rate(mapped, evidence):
         rate = stream.get('bit_rate')
         if not track or not rate or not track['bytes'] or not track['mdhd']:
             continue
-        duration = decision13_duration(track, movie_timescale)
+        duration = edited_track_duration(track, movie_timescale)
         if duration is None or duration <= 0 or duration >= track['mdhd']:
             continue
         theirs = Fraction(rate['exact']['num'], rate['exact']['den'])

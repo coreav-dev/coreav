@@ -2,7 +2,7 @@
 
 The measurements of `docs/design/compat-cli.md` ("The measurements, fixed
 before the runs"), on the bars of that note ("The bars, pre-registered"),
-for `coreav ffprobe` (roadmap 8.7 step 1). `coreav ffmpeg` is not
+for `coreav ffprobe` (roadmap step 1). `coreav ffmpeg` is not
 measured here: it refuses every command for now.
 
 The bars and methods were committed in `0f3237db` before any run.

@@ -220,8 +220,8 @@ panic on hostile input; production code will not.
 The script prints locations in the spike's code, span lengths and project
 names, never third-party code. Limits: a translation that restructures code
 (different statement order or temporaries) is not caught; the check is a
-guard against verbatim or near-verbatim reuse, on top of the process in
-principle 4.
+guard against verbatim or near-verbatim reuse, on top of the project's
+rules for reading other implementations.
 
 ## How it runs
 
