@@ -347,17 +347,25 @@ def compare_file(coreav, path, args):
     return result, examples, code
 
 
-ISO_EXTS = {'.mp4', '.mov', '.m4a', '.m4b', '.m4v', '.3gp', '.3g2', '.qt'}
 STRICT = 'KD-STRICT (docs/known-divergences.md)'
 
 
 def strict_rejection(coreav, path):
-    """Whether KD-STRICT covers CoreAV rejecting `path`, an ISO base media
-    file: `coreav probe` names the kind of defect (truncated or invalid
-    structure, a limit), and the file's bytes independently show that kind,
-    read by the walk of `scripts/oracle_kd.py` that the library oracle uses
-    for the same record. A valid file CoreAV rejects is never covered."""
-    if path.suffix.lower() not in ISO_EXTS:
+    """Whether KD-STRICT covers CoreAV rejecting `path`: `ffprobe` reads the
+    file as ISO base media (`format_name` `mov,mp4,...`, whatever its
+    extension), `coreav probe` names the kind of defect (truncated or
+    invalid structure, a limit), and the file's bytes independently show
+    that kind, read by the walk of `scripts/oracle_kd.py` that the library
+    oracle uses for the same record. A valid file CoreAV rejects is never
+    covered, nor a file of another container, whose first bytes the box
+    walk would read as a box past the end."""
+    code, out, _ = run(['ffprobe', '-v', 'error', '-of', 'json', '-show_entries',
+                        'format=format_name', str(path)])
+    try:
+        name = json.loads(out)['format']['format_name'] if code == 0 else ''
+    except (ValueError, KeyError, TypeError):
+        return False
+    if not name.startswith('mov,mp4'):
         return False
     _, _, err = run([coreav, 'probe', str(path)])
     try:
@@ -384,27 +392,33 @@ def oracle_kd():
 def compare_all(coreav, path):
     """Both listings of `path` compared key by key: (keys, examples, failed,
     record), or None when ffprobe reads neither. `keys` maps each key
-    ffprobe prints to whether every occurrence agrees; on a file CoreAV
-    rejects, `record` names the known divergence that covers the rejection
-    (every key of the file then agrees through it, and stays in the
-    denominator), else None."""
-    keys, examples, failed = {}, {}, False
+    ffprobe prints to whether every occurrence agrees. When `coreav
+    ffprobe` rejects the file (exit 1, its status for invalid input) and a
+    known divergence covers the rejection, `record` names it and the keys
+    of the listings it rejected agree through it (they stay in the
+    denominator); else `record` is None. `failed`: any listing exited
+    other than 0."""
+    keys, examples, failed, rejected = {}, {}, False, set()
     for args in (SECTION_ARGS, PACKET_ARGS):
         r = compare_file(coreav, path, args)
         if r is None:
             continue
         result, ex, code = r
         failed = failed or code != 0
+        names = set(result)
+        if code == 1:
+            rejected |= names
         for name, ok in result.items():
             keys[name] = keys.get(name, True) and ok
         for name, e in ex.items():
             examples.setdefault(name, e)
     if not keys:
         return None
-    record = STRICT if failed and strict_rejection(coreav, path) else None
+    record = STRICT if rejected and strict_rejection(coreav, path) else None
     if record:
-        keys = dict.fromkeys(keys, True)
-        examples = {}
+        for name in rejected:
+            keys[name] = True
+            examples.pop(name, None)
     return keys, examples, failed, record
 
 

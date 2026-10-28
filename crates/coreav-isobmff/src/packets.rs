@@ -72,6 +72,14 @@ pub struct Packet {
 /// flag. A run is described once and expanded only on demand,
 /// so constant-size tracks such as PCM audio are indexed without visiting
 /// every sample. Each sample is still one packet.
+///
+/// For a QuickTime compressed audio track whose sample tables count single
+/// audio samples (`stsz` of 1, [`crate::SampleDescription::sound_packet`]), offsets
+/// and sizes are in the tables' units, one byte a sample from the chunk's
+/// offset, and need not lie inside the file: the bytes are the compressed
+/// frames from the chunk's offset, which the iteration checks are inside
+/// the file (`docs/design/sample-tables.md`). The same holds for such a
+/// track's [`Packet`]s.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SampleRun {
     /// Zero-based number of the first sample in the track.
@@ -196,12 +204,15 @@ impl Movie {
         // each (docs/design/edit-list-writers.md, common decision 2).
         budget.charge(u64::try_from(spans.len()).unwrap_or(u64::MAX))?;
         let framed = match track.description.sound_packet {
-            Some(frame) if usable && track.trex.is_none() => track.tables.frames_inside(
-                frame,
-                self.file_len,
-                limits.max_packet_bytes,
-                &mut budget.work,
-            )?,
+            // One frame size for every chunk: only with one sample description.
+            Some(frame) if usable && track.trex.is_none() && track.descriptions == 1 => {
+                track.tables.frames_inside(
+                    frame,
+                    self.file_len,
+                    limits.max_packet_bytes,
+                    &mut budget.work,
+                )?
+            }
             _ => false,
         };
         Ok(Packets {

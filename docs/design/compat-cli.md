@@ -350,13 +350,14 @@ by index and packets by position in the listing. A key's rate is the share
 of files it appears in on which every occurrence agrees. A key CoreAV
 prints as unknown counts as disagreeing. Bar: 98% per key, as above.
 From round 5 the known divergences the bar sets aside are applied to the
-corpus too, as the library's oracle applies them: an ISO base media file
-CoreAV rejects comes under `KD-STRICT` (`docs/known-divergences.md`) when
+corpus too, as the library's oracle applies them: a file `coreav ffprobe`
+rejects (exit 1) comes under `KD-STRICT` (`docs/known-divergences.md`)
+when `ffprobe` reads it as ISO base media (`format_name` `mov,mp4,...`),
 `coreav probe` names the defect (a truncated or invalid structure, or a
 limit) and the file's bytes show that kind of defect by the walk of
-`scripts/oracle_kd.py`. Every key of such a file then agrees through the
-record and stays in the denominator; the report counts these files and
-keys apart (`run.py keys`, `via_known_divergence`). A rejection the bytes
+`scripts/oracle_kd.py`. Every key of the listings it rejected then agrees
+through the record and stays in the denominator; the report counts these
+files and keys apart (`run.py keys`, `via_known_divergence`). A rejection the bytes
 do not explain, and any rejection of a Matroska or MPEG-TS file, still
 disagrees on every key. Rejected: reading such files in `coreav ffprobe`
 as `ffprobe` does (stopping at a box past the end, skipping a second movie
