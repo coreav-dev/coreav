@@ -577,8 +577,8 @@ struct Analysis {
     /// Per stream: the presentation time of its first timed frame and the
     /// decoding time of its latest one.
     spans: Vec<Option<(i64, i64)>>,
-    /// The stream of the PES packet being read.
-    current: Option<usize>,
+    /// The stream of the PES packet being read, and where it starts.
+    current: Option<(usize, u64)>,
     /// The analysis ended.
     over: bool,
 }
@@ -587,25 +587,41 @@ struct Analysis {
 /// seconds, strictly.
 const ANALYSIS_SPAN: i64 = 5 * 90_000;
 
+/// How far the analysis reads into the file: it ends after the first PES
+/// packet that starts past five million bytes (a 35 Mb/s stream ends
+/// there, 1 s in, and not after five seconds).
+const ANALYSIS_BYTES: u64 = 5_000_000;
+
 impl Analysis {
     /// Notes a frame of `stream`, the first of its PES packet when
     /// `starts` is set, and tells whether it is part of the analysis.
-    fn note(&mut self, stream: usize, starts: bool, pts: Option<i64>, dts: Option<i64>) -> bool {
+    fn note(
+        &mut self,
+        stream: usize,
+        offset: u64,
+        starts: bool,
+        pts: Option<i64>,
+        dts: Option<i64>,
+    ) -> bool {
         if self.over {
             return false;
         }
-        if (starts || self.current != Some(stream)) && self.current.is_some() {
-            let past = self
-                .spans
-                .iter()
-                .flatten()
-                .any(|(first, last)| last - first > ANALYSIS_SPAN);
+        let new = starts || self.current.is_none_or(|(s, _)| s != stream);
+        if let Some((_, at)) = self.current.filter(|_| new) {
+            let past = at > ANALYSIS_BYTES
+                || self
+                    .spans
+                    .iter()
+                    .flatten()
+                    .any(|(first, last)| last - first > ANALYSIS_SPAN);
             if past {
                 self.over = true;
                 return false;
             }
         }
-        self.current = Some(stream);
+        if new {
+            self.current = Some((stream, offset));
+        }
         if self.spans.len() <= stream {
             self.spans.resize(stream + 1, None);
         }
@@ -701,7 +717,13 @@ fn head<S: Source>(
         let Some(st) = ts.streams.get(packet.stream) else {
             continue;
         };
-        let analysed = analysis.note(packet.stream, packet.pos.is_some(), packet.pts, packet.dts);
+        let analysed = analysis.note(
+            packet.stream,
+            packet.pes_offset,
+            packet.pos.is_some(),
+            packet.pts,
+            packet.dts,
+        );
         if let Some(h) = streams.get_mut(packet.stream) {
             if analysed && st.codec == Codec::Aac {
                 if let Some(rate) = adts_bit_rate(&packet.data) {
@@ -2194,15 +2216,22 @@ mod tests {
     #[test]
     fn the_analysis_ends_after_the_pes_packet_past_five_seconds() {
         let mut a = Analysis::default();
-        assert!(a.note(0, true, Some(0), Some(0)));
-        assert!(a.note(1, true, Some(100), Some(100)));
+        assert!(a.note(0, 0, true, Some(0), Some(0)));
+        assert!(a.note(1, 0, true, Some(100), Some(100)));
         // Exactly five seconds is not past them.
-        assert!(a.note(0, true, Some(450_000), Some(450_000)));
-        assert!(a.note(0, true, Some(450_001), Some(450_001)));
+        assert!(a.note(0, 0, true, Some(450_000), Some(450_000)));
+        assert!(a.note(0, 0, true, Some(450_001), Some(450_001)));
         // The frames of the same PES packet are still read.
-        assert!(a.note(0, false, None, Some(452_000)));
-        assert!(!a.note(1, true, Some(9_000), Some(9_000)));
-        assert!(!a.note(0, true, Some(460_000), Some(460_000)));
+        assert!(a.note(0, 0, false, None, Some(452_000)));
+        assert!(!a.note(1, 0, true, Some(9_000), Some(9_000)));
+        assert!(!a.note(0, 0, true, Some(460_000), Some(460_000)));
+        // Five million bytes end it too, after the PES packet that starts
+        // past them.
+        let mut a = Analysis::default();
+        assert!(a.note(0, 4_999_000, true, Some(0), Some(0)));
+        assert!(a.note(0, 5_000_100, true, Some(10), Some(10)));
+        assert!(a.note(0, 5_000_100, false, None, Some(20)));
+        assert!(!a.note(1, 5_000_300, true, Some(30), Some(30)));
     }
 
     #[test]

@@ -90,10 +90,25 @@ SET_ASIDE = {
 
 
 def covered_by_record(coreav, path):
-    """The record that covers every difference of `path`, or None."""
+    """The record that covers every difference of `path`, or None. Keys
+    CoreAV prints and ffprobe does not, and a packet listing of another
+    length, count as differences too."""
     record, fields = SET_ASIDE.get(path.name, (None, set()))
     if record is None:
         return None
+    _, ref_out, _ = run(['ffprobe'] + SECTION_ARGS + [str(path)])
+    code, out, _ = run([coreav, 'ffprobe'] + SECTION_ARGS + [str(path)])
+    try:
+        extra = set(flatten(json.loads(out))) - set(flatten(json.loads(ref_out)))
+    except ValueError:
+        return None
+    if code != 0 or extra:
+        return None
+    if 'packets.*' not in fields:
+        listings = [run(tool + PACKET_ARGS + [str(path)])[1].count(b'\n')
+                    for tool in (['ffprobe'], [coreav, 'ffprobe'])]
+        if listings[0] != listings[1]:
+            return None
     for args in (SECTION_ARGS, PACKET_ARGS):
         r = compare_file(coreav, path, args)
         if r is None or r[2] != 0:

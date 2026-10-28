@@ -465,13 +465,17 @@ prints keep its derivations, which the stream oracle checks. The others:
   its deepest delay (two and three edits, contiguous, overlapping or
   around an empty one; not one edit, nor H.265).
 - `coded_width` and `coded_height`: the H.264 sequence parameter set's
-  cropped size, or the sample entry's when that is less than a macroblock
-  smaller in both directions (854×480 in a 864×480 set on the development
-  set); the H.265 set's uncropped size; the size the first ProRes frame
-  header states.
+  cropped size, or the sample entry's when it is no larger and falls in
+  the same macroblocks in both directions and the cropping keeps the top
+  left corner (entries patched around a 1920×1080 set: 1905×1080 and
+  1920×1073 are taken, 1904×1080, 1920×1072 and 1921×1080 are not); the
+  H.265 set's uncropped size; the size the first ProRes frame header
+  states.
 - Audio: AAC's `channel_layout` from the `AudioSpecificConfig`'s
-  `channelConfiguration` (6 is `5.1`, 7 is `7.1`; none for 0, where a
-  program config element gives the channels); the ISO/IEC 23003-5 PCM
+  `channelConfiguration` (6 is `5.1`, 7 is `7.1`), and for 0 from its
+  program config element, which `ffprobe` names only as a front pair with
+  an LFE (`2.1`) or with a back pair (`quad`) among every layout `ffmpeg`
+  encodes with one; the ISO/IEC 23003-5 PCM
   entries (`ipcm`, `fpcm`) from their `chnl` box, by `definedLayout` or
   by the list of speaker positions, as `ffprobe` names every layout
   `ffmpeg` writes, and none without the box; Opus's `initial_padding` is
@@ -522,7 +526,8 @@ with the "MPEGTS Stream ID" side data and its rebuilt decode times
 over the frames `ffprobe`'s analysis reads: whole PES packets in file
 order, up to and including the first after which some stream's latest
 decoding time lies more than five seconds (450,000 ticks, strictly) past
-its first timed frame's presentation time; each frame's rate is its
+its first timed frame's presentation time, or the first that starts past
+five million bytes (a 35 Mb/s stream crafted for it); each frame's rate is its
 `frame_length` bytes over 1024 samples at its sampling rate, and the mean
 is truncated toward zero at every frame (`m += (rate − m) / n`). It agrees
 on every AAC transport stream of the fixtures and on 11 of the 14 AAC

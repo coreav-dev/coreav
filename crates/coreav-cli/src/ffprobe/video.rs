@@ -15,6 +15,9 @@ pub struct VideoInfo {
     pub field_order: Option<&'static str>,
     pub bits_per_raw_sample: Option<u32>,
     pub coded_size: Option<(u32, u32)>,
+    /// An H.264 picture's cropped size, when the cropping keeps its top
+    /// left corner: the size a sample entry may narrow (`iso.rs`).
+    pub h264_corner: Option<(u32, u32)>,
     /// The frame rate the stream's own clock states, as a fraction
     /// (ITU-T H.264 E.2.1, where a frame lasts two ticks; H.265 E.3.1,
     /// where a picture lasts one).
@@ -209,8 +212,8 @@ pub fn avc_sps(nal: &[u8], full_range: bool) -> Option<VideoInfo> {
     }
     b.ue()?;
     b.bit()?;
-    let width_mbs = b.ue()?.checked_add(1)?;
-    let height_units = b.ue()?.checked_add(1)?;
+    let width_mbs = b.ue()?;
+    let height_units = b.ue()?;
     let frame_mbs_only = b.flag()?;
     if !frame_mbs_only {
         b.bit()?;
@@ -222,8 +225,8 @@ pub fn avc_sps(nal: &[u8], full_range: bool) -> Option<VideoInfo> {
             *c = b.ue()?;
         }
     }
-    // The cropped size (7.4.2.1.1), which `ffprobe` prints as the coded
-    // size of H.264 too.
+    // The decoded picture's size, in whole macroblocks and cropped
+    // (7.4.2.1.1).
     let fields = if frame_mbs_only { 1 } else { 2 };
     let (unit_x, unit_y) = match chroma_format {
         1 => (2, 2 * fields),
@@ -231,17 +234,23 @@ pub fn avc_sps(nal: &[u8], full_range: bool) -> Option<VideoInfo> {
         _ => (1, fields),
     };
     let [left, right, top, bottom] = crop;
-    let coded_size = width_mbs
-        .checked_mul(16)?
-        .checked_sub(left.checked_add(right)?.checked_mul(unit_x)?)
+    let whole = width_mbs
+        .checked_add(1)
+        .and_then(|w| w.checked_mul(16))
         .zip(
             height_units
-                .checked_mul(16 * fields)?
-                .checked_sub(top.checked_add(bottom)?.checked_mul(unit_y)?),
+                .checked_add(1)
+                .and_then(|h| h.checked_mul(16 * fields)),
         );
+    let cropped = whole.and_then(|(w, h)| {
+        let x = left.checked_add(right)?.checked_mul(unit_x)?;
+        let y = top.checked_add(bottom)?.checked_mul(unit_y)?;
+        w.checked_sub(x).zip(h.checked_sub(y))
+    });
     let mut info = VideoInfo {
         pix_fmt: yuv(chroma_format, bit_depth, full_range),
-        coded_size,
+        coded_size: cropped,
+        h264_corner: cropped.filter(|_| left == 0 && top == 0),
         bits_per_raw_sample: Some(bit_depth),
         field_order: frame_mbs_only.then_some("progressive"),
         chroma_location: (chroma_format == 1).then_some("left"),
@@ -413,6 +422,7 @@ pub fn hevc_sps(nal: &[u8], full_range: bool) -> Option<VideoInfo> {
         field_order: None,
         bits_per_raw_sample: None,
         coded_size: Some((width, height)),
+        h264_corner: None,
         frame_rate: None,
         sar: None,
         profile: None,
@@ -595,6 +605,7 @@ pub fn av1(av1c: &[u8]) -> Option<VideoInfo> {
         field_order: None,
         bits_per_raw_sample: None,
         coded_size: None,
+        h264_corner: None,
         frame_rate: None,
         sar: None,
         profile: None,
@@ -620,6 +631,7 @@ pub fn vp9(vpcc: &[u8]) -> Option<VideoInfo> {
         field_order: None,
         bits_per_raw_sample: None,
         coded_size: None,
+        h264_corner: None,
         frame_rate: None,
         sar: None,
         profile: None,
@@ -688,6 +700,7 @@ pub fn prores(frame: &[u8]) -> Option<VideoInfo> {
         }),
         bits_per_raw_sample: Some(bits),
         coded_size: Some((width, height)),
+        h264_corner: None,
         frame_rate: None,
         sar: None,
         profile: None,

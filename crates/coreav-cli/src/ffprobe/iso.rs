@@ -609,10 +609,16 @@ fn unprotected(track: &Track, wrapped: &super::iso_meta::Protected) -> Track {
     t
 }
 
-/// The `channelConfiguration` of an AAC track's `AudioSpecificConfig`
-/// (ISO/IEC 14496-3 1.6.2.1), after its object type and sampling
-/// frequency index, each with its escape.
-fn aac_channel_configuration(d: &coreav_isobmff::SampleDescription) -> Option<u8> {
+/// The channel layout `ffprobe` names for an AAC track, from its
+/// `AudioSpecificConfig` (ISO/IEC 14496-3 1.6.2.1): its
+/// `channelConfiguration`, or for 0 the program config element of its
+/// `GASpecificConfig` (4.4.1.1). `ffprobe` names an element list only as
+/// below, measured on every layout `ffmpeg` encodes with one: a front
+/// channel pair with an LFE is `2.1`, with a back pair `quad`; lists with
+/// a front centre after the pair (hexagonal, 3.1, 6.0 and the others) are
+/// not named. `None` when the track is not AAC or its configuration
+/// cannot be read.
+fn aac_layout(d: &coreav_isobmff::SampleDescription) -> Option<Option<&'static str>> {
     if d.codec != Codec::Aac {
         return None;
     }
@@ -622,13 +628,57 @@ fn aac_channel_configuration(d: &coreav_isobmff::SampleDescription) -> Option<u8
         .filter(|c| c.kind.0 == *b"esds")
         .and_then(|c| esds_config(&c.data))?;
     let mut bits = video::Bits::new(config);
-    if bits.bits(5)? == 31 {
-        bits.bits(6)?;
+    let mut object_type = bits.bits(5)?;
+    if object_type == 31 {
+        object_type = 32 + bits.bits(6)?;
     }
     if bits.bits(4)? == 15 {
         bits.bits(24)?;
     }
-    u8::try_from(bits.bits(4)?).ok()
+    let config = bits.bits(4)?;
+    if config != 0 {
+        return Some(u8::try_from(config).ok().and_then(names::aac_layout));
+    }
+    // `GASpecificConfig` of the general audio object types.
+    if !matches!(object_type, 1..=4 | 6 | 7 | 17 | 19..=23) {
+        return Some(None);
+    }
+    bits.bits(1)?;
+    if bits.bits(1)? == 1 {
+        bits.bits(14)?;
+    }
+    bits.bits(1)?;
+    // `program_config_element()`.
+    bits.bits(4 + 2 + 4)?;
+    let front = bits.bits(4)?;
+    let side = bits.bits(4)?;
+    let back = bits.bits(4)?;
+    let lfe = bits.bits(2)?;
+    bits.bits(3 + 4)?;
+    for width in [4, 4, 3] {
+        if bits.bits(1)? == 1 {
+            bits.bits(width)?;
+        }
+    }
+    let mut pairs = |n: u32| -> Option<Vec<bool>> {
+        (0..n)
+            .map(|_| {
+                let pair = bits.bits(1)? == 1;
+                bits.bits(4)?;
+                Some(pair)
+            })
+            .collect()
+    };
+    let front = pairs(front)?;
+    let side = pairs(side)?;
+    let back = pairs(back)?;
+    Some(
+        match (front.as_slice(), side.as_slice(), back.as_slice(), lfe) {
+            ([true], [], [], 1) => Some("2.1"),
+            ([true], [], [true], 0) => Some("quad"),
+            _ => None,
+        },
+    )
 }
 
 /// `bits_per_raw_sample` of integer PCM of 24 and 32 bits, which
@@ -947,18 +997,17 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
         e.push(("width", w.map_or(Value::Na, int)));
         e.push(("height", h.map_or(Value::Na, int)));
         // An H.264 decoder takes the entry's size as its coded size when it
-        // is less than a macroblock smaller than the parameter set's in both
-        // directions (854×480 in a 864×480 set, 581×375 in a 582×376 one,
-        // on the development set), else the parameter set's.
-        let coded = match (info.coded_size, w, h) {
-            (Some((cw, ch)), Some(w), Some(h))
-                if d.codec == Codec::H264
-                    && (cw.saturating_sub(15)..=cw).contains(&w)
-                    && (ch.saturating_sub(15)..=ch).contains(&h) =>
-            {
-                Some((w, h))
-            }
-            (coded, ..) => coded,
+        // is no larger than the parameter set's cropped size and falls in
+        // the same macroblocks, in both directions, and the cropping keeps
+        // the top left corner; else the cropped size. Found on entries
+        // patched to sizes around a 1920×1080 set (1905×1080 and 1920×1073
+        // are taken, 1904×1080, 1920×1072 and 1921×1080 are not), and on
+        // the development set (854×480 in a 864×480 set, 581×375 in
+        // 582×376, but not 356×365 in 356×364).
+        let fits = |entry: u32, set: u32| entry <= set && entry.div_ceil(16) == set.div_ceil(16);
+        let coded = match (info.h264_corner, w, h) {
+            (Some((sw, sh)), Some(w), Some(h)) if fits(w, sw) && fits(h, sh) => Some((w, h)),
+            _ => info.coded_size,
         };
         let (cw, ch) = coded.map_or((w, h), |(cw, ch)| (Some(cw), Some(ch)));
         e.push(("coded_width", cw.map_or(Value::Na, int)));
@@ -1089,12 +1138,8 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
             rate.map_or(Value::Na, |r| Value::Unit(i64::from(r), Unit::Hertz)),
         ));
         e.push(("channels", channels.map_or(Value::Na, int)));
-        // AAC is named by its `channelConfiguration`, and not at all when
-        // a program config element gives the channels (configuration 0).
-        let layout = match aac_channel_configuration(d) {
-            Some(config) => names::aac_layout(config),
-            None => channels.and_then(names::default_layout),
-        };
+        // AAC is named by its own configuration ([`aac_layout`]).
+        let layout = aac_layout(d).unwrap_or_else(|| channels.and_then(names::default_layout));
         e.push(("channel_layout", layout.map_or(Value::Unset("unknown"), s)));
         e.push(("bits_per_sample", int(coded_bits.map_or(0, i64::from))));
         // Opus states its pre-skip (RFC 7845 5.1, in the `dOps` box of
