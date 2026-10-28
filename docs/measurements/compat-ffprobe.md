@@ -624,7 +624,7 @@ files (round 4: 8; the two with QuickTime compressed audio are now read),
 all ISO base media, and `KD-STRICT` explains all 6: `coreav probe` names
 a truncated or invalid structure and the walk of `scripts/oracle_kd.py`
 finds that kind of defect in the bytes. Their keys
-agree through the record (`via_known_divergence` in the tables). The held-out
+agree through the record (`via_known_divergence` in the JSON tables). The held-out
 ISO base media and Matroska files were used for development in rounds 2
 to 4 (round 4), so only the held-out MPEG-TS column shows whether a fix
 generalizes. Full tables, overall and per part:
@@ -634,15 +634,24 @@ generalizes. Full tables, overall and per part:
 ISO base media 35 of 101 (round 4: 37; development 32 of 101, held out
 24 of 95), Matroska and WebM 2 of 101 (development 2 of 95, held out 0 of
 92), MPEG-TS 65 of 157 (development 6 of 157, held out 62 of 151). No
-key's rate fell against round 4. ISO base media `packets.size`,
-`packets.dts` and `packets.pts` rose from 97.14% to 97.90%, stream
-`has_b_frames` from 95.48% to 96.09%, `format.duration` from 96.28% to
-96.85%; `packets.stream_index` and `packets.flags` crossed 98%, and
-`packets.pos` reached 1028 of 1049 files (97.998%, below the bar; a key
-is below 98% on its unrounded share). On MPEG-TS the packet keys rose
-from 93.33% to 95.56%: every development file now agrees on them, and two of the 14 held-out files
-compared still disagree on every packet key, which keeps most of the 62
-held-out keys below 98%.
+key's rate fell against round 4, with or without the six files
+`KD-STRICT` explains.
+
+On ISO base media the change against round 4 comes mostly from the
+method, not the code. Under round 4's method (a rejected file disagrees
+on every key) the count stays 37 of 101: the stream and format keys gain
+exactly the six files `KD-STRICT` explains (`has_b_frames` 929 to 935 of
+973, `format.duration` 1010 to 1016 of 1049), and the packet keys gain
+those six and the two files with QuickTime compressed audio the code now
+reads (`packets.size` 1019 to 1027 of 1049). `packets.stream_index` and
+`packets.flags` crossed 98% through the method; `packets.pos` reached
+1028 of 1049 files, 97.998%, below the bar (a key is below 98% on its
+unrounded share). On MPEG-TS the code change shows alone (no MPEG-TS file
+is rejected): the packet keys rose from 93.33% to 95.56%, and every
+development file now agrees on them. Two of the 14 held-out files
+compared still disagree on every packet key; with 14 files one
+disagreeing file puts a key below 98%, and 41 of the 62 held-out keys
+below 98% miss by one file.
 
 **ISO base media**: 101 keys found in at least five files; 66 at or above 98%, 35 below:
 
