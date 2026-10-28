@@ -1,0 +1,8 @@
+bin-cmb-k
+  CABAC  n=26 median 0.9952 [0.9895, 0.9982] faster 21/26
+  CAVLC  n= 6 median 0.9962 [0.9909, 0.9990] faster 6/6
+  all    n=32 median 0.9953 [0.9920, 0.9979] faster 27/32
+  sd     n= 8 median 0.9962 [0.9920, 0.9987] faster 8/8
+  720p   n= 8 median 0.9962 [0.9880, 1.0036] faster 6/8
+  1080p  n= 8 median 0.9980 [0.9931, 1.0012] faster 5/8
+  4k     n= 8 median 0.9810 [0.9690, 0.9953] faster 8/8
