@@ -9,8 +9,9 @@ Creates a VM (default a SPOT c4-standard-8 in us-central1-a, Debian, hyperdisk-b
 (1 turns simultaneous multithreading off: the VM has one vCPU a physical core, and is billed for the machine's full
 vCPU count). `--provisioning standard` makes an on-demand VM, which is not preempted. Copies LOCAL_DIR to `~/job`
 on it over SSH with a key made for this run, runs `bash ~/job/JOB` there with a hard timeout, copies `~/job/out` back
-to RESULTS_DIR, and deletes the VM in a `finally`. The VM also carries `scheduling.maxRunDuration` with
-`instanceTerminationAction=DELETE`, so it deletes itself if this script dies first.
+to RESULTS_DIR, and deletes the VM in a `finally` (not when its insert is refused as a name in use). The VM also
+carries `scheduling.maxRunDuration` with `instanceTerminationAction=DELETE`, so it deletes itself if this script dies
+first.
 
 Credentials: COREAV_GCP_SA_KEY (a service-account key, JSON text or a path to it) and COREAV_GCP_PROJECT. The key is
 never printed or written anywhere; the access token is kept in memory. Only the Compute Engine REST API (v1) and the
@@ -179,7 +180,8 @@ def main():
     if a.threads_per_core is not None:
         features['threadsPerCore'] = a.threads_per_core
     image = gce.call('GET', f'projects/debian-cloud/global/images/family/{a.image_family}')['selfLink']
-    name = f'coreav-pmu-{time.strftime("%Y%m%d-%H%M%S")}'
+    # A random suffix: two runs started in the same second must not share a name.
+    name = f'coreav-pmu-{time.strftime("%Y%m%d-%H%M%S")}-{os.urandom(3).hex()}'
     tmp = tempfile.mkdtemp(prefix='gcpjob.')
     keyfile = os.path.join(tmp, 'id')
     subprocess.run(['ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-C', 'coreav', '-f', keyfile], check=True)
@@ -205,7 +207,14 @@ def main():
         smt = '' if a.threads_per_core is None else f', {a.threads_per_core} thread(s) a core'
         print(f'creating {name} ({a.machine}, {a.zone}, {model}, PMU {a.pmu}{smt}, max {a.max_hours} h)', flush=True)
         created = time.time()
-        gce.wait(gce.call('POST', f'{z}/instances', body))
+        try:
+            op = gce.call('POST', f'{z}/instances', body)
+        except SystemExit as e:
+            # The name in use (HTTP 409): no VM was created, and the one of that name is not this run's to delete.
+            if ': HTTP 409: ' in str(e):
+                created = None
+            raise
+        gce.wait(op)
         inst = gce.call('GET', f'{z}/instances/{name}')
         ip = inst['networkInterfaces'][0]['accessConfigs'][0]['natIP']
         opts = ['-i', keyfile, '-o', 'StrictHostKeyChecking=no', '-o', f'UserKnownHostsFile={tmp}/known',
