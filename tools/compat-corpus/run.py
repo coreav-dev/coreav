@@ -391,23 +391,23 @@ def oracle_kd():
 
 def compare_all(coreav, path):
     """Both listings of `path` compared key by key: (keys, examples, failed,
-    record), or None when ffprobe reads neither. `keys` maps each key
+    record, covered), or None when ffprobe reads neither. `keys` maps each key
     ffprobe prints to whether every occurrence agrees. When `coreav
     ffprobe` rejects the file (exit 1, its status for invalid input) and a
     known divergence covers the rejection, `record` names it and the keys
-    of the listings it rejected agree through it (they stay in the
-    denominator); else `record` is None. `failed`: any listing exited
-    other than 0."""
-    keys, examples, failed, rejected = {}, {}, False, set()
+    of the listings it rejected (`covered`) agree through it (they stay in
+    the denominator); else `record` is None and `covered` empty. `failed`:
+    a listing exited other than 0 that `record` does not cover."""
+    keys, examples, other, rejected = {}, {}, False, set()
     for args in (SECTION_ARGS, PACKET_ARGS):
         r = compare_file(coreav, path, args)
         if r is None:
             continue
         result, ex, code = r
-        failed = failed or code != 0
-        names = set(result)
         if code == 1:
-            rejected |= names
+            rejected |= set(result)
+        elif code != 0:
+            other = True
         for name, ok in result.items():
             keys[name] = keys.get(name, True) and ok
         for name, e in ex.items():
@@ -415,11 +415,11 @@ def compare_all(coreav, path):
     if not keys:
         return None
     record = STRICT if rejected and strict_rejection(coreav, path) else None
-    if record:
-        for name in rejected:
-            keys[name] = True
-            examples.pop(name, None)
-    return keys, examples, failed, record
+    covered = rejected if record else set()
+    for name in covered:
+        keys[name] = True
+        examples.pop(name, None)
+    return keys, examples, other or bool(rejected and not record), record, covered
 
 
 def cmd_keys(opts):
@@ -436,13 +436,13 @@ def cmd_keys(opts):
     for path, r in results:
         if r is None:
             continue
-        result, ex, failed, record = r
-        if failed:
-            rejected.append({'file': str(path), 'covered_by': record})
+        result, ex, failed, record, names = r
+        if failed or record:
+            rejected.append({'file': str(path), 'covered_by': None if failed else record})
         for name, ok in result.items():
             seen[name] += 1
             agree[name] += ok
-            covered[name] += bool(record)
+            covered[name] += name in names
         for name, e in ex.items():
             if len(examples[name]) < 5:
                 examples[name].append({'file': path.name, 'path': e[0],
