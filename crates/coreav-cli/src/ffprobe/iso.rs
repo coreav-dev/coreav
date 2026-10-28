@@ -1031,6 +1031,10 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
     } else if let Some((w, h)) = compat::text_size(movie, track) {
         e.push(("width", int(w)));
         e.push(("height", int(h)));
+    } else if track.kind == TrackKind::Subtitle && !chapter_data(movie, track) && !as_data(track) {
+        // A subtitle stream has a size, unknown when the entry states none.
+        e.push(("width", Value::Na));
+        e.push(("height", Value::Na));
     }
     e.push(("id", s(format!("0x{:x}", track.track_id))));
     let frames = u64::from(track.sample_count).saturating_add(track.fragment_samples);
