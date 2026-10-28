@@ -1,0 +1,11 @@
+Callgrind instruction counts (Ir), 6da34958296c.0.1080p.h264, examples/decode --frames 60 --discard, one thread,
+dist builds: before = main 5dcea041, after = e116fbd (the measured kernel). valgrind --tool=callgrind; callgrind_annotate --inclusive=yes.
+
+== before
+6,334,693,315 (100.0%)  PROGRAM TOTALS
+   601,524,566 ( 9.50%)  <coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::chroma_mc 
+   409,618,432 ( 6.47%)  <coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::chroma_mc_avg 
+== after
+5,761,384,144 (100.0%)  PROGRAM TOTALS
+   294,367,638 ( 5.11%)  <coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::chroma_mc 
+   136,915,120 ( 2.38%)  <coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::chroma_mc_avg 

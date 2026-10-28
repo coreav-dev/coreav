@@ -1,0 +1,40 @@
+  132.6  mod.rs:enter > syntax.rs:{closure#0} > cavlc.rs:block_body
+   62.2  cavlc.rs:block_body > cavlc.rs:code > cavlc.rs:read
+   36.9  bits.rs:ue
+   29.3  syntax.rs:{closure#0} > cavlc.rs:block_body > cavlc.rs:code
+   27.7  bits.rs:ue > bits.rs:peek32
+   22.9  mb.rs:{closure#0} > mb.rs:decode_cavlc_body > mb.rs:finish_mb
+   18.9  mb.rs:decode_mb > mb.rs:parse_inter_pred > mb.rs:parse_mb_pred
+   17.1  mod.rs:enter > mb.rs:{closure#0} > mb.rs:decode_cavlc_body
+   15.3  mod.rs:enter > mb.rs:{closure#0} > mb.rs:reset_body
+   15.2  mb.rs:{closure#0} > mb.rs:decode_cavlc_body > mb.rs:decode_mb
+   13.2  syntax.rs:{closure#0} > cavlc.rs:block_body > cavlc.rs:coeff_token_class
+   11.5  cavlc.rs:block_body > cavlc.rs:finish > bits.rs:skip
+   10.9  mb.rs:decode_cavlc_body > mb.rs:decode_mb > mb.rs:parse_inter_pred
+   10.4  cavlc.rs:block_body > cavlc.rs:new > cavlc.rs:fill
+--- lines
+   24.5  cavlc.rs:0:0
+   11.7  cavlc.rs:86:20
+   11.7  cavlc.rs:88:14
+   11.1  cavlc.rs:377:20
+    9.7  bits.rs:0:0
+    9.4  cavlc.rs:379:33
+    8.7  cavlc.rs:0:8
+    7.8  mb.rs:1320:23
+    7.8  cavlc.rs:85:40
+    7.8  cavlc.rs:236:12
+    6.3  bits.rs:134:6
+    6.3  cavlc.rs:378:39
+    6.3  cavlc.rs:378:47
+    6.3  cavlc.rs:382:12
+    5.9  cavlc.rs:0:12
+    5.0  mod.rs:116:18
+    4.8  cavlc.rs:193:12
+    4.7  mb.rs:900:38
+    4.7  bits.rs:72:10
+    4.7  bits.rs:57:20
+    4.7  bits.rs:0:17
+    4.7  bits.rs:124:25
+    4.7  bits.rs:128:23
+    4.7  cavlc.rs:178:14
+    4.6  cavlc.rs:388:33

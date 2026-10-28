@@ -1,0 +1,39 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2900.0 MHz, 8 logical CPUs
+gate baseline: 0.409 s (samples 0.444, 0.412, 0.406, 0.409)
+178de4a3a5a2.0.720p.h264                 host fault (attempt 1): null {'base_discard': -0.06579617665494542, 'base_write': -0.017718578383941086}, max spread 1.541
+178de4a3a5a2.0.720p.h264                 base:discard=0.78  base:write=0.74  base:mixed=0.62  k:discard=0.75  k:write=0.72  k:mixed=0.61
+391ec79e178a.0.720p.h264                 base:discard=1.16  base:write=1.07  base:mixed=1.10  k:discard=1.10  k:write=1.04  k:mixed=1.04
+3c331ca6a971.0.720p.h264                 host fault (attempt 1): null {'base_discard': 0.06238795305402256, 'base_write': -0.003423779714647357}, max spread 1.195
+3c331ca6a971.0.720p.h264                 base:discard=1.07  base:write=1.03  base:mixed=0.96  k:discard=1.07  k:write=1.04  k:mixed=0.96
+4dc155fa1f76.0.720p.h264                 base:discard=1.09  base:write=1.04  base:mixed=0.97  k:discard=1.09  k:write=1.08  k:mixed=0.98
+gate after 4 streams (check): 0.404 s (-1.1%)
+4f27662a0f72.0.720p.h264                 base:discard=1.06  base:write=1.04  base:mixed=1.00  k:discard=1.07  k:write=1.03  k:mixed=1.02
+59cf223b15f2.0.720p.h264                 base:discard=1.03  base:write=1.03  base:mixed=0.97  k:discard=1.04  k:write=1.04  k:mixed=0.98
+64e286230fca.0.720p.h264                 base:discard=1.15  base:write=1.10  base:mixed=1.08  k:discard=1.13  k:write=1.10  k:mixed=1.06
+64ef5412ed81.0.720p.h264                 base:discard=1.11  base:write=1.11  base:mixed=1.11  k:discard=1.05  k:write=1.10  k:mixed=1.05
+gate after 8 streams (check): 0.411 s (+0.5%)
+67138964d796.0.720p.h264                 base:discard=1.02  base:write=1.06  base:mixed=0.96  k:discard=1.13  k:write=1.02  k:mixed=1.06
+7eb29ce39b5c.0.720p.h264                 base:discard=1.05  base:write=1.03  base:mixed=0.99  k:discard=1.09  k:write=1.03  k:mixed=1.03
+985a28c5abe5.0.720p.h264                 host fault (attempt 1): null {'base_discard': -0.018528804867484427, 'base_write': -0.047060495940184244}, max spread 1.363
+985a28c5abe5.0.720p.h264                 host fault (attempt 2): null {'base_discard': 0.007335122663796101, 'base_write': 0.010291371399380411}, max spread 1.698
+985a28c5abe5.0.720p.h264                 base:discard=1.23  base:write=1.17  base:mixed=1.15  k:discard=1.18  k:write=1.15  k:mixed=1.10
+a9b1e81dc8f4.0.720p.h264                 host fault (attempt 1): null {'base_discard': 0.029983353614313035, 'base_write': -0.026499387235908722}, max spread 1.552
+a9b1e81dc8f4.0.720p.h264                 base:discard=1.01  base:write=0.99  base:mixed=0.92  k:discard=1.02  k:write=1.00  k:mixed=0.93
+gate after 12 streams (check): 0.402 s (-1.5%)
+b1c6f2742fff.0.720p.h264                 base:discard=1.01  base:write=0.97  base:mixed=0.94  k:discard=1.01  k:write=0.98  k:mixed=0.94
+c187706da87d.0.720p.h264                 base:discard=1.06  base:write=1.01  base:mixed=0.96  k:discard=1.06  k:write=1.05  k:mixed=0.97
+f2a05e5926d8.0.720p.h264                 host fault (attempt 1): null {'base_discard': 0.027024801977555635, 'base_write': -0.0016198936841622658}, max spread 1.508
+f2a05e5926d8.0.720p.h264                 base:discard=1.07  base:write=1.02  base:mixed=0.95  k:discard=1.08  k:write=0.99  k:mixed=0.95
+f99007f006ea.0.720p.h264                 host fault (attempt 1): null {'base_discard': 0.052307908222355204, 'base_write': -0.009610086696419495}, max spread 1.458
+f99007f006ea.0.720p.h264                 host fault (attempt 2): null {'base_discard': -0.03258378377341287, 'base_write': 0.12712678511495823}, max spread 1.504
+f99007f006ea.0.720p.h264                 base:discard=1.04  base:write=1.10  base:mixed=1.03  k:discard=1.08  k:write=1.09  k:mixed=1.08
+gate after 16 streams (check): 0.423 s (+3.6%)
+
+base:discard             n= 16  median 1.057  [1.028, 1.088]
+base:write               n= 16  median 1.034  [1.020, 1.068]
+base:mixed               n= 16  median 0.970  [0.955, 1.033]
+k:discard                n= 16  median 1.076  [1.052, 1.093]
+k:write                  n= 16  median 1.038  [1.016, 1.073]
+k:mixed                  n= 16  median 0.999  [0.964, 1.049]
+
+wrote $HOME/ab/qsl/out/h.720p.json

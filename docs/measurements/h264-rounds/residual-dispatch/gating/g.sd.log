@@ -1,0 +1,43 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2899.9 MHz, 8 logical CPUs
+gate after 0 streams: 0.400 s (+0.0%)
+41e324ebb708.0.sd.h264                   host fault (attempt 1): null {'base_discard': 0.004954615730335288, 'base_write': 0.00032852082280765416}, max spread 1.683
+41e324ebb708.0.sd.h264                   host fault (attempt 2): null {'base_discard': 0.002450494959495675, 'base_write': -0.0003604270704655743}, max spread 1.538
+41e324ebb708.0.sd.h264                   host fault (attempt 3): null {'base_discard': 0.022828837871108343, 'base_write': -0.020808981171099417}, max spread 1.625
+41e324ebb708.0.sd.h264                   base:discard=1.02  base:write=1.01  base:mixed=0.93  k:discard=1.01  k:write=0.99  k:mixed=0.92  knofast:discard=1.04  knofast:write=1.06  knofast:mixed=0.95 UNRESOLVED
+5185721dda11.0.sd.h264                   host fault (attempt 1): null {'base_discard': -0.004810831588958453, 'base_write': -0.04203601285727032}, max spread 1.508
+5185721dda11.0.sd.h264                   base:discard=1.03  base:write=1.01  base:mixed=0.97  k:discard=1.02  k:write=1.00  k:mixed=0.96  knofast:discard=1.05  knofast:write=1.03  knofast:mixed=0.98
+6f7799768413.0.sd.h264                   base:discard=1.28  base:write=1.21  base:mixed=1.17  k:discard=1.26  k:write=1.19  k:mixed=1.15  knofast:discard=1.29  knofast:write=1.22  knofast:mixed=1.18
+7650ae466748.0.sd.h264                   host fault (attempt 1): null {'base_discard': 0.0008528099451032833, 'base_write': 0.0025488955231398602}, max spread 1.644
+7650ae466748.0.sd.h264                   host fault (attempt 2): null {'base_discard': 0.011762621313626376, 'base_write': 0.011410984073936259}, max spread 1.637
+7650ae466748.0.sd.h264                   host fault (attempt 3): null {'base_discard': 0.05031667333606471, 'base_write': -0.0030202384681115024}, max spread 1.781
+7650ae466748.0.sd.h264                   base:discard=1.03  base:write=1.05  base:mixed=0.99  k:discard=1.02  k:write=1.03  k:mixed=0.98  knofast:discard=1.04  knofast:write=1.06  knofast:mixed=1.00 UNRESOLVED
+gate after 4 streams: 0.405 s (+1.4%)
+8ae90cadb5bc.0.sd.h264                   base:discard=1.09  base:write=1.08  base:mixed=1.04  k:discard=1.07  k:write=1.06  k:mixed=1.01  knofast:discard=1.09  knofast:write=1.08  knofast:mixed=1.04
+dcb262cf0138.0.sd.h264                   host fault (attempt 1): null {'base_discard': 0.0017576229337790128, 'base_write': -0.0026499491022882182}, max spread 1.735
+dcb262cf0138.0.sd.h264                   base:discard=0.89  base:write=0.89  base:mixed=0.86  k:discard=0.89  k:write=0.88  k:mixed=0.85  knofast:discard=0.92  knofast:write=0.92  knofast:mixed=0.88
+ec473c99c538.0.sd.h264                   host fault (attempt 1): null {'base_discard': -0.0004350185341124302, 'base_write': -0.0047542342459107045}, max spread 1.540
+ec473c99c538.0.sd.h264                   base:discard=0.60  base:write=0.62  base:mixed=0.56  k:discard=0.60  k:write=0.61  k:mixed=0.56  knofast:discard=0.63  knofast:write=0.64  knofast:mixed=0.59
+f9e973f44570.0.sd.h264                   host fault (attempt 1): null {'base_discard': -0.0034682460293854467, 'base_write': -0.0003015731192703708}, max spread 1.644
+f9e973f44570.0.sd.h264                   host fault (attempt 2): null {'base_discard': 0.0013460683981492139, 'base_write': -0.001083534848825951}, max spread 1.713
+f9e973f44570.0.sd.h264                   host fault (attempt 3): null {'base_discard': 0.013157810138198611, 'base_write': 0.002282063747610863}, max spread 1.748
+f9e973f44570.0.sd.h264                   base:discard=0.89  base:write=0.91  base:mixed=0.88  k:discard=0.88  k:write=0.91  k:mixed=0.87  knofast:discard=0.91  knofast:write=0.93  knofast:mixed=0.90 UNRESOLVED
+gate after 8 streams: 0.439 s (+9.9%)
+8ae90cadb5bc.0.sd.h264                   host fault (attempt 2): null {'base_discard': -0.04050972202135783, 'base_write': 0.02257516080350297}, max spread 1.920
+8ae90cadb5bc.0.sd.h264                   host fault (attempt 3): null {'base_discard': -0.0212811994137716, 'base_write': -0.03462537200437288}, max spread 1.846
+8ae90cadb5bc.0.sd.h264                   timed again after gate drift
+dcb262cf0138.0.sd.h264                   host fault (attempt 3): null {'base_discard': -0.006619636081781954, 'base_write': -0.006758113857341486}, max spread 1.548
+dcb262cf0138.0.sd.h264                   timed again after gate drift
+ec473c99c538.0.sd.h264                   timed again after gate drift
+gate after 8 streams: 0.429 s (+7.4%)
+
+base:discard             n=  8  median 1.024  [0.893, 1.084]
+base:write               n=  8  median 1.008  [0.897, 1.160]
+base:mixed               n=  8  median 0.949  [0.857, 1.038]
+k:discard                n=  8  median 1.013  [0.880, 1.084]
+k:write                  n=  8  median 0.996  [0.883, 1.074]
+k:mixed                  n=  8  median 0.939  [0.842, 1.038]
+knofast:discard          n=  8  median 1.040  [0.911, 1.143]
+knofast:write            n=  8  median 1.043  [0.913, 1.089]
+knofast:mixed            n=  8  median 0.965  [0.877, 1.095]
+
+wrote $HOME/ab/residual/out/g.sd.json

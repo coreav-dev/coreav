@@ -1,0 +1,4 @@
+a81de82106be.0.1080p, 30 pictures, --discard, callgrind total instructions
+bin-adbase 484138620
+bin-ad2    434816840
+saved 49321780, regular bins 2.54 M (the decision probe's count, plan.txt): 19.4 a regular bin

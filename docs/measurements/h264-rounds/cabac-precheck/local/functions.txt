@@ -1,0 +1,44 @@
+# Local development VM, Intel(R) Xeon(R) Processor @ 2.90GHz, family 6, model 106, stepping 6 (the bar class's CPU, a different VM; not a bar run), perf cpu-clock samples per function, 5 interleaved rounds, one thread pinned (taskset -c 3), discard.
+# prof-c17ae06 = main c17ae06 dist with line tables; -bmi2 = the same with RUSTFLAGS='-C target-feature=+bmi2'.
+== 175433794e02 (sym-175433794e02.prof-c17ae06.prof-c17ae06-bmi2.raw)
+total prof-c17ae06 52742 prof-c17ae06-bmi2 51383 ratio 0.9742
+   -379 (-0.0072)    3562   3183 0.894  <coreav_h264::cabac::Cabac>::mvd
+   -340 (-0.0064)    9355   9015 0.964  coreav_h264::cabac::significance_map::<64>
+   -274 (-0.0052)    9396   9122 0.971  coreav_h264::cabac::levels::<64>
+   -213 (-0.0040)    7595   7382 0.972  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode_cabac
+   -128 (-0.0024)    2548   2420 0.950  coreav_h264::cabac::levels::<16>
+   -122 (-0.0023)     574    452 0.787  coreav_h264::nal::rbsp
+    -73 (-0.0014)     430    357 0.830  <coreav_h264::cabac::Source>::load
+    -70 (-0.0013)    1817   1747 0.961  coreav_h264::cabac::significance_map::<16>
+    -62 (-0.0012)     630    568 0.902  <coreav_h264::mb::MbData>::reset
+    -48 (-0.0009)     280    232 0.829  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::prepare_level_scales
+    -38 (-0.0007)     273    235 0.861  <coreav_h264::syntax::CabacSyntax as coreav_h264::syntax::Syntax>::transform8x8::<coreav_k
+    -34 (-0.0006)     207    173 0.836  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reconstruct_inter
+    -29 (-0.0005)     464    435 0.938  coreav_kernels_h264::intra::pred8x8
+    -29 (-0.0005)     348    319 0.917  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reconstruct_intra
+== 1d4b1775d78a (sym-1d4b1775d78a.prof-c17ae06.prof-c17ae06-bmi2.raw)
+total prof-c17ae06 17408 prof-c17ae06-bmi2 17155 ratio 0.9855
+   -117 (-0.0067)     716    599 0.837  <coreav_h264::cabac::Cabac>::mvd
+    -49 (-0.0028)    1933   1884 0.975  coreav_h264::deblock::deblock_rows::<coreav_kernels_h264::Auto>
+    -48 (-0.0028)     580    532 0.917  coreav_kernels_h264::simd::x86::predict::predict::<coreav_kernels_h264::Auto>
+    -40 (-0.0023)     178    138 0.775  <coreav_h264::syntax::CabacSyntax>::intra_mb_type
+    -34 (-0.0020)     228    194 0.851  coreav_h264::cabac::levels::<64>
+    -33 (-0.0019)     147    114 0.776  <coreav_h264::syntax::CabacSyntax as coreav_h264::syntax::Syntax>::ref_idx::<coreav_kernel
+    -32 (-0.0018)     112     80 0.714  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::prepare_level_scales
+    -30 (-0.0017)    3137   3107 0.990  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode_cabac
+    -30 (-0.0017)     692    662 0.957  coreav_kernels_h264::simd::x86::chroma_mb::filter_chroma_mb
+    -27 (-0.0016)     225    198 0.880  coreav_kernels_h264::simd::x86::idct8x8_add
+    -25 (-0.0014)     172    147 0.855  coreav_h264::cabac::levels::<4>
+    -24 (-0.0014)     234    210 0.897  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::predict_fast
+    -24 (-0.0014)     118     94 0.797  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::motion_compensate
+    -15 (-0.0009)     286    271 0.948  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::mv_predictor
+== 175433794e02, cabac-e1 (6e8f7a70) vs cabac-b1 (23f6877d), both on main 27b504a, residual = significance_map, levels and fast_exp summed
+total e1 52762 b1 52896 ratio 1.0025
+ 24862  24335 0.979  residual (significance_map, levels, fast_exp)
+  7548   7915 1.049  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode_cabac
+  3614   3686 1.020  <coreav_h264::cabac::Cabac>::mvd
+  2319   2336 1.007  coreav_kernels_h264::simd::x86::idct8x8_add
+  2273   2229 0.981  coreav_kernels_h264::simd::x86::predict::luma_block
+  1171   1226 1.047  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::inter_pred
+== 175433794e02: share of the c17ae06 run without +bmi2 in functions whose name contains "cabac" (cabac::*, CabacSyntax, decode_cabac, parse_mvd::<CabacSyntax>): 38322/52742 = 0.727
+== 1d4b1775d78a: share of the c17ae06 run without +bmi2 in functions whose name contains "cabac" (cabac::*, CabacSyntax, decode_cabac, parse_mvd::<CabacSyntax>): 5733/17408 = 0.329

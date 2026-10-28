@@ -1,0 +1,84 @@
+{
+  "schema": "coreav/known-divergences/1",
+  "applies_to": "coreav-isobmff-write extract_audio outputs through scripts/extract_check.py, ffprobe and ffmpeg 7.0.2, MediaInfo 26.10",
+  "entries": [
+    {
+      "id": "KD-X-TKHD",
+      "level": ["mediainfo"],
+      "fields": ["Duration", "FrameCount"],
+      "filename_pattern": "*",
+      "conditions": {
+        "output tkhd duration": "= the sum of the output's edit durations, or without an edit list its media duration rounded to the nearest movie tick",
+        "source tkhd duration": "differs from the output's",
+        "MediaInfo Duration": "output = its tkhd duration over its movie timescale; source = its tkhd duration or the media duration (the same in both files); to the millisecond"
+      },
+      "predicate": "tkhd_follows_edits",
+      "basis": "ISO/IEC 14496-12 8.3.2 (the track duration is the sum of the durations of all of the track's edits); the source's edit list is copied"
+    },
+    {
+      "id": "KD-X-EDIT-DISCARD",
+      "level": ["streams"],
+      "fields": ["nb_frames"],
+      "filename_pattern": "*",
+      "conditions": {
+        "nb_frames": "output = source",
+        "ffprobe packet lists": "the same for source and output, and shorter than nb_frames"
+      },
+      "predicate": "edit_discard",
+      "basis": "one packet per sample; samples are never dropped; the edit list is copied; as KD-EDIT-DISCARD"
+    },
+    {
+      "id": "KD-X-EDIT-MULTI",
+      "level": ["streams"],
+      "fields": ["nb_frames"],
+      "filename_pattern": "*",
+      "conditions": {
+        "source edit list": "several media edits",
+        "output edit list": "the source's entries, timescales and rates included, every media time moved by the source's first stored decode time",
+        "nb_frames": "output = source",
+        "ffprobe packet lists": "the same for source and output, and longer than nb_frames"
+      },
+      "predicate": "edit_multi",
+      "basis": "docs/design/edit-lists.md (\"What `ffprobe` lists\", rules 7 to 9: a preroll sample per media edit and samples repeated at the edits' boundaries); one packet per sample; docs/design/edit-list-writers.md, \"M4A extraction\" (the entries are copied)"
+    },
+    {
+      "id": "KD-X-GAPLESS-EDIT",
+      "level": ["streams", "packets", "frames"],
+      "fields": ["start_pts", "start_time", "duration_ts", "duration", "packet pts and dts", "framemd5 pts and dts"],
+      "filename_pattern": "*",
+      "conditions": {
+        "source": "no edit list on the track; an iTunSMPB tag whose delay + padding + samples = the media header duration",
+        "output edit list": "one media edit starting at the tag's delay",
+        "start_pts and packet and frame times": "source = output + delay; data hashes, sizes, frame durations and frame hashes equal",
+        "duration_ts and duration": "source = delay + padding + samples, output = samples (time base 1/sample rate)"
+      },
+      "predicate": "gapless_edit",
+      "basis": "the tag's delay and length become an edit list when they add up exactly; ISO/IEC 14496-12 8.6.6 (the edit maps media time to presentation time 0)"
+    },
+    {
+      "id": "KD-X-GAPLESS-CONFLICT",
+      "level": ["frames"],
+      "fields": ["framemd5"],
+      "filename_pattern": "*",
+      "conditions": {
+        "source": "an edit list and an iTunSMPB tag whose delay + padding + samples differ from the media header duration",
+        "output": "the source's edit list",
+        "framemd5": "every source frame but the first and the last appears in order and unchanged in the output"
+      },
+      "predicate": "gapless_conflict",
+      "basis": "the edit list is copied, and a tag that does not add up is ignored"
+    },
+    {
+      "id": "KD-X-PROFILE-UNNAMED",
+      "level": ["streams"],
+      "fields": ["profile"],
+      "filename_pattern": "*",
+      "conditions": {
+        "profile": "source none, output LC, both aac",
+        "configuration": "byte-identical (the coreav round trip compares the stored esds)"
+      },
+      "predicate": "profile_unnamed",
+      "basis": "the esds is copied as stored; as KD-AAC-LC-UNNAMED"
+    }
+  ]
+}

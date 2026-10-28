@@ -1,0 +1,592 @@
+preflight: every arm transcodes basic.mp4
+selection h264: 128 files, 1.2e+11 pixel-frames, apart {'video longer than 120 s': 191, 'over budget': 392}
+selection hevc: 20 files, 1.2e+11 pixel-frames, apart {'video longer than 120 s': 40, 'over budget': 61}
+selection av1: 28 files, 1.19e+11 pixel-frames, apart {'video longer than 120 s': 58, 'over budget': 9}
+selection vp9: 32 files, 1.2e+11 pixel-frames, apart {'video longer than 120 s': 21, 'over budget': 21}
+selection vp8: 38 files, 8.25e+10 pixel-frames, apart {'video longer than 120 s': 15}
+selection prores: 24 files, 4.31e+10 pixel-frames, apart {'video longer than 120 s': 1}
+scaled configuration: 100 files
+270 inputs, 370 runs
+default h264 9e3a1adccdc35594a518a0566aac638da929aa76: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 c9545fd8c1d043c640048788791a50ed16c5bfcd: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=-0.087 Q2=39.518597 size=0.9911
+scaled h264 9e3a1adccdc35594a518a0566aac638da929aa76: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.034 Q2=43.113457 size=0.9996; x264 B1=ok B2=ok B3=ok dPSNR=-0.034 Q2=43.113457 size=0.9996
+scaled h264 c9545fd8c1d043c640048788791a50ed16c5bfcd: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.009 Q2=35.387919 size=1.0080; x264 B1=ok B2=ok B3=ok dPSNR=-0.086 Q2=35.250843 size=0.9942
+default h264 82f2bc9a4acd148a8abf7d00b8ef12c288596ec4: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default h264 a257fb5b1708ca5dc8c7b06ba7639f4beca63cee: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+scaled h264 a257fb5b1708ca5dc8c7b06ba7639f4beca63cee: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+scaled h264 82f2bc9a4acd148a8abf7d00b8ef12c288596ec4: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default h264 5b9d27dafb8e9ba6f054dbd047d8b29085f22b4b: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 19de64416d04349e1a09944eef72f839868d325a: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 fb583fad536a563e342d714012577f7a4ce4e3cf: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.061 Q2=48.888871 size=0.9914; x264 B1=ok B2=ok B3=ok dPSNR=-0.059 Q2=48.722683 size=0.9918
+scaled h264 19de64416d04349e1a09944eef72f839868d325a: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.026 Q2=45.689857 size=0.9914; x264 B1=ok B2=ok B3=ok dPSNR=-0.026 Q2=45.689857 size=0.9914
+scaled h264 fb583fad536a563e342d714012577f7a4ce4e3cf: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.003 Q2=45.79389 size=0.9974; x264 B1=ok B2=ok B3=ok dPSNR=-0.025 Q2=45.499761 size=1.0027
+default h264 953addec4a3df38c33d3e9948a085ce4f56bc98f: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+scaled h264 953addec4a3df38c33d3e9948a085ce4f56bc98f: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.037 Q2=41.151227 size=0.9951; x264 B1=ok B2=ok B3=ok dPSNR=-0.037 Q2=41.151227 size=0.9951
+default h264 03be19c3a47b54c5367f6c909e2340037b67f0ad: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 dd3d8375789636f3895b28d7e1870574c3fb0440: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+scaled h264 03be19c3a47b54c5367f6c909e2340037b67f0ad: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.015 Q2=42.368147 size=1.0025; x264 B1=ok B2=ok B3=ok dPSNR=0.015 Q2=42.368147 size=1.0025
+default h264 7b604c9e265c4f6de197644546204e923fe06923: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+scaled h264 dd3d8375789636f3895b28d7e1870574c3fb0440: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default h264 009339d57238508f4babf101252eef0e18403603: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature)
+scaled h264 009339d57238508f4babf101252eef0e18403603: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature)
+default h264 5a558dd8c9ff02ed6498648e0bad95ee6c891a42: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.035 Q2=60.704048 size=1.0015; x264 B1=ok B2=ok B3=ok dPSNR=0.035 Q2=60.704048 size=1.0015
+scaled h264 5a558dd8c9ff02ed6498648e0bad95ee6c891a42: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.028 Q2=45.791863 size=0.9335; x264 B1=ok B2=ok B3=ok dPSNR=-0.078 Q2=46.207994 size=0.9246
+default h264 8b7e1cdaff5c498c78f7c87a827dd59132063fd6: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+scaled h264 8b7e1cdaff5c498c78f7c87a827dd59132063fd6: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.028 Q2=41.883242 size=0.9956; x264 B1=ok B2=ok B3=ok dPSNR=-0.028 Q2=41.883242 size=0.9956
+default h264 db1c9c458ff15c0df6767bad1859938ed05729d3: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=-0.069 Q2=48.873115 size=0.9968
+default h264 3faf6fdb5c7913f80f2b9bafbdedd440c2ad4003: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.011 Q2=50.102466 size=0.9986; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+scaled h264 3faf6fdb5c7913f80f2b9bafbdedd440c2ad4003: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.053 Q2=46.015407 size=0.9937; x264 B1=ok B2=ok B3=ok dPSNR=0.055 Q2=45.992697 size=0.9959
+default h264 4c7f2e501a4a765b64b244ac2241a5356f687528: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 b37f01c830aef3a3a757f7f30ea9023879142099: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 bb94df943d5aa675c34c9acef5210888e5ccde00: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=-0.005 Q2=61.215207 size=1.0002
+default h264 b83854abf2389fa2859077c750df311dbbaa9b2f: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+scaled h264 b83854abf2389fa2859077c750df311dbbaa9b2f: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.030 Q2=44.440548 size=1.0013; x264 B1=ok B2=ok B3=ok dPSNR=-0.030 Q2=44.440548 size=1.0013
+scaled h264 bb94df943d5aa675c34c9acef5210888e5ccde00: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.014 Q2=42.757971 size=0.9915; x264 B1=ok B2=ok B3=ok dPSNR=-0.004 Q2=42.770403 size=0.9914
+default h264 ec0e068c17b542088079e49c0159502f419000f5: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.084 Q2=41.171909 size=0.9826; x264 B1=ok B2=ok B3=ok dPSNR=-0.084 Q2=41.171909 size=0.9826
+scaled h264 ec0e068c17b542088079e49c0159502f419000f5: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.001 Q2=39.989485 size=1.0052; x264 B1=ok B2=ok B3=ok dPSNR=-0.078 Q2=39.776896 size=0.9849
+default h264 83e493fdc88c2fcbd16a6baf195b5c690f964fa3: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.010 Q2=58.912111 size=1.0007; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+scaled h264 83e493fdc88c2fcbd16a6baf195b5c690f964fa3: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.008 Q2=46.21319 size=0.9886; x264 B1=ok B2=ok B3=ok dPSNR=0.008 Q2=46.207377 size=0.9891
+default h264 81ed4778ece26be2561cd014c14f74790b2894c5: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.357 Q2=56.870685 size=0.9942; x264 B1=ok B2=ok B3=ok dPSNR=0.357 Q2=56.870685 size=0.9942
+scaled h264 81ed4778ece26be2561cd014c14f74790b2894c5: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.036 Q2=49.86509 size=0.9719; x264 B1=ok B2=ok B3=ok dPSNR=0.012 Q2=49.8585 size=0.9731
+default h264 1eb64d25bbb95c757a959483993a5e0b08f9799c: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=-0.000 Q2=78.863902 size=0.9999
+default h264 cefcef68b685fd29786fb5a97617ea3d69729128: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default h264 aa0205e7e8503b8bf4266703191378db23d64e73: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+scaled h264 cefcef68b685fd29786fb5a97617ea3d69729128: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default h264 48fbe3ae081e06844c11609383e43aff9987ee90: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=-0.129 Q2=54.893692 size=0.9822
+scaled h264 aa0205e7e8503b8bf4266703191378db23d64e73: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.026 Q2=39.986013 size=0.9984; x264 B1=ok B2=ok B3=ok dPSNR=-0.026 Q2=39.986013 size=0.9984
+default h264 64a8a139a3fd3bdc7b2d444ca38877ff74c547eb: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.109 Q2=45.094115 size=0.9835; x264 B1=ok B2=ok B3=ok dPSNR=-0.149 Q2=45.012193 size=0.9861
+default h264 e4aede53fc3c9caea487a4cb90ccf769d72a10a5: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+scaled h264 64a8a139a3fd3bdc7b2d444ca38877ff74c547eb: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.215 Q2=40.839999 size=0.9824; x264 B1=ok B2=ok B3=ok dPSNR=-0.221 Q2=40.833582 size=0.9815
+default h264 1fc1902eb21fdc69857873180d1e5a69c350fc0a: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=65.407861 size=0.9999
+default h264 ed75c044e9444e0f01ea2dee20b690c17b9ac8ef: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.001 Q2=65.335934 size=0.9999; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+scaled h264 1fc1902eb21fdc69857873180d1e5a69c350fc0a: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.029 Q2=42.89965 size=0.9970; x264 B1=ok B2=ok B3=ok dPSNR=-0.029 Q2=42.899678 size=0.9970
+default h264 15c5cff546d37742cf74373685bfa4aff92f3d52: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+scaled h264 ed75c044e9444e0f01ea2dee20b690c17b9ac8ef: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.052 Q2=47.174013 size=0.9923; x264 B1=ok B2=ok B3=ok dPSNR=-0.052 Q2=47.174013 size=0.9923
+default h264 a47b8a2808f1c91b2f8acb3d176da0bf5f2d8e44: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.196 Q2=40.551645 size=0.9752; x264 B1=ok B2=ok B3=ok dPSNR=-0.196 Q2=40.550406 size=0.9757
+default h264 83111bb754cd88892daccb847f4a45975380e40f: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+scaled h264 83111bb754cd88892daccb847f4a45975380e40f: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default h264 9b3a84c821e8f282a6b96d48828def018fad7d31: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 dc75dc6abe8329a998a0ad6631b661f33f9e1d62: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=77.935543 size=1.0000
+default h264 465d5a949dc02044aa8d70738a4ec6bd9f7fe400: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 0e068f543ebf59bccb4228e7b5950a4f681753d2: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=-0.002 Q2=40.43414 size=0.9997
+default h264 a7f5bfca23e03ae66aa48a05e92845c64b1f5393: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+scaled h264 a7f5bfca23e03ae66aa48a05e92845c64b1f5393: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.000 Q2=36.515072 size=1.0004; x264 B1=ok B2=ok B3=ok dPSNR=-0.000 Q2=36.515072 size=1.0004
+scaled h264 0e068f543ebf59bccb4228e7b5950a4f681753d2: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.009 Q2=38.156351 size=1.0006; x264 B1=ok B2=ok B3=ok dPSNR=-0.008 Q2=38.151331 size=1.0005
+default h264 dd6c562965ac58d96092acc42c0b58459050c032: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature)
+scaled h264 dd6c562965ac58d96092acc42c0b58459050c032: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature)
+default h264 13cbd4cc05dc0361bbfeec103e8c4c3aaf272302: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+scaled h264 13cbd4cc05dc0361bbfeec103e8c4c3aaf272302: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.001 Q2=49.90445 size=0.9849; x264 B1=ok B2=ok B3=ok dPSNR=-0.001 Q2=49.90445 size=0.9849
+default h264 259a6e9570cf5f86ff8403929c280ed36829e20b: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=-0.045 Q2=40.449765 size=0.9938
+default h264 8c7037b190e32f279b3444ff71a6b65fea06819c: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.007 Q2=54.260808 size=0.9992; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+scaled h264 259a6e9570cf5f86ff8403929c280ed36829e20b: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.001 Q2=36.077936 size=1.0030; x264 B1=ok B2=ok B3=ok dPSNR=-0.057 Q2=35.947415 size=0.9971
+scaled h264 8c7037b190e32f279b3444ff71a6b65fea06819c: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.111 Q2=44.302705 size=0.9992; x264 B1=ok B2=ok B3=ok dPSNR=-0.111 Q2=44.302705 size=0.9992
+default h264 63803e7699ea46a765cb1db55d82ea1501d67c2f: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.042 Q2=44.921304 size=0.9950; x264 B1=ok B2=ok B3=ok dPSNR=-0.030 Q2=44.15458 size=0.9955
+default h264 b1275e3ef93975a9eafce34d6d27e674ac2308ad: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 d8fade8b561163d58d13afff33634da45e4926a9: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.005 Q2=48.819986 size=0.9979; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+scaled h264 63803e7699ea46a765cb1db55d82ea1501d67c2f: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.012 Q2=40.88117 size=1.0049; x264 B1=ok B2=ok B3=ok dPSNR=0.016 Q2=40.863581 size=1.0040
+scaled h264 d8fade8b561163d58d13afff33634da45e4926a9: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.001 Q2=43.671589 size=0.9911; x264 B1=ok B2=ok B3=ok dPSNR=0.003 Q2=43.682595 size=0.9913
+default h264 cf73416d950f8ab85143908b5b6f87e00021bc09: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.005 Q2=52.459906 size=1.0012; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+scaled h264 cf73416d950f8ab85143908b5b6f87e00021bc09: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.002 Q2=43.862068 size=1.0092; x264 B1=ok B2=ok B3=ok dPSNR=0.002 Q2=43.868421 size=1.0083
+default h264 b651437854df3208ab027876d7c92d57ff0eff18: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 b109b053fc5a405dc112d2208de3ad897472ecbe: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 0ced42322c655b47b4727508850d88ad8a69e905: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.021 Q2=43.439375 size=1.0048; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+scaled h264 0ced42322c655b47b4727508850d88ad8a69e905: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.001 Q2=41.597413 size=0.9986; x264 B1=ok B2=ok B3=ok dPSNR=-0.000 Q2=41.574006 size=0.9970
+default h264 6b7d211adc0d3f2223ac0731da19415df1f4d41d: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.141 Q2=41.191985 size=1.0036; x264 B1=ok B2=ok B3=ok dPSNR=-0.046 Q2=41.430855 size=1.0106
+scaled h264 6b7d211adc0d3f2223ac0731da19415df1f4d41d: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.011 Q2=38.330394 size=0.9933; x264 B1=ok B2=ok B3=ok dPSNR=-0.052 Q2=38.280628 size=0.9847
+default h264 bdb1dd5313526e4f3b2e7420b154a61ec63c191c: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.002 Q2=63.569379 size=0.9980; x264 B1=ok B2=ok B3=ok dPSNR=0.004 Q2=64.559735 size=0.9972
+scaled h264 bdb1dd5313526e4f3b2e7420b154a61ec63c191c: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.161 Q2=47.640466 size=0.9930; x264 B1=ok B2=ok B3=ok dPSNR=-0.151 Q2=47.686007 size=0.9953
+default h264 d4973205a5b027be8767617f00539c26876b802c: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=-0.000 Q2=49.781017 size=1.0003
+scaled h264 d4973205a5b027be8767617f00539c26876b802c: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.022 Q2=43.976812 size=1.0009; x264 B1=ok B2=ok B3=ok dPSNR=-0.020 Q2=43.978139 size=0.9996
+default h264 04b7b4fb3b3797c81c121b0bf02f1e578dc24912: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+scaled h264 04b7b4fb3b3797c81c121b0bf02f1e578dc24912: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 af38b0cfd8409256c495d2cc253bd97a5172ef92: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+scaled h264 af38b0cfd8409256c495d2cc253bd97a5172ef92: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.018 Q2=38.313636 size=0.9993; x264 B1=ok B2=ok B3=ok dPSNR=-0.018 Q2=38.313636 size=0.9993
+default h264 b5f7e0f1b6d572eca208187054adb2255676e0e9: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 c187706da87df4ab9d8756daf26fd525ad90fb1c: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=-0.003 Q2=49.752534 size=0.9989
+scaled h264 c187706da87df4ab9d8756daf26fd525ad90fb1c: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.014 Q2=42.825731 size=1.0053; x264 B1=ok B2=ok B3=ok dPSNR=-0.015 Q2=42.825052 size=1.0054
+default h264 34d85724a454646139b10d9bb096c0ad23b2f565: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.163 Q2=50.96754 size=0.9989; x264 B1=ok B2=ok B3=ok dPSNR=-0.166 Q2=51.038887 size=0.9968
+default h264 bf243ccd0cf415f34a38e827794442fe4a1109aa: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+scaled h264 34d85724a454646139b10d9bb096c0ad23b2f565: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.084 Q2=45.263596 size=0.9890; x264 B1=ok B2=ok B3=ok dPSNR=-0.081 Q2=45.265823 size=0.9888
+scaled h264 bf243ccd0cf415f34a38e827794442fe4a1109aa: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default h264 becff2c3b6a2f228c65d8286a54143b22973e70c: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=63.144512 size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=-0.001 Q2=56.366702 size=0.9999
+default h264 dc64c38efe3b469799796c59fd01e0b04ce5e230: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+scaled h264 becff2c3b6a2f228c65d8286a54143b22973e70c: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.010 Q2=41.545731 size=1.0023; x264 B1=ok B2=ok B3=ok dPSNR=0.011 Q2=41.543419 size=1.0021
+default h264 514a48ce337ebfea67b66939e46f80da2ebd08f6: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=-0.000 Q2=57.792275 size=1.0000
+scaled h264 dc64c38efe3b469799796c59fd01e0b04ce5e230: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default h264 fdcba777237bade4776180b805a47b35e88def54: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+scaled h264 fdcba777237bade4776180b805a47b35e88def54: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.005 Q2=45.798229 size=0.9961; x264 B1=ok B2=ok B3=ok dPSNR=-0.005 Q2=45.798229 size=0.9961
+default h264 4dc155fa1f763929b9487f1e83c8c86385f4f18f: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=-0.000 Q2=48.447384 size=1.0001
+scaled h264 4dc155fa1f763929b9487f1e83c8c86385f4f18f: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.024 Q2=41.273581 size=0.9909; x264 B1=ok B2=ok B3=ok dPSNR=-0.022 Q2=41.274509 size=0.9896
+default h264 4c73423cb3b51b865eeb3732cf398b850b5ac911: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 ea4b7ffb4ff34eb782be81fc353132dbd438795d: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.005 Q2=54.822709 size=1.0001
+scaled h264 4c73423cb3b51b865eeb3732cf398b850b5ac911: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=42.889474 size=1.0008; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=42.889474 size=1.0008
+default h264 d54e352384e37e3086ca73bb0ed736d03cfdcba5: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.002 Q2=57.692165 size=1.0012; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+scaled h264 d54e352384e37e3086ca73bb0ed736d03cfdcba5: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.011 Q2=46.210704 size=1.0098; x264 B1=ok B2=ok B3=ok dPSNR=-0.037 Q2=46.20622 size=1.0055
+default h264 f0cd825c8a304a9023a24e40749fc0debed3a496: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+scaled h264 f0cd825c8a304a9023a24e40749fc0debed3a496: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.014 Q2=40.864592 size=1.0030; x264 B1=ok B2=ok B3=ok dPSNR=0.014 Q2=40.864592 size=1.0030
+default h264 41fa10ee10202c4b0b8edda255efc9bdfebec5e3: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+scaled h264 41fa10ee10202c4b0b8edda255efc9bdfebec5e3: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.031 Q2=48.931124 size=1.0074; x264 B1=ok B2=ok B3=ok dPSNR=-0.031 Q2=48.931124 size=1.0074
+default h264 9b192e2d5c963f66f167f3fc9b90a659b2fe0edf: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.007 Q2=53.390903 size=1.0027; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+scaled h264 9b192e2d5c963f66f167f3fc9b90a659b2fe0edf: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.038 Q2=46.691314 size=1.0066; x264 B1=ok B2=ok B3=ok dPSNR=-0.034 Q2=46.690285 size=1.0087
+default h264 d235e3b9a4a84047316011a353cfac7cbc57f0a6: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+scaled h264 ea4b7ffb4ff34eb782be81fc353132dbd438795d: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.018 Q2=42.252546 size=1.0012; x264 B1=ok B2=ok B3=ok dPSNR=0.017 Q2=42.248511 size=1.0012
+scaled h264 d235e3b9a4a84047316011a353cfac7cbc57f0a6: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.010 Q2=43.29067 size=1.0018; x264 B1=ok B2=ok B3=ok dPSNR=-0.010 Q2=43.29067 size=1.0018
+default h264 4dd83564f9764bc379af85cfc9dc083f63859af0: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=-0.000 Q2=59.964491 size=1.0001
+scaled h264 4dd83564f9764bc379af85cfc9dc083f63859af0: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.017 Q2=44.180958 size=0.9907; x264 B1=ok B2=ok B3=ok dPSNR=-0.021 Q2=44.185927 size=0.9910
+default h264 d58a8827fedf0867364d7ee4f70863dfc4817d9d: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+scaled h264 d58a8827fedf0867364d7ee4f70863dfc4817d9d: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.039 Q2=50.518039 size=1.0050; x264 B1=ok B2=ok B3=ok dPSNR=-0.039 Q2=50.518039 size=1.0050
+default h264 9dfb23530210a7a7344dffc858da283a8f89b23b: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+scaled h264 9dfb23530210a7a7344dffc858da283a8f89b23b: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.005 Q2=40.112015 size=1.0023; x264 B1=ok B2=ok B3=ok dPSNR=-0.005 Q2=40.112015 size=1.0023
+default h264 2b79d349973b029b90674b5d9b5f0e7ceaed2a25: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 c2c99564b931fe3ad13d6ecfd8fbdfb680a88f3a: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+scaled h264 c2c99564b931fe3ad13d6ecfd8fbdfb680a88f3a: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.013 Q2=47.606341 size=0.9977; x264 B1=ok B2=ok B3=ok dPSNR=0.013 Q2=47.606341 size=0.9977
+default h264 8754f59f19d5004c663bc3f0a8438394e32b02a9: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.000 Q2=45.1688 size=1.0001; x264 B1=ok B2=ok B3=ok dPSNR=-0.000 Q2=81.329743 size=1.0000
+default h264 9fdf98a0a10041a10cc51116484b4fd6569f0c32: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+scaled h264 9fdf98a0a10041a10cc51116484b4fd6569f0c32: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+scaled h264 8754f59f19d5004c663bc3f0a8438394e32b02a9: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.016 Q2=37.353765 size=1.0004; x264 B1=ok B2=ok B3=ok dPSNR=0.016 Q2=37.353765 size=1.0004
+default h264 8e978a8e57831aa362c1e6e7609d76c933433053: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 c3db2904fc1c4f6b1b602771218eb92bd25f303f: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 fbcc721855f155d8f61c82fb7486896f6e4d20f1: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.001 Q2=56.101349 size=1.0006
+default h264 b466502e8b41cb1abd96942c3e985082813875ad: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 29f62680adcd514276b4bc12a57011446a8f223a: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 fcb01fd0c5650e9cc0cad1a007495cab1def60af: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 5f9c31932296c178a31b5f19353aabf6bdf3ea2c: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.002 Q2=50.163424 size=1.0005; x264 B1=ok B2=ok B3=ok dPSNR=0.003 Q2=50.163082 size=1.0002
+default h264 c9f370dcc2e70f7ba072502d8d8579a902a4d118: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 1b450d90085d977259b9e87edae9a6c00afba898: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=46.855835 size=0.9991
+default h264 5b080178a03cbb8fe697bf03e2e28b0cac09de15: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 db214e0d4b36810420c9b48a76701e957252c3c6: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 1115b5bac7c25e1c3277f86bfa80c441a9e26f74: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 80c09271fa5bef17069b840181fe3e137c201707: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 c0501b8f6cc51138cf84ee0e1070b7665ff00745: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.004 Q2=44.367665 size=1.0001
+default h264 d0f1969d25dea9eb42484a2b1ad1eda833606e34: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=-0.142 Q2=50.563881 size=0.9872
+default h264 478f81052dbfdf042a813eddc9f4e312a3fa810d: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 64ef5412ed81ca95855a7256097d5c89f909949a: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.001 Q2=53.970684 size=1.0015; x264 B1=ok B2=ok B3=ok dPSNR=-0.001 Q2=53.970661 size=1.0015
+default h264 1140243c49415ee81d2fafcccaae3e8c5952f34d: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature); baseline failed
+default h264 bd5b8dcdf79522c5c7ad1f90b9df9e84fcfb42c5: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 a576e38516d5fb7d099c0962db9b081cdd489e51: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.000 Q2=68.712997 size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=-0.000 Q2=48.649856 size=0.9998
+default h264 c9123a26f301e07884e91dc78cfcc7b9d4d9f043: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 ee0d6661e357281de7db17be149abaecdd728523: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default h264 4fb66ca04e9605c72bd9e5fed95a7d7107180c3c: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 a0b54eb67683f6836bca0eb476ff9713ca8b3300: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default h264 d4e1722052265bf5a4a548a5eb43141320b10127: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.002 Q2=55.157971 size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 1e478d0d3ab7e518edf004bb2f16b8b5f01598f8: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default h264 daac04573e8dc65abe37b1a94e2b999356b7ae44: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.000 Q2=47.088188 size=1.0001; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=42.72292 size=1.0001
+default h264 8da9593e9329d63fda6844b37993c24f90b26702: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default h264 2c7ae378fe100eb5b105cf8afcd82f9c62d740ab: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=42.024746 size=0.9996
+default h264 4dedfde94022e97e039ce4dfe43d23301713d431: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 3c593b8f08090e3ec246178c34737d11569330d7: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=-0.001 Q2=45.911347 size=1.0000
+default h264 2d2e99a9f757ef6e9c3cf23073658631ae27fb59: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.007 Q2=57.638217 size=0.9915; x264 B1=ok B2=ok B3=ok dPSNR=-0.008 Q2=60.199048 size=0.9912
+default h264 519b6461a1374b42feead6751d8d94d1c634cbd6: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 12011cafd0b3779dac31f64b9348f864a2b2be51: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 e2df4d50895465d76fcf8e61805a4bb0707bcd3d: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.010 Q2=56.377219 size=0.9999; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 cad9ebb9145c585d7e97d0e184ebe9422c47c0fa: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 56d1f1ca0dbd4dff59d823365b95562b928d8213: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.017 Q2=40.846287 size=1.0035; x264 B1=ok B2=ok B3=ok dPSNR=-0.017 Q2=40.850661 size=1.0032
+default h264 0c0bd842a141e786e8c803b9a3d24f2c268d6dfc: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=-0.004 Q2=63.003365 size=1.0010
+default h264 6c2df9a7070f124034e0b68ac50bf2234bdec25f: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=41.95962 size=1.0006
+default h264 42bf70d17758015af396dcc4fbd8e3512ab3ed8a: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.001 Q2=45.342617 size=0.9974
+default h264 096d9e707920c8424d8383984c40b9f3b35a1236: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 4f27662a0f72300c62bbe2adafc8c3ba4a5b1b7a: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=-0.001 Q2=46.845196 size=0.9995
+default h264 334602b1b17e16ea60abb9f7f13a579b9cefdb8b: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 0f6a4e0c343468c9fd97c7a50df22111b2a3cced: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=-0.002 Q2=47.906469 size=0.9998
+default h264 55a72fe99744e7df24af9b734522184c96da74b8: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 386efb28f234265280b674ca802062dedd6619da: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.188 Q2=49.040932 size=0.9885; x264 B1=ok B2=ok B3=ok dPSNR=-0.238 Q2=48.856002 size=0.9924
+default h264 c911b52b35abcbb50d31d4d5bdbfba963211d9a6: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.001 Q2=63.851757 size=0.9998; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 66956dab227a19e968f1433c311d69aec14cdf4b: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=-0.007 Q2=41.603466 size=0.9993
+default h264 46ae8d18914ebe9eaaa0c2f0e5c9daf30e7def22: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=-0.228 Q2=59.968984 size=0.9893
+default h264 e1c335533b26035042c0cf9ef12de03d5a19db8e: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default hevc a5d1428fd3e2c5b0b096497be5ba677bfe4fd934: ffmpeg B1=FAIL B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=FAIL B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+scaled hevc a5d1428fd3e2c5b0b096497be5ba677bfe4fd934: ffmpeg B1=FAIL B2=ok B3=ok dPSNR=0.026 Q2=41.19292 size=1.0208; x264 B1=FAIL B2=ok B3=ok dPSNR=0.026 Q2=41.19292 size=1.0208
+default hevc 17af5a29c866989ba21ea6c9fcd879e2c8ad74ef: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+scaled hevc 17af5a29c866989ba21ea6c9fcd879e2c8ad74ef: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.009 Q2=38.525568 size=1.0011; x264 B1=ok B2=ok B3=ok dPSNR=-0.009 Q2=38.525568 size=1.0011
+default hevc 017351d8aed0c1fad8764ea5aa65f46c95a2bd3c: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.001 Q2=48.137086 size=0.9996; x264 B1=ok B2=ok B3=ok dPSNR=-0.001 Q2=48.128023 size=1.0003
+scaled hevc 017351d8aed0c1fad8764ea5aa65f46c95a2bd3c: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.017 Q2=38.377171 size=0.9990; x264 B1=ok B2=ok B3=ok dPSNR=0.017 Q2=38.377171 size=0.9990
+default hevc 82554f5904cb1b3d11daf5a331653187ccaa3c8e: ffmpeg failed (exit 1 (decode)); x264 failed (exit 1 (decode)); baseline failed
+default hevc 5853e2ed4f54b02c2e6d72591ff7315e62facc04: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+scaled hevc 82554f5904cb1b3d11daf5a331653187ccaa3c8e: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+scaled hevc 5853e2ed4f54b02c2e6d72591ff7315e62facc04: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default hevc c39b69673584f45853c0f1ff59b14632ca9462b5: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=43.1291 size=0.9997; x264 B1=ok B2=ok B3=ok dPSNR=-0.001 Q2=43.188625 size=0.9991
+default hevc a480ab0761cefc12544e8e4100f71c75907386fa: ffmpeg failed (exit 1 (decode)); x264 failed (exit 1 (decode))
+scaled hevc c39b69673584f45853c0f1ff59b14632ca9462b5: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.036 Q2=38.832246 size=1.0010; x264 B1=ok B2=ok B3=ok dPSNR=0.038 Q2=38.815853 size=1.0014
+scaled hevc a480ab0761cefc12544e8e4100f71c75907386fa: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default hevc 5e29dee68a3ebc4ec00eed500cbfbba83334c0f8: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+scaled hevc 5e29dee68a3ebc4ec00eed500cbfbba83334c0f8: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.002 Q2=38.080002 size=1.0004; x264 B1=ok B2=ok B3=ok dPSNR=-0.002 Q2=38.080002 size=1.0004
+default hevc f3cd6f0c7876146e379bdbefa733ca53121f19b7: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.000 Q2=50.416722 size=0.9991; x264 B1=ok B2=ok B3=ok dPSNR=-0.001 Q2=47.626875 size=1.0001
+scaled hevc f3cd6f0c7876146e379bdbefa733ca53121f19b7: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.019 Q2=39.955803 size=0.9998; x264 B1=ok B2=ok B3=ok dPSNR=0.019 Q2=39.955803 size=0.9998
+default hevc 01423c612a9bf545add9a51b3897d436ecce910f: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default hevc 641ecd0591f073bb129664f6e271f073525a7e0b: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+scaled hevc 01423c612a9bf545add9a51b3897d436ecce910f: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default hevc ea5e60202dc6e5fbde1e363ae357727ddfcf20ba: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (decode))
+scaled hevc 641ecd0591f073bb129664f6e271f073525a7e0b: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+scaled hevc ea5e60202dc6e5fbde1e363ae357727ddfcf20ba: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default hevc 8d8f8cea03c93e87a11e34aea3b040c724ef0dda: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default hevc eb98fe3e0ebf9022bc21b6eea129d80b2aff672e: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=48.725185 size=1.0004; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=48.720182 size=1.0004
+scaled hevc 8d8f8cea03c93e87a11e34aea3b040c724ef0dda: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.005 Q2=36.400991 size=1.0015; x264 B1=ok B2=ok B3=ok dPSNR=-0.005 Q2=36.400991 size=1.0015
+scaled hevc eb98fe3e0ebf9022bc21b6eea129d80b2aff672e: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.009 Q2=38.990035 size=1.0003; x264 B1=ok B2=ok B3=ok dPSNR=-0.009 Q2=38.990035 size=1.0003
+default hevc ce616cc1703be548a8daf40e309c99a90c25f117: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.001 Q2=49.057293 size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.002 Q2=49.055871 size=1.0001
+default hevc 8c5370bec6b7bbacb4b49cd2503a0d2443f9103c: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.001 Q2=50.601436 size=1.0003; x264 B1=ok B2=ok B3=ok dPSNR=-0.000 Q2=46.186712 size=0.9995
+scaled hevc 8c5370bec6b7bbacb4b49cd2503a0d2443f9103c: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.010 Q2=38.802024 size=0.9888; x264 B1=ok B2=ok B3=ok dPSNR=0.010 Q2=38.802024 size=0.9888
+scaled hevc ce616cc1703be548a8daf40e309c99a90c25f117: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.008 Q2=38.344317 size=0.9960; x264 B1=ok B2=ok B3=ok dPSNR=-0.008 Q2=38.344317 size=0.9960
+default hevc eb569fa7169e84485702b1f46af8f54260bbd927: ffmpeg refused (truncated_structure); x264 refused (truncated_structure)
+default hevc 2bc6b07151be2f843031e53dc6bc36146b1daa8f: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=51.341148 size=0.9998; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default hevc 665dddf09f221cc63cedf9987281c81a226a8eb2: ffmpeg refused (truncated_structure); x264 refused (truncated_structure)
+default hevc 76d4c7a64f75c69bc24c67ed62cd0c09f65407f8: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.006 Q2=38.085617 size=1.0296; x264 B1=ok B2=ok B3=ok dPSNR=-0.006 Q2=38.085617 size=1.0296
+default av1 6103b3025748b87ecb27d4abaed363f41a25ca1a: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+scaled av1 6103b3025748b87ecb27d4abaed363f41a25ca1a: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default av1 65859055cd2295daff813300b48cdf9929f46deb: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.009 Q2=67.19172 size=1.0011; x264 B1=ok B2=ok B3=ok dPSNR=0.004 Q2=62.708438 size=1.0004
+scaled av1 65859055cd2295daff813300b48cdf9929f46deb: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.082 Q2=51.734398 size=0.9956; x264 B1=ok B2=ok B3=ok dPSNR=-0.093 Q2=51.532915 size=0.9958
+default av1 357fb30f4693efc07943cb5f57bf912f104ae5b8: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+scaled av1 357fb30f4693efc07943cb5f57bf912f104ae5b8: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default av1 df8ed936654115c234c24dc236e933d8a5eb9399: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default av1 996a306a36f9c9be0fa5fc1edd8926614c57f678: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.000 Q2=53.077 size=1.0001; x264 B1=ok B2=ok B3=ok dPSNR=-0.000 Q2=55.848489 size=0.9998
+default av1 a34d5ee860fbd08de5f3d41b5c1b9d8709a549d1: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default av1 a1eaf50f116b3a39bac449fdc8361078a9c00551: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default av1 4702bb9c3b46dfe55026bb05da66c68355729014: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default av1 87d753fd4c97563d0eb232535943b4fed50072d1: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default av1 e1674354241c578469b93f9eca8e3e3287a13640: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default av1 d9651df3adaf4d8d0c68b33a08e23143b2e5a2fa: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default av1 66652a08d3e18b830705eae94aaacb1b89381732: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.004 Q2=45.144032 size=1.0023; x264 B1=ok B2=ok B3=ok dPSNR=0.006 Q2=45.366599 size=1.0017
+default av1 ede2d1d39061b7d6b98643f635d584749068d539: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.004 Q2=41.011533 size=1.0004; x264 B1=ok B2=ok B3=ok dPSNR=-0.004 Q2=41.011596 size=1.0004
+default av1 f62c99e175ed53de4155cc2e72845cb09df6a4e5: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.004 Q2=41.797807 size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=-0.003 Q2=41.806166 size=1.0001
+default av1 17fb26eebd745ec62f48b521b0d286a16e71e0e6: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default av1 4cf7f017edb6b0063311eaf3c3758e0074b22c36: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.010 Q2=64.160678 size=0.9990; x264 B1=ok B2=ok B3=ok dPSNR=0.001 Q2=70.918787 size=0.9999
+default av1 effb7b78408d25105744fe183bfd179955c090bd: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default av1 e0aa339e6a3965d4bea2f12816d7c43a2daa75e3: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default av1 0d0b696e9a13fc31a5f54fd99e5a7a9baf0ddd24: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.001 Q2=52.344138 size=1.0004
+default av1 91a167536481c8a5dd74d9889692bd05690db260: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.002 Q2=49.539706 size=1.0011
+default av1 e190c6d6397e4fa5cac55d77d5c9947421a709eb: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.026 Q2=40.275097 size=1.0046; x264 B1=ok B2=ok B3=ok dPSNR=0.018 Q2=40.538055 size=1.0006
+default av1 fd16898ac61753e759a5cac769f1b6726a39775c: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.004 Q2=50.557951 size=1.0022; x264 B1=ok B2=ok B3=ok dPSNR=-0.000 Q2=50.530593 size=1.0002
+default av1 ecfd87966b715cc1ed64fff81b9b8a704a2ba9b2: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default av1 03e890cf59993e3be2ec013cb92a1ee2833778db: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.492 Q2=43.968223 size=1.0747; x264 B1=ok B2=ok B3=ok dPSNR=0.008 Q2=46.239348 size=0.9978
+default av1 80e4369197cc233f3bc4d2b86bfa1fd0ad4c4c86: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default av1 8a1af34511fac2e3bf6cd9566ed8d4f1e2719fe7: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.035 Q2=55.466182 size=0.9990; x264 B1=ok B2=ok B3=ok dPSNR=-0.049 Q2=54.07103 size=0.9988
+default av1 dfb82109136dc6e71dd55a310f7536547d50919c: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=-0.001 Q2=44.803171 size=0.9987
+default av1 d9ab22f96e5ecff8df3e862b6fd32534819217ec: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=60.090636 size=1.0000
+default vp9 a7121daf691fdd6b954e222e3898583ab5a12e17: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+scaled vp9 a7121daf691fdd6b954e222e3898583ab5a12e17: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default vp9 49d66fa897809010e07714faf03aa05db7e41409: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature); baseline failed
+scaled vp9 49d66fa897809010e07714faf03aa05db7e41409: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature)
+default vp9 a084bd45168cdcfc2669340caa638118af76d904: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default vp9 96b0669b1a66721824707bd8d67605db0c9bd4f3: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.014 Q2=47.16236 size=0.9989; x264 B1=ok B2=ok B3=ok dPSNR=0.003 Q2=47.048568 size=1.0011
+default vp9 ea684713a5bed3eb044a1251da92d412f1b85044: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+scaled vp9 ea684713a5bed3eb044a1251da92d412f1b85044: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+scaled vp9 96b0669b1a66721824707bd8d67605db0c9bd4f3: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.016 Q2=42.448966 size=1.0006; x264 B1=ok B2=ok B3=ok dPSNR=-0.016 Q2=42.443498 size=1.0004
+default vp9 c9d6df0b8214c1f21c295c3d42e883f8859ae5e5: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature); baseline failed
+scaled vp9 c9d6df0b8214c1f21c295c3d42e883f8859ae5e5: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature)
+default vp9 24cc8916a87452da1799413c47ade881f8738b8b: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature); baseline failed
+default vp9 a8c6bfbfcb6656f0606c551382ef7ecd819a6ee4: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+scaled vp9 a8c6bfbfcb6656f0606c551382ef7ecd819a6ee4: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default vp9 983001503a1093c558b5b9dfad8fc99659a769b2: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+scaled vp9 24cc8916a87452da1799413c47ade881f8738b8b: ffmpeg B1=ok B2=FAIL B3=ok Q1=FAIL Q2=FAIL size=0.9472; x264 B1=ok B2=FAIL B3=ok Q1=FAIL Q2=FAIL size=0.9478
+default vp9 7b463c4be37a675d0ffeb814c10e979ef2932008: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+scaled vp9 983001503a1093c558b5b9dfad8fc99659a769b2: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default vp9 fab6d31fdf052203475afab908380aa0b7a4a7c5: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature); baseline failed
+scaled vp9 fab6d31fdf052203475afab908380aa0b7a4a7c5: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.097 Q2=45.727199 size=0.9870; x264 B1=ok B2=ok B3=ok dPSNR=0.097 Q2=45.727199 size=0.9870
+default vp9 7106c0ca001bece1eadcdb340e311cdcea5943aa: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default vp9 f51a56ed57180d981ef841e22cbb62769158a502: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+scaled vp9 7106c0ca001bece1eadcdb340e311cdcea5943aa: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default vp9 1f237cb4fab884cc9810907fa7e043246af806a6: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature); baseline failed
+default vp9 d606e069d2297c9850ba1bb1898aeeef86891709: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default vp9 cf9c77996c1bff23cfb07104ab1eb093826f0034: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default vp9 15825d11c65c39cde6755ef88b353927b35884e2: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default vp9 8b0ab38d0e21cb46b2b24713a12b4edb4d955cda: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default vp9 f944c05afaa135a9151a6c73ba0fbbfd9eff864a: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default vp9 297b6bd861b74ae99f4292d1cee38adac4aa5e2f: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.034 Q2=48.894035 size=0.9988
+default vp9 6fe370af8f0b1838d674a43f7f37807b1017923e: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.032 Q2=42.33266 size=0.9989; x264 B1=ok B2=ok B3=ok dPSNR=-0.065 Q2=42.316065 size=0.9949
+default vp9 e6f3c3ee46c2cd7ac8a835ea736e84b8eb348f18: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=-0.001 Q2=64.795567 size=0.9999
+default vp9 ed2387759700bfdefa1fa1cf5dbda650d89b7cf7: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature); baseline failed
+default vp9 888e285196ec3a526989f15bc1e2154fcfea782d: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default vp9 4aa20009bc9c416f5c9aa7ff53de90a085214e45: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default vp9 7bd8ff2f7abb8fa3b64ec88c909b00450c29dd36: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default vp9 9655901652235b5f8ee692195e373117cf3cc7af: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.004 Q2=45.435259 size=0.9994; x264 B1=ok B2=ok B3=ok dPSNR=-0.002 Q2=45.457325 size=0.9995
+default vp9 7e0aa6fa5cb62ed4c0c13aa1c9b18e1c0467b69d: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=-0.000 Q2=35.56672 size=0.9999
+default vp9 57337dd00f564ded474469aa79df137ea4b73e8a: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.026 Q2=53.476235 size=0.9974; x264 B1=ok B2=ok B3=ok dPSNR=-0.011 Q2=53.748048 size=0.9977
+default vp9 584a16b906bb6e7f4142f9cfc91a7f5dd786b827: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.039 Q2=52.190997 size=0.9911; x264 B1=ok B2=ok B3=ok dPSNR=-0.039 Q2=52.190997 size=0.9911
+default vp9 970eb358e5f10edc92955fdac3e606cdd1f9347b: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default vp9 59ad8ee403b369a1cd0e4602d2a2f084abbf1eba: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.001 Q2=47.848901 size=0.9915; x264 B1=ok B2=ok B3=ok dPSNR=-0.007 Q2=47.698195 size=0.9960
+default vp8 55717d7d8937cb786e0fbc3326fc097ff937d000: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default vp8 65128aae7a4dc612adb1bfe570771c13888aa4dd: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.086 Q2=48.187139 size=0.9879; x264 B1=ok B2=ok B3=ok dPSNR=0.061 Q2=50.68631 size=0.9938
+scaled vp8 65128aae7a4dc612adb1bfe570771c13888aa4dd: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.087 Q2=45.464538 size=1.0202; x264 B1=ok B2=ok B3=ok dPSNR=-0.074 Q2=45.425968 size=1.0189
+scaled vp8 55717d7d8937cb786e0fbc3326fc097ff937d000: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default vp8 1460d599771a218e3647888b988d55144047cc6f: ffmpeg B1=ok B2=ok B3=FAIL dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=FAIL dPSNR=0.000 Q2=inf size=1.0000
+default vp8 4e9cf7c19fb97d15a010ad086c7e6dd6c3b9991e: ffmpeg B1=ok B2=FAIL B3=ok Q1=FAIL Q2=FAIL size=1.0017; x264 B1=ok B2=FAIL B3=ok Q1=FAIL Q2=FAIL size=1.0013
+scaled vp8 4e9cf7c19fb97d15a010ad086c7e6dd6c3b9991e: ffmpeg B1=ok B2=FAIL B3=ok Q1=FAIL Q2=FAIL size=1.0007; x264 B1=ok B2=FAIL B3=ok Q1=FAIL Q2=FAIL size=1.0008
+default vp8 5f9e2df6851b861ffb68d7980ba493c9b9d2d481: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+scaled vp8 5f9e2df6851b861ffb68d7980ba493c9b9d2d481: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default vp8 595cc7a8339410f4b90d7589402ba1e59f1a3e84: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.003 Q2=45.348579 size=0.9951; x264 B1=ok B2=ok B3=ok dPSNR=-0.027 Q2=45.153491 size=0.9884
+scaled vp8 595cc7a8339410f4b90d7589402ba1e59f1a3e84: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.035 Q2=42.408813 size=0.9997; x264 B1=ok B2=ok B3=ok dPSNR=-0.025 Q2=42.19382 size=1.0032
+default vp8 a1001428921f5f1d2b7f4547590ce4ca8f8b4dfe: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.022 Q2=49.225619 size=0.9993; x264 B1=ok B2=ok B3=ok dPSNR=0.016 Q2=52.267798 size=1.0032
+default vp8 7593d867aafd0e2e446179bbc2047116b74ee70b: ffmpeg B1=ok B2=ok B3=FAIL dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=FAIL dPSNR=0.000 Q2=inf size=1.0000
+scaled vp8 a1001428921f5f1d2b7f4547590ce4ca8f8b4dfe: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.054 Q2=45.186833 size=0.9988; x264 B1=ok B2=ok B3=ok dPSNR=0.047 Q2=45.189565 size=0.9975
+scaled vp8 7593d867aafd0e2e446179bbc2047116b74ee70b: ffmpeg B1=ok B2=ok B3=FAIL dPSNR=0.030 Q2=49.842144 size=0.9944; x264 B1=ok B2=ok B3=FAIL dPSNR=0.030 Q2=49.842144 size=0.9944
+default vp8 d3a53eb12c87d7d31f931e24c416b6a91bb9dd82: ffmpeg B1=ok B2=ok B3=FAIL dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=FAIL dPSNR=0.007 Q2=48.326406 size=1.0088
+default vp8 033b72b8fa20b7f126737444f3ad1683e512d5ee: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.006 Q2=46.76785 size=1.0039; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=63.274465 size=0.9996
+default vp8 b5e1aa3dc04b571ea9bdb9d68e109496ce02880b: ffmpeg B1=ok B2=ok B3=FAIL dPSNR=-0.000 Q2=44.725434 size=0.9994; x264 B1=ok B2=ok B3=FAIL dPSNR=-0.002 Q2=44.72726 size=0.9998
+default vp8 04a7da97aeecd99a3f8fd9a8e5b16caa054a661f: ffmpeg B1=ok B2=ok B3=FAIL dPSNR=-0.010 Q2=52.133694 size=1.0019; x264 B1=ok B2=ok B3=FAIL dPSNR=-0.006 Q2=51.903974 size=1.0001
+default vp8 ba9adc0f01d4d6184da9600ad8444d7e6e07b125: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.039 Q2=66.252021 size=0.9987; x264 B1=ok B2=ok B3=ok dPSNR=-0.008 Q2=64.901344 size=1.0006
+default vp8 bd5b372442086c96a55dd5e76b60e87ba9d221e3: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=-0.005 Q2=52.061351 size=0.9995
+default vp8 ef718a26bf236e3d1f9fb577198cb4573d78293c: ffmpeg B1=ok B2=ok B3=FAIL dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=FAIL dPSNR=0.000 Q2=inf size=1.0000
+default vp8 03528264932298700654bc70568ba1b51b5e1752: ffmpeg B1=ok B2=ok B3=FAIL dPSNR=0.005 Q2=45.391731 size=0.9938; x264 B1=ok B2=ok B3=FAIL dPSNR=0.008 Q2=45.247218 size=0.9920
+default vp8 9dd022ab164a1361b3fc7d21bbf8669f33b3a62c: ffmpeg B1=ok B2=ok B3=FAIL dPSNR=-0.011 Q2=49.491326 size=1.0010; x264 B1=ok B2=ok B3=FAIL dPSNR=-0.000 Q2=49.231607 size=1.0001
+default vp8 2c5976ae305ea325f60ef1ba71b112ea22b65f55: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default vp8 139f74b893a34d9dc4a9874cb2f1deb0115dfb82: ffmpeg B1=ok B2=ok B3=FAIL dPSNR=0.002 Q2=42.497543 size=1.0000; x264 B1=ok B2=ok B3=FAIL dPSNR=0.002 Q2=42.49731 size=1.0000
+default vp8 b53c8af5224a40905512fe04c2fb5b2ca88aba46: ffmpeg B1=ok B2=ok B3=FAIL dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=FAIL dPSNR=0.000 Q2=inf size=1.0000
+default vp8 690f46132c1271c0d67e0c9e361b551acd844484: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=-0.004 Q2=54.265308 size=1.0036
+default vp8 0d677d9c1b57fd7d6f8eb019235e685f82f78f9d: ffmpeg B1=ok B2=ok B3=FAIL dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=FAIL dPSNR=0.000 Q2=inf size=1.0000
+default vp8 a525f60cada3d18e0565bb1a6a092edd6057eb84: ffmpeg B1=ok B2=ok B3=FAIL dPSNR=-0.000 Q2=59.924122 size=1.0000; x264 B1=ok B2=ok B3=FAIL dPSNR=0.000 Q2=inf size=1.0000
+default vp8 eaa08a095caadea2062b534a8fe638824ee6eea8: ffmpeg B1=ok B2=ok B3=FAIL dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=FAIL dPSNR=0.000 Q2=inf size=1.0000
+default vp8 bff49987e57ae9d6420d8188e5f7d9273857d358: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.074 Q2=59.668814 size=0.9970; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default vp8 b423239475c52f75ea210d6c262fbb96e009af20: ffmpeg B1=ok B2=ok B3=FAIL dPSNR=0.002 Q2=51.666418 size=1.0004; x264 B1=ok B2=ok B3=FAIL dPSNR=0.003 Q2=51.684452 size=1.0003
+default vp8 f33563470b60892195ef0bb9d0930d9c1053c900: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default vp8 f7a445b2161cf1932cfd92a1433eb326cfa4281c: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default vp8 da442c3755f892a7593dfff0108c10a37fbe1356: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default vp8 a3bc8ee0f3f50ff2c41ff2fd450c401a3e70d066: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default vp8 ef24ccf514a2e5675ef79438d5067c5eb4709c93: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.004 Q2=53.301528 size=0.9991; x264 B1=ok B2=ok B3=ok dPSNR=-0.023 Q2=54.960508 size=1.0001
+default vp8 e1820b7b93ee892cbd00833e2f239b571c198b94: ffmpeg B1=ok B2=ok B3=FAIL dPSNR=-0.007 Q2=58.034026 size=0.9978; x264 B1=ok B2=ok B3=FAIL dPSNR=-0.004 Q2=58.548711 size=0.9990
+default vp8 cc1627b9c2be2980293439649c582d9e862821da: ffmpeg B1=ok B2=ok B3=FAIL dPSNR=-0.000 Q2=45.813608 size=1.0004; x264 B1=ok B2=ok B3=FAIL dPSNR=0.004 Q2=45.822557 size=0.9996
+default vp8 17722a386ab16fb48ddf7bc1df71f7f71dcf80a4: ffmpeg B1=ok B2=ok B3=FAIL dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=FAIL dPSNR=0.000 Q2=inf size=1.0000
+default vp8 71bd76ad3a874b106a2d80114b73d47aa6cb0403: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.002 Q2=48.767499 size=1.0004; x264 B1=ok B2=ok B3=ok dPSNR=-0.008 Q2=41.828617 size=0.9998
+default vp8 16117de9347fb851a53726d1d50598e3089e5aa7: ffmpeg B1=ok B2=ok B3=FAIL dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=FAIL dPSNR=0.000 Q2=inf size=1.0000
+default vp8 63c6b759a79f4a10598ac6fbb79ba37eab7e453a: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.002 Q2=41.013074 size=0.9997; x264 B1=ok B2=ok B3=ok dPSNR=0.002 Q2=41.013116 size=0.9997
+default vp8 4389ba53bb9bb1820466526452f6f05a0c3df14b: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default prores 120cd9f0e5f967a0cd2ff065e8219aeac65c01fe: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature)
+scaled prores 120cd9f0e5f967a0cd2ff065e8219aeac65c01fe: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature)
+default prores ed60cdd24ba909680178bc2476277d4bfa977de5: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature); baseline failed
+default prores ce3de30064cd695161543df1531f243af440799e: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=57.140921 size=1.0001; x264 B1=ok B2=ok B3=ok dPSNR=-0.000 Q2=57.413098 size=1.0001
+scaled prores ed60cdd24ba909680178bc2476277d4bfa977de5: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature)
+scaled prores ce3de30064cd695161543df1531f243af440799e: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.013 Q2=42.665649 size=1.0004; x264 B1=ok B2=ok B3=ok dPSNR=-0.013 Q2=42.665649 size=1.0004
+default prores 7d1726095a2ed957a79c294117707363a0e9fff9: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature)
+scaled prores 7d1726095a2ed957a79c294117707363a0e9fff9: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature)
+default prores 58d3dc17bde5ebc28098cd132da1d7da7a8663b3: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature); baseline failed
+default prores a682417029b30e9893c820018abc93203bdcc5ab: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature)
+scaled prores 58d3dc17bde5ebc28098cd132da1d7da7a8663b3: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature)
+default prores 568ca4f52c3a15804be8f627131b4d192f56bfc7: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature)
+default prores 87f60d03ea6d065e59ecde7353714e5189c29906: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature)
+default prores 9dc59b1804f58d7180d44ae233ae1cefb8fb27cd: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature)
+default prores 72ae2bbd26be32ef146fd0aeda1455d353ee61ae: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default prores d821ae3842cdb0b9b6e52e6504e40fae0a2c27f6: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature); baseline failed
+default prores 50b9f3ee51cfb5803a824bb003bd59fd57d39fe2: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.000 Q2=105.869332 size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=-0.000 Q2=105.869332 size=1.0000
+default prores 1a5fb95f5146fee8fb5226b9f47bd8f975b99926: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default prores 199f46a5dadad4f59a21a14cc8681f11e04e2949: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.001 Q2=52.887453 size=0.9996; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=52.955595 size=0.9997
+default prores 08cd47bdffda141d6d6a9954a5f96847afba8858: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature)
+default prores d83b5e9f34f89b684685dec401d7dc4d04c1cac4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.001 Q2=52.887453 size=0.9996; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=52.955595 size=0.9997
+default prores e97b74358172a82e6b26173cb2f1feba15c32152: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=48.482196 size=0.9999; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default prores 99eb6a646f0ab6708bff3fab9426256690cd55b6: ffmpeg B1=ok B2=ok B3=FAIL dPSNR=0.001 Q2=52.887453 size=0.9996; x264 B1=ok B2=ok B3=FAIL dPSNR=0.000 Q2=52.955595 size=0.9997
+default prores 02951c49828333a9debad31fb7fd4a0b0a6dbb06: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature)
+default prores 249f6da48e0ba5641fc27c0033f87e87b0236d97: ffmpeg failed (exit 1 (limit)); x264 failed (exit 1 (limit))
+default prores 6a57c69dac84ddcac959916a3de37f62c0a9317c: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature)
+default prores e3b8f6ca5d1ea2d2b1872f395535621cae943e94: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature)
+default prores 4fbcc4a33ab816e0be1e2984b8c269ff86c1a59f: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature)
+default prores e7ca24e268a837b200bd28421d74767b29a61751: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.001 Q2=48.860439 size=1.0147; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+refused by CoreAV, transcoded by the baseline (default): 009339d57238508f4babf101252eef0e18403603da938259403ff2fc0a2ac474 unsupported_feature: unsupported: no video stream
+refused by CoreAV, transcoded by the baseline (default): 02951c49828333a9debad31fb7fd4a0b0a6dbb06dec7b36fb5515e1ecf73fa23 unsupported_feature: unsupported: the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 at 8 or 10 bits, not Yuv { chroma: Cs444, depth: 12 }
+refused by CoreAV, transcoded by the baseline (default): 08cd47bdffda141d6d6a9954a5f96847afba8858a8475c37ec8d5ffbd2e3b220 unsupported_feature: unsupported: the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 at 8 or 10 bits, not Yuv { chroma: Cs444, depth: 12 }
+refused by CoreAV, transcoded by the baseline (default): 120cd9f0e5f967a0cd2ff065e8219aeac65c01fee46b451de835b490e158c7fe unsupported_feature: unsupported: the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 at 8 or 10 bits, not Yuv { chroma: Cs444, depth: 12 }
+refused by CoreAV, transcoded by the baseline (default): 4fbcc4a33ab816e0be1e2984b8c269ff86c1a59f5d7cf114c0d46ea0cff7aae2 unsupported_feature: unsupported: the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 at 8 or 10 bits, not Yuv { chroma: Cs444, depth: 12 }
+refused by CoreAV, transcoded by the baseline (default): 568ca4f52c3a15804be8f627131b4d192f56bfc7a45741ce82049556134ddd39 unsupported_feature: unsupported: the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 at 8 or 10 bits, not Yuv { chroma: Cs444, depth: 12 }
+refused by CoreAV, transcoded by the baseline (default): 665dddf09f221cc63cedf9987281c81a226a8eb24bf1231cd32ed337de3686db truncated_structure: truncated structure at offset 426381
+refused by CoreAV, transcoded by the baseline (default): 6a57c69dac84ddcac959916a3de37f62c0a9317c626d96bb23ad9c6cf339aba9 unsupported_feature: unsupported: the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 at 8 or 10 bits, not Yuv { chroma: Cs444, depth: 12 }
+refused by CoreAV, transcoded by the baseline (default): 7d1726095a2ed957a79c294117707363a0e9fff9fdcdc7f79ce7e15bb6ea0fbf unsupported_feature: unsupported: the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 at 8 or 10 bits, not Yuv { chroma: Cs444, depth: 12 }
+refused by CoreAV, transcoded by the baseline (default): 87f60d03ea6d065e59ecde7353714e5189c2990635c180b0d5dfbb6489497bd6 unsupported_feature: unsupported: the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 at 8 or 10 bits, not Yuv { chroma: Cs444, depth: 12 }
+refused by CoreAV, transcoded by the baseline (default): 9dc59b1804f58d7180d44ae233ae1cefb8fb27cdce3cab59c47bf1c2566028c4 unsupported_feature: unsupported: the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 at 8 or 10 bits, not Yuv { chroma: Cs444, depth: 12 }
+refused by CoreAV, transcoded by the baseline (default): a682417029b30e9893c820018abc93203bdcc5ab6dd5d6b15f6fd35600e5b3ea unsupported_feature: unsupported: the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 at 8 or 10 bits, not Yuv { chroma: Cs444, depth: 12 }
+refused by CoreAV, transcoded by the baseline (default): dd6c562965ac58d96092acc42c0b58459050c032b2959a5a6eef62a5137356ea unsupported_feature: unsupported: the video stream has an edit list of an unsupported shape
+refused by CoreAV, transcoded by the baseline (default): e3b8f6ca5d1ea2d2b1872f395535621cae943e94609c7c7e18babcb6b76e12c3 unsupported_feature: unsupported: the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 at 8 or 10 bits, not Yuv { chroma: Cs444, depth: 12 }
+refused by CoreAV, transcoded by the baseline (default): eb569fa7169e84485702b1f46af8f54260bbd9278a143cda1361ef88e11dd35b truncated_structure: truncated structure at offset 776783
+refused by CoreAV, transcoded by the baseline (scaled): 009339d57238508f4babf101252eef0e18403603da938259403ff2fc0a2ac474 unsupported_feature: unsupported: no video stream
+refused by CoreAV, transcoded by the baseline (scaled): 120cd9f0e5f967a0cd2ff065e8219aeac65c01fee46b451de835b490e158c7fe unsupported_feature: unsupported: the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 at 8 or 10 bits, not Yuv { chroma: Cs444, depth: 12 }
+refused by CoreAV, transcoded by the baseline (scaled): 49d66fa897809010e07714faf03aa05db7e414093a9e4f2c252b15f1c19df15a unsupported_feature: unsupported: sample aspect ratio 82170:82151 cannot be signalled in H.264
+refused by CoreAV, transcoded by the baseline (scaled): 58d3dc17bde5ebc28098cd132da1d7da7a8663b332cb7f76fbbe38da14335c61 unsupported_feature: unsupported: the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 at 8 or 10 bits, not Yuv { chroma: Cs444, depth: 12 }
+refused by CoreAV, transcoded by the baseline (scaled): 7d1726095a2ed957a79c294117707363a0e9fff9fdcdc7f79ce7e15bb6ea0fbf unsupported_feature: unsupported: the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 at 8 or 10 bits, not Yuv { chroma: Cs444, depth: 12 }
+refused by CoreAV, transcoded by the baseline (scaled): c9d6df0b8214c1f21c295c3d42e883f8859ae5e5ec4a619ef37bd128c42f19df unsupported_feature: unsupported: sample aspect ratio 230310:230629 cannot be signalled in H.264
+refused by CoreAV, transcoded by the baseline (scaled): dd6c562965ac58d96092acc42c0b58459050c032b2959a5a6eef62a5137356ea unsupported_feature: unsupported: the video stream has an edit list of an unsupported shape
+refused by CoreAV, transcoded by the baseline (scaled): ed60cdd24ba909680178bc2476277d4bfa977de504b05a007c9fbc3612ae2b64 unsupported_feature: unsupported: the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 at 8 or 10 bits, not Yuv { chroma: Cs444, depth: 12 }
+the baseline misses B2 (default, 42): 03e890cf59993e3be2ec013cb92a1ee2833778dbd0fa67c0f9967e411597f599 04a7da97aeecd99a3f8fd9a8e5b16caa054a661f185fc36e812f217d04d1c6af 15825d11c65c39cde6755ef88b353927b35884e2f10180592c62601c710f11e6 259a6e9570cf5f86ff8403929c280ed36829e20b97c7cb11bc26a5a39f1900fd 297b6bd861b74ae99f4292d1cee38adac4aa5e2f82e929863ed1874784a6e8b5 386efb28f234265280b674ca802062dedd6619da219d9fdb2fb23434f79be25a 46ae8d18914ebe9eaaa0c2f0e5c9daf30e7def229614d6f01c380d773deb92e6 4cf7f017edb6b0063311eaf3c3758e0074b22c3645b159d413dc1cb9ab5199f0 4dc155fa1f763929b9487f1e83c8c86385f4f18f3495acb509c56f85b325c904 4e9cf7c19fb97d15a010ad086c7e6dd6c3b9991e3bcec4b3d1dd91aac40fd891 57337dd00f564ded474469aa79df137ea4b73e8aa2a7056efb3a68e1d880ac2f 584a16b906bb6e7f4142f9cfc91a7f5dd786b8273a15a1adacb03aa7993440ff 595cc7a8339410f4b90d7589402ba1e59f1a3e84966b4eb10cacc47a42d9c697 5a558dd8c9ff02ed6498648e0bad95ee6c891a42a51f1759688a48d1b02c2fcb 63803e7699ea46a765cb1db55d82ea1501d67c2f74601f16f58b3ac27ba5eb26 63c6b759a79f4a10598ac6fbb79ba37eab7e453a0c70ab18fa3f366dc4c79dda 64a8a139a3fd3bdc7b2d444ca38877ff74c547eb49ce4461eeee184b7f78ad24 65859055cd2295daff813300b48cdf9929f46deb8f3a439c1d960c982a370be8 66652a08d3e18b830705eae94aaacb1b89381732fa797a05b7961aebfb348a95 66956dab227a19e968f1433c311d69aec14cdf4bf6653c96b6e9e7e008620d16 690f46132c1271c0d67e0c9e361b551acd8444844b6db94e9b5cca00c259b80a 6b7d211adc0d3f2223ac0731da19415df1f4d41de61cd9e1816baed7609b8f60 6fe370af8f0b1838d674a43f7f37807b1017923eca2ebe0184c343d2e044b8bd 71bd76ad3a874b106a2d80114b73d47aa6cb04037c8fe02d866be7b7d8f03fbb 76d4c7a64f75c69bc24c67ed62cd0c09f65407f8ad40084a233de24a6cc17c0a 7e0aa6fa5cb62ed4c0c13aa1c9b18e1c0467b69d1ed5655d8415d0ff3ec0f8f1 81ed4778ece26be2561cd014c14f74790b2894c5736a1b68928118f161b88e4a 8754f59f19d5004c663bc3f0a8438394e32b02a9f4668b1e2f2314e2e2c39c6c a47b8a2808f1c91b2f8acb3d176da0bf5f2d8e44f25bdbd1cea4210ec2db3b14 bdb1dd5313526e4f3b2e7420b154a61ec63c191cfcd5e7465306b2cfd20b6cfd c0501b8f6cc51138cf84ee0e1070b7665ff0074542f120d1fee26172449e6895 c39b69673584f45853c0f1ff59b14632ca9462b5fee8231854881efc3dcf31c8 c9545fd8c1d043c640048788791a50ed16c5bfcdd0d5ee4e800e371ab98d6212 cf73416d950f8ab85143908b5b6f87e00021bc0944b7152b382296704cfa82b5 cf9c77996c1bff23cfb07104ab1eb093826f0034d595ef19d5fa12b7cd0a127c d0f1969d25dea9eb42484a2b1ad1eda833606e34c89aa0e97dc97f627c5fb005 d8fade8b561163d58d13afff33634da45e4926a9088611ad4509439271cb61d5 e190c6d6397e4fa5cac55d77d5c9947421a709eb4bdb811252656bdc22c00aa4 ec0e068c17b542088079e49c0159502f419000f5e24c3c628c29616100088255 ede2d1d39061b7d6b98643f635d584749068d539c872f9c4773693ae64fceae1 fb583fad536a563e342d714012577f7a4ce4e3cfeb2159e3c9007c55c750debc fd16898ac61753e759a5cac769f1b6726a39775cdd31af5c2484aaab5b58a82b
+the baseline misses B3 (default, 44): 03528264932298700654bc70568ba1b51b5e175273c54fb2d450d16d23e7022e 04a7da97aeecd99a3f8fd9a8e5b16caa054a661f185fc36e812f217d04d1c6af 0d677d9c1b57fd7d6f8eb019235e685f82f78f9d49b5b52428e86ae305647377 139f74b893a34d9dc4a9874cb2f1deb0115dfb82be0cf09ec67dc34cb784d0c8 1460d599771a218e3647888b988d55144047cc6f965768c4036c1b08ddd042fe 15825d11c65c39cde6755ef88b353927b35884e2f10180592c62601c710f11e6 15c5cff546d37742cf74373685bfa4aff92f3d52652a84de331aadbe5ae68b55 16117de9347fb851a53726d1d50598e3089e5aa772563523b60621045e8a3d97 17722a386ab16fb48ddf7bc1df71f7f71dcf80a472f6f7931e18d40dc14c3b09 17af5a29c866989ba21ea6c9fcd879e2c8ad74ef4e9320d7d016ba5dcdc6994b 19de64416d04349e1a09944eef72f839868d325a79ab804f26690cf7c124de33 1eb64d25bbb95c757a959483993a5e0b08f9799c902d2e17936b33a13a6dd6aa 4c7f2e501a4a765b64b244ac2241a5356f6875287977e470a11ed98d15eebddf 4cf7f017edb6b0063311eaf3c3758e0074b22c3645b159d413dc1cb9ab5199f0 4dd83564f9764bc379af85cfc9dc083f63859af01fa7116df8eb0e1373e905dd 5b9d27dafb8e9ba6f054dbd047d8b29085f22b4b8215da0983e17e205cb7b44e 5e29dee68a3ebc4ec00eed500cbfbba83334c0f8a2fc7ee42477eb411706568a 65859055cd2295daff813300b48cdf9929f46deb8f3a439c1d960c982a370be8 66652a08d3e18b830705eae94aaacb1b89381732fa797a05b7961aebfb348a95 66956dab227a19e968f1433c311d69aec14cdf4bf6653c96b6e9e7e008620d16 7593d867aafd0e2e446179bbc2047116b74ee70b77a6fbc54dd3d95946858714 76d4c7a64f75c69bc24c67ed62cd0c09f65407f8ad40084a233de24a6cc17c0a 7e0aa6fa5cb62ed4c0c13aa1c9b18e1c0467b69d1ed5655d8415d0ff3ec0f8f1 8d8f8cea03c93e87a11e34aea3b040c724ef0ddafed76f51dfb2a79a36954651 99eb6a646f0ab6708bff3fab9426256690cd55b65fd22bd70fdcbdf2590bc7ca 9dd022ab164a1361b3fc7d21bbf8669f33b3a62c0c231a97a0e166c40952b9f0 a525f60cada3d18e0565bb1a6a092edd6057eb848868ba1cb646b56f67886e63 b37f01c830aef3a3a757f7f30ea90238791420992985ae5575b3baa9a21a49c4 b423239475c52f75ea210d6c262fbb96e009af20b10d4323801f2c9aed58bf91 b466502e8b41cb1abd96942c3e985082813875adeeea57837771e660c6c75296 b53c8af5224a40905512fe04c2fb5b2ca88aba466900f76f0b86600ed7e48c19 b5e1aa3dc04b571ea9bdb9d68e109496ce02880bceb0760786ce6f539c1942a6 c187706da87df4ab9d8756daf26fd525ad90fb1ce4a49ac39f57eb2efc04cfef cc1627b9c2be2980293439649c582d9e862821daa474c5b36cd8f9bf525ebe98 cf9c77996c1bff23cfb07104ab1eb093826f0034d595ef19d5fa12b7cd0a127c d3a53eb12c87d7d31f931e24c416b6a91bb9dd821cf2784891f0be27f561c07c e1820b7b93ee892cbd00833e2f239b571c198b942115a4c465851f89bffae480 e190c6d6397e4fa5cac55d77d5c9947421a709eb4bdb811252656bdc22c00aa4 eaa08a095caadea2062b534a8fe638824ee6eea840adaa1b7ebabaa0480e1def ede2d1d39061b7d6b98643f635d584749068d539c872f9c4773693ae64fceae1 ef718a26bf236e3d1f9fb577198cb4573d78293c78348f71636fc30cba23925c fbcc721855f155d8f61c82fb7486896f6e4d20f10bd5d7f0c5d81899a74d047e fcb01fd0c5650e9cc0cad1a007495cab1def60afa935bcfeaef9b00a04c4a2c2 fd16898ac61753e759a5cac769f1b6726a39775cdd31af5c2484aaab5b58a82b
+the baseline misses B2 (scaled, 19): 24cc8916a87452da1799413c47ade881f8738b8b857506715a5f1bf10143f343 259a6e9570cf5f86ff8403929c280ed36829e20b97c7cb11bc26a5a39f1900fd 4dc155fa1f763929b9487f1e83c8c86385f4f18f3495acb509c56f85b325c904 4e9cf7c19fb97d15a010ad086c7e6dd6c3b9991e3bcec4b3d1dd91aac40fd891 595cc7a8339410f4b90d7589402ba1e59f1a3e84966b4eb10cacc47a42d9c697 5a558dd8c9ff02ed6498648e0bad95ee6c891a42a51f1759688a48d1b02c2fcb 63803e7699ea46a765cb1db55d82ea1501d67c2f74601f16f58b3ac27ba5eb26 64a8a139a3fd3bdc7b2d444ca38877ff74c547eb49ce4461eeee184b7f78ad24 65859055cd2295daff813300b48cdf9929f46deb8f3a439c1d960c982a370be8 6b7d211adc0d3f2223ac0731da19415df1f4d41de61cd9e1816baed7609b8f60 81ed4778ece26be2561cd014c14f74790b2894c5736a1b68928118f161b88e4a 8754f59f19d5004c663bc3f0a8438394e32b02a9f4668b1e2f2314e2e2c39c6c bdb1dd5313526e4f3b2e7420b154a61ec63c191cfcd5e7465306b2cfd20b6cfd c39b69673584f45853c0f1ff59b14632ca9462b5fee8231854881efc3dcf31c8 c9545fd8c1d043c640048788791a50ed16c5bfcdd0d5ee4e800e371ab98d6212 cf73416d950f8ab85143908b5b6f87e00021bc0944b7152b382296704cfa82b5 d8fade8b561163d58d13afff33634da45e4926a9088611ad4509439271cb61d5 ec0e068c17b542088079e49c0159502f419000f5e24c3c628c29616100088255 fb583fad536a563e342d714012577f7a4ce4e3cfeb2159e3c9007c55c750debc
+the baseline misses B3 (scaled, 8): 17af5a29c866989ba21ea6c9fcd879e2c8ad74ef4e9320d7d016ba5dcdc6994b 19de64416d04349e1a09944eef72f839868d325a79ab804f26690cf7c124de33 4dd83564f9764bc379af85cfc9dc083f63859af01fa7116df8eb0e1373e905dd 5e29dee68a3ebc4ec00eed500cbfbba83334c0f8a2fc7ee42477eb411706568a 65859055cd2295daff813300b48cdf9929f46deb8f3a439c1d960c982a370be8 7593d867aafd0e2e446179bbc2047116b74ee70b77a6fbc54dd3d95946858714 8d8f8cea03c93e87a11e34aea3b040c724ef0ddafed76f51dfb2a79a36954651 c187706da87df4ab9d8756daf26fd525ad90fb1ce4a49ac39f57eb2efc04cfef
+== default / ffmpeg
+class    files        B1        B2        B3    dPSNR  >=-0.5    size      Q2   >=30  apart
+h264       128  113/125!  113/125!    68/73!    0.000    0.90  1.0000     inf   0.90  {'refused: unsupported_feature: unsupported: no video stream': 2, 'refused: unsupported_feature: unsupported: the video stream has an edit list of an unsuppo': 1}
+hevc        20    11/18!    12/18!      6/6+   -0.000    0.67  1.0000   48.43   0.67  {'refused: truncated_structure: truncated structure at offset 776783': 1, 'refused: truncated_structure: truncated structure at offset 426381': 1}
+av1         28    17/28!    17/28!     7/10!   -0.004    0.61  1.0000   42.88   0.61  
+vp9         32    14/26!    14/26!     3/10!   -0.035    0.54  1.0000   43.88   0.54  {'refused: unsupported_feature: unsupported: 913x727 is not divisible by the chroma subsampl': 1, 'refused: unsupported_feature: unsupported: 2559x1402 is not divisible by the chroma subsam': 1, 'refused: unsupported_feature: unsupported: 1909x860 is not divisible by the chroma subsamp': 1, 'refused: unsupported_feature: unsupported: 921x1206 is not divisible by the chroma subsamp': 1, 'refused: unsupported_feature: unsupported: 902x731 is not divisible by the chroma subsampl': 1, 'refused: unsupported_feature: unsupported: 1638x297 is not divisible by the chroma subsamp': 1}
+vp8         38    31/38!    30/38!     0/22!   -0.000    0.79  1.0000   50.58   0.79  
+prores      24     7/10!     7/10!      0/2!    0.000    0.70  0.9999   50.87   0.70  {'refused: unsupported_feature: unsupported: the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 ': 14}
+all        270  193/245!  193/245!   84/123!    0.000    0.79  1.0000   60.70   0.79  {'refused: unsupported_feature: unsupported: no video stream': 2, 'refused: unsupported_feature: unsupported: the video stream has an edit list of an unsuppo': 1, 'refused: truncated_structure: truncated structure at offset 776783': 1, 'refused: truncated_structure: truncated structure at offset 426381': 1, 'refused: unsupported_feature: unsupported: 913x727 is not divisible by the chroma subsampl': 1, 'refused: unsupported_feature: unsupported: 2559x1402 is not divisible by the chroma subsam': 1, 'refused: unsupported_feature: unsupported: 1909x860 is not divisible by the chroma subsamp': 1, 'refused: unsupported_feature: unsupported: 921x1206 is not divisible by the chroma subsamp': 1, 'refused: unsupported_feature: unsupported: 902x731 is not divisible by the chroma subsampl': 1, 'refused: unsupported_feature: unsupported: 1638x297 is not divisible by the chroma subsamp': 1, 'refused: unsupported_feature: unsupported: the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 ': 14}
+== default / x264
+class    files        B1        B2        B3    dPSNR  >=-0.5    size      Q2   >=30  apart
+h264       128  113/125!  113/125!    68/73!    0.000    0.90  1.0000     inf   0.90  {'refused: unsupported_feature: unsupported: no video stream': 2, 'refused: unsupported_feature: unsupported: the video stream has an edit list of an unsuppo': 1}
+hevc        20    11/18!    12/18!      6/6+   -0.001    0.67  1.0000   46.91   0.67  {'refused: truncated_structure: truncated structure at offset 776783': 1, 'refused: truncated_structure: truncated structure at offset 426381': 1}
+av1         28    17/28!    17/28!     7/10!   -0.002    0.61  1.0000   43.30   0.61  
+vp9         32    14/26!    14/26!     3/10!   -0.052    0.54  0.9999   38.94   0.54  {'refused: unsupported_feature: unsupported: 913x727 is not divisible by the chroma subsampl': 1, 'refused: unsupported_feature: unsupported: 2559x1402 is not divisible by the chroma subsam': 1, 'refused: unsupported_feature: unsupported: 1909x860 is not divisible by the chroma subsamp': 1, 'refused: unsupported_feature: unsupported: 921x1206 is not divisible by the chroma subsamp': 1, 'refused: unsupported_feature: unsupported: 902x731 is not divisible by the chroma subsampl': 1, 'refused: unsupported_feature: unsupported: 1638x297 is not divisible by the chroma subsamp': 1}
+vp8         38    31/38!    30/38!     0/22!    0.000    0.79  1.0000   51.79   0.79  
+prores      24     7/10!     7/10!      0/2!   -0.000    0.70  1.0000   52.96   0.70  {'refused: unsupported_feature: unsupported: the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 ': 14}
+all        270  193/245!  193/245!   84/123!    0.000    0.79  1.0000   53.97   0.79  {'refused: unsupported_feature: unsupported: no video stream': 2, 'refused: unsupported_feature: unsupported: the video stream has an edit list of an unsuppo': 1, 'refused: truncated_structure: truncated structure at offset 776783': 1, 'refused: truncated_structure: truncated structure at offset 426381': 1, 'refused: unsupported_feature: unsupported: 913x727 is not divisible by the chroma subsampl': 1, 'refused: unsupported_feature: unsupported: 2559x1402 is not divisible by the chroma subsam': 1, 'refused: unsupported_feature: unsupported: 1909x860 is not divisible by the chroma subsamp': 1, 'refused: unsupported_feature: unsupported: 921x1206 is not divisible by the chroma subsamp': 1, 'refused: unsupported_feature: unsupported: 902x731 is not divisible by the chroma subsampl': 1, 'refused: unsupported_feature: unsupported: 1638x297 is not divisible by the chroma subsamp': 1, 'refused: unsupported_feature: unsupported: the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 ': 14}
+== default / baseline
+class    files        B1        B2        B3    dPSNR  >=-0.5    size      Q2   >=30  apart
+h264       128  113/113+   93/113!    56/68!        -       -       -       -      -  
+hevc        20    12/12+    10/12!      2/6!        -       -       -       -      -  
+av1         28    17/17+    10/17!      1/7!        -       -       -       -      -  
+vp9         32    14/14+     7/14!      0/3!        -       -       -       -      -  
+vp8         38    31/31+    25/31!     0/18!        -       -       -       -      -  
+prores      24      7/7+      7/7+      0/1!        -       -       -       -      -  
+all        270  194/194+  152/194!   59/103!        -       -       -       -      -  
+== scaled / ffmpeg
+class    files        B1        B2        B3    dPSNR  >=-0.5    size      Q2   >=30  apart
+h264        59    49/57!    49/57!    34/37!   -0.014    0.86  0.9993   42.76   0.86  {'refused: unsupported_feature: unsupported: no video stream': 1, 'refused: unsupported_feature: unsupported: the video stream has an edit list of an unsuppo': 1}
+hevc        16     9/16!    10/16!      4/4+   -0.009    0.62  1.0003   38.21   0.62  
+av1          3      1/3!      1/3!      1/2!     -inf    0.33  0.9956    -inf   0.33  
+vp9         10      3/8!      2/8!      0/3!     -inf    0.25  0.9870    -inf   0.25  {'refused: unsupported_feature: unsupported: sample aspect ratio 82170:82151 cannot be signa': 1, 'refused: unsupported_feature: unsupported: sample aspect ratio 230310:230629 cannot be sig': 1}
+vp8          7      5/7!      4/7!      0/2!   -0.087    0.57  0.9997   42.41   0.57  
+prores       5      1/1+      1/1+       0/0   -0.013    1.00  1.0004   42.67   1.00  {'refused: unsupported_feature: unsupported: the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 ': 4}
+all        100    68/92!    67/92!    39/48!   -0.020    0.73  0.9997   40.87   0.73  {'refused: unsupported_feature: unsupported: no video stream': 1, 'refused: unsupported_feature: unsupported: the video stream has an edit list of an unsuppo': 1, 'refused: unsupported_feature: unsupported: sample aspect ratio 82170:82151 cannot be signa': 1, 'refused: unsupported_feature: unsupported: sample aspect ratio 230310:230629 cannot be sig': 1, 'refused: unsupported_feature: unsupported: the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 ': 4}
+== scaled / x264
+class    files        B1        B2        B3    dPSNR  >=-0.5    size      Q2   >=30  apart
+h264        59    49/57!    49/57!    34/37!   -0.026    0.86  0.9984   42.77   0.86  {'refused: unsupported_feature: unsupported: no video stream': 1, 'refused: unsupported_feature: unsupported: the video stream has an edit list of an unsuppo': 1}
+hevc        16     9/16!    10/16!      4/4+   -0.009    0.62  1.0003   38.21   0.62  
+av1          3      1/3!      1/3!      1/2!     -inf    0.33  0.9958    -inf   0.33  
+vp9         10      3/8!      2/8!      0/3!     -inf    0.25  0.9870    -inf   0.25  {'refused: unsupported_feature: unsupported: sample aspect ratio 82170:82151 cannot be signa': 1, 'refused: unsupported_feature: unsupported: sample aspect ratio 230310:230629 cannot be sig': 1}
+vp8          7      5/7!      4/7!      0/2!   -0.074    0.57  1.0008   42.19   0.57  
+prores       5      1/1+      1/1+       0/0   -0.013    1.00  1.0004   42.67   1.00  {'refused: unsupported_feature: unsupported: the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 ': 4}
+all        100    68/92!    67/92!    39/48!   -0.027    0.73  0.9993   40.86   0.73  {'refused: unsupported_feature: unsupported: no video stream': 1, 'refused: unsupported_feature: unsupported: the video stream has an edit list of an unsuppo': 1, 'refused: unsupported_feature: unsupported: sample aspect ratio 82170:82151 cannot be signa': 1, 'refused: unsupported_feature: unsupported: sample aspect ratio 230310:230629 cannot be sig': 1, 'refused: unsupported_feature: unsupported: the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 ': 4}
+== scaled / baseline
+class    files        B1        B2        B3    dPSNR  >=-0.5    size      Q2   >=30  apart
+h264        59    49/49+    35/49!    31/34!        -       -       -       -      -  
+hevc        16    10/10+     9/10!      1/4!        -       -       -       -      -  
+av1          3      1/1+      0/1!      0/1!        -       -       -       -      -  
+vp9         10      3/3+      2/3!       0/0        -       -       -       -      -  
+vp8          7      5/5+      3/5!      0/1!        -       -       -       -      -  
+prores       5      1/1+      1/1+       0/0        -       -       -       -      -  
+all        100    69/69+    50/69!    32/40!        -       -       -       -      -  
+FAIL: default ffmpeg h264: B1 missed
+FAIL: default ffmpeg h264: B2 missed
+FAIL: default ffmpeg h264: B3 missed
+FAIL: default ffmpeg h264: Q1 missed
+FAIL: default ffmpeg h264: Q2 missed
+FAIL: default ffmpeg hevc: B1 missed
+FAIL: default ffmpeg hevc: B2 missed
+FAIL: default ffmpeg hevc: Q1 missed
+FAIL: default ffmpeg hevc: Q2 missed
+FAIL: default ffmpeg av1: B1 missed
+FAIL: default ffmpeg av1: B2 missed
+FAIL: default ffmpeg av1: B3 missed
+FAIL: default ffmpeg av1: Q1 missed
+FAIL: default ffmpeg av1: Q2 missed
+FAIL: default ffmpeg vp9: B1 missed
+FAIL: default ffmpeg vp9: B2 missed
+FAIL: default ffmpeg vp9: B3 missed
+FAIL: default ffmpeg vp9: Q1 missed
+FAIL: default ffmpeg vp9: Q2 missed
+FAIL: default ffmpeg vp8: B1 missed
+FAIL: default ffmpeg vp8: B2 missed
+FAIL: default ffmpeg vp8: B3 missed
+FAIL: default ffmpeg vp8: Q1 missed
+FAIL: default ffmpeg vp8: Q2 missed
+FAIL: default ffmpeg prores: B1 missed
+FAIL: default ffmpeg prores: B2 missed
+FAIL: default ffmpeg prores: B3 missed
+FAIL: default ffmpeg prores: Q1 missed
+FAIL: default ffmpeg prores: Q2 missed
+FAIL: default ffmpeg all: B1 missed
+FAIL: default ffmpeg all: B2 missed
+FAIL: default ffmpeg all: B3 missed
+FAIL: default ffmpeg all: Q1 missed
+FAIL: default ffmpeg all: Q2 missed
+FAIL: default ffmpeg: B2 missed in a class (95%)
+FAIL: default ffmpeg: B3 missed in a class (95%)
+FAIL: default x264 h264: B1 missed
+FAIL: default x264 h264: B2 missed
+FAIL: default x264 h264: B3 missed
+FAIL: default x264 h264: Q1 missed
+FAIL: default x264 h264: Q2 missed
+FAIL: default x264 hevc: B1 missed
+FAIL: default x264 hevc: B2 missed
+FAIL: default x264 hevc: Q1 missed
+FAIL: default x264 hevc: Q2 missed
+FAIL: default x264 av1: B1 missed
+FAIL: default x264 av1: B2 missed
+FAIL: default x264 av1: B3 missed
+FAIL: default x264 av1: Q1 missed
+FAIL: default x264 av1: Q2 missed
+FAIL: default x264 vp9: B1 missed
+FAIL: default x264 vp9: B2 missed
+FAIL: default x264 vp9: B3 missed
+FAIL: default x264 vp9: Q1 missed
+FAIL: default x264 vp9: Q2 missed
+FAIL: default x264 vp8: B1 missed
+FAIL: default x264 vp8: B2 missed
+FAIL: default x264 vp8: B3 missed
+FAIL: default x264 vp8: Q1 missed
+FAIL: default x264 vp8: Q2 missed
+FAIL: default x264 prores: B1 missed
+FAIL: default x264 prores: B2 missed
+FAIL: default x264 prores: B3 missed
+FAIL: default x264 prores: Q1 missed
+FAIL: default x264 prores: Q2 missed
+FAIL: default x264 all: B1 missed
+FAIL: default x264 all: B2 missed
+FAIL: default x264 all: B3 missed
+FAIL: default x264 all: Q1 missed
+FAIL: default x264 all: Q2 missed
+FAIL: default x264: B2 missed in a class (95%)
+FAIL: default x264: B3 missed in a class (95%)
+FAIL: scaled ffmpeg h264: B1 missed
+FAIL: scaled ffmpeg h264: B2 missed
+FAIL: scaled ffmpeg h264: B3 missed
+FAIL: scaled ffmpeg h264: Q1 missed
+FAIL: scaled ffmpeg h264: Q2 missed
+FAIL: scaled ffmpeg hevc: B1 missed
+FAIL: scaled ffmpeg hevc: B2 missed
+FAIL: scaled ffmpeg hevc: Q1 missed
+FAIL: scaled ffmpeg hevc: Q2 missed
+FAIL: scaled ffmpeg av1: B1 missed
+FAIL: scaled ffmpeg av1: B2 missed
+FAIL: scaled ffmpeg av1: B3 missed
+FAIL: scaled ffmpeg av1: Q1 missed
+FAIL: scaled ffmpeg av1: Q2 missed
+FAIL: scaled ffmpeg vp9: B1 missed
+FAIL: scaled ffmpeg vp9: B2 missed
+FAIL: scaled ffmpeg vp9: B3 missed
+FAIL: scaled ffmpeg vp9: Q1 missed
+FAIL: scaled ffmpeg vp9: Q2 missed
+FAIL: scaled ffmpeg vp8: B1 missed
+FAIL: scaled ffmpeg vp8: B2 missed
+FAIL: scaled ffmpeg vp8: B3 missed
+FAIL: scaled ffmpeg vp8: Q1 missed
+FAIL: scaled ffmpeg vp8: Q2 missed
+FAIL: scaled ffmpeg all: B1 missed
+FAIL: scaled ffmpeg all: B2 missed
+FAIL: scaled ffmpeg all: B3 missed
+FAIL: scaled ffmpeg all: Q1 missed
+FAIL: scaled ffmpeg all: Q2 missed
+FAIL: scaled ffmpeg: B2 missed in a class (95%)
+FAIL: scaled x264 h264: B1 missed
+FAIL: scaled x264 h264: B2 missed
+FAIL: scaled x264 h264: B3 missed
+FAIL: scaled x264 h264: Q1 missed
+FAIL: scaled x264 h264: Q2 missed
+FAIL: scaled x264 hevc: B1 missed
+FAIL: scaled x264 hevc: B2 missed
+FAIL: scaled x264 hevc: Q1 missed
+FAIL: scaled x264 hevc: Q2 missed
+FAIL: scaled x264 av1: B1 missed
+FAIL: scaled x264 av1: B2 missed
+FAIL: scaled x264 av1: B3 missed
+FAIL: scaled x264 av1: Q1 missed
+FAIL: scaled x264 av1: Q2 missed
+FAIL: scaled x264 vp9: B1 missed
+FAIL: scaled x264 vp9: B2 missed
+FAIL: scaled x264 vp9: B3 missed
+FAIL: scaled x264 vp9: Q1 missed
+FAIL: scaled x264 vp9: Q2 missed
+FAIL: scaled x264 vp8: B1 missed
+FAIL: scaled x264 vp8: B2 missed
+FAIL: scaled x264 vp8: B3 missed
+FAIL: scaled x264 vp8: Q1 missed
+FAIL: scaled x264 vp8: Q2 missed
+FAIL: scaled x264 all: B1 missed
+FAIL: scaled x264 all: B2 missed
+FAIL: scaled x264 all: B3 missed
+FAIL: scaled x264 all: Q1 missed
+FAIL: scaled x264 all: Q2 missed
+FAIL: scaled x264: B2 missed in a class (95%)

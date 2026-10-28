@@ -1,0 +1,30 @@
+commit 7a177c62 (the commit that holds docs/design/pgo.md; both arms built from it)
+before: cargo build --locked --profile dist --example decode -p coreav-h264 [--no-default-features]; after: python3 scripts/pgo_build.py --mode fast|safe --extracted <97 JVT bitstreams> --work <dir> --out <bin>
+6b89db506d4981741fad8ad38cb80dffa69a6dd33800efa0e3da7c6bb71e1f82  $HOME/ab/pgo/w/decode-after-fast
+d7a8ad5886b7e7a70b5c52f060d5a662b2f0f50c49ae752036e363e31f8ede31  $HOME/ab/pgo/w/decode-after-safe
+f81c8173f8fd631e459a7f626a6963e020c83add12da0f17f001428e03876ba0  $HOME/ab/pgo/w/decode-before-fast
+6bc27ce0b1210de1ffe22ea3e31cd6e914388b81ccbabacab0d0e56bb40099dc  $HOME/ab/pgo/w/decode-before-safe
+39648f7f362429ef98505615bf95c78fc5bd3bffb7164420f2e3ed02cbafa16d  $HOME/ab/pgo/w/pgo/fast.profdata
+896b3bd682f08c18a86e888dff8a60b375372006cb729a642b992ac03ffe4dad  $HOME/ab/pgo/w/pgo/safe.profdata
+bb7224f0af46a3a0553624ebbf1c6f301bb169020b9633eb773282311410f726  $HOME/hg/hostgate.py
+rustc 1.99.1 (58cf8f9c3 2026-10-13)
+binary: rustc
+commit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67
+commit-date: 2026-10-13
+host: x86_64-unknown-linux-gnu
+release: 1.99.1
+LLVM version: 23.1.1
+model name	: Intel(R) Xeon(R) Processor @ 2.90GHz
+Model name:                              Intel(R) Xeon(R) Processor @ 2.90GHz
+CPU family:                              6
+Model:                                   106
+Stepping:                                6
+class: @ 2.90GHz model 106
+avx512_bitalg avx512_vbmi2 avx512_vnni avx512_vpopcntdq avx512bw avx512cd avx512dq avx512f avx512ifma avx512vbmi avx512vl 
+ffmpeg version n9.0.2-17-g2a571b6068-20260930 Copyright (c) 2000-2026 the FFmpeg developers
+0d709a0bed1a43f24cd2c420878c63afea4580671b6949ad19ed124572f3bc3d  $HOME/ff9/x/ffmpeg-n9.0.2-17-g2a571b6068-linux64-gpl-9.0/bin/ffmpeg
+harness: scripts/h264_parity.py of 7a177c62
+36d6bbe1db1724eeef1d65efc2342ec12ff92cd5d40148bd6c80f8c08970e9ac  $HOME/ab/pgo/w/src/scripts/h264_parity.py
+training streams checked against docs/measurements/h264-training/es.json:
+32 of 32 match; differing: []
+held-out: 64 of 64 match; differing: []

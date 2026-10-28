@@ -1,0 +1,24 @@
+[package]
+name = "coreav-thumbnail"
+description = "Thumbnails of MP4, MOV, Matroska and WebM files: the frame a time asks for, decoded through CoreAV's decode boundary, turned, resized and encoded as JPEG, PNG or lossless WebP"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+coreav-decode = { path = "../coreav-decode" }
+coreav-frame = { path = "../coreav-frame" }
+coreav-isobmff = { path = "../coreav-isobmff" }
+coreav-mkv = { path = "../coreav-mkv" }
+image-webp = { version = "0.2", default-features = false }
+miniz_oxide = { version = "0.8", default-features = false, features = ["with-alloc"] }
+# JPEG encoding; "(MIT OR Apache-2.0) AND IJG", IJG allowed
+# for this crate alone (deny.toml), its notice in NOTICE. Pinned: a new version
+# is reviewed before use (docs/design/thumbnails.md, "JPEG encoder").
+jpeg-encoder = { version = "=0.6.1", default-features = false, features = ["std", "simd"] }
+
+[lints]
+workspace = true

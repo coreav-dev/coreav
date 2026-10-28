@@ -1,0 +1,111 @@
+failed []
+gr/base  discard overall  n=32 median 0.9586 [0.9214,0.9893] faster 24/32
+gr/base  discard sd       n= 8 median 0.9753 [0.8647,1.0082] faster 6/8
+gr/base  discard 720p     n= 8 median 0.9732 [0.9457,1.0740] faster 5/8
+gr/base  discard 1080p    n= 8 median 0.9553 [0.9189,1.0044] faster 6/8
+gr/base  discard 4k       n= 8 median 0.9135 [0.7932,0.9684] faster 7/8
+gr/base  discard gated    n=24 median 0.9572 [0.9189,0.9884] faster 18/24
+gr/base  discard large    n=16 median 0.9249 [0.8963,0.9821] faster 13/16
+gr/base  write   overall  n=32 median 0.9745 [0.9451,0.9907] faster 25/32
+gr/base  write   sd       n= 8 median 0.9890 [0.9744,1.0054] faster 6/8
+gr/base  write   720p     n= 8 median 0.9767 [0.8895,1.0025] faster 6/8
+gr/base  write   1080p    n= 8 median 0.9861 [0.9375,1.0475] faster 5/8
+gr/base  write   4k       n= 8 median 0.9292 [0.8509,0.9597] faster 8/8
+gr/base  write   gated    n=24 median 0.9680 [0.9272,0.9880] faster 19/24
+gr/base  write   large    n=16 median 0.9593 [0.9133,0.9839] faster 13/16
+g/base   discard overall  n=32 median 0.9820 [0.9670,0.9937] faster 22/32
+g/base   discard sd       n= 8 median 0.9769 [0.9285,0.9879] faster 7/8
+g/base   discard 720p     n= 8 median 0.9797 [0.9210,1.0128] faster 6/8
+g/base   discard 1080p    n= 8 median 0.9973 [0.9403,1.0617] faster 4/8
+g/base   discard 4k       n= 8 median 0.9855 [0.9413,1.0062] faster 5/8
+g/base   discard gated    n=24 median 0.9871 [0.9618,1.0062] faster 15/24
+g/base   discard large    n=16 median 0.9886 [0.9593,1.0111] faster 9/16
+g/base   write   overall  n=32 median 0.9908 [0.9641,0.9999] faster 21/32
+g/base   write   sd       n= 8 median 0.9951 [0.9292,1.0044] faster 4/8
+g/base   write   720p     n= 8 median 0.9815 [0.9230,1.0003] faster 6/8
+g/base   write   1080p    n= 8 median 0.9994 [0.9803,1.0308] faster 4/8
+g/base   write   4k       n= 8 median 0.9661 [0.9322,0.9971] faster 7/8
+g/base   write   gated    n=24 median 0.9902 [0.9450,0.9992] faster 17/24
+g/base   write   large    n=16 median 0.9902 [0.9450,1.0006] faster 11/16
+r/base   discard overall  n=32 median 0.9779 [0.9395,0.9941] faster 22/32
+r/base   discard sd       n= 8 median 0.9839 [0.9238,1.0032] faster 6/8
+r/base   discard 720p     n= 8 median 0.9932 [0.9139,1.0390] faster 5/8
+r/base   discard 1080p    n= 8 median 0.9820 [0.9395,1.1916] faster 4/8
+r/base   discard 4k       n= 8 median 0.9215 [0.8351,0.9811] faster 7/8
+r/base   discard gated    n=24 median 0.9746 [0.9272,1.0022] faster 16/24
+r/base   discard large    n=16 median 0.9478 [0.9016,1.0090] faster 11/16
+r/base   write   overall  n=32 median 0.9784 [0.9560,0.9940] faster 24/32
+r/base   write   sd       n= 8 median 0.9975 [0.9505,1.0147] faster 4/8
+r/base   write   720p     n= 8 median 0.9910 [0.9741,1.0453] faster 6/8
+r/base   write   1080p    n= 8 median 0.9759 [0.9431,0.9940] faster 7/8
+r/base   write   4k       n= 8 median 0.9242 [0.8374,0.9783] faster 7/8
+r/base   write   gated    n=24 median 0.9762 [0.9420,0.9897] faster 20/24
+r/base   write   large    n=16 median 0.9562 [0.9252,0.9837] faster 14/16
+gr/r     discard overall  n=32 median 0.9809 [0.9498,0.9961] faster 22/32
+gr/r     discard sd       n= 8 median 0.9840 [0.9360,1.1007] faster 5/8
+gr/r     discard 720p     n= 8 median 1.0139 [0.9577,1.0348] faster 4/8
+gr/r     discard 1080p    n= 8 median 0.9469 [0.8779,0.9807] faster 7/8
+gr/r     discard 4k       n= 8 median 0.9711 [0.9076,1.0539] faster 6/8
+gr/r     discard gated    n=24 median 0.9715 [0.9421,1.0072] faster 17/24
+gr/r     discard large    n=16 median 0.9559 [0.9203,0.9820] faster 13/16
+gr/r     write   overall  n=32 median 0.9931 [0.9825,0.9993] faster 22/32
+gr/r     write   sd       n= 8 median 0.9907 [0.9769,1.0252] faster 5/8
+gr/r     write   720p     n= 8 median 0.9817 [0.9015,0.9939] faster 7/8
+gr/r     write   1080p    n= 8 median 0.9976 [0.9890,1.0523] faster 5/8
+gr/r     write   4k       n= 8 median 0.9931 [0.9523,1.0162] faster 5/8
+gr/r     write   gated    n=24 median 0.9931 [0.9806,0.9993] faster 17/24
+gr/r     write   large    n=16 median 0.9950 [0.9873,1.0255] faster 10/16
+gr/g     discard overall  n=32 median 0.9735 [0.9519,0.9840] faster 24/32
+gr/g     discard sd       n= 8 median 0.9952 [0.9558,1.0284] faster 4/8
+gr/g     discard 720p     n= 8 median 0.9894 [0.9757,1.0605] faster 5/8
+gr/g     discard 1080p    n= 8 median 0.9479 [0.9250,0.9799] faster 8/8
+gr/g     discard 4k       n= 8 median 0.9236 [0.7661,0.9746] faster 7/8
+gr/g     discard gated    n=24 median 0.9708 [0.9381,0.9801] faster 20/24
+gr/g     discard large    n=16 median 0.9411 [0.9105,0.9746] faster 15/16
+gr/g     write   overall  n=32 median 0.9904 [0.9760,1.0107] faster 19/32
+gr/g     write   sd       n= 8 median 1.0000 [0.9782,1.0270] faster 4/8
+gr/g     write   720p     n= 8 median 0.9923 [0.9652,1.0802] faster 5/8
+gr/g     write   1080p    n= 8 median 1.0005 [0.9636,1.0293] faster 4/8
+gr/g     write   4k       n= 8 median 0.9449 [0.8313,1.0138] faster 6/8
+gr/g     write   gated    n=24 median 0.9904 [0.9636,1.0045] faster 15/24
+gr/g     write   large    n=16 median 0.9769 [0.9296,1.0138] faster 10/16
+base vs FFmpeg: discard 1.460 write 1.412
+g    vs FFmpeg: discard 1.419 write 1.378
+r    vs FFmpeg: discard 1.406 write 1.358
+gr   vs FFmpeg: discard 1.360 write 1.329
+eight threads, g over base, discard: None
+R13-5 earns its place: {'G': True, 'R': False} -> bars read for g
+bars: {'g': {'R13-1': True, 'R13-2': True, 'R13-3': True, 'R13-4': None}}
+per stream, kept over base (discard, write):
+  41e324ebb708.0.sd.h264 sd    0.9047 1.0130
+  5185721dda11.0.sd.h264 sd    0.9735 0.6653
+  6f7799768413.0.sd.h264 sd    0.9726 1.0016
+  7650ae466748.0.sd.h264 sd    1.0194 1.0044
+  8ae90cadb5bc.0.sd.h264 sd    0.9879 0.9887
+  dcb262cf0138.0.sd.h264 sd    0.9804 1.0036
+  ec473c99c538.0.sd.h264 sd    0.9285 0.9705
+  f9e973f44570.0.sd.h264 sd    0.9862 0.9292
+  1d4b1775d78a.0.720p.h264 720p  0.9906 1.0003
+  278dbf5a63bb.0.720p.h264 720p  0.5694 0.5470
+  36501d448eaa.0.720p.h264 720p  1.0128 1.0101
+  3c593b8f0809.0.720p.h264 720p  0.9934 0.9989
+  65ec61f95a00.0.720p.h264 720p  0.9210 0.9409
+  6b18d9f0f88d.0.720p.h264 720p  0.9549 0.9230
+  76e0b1692494.0.720p.h264 720p  0.9688 0.9641
+  9db41aa16b5a.0.720p.h264 720p  1.0378 0.9992
+  175433794e02.0.1080p.h264 1080p 1.1797 1.0920
+  6da34958296c.0.1080p.h264 1080p 0.9836 1.0006
+  6e90422a670a.0.1080p.h264 1080p 1.0617 0.9353
+  a6af290d9053.0.1080p.h264 1080p 1.0171 0.9803
+  a81de82106be.0.1080p.h264 1080p 0.9653 1.0031
+  b41f70a7fa60.0.1080p.h264 1080p 0.9403 0.9982
+  b71b6b31e54f.0.1080p.h264 1080p 0.8228 0.9837
+  c7ecda16e4a7.0.1080p.h264 1080p 1.0111 1.0308
+  3b1b441e23ae.0.4k.h264 4k    0.8936 0.7219
+  4b54de28c2b3.0.4k.h264 4k    0.9413 0.9450
+  81ed4778ece2.0.4k.h264 4k    0.9635 0.9971
+  ae16bb7c7192.0.4k.h264 4k    0.9773 0.9873
+  af38b0cfd840.0.4k.h264 4k    1.0030 0.9930
+  e624cbe0d2be.0.4k.h264 4k    1.0062 0.9353
+  ed75c044e944.0.4k.h264 4k    1.0353 1.0236
+  f8d92a911e72.0.4k.h264 4k    0.9937 0.9322

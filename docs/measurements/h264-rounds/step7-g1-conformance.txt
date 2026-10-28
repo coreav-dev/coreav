@@ -1,0 +1,4 @@
+# Step 7 bar G1, conformance on perf/h264-threading e2517f8 (x86-64, this VM)
+
+291 of 291 stream decodes bit-exact, 39987 frames, kernels: detected, threads: [1, 2, 8]
+97 of 97 stream decodes bit-exact, 13329 frames, kernels: scalar, threads: [1]

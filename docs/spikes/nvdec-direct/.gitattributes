@@ -1,0 +1,2 @@
+# Raw cargo-deny output contains padded diagnostic lines.
+evidence/verification.log -whitespace

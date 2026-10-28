@@ -1,0 +1,12 @@
+{
+ "files": 1043,
+ "skipped_done": 0,
+ "done": 1043,
+ "started_utc": "2026-10-19T07:46:46Z",
+ "rechecked": {
+  "files": 25,
+  "why": "the harness's own round trip compared HEVC configurations as stored; fixed to expect the parameter sets",
+  "started_utc": "2026-10-19T07:55:28Z",
+  "finished_utc": "2026-10-19T07:55:59Z"
+ }
+}

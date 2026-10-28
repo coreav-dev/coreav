@@ -1,0 +1,232 @@
+{
+ "streams": 32,
+ "agree": 32,
+ "differ": 0,
+ "seconds": 137.6,
+ "results": [
+  {
+   "stream": "00d2057ba2cd.0.720p.h264",
+   "frames": 60,
+   "agrees": true,
+   "why": null,
+   "errors": []
+  },
+  {
+   "stream": "02143b44a0c8.0.1080p.h264",
+   "frames": 60,
+   "agrees": true,
+   "why": null,
+   "errors": []
+  },
+  {
+   "stream": "029c63e01bcd.0.4k.h264",
+   "frames": 60,
+   "agrees": true,
+   "why": null,
+   "errors": []
+  },
+  {
+   "stream": "03be19c3a47b.0.720p.h264",
+   "frames": 60,
+   "agrees": true,
+   "why": null,
+   "errors": []
+  },
+  {
+   "stream": "0404af1890da.0.1080p.h264",
+   "frames": 60,
+   "agrees": true,
+   "why": null,
+   "errors": []
+  },
+  {
+   "stream": "04e45b2f41df.0.720p.h264",
+   "frames": 60,
+   "agrees": true,
+   "why": null,
+   "errors": []
+  },
+  {
+   "stream": "05f55a4982d8.0.1080p.h264",
+   "frames": 60,
+   "agrees": true,
+   "why": null,
+   "errors": []
+  },
+  {
+   "stream": "060b839eaa34.0.720p.h264",
+   "frames": 60,
+   "agrees": true,
+   "why": null,
+   "errors": []
+  },
+  {
+   "stream": "061589fae6b7.0.4k.h264",
+   "frames": 60,
+   "agrees": true,
+   "why": null,
+   "errors": []
+  },
+  {
+   "stream": "0758bb0f1c23.0.720p.h264",
+   "frames": 60,
+   "agrees": true,
+   "why": null,
+   "errors": []
+  },
+  {
+   "stream": "07cbd18cf027.0.720p.h264",
+   "frames": 60,
+   "agrees": true,
+   "why": null,
+   "errors": []
+  },
+  {
+   "stream": "0a64c0f45511.0.1080p.h264",
+   "frames": 60,
+   "agrees": true,
+   "why": null,
+   "errors": []
+  },
+  {
+   "stream": "0ad504671d99.0.sd.h264",
+   "frames": 60,
+   "agrees": true,
+   "why": null,
+   "errors": []
+  },
+  {
+   "stream": "0ba6abe19f7b.0.sd.h264",
+   "frames": 60,
+   "agrees": true,
+   "why": null,
+   "errors": []
+  },
+  {
+   "stream": "0bb05726e428.0.sd.h264",
+   "frames": 60,
+   "agrees": true,
+   "why": null,
+   "errors": []
+  },
+  {
+   "stream": "0ca5354c9891.0.4k.h264",
+   "frames": 60,
+   "agrees": true,
+   "why": null,
+   "errors": []
+  },
+  {
+   "stream": "0e068f543ebf.0.720p.h264",
+   "frames": 60,
+   "agrees": true,
+   "why": null,
+   "errors": []
+  },
+  {
+   "stream": "0f5c517928bf.0.1080p.h264",
+   "frames": 60,
+   "agrees": true,
+   "why": null,
+   "errors": []
+  },
+  {
+   "stream": "0f6226648239.0.720p.h264",
+   "frames": 60,
+   "agrees": true,
+   "why": null,
+   "errors": []
+  },
+  {
+   "stream": "13157d880078.0.sd.h264",
+   "frames": 60,
+   "agrees": true,
+   "why": null,
+   "errors": []
+  },
+  {
+   "stream": "13270adf84eb.0.1080p.h264",
+   "frames": 60,
+   "agrees": true,
+   "why": null,
+   "errors": []
+  },
+  {
+   "stream": "134407049e75.0.1080p.h264",
+   "frames": 60,
+   "agrees": true,
+   "why": null,
+   "errors": []
+  },
+  {
+   "stream": "13c5e52e7da5.0.sd.h264",
+   "frames": 60,
+   "agrees": true,
+   "why": null,
+   "errors": []
+  },
+  {
+   "stream": "14df6c0bce7c.0.1080p.h264",
+   "frames": 60,
+   "agrees": true,
+   "why": null,
+   "errors": []
+  },
+  {
+   "stream": "156797c6e68c.0.4k.h264",
+   "frames": 60,
+   "agrees": true,
+   "why": null,
+   "errors": []
+  },
+  {
+   "stream": "1572496fb7cb.0.sd.h264",
+   "frames": 60,
+   "agrees": true,
+   "why": null,
+   "errors": []
+  },
+  {
+   "stream": "158c48d4a223.0.4k.h264",
+   "frames": 60,
+   "agrees": true,
+   "why": null,
+   "errors": []
+  },
+  {
+   "stream": "159026542ddb.0.sd.h264",
+   "frames": 60,
+   "agrees": true,
+   "why": null,
+   "errors": []
+  },
+  {
+   "stream": "1734f2047a70.0.sd.h264",
+   "frames": 60,
+   "agrees": true,
+   "why": null,
+   "errors": []
+  },
+  {
+   "stream": "212430222f3b.0.4k.h264",
+   "frames": 60,
+   "agrees": true,
+   "why": null,
+   "errors": []
+  },
+  {
+   "stream": "23ed13b2623b.0.4k.h264",
+   "frames": 60,
+   "agrees": true,
+   "why": null,
+   "errors": []
+  },
+  {
+   "stream": "32fb46173bf8.0.4k.h264",
+   "frames": 60,
+   "agrees": true,
+   "why": null,
+   "errors": []
+  }
+ ]
+}

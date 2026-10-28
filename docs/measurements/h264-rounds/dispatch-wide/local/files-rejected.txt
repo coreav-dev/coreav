@@ -1,0 +1,93 @@
+# Instructions per source file (self, inlining resolved by callgrind's line attribution), the rejected round's commit built for
+# x86-64-v3 minus built without flags, as % of the latter's total; the largest 15 per stream. params.rs is LevelScale::new
+# (the per-slice level scales; the parameter sets' parse runs once a stream).
+== 41e324ebb708.0.sd
+A 314,169,487 B 308,951,461 B/A 0.9834
+by file:
+ +1.20%  library/core/src/ptr/mut_ptr.rs
+ -0.72%  library/core/src/iter/range.rs
+ -0.70%  crates/coreav-h264/src/params.rs
+ -0.68%  library/core/src/cmp.rs
+ +0.64%  library/core/src/ptr/const_ptr.rs
+ -0.44%  library/core/src/convert/num.rs
+ +0.43%  crates/coreav-h264/src/inter.rs
+ -0.41%  crates/coreav-h264/src/mb.rs
+ -0.35%  library/core/src/ptr/mod.rs
+ -0.24%  crates/coreav-kernels-h264/src/simd/x86.rs
+ -0.22%  crates/coreav-h264/src/cabac.rs
+ +0.19%  crates/coreav-h264/src/fast/mod.rs
+ -0.11%  library/core/src/ptr/non_null.rs
+ +0.11%  library/core/src/intrinsics/mod.rs
+ -0.11%  library/core/src/slice/iter/macros.rs
+== 5185721dda11.0.sd
+A 193,795,614 B 188,000,188 B/A 0.9701
+by file:
+ -1.12%  crates/coreav-h264/src/params.rs
+ -0.77%  crates/coreav-h264/src/cavlc.rs
+ -0.59%  crates/coreav-h264/src/mb.rs
+ -0.58%  library/core/src/iter/range.rs
+ +0.55%  library/core/src/ptr/mut_ptr.rs
+ +0.42%  library/core/src/ptr/const_ptr.rs
+ -0.38%  library/core/src/option.rs
+ +0.30%  library/core/src/iter/adapters/take.rs
+ -0.28%  library/core/src/result.rs
+ -0.27%  library/core/src/ptr/mod.rs
+ +0.24%  crates/coreav-h264/src/deblock.rs
+ -0.17%  library/core/src/num/uint_macros.rs
+ +0.17%  crates/coreav-h264/src/syntax.rs
+ -0.14%  crates/coreav-kernels-h264/src/simd/x86/chroma_mb.rs
+ +0.14%  crates/coreav-h264/src/inter.rs
+== 1d4b1775d78a.0.720p
+A 2,733,498,573 B 2,665,918,285 B/A 0.9753
+by file:
+ -0.80%  crates/coreav-h264/src/cabac.rs
+ +0.53%  crates/coreav-h264/src/deblock.rs
+ -0.49%  library/core/src/option.rs
+ -0.39%  crates/coreav-h264/src/fast/mod.rs
+ -0.39%  library/core/src/cmp.rs
+ -0.34%  crates/coreav-h264/src/mb.rs
+ +0.23%  library/core/src/ptr/mut_ptr.rs
+ -0.22%  crates/coreav-kernels-h264/src/simd/x86/chroma_mb.rs
+ -0.19%  crates/coreav-kernels-h264/src/simd/x86.rs
+ -0.18%  crates/coreav-kernels-h264/src/simd/mod.rs
+ -0.17%  ???
+ -0.16%  library/core/src/../../stdarch/crates/core_arch/src/x86/avx2.rs
+ +0.14%  library/core/src/ptr/const_ptr.rs
+ -0.10%  library/core/src/ptr/mod.rs
+ +0.09%  crates/coreav-kernels-h264/src/lib.rs
+== 278dbf5a63bb.0.720p
+A 3,092,427,345 B 3,002,679,752 B/A 0.9710
+by file:
+ -0.91%  crates/coreav-h264/src/cabac.rs
+ -0.57%  crates/coreav-h264/src/fast/mod.rs
+ +0.52%  crates/coreav-h264/src/deblock.rs
+ -0.46%  library/core/src/option.rs
+ -0.39%  library/core/src/cmp.rs
+ -0.34%  crates/coreav-h264/src/mb.rs
+ -0.22%  crates/coreav-kernels-h264/src/simd/x86/chroma_mb.rs
+ -0.22%  ???
+ -0.21%  crates/coreav-kernels-h264/src/simd/x86.rs
+ -0.20%  library/core/src/../../stdarch/crates/core_arch/src/x86/avx2.rs
+ -0.19%  crates/coreav-kernels-h264/src/simd/mod.rs
+ +0.19%  library/core/src/iter/range.rs
+ +0.10%  library/core/src/ptr/mut_ptr.rs
+ +0.10%  crates/coreav-kernels-h264/src/lib.rs
+ -0.09%  library/core/src/../../stdarch/crates/core_arch/src/macros.rs
+== 9db41aa16b5a.0.720p
+A 1,375,708,889 B 1,354,511,790 B/A 0.9846
+by file:
+ -0.54%  crates/coreav-kernels-h264/src/simd/x86.rs
+ +0.44%  crates/coreav-h264/src/deblock.rs
+ -0.38%  library/core/src/option.rs
+ +0.33%  library/core/src/ptr/mut_ptr.rs
+ -0.32%  crates/coreav-h264/src/mb.rs
+ -0.31%  crates/coreav-h264/src/cavlc.rs
+ -0.23%  library/core/src/cmp.rs
+ -0.21%  crates/coreav-kernels-h264/src/simd/mod.rs
+ -0.20%  crates/coreav-kernels-h264/src/simd/x86/chroma_mb.rs
+ -0.18%  library/core/src/mem/maybe_uninit.rs
+ +0.17%  library/core/src/array/mod.rs
+ +0.16%  library/core/src/ptr/const_ptr.rs
+ -0.16%  crates/coreav-h264/src/params.rs
+ -0.15%  library/core/src/iter/range.rs
+ +0.13%  crates/coreav-h264/src/inter.rs

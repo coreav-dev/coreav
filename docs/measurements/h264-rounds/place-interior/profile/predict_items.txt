@@ -1,0 +1,8 @@
+0.0468 sd:0.0382 720p:0.0328 1080p:0.0373 4k:0.0791  predict.rs place
+0.0127 sd:0.0111 720p:0.0091 1080p:0.0110 4k:0.0198  predict.rs coreav_kernels_h264::simd::x86::predict::predict::
+0.0035 sd:0.0035 720p:0.0024 1080p:0.0026 4k:0.0053  predict.rs {closure#0}
+0.0007 sd:0.0006 720p:0.0006 1080p:0.0005 4k:0.0012  predict.rs into_planes
+0.0002 sd:0.0004 720p:0.0005 1080p:0.0001 4k:0.0000  lib.rs in_range
+0.0000 sd:0.0000 720p:0.0001 1080p:0.0000 4k:0.0000  lib.rs all
+0.0000 sd:0.0000 720p:0.0000 1080p:0.0001 4k:0.0000  views.rs block_end
+0.0000 sd:0.0000 720p:0.0000 1080p:0.0000 4k:0.0000  lib.rs luma_mc

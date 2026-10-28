@@ -1,0 +1,19 @@
+Linux coreav-pmu-20261026-053351 6.12.113+deb13-cloud-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.12.113-1 (2026-10-15) x86_64 GNU/Linux
+perf version 6.12.113
+gcc (Debian 14.2.0-19) 14.2.0
+NASM version 2.16.03
+model name	: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz
+CPU(s):                                  8
+CPU family:                              6
+Model:                                   207
+Thread(s) per core:                      2
+Core(s) per socket:                      4
+Socket(s):                               1
+Stepping:                                2
+avx512_bf16 avx512_bitalg avx512_fp16 avx512_vbmi2 avx512_vnni avx512_vpopcntdq avx512bw avx512cd avx512dq avx512f avx512ifma avx512vbmi avx512vl 
+pmu flags: arch_perfmon pdcm 
+breakpoint cpu kprobe msr power software tracepoint uprobe 
+sapphire_rapids
+c8d1c5267d624c91c61010ba906928272097aedbdb11d70b53a9db19b953ba37  /home/coreav/job/prof-b3664291
+0d709a0bed1a43f24cd2c420878c63afea4580671b6949ad19ed124572f3bc3d  /home/coreav/job/ffmpeg
+81ef45cabe280f8b39682ff004e0071ffd4eaabf561ff864cb7cb66f08ed08d2  /home/coreav/job/ffattr

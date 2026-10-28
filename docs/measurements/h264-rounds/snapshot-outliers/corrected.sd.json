@@ -1,0 +1,59 @@
+{
+  "machine": {
+    "cpu_model": "Intel(R) Xeon(R) Processor @ 2.90GHz",
+    "cpu_family": "6",
+    "cpu_model_number": "106",
+    "cpu_stepping": "6",
+    "cpu_mhz": 2899.9,
+    "logical_cpus": 8
+  },
+  "required_cpu": null,
+  "frames": 1800,
+  "rounds": 5,
+  "pinned_core": 2,
+  "threads": [
+    1
+  ],
+  "decoders": {
+    "main": "$HOME/ab/decode-main"
+  },
+  "ffmpeg": "$HOME/ff9/x/ffmpeg-n9.0.2-17-g2a571b6068-linux64-gpl-9.0/bin/ffmpeg",
+  "resamples": 2000,
+  "streams": [
+    {
+      "stream": "8ae90cadb5bc.0.sd.h264",
+      "class": "sd",
+      "seconds": {
+        "ff_null": 1.127156921000278,
+        "ff_raw": 1.186086013000022,
+        "main_discard": 1.3765277929996955,
+        "main_write": 1.4187621820019558
+      },
+      "ratio": {
+        "main:discard": 1.221238824296192,
+        "main:write": 1.1961714129090988,
+        "main:mixed": 1.160563212037195
+      }
+    }
+  ],
+  "summary": {
+    "main:discard": {
+      "n": 1,
+      "median": 1.221238824296192,
+      "ci_low": null,
+      "ci_high": null
+    },
+    "main:write": {
+      "n": 1,
+      "median": 1.1961714129090988,
+      "ci_low": null,
+      "ci_high": null
+    },
+    "main:mixed": {
+      "n": 1,
+      "median": 1.160563212037195,
+      "ci_low": null,
+      "ci_high": null
+    }
+  }
+}

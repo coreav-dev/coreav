@@ -1,0 +1,10 @@
+held-out P1, FFmpeg 7.0.2 (h264-n2-heldout/reports/*.ff7.json) main:write overall: n=64 affected=2 median 3.095 -> 3.095
+held-out P1, FFmpeg 7.0.2 (h264-n2-heldout/reports/*.ff7.json) main:write sd: n=16 affected=1 median 3.262 -> 3.247
+held-out P1, FFmpeg 7.0.2 (h264-n2-heldout/reports/*.ff7.json) main:write 720p: n=16 affected=0 median 3.247 -> 3.247
+held-out P1, FFmpeg 7.0.2 (h264-n2-heldout/reports/*.ff7.json) main:write 1080p: n=16 affected=1 median 3.246 -> 3.246
+held-out P1, FFmpeg 7.0.2 (h264-n2-heldout/reports/*.ff7.json) main:write 4k: n=16 affected=0 median 2.370 -> 2.370
+held-out, FFmpeg 9.0.2 (h264-n2-heldout/reports/*.ff9.json) main:write overall: n=64 affected=2 median 3.157 -> 3.157
+held-out, FFmpeg 9.0.2 (h264-n2-heldout/reports/*.ff9.json) main:write sd: n=16 affected=1 median 3.252 -> 3.252
+held-out, FFmpeg 9.0.2 (h264-n2-heldout/reports/*.ff9.json) main:write 720p: n=16 affected=0 median 3.262 -> 3.262
+held-out, FFmpeg 9.0.2 (h264-n2-heldout/reports/*.ff9.json) main:write 1080p: n=16 affected=1 median 3.181 -> 3.181
+held-out, FFmpeg 9.0.2 (h264-n2-heldout/reports/*.ff9.json) main:write 4k: n=16 affected=0 median 2.394 -> 2.394

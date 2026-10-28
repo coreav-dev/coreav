@@ -1,0 +1,32 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2899.9 MHz, 8 logical CPUs
+gate baseline: 0.410 s (samples 0.414, 0.410, 0.409)
+1d4b1775d78a.0.720p.h264                 host fault (attempt 1): null {'base_discard': -0.01716257671394461, 'base_write': 0.02691774909497635}, max spread 1.910
+1d4b1775d78a.0.720p.h264                 base:discard=1.01  base:write=0.97  base:mixed=0.93  k:discard=1.01  k:write=0.98  k:mixed=0.93
+278dbf5a63bb.0.720p.h264                 host fault (attempt 1): null {'base_discard': -0.006799656259454001, 'base_write': -0.004131536045017148}, max spread 1.716
+278dbf5a63bb.0.720p.h264                 base:discard=1.00  base:write=0.97  base:mixed=0.93  k:discard=1.00  k:write=0.97  k:mixed=0.93
+36501d448eaa.0.720p.h264                 base:discard=1.11  base:write=1.08  base:mixed=1.06  k:discard=1.12  k:write=1.08  k:mixed=1.07
+3c593b8f0809.0.720p.h264                 base:discard=1.04  base:write=1.04  base:mixed=1.00  k:discard=1.04  k:write=1.05  k:mixed=1.00
+gate after 4 streams (check): 0.402 s (-2.0%)
+65ec61f95a00.0.720p.h264                 host fault (attempt 1): null {'base_discard': -0.00811233785675769, 'base_write': -0.005677160357035915}, max spread 1.530
+65ec61f95a00.0.720p.h264                 base:discard=1.03  base:write=0.99  base:mixed=0.95  k:discard=1.03  k:write=0.99  k:mixed=0.95
+6b18d9f0f88d.0.720p.h264                 host fault (attempt 1): null {'base_discard': 0.0008779409750525602, 'base_write': -0.0025656903483959326}, max spread 1.836
+6b18d9f0f88d.0.720p.h264                 host fault (attempt 2): null {'base_discard': -0.003389270929080146, 'base_write': -0.00809184515824879}, max spread 1.879
+6b18d9f0f88d.0.720p.h264                 base:discard=0.86  base:write=0.81  base:mixed=0.72  k:discard=0.85  k:write=0.80  k:mixed=0.72
+76e0b1692494.0.720p.h264                 host fault (attempt 1): null {'base_discard': -0.004883292409661899, 'base_write': -0.004788883695392099}, max spread 1.727
+76e0b1692494.0.720p.h264                 host fault (attempt 2): null {'base_discard': 0.08755795062170768, 'base_write': -0.06507228772335927}, max spread 1.858
+76e0b1692494.0.720p.h264                 host fault (attempt 3): null {'base_discard': -0.01999711632941603, 'base_write': 0.11482227607411666}, max spread 1.882
+76e0b1692494.0.720p.h264                 base:discard=1.16  base:write=1.05  base:mixed=1.05  k:discard=1.04  k:write=1.16  k:mixed=0.94 UNRESOLVED
+9db41aa16b5a.0.720p.h264                 host fault (attempt 1): null {'base_discard': -0.08121792232653924, 'base_write': -0.05074701724759556}, max spread 2.145
+9db41aa16b5a.0.720p.h264                 host fault (attempt 2): null {'base_discard': 0.006506270587581575, 'base_write': -0.000817080704741624}, max spread 1.521
+9db41aa16b5a.0.720p.h264                 host fault (attempt 3): null {'base_discard': 0.021868313217253688, 'base_write': -0.022299119615147522}, max spread 2.018
+9db41aa16b5a.0.720p.h264                 base:discard=0.99  base:write=0.95  base:mixed=0.88  k:discard=0.99  k:write=0.94  k:mixed=0.88 UNRESOLVED
+gate after 8 streams (check): 0.431 s (+4.9%)
+
+base:discard             n=  8  median 1.020  [0.991, 1.115]
+base:write               n=  8  median 0.984  [0.955, 1.054]
+base:mixed               n=  8  median 0.941  [0.880, 1.052]
+k:discard                n=  8  median 1.019  [0.989, 1.040]
+k:write                  n=  8  median 0.983  [0.939, 1.080]
+k:mixed                  n=  8  median 0.935  [0.878, 1.000]
+
+wrote $HOME/ab/qsf/out/g.720p.json

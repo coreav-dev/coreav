@@ -1,0 +1,3 @@
+# ab.py on two streams alone, ten rounds, interleaved: per stream, the ratio of median CPU times and each round's paired ratio
+175433794e02.0.1080p.h264 1.0080 0.988 1.015 1.041 1.011 0.991 0.999 0.986 1.001 0.998 1.015
+f8d92a911e72.0.4k.h264 0.9845 0.968 0.996 0.992 0.984 0.984 0.987 0.986 0.985 0.989 0.990

@@ -1,0 +1,22 @@
+[package]
+name = "coreav-backend-h264"
+description = "CoreAV's native H.264 decoder behind the decode boundary; opt-in, never in a default build"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+publish = false
+
+[dependencies]
+coreav-decode = { path = "../coreav-decode" }
+coreav-frame = { path = "../coreav-frame" }
+coreav-h264 = { path = "../coreav-h264" }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+coreav-counting-alloc = { path = "../../tools/counting-alloc" }
+coreav-isobmff = { path = "../coreav-isobmff" }

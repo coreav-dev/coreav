@@ -1,0 +1,8 @@
+# round 19, the code of 1186b7c: crates/coreav-h264/fuzz targets built with cargo +nightly fuzz build -O
+# (address sanitizer, x86_64-unknown-linux-gnu), each run 1,200 s on one core with -rss_limit_mb=2048 -timeout=10.
+# Seed corpus: the 45 CAVLC conformance streams (Baseline, Constrained Baseline and Extended, at most 352x288,
+# from the JVT suite), each the first 16 KB behind a mode byte of 0 (decode every picture).
+target          runs     coverage  features  corpus at end  crashes, leaks, timeouts, out-of-memory
+decode          43,012   10,509    56,803    2,131          none
+decode_limited  169,447  9,887     51,658    3,289          none
+threads         11,699   8,995     49,426    2,144          none

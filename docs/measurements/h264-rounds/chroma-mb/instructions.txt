@@ -1,0 +1,9 @@
+Instructions of the whole decode (callgrind, --discard, one thread, --kernels avx2: Valgrind has no AVX-512, and the
+chroma edges have no AVX-512 kernel; dist builds; base = main 051e1692, branch = this round). Pictures: sd 300, 720p 150,
+1080p 60, 4k 30.
+stream                             base         branch   change
+41e324ebb708.0.sd         1,194,601,846  1,180,824,133   -1.15%
+9db41aa16b5a.0.720p       1,882,189,552  1,815,494,430   -3.54%
+6da34958296c.0.1080p      3,127,624,390  3,094,198,964   -1.07%
+e624cbe0d2be.0.4k         2,294,401,000  2,268,759,344   -1.12%
+1d4b1775d78a.0.720p       3,697,703,971  3,636,289,060   -1.66%

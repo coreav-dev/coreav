@@ -1,0 +1,3 @@
+PASS model106 before g.sd #1 11:15Z 36501d448eaa.0.720p 1.306s (ref 1.295) ratio 1.008; a6af290d9053.0.1080p 4.259s (ref 4.388) ratio 0.971
+PASS model106 after g.sd #1 11:34Z 36501d448eaa.0.720p 1.276s (ref 1.295) ratio 0.986; a6af290d9053.0.1080p 4.269s (ref 4.388) ratio 0.973
+PASS model106 before g.720p #1 11:35Z 36501d448eaa.0.720p 1.277s (ref 1.295) ratio 0.986; a6af290d9053.0.1080p 4.278s (ref 4.388) ratio 0.975

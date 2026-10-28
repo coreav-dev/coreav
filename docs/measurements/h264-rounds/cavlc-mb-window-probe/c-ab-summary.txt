@@ -1,0 +1,8 @@
+bin-mw-c
+  CABAC  n=26 median 1.0010 [0.9970, 1.0059] faster 13/26
+  CAVLC  n= 6 median 0.9914 [0.9775, 0.9992] faster 5/6
+  all    n=32 median 0.9985 [0.9958, 1.0043] faster 18/32
+  sd     n= 8 median 0.9968 [0.9884, 1.0053] faster 5/8
+  720p   n= 8 median 1.0000 [0.9905, 1.0111] faster 4/8
+  1080p  n= 8 median 1.0014 [0.9826, 1.0108] faster 4/8
+  4k     n= 8 median 0.9983 [0.9866, 1.0070] faster 5/8

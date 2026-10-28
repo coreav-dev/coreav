@@ -1,0 +1,6 @@
+#!/usr/bin/env node
+"use strict";
+// The `coreav` command. The install script replaces this file with this
+// platform's native binary where it can (`install.js`); otherwise it starts
+// the binary, or the WASI build (`lib/main.js`).
+require("../lib/main.js").run();

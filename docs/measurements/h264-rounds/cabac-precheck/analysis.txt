@@ -1,0 +1,9 @@
+bmi2all  discard over base: median 0.9769, faster 7/8; sd 0.9839, 720p 0.9748, 1080p 0.9725, 4k 0.9899
+bmi2all  write   over base: median 0.9803, faster 8/8; sd 0.9847, 720p 0.9784, 1080p 0.9732, 4k 0.9874
+e1       discard over base: median 0.9978, faster 6/8; sd 1.0010, 720p 0.9904, 1080p 0.9954, 4k 1.0098
+e1       write   over base: median 1.0003, faster 4/8; sd 1.0012, 720p 1.0003, 1080p 0.9967, 4k 0.9957
+b1       discard over base: median 0.9975, faster 5/8; sd 1.0046, 720p 0.9893, 1080p 0.9911, 4k 1.0019
+b1       write   over base: median 0.9972, faster 5/8; sd 1.0117, 720p 0.9963, 1080p 0.9828, 4k 0.9990
+b1 over e1 discard: median 0.9994; 41e324ebb708 0.9994, 7650ae466748 1.0078, 1d4b1775d78a 1.0076, 36501d448eaa 0.9901, 175433794e02 0.9994, a6af290d9053 0.9920, e624cbe0d2be 0.9827, f8d92a911e72 1.0019
+b1 over e1 write: median 0.9982; 41e324ebb708 1.0009, 7650ae466748 1.0202, 1d4b1775d78a 0.9959, 36501d448eaa 0.9960, 175433794e02 0.9947, a6af290d9053 0.9775, e624cbe0d2be 1.0003, f8d92a911e72 1.0063
+base over FFmpeg 9.0.2, discard: median 1.272; 41e324ebb708 0.93 s / 0.80 s, 7650ae466748 0.55 s / 0.48 s, 1d4b1775d78a 0.86 s / 0.65 s, 36501d448eaa 1.75 s / 1.28 s, 175433794e02 5.15 s / 4.08 s, a6af290d9053 5.41 s / 4.21 s, e624cbe0d2be 0.82 s / 0.61 s, f8d92a911e72 7.55 s / 6.04 s

@@ -1,0 +1,115 @@
+preflight: every arm transcodes basic.mp4
+77 inputs, 77 runs
+default av1 av1.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default vp9 browser.webm: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 basic.mov: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 basic.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 chapters.mov: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 chapters.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 chapters_chpl_only.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 chapters_track_only.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 chapters_sized.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000 br=0.9955; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000 br=1.0025
+default h264 clip_audio_late.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default av1 clip_av1_no_stss.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default av1 clip_av1_stss_all.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default hevc clip_hevc_open_gop.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default hevc clip_hevc_stss_all.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 clip_no_stss.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 clip_no_stss_bframes.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 clip_open_gop.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 clip_stss_all_flash.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 clip_stss_all.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default av1 color_av1_colr_ignored.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default hevc color_bt2020_pq.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 clip_video_late.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 color_bt709.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 color_colr_only.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 color_colr_vs_sps.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default hevc color_hevc_colr_ignored.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 color_full_range.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 color_sps_range_only.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 edit_multi_bframes.mp4: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature)
+default h264 color_sps_unspecified.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 edit_multi_empty.mp4: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature)
+default h264 edit_multi_splice.mp4: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature)
+default h264 edit_list.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 faststart.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 fragmented.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 fragmented_moov.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 edit_multi_av.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000 br=0.9960; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000 br=1.0052
+default h264 h264_avc3.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default hevc hevc_hev1.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default hevc hevc_hvc1.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 hls_h264.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000 br=0.9976; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000 br=0.9981
+default hevc hls_hevc.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000 br=0.9986; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000 br=1.0000
+default h264 fragmented_many.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000 br=0.9999; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000 br=1.0007
+default h264 fragmented_sidx.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000 br=0.9988; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000 br=0.9998
+default h264 multitrack.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default prores prores_4444.mov: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature)
+default prores prores_4444xq.mov: ffmpeg refused (unsupported_feature); x264 refused (unsupported_feature)
+default h264 negative_cts.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default prores prores_hq.mov: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default prores prores_lt.mov: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default prores prores_proxy.mov: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default prores prores_standard.mov: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 hls_long_gop.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000 br=0.9975; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000 br=0.9985
+default h264 remux_metadata.mov: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 remux_metadata.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 rotate_ccw180.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 hls_open_gop.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000 br=0.9983; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000 br=0.9994
+default h264 rotate_ccw270.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 rotate_ccw90.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 size_inband_sps.mp4: ffmpeg B1=ok B2=FAIL B3=ok dPSNR=0.162 Q2=42.900872 size=1.0365; x264 B1=ok B2=FAIL B3=ok dPSNR=0.162 Q2=42.900872 size=1.0365
+default h264 size_entry_understated.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default hevc size_hevc_mixed_window.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default hevc size_hevc_window.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default prores size_prores_understated.mov: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default vp9 size_vp9_resize.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.038 Q2=47.017684 size=1.0104; x264 B1=ok B2=ok B3=ok dPSNR=-0.038 Q2=47.017684 size=1.0104
+default h264 size_left_crop.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default hevc split_hevc.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default av1 split_av1.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 text_shifted.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default vp9 split_vp9.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 text_styled.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 truncated.mp4: ffmpeg refused (truncated_structure); x264 refused (truncated_structure)
+default h264 timecode.mov: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default h264 text_end.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000 br=0.9955; x264 B1=ok B2=ok B3=ok dPSNR=0.011 Q2=44.601046 size=0.9971 br=1.0025
+default h264 text_sized.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=-0.000 Q2=44.591952 size=0.9986 br=0.9955; x264 B1=ok B2=ok B3=ok dPSNR=-0.000 Q2=44.591952 size=0.9986 br=1.0025
+default h264 vfr.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+default vp9 vp9.mp4: ffmpeg B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000; x264 B1=ok B2=ok B3=ok dPSNR=0.000 Q2=inf size=1.0000
+refused by CoreAV, transcoded by the baseline (default): edit_multi_bframes.mp4 unsupported_feature: unsupported: the video stream has an edit list of more than one media edit (docs/design/edit-lists.md)
+refused by CoreAV, transcoded by the baseline (default): edit_multi_empty.mp4 unsupported_feature: unsupported: the video stream has an edit list of more than one media edit (docs/design/edit-lists.md)
+refused by CoreAV, transcoded by the baseline (default): edit_multi_splice.mp4 unsupported_feature: unsupported: the video stream has an edit list of more than one media edit (docs/design/edit-lists.md)
+refused by CoreAV, transcoded by the baseline (default): prores_4444.mov unsupported_feature: unsupported: the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 at 8 or 10 bits, not Yuv { chroma: Cs444, depth: 12 }
+refused by CoreAV, transcoded by the baseline (default): prores_4444xq.mov unsupported_feature: unsupported: the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 at 8 or 10 bits, not Yuv { chroma: Cs444, depth: 12 }
+refused by CoreAV, transcoded by the baseline (default): truncated.mp4 truncated_structure: truncated structure at offset 89714
+the baseline misses B2 (default, 4): browser.webm clip_video_late.mp4 edit_list.mp4 size_inband_sps.mp4
+the baseline misses B3 (default, 7): browser.webm edit_list.mp4 edit_multi_av.mp4 fragmented.mp4 fragmented_many.mp4 fragmented_moov.mp4 fragmented_sidx.mp4
+== default / ffmpeg
+class    files        B1        B2        B3    dPSNR  >=-0.5    size      Q2   >=30  apart
+h264        51    47/47+    46/47!    29/29+    0.000    1.00  1.0000     inf   1.00  {'refused: unsupported_feature: unsupported: the video stream has an edit list of more than ': 3, 'refused: truncated_structure: truncated structure at offset 89714': 1}
+hevc        10    10/10+    10/10+      4/4+    0.000    1.00  1.0000     inf   1.00  
+av1          5      5/5+      5/5+      3/3+    0.000    1.00  1.0000     inf   1.00  
+vp9          4      4/4+      4/4+      2/2+    0.000    1.00  1.0000     inf   1.00  
+prores       7      5/5+      5/5+       0/0    0.000    1.00  1.0000     inf   1.00  {'refused: unsupported_feature: unsupported: the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 ': 2}
+all         77    71/71+    70/71!    38/38+    0.000    1.00  1.0000     inf   1.00  {'refused: unsupported_feature: unsupported: the video stream has an edit list of more than ': 3, 'refused: unsupported_feature: unsupported: the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 ': 2, 'refused: truncated_structure: truncated structure at offset 89714': 1}
+== default / x264
+class    files        B1        B2        B3    dPSNR  >=-0.5    size      Q2   >=30  apart
+h264        51    47/47+    46/47!    29/29+    0.000    1.00  1.0000     inf   1.00  {'refused: unsupported_feature: unsupported: the video stream has an edit list of more than ': 3, 'refused: truncated_structure: truncated structure at offset 89714': 1}
+hevc        10    10/10+    10/10+      4/4+    0.000    1.00  1.0000     inf   1.00  
+av1          5      5/5+      5/5+      3/3+    0.000    1.00  1.0000     inf   1.00  
+vp9          4      4/4+      4/4+      2/2+    0.000    1.00  1.0000     inf   1.00  
+prores       7      5/5+      5/5+       0/0    0.000    1.00  1.0000     inf   1.00  {'refused: unsupported_feature: unsupported: the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 ': 2}
+all         77    71/71+    70/71!    38/38+    0.000    1.00  1.0000     inf   1.00  {'refused: unsupported_feature: unsupported: the video stream has an edit list of more than ': 3, 'refused: unsupported_feature: unsupported: the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 ': 2, 'refused: truncated_structure: truncated structure at offset 89714': 1}
+== default / baseline
+class    files        B1        B2        B3    dPSNR  >=-0.5    size      Q2   >=30  apart
+h264        51    47/47+    44/47!    23/29!        -       -       -       -      -  
+hevc        10    10/10+    10/10+      4/4+        -       -       -       -      -  
+av1          5      5/5+      5/5+      3/3+        -       -       -       -      -  
+vp9          4      4/4+      3/4!      1/2!        -       -       -       -      -  
+prores       7      5/5+      5/5+       0/0        -       -       -       -      -  
+all         77    71/71+    67/71!    31/38!        -       -       -       -      -  
+FAIL: default ffmpeg h264: B2 missed
+FAIL: default ffmpeg all: B2 missed
+FAIL: default x264 h264: B2 missed
+FAIL: default x264 all: B2 missed

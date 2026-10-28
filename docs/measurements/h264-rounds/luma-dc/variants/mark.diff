@@ -1,0 +1,93 @@
+diff --git a/crates/coreav-h264/src/mb.rs b/crates/coreav-h264/src/mb.rs
+index e2e148b..cde6618 100644
+--- a/crates/coreav-h264/src/mb.rs
++++ b/crates/coreav-h264/src/mb.rs
+@@ -262,6 +262,11 @@ pub(crate) struct MbData {
+     /// Which blocks hold a non-zero coefficient: bits 0 to 15 are the 4x4
+     /// luma blocks by luma4x4BlkIdx, bits 16 to 19 the 8x8 blocks.
+     pub(crate) luma_nz: u32,
++    /// The blocks of `luma_nz` whose only non-zero coefficient is the DC
++    /// (position 0), in the same bits; never an Intra_16x16 AC block,
++    /// which does not code position 0. Their inverse transform is the DC
++    /// in every sample, so reconstruction needs none.
++    pub(crate) luma_dc: u32,
+     pub(crate) chroma_ac_nz: [u8; 2],
+     pub(crate) dc_nz: bool,
+     pub(crate) chroma_dc_nz: [bool; 2],
+@@ -285,6 +290,7 @@ impl MbData {
+             chroma_dc: [[0; 4]; 2],
+             chroma_ac: [[[0; 16]; 4]; 2],
+             luma_nz: 0,
++            luma_dc: 0,
+             chroma_ac_nz: [0; 2],
+             dc_nz: false,
+             chroma_dc_nz: [false; 2],
+@@ -335,6 +341,7 @@ impl MbData {
+             }
+         }
+         self.luma_nz = 0;
++        self.luma_dc = 0;
+         self.chroma_ac_nz = [0; 2];
+         self.dc_nz = false;
+         self.chroma_dc_nz = [false; 2];
+@@ -1475,6 +1482,17 @@ impl<K: Kernels> SliceDecoder<'_, K> {
+             return Ok(());
+         }
+         self.mb.luma_nz |= 1 << (16 + b8);
++        // With one level, the first coefficient is non-zero only if it is
++        // that level.
++        if n == 1
++            && self
++                .mb
++                .coeff8
++                .get(b8)
++                .is_some_and(|b| b.first() != Some(&0))
++        {
++            self.mb.luma_dc |= 1 << (16 + b8);
++        }
+         for k in 0..4 {
+             let r = raster(b8 * 4 + k);
+             if let Some(slot) = self.cur.total_coeff.get_mut(r) {
+@@ -1533,10 +1551,23 @@ impl<K: Kernels> SliceDecoder<'_, K> {
+             return Ok(());
+         }
+         self.cur.cbf |= 1 << r;
++        // With one level, the first coefficient is non-zero only if it is
++        // that level. Under CAVLC an 8x8 block's position 0 is the first of
++        // list 0, and a level in another list is another coefficient.
+         if self.mb.t8x8 {
+             self.mb.luma_nz |= 1 << (16 + b8);
++            let first = self.mb.coeff8.get(b8).and_then(|b| b.first());
++            if i4 == 0 && n == 1 && first != Some(&0) {
++                self.mb.luma_dc |= 1 << (16 + b8);
++            } else {
++                self.mb.luma_dc &= !(1 << (16 + b8));
++            }
+         } else {
+             self.mb.luma_nz |= 1 << blk;
++            let first = self.mb.coeff.get(blk).and_then(|b| b.first());
++            if n == 1 && first != Some(&0) {
++                self.mb.luma_dc |= 1 << blk;
++            }
+         }
+         Ok(())
+     }
+diff --git a/crates/coreav-h264/src/recon.rs b/crates/coreav-h264/src/recon.rs
+index ef2f9c0..42b6dfb 100644
+--- a/crates/coreav-h264/src/recon.rs
++++ b/crates/coreav-h264/src/recon.rs
+@@ -328,11 +328,11 @@ impl<K: Kernels> SliceDecoder<'_, K> {
+         if self.mb.t8x8 && nz != 0 {
+             let off = self.luma_off(0, 0);
+             let block = BlockMut::new(&mut self.out.y, off, self.stride, 16, 16)?;
+-            let nz = (nz >> 16) as u8 & 0xf;
++            let (nz, dc) = ((nz >> 16) as u8 & 0xf, (self.mb.luma_dc >> 16) as u8 & 0xf);
+             self.kernels
+-                .luma8x8_residual_mb(block, &self.mb.coeff8, nz, 0);
++                .luma8x8_residual_mb(block, &self.mb.coeff8, nz, dc);
+         } else if !self.mb.t8x8 {
+-            self.residual_4x4_luma(0)?;
++            self.residual_4x4_luma(self.mb.luma_dc as u16)?;
+         }
+         self.reconstruct_chroma(None)
+     }

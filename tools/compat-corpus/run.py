@@ -1,0 +1,356 @@
+#!/usr/bin/env python3
+"""Runs the command-coverage set against `coreav ffprobe` and the pinned
+`ffprobe` (docs/design/compat-cli.md, "The measurements").
+
+    run.py commands --coreav PATH --media DIR [DIR...] [--report FILE]
+        Every `ffprobe` command of commands-v1 on every file of the
+        directories (a MANIFEST with `generated NAME` lines selects the
+        files when present). `out-of-scope` commands: coreav must exit
+        non-zero, print a message on standard error and nothing on standard
+        output (B1). `native` commands: coreav must exit 0 (B2) and print
+        what ffprobe prints, byte for byte, on every file ffprobe reads (B3a
+        on the fixtures). Exit 1 when any bar is missed.
+
+    run.py keys --coreav PATH --media DIR [DIR...] [--list FILE] [--report FILE]
+        Per file, both tools print `-show_format -show_streams
+        -show_chapters -show_programs` and `-count_packets -show_packets`
+        in JSON; every key ffprobe prints is compared (B3a on the corpus).
+        Reports, per key, the share of files it appears in on which every
+        occurrence agrees.
+
+ffprobe is a black box: only its output is read. Python 3 standard
+library only.
+"""
+import argparse
+import collections
+import concurrent.futures
+import json
+import os
+import pathlib
+import subprocess
+import sys
+
+HERE = pathlib.Path(__file__).resolve().parent
+COMMANDS = HERE / 'commands-v1' / 'commands.jsonl'
+TIMEOUT = 600
+
+
+def media_files(dirs):
+    out = []
+    for d in dirs:
+        d = pathlib.Path(d)
+        if d.is_file():
+            out.append(d)
+            continue
+        manifest = d / 'MANIFEST'
+        if manifest.exists():
+            for line in manifest.read_text().splitlines():
+                parts = line.split()
+                if len(parts) >= 2 and parts[0] == 'generated':
+                    out.append(d / parts[1])
+        else:
+            out.extend(sorted(p for p in d.iterdir()
+                              if p.is_file() and p.suffix not in ('.json', '.log', '')))
+    return out
+
+
+def run(cmd):
+    try:
+        p = subprocess.run(cmd, capture_output=True, timeout=TIMEOUT)
+        return p.returncode, p.stdout, p.stderr
+    except subprocess.TimeoutExpired:
+        return None, b'', b'timeout'
+
+
+def substitute(args, path):
+    return [str(path) if a == 'INPUT' else a for a in args]
+
+
+def load_commands():
+    with open(COMMANDS) as f:
+        return [json.loads(line) for line in f if line.strip()]
+
+
+def cmd_commands(opts):
+    files = media_files(opts.media)
+    records = [r for r in load_commands() if r['tool'] == 'ffprobe']
+
+    b1 = collections.Counter()
+    b2 = collections.Counter()
+    b3 = collections.Counter()
+    failures = []
+    for r in records:
+        if r['label'] == 'unusable':
+            continue
+        args = r['args']
+        if r['label'] == 'out-of-scope':
+            # A refusal does not depend on the file: one is enough.
+            target = files[0] if files else 'INPUT'
+            code, out, err = run([opts.coreav, 'ffprobe'] + substitute(args, target))
+            ok = code not in (0, None) and not out and err.strip()
+            b1['pass' if ok else 'fail'] += 1
+            if not ok:
+                failures.append({'bar': 'B1', 'args': args, 'exit': code,
+                                 'stdout': out[:200].decode('utf-8', 'replace')})
+            continue
+        def both(path):
+            argv = substitute(args, path)
+            ref_code, ref_out, _ = run(['ffprobe'] + argv)
+            if ref_code != 0:
+                return path, None
+            return path, (ref_out,) + run([opts.coreav, 'ffprobe'] + argv)
+        with concurrent.futures.ThreadPoolExecutor(opts.jobs) as pool:
+            pairs = list(pool.map(both, files))
+        for path, pair in pairs:
+            if pair is None:
+                continue
+            ref_out, code, out, err = pair
+            if code != 0:
+                b2['fail'] += 1
+                failures.append({'bar': 'B2', 'args': args, 'file': path.name, 'exit': code,
+                                 'stderr': err[:300].decode('utf-8', 'replace')})
+                continue
+            b2['pass'] += 1
+            if out == ref_out:
+                b3['pass'] += 1
+            else:
+                b3['fail'] += 1
+                failures.append({'bar': 'B3', 'args': args, 'file': path.name,
+                                 'diff': first_difference(ref_out, out)})
+    b1_ffmpeg, _ = ffmpeg_refusals(opts, files, collections.Counter(), failures)
+    report = {'B1': dict(b1), 'B1 ffmpeg': dict(b1_ffmpeg), 'B2': dict(b2), 'B3': dict(b3),
+              'failures': failures}
+    if opts.report:
+        pathlib.Path(opts.report).write_text(json.dumps(report, indent=1))
+    print(json.dumps({k: report[k] for k in ('B1', 'B1 ffmpeg', 'B2', 'B3')}))
+    by = collections.Counter((f['bar'], ' '.join(f['args'])) for f in failures)
+    for (bar, args), n in by.most_common(opts.top):
+        print(f'{bar} x{n}: {args}')
+    found = sorted({failure_key(f) for f in failures})
+    if opts.write_baseline:
+        pathlib.Path(opts.write_baseline).write_text(json.dumps(
+            {'note': 'failing (bar, command, fixture) triples of tools/compat-corpus/run.py '
+                     'commands on the generated fixtures; CI fails on any other',
+             'failing': found}, indent=1) + '\n')
+    if opts.baseline:
+        known = set(json.loads(pathlib.Path(opts.baseline).read_text())['failing'])
+        new = [k for k in found if k not in known]
+        fixed = [k for k in known if k not in set(found)]
+        by_key = {failure_key(f): f for f in failures}
+        for k in new[:opts.top]:
+            print(f'NEW FAILURE: {k}')
+            detail = by_key.get(k, {})
+            if 'diff' in detail or 'stderr' in detail or 'exit' in detail:
+                print('    ' + json.dumps({x: detail.get(x) for x in ('diff', 'exit', 'stderr') if x in detail})[:600])
+        print(f'{len(new)} new failures, {len(fixed)} fixed since the baseline')
+        return 1 if new else 0
+    return 1 if failures else 0
+
+
+def failure_key(f):
+    """One failure, as the baseline lists it: the bar, the command, and the
+    fixture (none for a refusal, which does not depend on the file)."""
+    return '|'.join([f['bar'], ' '.join(f['args']), f.get('file', '')])
+
+
+def ffmpeg_refusals(opts, files, b1, failures):
+    """B1 for `coreav ffmpeg`: every out-of-scope `ffmpeg` command of the
+    set exits non-zero with a message, prints nothing and writes no output
+    file. The output placeholders name files in a new directory, which
+    must stay empty."""
+    import tempfile
+    target = str(files[0]) if files else 'INPUT'
+    for r in load_commands():
+        if r['tool'] != 'ffmpeg' or r['label'] != 'out-of-scope':
+            continue
+        with tempfile.TemporaryDirectory() as tmp:
+            argv = []
+            for a in r['args']:
+                if a.startswith('INPUT'):
+                    argv.append(target)
+                elif a in ('OUTPUT', 'FILE'):
+                    argv.append(str(pathlib.Path(tmp) / f'{a.lower()}.mp4'))
+                else:
+                    argv.append(a)
+            code, out, err = run([opts.coreav, 'ffmpeg'] + argv)
+            ok = code not in (0, None) and not out and err.strip() and not any(pathlib.Path(tmp).iterdir())
+        b1['pass' if ok else 'fail'] += 1
+        if not ok:
+            failures.append({'bar': 'B1', 'tool': 'ffmpeg', 'args': r['args'], 'exit': code})
+    return b1, failures
+
+
+def first_difference(a, b):
+    la, lb = a.decode('utf-8', 'replace').splitlines(), b.decode('utf-8', 'replace').splitlines()
+    for i in range(max(len(la), len(lb))):
+        x = la[i] if i < len(la) else '<end>'
+        y = lb[i] if i < len(lb) else '<end>'
+        if x != y:
+            return {'line': i + 1, 'ffprobe': x[:300], 'coreav': y[:300]}
+    return {'line': None}
+
+
+SECTION_ARGS = ['-v', 'error', '-of', 'json', '-show_format', '-show_streams',
+                '-show_chapters', '-show_programs']
+PACKET_ARGS = ['-v', 'error', '-of', 'compact', '-count_packets', '-show_packets']
+
+
+def flatten(doc):
+    """(key path, value) for every leaf; array elements keep their index,
+    so streams pair by index."""
+    out = {}
+
+    def walk(prefix, node):
+        if isinstance(node, dict):
+            for k, v in node.items():
+                walk(f'{prefix}.{k}' if prefix else k, v)
+        elif isinstance(node, list):
+            for i, v in enumerate(node):
+                walk(f'{prefix}[{i}]', v)
+        else:
+            out[prefix] = node
+    walk('', doc)
+    return out
+
+
+def key_name(path):
+    """`streams[1].tags.language` -> `streams.tags.language`."""
+    return '.'.join(part.split('[', 1)[0] for part in path.split('.'))
+
+
+def packet_fields(line):
+    """A compact packet line as {key: value}; side data keys under
+    `side_data_list.`."""
+    out = {}
+    for item in line.rstrip('\n').split('|')[1:]:
+        if '=' not in item:
+            continue
+        k, v = item.split('=', 1)
+        if ':' in k:
+            k = 'side_data_list.' + k.split(':', 1)[1]
+        out[k] = v
+    return out
+
+
+def run_to_file(cmd, path):
+    with open(path, 'wb') as f:
+        try:
+            return subprocess.run(cmd, stdout=f, stderr=subprocess.DEVNULL, timeout=TIMEOUT).returncode
+        except subprocess.TimeoutExpired:
+            return None
+
+
+def compare_packets(coreav, path):
+    """Packets paired by position, read line by line from both listings, so
+    that a long file needs no memory."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        ref_path, got_path = pathlib.Path(tmp) / 'ref', pathlib.Path(tmp) / 'got'
+        if run_to_file(['ffprobe'] + PACKET_ARGS + [str(path)], ref_path) != 0:
+            return None
+        code = run_to_file([coreav, 'ffprobe'] + PACKET_ARGS + [str(path)], got_path)
+        result, examples = {}, {}
+        with open(ref_path, errors='replace') as ref, open(got_path, errors='replace') as got:
+            n = 0
+            for line in ref:
+                other = got.readline() if code == 0 else ''
+                a, b = packet_fields(line), packet_fields(other)
+                for k, v in a.items():
+                    name = 'packets.' + k
+                    ok = b.get(k) == v
+                    result[name] = result.get(name, True) and ok
+                    if not ok and name not in examples:
+                        examples[name] = (f'packets[{n}].{k}', v, b.get(k))
+                n += 1
+        return result, examples, code
+
+
+def compare_file(coreav, path, args):
+    if args is PACKET_ARGS:
+        return compare_packets(coreav, path)
+    ref_code, ref_out, _ = run(['ffprobe'] + args + [str(path)])
+    if ref_code != 0:
+        return None
+    code, out, err = run([coreav, 'ffprobe'] + args + [str(path)])
+    try:
+        ref = flatten(json.loads(ref_out))
+    except ValueError:
+        return None
+    try:
+        got = flatten(json.loads(out)) if code == 0 else {}
+    except ValueError:
+        got = {}
+    result = {}
+    examples = {}
+    for k, v in ref.items():
+        name = key_name(k)
+        ok = got.get(k) == v
+        result[name] = result.get(name, True) and ok
+        if not ok:
+            examples.setdefault(name, (k, v, got.get(k)))
+    return result, examples, code
+
+
+def cmd_keys(opts):
+    files = media_files(opts.media)
+    if opts.list:
+        files = [pathlib.Path(line.strip()) for line in open(opts.list) if line.strip()]
+    seen = collections.Counter()
+    agree = collections.Counter()
+    examples = collections.defaultdict(list)
+    rejected = []
+    jobs = [(path, args) for path in files for args in (SECTION_ARGS, PACKET_ARGS)]
+    with concurrent.futures.ThreadPoolExecutor(opts.jobs) as pool:
+        results = list(pool.map(lambda j: (j[0], j[1], compare_file(opts.coreav, j[0], j[1])), jobs))
+    for path, args, r in results:
+        if True:
+            if r is None:
+                continue
+            result, ex, code = r
+            if code != 0:
+                rejected.append({'file': str(path), 'args': args[4:], 'exit': code})
+            for name, ok in result.items():
+                seen[name] += 1
+                agree[name] += ok
+            for name, e in ex.items():
+                if len(examples[name]) < 5:
+                    examples[name].append({'file': path.name, 'path': e[0],
+                                           'ffprobe': e[1], 'coreav': e[2]})
+    rows = []
+    for name in sorted(seen, key=lambda n: (agree[n] / seen[n], n)):
+        rows.append({'key': name, 'files': seen[name], 'agree': agree[name],
+                     'rate': round(100.0 * agree[name] / seen[name], 2)})
+    report = {'files': len(files), 'rejected': rejected, 'keys': rows,
+              'examples': examples}
+    if opts.report:
+        pathlib.Path(opts.report).write_text(json.dumps(report, indent=1))
+    below = [r for r in rows if r['rate'] < opts.bar]
+    print(json.dumps({'files': len(files), 'keys': len(rows), 'below_bar': len(below),
+                      'rejected': len(rejected)}))
+    for r in below[:opts.top]:
+        print(f"{r['rate']:6.2f}% {r['agree']}/{r['files']} {r['key']}")
+    return 1 if below or rejected else 0
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    sub = parser.add_subparsers(dest='mode', required=True)
+    for name in ('commands', 'keys'):
+        p = sub.add_parser(name)
+        p.add_argument('--coreav', required=True)
+        p.add_argument('--media', nargs='+', default=[])
+        p.add_argument('--report')
+        p.add_argument('--top', type=int, default=40)
+        p.add_argument('--jobs', type=int, default=os.cpu_count() or 4)
+        if name == 'commands':
+            p.add_argument('--baseline')
+            p.add_argument('--write-baseline')
+        if name == 'keys':
+            p.add_argument('--list')
+            p.add_argument('--bar', type=float, default=98.0)
+    opts = parser.parse_args()
+    return cmd_commands(opts) if opts.mode == 'commands' else cmd_keys(opts)
+
+
+if __name__ == '__main__':
+    sys.exit(main())

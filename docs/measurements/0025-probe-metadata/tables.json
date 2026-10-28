@@ -1,0 +1,78 @@
+{
+ "files": 746,
+ "profile_level": {
+  "agree": 674,
+  "agreement_percent": 99.11764705882354,
+  "files": 680,
+  "passed": true,
+  "required_percent": 98,
+  "unpaired_streams": 63
+ },
+ "profile_level_disagreements": {
+  "profile: ffprobe 'HE-AAC', CoreAV 'LC'": 3,
+  "profile: ffprobe None, CoreAV 'LC'": 3
+ },
+ "bit_rate": {
+  "fragmented/all": {
+   "streams": 57,
+   "exact": 2,
+   "within_0_1_percent": 2,
+   "within_1_percent": 2,
+   "median_relative_difference": 86.69568245125348
+  },
+  "fragmented/audio": {
+   "streams": 22,
+   "exact": 0,
+   "within_0_1_percent": 0,
+   "within_1_percent": 0,
+   "median_relative_difference": 119.93575481768639
+  },
+  "fragmented/video": {
+   "streams": 35,
+   "exact": 2,
+   "within_0_1_percent": 2,
+   "within_1_percent": 2,
+   "median_relative_difference": 80.10974610974611
+  },
+  "regular/all": {
+   "streams": 1065,
+   "exact": 490,
+   "within_0_1_percent": 943,
+   "within_1_percent": 1014,
+   "median_relative_difference": 1.767204678582492e-08
+  },
+  "regular/audio": {
+   "streams": 414,
+   "exact": 161,
+   "within_0_1_percent": 331,
+   "within_1_percent": 396,
+   "median_relative_difference": 7.81256103563309e-06
+  },
+  "regular/data": {
+   "streams": 62,
+   "exact": 48,
+   "within_0_1_percent": 48,
+   "within_1_percent": 48,
+   "median_relative_difference": 0.0
+  },
+  "regular/subtitle": {
+   "streams": 8,
+   "exact": 6,
+   "within_0_1_percent": 6,
+   "within_1_percent": 6,
+   "median_relative_difference": 0.0
+  },
+  "regular/video": {
+   "streams": 581,
+   "exact": 275,
+   "within_0_1_percent": 558,
+   "within_1_percent": 564,
+   "median_relative_difference": 6.434866433182686e-09
+  }
+ },
+ "declared_bit_rate_sources": {
+  "none": 519,
+  "esds": 336,
+  "btrt": 197
+ }
+}

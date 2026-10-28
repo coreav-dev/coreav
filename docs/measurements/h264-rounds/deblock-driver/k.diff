@@ -1,0 +1,321 @@
+diff --git a/crates/coreav-h264/src/deblock.rs b/crates/coreav-h264/src/deblock.rs
+index 52d69e3..d7b6c71 100644
+--- a/crates/coreav-h264/src/deblock.rs
++++ b/crates/coreav-h264/src/deblock.rs
+@@ -387,6 +387,13 @@ struct Thresholds {
+ }
+ 
+ impl Thresholds {
++    /// The thresholds of an edge that filters nothing.
++    const NONE: Thresholds = Thresholds {
++        alpha: 0,
++        beta: 0,
++        tc0: [0; 8],
++    };
++
+     /// The thresholds of an edge between QPs `qp_p` and `qp_q`. Where α'
+     /// or β' is 0, `alpha` is 0 ([`Thresholds::filters`]): no sample of
+     /// such an edge is filtered, since filterSamplesFlag needs
+@@ -396,9 +403,14 @@ impl Thresholds {
+     /// Two lookups, without a clip, a bounds check or a branch: the tables
+     /// are indexed by the average QP plus the shifted offsets
+     /// ([`shifted`]).
+-    #[inline(always)]
++    #[cfg(test)]
+     fn new(qp_p: i32, qp_q: i32, offsets: Offsets) -> Thresholds {
+-        let average = ((qp_p + qp_q + 1) >> 1) as usize;
++        Thresholds::of_average(((qp_p + qp_q + 1) >> 1) as usize, offsets)
++    }
++
++    /// [`Thresholds::new`] by the average of the two QPs.
++    #[inline(always)]
++    fn of_average(average: usize, offsets: Offsets) -> Thresholds {
+         let by_a = BY_INDEX_A
+             .get(average.wrapping_add(offsets.a) & 0xff)
+             .copied()
+@@ -441,6 +453,66 @@ impl Thresholds {
+     }
+ }
+ 
++/// The thresholds of every edge of the slices that share one pair of
++/// filter offsets, by the average of the edge's two QPs: what
++/// [`Thresholds::new`] gives, built once while consecutive macroblocks
++/// keep the offsets, so that an edge takes one lookup.
++///
++/// 64 entries, so that an average masked to six bits needs no bounds
++/// check; every average the filter forms is 0 to 51 (two QPY of an 8-bit
++/// picture, or two QPC), and entries 52 to 63 hold what
++/// [`Thresholds::new`] gives for those averages.
++pub(crate) struct ThresholdTable {
++    /// FilterOffsetA and FilterOffsetB as the slice header gives them.
++    key: (i32, i32),
++    by_average: [Thresholds; 64],
++}
++
++impl ThresholdTable {
++    /// A table that every pair of offsets rebuilds ([`ThresholdTable::set`]),
++    /// on the heap, where a decoder keeps it.
++    pub(crate) fn boxed() -> Box<ThresholdTable> {
++        Box::new(ThresholdTable::new())
++    }
++
++    /// A table that every pair of offsets rebuilds ([`ThresholdTable::set`]).
++    fn new() -> ThresholdTable {
++        ThresholdTable {
++            key: (i32::MIN, i32::MIN),
++            by_average: [Thresholds::NONE; 64],
++        }
++    }
++
++    /// Holds the thresholds of the offsets of `f`, building them where the
++    /// table holds another pair.
++    #[inline(always)]
++    fn set(&mut self, f: &SliceFilter) {
++        let key = (f.offset_a, f.offset_b);
++        if key != self.key {
++            self.build(f);
++        }
++    }
++
++    #[inline(never)]
++    fn build(&mut self, f: &SliceFilter) {
++        let offsets = Offsets::new(f);
++        for (average, t) in self.by_average.iter_mut().enumerate() {
++            *t = Thresholds::of_average(average, offsets);
++        }
++        self.key = (f.offset_a, f.offset_b);
++    }
++
++    /// [`Thresholds::new`] of `qp_p` and `qp_q`, for 0 to 51 each.
++    #[inline(always)]
++    fn get(&self, qp_p: i32, qp_q: i32) -> Thresholds {
++        let average = ((qp_p + qp_q + 1) >> 1) as usize & 63;
++        self.by_average
++            .get(average)
++            .copied()
++            .unwrap_or(Thresholds::NONE)
++    }
++}
++
+ /// Filters the macroblock rows `rows` of a picture, in macroblock address
+ /// order (clause 8.7), and publishes the bands that are then final.
+ ///
+@@ -470,6 +542,7 @@ pub(crate) fn deblock_rows<K: Kernels>(
+     mbs: &[MbInfo],
+     filters: &[SliceFilter],
+     chroma_qp_offset: [i32; 2],
++    table: &mut ThresholdTable,
+     rows: Range<usize>,
+ ) -> Result<()> {
+     let g = canvas.geometry();
+@@ -479,7 +552,7 @@ pub(crate) fn deblock_rows<K: Kernels>(
+         if first_of_band {
+             canvas.refresh_top(k)?;
+         }
+-        deblock_row(kernels, canvas, mbs, filters, chroma_qp_offset, row)?;
++        deblock_row(kernels, canvas, mbs, filters, chroma_qp_offset, table, row)?;
+         canvas.publish_final(row + 1)?;
+     }
+     Ok(())
+@@ -492,6 +565,7 @@ fn deblock_row<K: Kernels>(
+     mbs: &[MbInfo],
+     filters: &[SliceFilter],
+     chroma_qp_offset: [i32; 2],
++    table: &mut ThresholdTable,
+     row: usize,
+ ) -> Result<()> {
+     let g = canvas.geometry();
+@@ -544,21 +618,27 @@ fn deblock_row<K: Kernels>(
+         // An edge without a neighbour, or an odd edge of a macroblock with
+         // the 8x8 transform, has bS = 0 in `bs` and is passed over with the
+         // edges whose segments are all 0.
+-        let offsets = Offsets::new(&f);
++        // The thresholds come from the table of the slice's offsets, one
++        // lookup an edge.
++        table.set(&f);
+         let qp_q = luma_qp(q);
+-        let inside = Thresholds::new(qp_q, qp_q, offsets);
+         for (dir, edges) in bs.iter().enumerate() {
+             let neighbour = if dir == 0 { left } else { top };
+-            for (e, &strength) in edges.iter().enumerate() {
+-                if strength == 0 {
+-                    continue;
+-                }
+-                let thresholds = if e == 0 {
+-                    let qp_p = neighbour.and_then(|n| mbs.get(n)).map_or(qp_q, luma_qp);
+-                    Thresholds::new(qp_p, qp_q, offsets)
++            // The edges with a segment to filter, bit `e` for edge `e`: the
++            // loop visits only those.
++            let mut live = (0..4).fold(0u32, |m, e| {
++                m | u32::from(edges.get(e).is_some_and(|&w| w != 0)) << e
++            });
++            while live != 0 {
++                let e = live.trailing_zeros() as usize;
++                live &= live - 1;
++                let strength = edges.get(e).copied().unwrap_or(0);
++                let qp_p = if e == 0 {
++                    neighbour.and_then(|n| mbs.get(n)).map_or(qp_q, luma_qp)
+                 } else {
+-                    inside
++                    qp_q
+                 };
++                let thresholds = table.get(qp_p, qp_q);
+                 if !thresholds.filters() {
+                     continue;
+                 }
+@@ -586,7 +666,7 @@ fn deblock_row<K: Kernels>(
+         // no line. The thresholds of the internal edges, each plane's own
+         // QPC on both sides, are derived once a macroblock.
+         let qp_qs = chroma_offsets.map(|offset| chroma_qp(q, offset));
+-        let chroma_inside = qp_qs.map(|qp| Thresholds::new(qp, qp, offsets));
++        let chroma_inside = qp_qs.map(|qp| table.get(qp, qp));
+         let mut slots = [[EdgeParams::default(); 2]; 4];
+         let mut any = false;
+         for (dir, edges) in bs.iter().enumerate() {
+@@ -603,7 +683,7 @@ fn deblock_row<K: Kernels>(
+                         thresholds.iter_mut().zip(chroma_offsets.iter().zip(&qp_qs))
+                     {
+                         let qp_p = p.map_or(qp_q, |m| chroma_qp(m, offset));
+-                        *t = Thresholds::new(qp_p, qp_q, offsets);
++                        *t = table.get(qp_p, qp_q);
+                     }
+                 }
+                 if !thresholds.iter().any(Thresholds::filters) {
+@@ -901,6 +981,40 @@ mod tests {
+         }
+     }
+ 
++    #[test]
++    fn the_threshold_table_matches_the_derivation() {
++        let mut table = ThresholdTable::new();
++        // Offsets in the order slices could bring them, a pair repeated
++        // after another so that the table is rebuilt for it.
++        for (a, b) in [
++            (0, 0),
++            (-12, 12),
++            (12, -12),
++            (0, 0),
++            (-51, 51),
++            (70, -70),
++            (0, 1),
++        ] {
++            let f = SliceFilter {
++                disable_idc: 0,
++                offset_a: a,
++                offset_b: b,
++            };
++            table.set(&f);
++            let offsets = Offsets::new(&f);
++            for qp_p in 0..=51 {
++                for qp_q in 0..=51 {
++                    let (got, want) = (table.get(qp_p, qp_q), Thresholds::new(qp_p, qp_q, offsets));
++                    assert_eq!(
++                        (got.alpha, got.beta, got.tc0),
++                        (want.alpha, want.beta, want.tc0),
++                        "{qp_p} {qp_q} {a} {b}"
++                    );
++                }
++            }
++        }
++    }
++
+     #[test]
+     fn an_edge_below_the_thresholds_tables_is_not_filtered() {
+         let f = Offsets::new(&SliceFilter::default());
+diff --git a/crates/coreav-h264/src/mb.rs b/crates/coreav-h264/src/mb.rs
+index 579408a..46094f9 100644
+--- a/crates/coreav-h264/src/mb.rs
++++ b/crates/coreav-h264/src/mb.rs
+@@ -9,7 +9,7 @@ use coreav_kernels_h264::{Kernels, Planes};
+ 
+ use crate::bits::BitReader;
+ use crate::cabac::Cabac;
+-use crate::deblock::{SliceFilter, deblock_rows};
++use crate::deblock::{SliceFilter, ThresholdTable, deblock_rows};
+ use crate::dpb::RefPic;
+ use crate::error::{Error, Result, require};
+ use crate::inter::{InterTables, MotionCtx, Scratch};
+@@ -421,10 +421,12 @@ pub(crate) struct SliceDecoder<'a, K: Kernels> {
+     pub(crate) luma_origin: usize,
+     pub(crate) chroma_origin: usize,
+     pub(crate) mbs: &'a mut [MbInfo],
+-    /// The deblocking control of every slice of the picture so far, and how
+-    /// many macroblock rows have been filtered (`deblock.rs`).
++    /// The deblocking control of every slice of the picture so far, how
++    /// many macroblock rows have been filtered, and the thresholds of the
++    /// last filter offsets (`deblock.rs`).
+     pub(crate) filters: &'a [SliceFilter],
+     pub(crate) deblocked: &'a mut usize,
++    pub(crate) thresholds: &'a mut ThresholdTable,
+     pub(crate) refs: &'a [Vec<RefPic>; 2],
+     /// Each reference that is one published band of this picture's size —
+     /// every reference, with one thread — resolved once when the slice
+@@ -741,6 +743,7 @@ impl<K: Kernels> SliceDecoder<'_, K> {
+                 self.mbs,
+                 self.filters,
+                 self.pps.chroma_qp_index_offset,
++                self.thresholds,
+                 *self.deblocked..filter_to,
+             )?;
+             *self.deblocked = filter_to;
+diff --git a/crates/coreav-h264/src/work.rs b/crates/coreav-h264/src/work.rs
+index c8011ee..ca46950 100644
+--- a/crates/coreav-h264/src/work.rs
++++ b/crates/coreav-h264/src/work.rs
+@@ -14,7 +14,7 @@ use std::thread::JoinHandle;
+ 
+ use coreav_kernels_h264::Kernels;
+ 
+-use crate::deblock::{SliceFilter, deblock_rows};
++use crate::deblock::{SliceFilter, ThresholdTable, deblock_rows};
+ use crate::dpb::RefPic;
+ use crate::error::{Error, Result};
+ use crate::inter::{InterTables, MotionCtx, Scratch};
+@@ -47,6 +47,10 @@ pub(crate) struct SliceJob {
+ pub(crate) struct Spare {
+     pub(crate) mb: Option<Box<MbData>>,
+     pub(crate) scratch: Option<Box<Scratch>>,
++    /// The deblocking thresholds of the last filter offsets
++    /// (`deblock.rs`), kept from one call of the filter to the next and
++    /// from one picture to the next.
++    pub(crate) thresholds: Option<Box<ThresholdTable>>,
+ }
+ 
+ /// The decoding state of one picture.
+@@ -117,6 +121,10 @@ impl<K: Kernels> PictureWork<K> {
+         let geometry = self.canvas.geometry();
+         let mb = self.spare.mb.take().unwrap_or_else(MbData::new);
+         let scratch = self.spare.scratch.take().unwrap_or_else(Scratch::new);
++        let thresholds = self
++            .spare
++            .thresholds
++            .get_or_insert_with(ThresholdTable::boxed);
+         let (whole, colocated_whole) =
+             whole_references(&job.refs, geometry.mb_width, geometry.mb_height);
+         let mut slice = SliceDecoder {
+@@ -142,6 +150,7 @@ impl<K: Kernels> PictureWork<K> {
+             mbs: &mut self.mbs,
+             filters: &self.filters,
+             deblocked: &mut self.deblocked,
++            thresholds,
+             refs: &job.refs,
+             whole,
+             colocated_whole,
+@@ -187,12 +196,17 @@ impl<K: Kernels> PictureWork<K> {
+     /// picture is complete. Returns the buffers to keep for the next.
+     pub(crate) fn finish(mut self) -> (Result<()>, Spare) {
+         let rows = self.deblocked..self.canvas.geometry().mb_height;
++        let thresholds = self
++            .spare
++            .thresholds
++            .get_or_insert_with(ThresholdTable::boxed);
+         let filtered = deblock_rows(
+             &*self.kernels,
+             &mut self.canvas,
+             &self.mbs,
+             &self.filters,
+             self.chroma_qp_offset,
++            thresholds,
+             rows,
+         );
+         // Published whether or not the filter finished, so that no picture

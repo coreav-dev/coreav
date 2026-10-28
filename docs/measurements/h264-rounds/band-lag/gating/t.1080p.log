@@ -1,0 +1,28 @@
+machine: unknown (family 25, model 1, stepping unknown), 2450.0 MHz, 32 logical CPUs
+175433794e02.0.1080p.h264                base:discard@1=1.31  base:write@1=1.31  base:mixed@1=1.29  a:discard@1=1.31  a:write@1=1.31  a:mixed@1=1.29  base:discard@8=1.14  base:write@8=1.10  base:mixed@8=1.09  a:discard@8=1.11  a:write@8=1.07  a:mixed@8=1.07
+6da34958296c.0.1080p.h264                base:discard@1=1.47  base:write@1=1.60  base:mixed@1=1.47  a:discard@1=1.46  a:write@1=1.72  a:mixed@1=1.47  base:discard@8=1.26  base:write@8=1.26  base:mixed@8=1.22  a:discard@8=1.21  a:write@8=1.23  a:mixed@8=1.17
+6e90422a670a.0.1080p.h264                base:discard@1=1.36  base:write@1=1.36  base:mixed@1=1.34  a:discard@1=1.35  a:write@1=1.36  a:mixed@1=1.33  base:discard@8=1.13  base:write@8=1.11  base:mixed@8=1.08  a:discard@8=1.02  a:write@8=1.03  a:mixed@8=0.98
+a6af290d9053.0.1080p.h264                base:discard@1=1.38  base:write@1=1.40  base:mixed@1=1.37  a:discard@1=1.38  a:write@1=1.40  a:mixed@1=1.38  base:discard@8=1.13  base:write@8=1.12  base:mixed@8=1.11  a:discard@8=1.11  a:write@8=1.12  a:mixed@8=1.09
+a81de82106be.0.1080p.h264                base:discard@1=1.22  base:write@1=1.08  base:mixed@1=1.01  a:discard@1=1.23  a:write@1=1.09  a:mixed@1=1.02  base:discard@8=1.27  base:write@8=1.17  base:mixed@8=1.14  a:discard@8=1.12  a:write@8=1.10  a:mixed@8=1.00
+b41f70a7fa60.0.1080p.h264                base:discard@1=1.65  base:write@1=2.98  base:mixed@1=2.89  a:discard@1=1.65  a:write@1=3.04  a:mixed@1=2.89  base:discard@8=1.24  base:write@8=1.66  base:mixed@8=1.63  a:discard@8=1.18  a:write@8=1.60  a:mixed@8=1.55
+b71b6b31e54f.0.1080p.h264                base:discard@1=1.77  base:write@1=1.47  base:mixed@1=1.42  a:discard@1=1.75  a:write@1=1.57  a:mixed@1=1.40  base:discard@8=1.39  base:write@8=1.35  base:mixed@8=1.04  a:discard@8=1.29  a:write@8=1.15  a:mixed@8=0.97
+c7ecda16e4a7.0.1080p.h264                base:discard@1=1.42  base:write@1=1.49  base:mixed@1=1.43  a:discard@1=1.45  a:write@1=1.51  a:mixed@1=1.45  base:discard@8=1.38  base:write@8=1.32  base:mixed@8=1.32  a:discard@8=1.20  a:write@8=1.19  a:mixed@8=1.15
+
+base:discard@1           n=  8  median 1.399  [1.307, 1.648]
+base:write@1             n=  8  median 1.435  [1.313, 1.596]
+base:mixed@1             n=  8  median 1.393  [1.288, 1.475]
+a:discard@1              n=  8  median 1.415  [1.307, 1.650]
+a:write@1                n=  8  median 1.457  [1.310, 1.717]
+a:mixed@1                n=  8  median 1.387  [1.288, 1.469]
+base:discard@8           n=  8  median 1.252  [1.135, 1.379]
+base:write@8             n=  8  median 1.214  [1.113, 1.347]
+base:mixed@8             n=  8  median 1.125  [1.083, 1.318]
+a:discard@8              n=  8  median 1.149  [1.108, 1.212]
+a:write@8                n=  8  median 1.133  [1.069, 1.233]
+a:mixed@8                n=  8  median 1.081  [0.977, 1.171]
+scaling:base:discard@8   n=  8  median 0.844  [0.783, 0.970]
+scaling:base:write@8     n=  8  median 0.828  [0.787, 0.914]
+scaling:a:discard@8      n=  8  median 0.816  [0.737, 0.847]
+scaling:a:write@8        n=  8  median 0.774  [0.718, 0.816]
+
+wrote /work/out/t.1080p.json

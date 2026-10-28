@@ -1,0 +1,36 @@
+Growth from one thread to eight, cycles (user and kernel, all threads), as % of our one-thread cycles;
+class: mean over its streams; all: mean of the class means. FFmpeg rows: % of FFmpeg's one-thread cycles.
+item                                               all      sd    720p   1080p      4k
+stage inter                                       9.66   17.62    7.03    3.99    9.98
+kernel: other                                     6.91   17.27    3.58    1.50    5.30
+libc and loader: other                            6.74   15.45    4.73    1.62    5.16
+band views                                        5.98    6.65    4.02    3.54    9.73
+stage mb                                          2.43    3.35    1.28    1.31    3.76
+windows leaving a band                            2.40    5.73    1.73    0.61    1.54
+publish and waits (user)                          1.67    4.69    0.70    0.35    0.94
+kernel: first touch and memory                    1.59    0.40    0.76    0.61    4.60
+stage entropy                                     0.88    1.81    1.18    0.04    0.47
+aprons                                            0.82    2.49    0.46    0.12    0.20
+stage recon                                       0.71    0.90    1.16    0.55    0.23
+stage other                                       0.57    1.89    0.18    0.02    0.18
+colocated                                         0.52    0.56    0.26    0.43    0.82
+libc copies and allocation                        0.15    0.47    0.04    0.02    0.08
+stage deblock                                     0.12    1.33    0.20   -0.14   -0.93
+stage entropy (more instructions)                 0.93    0.97    1.00    0.50    1.26
+stage entropy (slower)                           -0.06    0.84    0.18   -0.46   -0.79
+stage mb (more instructions)                      0.25    0.60    0.04   -0.09    0.44
+stage mb (slower)                                 2.18    2.75    1.24    1.40    3.32
+stage inter (more instructions)                   1.32    3.53    1.26    0.50    0.01
+stage inter (slower)                              8.33   14.09    5.78    3.49    9.97
+stage recon (more instructions)                  -0.01   -0.12   -0.51    0.15    0.46
+stage recon (slower)                              0.71    1.02    1.66    0.40   -0.23
+stage deblock (more instructions)                -0.06   -0.49    0.35   -0.10   -0.01
+stage deblock (slower)                            0.18    1.82   -0.15   -0.04   -0.92
+stage other (more instructions)                   0.09   -0.02    0.23    0.10    0.06
+stage other (slower)                              0.48    1.92   -0.06   -0.08    0.13
+ours, all                                        41.13   80.62   27.29   14.58   42.04
+ours, instructions                               14.73   22.62   10.64    8.00   17.67
+FFmpeg, all                                      26.15   47.57   17.49   11.41   28.13
+FFmpeg, kernel                                    7.21   11.06    4.63    3.01   10.12
+FFmpeg, user                                     18.95   36.52   12.86    8.40   18.01
+ours over FFmpeg, 1T cycles                      1.054   0.987   1.100   1.129   1.000

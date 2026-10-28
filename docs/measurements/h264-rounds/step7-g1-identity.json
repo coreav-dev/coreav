@@ -1,0 +1,329 @@
+{
+ "main": "271e915",
+ "branch": "e2517f8",
+ "frames": 300,
+ "streams": [
+  {
+   "stream": "00d2057ba2cd.0.720p.h264",
+   "main": "5210a39caf18a19cf6abc57d84a955bf",
+   "bytes": 167670000,
+   "threads_1": "5210a39caf18a19cf6abc57d84a955bf",
+   "threads_2": "5210a39caf18a19cf6abc57d84a955bf",
+   "threads_3": "5210a39caf18a19cf6abc57d84a955bf",
+   "threads_8": "5210a39caf18a19cf6abc57d84a955bf",
+   "identical": true
+  },
+  {
+   "stream": "02143b44a0c8.0.1080p.h264",
+   "main": "736fb1615cee7c648c7c9345bcfa5603",
+   "bytes": 933120000,
+   "threads_1": "736fb1615cee7c648c7c9345bcfa5603",
+   "threads_2": "736fb1615cee7c648c7c9345bcfa5603",
+   "threads_3": "736fb1615cee7c648c7c9345bcfa5603",
+   "threads_8": "736fb1615cee7c648c7c9345bcfa5603",
+   "identical": true
+  },
+  {
+   "stream": "029c63e01bcd.0.4k.h264",
+   "main": "3cd4f9e9d7b046d1d7a660d2b888d73f",
+   "bytes": 1872720000,
+   "threads_1": "3cd4f9e9d7b046d1d7a660d2b888d73f",
+   "threads_2": "3cd4f9e9d7b046d1d7a660d2b888d73f",
+   "threads_3": "3cd4f9e9d7b046d1d7a660d2b888d73f",
+   "threads_8": "3cd4f9e9d7b046d1d7a660d2b888d73f",
+   "identical": true
+  },
+  {
+   "stream": "03be19c3a47b.0.720p.h264",
+   "main": "8d012b800b9d02dbaee13062c90ee912",
+   "bytes": 184464000,
+   "threads_1": "8d012b800b9d02dbaee13062c90ee912",
+   "threads_2": "8d012b800b9d02dbaee13062c90ee912",
+   "threads_3": "8d012b800b9d02dbaee13062c90ee912",
+   "threads_8": "8d012b800b9d02dbaee13062c90ee912",
+   "identical": true
+  },
+  {
+   "stream": "0404af1890da.0.1080p.h264",
+   "main": "5048310bdbb49c522789b14dfd17f5de",
+   "bytes": 667699200,
+   "threads_1": "5048310bdbb49c522789b14dfd17f5de",
+   "threads_2": "5048310bdbb49c522789b14dfd17f5de",
+   "threads_3": "5048310bdbb49c522789b14dfd17f5de",
+   "threads_8": "5048310bdbb49c522789b14dfd17f5de",
+   "identical": true
+  },
+  {
+   "stream": "04e45b2f41df.0.720p.h264",
+   "main": "092580c7084265b7f56850091cbfd22a",
+   "bytes": 186624000,
+   "threads_1": "092580c7084265b7f56850091cbfd22a",
+   "threads_2": "092580c7084265b7f56850091cbfd22a",
+   "threads_3": "092580c7084265b7f56850091cbfd22a",
+   "threads_8": "092580c7084265b7f56850091cbfd22a",
+   "identical": true
+  },
+  {
+   "stream": "05f55a4982d8.0.1080p.h264",
+   "main": "f8228a3a932151140f1b5a2914f115de",
+   "bytes": 714636000,
+   "threads_1": "f8228a3a932151140f1b5a2914f115de",
+   "threads_2": "f8228a3a932151140f1b5a2914f115de",
+   "threads_3": "f8228a3a932151140f1b5a2914f115de",
+   "threads_8": "f8228a3a932151140f1b5a2914f115de",
+   "identical": true
+  },
+  {
+   "stream": "060b839eaa34.0.720p.h264",
+   "main": "54c9e78b8a489e37adb6f7a08a59c8bf",
+   "bytes": 414720000,
+   "threads_1": "54c9e78b8a489e37adb6f7a08a59c8bf",
+   "threads_2": "54c9e78b8a489e37adb6f7a08a59c8bf",
+   "threads_3": "54c9e78b8a489e37adb6f7a08a59c8bf",
+   "threads_8": "54c9e78b8a489e37adb6f7a08a59c8bf",
+   "identical": true
+  },
+  {
+   "stream": "061589fae6b7.0.4k.h264",
+   "main": "18ced25c45a4449a9896b2e712504828",
+   "bytes": 1166400000,
+   "threads_1": "18ced25c45a4449a9896b2e712504828",
+   "threads_2": "18ced25c45a4449a9896b2e712504828",
+   "threads_3": "18ced25c45a4449a9896b2e712504828",
+   "threads_8": "18ced25c45a4449a9896b2e712504828",
+   "identical": true
+  },
+  {
+   "stream": "0758bb0f1c23.0.720p.h264",
+   "main": "ce816e2a4050c35e115c0ca96f7dc146",
+   "bytes": 414720000,
+   "threads_1": "ce816e2a4050c35e115c0ca96f7dc146",
+   "threads_2": "ce816e2a4050c35e115c0ca96f7dc146",
+   "threads_3": "ce816e2a4050c35e115c0ca96f7dc146",
+   "threads_8": "ce816e2a4050c35e115c0ca96f7dc146",
+   "identical": true
+  },
+  {
+   "stream": "07cbd18cf027.0.720p.h264",
+   "main": "320100385d8f70ec00ddd86e032ce3d5",
+   "bytes": 317433600,
+   "threads_1": "320100385d8f70ec00ddd86e032ce3d5",
+   "threads_2": "320100385d8f70ec00ddd86e032ce3d5",
+   "threads_3": "320100385d8f70ec00ddd86e032ce3d5",
+   "threads_8": "320100385d8f70ec00ddd86e032ce3d5",
+   "identical": true
+  },
+  {
+   "stream": "0a64c0f45511.0.1080p.h264",
+   "main": "5bd52981d06d7476a7f3a571885badc9",
+   "bytes": 933120000,
+   "threads_1": "5bd52981d06d7476a7f3a571885badc9",
+   "threads_2": "5bd52981d06d7476a7f3a571885badc9",
+   "threads_3": "5bd52981d06d7476a7f3a571885badc9",
+   "threads_8": "5bd52981d06d7476a7f3a571885badc9",
+   "identical": true
+  },
+  {
+   "stream": "0ad504671d99.0.sd.h264",
+   "main": "5be289577dac738a5a30e3ba458e3937",
+   "bytes": 138240000,
+   "threads_1": "5be289577dac738a5a30e3ba458e3937",
+   "threads_2": "5be289577dac738a5a30e3ba458e3937",
+   "threads_3": "5be289577dac738a5a30e3ba458e3937",
+   "threads_8": "5be289577dac738a5a30e3ba458e3937",
+   "identical": true
+  },
+  {
+   "stream": "0ba6abe19f7b.0.sd.h264",
+   "main": "dd99a01e83647b896c2b0fc1fdf03c4b",
+   "bytes": 58320000,
+   "threads_1": "dd99a01e83647b896c2b0fc1fdf03c4b",
+   "threads_2": "dd99a01e83647b896c2b0fc1fdf03c4b",
+   "threads_3": "dd99a01e83647b896c2b0fc1fdf03c4b",
+   "threads_8": "dd99a01e83647b896c2b0fc1fdf03c4b",
+   "identical": true
+  },
+  {
+   "stream": "0bb05726e428.0.sd.h264",
+   "main": "5f3e50fbd5e7c4d3bfb3da59b5d52610",
+   "bytes": 32400000,
+   "threads_1": "5f3e50fbd5e7c4d3bfb3da59b5d52610",
+   "threads_2": "5f3e50fbd5e7c4d3bfb3da59b5d52610",
+   "threads_3": "5f3e50fbd5e7c4d3bfb3da59b5d52610",
+   "threads_8": "5f3e50fbd5e7c4d3bfb3da59b5d52610",
+   "identical": true
+  },
+  {
+   "stream": "0ca5354c9891.0.4k.h264",
+   "main": "f9cf23b64189e49100b4ba13d101e85d",
+   "bytes": 3981312000,
+   "threads_1": "f9cf23b64189e49100b4ba13d101e85d",
+   "threads_2": "f9cf23b64189e49100b4ba13d101e85d",
+   "threads_3": "f9cf23b64189e49100b4ba13d101e85d",
+   "threads_8": "f9cf23b64189e49100b4ba13d101e85d",
+   "identical": true
+  },
+  {
+   "stream": "0e068f543ebf.0.720p.h264",
+   "main": "976022da13c75dae8bd02ff46bc887ba",
+   "bytes": 183168000,
+   "threads_1": "976022da13c75dae8bd02ff46bc887ba",
+   "threads_2": "976022da13c75dae8bd02ff46bc887ba",
+   "threads_3": "976022da13c75dae8bd02ff46bc887ba",
+   "threads_8": "976022da13c75dae8bd02ff46bc887ba",
+   "identical": true
+  },
+  {
+   "stream": "0f5c517928bf.0.1080p.h264",
+   "main": "8911776b6c43e8eec52e331f5dd8d6a4",
+   "bytes": 739567800,
+   "threads_1": "8911776b6c43e8eec52e331f5dd8d6a4",
+   "threads_2": "8911776b6c43e8eec52e331f5dd8d6a4",
+   "threads_3": "8911776b6c43e8eec52e331f5dd8d6a4",
+   "threads_8": "8911776b6c43e8eec52e331f5dd8d6a4",
+   "identical": true
+  },
+  {
+   "stream": "0f6226648239.0.720p.h264",
+   "main": "c8e302660cfa422922dc5c2c72fb03ea",
+   "bytes": 414720000,
+   "threads_1": "c8e302660cfa422922dc5c2c72fb03ea",
+   "threads_2": "c8e302660cfa422922dc5c2c72fb03ea",
+   "threads_3": "c8e302660cfa422922dc5c2c72fb03ea",
+   "threads_8": "c8e302660cfa422922dc5c2c72fb03ea",
+   "identical": true
+  },
+  {
+   "stream": "13157d880078.0.sd.h264",
+   "main": "a9da61e480454cbb4ba3c3b693ad2aed",
+   "bytes": 34560000,
+   "threads_1": "a9da61e480454cbb4ba3c3b693ad2aed",
+   "threads_2": "a9da61e480454cbb4ba3c3b693ad2aed",
+   "threads_3": "a9da61e480454cbb4ba3c3b693ad2aed",
+   "threads_8": "a9da61e480454cbb4ba3c3b693ad2aed",
+   "identical": true
+  },
+  {
+   "stream": "13270adf84eb.0.1080p.h264",
+   "main": "f39b6ead0f4526499b039cc98e540f33",
+   "bytes": 505440000,
+   "threads_1": "f39b6ead0f4526499b039cc98e540f33",
+   "threads_2": "f39b6ead0f4526499b039cc98e540f33",
+   "threads_3": "f39b6ead0f4526499b039cc98e540f33",
+   "threads_8": "f39b6ead0f4526499b039cc98e540f33",
+   "identical": true
+  },
+  {
+   "stream": "134407049e75.0.1080p.h264",
+   "main": "1934a9cd1586f89a06d21fe028e68aa4",
+   "bytes": 933120000,
+   "threads_1": "1934a9cd1586f89a06d21fe028e68aa4",
+   "threads_2": "1934a9cd1586f89a06d21fe028e68aa4",
+   "threads_3": "1934a9cd1586f89a06d21fe028e68aa4",
+   "threads_8": "1934a9cd1586f89a06d21fe028e68aa4",
+   "identical": true
+  },
+  {
+   "stream": "13c5e52e7da5.0.sd.h264",
+   "main": "987854ddfa7644fdc6c7469b5e1fb073",
+   "bytes": 138240000,
+   "threads_1": "987854ddfa7644fdc6c7469b5e1fb073",
+   "threads_2": "987854ddfa7644fdc6c7469b5e1fb073",
+   "threads_3": "987854ddfa7644fdc6c7469b5e1fb073",
+   "threads_8": "987854ddfa7644fdc6c7469b5e1fb073",
+   "identical": true
+  },
+  {
+   "stream": "14df6c0bce7c.0.1080p.h264",
+   "main": "b03c1379c5b5b67d158b1d0894e82618",
+   "bytes": 933120000,
+   "threads_1": "b03c1379c5b5b67d158b1d0894e82618",
+   "threads_2": "b03c1379c5b5b67d158b1d0894e82618",
+   "threads_3": "b03c1379c5b5b67d158b1d0894e82618",
+   "threads_8": "b03c1379c5b5b67d158b1d0894e82618",
+   "identical": true
+  },
+  {
+   "stream": "156797c6e68c.0.4k.h264",
+   "main": "97c0f28ec87c8b32218136d30bf25473",
+   "bytes": 3732480000,
+   "threads_1": "97c0f28ec87c8b32218136d30bf25473",
+   "threads_2": "97c0f28ec87c8b32218136d30bf25473",
+   "threads_3": "97c0f28ec87c8b32218136d30bf25473",
+   "threads_8": "97c0f28ec87c8b32218136d30bf25473",
+   "identical": true
+  },
+  {
+   "stream": "1572496fb7cb.0.sd.h264",
+   "main": "af1312bce593bce497df0477e76bf541",
+   "bytes": 72090000,
+   "threads_1": "af1312bce593bce497df0477e76bf541",
+   "threads_2": "af1312bce593bce497df0477e76bf541",
+   "threads_3": "af1312bce593bce497df0477e76bf541",
+   "threads_8": "af1312bce593bce497df0477e76bf541",
+   "identical": true
+  },
+  {
+   "stream": "158c48d4a223.0.4k.h264",
+   "main": "fd6e6021278f58afe02450930476ca39",
+   "bytes": 3732480000,
+   "threads_1": "fd6e6021278f58afe02450930476ca39",
+   "threads_2": "fd6e6021278f58afe02450930476ca39",
+   "threads_3": "fd6e6021278f58afe02450930476ca39",
+   "threads_8": "fd6e6021278f58afe02450930476ca39",
+   "identical": true
+  },
+  {
+   "stream": "159026542ddb.0.sd.h264",
+   "main": "17414d2b9901451ebb7f4984b52f6f32",
+   "bytes": 46008000,
+   "threads_1": "17414d2b9901451ebb7f4984b52f6f32",
+   "threads_2": "17414d2b9901451ebb7f4984b52f6f32",
+   "threads_3": "17414d2b9901451ebb7f4984b52f6f32",
+   "threads_8": "17414d2b9901451ebb7f4984b52f6f32",
+   "identical": true
+  },
+  {
+   "stream": "1734f2047a70.0.sd.h264",
+   "main": "0a67bbfb213b499dc98eea0d58407059",
+   "bytes": 12672000,
+   "threads_1": "0a67bbfb213b499dc98eea0d58407059",
+   "threads_2": "0a67bbfb213b499dc98eea0d58407059",
+   "threads_3": "0a67bbfb213b499dc98eea0d58407059",
+   "threads_8": "0a67bbfb213b499dc98eea0d58407059",
+   "identical": true
+  },
+  {
+   "stream": "212430222f3b.0.4k.h264",
+   "main": "1317fc6bb20bafd3921c06bc7208717e",
+   "bytes": 3732480000,
+   "threads_1": "1317fc6bb20bafd3921c06bc7208717e",
+   "threads_2": "1317fc6bb20bafd3921c06bc7208717e",
+   "threads_3": "1317fc6bb20bafd3921c06bc7208717e",
+   "threads_8": "1317fc6bb20bafd3921c06bc7208717e",
+   "identical": true
+  },
+  {
+   "stream": "23ed13b2623b.0.4k.h264",
+   "main": "fc78cb21835b733ab7cc5525efde37fc",
+   "bytes": 1108080000,
+   "threads_1": "fc78cb21835b733ab7cc5525efde37fc",
+   "threads_2": "fc78cb21835b733ab7cc5525efde37fc",
+   "threads_3": "fc78cb21835b733ab7cc5525efde37fc",
+   "threads_8": "fc78cb21835b733ab7cc5525efde37fc",
+   "identical": true
+  },
+  {
+   "stream": "32fb46173bf8.0.4k.h264",
+   "main": "6210336917e311cfc93c70048e92facf",
+   "bytes": 1872720000,
+   "threads_1": "6210336917e311cfc93c70048e92facf",
+   "threads_2": "6210336917e311cfc93c70048e92facf",
+   "threads_3": "6210336917e311cfc93c70048e92facf",
+   "threads_8": "6210336917e311cfc93c70048e92facf",
+   "identical": true
+  }
+ ],
+ "identical": 32,
+ "total": 32
+}

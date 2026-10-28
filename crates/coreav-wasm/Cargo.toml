@@ -1,0 +1,32 @@
+[package]
+name = "coreav-wasm"
+description = "The WebAssembly build of CoreAV's probe and stream-copy primitives"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+# `cdylib` is the WebAssembly module; `rlib` lets the native build of the
+# same operations (tests, the measurement's reference engine) link it.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+coreav-isobmff = { path = "../coreav-isobmff" }
+coreav-isobmff-write = { path = "../coreav-isobmff-write" }
+coreav-cli = { path = "../coreav-cli", default-features = false }
+coreav-mkv = { path = "../coreav-mkv" }
+coreav-policy = { path = "../coreav-policy" }
+coreav-text = { path = "../coreav-text" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Pinned: the JSPI support (`suspending` imports, `jspi` exports) is marked
+# experimental, and the generated glue must match the CLI version exactly.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "=0.2.129"
+
+[lints]
+workspace = true

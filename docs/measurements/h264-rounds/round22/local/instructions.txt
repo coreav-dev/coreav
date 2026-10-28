@@ -1,0 +1,11 @@
+Instructions (callgrind, total Ir), --discard, the class frame count (900 pictures), local build of each
+tree (`dist`, RUSTFLAGS unset).
+
+stream               main 40f29a6     record only (56 B)     neighbour cache (nb-2)
+1d4b1775d78a 720p    7,070,482,288    7,147,699,011 +1.09%   7,054,164,620 -0.23%
+65ec61f95a00 720p   26,997,133,957   27,243,617,251 +0.91%  26,951,477,014 -0.17%
+
+The record-only prototype keeps each macroblock's whole arrays beside the record and asks, at every
+neighbour read, whether the block is the current macroblock's; the neighbour cache reads every
+neighbour with one load. A first build of the cache (nb-1) wrote a partition's run of blocks with
+`fill` over a run of runtime length, which became a `memset` call per row: +0.72% and +0.94%.

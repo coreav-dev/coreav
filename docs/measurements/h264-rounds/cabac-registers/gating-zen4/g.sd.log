@@ -1,0 +1,24 @@
+machine: unknown (family 25, model 17, stepping unknown), 3675.2 MHz, 24 logical CPUs
+41e324ebb708.0.sd.h264                   base:discard=1.45  base:write=1.21  base:mixed=1.19  c1:discard=1.45  c1:write=1.21  c1:mixed=1.19  c1b:discard=1.44  c1b:write=1.21  c1b:mixed=1.18  c4:discard=1.44  c4:write=1.21  c4:mixed=1.18
+5185721dda11.0.sd.h264                   base:discard=1.39  base:write=1.03  base:mixed=0.99  c1:discard=1.42  c1:write=1.04  c1:mixed=1.01  c1b:discard=1.40  c1b:write=1.03  c1b:mixed=1.00  c4:discard=1.36  c4:write=1.01  c4:mixed=0.97
+6f7799768413.0.sd.h264                   base:discard=1.78  base:write=1.36  base:mixed=1.33  c1:discard=1.81  c1:write=1.36  c1:mixed=1.35  c1b:discard=1.79  c1b:write=1.38  c1b:mixed=1.34  c4:discard=1.78  c4:write=1.35  c4:mixed=1.33
+7650ae466748.0.sd.h264                   base:discard=1.23  base:write=1.15  base:mixed=1.14  c1:discard=1.23  c1:write=1.16  c1:mixed=1.13  c1b:discard=1.23  c1b:write=1.19  c1b:mixed=1.13  c4:discard=1.21  c4:write=1.14  c4:mixed=1.12
+8ae90cadb5bc.0.sd.h264                   base:discard=1.27  base:write=1.33  base:mixed=1.30  c1:discard=1.32  c1:write=1.33  c1:mixed=1.35  c1b:discard=1.29  c1b:write=1.35  c1b:mixed=1.32  c4:discard=1.26  c4:write=1.31  c4:mixed=1.29
+dcb262cf0138.0.sd.h264                   base:discard=1.14  base:write=1.05  base:mixed=1.04  c1:discard=1.12  c1:write=1.05  c1:mixed=1.02  c1b:discard=1.14  c1b:write=1.06  c1b:mixed=1.03  c4:discard=1.14  c4:write=1.05  c4:mixed=1.04
+ec473c99c538.0.sd.h264                   base:discard=0.86  base:write=0.62  base:mixed=0.58  c1:discard=0.88  c1:write=0.64  c1:mixed=0.59  c1b:discard=0.84  c1b:write=0.61  c1b:mixed=0.57  c4:discard=0.87  c4:write=0.61  c4:mixed=0.59
+f9e973f44570.0.sd.h264                   base:discard=1.06  base:write=0.92  base:mixed=0.90  c1:discard=1.07  c1:write=0.92  c1:mixed=0.90  c1b:discard=1.04  c1b:write=0.92  c1b:mixed=0.88  c4:discard=1.03  c4:write=0.90  c4:mixed=0.87
+
+base:discard             n=  8  median 1.252  [1.064, 1.454]
+base:write               n=  8  median 1.101  [0.920, 1.334]
+base:mixed               n=  8  median 1.088  [0.899, 1.303]
+c1:discard               n=  8  median 1.273  [1.067, 1.453]
+c1:write                 n=  8  median 1.104  [0.924, 1.331]
+c1:mixed                 n=  8  median 1.074  [0.902, 1.350]
+c1b:discard              n=  8  median 1.258  [1.038, 1.440]
+c1b:write                n=  8  median 1.129  [0.916, 1.353]
+c1b:mixed                n=  8  median 1.085  [0.877, 1.318]
+c4:discard               n=  8  median 1.236  [1.033, 1.442]
+c4:write                 n=  8  median 1.096  [0.904, 1.312]
+c4:mixed                 n=  8  median 1.077  [0.872, 1.289]
+
+wrote /work/out/g.sd.json

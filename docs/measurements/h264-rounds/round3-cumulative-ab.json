@@ -1,0 +1,97 @@
+{
+ "what": "Round 3 cumulative A/B: before 32a4144 (main), after 7f274dc (h264-deblock tip). Paired after/before time per stream, timed in the same interleaved rounds.",
+ "machine": {
+  "note": "helper workspace, not the implementer machine; absolute ratios differ between machines",
+  "cpu": "Intel(R) Xeon(R) Processor @ 2.90GHz, 8 vCPU (cloud VM), AVX-512",
+  "memory_gb": 16,
+  "kernel": "Linux 6.18.49 x86_64",
+  "state": "idle during runs",
+  "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+  "pinned_core": 2
+ },
+ "build": "cargo build --profile dist --example decode -p coreav-h264, each commit from its own clean worktree; crates/coreav-h264/examples/decode.rs and Cargo.toml/Cargo.lock identical between the commits; source changes only in coreav-h264 (deblock, decoder, inter, mb, picture, tests) and coreav-kernels-h264/src/lib.rs",
+ "output_identity": "before and after write byte-identical frames on all 8 streams at --frames 300 (md5 of stdout, non-discard)",
+ "command": "python3 -I scripts/h264_parity.py (from 7f274dc) --pin 2 --decoder before=... --decoder after=... --ffmpeg 7.0.2-static (johnvansickle) --frames 300 --rounds 5 STREAMS",
+ "bootstrap": {
+  "seed": 20261021,
+  "resamples": 2000,
+  "percentiles": "[int(.025*N)], [int(.975*N)-1] of sorted resampled medians"
+ },
+ "streams": {
+  "sha256": {
+   "00d2057ba2cd.0.720p.h264": "601b2424dcc7c048dde0aa837e85395b646ec25fa29e0c6c94daf3317616ac22",
+   "02143b44a0c8.0.1080p.h264": "11587ee4ffda843a1bed58c590897d401c7949521b7ba78d73fb81e7283bc103",
+   "03be19c3a47b.0.720p.h264": "d0339d137c8fdf95c9a9c1eca0028c1323e981cd5369cc863b94b74d35e7b7ec",
+   "0404af1890da.0.1080p.h264": "38846039a671262e0c4f5af7ebbd1fa585d666016e4073626b7fe60075fd28e3",
+   "04e45b2f41df.0.720p.h264": "66c264e6e64b134a2bb565b4343f8646bb5985afd9b4500a3faca895b23bb12b",
+   "05f55a4982d8.0.1080p.h264": "0d551865aa14215e39c12da1b0b239ac779d3937e67a63bfe45448b5b586f081",
+   "0ba6abe19f7b.0.sd.h264": "e51a85e8dad53dba3b8bb812234acae0692c3a5b6a339d577c6c0aff35434056",
+   "0bb05726e428.0.sd.h264": "5815ee551f3ca7d180016f90c129a6387c15ab48c6f247c8ba59320a7239a9ca"
+  }
+ },
+ "paired_after_over_before": {
+  "discard": {
+   "n": 8,
+   "median": 0.9108407939822856,
+   "ci95": [
+    0.7909679434494021,
+    0.990471167619662
+   ],
+   "per_stream": {
+    "00d2057ba2cd.0.720p.h264": 0.7745038617541744,
+    "02143b44a0c8.0.1080p.h264": 0.89484289333367,
+    "03be19c3a47b.0.720p.h264": 0.9648006378539458,
+    "0404af1890da.0.1080p.h264": 0.6910620200283794,
+    "04e45b2f41df.0.720p.h264": 0.990471167619662,
+    "05f55a4982d8.0.1080p.h264": 0.8074320251446298,
+    "0ba6abe19f7b.0.sd.h264": 0.9958193801573856,
+    "0bb05726e428.0.sd.h264": 0.9268386946309012
+   }
+  },
+  "write": {
+   "n": 8,
+   "median": 0.9048060047607638,
+   "ci95": [
+    0.8154661042908178,
+    0.9891734387261301
+   ],
+   "per_stream": {
+    "00d2057ba2cd.0.720p.h264": 0.8154661042908178,
+    "02143b44a0c8.0.1080p.h264": 0.8806930285801431,
+    "03be19c3a47b.0.720p.h264": 0.984108463059273,
+    "0404af1890da.0.1080p.h264": 0.6993248317388412,
+    "04e45b2f41df.0.720p.h264": 0.9891734387261301,
+    "05f55a4982d8.0.1080p.h264": 0.8229140745194815,
+    "0ba6abe19f7b.0.sd.h264": 0.9946665870172133,
+    "0bb05726e428.0.sd.h264": 0.9289189809413845
+   }
+  }
+ },
+ "callgrind_instructions": {
+  "command": "valgrind --tool=callgrind BIN --frames 300 --discard STREAM",
+  "stream": "0404af1890da.0.1080p.h264",
+  "macroblocks": 1747200,
+  "ccd1621": {
+   "Ir": 18906816234,
+   "per_macroblock": 10821
+  },
+  "32a4144": {
+   "Ir": 16492527464,
+   "per_macroblock": 9439
+  },
+  "7f274dc": {
+   "Ir": 9599982228,
+   "per_macroblock": 5494
+  }
+ },
+ "ffmpeg_ratios_same_session": {
+  "before:discard": 3.077902566570155,
+  "after:discard": 2.6536559477374597,
+  "before:write": 2.856601886931546,
+  "after:write": 2.488296892067793,
+  "faster_than_ffmpeg": "0 of 8 streams before, 0 of 8 after"
+ },
+ "cross_check": "The implementer independently measured 32a4144 at 9,439 instructions per macroblock and the 0404af paired ratio at 0.692 against this run's 0.691, on a different machine.",
+ "note_on_symmetric_pairs": "Only discard (ours --discard vs ffmpeg -f null) and write (ours to stdout vs ffmpeg -f rawvideo) are symmetric; the parity report also carries :mixed, which is reference only.",
+ "provenance": "Measured and reported by a helper session in a separate workspace; transcribed here from its message, with $HOME substituted for the absolute paths its report carried, as docs/measurements/README.md requires. The values are unchanged."
+}

@@ -1,0 +1,94 @@
+{
+ "sha256": "526b5dad800cdbd7f208bd35d717928bda0ee712a2dd21a6326a43a80717e496",
+ "size": 1299914020,
+ "ext": "mp4",
+ "holdout": false,
+ "tags": [
+  "a:aac",
+  "brand:isom",
+  "c:isobmff",
+  "ctts",
+  "elst",
+  "elst-bframe-delay",
+  "moov-front",
+  "v:h264"
+ ],
+ "download_seconds": 9.642824045000001,
+ "ffprobe_streams": [
+  {
+   "index": 0,
+   "codec_type": "video",
+   "codec_name": "h264",
+   "codec_tag_string": "avc1",
+   "profile": "Main",
+   "sample_rate": null,
+   "channels": null,
+   "duration": "718.933333",
+   "nb_frames": "43093"
+  },
+  {
+   "index": 1,
+   "codec_type": "audio",
+   "codec_name": "aac",
+   "codec_tag_string": "mp4a",
+   "profile": "HE-AAC",
+   "sample_rate": "48000",
+   "channels": 2,
+   "duration": "719.018667",
+   "nb_frames": "16852"
+  }
+ ],
+ "coreav": {
+  "probe_ns": 970583,
+  "fragmented": false,
+  "movie_timescale": 600,
+  "tracks": [
+   {
+    "stream_index": 0,
+    "kind": "Video",
+    "codec": "H264",
+    "fourcc": "avc1",
+    "descriptions": 1,
+    "edit_list": "Simple { empty: 0, media_time: 2002, segment: 431360 }",
+    "timescale": 60000,
+    "sample_count": 43093,
+    "fragment_samples": 0
+   },
+   {
+    "stream_index": 1,
+    "kind": "Audio",
+    "codec": "Aac",
+    "fourcc": "mp4a",
+    "descriptions": 1,
+    "edit_list": "None",
+    "timescale": 24000,
+    "sample_count": 16852,
+    "fragment_samples": 0
+   }
+  ],
+  "dropped": [],
+  "aac": [
+   {
+    "stream_index": 1,
+    "extract_ns": 99522176,
+    "ok": true,
+    "output": "/data/work/526b5dad800cdbd7f208bd35d717928bda0ee712a2dd21a6326a43a80717e496/out/1.m4a",
+    "samples": 16852,
+    "bytes_written": 8581076,
+    "timescale": 24000,
+    "duration": 17256448,
+    "round_trip": []
+   }
+  ]
+ },
+ "checks": [
+  {
+   "stream_index": 1,
+   "extract_ok": true,
+   "round_trip": [],
+   "oracle_problems": [],
+   "oracle_informational": []
+  }
+ ],
+ "seconds": 14.340223816999998
+}

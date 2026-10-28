@@ -1,0 +1,12 @@
+g.sd done 12:39
+g.720p done 13:00
+VOID g.1080p attempt 1 13:48
+VOID g.1080p attempt 2 14:38
+g.1080p done 15:27
+VOID g.4k attempt 1 15:50
+g.4k done 16:13
+t8.sd done 16:16
+t8.720p done 16:19
+t8.1080p done 16:27
+t8.4k done 16:31
+ALL

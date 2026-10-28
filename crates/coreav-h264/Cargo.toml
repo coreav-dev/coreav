@@ -1,0 +1,39 @@
+[package]
+name = "coreav-h264"
+description = "H.264 (AVC) decoder: High profile, 8-bit 4:2:0, progressive"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+publish = false
+
+[dependencies]
+coreav-kernels-h264 = { path = "../coreav-kernels-h264" }
+
+[dev-dependencies]
+# The conformance manifest (tests/data/conformance-streams.json); tests only.
+serde_json.workspace = true
+
+[features]
+default = ["fast"]
+# The hot-path module (`src/fast/`, docs/design/h264.md): the decoder's only
+# `unsafe`. A build without it compiles none and runs the baseline twins.
+fast = []
+
+# The workspace's lint table, with `unsafe_code = "deny"` instead of
+# `forbid`: `#[allow(unsafe_code)]` sits on `fast` alone,
+# and every other module is `#![forbid(unsafe_code)]`.
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+indexing_slicing = "deny"
+todo = "deny"
+unimplemented = "deny"

@@ -1,0 +1,14 @@
+[package]
+name = "coreav-range"
+description = "The read plan for media objects read by byte ranges: which requests to make, when, and how far ahead, independent of how they are made"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+
+[lints]
+workspace = true

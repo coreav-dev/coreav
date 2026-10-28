@@ -1,0 +1,17 @@
+{
+  "schema": "coreav-w1-reproducers/1",
+  "comment": "Part 4 of the W1 hostile suite: public FFmpeg vulnerability reproducer media files, downloaded at run time by hostile/fetch_reproducers.py, verified by sha256, kept in their own directory, never executed, never committed (their licenses are mostly unstated). Only reproducer media files are listed, never FFmpeg source, patches or FFmpeg test code, and never a generator script. Add entries as {id, cve, component, container, page_url, download_url, archive_member (or null), filename, sha256, size_bytes, outcome}; outcome is 'reject' when the container or codec is outside the CoreAV allowlist, else 'bounded'.",
+  "searched": {
+    "date": "2026-10-14",
+    "result": "No cleanly downloadable, hash-stable, license-clear reproducer media file was found for the MP4/MOV demuxer this round, so entries is empty and the benchmark does not depend on a third-party host. The PixelSmash class (CVE-2026-8461) is covered by the generated part-3 files, built with the pinned ffmpeg as a black box.",
+    "sources_checked": [
+      {"source": "github quguanni/ffmpeg_CVE_candidate (libavformat/mov)", "outcome": "generator script (poc.py) and analysis text only; no committed media; generators are not run"},
+      {"source": "github se1ims/PixelSmash (CVE-2026-8461 lab)", "outcome": "payload generator script only; no committed media"},
+      {"source": "google/security-research advisory GHSA-vhxg-9wfx-7fcj (libavformat/mov heap overflow)", "outcome": "advisory links a PoC script, not a committed media file"},
+      {"source": "trac.ffmpeg.org raw-attachment tickets", "outcome": "behind bot protection (Anubis); attachments not fetchable without a browser"},
+      {"source": "oss-fuzz FFmpeg testcases", "outcome": "clusterfuzz testcase downloads require authentication"}
+    ],
+    "note": "FFmpeg 7.0.2 already fixes most published reproducers, so a reproducer that FFmpeg rejects is expected; the W1 safety comparison rests on CoreAV staying bounded (W1-2, W1-3) and rejecting non-allowlisted codecs and containers at probe time (W1-4), plus the structural fact that engine A runs no C code on the probe path (W1-6)."
+  },
+  "entries": []
+}

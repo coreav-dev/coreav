@@ -1,0 +1,8 @@
+Instructions (callgrind, valgrind 3.19, AVX2 path), the first 150 pictures of 1d4b1775d78a.0.720p, --discard, one
+thread. base = main b6a0bc6 (dist), k = b9824c9 (dist). Self counts of the two functions; 74,656 calls of
+x86::intra_chroma_mb in each.
+
+                                    base             k     k - base
+program total               3,389,541,783 3,376,750,118  -12,791,665 (-0.38%)
+reconstruct_chroma (self)      33,410,947    31,159,343   -2,251,604
+x86::intra_chroma_mb (self)    24,053,298    15,222,967   -8,830,331 (322 -> 204 a call)

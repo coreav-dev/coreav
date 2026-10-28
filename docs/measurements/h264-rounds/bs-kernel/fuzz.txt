@@ -1,0 +1,5 @@
+# cargo +nightly fuzz run --target x86_64-unknown-linux-gnu strengths -- -max_total_time=600 -max_len=4096, on 55e87de0, whose kernels crate's strengths code (strengths.rs, simd/avx512/strengths.rs, the target) 193051ba keeps unchanged; this VM (AVX-512, so the target compares the AVX-512 kernel, Auto and the reference)
+strengths:
+INFO: Seed: 2872608011
+Done 24531828 runs in 601 second(s)
+exit 0

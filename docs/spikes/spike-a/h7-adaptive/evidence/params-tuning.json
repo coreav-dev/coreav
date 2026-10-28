@@ -1,0 +1,12 @@
+{
+  "decision": "0026 points 2 and 3",
+  "note": "Tuning run parameters. The router's path is forced in the tuning run (A_I, A_D), so tuning_margin only labels the recorded prediction. Cold defaults are the last run's region medians (Decision 24, spikes/spike-a/h7-sidx/evidence/time): warm one-byte GET median, D1 MB/s median over objects of at least 32 MB, L median; c_parse has no earlier sample and uses c_local.",
+  "tuning_margin": 1.0,
+  "transfer_limit_bytes": 966367641600,
+  "cold_defaults": {
+    "us-west": {"rtt_s": 0.2245, "mb_per_s": 43.2, "c_parse_s": 0.0043, "c_local_s": 0.0043,
+                "from": "Decision 24 run time-us-west-20261015T044716Z"},
+    "ap": {"rtt_s": 0.1594, "mb_per_s": 52.9, "c_parse_s": 0.0033, "c_local_s": 0.0033,
+           "from": "Decision 24 run time-ap-20261015T050944Z"}
+  }
+}

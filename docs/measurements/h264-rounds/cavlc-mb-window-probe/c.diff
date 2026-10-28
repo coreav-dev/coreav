@@ -1,0 +1,398 @@
+diff --git a/crates/coreav-h264/src/cavlc.rs b/crates/coreav-h264/src/cavlc.rs
+index c0065883..56cb31cc 100644
+--- a/crates/coreav-h264/src/cavlc.rs
++++ b/crates/coreav-h264/src/cavlc.rs
+@@ -239,16 +239,18 @@ mod lut {
+ /// (clause 8.5.12.1) and would overflow the scaling arithmetic.
+ const MAX_LEVEL: i64 = 1 << 15;
+ 
+-/// The bits of a macroblock's residual blocks: a window of the next 64
+-/// bits of the RBSP, most significant first, refilled with one load when a
+-/// syntax element might not fit in what is left of it. One window serves
+-/// every block of the residual ([`crate::syntax::Syntax::begin_residual`]).
++/// The bits of a CAVLC macroblock: a window of the next 64 bits of the
++/// RBSP, most significant first, refilled with one load when a syntax
++/// element might not fit in what is left of it. One window serves the whole
++/// macroblock_layer(), its header and every block of its residual
++/// ([`crate::syntax::CavlcSyntax`]).
+ ///
+ /// Past the end of the RBSP the window reads zeros, and the position is
+-/// checked against the end once the residual is read ([`Window::finish`]),
+-/// so that no read in between needs a bounds check of its own. A block
+-/// reads at most about 1,100 bits and a residual at most 25 blocks, so a
+-/// residual cannot run far past the end before that check.
++/// checked against the end once the macroblock is read ([`Window::finish`]),
++/// so that no read in between needs a bounds check of its own. Zeros start
++/// no Exp-Golomb code, so the header fails at its first code past the end;
++/// a block reads at most about 1,100 bits and a residual at most 25 blocks,
++/// so a residual cannot run far past the end before that check.
+ pub(crate) struct Window<'a> {
+     data: &'a [u8],
+     pos: usize,
+@@ -259,14 +261,6 @@ pub(crate) struct Window<'a> {
+ }
+ 
+ impl<'a> Window<'a> {
+-    /// A window over no data, before the first residual.
+-    pub(crate) const IDLE: Window<'static> = Window {
+-        data: &[],
+-        pos: 0,
+-        bits: 0,
+-        left: 0,
+-    };
+-
+     /// A window from `r`'s position on.
+     #[inline(always)]
+     pub(crate) fn new(r: &BitReader<'a>) -> Window<'a> {
+@@ -358,6 +352,78 @@ impl<'a> Window<'a> {
+         self.skip(len);
+         Ok(slot)
+     }
++
++    /// `u(n)`, `n` from 1 to 32.
++    #[inline(always)]
++    pub(crate) fn u(&mut self, n: u32) -> u32 {
++        self.need(n);
++        self.take(n)
++    }
++
++    /// `ue(v)` (clause 9.1). Past the end of the RBSP the window reads
++    /// zeros, which start no code, so a read there fails.
++    #[inline(always)]
++    pub(crate) fn ue(&mut self) -> Result<u32> {
++        self.need(32);
++        let zeros = self.bits.leading_zeros();
++        if zeros < 16 {
++            // The whole code, at most 31 bits, is in the 32 loaded.
++            return Ok(self.take(2 * zeros + 1) - 1);
++        }
++        self.ue_long(zeros)
++    }
++
++    /// A code with 16 or more leading zeros: its suffix is read on its own.
++    #[cold]
++    #[inline(never)]
++    fn ue_long(&mut self, zeros: u32) -> Result<u32> {
++        if zeros >= 32 {
++            // As `BitReader::ue`: zero bits to the end of the RBSP are a
++            // truncated code; zeros with data behind them are a code no
++            // value fits in.
++            let left = self.data.len().saturating_mul(8).saturating_sub(self.pos);
++            return Err(if left <= 32 {
++                Error::Truncated("an Exp-Golomb code")
++            } else {
++                Error::Invalid("an Exp-Golomb code longer than 32 bits")
++            });
++        }
++        self.skip(zeros + 1);
++        self.need(zeros);
++        let rest = self.take(zeros);
++        // At most 2^31 - 1 + 2^31 - 1.
++        Ok((1u32 << zeros) - 1 + rest)
++    }
++
++    /// `ue(v)` with an inclusive upper bound.
++    #[inline(always)]
++    pub(crate) fn ue_max(&mut self, max: u32, what: &'static str) -> Result<u32> {
++        let v = self.ue()?;
++        if v > max {
++            return Err(self.error(what));
++        }
++        Ok(v)
++    }
++
++    /// `se(v)` (clause 9.1.1).
++    #[inline(always)]
++    pub(crate) fn se(&mut self) -> Result<i32> {
++        let k = i64::from(self.ue()?);
++        let v = if k % 2 == 1 { (k + 1) / 2 } else { -(k / 2) };
++        i32::try_from(v).map_err(|_| Error::Invalid("a signed Exp-Golomb value out of range"))
++    }
++
++    /// `te(v)` with the range `0..=max` (clause 9.1).
++    #[inline(always)]
++    pub(crate) fn te(&mut self, max: u32) -> Result<u32> {
++        if max > 1 {
++            self.ue_max(max, "a truncated Exp-Golomb value above its range")
++        } else if max == 1 {
++            Ok(1 - self.u(1))
++        } else {
++            Ok(0)
++        }
++    }
+ }
+ 
+ /// The coeff_token table of a block whose neighbours give `nc`
+@@ -949,6 +1015,66 @@ mod tests {
+         bits.extend((0..n).rev().map(|i| v >> i & 1 == 1));
+     }
+ 
++    #[test]
++    fn window_codes_read_as_the_bit_reader_reads_them() {
++        let mut state = 0x9e37_79b9_7f4a_7c15u64;
++        let mut next = move || {
++            state ^= state << 13;
++            state ^= state >> 7;
++            state ^= state << 17;
++            state
++        };
++        let mut long = 0;
++        for case in 0..50_000 {
++            // A third of the bytes zero, for codes of every length.
++            let len = 1 + (next() % 24) as usize;
++            let data: Vec<u8> = (0..len)
++                .map(|_| match next() {
++                    v if v % 3 == 0 => 0,
++                    v => (v >> 8) as u8,
++                })
++                .collect();
++            let mut r = BitReader::new(&data);
++            let mut w = Window::new(&r);
++            for element in 0..16 {
++                let at = format!("case {case}, element {element}");
++                let (got, want) = match next() % 4 {
++                    0 => (w.ue().map(i64::from), r.ue().map(i64::from)),
++                    1 => (w.se().map(i64::from), r.se().map(i64::from)),
++                    2 => {
++                        let max = (next() % 4) as u32;
++                        (w.te(max).map(i64::from), r.te(max).map(i64::from))
++                    }
++                    _ => {
++                        let n = 1 + (next() % 8) as u32;
++                        (Ok(i64::from(w.u(n))), r.u(n).map(i64::from))
++                    }
++                };
++                long += usize::from(want.is_ok_and(|v| v >= 65_535));
++                match want {
++                    Ok(_) => {
++                        assert_eq!(got, want, "{at}");
++                        assert_eq!(w.pos, r.pos(), "{at}");
++                    }
++                    // The same error, or bits read past the end that the
++                    // window reports when it is finished.
++                    Err(e) => {
++                        if got != Err(e) {
++                            assert!(w.pos > data.len() * 8, "{at}: {got:?} for {e:?}");
++                            assert_eq!(
++                                w.finish(&mut BitReader::new(&data)),
++                                Err(Error::Truncated("a syntax element")),
++                                "{at}"
++                            );
++                        }
++                        break;
++                    }
++                }
++            }
++        }
++        assert!(long > 100, "{long} codes of 16 or more leading zeros");
++    }
++
+     /// The levels of a block of `total` coefficients and `trailing_ones`
+     /// trailing ones read from `bits`, and the bits consumed.
+     fn read_levels(
+@@ -1222,8 +1348,6 @@ mod tests {
+             // window, finished at the end.
+             let mut a = CavlcSyntax::new(&mut ra, v3);
+             let mut b = CavlcSyntax::new(&mut rb, Base);
+-            a.begin_residual();
+-            b.begin_residual();
+             for block in 0..8 {
+                 let at = format!("case {case}, block {block}");
+                 // The shapes the macroblock layer reads: chroma DC (nC -1),
+@@ -1243,7 +1367,7 @@ mod tests {
+                 }
+             }
+             let at = format!("case {case}, end");
+-            assert_eq!(a.end_residual(), b.end_residual(), "{at}");
++            assert_eq!(a.check(), b.check(), "{at}");
+             assert_eq!(a.r.pos(), b.r.pos(), "{at}");
+         }
+         assert!(compared > 50_000, "{compared} blocks");
+diff --git a/crates/coreav-h264/src/mb.rs b/crates/coreav-h264/src/mb.rs
+index 00e60ac4..249ec843 100644
+--- a/crates/coreav-h264/src/mb.rs
++++ b/crates/coreav-h264/src/mb.rs
+@@ -1630,9 +1630,7 @@ impl<K: Kernels> SliceDecoder<'_, K> {
+     #[inline(always)]
+     fn parse_residual_cavlc<S: Syntax>(&mut self, s: &mut S) -> Result<()> {
+         self.fill_total_coeff_cache();
+-        s.begin_residual();
+         self.parse_residual_blocks(s)?;
+-        s.end_residual()?;
+         let [cb, cr] = self.nb.tc_c.map(|c| nb::edge_c(&c));
+         self.cur_nb.entropy[0] = nb::edge(&self.nb.tc);
+         self.cur_nb.entropy[1] = [cb[0], cb[1], cb[2], cb[3], cr[0], cr[1], cr[2], cr[3]];
+diff --git a/crates/coreav-h264/src/syntax.rs b/crates/coreav-h264/src/syntax.rs
+index 1f2c98ed..55639ec2 100644
+--- a/crates/coreav-h264/src/syntax.rs
++++ b/crates/coreav-h264/src/syntax.rs
+@@ -57,16 +57,6 @@ pub(crate) trait Syntax {
+     /// macroblock in place: coded_block_flag's ctxIdxInc for CABAC, nC for
+     /// CAVLC.
+     fn block_context<K: Kernels>(&self, d: &SliceDecoder<K>, kind: Blk) -> i32;
+-    /// Starts a macroblock's residual(): the blocks below are read between
+-    /// this and [`Syntax::end_residual`], with no other syntax element.
+-    #[inline(always)]
+-    fn begin_residual(&mut self) {}
+-    /// Ends a macroblock's residual(), failing if its blocks ran past the
+-    /// end of the data.
+-    #[inline(always)]
+-    fn end_residual(&mut self) -> Result<()> {
+-        Ok(())
+-    }
+     /// One residual block of maxNumCoeff `max`, its level at scanning
+     /// position `k` scaled by `scale` and written to `out[scan[k]]`; the
+     /// rest of `out` is left alone. Returns the number of non-zero
+@@ -82,31 +72,32 @@ pub(crate) trait Syntax {
+     ) -> Result<u8>;
+     /// The 384 samples of an I_PCM macroblock.
+     fn pcm(&mut self, samples: &mut [u8; 384]) -> Result<()>;
+-    /// Reports data the entropy decoder ran past the end of
+-    /// ([`Cabac::check`]).
+-    fn check(&self) -> Result<()> {
+-        Ok(())
+-    }
++    /// Ends the macroblock's syntax, after its residual: reports data the
++    /// entropy decoder ran past the end of ([`Cabac::check`]), and for
++    /// CAVLC moves the bit reader past the macroblock.
++    fn check(&mut self) -> Result<()>;
+ }
+ 
+-/// The CAVLC reader: syntax elements straight from the bit reader, and a
+-/// macroblock's residual blocks through one window on it.
++/// The CAVLC reader of one macroblock: every syntax element of its
++/// macroblock_layer() through one window on the bit reader, from the
++/// reader's position when it is made to [`Syntax::check`], which moves the
++/// reader past what the window read and checks it against the end.
+ pub(crate) struct CavlcSyntax<'r, 'a, T> {
+     pub(crate) r: &'r mut BitReader<'a>,
+     /// The instance of the hot paths the slice runs, which the residual's
+     /// blocks are inlined into (`parse_residual` enters it).
+     tier: PhantomData<T>,
+-    /// The residual's window, from [`Syntax::begin_residual`] to
+-    /// [`Syntax::end_residual`].
++    /// The macroblock's window.
+     pub(crate) w: cavlc::Window<'a>,
+ }
+ 
+ impl<'r, 'a, T> CavlcSyntax<'r, 'a, T> {
+     pub(crate) fn new(r: &'r mut BitReader<'a>, _tier: T) -> Self {
++        let w = cavlc::Window::new(r);
+         CavlcSyntax {
+             r,
+             tier: PhantomData,
+-            w: cavlc::Window::IDLE,
++            w,
+         }
+     }
+ }
+@@ -134,27 +125,27 @@ impl<T: Tier> Syntax for CavlcSyntax<'_, '_, T> {
+     }
+ 
+     fn mb_type<K: Kernels>(&mut self, _d: &SliceDecoder<K>) -> Result<u32> {
+-        self.r.ue_max(48, "mb_type")
++        self.w.ue_max(48, "mb_type")
+     }
+ 
+     fn transform8x8<K: Kernels>(&mut self, _d: &SliceDecoder<K>) -> Result<bool> {
+-        self.r.flag()
++        Ok(self.w.u(1) == 1)
+     }
+ 
+     fn sub_mb_type<K: Kernels>(&mut self, _d: &SliceDecoder<K>) -> Result<u8> {
+-        Ok(self.r.ue_max(12, "sub_mb_type")? as u8)
++        Ok(self.w.ue_max(12, "sub_mb_type")? as u8)
+     }
+ 
+     fn prev_intra_flag(&mut self) -> Result<bool> {
+-        self.r.flag()
++        Ok(self.w.u(1) == 1)
+     }
+ 
+     fn rem_intra_mode(&mut self) -> Result<u8> {
+-        Ok(self.r.u(3)? as u8)
++        Ok(self.w.u(3) as u8)
+     }
+ 
+     fn chroma_pred_mode<K: Kernels>(&mut self, _d: &SliceDecoder<K>) -> Result<u8> {
+-        Ok(self.r.ue_max(3, "intra_chroma_pred_mode")? as u8)
++        Ok(self.w.ue_max(3, "intra_chroma_pred_mode")? as u8)
+     }
+ 
+     fn ref_idx<K: Kernels>(
+@@ -165,7 +156,7 @@ impl<T: Tier> Syntax for CavlcSyntax<'_, '_, T> {
+         _by: usize,
+     ) -> Result<u32> {
+         let active = d.hdr.num_ref_idx_active.get(list).copied().unwrap_or(1);
+-        self.r.te(active.saturating_sub(1))
++        self.w.te(active.saturating_sub(1))
+     }
+ 
+     fn mvd<K: Kernels>(
+@@ -176,11 +167,11 @@ impl<T: Tier> Syntax for CavlcSyntax<'_, '_, T> {
+         _by: usize,
+         _comp: usize,
+     ) -> Result<i32> {
+-        self.r.se()
++        self.w.se()
+     }
+ 
+     fn cbp<K: Kernels>(&mut self, _d: &SliceDecoder<K>, intra: bool) -> Result<u8> {
+-        let code = self.r.ue_max(47, "coded_block_pattern")? as usize;
++        let code = self.w.ue_max(47, "coded_block_pattern")? as usize;
+         let table = if intra { t::CBP_INTRA } else { t::CBP_INTER };
+         table
+             .get(code)
+@@ -189,7 +180,7 @@ impl<T: Tier> Syntax for CavlcSyntax<'_, '_, T> {
+     }
+ 
+     fn qp_delta<K: Kernels>(&mut self, _d: &SliceDecoder<K>) -> Result<i32> {
+-        self.r.se()
++        self.w.se()
+     }
+ 
+     fn block_context<K: Kernels>(&self, d: &SliceDecoder<K>, kind: Blk) -> i32 {
+@@ -223,25 +214,24 @@ impl<T: Tier> Syntax for CavlcSyntax<'_, '_, T> {
+         cavlc::block_in(&mut self.w, context, out, scan, max, scale)
+     }
+ 
+-    #[inline(always)]
+-    fn begin_residual(&mut self) {
+-        self.w = cavlc::Window::new(self.r);
+-    }
+-
+-    #[inline(always)]
+-    fn end_residual(&mut self) -> Result<()> {
+-        self.w.finish(self.r)
+-    }
+-
+     fn pcm(&mut self, samples: &mut [u8; 384]) -> Result<()> {
++        // The samples are read straight from the reader, and the window
++        // starts again behind them.
++        self.w.finish(self.r)?;
+         while !self.r.byte_aligned() {
+             require(self.r.u(1)? == 0, "pcm_alignment_zero_bit")?;
+         }
+         for s in samples.iter_mut() {
+             *s = self.r.u(8)? as u8;
+         }
++        self.w = cavlc::Window::new(self.r);
+         Ok(())
+     }
++
++    #[inline(always)]
++    fn check(&mut self) -> Result<()> {
++        self.w.finish(self.r)
++    }
+ }
+ 
+ /// The CABAC reader.
+@@ -522,7 +512,7 @@ impl<T: Tier> Syntax for CabacSyntax<'_, '_, T> {
+         self.c.residual(self.t, contexts, max, out, scan, scale)
+     }
+ 
+-    fn check(&self) -> Result<()> {
++    fn check(&mut self) -> Result<()> {
+         self.c.check()
+     }
+ 

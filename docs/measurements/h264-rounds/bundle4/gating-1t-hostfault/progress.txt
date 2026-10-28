@@ -1,0 +1,4 @@
+host noisy before g.sd; stopping
+first start: host gate failed 10 times (noisy after a VM restart), stopped; resumed after a PASS
+VOID g.sd attempt 1
+host noisy before g.sd; stopping

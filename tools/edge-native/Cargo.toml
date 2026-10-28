@@ -1,0 +1,20 @@
+[package]
+name = "coreav-edge-native"
+description = "Test-only native build of coreav-wasm's operations: reference outputs and timings for the WebAssembly build; never published"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[[bin]]
+name = "edge-native"
+path = "src/main.rs"
+
+[dependencies]
+coreav-wasm = { path = "../../crates/coreav-wasm" }
+coreav-isobmff = { path = "../../crates/coreav-isobmff" }
+
+[lints]
+workspace = true

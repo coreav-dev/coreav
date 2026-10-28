@@ -1,0 +1,437 @@
+Stages: cycle-like events as a share of FFmpeg cycles; counts per macroblock. Mean over streams.
+
+cycles
+  class  decoder   entropy        mb     inter     recon   deblock     other     total
+  sd     core     0.2283    0.1082    0.2587    0.0527    0.1643    0.2891    1.1014
+  sd     ffa      0.2501    0.0416    0.1592    0.0634    0.1496    0.3361    1.0000
+  720p   core     0.3553    0.1109    0.2110    0.0741    0.2213    0.1177    1.0904
+  720p   ffa      0.3790    0.0468    0.1428    0.0868    0.2252    0.1194    1.0000
+  1080p  core     0.4844    0.1216    0.1900    0.0885    0.1042    0.0880    1.0767
+  1080p  ffa      0.5363    0.0488    0.1431    0.0816    0.1054    0.0847    1.0000
+  4k     core     0.2839    0.1315    0.2668    0.0475    0.0642    0.2148    1.0087
+  4k     ffa      0.3634    0.0557    0.1847    0.1127    0.0886    0.1949    1.0000
+  all    core     0.3380    0.1181    0.2316    0.0657    0.1385    0.1774    1.0693
+  all    ffa      0.3822    0.0482    0.1574    0.0861    0.1422    0.1838    1.0000
+
+instructions
+  class  decoder   entropy        mb     inter     recon   deblock     other     total
+  sd     core  1435.4950  686.2653 1184.9126  287.5618 1185.7534  635.9267 5415.9147
+  sd     ffa   1209.6842  226.9800 1087.8056  334.8052 1303.7949  796.4472 4959.5172
+  720p   core  2206.7908  675.5587 1047.5221  452.8262 1494.5588  327.2338 6204.4905
+  720p   ffa   1773.3175  207.0303  925.8118  446.5502 1596.5686  277.2523 5226.5307
+  1080p  core  4326.7399  879.8935 1325.0506  800.1597  885.5403  352.9032 8570.2873
+  1080p  ffa   3362.8631  310.0966 1173.2353  696.1787  977.3163  285.6718 6805.3617
+  4k     core  1386.2989  551.2249  988.9427  264.5181  329.5737  296.5678 3817.1262
+  4k     ffa   1265.7522  235.4662  877.1947  410.2380  471.0650  285.5017 3545.2178
+  all    core  2338.8312  698.2356 1136.6070  451.2665  973.8565  403.1579 6001.9547
+  all    ffa   1902.9042  244.8933 1016.0119  471.9430 1087.1862  411.2183 5134.1569
+
+Totals (perf stat): median per stream of CoreAV / FFmpeg BtbN; per macroblock: CoreAV, BtbN, attribution build
+  cycles                             sd    core/ffb  1.115  per MB: core     2831.4 ffb     2683.5 ffa     2623.4
+  cycles                             720p  core/ffb  1.080  per MB: core     2525.7 ffb     2284.2 ffa     2254.9
+  cycles                             1080p core/ffb  1.074  per MB: core     3550.2 ffb     3352.3 ffa     3331.4
+  cycles                             4k    core/ffb  0.985  per MB: core     1462.1 ffb     1472.9 ffa     1445.1
+  cycles                             all   core/ffb  1.077  per MB: core     2592.4 ffb     2448.2 ffa     2413.7
+  instructions                       sd    core/ffb  1.084  per MB: core     5352.5 ffb     4932.8 ffa     4905.2
+  instructions                       720p  core/ffb  1.172  per MB: core     6151.4 ffb     5151.6 ffa     5166.9
+  instructions                       1080p core/ffb  1.242  per MB: core     8540.3 ffb     6749.3 ffa     6766.7
+  instructions                       4k    core/ffb  1.054  per MB: core     3774.6 ffb     3478.6 ffa     3479.5
+  instructions                       all   core/ffb  1.153  per MB: core     5954.7 ffb     5078.1 ffa     5079.6
+  task-clock                         sd    core/ffb  1.108  per MB: core        0.0 ffb        0.0 ffa        0.0
+  task-clock                         720p  core/ffb  1.067  per MB: core        0.0 ffb        0.0 ffa        0.0
+  task-clock                         1080p core/ffb  1.059  per MB: core        0.0 ffb        0.0 ffa        0.0
+  task-clock                         4k    core/ffb  0.972  per MB: core        0.0 ffb        0.0 ffa        0.0
+  task-clock                         all   core/ffb  1.061  per MB: core        0.0 ffb        0.0 ffa        0.0
+  wall_s                             sd    core/ffb  0.921  per MB: core        0.0 ffb        0.0 ffa        0.0
+  wall_s                             720p  core/ffb  0.906  per MB: core        0.0 ffb        0.0 ffa        0.0
+  wall_s                             1080p core/ffb  0.943  per MB: core        0.0 ffb        0.0 ffa        0.0
+  wall_s                             4k    core/ffb  0.694  per MB: core        0.0 ffb        0.0 ffa        0.0
+  wall_s                             all   core/ffb  0.903  per MB: core        0.0 ffb        0.0 ffa        0.0
+
+CoreAV items within the MB layer and deblocking (mean per stream, raw weight; top 12 per event):
+
+cycles / deblock
+   13.2%  deblock.rs:deblock_row
+    8.9%  avx512.rs:filter_luma16
+    8.6%  avx512.rs:luma_columns
+    7.3%  avx512.rs:luma_rows
+    6.9%  avx512.rs:{closure#0}
+    5.4%  deblock.rs:edge_strengths
+    4.2%  avx512.rs:{closure#1}
+    3.1%  x86.rs:filter_chroma16
+    2.6%  deblock.rs:{closure#0}
+    2.5%  chroma_mb.rs:{closure#0}
+    2.5%  deblock.rs:same_motion
+    2.4%  deblock.rs:deblock_rows
+
+cycles / mb
+    8.2%  mb.rs:reset_body
+    8.2%  inter.rs:predict_partitions
+    7.3%  inter.rs:{closure#0}
+    5.9%  inter.rs:resolve
+    4.8%  inter.rs:mv_predictor
+    4.3%  mb.rs:finish_mb
+    3.6%  inter.rs:set
+    3.3%  mb.rs:start_mb_body
+    2.8%  mb.rs:neighbour
+    2.6%  nb.rs:put
+    2.3%  inter.rs:predict_direct
+    2.2%  mod.rs:enter
+
+instructions / deblock
+   18.4%  deblock.rs:deblock_row
+    8.7%  avx512.rs:{closure#0}
+    8.2%  avx512.rs:filter_luma16
+    5.5%  avx512.rs:luma_columns
+    5.3%  avx512.rs:luma_rows
+    4.4%  deblock.rs:edge_strengths
+    4.2%  x86.rs:filter_chroma16
+    3.8%  chroma_mb.rs:{closure#0}
+    3.1%  chroma_mb.rs:lanes
+    3.0%  avx512.rs:{closure#1}
+    2.7%  deblock.rs:{closure#0}
+    2.2%  avx512.rs:thresholds
+
+instructions / mb
+    8.8%  inter.rs:resolve
+    8.2%  inter.rs:predict_partitions
+    6.0%  mb.rs:reset_body
+    6.0%  inter.rs:mv_predictor
+    5.1%  mb.rs:finish_mb
+    4.3%  inter.rs:{closure#0}
+    3.6%  mb.rs:start_mb_body
+    3.0%  inter.rs:predict_direct
+    2.8%  mod.rs:enter
+    2.8%  mb.rs:neighbour
+    2.6%  nb.rs:put
+    2.3%  mb.rs:{closure#0}
+
+Instructions per cycle by stage (sampled together; summed over the streams):
+  class  decoder   entropy        mb     inter     recon   deblock     other     total
+  sd     core       2.39      2.50      1.85      2.22      2.79      0.89      2.00
+  sd     ffa        1.84      2.11      2.75      2.19      3.52      0.94      2.06
+  720p   core       2.45      2.73      2.40      2.59      3.19      1.23      2.50
+  720p   ffa        1.88      2.11      3.03      2.32      3.45      1.15      2.36
+  1080p  core       2.25      2.63      2.69      2.46      3.15      1.56      2.39
+  1080p  ffa        1.58      2.54      3.03      2.68      3.62      1.41      2.01
+  4k     core       2.41      3.03      2.78      2.81      3.80      1.39      2.50
+  4k     ffa        1.74      3.28      3.24      2.91      4.27      1.42      2.23
+  all    core       2.33      2.71      2.48      2.54      3.13      1.26      2.38
+  all    ffa        1.68      2.55      3.04      2.60      3.59      1.20      2.13
+
+Parity by stage: cycles as a share of FFmpeg's, mean over streams; excess = CoreAV - 1.00 x FFmpeg
+
+sd (n=8): sampled cycles, CoreAV 1.101 of FFmpeg's (mean); perf stat cycles, CoreAV over the BtbN build 1.115 (median per stream); excess +0.101
+  stage                                               CoreAV  FFmpeg  ratio  excess  of +  ins/MB C  ins/MB F  IPC C  IPC F
+  inter prediction and reference fetch                 0.259   0.159   1.63  +0.100   55%      1185      1088   1.85   2.75
+  MB layer (neighbours, motion derivation, caches)     0.108   0.042   2.60  +0.067   37%       686       227   2.50   2.11
+  deblocking (strengths and filter)                    0.164   0.150   1.10  +0.015    8%      1186      1304   2.79   3.52
+  reconstruction (dequant, IDCT, intra)                0.053   0.063   0.83  -0.011    0%       288       335   2.22   2.19
+  entropy (NAL, CABAC/CAVLC, MB syntax)                0.228   0.250   0.91  -0.022    0%      1435      1210   2.39   1.84
+  other (setup, output, allocation, kernel, libc)      0.289   0.336   0.86  -0.047    0%       636       796   0.89   0.94
+    inter: CoreAV functions | FFmpeg functions (cycles, share of FFmpeg's)
+      0.0360 inter.rs:predict_fast_body                               | 0.0293 mc_part_420_simple_8
+      0.0238 x86.rs:store                                             | 0.0194 put_pixels16_after_prologue
+      0.0208 inter.rs:reference_band                                  | 0.0170 ff_put_h264_chroma_mc8_rnd_ssse3
+      0.0191 x86.rs:b1                                                | 0.0133 ff_put_h264_qpel8or16_v_lowpass_sse2
+      0.0190 predict.rs:rows                                          | 0.0113 ff_put_h264_qpel16_h_lowpass_l2_ssse3
+      0.0147 x86.rs:load                                              | 0.0076 ff_put_h264_qpel8or16_hv1_lowpass_op_sse2
+      0.0125 inter.rs:edge_window                                     | 0.0075 ff_prefetch_mmxext
+      0.0105 predict.rs:place                                         | 0.0053 ff_put_h264_qpel8_h_lowpass_l2_ssse3
+    mb: CoreAV functions | FFmpeg functions (cycles, share of FFmpeg's)
+      0.0185 inter.rs:{closure#0}                                     | 0.0220 fill_decode_caches
+      0.0080 inter.rs:predict_partitions                              | 0.0065 ff_h264_pred_direct_motion
+      0.0071 mb.rs:reset_body                                         | 0.0057 fill_decode_neighbors
+      0.0068 inter.rs:resolve                                         | 0.0041 decode_slice
+      0.0048 inter.rs:mv_predictor                                    | 0.0022 ff_h264_queue_decode_slice
+      0.0038 inter.rs:set                                             | 0.0009 ff_h264_build_ref_list
+      0.0035 mb.rs:finish_mb                                          | 0.0001 ff_h264_direct_ref_list_init
+      0.0029 mb.rs:start_mb_body                                      | 0.0001 ff_h264_ref_picture
+    deblock: CoreAV functions | FFmpeg functions (cycles, share of FFmpeg's)
+      0.0222 deblock.rs:deblock_row                                   | 0.0339 loop_filter
+      0.0122 avx512.rs:filter_luma16                                  | 0.0272 ff_deblock_v_luma_8_avx
+      0.0116 avx512.rs:luma_columns                                   | 0.0271 ff_h264_loop_filter_strength_mmxext
+      0.0110 deblock.rs:edge_strengths                                | 0.0231 ff_h264_filter_mb_fast
+      0.0097 avx512.rs:luma_rows                                      | 0.0180 ff_deblock_h_luma_8_avx
+      0.0094 avx512.rs:{closure#0}                                    | 0.0076 ff_deblock_h_chroma_8_avx
+      0.0086 deblock.rs:deblock_rows                                  | 0.0051 ff_deblock_v_chroma_8_avx
+      0.0060 deblock.rs:same_motion                                   | 0.0034 ff_deblock_v_luma_intra_8_avx
+    recon: CoreAV functions | FFmpeg functions (cycles, share of FFmpeg's)
+      0.0110 recon.rs:apply                                           | 0.0294 hl_decode_mb_simple_8
+      0.0046 x86.rs:add_residual8                                     | 0.0097 h264_add8x4_idct_sse2
+      0.0032 x86.rs:intra4x4_mb                                       | 0.0048 h264_idct_dc_add8_mmxext
+      0.0029 x86.rs:chroma_residual                                   | 0.0038 ff_h264_idct_add16_8_sse2
+      0.0028 x86.rs:idct4_pass                                        | 0.0019 ff_h264_idct8_add4_8_sse2
+      0.0024 recon.rs:reconstruct_chroma                              | 0.0019 ff_h264_idct_add8_8_sse2
+      0.0022 x86.rs:predict4x4                                        | 0.0016 ff_h264_hl_decode_mb
+      0.0019 recon.rs:residual_4x4_luma                               | 0.0009 ff_h264_chroma_dc_dequant_idct_8_c
+    entropy: CoreAV functions | FFmpeg functions (cycles, share of FFmpeg's)
+      0.0721 cabac.rs:decision                                        | 0.0554 decode_residual
+      0.0146 mb.rs:decode_mb                                          | 0.0376 ff_h264_decode_mb_cavlc
+      0.0127 cavlc.rs:block_body                                      | 0.0358 ff_h264_decode_mb_cabac
+      0.0088 cabac.rs:significance_map                                | 0.0267 get_cabac_noinline
+      0.0074 cavlc.rs:code                                            | 0.0258 get_cabac
+      0.0072 mb.rs:parse_4x4_blocks                                   | 0.0241 decode_significance_x86
+      0.0068 cavlc.rs:levels                                          | 0.0188 decode_cabac_residual_nondc_internal
+      0.0065 cavlc.rs:skip                                            | 0.0116 decode_cabac_mb_mvd
+    other: CoreAV functions | FFmpeg functions (cycles, share of FFmpeg's)
+      0.1038 [[kernel.kallsyms]]                                      | 0.1397 [[kernel.kallsyms]]
+      0.0997 [libc.so.6]                                              | 0.0757 [libc.so.6]
+      0.0156 other                                                    | 0.0301 await_references
+      0.0068 picture.rs:mb_motion                                     | 0.0099 av_buffer_unref
+      0.0054 picture.rs:copy_top                                      | 0.0079 av_refstruct_unref
+      0.0044 picture.rs:publish                                       | 0.0069 ff_thread_await_progress
+      0.0038 picture.rs:copy                                          | 0.0057 av_buffer_ref
+      0.0037 picture.rs:published_band                                | 0.0027 ff_h264_update_thread_context
+
+720p (n=8): sampled cycles, CoreAV 1.090 of FFmpeg's (mean); perf stat cycles, CoreAV over the BtbN build 1.08 (median per stream); excess +0.090
+  stage                                               CoreAV  FFmpeg  ratio  excess  of +  ins/MB C  ins/MB F  IPC C  IPC F
+  inter prediction and reference fetch                 0.211   0.143   1.48  +0.068   52%      1048       926   2.40   3.03
+  MB layer (neighbours, motion derivation, caches)     0.111   0.047   2.37  +0.064   48%       676       207   2.73   2.11
+  other (setup, output, allocation, kernel, libc)      0.118   0.119   0.99  -0.002    0%       327       277   1.23   1.15
+  deblocking (strengths and filter)                    0.221   0.225   0.98  -0.004    0%      1495      1597   3.19   3.45
+  reconstruction (dequant, IDCT, intra)                0.074   0.087   0.85  -0.013    0%       453       447   2.59   2.32
+  entropy (NAL, CABAC/CAVLC, MB syntax)                0.355   0.379   0.94  -0.024    0%      2207      1773   2.45   1.88
+    inter: CoreAV functions | FFmpeg functions (cycles, share of FFmpeg's)
+      0.0311 inter.rs:predict_fast_body                               | 0.0284 mc_part_420_simple_8
+      0.0172 prefetch.rs:for_rows                                     | 0.0189 ff_put_h264_chroma_mc8_rnd_ssse3
+      0.0151 inter.rs:reference_band                                  | 0.0153 put_pixels16_after_prologue
+      0.0128 x86.rs:b1                                                | 0.0151 ff_put_h264_qpel8or16_v_lowpass_sse2
+      0.0118 predict.rs:place                                         | 0.0142 ff_put_h264_qpel16_h_lowpass_l2_ssse3
+      0.0114 x86.rs:store                                             | 0.0094 ff_prefetch_mmxext
+      0.0108 predict.rs:rows                                          | 0.0046 ff_put_h264_qpel8or16_hv1_lowpass_op_sse2
+      0.0084 x86.rs:load                                              | 0.0045 ff_h264_weight_16_sse2
+    mb: CoreAV functions | FFmpeg functions (cycles, share of FFmpeg's)
+      0.0088 inter.rs:{closure#0}                                     | 0.0264 fill_decode_caches
+      0.0087 mb.rs:reset_body                                         | 0.0077 ff_h264_pred_direct_motion
+      0.0080 inter.rs:predict_partitions                              | 0.0066 fill_decode_neighbors
+      0.0058 inter.rs:resolve                                         | 0.0054 decode_slice
+      0.0054 mb.rs:start_mb_body                                      | 0.0004 ff_h264_queue_decode_slice
+      0.0054 inter.rs:mv_predictor                                    | 0.0003 ff_h264_build_ref_list
+      0.0054 mb.rs:finish_mb                                          | 0.0000 ff_h264_direct_ref_list_init
+      0.0040 mb.rs:start_intra                                        | 0.0000 ff_h264_ref_picture
+    other: CoreAV functions | FFmpeg functions (cycles, share of FFmpeg's)
+      0.0408 [[kernel.kallsyms]]                                      | 0.0616 [[kernel.kallsyms]]
+      0.0329 [libc.so.6]                                              | 0.0191 [libc.so.6]
+      0.0059 other                                                    | 0.0174 await_references
+      0.0056 mod.rs:residual                                          | 0.0047 ff_thread_await_progress
+      0.0045 picture.rs:mb_motion                                     | 0.0015 av_buffer_unref
+      0.0029 picture.rs:band_reading_luma_window                      | 0.0013 av_refstruct_unref
+      0.0025 picture.rs:eq                                            | 0.0012 ff_thread_report_progress
+      0.0021 picture.rs:band_of_mb_row                                | 0.0011 av_buffer_ref
+    deblock: CoreAV functions | FFmpeg functions (cycles, share of FFmpeg's)
+      0.0266 deblock.rs:deblock_row                                   | 0.0449 ff_deblock_v_luma_8_avx
+      0.0231 avx512.rs:luma_columns                                   | 0.0367 loop_filter
+      0.0225 avx512.rs:filter_luma16                                  | 0.0338 ff_deblock_h_luma_8_avx
+      0.0185 avx512.rs:luma_rows                                      | 0.0279 ff_h264_loop_filter_strength_mmxext
+      0.0172 avx512.rs:{closure#0}                                    | 0.0277 ff_h264_filter_mb_fast
+      0.0109 avx512.rs:{closure#1}                                    | 0.0162 ff_deblock_v_luma_intra_8_avx
+      0.0105 deblock.rs:edge_strengths                                | 0.0114 ff_deblock_h_luma_intra_8_avx
+      0.0073 x86.rs:filter_chroma16                                   | 0.0106 ff_deblock_h_chroma_8_avx
+    recon: CoreAV functions | FFmpeg functions (cycles, share of FFmpeg's)
+      0.0072 recon.rs:apply                                           | 0.0366 hl_decode_mb_simple_8
+      0.0065 x86.rs:add_residual8                                     | 0.0112 h264_add8x4_idct_sse2
+      0.0041 x86.rs:chroma_residual                                   | 0.0074 h264_idct_dc_add8_mmxext
+      0.0036 x86.rs:idct4_pass                                        | 0.0040 ff_h264_idct_add16_8_sse2
+      0.0031 recon.rs:reconstruct_intra                               | 0.0037 ff_h264_idct8_add4_8_sse2
+      0.0031 recon.rs:reconstruct_chroma                              | 0.0027 ff_pred8x8_dc_8_sse2
+      0.0030 x86.rs:pair_rows                                         | 0.0019 ff_h264_idct_add_8_avx
+      0.0029 x86.rs:intra4x4_mb                                       | 0.0018 ff_h264_hl_decode_mb
+    entropy: CoreAV functions | FFmpeg functions (cycles, share of FFmpeg's)
+      0.1833 cabac.rs:decision                                        | 0.0758 ff_h264_decode_mb_cabac
+      0.0210 cabac.rs:significance_map                                | 0.0729 decode_significance_x86
+      0.0199 mb.rs:decode_mb                                          | 0.0662 get_cabac_noinline
+      0.0121 cabac.rs:levels                                          | 0.0658 get_cabac
+      0.0081 mb.rs:parse_4x4_blocks                                   | 0.0336 decode_cabac_residual_nondc_internal
+      0.0062 mb.rs:parse_residual_blocks                              | 0.0271 decode_cabac_mb_mvd
+      0.0061 mb.rs:coded_block_flag_inc                               | 0.0129 ff_h264_decode_mb_cavlc
+      0.0057 syntax.rs:{closure#0}                                    | 0.0077 decode_residual
+
+1080p (n=8): sampled cycles, CoreAV 1.077 of FFmpeg's (mean); perf stat cycles, CoreAV over the BtbN build 1.074 (median per stream); excess +0.077
+  stage                                               CoreAV  FFmpeg  ratio  excess  of +  ins/MB C  ins/MB F  IPC C  IPC F
+  MB layer (neighbours, motion derivation, caches)     0.122   0.049   2.49  +0.073   56%       880       310   2.63   2.54
+  inter prediction and reference fetch                 0.190   0.143   1.33  +0.047   36%      1325      1173   2.69   3.03
+  reconstruction (dequant, IDCT, intra)                0.089   0.082   1.08  +0.007    5%       800       696   2.46   2.68
+  other (setup, output, allocation, kernel, libc)      0.088   0.085   1.04  +0.003    3%       353       286   1.56   1.41
+  deblocking (strengths and filter)                    0.104   0.105   0.99  -0.001    0%       886       977   3.15   3.62
+  entropy (NAL, CABAC/CAVLC, MB syntax)                0.484   0.536   0.90  -0.052    0%      4327      3363   2.25   1.58
+    mb: CoreAV functions | FFmpeg functions (cycles, share of FFmpeg's)
+      0.0097 mb.rs:reset_body                                         | 0.0276 fill_decode_caches
+      0.0095 inter.rs:predict_partitions                              | 0.0109 ff_h264_pred_direct_motion
+      0.0076 inter.rs:resolve                                         | 0.0063 fill_decode_neighbors
+      0.0073 inter.rs:{closure#0}                                     | 0.0035 decode_slice
+      0.0068 inter.rs:mv_predictor                                    | 0.0004 ff_h264_queue_decode_slice
+      0.0055 mb.rs:finish_mb                                          | 0.0002 ff_h264_build_ref_list
+      0.0040 inter.rs:set                                             | 0.0000 ff_h264_direct_ref_list_init
+      0.0038 inter.rs:colocated                                       | 0.0000 
+    inter: CoreAV functions | FFmpeg functions (cycles, share of FFmpeg's)
+      0.0346 inter.rs:predict_fast_body                               | 0.0301 mc_part_420_simple_8
+      0.0174 prefetch.rs:for_rows                                     | 0.0146 ff_put_h264_chroma_mc8_rnd_ssse3
+      0.0145 inter.rs:reference_band                                  | 0.0128 ff_put_h264_qpel16_h_lowpass_l2_ssse3
+      0.0122 x86.rs:b1                                                | 0.0123 ff_put_h264_qpel8or16_v_lowpass_sse2
+      0.0102 predict.rs:place                                         | 0.0105 put_pixels16_after_prologue
+      0.0076 predict.rs:rows                                          | 0.0081 ff_prefetch_mmxext
+      0.0076 x86.rs:store                                             | 0.0075 ff_put_h264_qpel8or16_hv1_lowpass_op_sse2
+      0.0067 x86.rs:interpolate                                       | 0.0052 ff_put_h264_qpel8_h_lowpass_l2_ssse3
+    recon: CoreAV functions | FFmpeg functions (cycles, share of FFmpeg's)
+      0.0153 recon.rs:apply                                           | 0.0268 hl_decode_mb_simple_8
+      0.0092 x86.rs:add_residual8                                     | 0.0122 ff_h264_idct8_add4_8_sse2
+      0.0065 x86.rs:idct8_pass                                        | 0.0119 h264_add8x4_idct_sse2
+      0.0043 x86.rs:chroma_residual                                   | 0.0083 h264_idct_dc_add8_mmxext
+      0.0040 x86.rs:idct4_pass                                        | 0.0035 ff_h264_idct_add16_8_sse2
+      0.0039 x86.rs:transpose4x2                                      | 0.0023 ff_h264_idct_add8_8_sse2
+      0.0034 recon.rs:reconstruct_chroma                              | 0.0020 ff_h264_chroma_dc_dequant_idct_8_c
+      0.0030 x86.rs:pair_rows                                         | 0.0018 ff_h264_idct8_add_8_sse2
+    other: CoreAV functions | FFmpeg functions (cycles, share of FFmpeg's)
+      0.0298 [[kernel.kallsyms]]                                      | 0.0436 [[kernel.kallsyms]]
+      0.0171 [libc.so.6]                                              | 0.0193 await_references
+      0.0082 picture.rs:mb_motion                                     | 0.0091 [libc.so.6]
+      0.0064 mod.rs:residual                                          | 0.0053 ff_thread_await_progress
+      0.0036 other                                                    | 0.0007 av_buffer_unref
+      0.0026 picture.rs:eq                                            | 0.0007 ff_thread_report_progress
+      0.0025 picture.rs:band_reading_luma_window                      | 0.0004 av_buffer_ref
+      0.0019 picture.rs:band_of_mb_row                                | 0.0004 h264_find_frame_end
+    deblock: CoreAV functions | FFmpeg functions (cycles, share of FFmpeg's)
+      0.0146 deblock.rs:deblock_row                                   | 0.0231 loop_filter
+      0.0088 avx512.rs:filter_luma16                                  | 0.0201 ff_deblock_v_luma_8_avx
+      0.0077 avx512.rs:luma_columns                                   | 0.0186 ff_h264_loop_filter_strength_mmxext
+      0.0073 avx512.rs:luma_rows                                      | 0.0148 ff_h264_filter_mb_fast
+      0.0067 deblock.rs:edge_strengths                                | 0.0120 ff_deblock_h_luma_8_avx
+      0.0067 avx512.rs:{closure#0}                                    | 0.0054 ff_deblock_h_chroma_8_avx
+      0.0041 avx512.rs:{closure#1}                                    | 0.0037 ff_deblock_v_luma_intra_8_avx
+      0.0030 deblock.rs:{closure#0}                                   | 0.0033 ff_deblock_v_chroma_8_avx
+    entropy: CoreAV functions | FFmpeg functions (cycles, share of FFmpeg's)
+      0.2602 cabac.rs:decision                                        | 0.1457 decode_cabac_residual_nondc_internal
+      0.0326 cabac.rs:significance_map                                | 0.1041 get_cabac
+      0.0302 cabac.rs:levels                                          | 0.0859 decode_significance_x86
+      0.0151 mb.rs:decode_mb                                          | 0.0732 ff_h264_decode_mb_cabac
+      0.0098 cabac.rs:refill                                          | 0.0541 get_cabac_noinline
+      0.0089 cabac.rs:{closure#1}                                     | 0.0302 decode_cabac_mb_mvd
+      0.0085 mb.rs:parse_residual_blocks                              | 0.0149 ff_h264_decode_mb_cavlc
+      0.0084 cabac.rs:bypass                                          | 0.0122 decode_residual
+
+4k (n=8): sampled cycles, CoreAV 1.009 of FFmpeg's (mean); perf stat cycles, CoreAV over the BtbN build 0.985 (median per stream); excess +0.009
+  stage                                               CoreAV  FFmpeg  ratio  excess  of +  ins/MB C  ins/MB F  IPC C  IPC F
+  inter prediction and reference fetch                 0.267   0.185   1.44  +0.082   46%       989       877   2.78   3.24
+  MB layer (neighbours, motion derivation, caches)     0.131   0.056   2.36  +0.076   43%       551       235   3.03   3.28
+  other (setup, output, allocation, kernel, libc)      0.215   0.195   1.10  +0.020   11%       297       286   1.39   1.42
+  deblocking (strengths and filter)                    0.064   0.089   0.72  -0.024    0%       330       471   3.80   4.27
+  reconstruction (dequant, IDCT, intra)                0.048   0.113   0.42  -0.065    0%       265       410   2.81   2.91
+  entropy (NAL, CABAC/CAVLC, MB syntax)                0.284   0.363   0.78  -0.079    0%      1386      1266   2.41   1.74
+    inter: CoreAV functions | FFmpeg functions (cycles, share of FFmpeg's)
+      0.0428 inter.rs:predict_fast_body                               | 0.0667 mc_part_420_simple_8
+      0.0294 prefetch.rs:for_rows                                     | 0.0241 put_pixels16_after_prologue
+      0.0283 inter.rs:reference_band                                  | 0.0224 ff_put_h264_chroma_mc8_rnd_ssse3
+      0.0223 mod.rs:predict_fast                                      | 0.0148 ff_prefetch_mmxext
+      0.0194 predict.rs:place                                         | 0.0087 ff_put_h264_qpel16_h_lowpass_l2_ssse3
+      0.0141 x86.rs:store                                             | 0.0070 ff_put_h264_qpel8or16_v_lowpass_sse2
+      0.0125 predict.rs:rows                                          | 0.0057 ff_h264_weight_16_sse2
+      0.0102 inter.rs:motion_compensate                               | 0.0055 ff_put_h264_qpel8or16_hv1_lowpass_op_sse2
+    mb: CoreAV functions | FFmpeg functions (cycles, share of FFmpeg's)
+      0.0341 inter.rs:{closure#0}                                     | 0.0196 fill_decode_caches
+      0.0077 inter.rs:resolve                                         | 0.0172 fill_decode_neighbors
+      0.0066 mb.rs:start_mb_body                                      | 0.0106 decode_slice
+      0.0061 mb.rs:finish_mb                                          | 0.0080 ff_h264_pred_direct_motion
+      0.0049 mb.rs:request_destination                                | 0.0002 ff_h264_queue_decode_slice
+      0.0047 inter.rs:predict_partitions                              | 0.0001 ff_h264_build_ref_list
+      0.0045 mod.rs:enter                                             | 0.0000 
+      0.0044 inter.rs:mv_predictor                                    | 0.0000 
+    other: CoreAV functions | FFmpeg functions (cycles, share of FFmpeg's)
+      0.1117 [[kernel.kallsyms]]                                      | 0.1277 [[kernel.kallsyms]]
+      0.0489 [libc.so.6]                                              | 0.0300 await_references
+      0.0062 picture.rs:mb_motion                                     | 0.0178 [libc.so.6]
+      0.0055 picture.rs:band_reading_luma_window                      | 0.0081 ff_thread_await_progress
+      0.0050 picture.rs:band_reading_luma_row                         | 0.0010 av_buffer_unref
+      0.0050 picture.rs:fit                                           | 0.0010 ff_thread_report_progress
+      0.0037 mod.rs:residual                                          | 0.0008 av_refstruct_unref
+      0.0034 picture.rs:eq                                            | 0.0008 [ld-linux-x86-64.so.2]
+    deblock: CoreAV functions | FFmpeg functions (cycles, share of FFmpeg's)
+      0.0192 deblock.rs:deblock_row                                   | 0.0440 loop_filter
+      0.0049 deblock.rs:deblock_rows                                  | 0.0127 ff_h264_loop_filter_strength_mmxext
+      0.0037 deblock.rs:edge_strengths                                | 0.0095 ff_h264_filter_mb_fast
+      0.0035 avx512.rs:luma_columns                                   | 0.0077 ff_deblock_v_luma_8_avx
+      0.0031 avx512.rs:filter_luma16                                  | 0.0052 ff_deblock_h_luma_8_avx
+      0.0025 deblock.rs:{closure#0}                                   | 0.0027 ff_deblock_v_luma_intra_8_avx
+      0.0023 avx512.rs:{closure#0}                                    | 0.0020 ff_deblock_h_chroma_8_avx
+      0.0023 avx512.rs:luma_rows                                      | 0.0016 ff_deblock_h_luma_intra_8_avx
+    recon: CoreAV functions | FFmpeg functions (cycles, share of FFmpeg's)
+      0.0079 recon.rs:apply                                           | 0.0587 hl_decode_mb_simple_8
+      0.0048 x86.rs:add_residual8                                     | 0.0232 h264_add8x4_idct_sse2
+      0.0039 x86.rs:idct8_pass                                        | 0.0067 ff_h264_idct8_add4_8_sse2
+      0.0024 x86.rs:idct4_pass                                        | 0.0052 ff_h264_idct_add16_8_sse2
+      0.0023 x86.rs:transpose4x2                                      | 0.0046 ff_h264_hl_decode_mb
+      0.0018 recon.rs:reconstruct_chroma                              | 0.0037 h264_idct_dc_add8_mmxext
+      0.0017 x86.rs:pair_rows                                         | 0.0031 ff_h264_idct_add8_8_sse2
+      0.0017 recon.rs:residual_4x4_luma                               | 0.0014 ff_h264_chroma_dc_dequant_idct_8_c
+    entropy: CoreAV functions | FFmpeg functions (cycles, share of FFmpeg's)
+      0.1629 cabac.rs:decision                                        | 0.0772 ff_h264_decode_mb_cabac
+      0.0167 cabac.rs:levels                                          | 0.0755 get_cabac
+      0.0139 cabac.rs:significance_map                                | 0.0721 decode_cabac_residual_nondc_internal
+      0.0094 mb.rs:decode_mb                                          | 0.0645 get_cabac_noinline
+      0.0085 mb.rs:decode_cabac_body                                  | 0.0457 decode_significance_x86
+      0.0054 cabac.rs:refill                                          | 0.0122 decode_cabac_mb_mvd
+      0.0049 mb.rs:coded_block_flag_inc                               | 0.0090 decode_cabac_mb_skip
+      0.0048 cabac.rs:consume                                         | 0.0038 decode_cabac_residual_dc_internal
+
+all (n=32): sampled cycles, CoreAV 1.069 of FFmpeg's (mean); perf stat cycles, CoreAV over the BtbN build 1.077 (median per stream); excess +0.069
+  stage                                               CoreAV  FFmpeg  ratio  excess  of +  ins/MB C  ins/MB F  IPC C  IPC F
+  inter prediction and reference fetch                 0.232   0.157   1.47  +0.074   52%      1137      1016   2.48   3.04
+  MB layer (neighbours, motion derivation, caches)     0.118   0.048   2.45  +0.070   48%       698       245   2.71   2.55
+  deblocking (strengths and filter)                    0.138   0.142   0.97  -0.004    0%       974      1087   3.13   3.59
+  other (setup, output, allocation, kernel, libc)      0.177   0.184   0.97  -0.006    0%       403       411   1.26   1.20
+  reconstruction (dequant, IDCT, intra)                0.066   0.086   0.76  -0.020    0%       451       472   2.54   2.60
+  entropy (NAL, CABAC/CAVLC, MB syntax)                0.338   0.382   0.88  -0.044    0%      2339      1903   2.33   1.68
+    inter: CoreAV functions | FFmpeg functions (cycles, share of FFmpeg's)
+      0.0361 inter.rs:predict_fast_body                               | 0.0386 mc_part_420_simple_8
+      0.0197 inter.rs:reference_band                                  | 0.0182 ff_put_h264_chroma_mc8_rnd_ssse3
+      0.0160 prefetch.rs:for_rows                                     | 0.0173 put_pixels16_after_prologue
+      0.0142 x86.rs:store                                             | 0.0119 ff_put_h264_qpel8or16_v_lowpass_sse2
+      0.0130 predict.rs:place                                         | 0.0118 ff_put_h264_qpel16_h_lowpass_l2_ssse3
+      0.0125 x86.rs:b1                                                | 0.0099 ff_prefetch_mmxext
+      0.0125 predict.rs:rows                                          | 0.0063 ff_put_h264_qpel8or16_hv1_lowpass_op_sse2
+      0.0113 mod.rs:predict_fast                                      | 0.0041 ff_put_h264_qpel16_hv2_lowpass_ssse3
+    mb: CoreAV functions | FFmpeg functions (cycles, share of FFmpeg's)
+      0.0172 inter.rs:{closure#0}                                     | 0.0239 fill_decode_caches
+      0.0076 inter.rs:predict_partitions                              | 0.0089 fill_decode_neighbors
+      0.0074 mb.rs:reset_body                                         | 0.0083 ff_h264_pred_direct_motion
+      0.0070 inter.rs:resolve                                         | 0.0059 decode_slice
+      0.0053 inter.rs:mv_predictor                                    | 0.0008 ff_h264_queue_decode_slice
+      0.0051 mb.rs:finish_mb                                          | 0.0004 ff_h264_build_ref_list
+      0.0046 mb.rs:start_mb_body                                      | 0.0000 ff_h264_direct_ref_list_init
+      0.0035 inter.rs:set                                             | 0.0000 ff_h264_ref_picture
+    deblock: CoreAV functions | FFmpeg functions (cycles, share of FFmpeg's)
+      0.0207 deblock.rs:deblock_row                                   | 0.0344 loop_filter
+      0.0117 avx512.rs:filter_luma16                                  | 0.0250 ff_deblock_v_luma_8_avx
+      0.0115 avx512.rs:luma_columns                                   | 0.0216 ff_h264_loop_filter_strength_mmxext
+      0.0095 avx512.rs:luma_rows                                      | 0.0188 ff_h264_filter_mb_fast
+      0.0089 avx512.rs:{closure#0}                                    | 0.0173 ff_deblock_h_luma_8_avx
+      0.0080 deblock.rs:edge_strengths                                | 0.0065 ff_deblock_v_luma_intra_8_avx
+      0.0055 avx512.rs:{closure#1}                                    | 0.0064 ff_deblock_h_chroma_8_avx
+      0.0049 deblock.rs:deblock_rows                                  | 0.0045 ff_deblock_h_luma_intra_8_avx
+    other: CoreAV functions | FFmpeg functions (cycles, share of FFmpeg's)
+      0.0715 [[kernel.kallsyms]]                                      | 0.0931 [[kernel.kallsyms]]
+      0.0496 [libc.so.6]                                              | 0.0304 [libc.so.6]
+      0.0070 other                                                    | 0.0242 await_references
+      0.0064 picture.rs:mb_motion                                     | 0.0062 ff_thread_await_progress
+      0.0044 mod.rs:residual                                          | 0.0033 av_buffer_unref
+      0.0035 picture.rs:band_reading_luma_window                      | 0.0026 av_refstruct_unref
+      0.0027 picture.rs:band_reading_luma_row                         | 0.0019 av_buffer_ref
+      0.0026 picture.rs:eq                                            | 0.0013 ff_thread_report_progress
+    recon: CoreAV functions | FFmpeg functions (cycles, share of FFmpeg's)
+      0.0103 recon.rs:apply                                           | 0.0379 hl_decode_mb_simple_8
+      0.0063 x86.rs:add_residual8                                     | 0.0140 h264_add8x4_idct_sse2
+      0.0033 x86.rs:idct8_pass                                        | 0.0062 ff_h264_idct8_add4_8_sse2
+      0.0032 x86.rs:idct4_pass                                        | 0.0061 h264_idct_dc_add8_mmxext
+      0.0031 x86.rs:chroma_residual                                   | 0.0041 ff_h264_idct_add16_8_sse2
+      0.0027 recon.rs:reconstruct_chroma                              | 0.0024 ff_h264_hl_decode_mb
+      0.0024 x86.rs:transpose4x2                                      | 0.0023 ff_h264_idct_add8_8_sse2
+      0.0023 x86.rs:pair_rows                                         | 0.0013 ff_pred8x8_dc_8_sse2
+    entropy: CoreAV functions | FFmpeg functions (cycles, share of FFmpeg's)
+      0.1696 cabac.rs:decision                                        | 0.0678 get_cabac
+      0.0191 cabac.rs:significance_map                                | 0.0675 decode_cabac_residual_nondc_internal
+      0.0160 cabac.rs:levels                                          | 0.0655 ff_h264_decode_mb_cabac
+      0.0148 mb.rs:decode_mb                                          | 0.0571 decode_significance_x86
+      0.0066 mb.rs:parse_4x4_blocks                                   | 0.0529 get_cabac_noinline
+      0.0057 cabac.rs:refill                                          | 0.0203 decode_cabac_mb_mvd
+      0.0056 mb.rs:parse_residual_blocks                              | 0.0188 decode_residual
+      0.0054 mb.rs:coded_block_flag_inc                               | 0.0164 ff_h264_decode_mb_cavlc

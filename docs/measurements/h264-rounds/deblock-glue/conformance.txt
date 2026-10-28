@@ -1,0 +1,6 @@
+JVT conformance suite, the branch at 33d4f551 (release build of the conformance test, this VM, x86-64 with AVX-512):
+detected kernels, threads 1, 2 and 8: 291 of 291 stream decodes bit-exact, 39987 frames (97 streams at each count).
+scalar kernels, one thread: 97 of 97 stream decodes bit-exact, 13329 frames.
+
+Rebased onto main 33e2273c: detected kernels, threads 1, 2 and 8: 291 of 291 bit-exact (39987 frames); scalar kernels,
+one thread: 97 of 97 (13329 frames).

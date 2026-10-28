@@ -1,0 +1,18 @@
+# callgrind Ir, 0404af1890da.0.1080p (the CABAC round's 1080p stream), 30 frames, --discard, one thread
+# main = 084ee40 (prof-main), k = 42a5388 (proto2); dist profile with line tables; FFmpeg = the unstripped 9.0.2 attribution build, callgrind_annotate --auto=no (function totals only)
+== main
+380,658,921 (100.0%)  PROGRAM TOTALS
+39,332,499 (10.33%)  crates/coreav-kernels-h264/src/predict.rs:coreav_kernels_h264::simd::x86::predict::predict::<coreav_kernels_h264::Auto>
+11,188,000 ( 2.94%)  crates/coreav-kernels-h264/src/simd/x86/predict.rs:coreav_kernels_h264::simd::x86::predict::predict::<coreav_kernels_h264::Auto>
+ 3,146,598 ( 0.83%)  crates/coreav-kernels-h264/src/predict.rs:<coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::predict_whole
+== k
+368,276,168 (100.0%)  PROGRAM TOTALS
+26,790,056 ( 7.27%)  crates/coreav-kernels-h264/src/predict.rs:coreav_kernels_h264::simd::x86::predict::predict::<coreav_kernels_h264::Auto>
+10,843,274 ( 2.94%)  crates/coreav-kernels-h264/src/simd/x86/predict.rs:coreav_kernels_h264::simd::x86::predict::predict::<coreav_kernels_h264::Auto>
+ 3,321,409 ( 0.90%)  crates/coreav-kernels-h264/src/predict.rs:<coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::predict_whole
+ 1,001,160 ( 0.27%)  crates/coreav-kernels-h264/src/predict.rs:<coreav_kernels_h264::predict::Windows>::fit
+== FFmpeg 9.0.2
+365,648,958 (100.0%)  PROGRAM TOTALS
+32,333,446 ( 8.84%)  libavcodec/h264_mb.c:mc_part_420_simple_8
+ 9,965,430 ( 2.73%)  libavcodec/h264_mc_template.c:mc_part_420_simple_8
+# Kernels::predict calls: 174,811 (the count of the one-instruction line `if !written` in k's annotation); calls whose block lies outside the interior (Windows::fit): 9,720 (5.6%)

@@ -1,0 +1,84 @@
+{
+ "bins": [
+  "$HOME/lx/decode-al-base",
+  "$HOME/lx/decode-al-k",
+  "$HOME/ab/luma/w/decode-base",
+  "$HOME/ab/luma/w/decode-k"
+ ],
+ "summary": {
+  "decode-al-k": {
+   "median": 0.9963,
+   "ci": [
+    0.9808,
+    1.0343
+   ],
+   "4k": 0.9963
+  },
+  "decode-base": {
+   "median": 1.0347,
+   "ci": [
+    1.0131,
+    1.0502
+   ],
+   "4k": 1.0347
+  },
+  "decode-k": {
+   "median": 0.9948,
+   "ci": [
+    0.9812,
+    1.0321
+   ],
+   "4k": 0.9948
+  }
+ },
+ "streams": {
+  "3b1b441e23ae.0.4k.h264": {
+   "$HOME/lx/decode-al-base": 0.6257461220011464,
+   "$HOME/lx/decode-al-k": 0.6497455789976812,
+   "$HOME/ab/luma/w/decode-base": 0.6571738210004696,
+   "$HOME/ab/luma/w/decode-k": 0.6486322180026036
+  },
+  "4b54de28c2b3.0.4k.h264": {
+   "$HOME/lx/decode-al-base": 0.7669185220001964,
+   "$HOME/lx/decode-al-k": 0.7582207400009793,
+   "$HOME/ab/luma/w/decode-base": 0.803167272999417,
+   "$HOME/ab/luma/w/decode-k": 0.7524687869990885
+  },
+  "81ed4778ece2.0.4k.h264": {
+   "$HOME/lx/decode-al-base": 0.28620412700183806,
+   "$HOME/lx/decode-al-k": 0.287345466997067,
+   "$HOME/ab/luma/w/decode-base": 0.2922743770031957,
+   "$HOME/ab/luma/w/decode-k": 0.2872324359996128
+  },
+  "ae16bb7c7192.0.4k.h264": {
+   "$HOME/lx/decode-al-base": 0.17214349300047616,
+   "$HOME/lx/decode-al-k": 0.17359894499895745,
+   "$HOME/ab/luma/w/decode-base": 0.1761360060008883,
+   "$HOME/ab/luma/w/decode-k": 0.17262803099947632
+  },
+  "af38b0cfd840.0.4k.h264": {
+   "$HOME/lx/decode-al-base": 0.5124683680005546,
+   "$HOME/lx/decode-al-k": 0.5026394759988762,
+   "$HOME/ab/luma/w/decode-base": 0.5170670209990931,
+   "$HOME/ab/luma/w/decode-k": 0.5056198099991889
+  },
+  "e624cbe0d2be.0.4k.h264": {
+   "$HOME/lx/decode-al-base": 0.8834370000004128,
+   "$HOME/lx/decode-al-k": 0.8576202139993256,
+   "$HOME/ab/luma/w/decode-base": 0.924203419002879,
+   "$HOME/ab/luma/w/decode-k": 0.8513701880001463
+  },
+  "ed75c044e944.0.4k.h264": {
+   "$HOME/lx/decode-al-base": 0.2753810669964878,
+   "$HOME/lx/decode-al-k": 0.2848178310014191,
+   "$HOME/ab/luma/w/decode-base": 0.3473307779968309,
+   "$HOME/ab/luma/w/decode-k": 0.2842278370007989
+  },
+  "f8d92a911e72.0.4k.h264": {
+   "$HOME/lx/decode-al-base": 7.687073611999949,
+   "$HOME/lx/decode-al-k": 7.552759865997359,
+   "$HOME/ab/luma/w/decode-base": 7.72524600700126,
+   "$HOME/ab/luma/w/decode-k": 7.58520499199949
+  }
+ }
+}

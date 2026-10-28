@@ -1,0 +1,23 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2900.0 MHz, 8 logical CPUs
+gate baseline: 0.407 s (samples 0.407, 0.406, 0.419)
+175433794e02.0.1080p.h264                base:discard=1.07  base:write=1.05  base:mixed=1.02  k:discard=1.07  k:write=1.05  k:mixed=1.02
+6da34958296c.0.1080p.h264                base:discard=1.07  base:write=1.06  base:mixed=0.97  k:discard=1.08  k:write=1.08  k:mixed=0.97
+6e90422a670a.0.1080p.h264                base:discard=1.05  base:write=1.01  base:mixed=0.98  k:discard=1.03  k:write=1.00  k:mixed=0.96
+a6af290d9053.0.1080p.h264                base:discard=1.08  base:write=1.04  base:mixed=1.02  k:discard=1.08  k:write=1.04  k:mixed=1.02
+gate after 4 streams (check): 0.410 s (+0.6%)
+a81de82106be.0.1080p.h264                host fault (attempt 1): null {'base_discard': 0.013676297225169831, 'base_write': -0.010678943591899914}, max spread 1.666
+a81de82106be.0.1080p.h264                host fault (attempt 2): null {'base_discard': 0.025584975541003363, 'base_write': -0.02752092199819889}, max spread 1.662
+a81de82106be.0.1080p.h264                base:discard=0.92  base:write=0.88  base:mixed=0.82  k:discard=0.92  k:write=0.89  k:mixed=0.82
+b41f70a7fa60.0.1080p.h264                base:discard=1.13  base:write=1.08  base:mixed=1.05  k:discard=1.13  k:write=1.11  k:mixed=1.04
+b71b6b31e54f.0.1080p.h264                base:discard=1.06  base:write=1.00  base:mixed=0.91  k:discard=1.07  k:write=1.00  k:mixed=0.92
+c7ecda16e4a7.0.1080p.h264                base:discard=1.15  base:write=1.13  base:mixed=1.08  k:discard=1.14  k:write=1.11  k:mixed=1.07
+gate after 8 streams (check): 0.404 s (-0.9%)
+
+base:discard             n=  8  median 1.073  [1.053, 1.132]
+base:write               n=  8  median 1.046  [1.001, 1.085]
+base:mixed               n=  8  median 1.003  [0.909, 1.049]
+k:discard                n=  8  median 1.073  [1.032, 1.126]
+k:write                  n=  8  median 1.045  [0.997, 1.110]
+k:mixed                  n=  8  median 0.995  [0.920, 1.044]
+
+wrote $HOME/ab/qsl/out/g.1080p.json

@@ -1,0 +1,35 @@
+{
+  "files": 20,
+  "routes": {
+    "download_then_index": {
+      "files": 2,
+      "with_sidx_tag": 2,
+      "max_byte_share_pct": 10.0864,
+      "median_byte_share_pct": 5.4585,
+      "over_5pct": 1,
+      "median_requests": 1.5,
+      "max_requests": 2,
+      "median_wall_ms": 522.6,
+      "max_largest_read": 4096,
+      "accounting_matches_sender": true
+    },
+    "segment_index": {
+      "files": 18,
+      "with_sidx_tag": 18,
+      "max_byte_share_pct": 4.2144,
+      "median_byte_share_pct": 1.4258,
+      "over_5pct": 0,
+      "median_requests": 124.0,
+      "max_requests": 385,
+      "median_wall_ms": 2376.9,
+      "max_largest_read": 8192,
+      "accounting_matches_sender": true,
+      "median_subsegments": 123.0,
+      "max_subsegments": 384
+    }
+  },
+  "errors": {},
+  "reasons": {
+    "ByteBudget": 2
+  }
+}

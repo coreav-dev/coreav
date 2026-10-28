@@ -1,0 +1,173 @@
+[
+ {
+  "sha256": "1ae48e7b157ec0f90cb6dcfc199e197434517df8f1ca7f29198275c7eed97843",
+  "size": 6062799,
+  "ext": "mov",
+  "holdout": false,
+  "tags": [
+   "brand:qt",
+   "c:isobmff",
+   "ctts",
+   "ctts-negative",
+   "elst",
+   "elst-multi-edit",
+   "moov-end",
+   "quicktime",
+   "v:h264",
+   "vfr"
+  ],
+  "heap": {
+   "base": 758,
+   "probe_peak": 26183,
+   "split_peak": 164845,
+   "growth": 138662,
+   "live_after": 384,
+   "segments": 2,
+   "ok": true,
+   "valid": true
+  },
+  "seconds": 0.6862420320103411
+ },
+ {
+  "sha256": "5de2646e4ea095572a3a22fc1fba65f3899ce7180259e27e46e6c61f4220b4f4",
+  "size": 2333237,
+  "ext": "mov",
+  "holdout": false,
+  "tags": [
+   "brand:qt",
+   "c:isobmff",
+   "ctts",
+   "ctts-negative",
+   "elst",
+   "elst-multi-edit",
+   "moov-end",
+   "quicktime",
+   "v:h264",
+   "vfr"
+  ],
+  "heap": {
+   "base": 758,
+   "probe_peak": 26171,
+   "split_peak": 160930,
+   "growth": 134759,
+   "live_after": 576,
+   "segments": 3,
+   "ok": true,
+   "valid": true
+  },
+  "seconds": 0.6438002729992149
+ },
+ {
+  "sha256": "6e67814d336c695ad1aa9b51d6985e4029c7bfc8099f55cc8e9fd5ce54d91b80",
+  "size": 411278708,
+  "ext": "mp4",
+  "holdout": true,
+  "tags": [
+   "a:aac",
+   "brand:mp42",
+   "c:isobmff",
+   "ctts",
+   "elst",
+   "elst-multi-edit",
+   "long-30min",
+   "moov-front",
+   "v:h264",
+   "vfr"
+  ],
+  "heap": {
+   "base": 758,
+   "probe_peak": 2134394,
+   "split_peak": 2641689,
+   "growth": 507295,
+   "live_after": 90432,
+   "segments": 471,
+   "ok": true,
+   "valid": true
+  },
+  "seconds": 3.3533559499919647
+ },
+ {
+  "sha256": "a166d09989f96e13376fa7dcac3b17c4004cc0d0fe840b1318e67cc7e8c0de66",
+  "size": 1225603474,
+  "ext": "mov",
+  "holdout": false,
+  "tags": [
+   "a:aac",
+   "brand:qt",
+   "c:isobmff",
+   "elst",
+   "elst-multi-edit",
+   "long-30min",
+   "moov-end",
+   "qt-sound-v1",
+   "quicktime",
+   "v:h264"
+  ],
+  "heap": {
+   "base": 758,
+   "probe_peak": 1502041,
+   "split_peak": 3381817,
+   "growth": 1879776,
+   "live_after": 77768,
+   "segments": 405,
+   "ok": true,
+   "valid": true
+  },
+  "seconds": 6.5382909159961855
+ },
+ {
+  "sha256": "ceb55bb5fb87b82527ad03e317c46a810a7bedbebfa5653038e47aaef4efc5da",
+  "size": 574746,
+  "ext": "mov",
+  "holdout": false,
+  "tags": [
+   "brand:qt",
+   "c:isobmff",
+   "ctts",
+   "ctts-negative",
+   "elst",
+   "elst-multi-edit",
+   "moov-end",
+   "quicktime",
+   "v:h264"
+  ],
+  "heap": {
+   "base": 758,
+   "probe_peak": 19266,
+   "split_peak": 93908,
+   "growth": 74642,
+   "live_after": 192,
+   "segments": 1,
+   "ok": true,
+   "valid": true
+  },
+  "seconds": 0.7010456819989486
+ },
+ {
+  "sha256": "ea690039d9024dcd6965080d60eecc8d5a282e6cb5edaaf0b3e7897987854838",
+  "size": 10428295,
+  "ext": "mp4",
+  "holdout": true,
+  "tags": [
+   "brand:mp42",
+   "c:isobmff",
+   "ctts",
+   "elst",
+   "elst-multi-edit",
+   "moov-end",
+   "v:h264",
+   "vfr"
+  ],
+  "heap": {
+   "base": 758,
+   "probe_peak": 24572,
+   "split_peak": 202039,
+   "growth": 177467,
+   "live_after": 968,
+   "segments": 5,
+   "ok": true,
+   "valid": true
+  },
+  "seconds": 0.6589498179964721
+ }
+]

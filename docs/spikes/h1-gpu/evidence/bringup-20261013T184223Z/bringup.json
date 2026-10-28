@@ -1,0 +1,777 @@
+{
+  "environment": {
+    "torch": "2.14.1+cu130",
+    "torchcodec": "0.17.0+cu130",
+    "cuda_runtime": "13.0",
+    "gpu": "NVIDIA L4",
+    "pyav": "19.0.1",
+    "torchcodec_ffmpeg_libraries_via_pyav_wheel": {
+      "libavutil": [
+        61,
+        1,
+        102
+      ],
+      "libavcodec": [
+        63,
+        1,
+        102
+      ],
+      "libavformat": [
+        63,
+        1,
+        102
+      ],
+      "libavdevice": [
+        63,
+        1,
+        102
+      ],
+      "libavfilter": [
+        12,
+        1,
+        102
+      ],
+      "libswscale": [
+        10,
+        1,
+        102
+      ],
+      "libswresample": [
+        7,
+        1,
+        102
+      ]
+    },
+    "remote": {
+      "REMOTE_REGION": "ap-south",
+      "REMOTE_CLOUD_PROVIDER": "CLOUD_PROVIDER_GCP"
+    },
+    "nvidia_smi": "NVIDIA L4, 610.57.04, 23034 MiB, 2040 MHz",
+    "oracle_ffmpeg": "ffmpeg version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2000-2024 the FFmpeg developers",
+    "cpu": "unknown"
+  },
+  "fixtures": [
+    "aom_g2_640x480",
+    "aom_g60_640x480",
+    "aom_tiles_1280x720",
+    "S3-02.source.mp4",
+    "S3-05.source.mp4",
+    "S3-10.source.mp4",
+    "S3-12.source.mp4",
+    "S3-15.source.mp4",
+    "S3-17.source.mp4",
+    "S3-18.source.mp4",
+    "S3-19.source.mp4",
+    "S3-20.source.mp4",
+    "S3-21.source.mp4",
+    "S3-22.source.mp4",
+    "S3-24.source.mp4",
+    "S3-27.source.mp4"
+  ],
+  "conventions": [
+    {
+      "conventions": 1,
+      "files": [
+        {
+          "file": "aom_g2_640x480",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "aom_g60_640x480",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "aom_tiles_1280x720",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-02.source.mp4",
+          "exact": 58,
+          "frames": 60
+        },
+        {
+          "file": "S3-05.source.mp4",
+          "exact": 46,
+          "frames": 60
+        },
+        {
+          "file": "S3-10.source.mp4",
+          "exact": 58,
+          "frames": 60
+        },
+        {
+          "file": "S3-12.source.mp4",
+          "exact": 48,
+          "frames": 60
+        },
+        {
+          "file": "S3-15.source.mp4",
+          "exact": 32,
+          "frames": 60
+        },
+        {
+          "file": "S3-17.source.mp4",
+          "exact": 40,
+          "frames": 60
+        },
+        {
+          "file": "S3-18.source.mp4",
+          "exact": 36,
+          "frames": 60
+        },
+        {
+          "file": "S3-19.source.mp4",
+          "exact": 48,
+          "frames": 60
+        },
+        {
+          "file": "S3-20.source.mp4",
+          "exact": 43,
+          "frames": 60
+        },
+        {
+          "file": "S3-21.source.mp4",
+          "exact": 39,
+          "frames": 60
+        },
+        {
+          "file": "S3-22.source.mp4",
+          "exact": 49,
+          "frames": 60
+        },
+        {
+          "file": "S3-24.source.mp4",
+          "exact": 54,
+          "frames": 60
+        },
+        {
+          "file": "S3-27.source.mp4",
+          "exact": 32,
+          "frames": 60
+        }
+      ],
+      "crashed_files": [],
+      "exact": 763,
+      "frames": 960
+    },
+    {
+      "conventions": 33,
+      "files": [
+        {
+          "file": "aom_g2_640x480",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "aom_g60_640x480",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "aom_tiles_1280x720",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-02.source.mp4",
+          "exact": 58,
+          "frames": 60
+        },
+        {
+          "file": "S3-05.source.mp4",
+          "exact": 46,
+          "frames": 60
+        },
+        {
+          "file": "S3-10.source.mp4",
+          "exact": 58,
+          "frames": 60
+        },
+        {
+          "file": "S3-12.source.mp4",
+          "exact": 48,
+          "frames": 60
+        },
+        {
+          "file": "S3-15.source.mp4",
+          "exact": 32,
+          "frames": 60
+        },
+        {
+          "file": "S3-17.source.mp4",
+          "exact": 40,
+          "frames": 60
+        },
+        {
+          "file": "S3-18.source.mp4",
+          "exact": 36,
+          "frames": 60
+        },
+        {
+          "file": "S3-19.source.mp4",
+          "exact": 48,
+          "frames": 60
+        },
+        {
+          "file": "S3-20.source.mp4",
+          "exact": 43,
+          "frames": 60
+        },
+        {
+          "file": "S3-21.source.mp4",
+          "exact": 39,
+          "frames": 60
+        },
+        {
+          "file": "S3-22.source.mp4",
+          "exact": 49,
+          "frames": 60
+        },
+        {
+          "file": "S3-24.source.mp4",
+          "exact": 54,
+          "frames": 60
+        },
+        {
+          "file": "S3-27.source.mp4",
+          "exact": 32,
+          "frames": 60
+        }
+      ],
+      "crashed_files": [],
+      "exact": 763,
+      "frames": 960
+    },
+    {
+      "conventions": 5,
+      "files": [
+        {
+          "file": "aom_g2_640x480",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "aom_g60_640x480",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "aom_tiles_1280x720",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-02.source.mp4",
+          "exact": 58,
+          "frames": 60
+        },
+        {
+          "file": "S3-05.source.mp4",
+          "exact": 46,
+          "frames": 60
+        },
+        {
+          "file": "S3-10.source.mp4",
+          "exact": 58,
+          "frames": 60
+        },
+        {
+          "file": "S3-12.source.mp4",
+          "exact": 48,
+          "frames": 60
+        },
+        {
+          "file": "S3-15.source.mp4",
+          "exact": 32,
+          "frames": 60
+        },
+        {
+          "file": "S3-17.source.mp4",
+          "exact": 40,
+          "frames": 60
+        },
+        {
+          "file": "S3-18.source.mp4",
+          "exact": 36,
+          "frames": 60
+        },
+        {
+          "file": "S3-19.source.mp4",
+          "exact": 48,
+          "frames": 60
+        },
+        {
+          "file": "S3-20.source.mp4",
+          "exact": 43,
+          "frames": 60
+        },
+        {
+          "file": "S3-21.source.mp4",
+          "exact": 39,
+          "frames": 60
+        },
+        {
+          "file": "S3-22.source.mp4",
+          "exact": 49,
+          "frames": 60
+        },
+        {
+          "file": "S3-24.source.mp4",
+          "exact": 54,
+          "frames": 60
+        },
+        {
+          "file": "S3-27.source.mp4",
+          "exact": 32,
+          "frames": 60
+        }
+      ],
+      "crashed_files": [],
+      "exact": 763,
+      "frames": 960
+    },
+    {
+      "conventions": 37,
+      "files": [
+        {
+          "file": "aom_g2_640x480",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "aom_g60_640x480",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "aom_tiles_1280x720",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-02.source.mp4",
+          "exact": 58,
+          "frames": 60
+        },
+        {
+          "file": "S3-05.source.mp4",
+          "exact": 46,
+          "frames": 60
+        },
+        {
+          "file": "S3-10.source.mp4",
+          "exact": 58,
+          "frames": 60
+        },
+        {
+          "file": "S3-12.source.mp4",
+          "exact": 48,
+          "frames": 60
+        },
+        {
+          "file": "S3-15.source.mp4",
+          "exact": 32,
+          "frames": 60
+        },
+        {
+          "file": "S3-17.source.mp4",
+          "exact": 40,
+          "frames": 60
+        },
+        {
+          "file": "S3-18.source.mp4",
+          "exact": 36,
+          "frames": 60
+        },
+        {
+          "file": "S3-19.source.mp4",
+          "exact": 48,
+          "frames": 60
+        },
+        {
+          "file": "S3-20.source.mp4",
+          "exact": 43,
+          "frames": 60
+        },
+        {
+          "file": "S3-21.source.mp4",
+          "exact": 39,
+          "frames": 60
+        },
+        {
+          "file": "S3-22.source.mp4",
+          "exact": 49,
+          "frames": 60
+        },
+        {
+          "file": "S3-24.source.mp4",
+          "exact": 54,
+          "frames": 60
+        },
+        {
+          "file": "S3-27.source.mp4",
+          "exact": 32,
+          "frames": 60
+        }
+      ],
+      "crashed_files": [],
+      "exact": 763,
+      "frames": 960
+    },
+    {
+      "conventions": 3,
+      "files": [
+        {
+          "file": "aom_g2_640x480",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "aom_g60_640x480",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "aom_tiles_1280x720",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-02.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-05.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-10.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-12.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-15.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-17.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-18.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-19.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-20.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-21.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-22.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-24.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-27.source.mp4",
+          "exact": 60,
+          "frames": 60
+        }
+      ],
+      "crashed_files": [],
+      "exact": 960,
+      "frames": 960
+    },
+    {
+      "conventions": 35,
+      "files": [
+        {
+          "file": "aom_g2_640x480",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "aom_g60_640x480",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "aom_tiles_1280x720",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-02.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-05.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-10.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-12.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-15.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-17.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-18.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-19.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-20.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-21.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-22.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-24.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-27.source.mp4",
+          "exact": 60,
+          "frames": 60
+        }
+      ],
+      "crashed_files": [],
+      "exact": 960,
+      "frames": 960
+    },
+    {
+      "conventions": 7,
+      "files": [
+        {
+          "file": "aom_g2_640x480",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "aom_g60_640x480",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "aom_tiles_1280x720",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-02.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-05.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-10.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-12.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-15.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-17.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-18.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-19.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-20.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-21.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-22.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-24.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-27.source.mp4",
+          "exact": 60,
+          "frames": 60
+        }
+      ],
+      "crashed_files": [],
+      "exact": 960,
+      "frames": 960
+    },
+    {
+      "conventions": 39,
+      "files": [
+        {
+          "file": "aom_g2_640x480",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "aom_g60_640x480",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "aom_tiles_1280x720",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-02.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-05.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-10.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-12.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-15.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-17.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-18.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-19.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-20.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-21.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-22.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-24.source.mp4",
+          "exact": 60,
+          "frames": 60
+        },
+        {
+          "file": "S3-27.source.mp4",
+          "exact": 60,
+          "frames": 60
+        }
+      ],
+      "crashed_files": [],
+      "exact": 960,
+      "frames": 960
+    }
+  ]
+}

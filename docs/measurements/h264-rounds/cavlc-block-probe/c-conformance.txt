@@ -1,0 +1,13 @@
+C (97514aa6) conformance, the harness's summary per mode:
+--- detected kernels, threads 1, 2, 8
+97 streams, 1309 keyframes
+291 of 291 stream decodes bit-exact, 39987 frames, kernels: detected, threads: [1, 2, 8]
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 17.53s
+--- scalar kernels
+97 streams, 1309 keyframes
+97 of 97 stream decodes bit-exact, 13329 frames, kernels: scalar, threads: [1]
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 18.54s
+--- without fast (--no-default-features)
+97 of 97 stream decodes bit-exact, 13329 frames, kernels: detected, threads: [1]
+97 streams, 1309 keyframes
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.55s

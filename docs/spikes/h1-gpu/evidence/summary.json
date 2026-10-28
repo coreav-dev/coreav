@@ -1,0 +1,227 @@
+{
+  "scenarios": {
+    "S1": {
+      "trials": 60,
+      "videos": 15,
+      "ratio": 0.8138811740716891,
+      "ci95": [
+        0.7562646452086701,
+        0.8682632403846701
+      ],
+      "per_machine": {
+        "0": {
+          "trials": 30,
+          "ratio": 0.8091072420764235
+        },
+        "1": {
+          "trials": 30,
+          "ratio": 0.8186832734414514
+        }
+      },
+      "ratio_vs_mappings": 0.8138811740716891,
+      "ratio_vs_exact": 0.6982649647315762,
+      "median_ms": {
+        "coreav": 111.15276800006768,
+        "baseline": 135.29438900000912,
+        "mappings": 135.29438900000912,
+        "exact": 155.5932600000034
+      },
+      "baseline_mode_share": {
+        "tc_mappings": 1.0,
+        "tc_exact": 0.0
+      },
+      "measured": true,
+      "win": true,
+      "more_than_10pct_slower": false
+    },
+    "S2": {
+      "trials": 52,
+      "videos": 13,
+      "ratio": 0.8400934737618656,
+      "ci95": [
+        0.8003503558895534,
+        0.8773570893871546
+      ],
+      "per_machine": {
+        "0": {
+          "trials": 26,
+          "ratio": 0.8389117443632366
+        },
+        "1": {
+          "trials": 26,
+          "ratio": 0.8412768677984984
+        }
+      },
+      "ratio_vs_mappings": 0.8400934737618656,
+      "ratio_vs_exact": 0.7654553816240462,
+      "median_ms": {
+        "coreav": 1199.6229455000105,
+        "baseline": 1417.9041760000075,
+        "mappings": 1417.9041760000075,
+        "exact": 1595.3476855000163
+      },
+      "baseline_mode_share": {
+        "tc_mappings": 1.0,
+        "tc_exact": 0.0
+      },
+      "measured": true,
+      "win": true,
+      "more_than_10pct_slower": false,
+      "reported_counts": {
+        "8": {
+          "trials": 52,
+          "videos": 13,
+          "ratio": 0.7998703778358102,
+          "ci95": [
+            0.7600249854032449,
+            0.8440980433762574
+          ],
+          "per_machine": {
+            "0": {
+              "trials": 26,
+              "ratio": 0.7971044079714265
+            },
+            "1": {
+              "trials": 26,
+              "ratio": 0.8026459456765871
+            }
+          },
+          "ratio_vs_mappings": 0.7998703778358102,
+          "ratio_vs_exact": 0.5903702533115286,
+          "median_ms": {
+            "coreav": 300.4176514999983,
+            "baseline": 384.986433999984,
+            "mappings": 384.986433999984,
+            "exact": 494.3538555000089
+          },
+          "baseline_mode_share": {
+            "tc_mappings": 1.0,
+            "tc_exact": 0.0
+          }
+        },
+        "64": {
+          "trials": 52,
+          "videos": 13,
+          "ratio": 0.8615684973280391,
+          "ci95": [
+            0.8380499958849121,
+            0.8883586980207538
+          ],
+          "per_machine": {
+            "0": {
+              "trials": 26,
+              "ratio": 0.8608043749001127
+            },
+            "1": {
+              "trials": 26,
+              "ratio": 0.8623332980553584
+            }
+          },
+          "ratio_vs_mappings": 0.8615684973280391,
+          "ratio_vs_exact": 0.8209070823311263,
+          "median_ms": {
+            "coreav": 2431.825397500006,
+            "baseline": 2894.1919764999966,
+            "mappings": 2894.1919764999966,
+            "exact": 3023.492731499971
+          },
+          "baseline_mode_share": {
+            "tc_mappings": 1.0,
+            "tc_exact": 0.0
+          }
+        }
+      }
+    },
+    "S3": {
+      "trials": 52,
+      "videos": 13,
+      "ratio": 0.39187546635291953,
+      "ci95": [
+        0.3865094814688008,
+        0.3965908284931706
+      ],
+      "per_machine": {
+        "0": {
+          "trials": 26,
+          "ratio": 0.39287468676984166
+        },
+        "1": {
+          "trials": 26,
+          "ratio": 0.3908787873098125
+        }
+      },
+      "ratio_vs_mappings": 0.39187546635291953,
+      "ratio_vs_exact": 0.1073938348151119,
+      "median_ms": {
+        "coreav": 23.54046850001623,
+        "baseline": 58.94142800001134,
+        "mappings": 58.94142800001134,
+        "exact": 247.32123799999783
+      },
+      "baseline_mode_share": {
+        "tc_mappings": 1.0,
+        "tc_exact": 0.0
+      },
+      "measured": true,
+      "win": true,
+      "more_than_10pct_slower": false
+    },
+    "S4": {
+      "trials": 52,
+      "videos": 13,
+      "ratio": 0.8418530679912962,
+      "ci95": [
+        0.8305979886874623,
+        0.8529711364504993
+      ],
+      "per_machine": {
+        "0": {
+          "trials": 26,
+          "ratio": 0.8335949541206994
+        },
+        "1": {
+          "trials": 26,
+          "ratio": 0.8501929919116812
+        }
+      },
+      "ratio_vs_mappings": 0.8379912451817105,
+      "ratio_vs_exact": 0.7985157921139643,
+      "median_ms": {
+        "coreav": 78.44397299999173,
+        "baseline": 95.10749050002687,
+        "mappings": 96.328047500009,
+        "exact": 96.48599849998618
+      },
+      "baseline_mode_share": {
+        "tc_mappings": 0.7307692307692307,
+        "tc_exact": 0.2692307692307692
+      },
+      "measured": true,
+      "win": true,
+      "more_than_10pct_slower": false
+    }
+  },
+  "dropped_trials": [],
+  "rules": {
+    "win": "upper end of the 95% interval below 0.9",
+    "slower": "geometric-mean ratio above 1.1",
+    "statistic": "geometric mean of per-trial CoreAV / faster-torchcodec-mode time ratios, both machines",
+    "interval": "percentile bootstrap, 10000 resamples, seed 20261013, videos resampled with all their trials"
+  },
+  "verdict": {
+    "h1": "pass",
+    "wins": [
+      "S1",
+      "S2",
+      "S3",
+      "S4"
+    ],
+    "more_than_10pct_slower": [],
+    "measured": [
+      "S1",
+      "S2",
+      "S3",
+      "S4"
+    ]
+  }
+}

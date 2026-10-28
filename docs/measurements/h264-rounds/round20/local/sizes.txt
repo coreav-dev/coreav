@@ -1,0 +1,5 @@
+# dist decode example sizes in bytes (a7d8e4b; main-c17ae06 has the same decoder code)
+main-c17ae06 1074144
+whole-bmi2-a7d8e4b 1074064
+whole-bmi2lz-a7d8e4b 1074160
+whole-v3-a7d8e4b 1086768

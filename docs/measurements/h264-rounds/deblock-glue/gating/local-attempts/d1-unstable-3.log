@@ -1,0 +1,18 @@
+05:09:16 HOST cpu facts:
+model name	: Intel(R) Xeon(R) Processor @ 2.50GHz
+CPU(s):                                  8
+Vendor ID:                               GenuineIntel
+CPU family:                              6
+Model:                                   85
+Thread(s) per core:                      2
+Core(s) per socket:                      4
+Socket(s):                               1
+Stepping:                                7
+8
+8
+avx2 avx512 avx512bw avx512cd avx512dq avx512f avx512vl 
+05:09:37 reference measurement 1: 36501d448eaa.0.720p 1.595s; a6af290d9053.0.1080p 5.510s
+05:15:02 reference measurement 2: 36501d448eaa.0.720p 2.032s; a6af290d9053.0.1080p 5.570s
+05:20:24 reference measurement 3: 36501d448eaa.0.720p 1.634s; a6af290d9053.0.1080p 5.686s
+05:20:24 reference {'36501d448eaa.0.720p': 1.6341980730003343, 'a6af290d9053.0.1080p': 5.569933782000589} max deviation {'36501d448eaa.0.720p': 0.24363983875504513, 'a6af290d9053.0.1080p': 0.020768206683781765}
+05:20:24 host not stable within +-5%; not timing

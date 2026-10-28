@@ -1,0 +1,16 @@
+bin-v2
+  CABAC  n=26 median 1.0010 [0.9926, 1.0066] faster 13/26
+  CAVLC  n= 6 median 0.9965 [0.9851, 1.0017] faster 4/6
+  all    n=32 median 0.9995 [0.9928, 1.0036] faster 17/32
+  sd     n= 8 median 1.0007 [0.9938, 1.0069] faster 4/8
+  720p   n= 8 median 1.0026 [0.9924, 1.0105] faster 3/8
+  1080p  n= 8 median 0.9996 [0.9904, 1.0100] faster 4/8
+  4k     n= 8 median 0.9871 [0.9792, 1.0023] faster 6/8
+bin-v6
+  CABAC  n=26 median 1.0243 [1.0115, 1.0316] faster 4/26
+  CAVLC  n= 6 median 0.9960 [0.9897, 1.0061] faster 4/6
+  all    n=32 median 1.0175 [1.0075, 1.0277] faster 8/32
+  sd     n= 8 median 1.0076 [0.9958, 1.0307] faster 3/8
+  720p   n= 8 median 1.0207 [1.0021, 1.0308] faster 1/8
+  1080p  n= 8 median 1.0286 [1.0109, 1.0331] faster 1/8
+  4k     n= 8 median 1.0076 [0.9946, 1.0556] faster 3/8

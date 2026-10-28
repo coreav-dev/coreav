@@ -1,0 +1,39 @@
+failed [] streams with the 8x8 transform 17
+a/base   discard overall  n=32 median 0.9816 [0.9743,0.9876] faster 29/32
+a/base   discard sd       n= 8 median 0.9818 [0.9743,0.9864] faster 8/8
+a/base   discard 720p     n= 8 median 0.9844 [0.9690,0.9949] faster 8/8
+a/base   discard 1080p    n= 8 median 0.9584 [0.9320,0.9897] faster 7/8
+a/base   discard 4k       n= 8 median 0.9896 [0.9585,1.0459] faster 6/8
+a/base   write   overall  n=32 median 0.9792 [0.9669,0.9918] faster 26/32
+a/base   write   sd       n= 8 median 0.9853 [0.9734,0.9907] faster 8/8
+a/base   write   720p     n= 8 median 0.9874 [0.9708,0.9991] faster 7/8
+a/base   write   1080p    n= 8 median 0.9541 [0.9363,0.9664] faster 7/8
+a/base   write   4k       n= 8 median 1.0011 [0.9669,1.0318] faster 4/8
+q/base   discard overall  n=32 median 0.9843 [0.9818,0.9898] faster 27/32
+q/base   discard sd       n= 8 median 0.9874 [0.9819,0.9925] faster 8/8
+q/base   discard 720p     n= 8 median 0.9881 [0.9755,0.9975] faster 7/8
+q/base   discard 1080p    n= 8 median 0.9780 [0.9630,0.9882] faster 7/8
+q/base   discard 4k       n= 8 median 0.9854 [0.9737,1.0591] faster 5/8
+q/base   write   overall  n=32 median 0.9823 [0.9783,0.9921] faster 28/32
+q/base   write   sd       n= 8 median 0.9894 [0.9780,0.9961] faster 7/8
+q/base   write   720p     n= 8 median 0.9902 [0.9786,0.9994] faster 7/8
+q/base   write   1080p    n= 8 median 0.9659 [0.9403,0.9792] faster 8/8
+q/base   write   4k       n= 8 median 0.9872 [0.9735,1.0009] faster 6/8
+a/q      discard overall  n=32 median 0.9943 [0.9859,0.9991] faster 22/32
+a/q      discard sd       n= 8 median 0.9930 [0.9893,0.9976] faster 7/8
+a/q      discard 720p     n= 8 median 0.9976 [0.9839,1.0099] faster 5/8
+a/q      discard 1080p    n= 8 median 0.9757 [0.9515,1.0015] faster 6/8
+a/q      discard 4k       n= 8 median 0.9995 [0.9501,1.0184] faster 4/8
+a/q      discard 8x8      n=17 median 0.9917 [0.9731,1.0012] faster 12/17
+a/q      write   overall  n=32 median 0.9963 [0.9920,1.0074] faster 19/32
+a/q      write   sd       n= 8 median 0.9957 [0.9889,0.9971] faster 7/8
+a/q      write   720p     n= 8 median 0.9933 [0.9797,1.0096] faster 5/8
+a/q      write   1080p    n= 8 median 0.9926 [0.9759,1.0093] faster 5/8
+a/q      write   4k       n= 8 median 1.0204 [0.9966,1.0252] faster 2/8
+a/q      write   8x8      n=17 median 0.9934 [0.9821,1.0096] faster 11/17
+base vs FFmpeg discard overall 1.557 (1/32 faster) sd 1.382 (1/8 faster) 720p 1.602 (0/8 faster) 1080p 1.569 (0/8 faster) 4k 1.561 (0/8 faster)
+base vs FFmpeg write   overall 1.530 (1/32 faster) sd 1.430 (1/8 faster) 720p 1.571 (0/8 faster) 1080p 1.520 (0/8 faster) 4k 1.507 (0/8 faster)
+q    vs FFmpeg discard overall 1.554 (1/32 faster) sd 1.367 (1/8 faster) 720p 1.562 (0/8 faster) 1080p 1.524 (0/8 faster) 4k 1.616 (0/8 faster)
+q    vs FFmpeg write   overall 1.500 (1/32 faster) sd 1.421 (1/8 faster) 720p 1.544 (0/8 faster) 1080p 1.488 (0/8 faster) 4k 1.471 (0/8 faster)
+a    vs FFmpeg discard overall 1.539 (1/32 faster) sd 1.354 (1/8 faster) 720p 1.562 (0/8 faster) 1080p 1.498 (0/8 faster) 4k 1.579 (0/8 faster)
+a    vs FFmpeg write   overall 1.507 (1/32 faster) sd 1.409 (1/8 faster) 720p 1.526 (0/8 faster) 1080p 1.465 (0/8 faster) 4k 1.518 (0/8 faster)

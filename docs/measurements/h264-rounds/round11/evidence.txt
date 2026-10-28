@@ -1,0 +1,34 @@
+Evidence for the figures of docs/design/h264.md 'Round 11' that are not in profile-main.txt.
+Machine: the 2.50 GHz class (Intel Xeon @ 2.50GHz), pinned to one core. Builds: main 555689b;
+m = perf/h264-mb-records; p = perf/h264-predict-glue; l = rejected/h264-plane-placement (on main, and on p).
+
+== 1. perf annotate of PictureWork::decode_slice, main, 6da34958296c (300 frames, cpu-clock): hottest lines and instructions
+   44.97 error.rs:77
+   44.97 :   3fd06:  jne    405d3 <<coreav_h264::work::PictureWork<coreav_kernels_h264::Auto>>::decode_slice+0x2a93> // error.rs:77
+   21.48 mb.rs:761
+   14.77 :   4013c:  movups %xmm0,0x6c(%rcx,%rax,1) // mb.rs:761
+    4.03 mb.rs:868
+    3.36 mb.rs:863
+   error.rs:77 is require() in decode_cabac's check that the macroblock's own MbInfo slot is undecoded
+   (mb.rs:788 at 555689b); mb.rs:761 is finish_mb's store of the record.
+
+== 2. predict_list's own instructions and calls (callgrind, 100 frames at 1080p, 50 at 4k), main
+   b71b6b31e54f.0.1080p: 520,086,398 of 2,700,042,137 instructions (19.3%), 1,241,291 calls, 419 a call
+   6da34958296c.0.1080p: 565,617,473 of 7,241,481,243 instructions (7.8%), 1,351,063 calls, 419 a call
+   3b1b441e23ae.0.4k: 425,593,747 of 2,678,019,716 instructions (15.9%), 1,016,810 calls, 419 a call
+
+== 3. part P, b71b6b31e54f, 100 frames (callgrind): all instructions and predict_list's own, main then p
+   2,700,043,652
+   520,086,398
+   2,561,761,154
+   392,075,166
+
+== 4. simulated D1 misses, 6da34958296c, 100 frames (callgrind --cache-sim=yes): instructions, D1 read and write misses, chroma_mc's read misses
+   main: instructions 7,241,478,635, D1 reads 31,387,646, writes 14,717,665, chroma_mc reads 3,285,084
+   main with MALLOC_MMAP_THRESHOLD_=131072: instructions 7,241,478,859, D1 reads 40,625,848, writes 16,901,854, chroma_mc reads 7,249,017
+   m, first build: records for the whole picture, no ring: instructions 7,265,532,348, D1 reads 38,311,318, writes 15,390,101, chroma_mc reads 7,029,710
+   m: instructions 7,299,852,716, D1 reads 37,976,163, writes 14,910,697, chroma_mc reads 6,937,209
+   main + l: instructions 7,617,123,752, D1 reads 28,854,822, writes 14,359,840, chroma_mc reads 2,857,479
+   p: instructions 7,089,640,521, D1 reads 31,281,430, writes 14,765,087, chroma_mc reads 3,281,822
+   p + l: instructions 7,252,077,497, D1 reads 28,723,887, writes 14,134,415, chroma_mc reads 2,852,040
+   p + l as ledgered (one comparison per plane taken): instructions 7,212,140,325

@@ -1,0 +1,439 @@
+== bin-base: coreav_h264::fast::v3::significance_map::<16> (objdump -d, first 0x240 bytes)
+   4ef80:	push   %rbp
+   4ef81:	push   %r15
+   4ef83:	push   %r14
+   4ef85:	push   %r13
+   4ef87:	push   %r12
+   4ef89:	push   %rbx
+   4ef8a:	sub    $0x28,%rsp
+   4ef8e:	mov    %rdx,(%rsp)
+   4ef92:	lea    0x10(%rdi),%rax
+   4ef96:	mov    %rax,0x10(%rsp)
+   4ef9b:	mov    0x28(%rdi),%r15
+   4ef9f:	mov    0x30(%rdi),%r13d
+   4efa3:	mov    0x34(%rdi),%ebp
+   4efa6:	xor    %r11d,%r11d
+   4efa9:	movq   $0x0,0x8(%rsp)
+   4efb2:	xor    %r12d,%r12d
+   4efb5:	mov    %rdi,0x20(%rsp)
+   4efba:	mov    %rsi,0x18(%rsp)
+   4efbf:	jmp    4eff4 <...>
+   4efc1:	data16 data16 data16 data16 data16 cs nopw 0x0(%rax,%rax,1)
+   4efd0:	mov    0x8(%rsp),%rax
+   4efd5:	bts    %r12,%rax
+   4efd9:	mov    %rax,0x8(%rsp)
+   4efde:	cmp    %r14b,%bl
+   4efe1:	jne    4f1b1 <...>
+   4efe7:	inc    %r12
+   4efea:	cmp    %r12,(%rsp)
+   4efee:	je     4f1a1 <...>
+   4eff4:	lea    (%rsi,%r12,1),%eax
+   4eff8:	and    $0x3ff,%eax
+   4effd:	movzbl 0x38(%rdi,%rax,1),%ecx
+   4f002:	lea    0x0(,%rcx,8),%edx
+   4f009:	mov    %ebp,%r8d
+   4f00c:	shr    $0x6,%r8d
+   4f010:	and    $0x7ff,%r8d
+   4f017:	or     %edx,%r8d
+   4f01a:	lea    -0x3f333(%rip),%rdx        # fcee <GCC_except_table860+0x93ee>
+   4f021:	movzbl (%r8,%rdx,1),%edx
+   4f026:	lea    -0x3eb3f(%rip),%r9        # 104ee <GCC_except_table860+0x9bee>
+   4f02d:	movzwl (%r9,%r8,2),%r9d
+   4f032:	sub    %edx,%ebp
+   4f034:	shlx   %r13,%rbp,%rdx
+   4f039:	xor    %r8d,%r8d
+   4f03c:	cmp    $0x100,%ebp
+   4f042:	setb   %r8b
+   4f046:	mov    %r9d,%r10d
+   4f049:	shr    $0x9,%r10d
+   4f04d:	cmp    %rdx,%r15
+   4f050:	cmovb  %r8d,%r10d
+   4f054:	and    $0x1ff,%r9d
+   4f05b:	cmp    %rdx,%r15
+   4f05e:	shlx   %r8d,%ebp,%ebp
+   4f063:	cmovae %r9d,%ebp
+   4f067:	cmovb  %r11,%rdx
+   4f06b:	setae  %r14b
+   4f06f:	lea    -0x3db88(%rip),%r8        # 114ee <GCC_except_table860+0xabee>
+   4f076:	lea    (%r8,%rcx,2),%r8
+   4f07a:	mov    %ecx,%ebx
+   4f07c:	and    $0x1,%bl
+   4f07f:	mov    %ebx,%ecx
+   4f081:	xor    %r14b,%cl
+   4f084:	movzbl %cl,%ecx
+   4f087:	movzbl (%rcx,%r8,1),%ecx
+   4f08c:	mov    %cl,0x38(%rdi,%rax,1)
+   4f090:	sub    %rdx,%r15
+   4f093:	sub    %r10d,%r13d
+   4f096:	cmp    $0x7,%r13d
+   4f09a:	ja     4f0c0 <...>
+   4f09c:	shl    $0x20,%r15
+   4f0a0:	mov    0x10(%rsp),%rdi
+   4f0a5:	call   8e670 <...>
+   4f0aa:	xor    %r11d,%r11d
+   4f0ad:	mov    0x18(%rsp),%rsi
+   4f0b2:	mov    0x20(%rsp),%rdi
+   4f0b7:	mov    %eax,%eax
+   4f0b9:	or     %rax,%r15
+   4f0bc:	or     $0x20,%r13d
+   4f0c0:	cmp    %r14b,%bl
+   4f0c3:	je     4efe7 <...>
+   4f0c9:	lea    (%rsi,%r12,1),%eax
+   4f0cd:	add    $0x3d,%eax
+   4f0d0:	and    $0x3ff,%eax
+   4f0d5:	movzbl 0x38(%rdi,%rax,1),%ecx
+   4f0da:	lea    0x0(,%rcx,8),%edx
+   4f0e1:	mov    %ebp,%r8d
+   4f0e4:	shr    $0x6,%r8d
+   4f0e8:	and    $0x7ff,%r8d
+   4f0ef:	or     %edx,%r8d
+   4f0f2:	lea    -0x3f40b(%rip),%rdx        # fcee <GCC_except_table860+0x93ee>
+   4f0f9:	movzbl (%r8,%rdx,1),%edx
+   4f0fe:	lea    -0x3ec17(%rip),%r9        # 104ee <GCC_except_table860+0x9bee>
+   4f105:	movzwl (%r9,%r8,2),%r9d
+   4f10a:	sub    %edx,%ebp
+   4f10c:	shlx   %r13,%rbp,%rdx
+   4f111:	xor    %r8d,%r8d
+   4f114:	cmp    $0x100,%ebp
+   4f11a:	setb   %r8b
+   4f11e:	mov    %r9d,%r10d
+   4f121:	shr    $0x9,%r10d
+   4f125:	cmp    %rdx,%r15
+   4f128:	cmovb  %r8d,%r10d
+   4f12c:	and    $0x1ff,%r9d
+   4f133:	cmp    %rdx,%r15
+   4f136:	shlx   %r8d,%ebp,%ebp
+   4f13b:	cmovae %r9d,%ebp
+   4f13f:	cmovb  %r11,%rdx
+   4f143:	setae  %r14b
+   4f147:	lea    -0x3dc60(%rip),%r8        # 114ee <GCC_except_table860+0xabee>
+   4f14e:	lea    (%r8,%rcx,2),%r8
+   4f152:	mov    %ecx,%ebx
+   4f154:	and    $0x1,%bl
+   4f157:	mov    %ebx,%ecx
+   4f159:	xor    %r14b,%cl
+   4f15c:	movzbl %cl,%ecx
+   4f15f:	movzbl (%rcx,%r8,1),%ecx
+   4f164:	mov    %cl,0x38(%rdi,%rax,1)
+   4f168:	sub    %rdx,%r15
+   4f16b:	sub    %r10d,%r13d
+   4f16e:	cmp    $0x7,%r13d
+   4f172:	ja     4efd0 <...>
+   4f178:	shl    $0x20,%r15
+   4f17c:	mov    0x10(%rsp),%rdi
+   4f181:	call   8e670 <...>
+   4f186:	xor    %r11d,%r11d
+   4f189:	mov    0x18(%rsp),%rsi
+   4f18e:	mov    0x20(%rsp),%rdi
+   4f193:	mov    %eax,%eax
+   4f195:	or     %rax,%r15
+   4f198:	or     $0x20,%r13d
+   4f19c:	jmp    4efd0 <...>
+   4f1a1:	mov    $0x1,%eax
+   4f1a6:	mov    (%rsp),%rcx
+   4f1aa:	shlx   %rcx,%rax,%rdx
+   4f1af:	jmp    4f1c8 <...>
+   4f1b1:	xor    %edx,%edx
+   4f1b3:	mov    (%rsp),%rax
+   4f1b7:	cmp    %rax,%r12
+   4f1ba:	mov    $0x1,%ecx
+   4f1bf:	.byte 0xc4
+== bin-v2: coreav_h264::fast::v3::significance_map::<16> (objdump -d, first 0x240 bytes)
+   4f7f0:	push   %rbp
+   4f7f1:	push   %r15
+   4f7f3:	push   %r14
+   4f7f5:	push   %r13
+   4f7f7:	push   %r12
+   4f7f9:	push   %rbx
+   4f7fa:	sub    $0x38,%rsp
+   4f7fe:	mov    %rdx,0x10(%rsp)
+   4f803:	lea    0x10(%rdi),%rax
+   4f807:	mov    %rax,0x20(%rsp)
+   4f80c:	mov    0x28(%rdi),%r14
+   4f810:	mov    0x30(%rdi),%r10d
+   4f814:	mov    0x34(%rdi),%ebp
+   4f817:	movq   $0x0,0x18(%rsp)
+   4f820:	xor    %r15d,%r15d
+   4f823:	mov    %rdi,0x30(%rsp)
+   4f828:	mov    %rsi,0x28(%rsp)
+   4f82d:	jmp    4f841 <...>
+   4f82f:	nop
+   4f830:	mov    %r12,%r14
+   4f833:	inc    %r15
+   4f836:	cmp    %r15,0x10(%rsp)
+   4f83b:	je     4fa17 <...>
+   4f841:	lea    (%rsi,%r15,1),%eax
+   4f845:	and    $0x3ff,%eax
+   4f84a:	movzbl 0x38(%rdi,%rax,1),%ebx
+   4f84f:	mov    %ebx,%edx
+   4f851:	shl    $0x5,%edx
+   4f854:	lea    -0x3fb6b(%rip),%rcx        # fcf0 <GCC_except_table860+0x93f0>
+   4f85b:	add    %rcx,%rdx
+   4f85e:	mov    %ebp,%r11d
+   4f861:	shr    $0x3,%r11d
+   4f865:	and    $0x18,%r11d
+   4f869:	movzwl 0x4(%r11,%rdx,1),%ecx
+   4f86f:	mov    %ecx,%r9d
+   4f872:	shr    $0x8,%ecx
+   4f875:	movzbl (%r11,%rdx,1),%r8d
+   4f87a:	sub    %r8d,%ebp
+   4f87d:	shlx   %r10,%rbp,%r13
+   4f882:	cmp    %r13,%r14
+   4f885:	cmovae %r9w,%cx
+   4f88a:	xor    %r9d,%r9d
+   4f88d:	cmp    $0x100,%ebp
+   4f893:	setb   %r9b
+   4f897:	cmp    %r13,%r14
+   4f89a:	movzwl 0x2(%r11,%rdx,1),%r8d
+   4f8a0:	movzbl 0x1(%r11,%rdx,1),%edx
+   4f8a6:	shlx   %r9d,%ebp,%ebp
+   4f8ab:	cmovae %r8d,%ebp
+   4f8af:	cmovb  %r9d,%edx
+   4f8b3:	mov    $0x0,%r8d
+   4f8b9:	cmovae %r13,%r8
+   4f8bd:	mov    %r14,%r12
+   4f8c0:	sub    %r8,%r12
+   4f8c3:	mov    %cl,0x38(%rdi,%rax,1)
+   4f8c7:	sub    %edx,%r10d
+   4f8ca:	cmp    $0x7,%r10d
+   4f8ce:	ja     4f907 <...>
+   4f8d0:	shl    $0x20,%r12
+   4f8d4:	mov    0x20(%rsp),%rdi
+   4f8d9:	mov    %r14,0x8(%rsp)
+   4f8de:	mov    %ebx,%r14d
+   4f8e1:	mov    %r10,%rbx
+   4f8e4:	call   8edd0 <...>
+   4f8e9:	mov    0x28(%rsp),%rsi
+   4f8ee:	mov    %rbx,%r10
+   4f8f1:	mov    %r14d,%ebx
+   4f8f4:	mov    0x8(%rsp),%r14
+   4f8f9:	mov    0x30(%rsp),%rdi
+   4f8fe:	mov    %eax,%eax
+   4f900:	or     %rax,%r12
+   4f903:	or     $0x20,%r10d
+   4f907:	cmp    %r13,%r14
+   4f90a:	setae  %al
+   4f90d:	xor    %bl,%al
+   4f90f:	test   $0x1,%al
+   4f911:	je     4f830 <...>
+   4f917:	lea    (%rsi,%r15,1),%eax
+   4f91b:	add    $0x3d,%eax
+   4f91e:	and    $0x3ff,%eax
+   4f923:	movzbl 0x38(%rdi,%rax,1),%r13d
+   4f929:	mov    %r13d,%edx
+   4f92c:	shl    $0x5,%edx
+   4f92f:	lea    -0x3fc46(%rip),%rcx        # fcf0 <GCC_except_table860+0x93f0>
+   4f936:	add    %rcx,%rdx
+   4f939:	mov    %ebp,%r11d
+   4f93c:	shr    $0x3,%r11d
+   4f940:	and    $0x18,%r11d
+   4f944:	movzwl 0x4(%r11,%rdx,1),%ecx
+   4f94a:	mov    %ecx,%r9d
+   4f94d:	shr    $0x8,%ecx
+   4f950:	movzbl (%r11,%rdx,1),%r8d
+   4f955:	sub    %r8d,%ebp
+   4f958:	shlx   %r10,%rbp,%rbx
+   4f95d:	cmp    %rbx,%r12
+   4f960:	cmovae %r9w,%cx
+   4f965:	xor    %r9d,%r9d
+   4f968:	cmp    $0x100,%ebp
+   4f96e:	setb   %r9b
+   4f972:	cmp    %rbx,%r12
+   4f975:	movzwl 0x2(%r11,%rdx,1),%r8d
+   4f97b:	movzbl 0x1(%r11,%rdx,1),%edx
+   4f981:	shlx   %r9d,%ebp,%ebp
+   4f986:	cmovae %r8d,%ebp
+   4f98a:	cmovb  %r9d,%edx
+   4f98e:	mov    $0x0,%r8d
+   4f994:	cmovae %rbx,%r8
+   4f998:	mov    %r12,%r14
+   4f99b:	sub    %r8,%r14
+   4f99e:	mov    %cl,0x38(%rdi,%rax,1)
+   4f9a2:	sub    %edx,%r10d
+   4f9a5:	cmp    $0x7,%r10d
+   4f9a9:	ja     4f9dc <...>
+   4f9ab:	shl    $0x20,%r14
+   4f9af:	mov    0x20(%rsp),%rdi
+   4f9b4:	mov    %r13d,0x8(%rsp)
+   4f9b9:	mov    %r10,%r13
+   4f9bc:	call   8edd0 <...>
+   4f9c1:	mov    0x28(%rsp),%rsi
+   4f9c6:	mov    %r13,%r10
+   4f9c9:	mov    0x8(%rsp),%r13d
+   4f9ce:	mov    0x30(%rsp),%rdi
+   4f9d3:	mov    %eax,%eax
+   4f9d5:	or     %rax,%r14
+   4f9d8:	or     $0x20,%r10d
+   4f9dc:	mov    0x18(%rsp),%rax
+   4f9e1:	bts    %r15,%rax
+   4f9e5:	mov    %rax,0x18(%rsp)
+   4f9ea:	cmp    %rbx,%r12
+   4f9ed:	setae  %al
+   4f9f0:	and    $0x1,%r13b
+   4f9f4:	cmp    %r13b,%al
+   4f9f7:	je     4f833 <...>
+   4f9fd:	xor    %edx,%edx
+   4f9ff:	mov    0x10(%rsp),%rax
+   4fa04:	cmp    %rax,%r15
+   4fa07:	mov    $0x1,%ecx
+   4fa0c:	shlx   %rax,%rcx,%rcx
+   4fa11:	cmove  %rcx,%rdx
+   4fa15:	jmp    4fa26 <...>
+   4fa17:	mov    $0x1,%eax
+   4fa1c:	mov    0x10(%rsp),%rcx
+   4fa21:	shlx   %rcx,%rax,%rdx
+   4fa26:	mov    0x18(%rsp),%rax
+   4fa2b:	or     %rdx,%rax
+   4fa2e:	rex.WR
+   4fa2f:	.byte 0x89
+== bin-v6: coreav_h264::fast::v3::significance_map::<16> (objdump -d, first 0x240 bytes)
+   4f8a0:	push   %rbp
+   4f8a1:	push   %r15
+   4f8a3:	push   %r14
+   4f8a5:	push   %r13
+   4f8a7:	push   %r12
+   4f8a9:	push   %rbx
+   4f8aa:	sub    $0x38,%rsp
+   4f8ae:	mov    %rdx,0x10(%rsp)
+   4f8b3:	lea    0x10(%rdi),%rax
+   4f8b7:	mov    %rax,0x20(%rsp)
+   4f8bc:	mov    0x28(%rdi),%r11
+   4f8c0:	mov    0x30(%rdi),%ebp
+   4f8c3:	mov    0x34(%rdi),%r13d
+   4f8c7:	movq   $0x0,0x18(%rsp)
+   4f8d0:	lea    -0x3fbe7(%rip),%r10        # fcf0 <GCC_except_table860+0x93f0>
+   4f8d7:	xor    %r15d,%r15d
+   4f8da:	mov    %rdi,0x30(%rsp)
+   4f8df:	mov    %rsi,0x28(%rsp)
+   4f8e4:	jmp    4f901 <...>
+   4f8e6:	cs nopw 0x0(%rax,%rax,1)
+   4f8f0:	mov    %r12,%r11
+   4f8f3:	inc    %r15
+   4f8f6:	cmp    %r15,0x10(%rsp)
+   4f8fb:	je     4fac5 <...>
+   4f901:	lea    (%rsi,%r15,1),%eax
+   4f905:	and    $0x3ff,%eax
+   4f90a:	movzbl 0x38(%rdi,%rax,1),%ebx
+   4f90f:	mov    %r13d,%edx
+   4f912:	shr    $0x6,%edx
+   4f915:	and    $0x3,%edx
+   4f918:	mov    %ebx,%r9d
+   4f91b:	shl    $0x5,%r9d
+   4f91f:	add    %r10,%r9
+   4f922:	movzwl 0x4(%r9,%rdx,8),%ecx
+   4f928:	movzbl (%r9,%rdx,8),%r8d
+   4f92d:	sub    %r8d,%r13d
+   4f930:	shlx   %rbp,%r13,%r14
+   4f935:	mov    %r11,%r12
+   4f938:	sub    %r14,%r12
+   4f93b:	jb     4f960 <...>
+   4f93d:	movzwl 0x2(%r9,%rdx,8),%r13d
+   4f943:	movzbl 0x1(%r9,%rdx,8),%edx
+   4f949:	mov    %cl,0x38(%rdi,%rax,1)
+   4f94d:	sub    %edx,%ebp
+   4f94f:	cmp    $0x7,%ebp
+   4f952:	jbe    4f985 <...>
+   4f954:	jmp    4f9c8 <...>
+   4f956:	cs nopw 0x0(%rax,%rax,1)
+   4f960:	movzwl %cx,%ecx
+   4f963:	shr    $0x8,%ecx
+   4f966:	xor    %edx,%edx
+   4f968:	cmp    $0x100,%r13d
+   4f96f:	setb   %dl
+   4f972:	shlx   %edx,%r13d,%r13d
+   4f977:	mov    %r11,%r12
+   4f97a:	mov    %cl,0x38(%rdi,%rax,1)
+   4f97e:	sub    %edx,%ebp
+   4f980:	cmp    $0x7,%ebp
+   4f983:	ja     4f9c8 <...>
+   4f985:	shl    $0x20,%r12
+   4f989:	mov    0x20(%rsp),%rdi
+   4f98e:	mov    %r13,0x8(%rsp)
+   4f993:	mov    %ebx,%r13d
+   4f996:	mov    %rbp,%rbx
+   4f999:	mov    %r11,%rbp
+   4f99c:	call   8eea0 <...>
+   4f9a1:	mov    %rbp,%r11
+   4f9a4:	mov    %rbx,%rbp
+   4f9a7:	mov    %r13d,%ebx
+   4f9aa:	mov    0x8(%rsp),%r13
+   4f9af:	lea    -0x3fcc6(%rip),%r10        # fcf0 <GCC_except_table860+0x93f0>
+   4f9b6:	mov    0x28(%rsp),%rsi
+   4f9bb:	mov    0x30(%rsp),%rdi
+   4f9c0:	mov    %eax,%eax
+   4f9c2:	or     %rax,%r12
+   4f9c5:	or     $0x20,%ebp
+   4f9c8:	cmp    %r14,%r11
+   4f9cb:	setae  %al
+   4f9ce:	xor    %bl,%al
+   4f9d0:	test   $0x1,%al
+   4f9d2:	je     4f8f0 <...>
+   4f9d8:	lea    (%rsi,%r15,1),%eax
+   4f9dc:	add    $0x3d,%eax
+   4f9df:	and    $0x3ff,%eax
+   4f9e4:	movzbl 0x38(%rdi,%rax,1),%ebx
+   4f9e9:	mov    %r13d,%edx
+   4f9ec:	shr    $0x6,%edx
+   4f9ef:	and    $0x3,%edx
+   4f9f2:	mov    %ebx,%r9d
+   4f9f5:	shl    $0x5,%r9d
+   4f9f9:	add    %r10,%r9
+   4f9fc:	movzwl 0x4(%r9,%rdx,8),%ecx
+   4fa02:	movzbl (%r9,%rdx,8),%r8d
+   4fa07:	sub    %r8d,%r13d
+   4fa0a:	shlx   %rbp,%r13,%r8
+   4fa0f:	mov    %r12,%r11
+   4fa12:	sub    %r8,%r11
+   4fa15:	jb     4fa30 <...>
+   4fa17:	movzwl 0x2(%r9,%rdx,8),%r13d
+   4fa1d:	movzbl 0x1(%r9,%rdx,8),%edx
+   4fa23:	mov    %cl,0x38(%rdi,%rax,1)
+   4fa27:	sub    %edx,%ebp
+   4fa29:	cmp    $0x7,%ebp
+   4fa2c:	jbe    4fa55 <...>
+   4fa2e:	jmp    4fa8c <...>
+   4fa30:	movzwl %cx,%ecx
+   4fa33:	shr    $0x8,%ecx
+   4fa36:	xor    %edx,%edx
+   4fa38:	cmp    $0x100,%r13d
+   4fa3f:	setb   %dl
+   4fa42:	shlx   %edx,%r13d,%r13d
+   4fa47:	mov    %r12,%r11
+   4fa4a:	mov    %cl,0x38(%rdi,%rax,1)
+   4fa4e:	sub    %edx,%ebp
+   4fa50:	cmp    $0x7,%ebp
+   4fa53:	ja     4fa8c <...>
+   4fa55:	shl    $0x20,%r11
+   4fa59:	mov    0x20(%rsp),%rdi
+   4fa5e:	mov    %r11,%r14
+   4fa61:	mov    %r8,0x8(%rsp)
+   4fa66:	call   8eea0 <...>
+   4fa6b:	mov    0x8(%rsp),%r8
+   4fa70:	mov    %r14,%r11
+   4fa73:	lea    -0x3fd8a(%rip),%r10        # fcf0 <GCC_except_table860+0x93f0>
+   4fa7a:	mov    0x28(%rsp),%rsi
+   4fa7f:	mov    0x30(%rsp),%rdi
+   4fa84:	mov    %eax,%eax
+   4fa86:	or     %rax,%r11
+   4fa89:	or     $0x20,%ebp
+   4fa8c:	mov    0x18(%rsp),%rax
+   4fa91:	bts    %r15,%rax
+   4fa95:	mov    %rax,0x18(%rsp)
+   4fa9a:	cmp    %r8,%r12
+   4fa9d:	setae  %al
+   4faa0:	and    $0x1,%bl
+   4faa3:	cmp    %bl,%al
+   4faa5:	je     4f8f3 <...>
+   4faab:	xor    %edx,%edx
+   4faad:	mov    0x10(%rsp),%rax
+   4fab2:	cmp    %rax,%r15
+   4fab5:	mov    $0x1,%ecx
+   4faba:	shlx   %rax,%rcx,%rcx
+   4fabf:	cmove  %rcx,%rdx
+   4fac3:	jmp    4fad4 <...>
+   4fac5:	mov    $0x1,%eax
+   4faca:	mov    0x10(%rsp),%rcx
+   4facf:	shlx   %rcx,%rax,%rdx
+   4fad4:	mov    0x18(%rsp),%rax
+   4fad9:	or     %rdx,%rax
+   4fadc:	mov    %r11,0x28(%rdi)

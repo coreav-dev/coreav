@@ -1,0 +1,196 @@
+{
+ "files": 401,
+ "statuses": {
+  "segments": {
+   "ok": 397,
+   "error": 3,
+   "refused": 1
+  },
+  "clips": {
+   "ok": 401
+  }
+ },
+ "refused": {
+  "segments": {
+   "unsupported: edit list with several edits (multi-edit), not supported here yet": 1
+  },
+  "clips": {}
+ },
+ "download_failed": 0,
+ "errors": [],
+ "joins": {
+  "segments": {
+   "total": 397,
+   "direct": 394,
+   "through_kd": 3,
+   "agree": 397,
+   "share": 1.0
+  },
+  "clips": {
+   "total": 401,
+   "direct": 163,
+   "through_kd": 227,
+   "agree": 390,
+   "share": 0.972568578553616
+  }
+ },
+ "kd_uses": {
+  "KD-J-AUDIO-EDIT-START": 335,
+  "KD-C-AAC-PROFILE": 3,
+  "KD-J-VIDEO-EDIT-END": 8,
+  "KD-J-AUDIO-NOISE": 59,
+  "KD-J-VIDEO-LATER-EDIT": 19,
+  "KD-J-DTS-SHIFT": 3
+ },
+ "packets": {
+  "agree": 14893992,
+  "disagree": 4990
+ },
+ "coverage_misses": [],
+ "failing": [
+  {
+   "sha256": "061589fae6b7e4383c522ba640232faa1e53d352f7068fcfb9ae3d3495b61b6b",
+   "join": "clips",
+   "size": 6438170,
+   "decoded": true,
+   "round_trip": [],
+   "problems": [
+    "audio: 486 packets differ, first (input, packet) [(1, 2), (1, 3), (1, 4)]"
+   ]
+  },
+  {
+   "sha256": "20e46e900f1003bc93bbb34783afbc31cb62e35c00273ade7b06b5026d1d5d1a",
+   "join": "segments",
+   "status": "error",
+   "reason": "write error: no storage space"
+  },
+  {
+   "sha256": "2680e5010bcd86c4aa5a92dd283f46318101a23395195a7010b2075b461e9027",
+   "join": "clips",
+   "size": 30656454,
+   "decoded": true,
+   "round_trip": [],
+   "problems": [
+    "audio: edit 0: 1 of 429 decoded frames from 0.023000 s differ from the inputs' packets decoded in sequence"
+   ]
+  },
+  {
+   "sha256": "44cc2b274a94d2cb7f71148e7983ae5382c59d6b6f14b6784adec2d39644accf",
+   "join": "clips",
+   "size": 55116850,
+   "decoded": true,
+   "round_trip": [],
+   "problems": [
+    "audio: 485 packets differ, first (input, packet) [(1, 2), (1, 3), (1, 4)]"
+   ]
+  },
+  {
+   "sha256": "4badd052bbd4db8fd7b8668ae9cb495b1afb24b020b611a95e766cea786ef510",
+   "join": "clips",
+   "size": 931460996,
+   "decoded": false,
+   "round_trip": [],
+   "problems": [
+    "audio: 497 packets differ, first (input, packet) [(1, 2), (1, 3), (1, 4)]"
+   ]
+  },
+  {
+   "sha256": "50a694bd8a2b4390463f3ab6429210f8b787109f9c366bbc1d75ecb69ac09aa4",
+   "join": "clips",
+   "size": 1769135,
+   "decoded": true,
+   "round_trip": [],
+   "problems": [
+    "audio: 629 packets differ, first (input, packet) [(1, 2), (1, 3), (1, 4)]"
+   ]
+  },
+  {
+   "sha256": "5d2107684f2634e6003f14f5c9074c88beca8b7e45d93d3d7f2068a1f9f2e2a5",
+   "join": "clips",
+   "size": 6505486,
+   "decoded": true,
+   "round_trip": [],
+   "problems": [
+    "audio: 490 packets differ, first (input, packet) [(1, 2), (1, 3), (1, 4)]"
+   ]
+  },
+  {
+   "sha256": "5d3d7333a60ef7887500e79790e43d42d233bf70abb84d758b77ce427ee8e649",
+   "join": "segments",
+   "status": "error",
+   "reason": "write error: no storage space"
+  },
+  {
+   "sha256": "ac8f060d22805895527ded8d746bb45cd51ac251852e185a6bc7e2014f65cd23",
+   "join": "segments",
+   "status": "error",
+   "reason": "write error: no storage space"
+  },
+  {
+   "sha256": "bbd77a523fd50f6a6100b01112b650369caa69500b7ef1d551a70b0bcdd15166",
+   "join": "clips",
+   "size": 4638616,
+   "decoded": true,
+   "round_trip": [],
+   "problems": [
+    "audio: 471 packets differ, first (input, packet) [(1, 2), (1, 3), (1, 4)]",
+    "audio: edit 1: 471 of 471 decoded frames from 9.996300 s differ from the inputs' packets decoded in sequence"
+   ]
+  },
+  {
+   "sha256": "bdb1dd5313526e4f3b2e7420b154a61ec63c191cfcd5e7465306b2cfd20b6cfd",
+   "join": "clips",
+   "size": 5735224,
+   "decoded": true,
+   "round_trip": [],
+   "problems": [
+    "audio: 511 packets differ, first (input, packet) [(1, 2), (1, 3), (1, 4)]"
+   ]
+  },
+  {
+   "sha256": "dd3d8375789636f3895b28d7e1870574c3fb0440226fb1680e6d9ac45ae211da",
+   "join": "clips",
+   "size": 5346278,
+   "decoded": true,
+   "round_trip": [],
+   "problems": [
+    "audio: 514 packets differ, first (input, packet) [(1, 2), (1, 3), (1, 4)]"
+   ]
+  },
+  {
+   "sha256": "f60de165d10c596ca92816e38b086c6c4776dcbd51d5ccd27cfefa1d8259bda1",
+   "join": "clips",
+   "size": 9448678,
+   "decoded": true,
+   "round_trip": [],
+   "problems": [
+    "audio: 474 packets differ, first (input, packet) [(1, 2), (1, 3), (1, 4)]"
+   ]
+  },
+  {
+   "sha256": "f99007f006eafce3ad5cc7ae56bd79beddd0ee2d47d3779ef01f2c8f34858cbc",
+   "join": "clips",
+   "size": 95334972,
+   "decoded": true,
+   "round_trip": [],
+   "problems": [
+    "audio: 433 packets differ, first (input, packet) [(1, 2), (1, 3), (1, 4)]"
+   ]
+  }
+ ],
+ "bars": {
+  "coverage_100": true,
+  "segments_99": {
+   "value": 1.0,
+   "met": true
+  },
+  "clips_98": {
+   "value": 0.972568578553616,
+   "met": false
+  },
+  "packets_99": {
+   "value": 0.9996650777885362,
+   "met": true
+  }
+ }
+}

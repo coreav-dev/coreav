@@ -1,0 +1,27 @@
+# perf cpu-clock samples per function, 3 interleaved rounds, 6da34958296c (1080p CABAC) 300 frames, prof-c17ae06 (line tables) vs prof-v3-a7d8e4b (the same with -C target-cpu=x86-64-v3); symsum.py, largest decreases then increases
+total prof-c17ae06 19913 prof-v3-a7d8e4b 19329 ratio 0.9707
+  -1047 (-0.0526)    1047      0 0.000  coreav_kernels_h264::simd::x86::predict::predict::<coreav_kernels_h264::Auto>
+   -517 (-0.0260)     517      0 0.000  coreav_kernels_h264::simd::x86::chroma_mb::filter_chroma_mb
+   -306 (-0.0154)     306      0 0.000  coreav_kernels_h264::simd::x86::idct4x4_add_quad
+   -155 (-0.0078)    3442   3287 0.955  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode_cabac
+    -59 (-0.0030)     569    510 0.896  <coreav_h264::cabac::Cabac>::mvd
+    -49 (-0.0025)      49      0 0.000  coreav_kernels_h264::simd::x86::intra_chroma
+    -41 (-0.0021)     346    305 0.882  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::parse_mvd::<coreav_h264::synta
+    -40 (-0.0020)     626    586 0.936  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::colocated
+    -34 (-0.0017)     222    188 0.847  <coreav_h264::syntax::CabacSyntax as coreav_h264::syntax::Syntax>::ref_idx::<coreav_kernel
+    -34 (-0.0017)     152    118 0.776  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::motion_compensate
+    -34 (-0.0017)      65     31 0.477  coreav_h264::nal::rbsp
+    -32 (-0.0016)     179    147 0.821  coreav_h264::cabac::levels::<4>
+    -30 (-0.0015)      30      0 0.000  coreav_kernels_h264::simd::x86::intra4x4_mb
+    -29 (-0.0015)     202    173 0.856  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reconstruct_chroma
+increases
+   +515 (+0.0259)     378    893 2.362  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::predict_fast
+   +465 (+0.0234)       9    474 52.667  <coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::filter_chroma_mb
+   +311 (+0.0156)       0    311 311.000  <coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::idct4x4_add_quad
+   +138 (+0.0069)    2509   2647 1.055  coreav_kernels_h264::simd::x86::predict::luma_block
+   +105 (+0.0053)     507    612 1.207  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::start_mb
+    +79 (+0.0040)     578    657 1.137  coreav_kernels_h264::simd::avx512::luma_columns
+    +76 (+0.0038)    2081   2157 1.037  coreav_h264::deblock::deblock_rows::<coreav_kernels_h264::Auto>
+    +67 (+0.0034)      83    150 1.807  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reconstruct_intra
+    +49 (+0.0025)       0     49 49.000  <coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::intra_chroma
+    +41 (+0.0021)     312    353 1.131  coreav_kernels_h264::simd::avx512::luma_rows

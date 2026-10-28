@@ -1,0 +1,147 @@
+✓ Initialized. View run at 
+<run URL redacted>
+Building image image-095
+
+=> Step 0: FROM base
+
+=> Step 1: COPY . /
+Saving image...
+Image saved, took 1.45s
+
+Built image image-095 in 2.58s
+
+
+Building image image-052
+
+=> Step 0: FROM base
+
+=> Step 1: RUN pip install --no-deps /opt/w2/coreav_spike_a-0.0.1-cp313-abi3-manylinux_2_28_x86_64.whl
+Looking in indexes: http://pypi-mirror.local:5555/simple
+Processing /opt/w2/coreav_spike_a-0.0.1-cp313-abi3-manylinux_2_28_x86_64.whl
+Installing collected packages: coreav-spike-a
+Successfully installed coreav-spike-a-0.0.1
+
+[notice] A new release of pip is available: 25.1.1 -> 26.2.1
+[notice] To update, run: pip install --upgrade pip
+Saving image...
+Image saved, took 763.37ms
+
+Built image image-052 in 4.64s
+
+
+Building image image-053
+
+=> Step 0: FROM base
+
+=> Step 1: COPY . /
+Saving image...
+Image saved, took 880.97ms
+
+Built image image-053 in 2.18s
+
+
+Building image image-115
+
+=> Step 0: FROM base
+
+=> Step 1: COPY . /
+Saving image...
+Image saved, took 579.37ms
+
+Built image image-115 in 1.98s
+
+
+Building image image-093
+
+=> Step 0: FROM base
+
+=> Step 1: COPY . /
+Saving image...
+Image saved, took 922.35ms
+
+Built image image-093 in 4.14s
+
+
+Building image image-011
+
+=> Step 0: FROM base
+
+=> Step 1: COPY . /
+Saving image...
+Image saved, took 614.46ms
+
+Built image image-011 in 1.87s
+
+
+Building image image-090
+
+=> Step 0: FROM base
+
+=> Step 1: COPY . /
+Saving image...
+Image saved, took 2.79s
+
+Built image image-090 in 5.86s
+
+
+✓ Created objects.
+├── ✓ Uploaded $WORK/stage2-w2/spikes/h1-gpu/remote_app.py
+├── ✓ Uploaded $WORK/stage2-w2/bench/remote_setup.py
+├── ✓ Created Function install_oracle.
+├── ✓ Created Function link_shared_libraries.
+├── ✓ Uploaded 
+│   $WORK/stage2-w2/spikes/spike-a/build/w2/coreav_spike_a-0.0.
+│   1-cp313-abi3-manylinux_2_28_x86_64.whl
+├── ✓ Uploaded $WORK/stage2-w2/spikes/nvdec-direct/rgb.cu
+├── ✓ Uploaded 
+│   $WORK/stage2-w2/spikes/nvdec-direct/compile_rgb.py
+├── ✓ Uploaded $WORK/stage2-w2/spikes/h1-gpu/corpus
+├── ✓ Uploaded $WORK/stage2-w2/spikes/h1-gpu/common.py
+├── ✓ Uploaded $WORK/stage2-w2/spikes/h1-gpu/prepare.py
+├── ✓ Uploaded $WORK/stage2-w2/spikes/h1-gpu/oracle.py
+├── ✓ Uploaded $WORK/stage2-w2/spikes/h1-gpu/bench.py
+├── ✓ Uploaded $WORK/stage2-w2/spikes/h1-gpu/fixtures.py
+├── ✓ Uploaded $WORK/stage2-w2/spikes/h1-gpu/debug.py
+├── ✓ Created Function prepare.
+├── ✓ Created Function oracle.
+├── ✓ Created Function bringup.
+├── ✓ Created Function measure.
+└── ✓ Created Function debug.
+{
+  "run_id": "debug-0-20261013T150453Z",
+  "step": "debug",
+  "args": [
+    0
+  ],
+  "kind": "gpu",
+  "reservation_usd": 0.4123,
+  "timeout_seconds": 900,
+  "startup_timeout_seconds": 600,
+  "retries": 0,
+  "reserved_utc": "2026-10-13T15:04:53.915134+00:00",
+  "outcome": "error: ConflictError('The app is stopped or disabled')",
+  "local_wall_seconds": 91.8,
+  "settled_usd": 0.0252
+}
+Traceback (most recent call last):
+  File "$WORK/stage2-w2/spikes/h1-gpu/run.py", line 109, in <module>
+    main()
+    ~~~~^^
+  File "$WORK/stage2-w2/spikes/h1-gpu/run.py", line 72, in main
+    call = function.spawn(*args)
+  File "$WORK/stage2-w2/spikes/spike-a/.venv/lib/python3.13/site-packages/runner/_object.py", line 49, in wrapped
+    return await method(self, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "$WORK/stage2-w2/spikes/spike-a/.venv/lib/python3.13/site-packages/runner/_functions.py", line 2227, in spawn
+    invocation = await self._call_function_nowait(args, kwargs, api_pb2.FUNCTION_CALL_INVOCATION_TYPE_ASYNC)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "$WORK/stage2-w2/spikes/spike-a/.venv/lib/python3.13/site-packages/runner/_functions.py", line 2013, in _call_function_nowait
+    return await _Invocation.create(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+    )
+    ^
+  File "$WORK/stage2-w2/spikes/spike-a/.venv/lib/python3.13/site-packages/runner/_functions.py", line 201, in create
+    response = await client._stub.FunctionMap(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+remote.exception.ConflictError: The app is stopped or disabled

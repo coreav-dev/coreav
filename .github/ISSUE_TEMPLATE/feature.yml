@@ -1,0 +1,25 @@
+name: Feature request or proposal
+description: Something CoreAV should do, or a change to what it does or how.
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Code is not used to make a change (CONTRIBUTING.md): describe what
+        you need and why, rather than a patch.
+  - type: textarea
+    id: need
+    attributes:
+      label: What you need
+      description: The format, operation or interface, and the problem it solves for you.
+    validations:
+      required: true
+  - type: textarea
+    id: today
+    attributes:
+      label: What you use today
+      description: The tool or workaround you use instead, and where it falls short.
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Measurements or examples
+      description: Numbers, sample commands or files that show the need. Files follow CONTRIBUTING.md, "Files you send".

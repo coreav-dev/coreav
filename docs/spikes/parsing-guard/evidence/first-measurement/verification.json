@@ -1,0 +1,35 @@
+{
+  "utc": "2026-10-12T15:44:02.701812+00:00",
+  "workspace": {
+    "cargo fmt --all --check": 0,
+    "cargo clippy --workspace --all-targets -- -D warnings": 0,
+    "cargo test --workspace": {
+      "exit": 0,
+      "tests": 29
+    },
+    "~/.cargo/bin/cargo-deny check": 0
+  },
+  "spike": {
+    "spikes/parsing-guard/check.sh": 0,
+    "tests": 12,
+    "regular_mutations": 4096,
+    "fragment_mutations": 4096,
+    "virtual_fragments": 20000,
+    "license_check_scope": "standalone spike graph with root deny.toml",
+    "unsafe_lines": 0,
+    "python_tests": 10,
+    "review_regressions": [
+      "mixed regular/fragment times and ordinals with/without tfdt",
+      "aggregate work across regular samples, runs, tracks, and fragments",
+      "reference failures and missing manifest coverage prevent publication",
+      "pinned pair identity, executable checks, and cache repair"
+    ]
+  },
+  "cargo_deny_notes": "Unmatched license allowances warned; advisories, bans, licenses and sources all passed.",
+  "review_fix_commits": {
+    "4249729473": "44af15c35b77681e993e35c978254fae66c277a9",
+    "4249729493": "6c7988a27e7c0519cec12d84500ee6f48e08cfc3",
+    "4249729500": "4f929d64eed25a1d8988c762c5d848631ffd0e23",
+    "4249729510": "7fff3acadd951f644bd00b3ff8397d34caa24073"
+  }
+}

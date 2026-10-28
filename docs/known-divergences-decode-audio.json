@@ -1,0 +1,57 @@
+{
+ "schema": "coreav/known-divergences/1",
+ "applies_to": "coreav decode-audio outputs of MP4 inputs with an edit list, through scripts/decode_audio_check.py and ffmpeg 7.0.2 (its default decode, edits applied, against CoreAV's presentation timeline)",
+ "entries": [
+  {
+   "id": "KD-A-LEADING-EMPTY",
+   "level": ["samples"],
+   "fields": ["the output's first samples"],
+   "filename_pattern": "*",
+   "conditions": {
+    "raw edit list": "an empty edit (media_time -1) before the first media edit that presents a sample",
+    "CoreAV's samples for it": "silence (zeros), its length the edit's duration",
+    "ffmpeg's output": "without those samples"
+   },
+   "predicate": "leading_empty",
+   "basis": "ISO/IEC 14496-12 8.6.6 (an empty edit is a time with no media presented); docs/design/audio-decode.md, Edit lists (silence for every empty edit, a leading one included)"
+  },
+  {
+   "id": "KD-A-EDIT-END",
+   "level": ["samples"],
+   "fields": ["the samples after a media edit's end"],
+   "filename_pattern": "*",
+   "conditions": {
+    "raw edit list": "a media edit whose end, in samples, falls inside a packet before the end of the media",
+    "ffmpeg's output": "the edit's window followed by the rest of that packet, the packet's own samples of ffmpeg's full decode"
+   },
+   "predicate": "edit_end",
+   "basis": "ISO/IEC 14496-12 8.6.6 (a media edit presents segment_duration of media from media_time); docs/design/audio-decode.md, Edit lists (windows cut sample-exact at both ends)"
+  },
+  {
+   "id": "KD-A-LATER-EDIT-START",
+   "level": ["samples"],
+   "fields": ["the first samples of a media edit after the first"],
+   "filename_pattern": "*",
+   "conditions": {
+    "raw edit list": "a media edit after one that presented samples, whose media_time, in samples, falls inside a packet",
+    "CoreAV's samples for it": "the media's samples from media_time to the next packet's start",
+    "ffmpeg's output": "the edit from the next packet's start"
+   },
+   "predicate": "later_edit_start",
+   "basis": "ISO/IEC 14496-12 8.6.6; docs/design/audio-decode.md, Edit lists (windows cut sample-exact at both ends)"
+  },
+  {
+   "id": "KD-A-INNER-EMPTY",
+   "level": ["samples"],
+   "fields": ["the samples of an empty edit after a media edit"],
+   "filename_pattern": "*",
+   "conditions": {
+    "raw edit list": "an empty edit after a media edit that presented samples",
+    "CoreAV's samples for it": "silence (zeros), its length the edit's duration",
+    "ffmpeg's output": "in their place the media's first whole packets, those starting before the edit's length, as ffmpeg's full decode has them (for a lossy codec the first of those packets in length only: its decoder state carries over from the packet before)"
+   },
+   "predicate": "inner_empty",
+   "basis": "ISO/IEC 14496-12 8.6.6 (an empty edit is a time with no media presented); docs/design/audio-decode.md, Edit lists"
+  }
+ ]
+}

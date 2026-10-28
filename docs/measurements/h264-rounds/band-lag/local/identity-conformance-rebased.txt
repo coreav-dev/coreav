@@ -1,0 +1,4 @@
+After rebasing on main e856e4d7: the branch's dist build at 1, 2, 3 and 8 threads against main e856e4d7 at 1 thread, the 32 training streams whole.
+identity identical 128/128
+{"streams": 97, "passed": 97, "failed": 0, "kernels": "detect", "threads": "1,2,8", "seconds": 66.4}
+{"streams": 97, "passed": 97, "failed": 0, "kernels": "scalar", "threads": "1", "seconds": 67.2}

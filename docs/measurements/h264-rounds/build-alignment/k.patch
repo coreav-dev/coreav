@@ -1,0 +1,95 @@
+diff --git a/.cargo/config.toml b/.cargo/config.toml
+new file mode 100644
+index 0000000..63a2766
+--- /dev/null
++++ b/.cargo/config.toml
+@@ -0,0 +1,9 @@
++# Code placement (docs/design/h264.md, "Build round: code alignment"): every
++# function starts on a 64-byte line and every loop head is aligned to 64
++# bytes, on x86-64 only, where it was measured. Cargo reads this file from the
++# repository's tree, so it covers builds made in it: the CI release binaries
++# and wheels, the benchmark builds. It is ignored when RUSTFLAGS or
++# CARGO_ENCODED_RUSTFLAGS is set, which is why packages/cli/scripts/platform.sh
++# names the flags itself where it sets RUSTFLAGS.
++[target.'cfg(target_arch = "x86_64")']
++rustflags = ["-C", "llvm-args=-align-all-functions=6", "-C", "llvm-args=-align-loops=64"]
+diff --git a/.github/workflows/python.yml b/.github/workflows/python.yml
+index 5b4d0ec..e2c5cd3 100644
+--- a/.github/workflows/python.yml
++++ b/.github/workflows/python.yml
+@@ -118,6 +118,10 @@ jobs:
+           target: x86_64
+           manylinux: auto
+           args: --profile dist --locked --out dist --manifest-path crates/coreav-py/Cargo.toml
++      # The code alignment of .cargo/config.toml reached the wheel
++      # (docs/design/h264.md, "Build round: code alignment").
++      - name: Check the wheel's code alignment
++        run: scripts/check-code-alignment.sh dist/*.whl
+       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+         with:
+           toolchain: stable
+diff --git a/packages/cli/scripts/platform.sh b/packages/cli/scripts/platform.sh
+index b00e9f1..284d2fd 100755
+--- a/packages/cli/scripts/platform.sh
++++ b/packages/cli/scripts/platform.sh
+@@ -46,9 +46,28 @@ if [ "$target" = aarch64-unknown-linux-musl ] && [ "$(uname -m)" != aarch64 ]; t
+   # target's own flags.
+   export RUSTFLAGS="${RUSTFLAGS:-} -C linker-flavor=ld.lld"
+ fi
+-# The `dist` profile, stripped for the package.
++# x86-64: every function and loop aligned to 64 bytes, the flags of
++# .cargo/config.toml (docs/design/h264.md, "Build round: code alignment").
++# Named here because cargo reads that file's flags only when RUSTFLAGS is
++# unset, and this script sets it above for some targets (and a caller may).
++align=""
++case "$target" in
++  x86_64-*)
++    align="-C llvm-args=-align-all-functions=6 -C llvm-args=-align-loops=64"
++    export RUSTFLAGS="${RUSTFLAGS:-} $align"
++    ;;
++esac
++# The `dist` profile, stripped for the package. -v for the check below.
++log="$(mktemp)"
+ CARGO_PROFILE_DIST_STRIP=symbols \
+-  cargo build --locked --manifest-path "$root/Cargo.toml" -p coreav-cli --profile dist --target "$target"
++  cargo build -v --locked --manifest-path "$root/Cargo.toml" -p coreav-cli --profile dist --target "$target" 2>&1 | tee "$log"
++# The binary's own rustc call, the one that links and, under LTO, generates
++# the code, must have carried the alignment.
++if [ -n "$align" ] && ! grep -E -q -- "--crate-name coreav .*--crate-type bin.*-align-all-functions=6.*-align-loops=64" "$log"; then
++  echo "error: the coreav binary was built without the code alignment flags" >&2
++  exit 1
++fi
++rm -f "$log"
+ out="$here/npm/$platform"
+ rm -rf "$out"
+ mkdir -p "$out/bin"
+diff --git a/scripts/check-code-alignment.sh b/scripts/check-code-alignment.sh
+new file mode 100755
+index 0000000..a30dc55
+--- /dev/null
++++ b/scripts/check-code-alignment.sh
+@@ -0,0 +1,24 @@
++#!/usr/bin/env bash
++# Fails unless almost all of an x86-64 ELF's functions start on a 64-byte line
++# (docs/design/h264.md, "Build round: code alignment"):
++#   scripts/check-code-alignment.sh FILE.so|FILE.whl
++# The share is over the text symbols that are in the file; C and assembly from
++# other crates are not aligned, so the bar is 90%, and the wheels measure 97%.
++set -euo pipefail
++f="$1"
++if [ "${f%.whl}" != "$f" ]; then
++  tmp="$(mktemp -d)"
++  trap 'rm -rf "$tmp"' EXIT
++  unzip -q "$f" -d "$tmp"
++  f="$(find "$tmp" -name '*.so' | head -n 1)"
++fi
++nm -n --defined-only "$f" | python3 -I -c '
++import sys
++n = a = 0
++for line in sys.stdin:
++    p = line.split()
++    if len(p) == 3 and p[1] in "tT":
++        n += 1
++        a += int(p[0], 16) % 64 == 0
++print(f"{a} of {n} text symbols on a 64-byte line")
++sys.exit(0 if n and a * 10 >= n * 9 else 1)'

@@ -1,0 +1,463 @@
+{
+ "r1_identity": {
+  "files": 2970,
+  "errors": [],
+  "cases": 14850,
+  "per_command": {
+   "check-strict-gate": 2970,
+   "check-transcription": 2970,
+   "check-web-upload": 2970,
+   "probe-scan": 2970,
+   "remux": 2970
+  },
+  "different": 0,
+  "differences": [],
+  "met": true
+ },
+ "speed": {
+  "files": 886,
+  "errors": [],
+  "r2_instructions": {
+   "check": {
+    "files": 886,
+    "missing": 0,
+    "total_control": 49303055667,
+    "total_branch": 18164904728,
+    "total_ratio": 0.3684,
+    "median_ratio": 0.5329,
+    "files_above_1.01": 0,
+    "files_above_1.00": 1,
+    "highest": [
+     [
+      1.0002,
+      "fb32d0081ddf32fac67ed938ca48cc0a64a97b3c52e47335542cf36aabd56e9b"
+     ],
+     [
+      0.9966,
+      "e29770a1063e7df0e7208baf60250acf96acb66f12d38c44728ca8cf353d04d3"
+     ],
+     [
+      0.9962,
+      "667a8557388cf2dba67ad3f721e29e99d5688f73d3a8dee6123703b9ab50aabc"
+     ],
+     [
+      0.996,
+      "5a1f4cb94f05495381ba60107b1d916440ce9b8f694b88dc864dae5cff16433e"
+     ],
+     [
+      0.9957,
+      "8d93b7e945acb1b0f545afce8d5432588a3f93ea9277b51b4168343f13b994c2"
+     ]
+    ],
+    "met": true
+   },
+   "probe-scan": {
+    "files": 886,
+    "missing": 0,
+    "total_control": 48453970378,
+    "total_branch": 17370607993,
+    "total_ratio": 0.3585,
+    "median_ratio": 0.5129,
+    "files_above_1.01": 0,
+    "files_above_1.00": 1,
+    "highest": [
+     [
+      1.0002,
+      "fb32d0081ddf32fac67ed938ca48cc0a64a97b3c52e47335542cf36aabd56e9b"
+     ],
+     [
+      0.9965,
+      "e29770a1063e7df0e7208baf60250acf96acb66f12d38c44728ca8cf353d04d3"
+     ],
+     [
+      0.9958,
+      "5a1f4cb94f05495381ba60107b1d916440ce9b8f694b88dc864dae5cff16433e"
+     ],
+     [
+      0.9955,
+      "667a8557388cf2dba67ad3f721e29e99d5688f73d3a8dee6123703b9ab50aabc"
+     ],
+     [
+      0.9949,
+      "987f7489ad124353ded97e5e3ddf9572f1af66186e6305eafab4eb5012c4ab62"
+     ]
+    ],
+    "met": true
+   },
+   "remux": {
+    "files": 730,
+    "missing": 0,
+    "total_control": 20142565393,
+    "total_branch": 17688632946,
+    "total_ratio": 0.8782,
+    "median_ratio": 0.974,
+    "files_above_1.01": 0,
+    "files_above_1.00": 1,
+    "highest": [
+     [
+      1.0003,
+      "fb32d0081ddf32fac67ed938ca48cc0a64a97b3c52e47335542cf36aabd56e9b"
+     ],
+     [
+      1.0,
+      "5a1f4cb94f05495381ba60107b1d916440ce9b8f694b88dc864dae5cff16433e"
+     ],
+     [
+      1.0,
+      "4e08c111b544d582ec43014cb329a1cd5748df0e1f54666dfb2ed9c095507730"
+     ],
+     [
+      0.9999,
+      "0be4d0efe2eeebe61c8faf11589689dad8d29da1aab5062c657e49553fbf7831"
+     ],
+     [
+      0.9997,
+      "9d99b565f2ec3269e8c70a539cf57c2a778b3e05a5a170f4cd1a0881154e386f"
+     ]
+    ],
+    "met": true
+   }
+  },
+  "r3_wall": {
+   "check": {
+    "all": {
+     "files": 886,
+     "median": 0.9488,
+     "ci95": [
+      0.9417,
+      0.9569
+     ],
+     "max": 1.5406,
+     "min": 0.4796
+    },
+    "fragmented": {
+     "files": 81,
+     "median": 0.9574,
+     "ci95": [
+      0.9279,
+      0.9901
+     ],
+     "max": 1.3821,
+     "min": 0.7115
+    },
+    "unfragmented": {
+     "files": 665,
+     "median": 0.9569,
+     "ci95": [
+      0.9487,
+      0.9639
+     ],
+     "max": 1.5406,
+     "min": 0.4796
+    },
+    "matroska": {
+     "files": 140,
+     "median": 0.9195,
+     "ci95": [
+      0.9118,
+      0.9328
+     ],
+     "max": 1.2749,
+     "min": 0.6958
+    },
+    "met": true,
+    "slower_beyond_noise": false,
+    "seconds_median": {
+     "control": 1.415,
+     "branch": 1.403
+    }
+   },
+   "probe-scan": {
+    "all": {
+     "files": 886,
+     "median": 0.9232,
+     "ci95": [
+      0.9157,
+      0.9301
+     ],
+     "max": 1.7265,
+     "min": 0.5319
+    },
+    "fragmented": {
+     "files": 81,
+     "median": 0.926,
+     "ci95": [
+      0.8958,
+      0.971
+     ],
+     "max": 1.4475,
+     "min": 0.5322
+    },
+    "unfragmented": {
+     "files": 665,
+     "median": 0.9286,
+     "ci95": [
+      0.9213,
+      0.9376
+     ],
+     "max": 1.7265,
+     "min": 0.5319
+    },
+    "matroska": {
+     "files": 140,
+     "median": 0.9038,
+     "ci95": [
+      0.8938,
+      0.9155
+     ],
+     "max": 1.1519,
+     "min": 0.6387
+    },
+    "met": true,
+    "slower_beyond_noise": false,
+    "seconds_median": {
+     "control": 1.354,
+     "branch": 1.252
+    }
+   },
+   "remux": {
+    "all": {
+     "files": 730,
+     "median": 0.9999,
+     "ci95": [
+      0.9972,
+      1.0019
+     ],
+     "max": 1.6747,
+     "min": 0.5969
+    },
+    "fragmented": {
+     "files": 76,
+     "median": 0.9974,
+     "ci95": [
+      0.9905,
+      1.0056
+     ],
+     "max": 1.2771,
+     "min": 0.5969
+    },
+    "unfragmented": {
+     "files": 542,
+     "median": 1.0018,
+     "ci95": [
+      0.9996,
+      1.0038
+     ],
+     "max": 1.5397,
+     "min": 0.67
+    },
+    "matroska": {
+     "files": 112,
+     "median": 0.9888,
+     "ci95": [
+      0.9758,
+      0.9959
+     ],
+     "max": 1.6747,
+     "min": 0.7589
+    },
+    "met": false,
+    "slower_beyond_noise": false,
+    "seconds_median": {
+     "control": 2.487,
+     "branch": 2.456
+    }
+   }
+  },
+  "ffmpeg": {
+   "check": {
+    "control": {
+     "all": {
+      "files": 886,
+      "median": 0.1377,
+      "ci95": [
+       0.132,
+       0.1439
+      ],
+      "max": 1.229,
+      "min": 0.0003,
+      "faster_share": 0.9966
+     },
+     "fragmented": {
+      "files": 81,
+      "median": 0.117,
+      "ci95": [
+       0.0895,
+       0.1531
+      ],
+      "max": 0.5583,
+      "min": 0.0072,
+      "faster_share": 1.0
+     },
+     "unfragmented": {
+      "files": 665,
+      "median": 0.1288,
+      "ci95": [
+       0.1165,
+       0.1342
+      ],
+      "max": 1.229,
+      "min": 0.0003,
+      "faster_share": 0.9955
+     },
+     "matroska": {
+      "files": 140,
+      "median": 0.2284,
+      "ci95": [
+       0.1917,
+       0.2722
+      ],
+      "max": 0.6881,
+      "min": 0.0308,
+      "faster_share": 1.0
+     }
+    },
+    "branch": {
+     "all": {
+      "files": 886,
+      "median": 0.1306,
+      "ci95": [
+       0.1227,
+       0.1359
+      ],
+      "max": 1.0471,
+      "min": 0.0003,
+      "faster_share": 0.9977
+     },
+     "fragmented": {
+      "files": 81,
+      "median": 0.1229,
+      "ci95": [
+       0.0838,
+       0.1414
+      ],
+      "max": 0.5549,
+      "min": 0.0068,
+      "faster_share": 1.0
+     },
+     "unfragmented": {
+      "files": 665,
+      "median": 0.1181,
+      "ci95": [
+       0.1119,
+       0.1277
+      ],
+      "max": 1.0471,
+      "min": 0.0003,
+      "faster_share": 0.997
+     },
+     "matroska": {
+      "files": 140,
+      "median": 0.2107,
+      "ci95": [
+       0.1825,
+       0.2423
+      ],
+      "max": 0.5304,
+      "min": 0.0325,
+      "faster_share": 1.0
+     }
+    }
+   },
+   "probe-scan": {
+    "control": {
+     "all": {
+      "files": 886,
+      "median": 0.1358,
+      "ci95": [
+       0.1291,
+       0.1402
+      ],
+      "max": 1.2143,
+      "min": 0.0004,
+      "faster_share": 0.9977
+     },
+     "fragmented": {
+      "files": 81,
+      "median": 0.1099,
+      "ci95": [
+       0.0633,
+       0.1354
+      ],
+      "max": 0.6489,
+      "min": 0.004,
+      "faster_share": 1.0
+     },
+     "unfragmented": {
+      "files": 665,
+      "median": 0.1282,
+      "ci95": [
+       0.1161,
+       0.1325
+      ],
+      "max": 1.2143,
+      "min": 0.0004,
+      "faster_share": 0.997
+     },
+     "matroska": {
+      "files": 140,
+      "median": 0.224,
+      "ci95": [
+       0.1917,
+       0.2713
+      ],
+      "max": 0.5108,
+      "min": 0.0339,
+      "faster_share": 1.0
+     }
+    },
+    "branch": {
+     "all": {
+      "files": 886,
+      "median": 0.1232,
+      "ci95": [
+       0.1171,
+       0.1304
+      ],
+      "max": 1.0451,
+      "min": 0.0003,
+      "faster_share": 0.9977
+     },
+     "fragmented": {
+      "files": 81,
+      "median": 0.104,
+      "ci95": [
+       0.0646,
+       0.1185
+      ],
+      "max": 0.5648,
+      "min": 0.0039,
+      "faster_share": 1.0
+     },
+     "unfragmented": {
+      "files": 665,
+      "median": 0.1159,
+      "ci95": [
+       0.11,
+       0.1222
+      ],
+      "max": 1.0451,
+      "min": 0.0003,
+      "faster_share": 0.997
+     },
+     "matroska": {
+      "files": 140,
+      "median": 0.2032,
+      "ci95": [
+       0.1752,
+       0.2441
+      ],
+      "max": 0.5085,
+      "min": 0.0287,
+      "faster_share": 1.0
+     }
+    }
+   }
+  },
+  "classes": {
+   "fragmented": 81,
+   "unfragmented": 665,
+   "matroska": 140
+  }
+ }
+}

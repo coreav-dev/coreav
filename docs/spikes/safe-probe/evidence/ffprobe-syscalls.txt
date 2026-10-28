@@ -1,0 +1,9 @@
+# Distinct syscalls the pinned static ffprobe 7.0.2 issues when probing the
+# MP4/MOV fixtures with -show_streams -show_format, found by black-box ptrace
+# tracing (thread-following). Used to build the engine D seccomp allowlist.
+read write close stat fstat lseek mmap mprotect munmap brk rt_sigaction
+rt_sigprocmask rt_sigreturn ioctl pread64 uname fcntl readlink sigaltstack
+arch_prctl futex sched_getaffinity set_tid_address clock_gettime exit_group
+openat newfstatat set_robust_list prlimit64 getrandom rseq
+# plus execve (launcher transition) and clone/clone3/gettid/nanosleep for
+# builds that spawn worker threads.

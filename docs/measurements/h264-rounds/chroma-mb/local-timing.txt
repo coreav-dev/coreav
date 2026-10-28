@@ -1,0 +1,10 @@
+Information only (not a bar run): wall time, --discard, one thread, pinned, 5 interleaved rounds, medians, the class
+frame counts, on the development VM of the 2.90 GHz class. v0 = main 051e1692, vc = this round. Ratios to v0 in parentheses.
+41e324ebb708.0.sd.h264 v0 0.924 (1.0000) vc 0.917 (0.9919)
+f9e973f44570.0.sd.h264 v0 0.195 (1.0000) vc 0.195 (0.9958)
+9db41aa16b5a.0.720p.h2 v0 0.943 (1.0000) vc 0.909 (0.9639)
+1d4b1775d78a.0.720p.h2 v0 0.886 (1.0000) vc 0.853 (0.9633)
+6da34958296c.0.1080p.h v0 1.662 (1.0000) vc 1.643 (0.9885)
+a6af290d9053.0.1080p.h v0 5.458 (1.0000) vc 5.447 (0.9980)
+e624cbe0d2be.0.4k.h264 v0 0.883 (1.0000) vc 0.887 (1.0051)
+3b1b441e23ae.0.4k.h264 v0 0.656 (1.0000) vc 0.648 (0.9877)

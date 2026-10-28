@@ -1,0 +1,40 @@
+/tmp/cd/ab/ab.py 5 2: CPU time, --discard, one thread pinned to CPU 2, 32 training streams with the class frame counts, five rounds, build order rotated; per stream after's median over before's. before = main 75d77dc (4c457c9 differs in documents only), after = this round's code (Planes::request out of line); both dist. development VM, Intel Xeon @ 2.50 GHz; information, not a bar run.
+175433794e02.0.1080p.h 6.570  decode-after-main2 1.0057
+1d4b1775d78a.0.720p.h2 1.303  decode-after-main2 0.9808
+278dbf5a63bb.0.720p.h2 1.429  decode-after-main2 0.9953
+36501d448eaa.0.720p.h2 2.246  decode-after-main2 1.0064
+3b1b441e23ae.0.4k.h264 1.289  decode-after-main2 0.8122
+3c593b8f0809.0.720p.h2 1.134  decode-after-main2 1.0051
+41e324ebb708.0.sd.h264 1.316  decode-after-main2 1.0048
+4b54de28c2b3.0.4k.h264 1.056  decode-after-main2 0.9272
+5185721dda11.0.sd.h264 0.549  decode-after-main2 0.9876
+65ec61f95a00.0.720p.h2 4.599  decode-after-main2 0.9969
+6b18d9f0f88d.0.720p.h2 0.991  decode-after-main2 1.0393
+6da34958296c.0.1080p.h 2.964  decode-after-main2 0.9298
+6e90422a670a.0.1080p.h 5.451  decode-after-main2 1.0024
+6f7799768413.0.sd.h264 2.218  decode-after-main2 1.0078
+7650ae466748.0.sd.h264 0.711  decode-after-main2 1.0037
+76e0b1692494.0.720p.h2 1.275  decode-after-main2 1.0087
+81ed4778ece2.0.4k.h264 0.428  decode-after-main2 0.8822
+8ae90cadb5bc.0.sd.h264 1.861  decode-after-main2 1.0015
+9db41aa16b5a.0.720p.h2 1.289  decode-after-main2 1.0055
+a6af290d9053.0.1080p.h 7.543  decode-after-main2 0.9721
+a81de82106be.0.1080p.h 0.937  decode-after-main2 0.9741
+ae16bb7c7192.0.4k.h264 0.221  decode-after-main2 0.9508
+af38b0cfd840.0.4k.h264 0.667  decode-after-main2 1.0403
+b41f70a7fa60.0.1080p.h 3.539  decode-after-main2 0.9727
+b71b6b31e54f.0.1080p.h 1.669  decode-after-main2 0.9404
+c7ecda16e4a7.0.1080p.h 4.915  decode-after-main2 1.0089
+dcb262cf0138.0.sd.h264 0.391  decode-after-main2 1.0171
+e624cbe0d2be.0.4k.h264 1.315  decode-after-main2 0.8400
+ec473c99c538.0.sd.h264 0.152  decode-after-main2 1.0072
+ed75c044e944.0.4k.h264 0.375  decode-after-main2 0.9722
+f8d92a911e72.0.4k.h264 10.062  decode-after-main2 0.9889
+f9e973f44570.0.sd.h264 0.276  decode-after-main2 1.0012
+median decode-after-main2 0.9991  faster 16/32  1080p 0.9734 4k 0.9390 720p 1.0053 sd 1.0043
+
+The same with Planes::request inlined (the first build on main), five rounds:
+median decode-after-main 0.9866  faster 22/32  1080p 0.9457 4k 0.9170 720p 0.9866 sd 1.0207
+
+On the coarse dispatch round's branch (49a1cecc as before), Planes::request inlined, five rounds:
+median decode-after 0.9910  faster 22/32  1080p 0.9770 4k 0.9421 720p 0.9950 sd 1.0046

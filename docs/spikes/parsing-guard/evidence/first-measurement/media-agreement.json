@@ -1,0 +1,921 @@
+{
+  "schema": "spike-c/evidence/1",
+  "profile": "fixtures",
+  "passed": false,
+  "divergences_exempted": 0,
+  "levels": [
+    {
+      "agree": 2410,
+      "agreement_percent": 0.6231431755479652,
+      "disagree": 384339,
+      "files": 37,
+      "level": "packets",
+      "minimum_files": 0,
+      "minimum_units": 0,
+      "passed": false,
+      "reference_failures": 0,
+      "required_percent": 100,
+      "total": 386749,
+      "details": [
+        {
+          "agrees": true,
+          "file": "audio_51.m4a",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 95,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "audio_aac.m4a",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 95,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "audio_mp3.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 85,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "audio_opus.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 101,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "av1.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 50,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "basic.mov",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 138,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "basic.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 138,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": false,
+          "file": "browser.webm",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 151,
+          "reference_failure": false,
+          "gating_difference_counts": {
+            "probe_ok": 1
+          },
+          "gating_examples": [
+            {
+              "candidate": false,
+              "informational": false,
+              "path": "probe_ok",
+              "reference": true
+            }
+          ],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "color_bt2020_pq.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 50,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "color_bt709.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 50,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "color_full_range.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 50,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "edit_list.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 138,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "faststart.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 138,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "fragmented.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 138,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {
+            "streams/1/packets/*/duration": 2
+          },
+          "informational_examples": [
+            {
+              "candidate": 3528,
+              "informational": true,
+              "path": "streams/1/packets/0/duration",
+              "reference": null
+            },
+            {
+              "candidate": 136,
+              "informational": true,
+              "path": "streams/1/packets/87/duration",
+              "reference": 1024
+            }
+          ]
+        },
+        {
+          "agrees": true,
+          "file": "h264_avc3.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 50,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "hevc_hev1.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 50,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "hevc_hvc1.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 50,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "multitrack.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 296,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {
+            "streams/4/packets/*/duration": 1
+          },
+          "informational_examples": [
+            {
+              "candidate": 0,
+              "informational": true,
+              "path": "streams/4/packets/2/duration",
+              "reference": 80000
+            }
+          ]
+        },
+        {
+          "agrees": false,
+          "file": "negative_cts.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 50,
+          "reference_failure": false,
+          "gating_difference_counts": {
+            "streams/0/packets/*/dts": 50
+          },
+          "gating_examples": [
+            {
+              "candidate": 0,
+              "informational": false,
+              "path": "streams/0/packets/0/dts",
+              "reference": -1024
+            },
+            {
+              "candidate": 512,
+              "informational": false,
+              "path": "streams/0/packets/1/dts",
+              "reference": -512
+            },
+            {
+              "candidate": 1024,
+              "informational": false,
+              "path": "streams/0/packets/2/dts",
+              "reference": 0
+            },
+            {
+              "candidate": 1536,
+              "informational": false,
+              "path": "streams/0/packets/3/dts",
+              "reference": 512
+            },
+            {
+              "candidate": 2048,
+              "informational": false,
+              "path": "streams/0/packets/4/dts",
+              "reference": 1024
+            },
+            {
+              "candidate": 2560,
+              "informational": false,
+              "path": "streams/0/packets/5/dts",
+              "reference": 1536
+            },
+            {
+              "candidate": 3072,
+              "informational": false,
+              "path": "streams/0/packets/6/dts",
+              "reference": 2048
+            },
+            {
+              "candidate": 3584,
+              "informational": false,
+              "path": "streams/0/packets/7/dts",
+              "reference": 2560
+            }
+          ],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": false,
+          "file": "nested_10000.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {
+            "probe_ok": 1
+          },
+          "gating_examples": [
+            {
+              "candidate": false,
+              "informational": false,
+              "path": "probe_ok",
+              "reference": true
+            }
+          ],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": false,
+          "file": "pcm_f32le.mov",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 96000,
+          "reference_failure": false,
+          "gating_difference_counts": {
+            "streams/0/packets/*/size": 94,
+            "streams/0/packets/extra": 95906
+          },
+          "gating_examples": [
+            {
+              "candidate": 4,
+              "informational": false,
+              "path": "streams/0/packets/0/size",
+              "reference": 4096
+            },
+            {
+              "candidate": 4,
+              "informational": false,
+              "path": "streams/0/packets/1/size",
+              "reference": 4096
+            },
+            {
+              "candidate": 4,
+              "informational": false,
+              "path": "streams/0/packets/2/size",
+              "reference": 4096
+            },
+            {
+              "candidate": 4,
+              "informational": false,
+              "path": "streams/0/packets/3/size",
+              "reference": 4096
+            },
+            {
+              "candidate": 4,
+              "informational": false,
+              "path": "streams/0/packets/4/size",
+              "reference": 4096
+            },
+            {
+              "candidate": 4,
+              "informational": false,
+              "path": "streams/0/packets/5/size",
+              "reference": 4096
+            },
+            {
+              "candidate": 4,
+              "informational": false,
+              "path": "streams/0/packets/6/size",
+              "reference": 4096
+            },
+            {
+              "candidate": 4,
+              "informational": false,
+              "path": "streams/0/packets/7/size",
+              "reference": 4096
+            }
+          ],
+          "informational_difference_counts": {
+            "streams/0/packets/*/duration": 94
+          },
+          "informational_examples": [
+            {
+              "candidate": 1,
+              "informational": true,
+              "path": "streams/0/packets/0/duration",
+              "reference": 1024
+            },
+            {
+              "candidate": 1,
+              "informational": true,
+              "path": "streams/0/packets/1/duration",
+              "reference": 1024
+            },
+            {
+              "candidate": 1,
+              "informational": true,
+              "path": "streams/0/packets/2/duration",
+              "reference": 1024
+            }
+          ]
+        },
+        {
+          "agrees": false,
+          "file": "pcm_s16le.mov",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 96000,
+          "reference_failure": false,
+          "gating_difference_counts": {
+            "streams/0/packets/*/size": 94,
+            "streams/0/packets/extra": 95906
+          },
+          "gating_examples": [
+            {
+              "candidate": 2,
+              "informational": false,
+              "path": "streams/0/packets/0/size",
+              "reference": 2048
+            },
+            {
+              "candidate": 2,
+              "informational": false,
+              "path": "streams/0/packets/1/size",
+              "reference": 2048
+            },
+            {
+              "candidate": 2,
+              "informational": false,
+              "path": "streams/0/packets/2/size",
+              "reference": 2048
+            },
+            {
+              "candidate": 2,
+              "informational": false,
+              "path": "streams/0/packets/3/size",
+              "reference": 2048
+            },
+            {
+              "candidate": 2,
+              "informational": false,
+              "path": "streams/0/packets/4/size",
+              "reference": 2048
+            },
+            {
+              "candidate": 2,
+              "informational": false,
+              "path": "streams/0/packets/5/size",
+              "reference": 2048
+            },
+            {
+              "candidate": 2,
+              "informational": false,
+              "path": "streams/0/packets/6/size",
+              "reference": 2048
+            },
+            {
+              "candidate": 2,
+              "informational": false,
+              "path": "streams/0/packets/7/size",
+              "reference": 2048
+            }
+          ],
+          "informational_difference_counts": {
+            "streams/0/packets/*/duration": 94
+          },
+          "informational_examples": [
+            {
+              "candidate": 1,
+              "informational": true,
+              "path": "streams/0/packets/0/duration",
+              "reference": 1024
+            },
+            {
+              "candidate": 1,
+              "informational": true,
+              "path": "streams/0/packets/1/duration",
+              "reference": 1024
+            },
+            {
+              "candidate": 1,
+              "informational": true,
+              "path": "streams/0/packets/2/duration",
+              "reference": 1024
+            }
+          ]
+        },
+        {
+          "agrees": false,
+          "file": "pcm_s16le.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 96000,
+          "reference_failure": false,
+          "gating_difference_counts": {
+            "streams/0/packets/*/size": 94,
+            "streams/0/packets/extra": 95906
+          },
+          "gating_examples": [
+            {
+              "candidate": 2,
+              "informational": false,
+              "path": "streams/0/packets/0/size",
+              "reference": 2048
+            },
+            {
+              "candidate": 2,
+              "informational": false,
+              "path": "streams/0/packets/1/size",
+              "reference": 2048
+            },
+            {
+              "candidate": 2,
+              "informational": false,
+              "path": "streams/0/packets/2/size",
+              "reference": 2048
+            },
+            {
+              "candidate": 2,
+              "informational": false,
+              "path": "streams/0/packets/3/size",
+              "reference": 2048
+            },
+            {
+              "candidate": 2,
+              "informational": false,
+              "path": "streams/0/packets/4/size",
+              "reference": 2048
+            },
+            {
+              "candidate": 2,
+              "informational": false,
+              "path": "streams/0/packets/5/size",
+              "reference": 2048
+            },
+            {
+              "candidate": 2,
+              "informational": false,
+              "path": "streams/0/packets/6/size",
+              "reference": 2048
+            },
+            {
+              "candidate": 2,
+              "informational": false,
+              "path": "streams/0/packets/7/size",
+              "reference": 2048
+            }
+          ],
+          "informational_difference_counts": {
+            "streams/0/packets/*/duration": 94
+          },
+          "informational_examples": [
+            {
+              "candidate": 1,
+              "informational": true,
+              "path": "streams/0/packets/0/duration",
+              "reference": 1024
+            },
+            {
+              "candidate": 1,
+              "informational": true,
+              "path": "streams/0/packets/1/duration",
+              "reference": 1024
+            },
+            {
+              "candidate": 1,
+              "informational": true,
+              "path": "streams/0/packets/2/duration",
+              "reference": 1024
+            }
+          ]
+        },
+        {
+          "agrees": false,
+          "file": "pcm_s24le.mov",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 96000,
+          "reference_failure": false,
+          "gating_difference_counts": {
+            "streams/0/packets/*/size": 94,
+            "streams/0/packets/extra": 95906
+          },
+          "gating_examples": [
+            {
+              "candidate": 3,
+              "informational": false,
+              "path": "streams/0/packets/0/size",
+              "reference": 3072
+            },
+            {
+              "candidate": 3,
+              "informational": false,
+              "path": "streams/0/packets/1/size",
+              "reference": 3072
+            },
+            {
+              "candidate": 3,
+              "informational": false,
+              "path": "streams/0/packets/2/size",
+              "reference": 3072
+            },
+            {
+              "candidate": 3,
+              "informational": false,
+              "path": "streams/0/packets/3/size",
+              "reference": 3072
+            },
+            {
+              "candidate": 3,
+              "informational": false,
+              "path": "streams/0/packets/4/size",
+              "reference": 3072
+            },
+            {
+              "candidate": 3,
+              "informational": false,
+              "path": "streams/0/packets/5/size",
+              "reference": 3072
+            },
+            {
+              "candidate": 3,
+              "informational": false,
+              "path": "streams/0/packets/6/size",
+              "reference": 3072
+            },
+            {
+              "candidate": 3,
+              "informational": false,
+              "path": "streams/0/packets/7/size",
+              "reference": 3072
+            }
+          ],
+          "informational_difference_counts": {
+            "streams/0/packets/*/duration": 94
+          },
+          "informational_examples": [
+            {
+              "candidate": 1,
+              "informational": true,
+              "path": "streams/0/packets/0/duration",
+              "reference": 1024
+            },
+            {
+              "candidate": 1,
+              "informational": true,
+              "path": "streams/0/packets/1/duration",
+              "reference": 1024
+            },
+            {
+              "candidate": 1,
+              "informational": true,
+              "path": "streams/0/packets/2/duration",
+              "reference": 1024
+            }
+          ]
+        },
+        {
+          "agrees": true,
+          "file": "prores_4444.mov",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 25,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "prores_4444xq.mov",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 25,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "prores_hq.mov",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 25,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "prores_lt.mov",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 25,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "prores_proxy.mov",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 25,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "prores_standard.mov",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 25,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "rotate_ccw180.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 138,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "rotate_ccw270.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 138,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "rotate_ccw90.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 138,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "timecode.mov",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 51,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": false,
+          "file": "truncated.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 138,
+          "reference_failure": false,
+          "gating_difference_counts": {
+            "probe_ok": 1
+          },
+          "gating_examples": [
+            {
+              "candidate": false,
+              "informational": false,
+              "path": "probe_ok",
+              "reference": true
+            }
+          ],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "vfr.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 33,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {
+            "streams/0/packets/*/duration": 6
+          },
+          "informational_examples": [
+            {
+              "candidate": 1536,
+              "informational": true,
+              "path": "streams/0/packets/26/duration",
+              "reference": 512
+            },
+            {
+              "candidate": 1536,
+              "informational": true,
+              "path": "streams/0/packets/27/duration",
+              "reference": 512
+            },
+            {
+              "candidate": 1536,
+              "informational": true,
+              "path": "streams/0/packets/28/duration",
+              "reference": 512
+            }
+          ]
+        },
+        {
+          "agrees": true,
+          "file": "vp9.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 50,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        }
+      ]
+    }
+  ],
+  "full_report_sha256": "ae7460533033dcba5051928c84e21431a1ca823e077abe15a5774bf0f693c357",
+  "full_report_bytes": 157181880
+}

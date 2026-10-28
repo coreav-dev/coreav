@@ -1,0 +1,356 @@
+name: npm
+
+# The `coreav` npm packages (docs/design/npm-cli.md, "Verification"): the
+# main package (the launcher and the WASI build) and one native package per
+# platform. Builds them, tests the WASI build and the launcher against the
+# native command on the generated fixtures, dry-runs the publish step, and
+# installs the packed tarballs and runs them through `npx`. Nothing is
+# published.
+#
+# What runs when (as the Python wheels, .github/workflows/python.yml):
+# - ready pull requests and pushes to main: the WASI build, the Linux x86-64
+#   binary, the tests, and the smoke test on Linux with Node 20, 22 and 24;
+# - tags, manual runs, a weekly run, and pull requests labelled `binaries`:
+#   also the Linux arm64, macOS arm64 and x86-64 and Windows x86-64
+#   binaries, each run on its platform (Linux arm64 under QEMU) and
+#   smoke-tested there with Node 20 and 24. The label is read from the pull
+#   request, so any event of a labelled pull request builds them, not only
+#   the labelling itself.
+# Draft pull requests skip it.
+
+# Pull requests and pushes to main run it only when what is packaged can have
+# changed: the packages, the Python module, the command, the lock file, the
+# policy examples the tests run over, or this file. Documentation-only
+# changes are outside that list, so they run nothing. Narrowed from every
+# crate while this repository is private and its Actions minutes are billed;
+# the weekly run still builds every binary. The same filter as the Python
+# wheels (.github/workflows/python.yml), which share these inputs.
+#
+# The filter sits on the jobs (`npm-changes`), not on the trigger: a
+# workflow a trigger filter skips reports no check at all, and
+# `npm-report` has to appear on every pull request for the branch ruleset
+# to require it (docs/design/ci-checks.md).
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
+  schedule:
+    # Every binary once a week (Monday 04:30 UTC), on main.
+    - cron: '30 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # PRs: one run per branch, a new push cancels the previous one. Pushes to
+  # main and manual runs each get their own group, so none is dropped.
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  BINARYEN_VERSION: '133'
+  BINARYEN_SHA256: 2dc9c7813f5375db93d96ead4b78222fcc3e2677bbb832297af4797782a37489
+
+jobs:
+  npm-changes:
+    # Whether this event's changed files need the jobs below at all. A
+    # manual run, and anything whose changed files cannot be read, runs
+    # them (docs/design/ci-checks.md).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.filter.outputs.run }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # A pull request's merge commit and its first parent, the base.
+          fetch-depth: 2
+      - id: filter
+        uses: ./.github/actions/changed-paths
+        with:
+          paths: |
+            packages/**
+            crates/coreav-py/**
+            crates/coreav-cli/**
+            Cargo.lock
+            # The policy examples both test suites run over.
+            docs/schema/policy-examples/**
+            .github/workflows/npm.yml
+            .github/actions/changed-paths/**
+
+  package:
+    # Draft pull requests skip it. A label event does the same work as any
+    # other pull-request event, `binaries` or not: a label must never report
+    # a green `npm-report` over the failure an earlier event of the same
+    # commit found (docs/design/ci-checks.md, "What a report job must not
+    # hide"). Labels are rare, and the filter above still decides.
+    needs: npm-changes
+    if: >-
+      needs.npm-changes.outputs.run == 'true' &&
+      (github.event_name != 'pull_request' || !github.event.pull_request.draft)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          toolchain: stable
+          targets: wasm32-wasip1, x86_64-unknown-linux-musl
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+      - name: Install binaryen
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          name="binaryen-version_${BINARYEN_VERSION}-x86_64-linux.tar.gz"
+          curl -sSfLO "https://github.com/WebAssembly/binaryen/releases/download/version_${BINARYEN_VERSION}/$name"
+          echo "$BINARYEN_SHA256  $name" | sha256sum -c -
+          tar xzf "$name"
+          echo "WASM_OPT=$RUNNER_TEMP/binaryen-version_${BINARYEN_VERSION}/bin/wasm-opt" >> "$GITHUB_ENV"
+      - name: Lint the command for WASI
+        run: cargo clippy --locked -p coreav-cli --no-default-features --features cli --target wasm32-wasip1 -- -D warnings
+      - name: Build the WASI module
+        run: packages/cli/scripts/build.sh
+      - name: Install zig (the musl C compiler of the Linux packages)
+        run: |
+          python3 -m venv "$RUNNER_TEMP/zig"
+          "$RUNNER_TEMP/zig/bin/pip" install --require-hashes -r packages/cli/scripts/zig-requirements.txt
+          echo "ZIG=$RUNNER_TEMP/zig/bin/python -m ziglang" >> "$GITHUB_ENV"
+      - name: Build the Linux x86-64 package
+        run: packages/cli/scripts/platform.sh linux-x64
+      - name: Cache pinned black-box binaries
+        id: ffmpeg-cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/coreav-oracle-bin
+          key: linux-x64-ffmpeg-7.0.2-mediainfo-26.10-${{ hashFiles('scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
+      - name: Install pinned FFmpeg
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        run: |
+          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
+          scripts/install-oracle-mediainfo.sh "$RUNNER_TEMP/coreav-oracle-bin"
+      - name: Use pinned binaries
+        run: echo "$RUNNER_TEMP/coreav-oracle-bin" >> "$GITHUB_PATH"
+      - name: Generate all required fixtures
+        env:
+          COREAV_REQUIRE_ALL_FIXTURES: '1'
+        run: |
+          scripts/gen-fixtures.sh "$RUNNER_TEMP/coreav-fixtures"
+          scripts/gen-fixtures-mkv.sh "$RUNNER_TEMP/coreav-mkv-fixtures"
+      - name: Test the WASI build and the launcher against the native command
+        working-directory: packages/cli
+        env:
+          COREAV_BIN: ${{ github.workspace }}/packages/cli/npm/linux-x64/bin/coreav
+          COREAV_FIXTURE_DIRS: ${{ runner.temp }}/coreav-fixtures,${{ runner.temp }}/coreav-mkv-fixtures
+        run: npm test
+      - name: Pack and dry-run the publish step
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/packages"
+          (cd packages/cli && npm pack --pack-destination "$RUNNER_TEMP/packages")
+          (cd packages/cli/npm/linux-x64 && npm pack --pack-destination "$RUNNER_TEMP/packages")
+          for tarball in "$RUNNER_TEMP/packages"/*.tgz; do npm publish --dry-run --access public "$tarball"; done
+      # The smoke tests and the other platforms compare with these.
+      - name: Expected outputs
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/expected"
+          cd "$RUNNER_TEMP/expected"
+          cp "$RUNNER_TEMP/coreav-fixtures/basic.mp4" "$GITHUB_WORKSPACE/docs/schema/policy-examples/web-upload.json" .
+          bin="$GITHUB_WORKSPACE/packages/cli/npm/linux-x64/bin/coreav"
+          "$bin" probe basic.mp4 > probe.json
+          "$bin" check --policy web-upload.json basic.mp4 > check.json
+          "$bin" clip --start 0 --end 1 basic.mp4 clip.mp4 > clip.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: npm-expected
+          path: ${{ runner.temp }}/expected
+          retention-days: 3
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: npm-linux-x64
+          path: ${{ runner.temp }}/packages
+          retention-days: 3
+
+  smoke:
+    needs: package
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '22', '24']
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: npm-expected
+          path: expected
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: npm-linux-x64
+          path: packages
+      - name: Install the packages and run them through npx
+        run: packages/cli/test/smoke.sh linux-x64 "$PWD/packages" "$PWD/expected"
+
+  binaries:
+    needs: package
+    # Tags, manual and weekly runs, and pull requests labelled `binaries`.
+    if: >-
+      github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' ||
+      startsWith(github.ref, 'refs/tags/') ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'binaries'))
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Cross-built on Linux and run under QEMU.
+          - platform: linux-arm64
+            os: ubuntu-24.04
+            target: aarch64-unknown-linux-musl
+          - platform: darwin-arm64
+            os: macos-15
+            target: aarch64-apple-darwin
+          - platform: darwin-x64
+            os: macos-15-intel
+            target: x86_64-apple-darwin
+          - platform: win32-x64
+            os: windows-2025
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          key: ${{ matrix.target }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+      - if: matrix.platform == 'linux-arm64'
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+        with:
+          platforms: arm64
+      - name: Install zig (the musl C compiler of the Linux packages)
+        if: matrix.platform == 'linux-arm64'
+        run: |
+          python3 -m venv "$RUNNER_TEMP/zig"
+          "$RUNNER_TEMP/zig/bin/pip" install --require-hashes -r packages/cli/scripts/zig-requirements.txt
+          echo "ZIG=$RUNNER_TEMP/zig/bin/python -m ziglang" >> "$GITHUB_ENV"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: npm-expected
+          path: expected
+      - name: Build the package
+        run: packages/cli/scripts/platform.sh ${{ matrix.platform }} ${{ matrix.target }}
+      - name: Run the binary on its platform
+        run: |
+          set -euo pipefail
+          exe=coreav; [ "${{ matrix.platform }}" = win32-x64 ] && exe=coreav.exe
+          bin="$PWD/packages/cli/npm/${{ matrix.platform }}/bin/$exe"
+          version=$(node -p "require('./packages/cli/package.json').version")
+          [ "$("$bin" --version | tr -d '\r')" = "coreav $version" ]
+          cd expected
+          "$bin" probe basic.mp4 > "$RUNNER_TEMP/probe.json"
+          cmp "$RUNNER_TEMP/probe.json" probe.json
+          "$bin" clip --start 0 --end 1 basic.mp4 "$RUNNER_TEMP/clip.mp4" > "$RUNNER_TEMP/clip.json"
+          cmp "$RUNNER_TEMP/clip.mp4" clip.mp4
+          cmp "$RUNNER_TEMP/clip.json" clip.json
+      - name: Pack and dry-run the publish step
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/packages"
+          (cd packages/cli/npm/${{ matrix.platform }} && npm pack --pack-destination "$RUNNER_TEMP/packages")
+          npm publish --dry-run --access public "$RUNNER_TEMP/packages"/*.tgz
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: npm-${{ matrix.platform }}
+          path: ${{ runner.temp }}/packages
+          retention-days: 3
+
+  smoke-platforms:
+    needs: [package, binaries]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: darwin-arm64, os: macos-15, node: '20' }
+          - { platform: darwin-arm64, os: macos-15, node: '24' }
+          - { platform: darwin-x64, os: macos-15-intel, node: '24' }
+          - { platform: win32-x64, os: windows-2025, node: '20' }
+          - { platform: win32-x64, os: windows-2025, node: '24' }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: npm-expected
+          path: expected
+      # The main package (from the Linux job) and this platform's package.
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: npm-linux-x64
+          path: packages
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: npm-${{ matrix.platform }}
+          path: packages
+      - name: Install the packages and run them through npx
+        run: packages/cli/test/smoke.sh ${{ matrix.platform }} "$PWD/packages" "$PWD/expected"
+
+  npm-report:
+    # Always runs, including when the filter above skipped every job, so
+    # that the branch ruleset has one check name this workflow reports on
+    # every pull request, a documentation-only one included
+    # (docs/design/ci-checks.md).
+    # Not `binaries` or `smoke-platforms`: those run on the `binaries`
+    # label, which belongs to the pull request and not to the commit, so
+    # a required check that covered them would say different things about
+    # the same commit before and after a label changed
+    # (docs/design/ci-checks.md, "What a report job must not hide").
+    needs: [npm-changes, package, smoke]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Fail if a job above failed or was cancelled
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          { echo '| job | result |'
+            echo '|---|---|'
+            jq -r 'to_entries[] | "| \(.key) | \(.value.result) |"' <<< "$RESULTS"
+          } >> "$GITHUB_STEP_SUMMARY"
+          bad=$(jq -r '[to_entries[]
+            | select(.value.result == "failure" or .value.result == "cancelled")
+            | .key] | join(", ")' <<< "$RESULTS")
+          if [ -n "$bad" ]; then
+            echo "::error::failed or cancelled: $bad"
+            exit 1
+          fi

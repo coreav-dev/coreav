@@ -1,0 +1,9 @@
+{
+ "clips": 413,
+ "share_median": 0.5707636657196529,
+ "share_p90": 1.024230180568731,
+ "requests_median": 15,
+ "measured": 272,
+ "range_over_download_median": 8.502936133719317,
+ "range_faster": 0
+}

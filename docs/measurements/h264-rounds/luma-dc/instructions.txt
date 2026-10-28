@@ -1,0 +1,34 @@
+# Instructions (callgrind, one thread, --discard), k = e49998b over base = main 6a4ff38, both built as the run builds them (cargo build --locked --profile dist --example decode -p coreav-h264), the first pictures of each training stream (sd 90, 720p 30, 1080p 12, 4k 4); information, not a bar.
+f8d92a911e72.0.4k        0.9839
+1d4b1775d78a.0.720p      0.9903
+af38b0cfd840.0.4k        0.9944
+9db41aa16b5a.0.720p      0.9946
+278dbf5a63bb.0.720p      0.9949
+c7ecda16e4a7.0.1080p     0.9950
+65ec61f95a00.0.720p      0.9952
+6da34958296c.0.1080p     0.9956
+b41f70a7fa60.0.1080p     0.9961
+7650ae466748.0.sd        0.9962
+76e0b1692494.0.720p      0.9963
+175433794e02.0.1080p     0.9965
+6e90422a670a.0.1080p     0.9966
+e624cbe0d2be.0.4k        0.9971
+81ed4778ece2.0.4k        0.9972
+4b54de28c2b3.0.4k        0.9975
+ae16bb7c7192.0.4k        0.9979
+8ae90cadb5bc.0.sd        0.9982
+36501d448eaa.0.720p      0.9982
+5185721dda11.0.sd        0.9984
+a6af290d9053.0.1080p     0.9984
+a81de82106be.0.1080p     0.9985
+ed75c044e944.0.4k        0.9985
+3c593b8f0809.0.720p      0.9987
+b71b6b31e54f.0.1080p     0.9989
+3b1b441e23ae.0.4k        0.9990
+6b18d9f0f88d.0.720p      0.9992
+f9e973f44570.0.sd        0.9993
+6f7799768413.0.sd        0.9994
+ec473c99c538.0.sd        0.9996
+dcb262cf0138.0.sd        0.9996
+41e324ebb708.0.sd        0.9999
+median 0.9977 min 0.9839 max 0.9999 above 1: 0

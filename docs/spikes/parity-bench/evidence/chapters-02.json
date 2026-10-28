@@ -1,0 +1,198 @@
+[
+ {
+  "sha256": "145cd00359874eeca40c314027266a020861a8ef51261faaba4383198206a0e6",
+  "ext": "m4b",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 41972,
+   "lav": 4217958,
+   "ffprobe": 8330344
+  },
+  "failure": null
+ },
+ {
+  "sha256": "28a9e1e12df0a14e35ecee1a9acd953ce3230d96cd96657fa77b42be0c8f6170",
+  "ext": "m4b",
+  "set": "real",
+  "holdout": false,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 39572,
+   "lav": 1899497,
+   "ffprobe": 5342564
+  },
+  "failure": null
+ },
+ {
+  "sha256": "4e08c111b544d582ec43014cb329a1cd5748df0e1f54666dfb2ed9c095507730",
+  "ext": "m4b",
+  "set": "real",
+  "holdout": false,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 89390,
+   "lav": 24587310,
+   "ffprobe": 33862704
+  },
+  "failure": null
+ },
+ {
+  "sha256": "5a1f4cb94f05495381ba60107b1d916440ce9b8f694b88dc864dae5cff16433e",
+  "ext": "m4b",
+  "set": "real",
+  "holdout": false,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 109480,
+   "lav": 37639316,
+   "ffprobe": 49692083
+  },
+  "failure": null
+ },
+ {
+  "sha256": "6024f3b8f37190e0cafadefa93adb8a16143908c4a0038b7ada4dc4ba30cbc94",
+  "ext": "m4b",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 84464,
+   "lav": 29543626,
+   "ffprobe": 40292126
+  },
+  "failure": null
+ },
+ {
+  "sha256": "88ba79019cd6b9b17ba971829de03ae833d49f772ca6d8aae8fca0467284fc4d",
+  "ext": "m4a",
+  "set": "real",
+  "holdout": false,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 40251,
+   "lav": 2299032,
+   "ffprobe": 5516651
+  },
+  "failure": null
+ },
+ {
+  "sha256": "983a485e8c0a64ad5289c26df53d3d8b93466f1125ff6f3a5083d66047123049",
+  "ext": "m4b",
+  "set": "real",
+  "holdout": false,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 80915,
+   "lav": 15858637,
+   "ffprobe": 23357866
+  },
+  "failure": null
+ },
+ {
+  "sha256": "e29770a1063e7df0e7208baf60250acf96acb66f12d38c44728ca8cf353d04d3",
+  "ext": "m4b",
+  "set": "real",
+  "holdout": false,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 39382,
+   "lav": 52411182,
+   "ffprobe": 65074971
+  },
+  "failure": null
+ },
+ {
+  "sha256": "0ad504671d99498158b800989ab8abcf408410a465385ed1908774f342d101fb",
+  "ext": "mp4",
+  "set": "real",
+  "holdout": false,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 86848,
+   "lav": 7931255,
+   "ffprobe": 17935570
+  },
+  "failure": null
+ },
+ {
+  "sha256": "3d8f6047f82652d28a80fb5bbf48b8df0a24fc0091d3d55fdeb0b18fa957514a",
+  "ext": "mp4",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 66788,
+   "lav": 43131461,
+   "ffprobe": 49077040
+  },
+  "failure": null
+ },
+ {
+  "sha256": "7676e2228a261051858f794eb32519c9d190548bc698120b6e32b76805afa9fc",
+  "ext": "mp4",
+  "set": "real",
+  "holdout": false,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 41127,
+   "lav": 8310669,
+   "ffprobe": 17718438
+  },
+  "failure": null
+ },
+ {
+  "sha256": "82f43744c534855573a35ac81970d23e5bf59f143496df8f465897282fcbb92f",
+  "ext": "mp4",
+  "set": "real",
+  "holdout": false,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 49452,
+   "lav": 21405527,
+   "ffprobe": 25788636
+  },
+  "failure": null
+ },
+ {
+  "sha256": "d0f934176faf6476846eab2390a9a09b196a7cf5db0df651c9fac14ad5898991",
+  "ext": "mp4",
+  "set": "real",
+  "holdout": false,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 38309,
+   "lav": 986015,
+   "ffprobe": 6725195
+  },
+  "failure": null
+ },
+ {
+  "sha256": "ff7fac2c85681198183ae1ea4058a02463690359e570811c65bc2e5be58785de",
+  "ext": "mp4",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 37104,
+   "lav": 966581,
+   "ffprobe": 6137970
+  },
+  "failure": null
+ }
+]

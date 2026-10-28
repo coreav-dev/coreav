@@ -1,0 +1,49 @@
+Deblocking: the boundary-strength derivation as a vector kernel. Probe plan, written before any measurement of this
+probe.
+
+Question: what is the most time a kernel that derives a macroblock's boundary strengths (bS, clause 8.7.2.1) in
+vector registers could save? The derivation in view is `strengths` in deblock.rs and everything it calls: the
+neighbours' records and heads (`Side::new`, `Side::blocks`), the masks of coefficients (`column`, `row`, `spread`),
+the motion comparisons (`same_motion`, `split_edge`, `edge_motion`, `split_inside`), the out-of-line
+`split_strengths` and `differing_motion_strength`, and `deblock_row`'s test of the result for all zeros. A kernel
+would take the macroblock's and its neighbours' records and motion and return the same 32 strengths; it replaces
+this set and adds its own instructions, so the bound below, which takes the whole set as removed, is generous on
+purpose. Nothing is built for the probe. It bounds only the part such a change removes ("For later probes: what a
+doubled call prices"): the slice and neighbour lookups before the call (which slice filter, which neighbours are
+usable), the QPs, thresholds and the kernels' calls are kept and not counted.
+
+Build: main at acf3ee2f, `CARGO_PROFILE_DIST_DEBUG=line-tables-only cargo build --locked --profile dist --example
+decode -p coreav-h264` (`prof-main`). All 32 training streams at the class frame counts (sd 1800, 720p 900, 1080p 300,
+4k 150), `--threads 1 --discard`.
+
+1. Time: perf cpu-clock at 10 kHz, pinned to CPU 2, five runs a stream with `--kernels avx2` (so that the sampled and
+   simulated runs execute the same instructions; Valgrind has no AVX-512), and five with the detected kernels
+   (AVX-512 on this host; only their total time is used).
+2. Instructions and misses: callgrind --dump-instr=yes --cache-sim=yes --D1=49152,12,64, `--kernels avx2`, one run,
+   after the perf runs.
+3. Per source line of our code (innermost inline frame in a CoreAV crate, the MB layout probe's method): time share,
+   instruction share, excess = time share - instruction share, simulated D1 write misses.
+
+The removed set R (deblock.rs at acf3ee2f): every instruction with an inline frame, or in an out-of-line function, at
+deblock.rs lines 22 to 361 (from `differing_motion_strength`'s documentation to the end of `split_inside`: the
+derivation and all its helpers), and the instructions inlined into `deblock_row` at its lines 626 (the call of
+`strengths`) and 633 (the test for all zeros). Its parts, for information:
+  R:differing  an instruction with a frame of `differing_motion_strength`;
+  R:split      else, one with a frame of `split_strengths` (a macroblock or a neighbour with more than one motion);
+  R:strengths  the rest at lines 22 to 361 and line 626 (`strengths`, `edge_strengths`, `Side`, the masks);
+  R:zero test  line 633.
+
+Bound per stream, generous on purpose (the MB layout probe's formula, as the setup probe used it):
+  I = instruction share of R;
+  S = max( sum over R of positive excess,
+           W x sum over every line with stores of positive excess ),
+      W = R's simulated D1 write misses over all simulated D1 write misses;
+  bound = I + S, in % of the stream's sampled AVX2 time;
+  bound, detected = bound x (AVX2 time / detected-kernel time). This is the reading the threshold applies to.
+
+Threshold (an earlier change's, as the setup probe applied it): build the kernel round only if, in at least one class, the median
+per-stream bound, detected, is 1.5% or more; the round's own bars, committed before its run, decide what is reached.
+Otherwise the probe is recorded and nothing is built.
+
+Also reported (information): the bound per part and per class, R's instructions a macroblock, and the bound without
+the store-excess term.

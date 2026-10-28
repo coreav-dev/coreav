@@ -1,0 +1,19 @@
+build: (cd <worktree at rev> && cargo build --locked --profile dist --example decode -p coreav-h264)
+base = 52ce665c2a5db7590fb8361b61953a39b2b7676d
+k = 84db59a08c7eed828cae4f2e8ac34608045790b5
+kh = 1eade6d9aacefb32855c6e0c2ef64f1e0ccb175f
+kc = f5be658cf1276bd62ff1fba1866d7cadff316bbf
+kw = 8a76def81165a262f74ebf1691ce577acf7d38fc
+37eac56bd088eead40891d209bba21170871175671ab1ec7ab0ac393668b8881  $HOME/ap/decode-gbase
+5f1fe78465058dff7f9571d7e4212e42d8a81c620eac1cbd9d42c753dcbc5e9a  $HOME/ap/decode-gk
+c89ca3fa2d0ca832f7a4323fefc98a3ba01a5cb07178402a946402ba9fe3624a  $HOME/ap/decode-kh
+9d51f0724b852bc39315042d6b48f81f59a1617411bfa7881bff5a8ddfdce81d  $HOME/ap/decode-kc
+34f8546480755724da7f7c97fc8316969f699ddbbc4a446861f8759230f7910c  $HOME/ap/decode-kw
+0d709a0bed1a43f24cd2c420878c63afea4580671b6949ad19ed124572f3bc3d  $HOME/ff9/x/ffmpeg-n9.0.2-17-g2a571b6068-linux64-gpl-9.0/bin/ffmpeg
+rustc 1.99.1 (58cf8f9c3 2026-10-13)
+binary: rustc
+commit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67
+commit-date: 2026-10-13
+host: x86_64-unknown-linux-gnu
+release: 1.99.1
+LLVM version: 23.1.1

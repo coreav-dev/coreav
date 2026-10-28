@@ -1,0 +1,24 @@
+machine: unknown (family 25, model 17, stepping unknown), 3675.2 MHz, 24 logical CPUs
+175433794e02.0.1080p.h264                base:discard=1.24  base:write=1.23  base:mixed=1.23  c1:discard=1.23  c1:write=1.23  c1:mixed=1.22  c1b:discard=1.23  c1b:write=1.23  c1b:mixed=1.22  c4:discard=1.24  c4:write=1.22  c4:mixed=1.23
+6da34958296c.0.1080p.h264                base:discard=1.38  base:write=1.42  base:mixed=1.38  c1:discard=1.36  c1:write=1.43  c1:mixed=1.36  c1b:discard=1.39  c1b:write=1.44  c1b:mixed=1.40  c4:discard=1.36  c4:write=1.39  c4:mixed=1.36
+6e90422a670a.0.1080p.h264                base:discard=1.26  base:write=1.26  base:mixed=1.23  c1:discard=1.26  c1:write=1.23  c1:mixed=1.22  c1b:discard=1.26  c1b:write=1.25  c1b:mixed=1.23  c4:discard=1.24  c4:write=1.22  c4:mixed=1.21
+a6af290d9053.0.1080p.h264                base:discard=1.29  base:write=1.28  base:mixed=1.28  c1:discard=1.27  c1:write=1.27  c1:mixed=1.25  c1b:discard=1.27  c1b:write=1.26  c1b:mixed=1.26  c4:discard=1.25  c4:write=1.25  c4:mixed=1.23
+a81de82106be.0.1080p.h264                base:discard=1.17  base:write=1.04  base:mixed=1.02  c1:discard=1.17  c1:write=1.04  c1:mixed=1.02  c1b:discard=1.18  c1b:write=1.05  c1b:mixed=1.02  c4:discard=1.14  c4:write=1.02  c4:mixed=0.99
+b41f70a7fa60.0.1080p.h264                base:discard=1.47  base:write=2.66  base:mixed=2.59  c1:discard=1.46  c1:write=2.64  c1:mixed=2.59  c1b:discard=1.48  c1b:write=2.66  c1b:mixed=2.62  c4:discard=1.46  c4:write=2.62  c4:mixed=2.57
+b71b6b31e54f.0.1080p.h264                base:discard=1.61  base:write=1.50  base:mixed=1.41  c1:discard=1.65  c1:write=1.52  c1:mixed=1.45  c1b:discard=1.64  c1b:write=1.48  c1b:mixed=1.43  c4:discard=1.61  c4:write=1.51  c4:mixed=1.41
+c7ecda16e4a7.0.1080p.h264                base:discard=1.41  base:write=1.34  base:mixed=1.33  c1:discard=1.42  c1:write=1.33  c1:mixed=1.34  c1b:discard=1.41  c1b:write=1.34  c1b:mixed=1.33  c4:discard=1.36  c4:write=1.30  c4:mixed=1.29
+
+base:discard             n=  8  median 1.333  [1.239, 1.470]
+base:write               n=  8  median 1.311  [1.232, 1.503]
+base:mixed               n=  8  median 1.305  [1.227, 1.407]
+c1:discard               n=  8  median 1.313  [1.227, 1.464]
+c1:write                 n=  8  median 1.301  [1.228, 1.516]
+c1:mixed                 n=  8  median 1.297  [1.221, 1.446]
+c1b:discard              n=  8  median 1.331  [1.228, 1.484]
+c1b:write                n=  8  median 1.303  [1.232, 1.477]
+c1b:mixed                n=  8  median 1.295  [1.221, 1.429]
+c4:discard               n=  8  median 1.301  [1.239, 1.455]
+c4:write                 n=  8  median 1.279  [1.218, 1.511]
+c4:mixed                 n=  8  median 1.261  [1.207, 1.409]
+
+wrote /work/out/g.1080p.json

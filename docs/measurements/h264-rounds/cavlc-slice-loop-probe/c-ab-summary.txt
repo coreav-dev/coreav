@@ -1,0 +1,8 @@
+bin-sl-c
+  CABAC  n=26 median 0.9993 [0.9958, 1.0054] faster 13/26
+  CAVLC  n= 6 median 0.9813 [0.9504, 0.9854] faster 6/6
+  all    n=32 median 0.9962 [0.9923, 1.0031] faster 19/32
+  sd     n= 8 median 0.9882 [0.9709, 0.9964] faster 7/8
+  720p   n= 8 median 0.9959 [0.9910, 1.0049] faster 5/8
+  1080p  n= 8 median 1.0023 [0.9947, 1.0085] faster 4/8
+  4k     n= 8 median 1.0027 [0.9898, 1.0089] faster 3/8

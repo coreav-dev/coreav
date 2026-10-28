@@ -1,0 +1,32 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2899.9 MHz, 8 logical CPUs
+gate baseline: 0.410 s (samples 0.410, 0.421, 0.408)
+334602b1b17e.0.1080p.h264                base:discard=0.86  base:write=0.77  base:mixed=0.68  k:discard=0.84  k:write=0.77  k:mixed=0.67
+473ec24b05eb.0.1080p.h264                base:discard=1.19  base:write=1.11  base:mixed=1.11  k:discard=1.10  k:write=1.05  k:mixed=1.03
+48640c5a3dd7.0.1080p.h264                base:discard=0.93  base:write=0.91  base:mixed=0.79  k:discard=0.91  k:write=0.88  k:mixed=0.77
+4d9717b4616b.0.1080p.h264                base:discard=1.08  base:write=1.05  base:mixed=0.97  k:discard=1.07  k:write=0.98  k:mixed=0.96
+gate after 4 streams (check): 0.402 s (-1.8%)
+5f9c31932296.0.1080p.h264                base:discard=1.08  base:write=1.04  base:mixed=0.97  k:discard=1.05  k:write=1.02  k:mixed=0.95
+8433b87853b2.0.1080p.h264                base:discard=1.05  base:write=1.00  base:mixed=0.98  k:discard=1.03  k:write=0.97  k:mixed=0.96
+8754f59f19d5.0.1080p.h264                base:discard=1.30  base:write=1.20  base:mixed=1.20  k:discard=1.30  k:write=1.21  k:mixed=1.19
+ac8f060d2280.0.1080p.h264                base:discard=1.39  base:write=1.34  base:mixed=1.30  k:discard=1.40  k:write=1.35  k:mixed=1.30
+gate after 8 streams (check): 0.400 s (-2.4%)
+cfedf7425184.0.1080p.h264                host fault (attempt 1): null {'base_discard': 0.07419296378825257, 'base_write': 0.0006754301623932424}, max spread 1.296
+cfedf7425184.0.1080p.h264                base:discard=0.92  base:write=0.85  base:mixed=0.76  k:discard=0.89  k:write=0.83  k:mixed=0.74
+d0f1969d25de.0.1080p.h264                base:discard=1.00  base:write=0.92  base:mixed=0.83  k:discard=0.96  k:write=0.88  k:mixed=0.80
+d4d0cacfe7ff.0.1080p.h264                base:discard=0.76  base:write=0.71  base:mixed=0.60  k:discard=0.76  k:write=0.71  k:mixed=0.59
+e137204903ad.0.1080p.h264                base:discard=1.06  base:write=0.99  base:mixed=0.96  k:discard=0.97  k:write=0.96  k:mixed=0.88
+gate after 12 streams (check): 0.399 s (-2.6%)
+e3595ddcba67.0.1080p.h264                base:discard=1.14  base:write=1.07  base:mixed=0.99  k:discard=1.12  k:write=1.06  k:mixed=0.97
+ea3b4d48a931.0.1080p.h264                base:discard=1.34  base:write=1.32  base:mixed=1.27  k:discard=1.31  k:write=1.30  k:mixed=1.24
+f487a36e1311.0.1080p.h264                base:discard=0.91  base:write=0.87  base:mixed=0.81  k:discard=0.90  k:write=0.86  k:mixed=0.79
+f6988cf7c878.0.1080p.h264                base:discard=1.14  base:write=1.10  base:mixed=1.06  k:discard=1.09  k:write=1.04  k:mixed=1.02
+gate after 16 streams (check): 0.403 s (-1.6%)
+
+base:discard             n= 16  median 1.067  [0.930, 1.145]
+base:write               n= 16  median 1.023  [0.907, 1.098]
+base:mixed               n= 16  median 0.972  [0.808, 1.065]
+k:discard                n= 16  median 1.040  [0.911, 1.103]
+k:write                  n= 16  median 0.971  [0.877, 1.055]
+k:mixed                  n= 16  median 0.953  [0.795, 1.019]
+
+wrote $HOME/ab/cabac-asm/out/h.1080p.json

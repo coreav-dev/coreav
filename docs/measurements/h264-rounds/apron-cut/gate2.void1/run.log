@@ -1,0 +1,6 @@
+upload 418 MB, 32 streams in 4 calls; spend bound 4.80 USD of 5.00
+creating coreav-pmu-20261027-034540 (c4-standard-16, us-east4-a, STANDARD, PMU STANDARD, 1 thread(s) a core, max 4.0 h)
+deleting coreav-pmu-20261027-034540
+{"vm": "coreav-pmu-20261027-034540", "machine": "c4-standard-16", "zone": "us-east4-a", "provisioning": "STANDARD", "threads_per_core": 1, "hours": 0.002, "usd_per_hour_bound": 1.2, "usd_bound": 0.002, "status": "not started"}
+operation failed: {"errors": [{"code": "QUOTA_EXCEEDED", "message": "Quota 'CPUS_PER_VM_FAMILY' exceeded.  Limit: 24.0 in region us-east4.", "errorDetails": [{"quotaInfo": {"metricName": "compute.googleapis.com/cpus_per_vm_family", "limitName": "CPUS-PER-VM-FAMILY-per-project-region", "dimensions": {"region": "us-east4", "vm_family": "C4"}, "limit": 24}}]}]}
+gcp_vm_job.py exited 1: no verdict

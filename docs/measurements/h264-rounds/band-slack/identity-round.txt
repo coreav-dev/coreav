@@ -1,0 +1,2 @@
+k = c27c8be5: ident.sh (REF=m-b366429, main b3664291 at one thread), k at 1 and 8 threads, the 32 training streams; prints a line per difference
+identity done bad=0

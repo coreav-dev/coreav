@@ -1,0 +1,14 @@
+Local timing (information, before the bars): scripts/h264_parity.py --rounds 5 --pin 2, this VM (2.90 GHz class),
+the eight profiled streams, base = e1ef4ff4 (the transform round's branch), c = the candidate A.
+Identity: the 32 training streams' decoded output, 1 thread, md5 of base and c: 32 of 32 the same.
+
+6da34958296c 1080p  discard 0.972 write 1.008  ff/c 1.632
+b71b6b31e54f 1080p  discard 0.959 write 0.975  ff/c 1.762
+3b1b441e23ae 4k     discard 0.999 write 1.017  ff/c 1.786
+e624cbe0d2be 4k     discard 1.036 write 0.973  ff/c 1.828
+9db41aa16b5a 720p   discard 0.954 write 0.958  ff/c 1.759
+1d4b1775d78a 720p   discard 0.977 write 0.981  ff/c 1.583
+41e324ebb708 sd     discard 0.976 write 1.000  ff/c 1.505
+5185721dda11 sd     discard 0.970 write 0.975  ff/c 1.425
+discard median 0.9738 n 8
+write median 0.9782 n 8

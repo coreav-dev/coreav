@@ -1,0 +1,4 @@
+tree 0115ae9 (code of k, d10c367), detected kernels, 1, 2 and 8 threads: 97 of 97 passed, 0 failed
+tree 0115ae9 (code of k, d10c367), scalar kernels, 1 thread: 97 of 97 passed, 0 failed
+rebased tree ace05c0 (onto 814eb2a, kernel code of d10c367), detected kernels, 1, 2 and 8 threads: 97 of 97 passed, 0 failed
+rebased tree ace05c0 (onto 814eb2a, kernel code of d10c367), scalar kernels, 1 thread: 97 of 97 passed, 0 failed

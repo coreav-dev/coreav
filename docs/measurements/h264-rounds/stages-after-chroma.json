@@ -1,0 +1,17 @@
+{
+  "label": "after chroma",
+  "instructions": 13308578981,
+  "macroblocks": 1747200,
+  "stages": {
+    "chroma MC": 1192305960,
+    "deblocking": 3972044611,
+    "luma MC": 1668933110,
+    "CABAC": 2065930300,
+    "CAVLC": 0,
+    "intra prediction": 1068645674,
+    "MC control + fetch": 1831180594,
+    "IDCT + residual": 162585976,
+    "libc mem*": 586065847,
+    "everything else": 760886909
+  }
+}

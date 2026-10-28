@@ -1,0 +1,141 @@
+{
+  "schema": "coreav/known-divergences/1",
+  "applies_to": "coreav-isobmff-write join_mp4 outputs through scripts/join_check.py, ffprobe and ffmpeg 7.0.2, MediaInfo 26.10",
+  "entries": [
+    {
+      "id": "KD-J-VIDEO-LATER-EDIT",
+      "level": [
+        "packets",
+        "frames"
+      ],
+      "fields": [
+        "video pts",
+        "video dts",
+        "video discard flag",
+        "decoded video"
+      ],
+      "field_pattern": "video:*",
+      "filename_pattern": "*",
+      "conditions": {
+        "packets": "no packet missing or extra: every stored sample listed once (copies at the same byte position dropped), in the inputs' order, with their data, size and keyframe flag; the first input's times exact; at least one later input's times differing, and for each that does, every presentation time off by one constant other than 0, at least minus the first input's composition delay and at most its own, and every decode time off by that constant plus the input's KD-J-DTS-SHIFT difference (0 unless the output's smallest composition offset, which must be the smallest of the inputs' own, is negative and below the input's); the output's edit for each such input the input's own: starting at its offset plus the time before its own first media edit, from its own first media time moved to where its first sample is stored in the output (read from the input's file and from both files' stored decode times)",
+        "decoded video": "the inputs' frames, in order and with their checksums; the first input's at its own times, every later input's at its times plus its offset plus one constant, at least minus the first input's composition delay and at most that input's own (its edit's media time minus its first decode time), each frame the constant would put before the previous one at the previous one's time; for every later input whose frames move, the output's edit the input's own: starting at its offset plus the time before its own first media edit, from its own first media time moved to where its first sample is stored in the output (read from the input's file and from both files' stored decode times)"
+      },
+      "predicate": "video_later_edit",
+      "basis": "ISO/IEC 14496-12 (each edit maps its media time to its start in the presentation); docs/design/join.md (one edit per input)"
+    },
+    {
+      "id": "KD-J-AUDIO-EDIT-START",
+      "level": [
+        "packets",
+        "frames"
+      ],
+      "fields": [
+        "audio pts",
+        "audio dts",
+        "decoded audio"
+      ],
+      "field_pattern": "audio:*",
+      "filename_pattern": "*",
+      "conditions": {
+        "output audio track": "more than one media edit; an edit after the first whose media time is inside an AAC frame",
+        "packets": "no packet missing or extra and every packet equal in data, size and keyframe flag; the first input's times within a tick; at least one later input's times differing, and for each that does, every pts and every dts off by one constant above 0 and below a frame (the inputs' most common packet duration), equal within less than a tick (an offset that falls between ticks) to the distance from the input's own edit's media time, inside a packet, to the next packet start; the output's edit for each such input the input's own: starting at its offset plus the time before its own first media edit, from its own first media time moved to where its first sample is stored in the output (read from the input's file and from both files' stored decode times)",
+        "decoded audio": "equal, edit by edit, to the inputs' packets decoded in sequence, each edit after the first read from the first frame boundary at or after its media time"
+      },
+      "predicate": "audio_edit_start",
+      "basis": "ISO/IEC 14496-12 (an edit presents its media from its media time); docs/design/join.md (one edit per input)"
+    },
+    {
+      "id": "KD-J-VIDEO-EDIT-END",
+      "level": [
+        "frames"
+      ],
+      "fields": [
+        "decoded video"
+      ],
+      "field_pattern": "video:framemd5",
+      "filename_pattern": "*",
+      "conditions": {
+        "packets": "every packet agrees",
+        "an input before another": "its video edit ends inside its last presented frame",
+        "decoded video": "the inputs' frames, but for the next input's first frame, which is presented at the end of that last frame's full duration (its duration as ffmpeg decodes the input, or the end of the input's stored frames) instead of the input's start, and possibly listed twice"
+      },
+      "predicate": "video_edit_end",
+      "basis": "ISO/IEC 14496-12 (an edit presents its media for its duration, so an edit that ends inside a frame cuts it short); docs/design/join.md (each input keeps its own edit)"
+    },
+    {
+      "id": "KD-J-AUDIO-NOISE",
+      "level": [
+        "frames"
+      ],
+      "fields": [
+        "decoded audio"
+      ],
+      "field_pattern": "audio:pcm",
+      "filename_pattern": "*",
+      "conditions": {
+        "decoded audio": "every decoded frame of every edit equal, sample for sample, to the output's packets decoded in the order ffprobe lists them under the output's edits (each packet placed at its first delivery not flagged discard), at the media time the edit gives it, every edit after the first read from the first frame boundary at or after its media time (as KD-J-AUDIO-EDIT-START), within one sample"
+      },
+      "predicate": "audio_noise",
+      "basis": "ISO/IEC 14496-3 (perceptual noise substitution fills bands with noise the bitstream does not define, so the decoded samples depend on the decoder's history); ISO/IEC 14496-12 (an edit's media is the samples from its media time); the same cause as KD-C-AUDIO-RESTART and KD-S-AUDIO-RESTART"
+    },
+    {
+      "id": "KD-J-DTS-SHIFT",
+      "level": [
+        "packets"
+      ],
+      "fields": [
+        "video dts"
+      ],
+      "field_pattern": "video:packets",
+      "filename_pattern": "*",
+      "conditions": {
+        "packets": "no packet missing or extra and none differing in data, size or keyframe flag; presentation times equal; the output's smallest composition offset read as signed equal to the smallest of the inputs' own, read from the input files",
+        "inputs whose decode times differ": "every decode time off by one constant, equal to the output's smallest composition offset read as signed minus the input's (each counted only when negative), above 0"
+      },
+      "predicate": "dts_shift",
+      "basis": "composition offsets are copied as stored; the same cause as KD-C-DTS-SHIFT and KD-S-DTS-SHIFT"
+    },
+    {
+      "id": "KD-J-PTS-SHIFT",
+      "level": [
+        "streams",
+        "packets",
+        "frames"
+      ],
+      "fields": [
+        "video start time",
+        "video pts",
+        "video dts",
+        "decoded video"
+      ],
+      "field_pattern": "video:*",
+      "filename_pattern": "*",
+      "conditions": {
+        "source video": "no edit list",
+        "joined video": "the smallest composition offset over its table, read as signed, -D with D above 0",
+        "start time": "the source's D later than the joined file's plus the first segment's start",
+        "packets": "every packet equal in data, size and keyframe flag, with pts and dts exactly D apart in a shared time base",
+        "decoded video": "the joined file's frames equal the source's once D is applied"
+      },
+      "predicate": "source_pts_shift",
+      "basis": "composition offsets are reported as stored, never shifted; ISO/IEC 14496-12 (composition time is decode time plus the offset); the same cause as KD-C-PTS-SHIFT and KD-S-PTS-SHIFT"
+    },
+    {
+      "id": "KD-J-SYNC-VERIFIED",
+      "level": [
+        "packets"
+      ],
+      "fields": [
+        "video keyframe flags"
+      ],
+      "field_pattern": "video:packets",
+      "filename_pattern": "*",
+      "conditions": {
+        "packets": "every source packet in the joined file, one for one, in order, equal in data, size and times; the joined file starts with a keyframe; it differs only in keyframe flags the source's packets have and its do not, at least one",
+        "decoded frames": "with edit lists ignored, the joined file's flagged packets are exactly those ffmpeg decodes as key frames"
+      },
+      "predicate": "sync_verified",
+      "basis": "ISO/IEC 14496-12 8.6.2 (without a sync sample table every sample is a sync sample); ISO/IEC 14496-15 and ITU-T H.265 7.4.2.2 (an HEVC sync sample holds an IRAP picture, nal_unit_type 16 to 23); docs/design/cut-points.md (the output's sync flags are the samples the coded data agrees with)"
+    }
+  ]
+}

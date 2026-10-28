@@ -1,0 +1,224 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coreav-dev/coreav/docs/schema/clip-v1.schema.json",
+  "title": "coreav clip summary, schema coreav.clip/1",
+  "description": "The summary coreav clip prints. Keys and meanings: docs/schema/clip-v1.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "output",
+    "start",
+    "end",
+    "streams",
+    "left_out",
+    "boxes_left_out"
+  ],
+  "properties": {
+    "schema": {
+      "const": "coreav.clip/1"
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bytes"
+      ],
+      "properties": {
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "start": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requested",
+        "snapped"
+      ],
+      "properties": {
+        "requested": {
+          "$ref": "#/$defs/rational"
+        },
+        "snapped": {
+          "$ref": "#/$defs/time"
+        }
+      }
+    },
+    "end": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requested",
+        "written"
+      ],
+      "properties": {
+        "requested": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/rational"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "written": {
+          "$ref": "#/$defs/time"
+        }
+      }
+    },
+    "streams": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/stream"
+      }
+    },
+    "left_out": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/left_out"
+      }
+    },
+    "boxes_left_out": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "$defs": {
+    "rational": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "num",
+        "den"
+      ],
+      "properties": {
+        "num": {
+          "type": "integer"
+        },
+        "den": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "time": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ticks",
+        "timescale",
+        "seconds"
+      ],
+      "properties": {
+        "ticks": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/rational"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timescale": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "seconds": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      }
+    },
+    "stream": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "stream_index",
+        "track_id",
+        "codec",
+        "first_sample",
+        "samples",
+        "duration"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "video",
+            "audio"
+          ]
+        },
+        "stream_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "track_id": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "codec": {
+          "anyOf": [
+            {
+              "enum": [
+                "h264",
+                "hevc",
+                "av1",
+                "vp9",
+                "aac"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "first_sample": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "samples": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "duration": {
+          "$ref": "#/$defs/time"
+        }
+      }
+    },
+    "left_out": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stream_index",
+        "track_id",
+        "reason"
+      ],
+      "properties": {
+        "stream_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "track_id": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reason": {
+          "enum": [
+            "not_selected",
+            "no_samples_in_clip",
+            "codec_not_allowed"
+          ]
+        }
+      }
+    }
+  }
+}

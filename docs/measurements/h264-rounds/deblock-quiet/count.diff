@@ -1,0 +1,67 @@
+diff --git a/crates/coreav-h264/examples/decode.rs b/crates/coreav-h264/examples/decode.rs
+index 13d70e50..21f2a066 100644
+--- a/crates/coreav-h264/examples/decode.rs
++++ b/crates/coreav-h264/examples/decode.rs
+@@ -29,7 +29,10 @@ use coreav_h264::{AnnexB, Decoder, Limits, Mode, Picture};
+ use coreav_kernels_h264::Auto;
+ 
+ fn main() -> std::process::ExitCode {
+-    match run() {
++    let r = run();
++    let c: Vec<u64> = coreav_h264::deblock::CNT.iter().map(|a| a.load(std::sync::atomic::Ordering::Relaxed)).collect();
++    eprintln!("CNT mbs {} quiet {} zero {} both {}", c[0], c[1], c[2], c[3]);
++    match r {
+         Ok(()) => std::process::ExitCode::SUCCESS,
+         Err(e) => {
+             eprintln!("decode: {e}");
+diff --git a/crates/coreav-h264/src/deblock.rs b/crates/coreav-h264/src/deblock.rs
+index 4051efe9..fd6bed84 100644
+--- a/crates/coreav-h264/src/deblock.rs
++++ b/crates/coreav-h264/src/deblock.rs
+@@ -623,6 +623,17 @@ fn deblock_row<K: Kernels>(
+         };
+         let left = (mbx > 0).then(|| addr - 1).filter(|&a| usable(a));
+         let top = (mby > 0).then(|| addr - mb_w).filter(|&a| usable(a));
++        let quiet = {
++            let offsets = Offsets::new(&f);
++            let mut qmax = 0;
++            for m in [Some(q), left.and_then(|a| mbs.get(a)), top.and_then(|a| mbs.get(a))].into_iter().flatten() {
++                qmax = qmax.max(luma_qp(m));
++                for &o in &chroma_offsets { qmax = qmax.max(chroma_qp(m, o)); }
++            }
++            !Thresholds::new(qmax, qmax, offsets).filters()
++        };
++        CNT[0].fetch_add(1, core::sync::atomic::Ordering::Relaxed);
++        if quiet { CNT[1].fetch_add(1, core::sync::atomic::Ordering::Relaxed); }
+         let bs = strengths(pic, motion_base, mbs, (addr, q), left, top);
+         // Nothing to filter anywhere in this macroblock. Worth one test:
+         // a macroblock with one motion and no coefficient next to similar
+@@ -630,6 +641,9 @@ fn deblock_row<K: Kernels>(
+         // content, and without this test the loops
+         // below still walk eight luma and eight chroma edge slots and
+         // derive three quantisation parameters that nothing reads.
++        let zero = bs.iter().flatten().fold(0, |any, &w| any | w) == 0;
++        if zero { CNT[2].fetch_add(1, core::sync::atomic::Ordering::Relaxed); }
++        if zero && quiet { CNT[3].fetch_add(1, core::sync::atomic::Ordering::Relaxed); }
+         if bs.iter().flatten().fold(0, |any, &w| any | w) == 0 {
+             continue;
+         }
+@@ -1033,3 +1047,5 @@ mod tests {
+         assert_eq!((p.alpha, p.beta), (80, 13));
+     }
+ }
++
++pub static CNT: [core::sync::atomic::AtomicU64; 4] = [const { core::sync::atomic::AtomicU64::new(0) }; 4];
+diff --git a/crates/coreav-h264/src/lib.rs b/crates/coreav-h264/src/lib.rs
+index 0649d171..bb746bb1 100644
+--- a/crates/coreav-h264/src/lib.rs
++++ b/crates/coreav-h264/src/lib.rs
+@@ -39,7 +39,7 @@
+ mod bits;
+ mod cabac;
+ mod cavlc;
+-mod deblock;
++pub mod deblock;
+ mod decoder;
+ mod dpb;
+ mod error;

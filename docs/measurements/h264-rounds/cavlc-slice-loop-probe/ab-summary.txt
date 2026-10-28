@@ -1,0 +1,8 @@
+bin-sl-pad
+  CABAC  n=26 median 0.9984 [0.9964, 1.0044] faster 15/26
+  CAVLC  n= 6 median 1.0357 [1.0252, 1.1091] faster 0/6
+  all    n=32 median 1.0011 [0.9973, 1.0091] faster 15/32
+  sd     n= 8 median 1.0193 [0.9964, 1.0372] faster 2/8
+  720p   n= 8 median 1.0035 [0.9950, 1.0227] faster 4/8
+  1080p  n= 8 median 0.9973 [0.9942, 1.0027] faster 6/8
+  4k     n= 8 median 1.0039 [0.9973, 1.0108] faster 3/8

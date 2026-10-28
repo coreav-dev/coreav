@@ -1,0 +1,129 @@
+Profile of main at 555689b (dist build with line tables), the eight streams of docs/measurements/h264-gap-2.
+Machine: the 2.50 GHz class (Intel Xeon @ 2.50GHz, 8 vCPU), pinned to one core; no hardware PMU.
+
+== perf record -F 999 -e cpu-clock, frames 1800/900/300/150 per class: samples (ms) per stage and per function, % per stream
+total samples (ms) 18786
+mb control                   4726  25.2%
+luma MC                      3317  17.7%
+chroma MC                    2683  14.3%
+entropy                      2095  11.2%
+deblock filter               1633   8.7%
+deblock strength/driver      1396   7.4%
+combine                       946   5.0%
+intra pred                    588   3.1%
+picture/edge/output           536   2.9%
+idct/dequant/add              449   2.4%
+other                         417   2.2%
+    ms     %  1d4b  3b1b  41e3  5185  6da3  9db4  b71b  e624
+  2264 12.05   8.9  20.3   5.3   5.5  10.9   4.4  13.2  24.3  <K::Auto as K::Kernels>::chroma_mc
+  1664  8.86   4.6  15.1   2.9   1.3  11.7   2.0  11.0  14.3  K::simd::x86::luma_mc_into
+  1387  7.38   3.0  18.0   3.8   3.5   6.8   2.6   6.3  13.0  <mb::SliceDecoder<K::Auto>>::predict_list
+  1337  7.12   9.8   4.5   8.3  10.4   7.6  10.5   2.7   6.3  deblock::deblock_rows::<K::Auto>
+   930  4.95   4.1   1.0  16.0   0.0   0.3  19.2   0.0   0.0  K::simd::x86::combine
+   921  4.90   3.9   6.0   3.8   3.8   5.5   2.7   6.0   6.1  <mb::SliceDecoder<K::Auto>>::inter_pred
+   853  4.54   2.6   6.3   2.6   4.8   3.7   3.4   6.0   7.0  <work::PictureWork<K::Auto>>::decode_slice
+   700  3.73   4.7   0.7   4.0   5.5   3.6  11.3   0.7   0.6  K::simd::x86::filter_luma_edge::<false, true>
+   693  3.69   6.4   1.1   5.4   2.9   4.7   0.3   7.0   0.2  K::simd::x86::tap_rows
+   689  3.67   3.0   6.9   1.5   0.0   6.3   1.3   5.5   0.0  <mb::SliceDecoder<K::Auto>>::colocated
+   594  3.16   3.6   0.8   3.8   2.9   4.3   0.1   7.7   0.1  K::simd::x86::horizontal
+   443  2.36   6.5   0.6   3.6   0.0   5.0   0.0   0.0   1.2  <mb::SliceDecoder<K::Auto>>::decode_mb::<syntax::CabacSyntax>
+   419  2.23   1.0   5.2   1.2   0.0   3.4   0.0   4.1   0.0  <K::Auto as K::Kernels>::chroma_mc_avg
+   399  2.12   3.1   0.4   2.6   3.8   1.9   5.5   0.7   0.4  K::simd::x86::filter_chroma_edge::<false, true>
+   383  2.04   3.7   0.4   1.9   2.4   0.9   4.7   2.0   1.6  <mb::SliceDecoder<K::Auto>>::reconstruct_intra
+   368  1.96   1.4   2.3   2.2   2.6   1.9   2.3   1.8   1.6  inter::edge_window
+   337  1.79   2.0   0.3   2.3   3.7   1.5   5.5   0.3   0.4  K::simd::x86::filter_luma_edge::<true, true>
+   259  1.38   0.7   1.5   2.9   0.5   1.0   2.2   0.7   1.3  <mb::SliceDecoder<K::Auto>>::motion_compensate
+   250  1.33   2.1   0.3   2.8   1.2   1.3   0.0   2.8   0.0  K::simd::x86::luma_mc_filtered
+   238  1.27   1.0   1.7   1.0   1.3   1.3   1.6   1.2   1.0  <mb::SliceDecoder<K::Auto>>::start_mb
+   223  1.19   1.9   0.0   1.8   4.0   1.4   0.2   1.7   0.3  K::simd::x86::idct4x4_add_quad
+   204  1.09   0.0   0.0   0.0   8.6   0.0   2.5   2.4   0.0  cavlc::residual_block
+   203  1.08   0.0   0.0   0.0   9.2   0.0   2.1   2.5   0.0  <mb::SliceDecoder<K::Auto>>::parse_residual::<syntax::CavlcSyntax>
+   197  1.05   2.4   0.0   1.0   1.7   0.8   2.7   0.4   0.3  K::simd::x86::filter_chroma_edge::<true, true>
+   186  0.99   1.5   0.1   0.5   0.4   0.3   3.6   0.8   0.6  intra::pred_chroma
+   184  0.98   0.0   0.0   0.0   6.5   0.0   1.8   2.9   0.0  <cavlc::Code>::read
+   168  0.89   0.7   1.3   0.5   1.0   0.7   0.3   1.0   1.8  <decoder::Decoder>::start_picture
+   150  0.80   0.4   0.1   2.2   0.0   0.7   0.0   0.0   3.0  cabac::levels::<16>
+   148  0.79   1.8   0.2   1.6   0.0   1.4   0.0   0.0   0.8  <cabac::Cabac>::mvd
+   147  0.78   0.4   0.3   1.8   0.0   0.7   0.0   0.0   2.8  cabac::significance_map::<16>
+   127  0.68   1.4   0.2   1.6   0.0   1.2   0.0   0.0   0.7  <mb::SliceDecoder<K::Auto>>::parse_residual::<syntax::CabacSyntax>
+   112  0.60   0.5   0.9   0.7   0.1   1.0   0.0   0.9   0.0  <mb::SliceDecoder<K::Auto>>::mv_predictor
+   105  0.56   0.4   0.8   0.0   0.0   0.2   0.1   0.2   2.7  clear_page_erms
+    99  0.53   0.8   0.1   0.4   1.0   0.5   0.6   1.0   0.1  <mb::MbData>::reset
+    82  0.44   1.0   0.0   0.9   0.0   0.9   0.0   0.0   0.4  <mb::SliceDecoder<K::Auto>>::parse_mvd::<syntax::CabacSyntax>
+    73  0.39   1.1   0.0   0.2   1.0   0.5   0.3   0.3   0.1  <mb::SliceDecoder<K::Auto>>::reconstruct_chroma
+    64  0.34   0.3   0.0   0.3   0.6   0.1   1.1   0.3   0.3  <decoder::Decoder>::decode_unit
+    63  0.34   0.1   0.0   1.6   0.0   0.5   0.0   0.0   0.4  <syntax::CabacSyntax as syntax::Syntax>::block::<16>
+    59  0.31   0.4   0.1   0.5   0.7   0.5   0.2   0.1   0.2  deblock::differing_motion_strength
+    58  0.31   0.0   0.0   0.0   1.1   0.0   0.8   0.9   0.0  <bits::BitReader>::ue
+    51  0.27   0.4   0.1   0.0   0.4   0.4   0.0   0.2   0.7  <K::scalar::Scalar as K::Kernels>::luma_mc
+    51  0.27   0.1   0.2   0.3   0.5   0.2   0.2   0.5   0.4  <K::Auto as K::Kernels>::luma_mc
+    50  0.27   0.0   0.0   0.0   2.2   0.0   0.6   0.5   0.0  <syntax::CavlcSyntax as syntax::Syntax>::block_context::<K::Auto>
+    48  0.26   0.2   0.5   0.0   0.1   0.1   0.0   0.2   0.9  do_user_addr_fault
+    45  0.24   0.4   0.3   0.2   0.0   0.4   0.0   0.4   0.0  <mb::SliceDecoder<K::Auto>>::spatial_direct
+
+== callgrind --cache-sim=yes --branch-sim=yes, frames 600/300/100/50: instructions, simulated D1 misses and mispredicts per stage and function
+total Ir 41.30 G
+stage                         Ir G      %    D1 M  misp M
+mb control                    9.23  22.34   70.25   26.35
+entropy                       5.79  14.03    7.88   45.40
+deblock filter                5.48  13.27   19.60    2.47
+deblock strength/driver       4.96  12.00   27.81   35.47
+luma MC                       4.84  11.71   58.87   13.34
+chroma MC                     3.64   8.80   33.45   19.72
+combine                       2.97   7.19    5.43    4.90
+intra pred                    1.86   4.50    6.64    7.21
+idct/dequant/add              1.63   3.96    3.16    7.49
+picture/edge/output           0.52   1.27   19.23    1.35
+other                         0.38   0.93    5.68    1.22
+
+    Ir M     %   D1 M misp M  function
+  4844.5 11.73  27.60  33.64  [deblock ] deblock::deblock_rows::<K::Auto>
+  3113.2  7.54   1.43   6.15  [mb contr] <mb::SliceDecoder<K::Auto>>::predict_list
+  2943.6  7.13  29.68  16.65  [chroma M] <K::Auto as K::Kernels>::chroma_mc
+  2892.6  7.00   5.43   4.84  [combine] K::simd::x86::combine
+  2143.9  5.19   9.50   0.96  [deblock ] K::simd::x86::filter_luma_edge::<false, true>
+  1981.6  4.80  32.35   5.95  [mb contr] <mb::SliceDecoder<K::Auto>>::inter_pred
+  1873.1  4.54  44.28   4.01  [luma MC] K::simd::x86::luma_mc_into
+  1658.5  4.02   2.11  16.00  [entropy] <mb::SliceDecoder<K::Auto>>::decode_mb::<syntax::CabacSyntax>
+  1331.5  3.22   5.35   0.17  [deblock ] K::simd::x86::filter_chroma_edge::<false, true>
+  1284.8  3.11   5.67   5.21  [luma MC] K::simd::x86::tap_rows
+  1283.9  3.11   4.59   5.46  [intra pr] <mb::SliceDecoder<K::Auto>>::reconstruct_intra
+  1143.2  2.77   2.99   1.19  [deblock ] K::simd::x86::filter_luma_edge::<true, true>
+   998.2  2.42  17.59   4.52  [mb contr] <work::PictureWork<K::Auto>>::decode_slice
+   862.8  2.09   1.77   0.16  [deblock ] K::simd::x86::filter_chroma_edge::<true, true>
+   828.7  2.01   0.31   4.29  [idct/deq] K::simd::x86::idct4x4_add_quad
+   820.2  1.99   0.70   1.00  [mb contr] <mb::SliceDecoder<K::Auto>>::motion_compensate
+   802.1  1.94   3.35   0.47  [luma MC] K::simd::x86::horizontal
+   767.4  1.86   7.35   0.22  [mb contr] <mb::SliceDecoder<K::Auto>>::start_mb
+   691.8  1.68   3.77   3.07  [chroma M] <K::Auto as K::Kernels>::chroma_mc_avg
+   583.8  1.41   0.63   2.64  [entropy] cabac::levels::<16>
+   518.3  1.25   2.02   1.20  [intra pr] intra::pred_chroma
+   511.6  1.24   0.03   1.35  [mb contr] <mb::SliceDecoder<K::Auto>>::mv_predictor
+   469.0  1.14   8.27   1.31  [picture/] inter::edge_window
+   461.5  1.12   0.55   2.42  [entropy] <cabac::Cabac>::mvd
+   459.1  1.11   4.68   2.45  [luma MC] K::simd::x86::luma_mc_filtered
+   425.3  1.03   0.13   2.62  [entropy] cabac::significance_map::<16>
+   413.6  1.00   0.36   3.62  [entropy] <mb::SliceDecoder<K::Auto>>::parse_residual::<syntax::CabacSyntax>
+   383.6  0.93   0.06   2.85  [entropy] cavlc::residual_block
+   352.3  0.85   6.67   0.45  [mb contr] <mb::SliceDecoder<K::Auto>>::colocated
+   277.6  0.67   0.26   3.52  [entropy] <mb::SliceDecoder<K::Auto>>::parse_residual::<syntax::CavlcSyntax>
+   276.6  0.67   0.51   0.73  [idct/deq] K::simd::x86::idct8x8_add
+   233.7  0.57   0.34   1.76  [entropy] <mb::SliceDecoder<K::Auto>>::parse_mvd::<syntax::CabacSyntax>
+   201.8  0.49   1.20   0.92  [idct/deq] <mb::SliceDecoder<K::Auto>>::reconstruct_chroma
+   200.6  0.49   0.16   1.07  [entropy] <syntax::CabacSyntax as syntax::Syntax>::block::<16>
+   182.5  0.44   0.00   0.44  [luma MC] <K::Auto as K::Kernels>::luma_mc
+   172.4  0.42   0.87   3.13  [mb contr] <mb::MbData>::reset
+   164.9  0.40   0.24   0.18  [other] <decoder::Decoder>::decode_unit
+   160.1  0.39   0.02   0.88  [mb contr] <mb::SliceDecoder<K::Auto>>::spatial_direct
+   148.7  0.36   0.89   0.44  [luma MC] <K::scalar::Scalar as K::Kernels>::luma_mc
+   133.8  0.32   0.53   2.08  [entropy] <syntax::CabacSyntax>::intra_mb_type
+   118.0  0.29   1.37   0.27  [entropy] <cavlc::Code>::read
+   115.4  0.28   0.43   0.39  [entropy] cabac::levels::<4>
+   112.2  0.27   0.21   1.83  [deblock ] deblock::differing_motion_strength
+   108.9  0.26   0.02   0.07  [idct/deq] <K::scalar::Scalar as K::Kernels>::idct4x4_add
+   101.1  0.24   0.05   0.09  [entropy] <bits::BitReader>::ue
+   100.7  0.24   0.02   0.80  [mb contr] <mb::SliceDecoder<K::Auto>>::residual_4x4_luma
+    98.7  0.24   0.13   1.20  [entropy] <syntax::CabacSyntax as syntax::Syntax>::ref_idx::<K::Auto>
+    94.5  0.23   0.04   1.63  [entropy] <syntax::CabacSyntax as syntax::Syntax>::block_context::<K::Auto>
+    90.9  0.22   1.15   0.18  [other] __memset_avx2_unaligned_erms
+    90.3  0.22   2.28   0.19  [mb contr] <mb::SliceDecoder<K::Auto>>::fill_ctx::<1>

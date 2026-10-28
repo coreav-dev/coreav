@@ -1,0 +1,13 @@
+Chroma pair calls a macroblock on main 051e1692 (a counting build, not for merge: one counter per macroblock reaching the
+chroma edges, by the number of filter_chroma_pair calls it made), release build, --discard, one thread, the class frame
+counts (sd 1800, 720p 900, 1080p 300, 4k 150). "mbs" counts every macroblock of the filtered rows; a macroblock with no
+edge to filter in either plane stops before the chroma edges and is not in the histogram. "per filtering mb": calls
+over the macroblocks that made at least one; "per mb": calls over every macroblock, as the paired round's 1.26 counted.
+
+stream                     mbs  0 calls   1 call  2 calls  3 calls  4 calls    calls  per filtering mb  per mb
+41e324ebb708 (sd)      1656000    12495   149159   141442    55051   191182  1361924              2.54    0.82
+f9e973f44570 (sd)       201600     4630    36908    35227    26818    44864   367272              2.55    1.82
+9db41aa16b5a (720p)    1836000      324    48978    15484    34746   912295  3833364              3.79    2.09
+1d4b1775d78a (720p)    1080000    35039   246992   251612    39516   276107  1973192              2.42    1.83
+6da34958296c (1080p)   2448000   206121   461101   340713    98463   146999  2025912              1.93    0.83
+e624cbe0d2be (4k)      2650500   231997    31658     7985     8338    47308   261874              2.75    0.10

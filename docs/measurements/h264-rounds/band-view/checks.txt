@@ -1,0 +1,5 @@
+Checks on k (branch perf/h264-band-view-in-place, code as committed with this file; now rejected/h264-band-view, dc1d7eda) against base (main 82ad7c31).
+identity: 64 of 64 the same (32 training streams at the class frame counts, 1 and 8 threads, identity.txt)
+tests (cargo test --release -p coreav-h264 -p coreav-kernels-h264): 194 passed, 0 failed
+detect 1,2,8: {"streams": 97, "passed": 97, "failed": 0, "kernels": "detect", "mode": "fast", "threads": "1,2,8", "seconds": 79.5}
+scalar 1,2,8: {"streams": 97, "passed": 97, "failed": 0, "kernels": "scalar", "mode": "fast", "threads": "1,2,8", "seconds": 93.5}

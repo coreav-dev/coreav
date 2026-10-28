@@ -1,0 +1,33 @@
+# cargo-fuzz project (docs/design/transcode.md, bar B7); outside the workspace, never published.
+[package]
+name = "coreav-transcode-fuzz"
+version = "0.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+coreav-transcode = { path = ".." }
+
+[[bin]]
+name = "annexb"
+path = "fuzz_targets/annexb.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "scale"
+path = "fuzz_targets/scale.rs"
+test = false
+doc = false
+bench = false
+
+[lints.rust]
+unsafe_code = "forbid"

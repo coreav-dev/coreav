@@ -1,0 +1,33 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2900.0 MHz, 8 logical CPUs
+gate baseline: 0.403 s (samples 0.403, 0.404, 0.398)
+178de4a3a5a2.0.720p.h264                 base:discard=0.78  base:write=0.75  base:mixed=0.64  k:discard=0.76  k:write=0.73  k:mixed=0.63
+391ec79e178a.0.720p.h264                 base:discard=1.10  base:write=1.07  base:mixed=1.04  k:discard=1.07  k:write=1.06  k:mixed=1.02
+3c331ca6a971.0.720p.h264                 base:discard=1.08  base:write=1.04  base:mixed=1.01  k:discard=1.09  k:write=1.04  k:mixed=1.02
+4dc155fa1f76.0.720p.h264                 host fault (attempt 1): null {'base_discard': 0.0377574419638107, 'base_write': -0.062076661794407406}, max spread 1.418
+4dc155fa1f76.0.720p.h264                 base:discard=0.98  base:write=0.97  base:mixed=0.89  k:discard=1.01  k:write=0.98  k:mixed=0.92
+gate after 4 streams (check): 0.403 s (+0.1%)
+4f27662a0f72.0.720p.h264                 base:discard=1.06  base:write=1.05  base:mixed=1.01  k:discard=1.06  k:write=1.05  k:mixed=1.01
+59cf223b15f2.0.720p.h264                 base:discard=1.05  base:write=1.01  base:mixed=0.95  k:discard=1.05  k:write=1.01  k:mixed=0.95
+64e286230fca.0.720p.h264                 base:discard=1.12  base:write=1.08  base:mixed=1.04  k:discard=1.12  k:write=1.08  k:mixed=1.03
+64ef5412ed81.0.720p.h264                 base:discard=1.11  base:write=1.11  base:mixed=1.07  k:discard=1.11  k:write=1.09  k:mixed=1.07
+gate after 8 streams (check): 0.401 s (-0.4%)
+67138964d796.0.720p.h264                 base:discard=1.07  base:write=1.05  base:mixed=1.00  k:discard=1.07  k:write=1.04  k:mixed=1.00
+7eb29ce39b5c.0.720p.h264                 base:discard=1.04  base:write=1.02  base:mixed=0.99  k:discard=1.07  k:write=1.03  k:mixed=1.01
+985a28c5abe5.0.720p.h264                 base:discard=1.20  base:write=1.16  base:mixed=1.12  k:discard=1.18  k:write=1.15  k:mixed=1.10
+a9b1e81dc8f4.0.720p.h264                 base:discard=1.02  base:write=0.98  base:mixed=0.93  k:discard=1.04  k:write=0.99  k:mixed=0.94
+gate after 12 streams (check): 0.404 s (+0.2%)
+b1c6f2742fff.0.720p.h264                 base:discard=1.02  base:write=0.99  base:mixed=0.95  k:discard=1.02  k:write=0.99  k:mixed=0.96
+c187706da87d.0.720p.h264                 base:discard=1.05  base:write=1.00  base:mixed=0.94  k:discard=1.07  k:write=1.02  k:mixed=0.95
+f2a05e5926d8.0.720p.h264                 base:discard=1.06  base:write=1.02  base:mixed=0.98  k:discard=1.05  k:write=1.02  k:mixed=0.98
+f99007f006ea.0.720p.h264                 host fault (attempt 1): null {'base_discard': 0.020566800359112403, 'base_write': -0.0427820624725338}, max spread 1.222
+f99007f006ea.0.720p.h264                 base:discard=1.11  base:write=1.13  base:mixed=1.05  k:discard=1.08  k:write=1.15  k:mixed=1.02
+gate after 16 streams (check): 0.403 s (+0.1%)
+
+base:discard             n= 16  median 1.061  [1.044, 1.093]
+base:write               n= 16  median 1.027  [0.998, 1.067]
+base:mixed               n= 16  median 0.995  [0.948, 1.027]
+k:discard                n= 16  median 1.066  [1.050, 1.076]
+k:write                  n= 16  median 1.036  [1.012, 1.055]
+k:mixed                  n= 16  median 1.004  [0.954, 1.016]
+
+wrote $HOME/ab/qsl/out/h.720p.json

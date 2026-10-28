@@ -1,0 +1,423 @@
+diff --git a/crates/coreav-kernels-h264/src/simd/x86.rs b/crates/coreav-kernels-h264/src/simd/x86.rs
+index 2ab009a..b234ab7 100644
+--- a/crates/coreav-kernels-h264/src/simd/x86.rs
++++ b/crates/coreav-kernels-h264/src/simd/x86.rs
+@@ -25,29 +25,30 @@ use core::arch::x86_64::{
+     __m128i, __m256i, _mm_abs_epi16, _mm_add_epi16, _mm_add_epi32, _mm_adds_epi16, _mm_and_si128,
+     _mm_avg_epu8, _mm_blendv_epi8, _mm_castpd_si128, _mm_castsi128_pd, _mm_cmpgt_epi16,
+     _mm_cvtepu8_epi16, _mm_cvtsi32_si128, _mm_cvtsi64_si128, _mm_cvtsi128_si32, _mm_cvtsi128_si64,
+-    _mm_extract_epi32, _mm_extract_epi64, _mm_insert_epi64, _mm_loadl_epi64, _mm_loadu_si128,
+-    _mm_madd_epi16, _mm_maddubs_epi16, _mm_max_epi16, _mm_min_epi16, _mm_min_epi32,
+-    _mm_mulhrs_epi16, _mm_mullo_epi16, _mm_or_si128, _mm_packs_epi32, _mm_packus_epi16,
+-    _mm_packus_epi32, _mm_sad_epu8, _mm_set_epi64x, _mm_set1_epi8, _mm_set1_epi16, _mm_set1_epi32,
+-    _mm_setr_epi8, _mm_setr_epi16, _mm_setr_epi32, _mm_setzero_si128, _mm_shuffle_epi8,
+-    _mm_shuffle_pd, _mm_slli_epi16, _mm_sra_epi16, _mm_sra_epi32, _mm_srai_epi16, _mm_srli_epi16,
+-    _mm_srli_si128, _mm_storel_epi64, _mm_storeu_si128, _mm_sub_epi8, _mm_sub_epi16,
+-    _mm_testz_si128, _mm_unpackhi_epi8, _mm_unpackhi_epi16, _mm_unpackhi_epi32, _mm_unpackhi_epi64,
+-    _mm_unpacklo_epi8, _mm_unpacklo_epi16, _mm_unpacklo_epi32, _mm_unpacklo_epi64, _mm_xor_si128,
+-    _mm256_abs_epi16, _mm256_add_epi16, _mm256_add_epi32, _mm256_adds_epi16, _mm256_alignr_epi8,
+-    _mm256_and_si256, _mm256_avg_epu8, _mm256_blend_epi32, _mm256_blendv_epi8,
+-    _mm256_broadcastsi128_si256, _mm256_castsi256_si128, _mm256_cmpeq_epi8, _mm256_cmpeq_epi32,
+-    _mm256_cmpgt_epi16, _mm256_cvtepu8_epi16, _mm256_cvtepu8_epi32, _mm256_extract_epi32,
+-    _mm256_extracti128_si256, _mm256_loadu_si256, _mm256_madd_epi16, _mm256_maddubs_epi16,
+-    _mm256_max_epi16, _mm256_min_epi16, _mm256_mulhrs_epi16, _mm256_mullo_epi16,
+-    _mm256_mullo_epi32, _mm256_or_si256, _mm256_packs_epi32, _mm256_packus_epi16,
+-    _mm256_packus_epi32, _mm256_permute2x128_si256, _mm256_permute4x64_epi64,
+-    _mm256_permutevar8x32_epi32, _mm256_sad_epu8, _mm256_set_m128i, _mm256_set1_epi8,
+-    _mm256_set1_epi16, _mm256_set1_epi32, _mm256_setr_epi8, _mm256_setr_epi16, _mm256_setr_epi32,
+-    _mm256_setzero_si256, _mm256_shuffle_epi8, _mm256_slli_epi16, _mm256_sra_epi32,
+-    _mm256_srai_epi16, _mm256_srai_epi32, _mm256_srli_epi32, _mm256_sub_epi8, _mm256_sub_epi16,
+-    _mm256_sub_epi32, _mm256_testc_si256, _mm256_testz_si256, _mm256_unpackhi_epi32,
+-    _mm256_unpackhi_epi64, _mm256_unpacklo_epi32, _mm256_unpacklo_epi64, _mm256_xor_si256,
++    _mm_extract_epi8, _mm_extract_epi32, _mm_extract_epi64, _mm_insert_epi8, _mm_insert_epi64,
++    _mm_loadl_epi64, _mm_loadu_si128, _mm_madd_epi16, _mm_maddubs_epi16, _mm_max_epi16,
++    _mm_min_epi16, _mm_min_epi32, _mm_mulhrs_epi16, _mm_mullo_epi16, _mm_or_si128, _mm_packs_epi32,
++    _mm_packus_epi16, _mm_packus_epi32, _mm_sad_epu8, _mm_set_epi64x, _mm_set1_epi8,
++    _mm_set1_epi16, _mm_set1_epi32, _mm_setr_epi8, _mm_setr_epi16, _mm_setr_epi32,
++    _mm_setzero_si128, _mm_shuffle_epi8, _mm_shuffle_pd, _mm_slli_epi16, _mm_sra_epi16,
++    _mm_sra_epi32, _mm_srai_epi16, _mm_srli_epi16, _mm_srli_si128, _mm_storel_epi64,
++    _mm_storeu_si128, _mm_sub_epi8, _mm_sub_epi16, _mm_testz_si128, _mm_unpackhi_epi8,
++    _mm_unpackhi_epi16, _mm_unpackhi_epi32, _mm_unpackhi_epi64, _mm_unpacklo_epi8,
++    _mm_unpacklo_epi16, _mm_unpacklo_epi32, _mm_unpacklo_epi64, _mm_xor_si128, _mm256_abs_epi16,
++    _mm256_add_epi16, _mm256_add_epi32, _mm256_adds_epi16, _mm256_alignr_epi8, _mm256_and_si256,
++    _mm256_avg_epu8, _mm256_blend_epi32, _mm256_blendv_epi8, _mm256_broadcastsi128_si256,
++    _mm256_castsi256_si128, _mm256_cmpeq_epi8, _mm256_cmpeq_epi32, _mm256_cmpgt_epi16,
++    _mm256_cvtepu8_epi16, _mm256_cvtepu8_epi32, _mm256_extract_epi32, _mm256_extracti128_si256,
++    _mm256_loadu_si256, _mm256_madd_epi16, _mm256_maddubs_epi16, _mm256_max_epi16,
++    _mm256_min_epi16, _mm256_mulhrs_epi16, _mm256_mullo_epi16, _mm256_mullo_epi32, _mm256_or_si256,
++    _mm256_packs_epi32, _mm256_packus_epi16, _mm256_packus_epi32, _mm256_permute2x128_si256,
++    _mm256_permute4x64_epi64, _mm256_permutevar8x32_epi32, _mm256_sad_epu8, _mm256_set_m128i,
++    _mm256_set1_epi8, _mm256_set1_epi16, _mm256_set1_epi32, _mm256_setr_epi8, _mm256_setr_epi16,
++    _mm256_setr_epi32, _mm256_setzero_si256, _mm256_shuffle_epi8, _mm256_slli_epi16,
++    _mm256_sra_epi32, _mm256_srai_epi16, _mm256_srai_epi32, _mm256_srli_epi32, _mm256_sub_epi8,
++    _mm256_sub_epi16, _mm256_sub_epi32, _mm256_testc_si256, _mm256_testz_si256,
++    _mm256_unpackhi_epi32, _mm256_unpackhi_epi64, _mm256_unpacklo_epi32, _mm256_unpacklo_epi64,
++    _mm256_xor_si256,
+ };
+ 
+ use crate::scalar::{Tap, taps};
+@@ -711,6 +712,42 @@ impl IntraRows {
+     }
+ }
+ 
++/// p[-1, 0..7] of a block, the column of eight samples down from `at`, as
++/// the low eight bytes of a vector (the others zero): one insert a sample,
++/// each sample's address one stride on from the last.
++///
++/// # Safety
++///
++/// AVX2 must be available, and the eight samples `at`, `at + stride`, ...,
++/// `at + 7 * stride` inside one allocation.
++#[inline(always)]
++unsafe fn column8(at: *const u8, stride: usize) -> __m128i {
++    // SAFETY: AVX2 (and so SSE4.1) is available and each read is one of
++    // the eight samples (the caller's contract).
++    unsafe {
++        let p = |k: usize| i32::from(*at.add(k * stride));
++        let v = _mm_cvtsi32_si128(p(0));
++        let v = _mm_insert_epi8::<1>(v, p(1));
++        let v = _mm_insert_epi8::<2>(v, p(2));
++        let v = _mm_insert_epi8::<3>(v, p(3));
++        let v = _mm_insert_epi8::<4>(v, p(4));
++        let v = _mm_insert_epi8::<5>(v, p(5));
++        let v = _mm_insert_epi8::<6>(v, p(6));
++        _mm_insert_epi8::<7>(v, p(7))
++    }
++}
++
++/// p[-1, 0..15] of a macroblock: [`column8`] twice.
++///
++/// # Safety
++///
++/// As [`column8`], for sixteen samples.
++#[inline(always)]
++unsafe fn column16(at: *const u8, stride: usize) -> __m128i {
++    // SAFETY: the caller's contract, split at the eighth sample.
++    unsafe { _mm_unpacklo_epi64(column8(at, stride), column8(at.add(8 * stride), stride)) }
++}
++
+ /// [`crate::Kernels::intra16x16`].
+ ///
+ /// # Safety
+@@ -731,11 +768,10 @@ pub(super) unsafe fn intra16x16(mut dst: IntraMut<'_>, mode: u8) {
+         } else {
+             [0; 16]
+         };
+-        let left: [u8; 16] = if w.avail.left {
+-            core::array::from_fn(|y| *w.at(0, y + 1))
+-        } else {
+-            [0; 16]
+-        };
++        let mut left = [0u8; 16];
++        if w.avail.left {
++            _mm_storeu_si128(left.as_mut_ptr().cast(), column16(w.at(0, 1), w.stride));
++        }
+         match mode {
+             0 => {
+                 let v = vector16(top);
+@@ -1102,7 +1138,7 @@ pub(super) unsafe fn intra_chroma_mb(
+                 0
+             };
+             let left = if avail.left {
+-                u64::from_le_bytes(core::array::from_fn(|y| *w.at(0, y + 1)))
++                _mm_cvtsi128_si64(column8(w.at(0, 1), w.stride)) as u64
+             } else {
+                 0
+             };
+@@ -1727,20 +1763,137 @@ unsafe fn predict8x8(
+             _mm256_permute2x128_si256::<0x00>(b, b),
+             _mm256_permute2x128_si256::<0x11>(b, b),
+         ];
+-        shuffles.map(|half| {
+-            let [s0, s1, s2, s3] = sources;
+-            let [m0, m1, m2, m3] = half.map(|m| _mm256_loadu_si256(m.as_ptr().cast()));
++        let [first, second] = shuffles;
++        [shuffle_half(sources, first), shuffle_half(sources, second)]
++    }
++}
++
++/// Four rows of an Intra_8x8 block, one half of [`predict8x8`]'s: the `or`
++/// of the four sources each shuffled by its entry of `half`. A function
++/// of its own, always inlined, so that its loads and shuffles stay inline
++/// in `intra8x8_mb`, which calls `predict8x8` four times.
++///
++/// # Safety
++///
++/// AVX2 must be available; inlined only into `intra8x8_mb`, which enables
++/// it.
++#[inline(always)]
++unsafe fn shuffle_half(sources: [__m256i; 4], half: &[[u8; 32]; 4]) -> __m256i {
++    // SAFETY: AVX2 is available (the caller's contract); register
++    // operations, and loads of the 32 bytes of each entry of `half`.
++    unsafe {
++        let [s0, s1, s2, s3] = sources;
++        let [m0, m1, m2, m3] = half;
++        _mm256_or_si256(
+             _mm256_or_si256(
+-                _mm256_or_si256(_mm256_shuffle_epi8(s0, m0), _mm256_shuffle_epi8(s1, m1)),
+-                _mm256_or_si256(_mm256_shuffle_epi8(s2, m2), _mm256_shuffle_epi8(s3, m3)),
+-            )
+-        })
++                _mm256_shuffle_epi8(s0, _mm256_loadu_si256(m0.as_ptr().cast())),
++                _mm256_shuffle_epi8(s1, _mm256_loadu_si256(m1.as_ptr().cast())),
++            ),
++            _mm256_or_si256(
++                _mm256_shuffle_epi8(s2, _mm256_loadu_si256(m2.as_ptr().cast())),
++                _mm256_shuffle_epi8(s3, _mm256_loadu_si256(m3.as_ptr().cast())),
++            ),
++        )
+     }
+ }
+ 
+-/// [`crate::Kernels::intra8x8_mb`]: each block predicted from the samples
+-/// the blocks before it wrote, its residual added in registers, and its
+-/// eight rows written once.
++/// For [`last_column8`], one shuffle per vector of two rows: rows `2k` and
++/// `2k + 1` hold p[7, 2k] and p[7, 2k + 1] at bytes 7 and 15, which go to
++/// bytes `2k` and `2k + 1` (0x80 clears a byte).
++static LAST_COLUMN: [[u8; 16]; 4] = [
++    [
++        7, 15, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128,
++    ],
++    [
++        128, 128, 7, 15, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128,
++    ],
++    [
++        128, 128, 128, 128, 7, 15, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128,
++    ],
++    [
++        128, 128, 128, 128, 128, 128, 7, 15, 128, 128, 128, 128, 128, 128, 128, 128,
++    ],
++];
++
++/// One 8x8 block of [`intra8x8_mb`]: its prediction from `edges`, the row
++/// above (p[0..15, -1], its top right still to be repeated where `avail`
++/// has none), the column left (p[-1, 0..7], low eight bytes) and p[-1, -1],
++/// each zero where `avail` names no such neighbour; then its residual added
++/// where `coded`. Rows 0 to 7, two to a vector.
++///
++/// # Safety
++///
++/// AVX2 must be available; inlined only into `intra8x8_mb`, which enables
++/// it.
++#[inline(always)]
++unsafe fn block8x8(
++    mode: u8,
++    avail: IntraAvail,
++    edges: (__m128i, __m128i, u8),
++    coeffs: &[i32; 64],
++    coded: bool,
++) -> [__m128i; 4] {
++    // SAFETY: AVX2 is available (the caller's contract); register
++    // operations, and the transform's reads of `coeffs`.
++    unsafe {
++        let (mut top, left, corner) = edges;
++        if !avail.top_right {
++            let repeat = _mm_setr_epi8(0, 1, 2, 3, 4, 5, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7);
++            top = _mm_shuffle_epi8(top, repeat);
++        }
++        let left = _mm_cvtsi128_si64(left) as u64;
++        let [first, second] = predict8x8(mode, avail, top, left, corner);
++        let rows = [
++            _mm256_castsi256_si128(first),
++            _mm256_extracti128_si256::<1>(first),
++            _mm256_castsi256_si128(second),
++            _mm256_extracti128_si256::<1>(second),
++        ];
++        if !coded {
++            return rows;
++        }
++        let [g0, g1, g2, g3, g4, g5, g6, g7] = idct8x8(coeffs);
++        let [r0, r1, r2, r3] = rows;
++        let [r0, r1] = add_residual8([r0, r1], [g0, g1, g2, g3]);
++        let [r2, r3] = add_residual8([r2, r3], [g4, g5, g6, g7]);
++        [r0, r1, r2, r3]
++    }
++}
++
++/// p[7, 0..7] of a block's rows (as [`block8x8`] returns them) in the low
++/// eight bytes: the column left of the block to its right.
++///
++/// # Safety
++///
++/// AVX2 must be available; inlined only into `intra8x8_mb`.
++#[inline(always)]
++unsafe fn last_column8(rows: &[__m128i; 4]) -> __m128i {
++    // SAFETY: register operations (AVX2 is available, the caller's
++    // contract), and loads of a static table's 16-byte entries.
++    unsafe {
++        let [r0, r1, r2, r3] = *rows;
++        let [m0, m1, m2, m3] = LAST_COLUMN
++            .each_ref()
++            .map(|m| _mm_loadu_si128(m.as_ptr().cast()));
++        _mm_or_si128(
++            _mm_or_si128(_mm_shuffle_epi8(r0, m0), _mm_shuffle_epi8(r1, m1)),
++            _mm_or_si128(_mm_shuffle_epi8(r2, m2), _mm_shuffle_epi8(r3, m3)),
++        )
++    }
++}
++
++/// [`crate::Kernels::intra8x8_mb`]: the macroblock's edges read once, each
++/// block predicted from them and from the rows of the blocks before it,
++/// held in registers, its residual added in registers, and its eight rows
++/// written once.
++///
++/// The neighbours of each block (clause 8.3.2.2, `intra::block_avail`):
++/// block 0 has the macroblock's left, top and top left, and its top right
++/// is p[8..15, -1], above the macroblock; block 1 has its left (block 0),
++/// its top and top left where the macroblock has a top, and the
++/// macroblock's top right; block 2 has its top and top right (blocks 0 and
++/// 1), and its left and top left where the macroblock has a left; block 3
++/// has every neighbour but the top right, which is decoded after it.
+ ///
+ /// # Safety
+ ///
+@@ -1755,55 +1908,99 @@ pub(super) unsafe fn intra8x8_mb(
+     let Some(w) = IntraRows::of(&mut dst, 16) else {
+         return Scalar.intra8x8_mb(dst, modes, coeffs, nz);
+     };
+-    for (b8, (mode, coeffs)) in modes.iter().zip(coeffs).enumerate() {
+-        let (x, y) = ((b8 % 2) * 8, (b8 / 2) * 8);
+-        let a = crate::intra::block_avail(w.avail, x, y, 8, b8);
+-        // SAFETY: AVX2 is available (this function's contract). The row
+-        // above is read where `a` has `top`, the column left where it has
+-        // `left` and the corner where it has `top_left`, and `a` names a
+-        // neighbour outside the macroblock only where the view's flags do
+-        // (`block_avail`). The row above is read whole, p[x .. x + 15,
+-        // y - 1], also where `a` has no top right, whose eight samples are
+-        // then replaced: it is the row above the macroblock or its eighth
+-        // row, and reaches at most 24 samples along, which ends before the
+-        // macroblock's last row does (the stride is at least 16). The
+-        // column left is inside the macroblock or the view's left column;
+-        // the corner is one of those or p[-1, -1]. The eight rows written
+-        // are the block's, inside the macroblock.
+-        unsafe {
+-            let mut top = if a.top {
+-                _mm_loadu_si128(w.at(x + 1, y).cast())
+-            } else {
+-                _mm_setzero_si128()
+-            };
+-            if !a.top_right {
+-                let repeat = _mm_setr_epi8(0, 1, 2, 3, 4, 5, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7);
+-                top = _mm_shuffle_epi8(top, repeat);
+-            }
+-            let left = if a.left {
+-                u64::from_le_bytes(core::array::from_fn(|k| *w.at(x, y + 1 + k)))
+-            } else {
+-                0
+-            };
+-            let corner = if a.top_left { *w.at(x, y) } else { 0 };
+-            let [first, second] = predict8x8(*mode, a, top, left, corner);
+-            let mut rows = [
+-                _mm256_castsi256_si128(first),
+-                _mm256_extracti128_si256::<1>(first),
+-                _mm256_castsi256_si128(second),
+-                _mm256_extracti128_si256::<1>(second),
+-            ];
+-            if nz & (1 << b8) != 0 {
+-                let [g0, g1, g2, g3, g4, g5, g6, g7] = idct8x8(coeffs);
+-                let [r0, r1, r2, r3] = rows;
+-                let [r0, r1] = add_residual8([r0, r1], [g0, g1, g2, g3]);
+-                let [r2, r3] = add_residual8([r2, r3], [g4, g5, g6, g7]);
+-                rows = [r0, r1, r2, r3];
+-            }
+-            let [r0, r1, r2, r3] = rows;
+-            store_four_rows(w.at(x + 1, y + 1), w.stride, r0, r1);
+-            store_four_rows(w.at(x + 1, y + 5), w.stride, r2, r3);
+-        }
++    let mb = w.avail;
++    // The edges are read before any block is written. Under a stride of 17
++    // the column left of a row is the last sample of the row before, and
++    // under 24 the top right, p[16..23, -1], reaches into the macroblock's
++    // first row: samples the blocks write before the reference reads them.
++    // Such views (no picture's) go to `Scalar`.
++    if w.stride < 17 || (mb.top_right && w.stride < 24) {
++        return Scalar.intra8x8_mb(dst, modes, coeffs, nz);
++    }
++    let [m0, m1, m2, m3] = *modes;
++    let [c0, c1, c2, c3] = coeffs;
++    let coded = |b8: u8| nz & (1 << b8) != 0;
++    // SAFETY: AVX2 is available (this function's contract). The row above
++    // is read where the view has `top`: p[0..15, -1] and p[8..23, -1], 24
++    // samples along it, which ends before the macroblock's last row does
++    // (the stride is at least 16), also where it has no top right, whose
++    // eight samples block 1 then replaces. The column left, p[-1, 0..15],
++    // is read where it has `left`, and p[-1, -1] where it has `top_left`.
++    // The rows written are each block's eight, inside the macroblock.
++    unsafe {
++        let zero = _mm_setzero_si128();
++        let (above, above_right) = if mb.top {
++            (
++                _mm_loadu_si128(w.at(1, 0).cast()),
++                _mm_loadu_si128(w.at(9, 0).cast()),
++            )
++        } else {
++            (zero, zero)
++        };
++        let left = if mb.left {
++            column16(w.at(0, 1), w.stride)
++        } else {
++            zero
++        };
++        let corner = if mb.top_left { *w.at(0, 0) } else { 0 };
++        let inside = IntraAvail {
++            left: true,
++            top: true,
++            top_right: true,
++            top_left: true,
++        };
++
++        let a0 = IntraAvail {
++            top_right: mb.top,
++            ..mb
++        };
++        let b0 = block8x8(m0, a0, (above, left, corner), c0, coded(0));
++        store_four_rows(w.at(1, 1), w.stride, b0[0], b0[1]);
++        store_four_rows(w.at(1, 5), w.stride, b0[2], b0[3]);
++
++        let a1 = IntraAvail {
++            left: true,
++            top: mb.top,
++            top_right: mb.top_right,
++            top_left: mb.top,
++        };
++        let corner1 = _mm_extract_epi8::<7>(above) as u8;
++        let b1 = block8x8(
++            m1,
++            a1,
++            (above_right, last_column8(&b0), corner1),
++            c1,
++            coded(1),
++        );
++        store_four_rows(w.at(9, 1), w.stride, b1[0], b1[1]);
++        store_four_rows(w.at(9, 5), w.stride, b1[2], b1[3]);
++
++        let a2 = IntraAvail {
++            left: mb.left,
++            top_left: mb.left,
++            ..inside
++        };
++        let top2 = _mm_unpackhi_epi64(b0[3], b1[3]);
++        let corner2 = _mm_extract_epi8::<7>(left) as u8;
++        let b2 = block8x8(
++            m2,
++            a2,
++            (top2, _mm_unpackhi_epi64(left, zero), corner2),
++            c2,
++            coded(2),
++        );
++        store_four_rows(w.at(1, 9), w.stride, b2[0], b2[1]);
++        store_four_rows(w.at(1, 13), w.stride, b2[2], b2[3]);
++
++        let a3 = IntraAvail {
++            top_right: false,
++            ..inside
++        };
++        let top3 = _mm_unpackhi_epi64(b1[3], zero);
++        let corner3 = _mm_extract_epi8::<15>(b0[3]) as u8;
++        let b3 = block8x8(m3, a3, (top3, last_column8(&b2), corner3), c3, coded(3));
++        store_four_rows(w.at(9, 9), w.stride, b3[0], b3[1]);
++        store_four_rows(w.at(9, 13), w.stride, b3[2], b3[3]);
+     }
+ }
+ 

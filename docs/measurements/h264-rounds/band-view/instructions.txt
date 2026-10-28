@@ -1,0 +1,18 @@
+callgrind Ir, 60 frames, --discard (ir.sh), base = main 82ad7c31, k = the branch
+one thread:
+175433794e02.0.1080p.h264 base Collected : 5238155284
+175433794e02.0.1080p.h264 k Collected : 5235370211
+41e324ebb708.0.sd.h264 base Collected : 147011262
+41e324ebb708.0.sd.h264 k Collected : 146837821
+eight threads (callgrind runs the threads one at a time; the totals move from run to run):
+41e324ebb708.0.sd.h264 t8 base Collected : 176750950
+41e324ebb708.0.sd.h264 t8 k Collected : 176942776
+175433794e02.0.1080p.h264 t8 base Collected : 5542531031
+175433794e02.0.1080p.h264 t8 k Collected : 5378325292
+eight threads, 41e324ebb708 sd, a second run with callgrind_annotate --auto=no (CoreAV's own functions):
+  base 177,064,030 (100.0%)  PROGRAM TOTALS
+  base 33,904,935 (19.15%)  ???:coreav_h264::fast::v3::predict_fast::<coreav_kernels_h264::Auto> 
+  base 10,033,759 ( 5.67%)  ???:<coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reference_band 
+  k 175,471,989 (100.0%)  PROGRAM TOTALS
+  k 38,316,894 (21.84%)  ???:coreav_h264::fast::v3::predict_fast::<coreav_kernels_h264::Auto> 
+  k    431,785 ( 0.25%)  ???:coreav_h264::inter::make_band_view 

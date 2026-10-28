@@ -1,0 +1,109 @@
+{
+  "schema": "spike-c/kd/1",
+  "entries": [
+    {
+      "id": "C-PCM",
+      "filename_pattern": "*",
+      "fields": [
+        "grouping",
+        "missing",
+        "extra",
+        "size",
+        "pts",
+        "dts"
+      ],
+      "conditions": {
+        "/streams/*/codec_name": "pcm_*",
+        "/streams/*/properties/fixed_sample_size": "channels * bits_per_sample / 8",
+        "/streams/*/packets": "exact consecutive byte tiling, summed duration, anchored timestamps and identical keyframe"
+      },
+      "predicate": "pcm_groups",
+      "basis": "proposal 5.2, 6.2; ADR 0003"
+    },
+    {
+      "id": "C-CTTS",
+      "filename_pattern": "*",
+      "fields": [
+        "dts"
+      ],
+      "conditions": {
+        "/streams/*/properties/ctts_version": 1,
+        "/streams/*/properties/ctts_min": "negative",
+        "/streams/*/packets/*/dts": "reference = candidate + minimum; every other gating field direct"
+      },
+      "predicate": "signed minimum check in compare",
+      "basis": "proposal 5.2, 6.2; ADR 0003"
+    },
+    {
+      "id": "C-STRICT",
+      "filename_pattern": "*",
+      "fields": [
+        "probe_ok",
+        "stream_count",
+        "format_duration_us",
+        "missing",
+        "probe_ok/stream_count"
+      ],
+      "conditions": {
+        "/properties/container": "isobmff",
+        "/properties/rejection": [
+          "nesting_limit",
+          "truncated_structure"
+        ],
+        "/probe_ok": false
+      },
+      "predicate": "rejection_kd",
+      "basis": "proposal 5.7, 6.2; ADR 0003"
+    },
+    {
+      "id": "C-FMT-ORIGIN",
+      "filename_pattern": "*",
+      "fields": [
+        "format_duration_us"
+      ],
+      "conditions": {
+        "/probe_ok": true,
+        "/format_duration_us": "candidate = movie header duration in microseconds",
+        "/streams/*/properties/edits": "exactly [(empty > 0, -1, 1.0), (segment, media_time >= 0, 1.0)] on every stream",
+        "/properties/raw_movie_duration_ticks": "= max over streams of (empty + segment)",
+        "/streams/*/duration_ts": "reference = candidate on every stream",
+        "reference /format_duration_us": "= max(start + duration) - min(start), with start = empty edit rounded to stream ticks, and max(start + duration) = movie header duration, to 1 microsecond"
+      },
+      "predicate": "format_origin_kd",
+      "basis": "ISO/IEC 14496-12 mvhd and elst semantics; registered in PR #8"
+    },
+    {
+      "id": "C-STTS-SHORT",
+      "filename_pattern": "*",
+      "fields": [
+        "duration_ts",
+        "format_duration_us"
+      ],
+      "conditions": {
+        "/streams/*/properties/warnings": "contains a duration conflict warning",
+        "reference /streams/*/duration_ts": "= candidate /streams/*/properties/stts_duration_ticks < candidate /streams/*/duration_ts",
+        "/streams/*/duration_ts": "= round(min(mdhd_duration_ticks, media_edit_duration_ticks)), mdhd_duration_ticks > 0",
+        "/format_duration_us": "candidate = movie header duration in microseconds",
+        "reference /format_duration_us": "= max(start + reference duration) - min(start), start = empty edit rounded to stream ticks, to 1 microsecond; at least one stream covered by this entry"
+      },
+      "predicate": "stts_short_kd, stts_format_kd",
+      "basis": "ADR 0013 (accepted in PR #8); proposal 5.2, 6.1"
+    },
+    {
+      "id": "C-EDIT-DISCARD",
+      "filename_pattern": "*",
+      "fields": [
+        "extra"
+      ],
+      "conditions": {
+        "/streams/*/properties/edits": "supported shape: optional empty edit, one media edit at rate 1",
+        "/streams/*/packets/*/presented": false,
+        "/streams/*/packets/*/discard": true,
+        "/streams/*/packets/*/media_pts": "[media_pts, media_pts + duration) outside [media_time, media_time + segment) in media ticks; zero duration: media_pts outside that interval",
+        "reference packet": "absent at that position; every other packet field and the stream count direct"
+      },
+      "predicate": "outside_edit_kd",
+      "basis": "proposal 5.2 (one packet per sample; edit list applied exactly); ISO/IEC 14496-12 elst semantics; registered in PR #8"
+    }
+  ]
+}

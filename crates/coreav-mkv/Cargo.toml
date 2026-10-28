@@ -1,0 +1,19 @@
+[package]
+name = "coreav-mkv"
+description = "Memory-safe Matroska and WebM (RFC 9559, RFC 8794) probe and packet parser"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+# Positioned-read sources, exact rationals and the codec configuration
+# readers that Matroska shares with ISO base media files (crate docs).
+coreav-isobmff = { path = "../coreav-isobmff" }
+# Inflating zlib-compressed frames to learn their sizes (the inflate module).
+miniz_oxide = { version = "0.8", default-features = false, features = ["with-alloc"] }
+
+[lints]
+workspace = true

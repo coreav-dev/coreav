@@ -1,0 +1,10 @@
+r29-x2c sd     n= 8 median 1.0091 [1.0025, 1.0157] faster 1/8
+r29-x2c 720p   n= 8 median 1.0265 [0.9895, 1.0523] faster 2/8
+r29-x2c 1080p  n= 8 median 1.0151 [0.9922, 1.0241] faster 2/8
+r29-x2c 4k     n= 8 median 1.0090 [0.9981, 1.0133] faster 2/8
+r29-x2c all    n=32 median 1.0112 [0.9844, 1.0523] faster 7/32
+r29-x2l sd     n= 8 median 0.9960 [0.9798, 1.0012] faster 6/8
+r29-x2l 720p   n= 8 median 1.0021 [0.9873, 1.0098] faster 4/8
+r29-x2l 1080p  n= 8 median 0.9952 [0.9910, 1.0030] faster 5/8
+r29-x2l 4k     n= 8 median 1.0010 [0.9913, 1.0070] faster 3/8
+r29-x2l all    n=32 median 0.9980 [0.9791, 1.0416] faster 18/32

@@ -1,0 +1,5 @@
+cargo +nightly fuzz run --target x86_64-unknown-linux-gnu filter_chroma_mb -- -max_total_time=120 -rss_limit_mb=2048
+(the development VM, x86-64 with AVX-512; the branch's kernel, empty starting corpus), last lines:
+#4194304	pulse  cov: 401 ft: 714 corp: 71/15436b lim: 4096 exec/s: 39568 rss: 498Mb
+#4762722	DONE   cov: 401 ft: 714 corp: 71/15436b lim: 4096 exec/s: 39361 rss: 498Mb
+Done 4762722 runs in 121 second(s)

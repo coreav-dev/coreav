@@ -1,0 +1,103 @@
+{
+  "schema": "coreav/known-divergences/1",
+  "applies_to": "coreav-isobmff-write split_mp4 outputs through scripts/split_check.py, ffprobe and ffmpeg 7.0.2, MediaInfo 26.10; the entries of known-divergences-clip.json also apply to each segment",
+  "entries": [
+    {
+      "id": "KD-S-AUDIO-RESTART",
+      "level": [
+        "frames"
+      ],
+      "fields": [
+        "decoded audio"
+      ],
+      "field_pattern": "audio:pcm",
+      "filename_pattern": "*",
+      "conditions": {
+        "segment audio track": "no edit list, or one media edit after at most one empty edit",
+        "decoded segment": "equals, sample for sample, the source's packets of the segment (one ADTS frame per sample, edit lists ignored) decoded from the segment's first audio packet, from the edit's media time on (from the first sample without an edit list), at that exact sample",
+        "decode durations": "exactly the source's stored ones for the segment's samples (stts, then fragments), from both files"
+      },
+      "predicate": "audio_restart",
+      "basis": "ISO/IEC 14496-3 (a decoder's output depends on its state; perceptual noise substitution fills bands with noise the bitstream does not define); docs/design/split.md (every packet is copied once, so a segment's audio has no pre-roll)"
+    },
+    {
+      "id": "KD-S-EDIT-MIDFRAME",
+      "level": [
+        "packets",
+        "frames"
+      ],
+      "fields": [
+        "video pts",
+        "video dts",
+        "decoded video"
+      ],
+      "field_pattern": "video:*",
+      "filename_pattern": "*",
+      "conditions": {
+        "source video edit list": "one media edit whose media time is not a multiple of the frame duration",
+        "packets": "every packet of every segment equal in data, size and keyframe flag; the first segment's times equal; every other differing time off by one constant, not 0 and smaller than a frame",
+        "decoded video": "the segments' frames equal the source's once that constant is applied to every segment but the first"
+      },
+      "predicate": "edit_midframe",
+      "basis": "ISO/IEC 14496-12 (an edit maps its media time to the start of the presentation); the simple edit list is applied exactly; the same cause as KD-C-EDIT-MIDFRAME"
+    },
+    {
+      "id": "KD-S-DTS-SHIFT",
+      "level": [
+        "packets"
+      ],
+      "fields": [
+        "video dts"
+      ],
+      "field_pattern": "video:packets",
+      "filename_pattern": "*",
+      "conditions": {
+        "packets": "every packet of every segment equal in data, size, keyframe flag and presentation time",
+        "segments whose decode times differ": "composition offsets that read as negative, and one constant difference, not 0",
+        "constant": "the source track's smallest composition offset less the segment's, each counted where negative, from both files' ctts",
+        "with KD-S-EDIT-MIDFRAME": "the presentation times of every segment but the first off by one constant smaller than a frame, and each segment's decode times by it plus its own constant"
+      },
+      "predicate": "dts_shift",
+      "basis": "composition offsets are copied as stored; the same cause as KD-C-DTS-SHIFT"
+    },
+    {
+      "id": "KD-S-PTS-SHIFT",
+      "level": [
+        "packets",
+        "frames"
+      ],
+      "fields": [
+        "video pts",
+        "video dts",
+        "decoded video"
+      ],
+      "field_pattern": "video:*",
+      "filename_pattern": "*",
+      "conditions": {
+        "source video": "no edit list",
+        "segments": "the smallest composition offset over their tables, read as signed, -D with D above 0",
+        "packets": "every packet of every segment equal in data, size and keyframe flag, with the source's pts and dts above the segment's (shifted by its start) by exactly D",
+        "decoded video": "the segments' frames equal the source's once D is applied to every segment"
+      },
+      "predicate": "pts_shift",
+      "basis": "composition offsets are reported as stored, never shifted; ISO/IEC 14496-12 (composition time is decode time plus the offset); the same cause as KD-C-PTS-SHIFT"
+    },
+    {
+      "id": "KD-S-SYNC-VERIFIED",
+      "level": [
+        "packets"
+      ],
+      "fields": [
+        "video keyframe flags"
+      ],
+      "field_pattern": "video:packets",
+      "filename_pattern": "*",
+      "conditions": {
+        "packets": "every source packet in exactly one segment, in order, equal in data, size and times; each segment starts with a keyframe; the segments differ only in keyframe flags the source's packets have and theirs do not, at least one",
+        "decoded frames": "in each segment, with edit lists ignored, the flagged packets are exactly those ffmpeg decodes as key frames"
+      },
+      "predicate": "sync_verified",
+      "basis": "ISO/IEC 14496-12 8.6.2 (without a sync sample table every sample is a sync sample); ISO/IEC 14496-15 and ITU-T H.265 7.4.2.2 (an HEVC sync sample holds an IRAP picture, nal_unit_type 16 to 23); docs/design/cut-points.md (the output's sync flags are the samples the coded data agrees with)"
+    }
+  ]
+}

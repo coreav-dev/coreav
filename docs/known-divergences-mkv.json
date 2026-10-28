@@ -1,0 +1,244 @@
+{
+ "schema": "coreav/known-divergences/1",
+ "applies_to": "coreav-mkv through tools/mkv-adapter, ffprobe 7.0.2",
+ "entries": [
+  {
+   "id": "KD-MKV-DTS",
+   "level": [
+    "packets"
+   ],
+   "fields": [
+    "dts"
+   ],
+   "filename_pattern": "*",
+   "conditions": {
+    "/streams/*/codec_name": "h264, hevc, mpeg1video, mpeg2video, mpeg4 or theora",
+    "/streams/*/packets/*/dts": "candidate null, reference set",
+    "other fields": "agree"
+   },
+   "predicate": "dts_unknown",
+   "basis": "RFC 9559 11.2 (block timestamps are presentation timestamps)"
+  },
+  {
+   "id": "KD-MKV-LACE-UNTIMED",
+   "level": [
+    "packets"
+   ],
+   "fields": [
+    "pts",
+    "dts"
+   ],
+   "filename_pattern": "*",
+   "conditions": {
+    "/streams/*/packets/*/lace": "above 0",
+    "/streams/*/properties/default_duration_ns": "null",
+    "/streams/*/packets/*/pts": "candidate null, reference set"
+   },
+   "predicate": "lace_without_duration",
+   "basis": "RFC 9559 10.3.5 (later laced frames have an underdetermined timestamp)"
+  },
+  {
+   "id": "KD-MKV-LACE-SPLIT",
+   "level": [
+    "packets"
+   ],
+   "fields": [
+    "pts",
+    "dts"
+   ],
+   "filename_pattern": "*",
+   "conditions": {
+    "/streams/*/packets/*/lace": "above 0",
+    "/streams/*/properties/default_duration_ns": "set",
+    "/streams/*/packets/*/pts": "candidate = block + floor(i*dd/scale) - round(delay); reference = block + floor(i*floor(n*dd/scale)/n) - round(delay); one tick apart"
+   },
+   "predicate": "lace_split",
+   "basis": "RFC 9559 10.3.5 and 11.1"
+  },
+  {
+   "id": "KD-MKV-AUDIO-KEYFRAME",
+   "level": [
+    "packets"
+   ],
+   "fields": [
+    "keyframe"
+   ],
+   "filename_pattern": "*",
+   "conditions": {
+    "/streams/*/kind": "audio",
+    "/streams/*/packets/*/keyframe": "candidate false, reference true"
+   },
+   "predicate": "audio_keyframe",
+   "basis": "RFC 9559 10.4 (random access points)"
+  },
+  {
+   "id": "KD-MKV-VFW-TIMESTAMPS",
+   "level": [
+    "packets"
+   ],
+   "fields": [
+    "pts",
+    "dts"
+   ],
+   "filename_pattern": "*",
+   "conditions": {
+    "/streams/*/properties/codec_id": "V_MS/VFW/FOURCC",
+    "/streams/*/packets/*": "reference pts null, candidate dts null, reference dts = candidate pts = block timestamp"
+   },
+   "predicate": "vfw_timestamps",
+   "basis": "RFC 9559 11.2"
+  },
+  {
+   "id": "KD-MKV-WEBM-WEBVTT",
+   "level": [
+    "packets"
+   ],
+   "fields": [
+    "size"
+   ],
+   "filename_pattern": "*",
+   "conditions": {
+    "/streams/*/properties/codec_id": "D_WEBVTT/...",
+    "/streams/*/packets/*/size": "candidate at least reference + 2",
+    "/streams/*/packets/*/pts": "equal"
+   },
+   "predicate": "webm_webvtt_size",
+   "basis": "proposal 5.2 (one packet per stored frame); Matroska codec mappings 5.4.6"
+  },
+  {
+   "id": "KD-MKV-ENCRYPTED",
+   "level": [
+    "packets"
+   ],
+   "fields": [
+    "extra"
+   ],
+   "filename_pattern": "*",
+   "conditions": {
+    "/streams/*/properties/encoding": "encrypted"
+   },
+   "predicate": "encrypted_extra",
+   "basis": "proposal 5.2 (one packet per stored frame); RFC 9559 5.1.4.1.31"
+  },
+  {
+   "id": "KD-MKV-STREAM-DURATION",
+   "level": [
+    "streams"
+   ],
+   "fields": [
+    "duration_ts"
+   ],
+   "filename_pattern": "*",
+   "conditions": {
+    "/streams/*/duration_ts": "candidate null, reference = reference format duration"
+   },
+   "predicate": "segment_duration",
+   "basis": "RFC 9559 5.1.2.10 (only the segment has a duration)"
+  },
+  {
+   "id": "KD-MKV-FMT-ROUNDING",
+   "level": [
+    "streams"
+   ],
+   "fields": [
+    "format_duration_us"
+   ],
+   "filename_pattern": "*",
+   "conditions": {
+    "/properties/raw_duration": "Duration x TimestampScale not a whole number of microseconds",
+    "/format_duration_us": "candidate rounded half away from zero, reference truncated"
+   },
+   "predicate": "format_rounding",
+   "basis": "tools/oracle/SPEC.md; RFC 9559 11.3"
+  },
+  {
+   "id": "KD-MKV-UNREAD-BITSTREAM",
+   "level": [
+    "streams"
+   ],
+   "fields": [
+    "profile",
+    "level",
+    "color_range",
+    "color_primaries",
+    "color_transfer",
+    "color_matrix"
+   ],
+   "filename_pattern": "*",
+   "conditions": {
+    "/streams/*/codec_name": "mpeg1video, mpeg2video, mpeg4, theora, mjpeg, ffv1, dts or truehd",
+    "field": "candidate null, reference set"
+   },
+   "predicate": "unread_bitstream",
+   "basis": "proposal principle 4; Decision 25 point 1"
+  },
+  {
+   "id": "KD-MKV-HEVC-RANGE",
+   "level": [
+    "streams"
+   ],
+   "fields": [
+    "color_range"
+   ],
+   "filename_pattern": "*",
+   "conditions": {
+    "/streams/*/codec_name": "hevc",
+    "/streams/*/color_*": "candidate null",
+    "/streams/*/color_range": "reference tv"
+   },
+   "predicate": "hevc_unsignalled_range",
+   "basis": "stored values only, as coreav-isobmff (Decision 16)"
+  },
+  {
+   "id": "KD-MKV-ATTACHMENT",
+   "level": [
+    "streams",
+    "packets"
+   ],
+   "fields": [
+    "stream count",
+    "packets of the extra streams"
+   ],
+   "filename_pattern": "*",
+   "conditions": {
+    "/properties/attachments": "as many as the extra reference streams",
+    "extra reference streams": "kind attachment, or an image codec when an attachment is an image"
+   },
+   "predicate": "attachments",
+   "basis": "RFC 9559 5.1.6 and 21"
+  },
+  {
+   "id": "KD-MKV-DECLARED-SIZE",
+   "level": [
+    "streams"
+   ],
+   "fields": [
+    "width",
+    "height"
+   ],
+   "filename_pattern": "*",
+   "conditions": {
+    "EBML elements": "the candidate's width and height are the track's PixelWidth and PixelHeight",
+    "reference": "differs from them, and equals the size of ffprobe's first decoded frame"
+   },
+   "predicate": "declared_size",
+   "basis": "docs/design/policy-matroska.md; KD-DECLARED-SIZE of docs/known-divergences.md"
+  },
+  {
+   "id": "KD-MKV-TAG-LANGUAGE",
+   "level": [
+    "compat"
+   ],
+   "fields": [
+    "tags.language"
+   ],
+   "filename_pattern": "*",
+   "conditions": {
+    "EBML elements": "the candidate's tags.language is the track's stored Language element, the track has no LanguageBCP47, and the file's Tags hold a LANGUAGE SimpleTag targeting the track's TrackUID",
+    "reference": "has a tag named LANGUAGE in any case and no language tag"
+   },
+   "predicate": "tag_language",
+   "basis": "RFC 9559 5.1.4.1.19 and 5.1.8; ADR 0003"
+  }
+ ]
+}

@@ -1,0 +1,2 @@
+# ident.sh: md5 of the raw output of each of the 32 training streams (class frame counts): main 40f29a6d at 1 thread against this round's dist build (after, default features) at 1 and at 8 threads.
+identical 32, different 0

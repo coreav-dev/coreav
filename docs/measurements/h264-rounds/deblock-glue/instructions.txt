@@ -1,0 +1,15 @@
+Instructions of the whole decode (callgrind, --discard, one thread, --kernels avx2: Valgrind has no AVX-512;
+dist builds; base = main 814eb2a1, branch = this round's code). Pictures: sd 300, 720p 150, 1080p 60, 4k 30.
+stream                             base         branch   change
+41e324ebb708.0.sd         1,227,424,618  1,217,648,382   -0.80%
+6da34958296c.0.1080p      3,185,209,135  3,152,313,252   -1.03%
+e624cbe0d2be.0.4k         2,307,660,662  2,301,952,724   -0.25%
+4b54de28c2b3.0.4k         1,362,967,673  1,358,064,185   -0.36%
+9db41aa16b5a.0.720p       1,953,166,486  1,906,820,026   -2.37%
+
+Steps on 9db41aa16b5a (720p, 150 pictures): tables for the thresholds and chroma QP 1,934,690,656; t'C0 as eight
+bytes 1,913,995,495; alpha = 0 for an edge that filters nothing, in place of Option 1,906,820,026 (the branch).
+
+The t'C0 shift before point 2 (callgrind_annotate of 9db41aa16b5a, 150 pictures, the build with the tables only, line
+tables; total 1,934,694,985):
+58,531,836 ( 3.03%)              tc0: bs.map(|b| ((self.tc0 >> (8 * u32::from(b & 7))) & 0xff) as i32),

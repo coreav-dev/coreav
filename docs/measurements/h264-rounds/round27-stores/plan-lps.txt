@@ -1,0 +1,5 @@
+Round 27b screening (LPS and LPS_NORM in one table entry), written before the run. Small idea for a bundle round
+(rejected/h264-cabac-lps-pair). Arms: r28-base (main 23b45d4), r28-lps (decision reads [rangeLPS, renormalized
+rangeLPS] as one [u16; 2] entry of an 8 KB table instead of two tables of 2 KB and 4 KB). ab3.py 6 rounds, all 32,
+pinned cpu 3. Recorded only; kept for a bundle round if identical output (32/32, 1 and 8 threads). Not gated alone
+unless the all-32 median <= 0.990 with the bootstrap interval's upper end < 1.000.

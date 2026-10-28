@@ -1,0 +1,1169 @@
+{
+  "environment": {
+    "torch": "2.14.1+cu130",
+    "torchcodec": "0.17.0+cu130",
+    "cuda_runtime": "13.0",
+    "gpu": "NVIDIA L4",
+    "pyav": "19.0.1",
+    "torchcodec_ffmpeg_libraries_via_pyav_wheel": {
+      "libavutil": [
+        61,
+        1,
+        102
+      ],
+      "libavcodec": [
+        63,
+        1,
+        102
+      ],
+      "libavformat": [
+        63,
+        1,
+        102
+      ],
+      "libavdevice": [
+        63,
+        1,
+        102
+      ],
+      "libavfilter": [
+        12,
+        1,
+        102
+      ],
+      "libswscale": [
+        10,
+        1,
+        102
+      ],
+      "libswresample": [
+        7,
+        1,
+        102
+      ]
+    },
+    "remote": {
+      "REMOTE_REGION": "us-west",
+      "REMOTE_CLOUD_PROVIDER": "CLOUD_PROVIDER_GCP"
+    },
+    "nvidia_smi": "NVIDIA L4, 610.57.04, 23034 MiB, 2040 MHz",
+    "oracle_ffmpeg": "ffmpeg version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2000-2024 the FFmpeg developers",
+    "cpu": "unknown"
+  },
+  "fixtures": [
+    "aom_g2_640x480",
+    "aom_g60_640x480",
+    "aom_tiles_1280x720",
+    "S3-02.source.mp4",
+    "S3-05.source.mp4",
+    "S3-10.source.mp4",
+    "S3-12.source.mp4",
+    "S3-15.source.mp4",
+    "S3-17.source.mp4",
+    "S3-18.source.mp4",
+    "S3-19.source.mp4",
+    "S3-20.source.mp4",
+    "S3-21.source.mp4",
+    "S3-22.source.mp4",
+    "S3-24.source.mp4",
+    "S3-27.source.mp4"
+  ],
+  "conventions": [
+    {
+      "conventions": 1,
+      "files": [
+        {
+          "file": "aom_g2_640x480",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b6a0949fc40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "aom_g60_640x480",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002ac3b090bc40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "aom_tiles_1280x720",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002af5bb1d0c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-02.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b5ac9b3ec40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-05.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b3346f76c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-10.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b0577243c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-12.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b2d399fec40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-15.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b6daaaeac40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-17.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b8f7a948c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-18.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002ba5470a3c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-19.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002ba698828c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-20.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002abf55295c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-21.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b12ac625c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-22.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b864a45ec40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-24.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b63325aec40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-27.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002afed9fd6c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        }
+      ],
+      "crashed_files": [
+        "aom_g2_640x480",
+        "aom_g60_640x480",
+        "aom_tiles_1280x720",
+        "S3-02.source.mp4",
+        "S3-05.source.mp4",
+        "S3-10.source.mp4",
+        "S3-12.source.mp4",
+        "S3-15.source.mp4",
+        "S3-17.source.mp4",
+        "S3-18.source.mp4",
+        "S3-19.source.mp4",
+        "S3-20.source.mp4",
+        "S3-21.source.mp4",
+        "S3-22.source.mp4",
+        "S3-24.source.mp4",
+        "S3-27.source.mp4"
+      ],
+      "exact": 0,
+      "frames": 0
+    },
+    {
+      "conventions": 33,
+      "files": [
+        {
+          "file": "aom_g2_640x480",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b5600456c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "aom_g60_640x480",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b710f245c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "aom_tiles_1280x720",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b170f8efc40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-02.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b4e7da6ac40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-05.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b9d1be9ac40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-10.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002acd93c29c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-12.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002acc270efc40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-15.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b4460041c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-17.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b6ab76b6c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-18.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002acde3c0cc40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-19.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b1573f79c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-20.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b4e3e81cc40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-21.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b9fd1f76c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-22.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002ae44ff2cc40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-24.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b2dd83f5c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-27.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b79fddeac40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        }
+      ],
+      "crashed_files": [
+        "aom_g2_640x480",
+        "aom_g60_640x480",
+        "aom_tiles_1280x720",
+        "S3-02.source.mp4",
+        "S3-05.source.mp4",
+        "S3-10.source.mp4",
+        "S3-12.source.mp4",
+        "S3-15.source.mp4",
+        "S3-17.source.mp4",
+        "S3-18.source.mp4",
+        "S3-19.source.mp4",
+        "S3-20.source.mp4",
+        "S3-21.source.mp4",
+        "S3-22.source.mp4",
+        "S3-24.source.mp4",
+        "S3-27.source.mp4"
+      ],
+      "exact": 0,
+      "frames": 0
+    },
+    {
+      "conventions": 5,
+      "files": [
+        {
+          "file": "aom_g2_640x480",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002ad618502c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "aom_g60_640x480",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b6252e1fc40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "aom_tiles_1280x720",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002ac392047c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-02.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b2150299c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-05.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002ac4652a5c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-10.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002aff48366c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-12.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002adfd894ac40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-15.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b5124be1c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-17.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b3f25bdbc40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-18.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002ba7e6273c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-19.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b40b073ec40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-20.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b7cb0076c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-21.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002afe5a309c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-22.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b2df76f8c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-24.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002ba8ed2d0c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-27.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b047ae72c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        }
+      ],
+      "crashed_files": [
+        "aom_g2_640x480",
+        "aom_g60_640x480",
+        "aom_tiles_1280x720",
+        "S3-02.source.mp4",
+        "S3-05.source.mp4",
+        "S3-10.source.mp4",
+        "S3-12.source.mp4",
+        "S3-15.source.mp4",
+        "S3-17.source.mp4",
+        "S3-18.source.mp4",
+        "S3-19.source.mp4",
+        "S3-20.source.mp4",
+        "S3-21.source.mp4",
+        "S3-22.source.mp4",
+        "S3-24.source.mp4",
+        "S3-27.source.mp4"
+      ],
+      "exact": 0,
+      "frames": 0
+    },
+    {
+      "conventions": 37,
+      "files": [
+        {
+          "file": "aom_g2_640x480",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b53a43d5c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "aom_g60_640x480",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b4873188c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "aom_tiles_1280x720",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b45ffb9dc40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-02.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b8f37d73c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-05.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002acec887ac40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-10.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b3361e5ac40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-12.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b36879c7c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-15.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b8ae480ac40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-17.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b496a0e2c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-18.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b155a8f2c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-19.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002acf2ccd1c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-20.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b3ce1e2bc40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-21.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b786fd36c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-22.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002ab2fb104c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-24.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b1594ef3c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-27.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b6659939c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        }
+      ],
+      "crashed_files": [
+        "aom_g2_640x480",
+        "aom_g60_640x480",
+        "aom_tiles_1280x720",
+        "S3-02.source.mp4",
+        "S3-05.source.mp4",
+        "S3-10.source.mp4",
+        "S3-12.source.mp4",
+        "S3-15.source.mp4",
+        "S3-17.source.mp4",
+        "S3-18.source.mp4",
+        "S3-19.source.mp4",
+        "S3-20.source.mp4",
+        "S3-21.source.mp4",
+        "S3-22.source.mp4",
+        "S3-24.source.mp4",
+        "S3-27.source.mp4"
+      ],
+      "exact": 0,
+      "frames": 0
+    },
+    {
+      "conventions": 3,
+      "files": [
+        {
+          "file": "aom_g2_640x480",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b32aa787c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "aom_g60_640x480",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b7f32598c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "aom_tiles_1280x720",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b7d53585c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-02.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002ae6781d6c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-05.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002ad0c264ec40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-10.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b5d02990c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-12.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002ae6cca1dc40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-15.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002ac07751ac40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-17.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b1be1199c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-18.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b1654883c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-19.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002af3c48b8c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-20.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002aec45029c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-21.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002afc99302c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-22.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b6a96b2bc40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-24.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b0254ac6c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-27.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b5bf7943c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        }
+      ],
+      "crashed_files": [
+        "aom_g2_640x480",
+        "aom_g60_640x480",
+        "aom_tiles_1280x720",
+        "S3-02.source.mp4",
+        "S3-05.source.mp4",
+        "S3-10.source.mp4",
+        "S3-12.source.mp4",
+        "S3-15.source.mp4",
+        "S3-17.source.mp4",
+        "S3-18.source.mp4",
+        "S3-19.source.mp4",
+        "S3-20.source.mp4",
+        "S3-21.source.mp4",
+        "S3-22.source.mp4",
+        "S3-24.source.mp4",
+        "S3-27.source.mp4"
+      ],
+      "exact": 0,
+      "frames": 0
+    },
+    {
+      "conventions": 35,
+      "files": [
+        {
+          "file": "aom_g2_640x480",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b9d8d3dcc40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "aom_g60_640x480",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b27ee66ec40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "aom_tiles_1280x720",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b5db62c3c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-02.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b4bea942c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-05.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b08c09a2c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-10.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002ba1d86d1c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-12.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b69bd40bc40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-15.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b85291d9c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-17.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b8a68257c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-18.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002ab747e8fc40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-19.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002ac2f0e88c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-20.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b08fe73dc40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-21.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b845e0f6c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-22.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b07f395bc40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-24.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b22e5c5ac40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-27.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b9cad520c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        }
+      ],
+      "crashed_files": [
+        "aom_g2_640x480",
+        "aom_g60_640x480",
+        "aom_tiles_1280x720",
+        "S3-02.source.mp4",
+        "S3-05.source.mp4",
+        "S3-10.source.mp4",
+        "S3-12.source.mp4",
+        "S3-15.source.mp4",
+        "S3-17.source.mp4",
+        "S3-18.source.mp4",
+        "S3-19.source.mp4",
+        "S3-20.source.mp4",
+        "S3-21.source.mp4",
+        "S3-22.source.mp4",
+        "S3-24.source.mp4",
+        "S3-27.source.mp4"
+      ],
+      "exact": 0,
+      "frames": 0
+    },
+    {
+      "conventions": 7,
+      "files": [
+        {
+          "file": "aom_g2_640x480",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002ab5767f6c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "aom_g60_640x480",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002af4d0dc7c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "aom_tiles_1280x720",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b7bb6e5ac40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-02.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002ae7391cdc40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-05.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b4725a91c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-10.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b4ad9309c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-12.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b3b34417c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-15.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002af61d3d4c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-17.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b8f81a0cc40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-18.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b30284f7c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-19.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002baa4bf58c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-20.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002ac1e93bcc40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-21.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b203331ec40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-22.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002ad0a1007c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-24.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002aee69e8bc40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-27.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002ae4f029cc40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        }
+      ],
+      "crashed_files": [
+        "aom_g2_640x480",
+        "aom_g60_640x480",
+        "aom_tiles_1280x720",
+        "S3-02.source.mp4",
+        "S3-05.source.mp4",
+        "S3-10.source.mp4",
+        "S3-12.source.mp4",
+        "S3-15.source.mp4",
+        "S3-17.source.mp4",
+        "S3-18.source.mp4",
+        "S3-19.source.mp4",
+        "S3-20.source.mp4",
+        "S3-21.source.mp4",
+        "S3-22.source.mp4",
+        "S3-24.source.mp4",
+        "S3-27.source.mp4"
+      ],
+      "exact": 0,
+      "frames": 0
+    },
+    {
+      "conventions": 39,
+      "files": [
+        {
+          "file": "aom_g2_640x480",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002af617e24c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "aom_g60_640x480",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002ac39649fc40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "aom_tiles_1280x720",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b88b461ac40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-02.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002accc9db0c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-05.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b0a34247c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-10.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002af44cda2c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-12.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002adfb4ba4c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-15.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002aeb23e90c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-17.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b38ea926c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-18.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b495d019c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-19.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b26aab35c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-20.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002afda624fc40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-21.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b3d673dcc40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-22.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b862b32cc40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-24.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b7737ac5c40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        },
+        {
+          "file": "S3-27.source.mp4",
+          "exact": 0,
+          "frames": null,
+          "crash": -11,
+          "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00002b605271ac40 (most recent call first):\n  File \"/opt/w2/bench.py\", line 60 in coreav\n  File \"/opt/w2/bench.py\", line 119 in bringup_one\n  File \"/opt/w2/bench.py\", line 318 in main\n  File \"/opt/w2/bench.py\", line 325 in <module>\n\nExtension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, cuda.bindings._internal.utils, cuda.bindings._internal.driver, cuda.bindings.cydriver, cuda.bindings.driver, cuda.bindings._internal.runtime_ptds, cuda.bindings._internal.runtime, cuda.bindings.cyruntime, cuda.bindings.runtime, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._pcg64, numpy.random._generator, numpy.random._mt19937, numpy.random._philox, numpy.random._sfc64, numpy.random.mtrand (total: 30)\n"
+        }
+      ],
+      "crashed_files": [
+        "aom_g2_640x480",
+        "aom_g60_640x480",
+        "aom_tiles_1280x720",
+        "S3-02.source.mp4",
+        "S3-05.source.mp4",
+        "S3-10.source.mp4",
+        "S3-12.source.mp4",
+        "S3-15.source.mp4",
+        "S3-17.source.mp4",
+        "S3-18.source.mp4",
+        "S3-19.source.mp4",
+        "S3-20.source.mp4",
+        "S3-21.source.mp4",
+        "S3-22.source.mp4",
+        "S3-24.source.mp4",
+        "S3-27.source.mp4"
+      ],
+      "exact": 0,
+      "frames": 0
+    }
+  ]
+}

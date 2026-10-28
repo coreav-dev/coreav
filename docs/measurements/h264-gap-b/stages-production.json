@@ -1,0 +1,17 @@
+{
+  "label": "production",
+  "instructions": 18906812735,
+  "macroblocks": 1747200,
+  "stages": {
+    "chroma MC": 4406966188,
+    "deblocking": 6715257849,
+    "luma MC": 1668933110,
+    "CABAC": 2062412604,
+    "CAVLC": 0,
+    "intra prediction": 1068645674,
+    "MC control + fetch": 1931312693,
+    "IDCT + residual": 162585976,
+    "libc mem*": 204318290,
+    "everything else": 686380351
+  }
+}

@@ -1,0 +1,184 @@
+[
+ {
+  "key": "cc6023189f53a0e3f6ca94ed15f8055fe5fdd173f6d69de03b5aa73a4dcea733.m4a",
+  "sha256": "cc6023189f53a0e3f6ca94ed15f8055fe5fdd173f6d69de03b5aa73a4dcea733",
+  "size": 40609,
+  "group": "download",
+  "set": "v1-holdout"
+ },
+ {
+  "key": "ede6abdefba66772630f352999d715f60c17f65bfa3254fe553f15094e992ed2.mp4",
+  "sha256": "ede6abdefba66772630f352999d715f60c17f65bfa3254fe553f15094e992ed2",
+  "size": 777530,
+  "group": "encrypted",
+  "set": "v1-holdout"
+ },
+ {
+  "key": "c86f3d1f2aff9bb7c75bc50c7b13066b00ee69d464bc48385d64758afa486e10.mp4",
+  "sha256": "c86f3d1f2aff9bb7c75bc50c7b13066b00ee69d464bc48385d64758afa486e10",
+  "size": 969967,
+  "group": "gated",
+  "set": "v1-holdout"
+ },
+ {
+  "key": "895d1f32f29cd537feb3bea9f9d131c18def0bb8846536cb78dae42ef34d9376.mp4",
+  "sha256": "895d1f32f29cd537feb3bea9f9d131c18def0bb8846536cb78dae42ef34d9376",
+  "size": 986360,
+  "group": "download",
+  "set": "v1-holdout"
+ },
+ {
+  "key": "3898250f26b891f1233bee86910ae2f98394981ebbe20abedd4e5455e075a5d4.mp4",
+  "sha256": "3898250f26b891f1233bee86910ae2f98394981ebbe20abedd4e5455e075a5d4",
+  "size": 2437117,
+  "group": "encrypted",
+  "set": "v1-holdout"
+ },
+ {
+  "key": "aa7931b18bb0e229fd30c653903f3e2fc892abdbbfe6fa2b4d0fe19f7ea578bf.mp4",
+  "sha256": "aa7931b18bb0e229fd30c653903f3e2fc892abdbbfe6fa2b4d0fe19f7ea578bf",
+  "size": 3043867,
+  "group": "gated",
+  "set": "v1-holdout"
+ },
+ {
+  "key": "d4e8cc76b778ad60163bf715c7aa0e8e0bbfebbbfbc21b4639ceae936b4d435b.mp4",
+  "sha256": "d4e8cc76b778ad60163bf715c7aa0e8e0bbfebbbfbc21b4639ceae936b4d435b",
+  "size": 5379386,
+  "group": "gated",
+  "set": "v1-holdout"
+ },
+ {
+  "key": "e4f4b288040c7873e6ab9c68aebfcf60593c67af4a896aaacc48200beb7b871b.mp4",
+  "sha256": "e4f4b288040c7873e6ab9c68aebfcf60593c67af4a896aaacc48200beb7b871b",
+  "size": 7881787,
+  "group": "gated",
+  "set": "v1-holdout"
+ },
+ {
+  "key": "574bc4ad81dedb9a42ca8145460d3d3cdca38fd1b8133cc6bf72d59236d9ce57.mp4",
+  "sha256": "574bc4ad81dedb9a42ca8145460d3d3cdca38fd1b8133cc6bf72d59236d9ce57",
+  "size": 12084418,
+  "group": "encrypted",
+  "set": "v1-holdout"
+ },
+ {
+  "key": "b939b2c525e38623dada90b6bf6dbc1c7e2e2088b0ac9e2faef68936af014502.mp4",
+  "sha256": "b939b2c525e38623dada90b6bf6dbc1c7e2e2088b0ac9e2faef68936af014502",
+  "size": 12084418,
+  "group": "encrypted",
+  "set": "v1-holdout"
+ },
+ {
+  "key": "97bdf1aaa8ffe010cc4eaebe4be4137e6b2cf887cf1b9fc72c3a997746d4c5c7.mp4",
+  "sha256": "97bdf1aaa8ffe010cc4eaebe4be4137e6b2cf887cf1b9fc72c3a997746d4c5c7",
+  "size": 12572672,
+  "group": "gated",
+  "set": "v1-holdout"
+ },
+ {
+  "key": "cf502122eb675521dcb54ba5b248c49c94d68c3a646899a6ef4a8f3456806b97.mp4",
+  "sha256": "cf502122eb675521dcb54ba5b248c49c94d68c3a646899a6ef4a8f3456806b97",
+  "size": 14702402,
+  "group": "gated",
+  "set": "v1-holdout"
+ },
+ {
+  "key": "c81111de114e7f9075d3c1f0a0ddd07c11efe0b92df818f25cf130dbb7e80272.mp4",
+  "sha256": "c81111de114e7f9075d3c1f0a0ddd07c11efe0b92df818f25cf130dbb7e80272",
+  "size": 31728664,
+  "group": "gated",
+  "set": "v1-holdout"
+ },
+ {
+  "key": "750498df470c358285b95adccbf683f38c8c6be14efd2cc2de219cf7046e23d2.mp4",
+  "sha256": "750498df470c358285b95adccbf683f38c8c6be14efd2cc2de219cf7046e23d2",
+  "size": 34663531,
+  "group": "encrypted",
+  "set": "v1-holdout"
+ },
+ {
+  "key": "baa98b681ddc078bcea9bdfc82631626c32f50f9f62c4b1338e1d7637cc8e26c.mp4",
+  "sha256": "baa98b681ddc078bcea9bdfc82631626c32f50f9f62c4b1338e1d7637cc8e26c",
+  "size": 35568588,
+  "group": "encrypted",
+  "set": "v1-holdout"
+ },
+ {
+  "key": "a2d42b1894824798256e9d11571c5caedef39f7455f64b741aa704b3a18da946.mp4",
+  "sha256": "a2d42b1894824798256e9d11571c5caedef39f7455f64b741aa704b3a18da946",
+  "size": 36079699,
+  "group": "gated",
+  "set": "v1-holdout"
+ },
+ {
+  "key": "bdecaa9f9863d8f568b988a3533aae8537b76de5aaafcfeeb47a98522aa387f5.mp4",
+  "sha256": "bdecaa9f9863d8f568b988a3533aae8537b76de5aaafcfeeb47a98522aa387f5",
+  "size": 36292325,
+  "group": "encrypted",
+  "set": "v1-holdout"
+ },
+ {
+  "key": "de7354bf340bf007932fff114eac2cc6313bd0f2a99ed99d5e21ea8cb787bca7.mp4",
+  "sha256": "de7354bf340bf007932fff114eac2cc6313bd0f2a99ed99d5e21ea8cb787bca7",
+  "size": 101491043,
+  "group": "gated",
+  "set": "v1-holdout"
+ },
+ {
+  "key": "209b0656e14f5b77aa06c28611e00d1c6d78762e07b8c5381efc646c2a692027.mp4",
+  "sha256": "209b0656e14f5b77aa06c28611e00d1c6d78762e07b8c5381efc646c2a692027",
+  "size": 102235122,
+  "group": "gated",
+  "set": "topup-holdout"
+ },
+ {
+  "key": "4642ef7a47b3c42ed02abe10d16757fabf5ebf947b9a9e3f93ff3ad9fb79f630.mp4",
+  "sha256": "4642ef7a47b3c42ed02abe10d16757fabf5ebf947b9a9e3f93ff3ad9fb79f630",
+  "size": 110691219,
+  "group": "gated",
+  "set": "v1-holdout"
+ },
+ {
+  "key": "98e9d0b932abb2e94aefcbbcf96651839f82f339d287826fce2538ea338144c5.mp4",
+  "sha256": "98e9d0b932abb2e94aefcbbcf96651839f82f339d287826fce2538ea338144c5",
+  "size": 299873280,
+  "group": "gated",
+  "set": "topup-holdout"
+ },
+ {
+  "key": "520043d30f5faabff895bc863e62a14af4b37a1db9630b72f1963f9e8d0479ef.mp4",
+  "sha256": "520043d30f5faabff895bc863e62a14af4b37a1db9630b72f1963f9e8d0479ef",
+  "size": 340970179,
+  "group": "gated",
+  "set": "topup-holdout"
+ },
+ {
+  "key": "9858f3d1cb2d76da27e2b318a19ba76b224da56d1c412b5d83a3ef7c0bf3a161.mp4",
+  "sha256": "9858f3d1cb2d76da27e2b318a19ba76b224da56d1c412b5d83a3ef7c0bf3a161",
+  "size": 372646356,
+  "group": "gated",
+  "set": "topup-holdout"
+ },
+ {
+  "key": "2e9582e47a1f34e73bca858feaa43dd39a9e11ca825550fa335c342fc317ff03.mp4",
+  "sha256": "2e9582e47a1f34e73bca858feaa43dd39a9e11ca825550fa335c342fc317ff03",
+  "size": 407713952,
+  "group": "gated",
+  "set": "topup-holdout"
+ },
+ {
+  "key": "1ddd1a40d405da6a4b086df2449659ee3c7dbdbc81e81e54483e85c63e5a78c6.mp4",
+  "sha256": "1ddd1a40d405da6a4b086df2449659ee3c7dbdbc81e81e54483e85c63e5a78c6",
+  "size": 523511188,
+  "group": "gated",
+  "set": "topup-holdout"
+ },
+ {
+  "key": "ac56f681d1983dd1c4801913272bc7bb9105c877d921e573768a55d9a281eca7.mp4",
+  "sha256": "ac56f681d1983dd1c4801913272bc7bb9105c877d921e573768a55d9a281eca7",
+  "size": 1386546506,
+  "group": "gated",
+  "set": "v1-holdout"
+ }
+]

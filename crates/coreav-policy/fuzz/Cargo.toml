@@ -1,0 +1,30 @@
+# cargo-fuzz project (docs/design/policy-check.md); outside the workspace, never published.
+[package]
+name = "coreav-policy-fuzz"
+version = "0.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+serde_json = "1"
+coreav-isobmff = { path = "../../coreav-isobmff" }
+coreav-mkv = { path = "../../coreav-mkv" }
+coreav-cli = { path = "../../coreav-cli", default-features = false }
+coreav-policy = { path = ".." }
+
+[[bin]]
+name = "check"
+path = "fuzz_targets/check.rs"
+test = false
+doc = false
+bench = false
+
+[lints.rust]
+unsafe_code = "forbid"

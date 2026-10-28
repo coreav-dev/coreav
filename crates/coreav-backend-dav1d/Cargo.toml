@@ -1,0 +1,27 @@
+[package]
+name = "coreav-backend-dav1d"
+description = "CoreAV's AV1 backend: decodes packets with dav1d through its Rust binding; inside the sandboxed worker by default"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[features]
+default = []
+# Links the system's libdav1d (1.3 or later, found with pkg-config). Off by
+# default so that the workspace builds without it (docs/design/decode.md,
+# "dav1d").
+dav1d = ["dep:dav1d"]
+
+[dependencies]
+coreav-decode = { path = "../coreav-decode" }
+coreav-frame = { path = "../coreav-frame" }
+dav1d = { version = "0.11.1", optional = true }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+coreav-isobmff = { path = "../coreav-isobmff" }

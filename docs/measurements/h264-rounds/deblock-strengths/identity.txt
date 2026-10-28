@@ -1,0 +1,7 @@
+Output of the 32 training streams (class frame counts: sd 1800, 720p 900, 1080p 300, 4k 150), md5 of the raw frames of
+the decode example (dist builds): main 051e1692 at one thread against this branch at one and at eight threads.
+identical 32, different 0
+
+After rebasing onto main db59650d (#430, a reference's interior; #433, a macroblock's chroma edges in one kernel call;
+#434, docs): the rebased branch at one and eight threads against main db59650d at one thread.
+identical 32, different 0

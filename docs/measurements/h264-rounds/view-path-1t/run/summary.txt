@@ -1,0 +1,12 @@
+discard vp2/b2 1.0035 [0.9886, 1.0077] vp2 faster on 3 of 8
+write   vp2/b2 0.9987 [0.9936, 1.0037]
+null (b2 twice) discard median +0.0061, largest 0.0115; write median +0.0018
+b2/FFmpeg one thread 4k discard 0.9756
+  3b1b441e23ae.0.4k.h264 0.9886
+  4b54de28c2b3.0.4k.h264 1.0005
+  81ed4778ece2.0.4k.h264 1.0172
+  ae16bb7c7192.0.4k.h264 0.9928
+  af38b0cfd840.0.4k.h264 1.0077
+  e624cbe0d2be.0.4k.h264 1.0070
+  ed75c044e944.0.4k.h264 1.0066
+  f8d92a911e72.0.4k.h264 0.9820

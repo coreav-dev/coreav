@@ -1,0 +1,26 @@
+# callgrind (no cache model) instructions, --discard, one thread; dist builds. base = main 40f29a6d; v3 = the same with RUSTFLAGS=-C target-cpu=x86-64-v3; p3 = CABAC functions and predict_fast twinned, kernel called out of line; p4 = p3 with Kernels::predict_inlined; p5 = CABAC functions alone twinned; after = p4 with the chain's helpers per instance (Design point 4), this round's code; safe = after without the feature fast. Streams: 41e324ebb708 sd 200 frames, 6da34958296c 1080p 30, 65ec61f95a00 720p 60.
+41e324ebb708.0.sd base 556189556
+41e324ebb708.0.sd v3 529077180
+41e324ebb708.0.sd p3 556938623
+41e324ebb708.0.sd p4 551519234
+41e324ebb708.0.sd p5 565376518
+6da34958296c.0.1080p base 1575133023
+6da34958296c.0.1080p v3 1524351566
+6da34958296c.0.1080p p3 1555336419
+6da34958296c.0.1080p p4 1546724726
+6da34958296c.0.1080p p5 1568178866
+65ec61f95a00.0.720p base 1757366177
+65ec61f95a00.0.720p v3 1701486498
+65ec61f95a00.0.720p p3 1738671954
+65ec61f95a00.0.720p p4 1734455212
+65ec61f95a00.0.720p p5 1745260251
+41e324ebb708.0.sd after 542249972
+41e324ebb708.0.sd safe 557774917
+6da34958296c.0.1080p after 1545691627
+6da34958296c.0.1080p safe 1578431223
+65ec61f95a00.0.720p after 1731574053
+65ec61f95a00.0.720p safe 1760031753
+# ratio to base
+41e324ebb708.0.sd v3 0.9513 p3 1.0013 p4 0.9916 p5 1.0165 after 0.9749 safe 1.0028
+6da34958296c.0.1080p v3 0.9678 p3 0.9874 p4 0.9820 p5 0.9956 after 0.9813 safe 1.0021
+65ec61f95a00.0.720p v3 0.9682 p3 0.9894 p4 0.9870 p5 0.9931 after 0.9853 safe 1.0015

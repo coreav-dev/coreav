@@ -1,0 +1,6 @@
+Conformance (bar AV-4), the measured commit 0290be72 (a worktree of it), scripts/h264_conformance.py, the JVT suite's in-scope streams:
+detected kernels (AVX-512 tier on this host), threads 1,2,8:
+{"streams": 97, "passed": 97, "failed": 0, "kernels": "detect", "threads": "1,2,8", "seconds": 96.5}
+scalar kernels, 1 thread:
+{"streams": 97, "passed": 97, "failed": 0, "kernels": "scalar", "threads": "1", "seconds": 91.9}
+model name	: Intel(R) Xeon(R) Processor @ 2.90GHz

@@ -1,0 +1,24 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2899.9 MHz, 8 logical CPUs
+gate baseline: 0.412 s (samples 0.412, 0.409, 0.412)
+1d4b1775d78a.0.720p.h264                 base:discard=1.03  base:write=0.96  base:mixed=0.91  k:discard=1.02  k:write=0.95  k:mixed=0.90
+278dbf5a63bb.0.720p.h264                 host fault (attempt 1): null {'base_discard': 0.0028098566827945426, 'base_write': -0.033405957807232656}, max spread 1.551
+278dbf5a63bb.0.720p.h264                 host fault (attempt 2): null {'base_discard': 0.001693058643501777, 'base_write': -0.043961974740990284}, max spread 1.557
+278dbf5a63bb.0.720p.h264                 base:discard=1.01  base:write=0.98  base:mixed=0.93  k:discard=0.99  k:write=0.97  k:mixed=0.91
+36501d448eaa.0.720p.h264                 base:discard=1.14  base:write=1.12  base:mixed=1.10  k:discard=1.12  k:write=1.09  k:mixed=1.08
+3c593b8f0809.0.720p.h264                 base:discard=1.06  base:write=1.05  base:mixed=1.02  k:discard=1.04  k:write=1.02  k:mixed=1.00
+gate after 4 streams (check): 0.405 s (-1.6%)
+65ec61f95a00.0.720p.h264                 host fault (attempt 1): null {'base_discard': 0.025262858044742043, 'base_write': -0.012011680146211012}, max spread 1.614
+65ec61f95a00.0.720p.h264                 base:discard=1.04  base:write=1.00  base:mixed=0.97  k:discard=1.03  k:write=0.99  k:mixed=0.96
+6b18d9f0f88d.0.720p.h264                 base:discard=0.87  base:write=0.82  base:mixed=0.74  k:discard=0.86  k:write=0.81  k:mixed=0.73
+76e0b1692494.0.720p.h264                 base:discard=1.04  base:write=1.02  base:mixed=0.95  k:discard=1.02  k:write=1.01  k:mixed=0.93
+9db41aa16b5a.0.720p.h264                 base:discard=1.01  base:write=0.95  base:mixed=0.90  k:discard=1.00  k:write=0.94  k:mixed=0.89
+gate after 8 streams (check): 0.417 s (+1.2%)
+
+base:discard             n=  8  median 1.037  [1.012, 1.057]
+base:write               n=  8  median 0.992  [0.950, 1.049]
+base:mixed               n=  8  median 0.940  [0.900, 1.015]
+k:discard                n=  8  median 1.016  [0.993, 1.043]
+k:write                  n=  8  median 0.980  [0.939, 1.023]
+k:mixed                  n=  8  median 0.919  [0.890, 1.001]
+
+wrote $HOME/ab/mvd-packed/out/g.720p.json

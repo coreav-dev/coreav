@@ -1,0 +1,9 @@
+# round 22, the code of 3a6e470: crates/coreav-h264/fuzz targets built with
+# cargo +nightly fuzz build -O --target x86_64-unknown-linux-gnu (address sanitizer), each run 1,200 s on one core with
+# -rss_limit_mb=2048 -timeout=10. Seed corpus: round 21's (the 45 CAVLC conformance streams and the 58 Main and High
+# profile conformance streams of at most 352x288, frame_mbs_only, 4:2:0 and 8 bits, each the first 16 KB behind a mode
+# byte of 0).
+target          runs     coverage  features  corpus at end  crashes, leaks, timeouts, out-of-memory
+decode          58,538   12,740    76,965    3,041          none
+decode_limited  116,863  12,524    70,623    3,733          none
+threads         16,753   11,870    73,397    3,316          none

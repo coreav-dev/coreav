@@ -1,0 +1,22 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2900.0 MHz, 8 logical CPUs
+gate baseline: 0.410 s (samples 0.455, 0.408, 0.410, 0.411)
+41e324ebb708.0.sd.h264                   base:discard=0.96  base:write=0.95  base:mixed=0.89  k:discard=0.96  k:write=0.95  k:mixed=0.89
+5185721dda11.0.sd.h264                   base:discard=0.93  base:write=0.92  base:mixed=0.87  k:discard=0.93  k:write=0.92  k:mixed=0.87
+6f7799768413.0.sd.h264                   base:discard=1.12  base:write=1.08  base:mixed=1.03  k:discard=1.13  k:write=1.07  k:mixed=1.04
+7650ae466748.0.sd.h264                   base:discard=0.99  base:write=0.98  base:mixed=0.93  k:discard=0.98  k:write=0.98  k:mixed=0.93
+gate after 4 streams (check): 0.401 s (-2.4%)
+8ae90cadb5bc.0.sd.h264                   base:discard=1.01  base:write=1.00  base:mixed=0.96  k:discard=1.00  k:write=0.99  k:mixed=0.96
+dcb262cf0138.0.sd.h264                   base:discard=0.84  base:write=0.85  base:mixed=0.81  k:discard=0.84  k:write=0.84  k:mixed=0.81
+ec473c99c538.0.sd.h264                   base:discard=0.55  base:write=0.57  base:mixed=0.51  k:discard=0.55  k:write=0.57  k:mixed=0.51
+f9e973f44570.0.sd.h264                   host fault (attempt 1): null {'base_discard': -0.00039705644442455945, 'base_write': -0.0020347949830950007}, max spread 1.608
+f9e973f44570.0.sd.h264                   base:discard=0.81  base:write=0.82  base:mixed=0.79  k:discard=0.81  k:write=0.82  k:mixed=0.79
+gate after 8 streams (check): 0.399 s (-2.8%)
+
+base:discard             n=  8  median 0.944  [0.813, 1.005]
+base:write               n=  8  median 0.931  [0.820, 0.998]
+base:mixed               n=  8  median 0.879  [0.792, 0.959]
+k:discard                n=  8  median 0.945  [0.812, 1.005]
+k:write                  n=  8  median 0.932  [0.822, 0.994]
+k:mixed                  n=  8  median 0.880  [0.792, 0.959]
+
+wrote $HOME/ab/hints-8t/out/g.sd.json

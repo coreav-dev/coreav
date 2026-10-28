@@ -1,0 +1,11 @@
+{
+ "void": false,
+ "reasons": [],
+ "reference_drift": 0.004420168393878932,
+ "unresolved": {
+  "sd": 0,
+  "720p": 0,
+  "1080p": 1,
+  "4k": 0
+ }
+}

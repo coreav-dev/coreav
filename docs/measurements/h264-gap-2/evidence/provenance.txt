@@ -1,0 +1,14 @@
+CPU: Intel(R) Xeon(R) Processor @ 2.90GHz, 8 vCPU, no hardware PMU (perf: cpu-clock only)
+Kernel: 6.18.49
+Ours: coreav main 3c47e960, cargo build --profile dist --example decode -p coreav-h264, rustc 1.99.1 (58cf8f9c3 2026-10-13)
+FFmpeg: release tarball https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz, SHA-256 8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e
+  configure: see ffmpeg-configure.txt; compiler gcc14-gcc (GCC) 14.2.1 20250110 (Red Hat 14.2.1-7); binary ffmpeg_g (unstripped, -g)
+  check against the pinned BtbN n9.0.2-17-g2a571b6068 (archive SHA-256 68ee646831adaae2495618346f3bba94ff207ff83bbd34d643e7004730d66269),
+  perf stat, pinned core 2, -threads 1 -f null: 41e324ebb708 0.837 vs 0.850 s (r5); 6da34958296c 1.274 vs 1.281 and 1.235 vs 1.213 s (r10, two rounds); 3b1b441e23ae 0.541 vs 0.549 s (r5)
+Commands (pinned core 2, one thread, stdin /dev/null):
+  ours:        decode --frames F --discard STREAM
+  FFmpeg SIMD: ffmpeg_g -hide_banner -v error -threads 1 -i STREAM -frames:v F -f null -
+  FFmpeg C:    same with -cpuflags 0 before -i
+perf: perf record -e cpu-clock -F 999 (one sample ~ 1 ms); FFmpeg samples attributed by address to the nearest symbol of nm -n (assembly local labels skipped)
+Simulation: valgrind-3.19.0, callgrind --dump-instr=yes --cache-sim=yes --branch-sim=yes;
+  simulated caches from the host: I1 32 KiB 8-way, D1 48 KiB 12-way, LL 56 MiB 14-way (valgrind rounds the 12-way LL to 14-way), 64 B lines

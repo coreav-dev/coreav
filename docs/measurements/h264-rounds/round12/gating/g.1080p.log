@@ -1,0 +1,24 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2899.9 MHz, 8 logical CPUs
+175433794e02.0.1080p.h264                base:discard=1.38  base:write=1.32  base:mixed=1.32  d:discard=1.34  d:write=1.31  d:mixed=1.27  r:discard=1.34  r:write=1.32  r:mixed=1.27  dr:discard=1.33  dr:write=1.30  dr:mixed=1.26
+6da34958296c.0.1080p.h264                base:discard=1.65  base:write=1.81  base:mixed=1.66  d:discard=1.57  d:write=1.73  d:mixed=1.58  r:discard=1.54  r:write=1.68  r:mixed=1.55  dr:discard=1.50  dr:write=1.63  dr:mixed=1.51
+6e90422a670a.0.1080p.h264                base:discard=1.35  base:write=1.30  base:mixed=1.26  d:discard=1.31  d:write=1.28  d:mixed=1.21  r:discard=1.32  r:write=1.32  r:mixed=1.22  dr:discard=1.36  dr:write=1.31  dr:mixed=1.26
+a6af290d9053.0.1080p.h264                base:discard=1.39  base:write=1.33  base:mixed=1.27  d:discard=1.51  d:write=1.33  d:mixed=1.38  r:discard=1.48  r:write=1.34  r:mixed=1.35  dr:discard=1.39  dr:write=1.34  dr:mixed=1.27
+a81de82106be.0.1080p.h264                base:discard=1.44  base:write=1.29  base:mixed=1.18  d:discard=1.29  d:write=1.48  d:mixed=1.06  r:discard=1.74  r:write=1.18  r:mixed=1.43  dr:discard=1.23  dr:write=1.12  dr:mixed=1.01
+b41f70a7fa60.0.1080p.h264                base:discard=1.61  base:write=2.77  base:mixed=2.53  d:discard=1.57  d:write=2.99  d:mixed=2.48  r:discard=1.65  r:write=2.74  r:mixed=2.61  dr:discard=1.66  dr:write=2.71  dr:mixed=2.62
+b71b6b31e54f.0.1080p.h264                base:discard=1.86  base:write=1.78  base:mixed=1.51  d:discard=1.71  d:write=1.60  d:mixed=1.39  r:discard=1.78  r:write=1.57  r:mixed=1.44  dr:discard=1.70  dr:write=1.52  dr:mixed=1.38
+c7ecda16e4a7.0.1080p.h264                base:discard=1.59  base:write=1.57  base:mixed=1.50  d:discard=1.54  d:write=1.85  d:mixed=1.45  r:discard=1.57  r:write=1.47  r:mixed=1.48  dr:discard=1.50  dr:write=1.55  dr:mixed=1.41
+
+base:discard             n=  8  median 1.515  [1.385, 1.646]
+base:write               n=  8  median 1.453  [1.299, 1.807]
+base:mixed               n=  8  median 1.408  [1.256, 1.658]
+d:discard                n=  8  median 1.523  [1.309, 1.573]
+d:write                  n=  8  median 1.540  [1.310, 1.851]
+d:mixed                  n=  8  median 1.384  [1.214, 1.579]
+r:discard                n=  8  median 1.554  [1.397, 1.742]
+r:write                  n=  8  median 1.404  [1.316, 1.685]
+r:mixed                  n=  8  median 1.437  [1.283, 1.554]
+dr:discard               n=  8  median 1.443  [1.326, 1.660]
+dr:write                 n=  8  median 1.431  [1.304, 1.627]
+dr:mixed                 n=  8  median 1.325  [1.256, 1.510]
+
+wrote $HOME/ab/r12/out/g.1080p.json

@@ -1,0 +1,19 @@
+[package]
+name = "coreav-backend-ffmpeg"
+description = "CoreAV's FFmpeg fallback: decodes packets with an ffmpeg binary run as a child process, never linked; used inside the sandboxed worker"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+coreav-decode = { path = "../coreav-decode" }
+coreav-frame = { path = "../coreav-frame" }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+coreav-isobmff = { path = "../coreav-isobmff" }

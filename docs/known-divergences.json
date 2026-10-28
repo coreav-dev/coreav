@@ -1,0 +1,410 @@
+{
+  "schema": "coreav/known-divergences/1",
+  "applies_to": "coreav-isobmff through tools/isobmff-adapter, ffprobe 7.0.2",
+  "entries": [
+    {
+      "id": "KD-STRICT",
+      "level": [
+        "streams",
+        "packets"
+      ],
+      "fields": [
+        "probe_ok",
+        "every packet of the file"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "/probe_ok": "candidate false, reference true",
+        "/properties/rejection": [
+          "truncated_structure",
+          "invalid_structure",
+          "limit"
+        ],
+        "media bytes": "an independent box-header walk shows the claimed defect: truncated_structure = a top-level box past the end of the file; invalid_structure = a box past its parent, a container in the wrong parent, a second top-level movie box (ISO/IEC 14496-12 8.2.1) or a top-level movie box without a movie header child (8.2.2), except one holding a QuickTime compressed (cmov) or reference (rmra) movie; limit = nesting deeper than the default depth of Decision 4"
+      },
+      "predicate": "strict_rejection",
+      "basis": "proposal 5.7 and 6.2 (structurally invalid or truncated files are rejected); Decision 4; Decision 16"
+    },
+    {
+      "id": "KD-STTS-SHORT",
+      "level": [
+        "streams"
+      ],
+      "fields": [
+        "duration_ts",
+        "format_duration_us"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "/streams/*/properties/warnings": "contains a duration conflict",
+        "reference /streams/*/duration_ts": "= stts_duration_ticks < candidate",
+        "/streams/*/duration_ts": "candidate = round(min(mdhd duration, media edit duration))",
+        "/format_duration_us": "each side = the span of its own streams as ffprobe counts a format duration (audio and video, plus other streams ending less than 1 s after them; starts = empty edits rounded to stream ticks, shared by both sides; starts and durations rounded to microseconds each), from its own stream durations and kinds, every other stream agreeing or covered; a dropped stream that differs only when it decides neither span",
+        "evidence": "stream values checked against the file (Facts.stream_ok), for every stream in the format clause"
+      },
+      "predicate": "stts_short",
+      "basis": "Decision 13 (stream duration conflicts)"
+    },
+    {
+      "id": "KD-EDIT-DURATION",
+      "level": [
+        "streams"
+      ],
+      "fields": [
+        "duration_ts",
+        "format_duration_us"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "/streams/*/properties/edits": "simple, with a media edit of known duration that is shorter than the mdhd duration or follows a leading empty edit",
+        "/streams/*/properties/stts_duration_ticks": "not shorter than the candidate value (else KD-STTS-SHORT)",
+        "/streams/*/duration_ts": "candidate = round(min(mdhd duration, media edit duration)); reference = min(mdhd duration, stts_duration_ticks, round((empty + media edit) in stream ticks)) and differs",
+        "/format_duration_us": "each side = the span of its own streams as ffprobe counts a format duration (audio and video, plus other streams ending less than 1 s after them; starts = empty edits rounded to stream ticks, shared by both sides; starts and durations rounded to microseconds each), from its own stream durations and kinds, every other stream agreeing or covered; a dropped stream that differs only when it decides neither span",
+        "several edits": "/streams/*/properties/edits multiple: candidate = round(min(mdhd duration, the media edits added up)); reference = min(mdhd duration, stts_duration_ticks, every edit_entries duration rounded to stream ticks and added up) and differs",
+        "evidence": "stream values checked against the file (Facts.stream_ok), for every stream in the format clause"
+      },
+      "predicate": "edit_duration",
+      "basis": "Decision 13 (stream duration conflicts): the reference's rule counts a leading empty edit and ignores the media time"
+    },
+    {
+      "id": "KD-FRAG-START",
+      "level": [
+        "streams"
+      ],
+      "fields": [
+        "duration_ts",
+        "format_duration_us"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "/streams/*/properties/fragment_start_ticks": "above 0 (the first tfdt)",
+        "/streams/*/duration_ts": "reference = candidate + fragment_start_ticks; or, with a segment index (sidx_end_ticks, the first sidx for the track in its timescale), reference = sidx_end_ticks >= candidate + fragment_start_ticks, and a kept stream's candidate = stts_duration_ticks; a dropped stream counts with the timing the adapter reports for it",
+        "/format_duration_us": "each side = the span of its own streams as ffprobe counts a format duration (audio and video, plus other streams ending less than 1 s after them; starts = empty edits rounded to stream ticks, shared by both sides; starts and durations rounded to microseconds each), from its own stream durations and kinds, every other stream agreeing or covered; a dropped stream that differs only when it decides neither span",
+        "evidence": "stream values checked against the file (Facts.stream_ok), for every stream in the format clause"
+      },
+      "predicate": "frag_start",
+      "basis": "Decision 13 (the samples' span) and Decision 17"
+    },
+    {
+      "id": "KD-EDIT-UNPLACED",
+      "level": [
+        "streams"
+      ],
+      "fields": [
+        "format_duration_us"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "/streams/*/properties/edits": "unsupported (kept stream) or properties.dropped[*].edits unsupported: a stream CoreAV does not place",
+        "/format_duration_us": "candidate = the span of the streams CoreAV places; reference = that span with each unplaced stream added from time 0 for its reference duration; every placed stream agrees or is covered",
+        "evidence": "every placed stream checked against the file (Facts.stream_ok); each unplaced stream's stored edit list outside the model (Facts.outside_model)"
+      },
+      "predicate": "edit_unplaced",
+      "basis": "proposal 5.2 (edit lists outside the model are reported unsupported, never approximated)"
+    },
+    {
+      "id": "KD-EDIT-DISCARD",
+      "level": [
+        "packets"
+      ],
+      "fields": [
+        "extra"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "/streams/*/packets/extra/discard": true,
+        "/streams/*/packets/extra/media_cts": "outside the media edit window, checked independently",
+        "evidence": "every packet of the stream is the file's sample (Facts.samples_ok)",
+        "/streams/*/packets/extra/pts": "media_cts - edits.media_time + presentation_offset_ticks, rounded half away from zero; dts likewise from media_dts"
+      },
+      "predicate": "edit_discard",
+      "basis": "proposal 5.2 (one packet per sample, simple edit list applied exactly); first registered in the parsing-guard spike, as C-EDIT-DISCARD (pull request 8)"
+    },
+    {
+      "id": "KD-CTTS",
+      "level": [
+        "packets"
+      ],
+      "fields": [
+        "dts"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "/streams/*/properties/ctts_signed": "true (a version 1 table, or a QuickTime file's)",
+        "/streams/*/packets/*/dts": "reference = candidate + the track's smallest negative composition offset; no other field differs",
+        "evidence": "every packet of the stream is the file's sample (Facts.samples_ok); no paired packet agrees on dts"
+      },
+      "predicate": "ctts_shift",
+      "basis": "proposal 5.2 (composition offsets reported as stored, never shifted) and 6.2"
+    },
+    {
+      "id": "KD-CTTS-UNSIGNED",
+      "level": [
+        "packets"
+      ],
+      "fields": [
+        "pts",
+        "dts"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "/properties/major_brand": "present and not 'qt  '",
+        "/streams/*/properties/ctts_version": 0,
+        "/streams/*/properties/ctts_signed": false,
+        "/streams/*/packets/*/media_cts": "some offset (media_cts - media_dts) of 2^31 or more",
+        "/streams/*/packets/*/pts": "reference = candidate - 2^32 where the offset is 2^31 or more, else equal; dts = candidate + the smallest offset read signed; no other field differs",
+        "evidence": "every packet of the stream is the file's sample (Facts.samples_ok); no paired packet agrees on dts"
+      },
+      "predicate": "ctts_v0",
+      "basis": "ISO/IEC 14496-12 8.6.1.3 (version 0 offsets are unsigned); proposal 5.2 (offsets reported as stored)"
+    },
+    {
+      "id": "KD-TRUN-SHIFT",
+      "level": [
+        "packets"
+      ],
+      "fields": [
+        "pts"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "/streams/*/properties/fragment_start_ticks": "an integer (every sample comes from track fragments)",
+        "/streams/*/properties/edits": "none",
+        "/streams/*/packets/*/pts": "reference = candidate - the track's smallest composition offset (media_cts - media_dts), which is negative; no other field differs",
+        "evidence": "every packet of the stream is the file's sample (Facts.samples_ok); no paired packet agrees on pts"
+      },
+      "predicate": "trun_shift",
+      "basis": "ISO/IEC 14496-12 8.8.8 (signed offsets in trun version 1); proposal 5.2 (offsets reported as stored)"
+    },
+    {
+      "id": "KD-EDIT-SNAP",
+      "level": [
+        "packets"
+      ],
+      "fields": [
+        "pts",
+        "dts"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "/streams/*/kind": "video",
+        "/streams/*/properties/edits/media_time": "not a composition time of the track; the first composition time after it, from the stream's packets, is later by the shift",
+        "/streams/*/packets/*/pts": "reference = candidate - shift; dts likewise, plus KD-CTTS's shift where that applies; no other field differs",
+        "evidence": "every packet of the stream is the file's sample (Facts.samples_ok); no paired packet agrees on pts"
+      },
+      "predicate": "edit_snap",
+      "basis": "ISO/IEC 14496-12 8.6.6 (media_time is the media time at which the edit starts); proposal 5.2 (the simple edit list is applied exactly)"
+    },
+    {
+      "id": "KD-EDIT-MULTI",
+      "level": [
+        "packets"
+      ],
+      "fields": [
+        "streams/*/packets"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "/streams/*/properties/edits": "multiple",
+        "candidate packets": "pts, dts and discard equal docs/design/edit-lists.md decision 2's mapping, recomputed from media_cts, media_dts and the file's edit list",
+        "reference packets": "equal the black-box model's listing (docs/design/edit-lists.md) one for one: pos, size, keyframe, pts, dts, discard",
+        "media file": "the edit list, movie and media timescales, handler and ctts presence of the track at the stream's position",
+        "evidence": "every packet of the stream is the file's sample (Facts.samples_ok)"
+      },
+      "predicate": "edit_multi",
+      "basis": "Proposal 5.2 (one packet per sample; edit lists applied exactly) and docs/design/edit-lists.md"
+    },
+    {
+      "id": "KD-TEXT-END",
+      "level": [
+        "streams"
+      ],
+      "fields": [
+        "streams/*/duration_ts"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "/streams/*": "candidate codec_name mov_text, properties.edits none, duration_source MediaHeader, duration_ts equal to the track's raw mdhd duration (Facts reader), whose raw sample durations end within it; a text handler; the movie not fragmented",
+        "media file": "the latest track end, approximating ffprobe's: each track's last elst durations added up over the mvhd timescale, or without an edit list its mdhd duration over its timescale (where ffprobe ends otherwise, the file stays uncovered)",
+        "/streams/*/duration_ts": "reference = that end in the stream's ticks rounded half up, longer than the candidate's",
+        "evidence": "stream values checked against the file (Facts.stream_ok); the text track's raw media header, timescale and sample durations, and each track's raw edit list or media header for the latest end (Facts)"
+      },
+      "predicate": "text_end",
+      "basis": "Decision 13 (a track's duration from its media header); the extension is ffprobe's"
+    },
+    {
+      "id": "KD-PCM",
+      "level": [
+        "packets"
+      ],
+      "fields": [
+        "size",
+        "extra",
+        "missing",
+        "pts",
+        "dts",
+        "duration"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "/streams/*/codec_name": "pcm_*",
+        "/streams/*/properties/fixed_sample_size": "= channels * bits_per_sample / 8",
+        "/streams/*/packets": "candidate samples tile the reference packet exactly (in the per-sample count: every reference packet of the stream): consecutive positions, summed durations (the stream's last packet after another, when every sample of the stream lasts the same and the packet before lasts exactly its samples: or from its timestamp to the stream's end, the duration of one edit at media time 0 or, without an edit list, the movie's duration, in media ticks rounded to the nearest, half up, in a time base equal to the media timescale), anchored timestamps, equal keyframe flags",
+        "evidence": "every packet of the stream is the file's sample (Facts.samples_ok)"
+      },
+      "predicate": "pcm_reference_units",
+      "basis": "proposal 5.2 (one packet per sample, never merged) and 6.2; Decision 3 point 3 (grouping)"
+    },
+    {
+      "id": "KD-PCM-END",
+      "level": [
+        "streams"
+      ],
+      "fields": [
+        "duration_ts",
+        "format_duration_us"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "/streams/*/codec_name": "pcm_*, constant sample size (as KD-PCM)",
+        "/streams/*/duration_ts": "reference = where ffprobe ends the stream's last packet (presentation_end: the single edit's duration, or without an edit list the mvhd duration in stream ticks); candidate = round(min(mdhd duration, media edit duration)) and differs",
+        "/format_duration_us": "each side = the span of its own streams as ffprobe counts a format duration (audio and video, plus other streams ending less than 1 s after them; starts = empty edits rounded to stream ticks, shared by both sides; starts and durations rounded to microseconds each), from its own stream durations and kinds, every other stream agreeing or covered; a dropped stream that differs only when it decides neither span",
+        "evidence": "stream values checked against the file (Facts.stream_ok), for every stream in the format clause"
+      },
+      "predicate": "pcm_end",
+      "basis": "Decision 13 (the samples' duration)"
+    },
+    {
+      "id": "KD-AAC-IMPLICIT-SBR",
+      "level": [
+        "streams"
+      ],
+      "fields": [
+        "profile"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "/streams/*/codec_name": "aac on both sides",
+        "/streams/*/profile": "candidate LC, reference HE-AAC",
+        "/streams/*/properties/profile_code_points": "object type 2, no explicit SBR, no parametric stereo",
+        "/streams/*/sample_rate": "candidate core rate at most 24000 Hz",
+        "evidence": "the file's AudioSpecificConfig is plain LC (Facts.aac_plain_lc)"
+      },
+      "predicate": "aac_implicit_sbr",
+      "basis": "Decision 25 point 1 (profile from the configuration, no decoding); ISO/IEC 14496-3 implicit SBR signalling; registered as a known divergence in pull request 16"
+    },
+    {
+      "id": "KD-AAC-LC-UNNAMED",
+      "level": [
+        "streams"
+      ],
+      "fields": [
+        "profile"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "/streams/*/codec_name": "aac on both sides",
+        "/streams/*/profile": "candidate LC, reference null",
+        "/streams/*/properties/profile_code_points": "object type 2, no explicit SBR, no parametric stereo",
+        "evidence": "the file's AudioSpecificConfig is plain LC (Facts.aac_plain_lc)"
+      },
+      "predicate": "aac_lc_unnamed",
+      "basis": "Decision 25 point 14; ISO/IEC 14496-3 AudioSpecificConfig; registered as a known divergence in pull request 16"
+    },
+    {
+      "id": "KD-QT-TEXT",
+      "level": [
+        "streams",
+        "packets"
+      ],
+      "fields": [
+        "streams/count",
+        "the dropped streams' packets"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "/properties/dropped": "non-empty; every entry has codec_fourcc text and reason CodecNotAllowed",
+        "reference streams": "codec_fourcc text at exactly the dropped stream indexes; every other index present on both sides"
+      },
+      "predicate": "quicktime_text_dropped",
+      "basis": "Decision 16 (disallowed codecs are dropped and reported); QuickTime text is not on the default allowlist (docs/design/text.md)"
+    },
+    {
+      "id": "KD-NOT-ALLOWED",
+      "level": [
+        "streams",
+        "packets"
+      ],
+      "fields": [
+        "streams/count",
+        "the dropped streams' packets"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "/properties/dropped": "non-empty; every entry has reason CodecNotAllowed",
+        "reference streams": "the dropped codec_fourcc at exactly the dropped stream indexes and a codec_name off the default allowlist (not h264, hevc, av1, vp9, prores, aac, mp3, opus, mov_text, pcm_*, nor a tmcd track); for a protected entry enca, encv, enct or encs, the original format of the frma box in its sinf; every other index present on both sides",
+        "together with KD-QT-TEXT": "a candidate that drops text tracks and others: the text tracks meet KD-QT-TEXT's conditions and the others these, each against the reference without the other part's streams; all counted here"
+      },
+      "predicate": "dropped_entries",
+      "basis": "Proposal 5.7 and Decision 16 (streams whose codec is not on the allowlist are dropped and reported, never decoded)"
+    },
+    {
+      "id": "KD-COVER-ART",
+      "level": [
+        "streams",
+        "packets"
+      ],
+      "fields": [
+        "streams/count",
+        "the cover pictures' packets"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "media file": "a picture item in moov/udta/meta/ilst (else moov/meta/ilst; meta starting with hdlr): covr, or with a keys box the item of key com.apple.quicktime.artwork; one data box per picture (at most 64) with type-set 0 and type 13 (JPEG), 14 (PNG) or 27 (BMP)",
+        "reference streams": "the streams the candidate neither lists nor reports as dropped are the last streams by index, one per picture, video, no codec_fourcc, codec_name mjpeg, png or bmp as the picture's type names, in order, one packet each; any other missing stream covered by KD-QT-TEXT or KD-NOT-ALLOWED"
+      },
+      "predicate": "cover_art_streams",
+      "basis": "ISO/IEC 14496-12 8.3 and 8.11 (cover art is metadata of the item list, not a track); proposal 6.2 and Decision 3 point 3"
+    },
+    {
+      "id": "KD-CHAPTER-TEXT",
+      "level": [
+        "streams",
+        "packets"
+      ],
+      "fields": [
+        "streams/*/kind",
+        "streams/*/codec_name",
+        "the stream's packets"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "media file": "the track at the stream's position has a tkhd track ID listed in a tref/chap box of some track (a chap box over 4 KiB is ignored)",
+        "/streams/*": "reference kind data, codec_name bin_data, codec_fourcc tx3g; candidate kind subtitle, codec_name mov_text, codec_fourcc tx3g",
+        "packets": "the reference lists no packet of the stream; the units are the candidate's extra packets",
+        "evidence": "for packets, every packet of the stream is the file's sample (Facts.samples_ok)",
+        "/streams/*/packets/extra/pts": "the stream's edit mapping of media_cts (edits none or simple, plus presentation_offset_ticks); dts likewise from media_dts"
+      },
+      "predicate": "chapter_text",
+      "basis": "Decision 16 and proposal 5.2 (the track is reported as its sample entry stores it, one packet per sample); docs/design/text.md (coreav chapters reads chapter tracks)"
+    },
+    {
+      "id": "KD-DECLARED-SIZE",
+      "level": [
+        "streams"
+      ],
+      "fields": [
+        "width",
+        "height",
+        "display_aspect_ratio"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "box headers": "the first sample entry declares the candidate's width and height",
+        "/streams/*/width,height": "the reference's differ from the declared size and equal the first frame ffprobe decodes"
+      },
+      "predicate": "declared_size",
+      "basis": "docs/design/frame-sizes.md decision 1 (the declared size is kept; verified sizes are printed apart)"
+    }
+  ]
+}

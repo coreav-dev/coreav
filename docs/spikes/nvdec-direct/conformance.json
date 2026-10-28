@@ -1,0 +1,20 @@
+[
+  {
+    "id": "CABA1_SVA_B",
+    "url": "https://www.itu.int/wftp3/av-arch/jvt-site/draft_conformance/AVCv1/CABA1_SVA_B.zip",
+    "archive_sha256": "d0cf94006df2319a6c98683a6013f85ea5a1c0d382c796523b751c263e8c8989",
+    "member": "CABA1_SVA_B.264",
+    "sha256": "2c1319be664863d68bf22c26ccfff417b7eeca1d8d6360f1862b5b3aa4c24c0a",
+    "bytes": 30920,
+    "purpose": "ITU H.264.1 conformance testing, no redistribution of media"
+  },
+  {
+    "id": "CANL1_SVA_B",
+    "url": "https://www.itu.int/wftp3/av-arch/jvt-site/draft_conformance/AVCv1/CANL1_SVA_B.zip",
+    "archive_sha256": "2f364e4ff117f9fce0b55ae417f2f5ee992d6e4042e207eed0a212b71580ae27",
+    "member": "CANL1_SVA_B.264",
+    "sha256": "40f9ea2fca09e08b0486c53eafd43bf064c3b488276f74ff96a1afcd414332d4",
+    "bytes": 30903,
+    "purpose": "ITU H.264.1 conformance testing, no redistribution of media"
+  }
+]

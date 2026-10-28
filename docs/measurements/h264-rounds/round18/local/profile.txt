@@ -1,0 +1,12 @@
+# Time-based profile of perf/h264-banded-mc (round 17's code, the base's MB layer), one thread, pinned, cpu-clock 4 kHz,
+# --discard, the 32 training streams at the class frame counts, one round (docs/measurements/h264-rounds/profile/ tools;
+# ~/h264work/prof/run17). Samples whose innermost CoreAV frame is PictureWork::new (work.rs), all of them in the fill of
+# the macroblock records (`vec![MbInfo::NONE; n]`, innermost frame `ptr::write<MbInfo>`), as a share of each class's
+# CoreAV samples:
+sd 0.0065
+720p 0.0062
+1080p 0.0044
+4k 0.0105
+all 1317 of 208127 samples (0.0063)
+# The MB layer (classify.py's stage) took 1.65 times FFmpeg 9.0.2's time for the same stage, the largest ratio of any
+# stage (FFmpeg's samples from the profile of 82c7f7b, docs/measurements/h264-rounds/profile/; information only).

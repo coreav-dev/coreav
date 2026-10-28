@@ -1,0 +1,10 @@
+# Out-of-line functions (nm, text symbols of coreav crates) of this round's dist build and main's, with the instance type names removed; lines only in one build.
+## only in this round's build (besides fast::v3::*)
+<coreav_h264::cabac::Cabac>::new
+<coreav_h264::cabac::Cabac>::resume
+<coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode
+<coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode_pcm::<coreav_h264::syntax::CavlcSyntax>
+<coreav_h264::tier::Choice>::detect
+coreav_kernels_h264::average_into
+## only in main's build
+<coreav_h264::syntax::CabacSyntax as coreav_h264::syntax::Syntax>::prev_intra_flag

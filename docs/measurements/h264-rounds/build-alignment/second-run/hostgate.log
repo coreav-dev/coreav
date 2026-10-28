@@ -1,0 +1,16 @@
+PASS model106 before g.sd #1 02:29Z 36501d448eaa.0.720p 1.272s (ref 1.295) ratio 0.983; a6af290d9053.0.1080p 4.198s (ref 4.388) ratio 0.957
+PASS model106 after g.sd #1 02:32Z 36501d448eaa.0.720p 1.267s (ref 1.295) ratio 0.979; a6af290d9053.0.1080p 4.230s (ref 4.388) ratio 0.964
+PASS model106 before g.720p #1 02:32Z 36501d448eaa.0.720p 1.268s (ref 1.295) ratio 0.979; a6af290d9053.0.1080p 4.237s (ref 4.388) ratio 0.966
+PASS model106 after g.720p #1 02:38Z 36501d448eaa.0.720p 1.267s (ref 1.295) ratio 0.978; a6af290d9053.0.1080p 4.206s (ref 4.388) ratio 0.958
+PASS model106 before g.1080p #1 02:39Z 36501d448eaa.0.720p 1.274s (ref 1.295) ratio 0.984; a6af290d9053.0.1080p 4.199s (ref 4.388) ratio 0.957
+PASS model106 after g.1080p #1 02:52Z 36501d448eaa.0.720p 1.273s (ref 1.295) ratio 0.983; a6af290d9053.0.1080p 4.217s (ref 4.388) ratio 0.961
+PASS model106 before g.4k #1 02:53Z 36501d448eaa.0.720p 1.271s (ref 1.295) ratio 0.981; a6af290d9053.0.1080p 4.203s (ref 4.388) ratio 0.958
+PASS model106 after g.4k #1 02:59Z 36501d448eaa.0.720p 1.266s (ref 1.295) ratio 0.978; a6af290d9053.0.1080p 4.187s (ref 4.388) ratio 0.954
+PASS model106 before t8.sd #1 03:00Z 36501d448eaa.0.720p 1.268s (ref 1.295) ratio 0.979; a6af290d9053.0.1080p 4.200s (ref 4.388) ratio 0.957
+PASS model106 after t8.sd #1 03:02Z 36501d448eaa.0.720p 1.264s (ref 1.295) ratio 0.976; a6af290d9053.0.1080p 4.177s (ref 4.388) ratio 0.952
+PASS model106 before t8.720p #1 03:02Z 36501d448eaa.0.720p 1.263s (ref 1.295) ratio 0.976; a6af290d9053.0.1080p 4.195s (ref 4.388) ratio 0.956
+PASS model106 after t8.720p #1 03:05Z 36501d448eaa.0.720p 1.270s (ref 1.295) ratio 0.981; a6af290d9053.0.1080p 4.184s (ref 4.388) ratio 0.953
+PASS model106 before t8.1080p #1 03:05Z 36501d448eaa.0.720p 1.267s (ref 1.295) ratio 0.978; a6af290d9053.0.1080p 4.173s (ref 4.388) ratio 0.951
+PASS model106 after t8.1080p #1 03:10Z 36501d448eaa.0.720p 1.269s (ref 1.295) ratio 0.980; a6af290d9053.0.1080p 4.188s (ref 4.388) ratio 0.955
+PASS model106 before t8.4k #1 03:11Z 36501d448eaa.0.720p 1.272s (ref 1.295) ratio 0.983; a6af290d9053.0.1080p 4.203s (ref 4.388) ratio 0.958
+PASS model106 after t8.4k #1 03:14Z 36501d448eaa.0.720p 1.268s (ref 1.295) ratio 0.979; a6af290d9053.0.1080p 4.180s (ref 4.388) ratio 0.953

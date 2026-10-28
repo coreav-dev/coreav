@@ -1,0 +1,2068 @@
+{
+  "schema": "spike-c/paired/1",
+  "utc": "2026-10-12T23:26:43Z",
+  "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.36",
+  "affinity": [
+    0
+  ],
+  "frequency_pinned": false,
+  "baseline": {
+    "version": "7.0.2",
+    "license": "LGPL version 3 or later",
+    "configuration": "--prefix=/tmp/spike-c-lgpl --cc=/home/conda/feedstock_root/build_artifacts/ffmpeg_1726960384797/_build_env/bin/x86_64-conda-linux-gnu-cc --cxx=/home/conda/feedstock_root/build_artifacts/ffmpeg_1726960384797/_build_env/bin/x86_64-conda-linux-gnu-c++ --nm=/home/conda/feedstock_root/build_artifacts/ffmpeg_1726960384797/_build_env/bin/x86_64-conda-linux-gnu-nm --ar=/home/conda/feedstock_root/build_artifacts/ffmpeg_1726960384797/_build_env/bin/x86_64-conda-linux-gnu-ar --disable-doc --enable-openssl --enable-demuxer=dash --enable-hardcoded-tables --enable-libfreetype --enable-libharfbuzz --enable-libfontconfig --enable-libopenh264 --enable-libdav1d --disable-gnutls --enable-libmp3lame --enable-libvpx --enable-libass --enable-pthreads --enable-vaapi --enable-libopenvino --disable-gpl --enable-libaom --enable-libsvtav1 --enable-libxml2 --enable-pic --enable-shared --disable-static --enable-version3 --enable-zlib --enable-libopus --pkg-config=/home/conda/feedstock_root/build_artifacts/ffmpeg_1726960384797/_build_env/bin/pkg-config"
+  },
+  "binary_provider": {
+    "ffmpeg_package": "ffmpeg-7.0.2-lgpl_h366b0ee_5.conda",
+    "ffmpeg_package_sha256": "d1ff126ad5f8dddfa04b628166fbe5ada4bed4c9c23786b15842ee8477278aa4",
+    "url": "https://conda.anaconda.org/conda-forge/linux-64/ffmpeg-7.0.2-lgpl_h366b0ee_5.conda",
+    "libraries": [
+      {
+        "name": "libavformat.so.61",
+        "sha256": "367810beccaa81f1e6bb36e49c0310e9e145e116eb7343d8154f10d3c637080b",
+        "bytes": 2795408
+      },
+      {
+        "name": "libavcodec.so.61",
+        "sha256": "634bdc889cb39917187306b6f7f12ab5388c05b04c26ddc5d89b0f3400da031f",
+        "bytes": 16009640
+      },
+      {
+        "name": "libavutil.so.59",
+        "sha256": "d4b6d0d3d2695d609cba7cd77977520b208f6319c973b70597a180a29194bb47",
+        "bytes": 1025976
+      },
+      {
+        "name": "libxml2.so.2",
+        "sha256": "0b4f15ffae5360fbf726f8d67eb53ce544ac6e8f5f497600492a2ae7828cb5b9",
+        "bytes": 1598072
+      },
+      {
+        "name": "libbz2.so.1.0",
+        "sha256": "89167cfb36a81306dcf8f439436f46dda12f0bbf4877b9f87abfd079bf765c46",
+        "bytes": 241912
+      },
+      {
+        "name": "libz.so.1",
+        "sha256": "3c6fd78e248a60e45081bcc77031204a7cb64a88ff2e27fc786ef12ae7e91fca",
+        "bytes": 117168
+      },
+      {
+        "name": "libssl.so.3",
+        "sha256": "9f9fc1f5ab856181716b7dff697daf16aa5b0f47f7add572c491ac31a10ef8f4",
+        "bytes": 1228008
+      },
+      {
+        "name": "libcrypto.so.3",
+        "sha256": "3354332ec51044f3bfb3563651ed4217a630c832ece31a542ab94619ae050223",
+        "bytes": 7252896
+      },
+      {
+        "name": "libiconv.so.2",
+        "sha256": "59b942b8a9dfabcfec7d65ff2be1de2e59902765837768ca37468cef5dca9571",
+        "bytes": 1182640
+      },
+      {
+        "name": "libswresample.so.5",
+        "sha256": "9406c2e02afe7d24f7f4e4587b2e0d78898fec6d830093e3929802bdc273bd02",
+        "bytes": 120720
+      },
+      {
+        "name": "libvpx.so.9",
+        "sha256": "028d8c19c8324d7a3cd45426913fe2501ee6ff728ab6153e12a31fb55ec36965",
+        "bytes": 2213864
+      },
+      {
+        "name": "liblzma.so.5",
+        "sha256": "491c01c02da5a22f5825a7c05a561e175aa70c203d5e462dfe90b5040dbdaf50",
+        "bytes": 222712
+      },
+      {
+        "name": "libdav1d.so.6",
+        "sha256": "a038bbe046d0b2c1188432d0e3c454f2c665cb247d657a79e2ffb1c0d456f493",
+        "bytes": 2626568
+      },
+      {
+        "name": "libaom.so.3",
+        "sha256": "691b31194c942398cb63df59608a2ebfcf55a8c7bcefab5540f86e4a7bbceb51",
+        "bytes": 7632336
+      },
+      {
+        "name": "libmp3lame.so.0",
+        "sha256": "ee71cd2b3a432a27d688117984acc673fe9d397812789daf4ffbbf8622aabd6f",
+        "bytes": 328552
+      },
+      {
+        "name": "libopus.so.0",
+        "sha256": "292ff7b84cdb39dc5fc217801ea9cd8209b677461d97871794d0c938a7f106fb",
+        "bytes": 532392
+      },
+      {
+        "name": "libSvtAv1Enc.so.2",
+        "sha256": "a8ad41d4c7cf6470c13431f35acaf15bb768397771d738a57731ab1b76e5feef",
+        "bytes": 6974872
+      },
+      {
+        "name": "libopenh264.so.7",
+        "sha256": "f149bf604894786817ac5c39c2a66278c42dbc382ef4fe8c2d4ef3c008cd8618",
+        "bytes": 1368888
+      },
+      {
+        "name": "libva.so.2",
+        "sha256": "0d4b57f3fee650b54dd38cb50d21bff9038405c46da98666bc14ad0d6ebb97d1",
+        "bytes": 247056
+      },
+      {
+        "name": "libva-drm.so.2",
+        "sha256": "459f7a07f92d24799c11a22735d7d5346255910855f3822cc38772e60f32e05f",
+        "bytes": 16688
+      },
+      {
+        "name": "libva-x11.so.2",
+        "sha256": "c72db4bdfcde78b066c5cf08a00f0a0779406796010558b0d3bced1ef1441d6f",
+        "bytes": 27952
+      },
+      {
+        "name": "libdrm.so.2",
+        "sha256": "79478753f163ce9757714c791bd2740dc59d6ed26222b629cc9c17910bdac18f",
+        "bytes": 110680
+      },
+      {
+        "name": "libX11.so.6",
+        "sha256": "e9afbb11d170209205fcf146f3fafb5fc80dac9bee46d6d237850cf48ca9e3a6",
+        "bytes": 1476144
+      },
+      {
+        "name": "libicuuc.so.75",
+        "sha256": "c9a25b3248c0b20fe3e2bf10042fba72009eed6d72422dca53c8ac169ca65d1b",
+        "bytes": 2585632
+      },
+      {
+        "name": "libstdc++.so.6",
+        "sha256": "10f0d3c46c070acd4abea2ccf2500ff0ec77e9b90154b82ea2720dba05510cb9",
+        "bytes": 23874544
+      },
+      {
+        "name": "libgcc_s.so.1",
+        "sha256": "5444fbe71e8cfe3bd05cdf2b44bd8c2e553e6e7e276977089b5e4e1a1ceed531",
+        "bytes": 922624
+      },
+      {
+        "name": "libXext.so.6",
+        "sha256": "c7fda8b9d4a5a444a0b5f8279754867c5a8df34305b7ffc0c08c630598573707",
+        "bytes": 96344
+      },
+      {
+        "name": "libXfixes.so.3",
+        "sha256": "c9576da345aec0b06ac54bb2589d001234d9993e6ffee13c239ceff27410e33c",
+        "bytes": 34720
+      },
+      {
+        "name": "libX11-xcb.so.1",
+        "sha256": "c89b4356a5ea9832e4e9542e4fab5aa729a81f8cfec36663666d66ba34cdc805",
+        "bytes": 14992
+      },
+      {
+        "name": "libxcb.so.1",
+        "sha256": "504faa0ca490d23e89505bb430892f18992979a7856869e776ae711fcaab79d7",
+        "bytes": 228648
+      },
+      {
+        "name": "libxcb-dri3.so.0",
+        "sha256": "eeae4c0815883ebb451dae3d48dde1ee2cecfa30a187b0a95531f37ad9823f0d",
+        "bytes": 27688
+      },
+      {
+        "name": "libicudata.so.75",
+        "sha256": "e065d9cbce8450291e1e8f9125f9a115a07b0181728217b7bf4e3db65c60a322",
+        "bytes": 30741448
+      },
+      {
+        "name": "libXau.so.6",
+        "sha256": "dcc7de4960c165b97b5faa8b3bdeb4dfc2439b5066f1f9b2f2e3aca9478267ff",
+        "bytes": 17144
+      },
+      {
+        "name": "libXdmcp.so.6",
+        "sha256": "dcdabcb94e17c6b1057a751e43574882ba44bf9b0fa0ff0e75dbf7b30f9e3b63",
+        "bytes": 30144
+      }
+    ],
+    "packages": [
+      {
+        "name": "_openmp_mutex",
+        "version": "4.5",
+        "build": "20_gnu",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/_openmp_mutex-4.5-20_gnu.conda",
+        "sha256": "1dd3fffd892081df9726d7eb7e0dea6198962ba775bd88842135a4ddb4deb3c9",
+        "license": "BSD-3-Clause"
+      },
+      {
+        "name": "aom",
+        "version": "3.9.1",
+        "build": "hac33072_0",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/aom-3.9.1-hac33072_0.conda",
+        "sha256": "b08ef033817b5f9f76ce62dfcac7694e7b6b4006420372de22494503decac855",
+        "license": "BSD-2-Clause"
+      },
+      {
+        "name": "bzip2",
+        "version": "1.0.8",
+        "build": "hda65f42_10",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/bzip2-1.0.8-hda65f42_10.conda",
+        "sha256": "1a0d382c515ebf55f8ee1f38c8b81bc95af5c2acc42ad53b66bc5df932032f96",
+        "license": "bzip2-1.0.6"
+      },
+      {
+        "name": "ca-certificates",
+        "version": "2026.7.22",
+        "build": "hbd8a1cb_0",
+        "url": "https://conda.anaconda.org/conda-forge/noarch/ca-certificates-2026.7.22-hbd8a1cb_0.conda",
+        "sha256": "0a0544cf95f64394fe4959286f5c71f5444ad58feb0602e53becb27448d24da6",
+        "license": "ISC"
+      },
+      {
+        "name": "cairo",
+        "version": "1.18.4",
+        "build": "h3394656_0",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/cairo-1.18.4-h3394656_0.conda",
+        "sha256": "3bd6a391ad60e471de76c0e9db34986c4b5058587fbf2efa5a7f54645e28c2c7",
+        "license": "LGPL-2.1-only or MPL-1.1"
+      },
+      {
+        "name": "dav1d",
+        "version": "1.2.1",
+        "build": "hd590300_0",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/dav1d-1.2.1-hd590300_0.conda",
+        "sha256": "22053a5842ca8ee1cf8e1a817138cdb5e647eb2c46979f84153f6ad7bde73020",
+        "license": "BSD-2-Clause"
+      },
+      {
+        "name": "ffmpeg",
+        "version": "7.0.2",
+        "build": "lgpl_h366b0ee_5",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/ffmpeg-7.0.2-lgpl_h366b0ee_5.conda",
+        "sha256": "d1ff126ad5f8dddfa04b628166fbe5ada4bed4c9c23786b15842ee8477278aa4",
+        "license": "LGPL-2.1-or-later"
+      },
+      {
+        "name": "font-ttf-dejavu-sans-mono",
+        "version": "2.37",
+        "build": "hab24e00_0",
+        "url": "https://conda.anaconda.org/conda-forge/noarch/font-ttf-dejavu-sans-mono-2.37-hab24e00_0.tar.bz2",
+        "sha256": "58d7f40d2940dd0a8aa28651239adbf5613254df0f75789919c4e6762054403b",
+        "license": "BSD-3-Clause"
+      },
+      {
+        "name": "font-ttf-inconsolata",
+        "version": "3.000",
+        "build": "h77eed37_0",
+        "url": "https://conda.anaconda.org/conda-forge/noarch/font-ttf-inconsolata-3.000-h77eed37_0.tar.bz2",
+        "sha256": "c52a29fdac682c20d252facc50f01e7c2e7ceac52aa9817aaf0bb83f7559ec5c",
+        "license": "OFL-1.1"
+      },
+      {
+        "name": "font-ttf-source-code-pro",
+        "version": "2.038",
+        "build": "h77eed37_0",
+        "url": "https://conda.anaconda.org/conda-forge/noarch/font-ttf-source-code-pro-2.038-h77eed37_0.tar.bz2",
+        "sha256": "00925c8c055a2275614b4d983e1df637245e19058d79fc7dd1a93b8d9fb4b139",
+        "license": "OFL-1.1"
+      },
+      {
+        "name": "font-ttf-ubuntu",
+        "version": "0.83",
+        "build": "h77eed37_3",
+        "url": "https://conda.anaconda.org/conda-forge/noarch/font-ttf-ubuntu-0.83-h77eed37_3.conda",
+        "sha256": "2821ec1dc454bd8b9a31d0ed22a7ce22422c0aef163c59f49dfdf915d0f0ca14",
+        "license": "LicenseRef-Ubuntu-Font-Licence-Version-1.0"
+      },
+      {
+        "name": "fontconfig",
+        "version": "2.18.3",
+        "build": "h4db4eae_1",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/fontconfig-2.18.3-h4db4eae_1.conda",
+        "sha256": "5a3eb10b18a97223ab06b3a7f0d7f56658db2f2800e2f2af95836fe3bf55ba63",
+        "license": "MIT"
+      },
+      {
+        "name": "fonts-conda-ecosystem",
+        "version": "1",
+        "build": "0",
+        "url": "https://conda.anaconda.org/conda-forge/noarch/fonts-conda-ecosystem-1-0.tar.bz2",
+        "sha256": "a997f2f1921bb9c9d76e6fa2f6b408b7fa549edd349a77639c9fe7a23ea93e61",
+        "license": "BSD-3-Clause"
+      },
+      {
+        "name": "fonts-conda-forge",
+        "version": "1",
+        "build": "hc364b38_1",
+        "url": "https://conda.anaconda.org/conda-forge/noarch/fonts-conda-forge-1-hc364b38_1.conda",
+        "sha256": "54eea8469786bc2291cc40bca5f46438d3e062a399e8f53f013b6a9f50e98333",
+        "license": "BSD-3-Clause"
+      },
+      {
+        "name": "freetype",
+        "version": "2.14.3",
+        "build": "ha770c72_2",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/freetype-2.14.3-ha770c72_2.conda",
+        "sha256": "612a8e0c1a6ecae23da54d81ef395f6ebb5c8e4468ec2611593ebce75876a4e0",
+        "license": "GPL-2.0-only OR FTL"
+      },
+      {
+        "name": "fribidi",
+        "version": "1.0.17",
+        "build": "h7cc23a3_0",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/fribidi-1.0.17-h7cc23a3_0.conda",
+        "sha256": "3ba79ebfbd14ca5db4affaf10ee8001064e907de5baabc2dbe5bcd9aec856c9f",
+        "license": "LGPL-2.1-or-later"
+      },
+      {
+        "name": "gmp",
+        "version": "6.3.0",
+        "build": "hfd2156b_3",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/gmp-6.3.0-hfd2156b_3.conda",
+        "sha256": "f36c336efc874f346a53a9011f67e997f9faac505562cc18c13b6d399cfe61c7",
+        "license": "GPL-2.0-or-later OR LGPL-3.0-or-later"
+      },
+      {
+        "name": "graphite2",
+        "version": "1.3.15",
+        "build": "h54a6638_1",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/graphite2-1.3.15-h54a6638_1.conda",
+        "sha256": "7fa3b6a9c081fa3e545573152a788d061a0a0ba57df7251cc0f4f75225fc93e7",
+        "license": "LGPL-2.0-or-later"
+      },
+      {
+        "name": "harfbuzz",
+        "version": "12.2.0",
+        "build": "h15599e2_0",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/harfbuzz-12.2.0-h15599e2_0.conda",
+        "sha256": "6bd8b22beb7d40562b2889dc68232c589ff0d11a5ad3addd41a8570d11f039d9",
+        "license": "MIT"
+      },
+      {
+        "name": "icu",
+        "version": "75.1",
+        "build": "he02047a_0",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/icu-75.1-he02047a_0.conda",
+        "sha256": "71e750d509f5fa3421087ba88ef9a7b9be11c53174af3aa4d06aff4c18b38e8e",
+        "license": "MIT"
+      },
+      {
+        "name": "lame",
+        "version": "3.100",
+        "build": "h166bdaf_1003",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/lame-3.100-h166bdaf_1003.tar.bz2",
+        "sha256": "aad2a703b9d7b038c0f745b853c6bb5f122988fe1a7a096e0e606d9cbec4eaab",
+        "license": "LGPL-2.0-only"
+      },
+      {
+        "name": "libabseil",
+        "version": "20240722.0",
+        "build": "cxx17_hbbce691_4",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libabseil-20240722.0-cxx17_hbbce691_4.conda",
+        "sha256": "143a586aa67d50622ef703de57b9d43f44945836d6568e0e7aa174bd8c45e0d4",
+        "license": "Apache-2.0"
+      },
+      {
+        "name": "libass",
+        "version": "0.17.3",
+        "build": "hba53ac1_1",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libass-0.17.3-hba53ac1_1.conda",
+        "sha256": "aaf38bcb9b78963f4eb58d882a9a6a350f500cfa162bd8a80f7f215d3831afa2",
+        "license": "ISC"
+      },
+      {
+        "name": "libdrm",
+        "version": "2.4.129",
+        "build": "h7cc23a3_0",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libdrm-2.4.129-h7cc23a3_0.conda",
+        "sha256": "ea46b0ca0fa16af1f8b329b740e6cd8b4577c5378fa8717b28a885f70668633d",
+        "license": "MIT"
+      },
+      {
+        "name": "libegl",
+        "version": "1.7.0",
+        "build": "ha4b6fd6_5",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libegl-1.7.0-ha4b6fd6_5.conda",
+        "sha256": "13d3fde9c1dcf254968cc70652222a43f25d04e69555ccf855553110e753288e",
+        "license": "LicenseRef-libglvnd"
+      },
+      {
+        "name": "libexpat",
+        "version": "2.8.5",
+        "build": "hd2095e1_0",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libexpat-2.8.5-hd2095e1_0.conda",
+        "sha256": "6de73033a7c5f712c9c5a54124e4581e025691029835e5bceaf10a333a7e7bc0",
+        "license": "MIT"
+      },
+      {
+        "name": "libffi",
+        "version": "3.7.0",
+        "build": "h81df57d_1",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libffi-3.7.0-h81df57d_1.conda",
+        "sha256": "c8c7583ef063bc3c430f1d48298e5ad24f796a35c22ed5b14183325825a61106",
+        "license": "MIT"
+      },
+      {
+        "name": "libfreetype",
+        "version": "2.14.3",
+        "build": "ha770c72_2",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libfreetype-2.14.3-ha770c72_2.conda",
+        "sha256": "fb12ecb46c30d18d928c0e8fc346ab13b5f6fc8a9cacae4f2f4bb188782586f5",
+        "license": "GPL-2.0-only OR FTL"
+      },
+      {
+        "name": "libfreetype6",
+        "version": "2.14.3",
+        "build": "h5e6c136_2",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libfreetype6-2.14.3-h5e6c136_2.conda",
+        "sha256": "ec607dd5445dd17ff6bf8b7fe6832e5504c226dd91d3aaea7ba83569808b0ce4",
+        "license": "GPL-2.0-only OR FTL"
+      },
+      {
+        "name": "libgcc",
+        "version": "16.2.0",
+        "build": "ha9f2e26_7",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libgcc-16.2.0-ha9f2e26_7.conda",
+        "sha256": "e031634c3a928f9594eba868bc46ef5230d6571a364a0c63215b06c4563bfcea",
+        "license": "GPL-3.0-only WITH GCC-exception-3.1"
+      },
+      {
+        "name": "libgcc-ng",
+        "version": "16.2.0",
+        "build": "h69a702a_7",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libgcc-ng-16.2.0-h69a702a_7.conda",
+        "sha256": "03b54d7008de080a17cc2174b0e4acd6d06e1c981b2eb19846f46d8f59966034",
+        "license": "GPL-3.0-only WITH GCC-exception-3.1"
+      },
+      {
+        "name": "libgl",
+        "version": "1.7.0",
+        "build": "ha4b6fd6_5",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libgl-1.7.0-ha4b6fd6_5.conda",
+        "sha256": "7b2e7e31e8a4f5a01c45ecadcd8aa68c8f733b035240bc7ba9881835ef4bf7b4",
+        "license": "LicenseRef-libglvnd"
+      },
+      {
+        "name": "libglib",
+        "version": "2.90.0",
+        "build": "h569388d_0",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libglib-2.90.0-h569388d_0.conda",
+        "sha256": "9e688e046550415c030c3d08ed9a3fd13a51d7bc56295283b858b6c3070bb9f8",
+        "license": "LGPL-2.1-or-later"
+      },
+      {
+        "name": "libglvnd",
+        "version": "1.7.0",
+        "build": "ha4b6fd6_5",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libglvnd-1.7.0-ha4b6fd6_5.conda",
+        "sha256": "6eb77601a44b78c4631d886d54ef54f321c2bdc69fdefc4065a1e0491f030c76",
+        "license": "LicenseRef-libglvnd"
+      },
+      {
+        "name": "libglx",
+        "version": "1.7.0",
+        "build": "ha4b6fd6_5",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libglx-1.7.0-ha4b6fd6_5.conda",
+        "sha256": "d1f0d51aea6bcc5d915969cbed32e72a8ed6a95931b87357ef8d0866573688c4",
+        "license": "LicenseRef-libglvnd"
+      },
+      {
+        "name": "libgomp",
+        "version": "16.2.0",
+        "build": "he0feb66_7",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libgomp-16.2.0-he0feb66_7.conda",
+        "sha256": "92a0bb350c7be6a4eedcb4e111c60aefd176018e6b1c009a6e025dbe9bbcd758",
+        "license": "GPL-3.0-only WITH GCC-exception-3.1"
+      },
+      {
+        "name": "libhwloc",
+        "version": "2.12.1",
+        "build": "default_h3d81e11_1000",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libhwloc-2.12.1-default_h3d81e11_1000.conda",
+        "sha256": "eecaf76fdfc085d8fed4583b533c10cb7f4a6304be56031c43a107e01a56b7e2",
+        "license": "BSD-3-Clause"
+      },
+      {
+        "name": "libiconv",
+        "version": "1.18",
+        "build": "h0cb94f2_3",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libiconv-1.18-h0cb94f2_3.conda",
+        "sha256": "f943117edb9cd4d9c61cc972eee5a34291dc55ea7a6e9e38da104995841cbcb6",
+        "license": "LGPL-2.1-only"
+      },
+      {
+        "name": "liblzma",
+        "version": "5.8.3",
+        "build": "hb03c661_1",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/liblzma-5.8.3-hb03c661_1.conda",
+        "sha256": "9787df8c22a59c9a70d3e5a10db9ad663485e75e9ccc3f09bd092cb7b95e0dab",
+        "license": "0BSD"
+      },
+      {
+        "name": "liblzma-devel",
+        "version": "5.8.3",
+        "build": "hb03c661_1",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/liblzma-devel-5.8.3-hb03c661_1.conda",
+        "sha256": "adef6e8b60afb684110b06b5310977c6836e1c923ce3ec199f45c0f000b42f20",
+        "license": "0BSD"
+      },
+      {
+        "name": "libopenvino",
+        "version": "2024.4.0",
+        "build": "hac27bb2_2",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libopenvino-2024.4.0-hac27bb2_2.conda",
+        "sha256": "1f804b6238951d59b3a431c2e01bd831d44e015ea6835809775bb60b6978e3b3",
+        "license": ""
+      },
+      {
+        "name": "libopenvino-auto-batch-plugin",
+        "version": "2024.4.0",
+        "build": "h4d9b6c2_2",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libopenvino-auto-batch-plugin-2024.4.0-h4d9b6c2_2.conda",
+        "sha256": "dc596ff555b7ae19a7cd62af8965445575e1441dd486b8aec6a647f9ecbada3a",
+        "license": ""
+      },
+      {
+        "name": "libopenvino-auto-plugin",
+        "version": "2024.4.0",
+        "build": "h4d9b6c2_2",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libopenvino-auto-plugin-2024.4.0-h4d9b6c2_2.conda",
+        "sha256": "27b732f1ba3ae7dc8263f59e69447eebabcc76de86e2ec4c9722842a1d2f4aa8",
+        "license": ""
+      },
+      {
+        "name": "libopenvino-hetero-plugin",
+        "version": "2024.4.0",
+        "build": "h3f63f65_2",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libopenvino-hetero-plugin-2024.4.0-h3f63f65_2.conda",
+        "sha256": "0c7cd10c9e3d99d6f23e4d7b48cd8e72aeb4a1c7acb801b6ca9add0f87f238d3",
+        "license": ""
+      },
+      {
+        "name": "libopenvino-intel-cpu-plugin",
+        "version": "2024.4.0",
+        "build": "hac27bb2_2",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libopenvino-intel-cpu-plugin-2024.4.0-hac27bb2_2.conda",
+        "sha256": "5642443645408f030e9dfbe20dbe2c2ab6d852daf02c9a36eac123b44bf2980f",
+        "license": ""
+      },
+      {
+        "name": "libopenvino-intel-gpu-plugin",
+        "version": "2024.4.0",
+        "build": "hac27bb2_2",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libopenvino-intel-gpu-plugin-2024.4.0-hac27bb2_2.conda",
+        "sha256": "508d0e36febebfb66628d8cb0312b4133c212eac1e8d891fc8977e0d85b23741",
+        "license": ""
+      },
+      {
+        "name": "libopenvino-intel-npu-plugin",
+        "version": "2024.4.0",
+        "build": "hac27bb2_2",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libopenvino-intel-npu-plugin-2024.4.0-hac27bb2_2.conda",
+        "sha256": "a07bdb55c3214cd5b27736ee6d06abe55782ddf1cfaeb9fffee96179bf12390b",
+        "license": ""
+      },
+      {
+        "name": "libopenvino-ir-frontend",
+        "version": "2024.4.0",
+        "build": "h3f63f65_2",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libopenvino-ir-frontend-2024.4.0-h3f63f65_2.conda",
+        "sha256": "6038aefea84aeb9534aaf6963d2b266eb757fa36c1a7a9f5e29d6d813bd85a2c",
+        "license": ""
+      },
+      {
+        "name": "libopenvino-onnx-frontend",
+        "version": "2024.4.0",
+        "build": "h5c8f2c3_2",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libopenvino-onnx-frontend-2024.4.0-h5c8f2c3_2.conda",
+        "sha256": "b68c2ee5fd08c0974ad9395ea0de809b306c261485114cbcbbc0f55c1e0285b3",
+        "license": ""
+      },
+      {
+        "name": "libopenvino-paddle-frontend",
+        "version": "2024.4.0",
+        "build": "h5c8f2c3_2",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libopenvino-paddle-frontend-2024.4.0-h5c8f2c3_2.conda",
+        "sha256": "fa57b201fb92af0adc2118de8e92648959b98c0dc1a60b278ba2b79c5601eea6",
+        "license": ""
+      },
+      {
+        "name": "libopenvino-pytorch-frontend",
+        "version": "2024.4.0",
+        "build": "h5888daf_2",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libopenvino-pytorch-frontend-2024.4.0-h5888daf_2.conda",
+        "sha256": "a029b3ebff1e8d1d2736a548a616c20066ed6508f238782afbf3a77a4f57c6cd",
+        "license": ""
+      },
+      {
+        "name": "libopenvino-tensorflow-frontend",
+        "version": "2024.4.0",
+        "build": "h6481b9d_2",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libopenvino-tensorflow-frontend-2024.4.0-h6481b9d_2.conda",
+        "sha256": "fdc4871a05bbb61cfe6db1e60018d74cbd6d65d82f03b9be515c3ad41bb7ca04",
+        "license": ""
+      },
+      {
+        "name": "libopenvino-tensorflow-lite-frontend",
+        "version": "2024.4.0",
+        "build": "h5888daf_2",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libopenvino-tensorflow-lite-frontend-2024.4.0-h5888daf_2.conda",
+        "sha256": "a8f26058cf57159492c63fb0622ea2858763ea22338c507ff40a6e9bb792295e",
+        "license": ""
+      },
+      {
+        "name": "libopus",
+        "version": "1.6.1",
+        "build": "hebe6cf0_1",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libopus-1.6.1-hebe6cf0_1.conda",
+        "sha256": "82873b6c8478e19ab7aef0828ad3619b6633ad185a90a52f39dcb2c30c0c075e",
+        "license": "BSD-3-Clause"
+      },
+      {
+        "name": "libpciaccess",
+        "version": "0.19",
+        "build": "hb03c661_1",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libpciaccess-0.19-hb03c661_1.conda",
+        "sha256": "addc80c69d362a9e6c40305c493139a8e9ee504b2f45a6687dbdaa9da3c6183c",
+        "license": "MIT"
+      },
+      {
+        "name": "libpng",
+        "version": "1.6.59",
+        "build": "h922cc85_0",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libpng-1.6.59-h922cc85_0.conda",
+        "sha256": "c7381be8ef713501f6cd2f5ad473e401f2edeaec3c46788296b8dbf0de165e15",
+        "license": "zlib-acknowledgement"
+      },
+      {
+        "name": "libprotobuf",
+        "version": "5.28.2",
+        "build": "h5b01275_0",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libprotobuf-5.28.2-h5b01275_0.conda",
+        "sha256": "5e8fd4aa00193c85602ce6101dd28fe31306dff85c9725048f6dc828dfa7c421",
+        "license": "BSD-3-Clause"
+      },
+      {
+        "name": "libstdcxx",
+        "version": "16.2.0",
+        "build": "h934c35e_7",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libstdcxx-16.2.0-h934c35e_7.conda",
+        "sha256": "fa7018298629fc429971fffd6ecba3d27a7b02e4e890d6a93ea01ffebe8cb745",
+        "license": "GPL-3.0-only WITH GCC-exception-3.1"
+      },
+      {
+        "name": "libstdcxx-ng",
+        "version": "16.2.0",
+        "build": "hdf11a46_7",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libstdcxx-ng-16.2.0-hdf11a46_7.conda",
+        "sha256": "337f481db36cc357884f05f404ccd1b3a7e0fc1ee48ec5c884e4281d213bc863",
+        "license": "GPL-3.0-only WITH GCC-exception-3.1"
+      },
+      {
+        "name": "libuuid",
+        "version": "2.42.4",
+        "build": "hcfc3c73_0",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libuuid-2.42.4-hcfc3c73_0.conda",
+        "sha256": "f34b8d1de9a2bf62476d8608057d9b8a918d97444236dc53a47128f2fae79041",
+        "license": "BSD-3-Clause"
+      },
+      {
+        "name": "libva",
+        "version": "2.24.1",
+        "build": "hb83e432_1",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libva-2.24.1-hb83e432_1.conda",
+        "sha256": "ce7fbe2855257467196613b9fa2bdedb36d4fc3419c43804e52cfe9eb094a35e",
+        "license": "MIT"
+      },
+      {
+        "name": "libvpx",
+        "version": "1.14.1",
+        "build": "hac33072_0",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libvpx-1.14.1-hac33072_0.conda",
+        "sha256": "e7d2daf409c807be48310fcc8924e481b62988143f582eb3a58c5523a6763b13",
+        "license": "BSD-3-Clause"
+      },
+      {
+        "name": "libxcb",
+        "version": "1.17.0",
+        "build": "hb83e432_2",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libxcb-1.17.0-hb83e432_2.conda",
+        "sha256": "7b49e6fd2a584b7f072943e6adf4149677af5121246975278804782d37752837",
+        "license": "MIT"
+      },
+      {
+        "name": "libxml2",
+        "version": "2.13.9",
+        "build": "h04c0eec_0",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libxml2-2.13.9-h04c0eec_0.conda",
+        "sha256": "5d12e993894cb8e9f209e2e6bef9c90fa2b7a339a1f2ab133014b71db81f5d88",
+        "license": "MIT"
+      },
+      {
+        "name": "libzlib",
+        "version": "1.3.2",
+        "build": "h25fd6f3_3",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/libzlib-1.3.2-h25fd6f3_3.conda",
+        "sha256": "eb8a0db0aa570124f7d2a93d7c7f596e3390df5e047818d873baad32985fc736",
+        "license": "Zlib"
+      },
+      {
+        "name": "ocl-icd",
+        "version": "2.3.4",
+        "build": "hb03c661_1",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/ocl-icd-2.3.4-hb03c661_1.conda",
+        "sha256": "75f3bf733523a338f73d6c276c4a26634877cd970edb558f2769d9fa52b100a9",
+        "license": "BSD-2-Clause"
+      },
+      {
+        "name": "opencl-headers",
+        "version": "2025.06.13",
+        "build": "hecca717_0",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/opencl-headers-2025.06.13-hecca717_0.conda",
+        "sha256": "8de2f0cd8a659b01abf86e7fbb8cea4f28ada62fd288429a2bbc040db1b98dd0",
+        "license": "Apache-2.0"
+      },
+      {
+        "name": "openh264",
+        "version": "2.4.1",
+        "build": "h59595ed_0",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/openh264-2.4.1-h59595ed_0.conda",
+        "sha256": "0d4eaf15fb771f25c924aef831d76eea11d90c824778fc1e7666346e93475f42",
+        "license": "BSD-2-Clause"
+      },
+      {
+        "name": "openssl",
+        "version": "3.6.5",
+        "build": "h781a0a9_0",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/openssl-3.6.5-h781a0a9_0.conda",
+        "sha256": "9c1533f1cf784f0e250919c0c9762d0b0e6bc727a79290ffb7cea1ceca1d038c",
+        "license": "Apache-2.0"
+      },
+      {
+        "name": "pcre2",
+        "version": "10.47",
+        "build": "h8b3dc9c_1",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/pcre2-10.47-h8b3dc9c_1.conda",
+        "sha256": "9ebb10a4eb3be51ae67d85c679f5a7a50cb040ed25c783e6331a225ea09991d4",
+        "license": "BSD-3-Clause"
+      },
+      {
+        "name": "pixman",
+        "version": "0.46.4",
+        "build": "h54a6638_3",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/pixman-0.46.4-h54a6638_3.conda",
+        "sha256": "829d8288764282de5a9f7b9169acb75cc7dc0b6c3fe2535cfe87dea3436bbc5d",
+        "license": "MIT"
+      },
+      {
+        "name": "pthread-stubs",
+        "version": "0.4",
+        "build": "h7cc23a3_1004",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/pthread-stubs-0.4-h7cc23a3_1004.conda",
+        "sha256": "4a44fd00ea73b79ca2c89b0727b9ccf61c506ead71e67a9abfa4c590042b5a4a",
+        "license": "MIT"
+      },
+      {
+        "name": "pugixml",
+        "version": "1.14",
+        "build": "h59595ed_0",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/pugixml-1.14-h59595ed_0.conda",
+        "sha256": "ea5f2d593177318f6b19af05018c953f41124cbb3bf21f9fdedfdb6ac42913ae",
+        "license": "MIT"
+      },
+      {
+        "name": "snappy",
+        "version": "1.2.2",
+        "build": "h34e00bb_2",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/snappy-1.2.2-h34e00bb_2.conda",
+        "sha256": "8635d10c7f127808b09c0c8e77b21a255829e0934e49326548c949f7e0551f09",
+        "license": "BSD-3-Clause"
+      },
+      {
+        "name": "svt-av1",
+        "version": "2.2.1",
+        "build": "h5888daf_0",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/svt-av1-2.2.1-h5888daf_0.conda",
+        "sha256": "a1c197ea17dac43ad6c223e42d78726b9f37f31f63d65e0c062e418cb98c7a8f",
+        "license": "BSD-2-Clause"
+      },
+      {
+        "name": "tbb",
+        "version": "2022.3.0",
+        "build": "h8d10470_1",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/tbb-2022.3.0-h8d10470_1.conda",
+        "sha256": "2e3238234ae094d5a5f7c559410ea8875351b6bac0d9d0e576bf64b732b8029e",
+        "license": "Apache-2.0"
+      },
+      {
+        "name": "wayland",
+        "version": "1.26.0",
+        "build": "hc1c935e_2",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/wayland-1.26.0-hc1c935e_2.conda",
+        "sha256": "df65b987979e6d7f88e756494da5a230d4f2d08d17437d04eecd35559c3a04e4",
+        "license": "MIT"
+      },
+      {
+        "name": "wayland-protocols",
+        "version": "1.49",
+        "build": "hd8ed1ab_0",
+        "url": "https://conda.anaconda.org/conda-forge/noarch/wayland-protocols-1.49-hd8ed1ab_0.conda",
+        "sha256": "04ce686cd187d379344f9b2be7b4da5f431b265dc0944a6b764fab9da9171948",
+        "license": "MIT"
+      },
+      {
+        "name": "xorg-libice",
+        "version": "1.1.2",
+        "build": "h280c20c_0",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/xorg-libice-1.1.2-h280c20c_0.conda",
+        "sha256": "49b532d1df875c6749d9078b56a76f3f5db49a5abe0ca620b593ed474ef0ebf1",
+        "license": "MIT"
+      },
+      {
+        "name": "xorg-libsm",
+        "version": "1.2.6",
+        "build": "h0d788c3_1",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/xorg-libsm-1.2.6-h0d788c3_1.conda",
+        "sha256": "ef907caee0665cf3b0f775602cc50e388e3bade8ce22ecade0873ff26604b2fd",
+        "license": "MIT"
+      },
+      {
+        "name": "xorg-libx11",
+        "version": "1.8.13",
+        "build": "he1eb515_1",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/xorg-libx11-1.8.13-he1eb515_1.conda",
+        "sha256": "68053eebfa9f0d91666786c8fb5839d989aa9b869add92cb8815228bb2d7302c",
+        "license": "MIT"
+      },
+      {
+        "name": "xorg-libxau",
+        "version": "1.0.12",
+        "build": "h7cc23a3_2",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/xorg-libxau-1.0.12-h7cc23a3_2.conda",
+        "sha256": "3ec065b94554dc48a4ca582a960a5484bc166b26e83ce0954653e08d17e8bd53",
+        "license": "MIT"
+      },
+      {
+        "name": "xorg-libxdmcp",
+        "version": "1.1.5",
+        "build": "h7cc23a3_2",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/xorg-libxdmcp-1.1.5-h7cc23a3_2.conda",
+        "sha256": "8a095df9bc1d2e50f2504ce8858a047ae29ea634aad6cc0b43298c63361da6d9",
+        "license": "MIT"
+      },
+      {
+        "name": "xorg-libxext",
+        "version": "1.3.7",
+        "build": "h7cc23a3_1",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/xorg-libxext-1.3.7-h7cc23a3_1.conda",
+        "sha256": "aa9bbe8b278aacc194e280ff5037f9f9a1f2c5b33ed97de8e7f01cfbe90dda43",
+        "license": "MIT"
+      },
+      {
+        "name": "xorg-libxfixes",
+        "version": "6.0.2",
+        "build": "h7cc23a3_1",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/xorg-libxfixes-6.0.2-h7cc23a3_1.conda",
+        "sha256": "aec84f554fc897bf4085c7bc8b8f0740e4c224e13bca3cc51c93e7699d56f83a",
+        "license": "MIT"
+      },
+      {
+        "name": "xorg-libxrender",
+        "version": "0.9.12",
+        "build": "hb03c661_1",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/xorg-libxrender-0.9.12-hb03c661_1.conda",
+        "sha256": "6901f91d398811e4ec89d7e20a69abac02a7bfebfaf073338b7ea3d1a99685b7",
+        "license": "MIT"
+      },
+      {
+        "name": "xz",
+        "version": "5.8.3",
+        "build": "ha02ee65_1",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/xz-5.8.3-ha02ee65_1.conda",
+        "sha256": "547b2392d8f7b76efd4a0970946f6da2a1136ad5fe3dc936af81e02eb7181076",
+        "license": "0BSD AND LGPL-2.1-or-later AND GPL-2.0-or-later"
+      },
+      {
+        "name": "xz-gpl-tools",
+        "version": "5.8.3",
+        "build": "ha02ee65_1",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/xz-gpl-tools-5.8.3-ha02ee65_1.conda",
+        "sha256": "ed6dbec5e4f0f71e7ac629b90dc4c9fba38d194cc88eab891c29e461b408977a",
+        "license": "0BSD AND LGPL-2.1-or-later AND GPL-2.0-or-later"
+      },
+      {
+        "name": "xz-tools",
+        "version": "5.8.3",
+        "build": "hb03c661_1",
+        "url": "https://conda.anaconda.org/conda-forge/linux-64/xz-tools-5.8.3-hb03c661_1.conda",
+        "sha256": "c74fa3eddd3ea648456517948f85068d8a07acad7752fd83c7e95b6cebb7114a",
+        "license": "0BSD AND LGPL-2.1-or-later"
+      }
+    ]
+  },
+  "binaries": {
+    "/opt/spike-c/paired": "fb75296ea34037cf05a0b2836167874d35d76c00098b76e3cacfb44424305b2c",
+    "/opt/spike-c/libavformat-bench": "590fbb7a686dbeeca63f9fb5d608b72956221a5ec720867b13d21bd76e8b888a",
+    "/opt/spike-c/cachectl": "e7ff5c490158e9aff45c27a1650af25dc4f3059e635b30b9ce442aa312fee4ec"
+  },
+  "repetitions": 15,
+  "files": [
+    {
+      "category": "fixtures",
+      "file": "basic.mp4",
+      "bytes": 92785,
+      "sha256": "52154d97ff9485e0dfe5301fead7f968ddc7c00fe8735185e0c2b7b31fff9674",
+      "corpus_entry": null,
+      "modes": {
+        "warm": {
+          "rounds": [
+            {
+              "trial": 0,
+              "order": [
+                "coreav",
+                "libavformat"
+              ],
+              "coreav": {
+                "checksum": 6712821,
+                "error": null,
+                "max_read": 5593,
+                "mode": "payload",
+                "ok": true,
+                "open_ns": 852081,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "total_ns": 2564963,
+                "peak_rss_bytes": 4190208
+              },
+              "libavformat": {
+                "ok": true,
+                "error_code": -541478725,
+                "total_ns": 1740739,
+                "open_ns": 1021584,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "checksum": 6712821,
+                "peak_rss_bytes": 89874432
+              }
+            },
+            {
+              "trial": 1,
+              "order": [
+                "libavformat",
+                "coreav"
+              ],
+              "libavformat": {
+                "ok": true,
+                "error_code": -541478725,
+                "total_ns": 1750862,
+                "open_ns": 1030604,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "checksum": 6712821,
+                "peak_rss_bytes": 89444352
+              },
+              "coreav": {
+                "checksum": 6712821,
+                "error": null,
+                "max_read": 5593,
+                "mode": "payload",
+                "ok": true,
+                "open_ns": 849053,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "total_ns": 2587527,
+                "peak_rss_bytes": 5038080
+              }
+            },
+            {
+              "trial": 2,
+              "order": [
+                "coreav",
+                "libavformat"
+              ],
+              "coreav": {
+                "checksum": 6712821,
+                "error": null,
+                "max_read": 5593,
+                "mode": "payload",
+                "ok": true,
+                "open_ns": 817228,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "total_ns": 2509416,
+                "peak_rss_bytes": 6090752
+              },
+              "libavformat": {
+                "ok": true,
+                "error_code": -541478725,
+                "total_ns": 1778265,
+                "open_ns": 1052048,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "checksum": 6712821,
+                "peak_rss_bytes": 89038848
+              }
+            },
+            {
+              "trial": 3,
+              "order": [
+                "libavformat",
+                "coreav"
+              ],
+              "libavformat": {
+                "ok": true,
+                "error_code": -541478725,
+                "total_ns": 1767645,
+                "open_ns": 1059125,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "checksum": 6712821,
+                "peak_rss_bytes": 88272896
+              },
+              "coreav": {
+                "checksum": 6712821,
+                "error": null,
+                "max_read": 5593,
+                "mode": "payload",
+                "ok": true,
+                "open_ns": 831636,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "total_ns": 2532029,
+                "peak_rss_bytes": 4939776
+              }
+            },
+            {
+              "trial": 4,
+              "order": [
+                "coreav",
+                "libavformat"
+              ],
+              "coreav": {
+                "checksum": 6712821,
+                "error": null,
+                "max_read": 5593,
+                "mode": "payload",
+                "ok": true,
+                "open_ns": 825135,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "total_ns": 2518478,
+                "peak_rss_bytes": 5844992
+              },
+              "libavformat": {
+                "ok": true,
+                "error_code": -541478725,
+                "total_ns": 1710360,
+                "open_ns": 998830,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "checksum": 6712821,
+                "peak_rss_bytes": 89645056
+              }
+            },
+            {
+              "trial": 5,
+              "order": [
+                "libavformat",
+                "coreav"
+              ],
+              "libavformat": {
+                "ok": true,
+                "error_code": -541478725,
+                "total_ns": 1623219,
+                "open_ns": 930393,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "checksum": 6712821,
+                "peak_rss_bytes": 88809472
+              },
+              "coreav": {
+                "checksum": 6712821,
+                "error": null,
+                "max_read": 5593,
+                "mode": "payload",
+                "ok": true,
+                "open_ns": 836340,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "total_ns": 2551706,
+                "peak_rss_bytes": 4857856
+              }
+            },
+            {
+              "trial": 6,
+              "order": [
+                "coreav",
+                "libavformat"
+              ],
+              "coreav": {
+                "checksum": 6712821,
+                "error": null,
+                "max_read": 5593,
+                "mode": "payload",
+                "ok": true,
+                "open_ns": 816894,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "total_ns": 2513682,
+                "peak_rss_bytes": 5148672
+              },
+              "libavformat": {
+                "ok": true,
+                "error_code": -541478725,
+                "total_ns": 1778703,
+                "open_ns": 1060823,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "checksum": 6712821,
+                "peak_rss_bytes": 88129536
+              }
+            },
+            {
+              "trial": 7,
+              "order": [
+                "libavformat",
+                "coreav"
+              ],
+              "libavformat": {
+                "ok": true,
+                "error_code": -541478725,
+                "total_ns": 1687679,
+                "open_ns": 973852,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "checksum": 6712821,
+                "peak_rss_bytes": 88186880
+              },
+              "coreav": {
+                "checksum": 6712821,
+                "error": null,
+                "max_read": 5593,
+                "mode": "payload",
+                "ok": true,
+                "open_ns": 826411,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "total_ns": 2529805,
+                "peak_rss_bytes": 5324800
+              }
+            },
+            {
+              "trial": 8,
+              "order": [
+                "coreav",
+                "libavformat"
+              ],
+              "coreav": {
+                "checksum": 6712821,
+                "error": null,
+                "max_read": 5593,
+                "mode": "payload",
+                "ok": true,
+                "open_ns": 836145,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "total_ns": 2555574,
+                "peak_rss_bytes": 5054464
+              },
+              "libavformat": {
+                "ok": true,
+                "error_code": -541478725,
+                "total_ns": 2116467,
+                "open_ns": 1351638,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "checksum": 6712821,
+                "peak_rss_bytes": 88551424
+              }
+            },
+            {
+              "trial": 9,
+              "order": [
+                "libavformat",
+                "coreav"
+              ],
+              "libavformat": {
+                "ok": true,
+                "error_code": -541478725,
+                "total_ns": 1861245,
+                "open_ns": 1123480,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "checksum": 6712821,
+                "peak_rss_bytes": 89935872
+              },
+              "coreav": {
+                "checksum": 6712821,
+                "error": null,
+                "max_read": 5593,
+                "mode": "payload",
+                "ok": true,
+                "open_ns": 831238,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "total_ns": 2544752,
+                "peak_rss_bytes": 4296704
+              }
+            },
+            {
+              "trial": 10,
+              "order": [
+                "coreav",
+                "libavformat"
+              ],
+              "coreav": {
+                "checksum": 6712821,
+                "error": null,
+                "max_read": 5593,
+                "mode": "payload",
+                "ok": true,
+                "open_ns": 823481,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "total_ns": 2526075,
+                "peak_rss_bytes": 4214784
+              },
+              "libavformat": {
+                "ok": true,
+                "error_code": -541478725,
+                "total_ns": 1746937,
+                "open_ns": 1037701,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "checksum": 6712821,
+                "peak_rss_bytes": 89874432
+              }
+            },
+            {
+              "trial": 11,
+              "order": [
+                "libavformat",
+                "coreav"
+              ],
+              "libavformat": {
+                "ok": true,
+                "error_code": -541478725,
+                "total_ns": 1889816,
+                "open_ns": 1160840,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "checksum": 6712821,
+                "peak_rss_bytes": 89849856
+              },
+              "coreav": {
+                "checksum": 6712821,
+                "error": null,
+                "max_read": 5593,
+                "mode": "payload",
+                "ok": true,
+                "open_ns": 861849,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "total_ns": 2616756,
+                "peak_rss_bytes": 4698112
+              }
+            },
+            {
+              "trial": 12,
+              "order": [
+                "coreav",
+                "libavformat"
+              ],
+              "coreav": {
+                "checksum": 6712821,
+                "error": null,
+                "max_read": 5593,
+                "mode": "payload",
+                "ok": true,
+                "open_ns": 1358493,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "total_ns": 3056222,
+                "peak_rss_bytes": 4128768
+              },
+              "libavformat": {
+                "ok": true,
+                "error_code": -541478725,
+                "total_ns": 1820640,
+                "open_ns": 1093937,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "checksum": 6712821,
+                "peak_rss_bytes": 88977408
+              }
+            },
+            {
+              "trial": 13,
+              "order": [
+                "libavformat",
+                "coreav"
+              ],
+              "libavformat": {
+                "ok": true,
+                "error_code": -541478725,
+                "total_ns": 1667661,
+                "open_ns": 924235,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "checksum": 6712821,
+                "peak_rss_bytes": 89853952
+              },
+              "coreav": {
+                "checksum": 6712821,
+                "error": null,
+                "max_read": 5593,
+                "mode": "payload",
+                "ok": true,
+                "open_ns": 823264,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "total_ns": 2536006,
+                "peak_rss_bytes": 5935104
+              }
+            },
+            {
+              "trial": 14,
+              "order": [
+                "coreav",
+                "libavformat"
+              ],
+              "coreav": {
+                "checksum": 6712821,
+                "error": null,
+                "max_read": 5593,
+                "mode": "payload",
+                "ok": true,
+                "open_ns": 826993,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "total_ns": 2536746,
+                "peak_rss_bytes": 4780032
+              },
+              "libavformat": {
+                "ok": true,
+                "error_code": -541478725,
+                "total_ns": 1772584,
+                "open_ns": 1058174,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "checksum": 6712821,
+                "peak_rss_bytes": 88502272
+              }
+            }
+          ],
+          "eligible": true,
+          "verified_cold": false,
+          "ratio": {
+            "coreav_over_libavformat_throughput": 0.690615398961994,
+            "paired_bootstrap_95pct": [
+              0.6659020623861687,
+              0.7173265202277879
+            ],
+            "pairs": 15,
+            "bootstrap_resamples": 10000,
+            "seed": 20261013
+          },
+          "median_ms": {
+            "coreav": 2.536746,
+            "libavformat": 1.767645
+          },
+          "peak_rss_bytes": {
+            "coreav": 6090752,
+            "libavformat": 89935872
+          }
+        },
+        "cold": {
+          "rounds": [
+            {
+              "trial": 0,
+              "order": [
+                "coreav",
+                "libavformat"
+              ],
+              "cache": {
+                "coreav": {
+                  "fadvise_error": 0,
+                  "mincore_error": 0,
+                  "pages": 23,
+                  "resident_pages": 23,
+                  "verified_cold": false
+                },
+                "libavformat": {
+                  "fadvise_error": 0,
+                  "mincore_error": 0,
+                  "pages": 23,
+                  "resident_pages": 23,
+                  "verified_cold": false
+                }
+              },
+              "coreav": {
+                "checksum": 6712821,
+                "error": null,
+                "max_read": 5593,
+                "mode": "payload",
+                "ok": true,
+                "open_ns": 831472,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "total_ns": 2550960,
+                "peak_rss_bytes": 4685824
+              },
+              "libavformat": {
+                "ok": true,
+                "error_code": -541478725,
+                "total_ns": 1816997,
+                "open_ns": 1054890,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "checksum": 6712821,
+                "peak_rss_bytes": 89747456
+              }
+            },
+            {
+              "trial": 1,
+              "order": [
+                "libavformat",
+                "coreav"
+              ],
+              "cache": {
+                "libavformat": {
+                  "fadvise_error": 0,
+                  "mincore_error": 0,
+                  "pages": 23,
+                  "resident_pages": 23,
+                  "verified_cold": false
+                },
+                "coreav": {
+                  "fadvise_error": 0,
+                  "mincore_error": 0,
+                  "pages": 23,
+                  "resident_pages": 23,
+                  "verified_cold": false
+                }
+              },
+              "libavformat": {
+                "ok": true,
+                "error_code": -541478725,
+                "total_ns": 1792057,
+                "open_ns": 1057703,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "checksum": 6712821,
+                "peak_rss_bytes": 88449024
+              },
+              "coreav": {
+                "checksum": 6712821,
+                "error": null,
+                "max_read": 5593,
+                "mode": "payload",
+                "ok": true,
+                "open_ns": 828274,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "total_ns": 2551423,
+                "peak_rss_bytes": 4485120
+              }
+            },
+            {
+              "trial": 2,
+              "order": [
+                "coreav",
+                "libavformat"
+              ],
+              "cache": {
+                "coreav": {
+                  "fadvise_error": 0,
+                  "mincore_error": 0,
+                  "pages": 23,
+                  "resident_pages": 23,
+                  "verified_cold": false
+                },
+                "libavformat": {
+                  "fadvise_error": 0,
+                  "mincore_error": 0,
+                  "pages": 23,
+                  "resident_pages": 23,
+                  "verified_cold": false
+                }
+              },
+              "coreav": {
+                "checksum": 6712821,
+                "error": null,
+                "max_read": 5593,
+                "mode": "payload",
+                "ok": true,
+                "open_ns": 836668,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "total_ns": 2541844,
+                "peak_rss_bytes": 4116480
+              },
+              "libavformat": {
+                "ok": true,
+                "error_code": -541478725,
+                "total_ns": 1768732,
+                "open_ns": 1044913,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "checksum": 6712821,
+                "peak_rss_bytes": 88403968
+              }
+            },
+            {
+              "trial": 3,
+              "order": [
+                "libavformat",
+                "coreav"
+              ],
+              "cache": {
+                "libavformat": {
+                  "fadvise_error": 0,
+                  "mincore_error": 0,
+                  "pages": 23,
+                  "resident_pages": 23,
+                  "verified_cold": false
+                },
+                "coreav": {
+                  "fadvise_error": 0,
+                  "mincore_error": 0,
+                  "pages": 23,
+                  "resident_pages": 23,
+                  "verified_cold": false
+                }
+              },
+              "libavformat": {
+                "ok": true,
+                "error_code": -541478725,
+                "total_ns": 1748057,
+                "open_ns": 1022315,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "checksum": 6712821,
+                "peak_rss_bytes": 88649728
+              },
+              "coreav": {
+                "checksum": 6712821,
+                "error": null,
+                "max_read": 5593,
+                "mode": "payload",
+                "ok": true,
+                "open_ns": 819370,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "total_ns": 2538162,
+                "peak_rss_bytes": 6078464
+              }
+            },
+            {
+              "trial": 4,
+              "order": [
+                "coreav",
+                "libavformat"
+              ],
+              "cache": {
+                "coreav": {
+                  "fadvise_error": 0,
+                  "mincore_error": 0,
+                  "pages": 23,
+                  "resident_pages": 23,
+                  "verified_cold": false
+                },
+                "libavformat": {
+                  "fadvise_error": 0,
+                  "mincore_error": 0,
+                  "pages": 23,
+                  "resident_pages": 23,
+                  "verified_cold": false
+                }
+              },
+              "coreav": {
+                "checksum": 6712821,
+                "error": null,
+                "max_read": 5593,
+                "mode": "payload",
+                "ok": true,
+                "open_ns": 832442,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "total_ns": 2526206,
+                "peak_rss_bytes": 5222400
+              },
+              "libavformat": {
+                "ok": true,
+                "error_code": -541478725,
+                "total_ns": 1729035,
+                "open_ns": 999090,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "checksum": 6712821,
+                "peak_rss_bytes": 88944640
+              }
+            },
+            {
+              "trial": 5,
+              "order": [
+                "libavformat",
+                "coreav"
+              ],
+              "cache": {
+                "libavformat": {
+                  "fadvise_error": 0,
+                  "mincore_error": 0,
+                  "pages": 23,
+                  "resident_pages": 23,
+                  "verified_cold": false
+                },
+                "coreav": {
+                  "fadvise_error": 0,
+                  "mincore_error": 0,
+                  "pages": 23,
+                  "resident_pages": 23,
+                  "verified_cold": false
+                }
+              },
+              "libavformat": {
+                "ok": true,
+                "error_code": -541478725,
+                "total_ns": 1885688,
+                "open_ns": 1106187,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "checksum": 6712821,
+                "peak_rss_bytes": 88698880
+              },
+              "coreav": {
+                "checksum": 6712821,
+                "error": null,
+                "max_read": 5593,
+                "mode": "payload",
+                "ok": true,
+                "open_ns": 818404,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "total_ns": 2538106,
+                "peak_rss_bytes": 4440064
+              }
+            },
+            {
+              "trial": 6,
+              "order": [
+                "coreav",
+                "libavformat"
+              ],
+              "cache": {
+                "coreav": {
+                  "fadvise_error": 0,
+                  "mincore_error": 0,
+                  "pages": 23,
+                  "resident_pages": 23,
+                  "verified_cold": false
+                },
+                "libavformat": {
+                  "fadvise_error": 0,
+                  "mincore_error": 0,
+                  "pages": 23,
+                  "resident_pages": 23,
+                  "verified_cold": false
+                }
+              },
+              "coreav": {
+                "checksum": 6712821,
+                "error": null,
+                "max_read": 5593,
+                "mode": "payload",
+                "ok": true,
+                "open_ns": 830011,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "total_ns": 2526025,
+                "peak_rss_bytes": 5070848
+              },
+              "libavformat": {
+                "ok": true,
+                "error_code": -541478725,
+                "total_ns": 1674071,
+                "open_ns": 972237,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "checksum": 6712821,
+                "peak_rss_bytes": 88145920
+              }
+            },
+            {
+              "trial": 7,
+              "order": [
+                "libavformat",
+                "coreav"
+              ],
+              "cache": {
+                "libavformat": {
+                  "fadvise_error": 0,
+                  "mincore_error": 0,
+                  "pages": 23,
+                  "resident_pages": 23,
+                  "verified_cold": false
+                },
+                "coreav": {
+                  "fadvise_error": 0,
+                  "mincore_error": 0,
+                  "pages": 23,
+                  "resident_pages": 23,
+                  "verified_cold": false
+                }
+              },
+              "libavformat": {
+                "ok": true,
+                "error_code": -541478725,
+                "total_ns": 1715882,
+                "open_ns": 1003228,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "checksum": 6712821,
+                "peak_rss_bytes": 88739840
+              },
+              "coreav": {
+                "checksum": 6712821,
+                "error": null,
+                "max_read": 5593,
+                "mode": "payload",
+                "ok": true,
+                "open_ns": 829331,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "total_ns": 2543364,
+                "peak_rss_bytes": 6127616
+              }
+            },
+            {
+              "trial": 8,
+              "order": [
+                "coreav",
+                "libavformat"
+              ],
+              "cache": {
+                "coreav": {
+                  "fadvise_error": 0,
+                  "mincore_error": 0,
+                  "pages": 23,
+                  "resident_pages": 23,
+                  "verified_cold": false
+                },
+                "libavformat": {
+                  "fadvise_error": 0,
+                  "mincore_error": 0,
+                  "pages": 23,
+                  "resident_pages": 23,
+                  "verified_cold": false
+                }
+              },
+              "coreav": {
+                "checksum": 6712821,
+                "error": null,
+                "max_read": 5593,
+                "mode": "payload",
+                "ok": true,
+                "open_ns": 814976,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "total_ns": 2510673,
+                "peak_rss_bytes": 4710400
+              },
+              "libavformat": {
+                "ok": true,
+                "error_code": -541478725,
+                "total_ns": 1747377,
+                "open_ns": 1042030,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "checksum": 6712821,
+                "peak_rss_bytes": 89149440
+              }
+            },
+            {
+              "trial": 9,
+              "order": [
+                "libavformat",
+                "coreav"
+              ],
+              "cache": {
+                "libavformat": {
+                  "fadvise_error": 0,
+                  "mincore_error": 0,
+                  "pages": 23,
+                  "resident_pages": 23,
+                  "verified_cold": false
+                },
+                "coreav": {
+                  "fadvise_error": 0,
+                  "mincore_error": 0,
+                  "pages": 23,
+                  "resident_pages": 23,
+                  "verified_cold": false
+                }
+              },
+              "libavformat": {
+                "ok": true,
+                "error_code": -541478725,
+                "total_ns": 1666289,
+                "open_ns": 953292,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "checksum": 6712821,
+                "peak_rss_bytes": 88682496
+              },
+              "coreav": {
+                "checksum": 6712821,
+                "error": null,
+                "max_read": 5593,
+                "mode": "payload",
+                "ok": true,
+                "open_ns": 825605,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "total_ns": 2522609,
+                "peak_rss_bytes": 5836800
+              }
+            },
+            {
+              "trial": 10,
+              "order": [
+                "coreav",
+                "libavformat"
+              ],
+              "cache": {
+                "coreav": {
+                  "fadvise_error": 0,
+                  "mincore_error": 0,
+                  "pages": 23,
+                  "resident_pages": 23,
+                  "verified_cold": false
+                },
+                "libavformat": {
+                  "fadvise_error": 0,
+                  "mincore_error": 0,
+                  "pages": 23,
+                  "resident_pages": 23,
+                  "verified_cold": false
+                }
+              },
+              "coreav": {
+                "checksum": 6712821,
+                "error": null,
+                "max_read": 5593,
+                "mode": "payload",
+                "ok": true,
+                "open_ns": 824220,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "total_ns": 2523580,
+                "peak_rss_bytes": 5185536
+              },
+              "libavformat": {
+                "ok": true,
+                "error_code": -541478725,
+                "total_ns": 1739368,
+                "open_ns": 1024417,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "checksum": 6712821,
+                "peak_rss_bytes": 89317376
+              }
+            },
+            {
+              "trial": 11,
+              "order": [
+                "libavformat",
+                "coreav"
+              ],
+              "cache": {
+                "libavformat": {
+                  "fadvise_error": 0,
+                  "mincore_error": 0,
+                  "pages": 23,
+                  "resident_pages": 23,
+                  "verified_cold": false
+                },
+                "coreav": {
+                  "fadvise_error": 0,
+                  "mincore_error": 0,
+                  "pages": 23,
+                  "resident_pages": 23,
+                  "verified_cold": false
+                }
+              },
+              "libavformat": {
+                "ok": true,
+                "error_code": -541478725,
+                "total_ns": 1682586,
+                "open_ns": 999934,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "checksum": 6712821,
+                "peak_rss_bytes": 88752128
+              },
+              "coreav": {
+                "checksum": 6712821,
+                "error": null,
+                "max_read": 5593,
+                "mode": "payload",
+                "ok": true,
+                "open_ns": 830781,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "total_ns": 2543360,
+                "peak_rss_bytes": 5648384
+              }
+            },
+            {
+              "trial": 12,
+              "order": [
+                "coreav",
+                "libavformat"
+              ],
+              "cache": {
+                "coreav": {
+                  "fadvise_error": 0,
+                  "mincore_error": 0,
+                  "pages": 23,
+                  "resident_pages": 23,
+                  "verified_cold": false
+                },
+                "libavformat": {
+                  "fadvise_error": 0,
+                  "mincore_error": 0,
+                  "pages": 23,
+                  "resident_pages": 23,
+                  "verified_cold": false
+                }
+              },
+              "coreav": {
+                "checksum": 6712821,
+                "error": null,
+                "max_read": 5593,
+                "mode": "payload",
+                "ok": true,
+                "open_ns": 826138,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "total_ns": 2538009,
+                "peak_rss_bytes": 5312512
+              },
+              "libavformat": {
+                "ok": true,
+                "error_code": -541478725,
+                "total_ns": 1658337,
+                "open_ns": 950657,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "checksum": 6712821,
+                "peak_rss_bytes": 88260608
+              }
+            },
+            {
+              "trial": 13,
+              "order": [
+                "libavformat",
+                "coreav"
+              ],
+              "cache": {
+                "libavformat": {
+                  "fadvise_error": 0,
+                  "mincore_error": 0,
+                  "pages": 23,
+                  "resident_pages": 23,
+                  "verified_cold": false
+                },
+                "coreav": {
+                  "fadvise_error": 0,
+                  "mincore_error": 0,
+                  "pages": 23,
+                  "resident_pages": 23,
+                  "verified_cold": false
+                }
+              },
+              "libavformat": {
+                "ok": true,
+                "error_code": -541478725,
+                "total_ns": 1647761,
+                "open_ns": 949348,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "checksum": 6712821,
+                "peak_rss_bytes": 89530368
+              },
+              "coreav": {
+                "checksum": 6712821,
+                "error": null,
+                "max_read": 5593,
+                "mode": "payload",
+                "ok": true,
+                "open_ns": 820824,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "total_ns": 2517264,
+                "peak_rss_bytes": 5840896
+              }
+            },
+            {
+              "trial": 14,
+              "order": [
+                "coreav",
+                "libavformat"
+              ],
+              "cache": {
+                "coreav": {
+                  "fadvise_error": 0,
+                  "mincore_error": 0,
+                  "pages": 23,
+                  "resident_pages": 23,
+                  "verified_cold": false
+                },
+                "libavformat": {
+                  "fadvise_error": 0,
+                  "mincore_error": 0,
+                  "pages": 23,
+                  "resident_pages": 23,
+                  "verified_cold": false
+                }
+              },
+              "coreav": {
+                "checksum": 6712821,
+                "error": null,
+                "max_read": 5593,
+                "mode": "payload",
+                "ok": true,
+                "open_ns": 822820,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "total_ns": 2527781,
+                "peak_rss_bytes": 5877760
+              },
+              "libavformat": {
+                "ok": true,
+                "error_code": -541478725,
+                "total_ns": 1836045,
+                "open_ns": 1102070,
+                "packets": 138,
+                "payload_bytes": 89666,
+                "checksum": 6712821,
+                "peak_rss_bytes": 89284608
+              }
+            }
+          ]
+        }
+      },
+      "heap": {}
+    }
+  ],
+  "summary": {},
+  "cache_method": "warm: full untimed read before EACH engine; cold: fadvise DONTNEED plus mincore verification before EACH engine",
+  "cold_limit": "cold attempts with resident pages or unsupported calls are published but never claimed as verified cold",
+  "work": "open + auto probe + visit every packet PTS/DTS/size/position, no decode, no per-packet serialization",
+  "libavformat_probe": "avformat_open_input + av_read_frame; no avformat_find_stream_info (can decode); defaults, no forced format",
+  "memory_metric": "GNU time peak RSS on ordinary runs; separate Valgrind Massif exact peak requested heap (not timed)",
+  "bootstrap_unit": "paired repetition, per file; grouped summaries resample whole paired rounds over fixed eligible file set"
+}

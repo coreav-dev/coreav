@@ -1,0 +1,83 @@
+{
+ "bins": [
+  "$HOME/cx/decode-base",
+  "$HOME/cx/decode-pc"
+ ],
+ "summary": {
+  "decode-pc": {
+   "median": 1.0143,
+   "ci": [
+    1.0112,
+    1.0333
+   ],
+   "1080p": 1.0137,
+   "4k": 1.0166
+  }
+ },
+ "streams": {
+  "3b1b441e23ae.0.4k.h264": {
+   "$HOME/cx/decode-base": 0.7365783759996702,
+   "$HOME/cx/decode-pc": 0.8008595840001362
+  },
+  "4b54de28c2b3.0.4k.h264": {
+   "$HOME/cx/decode-base": 0.8195188629997574,
+   "$HOME/cx/decode-pc": 0.8284717260012258
+  },
+  "81ed4778ece2.0.4k.h264": {
+   "$HOME/cx/decode-base": 0.34758465900085866,
+   "$HOME/cx/decode-pc": 0.36803739800052426
+  },
+  "ae16bb7c7192.0.4k.h264": {
+   "$HOME/cx/decode-base": 0.191356702000121,
+   "$HOME/cx/decode-pc": 0.20172722799907206
+  },
+  "af38b0cfd840.0.4k.h264": {
+   "$HOME/cx/decode-base": 0.5552915570006007,
+   "$HOME/cx/decode-pc": 0.5659761970000545
+  },
+  "e624cbe0d2be.0.4k.h264": {
+   "$HOME/cx/decode-base": 0.9274565559990151,
+   "$HOME/cx/decode-pc": 0.9389493400012725
+  },
+  "ed75c044e944.0.4k.h264": {
+   "$HOME/cx/decode-base": 0.3289373080006044,
+   "$HOME/cx/decode-pc": 0.3298501449989999
+  },
+  "f8d92a911e72.0.4k.h264": {
+   "$HOME/cx/decode-base": 7.712581465999392,
+   "$HOME/cx/decode-pc": 7.820665184999598
+  },
+  "175433794e02.0.1080p.h264": {
+   "$HOME/cx/decode-base": 5.251460363999286,
+   "$HOME/cx/decode-pc": 5.280208815000151
+  },
+  "6da34958296c.0.1080p.h264": {
+   "$HOME/cx/decode-base": 1.6736272910002299,
+   "$HOME/cx/decode-pc": 1.7150936819998606
+  },
+  "6e90422a670a.0.1080p.h264": {
+   "$HOME/cx/decode-base": 3.9978068899999926,
+   "$HOME/cx/decode-pc": 4.056178369000918
+  },
+  "a6af290d9053.0.1080p.h264": {
+   "$HOME/cx/decode-base": 5.565052584999648,
+   "$HOME/cx/decode-pc": 5.627451084999848
+  },
+  "a81de82106be.0.1080p.h264": {
+   "$HOME/cx/decode-base": 0.7282261559994367,
+   "$HOME/cx/decode-pc": 0.7523986479991436
+  },
+  "b41f70a7fa60.0.1080p.h264": {
+   "$HOME/cx/decode-base": 2.452074945000277,
+   "$HOME/cx/decode-pc": 2.4832793249988754
+  },
+  "b71b6b31e54f.0.1080p.h264": {
+   "$HOME/cx/decode-base": 1.0732101840003452,
+   "$HOME/cx/decode-pc": 1.1346711939986562
+  },
+  "c7ecda16e4a7.0.1080p.h264": {
+   "$HOME/cx/decode-base": 3.847819411999808,
+   "$HOME/cx/decode-pc": 3.860363813000731
+  }
+ }
+}

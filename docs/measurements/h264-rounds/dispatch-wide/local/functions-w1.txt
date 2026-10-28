@@ -1,0 +1,48 @@
+# The first build of this round (w1: every function through Tier::enter) minus the rejected round's commit, both without flags,
+# self instructions per compiled function as % of the latter's total. predict_fast: fast::v3::predict_fast (by-value
+# arguments) against its closure through enter_apart.
+41e324ebb708.0.sd: B/A 1.0040
+5185721dda11.0.sd: B/A 0.9868
+1d4b1775d78a.0.720p: B/A 1.0141
+278dbf5a63bb.0.720p: B/A 1.0145
+9db41aa16b5a.0.720p: B/A 0.9986
+ +9.41% +20.77 +7.93 +6.93 +4.75 +6.70  fast::v3::enter_apart::<core::result::Result<(), error::Error>, <mb::SliceDecoder<Auto>>::predict_fast<V3>::{c
+ -8.87% -19.61 -7.44 -6.51 -4.45 -6.33  fast::v3::predict_fast::<Auto>
+ -7.82% -6.13 +0.00 -15.49 -17.49 +0.00  <mb::SliceDecoder<Auto>>::decode_cabac::<V3>
+ +6.94% +5.81 +0.00 +13.65 +15.22 +0.00  fast::v3::enter::<core::result::Result<(), error::Error>, <mb::SliceDecoder<Auto>>::decode_cabac<V3>::{closure
+ +4.12% +0.00 +12.77 +0.00 +0.00 +7.81  fast::v3::enter::<core::result::Result<(), error::Error>, <mb::SliceDecoder<Auto>>::decode_cavlc<V3>::{closure
+ -3.57% +0.00 -14.52 +0.00 +0.00 -3.35  <syntax::CavlcSyntax as syntax::Syntax>::block::<16>
+ +3.50% +0.00 +14.26 +0.00 +0.00 +3.22  fast::v3::enter::<core::result::Result<u8, error::Error>, <syntax::CavlcSyntax<V3> as syntax::Syntax>::block<1
+ -3.24% -4.71 -3.31 -3.10 -2.74 -2.35  <mb::SliceDecoder<Auto>>::start_mb
+ +2.53% +4.12 +2.83 +1.91 +1.69 +2.08  fast::v3::enter::<core::result::Result<(), error::Error>, <mb::SliceDecoder<Auto>>::start_mb<V3>::{closure#0}>
+ -2.06% -0.00 -6.80 -0.00 -0.00 -3.50  <mb::SliceDecoder<Auto>>::decode
+ -1.92% +0.00 -5.50 +0.00 +0.00 -4.12  <mb::SliceDecoder<Auto>>::parse_residual::<syntax::CavlcSyntax>
+ -1.60% -0.02 +0.00 -3.74 -4.26 +0.00  <cabac::Cabac>::mvd
+ +1.39% +0.02 +0.00 +3.21 +3.71 +0.00  <cabac::Cabac>::unary::<<cabac::Cabac>::mvd_body::{closure#0}>
+ +1.01% +0.24 +0.00 +2.15 +2.67 +0.00  fast::v3::enter::<core::result::Result<(), error::Error>, <mb::SliceDecoder<Auto>>::parse_residual<syntax::Cab
+ -0.66% +0.00 -2.21 +0.00 +0.00 -1.10  <syntax::CavlcSyntax as syntax::Syntax>::block_context::<Auto>
+ +0.66% +0.00 +2.21 +0.00 +0.00 +1.10  <syntax::CavlcSyntax<V3> as syntax::Syntax>::block_context::<Auto>
+ +0.59% +0.00 +0.00 +1.04 +1.91 +0.00  fast::v3::enter_apart::<u64, cabac::significance_map<64, V3>::{closure#0}>
+ -0.57% -0.93 -1.50 -0.11 -0.10 -0.21  <work::PictureWork<Auto>>::decode_slice
+ +0.55% +0.00 +0.00 +0.99 +1.74 +0.00  fast::v3::enter_apart::<core::result::Result<u8, error::Error>, cabac::levels<64, V3>::{closure#0}>
+ -0.54% +0.00 +0.00 -0.95 -1.77 +0.00  fast::v3::significance_map::<64>
+ -0.53% +0.00 +0.00 -0.96 -1.69 +0.00  fast::v3::levels::<64>
+ -0.52% -0.05 -0.71 -0.62 -0.72 -0.53  <mb::MbData>::reset
+ +0.51% +1.18 +0.37 +0.38 +0.27 +0.37  <mb::SliceDecoder<Auto>>::motion_compensate::<V3>
+ +0.38% +0.00 +0.00 +1.02 +0.90 +0.00  <mb::SliceDecoder<Auto>>::request_destination
+ +0.35% +0.58 +0.00 +0.54 +0.64 +0.00  fast::v3::enter_apart::<core::result::Result<u8, error::Error>, cabac::levels<16, V3>::{closure#0}>
+ -0.34% -0.56 +0.00 -0.52 -0.62 +0.00  fast::v3::levels::<16>
+ +0.32% +0.41 +0.00 +0.55 +0.62 +0.00  fast::v3::enter_apart::<u64, cabac::significance_map<16, V3>::{closure#0}>
+ +0.31% +0.02 +0.00 +0.66 +0.88 +0.00  fast::v3::enter_apart::<core::result::Result<u8, error::Error>, cabac::levels<4, V3>::{closure#0}>
+ -0.31% -0.41 +0.00 -0.54 -0.61 +0.00  fast::v3::significance_map::<16>
+ -0.28% -0.02 +0.00 -0.59 -0.78 +0.00  fast::v3::levels::<4>
+ +0.27% +0.01 +0.00 +0.64 +0.71 +0.00  fast::v3::enter::<core::result::Result<i32, error::Error>, <cabac::Cabac>::mvd<V3>::{closure#0}>
+ +0.25% +0.01 +0.00 +0.53 +0.70 +0.00  fast::v3::enter_apart::<u64, cabac::significance_map<4, V3>::{closure#0}>
+ -0.21% -0.01 +0.00 -0.45 -0.60 +0.00  fast::v3::significance_map::<4>
+ +0.14% +0.00 +0.00 +0.37 +0.35 +0.00  <cabac::Cabac>::exp_golomb_bypass
+ +0.14% +0.00 +0.00 +0.28 +0.40 +0.00  fast::v3::enter_apart::<core::result::Result<u8, error::Error>, <cabac::Cabac>::residual<64, V3>::{closure#0}>
+ -0.13% -0.54 +0.00 -0.06 -0.05 +0.00  <cabac::Cabac>::new
+ +0.10% +0.00 +0.00 +0.22 +0.28 +0.00  fast::v3::enter_apart::<core::result::Result<u8, error::Error>, <cabac::Cabac>::residual<4, V3>::{closure#0}>
+ -0.09% +0.00 +0.00 -0.19 -0.27 +0.00  <cabac::Cabac>::residual::<64, V3>
+ +0.08% +0.13 +0.17 +0.03 +0.03 +0.05  <mb::SliceDecoder<Auto>>::enter_row
+ +0.06% +0.10 +0.17 +0.01 +0.01 +0.02  fast::v3::enter::<alloc::boxed::Box<params::LevelScale>, <tier::Choice>::level_scale::{closure#0}>

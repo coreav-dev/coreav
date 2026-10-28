@@ -1,0 +1,2345 @@
+{
+ "rounds": 5,
+ "pairs": {
+  "lib_a": [
+   "ours_lib_a",
+   "lav_a"
+  ],
+  "cli_a": [
+   "ours_cli_a",
+   "ffmpeg_cli_a"
+  ],
+  "cli_b": [
+   "ours_cli_b",
+   "ffmpeg_cli_b"
+  ],
+  "lib_b": [
+   "ours_lib_b",
+   "lav_b"
+  ]
+ },
+ "results": [
+  {
+   "set": "derived",
+   "sha256": "ad323b4e16de9726b9c9f7692ff0d0a607a125ae08a008ee05544ccc06da95e1",
+   "source_sha256": "0119957558a276115f3af88175fd89f10345ab8f9c4aa6b23c361671fafaf805",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 5730062,
+    "lav_a": 7257664,
+    "ours_cli_a": 6901871,
+    "ffmpeg_cli_a": 10657732,
+    "ours_cli_b": 4964688,
+    "ffmpeg_cli_b": 10249999,
+    "ours_lib_b": 4247734,
+    "lav_b": 4827535
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "c013909f68e046505fa2c7d53154945fbbf29989046ee25d4c044a057635162d",
+   "source_sha256": "0388073c0fae30182d463ce0aa1d500573cdbfe02968595892244b29a2a11956",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 3429722235,
+    "lav_a": 3063287075,
+    "ours_cli_a": 1474409615,
+    "ffmpeg_cli_a": 3398816427,
+    "ours_cli_b": 1966993662,
+    "ffmpeg_cli_b": 3445198778,
+    "ours_lib_b": 3785533457,
+    "lav_b": 3182311009
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "425f7f70877ef9f5397770304181b69f365cd002d7690ccc780e3a4e8397c03b",
+   "source_sha256": "04a7da97aeecd99a3f8fd9a8e5b16caa054a661f185fc36e812f217d04d1c6af",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 33176984,
+    "lav_a": 28691774,
+    "ours_cli_a": 28118492,
+    "ffmpeg_cli_a": 38609297,
+    "ours_cli_b": 34995148,
+    "ffmpeg_cli_b": 35659703,
+    "ours_lib_b": 38497072,
+    "lav_b": 30338263
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "f5d6c58f3d863ab8768793d751d09eaf44e3201fdc0703176d40004c5b0b5433",
+   "source_sha256": "057ee81be8c845e5c8321677bd3fc304af8e26894cc8f0076e937968c31f5615",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 17094189,
+    "lav_a": 17889732,
+    "ours_cli_a": 12631371,
+    "ffmpeg_cli_a": 21690178,
+    "ours_cli_b": 7450825,
+    "ffmpeg_cli_b": 21546602,
+    "ours_lib_b": 14211990,
+    "lav_b": 14766115
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "3e8ac982f2deba1ed2d2a504ba2cb3ec435bdf46b4dfaec485414b0739a13b24",
+   "source_sha256": "0647ff86bb8c6a3608d67e4751015a5aca8fbc95966493f788b449e15898fcab",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 318826895,
+    "lav_a": 346296994,
+    "ours_cli_a": 105399906,
+    "ffmpeg_cli_a": 328719673,
+    "ours_cli_b": 252216116,
+    "ffmpeg_cli_b": 333200692,
+    "ours_lib_b": 436804430,
+    "lav_b": 356301076
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "0040357371e6829d855dd7b89a41ac1439928928dac7e24048e0fff8ed63f653",
+   "source_sha256": "072c3a3ae29febd8017c4ea7a29ec58f14c967da0b9534053f344418eac5e874",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 925804171,
+    "lav_a": 811085915,
+    "ours_cli_a": 378919414,
+    "ffmpeg_cli_a": 872888159,
+    "ours_cli_b": 502856184,
+    "ffmpeg_cli_b": 869247680,
+    "ours_lib_b": 1044859359,
+    "lav_b": 798444868
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "98816384c4dff5eaff658763daea8e16d616b9ced4887bfc95f14d8033e6b845",
+   "source_sha256": "0ced42322c655b47b4727508850d88ad8a69e9051647b38a699c047998ca6e08",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 63615491,
+    "lav_a": 60158477,
+    "ours_cli_a": 24232335,
+    "ffmpeg_cli_a": 62307239,
+    "ours_cli_b": 43189430,
+    "ffmpeg_cli_b": 62071723,
+    "ours_lib_b": 76818747,
+    "lav_b": 62110926
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "5b12f4ca912461abb049fae1f0dc4f96ecff14e6e3b91cbaefd3b0e1899070d9",
+   "source_sha256": "0da77a33f44a62fadb14369a782f0b9b52eecc89a897e27c57750d392d510921",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 726492166,
+    "lav_a": 778006780,
+    "ours_cli_a": 216133792,
+    "ffmpeg_cli_a": 746234241,
+    "ours_cli_b": 556671945,
+    "ffmpeg_cli_b": 749466134,
+    "ours_lib_b": 992908490,
+    "lav_b": 820942792
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "541480aab9f208331adfca5deefaedadd9e88e5a764ad0622fb4f29dc47ffd6f",
+   "source_sha256": "108521a89a7345637ec07067edf8cded82d3d55d95697cfc65ec0eca2d301ab4",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 19081955,
+    "lav_a": 17391459,
+    "ours_cli_a": 14808875,
+    "ffmpeg_cli_a": 19948757,
+    "ours_cli_b": 17594500,
+    "ffmpeg_cli_b": 20445397,
+    "ours_lib_b": 21938506,
+    "lav_b": 17799509
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "e483c296d0123ab5cfd69c7c483ec11abbd8c3ec6f36e2751e27e65c1ad3b83b",
+   "source_sha256": "12b4221859532842b90e0de4e54c9ef930e122c005fd28a889d6da58c56e3a6f",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 13066063,
+    "lav_a": 9829213,
+    "ours_cli_a": 13715189,
+    "ffmpeg_cli_a": 15160749,
+    "ours_cli_b": 12846178,
+    "ffmpeg_cli_b": 14044794,
+    "ours_lib_b": 11702694,
+    "lav_b": 9884465
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "0eefb9de9b7982fb8d8c55fa149ae9fda7e5274d255b07f710760b43b17a5e78",
+   "source_sha256": "13cf128006da7d55a85cabe8ec86d59a06614abee80f5ebb753a44a818d44db3",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 2297531896,
+    "lav_a": 2421257234,
+    "ours_cli_a": 887810228,
+    "ffmpeg_cli_a": 2732154506,
+    "ours_cli_b": 3241546092,
+    "ffmpeg_cli_b": 2511046813,
+    "ours_lib_b": 4267990782,
+    "lav_b": 3156558394
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "ed6f1be94f04d14d5806f7bae745f89adeb8a755f554891122f78baeb4dbd4d0",
+   "source_sha256": "145cd00359874eeca40c314027266a020861a8ef51261faaba4383198206a0e6",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 4457596312,
+    "lav_a": 4130532815,
+    "ours_cli_a": 1593624722,
+    "ffmpeg_cli_a": 5685603508,
+    "ours_cli_b": 3577947680,
+    "ffmpeg_cli_b": 5452179776,
+    "ours_lib_b": 5921022526,
+    "lav_b": 4798210667
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "f718a08643e2264def5b38b298a0db0e38bc7ee3c68ad9f8f94466343642f53d",
+   "source_sha256": "15affcdb19e3f12cab92733a3a4edc817e93ad68c9e760bba69ef2b353f30af6",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 17505710,
+    "lav_a": 19129516,
+    "ours_cli_a": 11742807,
+    "ffmpeg_cli_a": 22845392,
+    "ours_cli_b": 9637547,
+    "ffmpeg_cli_b": 22129348,
+    "ours_lib_b": 14459031,
+    "lav_b": 15050278
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "13f4a6459ee29d839e663785645066a3454cb06b3a9752c6c6b3a2efcebfd668",
+   "source_sha256": "17722a386ab16fb48ddf7bc1df71f7f71dcf80a472f6f7931e18d40dc14c3b09",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 50307666,
+    "lav_a": 63890586,
+    "ours_cli_a": 34235481,
+    "ffmpeg_cli_a": 51095242,
+    "ours_cli_b": 44603835,
+    "ffmpeg_cli_b": 61677621,
+    "ours_lib_b": 53889590,
+    "lav_b": 48931363
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "ab66f07e84738a67506cdc39750b37d92b45c9cf9c7393e2661a1b0292c8746e",
+   "source_sha256": "1985d49328408c1b0b219d85bd25f4d6e8a1c1c7226adf48974622b547b892ce",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 4957408246,
+    "lav_a": 4938460623,
+    "ours_cli_a": 1487384470,
+    "ffmpeg_cli_a": 4859373097,
+    "ours_cli_b": 3637809858,
+    "ffmpeg_cli_b": 4783347670,
+    "ours_lib_b": 6321278129,
+    "lav_b": 5284771367
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "5f37dcd05a41a8e9a4c7885e83b58bd0cf5e97aa1271d886f90b5bde4bf75f95",
+   "source_sha256": "1ca019f01bba403c9862226d7894ff570f97872504762ec1f32dda62417a3dc2",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 30394091,
+    "lav_a": 29327807,
+    "ours_cli_a": 17689346,
+    "ffmpeg_cli_a": 38300954,
+    "ours_cli_b": 10042390,
+    "ffmpeg_cli_b": 37618306,
+    "ours_lib_b": 20758663,
+    "lav_b": 23253874
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "201109afe1394e1d44e68008d6d85964a334b9673eb3ddb3e30cf71ba57cf1b0",
+   "source_sha256": "1ced309b3617c62e64e5a9ce1bd93827ab53704fe57080492e5f5ffeaf9169e7",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 2223575826,
+    "lav_a": 2318577988,
+    "ours_cli_a": 680891586,
+    "ffmpeg_cli_a": 2197729771,
+    "ours_cli_b": 1622821883,
+    "ffmpeg_cli_b": 2215071269,
+    "ours_lib_b": 2842987054,
+    "lav_b": 2449747779
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "2f6d29b14938110ac512e60087ab637ac1f7077d4e25188016c3c19f0bc2ec3f",
+   "source_sha256": "1e7dbdd9da1a4ae03526c179d70c7ef4db1baacd248360cdb643b7a9cf27a651",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 37672115,
+    "lav_a": 23451902,
+    "ours_cli_a": 17589204,
+    "ffmpeg_cli_a": 31426173,
+    "ours_cli_b": 10720576,
+    "ffmpeg_cli_b": 29970206,
+    "ours_lib_b": 16837739,
+    "lav_b": 18861883
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "b1f10cb0c2888d8c4086e8db620043fd16b577790ee444439d9b750634795817",
+   "source_sha256": "2131d828a7dda365175bf5a34b85cc83989cd4f6d83bd8b1709a3b05c4d55c98",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 490922529,
+    "lav_a": 519434499,
+    "ours_cli_a": 139467013,
+    "ffmpeg_cli_a": 503379611,
+    "ours_cli_b": 326715461,
+    "ffmpeg_cli_b": 488873285,
+    "ours_lib_b": 631067170,
+    "lav_b": 550404417
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "deae595ab637f50017287eb6cf0e1bdf5fe65b10e3fa47794bb89d9b09d39cdd",
+   "source_sha256": "22188a2fd58665eb2603b0262923162467e1b8c36b77f2dfea318e4a8cf5e7da",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 367515821,
+    "lav_a": 359363940,
+    "ours_cli_a": 151106826,
+    "ffmpeg_cli_a": 487930530,
+    "ours_cli_b": 331236221,
+    "ffmpeg_cli_b": 477895421,
+    "ours_lib_b": 500743299,
+    "lav_b": 425941601
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "2994ae27dbf1f6b8f3d9eafad14fbe91320974cd93211a73feb062318a67ae3b",
+   "source_sha256": "249f6da48e0ba5641fc27c0033f87e87b0236d97f81ba1cc78656ca55536bf70",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 104387045,
+    "lav_a": 115695133,
+    "ours_cli_a": 31106106,
+    "ffmpeg_cli_a": 114962034,
+    "ours_cli_b": 21592200,
+    "ffmpeg_cli_b": 114453298,
+    "ours_lib_b": 84626986,
+    "lav_b": 86520947
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "2eb27e68f63b43224bb726053f9b9aa126dda57cc4a1f9258ad73dc4f27ee713",
+   "source_sha256": "254f729572563a2f3c20fc5203aedd6a4b46acdad7b0cdf8fdcee39670981309",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 43685974,
+    "lav_a": 50305412,
+    "ours_cli_a": 21747427,
+    "ffmpeg_cli_a": 56067465,
+    "ours_cli_b": 11208203,
+    "ffmpeg_cli_b": 53164079,
+    "ours_lib_b": 31344646,
+    "lav_b": 34344834
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "576ced52f15dffecf084fc66e6d243c58490118a865322259be3c04992d0416f",
+   "source_sha256": "2a36309a821ba2b5f0aa30b0f4b9279e40598a443009129690a95c151f73f3b8",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 17736554,
+    "lav_a": 15196998,
+    "ours_cli_a": 13819073,
+    "ffmpeg_cli_a": 18663898,
+    "ours_cli_b": 17494876,
+    "ffmpeg_cli_b": 18846162,
+    "ours_lib_b": 20168339,
+    "lav_b": 15580577
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "e5239897657300a45371c91cf6c86d86ad7b27b677cb40f3bf4972d84ff95c84",
+   "source_sha256": "2ac72e8784ecca1828f8059f8995e09f9f7335f48d50c080c10a52e4ce379901",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 3351631452,
+    "lav_a": 3221526931,
+    "ours_cli_a": 864204091,
+    "ffmpeg_cli_a": 3098433364,
+    "ours_cli_b": 1934277341,
+    "ffmpeg_cli_b": 3088369378,
+    "ours_lib_b": 4118957122,
+    "lav_b": 3313785281
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "a2b44055b48399177f32d92729be8bf9156013d1cbdaaa7f59fa357fd5bf1455",
+   "source_sha256": "2bc6b07151be2f843031e53dc6bc36146b1daa8f500884fe71d1ebc9e5657ad3",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 9873409,
+    "lav_a": 7608550,
+    "ours_cli_a": 13638067,
+    "ffmpeg_cli_a": 11496013,
+    "ours_cli_b": 15707397,
+    "ffmpeg_cli_b": 11026878,
+    "ours_lib_b": 11047048,
+    "lav_b": 7930898
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "83e2360bb3c9184f61cee506ee6a654b3f2daab0d69f66010a593bde23540395",
+   "source_sha256": "2c5976ae305ea325f60ef1ba71b112ea22b65f558005eaddb0e251af936be3fd",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 103554896,
+    "lav_a": 95588255,
+    "ours_cli_a": 58747485,
+    "ffmpeg_cli_a": 109287520,
+    "ours_cli_b": 81022141,
+    "ffmpeg_cli_b": 115507640,
+    "ours_lib_b": 107857968,
+    "lav_b": 89501808
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "e80cc2c7161bf317767a07657789deef6cd3a35643e81ece6a0f8d74b2610941",
+   "source_sha256": "2d782d2c8918b5ae6005550e2ac25f62ada0395314277919d7f5ad4ec8579c9c",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 14571846,
+    "lav_a": 14270741,
+    "ours_cli_a": 11238386,
+    "ffmpeg_cli_a": 17232545,
+    "ours_cli_b": 9195003,
+    "ffmpeg_cli_b": 17189081,
+    "ours_lib_b": 10019490,
+    "lav_b": 8650782
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "89f950146de9911743e604ca0fbe5c487c0f08b23dd04514bb3b3cdc287580d5",
+   "source_sha256": "3056b45192163ba8d54425d0b08980e0d0e43944d09d71e352ce9bd95ca0e243",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 244817722,
+    "lav_a": 248005045,
+    "ours_cli_a": 80879410,
+    "ffmpeg_cli_a": 275422900,
+    "ours_cli_b": 178902935,
+    "ffmpeg_cli_b": 276833775,
+    "ours_lib_b": 334332443,
+    "lav_b": 272230912
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "a40062fd6d2e79dc30c0d7b567f5e79b2177f3d551ae42d81c6fd688f1c49c06",
+   "source_sha256": "33423db1c2f67f0af26071311e7bda4e0371549bcfd62eae026e744adf34feca",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 29172587,
+    "lav_a": 26844429,
+    "ours_cli_a": 20563212,
+    "ffmpeg_cli_a": 40424362,
+    "ours_cli_b": 8268238,
+    "ffmpeg_cli_b": 40438284,
+    "ours_lib_b": 15739934,
+    "lav_b": 18073972
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "91e65cda160b83897fef1d7dde4a6f63c087bcf0af9f208c843d395f0aefbaec",
+   "source_sha256": "34616c4782c0a78f4bc4f418d885a799b80c3e4fa1fb9fee5a6e6051fee126d4",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 428087120,
+    "lav_a": 429144032,
+    "ours_cli_a": 121143359,
+    "ffmpeg_cli_a": 434494062,
+    "ours_cli_b": 74716066,
+    "ffmpeg_cli_b": 446938389,
+    "ours_lib_b": 347909313,
+    "lav_b": 322616387
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "a4c3f8c83a101d62cc133a77fe7f39a7915855118bd3bc921cafd50bddb8f8b8",
+   "source_sha256": "35c2c80530e0d6c5eed8dafd71852dac621db547bef6bf5ad375b91bd0e38347",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 19126353,
+    "lav_a": 21001177,
+    "ours_cli_a": 12164284,
+    "ffmpeg_cli_a": 24653258,
+    "ours_cli_b": 9919597,
+    "ffmpeg_cli_b": 24133719,
+    "ours_lib_b": 18964744,
+    "lav_b": 15852573
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "55a8e96bcb286c306f5ec3317962ed1a1573125a7af97a93e2710d68cae8e041",
+   "source_sha256": "371baf1bdb08cd56e5f675df9ebcb5c618ad0339f4f0c00d7f88ab24a038c192",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 296483271,
+    "lav_a": 304379971,
+    "ours_cli_a": 107581052,
+    "ffmpeg_cli_a": 325611656,
+    "ours_cli_b": 227649798,
+    "ffmpeg_cli_b": 292517553,
+    "ours_lib_b": 429754005,
+    "lav_b": 340159452
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "8cd6839ba19720fd8c88c660a075b6472ac73e140d0a51ca75ab69073598298b",
+   "source_sha256": "3898250f26b891f1233bee86910ae2f98394981ebbe20abedd4e5455e075a5d4",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 7168909,
+    "lav_a": 7905308,
+    "ours_cli_a": 11759180,
+    "ffmpeg_cli_a": 13988994,
+    "ours_cli_b": 7819276,
+    "ffmpeg_cli_b": 12102584,
+    "ours_lib_b": 5295612,
+    "lav_b": 6239072
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "39425aff9d5999851417521c76c9cdcb21e43ebcf3e3f452fe16cd7a287a57d4",
+   "source_sha256": "3b5d1c91eaa5f7e4aeb4b07d9ed641f2cfa22fae2e2365c56d20e7eefa922d24",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 226532436,
+    "lav_a": 239463340,
+    "ours_cli_a": 77478058,
+    "ffmpeg_cli_a": 232018538,
+    "ours_cli_b": 184769907,
+    "ffmpeg_cli_b": 233785795,
+    "ours_lib_b": 301488350,
+    "lav_b": 245877914
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "22d783b0615d10b8b999b59f321fb443499c70c2568184f76d06562f462f51e1",
+   "source_sha256": "3c5b4bf1a271ba2fdc32124d61034768091da834fb0374f81bf074fa74094193",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 46345243,
+    "lav_a": 47672993,
+    "ours_cli_a": 18019011,
+    "ffmpeg_cli_a": 55159894,
+    "ours_cli_b": 12767629,
+    "ffmpeg_cli_b": 51457030,
+    "ours_lib_b": 36665530,
+    "lav_b": 36265308
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "2c65af05a98363be9f9f6ec46749a9ac11f02473f946815c74df6c538a3a4e83",
+   "source_sha256": "3d6ef341cb6045e0a391090f5762c6cb8b0f93fd2a0b2b1168ef7eef0533b84b",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 456576646,
+    "lav_a": 449715368,
+    "ours_cli_a": 152214194,
+    "ffmpeg_cli_a": 453859744,
+    "ours_cli_b": 341937286,
+    "ffmpeg_cli_b": 432737567,
+    "ours_lib_b": 617180266,
+    "lav_b": 482223037
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "161570df8adfae28b98053b9e44eb2e59c6d11e6276b1dacfda1d920d0a1a418",
+   "source_sha256": "3dc2331682cde7c6e882d2590908ccb41a26e93d700ebbfaa673487b7c3d0d54",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 18767140,
+    "lav_a": 20165402,
+    "ours_cli_a": 11017143,
+    "ffmpeg_cli_a": 24236127,
+    "ours_cli_b": 8592504,
+    "ffmpeg_cli_b": 23143152,
+    "ours_lib_b": 15892718,
+    "lav_b": 15772492
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "04bd6429b036f954bd9fd1e17079a70a44b9c1a2ae6de117e70fa82cb1b9d50d",
+   "source_sha256": "3f89a1f748a962fe89fbab4aab52e9aa386321dfb46dd02d0534bf3db8e92f6b",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 1095095428,
+    "lav_a": 1202438580,
+    "ours_cli_a": 283178942,
+    "ffmpeg_cli_a": 1133582009,
+    "ours_cli_b": 171014684,
+    "ffmpeg_cli_b": 1130803079,
+    "ours_lib_b": 904676763,
+    "lav_b": 890531861
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "2e7fb5b29079551837ab9b23acd2252c227d74971f27f4f0442ab3bb818fbbb6",
+   "source_sha256": "41cb8f08b781718872bb979cb603482368b3ff227476a58ec4316e63c21ff2d0",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 2910038355,
+    "lav_a": 2625204005,
+    "ours_cli_a": 1300106265,
+    "ffmpeg_cli_a": 2912437561,
+    "ours_cli_b": 1713462583,
+    "ffmpeg_cli_b": 2871583625,
+    "ours_lib_b": 3305730709,
+    "lav_b": 2661063048
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "502126c4eed3895ff99ad2a654508f390899d8b6829b29c4b1d5a2290bc27685",
+   "source_sha256": "42fce01d091e6fc6f9663db69ba8d4728eee7fa7d6f9f756160da0f32daf4352",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 546241750,
+    "lav_a": 382998563,
+    "ours_cli_a": 183702292,
+    "ffmpeg_cli_a": 413042543,
+    "ours_cli_b": 239920962,
+    "ffmpeg_cli_b": 390207658,
+    "ours_lib_b": 505460926,
+    "lav_b": 379041991
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "2b5ffb5e8a79ede0252e82da3e01042be89991bab2372d45b01a095c415f67e7",
+   "source_sha256": "44cc2b274a94d2cb7f71148e7983ae5382c59d6b6f14b6784adec2d39644accf",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 29320001,
+    "lav_a": 28198691,
+    "ours_cli_a": 18054705,
+    "ffmpeg_cli_a": 35686149,
+    "ours_cli_b": 10101314,
+    "ffmpeg_cli_b": 35621442,
+    "ours_lib_b": 19938211,
+    "lav_b": 21562122
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "d8c9ded4a174e96acc17ee92b437d4cbca1a3381cbc4848b7826764d37158283",
+   "source_sha256": "45a370237fec0538930bc359c7997e1d8f5d380afd1b3496ec7e1469557baca2",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 22653797,
+    "lav_a": 18097250,
+    "ours_cli_a": 18828034,
+    "ffmpeg_cli_a": 24158809,
+    "ours_cli_b": 21898658,
+    "ffmpeg_cli_b": 24182111,
+    "ours_lib_b": 22816831,
+    "lav_b": 18540844
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "3cd101749003e88ca843d47dd138bbd61c64b98e8bd65fc95d5bfda9ffefa1c9",
+   "source_sha256": "4b23afae9445460fe7b7f3de166198edb3b1f8c37aeb810cd81f801898c940ba",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 220696815,
+    "lav_a": 262325211,
+    "ours_cli_a": 75533351,
+    "ffmpeg_cli_a": 217524890,
+    "ours_cli_b": 36068889,
+    "ffmpeg_cli_b": 222887316,
+    "ours_lib_b": 204686330,
+    "lav_b": 144142603
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "18e3fe9a12ba56d1cc7221dea56522dafafbd6c8c70285d84f43e638f2547268",
+   "source_sha256": "4b9c6ac26c9b2996b625845c0ff5f7283e415d88edfe4f6fea86498ee2941e8d",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 16193682,
+    "lav_a": 11666494,
+    "ours_cli_a": 16190519,
+    "ffmpeg_cli_a": 21618754,
+    "ours_cli_b": 17603946,
+    "ffmpeg_cli_b": 22356119,
+    "ours_lib_b": 15152933,
+    "lav_b": 12206018
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "3b9cf33c93ea4ea7d40e85f13e476b579e31f81c287d000063d089b7eaa16058",
+   "source_sha256": "4cfdd9846b9d57382b71ad7bd595785852afba870eee1c71facd5197935b439d",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 28694963,
+    "lav_a": 20102289,
+    "ours_cli_a": 13586051,
+    "ffmpeg_cli_a": 25603569,
+    "ours_cli_b": 11042470,
+    "ffmpeg_cli_b": 29297430,
+    "ours_lib_b": 19707124,
+    "lav_b": 20702052
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "a56d09851bce7baeb6e280345d85d3a7869d2c99033cd49637dc8658d4757184",
+   "source_sha256": "4faa2eaa8498e09991b90ee07d84da22652797e0d368b34669110d9b327072ac",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 224715535,
+    "lav_a": 210186230,
+    "ours_cli_a": 79117611,
+    "ffmpeg_cli_a": 244154885,
+    "ours_cli_b": 169438486,
+    "ffmpeg_cli_b": 245188755,
+    "ours_lib_b": 279410854,
+    "lav_b": 223950112
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "705e83b36365f0a9b803cd3bbb167bf374c5d254b6d80d597fbcc18086ed8f82",
+   "source_sha256": "50a694bd8a2b4390463f3ab6429210f8b787109f9c366bbc1d75ecb69ac09aa4",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 25762247,
+    "lav_a": 30483157,
+    "ours_cli_a": 14062079,
+    "ffmpeg_cli_a": 33087242,
+    "ours_cli_b": 8872835,
+    "ffmpeg_cli_b": 32876879,
+    "ours_lib_b": 19619457,
+    "lav_b": 20788669
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "ae268ab1978c0919f12ae8552ba96ae30a86741b3bf8eedc33c9e6599b9985bc",
+   "source_sha256": "54b6f8a3007310925fab25b8733a0356d971504e07f860a7aaf21b9411f1d005",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 34735516,
+    "lav_a": 40406280,
+    "ours_cli_a": 17705548,
+    "ffmpeg_cli_a": 45323629,
+    "ours_cli_b": 9951421,
+    "ffmpeg_cli_b": 46233801,
+    "ours_lib_b": 24598980,
+    "lav_b": 25757862
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "89b5494478a05d4ecaf6442fd21b25ace0e80295b4f007cf82ed4ebfca36d636",
+   "source_sha256": "5853e2ed4f54b02c2e6d72591ff7315e62facc04bfe7f864d58172e07522a8a6",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 13607039,
+    "lav_a": 11084280,
+    "ours_cli_a": 11304429,
+    "ffmpeg_cli_a": 19593077,
+    "ours_cli_b": 8800211,
+    "ffmpeg_cli_b": 16420550,
+    "ours_lib_b": 8179305,
+    "lav_b": 9472289
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "8ea9c7c273c9c3c82edb4f29f79da5f2a89a0787bc7a32e0ac8bd58ee958a3ff",
+   "source_sha256": "5b080178a03cbb8fe697bf03e2e28b0cac09de1584412625894d0ca81afd8f73",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 14288183,
+    "lav_a": 10711897,
+    "ours_cli_a": 15002116,
+    "ffmpeg_cli_a": 15373880,
+    "ours_cli_b": 14186314,
+    "ffmpeg_cli_b": 17795563,
+    "ours_lib_b": 12891953,
+    "lav_b": 10613634
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "f787ed1bb1252d46995e070f89f7f1bed87cb791af87825fecb0c85f778b8f81",
+   "source_sha256": "6024f3b8f37190e0cafadefa93adb8a16143908c4a0038b7ada4dc4ba30cbc94",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 28238099441,
+    "lav_a": 24878508696,
+    "ours_cli_a": 11812452951,
+    "ffmpeg_cli_a": 28767099664,
+    "ours_cli_b": 16245875304,
+    "ffmpeg_cli_b": 27149277724,
+    "ours_lib_b": 32374912924,
+    "lav_b": 25926223324
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "a4178d0a907a4495f66bac9e3b54f936db8517980404fcdf14094dc734440944",
+   "source_sha256": "62580c1a12b933d46c68ec4966ce6febf6fbe86a41ad6011426c61a0ebc17c8e",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 143570854,
+    "lav_a": 136004547,
+    "ours_cli_a": 69345796,
+    "ffmpeg_cli_a": 173105887,
+    "ours_cli_b": 95106374,
+    "ffmpeg_cli_b": 171002817,
+    "ours_lib_b": 164022681,
+    "lav_b": 139333037
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "f011da3d8ef4b0f670fa0a571845554a508bf0f432d732e186c5932d17e8fd2d",
+   "source_sha256": "6b0416de3533a23482f2235f7cf878297c20d7d0657adbe6927289cea8174099",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 18564576,
+    "lav_a": 13640353,
+    "ours_cli_a": 18197685,
+    "ffmpeg_cli_a": 22851455,
+    "ours_cli_b": 16646693,
+    "ffmpeg_cli_b": 22380345,
+    "ours_lib_b": 17858636,
+    "lav_b": 13964070
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "2e709662db757d17c5de6cbe0a772246fdf5d78e2cf19184680263e2f3901252",
+   "source_sha256": "6b4c0d3f7879ec8e1497b872b939b6207df7c02b610e34f147e9f01ef2498679",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 165604613,
+    "lav_a": 136841767,
+    "ours_cli_a": 68499180,
+    "ffmpeg_cli_a": 173880561,
+    "ours_cli_b": 90576168,
+    "ffmpeg_cli_b": 155630746,
+    "ours_lib_b": 174363517,
+    "lav_b": 141756783
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "a7eb6091d4d68afbf7b3e3c3e96d365382c4a2e5941235daa22720cca0ed0d0c",
+   "source_sha256": "6e67814d336c695ad1aa9b51d6985e4029c7bfc8099f55cc8e9fd5ce54d91b80",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 6760520109,
+    "lav_a": 6710659267,
+    "ours_cli_a": 2163643270,
+    "ffmpeg_cli_a": 6404959014,
+    "ours_cli_b": 4891552048,
+    "ffmpeg_cli_b": 6362983097,
+    "ours_lib_b": 8903838711,
+    "lav_b": 7123093047
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "3035433de6845679f10a08f27c8c1829707e0731fe8ae4e08d7dc121350b1c19",
+   "source_sha256": "6f408e9a4e30bf6bc04636ba79d5c18642d5bad3b21614b4b1a156c1ec17f304",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 154819196,
+    "lav_a": 140474686,
+    "ours_cli_a": 57795608,
+    "ffmpeg_cli_a": 162193076,
+    "ours_cli_b": 27957022,
+    "ffmpeg_cli_b": 161749963,
+    "ours_lib_b": 112774691,
+    "lav_b": 111061369
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "ae9d7a0846ab0a51386b9f6d88a3ccd02c7714fb0a01fea9784884aff19ac5c3",
+   "source_sha256": "74fe9588b519960970c4bcafb08a17f8d30fa9d2dc2d2ae4d93b8336135cad97",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 1006297353,
+    "lav_a": 1027799667,
+    "ours_cli_a": 335495800,
+    "ffmpeg_cli_a": 974663619,
+    "ours_cli_b": 746882643,
+    "ffmpeg_cli_b": 977396718,
+    "ours_lib_b": 1359631593,
+    "lav_b": 1094590167
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "e57557aa194a23b09054c853d6f2de40878cdcff7ce99cea2a6abb748c06cc0d",
+   "source_sha256": "7926a7aaff4da0c300f837dec82f18ffdbc54ae1b0034b511bccdf82f55c9530",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 284910601,
+    "lav_a": 302139773,
+    "ours_cli_a": 75506488,
+    "ffmpeg_cli_a": 295196073,
+    "ours_cli_b": 56564740,
+    "ffmpeg_cli_b": 294204589,
+    "ours_lib_b": 238723360,
+    "lav_b": 227725781
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "e4f9147eefcbe8e6716fa25216b74d6e54a47ca5c08514b5e30d46627cbd3ea5",
+   "source_sha256": "7cd31d8f5d0de2c5802cf5ac1f315b36b02899d45c5e646227995770c38f3da9",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 16814194,
+    "lav_a": 14802802,
+    "ours_cli_a": 14072600,
+    "ffmpeg_cli_a": 18671830,
+    "ours_cli_b": 17993105,
+    "ffmpeg_cli_b": 17948091,
+    "ours_lib_b": 19959249,
+    "lav_b": 15591682
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "ff0220ec816f61debbe9704acaac4d9f01445bd6a116c415f46f6ac78e670831",
+   "source_sha256": "81e789596aec9d68022c1db27d4574ca7b04aa3249c46040f3b259d17555ec35",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 15098779907,
+    "lav_a": 16176238744,
+    "ours_cli_a": 4295158365,
+    "ffmpeg_cli_a": 15550829056,
+    "ours_cli_b": 2546183454,
+    "ffmpeg_cli_b": 16013189168,
+    "ours_lib_b": 12280570261,
+    "lav_b": 11987725636
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "fc116871bb4063bdcdc6f558e103193f58bc060ad393581bf2ce3c132279f5f5",
+   "source_sha256": "83387741d3e35e04019d2709af8d19b6aa533feda52c150e4c64ba2db516d619",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 232629663,
+    "lav_a": 213792173,
+    "ours_cli_a": 86236951,
+    "ffmpeg_cli_a": 247510718,
+    "ours_cli_b": 40356292,
+    "ffmpeg_cli_b": 246902212,
+    "ours_lib_b": 170823606,
+    "lav_b": 172312742
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "dee24daf2323c45ee0da1045e86b95331a069e7568f9ff7dd785913eb184d068",
+   "source_sha256": "84a2f79c8ccb2375ca0761aafe78e57d10f46bac764b7e03e42f844b49786b58",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 38080270,
+    "lav_a": 35815809,
+    "ours_cli_a": 20899965,
+    "ffmpeg_cli_a": 38581304,
+    "ours_cli_b": 28037559,
+    "ffmpeg_cli_b": 38371154,
+    "ours_lib_b": 44352414,
+    "lav_b": 36362811
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "db2e1a5d09fd98c0ae0c97210c1370ba7bc785d3aacf873e02c89b98b54f112f",
+   "source_sha256": "866e4de22a74a0ae3e9fc5ca38694901e1faec74f5715fe436f7f7398ac883db",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 214083090,
+    "lav_a": 222128026,
+    "ours_cli_a": 74779972,
+    "ffmpeg_cli_a": 213017623,
+    "ours_cli_b": 165300791,
+    "ffmpeg_cli_b": 213358425,
+    "ours_lib_b": 287204978,
+    "lav_b": 235795230
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "1e61913ef60f8b4e535b234744195cd0bb064c99284e5c5a921d277bb09d6ec1",
+   "source_sha256": "895d1f32f29cd537feb3bea9f9d131c18def0bb8846536cb78dae42ef34d9376",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 479282,
+    "lav_a": 1017335,
+    "ours_cli_a": 2391443,
+    "ffmpeg_cli_a": 5946893,
+    "ours_cli_b": 2210940,
+    "ffmpeg_cli_b": 5050053,
+    "ours_lib_b": 425915,
+    "lav_b": 910468
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "b2c2761ebb43597bf31536687ad823bad940310618e28f412fe4702990c84347",
+   "source_sha256": "8b0ab38d0e21cb46b2b24713a12b4edb4d955cdaea3d2be44f9d2b9763dee45e",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 116479683,
+    "lav_a": 118155628,
+    "ours_cli_a": 38092355,
+    "ffmpeg_cli_a": 118339687,
+    "ours_cli_b": 24322929,
+    "ffmpeg_cli_b": 123819594,
+    "ours_lib_b": 90220477,
+    "lav_b": 87661619
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "83d939d27091250ed484c9da636186571c396b5c5981f9e7c21721334f24fc34",
+   "source_sha256": "8ca8950b8cb6373869e04799537e99cd34407727b466e7a8cc080f937a5ffd46",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 2658342929,
+    "lav_a": 2461385048,
+    "ours_cli_a": 997795566,
+    "ffmpeg_cli_a": 2846975515,
+    "ours_cli_b": 383077894,
+    "ffmpeg_cli_b": 2946614328,
+    "ours_lib_b": 1865025415,
+    "lav_b": 1975184122
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "1b354eabac3eb268160bda440b6b2f295373a142cdfe3b8aa5376fc28e49577f",
+   "source_sha256": "8e78cf093241689a340985dc353cda7964831bcfa5a9b54dbba3fac48f4cd88b",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 3245547678,
+    "lav_a": 2873916574,
+    "ours_cli_a": 1037326843,
+    "ffmpeg_cli_a": 3306166646,
+    "ours_cli_b": 483924799,
+    "ffmpeg_cli_b": 3427046810,
+    "ours_lib_b": 2524673124,
+    "lav_b": 2333112565
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "3cf5c5197b17dbf67b1593b4f54d2d0fc00c0b04badcd8859ecc9b902a287ed2",
+   "source_sha256": "90542f14946c5e4ddc191fd27e2914d3bac898cb948f54eb6d8d9e4b40fe8406",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 304283622,
+    "lav_a": 282014702,
+    "ours_cli_a": 145488952,
+    "ffmpeg_cli_a": 323222443,
+    "ours_cli_b": 48482723,
+    "ffmpeg_cli_b": 334769085,
+    "ours_lib_b": 190609337,
+    "lav_b": 218753589
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "20caf38bde68c8ad83a597b12bac11d586f7b14e241ae80f8a48a537a6ec2538",
+   "source_sha256": "908fabee5c49535f8bf42c8706adcfbd8a7d40afdee5aaaa68927a4647442a6c",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 50695941,
+    "lav_a": 47601203,
+    "ours_cli_a": 23398050,
+    "ffmpeg_cli_a": 55179190,
+    "ours_cli_b": 41125888,
+    "ffmpeg_cli_b": 48756235,
+    "ours_lib_b": 61725634,
+    "lav_b": 50990206
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "c0ccc4e0ac334bc455b62649e1b6465b30839099602ca851f72d1b44d5daed62",
+   "source_sha256": "93e504108e73414d0f9d9526e76027de1bea8cc6417b31421fd5d8e281bb7f46",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 19072121,
+    "lav_a": 17226687,
+    "ours_cli_a": 13527683,
+    "ffmpeg_cli_a": 28791510,
+    "ours_cli_b": 9696869,
+    "ffmpeg_cli_b": 23426851,
+    "ours_lib_b": 15124592,
+    "lav_b": 14534117
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "d8810902278580a5351215e1778ee5ba81e94df7ac3fc29fe76a7e840d5b8904",
+   "source_sha256": "969358700a919fa8cf4c2bf7b7c17b19b06a57ed23b1682bf4973921f6627305",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 939712655,
+    "lav_a": 941566927,
+    "ours_cli_a": 278587484,
+    "ffmpeg_cli_a": 959989857,
+    "ours_cli_b": 716657744,
+    "ffmpeg_cli_b": 919507644,
+    "ours_lib_b": 1259318603,
+    "lav_b": 1003039830
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "fb0420d232d7ea59695c3afc01fca6d91e88c278b3a8ca1c1c6b9bef972e2481",
+   "source_sha256": "97bdf1aaa8ffe010cc4eaebe4be4137e6b2cf887cf1b9fc72c3a997746d4c5c7",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 1216258296,
+    "lav_a": 1247750647,
+    "ours_cli_a": 302472927,
+    "ffmpeg_cli_a": 1201788140,
+    "ours_cli_b": 870386777,
+    "ffmpeg_cli_b": 1206811318,
+    "ours_lib_b": 1513063084,
+    "lav_b": 1286744469
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "d3ca8e950c883f7b40fb581a6b85946f4d14856c12bc7ae868a8dcb543d75336",
+   "source_sha256": "98506324b6878eb5386964b1c3500dcbae28ac39832790509506f9b362d0c66c",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 9240562,
+    "lav_a": 8118581,
+    "ours_cli_a": 15217601,
+    "ffmpeg_cli_a": 12966884,
+    "ours_cli_b": 9922695,
+    "ffmpeg_cli_b": 13921915,
+    "ours_lib_b": 6902653,
+    "lav_b": 8350616
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "c7cb1d45465e45276018b0d1778f6c855c57219b7362d9126010cabc5e747174",
+   "source_sha256": "9aa1b4bcbaad3a907b29fa7395adedb4fbe1b3a84cf8a5aa29b9c4ee16b668e4",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 805000840,
+    "lav_a": 822731668,
+    "ours_cli_a": 220093740,
+    "ffmpeg_cli_a": 818206777,
+    "ours_cli_b": 146332914,
+    "ffmpeg_cli_b": 840009354,
+    "ours_lib_b": 684808622,
+    "lav_b": 619638440
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "9670ff0503df80a13f1306ff87333bb6d326c2b45fbcd308f1666b44389a1ff0",
+   "source_sha256": "9b0aa1e5ff4ed1fd5cae240d06be7c875e72183dfcfc3f5c6538da91131bc7ad",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 6164788,
+    "lav_a": 6849335,
+    "ours_cli_a": 8691742,
+    "ffmpeg_cli_a": 10655670,
+    "ours_cli_b": 7213941,
+    "ffmpeg_cli_b": 10298411,
+    "ours_lib_b": 5014587,
+    "lav_b": 6812920
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "26215c6e44d4616d2ba3fefbca1b299258d8da0aae5f71f93968dead04b911b0",
+   "source_sha256": "9b563fa56055580f3be2d5c7e623a882416b7b1ae0d35160a73754bc44e1a62e",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 13235826,
+    "lav_a": 9511782,
+    "ours_cli_a": 14624033,
+    "ffmpeg_cli_a": 16675596,
+    "ours_cli_b": 14272215,
+    "ffmpeg_cli_b": 14656449,
+    "ours_lib_b": 12441106,
+    "lav_b": 9537399
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "b658ee0f97fe09b959f2795030e6247443458468565d285dbb838bf0d5795bc4",
+   "source_sha256": "9e3a1adccdc35594a518a0566aac638da929aa7651f473786e6ea44cd9687813",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 46286388,
+    "lav_a": 50729614,
+    "ours_cli_a": 18953901,
+    "ffmpeg_cli_a": 53833868,
+    "ours_cli_b": 13899819,
+    "ffmpeg_cli_b": 53240505,
+    "ours_lib_b": 38529078,
+    "lav_b": 39681602
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "087a85553ef12a316dad796cf59d75793d1550be541539a28816e733d7ca17a1",
+   "source_sha256": "9f2345f06e9a15dccf9065804222aa40a5123e9d802dcf101a16d1f83947e9ef",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 219240821,
+    "lav_a": 256717481,
+    "ours_cli_a": 74467303,
+    "ffmpeg_cli_a": 244869917,
+    "ours_cli_b": 44458856,
+    "ffmpeg_cli_b": 238411289,
+    "ours_lib_b": 165413670,
+    "lav_b": 162499818
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "2b2537c8d38a6bb321d050d41711ec11dd753a5b9508955c579608841856d848",
+   "source_sha256": "9fdf98a0a10041a10cc51116484b4fd6569f0c32bd6a9880c0d67093fc56a039",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 56936096,
+    "lav_a": 63463786,
+    "ours_cli_a": 33989689,
+    "ffmpeg_cli_a": 83893010,
+    "ours_cli_b": 68991608,
+    "ffmpeg_cli_b": 70448992,
+    "ours_lib_b": 82872976,
+    "lav_b": 66822671
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "ac60267becb43d4bbab018089ff32597f762f6685f13562d0bd14d888b162c29",
+   "source_sha256": "a2de9dcb5ffc819546e4335d09c631750f5857f57a081550278c94bdcd640f6b",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 24446203,
+    "lav_a": 19636045,
+    "ours_cli_a": 18914438,
+    "ffmpeg_cli_a": 27557890,
+    "ours_cli_b": 20773370,
+    "ffmpeg_cli_b": 29669110,
+    "ours_lib_b": 26380203,
+    "lav_b": 20423639
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "9e998f308e03b62b3ac2ebdad74a2881b647d0924204724bad5672cb5375e303",
+   "source_sha256": "a5541be6e6547ae4b1d0a1242204d0c5c01d92af278f85d6d03fda961476a37e",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 1249867108,
+    "lav_a": 1131155565,
+    "ours_cli_a": 598363280,
+    "ffmpeg_cli_a": 1376016068,
+    "ours_cli_b": 765314283,
+    "ffmpeg_cli_b": 1283310324,
+    "ours_lib_b": 1400861654,
+    "lav_b": 1205279159
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "ff60a84bd507d3def4bbc3a510ec23d5d53227b4634d0d091109022f2cc430d6",
+   "source_sha256": "a62d52f00d9c67a777ae55837cfb24603e4134ce1c7b5aafb4fc9cc5bcd16a53",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 183944974,
+    "lav_a": 201478920,
+    "ours_cli_a": 51478970,
+    "ffmpeg_cli_a": 201087622,
+    "ours_cli_b": 37888402,
+    "ffmpeg_cli_b": 195345074,
+    "ours_lib_b": 154075727,
+    "lav_b": 155851430
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "7f92279b927504d9d567a2b5ab1fb32f3b4279fec97f92e8ed4f455fb31f10da",
+   "source_sha256": "a7ab6bbab3cf768a5ab77a7dc200ee51c0e2ae3606c30bb7f5ce64ad42c5a0eb",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 247193180,
+    "lav_a": 247894536,
+    "ours_cli_a": 70261697,
+    "ffmpeg_cli_a": 247601719,
+    "ours_cli_b": 44689031,
+    "ffmpeg_cli_b": 257090359,
+    "ours_lib_b": 207347594,
+    "lav_b": 189595874
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "44454731c1f4a09792a7d1275ba19f1013d10c3887ad436c70fc56217b83ff30",
+   "source_sha256": "a971810bc4aec58adf0f54cbe468972fb212599505633608a094cbe057957b92",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 16049676,
+    "lav_a": 17907150,
+    "ours_cli_a": 10472541,
+    "ffmpeg_cli_a": 21868449,
+    "ours_cli_b": 8956714,
+    "ffmpeg_cli_b": 21318226,
+    "ours_lib_b": 13055883,
+    "lav_b": 13361993
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "a5011ee4c990b429a576da71b5857a6449a85428ada0273373528dbfff6f14fd",
+   "source_sha256": "aabda8a6583c15b3d8c240cd8894719ee7ac247d7647faeb4b217a181bae00ef",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 24588473,
+    "lav_a": 26269777,
+    "ours_cli_a": 15668418,
+    "ffmpeg_cli_a": 29386050,
+    "ours_cli_b": 9521825,
+    "ffmpeg_cli_b": 29228102,
+    "ours_lib_b": 20531044,
+    "lav_b": 19581824
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "e37fab8382525cfdfda86212711e23110eca42eb40b22352e7e322692ca5a6cd",
+   "source_sha256": "abcbb2a796b80f530278657be6e9ba42764501a0b27478dfa5d3ad6796650afb",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 249923324,
+    "lav_a": 252971108,
+    "ours_cli_a": 74755563,
+    "ffmpeg_cli_a": 252881479,
+    "ours_cli_b": 170873850,
+    "ffmpeg_cli_b": 246346163,
+    "ours_lib_b": 327465761,
+    "lav_b": 267552414
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "c8c56647eff27d0b2e9670e6a3040901ea01b678085364bf42c44d5b84b43225",
+   "source_sha256": "ac8a6c36c02fa83e0a188bf237d364dfd18a0dc7a77abd1bf6443638401827ec",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 1134835390,
+    "lav_a": 1154829440,
+    "ours_cli_a": 255962078,
+    "ffmpeg_cli_a": 1143771866,
+    "ours_cli_b": 193433389,
+    "ffmpeg_cli_b": 1124046513,
+    "ours_lib_b": 953469335,
+    "lav_b": 903675916
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "06ad1d1bd5a67a78124195db4445e7d371caa6b9b2a2d0737816b79014e75c32",
+   "source_sha256": "b0824cdd66688e33e436be8b5fb86630184ee548b3425984c9525971d83b655b",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 14410214,
+    "lav_a": 11897293,
+    "ours_cli_a": 13222297,
+    "ffmpeg_cli_a": 15352502,
+    "ours_cli_b": 15447912,
+    "ffmpeg_cli_b": 14636749,
+    "ours_lib_b": 15324281,
+    "lav_b": 11982606
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "fc89c947e7391481500a4c3cd29a003913bedaf8bf3c90de997be9c010ec0bec",
+   "source_sha256": "b1275e3ef93975a9eafce34d6d27e674ac2308ad37054b9f1a6f5d34b51e0b72",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 22520192,
+    "lav_a": 19072334,
+    "ours_cli_a": 16158700,
+    "ffmpeg_cli_a": 22367160,
+    "ours_cli_b": 19687085,
+    "ffmpeg_cli_b": 22605103,
+    "ours_lib_b": 25480845,
+    "lav_b": 23008915
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "ce978877fb38b31be86452ff69cfb1c0b619a3002ef403ad596a52b40c71388b",
+   "source_sha256": "b29244962bcd74d7a5c43f35b35bc0e72b3ef1a8fc0fe427491407e258cd7f7e",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 12047700067,
+    "lav_a": 12529910273,
+    "ours_cli_a": 3255242962,
+    "ffmpeg_cli_a": 12067209088,
+    "ours_cli_b": 2167453468,
+    "ffmpeg_cli_b": 12321480317,
+    "ours_lib_b": 9910610862,
+    "lav_b": 9461277119
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "d1042307e14165425c4293ce33f2da5de057f0288da8f9681ac1fa53dfb2ec98",
+   "source_sha256": "b37f01c830aef3a3a757f7f30ea90238791420992985ae5575b3baa9a21a49c4",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 12808014,
+    "lav_a": 13619000,
+    "ours_cli_a": 13135296,
+    "ffmpeg_cli_a": 15664856,
+    "ours_cli_b": 17207448,
+    "ffmpeg_cli_b": 15464117,
+    "ours_lib_b": 16351017,
+    "lav_b": 13784067
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "c35a41eab973e872561e63cbc37037645c98ec2ace6071a8c088cef732c1b04c",
+   "source_sha256": "b442e93b16680895c289134a85644afdb6119d322c53d068e164d5cf26bf7441",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 213040925,
+    "lav_a": 216716315,
+    "ours_cli_a": 69696473,
+    "ffmpeg_cli_a": 207820276,
+    "ours_cli_b": 169496222,
+    "ffmpeg_cli_b": 209777199,
+    "ours_lib_b": 287396394,
+    "lav_b": 228435180
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "051f826ad0d78a789b55236e7d89e0d6fd62038be8fb91eac5d41d74c15b8ecb",
+   "source_sha256": "b7d3b1abff64fbbaa5c709b4b8d4136de246cf1a27ae7f17a2118573b812040c",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 8219935415,
+    "lav_a": 8661949341,
+    "ours_cli_a": 2240157597,
+    "ffmpeg_cli_a": 8302506100,
+    "ours_cli_b": 1348239631,
+    "ffmpeg_cli_b": 8376869286,
+    "ours_lib_b": 6706103543,
+    "lav_b": 6359332606
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "1ea419ef2c357d7525a81ba16278edd508813deefe4db3b2a44c4b4d90524448",
+   "source_sha256": "bc51e7c035b8a1717dd5341f3302ec446ac6c60ee8f05762bc7877e03cf2296d",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 1805428021,
+    "lav_a": 1871529669,
+    "ours_cli_a": 559120609,
+    "ffmpeg_cli_a": 1795774717,
+    "ours_cli_b": 1277772880,
+    "ffmpeg_cli_b": 1778265504,
+    "ours_lib_b": 2324668506,
+    "lav_b": 1946695816
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "4d94d9462449ed252630d79a52dcb9e264b5ee8ab14657488022b7d4a4e31d5e",
+   "source_sha256": "bdb1dd5313526e4f3b2e7420b154a61ec63c191cfcd5e7465306b2cfd20b6cfd",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 14420737,
+    "lav_a": 14146097,
+    "ours_cli_a": 13112220,
+    "ffmpeg_cli_a": 25025881,
+    "ours_cli_b": 7342846,
+    "ffmpeg_cli_b": 21293652,
+    "ours_lib_b": 8152779,
+    "lav_b": 9826946
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "a723330eb86637e18a9e229c1aae1406f442b6003547daf497e1f4ce3c8604c1",
+   "source_sha256": "becff2c3b6a2f228c65d8286a54143b22973e70cc54c75a0d18664a75a71269f",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 18174066,
+    "lav_a": 17156761,
+    "ours_cli_a": 14460769,
+    "ffmpeg_cli_a": 20100396,
+    "ours_cli_b": 20847257,
+    "ffmpeg_cli_b": 19818491,
+    "ours_lib_b": 21067440,
+    "lav_b": 17355486
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "6c80bb365d02122f714a8283503b1c23afc693d300d6670656b14dc631d4e40d",
+   "source_sha256": "c0df51f72fa4cc4bda7302ccfd7e0226a0afa153afd68a5d4bb7cf456845abf9",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 5572492724,
+    "lav_a": 4979108140,
+    "ours_cli_a": 2196480128,
+    "ffmpeg_cli_a": 6519443427,
+    "ours_cli_b": 4708962916,
+    "ffmpeg_cli_b": 6448329666,
+    "ours_lib_b": 7768147021,
+    "lav_b": 6167002516
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "a764430bac6da4cc3ab62bdbe0977a33d88096cb65be55398817f212c2233d3c",
+   "source_sha256": "c1caf8c2bf8e8c688a80e806081f8cd2892066783647fbda751baee3f3c8a4b4",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 83798474,
+    "lav_a": 81777257,
+    "ours_cli_a": 30827445,
+    "ffmpeg_cli_a": 80805887,
+    "ours_cli_b": 65644376,
+    "ffmpeg_cli_b": 80967450,
+    "ours_lib_b": 107399424,
+    "lav_b": 87504627
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "0bdd30b3ecbdb26c9cc9923fbbb98703f22984b1c019f23fe6c64f3cffbf46eb",
+   "source_sha256": "c247e4d5148b30b0c747b931d7a68c24c68ecab1d7510ad9d32697e1e6deb79a",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 2330311859,
+    "lav_a": 2505575464,
+    "ours_cli_a": 717240918,
+    "ffmpeg_cli_a": 2364319751,
+    "ours_cli_b": 410717143,
+    "ffmpeg_cli_b": 2423852867,
+    "ours_lib_b": 1853728486,
+    "lav_b": 1843301483
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "20a395fa9e7fd3f0287639cef001fa260f69480090d1d83e89f74e1094893013",
+   "source_sha256": "c74ef5f510995346493f510dfe43c6da632a5de3f5cb02faf6b957481f9e47cb",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 46543485,
+    "lav_a": 38154577,
+    "ours_cli_a": 26709648,
+    "ffmpeg_cli_a": 45179204,
+    "ours_cli_b": 33052047,
+    "ffmpeg_cli_b": 47096564,
+    "ours_lib_b": 50596882,
+    "lav_b": 40051389
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "66dcaecb4795dd5a7ddedac53a5503564ca33997407ebdb58e5fc55b76253fd4",
+   "source_sha256": "c911b52b35abcbb50d31d4d5bdbfba963211d9a63164cb0671bbe848c492840d",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 6569534,
+    "lav_a": 7767802,
+    "ours_cli_a": 10405499,
+    "ffmpeg_cli_a": 10934091,
+    "ours_cli_b": 7075682,
+    "ffmpeg_cli_b": 10741238,
+    "ours_lib_b": 5951734,
+    "lav_b": 6335407
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "0a3d4f0b7acc74c7f8864d2644b13eb37af646a53a75614ae411504df545f9bc",
+   "source_sha256": "cf502122eb675521dcb54ba5b248c49c94d68c3a646899a6ef4a8f3456806b97",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 1149623402,
+    "lav_a": 994878290,
+    "ours_cli_a": 344425657,
+    "ffmpeg_cli_a": 1152407377,
+    "ours_cli_b": 171373235,
+    "ffmpeg_cli_b": 1103388046,
+    "ours_lib_b": 850962697,
+    "lav_b": 840176320
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "a1399d9f96157e987fbc9b82b01de0b1331841dff0ac6acb9dbf3bc614f8b6f5",
+   "source_sha256": "d11690704e8ef0ad46de80f2c46f34acdf014764e563282686ec6877ac9dc1e5",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 272930010,
+    "lav_a": 278754868,
+    "ours_cli_a": 86842320,
+    "ffmpeg_cli_a": 276551114,
+    "ours_cli_b": 46768326,
+    "ffmpeg_cli_b": 257506065,
+    "ours_lib_b": 227201407,
+    "lav_b": 199268194
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "2056676c7c73cea73978c10272ce5c65f7a3f6cc44e41585c150df383f15a575",
+   "source_sha256": "d23faf074b43a124fadf67cf050e2235b2e7cf3f4cfa31bc2510280b9bb5e70d",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 1437799409,
+    "lav_a": 1357141544,
+    "ours_cli_a": 510807175,
+    "ffmpeg_cli_a": 1553146045,
+    "ours_cli_b": 199088435,
+    "ffmpeg_cli_b": 1602683787,
+    "ours_lib_b": 1003728667,
+    "lav_b": 1038244918
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "88a6bb34a77efaef93c3393aab03adf83bd35c1264ecae05aa5be17352ccfed9",
+   "source_sha256": "d2f6b897a29e04a0cd356472d486bbd44e25c5c5b21537931128d0998501ed65",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 23369765,
+    "lav_a": 19293305,
+    "ours_cli_a": 17309689,
+    "ffmpeg_cli_a": 27629449,
+    "ours_cli_b": 19455327,
+    "ffmpeg_cli_b": 24623440,
+    "ours_lib_b": 22556750,
+    "lav_b": 19794981
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "d2c2cc82ea13d88a60bef409086c14ab68d3cc178a6178b34f34be24d94f2af2",
+   "source_sha256": "d4847adafd87d6874325e2bdc79f75a3fc502e5654423e6c1d93205b1f0f2405",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 76071058,
+    "lav_a": 65303499,
+    "ours_cli_a": 39607673,
+    "ffmpeg_cli_a": 77019653,
+    "ours_cli_b": 45929212,
+    "ffmpeg_cli_b": 75711371,
+    "ours_lib_b": 89451741,
+    "lav_b": 66214648
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "3e1eafe7a32ec367cd054a5b526c45a63e83219da5f81e4cc5c9dfbae11ce015",
+   "source_sha256": "d521daed36cf51ffad3b06ec61546c90ffbcf2d06385ebab5e86051620813bca",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 182935077,
+    "lav_a": 198730418,
+    "ours_cli_a": 91235263,
+    "ffmpeg_cli_a": 197563759,
+    "ours_cli_b": 196053428,
+    "ffmpeg_cli_b": 198591420,
+    "ours_lib_b": 259786004,
+    "lav_b": 213221373
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "5a4f271bb59a693e0e1d1696be9094625d53f806eb4489d08869aaacf2600d42",
+   "source_sha256": "d7b1baf55586d52e6024acc5c0d872d8f6860014e6883ff5e59c842b0cefece7",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 233309156,
+    "lav_a": 241670266,
+    "ours_cli_a": 81275142,
+    "ffmpeg_cli_a": 232758385,
+    "ours_cli_b": 178454338,
+    "ffmpeg_cli_b": 238117282,
+    "ours_lib_b": 315277547,
+    "lav_b": 256528415
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "39063fa38f1d95f8b47cfe9c214385156a75b670b81ad035b75f9b96acdf043f",
+   "source_sha256": "d94f05a6ef4b1bda712196e32ed1f75edd624bc63f1802f4e9585287f9d80020",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 3805674913,
+    "lav_a": 3913843116,
+    "ours_cli_a": 1043018983,
+    "ffmpeg_cli_a": 3828965403,
+    "ours_cli_b": 2365229461,
+    "ffmpeg_cli_b": 3924772763,
+    "ours_lib_b": 4833303128,
+    "lav_b": 4050149112
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "32371c123d8c4c16aa614e2b318614a486f3a8e63b245e62af8728d06f2cbef5",
+   "source_sha256": "daac04573e8dc65abe37b1a94e2b999356b7ae442bfbd60ed0228083144a6ee5",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 19914123,
+    "lav_a": 16996471,
+    "ours_cli_a": 12273173,
+    "ffmpeg_cli_a": 26685809,
+    "ours_cli_b": 9479125,
+    "ffmpeg_cli_b": 22856887,
+    "ours_lib_b": 11452453,
+    "lav_b": 14700447
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "ac3eab12ee8ff3ef3132085f90f7e5074bb7babf45290b3b246b8347a09d8822",
+   "source_sha256": "dbb255ee38715fc79b3f3e7e09d74e4cbacce8a9c5e6d61a7e8aa78025b7a43b",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 1950334549,
+    "lav_a": 2022084092,
+    "ours_cli_a": 557897898,
+    "ffmpeg_cli_a": 1946847408,
+    "ours_cli_b": 352887821,
+    "ffmpeg_cli_b": 1954726844,
+    "ours_lib_b": 1574434923,
+    "lav_b": 1524019927
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "ee993c5eb5b2d4b53ae87d2902d9cc77608eb9a3e271cb8aef5ed05ac77c4925",
+   "source_sha256": "dcd0ad61d7fec436c4464a20dde9a7550976f775911bfb8791fd10c20ab51510",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 8750544,
+    "lav_a": 10652981,
+    "ours_cli_a": 13241873,
+    "ffmpeg_cli_a": 17164190,
+    "ours_cli_b": 8889747,
+    "ffmpeg_cli_b": 15495674,
+    "ours_lib_b": 6861015,
+    "lav_b": 7225766
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "9a6ace631d9c8d8873e34f14f86583d44c8f1f70ad856ff76e9e29882b48f478",
+   "source_sha256": "de99d72ce9ee8bbf07655259cbacd4759ac1c3e2a0d37c8a1e70cd9667e96168",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 8888778,
+    "lav_a": 5942172,
+    "ours_cli_a": 11930449,
+    "ffmpeg_cli_a": 12467965,
+    "ours_cli_b": 12217401,
+    "ffmpeg_cli_b": 11154171,
+    "ours_lib_b": 8874649,
+    "lav_b": 6061274
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "8ac37aa841729a3392ed3bc0f1dd5bc5710afe382427291b4ded398877787abb",
+   "source_sha256": "e0aa339e6a3965d4bea2f12816d7c43a2daa75e3a27a9f8f018573cb056af48b",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 102749236,
+    "lav_a": 129299418,
+    "ours_cli_a": 54193438,
+    "ffmpeg_cli_a": 130070787,
+    "ours_cli_b": 23248904,
+    "ffmpeg_cli_b": 137097264,
+    "ours_lib_b": 79854754,
+    "lav_b": 79236376
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "14b83bfdacd3f50d26590f58fe3f369a6700f7570fda8bcefc94dab06b168af8",
+   "source_sha256": "e2df4d50895465d76fcf8e61805a4bb0707bcd3dc48dea2b95e878632f6e6cc8",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 19254231,
+    "lav_a": 16409090,
+    "ours_cli_a": 14500484,
+    "ffmpeg_cli_a": 19325968,
+    "ours_cli_b": 18492120,
+    "ffmpeg_cli_b": 18882395,
+    "ours_lib_b": 21159281,
+    "lav_b": 16618498
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "b1a265ea80548fdf0c7188ec55b7e072514396d85371b514da56cb5d51f3ee45",
+   "source_sha256": "e8b7f635109e71cca3dd1601760b74a897635781dc87ebb3f8690ba332b2d213",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 383874873,
+    "lav_a": 362412376,
+    "ours_cli_a": 83020870,
+    "ffmpeg_cli_a": 389332334,
+    "ours_cli_b": 69872889,
+    "ffmpeg_cli_b": 366638732,
+    "ours_lib_b": 305393464,
+    "lav_b": 281710178
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "7be315ea68ccf1188a87ea47c23edc8a7eab460beb037ad60a548d59c34012cc",
+   "source_sha256": "ea684713a5bed3eb044a1251da92d412f1b85044385bc7eb766db5b0e07c4ded",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 62181514,
+    "lav_a": 77614933,
+    "ours_cli_a": 34389984,
+    "ffmpeg_cli_a": 89906882,
+    "ours_cli_b": 15763183,
+    "ffmpeg_cli_b": 74275504,
+    "ours_lib_b": 40341475,
+    "lav_b": 44751535
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "b0e37c0b5c92966ef3b73b31284322eea1288973747c4b635acf949b2600e6e3",
+   "source_sha256": "eaa08a095caadea2062b534a8fe638824ee6eea840adaa1b7ebabaa0480e1def",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 20533180,
+    "lav_a": 12621478,
+    "ours_cli_a": 19814944,
+    "ffmpeg_cli_a": 20802107,
+    "ours_cli_b": 16643602,
+    "ffmpeg_cli_b": 20948523,
+    "ours_lib_b": 14453284,
+    "lav_b": 11972477
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "855ebc8fafa2ec1c4cdb39ebc38bf8d7644cfd4724f942f68709204cf4bc030a",
+   "source_sha256": "ef382b9eb4e44b8a12c465d01df39b57ddbeb00c2ac37ba430ae44e865ec2ebe",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 158423752,
+    "lav_a": 126082393,
+    "ours_cli_a": 57111605,
+    "ffmpeg_cli_a": 149113212,
+    "ours_cli_b": 24328804,
+    "ffmpeg_cli_b": 174805795,
+    "ours_lib_b": 121763378,
+    "lav_b": 113020406
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "2d34bc519b0043af9f7c49f3cfc8376e30218f1bcb4620862d58ee12fdfbb449",
+   "source_sha256": "f0efce40f5b20794c1f3dd7577b01e0c7550b566249aafb0d40e2d500bbf08d3",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 5386006747,
+    "lav_a": 5328371876,
+    "ours_cli_a": 1609171197,
+    "ffmpeg_cli_a": 5184152118,
+    "ours_cli_b": 3660673540,
+    "ffmpeg_cli_b": 5217701872,
+    "ours_lib_b": 6965695700,
+    "lav_b": 5635561397
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "4ceca53fb7eee96f1357fc92dadd14a0d3bd552ebf2d7af8bd05e8c299ddc4bb",
+   "source_sha256": "f24f4b8e812f8e6873a2df155df88c6c76f44c28297d7af27aadd7704c048fc8",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 8181920,
+    "lav_a": 5206842,
+    "ours_cli_a": 10155961,
+    "ffmpeg_cli_a": 8519073,
+    "ours_cli_b": 10485843,
+    "ffmpeg_cli_b": 8777158,
+    "ours_lib_b": 6963017,
+    "lav_b": 5438178
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "b5cf78ee3ac117e7a74ae568afb3a1a4376d07639fe6de1d3dc7bf5e4aab1e7c",
+   "source_sha256": "f3c239b09506ae046e283abc801f5f717e95dd820232e88b3d5486a81f5ea6cb",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 125827847,
+    "lav_a": 137136059,
+    "ours_cli_a": 65990762,
+    "ffmpeg_cli_a": 136187798,
+    "ours_cli_b": 139639529,
+    "ffmpeg_cli_b": 151473385,
+    "ours_lib_b": 176563252,
+    "lav_b": 147473026
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "1f43f83ce8af4b2fd3f9f82a20e326fa9fe6dfa15f8f0a54192d47527cc64ac1",
+   "source_sha256": "f6090f5e17798fa429d04786677fb3aa2df3b3920ad366e0e77232dfe300e0bc",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 19353505,
+    "lav_a": 17287768,
+    "ours_cli_a": 14139279,
+    "ffmpeg_cli_a": 20596940,
+    "ours_cli_b": 17579935,
+    "ffmpeg_cli_b": 21211637,
+    "ours_lib_b": 21658123,
+    "lav_b": 18044418
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "60c46c3bd96295ab7b2a5ef584e6ecbd18385a13eb1c1820d2f7ae293dc97d17",
+   "source_sha256": "f7d552f63061a429667314937f6c285feec39cc66f37f4c24bc2c0615bb455a3",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 9353482,
+    "lav_a": 10407659,
+    "ours_cli_a": 8681085,
+    "ffmpeg_cli_a": 13664710,
+    "ours_cli_b": 7063355,
+    "ffmpeg_cli_b": 13228948,
+    "ours_lib_b": 7728060,
+    "lav_b": 8436156
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "ac6b4ed7f7c13f2bcddd0a15d74ac2255d3c777aa60d7cd83465b5e5a9163e0a",
+   "source_sha256": "fb932c60f5ef172fcb98e9981a03c8f6badb6e373bea16d1a7531c9fd5a5cc63",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 1449316953,
+    "lav_a": 1554581542,
+    "ours_cli_a": 364038655,
+    "ffmpeg_cli_a": 1550316226,
+    "ours_cli_b": 235851395,
+    "ffmpeg_cli_b": 1503387172,
+    "ours_lib_b": 1168905061,
+    "lav_b": 1188351640
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "8183a9dd6115f5dc5eb87e49fb28f879f179eafaeb19879ba76f31a81e28a384",
+   "source_sha256": "fd75b7347b85696a1350e1d42d3a663bf7065d5447ada13ffb9041c33abda312",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 1094714283,
+    "lav_a": 1185577352,
+    "ours_cli_a": 345440970,
+    "ffmpeg_cli_a": 1126860969,
+    "ours_cli_b": 742160326,
+    "ffmpeg_cli_b": 1136043434,
+    "ours_lib_b": 1421897146,
+    "lav_b": 1227856601
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "597b8637d38457de09380086d9a62f6e67ae8400d244e625a89251214b6e18bb",
+   "source_sha256": "fe12ba075c4883fdf5d8eadcea335e6df4a8e84626652176de17bf7ac829fce9",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 23815780,
+    "lav_a": 26537141,
+    "ours_cli_a": 13432308,
+    "ffmpeg_cli_a": 29429162,
+    "ours_cli_b": 9903036,
+    "ffmpeg_cli_b": 29192658,
+    "ours_lib_b": 19405579,
+    "lav_b": 19661056
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "381400cdb38ab05b7af563d412bfe50beb6371cd1cee60f074bd144fc22da5e0",
+   "source_sha256": "fe5c7d1d29040d4a0a3d5f00815efdfd5a8d726bd8273685c442fd796489c3f4",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 5904703491,
+    "lav_a": 5692184166,
+    "ours_cli_a": 2370282369,
+    "ffmpeg_cli_a": 6138878325,
+    "ours_cli_b": 843337747,
+    "ffmpeg_cli_b": 6513016753,
+    "ours_lib_b": 3823399751,
+    "lav_b": 4055587680
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "7aeee9e03e73dc2c6e4e9857fd04a3990cc3a28b5e61316a3a812c9b20ba1aa6",
+   "source_sha256": "ff7fac2c85681198183ae1ea4058a02463690359e570811c65bc2e5be58785de",
+   "class": "mp4",
+   "holdout": true,
+   "ns": {
+    "ours_lib_a": 224620393,
+    "lav_a": 233245807,
+    "ours_cli_a": 75101750,
+    "ffmpeg_cli_a": 242133843,
+    "ours_cli_b": 48256979,
+    "ffmpeg_cli_b": 284769309,
+    "ours_lib_b": 295085235,
+    "lav_b": 179671789
+   },
+   "failed": {}
+  }
+ ]
+}

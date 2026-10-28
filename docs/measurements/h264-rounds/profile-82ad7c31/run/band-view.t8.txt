@@ -1,0 +1,145 @@
+Band views at eight threads (hot.py on res/t8, prof-82ad7c31): per class, the share of CoreAV's cycles (its own
+binary's samples) in reference_band, in v3::predict_fast, and in the eight instructions of predict_fast that load
+back the Option<Planes> reference_band returned (0x526a3 to 0x526e2: four 32-byte loads, four 32-byte stores).
+  sd: reference_band 0.0364, predict_fast 0.0641, of which the load-back 36% = 0.0231
+  720p: reference_band 0.0230, predict_fast 0.0470, of which the load-back 37.5% = 0.0176
+  1080p: reference_band 0.0164, predict_fast 0.0356, of which the load-back 38.2% = 0.0136
+  4k: reference_band 0.0282, predict_fast 0.0551, of which the load-back 36.8% = 0.0203
+
+predict_fast around the call, sd (share of predict_fast's cycles at each instruction):
+  0.0 52672:	lea    0x158(%rsp),%rdi
+  0.1 5267a:	mov    %rbx,%rsi
+  0.0 5267d:	mov    %r12,%r9
+  0.1 52680:	mov    %r10,%r14
+  0.0 52683:	push   %r10
+  0.6 52685:	mov    %r8,%rbp
+  0.1 52688:	mov    %rdx,%r15
+  0.4 5268b:	call   7cca0 <_RNvMs3_NtCskLcDA6UEY5Q_11coreav_h2645interINtNtB7_2mb12SliceDecoderNtCsj
+  0.0 52690:	add    $0x10,%rsp
+  0.0 52694:	cmpq   $0x0,0x150(%rsp)
+  0.9 5269d:	je     52874 <_RINvNtNtCskLcDA6UEY5Q_11coreav_h2644fast2v312predict_fastNtCsjoMqNx0sKND
+  0.6 526a3:	vmovups 0x150(%rsp),%ymm0
+ 33.3 526ac:	vmovups 0x170(%rsp),%ymm1
+  0.1 526b5:	vmovups 0x190(%rsp),%ymm2
+  0.1 526be:	vmovups 0x1a8(%rsp),%ymm3
+  0.1 526c7:	vmovups %ymm3,0x558(%rsp)
+  1.0 526d0:	vmovups %ymm2,0x540(%rsp)
+  0.2 526d9:	vmovups %ymm1,0x520(%rsp)
+  0.6 526e2:	vmovups %ymm0,0x500(%rsp)
+  0.2 526eb:	lea    0x500(%rsp),%rax
+  0.2 526f3:	mov    %rax,0x8(%rsp)
+  0.0 526f8:	mov    0x78(%rsp),%r15d
+  0.0 526fd:	mov    %rbp,%r8
+
+reference_band, sd (share of its cycles at each instruction), its first 110 instructions:
+== <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reference_band 0x7cca0 1504 bytes 1.0
+  2.0 7cca0:	push   %rbp
+  0.0 7cca1:	push   %r15
+  0.0 7cca3:	push   %r14
+  0.0 7cca5:	push   %r13
+  0.1 7cca7:	push   %r12
+  0.0 7cca9:	push   %rbx
+  0.0 7ccaa:	sub    $0x148,%rsp
+  0.0 7ccb1:	mov    0xa18(%rsi),%rax
+  2.0 7ccb8:	lea    (%rdx,%rdx,2),%r10
+  0.0 7ccbc:	cmp    0x10(%rax,%r10,8),%rcx
+  0.0 7ccc1:	jae    7cffb <_RNvMs3_NtCskLcDA6UEY5Q_11coreav_h2645interINtNtB7_2mb12SliceDecoderNtCsj
+  0.0 7ccc7:	mov    0x180(%rsp),%r11d
+  0.1 7cccf:	lea    (%rax,%r10,8),%rax
+  0.0 7ccd3:	sar    $0x12,%r11d
+  0.0 7ccd7:	movslq %r11d,%r10
+  0.2 7ccda:	add    %r10,%r8
+  0.3 7ccdd:	add    $0x2,%r9
+  1.8 7cce1:	lea    (%r8,%r9,1),%r10
+  0.3 7cce5:	sar    $0x3f,%r10
+  0.2 7cce9:	movabs $0x8000000000000000,%r11
+  0.0 7ccf3:	xor    %r10,%r11
+  0.1 7ccf6:	add    %r8,%r9
+  0.0 7ccf9:	cmovo  %r11,%r9
+  0.2 7ccfd:	mov    0x8(%rax),%rax
+  0.2 7cd01:	mov    %rcx,%r8
+  4.1 7cd04:	shl    $0x4,%r8
+  0.0 7cd08:	mov    (%rax,%r8,1),%r12
+  1.0 7cd0c:	mov    0x28(%r12),%r11
+ 12.5 7cd11:	mov    0x30(%r12),%r10
+  2.7 7cd16:	mov    %r11,%rbx
+  0.0 7cd19:	shl    $0x4,%rbx
+  1.4 7cd1d:	xor    %eax,%eax
+  0.0 7cd1f:	sub    $0x1,%rbx
+  2.5 7cd23:	cmovb  %rax,%rbx
+  0.0 7cd27:	cmp    %r9,%rbx
+  1.1 7cd2a:	cmovge %r9,%rbx
+  1.1 7cd2e:	test   %rbx,%rbx
+  1.1 7cd31:	cmovle %rax,%rbx
+  2.5 7cd35:	add    $0x3,%rbx
+  0.4 7cd39:	shr    $0x4,%rbx
+  3.0 7cd3d:	mov    %r11,%r8
+  0.4 7cd40:	sub    $0x1,%r8
+  0.0 7cd44:	cmovb  %rax,%r8
+  0.1 7cd48:	cmp    %r8,%rbx
+  0.7 7cd4b:	cmovb  %rbx,%r8
+  0.6 7cd4f:	cmp    %r11,%r10
+  0.0 7cd52:	jae    7cda5 <_RNvMs3_NtCskLcDA6UEY5Q_11coreav_h2645interINtNtB7_2mb12SliceDecoderNtCsj
+  0.0 7cd54:	lea    -0x1(%r10),%rax
+  0.1 7cd58:	mov    %r10,%r9
+  0.8 7cd5b:	xor    %rax,%r9
+  0.4 7cd5e:	cmp    %rax,%r9
+  0.0 7cd61:	jbe    7cd78 <_RNvMs3_NtCskLcDA6UEY5Q_11coreav_h2645interINtNtB7_2mb12SliceDecoderNtCsj
+  0.0 7cd63:	tzcnt  %r10,%rax
+  0.1 7cd68:	mov    %rcx,%r9
+  0.6 7cd6b:	mov    %eax,%ecx
+  0.6 7cd6d:	shr    %cl,%r8
+  0.7 7cd70:	mov    %r9,%rcx
+  0.5 7cd73:	mov    %r8,%rax
+  0.2 7cd76:	jmp    7cda5 <_RNvMs3_NtCskLcDA6UEY5Q_11coreav_h2645interINtNtB7_2mb12SliceDecoderNtCsj
+  0.0 7cd78:	test   %r10,%r10
+  0.0 7cd7b:	je     7d26d <_RNvMs3_NtCskLcDA6UEY5Q_11coreav_h2645interINtNtB7_2mb12SliceDecoderNtCsj
+  0.0 7cd81:	mov    %rdx,%r9
+  0.0 7cd84:	mov    %r8,%rax
+  0.0 7cd87:	or     %r10,%rax
+  0.0 7cd8a:	shr    $0x20,%rax
+  0.0 7cd8e:	je     7cd9a <_RNvMs3_NtCskLcDA6UEY5Q_11coreav_h2645interINtNtB7_2mb12SliceDecoderNtCsj
+  0.0 7cd90:	mov    %r8,%rax
+  0.0 7cd93:	xor    %edx,%edx
+  0.0 7cd95:	div    %r10
+  0.0 7cd98:	jmp    7cda2 <_RNvMs3_NtCskLcDA6UEY5Q_11coreav_h2645interINtNtB7_2mb12SliceDecoderNtCsj
+  0.0 7cd9a:	mov    %r8d,%eax
+  0.0 7cd9d:	xor    %edx,%edx
+  0.0 7cd9f:	div    %r10d
+  0.0 7cda2:	mov    %r9,%rdx
+  0.0 7cda5:	mov    %eax,%r8d
+  0.1 7cda8:	and    $0x3,%r8d
+  0.2 7cdac:	lea    0x0(,%rcx,4),%r9d
+  0.3 7cdb4:	and    $0xc,%r9d
+  0.3 7cdb8:	imul   $0x880,%rdx,%rdx
+  0.3 7cdbf:	add    %rsi,%rdx
+  0.6 7cdc2:	mov    %r9d,%r10d
+  0.2 7cdc5:	shl    $0x7,%r9d
+  0.0 7cdc9:	lea    (%r9,%r10,8),%r9d
+  0.0 7cdcd:	add    %rdx,%r9
+  0.4 7cdd0:	mov    %r8d,%edx
+  0.7 7cdd3:	shl    $0x7,%r8d
+  0.9 7cdd7:	lea    (%r8,%rdx,8),%edx
+  0.8 7cddb:	lea    (%rdx,%r9,1),%r13
+  2.5 7cddf:	add    $0x28c0,%r13
+  1.5 7cde6:	cmpq   $0x0,0x28c0(%rdx,%r9,1)
+  6.2 7cdef:	je     7ce4b <_RNvMs3_NtCskLcDA6UEY5Q_11coreav_h2645interINtNtB7_2mb12SliceDecoderNtCsj
+  1.7 7cdf1:	cmp    %rcx,0x78(%r13)
+  0.0 7cdf5:	jne    7ce4b <_RNvMs3_NtCskLcDA6UEY5Q_11coreav_h2645interINtNtB7_2mb12SliceDecoderNtCsj
+  2.9 7cdf7:	cmp    %rax,0x80(%r13)
+  0.0 7cdfe:	jne    7ce4b <_RNvMs3_NtCskLcDA6UEY5Q_11coreav_h2645interINtNtB7_2mb12SliceDecoderNtCsj
+  1.7 7ce00:	mov    0x70(%r13),%rax
+  0.1 7ce04:	mov    %rax,0x70(%rdi)
+  0.3 7ce08:	movups 0x60(%r13),%xmm0
+  1.3 7ce0d:	movups %xmm0,0x60(%rdi)
+  2.1 7ce11:	movups 0x50(%r13),%xmm0
+  1.1 7ce16:	movups %xmm0,0x50(%rdi)
+  1.7 7ce1a:	movups 0x40(%r13),%xmm0
+  0.4 7ce1f:	movups %xmm0,0x40(%rdi)
+  0.5 7ce23:	movups 0x0(%r13),%xmm0
+  0.0 7ce28:	movups 0x10(%r13),%xmm1
+  0.1 7ce2d:	movups 0x20(%r13),%xmm2
+  0.1 7ce32:	movups 0x30(%r13),%xmm3
+  0.5 7ce37:	movups %xmm3,0x30(%rdi)
+  0.4 7ce3b:	movups %xmm2,0x20(%rdi)
+  0.9 7ce3f:	movups %xmm1,0x10(%rdi)

@@ -1,0 +1,14 @@
+# callgrind --branch-sim=yes, examples/decode --discard --frames F, one thread; whole-program Ir
+# main = b66e452f, A = b96e94ce, C = 3d8d6b96, each built with the dist profile and line tables
+6da34958296c 60 main=5273816680 a=4691513464 c=4656168653
+3b1b441e23ae 30 main=2083784341 a=1933836705 c=1896578621
+41e324ebb708 300 main=2442217636 a=2346784776 c=2322657576
+9db41aa16b5a 150 main=3456219120 a=3442189782 c=3421445908
+# luma entry points of 6da34958296c, inclusive (M): Auto::luma_mc + Auto::luma_mc_avg
+main 822.7
+c 205.0
+# main, 6da34958296c, 60 pictures: per-function self counts (M) of the luma kernel's functions; Bim = simulated indirect mispredicts
+    269.714 self   778.375 incl  Bc  40.21 Bcm  0.67 Bim  0.00  coreav_kernels_h264::simd::x86::luma_mc_into
+     89.310 self   508.661 incl  Bc  14.39 Bcm  0.32 Bim  0.14  coreav_kernels_h264::simd::x86::luma_mc_filtered
+    245.980 self   419.351 incl  Bc  17.74 Bcm  0.61 Bim  0.29  coreav_kernels_h264::simd::x86::tap_rows
+    173.371 self   173.371 incl  Bc  14.98 Bcm  0.12 Bim  0.00  coreav_kernels_h264::simd::x86::horizontal

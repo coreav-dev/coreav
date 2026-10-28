@@ -1,0 +1,4302 @@
+{
+ "summary": {
+  "tolerance": {
+   "rms": 1.7619331945484187e-05,
+   "max": 0.0001220703125
+  },
+  "inputs": 127,
+  "counted": 91,
+  "passed": 89,
+  "failed": [
+   {
+    "sha256": "1ca4660f36ee9c5890c544a2f99a8db223611e1e00dc9e71b737a93d898b75cf",
+    "set": "corpus",
+    "class": "matroska",
+    "status": "ok",
+    "coreav_error": null,
+    "f32": {
+     "rms": 0.02559239061614263,
+     "max": 0.2540202736854553,
+     "samples": [
+      443520,
+      443520
+     ],
+     "common": 443520
+    },
+    "length_ok": true,
+    "codec_delay": 0
+   },
+   {
+    "sha256": "a32b277afbddc28122debcde4cdca670c9b48210c2b1a6f2e51137d0cdaef942",
+    "set": "corpus",
+    "class": "mp4",
+    "status": "ok",
+    "coreav_error": null,
+    "f32": {
+     "rms": 0.23716670459204167,
+     "max": 1.0135686993598938,
+     "samples": [
+      1073664,
+      1061232
+     ],
+     "common": 1061232
+    },
+    "length_ok": false,
+    "codec_delay": 0
+   }
+  ],
+  "listed_apart": [
+   {
+    "sha256": "002c552fa1ec09004027909c9127ed5c843072b55a851ef0e6502f926f4ebc8f",
+    "set": "corpus",
+    "class": "mp4",
+    "status": "coreav failed",
+    "listed_apart": "refused by a recorded choice: the demuxer fails before the first packet",
+    "ffmpeg_errors": null,
+    "coreav_error": "{\"kind\":\"truncated_structure\",\"limit\":null,\"message\":\"truncated structure at offset 84225\",\"offset\":84225,\"schema\":\"coreav.error/1\"}\n",
+    "f32": null
+   },
+   {
+    "sha256": "08f915fd741af11d948fb13a2fe194279b52e9ed50f272dd05f121249647ece0",
+    "set": "corpus",
+    "class": "mp4",
+    "status": "coreav failed",
+    "listed_apart": "refused by a recorded choice",
+    "ffmpeg_errors": null,
+    "coreav_error": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"codec mp2 is not decoded\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+    "f32": null
+   },
+   {
+    "sha256": "12b1fa52187317ffc547fa7ce12ea982a3bff4c55dd2ab0bf187ed209263c6f2",
+    "set": "corpus",
+    "class": "mp4",
+    "status": "coreav failed",
+    "listed_apart": "ffmpeg decoding errors",
+    "ffmpeg_errors": "float @ 0x1da25cc0] Header missing\n[aist#0:0/mp3 @ 0x1da1b7c0] [dec:mp3float @ 0x1da25180] Decoding error: Invalid data found when processing input\n[mp3float @ 0x1da25cc0] Header missing\n[aist#0:0/mp3 @ 0x1da1b7c0] [dec:mp3float @ 0x1da25180] Decoding error: Invalid data found when processing input\n",
+    "coreav_error": "{\"kind\":\"limit\",\"limit\":\"max_decode_errors\",\"message\":\"limit exceeded: max_decode_errors\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+    "f32": null
+   },
+   {
+    "sha256": "12c7631d6ac1986a5ef62314cf32fefdf3754063ad0b73c4d84d197c9ad172af",
+    "set": "corpus",
+    "class": "matroska",
+    "status": "coreav failed",
+    "listed_apart": "ffmpeg decoding errors",
+    "ffmpeg_errors": "ich no syntax for parsing is available.\n[matroska,webm @ 0xa4bbdc0] Found unknown-length element with ID 0xFF at pos. 0x2db64f for which no syntax for parsing is available.\n    Last message repeated 1 times\n[matroska,webm @ 0xa4bbdc0] 0x00 at pos 2375 (0x947) invalid as first byte of an EBML number\n",
+    "coreav_error": "{\"kind\":\"invalid_structure\",\"limit\":null,\"message\":\"invalid element 0x48B2 at offset 2373: data size longer than EBMLMaxSizeLength\",\"offset\":2373,\"schema\":\"coreav.error/1\"}\n",
+    "f32": null
+   },
+   {
+    "sha256": "1ba8b65269f0d4271e5597140916450582a47e2e4e674293c744569d114bd02a",
+    "set": "corpus",
+    "class": "mp4",
+    "status": "coreav failed",
+    "listed_apart": "refused by a recorded choice",
+    "ffmpeg_errors": null,
+    "coreav_error": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"codec ms\\\\x00U is not decoded\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+    "f32": null
+   },
+   {
+    "sha256": "20f999117c752d89cb85be445536ebe654b7d0688e85cd8fb67fb208cda52ed1",
+    "set": "corpus",
+    "class": "mp4",
+    "status": "coreav failed",
+    "listed_apart": "ffmpeg decoding errors",
+    "ffmpeg_errors": "[f32le @ 0x1fdd67c0] Application provided invalid, non monotonically increasing dts to muxer in stream 0: 182427 >= 182427\n[mov,mp4,m4a,3gp,3g2,mj2 @ 0x1fcb6dc0] stream 1, offset 0x51851c: partial file\n",
+    "coreav_error": "{\"kind\":\"truncated_structure\",\"limit\":null,\"message\":\"truncated structure at offset 396488\",\"offset\":396488,\"schema\":\"coreav.error/1\"}\n",
+    "f32": null
+   },
+   {
+    "sha256": "2312b5f5da9150db2b8755b03e7255074b51b233addcc6f98dea6c718908ebf3",
+    "set": "corpus",
+    "class": "mp4",
+    "status": "coreav failed",
+    "listed_apart": "refused by a recorded choice",
+    "ffmpeg_errors": null,
+    "coreav_error": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"codec ms\\\\x00U is not decoded\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+    "f32": null
+   },
+   {
+    "sha256": "3337821085d95eca918043b6223a61a2048869a0ab56be555684b6630b73be21",
+    "set": "corpus",
+    "class": "mp4",
+    "status": "coreav failed",
+    "listed_apart": "refused by a recorded choice",
+    "ffmpeg_errors": null,
+    "coreav_error": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"codec mp2 is not decoded\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+    "f32": null
+   },
+   {
+    "sha256": "3c39c9bbec8202f75ec8fabb7eb97384cce5661314c2f6838d0fbaf362b733eb",
+    "set": "corpus",
+    "class": "matroska",
+    "status": "ok",
+    "listed_apart": "ffmpeg decoding errors",
+    "ffmpeg_errors": "[matroska,webm @ 0x4537adc0] File ended prematurely\n",
+    "coreav_error": null,
+    "f32": {
+     "rms": 4.384412663334806e-08,
+     "max": 6.128102540969849e-07,
+     "samples": [
+      2939904,
+      2939904
+     ],
+     "common": 2939904
+    }
+   },
+   {
+    "sha256": "4ba7271ae68d2ddfdc0718754ab2b724fc590bafac04b80ee5a32d1c43a1be58",
+    "set": "corpus",
+    "class": "mp4",
+    "status": "coreav failed",
+    "listed_apart": "refused by a recorded choice",
+    "ffmpeg_errors": null,
+    "coreav_error": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"codec ms\\\\x00U is not decoded\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+    "f32": null
+   },
+   {
+    "sha256": "566fdf6bb57923dad5c66fa30c18c0e5707b2aa53ca4ae35c0a8d3de329cb804",
+    "set": "corpus",
+    "class": "mp4",
+    "status": "coreav failed",
+    "listed_apart": "refused by a recorded choice",
+    "ffmpeg_errors": null,
+    "coreav_error": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"codec aac is not decoded\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+    "f32": null
+   },
+   {
+    "sha256": "5c9a2e12398c6c3a5b6eb67b3dc46c3f9b5582337440665d843f2a2628ab7054",
+    "set": "corpus",
+    "class": "mp4",
+    "status": "coreav failed",
+    "listed_apart": "ffmpeg decoding errors",
+    "ffmpeg_errors": "[mov,mp4,m4a,3gp,3g2,mj2 @ 0x26e66dc0] stream 2, offset 0x178dddc: partial file\n",
+    "coreav_error": "{\"kind\":\"truncated_structure\",\"limit\":null,\"message\":\"truncated structure at offset 91630\",\"offset\":91630,\"schema\":\"coreav.error/1\"}\n",
+    "f32": null
+   },
+   {
+    "sha256": "73ffe7a714e69c72fb2092301f5375437b0fa19636ce5de9b418714d2dfc3531",
+    "set": "corpus",
+    "class": "matroska",
+    "status": "ok",
+    "listed_apart": "ffmpeg decoding errors",
+    "ffmpeg_errors": "[matroska,webm @ 0x22370dc0] File ended prematurely\n",
+    "coreav_error": null,
+    "f32": {
+     "rms": 5.802411806372909e-08,
+     "max": 9.015202522277832e-07,
+     "samples": [
+      2075904,
+      2075904
+     ],
+     "common": 2075904
+    }
+   },
+   {
+    "sha256": "7a8db3e3bbb6a47f1fa46616f4ac0f8331c962526dd323f14cec57e44ff7843e",
+    "set": "corpus",
+    "class": "mp4",
+    "status": "coreav failed",
+    "listed_apart": "refused by a recorded choice: the demuxer fails before the first packet",
+    "ffmpeg_errors": null,
+    "coreav_error": "{\"kind\":\"truncated_structure\",\"limit\":null,\"message\":\"truncated structure at offset 80180\",\"offset\":80180,\"schema\":\"coreav.error/1\"}\n",
+    "f32": null
+   },
+   {
+    "sha256": "7c46fe923f0c29e67ec7ba17318ef3bd591be6e373fd796fce143f8c7a934787",
+    "set": "corpus",
+    "class": "mp4",
+    "status": "ok",
+    "listed_apart": "ffmpeg decoding errors",
+    "ffmpeg_errors": "[vp9 @ 0x3a60f440] [IMGUTILS @ 0x7ffd6d98b1f0] Picture size 0x0 is invalid\n[vp9 @ 0x3a60f440] [IMGUTILS @ 0x7ffd6d98b1d0] Picture size 0x0 is invalid\n",
+    "coreav_error": null,
+    "f32": {
+     "rms": 9.67962976069842e-08,
+     "max": 7.450580596923828e-07,
+     "samples": [
+      29999,
+      29999
+     ],
+     "common": 29999
+    }
+   },
+   {
+    "sha256": "972615f5c72913ae0a0a9108a2c615e1b35c727ddf6318fe3e7ed4dc0e2999ba",
+    "set": "corpus",
+    "class": "mp4",
+    "status": "coreav failed",
+    "listed_apart": "refused by a recorded choice",
+    "ffmpeg_errors": null,
+    "coreav_error": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"codec ms\\\\x00U is not decoded\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+    "f32": null
+   },
+   {
+    "sha256": "977c3a776ac3139b6a246d0e51e61c79fe766dfc8313172330a48b6b937e38cc",
+    "set": "corpus",
+    "class": "mp4",
+    "status": "coreav failed",
+    "listed_apart": "refused by a recorded choice: the demuxer fails before the first packet",
+    "ffmpeg_errors": null,
+    "coreav_error": "{\"kind\":\"truncated_structure\",\"limit\":null,\"message\":\"truncated structure at offset 21663161\",\"offset\":21663161,\"schema\":\"coreav.error/1\"}\n",
+    "f32": null
+   },
+   {
+    "sha256": "98e1edd6e9bc4f2f3d4e81fc727ce9e36707caacfe8ff61de0c2c51bd244354c",
+    "set": "corpus",
+    "class": "mp4",
+    "status": "coreav failed",
+    "listed_apart": "ffmpeg decoding errors",
+    "ffmpeg_errors": "[dec:mp3float @ 0x39ca5e40] Error submitting packet to decoder: Invalid data found when processing input\n[mov,mp4,m4a,3gp,3g2,mj2 @ 0x39c94dc0] stream 0, offset 0xebf: partial file\n[f32le @ 0x39c9ca80] Application provided invalid, non monotonically increasing dts to muxer in stream 0: 2304 >= 2304\n",
+    "coreav_error": "{\"kind\":\"truncated_structure\",\"limit\":null,\"message\":\"truncated structure at offset 633\",\"offset\":633,\"schema\":\"coreav.error/1\"}\n",
+    "f32": null
+   },
+   {
+    "sha256": "9a5ffd8cdc9b057d25f4230a0b1a902cad26f0b9784cff2301d28c037da211d2",
+    "set": "corpus",
+    "class": "mp4",
+    "status": "coreav failed",
+    "listed_apart": "refused by a recorded choice",
+    "ffmpeg_errors": null,
+    "coreav_error": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"codec ms\\\\x00U is not decoded\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+    "f32": null
+   },
+   {
+    "sha256": "a4032e62e56180db9a5641fbf3a0d5adc73027fbeffd9d4da0c44664d6ba3a9c",
+    "set": "corpus",
+    "class": "mp4",
+    "status": "coreav failed",
+    "listed_apart": "refused by a recorded choice: the demuxer fails before the first packet",
+    "ffmpeg_errors": null,
+    "coreav_error": "{\"kind\":\"truncated_structure\",\"limit\":null,\"message\":\"truncated structure at offset 345239\",\"offset\":345239,\"schema\":\"coreav.error/1\"}\n",
+    "f32": null
+   },
+   {
+    "sha256": "a49563821c4a271b9e148b900b477359c340df9fd3cb577d489d055c177f0115",
+    "set": "corpus",
+    "class": "mp4",
+    "status": "coreav failed",
+    "listed_apart": "refused by a recorded choice",
+    "ffmpeg_errors": null,
+    "coreav_error": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"codec ms\\\\x00U is not decoded\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+    "f32": null
+   },
+   {
+    "sha256": "bc206ddd9532af187a05dc58a507f17cd62a361642ebba6b2a5fdebf546842f0",
+    "set": "corpus",
+    "class": "mp4",
+    "status": "coreav failed",
+    "listed_apart": "refused by a recorded choice",
+    "ffmpeg_errors": null,
+    "coreav_error": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"codec mp2 is not decoded\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+    "f32": null
+   },
+   {
+    "sha256": "c164a9e26d158260b7be630595ce4470af67979db8a2ae537583fd48f747bfec",
+    "set": "corpus",
+    "class": "matroska",
+    "status": "coreav failed",
+    "listed_apart": "ffmpeg decoding errors",
+    "ffmpeg_errors": "rror submitting packet to decoder: Invalid data found when processing input\n[mp3float @ 0x108e2000] Header missing\n[aist#0:1/mp3 @ 0x108ddc00] [dec:mp3float @ 0x108cf800] Error submitting packet to decoder: Invalid data found when processing input\n[matroska,webm @ 0x10899dc0] File ended prematurely\n",
+    "coreav_error": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"codec A_MS/ACM is not decoded\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+    "f32": null
+   },
+   {
+    "sha256": "c1b1266024bcfce6e2dce0423cbcdd74fbecd8b9e1eed38d662861596acbd182",
+    "set": "corpus",
+    "class": "mp4",
+    "status": "coreav failed",
+    "listed_apart": "refused by a recorded choice",
+    "ffmpeg_errors": null,
+    "coreav_error": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"codec ms\\\\x00U is not decoded\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+    "f32": null
+   },
+   {
+    "sha256": "c33289a4d3f3e3c8f865b61ba0a25e34f0245ccc5c08576bce81ef177dd19711",
+    "set": "corpus",
+    "class": "mp4",
+    "status": "coreav failed",
+    "listed_apart": "refused by a recorded choice: the demuxer fails before the first packet",
+    "ffmpeg_errors": null,
+    "coreav_error": "{\"kind\":\"truncated_structure\",\"limit\":null,\"message\":\"truncated structure at offset 367476\",\"offset\":367476,\"schema\":\"coreav.error/1\"}\n",
+    "f32": null
+   },
+   {
+    "sha256": "c9fe18303fe45efd4fac7ea4efa1a3432a30ffd0e4867206027fd189b7c01b4f",
+    "set": "corpus",
+    "class": "mp4",
+    "status": "coreav failed",
+    "listed_apart": "refused by a recorded choice",
+    "ffmpeg_errors": null,
+    "coreav_error": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"codec ms\\\\x00U is not decoded\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+    "f32": null
+   },
+   {
+    "sha256": "cb2bf3c5163e33c9fd8faf24aa58df9802c5e69f965c06eff4b69a1b4d724f7f",
+    "set": "corpus",
+    "class": "mp4",
+    "status": "ok",
+    "listed_apart": "ffmpeg decoding errors",
+    "ffmpeg_errors": "[aist#0:1/mp3 @ 0xa71b5c0] [dec:mp3float @ 0xa813480] Error submitting packet to decoder: Invalid data found when processing input\n[mp3float @ 0xa7e3280] Header missing\n[aist#0:1/mp3 @ 0xa71b5c0] [dec:mp3float @ 0xa813480] Error submitting packet to decoder: Invalid data found when processing input\n",
+    "coreav_error": null,
+    "f32": {
+     "rms": 0.13510227219840545,
+     "max": 1.762340486049652,
+     "samples": [
+      438907486,
+      438863710
+     ],
+     "common": 438863710
+    }
+   },
+   {
+    "sha256": "cd5a177064bd1a1e1bbcfd8c720a2168325b836755e0dd24ee7a0c984ec73b2e",
+    "set": "corpus",
+    "class": "mp4",
+    "status": "coreav failed",
+    "listed_apart": "refused by a recorded choice",
+    "ffmpeg_errors": null,
+    "coreav_error": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"codec mp2 is not decoded\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+    "f32": null
+   },
+   {
+    "sha256": "d3039fe91e1e9e16c6ed358107595cf2319f97397bde2b9a721949c59d407dd7",
+    "set": "corpus",
+    "class": "matroska",
+    "status": "ok",
+    "listed_apart": "ffmpeg decoding errors",
+    "ffmpeg_errors": "[matroska,webm @ 0x32f21dc0] File ended prematurely\n",
+    "coreav_error": null,
+    "f32": {
+     "rms": 2.8035865186914893e-08,
+     "max": 5.513429641723633e-07,
+     "samples": [
+      861696,
+      861696
+     ],
+     "common": 861696
+    }
+   },
+   {
+    "sha256": "d3708a161c58b1cc280f6bd677acd7771883c040f1f946a44b98c6a5bbf41e36",
+    "set": "corpus",
+    "class": "matroska",
+    "status": "ok",
+    "listed_apart": "ffmpeg decoding errors",
+    "ffmpeg_errors": "[matroska,webm @ 0x31465dc0] File ended prematurely\n",
+    "coreav_error": null,
+    "f32": {
+     "rms": 5.810549742681858e-08,
+     "max": 9.015202522277832e-07,
+     "samples": [
+      2094336,
+      2094336
+     ],
+     "common": 2094336
+    }
+   },
+   {
+    "sha256": "e0d17d28496a908ce6b5ef54a3d0c4735c353839200972d0dab7904738ede035",
+    "set": "corpus",
+    "class": "mp4",
+    "status": "coreav failed",
+    "listed_apart": "refused by a recorded choice",
+    "ffmpeg_errors": null,
+    "coreav_error": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"codec ms\\\\x00U is not decoded\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+    "f32": null
+   },
+   {
+    "sha256": "eb40f153bb3e35cf5af2efe880297eaf866b3b149e180f9dd5dbaa30eefe2e25",
+    "set": "corpus",
+    "class": "mp4",
+    "status": "coreav failed",
+    "listed_apart": "refused by a recorded choice",
+    "ffmpeg_errors": null,
+    "coreav_error": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"codec ms\\\\x00U is not decoded\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+    "f32": null
+   },
+   {
+    "sha256": "efb46034651044fc10ed1bc0d7c5502c17c95fc0c8b989fe9dcfc5c596b464c4",
+    "set": "corpus",
+    "class": "mp4",
+    "status": "coreav failed",
+    "listed_apart": "refused by a recorded choice: the demuxer fails before the first packet",
+    "ffmpeg_errors": null,
+    "coreav_error": "{\"kind\":\"truncated_structure\",\"limit\":null,\"message\":\"truncated structure at offset 39980\",\"offset\":39980,\"schema\":\"coreav.error/1\"}\n",
+    "f32": null
+   },
+   {
+    "sha256": "f290e3eb4558a1562934a083cca713fa4b3bb7c985124bd9a17dc4d0bc0ce4d5",
+    "set": "corpus",
+    "class": "matroska",
+    "status": "coreav failed",
+    "listed_apart": "ffmpeg decoding errors",
+    "ffmpeg_errors": "t with ID 0xFF at pos. 0x7080 for which no syntax for parsing is available.\nTruncating packet of size 1208847 to 546847\n    Last message repeated 1 times\n[matroska,webm @ 0x2c07ddc0] 0x00 at pos 2375 (0x947) invalid as first byte of an EBML number\n[matroska,webm @ 0x2c07ddc0] File ended prematurely\n",
+    "coreav_error": "{\"kind\":\"invalid_structure\",\"limit\":null,\"message\":\"invalid element 0x48B2 at offset 2373: data size longer than EBMLMaxSizeLength\",\"offset\":2373,\"schema\":\"coreav.error/1\"}\n",
+    "f32": null
+   },
+   {
+    "sha256": "f70e229044d8804a79c85a0da44a89003165b39735e8e9506f8401cb07a0e29c",
+    "set": "corpus",
+    "class": "mp4",
+    "status": "coreav failed",
+    "listed_apart": "refused by a recorded choice",
+    "ffmpeg_errors": null,
+    "coreav_error": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"codec ms\\\\x00U is not decoded\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+    "f32": null
+   },
+   {
+    "sha256": "fd0f0a3eae4fc8b05e4cfa293a8f9846acd2a18c5fb732a765a30e64aea95a3a",
+    "set": "corpus",
+    "class": "mp4",
+    "status": "coreav failed",
+    "listed_apart": "refused by a recorded choice: the demuxer fails before the first packet",
+    "ffmpeg_errors": null,
+    "coreav_error": "{\"kind\":\"truncated_structure\",\"limit\":null,\"message\":\"truncated structure at offset 393372\",\"offset\":393372,\"schema\":\"coreav.error/1\"}\n",
+    "f32": null
+   }
+  ],
+  "by_set": {
+   "derived": 0,
+   "corpus": 91
+  },
+  "largest_rms": 0.23716670459204167,
+  "largest_max": 1.0135686993598938,
+  "s16_equal_share": 0.03296703296703297,
+  "s16_largest_steps": 33212.0
+ },
+ "results": [
+  {
+   "set": "corpus",
+   "sha256": "002c552fa1ec09004027909c9127ed5c843072b55a851ef0e6502f926f4ebc8f",
+   "source_sha256": "002c552fa1ec09004027909c9127ed5c843072b55a851ef0e6502f926f4ebc8f",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "002c552fa1ec09004027909c9127ed5c843072b55a851ef0e6502f926f4ebc8f.mov",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "status": "coreav failed",
+   "coreav_error": "{\"kind\":\"truncated_structure\",\"limit\":null,\"message\":\"truncated structure at offset 84225\",\"offset\":84225,\"schema\":\"coreav.error/1\"}\n",
+   "listed_apart": "refused by a recorded choice: the demuxer fails before the first packet"
+  },
+  {
+   "set": "corpus",
+   "sha256": "02611e523a01878a481495a5ba8732893ec63ca35312e5338470439fd57ad539",
+   "source_sha256": "02611e523a01878a481495a5ba8732893ec63ca35312e5338470439fd57ad539",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "02611e523a01878a481495a5ba8732893ec63ca35312e5338470439fd57ad539.f4v",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 1,
+   "warnings": [
+    "the file could not be read after 192 packets (truncated structure at offset 7976008); the output ends there"
+   ],
+   "f32": {
+    "rms": 1.7441662809711542e-07,
+    "max": 2.652406692504883e-06,
+    "samples": [
+     2313792,
+     2313792
+    ],
+    "common": 2313792
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     2313792,
+     2313792
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "25e7b087a26154802477966218d49012a694f3a62fcef3196554f4a6de3a6779",
+   "source_sha256": "0319a32a72b16ecbf57ef4818f81b308e0949e607e547fcb85a4066fe0005b4f",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "0319a32a72b16ecbf57ef4818f81b308e0949e607e547fcb85a4066fe0005b4f.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 1.029725089770271e-07,
+    "max": 2.3543834686279297e-06,
+    "samples": [
+     25522702,
+     25522702
+    ],
+    "common": 25522702
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     25522702,
+     25522702
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "03603d81843715cd68e6641109129462e570938b654db864d50da95acc243d0b",
+   "source_sha256": "03603d81843715cd68e6641109129462e570938b654db864d50da95acc243d0b",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "03603d81843715cd68e6641109129462e570938b654db864d50da95acc243d0b.mov",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 1,
+   "warnings": [],
+   "f32": {
+    "rms": 1.0608510039776383e-07,
+    "max": 1.3113021850585938e-06,
+    "samples": [
+     2996928,
+     2996928
+    ],
+    "common": 2996928
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     2996928,
+     2996928
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "cf5942ac6c6c419e8c946d1966174234db5cb17bd80f9831d68c8827531e3af0",
+   "source_sha256": "037fb5867d023783cdcf663d0e9afe972e8b0d9892b9fce9affe9f1c705b3022",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "037fb5867d023783cdcf663d0e9afe972e8b0d9892b9fce9affe9f1c705b3022.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 1.8699747573806602e-08,
+    "max": 4.5821070671081543e-07,
+    "samples": [
+     106219682,
+     106219682
+    ],
+    "common": 106219682
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     106219682,
+     106219682
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "c1373f95c1bee07b27c30c8dce295c185411b370e72ad81262724e1a8d4523c4",
+   "source_sha256": "04440f46c632a6805adeab8196384901ac88a80e287b2f253e5ddaa56fe75d3c",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": true,
+   "file": "04440f46c632a6805adeab8196384901ac88a80e287b2f253e5ddaa56fe75d3c.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 3.9376869505296833e-08,
+    "max": 1.0579824447631836e-06,
+    "samples": [
+     88024320,
+     88024320
+    ],
+    "common": 88024320
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     88024320,
+     88024320
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "30fda3b27da1b7c06fb0c44268442dc439ea5f718c93b12502a5b13f6fd69d20",
+   "source_sha256": "072c3a3ae29febd8017c4ea7a29ec58f14c967da0b9534053f344418eac5e874",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": true,
+   "file": "072c3a3ae29febd8017c4ea7a29ec58f14c967da0b9534053f344418eac5e874.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 3.322352187676158e-08,
+    "max": 1.043081283569336e-06,
+    "samples": [
+     75245592,
+     75245592
+    ],
+    "common": 75245592
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     75245592,
+     75245592
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "c714fa5903319db7602108b2c9de576f7a9dc9c06c41142ceb96decb237c4050",
+   "source_sha256": "079c857bb5dcc59826539011e819a3d1b12545f059a61dda1290d50787a4847a",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "079c857bb5dcc59826539011e819a3d1b12545f059a61dda1290d50787a4847a.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 1.1656035543698875e-07,
+    "max": 1.0207295417785645e-06,
+    "samples": [
+     304128,
+     304128
+    ],
+    "common": 304128
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     304128,
+     304128
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "c95be83d363268743081608d098a32543016c51842666df6d7fdea3286091614",
+   "source_sha256": "07b0377fa61845dcf696a3e4f2d57e30b8614d21b42fee3a96210af6ad54ab77",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "07b0377fa61845dcf696a3e4f2d57e30b8614d21b42fee3a96210af6ad54ab77.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 2.5079335292026513e-08,
+    "max": 6.109476089477539e-07,
+    "samples": [
+     51038258,
+     51038258
+    ],
+    "common": 51038258
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     51038258,
+     51038258
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "08f915fd741af11d948fb13a2fe194279b52e9ed50f272dd05f121249647ece0",
+   "source_sha256": "08f915fd741af11d948fb13a2fe194279b52e9ed50f272dd05f121249647ece0",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "08f915fd741af11d948fb13a2fe194279b52e9ed50f272dd05f121249647ece0.mp4",
+   "stream": 2,
+   "ffmpeg_errors": null,
+   "status": "coreav failed",
+   "coreav_error": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"codec mp2 is not decoded\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+   "listed_apart": "refused by a recorded choice"
+  },
+  {
+   "set": "corpus",
+   "sha256": "b6256f76e8aae6b917b67554bfca9f9af3f7e9c0d736812fb9017a5353e63ce0",
+   "source_sha256": "0da77a33f44a62fadb14369a782f0b9b52eecc89a897e27c57750d392d510921",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": true,
+   "file": "0da77a33f44a62fadb14369a782f0b9b52eecc89a897e27c57750d392d510921.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 8.801841466490648e-08,
+    "max": 2.652406692504883e-06,
+    "samples": [
+     46374912,
+     46374912
+    ],
+    "common": 46374912
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     46374912,
+     46374912
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "12b1fa52187317ffc547fa7ce12ea982a3bff4c55dd2ab0bf187ed209263c6f2",
+   "source_sha256": "12b1fa52187317ffc547fa7ce12ea982a3bff4c55dd2ab0bf187ed209263c6f2",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "12b1fa52187317ffc547fa7ce12ea982a3bff4c55dd2ab0bf187ed209263c6f2.mp4",
+   "stream": 0,
+   "ffmpeg_errors": "float @ 0x1da25cc0] Header missing\n[aist#0:0/mp3 @ 0x1da1b7c0] [dec:mp3float @ 0x1da25180] Decoding error: Invalid data found when processing input\n[mp3float @ 0x1da25cc0] Header missing\n[aist#0:0/mp3 @ 0x1da1b7c0] [dec:mp3float @ 0x1da25180] Decoding error: Invalid data found when processing input\n",
+   "status": "coreav failed",
+   "coreav_error": "{\"kind\":\"limit\",\"limit\":\"max_decode_errors\",\"message\":\"limit exceeded: max_decode_errors\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+   "listed_apart": "ffmpeg decoding errors"
+  },
+  {
+   "set": "corpus",
+   "sha256": "12c7631d6ac1986a5ef62314cf32fefdf3754063ad0b73c4d84d197c9ad172af",
+   "source_sha256": "12c7631d6ac1986a5ef62314cf32fefdf3754063ad0b73c4d84d197c9ad172af",
+   "class": "matroska",
+   "remuxed": false,
+   "holdout": false,
+   "file": "12c7631d6ac1986a5ef62314cf32fefdf3754063ad0b73c4d84d197c9ad172af.mkv",
+   "stream": 1,
+   "ffmpeg_errors": "ich no syntax for parsing is available.\n[matroska,webm @ 0xa4bbdc0] Found unknown-length element with ID 0xFF at pos. 0x2db64f for which no syntax for parsing is available.\n    Last message repeated 1 times\n[matroska,webm @ 0xa4bbdc0] 0x00 at pos 2375 (0x947) invalid as first byte of an EBML number\n",
+   "status": "coreav failed",
+   "coreav_error": "{\"kind\":\"invalid_structure\",\"limit\":null,\"message\":\"invalid element 0x48B2 at offset 2373: data size longer than EBMLMaxSizeLength\",\"offset\":2373,\"schema\":\"coreav.error/1\"}\n",
+   "listed_apart": "ffmpeg decoding errors"
+  },
+  {
+   "set": "corpus",
+   "sha256": "1ba8b65269f0d4271e5597140916450582a47e2e4e674293c744569d114bd02a",
+   "source_sha256": "1ba8b65269f0d4271e5597140916450582a47e2e4e674293c744569d114bd02a",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "1ba8b65269f0d4271e5597140916450582a47e2e4e674293c744569d114bd02a.mov",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "status": "coreav failed",
+   "coreav_error": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"codec ms\\\\x00U is not decoded\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+   "listed_apart": "refused by a recorded choice"
+  },
+  {
+   "set": "corpus",
+   "sha256": "c73dc7b420c4e988f15521d8c11a434598c3a1492b8df006bdc23b036720131a",
+   "source_sha256": "1f955b206891989c1c5bd44320461f8c5348651e1c1035bb83332ffc72a3f662",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "1f955b206891989c1c5bd44320461f8c5348651e1c1035bb83332ffc72a3f662.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 1.8544427675953902e-08,
+    "max": 3.5762786865234375e-07,
+    "samples": [
+     2323788,
+     2323788
+    ],
+    "common": 2323788
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     2323788,
+     2323788
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "20f999117c752d89cb85be445536ebe654b7d0688e85cd8fb67fb208cda52ed1",
+   "source_sha256": "20f999117c752d89cb85be445536ebe654b7d0688e85cd8fb67fb208cda52ed1",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "20f999117c752d89cb85be445536ebe654b7d0688e85cd8fb67fb208cda52ed1.mov",
+   "stream": 1,
+   "ffmpeg_errors": "[f32le @ 0x1fdd67c0] Application provided invalid, non monotonically increasing dts to muxer in stream 0: 182427 >= 182427\n[mov,mp4,m4a,3gp,3g2,mj2 @ 0x1fcb6dc0] stream 1, offset 0x51851c: partial file\n",
+   "status": "coreav failed",
+   "coreav_error": "{\"kind\":\"truncated_structure\",\"limit\":null,\"message\":\"truncated structure at offset 396488\",\"offset\":396488,\"schema\":\"coreav.error/1\"}\n",
+   "listed_apart": "ffmpeg decoding errors"
+  },
+  {
+   "set": "corpus",
+   "sha256": "7823acc235cbef05e1ee820e6c5999db29e8e78de366a18024cde14625f74fd7",
+   "source_sha256": "22188a2fd58665eb2603b0262923162467e1b8c36b77f2dfea318e4a8cf5e7da",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": true,
+   "file": "22188a2fd58665eb2603b0262923162467e1b8c36b77f2dfea318e4a8cf5e7da.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 1,
+   "warnings": [],
+   "f32": {
+    "rms": 4.9444170247553343e-08,
+    "max": 2.3245811462402344e-06,
+    "samples": [
+     14862865,
+     14862865
+    ],
+    "common": 14862865
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     14862865,
+     14862865
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "2312b5f5da9150db2b8755b03e7255074b51b233addcc6f98dea6c718908ebf3",
+   "source_sha256": "2312b5f5da9150db2b8755b03e7255074b51b233addcc6f98dea6c718908ebf3",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "2312b5f5da9150db2b8755b03e7255074b51b233addcc6f98dea6c718908ebf3.mov",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "status": "coreav failed",
+   "coreav_error": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"codec ms\\\\x00U is not decoded\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+   "listed_apart": "refused by a recorded choice"
+  },
+  {
+   "set": "corpus",
+   "sha256": "f52124706a3114fc9a0e553550343d37e945e76634b067a89470206224435c61",
+   "source_sha256": "266e0838ebc0bcf5b9a1943779edafeed20b153e18fca2e1672768ff1168f139",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "266e0838ebc0bcf5b9a1943779edafeed20b153e18fca2e1672768ff1168f139.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 1,
+   "warnings": [],
+   "f32": {
+    "rms": 5.018509336358464e-08,
+    "max": 1.475214958190918e-06,
+    "samples": [
+     36422784,
+     36422784
+    ],
+    "common": 36422784
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     36422784,
+     36422784
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "832e8b3161d68e48abed188e54eab00e6b07228b2f27c47d9023bfff8ba320bf",
+   "source_sha256": "2ad0c471e63a98d3707a88466d13f509931455cb3599008563107127a956a3ba",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "2ad0c471e63a98d3707a88466d13f509931455cb3599008563107127a956a3ba.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 8.267323830876527e-08,
+    "max": 3.1888484954833984e-06,
+    "samples": [
+     129308834,
+     129308834
+    ],
+    "common": 129308834
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     129308834,
+     129308834
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "1ca4660f36ee9c5890c544a2f99a8db223611e1e00dc9e71b737a93d898b75cf",
+   "source_sha256": "2af813c83540a963a3bc71a4dd83d22ac4a57671904533b03d725adaf4555497",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "2af813c83540a963a3bc71a4dd83d22ac4a57671904533b03d725adaf4555497.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 0.02559239061614263,
+    "max": 0.2540202736854553,
+    "samples": [
+     443520,
+     443520
+    ],
+    "common": 443520
+   },
+   "s16": {
+    "max_steps": 8324.0,
+    "equal": false,
+    "samples": [
+     443520,
+     443520
+    ]
+   },
+   "length_ok": true,
+   "within": false,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "2d9d54be93778e7089a41f0f27d7d22f2f3ad0a162f490241f0985eec84d9b34",
+   "source_sha256": "2d9d54be93778e7089a41f0f27d7d22f2f3ad0a162f490241f0985eec84d9b34",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "2d9d54be93778e7089a41f0f27d7d22f2f3ad0a162f490241f0985eec84d9b34.mp4",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 1.070483688270608e-07,
+    "max": 1.1026859283447266e-06,
+    "samples": [
+     1820160,
+     1820160
+    ],
+    "common": 1820160
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     1820160,
+     1820160
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "9483cc14d3a7b1bea9f3c78267eb13e7b92297dae0a9e5ff1f22bf8ca8a07bb0",
+   "source_sha256": "30c4bef3d21658634508e9d134672c21d3786d6056a82c507ba9dcfe18ba3c4a",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": true,
+   "file": "30c4bef3d21658634508e9d134672c21d3786d6056a82c507ba9dcfe18ba3c4a.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 1,
+   "warnings": [],
+   "f32": {
+    "rms": 7.210619121905703e-08,
+    "max": 1.6987323760986328e-06,
+    "samples": [
+     33538176,
+     33538176
+    ],
+    "common": 33538176
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     33538176,
+     33538176
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "3337821085d95eca918043b6223a61a2048869a0ab56be555684b6630b73be21",
+   "source_sha256": "3337821085d95eca918043b6223a61a2048869a0ab56be555684b6630b73be21",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "3337821085d95eca918043b6223a61a2048869a0ab56be555684b6630b73be21.mp4",
+   "stream": 2,
+   "ffmpeg_errors": null,
+   "status": "coreav failed",
+   "coreav_error": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"codec mp2 is not decoded\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+   "listed_apart": "refused by a recorded choice"
+  },
+  {
+   "set": "corpus",
+   "sha256": "868dc02e685879d370afb7576e4179a380c1933dee57f3899b4340708703dc21",
+   "source_sha256": "36a175d2a8f87548b1e0775786994f23bf246778d330b2b34dc01b0d4ca8c4d1",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": true,
+   "file": "36a175d2a8f87548b1e0775786994f23bf246778d330b2b34dc01b0d4ca8c4d1.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 7.526152043907503e-08,
+    "max": 2.682209014892578e-06,
+    "samples": [
+     51516656,
+     51516656
+    ],
+    "common": 51516656
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     51516656,
+     51516656
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "725096fc8aeead9d9c4b19e71efa051846a5843360d15ffc525571e07a88b774",
+   "source_sha256": "37dbfb611c958545850903ec87137c5e3fd4f17add9f83f79096727b57a06163",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": true,
+   "file": "37dbfb611c958545850903ec87137c5e3fd4f17add9f83f79096727b57a06163.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 6.923159456633098e-08,
+    "max": 1.9222497940063477e-06,
+    "samples": [
+     112806144,
+     112806144
+    ],
+    "common": 112806144
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     112806144,
+     112806144
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "5b057a4cbb4a9d489e510b4cca842c575b67ebe5ae321c798b395bd932e5edfa",
+   "source_sha256": "3920de2ee84f2cb1b794f567f1c0d3760495b22ca2feb35dd15111167725fb3a",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "3920de2ee84f2cb1b794f567f1c0d3760495b22ca2feb35dd15111167725fb3a.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 8.692908208474147e-08,
+    "max": 1.9073486328125e-06,
+    "samples": [
+     43559518,
+     43559518
+    ],
+    "common": 43559518
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     43559518,
+     43559518
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "cd14f8f87f86bc030b2d9c5ed0039404c4d48e3895d59f2d1b4b081c7d46abca",
+   "source_sha256": "395f243deb314226789eb6cde589d645cd2031fc2a35db0fcb90bfd8d1471031",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": true,
+   "file": "395f243deb314226789eb6cde589d645cd2031fc2a35db0fcb90bfd8d1471031.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 4.71073937986647e-08,
+    "max": 9.462237358093262e-07,
+    "samples": [
+     10801058,
+     10801058
+    ],
+    "common": 10801058
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     10801058,
+     10801058
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "3c39c9bbec8202f75ec8fabb7eb97384cce5661314c2f6838d0fbaf362b733eb",
+   "source_sha256": "3c39c9bbec8202f75ec8fabb7eb97384cce5661314c2f6838d0fbaf362b733eb",
+   "class": "matroska",
+   "remuxed": false,
+   "holdout": false,
+   "file": "3c39c9bbec8202f75ec8fabb7eb97384cce5661314c2f6838d0fbaf362b733eb.mkv",
+   "stream": 1,
+   "ffmpeg_errors": "[matroska,webm @ 0x4537adc0] File ended prematurely\n",
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [
+    "the file could not be read after 66 packets (truncated structure at offset 4193801); the output ends there"
+   ],
+   "f32": {
+    "rms": 4.384412663334806e-08,
+    "max": 6.128102540969849e-07,
+    "samples": [
+     2939904,
+     2939904
+    ],
+    "common": 2939904
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     2939904,
+     2939904
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": "ffmpeg decoding errors"
+  },
+  {
+   "set": "corpus",
+   "sha256": "753190dde097ae81515af954f99da91c002001d6cc1122fdafd932dd27fc417f",
+   "source_sha256": "3d6ef341cb6045e0a391090f5762c6cb8b0f93fd2a0b2b1168ef7eef0533b84b",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": true,
+   "file": "3d6ef341cb6045e0a391090f5762c6cb8b0f93fd2a0b2b1168ef7eef0533b84b.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 3.394146804896429e-08,
+    "max": 1.3336539268493652e-06,
+    "samples": [
+     28009728,
+     28009728
+    ],
+    "common": 28009728
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     28009728,
+     28009728
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "771af3868714e5c6a90ea4f46e1b59683acf7028f56bf947b966edf5348eb490",
+   "source_sha256": "3e66224a0dc627017bb0119c4acc6ff63393e9746718bebd847f93cf52d7c882",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "3e66224a0dc627017bb0119c4acc6ff63393e9746718bebd847f93cf52d7c882.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 3.4744843333851405e-09,
+    "max": 3.3352989703416824e-07,
+    "samples": [
+     1322496,
+     1322496
+    ],
+    "common": 1322496
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     1322496,
+     1322496
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "40ebadad29ba0a966210ffc0a1754067651934c4c55cb6d420d2fd92b017044e",
+   "source_sha256": "40ebadad29ba0a966210ffc0a1754067651934c4c55cb6d420d2fd92b017044e",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "40ebadad29ba0a966210ffc0a1754067651934c4c55cb6d420d2fd92b017044e.mp4",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 3.920129158546007e-08,
+    "max": 1.3783574104309082e-06,
+    "samples": [
+     64129536,
+     64129536
+    ],
+    "common": 64129536
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     64129536,
+     64129536
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "40f5f8ca0ee7e0b3a8083a39ee653ac19c967f2e5294fd0a7b4acca6f6e74f6a",
+   "source_sha256": "40f5f8ca0ee7e0b3a8083a39ee653ac19c967f2e5294fd0a7b4acca6f6e74f6a",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "40f5f8ca0ee7e0b3a8083a39ee653ac19c967f2e5294fd0a7b4acca6f6e74f6a.mov",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 1.5698593138781042e-07,
+    "max": 3.7550926208496094e-06,
+    "samples": [
+     5292288,
+     5292288
+    ],
+    "common": 5292288
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     5292288,
+     5292288
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "b4c6ff262e048e42d054b6c5fd03a505823218374e43b0b4187aba7c97b3b5c8",
+   "source_sha256": "41cb8f08b781718872bb979cb603482368b3ff227476a58ec4316e63c21ff2d0",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": true,
+   "file": "41cb8f08b781718872bb979cb603482368b3ff227476a58ec4316e63c21ff2d0.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 1,
+   "warnings": [],
+   "f32": {
+    "rms": 8.33236212924731e-08,
+    "max": 3.3974647521972656e-06,
+    "samples": [
+     125506513,
+     125506513
+    ],
+    "common": 125506513
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     125506513,
+     125506513
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "2b524482f653dbeeca59c7d25452972bd30ce198aa74a4759028ba332d159645",
+   "source_sha256": "42b61dd5ba1ea954d40ca668cb0618bd97cdbe6eae8469d4679e4f1b5fb1c059",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "42b61dd5ba1ea954d40ca668cb0618bd97cdbe6eae8469d4679e4f1b5fb1c059.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 0.0,
+    "max": 0.0,
+    "samples": [
+     89856,
+     89856
+    ],
+    "common": 89856
+   },
+   "s16": {
+    "max_steps": 0.0,
+    "equal": true,
+    "samples": [
+     89856,
+     89856
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "43c0fe9489c3791a3b8759816bc525ed3034347b6da1b91ab0b5b242a4d5ca03",
+   "source_sha256": "43c0fe9489c3791a3b8759816bc525ed3034347b6da1b91ab0b5b242a4d5ca03",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "43c0fe9489c3791a3b8759816bc525ed3034347b6da1b91ab0b5b242a4d5ca03.mov",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 1,
+   "warnings": [],
+   "f32": {
+    "rms": 5.004104440985778e-08,
+    "max": 1.9073486328125e-06,
+    "samples": [
+     8803584,
+     8803584
+    ],
+    "common": 8803584
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     8803584,
+     8803584
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "9fb2f67769ef9ab20970d0b26e57b78d015d50ab684a5619ecac2c5ecb6891cd",
+   "source_sha256": "44081f314674c737c9c9b8b60c30b21a9f32641951cc27c59cfc9a84d6e1a62c",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "44081f314674c737c9c9b8b60c30b21a9f32641951cc27c59cfc9a84d6e1a62c.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 4.084458303977127e-08,
+    "max": 6.854534149169922e-07,
+    "samples": [
+     2490624,
+     2490624
+    ],
+    "common": 2490624
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     2490624,
+     2490624
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "de0910002a4d7bc3f95a1bdb41f1c1bb5e35bc90187dc552956574c1f9a5692a",
+   "source_sha256": "441d1b594a15b0acdac531495e9c56906e3df5d4002fc651b5a0b763f679c70b",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "441d1b594a15b0acdac531495e9c56906e3df5d4002fc651b5a0b763f679c70b.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 1.830696506851858e-07,
+    "max": 2.205371856689453e-06,
+    "samples": [
+     18528768,
+     18528768
+    ],
+    "common": 18528768
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     18528768,
+     18528768
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "6cd67be023bf4d84c8f3c2fd8a6d3e9b2dd5e767076d549cfc106485ee7b12d8",
+   "source_sha256": "451b1800e1b7595ab063c5fac3d5224b3c7034abb32ab529ebf5c6df49a700d0",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "451b1800e1b7595ab063c5fac3d5224b3c7034abb32ab529ebf5c6df49a700d0.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 1,
+   "warnings": [],
+   "f32": {
+    "rms": 5.1735566143862096e-08,
+    "max": 1.4007091522216797e-06,
+    "samples": [
+     42835968,
+     42835968
+    ],
+    "common": 42835968
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     42835968,
+     42835968
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "6ca8166cf7674b3316fa70bed8c031622cc48cc40f579b4f97682c72f50000eb",
+   "source_sha256": "49b251d3bd5f3be3cfb77a9ad9c4b3965ce1397d2febe27cbf89e75a219ebd32",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "49b251d3bd5f3be3cfb77a9ad9c4b3965ce1397d2febe27cbf89e75a219ebd32.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 6.428152262270205e-08,
+    "max": 1.2889504432678223e-06,
+    "samples": [
+     44292632,
+     44292632
+    ],
+    "common": 44292632
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     44292632,
+     44292632
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "4ba7271ae68d2ddfdc0718754ab2b724fc590bafac04b80ee5a32d1c43a1be58",
+   "source_sha256": "4ba7271ae68d2ddfdc0718754ab2b724fc590bafac04b80ee5a32d1c43a1be58",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "4ba7271ae68d2ddfdc0718754ab2b724fc590bafac04b80ee5a32d1c43a1be58.mov",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "status": "coreav failed",
+   "coreav_error": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"codec ms\\\\x00U is not decoded\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+   "listed_apart": "refused by a recorded choice"
+  },
+  {
+   "set": "corpus",
+   "sha256": "4f93a033b7b1a3622214b0bdc65687e4bf9a4cfe7c56ed05cc453db6e36e8604",
+   "source_sha256": "4f93a033b7b1a3622214b0bdc65687e4bf9a4cfe7c56ed05cc453db6e36e8604",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "4f93a033b7b1a3622214b0bdc65687e4bf9a4cfe7c56ed05cc453db6e36e8604.mp4",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 1,
+   "warnings": [
+    "the container's channels (2) differs from the codec configuration's (1), which is used"
+   ],
+   "f32": {
+    "rms": 9.674321496380109e-08,
+    "max": 7.450580596923828e-07,
+    "samples": [
+     29999,
+     29999
+    ],
+    "common": 29999
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     29999,
+     29999
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "aae07535ea863a5149e93933f8d0719fa602d4edfe585c9ded9c49f97a067e66",
+   "source_sha256": "53281cb35a4842f08972f2171a270b85293b6f73f765783c98cd9e16f26b72b4",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": true,
+   "file": "53281cb35a4842f08972f2171a270b85293b6f73f765783c98cd9e16f26b72b4.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 9.82000548196251e-09,
+    "max": 1.1920928955078125e-07,
+    "samples": [
+     1412352,
+     1412352
+    ],
+    "common": 1412352
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     1412352,
+     1412352
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "f99d69da87007202e2f7f97129e424e595d00594344a49e9f6af586591194477",
+   "source_sha256": "55e00f2d5c22f327d35ea1172db7b5be869a9fd9ec6a386550d29f54b6b8eff6",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "55e00f2d5c22f327d35ea1172db7b5be869a9fd9ec6a386550d29f54b6b8eff6.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 4.133073321557924e-08,
+    "max": 2.7045607566833496e-06,
+    "samples": [
+     7706880,
+     7706880
+    ],
+    "common": 7706880
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     7706880,
+     7706880
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "566fdf6bb57923dad5c66fa30c18c0e5707b2aa53ca4ae35c0a8d3de329cb804",
+   "source_sha256": "566fdf6bb57923dad5c66fa30c18c0e5707b2aa53ca4ae35c0a8d3de329cb804",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "566fdf6bb57923dad5c66fa30c18c0e5707b2aa53ca4ae35c0a8d3de329cb804.mp4",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "status": "coreav failed",
+   "coreav_error": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"codec aac is not decoded\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+   "listed_apart": "refused by a recorded choice"
+  },
+  {
+   "set": "corpus",
+   "sha256": "56aa25809a8f3e0126b394436b25dc519c44fd994592aeb58bb1761f0a2e5147",
+   "source_sha256": "56aa25809a8f3e0126b394436b25dc519c44fd994592aeb58bb1761f0a2e5147",
+   "class": "matroska",
+   "remuxed": false,
+   "holdout": false,
+   "file": "56aa25809a8f3e0126b394436b25dc519c44fd994592aeb58bb1761f0a2e5147.mkv",
+   "stream": 2,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 5.402431976626928e-08,
+    "max": 1.6987323760986328e-06,
+    "samples": [
+     5524992,
+     5524992
+    ],
+    "common": 5524992
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     5524992,
+     5524992
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "33c7a7eaa6a9b42918a3d117a9c1ffd13f4729531c96eae1d30d2a3b35007764",
+   "source_sha256": "577679e4dff7097ad0b8f3befce5559e7187dd50fcdce5c1ee432063f6b61b5a",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "577679e4dff7097ad0b8f3befce5559e7187dd50fcdce5c1ee432063f6b61b5a.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 4.2632623106151033e-08,
+    "max": 7.748603820800781e-07,
+    "samples": [
+     3379968,
+     3379968
+    ],
+    "common": 3379968
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     3379968,
+     3379968
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "5c9a2e12398c6c3a5b6eb67b3dc46c3f9b5582337440665d843f2a2628ab7054",
+   "source_sha256": "5c9a2e12398c6c3a5b6eb67b3dc46c3f9b5582337440665d843f2a2628ab7054",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "5c9a2e12398c6c3a5b6eb67b3dc46c3f9b5582337440665d843f2a2628ab7054.mov",
+   "stream": 2,
+   "ffmpeg_errors": "[mov,mp4,m4a,3gp,3g2,mj2 @ 0x26e66dc0] stream 2, offset 0x178dddc: partial file\n",
+   "status": "coreav failed",
+   "coreav_error": "{\"kind\":\"truncated_structure\",\"limit\":null,\"message\":\"truncated structure at offset 91630\",\"offset\":91630,\"schema\":\"coreav.error/1\"}\n",
+   "listed_apart": "ffmpeg decoding errors"
+  },
+  {
+   "set": "corpus",
+   "sha256": "5d1e3594bd2c1914daad9ecca411d53d430e1c4a25a9370d9d0f85854e230448",
+   "source_sha256": "5d1e3594bd2c1914daad9ecca411d53d430e1c4a25a9370d9d0f85854e230448",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "5d1e3594bd2c1914daad9ecca411d53d430e1c4a25a9370d9d0f85854e230448.mp4",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 4.6191652844940044e-08,
+    "max": 1.341104507446289e-06,
+    "samples": [
+     132959232,
+     132959232
+    ],
+    "common": 132959232
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     132959232,
+     132959232
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "4f6856412cb40acf2dc1b260662cf867fdf8825ffd37c270845dc465896eb819",
+   "source_sha256": "6085563d18f1f6607187813f378f476b5f7aa52f48b7ae123fbe744c15095f2f",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "6085563d18f1f6607187813f378f476b5f7aa52f48b7ae123fbe744c15095f2f.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 1,
+   "warnings": [],
+   "f32": {
+    "rms": 5.0581407426719676e-08,
+    "max": 2.3543834686279297e-06,
+    "samples": [
+     155546496,
+     155546496
+    ],
+    "common": 155546496
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     155546496,
+     155546496
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "60eddd006ca2b99ea3f6ed0152b502b8f71b6b9af45be8a696edcdcf67f10882",
+   "source_sha256": "60eddd006ca2b99ea3f6ed0152b502b8f71b6b9af45be8a696edcdcf67f10882",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "60eddd006ca2b99ea3f6ed0152b502b8f71b6b9af45be8a696edcdcf67f10882.mp4",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 2.7187732718914845e-07,
+    "max": 1.7285346984863281e-06,
+    "samples": [
+     29952,
+     29952
+    ],
+    "common": 29952
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     29952,
+     29952
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "592e5411b24430546cfb4f64ece2109b19d522b1e35d42e93e7a97e40a69e71d",
+   "source_sha256": "6b0416de3533a23482f2235f7cf878297c20d7d0657adbe6927289cea8174099",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": true,
+   "file": "6b0416de3533a23482f2235f7cf878297c20d7d0657adbe6927289cea8174099.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 5.644103232693882e-08,
+    "max": 5.811452865600586e-07,
+    "samples": [
+     1080576,
+     1080576
+    ],
+    "common": 1080576
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     1080576,
+     1080576
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "29f8e60e7498afeb1953de61f253366b40f504b2eed7e85b94ad95623b0fb182",
+   "source_sha256": "6b2481eaa2032cee699ca1111efe94352d341ca767018f6ce51344d2fec01ff3",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "6b2481eaa2032cee699ca1111efe94352d341ca767018f6ce51344d2fec01ff3.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 4.5963538165483793e-08,
+    "max": 1.996755599975586e-06,
+    "samples": [
+     373964544,
+     373964544
+    ],
+    "common": 373964544
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     373964544,
+     373964544
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "6c4af50c84d7ab88afcf1c0f208133df9d3c6d2ef8289e8633408bb403151c4b",
+   "source_sha256": "6c4af50c84d7ab88afcf1c0f208133df9d3c6d2ef8289e8633408bb403151c4b",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "6c4af50c84d7ab88afcf1c0f208133df9d3c6d2ef8289e8633408bb403151c4b.mov",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 1.603412732321079e-08,
+    "max": 2.905726432800293e-07,
+    "samples": [
+     4921024,
+     4921024
+    ],
+    "common": 4921024
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     4921024,
+     4921024
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "b3c74301c8303f36289877e4ea768a0244f5a2a0003e598b3722764fdbfcdb22",
+   "source_sha256": "6d7f58803a46894a4291355246bac462d4dd59400b3333c95898e848c2d7d49c",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": true,
+   "file": "6d7f58803a46894a4291355246bac462d4dd59400b3333c95898e848c2d7d49c.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 7.266701664169173e-08,
+    "max": 1.5720725059509277e-06,
+    "samples": [
+     1474560,
+     1474560
+    ],
+    "common": 1474560
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     1474560,
+     1474560
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "75275d976b3fc1450b9a4cddaf0c41b49b579d4861fe3b05aa6171214852a4e9",
+   "source_sha256": "7143a573e94b29af52d1889de7f401f638ee63e9f3e8c8805cba5b381e217ed3",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "7143a573e94b29af52d1889de7f401f638ee63e9f3e8c8805cba5b381e217ed3.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 5.720814511869976e-08,
+    "max": 1.1995434761047363e-06,
+    "samples": [
+     3108096,
+     3108096
+    ],
+    "common": 3108096
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     3108096,
+     3108096
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "73ffe7a714e69c72fb2092301f5375437b0fa19636ce5de9b418714d2dfc3531",
+   "source_sha256": "73ffe7a714e69c72fb2092301f5375437b0fa19636ce5de9b418714d2dfc3531",
+   "class": "matroska",
+   "remuxed": false,
+   "holdout": false,
+   "file": "73ffe7a714e69c72fb2092301f5375437b0fa19636ce5de9b418714d2dfc3531.mkv",
+   "stream": 1,
+   "ffmpeg_errors": "[matroska,webm @ 0x22370dc0] File ended prematurely\n",
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [
+    "the file could not be read after 29 packets (truncated structure at offset 5109115); the output ends there"
+   ],
+   "f32": {
+    "rms": 5.802411806372909e-08,
+    "max": 9.015202522277832e-07,
+    "samples": [
+     2075904,
+     2075904
+    ],
+    "common": 2075904
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     2075904,
+     2075904
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": "ffmpeg decoding errors"
+  },
+  {
+   "set": "corpus",
+   "sha256": "39ba2867df7b2829aded54f952204ec22bf82fac4bb14bd4308737bc5b21c41b",
+   "source_sha256": "74fe9588b519960970c4bcafb08a17f8d30fa9d2dc2d2ae4d93b8336135cad97",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": true,
+   "file": "74fe9588b519960970c4bcafb08a17f8d30fa9d2dc2d2ae4d93b8336135cad97.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 9.06619463379434e-08,
+    "max": 2.4437904357910156e-06,
+    "samples": [
+     60559182,
+     60559182
+    ],
+    "common": 60559182
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     60559182,
+     60559182
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "f3359e04a81ac69d9b0e1530ab59f89207a49c27763781abc627b710acac169e",
+   "source_sha256": "75903bef3aa5cd78f628e2932fc79b437f53cd3999d1719efcd5966545ec41dc",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": true,
+   "file": "75903bef3aa5cd78f628e2932fc79b437f53cd3999d1719efcd5966545ec41dc.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 3.206199737031055e-08,
+    "max": 1.0132789611816406e-06,
+    "samples": [
+     64333262,
+     64333262
+    ],
+    "common": 64333262
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     64333262,
+     64333262
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "76277b0365b208b2392e4b5332ad3aee6f7b7191f51e2e15f7a5a79e089b5623",
+   "source_sha256": "76277b0365b208b2392e4b5332ad3aee6f7b7191f51e2e15f7a5a79e089b5623",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "76277b0365b208b2392e4b5332ad3aee6f7b7191f51e2e15f7a5a79e089b5623.mov",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 2.0703720587869425e-07,
+    "max": 3.933906555175781e-06,
+    "samples": [
+     18031104,
+     18031104
+    ],
+    "common": 18031104
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     18031104,
+     18031104
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "7a8db3e3bbb6a47f1fa46616f4ac0f8331c962526dd323f14cec57e44ff7843e",
+   "source_sha256": "7a8db3e3bbb6a47f1fa46616f4ac0f8331c962526dd323f14cec57e44ff7843e",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "7a8db3e3bbb6a47f1fa46616f4ac0f8331c962526dd323f14cec57e44ff7843e.mov",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "status": "coreav failed",
+   "coreav_error": "{\"kind\":\"truncated_structure\",\"limit\":null,\"message\":\"truncated structure at offset 80180\",\"offset\":80180,\"schema\":\"coreav.error/1\"}\n",
+   "listed_apart": "refused by a recorded choice: the demuxer fails before the first packet"
+  },
+  {
+   "set": "corpus",
+   "sha256": "7c46fe923f0c29e67ec7ba17318ef3bd591be6e373fd796fce143f8c7a934787",
+   "source_sha256": "7c46fe923f0c29e67ec7ba17318ef3bd591be6e373fd796fce143f8c7a934787",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "7c46fe923f0c29e67ec7ba17318ef3bd591be6e373fd796fce143f8c7a934787.mp4",
+   "stream": 1,
+   "ffmpeg_errors": "[vp9 @ 0x3a60f440] [IMGUTILS @ 0x7ffd6d98b1f0] Picture size 0x0 is invalid\n[vp9 @ 0x3a60f440] [IMGUTILS @ 0x7ffd6d98b1d0] Picture size 0x0 is invalid\n",
+   "codec_delay": 0,
+   "output_channels": 1,
+   "warnings": [
+    "the container's channels (2) differs from the codec configuration's (1), which is used"
+   ],
+   "f32": {
+    "rms": 9.67962976069842e-08,
+    "max": 7.450580596923828e-07,
+    "samples": [
+     29999,
+     29999
+    ],
+    "common": 29999
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     29999,
+     29999
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": "ffmpeg decoding errors"
+  },
+  {
+   "set": "corpus",
+   "sha256": "1934263a59a4d2aa3ae7d894e08642bcf5ceedee5683f4aef59f7e40d18cf07e",
+   "source_sha256": "7dbdf700ab81d79be87bf04398dbcb83f2d3c84e1c2a9a793ae02ae36a8f5a73",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "7dbdf700ab81d79be87bf04398dbcb83f2d3c84e1c2a9a793ae02ae36a8f5a73.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 6.21912816739173e-08,
+    "max": 1.7285346984863281e-06,
+    "samples": [
+     16988536,
+     16988536
+    ],
+    "common": 16988536
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     16988536,
+     16988536
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "7e6ff8c9d9a0c49227ef93ca08e35574987112216fee11d4c7f308cb517b1059",
+   "source_sha256": "7e6ff8c9d9a0c49227ef93ca08e35574987112216fee11d4c7f308cb517b1059",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "7e6ff8c9d9a0c49227ef93ca08e35574987112216fee11d4c7f308cb517b1059.mov",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 1.6994440584008557e-07,
+    "max": 4.5299530029296875e-06,
+    "samples": [
+     3891456,
+     3891456
+    ],
+    "common": 3891456
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     3891456,
+     3891456
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "828fdabea6a0a87c9bd4c2d62dc682507a98dab4152adadf0d420e3b5b5ec4cf",
+   "source_sha256": "828fdabea6a0a87c9bd4c2d62dc682507a98dab4152adadf0d420e3b5b5ec4cf",
+   "class": "matroska",
+   "remuxed": false,
+   "holdout": false,
+   "file": "828fdabea6a0a87c9bd4c2d62dc682507a98dab4152adadf0d420e3b5b5ec4cf.mkv",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 1105,
+   "output_channels": 1,
+   "warnings": [],
+   "f32": {
+    "rms": 8.331305757416999e-08,
+    "max": 4.172325134277344e-07,
+    "samples": [
+     44100,
+     45205
+    ],
+    "common": 44100
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     44100,
+     45205
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "a7a84ced27141dda4153d8f43646a8230f1df54742021106cb1ccff15bc239b8",
+   "source_sha256": "82a22e3dc41cb95263b42197ac25ef97f87b0cebc906d778be2828fe18e0d511",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "82a22e3dc41cb95263b42197ac25ef97f87b0cebc906d778be2828fe18e0d511.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 9.50702727794669e-08,
+    "max": 2.3245811462402344e-06,
+    "samples": [
+     56452608,
+     56452608
+    ],
+    "common": 56452608
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     56452608,
+     56452608
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "9cc499363d80a41c6d7fc3c9b522deeae633c7c49393124cbdc5371220994696",
+   "source_sha256": "84a2f79c8ccb2375ca0761aafe78e57d10f46bac764b7e03e42f844b49786b58",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": true,
+   "file": "84a2f79c8ccb2375ca0761aafe78e57d10f46bac764b7e03e42f844b49786b58.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 2.668562116311875e-07,
+    "max": 3.769993782043457e-06,
+    "samples": [
+     1663488,
+     1663488
+    ],
+    "common": 1663488
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     1663488,
+     1663488
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "6c4bb5208d04f54aa21057fd6ebf6d2a81376916ee510615a51ec36253ba6737",
+   "source_sha256": "8b4a2155d92f7101d1def2f06b8bd6471b2533beffaae561d45f8c8fcbf2388e",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "8b4a2155d92f7101d1def2f06b8bd6471b2533beffaae561d45f8c8fcbf2388e.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 8.345432937748415e-08,
+    "max": 3.214925527572632e-06,
+    "samples": [
+     20164608,
+     20164608
+    ],
+    "common": 20164608
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     20164608,
+     20164608
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "8fe74219cd29b9dc9114ad1dc6eec778f0f39b2428c46a6d6936191c9c7d2ea1",
+   "source_sha256": "8fe74219cd29b9dc9114ad1dc6eec778f0f39b2428c46a6d6936191c9c7d2ea1",
+   "class": "matroska",
+   "remuxed": false,
+   "holdout": false,
+   "file": "8fe74219cd29b9dc9114ad1dc6eec778f0f39b2428c46a6d6936191c9c7d2ea1.mkv",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 1.2107322284173478e-07,
+    "max": 1.952052116394043e-06,
+    "samples": [
+     2723328,
+     2723328
+    ],
+    "common": 2723328
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     2723328,
+     2723328
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "3cf5c5197b17dbf67b1593b4f54d2d0fc00c0b04badcd8859ecc9b902a287ed2",
+   "source_sha256": "90542f14946c5e4ddc191fd27e2914d3bac898cb948f54eb6d8d9e4b40fe8406",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": true,
+   "file": "90542f14946c5e4ddc191fd27e2914d3bac898cb948f54eb6d8d9e4b40fe8406.mp4",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 1,
+   "warnings": [],
+   "f32": {
+    "rms": 1.4907035239637483e-08,
+    "max": 1.3709068298339844e-06,
+    "samples": [
+     16247855,
+     16247855
+    ],
+    "common": 16247855
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     16247855,
+     16247855
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "9a86d00e6ca888994c5338441703057cddfbed3817aa99538cae149128a78644",
+   "source_sha256": "938d375997c7bb68b716bb2d2b4b2ccc900e80ca1bf2e157c359f21e003dda4a",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "938d375997c7bb68b716bb2d2b4b2ccc900e80ca1bf2e157c359f21e003dda4a.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 3.896523736471648e-08,
+    "max": 1.2516975402832031e-06,
+    "samples": [
+     7872768,
+     7872768
+    ],
+    "common": 7872768
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     7872768,
+     7872768
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "a1c9e6f6571a7a2a0242be920c5c4a4847e91a84885af67574bf447145aba8b1",
+   "source_sha256": "95e662d8b11d835a0c445b32354ec268b845e4117ca62a304e32ead4c7e9cb66",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "95e662d8b11d835a0c445b32354ec268b845e4117ca62a304e32ead4c7e9cb66.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 3.1171433407612494e-08,
+    "max": 2.3096799850463867e-06,
+    "samples": [
+     64789154,
+     64789154
+    ],
+    "common": 64789154
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     64789154,
+     64789154
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "972615f5c72913ae0a0a9108a2c615e1b35c727ddf6318fe3e7ed4dc0e2999ba",
+   "source_sha256": "972615f5c72913ae0a0a9108a2c615e1b35c727ddf6318fe3e7ed4dc0e2999ba",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "972615f5c72913ae0a0a9108a2c615e1b35c727ddf6318fe3e7ed4dc0e2999ba.mov",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "status": "coreav failed",
+   "coreav_error": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"codec ms\\\\x00U is not decoded\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+   "listed_apart": "refused by a recorded choice"
+  },
+  {
+   "set": "corpus",
+   "sha256": "977c3a776ac3139b6a246d0e51e61c79fe766dfc8313172330a48b6b937e38cc",
+   "source_sha256": "977c3a776ac3139b6a246d0e51e61c79fe766dfc8313172330a48b6b937e38cc",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "977c3a776ac3139b6a246d0e51e61c79fe766dfc8313172330a48b6b937e38cc.mov",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "status": "coreav failed",
+   "coreav_error": "{\"kind\":\"truncated_structure\",\"limit\":null,\"message\":\"truncated structure at offset 21663161\",\"offset\":21663161,\"schema\":\"coreav.error/1\"}\n",
+   "listed_apart": "refused by a recorded choice: the demuxer fails before the first packet"
+  },
+  {
+   "set": "corpus",
+   "sha256": "a63a097c5960b777703465925e1372de005a0bb160f3c2ba3c9f57d89b3de185",
+   "source_sha256": "984468c36087ef41bc4429e23a9c4429bbdcb77ef32306f8d063b147f2479769",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "984468c36087ef41bc4429e23a9c4429bbdcb77ef32306f8d063b147f2479769.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 5.629842943577392e-08,
+    "max": 2.600252628326416e-06,
+    "samples": [
+     252618914,
+     252618914
+    ],
+    "common": 252618914
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     252618914,
+     252618914
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "98e1edd6e9bc4f2f3d4e81fc727ce9e36707caacfe8ff61de0c2c51bd244354c",
+   "source_sha256": "98e1edd6e9bc4f2f3d4e81fc727ce9e36707caacfe8ff61de0c2c51bd244354c",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "98e1edd6e9bc4f2f3d4e81fc727ce9e36707caacfe8ff61de0c2c51bd244354c.mp4",
+   "stream": 0,
+   "ffmpeg_errors": "[dec:mp3float @ 0x39ca5e40] Error submitting packet to decoder: Invalid data found when processing input\n[mov,mp4,m4a,3gp,3g2,mj2 @ 0x39c94dc0] stream 0, offset 0xebf: partial file\n[f32le @ 0x39c9ca80] Application provided invalid, non monotonically increasing dts to muxer in stream 0: 2304 >= 2304\n",
+   "status": "coreav failed",
+   "coreav_error": "{\"kind\":\"truncated_structure\",\"limit\":null,\"message\":\"truncated structure at offset 633\",\"offset\":633,\"schema\":\"coreav.error/1\"}\n",
+   "listed_apart": "ffmpeg decoding errors"
+  },
+  {
+   "set": "corpus",
+   "sha256": "9a5ffd8cdc9b057d25f4230a0b1a902cad26f0b9784cff2301d28c037da211d2",
+   "source_sha256": "9a5ffd8cdc9b057d25f4230a0b1a902cad26f0b9784cff2301d28c037da211d2",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "9a5ffd8cdc9b057d25f4230a0b1a902cad26f0b9784cff2301d28c037da211d2.mov",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "status": "coreav failed",
+   "coreav_error": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"codec ms\\\\x00U is not decoded\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+   "listed_apart": "refused by a recorded choice"
+  },
+  {
+   "set": "corpus",
+   "sha256": "9df76bfab7f367efa9fb1c26fccdf41baa6cee210a13c95344874e89b8aa8c3c",
+   "source_sha256": "9df76bfab7f367efa9fb1c26fccdf41baa6cee210a13c95344874e89b8aa8c3c",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "9df76bfab7f367efa9fb1c26fccdf41baa6cee210a13c95344874e89b8aa8c3c.mov",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 5.2788578662639925e-08,
+    "max": 7.748603820800781e-07,
+    "samples": [
+     1506816,
+     1506816
+    ],
+    "common": 1506816
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     1506816,
+     1506816
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "9e7bad1400a472e37b7e5b271d90ea0c5b4ad99aa19ad16ab7295c904b4042ed",
+   "source_sha256": "9e7bad1400a472e37b7e5b271d90ea0c5b4ad99aa19ad16ab7295c904b4042ed",
+   "class": "matroska",
+   "remuxed": false,
+   "holdout": false,
+   "file": "9e7bad1400a472e37b7e5b271d90ea0c5b4ad99aa19ad16ab7295c904b4042ed.mkv",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 2.0097888574235038e-08,
+    "max": 8.642673492431641e-07,
+    "samples": [
+     5783040,
+     5783040
+    ],
+    "common": 5783040
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     5783040,
+     5783040
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "2fe3f4f7538fca52dba2c84f0ff269b4caba1d7da007819a753dd1c534f43199",
+   "source_sha256": "9eb725f01e6beb7d3b1018da9ec427c5f23fd101d623e1f658feec7adc245b29",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": true,
+   "file": "9eb725f01e6beb7d3b1018da9ec427c5f23fd101d623e1f658feec7adc245b29.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 7.294234306272899e-08,
+    "max": 1.2293457984924316e-06,
+    "samples": [
+     34909532,
+     34909532
+    ],
+    "common": 34909532
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     34909532,
+     34909532
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "1c37da6b7513642206396e6a6369ec753872683722f2184f94dc62ecf87ddce5",
+   "source_sha256": "9f255e5061ffee797736fe76e08915cd61f63e77662d0a072436a7c5ffcdf81b",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "9f255e5061ffee797736fe76e08915cd61f63e77662d0a072436a7c5ffcdf81b.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 1.2036724492548526e-07,
+    "max": 1.996755599975586e-06,
+    "samples": [
+     440064,
+     440064
+    ],
+    "common": 440064
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     440064,
+     440064
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "a0794297c31f0ff8350c6fcee43827886c2b413866043bf801453a285d451702",
+   "source_sha256": "a0794297c31f0ff8350c6fcee43827886c2b413866043bf801453a285d451702",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "a0794297c31f0ff8350c6fcee43827886c2b413866043bf801453a285d451702.mp4",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 9.974042420887448e-08,
+    "max": 3.1106173992156982e-06,
+    "samples": [
+     5861376,
+     5861376
+    ],
+    "common": 5861376
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     5861376,
+     5861376
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "c2109acb699a2346a8f80c36bd194100cce8b2638577d3ade1cba979cd9a9b27",
+   "source_sha256": "a2dc43db00d055167a3442893c270ac42a6aaeb234ec0cedd03e04bd5a7810c3",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "a2dc43db00d055167a3442893c270ac42a6aaeb234ec0cedd03e04bd5a7810c3.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 1,
+   "warnings": [],
+   "f32": {
+    "rms": 3.3562544136426754e-08,
+    "max": 9.611248970031738e-07,
+    "samples": [
+     122077440,
+     122077440
+    ],
+    "common": 122077440
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     122077440,
+     122077440
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "a32b277afbddc28122debcde4cdca670c9b48210c2b1a6f2e51137d0cdaef942",
+   "source_sha256": "a32b277afbddc28122debcde4cdca670c9b48210c2b1a6f2e51137d0cdaef942",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "a32b277afbddc28122debcde4cdca670c9b48210c2b1a6f2e51137d0cdaef942.mov",
+   "stream": 3,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [
+    "the edit list was not applied; every sample was decoded"
+   ],
+   "f32": {
+    "rms": 0.23716670459204167,
+    "max": 1.0135686993598938,
+    "samples": [
+     1073664,
+     1061232
+    ],
+    "common": 1061232
+   },
+   "s16": {
+    "max_steps": 33212.0,
+    "equal": false,
+    "samples": [
+     1073664,
+     1061232
+    ]
+   },
+   "length_ok": false,
+   "within": false,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "a4032e62e56180db9a5641fbf3a0d5adc73027fbeffd9d4da0c44664d6ba3a9c",
+   "source_sha256": "a4032e62e56180db9a5641fbf3a0d5adc73027fbeffd9d4da0c44664d6ba3a9c",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "a4032e62e56180db9a5641fbf3a0d5adc73027fbeffd9d4da0c44664d6ba3a9c.mp4",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "status": "coreav failed",
+   "coreav_error": "{\"kind\":\"truncated_structure\",\"limit\":null,\"message\":\"truncated structure at offset 345239\",\"offset\":345239,\"schema\":\"coreav.error/1\"}\n",
+   "listed_apart": "refused by a recorded choice: the demuxer fails before the first packet"
+  },
+  {
+   "set": "corpus",
+   "sha256": "a49563821c4a271b9e148b900b477359c340df9fd3cb577d489d055c177f0115",
+   "source_sha256": "a49563821c4a271b9e148b900b477359c340df9fd3cb577d489d055c177f0115",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "a49563821c4a271b9e148b900b477359c340df9fd3cb577d489d055c177f0115.mov",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "status": "coreav failed",
+   "coreav_error": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"codec ms\\\\x00U is not decoded\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+   "listed_apart": "refused by a recorded choice"
+  },
+  {
+   "set": "corpus",
+   "sha256": "a69555179c2bd6cdb8f6081935df55855e1b3edaf0071d36ebcda7e2365edc61",
+   "source_sha256": "a69555179c2bd6cdb8f6081935df55855e1b3edaf0071d36ebcda7e2365edc61",
+   "class": "matroska",
+   "remuxed": false,
+   "holdout": false,
+   "file": "a69555179c2bd6cdb8f6081935df55855e1b3edaf0071d36ebcda7e2365edc61.mkv",
+   "stream": 2,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 6.209895700384395e-08,
+    "max": 7.972121238708496e-07,
+    "samples": [
+     960768,
+     960768
+    ],
+    "common": 960768
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     960768,
+     960768
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "a71e578b62c1745d434ccf563328989120f7046dbef3a8fe5306a31424448925",
+   "source_sha256": "a71e578b62c1745d434ccf563328989120f7046dbef3a8fe5306a31424448925",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "a71e578b62c1745d434ccf563328989120f7046dbef3a8fe5306a31424448925.mp4",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 1.985217552611768e-07,
+    "max": 4.351139068603516e-06,
+    "samples": [
+     617472,
+     617472
+    ],
+    "common": 617472
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     617472,
+     617472
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "d09fcdd47c2ead1f106fb0cb6bec944504c461f70c5fddaa11fd45eecc664edd",
+   "source_sha256": "a765746ec8c61fd625757ee5a62fb95ee373bddf6abc92bda6a8cac63c9747a4",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "a765746ec8c61fd625757ee5a62fb95ee373bddf6abc92bda6a8cac63c9747a4.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 1.0573911931178151e-07,
+    "max": 4.470348358154297e-06,
+    "samples": [
+     291432088,
+     291432088
+    ],
+    "common": 291432088
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     291432088,
+     291432088
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "81b5b37421756ce13ac2cfc5f68a71be33f0c343e33ccc91d770949829609c94",
+   "source_sha256": "a8e030b669739911e866124c12dce3d779097653a541e7baad4502dfad773571",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "a8e030b669739911e866124c12dce3d779097653a541e7baad4502dfad773571.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 1,
+   "warnings": [],
+   "f32": {
+    "rms": 4.493594831765237e-08,
+    "max": 1.4007091522216797e-06,
+    "samples": [
+     29377152,
+     29377152
+    ],
+    "common": 29377152
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     29377152,
+     29377152
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "e101212c8c382417948854e565a53939b49858f74bcb4ac1df6232ba3b4cf5e4",
+   "source_sha256": "ab0b22b7db1a041ef3aad08f66bf646490a25591bcc8477a742b87ca9b1b5189",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": true,
+   "file": "ab0b22b7db1a041ef3aad08f66bf646490a25591bcc8477a742b87ca9b1b5189.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 9.789552781613266e-09,
+    "max": 1.1175870895385742e-07,
+    "samples": [
+     2287872,
+     2287872
+    ],
+    "common": 2287872
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     2287872,
+     2287872
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "0e6ed59c7b135c470ca22f70f4520a71f761c8b6e75c5f86dd753e4f12e05e14",
+   "source_sha256": "b01cf9ed2d4b13fcf17709f0e09f7b6fd4c6aa85cd938a666309f66d0658a80c",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "b01cf9ed2d4b13fcf17709f0e09f7b6fd4c6aa85cd938a666309f66d0658a80c.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 1.0332071381323753e-07,
+    "max": 2.2649765014648438e-06,
+    "samples": [
+     3354624,
+     3354624
+    ],
+    "common": 3354624
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     3354624,
+     3354624
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "b1eb35098c14042475e642f69f444609849f71e54e9056ca2497c950f2d1e59a",
+   "source_sha256": "b1eb35098c14042475e642f69f444609849f71e54e9056ca2497c950f2d1e59a",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "b1eb35098c14042475e642f69f444609849f71e54e9056ca2497c950f2d1e59a.mov",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 1,
+   "warnings": [],
+   "f32": {
+    "rms": 2.147569523441972e-07,
+    "max": 3.337860107421875e-06,
+    "samples": [
+     4508928,
+     4508928
+    ],
+    "common": 4508928
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     4508928,
+     4508928
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "bc206ddd9532af187a05dc58a507f17cd62a361642ebba6b2a5fdebf546842f0",
+   "source_sha256": "bc206ddd9532af187a05dc58a507f17cd62a361642ebba6b2a5fdebf546842f0",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "bc206ddd9532af187a05dc58a507f17cd62a361642ebba6b2a5fdebf546842f0.mp4",
+   "stream": 2,
+   "ffmpeg_errors": null,
+   "status": "coreav failed",
+   "coreav_error": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"codec mp2 is not decoded\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+   "listed_apart": "refused by a recorded choice"
+  },
+  {
+   "set": "corpus",
+   "sha256": "677406976914aa292d8c4abf16f40938ba4be3003c203f2749862b6a40830694",
+   "source_sha256": "bc51e7c035b8a1717dd5341f3302ec446ac6c60ee8f05762bc7877e03cf2296d",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": true,
+   "file": "bc51e7c035b8a1717dd5341f3302ec446ac6c60ee8f05762bc7877e03cf2296d.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 5.887757902957987e-08,
+    "max": 3.5762786865234375e-06,
+    "samples": [
+     104722594,
+     104722594
+    ],
+    "common": 104722594
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     104722594,
+     104722594
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "85cd0ccf04acaf85dd671e6f1c9b68d2d01bb55c6843a414527fdfefc1b2cb4d",
+   "source_sha256": "c0cd27c3f738c720557d20a75d95700353f50b94571987f8d5b8b4b4ff9af6ff",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "c0cd27c3f738c720557d20a75d95700353f50b94571987f8d5b8b4b4ff9af6ff.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 8.986030834954007e-08,
+    "max": 1.4901161193847656e-06,
+    "samples": [
+     2674944,
+     2674944
+    ],
+    "common": 2674944
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     2674944,
+     2674944
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "c164a9e26d158260b7be630595ce4470af67979db8a2ae537583fd48f747bfec",
+   "source_sha256": "c164a9e26d158260b7be630595ce4470af67979db8a2ae537583fd48f747bfec",
+   "class": "matroska",
+   "remuxed": false,
+   "holdout": false,
+   "file": "c164a9e26d158260b7be630595ce4470af67979db8a2ae537583fd48f747bfec.mkv",
+   "stream": 1,
+   "ffmpeg_errors": "rror submitting packet to decoder: Invalid data found when processing input\n[mp3float @ 0x108e2000] Header missing\n[aist#0:1/mp3 @ 0x108ddc00] [dec:mp3float @ 0x108cf800] Error submitting packet to decoder: Invalid data found when processing input\n[matroska,webm @ 0x10899dc0] File ended prematurely\n",
+   "status": "coreav failed",
+   "coreav_error": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"codec A_MS/ACM is not decoded\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+   "listed_apart": "ffmpeg decoding errors"
+  },
+  {
+   "set": "corpus",
+   "sha256": "c1b1266024bcfce6e2dce0423cbcdd74fbecd8b9e1eed38d662861596acbd182",
+   "source_sha256": "c1b1266024bcfce6e2dce0423cbcdd74fbecd8b9e1eed38d662861596acbd182",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "c1b1266024bcfce6e2dce0423cbcdd74fbecd8b9e1eed38d662861596acbd182.mov",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "status": "coreav failed",
+   "coreav_error": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"codec ms\\\\x00U is not decoded\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+   "listed_apart": "refused by a recorded choice"
+  },
+  {
+   "set": "corpus",
+   "sha256": "fb4a34150d8eb5d1091438d4a6b853673551999c37e74e9ce37fcd1213c1d7e1",
+   "source_sha256": "c1caf8c2bf8e8c688a80e806081f8cd2892066783647fbda751baee3f3c8a4b4",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": true,
+   "file": "c1caf8c2bf8e8c688a80e806081f8cd2892066783647fbda751baee3f3c8a4b4.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 3.658432355768471e-08,
+    "max": 8.568167686462402e-07,
+    "samples": [
+     4925952,
+     4925952
+    ],
+    "common": 4925952
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     4925952,
+     4925952
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "c33289a4d3f3e3c8f865b61ba0a25e34f0245ccc5c08576bce81ef177dd19711",
+   "source_sha256": "c33289a4d3f3e3c8f865b61ba0a25e34f0245ccc5c08576bce81ef177dd19711",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "c33289a4d3f3e3c8f865b61ba0a25e34f0245ccc5c08576bce81ef177dd19711.mp4",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "status": "coreav failed",
+   "coreav_error": "{\"kind\":\"truncated_structure\",\"limit\":null,\"message\":\"truncated structure at offset 367476\",\"offset\":367476,\"schema\":\"coreav.error/1\"}\n",
+   "listed_apart": "refused by a recorded choice: the demuxer fails before the first packet"
+  },
+  {
+   "set": "corpus",
+   "sha256": "c51357054f5895bbab4b7224247a3258e424be212ac5aa23482d5f03b18939c1",
+   "source_sha256": "c51357054f5895bbab4b7224247a3258e424be212ac5aa23482d5f03b18939c1",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "c51357054f5895bbab4b7224247a3258e424be212ac5aa23482d5f03b18939c1.mp4",
+   "stream": 2,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 5.671517561502922e-08,
+    "max": 9.98377799987793e-07,
+    "samples": [
+     6186240,
+     6186240
+    ],
+    "common": 6186240
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     6186240,
+     6186240
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "da4d74c773467476ed6b0ea81ae686c386c3e45fcbd5219254f3e41f479a6d00",
+   "source_sha256": "c5873ea28dcc7271a2defeec262cd7ab7748dd51a73ced64a94665d19395d3ef",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "c5873ea28dcc7271a2defeec262cd7ab7748dd51a73ced64a94665d19395d3ef.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 2.636180441693665e-08,
+    "max": 3.8743019104003906e-07,
+    "samples": [
+     5893632,
+     5893632
+    ],
+    "common": 5893632
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     5893632,
+     5893632
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "c9fe18303fe45efd4fac7ea4efa1a3432a30ffd0e4867206027fd189b7c01b4f",
+   "source_sha256": "c9fe18303fe45efd4fac7ea4efa1a3432a30ffd0e4867206027fd189b7c01b4f",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "c9fe18303fe45efd4fac7ea4efa1a3432a30ffd0e4867206027fd189b7c01b4f.mov",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "status": "coreav failed",
+   "coreav_error": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"codec ms\\\\x00U is not decoded\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+   "listed_apart": "refused by a recorded choice"
+  },
+  {
+   "set": "corpus",
+   "sha256": "cb2bf3c5163e33c9fd8faf24aa58df9802c5e69f965c06eff4b69a1b4d724f7f",
+   "source_sha256": "cb2bf3c5163e33c9fd8faf24aa58df9802c5e69f965c06eff4b69a1b4d724f7f",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "cb2bf3c5163e33c9fd8faf24aa58df9802c5e69f965c06eff4b69a1b4d724f7f.mp4",
+   "stream": 1,
+   "ffmpeg_errors": "[aist#0:1/mp3 @ 0xa71b5c0] [dec:mp3float @ 0xa813480] Error submitting packet to decoder: Invalid data found when processing input\n[mp3float @ 0xa7e3280] Header missing\n[aist#0:1/mp3 @ 0xa71b5c0] [dec:mp3float @ 0xa813480] Error submitting packet to decoder: Invalid data found when processing input\n",
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [
+    "17 packets could not be decoded and were replaced by silence (first: invalid bitstream: no MPEG audio sync word)"
+   ],
+   "f32": {
+    "rms": 0.13510227219840545,
+    "max": 1.762340486049652,
+    "samples": [
+     438907486,
+     438863710
+    ],
+    "common": 438863710
+   },
+   "s16": {
+    "max_steps": 57748.0,
+    "equal": false,
+    "samples": [
+     438907486,
+     438863710
+    ]
+   },
+   "length_ok": false,
+   "within": false,
+   "status": "ok",
+   "listed_apart": "ffmpeg decoding errors"
+  },
+  {
+   "set": "corpus",
+   "sha256": "cd5a177064bd1a1e1bbcfd8c720a2168325b836755e0dd24ee7a0c984ec73b2e",
+   "source_sha256": "cd5a177064bd1a1e1bbcfd8c720a2168325b836755e0dd24ee7a0c984ec73b2e",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "cd5a177064bd1a1e1bbcfd8c720a2168325b836755e0dd24ee7a0c984ec73b2e.mp4",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "status": "coreav failed",
+   "coreav_error": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"codec mp2 is not decoded\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+   "listed_apart": "refused by a recorded choice"
+  },
+  {
+   "set": "corpus",
+   "sha256": "fc22629fbf75592ada06397501213f59647bd23b0c2f6cff00c74135edd3c6be",
+   "source_sha256": "d1b7e6676a7f74aa920603eab5394f3079a2819302dc00f9d7931d99ef7480fb",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "d1b7e6676a7f74aa920603eab5394f3079a2819302dc00f9d7931d99ef7480fb.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 1.0043514370908903e-07,
+    "max": 5.498528480529785e-06,
+    "samples": [
+     292748544,
+     292748544
+    ],
+    "common": 292748544
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     292748544,
+     292748544
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "88a6bb34a77efaef93c3393aab03adf83bd35c1264ecae05aa5be17352ccfed9",
+   "source_sha256": "d2f6b897a29e04a0cd356472d486bbd44e25c5c5b21537931128d0998501ed65",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": true,
+   "file": "d2f6b897a29e04a0cd356472d486bbd44e25c5c5b21537931128d0998501ed65.mp4",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 1,
+   "warnings": [],
+   "f32": {
+    "rms": 1.3629978940466564e-08,
+    "max": 1.7881393432617188e-07,
+    "samples": [
+     812207,
+     812207
+    ],
+    "common": 812207
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     812207,
+     812207
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "d3039fe91e1e9e16c6ed358107595cf2319f97397bde2b9a721949c59d407dd7",
+   "source_sha256": "d3039fe91e1e9e16c6ed358107595cf2319f97397bde2b9a721949c59d407dd7",
+   "class": "matroska",
+   "remuxed": false,
+   "holdout": false,
+   "file": "d3039fe91e1e9e16c6ed358107595cf2319f97397bde2b9a721949c59d407dd7.mkv",
+   "stream": 9,
+   "ffmpeg_errors": "[matroska,webm @ 0x32f21dc0] File ended prematurely\n",
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [
+    "the file could not be read after 47 packets (truncated structure at offset 10480754); the output ends there"
+   ],
+   "f32": {
+    "rms": 2.8035865186914893e-08,
+    "max": 5.513429641723633e-07,
+    "samples": [
+     861696,
+     861696
+    ],
+    "common": 861696
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     861696,
+     861696
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": "ffmpeg decoding errors"
+  },
+  {
+   "set": "corpus",
+   "sha256": "d3708a161c58b1cc280f6bd677acd7771883c040f1f946a44b98c6a5bbf41e36",
+   "source_sha256": "d3708a161c58b1cc280f6bd677acd7771883c040f1f946a44b98c6a5bbf41e36",
+   "class": "matroska",
+   "remuxed": false,
+   "holdout": false,
+   "file": "d3708a161c58b1cc280f6bd677acd7771883c040f1f946a44b98c6a5bbf41e36.mkv",
+   "stream": 1,
+   "ffmpeg_errors": "[matroska,webm @ 0x31465dc0] File ended prematurely\n",
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [
+    "the file could not be read after 37 packets (truncated structure at offset 5098415); the output ends there"
+   ],
+   "f32": {
+    "rms": 5.810549742681858e-08,
+    "max": 9.015202522277832e-07,
+    "samples": [
+     2094336,
+     2094336
+    ],
+    "common": 2094336
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     2094336,
+     2094336
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": "ffmpeg decoding errors"
+  },
+  {
+   "set": "corpus",
+   "sha256": "d4d0cacfe7ff5ae8b76217b5153bcb7d9de598e7c06bcf54d8d557c5fcbd083c",
+   "source_sha256": "d4d0cacfe7ff5ae8b76217b5153bcb7d9de598e7c06bcf54d8d557c5fcbd083c",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "d4d0cacfe7ff5ae8b76217b5153bcb7d9de598e7c06bcf54d8d557c5fcbd083c.mp4",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 0.0,
+    "max": 0.0,
+    "samples": [
+     1506816,
+     1506816
+    ],
+    "common": 1506816
+   },
+   "s16": {
+    "max_steps": 0.0,
+    "equal": true,
+    "samples": [
+     1506816,
+     1506816
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "15a2ea3ee6e3a1dd5dc4f08bdaa2dea93b132ed41f3a7d7bc4470008780ef089",
+   "source_sha256": "d70ee47a182242883b2ffdd1c9aa5475429487afb5af8d195957295216a6fb16",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "d70ee47a182242883b2ffdd1c9aa5475429487afb5af8d195957295216a6fb16.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 1,
+   "warnings": [],
+   "f32": {
+    "rms": 8.169337287578892e-08,
+    "max": 2.3543834686279297e-06,
+    "samples": [
+     127451520,
+     127451520
+    ],
+    "common": 127451520
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     127451520,
+     127451520
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "1544bfd6db6ca8f0a8c35a4548692d8a3df8cca8b5ce8832220aa441f6f5c34f",
+   "source_sha256": "daa68f74d9e73dce9d30d49c47ae96c7f6d0cbb5e75ecf4bba5f339eab4f7a23",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "daa68f74d9e73dce9d30d49c47ae96c7f6d0cbb5e75ecf4bba5f339eab4f7a23.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 3.211875332246637e-08,
+    "max": 3.129243850708008e-06,
+    "samples": [
+     188384256,
+     188384256
+    ],
+    "common": 188384256
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     188384256,
+     188384256
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "7aa3b4ed51897a75a959de80a388cffe78d034f03cc389b606731cf0340dfa0d",
+   "source_sha256": "db2c5999262a588ad8ca2cfc85c287186d0a6e5c341a7ff0073d5a94a27a4dc5",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": true,
+   "file": "db2c5999262a588ad8ca2cfc85c287186d0a6e5c341a7ff0073d5a94a27a4dc5.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 9.332689510047263e-08,
+    "max": 1.043081283569336e-06,
+    "samples": [
+     1036800,
+     1036800
+    ],
+    "common": 1036800
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     1036800,
+     1036800
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "dd6a8a268cc7f7a91b46ec165b5ab5c45beea48bf96b740c3b91066f419699bb",
+   "source_sha256": "dd6a8a268cc7f7a91b46ec165b5ab5c45beea48bf96b740c3b91066f419699bb",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "dd6a8a268cc7f7a91b46ec165b5ab5c45beea48bf96b740c3b91066f419699bb.mov",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 1.8204775467985683e-07,
+    "max": 3.159046173095703e-06,
+    "samples": [
+     1161216,
+     1161216
+    ],
+    "common": 1161216
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     1161216,
+     1161216
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "e0d17d28496a908ce6b5ef54a3d0c4735c353839200972d0dab7904738ede035",
+   "source_sha256": "e0d17d28496a908ce6b5ef54a3d0c4735c353839200972d0dab7904738ede035",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "e0d17d28496a908ce6b5ef54a3d0c4735c353839200972d0dab7904738ede035.mov",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "status": "coreav failed",
+   "coreav_error": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"codec ms\\\\x00U is not decoded\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+   "listed_apart": "refused by a recorded choice"
+  },
+  {
+   "set": "corpus",
+   "sha256": "e562a23a487dadbaeb01e7ae07132d2c13c1f57faea72aac17258e0cdf78702c",
+   "source_sha256": "e562a23a487dadbaeb01e7ae07132d2c13c1f57faea72aac17258e0cdf78702c",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "e562a23a487dadbaeb01e7ae07132d2c13c1f57faea72aac17258e0cdf78702c.mp4",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 1.2783140120504047e-07,
+    "max": 5.774199962615967e-06,
+    "samples": [
+     143023104,
+     143023104
+    ],
+    "common": 143023104
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     143023104,
+     143023104
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "eb40f153bb3e35cf5af2efe880297eaf866b3b149e180f9dd5dbaa30eefe2e25",
+   "source_sha256": "eb40f153bb3e35cf5af2efe880297eaf866b3b149e180f9dd5dbaa30eefe2e25",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "eb40f153bb3e35cf5af2efe880297eaf866b3b149e180f9dd5dbaa30eefe2e25.mov",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "status": "coreav failed",
+   "coreav_error": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"codec ms\\\\x00U is not decoded\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+   "listed_apart": "refused by a recorded choice"
+  },
+  {
+   "set": "corpus",
+   "sha256": "efa9062d9cdb7a338e40ad530dfdf234806743f29ae6a1a136b97ece4e588e8f",
+   "source_sha256": "efa9062d9cdb7a338e40ad530dfdf234806743f29ae6a1a136b97ece4e588e8f",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "efa9062d9cdb7a338e40ad530dfdf234806743f29ae6a1a136b97ece4e588e8f.mov",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 1.5833118917483325e-07,
+    "max": 5.140900611877441e-06,
+    "samples": [
+     64747008,
+     64747008
+    ],
+    "common": 64747008
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     64747008,
+     64747008
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "efb46034651044fc10ed1bc0d7c5502c17c95fc0c8b989fe9dcfc5c596b464c4",
+   "source_sha256": "efb46034651044fc10ed1bc0d7c5502c17c95fc0c8b989fe9dcfc5c596b464c4",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "efb46034651044fc10ed1bc0d7c5502c17c95fc0c8b989fe9dcfc5c596b464c4.mov",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "status": "coreav failed",
+   "coreav_error": "{\"kind\":\"truncated_structure\",\"limit\":null,\"message\":\"truncated structure at offset 39980\",\"offset\":39980,\"schema\":\"coreav.error/1\"}\n",
+   "listed_apart": "refused by a recorded choice: the demuxer fails before the first packet"
+  },
+  {
+   "set": "corpus",
+   "sha256": "2d063da2c54d711211a97b7a9c65c7449835d8062d9c25810050114aed55acf0",
+   "source_sha256": "f0f5920e0951c00ef61bde778d0369ed930d89e5d483d0d130bec0f24cd051a8",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": true,
+   "file": "f0f5920e0951c00ef61bde778d0369ed930d89e5d483d0d130bec0f24cd051a8.mp4",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 0.0,
+    "max": 0.0,
+    "samples": [
+     428638,
+     428638
+    ],
+    "common": 428638
+   },
+   "s16": {
+    "max_steps": 0.0,
+    "equal": true,
+    "samples": [
+     428638,
+     428638
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "f290e3eb4558a1562934a083cca713fa4b3bb7c985124bd9a17dc4d0bc0ce4d5",
+   "source_sha256": "f290e3eb4558a1562934a083cca713fa4b3bb7c985124bd9a17dc4d0bc0ce4d5",
+   "class": "matroska",
+   "remuxed": false,
+   "holdout": false,
+   "file": "f290e3eb4558a1562934a083cca713fa4b3bb7c985124bd9a17dc4d0bc0ce4d5.mkv",
+   "stream": 1,
+   "ffmpeg_errors": "t with ID 0xFF at pos. 0x7080 for which no syntax for parsing is available.\nTruncating packet of size 1208847 to 546847\n    Last message repeated 1 times\n[matroska,webm @ 0x2c07ddc0] 0x00 at pos 2375 (0x947) invalid as first byte of an EBML number\n[matroska,webm @ 0x2c07ddc0] File ended prematurely\n",
+   "status": "coreav failed",
+   "coreav_error": "{\"kind\":\"invalid_structure\",\"limit\":null,\"message\":\"invalid element 0x48B2 at offset 2373: data size longer than EBMLMaxSizeLength\",\"offset\":2373,\"schema\":\"coreav.error/1\"}\n",
+   "listed_apart": "ffmpeg decoding errors"
+  },
+  {
+   "set": "corpus",
+   "sha256": "f70e229044d8804a79c85a0da44a89003165b39735e8e9506f8401cb07a0e29c",
+   "source_sha256": "f70e229044d8804a79c85a0da44a89003165b39735e8e9506f8401cb07a0e29c",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "f70e229044d8804a79c85a0da44a89003165b39735e8e9506f8401cb07a0e29c.mov",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "status": "coreav failed",
+   "coreav_error": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"codec ms\\\\x00U is not decoded\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n",
+   "listed_apart": "refused by a recorded choice"
+  },
+  {
+   "set": "corpus",
+   "sha256": "d7a2eda969cfe954af72809d47cffd14c8c0315cfe92bb30ee1b60e5f35e68af",
+   "source_sha256": "fa82108e20949023dc50215813550b3523dd088e0903b95db2a392119926f574",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "fa82108e20949023dc50215813550b3523dd088e0903b95db2a392119926f574.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 2.326803601105758e-07,
+    "max": 4.976987838745117e-06,
+    "samples": [
+     16130082,
+     16130082
+    ],
+    "common": 16130082
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     16130082,
+     16130082
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "d6c39b44d580ab6c0b2220db65b0792789f9689ae459710f0cf36579bcd88cf0",
+   "source_sha256": "fc594f69d93cf4763102f7fd9c16ee3fddedb2db07549525fb91f131932c2dac",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": true,
+   "file": "fc594f69d93cf4763102f7fd9c16ee3fddedb2db07549525fb91f131932c2dac.mp4",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 1.0229080884980722e-07,
+    "max": 3.993511199951172e-06,
+    "samples": [
+     40085086,
+     40085086
+    ],
+    "common": 40085086
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     40085086,
+     40085086
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "fd0f0a3eae4fc8b05e4cfa293a8f9846acd2a18c5fb732a765a30e64aea95a3a",
+   "source_sha256": "fd0f0a3eae4fc8b05e4cfa293a8f9846acd2a18c5fb732a765a30e64aea95a3a",
+   "class": "mp4",
+   "remuxed": false,
+   "holdout": false,
+   "file": "fd0f0a3eae4fc8b05e4cfa293a8f9846acd2a18c5fb732a765a30e64aea95a3a.mp4",
+   "stream": 1,
+   "ffmpeg_errors": null,
+   "status": "coreav failed",
+   "coreav_error": "{\"kind\":\"truncated_structure\",\"limit\":null,\"message\":\"truncated structure at offset 393372\",\"offset\":393372,\"schema\":\"coreav.error/1\"}\n",
+   "listed_apart": "refused by a recorded choice: the demuxer fails before the first packet"
+  },
+  {
+   "set": "corpus",
+   "sha256": "fd53f8bc18ce774990a2f47f93a771156238fccf6080d6d38753edfd72221c0c",
+   "source_sha256": "fd53f8bc18ce774990a2f47f93a771156238fccf6080d6d38753edfd72221c0c",
+   "class": "matroska",
+   "remuxed": false,
+   "holdout": false,
+   "file": "fd53f8bc18ce774990a2f47f93a771156238fccf6080d6d38753edfd72221c0c.mkv",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 1.119528461769649e-07,
+    "max": 2.9206275939941406e-06,
+    "samples": [
+     34295040,
+     34295040
+    ],
+    "common": 34295040
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     34295040,
+     34295040
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  },
+  {
+   "set": "corpus",
+   "sha256": "2589187185d99d4770e760878560cc93f674061e20102a04ce5da664d343d3a1",
+   "source_sha256": "ff1007ba7b4db5ea0dc8a8ca943542dd2e13f65633436f85baf6ea83043a68a1",
+   "class": "matroska",
+   "remuxed": true,
+   "holdout": false,
+   "file": "ff1007ba7b4db5ea0dc8a8ca943542dd2e13f65633436f85baf6ea83043a68a1.remux.mka",
+   "stream": 0,
+   "ffmpeg_errors": null,
+   "codec_delay": 0,
+   "output_channels": 2,
+   "warnings": [],
+   "f32": {
+    "rms": 4.8406339230907874e-08,
+    "max": 9.238719940185547e-07,
+    "samples": [
+     1847808,
+     1847808
+    ],
+    "common": 1847808
+   },
+   "s16": {
+    "max_steps": 1.0,
+    "equal": false,
+    "samples": [
+     1847808,
+     1847808
+    ]
+   },
+   "length_ok": true,
+   "within": true,
+   "status": "ok",
+   "listed_apart": null
+  }
+ ]
+}

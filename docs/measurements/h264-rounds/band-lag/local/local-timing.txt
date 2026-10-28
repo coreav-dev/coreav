@@ -1,0 +1,46 @@
+8 threads, --discard, whole streams, median of interleaved runs (5 for sd, 3 for the others): wall ms / CPU ms (user+system) of main 05daabc4 and of the branch (a), and a's wall over main's.
+Host: Intel Xeon @ 2.50GHz (family 6, model 85), 4 cores, 8 logical CPUs; not the bar class. Information only.
+
+== sd
+41e324ebb708 main=799ms/4207cpu(1.000) a=754ms/4324cpu(0.943)
+5185721dda11 main=563ms/1514cpu(1.000) a=363ms/1610cpu(0.645)
+6f7799768413 main=1259ms/4940cpu(1.000) a=917ms/5125cpu(0.728)
+7650ae466748 main=322ms/1639cpu(1.000) a=327ms/1706cpu(1.016)
+8ae90cadb5bc main=1042ms/3515cpu(1.000) a=826ms/3847cpu(0.793)
+dcb262cf0138 main=313ms/824cpu(1.000) a=205ms/882cpu(0.655)
+ec473c99c538 main=175ms/442cpu(1.000) a=121ms/504cpu(0.689)
+f9e973f44570 main=374ms/597cpu(1.000) a=187ms/605cpu(0.501)
+a median wall ratio 0.709 geo 0.73 CPU ratio 1.052
+
+== 720p
+1d4b1775d78a main=448ms/2588cpu(1.000) a=428ms/2470cpu(0.955)
+278dbf5a63bb main=502ms/2856cpu(1.000) a=497ms/2812cpu(0.991)
+36501d448eaa main=969ms/3763cpu(1.000) a=831ms/3997cpu(0.858)
+3c593b8f0809 main=462ms/1986cpu(1.000) a=440ms/2101cpu(0.954)
+65ec61f95a00 main=1482ms/8621cpu(1.000) a=1417ms/8286cpu(0.956)
+6b18d9f0f88d main=680ms/2947cpu(1.000) a=600ms/3003cpu(0.882)
+76e0b1692494 main=591ms/3183cpu(1.000) a=568ms/3178cpu(0.960)
+9db41aa16b5a main=693ms/3798cpu(1.000) a=688ms/3987cpu(0.993)
+a median wall ratio 0.956 geo 0.943 CPU ratio 1.009
+
+== 1080p
+175433794e02 main=1718ms/10007cpu(1.000) a=1718ms/9757cpu(1.000)
+6da34958296c main=917ms/5066cpu(1.000) a=927ms/4890cpu(1.011)
+6e90422a670a main=1356ms/7580cpu(1.000) a=1359ms/7718cpu(1.002)
+a6af290d9053 main=2191ms/11748cpu(1.000) a=2328ms/12252cpu(1.062)
+a81de82106be main=561ms/2264cpu(1.000) a=470ms/2191cpu(0.838)
+b41f70a7fa60 main=1270ms/7306cpu(1.000) a=1249ms/7226cpu(0.983)
+b71b6b31e54f main=749ms/4021cpu(1.000) a=815ms/4121cpu(1.089)
+c7ecda16e4a7 main=1607ms/8741cpu(1.000) a=1478ms/8509cpu(0.920)
+a median wall ratio 1.001 geo 0.985 CPU ratio 0.982
+
+== 4k
+3b1b441e23ae main=565ms/2887cpu(1.000) a=541ms/2781cpu(0.958)
+4b54de28c2b3 main=438ms/2386cpu(1.000) a=430ms/2338cpu(0.981)
+81ed4778ece2 main=224ms/1186cpu(1.000) a=233ms/1226cpu(1.040)
+ae16bb7c7192 main=163ms/672cpu(1.000) a=159ms/667cpu(0.974)
+af38b0cfd840 main=297ms/1521cpu(1.000) a=289ms/1353cpu(0.975)
+e624cbe0d2be main=611ms/2971cpu(1.000) a=646ms/3161cpu(1.058)
+ed75c044e944 main=316ms/1664cpu(1.000) a=322ms/1592cpu(1.017)
+f8d92a911e72 main=3263ms/17238cpu(1.000) a=3230ms/18004cpu(0.990)
+a median wall ratio 0.985 geo 0.999 CPU ratio 0.986

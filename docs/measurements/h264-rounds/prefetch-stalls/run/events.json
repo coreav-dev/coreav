@@ -1,0 +1,20 @@
+{
+ "counts_on_probe": {
+  "cycles": 1514092473.0,
+  "instructions": 3664050435.0,
+  "cycle_activity.stalls_total": 284117460.0,
+  "cycle_activity.stalls_l1d_miss": 14344958.0,
+  "l1d_pend_miss.fb_full": 6018723.0,
+  "sw_prefetch_access.t0": 3107878.0,
+  "load_hit_prefetch.swpf": 1763.0,
+  "exe_activity.bound_on_loads": 139687900.0
+ },
+ "supported": [
+  "cycle_activity.stalls_total",
+  "cycle_activity.stalls_l1d_miss",
+  "l1d_pend_miss.fb_full",
+  "sw_prefetch_access.t0",
+  "load_hit_prefetch.swpf",
+  "exe_activity.bound_on_loads"
+ ]
+}

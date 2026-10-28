@@ -1,0 +1,22 @@
+# One thread, pinned to cpu 3, CPU time (user+sys) of --discard, class frame counts, 5 rounds, builds rotated
+# (ab3.py 5 STREAMS r18-base r18-slow1). r18-base: main 06141b3. r18-slow1: the same with SliceDecoder::any_whole
+# forced false, so that every block of a one-thread decode takes predict_list_any (the path every block takes with
+# more than one thread) although its references are whole. development VM, Intel Xeon @ 2.90GHz (family 6 model 106),
+# 4 cores x 2 threads. Columns: stream, base seconds, ratio slow1/base. Information only.
+41e324ebb708.0.sd.h2 0.965  r18-slow1 1.1876
+5185721dda11.0.sd.h2 0.432  r18-slow1 1.1112
+6f7799768413.0.sd.h2 1.808  r18-slow1 1.0899
+dcb262cf0138.0.sd.h2 0.293  r18-slow1 1.1379
+f9e973f44570.0.sd.h2 0.202  r18-slow1 1.0843
+1d4b1775d78a.0.720p. 0.898  r18-slow1 1.0865
+6b18d9f0f88d.0.720p. 0.767  r18-slow1 1.1325
+76e0b1692494.0.720p. 0.902  r18-slow1 1.1091
+a81de82106be.0.1080p 0.712  r18-slow1 1.0775
+b71b6b31e54f.0.1080p 1.048  r18-slow1 1.2001
+6da34958296c.0.1080p 1.641  r18-slow1 1.1317
+ed75c044e944.0.4k.h2 0.264  r18-slow1 1.1726
+81ed4778ece2.0.4k.h2 0.292  r18-slow1 1.1615
+f8d92a911e72.0.4k.h2 7.659  r18-slow1 1.1108
+ae16bb7c7192.0.4k.h2 0.175  r18-slow1 1.2161
+4b54de28c2b3.0.4k.h2 0.744  r18-slow1 1.0808
+median r18-slow1 1.1215

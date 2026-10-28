@@ -1,0 +1,145 @@
+{
+ "file": "multitrack.mp4",
+ "format_duration_us": 2000000,
+ "probe_ok": true,
+ "schema": "coreav-oracle/streams/1",
+ "streams": [
+  {
+   "channels": null,
+   "codec_fourcc": "avc1",
+   "codec_name": "h264",
+   "color_matrix": null,
+   "color_primaries": null,
+   "color_range": null,
+   "color_transfer": null,
+   "display_aspect_ratio": [
+    4,
+    3
+   ],
+   "duration_ts": 25600,
+   "handler_name": "VideoHandler",
+   "height": 240,
+   "index": 0,
+   "kind": "video",
+   "language": "und",
+   "rotation": 0,
+   "sample_aspect_ratio": [
+    1,
+    1
+   ],
+   "sample_rate": null,
+   "time_base": [
+    1,
+    12800
+   ],
+   "timescale": 12800,
+   "width": 320
+  },
+  {
+   "channels": null,
+   "codec_fourcc": "avc1",
+   "codec_name": "h264",
+   "color_matrix": null,
+   "color_primaries": null,
+   "color_range": null,
+   "color_transfer": null,
+   "display_aspect_ratio": [
+    4,
+    3
+   ],
+   "duration_ts": 30720,
+   "handler_name": "VideoHandler",
+   "height": 120,
+   "index": 1,
+   "kind": "video",
+   "language": "und",
+   "rotation": 0,
+   "sample_aspect_ratio": [
+    1,
+    1
+   ],
+   "sample_rate": null,
+   "time_base": [
+    1,
+    15360
+   ],
+   "timescale": 15360,
+   "width": 160
+  },
+  {
+   "channels": 1,
+   "codec_fourcc": "mp4a",
+   "codec_name": "aac",
+   "color_matrix": null,
+   "color_primaries": null,
+   "color_range": null,
+   "color_transfer": null,
+   "display_aspect_ratio": null,
+   "duration_ts": 96000,
+   "handler_name": "SoundHandler",
+   "height": null,
+   "index": 2,
+   "kind": "audio",
+   "language": "eng",
+   "rotation": null,
+   "sample_aspect_ratio": null,
+   "sample_rate": 48000,
+   "time_base": [
+    1,
+    48000
+   ],
+   "timescale": 48000,
+   "width": null
+  },
+  {
+   "channels": 1,
+   "codec_fourcc": "mp4a",
+   "codec_name": "aac",
+   "color_matrix": null,
+   "color_primaries": null,
+   "color_range": null,
+   "color_transfer": null,
+   "display_aspect_ratio": null,
+   "duration_ts": 88200,
+   "handler_name": "SoundHandler",
+   "height": null,
+   "index": 3,
+   "kind": "audio",
+   "language": "kor",
+   "rotation": null,
+   "sample_aspect_ratio": null,
+   "sample_rate": 44100,
+   "time_base": [
+    1,
+    44100
+   ],
+   "timescale": 44100,
+   "width": null
+  },
+  {
+   "channels": null,
+   "codec_fourcc": "tx3g",
+   "codec_name": "mov_text",
+   "color_matrix": null,
+   "color_primaries": null,
+   "color_range": null,
+   "color_transfer": null,
+   "display_aspect_ratio": null,
+   "duration_ts": 2000000,
+   "handler_name": "SubtitleHandler",
+   "height": null,
+   "index": 4,
+   "kind": "subtitle",
+   "language": "eng",
+   "rotation": null,
+   "sample_aspect_ratio": null,
+   "sample_rate": null,
+   "time_base": [
+    1,
+    1000000
+   ],
+   "timescale": 1000000,
+   "width": null
+  }
+ ]
+}

@@ -1,0 +1,38 @@
+name: Benchmark result
+description: A measurement of CoreAV, ideally next to FFmpeg on the same machine.
+body:
+  - type: textarea
+    id: inputs
+    attributes:
+      label: Inputs
+      description: The files measured (format, codec, size, duration), or how to get them.
+    validations:
+      required: true
+  - type: textarea
+    id: commands
+    attributes:
+      label: Commands
+      description: Every command run, CoreAV's and FFmpeg's, exactly, and how the time or memory was measured.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: versions
+    attributes:
+      label: Versions and hardware
+      description: The CoreAV version or commit, the FFmpeg version, the OS, the CPU (model, cores) and memory.
+    validations:
+      required: true
+  - type: textarea
+    id: results
+    attributes:
+      label: Results
+      description: The numbers, per input and per run, with the number of runs.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Optional. Anything else that affects the numbers (other load, thermal limits, a cold cache).

@@ -1,0 +1,11 @@
+# callgrind (valgrind --tool=callgrind), --discard, the first 40 pictures, instructions of the whole run; main-e18f85c, mbl-1 (the three parts, the intra motion copied in one 192-byte copy_from_slice, a memcpy call) and mbl-2 (this round's code: four 48-byte copies).
+stream main-e18f85c mbl-1 ratio
+175433794e02 5075756013 5062979961 0.9975
+6f7799768413 68359291 67391326 0.9858
+1d4b1775d78a 1149275614 1144209965 0.9956
+a81de82106be 690449768 686187452 0.9938
+mbl-2: 6f7799768413 67,321,725 (0.9848), a81de82106be 686,237,866 (0.9939); start_mb on a81de82106be 29,191,680 (main) and 25,424,680 (mbl-1, mbl-2)
+# On main at 056bd25 (dw-4cb168e) against this round merged with it (mbl-451), the same method:
+a81de82106be 661,969,175 658,053,279 0.9941 (start_mb's v3 instance 28,059,800 -> 24,451,840; MbData::reset's 2,377,040 -> 2,207,894)
+6f7799768413 65,331,820 64,337,722 0.9848
+1d4b1775d78a 1,124,321,978 1,119,390,920 0.9956

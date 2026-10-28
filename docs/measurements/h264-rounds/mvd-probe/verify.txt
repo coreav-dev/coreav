@@ -1,0 +1,39 @@
+Probe check: callgrind instructions of bin-mvd-pad over bin-mvd-base (32 streams, a tenth of the class frames),
+against counts.txt's predicted cut (calls on prof-200f9a79 x 60/115/55; 0 on the CAVLC streams, whose
+store_mvd calls return before the pad), and the output md5 of both builds at those frames.
+stream        class        base Ir       added   predicted   ratio   share  md5
+175433794e02  1080p     2891618896    76171406    76171365  1.0000   2.63%  identical
+1d4b1775d78a  720p      1963373192    41728069    41728000  1.0000   2.13%  identical
+278dbf5a63bb  720p      2048875207    50137729    50137660  1.0000   2.45%  identical
+36501d448eaa  720p       722070627    20380484    20380415  1.0000   2.82%  identical
+3b1b441e23ae  4k         587064006     1885570     1885515  1.0000   0.32%  identical
+3c593b8f0809  720p      1386243207    32439054    32438985  1.0000   2.34%  identical
+41e324ebb708  sd         440878614     2033170     2033115  1.0000   0.46%  identical
+4b54de28c2b3  4k         663867386    16346425    16346370  1.0000   2.46%  identical
+5185721dda11  sd         247758181          55           0     n/a   0.00%  identical
+65ec61f95a00  720p      2274396703    66149264    66149195  1.0000   2.91%  identical
+6b18d9f0f88d  720p       574218238     5836319     5836250  1.0000   1.02%  identical
+6da34958296c  1080p     1411272140    30297736    30297695  1.0000   2.15%  identical
+6e90422a670a  1080p     3567576528    98389346    98389305  1.0000   2.76%  identical
+6f7799768413  sd         266451607          55           0     n/a   0.00%  identical
+7650ae466748  sd         744487800    22458980    22458925  1.0000   3.02%  identical
+76e0b1692494  720p      1737509550    32861339    32861270  1.0000   1.89%  identical
+81ed4778ece2  4k         299174107     1014060     1014005  1.0001   0.34%  identical
+8ae90cadb5bc  sd         845331753    23508925    23508870  1.0000   2.78%  identical
+9db41aa16b5a  720p       981682596          69           0     n/a   0.00%  identical
+a6af290d9053  1080p     3871282147    52302296    52302255  1.0000   1.35%  identical
+a81de82106be  1080p      434816771     6141846     6141805  1.0000   1.41%  identical
+ae16bb7c7192  4k         226586901      254905      254850  1.0002   0.11%  identical
+af38b0cfd840  4k         465188780     9428475     9428420  1.0000   2.03%  identical
+b41f70a7fa60  1080p     1864123791    45023216    45023175  1.0000   2.42%  identical
+b71b6b31e54f  1080p      543751891          41           0     n/a   0.00%  identical
+c7ecda16e4a7  1080p     3104969570    72236856    72236815  1.0000   2.33%  identical
+dcb262cf0138  sd          96170033       18035       17980  1.0031   0.02%  identical
+e624cbe0d2be  4k        1398491300    22965730    22965675  1.0000   1.64%  identical
+ec473c99c538  sd         101003267          55           0     n/a   0.00%  identical
+ed75c044e944  4k         274350104     1543885     1543830  1.0000   0.56%  identical
+f8d92a911e72  4k        4872836941    99767485    99767430  1.0000   2.05%  identical
+f9e973f44570  sd         179489394          55           0     n/a   0.00%  identical
+26 CABAC streams: added/predicted 1.0000 to 1.0031; median share added 2.09%
+6 CAVLC streams: 41 to 69 instructions added (the binary, not the pads: no pad runs)
+output identical: 32 of 32

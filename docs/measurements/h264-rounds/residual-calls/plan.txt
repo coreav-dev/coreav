@@ -1,0 +1,38 @@
+Residual block dispatch probe, part-only (written before the run).
+
+Question: does the CABAC residual's block dispatch cost time in proportion to its instructions? The entropy breakdown
+("Entropy decoding: the instruction excess by syntax element, and a decision probe", cabac-decision-probe/breakdown)
+puts 108.6 instructions a coded_block_flag bin, about 257 a macroblock on the 26 CABAC streams, outside the engine in
+the residual's dispatch: Cabac::residual (42.5 a macroblock), the per-tier significance_map and levels entries with
+their prologues and the engine's load and store (30.5 + 46.1), parse_residual_blocks (59.6, of which a 16-step loop that
+turns the luma bits from block order to raster order), parse_4x4_block (53.5 with its lookups), coded_block_flag_inc
+(39.7), syntax.rs block (28.8) and parse_8x8_block (14.0). 1.69 coded residual blocks a macroblock.
+
+Cut in view (R, not built): one out-of-line call a coded block in each tier instead of three (Cabac::residual ->
+significance_map -> levels), the engine loaded and stored once; the luma bits in raster order taken from the
+coded_block_flag bits the blocks already set, without the 16-step loop; parse_4x4_block's per-block lookups (scaling,
+kind, block slot) taken once a macroblock. Predicted: 120 to 160 fewer instructions a CABAC macroblock (1.5 to 2% of a
+stream's instructions), fewer on CAVLC (the loop and lookups only).
+
+Probe (P, branch probe/h264-residual-calls-pad, feature probe-pad): 156 independent one-uop instructions (lea o,
+[a + a], output unused) at the start of every Cabac::residual, one a coded block: about 264 a CABAC macroblock, the
+whole part doubled in place, so P bounds what any cut of the part can gain. Verified before timing: callgrind
+instructions of P over base on 20 pictures of a CABAC stream, and output identical to base (md5).
+
+Arms: base = dist build of origin/main e2271b3a (bin-base), P = the same tree with --features probe-pad (bin-pad).
+Method: ab3.py, 8 rounds, all 32 training streams, class frame counts, 1 thread, --discard, pinned to CPU 3, order
+rotated each round, CPU time (user + sys); per stream the median of P over base, bootstrap 95% interval of the median.
+Host: this development VM, Intel Xeon @ 2.50 GHz (not the bar class, so directional; no gating bar moves).
+
+Rule (fixed now):
+- Build R only if P's median over the 26 CABAC streams is >= 1.010 with the bootstrap lower end above 1.000. Otherwise
+  R is not built as a round of its own: the part is below what a round resolves, and its pieces go to a bundle.
+- The 6 CAVLC streams call no Cabac::residual and are the null control: their median should read 1.000 (within
+  +-0.005); if it does not, the run is a host fault and is rerun once.
+- Reported beside it: all 32 and per class (sd, 720p, 1080p, 4k), streams slower, and the price per instruction a
+  macroblock against the decision probe's (1.0229 for +11.94 a regular bin, about +409 a macroblock).
+
+If R is built, its local timing (written now, before any build): ab3.py, 8 rounds, all 32, arms base and R, same host
+and method. A gating run is requested from the A/B helper only if the all-32 median of R over base is at most 0.995
+with the bootstrap upper end below 1.000; the gating bars are written into the design note and committed before that
+run. Otherwise R goes to a rejected/ branch as a bundle candidate.

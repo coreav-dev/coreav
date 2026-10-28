@@ -1,0 +1,2 @@
+/tmp/dbp/ident.sh: md5 of the raw output of the 32 training streams (class frame counts); base = main 75d77dc (4c457c9 differs in documents only) at 1 thread, this round's build (Planes::request out of line) at 1 and 8 threads.
+identical 32, different 0

@@ -1,0 +1,172 @@
+{
+ "sha256": "4d9717b4616b53eb34a821ebe829a531a38bbbb9e1964353ffd6d4666db08fc0",
+ "size": 1725253616,
+ "ext": "mp4",
+ "holdout": false,
+ "tags": [
+  "a:aac",
+  "brand:mp42",
+  "c:isobmff",
+  "ctts",
+  "elst",
+  "elst-bframe-delay",
+  "moov-end",
+  "v:h264"
+ ],
+ "download_seconds": 13.638626439999998,
+ "ffprobe_streams": [
+  {
+   "index": 0,
+   "codec_type": "video",
+   "codec_name": "h264",
+   "codec_tag_string": "avc1",
+   "profile": "High",
+   "sample_rate": null,
+   "channels": null,
+   "duration": "1454.986800",
+   "nb_frames": "43606"
+  },
+  {
+   "index": 1,
+   "codec_type": "audio",
+   "codec_name": "aac",
+   "codec_tag_string": "mp4a",
+   "profile": "LC",
+   "sample_rate": "48000",
+   "channels": 2,
+   "duration": "1454.986792",
+   "nb_frames": "68204"
+  }
+ ],
+ "coreav": {
+  "probe_ns": 2373414,
+  "fragmented": false,
+  "movie_timescale": 10000,
+  "tracks": [
+   {
+    "stream_index": 0,
+    "kind": "Video",
+    "codec": "H264",
+    "fourcc": "avc1",
+    "descriptions": 1,
+    "edit_list": "Simple { empty: 0, media_time: 2002, segment: 14549868 }",
+    "timescale": 60000,
+    "sample_count": 43606,
+    "fragment_samples": 0
+   },
+   {
+    "stream_index": 1,
+    "kind": "Audio",
+    "codec": "Aac",
+    "fourcc": "mp4a",
+    "descriptions": 1,
+    "edit_list": "Simple { empty: 0, media_time: 0, segment: 14549868 }",
+    "timescale": 48000,
+    "sample_count": 68204,
+    "fragment_samples": 0
+   }
+  ],
+  "dropped": [],
+  "aac": [
+   {
+    "stream_index": 1,
+    "extract_ns": 56783334,
+    "ok": true,
+    "output": "/data/work/4d9717b4616b53eb34a821ebe829a531a38bbbb9e1964353ffd6d4666db08fc0/out/1.m4a",
+    "samples": 68204,
+    "bytes_written": 23082126,
+    "timescale": 48000,
+    "duration": 69840896,
+    "round_trip": []
+   }
+  ]
+ },
+ "checks": [
+  {
+   "stream_index": 1,
+   "extract_ok": true,
+   "round_trip": [],
+   "oracle_problems": [
+    "output nb_frames '68204', 68203 source packets"
+   ],
+   "oracle_informational": [],
+   "diagnosis": {
+    "source_itunsmpb": null,
+    "ffprobe_source": {
+     "start_pts": 0,
+     "duration_ts": 69839366,
+     "nb_frames": "68204",
+     "duration": "1454.986792"
+    },
+    "ffprobe_output": {
+     "start_pts": 0,
+     "duration_ts": 69839366,
+     "nb_frames": "68204",
+     "duration": "1454.986792"
+    },
+    "source_headers": {
+     "traks": [
+      {
+       "tkhd_duration": 14549868,
+       "elst": [
+        [
+         14549868,
+         2002,
+         65536
+        ]
+       ],
+       "mdhd": [
+        60000,
+        87299212
+       ],
+       "handler": "vide"
+      },
+      {
+       "tkhd_duration": 14549868,
+       "elst": [
+        [
+         14549868,
+         0,
+         65536
+        ]
+       ],
+       "mdhd": [
+        48000,
+        69840896
+       ],
+       "handler": "soun"
+      }
+     ],
+     "mvhd": [
+      10000,
+      14549868
+     ]
+    },
+    "output_headers": {
+     "traks": [
+      {
+       "tkhd_duration": 14549868,
+       "elst": [
+        [
+         14549868,
+         0,
+         65536
+        ]
+       ],
+       "mdhd": [
+        48000,
+        69840896
+       ],
+       "handler": "soun"
+      }
+     ],
+     "mvhd": [
+      10000,
+      14549868
+     ]
+    }
+   }
+  }
+ ],
+ "seconds": 24.873206479
+}

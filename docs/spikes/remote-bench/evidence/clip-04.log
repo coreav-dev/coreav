@@ -1,0 +1,69 @@
+iso       00de70872ff1 refused
+iso       0119957558a2 refused
+iso       016ab71f2d04     90.5 MB ours=   1217.7ms theirs=   1634.9ms ratio=0.745
+iso       02f2c37a7ad9 refused
+iso       04b7b4fb3b37 refused
+iso       0538fb0951fa refused
+iso       057ee81be8c8 refused
+iso       065b0fa2931f     35.0 MB ours=    851.8ms theirs=    711.7ms ratio=1.197
+iso       096d9e707920      2.3 MB ours=    304.7ms theirs=    720.1ms ratio=0.423
+iso       09a07d37fd09    208.9 MB ours=    629.9ms theirs=    696.0ms ratio=0.905
+iso       09febe430bb4 refused
+iso       0a65884fdefd refused
+iso       0c09c7607280    119.9 MB ours=    620.4ms theirs=    835.8ms ratio=0.742
+iso       0ced42322c65      2.0 MB ours=    307.4ms theirs=   1068.4ms ratio=0.288
+iso       0d8e77ef7d45 refused
+iso       0df9dd6969ab      1.0 MB ours=    316.0ms theirs=    362.2ms ratio=0.872
+iso       108521a89a73      3.9 MB ours=    431.7ms theirs=   1045.2ms ratio=0.413
+iso       1115b5bac7c2 refused
+iso       12b422185953 refused
+iso       12c0953f433a refused
+iso       13cf128006da refused
+iso       146662b2307c refused
+iso       15affcdb19e3 refused
+iso       19d5a3aef3db refused
+iso       1b450d90085d     63.8 MB ours=   2683.8ms theirs=   1532.1ms ratio=1.752
+iso       1ce3933e3009     70.3 MB ours=   1543.4ms theirs=   2196.0ms ratio=0.703
+iso       1ced309b3617    110.6 MB ours=   1209.1ms theirs=   1469.9ms ratio=0.823
+iso       1df1e32ed6a5 refused
+iso       1fc969989fcd refused
+iso       206a65347de4 refused
+iso       220e29e8557e refused
+iso       24e19189ff25 refused
+iso       25c852bc7dae refused
+iso       2893c1481a13 refused
+iso       2a36309a821b refused
+iso       2a3c8259b630 refused
+iso       2ac72e8784ec refused
+iso       2ad59527e45b      3.2 MB ours=    325.6ms theirs=    707.3ms ratio=0.460
+iso       2b42d40aa328     51.1 MB ours=    982.9ms theirs=    741.8ms ratio=1.325
+iso       2bc6b07151be refused
+iso       2c7ae378fe10 refused
+iso       2c8794188a18 refused
+iso       2cf91de003da refused
+iso       2d782d2c8918 refused
+iso       3056b4519216     11.4 MB ours=    631.4ms theirs=   1363.4ms ratio=0.463
+iso       33423db1c2f6      6.8 MB ours=    405.7ms theirs=   1454.7ms ratio=0.279
+iso       33b54ab1d6c9      0.8 MB ours=    331.5ms theirs=    984.9ms ratio=0.337
+iso       34ad77411128 refused
+iso       35c2c80530e0      4.1 MB ours=    333.0ms theirs=   1438.5ms ratio=0.232
+iso       35dce647f1bb refused
+iso       371baf1bdb08    266.5 MB ours=   1154.8ms theirs=    916.0ms ratio=1.261
+iso       376ad2dd72fd      7.5 MB ours=    326.5ms theirs=   1327.2ms ratio=0.246
+iso       3898250f26b8 refused
+iso       39bb52e682d1      1.6 MB ours=    392.4ms theirs=   1428.2ms ratio=0.275
+iso       3a4928a60b5d     16.4 MB ours=    661.1ms theirs=   1331.9ms ratio=0.496
+iso       3b5d1c91eaa5     10.4 MB ours=    322.4ms theirs=    718.3ms ratio=0.449
+iso       3c5b4bf1a271      1.3 MB ours=    318.7ms theirs=   1041.8ms ratio=0.306
+iso       3c9312524de7    110.7 MB ours=    690.9ms theirs=   4146.1ms ratio=0.167
+iso       3dc2331682cd refused
+iso       3e2baf38a445      8.9 MB ours=    723.3ms theirs=   1626.8ms ratio=0.445
+iso       3e3704d5c273      0.1 MB ours=    294.9ms theirs=    676.2ms ratio=0.436
+iso       3e7b2fbc6e4d refused
+iso       3f89a1f748a9 refused
+iso       3faf6fdb5c79      0.7 MB ours=    294.0ms theirs=   1065.0ms ratio=0.276
+iso       41d9dfa0819c      4.0 MB ours=    332.3ms theirs=   1002.7ms ratio=0.331
+iso       42fce01d091e refused
+iso       44cc2b274a94     55.1 MB ours=   1075.6ms theirs=    896.1ms ratio=1.200
+iso       45a370237fec      3.4 MB ours=    361.9ms theirs=   1482.1ms ratio=0.244
+exit 0

@@ -1,0 +1,17 @@
+{
+  "label": "spike",
+  "instructions": 12077650312,
+  "macroblocks": 1747200,
+  "stages": {
+    "chroma MC": 1164215798,
+    "deblocking": 3771790392,
+    "luma MC": 1152258722,
+    "CABAC": 1782629842,
+    "CAVLC": 0,
+    "intra prediction": 382003692,
+    "MC control + fetch": 997888441,
+    "IDCT + residual": 39031293,
+    "libc mem*": 966938346,
+    "everything else": 1820893786
+  }
+}

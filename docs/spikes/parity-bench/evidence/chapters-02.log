@@ -1,0 +1,14 @@
+145cd0035987 m4b  ours=0.042ms lav=4.218ms ffprobe=8.330ms
+28a9e1e12df0 m4b  ours=0.040ms lav=1.899ms ffprobe=5.343ms
+4e08c111b544 m4b  ours=0.089ms lav=24.587ms ffprobe=33.863ms
+5a1f4cb94f05 m4b  ours=0.109ms lav=37.639ms ffprobe=49.692ms
+6024f3b8f371 m4b  ours=0.084ms lav=29.544ms ffprobe=40.292ms
+88ba79019cd6 m4a  ours=0.040ms lav=2.299ms ffprobe=5.517ms
+983a485e8c0a m4b  ours=0.081ms lav=15.859ms ffprobe=23.358ms
+e29770a1063e m4b  ours=0.039ms lav=52.411ms ffprobe=65.075ms
+0ad504671d99 mp4  ours=0.087ms lav=7.931ms ffprobe=17.936ms
+3d8f6047f826 mp4  ours=0.067ms lav=43.131ms ffprobe=49.077ms
+7676e2228a26 mp4  ours=0.041ms lav=8.311ms ffprobe=17.718ms
+82f43744c534 mp4  ours=0.049ms lav=21.406ms ffprobe=25.789ms
+d0f934176faf mp4  ours=0.038ms lav=0.986ms ffprobe=6.725ms
+ff7fac2c8568 mp4  ours=0.037ms lav=0.967ms ffprobe=6.138ms

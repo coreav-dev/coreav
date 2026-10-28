@@ -1,0 +1,4 @@
+# valgrind --tool=callgrind, --discard --frames 300 6f7799768413.0.sd.h264, one thread; instructions (Ir)
+main-051e169   547,850,977
+cavlc-f1       545,414,387   (0.9956; this branch)
+cavlc-f2       545,826,719   (0.9963; plus the nC record, not taken)

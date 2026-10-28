@@ -1,0 +1,688 @@
+{
+  "schema": "spike-c/measurements/1",
+  "utc": "2026-10-12T20:55:26Z",
+  "platform": "Linux-6.12.94+-x86_64-with-glibc2.41",
+  "affinity_cpu": 0,
+  "frequency_pinned": false,
+  "rustc": "rustc 1.85.1 (4eb161250 2025-03-15) (built from a source tarball)",
+  "oracle_version": "ffprobe version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2007-2024 the FFmpeg developers",
+  "in_process_libavformat": "not measured: pinned oracle contains static executables only; no development package installed",
+  "comparison_limits": [
+    "Rust measures metadata and sample descriptors, without media payload reads or JSON output",
+    "ffprobe timings include subprocess startup, stream discovery, payload reads for packets, and JSON serialization",
+    "CPU affinity is fixed; frequency and host contention are uncontrolled; no parity or speedup inferred"
+  ],
+  "files": [
+    {
+      "reference_packet_counts": [
+        {
+          "index": 0,
+          "nb_read_packets": "90000"
+        }
+      ],
+      "name": "hour.mp4",
+      "sha256": "3d7a9dc49be8fc210bff960af749b046f7ee04b9e4329b5f65c82ebb91ca76e4",
+      "bytes": 5353480,
+      "reference_duration_seconds": "3600.000000",
+      "reference_streams": [
+        {
+          "index": 0,
+          "codec_name": "h264",
+          "time_base": "1/12800",
+          "duration_ts": 46080000,
+          "nb_frames": "90000"
+        }
+      ],
+      "rust": {
+        "file": "hour.mp4",
+        "mode": "metadata and packet descriptors; no payload reads",
+        "runs": [
+          {
+            "bytes_read": 864800,
+            "checksum": 2101654377422,
+            "file_bytes": 5353480,
+            "headers": 28,
+            "iteration_ns": 7643609,
+            "max_fragment_bytes": 0,
+            "max_read": 489608,
+            "movie_duration_ticks": 3600000,
+            "movie_timescale": 1000,
+            "packets": 90000,
+            "probe_ns": 832105,
+            "table_bytes": 864140,
+            "top_headers": 4
+          },
+          {
+            "bytes_read": 864800,
+            "checksum": 2101654377422,
+            "file_bytes": 5353480,
+            "headers": 28,
+            "iteration_ns": 11374298,
+            "max_fragment_bytes": 0,
+            "max_read": 489608,
+            "movie_duration_ticks": 3600000,
+            "movie_timescale": 1000,
+            "packets": 90000,
+            "probe_ns": 721620,
+            "table_bytes": 864140,
+            "top_headers": 4
+          },
+          {
+            "bytes_read": 864800,
+            "checksum": 2101654377422,
+            "file_bytes": 5353480,
+            "headers": 28,
+            "iteration_ns": 8084667,
+            "max_fragment_bytes": 0,
+            "max_read": 489608,
+            "movie_duration_ticks": 3600000,
+            "movie_timescale": 1000,
+            "packets": 90000,
+            "probe_ns": 989453,
+            "table_bytes": 864140,
+            "top_headers": 4
+          },
+          {
+            "bytes_read": 864800,
+            "checksum": 2101654377422,
+            "file_bytes": 5353480,
+            "headers": 28,
+            "iteration_ns": 7894434,
+            "max_fragment_bytes": 0,
+            "max_read": 489608,
+            "movie_duration_ticks": 3600000,
+            "movie_timescale": 1000,
+            "packets": 90000,
+            "probe_ns": 724684,
+            "table_bytes": 864140,
+            "top_headers": 4
+          },
+          {
+            "bytes_read": 864800,
+            "checksum": 2101654377422,
+            "file_bytes": 5353480,
+            "headers": 28,
+            "iteration_ns": 7756211,
+            "max_fragment_bytes": 0,
+            "max_read": 489608,
+            "movie_duration_ticks": 3600000,
+            "movie_timescale": 1000,
+            "packets": 90000,
+            "probe_ns": 724810,
+            "table_bytes": 864140,
+            "top_headers": 4
+          },
+          {
+            "bytes_read": 864800,
+            "checksum": 2101654377422,
+            "file_bytes": 5353480,
+            "headers": 28,
+            "iteration_ns": 7560821,
+            "max_fragment_bytes": 0,
+            "max_read": 489608,
+            "movie_duration_ticks": 3600000,
+            "movie_timescale": 1000,
+            "packets": 90000,
+            "probe_ns": 623609,
+            "table_bytes": 864140,
+            "top_headers": 4
+          },
+          {
+            "bytes_read": 864800,
+            "checksum": 2101654377422,
+            "file_bytes": 5353480,
+            "headers": 28,
+            "iteration_ns": 7416322,
+            "max_fragment_bytes": 0,
+            "max_read": 489608,
+            "movie_duration_ticks": 3600000,
+            "movie_timescale": 1000,
+            "packets": 90000,
+            "probe_ns": 606472,
+            "table_bytes": 864140,
+            "top_headers": 4
+          },
+          {
+            "bytes_read": 864800,
+            "checksum": 2101654377422,
+            "file_bytes": 5353480,
+            "headers": 28,
+            "iteration_ns": 7638828,
+            "max_fragment_bytes": 0,
+            "max_read": 489608,
+            "movie_duration_ticks": 3600000,
+            "movie_timescale": 1000,
+            "packets": 90000,
+            "probe_ns": 463375,
+            "table_bytes": 864140,
+            "top_headers": 4
+          },
+          {
+            "bytes_read": 864800,
+            "checksum": 2101654377422,
+            "file_bytes": 5353480,
+            "headers": 28,
+            "iteration_ns": 7728139,
+            "max_fragment_bytes": 0,
+            "max_read": 489608,
+            "movie_duration_ticks": 3600000,
+            "movie_timescale": 1000,
+            "packets": 90000,
+            "probe_ns": 656402,
+            "table_bytes": 864140,
+            "top_headers": 4
+          },
+          {
+            "bytes_read": 864800,
+            "checksum": 2101654377422,
+            "file_bytes": 5353480,
+            "headers": 28,
+            "iteration_ns": 7915928,
+            "max_fragment_bytes": 0,
+            "max_read": 489608,
+            "movie_duration_ticks": 3600000,
+            "movie_timescale": 1000,
+            "packets": 90000,
+            "probe_ns": 472904,
+            "table_bytes": 864140,
+            "top_headers": 4
+          },
+          {
+            "bytes_read": 864800,
+            "checksum": 2101654377422,
+            "file_bytes": 5353480,
+            "headers": 28,
+            "iteration_ns": 7432710,
+            "max_fragment_bytes": 0,
+            "max_read": 489608,
+            "movie_duration_ticks": 3600000,
+            "movie_timescale": 1000,
+            "packets": 90000,
+            "probe_ns": 481060,
+            "table_bytes": 864140,
+            "top_headers": 4
+          },
+          {
+            "bytes_read": 864800,
+            "checksum": 2101654377422,
+            "file_bytes": 5353480,
+            "headers": 28,
+            "iteration_ns": 7686888,
+            "max_fragment_bytes": 0,
+            "max_read": 489608,
+            "movie_duration_ticks": 3600000,
+            "movie_timescale": 1000,
+            "packets": 90000,
+            "probe_ns": 446139,
+            "table_bytes": 864140,
+            "top_headers": 4
+          },
+          {
+            "bytes_read": 864800,
+            "checksum": 2101654377422,
+            "file_bytes": 5353480,
+            "headers": 28,
+            "iteration_ns": 7417310,
+            "max_fragment_bytes": 0,
+            "max_read": 489608,
+            "movie_duration_ticks": 3600000,
+            "movie_timescale": 1000,
+            "packets": 90000,
+            "probe_ns": 442052,
+            "table_bytes": 864140,
+            "top_headers": 4
+          },
+          {
+            "bytes_read": 864800,
+            "checksum": 2101654377422,
+            "file_bytes": 5353480,
+            "headers": 28,
+            "iteration_ns": 7522557,
+            "max_fragment_bytes": 0,
+            "max_read": 489608,
+            "movie_duration_ticks": 3600000,
+            "movie_timescale": 1000,
+            "packets": 90000,
+            "probe_ns": 442363,
+            "table_bytes": 864140,
+            "top_headers": 4
+          },
+          {
+            "bytes_read": 864800,
+            "checksum": 2101654377422,
+            "file_bytes": 5353480,
+            "headers": 28,
+            "iteration_ns": 7501571,
+            "max_fragment_bytes": 0,
+            "max_read": 489608,
+            "movie_duration_ticks": 3600000,
+            "movie_timescale": 1000,
+            "packets": 90000,
+            "probe_ns": 426353,
+            "table_bytes": 864140,
+            "top_headers": 4
+          }
+        ]
+      },
+      "rust_summary": {
+        "probe_ns": {
+          "runs": 15,
+          "mean_ms": 0.6035600666666666,
+          "approximate_95pct_mean_interval_ms": [
+            0.5172054100655865,
+            0.6899147232677467
+          ],
+          "min_ms": 0.426353,
+          "max_ms": 0.989453
+        },
+        "iteration_ns": {
+          "runs": 15,
+          "mean_ms": 7.904952866666666,
+          "approximate_95pct_mean_interval_ms": [
+            7.409183627651003,
+            8.400722105682329
+          ],
+          "min_ms": 7.416322,
+          "max_ms": 11.374298
+        }
+      },
+      "ffprobe_cli": {
+        "probe": {
+          "elapsed_ns": [
+            9819579,
+            9257715,
+            9164015,
+            9007280,
+            9709382,
+            10676343,
+            9273694,
+            8957397,
+            9356081,
+            9552158,
+            9631460,
+            9809174,
+            9706200,
+            9716385,
+            10273506
+          ],
+          "summary": {
+            "runs": 15,
+            "mean_ms": 9.5940246,
+            "approximate_95pct_mean_interval_ms": [
+              9.360499117360774,
+              9.827550082639226
+            ],
+            "min_ms": 8.957397,
+            "max_ms": 10.676343
+          }
+        },
+        "packets": {
+          "elapsed_ns": [
+            479160030,
+            481049719,
+            460223359,
+            451687503,
+            482343953,
+            453398920,
+            459835879,
+            478006605,
+            467045415,
+            456107442,
+            470160238,
+            468677323,
+            479976171,
+            472496889,
+            479873391
+          ],
+          "summary": {
+            "runs": 15,
+            "mean_ms": 469.33618913333333,
+            "approximate_95pct_mean_interval_ms": [
+              463.871476344495,
+              474.80090192217165
+            ],
+            "min_ms": 451.687503,
+            "max_ms": 482.343953
+          }
+        }
+      }
+    },
+    {
+      "reference_packet_counts": [
+        {
+          "index": 0,
+          "nb_read_packets": "59051"
+        }
+      ],
+      "name": "large-fragmented.mov",
+      "sha256": "3d9568e208e9ae1c7f5f2bfd4beac9e2cd1a7b6fa4704d9bb85a5e637b3d8e65",
+      "bytes": 2200599074,
+      "reference_duration_seconds": "2362.040000",
+      "reference_streams": [
+        {
+          "index": 0,
+          "codec_name": "prores",
+          "time_base": "1/12800",
+          "duration_ts": 30234112
+        }
+      ],
+      "rust": {
+        "file": "large-fragmented.mov",
+        "mode": "metadata and packet descriptors; no payload reads",
+        "runs": [
+          {
+            "bytes_read": 492081,
+            "checksum": 64971801400350,
+            "file_bytes": 2200599074,
+            "headers": 16567,
+            "iteration_ns": 11073600,
+            "max_fragment_bytes": 192,
+            "max_read": 192,
+            "movie_duration_ticks": 0,
+            "movie_timescale": 1000,
+            "packets": 59051,
+            "probe_ns": 31391,
+            "table_bytes": 36,
+            "top_headers": 4730
+          },
+          {
+            "bytes_read": 492081,
+            "checksum": 64971801400350,
+            "file_bytes": 2200599074,
+            "headers": 16567,
+            "iteration_ns": 9590487,
+            "max_fragment_bytes": 192,
+            "max_read": 192,
+            "movie_duration_ticks": 0,
+            "movie_timescale": 1000,
+            "packets": 59051,
+            "probe_ns": 33952,
+            "table_bytes": 36,
+            "top_headers": 4730
+          },
+          {
+            "bytes_read": 492081,
+            "checksum": 64971801400350,
+            "file_bytes": 2200599074,
+            "headers": 16567,
+            "iteration_ns": 8570923,
+            "max_fragment_bytes": 192,
+            "max_read": 192,
+            "movie_duration_ticks": 0,
+            "movie_timescale": 1000,
+            "packets": 59051,
+            "probe_ns": 23839,
+            "table_bytes": 36,
+            "top_headers": 4730
+          },
+          {
+            "bytes_read": 492081,
+            "checksum": 64971801400350,
+            "file_bytes": 2200599074,
+            "headers": 16567,
+            "iteration_ns": 8357353,
+            "max_fragment_bytes": 192,
+            "max_read": 192,
+            "movie_duration_ticks": 0,
+            "movie_timescale": 1000,
+            "packets": 59051,
+            "probe_ns": 22473,
+            "table_bytes": 36,
+            "top_headers": 4730
+          },
+          {
+            "bytes_read": 492081,
+            "checksum": 64971801400350,
+            "file_bytes": 2200599074,
+            "headers": 16567,
+            "iteration_ns": 8512775,
+            "max_fragment_bytes": 192,
+            "max_read": 192,
+            "movie_duration_ticks": 0,
+            "movie_timescale": 1000,
+            "packets": 59051,
+            "probe_ns": 20384,
+            "table_bytes": 36,
+            "top_headers": 4730
+          },
+          {
+            "bytes_read": 492081,
+            "checksum": 64971801400350,
+            "file_bytes": 2200599074,
+            "headers": 16567,
+            "iteration_ns": 8416825,
+            "max_fragment_bytes": 192,
+            "max_read": 192,
+            "movie_duration_ticks": 0,
+            "movie_timescale": 1000,
+            "packets": 59051,
+            "probe_ns": 20475,
+            "table_bytes": 36,
+            "top_headers": 4730
+          },
+          {
+            "bytes_read": 492081,
+            "checksum": 64971801400350,
+            "file_bytes": 2200599074,
+            "headers": 16567,
+            "iteration_ns": 8295262,
+            "max_fragment_bytes": 192,
+            "max_read": 192,
+            "movie_duration_ticks": 0,
+            "movie_timescale": 1000,
+            "packets": 59051,
+            "probe_ns": 20276,
+            "table_bytes": 36,
+            "top_headers": 4730
+          },
+          {
+            "bytes_read": 492081,
+            "checksum": 64971801400350,
+            "file_bytes": 2200599074,
+            "headers": 16567,
+            "iteration_ns": 8060731,
+            "max_fragment_bytes": 192,
+            "max_read": 192,
+            "movie_duration_ticks": 0,
+            "movie_timescale": 1000,
+            "packets": 59051,
+            "probe_ns": 19671,
+            "table_bytes": 36,
+            "top_headers": 4730
+          },
+          {
+            "bytes_read": 492081,
+            "checksum": 64971801400350,
+            "file_bytes": 2200599074,
+            "headers": 16567,
+            "iteration_ns": 8222600,
+            "max_fragment_bytes": 192,
+            "max_read": 192,
+            "movie_duration_ticks": 0,
+            "movie_timescale": 1000,
+            "packets": 59051,
+            "probe_ns": 21057,
+            "table_bytes": 36,
+            "top_headers": 4730
+          },
+          {
+            "bytes_read": 492081,
+            "checksum": 64971801400350,
+            "file_bytes": 2200599074,
+            "headers": 16567,
+            "iteration_ns": 8426424,
+            "max_fragment_bytes": 192,
+            "max_read": 192,
+            "movie_duration_ticks": 0,
+            "movie_timescale": 1000,
+            "packets": 59051,
+            "probe_ns": 22133,
+            "table_bytes": 36,
+            "top_headers": 4730
+          },
+          {
+            "bytes_read": 492081,
+            "checksum": 64971801400350,
+            "file_bytes": 2200599074,
+            "headers": 16567,
+            "iteration_ns": 8732872,
+            "max_fragment_bytes": 192,
+            "max_read": 192,
+            "movie_duration_ticks": 0,
+            "movie_timescale": 1000,
+            "packets": 59051,
+            "probe_ns": 19337,
+            "table_bytes": 36,
+            "top_headers": 4730
+          },
+          {
+            "bytes_read": 492081,
+            "checksum": 64971801400350,
+            "file_bytes": 2200599074,
+            "headers": 16567,
+            "iteration_ns": 8819817,
+            "max_fragment_bytes": 192,
+            "max_read": 192,
+            "movie_duration_ticks": 0,
+            "movie_timescale": 1000,
+            "packets": 59051,
+            "probe_ns": 21510,
+            "table_bytes": 36,
+            "top_headers": 4730
+          },
+          {
+            "bytes_read": 492081,
+            "checksum": 64971801400350,
+            "file_bytes": 2200599074,
+            "headers": 16567,
+            "iteration_ns": 8915743,
+            "max_fragment_bytes": 192,
+            "max_read": 192,
+            "movie_duration_ticks": 0,
+            "movie_timescale": 1000,
+            "packets": 59051,
+            "probe_ns": 21890,
+            "table_bytes": 36,
+            "top_headers": 4730
+          },
+          {
+            "bytes_read": 492081,
+            "checksum": 64971801400350,
+            "file_bytes": 2200599074,
+            "headers": 16567,
+            "iteration_ns": 8860504,
+            "max_fragment_bytes": 192,
+            "max_read": 192,
+            "movie_duration_ticks": 0,
+            "movie_timescale": 1000,
+            "packets": 59051,
+            "probe_ns": 21922,
+            "table_bytes": 36,
+            "top_headers": 4730
+          },
+          {
+            "bytes_read": 492081,
+            "checksum": 64971801400350,
+            "file_bytes": 2200599074,
+            "headers": 16567,
+            "iteration_ns": 8822432,
+            "max_fragment_bytes": 192,
+            "max_read": 192,
+            "movie_duration_ticks": 0,
+            "movie_timescale": 1000,
+            "packets": 59051,
+            "probe_ns": 21191,
+            "table_bytes": 36,
+            "top_headers": 4730
+          }
+        ]
+      },
+      "rust_summary": {
+        "probe_ns": {
+          "runs": 15,
+          "mean_ms": 0.022766733333333334,
+          "approximate_95pct_mean_interval_ms": [
+            0.020636454129195892,
+            0.024897012537470776
+          ],
+          "min_ms": 0.019337,
+          "max_ms": 0.033952
+        },
+        "iteration_ns": {
+          "runs": 15,
+          "mean_ms": 8.778556533333333,
+          "approximate_95pct_mean_interval_ms": [
+            8.406632066053833,
+            9.150481000612835
+          ],
+          "min_ms": 8.060731,
+          "max_ms": 11.0736
+        }
+      },
+      "ffprobe_cli": {
+        "probe": {
+          "elapsed_ns": [
+            31495546,
+            29149991,
+            28287116,
+            27552534,
+            27157270,
+            28824140,
+            27652799,
+            27641329,
+            27790899,
+            27329598,
+            27386079,
+            26949571,
+            27730895,
+            27219274,
+            27284428
+          ],
+          "summary": {
+            "runs": 15,
+            "mean_ms": 27.963431266666667,
+            "approximate_95pct_mean_interval_ms": [
+              27.379960231624622,
+              28.54690230170871
+            ],
+            "min_ms": 26.949571,
+            "max_ms": 31.495546
+          }
+        },
+        "packets": {
+          "elapsed_ns": [
+            704139854,
+            645997513,
+            648134253,
+            632415938,
+            628505027,
+            648055770,
+            642027251,
+            639789690,
+            645953900,
+            626216707,
+            622723437,
+            622630111,
+            650950377,
+            621229383,
+            616392299
+          ],
+          "summary": {
+            "runs": 15,
+            "mean_ms": 639.677434,
+            "approximate_95pct_mean_interval_ms": [
+              628.9179110032762,
+              650.4369569967238
+            ],
+            "min_ms": 616.392299,
+            "max_ms": 704.139854
+          }
+        }
+      }
+    }
+  ],
+  "binary_sha256": {
+    "ffmpeg": "e7e7fb30477f717e6f55f9180a70386c62677ef8a4d4d1a5d948f4098aa3eb99",
+    "ffprobe": "4f231a1960d83e403d08f7971e271707bec278a9ae18e21b8b5b03186668450d"
+  }
+}

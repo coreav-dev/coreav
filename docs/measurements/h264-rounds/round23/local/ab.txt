@@ -1,0 +1,43 @@
+# Local, information only (development VM, Intel Xeon @ 2.90GHz family 6 model 106; ~/h264work/prof/ab3.py as in round 21's local/: CPU time at one thread pinned to one core, --discard, class frame counts, builds rotated each round, per-stream ratio of medians to the first build). main-75d77dc = main at 75d77dc, lv-a = this round's code on it (dist, RUSTFLAGS unset).
+== the six CAVLC streams, 5 rounds
+5185721dda11.0.sd.h2 0.375  lv-a 0.9877
+6f7799768413.0.sd.h2 1.514  lv-a 0.9787
+9db41aa16b5a.0.720p. 0.866  lv-a 1.0002
+b71b6b31e54f.0.1080p 0.956  lv-a 0.9805
+ec473c99c538.0.sd.h2 0.103  lv-a 0.9853
+f9e973f44570.0.sd.h2 0.180  lv-a 0.9888
+median lv-a 0.9865
+== all 32 streams, 3 rounds (class medians: sd 0.9909, 720p 0.9985, 1080p 0.9930, 4k 0.9998; CAVLC 0.9881, CABAC 0.9993)
+175433794e02.0.1080p 5.196  lv-a 0.9884
+1d4b1775d78a.0.720p. 0.820  lv-a 1.0010
+278dbf5a63bb.0.720p. 0.961  lv-a 1.0318
+36501d448eaa.0.720p. 1.755  lv-a 0.9835
+3b1b441e23ae.0.4k.h2 0.638  lv-a 0.9614
+3c593b8f0809.0.720p. 0.866  lv-a 1.0042
+41e324ebb708.0.sd.h2 0.891  lv-a 1.0180
+4b54de28c2b3.0.4k.h2 0.726  lv-a 1.0067
+5185721dda11.0.sd.h2 0.375  lv-a 0.9828
+65ec61f95a00.0.720p. 3.069  lv-a 0.9955
+6b18d9f0f88d.0.720p. 0.721  lv-a 1.0000
+6da34958296c.0.1080p 1.592  lv-a 1.0231
+6e90422a670a.0.1080p 3.915  lv-a 0.9951
+6f7799768413.0.sd.h2 1.516  lv-a 0.9889
+7650ae466748.0.sd.h2 0.548  lv-a 0.9812
+76e0b1692494.0.720p. 0.878  lv-a 0.9970
+81ed4778ece2.0.4k.h2 0.273  lv-a 1.0057
+8ae90cadb5bc.0.sd.h2 1.335  lv-a 1.0049
+9db41aa16b5a.0.720p. 0.885  lv-a 0.9676
+a6af290d9053.0.1080p 5.475  lv-a 0.9847
+a81de82106be.0.1080p 0.707  lv-a 0.9909
+ae16bb7c7192.0.4k.h2 0.165  lv-a 0.9602
+af38b0cfd840.0.4k.h2 0.509  lv-a 0.9973
+b41f70a7fa60.0.1080p 2.317  lv-a 0.9829
+b71b6b31e54f.0.1080p 0.932  lv-a 1.0138
+c7ecda16e4a7.0.1080p 3.641  lv-a 1.0612
+dcb262cf0138.0.sd.h2 0.286  lv-a 1.0161
+e624cbe0d2be.0.4k.h2 0.826  lv-a 0.9986
+ec473c99c538.0.sd.h2 0.103  lv-a 0.9929
+ed75c044e944.0.4k.h2 0.261  lv-a 1.0523
+f8d92a911e72.0.4k.h2 7.429  lv-a 1.0010
+f9e973f44570.0.sd.h2 0.179  lv-a 0.9873
+median lv-a 0.9972

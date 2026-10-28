@@ -1,0 +1,89 @@
+CABAC mvd sites probe, part-only (written before the run).
+
+Question: does the CABAC motion vector difference path (mvd_lX of clause 7.3.5.1 and 7.3.5.2, its binarization of
+clause 9.3.2.3 and its ctxIdxInc of clause 9.3.3.1.1.7) cost time in proportion to the instructions a cut of it would
+remove? The entropy re-measure on an earlier change's code (entropy-after-483) puts "mvd and ref_idx" at 267 instructions a
+macroblock on the 26 CABAC streams against FFmpeg's 126: +141, a median excess of 2.49% of a CABAC stream's
+instructions (max 3.85%), the largest entropy group left after earlier changes. Its pieces (detail-mvd.txt there):
+DecodeDecision (55 a macroblock, kept), store_mvd with nb::put (62), the per-component mvd call with its unary
+closure (about 60 outside the engine) and fill_mvd_cache (24).
+
+Base: perf/h264-cabac-decision-asm 4b909fd8 (code 200f9a79: an earlier change's residual dispatch and an earlier change's asm decision), the
+code the entropy re-measure profiled.
+
+Sites, measured on base (calls.py over entropy-after-483's callgrind records of prof-200f9a79, 26 CABAC streams at a
+tenth of the class frame counts; sites.txt): per call, self instructions
+- the mvd call (v3::enter of Cabac::mvd's closure, one a component; DecodeDecision and the bypass bins inlined):
+  73 to 389, by the bins a call reads;
+- store_mvd (one a partition and list, both components): 116 to 159;
+- fill_mvd_cache (one an inter macroblock that is not B_Direct_16x16 or skipped): 68 to 103.
+
+Cut in view (C, not built):
+- the mvd caches packed: one cache a list holding both components' capped absolute values side by side (u16 a block),
+  so that store_mvd writes a partition's row of both components with one store of 2, 4 or 8 bytes at a masked index
+  (no per-component, per-row loop, no bounds check), fill_mvd_cache starts two caches instead of four with one 8-byte
+  load and store for the row above, and the macroblock's edge is kept packed (Edge for the mvd entries as u16 pairs);
+- both components of an mvd decoded in one call into the slice's instance (one v3::enter a vector instead of two,
+  the neighbours' pair read once), and the prefix (TU, cMax 9) as its own loop: bin 0 at ctxIdxInc from the
+  neighbours, bins 1 to 8 at base + min(bin + 2, 6), no Option compare against cMax, no closure, no unary overflow
+  check (the prefix is at most 9 bins);
+- DecodeDecision, the bypass bins and the Exp-Golomb suffix unchanged; ref_idx unchanged (its context reads two
+  neighbours through neighbour_4x4, which is MB-layer work this cut leaves alone).
+Predicted from base's per-call costs (what C would leave: about 25 a store_mvd call, 45 a fill_mvd_cache call, and
+per component the engine, the bypass bins and about 30 of glue): 60 fewer a component call, 115 a store_mvd call, 55 a
+fill_mvd_cache call. The packed edge store is not counted (not measured per call), so the prediction leaves it out.
+counts.txt gives the calls and the predicted cut per stream: a median of 2.09% of a CABAC stream's instructions
+(0.02% to 3.02%), above an earlier change's 1.5% for a plain instruction cut to show in a round of its own. The CAVLC streams
+call none of these sites.
+
+Probe (P, branch probe/h264-mvd-pad, feature probe-pad): independent one-uop instructions (lea o, [a + a], output
+unused, as the earlier probes) at the sites C changes, as many as C is predicted to remove there: 60 at each mvd
+component call, 115 at each store_mvd call that stores (CABAC), 55 at each fill_mvd_cache call. Verified before timing:
+callgrind instructions of P over base on all 32 streams at a tenth of the class frame counts (expected: counts.txt's
+predicted cut, within 5%, and 0 on the six CAVLC streams), and output identical to base (md5 of the 32 streams at
+those frames).
+
+Arms: base = dist build of 4b909fd8 (bin-mvd-base), P = the same tree with --features probe-pad (bin-mvd-pad), one
+toolchain, RUSTFLAGS unset. Method: ab3.py, 8 rounds, all 32 training streams, class frame counts, 1 thread,
+--discard, pinned to CPU 3, order rotated each round, CPU time (user + sys); per stream the median of P over base,
+bootstrap 95% interval of the median (abq.py). Host: this development VM, Intel Xeon @ 2.90 GHz family 6 (directional;
+no gating bar moves).
+
+Rule (fixed now):
+- Build C only if P's median over the 26 CABAC streams is >= 1.010 with the bootstrap lower end above 1.000, as the
+  three earlier part-only probes (cabac-decision-probe, residual-calls, cavlc-block-probe). Otherwise C is not built
+  as a round of its own: the sites' instructions are not where a round's time is, the pieces are noted as bundle
+  candidates, and the result is recorded docs-only in one paragraph of the design note.
+- The 6 CAVLC streams run none of the pads and are the null control: their median should read 1.000 (within
+  +-0.005); if it does not, the run is a host fault and is rerun once.
+- Reported beside it: all 32, per class, the streams slower, and the price per instruction against the earlier probes
+  (cavlc-block-probe 1.0168 for a median 1.60% of the CAVLC streams' instructions; cabac-decision-probe 1.0229 for
+  about +409 a macroblock on the CABAC streams).
+
+If C is built, its local timing (written now, before any build): ab3.py, 8 rounds, all 32, arms base and C, same host
+and method; C is identical in output to base on the 32 streams at 1 and 8 threads and passes conformance first. A
+gating run is requested from the A/B helper only if the 26 CABAC streams' median of C over base is at most 0.990 with
+the bootstrap upper end below 1.000 and the all-32 median is at most 1.000; the gating bars are written into the design
+note and committed before that run. Otherwise C goes to a rejected/ branch as a bundle candidate.
+
+Probe check (verify.txt): P adds 1.0000 to 1.0031 of the predicted instructions on the 26 CABAC streams (a median
+2.09% of a stream's instructions) and none on the six CAVLC streams; output identical to base on 32 of 32.
+
+Probe result (ab.txt, ab-summary.txt, 8 rounds): CABAC 26 streams 1.0108 [1.0066, 1.0154], 25 of 26 slower; CAVLC
+null 0.9988 [0.9860, 1.0070] (within +-0.005); all 32 1.0082 [1.0057, 1.0126]; sd 1.0070, 720p 1.0076, 1080p 1.0088,
+4k 1.0131. The rule is met, at its edge: C is built and timed. Price: about +1.1% time for a median 2.09% of the
+instructions, about half, as an earlier change found for plain-instruction cuts in the MB layer (the CAVLC block parse read near one
+to one, the decision probe 1.0229 for about +409 a macroblock). C has to remove all of the predicted cut, or take
+more than its instructions' share of time, to reach the gating condition (0.990).
+
+C as built (perf/h264-mvd-packed 6f504762, on 4b909fd8): as written above, with parse_mvd kept inline (#[inline(always)]:
+built without it, the CAVLC instance of parse_mvd went out of line and the CAVLC streams read up to +0.19%
+instructions). Instructions of C over base (c-count.txt, callgrind, a tenth of the class frames): a median of -1.92%
+on the 26 CABAC streams (-0.02% to -3.32%), 0.85 of the prediction; -0.02% to +0.04% on the six CAVLC streams. Output
+identical to base on the 32 streams at 1 and 8 threads (c-identity.txt, 64 of 64); conformance 291 of 291 at 1, 2
+and 8 threads, 97 of 97 with scalar kernels and 97 of 97 without fast (c-conformance.txt).
+
+C's timing (c-ab.txt, c-ab-summary.txt, 8 rounds, the method above): CABAC 26 streams 0.9869 [0.9831, 0.9921], 24 of
+26 faster; all 32 0.9876 [0.9848, 0.9959], 28 of 32 faster; CAVLC 6 (no site runs) 0.9965; sd 0.9965, 720p 0.9834,
+1080p 0.9847, 4k 0.9970. The gating condition (CABAC 26 at most 0.990 with the upper end below 1.000, all 32 at most
+1.000) is met: a gating run is requested, its bars (MV-1 to MV-6) in docs/design/h264.md, committed before the run.

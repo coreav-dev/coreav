@@ -1,0 +1,22 @@
+# Instructions (callgrind Ir, information), dist builds, --discard, one thread. base = main at 3443dfc
+# (built from the chroma branch at e807f49, whose code main has); k = d10c367, the branch's code commit.
+# 1. Four streams: the whole decode and luma_block (self).
+stream                    frames  base total      k total         ratio   luma_block base / k
+41e324ebb708.0.sd (weighted)    200     661,229,640     649,625,048  0.9824  58,715,692 / 47,652,920 (0.812)
+1d4b1775d78a.0.720p (weighted)   60   1,750,811,502   1,740,343,204  0.9940  72,608,551 / 62,955,333 (0.867)
+0404af1890da.0.1080p (1080p)     30     385,043,732     384,971,916  0.9998  19,816,438 / 19,814,596 (1.000)
+3b1b441e23ae.0.4k                10     544,026,030     543,478,876  0.9990  28,262,148 / 27,779,571 (0.983)
+# (k's whole-decode change on the sd stream also takes in the edge path's weighted kernel, luma_mc_weighted,
+# whose code moved: luma_mc_into::<Weigh> 5.5M in base is inlined into luma_mc_weighted in k.)
+
+# 2. The 32 training streams, short segments (sd 300, 720p 120, 1080p 60, 4k 20 frames): k's total over base's.
+sd     median 0.9956: 7650ae466748 0.9859*, 41e324ebb708 0.9872*, f9e973f44570 0.9899, 8ae90cadb5bc 0.9950*, dcb262cf0138 0.9961*, 5185721dda11 0.9990, ec473c99c538 0.9991, 6f7799768413 0.9995
+720p   median 0.9928: 65ec61f95a00 0.9867*, 9db41aa16b5a 0.9909*, 1d4b1775d78a 0.9923*, 3c593b8f0809 0.9928, 278dbf5a63bb 0.9928*, 76e0b1692494 0.9968, 36501d448eaa 0.9992, 6b18d9f0f88d 0.9997
+1080p  median 0.9941: b41f70a7fa60 0.9904*, 6e90422a670a 0.9905, a6af290d9053 0.9913, 175433794e02 0.9930, 6da34958296c 0.9952, c7ecda16e4a7 0.9954, a81de82106be 0.9996, b71b6b31e54f 0.9998
+4k     median 0.9996: f8d92a911e72 0.9833, af38b0cfd840 0.9835, 3b1b441e23ae 0.9987, e624cbe0d2be 0.9996, 4b54de28c2b3 0.9997, 81ed4778ece2 0.9997, ae16bb7c7192 0.9998, ed75c044e944 0.9999
+overall median 0.9953; the nine weighted streams (*) 0.9909, the other 23 0.9990
+
+# 3. luma_block's loops on the 720p stream (1d4b1775d78a, 60 frames): each loop's runs (callgrind) times its
+# cycles an iteration in llvm-mca's Ice Lake server model (-mcpu=icelake-server, 200 iterations), summed: base
+# 22.6 million, k before the weighting in words 19.2 million (a row of b 8.1 -> 5.3 cycles, h 7.4 -> 6.3, b
+# and h averaged 12.7 -> 10.1, j and h averaged 21.3 -> 14.8). A static model of the loops alone, not a time.

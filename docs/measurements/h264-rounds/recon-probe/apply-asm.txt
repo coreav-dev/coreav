@@ -1,0 +1,30 @@
+# apply<16> inlined in the CAVLC level loop (block_body<16>), llvm-objdump -M intel.
+# main (m-2b31-lt, line tables): the factor's load, then imul to the store; 14 instructions from imul to the clip
+5011d:      	movsxd	rdx, dword ptr [r11 + rsi]
+50121:      	imul	rdx, r10
+50125:      	movsxd	r10, dword ptr [r11 + 64]
+50129:      	add	r10, rdx
+5012c:      	mov	edx, dword ptr [r11 + 68]
+50130:      	cmp	edx, 16
+50133:      	mov	r11d, 16
+50139:      	cmovae	edx, r11d
+5013d:      	sarx	rdx, r10, rdx
+50142:      	cmp	rdx, -32767
+50149:      	mov	r10, -32768
+50150:      	cmovl	rdx, r10
+50154:      	cmp	rdx, 32767
+5015b:      	mov	r10d, 32767
+50161:      	cmovge	rdx, r10
+50165:      	mov	dword ptr [rbp + rsi], edx
+# k (r33-ct2), the same loop: the factor's load, then imul to the store (the round 8 and the shift 4 are constants)
+4fb15:      	movsxd	rdx, dword ptr [r8 + rsi]
+4fb19:      	imul	rdx, r10
+4fb1d:      	add	rdx, 8
+4fb21:      	sar	rdx, 4
+4fb25:      	cmp	rdx, -32767
+4fb2c:      	mov	r10, -32768
+4fb33:      	cmovl	rdx, r10
+4fb37:      	cmp	rdx, 32767
+4fb3e:      	mov	r10d, 32767
+4fb44:      	cmovge	rdx, r10
+4fb48:      	mov	dword ptr [r13 + rsi], edx

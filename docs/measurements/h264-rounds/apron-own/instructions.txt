@@ -1,0 +1,6 @@
+Instructions at one thread under callgrind (valgrind --tool=callgrind), dist builds, stream 41e324ebb708.0.sd.h264
+(the first sd stream of the 32), --frames 60 --threads 1 --discard, PROGRAM TOTALS:
+
+base (main 78afd20d)          149,689,580
+k  (round 2, e23d5a92)        149,808,316   +0.079%  (+108,810 in the macroblock loop, the per-macroblock test)
+k3 (round 3, 3e305465)        149,750,712   +0.041%

@@ -1,0 +1,6 @@
+2,3c2,3
+< per, chains = pickle.load(open('/tmp/ent/core.pkl', 'rb'))
+< here = '$HOME/coreav/docs/measurements/h264-rounds/profile-6c9e240'
+---
+> per, chains = pickle.load(open('/tmp/ent2/core.pkl', 'rb'))
+> here = '/tmp/ent2'

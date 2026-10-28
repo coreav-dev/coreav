@@ -1,0 +1,34 @@
+verify1.sh: callgrind instructions of P (bin-mw-pad) over base (bin-mw-base); CAVLC streams at the class frame counts,
+the rest at a tenth; output md5 at a tenth. "a ue call" divides by the decode_cavlc calls of sites.txt (no slice headers).
+175433794e02 1080p 1/10 base  3417623392 P  3417696671 +0.002%  identical
+1d4b1775d78a 720p  1/10 base  1959098065 P  1959158704 +0.003%  identical
+278dbf5a63bb 720p  1/10 base  2059804013 P  2059872356 +0.003%  identical
+36501d448eaa 720p  1/10 base   786393683 P   786433550 +0.005%  identical
+3b1b441e23ae 4k    1/10 base   572993914 P   573008239 +0.003%  identical
+3c593b8f0809 720p  1/10 base  1469720426 P  1469764361 +0.003%  identical
+41e324ebb708 sd    1/10 base   444360456 P   444481309 +0.027%  identical
+4b54de28c2b3 4k    1/10 base   676317401 P   676323050 +0.001%  identical
+5185721dda11 sd    1/1  base  2694362409 P  2758181892 +2.369%  36.38 a ue call  identical
+65ec61f95a00 720p  1/10 base  2309260087 P  2309341462 +0.004%  identical
+6b18d9f0f88d 720p  1/10 base   589414786 P   589451449 +0.006%  identical
+6da34958296c 1080p 1/10 base  1424143446 P  1424161213 +0.001%  identical
+6e90422a670a 1080p 1/10 base  3905719248 P  3905798971 +0.002%  identical
+6f7799768413 sd    1/1  base 10265612990 P 10542729485 +2.699%  36.10 a ue call  identical
+7650ae466748 sd    1/10 base   753377276 P   753488121 +0.015%  identical
+76e0b1692494 720p  1/10 base  1737796477 P  1737836776 +0.002%  identical
+81ed4778ece2 4k    1/10 base   293828783 P   293834432 +0.002%  identical
+8ae90cadb5bc sd    1/10 base   882925859 P   883099740 +0.020%  identical
+9db41aa16b5a 720p  1/1  base  8582194537 P  8733815000 +1.767%  36.09 a ue call  identical
+a6af290d9053 1080p 1/10 base  4334374356 P  4334453323 +0.002%  identical
+a81de82106be 1080p 1/10 base   469677946 P   469690817 +0.003%  identical
+ae16bb7c7192 4k    1/10 base   211997693 P   212008022 +0.005%  identical
+af38b0cfd840 4k    1/10 base   480500949 P   480511818 +0.002%  identical
+b41f70a7fa60 1080p 1/10 base  1922612430 P  1922626165 +0.001%  identical
+b71b6b31e54f 1080p 1/1  base  7070458270 P  7223580091 +2.166%  36.19 a ue call  identical
+c7ecda16e4a7 1080p 1/10 base  3210860574 P  3210891085 +0.001%  identical
+dcb262cf0138 sd    1/10 base    91978508 P    92094033 +0.126%  identical
+e624cbe0d2be 4k    1/10 base  1382932545 P  1382943558 +0.001%  identical
+ec473c99c538 sd    1/1  base   858948132 P   868588299 +1.122%  38.91 a ue call  identical
+ed75c044e944 4k    1/10 base   271557951 P   271565508 +0.003%  identical
+f8d92a911e72 4k    1/10 base  4946243957 P  4946330786 +0.002%  identical
+f9e973f44570 sd    1/1  base  1312429816 P  1352358475 +3.042%  36.61 a ue call  identical

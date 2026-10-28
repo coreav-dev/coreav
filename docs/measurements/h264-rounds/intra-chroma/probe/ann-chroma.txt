@@ -1,0 +1,894 @@
+ Percent |	Source code & Disassembly of r28-base for cpu-clock (189 samples, percent: local period)
+--------------------------------------------------------------------------------------------------------
+         :
+         :
+         :
+         : 3     Disassembly of section .text:
+         :
+         : 5     00000000000bd8f0 <coreav_kernels_h264::simd::x86::intra_chroma_mb>:
+         : 6     coreav_kernels_h264::simd::x86::intra_chroma_mb:
+    2.65 :   bd8f0:  push   %rbp
+    5.82 :   bd8f1:  push   %r15
+    0.00 :   bd8f3:  push   %r14
+    0.00 :   bd8f5:  push   %r13
+    1.06 :   bd8f7:  push   %r12
+    0.00 :   bd8f9:  push   %rbx
+    0.00 :   bd8fa:  mov    0x18(%rdi),%r12
+    0.00 :   bd8fe:  mov    $0x2,%eax
+    0.53 :   bd903:  vmovd  %eax,%xmm0
+    0.00 :   bd907:  movb   $0x2,-0x50(%rsp)
+    0.00 :   bd90c:  cmp    $0x8,%r12
+    0.00 :   bd910:  jb     bd97d <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x8d>
+    0.00 :   bd912:  cmpq   $0x8,0x20(%rdi)
+    0.00 :   bd917:  jne    bd97d <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x8d>
+    0.00 :   bd919:  mov    0x28(%rdi),%r9
+   20.63 :   bd91d:  vmovq  %r9,%xmm1
+    0.53 :   bd922:  mov    %r9d,%ebp
+    0.00 :   bd925:  shr    $0x18,%ebp
+    0.00 :   bd928:  mov    %r9d,%r13d
+    0.00 :   bd92b:  shr    $0x8,%r13d
+    0.00 :   bd92f:  mov    (%rdi),%r10
+    0.00 :   bd932:  mov    0x8(%rdi),%r11
+    0.00 :   bd936:  mov    0x10(%rdi),%r14
+    0.53 :   bd93a:  test   $0x1,%bpl
+    0.00 :   bd93e:  je     bd951 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x61>
+    0.53 :   bd940:  cmp    $0xffffffffffffffff,%r12
+    0.00 :   bd944:  je     be824 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0xf34>
+    0.00 :   bd94a:  lea    0x1(%r12),%rax
+    0.00 :   bd94f:  jmp    bd96b <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x7b>
+    0.00 :   bd951:  vmovd  %xmm1,%ebx
+    0.00 :   bd955:  shr    $0x10,%ebx
+    0.00 :   bd958:  or     %r13b,%bl
+    0.00 :   bd95b:  mov    %r12,%rax
+    0.00 :   bd95e:  test   $0x1,%bl
+    0.00 :   bd961:  jne    bd96b <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x7b>
+    0.00 :   bd963:  mov    %r9d,%eax
+    0.00 :   bd966:  and    $0x1,%al
+    0.00 :   bd968:  movzbl %al,%eax
+    0.00 :   bd96b:  mov    $0x2,%ebx
+    0.00 :   bd970:  vmovd  %ebx,%xmm0
+    0.00 :   bd974:  cmp    %r14,%rax
+    0.00 :   bd977:  jbe    bda12 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x122>
+    0.00 :   bd97d:  mov    0x48(%rdi),%r9
+    0.00 :   bd981:  cmp    $0x8,%r9
+    0.00 :   bd985:  jb     bd9f8 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x108>
+    0.00 :   bd987:  cmpq   $0x8,0x50(%rdi)
+    0.00 :   bd98c:  jne    bd9f8 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x108>
+    0.53 :   bd98e:  vmovq  0x58(%rdi),%xmm1
+    0.00 :   bd993:  mov    0x30(%rdi),%r10
+    0.00 :   bd997:  mov    0x38(%rdi),%r14
+    0.00 :   bd99b:  mov    0x40(%rdi),%r15
+    0.00 :   bd99f:  vmovd  %xmm1,%ebx
+    0.53 :   bd9a3:  bt     $0x18,%ebx
+    0.00 :   bd9a7:  jae    bd9b5 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0xc5>
+    0.53 :   bd9a9:  cmp    $0xffffffffffffffff,%r9
+    0.00 :   bd9ad:  je     bd9f8 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x108>
+    0.00 :   bd9af:  lea    0x1(%r9),%rax
+    0.00 :   bd9b3:  jmp    bd9f3 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x103>
+    0.00 :   bd9b5:  xor    %eax,%eax
+    0.00 :   bd9b7:  bt     $0x8,%ebx
+    0.00 :   bd9bb:  mov    $0x0,%r11d
+    0.00 :   bd9c1:  sbb    %r11d,%r11d
+    0.00 :   bd9c4:  vmovd  %r11d,%xmm2
+    0.00 :   bd9c9:  vpbroadcastb %xmm2,%xmm2
+    0.00 :   bd9ce:  bt     $0x10,%ebx
+    0.00 :   bd9d2:  sbb    %eax,%eax
+    0.00 :   bd9d4:  vmovd  %eax,%xmm3
+    0.00 :   bd9d8:  vinserti128 $0x1,%xmm3,%ymm2,%ymm2
+    0.00 :   bd9de:  vpmovmskb %ymm2,%r11d
+    0.00 :   bd9e2:  mov    %r9,%rax
+    0.00 :   bd9e5:  test   $0x10100,%r11d
+    0.00 :   bd9ec:  jne    bd9f3 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x103>
+    0.00 :   bd9ee:  mov    %ebx,%eax
+    0.00 :   bd9f0:  and    $0x1,%eax
+    0.00 :   bd9f3:  cmp    %r15,%rax
+    0.00 :   bd9f6:  jbe    bda66 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x176>
+    0.00 :   bd9f8:  movzbl %sil,%esi
+    0.00 :   bd9fc:  movzbl %r8b,%r8d
+    0.00 :   bda00:  pop    %rbx
+    0.00 :   bda01:  pop    %r12
+    0.00 :   bda03:  pop    %r13
+    0.00 :   bda05:  pop    %r14
+    0.00 :   bda07:  pop    %r15
+    0.00 :   bda09:  pop    %rbp
+    0.00 :   bda0a:  vzeroupper
+    0.00 :   bda0d:  jmp    be840 <coreav_kernels_h264::intra_chroma_mb_by_parts::<coreav_kernels_h264::scalar::Scalar>>
+    1.59 :   bda12:  mov    %rdx,%rbx
+    0.00 :   bda15:  mov    $0x7,%edx
+    0.00 :   bda1a:  mov    %r12,%rax
+    0.00 :   bda1d:  mul    %rdx
+    0.00 :   bda20:  jo     be82d <coreav_kernels_h264::simd::x86::intra_chroma_mb+0xf3d>
+    0.00 :   bda26:  mov    $0x2,%edx
+    0.00 :   bda2b:  vmovd  %edx,%xmm0
+    1.06 :   bda2f:  add    %r14,%rax
+    0.00 :   bda32:  mov    %rbx,%rdx
+    0.00 :   bda35:  jb     bd97d <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x8d>
+    1.06 :   bda3b:  sub    $0xfffffffffffffff8,%rax
+    0.00 :   bda3f:  jae    bd97d <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x8d>
+    0.00 :   bda45:  mov    %r14,-0x30(%rsp)
+    0.00 :   bda4a:  mov    %r10,-0x38(%rsp)
+    0.00 :   bda4f:  cmp    %r11,%rax
+    0.00 :   bda52:  ja     bd97d <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x8d>
+    0.00 :   bda58:  mov    %r9b,-0x50(%rsp)
+    0.53 :   bda5d:  vmovdqa %xmm1,%xmm0
+    0.00 :   bda61:  jmp    bd97d <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x8d>
+    0.00 :   bda66:  mov    %r15,-0x28(%rsp)
+    0.53 :   bda6b:  mov    $0x7,%r15d
+    0.00 :   bda71:  mov    %r9,%rax
+    0.00 :   bda74:  mov    %rdx,%r11
+    0.00 :   bda77:  mul    %r15
+    0.53 :   bda7a:  mov    -0x28(%rsp),%r15
+    0.00 :   bda7f:  mov    %r11,%rdx
+    1.06 :   bda82:  jo     bd9f8 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x108>
+    0.00 :   bda88:  add    %r15,%rax
+    0.00 :   bda8b:  jb     bd9f8 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x108>
+    0.00 :   bda91:  sub    $0xfffffffffffffff8,%rax
+    0.00 :   bda95:  jae    bd9f8 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x108>
+    0.00 :   bda9b:  cmp    %r14,%rax
+    0.00 :   bda9e:  ja     bd9f8 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x108>
+    0.53 :   bdaa4:  cmpb   $0x2,-0x50(%rsp)
+    0.00 :   bdaa9:  je     bd9f8 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x108>
+    0.00 :   bdaaf:  cmp    $0x2,%bl
+    0.00 :   bdab2:  je     bd9f8 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x108>
+    0.00 :   bdab8:  vpcmpeqb %xmm1,%xmm0,%xmm0
+    0.00 :   bdabc:  vpmovsxbd %xmm0,%xmm0
+    0.00 :   bdac1:  vmovmskps %xmm0,%eax
+    0.00 :   bdac5:  cmp    $0xf,%al
+    0.00 :   bdac7:  jne    bd9f8 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x108>
+    0.00 :   bdacd:  cmp    $0x1,%r13b
+    0.00 :   bdad1:  jne    bdaed <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x1fd>
+    1.59 :   bdad3:  mov    -0x38(%rsp),%rdi
+    0.00 :   bdad8:  mov    -0x30(%rsp),%rax
+    0.00 :   bdadd:  add    %rdi,%rax
+    0.00 :   bdae0:  sub    %r12,%rax
+    0.00 :   bdae3:  mov    (%rax),%rax
+    0.53 :   bdae6:  mov    %rax,-0x40(%rsp)
+    0.00 :   bdaeb:  jmp    bdafb <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x20b>
+    0.00 :   bdaed:  movq   $0x0,-0x40(%rsp)
+    0.00 :   bdaf6:  mov    -0x38(%rsp),%rdi
+    0.00 :   bdafb:  cmpb   $0x1,-0x50(%rsp)
+    0.00 :   bdb00:  mov    %r8d,-0x4c(%rsp)
+    0.00 :   bdb05:  mov    %rcx,-0x18(%rsp)
+    0.00 :   bdb0a:  mov    %r10,-0x48(%rsp)
+    0.00 :   bdb0f:  jne    bdbac <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x2bc>
+    0.00 :   bdb15:  mov    %r12,%r10
+    0.00 :   bdb18:  not    %r10
+    0.00 :   bdb1b:  mov    -0x30(%rsp),%r8
+    1.06 :   bdb20:  add    %rdi,%r10
+    0.00 :   bdb23:  add    %r8,%r10
+    0.00 :   bdb26:  movzbl -0x1(%rdi,%r8,1),%ecx
+    0.00 :   bdb2c:  movzbl (%r10,%r12,2),%ebx
+    0.53 :   bdb31:  lea    (%r12,%r12,2),%rax
+    0.00 :   bdb35:  movzbl (%r10,%rax,1),%r11d
+    0.00 :   bdb3a:  lea    (%r12,%r12,4),%rdi
+    0.00 :   bdb3e:  movzbl (%r10,%rdi,1),%r14d
+    0.53 :   bdb43:  movzbl (%r10,%rax,2),%edi
+    1.59 :   bdb48:  lea    (%r10,%r12,8),%rax
+    0.53 :   bdb4c:  sub    %r12,%rax
+    0.00 :   bdb4f:  movzbl (%rax),%eax
+    1.06 :   bdb52:  movzbl (%r10,%r12,8),%r15d
+    0.53 :   bdb57:  shl    $0x38,%r15
+    0.00 :   bdb5b:  shl    $0x30,%rax
+    0.00 :   bdb5f:  shl    $0x28,%rdi
+    0.53 :   bdb63:  shl    $0x20,%r14
+    0.53 :   bdb67:  movzbl (%r10,%r12,4),%r10d
+    0.00 :   bdb6c:  shl    $0x18,%r10d
+    0.00 :   bdb70:  shl    $0x10,%r11d
+    0.00 :   bdb74:  shl    $0x8,%ebx
+    0.53 :   bdb77:  or     %rcx,%rbx
+    0.00 :   bdb7a:  or     %r11,%rbx
+    0.00 :   bdb7d:  or     %r10,%rbx
+    1.06 :   bdb80:  mov    -0x48(%rsp),%r10
+    0.00 :   bdb85:  or     %r14,%rbx
+    0.00 :   bdb88:  or     %rdi,%rbx
+    0.00 :   bdb8b:  or     %rax,%rbx
+    0.00 :   bdb8e:  or     %r15,%rbx
+    1.59 :   bdb91:  mov    -0x28(%rsp),%r15
+    0.00 :   bdb96:  cmp    $0x1,%r13b
+    0.00 :   bdb9a:  je     bdbb4 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x2c4>
+    0.00 :   bdb9c:  xor    %eax,%eax
+    0.00 :   bdb9e:  cmpb   $0x1,-0x50(%rsp)
+    0.00 :   bdba3:  je     bdbc5 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x2d5>
+    0.00 :   bdba5:  xor    %ecx,%ecx
+    0.00 :   bdba7:  jmp    bdc4e <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x35e>
+    0.00 :   bdbac:  xor    %ebx,%ebx
+    0.00 :   bdbae:  cmp    $0x1,%r13b
+    0.00 :   bdbb2:  jne    bdb9c <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x2ac>
+    0.00 :   bdbb4:  lea    (%r10,%r15,1),%rax
+    0.00 :   bdbb8:  sub    %r9,%rax
+    0.00 :   bdbbb:  mov    (%rax),%rax
+    0.53 :   bdbbe:  cmpb   $0x1,-0x50(%rsp)
+    0.53 :   bdbc3:  jne    bdba5 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x2b5>
+    0.00 :   bdbc5:  mov    %r9,%r10
+    0.00 :   bdbc8:  not    %r10
+    0.00 :   bdbcb:  mov    -0x48(%rsp),%rdi
+    0.00 :   bdbd0:  mov    %rax,%r8
+    0.00 :   bdbd3:  add    %rdi,%r10
+    0.53 :   bdbd6:  add    %r15,%r10
+    0.53 :   bdbd9:  movzbl -0x1(%rdi,%r15,1),%eax
+    0.00 :   bdbdf:  mov    %rax,-0x20(%rsp)
+    0.53 :   bdbe4:  movzbl (%r10,%r9,2),%ecx
+    0.00 :   bdbe9:  lea    (%r9,%r9,2),%rax
+    0.00 :   bdbed:  movzbl (%r10,%rax,1),%r15d
+    1.06 :   bdbf2:  lea    (%r9,%r9,4),%rdi
+    0.00 :   bdbf6:  movzbl (%r10,%rdi,1),%r11d
+    0.00 :   bdbfb:  movzbl (%r10,%rax,2),%r14d
+    0.53 :   bdc00:  lea    (%r10,%r9,8),%rax
+    0.53 :   bdc04:  sub    %r9,%rax
+    0.00 :   bdc07:  movzbl (%rax),%edi
+    0.00 :   bdc0a:  movzbl (%r10,%r9,8),%eax
+    0.00 :   bdc0f:  shl    $0x38,%rax
+    0.53 :   bdc13:  shl    $0x30,%rdi
+    0.00 :   bdc17:  shl    $0x28,%r14
+    1.06 :   bdc1b:  shl    $0x20,%r11
+    0.00 :   bdc1f:  movzbl (%r10,%r9,4),%r10d
+    0.53 :   bdc24:  shl    $0x18,%r10d
+    0.00 :   bdc28:  shl    $0x10,%r15d
+    0.00 :   bdc2c:  shl    $0x8,%ecx
+    0.00 :   bdc2f:  add    -0x20(%rsp),%rcx
+    0.00 :   bdc34:  or     %r15,%rcx
+    0.00 :   bdc37:  mov    -0x28(%rsp),%r15
+    0.00 :   bdc3c:  or     %r10,%rcx
+    0.53 :   bdc3f:  or     %r11,%rcx
+    0.00 :   bdc42:  or     %r14,%rcx
+    0.00 :   bdc45:  or     %rdi,%rcx
+    0.00 :   bdc48:  or     %rax,%rcx
+    0.00 :   bdc4b:  mov    %r8,%rax
+    1.59 :   bdc4e:  mov    -0x4c(%rsp),%r8d
+    0.00 :   bdc53:  mov    -0x18(%rsp),%r10
+    0.53 :   bdc58:  mov    -0x38(%rsp),%rdi
+    0.00 :   bdc5d:  vmovq  %rax,%xmm1
+    0.53 :   bdc62:  vpinsrq $0x1,%rcx,%xmm1,%xmm0
+    3.17 :   bdc68:  vmovq  -0x40(%rsp),%xmm2
+    0.00 :   bdc6e:  vpinsrq $0x1,%rbx,%xmm2,%xmm3
+    0.53 :   bdc74:  vinserti128 $0x1,%xmm0,%ymm3,%ymm0
+    2.12 :   bdc7a:  cmp    $0x1,%sil
+    0.00 :   bdc7e:  je     bdf81 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x691>
+    0.00 :   bdc84:  mov    %rax,-0x20(%rsp)
+    0.00 :   bdc89:  movzbl %sil,%eax
+    0.00 :   bdc8d:  cmp    $0x2,%eax
+    0.00 :   bdc90:  je     bdf71 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x681>
+    0.53 :   bdc96:  cmp    $0x3,%eax
+    0.00 :   bdc99:  jne    bdfaa <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x6ba>
+    0.00 :   bdc9f:  movl   $0x0,-0x50(%rsp)
+    0.00 :   bdca7:  mov    $0x0,%r11d
+    0.00 :   bdcad:  test   $0x1,%bpl
+    0.00 :   bdcb1:  je     bdcc6 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x3d6>
+    0.00 :   bdcb3:  mov    %r12,%rax
+    0.00 :   bdcb6:  not    %rax
+    0.00 :   bdcb9:  mov    -0x30(%rsp),%rsi
+    0.00 :   bdcbe:  add    %rdi,%rsi
+    0.00 :   bdcc1:  movzbl (%rax,%rsi,1),%r11d
+    0.00 :   bdcc6:  mov    %rbx,%rsi
+    0.00 :   bdcc9:  shr    $0x38,%rsi
+    0.00 :   bdccd:  mov    -0x40(%rsp),%rax
+    0.00 :   bdcd2:  mov    %rax,%r13
+    0.00 :   bdcd5:  shr    $0x38,%r13
+    0.00 :   bdcd9:  mov    %esi,%r14d
+    0.00 :   bdcdc:  add    %r13d,%esi
+    0.00 :   bdcdf:  sub    %r11d,%r13d
+    0.00 :   bdce2:  mov    %rax,%r8
+    0.00 :   bdce5:  shr    $0x30,%r8
+    0.00 :   bdce9:  movzbl %r8b,%r8d
+    0.00 :   bdced:  movzbl %al,%r10d
+    0.00 :   bdcf1:  sub    %r10d,%r8d
+    0.00 :   bdcf4:  lea    (%r8,%r8,2),%r8d
+    0.00 :   bdcf8:  mov    %rax,%r10
+    0.00 :   bdcfb:  shr    $0x28,%r10
+    0.00 :   bdcff:  movzbl %r10b,%r10d
+    0.00 :   bdd03:  movzbl %ah,%edi
+    0.00 :   bdd06:  sub    %edi,%r10d
+    0.00 :   bdd09:  mov    %rax,%rdi
+    0.00 :   bdd0c:  shr    $0x20,%rdi
+    0.00 :   bdd10:  movzbl %dil,%edi
+    0.00 :   bdd14:  shr    $0x10,%eax
+    0.00 :   bdd17:  movzbl %al,%r15d
+    0.00 :   bdd1b:  sub    %r15d,%edi
+    0.00 :   bdd1e:  lea    (%rdi,%r10,2),%edi
+    0.00 :   bdd22:  add    %r8d,%edi
+    0.00 :   bdd25:  lea    (%rdi,%r13,4),%edi
+    0.00 :   bdd29:  mov    %rbx,%r8
+    0.00 :   bdd2c:  shr    $0x30,%r8
+    0.00 :   bdd30:  movzbl %r8b,%r8d
+    0.00 :   bdd34:  movzbl %bl,%r10d
+    0.00 :   bdd38:  sub    %r10d,%r8d
+    0.00 :   bdd3b:  lea    (%r8,%r8,2),%r8d
+    0.00 :   bdd3f:  mov    %rbx,%r10
+    0.00 :   bdd42:  shr    $0x28,%r10
+    0.00 :   bdd46:  movzbl %r10b,%r10d
+    0.00 :   bdd4a:  movzbl %bh,%eax
+    0.00 :   bdd4d:  sub    %eax,%r10d
+    0.00 :   bdd50:  mov    %rbx,%rax
+    0.00 :   bdd53:  shr    $0x20,%rax
+    0.00 :   bdd57:  movzbl %al,%eax
+    0.00 :   bdd5a:  shr    $0x10,%ebx
+    0.00 :   bdd5d:  movzbl %bl,%ebx
+    0.00 :   bdd60:  sub    %ebx,%eax
+    0.00 :   bdd62:  lea    (%rax,%r10,2),%eax
+    0.00 :   bdd66:  add    %r8d,%eax
+    0.00 :   bdd69:  sub    %r11d,%r14d
+    0.00 :   bdd6c:  lea    (%rax,%r14,4),%eax
+    0.00 :   bdd70:  shl    $0x4,%esi
+    0.00 :   bdd73:  mov    %edi,%r8d
+    0.00 :   bdd76:  shl    $0x5,%edi
+    0.00 :   bdd79:  lea    (%rdi,%r8,2),%edi
+    0.00 :   bdd7d:  add    $0x20,%edi
+    0.00 :   bdd80:  shr    $0x6,%edi
+    0.00 :   bdd83:  mov    %edi,-0x40(%rsp)
+    0.00 :   bdd87:  mov    %eax,%edi
+    0.00 :   bdd89:  shl    $0x5,%eax
+    0.00 :   bdd8c:  lea    (%rax,%rdi,2),%eax
+    0.00 :   bdd8f:  add    $0x20,%eax
+    0.00 :   bdd92:  sar    $0x6,%eax
+    0.00 :   bdd95:  mov    %eax,-0x10(%rsp)
+    0.00 :   bdd99:  test   $0x1,%bpl
+    0.00 :   bdd9d:  mov    -0x28(%rsp),%r15
+    0.00 :   bdda2:  je     bddbb <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x4cb>
+    0.00 :   bdda4:  mov    %r9,%rdi
+    0.00 :   bdda7:  not    %rdi
+    0.00 :   bddaa:  mov    -0x48(%rsp),%r8
+    0.00 :   bddaf:  add    %r15,%r8
+    0.00 :   bddb2:  movzbl (%rdi,%r8,1),%eax
+    0.00 :   bddb7:  mov    %eax,-0x50(%rsp)
+    0.00 :   bddbb:  mov    %rcx,%r13
+    0.00 :   bddbe:  shr    $0x38,%r13
+    0.00 :   bddc2:  mov    -0x20(%rsp),%rax
+    0.00 :   bddc7:  mov    %rax,%rbp
+    0.00 :   bddca:  shr    $0x38,%rbp
+    0.00 :   bddce:  mov    %r13d,%r14d
+    0.00 :   bddd1:  add    %ebp,%r13d
+    0.00 :   bddd4:  mov    -0x50(%rsp),%r10d
+    0.00 :   bddd9:  sub    %r10d,%ebp
+    0.00 :   bdddc:  mov    %rax,%rdi
+    0.00 :   bdddf:  shr    $0x30,%rdi
+    0.00 :   bdde3:  movzbl %dil,%edi
+    0.00 :   bdde7:  movzbl %al,%r8d
+    0.00 :   bddeb:  sub    %r8d,%edi
+    0.00 :   bddee:  lea    (%rdi,%rdi,2),%edi
+    0.00 :   bddf1:  mov    %rax,%r8
+    0.00 :   bddf4:  shr    $0x28,%r8
+    0.00 :   bddf8:  movzbl %r8b,%r8d
+    0.00 :   bddfc:  movzbl %ah,%ebx
+    0.00 :   bddff:  sub    %ebx,%r8d
+    0.00 :   bde02:  mov    %rax,%r11
+    0.00 :   bde05:  shr    $0x20,%r11
+    0.00 :   bde09:  movzbl %r11b,%r11d
+    0.00 :   bde0d:  shr    $0x10,%eax
+    0.00 :   bde10:  movzbl %al,%ebx
+    0.00 :   bde13:  sub    %ebx,%r11d
+    0.00 :   bde16:  lea    (%r11,%r8,2),%r8d
+    0.00 :   bde1a:  add    %edi,%r8d
+    0.00 :   bde1d:  lea    (%r8,%rbp,4),%edi
+    0.00 :   bde21:  mov    %rcx,%r8
+    0.00 :   bde24:  shr    $0x30,%r8
+    0.00 :   bde28:  movzbl %r8b,%r8d
+    0.00 :   bde2c:  movzbl %cl,%r11d
+    0.00 :   bde30:  sub    %r11d,%r8d
+    0.00 :   bde33:  lea    (%r8,%r8,2),%r8d
+    0.00 :   bde37:  mov    %rcx,%r11
+    0.00 :   bde3a:  shr    $0x28,%r11
+    0.00 :   bde3e:  movzbl %r11b,%r11d
+    0.00 :   bde42:  movzbl %ch,%ebx
+    0.00 :   bde45:  sub    %ebx,%r11d
+    0.00 :   bde48:  mov    %rcx,%rbx
+    0.00 :   bde4b:  shr    $0x20,%rbx
+    0.00 :   bde4f:  movzbl %bl,%ebx
+    0.00 :   bde52:  shr    $0x10,%ecx
+    0.00 :   bde55:  movzbl %cl,%ebp
+    0.00 :   bde58:  sub    %ebp,%ebx
+    0.00 :   bde5a:  lea    (%rbx,%r11,2),%r11d
+    0.00 :   bde5e:  add    %r8d,%r11d
+    0.00 :   bde61:  sub    %r10d,%r14d
+    0.00 :   bde64:  lea    (%r11,%r14,4),%r8d
+    0.00 :   bde68:  shl    $0x4,%r13d
+    0.00 :   bde6c:  mov    %edi,%r11d
+    0.00 :   bde6f:  shl    $0x5,%edi
+    0.00 :   bde72:  lea    (%rdi,%r11,2),%edi
+    0.00 :   bde76:  add    $0x20,%edi
+    0.00 :   bde79:  mov    %r8d,%r11d
+    0.00 :   bde7c:  shl    $0x5,%r8d
+    0.00 :   bde80:  lea    (%r8,%r11,2),%r8d
+    0.00 :   bde84:  add    $0x20,%r8d
+    0.00 :   bde88:  sar    $0x6,%r8d
+    0.00 :   bde8c:  vmovd  %r8d,%xmm0
+    0.00 :   bde91:  mov    -0x10(%rsp),%eax
+    0.00 :   bde95:  vmovd  %eax,%xmm1
+    0.00 :   bde99:  vinserti128 $0x1,%xmm0,%ymm1,%ymm0
+    0.00 :   bde9f:  vpshuflw $0x0,%ymm0,%ymm0
+    0.00 :   bdea4:  vpshufd $0x44,%ymm0,%ymm0
+    0.00 :   bdea9:  imul   $0xfffd,%eax,%eax
+    0.00 :   bdeaf:  imul   $0xfffd,%r8d,%r8d
+    0.00 :   bdeb6:  add    %r13d,%r8d
+    0.00 :   bdeb9:  add    $0x10,%r8d
+    0.00 :   bdebd:  lea    0x10(%rsi,%rax,1),%eax
+    0.00 :   bdec1:  vmovd  %r8d,%xmm1
+    0.00 :   bdec6:  vmovd  %eax,%xmm2
+    0.00 :   bdeca:  vinserti128 $0x1,%xmm1,%ymm2,%ymm1
+    0.00 :   bded0:  vpshuflw $0x0,%ymm1,%ymm1
+    0.00 :   bded5:  vpshufd $0x44,%ymm1,%ymm1
+    0.00 :   bdeda:  vmovd  %edi,%xmm2
+    0.00 :   bdede:  vpsrld $0x6,%xmm2,%xmm2
+    0.00 :   bdee3:  vmovd  -0x40(%rsp),%xmm3
+    0.00 :   bdee9:  vinserti128 $0x1,%xmm2,%ymm3,%ymm2
+    0.00 :   bdeef:  vpshuflw $0x0,%ymm2,%ymm2
+    0.00 :   bdef4:  vpshufd $0x44,%ymm2,%ymm2
+    0.00 :   bdef9:  vpmullw -0xb67c1(%rip),%ymm2,%ymm2        # 7740 <GCC_except_table859+0xea0>
+    0.00 :   bdf01:  vpaddw %ymm1,%ymm2,%ymm1
+    0.00 :   bdf05:  vpaddw %ymm0,%ymm0,%ymm4
+    0.00 :   bdf09:  vpaddw %ymm0,%ymm1,%ymm2
+    0.00 :   bdf0d:  vpsraw $0x5,%ymm1,%ymm3
+    0.00 :   bdf12:  vpsraw $0x5,%ymm2,%ymm2
+    0.00 :   bdf17:  vpackuswb %ymm2,%ymm3,%ymm3
+    0.00 :   bdf1b:  vpaddw %ymm4,%ymm1,%ymm1
+    0.00 :   bdf1f:  vpaddw %ymm0,%ymm1,%ymm2
+    0.00 :   bdf23:  vpsraw $0x5,%ymm1,%ymm5
+    0.00 :   bdf28:  vpsraw $0x5,%ymm2,%ymm2
+    0.00 :   bdf2d:  vpackuswb %ymm2,%ymm5,%ymm2
+    0.00 :   bdf31:  vpaddw %ymm4,%ymm1,%ymm5
+    0.00 :   bdf35:  vpaddw %ymm0,%ymm5,%ymm1
+    0.00 :   bdf39:  vpsraw $0x5,%ymm5,%ymm6
+    0.00 :   bdf3e:  vpsraw $0x5,%ymm1,%ymm1
+    0.00 :   bdf43:  vpackuswb %ymm1,%ymm6,%ymm1
+    0.00 :   bdf47:  vpaddw %ymm4,%ymm5,%ymm4
+    0.00 :   bdf4b:  vpaddw %ymm0,%ymm4,%ymm0
+    0.00 :   bdf4f:  vpsraw $0x5,%ymm4,%ymm4
+    0.00 :   bdf54:  vpsraw $0x5,%ymm0,%ymm0
+    0.00 :   bdf59:  vpackuswb %ymm0,%ymm4,%ymm0
+    0.00 :   bdf5d:  mov    -0x4c(%rsp),%r8d
+    0.00 :   bdf62:  mov    -0x18(%rsp),%r10
+    0.00 :   bdf67:  mov    -0x38(%rsp),%rdi
+    0.00 :   bdf6c:  jmp    be035 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x745>
+    0.00 :   bdf71:  vinserti128 $0x1,%xmm1,%ymm2,%ymm0
+    0.00 :   bdf77:  vpshufd $0x44,%ymm0,%ymm0
+    0.00 :   bdf7c:  jmp    be029 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x739>
+    0.00 :   bdf81:  vpshufb -0xb65ea(%rip),%ymm0,%ymm3        # 79a0 <GCC_except_table859+0x1100>
+    0.00 :   bdf8a:  vpshufb -0xb6813(%rip),%ymm0,%ymm2        # 7780 <GCC_except_table859+0xee0>
+    0.00 :   bdf93:  vpshufb -0xb669c(%rip),%ymm0,%ymm1        # 7900 <GCC_except_table859+0x1060>
+    0.00 :   bdf9c:  vpshufb -0xb6645(%rip),%ymm0,%ymm0        # 7960 <GCC_except_table859+0x10c0>
+    0.00 :   bdfa5:  jmp    be035 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x745>
+    0.53 :   bdfaa:  movzbl %r13b,%eax
+    0.00 :   bdfae:  add    %eax,%eax
+    0.00 :   bdfb0:  movzbl -0x50(%rsp),%esi
+    0.00 :   bdfb5:  and    $0x2,%eax
+    0.53 :   bdfb8:  or     %rsi,%rax
+    0.00 :   bdfbb:  je     be020 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x730>
+    0.00 :   bdfbd:  shl    $0x6,%rax
+    0.00 :   bdfc1:  vpmaddubsw -0xb670a(%rip),%ymm0,%ymm0        # 78c0 <GCC_except_table859+0x1020>
+    2.12 :   bdfca:  vpmaddwd -0xb6c92(%rip),%ymm0,%ymm0        # 7340 <GCC_except_table859+0xaa0>
+    0.53 :   bdfd2:  lea    -0xa8759(%rip),%rsi        # 15880 <coreav_kernels_h264::simd::x86::CHROMA_DC_PICKS>
+    0.00 :   bdfd9:  vmovdqu (%rax,%rsi,1),%ymm1
+    0.00 :   bdfde:  vmovdqu 0x20(%rax,%rsi,1),%ymm2
+    1.06 :   bdfe4:  vpermd %ymm0,%ymm1,%ymm1
+    1.59 :   bdfe9:  vpermd %ymm0,%ymm2,%ymm0
+    0.53 :   bdfee:  vpaddd %ymm0,%ymm1,%ymm0
+    2.65 :   bdff2:  vpbroadcastd -0xb6dbf(%rip),%ymm1        # 723c <GCC_except_table859+0x99c>
+    0.00 :   bdffb:  vpaddd %ymm1,%ymm0,%ymm0
+    1.06 :   bdfff:  vpsrld $0x3,%ymm0,%ymm0
+    0.00 :   be004:  vpshufb -0xb6b6d(%rip),%ymm0,%ymm2        # 74a0 <GCC_except_table859+0xc00>
+    1.06 :   be00d:  vpshufb -0xb6c56(%rip),%ymm0,%ymm0        # 73c0 <GCC_except_table859+0xb20>
+    0.00 :   be016:  vmovdqa %ymm0,%ymm1
+    0.00 :   be01a:  vmovdqa %ymm2,%ymm3
+    0.00 :   be01e:  jmp    be035 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x745>
+    0.00 :   be020:  vpbroadcastq -0xb5d91(%rip),%ymm0        # 8298 <GCC_except_table859+0x19f8>
+    0.00 :   be029:  vmovdqa %ymm0,%ymm1
+    0.00 :   be02d:  vmovdqa %ymm0,%ymm2
+    0.00 :   be031:  vmovdqa %ymm0,%ymm3
+    0.00 :   be035:  add    -0x30(%rsp),%rdi
+    0.00 :   be03a:  vmovdqu (%rdx),%xmm4
+    0.00 :   be03e:  vpshufd $0x50,%xmm4,%xmm5
+    0.00 :   be043:  vpermq $0x50,%ymm5,%ymm5
+    0.53 :   be049:  vpshufd $0xfa,%xmm4,%xmm4
+    0.00 :   be04e:  mov    %r8d,%eax
+    0.00 :   be051:  and    $0x3,%al
+    0.00 :   be053:  je     be166 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x876>
+    0.00 :   be059:  vmovdqu (%r10),%ymm6
+    0.00 :   be05e:  vmovdqu 0x10(%r10),%ymm8
+    0.00 :   be064:  vmovdqu 0x20(%r10),%ymm9
+    0.00 :   be06a:  vinserti128 $0x1,0x40(%r10),%ymm6,%ymm7
+    0.00 :   be071:  vinserti128 $0x1,0x50(%r10),%ymm8,%ymm8
+    0.00 :   be078:  vinserti128 $0x1,0x60(%r10),%ymm9,%ymm6
+    0.00 :   be07f:  vmovdqu 0x30(%r10),%ymm9
+    0.00 :   be085:  vinserti128 $0x1,0x70(%r10),%ymm9,%ymm9
+    0.00 :   be08c:  cmp    $0x3,%al
+    0.00 :   be08e:  je     be0bd <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x7cd>
+    0.53 :   be090:  vmovd  %eax,%xmm10
+    0.00 :   be094:  vpbroadcastb %xmm10,%ymm10
+    0.00 :   be099:  vmovdqa -0xb6a61(%rip),%ymm11        # 7640 <GCC_except_table859+0xda0>
+    0.00 :   be0a1:  vpand  %ymm11,%ymm10,%ymm10
+    0.00 :   be0a6:  vpcmpeqd %ymm11,%ymm10,%ymm10
+    0.00 :   be0ab:  vpand  %ymm7,%ymm10,%ymm7
+    0.00 :   be0af:  vpand  %ymm10,%ymm8,%ymm8
+    0.00 :   be0b4:  vpand  %ymm6,%ymm10,%ymm6
+    0.00 :   be0b8:  vpand  %ymm10,%ymm9,%ymm9
+    0.00 :   be0bd:  vpblendd $0x22,%ymm7,%ymm5,%ymm5
+    0.00 :   be0c3:  vpunpckldq %ymm8,%ymm5,%ymm5
+    0.00 :   be0c8:  vpunpckhdq %ymm8,%ymm7,%ymm7
+    0.00 :   be0cd:  vpunpckldq %ymm9,%ymm6,%ymm8
+    0.00 :   be0d2:  vpunpckhdq %ymm9,%ymm6,%ymm6
+    0.00 :   be0d7:  vpunpcklqdq %ymm8,%ymm5,%ymm9
+    0.00 :   be0dc:  vpunpcklqdq %ymm6,%ymm7,%ymm10
+    0.00 :   be0e0:  vpaddd %ymm9,%ymm10,%ymm11
+    0.00 :   be0e5:  vpsubd %ymm10,%ymm9,%ymm9
+    0.00 :   be0ea:  vpunpckhqdq %ymm8,%ymm5,%ymm5
+    0.00 :   be0ef:  vpsrad $0x1,%ymm5,%ymm8
+    0.00 :   be0f4:  vpunpckhqdq %ymm6,%ymm7,%ymm6
+    0.00 :   be0f8:  vpsubd %ymm6,%ymm8,%ymm7
+    0.00 :   be0fc:  vpsrad $0x1,%ymm6,%ymm6
+    0.00 :   be101:  vpaddd %ymm5,%ymm6,%ymm5
+    0.00 :   be105:  vpaddd %ymm5,%ymm11,%ymm6
+    0.00 :   be109:  vpaddd %ymm7,%ymm9,%ymm8
+    0.00 :   be10d:  vpsubd %ymm7,%ymm9,%ymm7
+    0.00 :   be111:  vpsubd %ymm5,%ymm11,%ymm5
+    0.00 :   be115:  vpunpckldq %ymm8,%ymm6,%ymm9
+    0.00 :   be11a:  vpunpckhdq %ymm8,%ymm6,%ymm6
+    0.00 :   be11f:  vpunpckldq %ymm5,%ymm7,%ymm8
+    0.00 :   be123:  vpunpckhdq %ymm5,%ymm7,%ymm5
+    0.00 :   be127:  vpunpcklqdq %ymm8,%ymm9,%ymm7
+    0.00 :   be12c:  vpunpcklqdq %ymm5,%ymm6,%ymm10
+    0.00 :   be130:  vpaddd %ymm7,%ymm10,%ymm11
+    0.00 :   be134:  vpsubd %ymm10,%ymm7,%ymm10
+    0.00 :   be139:  vpunpckhqdq %ymm8,%ymm9,%ymm7
+    0.00 :   be13e:  vpsrad $0x1,%ymm7,%ymm8
+    0.00 :   be143:  vpunpckhqdq %ymm5,%ymm6,%ymm5
+    0.00 :   be147:  vpsubd %ymm5,%ymm8,%ymm6
+    0.00 :   be14b:  vpsrad $0x1,%ymm5,%ymm5
+    0.00 :   be150:  vpaddd %ymm7,%ymm5,%ymm5
+    0.00 :   be154:  vpaddd %ymm5,%ymm11,%ymm8
+    0.00 :   be158:  vpaddd %ymm6,%ymm10,%ymm7
+    0.00 :   be15c:  vpsubd %ymm6,%ymm10,%ymm6
+    0.00 :   be160:  vpsubd %ymm5,%ymm11,%ymm5
+    0.00 :   be164:  jmp    be17d <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x88d>
+    0.53 :   be166:  vptest %ymm5,%ymm5
+    0.53 :   be16b:  vmovdqa %ymm5,%ymm6
+    0.00 :   be16f:  vmovdqa %ymm5,%ymm7
+    0.00 :   be173:  vmovdqa %ymm5,%ymm8
+    0.00 :   be177:  je     be7a5 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0xeb5>
+    0.00 :   be17d:  vpbroadcastd -0xb6f06(%rip),%ymm9        # 7280 <GCC_except_table859+0x9e0>
+    0.00 :   be186:  vpaddd %ymm9,%ymm8,%ymm8
+    0.00 :   be18b:  vpsrad $0x6,%ymm8,%ymm8
+    0.00 :   be191:  vpaddd %ymm7,%ymm9,%ymm7
+    0.00 :   be195:  vpsrad $0x6,%ymm7,%ymm7
+    0.00 :   be19a:  vpackssdw %ymm7,%ymm8,%ymm7
+    0.00 :   be19e:  vpaddd %ymm6,%ymm9,%ymm6
+    0.00 :   be1a2:  vpsrad $0x6,%ymm6,%ymm6
+    0.00 :   be1a7:  vpaddd %ymm5,%ymm9,%ymm5
+    0.00 :   be1ab:  vpsrad $0x6,%ymm5,%ymm5
+    0.00 :   be1b0:  vpackssdw %ymm5,%ymm6,%ymm5
+    0.00 :   be1b4:  vpshufd $0xd8,%xmm3,%xmm6
+    0.00 :   be1b9:  vpmovzxbw %xmm6,%ymm6
+    0.00 :   be1be:  vpaddsw %ymm6,%ymm7,%ymm6
+    0.00 :   be1c2:  vpshufd $0xd8,%xmm2,%xmm7
+    0.00 :   be1c7:  vpmovzxbw %xmm7,%ymm7
+    0.00 :   be1cc:  vpaddsw %ymm7,%ymm5,%ymm5
+    0.00 :   be1d0:  vpackuswb %ymm5,%ymm6,%ymm5
+    0.00 :   be1d4:  vextracti128 $0x1,%ymm5,%xmm6
+    0.00 :   be1da:  vpunpckldq %xmm6,%xmm5,%xmm7
+    0.00 :   be1de:  vmovq  %xmm7,(%rdi)
+    0.00 :   be1e2:  vpextrq $0x1,%xmm7,(%rdi,%r12,1)
+    0.00 :   be1e9:  vpunpckhdq %xmm6,%xmm5,%xmm5
+    0.00 :   be1ed:  vmovq  %xmm5,(%rdi,%r12,2)
+    0.00 :   be1f3:  lea    (%r12,%r12,2),%rax
+    0.00 :   be1f7:  vpextrq $0x1,%xmm5,(%rdi,%rax,1)
+    0.00 :   be1fe:  mov    %r8d,%eax
+    0.00 :   be201:  shr    $0x4,%al
+    0.00 :   be204:  vpermq $0x50,%ymm4,%ymm4
+    0.00 :   be20a:  lea    (%rdi,%r12,4),%rsi
+    1.06 :   be20e:  mov    %r8d,%edi
+    0.00 :   be211:  shr    $0x2,%dil
+    0.00 :   be215:  and    $0x3,%dil
+    0.00 :   be219:  je     be33e <coreav_kernels_h264::simd::x86::intra_chroma_mb+0xa4e>
+    0.00 :   be21f:  vmovdqu 0x80(%r10),%ymm5
+    0.00 :   be228:  vmovdqu 0x90(%r10),%ymm7
+    0.00 :   be231:  vmovdqu 0xa0(%r10),%ymm8
+    0.00 :   be23a:  vinserti128 $0x1,0xc0(%r10),%ymm5,%ymm6
+    0.00 :   be244:  vinserti128 $0x1,0xd0(%r10),%ymm7,%ymm7
+    0.00 :   be24e:  vinserti128 $0x1,0xe0(%r10),%ymm8,%ymm5
+    0.00 :   be258:  vmovdqu 0xb0(%r10),%ymm8
+    0.00 :   be261:  vinserti128 $0x1,0xf0(%r10),%ymm8,%ymm8
+    0.00 :   be26b:  cmp    $0x3,%dil
+    0.00 :   be26f:  je     be29d <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x9ad>
+    0.00 :   be271:  vmovd  %edi,%xmm9
+    0.00 :   be275:  vpbroadcastb %xmm9,%ymm9
+    0.00 :   be27a:  vmovdqa -0xb6c42(%rip),%ymm10        # 7640 <GCC_except_table859+0xda0>
+    0.00 :   be282:  vpand  %ymm10,%ymm9,%ymm9
+    0.00 :   be287:  vpcmpeqd %ymm10,%ymm9,%ymm9
+    0.00 :   be28c:  vpand  %ymm6,%ymm9,%ymm6
+    0.00 :   be290:  vpand  %ymm7,%ymm9,%ymm7
+    0.00 :   be294:  vpand  %ymm5,%ymm9,%ymm5
+    0.00 :   be298:  vpand  %ymm9,%ymm8,%ymm8
+    0.00 :   be29d:  vpblendd $0x22,%ymm6,%ymm4,%ymm4
+    0.00 :   be2a3:  vpunpckldq %ymm7,%ymm4,%ymm4
+    0.00 :   be2a7:  vpunpckhdq %ymm7,%ymm6,%ymm6
+    0.00 :   be2ab:  vpunpckldq %ymm8,%ymm5,%ymm7
+    0.00 :   be2b0:  vpunpckhdq %ymm8,%ymm5,%ymm5
+    0.00 :   be2b5:  vpunpcklqdq %ymm7,%ymm4,%ymm8
+    0.00 :   be2b9:  vpunpcklqdq %ymm5,%ymm6,%ymm9
+    0.00 :   be2bd:  vpaddd %ymm8,%ymm9,%ymm10
+    0.00 :   be2c2:  vpsubd %ymm9,%ymm8,%ymm8
+    0.00 :   be2c7:  vpunpckhqdq %ymm7,%ymm4,%ymm4
+    0.00 :   be2cb:  vpsrad $0x1,%ymm4,%ymm7
+    0.00 :   be2d0:  vpunpckhqdq %ymm5,%ymm6,%ymm5
+    0.00 :   be2d4:  vpsubd %ymm5,%ymm7,%ymm6
+    0.00 :   be2d8:  vpsrad $0x1,%ymm5,%ymm5
+    0.00 :   be2dd:  vpaddd %ymm4,%ymm5,%ymm4
+    0.00 :   be2e1:  vpaddd %ymm4,%ymm10,%ymm5
+    0.00 :   be2e5:  vpaddd %ymm6,%ymm8,%ymm7
+    0.00 :   be2e9:  vpsubd %ymm6,%ymm8,%ymm6
+    0.00 :   be2ed:  vpsubd %ymm4,%ymm10,%ymm4
+    0.00 :   be2f1:  vpunpckldq %ymm7,%ymm5,%ymm8
+    0.00 :   be2f5:  vpunpckhdq %ymm7,%ymm5,%ymm5
+    0.00 :   be2f9:  vpunpckldq %ymm4,%ymm6,%ymm7
+    0.00 :   be2fd:  vpunpckhdq %ymm4,%ymm6,%ymm4
+    0.00 :   be301:  vpunpcklqdq %ymm7,%ymm8,%ymm6
+    0.00 :   be305:  vpunpcklqdq %ymm4,%ymm5,%ymm9
+    0.00 :   be309:  vpaddd %ymm6,%ymm9,%ymm10
+    0.00 :   be30d:  vpsubd %ymm9,%ymm6,%ymm9
+    0.00 :   be312:  vpunpckhqdq %ymm7,%ymm8,%ymm6
+    0.00 :   be316:  vpsrad $0x1,%ymm6,%ymm7
+    0.00 :   be31b:  vpunpckhqdq %ymm4,%ymm5,%ymm4
+    0.00 :   be31f:  vpsubd %ymm4,%ymm7,%ymm5
+    0.00 :   be323:  vpsrad $0x1,%ymm4,%ymm4
+    0.00 :   be328:  vpaddd %ymm6,%ymm4,%ymm4
+    0.00 :   be32c:  vpaddd %ymm4,%ymm10,%ymm7
+    0.00 :   be330:  vpaddd %ymm5,%ymm9,%ymm6
+    0.00 :   be334:  vpsubd %ymm5,%ymm9,%ymm5
+    0.00 :   be338:  vpsubd %ymm4,%ymm10,%ymm4
+    0.00 :   be33c:  jmp    be355 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0xa65>
+    0.00 :   be33e:  vptest %ymm4,%ymm4
+    0.00 :   be343:  vmovdqa %ymm4,%ymm5
+    0.00 :   be347:  vmovdqa %ymm4,%ymm6
+    1.06 :   be34b:  vmovdqa %ymm4,%ymm7
+    0.00 :   be34f:  je     be7c6 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0xed6>
+    0.00 :   be355:  vpbroadcastd -0xb70de(%rip),%ymm8        # 7280 <GCC_except_table859+0x9e0>
+    0.00 :   be35e:  vpaddd %ymm7,%ymm8,%ymm7
+    0.00 :   be362:  vpsrad $0x6,%ymm7,%ymm7
+    0.00 :   be367:  vpaddd %ymm6,%ymm8,%ymm6
+    0.00 :   be36b:  vpsrad $0x6,%ymm6,%ymm6
+    0.00 :   be370:  vpackssdw %ymm6,%ymm7,%ymm6
+    0.00 :   be374:  vpaddd %ymm5,%ymm8,%ymm5
+    0.00 :   be378:  vpsrad $0x6,%ymm5,%ymm5
+    0.00 :   be37d:  vpaddd %ymm4,%ymm8,%ymm4
+    0.00 :   be381:  vpsrad $0x6,%ymm4,%ymm4
+    0.00 :   be386:  vpackssdw %ymm4,%ymm5,%ymm4
+    0.00 :   be38a:  vpshufd $0xd8,%xmm1,%xmm5
+    0.00 :   be38f:  vpmovzxbw %xmm5,%ymm5
+    0.00 :   be394:  vpaddsw %ymm5,%ymm6,%ymm5
+    0.00 :   be398:  vpshufd $0xd8,%xmm0,%xmm6
+    0.00 :   be39d:  vpmovzxbw %xmm6,%ymm6
+    0.00 :   be3a2:  vpaddsw %ymm6,%ymm4,%ymm4
+    0.00 :   be3a6:  vpackuswb %ymm4,%ymm5,%ymm4
+    0.00 :   be3aa:  vextracti128 $0x1,%ymm4,%xmm5
+    0.00 :   be3b0:  vpunpckldq %xmm5,%xmm4,%xmm6
+    0.00 :   be3b4:  vmovq  %xmm6,(%rsi)
+    0.00 :   be3b8:  vpextrq $0x1,%xmm6,(%rsi,%r12,1)
+    0.00 :   be3bf:  vpunpckhdq %xmm5,%xmm4,%xmm4
+    0.00 :   be3c3:  vmovq  %xmm4,(%rsi,%r12,2)
+    0.00 :   be3c9:  lea    (%r12,%r12,2),%rdi
+    0.00 :   be3cd:  vpextrq $0x1,%xmm4,(%rsi,%rdi,1)
+    0.53 :   be3d4:  add    %r15,-0x48(%rsp)
+    0.00 :   be3d9:  vmovdqu 0x10(%rdx),%xmm4
+    1.06 :   be3de:  vpshufd $0x50,%xmm4,%xmm5
+    1.06 :   be3e3:  vpermq $0x50,%ymm5,%ymm5
+    0.00 :   be3e9:  vpshufd $0xfa,%xmm4,%xmm4
+    0.00 :   be3ee:  and    $0x3,%al
+    0.00 :   be3f0:  je     be51f <coreav_kernels_h264::simd::x86::intra_chroma_mb+0xc2f>
+    0.00 :   be3f6:  vmovdqu 0x100(%r10),%ymm6
+    0.00 :   be3ff:  vmovdqu 0x110(%r10),%ymm8
+    0.00 :   be408:  vmovdqu 0x120(%r10),%ymm9
+    0.00 :   be411:  vinserti128 $0x1,0x140(%r10),%ymm6,%ymm7
+    0.00 :   be41b:  vinserti128 $0x1,0x150(%r10),%ymm8,%ymm8
+    0.00 :   be425:  vinserti128 $0x1,0x160(%r10),%ymm9,%ymm6
+    0.00 :   be42f:  vmovdqu 0x130(%r10),%ymm9
+    0.00 :   be438:  vinserti128 $0x1,0x170(%r10),%ymm9,%ymm9
+    0.00 :   be442:  cmp    $0x3,%al
+    0.00 :   be444:  je     be473 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0xb83>
+    0.00 :   be446:  vmovd  %eax,%xmm10
+    0.00 :   be44a:  vpbroadcastb %xmm10,%ymm10
+    0.00 :   be44f:  vmovdqa -0xb6e17(%rip),%ymm11        # 7640 <GCC_except_table859+0xda0>
+    0.00 :   be457:  vpand  %ymm11,%ymm10,%ymm10
+    0.00 :   be45c:  vpcmpeqd %ymm11,%ymm10,%ymm10
+    0.00 :   be461:  vpand  %ymm7,%ymm10,%ymm7
+    0.00 :   be465:  vpand  %ymm10,%ymm8,%ymm8
+    0.00 :   be46a:  vpand  %ymm6,%ymm10,%ymm6
+    0.00 :   be46e:  vpand  %ymm10,%ymm9,%ymm9
+    0.00 :   be473:  vpblendd $0x22,%ymm7,%ymm5,%ymm5
+    0.00 :   be479:  vpunpckldq %ymm8,%ymm5,%ymm5
+    0.00 :   be47e:  vpunpckhdq %ymm8,%ymm7,%ymm7
+    0.00 :   be483:  vpunpckldq %ymm9,%ymm6,%ymm8
+    0.00 :   be488:  vpunpckhdq %ymm9,%ymm6,%ymm6
+    0.00 :   be48d:  vpunpcklqdq %ymm8,%ymm5,%ymm9
+    0.00 :   be492:  vpunpcklqdq %ymm6,%ymm7,%ymm10
+    0.00 :   be496:  vpaddd %ymm9,%ymm10,%ymm11
+    0.00 :   be49b:  vpsubd %ymm10,%ymm9,%ymm9
+    0.00 :   be4a0:  vpunpckhqdq %ymm8,%ymm5,%ymm5
+    0.00 :   be4a5:  vpsrad $0x1,%ymm5,%ymm8
+    0.00 :   be4aa:  vpunpckhqdq %ymm6,%ymm7,%ymm6
+    0.00 :   be4ae:  vpsubd %ymm6,%ymm8,%ymm7
+    0.00 :   be4b2:  vpsrad $0x1,%ymm6,%ymm6
+    0.00 :   be4b7:  vpaddd %ymm5,%ymm6,%ymm5
+    0.00 :   be4bb:  vpaddd %ymm5,%ymm11,%ymm6
+    0.00 :   be4bf:  vpaddd %ymm7,%ymm9,%ymm8
+    0.00 :   be4c3:  vpsubd %ymm7,%ymm9,%ymm7
+    0.00 :   be4c7:  vpsubd %ymm5,%ymm11,%ymm5
+    0.00 :   be4cb:  vpunpckldq %ymm8,%ymm6,%ymm9
+    0.00 :   be4d0:  vpunpckhdq %ymm8,%ymm6,%ymm6
+    0.00 :   be4d5:  vpunpckldq %ymm5,%ymm7,%ymm8
+    0.00 :   be4d9:  vpunpckhdq %ymm5,%ymm7,%ymm5
+    0.00 :   be4dd:  vpunpcklqdq %ymm8,%ymm9,%ymm7
+    0.00 :   be4e2:  vpunpcklqdq %ymm5,%ymm6,%ymm10
+    0.00 :   be4e6:  vpaddd %ymm7,%ymm10,%ymm11
+    0.00 :   be4ea:  vpsubd %ymm10,%ymm7,%ymm7
+    0.00 :   be4ef:  vpunpckhqdq %ymm8,%ymm9,%ymm8
+    0.00 :   be4f4:  vpsrad $0x1,%ymm8,%ymm9
+    0.00 :   be4fa:  vpunpckhqdq %ymm5,%ymm6,%ymm5
+    0.00 :   be4fe:  vpsubd %ymm5,%ymm9,%ymm6
+    0.00 :   be502:  vpsrad $0x1,%ymm5,%ymm5
+    0.00 :   be507:  vpaddd %ymm5,%ymm8,%ymm9
+    0.00 :   be50b:  vpaddd %ymm11,%ymm9,%ymm5
+    0.00 :   be510:  vpaddd %ymm7,%ymm6,%ymm8
+    0.00 :   be514:  vpsubd %ymm6,%ymm7,%ymm6
+    0.00 :   be518:  vpsubd %ymm9,%ymm11,%ymm7
+    0.00 :   be51d:  jmp    be536 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0xc46>
+    0.53 :   be51f:  vptest %ymm5,%ymm5
+    0.53 :   be524:  vmovdqa %ymm5,%ymm8
+    0.00 :   be528:  vmovdqa %ymm5,%ymm6
+    1.59 :   be52c:  vmovdqa %ymm5,%ymm7
+    0.00 :   be530:  je     be7e7 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0xef7>
+    0.00 :   be536:  vpbroadcastd -0xb72bf(%rip),%ymm9        # 7280 <GCC_except_table859+0x9e0>
+    0.00 :   be53f:  vpaddd %ymm5,%ymm9,%ymm5
+    0.00 :   be543:  vpsrad $0x6,%ymm5,%ymm5
+    0.00 :   be548:  vpaddd %ymm9,%ymm8,%ymm8
+    0.00 :   be54d:  vpsrad $0x6,%ymm8,%ymm8
+    0.00 :   be553:  vpackssdw %ymm8,%ymm5,%ymm5
+    0.00 :   be558:  vpaddd %ymm6,%ymm9,%ymm6
+    0.00 :   be55c:  vpsrad $0x6,%ymm6,%ymm6
+    0.00 :   be561:  vpaddd %ymm7,%ymm9,%ymm7
+    0.00 :   be565:  vpsrad $0x6,%ymm7,%ymm7
+    0.00 :   be56a:  vpackssdw %ymm7,%ymm6,%ymm6
+    0.00 :   be56e:  vextracti128 $0x1,%ymm3,%xmm3
+    0.00 :   be574:  vpshufd $0xd8,%xmm3,%xmm3
+    0.00 :   be579:  vpmovzxbw %xmm3,%ymm3
+    0.00 :   be57e:  vpaddsw %ymm3,%ymm5,%ymm3
+    0.00 :   be582:  vextracti128 $0x1,%ymm2,%xmm2
+    0.00 :   be588:  vpshufd $0xd8,%xmm2,%xmm2
+    0.00 :   be58d:  vpmovzxbw %xmm2,%ymm2
+    0.00 :   be592:  vpaddsw %ymm2,%ymm6,%ymm2
+    0.00 :   be596:  vpackuswb %ymm2,%ymm3,%ymm2
+    0.00 :   be59a:  vextracti128 $0x1,%ymm2,%xmm3
+    0.00 :   be5a0:  vpunpckldq %xmm3,%xmm2,%xmm5
+    0.00 :   be5a4:  mov    -0x48(%rsp),%rcx
+    0.00 :   be5a9:  vmovq  %xmm5,(%rcx)
+    0.00 :   be5ad:  vpextrq $0x1,%xmm5,(%rcx,%r9,1)
+    0.00 :   be5b4:  vpunpckhdq %xmm3,%xmm2,%xmm2
+    0.53 :   be5b8:  vmovq  %xmm2,(%rcx,%r9,2)
+    0.00 :   be5be:  lea    (%r9,%r9,2),%rax
+    0.00 :   be5c2:  vpextrq $0x1,%xmm2,(%rcx,%rax,1)
+    0.53 :   be5c9:  vpermq $0x50,%ymm4,%ymm2
+    0.00 :   be5cf:  lea    (%rcx,%r9,4),%rax
+    0.00 :   be5d3:  shr    $0x6,%r8b
+    0.00 :   be5d7:  je     be6f5 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0xe05>
+    0.00 :   be5dd:  vmovdqu 0x180(%r10),%ymm3
+    0.00 :   be5e6:  vmovdqu 0x190(%r10),%ymm5
+    0.00 :   be5ef:  vmovdqu 0x1a0(%r10),%ymm6
+    0.00 :   be5f8:  vinserti128 $0x1,0x1c0(%r10),%ymm3,%ymm4
+    0.00 :   be602:  vinserti128 $0x1,0x1d0(%r10),%ymm5,%ymm5
+    0.00 :   be60c:  vinserti128 $0x1,0x1e0(%r10),%ymm6,%ymm3
+    0.00 :   be616:  vmovdqu 0x1b0(%r10),%ymm6
+    0.00 :   be61f:  vinserti128 $0x1,0x1f0(%r10),%ymm6,%ymm6
+    0.00 :   be629:  cmp    $0x3,%r8b
+    0.00 :   be62d:  je     be659 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0xd69>
+    0.00 :   be62f:  vmovd  %r8d,%xmm7
+    0.00 :   be634:  vpbroadcastb %xmm7,%ymm7
+    0.00 :   be639:  vmovdqa -0xb7001(%rip),%ymm8        # 7640 <GCC_except_table859+0xda0>
+    0.00 :   be641:  vpand  %ymm7,%ymm8,%ymm7
+    0.00 :   be645:  vpcmpeqd %ymm7,%ymm8,%ymm7
+    0.00 :   be649:  vpand  %ymm7,%ymm4,%ymm4
+    0.00 :   be64d:  vpand  %ymm7,%ymm5,%ymm5
+    0.00 :   be651:  vpand  %ymm7,%ymm3,%ymm3
+    0.00 :   be655:  vpand  %ymm7,%ymm6,%ymm6
+    0.00 :   be659:  vpblendd $0x22,%ymm4,%ymm2,%ymm2
+    0.00 :   be65f:  vpunpckldq %ymm5,%ymm2,%ymm2
+    0.00 :   be663:  vpunpckhdq %ymm5,%ymm4,%ymm4
+    0.00 :   be667:  vpunpckldq %ymm6,%ymm3,%ymm5
+    0.00 :   be66b:  vpunpckhdq %ymm6,%ymm3,%ymm3
+    0.00 :   be66f:  vpunpcklqdq %ymm5,%ymm2,%ymm6
+    0.00 :   be673:  vpunpcklqdq %ymm3,%ymm4,%ymm7
+    0.00 :   be677:  vpaddd %ymm6,%ymm7,%ymm8
+    0.00 :   be67b:  vpsubd %ymm7,%ymm6,%ymm6
+    0.00 :   be67f:  vpunpckhqdq %ymm5,%ymm2,%ymm2
+    0.00 :   be683:  vpsrad $0x1,%ymm2,%ymm5
+    0.00 :   be688:  vpunpckhqdq %ymm3,%ymm4,%ymm3
+    0.00 :   be68c:  vpsubd %ymm3,%ymm5,%ymm4
+    0.00 :   be690:  vpsrad $0x1,%ymm3,%ymm3
+    0.00 :   be695:  vpaddd %ymm2,%ymm3,%ymm2
+    0.00 :   be699:  vpaddd %ymm2,%ymm8,%ymm3
+    0.00 :   be69d:  vpaddd %ymm6,%ymm4,%ymm5
+    0.00 :   be6a1:  vpsubd %ymm4,%ymm6,%ymm4
+    0.00 :   be6a5:  vpsubd %ymm2,%ymm8,%ymm2
+    0.00 :   be6a9:  vpunpckldq %ymm5,%ymm3,%ymm6
+    0.00 :   be6ad:  vpunpckhdq %ymm5,%ymm3,%ymm3
+    0.00 :   be6b1:  vpunpckldq %ymm2,%ymm4,%ymm5
+    0.00 :   be6b5:  vpunpckhdq %ymm2,%ymm4,%ymm2
+    0.00 :   be6b9:  vpunpcklqdq %ymm5,%ymm6,%ymm4
+    0.00 :   be6bd:  vpunpcklqdq %ymm2,%ymm3,%ymm7
+    0.00 :   be6c1:  vpaddd %ymm4,%ymm7,%ymm8
+    0.00 :   be6c5:  vpsubd %ymm7,%ymm4,%ymm7
+    0.00 :   be6c9:  vpunpckhqdq %ymm5,%ymm6,%ymm4
+    0.00 :   be6cd:  vpsrad $0x1,%ymm4,%ymm5
+    0.00 :   be6d2:  vpunpckhqdq %ymm2,%ymm3,%ymm2
+    0.00 :   be6d6:  vpsubd %ymm2,%ymm5,%ymm3
+    0.00 :   be6da:  vpsrad $0x1,%ymm2,%ymm2
+    0.00 :   be6df:  vpaddd %ymm4,%ymm2,%ymm2
+    0.00 :   be6e3:  vpaddd %ymm2,%ymm8,%ymm5
+    0.00 :   be6e7:  vpaddd %ymm7,%ymm3,%ymm4
+    0.00 :   be6eb:  vpsubd %ymm3,%ymm7,%ymm3
+    0.00 :   be6ef:  vpsubd %ymm2,%ymm8,%ymm2
+    0.00 :   be6f3:  jmp    be70c <coreav_kernels_h264::simd::x86::intra_chroma_mb+0xe1c>
+    1.06 :   be6f5:  vptest %ymm2,%ymm2
+    0.00 :   be6fa:  vmovdqa %ymm2,%ymm3
+    0.00 :   be6fe:  vmovdqa %ymm2,%ymm4
+    0.53 :   be702:  vmovdqa %ymm2,%ymm5
+    0.00 :   be706:  je     be808 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0xf18>
+    0.00 :   be70c:  vpbroadcastd -0xb7495(%rip),%ymm6        # 7280 <GCC_except_table859+0x9e0>
+    0.00 :   be715:  vpaddd %ymm6,%ymm5,%ymm5
+    0.00 :   be719:  vpsrad $0x6,%ymm5,%ymm5
+    0.00 :   be71e:  vpaddd %ymm6,%ymm4,%ymm4
+    0.00 :   be722:  vpsrad $0x6,%ymm4,%ymm4
+    0.00 :   be727:  vpackssdw %ymm4,%ymm5,%ymm4
+    0.00 :   be72b:  vpaddd %ymm6,%ymm3,%ymm3
+    0.00 :   be72f:  vpsrad $0x6,%ymm3,%ymm3
+    0.00 :   be734:  vpaddd %ymm6,%ymm2,%ymm2
+    0.00 :   be738:  vpsrad $0x6,%ymm2,%ymm2
+    0.00 :   be73d:  vpackssdw %ymm2,%ymm3,%ymm2
+    0.00 :   be741:  vextracti128 $0x1,%ymm1,%xmm1
+    0.00 :   be747:  vpshufd $0xd8,%xmm1,%xmm1
+    0.00 :   be74c:  vpmovzxbw %xmm1,%ymm1
+    0.00 :   be751:  vpaddsw %ymm1,%ymm4,%ymm1
+    0.00 :   be755:  vextracti128 $0x1,%ymm0,%xmm0
+    0.00 :   be75b:  vpshufd $0xd8,%xmm0,%xmm0
+    0.00 :   be760:  vpmovzxbw %xmm0,%ymm0
+    0.00 :   be765:  vpaddsw %ymm0,%ymm2,%ymm0
+    0.00 :   be769:  vpackuswb %ymm0,%ymm1,%ymm0
+    0.00 :   be76d:  vextracti128 $0x1,%ymm0,%xmm1
+    0.00 :   be773:  vpunpckldq %xmm1,%xmm0,%xmm2
+    0.00 :   be777:  vmovq  %xmm2,(%rax)
+    0.00 :   be77b:  vpextrq $0x1,%xmm2,(%rax,%r9,1)
+    0.00 :   be782:  vpunpckhdq %xmm1,%xmm0,%xmm0
+    0.53 :   be786:  vmovq  %xmm0,(%rax,%r9,2)
+    0.00 :   be78c:  lea    (%r9,%r9,2),%rcx
+    0.00 :   be790:  vpextrq $0x1,%xmm0,(%rax,%rcx,1)
+    0.00 :   be797:  pop    %rbx
+    0.00 :   be798:  pop    %r12
+    0.00 :   be79a:  pop    %r13
+    0.00 :   be79c:  pop    %r14
+    0.53 :   be79e:  pop    %r15
+    0.00 :   be7a0:  pop    %rbp
+    0.00 :   be7a1:  vzeroupper
+    0.00 :   be7a4:  ret
+    0.53 :   be7a5:  vmovq  %xmm3,(%rdi)
+    0.00 :   be7a9:  vpextrq $0x1,%xmm3,(%rdi,%r12,1)
+    0.00 :   be7b0:  vmovq  %xmm2,(%rdi,%r12,2)
+    1.06 :   be7b6:  lea    (%r12,%r12,2),%rax
+    0.00 :   be7ba:  vpextrq $0x1,%xmm2,(%rdi,%rax,1)
+    0.00 :   be7c1:  jmp    be1fe <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x90e>
+    0.53 :   be7c6:  vmovq  %xmm1,(%rsi)
+    0.00 :   be7ca:  vpextrq $0x1,%xmm1,(%rsi,%r12,1)
+    0.53 :   be7d1:  vmovq  %xmm0,(%rsi,%r12,2)
+    0.00 :   be7d7:  lea    (%r12,%r12,2),%rdi
+    0.53 :   be7db:  vpextrq $0x1,%xmm0,(%rsi,%rdi,1)
+    0.00 :   be7e2:  jmp    be3d4 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0xae4>
+    0.00 :   be7e7:  vextracti128 $0x1,%ymm3,%xmm3
+    0.00 :   be7ed:  mov    -0x48(%rsp),%rcx
+    0.00 :   be7f2:  vmovq  %xmm3,(%rcx)
+    0.53 :   be7f6:  vpextrq $0x1,%xmm3,(%rcx,%r9,1)
+    0.53 :   be7fd:  vextracti128 $0x1,%ymm2,%xmm2
+    0.53 :   be803:  jmp    be5b8 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0xcc8>
+    0.00 :   be808:  vextracti128 $0x1,%ymm1,%xmm1
+    0.53 :   be80e:  vmovq  %xmm1,(%rax)
+    0.00 :   be812:  vpextrq $0x1,%xmm1,(%rax,%r9,1)
+    0.53 :   be819:  vextracti128 $0x1,%ymm0,%xmm0
+    0.00 :   be81f:  jmp    be786 <coreav_kernels_h264::simd::x86::intra_chroma_mb+0xe96>
+    0.00 :   be824:  vmovd  %eax,%xmm0
+    0.00 :   be828:  jmp    bd97d <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x8d>
+    0.00 :   be82d:  mov    %rbx,%rdx
+    0.00 :   be830:  jmp    bd97d <coreav_kernels_h264::simd::x86::intra_chroma_mb+0x8d>

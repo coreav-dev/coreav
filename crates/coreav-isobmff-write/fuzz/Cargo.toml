@@ -1,0 +1,91 @@
+# cargo-fuzz project; outside the workspace, never published.
+[package]
+name = "coreav-isobmff-write-fuzz"
+version = "0.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+coreav-isobmff = { path = "../../coreav-isobmff" }
+coreav-isobmff-write = { path = ".." }
+coreav-mkv = { path = "../../coreav-mkv" }
+
+[[bin]]
+name = "extract_audio"
+path = "fuzz_targets/extract_audio.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "clip"
+path = "fuzz_targets/clip.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "remux"
+path = "fuzz_targets/remux.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "sanitize"
+path = "fuzz_targets/sanitize.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "hls"
+path = "fuzz_targets/hls.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "mkv_remux"
+path = "fuzz_targets/mkv_remux.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "split"
+path = "fuzz_targets/split.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "hls_index"
+path = "fuzz_targets/hls_index.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "join"
+path = "fuzz_targets/join.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "replace"
+path = "fuzz_targets/replace.rs"
+test = false
+doc = false
+bench = false
+
+[lints.rust]
+unsafe_code = "forbid"

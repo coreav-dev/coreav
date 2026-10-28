@@ -1,0 +1,56 @@
+# MB-layer functions on main 056bd25: share of time, relative IPC (instruction share over time share), mispredictions per 1000 instructions (cachegrind's predictor). python3 -I mbrank.py dw-4cb168e STREAMS
+== 3b1b441e23ae  total 524 ms
+  264::Auto>>::decode_cabac<coreav_h264::fast::V3>::{closure#0}> 11.05%  relIPC 0.54  Bm/kI   0.6
+  <coreav_kernels_h264::predict::Planes>::request                 6.61%  relIPC 0.73  Bm/kI  10.3
+  ls_h264::Auto>>::start_mb<coreav_h264::fast::V3>::{closure#0}>  5.88%  relIPC 1.17  Bm/kI   4.9
+  _h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::colocated  3.34%  relIPC 0.69  Bm/kI   0.1
+  64::mb::SliceDecoder<coreav_kernels_h264::Auto>>::mv_predictor  2.63%  relIPC 1.40  Bm/kI   0.2
+  ::mb::SliceDecoder<coreav_kernels_h264::Auto>>::spatial_direct  0.87%  relIPC 1.72  Bm/kI   0.7
+  av_h264::syntax::Syntax>::ref_idx::<coreav_kernels_h264::Auto>  0.26%  relIPC 0.71  Bm/kI   7.2
+  eav_kernels_h264::Auto>>::fill_ctx::<1, coreav_h264::fast::V3>  0.20%  relIPC 1.35  Bm/kI   0.1
+  _h264::mb::MbData>::reset<coreav_h264::fast::V3>::{closure#0}>  0.19%  relIPC 0.36  Bm/kI  13.6
+  _h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::store_mvd  0.13%  relIPC 1.42  Bm/kI  17.7
+  ::mb::SliceDecoder<coreav_kernels_h264::Auto>>::fill_mvd_cache  0.05%  relIPC 2.08  Bm/kI  12.0
+  mb::SliceDecoder<coreav_kernels_h264::Auto>>::fill_intra_cache  0.02%  relIPC 0.86  Bm/kI   8.6
+== 1d4b1775d78a  total 824 ms
+  264::Auto>>::decode_cabac<coreav_h264::fast::V3>::{closure#0}>  3.56%  relIPC 0.63  Bm/kI   4.4
+  ls_h264::Auto>>::start_mb<coreav_h264::fast::V3>::{closure#0}>  2.08%  relIPC 1.18  Bm/kI   6.7
+  64::mb::SliceDecoder<coreav_kernels_h264::Auto>>::mv_predictor  1.75%  relIPC 1.08  Bm/kI   3.4
+  _h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::colocated  1.49%  relIPC 0.56  Bm/kI   2.2
+  <coreav_kernels_h264::predict::Planes>::request                 1.42%  relIPC 1.00  Bm/kI  15.5
+  _h264::mb::MbData>::reset<coreav_h264::fast::V3>::{closure#0}>  1.08%  relIPC 0.48  Bm/kI  32.0
+  av_h264::syntax::Syntax>::ref_idx::<coreav_kernels_h264::Auto>  0.97%  relIPC 0.77  Bm/kI   9.7
+  _h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::store_mvd  0.79%  relIPC 1.29  Bm/kI  11.0
+  ::mb::SliceDecoder<coreav_kernels_h264::Auto>>::spatial_direct  0.64%  relIPC 0.83  Bm/kI  11.9
+  eav_kernels_h264::Auto>>::fill_ctx::<1, coreav_h264::fast::V3>  0.29%  relIPC 1.23  Bm/kI   1.5
+  ::mb::SliceDecoder<coreav_kernels_h264::Auto>>::fill_mvd_cache  0.18%  relIPC 3.13  Bm/kI  10.7
+  mb::SliceDecoder<coreav_kernels_h264::Auto>>::fill_intra_cache  0.07%  relIPC 1.10  Bm/kI  15.9
+== a81de82106be  total 671 ms
+  264::Auto>>::decode_cabac<coreav_h264::fast::V3>::{closure#0}>  4.65%  relIPC 0.69  Bm/kI   1.8
+  ls_h264::Auto>>::start_mb<coreav_h264::fast::V3>::{closure#0}>  2.62%  relIPC 1.40  Bm/kI   5.7
+  <coreav_kernels_h264::predict::Planes>::request                 1.40%  relIPC 1.34  Bm/kI  13.8
+  _h264::mb::MbData>::reset<coreav_h264::fast::V3>::{closure#0}>  1.03%  relIPC 0.45  Bm/kI  27.1
+  _h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::store_mvd  0.71%  relIPC 1.28  Bm/kI  12.0
+  64::mb::SliceDecoder<coreav_kernels_h264::Auto>>::mv_predictor  0.57%  relIPC 1.26  Bm/kI   1.4
+  eav_kernels_h264::Auto>>::fill_ctx::<1, coreav_h264::fast::V3>  0.53%  relIPC 1.05  Bm/kI   6.5
+  ::mb::SliceDecoder<coreav_kernels_h264::Auto>>::fill_mvd_cache  0.18%  relIPC 2.45  Bm/kI  10.7
+  mb::SliceDecoder<coreav_kernels_h264::Auto>>::fill_intra_cache  0.01%  relIPC 0.56  Bm/kI  15.5
+  resolve_normal_ct                                               0.00%  relIPC 0.00  Bm/kI   0.0
+== 65ec61f95a00  total 3157 ms
+  264::Auto>>::decode_cabac<coreav_h264::fast::V3>::{closure#0}>  2.98%  relIPC 0.59  Bm/kI   3.8
+  ls_h264::Auto>>::start_mb<coreav_h264::fast::V3>::{closure#0}>  1.89%  relIPC 1.02  Bm/kI   7.1
+  av_h264::syntax::Syntax>::ref_idx::<coreav_kernels_h264::Auto>  1.68%  relIPC 0.75  Bm/kI   8.2
+  64::mb::SliceDecoder<coreav_kernels_h264::Auto>>::mv_predictor  0.99%  relIPC 1.12  Bm/kI   4.0
+  _h264::mb::MbData>::reset<coreav_h264::fast::V3>::{closure#0}>  0.90%  relIPC 0.70  Bm/kI  19.9
+  eav_kernels_h264::Auto>>::fill_ctx::<1, coreav_h264::fast::V3>  0.86%  relIPC 1.27  Bm/kI   1.1
+  _h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::store_mvd  0.84%  relIPC 1.40  Bm/kI  12.1
+  <coreav_kernels_h264::predict::Planes>::request                 0.83%  relIPC 0.97  Bm/kI  13.6
+  ::mb::SliceDecoder<coreav_kernels_h264::Auto>>::fill_mvd_cache  0.21%  relIPC 3.03  Bm/kI   8.8
+  mb::SliceDecoder<coreav_kernels_h264::Auto>>::fill_intra_cache  0.04%  relIPC 0.84  Bm/kI  14.0
+== 6f7799768413  total 1548 ms
+  264::Auto>>::decode_cavlc<coreav_h264::fast::V3>::{closure#0}> 15.50%  relIPC 0.85  Bm/kI   7.6
+  ls_h264::Auto>>::start_mb<coreav_h264::fast::V3>::{closure#0}>  1.06%  relIPC 1.74  Bm/kI   2.1
+  64::mb::SliceDecoder<coreav_kernels_h264::Auto>>::mv_predictor  1.02%  relIPC 1.19  Bm/kI   5.5
+  eav_kernels_h264::Auto>>::fill_ctx::<1, coreav_h264::fast::V3>  0.63%  relIPC 1.39  Bm/kI   1.0
+  _h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::store_mvd  0.12%  relIPC 1.25  Bm/kI   0.0
+  mb::SliceDecoder<coreav_kernels_h264::Auto>>::fill_intra_cache  0.01%  relIPC 1.09  Bm/kI   8.6

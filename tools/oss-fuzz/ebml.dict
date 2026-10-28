@@ -1,0 +1,169 @@
+# EBML element IDs (RFC 8794) and Matroska elements (RFC 9559), and the
+# doc types and codec IDs the Matroska fuzz targets meet
+# (tools/oss-fuzz/README.md).
+# EBML
+"\x1A\x45\xDF\xA3"
+# EBMLVersion
+"\x42\x86"
+# EBMLReadVersion
+"\x42\xF7"
+# EBMLMaxIDLength
+"\x42\xF2"
+# EBMLMaxSizeLength
+"\x42\xF3"
+# DocType
+"\x42\x82"
+# DocTypeVersion
+"\x42\x87"
+# DocTypeReadVersion
+"\x42\x85"
+# Void
+"\xEC"
+# CRC-32
+"\xBF"
+# Segment
+"\x18\x53\x80\x67"
+# SeekHead
+"\x11\x4D\x9B\x74"
+# Seek
+"\x4D\xBB"
+# SeekID
+"\x53\xAB"
+# SeekPosition
+"\x53\xAC"
+# Info
+"\x15\x49\xA9\x66"
+# TimestampScale
+"\x2A\xD7\xB1"
+# Duration
+"\x44\x89"
+# MuxingApp
+"\x4D\x80"
+# WritingApp
+"\x57\x41"
+# Tracks
+"\x16\x54\xAE\x6B"
+# TrackEntry
+"\xAE"
+# TrackNumber
+"\xD7"
+# TrackUID
+"\x73\xC5"
+# TrackType
+"\x83"
+# FlagLacing
+"\x9C"
+# DefaultDuration
+"\x23\xE3\x83"
+# CodecID
+"\x86"
+# CodecPrivate
+"\x63\xA2"
+# CodecDelay
+"\x56\xAA"
+# SeekPreRoll
+"\x56\xBB"
+# Video
+"\xE0"
+# PixelWidth
+"\xB0"
+# PixelHeight
+"\xBA"
+# Colour
+"\x55\xB0"
+# Audio
+"\xE1"
+# SamplingFrequency
+"\xB5"
+# Channels
+"\x9F"
+# BitDepth
+"\x62\x64"
+# ContentEncodings
+"\x6D\x80"
+# ContentEncoding
+"\x62\x40"
+# ContentCompression
+"\x50\x34"
+# ContentCompAlgo
+"\x42\x54"
+# ContentCompSettings
+"\x42\x55"
+# ContentEncryption
+"\x50\x35"
+# Cluster
+"\x1F\x43\xB6\x75"
+# Timestamp
+"\xE7"
+# SimpleBlock
+"\xA3"
+# BlockGroup
+"\xA0"
+# Block
+"\xA1"
+# BlockDuration
+"\x9B"
+# ReferenceBlock
+"\xFB"
+# Cues
+"\x1C\x53\xBB\x6B"
+# CuePoint
+"\xBB"
+# CueTime
+"\xB3"
+# CueTrackPositions
+"\xB7"
+# CueClusterPosition
+"\xF1"
+# Chapters
+"\x10\x43\xA7\x70"
+# EditionEntry
+"\x45\xB9"
+# ChapterAtom
+"\xB6"
+# ChapterTimeStart
+"\x91"
+# ChapterDisplay
+"\x80"
+# ChapString
+"\x85"
+# Tags
+"\x12\x54\xC3\x67"
+# Tag
+"\x73\x73"
+# SimpleTag
+"\x67\xC8"
+# TagName
+"\x45\xA3"
+# TagString
+"\x44\x87"
+# Attachments
+"\x19\x41\xA4\x69"
+# AttachedFile
+"\x61\xA7"
+# FileName
+"\x46\x6E"
+# FileMediaType
+"\x46\x60"
+# FileData
+"\x46\x5C"
+"matroska"
+"webm"
+"V_MPEG4/ISO/AVC"
+"V_MPEGH/ISO/HEVC"
+"V_AV1"
+"V_VP8"
+"V_VP9"
+"A_AAC"
+"A_OPUS"
+"A_VORBIS"
+"A_FLAC"
+"A_AC3"
+"A_EAC3"
+"A_MPEG/L3"
+"A_PCM/INT/LIT"
+"S_TEXT/UTF8"
+"S_TEXT/WEBVTT"
+"S_VOBSUB"
+"S_HDMV/PGS"
+"V_MS/VFW/FOURCC"

@@ -1,0 +1,3 @@
+# /tmp ident.sh: MD5 of every training stream's raw output (class frame counts): main (crates as 056bd25) at 1 thread against the bundle (9c2d91c0) at 1 and 8 threads, default build; then the build without fast
+identical 32, different 0
+identical 32, different 0

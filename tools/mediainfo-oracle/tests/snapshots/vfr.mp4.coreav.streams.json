@@ -1,0 +1,71 @@
+{
+ "file": "vfr.mp4",
+ "format_duration_us": 1960000,
+ "probe_ok": true,
+ "properties": {
+  "container": "isobmff",
+  "dropped": [],
+  "fragmented": false,
+  "movie_timescale": 1000,
+  "raw_movie_duration_ticks": 1960
+ },
+ "schema": "coreav-oracle/streams/1",
+ "streams": [
+  {
+   "channels": null,
+   "codec_fourcc": "avc1",
+   "codec_name": "h264",
+   "color_matrix": null,
+   "color_primaries": null,
+   "color_range": null,
+   "color_transfer": null,
+   "display_aspect_ratio": [
+    4,
+    3
+   ],
+   "duration_ts": 25088,
+   "handler_name": "VideoHandler",
+   "height": 240,
+   "index": 0,
+   "kind": "video",
+   "language": "und",
+   "properties": {
+    "bits_per_sample": null,
+    "ctts_version": 0,
+    "duration_source": "MediaHeader",
+    "edits": {
+     "empty": 0,
+     "media_time": 1024,
+     "segment": 1960
+    },
+    "fixed_sample_size": null,
+    "mdhd_duration_ticks": 25088,
+    "media_edit_duration_ticks": [
+     25088,
+     1
+    ],
+    "presentation_offset_ticks": [
+     0,
+     1
+    ],
+    "stts_duration_ticks": 23040,
+    "track_id": 1,
+    "warnings": [
+     "duration conflict: mdhd 25088 ticks, stts sum 23040 ticks; mdhd kept"
+    ]
+   },
+   "rotation": 0,
+   "sample_aspect_ratio": [
+    1,
+    1
+   ],
+   "sample_rate": null,
+   "time_base": [
+    1,
+    12800
+   ],
+   "timescale": 12800,
+   "width": 320
+  }
+ ]
+}

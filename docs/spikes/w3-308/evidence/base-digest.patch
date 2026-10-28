@@ -1,0 +1,54 @@
+diff --git a/spikes/safe-probe/src/main.rs b/spikes/safe-probe/src/main.rs
+index 027320a..d264564 100644
+--- a/spikes/safe-probe/src/main.rs
++++ b/spikes/safe-probe/src/main.rs
+@@ -60,6 +60,8 @@ struct Options {
+     evict: bool,
+     /// Build the HLS index instead of probing (engine A-hls).
+     hls: bool,
++    /// Print a digest of the index entries instead of timing (checks only).
++    digest: bool,
+ }
+ 
+ /// Counts the bytes a source delivers.
+@@ -256,6 +258,23 @@ fn request_on<S: Source>(
+     let mut entries = 0;
+     if options.index {
+         let index = build_index(&movie, &mut *source, limits)?;
++        if options.digest {
++            let mut h: u64 = 0xcbf2_9ce4_8422_2325;
++            let mut mix = |v: u64| {
++                h ^= v;
++                h = h.wrapping_mul(0x100_0000_01b3);
++            };
++            for track in &index {
++                mix(track.len() as u64);
++                for e in track {
++                    mix(e.offset);
++                    mix(e.dts as u64);
++                    mix(u64::from(e.size_and_sync));
++                    mix(e.composition_offset as i64 as u64);
++                }
++            }
++            println!("{{\"digest\":\"{h:016x}\"}}");
++        }
+         entries = index.iter().map(Vec::len).sum();
+         // Keep the index alive until the request ends, as a caller would.
+         std::hint::black_box(&index);
+@@ -340,6 +359,7 @@ fn main() {
+         mmap: args.iter().any(|a| a == "--io=mmap"),
+         evict: args.iter().any(|a| a == "--evict"),
+         hls: args.iter().any(|a| a == "--hls"),
++        digest: args.iter().any(|a| a == "--digest"),
+     };
+     let allowlist = if options.strict {
+         Allowlist::default().strict()
+@@ -381,7 +401,7 @@ fn main() {
+         },
+         _ => {
+             eprintln!(
+-                "usage: probe-bench serve LIST | stdin | once FILE [--scan] [--index] [--hls] [--strict] [--io=file|mmap] [--evict]"
++                "usage: probe-bench serve LIST | stdin | once FILE [--scan] [--index] [--hls] [--digest] [--strict] [--io=file|mmap] [--evict]"
+             );
+             std::process::exit(2);
+         }

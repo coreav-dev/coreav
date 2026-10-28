@@ -1,0 +1,17 @@
+# cargo +nightly fuzz run --target x86_64-unknown-linux-gnu TARGET -- -max_total_time=600 -max_len=4096, on a65f2dc's kernels (crates/coreav-kernels-h264), this VM, the three targets at once
+filter_edge:
+INFO: Seed: 4175996179
+Done 24419622 runs in 601 second(s)
+exit 0
+filter_chroma_pair:
+INFO: Seed: 4205940244
+Done 24450601 runs in 601 second(s)
+exit 0
+filter_chroma_mb:
+INFO: Seed: 4177901051
+Done 17144091 runs in 601 second(s)
+exit 0
+luma_mb_edges (added after the review; window edges against checked edges and the reference, scalar, AVX2 and AVX-512, run alone):
+INFO: Seed: 855735118
+Done 23395002 runs in 601 second(s)
+exit 0

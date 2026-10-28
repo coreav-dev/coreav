@@ -1,0 +1,91 @@
+{
+ "files": 301,
+ "timed": 268,
+ "refused": 31,
+ "errors": [],
+ "speed": {
+  "all": {
+   "files": 268,
+   "median": 0.32132040923982186,
+   "ci95": [
+    0.29744376220700763,
+    0.3399088270691693
+   ],
+   "p90": 0.513401616800531,
+   "max": 0.6553277339687096,
+   "bar": 1.1,
+   "met": true
+  },
+  "unfragmented": {
+   "files": 257,
+   "median": 0.32067485290724845,
+   "ci95": [
+    0.2977454394041525,
+    0.3394378739477885
+   ],
+   "p90": 0.5124902737226095,
+   "max": 0.6553277339687096,
+   "bar": 1.5,
+   "met": true
+  },
+  "fragmented": {
+   "files": 11,
+   "median": 0.3513164490670434,
+   "ci95": [
+    0.26612395842347136,
+    0.43184892187174506
+   ],
+   "p90": 0.5308569240617815,
+   "max": 0.5684003824785578,
+   "bar": 1.5,
+   "met": true
+  },
+  "longer_than_one_hour": {
+   "files": 9,
+   "median": 0.31065588763090396,
+   "ci95": [
+    0.2282812259402598,
+    0.4039747731755443
+   ],
+   "p90": 0.4039747731755443,
+   "max": 0.4858164821141364,
+   "bar": 1.5,
+   "met": true
+  },
+  "all_vs_lav_native": {
+   "files": 268,
+   "median": 0.3129866494155322
+  },
+  "all_vs_ffmpeg": {
+   "files": 268,
+   "median": 0.09629337927460223
+  },
+  "median_ms": {
+   "ours": 3.56805,
+   "lav_avio": 9.835942,
+   "lav_native": 9.7193365,
+   "ffmpeg": 33.5021075
+  }
+ },
+ "memory": {
+  "files": 270,
+  "within_bound": 269,
+  "met": false,
+  "largest_growth_over_bound": 1.0584008764974002,
+  "misses": [
+   {
+    "sha256": "a7ab6bbab3cf768a5ab77a7dc200ee51c0e2ae3606c30bb7f5ce64ad42c5a0eb",
+    "bound": 165203,
+    "copied": 55819,
+    "growth": 174851,
+    "ok": true,
+    "parser_peak": 91287,
+    "remux_peak": 266138,
+    "streams": 1,
+    "tables": 27464,
+    "valid": true,
+    "within": false
+   }
+  ]
+ }
+}

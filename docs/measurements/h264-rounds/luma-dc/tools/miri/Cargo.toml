@@ -1,0 +1,10 @@
+[package]
+name = "miri-luma-dc"
+version = "0.1.0"
+edition = "2024"
+[[bin]]
+name = "miri-luma-dc"
+path = "main.rs"
+[dependencies]
+coreav-kernels-h264 = { path = "KPATH" }
+[workspace]

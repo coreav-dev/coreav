@@ -1,0 +1,173 @@
+{
+ "files": 869,
+ "statuses": {
+  "segments": {
+   "refused": 41,
+   "ok": 819,
+   "error": 8
+  },
+  "clips": {
+   "refused": 56,
+   "ok": 399,
+   "skipped": 413
+  }
+ },
+ "refused": {
+  "segments": {
+   "codec 'encv' of track 1 is not allowed": 21,
+   "unsupported: video other than H.264 avc1, HEVC hvc1, AV1 or VP9": 14,
+   "unsupported: edit list with several edits (multi-edit), not supported here yet": 6
+  },
+  "clips": {
+   "no video duration": 24,
+   "20 s or less": 413,
+   "unsupported: video other than H.264 avc1, HEVC hvc1, AV1 or VP9": 14,
+   "input 1: unsupported: the video starts at an open-GOP sync sample whose leading ": 10,
+   "unsupported: no video is presented in the clip's range": 3,
+   "write error: no storage space": 1,
+   "unsupported: edit list with several edits (multi-edit), not supported here yet": 4
+  }
+ },
+ "download_failed": 0,
+ "errors": [
+  {
+   "sha256": "184becaaec565182ef8d7d28eb682100b1d98dc2f8983063405f131320cb2a78",
+   "error": "RuntimeError: R2 size probe failed"
+  }
+ ],
+ "joins": {
+  "segments": {
+   "total": 819,
+   "direct": 804,
+   "through_kd": 15,
+   "agree": 819,
+   "share": 1.0
+  },
+  "clips": {
+   "total": 399,
+   "direct": 160,
+   "through_kd": 235,
+   "agree": 395,
+   "share": 0.9899749373433584
+  }
+ },
+ "kd_uses": {
+  "KD-J-AUDIO-EDIT-START": 343,
+  "KD-C-AAC-PROFILE": 14,
+  "KD-J-VIDEO-EDIT-END": 8,
+  "KD-J-AUDIO-NOISE": 59,
+  "KD-J-PTS-SHIFT": 3,
+  "KD-J-VIDEO-LATER-EDIT": 20,
+  "KD-J-DTS-SHIFT": 2
+ },
+ "packets": {
+  "agree": 15774954,
+  "disagree": 0
+ },
+ "coverage_misses": [],
+ "failing": [
+  {
+   "sha256": "20e46e900f1003bc93bbb34783afbc31cb62e35c00273ade7b06b5026d1d5d1a",
+   "join": "segments",
+   "status": "error",
+   "reason": "input 22: write error: no storage space"
+  },
+  {
+   "sha256": "2680e5010bcd86c4aa5a92dd283f46318101a23395195a7010b2075b461e9027",
+   "join": "clips",
+   "size": 30656454,
+   "decoded": true,
+   "round_trip": [],
+   "problems": [
+    "audio: edit 0: 1 of 429 decoded frames from 0.023000 s differ from the inputs' packets decoded in sequence"
+   ]
+  },
+  {
+   "sha256": "3868df8d409ba639151ac2610f0008f7a716646f3a2fc084db17bb4b16b6d773",
+   "join": "segments",
+   "status": "error",
+   "reason": "write error: no storage space"
+  },
+  {
+   "sha256": "3f3c421ef7a73c79e34efb43d10e80168f2b4caa1d591dc017b3ae8d3e4b5b80",
+   "join": "segments",
+   "status": "error",
+   "reason": "write error: no storage space"
+  },
+  {
+   "sha256": "4c82d16e50375fc4b928dea19dfc6f46bfe8864c48a136e1ca3f0ee55b04a5d9",
+   "join": "clips",
+   "size": 10152344,
+   "decoded": true,
+   "round_trip": [],
+   "problems": [
+    "video framemd5 differs at frame 236 (446 input frames, 451 output frames)"
+   ]
+  },
+  {
+   "sha256": "6153ce096ca3b5b338cea15eaba5b95fc49d0058e0dab5c3ad711660472d7010",
+   "join": "segments",
+   "status": "error",
+   "reason": "write error: no storage space"
+  },
+  {
+   "sha256": "665dddf09f221cc63cedf9987281c81a226a8eb24bf1231cd32ed337de3686db",
+   "join": "segments",
+   "status": "error",
+   "reason": "truncated structure at offset 426381"
+  },
+  {
+   "sha256": "9120d3c689a139ce276e600e265df9796a87d08f3c3c4a1ab477dc04782f37c6",
+   "join": "segments",
+   "status": "error",
+   "reason": "invalid 'moov' box at offset 9475193: second movie box"
+  },
+  {
+   "sha256": "985a28c5abe51c52ea9e1b6c524b8ad4b51906f6594e23f4f4378aead68c7ab1",
+   "join": "clips",
+   "size": 123420479,
+   "decoded": true,
+   "round_trip": [],
+   "problems": [
+    "video framemd5 differs at frame 240 (447 input frames, 480 output frames)"
+   ]
+  },
+  {
+   "sha256": "bbd77a523fd50f6a6100b01112b650369caa69500b7ef1d551a70b0bcdd15166",
+   "join": "clips",
+   "size": 4638616,
+   "decoded": true,
+   "round_trip": [],
+   "problems": [
+    "audio: edit 1: 471 of 471 decoded frames from 9.996300 s differ from the inputs' packets decoded in sequence"
+   ]
+  },
+  {
+   "sha256": "dce71271df6d0cf18c37ddb2512584fe5d0326460a601d6313097db95a1e631b",
+   "join": "segments",
+   "status": "error",
+   "reason": "write error: no storage space"
+  },
+  {
+   "sha256": "eb569fa7169e84485702b1f46af8f54260bbd9278a143cda1361ef88e11dd35b",
+   "join": "segments",
+   "status": "error",
+   "reason": "truncated structure at offset 776783"
+  }
+ ],
+ "bars": {
+  "coverage_100": true,
+  "segments_99": {
+   "value": 1.0,
+   "met": true
+  },
+  "clips_98": {
+   "value": 0.9899749373433584,
+   "met": true
+  },
+  "packets_99": {
+   "value": 1.0,
+   "met": true
+  }
+ }
+}

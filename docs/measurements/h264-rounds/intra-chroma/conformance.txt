@@ -1,0 +1,3 @@
+k = b9824c9: python3 scripts/h264_conformance.py --extracted <suite> --kernels detect --threads 1,2,8, then --kernels scalar --threads 1
+{"streams": 97, "passed": 97, "failed": 0, "kernels": "detect", "mode": "fast", "threads": "1,2,8", "seconds": 43.1}
+{"streams": 97, "passed": 97, "failed": 0, "kernels": "scalar", "mode": "fast", "threads": "1", "seconds": 42.7}

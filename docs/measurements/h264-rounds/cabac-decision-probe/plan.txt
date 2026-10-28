@@ -1,0 +1,46 @@
+CABAC decision probe, part-only (written before the run).
+
+Question: does the CABAC engine's instruction excess cost time? Callgrind of main (b3664291 code; d13b91d0 has the
+same crates) on the 32 training streams at a tenth of the class frame counts: CoreAV runs 36.8 instructions in the
+engine (DecodeDecision, DecodeBypass, refill) per bin, 46.2 bins a macroblock on the 26 CABAC streams (38.6 regular),
+and an inlined DecodeDecision in the significance-map loop is 40 instructions. FFmpeg's out-of-line get_cabac is 27.6
+a call, call and return included (function level).
+
+Cut in view (C, not built): DecodeDecision from one table entry per (state, codIRange quarter) that holds every value
+the decision reads (rangeLPS, its renormalized value and shift, both next states), indexed by (state << 2) | quarter
+from one base, so that the index takes three instructions instead of five, one table address instead of three, and
+the next state is a select of two loaded bytes instead of an index built from the decoded bin. Predicted: 10 to 13
+fewer instructions a regular bin, off the chain from one bin's codIRange to the next.
+
+Probe (P, branch probe/h264-cabac-decision-pad, feature probe-pad): twelve independent one-uop instructions
+(lea o, [value + value], output unused) at the start of every DecodeDecision, the part C removes, doubled in place.
+Verified: +11.94 instructions a regular bin (callgrind, 30 pictures of a81de82106be: +30.35 M against 12 x 2.54 M
+regular bins); output identical to base (md5 of a81de82106be 30 pictures, 9db41aa16b5a 60 pictures).
+
+Arms: base = dist build of origin/main d13b91d0 (bin-base), P = the same tree with --features probe-pad (bin-pad).
+Method: ab3.py, 8 rounds, all 32 training streams, class frame counts, 1 thread, --discard, pinned to CPU 3, order
+rotated each round, CPU time (user + sys); per stream the median of P over base. Host: this development VM, Intel
+Xeon @ 2.50 GHz family 6 model 85 (not the bar class, so directional; no bar of a gating run moves).
+
+Rule (fixed now):
+- Build C and time it only if P's median over the 26 CABAC streams is >= 1.010 with the bootstrap 95% lower end above
+  1.000. Otherwise C is not built: the engine's extra instructions are not where its time is, and the result is
+  recorded docs-only.
+- The 6 CAVLC streams decode no bin and are the null control: their median should read 1.000 (within +-0.005); if it
+  does not, the run is a host fault and is rerun once.
+- Reported beside it: all 32 and per class (sd, 720p, 1080p, 4k), streams slower.
+CAVLC: ['5185721dda11', '6f7799768413', '9db41aa16b5a', 'b71b6b31e54f', 'ec473c99c538', 'f9e973f44570']
+
+Probe result (ab.txt, 8 rounds): CABAC 26 streams 1.0229 [1.0174, 1.0292], 26 of 26 slower; CAVLC null 1.0010
+[0.9873, 1.0061]; all 32 1.0191 [1.0151, 1.0263]. The rule is met: C is built and timed.
+
+C as built (branch perf/h264-cabac-decision): the Step table (8 bytes an entry, one base) in six formulations. With
+LLVM keeping DecodeDecision branch-free, it saves -1.6 to +2.3 instructions a regular bin (callgrind, a81de82106be,
+30 pictures); the best, v2 (select_unpredictable; needs a toolchain above the workspace MSRV), 1.55 on its rebuild.
+With plain if/else selects (v6, 99ffc418), LLVM compiles a branch on the bin and runs only the taken path: 10.68 fewer a
+regular bin, at the price of a branch the design note calls unpredictable.
+
+C's timing (written before it runs): ab3.py, 6 rounds, all 32 streams, arms bin-base, bin-v2, bin-v6 (dist, same
+tree otherwise), same host and method as the probe. Directional only. A gating run is requested for an arm only if
+its all-32 median over base is at most 0.995 with the bootstrap upper end below 1.000 and the CABAC 26 median at most
+0.995; otherwise the arm goes to a rejected/ branch (v2 as a small gain for a bundle, v6 recorded).

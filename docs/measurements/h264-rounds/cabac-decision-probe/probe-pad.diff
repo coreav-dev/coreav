@@ -1,0 +1,50 @@
+diff --git a/crates/coreav-h264/Cargo.toml b/crates/coreav-h264/Cargo.toml
+index 9c111b03..9a4ff65b 100644
+--- a/crates/coreav-h264/Cargo.toml
++++ b/crates/coreav-h264/Cargo.toml
+@@ -21,6 +21,7 @@ default = ["fast"]
+ # The hot-path module of ADR 0038 (`src/fast/`): the decoder's only
+ # `unsafe`. A build without it compiles none and runs the baseline twins.
+ fast = []
++probe-pad = ["fast"]
+ 
+ # The workspace's lint table, with `unsafe_code = "deny"` instead of
+ # `forbid` (ADR 0038 point 1): `#[allow(unsafe_code)]` sits on `fast` alone,
+diff --git a/crates/coreav-h264/src/cabac.rs b/crates/coreav-h264/src/cabac.rs
+index 1be437ed..bfbe5413 100644
+--- a/crates/coreav-h264/src/cabac.rs
++++ b/crates/coreav-h264/src/cabac.rs
+@@ -191,6 +191,8 @@ impl Engine {
+     /// and a mispredicted branch costs more than the arithmetic.
+     #[inline(always)]
+     fn decision(&mut self, state: &mut u8, src: &mut Source) -> u32 {
++        #[cfg(feature = "probe-pad")]
++        crate::fast::pad(self.value);
+         let s = usize::from(*state);
+         let at = ((s << 3) | (self.range >> 6) as usize) & 2047;
+         let lps = u32::from(LPS.get(at).copied().unwrap_or(0));
+diff --git a/crates/coreav-h264/src/fast/mod.rs b/crates/coreav-h264/src/fast/mod.rs
+index 50b11bce..3c958adb 100644
+--- a/crates/coreav-h264/src/fast/mod.rs
++++ b/crates/coreav-h264/src/fast/mod.rs
+@@ -172,3 +172,20 @@ impl Tier for V3 {
+         k.predict_inlined(dst, src, px, py, w, h, mv, ops)
+     }
+ }
++
++/// Probe only (not for merge): twelve independent one-uop instructions,
++/// the part a smaller DecodeDecision would remove, added to every regular
++/// bin.
++#[inline(always)]
++pub(crate) fn pad(a: u64) {
++    // SAFETY: register arithmetic only; no memory, stack or flags.
++    unsafe {
++        core::arch::asm!(
++            "lea {o}, [{a} + {a}]", "lea {o}, [{a} + {a}]", "lea {o}, [{a} + {a}]",
++            "lea {o}, [{a} + {a}]", "lea {o}, [{a} + {a}]", "lea {o}, [{a} + {a}]",
++            "lea {o}, [{a} + {a}]", "lea {o}, [{a} + {a}]", "lea {o}, [{a} + {a}]",
++            "lea {o}, [{a} + {a}]", "lea {o}, [{a} + {a}]", "lea {o}, [{a} + {a}]",
++            o = out(reg) _, a = in(reg) a, options(nomem, nostack, preserves_flags)
++        );
++    }
++}

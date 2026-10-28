@@ -1,0 +1,12 @@
+Instructions of the whole decode (callgrind, --discard, one thread, --kernels avx2: Valgrind has no AVX-512;
+dist builds; base = main 051e1692, branch = part Z). Pictures: sd 300, 720p 150, 1080p 60, 4k 30.
+stream                             base         branch   change
+e624cbe0d2be.0.4k         2,294,401,000  2,256,216,211   -1.66%
+3b1b441e23ae.0.4k         1,266,070,335  1,231,185,948   -2.76%
+41e324ebb708.0.sd         1,194,601,846  1,175,158,601   -1.63%
+9db41aa16b5a.0.720p       1,882,189,552  1,868,767,667   -0.71%
+6da34958296c.0.1080p      3,127,624,390  3,092,477,764   -1.12%
+a6af290d9053.0.1080p      9,062,224,188  9,060,775,595   -0.02%
+
+Prefetch hints for every line of the records four macroblocks ahead (v2 of local-prefetch.txt), e624cbe0d2be, 30
+pictures: 2,314,670,828 against main's 2,294,401,000 (+0.88%).

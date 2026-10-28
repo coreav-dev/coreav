@@ -1,0 +1,26 @@
+== 1080p (a81de82106be.0.1080p)
+ 15.59% chain 190-216
+  7.73% mb.rs
+  2.15% levels 751-900
+  1.87% consume/refill/offset 150-178
+  1.84% bypass/egk 217-260
+  1.83% sigmap 658-750
+  1.29% cabac line0
+  1.10% syntax.rs
+  0.71% unary/table/mvd 500-609
+  0.63% residual 610-657
+  0.47% cabac 261-499
+  0.16% cabac other <150
+== 720p (1d4b1775d78a.0.720p)
+  7.78% chain 190-216
+  7.33% mb.rs
+  2.01% syntax.rs
+  1.00% unary/table/mvd 500-609
+  0.96% consume/refill/offset 150-178
+  0.52% bypass/egk 217-260
+  0.44% cabac line0
+  0.39% levels 751-900
+  0.32% sigmap 658-750
+  0.31% cabac 261-499
+  0.23% residual 610-657
+  0.06% cabac other <150

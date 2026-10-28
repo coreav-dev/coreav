@@ -1,0 +1,5 @@
+{
+  "exit_code": 0,
+  "stdout": "S4 0 skipped edit not representable in media ticks\nS4 1 S4-01.hevc.mp4 3036 109.3s\nS4 2 S4-02.hevc.mp4 933 38.2s\nS4 3 S4-03.hevc.mp4 2062 67.6s\nS4 4 S4-04.hevc.mp4 4091 133.5s\nS4 5 skipped edit not representable in media ticks\nS4 6 S4-06.hevc.mp4 5093 185.1s\nS4 7 S4-07.hevc.mp4 4579 174.5s\nS4 8 S4-08.hevc.mp4 4418 159.9s\nS4 9 S4-09.hevc.mp4 3343 142.1s\nS4 10 S4-10.hevc.mp4 3708 164.5s\nS4 11 S4-11.hevc.mp4 4648 173.0s\nS4 12 S4-12.hevc.mp4 5121 187.2s\nS4 13 S4-13.hevc.mp4 7490 226.9s\nS4 14 S4-14.hevc.mp4 7310 210.0s\n",
+  "stderr": ""
+}

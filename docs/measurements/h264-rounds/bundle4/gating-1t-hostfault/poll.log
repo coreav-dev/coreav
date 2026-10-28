@@ -1,0 +1,4 @@
+FAIL model106 poll 06:29Z 36501d448eaa.0.720p 2.121s (ref 1.295) ratio 1.638; a6af290d9053.0.1080p 6.654s (ref 4.388) ratio 1.516
+FAIL model106 poll 06:30Z 36501d448eaa.0.720p 1.922s (ref 1.295) ratio 1.484; a6af290d9053.0.1080p 4.381s (ref 4.388) ratio 0.999
+FAIL model106 poll 06:31Z 36501d448eaa.0.720p 1.365s (ref 1.295) ratio 1.054; a6af290d9053.0.1080p 4.342s (ref 4.388) ratio 0.990
+PASS model106 poll 06:32Z 36501d448eaa.0.720p 1.336s (ref 1.295) ratio 1.032; a6af290d9053.0.1080p 4.351s (ref 4.388) ratio 0.992

@@ -1,0 +1,159 @@
+{
+ "files": 869,
+ "statuses": {
+  "segments": {
+   "refused": 41,
+   "error": 9,
+   "ok": 818
+  },
+  "clips": {
+   "refused": 54,
+   "ok": 401,
+   "skipped": 413
+  }
+ },
+ "refused": {
+  "segments": {
+   "codec 'encv' of track 1 is not allowed": 21,
+   "unsupported: video other than H.264 avc1, HEVC hvc1, AV1 or VP9": 14,
+   "unsupported: edit list with several edits (multi-edit), not supported here yet": 6
+  },
+  "clips": {
+   "no video duration": 24,
+   "20 s or less": 413,
+   "unsupported: video other than H.264 avc1, HEVC hvc1, AV1 or VP9": 14,
+   "input 1: unsupported: the video starts at an open-GOP sync sample whose leading ": 10,
+   "unsupported: no video is presented in the clip's range": 3,
+   "input 0: unsupported: edit list with several edits (multi-edit), not supported h": 2,
+   "input 1: unsupported: edit list with several edits (multi-edit), not supported h": 1
+  }
+ },
+ "download_failed": 0,
+ "errors": [
+  {
+   "sha256": "184becaaec565182ef8d7d28eb682100b1d98dc2f8983063405f131320cb2a78",
+   "error": "RuntimeError: R2 size probe failed"
+  }
+ ],
+ "joins": {
+  "segments": {
+   "total": 818,
+   "direct": 803,
+   "through_kd": 15,
+   "agree": 818,
+   "share": 1.0
+  },
+  "clips": {
+   "total": 401,
+   "direct": 163,
+   "through_kd": 236,
+   "agree": 399,
+   "share": 0.9950124688279302
+  }
+ },
+ "kd_uses": {
+  "KD-J-AUDIO-EDIT-START": 345,
+  "KD-C-AAC-PROFILE": 14,
+  "KD-J-VIDEO-EDIT-END": 8,
+  "KD-J-AUDIO-NOISE": 59,
+  "KD-J-PTS-SHIFT": 3,
+  "KD-J-VIDEO-LATER-EDIT": 20,
+  "KD-J-DTS-SHIFT": 2
+ },
+ "packets": {
+  "agree": 15898601,
+  "disagree": 0
+ },
+ "coverage_misses": [],
+ "failing": [
+  {
+   "sha256": "00c693a86a6a1f1c014263aa5734cb44397402b6506103db33bace26ef089117",
+   "join": "segments",
+   "status": "error",
+   "reason": "write error: no storage space"
+  },
+  {
+   "sha256": "2680e5010bcd86c4aa5a92dd283f46318101a23395195a7010b2075b461e9027",
+   "join": "clips",
+   "size": 30656454,
+   "decoded": true,
+   "round_trip": [],
+   "problems": [
+    "audio: edit 0: 1 of 429 decoded frames from 0.023000 s differ from the inputs' packets decoded in sequence"
+   ]
+  },
+  {
+   "sha256": "3868df8d409ba639151ac2610f0008f7a716646f3a2fc084db17bb4b16b6d773",
+   "join": "segments",
+   "status": "error",
+   "reason": "write error: no storage space"
+  },
+  {
+   "sha256": "6153ce096ca3b5b338cea15eaba5b95fc49d0058e0dab5c3ad711660472d7010",
+   "join": "segments",
+   "status": "error",
+   "reason": "write error: no storage space"
+  },
+  {
+   "sha256": "665dddf09f221cc63cedf9987281c81a226a8eb24bf1231cd32ed337de3686db",
+   "join": "segments",
+   "status": "error",
+   "reason": "truncated structure at offset 426381"
+  },
+  {
+   "sha256": "8ca1a5e672f74d4dc1878340e69fc3fa8012cc7424380115327649d6cfa66d8c",
+   "join": "segments",
+   "status": "error",
+   "reason": "write error: no storage space"
+  },
+  {
+   "sha256": "9120d3c689a139ce276e600e265df9796a87d08f3c3c4a1ab477dc04782f37c6",
+   "join": "segments",
+   "status": "error",
+   "reason": "invalid 'moov' box at offset 9475193: second movie box"
+  },
+  {
+   "sha256": "bb594ff9217a7f7c8b3079399f188ba369db79eadee4d9ae7ed2c82493eab796",
+   "join": "segments",
+   "status": "error",
+   "reason": "write error: no storage space"
+  },
+  {
+   "sha256": "bbd77a523fd50f6a6100b01112b650369caa69500b7ef1d551a70b0bcdd15166",
+   "join": "clips",
+   "size": 4638616,
+   "decoded": true,
+   "round_trip": [],
+   "problems": [
+    "audio: edit 1: 471 of 471 decoded frames from 9.996300 s differ from the inputs' packets decoded in sequence"
+   ]
+  },
+  {
+   "sha256": "dce71271df6d0cf18c37ddb2512584fe5d0326460a601d6313097db95a1e631b",
+   "join": "segments",
+   "status": "error",
+   "reason": "write error: no storage space"
+  },
+  {
+   "sha256": "eb569fa7169e84485702b1f46af8f54260bbd9278a143cda1361ef88e11dd35b",
+   "join": "segments",
+   "status": "error",
+   "reason": "truncated structure at offset 776783"
+  }
+ ],
+ "bars": {
+  "coverage_100": true,
+  "segments_99": {
+   "value": 1.0,
+   "met": true
+  },
+  "clips_98": {
+   "value": 0.9950124688279302,
+   "met": true
+  },
+  "packets_99": {
+   "value": 1.0,
+   "met": true
+  }
+ }
+}

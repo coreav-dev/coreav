@@ -1,0 +1,9 @@
+1d4b1775d78a.0.720p. cpu base 0.950 a 0.990 ratio 1.042
+278dbf5a63bb.0.720p. cpu base 1.030 a 0.920 ratio 0.893
+36501d448eaa.0.720p. cpu base 1.690 a 1.820 ratio 1.077
+3c593b8f0809.0.720p. cpu base 0.900 a 0.980 ratio 1.089
+65ec61f95a00.0.720p. cpu base 2.910 a 2.890 ratio 0.993
+6b18d9f0f88d.0.720p. cpu base 1.170 a 1.120 ratio 0.957
+76e0b1692494.0.720p. cpu base 1.020 a 0.950 ratio 0.931
+9db41aa16b5a.0.720p. cpu base 1.200 a 1.190 ratio 0.992
+median a/base CPU 0.9924

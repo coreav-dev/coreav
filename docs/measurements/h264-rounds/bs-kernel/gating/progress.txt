@@ -1,0 +1,8 @@
+g.sd done 07:31
+g.720p done 08:01
+g.1080p done 09:34
+g.4k done 10:37
+ALL
+VOID g.4k attempt 1 (8 unresolved streams, above the bars' four; in-call gate baseline 0.184 s against 0.120-0.157 s after: a host fault) 10:49
+g.4k done 11:20
+ALL4K

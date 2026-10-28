@@ -1,0 +1,157 @@
+{
+ "builds": [
+  "before",
+  "after"
+ ],
+ "identity": {
+  "base": "before",
+  "others": [
+   "after"
+  ],
+  "threads": [
+   1,
+   8
+  ]
+ },
+ "calls": [
+  {
+   "name": "g.sd",
+   "frames": 1800,
+   "cls": "sd",
+   "extra": [
+    "--rounds",
+    "5",
+    "--pin",
+    "2",
+    "--require-cpu",
+    "Intel(R) Xeon(R) Processor @ 2.90GHz"
+   ],
+   "decoders": [
+    "before",
+    "after"
+   ]
+  },
+  {
+   "name": "g.720p",
+   "frames": 900,
+   "cls": "720p",
+   "extra": [
+    "--rounds",
+    "5",
+    "--pin",
+    "2",
+    "--require-cpu",
+    "Intel(R) Xeon(R) Processor @ 2.90GHz"
+   ],
+   "decoders": [
+    "before",
+    "after"
+   ]
+  },
+  {
+   "name": "g.1080p",
+   "frames": 300,
+   "cls": "1080p",
+   "extra": [
+    "--rounds",
+    "5",
+    "--pin",
+    "2",
+    "--require-cpu",
+    "Intel(R) Xeon(R) Processor @ 2.90GHz"
+   ],
+   "decoders": [
+    "before",
+    "after"
+   ]
+  },
+  {
+   "name": "g.4k",
+   "frames": 150,
+   "cls": "4k",
+   "extra": [
+    "--rounds",
+    "5",
+    "--pin",
+    "2",
+    "--require-cpu",
+    "Intel(R) Xeon(R) Processor @ 2.90GHz"
+   ],
+   "decoders": [
+    "before",
+    "after"
+   ]
+  },
+  {
+   "name": "t8.sd",
+   "frames": 1800,
+   "cls": "sd",
+   "extra": [
+    "--rounds",
+    "15",
+    "--threads",
+    "8",
+    "--require-cpu",
+    "Intel(R) Xeon(R) Processor @ 2.90GHz"
+   ],
+   "decoders": [
+    "before",
+    "after"
+   ]
+  },
+  {
+   "name": "t8.720p",
+   "frames": 900,
+   "cls": "720p",
+   "extra": [
+    "--rounds",
+    "15",
+    "--threads",
+    "8",
+    "--require-cpu",
+    "Intel(R) Xeon(R) Processor @ 2.90GHz"
+   ],
+   "decoders": [
+    "before",
+    "after"
+   ]
+  },
+  {
+   "name": "t8.1080p",
+   "frames": 300,
+   "cls": "1080p",
+   "extra": [
+    "--rounds",
+    "15",
+    "--threads",
+    "8",
+    "--require-cpu",
+    "Intel(R) Xeon(R) Processor @ 2.90GHz"
+   ],
+   "decoders": [
+    "before",
+    "after"
+   ]
+  },
+  {
+   "name": "t8.4k",
+   "frames": 150,
+   "cls": "4k",
+   "extra": [
+    "--rounds",
+    "15",
+    "--threads",
+    "8",
+    "--require-cpu",
+    "Intel(R) Xeon(R) Processor @ 2.90GHz"
+   ],
+   "decoders": [
+    "before",
+    "after"
+   ]
+  }
+ ],
+ "analysis": "python3 -I /work/analyze.py /work/out g t8",
+ "tol": 0.05,
+ "budget_s": 17000
+}

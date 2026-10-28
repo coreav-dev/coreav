@@ -1,0 +1,33 @@
+# Local, information only (development VM, Intel Xeon @ 2.90GHz family 6 model 106; ab3.py of round 20's local/, CPU time at one thread pinned, 5 rounds, ratio to the first build). The six CAVLC streams; main-93f7d87 = main at 93f7d87, cavlc-lv1 = 145b25d (the levels change of this round's code on 93f7d87), cavlc-lv2 = lv1 with 256-entry code tables (dropped), cavlc-lv3 = lv1 + the window position from its end (e967ad1, dropped). Three runs.
+== ab-lv1
+5185721dda11.0.sd.h2 0.379  cavlc-lv1 0.9861
+6f7799768413.0.sd.h2 1.519  cavlc-lv1 0.9849
+9db41aa16b5a.0.720p. 0.870  cavlc-lv1 0.9937
+b71b6b31e54f.0.1080p 0.955  cavlc-lv1 0.9774
+ec473c99c538.0.sd.h2 0.104  cavlc-lv1 0.9877
+f9e973f44570.0.sd.h2 0.180  cavlc-lv1 0.9923
+median cavlc-lv1 0.9869
+== ab-lv2
+5185721dda11.0.sd.h2 0.379  cavlc-lv1 0.9872  cavlc-lv2 0.9825
+6f7799768413.0.sd.h2 1.524  cavlc-lv1 0.9842  cavlc-lv2 0.9811
+9db41aa16b5a.0.720p. 0.874  cavlc-lv1 0.9891  cavlc-lv2 0.9912
+b71b6b31e54f.0.1080p 0.961  cavlc-lv1 0.9789  cavlc-lv2 0.9955
+ec473c99c538.0.sd.h2 0.104  cavlc-lv1 0.9904  cavlc-lv2 0.9897
+f9e973f44570.0.sd.h2 0.180  cavlc-lv1 0.9931  cavlc-lv2 0.9890
+median cavlc-lv1 0.9881  cavlc-lv2 0.9894
+== ab-lv3
+5185721dda11.0.sd.h2 0.378  cavlc-lv1 0.9893  cavlc-lv3 0.9820
+6f7799768413.0.sd.h2 1.530  cavlc-lv1 0.9835  cavlc-lv3 0.9826
+9db41aa16b5a.0.720p. 0.875  cavlc-lv1 0.9894  cavlc-lv3 0.9977
+b71b6b31e54f.0.1080p 0.998  cavlc-lv1 0.9982  cavlc-lv3 1.0052
+ec473c99c538.0.sd.h2 0.104  cavlc-lv1 0.9922  cavlc-lv3 0.9836
+f9e973f44570.0.sd.h2 0.180  cavlc-lv1 0.9942  cavlc-lv3 0.9931
+median cavlc-lv1 0.9908  cavlc-lv3 0.9884
+== ab-mvd1: main-c17ae06 = main at c17ae06, cabac-mvd1 = the mvd change of this round's code on c17ae06 (exp/h264-cabac-mvd), six CABAC streams
+175433794e02.0.1080p 5.218  cabac-mvd1 0.9920
+f8d92a911e72.0.4k.h2 7.530  cabac-mvd1 0.9979
+1d4b1775d78a.0.720p. 0.862  cabac-mvd1 1.0081
+a6af290d9053.0.1080p 5.402  cabac-mvd1 1.0023
+7650ae466748.0.sd.h2 0.543  cabac-mvd1 0.9970
+e624cbe0d2be.0.4k.h2 0.853  cabac-mvd1 0.9902
+median cabac-mvd1 0.9974

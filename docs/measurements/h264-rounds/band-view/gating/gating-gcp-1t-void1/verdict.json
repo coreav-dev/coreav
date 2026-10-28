@@ -1,0 +1,13 @@
+{
+ "void": true,
+ "reasons": [
+  "g.1080p: no attempt passed its gate checks",
+  "no report for g.1080p"
+ ],
+ "reference_drift": null,
+ "unresolved": {
+  "sd": 0,
+  "720p": 0,
+  "4k": 0
+ }
+}

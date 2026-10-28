@@ -1,0 +1,36 @@
+name: Changed paths
+description: >-
+  Decides whether the jobs behind a path filter have to run for this event,
+  so that the filter can sit on the jobs instead of on the workflow's
+  trigger and one job can always run and report the required check
+  (docs/design/ci-checks.md).
+
+inputs:
+  paths:
+    description: One filter pattern per line; run when a changed file matches one of them.
+    required: false
+    default: ''
+  paths-ignore:
+    description: One filter pattern per line; run unless every changed file matches one of them.
+    required: false
+    default: ''
+
+outputs:
+  run:
+    description: '`true` when the jobs behind the filter have to run.'
+    value: ${{ steps.decide.outputs.run }}
+
+runs:
+  using: composite
+  steps:
+    # The caller checks the repository out with `fetch-depth: 2`, which is
+    # what the diff of a pull request's merge commit against its base, or of
+    # a push against its `before` commit, needs.
+    - id: decide
+      shell: bash
+      env:
+        PATHS: ${{ inputs.paths }}
+        PATHS_IGNORE: ${{ inputs.paths-ignore }}
+        BEFORE: ${{ github.event.before }}
+        PYTHONDONTWRITEBYTECODE: '1'
+      run: python3 -I "$GITHUB_ACTION_PATH/changed_paths.py"

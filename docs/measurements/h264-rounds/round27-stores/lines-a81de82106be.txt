@@ -1,0 +1,42 @@
+a81de82106be: 703 ms a run; 5757 M instructions; shares in %; in our binary: time 99.0%, instr 99.8%
+line                               fn                      time% instr% excess  rIPC  D1m/kI  LLm/kI misp/kI
+cabac.rs:204                       decision                 6.43   2.68   3.75  0.42     0.5    0.00     0.0
+cabac.rs:197                       decision                 3.94   1.06   2.88  0.27     9.2    0.00     0.0
+mb.rs:818                          Auto>                    1.44   0.09   1.34  0.06    64.0    0.00     0.0
+inter.rs:569                       Auto>                    1.56   0.29   1.27  0.18   230.8    0.00     0.0
+cabac.rs:213                       decision                 2.29   1.30   0.99  0.57     0.0    0.00     0.0
+cabac.rs:201                       decision                 2.46   1.51   0.95  0.61     0.0    0.00     0.0
+outside                                                     1.04   0.18   0.86  0.17    35.1    6.82    11.9
+cabac.rs:694                       significance_map_body    0.97   0.17   0.79  0.18     0.0    0.00     0.0
+simd/x86.rs:2599                   Average, 0, 0>           0.95   0.31   0.64  0.33     0.0    0.00     0.0
+cabac.rs:195                       decision                 3.39   2.77   0.62  0.82     0.0    0.00     0.0
+cabac.rs:158                       refill                   0.70   0.13   0.57  0.18     0.0    0.00     0.0
+work.rs:86                         Auto>                    0.57   0.11   0.46  0.19   197.0    1.57     0.2
+cabac.rs:198                       decision                 0.94   0.53   0.41  0.57     0.0    0.00     0.0
+simd/avx512.rs:417                 {closure#1}              0.41   0.00   0.41  0.00     0.0    0.00     0.0
+cabac.rs:775                       levels_body              0.48   0.10   0.38  0.21     2.7    0.00     0.0
+simd/avx512.rs:88                  {closure#0}              0.33   0.00   0.33  0.00     0.0    0.00     0.0
+cabac.rs:702                       significance_map_body    0.43   0.14   0.29  0.33     0.0    0.00     0.0
+cabac.rs:704                       significance_map_body    0.46   0.18   0.28  0.39     0.0    0.00     0.0
+simd/avx512.rs:438                 {closure#0}              0.27   0.00   0.27  0.00     0.0    0.00     0.0
+recon.rs:100                       apply                    0.57   0.30   0.27  0.53     0.0    0.00     0.0
+mb.rs:1007                         V3>                      0.28   0.01   0.27  0.05     0.0    0.00     0.0
+mb.rs:1492                         V3>                      0.58   0.32   0.25  0.56     0.1    0.00     0.0
+mb.rs:1536                         V3>>                     0.37   0.12   0.24  0.34     0.0    0.00    34.4
+simd/avx512.rs:96                  filter_luma16            0.22   0.00   0.22  0.00     0.0    0.00     0.0
+simd/x86.rs:2321                   store                    0.57   0.35   0.22  0.61   258.7    0.65     0.0
+cabac.rs:123                       load                     0.29   0.09   0.21  0.29     0.0    0.00     3.9
+deblock.rs:632                     Auto>                    0.27   0.07   0.20  0.26     0.0    0.00     0.0
+fast/mod.rs:92                                              1.02   0.83   0.19  0.81     0.7    0.00     0.0
+deblock.rs:631                     Auto>                    0.22   0.03   0.19  0.14     0.0    0.00     0.1
+cabac.rs:165                       consume                  0.87   0.69   0.18  0.80     0.0    0.00     0.0
+deblock.rs:408                     new                      0.25   0.07   0.17  0.30     0.0    0.00     0.0
+simd/x86/chroma_mb.rs:136          filter_chroma_mb         0.39   0.22   0.17  0.56    21.5    0.00     0.0
+simd/x86.rs:495                    pair_rows                0.20   0.04   0.16  0.18     9.6    0.00     0.0
+inter.rs:729                       V3>                      0.17   0.02   0.15  0.10     0.0    0.00     0.0
+cabac.rs:122                       load                     0.19   0.04   0.15  0.23     1.4    0.00     0.0
+mb.rs:323                          reset_body               0.18   0.04   0.14  0.23    50.8    0.00     0.0
+cabac.rs:768                       {closure#0}              0.53   0.38   0.14  0.73     1.6    0.00     0.0
+cabac.rs:687                       significance_map_body    0.42   0.28   0.14  0.67     0.0    0.00     3.4
+deblock.rs:523                     Auto>                    0.18   0.05   0.13  0.26     0.0    0.00     0.1
+inter.rs:242                       set                      0.23   0.09   0.13  0.42   130.6    0.00     0.0

@@ -1,0 +1,26 @@
+{
+ "probe": {
+  "inputs": 221,
+  "median_added_us": 12.5,
+  "bar_us": 50,
+  "pass": true
+ },
+ "extract_audio": {
+  "inputs": 113,
+  "median_ratio": 1.043,
+  "bar": 1.05,
+  "pass": true
+ },
+ "remux": {
+  "inputs": 202,
+  "median_ratio": 1.015,
+  "bar": 1.05,
+  "pass": true
+ },
+ "clip": {
+  "inputs": 172,
+  "median_ratio": 1.148,
+  "bar": 1.05,
+  "pass": false
+ }
+}

@@ -1,0 +1,95 @@
+{
+ "sha256": "585f5f62d632f2195555f41f5d6db3d8cfbe9dc542233691d12c05ef7c2fe475",
+ "size": 1106261390,
+ "ext": "mp4",
+ "holdout": false,
+ "tags": [
+  "a:aac",
+  "brand:isom",
+  "c:isobmff",
+  "ctts",
+  "elst",
+  "elst-bframe-delay",
+  "long-30min",
+  "moov-end",
+  "v:h264"
+ ],
+ "download_seconds": 7.8693804330000034,
+ "ffprobe_streams": [
+  {
+   "index": 0,
+   "codec_type": "video",
+   "codec_name": "h264",
+   "codec_tag_string": "avc1",
+   "profile": "Main",
+   "sample_rate": null,
+   "channels": null,
+   "duration": "6240.680000",
+   "nb_frames": "156017"
+  },
+  {
+   "index": 1,
+   "codec_type": "audio",
+   "codec_name": "aac",
+   "codec_tag_string": "mp4a",
+   "profile": "LC",
+   "sample_rate": "44100",
+   "channels": 2,
+   "duration": "6240.734331",
+   "nb_frames": "268766"
+  }
+ ],
+ "coreav": {
+  "probe_ns": 7426107,
+  "fragmented": false,
+  "movie_timescale": 1000,
+  "tracks": [
+   {
+    "stream_index": 0,
+    "kind": "Video",
+    "codec": "H264",
+    "fourcc": "avc1",
+    "descriptions": 1,
+    "edit_list": "Simple { empty: 0, media_time: 3600, segment: 6240680 }",
+    "timescale": 90000,
+    "sample_count": 156017,
+    "fragment_samples": 0
+   },
+   {
+    "stream_index": 1,
+    "kind": "Audio",
+    "codec": "Aac",
+    "fourcc": "mp4a",
+    "descriptions": 1,
+    "edit_list": "Simple { empty: 0, media_time: 0, segment: 6240735 }",
+    "timescale": 44100,
+    "sample_count": 268766,
+    "fragment_samples": 0
+   }
+  ],
+  "dropped": [],
+  "aac": [
+   {
+    "stream_index": 1,
+    "extract_ns": 729361443,
+    "ok": true,
+    "output": "/data/work/585f5f62d632f2195555f41f5d6db3d8cfbe9dc542233691d12c05ef7c2fe475/out/1.m4a",
+    "samples": 268766,
+    "bytes_written": 99070531,
+    "timescale": 44100,
+    "duration": 275216384,
+    "round_trip": []
+   }
+  ]
+ },
+ "checks": [
+  {
+   "stream_index": 1,
+   "extract_ok": true,
+   "round_trip": [],
+   "oracle_problems": [],
+   "oracle_informational": []
+  }
+ ],
+ "seconds": 48.685345107
+}

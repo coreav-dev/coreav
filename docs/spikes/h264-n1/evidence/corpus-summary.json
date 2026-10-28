@@ -1,0 +1,997 @@
+{
+ "files": 1113,
+ "files_expected": 1113,
+ "files_missing": [],
+ "agree_with_decoder_errors": [
+  {
+   "key": "1d4bd9d8864b4c5a85555c3925f2314d0f9821f00bcf4b34225b911ac58dcd8e.mkv",
+   "v": 0,
+   "ours_stderr": [
+    "error: frame_num gap (50 after 48) without gaps_in_frame_num_value_allowed_flag",
+    "frames=1235 errors=252 seconds=6.567"
+   ]
+  },
+  {
+   "key": "1842f97f8ad697b8d01cab80f06ca211895feafa1c02d68dfa1a4b6531e81e67.mkv",
+   "v": 0,
+   "ours_stderr": [
+    "error: invalid bitstream: modification refers to a missing short-term picture",
+    "frames=2155 errors=4 seconds=118.516"
+   ]
+  },
+  {
+   "key": "3b9d31bda592a71feff6057d3c0caf9edd8ea514d5fd05d80669f82421f069b6.mp4",
+   "v": 0,
+   "ours_stderr": [
+    "error: frame_num gap (10 after 8) without gaps_in_frame_num_value_allowed_flag",
+    "frames=9000 errors=5311 seconds=29.266"
+   ]
+  },
+  {
+   "key": "69d1e3717c6ca2d4f375470891a5d439db30efc05219fc831de8cf324276c55c.mp4",
+   "v": 0,
+   "ours_stderr": [
+    "error: invalid bitstream: slice runs past the picture",
+    "frames=109 errors=97 seconds=0.570"
+   ]
+  },
+  {
+   "key": "66bc3e6485167f1c3fac4d27d64256fed205572576b54d757a5c2da8fa6d0523.mp4",
+   "v": 0,
+   "ours_stderr": [
+    "error: frame_num gap (46 after 44) without gaps_in_frame_num_value_allowed_flag",
+    "frames=9000 errors=2074 seconds=22.138"
+   ]
+  },
+  {
+   "key": "9bbc0ff33be41aac90544638908607b8c7626a93a56211159ac21cad3b028c96.mp4",
+   "v": 0,
+   "ours_stderr": [
+    "error: frame_num gap (37 after 35) without gaps_in_frame_num_value_allowed_flag",
+    "frames=2313 errors=768 seconds=11.905"
+   ]
+  },
+  {
+   "key": "a885207f78b9dd47d6e80c61e9180bfeab13ec1cfa93c2504d5ae9a5eeba92a0.mkv",
+   "v": 0,
+   "ours_stderr": [
+    "error: invalid bitstream: modification refers to a missing short-term picture",
+    "frames=1079 errors=4 seconds=53.173"
+   ]
+  },
+  {
+   "key": "c71c072654c32c0d2b9470d1ad051411b6171836b9c38bb93299f331faf08534.mp4",
+   "v": 0,
+   "ours_stderr": [
+    "error: invalid bitstream: modification_of_pic_nums_idc",
+    "frames=713 errors=1 seconds=1.343"
+   ]
+  },
+  {
+   "key": "c88c0c8af08f6829a95dc51d222d1e48ab83edb8ecea9e613b12f9e95cd1783b.mkv",
+   "v": 0,
+   "ours_stderr": [
+    "error: frame_num gap (36 after 34) without gaps_in_frame_num_value_allowed_flag",
+    "frames=1162 errors=244 seconds=8.530"
+   ]
+  },
+  {
+   "key": "d62097310e17629ba9eea23cf4cfdaeb11c46e256d29977eeefdb2cefcce2140.mp4",
+   "v": 0,
+   "ours_stderr": [
+    "error: frame_num gap (28 after 26) without gaps_in_frame_num_value_allowed_flag",
+    "frames=122 errors=56 seconds=6.146"
+   ]
+  },
+  {
+   "key": "efeb3ebcd5272ee9a3c35c7d123238f16c614a5fc35f350416e27a67911dea29.mp4",
+   "v": 0,
+   "ours_stderr": [
+    "error: frame_num gap (84 after 82) without gaps_in_frame_num_value_allowed_flag",
+    "frames=8190 errors=1938 seconds=25.597"
+   ]
+  }
+ ],
+ "agree_with_zero_frames": [],
+ "extract_failed": [
+  {
+   "key": "02471e95f59ca25cbe47996799d5fd9a2eeeab3b220d50a13d77259af39d8902.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 648,
+    "height": 288,
+    "field_order": null
+   },
+   "stderr": ""
+  },
+  {
+   "key": "09c1229515cc9d280219fc18176234f4baa8f33160f5f2e5d24bb67cf95898bf.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 1280,
+    "height": 720,
+    "field_order": "progressive"
+   },
+   "stderr": "[mov,mp4,m4a,3gp,3g2,mj2 @ 0x6880e80] stream 2, offset 0x190470: partial file\n[mov,mp4,m4a,3gp,3g2,mj2 @ 0x6880e80] stream 0, offset 0x191470: partial file\n"
+  },
+  {
+   "key": "1f5077e29b8e8ae12e3c5683f7e633bb66d5be486f7fd57c3180a70525f242a7.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 1280,
+    "height": 720,
+    "field_order": null
+   },
+   "stderr": "ccess unit with size 693\n[h264 @ 0x6882540] Invalid NAL unit size (-1610578843 > 689).\n[h264 @ 0x6882540] Error splitting the input into NAL units.\n[mov,mp4,m4a"
+  },
+  {
+   "key": "2883277bac48a52b0b637589fec8c33eedbaf1bee67004a55707887caf41fa54.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 256,
+    "height": 110,
+    "field_order": null
+   },
+   "stderr": ""
+  },
+  {
+   "key": "3128aac3c31ec20d7952ac39b50c1dcb78c619ea1246dcd5db2c092dc9b4f30a.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 720,
+    "height": 486,
+    "field_order": null
+   },
+   "stderr": ""
+  },
+  {
+   "key": "3128aac3c31ec20d7952ac39b50c1dcb78c619ea1246dcd5db2c092dc9b4f30a.mp4",
+   "v": 1,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 720,
+    "height": 486,
+    "field_order": null
+   },
+   "stderr": ""
+  },
+  {
+   "key": "3128aac3c31ec20d7952ac39b50c1dcb78c619ea1246dcd5db2c092dc9b4f30a.mp4",
+   "v": 2,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 720,
+    "height": 486,
+    "field_order": null
+   },
+   "stderr": ""
+  },
+  {
+   "key": "3ab65617703d2011d4cead0fc069f2ba2c5c5bc35e110d51fed2c8a9ac1f65bf.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 768,
+    "height": 576,
+    "field_order": null
+   },
+   "stderr": ""
+  },
+  {
+   "key": "456151190c5587b0673f8022b526971453b0edcc636f1d69230dd91aa1055919.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 1920,
+    "height": 1080,
+    "field_order": null
+   },
+   "stderr": ""
+  },
+  {
+   "key": "47785f0de639585db6a8740e82a19967e883229bb159e6b37b1db4ec17f3db58.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 1920,
+    "height": 1080,
+    "field_order": null
+   },
+   "stderr": ""
+  },
+  {
+   "key": "498f098f3b03cdfb7d485456bd3c6db0b45bd2ea7196344fdb2322cc5204114e.m4s",
+   "v": 0,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 1920,
+    "height": 1080,
+    "field_order": null
+   },
+   "stderr": ""
+  },
+  {
+   "key": "4a477f6c3b84a455e3e8168d82cbe5e9dde6dd7864170b64e7c965fdfe7409bf.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 640,
+    "height": 480,
+    "field_order": null
+   },
+   "stderr": ""
+  },
+  {
+   "key": "57e7762e3f476ca8e962d1f77dacc818a9ac91fed3526122fd7b3aba1efb6418.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 640,
+    "height": 360,
+    "field_order": null
+   },
+   "stderr": ""
+  },
+  {
+   "key": "5b61cd8580d97d821f47e3c9d38aa3933977241dc004b62822a85781ecee83ce.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 320,
+    "height": 240,
+    "field_order": null
+   },
+   "stderr": "(-1050485795 > 1020).\n[h264 @ 0x68bf6c0] missing picture in access unit with size 1024\n[h264 @ 0x68bf6c0] Invalid NAL unit size (311186524 > 508).\n[h264 @ 0x68b"
+  },
+  {
+   "key": "5cc06cd7b3973e83f0cffb6ca60d52253bfc17fd5a3292cdafddc11deb81bfdb.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 640,
+    "height": 268,
+    "field_order": null
+   },
+   "stderr": ""
+  },
+  {
+   "key": "6228cd470f9e3bb78a76203a4936cf50c8bb8e6ec54bab53d81231f1e1b88920.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 1280,
+    "height": 720,
+    "field_order": null
+   },
+   "stderr": ""
+  },
+  {
+   "key": "67be6c90e07bdb75cf350faf20e695e2c12ca1687fdd83a11c7b633c2e52ccba.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 1920,
+    "height": 1080,
+    "field_order": null
+   },
+   "stderr": ""
+  },
+  {
+   "key": "6ca95b1e4b551ded82b3c99d651dc61324aedb78755c47b879982b7921a1949d.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": "High",
+    "pix_fmt": "yuv420p",
+    "width": 720,
+    "height": 288,
+    "field_order": null
+   },
+   "stderr": ": Invalid data found when processing inputError applying bitstream filters to a packet: Invalid data found when processing inputError applying bitstream filters"
+  },
+  {
+   "key": "6ca95b1e4b551ded82b3c99d651dc61324aedb78755c47b879982b7921a1949d.mp4",
+   "v": 1,
+   "ffprobe": {
+    "profile": "High",
+    "pix_fmt": "yuv420p",
+    "width": 720,
+    "height": 288,
+    "field_order": "progressive"
+   },
+   "stderr": ": Invalid data found when processing inputError applying bitstream filters to a packet: Invalid data found when processing inputError applying bitstream filters"
+  },
+  {
+   "key": "73d745de384a4727b8d707371aaeaa19657cdc190eebff2a5fb8e52fc0f9b6f9.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": "Main",
+    "pix_fmt": "yuv420p",
+    "width": 1920,
+    "height": 1080,
+    "field_order": "progressive"
+   },
+   "stderr": "plying bitstream filters to a packet: Invalid data found when processing inputInvalid NAL unit size (17039404 > 32707).\n[h264 @ 0x6907080] missing picture in ac"
+  },
+  {
+   "key": "745dbaecedc8aff1b61c95aed15f8370d281615c8ecfcc19cbb7ebd48caa9036.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 1280,
+    "height": 720,
+    "field_order": null
+   },
+   "stderr": ""
+  },
+  {
+   "key": "80f6039dc43f6635627f813ce4a42610395cfdf876be843180fce85f15cd2480.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 1280,
+    "height": 720,
+    "field_order": null
+   },
+   "stderr": ""
+  },
+  {
+   "key": "81819edacc90575d8b51e43e6b093da004e728dbf464f16c30add7c12c4af4fc.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 1920,
+    "height": 1080,
+    "field_order": null
+   },
+   "stderr": ""
+  },
+  {
+   "key": "8270fc6e5c10a4a5544fc08a19176b0115fe8f721b3e64cf753e5d57cbc82cf9.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 400,
+    "height": 300,
+    "field_order": null
+   },
+   "stderr": "[mov,mp4,m4a,3gp,3g2,mj2 @ 0x6880e80] stream 0, offset 0x2231: partial file\n[mov,mp4,m4a,3gp,3g2,mj2 @ 0x6880e80] stream 0, offset 0x4887: partial file\n"
+  },
+  {
+   "key": "8ce191cdf40aa00a96e23cfc6d1065943d4e082992029dd8c022183546922147.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 320,
+    "height": 180,
+    "field_order": null
+   },
+   "stderr": ""
+  },
+  {
+   "key": "8e847fb1317fd1691b9037065603445828e4a080a517a7f3033c235982f2531c.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 1920,
+    "height": 1080,
+    "field_order": null
+   },
+   "stderr": ""
+  },
+  {
+   "key": "903ba93a6b827386f64750279c3595c5a281037709c9bb97877f68a58a767825.m4v",
+   "v": 0,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 1024,
+    "height": 576,
+    "field_order": null
+   },
+   "stderr": ""
+  },
+  {
+   "key": "955a591e45eec23d64ae760f75ea810c4d7e1b2a094c1bc517b5575f564b48e5.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 1088,
+    "height": 1920,
+    "field_order": null
+   },
+   "stderr": "g picture in access unit with size 31939\n[h264 @ 0x690dcc0] Invalid NAL unit size (-1081368780 > 38319).\n[h264 @ 0x690dcc0] missing picture in access unit with "
+  },
+  {
+   "key": "98046dc710ba2e935d669dddc78488a29fba34a9792632487e1672eb9096bc3e.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 384,
+    "height": 216,
+    "field_order": null
+   },
+   "stderr": ""
+  },
+  {
+   "key": "988b7694abaf5e4363f611e3ec609c36235b3c641bfe9de66d09476827b69826.m4s",
+   "v": 0,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 1280,
+    "height": 720,
+    "field_order": null
+   },
+   "stderr": ""
+  },
+  {
+   "key": "9c4faefb6ae548b30117004148b9a3d4777e0fd2821de636388022b5ca172f48.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 1280,
+    "height": 720,
+    "field_order": null
+   },
+   "stderr": ""
+  },
+  {
+   "key": "9e169151695e2e566b356b27d944c810e57ffec6d99c00c2946aeefa31445d75.m4s",
+   "v": 0,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 768,
+    "height": 432,
+    "field_order": null
+   },
+   "stderr": ""
+  },
+  {
+   "key": "a1f0c88e92bce92dce461e771a381b3c1d14a503089fbdb55fe2c3921ae36f8d.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": "High",
+    "pix_fmt": "yuv420p",
+    "width": 1280,
+    "height": 720,
+    "field_order": "progressive"
+   },
+   "stderr": ""
+  },
+  {
+   "key": "a348d3053cf71a435dba130a3f86ef948ad3c5364630c20a5ffdefdf12fac7b3.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 224,
+    "height": 100,
+    "field_order": null
+   },
+   "stderr": ""
+  },
+  {
+   "key": "b66134abd64c48a6025bdb6fcda58eccdd5b313263e55205a917fc663aafad73.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 640,
+    "height": 360,
+    "field_order": null
+   },
+   "stderr": "[mov,mp4,m4a,3gp,3g2,mj2 @ 0x6880e40] stream 0, missing mandatory atoms, broken header\n"
+  },
+  {
+   "key": "be1bc559a0faf92652538f51dc1f741aaec5429cf0022ba5c84295cae8c76d16.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 1280,
+    "height": 720,
+    "field_order": null
+   },
+   "stderr": "[mov,mp4,m4a,3gp,3g2,mj2 @ 0x6880e80] stream 0, offset 0x2110a: partial file\n[mov,mp4,m4a,3gp,3g2,mj2 @ 0x6880e80] stream 0, offset 0x215b0: partial file\n"
+  },
+  {
+   "key": "c730e267b778805fba1db434f2e8deb1ffd64fdabeb91e2a8e3eda9008fb8fa5.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 1024,
+    "height": 576,
+    "field_order": null
+   },
+   "stderr": ""
+  },
+  {
+   "key": "d416d7c5af30c452999ffa3c4825bc427db60620bcfa5b5634d27e899650be17.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 1920,
+    "height": 1080,
+    "field_order": null
+   },
+   "stderr": " picture in access unit with size 145190\n[h264 @ 0x6961bc0] Invalid NAL unit size (-539791799 > 148970).\n[h264 @ 0x6961bc0] missing picture in access unit with "
+  },
+  {
+   "key": "dc6703b39b15adc7b725375004a63c4d4b34dcc8cf7330eaf5c3cc0a60266ff2.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 512,
+    "height": 288,
+    "field_order": null
+   },
+   "stderr": ""
+  },
+  {
+   "key": "e032aa783c55e20506895dd167efb031dae32bdeeda4ef6cb56b7b4b0e470e7a.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 320,
+    "height": 240,
+    "field_order": null
+   },
+   "stderr": "icture in access unit with size 618\n[h264 @ 0x6882540] Invalid NAL unit size (0 > 614).\n[h264 @ 0x6882540] Error splitting the input into NAL units.\n[mov,mp4,m4"
+  },
+  {
+   "key": "ffc8906519b08708a44477c73dd662d0d19d19945e45bdf153da6b5f1e30d60e.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": null,
+    "pix_fmt": null,
+    "width": 1920,
+    "height": 1080,
+    "field_order": null
+   },
+   "stderr": ""
+  }
+ ],
+ "out_of_scope_but_ffprobe_in_scope": [
+  {
+   "key": "11127494ab19ab46b84e3ad747570e423643c191e512ca781d322000d16fecb7.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": "Main",
+    "pix_fmt": "yuv420p",
+    "width": 720,
+    "height": 576,
+    "field_order": null
+   },
+   "reasons": [
+    "frame_mbs_only_flag 0"
+   ]
+  },
+  {
+   "key": "65340c1235cb2aa2bb5ae12819195db735430722b7239fe7bb5f435ca1eade98.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": "Main",
+    "pix_fmt": "yuv420p",
+    "width": 320,
+    "height": 688,
+    "field_order": "progressive"
+   },
+   "reasons": [
+    "frame_mbs_only_flag 0"
+   ]
+  },
+  {
+   "key": "96033a51958f07033a3742ba63b05931ac61f125433d863df8431a846a764843.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": "Main",
+    "pix_fmt": "yuv420p",
+    "width": 1920,
+    "height": 1080,
+    "field_order": null
+   },
+   "reasons": [
+    "frame_mbs_only_flag 0"
+   ]
+  },
+  {
+   "key": "972e2b92d4511717e41aa542c94389fc60430aad96594ce71cd5a791766f4be0.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": "High",
+    "pix_fmt": "yuv420p",
+    "width": 720,
+    "height": 480,
+    "field_order": null
+   },
+   "reasons": [
+    "frame_mbs_only_flag 0"
+   ]
+  },
+  {
+   "key": "ae0419bb25b396853172ce81bac375c15105e3a43cd08884e1b38e49406a19b0.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": "Main",
+    "pix_fmt": "yuv420p",
+    "width": 720,
+    "height": 576,
+    "field_order": null
+   },
+   "reasons": [
+    "frame_mbs_only_flag 0"
+   ]
+  },
+  {
+   "key": "ae7aa5f1385ac7c880662926bc5ede805ddf13dc85545a446d626da2a1f96f50.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": "Main",
+    "pix_fmt": "yuv420p",
+    "width": 1920,
+    "height": 1080,
+    "field_order": null
+   },
+   "reasons": [
+    "frame_mbs_only_flag 0"
+   ]
+  },
+  {
+   "key": "f710d8f21c9acea249ed2b6f5a0f36dcb60fb3b743d57d69d3221ebace6c15b7.mp4",
+   "v": 0,
+   "ffprobe": {
+    "profile": "Main",
+    "pix_fmt": "yuv420p",
+    "width": 320,
+    "height": 676,
+    "field_order": "progressive"
+   },
+   "reasons": [
+    "frame_mbs_only_flag 0"
+   ]
+  }
+ ],
+ "streams_by_status": {
+  "extract_failed": 41,
+  "agree": 933,
+  "out_of_scope": 127,
+  "oracle_error": 11,
+  "disagree": 13
+ },
+ "c2_judged_streams": 946,
+ "c2_agree": 933,
+ "c2_agree_fraction": 0.9863,
+ "frames_compared": 2152086,
+ "out_of_scope_reasons": {
+  "profile_idc 66 without constraint_set1_flag": 39,
+  "bit depth above 8": 26,
+  "profile_idc 110 without constraint_set1_flag": 13,
+  "chroma_format_idc 2": 13,
+  "profile_idc 122 without constraint_set1_flag": 13,
+  "profile_idc 244 without constraint_set1_flag": 33,
+  "frame_mbs_only_flag 0": 22,
+  "no SPS": 6,
+  "chroma_format_idc 3": 8,
+  "SPS parse error": 1
+ },
+ "disagree": [
+  {
+   "key": "3166511391d15ca6e68a1a89962b11a46c39a442c679a0282e78223d6b4c284d.mov",
+   "v": 0,
+   "first_mismatch": 10,
+   "frame_sizes_differ": false,
+   "frames": [
+    448,
+    447
+   ],
+   "ours_stderr": [
+    "frames=448 errors=0 seconds=12.975"
+   ]
+  },
+  {
+   "key": "398bb4a065d13fd3c2c5c6f7370805e80723364aa7536a72ce792ded0e8fd487.mp4",
+   "v": 0,
+   "first_mismatch": 368,
+   "frame_sizes_differ": false,
+   "frames": [
+    369,
+    369
+   ],
+   "ours_stderr": [
+    "error: frame_num gap (1 after 15) without gaps_in_frame_num_value_allowed_flag",
+    "frames=369 errors=1 seconds=0.824"
+   ]
+  },
+  {
+   "key": "34d85724a454646139b10d9bb096c0ad23b2f56596a0808b42394a4777b3e846.mov",
+   "v": 0,
+   "first_mismatch": 26,
+   "frame_sizes_differ": false,
+   "frames": [
+    1013,
+    1012
+   ],
+   "ours_stderr": [
+    "frames=1013 errors=0 seconds=26.951"
+   ]
+  },
+  {
+   "key": "5bcb3728df1c698fa5c2ec44e5d1bcd7da191bdd19554d87b6b2d92cfaa1ef7d.mov",
+   "v": 0,
+   "first_mismatch": 8,
+   "frame_sizes_differ": false,
+   "frames": [
+    54,
+    53
+   ],
+   "ours_stderr": [
+    "frames=54 errors=0 seconds=2.811"
+   ]
+  },
+  {
+   "key": "662eb30fa6765fb63b267637dfb258fa462d84b5cbe8c109c0a79aba6df8963c.mp4",
+   "v": 0,
+   "first_mismatch": 233,
+   "frame_sizes_differ": false,
+   "frames": [
+    240,
+    239
+   ],
+   "ours_stderr": [
+    "frames=240 errors=0 seconds=2.996"
+   ]
+  },
+  {
+   "key": "6d3ea36a58d6fdd6be9ac98f85653d864b4b8d98fab86f521f72f06f346c8e76.mp4",
+   "v": 0,
+   "first_mismatch": 233,
+   "frame_sizes_differ": false,
+   "frames": [
+    240,
+    239
+   ],
+   "ours_stderr": [
+    "frames=240 errors=0 seconds=3.420"
+   ]
+  },
+  {
+   "key": "b5bcbd4edc1ce3ead58e868367e7ea72a0945d2b988d00ff2e22ddbe139d94e7.mov",
+   "v": 0,
+   "first_mismatch": 2,
+   "frame_sizes_differ": true,
+   "frames": [
+    4,
+    4
+   ],
+   "ours_stderr": [
+    "frames=4 errors=0 seconds=0.002"
+   ]
+  },
+  {
+   "key": "dd06dd4ed163cf964ff99a9227496bfeb6d45c734f877824a752ff7b0b5e9691.mkv",
+   "v": 0,
+   "first_mismatch": 1096,
+   "frame_sizes_differ": false,
+   "frames": [
+    1311,
+    1311
+   ],
+   "ours_stderr": [
+    "error: frame_num gap (123 after 119) without gaps_in_frame_num_value_allowed_flag",
+    "frames=1311 errors=1 seconds=29.965"
+   ]
+  },
+  {
+   "key": "ea690039d9024dcd6965080d60eecc8d5a282e6cb5edaaf0b3e7897987854838.mp4",
+   "v": 0,
+   "first_mismatch": 8,
+   "frame_sizes_differ": false,
+   "frames": [
+    1077,
+    1076
+   ],
+   "ours_stderr": [
+    "frames=1077 errors=0 seconds=24.364"
+   ]
+  },
+  {
+   "key": "fb9ef84544aa3da303a25f56ddaa0011b5b1a2cbe686ea9fefa13bb874899734.mp4",
+   "v": 0,
+   "first_mismatch": 233,
+   "frame_sizes_differ": false,
+   "frames": [
+    240,
+    239
+   ],
+   "ours_stderr": [
+    "frames=240 errors=0 seconds=3.333"
+   ]
+  },
+  {
+   "key": "ffc569d12f13914ac3c446434246e926ee8b8aaa0973ed91bdf10867e39ccf4a.mp4",
+   "v": 0,
+   "first_mismatch": 233,
+   "frame_sizes_differ": false,
+   "frames": [
+    240,
+    239
+   ],
+   "ours_stderr": [
+    "frames=240 errors=0 seconds=3.009"
+   ]
+  },
+  {
+   "key": "fc594f69d93cf4763102f7fd9c16ee3fddedb2db07549525fb91f131932c2dac.mp4",
+   "v": 0,
+   "first_mismatch": 1407,
+   "frame_sizes_differ": false,
+   "frames": [
+    9000,
+    9000
+   ],
+   "ours_stderr": [
+    "error: frame_num gap (1 after 11) without gaps_in_frame_num_value_allowed_flag",
+    "error: frame_num gap (8 after 6) without gaps_in_frame_num_value_allowed_flag",
+    "error: frame_num gap (11 after 9) without gaps_in_frame_num_value_allowed_flag",
+    "error: frame_num gap (8 after 6) without gaps_in_frame_num_value_allowed_flag",
+    "frames=9000 errors=44 seconds=25.971"
+   ]
+  },
+  {
+   "key": "fc84f03ad546f71c8cb5b63ea87ab8e4cb0f1f5329ee77a83bd2085dc2874be9.mp4",
+   "v": 0,
+   "first_mismatch": 1332,
+   "frame_sizes_differ": true,
+   "frames": [
+    2848,
+    2848
+   ],
+   "ours_stderr": [
+    "frames=2848 errors=0 seconds=76.472"
+   ]
+  }
+ ],
+ "oracle_error": [
+  {
+   "key": "007239353b555a5d95c1149f5473867ef1feb1458eb2eeb07ea891758a64911d.mp4",
+   "v": 0,
+   "ffmpeg_stderr": [
+    "[h264 @ 0x68b6300] cabac decode of qscale diff failed at 34 15",
+    "[h264 @ 0x68b6300] error while decoding MB 34 15, bytestream 3271"
+   ],
+   "first_mismatch": 67
+  },
+  {
+   "key": "11a1bdfed6b62fdc601c59684e21909a2f444770dbcb3904cbc0eaea2e5c393b.mov",
+   "v": 0,
+   "ffmpeg_stderr": [
+    "[h264 @ 0x68823c0] mb_type 33 in I slice too large at 73 58",
+    "[h264 @ 0x68823c0] error while decoding MB 73 58"
+   ],
+   "first_mismatch": 0
+  },
+  {
+   "key": "3c78ebe626a962a21480c6eb044f6141759cc271ce05c1da597ee65803ef1c64.mkv",
+   "v": 0,
+   "ffmpeg_stderr": [
+    "[h264 @ 0x68b5540] Reference 5 >= 5",
+    "[h264 @ 0x68b5540] error while decoding MB 12 17, bytestream 3425"
+   ],
+   "first_mismatch": 0
+  },
+  {
+   "key": "3d6b0433a77d876ff18eeade6377ceb00955d9013412abd5833464682584a3e1.mov",
+   "v": 0,
+   "ffmpeg_stderr": [
+    "[h264 @ 0x6882400] mb_type 58 in I slice too large at 87 65",
+    "[h264 @ 0x6882400] error while decoding MB 87 65"
+   ],
+   "first_mismatch": 0
+  },
+  {
+   "key": "4d2b87b9b944066919a4fa69a8788da923cf11a1cff84cdc87edef9079b5a57c.mp4",
+   "v": 0,
+   "ffmpeg_stderr": [
+    "[h264 @ 0x6882400] SEI type 5 size 692 truncated at 628",
+    "[h264 @ 0x6882400] SEI type 5 size 692 truncated at 622"
+   ],
+   "first_mismatch": 0
+  },
+  {
+   "key": "4d2b87b9b944066919a4fa69a8788da923cf11a1cff84cdc87edef9079b5a57c.mp4",
+   "v": 1,
+   "ffmpeg_stderr": [
+    "[h264 @ 0x6882400] SEI type 5 size 692 truncated at 628",
+    "[h264 @ 0x6882400] SEI type 5 size 692 truncated at 622"
+   ],
+   "first_mismatch": 0
+  },
+  {
+   "key": "4d91730c9478438e6f6b81c54eb4916ba7586116c46eec1ebc66bf444bf10c7a.mp4",
+   "v": 0,
+   "ffmpeg_stderr": [
+    "[h264 @ 0x68b5180] mb_type 153 in B slice too large at 6 16",
+    "[h264 @ 0x68b5180] error while decoding MB 6 16"
+   ],
+   "first_mismatch": 627
+  },
+  {
+   "key": "699782c93fec566a16b0da788b24d09084c005a5ad64af0977c5e1756243e132.mp4",
+   "v": 0,
+   "ffmpeg_stderr": [
+    "[in#0 @ 0x6880b80] Error opening input: Invalid data found when processing input",
+    "Error opening input file /tmp/tmp2jxlyw4r/es.h264."
+   ],
+   "first_mismatch": 0
+  },
+  {
+   "key": "7bcbddd9f64dccb272ebdeba77613832b098fe1c49be1ecbc3c85b0891ce488f.mp4",
+   "v": 0,
+   "ffmpeg_stderr": [
+    "[h264 @ 0x6882400] top block unavailable for requested intra mode -1",
+    "[h264 @ 0x6882400] error while decoding MB 4 0, bytestream 4288"
+   ],
+   "first_mismatch": 0
+  },
+  {
+   "key": "b74eb5a57308a9da1c08494bc2212bc0db5ff81ca53c16ae4d72f827cb9e893e.mp4",
+   "v": 0,
+   "ffmpeg_stderr": [
+    "[h264 @ 0x68b48c0] co located POCs unavailable",
+    "    Last message repeated 4 times"
+   ],
+   "first_mismatch": 3129
+  },
+  {
+   "key": "d77f905af8f32efdae0575780067310cc13c92ae2711773f84af41be77e3d6a5.mp4",
+   "v": 0,
+   "ffmpeg_stderr": [
+    "[h264 @ 0x6882400] non-existing SPS 0 referenced in buffering period",
+    "    Last message repeated 1 times"
+   ],
+   "first_mismatch": 0
+  }
+ ],
+ "i1_holdout_streams": 183,
+ "i1_median_ratio_holdout": 3.01,
+ "i1_holdout_1080p_streams": 31,
+ "i1_median_ratio_holdout_1080p": 2.92,
+ "i1_median_ratio_all_agreeing": 3.16,
+ "seconds_total": 54920.1
+}

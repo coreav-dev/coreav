@@ -1,0 +1,5 @@
+The branch (working tree on main 05daabc4, as committed), dist build, at 1, 2, 3 and 8 threads, against main 05daabc4 at 1 thread: the 32 training streams whole, all pictures written.
+identity identical 128/128
+conformance (scripts/h264_conformance.py --extracted ...):
+{"streams": 97, "passed": 97, "failed": 0, "kernels": "detect", "threads": "1,2,8", "seconds": 67.6}
+{"streams": 97, "passed": 97, "failed": 0, "kernels": "scalar", "threads": "1", "seconds": 65.1}

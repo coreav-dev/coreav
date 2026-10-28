@@ -1,0 +1,40 @@
+1 thread, 32 training failed []
+  k/base discard overall  n=32 median 0.9867 [0.9819,0.9881] faster 30/32
+  k/base discard sd       n= 8 median 0.9844 [0.9735,0.9995] faster 7/8
+  k/base discard 720p     n= 8 median 0.9842 [0.9809,0.9879] faster 8/8
+  k/base discard 1080p    n= 8 median 0.9853 [0.9804,0.9880] faster 7/8
+  k/base discard 4k       n= 8 median 0.9885 [0.9826,0.9930] faster 8/8
+  k/base write   overall  n=32 median 0.9815 [0.9774,0.9900] faster 31/32
+  k/base write   sd       n= 8 median 0.9808 [0.9771,0.9950] faster 8/8
+  k/base write   720p     n= 8 median 0.9867 [0.9772,0.9949] faster 8/8
+  k/base write   1080p    n= 8 median 0.9779 [0.9737,0.9907] faster 8/8
+  k/base write   4k       n= 8 median 0.9839 [0.9736,0.9939] faster 7/8
+  base       vs FFmpeg discard overall 0.981 (18/32 faster) sd 0.930 (7/8 faster) 720p 1.037 (1/8 faster) 1080p 1.029 (2/8 faster) 4k 0.874 (8/8 faster)
+  base       vs FFmpeg write   overall 0.951 (22/32 faster) sd 0.925 (7/8 faster) 720p 0.992 (5/8 faster) 1080p 1.005 (2/8 faster) 4k 0.811 (8/8 faster)
+  k          vs FFmpeg discard overall 0.961 (20/32 faster) sd 0.920 (7/8 faster) 720p 1.016 (2/8 faster) 1080p 1.014 (3/8 faster) 4k 0.859 (8/8 faster)
+  k          vs FFmpeg write   overall 0.938 (27/32 faster) sd 0.914 (7/8 faster) 720p 0.980 (5/8 faster) 1080p 0.985 (7/8 faster) 4k 0.796 (8/8 faster)
+1 thread, 64 held-out failed []
+  k/base discard overall  n=64 median 0.9851 [0.9818,0.9894] faster 51/64
+  k/base discard sd       n=16 median 0.9825 [0.9762,0.9921] faster 12/16
+  k/base discard 720p     n=16 median 0.9857 [0.9800,0.9909] faster 14/16
+  k/base discard 1080p    n=16 median 0.9881 [0.9756,0.9985] faster 12/16
+  k/base discard 4k       n=16 median 0.9837 [0.9815,0.9911] faster 13/16
+  k/base write   overall  n=64 median 0.9857 [0.9827,0.9913] faster 50/64
+  k/base write   sd       n=16 median 0.9878 [0.9809,0.9975] faster 13/16
+  k/base write   720p     n=16 median 0.9830 [0.9692,0.9931] faster 14/16
+  k/base write   1080p    n=16 median 0.9931 [0.9827,1.0055] faster 11/16
+  k/base write   4k       n=16 median 0.9826 [0.9652,0.9893] faster 12/16
+  base       vs FFmpeg discard overall 0.978 (39/64 faster) sd 0.971 (13/16 faster) 720p 1.014 (5/16 faster) 1080p 0.999 (8/16 faster) 4k 0.892 (13/16 faster)
+  base       vs FFmpeg write   overall 0.965 (46/64 faster) sd 0.970 (11/16 faster) 720p 1.000 (8/16 faster) 1080p 0.967 (11/16 faster) 4k 0.828 (16/16 faster)
+  k          vs FFmpeg discard overall 0.959 (42/64 faster) sd 0.949 (13/16 faster) 720p 0.999 (8/16 faster) 1080p 0.995 (8/16 faster) 4k 0.876 (13/16 faster)
+  k          vs FFmpeg write   overall 0.944 (50/64 faster) sd 0.948 (13/16 faster) 720p 0.980 (10/16 faster) 1080p 0.958 (11/16 faster) 4k 0.811 (16/16 faster)
+  g k/base discard, the 26 CABAC streams: median 0.9842
+  g.sd: unresolved 2 ['ec473c99c538.0.sd.h264', 'f9e973f44570.0.sd.h264'], retried 3, gate drift 0, largest null deviation 0.14100175780812219
+  g.720p: unresolved 0 [], retried 2, gate drift 0, largest null deviation 0.00798151683324999
+  g.1080p: unresolved 0 [], retried 1, gate drift 0, largest null deviation 0.0229187258039959
+  g.4k: unresolved 1 ['4b54de28c2b3.0.4k.h264'], retried 6, gate drift 0, largest null deviation 0.015636865815279233
+  h.sd: unresolved 0 [], retried 5, gate drift 0, largest null deviation 0.039521789270064334
+  h.720p: unresolved 0 [], retried 4, gate drift 0, largest null deviation 0.03803305498075682
+  h.1080p: unresolved 6 ['334602b1b17e.0.1080p.h264', 'ac8f060d2280.0.1080p.h264', 'cfedf7425184.0.1080p.h264', 'd0f1969d25de.0.1080p.h264', 'd4d0cacfe7ff.0.1080p.h264', 'e137204903ad.0.1080p.h264'], retried 6, gate drift 4, largest null deviation 0.13344176356371618
+  h.4k: unresolved 1 ['b716b0c80a63.0.4k.h264'], retried 6, gate drift 0, largest null deviation 0.046101724983967696
+bars: MV-1 (g discard all-32 <= 0.995, upper < 1.000): pass, MV-2 (g write all-32 <= 1.000): pass, MV-3 (g each class discard+write <= 1.005): pass, MV-5 (h discard all-64 <= 1.000): pass

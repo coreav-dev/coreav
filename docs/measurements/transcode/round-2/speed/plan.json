@@ -1,0 +1,43 @@
+{
+ "files": 86,
+ "upload_bytes": 10262132346,
+ "pixel_frames": 230152269310,
+ "estimate_hours": 6.89,
+ "max_hours": 10.5,
+ "spend_bound_usd": 6.3,
+ "cap_usd": 8.0,
+ "disk_gb": 43,
+ "spent_before_usd": 1.47,
+ "per_class": {
+  "h264": {
+   "files": 25,
+   "reserve": 5,
+   "reserve_not_uploaded": 126
+  },
+  "hevc": {
+   "files": 8,
+   "reserve": 5,
+   "reserve_not_uploaded": 4
+  },
+  "av1": {
+   "files": 6,
+   "reserve": 3,
+   "reserve_not_uploaded": 0
+  },
+  "vp9": {
+   "files": 10,
+   "reserve": 5,
+   "reserve_not_uploaded": 5
+  },
+  "vp8": {
+   "files": 13,
+   "reserve": 0,
+   "reserve_not_uploaded": 0
+  },
+  "prores": {
+   "files": 6,
+   "reserve": 0,
+   "reserve_not_uploaded": 0
+  }
+ }
+}

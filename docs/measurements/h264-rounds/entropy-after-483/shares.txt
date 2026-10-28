@@ -1,0 +1,32 @@
+
+residual (sig/last, levels, signs, cbf, block dispatch)
+  CABAC n=26 share med 13.07% excess med +1.43% max +8.35%  sd +0.73%  720p +3.57%  1080p +2.01%  4k +0.58%
+  CAVLC n= 6 share med  7.41% excess med +2.01% max +3.53%  sd +2.06%  720p +3.06%  1080p +0.80%
+  all classes (32): sd +1.06%  720p +3.47%  1080p +1.62%  4k +0.58%
+
+mvd and ref_idx
+  CABAC n=26 share med  4.16% excess med +2.49% max +3.85%  sd +1.99%  720p +2.73%  1080p +2.51%  4k +1.28%
+  CAVLC n= 6 share med  0.19% excess med +0.19% max +0.73%  sd +0.45%  720p +0.10%  1080p +0.08%
+  all classes (32): sd +0.60%  720p +2.63%  1080p +2.49%  4k +1.28%
+
+MB header (skip, mb_type, sub, t8x8, cbp, qp_delta, intra modes) and t
+  CABAC n=26 share med 10.60% excess med -4.89% max -1.07%  sd -6.67%  720p -4.16%  1080p -3.46%  4k -9.67%
+  CAVLC n= 6 share med  1.07% excess med +0.02% max +1.33%  sd +0.11%  720p +0.30%  1080p -1.23%
+  all classes (32): sd -2.40%  720p -3.68%  1080p -3.10%  4k -9.67%
+
+MB layer (neighbours, mv prediction, direct, motion store, per-MB setu
+  CABAC n=26 share med  9.56% excess med +4.16% max +15.38%  sd +9.59%  720p +3.55%  1080p +2.74%  4k +5.69%
+  CAVLC n= 6 share med  8.27% excess med +4.80% max +11.03%  sd +3.86%  720p +5.19%  1080p +11.03%
+  all classes (32): sd +4.42%  720p +3.71%  1080p +3.43%  4k +5.69%
+
+NAL/RBSP
+  CABAC n=26 share med  1.37% excess med +0.91% max +3.55%  sd +1.13%  720p +0.76%  1080p +1.51%  4k +0.67%
+  CAVLC n= 6 share med  2.18% excess med +1.80% max +3.77%  sd +2.49%  720p +0.85%  1080p +0.95%
+  all classes (32): sd +1.82%  720p +0.81%  1080p +1.38%  4k +0.67%
+
+CAVLC syntax
+  CABAC n=26 share med  0.01% excess med +0.00% max +0.17%  sd +0.03%  720p +0.00%  1080p +0.00%  4k -0.01%
+  CAVLC n= 6 share med  7.31% excess med +0.28% max +12.26%  sd +2.28%  720p +0.49%  1080p -3.27%
+  all classes (32): sd +0.05%  720p +0.00%  1080p -0.00%  4k -0.01%
+
+instructions per MB, median: 5051.982086806529

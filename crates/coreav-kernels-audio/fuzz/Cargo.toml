@@ -1,0 +1,28 @@
+# cargo-fuzz project for coreav-kernels-audio (docs/design/audio-decode.md);
+# outside the workspace, never published. The target compares the vector kernel with
+# the portable one, bit for bit.
+[package]
+name = "coreav-kernels-audio-fuzz"
+version = "0.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+coreav-kernels-audio = { path = ".." }
+
+[[bin]]
+name = "fir"
+path = "fuzz_targets/fir.rs"
+test = false
+doc = false
+bench = false
+
+[lints.rust]
+unsafe_code = "forbid"

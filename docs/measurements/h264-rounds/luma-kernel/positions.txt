@@ -1,0 +1,17 @@
+# Luma samples predicted by luma_block (the three-plane call's 8- and 16-wide luma; 4-wide blocks and the
+# edge path are not counted), by position kind, operation and width: share of samples (rows x width),
+# the 32 training streams at the class frame counts, one thread, --discard. Information, counted with a
+# throwaway counter in luma_block on the chroma branch at fc143a2, whose tree main at 3443dfc is.
+                                   sd     720p    1080p       4k      all
+samples (millions)               1879     3009     5057     3917    13861
+full sample (G)                 0.681    0.664    0.573    0.678    0.637
+b, a, c (horizontal)            0.096    0.091    0.144    0.047    0.099
+h, d, n (vertical)              0.080    0.103    0.092    0.055    0.082
+e, g, p, r (b and h)            0.069    0.082    0.081    0.078    0.079
+f, i, k, q (j and b or h)       0.057    0.050    0.074    0.097    0.073
+j                               0.017    0.010    0.036    0.045    0.030
+operation: put                  0.843    0.832    0.785    0.922    0.842
+operation: avg                  0.069    0.068    0.173    0.076    0.109
+operation: weighted             0.087    0.100    0.042    0.002    0.049
+weighted, full sample           0.068    0.073    0.035    0.002    0.039
+width 16                        0.927    0.973    0.928    0.975    0.951

@@ -1,0 +1,36 @@
+{
+ "creatingLibrary": {
+  "name": "MediaInfoLib",
+  "version": "26.10",
+  "url": "https://mediaarea.net/MediaInfo"
+ },
+ "media": {
+  "@ref": "color_bt2020_pq.mp4",
+  "track": [
+   {
+    "@type": "General",
+    "Format": "MPEG-4",
+    "Format_Profile": "Base Media",
+    "CodecID": "isom",
+    "Duration": "2.000"
+   },
+   {
+    "@type": "Video",
+    "StreamOrder": "0",
+    "Format": "HEVC",
+    "Format_Profile": "Main 10",
+    "CodecID": "hvc1",
+    "Duration": "2.000",
+    "Width": "320",
+    "Height": "240",
+    "PixelAspectRatio": "1.000",
+    "DisplayAspectRatio": "1.333",
+    "Rotation": "0.000",
+    "colour_range": "Limited",
+    "colour_primaries": "BT.2020",
+    "transfer_characteristics": "PQ",
+    "matrix_coefficients": "BT.2020 non-constant"
+   }
+  ]
+ }
+}

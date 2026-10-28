@@ -1,0 +1,35 @@
+13:50:42 cpu facts:
+model name	: unknown
+CPU(s):              24
+Vendor ID:           AuthenticAMD
+CPU family:          25
+Model:               1
+Thread(s) per core:  1
+Core(s) per socket:  24
+Socket(s):           1
+Stepping:            unknown
+8
+24
+avx2 
+13:51:00 reference measurement 1: 36501d448eaa.0.720p 1.349s; a6af290d9053.0.1080p 4.496s
+13:56:17 reference measurement 2: 36501d448eaa.0.720p 1.330s; a6af290d9053.0.1080p 4.476s
+14:01:36 reference measurement 3: 36501d448eaa.0.720p 1.375s; a6af290d9053.0.1080p 4.711s
+14:01:36 reference {'36501d448eaa.0.720p': 1.3491306660000002, 'a6af290d9053.0.1080p': 4.495831273999999} max deviation {'36501d448eaa.0.720p': 0.019534329523616556, 'a6af290d9053.0.1080p': 0.04779708376573377} stable
+14:14:23 identity 32/32 same
+14:14:41 PASS before g.sd.json 36501d448eaa.0.720p ratio 0.991; a6af290d9053.0.1080p ratio 0.990
+14:21:39 PASS after g.sd.json 36501d448eaa.0.720p ratio 0.978; a6af290d9053.0.1080p ratio 0.985
+14:21:39 g sd done
+14:21:56 PASS before g.720p.json 36501d448eaa.0.720p ratio 0.982; a6af290d9053.0.1080p ratio 0.977
+14:33:41 FAIL after g.720p.json 36501d448eaa.0.720p ratio 1.062; a6af290d9053.0.1080p ratio 1.024
+14:33:41 VOID g.720p.json attempt 1
+14:34:00 FAIL before g.720p.json 36501d448eaa.0.720p ratio 1.003; a6af290d9053.0.1080p ratio 1.109
+14:35:18 PASS before g.720p.json 36501d448eaa.0.720p ratio 1.029; a6af290d9053.0.1080p ratio 1.044
+14:47:05 PASS after g.720p.json 36501d448eaa.0.720p ratio 0.986; a6af290d9053.0.1080p ratio 0.981
+14:47:05 g 720p done
+14:47:22 PASS before g.1080p.json 36501d448eaa.0.720p ratio 0.984; a6af290d9053.0.1080p ratio 0.981
+15:13:43 PASS after g.1080p.json 36501d448eaa.0.720p ratio 1.002; a6af290d9053.0.1080p ratio 1.022
+15:13:43 g 1080p done
+15:14:01 PASS before g.4k.json 36501d448eaa.0.720p ratio 1.009; a6af290d9053.0.1080p ratio 1.014
+15:26:59 PASS after g.4k.json 36501d448eaa.0.720p ratio 1.003; a6af290d9053.0.1080p ratio 0.989
+15:26:59 g 4k done
+15:26:59 analysis done elapsed 5777s

@@ -1,0 +1,8 @@
+PASS model106 before g.sd #1 14:21Z 36501d448eaa.0.720p 1.302s (ref 1.295) ratio 1.005; a6af290d9053.0.1080p 4.322s (ref 4.388) ratio 0.985
+PASS model106 after g.sd #1 14:26Z 36501d448eaa.0.720p 1.277s (ref 1.295) ratio 0.986; a6af290d9053.0.1080p 4.269s (ref 4.388) ratio 0.973
+PASS model106 before g.720p #1 14:26Z 36501d448eaa.0.720p 1.282s (ref 1.295) ratio 0.990; a6af290d9053.0.1080p 4.254s (ref 4.388) ratio 0.969
+PASS model106 after g.720p #1 14:38Z 36501d448eaa.0.720p 1.297s (ref 1.295) ratio 1.002; a6af290d9053.0.1080p 4.347s (ref 4.388) ratio 0.991
+PASS model106 before g.1080p #1 14:39Z 36501d448eaa.0.720p 1.320s (ref 1.295) ratio 1.019; a6af290d9053.0.1080p 4.353s (ref 4.388) ratio 0.992
+PASS model106 after g.1080p #1 15:00Z 36501d448eaa.0.720p 1.280s (ref 1.295) ratio 0.988; a6af290d9053.0.1080p 4.382s (ref 4.388) ratio 0.999
+PASS model106 before g.4k #1 15:00Z 36501d448eaa.0.720p 1.280s (ref 1.295) ratio 0.989; a6af290d9053.0.1080p 4.257s (ref 4.388) ratio 0.970
+PASS model106 after g.4k #1 15:09Z 36501d448eaa.0.720p 1.299s (ref 1.295) ratio 1.003; a6af290d9053.0.1080p 4.411s (ref 4.388) ratio 1.005

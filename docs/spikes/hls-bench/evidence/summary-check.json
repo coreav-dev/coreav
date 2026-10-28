@@ -1,0 +1,59 @@
+{
+ "check": {
+  "inputs": 904,
+  "statuses": {
+   "refused": 46,
+   "agree": 767,
+   "covered": 90,
+   "fail": 1
+  },
+  "packaged": 858,
+  "files_agree_share": 0.9988344988344988,
+  "packets_agree": 21963954,
+  "packets_disagree": 0,
+  "packets_agree_share": 1.0,
+  "segments": 101377,
+  "no_audio_packaged": 62,
+  "refused_by_reason": {
+   "codec 'encv' of track 1 is not allowed": 21,
+   "unsupported: video other than H.264 avc1, HEVC hvc1, AV1 or VP9": 14,
+   "unsupported: edit list outside the supported model": 6,
+   "invalid 'moov' box at offset 32: missing movie header": 1,
+   "truncated structure at offset 426381": 1,
+   "invalid 'moov' box at offset 9475193: second movie box": 1,
+   "truncated structure at offset 776783": 1,
+   "unsupported: the track does not start with a sync sample": 1
+  },
+  "divergences": {
+   "KD-HLS-2": 38,
+   "KD-HLS-4": 9,
+   "KD-HLS-1": 45,
+   "KD-HLS-3": 14,
+   "KD-HLS-7": 3,
+   "KD-HLS-5": 7,
+   "KD-HLS-8": 3,
+   "KD-HLS-6": 6,
+   "KD-HLS-9": 1
+  },
+  "failures": [
+   {
+    "sha256": "371baf1bdb08cd56e5f675df9ebcb5c618ad0339f4f0c00d7f88ab24a038c192",
+    "tags": [
+     "a:aac",
+     "brand:isom",
+     "c:isobmff",
+     "elst",
+     "moov-front",
+     "v:av1"
+    ],
+    "failures": [
+     "harness: ffmpeg failed (-6): Assertion pkt failed at src/fftools/ffmpeg_dec.c:710\n"
+    ]
+   }
+  ],
+  "bars": {
+   "files_at_least_0.98": true,
+   "packets_at_least_0.99": true
+  }
+ }
+}

@@ -1,0 +1,4865 @@
+{
+ "manifest_sha256": "09edcbd856a8ec081af72b9363b0409d00a5b04da773992fbd3093aaf38425e0",
+ "rule": "set == 'real' and ext in mp4/mov/m4v/3gp and a tag in v:h264/v:hevc/v:av1/v:vp9, held out by sha256('coreav-clip-memory-216' + sha256) within each real category (30%)",
+ "files": [
+  {
+   "sha256": "0119957558a276115f3af88175fd89f10345ab8f9c4aa6b23c361671fafaf805",
+   "size": 201477294,
+   "ext": "mp4",
+   "tags": [
+    "10bit+",
+    "a:pcm_s16be",
+    "brand:XAVC",
+    "c:isobmff",
+    "ctts",
+    "d:rtmd",
+    "elst",
+    "elst-bframe-delay",
+    "moov-end",
+    "pcm",
+    "telemetry",
+    "telemetry-sony-rtmd",
+    "v:hevc"
+   ],
+   "holdout": true,
+   "key": "0119957558a276115f3af88175fd89f10345ab8f9c4aa6b23c361671fafaf805.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "02143b44a0c8e06ee2af03cc3e8fc30690ae4fe1828fc5c106b7176ce243538a",
+   "size": 336391218,
+   "ext": "mov",
+   "tags": [
+    "a:pcm_s16le",
+    "brand:qt",
+    "c:isobmff",
+    "d:tmcd",
+    "elst",
+    "moov-end",
+    "pcm",
+    "qt-sound-v2",
+    "quicktime",
+    "timecode",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "02143b44a0c8e06ee2af03cc3e8fc30690ae4fe1828fc5c106b7176ce243538a.mov",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "023e4a295ee67ca531e5e978fc2aa3728a434343b644479f01c4fc6afcd31a56",
+   "size": 20974372,
+   "ext": "mp4",
+   "tags": [
+    "brand:mp41",
+    "c:isobmff",
+    "d:bin_data",
+    "d:tmcd",
+    "elst",
+    "gopro-udta-gpmf",
+    "moov-end",
+    "telemetry",
+    "telemetry-gpmf",
+    "timecode",
+    "v:hevc"
+   ],
+   "holdout": true,
+   "key": "023e4a295ee67ca531e5e978fc2aa3728a434343b644479f01c4fc6afcd31a56.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "029c63e01bcdb7a01664dbc0b85470a1ff4a83467bcca30c8cb2a7135b39ed22",
+   "size": 201818878,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "029c63e01bcdb7a01664dbc0b85470a1ff4a83467bcca30c8cb2a7135b39ed22.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "02fbfc9fa4a5eacb624d71464569c302e9002df9fd006af9d278bfeb62e4e561",
+   "size": 143008,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "02fbfc9fa4a5eacb624d71464569c302e9002df9fd006af9d278bfeb62e4e561.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "049af99548cb3d010164bea2c2ac1b35a3b73c94527979f0a6f839c9c071b369",
+   "size": 34013315,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "elst",
+    "moov-front",
+    "v:av1",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "049af99548cb3d010164bea2c2ac1b35a3b73c94527979f0a6f839c9c071b369.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "04b7b4fb3b3797c81c121b0bf02f1e578dc24912582cb6d24b8bed2928bf856f",
+   "size": 12762,
+   "ext": "mp4",
+   "tags": [
+    "brand:mp42",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "04b7b4fb3b3797c81c121b0bf02f1e578dc24912582cb6d24b8bed2928bf856f.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "061589fae6b7e4383c522ba640232faa1e53d352f7068fcfb9ae3d3495b61b6b",
+   "size": 6438170,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:mp42",
+    "c:isobmff",
+    "elst",
+    "elst-empty-edit",
+    "moov-end",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "061589fae6b7e4383c522ba640232faa1e53d352f7068fcfb9ae3d3495b61b6b.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "065b0fa2931f1f2d4725fa632d13542172fff19a83078469116eae6aa5a87b25",
+   "size": 35029117,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "elst",
+    "moov-front",
+    "v:av1",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "065b0fa2931f1f2d4725fa632d13542172fff19a83078469116eae6aa5a87b25.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "07cbd18cf027cf00a29a8bbe29c956fef21f1e87c4b3237df790dc065dba0cb6",
+   "size": 2902721,
+   "ext": "mov",
+   "tags": [
+    "a:aac",
+    "brand:qt",
+    "c:isobmff",
+    "elst",
+    "elst-audio-priming",
+    "elst-empty-edit",
+    "moov-end",
+    "qt-sound-v1",
+    "quicktime",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "07cbd18cf027cf00a29a8bbe29c956fef21f1e87c4b3237df790dc065dba0cb6.mov",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "0ad504671d99498158b800989ab8abcf408410a465385ed1908774f342d101fb",
+   "size": 357662517,
+   "ext": "mp4",
+   "tags": [
+    "a:eac3",
+    "brand:isom",
+    "c:isobmff",
+    "chapters",
+    "cover-art",
+    "ctts",
+    "d:bin_data",
+    "elst",
+    "elst-bframe-delay",
+    "moov-front",
+    "s:mov_text",
+    "subtitle-track",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "0ad504671d99498158b800989ab8abcf408410a465385ed1908774f342d101fb.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "0be9cfec6c1acfd8e337440413efdc44aa42db99636be549c5356ca8c1e1b63d",
+   "size": 594560,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "0be9cfec6c1acfd8e337440413efdc44aa42db99636be549c5356ca8c1e1b63d.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "0c0bd842a141e786e8c803b9a3d24f2c268d6dfc380b8ba548e7b0718ba411f8",
+   "size": 209747,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "0c0bd842a141e786e8c803b9a3d24f2c268d6dfc380b8ba548e7b0718ba411f8.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "0d8e77ef7d452500f63f2be49a6d28eb8ad2594d8497cae47494b19e8aa59cf8",
+   "size": 427176,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "0d8e77ef7d452500f63f2be49a6d28eb8ad2594d8497cae47494b19e8aa59cf8.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "119b4e574e6b4abff0e485ec9a663476ca156e50868d9521c7387055cf2da754",
+   "size": 9302603,
+   "ext": "mp4",
+   "tags": [
+    "a:vorbis",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "119b4e574e6b4abff0e485ec9a663476ca156e50868d9521c7387055cf2da754.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "12b4221859532842b90e0de4e54c9ef930e122c005fd28a889d6da58c56e3a6f",
+   "size": 2375790,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "12b4221859532842b90e0de4e54c9ef930e122c005fd28a889d6da58c56e3a6f.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "13270adf84eb37f540e65fd1cab3a6f4f56f5489c6bba7552a0157747eab7995",
+   "size": 6686197,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:mp42",
+    "c:isobmff",
+    "ctts",
+    "moov-end",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "13270adf84eb37f540e65fd1cab3a6f4f56f5489c6bba7552a0157747eab7995.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "134407049e758e9787180410c1a531fdb6a21facbd488612996e91b4f2e0bd95",
+   "size": 40089416,
+   "ext": "mp4",
+   "tags": [
+    "brand:iso5",
+    "c:isobmff",
+    "elst",
+    "elst-bframe-delay",
+    "frag-sidx",
+    "fragmented",
+    "moov-front",
+    "sidx",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "134407049e758e9787180410c1a531fdb6a21facbd488612996e91b4f2e0bd95.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "156797c6e68c8ab6d2ab90e8b757a09432418eb914093b464e11feb3300188a2",
+   "size": 353277721,
+   "ext": "mp4",
+   "tags": [
+    "a:pcm_s16be",
+    "brand:mp42",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-front",
+    "pcm",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "156797c6e68c8ab6d2ab90e8b757a09432418eb914093b464e11feb3300188a2.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "1572496fb7cb6da1f0a7fca22a9315826a43f0363c07e5cc3c274e396688039a",
+   "size": 12122127,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "1572496fb7cb6da1f0a7fca22a9315826a43f0363c07e5cc3c274e396688039a.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "159026542ddb0c1b5f075fec4bcbf35ee6b4210b287f78ec4ece3a3f0838e149",
+   "size": 29951395,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "159026542ddb0c1b5f075fec4bcbf35ee6b4210b287f78ec4ece3a3f0838e149.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "1734f2047a709e16652eae478ba9b2ed4835a568e00783793b0a398014cd0e48",
+   "size": 11189116,
+   "ext": "mp4",
+   "tags": [
+    "brand:dash",
+    "c:isobmff",
+    "frag-sidx",
+    "fragmented",
+    "moov-front",
+    "sidx",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "1734f2047a709e16652eae478ba9b2ed4835a568e00783793b0a398014cd0e48.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "191c0743c2c45515262e8ac3c85fc3c2a274350213bb521171395a12c5b0cd79",
+   "size": 1523038,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "191c0743c2c45515262e8ac3c85fc3c2a274350213bb521171395a12c5b0cd79.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "1ca019f01bba403c9862226d7894ff570f97872504762ec1f32dda62417a3dc2",
+   "size": 553469453,
+   "ext": "mov",
+   "tags": [
+    "a:pcm_s16be",
+    "brand:qt",
+    "c:isobmff",
+    "ctts",
+    "d:tmcd",
+    "elst",
+    "elst-bframe-delay",
+    "moov-front",
+    "pcm",
+    "quicktime",
+    "timecode",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "1ca019f01bba403c9862226d7894ff570f97872504762ec1f32dda62417a3dc2.mov",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "1ce3933e3009bf2e9426121996f67ecc3379141bf2f392b37ac443276c55a154",
+   "size": 70292915,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:mp42",
+    "c:isobmff",
+    "elst",
+    "elst-empty-edit",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "1ce3933e3009bf2e9426121996f67ecc3379141bf2f392b37ac443276c55a154.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "1ced309b3617c62e64e5a9ce1bd93827ab53704fe57080492e5f5ffeaf9169e7",
+   "size": 110568798,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:mp42",
+    "c:isobmff",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "1ced309b3617c62e64e5a9ce1bd93827ab53704fe57080492e5f5ffeaf9169e7.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "1cf53b5ad7a206796d7e90caf0a510a68edf909f2573bd9821ffb893e9cd58c1",
+   "size": 72381,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "1cf53b5ad7a206796d7e90caf0a510a68edf909f2573bd9821ffb893e9cd58c1.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "1d4b1775d78adf71a4c28bb60fed18e2c9962d141157f995b1dc1dd04dc0709a",
+   "size": 1914571,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "1d4b1775d78adf71a4c28bb60fed18e2c9962d141157f995b1dc1dd04dc0709a.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "1e571d9f092025bfbf888881550fe7d2ce2ef75004ac1ac64137b54519134cb5",
+   "size": 209728,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "1e571d9f092025bfbf888881550fe7d2ce2ef75004ac1ac64137b54519134cb5.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "1eb64d25bbb95c757a959483993a5e0b08f9799c902d2e17936b33a13a6dd6aa",
+   "size": 752329,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "elst-empty-edit",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "1eb64d25bbb95c757a959483993a5e0b08f9799c902d2e17936b33a13a6dd6aa.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "1eb8178a12fac1f24446a2b1545ca1a33924fe49569b0062553d12fce03ba010",
+   "size": 819316,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "1eb8178a12fac1f24446a2b1545ca1a33924fe49569b0062553d12fce03ba010.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "21269a3d3763bc606bf313aa29c5037e7bc0a0fd28e0d7e3d3b48c2432df52f7",
+   "size": 117291876,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "cover-art",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "long-30min",
+    "moov-end",
+    "s:mov_text",
+    "subtitle-track",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "21269a3d3763bc606bf313aa29c5037e7bc0a0fd28e0d7e3d3b48c2432df52f7.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "23dcaea79ebf51cff621100359d55ef01fe1e75315818e1e46a6e1356e7db68c",
+   "size": 3090020,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "elst-empty-edit",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "23dcaea79ebf51cff621100359d55ef01fe1e75315818e1e46a6e1356e7db68c.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "23ed13b2623b2583adb4e19523ed6daa5e4477743d053c357632037d59268ec8",
+   "size": 3473912,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:mp42",
+    "c:isobmff",
+    "moov-front",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "23ed13b2623b2583adb4e19523ed6daa5e4477743d053c357632037d59268ec8.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "25c852bc7dae794f5e7594070b25631a790c417c930987f23a1621d1948ce8a6",
+   "size": 838805,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "25c852bc7dae794f5e7594070b25631a790c417c930987f23a1621d1948ce8a6.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "278dbf5a63bbff447dcd18868ec31e927ef79f4e8ec9da5333ad0fcfb39ee579",
+   "size": 2824728,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "elst-empty-edit",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "278dbf5a63bbff447dcd18868ec31e927ef79f4e8ec9da5333ad0fcfb39ee579.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "27cc96c986d4318322013a73eb1495248535cf090e292a278ddaf31296f1a12a",
+   "size": 213117468,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "elst",
+    "moov-end",
+    "v:hevc"
+   ],
+   "holdout": true,
+   "key": "27cc96c986d4318322013a73eb1495248535cf090e292a278ddaf31296f1a12a.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "2a0b317b8f1f40af9def717f777a42941b77e1d199b22ed736f5b628ed6ddc3b",
+   "size": 2718897,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "elst-empty-edit",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "2a0b317b8f1f40af9def717f777a42941b77e1d199b22ed736f5b628ed6ddc3b.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "2af89703ae91f048a833a432662f2f434ba56981c48da82373005bde5a80f09e",
+   "size": 89157110,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "2af89703ae91f048a833a432662f2f434ba56981c48da82373005bde5a80f09e.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "2b42d40aa3287b9a8f0cf3d1ee62cbb22d142ef49022ed0afdb1a15b4369b805",
+   "size": 51107902,
+   "ext": "mov",
+   "tags": [
+    "a:aac",
+    "brand:qt",
+    "c:isobmff",
+    "moov-front",
+    "quicktime",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "2b42d40aa3287b9a8f0cf3d1ee62cbb22d142ef49022ed0afdb1a15b4369b805.mov",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "2bc6b07151be2f843031e53dc6bc36146b1daa8f500884fe71d1ebc9e5657ad3",
+   "size": 7094767,
+   "ext": "mov",
+   "tags": [
+    "10bit+",
+    "a:aac",
+    "brand:qt",
+    "c:isobmff",
+    "ctts",
+    "ctts-negative",
+    "dolby-vision",
+    "dv-profile-8",
+    "elst",
+    "hdr-hlg",
+    "moov-end",
+    "qt-sound-v1",
+    "quicktime",
+    "rotation",
+    "rotation-270",
+    "tkhd-transform",
+    "v:hevc"
+   ],
+   "holdout": true,
+   "key": "2bc6b07151be2f843031e53dc6bc36146b1daa8f500884fe71d1ebc9e5657ad3.mov",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "2d782d2c8918b5ae6005550e2ac25f62ada0395314277919d7f5ad4ec8579c9c",
+   "size": 779566,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "2d782d2c8918b5ae6005550e2ac25f62ada0395314277919d7f5ad4ec8579c9c.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "2fc20d0afd5e4fe3c1c6bbb34ee0ca5776afa21cc9985ef78c3fed8f7da10e24",
+   "size": 4839106,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "elst",
+    "elst-bframe-delay",
+    "frag-sidx",
+    "fragmented",
+    "mfra",
+    "moov-front",
+    "sidx",
+    "v:hevc"
+   ],
+   "holdout": true,
+   "key": "2fc20d0afd5e4fe3c1c6bbb34ee0ca5776afa21cc9985ef78c3fed8f7da10e24.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "30386c4521562740935ee3de01d9312ecc2f2fde027f0908f3eaf633f9fb5e94",
+   "size": 13162210,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "30386c4521562740935ee3de01d9312ecc2f2fde027f0908f3eaf633f9fb5e94.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "3056b45192163ba8d54425d0b08980e0d0e43944d09d71e352ce9bd95ca0e243",
+   "size": 11390796,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "3056b45192163ba8d54425d0b08980e0d0e43944d09d71e352ce9bd95ca0e243.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "3166511391d15ca6e68a1a89962b11a46c39a442c679a0282e78223d6b4c284d",
+   "size": 781320,
+   "ext": "mov",
+   "tags": [
+    "brand:qt",
+    "c:isobmff",
+    "ctts",
+    "ctts-negative",
+    "elst",
+    "elst-bframe-delay",
+    "moov-end",
+    "quicktime",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "3166511391d15ca6e68a1a89962b11a46c39a442c679a0282e78223d6b4c284d.mov",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "32fb46173bf85ee3ead4f04235cfbc4ef1506b436e08d5c6a90e18d7d96a18b1",
+   "size": 112669070,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "32fb46173bf85ee3ead4f04235cfbc4ef1506b436e08d5c6a90e18d7d96a18b1.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "334602b1b17e16ea60abb9f7f13a579b9cefdb8b148b0d4c9418167f53144909",
+   "size": 339904,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "334602b1b17e16ea60abb9f7f13a579b9cefdb8b148b0d4c9418167f53144909.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "337bd9eabe090a8be2ad9d1354ed02094bd2e95f8c3a189cb6f220819a8c7a43",
+   "size": 35561365,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "cmaf",
+    "elst",
+    "elst-bframe-delay",
+    "encrypted",
+    "ffprobe-warn",
+    "frag-sidx",
+    "fragmented",
+    "moov-front",
+    "sidx",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "337bd9eabe090a8be2ad9d1354ed02094bd2e95f8c3a189cb6f220819a8c7a43.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "33bb37c84018a095531cc70787eddd2d5bbb1e3fdafb1621533ed58a5026e7cd",
+   "size": 259751121,
+   "ext": "mov",
+   "tags": [
+    "a:aac",
+    "brand:qt",
+    "c:isobmff",
+    "elst",
+    "moov-front",
+    "qt-sound-v1",
+    "quicktime",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "33bb37c84018a095531cc70787eddd2d5bbb1e3fdafb1621533ed58a5026e7cd.mov",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "34d85724a454646139b10d9bb096c0ad23b2f56596a0808b42394a4777b3e846",
+   "size": 13864060,
+   "ext": "mov",
+   "tags": [
+    "brand:qt",
+    "c:isobmff",
+    "ctts",
+    "ctts-negative",
+    "elst",
+    "elst-bframe-delay",
+    "moov-end",
+    "quicktime",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "34d85724a454646139b10d9bb096c0ad23b2f56596a0808b42394a4777b3e846.mov",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "35757bdf512bbfadd9399818f47dbc506b93895cc947afe597e33b4d6e430a57",
+   "size": 2153626,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "35757bdf512bbfadd9399818f47dbc506b93895cc947afe597e33b4d6e430a57.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "35e1d682c52d6ff58e029616017be10da3d3bace6c1d84cf44f627d2234edfc9",
+   "size": 16332970,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "35e1d682c52d6ff58e029616017be10da3d3bace6c1d84cf44f627d2234edfc9.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "361c7102160a88064d3bec18244909ca34e71fa2fab6bbb5330e0206442ae859",
+   "size": 623883,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "361c7102160a88064d3bec18244909ca34e71fa2fab6bbb5330e0206442ae859.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "3637f155f6d08104db7eeedb3e0e253796fae21955e8d84fbcfa54d36266f004",
+   "size": 308773409,
+   "ext": "mp4",
+   "tags": [
+    "10bit+",
+    "brand:iso4",
+    "c:isobmff",
+    "moov-front",
+    "v:av1"
+   ],
+   "holdout": true,
+   "key": "3637f155f6d08104db7eeedb3e0e253796fae21955e8d84fbcfa54d36266f004.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "36501d448eaafdf08946573f412778a387d42637081674cca195c933d01150d5",
+   "size": 272383719,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "d:tmcd",
+    "elst",
+    "elst-audio-priming",
+    "moov-end",
+    "timecode",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "36501d448eaafdf08946573f412778a387d42637081674cca195c933d01150d5.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "37fe6d70a7e9bd4e48256ef3967537de1b18ba9c56647e31b72ec15dd60a2f45",
+   "size": 3638149,
+   "ext": "mp4",
+   "tags": [
+    "brand:mp42",
+    "c:isobmff",
+    "moov-end",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "37fe6d70a7e9bd4e48256ef3967537de1b18ba9c56647e31b72ec15dd60a2f45.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "38251b609c80b3c7f47b124ff971de3131a7f49a6ae80749c84e139254406987",
+   "size": 2202977,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "38251b609c80b3c7f47b124ff971de3131a7f49a6ae80749c84e139254406987.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "3868df8d409ba639151ac2610f0008f7a716646f3a2fc084db17bb4b16b6d773",
+   "size": 2612987022,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:mp41",
+    "c:isobmff",
+    "chapters",
+    "d:bin_data",
+    "d:fdsc",
+    "d:tmcd",
+    "elst",
+    "large-2gb",
+    "moov-end",
+    "telemetry",
+    "telemetry-gpmf",
+    "timecode",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "3868df8d409ba639151ac2610f0008f7a716646f3a2fc084db17bb4b16b6d773.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "38874159cbcb73a4f9878101c8b1c23e3f2c85ced6e6c82b7d9361a35e6dc462",
+   "size": 29433984,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:mp42",
+    "c:isobmff",
+    "moov-end",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "38874159cbcb73a4f9878101c8b1c23e3f2c85ced6e6c82b7d9361a35e6dc462.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "38db6381ee6e76b7eee3200addaa65f04eb08397156dc49961e9e56dcc04c353",
+   "size": 7035919,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "38db6381ee6e76b7eee3200addaa65f04eb08397156dc49961e9e56dcc04c353.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "3a4f6c218052c7d62f9ba6dd88ae7d8b448c2ffb9d06aef22d04bb77262df057",
+   "size": 62648,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "3a4f6c218052c7d62f9ba6dd88ae7d8b448c2ffb9d06aef22d04bb77262df057.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "3ad4de8879fdaa84fc7bbb40a4945961737ee656a9e8ce73eddfe94538e22564",
+   "size": 100706691,
+   "ext": "mp4",
+   "tags": [
+    "a:pcm_s16be",
+    "brand:XAVC",
+    "c:isobmff",
+    "ctts",
+    "d:rtmd",
+    "elst",
+    "elst-bframe-delay",
+    "moov-end",
+    "pcm",
+    "telemetry",
+    "telemetry-sony-rtmd",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "3ad4de8879fdaa84fc7bbb40a4945961737ee656a9e8ce73eddfe94538e22564.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "3b1b441e23ae416e1725a00c548b6d91d13e35c3de5e1ccd47987ed366642d0a",
+   "size": 313671,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "3b1b441e23ae416e1725a00c548b6d91d13e35c3de5e1ccd47987ed366642d0a.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "3c258c1e79dc300c933d6e4c1e469b19567e379cc8d96360e933c996a3b849f3",
+   "size": 12286414,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "3c258c1e79dc300c933d6e4c1e469b19567e379cc8d96360e933c996a3b849f3.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "3c331ca6a971a1d7305f511437dd8acfc397eb79c3bfdf7b9f5476165ce5d662",
+   "size": 4121129,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "3c331ca6a971a1d7305f511437dd8acfc397eb79c3bfdf7b9f5476165ce5d662.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "3c593b8f08090e3ec246178c34737d11569330d75df8225e3ee08036c6a04d0b",
+   "size": 4434912,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:mp41",
+    "c:isobmff",
+    "d:bin_data",
+    "d:fdsc",
+    "d:tmcd",
+    "elst",
+    "gopro-udta-gpmf",
+    "moov-end",
+    "telemetry",
+    "telemetry-gpmf",
+    "timecode",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "3c593b8f08090e3ec246178c34737d11569330d75df8225e3ee08036c6a04d0b.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "3cb8e439a6a26f3eb699679f5c26234ffc8a711c314a76140a1c1d94716870eb",
+   "size": 1221516,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "3cb8e439a6a26f3eb699679f5c26234ffc8a711c314a76140a1c1d94716870eb.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "3d57935583e0d05af19afcffa0dab5df39c740927c27bf4b0dcefe50df9c5c42",
+   "size": 878608200,
+   "ext": "mov",
+   "tags": [
+    "a:pcm_s16le",
+    "brand:qt",
+    "c:isobmff",
+    "ctts",
+    "d:tmcd",
+    "elst",
+    "moov-front",
+    "pcm",
+    "quicktime",
+    "timecode",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "3d57935583e0d05af19afcffa0dab5df39c740927c27bf4b0dcefe50df9c5c42.mov",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "3d96497c472605c1c433ee9a5c97adca198f4d6085c45b711215a2b7cbe24590",
+   "size": 3002991,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "3d96497c472605c1c433ee9a5c97adca198f4d6085c45b711215a2b7cbe24590.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "3dd99edd49a8b70b58b957ac18032a919dfe94c2669619b4f5df60827dc72cf8",
+   "size": 3378094,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "3dd99edd49a8b70b58b957ac18032a919dfe94c2669619b4f5df60827dc72cf8.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "3e2baf38a44500dc99f17a344b2b15ed5ddc6b46516cb0b183cf2434979b3348",
+   "size": 8868014,
+   "ext": "mp4",
+   "tags": [
+    "brand:mp42",
+    "c:isobmff",
+    "elst",
+    "moov-end",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "3e2baf38a44500dc99f17a344b2b15ed5ddc6b46516cb0b183cf2434979b3348.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "3e3704d5c273d1defc86925dd46944a6220e925a0b8568875417833173af2974",
+   "size": 108205,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "3e3704d5c273d1defc86925dd46944a6220e925a0b8568875417833173af2974.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "3faf6fdb5c7913f80f2b9bafbdedd440c2ad40038dedd0e3de92f01645f67c81",
+   "size": 668967,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "3faf6fdb5c7913f80f2b9bafbdedd440c2ad40038dedd0e3de92f01645f67c81.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "41b46f4232ec19180031a8d27ae7c657afa43610653ab40a48fb0b10251495d4",
+   "size": 1164840,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:mp42",
+    "c:isobmff",
+    "elst",
+    "elst-empty-edit",
+    "moov-front",
+    "rotation",
+    "rotation-270",
+    "tkhd-transform",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "41b46f4232ec19180031a8d27ae7c657afa43610653ab40a48fb0b10251495d4.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "42c027ccd4432583bdafe5db212ed7faeb3864a8e27c3943d2d75421c9ddcff3",
+   "size": 7725988,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:mp42",
+    "c:isobmff",
+    "moov-end",
+    "v:hevc",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "42c027ccd4432583bdafe5db212ed7faeb3864a8e27c3943d2d75421c9ddcff3.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "435753994ffe6289ee48861b9d2643f7d2f11aec43db2208478cb2b85c67580e",
+   "size": 188238,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "435753994ffe6289ee48861b9d2643f7d2f11aec43db2208478cb2b85c67580e.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "43cbe66ab8e239d5cb8325d109f8853d6a2d10c981a1e20164ceb157f7292ee1",
+   "size": 3552152,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "43cbe66ab8e239d5cb8325d109f8853d6a2d10c981a1e20164ceb157f7292ee1.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "4576f8d60206b7a20620f1d6ebe0efe00b808c2c98f97340991e71f0b25d7b1f",
+   "size": 715852835,
+   "ext": "mp4",
+   "tags": [
+    "10bit+",
+    "brand:iso6",
+    "c:isobmff",
+    "encrypted",
+    "frag-sidx",
+    "fragmented",
+    "moov-front",
+    "sidx",
+    "v:av1"
+   ],
+   "holdout": true,
+   "key": "4576f8d60206b7a20620f1d6ebe0efe00b808c2c98f97340991e71f0b25d7b1f.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "45a370237fec0538930bc359c7997e1d8f5d380afd1b3496ec7e1469557baca2",
+   "size": 3389047,
+   "ext": "mov",
+   "tags": [
+    "a:aac",
+    "brand:qt",
+    "c:isobmff",
+    "ctts",
+    "ctts-negative",
+    "elst",
+    "elst-audio-priming",
+    "moov-end",
+    "qt-sound-v1",
+    "quicktime",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "45a370237fec0538930bc359c7997e1d8f5d380afd1b3496ec7e1469557baca2.mov",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "46ae8d18914ebe9eaaa0c2f0e5c9daf30e7def229614d6f01c380d773deb92e6",
+   "size": 41380,
+   "ext": "mp4",
+   "tags": [
+    "brand:mp42",
+    "c:isobmff",
+    "d:mett",
+    "moov-front",
+    "telemetry",
+    "telemetry-mett",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "46ae8d18914ebe9eaaa0c2f0e5c9daf30e7def229614d6f01c380d773deb92e6.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "4762d0d77ce6c09371032e0c6b4dbda8ad781237b5264829857eefeed7a3b40a",
+   "size": 729482878,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "4762d0d77ce6c09371032e0c6b4dbda8ad781237b5264829857eefeed7a3b40a.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "48fbe3ae081e06844c11609383e43aff9987ee9058b766691535c6047cab2a70",
+   "size": 118008,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "48fbe3ae081e06844c11609383e43aff9987ee9058b766691535c6047cab2a70.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "49378e1708d28395bf93d86b3c319073d0b8ea02612a2de17800f6f6d14108b5",
+   "size": 280190,
+   "ext": "mp4",
+   "tags": [
+    "brand:mp42",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "49378e1708d28395bf93d86b3c319073d0b8ea02612a2de17800f6f6d14108b5.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "49892f84af5e2a4550da54d4cda719300917c14b75e19f00540bd3d346f19ece",
+   "size": 7764554,
+   "ext": "mp4",
+   "tags": [
+    "brand:mp42",
+    "c:isobmff",
+    "moov-end",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "49892f84af5e2a4550da54d4cda719300917c14b75e19f00540bd3d346f19ece.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "4b61f9a9cab9a5875e1bac2a2e5f72908023e619a40253974a7f9d1dca90d3fa",
+   "size": 687800,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "4b61f9a9cab9a5875e1bac2a2e5f72908023e619a40253974a7f9d1dca90d3fa.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "4badd052bbd4db8fd7b8668ae9cb495b1afb24b020b611a95e766cea786ef510",
+   "size": 931460996,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:mp42",
+    "c:isobmff",
+    "cover-art",
+    "ctts",
+    "long-30min",
+    "moov-front",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "4badd052bbd4db8fd7b8668ae9cb495b1afb24b020b611a95e766cea786ef510.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "4c82d16e50375fc4b928dea19dfc6f46bfe8864c48a136e1ca3f0ee55b04a5d9",
+   "size": 10152344,
+   "ext": "mov",
+   "tags": [
+    "brand:qt",
+    "c:isobmff",
+    "elst",
+    "moov-end",
+    "quicktime",
+    "rotation",
+    "rotation-270",
+    "tkhd-transform",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "4c82d16e50375fc4b928dea19dfc6f46bfe8864c48a136e1ca3f0ee55b04a5d9.mov",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "4cfdd9846b9d57382b71ad7bd595785852afba870eee1c71facd5197935b439d",
+   "size": 282963572,
+   "ext": "mov",
+   "tags": [
+    "10bit+",
+    "a:pcm_s24be",
+    "brand:qt",
+    "c:isobmff",
+    "ctts",
+    "d:tmcd",
+    "elst",
+    "elst-bframe-delay",
+    "moov-front",
+    "pcm",
+    "qt-sound-v2",
+    "quicktime",
+    "timecode",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "4cfdd9846b9d57382b71ad7bd595785852afba870eee1c71facd5197935b439d.mov",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "4d9717b4616b53eb34a821ebe829a531a38bbbb9e1964353ffd6d4666db08fc0",
+   "size": 1725253616,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:mp42",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "4d9717b4616b53eb34a821ebe829a531a38bbbb9e1964353ffd6d4666db08fc0.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "4dd83564f9764bc379af85cfc9dc083f63859af01fa7116df8eb0e1373e905dd",
+   "size": 1470921,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "elst-empty-edit",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "4dd83564f9764bc379af85cfc9dc083f63859af01fa7116df8eb0e1373e905dd.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "534c71e0fc90fbd8abc44f3c7fc3dc41c2a0067d86e782b0843313d0e9e13df3",
+   "size": 1541810,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "534c71e0fc90fbd8abc44f3c7fc3dc41c2a0067d86e782b0843313d0e9e13df3.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "54b6f8a3007310925fab25b8733a0356d971504e07f860a7aaf21b9411f1d005",
+   "size": 42673741,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:mp42",
+    "c:isobmff",
+    "moov-end",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "54b6f8a3007310925fab25b8733a0356d971504e07f860a7aaf21b9411f1d005.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "56d1f1ca0dbd4dff59d823365b95562b928d82130ddfd471147e2d9856a8bd2a",
+   "size": 4510028,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "56d1f1ca0dbd4dff59d823365b95562b928d82130ddfd471147e2d9856a8bd2a.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "58115ce2a9b0f9d682b73457f3b7fc30d6d2ef97248a301697d9718e941373fb",
+   "size": 11189116,
+   "ext": "mp4",
+   "tags": [
+    "brand:dash",
+    "c:isobmff",
+    "frag-sidx",
+    "fragmented",
+    "moov-front",
+    "sidx",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "58115ce2a9b0f9d682b73457f3b7fc30d6d2ef97248a301697d9718e941373fb.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "59e406a181c593d544506d2947ff0dfa4d144d95b1ae8d23a155c2fb728aa784",
+   "size": 7783118,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:mp42",
+    "c:isobmff",
+    "moov-end",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "59e406a181c593d544506d2947ff0dfa4d144d95b1ae8d23a155c2fb728aa784.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "5de2646e4ea095572a3a22fc1fba65f3899ce7180259e27e46e6c61f4220b4f4",
+   "size": 2333237,
+   "ext": "mov",
+   "tags": [
+    "brand:qt",
+    "c:isobmff",
+    "ctts",
+    "ctts-negative",
+    "elst",
+    "elst-multi-edit",
+    "moov-end",
+    "quicktime",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "5de2646e4ea095572a3a22fc1fba65f3899ce7180259e27e46e6c61f4220b4f4.mov",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "601616d12ef6faa8fc70392b14fb5bb1dc763fb6e1a55f332d4c988ac2651258",
+   "size": 13570834,
+   "ext": "mov",
+   "tags": [
+    "a:aac",
+    "brand:qt",
+    "c:isobmff",
+    "elst",
+    "moov-front",
+    "qt-sound-v1",
+    "quicktime",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "601616d12ef6faa8fc70392b14fb5bb1dc763fb6e1a55f332d4c988ac2651258.mov",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "60470b3b046e4c93eda853a44a320f54b7fdd5cde83e618fbc266a4f5a09936d",
+   "size": 3167845,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "60470b3b046e4c93eda853a44a320f54b7fdd5cde83e618fbc266a4f5a09936d.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "6153ce096ca3b5b338cea15eaba5b95fc49d0058e0dab5c3ad711660472d7010",
+   "size": 3075956509,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "elst",
+    "large-2gb",
+    "moov-end",
+    "v:hevc"
+   ],
+   "holdout": true,
+   "key": "6153ce096ca3b5b338cea15eaba5b95fc49d0058e0dab5c3ad711660472d7010.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "6203fe9b14f76b9e421a521f9e504016f6e12f8aa922be851a168dd5e89180fd",
+   "size": 6035451,
+   "ext": "mov",
+   "tags": [
+    "brand:qt",
+    "c:isobmff",
+    "elst",
+    "moov-end",
+    "quicktime",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "6203fe9b14f76b9e421a521f9e504016f6e12f8aa922be851a168dd5e89180fd.mov",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "62865d107a0a7cf120436ad7c2c5f58dc03bd3779d6339dbbaed0a5ccc890c67",
+   "size": 4486592,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:hevc"
+   ],
+   "holdout": true,
+   "key": "62865d107a0a7cf120436ad7c2c5f58dc03bd3779d6339dbbaed0a5ccc890c67.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "66956dab227a19e968f1433c311d69aec14cdf4bf6653c96b6e9e7e008620d16",
+   "size": 2774878,
+   "ext": "mov",
+   "tags": [
+    "a:aac",
+    "brand:qt",
+    "c:isobmff",
+    "d:mebx",
+    "elst",
+    "elst-audio-priming",
+    "moov-end",
+    "qt-sound-v1",
+    "quicktime",
+    "telemetry",
+    "telemetry-mebx",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "66956dab227a19e968f1433c311d69aec14cdf4bf6653c96b6e9e7e008620d16.mov",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "68199a250bd297e4342626969ad89203193500a5b03f5beea9e6467984e5f52a",
+   "size": 62819599,
+   "ext": "mp4",
+   "tags": [
+    "brand:mp42",
+    "c:isobmff",
+    "moov-end",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "68199a250bd297e4342626969ad89203193500a5b03f5beea9e6467984e5f52a.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "6bdb639cb95a5dfc3d9e39f7661663a085b32bc3f45bd999c4da7f554700caf4",
+   "size": 2807881,
+   "ext": "mp4",
+   "tags": [
+    "brand:mp42",
+    "c:isobmff",
+    "moov-front",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "6bdb639cb95a5dfc3d9e39f7661663a085b32bc3f45bd999c4da7f554700caf4.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "6cd0235c8e715502ae62734b980e0b03d7b6316f8bc722e376a605a301aa452f",
+   "size": 467208,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "6cd0235c8e715502ae62734b980e0b03d7b6316f8bc722e376a605a301aa452f.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "6da34958296ce9ea24836525656ac86aeae99e31ca555102dafba4b6297b09c7",
+   "size": 253775828,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:mp42",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "6da34958296ce9ea24836525656ac86aeae99e31ca555102dafba4b6297b09c7.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "6dd78289bdbcd7b2b016f48cc4d0f1987120acddaf6b2fb9198f18bd6ffc5447",
+   "size": 63469864,
+   "ext": "mp4",
+   "tags": [
+    "10bit+",
+    "brand:iso4",
+    "c:isobmff",
+    "encrypted",
+    "moov-front",
+    "v:av1"
+   ],
+   "holdout": true,
+   "key": "6dd78289bdbcd7b2b016f48cc4d0f1987120acddaf6b2fb9198f18bd6ffc5447.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "6e90422a670a4743dd3eb31adee9597aae2b72a39db0f8f2c27a3c3a0faf4b54",
+   "size": 129343473,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:XFVC",
+    "c:isobmff",
+    "ctts",
+    "d:cndm",
+    "d:tmcd",
+    "elst",
+    "elst-bframe-delay",
+    "moov-front",
+    "timecode",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "6e90422a670a4743dd3eb31adee9597aae2b72a39db0f8f2c27a3c3a0faf4b54.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "6f77997684139e91dedc7d01d5bccda96f4582bd96db0f4b2ca2a5af31f368bc",
+   "size": 122790057,
+   "ext": "mp4",
+   "tags": [
+    "brand:iso6",
+    "c:isobmff",
+    "frag-sidx",
+    "fragmented",
+    "moov-front",
+    "sidx",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "6f77997684139e91dedc7d01d5bccda96f4582bd96db0f4b2ca2a5af31f368bc.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "6ff38d7898997a90c3668683fc56e60353d9eb169a9299670196a33413a29de8",
+   "size": 5883744,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:mp42",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "6ff38d7898997a90c3668683fc56e60353d9eb169a9299670196a33413a29de8.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "72b48c0cfb140d09f1f74a892b54a2ca385e76f385bbc05d8b06aa1053f34e92",
+   "size": 46564607,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:hevc"
+   ],
+   "holdout": true,
+   "key": "72b48c0cfb140d09f1f74a892b54a2ca385e76f385bbc05d8b06aa1053f34e92.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "750498df470c358285b95adccbf683f38c8c6be14efd2cc2de219cf7046e23d2",
+   "size": 34663531,
+   "ext": "mp4",
+   "tags": [
+    "10bit+",
+    "brand:iso6",
+    "c:isobmff",
+    "encrypted",
+    "frag-sidx",
+    "fragmented",
+    "moov-front",
+    "sidx",
+    "v:av1"
+   ],
+   "holdout": true,
+   "key": "750498df470c358285b95adccbf683f38c8c6be14efd2cc2de219cf7046e23d2.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "76fcaeed63b299e486da3c31b447d31e7b7771261da4831f14a1dca11538fbce",
+   "size": 92704,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "76fcaeed63b299e486da3c31b447d31e7b7771261da4831f14a1dca11538fbce.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "79cd390e1d1b6eff515d0a2b5ee0e098dfd0d8551226c63552f92ac9a4565019",
+   "size": 152171926,
+   "ext": "mp4",
+   "tags": [
+    "brand:mp42",
+    "c:isobmff",
+    "frag-no-sidx",
+    "fragmented",
+    "moov-front",
+    "s:eia_608",
+    "subtitle-track",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "79cd390e1d1b6eff515d0a2b5ee0e098dfd0d8551226c63552f92ac9a4565019.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "7a580ff996e115d3fffa4adaa74ced6b34875fc8583534e3a12372557a530ce4",
+   "size": 12705366,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "7a580ff996e115d3fffa4adaa74ced6b34875fc8583534e3a12372557a530ce4.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "7b35e358c062c9a19c765ed27220887ef3d1d7239a95568f82ca459a6e806f2c",
+   "size": 747519,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "7b35e358c062c9a19c765ed27220887ef3d1d7239a95568f82ca459a6e806f2c.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "7bafabaa2573084f426f2b5e51c7ff991660c09a37d13b4e4618b7ff0219c48d",
+   "size": 14892217,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "7bafabaa2573084f426f2b5e51c7ff991660c09a37d13b4e4618b7ff0219c48d.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "7bc5160efe32df5725bab7486434755c8feeff5d6769a17b4a41ff7f994db04a",
+   "size": 392323816,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "elst",
+    "moov-end",
+    "v:av1"
+   ],
+   "holdout": true,
+   "key": "7bc5160efe32df5725bab7486434755c8feeff5d6769a17b4a41ff7f994db04a.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "7d55a2d1f068b9d33b163335f27ebbb8168facd03ed2dddb799250dcbfaa696e",
+   "size": 6031416,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:mp42",
+    "c:isobmff",
+    "moov-front",
+    "rotation",
+    "rotation-270",
+    "tkhd-transform",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "7d55a2d1f068b9d33b163335f27ebbb8168facd03ed2dddb799250dcbfaa696e.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "7e2b3b6de3b615e4e4bdc49bc01e30d0aaa9f1010de7c0376ad64aae9b425b9e",
+   "size": 104434,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "7e2b3b6de3b615e4e4bdc49bc01e30d0aaa9f1010de7c0376ad64aae9b425b9e.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "7fe8bc0411cbd9c38b1cd85bb6368aefcabe74c4681bca9a297f82fd758f464d",
+   "size": 598335,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "7fe8bc0411cbd9c38b1cd85bb6368aefcabe74c4681bca9a297f82fd758f464d.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "803c466fbf34963704aa17f8bd2773417a257a44b2d69f128f63f5715e6733de",
+   "size": 13069833,
+   "ext": "mp4",
+   "tags": [
+    "10bit+",
+    "brand:iso6",
+    "c:isobmff",
+    "encrypted",
+    "frag-sidx",
+    "fragmented",
+    "moov-front",
+    "sidx",
+    "v:av1"
+   ],
+   "holdout": true,
+   "key": "803c466fbf34963704aa17f8bd2773417a257a44b2d69f128f63f5715e6733de.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "80de36e15263dbf439c3b84dadfc52f30a781c61b0555ea0a0438f209a062e1e",
+   "size": 163414979,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "80de36e15263dbf439c3b84dadfc52f30a781c61b0555ea0a0438f209a062e1e.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "80e4369197cc233f3bc4d2b86bfa1fd0ad4c4c861797308ee8f7f40481ebcf29",
+   "size": 3457084,
+   "ext": "mp4",
+   "tags": [
+    "10bit+",
+    "brand:iso4",
+    "c:isobmff",
+    "moov-front",
+    "v:av1"
+   ],
+   "holdout": true,
+   "key": "80e4369197cc233f3bc4d2b86bfa1fd0ad4c4c861797308ee8f7f40481ebcf29.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "82500616c7ee6698bc13fa7acf3174fceedc7e557d8aa221394f4cae555028e5",
+   "size": 7011848,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "elst",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "82500616c7ee6698bc13fa7acf3174fceedc7e557d8aa221394f4cae555028e5.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "826271bd3799c3ef02884a93c65dd2a1437e2f2c12836fb69a4eeb25c093122c",
+   "size": 173095,
+   "ext": "mp4",
+   "tags": [
+    "brand:dash",
+    "c:isobmff",
+    "frag-sidx",
+    "fragmented",
+    "moov-front",
+    "sidx",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "826271bd3799c3ef02884a93c65dd2a1437e2f2c12836fb69a4eeb25c093122c.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "83111bb754cd88892daccb847f4a45975380e40fbe322c2d9530fc505ad23057",
+   "size": 492872601,
+   "ext": "mov",
+   "tags": [
+    "10bit+",
+    "a:pcm_s16be",
+    "brand:qt",
+    "c:isobmff",
+    "d:tmcd",
+    "elst",
+    "moov-front",
+    "pcm",
+    "quicktime",
+    "timecode",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "83111bb754cd88892daccb847f4a45975380e40fbe322c2d9530fc505ad23057.mov",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "84aebc4e370ef9081f9015bf310d7a858d431258f6b0f2160d731c4308249c67",
+   "size": 8878253,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:mp41",
+    "c:isobmff",
+    "d:bin_data",
+    "d:fdsc",
+    "d:tmcd",
+    "elst",
+    "gopro-udta-gpmf",
+    "moov-end",
+    "telemetry",
+    "telemetry-gpmf",
+    "timecode",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "84aebc4e370ef9081f9015bf310d7a858d431258f6b0f2160d731c4308249c67.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "8720085bd6c2698abccca00669f4fcd66447c46d4b8e3863b071544b0786c867",
+   "size": 4557028,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "elst",
+    "elst-bframe-delay",
+    "frag-sidx",
+    "fragmented",
+    "mfra",
+    "moov-front",
+    "sidx",
+    "v:hevc"
+   ],
+   "holdout": true,
+   "key": "8720085bd6c2698abccca00669f4fcd66447c46d4b8e3863b071544b0786c867.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "8748f58bbd0650662c8f682cc9793a751ed8a45177cb402e0f54acdbd2a0f3b4",
+   "size": 1084700,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "8748f58bbd0650662c8f682cc9793a751ed8a45177cb402e0f54acdbd2a0f3b4.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "8754f59f19d5004c663bc3f0a8438394e32b02a9f4668b1e2f2314e2e2c39c6c",
+   "size": 83205422,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:mp42",
+    "c:isobmff",
+    "elst",
+    "elst-empty-edit",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "8754f59f19d5004c663bc3f0a8438394e32b02a9f4668b1e2f2314e2e2c39c6c.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "8c5370bec6b7bbacb4b49cd2503a0d2443f9103ca96bac86c6e801fc2ce444c8",
+   "size": 17262928,
+   "ext": "mp4",
+   "tags": [
+    "brand:mp41",
+    "c:isobmff",
+    "d:bin_data",
+    "d:tmcd",
+    "elst",
+    "gopro-udta-gpmf",
+    "moov-end",
+    "telemetry",
+    "telemetry-gpmf",
+    "timecode",
+    "v:hevc"
+   ],
+   "holdout": true,
+   "key": "8c5370bec6b7bbacb4b49cd2503a0d2443f9103ca96bac86c6e801fc2ce444c8.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "8ca1a5e672f74d4dc1878340e69fc3fa8012cc7424380115327649d6cfa66d8c",
+   "size": 3151639071,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "elst",
+    "large-2gb",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "8ca1a5e672f74d4dc1878340e69fc3fa8012cc7424380115327649d6cfa66d8c.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "8d78eeaf2f396f1b090b86e068e04247ed81f3008bfda6f6cd08c1a715917d77",
+   "size": 511735,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "8d78eeaf2f396f1b090b86e068e04247ed81f3008bfda6f6cd08c1a715917d77.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "8e978a8e57831aa362c1e6e7609d76c9334330537776b4fc15d4613c2f49dc04",
+   "size": 250873,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "8e978a8e57831aa362c1e6e7609d76c9334330537776b4fc15d4613c2f49dc04.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "90542f14946c5e4ddc191fd27e2914d3bac898cb948f54eb6d8d9e4b40fe8406",
+   "size": 373255486,
+   "ext": "mp4",
+   "tags": [
+    "a:mp3",
+    "brand:isom",
+    "c:isobmff",
+    "elst",
+    "elst-empty-edit",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "90542f14946c5e4ddc191fd27e2914d3bac898cb948f54eb6d8d9e4b40fe8406.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "90b0977a1df468599d4c8dac7b0c87c2c1fc55e5583f8c491afe631465647293",
+   "size": 12276350,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "90b0977a1df468599d4c8dac7b0c87c2c1fc55e5583f8c491afe631465647293.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "9346b5a10a3d5625cc7e45aa6d527ba2d150a3586008b1256c940e689583e27e",
+   "size": 12249661,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "9346b5a10a3d5625cc7e45aa6d527ba2d150a3586008b1256c940e689583e27e.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "93e504108e73414d0f9d9526e76027de1bea8cc6417b31421fd5d8e281bb7f46",
+   "size": 9000669,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:mp42",
+    "c:isobmff",
+    "moov-end",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "93e504108e73414d0f9d9526e76027de1bea8cc6417b31421fd5d8e281bb7f46.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "956b1aa8ad3491e6657cdf4e5249d6d8ff0b73750b7c1603774d40042733ece1",
+   "size": 910926,
+   "ext": "mov",
+   "tags": [
+    "brand:qt",
+    "c:isobmff",
+    "ctts",
+    "ctts-negative",
+    "elst",
+    "moov-end",
+    "quicktime",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "956b1aa8ad3491e6657cdf4e5249d6d8ff0b73750b7c1603774d40042733ece1.mov",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "959f4062b7ed4f1ca64ee76df665ff8361bdcb609248f29f2215e42f0edc5ba3",
+   "size": 599409,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "959f4062b7ed4f1ca64ee76df665ff8361bdcb609248f29f2215e42f0edc5ba3.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "960107bfd6395121d7f53ea3fb07c714461e5dced8936350a61395a28c149e46",
+   "size": 9980960,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:mp42",
+    "c:isobmff",
+    "moov-end",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "960107bfd6395121d7f53ea3fb07c714461e5dced8936350a61395a28c149e46.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "963acf0dfd5c7e8e4c59effca2b34225c589abc7ec86da21a80edab001f8a907",
+   "size": 2716379,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "963acf0dfd5c7e8e4c59effca2b34225c589abc7ec86da21a80edab001f8a907.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "969358700a919fa8cf4c2bf7b7c17b19b06a57ed23b1682bf4973921f6627305",
+   "size": 34433958,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:hevc",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "969358700a919fa8cf4c2bf7b7c17b19b06a57ed23b1682bf4973921f6627305.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "96ace08a4d61878cfb7cc8b850b7f5aa7ba304de45017eaf832ccd3d52893130",
+   "size": 491245034,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "96ace08a4d61878cfb7cc8b850b7f5aa7ba304de45017eaf832ccd3d52893130.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "97e505324e0e870eee5ab522077fb5e292db3862f676a2a0717060ea77db5f02",
+   "size": 1416014,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "97e505324e0e870eee5ab522077fb5e292db3862f676a2a0717060ea77db5f02.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "985b8bc697a545f242034fb7c253f4ee95c7dbc407539d7d2f19500701184aa0",
+   "size": 16640014,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "985b8bc697a545f242034fb7c253f4ee95c7dbc407539d7d2f19500701184aa0.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "996a306a36f9c9be0fa5fc1edd8926614c57f6781088300da4d704cc4a3bd2bc",
+   "size": 8335335,
+   "ext": "mp4",
+   "tags": [
+    "10bit+",
+    "brand:iso4",
+    "c:isobmff",
+    "moov-front",
+    "v:av1"
+   ],
+   "holdout": true,
+   "key": "996a306a36f9c9be0fa5fc1edd8926614c57f6781088300da4d704cc4a3bd2bc.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "9b0aa1e5ff4ed1fd5cae240d06be7c875e72183dfcfc3f5c6538da91131bc7ad",
+   "size": 174286,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "9b0aa1e5ff4ed1fd5cae240d06be7c875e72183dfcfc3f5c6538da91131bc7ad.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "9b192e2d5c963f66f167f3fc9b90a659b2fe0edf51dcd8afc3a9ba19d57140e1",
+   "size": 201369,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "9b192e2d5c963f66f167f3fc9b90a659b2fe0edf51dcd8afc3a9ba19d57140e1.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "9c375bf9d067485231e9c7dcbae37091e0190dc148604a290d32820ca083e72a",
+   "size": 2009477,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "9c375bf9d067485231e9c7dcbae37091e0190dc148604a290d32820ca083e72a.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "9cafaa018ca6708871508ef16af93176c5debc779c85f4cfa57d089b1cdcad2d",
+   "size": 1387129954,
+   "ext": "mp4",
+   "tags": [
+    "brand:iso6",
+    "c:isobmff",
+    "elst",
+    "elst-bframe-delay",
+    "encrypted",
+    "ffprobe-warn",
+    "frag-sidx",
+    "fragmented",
+    "moov-front",
+    "sidx",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "9cafaa018ca6708871508ef16af93176c5debc779c85f4cfa57d089b1cdcad2d.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "9db41aa16b5a3ed72236482c84089c66fbdb95b876a6a408fccdd870cc37b444",
+   "size": 150482312,
+   "ext": "mp4",
+   "tags": [
+    "brand:mp42",
+    "c:isobmff",
+    "frag-no-sidx",
+    "fragmented",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "9db41aa16b5a3ed72236482c84089c66fbdb95b876a6a408fccdd870cc37b444.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "9e3a1adccdc35594a518a0566aac638da929aa7651f473786e6ea44cd9687813",
+   "size": 5253880,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "elst",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "9e3a1adccdc35594a518a0566aac638da929aa7651f473786e6ea44cd9687813.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "a0b54eb67683f6836bca0eb476ff9713ca8b3300024873e90454ad9a1a0b0319",
+   "size": 391780352,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:mp42",
+    "c:isobmff",
+    "d:tmcd",
+    "elst",
+    "moov-front",
+    "timecode",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "a0b54eb67683f6836bca0eb476ff9713ca8b3300024873e90454ad9a1a0b0319.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "a0d40995df6681a19d5c41caa43095d246dcabeb8f124afc0b4b9fdc87e721b4",
+   "size": 968790605,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "elst",
+    "moov-end",
+    "v:hevc"
+   ],
+   "holdout": true,
+   "key": "a0d40995df6681a19d5c41caa43095d246dcabeb8f124afc0b4b9fdc87e721b4.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "a257fb5b1708ca5dc8c7b06ba7639f4beca63cee2bff0c6dcfad564454611a6e",
+   "size": 602101072,
+   "ext": "mov",
+   "tags": [
+    "10bit+",
+    "a:pcm_s24be",
+    "brand:qt",
+    "c:isobmff",
+    "d:tmcd",
+    "elst",
+    "moov-front",
+    "pcm",
+    "qt-sound-v2",
+    "quicktime",
+    "timecode",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "a257fb5b1708ca5dc8c7b06ba7639f4beca63cee2bff0c6dcfad564454611a6e.mov",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "a2d42b1894824798256e9d11571c5caedef39f7455f64b741aa704b3a18da946",
+   "size": 36079699,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "cmaf",
+    "elst",
+    "elst-bframe-delay",
+    "frag-sidx",
+    "fragmented",
+    "moov-front",
+    "sidx",
+    "v:hevc"
+   ],
+   "holdout": true,
+   "key": "a2d42b1894824798256e9d11571c5caedef39f7455f64b741aa704b3a18da946.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "a41c4c3edec116096d7657064459e140d032ad6b1e75fbf973fa8b1ca6502de3",
+   "size": 190535,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "a41c4c3edec116096d7657064459e140d032ad6b1e75fbf973fa8b1ca6502de3.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "a576e38516d5fb7d099c0962db9b081cdd489e51022369303eb5f23b6cf84edf",
+   "size": 186960353,
+   "ext": "mp4",
+   "tags": [
+    "a:pcm_s16be",
+    "brand:mp42",
+    "c:isobmff",
+    "ctts",
+    "d:tmcd",
+    "elst",
+    "elst-bframe-delay",
+    "moov-front",
+    "pcm",
+    "timecode",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "a576e38516d5fb7d099c0962db9b081cdd489e51022369303eb5f23b6cf84edf.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "a648a26938466fbf7d57f62b75365b31361797d98d44f0cf805082918b4ff62d",
+   "size": 11891022,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "a648a26938466fbf7d57f62b75365b31361797d98d44f0cf805082918b4ff62d.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "a77cad3da1f13e00a6985aa04197941b787e9efdc1942119b29b9e1c0e58567e",
+   "size": 203796,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "a77cad3da1f13e00a6985aa04197941b787e9efdc1942119b29b9e1c0e58567e.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "a81de82106bec6a97d0b1af68f54ef529b70b1472bb719b27a1e3a0bb7fee0c5",
+   "size": 9744971,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:mp42",
+    "c:isobmff",
+    "ctts",
+    "moov-end",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "a81de82106bec6a97d0b1af68f54ef529b70b1472bb719b27a1e3a0bb7fee0c5.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "a83fe12516c8035e8aca701830740f010a76a3a9e752b42ec791b956bbb22d3f",
+   "size": 148687,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "a83fe12516c8035e8aca701830740f010a76a3a9e752b42ec791b956bbb22d3f.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "a863882fceb269be0caaea7abf88d7cb2671c444ad565faebcae0a43ad3bec46",
+   "size": 5069541,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "a863882fceb269be0caaea7abf88d7cb2671c444ad565faebcae0a43ad3bec46.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "a8a6e6c5f8f64186b20d0a33da3ac5d4009df49a67fa461eb579facfe20b5feb",
+   "size": 9282039,
+   "ext": "mp4",
+   "tags": [
+    "brand:iso6",
+    "c:isobmff",
+    "encrypted",
+    "ffprobe-warn",
+    "frag-sidx",
+    "fragmented",
+    "moov-front",
+    "sidx",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "a8a6e6c5f8f64186b20d0a33da3ac5d4009df49a67fa461eb579facfe20b5feb.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "a99822bc33668c0b6efc7d8a9f283314bb1e9bc13bb2768401dec4539c1c699c",
+   "size": 205961,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "a99822bc33668c0b6efc7d8a9f283314bb1e9bc13bb2768401dec4539c1c699c.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "a9b1e81dc8f4e3e11b6fae60c396a493ffafd1289de625d2671e1b4f9f98fdd2",
+   "size": 1236651,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "a9b1e81dc8f4e3e11b6fae60c396a493ffafd1289de625d2671e1b4f9f98fdd2.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "abcbb2a796b80f530278657be6e9ba42764501a0b27478dfa5d3ad6796650afb",
+   "size": 13948431,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "abcbb2a796b80f530278657be6e9ba42764501a0b27478dfa5d3ad6796650afb.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "ac8f060d22805895527ded8d746bb45cd51ac251852e185a6bc7e2014f65cd23",
+   "size": 3188897214,
+   "ext": "mov",
+   "tags": [
+    "c:isobmff",
+    "elst",
+    "large-2gb",
+    "moov-end",
+    "no-ftyp",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "ac8f060d22805895527ded8d746bb45cd51ac251852e185a6bc7e2014f65cd23.mov",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "ae16bb7c7192c88ddf7d9823ce4a0993f37d109667d150e1ef7652b6ac4975e9",
+   "size": 901503,
+   "ext": "mov",
+   "tags": [
+    "a:aac",
+    "brand:qt",
+    "c:isobmff",
+    "ctts",
+    "ctts-negative",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "qt-sound-v1",
+    "quicktime",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "ae16bb7c7192c88ddf7d9823ce4a0993f37d109667d150e1ef7652b6ac4975e9.mov",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "ae6d7c2eecef52b4ff329be8a7f19b65110fc7a6033c5f44604f46f47e49d14e",
+   "size": 192393,
+   "ext": "mov",
+   "tags": [
+    "brand:qt",
+    "c:isobmff",
+    "ctts",
+    "ctts-negative",
+    "elst",
+    "moov-front",
+    "quicktime",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "ae6d7c2eecef52b4ff329be8a7f19b65110fc7a6033c5f44604f46f47e49d14e.mov",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "b052a82f87bd6859d143a65e8ae954e7f6132a763400ff64929bd658d115dec3",
+   "size": 26289938,
+   "ext": "mp4",
+   "tags": [
+    "brand:iso6",
+    "c:isobmff",
+    "elst",
+    "elst-bframe-delay",
+    "encrypted",
+    "ffprobe-warn",
+    "frag-sidx",
+    "fragmented",
+    "moov-front",
+    "sidx",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "b052a82f87bd6859d143a65e8ae954e7f6132a763400ff64929bd658d115dec3.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "b1275e3ef93975a9eafce34d6d27e674ac2308ad37054b9f1a6f5d34b51e0b72",
+   "size": 1115402,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "b1275e3ef93975a9eafce34d6d27e674ac2308ad37054b9f1a6f5d34b51e0b72.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "b216304e28b050a6b124be8af41f37d5ac13588dd27559f9503d48a2337d7af8",
+   "size": 393322290,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:mp42",
+    "c:isobmff",
+    "ctts",
+    "d:mp4s",
+    "elst",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "b216304e28b050a6b124be8af41f37d5ac13588dd27559f9503d48a2337d7af8.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "b2b2cb830c078931c8be48ecd20f92c611c0627b3ccb306160193dfc33f7ff55",
+   "size": 29971224,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "elst",
+    "moov-front",
+    "v:av1"
+   ],
+   "holdout": true,
+   "key": "b2b2cb830c078931c8be48ecd20f92c611c0627b3ccb306160193dfc33f7ff55.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "b37f01c830aef3a3a757f7f30ea90238791420992985ae5575b3baa9a21a49c4",
+   "size": 524841,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "elst-empty-edit",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "b37f01c830aef3a3a757f7f30ea90238791420992985ae5575b3baa9a21a49c4.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "b41f70a7fa60e8e2ccf4183b30afb3e41dfa241f97edc71e1c632ade9a08153c",
+   "size": 74974824,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "b41f70a7fa60e8e2ccf4183b30afb3e41dfa241f97edc71e1c632ade9a08153c.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "b442e93b16680895c289134a85644afdb6119d322c53d068e164d5cf26bf7441",
+   "size": 3377882,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "b442e93b16680895c289134a85644afdb6119d322c53d068e164d5cf26bf7441.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "b466502e8b41cb1abd96942c3e985082813875adeeea57837771e660c6c75296",
+   "size": 88672,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "elst-empty-edit",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "b466502e8b41cb1abd96942c3e985082813875adeeea57837771e660c6c75296.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "b4bcfe059c46088b0dc9ae9553ce5a9275c93025ef8e7da998dbc29a61992e8e",
+   "size": 11537518,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "cmaf",
+    "encrypted",
+    "frag-sidx",
+    "fragmented",
+    "moov-front",
+    "multi-stsd",
+    "sidx",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "b4bcfe059c46088b0dc9ae9553ce5a9275c93025ef8e7da998dbc29a61992e8e.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "b5b858bc390503ebf545190fab4a1fe2080f1197cdceb92e550a3e21619dad90",
+   "size": 1223018,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "b5b858bc390503ebf545190fab4a1fe2080f1197cdceb92e550a3e21619dad90.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "b651437854df3208ab027876d7c92d57ff0eff187caae96db98928aa98ce1bac",
+   "size": 155951,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "b651437854df3208ab027876d7c92d57ff0eff187caae96db98928aa98ce1bac.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "b6caba06287640c28d7e07795312141da99b8d40367c145e4783ce77275dbdb3",
+   "size": 545528784,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "long-30min",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "b6caba06287640c28d7e07795312141da99b8d40367c145e4783ce77275dbdb3.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "b7c67b1580b479e9e9fb05199fc8bf20ad039cae2f0a1fdf0e6544d7515d5dea",
+   "size": 2126121,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "b7c67b1580b479e9e9fb05199fc8bf20ad039cae2f0a1fdf0e6544d7515d5dea.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "b7d3b1abff64fbbaa5c709b4b8d4136de246cf1a27ae7f17a2118573b812040c",
+   "size": 3302214074,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "elst-empty-edit",
+    "large-2gb",
+    "long-30min",
+    "moov-end",
+    "s:mov_text",
+    "subtitle-track",
+    "v:hevc",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "b7d3b1abff64fbbaa5c709b4b8d4136de246cf1a27ae7f17a2118573b812040c.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "b83854abf2389fa2859077c750df311dbbaa9b2fbe810bd5090f85438fab0a83",
+   "size": 339998,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "b83854abf2389fa2859077c750df311dbbaa9b2fbe810bd5090f85438fab0a83.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "be3d52dd4de17e10d68ce681bb1af8db0e00c2d24b61b329e6dfb5e9df636186",
+   "size": 47783,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "elst",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "be3d52dd4de17e10d68ce681bb1af8db0e00c2d24b61b329e6dfb5e9df636186.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "be60172deef2e6ae6130ad32cea86765a002b23f4197f9164726656d46d3c69a",
+   "size": 21238999,
+   "ext": "mov",
+   "tags": [
+    "a:aac",
+    "brand:qt",
+    "c:isobmff",
+    "cover-art",
+    "ctts",
+    "ctts-negative",
+    "elst",
+    "moov-end",
+    "qt-sound-v1",
+    "quicktime",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "be60172deef2e6ae6130ad32cea86765a002b23f4197f9164726656d46d3c69a.mov",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "becff2c3b6a2f228c65d8286a54143b22973e70cc54c75a0d18664a75a71269f",
+   "size": 5445188,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "becff2c3b6a2f228c65d8286a54143b22973e70cc54c75a0d18664a75a71269f.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "bf7e73909ddf7c78498c556085f82506f22e220698a071ecdbdabb85868f745d",
+   "size": 4882803,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "elst",
+    "moov-end",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "bf7e73909ddf7c78498c556085f82506f22e220698a071ecdbdabb85868f745d.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "c1efb800f19e6329326fbcc2ad2f4c63d07e5b9d48aadfd8fcf370889f31e930",
+   "size": 4387134,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:mp42",
+    "c:isobmff",
+    "elst",
+    "elst-empty-edit",
+    "moov-end",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "c1efb800f19e6329326fbcc2ad2f4c63d07e5b9d48aadfd8fcf370889f31e930.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "c2a9a25397e89fceafb7b2d9fbd3b853cafdbe8eba1de7bd8ea4aeebc9c3cb64",
+   "size": 22984108,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "elst",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "c2a9a25397e89fceafb7b2d9fbd3b853cafdbe8eba1de7bd8ea4aeebc9c3cb64.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "c2c99564b931fe3ad13d6ecfd8fbdfb680a88f3ace640cf056d1326e60c1e748",
+   "size": 364473,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "elst-empty-edit",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "c2c99564b931fe3ad13d6ecfd8fbdfb680a88f3ace640cf056d1326e60c1e748.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "c2fffbc6a7eb1244e87cf22f98023866e7b0ca3934e3b318f0d2f7bd7a1f7588",
+   "size": 207320,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "c2fffbc6a7eb1244e87cf22f98023866e7b0ca3934e3b318f0d2f7bd7a1f7588.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "c39b69673584f45853c0f1ff59b14632ca9462b5fee8231854881efc3dcf31c8",
+   "size": 28613399,
+   "ext": "mov",
+   "tags": [
+    "a:aac",
+    "brand:qt",
+    "c:isobmff",
+    "ctts",
+    "ctts-negative",
+    "d:mebx",
+    "elst",
+    "elst-audio-priming",
+    "moov-end",
+    "qt-sound-v1",
+    "quicktime",
+    "rotation",
+    "rotation-270",
+    "telemetry",
+    "telemetry-mebx",
+    "tkhd-transform",
+    "v:hevc"
+   ],
+   "holdout": true,
+   "key": "c39b69673584f45853c0f1ff59b14632ca9462b5fee8231854881efc3dcf31c8.mov",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "c53fda51f1fd80be448252740c3cd3d1849bf2892ec2802f99f959953069ce1d",
+   "size": 2567210,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "ctts-negative",
+    "moov-end",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "c53fda51f1fd80be448252740c3cd3d1849bf2892ec2802f99f959953069ce1d.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "c65e4a92ddca3f57e946d2de7ce6fa1c516e122c375906168f20c1569aaf7fe1",
+   "size": 1882374,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "c65e4a92ddca3f57e946d2de7ce6fa1c516e122c375906168f20c1569aaf7fe1.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "c69c53f0fe37b49a0b6868874955b681bde4b5b63baefa8ac503b08a709b6552",
+   "size": 9057021,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "elst",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "c69c53f0fe37b49a0b6868874955b681bde4b5b63baefa8ac503b08a709b6552.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "c72a2355953e1c3ad45027685e89f14c63b89a08dcce777d61002e062485b6c6",
+   "size": 281030,
+   "ext": "3gp",
+   "tags": [
+    "3gpp",
+    "a:amr_nb",
+    "brand:3gp6",
+    "c:isobmff",
+    "elst",
+    "elst-audio-priming",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "c72a2355953e1c3ad45027685e89f14c63b89a08dcce777d61002e062485b6c6.3gp",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "c994d0607cc5df4432fb48f827075f6badacf80f6f92b0ea99c319e5bfed50ee",
+   "size": 520132778,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "elst",
+    "long-30min",
+    "moov-front",
+    "v:av1"
+   ],
+   "holdout": true,
+   "key": "c994d0607cc5df4432fb48f827075f6badacf80f6f92b0ea99c319e5bfed50ee.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "cad9ebb9145c585d7e97d0e184ebe9422c47c0fa7d5ddb9f9dacc7ef3008c6af",
+   "size": 1437662,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "cad9ebb9145c585d7e97d0e184ebe9422c47c0fa7d5ddb9f9dacc7ef3008c6af.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "cb7cdbe9be1122f6f9f25019377e1eacc0ef671d6836c13ab934c9b8f5c22cad",
+   "size": 4409124,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:mp41",
+    "c:isobmff",
+    "d:bin_data",
+    "d:fdsc",
+    "d:tmcd",
+    "elst",
+    "gopro-udta-gpmf",
+    "moov-end",
+    "telemetry",
+    "telemetry-gpmf",
+    "timecode",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "cb7cdbe9be1122f6f9f25019377e1eacc0ef671d6836c13ab934c9b8f5c22cad.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "cbbae341505c0e645cb9361696d2ffae0575585030b2b82267f59f5758b37e8b",
+   "size": 19266132,
+   "ext": "mov",
+   "tags": [
+    "brand:qt",
+    "c:isobmff",
+    "ctts",
+    "ctts-negative",
+    "elst",
+    "moov-front",
+    "quicktime",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "cbbae341505c0e645cb9361696d2ffae0575585030b2b82267f59f5758b37e8b.mov",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "cc359926f07daf30ca397f29463cc1a60dd3923524ded8f95dc218359806e563",
+   "size": 521516957,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "elst",
+    "long-30min",
+    "moov-front",
+    "v:av1"
+   ],
+   "holdout": true,
+   "key": "cc359926f07daf30ca397f29463cc1a60dd3923524ded8f95dc218359806e563.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "cd8fda3e2bf19cb120ac6dc6b740b44669bbe546becdd4c39e74fac74f7992dc",
+   "size": 1880891361,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "elst",
+    "moov-end",
+    "v:hevc"
+   ],
+   "holdout": true,
+   "key": "cd8fda3e2bf19cb120ac6dc6b740b44669bbe546becdd4c39e74fac74f7992dc.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "cebfd4e00980db9a1d8d58c62b64ce0fb002edfc046ebe0dceabb91f93e1fc1a",
+   "size": 13081924,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "cebfd4e00980db9a1d8d58c62b64ce0fb002edfc046ebe0dceabb91f93e1fc1a.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "cf73416d950f8ab85143908b5b6f87e00021bc0944b7152b382296704cfa82b5",
+   "size": 2702261,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:mp42",
+    "c:isobmff",
+    "elst",
+    "elst-empty-edit",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "cf73416d950f8ab85143908b5b6f87e00021bc0944b7152b382296704cfa82b5.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "d235e3b9a4a84047316011a353cfac7cbc57f0a6b0ef74b4eba2badf1d4e7f85",
+   "size": 2503524,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "d235e3b9a4a84047316011a353cfac7cbc57f0a6b0ef74b4eba2badf1d4e7f85.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "d4d0cacfe7ff5ae8b76217b5153bcb7d9de598e7c06bcf54d8d557c5fcbd083c",
+   "size": 1099113,
+   "ext": "mp4",
+   "tags": [
+    "a:mp3",
+    "brand:mp42",
+    "c:isobmff",
+    "elst",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "d4d0cacfe7ff5ae8b76217b5153bcb7d9de598e7c06bcf54d8d557c5fcbd083c.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "d4e8cc76b778ad60163bf715c7aa0e8e0bbfebbbfbc21b4639ceae936b4d435b",
+   "size": 5379386,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "elst",
+    "elst-bframe-delay",
+    "frag-sidx",
+    "fragmented",
+    "mfra",
+    "moov-front",
+    "sidx",
+    "v:hevc"
+   ],
+   "holdout": true,
+   "key": "d4e8cc76b778ad60163bf715c7aa0e8e0bbfebbbfbc21b4639ceae936b4d435b.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "d56594fb1f838874b28ce0d00b447d86fff64ceb17eb5f104635bb91732fdff0",
+   "size": 17768977,
+   "ext": "m4v",
+   "tags": [
+    "a:aac",
+    "brand:M4V",
+    "c:isobmff",
+    "d:mp4s",
+    "elst",
+    "elst-empty-edit",
+    "moov-front",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "d56594fb1f838874b28ce0d00b447d86fff64ceb17eb5f104635bb91732fdff0.m4v",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "d58a8827fedf0867364d7ee4f70863dfc4817d9d25d72f7e756a162f2dcc0502",
+   "size": 1358801,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "elst",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "d58a8827fedf0867364d7ee4f70863dfc4817d9d25d72f7e756a162f2dcc0502.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "d5a424e2396fc5a95fb8b26ec890e15cafbab94e74261a6b95fa7a3c6b30bd4f",
+   "size": 4273397,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "elst",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "d5a424e2396fc5a95fb8b26ec890e15cafbab94e74261a6b95fa7a3c6b30bd4f.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "d5f5e327142f3530df242e84d681e38be38d64a5c25edf4ba2d54e988baaae02",
+   "size": 22080225,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:hevc",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "d5f5e327142f3530df242e84d681e38be38d64a5c25edf4ba2d54e988baaae02.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "d6ec1aac818d39400a32ca1ea9e57787a14a5e4d9d2e064000a25da9752ce627",
+   "size": 45563595,
+   "ext": "mp4",
+   "tags": [
+    "10bit+",
+    "brand:iso6",
+    "c:isobmff",
+    "cmaf",
+    "frag-sidx",
+    "fragmented",
+    "hdr-hlg",
+    "moov-front",
+    "sidx",
+    "v:av1"
+   ],
+   "holdout": true,
+   "key": "d6ec1aac818d39400a32ca1ea9e57787a14a5e4d9d2e064000a25da9752ce627.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "d777177c35c996572d8acb5f41fffc026ba782f0408d40b162bc5570bac9463b",
+   "size": 5559280,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "elst",
+    "moov-end",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "d777177c35c996572d8acb5f41fffc026ba782f0408d40b162bc5570bac9463b.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "d825ea3c7c184101adffe1b37ddef7c3fa922d5c2fff0814c6f9b6b4e253c381",
+   "size": 382597632,
+   "ext": "mov",
+   "tags": [
+    "10bit+",
+    "brand:qt",
+    "c:isobmff",
+    "d:tmcd",
+    "elst",
+    "moov-front",
+    "quicktime",
+    "timecode",
+    "v:hevc"
+   ],
+   "holdout": true,
+   "key": "d825ea3c7c184101adffe1b37ddef7c3fa922d5c2fff0814c6f9b6b4e253c381.mov",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "d8abe4dfa32f5ab643596584106f677e3cea1731e3d6a771495ea2b4c4054c42",
+   "size": 12208498,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "d8abe4dfa32f5ab643596584106f677e3cea1731e3d6a771495ea2b4c4054c42.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "d9ab22f96e5ecff8df3e862b6fd32534819217ece5e5fe49102ac271a4e40dc6",
+   "size": 14269961,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "elst",
+    "moov-end",
+    "v:av1"
+   ],
+   "holdout": true,
+   "key": "d9ab22f96e5ecff8df3e862b6fd32534819217ece5e5fe49102ac271a4e40dc6.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "daa6cceda28e632f09e5faac917b4fd13fbf30560ca931fee2916ec02e450573",
+   "size": 318971,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "elst",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "daa6cceda28e632f09e5faac917b4fd13fbf30560ca931fee2916ec02e450573.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "db214e0d4b36810420c9b48a76701e957252c3c6b22cde1020be19440ed02395",
+   "size": 169487,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "db214e0d4b36810420c9b48a76701e957252c3c6b22cde1020be19440ed02395.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "dbd1fcfe2aa5eb185365222c90d4030ed9aeb44173bdb3771247005cadfac58b",
+   "size": 43994048,
+   "ext": "mov",
+   "tags": [
+    "10bit+",
+    "a:pcm_s24be",
+    "brand:qt",
+    "c:isobmff",
+    "d:tmcd",
+    "elst",
+    "moov-front",
+    "multi-audio",
+    "pcm",
+    "qt-sound-v2",
+    "quicktime",
+    "timecode",
+    "v:hevc"
+   ],
+   "holdout": true,
+   "key": "dbd1fcfe2aa5eb185365222c90d4030ed9aeb44173bdb3771247005cadfac58b.mov",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "dcb262cf0138934feae8866f14f7de6d3881d77f29324a3368f5478676eb4640",
+   "size": 10089902,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "cmaf",
+    "elst",
+    "elst-bframe-delay",
+    "frag-sidx",
+    "fragmented",
+    "moov-front",
+    "sidx",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "dcb262cf0138934feae8866f14f7de6d3881d77f29324a3368f5478676eb4640.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "dd2331b4a4590864c8503811d1caf1f77c57fc802d36fe116abd061cec291398",
+   "size": 591265,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:hevc"
+   ],
+   "holdout": true,
+   "key": "dd2331b4a4590864c8503811d1caf1f77c57fc802d36fe116abd061cec291398.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "dd8acda6328dcd4cc0461811ba21536151986c2967dae2016c5c899458a953aa",
+   "size": 521283,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "dd8acda6328dcd4cc0461811ba21536151986c2967dae2016c5c899458a953aa.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "de7348e23632ef363b4ec9516454784fb508209d4747ebc8ff34e7e848c6ac69",
+   "size": 1516367,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:mp42",
+    "c:isobmff",
+    "ctts",
+    "d:mebx",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "elst-empty-edit",
+    "moov-front",
+    "telemetry",
+    "telemetry-mebx",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "de7348e23632ef363b4ec9516454784fb508209d4747ebc8ff34e7e848c6ac69.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "df8ed936654115c234c24dc236e933d8a5eb9399f6509c24dc1bed83bf7a802f",
+   "size": 8765985,
+   "ext": "mp4",
+   "tags": [
+    "10bit+",
+    "brand:iso4",
+    "c:isobmff",
+    "moov-front",
+    "v:av1"
+   ],
+   "holdout": true,
+   "key": "df8ed936654115c234c24dc236e933d8a5eb9399f6509c24dc1bed83bf7a802f.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "dfa90bd34a2e76f8e3a723d8abe6098e563143f64db7bb57af044863fb0f3538",
+   "size": 891934228,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "elst",
+    "moov-end",
+    "v:hevc"
+   ],
+   "holdout": true,
+   "key": "dfa90bd34a2e76f8e3a723d8abe6098e563143f64db7bb57af044863fb0f3538.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "e1674354241c578469b93f9eca8e3e3287a13640c1bc11e0dcd6d2293d7e7f1c",
+   "size": 71054844,
+   "ext": "mp4",
+   "tags": [
+    "10bit+",
+    "brand:iso4",
+    "c:isobmff",
+    "moov-front",
+    "v:av1"
+   ],
+   "holdout": true,
+   "key": "e1674354241c578469b93f9eca8e3e3287a13640c1bc11e0dcd6d2293d7e7f1c.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "e28870f18c6000c67b8de476004e6328932c8db6cae693f44e8d8a691f5151eb",
+   "size": 2113845,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "e28870f18c6000c67b8de476004e6328932c8db6cae693f44e8d8a691f5151eb.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "e2b7ab2d21877133adb7a8fb0a5b8d76cb17d8236e95f26e31e9601f9c0d2427",
+   "size": 8133551,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "e2b7ab2d21877133adb7a8fb0a5b8d76cb17d8236e95f26e31e9601f9c0d2427.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "e2cf69779486b8146ae77dfc26b015a073c630f9dbb510dc053e7686464898f8",
+   "size": 126005799,
+   "ext": "mp4",
+   "tags": [
+    "10bit+",
+    "a:aac",
+    "brand:mp42",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:hevc"
+   ],
+   "holdout": true,
+   "key": "e2cf69779486b8146ae77dfc26b015a073c630f9dbb510dc053e7686464898f8.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "e2df4d50895465d76fcf8e61805a4bb0707bcd3dc48dea2b95e878632f6e6cc8",
+   "size": 399111,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "e2df4d50895465d76fcf8e61805a4bb0707bcd3dc48dea2b95e878632f6e6cc8.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "e4aede53fc3c9caea487a4cb90ccf769d72a10a5201d5c6c447a23d2291554da",
+   "size": 2352796,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "e4aede53fc3c9caea487a4cb90ccf769d72a10a5201d5c6c447a23d2291554da.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "e5715db399f55d16449b37a1c95ccfa822f3096d179ca06a271875a242a850c1",
+   "size": 1368023,
+   "ext": "mov",
+   "tags": [
+    "a:aac",
+    "brand:qt",
+    "c:isobmff",
+    "ctts",
+    "ctts-negative",
+    "d:mebx",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "qt-sound-v1",
+    "quicktime",
+    "rotation",
+    "rotation-270",
+    "telemetry",
+    "telemetry-mebx",
+    "tkhd-transform",
+    "v:hevc",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "e5715db399f55d16449b37a1c95ccfa822f3096d179ca06a271875a242a850c1.mov",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "e810f0c2af3902d90fde14dc044918d722982b7edc9a25339fa6c0eb9285864e",
+   "size": 32709903,
+   "ext": "mov",
+   "tags": [
+    "a:aac",
+    "brand:qt",
+    "c:isobmff",
+    "ctts",
+    "ctts-negative",
+    "d:tmcd",
+    "elst",
+    "elst-audio-priming",
+    "moov-end",
+    "qt-sound-v1",
+    "quicktime",
+    "timecode",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "e810f0c2af3902d90fde14dc044918d722982b7edc9a25339fa6c0eb9285864e.mov",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "e84dd244d0fdf4176794202f705cfa6504741bb75bd04d1c3f7e8a9066bfa1d3",
+   "size": 522399460,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "elst",
+    "long-30min",
+    "moov-front",
+    "v:av1"
+   ],
+   "holdout": true,
+   "key": "e84dd244d0fdf4176794202f705cfa6504741bb75bd04d1c3f7e8a9066bfa1d3.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "e8b7f635109e71cca3dd1601760b74a897635781dc87ebb3f8690ba332b2d213",
+   "size": 47252748,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "e8b7f635109e71cca3dd1601760b74a897635781dc87ebb3f8690ba332b2d213.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "ea7d1d3c22b60ceaf81443b29cd39a7bfc358ec6132c230a74c95b2f4f6c32da",
+   "size": 2848875,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "elst-empty-edit",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "ea7d1d3c22b60ceaf81443b29cd39a7bfc358ec6132c230a74c95b2f4f6c32da.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "ec86d34967467c60e51774d1da10d4defaaa9c1a77ff9766b2f625bd590abc0e",
+   "size": 328998,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "ec86d34967467c60e51774d1da10d4defaaa9c1a77ff9766b2f625bd590abc0e.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "ecfd87966b715cc1ed64fff81b9b8a704a2ba9b281046e05e52900570e8611b2",
+   "size": 1169676,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "elst",
+    "moov-front",
+    "v:av1"
+   ],
+   "holdout": true,
+   "key": "ecfd87966b715cc1ed64fff81b9b8a704a2ba9b281046e05e52900570e8611b2.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "ed2fe662c3f448a012ca34cc91ec42a3a5d049aec7e2fa9cdbbcd64602e60a94",
+   "size": 6565975,
+   "ext": "mp4",
+   "tags": [
+    "brand:mp42",
+    "c:isobmff",
+    "moov-end",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "ed2fe662c3f448a012ca34cc91ec42a3a5d049aec7e2fa9cdbbcd64602e60a94.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "eebcb6418be9c7479243f45b6e56bf631aaa3a8ae867a05a0262533b68c9a0ff",
+   "size": 5891244,
+   "ext": "mp4",
+   "tags": [
+    "brand:mp42",
+    "c:isobmff",
+    "d:mett",
+    "moov-end",
+    "telemetry",
+    "telemetry-mett",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "eebcb6418be9c7479243f45b6e56bf631aaa3a8ae867a05a0262533b68c9a0ff.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "f0cd825c8a304a9023a24e40749fc0debed3a496e02e5d641f060b3aa634f909",
+   "size": 1159226,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "f0cd825c8a304a9023a24e40749fc0debed3a496e02e5d641f060b3aa634f909.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "f0f5920e0951c00ef61bde778d0369ed930d89e5d483d0d130bec0f24cd051a8",
+   "size": 191734,
+   "ext": "mp4",
+   "tags": [
+    "a:mp3",
+    "brand:isom",
+    "c:isobmff",
+    "elst",
+    "elst-empty-edit",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "f0f5920e0951c00ef61bde778d0369ed930d89e5d483d0d130bec0f24cd051a8.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "f17e6ca7efff7da25430ba9e0b86bdd81ffb80265edab13089937fafe9b0a4b0",
+   "size": 1877856,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "f17e6ca7efff7da25430ba9e0b86bdd81ffb80265edab13089937fafe9b0a4b0.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "f2a05e5926d8beb3d066f2b58d5b3e78ab1ce98739be66e54ec25d61c8d74b28",
+   "size": 2854354,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "f2a05e5926d8beb3d066f2b58d5b3e78ab1ce98739be66e54ec25d61c8d74b28.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "f3b10251891bc77e720cca4071e2912b22f432529ef669d1ceb91556615c43df",
+   "size": 31006127,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "cmaf",
+    "elst",
+    "elst-bframe-delay",
+    "encrypted",
+    "frag-sidx",
+    "fragmented",
+    "moov-front",
+    "multi-stsd",
+    "sidx",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "f3b10251891bc77e720cca4071e2912b22f432529ef669d1ceb91556615c43df.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "f3bcb2b66d52fd6c447ec8b8600dc7242e2145e9df99f0555e6c0d008cadadd7",
+   "size": 1088865,
+   "ext": "mp4",
+   "tags": [
+    "brand:mp42",
+    "c:isobmff",
+    "moov-end",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "f3bcb2b66d52fd6c447ec8b8600dc7242e2145e9df99f0555e6c0d008cadadd7.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "f46b208301372f13bc8553c88dc665cf97085756c1835e28037420583366d90d",
+   "size": 21748199,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "elst",
+    "moov-front",
+    "v:av1"
+   ],
+   "holdout": true,
+   "key": "f46b208301372f13bc8553c88dc665cf97085756c1835e28037420583366d90d.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "f487a36e1311860d515abbecae4312c82937ba93933ce3362b0cf4f3a9a286a7",
+   "size": 350383,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "f487a36e1311860d515abbecae4312c82937ba93933ce3362b0cf4f3a9a286a7.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "f58d11857651dad5983c021b56a50a68a6ce19068834c1fb5cac099219fb3a78",
+   "size": 6890970,
+   "ext": "mp4",
+   "tags": [
+    "brand:isom",
+    "c:isobmff",
+    "elst",
+    "long-30min",
+    "moov-end",
+    "v:av1"
+   ],
+   "holdout": true,
+   "key": "f58d11857651dad5983c021b56a50a68a6ce19068834c1fb5cac099219fb3a78.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "f590c38e45c9698ec8b4f1d99030b966f207b98e3fcc833d75af1d6da7ae8280",
+   "size": 794685440,
+   "ext": "mov",
+   "tags": [
+    "10bit+",
+    "brand:qt",
+    "c:isobmff",
+    "d:tmcd",
+    "elst",
+    "moov-front",
+    "quicktime",
+    "timecode",
+    "v:hevc"
+   ],
+   "holdout": true,
+   "key": "f590c38e45c9698ec8b4f1d99030b966f207b98e3fcc833d75af1d6da7ae8280.mov",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "f60de165d10c596ca92816e38b086c6c4776dcbd51d5ccd27cfefa1d8259bda1",
+   "size": 9448678,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:mp42",
+    "c:isobmff",
+    "elst",
+    "elst-empty-edit",
+    "moov-end",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "f60de165d10c596ca92816e38b086c6c4776dcbd51d5ccd27cfefa1d8259bda1.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "f68c654d9ffd8d47eb622f2a136b1569fc13172c7454f630e907b2cecc58ac53",
+   "size": 693038,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "f68c654d9ffd8d47eb622f2a136b1569fc13172c7454f630e907b2cecc58ac53.mp4",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "f6988cf7c8785dcff64ea5d69713f3d252ed8b54d9009eb1508860183d017a48",
+   "size": 45516866,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:mp42",
+    "c:isobmff",
+    "moov-front",
+    "v:h264",
+    "vfr"
+   ],
+   "holdout": true,
+   "key": "f6988cf7c8785dcff64ea5d69713f3d252ed8b54d9009eb1508860183d017a48.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "f9a857996e66a3aafa2f96d5866b8f365525fba4f8a6f2598f64d621ea990e55",
+   "size": 200978355,
+   "ext": "mov",
+   "tags": [
+    "a:pcm_s24le",
+    "brand:qt",
+    "c:isobmff",
+    "elst",
+    "moov-front",
+    "pcm",
+    "qt-sound-v2",
+    "quicktime",
+    "v:hevc"
+   ],
+   "holdout": true,
+   "key": "f9a857996e66a3aafa2f96d5866b8f365525fba4f8a6f2598f64d621ea990e55.mov",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "fb6d507ffc89b95e49273574c423f5cfc30189fc0424db94587f08316b4f769b",
+   "size": 372371980,
+   "ext": "mov",
+   "tags": [
+    "a:pcm_s16be",
+    "brand:qt",
+    "c:isobmff",
+    "elst",
+    "moov-end",
+    "pcm",
+    "qt-sound-v1",
+    "quicktime",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "fb6d507ffc89b95e49273574c423f5cfc30189fc0424db94587f08316b4f769b.mov",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "fcf9d10c6166483cf2d5e9eb7f01c9ab2e837a9190b888641ac71a6e5c4aa236",
+   "size": 292245,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-end",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "fcf9d10c6166483cf2d5e9eb7f01c9ab2e837a9190b888641ac71a6e5c4aa236.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "fe12ba075c4883fdf5d8eadcea335e6df4a8e84626652176de17bf7ac829fce9",
+   "size": 106355712,
+   "ext": "mov",
+   "tags": [
+    "10bit+",
+    "a:pcm_s24le",
+    "brand:qt",
+    "c:isobmff",
+    "d:tmcd",
+    "elst",
+    "moov-front",
+    "pcm",
+    "qt-sound-v2",
+    "quicktime",
+    "timecode",
+    "v:hevc"
+   ],
+   "holdout": true,
+   "key": "fe12ba075c4883fdf5d8eadcea335e6df4a8e84626652176de17bf7ac829fce9.mov",
+   "v1_holdout": true
+  },
+  {
+   "sha256": "fefa6bf48409db631cf23208b69a849f78db961baaf07fa09f3b8cf325cd56dd",
+   "size": 524797,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:isom",
+    "c:isobmff",
+    "ctts",
+    "elst",
+    "elst-audio-priming",
+    "elst-bframe-delay",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "fefa6bf48409db631cf23208b69a849f78db961baaf07fa09f3b8cf325cd56dd.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "ff426e4b779b1327846e1d07dbbdb1da01c2b0df8a2db07fa4186b0b73cb614c",
+   "size": 25341105,
+   "ext": "mp4",
+   "tags": [
+    "a:aac",
+    "brand:mp42",
+    "c:isobmff",
+    "moov-front",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "ff426e4b779b1327846e1d07dbbdb1da01c2b0df8a2db07fa4186b0b73cb614c.mp4",
+   "v1_holdout": false
+  },
+  {
+   "sha256": "ff84167e699d5dd435e86143a47d55835d50f4a56f7fe65ae6358d98c50f5650",
+   "size": 8980545,
+   "ext": "mp4",
+   "tags": [
+    "brand:iso6",
+    "c:isobmff",
+    "frag-sidx",
+    "fragmented",
+    "moov-front",
+    "sidx",
+    "v:h264"
+   ],
+   "holdout": true,
+   "key": "ff84167e699d5dd435e86143a47d55835d50f4a56f7fe65ae6358d98c50f5650.mp4",
+   "v1_holdout": false
+  }
+ ],
+ "counts": {
+  "files": 265,
+  "holdout": 265,
+  "bytes": 39806767479
+ },
+ "salt": "coreav-clip-memory-216"
+}

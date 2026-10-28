@@ -1,0 +1,12 @@
+5185721dda11 base 245313638 pad 254823346 added 9.51M predicted 9.31M ratio 1.021
+  md5 identical d4003fc5a803
+6f7799768413 base 266303265 pad 266625845 added 0.32M predicted 0.32M ratio 1.008
+  md5 identical 9b68df5eb0e1
+9db41aa16b5a base 977145267 pad 989872234 added 12.73M predicted 12.69M ratio 1.003
+  md5 identical 9cd8e7a522bb
+b71b6b31e54f base 538451799 pad 543063392 added 4.61M predicted 4.67M ratio 0.987
+  md5 identical 6c602dc169b6
+ec473c99c538 base 98190830 pad 100034889 added 1.84M predicted 1.88M ratio 0.981
+  md5 identical 5f85612f0f05
+f9e973f44570 base 174252935 pad 186091340 added 11.84M predicted 11.75M ratio 1.008
+  md5 identical 24e4a252b5f3

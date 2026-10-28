@@ -1,0 +1,14 @@
+{
+  "schema": "coreav.policy/1",
+  "name": "transcription",
+  "file": {"max_size": 2147483648},
+  "duration": {"max_seconds": 14400},
+  "streams": {
+    "audio": {"codecs": ["aac", "mp3", "opus", "pcm"], "min_count": 1, "max_channels": 8},
+    "video": {},
+    "subtitle": {},
+    "timecode": {},
+    "data": {},
+    "unidentified": "ignore"
+  }
+}

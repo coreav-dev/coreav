@@ -1,0 +1,22 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2900.0 MHz, 8 logical CPUs
+gate after 0 streams: 0.121 s (+0.0%)
+3b1b441e23ae.0.4k.h264                   base:discard=0.83  base:write=0.76  base:mixed=0.65  k:discard=0.82  k:write=0.75  k:mixed=0.63
+4b54de28c2b3.0.4k.h264                   base:discard=1.19  base:write=1.09  base:mixed=1.02  k:discard=1.17  k:write=1.07  k:mixed=1.01
+81ed4778ece2.0.4k.h264                   base:discard=0.82  base:write=0.73  base:mixed=0.62  k:discard=0.80  k:write=0.71  k:mixed=0.61
+ae16bb7c7192.0.4k.h264                   base:discard=0.98  base:write=0.93  base:mixed=0.80  k:discard=0.95  k:write=0.90  k:mixed=0.78
+gate after 4 streams: 0.120 s (-0.8%)
+af38b0cfd840.0.4k.h264                   base:discard=1.01  base:write=0.98  base:mixed=0.94  k:discard=0.99  k:write=0.96  k:mixed=0.92
+e624cbe0d2be.0.4k.h264                   base:discard=0.97  base:write=0.87  base:mixed=0.75  k:discard=0.95  k:write=0.85  k:mixed=0.73
+ed75c044e944.0.4k.h264                   host fault (attempt 1): null {'base_discard': -0.0002894729958810016, 'base_write': -0.0063217529825895236}, max spread 1.628
+ed75c044e944.0.4k.h264                   base:discard=0.74  base:write=0.68  base:mixed=0.57  k:discard=0.72  k:write=0.67  k:mixed=0.56
+f8d92a911e72.0.4k.h264                   base:discard=1.15  base:write=1.09  base:mixed=1.06  k:discard=1.14  k:write=1.08  k:mixed=1.05
+gate after 8 streams: 0.119 s (-1.5%)
+
+base:discard             n=  8  median 0.975  [0.820, 1.150]
+base:write               n=  8  median 0.902  [0.729, 1.088]
+base:mixed               n=  8  median 0.776  [0.623, 1.022]
+k:discard                n=  8  median 0.950  [0.797, 1.144]
+k:write                  n=  8  median 0.878  [0.711, 1.069]
+k:mixed                  n=  8  median 0.756  [0.606, 1.008]
+
+wrote $HOME/ab/bs-kernel/out/g.4k.json

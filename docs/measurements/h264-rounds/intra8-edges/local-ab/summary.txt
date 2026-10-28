@@ -1,0 +1,5 @@
+# python3 -I sum.py DIR, on run.sh's reports (base fb893fd, k a3e9e9a, one thread pinned to core 2, 6 rounds; this VM, Intel Xeon @ 2.90 GHz, family 6 model 106)
+k/base discard overall n=32 median 0.9991 [0.9955,1.0033] faster 18/32
+  sd 0.9973 720p 1.0040 1080p 0.9998 4k 0.9968
+k/base write overall n=32 median 0.9992 [0.9941,1.0043] faster 17/32
+  sd 1.0043 720p 0.9865 1080p 1.0019 4k 0.9980

@@ -1,0 +1,8 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2900.0 MHz, 8 logical CPUs
+175433794e02.0.1080p.h264                base:discard=1.60  base:write=1.54  base:mixed=1.52  m:discard=1.57  m:write=1.52  m:mixed=1.49  p:discard=1.56  p:write=1.52  p:mixed=1.48  mp:discard=1.55  mp:write=1.51  mp:mixed=1.47
+6da34958296c.0.1080p.h264                base:discard=1.86  base:write=2.00  base:mixed=1.88  m:discard=1.87  m:write=2.03  m:mixed=1.89  p:discard=1.85  p:write=2.02  p:mixed=1.86  mp:discard=1.82  mp:write=1.99  mp:mixed=1.84
+6e90422a670a.0.1080p.h264                base:discard=1.55  base:write=1.52  base:mixed=1.46  m:discard=1.54  m:write=1.51  m:mixed=1.46  p:discard=1.55  p:write=1.52  p:mixed=1.46  mp:discard=1.56  mp:write=1.50  mp:mixed=1.47
+a6af290d9053.0.1080p.h264                base:discard=1.61  base:write=1.58  base:mixed=1.55  m:discard=1.62  m:write=1.59  m:mixed=1.55  p:discard=1.61  p:write=1.58  p:mixed=1.55  mp:discard=1.61  mp:write=1.59  mp:mixed=1.54
+a81de82106be.0.1080p.h264                base:discard=1.33  base:write=1.31  base:mixed=1.21  m:discard=1.34  m:write=1.31  m:mixed=1.22  p:discard=1.33  p:write=1.30  p:mixed=1.21  mp:discard=1.33  mp:write=1.31  mp:mixed=1.21
+b41f70a7fa60.0.1080p.h264                base:discard=1.99  base:write=3.25  base:mixed=3.12  m:discard=1.97  m:write=3.23  m:mixed=3.09  p:discard=1.97  p:write=3.24  p:mixed=3.08  mp:discard=1.94  mp:write=3.17  mp:mixed=3.04
+b71b6b31e54f.0.1080p.h264                base:discard=2.18  base:write=2.04  base:mixed=1.86  m:discard=2.13  m:write=1.98  m:mixed=1.82  p:discard=2.17  p:write=1.98  p:mixed=1.85  mp:discard=2.11  mp:write=1.94  mp:mixed=1.80

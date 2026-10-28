@@ -1,0 +1,15 @@
+[package]
+name = "coreav-text"
+description = "Memory-safe extraction of 3GPP timed text subtitles to WebVTT and of QuickTime chapters from coreav-isobmff sources"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+coreav-isobmff = { path = "../coreav-isobmff" }
+
+[lints]
+workspace = true

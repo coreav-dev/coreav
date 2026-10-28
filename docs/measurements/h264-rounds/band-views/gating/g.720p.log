@@ -1,0 +1,18 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2900.0 MHz, 8 logical CPUs
+1d4b1775d78a.0.720p.h264                 base:discard=1.12  base:write=1.10  base:mixed=1.01  k:discard=1.11  k:write=1.09  k:mixed=1.00
+278dbf5a63bb.0.720p.h264                 base:discard=1.12  base:write=1.10  base:mixed=1.01  k:discard=1.11  k:write=1.09  k:mixed=1.01
+36501d448eaa.0.720p.h264                 base:discard=1.32  base:write=1.28  base:mixed=1.25  k:discard=1.32  k:write=1.28  k:mixed=1.25
+3c593b8f0809.0.720p.h264                 base:discard=1.24  base:write=1.23  base:mixed=1.18  k:discard=1.20  k:write=1.19  k:mixed=1.15
+65ec61f95a00.0.720p.h264                 base:discard=1.14  base:write=1.14  base:mixed=1.04  k:discard=1.18  k:write=1.15  k:mixed=1.07
+6b18d9f0f88d.0.720p.h264                 base:discard=0.91  base:write=0.88  base:mixed=0.77  k:discard=0.93  k:write=0.91  k:mixed=0.78
+76e0b1692494.0.720p.h264                 base:discard=1.17  base:write=1.06  base:mixed=1.00  k:discard=1.14  k:write=1.09  k:mixed=0.97
+9db41aa16b5a.0.720p.h264                 base:discard=1.14  base:write=1.09  base:mixed=1.00  k:discard=1.14  k:write=1.07  k:mixed=1.00
+
+base:discard             n=  8  median 1.141  [1.119, 1.230]
+base:write               n=  8  median 1.098  [1.057, 1.185]
+base:mixed               n=  8  median 1.012  [0.996, 1.130]
+k:discard                n=  8  median 1.139  [1.112, 1.205]
+k:write                  n=  8  median 1.093  [1.067, 1.186]
+k:mixed                  n=  8  median 1.006  [0.975, 1.126]
+
+wrote $HOME/ab/band-views/out/g.720p.json

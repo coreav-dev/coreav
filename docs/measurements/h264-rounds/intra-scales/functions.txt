@@ -1,0 +1,34 @@
+Per-function instruction differences, k (914729f) minus base (fb893fd); callgrind, one thread, --discard, dist builds.
+Columns: k - base, base. Seven largest falls and rises; information.
+
+5185721dda11.0.sd, 90 pictures:
+  -3,929,002   151,230,895 PROGRAM TOTALS
+  -2,202,284    10,628,935 ???:<coreav_h264::work::PictureWork<coreav_kernels_h264::Auto>>::decode_slice
+    -965,909     3,237,161 ???:coreav_kernels_h264::simd::x86::intra4x4_mb
+    -486,098       807,973 ???:__memset_avx2_unaligned_erms
+    -365,535       365,535 ???:<coreav_h264::recon::CoeffScale<16>>::new
+     -24,303        51,607 ???:_int_malloc
+     -10,422        82,760 ???:_int_free
+         270         3,150 ???:<coreav_h264::work::PictureWork<coreav_kernels_h264::Auto>>::finish
+         273         3,006 ???:core::ptr::drop_glue::<coreav_h264::work::PictureWork<coreav_kernels_h264::Auto>>
+         720        21,752 ???:<coreav_h264::decoder::Decoder>::finish_picture
+         819       217,573 ???:<coreav_h264::decoder::Decoder>::start_picture
+       9,093           102 ???:__memcmp_avx2_movbe
+      17,901       606,731 ???:<coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::prepare_level_scales
+     109,554       377,442 ???:__memcpy_avx_unaligned_erms
+
+c7ecda16e4a7.0.1080p, 12 pictures:
+ -16,480,535 1,925,163,843 PROGRAM TOTALS
+ -10,857,166    34,819,379 ???:coreav_kernels_h264::simd::x86::intra4x4_mb
+  -4,137,506     4,137,506 ???:<coreav_h264::recon::CoeffScale<16>>::new
+    -674,730     2,601,976 ???:__memcpy_avx_unaligned_erms
+    -378,878     8,377,709 ???:<coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::prepare_level_scales
+    -324,477    21,796,568 ???:<coreav_h264::work::PictureWork<coreav_kernels_h264::Auto>>::decode_slice
+     -86,424     6,977,820 ???:__memset_avx2_unaligned_erms
+          44        10,061 ???:malloc
+          48           560 ???:<coreav_h264::work::PictureWork<coreav_kernels_h264::Auto>>::finish
+          51           564 ???:core::ptr::drop_glue::<coreav_h264::work::PictureWork<coreav_kernels_h264::Auto>>
+          54         1,294 ???:sysmalloc_mmap.constprop.0
+         128         4,156 ???:<coreav_h264::decoder::Decoder>::finish_picture
+         153       667,851 ???:<coreav_h264::decoder::Decoder>::start_picture
+       1,699           102 ???:__memcmp_avx2_movbe

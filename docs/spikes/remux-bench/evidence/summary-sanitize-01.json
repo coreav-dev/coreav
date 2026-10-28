@@ -1,0 +1,585 @@
+{
+ "files": 1043,
+ "remuxed": 933,
+ "agreeing": 907,
+ "agreeing_directly": 831,
+ "refused": 109,
+ "failed": 26,
+ "error_count": 1,
+ "unavailable": [
+  "184becaaec565182ef8d7d28eb682100b1d98dc2f8983063405f131320cb2a78"
+ ],
+ "packets": {
+  "agree": 19746920,
+  "disagree": 16
+ },
+ "bars": {
+  "files_agree": {
+   "bar": 0.99,
+   "value": 0.9721329046087889,
+   "met": false
+  },
+  "packets_agree": {
+   "bar": 0.999,
+   "value": 0.9999991897477158,
+   "met": true
+  },
+  "layout_and_round_trip": {
+   "bar": 1.0,
+   "failures": [],
+   "met": true
+  },
+  "no_crash": {
+   "met": true
+  },
+  "no_metadata_left": {
+   "bar": 1.0,
+   "value": 1.0,
+   "met": true
+  }
+ },
+ "files_agree_under_the_known_divergences_at_the_bars": {
+  "known_divergences": [
+   "KD-R-CHAN",
+   "KD-R-FRAG-DURATION",
+   "KD-R-FRAG-FRAMES",
+   "KD-R-TIMECODE-TAG"
+  ],
+  "agreeing": 877,
+  "value": 0.939978563772776
+ },
+ "refusals_by_reason": {
+  "unsupported: no stream can be copied to MP4": 73,
+  "unsupported: ProRes has no MP4 sample entry": 25,
+  "unsupported: PCM audio is not copied to MP4": 9,
+  "unsupported: a gap or an overlap between decode times": 1,
+  "unsupported: an edit starts before the first sample": 1
+ },
+ "known_divergences": {
+  "KD-R-BASE-TIME": 108086,
+  "KD-R-FRAG-DURATION": 35134,
+  "KD-R-FRAG-FRAMES": 66,
+  "KD-R-FRAG-EDIT-END": 36,
+  "KD-R-PROBE-WINDOW": 4,
+  "KD-R-CHAN": 4,
+  "KD-R-FRAG-STATED-EDIT": 3,
+  "KD-R-LAST-DURATION": 1,
+  "KD-R-VFR-RATE": 1
+ },
+ "dropped_streams_by_reason": {
+  "codec_not_allowed": 205,
+  "unsupported: timecode tracks are not copied to MP4": 89,
+  "unsupported: PCM audio is not copied to MP4": 73,
+  "unsupported: timed text is not copied to MP4": 10,
+  "unsupported: more than one sample description": 2
+ },
+ "dropped_boxes_by_path": [
+  {
+   "path": "moov/udta",
+   "reason": "sanitized",
+   "files": 700
+  },
+  {
+   "path": "moov/udta/meta",
+   "reason": "sanitized",
+   "files": 558
+  },
+  {
+   "path": "moov/udta/meta/hdlr",
+   "reason": "sanitized",
+   "files": 556
+  },
+  {
+   "path": "moov/udta/meta/ilst/\\xa9too",
+   "reason": "sanitized",
+   "files": 495
+  },
+  {
+   "path": "moov/meta/keys",
+   "reason": "sanitized",
+   "files": 273
+  },
+  {
+   "path": "moov/meta",
+   "reason": "sanitized",
+   "files": 150
+  },
+  {
+   "path": "moov/meta/hdlr",
+   "reason": "sanitized",
+   "files": 150
+  },
+  {
+   "path": "moov/meta/ilst/\\x00\\x00\\x00\\x01",
+   "reason": "sanitized",
+   "files": 117
+  },
+  {
+   "path": "moov/trak/tref",
+   "reason": "not_carried",
+   "files": 107
+  },
+  {
+   "path": "moov/udta/free",
+   "reason": "sanitized",
+   "files": 100
+  },
+  {
+   "path": "moov/udta/meta/keys",
+   "reason": "sanitized",
+   "files": 92
+  },
+  {
+   "path": "moov/trak/mdia/minf/stbl/free",
+   "reason": "not_carried",
+   "files": 79
+  },
+  {
+   "path": "moov/iods",
+   "reason": "not_carried",
+   "files": 75
+  },
+  {
+   "path": "moov/trak/tapt",
+   "reason": "not_carried",
+   "files": 67
+  },
+  {
+   "path": "moov/meta/ilst/\\x00\\x00\\x00\\x02",
+   "reason": "sanitized",
+   "files": 51
+  },
+  {
+   "path": "moov/trak/udta",
+   "reason": "sanitized",
+   "files": 45
+  },
+  {
+   "path": "moov/udta/FIRM",
+   "reason": "sanitized",
+   "files": 40
+  },
+  {
+   "path": "moov/udta/LENS",
+   "reason": "sanitized",
+   "files": 40
+  },
+  {
+   "path": "moov/udta/CAME",
+   "reason": "sanitized",
+   "files": 40
+  },
+  {
+   "path": "moov/udta/SETT",
+   "reason": "sanitized",
+   "files": 40
+  },
+  {
+   "path": "moov/udta/MUID",
+   "reason": "sanitized",
+   "files": 40
+  },
+  {
+   "path": "moov/udta/HMMT",
+   "reason": "sanitized",
+   "files": 40
+  },
+  {
+   "path": "moov/udta/BCID",
+   "reason": "sanitized",
+   "files": 40
+  },
+  {
+   "path": "moov/udta/GUMI",
+   "reason": "sanitized",
+   "files": 38
+  },
+  {
+   "path": "moov/udta/meta/ilst/----",
+   "reason": "sanitized",
+   "files": 37
+  },
+  {
+   "path": "moov/trak/meta/keys",
+   "reason": "sanitized",
+   "files": 35
+  },
+  {
+   "path": "moov/udta/meta/ilst/\\xa9nam",
+   "reason": "sanitized",
+   "files": 35
+  },
+  {
+   "path": "moov/meta/ilst/\\x00\\x00\\x00\\x03",
+   "reason": "sanitized",
+   "files": 34
+  },
+  {
+   "path": "moov/udta/GPMF",
+   "reason": "sanitized",
+   "files": 31
+  },
+  {
+   "path": "moov/meta/ilst/\\x00\\x00\\x00\\x04",
+   "reason": "sanitized",
+   "files": 31
+  },
+  {
+   "path": "uuid",
+   "reason": "not_carried",
+   "files": 30
+  },
+  {
+   "path": "moov/udta/meta/ilst/desc",
+   "reason": "sanitized",
+   "files": 29
+  },
+  {
+   "path": "moov/meta/ID32",
+   "reason": "sanitized",
+   "files": 27
+  },
+  {
+   "path": "moov/\\x00\\x00\\x00\\x00",
+   "reason": "not_carried",
+   "files": 25
+  },
+  {
+   "path": "moov/trak/udta/name",
+   "reason": "sanitized",
+   "files": 25
+  },
+  {
+   "path": "moov/uuid",
+   "reason": "not_carried",
+   "files": 24
+  },
+  {
+   "path": "moov/udta/meta/ilst/\\x00\\x00\\x00\\x01",
+   "reason": "sanitized",
+   "files": 23
+  },
+  {
+   "path": "moov/udta/meta/ilst/\\x00\\x00\\x00\\x02",
+   "reason": "sanitized",
+   "files": 23
+  },
+  {
+   "path": "moov/udta/meta/ilst/\\x00\\x00\\x00\\x03",
+   "reason": "sanitized",
+   "files": 23
+  },
+  {
+   "path": "meta",
+   "reason": "not_carried",
+   "files": 21
+  },
+  {
+   "path": "moov/trak/uuid",
+   "reason": "not_carried",
+   "files": 19
+  },
+  {
+   "path": "moov/udta/meta/ilst/\\xa9cmt",
+   "reason": "sanitized",
+   "files": 18
+  },
+  {
+   "path": "moov/udta/meta/ilst/\\x00\\x00\\x00\\x04",
+   "reason": "sanitized",
+   "files": 18
+  },
+  {
+   "path": "moov/free",
+   "reason": "not_carried",
+   "files": 18
+  },
+  {
+   "path": "moov/trak/meta",
+   "reason": "sanitized",
+   "files": 17
+  },
+  {
+   "path": "moov/trak/meta/hdlr",
+   "reason": "sanitized",
+   "files": 17
+  },
+  {
+   "path": "moov/trak/meta/ilst/\\x00\\x00\\x00\\x01",
+   "reason": "sanitized",
+   "files": 17
+  },
+  {
+   "path": "moov/udta/meta/ilst/\\xa9day",
+   "reason": "sanitized",
+   "files": 16
+  },
+  {
+   "path": "moov/udta/meta/ilst/\\xa9ART",
+   "reason": "sanitized",
+   "files": 16
+  },
+  {
+   "path": "moov/meta/ilst/\\x00\\x00\\x00\\x05",
+   "reason": "sanitized",
+   "files": 16
+  },
+  {
+   "path": "moov/udta/meta/ilst/covr",
+   "reason": "sanitized",
+   "files": 15
+  },
+  {
+   "path": "moov/udta/PANA",
+   "reason": "sanitized",
+   "files": 14
+  },
+  {
+   "path": "moov/meta/free",
+   "reason": "sanitized",
+   "files": 14
+  },
+  {
+   "path": "moov/udta/\\xa9fmt",
+   "reason": "sanitized",
+   "files": 12
+  },
+  {
+   "path": "moov/udta/\\xa9inf",
+   "reason": "sanitized",
+   "files": 12
+  },
+  {
+   "path": "moov/udta/FFMV",
+   "reason": "sanitized",
+   "files": 12
+  },
+  {
+   "path": "moov/udta/MVTG",
+   "reason": "sanitized",
+   "files": 12
+  },
+  {
+   "path": "moov/meta/ilst/\\x00\\x00\\x00\\x06",
+   "reason": "sanitized",
+   "files": 12
+  },
+  {
+   "path": "moov/udta/SDLN",
+   "reason": "sanitized",
+   "files": 12
+  },
+  {
+   "path": "moov/udta/smrd",
+   "reason": "sanitized",
+   "files": 12
+  }
+ ],
+ "failures": [
+  {
+   "sha256": "00de70872ff1a518d24171f3c783a14bc95aeb90ae2c90290ceaf30b118a2af9",
+   "error": "invalid 'moov' box at offset 0: missing movie header",
+   "kind": "invalid",
+   "ffprobe_reads": true
+  },
+  {
+   "sha256": "012168a196bec989473e08e845df96871fc964109bca207cef45388a7280f5c9",
+   "error": "truncated structure at offset 106532",
+   "kind": "invalid",
+   "ffprobe_reads": true
+  },
+  {
+   "sha256": "041dc2dc7f4b5ce3433525fad3469dd3df084f7024c92dcc3bac6c549f0b67d8",
+   "ext": "m4a",
+   "problems": [
+    "stream 0 packet 0: '0,          0,          0,     1024,       18, 8d0c5c0f992e63cde418e840d9d8b5de, S=1,       10, 20427fd3274ad3676ba943dd82d6eda0' != '0,          0,          0,     1024,       18, 8d0c5c0f992e63cde418e840d9d8b5de'",
+    "stream 0 start_pts: 2112 != 0"
+   ]
+  },
+  {
+   "sha256": "0be4d0efe2eeebe61c8faf11589689dad8d29da1aab5062c657e49553fbf7831",
+   "ext": "m4a",
+   "problems": [
+    "stream 0 packet 0: '0,          0,          0,     1024,        6, cbdc7e26b5b510ac44abfeb0db3f2189, S=1,       10, 20427fd3274ad3676ba943dd82d6eda0' != '0,          0,          0,     1024,        6, cbdc7e26b5b510ac44abfeb0db3f2189'",
+    "stream 0 start_pts: 2112 != 0"
+   ]
+  },
+  {
+   "sha256": "146662b2307cb96811d9e3025c036a9e5186f152b6b1889ca61e14eb3684e49f",
+   "ext": "m4a",
+   "problems": [
+    "stream 0 packet 0: '0,          0,          0,     1024,      672, 5a3a8a08218c37700c8aa95e18c19298, S=1,       10, 20427fd3274ad3676ba943dd82d6eda0' != '0,          0,          0,     1024,      672, 5a3a8a08218c37700c8aa95e18c19298'",
+    "stream 0 start_pts: 2112 != 0"
+   ]
+  },
+  {
+   "sha256": "152c1529ccf34dd206816252d8b569ef1cbb1f5bf07c869457bf8424efba076c",
+   "ext": "m4a",
+   "problems": [
+    "stream 0 packet 0: '0,          0,          0,     1024,        9, 55e3658b3b09517ed92fdef46eca2360, S=1,       10, 20427fd3274ad3676ba943dd82d6eda0' != '0,          0,          0,     1024,        9, 55e3658b3b09517ed92fdef46eca2360'",
+    "stream 0 start_pts: 2112 != 0"
+   ]
+  },
+  {
+   "sha256": "22d3390c06335de133966424cee043d58e63096085fc08eff6946cd3856daaba",
+   "ext": "m4a",
+   "problems": [
+    "stream 0 packet 0: '0,          0,          0,     1024,      628, cf27f4d66a7f56f9fdda275a9f530869, S=1,       10, 20427fd3274ad3676ba943dd82d6eda0' != '0,          0,          0,     1024,      628, cf27f4d66a7f56f9fdda275a9f530869'",
+    "stream 0 start_pts: 2112 != 0"
+   ]
+  },
+  {
+   "sha256": "24e19189ff25e376bc5ba1169f09a91f8e9ed1b895e515ceaa90196eddd5a640",
+   "ext": "m4a",
+   "problems": [
+    "stream 0 packet 0: '0,          0,          0,     1024,      859, 0ca410e125bc85b1107cd5d6c6bd901e, S=1,       10, 20427fd3274ad3676ba943dd82d6eda0' != '0,          0,          0,     1024,      859, 0ca410e125bc85b1107cd5d6c6bd901e'",
+    "stream 0 start_pts: 2112 != 0"
+   ]
+  },
+  {
+   "sha256": "2893c1481a13fb001fe7efb863d32f8e95d5f4d74ebf5f47377a6e866e6bba07",
+   "ext": "m4a",
+   "problems": [
+    "stream 0 packet 0: '0,      -1012,      -1012,     1024,      778, a5231e1aeba1ccf16fbe18929d1675bc, S=1,       10, 20427fd3274ad3676ba943dd82d6eda0' != '0,      -1012,      -1012,     1024,      778, a5231e1aeba1ccf16fbe18929d1675bc, S=1,       10, 7a907c937c47b3507386fc4508866716'"
+   ]
+  },
+  {
+   "sha256": "2b42d40aa3287b9a8f0cf3d1ee62cbb22d142ef49022ed0afdb1a15b4369b805",
+   "error": "invalid 'moov' box at offset 32: missing movie header",
+   "kind": "invalid",
+   "ffprobe_reads": true
+  },
+  {
+   "sha256": "42133e11c05eb81f79b7c36365e09e24e5f839425ffbbc0a82d79428fe837a3c",
+   "ext": "m4a",
+   "problems": [
+    "stream 0 packet 0: '0,      -1012,      -1012,     1024,      640, 260e93b102aca33f60424771219fcb46, S=1,       10, 20427fd3274ad3676ba943dd82d6eda0' != '0,      -1012,      -1012,     1024,      640, 260e93b102aca33f60424771219fcb46, S=1,       10, 7a907c937c47b3507386fc4508866716'"
+   ]
+  },
+  {
+   "sha256": "46306453c06d7f931fa17576af1c7a525dc163cefa062bda8b357a5bd9c16f29",
+   "ext": "m4a",
+   "problems": [
+    "stream 0 packet 0: '0,      -1012,      -1012,     1024,      841, 4a0c11ae333ba30ae2f5959737934c20, S=1,       10, 20427fd3274ad3676ba943dd82d6eda0' != '0,      -1012,      -1012,     1024,      841, 4a0c11ae333ba30ae2f5959737934c20, S=1,       10, 7a907c937c47b3507386fc4508866716'"
+   ]
+  },
+  {
+   "sha256": "665dddf09f221cc63cedf9987281c81a226a8eb24bf1231cd32ed337de3686db",
+   "error": "truncated structure at offset 426381",
+   "kind": "invalid",
+   "ffprobe_reads": true
+  },
+  {
+   "sha256": "667a8557388cf2dba67ad3f721e29e99d5688f73d3a8dee6123703b9ab50aabc",
+   "error": "invalid 'moov' box at offset 0: missing movie header",
+   "kind": "invalid",
+   "ffprobe_reads": true
+  },
+  {
+   "sha256": "687bfefb2ccf4ca48c9d1609a739c83ea40f39886c9cde2028c022309834f808",
+   "ext": "m4a",
+   "problems": [
+    "stream 0 packet 0: '0,          0,          0,     1024,      569, 15ab917268ace90ace8012e826eb976b, S=1,       10, 20427fd3274ad3676ba943dd82d6eda0' != '0,          0,          0,     1024,      569, 15ab917268ace90ace8012e826eb976b'",
+    "stream 0 start_pts: 2112 != 0"
+   ]
+  },
+  {
+   "sha256": "6e94e300546fe7559c0196cc0c2815535c37e382a5a91b20dc7a00130c425445",
+   "ext": "mp4",
+   "problems": [
+    "stream 1 disposition: {'default': 1, 'dub': 0, 'original': 0, 'comment': 0, 'lyrics': 0, 'karaoke': 0, 'forced': 1, 'hearing_impaired': 0, 'visual_impaired': 0, 'clean_effects': 0, 'attached_pic': 0, 'timed_thumbnails': 0, 'non_diegetic': 0, 'captions': 0, 'descriptions': 0, 'metadata': 0, 'dependent': 0, 'still_image': 0} != {'default': 1, 'dub': 0, 'original': 0, 'comment': 0, 'lyrics': 0, 'karaoke': 0, 'forced': 0, 'hearing_impaired': 0, 'visual_impaired': 0, 'clean_effects': 0, 'attached_pic': 0, 'timed_thumbnails': 0, 'non_diegetic': 0, 'captions': 0, 'descriptions': 0, 'metadata': 0, 'dependent': 0, 'still_image': 0}"
+   ]
+  },
+  {
+   "sha256": "7f6b26b6ac3d228a5a4c9d12e690c5fb64d5e7814a3d529b46d2c6970c97e871",
+   "ext": "m4a",
+   "problems": [
+    "stream 0 packet 0: '0,          0,          0,     1024,        6, 9d27651568e1db4bc928f349b922cbbb, S=1,       10, 20427fd3274ad3676ba943dd82d6eda0' != '0,          0,          0,     1024,        6, 9d27651568e1db4bc928f349b922cbbb'",
+    "stream 0 start_pts: 2112 != 0"
+   ]
+  },
+  {
+   "sha256": "908fabee5c49535f8bf42c8706adcfbd8a7d40afdee5aaaa68927a4647442a6c",
+   "ext": "m4a",
+   "problems": [
+    "stream 0 packet 0: '0,      -1012,      -1012,     1024,      855, 2a669adbef74297d767cb5de374af199, S=1,       10, 20427fd3274ad3676ba943dd82d6eda0' != '0,      -1012,      -1012,     1024,      855, 2a669adbef74297d767cb5de374af199, S=1,       10, 7a907c937c47b3507386fc4508866716'"
+   ]
+  },
+  {
+   "sha256": "9120d3c689a139ce276e600e265df9796a87d08f3c3c4a1ab477dc04782f37c6",
+   "error": "invalid 'moov' box at offset 9475193: second movie box",
+   "kind": "invalid",
+   "ffprobe_reads": true
+  },
+  {
+   "sha256": "91970124462e7336538d9f51e75279116fd19b25c8f8ea6f24e0f3cfb421ec0e",
+   "ext": "m4a",
+   "problems": [
+    "stream 0 packet 0: '0,       -676,       -676,     1024,      867, 5d082c61eb7e4f7e3d5c55636a79b36d, S=1,       10, 20427fd3274ad3676ba943dd82d6eda0' != '0,       -676,       -676,     1024,      867, 5d082c61eb7e4f7e3d5c55636a79b36d, S=1,       10, d1cb65588dca9f167c1eb1c29b3c5eca'"
+   ]
+  },
+  {
+   "sha256": "977c3a776ac3139b6a246d0e51e61c79fe766dfc8313172330a48b6b937e38cc",
+   "error": "truncated structure at offset 21663161",
+   "kind": "invalid",
+   "ffprobe_reads": true
+  },
+  {
+   "sha256": "a4e9b0558dd827c47765a828f4d956a25fdcb5cb847e7cc054f6d2c177e3a846",
+   "ext": "m4a",
+   "problems": [
+    "stream 0 packet 0: '0,       -608,       -608,     1024,      853, 215fe13e8edf3324974eb8fb9705daaf, S=1,       10, 20427fd3274ad3676ba943dd82d6eda0' != '0,       -608,       -608,     1024,      853, 215fe13e8edf3324974eb8fb9705daaf, S=1,       10, 3cd12f4f78c992aeabf51d0091f8e73a'"
+   ]
+  },
+  {
+   "sha256": "a7b11d95901ad51d3abfe64bcd12a5342d5e6f626ae088b93a5f2b1c99a70806",
+   "error": "truncated structure at offset 10955588",
+   "kind": "invalid",
+   "ffprobe_reads": true
+  },
+  {
+   "sha256": "eb569fa7169e84485702b1f46af8f54260bbd9278a143cda1361ef88e11dd35b",
+   "error": "truncated structure at offset 776783",
+   "kind": "invalid",
+   "ffprobe_reads": true
+  },
+  {
+   "sha256": "eece54c2023587896e57113e89ef6e13bc9c3ddd9a68a59bbb73ad107f12d9ae",
+   "ext": "m4a",
+   "problems": [
+    "stream 0 packet 0: '0,      -1012,      -1012,     1024,     1324, 3a7242136b0ead012cb1f27eb387b8fb, S=1,       10, 20427fd3274ad3676ba943dd82d6eda0' != '0,      -1012,      -1012,     1024,     1324, 3a7242136b0ead012cb1f27eb387b8fb, S=1,       10, 7a907c937c47b3507386fc4508866716'"
+   ]
+  },
+  {
+   "sha256": "f0efce40f5b20794c1f3dd7577b01e0c7550b566249aafb0d40e2d500bbf08d3",
+   "ext": "m4a",
+   "problems": [
+    "stream 0 packet 0: '0,          0,          0,     1024,        6, 9d27651568e1db4bc928f349b922cbbb, S=1,       10, 20427fd3274ad3676ba943dd82d6eda0' != '0,          0,          0,     1024,        6, 9d27651568e1db4bc928f349b922cbbb'",
+    "stream 0 start_pts: 2112 != 0"
+   ]
+  }
+ ],
+ "errors": [
+  {
+   "sha256": "184becaaec565182ef8d7d28eb682100b1d98dc2f8983063405f131320cb2a78",
+   "error": "download or SHA-256 check failed"
+  }
+ ],
+ "removed_metadata_items_by_kind": {
+  "Other": 2053,
+  "Device": 767,
+  "Date": 74,
+  "Location": 56
+ },
+ "files_with_removed_kind": {
+  "Other": 771,
+  "Device": 570,
+  "Date": 45,
+  "Location": 23
+ },
+ "cleared_fields": {
+  "CreationTime": 1075,
+  "CompressorName": 317
+ },
+ "sanitize_leaks": []
+}

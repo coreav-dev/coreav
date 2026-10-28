@@ -1,0 +1,184 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coreav-dev/coreav/docs/schema/extract-subtitles-v1.schema.json",
+  "title": "coreav extract-subtitles summary, schema coreav.extract-subtitles/1",
+  "description": "The summary coreav extract-subtitles prints (docs/design/text.md). Keys and meanings: docs/schema/extract-subtitles-v1.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "output",
+    "stream",
+    "samples",
+    "cues",
+    "dropped"
+  ],
+  "properties": {
+    "schema": {
+      "const": "coreav.extract-subtitles/1"
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bytes"
+      ],
+      "properties": {
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "stream": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stream_index",
+        "track_id",
+        "codec",
+        "language"
+      ],
+      "properties": {
+        "stream_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "track_id": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "codec": {
+          "enum": [
+            "timed_text",
+            "quicktime_text"
+          ]
+        },
+        "language": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "samples": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "cues": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "dropped": {
+      "$ref": "#/$defs/dropped"
+    }
+  },
+  "$defs": {
+    "dropped": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "empty",
+        "not_presented",
+        "too_short",
+        "malformed",
+        "invalid_text",
+        "trailing_bytes",
+        "styling"
+      ],
+      "properties": {
+        "empty": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "not_presented": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "too_short": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "malformed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "invalid_text": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "trailing_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "styling": {
+          "$ref": "#/$defs/styling"
+        }
+      }
+    },
+    "styling": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "styl",
+        "hlit",
+        "hclr",
+        "krok",
+        "dlay",
+        "href",
+        "tbox",
+        "blnk",
+        "twrp",
+        "disp",
+        "other"
+      ],
+      "properties": {
+        "styl": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "hlit": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "hclr": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "krok": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "dlay": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "href": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tbox": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blnk": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "twrp": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "disp": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "other": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

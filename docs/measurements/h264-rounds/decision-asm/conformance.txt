@@ -1,0 +1,9 @@
+== detected
+97 streams, 1309 keyframes
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 23.85s
+== scalar
+97 streams, 1309 keyframes
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 47.88s
+== nofast
+97 streams, 1309 keyframes
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 23.71s

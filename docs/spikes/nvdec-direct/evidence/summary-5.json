@@ -1,0 +1,195 @@
+{
+  "source": "attempt-5.json",
+  "exact_frames": 2994,
+  "compared_frames": 2994,
+  "rows": [
+    {
+      "id": "CABA1_SVA_B",
+      "kind": "conformance",
+      "compared": 17,
+      "exact": 17,
+      "count_matches": true,
+      "error": null,
+      "torchcodec_error": null,
+      "cuvid_error": null,
+      "direct_fps": 8725.24212546898,
+      "direct_over_torchcodec": null,
+      "direct_over_cuvid": null,
+      "rgb_diagnostics": []
+    },
+    {
+      "id": "CANL1_SVA_B",
+      "kind": "conformance",
+      "compared": 17,
+      "exact": 17,
+      "count_matches": true,
+      "error": null,
+      "torchcodec_error": null,
+      "cuvid_error": null,
+      "direct_fps": 8530.235419444221,
+      "direct_over_torchcodec": null,
+      "direct_over_cuvid": null,
+      "rgb_diagnostics": []
+    },
+    {
+      "id": "small",
+      "kind": "corpus",
+      "compared": 1000,
+      "exact": 1000,
+      "count_matches": true,
+      "error": null,
+      "torchcodec_error": null,
+      "cuvid_error": null,
+      "direct_fps": 7474.287178081177,
+      "torchcodec_fps": 5490.612096531242,
+      "direct_over_torchcodec": {
+        "median": 1.2580921430289629,
+        "mean": 1.3834267235351934,
+        "bootstrap_mean_ci95": [
+          1.244887388474102,
+          1.647300639102515
+        ],
+        "observations": [
+          1.647300639102515,
+          1.244887388474102,
+          1.2580921430289629
+        ]
+      },
+      "direct_over_cuvid": null,
+      "rgb_diagnostics": [
+        {
+          "frame": 0,
+          "max_abs_error": 1,
+          "mean_abs_error": 0.32592592592592595,
+          "channels_gt_2": 0,
+          "exact": false,
+          "within_2": true
+        },
+        {
+          "frame": 7,
+          "max_abs_error": 2,
+          "mean_abs_error": 0.6375694444444444,
+          "channels_gt_2": 0,
+          "exact": false,
+          "within_2": true
+        },
+        {
+          "frame": 31,
+          "max_abs_error": 2,
+          "mean_abs_error": 0.6371122685185185,
+          "channels_gt_2": 0,
+          "exact": false,
+          "within_2": true
+        }
+      ]
+    },
+    {
+      "id": "large",
+      "kind": "corpus",
+      "compared": 1000,
+      "exact": 1000,
+      "count_matches": true,
+      "error": null,
+      "torchcodec_error": null,
+      "cuvid_error": null,
+      "direct_fps": 723.6646444434916,
+      "torchcodec_fps": 752.1461368633873,
+      "direct_over_torchcodec": {
+        "median": 0.9666707923585601,
+        "mean": 0.9672968740448007,
+        "bootstrap_mean_ci95": [
+          0.9621330336965239,
+          0.973086796079318
+        ],
+        "observations": [
+          0.973086796079318,
+          0.9621330336965239,
+          0.9666707923585601
+        ]
+      },
+      "direct_over_cuvid": null,
+      "rgb_diagnostics": [
+        {
+          "frame": 0,
+          "max_abs_error": 0,
+          "mean_abs_error": 0.0,
+          "channels_gt_2": 0,
+          "exact": true,
+          "within_2": true
+        },
+        {
+          "frame": 7,
+          "max_abs_error": 2,
+          "mean_abs_error": 0.10246125900205762,
+          "channels_gt_2": 0,
+          "exact": false,
+          "within_2": true
+        },
+        {
+          "frame": 31,
+          "max_abs_error": 2,
+          "mean_abs_error": 0.10137731481481481,
+          "channels_gt_2": 0,
+          "exact": false,
+          "within_2": true
+        }
+      ]
+    },
+    {
+      "id": "fixture-320x180",
+      "kind": "fixture",
+      "compared": 720,
+      "exact": 720,
+      "count_matches": true,
+      "error": "scan_file_and_update_metadata_and_index, /__w/torchcodec/torchcodec/meta-pytorch/torchcodec/src/torchcodec/_core/SingleStreamDecoder.cpp:232, Could not seek file to pts=0: Operation not permitted. This is either because that timestamp is out of range, or because the 'h264' format does not support seeking.",
+      "torchcodec_error": null,
+      "cuvid_error": null,
+      "direct_fps": 4371.2342575765815,
+      "direct_over_torchcodec": null,
+      "direct_over_cuvid": null,
+      "rgb_diagnostics": []
+    },
+    {
+      "id": "fixture-1920x1080",
+      "kind": "fixture",
+      "compared": 180,
+      "exact": 180,
+      "count_matches": true,
+      "error": "scan_file_and_update_metadata_and_index, /__w/torchcodec/torchcodec/meta-pytorch/torchcodec/src/torchcodec/_core/SingleStreamDecoder.cpp:232, Could not seek file to pts=0: Operation not permitted. This is either because that timestamp is out of range, or because the 'h264' format does not support seeking.",
+      "torchcodec_error": null,
+      "cuvid_error": null,
+      "direct_fps": 727.2430822001766,
+      "direct_over_torchcodec": null,
+      "direct_over_cuvid": null,
+      "rgb_diagnostics": []
+    },
+    {
+      "id": "fixture-3840x2160",
+      "kind": "fixture",
+      "compared": 60,
+      "exact": 60,
+      "count_matches": true,
+      "error": "scan_file_and_update_metadata_and_index, /__w/torchcodec/torchcodec/meta-pytorch/torchcodec/src/torchcodec/_core/SingleStreamDecoder.cpp:232, Could not seek file to pts=0: Operation not permitted. This is either because that timestamp is out of range, or because the 'h264' format does not support seeking.",
+      "torchcodec_error": null,
+      "cuvid_error": null,
+      "direct_fps": 193.28801566947286,
+      "direct_over_torchcodec": null,
+      "direct_over_cuvid": null,
+      "rgb_diagnostics": []
+    }
+  ],
+  "transfers": [],
+  "rgb": {
+    "compared_frames": 6,
+    "exact_frames": 1,
+    "within_2_frames": 6,
+    "tolerance_per_channel": 2
+  },
+  "elapsed_seconds": 62.824256391000006,
+  "estimated_compute_usd": 0.016708739229750365,
+  "checksum_minimum_met": true,
+  "all_tested_checksums_exact": true,
+  "equivalent_performance_work": false,
+  "verdict": "inconclusive",
+  "reason": "GPU NV12, GPU RGB and CPU NV12 paths perform different work; limited conformance/corpus coverage, unpinned CPU clocks and three repeats do not establish H2 graduation."
+}

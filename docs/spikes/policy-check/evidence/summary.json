@@ -1,0 +1,3760 @@
+{
+ "check": {
+  "files": 2971,
+  "harness_errors": [],
+  "cases": 8913,
+  "reasons": 11065,
+  "B1_crashes": 0,
+  "B2_determinism": 0,
+  "B3_spec": 0,
+  "B4_precision": 0,
+  "failures_listed": {},
+  "verdicts_per_policy": {
+   "strict-gate": {
+    "reject": 1726,
+    "accept": 502,
+    "unreadable": 743
+   },
+   "transcription": {
+    "reject": 1226,
+    "unreadable": 743,
+    "accept": 1002
+   },
+   "web-upload": {
+    "reject": 1289,
+    "accept": 939,
+    "unreadable": 743
+   }
+  },
+  "unreadable_files": {
+   "other:invalid_structure": 31,
+   "other:truncated_structure": 6,
+   "other:unsupported_container": 546,
+   "iso:invalid_structure": 65,
+   "iso:truncated_structure": 95
+  },
+  "rules_failed": {
+   "/streams/unidentified": 2910,
+   "/streams/video/min_count": 1858,
+   "/streams/audio/min_count": 1173,
+   "/container/formats": 766,
+   "/file/max_bit_rate": 602,
+   "/streams/audio/codecs": 539,
+   "/duration/max_seconds": 467,
+   "/streams/max_count": 375,
+   "/streams/video/codecs": 368,
+   "/streams/audio/max_bit_rate": 285,
+   "/streams/video/max_bit_rate": 273,
+   "/streams/video/max_width": 239,
+   "/container/fragmented": 213,
+   "/streams/video/max_height": 203,
+   "/streams/timecode": 186,
+   "/file/max_size": 107,
+   "/streams/subtitle": 106,
+   "/streams/invalid_tables": 69,
+   "/streams/audio/max_count": 65,
+   "/streams/video/max_pixels": 61,
+   "/streams/multiple_descriptions": 54,
+   "/streams/video/rotations": 52,
+   "/streams/audio/max_channels": 41,
+   "/streams/video/max_count": 32,
+   "/streams/audio/max_sample_rate": 12,
+   "/streams/external_data": 9
+  },
+  "B5_oracle": {
+   "real_iso_files": 1050,
+   "files_not_compared": 9,
+   "cases": 3123,
+   "agree": 3039,
+   "covered": 84,
+   "covered_by": {
+    "KD-P-PROTECTED": 72,
+    "KD-P-FRAGMENT-ORIGIN": 3,
+    "KD-P-UNIDENTIFIED-DURATION": 6,
+    "KD-P-CHAPTER-TEXT": 2,
+    "KD-P-DECLARED-DURATION": 1
+   },
+   "share": 1.0,
+   "direct_share": 0.9731027857829011,
+   "bar": 0.98,
+   "disagreements": [
+    {
+     "sha256": "009339d57238508f4babf101252eef0e18403603da938259403ff2fc0a2ac474",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ]
+     ]
+    },
+    {
+     "sha256": "009339d57238508f4babf101252eef0e18403603da938259403ff2fc0a2ac474",
+     "ext": "mp4",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": []
+    },
+    {
+     "sha256": "1140243c49415ee81d2fafcccaae3e8c5952f34d197dbc1eb5dcff2c596d5fd0",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ]
+     ]
+    },
+    {
+     "sha256": "1140243c49415ee81d2fafcccaae3e8c5952f34d197dbc1eb5dcff2c596d5fd0",
+     "ext": "mp4",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": []
+    },
+    {
+     "sha256": "22fe923356f4fbce537c0d5dda4750d54d7efe54bf97b086c919b05f190f5553",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-FRAGMENT-ORIGIN"
+     ],
+     "coreav": [
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       1
+      ],
+      [
+       "not_allowed",
+       "/streams/video/codecs",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       1
+      ],
+      [
+       "not_allowed",
+       "/streams/video/codecs",
+       0
+      ]
+     ]
+    },
+    {
+     "sha256": "26f24ef5243a4baec052bcfc19002b0b25f4813c0e636e39938b454af82aa3e1",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/video/codecs",
+       0
+      ]
+     ]
+    },
+    {
+     "sha256": "26f24ef5243a4baec052bcfc19002b0b25f4813c0e636e39938b454af82aa3e1",
+     "ext": "mp4",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": []
+    },
+    {
+     "sha256": "2feb76bf765da4df9a86ad194eb580f37c2d7263f0035e2dcae55065df666cb5",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ]
+     ]
+    },
+    {
+     "sha256": "2feb76bf765da4df9a86ad194eb580f37c2d7263f0035e2dcae55065df666cb5",
+     "ext": "mp4",
+     "policy": "transcription",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/audio/min_count",
+       null
+      ]
+     ],
+     "ffprobe": []
+    },
+    {
+     "sha256": "2feb76bf765da4df9a86ad194eb580f37c2d7263f0035e2dcae55065df666cb5",
+     "ext": "mp4",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ]
+     ]
+    },
+    {
+     "sha256": "3140b8a7f50bdc225794d85eea2ef6a39176917ff413a4630b48bdacb387ea00",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ]
+     ]
+    },
+    {
+     "sha256": "3140b8a7f50bdc225794d85eea2ef6a39176917ff413a4630b48bdacb387ea00",
+     "ext": "mp4",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": []
+    },
+    {
+     "sha256": "337bd9eabe090a8be2ad9d1354ed02094bd2e95f8c3a189cb6f220819a8c7a43",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ]
+     ]
+    },
+    {
+     "sha256": "337bd9eabe090a8be2ad9d1354ed02094bd2e95f8c3a189cb6f220819a8c7a43",
+     "ext": "mp4",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": []
+    },
+    {
+     "sha256": "387e48db2ad8dd254b80a37d1107396332f6a3d005eb911f5618372f56f30bf1",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-UNIDENTIFIED-DURATION"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ],
+      [
+       "unknown",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "unknown",
+       "/file/max_bit_rate",
+       null
+      ]
+     ],
+     "ffprobe": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ]
+    },
+    {
+     "sha256": "387e48db2ad8dd254b80a37d1107396332f6a3d005eb911f5618372f56f30bf1",
+     "ext": "mp4",
+     "policy": "transcription",
+     "covered_by": [
+      "KD-P-UNIDENTIFIED-DURATION"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/audio/min_count",
+       null
+      ],
+      [
+       "unknown",
+       "/duration/max_seconds",
+       null
+      ]
+     ],
+     "ffprobe": [
+      [
+       "below_minimum",
+       "/streams/audio/min_count",
+       null
+      ]
+     ]
+    },
+    {
+     "sha256": "387e48db2ad8dd254b80a37d1107396332f6a3d005eb911f5618372f56f30bf1",
+     "ext": "mp4",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-UNIDENTIFIED-DURATION"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ],
+      [
+       "unknown",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "unknown",
+       "/file/max_bit_rate",
+       null
+      ]
+     ],
+     "ffprobe": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ]
+    },
+    {
+     "sha256": "3898250f26b891f1233bee86910ae2f98394981ebbe20abedd4e5455e075a5d4",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ]
+     ]
+    },
+    {
+     "sha256": "3898250f26b891f1233bee86910ae2f98394981ebbe20abedd4e5455e075a5d4",
+     "ext": "mp4",
+     "policy": "transcription",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/audio/min_count",
+       null
+      ]
+     ],
+     "ffprobe": []
+    },
+    {
+     "sha256": "3898250f26b891f1233bee86910ae2f98394981ebbe20abedd4e5455e075a5d4",
+     "ext": "mp4",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ]
+     ]
+    },
+    {
+     "sha256": "3ec41834a915a43be205f92b1f38b33af7ec4da77c2604ca30ec12b54908b4d1",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ]
+     ]
+    },
+    {
+     "sha256": "3ec41834a915a43be205f92b1f38b33af7ec4da77c2604ca30ec12b54908b4d1",
+     "ext": "mp4",
+     "policy": "transcription",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/audio/min_count",
+       null
+      ]
+     ],
+     "ffprobe": []
+    },
+    {
+     "sha256": "3ec41834a915a43be205f92b1f38b33af7ec4da77c2604ca30ec12b54908b4d1",
+     "ext": "mp4",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ]
+     ]
+    },
+    {
+     "sha256": "4576f8d60206b7a20620f1d6ebe0efe00b808c2c98f97340991e71f0b25d7b1f",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "above_maximum",
+       "/file/max_size",
+       null
+      ],
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "above_maximum",
+       "/file/max_size",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/video/codecs",
+       0
+      ]
+     ]
+    },
+    {
+     "sha256": "4576f8d60206b7a20620f1d6ebe0efe00b808c2c98f97340991e71f0b25d7b1f",
+     "ext": "mp4",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": []
+    },
+    {
+     "sha256": "54613c621d71a58f28a77f5f7bddbb02187df702df28e4ddb372c414435206a2",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "not_allowed",
+       "/streams/video/codecs",
+       0
+      ]
+     ]
+    },
+    {
+     "sha256": "54613c621d71a58f28a77f5f7bddbb02187df702df28e4ddb372c414435206a2",
+     "ext": "mp4",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": []
+    },
+    {
+     "sha256": "574bc4ad81dedb9a42ca8145460d3d3cdca38fd1b8133cc6bf72d59236d9ce57",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ]
+     ]
+    },
+    {
+     "sha256": "574bc4ad81dedb9a42ca8145460d3d3cdca38fd1b8133cc6bf72d59236d9ce57",
+     "ext": "mp4",
+     "policy": "transcription",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/audio/min_count",
+       null
+      ]
+     ],
+     "ffprobe": []
+    },
+    {
+     "sha256": "574bc4ad81dedb9a42ca8145460d3d3cdca38fd1b8133cc6bf72d59236d9ce57",
+     "ext": "mp4",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ]
+     ]
+    },
+    {
+     "sha256": "686062a6d12d07f37abe31fed69ee38fd2dc37cb9a3190745295842fc6cdb983",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ]
+     ]
+    },
+    {
+     "sha256": "686062a6d12d07f37abe31fed69ee38fd2dc37cb9a3190745295842fc6cdb983",
+     "ext": "mp4",
+     "policy": "transcription",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/audio/min_count",
+       null
+      ]
+     ],
+     "ffprobe": []
+    },
+    {
+     "sha256": "686062a6d12d07f37abe31fed69ee38fd2dc37cb9a3190745295842fc6cdb983",
+     "ext": "mp4",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ]
+     ]
+    },
+    {
+     "sha256": "6dd78289bdbcd7b2b016f48cc4d0f1987120acddaf6b2fb9198f18bd6ffc5447",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "not_allowed",
+       "/streams/video/codecs",
+       0
+      ]
+     ]
+    },
+    {
+     "sha256": "6dd78289bdbcd7b2b016f48cc4d0f1987120acddaf6b2fb9198f18bd6ffc5447",
+     "ext": "mp4",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": []
+    },
+    {
+     "sha256": "750498df470c358285b95adccbf683f38c8c6be14efd2cc2de219cf7046e23d2",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/video/codecs",
+       0
+      ]
+     ]
+    },
+    {
+     "sha256": "750498df470c358285b95adccbf683f38c8c6be14efd2cc2de219cf7046e23d2",
+     "ext": "mp4",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": []
+    },
+    {
+     "sha256": "79cd390e1d1b6eff515d0a2b5ee0e098dfd0d8551226c63552f92ac9a4565019",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-FRAGMENT-ORIGIN"
+     ],
+     "coreav": [
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       1
+      ]
+     ],
+     "ffprobe": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       1
+      ]
+     ]
+    },
+    {
+     "sha256": "803c466fbf34963704aa17f8bd2773417a257a44b2d69f128f63f5715e6733de",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/video/codecs",
+       0
+      ]
+     ]
+    },
+    {
+     "sha256": "803c466fbf34963704aa17f8bd2773417a257a44b2d69f128f63f5715e6733de",
+     "ext": "mp4",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": []
+    },
+    {
+     "sha256": "88ba79019cd6b9b17ba971829de03ae833d49f772ca6d8aae8fca0467284fc4d",
+     "ext": "m4a",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-CHAPTER-TEXT"
+     ],
+     "coreav": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "above_maximum",
+       "/streams/max_count",
+       null
+      ],
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       0
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       1
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       3
+      ]
+     ],
+     "ffprobe": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "above_maximum",
+       "/streams/max_count",
+       null
+      ],
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       1
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       3
+      ]
+     ]
+    },
+    {
+     "sha256": "88ba79019cd6b9b17ba971829de03ae833d49f772ca6d8aae8fca0467284fc4d",
+     "ext": "m4a",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-CHAPTER-TEXT"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       0
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       1
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       3
+      ]
+     ],
+     "ffprobe": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       1
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       3
+      ]
+     ]
+    },
+    {
+     "sha256": "895d1f32f29cd537feb3bea9f9d131c18def0bb8846536cb78dae42ef34d9376",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ]
+     ]
+    },
+    {
+     "sha256": "895d1f32f29cd537feb3bea9f9d131c18def0bb8846536cb78dae42ef34d9376",
+     "ext": "mp4",
+     "policy": "transcription",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/audio/min_count",
+       null
+      ]
+     ],
+     "ffprobe": []
+    },
+    {
+     "sha256": "895d1f32f29cd537feb3bea9f9d131c18def0bb8846536cb78dae42ef34d9376",
+     "ext": "mp4",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ]
+     ]
+    },
+    {
+     "sha256": "9db41aa16b5a3ed72236482c84089c66fbdb95b876a6a408fccdd870cc37b444",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-FRAGMENT-ORIGIN"
+     ],
+     "coreav": [
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ]
+     ],
+     "ffprobe": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ]
+     ]
+    },
+    {
+     "sha256": "9cafaa018ca6708871508ef16af93176c5debc779c85f4cfa57d089b1cdcad2d",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "above_maximum",
+       "/file/max_size",
+       null
+      ],
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "above_maximum",
+       "/file/max_size",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ]
+     ]
+    },
+    {
+     "sha256": "9cafaa018ca6708871508ef16af93176c5debc779c85f4cfa57d089b1cdcad2d",
+     "ext": "mp4",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": []
+    },
+    {
+     "sha256": "a8a6e6c5f8f64186b20d0a33da3ac5d4009df49a67fa461eb579facfe20b5feb",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ]
+     ]
+    },
+    {
+     "sha256": "a8a6e6c5f8f64186b20d0a33da3ac5d4009df49a67fa461eb579facfe20b5feb",
+     "ext": "mp4",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": []
+    },
+    {
+     "sha256": "b052a82f87bd6859d143a65e8ae954e7f6132a763400ff64929bd658d115dec3",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ]
+     ]
+    },
+    {
+     "sha256": "b052a82f87bd6859d143a65e8ae954e7f6132a763400ff64929bd658d115dec3",
+     "ext": "mp4",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": []
+    },
+    {
+     "sha256": "b4bcfe059c46088b0dc9ae9553ce5a9275c93025ef8e7da998dbc29a61992e8e",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ]
+     ]
+    },
+    {
+     "sha256": "b4bcfe059c46088b0dc9ae9553ce5a9275c93025ef8e7da998dbc29a61992e8e",
+     "ext": "mp4",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": []
+    },
+    {
+     "sha256": "b71d3202e8c5068a20b408b57a1173a1b990bc18758cc8167692fdd10e8c0160",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ]
+     ]
+    },
+    {
+     "sha256": "b71d3202e8c5068a20b408b57a1173a1b990bc18758cc8167692fdd10e8c0160",
+     "ext": "mp4",
+     "policy": "transcription",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/audio/min_count",
+       null
+      ]
+     ],
+     "ffprobe": []
+    },
+    {
+     "sha256": "b71d3202e8c5068a20b408b57a1173a1b990bc18758cc8167692fdd10e8c0160",
+     "ext": "mp4",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ]
+     ]
+    },
+    {
+     "sha256": "b939b2c525e38623dada90b6bf6dbc1c7e2e2088b0ac9e2faef68936af014502",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ]
+     ]
+    },
+    {
+     "sha256": "b939b2c525e38623dada90b6bf6dbc1c7e2e2088b0ac9e2faef68936af014502",
+     "ext": "mp4",
+     "policy": "transcription",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/audio/min_count",
+       null
+      ]
+     ],
+     "ffprobe": []
+    },
+    {
+     "sha256": "b939b2c525e38623dada90b6bf6dbc1c7e2e2088b0ac9e2faef68936af014502",
+     "ext": "mp4",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ]
+     ]
+    },
+    {
+     "sha256": "baa98b681ddc078bcea9bdfc82631626c32f50f9f62c4b1338e1d7637cc8e26c",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ]
+     ]
+    },
+    {
+     "sha256": "baa98b681ddc078bcea9bdfc82631626c32f50f9f62c4b1338e1d7637cc8e26c",
+     "ext": "mp4",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": []
+    },
+    {
+     "sha256": "bdecaa9f9863d8f568b988a3533aae8537b76de5aaafcfeeb47a98522aa387f5",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/video/codecs",
+       0
+      ]
+     ]
+    },
+    {
+     "sha256": "bdecaa9f9863d8f568b988a3533aae8537b76de5aaafcfeeb47a98522aa387f5",
+     "ext": "mp4",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": []
+    },
+    {
+     "sha256": "c86f3d1f2aff9bb7c75bc50c7b13066b00ee69d464bc48385d64758afa486e10",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-DECLARED-DURATION"
+     ],
+     "coreav": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ]
+     ],
+     "ffprobe": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ]
+     ]
+    },
+    {
+     "sha256": "cc6023189f53a0e3f6ca94ed15f8055fe5fdd173f6d69de03b5aa73a4dcea733",
+     "ext": "m4a",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-UNIDENTIFIED-DURATION"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ],
+      [
+       "unknown",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "unknown",
+       "/file/max_bit_rate",
+       null
+      ]
+     ],
+     "ffprobe": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ]
+    },
+    {
+     "sha256": "cc6023189f53a0e3f6ca94ed15f8055fe5fdd173f6d69de03b5aa73a4dcea733",
+     "ext": "m4a",
+     "policy": "transcription",
+     "covered_by": [
+      "KD-P-UNIDENTIFIED-DURATION"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/audio/min_count",
+       null
+      ],
+      [
+       "unknown",
+       "/duration/max_seconds",
+       null
+      ]
+     ],
+     "ffprobe": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "below_minimum",
+       "/streams/audio/min_count",
+       null
+      ]
+     ]
+    },
+    {
+     "sha256": "cc6023189f53a0e3f6ca94ed15f8055fe5fdd173f6d69de03b5aa73a4dcea733",
+     "ext": "m4a",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-UNIDENTIFIED-DURATION"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ],
+      [
+       "unknown",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "unknown",
+       "/file/max_bit_rate",
+       null
+      ]
+     ],
+     "ffprobe": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ]
+    },
+    {
+     "sha256": "d7e238494e9350ebe1fce238c1d1d748d5cb059bda43e747452bd3ab0f3de3c9",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ]
+     ]
+    },
+    {
+     "sha256": "d7e238494e9350ebe1fce238c1d1d748d5cb059bda43e747452bd3ab0f3de3c9",
+     "ext": "mp4",
+     "policy": "transcription",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/audio/min_count",
+       null
+      ]
+     ],
+     "ffprobe": []
+    },
+    {
+     "sha256": "d7e238494e9350ebe1fce238c1d1d748d5cb059bda43e747452bd3ab0f3de3c9",
+     "ext": "mp4",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ]
+     ]
+    },
+    {
+     "sha256": "d7e6783ed60337e4820278337a5ddc42bc6124da4009034edf252aade5b2b1ae",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/video/codecs",
+       0
+      ]
+     ]
+    },
+    {
+     "sha256": "d7e6783ed60337e4820278337a5ddc42bc6124da4009034edf252aade5b2b1ae",
+     "ext": "mp4",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": []
+    },
+    {
+     "sha256": "ede6abdefba66772630f352999d715f60c17f65bfa3254fe553f15094e992ed2",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ]
+     ]
+    },
+    {
+     "sha256": "ede6abdefba66772630f352999d715f60c17f65bfa3254fe553f15094e992ed2",
+     "ext": "mp4",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": []
+    },
+    {
+     "sha256": "f0cb84af08205961f71e564d3611ee0e35dadd62e4097069dafcd4091bb1fe1d",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ]
+     ]
+    },
+    {
+     "sha256": "f0cb84af08205961f71e564d3611ee0e35dadd62e4097069dafcd4091bb1fe1d",
+     "ext": "mp4",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": []
+    },
+    {
+     "sha256": "f3b10251891bc77e720cca4071e2912b22f432529ef669d1ceb91556615c43df",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ]
+     ]
+    },
+    {
+     "sha256": "f3b10251891bc77e720cca4071e2912b22f432529ef669d1ceb91556615c43df",
+     "ext": "mp4",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": []
+    },
+    {
+     "sha256": "f46919a94ef10efa219083f7678fcda0c040173f17ecaa9ac51b9667263d1aa6",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/video/codecs",
+       0
+      ]
+     ]
+    },
+    {
+     "sha256": "f46919a94ef10efa219083f7678fcda0c040173f17ecaa9ac51b9667263d1aa6",
+     "ext": "mp4",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": []
+    },
+    {
+     "sha256": "f8e7e249e26cd995885df445fc628952837c7217df7bb698fbd07b8c0d0812ff",
+     "ext": "mp4",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ]
+     ]
+    },
+    {
+     "sha256": "f8e7e249e26cd995885df445fc628952837c7217df7bb698fbd07b8c0d0812ff",
+     "ext": "mp4",
+     "policy": "transcription",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/audio/min_count",
+       null
+      ]
+     ],
+     "ffprobe": []
+    },
+    {
+     "sha256": "f8e7e249e26cd995885df445fc628952837c7217df7bb698fbd07b8c0d0812ff",
+     "ext": "mp4",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-PROTECTED"
+     ],
+     "coreav": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "below_minimum",
+       "/streams/video/min_count",
+       null
+      ]
+     ]
+    }
+   ]
+  },
+  "audio_channel_mismatches": [
+   {
+    "sha256": "02fbfc9fa4a5eacb624d71464569c302e9002df9fd006af9d278bfeb62e4e561",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "0388073c0fae30182d463ce0aa1d500573cdbfe02968595892244b29a2a11956",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "08f915fd741af11d948fb13a2fe194279b52e9ed50f272dd05f121249647ece0",
+    "streams": [
+     [
+      2,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "0e259b0acf42353b8fa5fa89f740a36e6bf7e91f30b773d121f006c5c4260a7a",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "0e627d37de02481bc3db60e5cbc26e03bbe0f3ee4b7d6d14f2b3b95329caf294",
+    "streams": [
+     [
+      4,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "112a95e9e3c743e69f0c477838881d6f83b87dd495d5b7adc1f690a773ee8581",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "145cd00359874eeca40c314027266a020861a8ef51261faaba4383198206a0e6",
+    "streams": [
+     [
+      0,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "146a9037ab2ec142a9d1820bbb3ecb56a2c05dc0e31246cdfe45e30e48ab7fc4",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "148d40aa487431f4230ffad6eb6cad088fbc71a950fbf5aa2dbf87a58ea303c6",
+    "streams": [
+     [
+      0,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "1576a40f22b24a7caee92b85a1380db54a25c8b84b21cf9f0d44e4c30131562b",
+    "streams": [
+     [
+      0,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "16afc35b8e75f55dd956969849d348d04d48e135e47ed0aacc7952de8d1554fb",
+    "streams": [
+     [
+      1,
+      2,
+      6
+     ]
+    ]
+   },
+   {
+    "sha256": "1d4b1775d78adf71a4c28bb60fed18e2c9962d141157f995b1dc1dd04dc0709a",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "1eb8178a12fac1f24446a2b1545ca1a33924fe49569b0062553d12fce03ba010",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "20868d4b6063711c58477f0ba1323aedeeab6456db0afca36ec346df4b8af843",
+    "streams": [
+     [
+      4,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "23dcaea79ebf51cff621100359d55ef01fe1e75315818e1e46a6e1356e7db68c",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "278dbf5a63bbff447dcd18868ec31e927ef79f4e8ec9da5333ad0fcfb39ee579",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "28a9e1e12df0a14e35ecee1a9acd953ce3230d96cd96657fa77b42be0c8f6170",
+    "streams": [
+     [
+      0,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "2c7d4ab0bca83a89d24132c8d4d792987a58110da59ac0969f58c8c4f4e46444",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "2d2e99a9f757ef6e9c3cf23073658631ae27fb597cb7fa58e806f529401103b7",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "35757bdf512bbfadd9399818f47dbc506b93895cc947afe597e33b4d6e430a57",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "35b8704f875a28bba6d1c5625e30a893234122cd54134d5416295481b8e3384f",
+    "streams": [
+     [
+      0,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "38251b609c80b3c7f47b124ff971de3131a7f49a6ae80749c84e139254406987",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "3cc105ec879af51576caaf8150c88dddbabf009b7cd260d32536e13959378e72",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "3cfbb3e52fc076e51c4089d033860136296b4d292d36227b8bb071a8b484f522",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "3fa98cae335a89818d652db23a0255e5e73ffb0d27bc019955d74216e8cdddec",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "4c73423cb3b51b865eeb3732cf398b850b5ac9113a3ba456b7d1f6895c6f557b",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "4c7f2e501a4a765b64b244ac2241a5356f6875287977e470a11ed98d15eebddf",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "4e08c111b544d582ec43014cb329a1cd5748df0e1f54666dfb2ed9c095507730",
+    "streams": [
+     [
+      0,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "4f93a033b7b1a3622214b0bdc65687e4bf9a4cfe7c56ed05cc453db6e36e8604",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "5180fc42cb5c764c200a4079ff24cf3e9728455a900dc5ab9cdd442a41f2203f",
+    "streams": [
+     [
+      4,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "58f38880b0ee47d6fd31ebbce97299b4b990e0d628e086279a9b126eaf5a7565",
+    "streams": [
+     [
+      3,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "5b080178a03cbb8fe697bf03e2e28b0cac09de1584412625894d0ca81afd8f73",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "5a1f4cb94f05495381ba60107b1d916440ce9b8f694b88dc864dae5cff16433e",
+    "streams": [
+     [
+      0,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "5b59b76c620536710e165357908f4960d883b102bc55c74104a175be8483082e",
+    "streams": [
+     [
+      2,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "6024f3b8f37190e0cafadefa93adb8a16143908c4a0038b7ada4dc4ba30cbc94",
+    "streams": [
+     [
+      0,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "61bb3b313bf405396992935704ab4e53256f79d3c214f7f250ca7bcc03842d50",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "6b7d211adc0d3f2223ac0731da19415df1f4d41de61cd9e1816baed7609b8f60",
+    "streams": [
+     [
+      0,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "7077b2429e75c53398091c652bd23ace4717a0ed962843778eaa57b080175897",
+    "streams": [
+     [
+      4,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "7650ae4667480f9b1cbbb1979d3ca9cb1ccebf7a4b0658973de8b220e42861ff",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "770cb4b74eac09d104429e010b2c758121b88a84d13977ca177cd7051729e057",
+    "streams": [
+     [
+      2,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "7c46fe923f0c29e67ec7ba17318ef3bd591be6e373fd796fce143f8c7a934787",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "821967dc5c0128bd1047b3d5cb9d217c5b0c6c4508fe425860dedb3f21dfed87",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "839820609d8ff3d2c930e798272ef569781417ce1acee34f3db3266b65068f80",
+    "streams": [
+     [
+      3,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "82f43744c534855573a35ac81970d23e5bf59f143496df8f465897282fcbb92f",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "850324b8743044a3b9dea7b41147b67df85427a6165a8e615e40baa350f6c7fc",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "893b35c34bc50a23b3aba70577e93fb431bda06dc70c0c3d01cb3b93f7c8a079",
+    "streams": [
+     [
+      0,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "89db448487b1e1e9ea80640a007ae0de810fdfd34616ca5550244442288b3921",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "8bdf25f15c8a90bdb27c305427fe87f305ad6cef99d1e77ae4206076aaf7f4f0",
+    "streams": [
+     [
+      0,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "8d2799d35f4071b83e4b99ccf1fbe8c5ec811ad1fe4fccf0f903abf54c75ab25",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "8d493664163defd9095c9009c41e423efe85138bdb3ec95dac99528e1b5cf609",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "912483629def3258f52ea61db405476155ea7809a3fb795c7b601efd04a9f584",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "983a485e8c0a64ad5289c26df53d3d8b93466f1125ff6f3a5083d66047123049",
+    "streams": [
+     [
+      0,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "9b563fa56055580f3be2d5c7e623a882416b7b1ae0d35160a73754bc44e1a62e",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "9dfb23530210a7a7344dffc858da283a8f89b23bc473e45167cf5f6bd248d166",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "a162ae420b5f322fe4e894f438fb87967ef275362b9579ad0d760414f37775e5",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "a31f11a7b236442e800ebfb0cf7eb1f120e1370e066a9ab2a01e6dcc05afdb1e",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "a9fdb84cde813f5865a4b1f89adddf7af4209ef6ea25f4f3ebb9c7f2491489c7",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "aa0358a543513b1bb4d36af508fb9be9554a13f2cd6065e75fb2cf85bfdd07cb",
+    "streams": [
+     [
+      0,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "acefd8f94c58e323fd1635cf4d991b1b23ee9373006156faa35fa104f96d2fef",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "b109b053fc5a405dc112d2208de3ad897472ecbe386eab788a422529f17487bb",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "b466502e8b41cb1abd96942c3e985082813875adeeea57837771e660c6c75296",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "c003a1ac956c7e7a5d23738b246365fe97d922e30a8ece6cc2a2f129362785ae",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ],
+     [
+      2,
+      2,
+      1
+     ],
+     [
+      3,
+      2,
+      1
+     ],
+     [
+      4,
+      2,
+      1
+     ],
+     [
+      5,
+      2,
+      1
+     ],
+     [
+      6,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "c03883a02081f0742f1ab7504b49c5adf518cfcf1635d88d4315729efe9762ab",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "c0651759417c084d45d60e5398527ff1f16531a005adee676ce9bb39b6ef2a28",
+    "streams": [
+     [
+      4,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "c634b34429b3af4ef8bf3cbc0faf7658f2b110cb23a392065752ff3ec2611fb1",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "c69c53f0fe37b49a0b6868874955b681bde4b5b63baefa8ac503b08a709b6552",
+    "streams": [
+     [
+      0,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "c95ddd9fec0cd2306948b2aa17f8900d07c35c5cff998de767137e0402d30250",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "c9f370dcc2e70f7ba072502d8d8579a902a4d118d546b785038259a901533ea9",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "ca81b9a764b08adc29981f1632dfdd0ce6c7978ff3427f2286f42a7266e35976",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "cd5a177064bd1a1e1bbcfd8c720a2168325b836755e0dd24ee7a0c984ec73b2e",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "cdd4381e29ad6a4288e49d43877f05ea6549482da77c9f28c32aa9eb398bffd9",
+    "streams": [
+     [
+      2,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "ccf01bdb4a1227c03bd7a2903fa79f2262558ad8a9116a7e54b95b3e9f6fdac2",
+    "streams": [
+     [
+      1,
+      2,
+      6
+     ]
+    ]
+   },
+   {
+    "sha256": "d63c26613e603af6d4bfa19b27b18070d4ef42aba9cfeab6eab39873cc8c22f4",
+    "streams": [
+     [
+      2,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "d79d401e2bf264b2d8a61af8e7bedde137fcb5e33dd8b594677fb1d06f5e7d71",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "dbf84da4f091bb60e504531083d54b16624ad0429d93f7b8578566645093fb3f",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "dc6eb4d7f184029d2a7d28fa349474f8ef3f9a7566902a907ac12043350c9fca",
+    "streams": [
+     [
+      2,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "dd8acda6328dcd4cc0461811ba21536151986c2967dae2016c5c899458a953aa",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "de7348e23632ef363b4ec9516454784fb508209d4747ebc8ff34e7e848c6ac69",
+    "streams": [
+     [
+      0,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "de5a1676fc0dd8afec558320a37bb0999e70c771994f28963dc24648e41d938c",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "de4dc3330b8674bf37b9d62d67ea24f82b627bbb4612939aa89b18c1a26f9240",
+    "streams": [
+     [
+      0,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "e001915dce489d75a9776903e4dbbf4b332d7595b5861f0546599337967f9291",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "e21d24b59a0db6b6e9e0e5a19f524ab80f055a1530c8442574775d990bc2dde1",
+    "streams": [
+     [
+      2,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "ea7d1d3c22b60ceaf81443b29cd39a7bfc358ec6132c230a74c95b2f4f6c32da",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "ecf6df8fb1d1e339366b8259f27d764fdff1a4377193ad916684b1d51d779b1e",
+    "streams": [
+     [
+      0,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "ed8d2cf94095994eb94569b40a3d1d0865f93cf5c5ef921f717ef55ed1b687b6",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "f10433d1ae5b8ea0e55fdad0b517e4568a7a0d6e56069c9f1a6bc2937a56cf42",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "f272d367815875a7d12ad2d5eda0d3f9f1edb47a3071b1d980023bd1045a1e78",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "f78996bb41653d72a58390a9de1cd4ca3e5e9a1df245fc53407c08d09f762328",
+    "streams": [
+     [
+      1,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "fc84f03ad546f71c8cb5b63ea87ab8e4cb0f1f5329ee77a83bd2085dc2874be9",
+    "streams": [
+     [
+      0,
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "sha256": "fdc529abef0935ddc848e39f475c794ea1e91cdd1adcbe82e75de8bcc28230c5",
+    "streams": [
+     [
+      2,
+      2,
+      1
+     ]
+    ]
+   }
+  ],
+  "rechecked_files": 0,
+  "B7_memory": {
+   "files": 2356,
+   "max_kb": 43612,
+   "p99_kb": 5880,
+   "median_kb": 2984.0,
+   "over_bar": [],
+   "largest_files": [
+    {
+     "size": 6294125668,
+     "rss_kb": 3012
+    },
+    {
+     "size": 4678903542,
+     "rss_kb": 4836
+    },
+    {
+     "size": 3650362856,
+     "rss_kb": 7028
+    },
+    {
+     "size": 3321959591,
+     "rss_kb": 2976
+    },
+    {
+     "size": 3302214074,
+     "rss_kb": 8484
+    }
+   ]
+  }
+ },
+ "speed": {
+  "errors": [],
+  "bar": 0.5,
+  "all": {
+   "files": 303,
+   "median": 0.13292386576014745,
+   "ci95": [
+    0.12453595134450685,
+    0.14132530848222535
+   ],
+   "p90": 0.27296942352920706,
+   "max": 0.8420855772924467,
+   "coreav_median_ms": 0.9925479998855735,
+   "ffprobe_median_ms": 7.545857999502914
+  },
+  "fragmented": {
+   "files": 20,
+   "median": 0.3171416094215579,
+   "ci95": [
+    0.25627911517801527,
+    0.4123519830251058
+   ],
+   "p90": 0.5278207221122212,
+   "max": 0.8420855772924467,
+   "coreav_median_ms": 0.9101955001824535,
+   "ffprobe_median_ms": 3.02488799979983
+  },
+  "not_fragmented": {
+   "files": 283,
+   "median": 0.12821157620420812,
+   "ci95": [
+    0.11445520236568615,
+    0.1364490561553007
+   ],
+   "p90": 0.2459451541430607,
+   "max": 0.5294533159577857,
+   "coreav_median_ms": 0.9928679992299294,
+   "ffprobe_median_ms": 7.905745000243769
+  },
+  "larger_than_1_gb": {
+   "files": 12,
+   "median": 0.12851674588529377,
+   "ci95": [
+    0.045160355734065544,
+    0.18534874344985325
+   ],
+   "p90": 0.20227279475115204,
+   "max": 0.2520049375577386,
+   "coreav_median_ms": 1.2812089998988085,
+   "ffprobe_median_ms": 24.0927734998877
+  }
+ }
+}

@@ -1,0 +1,120 @@
+name: deny
+
+# The licence and advisory checks (cargo-deny, including every fuzz project's
+# own dependency graph), the check that default builds link no
+# still-patented codec, the DCO sign-off check and the workflow check.
+# Nothing here is filtered, by design: every commit needs a sign-off whatever
+# it touches, a dependency can change in a file ci.yml's filter ignores, and
+# the required-check list has to stay true of the workflows even when a pull
+# request changes nothing but documentation (docs/design/ci-checks.md).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  # PRs: one run per branch, a new push cancels the previous one. Pushes to
+  # main and manual runs each get their own group, so none is dropped.
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  deny:
+    # One job for the license and advisory checks, the DCO check and the
+    # workflow check: each is seconds long, and every job is billed at least
+    # a minute.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # Full history so the DCO step can list the PR's commits.
+          fetch-depth: 0
+      # The required checks and the workflows have to agree whatever a change
+      # touches, and docs/design/ci-checks.md, which names them, is
+      # itself behind ci.yml's filter; so this runs here, where nothing is
+      # filtered (docs/design/ci-checks.md).
+      - name: Check the workflows against the required-check list
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          set -euo pipefail
+          python3 -I scripts/workflow_check.py
+          python3 -I -m unittest discover -s .github/actions/changed-paths/tests -p 'test_*.py'
+          python3 -I scripts/pr_text_check_selftest.py
+      # tools/compat-corpus/commands-v1 stays what tools/compat-corpus/classify.py says
+      # it is, and the vocabulary table of docs/design/compat-cli.md stays
+      # what that file implements (docs/design/compat-cli.md, bar B5). It
+      # runs here, not in ci.yml, because the note it reads is behind that
+      # workflow's path filter.
+      - name: Check the command-coverage set against its rules
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 -I -m unittest discover -s tools/compat-corpus/tests -p 'test_*.py'
+      # The pure parts of the transcode oracle (docs/design/transcode.md,
+      # "Bars"): seconds long, no FFmpeg, no corpus.
+      - name: Self-test the transcode oracle
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 -I scripts/transcode_check_selftest.py
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+      # The fuzz projects are outside the workspace; check their own license
+      # graphs. Projects are found as scripts/fuzz_plan.py finds them
+      # (crates/*/fuzz), so a new one is checked without editing this file;
+      # finding none fails. cargo-deny is the version the action above runs.
+      - name: Install cargo-deny
+        env:
+          VERSION: 0.20.2
+          SHA256: 9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f
+        run: |
+          set -euo pipefail
+          name="cargo-deny-$VERSION-x86_64-unknown-linux-musl"
+          curl -sSfL -o "$RUNNER_TEMP/deny.tar.gz" \
+            "https://github.com/EmbarkStudios/cargo-deny/releases/download/$VERSION/$name.tar.gz"
+          echo "$SHA256  $RUNNER_TEMP/deny.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/deny.tar.gz" -C "$RUNNER_TEMP" "$name/cargo-deny"
+          echo "$RUNNER_TEMP/$name" >> "$GITHUB_PATH"
+      - name: Check the licenses of every fuzz project
+        run: |
+          set -euo pipefail
+          # As the action does: make sure rust-toolchain.toml's toolchain is
+          # installed before cargo-deny runs cargo metadata.
+          rustup show active-toolchain || rustup toolchain install
+          python3 scripts/fuzz_plan.py --projects > "$RUNNER_TEMP/fuzz-projects.txt"
+          status=0
+          while read -r project; do
+            echo "::group::$project"
+            cargo-deny --all-features --manifest-path "$project/Cargo.toml" check licenses || status=1
+            echo "::endgroup::"
+          done < "$RUNNER_TEMP/fuzz-projects.txt"
+          exit "$status"
+      # Default builds hold no implementation of a still-patented codec: a licensing check, so
+      # it runs here, unfiltered, and even when a deny step failed; cargo
+      # installs rust-toolchain.toml's toolchain itself if the step above
+      # did not run (docs/design/ci-checks.md, "Default builds and patents").
+      - name: Default builds link no still-patented codec
+        if: ${{ !cancelled() }}
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 -I scripts/patent_free_check.py
+      - name: Every commit has a Signed-off-by line matching its author
+        # Runs even when a deny step failed, so both results show at once.
+        if: always() && github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          fail=0
+          for c in $(git rev-list "$BASE..$HEAD"); do
+            author="$(git log -1 --format='%an <%ae>' "$c")"
+            if ! git log -1 --format='%(trailers:key=Signed-off-by,valueonly)' "$c" | grep -qxF "$author"; then
+              echo "::error::commit $c is missing 'Signed-off-by: $author'"
+              fail=1
+            fi
+          done
+          exit "$fail"

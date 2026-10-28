@@ -1,0 +1,72 @@
+{
+ "counts_on_probe": {
+  "cycle_activity.stalls_l1d_miss": 8736043.0,
+  "cycle_activity.stalls_l2_miss": 5509994.0,
+  "cycle_activity.stalls_total": 310395472.0,
+  "cycles": 1388400472.0,
+  "instructions": 2690221892.0,
+  "l1d_pend_miss.fb_full": 4200640.0,
+  "l2_rqsts.all_rfo": 1175723.0,
+  "l2_rqsts.rfo_miss": 128097.0,
+  "machine_clears.memory_ordering": 48863.0,
+  "mem_inst_retired.all_stores": 270366171.0,
+  "mem_load_retired.fb_hit": 2144500.0,
+  "mem_load_retired.l1_miss": 1761204.0,
+  "mem_load_retired.l2_miss": 135857.0,
+  "resource_stalls.sb": 6297283.0
+ },
+ "groups": {
+  "loads": [
+   "cycles",
+   "instructions",
+   "mem_load_retired.l1_miss",
+   "mem_load_retired.l2_miss",
+   "mem_load_retired.fb_hit",
+   "l1d_pend_miss.fb_full"
+  ],
+  "stores": [
+   "cycles",
+   "l2_rqsts.all_rfo",
+   "l2_rqsts.rfo_miss",
+   "resource_stalls.sb",
+   "mem_inst_retired.all_stores"
+  ],
+  "stalls": [
+   "cycles",
+   "cycle_activity.stalls_total",
+   "cycle_activity.stalls_l1d_miss",
+   "cycle_activity.stalls_l2_miss",
+   "machine_clears.memory_ordering"
+  ]
+ },
+ "groups_together": {
+  "loads": {
+   "wall_s": 0.37887821999999005,
+   "cycles": 1381784271.0,
+   "instructions": 2690335118.0,
+   "mem_load_retired.l1_miss": 1726067.0,
+   "mem_load_retired.l2_miss": 137898.0,
+   "mem_load_retired.fb_hit": 1996348.0,
+   "l1d_pend_miss.fb_full": 4192680.0,
+   "task-clock": 368.51
+  },
+  "stores": {
+   "wall_s": 0.37583052300000475,
+   "cycles": 1390804562.0,
+   "l2_rqsts.all_rfo": 1257234.0,
+   "l2_rqsts.rfo_miss": 126557.0,
+   "resource_stalls.sb": 12496768.0,
+   "mem_inst_retired.all_stores": 270304937.0,
+   "task-clock": 364.09
+  },
+  "stalls": {
+   "wall_s": 0.3751446329999908,
+   "cycles": 1376671228.0,
+   "cycle_activity.stalls_total": 308229514.0,
+   "cycle_activity.stalls_l1d_miss": 7643160.0,
+   "cycle_activity.stalls_l2_miss": 4521847.0,
+   "machine_clears.memory_ordering": 49215.0,
+   "task-clock": 363.22
+  }
+ }
+}

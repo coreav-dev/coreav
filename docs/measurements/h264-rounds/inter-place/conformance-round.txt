@@ -1,0 +1,6 @@
+# scripts/h264_conformance.py --extracted <suite> on p, one line per mode and kernels
+{"streams": 97, "passed": 97, "failed": 0, "kernels": "detect", "mode": "fast", "threads": "1", "seconds": 36.5}
+{"streams": 97, "passed": 97, "failed": 0, "kernels": "scalar", "mode": "fast", "threads": "1", "seconds": 46.6}
+{"streams": 97, "passed": 97, "failed": 0, "kernels": "detect", "mode": "safe", "threads": "1", "seconds": 35.9}
+{"streams": 97, "passed": 97, "failed": 0, "kernels": "scalar", "mode": "safe", "threads": "1", "seconds": 43.9}
+{"streams": 97, "passed": 97, "failed": 0, "kernels": "detect", "mode": "fast", "threads": "1,2,8", "seconds": 43.3}

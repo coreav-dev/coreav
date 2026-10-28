@@ -1,0 +1,6 @@
+# Round 24's code merged with main at 056bd25 (96237d9), scripts/h264_conformance.py --extracted (local copy of the suite) --threads 1,2,8, RUSTFLAGS unset: detected kernels, scalar kernels, detected kernels with CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS=true (the check of the carried neighbours at every macroblock), and --mode safe
+{"streams": 97, "passed": 97, "failed": 0, "kernels": "detect", "mode": "fast", "threads": "1,2,8", "seconds": 41.5}
+{"streams": 97, "passed": 97, "failed": 0, "kernels": "scalar", "mode": "fast", "threads": "1,2,8", "seconds": 58.3}
+{"streams": 97, "passed": 97, "failed": 0, "kernels": "detect", "mode": "fast", "threads": "1,2,8", "seconds": 45.9}
+{"streams": 97, "passed": 97, "failed": 0, "kernels": "detect", "mode": "safe", "threads": "1,2,8", "seconds": 44.6}
+# Before the merge, the code of fec04b3 on main at e18f85c: 97 of 97 detected, scalar and with debug assertions.

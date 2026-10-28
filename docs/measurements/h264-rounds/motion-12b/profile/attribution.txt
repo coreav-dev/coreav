@@ -1,0 +1,183 @@
+# MB control attribution, main at 686fb48f, against FFmpeg 9.0.2 C-only (-cpuflags 0)
+# Host: Intel Xeon @ 2.50GHz (family 6, model 85), 8 logical CPUs; not the bar class.
+# Streams: the eight of docs/measurements/h264-gap-2, frames: sd 600, 720p 300, 1080p 100, 4k 40 (5,682,466 macroblocks).
+# Instructions and branches: callgrind --branch-sim=yes (its predictor is a simple model: mispredicts are indicative).
+# Time: perf record -e cpu-clock -F 4999, pinned to one core, mean of 3 runs.
+
+stage | Ir ours M | Ir ffc M | ratio | Bc ours | Bc ffc | Bcm ours K | Bcm ffc K
+mb control                    8829      4657  1.90     881     368    25926    14740
+entropy                       5714      4376  1.31     484     305    42222    30467
+deblock strength/driver       4500      3853  1.17     437     345    33315    19113
+deblock filter                3570     15676  0.23     122    1067     2382    54326
+chroma MC                     3497      2949  1.19     466     159    18335     2346
+combine                       2969      3701  0.80     318      36     4572     1476
+luma MC                       1911      5982  0.32     269      99    10083     5102
+intra pred                    1162       407  2.85     120       4     5724      254
+idct/dequant/add               717      2472  0.29      33     113     3516    11724
+picture/edge/output            510        75  6.79      52      15     1294      768
+other                          406       670  0.61     142     389     1150     3999
+
+mb control functions, ours: Ir M, Bc M, Bcm K, Bi M, Bim K
+    2979    324    6008   0.0      0  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::predict_list
+    1918    182    4951   0.0      0  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::inter_pred
+     949    131    4593   0.6      1  <coreav_h264::work::PictureWork<coreav_kernels_h264::Auto>>::decode_slice
+     790     60    1833   0.0      0  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::motion_compensate
+     727     57     250   0.0      0  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::start_mb
+     501     24    1267   0.0      0  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::mv_predictor
+     345     26     320   0.0      0  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::colocated
+     170     24    2923   0.0      0  <coreav_h264::mb::MbData>::reset
+     156     15     899   0.0      0  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::spatial_direct
+      98     12    1105   0.0      0  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::residual_4x4_luma
+      89     11     180   0.0      0  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::fill_ctx::<1>
+      71      9     992   0.0      0  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::store_motion
+      31      5     552   0.0      0  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::derive_8x8_mode
+       2      1      36   0.0      0  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::no_sub_8x8_partitions
+       1      0      10   0.0      0  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::direct_8x8
+       0      0       3   0.0      0  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::predict_quadrants
+       0      0       0   0.0      0  <coreav_h264::work::PictureWork<coreav_kernels_h264::Auto>>::finish
+       0      0       2   0.0      4  core::ptr::drop_glue::<coreav_h264::work::PictureWork<coreav_kernels_h264::Auto>>
+       0      0       0   0.0      0  core::ptr::drop_glue::<coreav_h264::work::Workers<coreav_kernels_h264::Auto>>
+
+mb control functions, ffc: Ir M, Bc M, Bcm K, Bi M, Bim K
+    1327     72    4113  34.7   1654  hl_decode_mb_simple_8
+    1295     89    2278  25.2   3498  mc_part_420_simple_8
+     896     86    6462   0.0      0  fill_decode_caches
+     392     26     911   0.0      0  ff_h264_pred_direct_motion
+     341     11      73   0.0      0  fill_decode_neighbors
+     301     59     521   0.0      0  decode_slice
+     100     23     258   0.0      0  ff_h264_hl_decode_mb
+       5      1     107   0.0      0  ff_h264_queue_decode_slice
+       0      0       8   0.0      0  ff_h264_direct_ref_list_init
+       0      0       3   0.0      0  ff_h264_decode_ref_pic_list_reordering
+       0      0       3   0.0      0  ff_h264_execute_decode_slices
+       0      0       1   0.0      0  ff_h264_decode_ref_pic_marking
+       0      0       0   0.0      0  mc_part_420_complex
+       0      0       0   0.0      0  hl_decode_mb_complex
+       0      0       1   0.0      0  ff_h264_direct_dist_scale_factor
+       0      0       0   0.0      0  h264_slice_header_init
+       0      0       0   0.0      0  ff_h264_slice_context_init
+
+stage: ms ours, ms ffc (2.50 GHz model 85, cpu-clock, mean of 3)
+  mb control                  1788    1009
+  entropy                     1016    1044
+  chroma MC                    904     643
+  luma MC                      707    1207
+  deblock strength/driver      563     647
+  deblock filter               530    2183
+  combine                      370     521
+  other                        287     481
+  picture/edge/output          195      21
+  intra pred                   186      83
+  idct/dequant/add             132     391
+  total 6679 8229
+
+mb control fns ours: ms, Ir M, ns per 1k Ir (=> cycles/insn at 2.5GHz: x2.5/1000)
+ours
+     489 ms   2979M  CPI 0.41  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::predict_list
+     354 ms   1918M  CPI 0.46  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::inter_pred
+     316 ms    949M  CPI 0.83  <coreav_h264::work::PictureWork<coreav_kernels_h264::Auto>>::decode_slice
+     255 ms    345M  CPI 1.85  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::colocated
+     113 ms    790M  CPI 0.36  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::motion_compensate
+      97 ms    727M  CPI 0.33  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::start_mb
+      56 ms    501M  CPI 0.28  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::mv_predictor
+      40 ms    170M  CPI 0.59  <coreav_h264::mb::MbData>::reset
+      18 ms    156M  CPI 0.29  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::spatial_direct
+      15 ms     98M  CPI 0.39  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::residual_4x4_luma
+      14 ms     71M  CPI 0.51  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::store_motion
+      13 ms     89M  CPI 0.36  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::fill_ctx::<1>
+ffc
+     320 ms   1295M  CPI 0.62  mc_part_420_simple_8
+     291 ms   1327M  CPI 0.55  hl_decode_mb_simple_8
+     196 ms    896M  CPI 0.55  fill_decode_caches
+      75 ms    392M  CPI 0.48  ff_h264_pred_direct_motion
+      62 ms    341M  CPI 0.46  fill_decode_neighbors
+      42 ms    301M  CPI 0.35  decode_slice
+      16 ms    100M  CPI 0.41  ff_h264_hl_decode_mb
+       5 ms      5M  CPI 2.65  ff_h264_queue_decode_slice
+       1 ms      0M  CPI 3.88  ff_h264_direct_ref_list_init
+       1 ms      0M  CPI 7.42  ff_h264_execute_decode_slices
+       0 ms      0M  CPI 1.31  ff_h264_decode_ref_pic_list_reordering
+       0 ms      0M  CPI 3.52  ff_h264_decode_ref_pic_marking
+
+# Time by source line (perf samples mapped with addr2line, the innermost frame in coreav-h264), ms
+decode_slice 316 ms
+     91 ms  mb.rs:757
+     66 ms  mb.rs:783
+     21 ms  mb.rs:740
+     10 ms  work.rs:115
+      7 ms  mb.rs:826
+      6 ms  cabac.rs:167
+      5 ms  cabac.rs:174
+      4 ms  cabac.rs:163
+      4 ms  mb.rs:?
+colocated 255 ms
+    225 ms  inter.rs:?
+      8 ms  inter.rs:745
+      7 ms  inter.rs:761
+      7 ms  inter.rs:739
+inter_pred 354 ms
+    108 ms  inter.rs:419
+     26 ms  inter.rs:?
+     19 ms  inter.rs:131
+     15 ms  inter.rs:475
+     14 ms  picture.rs:256
+     14 ms  inter.rs:528
+     12 ms  inter.rs:386
+     10 ms  inter.rs:171
+      9 ms  inter.rs:142
+      8 ms  inter.rs:854
+      8 ms  inter.rs:661
+      7 ms  inter.rs:139
+      7 ms  inter.rs:844
+      6 ms  inter.rs:660
+      6 ms  inter.rs:498
+      5 ms  inter.rs:659
+      4 ms  inter.rs:313
+start_mb 97 ms
+     30 ms  mb.rs:476
+     26 ms  mb.rs:668
+      6 ms  mb.rs:643
+      6 ms  mb.rs:667
+
+# Simulated D1 misses (callgrind --cache-sim=yes), 6da34958296c and b71b6b31e54f, 100 frames each (1,689,120 macroblocks)
+ours: stage, D1 read misses K, D1 write misses K
+  mb control                  9599   10839
+  luma MC                    12187    6787
+  chroma MC                   7189    3530
+  deblock strength/driver     5671      77
+  picture/edge/output         1556    3307
+  deblock filter              4565       3
+  mb control functions:
+       2193    7952  inter_pred
+       2046    1976  decode_slice
+       2780       3  colocated
+       1802     122  start_mb
+        452      11  fill_ctx::<1>
+        197     205  predict_list
+FFmpeg C: stage, D1 read misses K, D1 write misses K
+  luma MC                    13555    7288
+  chroma MC                   7936    3583
+  entropy                     1519    5462
+  deblock strength/driver     4109     874
+  deblock filter              4282       0
+  mb control                  3102     372
+  mb control functions:
+       1865     137  fill_decode_caches
+        580      72  hl_decode_mb_simple_8
+        205      71  fill_decode_neighbors
+        150      68  ff_h264_pred_direct_motion
+        213       0  mc_part_420_simple_8
+         64      17  ff_h264_queue_decode_slice
+ours, by source line:
+  inter_pred     r      0K w   6267K  ptr/mod.rs:664
+  inter_pred     r   2010K w      0K  inter.rs:131
+  inter_pred     r      0K w   1576K  inter.rs:171
+  colocated      r   2769K w      0K  inter.rs:0
+  colocated      r     11K w      0K  slice/index.rs:184
+  colocated      r      0K w      2K  inter.rs:753
+  decode_slice   r      3K w   1625K  mb.rs:757
+  decode_slice   r    840K w      0K  mb.rs:784
+  decode_slice   r    783K w      0K  mb.rs:827
+  start_mb       r   1705K w      0K  mb.rs:476
+  start_mb       r     33K w     36K  mb.rs:668
+  start_mb       r     13K w      4K  mb.rs:723

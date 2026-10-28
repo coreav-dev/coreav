@@ -1,0 +1,5094 @@
+{
+  "schema_version": 1,
+  "device": "cpu",
+  "repeats": 5,
+  "versions": {
+    "torch": "2.14.1+cpu",
+    "torchcodec": "0.17.0+cpu",
+    "cuda_runtime": null
+  },
+  "affinity": [
+    0
+  ],
+  "samples": [
+    {
+      "sample": {
+        "id": "small",
+        "url": "https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4.zip",
+        "archive_member": "BigBuckBunny_320x180.mp4",
+        "license": "CC-BY-3.0",
+        "license_url": "https://peach.blender.org/about/",
+        "attribution": "(c) copyright 2008, Blender Foundation / www.bigbuckbunny.org",
+        "sha256": "f78f39603e6774907f2faafabf26a667f4a6fc31769ec304a8a8f7c62d280508"
+      },
+      "frame_count": 14315,
+      "rows": [
+        {
+          "variant": "wan",
+          "mode": "baseline",
+          "trial": 0,
+          "workload": "random",
+          "temperature": "cold",
+          "indices": [
+            6662,
+            129,
+            12928,
+            826,
+            23,
+            706,
+            9205,
+            13383
+          ],
+          "pts_seconds": [
+            277.5833333333333,
+            5.375,
+            538.6666666666666,
+            34.416666666666664,
+            0.9583333333333334,
+            29.416666666666668,
+            383.5416666666667,
+            557.625
+          ],
+          "expected_pts_ticks": [
+            6662,
+            129,
+            12928,
+            826,
+            23,
+            706,
+            9205,
+            13383
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "9328878567d340c4650b314cce76559d",
+            "72f92beea9476921178b3b044d27f659",
+            "ca1873760eeb47807707fdd16ef11823",
+            "bbf79272cd2f49986de6408c62758b96",
+            "b44820c6adce5f9bcc391ca37ad2955f",
+            "0c94d91e233e236e62b264e8d2219321",
+            "313ef5b921758a0f1114cf66f1b45802",
+            "ed5d208db4ffb8bc6fa20cc5e75b4e95"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 812.251202,
+          "fetch_ms": 4003.305135,
+          "transfer_ms": 0,
+          "total_ms": 4815.556337,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": null,
+          "opening_range_requests": 3,
+          "opening_range_bytes": 693891,
+          "opening_range_trace": [
+            {
+              "offset": 0,
+              "bytes": 262144,
+              "latency_ms": 274.319659
+            },
+            {
+              "offset": 64225280,
+              "bytes": 262144,
+              "latency_ms": 227.63298
+            },
+            {
+              "offset": 64487424,
+              "bytes": 169603,
+              "latency_ms": 249.461619
+            }
+          ],
+          "range_requests": 7,
+          "range_bytes": 1835008,
+          "range_trace": [
+            {
+              "offset": 262144,
+              "bytes": 262144,
+              "latency_ms": 237.183602
+            },
+            {
+              "offset": 2883584,
+              "bytes": 262144,
+              "latency_ms": 641.194762
+            },
+            {
+              "offset": 3670016,
+              "bytes": 262144,
+              "latency_ms": 236.983279
+            },
+            {
+              "offset": 30146560,
+              "bytes": 262144,
+              "latency_ms": 881.093278
+            },
+            {
+              "offset": 42205184,
+              "bytes": 262144,
+              "latency_ms": 878.496624
+            },
+            {
+              "offset": 58720256,
+              "bytes": 262144,
+              "latency_ms": 656.861469
+            },
+            {
+              "offset": 61079552,
+              "bytes": 262144,
+              "latency_ms": 455.410209
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 8,
+          "planned_packet_count": 58,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "baseline",
+          "trial": 0,
+          "workload": "random",
+          "temperature": "warm",
+          "indices": [
+            9999,
+            7489,
+            3168,
+            9418,
+            11563,
+            5372,
+            7759,
+            1588
+          ],
+          "pts_seconds": [
+            416.625,
+            312.0416666666667,
+            132.0,
+            392.4166666666667,
+            481.7916666666667,
+            223.83333333333334,
+            323.2916666666667,
+            66.16666666666667
+          ],
+          "expected_pts_ticks": [
+            9999,
+            7489,
+            3168,
+            9418,
+            11563,
+            5372,
+            7759,
+            1588
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "461631fc204693783e93ba8045a770e8",
+            "f23472275e9469fd209e617d7fd34b24",
+            "0cb32b54526972f7e97539ee08f2b5a7",
+            "4b29060c1969fff8ad5adedb38cd2b83",
+            "44915725e3b27d6205b12f7a380ee055",
+            "b9d5d0e1a66a3c1d4ddd57d7e7b4234d",
+            "ef9c2ae06d41ea6179a77c35e5e24582",
+            "fefc822edffddb2af81ea0157478590a"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 0,
+          "fetch_ms": 5185.113707,
+          "transfer_ms": 0,
+          "total_ms": 5185.113707,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": null,
+          "opening_range_requests": 0,
+          "opening_range_bytes": 0,
+          "opening_range_trace": [],
+          "range_requests": 9,
+          "range_bytes": 2359296,
+          "range_trace": [
+            {
+              "offset": 7077888,
+              "bytes": 262144,
+              "latency_ms": 616.186654
+            },
+            {
+              "offset": 14155776,
+              "bytes": 262144,
+              "latency_ms": 491.45627
+            },
+            {
+              "offset": 24117248,
+              "bytes": 262144,
+              "latency_ms": 591.000013
+            },
+            {
+              "offset": 33816576,
+              "bytes": 262144,
+              "latency_ms": 462.108554
+            },
+            {
+              "offset": 34078720,
+              "bytes": 262144,
+              "latency_ms": 236.184143
+            },
+            {
+              "offset": 35389440,
+              "bytes": 262144,
+              "latency_ms": 1001.214443
+            },
+            {
+              "offset": 42991616,
+              "bytes": 262144,
+              "latency_ms": 487.710774
+            },
+            {
+              "offset": 45875200,
+              "bytes": 262144,
+              "latency_ms": 537.030451
+            },
+            {
+              "offset": 53477376,
+              "bytes": 262144,
+              "latency_ms": 746.427362
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 8,
+          "planned_packet_count": 48,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "coreav",
+          "trial": 0,
+          "workload": "random",
+          "temperature": "cold",
+          "indices": [
+            6662,
+            129,
+            12928,
+            826,
+            23,
+            706,
+            9205,
+            13383
+          ],
+          "pts_seconds": [
+            277.5833333333333,
+            5.375,
+            538.6666666666666,
+            34.416666666666664,
+            0.9583333333333334,
+            29.416666666666668,
+            383.5416666666667,
+            557.625
+          ],
+          "expected_pts_ticks": [
+            6662,
+            129,
+            12928,
+            826,
+            23,
+            706,
+            9205,
+            13383
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "9328878567d340c4650b314cce76559d",
+            "72f92beea9476921178b3b044d27f659",
+            "ca1873760eeb47807707fdd16ef11823",
+            "bbf79272cd2f49986de6408c62758b96",
+            "b44820c6adce5f9bcc391ca37ad2955f",
+            "0c94d91e233e236e62b264e8d2219321",
+            "313ef5b921758a0f1114cf66f1b45802",
+            "ed5d208db4ffb8bc6fa20cc5e75b4e95"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 849.325162,
+          "fetch_ms": 1718.498413,
+          "transfer_ms": 0,
+          "total_ms": 2567.823575,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": true,
+          "opening_range_requests": 3,
+          "opening_range_bytes": 693891,
+          "opening_range_trace": [
+            {
+              "offset": 0,
+              "bytes": 262144,
+              "latency_ms": 276.559368
+            },
+            {
+              "offset": 64225280,
+              "bytes": 262144,
+              "latency_ms": 261.757173
+            },
+            {
+              "offset": 64487424,
+              "bytes": 169603,
+              "latency_ms": 259.565572
+            }
+          ],
+          "range_requests": 7,
+          "range_bytes": 1835008,
+          "range_trace": [
+            {
+              "offset": 262144,
+              "bytes": 262144,
+              "latency_ms": 236.090552
+            },
+            {
+              "offset": 2883584,
+              "bytes": 262144,
+              "latency_ms": 227.51964
+            },
+            {
+              "offset": 3670016,
+              "bytes": 262144,
+              "latency_ms": 264.958529
+            },
+            {
+              "offset": 30146560,
+              "bytes": 262144,
+              "latency_ms": 256.894497
+            },
+            {
+              "offset": 42205184,
+              "bytes": 262144,
+              "latency_ms": 231.186617
+            },
+            {
+              "offset": 58720256,
+              "bytes": 262144,
+              "latency_ms": 240.930504
+            },
+            {
+              "offset": 61079552,
+              "bytes": 262144,
+              "latency_ms": 240.296351
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 8,
+          "planned_packet_count": 58,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "coreav",
+          "trial": 0,
+          "workload": "random",
+          "temperature": "warm",
+          "indices": [
+            9999,
+            7489,
+            3168,
+            9418,
+            11563,
+            5372,
+            7759,
+            1588
+          ],
+          "pts_seconds": [
+            416.625,
+            312.0416666666667,
+            132.0,
+            392.4166666666667,
+            481.7916666666667,
+            223.83333333333334,
+            323.2916666666667,
+            66.16666666666667
+          ],
+          "expected_pts_ticks": [
+            9999,
+            7489,
+            3168,
+            9418,
+            11563,
+            5372,
+            7759,
+            1588
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "461631fc204693783e93ba8045a770e8",
+            "f23472275e9469fd209e617d7fd34b24",
+            "0cb32b54526972f7e97539ee08f2b5a7",
+            "4b29060c1969fff8ad5adedb38cd2b83",
+            "44915725e3b27d6205b12f7a380ee055",
+            "b9d5d0e1a66a3c1d4ddd57d7e7b4234d",
+            "ef9c2ae06d41ea6179a77c35e5e24582",
+            "fefc822edffddb2af81ea0157478590a"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 0,
+          "fetch_ms": 2197.20099,
+          "transfer_ms": 0,
+          "total_ms": 2197.20099,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": true,
+          "opening_range_requests": 0,
+          "opening_range_bytes": 0,
+          "opening_range_trace": [],
+          "range_requests": 9,
+          "range_bytes": 2359296,
+          "range_trace": [
+            {
+              "offset": 7077888,
+              "bytes": 262144,
+              "latency_ms": 245.854648
+            },
+            {
+              "offset": 14155776,
+              "bytes": 262144,
+              "latency_ms": 230.753572
+            },
+            {
+              "offset": 24117248,
+              "bytes": 262144,
+              "latency_ms": 230.933313
+            },
+            {
+              "offset": 33816576,
+              "bytes": 262144,
+              "latency_ms": 221.221498
+            },
+            {
+              "offset": 34078720,
+              "bytes": 262144,
+              "latency_ms": 262.82981
+            },
+            {
+              "offset": 35389440,
+              "bytes": 262144,
+              "latency_ms": 263.754324
+            },
+            {
+              "offset": 42991616,
+              "bytes": 262144,
+              "latency_ms": 238.873346
+            },
+            {
+              "offset": 45875200,
+              "bytes": 262144,
+              "latency_ms": 240.222851
+            },
+            {
+              "offset": 53477376,
+              "bytes": 262144,
+              "latency_ms": 246.329914
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 8,
+          "planned_packet_count": 48,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "baseline",
+          "trial": 0,
+          "workload": "clips",
+          "temperature": "cold",
+          "indices": [
+            6662,
+            6663,
+            6664,
+            6665,
+            129,
+            130,
+            131,
+            132
+          ],
+          "pts_seconds": [
+            277.5833333333333,
+            277.625,
+            277.6666666666667,
+            277.7083333333333,
+            5.375,
+            5.416666666666667,
+            5.458333333333333,
+            5.5
+          ],
+          "expected_pts_ticks": [
+            6662,
+            6663,
+            6664,
+            6665,
+            129,
+            130,
+            131,
+            132
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "9328878567d340c4650b314cce76559d",
+            "01deb77a6021f3285bf595c9f3d1158a",
+            "3c62b8384611973bb874c249ae20da3b",
+            "12762be48967074eec2507d5996c9223",
+            "72f92beea9476921178b3b044d27f659",
+            "281ddcc951f8c985a24e5a5b8db5cdb9",
+            "b1c357e02086e887ab08b77ad7e61b87",
+            "7b6774cfa8d6eb89827176ebf4d95174"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 740.874062,
+          "fetch_ms": 525.807187,
+          "transfer_ms": 0,
+          "total_ms": 1266.681249,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": null,
+          "opening_range_requests": 3,
+          "opening_range_bytes": 693891,
+          "opening_range_trace": [
+            {
+              "offset": 0,
+              "bytes": 262144,
+              "latency_ms": 237.455389
+            },
+            {
+              "offset": 64225280,
+              "bytes": 262144,
+              "latency_ms": 232.190621
+            },
+            {
+              "offset": 64487424,
+              "bytes": 169603,
+              "latency_ms": 238.927477
+            }
+          ],
+          "range_requests": 2,
+          "range_bytes": 524288,
+          "range_trace": [
+            {
+              "offset": 262144,
+              "bytes": 262144,
+              "latency_ms": 247.086784
+            },
+            {
+              "offset": 30146560,
+              "bytes": 262144,
+              "latency_ms": 272.403281
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 3,
+          "planned_packet_count": 19,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "baseline",
+          "trial": 0,
+          "workload": "clips",
+          "temperature": "warm",
+          "indices": [
+            9999,
+            10000,
+            10001,
+            10002,
+            7489,
+            7490,
+            7491,
+            7492
+          ],
+          "pts_seconds": [
+            416.625,
+            416.6666666666667,
+            416.7083333333333,
+            416.75,
+            312.0416666666667,
+            312.0833333333333,
+            312.125,
+            312.1666666666667
+          ],
+          "expected_pts_ticks": [
+            9999,
+            10000,
+            10001,
+            10002,
+            7489,
+            7490,
+            7491,
+            7492
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "461631fc204693783e93ba8045a770e8",
+            "6d45e14514a872ec10285dfeaa9b00ca",
+            "4774d45954dcaafbe3e581e2d1cfccf1",
+            "61c70bacd6914a75fee4ab90bb2a3e03",
+            "f23472275e9469fd209e617d7fd34b24",
+            "0ec6b933b8d331d1b5f9564905c4fd03",
+            "a7c5c938cede94c6234238819c691204",
+            "bc375cc7e3b19b6e2cf9bf994b2a1318"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 0,
+          "fetch_ms": 727.607508,
+          "transfer_ms": 0,
+          "total_ms": 727.607508,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": null,
+          "opening_range_requests": 0,
+          "opening_range_bytes": 0,
+          "opening_range_trace": [],
+          "range_requests": 3,
+          "range_bytes": 786432,
+          "range_trace": [
+            {
+              "offset": 33816576,
+              "bytes": 262144,
+              "latency_ms": 240.415268
+            },
+            {
+              "offset": 34078720,
+              "bytes": 262144,
+              "latency_ms": 241.399655
+            },
+            {
+              "offset": 45875200,
+              "bytes": 262144,
+              "latency_ms": 241.444767
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 2,
+          "planned_packet_count": 12,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "coreav",
+          "trial": 0,
+          "workload": "clips",
+          "temperature": "cold",
+          "indices": [
+            6662,
+            6663,
+            6664,
+            6665,
+            129,
+            130,
+            131,
+            132
+          ],
+          "pts_seconds": [
+            277.5833333333333,
+            277.625,
+            277.6666666666667,
+            277.7083333333333,
+            5.375,
+            5.416666666666667,
+            5.458333333333333,
+            5.5
+          ],
+          "expected_pts_ticks": [
+            6662,
+            6663,
+            6664,
+            6665,
+            129,
+            130,
+            131,
+            132
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "9328878567d340c4650b314cce76559d",
+            "01deb77a6021f3285bf595c9f3d1158a",
+            "3c62b8384611973bb874c249ae20da3b",
+            "12762be48967074eec2507d5996c9223",
+            "72f92beea9476921178b3b044d27f659",
+            "281ddcc951f8c985a24e5a5b8db5cdb9",
+            "b1c357e02086e887ab08b77ad7e61b87",
+            "7b6774cfa8d6eb89827176ebf4d95174"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 775.718824,
+          "fetch_ms": 535.632796,
+          "transfer_ms": 0,
+          "total_ms": 1311.35162,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": true,
+          "opening_range_requests": 3,
+          "opening_range_bytes": 693891,
+          "opening_range_trace": [
+            {
+              "offset": 0,
+              "bytes": 262144,
+              "latency_ms": 234.812167
+            },
+            {
+              "offset": 64225280,
+              "bytes": 262144,
+              "latency_ms": 238.141361
+            },
+            {
+              "offset": 64487424,
+              "bytes": 169603,
+              "latency_ms": 254.523093
+            }
+          ],
+          "range_requests": 2,
+          "range_bytes": 524288,
+          "range_trace": [
+            {
+              "offset": 262144,
+              "bytes": 262144,
+              "latency_ms": 281.147769
+            },
+            {
+              "offset": 30146560,
+              "bytes": 262144,
+              "latency_ms": 248.118093
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 3,
+          "planned_packet_count": 19,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "coreav",
+          "trial": 0,
+          "workload": "clips",
+          "temperature": "warm",
+          "indices": [
+            9999,
+            10000,
+            10001,
+            10002,
+            7489,
+            7490,
+            7491,
+            7492
+          ],
+          "pts_seconds": [
+            416.625,
+            416.6666666666667,
+            416.7083333333333,
+            416.75,
+            312.0416666666667,
+            312.0833333333333,
+            312.125,
+            312.1666666666667
+          ],
+          "expected_pts_ticks": [
+            9999,
+            10000,
+            10001,
+            10002,
+            7489,
+            7490,
+            7491,
+            7492
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "461631fc204693783e93ba8045a770e8",
+            "6d45e14514a872ec10285dfeaa9b00ca",
+            "4774d45954dcaafbe3e581e2d1cfccf1",
+            "61c70bacd6914a75fee4ab90bb2a3e03",
+            "f23472275e9469fd209e617d7fd34b24",
+            "0ec6b933b8d331d1b5f9564905c4fd03",
+            "a7c5c938cede94c6234238819c691204",
+            "bc375cc7e3b19b6e2cf9bf994b2a1318"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 0,
+          "fetch_ms": 814.750924,
+          "transfer_ms": 0,
+          "total_ms": 814.750924,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": true,
+          "opening_range_requests": 0,
+          "opening_range_bytes": 0,
+          "opening_range_trace": [],
+          "range_requests": 3,
+          "range_bytes": 786432,
+          "range_trace": [
+            {
+              "offset": 33816576,
+              "bytes": 262144,
+              "latency_ms": 273.925267
+            },
+            {
+              "offset": 34078720,
+              "bytes": 262144,
+              "latency_ms": 240.621884
+            },
+            {
+              "offset": 45875200,
+              "bytes": 262144,
+              "latency_ms": 295.364357
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 2,
+          "planned_packet_count": 12,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "baseline",
+          "trial": 1,
+          "workload": "random",
+          "temperature": "cold",
+          "indices": [
+            11919,
+            8939,
+            2864,
+            11100,
+            12585,
+            2449,
+            13227,
+            7890
+          ],
+          "pts_seconds": [
+            496.625,
+            372.4583333333333,
+            119.33333333333333,
+            462.5,
+            524.375,
+            102.04166666666667,
+            551.125,
+            328.75
+          ],
+          "expected_pts_ticks": [
+            11919,
+            8939,
+            2864,
+            11100,
+            12585,
+            2449,
+            13227,
+            7890
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "0d996e9661849a546d6748617443aeea",
+            "ffa0e82a227913aae51a8f61bfb352b8",
+            "aa65a7104e1f2f479bdbe57c7abd05d2",
+            "46e54353bc24eb2757eda0784945fa4f",
+            "c177b8cf5e54a64f0bf724a9dc1defcd",
+            "8245eb43cd1ded9a444d304b4f64be2b",
+            "2863eee4344edf6295b606e109ce6d29",
+            "e9fc991b147ce0db3eed0f988a232358"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 760.839227,
+          "fetch_ms": 4077.785749,
+          "transfer_ms": 0,
+          "total_ms": 4838.624976,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": null,
+          "opening_range_requests": 3,
+          "opening_range_bytes": 693891,
+          "opening_range_trace": [
+            {
+              "offset": 0,
+              "bytes": 262144,
+              "latency_ms": 238.790166
+            },
+            {
+              "offset": 64225280,
+              "bytes": 262144,
+              "latency_ms": 234.823862
+            },
+            {
+              "offset": 64487424,
+              "bytes": 169603,
+              "latency_ms": 259.525955
+            }
+          ],
+          "range_requests": 9,
+          "range_bytes": 2359296,
+          "range_trace": [
+            {
+              "offset": 10747904,
+              "bytes": 262144,
+              "latency_ms": 480.914519
+            },
+            {
+              "offset": 12582912,
+              "bytes": 262144,
+              "latency_ms": 516.668434
+            },
+            {
+              "offset": 35913728,
+              "bytes": 262144,
+              "latency_ms": 234.661103
+            },
+            {
+              "offset": 40894464,
+              "bytes": 262144,
+              "latency_ms": 470.293158
+            },
+            {
+              "offset": 41156608,
+              "bytes": 262144,
+              "latency_ms": 228.352702
+            },
+            {
+              "offset": 51380224,
+              "bytes": 262144,
+              "latency_ms": 548.318429
+            },
+            {
+              "offset": 54788096,
+              "bytes": 262144,
+              "latency_ms": 454.913448
+            },
+            {
+              "offset": 57409536,
+              "bytes": 262144,
+              "latency_ms": 635.81816
+            },
+            {
+              "offset": 60293120,
+              "bytes": 262144,
+              "latency_ms": 491.849355
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 8,
+          "planned_packet_count": 49,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "baseline",
+          "trial": 1,
+          "workload": "random",
+          "temperature": "warm",
+          "indices": [
+            3461,
+            3251,
+            7213,
+            7880,
+            171,
+            13434,
+            13494,
+            660
+          ],
+          "pts_seconds": [
+            144.20833333333334,
+            135.45833333333334,
+            300.5416666666667,
+            328.3333333333333,
+            7.125,
+            559.75,
+            562.25,
+            27.5
+          ],
+          "expected_pts_ticks": [
+            3461,
+            3251,
+            7213,
+            7880,
+            171,
+            13434,
+            13494,
+            660
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "b8deec88de942938cc0867290158b457",
+            "02e1edfc7342e8a2483883db426a1909",
+            "d13033f9e3279a7335dee7e8794ea3a3",
+            "c0cf81b7b258438fdf5d3a7d8c81314e",
+            "b26d6441f7c5a719d7d2dff0ec9b9614",
+            "5f66e58ce32dc28a79861862090f6a51",
+            "9aee0c58737e6dd085b7d7bc25dcaaf0",
+            "3eb953b22a7b2a93a7efb0962f14eb45"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 0,
+          "fetch_ms": 2918.930611,
+          "transfer_ms": 0,
+          "total_ms": 2918.930611,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": null,
+          "opening_range_requests": 0,
+          "opening_range_bytes": 0,
+          "opening_range_trace": [],
+          "range_requests": 8,
+          "range_bytes": 2097152,
+          "range_trace": [
+            {
+              "offset": 524288,
+              "bytes": 262144,
+              "latency_ms": 238.442549
+            },
+            {
+              "offset": 2621440,
+              "bytes": 262144,
+              "latency_ms": 253.271324
+            },
+            {
+              "offset": 2883584,
+              "bytes": 262144,
+              "latency_ms": 335.400779
+            },
+            {
+              "offset": 14417920,
+              "bytes": 262144,
+              "latency_ms": 445.857608
+            },
+            {
+              "offset": 15466496,
+              "bytes": 262144,
+              "latency_ms": 455.149957
+            },
+            {
+              "offset": 32505856,
+              "bytes": 262144,
+              "latency_ms": 492.803132
+            },
+            {
+              "offset": 61341696,
+              "bytes": 262144,
+              "latency_ms": 236.954783
+            },
+            {
+              "offset": 61603840,
+              "bytes": 262144,
+              "latency_ms": 445.155919
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 8,
+          "planned_packet_count": 48,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "coreav",
+          "trial": 1,
+          "workload": "random",
+          "temperature": "cold",
+          "indices": [
+            11919,
+            8939,
+            2864,
+            11100,
+            12585,
+            2449,
+            13227,
+            7890
+          ],
+          "pts_seconds": [
+            496.625,
+            372.4583333333333,
+            119.33333333333333,
+            462.5,
+            524.375,
+            102.04166666666667,
+            551.125,
+            328.75
+          ],
+          "expected_pts_ticks": [
+            11919,
+            8939,
+            2864,
+            11100,
+            12585,
+            2449,
+            13227,
+            7890
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "0d996e9661849a546d6748617443aeea",
+            "ffa0e82a227913aae51a8f61bfb352b8",
+            "aa65a7104e1f2f479bdbe57c7abd05d2",
+            "46e54353bc24eb2757eda0784945fa4f",
+            "c177b8cf5e54a64f0bf724a9dc1defcd",
+            "8245eb43cd1ded9a444d304b4f64be2b",
+            "2863eee4344edf6295b606e109ce6d29",
+            "e9fc991b147ce0db3eed0f988a232358"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 768.084371,
+          "fetch_ms": 2315.679657,
+          "transfer_ms": 0,
+          "total_ms": 3083.764028,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": true,
+          "opening_range_requests": 3,
+          "opening_range_bytes": 693891,
+          "opening_range_trace": [
+            {
+              "offset": 0,
+              "bytes": 262144,
+              "latency_ms": 232.581914
+            },
+            {
+              "offset": 64225280,
+              "bytes": 262144,
+              "latency_ms": 239.397224
+            },
+            {
+              "offset": 64487424,
+              "bytes": 169603,
+              "latency_ms": 238.885877
+            }
+          ],
+          "range_requests": 9,
+          "range_bytes": 2359296,
+          "range_trace": [
+            {
+              "offset": 10747904,
+              "bytes": 262144,
+              "latency_ms": 259.699644
+            },
+            {
+              "offset": 12582912,
+              "bytes": 262144,
+              "latency_ms": 239.293743
+            },
+            {
+              "offset": 35913728,
+              "bytes": 262144,
+              "latency_ms": 263.045696
+            },
+            {
+              "offset": 40894464,
+              "bytes": 262144,
+              "latency_ms": 231.313215
+            },
+            {
+              "offset": 41156608,
+              "bytes": 262144,
+              "latency_ms": 280.6898
+            },
+            {
+              "offset": 51380224,
+              "bytes": 262144,
+              "latency_ms": 239.530226
+            },
+            {
+              "offset": 54788096,
+              "bytes": 262144,
+              "latency_ms": 230.553418
+            },
+            {
+              "offset": 57409536,
+              "bytes": 262144,
+              "latency_ms": 283.022799
+            },
+            {
+              "offset": 60293120,
+              "bytes": 262144,
+              "latency_ms": 273.796811
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 8,
+          "planned_packet_count": 49,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "coreav",
+          "trial": 1,
+          "workload": "random",
+          "temperature": "warm",
+          "indices": [
+            3461,
+            3251,
+            7213,
+            7880,
+            171,
+            13434,
+            13494,
+            660
+          ],
+          "pts_seconds": [
+            144.20833333333334,
+            135.45833333333334,
+            300.5416666666667,
+            328.3333333333333,
+            7.125,
+            559.75,
+            562.25,
+            27.5
+          ],
+          "expected_pts_ticks": [
+            3461,
+            3251,
+            7213,
+            7880,
+            171,
+            13434,
+            13494,
+            660
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "b8deec88de942938cc0867290158b457",
+            "02e1edfc7342e8a2483883db426a1909",
+            "d13033f9e3279a7335dee7e8794ea3a3",
+            "c0cf81b7b258438fdf5d3a7d8c81314e",
+            "b26d6441f7c5a719d7d2dff0ec9b9614",
+            "5f66e58ce32dc28a79861862090f6a51",
+            "9aee0c58737e6dd085b7d7bc25dcaaf0",
+            "3eb953b22a7b2a93a7efb0962f14eb45"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 0,
+          "fetch_ms": 1887.021303,
+          "transfer_ms": 0,
+          "total_ms": 1887.021303,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": true,
+          "opening_range_requests": 0,
+          "opening_range_bytes": 0,
+          "opening_range_trace": [],
+          "range_requests": 8,
+          "range_bytes": 2097152,
+          "range_trace": [
+            {
+              "offset": 524288,
+              "bytes": 262144,
+              "latency_ms": 224.701612
+            },
+            {
+              "offset": 2621440,
+              "bytes": 262144,
+              "latency_ms": 260.688584
+            },
+            {
+              "offset": 2883584,
+              "bytes": 262144,
+              "latency_ms": 238.016927
+            },
+            {
+              "offset": 14417920,
+              "bytes": 262144,
+              "latency_ms": 229.262057
+            },
+            {
+              "offset": 15466496,
+              "bytes": 262144,
+              "latency_ms": 225.076542
+            },
+            {
+              "offset": 32505856,
+              "bytes": 262144,
+              "latency_ms": 237.320391
+            },
+            {
+              "offset": 61341696,
+              "bytes": 262144,
+              "latency_ms": 228.339324
+            },
+            {
+              "offset": 61603840,
+              "bytes": 262144,
+              "latency_ms": 227.494756
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 8,
+          "planned_packet_count": 48,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "baseline",
+          "trial": 1,
+          "workload": "clips",
+          "temperature": "cold",
+          "indices": [
+            11919,
+            11920,
+            11921,
+            11922,
+            8939,
+            8940,
+            8941,
+            8942
+          ],
+          "pts_seconds": [
+            496.625,
+            496.6666666666667,
+            496.7083333333333,
+            496.75,
+            372.4583333333333,
+            372.5,
+            372.5416666666667,
+            372.5833333333333
+          ],
+          "expected_pts_ticks": [
+            11919,
+            11920,
+            11921,
+            11922,
+            8939,
+            8940,
+            8941,
+            8942
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "0d996e9661849a546d6748617443aeea",
+            "69ce502ea52d918925c409ae32d9b4ff",
+            "2b27dd6aea061e4fdd993897da1b423f",
+            "0ead4b5b0f99a9c0eb34a5c782f287fb",
+            "ffa0e82a227913aae51a8f61bfb352b8",
+            "9bb8d3b052af2375e2186820fae7a9de",
+            "a3f75c9a912b3a03350b97fbd7971bf1",
+            "f41c0fd23ab3e7b46a62e0156fa3abb2"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 788.616035,
+          "fetch_ms": 804.901164,
+          "transfer_ms": 0,
+          "total_ms": 1593.517199,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": null,
+          "opening_range_requests": 3,
+          "opening_range_bytes": 693891,
+          "opening_range_trace": [
+            {
+              "offset": 0,
+              "bytes": 262144,
+              "latency_ms": 296.005413
+            },
+            {
+              "offset": 64225280,
+              "bytes": 262144,
+              "latency_ms": 231.561746
+            },
+            {
+              "offset": 64487424,
+              "bytes": 169603,
+              "latency_ms": 231.258162
+            }
+          ],
+          "range_requests": 3,
+          "range_bytes": 786432,
+          "range_trace": [
+            {
+              "offset": 40894464,
+              "bytes": 262144,
+              "latency_ms": 242.53621
+            },
+            {
+              "offset": 41156608,
+              "bytes": 262144,
+              "latency_ms": 315.545316
+            },
+            {
+              "offset": 54788096,
+              "bytes": 262144,
+              "latency_ms": 240.584866
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 3,
+          "planned_packet_count": 22,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "baseline",
+          "trial": 1,
+          "workload": "clips",
+          "temperature": "warm",
+          "indices": [
+            3461,
+            3462,
+            3463,
+            3464,
+            3251,
+            3252,
+            3253,
+            3254
+          ],
+          "pts_seconds": [
+            144.20833333333334,
+            144.25,
+            144.29166666666666,
+            144.33333333333334,
+            135.45833333333334,
+            135.5,
+            135.54166666666666,
+            135.58333333333334
+          ],
+          "expected_pts_ticks": [
+            3461,
+            3462,
+            3463,
+            3464,
+            3251,
+            3252,
+            3253,
+            3254
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "b8deec88de942938cc0867290158b457",
+            "a6fa6cb7e61e8f67e4b01bbbc2a1419f",
+            "0f67a306105289ae95963778fa05c62d",
+            "74a3fff838d6dd9ef63de0aab4d64cc9",
+            "02e1edfc7342e8a2483883db426a1909",
+            "b3f3b979e57c2004c29562976ce46754",
+            "6990fa97818c08b4f479fc1b06c07936",
+            "136fae64cfcbaa8a0394d52d568f4d59"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 0,
+          "fetch_ms": 473.444445,
+          "transfer_ms": 0,
+          "total_ms": 473.444445,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": null,
+          "opening_range_requests": 0,
+          "opening_range_bytes": 0,
+          "opening_range_trace": [],
+          "range_requests": 2,
+          "range_bytes": 524288,
+          "range_trace": [
+            {
+              "offset": 14417920,
+              "bytes": 262144,
+              "latency_ms": 233.8765
+            },
+            {
+              "offset": 15466496,
+              "bytes": 262144,
+              "latency_ms": 232.7605
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 3,
+          "planned_packet_count": 24,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "coreav",
+          "trial": 1,
+          "workload": "clips",
+          "temperature": "cold",
+          "indices": [
+            11919,
+            11920,
+            11921,
+            11922,
+            8939,
+            8940,
+            8941,
+            8942
+          ],
+          "pts_seconds": [
+            496.625,
+            496.6666666666667,
+            496.7083333333333,
+            496.75,
+            372.4583333333333,
+            372.5,
+            372.5416666666667,
+            372.5833333333333
+          ],
+          "expected_pts_ticks": [
+            11919,
+            11920,
+            11921,
+            11922,
+            8939,
+            8940,
+            8941,
+            8942
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "0d996e9661849a546d6748617443aeea",
+            "69ce502ea52d918925c409ae32d9b4ff",
+            "2b27dd6aea061e4fdd993897da1b423f",
+            "0ead4b5b0f99a9c0eb34a5c782f287fb",
+            "ffa0e82a227913aae51a8f61bfb352b8",
+            "9bb8d3b052af2375e2186820fae7a9de",
+            "a3f75c9a912b3a03350b97fbd7971bf1",
+            "f41c0fd23ab3e7b46a62e0156fa3abb2"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 782.369333,
+          "fetch_ms": 717.882798,
+          "transfer_ms": 0,
+          "total_ms": 1500.252131,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": true,
+          "opening_range_requests": 3,
+          "opening_range_bytes": 693891,
+          "opening_range_trace": [
+            {
+              "offset": 0,
+              "bytes": 262144,
+              "latency_ms": 243.835272
+            },
+            {
+              "offset": 64225280,
+              "bytes": 262144,
+              "latency_ms": 231.786545
+            },
+            {
+              "offset": 64487424,
+              "bytes": 169603,
+              "latency_ms": 248.273254
+            }
+          ],
+          "range_requests": 3,
+          "range_bytes": 786432,
+          "range_trace": [
+            {
+              "offset": 40894464,
+              "bytes": 262144,
+              "latency_ms": 231.629333
+            },
+            {
+              "offset": 41156608,
+              "bytes": 262144,
+              "latency_ms": 237.945836
+            },
+            {
+              "offset": 54788096,
+              "bytes": 262144,
+              "latency_ms": 241.377611
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 3,
+          "planned_packet_count": 22,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "coreav",
+          "trial": 1,
+          "workload": "clips",
+          "temperature": "warm",
+          "indices": [
+            3461,
+            3462,
+            3463,
+            3464,
+            3251,
+            3252,
+            3253,
+            3254
+          ],
+          "pts_seconds": [
+            144.20833333333334,
+            144.25,
+            144.29166666666666,
+            144.33333333333334,
+            135.45833333333334,
+            135.5,
+            135.54166666666666,
+            135.58333333333334
+          ],
+          "expected_pts_ticks": [
+            3461,
+            3462,
+            3463,
+            3464,
+            3251,
+            3252,
+            3253,
+            3254
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "b8deec88de942938cc0867290158b457",
+            "a6fa6cb7e61e8f67e4b01bbbc2a1419f",
+            "0f67a306105289ae95963778fa05c62d",
+            "74a3fff838d6dd9ef63de0aab4d64cc9",
+            "02e1edfc7342e8a2483883db426a1909",
+            "b3f3b979e57c2004c29562976ce46754",
+            "6990fa97818c08b4f479fc1b06c07936",
+            "136fae64cfcbaa8a0394d52d568f4d59"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 0,
+          "fetch_ms": 507.646534,
+          "transfer_ms": 0,
+          "total_ms": 507.646534,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": true,
+          "opening_range_requests": 0,
+          "opening_range_bytes": 0,
+          "opening_range_trace": [],
+          "range_requests": 2,
+          "range_bytes": 524288,
+          "range_trace": [
+            {
+              "offset": 14417920,
+              "bytes": 262144,
+              "latency_ms": 266.636866
+            },
+            {
+              "offset": 15466496,
+              "bytes": 262144,
+              "latency_ms": 233.810298
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 3,
+          "planned_packet_count": 24,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "coreav",
+          "trial": 2,
+          "workload": "random",
+          "temperature": "cold",
+          "indices": [
+            2185,
+            11931,
+            9186,
+            8434,
+            10877,
+            11158,
+            6720,
+            8974
+          ],
+          "pts_seconds": [
+            91.04166666666667,
+            497.125,
+            382.75,
+            351.4166666666667,
+            453.2083333333333,
+            464.9166666666667,
+            280.0,
+            373.9166666666667
+          ],
+          "expected_pts_ticks": [
+            2185,
+            11931,
+            9186,
+            8434,
+            10877,
+            11158,
+            6720,
+            8974
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "58c5e4942a13f4f5f0d310c83b737bcb",
+            "f25118c41017aa2bff4a86220fa2b141",
+            "03898c4e1a943c59e40c0778d259575c",
+            "1a37dc418b2d0310432776a11e2d8141",
+            "da5bfd80b5fb8b9195506ce94267354e",
+            "aa9dbc36fa4b042755f2d3ce8ebe46c8",
+            "ebbf88c77ac6e69d9126b5088464b7f9",
+            "92a4d74ad26cf92990985e6e62877a79"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 819.935508,
+          "fetch_ms": 2678.193723,
+          "transfer_ms": 0,
+          "total_ms": 3498.129231,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": true,
+          "opening_range_requests": 3,
+          "opening_range_bytes": 693891,
+          "opening_range_trace": [
+            {
+              "offset": 0,
+              "bytes": 262144,
+              "latency_ms": 235.857432
+            },
+            {
+              "offset": 64225280,
+              "bytes": 262144,
+              "latency_ms": 296.083444
+            },
+            {
+              "offset": 64487424,
+              "bytes": 169603,
+              "latency_ms": 233.593715
+            }
+          ],
+          "range_requests": 8,
+          "range_bytes": 2097152,
+          "range_trace": [
+            {
+              "offset": 9699328,
+              "bytes": 262144,
+              "latency_ms": 448.545827
+            },
+            {
+              "offset": 30408704,
+              "bytes": 262144,
+              "latency_ms": 242.108422
+            },
+            {
+              "offset": 38535168,
+              "bytes": 262144,
+              "latency_ms": 483.233938
+            },
+            {
+              "offset": 41156608,
+              "bytes": 262144,
+              "latency_ms": 264.888776
+            },
+            {
+              "offset": 42205184,
+              "bytes": 262144,
+              "latency_ms": 232.380296
+            },
+            {
+              "offset": 50331648,
+              "bytes": 262144,
+              "latency_ms": 444.457826
+            },
+            {
+              "offset": 51642368,
+              "bytes": 262144,
+              "latency_ms": 245.696748
+            },
+            {
+              "offset": 54788096,
+              "bytes": 262144,
+              "latency_ms": 302.707123
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 8,
+          "planned_packet_count": 53,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "coreav",
+          "trial": 2,
+          "workload": "random",
+          "temperature": "warm",
+          "indices": [
+            4595,
+            496,
+            7173,
+            2993,
+            10870,
+            1991,
+            7938,
+            12994
+          ],
+          "pts_seconds": [
+            191.45833333333334,
+            20.666666666666668,
+            298.875,
+            124.70833333333333,
+            452.9166666666667,
+            82.95833333333333,
+            330.75,
+            541.4166666666666
+          ],
+          "expected_pts_ticks": [
+            4595,
+            496,
+            7173,
+            2993,
+            10870,
+            1991,
+            7938,
+            12994
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "efda1f6663d2f678eee34276b8d71cf2",
+            "f80c3372bf54026a7ff736d6713d47d5",
+            "4f0ba9db52783f49391f254c7371c159",
+            "0a0577294d7bb08e1564236c47ab5c00",
+            "5947bdff2acf0abf34555a81df63f4c7",
+            "35a538108542d95beedbc5182edcbeea",
+            "b524c099323a4ddf473c893eef0fdd4d",
+            "1f5486d9429d9f54dfbe83b90e5c961b"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 0,
+          "fetch_ms": 2681.977206,
+          "transfer_ms": 0,
+          "total_ms": 2681.977206,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": true,
+          "opening_range_requests": 0,
+          "opening_range_bytes": 0,
+          "opening_range_trace": [],
+          "range_requests": 8,
+          "range_bytes": 2097152,
+          "range_trace": [
+            {
+              "offset": 2097152,
+              "bytes": 262144,
+              "latency_ms": 236.611811
+            },
+            {
+              "offset": 8912896,
+              "bytes": 262144,
+              "latency_ms": 480.261661
+            },
+            {
+              "offset": 13369344,
+              "bytes": 262144,
+              "latency_ms": 244.864665
+            },
+            {
+              "offset": 20709376,
+              "bytes": 262144,
+              "latency_ms": 459.085758
+            },
+            {
+              "offset": 32243712,
+              "bytes": 262144,
+              "latency_ms": 489.393067
+            },
+            {
+              "offset": 32505856,
+              "bytes": 262144,
+              "latency_ms": 259.061983
+            },
+            {
+              "offset": 36175872,
+              "bytes": 262144,
+              "latency_ms": 265.165284
+            },
+            {
+              "offset": 58982400,
+              "bytes": 262144,
+              "latency_ms": 228.624826
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 8,
+          "planned_packet_count": 74,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "baseline",
+          "trial": 2,
+          "workload": "random",
+          "temperature": "cold",
+          "indices": [
+            2185,
+            11931,
+            9186,
+            8434,
+            10877,
+            11158,
+            6720,
+            8974
+          ],
+          "pts_seconds": [
+            91.04166666666667,
+            497.125,
+            382.75,
+            351.4166666666667,
+            453.2083333333333,
+            464.9166666666667,
+            280.0,
+            373.9166666666667
+          ],
+          "expected_pts_ticks": [
+            2185,
+            11931,
+            9186,
+            8434,
+            10877,
+            11158,
+            6720,
+            8974
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "58c5e4942a13f4f5f0d310c83b737bcb",
+            "f25118c41017aa2bff4a86220fa2b141",
+            "03898c4e1a943c59e40c0778d259575c",
+            "1a37dc418b2d0310432776a11e2d8141",
+            "da5bfd80b5fb8b9195506ce94267354e",
+            "aa9dbc36fa4b042755f2d3ce8ebe46c8",
+            "ebbf88c77ac6e69d9126b5088464b7f9",
+            "92a4d74ad26cf92990985e6e62877a79"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 723.909996,
+          "fetch_ms": 2072.031723,
+          "transfer_ms": 0,
+          "total_ms": 2795.941719,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": null,
+          "opening_range_requests": 3,
+          "opening_range_bytes": 693891,
+          "opening_range_trace": [
+            {
+              "offset": 0,
+              "bytes": 262144,
+              "latency_ms": 232.411991
+            },
+            {
+              "offset": 64225280,
+              "bytes": 262144,
+              "latency_ms": 234.298261
+            },
+            {
+              "offset": 64487424,
+              "bytes": 169603,
+              "latency_ms": 230.854755
+            }
+          ],
+          "range_requests": 8,
+          "range_bytes": 2097152,
+          "range_trace": [
+            {
+              "offset": 9699328,
+              "bytes": 262144,
+              "latency_ms": 309.530104
+            },
+            {
+              "offset": 30408704,
+              "bytes": 262144,
+              "latency_ms": 231.538275
+            },
+            {
+              "offset": 38535168,
+              "bytes": 262144,
+              "latency_ms": 225.253745
+            },
+            {
+              "offset": 41156608,
+              "bytes": 262144,
+              "latency_ms": 228.57317
+            },
+            {
+              "offset": 42205184,
+              "bytes": 262144,
+              "latency_ms": 351.390459
+            },
+            {
+              "offset": 50331648,
+              "bytes": 262144,
+              "latency_ms": 240.567664
+            },
+            {
+              "offset": 51642368,
+              "bytes": 262144,
+              "latency_ms": 238.873167
+            },
+            {
+              "offset": 54788096,
+              "bytes": 262144,
+              "latency_ms": 230.921882
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 8,
+          "planned_packet_count": 53,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "baseline",
+          "trial": 2,
+          "workload": "random",
+          "temperature": "warm",
+          "indices": [
+            4595,
+            496,
+            7173,
+            2993,
+            10870,
+            1991,
+            7938,
+            12994
+          ],
+          "pts_seconds": [
+            191.45833333333334,
+            20.666666666666668,
+            298.875,
+            124.70833333333333,
+            452.9166666666667,
+            82.95833333333333,
+            330.75,
+            541.4166666666666
+          ],
+          "expected_pts_ticks": [
+            4595,
+            496,
+            7173,
+            2993,
+            10870,
+            1991,
+            7938,
+            12994
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "efda1f6663d2f678eee34276b8d71cf2",
+            "f80c3372bf54026a7ff736d6713d47d5",
+            "4f0ba9db52783f49391f254c7371c159",
+            "0a0577294d7bb08e1564236c47ab5c00",
+            "5947bdff2acf0abf34555a81df63f4c7",
+            "35a538108542d95beedbc5182edcbeea",
+            "b524c099323a4ddf473c893eef0fdd4d",
+            "1f5486d9429d9f54dfbe83b90e5c961b"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 0,
+          "fetch_ms": 2005.971856,
+          "transfer_ms": 0,
+          "total_ms": 2005.971856,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": null,
+          "opening_range_requests": 0,
+          "opening_range_bytes": 0,
+          "opening_range_trace": [],
+          "range_requests": 8,
+          "range_bytes": 2097152,
+          "range_trace": [
+            {
+              "offset": 2097152,
+              "bytes": 262144,
+              "latency_ms": 280.196923
+            },
+            {
+              "offset": 8912896,
+              "bytes": 262144,
+              "latency_ms": 229.410046
+            },
+            {
+              "offset": 13369344,
+              "bytes": 262144,
+              "latency_ms": 280.742184
+            },
+            {
+              "offset": 20709376,
+              "bytes": 262144,
+              "latency_ms": 252.388424
+            },
+            {
+              "offset": 32243712,
+              "bytes": 262144,
+              "latency_ms": 238.819759
+            },
+            {
+              "offset": 32505856,
+              "bytes": 262144,
+              "latency_ms": 231.603766
+            },
+            {
+              "offset": 36175872,
+              "bytes": 262144,
+              "latency_ms": 239.831247
+            },
+            {
+              "offset": 58982400,
+              "bytes": 262144,
+              "latency_ms": 233.237713
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 8,
+          "planned_packet_count": 74,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "coreav",
+          "trial": 2,
+          "workload": "clips",
+          "temperature": "cold",
+          "indices": [
+            2185,
+            2186,
+            2187,
+            2188,
+            11931,
+            11932,
+            11933,
+            11934
+          ],
+          "pts_seconds": [
+            91.04166666666667,
+            91.08333333333333,
+            91.125,
+            91.16666666666667,
+            497.125,
+            497.1666666666667,
+            497.2083333333333,
+            497.25
+          ],
+          "expected_pts_ticks": [
+            2185,
+            2186,
+            2187,
+            2188,
+            11931,
+            11932,
+            11933,
+            11934
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "58c5e4942a13f4f5f0d310c83b737bcb",
+            "272b248ff10edde4e1d5cfcc60049d05",
+            "6f953847fb40a969d43598f33e59a591",
+            "77f413f5b192627abb0334e23f4a26eb",
+            "f25118c41017aa2bff4a86220fa2b141",
+            "a230e0385d127d615de8ab0c43e8d595",
+            "980848fef7ba0827d9bd1b2c4acd3b64",
+            "37ba28a545ccd168e20300902d8d5625"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 778.683247,
+          "fetch_ms": 802.685144,
+          "transfer_ms": 0,
+          "total_ms": 1581.368391,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": true,
+          "opening_range_requests": 3,
+          "opening_range_bytes": 693891,
+          "opening_range_trace": [
+            {
+              "offset": 0,
+              "bytes": 262144,
+              "latency_ms": 263.102169
+            },
+            {
+              "offset": 64225280,
+              "bytes": 262144,
+              "latency_ms": 235.6342
+            },
+            {
+              "offset": 64487424,
+              "bytes": 169603,
+              "latency_ms": 233.176132
+            }
+          ],
+          "range_requests": 2,
+          "range_bytes": 524288,
+          "range_trace": [
+            {
+              "offset": 9699328,
+              "bytes": 262144,
+              "latency_ms": 524.038976
+            },
+            {
+              "offset": 54788096,
+              "bytes": 262144,
+              "latency_ms": 274.898095
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 2,
+          "planned_packet_count": 12,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "coreav",
+          "trial": 2,
+          "workload": "clips",
+          "temperature": "warm",
+          "indices": [
+            4595,
+            4596,
+            4597,
+            4598,
+            496,
+            497,
+            498,
+            499
+          ],
+          "pts_seconds": [
+            191.45833333333334,
+            191.5,
+            191.54166666666666,
+            191.58333333333334,
+            20.666666666666668,
+            20.708333333333332,
+            20.75,
+            20.791666666666668
+          ],
+          "expected_pts_ticks": [
+            4595,
+            4596,
+            4597,
+            4598,
+            496,
+            497,
+            498,
+            499
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "efda1f6663d2f678eee34276b8d71cf2",
+            "bea0517099dfa9962410dc3ca03d2715",
+            "e8dd2eaaa11adbe94a272656a4457f50",
+            "8c321590cf1925f869049701a91b0e75",
+            "f80c3372bf54026a7ff736d6713d47d5",
+            "2b710dd1343cf0ec10380b7c48c998af",
+            "9026087e5237ed3c1979286eea1b43b3",
+            "ae39c83e23ab98487e3b0eea4da8488a"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 0,
+          "fetch_ms": 492.488713,
+          "transfer_ms": 0,
+          "total_ms": 492.488713,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": true,
+          "opening_range_requests": 0,
+          "opening_range_bytes": 0,
+          "opening_range_trace": [],
+          "range_requests": 2,
+          "range_bytes": 524288,
+          "range_trace": [
+            {
+              "offset": 2097152,
+              "bytes": 262144,
+              "latency_ms": 263.180536
+            },
+            {
+              "offset": 20709376,
+              "bytes": 262144,
+              "latency_ms": 223.624646
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 3,
+          "planned_packet_count": 23,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "baseline",
+          "trial": 2,
+          "workload": "clips",
+          "temperature": "cold",
+          "indices": [
+            2185,
+            2186,
+            2187,
+            2188,
+            11931,
+            11932,
+            11933,
+            11934
+          ],
+          "pts_seconds": [
+            91.04166666666667,
+            91.08333333333333,
+            91.125,
+            91.16666666666667,
+            497.125,
+            497.1666666666667,
+            497.2083333333333,
+            497.25
+          ],
+          "expected_pts_ticks": [
+            2185,
+            2186,
+            2187,
+            2188,
+            11931,
+            11932,
+            11933,
+            11934
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "58c5e4942a13f4f5f0d310c83b737bcb",
+            "272b248ff10edde4e1d5cfcc60049d05",
+            "6f953847fb40a969d43598f33e59a591",
+            "77f413f5b192627abb0334e23f4a26eb",
+            "f25118c41017aa2bff4a86220fa2b141",
+            "a230e0385d127d615de8ab0c43e8d595",
+            "980848fef7ba0827d9bd1b2c4acd3b64",
+            "37ba28a545ccd168e20300902d8d5625"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 737.93805,
+          "fetch_ms": 481.692518,
+          "transfer_ms": 0,
+          "total_ms": 1219.630568,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": null,
+          "opening_range_requests": 3,
+          "opening_range_bytes": 693891,
+          "opening_range_trace": [
+            {
+              "offset": 0,
+              "bytes": 262144,
+              "latency_ms": 231.428729
+            },
+            {
+              "offset": 64225280,
+              "bytes": 262144,
+              "latency_ms": 229.853837
+            },
+            {
+              "offset": 64487424,
+              "bytes": 169603,
+              "latency_ms": 248.781257
+            }
+          ],
+          "range_requests": 2,
+          "range_bytes": 524288,
+          "range_trace": [
+            {
+              "offset": 9699328,
+              "bytes": 262144,
+              "latency_ms": 231.797388
+            },
+            {
+              "offset": 54788096,
+              "bytes": 262144,
+              "latency_ms": 246.083511
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 2,
+          "planned_packet_count": 12,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "baseline",
+          "trial": 2,
+          "workload": "clips",
+          "temperature": "warm",
+          "indices": [
+            4595,
+            4596,
+            4597,
+            4598,
+            496,
+            497,
+            498,
+            499
+          ],
+          "pts_seconds": [
+            191.45833333333334,
+            191.5,
+            191.54166666666666,
+            191.58333333333334,
+            20.666666666666668,
+            20.708333333333332,
+            20.75,
+            20.791666666666668
+          ],
+          "expected_pts_ticks": [
+            4595,
+            4596,
+            4597,
+            4598,
+            496,
+            497,
+            498,
+            499
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "efda1f6663d2f678eee34276b8d71cf2",
+            "bea0517099dfa9962410dc3ca03d2715",
+            "e8dd2eaaa11adbe94a272656a4457f50",
+            "8c321590cf1925f869049701a91b0e75",
+            "f80c3372bf54026a7ff736d6713d47d5",
+            "2b710dd1343cf0ec10380b7c48c998af",
+            "9026087e5237ed3c1979286eea1b43b3",
+            "ae39c83e23ab98487e3b0eea4da8488a"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 0,
+          "fetch_ms": 506.280338,
+          "transfer_ms": 0,
+          "total_ms": 506.280338,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": null,
+          "opening_range_requests": 0,
+          "opening_range_bytes": 0,
+          "opening_range_trace": [],
+          "range_requests": 2,
+          "range_bytes": 524288,
+          "range_trace": [
+            {
+              "offset": 2097152,
+              "bytes": 262144,
+              "latency_ms": 266.481484
+            },
+            {
+              "offset": 20709376,
+              "bytes": 262144,
+              "latency_ms": 234.179238
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 3,
+          "planned_packet_count": 23,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "coreav",
+          "trial": 3,
+          "workload": "random",
+          "temperature": "cold",
+          "indices": [
+            14037,
+            12829,
+            3291,
+            5397,
+            12795,
+            1044,
+            14147,
+            7492
+          ],
+          "pts_seconds": [
+            584.875,
+            534.5416666666666,
+            137.125,
+            224.875,
+            533.125,
+            43.5,
+            589.4583333333334,
+            312.1666666666667
+          ],
+          "expected_pts_ticks": [
+            14037,
+            12829,
+            3291,
+            5397,
+            12795,
+            1044,
+            14147,
+            7492
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "d42221c5f04084cba77f0d64829d39f0",
+            "901327743222d6dd5a7cd7c83c7b83f3",
+            "64afc87bee0e2a769825194f473f7ac8",
+            "4598fa571d7d0738f3b70996ebdca174",
+            "264dd4ac9ee9173d37d81ac22c9f0768",
+            "093ca0b88e0b2a4bb9490cd781dd7d03",
+            "5647404a204bebe6b43a7080a8505f03",
+            "bc375cc7e3b19b6e2cf9bf994b2a1318"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 766.865044,
+          "fetch_ms": 2712.516517,
+          "transfer_ms": 0,
+          "total_ms": 3479.381561,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": true,
+          "opening_range_requests": 3,
+          "opening_range_bytes": 693891,
+          "opening_range_trace": [
+            {
+              "offset": 0,
+              "bytes": 262144,
+              "latency_ms": 242.769528
+            },
+            {
+              "offset": 64225280,
+              "bytes": 262144,
+              "latency_ms": 237.364946
+            },
+            {
+              "offset": 64487424,
+              "bytes": 169603,
+              "latency_ms": 233.849892
+            }
+          ],
+          "range_requests": 9,
+          "range_bytes": 2359296,
+          "range_trace": [
+            {
+              "offset": 4718592,
+              "bytes": 262144,
+              "latency_ms": 578.88177
+            },
+            {
+              "offset": 14680064,
+              "bytes": 262144,
+              "latency_ms": 226.510909
+            },
+            {
+              "offset": 24117248,
+              "bytes": 262144,
+              "latency_ms": 236.133337
+            },
+            {
+              "offset": 33816576,
+              "bytes": 262144,
+              "latency_ms": 236.016959
+            },
+            {
+              "offset": 34078720,
+              "bytes": 262144,
+              "latency_ms": 239.923313
+            },
+            {
+              "offset": 58195968,
+              "bytes": 262144,
+              "latency_ms": 236.65967
+            },
+            {
+              "offset": 63176704,
+              "bytes": 262144,
+              "latency_ms": 463.776424
+            },
+            {
+              "offset": 63438848,
+              "bytes": 262144,
+              "latency_ms": 236.138948
+            },
+            {
+              "offset": 63700992,
+              "bytes": 262144,
+              "latency_ms": 245.929565
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 8,
+          "planned_packet_count": 40,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "coreav",
+          "trial": 3,
+          "workload": "random",
+          "temperature": "warm",
+          "indices": [
+            9648,
+            5287,
+            11851,
+            1970,
+            3472,
+            7701,
+            8835,
+            4794
+          ],
+          "pts_seconds": [
+            402.0,
+            220.29166666666666,
+            493.7916666666667,
+            82.08333333333333,
+            144.66666666666666,
+            320.875,
+            368.125,
+            199.75
+          ],
+          "expected_pts_ticks": [
+            9648,
+            5287,
+            11851,
+            1970,
+            3472,
+            7701,
+            8835,
+            4794
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "42705f7c30ada865757c3a7e999d8ed2",
+            "4ffdeeddd359805454fd92c845f92f52",
+            "7ed27f136b9418d0ca6d4872239da4b1",
+            "1b7f330c4c000568b971dd004a7616e9",
+            "32177dd1d8d01a39690ec7c4a860d870",
+            "488a2c6c04a02308911329ed53e013e5",
+            "8848a3b44c9f9c673d2cc6534883e2fc",
+            "aefe9022eb1025602259b9ac8bc4db83"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 0,
+          "fetch_ms": 8696.688739,
+          "transfer_ms": 0,
+          "total_ms": 8696.688739,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": true,
+          "opening_range_requests": 0,
+          "opening_range_bytes": 0,
+          "opening_range_trace": [],
+          "range_requests": 10,
+          "range_bytes": 2621440,
+          "range_trace": [
+            {
+              "offset": 8912896,
+              "bytes": 262144,
+              "latency_ms": 235.247384
+            },
+            {
+              "offset": 15466496,
+              "bytes": 262144,
+              "latency_ms": 258.508649
+            },
+            {
+              "offset": 21495808,
+              "bytes": 262144,
+              "latency_ms": 259.294528
+            },
+            {
+              "offset": 23855104,
+              "bytes": 262144,
+              "latency_ms": 5929.197981
+            },
+            {
+              "offset": 34865152,
+              "bytes": 262144,
+              "latency_ms": 242.995558
+            },
+            {
+              "offset": 35127296,
+              "bytes": 262144,
+              "latency_ms": 250.909265
+            },
+            {
+              "offset": 40632320,
+              "bytes": 262144,
+              "latency_ms": 581.649247
+            },
+            {
+              "offset": 44040192,
+              "bytes": 262144,
+              "latency_ms": 456.031139
+            },
+            {
+              "offset": 54525952,
+              "bytes": 262144,
+              "latency_ms": 233.141363
+            },
+            {
+              "offset": 44302336,
+              "bytes": 262144,
+              "latency_ms": 233.935395
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 8,
+          "planned_packet_count": 46,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "baseline",
+          "trial": 3,
+          "workload": "random",
+          "temperature": "cold",
+          "indices": [
+            14037,
+            12829,
+            3291,
+            5397,
+            12795,
+            1044,
+            14147,
+            7492
+          ],
+          "pts_seconds": [
+            584.875,
+            534.5416666666666,
+            137.125,
+            224.875,
+            533.125,
+            43.5,
+            589.4583333333334,
+            312.1666666666667
+          ],
+          "expected_pts_ticks": [
+            14037,
+            12829,
+            3291,
+            5397,
+            12795,
+            1044,
+            14147,
+            7492
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "d42221c5f04084cba77f0d64829d39f0",
+            "901327743222d6dd5a7cd7c83c7b83f3",
+            "64afc87bee0e2a769825194f473f7ac8",
+            "4598fa571d7d0738f3b70996ebdca174",
+            "264dd4ac9ee9173d37d81ac22c9f0768",
+            "093ca0b88e0b2a4bb9490cd781dd7d03",
+            "5647404a204bebe6b43a7080a8505f03",
+            "bc375cc7e3b19b6e2cf9bf994b2a1318"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 745.742028,
+          "fetch_ms": 2539.459445,
+          "transfer_ms": 0,
+          "total_ms": 3285.201473,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": null,
+          "opening_range_requests": 3,
+          "opening_range_bytes": 693891,
+          "opening_range_trace": [
+            {
+              "offset": 0,
+              "bytes": 262144,
+              "latency_ms": 241.479757
+            },
+            {
+              "offset": 64225280,
+              "bytes": 262144,
+              "latency_ms": 243.529697
+            },
+            {
+              "offset": 64487424,
+              "bytes": 169603,
+              "latency_ms": 228.701793
+            }
+          ],
+          "range_requests": 9,
+          "range_bytes": 2359296,
+          "range_trace": [
+            {
+              "offset": 4718592,
+              "bytes": 262144,
+              "latency_ms": 248.04485
+            },
+            {
+              "offset": 14680064,
+              "bytes": 262144,
+              "latency_ms": 241.217858
+            },
+            {
+              "offset": 24117248,
+              "bytes": 262144,
+              "latency_ms": 325.82627
+            },
+            {
+              "offset": 33816576,
+              "bytes": 262144,
+              "latency_ms": 413.787692
+            },
+            {
+              "offset": 34078720,
+              "bytes": 262144,
+              "latency_ms": 296.929735
+            },
+            {
+              "offset": 58195968,
+              "bytes": 262144,
+              "latency_ms": 228.603551
+            },
+            {
+              "offset": 63176704,
+              "bytes": 262144,
+              "latency_ms": 275.921218
+            },
+            {
+              "offset": 63438848,
+              "bytes": 262144,
+              "latency_ms": 250.51545
+            },
+            {
+              "offset": 63700992,
+              "bytes": 262144,
+              "latency_ms": 243.30276
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 8,
+          "planned_packet_count": 40,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "baseline",
+          "trial": 3,
+          "workload": "random",
+          "temperature": "warm",
+          "indices": [
+            9648,
+            5287,
+            11851,
+            1970,
+            3472,
+            7701,
+            8835,
+            4794
+          ],
+          "pts_seconds": [
+            402.0,
+            220.29166666666666,
+            493.7916666666667,
+            82.08333333333333,
+            144.66666666666666,
+            320.875,
+            368.125,
+            199.75
+          ],
+          "expected_pts_ticks": [
+            9648,
+            5287,
+            11851,
+            1970,
+            3472,
+            7701,
+            8835,
+            4794
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "42705f7c30ada865757c3a7e999d8ed2",
+            "4ffdeeddd359805454fd92c845f92f52",
+            "7ed27f136b9418d0ca6d4872239da4b1",
+            "1b7f330c4c000568b971dd004a7616e9",
+            "32177dd1d8d01a39690ec7c4a860d870",
+            "488a2c6c04a02308911329ed53e013e5",
+            "8848a3b44c9f9c673d2cc6534883e2fc",
+            "aefe9022eb1025602259b9ac8bc4db83"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 0,
+          "fetch_ms": 2632.947131,
+          "transfer_ms": 0,
+          "total_ms": 2632.947131,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": null,
+          "opening_range_requests": 0,
+          "opening_range_bytes": 0,
+          "opening_range_trace": [],
+          "range_requests": 10,
+          "range_bytes": 2621440,
+          "range_trace": [
+            {
+              "offset": 8912896,
+              "bytes": 262144,
+              "latency_ms": 236.932509
+            },
+            {
+              "offset": 15466496,
+              "bytes": 262144,
+              "latency_ms": 236.320519
+            },
+            {
+              "offset": 21495808,
+              "bytes": 262144,
+              "latency_ms": 318.737066
+            },
+            {
+              "offset": 23855104,
+              "bytes": 262144,
+              "latency_ms": 252.220804
+            },
+            {
+              "offset": 34865152,
+              "bytes": 262144,
+              "latency_ms": 233.605118
+            },
+            {
+              "offset": 35127296,
+              "bytes": 262144,
+              "latency_ms": 317.789399
+            },
+            {
+              "offset": 40632320,
+              "bytes": 262144,
+              "latency_ms": 262.355581
+            },
+            {
+              "offset": 44040192,
+              "bytes": 262144,
+              "latency_ms": 236.833288
+            },
+            {
+              "offset": 44302336,
+              "bytes": 262144,
+              "latency_ms": 279.301484
+            },
+            {
+              "offset": 54525952,
+              "bytes": 262144,
+              "latency_ms": 243.658315
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 8,
+          "planned_packet_count": 46,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "coreav",
+          "trial": 3,
+          "workload": "clips",
+          "temperature": "cold",
+          "indices": [
+            14037,
+            14038,
+            14039,
+            14040,
+            12829,
+            12830,
+            12831,
+            12832
+          ],
+          "pts_seconds": [
+            584.875,
+            584.9166666666666,
+            584.9583333333334,
+            585.0,
+            534.5416666666666,
+            534.5833333333334,
+            534.625,
+            534.6666666666666
+          ],
+          "expected_pts_ticks": [
+            14037,
+            14038,
+            14039,
+            14040,
+            12829,
+            12830,
+            12831,
+            12832
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "d42221c5f04084cba77f0d64829d39f0",
+            "7f6222ab9fd372ec7735d8e7b579ab47",
+            "c95ffe50925346b83185a5282934679b",
+            "4e9efcdc4ac4567bc993d2590fd07d6b",
+            "901327743222d6dd5a7cd7c83c7b83f3",
+            "ac9c8e39702f1207de97a02a7ea683cc",
+            "a4053acdad21a71fbbe529165be307c3",
+            "4eee46bbb2d71869c4b395f25cd8638b"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 748.536499,
+          "fetch_ms": 717.004768,
+          "transfer_ms": 0,
+          "total_ms": 1465.541267,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": true,
+          "opening_range_requests": 3,
+          "opening_range_bytes": 693891,
+          "opening_range_trace": [
+            {
+              "offset": 0,
+              "bytes": 262144,
+              "latency_ms": 231.888632
+            },
+            {
+              "offset": 64225280,
+              "bytes": 262144,
+              "latency_ms": 233.00865
+            },
+            {
+              "offset": 64487424,
+              "bytes": 169603,
+              "latency_ms": 227.214041
+            }
+          ],
+          "range_requests": 3,
+          "range_bytes": 786432,
+          "range_trace": [
+            {
+              "offset": 58195968,
+              "bytes": 262144,
+              "latency_ms": 229.657175
+            },
+            {
+              "offset": 63176704,
+              "bytes": 262144,
+              "latency_ms": 250.507823
+            },
+            {
+              "offset": 63438848,
+              "bytes": 262144,
+              "latency_ms": 231.462933
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 3,
+          "planned_packet_count": 20,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "coreav",
+          "trial": 3,
+          "workload": "clips",
+          "temperature": "warm",
+          "indices": [
+            9648,
+            9649,
+            9650,
+            9651,
+            5287,
+            5288,
+            5289,
+            5290
+          ],
+          "pts_seconds": [
+            402.0,
+            402.0416666666667,
+            402.0833333333333,
+            402.125,
+            220.29166666666666,
+            220.33333333333334,
+            220.375,
+            220.41666666666666
+          ],
+          "expected_pts_ticks": [
+            9648,
+            9649,
+            9650,
+            9651,
+            5287,
+            5288,
+            5289,
+            5290
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "42705f7c30ada865757c3a7e999d8ed2",
+            "32f730274599cac5b50f9fc486722617",
+            "6b84b1e9c7c3b0fcc58a1fab38249d35",
+            "83c77d3b29142171b088c3a9f39d1307",
+            "4ffdeeddd359805454fd92c845f92f52",
+            "80f0e445b2989af030abcb531843dad2",
+            "e9e583508add66e437ac419116fa0d67",
+            "010e3722364193ecaa705c42829588e0"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 0,
+          "fetch_ms": 764.072037,
+          "transfer_ms": 0,
+          "total_ms": 764.072037,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": true,
+          "opening_range_requests": 0,
+          "opening_range_bytes": 0,
+          "opening_range_trace": [],
+          "range_requests": 3,
+          "range_bytes": 786432,
+          "range_trace": [
+            {
+              "offset": 23855104,
+              "bytes": 262144,
+              "latency_ms": 227.952614
+            },
+            {
+              "offset": 44040192,
+              "bytes": 262144,
+              "latency_ms": 266.914896
+            },
+            {
+              "offset": 44302336,
+              "bytes": 262144,
+              "latency_ms": 264.392788
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 2,
+          "planned_packet_count": 15,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "baseline",
+          "trial": 3,
+          "workload": "clips",
+          "temperature": "cold",
+          "indices": [
+            14037,
+            14038,
+            14039,
+            14040,
+            12829,
+            12830,
+            12831,
+            12832
+          ],
+          "pts_seconds": [
+            584.875,
+            584.9166666666666,
+            584.9583333333334,
+            585.0,
+            534.5416666666666,
+            534.5833333333334,
+            534.625,
+            534.6666666666666
+          ],
+          "expected_pts_ticks": [
+            14037,
+            14038,
+            14039,
+            14040,
+            12829,
+            12830,
+            12831,
+            12832
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "d42221c5f04084cba77f0d64829d39f0",
+            "7f6222ab9fd372ec7735d8e7b579ab47",
+            "c95ffe50925346b83185a5282934679b",
+            "4e9efcdc4ac4567bc993d2590fd07d6b",
+            "901327743222d6dd5a7cd7c83c7b83f3",
+            "ac9c8e39702f1207de97a02a7ea683cc",
+            "a4053acdad21a71fbbe529165be307c3",
+            "4eee46bbb2d71869c4b395f25cd8638b"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 723.610941,
+          "fetch_ms": 800.319653,
+          "transfer_ms": 0,
+          "total_ms": 1523.930594,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": null,
+          "opening_range_requests": 3,
+          "opening_range_bytes": 693891,
+          "opening_range_trace": [
+            {
+              "offset": 0,
+              "bytes": 262144,
+              "latency_ms": 227.483667
+            },
+            {
+              "offset": 64225280,
+              "bytes": 262144,
+              "latency_ms": 237.629769
+            },
+            {
+              "offset": 64487424,
+              "bytes": 169603,
+              "latency_ms": 230.940391
+            }
+          ],
+          "range_requests": 3,
+          "range_bytes": 786432,
+          "range_trace": [
+            {
+              "offset": 58195968,
+              "bytes": 262144,
+              "latency_ms": 292.292534
+            },
+            {
+              "offset": 63176704,
+              "bytes": 262144,
+              "latency_ms": 237.212956
+            },
+            {
+              "offset": 63438848,
+              "bytes": 262144,
+              "latency_ms": 265.688093
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 3,
+          "planned_packet_count": 20,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "baseline",
+          "trial": 3,
+          "workload": "clips",
+          "temperature": "warm",
+          "indices": [
+            9648,
+            9649,
+            9650,
+            9651,
+            5287,
+            5288,
+            5289,
+            5290
+          ],
+          "pts_seconds": [
+            402.0,
+            402.0416666666667,
+            402.0833333333333,
+            402.125,
+            220.29166666666666,
+            220.33333333333334,
+            220.375,
+            220.41666666666666
+          ],
+          "expected_pts_ticks": [
+            9648,
+            9649,
+            9650,
+            9651,
+            5287,
+            5288,
+            5289,
+            5290
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "42705f7c30ada865757c3a7e999d8ed2",
+            "32f730274599cac5b50f9fc486722617",
+            "6b84b1e9c7c3b0fcc58a1fab38249d35",
+            "83c77d3b29142171b088c3a9f39d1307",
+            "4ffdeeddd359805454fd92c845f92f52",
+            "80f0e445b2989af030abcb531843dad2",
+            "e9e583508add66e437ac419116fa0d67",
+            "010e3722364193ecaa705c42829588e0"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 0,
+          "fetch_ms": 719.446527,
+          "transfer_ms": 0,
+          "total_ms": 719.446527,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": null,
+          "opening_range_requests": 0,
+          "opening_range_bytes": 0,
+          "opening_range_trace": [],
+          "range_requests": 3,
+          "range_bytes": 786432,
+          "range_trace": [
+            {
+              "offset": 23855104,
+              "bytes": 262144,
+              "latency_ms": 225.583228
+            },
+            {
+              "offset": 44040192,
+              "bytes": 262144,
+              "latency_ms": 235.426747
+            },
+            {
+              "offset": 44302336,
+              "bytes": 262144,
+              "latency_ms": 253.662831
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 2,
+          "planned_packet_count": 15,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "coreav",
+          "trial": 4,
+          "workload": "random",
+          "temperature": "cold",
+          "indices": [
+            12685,
+            7532,
+            12208,
+            10679,
+            13402,
+            5140,
+            3483,
+            7886
+          ],
+          "pts_seconds": [
+            528.5416666666666,
+            313.8333333333333,
+            508.6666666666667,
+            444.9583333333333,
+            558.4166666666666,
+            214.16666666666666,
+            145.125,
+            328.5833333333333
+          ],
+          "expected_pts_ticks": [
+            12685,
+            7532,
+            12208,
+            10679,
+            13402,
+            5140,
+            3483,
+            7886
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "642e136071622246e4b66464afdb47d8",
+            "e554ac57c8787239e49a25c4978b3de0",
+            "43ec6bc31509d84abc950d0949b4a469",
+            "5dec3dd90279a1a65fae9c5daff55461",
+            "18706a3882d262f58111d790ff402281",
+            "e6a97e67bbb642380b1d7a754c20da43",
+            "d2721903c1d02ee496f61c84a3a9e5b2",
+            "38b0b038d481024236edf051ad9f8b87"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 740.829088,
+          "fetch_ms": 3238.975584,
+          "transfer_ms": 0,
+          "total_ms": 3979.8046719999998,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": true,
+          "opening_range_requests": 3,
+          "opening_range_bytes": 693891,
+          "opening_range_trace": [
+            {
+              "offset": 0,
+              "bytes": 262144,
+              "latency_ms": 229.226795
+            },
+            {
+              "offset": 64225280,
+              "bytes": 262144,
+              "latency_ms": 226.101769
+            },
+            {
+              "offset": 64487424,
+              "bytes": 169603,
+              "latency_ms": 231.031468
+            }
+          ],
+          "range_requests": 10,
+          "range_bytes": 2621440,
+          "range_trace": [
+            {
+              "offset": 15466496,
+              "bytes": 262144,
+              "latency_ms": 228.732753
+            },
+            {
+              "offset": 23068672,
+              "bytes": 262144,
+              "latency_ms": 271.566026
+            },
+            {
+              "offset": 34078720,
+              "bytes": 262144,
+              "latency_ms": 231.767625
+            },
+            {
+              "offset": 35913728,
+              "bytes": 262144,
+              "latency_ms": 417.776857
+            },
+            {
+              "offset": 49545216,
+              "bytes": 262144,
+              "latency_ms": 488.06189
+            },
+            {
+              "offset": 55836672,
+              "bytes": 262144,
+              "latency_ms": 464.437447
+            },
+            {
+              "offset": 57671680,
+              "bytes": 262144,
+              "latency_ms": 253.924135
+            },
+            {
+              "offset": 61079552,
+              "bytes": 262144,
+              "latency_ms": 274.845536
+            },
+            {
+              "offset": 15728640,
+              "bytes": 262144,
+              "latency_ms": 353.608892
+            },
+            {
+              "offset": 23330816,
+              "bytes": 262144,
+              "latency_ms": 237.846812
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 8,
+          "planned_packet_count": 51,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "coreav",
+          "trial": 4,
+          "workload": "random",
+          "temperature": "warm",
+          "indices": [
+            8948,
+            6305,
+            9508,
+            13955,
+            177,
+            6245,
+            6625,
+            5146
+          ],
+          "pts_seconds": [
+            372.8333333333333,
+            262.7083333333333,
+            396.1666666666667,
+            581.4583333333334,
+            7.375,
+            260.2083333333333,
+            276.0416666666667,
+            214.41666666666666
+          ],
+          "expected_pts_ticks": [
+            8948,
+            6305,
+            9508,
+            13955,
+            177,
+            6245,
+            6625,
+            5146
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "20eb272276f5a43732b1d745c0b931e4",
+            "95f024167eff17a8ee52e4279d643f04",
+            "1e0e59c125033f53359a7008a2f747f7",
+            "93d005582a50dd1f4486676c18e5f579",
+            "6f29f34e1f12d337068054f215003efe",
+            "70e354808e25ea1380ac0a40ef6f60cf",
+            "c54d9540b129a24ba285646b9deff9c6",
+            "308211ec6705e1ec94f33185eea5c607"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 0,
+          "fetch_ms": 2439.688628,
+          "transfer_ms": 0,
+          "total_ms": 2439.688628,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": true,
+          "opening_range_requests": 0,
+          "opening_range_bytes": 0,
+          "opening_range_trace": [],
+          "range_requests": 8,
+          "range_bytes": 2097152,
+          "range_trace": [
+            {
+              "offset": 524288,
+              "bytes": 262144,
+              "latency_ms": 268.639245
+            },
+            {
+              "offset": 28049408,
+              "bytes": 262144,
+              "latency_ms": 690.244057
+            },
+            {
+              "offset": 28311552,
+              "bytes": 262144,
+              "latency_ms": 241.638398
+            },
+            {
+              "offset": 29884416,
+              "bytes": 262144,
+              "latency_ms": 226.047942
+            },
+            {
+              "offset": 41156608,
+              "bytes": 262144,
+              "latency_ms": 272.345606
+            },
+            {
+              "offset": 43515904,
+              "bytes": 262144,
+              "latency_ms": 261.982002
+            },
+            {
+              "offset": 63176704,
+              "bytes": 262144,
+              "latency_ms": 230.200736
+            },
+            {
+              "offset": 28573696,
+              "bytes": 262144,
+              "latency_ms": 233.804739
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 8,
+          "planned_packet_count": 51,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "baseline",
+          "trial": 4,
+          "workload": "random",
+          "temperature": "cold",
+          "indices": [
+            12685,
+            7532,
+            12208,
+            10679,
+            13402,
+            5140,
+            3483,
+            7886
+          ],
+          "pts_seconds": [
+            528.5416666666666,
+            313.8333333333333,
+            508.6666666666667,
+            444.9583333333333,
+            558.4166666666666,
+            214.16666666666666,
+            145.125,
+            328.5833333333333
+          ],
+          "expected_pts_ticks": [
+            12685,
+            7532,
+            12208,
+            10679,
+            13402,
+            5140,
+            3483,
+            7886
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "642e136071622246e4b66464afdb47d8",
+            "e554ac57c8787239e49a25c4978b3de0",
+            "43ec6bc31509d84abc950d0949b4a469",
+            "5dec3dd90279a1a65fae9c5daff55461",
+            "18706a3882d262f58111d790ff402281",
+            "e6a97e67bbb642380b1d7a754c20da43",
+            "d2721903c1d02ee496f61c84a3a9e5b2",
+            "38b0b038d481024236edf051ad9f8b87"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 714.286574,
+          "fetch_ms": 2598.614214,
+          "transfer_ms": 0,
+          "total_ms": 3312.900788,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": null,
+          "opening_range_requests": 3,
+          "opening_range_bytes": 693891,
+          "opening_range_trace": [
+            {
+              "offset": 0,
+              "bytes": 262144,
+              "latency_ms": 229.938905
+            },
+            {
+              "offset": 64225280,
+              "bytes": 262144,
+              "latency_ms": 228.196204
+            },
+            {
+              "offset": 64487424,
+              "bytes": 169603,
+              "latency_ms": 228.133584
+            }
+          ],
+          "range_requests": 10,
+          "range_bytes": 2621440,
+          "range_trace": [
+            {
+              "offset": 15466496,
+              "bytes": 262144,
+              "latency_ms": 235.211609
+            },
+            {
+              "offset": 15728640,
+              "bytes": 262144,
+              "latency_ms": 240.489639
+            },
+            {
+              "offset": 23068672,
+              "bytes": 262144,
+              "latency_ms": 396.610424
+            },
+            {
+              "offset": 23330816,
+              "bytes": 262144,
+              "latency_ms": 228.595433
+            },
+            {
+              "offset": 34078720,
+              "bytes": 262144,
+              "latency_ms": 240.232233
+            },
+            {
+              "offset": 35913728,
+              "bytes": 262144,
+              "latency_ms": 300.465941
+            },
+            {
+              "offset": 49545216,
+              "bytes": 262144,
+              "latency_ms": 230.223941
+            },
+            {
+              "offset": 55836672,
+              "bytes": 262144,
+              "latency_ms": 228.04582
+            },
+            {
+              "offset": 57671680,
+              "bytes": 262144,
+              "latency_ms": 234.007834
+            },
+            {
+              "offset": 61079552,
+              "bytes": 262144,
+              "latency_ms": 247.442221
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 8,
+          "planned_packet_count": 51,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "baseline",
+          "trial": 4,
+          "workload": "random",
+          "temperature": "warm",
+          "indices": [
+            8948,
+            6305,
+            9508,
+            13955,
+            177,
+            6245,
+            6625,
+            5146
+          ],
+          "pts_seconds": [
+            372.8333333333333,
+            262.7083333333333,
+            396.1666666666667,
+            581.4583333333334,
+            7.375,
+            260.2083333333333,
+            276.0416666666667,
+            214.41666666666666
+          ],
+          "expected_pts_ticks": [
+            8948,
+            6305,
+            9508,
+            13955,
+            177,
+            6245,
+            6625,
+            5146
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "20eb272276f5a43732b1d745c0b931e4",
+            "95f024167eff17a8ee52e4279d643f04",
+            "1e0e59c125033f53359a7008a2f747f7",
+            "93d005582a50dd1f4486676c18e5f579",
+            "6f29f34e1f12d337068054f215003efe",
+            "70e354808e25ea1380ac0a40ef6f60cf",
+            "c54d9540b129a24ba285646b9deff9c6",
+            "308211ec6705e1ec94f33185eea5c607"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 0,
+          "fetch_ms": 2202.961664,
+          "transfer_ms": 0,
+          "total_ms": 2202.961664,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": null,
+          "opening_range_requests": 0,
+          "opening_range_bytes": 0,
+          "opening_range_trace": [],
+          "range_requests": 8,
+          "range_bytes": 2097152,
+          "range_trace": [
+            {
+              "offset": 524288,
+              "bytes": 262144,
+              "latency_ms": 259.406103
+            },
+            {
+              "offset": 28049408,
+              "bytes": 262144,
+              "latency_ms": 319.880732
+            },
+            {
+              "offset": 28311552,
+              "bytes": 262144,
+              "latency_ms": 227.824801
+            },
+            {
+              "offset": 28573696,
+              "bytes": 262144,
+              "latency_ms": 244.551434
+            },
+            {
+              "offset": 29884416,
+              "bytes": 262144,
+              "latency_ms": 259.402977
+            },
+            {
+              "offset": 41156608,
+              "bytes": 262144,
+              "latency_ms": 387.783821
+            },
+            {
+              "offset": 43515904,
+              "bytes": 262144,
+              "latency_ms": 249.888369
+            },
+            {
+              "offset": 63176704,
+              "bytes": 262144,
+              "latency_ms": 239.088671
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 8,
+          "planned_packet_count": 51,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "coreav",
+          "trial": 4,
+          "workload": "clips",
+          "temperature": "cold",
+          "indices": [
+            12685,
+            12686,
+            12687,
+            12688,
+            7532,
+            7533,
+            7534,
+            7535
+          ],
+          "pts_seconds": [
+            528.5416666666666,
+            528.5833333333334,
+            528.625,
+            528.6666666666666,
+            313.8333333333333,
+            313.875,
+            313.9166666666667,
+            313.9583333333333
+          ],
+          "expected_pts_ticks": [
+            12685,
+            12686,
+            12687,
+            12688,
+            7532,
+            7533,
+            7534,
+            7535
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "642e136071622246e4b66464afdb47d8",
+            "4e0cbe69d36cdd96d730fa19f9ff47c0",
+            "6ad3a4a3d320ab49faf59f445c201d58",
+            "9b7e2d39b1ac6b10c379cc5cd65db8d4",
+            "e554ac57c8787239e49a25c4978b3de0",
+            "e39c6e3d25b40facd024b20e70ab5937",
+            "3621f0022129af0d3d9eccf724e44a4f",
+            "78d5b2d57dbc5e6780049dd7107a1462"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 906.367194,
+          "fetch_ms": 528.398385,
+          "transfer_ms": 0,
+          "total_ms": 1434.765579,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": true,
+          "opening_range_requests": 3,
+          "opening_range_bytes": 693891,
+          "opening_range_trace": [
+            {
+              "offset": 0,
+              "bytes": 262144,
+              "latency_ms": 237.288305
+            },
+            {
+              "offset": 64225280,
+              "bytes": 262144,
+              "latency_ms": 338.856847
+            },
+            {
+              "offset": 64487424,
+              "bytes": 169603,
+              "latency_ms": 274.944203
+            }
+          ],
+          "range_requests": 2,
+          "range_bytes": 524288,
+          "range_trace": [
+            {
+              "offset": 34078720,
+              "bytes": 262144,
+              "latency_ms": 239.728922
+            },
+            {
+              "offset": 57671680,
+              "bytes": 262144,
+              "latency_ms": 282.650257
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 2,
+          "planned_packet_count": 17,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "coreav",
+          "trial": 4,
+          "workload": "clips",
+          "temperature": "warm",
+          "indices": [
+            8948,
+            8949,
+            8950,
+            8951,
+            6305,
+            6306,
+            6307,
+            6308
+          ],
+          "pts_seconds": [
+            372.8333333333333,
+            372.875,
+            372.9166666666667,
+            372.9583333333333,
+            262.7083333333333,
+            262.75,
+            262.7916666666667,
+            262.8333333333333
+          ],
+          "expected_pts_ticks": [
+            8948,
+            8949,
+            8950,
+            8951,
+            6305,
+            6306,
+            6307,
+            6308
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "20eb272276f5a43732b1d745c0b931e4",
+            "2912ffd135522139c8f0bd4c83d15dc7",
+            "bb3ecfbe1d395d1c5aeb4d835f1740b4",
+            "704b41963407efa2958b152a9027e50a",
+            "95f024167eff17a8ee52e4279d643f04",
+            "53bba5203d7ae75c10b2312555417915",
+            "17e9c26e88ffd5fafd638c8c09c466ff",
+            "693b30781df9ea64621c2f42595d8dda"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 0,
+          "fetch_ms": 709.707324,
+          "transfer_ms": 0,
+          "total_ms": 709.707324,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": true,
+          "opening_range_requests": 0,
+          "opening_range_bytes": 0,
+          "opening_range_trace": [],
+          "range_requests": 3,
+          "range_bytes": 786432,
+          "range_trace": [
+            {
+              "offset": 28311552,
+              "bytes": 262144,
+              "latency_ms": 239.498649
+            },
+            {
+              "offset": 41156608,
+              "bytes": 262144,
+              "latency_ms": 234.54117
+            },
+            {
+              "offset": 28573696,
+              "bytes": 262144,
+              "latency_ms": 229.107349
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 2,
+          "planned_packet_count": 21,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "baseline",
+          "trial": 4,
+          "workload": "clips",
+          "temperature": "cold",
+          "indices": [
+            12685,
+            12686,
+            12687,
+            12688,
+            7532,
+            7533,
+            7534,
+            7535
+          ],
+          "pts_seconds": [
+            528.5416666666666,
+            528.5833333333334,
+            528.625,
+            528.6666666666666,
+            313.8333333333333,
+            313.875,
+            313.9166666666667,
+            313.9583333333333
+          ],
+          "expected_pts_ticks": [
+            12685,
+            12686,
+            12687,
+            12688,
+            7532,
+            7533,
+            7534,
+            7535
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "642e136071622246e4b66464afdb47d8",
+            "4e0cbe69d36cdd96d730fa19f9ff47c0",
+            "6ad3a4a3d320ab49faf59f445c201d58",
+            "9b7e2d39b1ac6b10c379cc5cd65db8d4",
+            "e554ac57c8787239e49a25c4978b3de0",
+            "e39c6e3d25b40facd024b20e70ab5937",
+            "3621f0022129af0d3d9eccf724e44a4f",
+            "78d5b2d57dbc5e6780049dd7107a1462"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 802.887294,
+          "fetch_ms": 506.668577,
+          "transfer_ms": 0,
+          "total_ms": 1309.555871,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": null,
+          "opening_range_requests": 3,
+          "opening_range_bytes": 693891,
+          "opening_range_trace": [
+            {
+              "offset": 0,
+              "bytes": 262144,
+              "latency_ms": 254.275154
+            },
+            {
+              "offset": 64225280,
+              "bytes": 262144,
+              "latency_ms": 239.677343
+            },
+            {
+              "offset": 64487424,
+              "bytes": 169603,
+              "latency_ms": 281.009368
+            }
+          ],
+          "range_requests": 2,
+          "range_bytes": 524288,
+          "range_trace": [
+            {
+              "offset": 34078720,
+              "bytes": 262144,
+              "latency_ms": 240.125774
+            },
+            {
+              "offset": 57671680,
+              "bytes": 262144,
+              "latency_ms": 261.049663
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 2,
+          "planned_packet_count": 17,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        },
+        {
+          "variant": "wan",
+          "mode": "baseline",
+          "trial": 4,
+          "workload": "clips",
+          "temperature": "warm",
+          "indices": [
+            8948,
+            8949,
+            8950,
+            8951,
+            6305,
+            6306,
+            6307,
+            6308
+          ],
+          "pts_seconds": [
+            372.8333333333333,
+            372.875,
+            372.9166666666667,
+            372.9583333333333,
+            262.7083333333333,
+            262.75,
+            262.7916666666667,
+            262.8333333333333
+          ],
+          "expected_pts_ticks": [
+            8948,
+            8949,
+            8950,
+            8951,
+            6305,
+            6306,
+            6307,
+            6308
+          ],
+          "pts_mismatches": 0,
+          "rgb_md5": [
+            "20eb272276f5a43732b1d745c0b931e4",
+            "2912ffd135522139c8f0bd4c83d15dc7",
+            "bb3ecfbe1d395d1c5aeb4d835f1740b4",
+            "704b41963407efa2958b152a9027e50a",
+            "95f024167eff17a8ee52e4279d643f04",
+            "53bba5203d7ae75c10b2312555417915",
+            "17e9c26e88ffd5fafd638c8c09c466ff",
+            "693b30781df9ea64621c2f42595d8dda"
+          ],
+          "rgb_mismatches": 0,
+          "max_abs_rgb_error": [],
+          "mean_abs_rgb_error": [],
+          "open_ms": 0,
+          "fetch_ms": 706.706202,
+          "transfer_ms": 0,
+          "total_ms": 706.706202,
+          "rgb_device": "cpu",
+          "cpu_fallback": false,
+          "dlpack_same_pointer": null,
+          "opening_range_requests": 0,
+          "opening_range_bytes": 0,
+          "opening_range_trace": [],
+          "range_requests": 3,
+          "range_bytes": 786432,
+          "range_trace": [
+            {
+              "offset": 28311552,
+              "bytes": 262144,
+              "latency_ms": 243.506808
+            },
+            {
+              "offset": 28573696,
+              "bytes": 262144,
+              "latency_ms": 226.344208
+            },
+            {
+              "offset": 41156608,
+              "bytes": 262144,
+              "latency_ms": 231.213566
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "plan_groups": 2,
+          "planned_packet_count": 21,
+          "planning_note": "required HTTP prefetch plan/parse and Rust fetch plan/order/DLPack/reorder/prefetch included; diagnostic plan excluded; no bitstream discard"
+        }
+      ],
+      "index": {
+        "build_ms": 2.276542,
+        "save_ms": 8.621059,
+        "load_ms": 7.154118,
+        "bytes": 1453253,
+        "sha256": "6da4983536bb49d4d6493f6a96d6b6339046604517a617eb970dd47aa22afc5c",
+        "mapping_sha256": "f1e98e45463a2128f4c40f8f0e1c8a42768c60cd1ac5e96e6873d06e4b2acec8",
+        "baseline_mapping_sha256": "66baa12e546dccf86a47405389ce6f0f59df4bfc8564fb013c102a53e32b105b",
+        "mapping_agreement": true,
+        "requests": 3,
+        "read_bytes": 352378,
+        "range_trace": [
+          [
+            0,
+            4096
+          ],
+          [
+            64312833,
+            4096
+          ],
+          [
+            64312841,
+            344186
+          ]
+        ]
+      },
+      "nvdec_spike_b": {
+        "status": "not_measured",
+        "verdict": "inconclusive",
+        "reason": "Spike B is concurrently under construction; no substitute NVDEC implementation"
+      },
+      "remote_storage": "Cloudflare R2 S3-compatible object storage; SigV4 HTTPS ranges",
+      "oracle": {
+        "pts_mismatches": 0,
+        "rgb_mismatches": 0,
+        "dlpack_pointer_mismatches": 0,
+        "unique_frames": 139,
+        "passed": true
+      },
+      "timings_complete": true,
+      "reference": {
+        "command": [
+          "ffmpeg",
+          "-v",
+          "error",
+          "-threads",
+          "1",
+          "-noautorotate",
+          "-i",
+          "/inputs/data/small.mp4",
+          "-map",
+          "0:v:0",
+          "-an",
+          "-vf",
+          "select='(((((((eq(n,23)+eq(n,129))+(eq(n,130)+eq(n,131)))+((eq(n,132)+eq(n,171))+(eq(n,177)+eq(n,496))))+(((eq(n,497)+eq(n,498))+(eq(n,499)+eq(n,660)))+((eq(n,706)+eq(n,826))+(eq(n,1044)+(eq(n,1588)+eq(n,1970))))))+((((eq(n,1991)+eq(n,2185))+(eq(n,2186)+eq(n,2187)))+((eq(n,2188)+eq(n,2449))+(eq(n,2864)+eq(n,2993))))+(((eq(n,3168)+eq(n,3251))+(eq(n,3252)+eq(n,3253)))+((eq(n,3254)+eq(n,3291))+(eq(n,3461)+(eq(n,3462)+eq(n,3463)))))))+(((((eq(n,3464)+eq(n,3472))+(eq(n,3483)+eq(n,4595)))+((eq(n,4596)+eq(n,4597))+(eq(n,4598)+eq(n,4794))))+(((eq(n,5140)+eq(n,5146))+(eq(n,5287)+eq(n,5288)))+((eq(n,5289)+eq(n,5290))+(eq(n,5372)+(eq(n,5397)+eq(n,6245))))))+((((eq(n,6305)+eq(n,6306))+(eq(n,6307)+eq(n,6308)))+((eq(n,6625)+eq(n,6662))+(eq(n,6663)+(eq(n,6664)+eq(n,6665)))))+(((eq(n,6720)+eq(n,7173))+(eq(n,7213)+eq(n,7489)))+((eq(n,7490)+eq(n,7491))+(eq(n,7492)+(eq(n,7532)+eq(n,7533))))))))+((((((eq(n,7534)+eq(n,7535))+(eq(n,7701)+eq(n,7759)))+((eq(n,7880)+eq(n,7886))+(eq(n,7890)+eq(n,7938))))+(((eq(n,8434)+eq(n,8835))+(eq(n,8939)+eq(n,8940)))+((eq(n,8941)+eq(n,8942))+(eq(n,8948)+(eq(n,8949)+eq(n,8950))))))+((((eq(n,8951)+eq(n,8974))+(eq(n,9186)+eq(n,9205)))+((eq(n,9418)+eq(n,9508))+(eq(n,9648)+(eq(n,9649)+eq(n,9650)))))+(((eq(n,9651)+eq(n,9999))+(eq(n,10000)+eq(n,10001)))+((eq(n,10002)+eq(n,10679))+(eq(n,10870)+(eq(n,10877)+eq(n,11100)))))))+(((((eq(n,11158)+eq(n,11563))+(eq(n,11851)+eq(n,11919)))+((eq(n,11920)+eq(n,11921))+(eq(n,11922)+eq(n,11931))))+(((eq(n,11932)+eq(n,11933))+(eq(n,11934)+eq(n,12208)))+((eq(n,12585)+eq(n,12685))+(eq(n,12686)+(eq(n,12687)+eq(n,12688))))))+((((eq(n,12795)+eq(n,12829))+(eq(n,12830)+eq(n,12831)))+((eq(n,12832)+eq(n,12928))+(eq(n,12994)+(eq(n,13227)+eq(n,13383)))))+(((eq(n,13402)+eq(n,13434))+(eq(n,13494)+eq(n,13955)))+((eq(n,14037)+eq(n,14038))+(eq(n,14039)+(eq(n,14040)+eq(n,14147)))))))))'",
+          "-filter_threads",
+          "1",
+          "-fps_mode",
+          "passthrough",
+          "-pix_fmt",
+          "rgb24",
+          "-threads",
+          "1",
+          "-f",
+          "rawvideo",
+          "-"
+        ],
+        "seconds": 3.1595842870000013,
+        "rgb_bytes_sha256": "835e5b3fc0581c4b5aeb635d89e0d9fee801647293a93806d69a1075ea391a7e",
+        "stderr": "",
+        "method": "sequential FFmpeg 7.0.2 RGB24 decode; MD5 over each full selected frame",
+        "indices": [
+          23,
+          129,
+          130,
+          131,
+          132,
+          171,
+          177,
+          496,
+          497,
+          498,
+          499,
+          660,
+          706,
+          826,
+          1044,
+          1588,
+          1970,
+          1991,
+          2185,
+          2186,
+          2187,
+          2188,
+          2449,
+          2864,
+          2993,
+          3168,
+          3251,
+          3252,
+          3253,
+          3254,
+          3291,
+          3461,
+          3462,
+          3463,
+          3464,
+          3472,
+          3483,
+          4595,
+          4596,
+          4597,
+          4598,
+          4794,
+          5140,
+          5146,
+          5287,
+          5288,
+          5289,
+          5290,
+          5372,
+          5397,
+          6245,
+          6305,
+          6306,
+          6307,
+          6308,
+          6625,
+          6662,
+          6663,
+          6664,
+          6665,
+          6720,
+          7173,
+          7213,
+          7489,
+          7490,
+          7491,
+          7492,
+          7532,
+          7533,
+          7534,
+          7535,
+          7701,
+          7759,
+          7880,
+          7886,
+          7890,
+          7938,
+          8434,
+          8835,
+          8939,
+          8940,
+          8941,
+          8942,
+          8948,
+          8949,
+          8950,
+          8951,
+          8974,
+          9186,
+          9205,
+          9418,
+          9508,
+          9648,
+          9649,
+          9650,
+          9651,
+          9999,
+          10000,
+          10001,
+          10002,
+          10679,
+          10870,
+          10877,
+          11100,
+          11158,
+          11563,
+          11851,
+          11919,
+          11920,
+          11921,
+          11922,
+          11931,
+          11932,
+          11933,
+          11934,
+          12208,
+          12585,
+          12685,
+          12686,
+          12687,
+          12688,
+          12795,
+          12829,
+          12830,
+          12831,
+          12832,
+          12928,
+          12994,
+          13227,
+          13383,
+          13402,
+          13434,
+          13494,
+          13955,
+          14037,
+          14038,
+          14039,
+          14040,
+          14147
+        ],
+        "md5": [
+          "b44820c6adce5f9bcc391ca37ad2955f",
+          "72f92beea9476921178b3b044d27f659",
+          "281ddcc951f8c985a24e5a5b8db5cdb9",
+          "b1c357e02086e887ab08b77ad7e61b87",
+          "7b6774cfa8d6eb89827176ebf4d95174",
+          "b26d6441f7c5a719d7d2dff0ec9b9614",
+          "6f29f34e1f12d337068054f215003efe",
+          "f80c3372bf54026a7ff736d6713d47d5",
+          "2b710dd1343cf0ec10380b7c48c998af",
+          "9026087e5237ed3c1979286eea1b43b3",
+          "ae39c83e23ab98487e3b0eea4da8488a",
+          "3eb953b22a7b2a93a7efb0962f14eb45",
+          "0c94d91e233e236e62b264e8d2219321",
+          "bbf79272cd2f49986de6408c62758b96",
+          "093ca0b88e0b2a4bb9490cd781dd7d03",
+          "fefc822edffddb2af81ea0157478590a",
+          "1b7f330c4c000568b971dd004a7616e9",
+          "35a538108542d95beedbc5182edcbeea",
+          "58c5e4942a13f4f5f0d310c83b737bcb",
+          "272b248ff10edde4e1d5cfcc60049d05",
+          "6f953847fb40a969d43598f33e59a591",
+          "77f413f5b192627abb0334e23f4a26eb",
+          "8245eb43cd1ded9a444d304b4f64be2b",
+          "aa65a7104e1f2f479bdbe57c7abd05d2",
+          "0a0577294d7bb08e1564236c47ab5c00",
+          "0cb32b54526972f7e97539ee08f2b5a7",
+          "02e1edfc7342e8a2483883db426a1909",
+          "b3f3b979e57c2004c29562976ce46754",
+          "6990fa97818c08b4f479fc1b06c07936",
+          "136fae64cfcbaa8a0394d52d568f4d59",
+          "64afc87bee0e2a769825194f473f7ac8",
+          "b8deec88de942938cc0867290158b457",
+          "a6fa6cb7e61e8f67e4b01bbbc2a1419f",
+          "0f67a306105289ae95963778fa05c62d",
+          "74a3fff838d6dd9ef63de0aab4d64cc9",
+          "32177dd1d8d01a39690ec7c4a860d870",
+          "d2721903c1d02ee496f61c84a3a9e5b2",
+          "efda1f6663d2f678eee34276b8d71cf2",
+          "bea0517099dfa9962410dc3ca03d2715",
+          "e8dd2eaaa11adbe94a272656a4457f50",
+          "8c321590cf1925f869049701a91b0e75",
+          "aefe9022eb1025602259b9ac8bc4db83",
+          "e6a97e67bbb642380b1d7a754c20da43",
+          "308211ec6705e1ec94f33185eea5c607",
+          "4ffdeeddd359805454fd92c845f92f52",
+          "80f0e445b2989af030abcb531843dad2",
+          "e9e583508add66e437ac419116fa0d67",
+          "010e3722364193ecaa705c42829588e0",
+          "b9d5d0e1a66a3c1d4ddd57d7e7b4234d",
+          "4598fa571d7d0738f3b70996ebdca174",
+          "70e354808e25ea1380ac0a40ef6f60cf",
+          "95f024167eff17a8ee52e4279d643f04",
+          "53bba5203d7ae75c10b2312555417915",
+          "17e9c26e88ffd5fafd638c8c09c466ff",
+          "693b30781df9ea64621c2f42595d8dda",
+          "c54d9540b129a24ba285646b9deff9c6",
+          "9328878567d340c4650b314cce76559d",
+          "01deb77a6021f3285bf595c9f3d1158a",
+          "3c62b8384611973bb874c249ae20da3b",
+          "12762be48967074eec2507d5996c9223",
+          "ebbf88c77ac6e69d9126b5088464b7f9",
+          "4f0ba9db52783f49391f254c7371c159",
+          "d13033f9e3279a7335dee7e8794ea3a3",
+          "f23472275e9469fd209e617d7fd34b24",
+          "0ec6b933b8d331d1b5f9564905c4fd03",
+          "a7c5c938cede94c6234238819c691204",
+          "bc375cc7e3b19b6e2cf9bf994b2a1318",
+          "e554ac57c8787239e49a25c4978b3de0",
+          "e39c6e3d25b40facd024b20e70ab5937",
+          "3621f0022129af0d3d9eccf724e44a4f",
+          "78d5b2d57dbc5e6780049dd7107a1462",
+          "488a2c6c04a02308911329ed53e013e5",
+          "ef9c2ae06d41ea6179a77c35e5e24582",
+          "c0cf81b7b258438fdf5d3a7d8c81314e",
+          "38b0b038d481024236edf051ad9f8b87",
+          "e9fc991b147ce0db3eed0f988a232358",
+          "b524c099323a4ddf473c893eef0fdd4d",
+          "1a37dc418b2d0310432776a11e2d8141",
+          "8848a3b44c9f9c673d2cc6534883e2fc",
+          "ffa0e82a227913aae51a8f61bfb352b8",
+          "9bb8d3b052af2375e2186820fae7a9de",
+          "a3f75c9a912b3a03350b97fbd7971bf1",
+          "f41c0fd23ab3e7b46a62e0156fa3abb2",
+          "20eb272276f5a43732b1d745c0b931e4",
+          "2912ffd135522139c8f0bd4c83d15dc7",
+          "bb3ecfbe1d395d1c5aeb4d835f1740b4",
+          "704b41963407efa2958b152a9027e50a",
+          "92a4d74ad26cf92990985e6e62877a79",
+          "03898c4e1a943c59e40c0778d259575c",
+          "313ef5b921758a0f1114cf66f1b45802",
+          "4b29060c1969fff8ad5adedb38cd2b83",
+          "1e0e59c125033f53359a7008a2f747f7",
+          "42705f7c30ada865757c3a7e999d8ed2",
+          "32f730274599cac5b50f9fc486722617",
+          "6b84b1e9c7c3b0fcc58a1fab38249d35",
+          "83c77d3b29142171b088c3a9f39d1307",
+          "461631fc204693783e93ba8045a770e8",
+          "6d45e14514a872ec10285dfeaa9b00ca",
+          "4774d45954dcaafbe3e581e2d1cfccf1",
+          "61c70bacd6914a75fee4ab90bb2a3e03",
+          "5dec3dd90279a1a65fae9c5daff55461",
+          "5947bdff2acf0abf34555a81df63f4c7",
+          "da5bfd80b5fb8b9195506ce94267354e",
+          "46e54353bc24eb2757eda0784945fa4f",
+          "aa9dbc36fa4b042755f2d3ce8ebe46c8",
+          "44915725e3b27d6205b12f7a380ee055",
+          "7ed27f136b9418d0ca6d4872239da4b1",
+          "0d996e9661849a546d6748617443aeea",
+          "69ce502ea52d918925c409ae32d9b4ff",
+          "2b27dd6aea061e4fdd993897da1b423f",
+          "0ead4b5b0f99a9c0eb34a5c782f287fb",
+          "f25118c41017aa2bff4a86220fa2b141",
+          "a230e0385d127d615de8ab0c43e8d595",
+          "980848fef7ba0827d9bd1b2c4acd3b64",
+          "37ba28a545ccd168e20300902d8d5625",
+          "43ec6bc31509d84abc950d0949b4a469",
+          "c177b8cf5e54a64f0bf724a9dc1defcd",
+          "642e136071622246e4b66464afdb47d8",
+          "4e0cbe69d36cdd96d730fa19f9ff47c0",
+          "6ad3a4a3d320ab49faf59f445c201d58",
+          "9b7e2d39b1ac6b10c379cc5cd65db8d4",
+          "264dd4ac9ee9173d37d81ac22c9f0768",
+          "901327743222d6dd5a7cd7c83c7b83f3",
+          "ac9c8e39702f1207de97a02a7ea683cc",
+          "a4053acdad21a71fbbe529165be307c3",
+          "4eee46bbb2d71869c4b395f25cd8638b",
+          "ca1873760eeb47807707fdd16ef11823",
+          "1f5486d9429d9f54dfbe83b90e5c961b",
+          "2863eee4344edf6295b606e109ce6d29",
+          "ed5d208db4ffb8bc6fa20cc5e75b4e95",
+          "18706a3882d262f58111d790ff402281",
+          "5f66e58ce32dc28a79861862090f6a51",
+          "9aee0c58737e6dd085b7d7bc25dcaaf0",
+          "93d005582a50dd1f4486676c18e5f579",
+          "d42221c5f04084cba77f0d64829d39f0",
+          "7f6222ab9fd372ec7735d8e7b579ab47",
+          "c95ffe50925346b83185a5282934679b",
+          "4e9efcdc4ac4567bc993d2590fd07d6b",
+          "5647404a204bebe6b43a7080a8505f03"
+        ]
+      },
+      "rtt": {
+        "method": "20 uncached one-byte Range exchanges; fresh urllib connections",
+        "latency_ms": {
+          "n": 20,
+          "median": 235.789508,
+          "mean": 256.40252,
+          "min": 220.696394,
+          "max": 455.321204,
+          "mean_ci95": [
+            235.2649194,
+            283.5781096
+          ],
+          "p99_nearest_rank": 455.321204
+        },
+        "percentiles_ms": {
+          "p50": 235.789508,
+          "p90": 323.5455006,
+          "p95": 336.06573370000007,
+          "p99": 431.4701099399999
+        },
+        "range_trace": [
+          {
+            "offset": 0,
+            "bytes": 1,
+            "latency_ms": 455.321204
+          },
+          {
+            "offset": 0,
+            "bytes": 1,
+            "latency_ms": 285.347869
+          },
+          {
+            "offset": 0,
+            "bytes": 1,
+            "latency_ms": 223.052392
+          },
+          {
+            "offset": 0,
+            "bytes": 1,
+            "latency_ms": 329.78913
+          },
+          {
+            "offset": 0,
+            "bytes": 1,
+            "latency_ms": 223.920461
+          },
+          {
+            "offset": 0,
+            "bytes": 1,
+            "latency_ms": 221.048187
+          },
+          {
+            "offset": 0,
+            "bytes": 1,
+            "latency_ms": 229.837817
+          },
+          {
+            "offset": 0,
+            "bytes": 1,
+            "latency_ms": 221.251121
+          },
+          {
+            "offset": 0,
+            "bytes": 1,
+            "latency_ms": 244.297039
+          },
+          {
+            "offset": 0,
+            "bytes": 1,
+            "latency_ms": 226.432057
+          },
+          {
+            "offset": 0,
+            "bytes": 1,
+            "latency_ms": 259.421108
+          },
+          {
+            "offset": 0,
+            "bytes": 1,
+            "latency_ms": 244.213985
+          },
+          {
+            "offset": 0,
+            "bytes": 1,
+            "latency_ms": 241.297479
+          },
+          {
+            "offset": 0,
+            "bytes": 1,
+            "latency_ms": 245.625635
+          },
+          {
+            "offset": 0,
+            "bytes": 1,
+            "latency_ms": 253.329749
+          },
+          {
+            "offset": 0,
+            "bytes": 1,
+            "latency_ms": 223.17457
+          },
+          {
+            "offset": 0,
+            "bytes": 1,
+            "latency_ms": 226.860902
+          },
+          {
+            "offset": 0,
+            "bytes": 1,
+            "latency_ms": 220.696394
+          },
+          {
+            "offset": 0,
+            "bytes": 1,
+            "latency_ms": 230.281537
+          },
+          {
+            "offset": 0,
+            "bytes": 1,
+            "latency_ms": 322.851764
+          }
+        ],
+        "requests": 20,
+        "bytes": 20
+      },
+      "remote_index": [
+        {
+          "variant": "wan",
+          "trial": 0,
+          "policy": "before",
+          "build_ms": 1468.856437,
+          "requests": 5,
+          "bytes": 344250,
+          "max_read_bytes": 344186,
+          "range_trace": [
+            {
+              "offset": 0,
+              "bytes": 16,
+              "latency_ms": 223.011434
+            },
+            {
+              "offset": 20,
+              "bytes": 16,
+              "latency_ms": 263.122113
+            },
+            {
+              "offset": 28,
+              "bytes": 16,
+              "latency_ms": 230.362398
+            },
+            {
+              "offset": 64312833,
+              "bytes": 16,
+              "latency_ms": 437.261016
+            },
+            {
+              "offset": 64312841,
+              "bytes": 344186,
+              "latency_ms": 312.779708
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "index_agreement": true
+        },
+        {
+          "variant": "wan",
+          "trial": 0,
+          "policy": "optimized",
+          "build_ms": 802.756335,
+          "requests": 3,
+          "bytes": 352378,
+          "max_read_bytes": 344186,
+          "range_trace": [
+            {
+              "offset": 0,
+              "bytes": 4096,
+              "latency_ms": 222.27001
+            },
+            {
+              "offset": 64312833,
+              "bytes": 4096,
+              "latency_ms": 279.271439
+            },
+            {
+              "offset": 64312841,
+              "bytes": 344186,
+              "latency_ms": 299.037381
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "index_agreement": true
+        },
+        {
+          "variant": "wan",
+          "trial": 1,
+          "policy": "optimized",
+          "build_ms": 758.213832,
+          "requests": 3,
+          "bytes": 352378,
+          "max_read_bytes": 344186,
+          "range_trace": [
+            {
+              "offset": 0,
+              "bytes": 4096,
+              "latency_ms": 305.895163
+            },
+            {
+              "offset": 64312833,
+              "bytes": 4096,
+              "latency_ms": 217.025201
+            },
+            {
+              "offset": 64312841,
+              "bytes": 344186,
+              "latency_ms": 233.069929
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "index_agreement": true
+        },
+        {
+          "variant": "wan",
+          "trial": 1,
+          "policy": "before",
+          "build_ms": 1160.336123,
+          "requests": 5,
+          "bytes": 344250,
+          "max_read_bytes": 344186,
+          "range_trace": [
+            {
+              "offset": 0,
+              "bytes": 16,
+              "latency_ms": 230.452868
+            },
+            {
+              "offset": 20,
+              "bytes": 16,
+              "latency_ms": 213.573574
+            },
+            {
+              "offset": 28,
+              "bytes": 16,
+              "latency_ms": 227.846521
+            },
+            {
+              "offset": 64312833,
+              "bytes": 16,
+              "latency_ms": 250.491766
+            },
+            {
+              "offset": 64312841,
+              "bytes": 344186,
+              "latency_ms": 235.823264
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "index_agreement": true
+        },
+        {
+          "variant": "wan",
+          "trial": 2,
+          "policy": "optimized",
+          "build_ms": 719.994631,
+          "requests": 3,
+          "bytes": 352378,
+          "max_read_bytes": 344186,
+          "range_trace": [
+            {
+              "offset": 0,
+              "bytes": 4096,
+              "latency_ms": 234.867616
+            },
+            {
+              "offset": 64312833,
+              "bytes": 4096,
+              "latency_ms": 218.913298
+            },
+            {
+              "offset": 64312841,
+              "bytes": 344186,
+              "latency_ms": 263.643512
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "index_agreement": true
+        },
+        {
+          "variant": "wan",
+          "trial": 2,
+          "policy": "before",
+          "build_ms": 1157.755564,
+          "requests": 5,
+          "bytes": 344250,
+          "max_read_bytes": 344186,
+          "range_trace": [
+            {
+              "offset": 0,
+              "bytes": 16,
+              "latency_ms": 223.003462
+            },
+            {
+              "offset": 20,
+              "bytes": 16,
+              "latency_ms": 223.162234
+            },
+            {
+              "offset": 28,
+              "bytes": 16,
+              "latency_ms": 242.298253
+            },
+            {
+              "offset": 64312833,
+              "bytes": 16,
+              "latency_ms": 223.718102
+            },
+            {
+              "offset": 64312841,
+              "bytes": 344186,
+              "latency_ms": 243.052213
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "index_agreement": true
+        },
+        {
+          "variant": "wan",
+          "trial": 3,
+          "policy": "optimized",
+          "build_ms": 711.213517,
+          "requests": 3,
+          "bytes": 352378,
+          "max_read_bytes": 344186,
+          "range_trace": [
+            {
+              "offset": 0,
+              "bytes": 4096,
+              "latency_ms": 229.005927
+            },
+            {
+              "offset": 64312833,
+              "bytes": 4096,
+              "latency_ms": 228.760456
+            },
+            {
+              "offset": 64312841,
+              "bytes": 344186,
+              "latency_ms": 251.097738
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "index_agreement": true
+        },
+        {
+          "variant": "wan",
+          "trial": 3,
+          "policy": "before",
+          "build_ms": 1177.50279,
+          "requests": 5,
+          "bytes": 344250,
+          "max_read_bytes": 344186,
+          "range_trace": [
+            {
+              "offset": 0,
+              "bytes": 16,
+              "latency_ms": 232.591633
+            },
+            {
+              "offset": 20,
+              "bytes": 16,
+              "latency_ms": 225.04478
+            },
+            {
+              "offset": 28,
+              "bytes": 16,
+              "latency_ms": 231.895322
+            },
+            {
+              "offset": 64312833,
+              "bytes": 16,
+              "latency_ms": 241.659887
+            },
+            {
+              "offset": 64312841,
+              "bytes": 344186,
+              "latency_ms": 244.046645
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "index_agreement": true
+        },
+        {
+          "variant": "wan",
+          "trial": 4,
+          "policy": "before",
+          "build_ms": 1273.722259,
+          "requests": 5,
+          "bytes": 344250,
+          "max_read_bytes": 344186,
+          "range_trace": [
+            {
+              "offset": 0,
+              "bytes": 16,
+              "latency_ms": 349.251348
+            },
+            {
+              "offset": 20,
+              "bytes": 16,
+              "latency_ms": 254.713747
+            },
+            {
+              "offset": 28,
+              "bytes": 16,
+              "latency_ms": 213.524583
+            },
+            {
+              "offset": 64312833,
+              "bytes": 16,
+              "latency_ms": 217.300624
+            },
+            {
+              "offset": 64312841,
+              "bytes": 344186,
+              "latency_ms": 236.785513
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "index_agreement": true
+        },
+        {
+          "variant": "wan",
+          "trial": 4,
+          "policy": "optimized",
+          "build_ms": 683.147128,
+          "requests": 3,
+          "bytes": 352378,
+          "max_read_bytes": 344186,
+          "range_trace": [
+            {
+              "offset": 0,
+              "bytes": 4096,
+              "latency_ms": 226.680486
+            },
+            {
+              "offset": 64312833,
+              "bytes": 4096,
+              "latency_ms": 219.700626
+            },
+            {
+              "offset": 64312841,
+              "bytes": 344186,
+              "latency_ms": 233.181619
+            }
+          ],
+          "server_regions": [],
+          "server_tasks": [],
+          "index_agreement": true
+        }
+      ]
+    }
+  ],
+  "success": false,
+  "wan": {
+    "storage": "Cloudflare R2",
+    "prefix": "spike-a/",
+    "bucket_location": "Asia Pacific (maintainer-reported Cloudflare placement)",
+    "worker": {
+      "REMOTE_REGION": "us-west",
+      "REMOTE_CLOUD_PROVIDER": "CLOUD_PROVIDER_AWS"
+    },
+    "injected_delay_ms": 0,
+    "authentication": "SigV4",
+    "caveat": "HTTP range RTT proxy includes fresh TLS connections and Cloudflare routing; bucket location does not identify serving datacenter",
+    "head_requests": 1
+  }
+}

@@ -1,0 +1,22 @@
+[package]
+name = "coreav-mpegts"
+description = "Memory-safe MPEG transport stream (ISO/IEC 13818-1) probe and packet parser"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+# Positioned-read sources, exact rationals and the codec configuration
+# readers that transport streams share with ISO base media files (crate
+# docs).
+coreav-isobmff = { path = "../coreav-isobmff" }
+
+[dev-dependencies]
+# The test-only counting allocator of the memory tests (tests/memory.rs).
+coreav-counting-alloc = { path = "../../tools/counting-alloc" }
+
+[lints]
+workspace = true

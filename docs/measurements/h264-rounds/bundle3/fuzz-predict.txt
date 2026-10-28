@@ -1,0 +1,4 @@
+# cargo +nightly fuzz run --target x86_64-unknown-linux-gnu predict -- -max_total_time=300 -max_len=4096, on 09f82ae7 (bundle 3); this VM (AVX-512)
+INFO: Seed: 1977585938
+Done 582981 runs in 301 second(s)
+exit 0

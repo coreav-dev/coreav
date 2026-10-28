@@ -1,0 +1,60 @@
+Building image image-076
+
+=> Step 0: FROM base
+
+=> Step 1: COPY . /
+Saving image...
+Image saved, took 842.95ms
+
+Built image image-076 in 1.84s
+
+
+Building image image-001
+
+=> Step 0: FROM base
+
+=> Step 1: COPY . /
+Saving image...
+Image saved, took 547.97ms
+
+Built image image-001 in 1.57s
+
+
+Building image image-083
+
+=> Step 0: FROM base
+
+=> Step 1: COPY . /
+Saving image...
+Image saved, took 2.79s
+
+Built image image-083 in 4.74s
+
+
+✓ Created objects.
+├── ✓ Uploaded $WORK/stage2-w2/spikes/h1-gpu/remote_app.py
+├── ✓ Uploaded $WORK/stage2-w2/bench/remote_setup.py
+├── ✓ Created Function install_oracle.
+├── ✓ Created Function link_shared_libraries.
+├── ✓ Uploaded 
+│   $WORK/stage2-w2/spikes/spike-a/build/w2/coreav_spike_a-0.0.
+│   1-cp313-abi3-manylinux_2_28_x86_64.whl
+├── ✓ Uploaded $WORK/stage2-w2/spikes/nvdec-direct/rgb.cu
+├── ✓ Uploaded 
+│   $WORK/stage2-w2/spikes/nvdec-direct/compile_rgb.py
+├── ✓ Uploaded $WORK/stage2-w2/spikes/h1-gpu/corpus
+├── ✓ Uploaded $WORK/stage2-w2/spikes/h1-gpu/common.py
+├── ✓ Uploaded $WORK/stage2-w2/spikes/h1-gpu/prepare.py
+├── ✓ Uploaded $WORK/stage2-w2/spikes/h1-gpu/oracle.py
+├── ✓ Uploaded $WORK/stage2-w2/spikes/h1-gpu/bench.py
+├── ✓ Uploaded $WORK/stage2-w2/spikes/h1-gpu/fixtures.py
+├── ✓ Uploaded $WORK/stage2-w2/spikes/h1-gpu/debug.py
+├── ✓ Created Function prepare.
+├── ✓ Created Function oracle.
+├── ✓ Created Function bringup.
+├── ✓ Created Function measure.
+└── ✓ Created Function debug.
+✓ Deployment skipped: no changes detected! ⏭️
+
+View Deployment: 
+<run URL redacted>

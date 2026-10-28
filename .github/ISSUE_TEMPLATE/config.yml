@@ -1,0 +1,7 @@
+# Blank issues stay enabled: feature requests, proposals and discussion are
+# welcome as issues (CONTRIBUTING.md), and Discussions are off.
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/coreav-dev/coreav/security/advisories/new
+    about: Report it privately through GitHub private vulnerability reporting (SECURITY.md), not in a public issue.

@@ -1,0 +1,18 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2899.9 MHz, 8 logical CPUs
+e624cbe0d2be.0.4k.h264                   base:discard=1.39  base:write=1.28  base:mixed=1.14  bmi2all:discard=1.37  bmi2all:write=1.26  bmi2all:mixed=1.12  e1:discard=1.39  e1:write=1.27  e1:mixed=1.14  b1:discard=1.39  b1:write=1.26  b1:mixed=1.13
+f8d92a911e72.0.4k.h264                   base:discard=1.25  base:write=1.20  base:mixed=1.17  bmi2all:discard=1.22  bmi2all:write=1.18  bmi2all:mixed=1.14  e1:discard=1.25  e1:write=1.20  e1:mixed=1.17  b1:discard=1.25  b1:write=1.21  b1:mixed=1.17
+
+base:discard             n=  2  median 1.322  [1.249, 1.395]
+base:write               n=  2  median 1.242  [1.202, 1.281]
+base:mixed               n=  2  median 1.155  [1.141, 1.168]
+bmi2all:discard          n=  2  median 1.294  [1.221, 1.367]
+bmi2all:write            n=  2  median 1.218  [1.177, 1.259]
+bmi2all:mixed            n=  2  median 1.130  [1.119, 1.141]
+e1:discard               n=  2  median 1.318  [1.247, 1.388]
+e1:write                 n=  2  median 1.235  [1.201, 1.269]
+e1:mixed                 n=  2  median 1.151  [1.136, 1.166]
+b1:discard               n=  2  median 1.318  [1.252, 1.385]
+b1:write                 n=  2  median 1.237  [1.215, 1.260]
+b1:mixed                 n=  2  median 1.152  [1.133, 1.170]
+
+wrote $HOME/ab/pc/vol/p1/out/g.4k.json

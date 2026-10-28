@@ -1,0 +1,85 @@
+name: Bug report
+description: CoreAV rejects, misreads or mishandles a file, or a command or API call misbehaves.
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Security problems (a crash, hang or limit that does not hold on a
+        hostile file) go through SECURITY.md, not a public issue. Code in an
+        issue is not used to make the fix (CONTRIBUTING.md): describe the
+        behavior and attach a reproducer instead of a patch.
+  - type: textarea
+    id: command
+    attributes:
+      label: What you ran
+      description: The command line or API call, exactly.
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: CoreAV version or commit
+      description: The output of `coreav --version`, the package version, or the commit you built.
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      description: OS and architecture, and how CoreAV ran (the command, Python, npm, WebAssembly).
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened
+      description: The exact output, including any error message.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: reproducer
+    attributes:
+      label: Reproducer file
+      description: >-
+        Attach the smallest file that shows the problem (a file attached
+        here is public), or say why there is none. For a file that must not
+        be public, say so and do not attach it.
+    validations:
+      required: true
+  - type: dropdown
+    id: permission
+    attributes:
+      label: The file is
+      options:
+        - Recorded by me for CoreAV testing
+        - Shared with written permission for CoreAV testing
+        - Published under a license that allows this use (name it below)
+        - No file attached
+    validations:
+      required: true
+  - type: textarea
+    id: oracle
+    attributes:
+      label: What ffprobe (and MediaInfo) report for the file
+      description: Optional. For example `ffprobe -hide_banner -show_format -show_streams FILE`.
+      render: text
+  - type: textarea
+    id: notes
+    attributes:
+      label: License and personal data
+      description: The license, if the file is published under one, and any personal data it holds (faces, a location, a device serial) where you know.
+  - type: checkboxes
+    id: consent
+    attributes:
+      label: Consent
+      options:
+        - label: Any file attached shows no identifiable person, or every identifiable person in it has consented.
+          required: true

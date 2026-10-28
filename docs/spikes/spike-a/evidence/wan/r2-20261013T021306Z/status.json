@@ -1,0 +1,53 @@
+{
+  "commands": [
+    {
+      "command": [
+        "/usr/local/bin/python",
+        "/opt/coreav/spikes/spike-a/check_index.py",
+        "--data-dir",
+        "/inputs/data",
+        "--output",
+        "/evidence/wan/r2-20261013T021306Z/packets.json"
+      ],
+      "returncode": 0,
+      "stdout": "small {'file': 'small.mp4', 'sha256': 'f78f39603e6774907f2faafabf26a667f4a6fc31769ec304a8a8f7c62d280508', 'packet_count': 14315, 'frame_count': 14315, 'packet_mismatches': 0, 'examples': [], 'build_ms': 2.815469, 'range_requests': 3, 'range_bytes': 352378}\nlarge {'file': 'large.mp4', 'sha256': 'ae51005850b0ff757fe60c3dd7a12d754d3cd2397d87d939b55235e457f97658', 'packet_count': 19036, 'frame_count': 19036, 'packet_mismatches': 0, 'examples': [], 'build_ms': 2.38545, 'range_requests': 4, 'range_bytes': 245207}\nfragmented {'file': 'fragmented.mp4', 'sha256': '2bc30af0282c392647abee8b37946e915b6ca67b91bd6460e8b79a117aa7b485', 'packet_count': 14256, 'frame_count': 14256, 'packet_mismatches': 0, 'examples': [], 'build_ms': 4.84078, 'range_requests': 299, 'range_bytes': 1220624}\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "/usr/local/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "/opt/coreav/spikes/spike-a/tests",
+        "-p",
+        "test_*.py"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "............\n----------------------------------------------------------------------\nRan 12 tests in 1.723s\n\nOK\n"
+    },
+    {
+      "command": [
+        "/usr/local/bin/python",
+        "/opt/coreav/spikes/spike-a/measure.py",
+        "--device",
+        "cpu",
+        "--data-dir",
+        "/inputs/data",
+        "--mapping-dir",
+        "/inputs/artifacts",
+        "--output",
+        "/evidence/wan/r2-20261013T021306Z/raw.json",
+        "--r2",
+        "--sample=fragmented"
+      ],
+      "returncode": 0,
+      "stdout": "Measuring cpu: fragmented\n",
+      "stderr": ""
+    }
+  ],
+  "returncode": 0,
+  "duration_seconds": 1615.2605251950001
+}

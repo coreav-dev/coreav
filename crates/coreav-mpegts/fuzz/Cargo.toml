@@ -1,0 +1,48 @@
+# cargo-fuzz project for coreav-mpegts (docs/design/mpegts.md); outside the
+# workspace, never published.
+[package]
+name = "coreav-mpegts-fuzz"
+version = "0.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+coreav-mpegts = { path = ".." }
+
+[[bin]]
+name = "probe"
+path = "fuzz_targets/probe.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "packets"
+path = "fuzz_targets/packets.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "sections"
+path = "fuzz_targets/sections.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "pes"
+path = "fuzz_targets/pes.rs"
+test = false
+doc = false
+bench = false
+
+[lints.rust]
+unsafe_code = "forbid"

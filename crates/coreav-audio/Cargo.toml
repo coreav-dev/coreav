@@ -1,0 +1,23 @@
+[package]
+name = "coreav-audio"
+description = "Memory-safe audio decoding to PCM: FLAC decoding, WAV output, and decoding the audio tracks of MP4/MOV and Matroska/WebM files"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+# Positioned-read sources and the MP4/MOV demuxer the pipeline reads
+# tracks with (crate docs, "Pipeline").
+coreav-isobmff = { path = "../coreav-isobmff" }
+# The Matroska and WebM demuxer.
+coreav-mkv = { path = "../coreav-mkv" }
+# The resampler's filter loop: AVX on x86-64, a bit-identical portable
+# twin elsewhere (`docs/design/audio-decode.md`, "Resampling and
+# downmixing").
+coreav-kernels-audio = { path = "../coreav-kernels-audio" }
+
+[lints]
+workspace = true

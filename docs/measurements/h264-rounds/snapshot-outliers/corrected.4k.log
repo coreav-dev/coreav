@@ -1,0 +1,8 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2899.9 MHz, 8 logical CPUs
+3b1b441e23ae.0.4k.h264                   main:discard=1.23  main:write=1.08  main:mixed=0.99
+
+main:discard             n=  1  median 1.230
+main:write               n=  1  median 1.082
+main:mixed               n=  1  median 0.986
+
+wrote docs/measurements/h264-rounds/snapshot-outliers/corrected.4k.json

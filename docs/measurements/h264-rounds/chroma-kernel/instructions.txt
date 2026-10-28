@@ -1,0 +1,23 @@
+# Instructions (callgrind Ir, information), dist builds with line tables, --discard, one thread.
+# main = 3ebeda9; k = 04f26d6 (the branch's code commit); the rejected 1-D forms were a build of k's
+# second step with yFracC 0 and xFracC 0 forms added (not committed). "chroma_block" is the
+# function's inclusive count (both chroma planes of every block predict takes).
+stream                              frames  build   total           chroma_block
+41e324ebb708.0.sd (weighted)        200     main    690,000,893     71,920,423
+                                            k       661,234,168     43,151,654   total 0.958, chroma_block 0.600
+1d4b1775d78a.0.720p (weighted)      60      main    1,775,204,871   70,784,171
+                                            k       1,750,816,085   46,393,342   total 0.986, chroma_block 0.655
+0404af1890da.0.1080p (1080p)        30      main    396,929,612     29,722,534
+                                            k       385,048,364     17,839,276   total 0.970, chroma_block 0.600
+# The steps, on the same three streams (total; chroma_block):
+#  four weights and the finish chosen once a block (Put/Put, Avg/Avg, each its own):
+#    720p 1,756,403,103 (51,982,376); the other two not counted
+#  + both weighted planes as their own loop, per-plane weighting, weights from a table:
+#    sd 670,874,447 (52,793,937); 720p 1,753,318,153 (48,897,414); 1080p 388,509,819 (21,302,735)
+#  + the 1-D forms (yFracC 0: one pmaddubsw, no row below; xFracC 0: each sample with the one below), rejected:
+#    sd 671,744,934 (53,664,454); 720p 1,754,649,257 (50,228,548); 1080p 388,342,028 (21,134,974)
+#  + both weighted planes in one 256-bit pass (k):
+#    sd 661,234,168 (43,151,654); 720p 1,750,816,085 (46,393,342); 1080p 385,048,364 (17,839,276)
+# main's chroma_block on the 720p stream: 245,775 calls, 288 instructions a call; an interpolated
+# 8-wide row about 28 instructions (the finish of each plane tested a row, pointers reloaded from the
+# stack), a copied row about 17. k: an interpolated row 18, an averaged copied row 11.

@@ -1,0 +1,1 @@
+./configure --cc=gcc14-gcc --cxx=gcc14-c++ --arch=x86_64 --target-os=linux --enable-gpl --enable-version3 --disable-autodetect --disable-doc --disable-stripping --disable-ffplay --disable-ffprobe --enable-debug=2

@@ -1,0 +1,58 @@
+# ab3.py 7 rounds, all 32, CPU time pinned; dw-4cb168e = main 056bd25 (dist), mbl-451 = round 24, r25-mA/r25-rA = the same two with -C llvm-args=-align-all-functions=6 -C llvm-args=-align-all-nofallthru-blocks=5, r25-mF = main with -align-all-functions=6 only
+175433794e02.0.1080p 4.726  mbl-451 0.9962  r25-mA 1.0052  r25-rA 0.9957  r25-mF 1.0046
+1d4b1775d78a.0.720p. 0.790  mbl-451 0.9933  r25-mA 1.0084  r25-rA 1.0114  r25-mF 1.0095
+278dbf5a63bb.0.720p. 0.922  mbl-451 0.9976  r25-mA 0.9955  r25-rA 0.9939  r25-mF 0.9960
+36501d448eaa.0.720p. 1.675  mbl-451 0.9877  r25-mA 0.9811  r25-rA 0.9818  r25-mF 0.9875
+3b1b441e23ae.0.4k.h2 0.483  mbl-451 0.9980  r25-mA 0.9888  r25-rA 0.9903  r25-mF 0.9902
+3c593b8f0809.0.720p. 0.827  mbl-451 1.0209  r25-mA 0.9897  r25-rA 0.9932  r25-mF 0.9982
+41e324ebb708.0.sd.h2 0.853  mbl-451 0.9999  r25-mA 1.0080  r25-rA 1.0010  r25-mF 1.0023
+4b54de28c2b3.0.4k.h2 0.699  mbl-451 0.9995  r25-mA 1.0031  r25-rA 1.0024  r25-mF 1.0346
+5185721dda11.0.sd.h2 0.356  mbl-451 0.9996  r25-mA 0.9990  r25-rA 0.9934  r25-mF 1.0027
+65ec61f95a00.0.720p. 2.956  mbl-451 1.0052  r25-mA 1.0007  r25-rA 0.9999  r25-mF 1.0047
+6b18d9f0f88d.0.720p. 0.668  mbl-451 0.9890  r25-mA 0.9993  r25-rA 0.9897  r25-mF 1.0030
+6da34958296c.0.1080p 1.464  mbl-451 1.0132  r25-mA 1.0256  r25-rA 1.0227  r25-mF 1.0153
+6e90422a670a.0.1080p 3.673  mbl-451 0.9974  r25-mA 0.9923  r25-rA 0.9881  r25-mF 0.9957
+6f7799768413.0.sd.h2 1.442  mbl-451 1.0036  r25-mA 1.0097  r25-rA 0.9985  r25-mF 0.9979
+7650ae466748.0.sd.h2 0.517  mbl-451 1.0078  r25-mA 0.9975  r25-rA 0.9893  r25-mF 0.9973
+76e0b1692494.0.720p. 0.825  mbl-451 1.0050  r25-mA 1.0031  r25-rA 0.9971  r25-mF 1.0009
+81ed4778ece2.0.4k.h2 0.248  mbl-451 1.0115  r25-mA 0.9993  r25-rA 0.9878  r25-mF 0.9942
+8ae90cadb5bc.0.sd.h2 1.281  mbl-451 1.0031  r25-mA 0.9834  r25-rA 1.0288  r25-mF 0.9883
+9db41aa16b5a.0.720p. 0.837  mbl-451 0.9900  r25-mA 0.9944  r25-rA 0.9904  r25-mF 1.0056
+a6af290d9053.0.1080p 5.039  mbl-451 0.9997  r25-mA 0.9835  r25-rA 0.9911  r25-mF 1.0134
+a81de82106be.0.1080p 0.647  mbl-451 0.9969  r25-mA 0.9992  r25-rA 0.9946  r25-mF 0.9955
+ae16bb7c7192.0.4k.h2 0.144  mbl-451 0.9852  r25-mA 0.9932  r25-rA 0.9794  r25-mF 0.9945
+af38b0cfd840.0.4k.h2 0.479  mbl-451 0.9830  r25-mA 0.9803  r25-rA 0.9875  r25-mF 1.0018
+b41f70a7fa60.0.1080p 2.146  mbl-451 1.0044  r25-mA 0.9907  r25-rA 0.9952  r25-mF 1.0180
+b71b6b31e54f.0.1080p 0.867  mbl-451 0.9980  r25-mA 1.0050  r25-rA 1.0001  r25-mF 0.9963
+c7ecda16e4a7.0.1080p 3.464  mbl-451 0.9952  r25-mA 0.9922  r25-rA 0.9933  r25-mF 0.9928
+dcb262cf0138.0.sd.h2 0.265  mbl-451 0.9955  r25-mA 0.9932  r25-rA 0.9938  r25-mF 1.0015
+e624cbe0d2be.0.4k.h2 0.689  mbl-451 1.0034  r25-mA 0.9976  r25-rA 0.9975  r25-mF 0.9895
+ec473c99c538.0.sd.h2 0.093  mbl-451 0.9903  r25-mA 0.9947  r25-rA 0.9942  r25-mF 0.9981
+ed75c044e944.0.4k.h2 0.227  mbl-451 0.9802  r25-mA 0.9840  r25-rA 0.9801  r25-mF 0.9856
+f8d92a911e72.0.4k.h2 7.039  mbl-451 1.0016  r25-mA 1.0094  r25-rA 0.9985  r25-mF 1.0049
+f9e973f44570.0.sd.h2 0.171  mbl-451 0.9961  r25-mA 0.9897  r25-rA 0.9865  r25-mF 0.9973
+median mbl-451 0.9980  r25-mA 0.9965  r25-rA 0.9938  r25-mF 0.9982
+== mbl-451 base (abcls.py)
+sd     n= 8 median 0.9998 [0.9955, 1.0036] faster 5/8
+720p   n= 8 median 0.9954 [0.9890, 1.0052] faster 5/8
+1080p  n= 8 median 0.9977 [0.9962, 1.0044] faster 6/8
+4k     n= 8 median 0.9988 [0.9830, 1.0034] faster 5/8
+all    n=32 median 0.9980 [0.9961, 1.0016] faster 21/32
+== r25-mA base (abcls.py)
+sd     n= 8 median 0.9961 [0.9897, 1.0080] faster 6/8
+720p   n= 8 median 0.9974 [0.9897, 1.0031] faster 5/8
+1080p  n= 8 median 0.9957 [0.9907, 1.0052] faster 5/8
+4k     n= 8 median 0.9954 [0.9840, 1.0031] faster 6/8
+all    n=32 median 0.9965 [0.9927, 0.9993] faster 22/32
+== r25-mF base (abcls.py)
+sd     n= 8 median 0.9980 [0.9973, 1.0023] faster 5/8
+720p   n= 8 median 1.0019 [0.9960, 1.0056] faster 3/8
+1080p  n= 8 median 1.0004 [0.9955, 1.0153] faster 4/8
+4k     n= 8 median 0.9944 [0.9895, 1.0049] faster 5/8
+all    n=32 median 0.9981 [0.9961, 1.0025] faster 17/32
+== r25-rA r25-mA (abcls.py)
+sd     n= 8 median 0.9956 [0.9918, 1.0006] faster 6/8
+720p   n= 8 median 0.9988 [0.9940, 1.0030] faster 5/8
+1080p  n= 8 median 0.9965 [0.9951, 1.0045] faster 5/8
+4k     n= 8 median 0.9977 [0.9885, 1.0015] faster 6/8
+all    n=32 median 0.9970 [0.9951, 0.9999] faster 22/32

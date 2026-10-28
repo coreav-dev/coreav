@@ -1,0 +1,36 @@
+machine: unknown (family 26, model 2, stepping unknown), 4138.1 MHz, 32 logical CPUs
+1d4b1775d78a.0.720p.h264                 base:discard@1=1.28  base:write@1=1.16  base:mixed@1=1.15  a:discard@1=1.28  a:write@1=1.16  a:mixed@1=1.14  pre:discard@1=1.28  pre:write@1=1.16  pre:mixed@1=1.14  base:discard@8=1.20  base:write@8=1.12  base:mixed@8=1.11  a:discard@8=1.17  a:write@8=1.19  a:mixed@8=1.09  pre:discard@8=1.28  pre:write@8=1.16  pre:mixed@8=1.19
+278dbf5a63bb.0.720p.h264                 base:discard@1=1.24  base:write@1=1.17  base:mixed@1=1.17  a:discard@1=1.22  a:write@1=1.17  a:mixed@1=1.15  pre:discard@1=1.23  pre:write@1=1.18  pre:mixed@1=1.16  base:discard@8=1.23  base:write@8=1.11  base:mixed@8=1.13  a:discard@8=1.22  a:write@8=1.12  a:mixed@8=1.11  pre:discard@8=1.20  pre:write@8=1.13  pre:mixed@8=1.10
+36501d448eaa.0.720p.h264                 base:discard@1=1.19  base:write@1=1.08  base:mixed@1=1.06  a:discard@1=1.19  a:write@1=1.08  a:mixed@1=1.07  pre:discard@1=1.19  pre:write@1=1.08  pre:mixed@1=1.06  base:discard@8=1.17  base:write@8=1.11  base:mixed@8=1.12  a:discard@8=1.10  a:write@8=1.12  a:mixed@8=1.06  pre:discard@8=1.12  pre:write@8=1.09  pre:mixed@8=1.08
+3c593b8f0809.0.720p.h264                 base:discard@1=1.13  base:write@1=1.04  base:mixed@1=1.04  a:discard@1=1.12  a:write@1=1.03  a:mixed@1=1.02  pre:discard@1=1.14  pre:write@1=1.04  pre:mixed@1=1.04  base:discard@8=0.98  base:write@8=1.05  base:mixed@8=0.95  a:discard@8=0.99  a:write@8=1.03  a:mixed@8=0.96  pre:discard@8=0.99  pre:write@8=1.04  pre:mixed@8=0.96
+65ec61f95a00.0.720p.h264                 base:discard@1=1.23  base:write@1=1.03  base:mixed@1=1.02  a:discard@1=1.21  a:write@1=1.03  a:mixed@1=1.01  pre:discard@1=1.23  pre:write@1=1.03  pre:mixed@1=1.02  base:discard@8=1.22  base:write@8=1.17  base:mixed@8=1.17  a:discard@8=1.23  a:write@8=1.19  a:mixed@8=1.18  pre:discard@8=1.23  pre:write@8=1.18  pre:mixed@8=1.17
+6b18d9f0f88d.0.720p.h264                 base:discard@1=1.13  base:write@1=0.83  base:mixed@1=0.79  a:discard@1=1.13  a:write@1=0.82  a:mixed@1=0.79  pre:discard@1=1.13  pre:write@1=0.83  pre:mixed@1=0.79  base:discard@8=1.19  base:write@8=1.11  base:mixed@8=1.07  a:discard@8=1.16  a:write@8=1.11  a:mixed@8=1.05  pre:discard@8=1.16  pre:write@8=1.13  pre:mixed@8=1.05
+76e0b1692494.0.720p.h264                 base:discard@1=1.24  base:write@1=1.08  base:mixed@1=1.06  a:discard@1=1.23  a:write@1=1.08  a:mixed@1=1.06  pre:discard@1=1.23  pre:write@1=1.08  pre:mixed@1=1.06  base:discard@8=1.11  base:write@8=1.02  base:mixed@8=1.02  a:discard@8=1.10  a:write@8=1.05  a:mixed@8=1.01  pre:discard@8=1.14  pre:write@8=1.05  pre:mixed@8=1.04
+9db41aa16b5a.0.720p.h264                 base:discard@1=1.64  base:write@1=1.23  base:mixed@1=1.21  a:discard@1=1.65  a:write@1=1.24  a:mixed@1=1.21  pre:discard@1=1.64  pre:write@1=1.23  pre:mixed@1=1.21  base:discard@8=1.41  base:write@8=1.38  base:mixed@8=1.24  a:discard@8=1.48  a:write@8=1.41  a:mixed@8=1.31  pre:discard@8=1.45  pre:write@8=1.41  pre:mixed@8=1.28
+
+base:discard@1           n=  8  median 1.232  [1.134, 1.283]
+base:write@1             n=  8  median 1.080  [1.035, 1.171]
+base:mixed@1             n=  8  median 1.062  [1.020, 1.169]
+a:discard@1              n=  8  median 1.220  [1.127, 1.275]
+a:write@1                n=  8  median 1.080  [1.030, 1.172]
+a:mixed@1                n=  8  median 1.062  [1.010, 1.151]
+pre:discard@1            n=  8  median 1.231  [1.143, 1.280]
+pre:write@1              n=  8  median 1.080  [1.031, 1.175]
+pre:mixed@1              n=  8  median 1.060  [1.023, 1.157]
+base:discard@8           n=  8  median 1.192  [1.108, 1.232]
+base:write@8             n=  8  median 1.112  [1.053, 1.172]
+base:mixed@8             n=  8  median 1.115  [1.019, 1.167]
+a:discard@8              n=  8  median 1.166  [1.099, 1.234]
+a:write@8                n=  8  median 1.116  [1.053, 1.194]
+a:mixed@8                n=  8  median 1.074  [1.011, 1.178]
+pre:discard@8            n=  8  median 1.179  [1.122, 1.282]
+pre:write@8              n=  8  median 1.132  [1.048, 1.182]
+pre:mixed@8              n=  8  median 1.088  [1.044, 1.191]
+scaling:base:discard@8   n=  8  median 0.957  [0.864, 0.997]
+scaling:base:write@8     n=  8  median 1.022  [0.947, 1.133]
+scaling:a:discard@8      n=  8  median 0.922  [0.891, 1.016]
+scaling:a:write@8        n=  8  median 1.032  [0.974, 1.159]
+scaling:pre:discard@8    n=  8  median 0.960  [0.883, 1.001]
+scaling:pre:write@8      n=  8  median 1.006  [0.972, 1.146]
+
+wrote /work/out/t.720p.json

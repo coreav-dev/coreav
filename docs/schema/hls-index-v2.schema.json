@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coreav-dev/coreav/docs/schema/hls-index-v2.schema.json",
+  "title": "coreav hls index summary, schema coreav.hls-index/2",
+  "description": "The summary coreav hls index and coreav hls package print (docs/design/hls.md). Keys and meanings: docs/schema/hls-index-v2.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "source",
+    "index",
+    "segment_duration",
+    "renditions"
+  ],
+  "properties": {
+    "schema": {
+      "const": "coreav.hls-index/2"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bytes"
+      ],
+      "properties": {
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "index": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bytes"
+      ],
+      "properties": {
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "segment_duration": {
+      "$ref": "#/$defs/rational"
+    },
+    "renditions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/rendition"
+      }
+    }
+  },
+  "$defs": {
+    "rational": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "num",
+        "den"
+      ],
+      "properties": {
+        "num": {
+          "type": "integer"
+        },
+        "den": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "time": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ticks",
+        "timescale",
+        "seconds"
+      ],
+      "properties": {
+        "ticks": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/rational"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timescale": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "seconds": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      }
+    },
+    "rendition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rendition",
+        "stream_index",
+        "track_id",
+        "codecs",
+        "segments",
+        "deferred",
+        "samples",
+        "sample_bytes",
+        "duration",
+        "longest_segment",
+        "peak_bit_rate",
+        "average_bit_rate"
+      ],
+      "properties": {
+        "rendition": {
+          "enum": [
+            "video",
+            "audio"
+          ]
+        },
+        "stream_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "track_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "codecs": {
+          "type": "string"
+        },
+        "segments": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "deferred": {
+          "type": "boolean"
+        },
+        "samples": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sample_bytes": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "duration": {
+          "$ref": "#/$defs/time"
+        },
+        "longest_segment": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "peak_bit_rate": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "average_bit_rate": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

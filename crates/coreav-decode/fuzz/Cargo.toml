@@ -1,0 +1,26 @@
+# cargo-fuzz project (docs/design/decode.md, bar 4); outside the workspace, never published.
+[package]
+name = "coreav-decode-fuzz"
+version = "0.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+coreav-decode = { path = ".." }
+
+[[bin]]
+name = "traits"
+path = "fuzz_targets/traits.rs"
+test = false
+doc = false
+bench = false
+
+[lints.rust]
+unsafe_code = "forbid"

@@ -1,0 +1,65 @@
+diff --git a/crates/coreav-h264/examples/decode.rs b/crates/coreav-h264/examples/decode.rs
+index 1dca245d..d054c700 100644
+--- a/crates/coreav-h264/examples/decode.rs
++++ b/crates/coreav-h264/examples/decode.rs
+@@ -26,7 +26,9 @@ use coreav_h264::{AnnexB, Decoder, Limits, Mode, Picture};
+ use coreav_kernels_h264::Auto;
+ 
+ fn main() -> std::process::ExitCode {
+-    match run() {
++    let r = run();
++    coreav_kernels_h264::hist_dump();
++    match r {
+         Ok(()) => std::process::ExitCode::SUCCESS,
+         Err(e) => {
+             eprintln!("decode: {e}");
+diff --git a/crates/coreav-kernels-h264/src/lib.rs b/crates/coreav-kernels-h264/src/lib.rs
+index 15b92417..9312ebd8 100644
+--- a/crates/coreav-kernels-h264/src/lib.rs
++++ b/crates/coreav-kernels-h264/src/lib.rs
+@@ -314,6 +314,7 @@ impl Kernels for Auto {
+     }
+ 
+     fn luma_mc(&self, dst: BlockMut<'_>, src: Block<'_>, xf: u8, yf: u8) {
++        hist_note(dst.w(), dst.h(), xf, yf, 0);
+         // No full-sample shortcut here, unlike `chroma_mc`: both kernels
+         // already predict a full-sample block by copying it, and taking
+         // that copy at this level measured worse (see
+@@ -366,6 +367,7 @@ impl Kernels for Auto {
+     }
+ 
+     fn luma_mc_avg(&self, dst: BlockMut<'_>, src: Block<'_>, xf: u8, yf: u8) {
++        hist_note(dst.w(), dst.h(), xf, yf, 1);
+         // The rule of `luma_mc`, measured for the plain prediction. It is
+         // provisional for the averaging form until the round that has the
+         // decoder use it measures that form.
+@@ -405,6 +407,8 @@ impl Kernels for Auto {
+     }
+ 
+     fn combine(&self, dst: BlockMut<'_>, p0: Block<'_>, p1: Block<'_>, mode: Combine) {
++        let k = match mode { Combine::Copy(_) => 0, Combine::Average => 1, Combine::Uni{..} => 2, Combine::Bi{..} => 3 };
++        hist_note(dst.w(), dst.h(), k, 0, 2);
+         match self.simd {
+             Some(simd) if Simd::prefers_combine(mode) => simd.combine(dst, p0, p1, mode),
+             _ => Scalar.combine(dst, p0, p1, mode),
+@@ -729,3 +733,20 @@ mod tests {
+         assert_eq!(p.get(11), Some(&140));
+     }
+ }
++
++static HIST: [std::sync::atomic::AtomicU64; 5 * 5 * 4 * 4 * 3] = [const { std::sync::atomic::AtomicU64::new(0) }; 5 * 5 * 4 * 4 * 3];
++fn hist_note(w: usize, h: usize, xf: u8, yf: u8, kind: usize) {
++    let i = |v: usize| match v { 2 => 0, 4 => 1, 8 => 2, 16 => 3, _ => 4 };
++    let k = (((kind * 5 + i(w)) * 5 + i(h)) * 4 + usize::from(xf & 3)) * 4 + usize::from(yf & 3);
++    if let Some(c) = HIST.get(k) { c.fetch_add(1, std::sync::atomic::Ordering::Relaxed); }
++}
++/// Histogram dump.
++pub fn hist_dump() {
++    let n = [2, 4, 8, 16, 0];
++    for (k, c) in HIST.iter().enumerate() {
++        let v = c.load(std::sync::atomic::Ordering::Relaxed);
++        if v == 0 { continue; }
++        let (yf, r) = (k % 4, k / 4); let (xf, r) = (r % 4, r / 4); let (hi, r) = (r % 5, r / 5); let (wi, kind) = (r % 5, r / 5);
++        eprintln!("H {kind} {} {} {xf} {yf} {v}", n[wi], n[hi]);
++    }
++}

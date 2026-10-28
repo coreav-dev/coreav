@@ -1,0 +1,8 @@
+INFO: Running with entropic power schedule (0xFF, 100).
+INFO: Seed: 2017261857
+INFO: Loaded 1 modules   (75473 inline 8-bit counters): 75473 [0x558b71d4a2b0, 0x558b71d5c981), 
+INFO: Loaded 1 PC tables (75473 PCs): 75473 [0x558b71d5c988,0x558b71e83698), 
+#10	INITED cov: 9898 ft: 22395 corp: 9/191Kb exec/s: 10 rss: 84Mb
+Done 4797 runs in 901 second(s)
+exit 0
+#4797	NEW    cov: 11001 ft: 62170 corp: 1193/23Mb lim: 38148 exec/s: 5 rss: 497Mb L: 36354/38148 MS: 4 ShuffleBytes-InsertByte-ChangeBinInt-CrossOver-

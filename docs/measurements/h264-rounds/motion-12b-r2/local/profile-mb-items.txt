@@ -1,0 +1,17 @@
+== mb: CoreAV 0.224, FFmpeg 0.093 (of FFmpeg total, mean per stream)
+  0.0258 mb.rs finish_mb<coreav_kernels_h264::Auto>                 | 0.0224 h264_mvpred.h fill_decode_caches
+  0.0199 inter.rs store_mb<coreav_kernels_h264::Auto>               | 0.0121 h264_mvpred.h write_back_motion_list
+  0.0135 mb.rs <coreav_h264::mb::MbData>::reset                     | 0.0077 h264_mvpred.h fill_decode_neighbors
+  0.0121 mb.rs start_mb                                             | 0.0065 rectangle.h fill_rectangle
+  0.0112 inter.rs predict_p_skip<coreav_kernels_h264::Auto>         | 0.0056 h264_direct.c pred_spatial_direct_motion
+  0.0111 inter.rs colocated                                         | 0.0051 h264_mvpred.h decode_mb_skip
+  0.0095 inter.rs predict_fast                                      | 0.0041 h264_slice.c decode_slice
+  0.0091 inter.rs resolve<coreav_kernels_h264::Auto>                | 0.0038 h264_mvpred.h pred_pskip_motion
+  0.0079 mb.rs eq                                                   | 0.0035 h264dec.h get_chroma_qp
+  0.0078 mb.rs info<coreav_kernels_h264::Auto>                      | 0.0025 h264_mvpred.h write_back_non_zero_count
+  0.0068 inter.rs predict_partitions<coreav_kernels_h264::Auto>     | 0.0022 h264_mvpred.h pred_motion
+  0.0056 inter.rs mv_predictor                                      | 0.0020 h264_parse.h pack16to32
+  0.0055 mb.rs {closure#0}<coreav_kernels_h264::Auto>               | 0.0018 h264_mvpred.h write_back_motion
+  0.0054 inter.rs predict_direct<coreav_kernels_h264::Auto>         | 0.0015 mathops.h mid_pred
+  0.0051 mb.rs neighbour_4x4<coreav_kernels_h264::Auto>             | 0.0007 h264_direct.c ff_h264_pred_direct_motion
+  0.0050 inter.rs set<2>                                            | 0.0006 h264_mvpred.h pred_intra_mode

@@ -1,0 +1,5 @@
+identity:      64 same 
+tests: 193 passed, 0 failed
+detect 1,2,8: {"streams": 97, "passed": 97, "failed": 0, "kernels": "detect", "mode": "fast", "threads": "1,2,8", "seconds": 147.3}
+scalar 1,2,8: {"streams": 97, "passed": 97, "failed": 0, "kernels": "scalar", "mode": "fast", "threads": "1,2,8", "seconds": 184.7}
+DONE

@@ -1,0 +1,326 @@
+{
+ "rule": "corpus v1 real-set H.264 streams in scope that agreed with FFmpeg in N1 (spikes/h264-n1/evidence/corpus.jsonl.gz), with N1 FFmpeg decode time at least 0.5 s; held-out = manifest holdout true; tuning = holdout false. Classes by luma samples: sd <= 640x480, 720p <= 1280x720, 1080p <= 1920x1088, 4k above.",
+ "profile_subset": "per class the 8 tuning streams with the smallest sha256",
+ "streams": [
+  {
+   "key": "0ad504671d99498158b800989ab8abcf408410a465385ed1908774f342d101fb.mp4",
+   "sha256": "0ad504671d99498158b800989ab8abcf408410a465385ed1908774f342d101fb",
+   "v": 0,
+   "class": "sd",
+   "width": 640,
+   "height": 480,
+   "n1_ffmpeg_seconds": 19.581,
+   "frames": 9000
+  },
+  {
+   "key": "0ba6abe19f7bfed8df63d642c868c9d856e5ab7d8b2230dfd2173fe365d5f928.mov",
+   "sha256": "0ba6abe19f7bfed8df63d642c868c9d856e5ab7d8b2230dfd2173fe365d5f928",
+   "v": 0,
+   "class": "sd",
+   "width": 480,
+   "height": 270,
+   "n1_ffmpeg_seconds": 5.984,
+   "frames": 4838
+  },
+  {
+   "key": "0bb05726e4289417c082eec9bd7849740cb5fe5c48b918d3d757d873545464c6.mp4",
+   "sha256": "0bb05726e4289417c082eec9bd7849740cb5fe5c48b918d3d757d873545464c6",
+   "v": 0,
+   "class": "sd",
+   "width": 300,
+   "height": 240,
+   "n1_ffmpeg_seconds": 1.047,
+   "frames": 1500
+  },
+  {
+   "key": "13157d880078ae61fbd17076a5fb40c5868da1746acf7f5e89f1664bd726c76a.mp4",
+   "sha256": "13157d880078ae61fbd17076a5fb40c5868da1746acf7f5e89f1664bd726c76a",
+   "v": 0,
+   "class": "sd",
+   "width": 320,
+   "height": 240,
+   "n1_ffmpeg_seconds": 3.881,
+   "frames": 9000
+  },
+  {
+   "key": "13c5e52e7da506ab022a01e0008957f391ba5639da2fcaf8d775c823fa3181a8.mkv",
+   "sha256": "13c5e52e7da506ab022a01e0008957f391ba5639da2fcaf8d775c823fa3181a8",
+   "v": 0,
+   "class": "sd",
+   "width": 640,
+   "height": 480,
+   "n1_ffmpeg_seconds": 15.113,
+   "frames": 9000
+  },
+  {
+   "key": "1572496fb7cb6da1f0a7fca22a9315826a43f0363c07e5cc3c274e396688039a.mp4",
+   "sha256": "1572496fb7cb6da1f0a7fca22a9315826a43f0363c07e5cc3c274e396688039a",
+   "v": 0,
+   "class": "sd",
+   "width": 534,
+   "height": 300,
+   "n1_ffmpeg_seconds": 5.19,
+   "frames": 3750
+  },
+  {
+   "key": "159026542ddb0c1b5f075fec4bcbf35ee6b4210b287f78ec4ece3a3f0838e149.mp4",
+   "sha256": "159026542ddb0c1b5f075fec4bcbf35ee6b4210b287f78ec4ece3a3f0838e149",
+   "v": 0,
+   "class": "sd",
+   "width": 426,
+   "height": 240,
+   "n1_ffmpeg_seconds": 7.717,
+   "frames": 9000
+  },
+  {
+   "key": "1734f2047a709e16652eae478ba9b2ed4835a568e00783793b0a398014cd0e48.mp4",
+   "sha256": "1734f2047a709e16652eae478ba9b2ed4835a568e00783793b0a398014cd0e48",
+   "v": 0,
+   "class": "sd",
+   "width": 256,
+   "height": 110,
+   "n1_ffmpeg_seconds": 1.41,
+   "frames": 9000
+  },
+  {
+   "key": "00d2057ba2cdf0d6c7fb2ca57c29edf05f99789cc058c73f05660a826cb527b7.mp4",
+   "sha256": "00d2057ba2cdf0d6c7fb2ca57c29edf05f99789cc058c73f05660a826cb527b7",
+   "v": 0,
+   "class": "720p",
+   "width": 414,
+   "height": 900,
+   "n1_ffmpeg_seconds": 1.004,
+   "frames": 676
+  },
+  {
+   "key": "03be19c3a47b54c5367f6c909e2340037b67f0ad9598cd622d952e2fd3ab5165.mp4",
+   "sha256": "03be19c3a47b54c5367f6c909e2340037b67f0ad9598cd622d952e2fd3ab5165",
+   "v": 0,
+   "class": "720p",
+   "width": 854,
+   "height": 480,
+   "n1_ffmpeg_seconds": 2.685,
+   "frames": 835
+  },
+  {
+   "key": "04e45b2f41dff195b525fa18b7ed5517e5fc2d651127d1b57d1d931de306f915.mp4",
+   "sha256": "04e45b2f41dff195b525fa18b7ed5517e5fc2d651127d1b57d1d931de306f915",
+   "v": 0,
+   "class": "720p",
+   "width": 854,
+   "height": 480,
+   "n1_ffmpeg_seconds": 3.09,
+   "frames": 829
+  },
+  {
+   "key": "060b839eaa3439835dcb75f455dab15892d42f77816f426f006748b49ec3d827.mp4",
+   "sha256": "060b839eaa3439835dcb75f455dab15892d42f77816f426f006748b49ec3d827",
+   "v": 0,
+   "class": "720p",
+   "width": 1280,
+   "height": 720,
+   "n1_ffmpeg_seconds": 0.897,
+   "frames": 413
+  },
+  {
+   "key": "0758bb0f1c23edc0ab4b0024641b37a4ab2d6f68e76c513330fbbed10bef6595.mp4",
+   "sha256": "0758bb0f1c23edc0ab4b0024641b37a4ab2d6f68e76c513330fbbed10bef6595",
+   "v": 0,
+   "class": "720p",
+   "width": 1280,
+   "height": 720,
+   "n1_ffmpeg_seconds": 0.975,
+   "frames": 387
+  },
+  {
+   "key": "07cbd18cf027cf00a29a8bbe29c956fef21f1e87c4b3237df790dc065dba0cb6.mov",
+   "sha256": "07cbd18cf027cf00a29a8bbe29c956fef21f1e87c4b3237df790dc065dba0cb6",
+   "v": 0,
+   "class": "720p",
+   "width": 1002,
+   "height": 704,
+   "n1_ffmpeg_seconds": 1.219,
+   "frames": 502
+  },
+  {
+   "key": "0e068f543ebf59bccb4228e7b5950a4f681753d2bbbf1c838ae60336bc75c1bd.mp4",
+   "sha256": "0e068f543ebf59bccb4228e7b5950a4f681753d2bbbf1c838ae60336bc75c1bd",
+   "v": 0,
+   "class": "720p",
+   "width": 848,
+   "height": 480,
+   "n1_ffmpeg_seconds": 0.672,
+   "frames": 379
+  },
+  {
+   "key": "0f6226648239b154d7d46c6a59349fbc471a91cfd28154644326287796bf5675.mp4",
+   "sha256": "0f6226648239b154d7d46c6a59349fbc471a91cfd28154644326287796bf5675",
+   "v": 0,
+   "class": "720p",
+   "width": 1280,
+   "height": 720,
+   "n1_ffmpeg_seconds": 1.032,
+   "frames": 300
+  },
+  {
+   "key": "02143b44a0c8e06ee2af03cc3e8fc30690ae4fe1828fc5c106b7176ce243538a.mov",
+   "sha256": "02143b44a0c8e06ee2af03cc3e8fc30690ae4fe1828fc5c106b7176ce243538a",
+   "v": 0,
+   "class": "1080p",
+   "width": 1920,
+   "height": 1080,
+   "n1_ffmpeg_seconds": 52.072,
+   "frames": 3890
+  },
+  {
+   "key": "0404af1890da36d429d13d07e3c8cdf407f21b12ae0b9e7a45201666d2d267d3.mov",
+   "sha256": "0404af1890da36d429d13d07e3c8cdf407f21b12ae0b9e7a45201666d2d267d3",
+   "v": 0,
+   "class": "1080p",
+   "width": 828,
+   "height": 1792,
+   "n1_ffmpeg_seconds": 2.039,
+   "frames": 394
+  },
+  {
+   "key": "05f55a4982d897fb358a633405a7f51092cbad62f737841965d3b84a7a428f0f.mp4",
+   "sha256": "05f55a4982d897fb358a633405a7f51092cbad62f737841965d3b84a7a428f0f",
+   "v": 0,
+   "class": "1080p",
+   "width": 1560,
+   "height": 1018,
+   "n1_ffmpeg_seconds": 5.56,
+   "frames": 863
+  },
+  {
+   "key": "0a64c0f45511305f32caad62cbac72acdae5cc033ebc56dcb34e80ce584d576e.mp4",
+   "sha256": "0a64c0f45511305f32caad62cbac72acdae5cc033ebc56dcb34e80ce584d576e",
+   "v": 0,
+   "class": "1080p",
+   "width": 1920,
+   "height": 1080,
+   "n1_ffmpeg_seconds": 35.796,
+   "frames": 2659
+  },
+  {
+   "key": "0f5c517928bf1d2f4dc7cd9d7512d1e4c467cfc1bc23abd8150d31c22cb3b327.mp4",
+   "sha256": "0f5c517928bf1d2f4dc7cd9d7512d1e4c467cfc1bc23abd8150d31c22cb3b327",
+   "v": 0,
+   "class": "1080p",
+   "width": 1814,
+   "height": 905,
+   "n1_ffmpeg_seconds": 9.125,
+   "frames": 1265
+  },
+  {
+   "key": "13270adf84eb37f540e65fd1cab3a6f4f56f5489c6bba7552a0157747eab7995.mp4",
+   "sha256": "13270adf84eb37f540e65fd1cab3a6f4f56f5489c6bba7552a0157747eab7995",
+   "v": 0,
+   "class": "1080p",
+   "width": 1560,
+   "height": 720,
+   "n1_ffmpeg_seconds": 2.375,
+   "frames": 522
+  },
+  {
+   "key": "134407049e758e9787180410c1a531fdb6a21facbd488612996e91b4f2e0bd95.mp4",
+   "sha256": "134407049e758e9787180410c1a531fdb6a21facbd488612996e91b4f2e0bd95",
+   "v": 0,
+   "class": "1080p",
+   "width": 1920,
+   "height": 1080,
+   "n1_ffmpeg_seconds": 77.244,
+   "frames": 8404
+  },
+  {
+   "key": "14df6c0bce7c5d9cf917f9081542fca5023dd0b94036beb62fb8cfb96d53eef7.mkv",
+   "sha256": "14df6c0bce7c5d9cf917f9081542fca5023dd0b94036beb62fb8cfb96d53eef7",
+   "v": 0,
+   "class": "1080p",
+   "width": 1920,
+   "height": 1080,
+   "n1_ffmpeg_seconds": 15.248,
+   "frames": 1708
+  },
+  {
+   "key": "029c63e01bcdb7a01664dbc0b85470a1ff4a83467bcca30c8cb2a7135b39ed22.mp4",
+   "sha256": "029c63e01bcdb7a01664dbc0b85470a1ff4a83467bcca30c8cb2a7135b39ed22",
+   "v": 0,
+   "class": "4k",
+   "width": 2720,
+   "height": 1530,
+   "n1_ffmpeg_seconds": 24.373,
+   "frames": 629
+  },
+  {
+   "key": "061589fae6b7e4383c522ba640232faa1e53d352f7068fcfb9ae3d3495b61b6b.mp4",
+   "sha256": "061589fae6b7e4383c522ba640232faa1e53d352f7068fcfb9ae3d3495b61b6b",
+   "v": 0,
+   "class": "4k",
+   "width": 2400,
+   "height": 1080,
+   "n1_ffmpeg_seconds": 15.162,
+   "frames": 1554
+  },
+  {
+   "key": "0ca5354c98912ec2a3ecfed907157ea759fa30f8d2bc90014f24d17f97e152f6.mov",
+   "sha256": "0ca5354c98912ec2a3ecfed907157ea759fa30f8d2bc90014f24d17f97e152f6",
+   "v": 0,
+   "class": "4k",
+   "width": 4096,
+   "height": 2160,
+   "n1_ffmpeg_seconds": 77.048,
+   "frames": 1230
+  },
+  {
+   "key": "156797c6e68c8ab6d2ab90e8b757a09432418eb914093b464e11feb3300188a2.mp4",
+   "sha256": "156797c6e68c8ab6d2ab90e8b757a09432418eb914093b464e11feb3300188a2",
+   "v": 0,
+   "class": "4k",
+   "width": 3840,
+   "height": 2160,
+   "n1_ffmpeg_seconds": 81.759,
+   "frames": 1170
+  },
+  {
+   "key": "158c48d4a22382806fe3fa17b0730dabf6ac6220414cc254c69482e1dc7fe97a.mp4",
+   "sha256": "158c48d4a22382806fe3fa17b0730dabf6ac6220414cc254c69482e1dc7fe97a",
+   "v": 0,
+   "class": "4k",
+   "width": 3840,
+   "height": 2160,
+   "n1_ffmpeg_seconds": 28.074,
+   "frames": 372
+  },
+  {
+   "key": "212430222f3bfb46c806ff6a718788f4d0644b036255ca3d96c4660fb24c8673.mp4",
+   "sha256": "212430222f3bfb46c806ff6a718788f4d0644b036255ca3d96c4660fb24c8673",
+   "v": 0,
+   "class": "4k",
+   "width": 3840,
+   "height": 2160,
+   "n1_ffmpeg_seconds": 461.312,
+   "frames": 5904
+  },
+  {
+   "key": "23ed13b2623b2583adb4e19523ed6daa5e4477743d053c357632037d59268ec8.mp4",
+   "sha256": "23ed13b2623b2583adb4e19523ed6daa5e4477743d053c357632037d59268ec8",
+   "v": 0,
+   "class": "4k",
+   "width": 1080,
+   "height": 2280,
+   "n1_ffmpeg_seconds": 7.024,
+   "frames": 825
+  },
+  {
+   "key": "32fb46173bf85ee3ead4f04235cfbc4ef1506b436e08d5c6a90e18d7d96a18b1.mp4",
+   "sha256": "32fb46173bf85ee3ead4f04235cfbc4ef1506b436e08d5c6a90e18d7d96a18b1",
+   "v": 0,
+   "class": "4k",
+   "width": 2720,
+   "height": 1530,
+   "n1_ffmpeg_seconds": 18.672,
+   "frames": 561
+  }
+ ]
+}

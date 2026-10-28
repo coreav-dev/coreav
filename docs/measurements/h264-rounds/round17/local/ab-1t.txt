@@ -1,0 +1,19 @@
+# One thread, pinned, CPU time (ab3.py 5 STREAMS r18-base r18-band): the first form against main 06141b3. Information only; the
+# VM's single-run outliers reach +15% (ed75).
+41e324ebb708.0.sd.h2 0.984  r18-band 0.9787
+5185721dda11.0.sd.h2 0.434  r18-band 1.0038
+6f7799768413.0.sd.h2 1.812  r18-band 0.9988
+dcb262cf0138.0.sd.h2 0.292  r18-band 1.0009
+f9e973f44570.0.sd.h2 0.202  r18-band 1.0002
+1d4b1775d78a.0.720p. 0.924  r18-band 1.0001
+6b18d9f0f88d.0.720p. 0.772  r18-band 1.0112
+76e0b1692494.0.720p. 0.947  r18-band 0.9580
+a81de82106be.0.1080p 0.718  r18-band 1.0262
+b71b6b31e54f.0.1080p 1.051  r18-band 1.0156
+6da34958296c.0.1080p 1.649  r18-band 1.0217
+ed75c044e944.0.4k.h2 0.274  r18-band 1.1495
+81ed4778ece2.0.4k.h2 0.321  r18-band 0.9649
+f8d92a911e72.0.4k.h2 7.740  r18-band 1.0043
+ae16bb7c7192.0.4k.h2 0.179  r18-band 1.0194
+4b54de28c2b3.0.4k.h2 0.783  r18-band 0.9916
+median r18-band 1.0024

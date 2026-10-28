@@ -1,0 +1,67 @@
+| Stage | ms ours | ms FFmpeg SIMD | ours/SIMD | gap ms | old ms ours | old gap ms |
+| entropy | 1672 | 1630 | 1.03 | +42 | 1593 | +14 |
+| mb control | 2671 | 1130 | 2.36 | +1541 | 2581 | +1532 |
+| luma MC | 1033 | 529 | 1.95 | +504 | 979 | +471 |
+| chroma MC | 1189 | 243 | 4.89 | +946 | 1087 | +867 |
+| combine | 517 | 113 | 4.58 | +404 | 498 | +391 |
+| idct/dequant/add | 242 | 143 | 1.69 | +99 | 356 | +218 |
+| intra pred | 243 | 62 | 3.92 | +181 | 371 | +304 |
+| deblock filter | 932 | 600 | 1.55 | +332 | 1212 | +640 |
+| deblock strength/driver | 958 | 703 | 1.36 | +255 | 869 | +195 |
+| picture/edge/output | 323 | 116 | 2.78 | +207 | 293 | +178 |
+| other | 247 | 461 | 0.54 | -214 | 220 | -235 |
+| total | 10027 | 5730 | 1.75 | +4297 | 10059 | +4575 |
+
+Top 10 ours:
+  1004 chroma MC                 <coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::chroma_mc
+  1001 luma MC                   coreav_kernels_h264::simd::x86::luma_mc_into
+   901 deblock strength/driver   coreav_h264::deblock::deblock_rows::<coreav_kernels_h264::Auto>
+   678 mb control                <coreav_h264::work::PictureWork<coreav_kernels_h264::Auto>>::decode_slice
+   597 mb control                <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::inter_pred
+   546 mb control                <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::predict_list
+   513 combine                   coreav_kernels_h264::simd::x86::combine
+   397 entropy                   <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode_mb::<coreav_h264::syntax::CabacSyntax>
+   310 deblock filter            coreav_kernels_h264::simd::x86::filter_luma_edge::<false, true>
+   265 deblock filter            coreav_kernels_h264::simd::x86::filter_luma_edge::<true, true>
+
+deblock strength/driver:
+   901 coreav_h264::deblock::deblock_rows::<coreav_kernels_h264::Auto>
+    57 coreav_h264::deblock::differing_motion_strength
+
+idct/dequant/add:
+   109 coreav_kernels_h264::simd::x86::idct4x4_add_quad
+    64 <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reconstruct_chroma
+    24 <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::prepare_level_scales
+    17 coreav_kernels_h264::simd::x86::idct8x8_add
+    15 <coreav_h264::recon::CoeffScale<16>>::new
+
+intra pred:
+    69 <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reconstruct_intra
+    62 coreav_kernels_h264::simd::x86::intra_chroma
+    41 coreav_kernels_h264::simd::x86::intra4x4_mb
+    31 coreav_kernels_h264::simd::x86::intra16x16
+    24 coreav_kernels_h264::intra::pred8x8
+
+other ours top:
+    36 <coreav_h264::decoder::Decoder>::decode_unit
+    25 do_user_addr_fault
+    17 decode::main
+    16 __memmove_evex_unaligned_erms
+    14 _raw_spin_unlock_irqrestore
+    13 memcg1_commit_charge
+    13 charge_memcg
+     8 __list_del_entry_valid_or_report
+     8 ___pte_offset_map
+     7 __memset_evex_unaligned_erms
+
+other ffsimd top:
+    59 0xffffffff812c5329 (outside ffmpeg)
+    29 0xffffffff8127158f (outside ffmpeg)
+    16 0xffffffff81e32548 (outside ffmpeg)
+    11 av_buffer_unref
+     6 0xffffffff818c7950 (outside ffmpeg)
+     5 0xffffffff8143b38d (outside ffmpeg)
+     4 av_refstruct_unref
+     4 h264_frame_start
+     4 0xffffffff814a17f7 (outside ffmpeg)
+     4 0xffffffff815235b4 (outside ffmpeg)

@@ -1,0 +1,303 @@
+name: pr-redirect
+
+# Turns pull requests from outside the project into issues (CONTRIBUTING.md,
+# "Code pull requests"): each open pull request
+# whose author is not trusted, and not a bot, gets an issue that links it and
+# quotes its description without its code, then a comment pointing to that
+# issue, and is closed. An author is trusted when the pull request's
+# author_association is OWNER, MEMBER or COLLABORATOR, or when the
+# repository grants them write, maintain or admin: author_association
+# counts an organization member whose membership is private as a
+# contributor, and the permission lookup does not. A maintainer who reacts
+# with 👀 (eyes) on a pull request's description keeps it open, and a pull
+# request younger than three hours waits for the next run, so that there is
+# time to do so. A nightly sweep, after the public pattern of
+# withastro/flue's pr-redirect workflow.
+#
+# Scheduled runs change nothing until the repository variable
+# PR_REDIRECT_LIVE is `true`; a manual run is a dry run unless told
+# otherwise. A lookup that fails for any reason but "not found" (a rate
+# limit, a server error) leaves that pull request open and fails the run:
+# a pull request is closed only on a clear answer.
+#
+# The script is tested in .github/workflows/tests/test_pr_redirect.py,
+# which runs it under Node with a stand-in for the GitHub API.
+#
+# SAFETY: this workflow handles pull requests from forks. It never checks
+# out, builds or runs anything from a pull request (there is no checkout at
+# all): it reads pull requests only through the GitHub API, and their title
+# and description are passed to API calls as data, never into a shell or
+# an expression. Do not add a checkout of a pull request head, a
+# `pull_request_target` trigger, or a step that interpolates
+# `github.event.*` text. Actions are pinned to commits.
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'List what would be redirected, change nothing'
+        type: boolean
+        default: true
+
+concurrency:
+  group: pr-redirect
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  redirect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Redirect pull requests from outside the project
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          # Live only when asked for explicitly: a scheduled run with the
+          # variable set to `true`, or a manual run with `dry-run`
+          # unchecked. Any other event, a trigger added later included,
+          # is a dry run.
+          DRY_RUN: ${{ !((github.event_name == 'schedule' && vars.PR_REDIRECT_LIVE == 'true') || (github.event_name == 'workflow_dispatch' && inputs.dry-run == false)) }}
+        with:
+          retries: 3
+          script: |
+            const { owner, repo } = context.repo;
+            // Anything but the exact string `false` is a dry run.
+            const dryRun = process.env.DRY_RUN !== 'false';
+            const MIN_AGE_MS = 3 * 60 * 60 * 1000;
+            // At most this many pull requests a run, within the API's
+            // secondary rate limits; the rest wait for the next night.
+            const MAX_PER_RUN = 20;
+            const BODY_LIMIT = 60000;
+            const LABEL = 'from-pull-request';
+            const BOT = 'github-actions[bot]';
+            const marker = (n) => `<!-- coreav-pr-redirect #${n} -->`;
+            const TRUSTED = ['OWNER', 'MEMBER', 'COLLABORATOR'];
+
+            // A user's access to this repository: `role` (admin, maintain,
+            // write, triage, read or a custom role's name) and `permission`
+            // (admin, write, read or none; a custom role maps to its base).
+            // No access only when GitHub answers that there is none (404).
+            // Any other error is thrown, so that the pull request it was
+            // asked for is left open and the run fails (fail safe); it is
+            // not cached.
+            const access = new Map();
+            async function accessOf(login) {
+              if (!access.has(login)) {
+                let found = { role: 'none', permission: 'none' };
+                try {
+                  const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+                    owner, repo, username: login,
+                  });
+                  found = { role: data.role_name || 'none', permission: data.permission || 'none' };
+                } catch (error) {
+                  if (error.status !== 404) throw error;
+                }
+                access.set(login, found);
+              }
+              return access.get(login);
+            }
+            async function isTrusted(login) {
+              const { role, permission } = await accessOf(login);
+              return ['admin', 'maintain', 'write'].includes(role) || ['admin', 'write'].includes(permission);
+            }
+            const isMaintainer = async (login) => ['admin', 'maintain'].includes((await accessOf(login)).role);
+
+            // Code removed line by line, best effort: what is marked up as
+            // code goes, and plain code with no markup gets through, so
+            // the quote is not a guarantee that no code reaches the issue
+            // (whoever works on the issue still reads it as a report, not
+            // as an input: CONTRIBUTING.md, "Code pull requests"). Removed:
+            // - fenced blocks (``` or ~~~, at any indentation, inside a
+            //   blockquote or on a list item's marker line), closed by a
+            //   fence of the same character at least as long, or by the
+            //   end of the description;
+            // - indented blocks (four spaces or a tab, inside a blockquote
+            //   too) after a blank line, an ATX heading, a thematic break
+            //   or a fenced block, up to the next line that is not
+            //   indented.
+            // Both lean towards removing too much: an indented paragraph
+            // under a list item goes, and a fence opened in a blockquote
+            // or list item that the item ends without closing runs to the
+            // next fence or the end.
+            function withoutCode(body) {
+              const OMITTED = '[code omitted]';
+              const out = [];
+              const omit = () => {
+                if (out[out.length - 1] !== OMITTED) out.push(OMITTED);
+              };
+              const INDENTED = /^( {4}|\t)/;
+              let fence = null;
+              let indented = false;
+              let blanks = 0;
+              let canIndent = true;
+              for (const line of body.split('\n')) {
+                // The line without its blockquote markers.
+                const content = line.replace(/^(?: {0,3}>[ \t]?)*/, '');
+                const blank = content.trim() === '';
+                if (fence) {
+                  const close = /^[ \t]*(`{3,}|~{3,})[ \t]*$/.exec(content);
+                  if (close && close[1][0] === fence[0] && close[1].length >= fence.length) {
+                    fence = null;
+                    canIndent = true;
+                  }
+                  continue;
+                }
+                if (indented) {
+                  if (blank) {
+                    blanks += 1;
+                    continue;
+                  }
+                  if (INDENTED.test(content)) {
+                    blanks = 0;
+                    continue;
+                  }
+                  indented = false;
+                  for (; blanks > 0; blanks -= 1) out.push('');
+                  canIndent = true;
+                }
+                const open = /^[ \t]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)*(`{3,}|~{3,})/.exec(content);
+                if (open) {
+                  fence = open[1];
+                  omit();
+                  continue;
+                }
+                if (!blank && canIndent && INDENTED.test(content)) {
+                  indented = true;
+                  blanks = 0;
+                  omit();
+                  continue;
+                }
+                out.push(line);
+                canIndent = blank || /^ {0,3}#{1,6}(?:[ \t]|$)/.test(content) ||
+                  /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/.test(content);
+              }
+              return out.join('\n');
+            }
+
+            // The description without its code (code from outside is not an
+            // input: CONTRIBUTING.md), with mentions and references defused so
+            // the issue notifies no one and links no other repository, and
+            // quoted. A zero-width space after @ and # stops both.
+            function described(text) {
+              // Leading blank lines only: trimming the first line's
+              // indentation would turn an indented block into prose.
+              let body = (text || '').replace(/\r\n?/g, '\n').replace(/^(?:[ \t]*\n)+/, '').trimEnd();
+              body = withoutCode(body);
+              // HTML that GitHub renders as code, to its closing tag or,
+              // left open, to the end.
+              body = body.replace(/<(pre|code|samp|tt)\b[^>]*>[\s\S]*?(<\/\1\s*>|$)/gi, '[code omitted]');
+              // Inline code spans, of any number of backticks and over
+              // several lines (not across a blank line): a short one-line
+              // span stays (a command or a name), the rest goes.
+              body = body.replace(/(?<!`)(`+)(?!`)((?:(?!\n[ \t]*\n)[\s\S])+?)(?<!`)\1(?!`)/g,
+                (span, ticks, inner) => (span.length > 40 || inner.includes('\n') ? '[code omitted]' : span));
+              body = body.replace(/<!--/g, '&lt;!--');
+              body = body.replace(/@/g, '@​').replace(/#/g, '#​');
+              const lines = (body || '(no description)').split('\n').map((line) => `> ${line}`);
+              let out = '';
+              for (const line of lines) {
+                if (out.length + line.length + 1 > BODY_LIMIT) {
+                  out += '> [description truncated]\n';
+                  break;
+                }
+                out += line + '\n';
+              }
+              return out;
+            }
+
+            // Redirect issues already opened, by the pull request they came
+            // from (the marker in their body), so that a run that stopped
+            // halfway opens no second issue.
+            const opened = new Map();
+            if (!dryRun) {
+              try {
+                await github.rest.issues.getLabel({ owner, repo, name: LABEL });
+              } catch {
+                await github.rest.issues.createLabel({
+                  owner, repo, name: LABEL, color: 'ededed',
+                  description: 'Opened from a pull request from outside the project',
+                });
+              }
+            }
+            const labelled = dryRun ? [] : await github.paginate(github.rest.issues.listForRepo, {
+              owner, repo, labels: LABEL, state: 'all', per_page: 100,
+            });
+            for (const issue of labelled) {
+              const m = /<!-- coreav-pr-redirect #(\d+) -->/.exec(issue.body || '');
+              if (m && issue.user && issue.user.login === BOT) opened.set(Number(m[1]), issue.number);
+            }
+
+            const prs = await github.paginate(github.rest.pulls.list, {
+              owner, repo, state: 'open', sort: 'created', direction: 'asc', per_page: 100,
+            });
+            let handled = 0;
+            const failed = [];
+            for (const pr of prs) {
+              if (handled >= MAX_PER_RUN) break;
+              if (TRUSTED.includes(pr.author_association)) continue;
+              if (!pr.user || pr.user.type === 'Bot') continue;
+              try {
+                if (await isTrusted(pr.user.login)) continue;
+                if (Date.now() - Date.parse(pr.created_at) < MIN_AGE_MS) {
+                  core.info(`#${pr.number}: younger than three hours, next run`);
+                  continue;
+                }
+                const reactions = await github.paginate(github.rest.reactions.listForIssue, {
+                  owner, repo, issue_number: pr.number, per_page: 100,
+                });
+                let kept = false;
+                for (const r of reactions) {
+                  if (r.content === 'eyes' && r.user && (await isMaintainer(r.user.login))) {
+                    kept = true;
+                    break;
+                  }
+                }
+                if (kept) {
+                  core.info(`#${pr.number}: kept open by a maintainer`);
+                  continue;
+                }
+                handled += 1;
+                core.info(`#${pr.number}: ${dryRun ? 'would redirect' : 'redirecting'}`);
+                if (dryRun) continue;
+                let issueNumber = opened.get(pr.number);
+                if (!issueNumber) {
+                  const { data: issue } = await github.rest.issues.create({
+                    owner, repo, labels: [LABEL],
+                    title: `From pull request #${pr.number}: ${pr.title}`.slice(0, 250),
+                    body: [
+                      marker(pr.number),
+                      `Opened from pull request #${pr.number} by @${pr.user.login}.`,
+                      '',
+                      'CoreAV does not merge code pull requests, and whoever works on this issue does not read the pull request\'s code (CONTRIBUTING.md, "Code pull requests"). Its description, without code:',
+                      '',
+                      described(pr.body),
+                    ].join('\n'),
+                  });
+                  issueNumber = issue.number;
+                }
+                const comments = await github.paginate(github.rest.issues.listComments, {
+                  owner, repo, issue_number: pr.number, per_page: 100,
+                });
+                const commented = comments.some((c) => c.user && c.user.login === BOT && (c.body || '').includes(marker(pr.number)));
+                if (!commented) {
+                  await github.rest.issues.createComment({
+                    owner, repo, issue_number: pr.number,
+                    body: [
+                      marker(pr.number),
+                      `Thank you for this. CoreAV does not merge code pull requests, because every change has to come through its own recorded process (CONTRIBUTING.md, "Code pull requests"). What you describe is now issue #${issueNumber}, where it will be considered; if a change comes of it, you are credited there.`,
+                    ].join('\n\n'),
+                  });
+                }
+                await github.rest.pulls.update({ owner, repo, pull_number: pr.number, state: 'closed' });
+              } catch (error) {
+                core.warning(`#${pr.number}: ${error.message}`);
+                failed.push(pr.number);
+              }
+            }
+            if (failed.length) core.setFailed(`could not redirect: ${failed.map((n) => `#${n}`).join(', ')}`);

@@ -1,0 +1,6 @@
+# callgrind, examples/decode --frames F --discard, one thread, dist with line tables; whole-program Ir
+# main = 3d4c2e63; candidate = this branch (horizontal luma edges keep gather; unaligned high-half write)
+6da34958296c main=3970176347 candidate=3841289982 -3.2%
+41e324ebb708 main=2045351402 candidate=2004885894 -2.0%
+9db41aa16b5a main=3108055914 candidate=2924381398 -5.9%
+e624cbe0d2be main=2714159719 candidate=2674192983 -1.5%

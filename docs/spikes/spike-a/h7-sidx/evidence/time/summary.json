@@ -1,0 +1,1454 @@
+{
+  "us-west": {
+    "environment": {
+      "remote_region": "us-west",
+      "remote_cloud_provider": "CLOUD_PROVIDER_AZURE",
+      "cpu_model": "unknown",
+      "cpu_count": 2,
+      "affinity": 2,
+      "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.36",
+      "scratch": "/dev/shm",
+      "started_utc": "2026-10-15T04:53:21Z",
+      "finished_utc": "2026-10-15T05:09:10Z",
+      "r2_requests": 13512,
+      "r2_bytes": 18489164419,
+      "trials": 5,
+      "host_note": null
+    },
+    "latency": {
+      "warm_one_byte_get_s_median": 0.2245469815000547,
+      "warm_one_byte_get_s_p10_p90": [
+        0.2060568905999844,
+        0.25152571269999274
+      ],
+      "connect_s_median": 0.028445044000010355,
+      "single_get_MB_per_s_median": 20.246898128737854,
+      "single_get_MB_per_s_p10_p90": [
+        2.491891082803326,
+        51.13856929095027
+      ]
+    },
+    "gated_files": 11,
+    "gated_passes": 1,
+    "gated_byte_passes": 11,
+    "verdict": "fail",
+    "R": {
+      "p10": 0.8898904202281288,
+      "p10_ci95": [
+        0.2324956647503039,
+        2.3118832162521366
+      ],
+      "median": 2.3135331429035095,
+      "median_ci95": [
+        1.1477368739850295,
+        3.0301902591041845
+      ],
+      "p90": 3.1697056269530233,
+      "p90_ci95": [
+        2.923551010983836,
+        4.833766412793005
+      ]
+    },
+    "R_full": {
+      "p10": 0.8857611604223627,
+      "p10_ci95": [
+        0.23205782667909736,
+        2.280232854957101
+      ],
+      "median": 2.2816785826569443,
+      "median_ci95": [
+        1.1419136017801574,
+        2.9685386153237707
+      ],
+      "p90": 3.118643540232538,
+      "p90_ci95": [
+        2.8768166349586295,
+        4.7113351498145395
+      ]
+    },
+    "encrypted_files": 7,
+    "encrypted_passes": 0,
+    "all_18_verdict": "fail",
+    "all_18_R": {
+      "p10": 1.0703829378579595,
+      "p10_ci95": [
+        0.2324956647503039,
+        2.248072008258852
+      ],
+      "median": 2.4230425236267816,
+      "median_ci95": [
+        2.175208273107896,
+        3.029420520310615
+      ],
+      "p90": 3.2935458718365607,
+      "p90_ci95": [
+        2.997397395774592,
+        4.833766412793005
+      ]
+    },
+    "shrink_groups": {
+      "small_under_10MB": {
+        "files": 4,
+        "median_of_median_R": 2.312708179577823,
+        "passes": 0
+      },
+      "size_10MB_to_100MB": {
+        "files": 4,
+        "median_of_median_R": 3.0991782042350344,
+        "passes": 0
+      },
+      "large_100MB_plus": {
+        "files": 3,
+        "median_of_median_R": 0.8898904202281288,
+        "passes": 1
+      },
+      "many_subsegments_over_200": {
+        "files": 3,
+        "median_of_median_R": 3.0301902591041845,
+        "passes": 1
+      },
+      "subsegments_up_to_200": {
+        "files": 8,
+        "median_of_median_R": 2.312708179577823,
+        "passes": 0
+      },
+      "latency_above_region_median": {
+        "files": 5,
+        "median_of_median_R": 2.3135331429035095,
+        "passes": 1
+      },
+      "latency_at_or_below_region_median": {
+        "files": 6,
+        "median_of_median_R": 2.617717113617986,
+        "passes": 0
+      }
+    },
+    "sanity": {
+      "remote_faster_than_local": 0,
+      "accounting_mismatch": 0,
+      "engine_errors": [],
+      "digest_mismatch": 0,
+      "route_changed": 0
+    },
+    "files": [
+      {
+        "sha256": "4642ef7a47b3c42ed02abe10d16757fabf5ebf947b9a9e3f93ff3ad9fb79f630",
+        "size": 110691219,
+        "trials": 5,
+        "median_bytes": 120832,
+        "median_requests": 77,
+        "max_share": 0.0010916132380835014,
+        "median_index_s": 1.1248028800000611,
+        "median_best_download_s": 1.4296088779999536,
+        "median_best_download_plus_local_s": 1.4368656499999588,
+        "median_warm_get_s": 0.2225150319999898,
+        "group": "gated",
+        "subsegments": 77,
+        "packets": 8929,
+        "mean_R": 1.3969830815583517,
+        "mean_R_ci95": [
+          0.8039397781000235,
+          2.388056082551542
+        ],
+        "median_R": 0.8898904202281288,
+        "median_R_full": 0.8857611604223627,
+        "mean_R_full": 1.39067763633378,
+        "mean_R_full_ci95": [
+          0.8005697536748773,
+          2.377582629368838
+        ],
+        "median_I1_over_I": 29.419667180041646,
+        "bytes_pass": true,
+        "time_pass": false,
+        "pass": false
+      },
+      {
+        "sha256": "97bdf1aaa8ffe010cc4eaebe4be4137e6b2cf887cf1b9fc72c3a997746d4c5c7",
+        "size": 12572672,
+        "trials": 5,
+        "median_bytes": 380928,
+        "median_requests": 185,
+        "max_share": 0.030298094152142043,
+        "median_index_s": 1.9333299680000096,
+        "median_best_download_s": 0.6099399110000263,
+        "median_best_download_plus_local_s": 0.619926562000046,
+        "median_warm_get_s": 0.23552730899996277,
+        "group": "gated",
+        "subsegments": 184,
+        "packets": 31617,
+        "mean_R": 3.712542400098011,
+        "mean_R_ci95": [
+          2.795690461401116,
+          5.0095219893204845
+        ],
+        "median_R": 3.1697056269530233,
+        "median_R_full": 3.118643540232538,
+        "mean_R_full": 3.637552954588864,
+        "mean_R_full_ci95": [
+          2.750343548483838,
+          4.891493259667498
+        ],
+        "median_I1_over_I": 22.068835488373814,
+        "bytes_pass": true,
+        "time_pass": false,
+        "pass": false
+      },
+      {
+        "sha256": "a2d42b1894824798256e9d11571c5caedef39f7455f64b741aa704b3a18da946",
+        "size": 36079699,
+        "trials": 5,
+        "median_bytes": 511232,
+        "median_requests": 124,
+        "max_share": 0.014169519540614793,
+        "median_index_s": 2.0054583200000025,
+        "median_best_download_s": 0.7856444330000159,
+        "median_best_download_plus_local_s": 0.8019344870000396,
+        "median_warm_get_s": 0.21630096900003082,
+        "group": "gated",
+        "subsegments": 123,
+        "packets": 17620,
+        "mean_R": 2.9713464948816055,
+        "mean_R_ci95": [
+          2.4042132721437723,
+          3.55759852285941
+        ],
+        "median_R": 3.028650781517045,
+        "median_R_full": 2.9671284432488765,
+        "mean_R_full": 2.903070390948576,
+        "mean_R_full_ci95": [
+          2.3162206936143823,
+          3.442478611140095
+        ],
+        "median_I1_over_I": 15.51299787572647,
+        "bytes_pass": true,
+        "time_pass": false,
+        "pass": false
+      },
+      {
+        "sha256": "aa7931b18bb0e229fd30c653903f3e2fc892abdbbfe6fa2b4d0fe19f7ea578bf",
+        "size": 3043867,
+        "trials": 5,
+        "median_bytes": 94208,
+        "median_requests": 45,
+        "max_share": 0.03095010393029656,
+        "median_index_s": 0.8565726300000733,
+        "median_best_download_s": 0.3686592610000048,
+        "median_best_download_plus_local_s": 0.3732352020000036,
+        "median_warm_get_s": 0.2137734640000417,
+        "group": "gated",
+        "subsegments": 45,
+        "packets": 8326,
+        "mean_R": 2.4452165281934475,
+        "mean_R_ci95": [
+          2.2223894909629536,
+          2.773921711768309
+        ],
+        "median_R": 2.3118832162521366,
+        "median_R_full": 2.2816785826569443,
+        "mean_R_full": 2.4132372731525886,
+        "mean_R_full_ci95": [
+          2.195215145580768,
+          2.742819987450096
+        ],
+        "median_I1_over_I": 11.085240085341523,
+        "bytes_pass": true,
+        "time_pass": false,
+        "pass": false
+      },
+      {
+        "sha256": "ac56f681d1983dd1c4801913272bc7bb9105c877d921e573768a55d9a281eca7",
+        "size": 1386546506,
+        "trials": 5,
+        "median_bytes": 753664,
+        "median_requests": 210,
+        "max_share": 0.0005435547936824847,
+        "median_index_s": 2.3726930949999314,
+        "median_best_download_s": 12.65979443599997,
+        "median_best_download_plus_local_s": 12.683680464999952,
+        "median_warm_get_s": 0.22600546099999974,
+        "group": "gated",
+        "subsegments": 208,
+        "packets": 35716,
+        "mean_R": 0.3155602826676655,
+        "mean_R_ci95": [
+          0.18878779716042965,
+          0.4755311269273256
+        ],
+        "median_R": 0.2324956647503039,
+        "median_R_full": 0.23205782667909736,
+        "mean_R_full": 0.31471523300707105,
+        "mean_R_full_ci95": [
+          0.1884809378057418,
+          0.47403839170577744
+        ],
+        "median_I1_over_I": 15.245160632997347,
+        "bytes_pass": true,
+        "time_pass": true,
+        "pass": true
+      },
+      {
+        "sha256": "c81111de114e7f9075d3c1f0a0ddd07c11efe0b92df818f25cf130dbb7e80272",
+        "size": 31728664,
+        "trials": 5,
+        "median_bytes": 33792,
+        "median_requests": 30,
+        "max_share": 0.0010650306612342707,
+        "median_index_s": 0.7357730369999445,
+        "median_best_download_s": 0.6939118200000394,
+        "median_best_download_plus_local_s": 0.6978622160000896,
+        "median_warm_get_s": 0.21213796200004253,
+        "group": "gated",
+        "subsegments": 30,
+        "packets": 3000,
+        "mean_R": 1.0714873212374547,
+        "mean_R_ci95": [
+          0.9391768972118826,
+          1.2037977452630269
+        ],
+        "median_R": 1.1477368739850295,
+        "median_R_full": 1.1419136017801574,
+        "mean_R_full": 1.0657154429534705,
+        "mean_R_full_ci95": [
+          0.9346789794137201,
+          1.1967519064932208
+        ],
+        "median_I1_over_I": 8.478001706540738,
+        "bytes_pass": true,
+        "time_pass": false,
+        "pass": false
+      },
+      {
+        "sha256": "c86f3d1f2aff9bb7c75bc50c7b13066b00ee69d464bc48385d64758afa486e10",
+        "size": 969967,
+        "trials": 5,
+        "median_bytes": 33792,
+        "median_requests": 30,
+        "max_share": 0.034838298622530454,
+        "median_index_s": 0.7469764780000006,
+        "median_best_download_s": 0.3035102219999999,
+        "median_best_download_plus_local_s": 0.308489651000059,
+        "median_warm_get_s": 0.24400100399998337,
+        "group": "gated",
+        "subsegments": 30,
+        "packets": 1406,
+        "mean_R": 2.8016295024316356,
+        "mean_R_ci95": [
+          1.9921439584252472,
+          4.195795902325119
+        ],
+        "median_R": 2.251237356607937,
+        "median_R_full": 2.2059016691316606,
+        "mean_R_full": 2.7567728887607736,
+        "mean_R_full_ci95": [
+          1.962271092864529,
+          4.1282184850091035
+        ],
+        "median_I1_over_I": 9.74603270171513,
+        "bytes_pass": true,
+        "time_pass": false,
+        "pass": false
+      },
+      {
+        "sha256": "cf502122eb675521dcb54ba5b248c49c94d68c3a646899a6ef4a8f3456806b97",
+        "size": 14702402,
+        "trials": 5,
+        "median_bytes": 462848,
+        "median_requests": 224,
+        "max_share": 0.03148111444646936,
+        "median_index_s": 2.3584154469999703,
+        "median_best_download_s": 0.48790430600001855,
+        "median_best_download_plus_local_s": 0.5005832470001224,
+        "median_warm_get_s": 0.21726606000000004,
+        "group": "gated",
+        "subsegments": 222,
+        "packets": 41628,
+        "mean_R": 4.901890928780001,
+        "mean_R_ci95": [
+          4.6436745969516995,
+          5.18873003396326
+        ],
+        "median_R": 4.833766412793005,
+        "median_R_full": 4.7113351498145395,
+        "mean_R_full": 4.774549346462005,
+        "mean_R_full_ci95": [
+          4.522788060607667,
+          5.064805782836773
+        ],
+        "median_I1_over_I": 21.341557228737834,
+        "bytes_pass": true,
+        "time_pass": false,
+        "pass": false
+      },
+      {
+        "sha256": "d4e8cc76b778ad60163bf715c7aa0e8e0bbfebbbfbc21b4639ceae936b4d435b",
+        "size": 5379386,
+        "trials": 5,
+        "median_bytes": 76044,
+        "median_requests": 22,
+        "max_share": 0.014136185802617622,
+        "median_index_s": 0.9239716159999602,
+        "median_best_download_s": 0.39937686600001143,
+        "median_best_download_plus_local_s": 0.4052093249999871,
+        "median_warm_get_s": 0.22461420400009047,
+        "group": "gated",
+        "subsegments": 20,
+        "packets": 3669,
+        "mean_R": 2.2158802879103208,
+        "mean_R_ci95": [
+          1.815701332463475,
+          2.517767301233988
+        ],
+        "median_R": 2.3135331429035095,
+        "median_R_full": 2.280232854957101,
+        "mean_R_full": 2.1821203591551748,
+        "mean_R_full_ci95": [
+          1.7963821191245408,
+          2.4681740389510036
+        ],
+        "median_I1_over_I": 7.9894406312588915,
+        "bytes_pass": true,
+        "time_pass": false,
+        "pass": false
+      },
+      {
+        "sha256": "de7354bf340bf007932fff114eac2cc6313bd0f2a99ed99d5e21ea8cb787bca7",
+        "size": 101491043,
+        "trials": 5,
+        "median_bytes": 600576,
+        "median_requests": 385,
+        "max_share": 0.00591752712601446,
+        "median_index_s": 3.528366009000024,
+        "median_best_download_s": 1.1943229260000408,
+        "median_best_download_plus_local_s": 1.2184441010000455,
+        "median_warm_get_s": 0.2339129590000084,
+        "group": "gated",
+        "subsegments": 384,
+        "packets": 35716,
+        "mean_R": 3.1001398825112734,
+        "mean_R_ci95": [
+          2.324644229408327,
+          3.7930157082357803
+        ],
+        "median_R": 3.0301902591041845,
+        "median_R_full": 2.9685386153237707,
+        "mean_R_full": 3.038484836798908,
+        "mean_R_full_ci95": [
+          2.2866927121814262,
+          3.7110313243036046
+        ],
+        "median_I1_over_I": 22.94198981016185,
+        "bytes_pass": true,
+        "time_pass": false,
+        "pass": false
+      },
+      {
+        "sha256": "e4f4b288040c7873e6ab9c68aebfcf60593c67af4a896aaacc48200beb7b871b",
+        "size": 7881787,
+        "trials": 5,
+        "median_bytes": 75053,
+        "median_requests": 25,
+        "max_share": 0.009522332943024216,
+        "median_index_s": 1.0932491989999562,
+        "median_best_download_s": 0.3717530399999873,
+        "median_best_download_plus_local_s": 0.3770445779999818,
+        "median_warm_get_s": 0.22447975900001893,
+        "group": "gated",
+        "subsegments": 23,
+        "packets": 3600,
+        "mean_R": 3.7721036404178654,
+        "mean_R_ci95": [
+          2.334638140246407,
+          5.490298195502811
+        ],
+        "median_R": 2.923551010983836,
+        "median_R_full": 2.8768166349586295,
+        "mean_R_full": 3.7196979680380045,
+        "mean_R_full_ci95": [
+          2.3029263387472083,
+          5.4139133119221965
+        ],
+        "median_I1_over_I": 3.215696242717137,
+        "bytes_pass": true,
+        "time_pass": false,
+        "pass": false
+      }
+    ],
+    "encrypted": [
+      {
+        "sha256": "3898250f26b891f1233bee86910ae2f98394981ebbe20abedd4e5455e075a5d4",
+        "size": 2437117,
+        "trials": 5,
+        "median_bytes": 52736,
+        "median_requests": 20,
+        "max_share": 0.021638682098561537,
+        "median_index_s": 0.6952282050000349,
+        "median_best_download_s": 0.3715890520000471,
+        "median_best_download_plus_local_s": 0.3741633600000114,
+        "median_warm_get_s": 0.2174981220000518,
+        "group": "encrypted",
+        "subsegments": 20,
+        "packets": 0,
+        "mean_R": 1.8769619235777153,
+        "mean_R_ci95": [
+          1.3903436808348997,
+          2.3594354935945887
+        ],
+        "median_R": 2.0991791896078547,
+        "median_R_full": 2.0819893524617266,
+        "mean_R_full": 1.863948352298091,
+        "mean_R_full_ci95": [
+          1.3822528628104853,
+          2.3422758547764304
+        ],
+        "median_I1_over_I": NaN,
+        "bytes_pass": true,
+        "time_pass": false,
+        "pass": false
+      },
+      {
+        "sha256": "574bc4ad81dedb9a42ca8145460d3d3cdca38fd1b8133cc6bf72d59236d9ce57",
+        "size": 12084418,
+        "trials": 5,
+        "median_bytes": 323072,
+        "median_requests": 125,
+        "max_share": 0.026734593258856156,
+        "median_index_s": 1.6478485620000356,
+        "median_best_download_s": 0.483166438000012,
+        "median_best_download_plus_local_s": 0.48675247899996066,
+        "median_warm_get_s": 0.22525269799999137,
+        "group": "encrypted",
+        "subsegments": 123,
+        "packets": 0,
+        "mean_R": 3.064246392318745,
+        "mean_R_ci95": [
+          2.2543710391123666,
+          3.6336233978767494
+        ],
+        "median_R": 3.432761780527321,
+        "median_R_full": 3.4074716689837317,
+        "mean_R_full": 3.044786195451924,
+        "mean_R_full_ci95": [
+          2.244499023866161,
+          3.6069170927252294
+        ],
+        "median_I1_over_I": NaN,
+        "bytes_pass": true,
+        "time_pass": false,
+        "pass": false
+      },
+      {
+        "sha256": "750498df470c358285b95adccbf683f38c8c6be14efd2cc2de219cf7046e23d2",
+        "size": 34663531,
+        "trials": 5,
+        "median_bytes": 250880,
+        "median_requests": 160,
+        "max_share": 0.007237577729747151,
+        "median_index_s": 1.9279782749999868,
+        "median_best_download_s": 0.8021506779999754,
+        "median_best_download_plus_local_s": 0.8045165820000193,
+        "median_warm_get_s": 0.22804625800000622,
+        "group": "encrypted",
+        "subsegments": 160,
+        "packets": 0,
+        "mean_R": 3.3311634581732377,
+        "mean_R_ci95": [
+          2.2166297573581897,
+          5.066850594925862
+        ],
+        "median_R": 2.5976420430079163,
+        "median_R_full": 2.5900029565829277,
+        "mean_R_full": 3.3159121223125454,
+        "mean_R_full_ci95": [
+          2.209499799933327,
+          5.038612080381116
+        ],
+        "median_I1_over_I": NaN,
+        "bytes_pass": true,
+        "time_pass": false,
+        "pass": false
+      },
+      {
+        "sha256": "b939b2c525e38623dada90b6bf6dbc1c7e2e2088b0ac9e2faef68936af014502",
+        "size": 12084418,
+        "trials": 5,
+        "median_bytes": 323072,
+        "median_requests": 125,
+        "max_share": 0.026734593258856156,
+        "median_index_s": 1.5975393229999781,
+        "median_best_download_s": 0.4940005129999463,
+        "median_best_download_plus_local_s": 0.4967318679999835,
+        "median_warm_get_s": 0.2184107690000019,
+        "group": "encrypted",
+        "subsegments": 123,
+        "packets": 0,
+        "mean_R": 3.3965545332210176,
+        "mean_R_ci95": [
+          2.964997176813532,
+          3.828111889628503
+        ],
+        "median_R": 3.233881910969092,
+        "median_R_full": 3.216099924154718,
+        "mean_R_full": 3.3779668179828684,
+        "mean_R_full_ci95": [
+          2.9500560738955413,
+          3.8068072626886704
+        ],
+        "median_I1_over_I": NaN,
+        "bytes_pass": true,
+        "time_pass": false,
+        "pass": false
+      },
+      {
+        "sha256": "baa98b681ddc078bcea9bdfc82631626c32f50f9f62c4b1338e1d7637cc8e26c",
+        "size": 35568588,
+        "trials": 5,
+        "median_bytes": 510292,
+        "median_requests": 125,
+        "max_share": 0.014346703895021079,
+        "median_index_s": 2.162485138999955,
+        "median_best_download_s": 0.6958208669999522,
+        "median_best_download_plus_local_s": 0.6987188509999669,
+        "median_warm_get_s": 0.22471062899995786,
+        "group": "encrypted",
+        "subsegments": 123,
+        "packets": 0,
+        "mean_R": 3.1137047979506227,
+        "mean_R_ci95": [
+          2.259656848123802,
+          4.101971664060978
+        ],
+        "median_R": 2.337122335605706,
+        "median_R_full": 2.3285759909963377,
+        "mean_R_full": 3.100951596359244,
+        "mean_R_full_ci95": [
+          2.2502935771965094,
+          4.085454699371864
+        ],
+        "median_I1_over_I": NaN,
+        "bytes_pass": true,
+        "time_pass": false,
+        "pass": false
+      },
+      {
+        "sha256": "bdecaa9f9863d8f568b988a3533aae8537b76de5aaafcfeeb47a98522aa387f5",
+        "size": 36292325,
+        "trials": 5,
+        "median_bytes": 511873,
+        "median_requests": 124,
+        "max_share": 0.014104166652315607,
+        "median_index_s": 1.6443840390001014,
+        "median_best_download_s": 0.65540393699996,
+        "median_best_download_plus_local_s": 0.6584515649999503,
+        "median_warm_get_s": 0.2299192079999557,
+        "group": "encrypted",
+        "subsegments": 123,
+        "packets": 0,
+        "mean_R": 2.4733003233924427,
+        "mean_R_ci95": [
+          2.182307504613687,
+          2.764293142171198
+        ],
+        "median_R": 2.508962711647858,
+        "median_R_full": 2.497350035154409,
+        "mean_R_full": 2.4617083529289845,
+        "mean_R_full_ci95": [
+          2.1734637574323292,
+          2.7499529484256398
+        ],
+        "median_I1_over_I": NaN,
+        "bytes_pass": true,
+        "time_pass": false,
+        "pass": false
+      },
+      {
+        "sha256": "ede6abdefba66772630f352999d715f60c17f65bfa3254fe553f15094e992ed2",
+        "size": 777530,
+        "trials": 5,
+        "median_bytes": 32768,
+        "median_requests": 15,
+        "max_share": 0.04214371149666251,
+        "median_index_s": 0.621727789999909,
+        "median_best_download_s": 0.3211312880000037,
+        "median_best_download_plus_local_s": 0.32386696200001097,
+        "median_warm_get_s": 0.22784061699996982,
+        "group": "encrypted",
+        "subsegments": 15,
+        "packets": 0,
+        "mean_R": 2.0050450389549983,
+        "mean_R_ci95": [
+          1.796601147546868,
+          2.2675395609700493
+        ],
+        "median_R": 1.9912687286154542,
+        "median_R_full": 1.9729277074763236,
+        "mean_R_full": 1.9873664258759358,
+        "mean_R_full_ci95": [
+          1.790638866538476,
+          2.2456705713598724
+        ],
+        "median_I1_over_I": NaN,
+        "bytes_pass": true,
+        "time_pass": false,
+        "pass": false
+      }
+    ],
+    "download_routed": [
+      {
+        "sha256": "895d1f32f29cd537feb3bea9f9d131c18def0bb8846536cb78dae42ef34d9376",
+        "size": 986360,
+        "trials": 5,
+        "median_bytes": 8192,
+        "median_requests": 2,
+        "max_share": 0.00830528407478,
+        "median_index_s": 0.486252927999999,
+        "median_best_download_s": 0.30417160500007867,
+        "median_best_download_plus_local_s": 0.3068995730000097,
+        "median_warm_get_s": 0.23677494300000035,
+        "group": "download",
+        "median_route_s": 0.459903,
+        "median_routed_total_over_download": 2.627423256779989
+      },
+      {
+        "sha256": "cc6023189f53a0e3f6ca94ed15f8055fe5fdd173f6d69de03b5aa73a4dcea733",
+        "size": 40609,
+        "trials": 5,
+        "median_bytes": 4096,
+        "median_requests": 1,
+        "max_share": 0.10086434041714891,
+        "median_index_s": 0.2762461480000411,
+        "median_best_download_s": 0.2799864200000002,
+        "median_best_download_plus_local_s": 0.28248698499999136,
+        "median_warm_get_s": 0.2373530080000137,
+        "group": "download",
+        "median_route_s": 0.250376,
+        "median_routed_total_over_download": 2.0045569094132776
+      }
+    ]
+  },
+  "ap-southeast": {
+    "environment": {
+      "remote_region": "ap-southeast",
+      "remote_cloud_provider": "CLOUD_PROVIDER_AWS",
+      "cpu_model": "unknown",
+      "cpu_count": 2,
+      "affinity": 2,
+      "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.36",
+      "scratch": "/dev/shm",
+      "started_utc": "2026-10-15T05:10:10Z",
+      "finished_utc": "2026-10-15T05:23:13Z",
+      "r2_requests": 13512,
+      "r2_bytes": 18489164419,
+      "trials": 5,
+      "host_note": null
+    },
+    "latency": {
+      "warm_one_byte_get_s_median": 0.1593718060000242,
+      "warm_one_byte_get_s_p10_p90": [
+        0.14207623969999758,
+        0.19608622739999504
+      ],
+      "connect_s_median": 0.030963659000008192,
+      "single_get_MB_per_s_median": 27.452767374219725,
+      "single_get_MB_per_s_p10_p90": [
+        2.5069385861257913,
+        59.446144760345916
+      ]
+    },
+    "gated_files": 11,
+    "gated_passes": 1,
+    "gated_byte_passes": 11,
+    "verdict": "fail",
+    "R": {
+      "p10": 0.9260225765057041,
+      "p10_ci95": [
+        0.17675564835253801,
+        2.6577048503092944
+      ],
+      "median": 2.851329066576226,
+      "median_ci95": [
+        1.431841837520675,
+        3.6601724624982688
+      ],
+      "p90": 3.698750776719995,
+      "p90_ci95": [
+        2.8933735192486076,
+        5.624851703413469
+      ]
+    },
+    "R_full": {
+      "p10": 0.9223190086319795,
+      "p10_ci95": [
+        0.17650481641119997,
+        2.6165616611995675
+      ],
+      "median": 2.8213810095065672,
+      "median_ci95": [
+        1.4232132157873054,
+        3.604874167062382
+      ],
+      "p90": 3.6306410817235513,
+      "p90_ci95": [
+        2.849429481780379,
+        5.35585098437302
+      ]
+    },
+    "encrypted_files": 7,
+    "encrypted_passes": 0,
+    "all_18_verdict": "fail",
+    "all_18_R": {
+      "p10": 1.2800960592161839,
+      "p10_ci95": [
+        0.17675564835253801,
+        2.365957696322941
+      ],
+      "median": 2.760968408962432,
+      "median_ci95": [
+        2.305901063108855,
+        3.132796070398401
+      ],
+      "p90": 3.78610345680288,
+      "p90_ci95": [
+        3.132796070398401,
+        5.624851703413469
+      ]
+    },
+    "shrink_groups": {
+      "small_under_10MB": {
+        "files": 4,
+        "median_of_median_R": 2.966787430515317,
+        "passes": 0
+      },
+      "size_10MB_to_100MB": {
+        "files": 4,
+        "median_of_median_R": 3.032354236521468,
+        "passes": 0
+      },
+      "large_100MB_plus": {
+        "files": 3,
+        "median_of_median_R": 0.9260225765057041,
+        "passes": 1
+      },
+      "many_subsegments_over_200": {
+        "files": 3,
+        "median_of_median_R": 2.6577048503092944,
+        "passes": 1
+      },
+      "subsegments_up_to_200": {
+        "files": 8,
+        "median_of_median_R": 2.872351292912417,
+        "passes": 0
+      },
+      "latency_above_region_median": {
+        "files": 5,
+        "median_of_median_R": 2.8933735192486076,
+        "passes": 1
+      },
+      "latency_at_or_below_region_median": {
+        "files": 6,
+        "median_of_median_R": 2.6086433814495837,
+        "passes": 0
+      }
+    },
+    "sanity": {
+      "remote_faster_than_local": 0,
+      "accounting_mismatch": 0,
+      "engine_errors": [],
+      "digest_mismatch": 0,
+      "route_changed": 0
+    },
+    "files": [
+      {
+        "sha256": "4642ef7a47b3c42ed02abe10d16757fabf5ebf947b9a9e3f93ff3ad9fb79f630",
+        "size": 110691219,
+        "trials": 5,
+        "median_bytes": 120832,
+        "median_requests": 77,
+        "max_share": 0.0010916132380835014,
+        "median_index_s": 0.9091946720000124,
+        "median_best_download_s": 1.0707171189999372,
+        "median_best_download_plus_local_s": 1.074387788999843,
+        "median_warm_get_s": 0.1454360610000549,
+        "group": "gated",
+        "subsegments": 77,
+        "packets": 8929,
+        "mean_R": 1.0608001422980593,
+        "mean_R_ci95": [
+          0.822704038379548,
+          1.4424668583057203
+        ],
+        "median_R": 0.9260225765057041,
+        "median_R_full": 0.9223190086319795,
+        "mean_R_full": 1.0549255609694819,
+        "mean_R_full_ci95": [
+          0.8157766544589954,
+          1.4354691388689569
+        ],
+        "median_I1_over_I": 18.81781176898224,
+        "bytes_pass": true,
+        "time_pass": false,
+        "pass": false
+      },
+      {
+        "sha256": "97bdf1aaa8ffe010cc4eaebe4be4137e6b2cf887cf1b9fc72c3a997746d4c5c7",
+        "size": 12572672,
+        "trials": 5,
+        "median_bytes": 380928,
+        "median_requests": 185,
+        "max_share": 0.030298094152142043,
+        "median_index_s": 1.5039836590000277,
+        "median_best_download_s": 0.4323052639999787,
+        "median_best_download_plus_local_s": 0.4404151759999877,
+        "median_warm_get_s": 0.16569349700000657,
+        "group": "gated",
+        "subsegments": 184,
+        "packets": 31617,
+        "mean_R": 3.69186225961133,
+        "mean_R_ci95": [
+          2.954598030042974,
+          4.424847745106282
+        ],
+        "median_R": 3.698750776719995,
+        "median_R_full": 3.6306410817235513,
+        "mean_R_full": 3.6146833588052076,
+        "mean_R_full_ci95": [
+          2.9135442924839694,
+          4.314295995355325
+        ],
+        "median_I1_over_I": 21.10217224845934,
+        "bytes_pass": true,
+        "time_pass": false,
+        "pass": false
+      },
+      {
+        "sha256": "a2d42b1894824798256e9d11571c5caedef39f7455f64b741aa704b3a18da946",
+        "size": 36079699,
+        "trials": 5,
+        "median_bytes": 511232,
+        "median_requests": 124,
+        "max_share": 0.014169519540614793,
+        "median_index_s": 1.3267615600000227,
+        "median_best_download_s": 0.557781863999935,
+        "median_best_download_plus_local_s": 0.5674327659999108,
+        "median_warm_get_s": 0.15721655400000145,
+        "group": "gated",
+        "subsegments": 123,
+        "packets": 17620,
+        "mean_R": 2.375797614585469,
+        "mean_R_ci95": [
+          1.7900151767891805,
+          3.083397698467471
+        ],
+        "median_R": 2.365957696322941,
+        "median_R_full": 2.3257174648250922,
+        "mean_R_full": 2.3376668483947887,
+        "mean_R_full_ci95": [
+          1.7606117833595814,
+          3.034590412650995
+        ],
+        "median_I1_over_I": 14.206404206494867,
+        "bytes_pass": true,
+        "time_pass": false,
+        "pass": false
+      },
+      {
+        "sha256": "aa7931b18bb0e229fd30c653903f3e2fc892abdbbfe6fa2b4d0fe19f7ea578bf",
+        "size": 3043867,
+        "trials": 5,
+        "median_bytes": 94208,
+        "median_requests": 45,
+        "max_share": 0.03095010393029656,
+        "median_index_s": 0.6499565830000051,
+        "median_best_download_s": 0.25707360500007326,
+        "median_best_download_plus_local_s": 0.26063543100008246,
+        "median_warm_get_s": 0.16865874199993414,
+        "group": "gated",
+        "subsegments": 45,
+        "packets": 8326,
+        "mean_R": 3.361355630671735,
+        "mean_R_ci95": [
+          2.3973260641205245,
+          4.90377331790543
+        ],
+        "median_R": 2.8933735192486076,
+        "median_R_full": 2.849429481780379,
+        "mean_R_full": 3.3138226486092583,
+        "mean_R_full_ci95": [
+          2.3161724707056885,
+          4.830370906504564
+        ],
+        "median_I1_over_I": 5.140290526123572,
+        "bytes_pass": true,
+        "time_pass": false,
+        "pass": false
+      },
+      {
+        "sha256": "ac56f681d1983dd1c4801913272bc7bb9105c877d921e573768a55d9a281eca7",
+        "size": 1386546506,
+        "trials": 5,
+        "median_bytes": 753664,
+        "median_requests": 210,
+        "max_share": 0.0005435547936824847,
+        "median_index_s": 1.772986068000023,
+        "median_best_download_s": 10.07398753900003,
+        "median_best_download_plus_local_s": 10.08703542699999,
+        "median_warm_get_s": 0.16513329599996496,
+        "group": "gated",
+        "subsegments": 208,
+        "packets": 35716,
+        "mean_R": 0.17208957937314073,
+        "mean_R_ci95": [
+          0.14804388659990808,
+          0.194376465658886
+        ],
+        "median_R": 0.17675564835253801,
+        "median_R_full": 0.17650481641119997,
+        "mean_R_full": 0.1718772612117177,
+        "mean_R_full_ci95": [
+          0.14786874016038987,
+          0.19292328746936233
+        ],
+        "median_I1_over_I": 16.945407815793637,
+        "bytes_pass": true,
+        "time_pass": true,
+        "pass": true
+      },
+      {
+        "sha256": "c81111de114e7f9075d3c1f0a0ddd07c11efe0b92df818f25cf130dbb7e80272",
+        "size": 31728664,
+        "trials": 5,
+        "median_bytes": 33792,
+        "median_requests": 30,
+        "max_share": 0.0010650306612342707,
+        "median_index_s": 0.7350346430000627,
+        "median_best_download_s": 0.49290849499993783,
+        "median_best_download_plus_local_s": 0.4951695549999613,
+        "median_warm_get_s": 0.14845213700004933,
+        "group": "gated",
+        "subsegments": 30,
+        "packets": 3000,
+        "mean_R": 1.346191987369147,
+        "mean_R_ci95": [
+          1.1049287908467045,
+          1.577052745672632
+        ],
+        "median_R": 1.431841837520675,
+        "median_R_full": 1.4232132157873054,
+        "mean_R_full": 1.339876004736856,
+        "mean_R_full_ci95": [
+          1.1104911596285463,
+          1.5692608498451661
+        ],
+        "median_I1_over_I": 5.139783891494736,
+        "bytes_pass": true,
+        "time_pass": false,
+        "pass": false
+      },
+      {
+        "sha256": "c86f3d1f2aff9bb7c75bc50c7b13066b00ee69d464bc48385d64758afa486e10",
+        "size": 969967,
+        "trials": 5,
+        "median_bytes": 33792,
+        "median_requests": 30,
+        "max_share": 0.034838298622530454,
+        "median_index_s": 0.73338554999998,
+        "median_best_download_s": 0.22186963399999726,
+        "median_best_download_plus_local_s": 0.2251372589999967,
+        "median_warm_get_s": 0.1433289499999546,
+        "group": "gated",
+        "subsegments": 30,
+        "packets": 1406,
+        "mean_R": 4.844887190085679,
+        "mean_R_ci95": [
+          2.6309992086707097,
+          7.33016276717228
+        ],
+        "median_R": 3.6601724624982688,
+        "median_R_full": 3.604874167062382,
+        "mean_R_full": 4.777487377628489,
+        "mean_R_full_ci95": [
+          2.595064121302472,
+          7.243294979539527
+        ],
+        "median_I1_over_I": 2.468160899302145,
+        "bytes_pass": true,
+        "time_pass": false,
+        "pass": false
+      },
+      {
+        "sha256": "cf502122eb675521dcb54ba5b248c49c94d68c3a646899a6ef4a8f3456806b97",
+        "size": 14702402,
+        "trials": 5,
+        "median_bytes": 462848,
+        "median_requests": 224,
+        "max_share": 0.03148111444646936,
+        "median_index_s": 2.5536188319999837,
+        "median_best_download_s": 0.41306078500008425,
+        "median_best_download_plus_local_s": 0.42274513100016975,
+        "median_warm_get_s": 0.1594857429999479,
+        "group": "gated",
+        "subsegments": 222,
+        "packets": 41628,
+        "mean_R": 6.184113698778914,
+        "mean_R_ci95": [
+          4.453138963972494,
+          8.49243147296045
+        ],
+        "median_R": 5.624851703413469,
+        "median_R_full": 5.35585098437302,
+        "mean_R_full": 6.002278511978491,
+        "mean_R_full_ci95": [
+          4.328713667518453,
+          8.354319662473523
+        ],
+        "median_I1_over_I": 16.572782951871588,
+        "bytes_pass": true,
+        "time_pass": false,
+        "pass": false
+      },
+      {
+        "sha256": "d4e8cc76b778ad60163bf715c7aa0e8e0bbfebbbfbc21b4639ceae936b4d435b",
+        "size": 5379386,
+        "trials": 5,
+        "median_bytes": 76044,
+        "median_requests": 22,
+        "max_share": 0.014136185802617622,
+        "median_index_s": 1.0805312020000883,
+        "median_best_download_s": 0.3466452810000078,
+        "median_best_download_plus_local_s": 0.3500124760000176,
+        "median_warm_get_s": 0.15709772100001373,
+        "group": "gated",
+        "subsegments": 20,
+        "packets": 3669,
+        "mean_R": 3.8256526899199814,
+        "mean_R_ci95": [
+          2.4821074703094808,
+          5.3056654554216856
+        ],
+        "median_R": 3.0402013417820255,
+        "median_R_full": 3.0122462660019402,
+        "mean_R_full": 3.7817269368852258,
+        "mean_R_full_ci95": [
+          2.4552702826947757,
+          5.236670541643081
+        ],
+        "median_I1_over_I": 6.166275735752176,
+        "bytes_pass": true,
+        "time_pass": false,
+        "pass": false
+      },
+      {
+        "sha256": "de7354bf340bf007932fff114eac2cc6313bd0f2a99ed99d5e21ea8cb787bca7",
+        "size": 101491043,
+        "trials": 5,
+        "median_bytes": 600576,
+        "median_requests": 385,
+        "max_share": 0.00591752712601446,
+        "median_index_s": 2.676005080999971,
+        "median_best_download_s": 1.0386204710000015,
+        "median_best_download_plus_local_s": 1.0529004989999748,
+        "median_warm_get_s": 0.16497227499996825,
+        "group": "gated",
+        "subsegments": 384,
+        "packets": 35716,
+        "mean_R": 2.66525137953081,
+        "mean_R_ci95": [
+          2.4357891624761274,
+          2.894713596585493
+        ],
+        "median_R": 2.6577048503092944,
+        "median_R_full": 2.6165616611995675,
+        "mean_R_full": 2.628692603199951,
+        "mean_R_full_ci95": [
+          2.4035624235378945,
+          2.853822782862007
+        ],
+        "median_I1_over_I": 19.680527020627036,
+        "bytes_pass": true,
+        "time_pass": false,
+        "pass": false
+      },
+      {
+        "sha256": "e4f4b288040c7873e6ab9c68aebfcf60593c67af4a896aaacc48200beb7b871b",
+        "size": 7881787,
+        "trials": 5,
+        "median_bytes": 75053,
+        "median_requests": 25,
+        "max_share": 0.009522332943024216,
+        "median_index_s": 0.7419523279999964,
+        "median_best_download_s": 0.266118340999995,
+        "median_best_download_plus_local_s": 0.2705227590000021,
+        "median_warm_get_s": 0.15709466499998825,
+        "group": "gated",
+        "subsegments": 23,
+        "packets": 3600,
+        "mean_R": 3.6847998846474326,
+        "mean_R_ci95": [
+          2.5011171072716563,
+          5.640157270305061
+        ],
+        "median_R": 2.851329066576226,
+        "median_R_full": 2.8213810095065672,
+        "mean_R_full": 3.6314229210566653,
+        "mean_R_full_ci95": [
+          2.4713755875384567,
+          5.568870368947707
+        ],
+        "median_I1_over_I": 6.953214636992184,
+        "bytes_pass": true,
+        "time_pass": false,
+        "pass": false
+      }
+    ],
+    "encrypted": [
+      {
+        "sha256": "3898250f26b891f1233bee86910ae2f98394981ebbe20abedd4e5455e075a5d4",
+        "size": 2437117,
+        "trials": 5,
+        "median_bytes": 52736,
+        "median_requests": 20,
+        "max_share": 0.021638682098561537,
+        "median_index_s": 0.5775839189999488,
+        "median_best_download_s": 0.24980346299992107,
+        "median_best_download_plus_local_s": 0.2559309009999424,
+        "median_warm_get_s": 0.16428575400004775,
+        "group": "encrypted",
+        "subsegments": 20,
+        "packets": 0,
+        "mean_R": 2.175527662327792,
+        "mean_R_ci95": [
+          1.511644735457186,
+          2.8368629364038354
+        ],
+        "median_R": 2.030983481602779,
+        "median_R_full": 2.0159278886371723,
+        "mean_R_full": 2.119540423715475,
+        "mean_R_full_ci95": [
+          1.4763432752698578,
+          2.7988447939660377
+        ],
+        "median_I1_over_I": NaN,
+        "bytes_pass": true,
+        "time_pass": false,
+        "pass": false
+      },
+      {
+        "sha256": "574bc4ad81dedb9a42ca8145460d3d3cdca38fd1b8133cc6bf72d59236d9ce57",
+        "size": 12084418,
+        "trials": 5,
+        "median_bytes": 323072,
+        "median_requests": 125,
+        "max_share": 0.026734593258856156,
+        "median_index_s": 1.2894772860000216,
+        "median_best_download_s": 0.352101733000012,
+        "median_best_download_plus_local_s": 0.3541835649999996,
+        "median_warm_get_s": 0.17558701300004032,
+        "group": "encrypted",
+        "subsegments": 123,
+        "packets": 0,
+        "mean_R": 4.11249682058116,
+        "mean_R_ci95": [
+          3.6052695423656482,
+          4.647903114911755
+        ],
+        "median_R": 3.9899263769962783,
+        "median_R_full": 3.9635501572701997,
+        "mean_R_full": 4.089299059227425,
+        "mean_R_full_ci95": [
+          3.575568592679757,
+          4.628492503555981
+        ],
+        "median_I1_over_I": NaN,
+        "bytes_pass": true,
+        "time_pass": false,
+        "pass": false
+      },
+      {
+        "sha256": "750498df470c358285b95adccbf683f38c8c6be14efd2cc2de219cf7046e23d2",
+        "size": 34663531,
+        "trials": 5,
+        "median_bytes": 250880,
+        "median_requests": 160,
+        "max_share": 0.007237577729747151,
+        "median_index_s": 1.7107242669999891,
+        "median_best_download_s": 0.5021934720000445,
+        "median_best_download_plus_local_s": 0.5041796000000431,
+        "median_warm_get_s": 0.14823912400004247,
+        "group": "encrypted",
+        "subsegments": 160,
+        "packets": 0,
+        "mean_R": 3.022173858992555,
+        "mean_R_ci95": [
+          2.554239517198869,
+          3.5015718646295233
+        ],
+        "median_R": 2.6706077513486375,
+        "median_R_full": 2.66008735577538,
+        "mean_R_full": 3.0119448715057495,
+        "mean_R_full_ci95": [
+          2.546650585443362,
+          3.489149350355369
+        ],
+        "median_I1_over_I": NaN,
+        "bytes_pass": true,
+        "time_pass": false,
+        "pass": false
+      },
+      {
+        "sha256": "b939b2c525e38623dada90b6bf6dbc1c7e2e2088b0ac9e2faef68936af014502",
+        "size": 12084418,
+        "trials": 5,
+        "median_bytes": 323072,
+        "median_requests": 125,
+        "max_share": 0.026734593258856156,
+        "median_index_s": 1.2239836530000048,
+        "median_best_download_s": 0.3778792839999596,
+        "median_best_download_plus_local_s": 0.38029487599999356,
+        "median_warm_get_s": 0.15378386300000102,
+        "group": "encrypted",
+        "subsegments": 123,
+        "packets": 0,
+        "mean_R": 3.3867829753062786,
+        "mean_R_ci95": [
+          2.5350401572172823,
+          4.339397550598569
+        ],
+        "median_R": 3.132796070398401,
+        "median_R_full": 3.112896887940333,
+        "mean_R_full": 3.369912625508588,
+        "mean_R_full_ci95": [
+          2.5243701761605237,
+          4.338485756972477
+        ],
+        "median_I1_over_I": NaN,
+        "bytes_pass": true,
+        "time_pass": false,
+        "pass": false
+      },
+      {
+        "sha256": "baa98b681ddc078bcea9bdfc82631626c32f50f9f62c4b1338e1d7637cc8e26c",
+        "size": 35568588,
+        "trials": 5,
+        "median_bytes": 510292,
+        "median_requests": 125,
+        "max_share": 0.014346703895021079,
+        "median_index_s": 1.2570398029999978,
+        "median_best_download_s": 0.542810419000034,
+        "median_best_download_plus_local_s": 0.5448922790000097,
+        "median_warm_get_s": 0.17081655600003387,
+        "group": "encrypted",
+        "subsegments": 123,
+        "packets": 0,
+        "mean_R": 2.3021785834392774,
+        "mean_R_ci95": [
+          1.8366883557507898,
+          2.7676688111277654
+        ],
+        "median_R": 2.245844429894769,
+        "median_R_full": 2.2372637730109046,
+        "mean_R_full": 2.294387516203785,
+        "mean_R_full_ci95": [
+          1.8312837341103196,
+          2.757491298297251
+        ],
+        "median_I1_over_I": NaN,
+        "bytes_pass": true,
+        "time_pass": false,
+        "pass": false
+      },
+      {
+        "sha256": "bdecaa9f9863d8f568b988a3533aae8537b76de5aaafcfeeb47a98522aa387f5",
+        "size": 36292325,
+        "trials": 5,
+        "median_bytes": 511873,
+        "median_requests": 124,
+        "max_share": 0.014104166652315607,
+        "median_index_s": 1.3143793659999687,
+        "median_best_download_s": 0.5345430950000036,
+        "median_best_download_plus_local_s": 0.5362778500000331,
+        "median_warm_get_s": 0.17418865100000858,
+        "group": "encrypted",
+        "subsegments": 123,
+        "packets": 0,
+        "mean_R": 2.141085609833598,
+        "mean_R_ci95": [
+          1.637228547153207,
+          2.5820315811011256
+        ],
+        "median_R": 2.394649298703807,
+        "median_R_full": 2.38571636045542,
+        "mean_R_full": 2.134161489003998,
+        "mean_R_full_ci95": [
+          1.6329273765518697,
+          2.5728641297590107
+        ],
+        "median_I1_over_I": NaN,
+        "bytes_pass": true,
+        "time_pass": false,
+        "pass": false
+      },
+      {
+        "sha256": "ede6abdefba66772630f352999d715f60c17f65bfa3254fe553f15094e992ed2",
+        "size": 777530,
+        "trials": 5,
+        "median_bytes": 32768,
+        "median_requests": 15,
+        "max_share": 0.04214371149666251,
+        "median_index_s": 0.6741096199999674,
+        "median_best_download_s": 0.21885936299999287,
+        "median_best_download_plus_local_s": 0.22066682099999468,
+        "median_warm_get_s": 0.16451281900003778,
+        "group": "encrypted",
+        "subsegments": 15,
+        "packets": 0,
+        "mean_R": 3.5190477150273964,
+        "mean_R_ci95": [
+          2.560963023805101,
+          4.629785673080751
+        ],
+        "median_R": 3.1430786132701747,
+        "median_R_full": 3.1176492126388857,
+        "mean_R_full": 3.4894307642719604,
+        "mean_R_full_ci95": [
+          2.5386117231077163,
+          4.590684177570127
+        ],
+        "median_I1_over_I": NaN,
+        "bytes_pass": true,
+        "time_pass": false,
+        "pass": false
+      }
+    ],
+    "download_routed": [
+      {
+        "sha256": "895d1f32f29cd537feb3bea9f9d131c18def0bb8846536cb78dae42ef34d9376",
+        "size": 986360,
+        "trials": 5,
+        "median_bytes": 8192,
+        "median_requests": 2,
+        "max_share": 0.00830528407478,
+        "median_index_s": 0.3401246009999852,
+        "median_best_download_s": 0.2830302559999609,
+        "median_best_download_plus_local_s": 0.28471780799986846,
+        "median_warm_get_s": 0.15122821099998873,
+        "group": "download",
+        "median_route_s": 0.310738,
+        "median_routed_total_over_download": 2.1766096635086956
+      },
+      {
+        "sha256": "cc6023189f53a0e3f6ca94ed15f8055fe5fdd173f6d69de03b5aa73a4dcea733",
+        "size": 40609,
+        "trials": 5,
+        "median_bytes": 4096,
+        "median_requests": 1,
+        "max_share": 0.10086434041714891,
+        "median_index_s": 0.22673960899999202,
+        "median_best_download_s": 0.18150771000000532,
+        "median_best_download_plus_local_s": 0.1834652019999794,
+        "median_warm_get_s": 0.16996765199996844,
+        "group": "download",
+        "median_route_s": 0.197292,
+        "median_routed_total_over_download": 2.12896438763976
+      }
+    ]
+  }
+}

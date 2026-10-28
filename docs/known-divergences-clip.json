@@ -1,0 +1,209 @@
+{
+  "schema": "coreav/known-divergences/1",
+  "applies_to": "coreav-isobmff-write clip_mp4 outputs through scripts/clip_check.py, ffprobe and ffmpeg 7.0.2, MediaInfo 26.10",
+  "entries": [
+    {
+      "id": "KD-C-STTS-SHORT",
+      "level": [
+        "streams"
+      ],
+      "fields": [
+        "video duration_ts"
+      ],
+      "field_pattern": "video:duration",
+      "filename_pattern": "*",
+      "conditions": {
+        "output video track": "one media edit",
+        "output media header duration": "at least the edit's duration, which is longer than the sum of the decode durations (stts)",
+        "ffprobe duration_ts": "= the sum of the decode durations"
+      },
+      "predicate": "stts_short",
+      "basis": "the declared duration, capped by the media edit, is the stream duration; the clip's media duration is never shorter than the video edit; the same cause as KD-STTS-SHORT"
+    },
+    {
+      "id": "KD-C-EMPTY-EDIT-DURATION",
+      "level": [
+        "streams"
+      ],
+      "fields": [
+        "video or audio duration_ts"
+      ],
+      "field_pattern": "*:duration",
+      "filename_pattern": "*",
+      "conditions": {
+        "output track": "an empty edit followed by one media edit",
+        "ffprobe duration_ts": "= the smallest of the media header duration, the sum of the decode durations, and the empty edit plus the media edit in media ticks; more than one tick away from the media edit alone",
+        "source": "the output's media timescale the source track's (mdhd), and its decode durations summing to the source's stored ones for the kept samples (stts, then fragments)"
+      },
+      "predicate": "empty_edit_duration",
+      "basis": "the stream duration is the media edit, capped by the media header; ffprobe's rule counts empty edits, which the duration rule rejects as an oracle quirk; a stream that starts after the clip gets an empty edit"
+    },
+    {
+      "id": "KD-C-AUDIO-RESTART",
+      "level": [
+        "frames"
+      ],
+      "fields": [
+        "decoded audio"
+      ],
+      "field_pattern": "audio:pcm",
+      "filename_pattern": "*",
+      "conditions": {
+        "output audio track": "one media edit",
+        "decoded output": "equals, sample for sample, the source's kept audio packets (one ADTS frame per sample, edit lists ignored) decoded from the clip's first kept packet, from the edit's media time on, at that exact sample",
+        "kept packets": "from the source's own packet list and times, within one tick: one packet of pre-roll before the first packet presented at the snapped start (a discarded priming packet included; none before the track's first), every packet presented inside the clip, none past the one presented at its end",
+        "audio timing": "from the files' own boxes: the kept packets the clip rules name; the edit's media time where the source's edit list presents the clip's start, less the first kept packet's stored decode time, to the nearest tick; decode durations exactly the source's stored ones for the kept samples (its stts, then its fragments' runs)"
+      },
+      "predicate": "audio_restart",
+      "basis": "ISO/IEC 14496-3 (a decoder's output depends on its state; perceptual noise substitution fills bands with noise the bitstream does not define); the clip keeps one AAC frame of pre-roll"
+    },
+    {
+      "id": "KD-C-AAC-PROFILE",
+      "level": [
+        "streams"
+      ],
+      "fields": [
+        "audio profile"
+      ],
+      "field_pattern": "audio:profile",
+      "filename_pattern": "*",
+      "conditions": {
+        "codec": "aac in the source and the clip",
+        "ffprobe profile": "differs: named on one side only, or named differently (HE-AACv2 against HE-AAC, say)",
+        "configuration": "the same bytes in both files, as ffprobe dumps the stream's extradata"
+      },
+      "predicate": "aac_profile",
+      "basis": "ISO/IEC 14496-3 (SBR and parametric stereo may be signalled implicitly in the bitstream rather than in the configuration); the audio sample entry is the M4A extraction's, with the esds copied as stored; the same cause as KD-X-PROFILE-UNNAMED and KD-AAC-IMPLICIT-SBR"
+    },
+    {
+      "id": "KD-C-CTTS-UNSIGNED",
+      "level": [
+        "frames"
+      ],
+      "fields": [
+        "video framemd5"
+      ],
+      "field_pattern": "video:framemd5",
+      "filename_pattern": "*",
+      "conditions": {
+        "source and output video": "a version 0 composition offset table with an offset of at least 2^31",
+        "framemd5": "the output's frames are the source's frames presented inside the clip, in order and unchanged, short of at most four, each within eight frames of the clip's start or end"
+      },
+      "predicate": "ctts_unsigned",
+      "basis": "ISO/IEC 14496-12 (version 0 composition offsets are unsigned); composition offsets are reported and copied as stored"
+    },
+    {
+      "id": "KD-C-EDIT-MIDFRAME",
+      "level": [
+        "packets",
+        "frames"
+      ],
+      "fields": [
+        "video packet pts and dts",
+        "video framemd5"
+      ],
+      "field_pattern": "video:*",
+      "filename_pattern": "*",
+      "conditions": {
+        "source video edit": "one media edit whose media time is not a multiple of the frame duration (it starts inside a frame)",
+        "packets": "every packet of the kept run equal in data hash, size and keyframe flag; source times = output times + the clip's start + one constant offset, not 0 and smaller than a frame",
+        "framemd5": "the same frames once that offset is applied to the source's times (with unsigned version 0 offsets as well, short of at most four within eight frames of the ends); where the clip starts where the source does at a constant frame duration, its own edit starts inside a frame too and the packets agree, the same frames but for exactly one, the last, which on the edit's exact timeline (ffmpeg's times plus the gap from the source edit's media time to the next frame boundary) lies past the clip's edit, within one frame of it"
+      },
+      "predicate": "edit_midframe",
+      "basis": "ISO/IEC 14496-12 (an edit maps its media time to the start of the presentation); the simple edit list is applied exactly, and the clip starts at the snapped sync sample"
+    },
+    {
+      "id": "KD-C-DTS-SHIFT",
+      "level": [
+        "packets"
+      ],
+      "fields": [
+        "video packet dts"
+      ],
+      "field_pattern": "video:packets",
+      "filename_pattern": "*",
+      "conditions": {
+        "output video": "a composition offset that a signed reader sees as negative (version 1 below 0, or version 0 of at least 2^31)",
+        "packets": "every packet of the kept run equal in data hash, size, keyframe flag and presentation time; decode times differ by one constant, not 0",
+        "constant": "the source track's smallest composition offset less the clip's, each counted where negative, from both files' ctts"
+      },
+      "predicate": "dts_shift",
+      "basis": "composition offsets are copied as stored, and timestamps are not shifted by negative composition offsets; the same cause as KD-CTTS"
+    },
+    {
+      "id": "KD-C-AUDIO-JITTER",
+      "level": [
+        "frames"
+      ],
+      "fields": [
+        "decoded audio"
+      ],
+      "field_pattern": "audio:pcm",
+      "filename_pattern": "*",
+      "conditions": {
+        "source audio": "stored decode durations of the kept packets that differ from the decoded frames' length (every decoded frame the same length)",
+        "decoded output": "a contiguous run of the source's kept packets (one ADTS frame per sample, edit lists ignored) decoded from the clip's first kept packet, starting within its first two frames",
+        "output audio track": "one media edit",
+        "audio timing": "the source's, as for KD-C-AUDIO-RESTART"
+      },
+      "predicate": "audio_jitter",
+      "basis": "ISO/IEC 14496-12 (decode durations are stored per sample), and the clip copies them as stored; ISO/IEC 14496-3 (an AAC frame decodes to a fixed number of samples); the clip keeps one frame of pre-roll"
+    },
+    {
+      "id": "KD-C-AUDIO-EDIT-RATE",
+      "level": [
+        "frames"
+      ],
+      "fields": [
+        "decoded audio"
+      ],
+      "field_pattern": "audio:pcm",
+      "filename_pattern": "*",
+      "conditions": {
+        "output audio track": "one media edit whose media time is not a whole number of frames; a media timescale that divides the decoded sample rate and is smaller than it (HE-AAC with SBR); one decode duration for every kept packet",
+        "decoded output": "equals, sample for sample, the source's kept audio packets (one ADTS frame per sample, edit lists ignored) decoded from the clip's first kept packet, from the position ffmpeg starts at: the whole frames before the media time dropped, and the rest skipped only within the first frame, as that many decoded samples",
+        "audio timing": "the source's, as for KD-C-AUDIO-RESTART"
+      },
+      "predicate": "audio_edit_rate",
+      "basis": "ISO/IEC 14496-12 (an edit's media time is in the media's timescale); ISO/IEC 14496-3 (SBR doubles the output sample rate over the core's); the audio edit starts at the snapped start, after one frame of pre-roll"
+    },
+    {
+      "id": "KD-C-PTS-SHIFT",
+      "level": [
+        "packets",
+        "frames"
+      ],
+      "fields": [
+        "video packets' pts and dts",
+        "decoded video frames' times"
+      ],
+      "field_pattern": "video:*",
+      "filename_pattern": "*",
+      "conditions": {
+        "source video track": "no edit list",
+        "clip": "composition offsets whose smallest, read as signed, is negative: -D",
+        "packets": "every packet of the kept run equal in data, size and keyframe flag, with the source's pts and dts both above the clip's (shifted by the clip's start) by exactly D",
+        "decoded frames": "the same frames once D is applied to the source's times"
+      },
+      "predicate": "pts_shift",
+      "basis": "composition offsets are reported as stored, never shifted; ISO/IEC 14496-12 (composition time is decode time plus the offset; without an edit list the media timeline is presented as is); the same cause as KD-CTTS"
+    },
+    {
+      "id": "KD-C-SYNC-VERIFIED",
+      "level": [
+        "packets"
+      ],
+      "fields": [
+        "video keyframe flags"
+      ],
+      "field_pattern": "video:packets",
+      "filename_pattern": "*",
+      "conditions": {
+        "packets": "the clip holds the source's packets of its run, one for one, equal in data, size and times, and starts with a keyframe; they differ only in keyframe flags the source's packets have and the clip's do not, at least one",
+        "decoded frames": "with edit lists ignored, the clip's flagged packets are exactly those ffmpeg decodes as key frames"
+      },
+      "predicate": "sync_verified",
+      "basis": "ISO/IEC 14496-12 8.6.2 (without a sync sample table every sample is a sync sample); ISO/IEC 14496-15 and ITU-T H.265 7.4.2.2 (an HEVC sync sample holds an IRAP picture, nal_unit_type 16 to 23); docs/design/cut-points.md (the output's sync flags are the samples the coded data agrees with)"
+    }
+  ]
+}

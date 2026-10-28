@@ -1,0 +1,21 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2900.0 MHz, 8 logical CPUs
+gate baseline: 0.410 s (samples 0.407, 0.418, 0.410)
+37fe6d70a7e9.0.4k.h264                   base:discard=0.88  base:write=0.87  base:mixed=0.81  k:discard=0.88  k:write=0.86  k:mixed=0.81
+4762d0d77ce6.0.4k.h264                   base:discard=0.93  base:write=0.94  base:mixed=0.79  k:discard=0.97  k:write=0.92  k:mixed=0.82
+5411a2f76f31.0.4k.h264                   host fault (attempt 1): null {'base_discard': 0.035488414017372794, 'base_write': -0.014554047539054982}, max spread 1.556
+5411a2f76f31.0.4k.h264                   base:discard=0.87  base:write=0.80  base:mixed=0.70  k:discard=0.88  k:write=0.82  k:mixed=0.71
+5d2107684f26.0.4k.h264                   base:discard=0.76  base:write=0.72  base:mixed=0.65  k:discard=0.77  k:write=0.72  k:mixed=0.65
+gate after 4 streams (check): 0.404 s (-1.6%)
+64a8a139a3fd.0.4k.h264                   host fault (attempt 1): null {'base_discard': -0.0009115818448435231, 'base_write': 0.008286941045731577}, max spread 1.789
+64a8a139a3fd.0.4k.h264                   base:discard=0.82  base:write=0.82  base:mixed=0.77  k:discard=0.83  k:write=0.82  k:mixed=0.78
+6b7d211adc0d.0.4k.h264                   base:discard=0.93  base:write=0.87  base:mixed=0.81  k:discard=0.99  k:write=0.89  k:mixed=0.86
+71e12a58ccdd.0.4k.h264                   base:discard=0.95  base:write=0.85  base:mixed=0.77  k:discard=0.99  k:write=0.86  k:mixed=0.80
+a0b54eb67683.0.4k.h264                   base:discard=1.05  base:write=1.04  base:mixed=1.00  k:discard=1.06  k:write=1.03  k:mixed=1.01
+gate after 8 streams (check): 0.415 s (+1.3%)
+aa0205e7e850.0.4k.h264                   base:discard=0.98  base:write=0.95  base:mixed=0.93  k:discard=1.00  k:write=0.96  k:mixed=0.95
+b716b0c80a63.0.4k.h264                   base:discard=0.74  base:write=0.68  base:mixed=0.57  k:discard=0.74  k:write=0.68  k:mixed=0.57
+b844246b511b.0.4k.h264                   base:discard=1.00  base:write=0.98  base:mixed=0.94  k:discard=1.00  k:write=0.99  k:mixed=0.95
+c22aa0507424.0.4k.h264                   base:discard=0.92  base:write=0.87  base:mixed=0.81  k:discard=0.92  k:write=0.86  k:mixed=0.80
+gate after 12 streams (check): 0.404 s (-1.5%)
+c2c99564b931.0.4k.h264                   base:discard=0.80  base:write=0.77  base:mixed=0.66  k:discard=0.82  k:write=0.78  k:mixed=0.68
+d67bb9087d1a.0.4k.h264                   base:discard=0.88  base:write=0.83  base:mixed=0.76  k:discard=0.84  k:write=0.79  k:mixed=0.73

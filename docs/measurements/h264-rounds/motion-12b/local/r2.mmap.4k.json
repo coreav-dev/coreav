@@ -1,0 +1,83 @@
+{
+  "machine": {
+    "cpu_model": "Intel(R) Xeon(R) Processor @ 2.50GHz",
+    "cpu_family": "6",
+    "cpu_model_number": "85",
+    "cpu_stepping": "7",
+    "cpu_mhz": 2500.0,
+    "logical_cpus": 8
+  },
+  "required_cpu": null,
+  "frames": 150,
+  "rounds": 11,
+  "pinned_core": 2,
+  "threads": [
+    1
+  ],
+  "decoders": {
+    "base": "/tmp/mbc/decode",
+    "m": "/tmp/mbc/decode-m"
+  },
+  "ffmpeg": "ffmpeg",
+  "resamples": 2000,
+  "streams": [
+    {
+      "stream": "e624cbe0d2be.0.4k.h264",
+      "class": "4k",
+      "seconds": {
+        "ff_null": 1.1471172450001177,
+        "ff_raw": 1.8957865840002341,
+        "base_discard": 1.9536368930002936,
+        "base_write": 2.1802021530002094,
+        "m_discard": 1.9394154319998052,
+        "m_write": 2.151313661999666
+      },
+      "ratio": {
+        "base:discard": 1.7030838839844076,
+        "base:write": 1.1500250985001907,
+        "base:mixed": 1.0305152011773349,
+        "m:discard": 1.6906863186418282,
+        "m:write": 1.134786837377155,
+        "m:mixed": 1.0230135862168153
+      }
+    }
+  ],
+  "summary": {
+    "base:discard": {
+      "n": 1,
+      "median": 1.7030838839844076,
+      "ci_low": null,
+      "ci_high": null
+    },
+    "base:write": {
+      "n": 1,
+      "median": 1.1500250985001907,
+      "ci_low": null,
+      "ci_high": null
+    },
+    "base:mixed": {
+      "n": 1,
+      "median": 1.0305152011773349,
+      "ci_low": null,
+      "ci_high": null
+    },
+    "m:discard": {
+      "n": 1,
+      "median": 1.6906863186418282,
+      "ci_low": null,
+      "ci_high": null
+    },
+    "m:write": {
+      "n": 1,
+      "median": 1.134786837377155,
+      "ci_low": null,
+      "ci_high": null
+    },
+    "m:mixed": {
+      "n": 1,
+      "median": 1.0230135862168153,
+      "ci_low": null,
+      "ci_high": null
+    }
+  }
+}

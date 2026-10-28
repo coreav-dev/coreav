@@ -1,0 +1,825 @@
+//! The demultiplexer state shared by the probe and the packet listing:
+//! PAT and PMT sections, continuity counters, and PES packets reassembled
+//! per PID.
+
+use crate::codec::{Allowlist, Codec, codec, format_identifier};
+use crate::error::{Warning, warn};
+use crate::packet::{self, NULL_PID, TS_PACKET};
+use crate::pes::{self, PesHeader};
+use crate::section::{
+    self, Assembler, Descriptor, EIT_FIRST, EIT_LAST, EIT_PID, MAX_EIT_SECTION, MAX_SECTION, PAT,
+    PMT, SDT_ACTUAL, SDT_PID, Service,
+};
+use crate::{Error, LimitKind, Limits};
+use std::collections::{BTreeMap, VecDeque};
+
+/// Whether two packets of one PID are the same apart from a PCR, which a
+/// duplicate may carry anew (ISO/IEC 13818-1 2.4.3.3).
+fn same_but_pcr(a: &[u8; TS_PACKET], b: &[u8; TS_PACKET]) -> bool {
+    let pcr = |p: &[u8; TS_PACKET]| {
+        p.get(3).is_some_and(|c| c & 0x20 != 0)
+            && p.get(4).is_some_and(|l| *l >= 7)
+            && p.get(5).is_some_and(|f| f & 0x10 != 0)
+    };
+    if pcr(a) && pcr(b) {
+        a.get(..6) == b.get(..6) && a.get(12..) == b.get(12..)
+    } else {
+        a == b
+    }
+}
+
+/// A complete PES packet of a kept stream.
+#[derive(Clone, Debug)]
+pub(crate) struct Pes {
+    pub pid: u16,
+    /// Offset of the stored packet that starts it.
+    pub offset: u64,
+    pub header: PesHeader,
+    pub payload: Vec<u8>,
+    /// The adaptation field of its first packet set the random access
+    /// indicator.
+    pub random_access: bool,
+    /// A packet of it was lost (a continuity counter skipped) or repeated
+    /// while it was read.
+    pub corrupt: bool,
+    /// A piece of a PES packet after its first ([`Demux::pieces`]).
+    pub continuation: bool,
+}
+
+/// A stream as the PMTs declare it.
+#[derive(Clone, Debug)]
+pub(crate) struct Entry {
+    pub pid: u16,
+    pub programs: Vec<u16>,
+    pub stream_type: u8,
+    pub descriptors: Vec<Descriptor>,
+    /// The four bytes its descriptors give its format, if any
+    /// ([`format_identifier`]).
+    pub format_identifier: Option<[u8; 4]>,
+    pub codec: Codec,
+    /// Its place in the elementary stream loop of the first Program Map
+    /// Table that declared it; `None` for a stream no table declares (the
+    /// Event Information Table).
+    pub pmt_index: Option<usize>,
+    pub kept: bool,
+    /// A private stream no descriptor names: its first PES packet is read
+    /// to learn its codec ([`crate::codec::sniff`]).
+    pub sniff: bool,
+    /// Where the stream was found (a byte offset): the packet that
+    /// completed the Program Map Table naming it, or that completed the
+    /// first Event Information Table section; `u64::MAX` for a PID no
+    /// table declares.
+    pub found_at: u64,
+}
+
+/// A program as the PAT and its PMT declare it.
+#[derive(Clone, Debug)]
+pub(crate) struct ProgramEntry {
+    pub number: u16,
+    pub pmt_pid: u16,
+    pub pcr_pid: Option<u16>,
+    pub pmt_version: Option<u8>,
+    pub pids: Vec<u16>,
+}
+
+struct Builder {
+    offset: u64,
+    data: Vec<u8>,
+    random_access: bool,
+    corrupt: bool,
+}
+
+pub(crate) struct Demux {
+    allowlist: Allowlist,
+    max_packet: usize,
+    max_buffered: usize,
+    /// Bytes held by `builders`.
+    buffered: usize,
+    /// The last packet with a payload of each PID, to tell a duplicate.
+    last: BTreeMap<u16, [u8; TS_PACKET]>,
+    /// The offset and the first timestamp (PTS, else DTS) of each PID's
+    /// PES packets, whether or not a Program Map Table had named it yet:
+    /// a stream's PES packets commonly start before the tables that name
+    /// it, and those packets are the stream's too.
+    pub first_pes: BTreeMap<u16, (u64, u64)>,
+    /// Where each PID's first PES packet is, whether or not it states a
+    /// time: a PID no table declares is a stream all the same.
+    pub pes_pids: BTreeMap<u16, u64>,
+    /// Where the first Program Map Table was read.
+    pub first_pmt_at: Option<u64>,
+    /// Where each PID's first PES packet starts after the first Program
+    /// Map Table was read.
+    pub pes_after_pmt: BTreeMap<u16, u64>,
+    /// The offset of the packet being read.
+    current: u64,
+    max_programs: usize,
+    max_streams: usize,
+    pat_version: Option<u8>,
+    /// The sections of the current PAT version seen so far, and its
+    /// `last_section_number`.
+    pat_sections: (u64, u8),
+    /// `transport_stream_id` of the current PAT.
+    pub transport_stream_id: Option<u16>,
+    /// The services of the current Service Description Table of this
+    /// transport stream, at most `max_programs`.
+    pub services: Vec<Service>,
+    /// Whether the first Service Description Table read came before the
+    /// first Program Association Table; `None` until either is read.
+    pub sdt_before_pat: Option<bool>,
+    pub programs: Vec<ProgramEntry>,
+    pub streams: Vec<Entry>,
+    by_pid: BTreeMap<u16, usize>,
+    sections: BTreeMap<u16, Assembler>,
+    builders: BTreeMap<u16, Builder>,
+    /// Per PID, the header of the PES packet in progress once a piece of
+    /// it was delivered ([`Demux::pieces`]), its times cleared: what the
+    /// later pieces carry. Kept apart from the builders, so that reading
+    /// whole PES packets carries none of it.
+    continued: BTreeMap<u16, PesHeader>,
+    counters: BTreeMap<u16, u8>,
+    pub ready: VecDeque<Pes>,
+    /// Complete Event Information Table sections, while the Event
+    /// Information Table is listed as a stream: each is one of its
+    /// packets, header and CRC included, as `ffprobe` lists them.
+    pub epg_sections: VecDeque<Vec<u8>>,
+    /// Whether to reassemble PES packets (the tables are always read).
+    pub collect: bool,
+    /// Whether to keep the Event Information Table's sections: only the
+    /// packet listing reads them.
+    pub keep_epg: bool,
+    /// PIDs whose PES packets are reassembled whatever the tables say
+    /// (the streams a probe kept), besides those the tables keep.
+    pub always: std::collections::BTreeSet<u16>,
+    /// When set, the PES packets of H.264, HEVC, MPEG-1 and MPEG-2 video
+    /// streams are delivered in pieces of this many payload bytes as they
+    /// arrive, the later pieces with no times, rather than whole once the
+    /// next one starts: the packet listing reads them as `ffprobe` does.
+    /// What a piece leaves behind is bounded by `max_buffered_bytes`, which
+    /// the listing checks, rather than by `max_packet_bytes`.
+    pub pieces: Option<usize>,
+}
+
+impl Demux {
+    pub(crate) fn new(allowlist: &Allowlist, limits: &Limits) -> Self {
+        Self {
+            allowlist: allowlist.clone(),
+            max_packet: usize::try_from(limits.max_packet_bytes).unwrap_or(usize::MAX),
+            max_buffered: usize::try_from(limits.max_buffered_bytes).unwrap_or(usize::MAX),
+            buffered: 0,
+            last: BTreeMap::new(),
+            first_pes: BTreeMap::new(),
+            pes_pids: BTreeMap::new(),
+            first_pmt_at: None,
+            pes_after_pmt: BTreeMap::new(),
+            current: 0,
+            max_programs: usize::try_from(limits.max_programs).unwrap_or(usize::MAX),
+            max_streams: usize::try_from(limits.max_streams).unwrap_or(usize::MAX),
+            pat_version: None,
+            pat_sections: (0, 0),
+            transport_stream_id: None,
+            services: Vec::new(),
+            sdt_before_pat: None,
+            programs: Vec::new(),
+            streams: Vec::new(),
+            by_pid: BTreeMap::new(),
+            sections: BTreeMap::new(),
+            builders: BTreeMap::new(),
+            continued: BTreeMap::new(),
+            counters: BTreeMap::new(),
+            ready: VecDeque::new(),
+            epg_sections: VecDeque::new(),
+            collect: true,
+            keep_epg: false,
+            always: std::collections::BTreeSet::new(),
+            pieces: None,
+        }
+    }
+
+    /// A demultiplexer that already knows the tables (for a read that
+    /// starts later in the file).
+    pub(crate) fn resume(&self) -> Self {
+        Self {
+            allowlist: self.allowlist.clone(),
+            max_packet: self.max_packet,
+            max_buffered: self.max_buffered,
+            buffered: 0,
+            last: BTreeMap::new(),
+            first_pes: BTreeMap::new(),
+            pes_pids: BTreeMap::new(),
+            first_pmt_at: self.first_pmt_at,
+            pes_after_pmt: BTreeMap::new(),
+            current: 0,
+            max_programs: self.max_programs,
+            max_streams: self.max_streams,
+            pat_version: self.pat_version,
+            pat_sections: self.pat_sections,
+            transport_stream_id: self.transport_stream_id,
+            services: self.services.clone(),
+            sdt_before_pat: self.sdt_before_pat,
+            programs: self.programs.clone(),
+            streams: self.streams.clone(),
+            by_pid: self.by_pid.clone(),
+            sections: BTreeMap::new(),
+            builders: BTreeMap::new(),
+            continued: BTreeMap::new(),
+            counters: BTreeMap::new(),
+            ready: VecDeque::new(),
+            epg_sections: VecDeque::new(),
+            collect: true,
+            keep_epg: false,
+            always: self.always.clone(),
+            pieces: None,
+        }
+    }
+
+    /// Bytes held by the PES packets being reassembled.
+    pub(crate) fn buffered(&self) -> usize {
+        self.buffered
+    }
+
+    /// Whether the PAT and the PMT of every program it names were read.
+    pub(crate) fn tables_complete(&self) -> bool {
+        let (seen, last) = self.pat_sections;
+        let all = (0..=u32::from(last.min(63))).all(|n| seen & (1 << n) != 0);
+        self.pat_version.is_some() && all && self.programs.iter().all(|p| p.pmt_version.is_some())
+    }
+
+    /// Learns the codec of a stream from its first PES packet, if the
+    /// PMT left it unnamed.
+    pub(crate) fn sniffed(&mut self, index: usize, pes: &Pes) {
+        let allowlist = &self.allowlist;
+        if let Some(entry) = self.streams.get_mut(index) {
+            if entry.sniff {
+                entry.sniff = false;
+                entry.codec = crate::codec::sniff(pes.header.stream_id, &pes.payload);
+                entry.kept = allowlist.reads(entry.codec);
+            }
+        }
+    }
+
+    /// The index of the stream on `pid`.
+    pub(crate) fn stream_of(&self, pid: u16) -> Option<usize> {
+        self.by_pid.get(&pid).copied()
+    }
+
+    /// Takes one transport packet stored at `offset`.
+    pub(crate) fn feed(
+        &mut self,
+        offset: u64,
+        bytes: &[u8; TS_PACKET],
+        warnings: &mut Vec<Warning>,
+    ) -> Result<(), Error> {
+        self.current = offset;
+        let header = match packet::parse(bytes) {
+            Ok(header) => header,
+            Err(reason) => {
+                warn(
+                    warnings,
+                    Warning::BadPes {
+                        pid: 0,
+                        offset,
+                        reason,
+                    },
+                );
+                return Ok(());
+            }
+        };
+        if header.error {
+            // The packet may be damaged; its payload is read all the same,
+            // as `ffprobe` reads it.
+            warn(warnings, Warning::TransportError { offset });
+        }
+        let pid = header.pid;
+        if pid == NULL_PID {
+            return Ok(());
+        }
+        let discontinuity = header.adaptation.is_some_and(|a| a.discontinuity);
+        let Some(start) = header.payload else {
+            return Ok(());
+        };
+        // Continuity: the counter steps by one for each packet with a
+        // payload. A packet that repeats the one before it (the same counter
+        // and the same bytes, its PCR aside: 2.4.3.3) is a duplicate, and
+        // is dropped; the same counter on other bytes is a lost packet.
+        let previous = self.counters.insert(pid, header.counter);
+        let repeated = self.last.insert(pid, *bytes);
+        if let Some(previous) = previous {
+            if previous == header.counter && !discontinuity {
+                if repeated.is_some_and(|before| same_but_pcr(&before, bytes)) {
+                    warn(warnings, Warning::Duplicate { pid, offset });
+                    self.mark_corrupt(pid);
+                    return Ok(());
+                }
+                warn(warnings, Warning::Discontinuity { pid, offset });
+                self.mark_corrupt(pid);
+            } else if (previous + 1) & 0x0F != header.counter && !discontinuity {
+                warn(warnings, Warning::Discontinuity { pid, offset });
+                self.mark_corrupt(pid);
+            }
+        }
+        let payload = bytes.get(start..).unwrap_or_default();
+        if pid == 0
+            || pid == EIT_PID
+            || pid == SDT_PID
+            || self.programs.iter().any(|p| p.pmt_pid == pid)
+        {
+            return self.section_payload(pid, payload, header.unit_start, warnings);
+        }
+        // The first timestamp of the PID, recorded before any table names
+        // it: the stream starts where its first PES packet does, not where
+        // the reader learnt that the PID carries one. Bounded by the
+        // stream limit, as every other per-PID fact is.
+        if header.unit_start
+            && !self.first_pes.contains_key(&pid)
+            && self.pes_pids.len() < self.max_streams
+        {
+            if let pes::Parsed::Done(first) = pes::parse(payload) {
+                self.pes_pids.entry(pid).or_insert(offset);
+                // A PES packet of the stream may state no time; the first
+                // that does gives the stream its start.
+                if let Some(time) = first.pts.or(first.dts) {
+                    self.first_pes.insert(pid, (offset, time));
+                }
+            }
+        }
+        // Where the PID's data first shows once a program is known: a
+        // stream of a program whose table comes later is found there.
+        if header.unit_start
+            && self.first_pmt_at.is_some()
+            && !self.pes_after_pmt.contains_key(&pid)
+            && self.pes_after_pmt.len() < self.max_streams
+            && matches!(pes::parse(payload), pes::Parsed::Done(_))
+        {
+            self.pes_after_pmt.insert(pid, offset);
+        }
+        if !self.collect {
+            return Ok(());
+        }
+        let wanted = self.always.contains(&pid)
+            || self
+                .by_pid
+                .get(&pid)
+                .and_then(|&index| self.streams.get(index))
+                .is_some_and(|s| s.kept || s.sniff);
+        if !wanted {
+            return Ok(());
+        }
+        if header.scrambled {
+            warn(warnings, Warning::Scrambled { pid });
+            return Ok(());
+        }
+        if header.unit_start {
+            self.complete(pid, warnings);
+            self.builders.insert(
+                pid,
+                Builder {
+                    offset,
+                    data: Vec::new(),
+                    random_access: header.adaptation.is_some_and(|a| a.random_access),
+                    corrupt: false,
+                },
+            );
+        }
+        let Some(builder) = self.builders.get_mut(&pid) else {
+            // No unit start seen yet on this PID.
+            return Ok(());
+        };
+        builder.data.extend_from_slice(payload);
+        if header.error {
+            builder.corrupt = true;
+        }
+        self.buffered = self.buffered.saturating_add(payload.len());
+        if builder.data.len() > self.max_packet {
+            return Err(Error::LimitExceeded {
+                limit: LimitKind::PacketBytes,
+                offset,
+            });
+        }
+        if self.buffered > self.max_buffered {
+            return Err(Error::LimitExceeded {
+                limit: LimitKind::BufferedBytes,
+                offset,
+            });
+        }
+        // A PES packet with a length is complete once that many bytes are
+        // there; the rest of the packet is stuffing. (Only a packet of no
+        // stated length is long enough to be delivered in pieces.)
+        let declared = match *builder.data.as_slice() {
+            [0, 0, 1, _, l0, l1, ..]
+                if self.pieces.is_none() || !self.continued.contains_key(&pid) =>
+            {
+                usize::from(u16::from_be_bytes([l0, l1]))
+            }
+            _ => 0,
+        };
+        if declared > 0 && builder.data.len() >= declared + 6 {
+            builder.data.truncate(declared + 6);
+            self.complete(pid, warnings);
+        } else if let Some(size) = self.pieces {
+            self.deliver_pieces(pid, size);
+        }
+        Ok(())
+    }
+
+    /// Delivers the whole pieces of `size` payload bytes the PES packet in
+    /// progress on `pid` holds, when it is one of coded video. Kept out of
+    /// line: only the listing as `ffprobe` gives it reads in pieces, and
+    /// reading whole PES packets should not pay for it.
+    #[inline(never)]
+    fn deliver_pieces(&mut self, pid: u16, size: usize) {
+        let coded = self
+            .stream_of(pid)
+            .and_then(|i| self.streams.get(i))
+            .is_some_and(|s| {
+                matches!(
+                    s.codec,
+                    Codec::H264 | Codec::Hevc | Codec::Mpeg1Video | Codec::Mpeg2Video
+                )
+            });
+        if !coded || size == 0 {
+            return;
+        }
+        let Some(builder) = self.builders.get_mut(&pid) else {
+            return;
+        };
+        loop {
+            let continued = self.continued.get(&pid).copied();
+            let (header, skip) = match continued {
+                Some(header) => (header, 0),
+                None => match pes::parse(&builder.data) {
+                    pes::Parsed::Done(header) => (header, header.header_len),
+                    _ => return,
+                },
+            };
+            let end = skip.saturating_add(size);
+            let Some(payload) = builder.data.get(skip..end) else {
+                return;
+            };
+            self.ready.push_back(Pes {
+                pid,
+                offset: builder.offset,
+                header,
+                payload: payload.to_vec(),
+                random_access: builder.random_access && continued.is_none(),
+                corrupt: builder.corrupt,
+                continuation: continued.is_some(),
+            });
+            builder.data.drain(..end);
+            self.buffered = self.buffered.saturating_sub(end);
+            self.continued.insert(
+                pid,
+                PesHeader {
+                    pts: None,
+                    dts: None,
+                    header_len: 0,
+                    ..header
+                },
+            );
+        }
+    }
+
+    /// Marks the PES packet in progress on `pid` as damaged.
+    fn mark_corrupt(&mut self, pid: u16) {
+        if let Some(builder) = self.builders.get_mut(&pid) {
+            builder.corrupt = true;
+        }
+    }
+
+    /// Ends every PES packet in progress (the end of the file, or of the
+    /// part read).
+    pub(crate) fn finish(&mut self, warnings: &mut Vec<Warning>) {
+        let pids: Vec<u16> = self.builders.keys().copied().collect();
+        for pid in pids {
+            self.complete(pid, warnings);
+        }
+    }
+
+    /// Ends the PES packet in progress on `pid`.
+    fn complete(&mut self, pid: u16, warnings: &mut Vec<Warning>) {
+        let Some(builder) = self.builders.remove(&pid) else {
+            return;
+        };
+        self.buffered = self.buffered.saturating_sub(builder.data.len());
+        // The last piece of a PES packet delivered in pieces.
+        if let Some(header) = self.pieces.and_then(|_| self.continued.remove(&pid)) {
+            self.ready.push_back(Pes {
+                pid,
+                offset: builder.offset,
+                header,
+                payload: builder.data,
+                random_access: false,
+                corrupt: builder.corrupt,
+                continuation: true,
+            });
+            return;
+        }
+        match pes::parse(&builder.data) {
+            pes::Parsed::Done(header) => {
+                let declared = usize::from(header.packet_length);
+                let truncated = declared > 0 && builder.data.len() < declared + 6;
+                if truncated {
+                    warn(warnings, Warning::TruncatedPes { pid });
+                }
+                let payload = builder
+                    .data
+                    .get(header.header_len..)
+                    .unwrap_or_default()
+                    .to_vec();
+                self.ready.push_back(Pes {
+                    pid,
+                    offset: builder.offset,
+                    header,
+                    payload,
+                    random_access: builder.random_access,
+                    corrupt: builder.corrupt || truncated,
+                    continuation: false,
+                });
+            }
+            pes::Parsed::NeedMore(_) => warn(
+                warnings,
+                Warning::BadPes {
+                    pid,
+                    offset: builder.offset,
+                    reason: "a PES packet shorter than its header",
+                },
+            ),
+            pes::Parsed::Invalid(reason) => warn(
+                warnings,
+                Warning::BadPes {
+                    pid,
+                    offset: builder.offset,
+                    reason,
+                },
+            ),
+        }
+    }
+
+    fn section_payload(
+        &mut self,
+        pid: u16,
+        payload: &[u8],
+        unit_start: bool,
+        warnings: &mut Vec<Warning>,
+    ) -> Result<(), Error> {
+        let mut sections = Vec::new();
+        let assembler = self.sections.entry(pid).or_insert_with(|| {
+            Assembler::new(if pid == EIT_PID {
+                MAX_EIT_SECTION
+            } else {
+                MAX_SECTION
+            })
+        });
+        if let Err(reason) = assembler.push(payload, unit_start, &mut sections) {
+            warn(warnings, Warning::BadSection { pid, reason });
+        }
+        for data in sections {
+            let (long, body) = match section::long(&data) {
+                Ok(parsed) => parsed,
+                Err(reason) => {
+                    // Sections of other tables (and short-form private
+                    // sections) on these PIDs are not ours to read.
+                    if matches!(data.first(), Some(&PAT) | Some(&PMT)) {
+                        warn(warnings, Warning::BadSection { pid, reason });
+                    }
+                    continue;
+                }
+            };
+            if !long.current {
+                continue;
+            }
+            match (pid, long.table_id) {
+                // The Event Information Table is a table, not an
+                // elementary stream, but it is the one piece of service
+                // information `ffprobe` lists as a stream; listing it
+                // keeps the two readers on the same stream set for a
+                // broadcast capture. Its place is where it is first read,
+                // as `ffprobe` places it.
+                (EIT_PID, EIT_FIRST..=EIT_LAST) => {
+                    self.epg()?;
+                    let listed = self
+                        .by_pid
+                        .get(&EIT_PID)
+                        .and_then(|&index| self.streams.get(index))
+                        .is_some_and(|entry| entry.kept);
+                    if self.keep_epg && listed {
+                        self.epg_sections.push_back(data.clone());
+                    }
+                }
+                (SDT_PID, SDT_ACTUAL) => {
+                    if self.sdt_before_pat.is_none() {
+                        self.sdt_before_pat = Some(true);
+                    }
+                    // A table of several sections is kept whole: each
+                    // section adds its services, a newer one replacing
+                    // what an older one said of the same service.
+                    for service in section::sdt_services(body) {
+                        if let Some(known) = self.services.iter_mut().find(|s| s.id == service.id) {
+                            *known = service;
+                        } else if self.services.len() < self.max_programs {
+                            self.services.push(service);
+                        }
+                    }
+                }
+                (0, PAT) => {
+                    if self.sdt_before_pat.is_none() {
+                        self.sdt_before_pat = Some(false);
+                    }
+                    self.transport_stream_id = Some(long.id);
+                    if self.pat_version != Some(long.version) {
+                        self.pat_sections = (0, long.last);
+                    }
+                    if long.number < 64 {
+                        self.pat_sections.0 |= 1 << long.number;
+                    }
+                    self.pat(long.version, body)?;
+                }
+                (_, PMT) => self.pmt(pid, long.id, long.version, body, warnings)?,
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
+    /// Lists every PID that carried PES packets and that no table
+    /// declares, after the tables have been read: its packets are the
+    /// file's too, and `ffprobe` lists them, after the declared streams.
+    /// `earlier` holds the first PES packet of each PID of an earlier
+    /// pass over the file.
+    pub(crate) fn add_undeclared(&mut self, earlier: &BTreeMap<u16, u64>) -> Result<(), Error> {
+        let mut found: BTreeMap<u16, u64> = BTreeMap::new();
+        for (pid, offset) in earlier.iter().chain(self.pes_pids.iter()) {
+            if self.by_pid.contains_key(pid)
+                || *pid == 0
+                || *pid == EIT_PID
+                || self.programs.iter().any(|p| p.pmt_pid == *pid)
+            {
+                continue;
+            }
+            let at = found.entry(*pid).or_insert(*offset);
+            *at = (*at).min(*offset);
+        }
+        let mut order: Vec<(u64, u16)> = found.into_iter().map(|(pid, at)| (at, pid)).collect();
+        order.sort_unstable();
+        for (_, pid) in order {
+            self.undeclared(pid)?;
+        }
+        Ok(())
+    }
+
+    /// Lists a PID that carries PES packets and that no Program Map Table
+    /// declares, with no stream type of its own.
+    fn undeclared(&mut self, pid: u16) -> Result<(), Error> {
+        if self.streams.len() >= self.max_streams {
+            return Err(Error::LimitExceeded {
+                limit: LimitKind::Streams,
+                offset: 0,
+            });
+        }
+        self.by_pid.insert(pid, self.streams.len());
+        self.streams.push(Entry {
+            pid,
+            programs: Vec::new(),
+            stream_type: 0,
+            descriptors: Vec::new(),
+            format_identifier: None,
+            codec: Codec::Other,
+            pmt_index: None,
+            kept: self.allowlist.reads(Codec::Other),
+            sniff: false,
+            found_at: u64::MAX,
+        });
+        Ok(())
+    }
+
+    /// Lists the Event Information Table as a data stream, once.
+    fn epg(&mut self) -> Result<(), Error> {
+        if self.by_pid.contains_key(&EIT_PID) {
+            return Ok(());
+        }
+        if self.streams.len() >= self.max_streams {
+            return Err(Error::LimitExceeded {
+                limit: LimitKind::Streams,
+                offset: 0,
+            });
+        }
+        self.by_pid.insert(EIT_PID, self.streams.len());
+        self.streams.push(Entry {
+            pid: EIT_PID,
+            programs: Vec::new(),
+            // No Program Map Table declares it, so it has no stream type;
+            // `ffprobe` gives it the codec tag 0 that this stands for.
+            stream_type: 0,
+            descriptors: Vec::new(),
+            format_identifier: None,
+            codec: Codec::Epg,
+            pmt_index: None,
+            kept: self.allowlist.allows(Codec::Epg),
+            sniff: false,
+            found_at: self.current,
+        });
+        Ok(())
+    }
+
+    fn pat(&mut self, version: u8, body: &[u8]) -> Result<(), Error> {
+        self.pat_version = Some(version);
+        for (number, pmt_pid) in section::pat_entries(body) {
+            if let Some(program) = self.programs.iter_mut().find(|p| p.number == number) {
+                // A program on another PMT PID, in whichever section of the
+                // PAT names it: its PMT is read again from the new PID.
+                if program.pmt_pid != pmt_pid {
+                    program.pmt_pid = pmt_pid;
+                    program.pmt_version = None;
+                }
+                continue;
+            }
+            if self.programs.len() >= self.max_programs {
+                return Err(Error::LimitExceeded {
+                    limit: LimitKind::Programs,
+                    offset: 0,
+                });
+            }
+            self.programs.push(ProgramEntry {
+                number,
+                pmt_pid,
+                pcr_pid: None,
+                pmt_version: None,
+                pids: Vec::new(),
+            });
+        }
+        Ok(())
+    }
+
+    fn pmt(
+        &mut self,
+        pid: u16,
+        number: u16,
+        version: u8,
+        body: &[u8],
+        warnings: &mut Vec<Warning>,
+    ) -> Result<(), Error> {
+        let Some(program) = self
+            .programs
+            .iter()
+            .position(|p| p.number == number && p.pmt_pid == pid)
+        else {
+            return Ok(());
+        };
+        let previous = self.programs.get(program).and_then(|p| p.pmt_version);
+        if previous == Some(version) {
+            return Ok(());
+        }
+        let parsed = match section::pmt(body) {
+            Ok(parsed) => parsed,
+            Err(reason) => {
+                warn(warnings, Warning::BadSection { pid, reason });
+                return Ok(());
+            }
+        };
+        if previous.is_some() {
+            warn(warnings, Warning::PmtChanged { program: number });
+        }
+        for (place, es) in parsed.streams.iter().enumerate() {
+            if let Some(&index) = self.by_pid.get(&es.pid) {
+                if let Some(entry) = self.streams.get_mut(index) {
+                    if !entry.programs.contains(&number) {
+                        entry.programs.push(number);
+                    }
+                }
+                continue;
+            }
+            if self.streams.len() >= self.max_streams {
+                return Err(Error::LimitExceeded {
+                    limit: LimitKind::Streams,
+                    offset: 0,
+                });
+            }
+            let codec = codec(es.stream_type, &es.descriptors, &parsed.descriptors);
+            self.by_pid.insert(es.pid, self.streams.len());
+            self.streams.push(Entry {
+                pid: es.pid,
+                programs: vec![number],
+                stream_type: es.stream_type,
+                descriptors: es.descriptors.clone(),
+                format_identifier: format_identifier(&es.descriptors),
+                codec,
+                pmt_index: Some(place),
+                kept: self.allowlist.reads(codec),
+                sniff: codec == Codec::Other && es.stream_type == 0x06,
+                found_at: self.current,
+            });
+        }
+        if let Some(entry) = self.programs.get_mut(program) {
+            entry.pmt_version = Some(version);
+            if self.first_pmt_at.is_none() {
+                self.first_pmt_at = Some(self.current);
+            }
+            entry.pcr_pid = Some(parsed.pcr_pid);
+            for es in parsed.streams {
+                if !entry.pids.contains(&es.pid) {
+                    entry.pids.push(es.pid);
+                }
+            }
+        }
+        Ok(())
+    }
+}

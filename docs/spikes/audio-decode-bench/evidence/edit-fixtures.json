@@ -1,0 +1,198 @@
+{
+ "ffmpeg": "ffmpeg version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2000-2024 the FFmpeg developers",
+ "rule": "docs/design/audio-decode.md, Edit list bars, bar 1",
+ "fixtures": [
+  {
+   "codec": "flac",
+   "shape": "leading-empty",
+   "edits": [
+    [
+     250,
+     -1
+    ],
+    [
+     3000,
+     0
+    ]
+   ],
+   "file": "flac-leading-empty.mp4",
+   "sha256": "667298f916a0dad87a56223a716ec272ecf9d084c37d60ac48a4e418e1168a39"
+  },
+  {
+   "codec": "flac",
+   "shape": "start-inside",
+   "edits": [
+    [
+     3000,
+     10000
+    ]
+   ],
+   "file": "flac-start-inside.mp4",
+   "sha256": "aa6d703b5695f5ff81855370f574ced6e5bf3c03b9c5c42e7c5d6bdeb6232da3"
+  },
+  {
+   "codec": "flac",
+   "shape": "end-inside",
+   "edits": [
+    [
+     2000,
+     0
+    ]
+   ],
+   "file": "flac-end-inside.mp4",
+   "sha256": "43d2313fdf3e4734226ef709e44153b97e3dc4f322b327bc0decbae049bb0b57"
+  },
+  {
+   "codec": "flac",
+   "shape": "cut",
+   "edits": [
+    [
+     1000,
+     0
+    ],
+    [
+     1000,
+     96000
+    ]
+   ],
+   "file": "flac-cut.mp4",
+   "sha256": "1de8195b31c1c5dda50e1f4d66d7e5ab7ca26f5558f2e41e8e17ae07dced8acf"
+  },
+  {
+   "codec": "flac",
+   "shape": "inner-empty",
+   "edits": [
+    [
+     1000,
+     0
+    ],
+    [
+     200,
+     -1
+    ],
+    [
+     1000,
+     96000
+    ]
+   ],
+   "file": "flac-inner-empty.mp4",
+   "sha256": "89652c4e8e97264dec84e1c4717b8cfdb243b705244175a64f0b78de8b1c0822"
+  },
+  {
+   "codec": "flac",
+   "shape": "three",
+   "edits": [
+    [
+     500,
+     0
+    ],
+    [
+     500,
+     49920
+    ],
+    [
+     500,
+     120000
+    ]
+   ],
+   "file": "flac-three.mp4",
+   "sha256": "c0a49a9b4be5bbdb9b5452103acf58ece16cd677557627b337035a4ce33d3e26"
+  },
+  {
+   "codec": "mp3",
+   "shape": "leading-empty",
+   "edits": [
+    [
+     250,
+     -1
+    ],
+    [
+     3000,
+     1105
+    ]
+   ],
+   "file": "mp3-leading-empty.mp4",
+   "sha256": "b529b138685a2c20557bde4a5b0d6438eb6e65ec000eb02b11aaa5dea5bf6113"
+  },
+  {
+   "codec": "mp3",
+   "shape": "start-inside",
+   "edits": [
+    [
+     3000,
+     11105
+    ]
+   ],
+   "file": "mp3-start-inside.mp4",
+   "sha256": "7217f4d4c5d76cc46323ed22d13fab248f0407241fe552c8605fe1295ab709bf"
+  },
+  {
+   "codec": "mp3",
+   "shape": "end-inside",
+   "edits": [
+    [
+     2000,
+     1105
+    ]
+   ],
+   "file": "mp3-end-inside.mp4",
+   "sha256": "05b91eac5c5e8fc065987ed3b8fd24036df47cd555fc4a9abb40023e17e2e5c5"
+  },
+  {
+   "codec": "mp3",
+   "shape": "cut",
+   "edits": [
+    [
+     1000,
+     1105
+    ],
+    [
+     1000,
+     89305
+    ]
+   ],
+   "file": "mp3-cut.mp4",
+   "sha256": "b7698848b021bfda1feedb0286946967ea937da3032a885e114876b1fa5b0335"
+  },
+  {
+   "codec": "mp3",
+   "shape": "inner-empty",
+   "edits": [
+    [
+     1000,
+     1105
+    ],
+    [
+     200,
+     -1
+    ],
+    [
+     1000,
+     89305
+    ]
+   ],
+   "file": "mp3-inner-empty.mp4",
+   "sha256": "31e03472b8845597e8846fae511fc26a1bfc499f3122a7eaffa54135fde3991e"
+  },
+  {
+   "codec": "mp3",
+   "shape": "three",
+   "edits": [
+    [
+     500,
+     1105
+    ],
+    [
+     500,
+     46969
+    ],
+    [
+     500,
+     111355
+    ]
+   ],
+   "file": "mp3-three.mp4",
+   "sha256": "86aa46fb6d1fc5808b37faf3fe774e065100762d0f42487ffc3a30f6cb05000a"
+  }
+ ]
+}

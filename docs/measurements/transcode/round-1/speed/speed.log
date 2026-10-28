@@ -1,0 +1,113 @@
+h264 cbbae341505c timed  ffmpeg=1.0313 x264=1.0270
+h264 04b7b4fb3b37 timed  ffmpeg=1.0984 x264=1.0993
+h264 dc988fd0cfc0 timed  ffmpeg=1.0663 x264=1.0114
+h264 108521a89a73 timed  ffmpeg=1.0181 x264=1.0096
+h264 d235e3b9a4a8 timed  ffmpeg=1.0312 x264=1.0256
+h264 8da9593e9329 timed  ffmpeg=inf x264=inf
+h264 220e29e8557e timed  ffmpeg=1.0254 x264=1.0314
+h264 35dce647f1bb timed  ffmpeg=1.1474 x264=1.0062
+h264 de99d72ce9ee timed  ffmpeg=1.0196 x264=1.0036
+h264 206a65347de4 timed  ffmpeg=1.0251 x264=1.0200
+h264 02f2c37a7ad9 timed  ffmpeg=1.0434 x264=1.0350
+h264 7b604c9e265c timed  ffmpeg=1.0282 x264=1.0283
+h264 6c8358b27f8b timed  ffmpeg=1.0627 x264=1.0000
+h264 4fb403dc1788 timed  ffmpeg=inf x264=inf
+h264 a7f5bfca23e0 timed  ffmpeg=0.9644 x264=0.9681
+h264 daac04573e8d timed  ffmpeg=1.0353 x264=1.0264
+h264 c911b52b35ab timed  ffmpeg=1.0633 x264=0.9974
+h264 efc87ac97168 timed  ffmpeg=inf x264=inf
+h264 f0f5920e0951 timed  ffmpeg=1.0396 x264=1.0219
+h264 cb7cdbe9be11 timed  ffmpeg=1.0303 x264=1.0239
+h264 2c7ae378fe10 timed  ffmpeg=1.0478 x264=1.0398
+h264 8cbc523e2a4d timed  ffmpeg=1.1802 x264=0.9545
+h264 bf7e73909ddf timed  ffmpeg=inf x264=inf
+h264 ba81ecbdc740 timed  ffmpeg=1.0332 x264=1.0311
+h264 f0cd825c8a30 timed  ffmpeg=1.0200 x264=1.0043
+hevc dfa90bd34a2e timed  ffmpeg=inf x264=inf
+hevc fd7b6c440b67 timed  ffmpeg=inf x264=inf
+hevc 15affcdb19e3 timed  ffmpeg=inf x264=inf
+hevc 5853e2ed4f54 timed  ffmpeg=inf x264=inf
+hevc f3cd6f0c7876 timed  ffmpeg=1.0260 x264=1.0352
+hevc 0119957558a2 timed  ffmpeg=inf x264=inf
+hevc 2cf91de003da timed  ffmpeg=1.0533 x264=1.0314
+hevc 2bc6b07151be timed  ffmpeg=1.0489 x264=1.4086
+av1 effb7b78408d timed  ffmpeg=inf x264=inf
+av1 357fb30f4693 timed  ffmpeg=inf x264=inf
+av1 d438e9cb804e timed  ffmpeg=inf x264=inf
+av1 03e890cf5999 timed  ffmpeg=1.0669 x264=1.0318
+av1 a34d5ee860fb timed  ffmpeg=1.0493 x264=1.0242
+av1 d9ab22f96e5e timed  ffmpeg=1.0134 x264=1.0066
+vp9 f51a56ed5718 timed  ffmpeg=inf x264=inf
+vp9 a084bd45168c timed  ffmpeg=1.1100 x264=1.1041
+vp9 70eec00bc7d2 timed  ffmpeg=1.0411 x264=1.0245
+vp9 9ffa165e752a timed  ffmpeg=inf x264=inf
+vp9 584a16b906bb timed  ffmpeg=1.1637 x264=1.1174
+vp9 ea684713a5be timed  ffmpeg=inf x264=inf
+vp9 bb5d39d47357 timed  ffmpeg=1.1619 x264=1.1414
+vp9 b267a2ddac45 timed  ffmpeg=1.0565 x264=1.0510
+vp9 f944c05afaa1 timed  ffmpeg=1.1234 x264=0.9574
+vp9 59ad8ee403b3 timed  ffmpeg=1.0839 x264=0.9834
+vp8 5f9e2df6851b timed  ffmpeg=inf x264=inf
+vp8 4389ba53bb9b timed  ffmpeg=inf x264=inf
+vp8 eaa08a095caa timed  ffmpeg=1.0375 x264=1.0272
+vp8 71bd76ad3a87 timed  ffmpeg=1.0622 x264=1.0528
+vp8 7593d867aafd timed  ffmpeg=1.0542 x264=1.0382
+vp8 f33563470b60 timed  ffmpeg=inf x264=inf
+vp8 17722a386ab1 timed  ffmpeg=1.0451 x264=1.0330
+vp8 0d677d9c1b57 timed  ffmpeg=1.0579 x264=1.0487
+vp8 16117de9347f timed  ffmpeg=1.0433 x264=1.0331
+vp8 a1001428921f timed  ffmpeg=1.0902 x264=1.0753
+vp8 2c5976ae305e timed  ffmpeg=inf x264=inf
+vp8 595cc7a83394 timed  ffmpeg=1.1174 x264=1.0617
+vp8 04a7da97aeec timed  ffmpeg=1.1274 x264=1.0938
+prores 50b9f3ee51cf timed  ffmpeg=1.0783 x264=1.9878
+prores 08cd47bdffda refused unsupported_feature 
+prores 568ca4f52c3a refused unsupported_feature 
+prores 249f6da48e0b timed  ffmpeg=inf x264=inf
+prores 72ae2bbd26be timed  ffmpeg=inf x264=inf
+prores 1a5fb95f5146 timed  ffmpeg=inf x264=inf
+{
+ "void": false,
+ "reasons": []
+}
+== ffmpeg (bar: median <= 1.05)
+h264    4 timed file(s) where ffmpeg failed (ratio +inf)
+h264    n= 25 median 1.0396 CI [1.0303, 1.0663] met faster on 4% backends {'native': 20, None: 4, 'ffmpeg': 1} apart {}
+hevc    5 timed file(s) where ffmpeg failed (ratio +inf)
+hevc    n=  8 median inf CI [1.0489, inf] MISSED faster on 0% backends {None: 5, 'ffmpeg': 3} apart {}
+av1     3 timed file(s) where ffmpeg failed (ratio +inf)
+av1     n=  6 median inf CI [1.0313, inf] MISSED faster on 0% backends {None: 3, 'dav1d': 3} apart {}
+vp9     3 timed file(s) where ffmpeg failed (ratio +inf)
+vp9     n= 10 median 1.1427 CI [1.0832, inf] MISSED faster on 0% backends {None: 3, 'ffmpeg': 7} apart {}
+vp8     4 timed file(s) where ffmpeg failed (ratio +inf)
+vp8     n= 13 median 1.0902 CI [1.0542, inf] MISSED faster on 0% backends {None: 4, 'ffmpeg': 9} apart {}
+prores  3 timed file(s) where ffmpeg failed (ratio +inf)
+prores  n=  4 median inf CI [1.0783, inf] MISSED faster on 0% backends {'ffmpeg': 1, None: 3} apart {'refused: unsupported_feature': 2}
+all     22 timed file(s) where ffmpeg failed (ratio +inf)
+all     n= 66 median 1.0811 CI [1.0556, 1.1474] MISSED faster on 2% backends {'native': 20, None: 22, 'ffmpeg': 21, 'dav1d': 3} apart {'refused: unsupported_feature': 2}
+== x264 (bar: median <= 1.05)
+h264    4 timed file(s) where x264 failed (ratio +inf)
+h264    n= 25 median 1.0256 CI [1.0096, 1.0314] met faster on 16% backends {'native': 20, None: 4, 'ffmpeg': 1} apart {}
+hevc    5 timed file(s) where x264 failed (ratio +inf)
+hevc    n=  8 median inf CI [1.0352, inf] MISSED faster on 0% backends {None: 5, 'ffmpeg': 3} apart {}
+av1     3 timed file(s) where x264 failed (ratio +inf)
+av1     n=  6 median inf CI [1.0154, inf] MISSED faster on 0% backends {None: 3, 'dav1d': 3} apart {}
+vp9     3 timed file(s) where x264 failed (ratio +inf)
+vp9     n= 10 median 1.1108 CI [1.0172, inf] MISSED faster on 20% backends {None: 3, 'ffmpeg': 7} apart {}
+vp8     4 timed file(s) where x264 failed (ratio +inf)
+vp8     n= 13 median 1.0617 CI [1.0382, inf] MISSED faster on 0% backends {None: 4, 'ffmpeg': 9} apart {}
+prores  3 timed file(s) where x264 failed (ratio +inf)
+prores  n=  4 median inf CI [1.9878, inf] MISSED faster on 0% backends {'ffmpeg': 1, None: 3} apart {'refused: unsupported_feature': 2}
+all     22 timed file(s) where x264 failed (ratio +inf)
+all     n= 66 median 1.0499 CI [1.0318, 1.1294] met faster on 9% backends {'native': 20, None: 22, 'ffmpeg': 21, 'dav1d': 3} apart {'refused: unsupported_feature': 2}
+FAIL: ffmpeg hevc: median inf above 1.05
+FAIL: ffmpeg av1: median inf above 1.05
+FAIL: ffmpeg vp9: median 1.1427 above 1.05
+FAIL: ffmpeg vp8: median 1.0902 above 1.05
+FAIL: ffmpeg prores: median inf above 1.05
+FAIL: ffmpeg all: median 1.0811 above 1.05
+FAIL: x264 hevc: median inf above 1.05
+FAIL: x264 av1: median inf above 1.05
+FAIL: x264 vp9: median 1.1108 above 1.05
+FAIL: x264 vp8: median 1.0617 above 1.05
+FAIL: x264 prores: median inf above 1.05

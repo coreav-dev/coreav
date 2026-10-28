@@ -1,0 +1,86 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.05s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+     Running unittests src/lib.rs (spikes/parsing-guard/target/debug/deps/coreav_spike_c-221e1cad1849d64e)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (spikes/parsing-guard/target/debug/deps/coreav_spike_c-32c6efe5025c4dc6)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/guard.rs (spikes/parsing-guard/target/debug/deps/guard-cee032e3bbdae2de)
+
+running 12 tests
+test external_references_emit_no_packets ... ok
+test huge_count_and_zero_scale_are_rejected ... ok
+test mixed_regular_and_fragments_preserve_timing_and_ordinals ... ok
+test sample_boundaries_and_signed_offsets_are_preserved ... ok
+test sample_work_is_shared_across_runs_and_tracks ... ok
+test nested_10000_is_rejected_under_100ms ... ok
+test tiny_trun_huge_count_rejected_before_sample_loop ... ok
+test sample_work_is_shared_by_regular_samples_and_later_fragments ... ok
+test truncation_and_every_configured_limit_are_errors ... ok
+test deterministic_mutation_smoke ... ok
+test virtual_2200mb_20000_fragments_keep_one_fragment ... ok
+test fragment_mutation_smoke ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+   Doc-tests coreav_spike_c
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+warning[license-not-encountered]: license was not encountered
+   ┌─ $WORK/spikeC/deny.toml:13:6
+   │
+13 │     "Apache-2.0 WITH LLVM-exception",
+   │      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ unmatched license allowance
+
+warning[license-not-encountered]: license was not encountered
+   ┌─ $WORK/spikeC/deny.toml:14:6
+   │
+14 │     "BSD-2-Clause",
+   │      ━━━━━━━━━━━━ unmatched license allowance
+
+warning[license-not-encountered]: license was not encountered
+   ┌─ $WORK/spikeC/deny.toml:15:6
+   │
+15 │     "BSD-3-Clause",
+   │      ━━━━━━━━━━━━ unmatched license allowance
+
+warning[license-not-encountered]: license was not encountered
+   ┌─ $WORK/spikeC/deny.toml:16:6
+   │
+16 │     "ISC",
+   │      ━━━ unmatched license allowance
+
+warning[license-not-encountered]: license was not encountered
+   ┌─ $WORK/spikeC/deny.toml:18:6
+   │
+18 │     "Unicode-3.0",
+   │      ━━━━━━━━━━━ unmatched license allowance
+
+warning[license-not-encountered]: license was not encountered
+   ┌─ $WORK/spikeC/deny.toml:19:6
+   │
+19 │     "Unicode-DFS-2016",
+   │      ━━━━━━━━━━━━━━━━ unmatched license allowance
+
+warning[license-not-encountered]: license was not encountered
+   ┌─ $WORK/spikeC/deny.toml:17:6
+   │
+17 │     "Zlib",
+   │      ━━━━ unmatched license allowance
+
+advisories ok, bans ok, licenses ok, sources ok
+..........
+----------------------------------------------------------------------
+Ran 10 tests in 0.210s
+
+OK

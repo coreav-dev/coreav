@@ -1,0 +1,24 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2899.9 MHz, 8 logical CPUs
+3b1b441e23ae.0.4k.h264                   base:discard=1.79  base:write=2.10  base:mixed=1.81  m:discard=1.71  m:write=1.98  m:mixed=1.74  p:discard=1.71  p:write=2.04  p:mixed=1.73  mp:discard=1.68  mp:write=1.99  mp:mixed=1.70
+4b54de28c2b3.0.4k.h264                   base:discard=1.76  base:write=1.58  base:mixed=1.49  m:discard=1.76  m:write=1.60  m:mixed=1.49  p:discard=1.75  p:write=1.57  p:mixed=1.48  mp:discard=1.74  mp:write=1.56  mp:mixed=1.47
+81ed4778ece2.0.4k.h264                   base:discard=1.54  base:write=1.37  base:mixed=1.13  m:discard=1.49  m:write=1.31  m:mixed=1.10  p:discard=1.51  p:write=1.34  p:mixed=1.11  mp:discard=1.46  mp:write=1.29  mp:mixed=1.07
+ae16bb7c7192.0.4k.h264                   base:discard=1.72  base:write=1.57  base:mixed=1.38  m:discard=1.69  m:write=1.53  m:mixed=1.36  p:discard=1.65  p:write=1.51  p:mixed=1.33  mp:discard=1.66  mp:write=1.51  mp:mixed=1.34
+af38b0cfd840.0.4k.h264                   base:discard=1.77  base:write=1.71  base:mixed=1.63  m:discard=1.79  m:write=1.72  m:mixed=1.65  p:discard=1.76  p:write=1.71  p:mixed=1.63  mp:discard=1.77  mp:write=1.70  mp:mixed=1.63
+e624cbe0d2be.0.4k.h264                   base:discard=1.77  base:write=1.50  base:mixed=1.31  m:discard=1.71  m:write=1.44  m:mixed=1.27  p:discard=1.73  p:write=1.47  p:mixed=1.29  mp:discard=1.69  mp:write=1.43  mp:mixed=1.26
+ed75c044e944.0.4k.h264                   base:discard=1.50  base:write=1.37  base:mixed=1.16  m:discard=1.44  m:write=1.31  m:mixed=1.11  p:discard=1.47  p:write=1.36  p:mixed=1.13  mp:discard=1.41  mp:write=1.30  mp:mixed=1.09
+f8d92a911e72.0.4k.h264                   base:discard=1.60  base:write=1.52  base:mixed=1.47  m:discard=1.63  m:write=1.53  m:mixed=1.50  p:discard=1.60  p:write=1.52  p:mixed=1.47  mp:discard=1.60  mp:write=1.53  mp:mixed=1.47
+
+base:discard             n=  8  median 1.741  [1.539, 1.772]
+base:write               n=  8  median 1.543  [1.374, 1.709]
+base:mixed               n=  8  median 1.426  [1.156, 1.632]
+m:discard                n=  8  median 1.698  [1.492, 1.738]
+m:write                  n=  8  median 1.530  [1.313, 1.717]
+m:mixed                  n=  8  median 1.421  [1.113, 1.649]
+p:discard                n=  8  median 1.680  [1.508, 1.744]
+p:write                  n=  8  median 1.514  [1.363, 1.706]
+p:mixed                  n=  8  median 1.398  [1.134, 1.626]
+mp:discard               n=  8  median 1.671  [1.461, 1.716]
+mp:write                 n=  8  median 1.523  [1.303, 1.703]
+mp:mixed                 n=  8  median 1.403  [1.093, 1.629]
+
+wrote $HOME/ab/r11/out/g.4k.json

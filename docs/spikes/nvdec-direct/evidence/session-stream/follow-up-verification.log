@@ -1,0 +1,6 @@
+.........
+----------------------------------------------------------------------
+Ran 9 tests in 7.731s
+
+OK
+Evidence checks passed: 2,994 exact NV12 frames; retained sessions, bounded GOPs, five replay medians above 0.95; fresh-process cold init; RGB max error 1/255; paired worker hashes; one call under $3; binary/runtime source hashes match.

@@ -1,0 +1,57 @@
+name: Sample media
+description: Offer a real file in a format, or from a device or service, that CoreAV handles badly or not at all.
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Media files are never committed to the repository. A file attached
+        to this issue is public; for a file that should not be, do not
+        attach it: say so below and the maintainer will arrange a private
+        transfer (CONTRIBUTING.md, "Files you send").
+  - type: textarea
+    id: file
+    attributes:
+      label: The file
+      description: Format, codec, the device, application or service that produced it, its size and duration. Attach it here if it may be public.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: What CoreAV does with it
+      description: Optional. The command, the CoreAV version or commit, and the output.
+      render: text
+  - type: dropdown
+    id: permission
+    attributes:
+      label: The file is
+      options:
+        - Recorded by me for CoreAV testing
+        - Shared with written permission for CoreAV testing
+        - Published under a license that allows this use (name it below)
+    validations:
+      required: true
+  - type: dropdown
+    id: use
+    attributes:
+      label: It may be
+      options:
+        - Published
+        - Kept private
+        - Used only for measurement
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: License and personal data
+      description: The license, if the file is published under one, and any personal data it holds (faces, a location, a device serial) where you know.
+  - type: checkboxes
+    id: consent
+    attributes:
+      label: Consent
+      options:
+        - label: I may share this file as stated above.
+          required: true
+        - label: The file shows no identifiable person, or every identifiable person in it has consented.
+          required: true

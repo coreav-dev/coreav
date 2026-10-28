@@ -1,0 +1,2 @@
+Output of the branch against main 72b173b5 (dist builds, the development VM, AVX-512 tier detected): raw frames of the 32 training streams at their class frame counts, md5 of main at one thread against the branch at one and at eight threads (/tmp/dbp/ident.sh).
+identical 32, different 0

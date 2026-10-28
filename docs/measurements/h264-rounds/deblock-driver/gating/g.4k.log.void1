@@ -1,0 +1,18 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2900.0 MHz, 8 logical CPUs
+3b1b441e23ae.0.4k.h264                   base:discard=0.98  base:write=0.87  base:mixed=0.75  k:discard=0.98  k:write=0.87  k:mixed=0.75
+4b54de28c2b3.0.4k.h264                   base:discard=1.33  base:write=1.22  base:mixed=1.16  k:discard=1.33  k:write=1.23  k:mixed=1.17
+81ed4778ece2.0.4k.h264                   base:discard=0.98  base:write=0.86  base:mixed=0.75  k:discard=0.98  k:write=0.87  k:mixed=0.75
+ae16bb7c7192.0.4k.h264                   base:discard=1.10  base:write=1.04  base:mixed=0.90  k:discard=1.09  k:write=1.06  k:mixed=0.89
+af38b0cfd840.0.4k.h264                   base:discard=1.09  base:write=1.05  base:mixed=1.01  k:discard=1.08  k:write=1.06  k:mixed=1.00
+e624cbe0d2be.0.4k.h264                   base:discard=1.09  base:write=0.96  base:mixed=0.83  k:discard=1.09  k:write=0.96  k:mixed=0.83
+ed75c044e944.0.4k.h264                   base:discard=0.86  base:write=0.79  base:mixed=0.67  k:discard=0.86  k:write=0.81  k:mixed=0.68
+f8d92a911e72.0.4k.h264                   base:discard=1.23  base:write=1.15  base:mixed=1.12  k:discard=1.22  k:write=1.14  k:mixed=1.11
+
+base:discard             n=  8  median 1.089  [0.977, 1.227]
+base:write               n=  8  median 1.000  [0.863, 1.152]
+base:mixed               n=  8  median 0.862  [0.748, 1.120]
+k:discard                n=  8  median 1.085  [0.979, 1.219]
+k:write                  n=  8  median 1.008  [0.867, 1.144]
+k:mixed                  n=  8  median 0.859  [0.749, 1.113]
+
+wrote $HOME/ab/deblock-driver/out/g.4k.json

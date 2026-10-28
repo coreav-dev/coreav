@@ -1,0 +1,12 @@
+g.sd done 17:17
+g.720p done 18:45
+g.1080p done 21:04
+g.4k done 23:40
+h.sd done 00:21
+h.720p done 01:07
+KILLED h.1080p attempt 0 (the first script's 10 h timeout, 01:52); the rest of the held-out calls run by run-b3-1t-rest.sh
+host noisy before h.1080p; stopping
+REBASE
+h.1080p done 02:53
+h.4k done 03:47
+ALL

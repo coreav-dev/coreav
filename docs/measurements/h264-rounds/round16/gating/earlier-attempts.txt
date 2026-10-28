@@ -1,0 +1,3 @@
+Attempt 1 (cpu family 25 model 49? 'Model: 49'): stability deviation 4.2% and 5.3% (not stable at +-5%), nothing timed.
+Attempt 2 (family 25 model 1, Zen 3): deviation 5.4% and 15.5%, nothing timed.
+(Recorded from the runner's output before the attempt directory was reset for the non-preemptible re-launch; the first long attempt of this app, on a preemptible function, was restarted by the cloud runner.)

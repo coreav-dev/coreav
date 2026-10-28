@@ -1,0 +1,6 @@
+Snapshot (main 06141b3, 1 thread, pinned) write medians of the 32 streams, and the same with the four streams' write ratios replaced by corrected.*.json (main a9017ba, same host class; the other 28 are the snapshot's):
+overall: snapshot write median 1.258 -> with the four streams re-measured 1.249
+sd: snapshot write median 1.167 -> with the four streams re-measured 1.167
+720p: snapshot write median 1.258 -> with the four streams re-measured 1.258
+1080p: snapshot write median 1.313 -> with the four streams re-measured 1.271
+4k: snapshot write median 1.205 -> with the four streams re-measured 1.157

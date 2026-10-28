@@ -1,0 +1,21 @@
+machine: unknown (family 26, model 2, stepping unknown), 4138.1 MHz, 32 logical CPUs
+41e324ebb708.0.sd.h264                   base:discard=1.37  base:write=1.20  base:mixed=1.17  a:discard=1.37  a:write=1.20  a:mixed=1.17  pre:discard=1.37  pre:write=1.20  pre:mixed=1.18
+5185721dda11.0.sd.h264                   base:discard=1.39  base:write=1.18  base:mixed=1.15  a:discard=1.40  a:write=1.20  a:mixed=1.16  pre:discard=1.43  pre:write=1.21  pre:mixed=1.18
+6f7799768413.0.sd.h264                   base:discard=1.69  base:write=1.42  base:mixed=1.40  a:discard=1.69  a:write=1.43  a:mixed=1.40  pre:discard=1.70  pre:write=1.44  pre:mixed=1.41
+7650ae466748.0.sd.h264                   base:discard=1.20  base:write=1.11  base:mixed=1.09  a:discard=1.20  a:write=1.11  a:mixed=1.09  pre:discard=1.20  pre:write=1.11  pre:mixed=1.09
+8ae90cadb5bc.0.sd.h264                   base:discard=1.20  base:write=1.22  base:mixed=1.20  a:discard=1.20  a:write=1.22  a:mixed=1.20  pre:discard=1.21  pre:write=1.22  pre:mixed=1.20
+dcb262cf0138.0.sd.h264                   base:discard=1.05  base:write=0.97  base:mixed=0.95  a:discard=1.05  a:write=0.97  a:mixed=0.95  pre:discard=1.05  pre:write=0.98  pre:mixed=0.96
+ec473c99c538.0.sd.h264                   base:discard=0.87  base:write=0.70  base:mixed=0.66  a:discard=0.87  a:write=0.71  a:mixed=0.67  pre:discard=0.87  pre:write=0.69  pre:mixed=0.66
+f9e973f44570.0.sd.h264                   base:discard=1.09  base:write=1.02  base:mixed=1.00  a:discard=1.09  a:write=1.03  a:mixed=1.01  pre:discard=1.13  pre:write=1.05  pre:mixed=1.03
+
+base:discard             n=  8  median 1.201  [1.049, 1.389]
+base:write               n=  8  median 1.145  [0.969, 1.217]
+base:mixed               n=  8  median 1.121  [0.954, 1.197]
+a:discard                n=  8  median 1.200  [1.045, 1.403]
+a:write                  n=  8  median 1.155  [0.972, 1.218]
+a:mixed                  n=  8  median 1.126  [0.952, 1.196]
+pre:discard              n=  8  median 1.204  [1.052, 1.427]
+pre:write                n=  8  median 1.159  [0.980, 1.219]
+pre:mixed                n=  8  median 1.136  [0.957, 1.201]
+
+wrote /work/out/p.sd.json

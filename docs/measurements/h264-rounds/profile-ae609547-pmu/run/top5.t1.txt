@@ -1,0 +1,45 @@
+
+sd
+| rank | stage | CoreAV | FFmpeg | ratio | excess | instructions/MB CoreAV | FFmpeg |
+|---|---|---|---|---|---|---|---|
+| 1 | entropy + MB layer | 0.441 | 0.366 | 1.20 | +0.075 | 2,052 | 1,416 |
+| 2 | deblocking | 0.220 | 0.203 | 1.08 | +0.017 | 1,165 | 1,271 |
+| 3 | inter prediction | 0.174 | 0.166 | 1.05 | +0.008 | 1,079 | 1,064 |
+| 4 | reconstruction | 0.070 | 0.072 | 0.98 | -0.002 | 308 | 343 |
+| 5 | other | 0.051 | 0.193 | 0.26 | -0.142 | 175 | 525 |
+
+720p
+| rank | stage | CoreAV | FFmpeg | ratio | excess | instructions/MB CoreAV | FFmpeg |
+|---|---|---|---|---|---|---|---|
+| 1 | entropy + MB layer | 0.505 | 0.461 | 1.09 | +0.043 | 2,815 | 1,940 |
+| 2 | inter prediction | 0.166 | 0.142 | 1.17 | +0.023 | 946 | 910 |
+| 3 | reconstruction | 0.083 | 0.083 | 1.00 | +0.000 | 468 | 426 |
+| 4 | deblocking | 0.259 | 0.261 | 0.99 | -0.002 | 1,492 | 1,579 |
+| 5 | other | 0.044 | 0.053 | 0.84 | -0.009 | 183 | 80 |
+
+1080p
+| rank | stage | CoreAV | FFmpeg | ratio | excess | instructions/MB CoreAV | FFmpeg |
+|---|---|---|---|---|---|---|---|
+| 1 | inter prediction | 0.172 | 0.141 | 1.22 | +0.031 | 1,193 | 1,139 |
+| 2 | entropy + MB layer | 0.649 | 0.621 | 1.05 | +0.028 | 5,191 | 3,638 |
+| 3 | other | 0.044 | 0.030 | 1.46 | +0.014 | 236 | 59 |
+| 4 | reconstruction | 0.094 | 0.088 | 1.07 | +0.006 | 815 | 699 |
+| 5 | deblocking | 0.116 | 0.120 | 0.96 | -0.005 | 877 | 973 |
+
+4k
+| rank | stage | CoreAV | FFmpeg | ratio | excess | instructions/MB CoreAV | FFmpeg |
+|---|---|---|---|---|---|---|---|
+| 1 | inter prediction | 0.252 | 0.192 | 1.31 | +0.059 | 916 | 858 |
+| 2 | entropy + MB layer | 0.482 | 0.487 | 0.99 | -0.004 | 1,896 | 1,482 |
+| 3 | other | 0.082 | 0.086 | 0.95 | -0.004 | 151 | 55 |
+| 4 | deblocking | 0.079 | 0.110 | 0.72 | -0.031 | 329 | 446 |
+| 5 | reconstruction | 0.054 | 0.124 | 0.43 | -0.070 | 256 | 375 |
+
+all
+| rank | stage | CoreAV | FFmpeg | ratio | excess | instructions/MB CoreAV | FFmpeg |
+|---|---|---|---|---|---|---|---|
+| 1 | entropy + MB layer | 0.519 | 0.484 | 1.07 | +0.036 | 2,989 | 2,119 |
+| 2 | inter prediction | 0.191 | 0.160 | 1.19 | +0.030 | 1,033 | 993 |
+| 3 | deblocking | 0.169 | 0.174 | 0.97 | -0.005 | 966 | 1,068 |
+| 4 | reconstruction | 0.075 | 0.092 | 0.82 | -0.016 | 462 | 461 |
+| 5 | other | 0.055 | 0.091 | 0.61 | -0.035 | 186 | 180 |

@@ -1,0 +1,75 @@
+
+sd (n=8): CoreAV slots / FFmpeg slots, median 1.106
+  metric                     share CoreAV share FFmpeg CoreAV/FFslots FF/FFslots  excess
+  tma_retiring                      0.317        0.325          0.341      0.325   0.016
+  tma_light_operations              0.298        0.300          0.321      0.300   0.022
+  tma_heavy_operations              0.019        0.025          0.020      0.025  -0.005
+  tma_bad_speculation               0.143        0.152          0.154      0.152   0.001
+  tma_branch_mispredicts            0.135        0.146          0.144      0.146  -0.002
+  tma_machine_clears                0.009        0.007          0.009      0.007   0.002
+  tma_frontend_bound                0.194        0.198          0.207      0.198   0.009
+  tma_fetch_latency                 0.100        0.114          0.107      0.114  -0.007
+  tma_fetch_bandwidth               0.093        0.084          0.101      0.084   0.017
+  tma_backend_bound                 0.346        0.324          0.367      0.324   0.043
+  tma_core_bound                    0.104        0.124          0.111      0.124  -0.013
+  tma_memory_bound                  0.242        0.200          0.256      0.200   0.055
+
+720p (n=8): CoreAV slots / FFmpeg slots, median 1.082
+  metric                     share CoreAV share FFmpeg CoreAV/FFslots FF/FFslots  excess
+  tma_retiring                      0.400        0.381          0.430      0.381   0.048
+  tma_light_operations              0.380        0.358          0.408      0.358   0.050
+  tma_heavy_operations              0.020        0.023          0.022      0.023  -0.001
+  tma_bad_speculation               0.159        0.166          0.174      0.166   0.008
+  tma_branch_mispredicts            0.151        0.160          0.165      0.160   0.005
+  tma_machine_clears                0.008        0.006          0.009      0.006   0.003
+  tma_frontend_bound                0.185        0.171          0.202      0.171   0.030
+  tma_fetch_latency                 0.086        0.087          0.093      0.087   0.006
+  tma_fetch_bandwidth               0.100        0.085          0.108      0.085   0.024
+  tma_backend_bound                 0.256        0.281          0.274      0.281  -0.006
+  tma_core_bound                    0.118        0.161          0.127      0.161  -0.034
+  tma_memory_bound                  0.138        0.120          0.148      0.120   0.028
+
+1080p (n=8): CoreAV slots / FFmpeg slots, median 1.076
+  metric                     share CoreAV share FFmpeg CoreAV/FFslots FF/FFslots  excess
+  tma_retiring                      0.387        0.350          0.415      0.350   0.065
+  tma_light_operations              0.371        0.328          0.398      0.328   0.069
+  tma_heavy_operations              0.016        0.022          0.018      0.022  -0.004
+  tma_bad_speculation               0.209        0.228          0.220      0.228  -0.008
+  tma_branch_mispredicts            0.201        0.221          0.212      0.221  -0.009
+  tma_machine_clears                0.007        0.007          0.008      0.007   0.001
+  tma_frontend_bound                0.199        0.175          0.214      0.175   0.039
+  tma_fetch_latency                 0.089        0.088          0.096      0.088   0.008
+  tma_fetch_bandwidth               0.110        0.087          0.118      0.087   0.031
+  tma_backend_bound                 0.205        0.246          0.220      0.246  -0.025
+  tma_core_bound                    0.108        0.146          0.115      0.146  -0.031
+  tma_memory_bound                  0.096        0.099          0.105      0.099   0.006
+
+4k (n=8): CoreAV slots / FFmpeg slots, median 0.986
+  metric                     share CoreAV share FFmpeg CoreAV/FFslots FF/FFslots  excess
+  tma_retiring                      0.418        0.418          0.417      0.418  -0.001
+  tma_light_operations              0.399        0.392          0.397      0.392   0.006
+  tma_heavy_operations              0.020        0.026          0.020      0.026  -0.007
+  tma_bad_speculation               0.115        0.124          0.115      0.124  -0.009
+  tma_branch_mispredicts            0.104        0.115          0.105      0.115  -0.010
+  tma_machine_clears                0.011        0.009          0.011      0.009   0.001
+  tma_frontend_bound                0.145        0.124          0.146      0.124   0.022
+  tma_fetch_latency                 0.066        0.065          0.067      0.065   0.002
+  tma_fetch_bandwidth               0.079        0.060          0.080      0.060   0.020
+  tma_backend_bound                 0.321        0.334          0.317      0.334  -0.017
+  tma_core_bound                    0.117        0.142          0.116      0.142  -0.027
+  tma_memory_bound                  0.205        0.191          0.201      0.191   0.010
+
+all (n=32): CoreAV slots / FFmpeg slots, median 1.080
+  metric                     share CoreAV share FFmpeg CoreAV/FFslots FF/FFslots  excess
+  tma_retiring                      0.381        0.369          0.401      0.369   0.032
+  tma_light_operations              0.362        0.345          0.381      0.345   0.037
+  tma_heavy_operations              0.019        0.024          0.020      0.024  -0.004
+  tma_bad_speculation               0.156        0.168          0.166      0.168  -0.002
+  tma_branch_mispredicts            0.148        0.160          0.157      0.160  -0.004
+  tma_machine_clears                0.009        0.007          0.009      0.007   0.002
+  tma_frontend_bound                0.181        0.167          0.192      0.167   0.025
+  tma_fetch_latency                 0.085        0.088          0.091      0.088   0.002
+  tma_fetch_bandwidth               0.095        0.079          0.102      0.079   0.023
+  tma_backend_bound                 0.282        0.296          0.295      0.296  -0.001
+  tma_core_bound                    0.112        0.143          0.117      0.143  -0.026
+  tma_memory_bound                  0.170        0.153          0.177      0.153   0.025

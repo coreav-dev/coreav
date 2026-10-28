@@ -1,0 +1,27 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2899.9 MHz, 8 logical CPUs
+gate after 0 streams: 0.117 s (+0.0%)
+1d4b1775d78a.0.720p.h264                 base:discard=1.13  base:write=1.09  base:mixed=1.04  k:discard=1.11  k:write=1.06  k:mixed=1.02
+278dbf5a63bb.0.720p.h264                 host fault (attempt 1): null {'base_discard': 0.009650280596383176, 'base_write': 0.02342966561505655}, max spread 1.613
+278dbf5a63bb.0.720p.h264                 base:discard=1.13  base:write=1.11  base:mixed=1.05  k:discard=1.11  k:write=1.06  k:mixed=1.03
+36501d448eaa.0.720p.h264                 host fault (attempt 1): null {'base_discard': -0.007773549249148748, 'base_write': -0.0010376380421462938}, max spread 1.602
+36501d448eaa.0.720p.h264                 host fault (attempt 2): null {'base_discard': 0.002423740948621189, 'base_write': 0.005088281901730163}, max spread 1.509
+36501d448eaa.0.720p.h264                 base:discard=1.29  base:write=1.26  base:mixed=1.23  k:discard=1.26  k:write=1.23  k:mixed=1.20
+3c593b8f0809.0.720p.h264                 host fault (attempt 1): null {'base_discard': -0.0034028929554812404, 'base_write': 0.006469175776121494}, max spread 1.668
+3c593b8f0809.0.720p.h264                 base:discard=1.19  base:write=1.18  base:mixed=1.15  k:discard=1.17  k:write=1.17  k:mixed=1.13
+gate after 4 streams: 0.119 s (+1.8%)
+65ec61f95a00.0.720p.h264                 base:discard=1.19  base:write=1.14  base:mixed=1.11  k:discard=1.15  k:write=1.12  k:mixed=1.07
+6b18d9f0f88d.0.720p.h264                 base:discard=0.92  base:write=0.87  base:mixed=0.79  k:discard=0.91  k:write=0.86  k:mixed=0.77
+76e0b1692494.0.720p.h264                 base:discard=1.13  base:write=1.10  base:mixed=1.03  k:discard=1.11  k:write=1.07  k:mixed=1.00
+9db41aa16b5a.0.720p.h264                 host fault (attempt 1): null {'base_discard': 0.0011454613886567877, 'base_write': 0.0012773572488991025}, max spread 3.121
+9db41aa16b5a.0.720p.h264                 host fault (attempt 2): null {'base_discard': 0.0017113541839097746, 'base_write': -0.006577955808550029}, max spread 1.691
+9db41aa16b5a.0.720p.h264                 base:discard=1.09  base:write=1.02  base:mixed=0.96  k:discard=1.05  k:write=0.98  k:mixed=0.93
+gate after 8 streams: 0.120 s (+2.2%)
+
+base:discard             n=  8  median 1.135  [1.087, 1.188]
+base:write               n=  8  median 1.109  [1.018, 1.180]
+base:mixed               n=  8  median 1.044  [0.963, 1.133]
+k:discard                n=  8  median 1.109  [1.047, 1.168]
+k:write                  n=  8  median 1.066  [0.976, 1.150]
+k:mixed                  n=  8  median 1.021  [0.927, 1.109]
+
+wrote $HOME/ab/deblock-setup/out/g.720p.json

@@ -1,0 +1,22 @@
+machine: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz (family 6, model 207, stepping 2), 2300.0 MHz, 8 logical CPUs
+gate baseline: 0.097 s (samples 0.097, 0.097, 0.097)
+1d4b1775d78a.0.720p.h264                 base:discard=0.92  base:write=0.91  base:mixed=0.86  k:discard=0.93  k:write=0.91  k:mixed=0.87
+278dbf5a63bb.0.720p.h264                 host fault (attempt 1): null {'base_discard': -0.02243179693603603, 'base_write': -0.008784824275831937}, max spread 1.056
+278dbf5a63bb.0.720p.h264                 base:discard=0.93  base:write=0.92  base:mixed=0.86  k:discard=0.92  k:write=0.93  k:mixed=0.86
+36501d448eaa.0.720p.h264                 base:discard=0.96  base:write=0.97  base:mixed=0.93  k:discard=0.96  k:write=0.97  k:mixed=0.93
+3c593b8f0809.0.720p.h264                 base:discard=0.92  base:write=0.95  base:mixed=0.90  k:discard=0.92  k:write=0.96  k:mixed=0.91
+gate after 4 streams (check): 0.099 s (+2.7%)
+65ec61f95a00.0.720p.h264                 base:discard=0.99  base:write=1.02  base:mixed=0.90  k:discard=1.00  k:write=1.03  k:mixed=0.91
+6b18d9f0f88d.0.720p.h264                 base:discard=0.93  base:write=1.01  base:mixed=0.83  k:discard=0.93  k:write=1.01  k:mixed=0.82
+76e0b1692494.0.720p.h264                 base:discard=0.89  base:write=0.89  base:mixed=0.85  k:discard=0.89  k:write=0.89  k:mixed=0.85
+9db41aa16b5a.0.720p.h264                 base:discard=0.92  base:write=0.96  base:mixed=0.79  k:discard=0.92  k:write=0.95  k:mixed=0.79
+gate after 8 streams (check): 0.099 s (+2.4%)
+
+base:discard             n=  8  median 0.924  [0.917, 0.960]
+base:write               n=  8  median 0.955  [0.915, 1.013]
+base:mixed               n=  8  median 0.864  [0.825, 0.904]
+k:discard                n=  8  median 0.925  [0.919, 0.959]
+k:write                  n=  8  median 0.956  [0.914, 1.011]
+k:mixed                  n=  8  median 0.865  [0.825, 0.909]
+
+wrote out/t8.720p.json

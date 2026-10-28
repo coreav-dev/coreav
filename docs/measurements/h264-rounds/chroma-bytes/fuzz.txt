@@ -1,0 +1,4 @@
+# cargo +nightly fuzz run --target x86_64-unknown-linux-gnu filter_chroma_mb -- -max_total_time=600 -max_len=4096, on e4cabc07 (the target with parameters of any bytes as well as table ones); this VM (AVX-512: the target compares Simd and Auto with the reference)
+INFO: Seed: 3450154691
+Done 24603255 runs in 601 second(s)
+exit 0

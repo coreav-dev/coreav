@@ -1,0 +1,24 @@
+CABAC streams 26
+  mb_skip                          0.96 bins/MB
+  mb_type                          1.46 bins/MB
+  sub_mb_type                      0.07 bins/MB
+  t8x8                             0.25 bins/MB
+  mvd                              2.49 bins/MB
+  ref_idx                          0.16 bins/MB
+  qp_delta                         1.23 bins/MB
+  intra modes                      1.10 bins/MB
+  cbp                              2.30 bins/MB
+  cbf                              2.37 bins/MB
+  res via decision()               0.25 bins/MB
+  sig                             10.08 bins/MB
+  last                             4.34 bins/MB
+  abs first                        4.39 bins/MB
+  abs rest                         2.81 bins/MB
+  sign (levels)                    4.39 bins/MB
+  Cabac::bypass (mvd sign)         0.41 bins/MB
+  terminate                        1.04 bins/MB
+  all bypass bins                  5.70 bins/MB
+  blocks N=4                       0.25 bins/MB
+  blocks N=16                      0.98 bins/MB
+  blocks N=64                      0.47 bins/MB
+  regular decisions 34.25927873592393  bypass 5.697643382532866

@@ -1,0 +1,207 @@
+{
+  "schema": "coreav/known-divergences/1",
+  "applies_to": "coreav-isobmff-write remux_mp4 outputs through scripts/remux_check.py, ffprobe and ffmpeg 7.0.2, MediaInfo 26.10",
+  "entries": [
+    {
+      "id": "KD-R-FRAG-FRAMES",
+      "level": [
+        "streams"
+      ],
+      "fields": [
+        "nb_frames"
+      ],
+      "field_pattern": "stream:*:nb_frames",
+      "filename_pattern": "*",
+      "conditions": {
+        "source": "fragmented (top-level moof)",
+        "output nb_frames": "= the packets ffmpeg copies from the output stream",
+        "source nb_frames": "absent or smaller"
+      },
+      "predicate": "fragment_frame_count",
+      "basis": "docs/design/remux.md, Fragmented sources: one sample table holds every sample"
+    },
+    {
+      "id": "KD-R-FRAG-DURATION",
+      "level": [
+        "packets"
+      ],
+      "fields": [
+        "framemd5 packet duration"
+      ],
+      "field_pattern": "stream:*:packet:*",
+      "filename_pattern": "*",
+      "conditions": {
+        "source": "fragmented (top-level moof)",
+        "packet": "equal in stream, dts, pts, size, checksum and side data",
+        "output duration": "= the next output packet's dts minus this packet's"
+      },
+      "predicate": "fragment_duration",
+      "basis": "ISO/IEC 14496-12 8.8.8 and 8.6.1.2: each sample's stored duration is copied"
+    },
+    {
+      "id": "KD-R-TIMECODE-TAG",
+      "level": [
+        "streams"
+      ],
+      "fields": [
+        "stream tag timecode",
+        "format tag timecode"
+      ],
+      "field_pattern": "*:tag:timecode",
+      "filename_pattern": "*",
+      "conditions": {
+        "source tag": "present",
+        "output tag": "absent",
+        "dropped streams": "include a source stream with a tmcd sample entry"
+      },
+      "predicate": "dropped_timecode",
+      "basis": "docs/design/remux.md, Streams: MP4 carries no timecode track; it is dropped and reported"
+    },
+    {
+      "id": "KD-R-CHAN",
+      "level": [
+        "mediainfo"
+      ],
+      "fields": [
+        "ChannelLayout",
+        "ChannelLayout_Original"
+      ],
+      "field_pattern": "mediainfo:*:ChannelLayout*",
+      "filename_pattern": "*",
+      "conditions": {
+        "source sound entry": "has a chan child box",
+        "output sound entry": "has none"
+      },
+      "predicate": "quicktime_channel_layout",
+      "basis": "QuickTime defines chan, ISO/IEC 14496-12 defines chnl; docs/design/remux.md, Sample entries"
+    },
+    {
+      "id": "KD-R-FRAG-EDIT-END",
+      "level": [
+        "streams",
+        "mediainfo"
+      ],
+      "fields": [
+        "duration_ts",
+        "Duration",
+        "FrameCount"
+      ],
+      "field_pattern": "*:*:[DFd][ru]*",
+      "filename_pattern": "*",
+      "conditions": {
+        "source": "fragmented (top-level moof), the stream's last edit a media edit of duration 0 with media time m > 0",
+        "MediaInfo Duration": "source minus output = m in seconds (within 1.5 ms)",
+        "MediaInfo FrameCount": "source minus output = that gap times the output's FrameRate, within one frame (two where the output's last sample is a partial frame)",
+        "ffprobe duration_ts": "source minus output = m, within one movie tick in media ticks"
+      },
+      "predicate": "fragment_edit_to_end",
+      "basis": "ISO/IEC 14496-12 8.6.6: in a fragmented file a last edit of duration 0 lasts to the end of the media; docs/design/remux.md, Fragmented sources"
+    },
+    {
+      "id": "KD-R-LAST-DURATION",
+      "level": [
+        "packets"
+      ],
+      "fields": [
+        "framemd5 packet duration"
+      ],
+      "field_pattern": "stream:*:packet:*",
+      "filename_pattern": "*",
+      "conditions": {
+        "source": "not fragmented",
+        "packet": "the last of its stream, equal in every field but the duration",
+        "both files": "the same stts and media header duration, the media header duration shorter than the stts sum",
+        "durations": "one the stored last sample duration, the other the media header duration minus the other samples' durations"
+      },
+      "predicate": "final_packet_capped",
+      "basis": "ISO/IEC 14496-12 8.6.1.2 and 8.4.2: both are copied as stored, also where they disagree with the samples; docs/design/remux.md, Samples and timing"
+    },
+    {
+      "id": "KD-R-BASE-TIME",
+      "level": [
+        "streams",
+        "packets",
+        "mediainfo"
+      ],
+      "fields": [
+        "packet dts and pts",
+        "start_pts",
+        "duration_ts",
+        "Duration",
+        "FrameCount"
+      ],
+      "field_pattern": "*:*:[pDsdF][autyr]*",
+      "filename_pattern": "*",
+      "conditions": {
+        "source": "fragmented (top-level moof), the stream without an edit list, first decode time d0 > 0",
+        "output": "an edit list of an empty edit E and a media edit from media time 0",
+        "packet and start_pts": "packets: output minus source = E in media ticks - d0 - the first packet's composition offset, the same for dts and pts, every other field equal; start_pts: the output's is E in media ticks, the source's within its first sample (composition offset plus duration)",
+        "duration_ts": "the output's equal to its stts sum; the source's larger by d0 plus at most the first sample's composition offset and duration",
+        "MediaInfo Duration": "output minus source = E in seconds (within 1.5 ms)",
+        "MediaInfo FrameCount": "output minus source = E in seconds times the output's FrameRate, within one frame (two where the output's last sample is a partial frame)"
+      },
+      "predicate": "base_time",
+      "basis": "ISO/IEC 14496-12 8.6.6: the empty edit presents the media at the source's decode times; docs/design/remux.md, Fragmented sources"
+    },
+    {
+      "id": "KD-R-PROBE-WINDOW",
+      "level": [
+        "streams",
+        "packets"
+      ],
+      "fields": [
+        "profile",
+        "codec_name",
+        "sample_fmt",
+        "channel_layout",
+        "bits_per_sample",
+        "framemd5 header codec_id"
+      ],
+      "field_pattern": "stream:*:[pcsbf][rhaio]*",
+      "filename_pattern": "*",
+      "conditions": {
+        "ffprobe with -probesize 2000M -analyzeduration 2000M": "the same value for both files, and that value is what ffprobe gives the output by default",
+        "framemd5 header": "only the #codec_id lines differ, the output's naming the codec of the whole-file probe"
+      },
+      "predicate": "probe_window",
+      "basis": "docs/design/remux.md, Output layout: where a stream's first packets lie is the layout's, not the stream's; ffprobe documents -probesize and -analyzeduration as the amount of data it analyzes to fill stream parameters"
+    },
+    {
+      "id": "KD-R-VFR-RATE",
+      "level": [
+        "streams"
+      ],
+      "fields": [
+        "r_frame_rate"
+      ],
+      "field_pattern": "stream:*:r_frame_rate",
+      "filename_pattern": "*",
+      "conditions": {
+        "both files": "the same stts entries, with more than one decode duration",
+        "avg_frame_rate": "equal"
+      },
+      "predicate": "vfr_rate",
+      "basis": "ISO/IEC 14496-12 8.6.1.2: the decode durations are copied; r_frame_rate is ffprobe's estimate, not a stored value"
+    },
+    {
+      "id": "KD-R-FRAG-STATED-EDIT",
+      "level": [
+        "mediainfo"
+      ],
+      "fields": [
+        "Duration",
+        "FrameCount"
+      ],
+      "field_pattern": "mediainfo:*:[DF][ur]*",
+      "filename_pattern": "*",
+      "conditions": {
+        "source": "fragmented (top-level moof), the stream's edit list with no edit of duration 0",
+        "source MediaInfo Duration": "the sum of the sample durations (from the output's stts) in seconds, within 0.5 ms",
+        "output MediaInfo Duration": "the sum of the source's edit durations in the source's movie timescale, within 0.5 ms; the output's edits are checked box by box against the source's",
+        "FrameCount": "apart by the durations' gap times the output's FrameRate, within one frame (two where the output's last sample is a partial frame)"
+      },
+      "predicate": "fragment_stated_edit",
+      "basis": "ISO/IEC 14496-12 8.6.6 and 8.3.2: the edit list is copied and the track duration is the sum of its edits; docs/design/remux.md, Fragmented sources"
+    }
+  ]
+}

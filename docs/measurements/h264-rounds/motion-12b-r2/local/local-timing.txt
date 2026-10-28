@@ -1,0 +1,9 @@
+Local wall times, information only (the development VM, Intel Xeon 2.90 GHz class, pinned to CPU 3, five interleaved rounds, --discard, one thread): main d7bb7aeb (A-main) against the branch on it (B-m12); median seconds and ratio to main. Not a bar run; the VM's run-to-run noise is several percent.
+41e324ebb708.0.sd.h264 A-main 0.897 (1.0000) B-m12 0.895 (0.9979)
+5185721dda11.0.sd.h264 A-main 0.420 (1.0000) B-m12 0.414 (0.9874)
+9db41aa16b5a.0.720p.h2 A-main 0.908 (1.0000) B-m12 0.904 (0.9949)
+65ec61f95a00.0.720p.h2 A-main 3.015 (1.0000) B-m12 3.002 (0.9956)
+6da34958296c.0.1080p.h A-main 1.584 (1.0000) B-m12 1.553 (0.9802)
+b71b6b31e54f.0.1080p.h A-main 1.005 (1.0000) B-m12 0.975 (0.9702)
+e624cbe0d2be.0.4k.h264 A-main 0.829 (1.0000) B-m12 0.772 (0.9321)
+3b1b441e23ae.0.4k.h264 A-main 0.596 (1.0000) B-m12 0.566 (0.9488)

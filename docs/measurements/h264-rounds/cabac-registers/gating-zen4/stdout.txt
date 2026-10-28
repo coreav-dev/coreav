@@ -1,0 +1,32 @@
+12:40:35 cpu facts:
+model name	: unknown
+CPU(s):              24
+Vendor ID:           AuthenticAMD
+CPU family:          25
+Model:               17
+Thread(s) per core:  1
+Core(s) per socket:  24
+Socket(s):           1
+Stepping:            unknown
+8
+24
+avx2 avx512 avx512bw avx512cd avx512dq avx512f avx512vbmi avx512vl 
+12:40:49 reference measurement 1: 36501d448eaa.0.720p 1.086s; a6af290d9053.0.1080p 3.563s
+12:46:03 reference measurement 2: 36501d448eaa.0.720p 1.059s; a6af290d9053.0.1080p 3.619s
+12:51:17 reference measurement 3: 36501d448eaa.0.720p 1.062s; a6af290d9053.0.1080p 3.562s
+12:51:17 reference {'36501d448eaa.0.720p': 1.0623560389999511, 'a6af290d9053.0.1080p': 3.5628328959999997} max deviation {'36501d448eaa.0.720p': 0.022152417961686988, 'a6af290d9053.0.1080p': 0.015883120441469556} stable
+13:01:27 identity 32/32 same
+13:01:41 PASS before g.sd.json 36501d448eaa.0.720p ratio 0.995; a6af290d9053.0.1080p ratio 1.023
+13:07:10 PASS after g.sd.json 36501d448eaa.0.720p ratio 1.003; a6af290d9053.0.1080p ratio 1.020
+13:07:10 g sd done
+13:07:24 PASS before g.720p.json 36501d448eaa.0.720p ratio 0.990; a6af290d9053.0.1080p ratio 1.003
+13:16:26 PASS after g.720p.json 36501d448eaa.0.720p ratio 1.011; a6af290d9053.0.1080p ratio 1.025
+13:16:26 g 720p done
+13:16:40 PASS before g.1080p.json 36501d448eaa.0.720p ratio 0.991; a6af290d9053.0.1080p ratio 1.005
+13:36:28 PASS after g.1080p.json 36501d448eaa.0.720p ratio 0.997; a6af290d9053.0.1080p ratio 1.003
+13:36:28 g 1080p done
+13:36:42 PASS before g.4k.json 36501d448eaa.0.720p ratio 1.009; a6af290d9053.0.1080p ratio 0.991
+13:46:36 PASS after g.4k.json 36501d448eaa.0.720p ratio 0.984; a6af290d9053.0.1080p ratio 0.989
+13:46:36 g 4k done
+13:46:36 analysis done elapsed 3961s
+

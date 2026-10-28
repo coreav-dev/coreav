@@ -1,0 +1,2 @@
+The VM restarted (uptime 1 min); the run was killed during the 1080p call. Resumed with run2.sh (1080p and 4k only, same binaries).
+Diagnostic: the 1080p call's log was last written well before the restart (the sd and 720p calls had finished earlier); it had printed 7 of 8 streams, no report. Nothing wrote to disk between that write and the restart: the VM was most likely suspended while idle.

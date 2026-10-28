@@ -1,0 +1,68 @@
+{
+ "files": 869,
+ "holdout_files": 254,
+ "files_without_a_clip": {
+  "no video track the allowlist keeps": 21,
+  "download or SHA-256 check failed": 1,
+  "InvalidBox { offset: 32, kind: FourCc(\"moov\"), reason: \"missing movie header\" }": 1,
+  "Truncated { offset: 426381 }": 1,
+  "InvalidBox { offset: 9475193, kind: FourCc(\"moov\"), reason: \"second movie box\" }": 1,
+  "Truncated { offset: 776783 }": 1
+ },
+ "refused_clips": 117,
+ "refusals": {
+  "source: Unsupported { reason: \"edit list outside the supported model\" }": 61,
+  "source: Unsupported { reason: \"video other than H.264 avc1, HEVC hvc1, AV1 or VP9\" }": 52,
+  "source: Unsupported { reason: \"the clip starts after the end of the video\" }": 4
+ },
+ "clips": {
+  "agree_direct": 2203,
+  "agree_kd": 431,
+  "disagree": 0
+ },
+ "clips_total": 2634,
+ "clip_rate": 1.0,
+ "holdout_clips": {
+  "agree_direct": 668,
+  "agree_kd": 95,
+  "disagree": 0
+ },
+ "packets": {
+  "agree": 16511491,
+  "disagree": 0
+ },
+ "packet_rate": 1.0,
+ "known_divergences": {
+  "KD-C-AUDIO-RESTART": 190,
+  "KD-C-STTS-SHORT": 99,
+  "KD-C-CTTS-UNSIGNED": 88,
+  "KD-C-AAC-PROFILE": 84,
+  "KD-C-EMPTY-EDIT-DURATION": 65,
+  "KD-C-EDIT-MIDFRAME": 18,
+  "KD-C-DTS-SHIFT": 15,
+  "KD-C-PTS-SHIFT": 6,
+  "KD-C-AUDIO-EDIT-RATE": 5,
+  "KD-C-SYNC-FLAGS": 4,
+  "KD-C-AUDIO-JITTER": 1
+ },
+ "clips_without_audio": 233,
+ "by_clip": {
+  "head": {
+   "agree": 810,
+   "disagree": 0
+  },
+  "middle": {
+   "agree": 608,
+   "disagree": 0
+  },
+  "tail": {
+   "agree": 608,
+   "disagree": 0
+  },
+  "whole": {
+   "agree": 608,
+   "disagree": 0
+  }
+ },
+ "failures": []
+}

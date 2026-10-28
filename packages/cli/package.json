@@ -1,0 +1,55 @@
+{
+  "name": "coreav",
+  "version": "0.0.1",
+  "description": "Media probing and stream copy (probe, check, clip, remux, sanitize, split, extract audio, subtitles and chapters) for MP4, MOV, Matroska and WebM: the coreav command, native on Linux, macOS and Windows, WebAssembly elsewhere",
+  "keywords": [
+    "probe",
+    "remux",
+    "clip",
+    "mp4",
+    "mov",
+    "webm",
+    "matroska",
+    "webvtt",
+    "media",
+    "webassembly",
+    "wasi",
+    "cli"
+  ],
+  "homepage": "https://github.com/coreav-dev/coreav/tree/main/packages/cli#readme",
+  "bugs": "https://github.com/coreav-dev/coreav/issues",
+  "license": "MIT OR Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/coreav-dev/coreav.git",
+    "directory": "packages/cli"
+  },
+  "bin": {
+    "coreav": "bin/coreav"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "install.js",
+    "wasm/coreav.wasm",
+    "README.md",
+    "LICENSE-MIT",
+    "LICENSE-APACHE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "scripts/build.sh",
+    "test": "node --test test/*.test.mjs",
+    "prepack": "node -e \"const fs = require('fs'); for (const f of ['wasm/coreav.wasm', 'LICENSE-MIT', 'LICENSE-APACHE']) if (!fs.existsSync(f)) { console.error('run scripts/build.sh first: ' + f + ' is missing'); process.exit(1); } if (fs.readFileSync('bin/coreav').subarray(0, 2).toString() !== '#!') { console.error('bin/coreav is not the launcher; restore it (git checkout bin/coreav)'); process.exit(1); }\"",
+    "postinstall": "node install.js"
+  },
+  "optionalDependencies": {
+    "@coreav/cli-linux-x64": "0.0.1",
+    "@coreav/cli-linux-arm64": "0.0.1",
+    "@coreav/cli-darwin-arm64": "0.0.1",
+    "@coreav/cli-darwin-x64": "0.0.1",
+    "@coreav/cli-win32-x64": "0.0.1"
+  }
+}

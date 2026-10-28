@@ -1,0 +1,18 @@
+3,4c3,4
+< sys.path.insert(0, '/tmp/ent'); import cgparse
+< BIN = '/tmp/pmu/up/prof-b3664291'
+---
+> sys.path.insert(0, "/tmp/ent2"); import cgparse
+> BIN = '/tmp/pmu/up/prof-200f9a79'
+6c6
+< for p in sorted(glob.glob('/tmp/ent/cg/*.core.out')):
+---
+> for p in sorted(glob.glob('/tmp/ent2/cg/*.core.out')):
+8c8
+<     per[(s, c)] = cgparse.parse(p, 'prof-b3664291')
+---
+>     per[(s, c)] = cgparse.parse(p, 'prof-200f9a79')
+16c16
+< pickle.dump((per, chains), open('/tmp/ent/core.pkl', 'wb'))
+---
+> pickle.dump((per, chains), open('/tmp/ent2/core.pkl', 'wb'))

@@ -1,0 +1,1 @@
+null discard median -0.0005 max|dev| 0.0075; write median -0.0009 max|dev| 0.0107

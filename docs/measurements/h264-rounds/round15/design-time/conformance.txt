@@ -1,0 +1,4 @@
+conf-detect-1: {"streams": 97, "passed": 97, "failed": 0, "kernels": "detect", "threads": "1", "seconds": 77.1}
+conf-detect-2: {"streams": 97, "passed": 97, "failed": 0, "kernels": "detect", "threads": "2", "seconds": 72.7}
+conf-detect-8: {"streams": 97, "passed": 97, "failed": 0, "kernels": "detect", "threads": "8", "seconds": 62.5}
+conf-scalar-1: {"streams": 97, "passed": 97, "failed": 0, "kernels": "scalar", "threads": "1", "seconds": 102.7}

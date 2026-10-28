@@ -1,0 +1,106 @@
+{
+ "files": 869,
+ "statuses": {
+  "refused": 50,
+  "ok": 814,
+  "error": 5
+ },
+ "refused": {
+  "no such track": 21,
+  "unsupported: video other than H.264 avc1, HEVC hvc1, AV1 or VP9": 13,
+  "unsupported: edit list outside the supported model": 16
+ },
+ "split": 814,
+ "decoded": 740,
+ "no_audio": 62,
+ "agree_files": 811,
+ "direct": 637,
+ "through_kd": 174,
+ "kd_uses": {
+  "KD-S-AUDIO-RESTART": 2057,
+  "KD-C-AAC-PROFILE": 74,
+  "KD-C-EMPTY-EDIT-DURATION": 57,
+  "KD-S-EDIT-MIDFRAME": 17,
+  "KD-S-PTS-SHIFT": 2,
+  "KD-C-STTS-SHORT": 40
+ },
+ "packets": {
+  "agree": 15293730,
+  "disagree": 0
+ },
+ "coverage_misses": [],
+ "failing": [
+  {
+   "sha256": "184becaaec565182ef8d7d28eb682100b1d98dc2f8983063405f131320cb2a78",
+   "error": "RuntimeError: R2 size probe failed"
+  },
+  {
+   "sha256": "2b42d40aa3287b9a8f0cf3d1ee62cbb22d142ef49022ed0afdb1a15b4369b805",
+   "error": {
+    "no_audio": false,
+    "reason": "invalid 'moov' box at offset 32: missing movie header",
+    "status": "error"
+   }
+  },
+  {
+   "sha256": "4c82d16e50375fc4b928dea19dfc6f46bfe8864c48a136e1ca3f0ee55b04a5d9",
+   "size": 10152344,
+   "round_trip": [],
+   "problems": [
+    "video framemd5 differs at frame 235 (1470 source frames, 1391 in the segments)"
+   ]
+  },
+  {
+   "sha256": "665dddf09f221cc63cedf9987281c81a226a8eb24bf1231cd32ed337de3686db",
+   "error": {
+    "no_audio": false,
+    "reason": "truncated structure at offset 426381",
+    "status": "error"
+   }
+  },
+  {
+   "sha256": "9120d3c689a139ce276e600e265df9796a87d08f3c3c4a1ab477dc04782f37c6",
+   "error": {
+    "no_audio": false,
+    "reason": "invalid 'moov' box at offset 9475193: second movie box",
+    "status": "error"
+   }
+  },
+  {
+   "sha256": "b145779633e3625b0ad31c7cdbd89fec5c25b982e4529961acfb93be452159cd",
+   "size": 223616052,
+   "round_trip": [],
+   "problems": [
+    "video framemd5 differs at frame 95701 (117271 source frames, 117271 in the segments)"
+   ]
+  },
+  {
+   "sha256": "e5715db399f55d16449b37a1c95ccfa822f3096d179ca06a271875a242a850c1",
+   "size": 1368023,
+   "round_trip": [],
+   "problems": [
+    "video framemd5 differs at frame 122 (123 source frames, 122 in the segments)"
+   ]
+  },
+  {
+   "sha256": "eb569fa7169e84485702b1f46af8f54260bbd9278a143cda1361ef88e11dd35b",
+   "error": {
+    "no_audio": false,
+    "reason": "truncated structure at offset 776783",
+    "status": "error"
+   }
+  }
+ ],
+ "harness": [],
+ "bars": {
+  "coverage_100": true,
+  "files_98": {
+   "value": 0.9963144963144963,
+   "met": true
+  },
+  "packets_99": {
+   "value": 1.0,
+   "met": true
+  }
+ }
+}

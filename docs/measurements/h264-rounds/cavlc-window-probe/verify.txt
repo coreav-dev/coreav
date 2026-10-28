@@ -1,0 +1,25 @@
+Probe check: callgrind instructions of bin-cw-pad over bin-cw-base, and output md5 of both builds at a tenth of the
+class frame counts. The six CAVLC streams at the class frame counts (expected: 45 a block call of counts.txt,
+within 5%), two CABAC streams at a tenth (expected: none).
+
+First pad build (pad at the start of block_body, every instance): over the prediction, 1.01 to 1.69. block_body
+also runs inlined for the chroma DC (N 4) and 8x8 (N 64) blocks, which counts.txt does not count (it counts the
+out-of-line 4x4 instance). Not timed. Its output: identical to base on 32 of 32 (md5, a tenth of the class frames).
+  5185721dda11  added    85393812  predicted    70247430  ratio 1.2156
+  6f7799768413  added   393702627  predicted   341799345  ratio 1.1519
+  9db41aa16b5a  added    93584792  predicted    55391985  ratio 1.6895
+  b71b6b31e54f  added   121843254  predicted    99804420  ratio 1.2208
+  ec473c99c538  added     7181800  predicted     7108965  ratio 1.0102
+  f9e973f44570  added    31919312  predicted    29480670  ratio 1.0827
+
+Pad as timed (the pad in the 4x4 instance only, N 16):
+stream        class  frames       base Ir       added   predicted   ratio   share  md5
+175433794e02  1080p    1/10    3534209406         -17           0     n/a  -0.00%  identical
+5185721dda11  sd        1/1    2841131496    71185754    70247430  1.0134   2.51%  identical
+6f7799768413  sd        1/1   11149858312   347144834   341799345  1.0156   3.11%  identical
+9db41aa16b5a  720p      1/1    8671482798    56507295    55391985  1.0201   0.65%  identical
+a81de82106be  1080p    1/10     474163922         -17           0     n/a  -0.00%  identical
+b71b6b31e54f  1080p     1/1    7277460388   101099466    99804420  1.0130   1.39%  identical
+ec473c99c538  sd        1/1     865692774     7235648     7108965  1.0178   0.84%  identical
+f9e973f44570  sd        1/1    1382006369    29884476    29480670  1.0137   2.16%  identical
+6 CAVLC streams: within 1.013 to 1.020 of the prediction; median share added 1.78%

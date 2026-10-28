@@ -1,0 +1,2 @@
+# scripts/h264_modes_identity.py --streams (the 32 training streams, whole) --threads 1,8, this round merged with main at 056bd25: the default build (feature fast, the x86-64-v3 instance) against the safe build
+{"streams": 32, "threads": [1, 8], "decodes_compared": 64, "different": 0, "cpu_has_v3": true, "seconds": 275.9}

@@ -1,0 +1,13 @@
+19c19
+< here = os.path.dirname(os.path.abspath(__file__))
+---
+> here = '../profile-acf3ee2f-pmu'
+112c112
+<     return f"{fr[1].rsplit('/', 1)[-1]}:{name.removesuffix('::').split('::')[-1]}"
+---
+>     return f"{'/'.join(fr[1].split('/')[-3:])}:{name.removesuffix('::').split('::')[-1]}"
+263a264,267
+> 
+> import pickle
+> pickle.dump({'per_item': {k: dict(v) for k, v in per_item.items()}, 'st': {k: dict(v) for k, v in st.items()},
+>              'dims': dims}, open('items.pkl', 'wb'))

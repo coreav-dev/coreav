@@ -1,0 +1,25 @@
+build: (cd <worktree at rev> && CARGO_TARGET_DIR=/tmp/dbrun/tgt-<name> cargo build --locked --profile dist --example decode -p coreav-h264)
+base = 304aeb70 (perf/h264-chroma-mc-inline), a = 7313c8ef, c = 58b8e4ba (perf/h264-deblock-branchfree)
+1f77f076fdbb6606716fa52cbecf7796e42d1ec7494d1243fc410e82e1db426c  /tmp/dbrun/decode-base
+5373cd0e4cfb5c5d86b9fa8d9afb889c4c88fe3c3a2f00309a326cb8e719cd75  /tmp/dbrun/decode-a
+26cc09e649d4934aaa7c6cc2b7add5ebcbb1df7a4f5d0ae714d1d365f177ef8c  /tmp/dbrun/decode-c
+rustc 1.99.1 (58cf8f9c3 2026-10-13)
+binary: rustc
+commit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67
+commit-date: 2026-10-13
+host: x86_64-unknown-linux-gnu
+release: 1.99.1
+LLVM version: 23.1.1
+model name	: Intel(R) Xeon(R) Processor @ 2.90GHz
+CPU family:                              6
+Model:                                   106
+Stepping:                                6
+ffmpeg version n9.0.2-17-g2a571b6068-20260930 Copyright (c) 2000-2026 the FFmpeg developers
+
+Added after the run (the same files, unchanged since):
+0d709a0bed1a43f24cd2c420878c63afea4580671b6949ad19ed124572f3bc3d  $HOME/ff9/x/ffmpeg-n9.0.2-17-g2a571b6068-linux64-gpl-9.0/bin/ffmpeg
+harness: scripts/h264_parity.py of the working tree at the time, on perf/h264-deblock-branchfree 58b8e4ba, identical to main 5dcea041's:
+622ac7494d9898db6ffe962112b75a31e2d5b5374ed174299513e21b989d07d6  -
+622ac7494d9898db6ffe962112b75a31e2d5b5374ed174299513e21b989d07d6  -
+streams checked against docs/measurements/h264-training/es.json:
+32 of 32 match; differing: []

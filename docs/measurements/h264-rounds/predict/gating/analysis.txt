@@ -1,0 +1,113 @@
+failed []
+k2/base   discard overall  n=32 median 0.9690 [0.9582,0.9795] faster 29/32
+k2/base   discard sd       n= 8 median 0.9841 [0.9549,1.0016] faster 6/8
+k2/base   discard 720p     n= 8 median 0.9644 [0.9357,0.9970] faster 7/8
+k2/base   discard 1080p    n= 8 median 0.9760 [0.9293,0.9870] faster 8/8
+k2/base   discard 4k       n= 8 median 0.9616 [0.9531,0.9764] faster 8/8
+k2/base   discard weighted n= 9 median 0.9399 [0.8765,0.9656] faster 9/9
+k2/base   discard unweighted n=23 median 0.9779 [0.9633,0.9870] faster 20/23
+k2/base   write   overall  n=32 median 0.9760 [0.9629,0.9876] faster 27/32
+k2/base   write   sd       n= 8 median 0.9812 [0.9576,1.0052] faster 6/8
+k2/base   write   720p     n= 8 median 0.9688 [0.9462,0.9890] faster 7/8
+k2/base   write   1080p    n= 8 median 0.9856 [0.9586,0.9933] faster 7/8
+k2/base   write   4k       n= 8 median 0.9600 [0.8997,0.9853] faster 7/8
+k2/base   write   weighted n= 9 median 0.9465 [0.8967,0.9703] faster 9/9
+k2/base   write   unweighted n=23 median 0.9853 [0.9743,0.9903] faster 18/23
+w/base    discard overall  n=32 median 1.0042 [0.9897,1.0061] faster 14/32
+w/base    discard sd       n= 8 median 0.9943 [0.9876,1.0085] faster 5/8
+w/base    discard 720p     n= 8 median 1.0042 [0.9754,1.0058] faster 3/8
+w/base    discard 1080p    n= 8 median 0.9955 [0.9826,1.0061] faster 4/8
+w/base    discard 4k       n= 8 median 1.0078 [0.9945,1.0225] faster 2/8
+w/base    discard weighted n= 9 median 0.9785 [0.9272,0.9890] faster 8/9
+w/base    discard unweighted n=23 median 1.0058 [1.0034,1.0085] faster 6/23
+w/base    write   overall  n=32 median 0.9988 [0.9913,1.0069] faster 17/32
+w/base    write   sd       n= 8 median 0.9939 [0.9881,1.0079] faster 5/8
+w/base    write   720p     n= 8 median 0.9953 [0.9750,1.0145] faster 6/8
+w/base    write   1080p    n= 8 median 1.0053 [0.9988,1.0214] faster 2/8
+w/base    write   4k       n= 8 median 0.9957 [0.9884,1.0261] faster 4/8
+w/base    write   weighted n= 9 median 0.9820 [0.9399,0.9913] faster 9/9
+w/base    write   unweighted n=23 median 1.0067 [0.9988,1.0139] faster 8/23
+k1/base   discard overall  n=32 median 1.0216 [1.0159,1.0334] faster 5/32
+k1/base   discard sd       n= 8 median 1.0276 [1.0133,1.0414] faster 1/8
+k1/base   discard 720p     n= 8 median 1.0199 [0.9978,1.0408] faster 2/8
+k1/base   discard 1080p    n= 8 median 1.0163 [1.0016,1.0431] faster 1/8
+k1/base   discard 4k       n= 8 median 1.0319 [1.0158,1.0679] faster 1/8
+k1/base   discard weighted n= 9 median 1.0133 [0.9532,1.0213] faster 4/9
+k1/base   discard unweighted n=23 median 1.0330 [1.0218,1.0414] faster 1/23
+k1/base   write   overall  n=32 median 1.0212 [1.0113,1.0326] faster 4/32
+k1/base   write   sd       n= 8 median 1.0258 [1.0106,1.0366] faster 1/8
+k1/base   write   720p     n= 8 median 1.0105 [1.0009,1.0325] faster 1/8
+k1/base   write   1080p    n= 8 median 1.0301 [1.0064,1.0697] faster 1/8
+k1/base   write   4k       n= 8 median 1.0228 [1.0113,1.0640] faster 1/8
+k1/base   write   weighted n= 9 median 1.0072 [0.9682,1.0205] faster 3/9
+k1/base   write   unweighted n=23 median 1.0305 [1.0148,1.0444] faster 1/23
+k1/w      discard overall  n=32 median 1.0273 [1.0219,1.0328] faster 1/32
+k1/w      discard sd       n= 8 median 1.0319 [1.0253,1.0409] faster 0/8
+k1/w      discard 720p     n= 8 median 1.0208 [1.0058,1.0396] faster 1/8
+k1/w      discard 1080p    n= 8 median 1.0237 [1.0140,1.0379] faster 0/8
+k1/w      discard 4k       n= 8 median 1.0293 [1.0160,1.0587] faster 0/8
+k1/w      discard weighted n= 9 median 1.0281 [1.0134,1.0409] faster 1/9
+k1/w      discard unweighted n=23 median 1.0266 [1.0193,1.0354] faster 0/23
+k1/w      write   overall  n=32 median 1.0259 [1.0215,1.0378] faster 2/32
+k1/w      write   sd       n= 8 median 1.0294 [1.0227,1.0402] faster 0/8
+k1/w      write   720p     n= 8 median 1.0206 [1.0093,1.0444] faster 1/8
+k1/w      write   1080p    n= 8 median 1.0213 [1.0128,1.0391] faster 0/8
+k1/w      write   4k       n= 8 median 1.0354 [1.0121,1.0542] faster 1/8
+k1/w      write   weighted n= 9 median 1.0301 [1.0219,1.0330] faster 0/9
+k1/w      write   unweighted n=23 median 1.0228 [1.0193,1.0402] faster 2/23
+k2/k1     discard overall  n=32 median 0.9486 [0.9256,0.9595] faster 32/32
+k2/k1     discard sd       n= 8 median 0.9549 [0.9368,0.9600] faster 8/8
+k2/k1     discard 720p     n= 8 median 0.9486 [0.9254,0.9667] faster 8/8
+k2/k1     discard 1080p    n= 8 median 0.9552 [0.9077,0.9670] faster 8/8
+k2/k1     discard 4k       n= 8 median 0.9189 [0.8906,0.9612] faster 8/8
+k2/k1     discard weighted n= 9 median 0.9378 [0.9195,0.9525] faster 9/9
+k2/k1     discard unweighted n=23 median 0.9494 [0.9247,0.9640] faster 23/23
+k2/k1     write   overall  n=32 median 0.9476 [0.9300,0.9597] faster 32/32
+k2/k1     write   sd       n= 8 median 0.9597 [0.9393,0.9677] faster 8/8
+k2/k1     write   720p     n= 8 median 0.9482 [0.9261,0.9797] faster 8/8
+k2/k1     write   1080p    n= 8 median 0.9499 [0.9154,0.9802] faster 8/8
+k2/k1     write   4k       n= 8 median 0.9221 [0.9165,0.9509] faster 8/8
+k2/k1     write   weighted n= 9 median 0.9394 [0.9261,0.9573] faster 9/9
+k2/k1     write   unweighted n=23 median 0.9502 [0.9261,0.9635] faster 23/23
+bars (k2 over base; P-5 is read from identity.txt and the conformance report): P-1 pass, P-2 pass, P-3 pass, P-4 pass
+base vs FFmpeg discard overall 1.362 (1/32 faster) sd 1.281 (1/8 faster) 720p 1.385 (0/8 faster) 1080p 1.383 (0/8 faster) 4k 1.423 (0/8 faster) weighted 1.403 (0/9 faster) unweighted 1.357 (1/23 faster)
+base vs FFmpeg write   overall 1.307 (2/32 faster) sd 1.280 (1/8 faster) 720p 1.340 (0/8 faster) 1080p 1.345 (0/8 faster) 4k 1.273 (1/8 faster) weighted 1.373 (0/9 faster) unweighted 1.294 (2/23 faster)
+w    vs FFmpeg discard overall 1.339 (1/32 faster) sd 1.266 (1/8 faster) 720p 1.386 (0/8 faster) 1080p 1.378 (0/8 faster) 4k 1.387 (0/8 faster) weighted 1.333 (0/9 faster) unweighted 1.345 (1/23 faster)
+w    vs FFmpeg write   overall 1.321 (2/32 faster) sd 1.251 (1/8 faster) 720p 1.347 (0/8 faster) 1080p 1.357 (0/8 faster) 4k 1.263 (1/8 faster) weighted 1.351 (0/9 faster) unweighted 1.308 (2/23 faster)
+k1   vs FFmpeg discard overall 1.372 (1/32 faster) sd 1.302 (1/8 faster) 720p 1.428 (0/8 faster) 1080p 1.398 (0/8 faster) 4k 1.426 (0/8 faster) weighted 1.381 (0/9 faster) unweighted 1.355 (1/23 faster)
+k1   vs FFmpeg write   overall 1.334 (1/32 faster) sd 1.294 (1/8 faster) 720p 1.368 (0/8 faster) 1080p 1.385 (0/8 faster) 4k 1.297 (0/8 faster) weighted 1.388 (0/9 faster) unweighted 1.327 (1/23 faster)
+k2   vs FFmpeg discard overall 1.316 (1/32 faster) sd 1.230 (1/8 faster) 720p 1.354 (0/8 faster) 1080p 1.338 (0/8 faster) 4k 1.323 (0/8 faster) weighted 1.279 (0/9 faster) unweighted 1.324 (1/23 faster)
+k2   vs FFmpeg write   overall 1.288 (2/32 faster) sd 1.197 (1/8 faster) 720p 1.300 (0/8 faster) 1080p 1.326 (0/8 faster) 4k 1.226 (1/8 faster) weighted 1.279 (0/9 faster) unweighted 1.288 (2/23 faster)
+per stream, k2 over base (discard, write):
+  41e324ebb708.0.sd.h264 sd    0.8603 0.8641
+  5185721dda11.0.sd.h264 sd    0.9924 0.9914
+  6f7799768413.0.sd.h264 sd    0.9888 0.9743
+  7650ae466748.0.sd.h264 sd    0.9549 0.9576
+  8ae90cadb5bc.0.sd.h264 sd    0.9652 0.9674
+  dcb262cf0138.0.sd.h264 sd    0.9795 0.9882
+  ec473c99c538.0.sd.h264 sd    1.0223 1.0311
+  f9e973f44570.0.sd.h264 sd    1.0016 1.0052
+  1d4b1775d78a.0.720p.h264 720p  0.9399 0.9462
+  278dbf5a63bb.0.720p.h264 720p  0.9656 0.9703
+  36501d448eaa.0.720p.h264 720p  1.0054 0.9890
+  3c593b8f0809.0.720p.h264 720p  0.9779 0.9855
+  65ec61f95a00.0.720p.h264 720p  0.9357 0.9465
+  6b18d9f0f88d.0.720p.h264 720p  0.9633 0.9672
+  76e0b1692494.0.720p.h264 720p  0.9970 1.0232
+  9db41aa16b5a.0.720p.h264 720p  0.8246 0.8139
+  175433794e02.0.1080p.h264 1080p 0.9795 0.9903
+  6da34958296c.0.1080p.h264 1080p 0.9293 0.9792
+  6e90422a670a.0.1080p.h264 1080p 0.9960 1.0041
+  a6af290d9053.0.1080p.h264 1080p 0.9831 0.9876
+  a81de82106be.0.1080p.h264 1080p 0.9870 0.9933
+  b41f70a7fa60.0.1080p.h264 1080p 0.8765 0.8967
+  b71b6b31e54f.0.1080p.h264 1080p 0.9437 0.9586
+  c7ecda16e4a7.0.1080p.h264 1080p 0.9725 0.9835
+  3b1b441e23ae.0.4k.h264 4k    0.9630 0.8860
+  4b54de28c2b3.0.4k.h264 4k    0.9764 0.9710
+  81ed4778ece2.0.4k.h264 4k    0.8429 0.8701
+  ae16bb7c7192.0.4k.h264 4k    0.9752 1.0110
+  af38b0cfd840.0.4k.h264 4k    0.9563 0.9293
+  e624cbe0d2be.0.4k.h264 4k    0.9531 0.9490
+  ed75c044e944.0.4k.h264 4k    0.9601 0.9777
+  f8d92a911e72.0.4k.h264 4k    0.9850 0.9853

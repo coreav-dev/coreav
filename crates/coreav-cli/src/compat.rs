@@ -1,0 +1,401 @@
+//! `--ffprobe-compat`: the shape of `ffprobe -of json -show_format
+//! -show_streams`, limited to the keys listed in
+//! `docs/schema/probe-v1.md`. A key whose value is unknown is left out, as
+//! `ffprobe` leaves it out; nothing is guessed. Every printed key is compared
+//! with `ffprobe` by `scripts/compat_check.py`.
+
+use crate::names;
+use crate::probe::Probed;
+use crate::time::rounded;
+use coreav_isobmff::{Codec, Color, FourCc, Movie, Rational, Track, TrackKind};
+use serde_json::{Map, Value, json};
+
+/// `ffprobe`'s format name for every ISO base media and QuickTime file.
+const FORMAT_NAME: &str = "mov,mp4,m4a,3gp,3g2,mj2";
+
+/// The whole document. `filename` is printed as given, like `ffprobe` does.
+pub fn document(probed: &Probed, filename: &str) -> Value {
+    let movie = &probed.movie;
+    let streams: Vec<Value> = movie.tracks.iter().map(|t| stream(movie, t)).collect();
+    let mut format = Map::new();
+    format.insert("filename".to_owned(), json!(filename));
+    format.insert(
+        "nb_streams".to_owned(),
+        json!(movie.tracks.len().saturating_add(movie.dropped.len())),
+    );
+    format.insert("format_name".to_owned(), json!(FORMAT_NAME));
+    // ffprobe's format duration is the span of the audio and video
+    // streams (of every stream without them), not the movie header's.
+    // As the oracle adapter counts it: whole stream ticks, then microseconds.
+    let micros = movie
+        .ffprobe_format_duration_micros()
+        .and_then(|us| i64::try_from(us).ok().filter(|us| *us >= 0))
+        .or_else(|| movie.duration_seconds().and_then(micros));
+    if let Some(us) = micros {
+        format.insert("duration".to_owned(), json!(seconds_string(us)));
+    }
+    format.insert("size".to_owned(), json!(probed.size.to_string()));
+    if let Some(rate) = micros.and_then(|us| format_bit_rate(probed.size, us)) {
+        format.insert("bit_rate".to_owned(), json!(rate.to_string()));
+    }
+    json!({"streams": streams, "format": format})
+}
+
+/// The size `ffprobe` reports for a 3GPP timed text stream: the track
+/// header's width and height (signed 16.16 fixed point, ISO/IEC 14496-12
+/// 8.3.2), whole pixels, when both whole parts are positive (measured on
+/// crafted files; the `tx3g` entry's default text box plays no part).
+/// Known limit: `ffprobe` also reports nothing for sizes it rejects as a
+/// picture size, measured between 16,000 and 16,384 pixels a side; those
+/// are reported here. A track that a `chap` track reference names, from
+/// any track, gets no size: `ffprobe` lists it as a `bin_data` data stream
+/// (`KD-CHAPTER-TEXT`). `tools/isobmff-adapter` maps the
+/// oracle's fields the same way.
+pub(crate) fn text_size(movie: &Movie, track: &Track) -> Option<(u32, u32)> {
+    let whole = |fixed: u32| i32::from_be_bytes(fixed.to_be_bytes()) >> 16;
+    let (width, height) = (
+        whole(track.presentation_size.0),
+        whole(track.presentation_size.1),
+    );
+    (track.description.codec == Codec::TimedText
+        && !movie.chapter_references.contains(&track.track_id)
+        && width > 0
+        && height > 0)
+        .then(|| (width.unsigned_abs(), height.unsigned_abs()))
+}
+
+/// The colour description `ffprobe` reports, from the two sources probe
+/// keeps apart (`docs/design/probe-color.md`): the sample entry's `colr` box
+/// (`color`) and the parameter set of the codec configuration, raw
+/// (`parameter_set_color`). For H.264 the parameter set's colour description
+/// when its video usability information carries one ("unspecified"
+/// included) and its range when it signals one, else the box's (only for a
+/// track with frames in the file); for HEVC and AV1 always the parameter set, with HEVC's range limited when the
+/// parameter set does not signal it (ITU-T H.265 E.3.1); for other codecs
+/// the box. `tools/isobmff-adapter` maps the oracle's fields the same way.
+pub(crate) fn reported_color(track: &Track) -> Color {
+    let d = &track.description;
+    // ffprobe applies an H.264 SPS's colour only to a frame it decodes: a
+    // track without samples in the file (an initialization segment) keeps
+    // the box's.
+    let frames = !track.external_data && (track.sample_count > 0 || track.fragment_samples > 0);
+    precedence(d.codec, d.color, d.parameter_set_color, frames)
+}
+
+/// [`reported_color`] from its inputs: the codec, the box's colour, the
+/// parameter set's (raw), and whether the track has frames in the file.
+fn precedence(codec: Codec, boxed: Color, set: Option<Color>, frames: bool) -> Color {
+    match (codec, set) {
+        (Codec::H264, Some(set)) if frames => {
+            let described = set.primaries.is_some();
+            let pick = |own: Option<u16>, other: Option<u16>| if described { own } else { other };
+            Color {
+                primaries: pick(set.primaries, boxed.primaries),
+                transfer: pick(set.transfer, boxed.transfer),
+                matrix: pick(set.matrix, boxed.matrix),
+                full_range: set.full_range.or(boxed.full_range),
+            }
+        }
+        (Codec::Hevc, Some(set)) => Color {
+            full_range: Some(set.full_range.unwrap_or(false)),
+            ..set
+        },
+        (Codec::Av1, Some(set)) => set,
+        _ => boxed,
+    }
+}
+
+/// A duration in seconds rounded to whole microseconds, half away from zero.
+pub(crate) fn micros(seconds: Rational) -> Option<i64> {
+    let scaled = Rational::new(seconds.num.checked_mul(1_000_000)?, seconds.den)?;
+    rounded(scaled).filter(|us| *us >= 0)
+}
+
+/// Microseconds as `ffprobe` prints seconds: six decimals.
+pub(crate) fn seconds_string(micros: i64) -> String {
+    format!("{}.{:06}", micros / 1_000_000, micros % 1_000_000)
+}
+
+/// The format bit rate: file size in bits over the duration, truncated.
+pub(crate) fn format_bit_rate(size: u64, micros: i64) -> Option<u64> {
+    let micros = u128::try_from(micros).ok().filter(|us| *us > 0)?;
+    let bits = u128::from(size).checked_mul(8_000_000)?;
+    u64::try_from(bits / micros).ok()
+}
+
+/// A four-character code as `ffprobe` prints `codec_tag_string`: printable
+/// bytes as characters, others as `[N]`.
+pub(crate) fn tag_string(fourcc: FourCc) -> String {
+    let mut out = String::new();
+    for byte in fourcc.0 {
+        if byte.is_ascii_graphic() || byte == b' ' {
+            out.push(char::from(byte));
+        } else {
+            out.push_str(&format!("[{byte}]"));
+        }
+    }
+    out
+}
+
+pub(crate) fn gcd(a: u64, b: u64) -> u64 {
+    if b == 0 { a.max(1) } else { gcd(b, a % b) }
+}
+
+/// `N:D` in lowest terms; `None` when either side is zero.
+pub(crate) fn ratio(a: u64, b: u64) -> Option<String> {
+    if a == 0 || b == 0 {
+        return None;
+    }
+    let g = gcd(a, b);
+    Some(format!("{}:{}", a / g, b / g))
+}
+
+/// Ticks times the time base, as `ffprobe` prints a stream duration.
+pub(crate) fn duration_string(ticks: i64, timescale: u32) -> Option<String> {
+    if timescale == 0 {
+        return None;
+    }
+    #[allow(clippy::cast_precision_loss)]
+    let seconds = ticks as f64 * (1.0 / f64::from(timescale));
+    Some(format!("{seconds:.6}"))
+}
+
+pub(crate) fn put(map: &mut Map<String, Value>, key: &str, value: Option<Value>) {
+    if let Some(value) = value {
+        map.insert(key.to_owned(), value);
+    }
+}
+
+fn stream(movie: &Movie, track: &Track) -> Value {
+    let d = &track.description;
+    let video = track.kind == TrackKind::Video;
+    let audio = track.kind == TrackKind::Audio;
+    let mut s = Map::new();
+    s.insert("index".to_owned(), json!(track.stream_index));
+    put(
+        &mut s,
+        "codec_name",
+        names::ffprobe_codec(d.codec, d.pcm).map(Value::from),
+    );
+    put(
+        &mut s,
+        "profile",
+        d.profile.and_then(names::profile).map(Value::from),
+    );
+    s.insert(
+        "codec_type".to_owned(),
+        json!(names::ffprobe_kind(track.kind)),
+    );
+    s.insert("codec_tag_string".to_owned(), json!(tag_string(d.fourcc)));
+    s.insert(
+        "codec_tag".to_owned(),
+        json!(format!("0x{:08x}", u32::from_le_bytes(d.fourcc.0))),
+    );
+    if video {
+        put(&mut s, "width", d.width.map(Value::from));
+        put(&mut s, "height", d.height.map(Value::from));
+        if let (Some((h, v)), Some(w), Some(ht)) = (d.pixel_aspect, d.width, d.height) {
+            put(
+                &mut s,
+                "sample_aspect_ratio",
+                ratio(u64::from(h), u64::from(v)).map(Value::from),
+            );
+            put(
+                &mut s,
+                "display_aspect_ratio",
+                ratio(
+                    u64::from(w).saturating_mul(u64::from(h)),
+                    u64::from(ht).saturating_mul(u64::from(v)),
+                )
+                .map(Value::from),
+            );
+        }
+        let color = reported_color(track);
+        put(
+            &mut s,
+            "color_range",
+            color
+                .full_range
+                .map(|full| Value::from(if full { "pc" } else { "tv" })),
+        );
+        put(
+            &mut s,
+            "color_space",
+            color.matrix.and_then(names::matrix).map(Value::from),
+        );
+        put(
+            &mut s,
+            "color_transfer",
+            color.transfer.and_then(names::transfer).map(Value::from),
+        );
+        put(
+            &mut s,
+            "color_primaries",
+            color.primaries.and_then(names::primaries).map(Value::from),
+        );
+    } else if let Some((width, height)) = text_size(movie, track) {
+        put(&mut s, "width", Some(Value::from(width)));
+        put(&mut s, "height", Some(Value::from(height)));
+    }
+    put(
+        &mut s,
+        "level",
+        d.profile.and_then(names::level).map(Value::from),
+    );
+    if audio {
+        // AAC: the rate its configuration declares, as a reader that does
+        // not decode sees it (#219); else the sample entry's.
+        put(
+            &mut s,
+            "sample_rate",
+            d.configured_sample_rate
+                .or(d.sample_rate)
+                .map(|r| Value::from(r.to_string())),
+        );
+        // A mono configuration under a stereo sample entry: the native
+        // document keeps the entry's 2 for a possible implicit parametric
+        // stereo, which only decoding shows; this output prints the
+        // configuration's 1, the channels it declares (ISO/IEC 14496-12
+        // 12.2.3), as ffprobe does without decoding (#219).
+        let channels = if d.implicit_ps_possible {
+            Some(1)
+        } else {
+            d.channels
+        };
+        put(&mut s, "channels", channels.map(Value::from));
+    }
+    s.insert(
+        "time_base".to_owned(),
+        json!(format!("1/{}", track.timescale)),
+    );
+    let duration_ts = track.duration.and_then(rounded);
+    put(&mut s, "duration_ts", duration_ts.map(Value::from));
+    put(
+        &mut s,
+        "duration",
+        duration_ts
+            .and_then(|ts| duration_string(ts, track.timescale))
+            .map(Value::from),
+    );
+    // No stream `bit_rate`: `ffprobe` divides by its own duration (AAC
+    // priming included) and counts part of the samples of fragmented files,
+    // so the exact value cannot be checked against it
+    // (`docs/measurements/0025-probe-metadata.md`). The native output has it.
+    let mut tags = Map::new();
+    put(
+        &mut tags,
+        "language",
+        crate::names::language(track.language).map(Value::from),
+    );
+    put(
+        &mut tags,
+        "handler_name",
+        track.handler_name.clone().map(Value::from),
+    );
+    if !tags.is_empty() {
+        s.insert("tags".to_owned(), Value::Object(tags));
+    }
+    let mut side_data = Vec::new();
+    // The Dolby Vision configuration record first, as `ffprobe` lists it
+    // (#219).
+    if let Some(dv) = d.dolby_vision.filter(|_| video) {
+        side_data.push(json!({
+            "side_data_type": "DOVI configuration record",
+            "dv_version_major": dv.version_major,
+            "dv_version_minor": dv.version_minor,
+            "dv_profile": dv.profile,
+            "dv_level": dv.level,
+            "rpu_present_flag": u8::from(dv.rpu_present),
+            "el_present_flag": u8::from(dv.el_present),
+            "bl_present_flag": u8::from(dv.bl_present),
+            "dv_bl_signal_compatibility_id": dv.bl_signal_compatibility_id,
+        }));
+    }
+    // `ffprobe` reports a display matrix rotation in counter-clockwise
+    // degrees in [-180, 180); none for an identity matrix.
+    if let Some(clockwise) = track.rotation.filter(|r| *r != 0 && video) {
+        let ccw = (360 - i32::from(clockwise % 360)) % 360;
+        let signed = if ccw >= 180 { ccw - 360 } else { ccw };
+        side_data.push(json!({"side_data_type": "Display Matrix", "rotation": signed}));
+    }
+    if !side_data.is_empty() {
+        s.insert("side_data_list".to_owned(), Value::Array(side_data));
+    }
+    Value::Object(s)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn number_formats() {
+        assert_eq!(seconds_string(2_000_000), "2.000000");
+        assert_eq!(seconds_string(1_234_567), "1.234567");
+        assert_eq!(format_bit_rate(92_353, 2_000_000), Some(369_412));
+        assert_eq!(format_bit_rate(1, 0), None);
+        assert_eq!(duration_string(25_600, 12_800).as_deref(), Some("2.000000"));
+        assert_eq!(ratio(1280, 960).as_deref(), Some("4:3"));
+        assert_eq!(tag_string(FourCc(*b"avc1")), "avc1");
+        assert_eq!(tag_string(FourCc([0, b'a', b'b', b'c'])), "[0]abc");
+    }
+
+    #[test]
+    fn micros_round_half_away_from_zero() {
+        let third = Rational::new(1, 3).unwrap();
+        assert_eq!(micros(third), Some(333_333));
+        let half_micro = Rational::new(1, 2_000_000).unwrap();
+        assert_eq!(micros(half_micro), Some(1));
+    }
+}
+
+#[cfg(test)]
+mod colour_tests {
+    use super::precedence;
+    use coreav_isobmff::{Codec, Color};
+
+    fn c(p: Option<u16>, t: Option<u16>, m: Option<u16>, r: Option<bool>) -> Color {
+        Color {
+            primaries: p,
+            transfer: t,
+            matrix: m,
+            full_range: r,
+        }
+    }
+
+    #[test]
+    fn ffprobe_precedence() {
+        let boxed = c(Some(1), Some(1), Some(1), Some(true));
+        let sps = c(Some(6), Some(6), Some(6), Some(false));
+        let range_only = c(None, None, None, Some(false));
+        let silent = Color::default();
+        // H.264: the SPS's description and range when signalled, else the
+        // box's; the box's for a track without frames.
+        assert_eq!(precedence(Codec::H264, boxed, Some(sps), true), sps);
+        assert_eq!(precedence(Codec::H264, boxed, Some(sps), false), boxed);
+        assert_eq!(
+            precedence(Codec::H264, boxed, Some(range_only), true),
+            c(Some(1), Some(1), Some(1), Some(false))
+        );
+        let unspecified = c(Some(2), Some(2), Some(2), None);
+        assert_eq!(
+            precedence(Codec::H264, boxed, Some(unspecified), true),
+            c(Some(2), Some(2), Some(2), Some(true))
+        );
+        assert_eq!(precedence(Codec::H264, boxed, None, true), boxed);
+        // HEVC: the SPS's always, an unsignalled range limited; the box's
+        // only without a parameter set in the record.
+        assert_eq!(
+            precedence(Codec::Hevc, boxed, Some(silent), true),
+            c(None, None, None, Some(false))
+        );
+        assert_eq!(precedence(Codec::Hevc, boxed, Some(sps), false), sps);
+        assert_eq!(precedence(Codec::Hevc, boxed, None, true), boxed);
+        // AV1: the sequence header's; other codecs: the box's.
+        assert_eq!(
+            precedence(Codec::Av1, boxed, Some(range_only), true),
+            range_only
+        );
+        assert_eq!(precedence(Codec::Vp9, boxed, Some(sps), true), boxed);
+    }
+}

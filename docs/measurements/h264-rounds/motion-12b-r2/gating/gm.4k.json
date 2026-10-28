@@ -1,0 +1,223 @@
+{
+  "machine": {
+    "cpu_model": "Intel(R) Xeon(R) Processor @ 2.90GHz",
+    "cpu_family": "6",
+    "cpu_model_number": "106",
+    "cpu_stepping": "6",
+    "cpu_mhz": 2899.9,
+    "logical_cpus": 8
+  },
+  "required_cpu": "Intel(R) Xeon(R) Processor @ 2.90GHz",
+  "frames": 150,
+  "rounds": 5,
+  "pinned_core": 2,
+  "threads": [
+    1
+  ],
+  "decoders": {
+    "before": "$HOME/ab/m2/bin/decode-before",
+    "after": "$HOME/ab/m2/bin/decode-after"
+  },
+  "ffmpeg": "$HOME/ab/m2/bin/ffmpeg",
+  "resamples": 2000,
+  "streams": [
+    {
+      "stream": "3b1b441e23ae.0.4k.h264",
+      "class": "4k",
+      "seconds": {
+        "ff_null": 0.5017813649974414,
+        "ff_raw": 0.82162650799728,
+        "before_discard": 0.6416845349995128,
+        "before_write": 0.7008461770019494,
+        "after_discard": 0.6051781720016152,
+        "after_write": 0.6737950410024496
+      },
+      "ratio": {
+        "before:discard": 1.2788130045498696,
+        "before:write": 0.8529984977118942,
+        "before:mixed": 0.7809929800872943,
+        "after:discard": 1.206059479719222,
+        "after:write": 0.820074613518531,
+        "after:mixed": 0.7365611577902239
+      }
+    },
+    {
+      "stream": "4b54de28c2b3.0.4k.h264",
+      "class": "4k",
+      "seconds": {
+        "ff_null": 0.5339793169987388,
+        "ff_raw": 0.7358575369980827,
+        "before_discard": 0.7652788590021373,
+        "before_write": 0.789180423002108,
+        "after_discard": 0.7573677459986357,
+        "after_write": 0.7874906670003838
+      },
+      "ratio": {
+        "before:discard": 1.4331619870661485,
+        "before:write": 1.0724635997091978,
+        "before:mixed": 1.0399823614283799,
+        "after:discard": 1.4183465948746186,
+        "after:write": 1.0701672910940583,
+        "after:mixed": 1.0292314856056288
+      }
+    },
+    {
+      "stream": "81ed4778ece2.0.4k.h264",
+      "class": "4k",
+      "seconds": {
+        "ff_null": 0.25052893300016876,
+        "ff_raw": 0.45013035100055276,
+        "before_discard": 0.3246014569995168,
+        "before_write": 0.35251307300131884,
+        "after_discard": 0.3057730000000447,
+        "after_write": 0.3358272580007906
+      },
+      "ratio": {
+        "before:discard": 1.295664549049503,
+        "before:write": 0.7831355344463008,
+        "before:mixed": 0.7211276828545121,
+        "after:discard": 1.220509728510434,
+        "after:write": 0.7460666832492222,
+        "after:mixed": 0.6792987838308846
+      }
+    },
+    {
+      "stream": "ae16bb7c7192.0.4k.h264",
+      "class": "4k",
+      "seconds": {
+        "ff_null": 0.12492530600138707,
+        "ff_raw": 0.2004672839975683,
+        "before_discard": 0.17079154700331856,
+        "before_write": 0.18506141699981526,
+        "after_discard": 0.1608489099999133,
+        "after_write": 0.18167702699793153
+      },
+      "ratio": {
+        "before:discard": 1.3671493188211379,
+        "before:write": 0.9231502183770799,
+        "before:mixed": 0.851967181863901,
+        "after:discard": 1.2875606644351736,
+        "after:write": 0.9062677129906908,
+        "after:mixed": 0.8023698769813453
+      }
+    },
+    {
+      "stream": "af38b0cfd840.0.4k.h264",
+      "class": "4k",
+      "seconds": {
+        "ff_null": 0.42154025199852185,
+        "ff_raw": 0.4948768350004684,
+        "before_discard": 0.4981448990001809,
+        "before_write": 0.514656423998531,
+        "after_discard": 0.5005635829984385,
+        "after_write": 0.5119383570017817
+      },
+      "ratio": {
+        "before:discard": 1.181725580507381,
+        "before:write": 1.0399687105945135,
+        "before:mixed": 1.0066037926380396,
+        "after:discard": 1.1874633101471737,
+        "after:write": 1.0344762995449102,
+        "after:mixed": 1.0114912390230686
+      }
+    },
+    {
+      "stream": "e624cbe0d2be.0.4k.h264",
+      "class": "4k",
+      "seconds": {
+        "ff_null": 0.6074568569965777,
+        "ff_raw": 0.9920388070022454,
+        "before_discard": 0.8648936030003824,
+        "before_write": 0.9593232550032553,
+        "after_discard": 0.8211126520000107,
+        "after_write": 0.926341059999686
+      },
+      "ratio": {
+        "before:discard": 1.4237942876744167,
+        "before:write": 0.9670219030061431,
+        "before:mixed": 0.8718344452813576,
+        "after:discard": 1.351721760224754,
+        "after:write": 0.9337750231756702,
+        "after:mixed": 0.8277021485492675
+      }
+    },
+    {
+      "stream": "ed75c044e944.0.4k.h264",
+      "class": "4k",
+      "seconds": {
+        "ff_null": 0.27775831899998593,
+        "ff_raw": 0.44770680500005255,
+        "before_discard": 0.28259342800083687,
+        "before_write": 0.3144505889977154,
+        "after_discard": 0.2715418280022277,
+        "after_write": 0.3046204949969251
+      },
+      "ratio": {
+        "before:discard": 1.0174076118341253,
+        "before:write": 0.702358296737702,
+        "before:mixed": 0.6312019939049256,
+        "after:discard": 0.9776190645877341,
+        "after:write": 0.6804017531001999,
+        "after:mixed": 0.6065170887947433
+      }
+    },
+    {
+      "stream": "f8d92a911e72.0.4k.h264",
+      "class": "4k",
+      "seconds": {
+        "ff_null": 6.179445509998914,
+        "ff_raw": 7.088263949000975,
+        "before_discard": 7.650791509000555,
+        "before_write": 7.888755345000391,
+        "after_discard": 7.660683467998751,
+        "after_write": 7.867850646998704
+      },
+      "ratio": {
+        "before:discard": 1.2381032402698378,
+        "before:write": 1.1129319395777069,
+        "before:mixed": 1.0793604137835278,
+        "after:discard": 1.2397040245120792,
+        "after:write": 1.109982740993668,
+        "after:mixed": 1.0807559542246523
+      }
+    }
+  ],
+  "summary": {
+    "before:discard": {
+      "n": 8,
+      "median": 1.2872387767996862,
+      "ci_low": 1.181725580507381,
+      "ci_high": 1.4237942876744167
+    },
+    "before:write": {
+      "n": 8,
+      "median": 0.9450860606916115,
+      "ci_low": 0.7831355344463008,
+      "ci_high": 1.0724635997091978
+    },
+    "before:mixed": {
+      "n": 8,
+      "median": 0.8619008135726293,
+      "ci_low": 0.7211276828545121,
+      "ci_high": 1.0399823614283799
+    },
+    "after:discard": {
+      "n": 8,
+      "median": 1.2301068765112566,
+      "ci_low": 1.1874633101471737,
+      "ci_high": 1.351721760224754
+    },
+    "after:write": {
+      "n": 8,
+      "median": 0.9200213680831805,
+      "ci_low": 0.7460666832492222,
+      "ci_high": 1.0701672910940583
+    },
+    "after:mixed": {
+      "n": 8,
+      "median": 0.8150360127653065,
+      "ci_low": 0.6792987838308846,
+      "ci_high": 1.0292314856056288
+    }
+  }
+}

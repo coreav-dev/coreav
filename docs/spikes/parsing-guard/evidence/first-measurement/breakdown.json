@@ -1,0 +1,1275 @@
+{
+  "schema": "spike-c/first-breakdown/1",
+  "fields": [
+    {
+      "file": "audio_51.m4a",
+      "codec": "aac",
+      "level": "streams",
+      "field": "duration_ts",
+      "path": "streams/0/duration_ts",
+      "count": 1,
+      "classification": "gating",
+      "cause": "timestamp/edit-list modeling"
+    },
+    {
+      "file": "audio_aac.m4a",
+      "codec": "aac",
+      "level": "streams",
+      "field": "duration_ts",
+      "path": "streams/0/duration_ts",
+      "count": 1,
+      "classification": "gating",
+      "cause": "timestamp/edit-list modeling"
+    },
+    {
+      "file": "audio_mp3.mp4",
+      "codec": "mp3",
+      "level": "streams",
+      "field": "codec_name",
+      "path": "streams/0/codec_name",
+      "count": 1,
+      "classification": "gating",
+      "cause": "true parser bug or metadata gap"
+    },
+    {
+      "file": "audio_mp3.mp4",
+      "codec": "mp3",
+      "level": "streams",
+      "field": "duration_ts",
+      "path": "streams/0/duration_ts",
+      "count": 1,
+      "classification": "gating",
+      "cause": "timestamp/edit-list modeling"
+    },
+    {
+      "file": "audio_opus.mp4",
+      "codec": "opus",
+      "level": "streams",
+      "field": "duration_ts",
+      "path": "streams/0/duration_ts",
+      "count": 1,
+      "classification": "gating",
+      "cause": "timestamp/edit-list modeling"
+    },
+    {
+      "file": "av1.mp4",
+      "codec": "av1",
+      "level": "streams",
+      "field": "color_range",
+      "path": "streams/0/color_range",
+      "count": 1,
+      "classification": "gating",
+      "cause": "true parser bug or metadata gap"
+    },
+    {
+      "file": "av1.mp4",
+      "codec": "av1",
+      "level": "streams",
+      "field": "sample_aspect_ratio",
+      "path": "streams/0/sample_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "av1.mp4",
+      "codec": "av1",
+      "level": "streams",
+      "field": "display_aspect_ratio",
+      "path": "streams/0/display_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "basic.mov",
+      "codec": "aac",
+      "level": "streams",
+      "field": "duration_ts",
+      "path": "streams/1/duration_ts",
+      "count": 1,
+      "classification": "gating",
+      "cause": "timestamp/edit-list modeling"
+    },
+    {
+      "file": "basic.mov",
+      "codec": "h264",
+      "level": "streams",
+      "field": "sample_aspect_ratio",
+      "path": "streams/0/sample_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "basic.mov",
+      "codec": "h264",
+      "level": "streams",
+      "field": "display_aspect_ratio",
+      "path": "streams/0/display_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "basic.mov",
+      "codec": "h264",
+      "level": "streams",
+      "field": "handler_name",
+      "path": "streams/0/handler_name",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "basic.mov",
+      "codec": "aac",
+      "level": "streams",
+      "field": "handler_name",
+      "path": "streams/1/handler_name",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "basic.mp4",
+      "codec": "aac",
+      "level": "streams",
+      "field": "duration_ts",
+      "path": "streams/1/duration_ts",
+      "count": 1,
+      "classification": "gating",
+      "cause": "timestamp/edit-list modeling"
+    },
+    {
+      "file": "basic.mp4",
+      "codec": "h264",
+      "level": "streams",
+      "field": "sample_aspect_ratio",
+      "path": "streams/0/sample_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "basic.mp4",
+      "codec": "h264",
+      "level": "streams",
+      "field": "display_aspect_ratio",
+      "path": "streams/0/display_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "browser.webm",
+      "codec": "container",
+      "level": "streams",
+      "field": "probe_ok",
+      "path": "probe_ok",
+      "count": 1,
+      "classification": "gating",
+      "cause": "structural oracle normalization or unsupported container (see revised diagnosis)"
+    },
+    {
+      "file": "color_bt2020_pq.mp4",
+      "codec": "hevc",
+      "level": "streams",
+      "field": "sample_aspect_ratio",
+      "path": "streams/0/sample_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "color_bt2020_pq.mp4",
+      "codec": "hevc",
+      "level": "streams",
+      "field": "display_aspect_ratio",
+      "path": "streams/0/display_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "color_bt709.mp4",
+      "codec": "h264",
+      "level": "streams",
+      "field": "sample_aspect_ratio",
+      "path": "streams/0/sample_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "color_bt709.mp4",
+      "codec": "h264",
+      "level": "streams",
+      "field": "display_aspect_ratio",
+      "path": "streams/0/display_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "color_full_range.mp4",
+      "codec": "h264",
+      "level": "streams",
+      "field": "sample_aspect_ratio",
+      "path": "streams/0/sample_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "color_full_range.mp4",
+      "codec": "h264",
+      "level": "streams",
+      "field": "display_aspect_ratio",
+      "path": "streams/0/display_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "edit_list.mp4",
+      "codec": "container",
+      "level": "streams",
+      "field": "format_duration_us",
+      "path": "format_duration_us",
+      "count": 1,
+      "classification": "gating",
+      "cause": "timestamp/edit-list modeling"
+    },
+    {
+      "file": "edit_list.mp4",
+      "codec": "h264",
+      "level": "streams",
+      "field": "sample_aspect_ratio",
+      "path": "streams/0/sample_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "edit_list.mp4",
+      "codec": "h264",
+      "level": "streams",
+      "field": "display_aspect_ratio",
+      "path": "streams/0/display_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "faststart.mp4",
+      "codec": "aac",
+      "level": "streams",
+      "field": "duration_ts",
+      "path": "streams/1/duration_ts",
+      "count": 1,
+      "classification": "gating",
+      "cause": "timestamp/edit-list modeling"
+    },
+    {
+      "file": "faststart.mp4",
+      "codec": "h264",
+      "level": "streams",
+      "field": "sample_aspect_ratio",
+      "path": "streams/0/sample_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "faststart.mp4",
+      "codec": "h264",
+      "level": "streams",
+      "field": "display_aspect_ratio",
+      "path": "streams/0/display_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "fragmented.mp4",
+      "codec": "container",
+      "level": "streams",
+      "field": "format_duration_us",
+      "path": "format_duration_us",
+      "count": 1,
+      "classification": "gating",
+      "cause": "timestamp/edit-list modeling"
+    },
+    {
+      "file": "fragmented.mp4",
+      "codec": "h264",
+      "level": "streams",
+      "field": "duration_ts",
+      "path": "streams/0/duration_ts",
+      "count": 1,
+      "classification": "gating",
+      "cause": "timestamp/edit-list modeling"
+    },
+    {
+      "file": "fragmented.mp4",
+      "codec": "aac",
+      "level": "streams",
+      "field": "duration_ts",
+      "path": "streams/1/duration_ts",
+      "count": 1,
+      "classification": "gating",
+      "cause": "timestamp/edit-list modeling"
+    },
+    {
+      "file": "fragmented.mp4",
+      "codec": "h264",
+      "level": "streams",
+      "field": "sample_aspect_ratio",
+      "path": "streams/0/sample_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "fragmented.mp4",
+      "codec": "h264",
+      "level": "streams",
+      "field": "display_aspect_ratio",
+      "path": "streams/0/display_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "h264_avc3.mp4",
+      "codec": "h264",
+      "level": "streams",
+      "field": "sample_aspect_ratio",
+      "path": "streams/0/sample_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "h264_avc3.mp4",
+      "codec": "h264",
+      "level": "streams",
+      "field": "display_aspect_ratio",
+      "path": "streams/0/display_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "hevc_hev1.mp4",
+      "codec": "hevc",
+      "level": "streams",
+      "field": "color_range",
+      "path": "streams/0/color_range",
+      "count": 1,
+      "classification": "gating",
+      "cause": "true parser bug or metadata gap"
+    },
+    {
+      "file": "hevc_hev1.mp4",
+      "codec": "hevc",
+      "level": "streams",
+      "field": "sample_aspect_ratio",
+      "path": "streams/0/sample_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "hevc_hev1.mp4",
+      "codec": "hevc",
+      "level": "streams",
+      "field": "display_aspect_ratio",
+      "path": "streams/0/display_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "hevc_hvc1.mp4",
+      "codec": "hevc",
+      "level": "streams",
+      "field": "color_range",
+      "path": "streams/0/color_range",
+      "count": 1,
+      "classification": "gating",
+      "cause": "true parser bug or metadata gap"
+    },
+    {
+      "file": "hevc_hvc1.mp4",
+      "codec": "hevc",
+      "level": "streams",
+      "field": "sample_aspect_ratio",
+      "path": "streams/0/sample_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "hevc_hvc1.mp4",
+      "codec": "hevc",
+      "level": "streams",
+      "field": "display_aspect_ratio",
+      "path": "streams/0/display_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "multitrack.mp4",
+      "codec": "aac",
+      "level": "streams",
+      "field": "duration_ts",
+      "path": "streams/2/duration_ts",
+      "count": 1,
+      "classification": "gating",
+      "cause": "timestamp/edit-list modeling"
+    },
+    {
+      "file": "multitrack.mp4",
+      "codec": "aac",
+      "level": "streams",
+      "field": "duration_ts",
+      "path": "streams/3/duration_ts",
+      "count": 1,
+      "classification": "gating",
+      "cause": "timestamp/edit-list modeling"
+    },
+    {
+      "file": "multitrack.mp4",
+      "codec": "h264",
+      "level": "streams",
+      "field": "sample_aspect_ratio",
+      "path": "streams/0/sample_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "multitrack.mp4",
+      "codec": "h264",
+      "level": "streams",
+      "field": "display_aspect_ratio",
+      "path": "streams/0/display_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "multitrack.mp4",
+      "codec": "h264",
+      "level": "streams",
+      "field": "sample_aspect_ratio",
+      "path": "streams/1/sample_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "multitrack.mp4",
+      "codec": "h264",
+      "level": "streams",
+      "field": "display_aspect_ratio",
+      "path": "streams/1/display_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "negative_cts.mp4",
+      "codec": "h264",
+      "level": "streams",
+      "field": "sample_aspect_ratio",
+      "path": "streams/0/sample_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "negative_cts.mp4",
+      "codec": "h264",
+      "level": "streams",
+      "field": "display_aspect_ratio",
+      "path": "streams/0/display_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "nested_10000.mp4",
+      "codec": "container",
+      "level": "streams",
+      "field": "probe_ok",
+      "path": "probe_ok",
+      "count": 1,
+      "classification": "gating",
+      "cause": "structural oracle normalization or unsupported container (see revised diagnosis)"
+    },
+    {
+      "file": "pcm_f32le.mov",
+      "codec": "pcm_f32le",
+      "level": "streams",
+      "field": "handler_name",
+      "path": "streams/0/handler_name",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "pcm_s16le.mov",
+      "codec": "pcm_s16le",
+      "level": "streams",
+      "field": "handler_name",
+      "path": "streams/0/handler_name",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "pcm_s16le.mp4",
+      "codec": "pcm_s16le",
+      "level": "streams",
+      "field": "codec_name",
+      "path": "streams/0/codec_name",
+      "count": 1,
+      "classification": "gating",
+      "cause": "true parser bug or metadata gap"
+    },
+    {
+      "file": "pcm_s24le.mov",
+      "codec": "pcm_s24le",
+      "level": "streams",
+      "field": "handler_name",
+      "path": "streams/0/handler_name",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "prores_4444.mov",
+      "codec": "prores",
+      "level": "streams",
+      "field": "sample_aspect_ratio",
+      "path": "streams/0/sample_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "prores_4444.mov",
+      "codec": "prores",
+      "level": "streams",
+      "field": "display_aspect_ratio",
+      "path": "streams/0/display_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "prores_4444.mov",
+      "codec": "prores",
+      "level": "streams",
+      "field": "handler_name",
+      "path": "streams/0/handler_name",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "prores_4444xq.mov",
+      "codec": "prores",
+      "level": "streams",
+      "field": "sample_aspect_ratio",
+      "path": "streams/0/sample_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "prores_4444xq.mov",
+      "codec": "prores",
+      "level": "streams",
+      "field": "display_aspect_ratio",
+      "path": "streams/0/display_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "prores_4444xq.mov",
+      "codec": "prores",
+      "level": "streams",
+      "field": "handler_name",
+      "path": "streams/0/handler_name",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "prores_hq.mov",
+      "codec": "prores",
+      "level": "streams",
+      "field": "sample_aspect_ratio",
+      "path": "streams/0/sample_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "prores_hq.mov",
+      "codec": "prores",
+      "level": "streams",
+      "field": "display_aspect_ratio",
+      "path": "streams/0/display_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "prores_hq.mov",
+      "codec": "prores",
+      "level": "streams",
+      "field": "handler_name",
+      "path": "streams/0/handler_name",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "prores_lt.mov",
+      "codec": "prores",
+      "level": "streams",
+      "field": "sample_aspect_ratio",
+      "path": "streams/0/sample_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "prores_lt.mov",
+      "codec": "prores",
+      "level": "streams",
+      "field": "display_aspect_ratio",
+      "path": "streams/0/display_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "prores_lt.mov",
+      "codec": "prores",
+      "level": "streams",
+      "field": "handler_name",
+      "path": "streams/0/handler_name",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "prores_proxy.mov",
+      "codec": "prores",
+      "level": "streams",
+      "field": "sample_aspect_ratio",
+      "path": "streams/0/sample_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "prores_proxy.mov",
+      "codec": "prores",
+      "level": "streams",
+      "field": "display_aspect_ratio",
+      "path": "streams/0/display_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "prores_proxy.mov",
+      "codec": "prores",
+      "level": "streams",
+      "field": "handler_name",
+      "path": "streams/0/handler_name",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "prores_standard.mov",
+      "codec": "prores",
+      "level": "streams",
+      "field": "sample_aspect_ratio",
+      "path": "streams/0/sample_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "prores_standard.mov",
+      "codec": "prores",
+      "level": "streams",
+      "field": "display_aspect_ratio",
+      "path": "streams/0/display_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "prores_standard.mov",
+      "codec": "prores",
+      "level": "streams",
+      "field": "handler_name",
+      "path": "streams/0/handler_name",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "rotate_ccw180.mp4",
+      "codec": "aac",
+      "level": "streams",
+      "field": "duration_ts",
+      "path": "streams/1/duration_ts",
+      "count": 1,
+      "classification": "gating",
+      "cause": "timestamp/edit-list modeling"
+    },
+    {
+      "file": "rotate_ccw180.mp4",
+      "codec": "h264",
+      "level": "streams",
+      "field": "sample_aspect_ratio",
+      "path": "streams/0/sample_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "rotate_ccw180.mp4",
+      "codec": "h264",
+      "level": "streams",
+      "field": "display_aspect_ratio",
+      "path": "streams/0/display_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "rotate_ccw270.mp4",
+      "codec": "aac",
+      "level": "streams",
+      "field": "duration_ts",
+      "path": "streams/1/duration_ts",
+      "count": 1,
+      "classification": "gating",
+      "cause": "timestamp/edit-list modeling"
+    },
+    {
+      "file": "rotate_ccw270.mp4",
+      "codec": "h264",
+      "level": "streams",
+      "field": "sample_aspect_ratio",
+      "path": "streams/0/sample_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "rotate_ccw270.mp4",
+      "codec": "h264",
+      "level": "streams",
+      "field": "display_aspect_ratio",
+      "path": "streams/0/display_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "rotate_ccw90.mp4",
+      "codec": "aac",
+      "level": "streams",
+      "field": "duration_ts",
+      "path": "streams/1/duration_ts",
+      "count": 1,
+      "classification": "gating",
+      "cause": "timestamp/edit-list modeling"
+    },
+    {
+      "file": "rotate_ccw90.mp4",
+      "codec": "h264",
+      "level": "streams",
+      "field": "sample_aspect_ratio",
+      "path": "streams/0/sample_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "rotate_ccw90.mp4",
+      "codec": "h264",
+      "level": "streams",
+      "field": "display_aspect_ratio",
+      "path": "streams/0/display_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "timecode.mov",
+      "codec": "h264",
+      "level": "streams",
+      "field": "sample_aspect_ratio",
+      "path": "streams/0/sample_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "timecode.mov",
+      "codec": "h264",
+      "level": "streams",
+      "field": "display_aspect_ratio",
+      "path": "streams/0/display_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "timecode.mov",
+      "codec": "h264",
+      "level": "streams",
+      "field": "handler_name",
+      "path": "streams/0/handler_name",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "timecode.mov",
+      "codec": null,
+      "level": "streams",
+      "field": "language",
+      "path": "streams/1/language",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "timecode.mov",
+      "codec": null,
+      "level": "streams",
+      "field": "handler_name",
+      "path": "streams/1/handler_name",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "truncated.mp4",
+      "codec": "container",
+      "level": "streams",
+      "field": "probe_ok",
+      "path": "probe_ok",
+      "count": 1,
+      "classification": "gating",
+      "cause": "structural oracle normalization or unsupported container (see revised diagnosis)"
+    },
+    {
+      "file": "vfr.mp4",
+      "codec": "container",
+      "level": "streams",
+      "field": "format_duration_us",
+      "path": "format_duration_us",
+      "count": 1,
+      "classification": "gating",
+      "cause": "timestamp/edit-list modeling"
+    },
+    {
+      "file": "vfr.mp4",
+      "codec": "h264",
+      "level": "streams",
+      "field": "duration_ts",
+      "path": "streams/0/duration_ts",
+      "count": 1,
+      "classification": "gating",
+      "cause": "timestamp/edit-list modeling"
+    },
+    {
+      "file": "vfr.mp4",
+      "codec": "h264",
+      "level": "streams",
+      "field": "sample_aspect_ratio",
+      "path": "streams/0/sample_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "vfr.mp4",
+      "codec": "h264",
+      "level": "streams",
+      "field": "display_aspect_ratio",
+      "path": "streams/0/display_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "vp9.mp4",
+      "codec": "vp9",
+      "level": "streams",
+      "field": "color_range",
+      "path": "streams/0/color_range",
+      "count": 1,
+      "classification": "gating",
+      "cause": "true parser bug or metadata gap"
+    },
+    {
+      "file": "vp9.mp4",
+      "codec": "vp9",
+      "level": "streams",
+      "field": "sample_aspect_ratio",
+      "path": "streams/0/sample_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "vp9.mp4",
+      "codec": "vp9",
+      "level": "streams",
+      "field": "display_aspect_ratio",
+      "path": "streams/0/display_aspect_ratio",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "audio_51.m4a",
+      "codec": "aac",
+      "level": "packets",
+      "field": "discard",
+      "path": "streams/0/packets/*/discard",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "audio_aac.m4a",
+      "codec": "aac",
+      "level": "packets",
+      "field": "discard",
+      "path": "streams/0/packets/*/discard",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "basic.mov",
+      "codec": "aac",
+      "level": "packets",
+      "field": "discard",
+      "path": "streams/1/packets/*/discard",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "basic.mp4",
+      "codec": "aac",
+      "level": "packets",
+      "field": "discard",
+      "path": "streams/1/packets/*/discard",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "browser.webm",
+      "codec": "container",
+      "level": "packets",
+      "field": "probe_ok",
+      "path": "probe_ok",
+      "count": 1,
+      "classification": "gating",
+      "cause": "structural oracle normalization or unsupported container (see revised diagnosis)"
+    },
+    {
+      "file": "edit_list.mp4",
+      "codec": "aac",
+      "level": "packets",
+      "field": "pts",
+      "path": "streams/1/packets/*/pts",
+      "count": 88,
+      "classification": "gating",
+      "cause": "timestamp/edit-list modeling"
+    },
+    {
+      "file": "edit_list.mp4",
+      "codec": "aac",
+      "level": "packets",
+      "field": "dts",
+      "path": "streams/1/packets/*/dts",
+      "count": 88,
+      "classification": "gating",
+      "cause": "timestamp/edit-list modeling"
+    },
+    {
+      "file": "edit_list.mp4",
+      "codec": "aac",
+      "level": "packets",
+      "field": "duration",
+      "path": "streams/1/packets/*/duration",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "faststart.mp4",
+      "codec": "aac",
+      "level": "packets",
+      "field": "discard",
+      "path": "streams/1/packets/*/discard",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "fragmented.mp4",
+      "codec": "aac",
+      "level": "packets",
+      "field": "duration",
+      "path": "streams/1/packets/*/duration",
+      "count": 2,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "multitrack.mp4",
+      "codec": "mov_text",
+      "level": "packets",
+      "field": "extra",
+      "path": "streams/4/packets/extra",
+      "count": 1,
+      "classification": "gating",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "multitrack.mp4",
+      "codec": "aac",
+      "level": "packets",
+      "field": "discard",
+      "path": "streams/2/packets/*/discard",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "multitrack.mp4",
+      "codec": "aac",
+      "level": "packets",
+      "field": "discard",
+      "path": "streams/3/packets/*/discard",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "negative_cts.mp4",
+      "codec": "h264",
+      "level": "packets",
+      "field": "dts",
+      "path": "streams/0/packets/*/dts",
+      "count": 50,
+      "classification": "gating",
+      "cause": "timestamp/edit-list modeling"
+    },
+    {
+      "file": "nested_10000.mp4",
+      "codec": "container",
+      "level": "packets",
+      "field": "probe_ok",
+      "path": "probe_ok",
+      "count": 1,
+      "classification": "gating",
+      "cause": "structural oracle normalization or unsupported container (see revised diagnosis)"
+    },
+    {
+      "file": "pcm_f32le.mov",
+      "codec": "pcm_f32le",
+      "level": "packets",
+      "field": "size",
+      "path": "streams/0/packets/*/size",
+      "count": 94,
+      "classification": "gating",
+      "cause": "grouping per ADR 0003"
+    },
+    {
+      "file": "pcm_f32le.mov",
+      "codec": "pcm_f32le",
+      "level": "packets",
+      "field": "extra",
+      "path": "streams/0/packets/extra",
+      "count": 95906,
+      "classification": "gating",
+      "cause": "grouping per ADR 0003"
+    },
+    {
+      "file": "pcm_f32le.mov",
+      "codec": "pcm_f32le",
+      "level": "packets",
+      "field": "duration",
+      "path": "streams/0/packets/*/duration",
+      "count": 94,
+      "classification": "informational",
+      "cause": "grouping per ADR 0003"
+    },
+    {
+      "file": "pcm_s16le.mov",
+      "codec": "pcm_s16le",
+      "level": "packets",
+      "field": "size",
+      "path": "streams/0/packets/*/size",
+      "count": 94,
+      "classification": "gating",
+      "cause": "grouping per ADR 0003"
+    },
+    {
+      "file": "pcm_s16le.mov",
+      "codec": "pcm_s16le",
+      "level": "packets",
+      "field": "extra",
+      "path": "streams/0/packets/extra",
+      "count": 95906,
+      "classification": "gating",
+      "cause": "grouping per ADR 0003"
+    },
+    {
+      "file": "pcm_s16le.mov",
+      "codec": "pcm_s16le",
+      "level": "packets",
+      "field": "duration",
+      "path": "streams/0/packets/*/duration",
+      "count": 94,
+      "classification": "informational",
+      "cause": "grouping per ADR 0003"
+    },
+    {
+      "file": "pcm_s16le.mp4",
+      "codec": "pcm_s16le",
+      "level": "packets",
+      "field": "size",
+      "path": "streams/0/packets/*/size",
+      "count": 94,
+      "classification": "gating",
+      "cause": "grouping per ADR 0003"
+    },
+    {
+      "file": "pcm_s16le.mp4",
+      "codec": "pcm_s16le",
+      "level": "packets",
+      "field": "extra",
+      "path": "streams/0/packets/extra",
+      "count": 95906,
+      "classification": "gating",
+      "cause": "grouping per ADR 0003"
+    },
+    {
+      "file": "pcm_s16le.mp4",
+      "codec": "pcm_s16le",
+      "level": "packets",
+      "field": "duration",
+      "path": "streams/0/packets/*/duration",
+      "count": 94,
+      "classification": "informational",
+      "cause": "grouping per ADR 0003"
+    },
+    {
+      "file": "pcm_s24le.mov",
+      "codec": "pcm_s24le",
+      "level": "packets",
+      "field": "size",
+      "path": "streams/0/packets/*/size",
+      "count": 94,
+      "classification": "gating",
+      "cause": "grouping per ADR 0003"
+    },
+    {
+      "file": "pcm_s24le.mov",
+      "codec": "pcm_s24le",
+      "level": "packets",
+      "field": "extra",
+      "path": "streams/0/packets/extra",
+      "count": 95906,
+      "classification": "gating",
+      "cause": "grouping per ADR 0003"
+    },
+    {
+      "file": "pcm_s24le.mov",
+      "codec": "pcm_s24le",
+      "level": "packets",
+      "field": "duration",
+      "path": "streams/0/packets/*/duration",
+      "count": 94,
+      "classification": "informational",
+      "cause": "grouping per ADR 0003"
+    },
+    {
+      "file": "rotate_ccw180.mp4",
+      "codec": "aac",
+      "level": "packets",
+      "field": "discard",
+      "path": "streams/1/packets/*/discard",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "rotate_ccw270.mp4",
+      "codec": "aac",
+      "level": "packets",
+      "field": "discard",
+      "path": "streams/1/packets/*/discard",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "rotate_ccw90.mp4",
+      "codec": "aac",
+      "level": "packets",
+      "field": "discard",
+      "path": "streams/1/packets/*/discard",
+      "count": 1,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    },
+    {
+      "file": "truncated.mp4",
+      "codec": "container",
+      "level": "packets",
+      "field": "probe_ok",
+      "path": "probe_ok",
+      "count": 1,
+      "classification": "gating",
+      "cause": "structural oracle normalization or unsupported container (see revised diagnosis)"
+    },
+    {
+      "file": "vfr.mp4",
+      "codec": "h264",
+      "level": "packets",
+      "field": "duration",
+      "path": "streams/0/packets/*/duration",
+      "count": 6,
+      "classification": "informational",
+      "cause": "oracle normalization or uncovered boundary (see revised diagnosis)"
+    }
+  ]
+}

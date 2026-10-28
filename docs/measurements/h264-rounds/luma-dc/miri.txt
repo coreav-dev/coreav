@@ -1,0 +1,5 @@
+# RUSTFLAGS="-C target-feature=+avx2,+sse4.1" cargo +nightly miri run (tools/miri), kernels crate of e49998b
+miri 0.1.0 (07e526db9d 2026-10-19)
+     Locking 1 package to highest Rust 1.101.0-nightly compatible version
+ok 144
+exit 0

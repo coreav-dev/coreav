@@ -1,0 +1,12 @@
+# Stream, class, profile (profile_idc of list.json), entropy coding
+# (entropy_coding_mode_flag of the first PPS, from `ffmpeg -bsf:v
+# trace_headers`), and the picture types of the first F frames (ffprobe
+# -show_entries frame=pict_type -read_intervals %+#F, FFmpeg 7.0.2).
+41e324ebb708 sd    profile 77  CABAC  I 21 P 800 B 979
+5185721dda11 sd    profile 66  CAVLC  I 34 P 1766 B 0
+9db41aa16b5a 720p  profile 100 CAVLC  I 8 P 300 B 592
+1d4b1775d78a 720p  profile 100 CABAC  I 5 P 108 B 187
+6da34958296c 1080p profile 77  CABAC  I 1 P 75 B 224
+b71b6b31e54f 1080p profile 77  CAVLC  I 5 P 150 B 145
+3b1b441e23ae 4k    profile 100 CABAC  I 1 P 93 B 56
+e624cbe0d2be 4k    profile 77  CABAC  I 4 P 146 B 0

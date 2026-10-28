@@ -1,0 +1,15 @@
+perf annotate (cpu-clock, 2999 Hz) of <Auto as Kernels>::chroma_mc on round 11's combined tip (code of main e6d810c's kernels), the 2.90 GHz class, pinned to one core; the full-sample copy loop: one 8-byte load of a reference row, one 8-byte store into the picture.
+
+== b71b6b31e54f.0.1080p (frames 300 / 150), hottest instructions, % of the function's samples
+   28.33 :   8865d:  mov    %r15,(%r8,%r14,1)
+   10.95 :   88e34:  movzbl 0x8(%rax,%rbx,1),%edx
+    5.01 :   88661:  jmp    88620 <<coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::chroma_mc+0xa0>
+    3.13 :   88659:  mov    (%rdi,%r9,1),%r15
+   share of all samples: 13.04%
+
+== 3b1b441e23ae.0.4k (frames 300 / 150), hottest instructions, % of the function's samples
+   45.65 :   8865d:  mov    %r15,(%r8,%r14,1)
+    6.39 :   88661:  jmp    88620 <<coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::chroma_mc+0xa0>
+    6.39 :   88659:  mov    (%rdi,%r9,1),%r15
+    5.71 :   88654:  or     %r15b,%r12b
+   share of all samples: 17.61%

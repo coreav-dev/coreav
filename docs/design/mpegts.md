@@ -1,0 +1,661 @@
+# MPEG transport stream demux (`coreav-mpegts`)
+
+Status: Accepted. Scope: MPEG-TS demux, a job of roadmap step 1. The input of HLS
+ingest and of broadcast captures, and, by FFmpeg's vulnerability history, a demuxer worth moving out of C first.
+
+## What it does
+
+- `probe(source, limits, allowlist)` finds the packet size (188, 192 or
+  204 bytes), reads the Program Association Table and every Program Map
+  Table it names, and returns a `Stream` per elementary stream with its
+  stream type, codec, descriptors and the codec parameters its first
+  access units carry (picture size, sample rate, channels). It reads the
+  head of the file until every stream of every program has shown a
+  decodable start or a limit is reached, and the tail for the last
+  timestamps, so durations need no full pass. A PES packet only the end
+  of the file completes is read too: a video stream whose PES packets
+  state no length and whose first one runs to the end of a short file
+  carries the parameter sets, and leaving it in the reassembler lost
+  them. A PES packet the budget cuts is not: its payload would describe
+  the stream from bytes the file does not end at.
+- `TransportStream::packets(source, limits)` lists every access unit of
+  every kept stream in storage order (an E-AC-3 access unit once the next
+  independent frame shows its dependent substreams are all there): one packet per PES packet for video,
+  one per frame for audio whose frames can be delimited (ADTS and LOAS
+  AAC, MPEG audio, AC-3, E-AC-3, Opus), with the byte position of the
+  transport packet that starts it, timestamps unwrapped past the 33-bit
+  wrap, and the keyframe flag.
+- `coreav probe` prints the result as `coreav.probe-mpegts/1`
+  (`docs/schema/probe-mpegts-v1.md`), and as the `ffprobe` shape with
+  `--ffprobe-compat`. With `--scan-frame-sizes` it also lists every access
+  unit and reports what the listing counted per stream (`scan`: packets,
+  bytes, the first and last presentation times, their span and the bit rate
+  over it). That is the listing's own count, not a second duration
+  estimate: a stream's `duration` stays the probe's, which is the value
+  `ffprobe` reports.
+
+## Specifications
+
+Clean room. Written from ISO/IEC 13818-1 (transport stream, PSI, PES,
+stream types, descriptors), ITU-T H.222.0 (the same text), ETSI EN 300 468
+(DVB service information descriptors: AC-3, E-AC-3, subtitling, teletext,
+language), ATSC A/52 (AC-3 frame headers and the ATSC stream types), ISO/IEC
+13818-7 and 14496-3 (ADTS), ISO/IEC 11172-3 and 13818-3 (MPEG audio frame
+headers), the HLS specification (RFC 8216: transport stream segments, ID3
+timed metadata, packed audio) and the BDAV MPEG-2 transport stream layout
+of the Blu-ray format for 192-byte packets (the 4-byte arrival timestamp
+prefix), ISO/IEC 14496-15 (the `avcC` and `hvcC` records the in-band
+parameter sets make), and the Opus transport multiplexing draft (ETSI TS
+1xx xxx V0.1.3, the latest the Opus project publishes) for Opus access
+units. H.264 frames are walked for keyframes by `coreav-isobmff`'s
+reader, and the configuration records are described by it; the fields a
+record repeats from its SPS are read here. `ffprobe`
+and `ffmpeg` are black-box oracles only; never FFmpeg's `mpegts.c` or any
+other implementation.
+
+## Design
+
+### Layers
+
+- `packet`: sans-IO transport packet header and adaptation field (PCR,
+  discontinuity and random access indicators).
+- `section`: PSI section reassembly per PID (pointer field, sections that
+  span packets, several sections in one packet), CRC-32 check, and the PAT
+  and PMT with their descriptor loops.
+- `pes`: PES header (stream id, PTS, DTS, header length) and the
+  reassembly of a PES packet's payload from its transport packets.
+- `frames`: audio frame delimiting inside a PES payload (ADTS, LOAS,
+  MPEG audio, AC-3 and E-AC-3 sync frames, Opus access units).
+- `probe`, `packets`: the I/O shell over a `Source`, the trait and
+  `BufferedSource` of `coreav-isobmff`, as `coreav-mkv` uses them.
+
+### Which reader the command uses
+
+A transport stream has no header to recognise: a stream starts wherever
+its sync byte begins to repeat at a packet stride, possibly after a prefix
+of other bytes. So the `coreav` command offers a file to this reader last:
+Matroska first (the EBML header `1A 45 DF A3`), then ISO base media (whose
+first box names one of thirteen types), and a file neither recognises goes
+to `probe` here, which finds the packet size and the first packet itself.
+The test is the reader's own (`coreav_mpegts::detect`), which searches for
+the packet size and the first stored packet within `max_resync_bytes`, so
+the command accepts exactly the files the library reads. Rejected: a sniff
+of the first bytes before the ISO base media check
+(`coreav_mpegts::sniff`), which is cheaper but only matches a stream that
+starts at offset 0, so a capture with a prefix (`ts_prefix_junk.ts`) would
+be rejected where the library reads it. A candidate is confirmed by three
+packets at the stride, fewer only for a file too short to hold three: a
+lone sync byte near the end of a longer file is not a transport stream,
+and taking it for one would make this reader answer for files no reader
+recognises (a PNG, a text file, random bytes), which must keep the ISO
+base media rejection. A file no reader recognises keeps
+the ISO base media rejection, the command's answer for a container it does
+not read. `scripts/oracle-library-adapter.sh` picks its adapter the same
+way, so the CLI capture and the library capture are comparable.
+
+### What the reader keeps
+
+Every elementary stream the tables name is listed, including a stream
+whose type and descriptors name no codec this crate knows: it is listed
+with `Codec::Other`, its stream type and its format identifier, and its
+access units are its PES packets as stored. Nothing of its payload is
+parsed, so listing it costs nothing in safety, and a reader that left it
+out would report a file with fewer streams than it has — in broadcast
+captures those PIDs (DSM-CC sections, private sections, service
+information) are common. `--allow` can neither name such a codec
+(`Allowlist::new` drops `Other`) nor, therefore, ask for it to be dropped.
+
+`Allowlist::default` is every codec the crate names. The other containers
+keep a narrower default, but a transport stream carries no duration of its
+own: the file's duration and its stream list are derived from its streams,
+so leaving one out by default would change what the file is reported to be
+(an AC-3 stream dropped from a broadcast capture shortens the file's
+duration by the difference between the audio and video ends). `--allow`
+narrows the list explicitly and `--strict` then rejects the file instead of
+dropping the stream, as for the other containers; a dropped stream keeps
+its place in `stream_index`, which is `ffprobe`'s numbering, so the streams
+that are kept still pair with `ffprobe`'s. The stream type tells MPEG-1
+from MPEG-2 video unreliably, so a stream of either type is read when
+either is allowed and judged again on the codec its sequence header gives
+it; a stream dropped before its header is read is named by its type.
+
+### Packet size and synchronisation
+
+The packet size is the one of 188, 192 and 204 whose sync byte (0x47)
+repeats at that stride over the first packets (a fixed count, bounded by
+the limits). Within the stream, a packet without its sync byte is a lost
+packet: the reader resynchronises at the next offset where the sync byte
+repeats at the stride, records a warning and reports the bytes skipped.
+A packet with the transport error indicator set is read with a warning
+(below, "Damaged input"). Resynchronisation searches a window that grows
+from 16 KiB, in place, so a lost packet costs a few kilobytes of
+reading, up to `max_resync_bytes`.
+
+### Programs and streams
+
+Every program of the PAT is read; streams are listed in the order they are
+read -- the elementary streams of each PMT in the order that table lists
+them, the tables in the order they are read -- and a PID that two programs
+share is listed once. ISO/IEC 13818-1 2.4.4 makes a transport stream a set
+of programs, not a list of streams, so the order is a reader's choice:
+`ffprobe` lists the first program's streams in table order and the others
+as their data arrives, which for a file of several programs puts a
+different stream at each index (KD-TS-STREAM-ORDER, and the `-map`
+limitation in `docs/schema/probe-mpegts-v1.md`). Following the tables keeps the
+document's order the file's own. Each stream carries `pmt_index`, its place in its own
+table's loop, so that the table's order is in the document whatever order
+`streams` is in.
+
+A PID that carries PES packets and that no table declares is listed too,
+after the declared streams and with no stream type of its own: its packets
+are the file's, and `ffprobe` lists them. One broadcast capture of
+the v1-ts-audio top-up has such a PID, and it is the only one of the forty
+development files that does. A private stream (type 0x06) whose data
+component descriptor (ARIB STD-B10 part 2 6.2.20) names a caption
+component -- 0x0008 for a broadcast service, 0x0012 for the one-segment
+service of STD-B24 that a Japanese capture carries beside it -- and whose
+stream identifier's `component_tag` is a
+caption one (table 6-5: 0x30 to 0x37, or 0x87 for one segment) is ARIB
+closed captions, `arib_caption`, whose profile is STD-B24's A or C; the
+superimpose tags (0x38 to 0x3F) are not, which is the reading `ffprobe`
+has too. Reading 0x0008 alone left the one-segment caption stream of a
+four-program capture as binary data.
+
+The Event Information Table (ETSI EN 300 468 5.2.4, PID 0x12) is listed as
+a data stream of codec `epg`, in the place where its first section is read.
+It is a table, not an elementary stream, but it is the one piece of service
+information `ffprobe` lists as a stream, and without it the two readers
+disagree on how many streams a broadcast capture holds. `--allow` can name it like any other
+codec this reader names, so a narrowed list drops it and `--strict`
+rejects a file that carries one; a PID no table declares cannot be named,
+as `Codec::Other` cannot. Only its
+`table_id` is read, and a section is reassembled whole first (up to the
+4,093 bytes EN 300 468 allows, where the tables of 13818-1 are bounded at
+1,021) so that its CRC-32 vouches for that byte. Rejected: taking the
+`table_id` from the first packet of a section, which a damaged byte could
+turn into a stream the file does not have. The codec comes from the stream type, refined by the
+registration descriptor (`HEVC`, `AC-3`, `EAC3`, `Opus`, `ID3 `) and the
+DVB descriptors of private streams (type 0x06). Streams whose codec is not
+allowed, and data streams (SCTE-35, ID3, teletext, DVB subtitles until
+they have a reader), are listed as dropped. A PAT is complete once every
+section of its version (`last_section_number`) has arrived. A PMT that
+changes mid-stream (a version change) is read and the change reported as
+a warning; streams it adds are listed by the probe when the tables of
+the tail it reads name them, and by the packet listing from where they
+appear (`Packets::streams`). Programs and streams a later version leaves
+out stay listed: their packets before the change are the file's.
+
+`ffprobe` prints a picture size for every video stream, 0 by 0 for one
+whose parameters it never learnt (a scrambled stream, or the MVC video
+sub-bitstream of a Blu-ray 3D capture, stream type 0x20, whose subset
+sequence parameter sets give no size), so `--ffprobe-compat` does too; the
+native document leaves the size out, since it is not known. A presentation
+graphics subtitle (stream type 0x90) states the picture it is composed on
+in its presentation composition segment (Blu-ray BD-ROM part 3-1
+9.14.4.2.2), which both documents report as that stream's size, as
+`ffprobe` does; it is the stream's own, not the video stream's.
+
+A transport stream states no picture size of its own, so a video stream's
+size is what its first sequence parameter set describes: the coded size
+less the whole conformance crop (ITU-T H.264 7.4.2.1.1, H.265 7.4.3.2.1),
+which is `parameter_set_display_size` of `coreav-isobmff`. Broadcast H.264
+commonly codes 720p as 1920x1088 and crops it, and `parameter_set_size`,
+the other size that crate gives, is a bound for framing samples that keeps
+a crop larger than padding (it would report 1920x1088). A crop that leaves
+nothing is ignored whole, as a decoder ignores it.
+
+### Packets
+
+- **Units.** One packet per access unit, which is what a decoder takes
+  and what the MP4 sample model and the audio decoders of an earlier change take (the
+  codec configuration in the MP4 and Matroska form: an `avcC` or `hvcC`
+  record made from the in-band parameter sets, an AudioSpecificConfig
+  made from the ADTS header or the LATM `StreamMuxConfig`).
+  - H.264 and HEVC: the byte stream is split at the access unit
+    boundaries of ITU-T H.264 7.4.1.2.3 and H.265 7.4.2.4.4 (an access
+    unit delimiter, a parameter set or a prefix SEI message after a coded
+    picture, or the first slice of the next picture). The split runs over
+    the PES packet boundaries, not within each payload: ISO/IEC 13818-1
+    2.4.3.7 says a PES packet starts at an access unit, but the real files
+    of the v1-ts-audio top-up do not -- one starts each PES packet some tens
+    of bytes before the delimiter of the unit it carries, so the last
+    bytes of the unit before it are at the head of the next PES packet.
+    Reading each payload on its own cut the units there, which is most of
+    what the packet sizes of the H.264 files disagreed on. Rejected: one
+    packet per PES packet, the rule until those files showed how often a
+    PES packet holds both fields of an interlaced frame, that is two
+    access units: a decoder would be handed two pictures at once and a
+    remux to MP4 would write one sample for two. A unit held for want of
+    its last bytes counts against the buffered-bytes limit.
+  - Audio whose frames carry their length (ADTS and LOAS AAC, MPEG audio,
+    AC-3 and E-AC-3, and Opus access units, whose control header is not
+    part of the packet): one packet per frame. An E-AC-3 dependent
+    substream (`strmtyp` 1) joins the access unit of the independent frame
+    before it, up to eight (`substreamid` 0 to 7), whichever PES packet it
+    is in. An AC-3 `bsid` of 9 or 10 halves or quarters the sample rate
+    `fscod` names. Rejected: PES packets for audio too (a PES packet
+    commonly holds several frames, and frames may straddle PES packets).
+  - MPEG-1 and MPEG-2 video, data and subtitle streams, and streams whose
+    codec this crate cannot name: one packet per PES packet, the unit the
+    file delivers.
+  - The Event Information Table, listed as the `epg` stream: one packet
+    per section, its header and CRC included, with no position and no
+    time, since a section carries none. `ffprobe` lists them the same
+    way.
+- **Times and positions.** A PTS times the first access unit that starts
+  in its PES packet (ISO/IEC 13818-1 2.4.3.7): that unit takes the PTS and
+  the position of the PES packet's first transport packet, wherever it
+  ends; the units after it take no position and a time the file does not
+  state, which this reader infers:
+  - an audio frame starts the samples since the last stated time after
+    it, rounded once, so that a run does not drift from the sample rate
+    (adding a truncated frame duration each time loses up to a tick a
+    frame, and a frame of 1,024 samples at 22,050 Hz lasts 4,179.59
+    ticks). Where the PES packet states a decoding time of its own, which
+    13818-1 2.7.5 asks a muxer not to write for sound, the frames it times
+    keep the distance it states between the two times: the stream decodes
+    that far ahead of its presentation throughout, not for one frame in
+    four. One packaged stream of the v1-ts-audio top-up states a decoding
+    time 600 ticks before each presentation time, and reporting the
+    presentation time for both lost it;
+  - the coded pictures since the last stated time -- a run -- divide
+    equally the step from the time the run starts at to the next time the
+    stream states, which closes it. So the two fields of an interlaced
+    frame, which one PES packet carries, are half a frame apart, and so
+    is the picture of a PES packet that states no time at all, which real
+    captures write for every other picture. A run is held until the time
+    after it shows how many units it has and what they divide; it is
+    listed in storage order. The run no stated time closes -- the last of
+    the file, or one after a time that goes backwards -- lasts as many
+    picture periods as it has units, the period being the shortest a
+    closed run of the stream has shown. Rejected: dividing that shortest
+    period among the units of every run, the rule until a broadcast
+    capture whose runs are four and five pictures long showed that it
+    places the units of the longer ones a fifth of a picture apart.
+
+  A unit after the first takes no position either; `ffprobe` gives one to
+  a unit that starts past 200 KiB of its PES payload, because it reads a
+  PES packet in pieces of that size (KD-TS-POSITION).
+- **Release order.** A unit is listed once the bytes after it show where
+  it ends, which is the order `ffprobe` lists units in across streams
+  (`coreav ffprobe` prints that listing): an H.264 or HEVC unit when the
+  next one starts, an MPEG-1 or MPEG-2 picture when the next PES packet
+  of its stream is read, and an AC-3 or E-AC-3 frame when the next frame
+  is read whole, so the last frame of a PES packet waits for the next
+  one. (An H.264 or HEVC unit after the first one of a run is listed
+  with its run, once the stated time that closes the run is read; see
+  above.) Each unit carries what the PES packet whose reading released it
+  says of itself: `corrupt` when a transport packet of it was lost,
+  repeated or flagged in error, or it ended short of its stated length,
+  and, for the first unit that reading released, `fed`, its `stream_id`.
+  Rejected: listing a PES packet's units as soon as it is complete,
+  which listed the frames of AC-3 and the pictures of MPEG-2 video one
+  PES packet earlier than `ffprobe` against the other streams; a stream's
+  own units are in the same order either way.
+- **Service names.** The Service Description Table of the transport stream
+  (EN 300 468 5.2.3, PID 0x11, `table_id` 0x42) gives each program its
+  service and provider names, kept as stored (`TransportStream::services`,
+  and `Packets::services` for a listing that reads further), with the
+  PAT's `transport_stream_id`.
+
+  The DTS is the PTS when the header has none, which is what ISO/IEC
+  13818-1 2.7.5 makes a header that states only a PTS say: a decoding
+  time is encoded only when it differs from the presentation time. A
+  picture whose PES packet states no decoding time of its own, or one
+  equal to its presentation time, therefore decodes when it is shown;
+  `ffprobe` replaces that with a time of its own, reconstructed from the
+  order the pictures are coded in, which reading the slice headers of
+  every picture would give (KD-TS-DECODE-TIME). A frame cut by the end of
+  the file is listed with the bytes there are. `ffprobe` infers these
+  times too, and within a tick of these (KD-TS-FRAME-TIME); the standard
+  defines no arithmetic for them.
+- **Audio parameters.** A stream's sample rate, channels and profile come
+  from the first frame of a PES packet that states them, not from the
+  first frame there is: a LOAS frame carries the stream's configuration
+  only now and then (`useSameStreamMux` leaves it out of the others), so
+  the first frame of a PES packet commonly states nothing. The search
+  starts where a frame header reads, not at the start of the payload: a
+  muxer that fills each PES packet to a fixed size begins nearly every
+  one inside the frame the one before it started, and reading only the
+  start of a payload left the one-segment AAC of a broadcast capture
+  with no parameters at all. A sync word is a few bits -- eleven for
+  LOAS -- so arbitrary bytes hold one every few kilobytes, and the
+  search therefore prefers a place the payload confirms: the frame there
+  fits in the payload and ends at another header or at the payload's
+  end, and where both frames state a sample rate the two agree. That
+  last clause settles a false sync whose declared length happens to
+  land on the real frame: it names another rate than the stream's own
+  frames name each other. Where no place in the payload is confirmed
+  the search takes the first header that reads. It looks no further into
+  the payload than the longest frame of the syntax, because the bytes
+  before the first header are the tail of one frame and no more: 8,191
+  bytes for ADTS and 8,194 for LOAS, which state their length in
+  thirteen bits; 4,096 for AC-3 and E-AC-3 together, which is E-AC-3's
+  `frmsiz` at its largest, AC-3's own longest frame being 3,840; 2,881
+  for MPEG audio, which its bit rate table gives rather than a field;
+  and for Opus, whose access unit runs to 2 MiB, a cap of 64 KiB. Rejected: searching 64 KiB
+  whatever the syntax, which is what it did and which costs eight times
+  the reading on the stream that never parses at all. Rejected: taking the first header that reads, which
+  on a payload whose leading bytes carry a false sync gave the stream
+  the rate that sync declares where the reader used to give it none; and
+  requiring the confirmation, which leaves a stream whose frames are
+  longer than its PES payloads -- no payload holds a whole frame, so
+  none confirms anything -- with no parameters at all, while the packet
+  listing lists its frames. The listing takes the first header that
+  reads: a frame it cannot confirm is still a frame it has to list.
+  The profile is
+  the audio object type the configuration states; spectral band
+  replication signalled only by extension payloads inside the raw data
+  blocks is not read, because reading it means decoding
+  (KD-TS-AAC-PROFILE).
+- **The first packet of an audio stream.** The bytes before a stream's
+  first frame header are the tail of a frame that began before the file.
+  They are listed as a packet of their own, with the time and position of
+  the PES packet they are in and the length of the frame that follows
+  them, and the frames after them take their time from it; `ffprobe`
+  lists them the same way. Rejected: dropping them, which shifted every
+  later frame's time by one frame on the files that start mid-frame.
+- **Keyframes.** Per access unit, from the coded data, by the rule
+  `ffprobe` follows
+  (`tools/oracle/SPEC.md`, "Keyframes"); a stream whose codec this
+  reader cannot name has no keyframes at all, since nothing reads its
+  bytes, while a private stream (type 0x06) read as binary data keeps the
+  flag, as `ffprobe` reports both: for H.264 an IDR picture, a
+  recovery point SEI message, or only I slices when the SPS keeps at most
+  one reference frame; for HEVC an IRAP picture; for MPEG-1 and MPEG-2
+  video an I picture; every audio frame. Rejected: the
+  `random_access_indicator` (optional, and set inconsistently by muxers);
+  it is the fallback when the NAL units cannot be read.
+- **Damaged input.** A packet with `transport_error_indicator` set is read
+  with a warning (its payload may be damaged; the standard leaves the
+  choice to the decoder, and `ffprobe` reads it). A duplicate packet (the
+  same continuity counter as the one before it and the same bytes, its
+  PCR aside) is discarded with a warning, as 13818-1 2.4.3.3 provides;
+  `ffprobe` reads it as more payload (KD-TS-DUPLICATE). The same counter
+  on other bytes is a lost packet: the packet is kept, with a warning. A continuity gap is a warning; the PES packet
+  is listed with the bytes that arrived.
+
+### The listing as `ffprobe` gives it (opt-in)
+
+`Packets::listing_as_ffprobe` turns on a second listing, which
+reproduces `ffprobe`'s where the default above follows the standard or
+its own exact arithmetic. It is off by default; `coreav ffprobe`
+(`crates/coreav-cli/src/ffprobe/ts.rs`) turns it on, and every other
+caller -- `coreav probe --scan-frame-sizes`, the oracle adapter
+(`tools/ts-adapter`), remuxing and transcoding -- gets the default
+listing, which the known divergences (`docs/known-divergences-ts.md`)
+describe. With it on:
+
+- the PES packets of H.264, HEVC, MPEG-1 and MPEG-2 video are delivered
+  in pieces of 204,800 payload bytes as they arrive (`Demux::pieces`),
+  as `ffprobe` reads them: the first unit that starts in a later piece
+  takes the PES packet's position (KD-TS-POSITION does not arise), and a
+  unit finished by a piece is listed then, among the other streams' units
+  that arrive while the rest of its PES packet does;
+- an H.264 or HEVC unit is listed as soon as the start of the next one
+  shows where it ends, with no runs: the units after the first one of a
+  PES packet take no time and no position, as `ffprobe` reports them
+  (placing a second field is `coreav ffprobe`'s, from the picture's own
+  syntax), and `Packet::fed` is the `stream_id` of the PES packet whose
+  reading finished the unit;
+- an AAC frame a PES packet does not time falls on a grid of frames
+  counted from time zero (the base taken to the nearest whole frame of
+  that grid, each end of the span since it rounded to the nearest tick),
+  which is where `ffprobe` puts it on the AAC streams of the v1-ts-audio
+  corpus and on crafted streams at every alignment to that grid; an AC-3
+  or E-AC-3 frame one truncated frame duration after the one before;
+  other audio as by default (KD-TS-FRAME-TIME's one-tick differences do
+  not arise for AAC). The grid is computed in `i64` and, only where a
+  product would not fit, again in `i128`, with the same results;
+- an AC-3 or E-AC-3 frame held for the next one is listed once the next
+  frame's header is read, even when the end of its PES packet cuts that
+  frame;
+- at the end of the file, what each stream still holds is listed stream
+  by stream rather than the video runs of every stream first.
+
+Rejected: making this the listing for every caller, which it was for a
+while. Its times are `ffprobe`'s artefacts rather than the file's (a
+picture with no time where the default places it exactly, a position
+that depends on a reader's buffer size), and copying every piece out of
+the reassembly buffer cost the native `coreav probe --scan-frame-sizes`
+5.5% more instructions on the CI case `probe-packets-ts`. Rejected: a
+field of `Limits`, which is shared with the probe and bounds resources;
+this chooses a behaviour. The probe has one `ffprobe`-only setting of
+its own, `Limits::tail_retries` (0 by default; `coreav ffprobe` sets 1
+with a 250,000-byte tail): a stream the tail shows no end of is looked
+for again in a tail twice as long. The probe's `services_first` and
+`Program::pmt_read` are facts of the file, read at no cost, and are
+always there.
+
+### Codecs that the PMT leaves unnamed
+
+A private stream (type 0x06) with no descriptor that names its codec is
+identified from its first PES packet: an AC-3 or E-AC-3 sync frame, an
+ADTS header, or an MPEG audio header in an audio stream (`stream_id` 0xC0
+to 0xDF). MPEG-1 and MPEG-2 video are told apart by the sequence header:
+without a sequence extension it is MPEG-1 (13818-2 6.1.1.6), whatever the
+stream type says. Rejected: trusting the stream type alone (`ffmpeg`
+writes MPEG-1 video as type 0x02, and Blu-ray style muxers leave AAC as a
+bare private stream).
+
+### Timestamps
+
+PTS and DTS are 33-bit values at 90 kHz, placed on one timeline for the
+whole file from its first timestamp: if that is within 60 s of the wrap
+(2^33), timestamps from 60 s before it on are taken as before the wrap
+and come out negative; otherwise timestamps more than 60 s before it are
+taken as after the wrap and come out plus 2^33. The reference is the
+program's own first timestamp -- the earliest PES packet of any of its
+PIDs -- because a program keeps a system time base of its own (13818-1
+2.4.2.1) and the clocks of a broadcast capture's programs are commonly
+hours apart: one reference for the whole file put the streams of five of
+the six programs of one capture a whole wrap (2^33 ticks, 26 hours) from
+where the file has them. One reference for every stream of a program
+keeps those streams on one timeline. The 60 s window, and the
+choice between the two cases, follow `ffprobe`, measured as a black box
+(the fixtures `ts_wrap_near.ts` and `ts_wrap_far.ts`). Rejected:
+unwrapping each stream against its own previous timestamp (two streams
+of one program could land on different sides of the wrap). A PCR or
+discontinuity indicator does not rewrite timestamps; a gap in a PID's
+continuity counter is reported as a warning.
+
+### Durations
+
+A stream starts at the first timestamp of its PES packets, wherever they
+are: those packets commonly come before the Program Map Table that names
+the PID, and they are the stream's all the same. The reader therefore
+records the first timestamp of every PID it sees, before any table names
+it; `ffprobe` reports the same timestamp, reading the file again from the
+start once it has the tables. Rejected: the first timestamp after the
+tables, which reported a stream as starting up to a second late.
+
+The probe reads the last `max_tail_bytes` (4 MiB) of the file: a stream
+ends at its last PTS there plus the duration of the access unit it times.
+That duration is the audio frame's, from its header; for a stream whose
+frames the reader cannot read -- a video stream, Blu-ray LPCM, a LATM
+stream whose configuration is out of band -- it is the smallest step
+between the presentation times read, which is the picture interval or the
+length of an audio unit. A subtitle, metadata or unnamed stream ends at
+its last presentation time instead, because the step between its units is
+not a duration: a subtitle or an identifier lasts what it says, not until
+the next one. A stream's duration runs from its first timestamp to that
+end; the file's, from the earliest start to the latest end of a program,
+the longest program being the file's duration.
+
+A stream the file times once shows no step, and its last access unit
+still lasts: an H.264 stream whose sequence parameter set carries timing
+information (ITU-T H.264 E.2.1) ends one tick of the clock it states
+after that time, the smallest interval that clock can express, as the
+rule above takes the smallest step the file shows. A camera's `.m2ts` of
+one access unit is timed that way and no other; a stream whose parameter
+sets state no clock keeps no duration at all. Rejected: two ticks, the
+interval a frame picture lasts where `fixed_frame_rate_flag` is set,
+which estimates what the file does not show rather than bounding it.
+
+The tail only refines durations, so a tail the reader cannot use (sync
+lost past the resynchronisation bound) leaves them unknown. A read the
+source fails is not such a tail: it fails the probe with its I/O error.
+Rejected: unknown durations on any tail error, which reported a
+probe of a failing source as a clean result.
+
+A file with more than one program has no one timeline, so a span across
+its programs means nothing; `ffprobe` reports the longest program too.
+A full pass would be
+exact for streams that end before the tail, but costs a read of the whole
+file in the probe; `ffprobe` estimates the same way, which keeps the two
+comparable (KD-TS-END-ESTIMATE where its estimate leaves out the unit).
+
+### Limits
+
+`Limits` bounds the bytes read during the probe and at its tail, the
+resynchronisation search, the number of programs and streams, the size
+of a reassembled PES packet or frame (`max_packet_bytes`), the bytes held
+at once across every PID (`max_buffered_bytes`: PES packets being
+reassembled, audio frames carried to the next PES packet, and the access
+units of a run the stream has shown no picture period for, which wait
+for one only while what waits across every stream is under a quarter of
+that bound and are listed with the time they have past it, so that
+streams whose stated times never step forward are listed rather than
+held to the end of the file), and the
+transport packets of a listing. A PSI section is at most 1,024 bytes (the
+standard's bound for the PAT and PMT; other tables are not read), which
+bounds its descriptors. Frame lengths are bounded by their syntax (an
+Opus access unit by 2 MiB). Parameter sets are kept up to 31 of a kind
+and 64 KiB per stream. Every limit is an error, never a panic or an
+unbounded allocation.
+
+### The oracle's environment
+
+The pinned static `ffprobe` 7.0.2 crashes on transport streams on hosts
+whose glibc differs from its build's (the Ubuntu 24.04 CI runners): it
+decodes the SDT's service names with iconv, which loads the host's gconv
+modules. `scripts/oracle-ffprobe.sh` sets `GCONV_PATH` to an empty path,
+so iconv fails cleanly and the names are left as read; no compared field
+depends on them.
+
+### Oracle positions
+
+`ffprobe` reports the position of a packet stored in 204 bytes 16 bytes
+before its stored packet (where the previous packet's parity starts). The
+library reports the stored packet's offset; the oracle adapter
+(`tools/ts-adapter`) shifts it, as it is the adapter's job to speak the
+oracle's vocabulary.
+
+## Verification and bars (fixed before any run)
+
+Inputs:
+
+1. Fixtures: `scripts/gen-fixtures-ts.sh` makes transport
+   streams with `ffmpeg` (H.264, HEVC, MPEG-2 video, AAC, MP2, AC-3,
+   several programs, 192-byte packets, timestamp wrap, discontinuities,
+   lost packets, PMT changes), plus crafted files for structures `ffmpeg`
+   never writes: among them a PES packet that states a decoding time
+   equal to its presentation time and one that states none at all, a PID
+   no table declares beside two programs (and the same file with the
+   second program's table held back, so that the two readers list that
+   PID in different places), one video PES packet that only the end of
+   the file completes, and sound whose PES packets state a decoding time
+   of their own. The structures those files hold are also hand-built in
+   `crates/coreav-mpegts/tests/captures.rs`, where the reader's answer is
+   stated rather than compared.
+2. Real files: the `real` transport streams of the private top-up
+   v1-ts-audio (its README fixes the rules and the
+   holdout before collection), development and holdout splits. That holdout is spent
+   (below), so the bars that rest on one are judged on input 4 instead.
+4. The replacement holdout: the transport stream draw of corpus
+   v2-heldout, drawn for the operation `ts-probe`, whose rules
+   its README fixes before collection. **At least 30 `real` transport
+   streams**, every one held out, none of them a file or a structural
+   signature v1-ts-audio or an earlier draw of `v2-heldout`
+   already holds. Fewer than 30 is a shortfall reported with the
+   result, not a bar judged on what there is: the bars below say which
+   number they are read against, and that number is this one.
+3. Robustness set: every transport stream of the top-up (`real`, `edge`,
+   `hostile`) and the transport stream part of the hostile suite
+   (`tools/hostile/generate.py`, part `mpegts`): tables that
+   point at themselves or lie about their lengths, more programs and
+   streams than the limits allow, PES packets that never end, frame headers
+   whose lengths do not advance, damaged, duplicated and scrambled packets,
+   and timestamps at the 33-bit wrap. `scripts/cli_hostile_check.py` runs
+   each through `coreav probe` in both output modes and through
+   `probe --scan-frame-sizes`, which lists every access unit.
+
+Bars, against `ffprobe` 7.0.2 with the documented known divergences
+(`docs/known-divergences-ts.md`, each with a predicate checked against
+the file):
+
+| Measure | Bar | Applies to |
+|---|---|---|
+| Stream oracle: files agreeing (direct or covered) over files `ffprobe` reads | at least 98% | input 2's development split, and input 4 (at least 30 files) |
+| Packet oracle: packets agreeing over all paired and unpaired packets | at least 99% | the same |
+| `--ffprobe-compat`: every key it prints equals `ffprobe`'s | 100% of files, keys | inputs 1, 2 and 4 |
+| Crashes, panics, hangs (120 s per file) or non-structured failures | 0 | input 3 |
+| Fixtures, streams, packets and `--ffprobe-compat` | 100% | CI, every change |
+| Peak resident memory of `coreav probe` | at most 300 MiB | input 3 |
+
+The known divergences (`docs/known-divergences-ts.md`) are built as the
+ISO base media overlay's are since an earlier change: each predicate checks CoreAV's
+values against the file itself, read by a reader written apart from
+CoreAV's (`Facts` in `scripts/oracle_kd_ts.py`), so that a CoreAV bug that
+moves a value cannot also move the evidence the entry checks; and
+`tools/oracle/kd_audit.py --overlay ts` injects bug-shaped changes into
+CoreAV's captures of every fixture (in CI, `ts-fixtures`), where none may
+be covered. The bars above came with this design note in an earlier change
+(`cdcd6e4`), before any real file was compared; every entry is dated
+after them, the two that arrived in the same pull request included:
+`ADDED_AFTER_THE_BARS` in `tools/stage3-report/report.py`, and every
+reported number is given with every entry and with direct agreement
+only.
+
+If input 2 has fewer than 50 `real` files (the stage 3 criterion), the
+bars are judged on the files there are and the shortfall is reported with
+them; the count is not reached by relaxing the permission rule.
+
+Where the bars stand is in [`measurements/ts-demux.md`](../measurements/ts-demux.md).
+They were met on the development split and missed on the held-out split,
+which was compared once and is spent; the causes that split showed are
+fixed or documented here. The development split's direct agreement did
+not move with them -- the files it holds show none of those causes --
+and the packets it leaves uncovered fell from 919 to 2, every one of
+them to the new divergence entry, not to a fix. **No bar is judged again
+until a holdout the reader has not seen is drawn**: a later run of the
+spent one, after changes made in answer to what it showed, is no
+estimate of unseen files.
+
+Fuzzing: a fuzz project `crates/coreav-mpegts/fuzz` with targets for the
+probe, the packet listing, the PSI sections and the PES reassembly, run
+in CI as every fuzz project is, and part of the 24 CPU-hour campaign.
+
+### Speed bars
+
+On the `real` transport streams of input 4, the replacement holdout,
+the median per-file ratio, overall and for each class (`group-g`, `group-b`
+and `group-h`, whichever has at least 5 files; smaller classes are
+reported), with a bootstrap 95% interval:
+
+| Operation | Against | Bar |
+|---|---|---|
+| `coreav probe` | `ffprobe -v error -of json -show_format -show_streams` | at most 1.00 |
+| `coreav probe --ffprobe-compat` | the same | at most 1.00 |
+| the packet listing, in process | libavformat in process (`docs/spikes/parity-bench/`): open, find stream info, read every packet | at most 1.00 |
+
+Both sides run on the same host, warm, with five rounds in alternating
+order. `scripts/bench_guard.py` gains three transport stream cases as the
+CI regression guard: `probe-ts`, `probe-compat-ts` and `probe-packets-ts`
+(`probe --scan-frame-sizes`, the packet listing over the whole file). A
+claim that CoreAV is faster needs the upper bound of the interval below
+1.00. Besides the median and its interval, the speed report gives the
+share of held-out files on which CoreAV is faster, overall and per class.
+
+Input 4 was collected and opened once; `docs/measurements/ts-demux.md`
+holds the result. The three speed bars are met on it, overall and in
+every class, and all three overall intervals are below 1.00. The three
+correctness bars are missed: the oracle bars at 81.08%
+of files and 73.88% of packets, which is 100% and 100.00% on `group-g` and
+58.3% and 49.77% on `group-h`, and `--ffprobe-compat`, 21 of whose 26
+keys differ on between 1 and 7 of the 37 files (it rejects nothing
+unexplained). The reader is at parity on streaming segments
+and does not yet read the large multi-programme multiplex; the largest
+single item is `KD-TS-STREAM-ORDER`, whose predicate was settled
+against one capture and does not fire on two multiplexes whose stream
+list is an exact permutation of `ffprobe`'s.

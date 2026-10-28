@@ -1,0 +1,12 @@
+[
+  {
+    "id": "bbb-hevc-1080p",
+    "url": "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h265/1080/Big_Buck_Bunny_1080_10s_30MB.mp4",
+    "sha256": "054fda19ab2c9f24d4524ffc33bfba9620b11e488ab813004dbe952fff26868d",
+    "bytes": 31462182,
+    "license": "CC-BY-3.0",
+    "license_url": "https://peach.blender.org/about/",
+    "attribution": "(c) copyright 2008, Blender Foundation / www.bigbuckbunny.org",
+    "container_comment": "Creative Commons Attribution 3.0 - http://bbb3d.renderfarming.net"
+  }
+]

@@ -1,0 +1,563 @@
+{
+ "failed": {
+  "g": [],
+  "t8": [],
+  "gs": [],
+  "h": []
+ },
+ "missing": [],
+ "calls": {
+  "g": {
+   "discard": {
+    "overall": {
+     "n": 32,
+     "median": 0.9928868616855511,
+     "ci95": [
+      0.9795527459822434,
+      1.0082763789433966
+     ],
+     "faster_after": 19,
+     "before_vs_ffmpeg": 1.1248993724393,
+     "after_vs_ffmpeg": 1.1239721490987862,
+     "faster_than_ffmpeg_before": 8,
+     "faster_than_ffmpeg_after": 9
+    },
+    "sd": {
+     "n": 8,
+     "median": 0.9851746213980004,
+     "ci95": [
+      0.9319531542662636,
+      1.030467390332323
+     ],
+     "faster_after": 4,
+     "before_vs_ffmpeg": 1.0562106867089445,
+     "after_vs_ffmpeg": 1.0367385500031159,
+     "faster_than_ffmpeg_before": 3,
+     "faster_than_ffmpeg_after": 4
+    },
+    "720p": {
+     "n": 8,
+     "median": 0.9890587338175367,
+     "ci95": [
+      0.9643700916143474,
+      0.9987638549528434
+     ],
+     "faster_after": 7,
+     "before_vs_ffmpeg": 1.1686038099753866,
+     "after_vs_ffmpeg": 1.1434911715685137,
+     "faster_than_ffmpeg_before": 1,
+     "faster_than_ffmpeg_after": 1
+    },
+    "1080p": {
+     "n": 8,
+     "median": 1.0116453953868771,
+     "ci95": [
+      1.002539913935268,
+      1.0217693442736775
+     ],
+     "faster_after": 1,
+     "before_vs_ffmpeg": 1.1831283841814364,
+     "after_vs_ffmpeg": 1.1783163996832275,
+     "faster_than_ffmpeg_before": 1,
+     "faster_than_ffmpeg_after": 1
+    },
+    "4k": {
+     "n": 8,
+     "median": 0.9841083617708858,
+     "ci95": [
+      0.9623460725399261,
+      0.9943790982810706
+     ],
+     "faster_after": 7,
+     "before_vs_ffmpeg": 1.0543713242403205,
+     "after_vs_ffmpeg": 1.0377374593312008,
+     "faster_than_ffmpeg_before": 3,
+     "faster_than_ffmpeg_after": 3
+    }
+   },
+   "write": {
+    "overall": {
+     "n": 32,
+     "median": 1.000116372996243,
+     "ci95": [
+      0.9817452717571621,
+      1.0146846914487024
+     ],
+     "faster_after": 16,
+     "before_vs_ffmpeg": 1.082578412301006,
+     "after_vs_ffmpeg": 1.0941666345163674,
+     "faster_than_ffmpeg_before": 8,
+     "faster_than_ffmpeg_after": 10
+    },
+    "sd": {
+     "n": 8,
+     "median": 0.983128832497638,
+     "ci95": [
+      0.9374662279428493,
+      1.0260584276936426
+     ],
+     "faster_after": 4,
+     "before_vs_ffmpeg": 1.0255923860689202,
+     "after_vs_ffmpeg": 0.9954619973070571,
+     "faster_than_ffmpeg_before": 3,
+     "faster_than_ffmpeg_after": 4
+    },
+    "720p": {
+     "n": 8,
+     "median": 1.0101420931858736,
+     "ci95": [
+      0.9874132658018986,
+      1.024124750382541
+     ],
+     "faster_after": 3,
+     "before_vs_ffmpeg": 1.124893067138177,
+     "after_vs_ffmpeg": 1.1416766977720463,
+     "faster_than_ffmpeg_before": 1,
+     "faster_than_ffmpeg_after": 1
+    },
+    "1080p": {
+     "n": 8,
+     "median": 1.0029338516908441,
+     "ci95": [
+      0.9817452717571621,
+      1.0438067831036923
+     ],
+     "faster_after": 3,
+     "before_vs_ffmpeg": 1.1113815807358325,
+     "after_vs_ffmpeg": 1.1179664652119459,
+     "faster_than_ffmpeg_before": 1,
+     "faster_than_ffmpeg_after": 1
+    },
+    "4k": {
+     "n": 8,
+     "median": 0.9861904344690373,
+     "ci95": [
+      0.9781620104750048,
+      1.0079639917753467
+     ],
+     "faster_after": 6,
+     "before_vs_ffmpeg": 1.0111529769904437,
+     "after_vs_ffmpeg": 0.9926886787144398,
+     "faster_than_ffmpeg_before": 3,
+     "faster_than_ffmpeg_after": 4
+    }
+   }
+  },
+  "t8": {
+   "discard": {
+    "overall": {
+     "n": 32,
+     "median": 0.9811351136126408,
+     "ci95": [
+      0.9686665389219469,
+      0.9932293940464791
+     ],
+     "faster_after": 24,
+     "before_vs_ffmpeg": 1.0222368843695664,
+     "after_vs_ffmpeg": 1.004416963728,
+     "faster_than_ffmpeg_before": 13,
+     "faster_than_ffmpeg_after": 16
+    },
+    "sd": {
+     "n": 8,
+     "median": 0.9733230266366795,
+     "ci95": [
+      0.9521496141004975,
+      1.0046447864025652
+     ],
+     "faster_after": 6,
+     "before_vs_ffmpeg": 0.9991081975872583,
+     "after_vs_ffmpeg": 0.9710830757829313,
+     "faster_than_ffmpeg_before": 4,
+     "faster_than_ffmpeg_after": 6
+    },
+    "720p": {
+     "n": 8,
+     "median": 0.9804954932666837,
+     "ci95": [
+      0.9549217277866668,
+      0.9826863642010492
+     ],
+     "faster_after": 7,
+     "before_vs_ffmpeg": 1.147190667235531,
+     "after_vs_ffmpeg": 1.1110392372821472,
+     "faster_than_ffmpeg_before": 0,
+     "faster_than_ffmpeg_after": 0
+    },
+    "1080p": {
+     "n": 8,
+     "median": 0.9981505953831435,
+     "ci95": [
+      0.9730505219021959,
+      1.0266095175965355
+     ],
+     "faster_after": 5,
+     "before_vs_ffmpeg": 1.107091114375251,
+     "after_vs_ffmpeg": 1.1069109615187842,
+     "faster_than_ffmpeg_before": 1,
+     "faster_than_ffmpeg_after": 2
+    },
+    "4k": {
+     "n": 8,
+     "median": 0.9693244187994241,
+     "ci95": [
+      0.9162131050866497,
+      1.02807192513637
+     ],
+     "faster_after": 6,
+     "before_vs_ffmpeg": 0.8485545335376194,
+     "after_vs_ffmpeg": 0.8062351607337899,
+     "faster_than_ffmpeg_before": 8,
+     "faster_than_ffmpeg_after": 8
+    }
+   },
+   "write": {
+    "overall": {
+     "n": 32,
+     "median": 0.9869767681108288,
+     "ci95": [
+      0.9821323224314473,
+      1.0017353324166303
+     ],
+     "faster_after": 19,
+     "before_vs_ffmpeg": 1.028397168649374,
+     "after_vs_ffmpeg": 1.018406106533881,
+     "faster_than_ffmpeg_before": 14,
+     "faster_than_ffmpeg_after": 14
+    },
+    "sd": {
+     "n": 8,
+     "median": 0.9635378008742266,
+     "ci95": [
+      0.929406806659189,
+      1.0012595480387192
+     ],
+     "faster_after": 5,
+     "before_vs_ffmpeg": 0.9838680784289148,
+     "after_vs_ffmpeg": 0.9563032851928492,
+     "faster_than_ffmpeg_before": 5,
+     "faster_than_ffmpeg_after": 5
+    },
+    "720p": {
+     "n": 8,
+     "median": 0.9958837262335396,
+     "ci95": [
+      0.9744232049762177,
+      1.0199470497056182
+     ],
+     "faster_after": 4,
+     "before_vs_ffmpeg": 1.1053368542203923,
+     "after_vs_ffmpeg": 1.1201593425755116,
+     "faster_than_ffmpeg_before": 0,
+     "faster_than_ffmpeg_after": 0
+    },
+    "1080p": {
+     "n": 8,
+     "median": 0.9854876913136947,
+     "ci95": [
+      0.9757606461975107,
+      1.0017353324166303
+     ],
+     "faster_after": 6,
+     "before_vs_ffmpeg": 1.063933463459009,
+     "after_vs_ffmpeg": 1.0713877617301053,
+     "faster_than_ffmpeg_before": 1,
+     "faster_than_ffmpeg_after": 1
+    },
+    "4k": {
+     "n": 8,
+     "median": 1.000551032318022,
+     "ci95": [
+      0.9865613724549936,
+      1.0241186939595825
+     ],
+     "faster_after": 4,
+     "before_vs_ffmpeg": 0.8433580157701231,
+     "after_vs_ffmpeg": 0.8302201933328073,
+     "faster_than_ffmpeg_before": 8,
+     "faster_than_ffmpeg_after": 8
+    }
+   }
+  },
+  "gs": {
+   "discard": {
+    "overall": {
+     "n": 32,
+     "median": 0.9803750095196045,
+     "ci95": [
+      0.9612792858157773,
+      0.9941135654387836
+     ],
+     "faster_after": 29,
+     "before_vs_ffmpeg": 1.1880564595824854,
+     "after_vs_ffmpeg": 1.1488790091919796,
+     "faster_than_ffmpeg_before": 6,
+     "faster_than_ffmpeg_after": 7
+    },
+    "sd": {
+     "n": 8,
+     "median": 0.9764884135350775,
+     "ci95": [
+      0.9355678976771145,
+      0.9948206497479519
+     ],
+     "faster_after": 8,
+     "before_vs_ffmpeg": 1.0818670358864149,
+     "after_vs_ffmpeg": 1.0444560219882217,
+     "faster_than_ffmpeg_before": 3,
+     "faster_than_ffmpeg_after": 3
+    },
+    "720p": {
+     "n": 8,
+     "median": 0.9908594791215751,
+     "ci95": [
+      0.9726418947861917,
+      0.9973884320093839
+     ],
+     "faster_after": 7,
+     "before_vs_ffmpeg": 1.2040685188790992,
+     "after_vs_ffmpeg": 1.198957893979007,
+     "faster_than_ffmpeg_before": 0,
+     "faster_than_ffmpeg_after": 1
+    },
+    "1080p": {
+     "n": 8,
+     "median": 0.9869824918338099,
+     "ci95": [
+      0.934461335711218,
+      1.003643700037829
+     ],
+     "faster_after": 6,
+     "before_vs_ffmpeg": 1.2052773583566494,
+     "after_vs_ffmpeg": 1.203626083528622,
+     "faster_than_ffmpeg_before": 0,
+     "faster_than_ffmpeg_after": 0
+    },
+    "4k": {
+     "n": 8,
+     "median": 0.9538640248040664,
+     "ci95": [
+      0.9457024891854839,
+      0.975661961798948
+     ],
+     "faster_after": 8,
+     "before_vs_ffmpeg": 1.0929559290800097,
+     "after_vs_ffmpeg": 1.0434638404881151,
+     "faster_than_ffmpeg_before": 3,
+     "faster_than_ffmpeg_after": 3
+    }
+   },
+   "write": {
+    "overall": {
+     "n": 32,
+     "median": 0.9915241517262945,
+     "ci95": [
+      0.9746087602776206,
+      0.9992582449657113
+     ],
+     "faster_after": 22,
+     "before_vs_ffmpeg": 1.1249635755080778,
+     "after_vs_ffmpeg": 1.1120102663284028,
+     "faster_than_ffmpeg_before": 9,
+     "faster_than_ffmpeg_after": 11
+    },
+    "sd": {
+     "n": 8,
+     "median": 0.9886495853262496,
+     "ci95": [
+      0.9429053547524802,
+      1.0017759743726493
+     ],
+     "faster_after": 5,
+     "before_vs_ffmpeg": 1.0572934757845864,
+     "after_vs_ffmpeg": 1.0280293184502525,
+     "faster_than_ffmpeg_before": 3,
+     "faster_than_ffmpeg_after": 4
+    },
+    "720p": {
+     "n": 8,
+     "median": 0.9934122753133918,
+     "ci95": [
+      0.9760502309015758,
+      1.0133965337028568
+     ],
+     "faster_after": 5,
+     "before_vs_ffmpeg": 1.1638859556911183,
+     "after_vs_ffmpeg": 1.1699807822728645,
+     "faster_than_ffmpeg_before": 1,
+     "faster_than_ffmpeg_after": 1
+    },
+    "1080p": {
+     "n": 8,
+     "median": 0.9940690194524395,
+     "ci95": [
+      0.9566731846518255,
+      1.014321459130128
+     ],
+     "faster_after": 5,
+     "before_vs_ffmpeg": 1.1637425612643284,
+     "after_vs_ffmpeg": 1.166037680076108,
+     "faster_than_ffmpeg_before": 1,
+     "faster_than_ffmpeg_after": 1
+    },
+    "4k": {
+     "n": 8,
+     "median": 0.9780214767973114,
+     "ci95": [
+      0.95736024882057,
+      0.9992582449657113
+     ],
+     "faster_after": 7,
+     "before_vs_ffmpeg": 0.9928696127773575,
+     "after_vs_ffmpeg": 0.9683669444671801,
+     "faster_than_ffmpeg_before": 4,
+     "faster_than_ffmpeg_after": 5
+    }
+   }
+  },
+  "h": {
+   "discard": {
+    "overall": {
+     "n": 64,
+     "median": 0.9918506982108485,
+     "ci95": [
+      0.9837877097352092,
+      1.004532828591839
+     ],
+     "faster_after": 34,
+     "before_vs_ffmpeg": 1.1019436743034277,
+     "after_vs_ffmpeg": 1.1255060518698443,
+     "faster_than_ffmpeg_before": 13,
+     "faster_than_ffmpeg_after": 15
+    },
+    "sd": {
+     "n": 16,
+     "median": 1.0095094775115419,
+     "ci95": [
+      0.9566229069494044,
+      1.0238018976580285
+     ],
+     "faster_after": 6,
+     "before_vs_ffmpeg": 1.094148134498118,
+     "after_vs_ffmpeg": 1.1166960516937676,
+     "faster_than_ffmpeg_before": 2,
+     "faster_than_ffmpeg_after": 2
+    },
+    "720p": {
+     "n": 16,
+     "median": 0.9884049295503011,
+     "ci95": [
+      0.9773087927440907,
+      1.007465661297529
+     ],
+     "faster_after": 9,
+     "before_vs_ffmpeg": 1.174939110523236,
+     "after_vs_ffmpeg": 1.1665732775811442,
+     "faster_than_ffmpeg_before": 1,
+     "faster_than_ffmpeg_after": 1
+    },
+    "1080p": {
+     "n": 16,
+     "median": 0.9867868222375904,
+     "ci95": [
+      0.9659119805794221,
+      1.0043437203290098
+     ],
+     "faster_after": 9,
+     "before_vs_ffmpeg": 1.1498628581031456,
+     "after_vs_ffmpeg": 1.1694993859711509,
+     "faster_than_ffmpeg_before": 4,
+     "faster_than_ffmpeg_after": 5
+    },
+    "4k": {
+     "n": 16,
+     "median": 0.990530093427335,
+     "ci95": [
+      0.9681893202143157,
+      1.0071983431806932
+     ],
+     "faster_after": 10,
+     "before_vs_ffmpeg": 1.0251296238828291,
+     "after_vs_ffmpeg": 1.0213116256299526,
+     "faster_than_ffmpeg_before": 6,
+     "faster_than_ffmpeg_after": 7
+    }
+   },
+   "write": {
+    "overall": {
+     "n": 64,
+     "median": 1.0037217848066882,
+     "ci95": [
+      0.9901681168283146,
+      1.0107395003906408
+     ],
+     "faster_after": 30,
+     "before_vs_ffmpeg": 1.0830175690574586,
+     "after_vs_ffmpeg": 1.096317402217108,
+     "faster_than_ffmpeg_before": 19,
+     "faster_than_ffmpeg_after": 18
+    },
+    "sd": {
+     "n": 16,
+     "median": 1.0096937887156083,
+     "ci95": [
+      0.9574153033348561,
+      1.0197138039765068
+     ],
+     "faster_after": 6,
+     "before_vs_ffmpeg": 1.0830175690574586,
+     "after_vs_ffmpeg": 1.0943739883047914,
+     "faster_than_ffmpeg_before": 2,
+     "faster_than_ffmpeg_after": 2
+    },
+    "720p": {
+     "n": 16,
+     "median": 1.0084167654537013,
+     "ci95": [
+      0.9853967813048863,
+      1.0179598348536647
+     ],
+     "faster_after": 7,
+     "before_vs_ffmpeg": 1.1548850133660333,
+     "after_vs_ffmpeg": 1.150151448029705,
+     "faster_than_ffmpeg_before": 1,
+     "faster_than_ffmpeg_after": 1
+    },
+    "1080p": {
+     "n": 16,
+     "median": 0.9971153706023124,
+     "ci95": [
+      0.9664215451905132,
+      1.0250753613106511
+     ],
+     "faster_after": 8,
+     "before_vs_ffmpeg": 1.0968517391571808,
+     "after_vs_ffmpeg": 1.1149896406171957,
+     "faster_than_ffmpeg_before": 5,
+     "faster_than_ffmpeg_after": 5
+    },
+    "4k": {
+     "n": 16,
+     "median": 0.9953067136796212,
+     "ci95": [
+      0.9731984819326893,
+      1.0055737700691019
+     ],
+     "faster_after": 9,
+     "before_vs_ffmpeg": 0.9658944694628122,
+     "after_vs_ffmpeg": 0.9485827047386428,
+     "faster_than_ffmpeg_before": 11,
+     "faster_than_ffmpeg_after": 10
+    }
+   }
+  }
+ },
+ "bars": {
+  "PG-1": false,
+  "PG-2": false,
+  "PG-3": false,
+  "PG-4": true,
+  "PG-5": true,
+  "PG-6": true
+ }
+}

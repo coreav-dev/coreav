@@ -1,0 +1,75 @@
+Reconstruction and deblocking items at 720p and 1080p, per class, in time over each stream's FFmpeg 9.0.2 total (one thread, discard).
+CoreAV: main at 40f29a6, the samples of ../profile-40f29a6 (run40). FFmpeg: the 9.0.2 attribution build of ../profile, recorded with
+../profile/rec.py on this VM class (66 files, samples-ff.tar.gz on branch measured/h264-intra-scales), named from that build's
+symbol table, function level only. CLS=720p TOP=16 python3 -I items_by_class.py RUN40 FF_DIR FFMPEG_G recon deblock, then 1080p.
+
+##### 720p
+== recon: CoreAV 0.113, FFmpeg 0.074 (of FFmpeg total, mean per stream)
+  0.0228 K idct4x4_add_quad                                         | 0.0138 h264_mb_template.c hl_decode_mb_simple_8
+  0.0118 K intra_chroma                                             | 0.0123 asm h264_add8x4_idct_sse2
+  0.0117 K intra4x4_mb                                              | 0.0051 h264_mb.c xchg_mb_border
+  0.0105 recon.rs apply<16>                                         | 0.0047 asm h264_idct_dc_add8_mmxext
+  0.0097 recon.rs reconstruct_chroma                                | 0.0044 asm ff_h264_idct_add16_8_sse2
+  0.0073 K intra8x8_mb                                              | 0.0040 asm ff_h264_idct8_add4_8_sse2
+  0.0059 recon.rs prepare_level_scales                              | 0.0039 h264_mb.c hl_decode_mb_predict_luma
+  0.0054 K intra16x16                                               | 0.0034 asm ff_pred8x8_dc_8_sse2
+  0.0050 recon.rs reconstruct_intra                                 | 0.0020 h264_mb.c hl_decode_mb_idct_luma
+  0.0049 K idct8x8_add                                              | 0.0017 h264_mb.c ff_h264_hl_decode_mb
+  0.0045 recon.rs residual_4x4_luma                                 | 0.0014 asm ff_h264_idct_add_8_avx
+  0.0022 K reconstruct_intra                                        | 0.0014 asm ff_pred16x16_dc_8_ssse3
+  0.0021 recon.rs reconstruct_inter                                 | 0.0013 asm ff_h264_idct_add16intra_8_sse2
+  0.0020 recon.rs new                                               | 0.0013 asm ff_h264_idct_add8_8_sse2
+  0.0019 recon.rs apply<64>                                         | 0.0013 asm ff_pred4x4_dc_8_mmxext
+  0.0013 recon.rs apply<4>                                          | 0.0010 asm ff_h264_idct8_add_8_sse2
+== deblock: CoreAV 0.293, FFmpeg 0.262 (of FFmpeg total, mean per stream)
+  0.0669 K luma_columns                                             | 0.0531 asm ff_deblock_v_luma_8_avx
+  0.0499 K filter_chroma_mb                                         | 0.0361 asm ff_deblock_h_luma_8_avx
+  0.0455 deblock.rs deblock_row<coreav_kernels_h264::Auto>          | 0.0295 asm ff_h264_loop_filter_strength_mmxext
+  0.0368 K luma_rows                                                | 0.0232 asm ff_deblock_h_chroma_8_avx
+  0.0215 deblock.rs new                                             | 0.0181 asm ff_deblock_v_luma_intra_8_avx
+  0.0124 deblock.rs edge_strengths<1>                               | 0.0167 h264_slice.c fill_filter_caches_inter
+  0.0117 deblock.rs edge_strengths<0>                               | 0.0162 asm ff_deblock_v_chroma_8_avx
+  0.0105 K Auto>                                                    | 0.0120 h264_loopfilter.c h264_filter_mb_fast_internal
+  0.0098 deblock.rs {closure#0}                                     | 0.0103 h264_slice.c loop_filter
+  0.0042 deblock.rs {closure#1}                                     | 0.0100 asm ff_deblock_h_luma_intra_8_avx
+  0.0032 deblock.rs params                                          | 0.0080 h264_slice.c fill_filter_caches
+  0.0029 deblock.rs same_motion                                     | 0.0056 h264_slice.c backup_mb_border
+  0.0029 deblock.rs coreav_h264::deblock::differing_motion_strength | 0.0052 asm ff_deblock_h_chroma_intra_8_avx
+  0.0026 deblock.rs coreav_h264::deblock::deblock_rows::<coreav_ker | 0.0044 h264_loopfilter.c filter_mb_edgev
+  0.0022 deblock.rs column                                          | 0.0034 asm ff_deblock_v_chroma_intra_8_avx
+  0.0018 deblock.rs strengths                                       | 0.0032 h264_loopfilter.c filter_mb_edgeh
+##### 1080p
+== deblock: CoreAV 0.149, FFmpeg 0.121 (of FFmpeg total, mean per stream)
+  0.0258 K luma_columns                                             | 0.0211 asm ff_deblock_v_luma_8_avx
+  0.0249 deblock.rs deblock_row<coreav_kernels_h264::Auto>          | 0.0194 asm ff_h264_loop_filter_strength_mmxext
+  0.0223 K filter_chroma_mb                                         | 0.0136 asm ff_deblock_h_luma_8_avx
+  0.0142 K luma_rows                                                | 0.0122 h264_slice.c fill_filter_caches_inter
+  0.0129 deblock.rs new                                             | 0.0111 asm ff_deblock_h_chroma_8_avx
+  0.0095 deblock.rs edge_strengths<1>                               | 0.0072 asm ff_deblock_v_chroma_8_avx
+  0.0095 deblock.rs edge_strengths<0>                               | 0.0063 h264_slice.c loop_filter
+  0.0060 deblock.rs {closure#0}                                     | 0.0063 h264_loopfilter.c h264_filter_mb_fast_internal
+  0.0049 K Auto>                                                    | 0.0051 h264_slice.c fill_filter_caches
+  0.0034 deblock.rs same_motion                                     | 0.0042 asm ff_deblock_v_luma_intra_8_avx
+  0.0020 deblock.rs coreav_h264::deblock::differing_motion_strength | 0.0033 h264_slice.c backup_mb_border
+  0.0020 deblock.rs {closure#1}                                     | 0.0025 h264_loopfilter.c filter_mb_edgev
+  0.0016 deblock.rs column                                          | 0.0022 asm ff_deblock_h_luma_intra_8_avx
+  0.0016 deblock.rs params                                          | 0.0017 h264_loopfilter.c filter_mb_edgeh
+  0.0015 deblock.rs coreav_h264::deblock::deblock_rows::<coreav_ker | 0.0014 h264_loopfilter.c ff_h264_filter_mb_fast
+  0.0013 deblock.rs spread                                          | 0.0014 asm ff_deblock_h_chroma_intra_8_avx
+== recon: CoreAV 0.122, FFmpeg 0.081 (of FFmpeg total, mean per stream)
+  0.0280 K idct4x4_add_quad                                         | 0.0164 h264_mb_template.c hl_decode_mb_simple_8
+  0.0167 K idct8x8_add                                              | 0.0145 asm h264_add8x4_idct_sse2
+  0.0126 recon.rs apply<16>                                         | 0.0141 asm ff_h264_idct8_add4_8_sse2
+  0.0121 recon.rs apply<64>                                         | 0.0061 asm h264_idct_dc_add8_mmxext
+  0.0094 recon.rs reconstruct_chroma                                | 0.0038 asm ff_h264_idct_add16_8_sse2
+  0.0078 K intra4x4_mb                                              | 0.0029 h264_mb.c hl_decode_mb_predict_luma
+  0.0063 K intra8x8_mb                                              | 0.0026 asm ff_h264_idct_add8_8_sse2
+  0.0060 recon.rs prepare_level_scales                              | 0.0021 h264idct_template.c ff_h264_chroma_dc_dequant_idct_8_c
+  0.0044 K intra_chroma                                             | 0.0017 h264_mb.c ff_h264_hl_decode_mb
+  0.0030 recon.rs reconstruct_intra                                 | 0.0017 asm ff_h264_idct8_add_8_sse2
+  0.0026 recon.rs chroma_qp<coreav_kernels_h264::Auto>              | 0.0016 h264_mb.c xchg_mb_border
+  0.0024 recon.rs residual_4x4_luma                                 | 0.0013 h264_mb.c hl_decode_mb_idct_luma
+  0.0024 recon.rs reconstruct_inter                                 | 0.0011 asm ff_h264_idct_add_8_avx
+  0.0023 recon.rs new                                               | 0.0010 asm ff_pred8x8_dc_8_sse2
+  0.0019 recon.rs apply<4>                                          | 0.0008 asm ff_pred8x8l_dc_8_ssse3
+  0.0014 K intra16x16                                               | 0.0007 asm ff_pred8x8l_horizontal_8_ssse3

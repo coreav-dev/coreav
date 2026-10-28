@@ -1,0 +1,51 @@
+diff --git a/crates/coreav-h264/Cargo.toml b/crates/coreav-h264/Cargo.toml
+index 9c111b03..9a4ff65b 100644
+--- a/crates/coreav-h264/Cargo.toml
++++ b/crates/coreav-h264/Cargo.toml
+@@ -21,6 +21,7 @@ default = ["fast"]
+ # The hot-path module of ADR 0038 (`src/fast/`): the decoder's only
+ # `unsafe`. A build without it compiles none and runs the baseline twins.
+ fast = []
++probe-pad = ["fast"]
+ 
+ # The workspace's lint table, with `unsafe_code = "deny"` instead of
+ # `forbid` (ADR 0038 point 1): `#[allow(unsafe_code)]` sits on `fast` alone,
+diff --git a/crates/coreav-h264/src/cavlc.rs b/crates/coreav-h264/src/cavlc.rs
+index 74280ac2..1315ac18 100644
+--- a/crates/coreav-h264/src/cavlc.rs
++++ b/crates/coreav-h264/src/cavlc.rs
+@@ -523,6 +523,11 @@ pub(crate) fn block_body<const N: usize>(
+     scale: &CoeffScale<N>,
+ ) -> Result<u8> {
+     const { assert!(N.is_power_of_two(), "a block of a power of two") };
++    // The calls counts.txt counts: the out-of-line instance of 4x4 blocks.
++    #[cfg(feature = "probe-pad")]
++    if N == 16 {
++        crate::fast::pad::<45>(nc as u64);
++    }
+     let mut w = Window::new(r);
+     // coeff_token, at most 16 bits: the new window holds at least 57.
+     let base = COEFF_TOKEN_BASE
+diff --git a/crates/coreav-h264/src/fast/mod.rs b/crates/coreav-h264/src/fast/mod.rs
+index 50b11bce..68c38116 100644
+--- a/crates/coreav-h264/src/fast/mod.rs
++++ b/crates/coreav-h264/src/fast/mod.rs
+@@ -172,3 +172,18 @@ impl Tier for V3 {
+         k.predict_inlined(dst, src, px, py, w, h, mv, ops)
+     }
+ }
++
++#[cfg(feature = "probe-pad")]
++/// Probe only (not for merge): `N` independent one-uop instructions, the
++/// part a cut of the block calls would remove there.
++#[inline(always)]
++pub(crate) fn pad<const N: usize>(a: u64) {
++    // SAFETY: register arithmetic only; no memory, stack or flags.
++    unsafe {
++        core::arch::asm!(
++            ".rept {n}", "lea {o}, [{a} + {a}]", ".endr",
++            n = const N, o = out(reg) _, a = in(reg) a,
++            options(nomem, nostack, preserves_flags)
++        );
++    }
++}

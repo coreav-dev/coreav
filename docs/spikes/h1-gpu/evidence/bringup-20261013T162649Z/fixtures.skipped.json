@@ -1,0 +1,10 @@
+[
+  {
+    "name": "svt_g2_640x480",
+    "error": "[vost#0:0 @ 0x68ae080] Unknown encoder 'libsvtav1'\n[vost#0:0 @ 0x68ae080] Error selecting an encoder\nError opening output file /tmp/fixtures/svt_g2_640x480.mp4.\nError opening output files: Encoder not found\n"
+  },
+  {
+    "name": "svt_g60_640x480",
+    "error": "[vost#0:0 @ 0x68ae080] Unknown encoder 'libsvtav1'\n[vost#0:0 @ 0x68ae080] Error selecting an encoder\nError opening output file /tmp/fixtures/svt_g60_640x480.mp4.\nError opening output files: Encoder not found\n"
+  }
+]

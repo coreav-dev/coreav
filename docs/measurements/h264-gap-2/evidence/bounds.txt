@@ -1,0 +1,24 @@
+112 bounds-check guards in 42 functions
+    16 miniz_oxide::inflate::core::decompress
+     9 <core::str::pattern::StrSearcher>::new
+     7 <std::path::Components as core::iter::traits::double_ended::DoubleEndedIterator>::next_back
+     6 <std::backtrace_rs::symbolize::gimli::Cache>::with_global::<std::backtrace_rs::symbolize::gimli::resolve::{clo
+     5 miniz_oxide::inflate::core::apply_match
+     4 miniz_oxide::inflate::core::transfer
+     4 <std::path::Components>::as_path
+     4 <addr2line::unit::ResUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>::find_funct
+     4 <addr2line::function::Function<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>::parse
+     3 <alloc::io::buffered::bufwriter::BufWriter<std::io::stdio::StdoutLock>>::flush_buf
+     3 <std::sys::stdio::unix::Stderr as core::io::write::Write>::write_all
+     3 <gimli::read::abbrev::Abbreviations>::insert
+     3 <std::path::Components as core::iter::traits::iterator::Iterator>::next
+     3 std::sys::pal::unix::stack_overflow::thread_info::set_current_info
+     2 core::str::slice_error_fail_rt
+1d4b1775d78a.ours.out: guards executed 85 of 15,881,857,407 instructions (0.00% at two instructions a guard)
+3b1b441e23ae.ours.out: guards executed 84 of 10,079,901,882 instructions (0.00% at two instructions a guard)
+41e324ebb708.ours.out: guards executed 85 of 20,517,916,088 instructions (0.00% at two instructions a guard)
+5185721dda11.ours.out: guards executed 86 of 6,822,017,077 instructions (0.00% at two instructions a guard)
+6da34958296c.ours.out: guards executed 86 of 27,484,455,599 instructions (0.00% at two instructions a guard)
+9db41aa16b5a.ours.out: guards executed 87 of 24,887,659,804 instructions (0.00% at two instructions a guard)
+b71b6b31e54f.ours.out: guards executed 87 of 20,417,336,205 instructions (0.00% at two instructions a guard)
+e624cbe0d2be.ours.out: guards executed 85 of 9,022,719,081 instructions (0.00% at two instructions a guard)

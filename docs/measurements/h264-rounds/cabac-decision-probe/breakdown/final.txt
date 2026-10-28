@@ -1,0 +1,33 @@
+
+=== CABAC: 26 streams, per MB, mean over streams
+  residual (sig/last, levels, signs, cbf, block dispatch)      CoreAV  1756.6 (engine 1017.0) FFmpeg   973.7 (get_cabac  226.4)  diff  +782.9
+  mvd and ref_idx                                              CoreAV   311.9 (engine  133.0) FFmpeg   125.8 (get_cabac   23.8)  diff  +186.1
+  MB header (skip, mb_type, sub, t8x8, cbp, qp_delta, intra mo CoreAV   768.5 (engine  344.6) FFmpeg   862.7 (get_cabac  272.8)  diff   -94.3
+  MB layer (neighbours, mv prediction, direct, motion store, p CoreAV   619.9 (engine    0.0) FFmpeg   291.6 (get_cabac    0.0)  diff  +328.4
+  NAL/RBSP                                                     CoreAV   100.3 (engine    0.0) FFmpeg    19.2 (get_cabac    0.0)  diff   +81.1
+  CAVLC syntax                                                 CoreAV     2.1 (engine    0.0) FFmpeg     0.6 (get_cabac    0.0)  diff    +1.5
+  unassigned (other)                                           CoreAV    91.1                  FFmpeg     0.0
+  total                                                        CoreAV  3650.3                  FFmpeg  2273.6  diff +1376.7
+  bins/MB: regular 34.26, bypass 5.70, terminate 1.04; residual regular 24.25 + signs 4.39
+  FFmpeg get_cabac/get_cabac_noinline: 27.6 instructions a call (inclusive), 5880225 calls a stream (mean)
+  CoreAV engine instructions per bin (regular+bypass+terminate): 36.8
+    res.sigmap                               bins  14.43  engine/bin  37.7  glue/bin   12.1
+    res.levels                               bins  11.59  engine/bin  30.9  glue/bin   22.2
+    cbp                                      bins   2.30  engine/bin  46.3  glue/bin   52.6
+    qp_delta                                 bins   1.23  engine/bin  46.3  glue/bin   11.4
+    intra modes                              bins   1.10  engine/bin  44.6  glue/bin   29.4
+    mb_type/sub/t8x8                         bins   1.78  engine/bin  43.9  glue/bin   35.1
+    res.block (cbf bin, layout, dispatch)    bins   2.37  engine/bin  48.2  glue/bin  108.6
+    mvd                                      bins   2.90  engine/bin  43.4  glue/bin   57.6
+    slice loop (skip flag, end of slice, dec bins   2.00  engine/bin  27.2  glue/bin   97.1
+  coded residual blocks/MB (significance maps): 1.69
+
+=== CAVLC: 6 streams, per MB, mean over streams
+  residual (sig/last, levels, signs, cbf, block dispatch)      CoreAV   476.3 (engine    0.0) FFmpeg   327.5 (get_cabac    0.0)  diff  +148.8
+  mvd and ref_idx                                              CoreAV    16.5 (engine    0.0) FFmpeg     0.0 (get_cabac    0.0)  diff   +16.5
+  MB header (skip, mb_type, sub, t8x8, cbp, qp_delta, intra mo CoreAV    49.1 (engine    0.0) FFmpeg    34.4 (get_cabac    0.0)  diff   +14.7
+  MB layer (neighbours, mv prediction, direct, motion store, p CoreAV   393.2 (engine    0.0) FFmpeg   153.2 (get_cabac    0.0)  diff  +240.0
+  NAL/RBSP                                                     CoreAV   111.6 (engine    0.0) FFmpeg    19.1 (get_cabac    0.0)  diff   +92.5
+  CAVLC syntax                                                 CoreAV   484.8 (engine    0.0) FFmpeg   299.6 (get_cabac    0.0)  diff  +185.2
+  unassigned (other)                                           CoreAV    80.3                  FFmpeg     0.0
+  total                                                        CoreAV  1611.8                  FFmpeg   833.8  diff  +778.0

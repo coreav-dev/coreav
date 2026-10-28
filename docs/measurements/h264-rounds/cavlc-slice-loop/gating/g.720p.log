@@ -1,0 +1,27 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2900.0 MHz, 8 logical CPUs
+gate baseline: 0.404 s (samples 0.438, 0.405, 0.404, 0.404)
+1d4b1775d78a.0.720p.h264                 base:discard=1.06  base:write=1.03  base:mixed=0.98  k:discard=1.07  k:write=1.03  k:mixed=0.99
+278dbf5a63bb.0.720p.h264                 base:discard=1.06  base:write=1.04  base:mixed=0.99  k:discard=1.06  k:write=1.03  k:mixed=0.99
+36501d448eaa.0.720p.h264                 base:discard=1.21  base:write=1.17  base:mixed=1.15  k:discard=1.20  k:write=1.18  k:mixed=1.15
+3c593b8f0809.0.720p.h264                 base:discard=1.13  base:write=1.12  base:mixed=1.09  k:discard=1.13  k:write=1.12  k:mixed=1.09
+gate after 4 streams (check): 0.406 s (+0.4%)
+65ec61f95a00.0.720p.h264                 host fault (attempt 1): null {'base_discard': -0.022501746128829825, 'base_write': -0.00038211188637571336}, max spread 1.629
+65ec61f95a00.0.720p.h264                 host fault (attempt 2): null {'base_discard': 0.011924289570234281, 'base_write': -0.0015908401558467622}, max spread 1.677
+65ec61f95a00.0.720p.h264                 host fault (attempt 3): null {'base_discard': 0.010037256692135177, 'base_write': -0.011485283477009944}, max spread 1.615
+65ec61f95a00.0.720p.h264                 base:discard=1.08  base:write=1.08  base:mixed=1.01  k:discard=1.09  k:write=1.07  k:mixed=1.03 UNRESOLVED
+6b18d9f0f88d.0.720p.h264                 host fault (attempt 1): null {'base_discard': 0.00042809225862061595, 'base_write': -0.004274177561655601}, max spread 1.625
+6b18d9f0f88d.0.720p.h264                 base:discard=0.89  base:write=0.82  base:mixed=0.74  k:discard=0.90  k:write=0.82  k:mixed=0.75
+76e0b1692494.0.720p.h264                 base:discard=1.08  base:write=1.05  base:mixed=0.97  k:discard=1.08  k:write=1.04  k:mixed=0.98
+9db41aa16b5a.0.720p.h264                 host fault (attempt 1): null {'base_discard': 0.0049338994048415685, 'base_write': -0.0164578638744185}, max spread 1.615
+9db41aa16b5a.0.720p.h264                 base:discard=1.00  base:write=0.94  base:mixed=0.89  k:discard=0.98  k:write=0.94  k:mixed=0.88
+gate after 8 streams (check): 0.427 s (+5.7%)
+gate after 8 streams (confirm): 0.412 s (+2.0%)
+
+base:discard             n=  8  median 1.069  [1.001, 1.130]
+base:write               n=  8  median 1.043  [0.942, 1.110]
+base:mixed               n=  8  median 0.985  [0.892, 1.066]
+k:discard                n=  8  median 1.073  [0.984, 1.128]
+k:write                  n=  8  median 1.038  [0.936, 1.109]
+k:mixed                  n=  8  median 0.989  [0.877, 1.069]
+
+wrote $HOME/ab/qsl/out/g.720p.json

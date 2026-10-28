@@ -1,0 +1,12 @@
+{
+ "file": "truncated.mp4",
+ "format_duration_us": null,
+ "probe_ok": false,
+ "properties": {
+  "error": "truncated structure at offset 89714",
+  "limit": null,
+  "rejection": "truncated_structure"
+ },
+ "schema": "coreav-oracle/streams/1",
+ "streams": []
+}

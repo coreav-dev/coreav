@@ -1,0 +1,29 @@
+callgrind --cache-sim=yes, whole decode, --discard, one thread; main d7bb7aeb against the branch on it (dist, AVX-512 tier detected). Ratios branch/main.
+
+main4 6da34958296c.0.1080p 30 | I refs: 1,576,924,390
+main4 6da34958296c.0.1080p 30 | D1 misses: 13,319,208 ( 8,911,429 rd + 4,407,779 wr)
+m12 6da34958296c.0.1080p 30 | I refs: 1,575,105,911
+m12 6da34958296c.0.1080p 30 | D1 misses: 12,195,320 ( 8,451,569 rd + 3,743,751 wr)
+main4 b71b6b31e54f.0.1080p 30 | I refs: 593,749,961
+main4 b71b6b31e54f.0.1080p 30 | D1 misses: 8,392,180 ( 4,053,421 rd + 4,338,759 wr)
+m12 b71b6b31e54f.0.1080p 30 | I refs: 590,641,894
+m12 b71b6b31e54f.0.1080p 30 | D1 misses: 7,612,941 ( 3,915,903 rd + 3,697,038 wr)
+main4 e624cbe0d2be.0.4k 15 | I refs: 1,615,062,605
+main4 e624cbe0d2be.0.4k 15 | D1 misses: 15,778,342 ( 7,563,976 rd + 8,214,366 wr)
+m12 e624cbe0d2be.0.4k 15 | I refs: 1,615,825,945
+m12 e624cbe0d2be.0.4k 15 | D1 misses: 13,930,941 ( 7,088,922 rd + 6,842,019 wr)
+main4 41e324ebb708.0.sd 200 | I refs: 554,782,670
+main4 41e324ebb708.0.sd 200 | D1 misses: 7,185,077 ( 4,276,118 rd + 2,908,959 wr)
+m12 41e324ebb708.0.sd 200 | I refs: 556,197,803
+m12 41e324ebb708.0.sd 200 | D1 misses: 6,457,414 ( 3,947,683 rd + 2,509,731 wr)
+main4 9db41aa16b5a.0.720p 60 | I refs: 726,226,852
+main4 9db41aa16b5a.0.720p 60 | D1 misses: 4,729,300 ( 2,755,982 rd + 1,973,318 wr)
+m12 9db41aa16b5a.0.720p 60 | I refs: 727,653,681
+m12 9db41aa16b5a.0.720p 60 | D1 misses: 4,318,559 ( 2,613,044 rd + 1,705,515 wr)
+
+stream instructions D1-misses (read write)
+6da34958296c.0.1080p 0.9988 0.916 0.948 0.849
+b71b6b31e54f.0.1080p 0.9948 0.907 0.966 0.852
+e624cbe0d2be.0.4k 1.0005 0.883 0.937 0.833
+41e324ebb708.0.sd 1.0026 0.899 0.923 0.863
+9db41aa16b5a.0.720p 1.0020 0.913 0.948 0.864

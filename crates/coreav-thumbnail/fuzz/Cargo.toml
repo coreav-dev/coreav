@@ -1,0 +1,35 @@
+# cargo-fuzz project (docs/design/decode.md, bar 4); outside the workspace, never published.
+[package]
+name = "coreav-thumbnail-fuzz"
+version = "0.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+coreav-thumbnail = { path = ".." }
+coreav-frame = { path = "../../coreav-frame" }
+coreav-isobmff = { path = "../../coreav-isobmff" }
+
+[[bin]]
+name = "thumbnail"
+path = "fuzz_targets/thumbnail.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "encode"
+path = "fuzz_targets/encode.rs"
+test = false
+doc = false
+bench = false
+
+[lints.rust]
+unsafe_code = "forbid"

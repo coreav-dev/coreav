@@ -1,0 +1,938 @@
+[
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "basic.mov",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "basic.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "basic.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "basic.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "chapters.mov",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "chapters.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "chapters.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "chapters.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "chapters_chpl_only.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "chapters_chpl_only.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 513,
+  "packets_off": 958,
+  "checked": 8,
+  "file": "chapters_sized.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 513,
+  "packets_off": 958,
+  "checked": 8,
+  "file": "chapters_sized.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "chapters_track_only.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "chapters_track_only.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 52,
+  "packets_off": 124,
+  "checked": 8,
+  "file": "clip_audio_late.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 52,
+  "packets_off": 124,
+  "checked": 8,
+  "file": "clip_audio_late.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 74,
+  "packets_off": 129,
+  "checked": 8,
+  "file": "clip_hevc_open_gop.mp4",
+  "codec": "hevc"
+ },
+ {
+  "status": "same",
+  "packets_on": 74,
+  "packets_off": 129,
+  "checked": 8,
+  "file": "clip_hevc_open_gop.mkv",
+  "codec": "hevc"
+ },
+ {
+  "status": "same",
+  "packets_on": 67,
+  "packets_off": 108,
+  "checked": 8,
+  "file": "clip_hevc_stss_all.mp4",
+  "codec": "hevc"
+ },
+ {
+  "status": "refused",
+  "on": "unsupported: no keyframe before the frame at that time",
+  "off": "unsupported: no keyframe before the frame at that time",
+  "checked": 8,
+  "packets_on": 0,
+  "packets_off": 0,
+  "file": "clip_hevc_stss_all.mkv",
+  "codec": "hevc"
+ },
+ {
+  "status": "same",
+  "packets_on": 112,
+  "packets_off": 112,
+  "checked": 8,
+  "file": "clip_no_stss.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 112,
+  "packets_off": 112,
+  "checked": 8,
+  "file": "clip_no_stss.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 88,
+  "packets_off": 120,
+  "checked": 8,
+  "file": "clip_no_stss_bframes.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 88,
+  "packets_off": 120,
+  "checked": 8,
+  "file": "clip_no_stss_bframes.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 52,
+  "packets_off": 124,
+  "checked": 8,
+  "file": "clip_open_gop.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 52,
+  "packets_off": 124,
+  "checked": 8,
+  "file": "clip_open_gop.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 88,
+  "packets_off": 120,
+  "checked": 8,
+  "file": "clip_stss_all.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 88,
+  "packets_off": 120,
+  "checked": 8,
+  "file": "clip_stss_all.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 412,
+  "packets_off": 412,
+  "checked": 8,
+  "file": "clip_stss_all_flash.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 412,
+  "packets_off": 412,
+  "checked": 8,
+  "file": "clip_stss_all_flash.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 39,
+  "packets_off": 94,
+  "checked": 8,
+  "file": "clip_video_late.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 52,
+  "packets_off": 124,
+  "checked": 8,
+  "file": "clip_video_late.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 118,
+  "packets_off": 219,
+  "checked": 8,
+  "file": "color_bt2020_pq.mp4",
+  "codec": "hevc"
+ },
+ {
+  "status": "same",
+  "packets_on": 118,
+  "packets_off": 219,
+  "checked": 8,
+  "file": "color_bt2020_pq.mkv",
+  "codec": "hevc"
+ },
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "color_bt709.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "color_bt709.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 68,
+  "packets_off": 112,
+  "checked": 8,
+  "file": "color_colr_only.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 68,
+  "packets_off": 112,
+  "checked": 8,
+  "file": "color_colr_only.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 68,
+  "packets_off": 112,
+  "checked": 8,
+  "file": "color_colr_vs_sps.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 68,
+  "packets_off": 112,
+  "checked": 8,
+  "file": "color_colr_vs_sps.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "color_full_range.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "color_full_range.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 66,
+  "packets_off": 112,
+  "checked": 8,
+  "file": "color_hevc_colr_ignored.mp4",
+  "codec": "hevc"
+ },
+ {
+  "status": "same",
+  "packets_on": 66,
+  "packets_off": 112,
+  "checked": 8,
+  "file": "color_hevc_colr_ignored.mkv",
+  "codec": "hevc"
+ },
+ {
+  "status": "same",
+  "packets_on": 68,
+  "packets_off": 112,
+  "checked": 8,
+  "file": "color_sps_range_only.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 68,
+  "packets_off": 112,
+  "checked": 8,
+  "file": "color_sps_range_only.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 68,
+  "packets_off": 112,
+  "checked": 8,
+  "file": "color_sps_unspecified.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 68,
+  "packets_off": 112,
+  "checked": 8,
+  "file": "color_sps_unspecified.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 65,
+  "packets_off": 107,
+  "checked": 8,
+  "file": "edit_list.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "edit_list.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 132,
+  "packets_off": 132,
+  "checked": 8,
+  "file": "edit_multi_av.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 132,
+  "packets_off": 132,
+  "checked": 8,
+  "file": "edit_multi_av.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "refused",
+  "on": "the time is at or after the end of the video",
+  "off": "the time is at or after the end of the video",
+  "checked": 8,
+  "packets_on": 73,
+  "packets_off": 104,
+  "file": "edit_multi_bframes.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 98,
+  "packets_off": 137,
+  "checked": 8,
+  "file": "edit_multi_bframes.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "refused",
+  "on": "the time is at or after the end of the video",
+  "off": "the time is at or after the end of the video",
+  "checked": 8,
+  "packets_on": 102,
+  "packets_off": 102,
+  "file": "edit_multi_empty.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 128,
+  "packets_off": 128,
+  "checked": 8,
+  "file": "edit_multi_empty.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 132,
+  "packets_off": 132,
+  "checked": 8,
+  "file": "edit_multi_splice.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 132,
+  "packets_off": 132,
+  "checked": 8,
+  "file": "edit_multi_splice.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "faststart.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "faststart.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 64,
+  "packets_off": 104,
+  "checked": 8,
+  "file": "fragmented.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "fragmented.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 23,
+  "packets_off": 26,
+  "checked": 8,
+  "file": "fragmented_many.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 21,
+  "packets_off": 23,
+  "checked": 8,
+  "file": "fragmented_many.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 64,
+  "packets_off": 104,
+  "checked": 8,
+  "file": "fragmented_moov.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "fragmented_moov.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 66,
+  "packets_off": 107,
+  "checked": 8,
+  "file": "fragmented_sidx.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 72,
+  "packets_off": 119,
+  "checked": 8,
+  "file": "fragmented_sidx.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 112,
+  "packets_off": 201,
+  "checked": 8,
+  "file": "h264_avc3.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 112,
+  "packets_off": 201,
+  "checked": 8,
+  "file": "h264_avc3.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 117,
+  "packets_off": 219,
+  "checked": 8,
+  "file": "hevc_hev1.mp4",
+  "codec": "hevc"
+ },
+ {
+  "status": "same",
+  "packets_on": 117,
+  "packets_off": 219,
+  "checked": 8,
+  "file": "hevc_hev1.mkv",
+  "codec": "hevc"
+ },
+ {
+  "status": "same",
+  "packets_on": 117,
+  "packets_off": 219,
+  "checked": 8,
+  "file": "hevc_hvc1.mp4",
+  "codec": "hevc"
+ },
+ {
+  "status": "same",
+  "packets_on": 117,
+  "packets_off": 219,
+  "checked": 8,
+  "file": "hevc_hvc1.mkv",
+  "codec": "hevc"
+ },
+ {
+  "status": "same",
+  "packets_on": 126,
+  "packets_off": 221,
+  "checked": 8,
+  "file": "hls_h264.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 126,
+  "packets_off": 221,
+  "checked": 8,
+  "file": "hls_h264.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 122,
+  "packets_off": 223,
+  "checked": 8,
+  "file": "hls_hevc.mp4",
+  "codec": "hevc"
+ },
+ {
+  "status": "same",
+  "packets_on": 122,
+  "packets_off": 223,
+  "checked": 8,
+  "file": "hls_hevc.mkv",
+  "codec": "hevc"
+ },
+ {
+  "status": "same",
+  "packets_on": 281,
+  "packets_off": 517,
+  "checked": 8,
+  "file": "hls_long_gop.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 281,
+  "packets_off": 517,
+  "checked": 8,
+  "file": "hls_long_gop.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 78,
+  "packets_off": 210,
+  "checked": 8,
+  "file": "hls_open_gop.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 78,
+  "packets_off": 210,
+  "checked": 8,
+  "file": "hls_open_gop.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "multitrack.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "multitrack.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "negative_cts.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "negative_cts.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "remux_metadata.mov",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "remux_metadata.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "remux_metadata.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "remux_metadata.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 68,
+  "packets_off": 114,
+  "checked": 8,
+  "file": "size_entry_understated.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 68,
+  "packets_off": 114,
+  "checked": 8,
+  "file": "size_entry_understated.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 62,
+  "packets_off": 105,
+  "checked": 8,
+  "file": "size_hevc_mixed_window.mp4",
+  "codec": "hevc"
+ },
+ {
+  "status": "same",
+  "packets_on": 62,
+  "packets_off": 105,
+  "checked": 8,
+  "file": "size_hevc_mixed_window.mkv",
+  "codec": "hevc"
+ },
+ {
+  "status": "same",
+  "packets_on": 62,
+  "packets_off": 105,
+  "checked": 8,
+  "file": "size_hevc_window.mp4",
+  "codec": "hevc"
+ },
+ {
+  "status": "same",
+  "packets_on": 62,
+  "packets_off": 105,
+  "checked": 8,
+  "file": "size_hevc_window.mkv",
+  "codec": "hevc"
+ },
+ {
+  "status": "same",
+  "packets_on": 70,
+  "packets_off": 116,
+  "checked": 8,
+  "file": "size_inband_sps.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 68,
+  "packets_off": 112,
+  "checked": 8,
+  "file": "size_inband_sps.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 68,
+  "packets_off": 114,
+  "checked": 8,
+  "file": "size_left_crop.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 68,
+  "packets_off": 114,
+  "checked": 8,
+  "file": "size_left_crop.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 51,
+  "packets_off": 74,
+  "checked": 8,
+  "file": "split_hevc.mp4",
+  "codec": "hevc"
+ },
+ {
+  "status": "same",
+  "packets_on": 51,
+  "packets_off": 74,
+  "checked": 8,
+  "file": "split_hevc.mkv",
+  "codec": "hevc"
+ },
+ {
+  "status": "same",
+  "packets_on": 513,
+  "packets_off": 958,
+  "checked": 8,
+  "file": "text_end.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 513,
+  "packets_off": 958,
+  "checked": 8,
+  "file": "text_end.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "text_shifted.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "text_shifted.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 513,
+  "packets_off": 958,
+  "checked": 8,
+  "file": "text_sized.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 513,
+  "packets_off": 958,
+  "checked": 8,
+  "file": "text_sized.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "text_styled.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "text_styled.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "timecode.mov",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "timecode.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "refused",
+  "on": "truncated structure at offset 89714",
+  "off": "truncated structure at offset 89714",
+  "checked": 8,
+  "packets_on": 0,
+  "packets_off": 0,
+  "file": "truncated.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 60,
+  "packets_off": 100,
+  "checked": 8,
+  "file": "truncated.mkv",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 48,
+  "packets_off": 70,
+  "checked": 8,
+  "file": "vfr.mp4",
+  "codec": "h264"
+ },
+ {
+  "status": "same",
+  "packets_on": 48,
+  "packets_off": 70,
+  "checked": 8,
+  "file": "vfr.mkv",
+  "codec": "h264"
+ }
+]

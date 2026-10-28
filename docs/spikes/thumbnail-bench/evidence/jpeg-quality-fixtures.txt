@@ -1,0 +1,4 @@
+base 90: 59 files, PSNR +0.00 dB, bytes x1.000 against base 90
+candidate 90: 59 files, PSNR -0.60 dB, bytes x1.004 against base 90
+candidate 91: 59 files, PSNR +0.02 dB, bytes x1.038 against base 90
+candidate 92: 59 files, PSNR +0.67 dB, bytes x1.075 against base 90

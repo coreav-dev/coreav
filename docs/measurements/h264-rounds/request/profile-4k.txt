@@ -1,0 +1,28 @@
+# main at 056bd25 (its crates are 3d60f0bf's), dist build, 3b1b441e23ae (4k class, 2400x1500), 150 pictures, one thread pinned to CPU 2, --discard.
+# perf record (cycles, default frequency); share of samples by function:
+  10.34% coreav_kernels_h264::simd::x86::predict::luma_block
+  7.92% coreav_kernels_h264::simd::x86::predict::chroma_block
+  6.83% <coreav_kernels_h264::predict::Planes>::request
+# Planes::request, 181 samples; the instructions holding most of them (perf annotate, skid: a sample lands on the instruction after the one waiting):
+  53.59 :   9c010:  add    %rax,%r9
+  7.18 :   9c04f:  add    %rax,%rbx
+  6.08 :   9bf7b:  add    %rax,%rdx
+  3.87 :   9bfca:  cmp    $0x1,%rcx
+  3.31 :   9c013:  dec    %r10
+  2.21 :   9bf9b:  cmp    $0x1,%rcx
+  1.66 :   9c052:  dec    %rdx
+  1.66 :   9c040:  sub    %rax,%r11
+  1.10 :   9c034:  not    %r11
+  1.10 :   9c00c:  prefetcht0 (%r9)
+  1.10 :   9c003:  cmp    %r8,%rbx
+  1.10 :   9bfae:  test   %rcx,%rcx
+# the hot instruction follows the luma rows' prefetcht0 (9c00c); the two chroma walks' follow 9c04c and 9bf78.
+# callgrind, 30 pictures, the same build:
+  cg.1d4b1775d78a.0.720p.out 910,873,747 total
+  cg.1d4b1775d78a.0.720p.out 8,591,949 request
+  cg.3b1b441e23ae.0.4k.out 1,155,253,542 total
+  cg.3b1b441e23ae.0.4k.out 52,094,134 request
+  calls of request: 27066 (1d4b1775d78a), 158558 (3b1b441e23ae); 317 and 329 instructions a call
+# callgrind, 30 pictures of 1d4b1775d78a: screen 1's base, then lean (rejected/h264-request-variants, RQ_LEAN=1):
+  base total 910,874,578, request 8,591,949
+  lean total 905,640,176, request 6,110,526

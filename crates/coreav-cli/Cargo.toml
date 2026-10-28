@@ -1,0 +1,76 @@
+[package]
+name = "coreav-cli"
+description = "The coreav command: memory-safe probing of MP4/MOV, Matroska, WebM and MPEG transport stream files, local or at an HTTP(S) URL; clipping, splitting, joining, sanitizing, audio, subtitle and chapter extraction and HLS packaging of MP4/MOV files; remuxing of all of them to MP4; decoding of their audio to WAV; and upload policy checks"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+name = "coreav_cli"
+path = "src/lib.rs"
+
+[[bin]]
+name = "coreav"
+path = "src/main.rs"
+# Without `net`, the command reads local files only (the WASI build of the
+# npm package, docs/design/npm-cli.md).
+required-features = ["cli"]
+
+[features]
+default = ["cli", "net"]
+# The command-line parser. The library (probing a `Source` and the JSON
+# documents) builds without it, for example for WebAssembly.
+cli = ["dep:clap"]
+# Reading HTTP(S) URLs by byte ranges (docs/design/remote.md).
+net = ["dep:coreav-range", "dep:ureq", "dep:url", "dep:rustls", "dep:rustls-native-certs"]
+# The sandboxed FFmpeg fallback for `coreav thumbnail` (docs/design/decode.md):
+# the command runs itself as the worker, which runs an `ffmpeg` binary.
+# Never in a default build.
+ffmpeg-fallback = ["thumbnail", "transcode", "dep:coreav-worker", "coreav-worker/ffmpeg"]
+# CoreAV's own H.264 decoder for `coreav thumbnail` (docs/design/h264.md),
+# in this process. Opt-in and never in a default build: decoding H.264 may
+# need a patent licence where you are (docs/design/h264.md, "Packaging").
+native-h264 = ["thumbnail", "transcode", "dep:coreav-backend-h264"]
+# Thumbnails (frame decoding, resampling, image encoding); a decoder backend
+# feature turns it on. Without it there is no `coreav thumbnail` subcommand
+# and the code is not linked, which keeps every command's start-up at its
+# cost (docs/design/benchmarks.md). It brings the sandbox launcher of
+# `coreav-worker` (the hidden `__coreav_exec` entry, which runs the encoder
+# of `coreav transcode`) to every build with a decoder backend, the native
+# H.264 decoder alone included.
+thumbnail = ["dep:coreav-thumbnail", "dep:coreav-worker"]
+# `coreav transcode` (docs/design/transcode.md, experimental): the video
+# re-encoded to H.264 by an operator-provided x264 or ffmpeg, which this
+# program runs under the sandbox launcher `thumbnail` brings. A decoder
+# backend feature turns it on.
+transcode = ["thumbnail", "dep:coreav-transcode"]
+# dav1d for AV1 in `coreav thumbnail`, in the same sandboxed worker; links
+# the system's libdav1d.
+dav1d = ["thumbnail", "transcode", "dep:coreav-worker", "coreav-worker/dav1d"]
+
+[dependencies]
+coreav-audio = { path = "../coreav-audio" }
+coreav-isobmff = { path = "../coreav-isobmff" }
+coreav-isobmff-write = { path = "../coreav-isobmff-write" }
+coreav-mkv = { path = "../coreav-mkv" }
+coreav-mpegts = { path = "../coreav-mpegts" }
+coreav-policy = { path = "../coreav-policy" }
+coreav-text = { path = "../coreav-text" }
+coreav-decode = { path = "../coreav-decode" }
+coreav-thumbnail = { path = "../coreav-thumbnail", optional = true }
+coreav-transcode = { path = "../coreav-transcode", optional = true }
+coreav-backend-h264 = { path = "../coreav-backend-h264", optional = true }
+coreav-worker = { path = "../coreav-worker", optional = true }
+clap = { workspace = true, optional = true }
+coreav-range = { path = "../coreav-range", optional = true }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"], optional = true }
+rustls-native-certs = { version = "0.8", optional = true }
+ureq = { version = "=3.4.2", default-features = false, features = ["rustls-no-provider"], optional = true }
+url = { version = "2", optional = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

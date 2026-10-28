@@ -1,0 +1,160 @@
+01:10:02 HOST cpu facts:
+model name	: unknown
+CPU(s):              32
+Vendor ID:           AuthenticAMD
+CPU family:          25
+Model:               17
+Thread(s) per core:  1
+Core(s) per socket:  32
+Socket(s):           1
+Stepping:            unknown
+16
+32
+avx2 avx512 avx512bw avx512cd avx512dq avx512f avx512vbmi avx512vl 
+01:10:19 reference measurement 1: 36501d448eaa.0.720p 1.121s; a6af290d9053.0.1080p 3.726s
+03:45:50 HOST cpu facts:
+model name	: unknown
+CPU(s):              32
+Vendor ID:           AuthenticAMD
+CPU family:          25
+Model:               17
+Thread(s) per core:  1
+Core(s) per socket:  32
+Socket(s):           1
+Stepping:            unknown
+16
+32
+avx2 avx512 avx512bw avx512cd avx512dq avx512f avx512vbmi avx512vl 
+03:46:05 reference measurement 1: 36501d448eaa.0.720p 1.060s; a6af290d9053.0.1080p 3.782s
+03:51:20 reference measurement 2: 36501d448eaa.0.720p 1.063s; a6af290d9053.0.1080p 3.566s
+03:56:35 reference measurement 3: 36501d448eaa.0.720p 1.052s; a6af290d9053.0.1080p 3.544s
+03:56:36 reference {'36501d448eaa.0.720p': 1.0602307460000002, 'a6af290d9053.0.1080p': 3.565524341000014} max deviation {'36501d448eaa.0.720p': 0.008071547662842016, 'a6af290d9053.0.1080p': 0.06074060819319671}
+03:56:36 host not stable within +-5%; not timing
+04:07:10 HOST cpu facts:
+model name	: unknown
+CPU(s):              32
+Vendor ID:           AuthenticAMD
+CPU family:          25
+Model:               1
+Thread(s) per core:  1
+Core(s) per socket:  32
+Socket(s):           1
+Stepping:            unknown
+16
+32
+avx2 
+04:07:31 reference measurement 1: 36501d448eaa.0.720p 1.426s; a6af290d9053.0.1080p 4.878s
+04:12:50 reference measurement 2: 36501d448eaa.0.720p 1.392s; a6af290d9053.0.1080p 4.464s
+04:18:15 reference measurement 3: 36501d448eaa.0.720p 1.365s; a6af290d9053.0.1080p 4.539s
+04:34:58 reference {'36501d448eaa.0.720p': 1.391818733999969, 'a6af290d9053.0.1080p': 4.538507440999979} max deviation {'36501d448eaa.0.720p': 0.024591401282310965, 'a6af290d9053.0.1080p': 0.0747684780539335}
+04:34:59 host not stable within +-5%; not timing
+04:35:18 HOST cpu facts:
+model name	: unknown
+CPU(s):              32
+Vendor ID:           AuthenticAMD
+CPU family:          25
+Model:               17
+Thread(s) per core:  1
+Core(s) per socket:  32
+Socket(s):           1
+Stepping:            unknown
+16
+32
+avx2 avx512 avx512bw avx512cd avx512dq avx512f avx512vbmi avx512vl 
+04:35:34 reference measurement 1: 36501d448eaa.0.720p 1.073s; a6af290d9053.0.1080p 3.575s
+04:40:50 reference measurement 2: 36501d448eaa.0.720p 1.222s; a6af290d9053.0.1080p 4.082s
+04:46:08 reference measurement 3: 36501d448eaa.0.720p 1.391s; a6af290d9053.0.1080p 4.071s
+04:46:08 reference {'36501d448eaa.0.720p': 1.2219151909999937, 'a6af290d9053.0.1080p': 4.070902209999986} max deviation {'36501d448eaa.0.720p': 0.13819136323351655, 'a6af290d9053.0.1080p': 0.12183958528445904}
+04:46:09 host not stable within +-5%; not timing
+04:46:20 HOST cpu facts:
+model name	: unknown
+CPU(s):              32
+Vendor ID:           AuthenticAMD
+CPU family:          25
+Model:               17
+Thread(s) per core:  1
+Core(s) per socket:  32
+Socket(s):           1
+Stepping:            unknown
+16
+32
+avx2 avx512 avx512bw avx512cd avx512dq avx512f avx512vbmi avx512vl 
+04:46:36 reference measurement 1: 36501d448eaa.0.720p 1.126s; a6af290d9053.0.1080p 3.753s
+04:51:51 reference measurement 2: 36501d448eaa.0.720p 1.082s; a6af290d9053.0.1080p 3.699s
+04:57:06 reference measurement 3: 36501d448eaa.0.720p 1.056s; a6af290d9053.0.1080p 3.544s
+04:57:07 reference {'36501d448eaa.0.720p': 1.0823877420000372, 'a6af290d9053.0.1080p': 3.6990673379999635} max deviation {'36501d448eaa.0.720p': 0.040299613814326785, 'a6af290d9053.0.1080p': 0.041871902251905624}
+05:00:20 HOST cpu facts:
+model name	: unknown
+CPU(s):              32
+Vendor ID:           AuthenticAMD
+CPU family:          25
+Model:               17
+Thread(s) per core:  1
+Core(s) per socket:  32
+Socket(s):           1
+Stepping:            unknown
+16
+32
+avx2 avx512 avx512bw avx512cd avx512dq avx512f avx512vbmi avx512vl 
+05:00:30 HOST cpu facts:
+model name	: unknown
+CPU(s):              32
+Vendor ID:           AuthenticAMD
+CPU family:          25
+Model:               1
+Thread(s) per core:  1
+Core(s) per socket:  32
+Socket(s):           1
+Stepping:            unknown
+16
+32
+avx2 
+05:00:52 reference measurement 1: 36501d448eaa.0.720p 1.533s; a6af290d9053.0.1080p 5.008s
+05:06:12 reference measurement 2: 36501d448eaa.0.720p 1.409s; a6af290d9053.0.1080p 4.638s
+05:11:31 reference measurement 3: 36501d448eaa.0.720p 1.340s; a6af290d9053.0.1080p 4.557s
+05:11:33 reference {'36501d448eaa.0.720p': 1.4093124650000277, 'a6af290d9053.0.1080p': 4.637723116000018} max deviation {'36501d448eaa.0.720p': 0.08768551053720319, 'a6af290d9053.0.1080p': 0.07980214638583005}
+05:11:34 host not stable within +-5%; not timing
+05:11:44 HOST cpu facts:
+model name	: unknown
+CPU(s):              32
+Vendor ID:           AuthenticAMD
+CPU family:          25
+Model:               17
+Thread(s) per core:  1
+Core(s) per socket:  32
+Socket(s):           1
+Stepping:            unknown
+16
+32
+avx2 avx512 avx512bw avx512cd avx512dq avx512f avx512vbmi avx512vl 
+05:11:59 reference measurement 1: 36501d448eaa.0.720p 1.058s; a6af290d9053.0.1080p 3.515s
+05:17:14 reference measurement 2: 36501d448eaa.0.720p 1.052s; a6af290d9053.0.1080p 3.534s
+05:22:29 reference measurement 3: 36501d448eaa.0.720p 1.060s; a6af290d9053.0.1080p 3.538s
+05:22:30 reference {'36501d448eaa.0.720p': 1.0580243549999997, 'a6af290d9053.0.1080p': 3.534108367999977} max deviation {'36501d448eaa.0.720p': 0.005655677935655246, 'a6af290d9053.0.1080p': 0.005404513956878687}
+05:26:46 identity 32/32 same
+05:27:01 PASS gate 36501d448eaa.0.720p ratio 0.984; a6af290d9053.0.1080p ratio 0.992
+05:28:26 PASS gate 36501d448eaa.0.720p ratio 0.996; a6af290d9053.0.1080p ratio 0.983
+05:28:27 t8.sd done
+05:28:42 PASS gate 36501d448eaa.0.720p ratio 0.986; a6af290d9053.0.1080p ratio 0.985
+05:30:28 PASS gate 36501d448eaa.0.720p ratio 0.997; a6af290d9053.0.1080p ratio 0.993
+05:30:29 t8.720p done
+05:30:44 PASS gate 36501d448eaa.0.720p ratio 1.011; a6af290d9053.0.1080p ratio 1.007
+05:33:49 PASS gate 36501d448eaa.0.720p ratio 0.996; a6af290d9053.0.1080p ratio 1.010
+05:33:50 t8.1080p done
+05:34:05 PASS gate 36501d448eaa.0.720p ratio 0.996; a6af290d9053.0.1080p ratio 1.015
+05:36:22 PASS gate 36501d448eaa.0.720p ratio 1.001; a6af290d9053.0.1080p ratio 0.999
+05:36:23 t8.4k done
+05:36:38 PASS gate 36501d448eaa.0.720p ratio 0.987; a6af290d9053.0.1080p ratio 1.015
+05:39:38 PASS gate 36501d448eaa.0.720p ratio 0.988; a6af290d9053.0.1080p ratio 0.983
+05:39:39 g.sd done
+05:39:54 PASS gate 36501d448eaa.0.720p ratio 1.017; a6af290d9053.0.1080p ratio 0.994
+05:44:51 PASS gate 36501d448eaa.0.720p ratio 0.978; a6af290d9053.0.1080p ratio 0.983
+05:44:52 g.720p done
+05:45:07 PASS gate 36501d448eaa.0.720p ratio 0.981; a6af290d9053.0.1080p ratio 0.980
+05:56:09 PASS gate 36501d448eaa.0.720p ratio 0.991; a6af290d9053.0.1080p ratio 0.992
+05:56:10 g.1080p done
+05:56:24 PASS gate 36501d448eaa.0.720p ratio 0.986; a6af290d9053.0.1080p ratio 0.993
+06:02:04 PASS gate 36501d448eaa.0.720p ratio 1.027; a6af290d9053.0.1080p ratio 1.000
+06:02:05 g.4k done
+06:02:06 analysis done elapsed 3022s events 0
+06:02:07 finished

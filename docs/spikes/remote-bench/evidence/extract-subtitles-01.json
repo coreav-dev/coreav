@@ -1,0 +1,33 @@
+[
+ {
+  "sha256": "145cd00359874eeca40c314027266a020861a8ef51261faaba4383198206a0e6",
+  "ext": "m4b",
+  "size": 53540101,
+  "class": "iso",
+  "refused": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"no such track\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "3c9312524de73933062ec6d9de37c3913308122980d7468575320ebfbd4a0e08",
+  "ext": "mp4",
+  "size": 110722958,
+  "class": "iso",
+  "ns": {
+   "ours": 282097750,
+   "theirs": 3913475643
+  }
+ },
+ {
+  "sha256": "6024f3b8f37190e0cafadefa93adb8a16143908c4a0038b7ada4dc4ba30cbc94",
+  "ext": "m4b",
+  "size": 219901909,
+  "class": "iso",
+  "refused": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"no such track\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "ff7fac2c85681198183ae1ea4058a02463690359e570811c65bc2e5be58785de",
+  "ext": "mp4",
+  "size": 21417927,
+  "class": "iso",
+  "refused": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"no such track\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ }
+]

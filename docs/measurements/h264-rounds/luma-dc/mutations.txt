@@ -1,0 +1,13 @@
+# Mutations of the kernels (one at a time, on the branch's code), each run against
+# `cargo test -p coreav-kernels-h264 --lib -- luma_residual_mb intra_kernels`; "killed" = a test failed.
+spread shuffle: each block's residual spread to the other block's samples (residual.rs dc_pair)     killed
+pair test's blend mask 0b0001_0001 -> 0b0001_0011 (position 1 ignored)                              killed (after the generator gained blocks with a DC and one other coefficient; survived before)
+quadrant column (i & 4) * 2 -> (i & 4)                                                               killed
+marked pair's DC lanes swapped                                                                        killed
+only_dc8 blend mask 1 -> 3 (position 1 ignored)                                                       killed (as the pair test's mask)
+saturations: the subtracted bytes from r instead of -r                                               killed
+round_dc: + 32 -> + 31                                                                                killed
+Intra_8x8 DC path: the subtraction dropped for rows 6 and 7                                           killed
+marked pair: the mark not limited to blocks with an nz bit                                            killed
+found DC: the right block's DC taken from the low lane                                                killed
+8x8 block row (k & 2) * 4 -> (k & 2) * 2                                                              killed

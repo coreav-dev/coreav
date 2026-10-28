@@ -1,0 +1,6 @@
+detected: 291 of 291 stream decodes bit-exact, 39987 frames, kernels: detected, threads: [1, 2, 8]
+detected: test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 28.08s
+scalar: 97 of 97 stream decodes bit-exact, 13329 frames, kernels: scalar, threads: [1]
+scalar: test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 28.97s
+nofast: 97 of 97 stream decodes bit-exact, 13329 frames, kernels: detected, threads: [1]
+nofast: test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 14.65s

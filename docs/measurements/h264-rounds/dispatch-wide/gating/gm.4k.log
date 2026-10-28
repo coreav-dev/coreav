@@ -1,0 +1,18 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2899.9 MHz, 8 logical CPUs
+3b1b441e23ae.0.4k.h264                   main:discard=1.04  main:write=0.71  main:mixed=0.63  after:discard=1.00  after:write=0.69  after:mixed=0.60
+4b54de28c2b3.0.4k.h264                   main:discard=1.37  main:write=1.06  main:mixed=1.00  after:discard=1.33  after:write=1.02  after:mixed=0.97
+81ed4778ece2.0.4k.h264                   main:discard=1.09  main:write=0.70  main:mixed=0.61  after:discard=1.04  after:write=0.67  after:mixed=0.59
+ae16bb7c7192.0.4k.h264                   main:discard=1.20  main:write=0.83  main:mixed=0.74  after:discard=1.13  after:write=0.79  after:mixed=0.70
+af38b0cfd840.0.4k.h264                   main:discard=1.12  main:write=1.00  main:mixed=0.95  after:discard=1.09  after:write=0.96  after:mixed=0.93
+e624cbe0d2be.0.4k.h264                   main:discard=1.17  main:write=0.79  main:mixed=0.69  after:discard=1.13  after:write=0.76  after:mixed=0.66
+ed75c044e944.0.4k.h264                   main:discard=0.86  main:write=0.60  main:mixed=0.53  after:discard=0.82  after:write=0.58  after:mixed=0.51
+f8d92a911e72.0.4k.h264                   main:discard=1.20  main:write=1.07  main:mixed=1.04  after:discard=1.14  after:write=1.02  after:mixed=0.99
+
+main:discard             n=  8  median 1.142  [1.038, 1.202]
+main:write               n=  8  median 0.808  [0.699, 1.056]
+main:mixed               n=  8  median 0.714  [0.613, 1.003]
+after:discard            n=  8  median 1.107  [0.995, 1.145]
+after:write              n=  8  median 0.775  [0.673, 1.021]
+after:mixed              n=  8  median 0.680  [0.587, 0.974]
+
+wrote $HOME/ab/dw/vol/d1/out/gm.4k.json

@@ -1,0 +1,78 @@
+# Time-based profile (perf cpu-clock, 2 kHz), main 06141b3, --discard, class frame counts, 1 thread and 8 threads (prof8.sh),
+# per stream: CPU samples at 8 threads over 1; motion compensation's samples (inter: the symbols cls.py lists) at 1 and 8 threads
+# over the 1-thread total; and inter's growth beyond the rest's (excess, a share of the 8-thread CPU time). Information only.
+175433794e02.0.1080p     cpu8/cpu1 1.145  inter1 0.089 inter8 0.163  (inter8-inter1)/cpu8 +0.064
+1d4b1775d78a.0.720p      cpu8/cpu1 1.310  inter1 0.249 inter8 0.396  (inter8-inter1)/cpu8 +0.113
+278dbf5a63bb.0.720p      cpu8/cpu1 1.258  inter1 0.212 inter8 0.344  (inter8-inter1)/cpu8 +0.105
+36501d448eaa.0.720p      cpu8/cpu1 1.321  inter1 0.141 inter8 0.292  (inter8-inter1)/cpu8 +0.114
+3b1b441e23ae.0.4k        cpu8/cpu1 1.876  inter1 0.460 inter8 0.866  (inter8-inter1)/cpu8 +0.217
+3c593b8f0809.0.720p      cpu8/cpu1 1.307  inter1 0.171 inter8 0.325  (inter8-inter1)/cpu8 +0.118
+41e324ebb708.0.sd        cpu8/cpu1 1.388  inter1 0.341 inter8 0.525  (inter8-inter1)/cpu8 +0.132
+4b54de28c2b3.0.4k        cpu8/cpu1 1.303  inter1 0.168 inter8 0.323  (inter8-inter1)/cpu8 +0.119
+5185721dda11.0.sd        cpu8/cpu1 1.614  inter1 0.221 inter8 0.452  (inter8-inter1)/cpu8 +0.143
+65ec61f95a00.0.720p      cpu8/cpu1 1.272  inter1 0.249 inter8 0.375  (inter8-inter1)/cpu8 +0.099
+6b18d9f0f88d.0.720p      cpu8/cpu1 1.529  inter1 0.280 inter8 0.561  (inter8-inter1)/cpu8 +0.184
+6da34958296c.0.1080p     cpu8/cpu1 1.604  inter1 0.331 inter8 0.657  (inter8-inter1)/cpu8 +0.203
+6e90422a670a.0.1080p     cpu8/cpu1 1.143  inter1 0.126 inter8 0.193  (inter8-inter1)/cpu8 +0.059
+6f7799768413.0.sd        cpu8/cpu1 1.425  inter1 0.208 inter8 0.415  (inter8-inter1)/cpu8 +0.145
+7650ae466748.0.sd        cpu8/cpu1 1.543  inter1 0.276 inter8 0.553  (inter8-inter1)/cpu8 +0.179
+76e0b1692494.0.720p      cpu8/cpu1 1.649  inter1 0.266 inter8 0.560  (inter8-inter1)/cpu8 +0.178
+81ed4778ece2.0.4k        cpu8/cpu1 1.670  inter1 0.342 inter8 0.680  (inter8-inter1)/cpu8 +0.202
+8ae90cadb5bc.0.sd        cpu8/cpu1 1.448  inter1 0.199 inter8 0.365  (inter8-inter1)/cpu8 +0.114
+9db41aa16b5a.0.720p      cpu8/cpu1 1.658  inter1 0.343 inter8 0.568  (inter8-inter1)/cpu8 +0.135
+a6af290d9053.0.1080p     cpu8/cpu1 1.167  inter1 0.133 inter8 0.217  (inter8-inter1)/cpu8 +0.072
+a81de82106be.0.1080p     cpu8/cpu1 1.527  inter1 0.184 inter8 0.413  (inter8-inter1)/cpu8 +0.150
+ae16bb7c7192.0.4k        cpu8/cpu1 1.544  inter1 0.434 inter8 0.725  (inter8-inter1)/cpu8 +0.189
+af38b0cfd840.0.4k        cpu8/cpu1 1.581  inter1 0.308 inter8 0.562  (inter8-inter1)/cpu8 +0.161
+b41f70a7fa60.0.1080p     cpu8/cpu1 1.170  inter1 0.278 inter8 0.342  (inter8-inter1)/cpu8 +0.054
+b71b6b31e54f.0.1080p     cpu8/cpu1 1.381  inter1 0.366 inter8 0.619  (inter8-inter1)/cpu8 +0.183
+c7ecda16e4a7.0.1080p     cpu8/cpu1 1.163  inter1 0.179 inter8 0.244  (inter8-inter1)/cpu8 +0.056
+dcb262cf0138.0.sd        cpu8/cpu1 1.679  inter1 0.221 inter8 0.518  (inter8-inter1)/cpu8 +0.177
+e624cbe0d2be.0.4k        cpu8/cpu1 1.381  inter1 0.357 inter8 0.509  (inter8-inter1)/cpu8 +0.110
+ec473c99c538.0.sd        cpu8/cpu1 2.008  inter1 0.280 inter8 0.589  (inter8-inter1)/cpu8 +0.154
+ed75c044e944.0.4k        cpu8/cpu1 1.926  inter1 0.357 inter8 0.835  (inter8-inter1)/cpu8 +0.248
+f8d92a911e72.0.4k        cpu8/cpu1 1.290  inter1 0.135 inter8 0.286  (inter8-inter1)/cpu8 +0.117
+f9e973f44570.0.sd        cpu8/cpu1 1.748  inter1 0.275 inter8 0.468  (inter8-inter1)/cpu8 +0.110
+sd median cpu8/cpu1 1.579 median excess share 0.144
+720p median cpu8/cpu1 1.316 median excess share 0.116
+1080p median cpu8/cpu1 1.168 median excess share 0.068
+4k median cpu8/cpu1 1.563 median excess share 0.175
+all median cpu8/cpu1 1.437 median excess share 0.134
+--- inflation inter vs other; excess inter beyond other inflation, share of cpu8
+175433794e02.0.1080p     inter x1.83 other x1.08 excess +0.058
+1d4b1775d78a.0.720p      inter x1.59 other x1.22 excess +0.072
+278dbf5a63bb.0.720p      inter x1.62 other x1.16 excess +0.078
+36501d448eaa.0.720p      inter x2.07 other x1.20 excess +0.093
+3b1b441e23ae.0.4k        inter x1.88 other x1.87 excess +0.004
+3c593b8f0809.0.720p      inter x1.90 other x1.18 excess +0.094
+41e324ebb708.0.sd        inter x1.54 other x1.31 excess +0.056
+4b54de28c2b3.0.4k        inter x1.92 other x1.18 excess +0.096
+5185721dda11.0.sd        inter x2.05 other x1.49 excess +0.076
+65ec61f95a00.0.720p      inter x1.50 other x1.20 excess +0.060
+6b18d9f0f88d.0.720p      inter x2.01 other x1.34 excess +0.121
+6da34958296c.0.1080p     inter x1.99 other x1.42 excess +0.118
+6e90422a670a.0.1080p     inter x1.53 other x1.09 excess +0.049
+6f7799768413.0.sd        inter x1.99 other x1.28 excess +0.105
+7650ae466748.0.sd        inter x2.00 other x1.37 excess +0.114
+76e0b1692494.0.720p      inter x2.11 other x1.48 excess +0.101
+81ed4778ece2.0.4k        inter x1.99 other x1.51 excess +0.098
+8ae90cadb5bc.0.sd        inter x1.83 other x1.35 excess +0.066
+9db41aa16b5a.0.720p      inter x1.65 other x1.66 excess -0.002
+a6af290d9053.0.1080p     inter x1.63 other x1.10 excess +0.061
+a81de82106be.0.1080p     inter x2.24 other x1.37 excess +0.106
+ae16bb7c7192.0.4k        inter x1.67 other x1.45 excess +0.063
+af38b0cfd840.0.4k        inter x1.83 other x1.47 excess +0.069
+b41f70a7fa60.0.1080p     inter x1.23 other x1.15 excess +0.019
+b71b6b31e54f.0.1080p     inter x1.69 other x1.20 excess +0.129
+c7ecda16e4a7.0.1080p     inter x1.36 other x1.12 excess +0.037
+dcb262cf0138.0.sd        inter x2.35 other x1.49 excess +0.113
+e624cbe0d2be.0.4k        inter x1.42 other x1.36 excess +0.017
+ec473c99c538.0.sd        inter x2.10 other x1.97 excess +0.018
+ed75c044e944.0.4k        inter x2.34 other x1.70 excess +0.119
+f8d92a911e72.0.4k        inter x2.12 other x1.16 excess +0.100
+f9e973f44570.0.sd        inter x1.70 other x1.76 excess -0.010
+sd 0.071
+720p 0.085
+1080p 0.06
+4k 0.082
+all 0.074

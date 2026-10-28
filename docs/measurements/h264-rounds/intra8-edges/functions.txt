@@ -1,0 +1,27 @@
+# Function-level instructions (callgrind, one thread, --discard, first 120 pictures), CoreAV at 914729f (fb893fd plus the
+# Intra_4x4 round's change) against FFmpeg 9.0.2 (function names only), grouped by intra item; this VM
+1d4b1775d78a.0.720p: CoreAV 2796M, FFmpeg 2106M instructions, 120 pictures; M CoreAV / FFmpeg (of FFmpeg total)
+  8x8        37.0 /    9.5   (0.0176 / 0.0045)
+  chroma     19.1 /    4.8   (0.0091 / 0.0023)
+  16x16       4.7 /    3.0   (0.0022 / 0.0014)
+  4x4         1.8 /    0.5   (0.0008 / 0.0002)
+  glue       23.0 /    0.0   (0.0109 / 0.0000)
+  idct8      16.2 /   18.7   (0.0077 / 0.0089)
+   ff top: ff_h264_idct8_add4_8_sse2 10.8, ff_h264_idct8_add_8_sse2 6.6, ff_pred8x8l_dc_8_ssse3 4.3, ff_pred8x8_dc_8_sse2 3.1, ff_pred8x8l_horizontal_8_ssse3 2.1, ff_pred16x16_plane_h264_8_ssse3 1.8, ff_h264_idct8_dc_add_8_mmxext 1.2, ff_pred8x8l_vertical_8_ssse3 1.1
+175433794e02.0.1080p: CoreAV 15014M, FFmpeg 9969M instructions, 120 pictures; M CoreAV / FFmpeg (of FFmpeg total)
+  8x8       127.1 /   27.0   (0.0128 / 0.0027)
+  chroma     69.7 /   18.8   (0.0070 / 0.0019)
+  16x16      14.4 /    9.6   (0.0014 / 0.0010)
+  4x4         0.0 /    0.0   (0.0000 / 0.0000)
+  glue       86.2 /    0.0   (0.0086 / 0.0000)
+  idct8     655.2 /  801.4   (0.0657 / 0.0804)
+
+# First 30 pictures of 1d4b1775d78a.0.720p, base fb893fd then k a3e9e9a (callgrind_annotate --auto=no)
+base 930,730,943   PROGRAM TOTALS
+base  25,663,707   ???:coreav_kernels_h264::simd::x86::intra8x8_mb
+base  12,270,213   ???:coreav_kernels_h264::simd::x86::intra_chroma_mb
+base   2,843,937   ???:coreav_kernels_h264::simd::x86::intra16x16
+k 919,877,778   PROGRAM TOTALS
+k  16,187,678   ???:coreav_kernels_h264::simd::x86::intra8x8_mb
+k  11,033,959   ???:coreav_kernels_h264::simd::x86::intra_chroma_mb
+k   2,703,129   ???:coreav_kernels_h264::simd::x86::intra16x16

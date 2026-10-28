@@ -1,0 +1,25 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2899.9 MHz, 8 logical CPUs
+gate after 0 streams: 0.399 s (+0.0%)
+175433794e02.0.1080p.h264                base:discard=1.16  base:write=1.11  base:mixed=1.10  k:discard=1.14  k:write=1.11  k:mixed=1.09
+6da34958296c.0.1080p.h264                host fault (attempt 1): null {'base_discard': 0.011189939291949003, 'base_write': -0.000529555611514132}, max spread 1.763
+6da34958296c.0.1080p.h264                host fault (attempt 2): null {'base_discard': -0.002379068800327455, 'base_write': -0.01325891377713495}, max spread 1.570
+6da34958296c.0.1080p.h264                host fault (attempt 3): null {'base_discard': 0.005691384625007956, 'base_write': 4.7486807309038426e-05}, max spread 1.653
+6da34958296c.0.1080p.h264                base:discard=1.15  base:write=1.10  base:mixed=1.03  k:discard=1.14  k:write=1.08  k:mixed=1.02 UNRESOLVED
+6e90422a670a.0.1080p.h264                base:discard=1.13  base:write=1.11  base:mixed=1.06  k:discard=1.11  k:write=1.08  k:mixed=1.04
+a6af290d9053.0.1080p.h264                base:discard=1.16  base:write=1.13  base:mixed=1.10  k:discard=1.12  k:write=1.10  k:mixed=1.06
+gate after 4 streams: 0.401 s (+0.6%)
+a81de82106be.0.1080p.h264                host fault (attempt 1): null {'base_discard': 0.003532884805109049, 'base_write': 0.004597718446393673}, max spread 1.591
+a81de82106be.0.1080p.h264                base:discard=0.95  base:write=0.91  base:mixed=0.86  k:discard=0.94  k:write=0.91  k:mixed=0.85
+b41f70a7fa60.0.1080p.h264                base:discard=1.19  base:write=1.12  base:mixed=1.08  k:discard=1.18  k:write=1.13  k:mixed=1.07
+b71b6b31e54f.0.1080p.h264                base:discard=1.12  base:write=1.04  base:mixed=0.95  k:discard=1.11  k:write=1.05  k:mixed=0.95
+c7ecda16e4a7.0.1080p.h264                base:discard=1.22  base:write=1.19  base:mixed=1.15  k:discard=1.23  k:write=1.20  k:mixed=1.16
+gate after 8 streams: 0.409 s (+2.7%)
+
+base:discard             n=  8  median 1.155  [1.118, 1.188]
+base:write               n=  8  median 1.111  [1.043, 1.130]
+base:mixed               n=  8  median 1.071  [0.955, 1.100]
+k:discard                n=  8  median 1.130  [1.106, 1.179]
+k:write                  n=  8  median 1.092  [1.051, 1.128]
+k:mixed                  n=  8  median 1.050  [0.947, 1.086]
+
+wrote $HOME/ab/qz/out/g.1080p.json

@@ -1,0 +1,28 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2900.0 MHz, 8 logical CPUs
+gate baseline: 0.401 s (samples 0.401, 0.407, 0.400)
+3b1b441e23ae.0.4k.h264                   host fault (attempt 1): null {'base_discard': -0.02869122681847569, 'base_write': -0.0037685842060455332}, max spread 1.679
+3b1b441e23ae.0.4k.h264                   host fault (attempt 2): null {'base_discard': -0.005738765497711684, 'base_write': -0.010090687341878346}, max spread 1.500
+3b1b441e23ae.0.4k.h264                   host fault (attempt 3): null {'base_discard': 0.004791632078781749, 'base_write': 0.0037684690636112794}, max spread 1.934
+3b1b441e23ae.0.4k.h264                   base:discard=0.79  base:write=0.74  base:mixed=0.62  k:discard=0.78  k:write=0.74  k:mixed=0.62 UNRESOLVED
+4b54de28c2b3.0.4k.h264                   base:discard=1.07  base:write=1.01  base:mixed=0.92  k:discard=1.07  k:write=0.97  k:mixed=0.92
+81ed4778ece2.0.4k.h264                   host fault (attempt 1): null {'base_discard': -0.010804908168113858, 'base_write': 0.07323305884785092}, max spread 1.821
+81ed4778ece2.0.4k.h264                   host fault (attempt 2): null {'base_discard': 0.0055907653519862155, 'base_write': -0.031463220111433654}, max spread 1.876
+81ed4778ece2.0.4k.h264                   base:discard=0.75  base:write=0.68  base:mixed=0.57  k:discard=0.73  k:write=0.65  k:mixed=0.55
+ae16bb7c7192.0.4k.h264                   host fault (attempt 1): null {'base_discard': 0.0090701611834898, 'base_write': -0.038092670292213526}, max spread 1.865
+ae16bb7c7192.0.4k.h264                   host fault (attempt 2): null {'base_discard': -0.005940024620658346, 'base_write': 0.0002687323888241888}, max spread 1.649
+ae16bb7c7192.0.4k.h264                   base:discard=0.92  base:write=0.87  base:mixed=0.75  k:discard=0.90  k:write=0.84  k:mixed=0.73
+gate after 4 streams (check): 0.402 s (+0.1%)
+af38b0cfd840.0.4k.h264                   base:discard=0.97  base:write=0.96  base:mixed=0.91  k:discard=0.96  k:write=0.95  k:mixed=0.90
+e624cbe0d2be.0.4k.h264                   base:discard=0.95  base:write=0.91  base:mixed=0.78  k:discard=0.93  k:write=0.90  k:mixed=0.77
+ed75c044e944.0.4k.h264                   base:discard=0.74  base:write=0.69  base:mixed=0.59  k:discard=0.71  k:write=0.67  k:mixed=0.58
+f8d92a911e72.0.4k.h264                   base:discard=1.05  base:write=1.02  base:mixed=0.98  k:discard=1.04  k:write=1.01  k:mixed=0.98
+gate after 8 streams (check): 0.399 s (-0.6%)
+
+base:discard             n=  8  median 0.936  [0.749, 1.047]
+base:write               n=  8  median 0.889  [0.692, 1.006]
+base:mixed               n=  8  median 0.763  [0.594, 0.921]
+k:discard                n=  8  median 0.918  [0.726, 1.042]
+k:write                  n=  8  median 0.868  [0.675, 0.973]
+k:mixed                  n=  8  median 0.748  [0.576, 0.923]
+
+wrote $HOME/ab/bundle3/out/g.4k.json

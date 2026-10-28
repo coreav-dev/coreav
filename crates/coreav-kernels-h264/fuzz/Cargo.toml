@@ -1,0 +1,111 @@
+# cargo-fuzz project (docs/design/fuzz-campaign.md); outside the
+# workspace, never published. The targets compare each vector kernel with
+# the scalar reference (bar C3 of docs/design/h264.md).
+[package]
+name = "coreav-kernels-h264-fuzz"
+version = "0.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+coreav-kernels-h264 = { path = ".." }
+
+[[bin]]
+name = "luma_mc"
+path = "fuzz_targets/luma_mc.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "chroma_mc"
+path = "fuzz_targets/chroma_mc.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "transform"
+path = "fuzz_targets/transform.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "filter_edge"
+path = "fuzz_targets/filter_edge.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "combine"
+path = "fuzz_targets/combine.rs"
+test = false
+doc = false
+bench = false
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[[bin]]
+name = "intra"
+path = "fuzz_targets/intra.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "filter_chroma_pair"
+path = "fuzz_targets/filter_chroma_pair.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "chroma_mb"
+path = "fuzz_targets/chroma_mb.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "filter_chroma_mb"
+path = "fuzz_targets/filter_chroma_mb.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "weighted_mc"
+path = "fuzz_targets/weighted_mc.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "predict"
+path = "fuzz_targets/predict.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "luma_mb_edges"
+path = "fuzz_targets/luma_mb_edges.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "strengths"
+path = "fuzz_targets/strengths.rs"
+test = false
+doc = false
+bench = false

@@ -1,0 +1,4 @@
+# k (r31-bv, k on 2a3972b) against base m-2a3972b, eight threads, callgrind as cg.sh; python3 -I kcg.py BASE.out K.out ...
+ec473c99c538.t8.out vs bv.ec473c99c538.t8.out: total k/base 0.959 (1,359,676,906 -> 1,303,501,701); reference_band 191 -> 115 a call (416,620 -> 416,620 calls); Interior::band 24,997,200 -> 1,424,820
+3b1b441e23ae.t8.out vs bv.3b1b441e23ae.t8.out: total k/base 0.929 (6,138,977,123 -> 5,700,062,425); reference_band 191 -> 106 a call (2,861,070 -> 2,861,070 calls); Interior::band 171,664,200 -> 502,080
+6e90422a670a.t8.out vs bv.6e90422a670a.t8.out: total k/base 0.985 (28,271,544,345 -> 27,859,446,200); reference_band 191 -> 106 a call (2,844,211 -> 2,844,211 calls); Interior::band 170,652,660 -> 570,840

@@ -1,0 +1,549 @@
+{
+  "machine": 9,
+  "environment": {
+    "torch": "2.14.1+cu130",
+    "torchcodec": "0.17.0+cu130",
+    "cuda_runtime": "13.0",
+    "gpu": "NVIDIA L4",
+    "pyav": "19.0.1",
+    "torchcodec_ffmpeg_libraries_via_pyav_wheel": {
+      "libavutil": [
+        61,
+        1,
+        102
+      ],
+      "libavcodec": [
+        63,
+        1,
+        102
+      ],
+      "libavformat": [
+        63,
+        1,
+        102
+      ],
+      "libavdevice": [
+        63,
+        1,
+        102
+      ],
+      "libavfilter": [
+        12,
+        1,
+        102
+      ],
+      "libswscale": [
+        10,
+        1,
+        102
+      ],
+      "libswresample": [
+        7,
+        1,
+        102
+      ]
+    },
+    "remote": {
+      "REMOTE_REGION": "eu-south",
+      "REMOTE_CLOUD_PROVIDER": "CLOUD_PROVIDER_AWS"
+    },
+    "nvidia_smi": "NVIDIA L4, 610.57.04, 23034 MiB, 2040 MHz",
+    "oracle_ffmpeg": "ffmpeg version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2000-2024 the FFmpeg developers",
+    "cpu": "unknown"
+  },
+  "videos": [
+    {
+      "scenario": "S1",
+      "video_rank": 0,
+      "file": "S1-00.source.mp4",
+      "validation": {
+        "exact": false,
+        "error": "ValueError('oracle lacks a planned frame')"
+      },
+      "included": false
+    },
+    {
+      "scenario": "S2",
+      "video_rank": 0,
+      "file": "S2-00.source.mp4",
+      "validation": {
+        "frames": 94,
+        "mismatches": 0,
+        "examples": [],
+        "exact": true
+      },
+      "warmup": {
+        "coreav_pts_ok": true,
+        "tc_mappings_pts_ok": true,
+        "tc_mappings_cpu_fallback": false,
+        "tc_exact_pts_ok": true,
+        "tc_exact_cpu_fallback": false,
+        "rgb_max_abs_diff_vs_torchcodec": 1,
+        "rgb_mean_abs_diff_vs_torchcodec": 0.4463673532009125,
+        "ok": true
+      },
+      "included": true
+    },
+    {
+      "scenario": "S3",
+      "video_rank": 0,
+      "file": "S3-02.source.mp4",
+      "validation": {
+        "exact": false,
+        "error": "ValueError('oracle lacks a planned frame')"
+      },
+      "included": false
+    },
+    {
+      "scenario": "S4",
+      "video_rank": 0,
+      "file": "S4-01.hevc.mp4",
+      "validation": {
+        "exact": false,
+        "error": "ValueError('oracle lacks a planned frame')"
+      },
+      "included": false
+    }
+  ],
+  "trials": [
+    {
+      "scenario": "S2",
+      "rank": 0,
+      "trial": 1,
+      "count": 8,
+      "seed": 20261013920001,
+      "kind": "indices",
+      "values": [
+        0,
+        983,
+        1967,
+        2951,
+        3934,
+        4918,
+        5902,
+        6886
+      ],
+      "order": [
+        "coreav",
+        "tc_mappings",
+        "tc_exact"
+      ],
+      "ms": {
+        "coreav": 313.93607400000076,
+        "tc_mappings": 422.830845,
+        "tc_exact": 491.94924199999866
+      },
+      "coreav_report": {
+        "decoded_pictures": 249,
+        "groups": 8,
+        "packet_reads": 258,
+        "packet_bytes": 11802259,
+        "session_created": false,
+        "skipped_maps": 241
+      },
+      "coreav_pts_ok": true,
+      "tc_mappings_pts_ok": true,
+      "tc_mappings_cpu_fallback": false,
+      "tc_exact_pts_ok": true,
+      "tc_exact_cpu_fallback": false
+    },
+    {
+      "scenario": "S2",
+      "rank": 0,
+      "trial": 1,
+      "count": 32,
+      "seed": 20261013920001,
+      "kind": "indices",
+      "values": [
+        0,
+        222,
+        444,
+        666,
+        888,
+        1110,
+        1332,
+        1554,
+        1777,
+        1999,
+        2221,
+        2443,
+        2665,
+        2887,
+        3109,
+        3331,
+        3554,
+        3776,
+        3998,
+        4220,
+        4442,
+        4664,
+        4886,
+        5108,
+        5331,
+        5553,
+        5775,
+        5997,
+        6219,
+        6441,
+        6663,
+        6886
+      ],
+      "order": [
+        "coreav",
+        "tc_mappings",
+        "tc_exact"
+      ],
+      "ms": {
+        "coreav": 1135.773498999999,
+        "tc_mappings": 1377.3940780000019,
+        "tc_exact": 1457.6507099999994
+      },
+      "coreav_report": {
+        "decoded_pictures": 898,
+        "groups": 32,
+        "packet_reads": 931,
+        "packet_bytes": 46401909,
+        "session_created": false,
+        "skipped_maps": 866
+      },
+      "coreav_pts_ok": true,
+      "tc_mappings_pts_ok": true,
+      "tc_mappings_cpu_fallback": false,
+      "tc_exact_pts_ok": true,
+      "tc_exact_cpu_fallback": false
+    },
+    {
+      "scenario": "S2",
+      "rank": 0,
+      "trial": 0,
+      "count": 8,
+      "seed": 20261013920000,
+      "kind": "indices",
+      "values": [
+        0,
+        983,
+        1967,
+        2951,
+        3934,
+        4918,
+        5902,
+        6886
+      ],
+      "order": [
+        "tc_mappings",
+        "coreav",
+        "tc_exact"
+      ],
+      "ms": {
+        "tc_mappings": 408.8075260000004,
+        "coreav": 312.8099920000018,
+        "tc_exact": 489.6652249999995
+      },
+      "tc_mappings_pts_ok": true,
+      "tc_mappings_cpu_fallback": false,
+      "coreav_report": {
+        "decoded_pictures": 249,
+        "groups": 8,
+        "packet_reads": 258,
+        "packet_bytes": 11802259,
+        "session_created": false,
+        "skipped_maps": 241
+      },
+      "coreav_pts_ok": true,
+      "tc_exact_pts_ok": true,
+      "tc_exact_cpu_fallback": false
+    },
+    {
+      "scenario": "S2",
+      "rank": 0,
+      "trial": 0,
+      "count": 64,
+      "seed": 20261013920000,
+      "kind": "indices",
+      "values": [
+        0,
+        109,
+        218,
+        327,
+        437,
+        546,
+        655,
+        765,
+        874,
+        983,
+        1093,
+        1202,
+        1311,
+        1420,
+        1530,
+        1639,
+        1748,
+        1858,
+        1967,
+        2076,
+        2186,
+        2295,
+        2404,
+        2513,
+        2623,
+        2732,
+        2841,
+        2951,
+        3060,
+        3169,
+        3279,
+        3388,
+        3497,
+        3606,
+        3716,
+        3825,
+        3934,
+        4044,
+        4153,
+        4262,
+        4372,
+        4481,
+        4590,
+        4699,
+        4809,
+        4918,
+        5027,
+        5137,
+        5246,
+        5355,
+        5465,
+        5574,
+        5683,
+        5792,
+        5902,
+        6011,
+        6120,
+        6230,
+        6339,
+        6448,
+        6558,
+        6667,
+        6776,
+        6886
+      ],
+      "order": [
+        "tc_mappings",
+        "coreav",
+        "tc_exact"
+      ],
+      "ms": {
+        "tc_mappings": 2864.2789849999986,
+        "coreav": 2437.175282999998,
+        "tc_exact": 2955.331919999999
+      },
+      "tc_mappings_pts_ok": true,
+      "tc_mappings_cpu_fallback": false,
+      "coreav_report": {
+        "decoded_pictures": 1921,
+        "groups": 64,
+        "packet_reads": 1986,
+        "packet_bytes": 99332634,
+        "session_created": false,
+        "skipped_maps": 1857
+      },
+      "coreav_pts_ok": true,
+      "tc_exact_pts_ok": true,
+      "tc_exact_cpu_fallback": false
+    },
+    {
+      "scenario": "S2",
+      "rank": 0,
+      "trial": 0,
+      "count": 32,
+      "seed": 20261013920000,
+      "kind": "indices",
+      "values": [
+        0,
+        222,
+        444,
+        666,
+        888,
+        1110,
+        1332,
+        1554,
+        1777,
+        1999,
+        2221,
+        2443,
+        2665,
+        2887,
+        3109,
+        3331,
+        3554,
+        3776,
+        3998,
+        4220,
+        4442,
+        4664,
+        4886,
+        5108,
+        5331,
+        5553,
+        5775,
+        5997,
+        6219,
+        6441,
+        6663,
+        6886
+      ],
+      "order": [
+        "tc_mappings",
+        "coreav",
+        "tc_exact"
+      ],
+      "ms": {
+        "tc_mappings": 1375.828877,
+        "coreav": 1135.237618000005,
+        "tc_exact": 1459.110539000001
+      },
+      "tc_mappings_pts_ok": true,
+      "tc_mappings_cpu_fallback": false,
+      "coreav_report": {
+        "decoded_pictures": 898,
+        "groups": 32,
+        "packet_reads": 931,
+        "packet_bytes": 46401909,
+        "session_created": false,
+        "skipped_maps": 866
+      },
+      "coreav_pts_ok": true,
+      "tc_exact_pts_ok": true,
+      "tc_exact_cpu_fallback": false
+    },
+    {
+      "scenario": "S2",
+      "rank": 0,
+      "trial": 1,
+      "count": 64,
+      "seed": 20261013920001,
+      "kind": "indices",
+      "values": [
+        0,
+        109,
+        218,
+        327,
+        437,
+        546,
+        655,
+        765,
+        874,
+        983,
+        1093,
+        1202,
+        1311,
+        1420,
+        1530,
+        1639,
+        1748,
+        1858,
+        1967,
+        2076,
+        2186,
+        2295,
+        2404,
+        2513,
+        2623,
+        2732,
+        2841,
+        2951,
+        3060,
+        3169,
+        3279,
+        3388,
+        3497,
+        3606,
+        3716,
+        3825,
+        3934,
+        4044,
+        4153,
+        4262,
+        4372,
+        4481,
+        4590,
+        4699,
+        4809,
+        4918,
+        5027,
+        5137,
+        5246,
+        5355,
+        5465,
+        5574,
+        5683,
+        5792,
+        5902,
+        6011,
+        6120,
+        6230,
+        6339,
+        6448,
+        6558,
+        6667,
+        6776,
+        6886
+      ],
+      "order": [
+        "tc_mappings",
+        "coreav",
+        "tc_exact"
+      ],
+      "ms": {
+        "tc_mappings": 2863.8941609999974,
+        "coreav": 2440.7315109999954,
+        "tc_exact": 2956.0667639999992
+      },
+      "tc_mappings_pts_ok": true,
+      "tc_mappings_cpu_fallback": false,
+      "coreav_report": {
+        "decoded_pictures": 1921,
+        "groups": 64,
+        "packet_reads": 1986,
+        "packet_bytes": 99332634,
+        "session_created": false,
+        "skipped_maps": 1857
+      },
+      "coreav_pts_ok": true,
+      "tc_exact_pts_ok": true,
+      "tc_exact_cpu_fallback": false
+    }
+  ],
+  "excluded": [
+    {
+      "scenario": "S1",
+      "video_rank": 0,
+      "file": "S1-00.source.mp4",
+      "validation": {
+        "exact": false,
+        "error": "ValueError('oracle lacks a planned frame')"
+      },
+      "included": false
+    },
+    {
+      "scenario": "S3",
+      "video_rank": 0,
+      "file": "S3-02.source.mp4",
+      "validation": {
+        "exact": false,
+        "error": "ValueError('oracle lacks a planned frame')"
+      },
+      "included": false
+    },
+    {
+      "scenario": "S4",
+      "video_rank": 0,
+      "file": "S4-01.hevc.mp4",
+      "validation": {
+        "exact": false,
+        "error": "ValueError('oracle lacks a planned frame')"
+      },
+      "included": false
+    }
+  ],
+  "complete": true
+}

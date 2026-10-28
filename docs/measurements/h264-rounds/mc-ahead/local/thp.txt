@@ -1,0 +1,16 @@
+madvise 3b1b441e23ae core 1.190 ff 0.810 ratio 1.469
+madvise 4b54de28c2b3 core 0.994 ff 0.718 ratio 1.384
+madvise 81ed4778ece2 core 0.380 ff 0.359 ratio 1.060
+madvise ae16bb7c7192 core 0.225 ff 0.177 ratio 1.270
+madvise af38b0cfd840 core 0.697 ff 0.590 ratio 1.182
+madvise e624cbe0d2be core 1.297 ff 1.064 ratio 1.218
+madvise ed75c044e944 core 0.391 ff 0.378 ratio 1.034
+madvise f8d92a911e72 core 10.132 ff 8.152 ratio 1.243
+always 3b1b441e23ae core 1.241 ff 0.932 ratio 1.331
+always 4b54de28c2b3 core 1.086 ff 0.755 ratio 1.439
+always 81ed4778ece2 core 0.421 ff 0.359 ratio 1.171
+always ae16bb7c7192 core 0.230 ff 0.183 ratio 1.255
+always af38b0cfd840 core 0.698 ff 0.591 ratio 1.180
+always e624cbe0d2be core 1.286 ff 1.056 ratio 1.218
+always ed75c044e944 core 0.410 ff 0.385 ratio 1.066
+always f8d92a911e72 core 9.997 ff 8.032 ratio 1.245

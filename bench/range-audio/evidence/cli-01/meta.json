@@ -1,0 +1,23 @@
+{
+ "cli_sha256": "841ca35027560e94b8b5ad683de8f9f102c9bdf3c62121961522b9eff2e22381",
+ "commit": "2fa487887220e43055ed302120517907f63655d1",
+ "dirty": false,
+ "engines": [
+  "cli"
+ ],
+ "held_out": true,
+ "inputs": "sets.json",
+ "machine": {
+  "cpu": "Intel(R) Xeon(R) Processor @ 2.90GHz",
+  "nproc": 8
+ },
+ "max_requests": 400000,
+ "native_sha256": "fb6c55762c0ae8172679421c89a97b8ca89e4a5b8d72d890fe4be9b63b9c0d54",
+ "started": 1792468008.3751616,
+ "tools": {
+  "ffmpeg": "ffmpeg version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2000-2024 the FFmpeg developers",
+  "node": "v24.14.1",
+  "wrangler": null
+ },
+ "trials": 3
+}

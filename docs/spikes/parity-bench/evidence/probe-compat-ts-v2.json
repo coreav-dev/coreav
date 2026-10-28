@@ -1,0 +1,483 @@
+[
+ {
+  "sha256": "08bb28263017ff1859aba88fec6eb9b417ea14f16a82c5047a901732fee60c70",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 5684281,
+   "ffprobe": 139967002
+  },
+  "failure": null
+ },
+ {
+  "sha256": "08c33baa3db0c07977dd451c1f4ce15dcbbff0476066e7984a3c229dde583c2e",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 5893876,
+   "ffprobe": 12329090
+  },
+  "failure": null
+ },
+ {
+  "sha256": "0b5995d47efdbfac39394f41517898b951f1e2e41ba2d0abbf02c8ed619f4f9a",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 4194122,
+   "ffprobe": 10518737
+  },
+  "failure": null
+ },
+ {
+  "sha256": "0c4caa3f5d85dbb9bd6f94b12720e0de68134b51ec40faf6471bca4bed79aab7",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 2711612,
+   "ffprobe": 7536515
+  },
+  "failure": null
+ },
+ {
+  "sha256": "0e31e94916e954cf44d6f93fa37c8642c65362a6eedf1b814a11e4da3aa9acfc",
+  "ext": "mts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 6029668,
+   "ffprobe": 100945063
+  },
+  "failure": null
+ },
+ {
+  "sha256": "1d452ab433c292a7f6d1ce2adb4b2960f93542bff9a891a6c7d810dd2e205d18",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 6954640,
+   "ffprobe": 12393588
+  },
+  "failure": null
+ },
+ {
+  "sha256": "24143de80d28461d084dfb75279da520f335de36b7c35f6398ed6d510daa5937",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 23250696,
+   "ffprobe": 150245682
+  },
+  "failure": null
+ },
+ {
+  "sha256": "2a8cd4ef827b6c4097adecd828b4131b78ca4fb826a491e2d953835b1260bfdc",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 6547107,
+   "ffprobe": 18710156
+  },
+  "failure": null
+ },
+ {
+  "sha256": "2e36931d5a8d8f223eba1c639b740b20a78a5a5c50c756495268460aa5020af6",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 3536398,
+   "ffprobe": 9815130
+  },
+  "failure": null
+ },
+ {
+  "sha256": "31394dc2db1351c96ebe46027c308eb2d03007bf1aa07ed51c9dc4be177e654a",
+  "ext": "m2ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 5967158,
+   "ffprobe": 77880242
+  },
+  "failure": null
+ },
+ {
+  "sha256": "31eb0e2e53b6d61284875c3be3fb556a2fa049d7afc27693cd78d755dd2c2519",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 2441903,
+   "ffprobe": 26637654
+  },
+  "failure": null
+ },
+ {
+  "sha256": "3ca9ade3833283c2bd18e4ed0201d036ea8afdc05754deea2a5ece1972b4d4e0",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 2931128,
+   "ffprobe": 13295487
+  },
+  "failure": null
+ },
+ {
+  "sha256": "3f62119c6eed54ffa006c5b3b3b52bb40ed9f4eed033cd63120665622def421b",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 7454130,
+   "ffprobe": 86203736
+  },
+  "failure": null
+ },
+ {
+  "sha256": "4441cd4b4c8e1b071302a3de496dbe1267d68b47ca079a24fb65622cb2af684b",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 1924631,
+   "ffprobe": 26433511
+  },
+  "failure": null
+ },
+ {
+  "sha256": "463675655d96a4a58c41abeb306f007afb1c37728895af29df52a19d9c520a83",
+  "ext": "m2ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 5703303,
+   "ffprobe": 14584634
+  },
+  "failure": null
+ },
+ {
+  "sha256": "4e37f7f027eb92ee043e5a65ba40fa568c96d579289eb7e16379f3362901faa5",
+  "ext": "mts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 6420774,
+   "ffprobe": 177877790
+  },
+  "failure": null
+ },
+ {
+  "sha256": "5b5ee88b09fa4542d98837212775f5df3158732a87b78c55cd1c1adc3f25b608",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 1990458,
+   "ffprobe": 21611291
+  },
+  "failure": null
+ },
+ {
+  "sha256": "61b0443f4bca43a131d7f002a2585390170580ce1511ee1aa1692e5c9dd2f152",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 2643047,
+   "ffprobe": 12161659
+  },
+  "failure": null
+ },
+ {
+  "sha256": "664337e257eff78c2091119b174858af5a936ae5c5a20c894e13204282c59477",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 2974371,
+   "ffprobe": 10996697
+  },
+  "failure": null
+ },
+ {
+  "sha256": "6a5fa1d73852dfff2f24c0d93ec5cbb333910300c03957fb47c06371c92d6915",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 11549257,
+   "ffprobe": 25048408
+  },
+  "failure": null
+ },
+ {
+  "sha256": "6a819d003155123c56f29efd8e2e0330d3eed05d3c5cffef4f48a5b9580e4bca",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 5331371,
+   "ffprobe": 22698792
+  },
+  "failure": null
+ },
+ {
+  "sha256": "6de513cbc0d47c7d500816b4430d77584b62b995f4d27969f61e359d96227eb4",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 6274005,
+   "ffprobe": 21372020
+  },
+  "failure": null
+ },
+ {
+  "sha256": "71cf2bb5ea58040f63b1e0e83de967fc00ea0650dce949eddf57f03cb1dbc957",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 20121509,
+   "ffprobe": 25159356
+  },
+  "failure": null
+ },
+ {
+  "sha256": "93abf6d4032fd4468f2e4d8311e56e124c06481aaf010e589db7c37acd01cc33",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 6024022,
+   "ffprobe": 12035088
+  },
+  "failure": null
+ },
+ {
+  "sha256": "a30632033f457f069471e244ead54b410e864bf5f27767161a196ac5e0ccb811",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 5463521,
+   "ffprobe": 29313911
+  },
+  "failure": null
+ },
+ {
+  "sha256": "a93bca89adf92cffea27b2149f01295198e9a8d964b7fbdf19ef81e35e7b79a6",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 5694674,
+   "ffprobe": 148234110
+  },
+  "failure": null
+ },
+ {
+  "sha256": "b1b043f866cb461732e0ed5cf527204d2c931461d57c42cc58c0bc0067af03f0",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 1915044,
+   "ffprobe": 10105153
+  },
+  "failure": null
+ },
+ {
+  "sha256": "b284e79465d82923eb4c0aab3a980e6fddb95c6d750544092dca0d1957cabae9",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 3026469,
+   "ffprobe": 17155924
+  },
+  "failure": null
+ },
+ {
+  "sha256": "cd85d3f0e0161b6e54ceeaea6772a00eae938fe938a6a71bca03245de488e1b7",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 24623138,
+   "ffprobe": 15595491
+  },
+  "failure": null
+ },
+ {
+  "sha256": "ce820246a9b4f8f3395d93d8ffa90290611705f5b32ab0f363abe8baf282baae",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 4105967,
+   "ffprobe": 8372288
+  },
+  "failure": null
+ },
+ {
+  "sha256": "e49a13ab3e592cec8f77544e232523202ae4b8b4e318ec288d70b2a5905be507",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 2367131,
+   "ffprobe": 5049409
+  },
+  "failure": null
+ },
+ {
+  "sha256": "e6ccd1bfb035538f976a6b6da116e7f9a69ac49d3923cfc9c7c6dc2f22e4e408",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 2020508,
+   "ffprobe": 9805062
+  },
+  "failure": null
+ },
+ {
+  "sha256": "e758c372893cb8cff832c4aa78fc57854ec732184efc69db7db2cc3775a0d935",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 1654755,
+   "ffprobe": 11978347
+  },
+  "failure": null
+ },
+ {
+  "sha256": "e7ce5c990f036a5769ded5105ad8aa909a6368d690313ce4e05f88d9582234a3",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 2969764,
+   "ffprobe": 8186491
+  },
+  "failure": null
+ },
+ {
+  "sha256": "eb26df92ef0c8c3f598f22c15b395ac4287835a57cc216bc42938f481abc0155",
+  "ext": "m2ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 23466501,
+   "ffprobe": 106801860
+  },
+  "failure": null
+ },
+ {
+  "sha256": "f2edb3b584fd7e0ce6dc79b63df3550a6c7d63f3e120299ec5e94e882af75b0a",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 21866192,
+   "ffprobe": 222459657
+  },
+  "failure": null
+ },
+ {
+  "sha256": "f8548680c530cdb7511a7803dd4319ecb205113b84ee3564f7a4f4258c4e4dec",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 3447735,
+   "ffprobe": 8703806
+  },
+  "failure": null
+ }
+]

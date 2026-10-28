@@ -1,0 +1,116 @@
+{
+ "builds": [
+  "base",
+  "bmi2all",
+  "e1",
+  "b1"
+ ],
+ "identity": {
+  "base": "base",
+  "others": [
+   "bmi2all",
+   "e1",
+   "b1"
+  ],
+  "threads": [
+   1
+  ]
+ },
+ "calls": [
+  {
+   "name": "g.sd",
+   "frames": 1800,
+   "cls": "sd",
+   "only": [
+    "41e324ebb708",
+    "7650ae466748"
+   ],
+   "extra": [
+    "--rounds",
+    "5",
+    "--pin",
+    "2",
+    "--require-cpu",
+    "Intel(R) Xeon(R) Processor @ 2.90GHz"
+   ],
+   "decoders": [
+    "base",
+    "bmi2all",
+    "e1",
+    "b1"
+   ]
+  },
+  {
+   "name": "g.720p",
+   "frames": 900,
+   "cls": "720p",
+   "only": [
+    "1d4b1775d78a",
+    "36501d448eaa"
+   ],
+   "extra": [
+    "--rounds",
+    "5",
+    "--pin",
+    "2",
+    "--require-cpu",
+    "Intel(R) Xeon(R) Processor @ 2.90GHz"
+   ],
+   "decoders": [
+    "base",
+    "bmi2all",
+    "e1",
+    "b1"
+   ]
+  },
+  {
+   "name": "g.1080p",
+   "frames": 300,
+   "cls": "1080p",
+   "only": [
+    "175433794e02",
+    "a6af290d9053"
+   ],
+   "extra": [
+    "--rounds",
+    "5",
+    "--pin",
+    "2",
+    "--require-cpu",
+    "Intel(R) Xeon(R) Processor @ 2.90GHz"
+   ],
+   "decoders": [
+    "base",
+    "bmi2all",
+    "e1",
+    "b1"
+   ]
+  },
+  {
+   "name": "g.4k",
+   "frames": 150,
+   "cls": "4k",
+   "only": [
+    "f8d92a911e72",
+    "e624cbe0d2be"
+   ],
+   "extra": [
+    "--rounds",
+    "5",
+    "--pin",
+    "2",
+    "--require-cpu",
+    "Intel(R) Xeon(R) Processor @ 2.90GHz"
+   ],
+   "decoders": [
+    "base",
+    "bmi2all",
+    "e1",
+    "b1"
+   ]
+  }
+ ],
+ "analysis": "python3 -I /work/analyze.py /work/out",
+ "tol": 0.05,
+ "budget_s": 10000
+}

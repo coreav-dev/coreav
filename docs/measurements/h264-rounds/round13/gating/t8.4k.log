@@ -1,0 +1,18 @@
+machine: unknown (family 25, model 1, stepping unknown), 3078.1 MHz, 24 logical CPUs
+3b1b441e23ae.0.4k.h264                   base:discard=1.61  base:write=1.86  base:mixed=1.45  g:discard=1.65  g:write=1.81  g:mixed=1.48
+4b54de28c2b3.0.4k.h264                   base:discard=1.20  base:write=1.06  base:mixed=1.01  g:discard=1.17  g:write=1.13  g:mixed=0.99
+81ed4778ece2.0.4k.h264                   base:discard=0.95  base:write=0.89  base:mixed=0.75  g:discard=0.90  g:write=0.93  g:mixed=0.71
+ae16bb7c7192.0.4k.h264                   base:discard=1.10  base:write=1.12  base:mixed=0.92  g:discard=1.11  g:write=1.12  g:mixed=0.93
+af38b0cfd840.0.4k.h264                   base:discard=1.11  base:write=1.11  base:mixed=1.06  g:discard=1.11  g:write=1.07  g:mixed=1.06
+e624cbe0d2be.0.4k.h264                   base:discard=1.52  base:write=0.97  base:mixed=0.94  g:discard=1.37  g:write=0.98  g:mixed=0.85
+ed75c044e944.0.4k.h264                   base:discard=0.91  base:write=0.93  base:mixed=0.80  g:discard=0.87  g:write=0.86  g:mixed=0.77
+f8d92a911e72.0.4k.h264                   base:discard=0.97  base:write=0.96  base:mixed=0.93  g:discard=0.96  g:write=0.97  g:mixed=0.92
+
+base:discard             n=  8  median 1.104  [0.948, 1.358]
+base:write               n=  8  median 1.017  [0.926, 1.112]
+base:mixed               n=  8  median 0.938  [0.803, 1.061]
+g:discard                n=  8  median 1.112  [0.903, 1.270]
+g:write                  n=  8  median 1.025  [0.925, 1.130]
+g:mixed                  n=  8  median 0.925  [0.765, 1.062]
+
+wrote /work/out/t8.4k.json

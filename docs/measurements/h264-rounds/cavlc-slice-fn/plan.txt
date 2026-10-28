@@ -1,0 +1,70 @@
+CAVLC slice loop in a function of its own (written before the build and before any timing).
+
+Why: the CAVLC slice loop round (docs/design/h264.md, "CAVLC round: the slice loop, runs of skipped macroblocks and one
+bit window a slice") met its gain bar on the CAVLC streams (CAVLC 6 0.9802, 6f7799768413 0.9716, the 15 held-out CAVLC
+streams 0.9680) and was rejected because the 26 CABAC training streams read 1.0010 (discard) and 1.0024 (write), which
+moved the all-32 write, 4k and held-out medians over their bars. Its CABAC functions were identical in machine code;
+the per-slice dispatch (decode_slice_data, into which the CAVLC slice loop is inlined) changed, and with it the
+placement of the code after it.
+
+Question: with the CAVLC slice loop out of line in a function of its own, so that the CABAC path's functions are
+byte-identical to base and the dispatch is a call, does the CAVLC gain hold while the CABAC streams read unchanged?
+
+Base: main at the branch point (82a23b66; its decoder is #507's, dc468a95). k: this branch's code commit.
+
+Code (C): the rejected round's design (runs of skipped macroblocks; one cavlc::Window a slice), rebuilt on main, with
+the CAVLC slice loop as an #[inline(never)] function of its own. Requirements checked before any timing, reported in
+this directory:
+- R1 code: the normalized disassembly of every function of the dist build except the CAVLC slice loop's own and the
+  per-slice dispatch is identical to base's; the dispatch differs only in calling the CAVLC slice loop.
+- R2 placement: the start addresses of the CABAC path's hot functions (the CABAC slice loop, the residual, the
+  macroblock functions, motion compensation and the kernels it calls) modulo 64 in base and in C, reported; where
+  they differ, the build is changed to keep them if it can be done without touching CABAC code, and the result is
+  reported either way.
+- R3 instructions: callgrind of C against base on the 26 CABAC streams at a tenth of the class frame counts: each
+  within 0.01% of base; on the six CAVLC streams at the class frame counts: the change reported (the rejected round:
+  a median of -4.34%).
+- R4 output: identical to base on the 32 streams at 1 and 8 threads (md5 at a tenth of the class frame counts), with
+  and without fast on the six CAVLC streams; conformance 97 of 97 at 1, 2 and 8 threads, with scalar kernels, and
+  without fast.
+
+Local timing (after R1 to R4): ab3.py, 12 rounds, the 32 training streams at the class frame counts, one thread,
+--discard, pinned to one CPU, order rotated each round, CPU time; per stream the median of C over base, bootstrap
+95% interval of the median (abq.py). Host: this development VM (directional). A gating run is requested only if all
+of these hold:
+- CAVLC 6: median at most 0.985, upper end below 1.000;
+- CABAC 26 (unchanged code): median between 0.997 and 1.003;
+- all 32: median at most 1.002.
+Otherwise the code goes to a rejected/ branch and the result is recorded.
+
+Gating bars (fixed now; copied into the design note before the gating run). k over base, median per-stream ratio,
+95% bootstrap interval, scripts/h264_parity.py with --null-arm base and the host-health gate, main's harness at the
+run; one-thread calls pinned on the 2.90 GHz class first; the eight-thread call only if SF-1 to SF-5 pass, on the
+GCP c4-standard-16, one thread a core.
+- SF-1 (gain): one thread, discard, the six CAVLC streams: at most 0.990, upper end below 1.000.
+- SF-2: one thread, all 32, discard and write: at most 1.003 in each.
+- SF-3: one thread, each class (sd, 720p, 1080p, 4k), discard and write: at most 1.005 in each.
+- SF-4: one thread, the 26 CABAC streams, discard and write: at most 1.003 in each.
+- SF-5: one thread, discard, the 64 held-out streams (docs/measurements/h264-n2-heldout/list.json): at most 1.003.
+- SF-6 (guard): eight threads, discard, all 32: at most 1.005; each class at most 1.010.
+- SF-7: output identical to base on the 32 training streams at 1 and 8 threads, with and without fast; conformance
+  as in R4.
+Why 1.003 and not 1.000 for SF-2, SF-4 and SF-5: 26 of the 32 training streams and 49 of the 64 held-out streams run
+code identical to base's, so those medians sit at the null. A bar at 1.000 would be decided by the null's noise: the
+rejected round's unchanged CABAC streams read 1.0010 and 1.0024. 1.003 still fails a CABAC slowdown of a third of a
+per cent. Reported as information: the ratio to FFmpeg 9.0.2, overall, per class, the six CAVLC streams and
+6f7799768413, with the share of streams faster; the 15 held-out CAVLC streams' median.
+One valid run decides; a re-run of the same arms only for a recorded host fault.
+
+Addendum (after R1 to R4 on 82a23b66, before any timing):
+- R2 was not met on 82a23b66 (r2-placement.txt): 10 of 65 CABAC hot functions moved by 48 bytes modulo 64. The
+  function order follows symbol names and .text's start moves with the read-only data, so no CAVLC-only change kept
+  every one; the closest variant kept 58 of 65 and cost a third of the CAVLC instruction cut.
+- In that build, fast::decision::TABLES (8-byte entries, alignment 2) moved from 0 to 4 modulo 8, so one entry in eight
+  straddles a cache line in the DecodeDecision site, where base's placement keeps every entry inside a line by
+  accident. C therefore also gives Tables #[repr(C, align(64))]: no entry straddles a line whatever the layout. It is
+  the one change outside the CAVLC code, a placement attribute on read-only data; the site's code and its results
+  do not change, and SF-4 (the CABAC streams) judges it with the rest.
+- #498 (the CABAC mvd round) merged after the plan was written. The round is rebased onto main 3f918b38, which is
+  base from now on, and R1 to R4 are run again there before any timing. The bars SF-1 to SF-7 and the local timing's
+  condition do not change.

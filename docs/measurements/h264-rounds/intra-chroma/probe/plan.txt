@@ -1,0 +1,6 @@
+Round 29 cost probe (written before the run). Arms: r29-base (wt34 main fc2521a7 source, dist), r29-x2c (same, the
+intra_chroma_mb call and its two IntraMut::new made twice: output bit-identical, the kernel is idempotent), r29-x2l (same
+for intra16x16). x2 - base = the in-situ cost of one call incl. view construction (slight underestimate: warm second call).
+Method: ~/h264work/prof/ab3.py, 5 rounds, all 32 training streams, 1 thread, --discard, pinned cpu 3, rotated order.
+Bar: build the chroma change only if x2c/base class median >= 1.010 at 720p or 1080p (a ~50% cut then moves >= 0.5%);
+the 16x16 change only if x2l/base >= 1.006 there. Otherwise docs-only.

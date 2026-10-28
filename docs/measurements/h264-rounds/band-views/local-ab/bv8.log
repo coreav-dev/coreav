@@ -1,0 +1,13 @@
+round 0
+round 1
+round 2
+round 3
+round 4
+round 5
+round 6
+round 7
+round 8
+round 9
+round 10
+wall r31-bv: all 0.9681 [0.9594, 0.9852] (27/32 faster) sd 0.9773 720p 0.9582 1080p 0.9848 4k 0.9668
+cpu r31-bv: all 0.9645 [0.9501, 0.9820] (26/32 faster) sd 0.9634 720p 0.9623 1080p 0.9789 4k 0.9611

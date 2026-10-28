@@ -1,0 +1,23 @@
+Instructions executed (callgrind, valgrind 3.x default options), one thread, `examples/decode --frames F --discard`,
+dist builds from one tree each: base = main 540c770c, q = 80ddbf19 (the four-block kernel alone), a = bd0a6c07
+(both kernels; binary identical to the branch tip's, whose later commits change only documentation and tests).
+The VM of the 2.90 GHz class (Xeon family 6 model 106). Information, not a bar.
+
+Whole decode ("Collected"):
+stream        F    base           q              a
+6da34958296c  60   3,841,289,340  3,747,932,248  3,747,933,189   q -2.43%  a -2.43%
+41e324ebb708  300  2,004,885,668  1,973,609,467  1,973,606,936   q -1.56%  a -1.56%
+9db41aa16b5a  150  2,924,380,655  2,917,560,208  2,899,754,017   q -0.23%  a -0.84%
+e624cbe0d2be  30   2,674,193,483  2,624,184,320  2,624,183,665   q -1.87%  a -1.87%
+
+The kernels' own instructions (self cost, inlined helpers included):
+stream        kernel                    base         q            a
+6da34958296c  x86::idct4x4_add_quad     130,003,665  42,567,466   42,567,466   (257,821 calls: 504 -> 165 a call)
+41e324ebb708  x86::idct4x4_add_quad      42,519,231  13,312,686   13,312,686
+9db41aa16b5a  x86::idct4x4_add_quad       9,279,397   2,923,097    2,923,097
+9db41aa16b5a  x86::idct8x8_add           24,786,960  24,786,960    7,821,495   (37,785 calls: 656 -> 207 a call)
+e624cbe0d2be  x86::idct4x4_add_quad      68,158,806  21,978,024   21,978,024
+(the reference 4x4 transform of the Intra_4x4 path, Scalar::idct4x4_add, is unchanged: 12.4 M, 7.1 M, 3.5 M, 20.0 M)
+
+Command: valgrind --tool=callgrind --callgrind-out-file=S.B.out decode-B --frames F --discard S.h264;
+callgrind_annotate --inclusive=no S.B.out, and --tree=caller for the call counts.

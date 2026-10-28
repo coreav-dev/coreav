@@ -1,0 +1,63 @@
+    19.03%           219  [.] <coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::chroma_mc                                          -      -            
+    12.95%           149  [.] <coreav_h264::work::PictureWork<coreav_kernels_h264::Auto>>::decode_slice                                       -      -            
+     8.60%            99  [.] coreav_h264::deblock::deblock_rows::<coreav_kernels_h264::Auto>                                                 -      -            
+     8.17%            94  [.] coreav_kernels_h264::simd::x86::luma_mc_into                                                                    -      -            
+     6.86%            79  [.] coreav_h264::cabac::levels::<16>                                                                                -      -            
+     5.65%            65  [.] <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::predict_list                                        -      -            
+     4.87%            56  [.] coreav_kernels_h264::simd::x86::filter_edge                                                                     -      -            
+     4.78%            55  [.] coreav_h264::cabac::significance_map::<16>                                                                      -      -            
+     2.26%            26  [.] <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::inter_pred                                          -      -            
+     2.09%            24  [.] <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::motion_compensate                                   -      -            
+     2.00%            23  [.] <coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::idct4x4_add                                        -      -            
+     1.82%            21  [.] <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode_mb::<coreav_h264::syntax::CabacSyntax>       -      -            
+     1.65%            19  [.] coreav_h264::inter::edge_window                                                                                 -      -            
+     1.56%            18  [.] <coreav_h264::cabac::Cabac>::mvd                                                                                -      -            
+     1.56%            18  [.] <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reconstruct_intra                                   -      -            
+     1.13%            13  [.] <coreav_h264::decoder::Decoder>::start_picture                                                                  -      -            
+     1.13%            13  [.] <coreav_h264::syntax::CabacSyntax as coreav_h264::syntax::Syntax>::block::<16>                                  -      -            
+     1.13%            13  [k] do_user_addr_fault                                                                                              -      -            
+     0.96%            11  [.] <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::parse_residual::<coreav_h264::syntax::CabacSyntax>  -      -            
+     0.96%            11  [.] <coreav_kernels_h264::scalar::Scalar as coreav_kernels_h264::Kernels>::luma_mc                                  -      -            
+     0.87%            10  [.] <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::start_mb                                            -      -            
+     0.61%             7  [.] <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::store_motion                                        -      -            
+     0.61%             7  [k] _raw_spin_unlock_irqrestore                                                                                     -      -            
+     0.52%             6  [.] <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::neighbour_motion                                    -      -            
+     0.43%             5  [.] <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::parse_mvd::<coreav_h264::syntax::CabacSyntax>       -      -            
+     0.43%             5  [.] <coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::luma_mc                                            -      -            
+     0.43%             5  [k] charge_memcg                                                                                                    -      -            
+     0.35%             4  [.] <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::intra_avail                                         -      -            
+     0.35%             4  [k] ___pte_offset_map                                                                                               -      -            
+     0.35%             4  [k] __list_del_entry_valid_or_report                                                                                -      -            
+     0.35%             4  [.] __memmove_evex_unaligned_erms                                                                                   -      -            
+     0.35%             4  [.] coreav_h264::intra::neighbours                                                                                  -      -            
+     0.35%             4  [.] coreav_h264::intra::pred_chroma                                                                                 -      -            
+     0.26%             3  [.] <coreav_h264::decoder::Decoder>::decode_unit                                                                    -      -            
+     0.26%             3  [.] <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::mv_predictor                                        -      -            
+     0.26%             3  [.] <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::prepare_level_scales                                -      -            
+     0.26%             3  [.] <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reconstruct_inter                                   -      -            
+     0.26%             3  [.] <coreav_h264::picture::BandData>::fit                                                                           -      -            
+     0.26%             3  [.] <coreav_h264::syntax::CabacSyntax>::intra_mb_type                                                               -      -            
+     0.26%             3  [.] <coreav_kernels_h264::scalar::Scalar as coreav_kernels_h264::Kernels>::luma_mc::{closure#6}                     -      -            
+     0.26%             3  [.] coreav_kernels_h264::simd::x86::horizontal                                                                      -      -            
+     0.26%             3  [.] coreav_kernels_h264::simd::x86::tap_rows                                                                        -      -            
+     0.17%             2  [.] <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::derive_4x4_mode                                     -      -            
+     0.17%             2  [.] <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reconstruct_chroma                                  -      -            
+     0.17%             2  [.] <coreav_h264::syntax::CabacSyntax as coreav_h264::syntax::Syntax>::block_context::<coreav_kernels_h264::Auto>   -      -            
+     0.17%             2  [k] __folio_throttle_swaprate                                                                                       -      -            
+     0.17%             2  [.] __memset_evex_unaligned_erms                                                                                    -      -            
+     0.17%             2  [k] clear_page_erms                                                                                                 -      -            
+     0.17%             2  [.] decode::main                                                                                                    -      -            
+     0.17%             2  [k] zap_present_ptes.constprop.0                                                                                    -      -            
+     0.09%             1  [.] <coreav_h264::mb::MbData>::reset                                                                                -      -            
+     0.09%             1  [.] <coreav_h264::syntax::CabacSyntax as coreav_h264::syntax::Syntax>::prev_intra_flag                              -      -            
+     0.09%             1  [.] <coreav_h264::syntax::CabacSyntax as coreav_h264::syntax::Syntax>::rem_intra_mode                               -      -            
+     0.09%             1  [.] <coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::filter_edge                                        -      -            
+     0.09%             1  [k] __css_rstat_updated                                                                                             -      -            
+     0.09%             1  [k] __next_zones_zonelist                                                                                           -      -            
+     0.09%             1  [k] alloc_pages_mpol                                                                                                -      -            
+     0.09%             1  [.] cfree@GLIBC_2.2.5                                                                                               -      -            
+     0.09%             1  [.] coreav_h264::deblock::differing_motion_strength                                                                 -      -            
+     0.09%             1  [.] coreav_kernels_h264::simd::x86::luma_mc_filtered                                                                -      -            
+     0.09%             1  [k] folio_add_new_anon_rmap                                                                                         -      -            
+     0.09%             1  [k] handle_mm_fault                                                                                                 -      -            
+     0.09%             1  [k] memcg1_commit_charge                                                                                            -      -            

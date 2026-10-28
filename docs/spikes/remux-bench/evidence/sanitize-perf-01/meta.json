@@ -1,0 +1,29 @@
+{
+ "machine": {
+  "cpuinfo_model": "Intel(R) Xeon(R) Processor @ 2.90GHz",
+  "cpu_mhz": [
+   2899.946,
+   2899.946,
+   2899.946,
+   2899.946,
+   2899.946,
+   2899.946,
+   2899.946,
+   2899.946
+  ],
+  "nproc": 8,
+  "remote_region": null,
+  "remote_cloud_provider": null,
+  "frequency_pinned": false,
+  "flags_has_avx2": true,
+  "flags_has_avx512f": true,
+  "scaling_governor": null,
+  "scaling_cur_freq": null,
+  "cpuinfo_max_freq": null
+ },
+ "commit": "dd60869581007af39cd927747c61ba9400761d2b",
+ "rounds": 5,
+ "coreav": "../../target/dist/coreav",
+ "started": 1792475883.2709587,
+ "files": 301
+}

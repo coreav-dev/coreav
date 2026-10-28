@@ -1,0 +1,12 @@
+[package]
+name = "coreav-opus"
+description = "Memory-safe Opus decoding: the identification header, the channel mapping, the packet layer and a decoder of SILK-only and CELT-only packets (RFC 7845, RFC 6716, RFC 8251)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lints]
+workspace = true

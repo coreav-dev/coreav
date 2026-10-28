@@ -1,0 +1,9 @@
+41e324ebb708.0.sd.h2 cpu base 2.080 a 2.370 ratio 1.139
+5185721dda11.0.sd.h2 cpu base 1.050 a 1.240 ratio 1.181
+6f7799768413.0.sd.h2 cpu base 3.350 a 3.520 ratio 1.051
+7650ae466748.0.sd.h2 cpu base 1.290 a 1.420 ratio 1.101
+8ae90cadb5bc.0.sd.h2 cpu base 2.430 a 2.720 ratio 1.119
+dcb262cf0138.0.sd.h2 cpu base 0.660 a 0.730 ratio 1.106
+ec473c99c538.0.sd.h2 cpu base 0.400 a 0.520 ratio 1.300
+f9e973f44570.0.sd.h2 cpu base 0.420 a 0.470 ratio 1.119
+median a/base CPU 1.1192

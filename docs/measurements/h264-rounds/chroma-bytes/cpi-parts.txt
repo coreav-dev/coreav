@@ -1,0 +1,10 @@
+deblock-chroma: cycles per instruction 0.430 over all of it
+  cycles   instr.    CPI  part
+   24.3%    23.2%   0.45  vertical_edges/filter_pair
+   22.0%    30.5%   0.31  vertical_edges
+   19.1%    17.3%   0.47  horizontal_edges/filter_chroma16
+   18.5%    16.4%   0.48  horizontal_edges
+    6.3%     2.1%   1.30  top
+    4.5%     6.1%   0.32  vertical_edges/store_rows
+    4.2%     4.1%   0.45  horizontal_edges/lanes
+    1.1%     0.2%   2.02  rows_at_mut

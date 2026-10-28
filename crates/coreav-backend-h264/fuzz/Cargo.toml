@@ -1,0 +1,29 @@
+# cargo-fuzz project (docs/design/fuzz-campaign.md); outside the
+# workspace, never published.
+[package]
+name = "coreav-backend-h264-fuzz"
+version = "0.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+coreav-backend-h264 = { path = ".." }
+coreav-decode = { path = "../../coreav-decode" }
+coreav-frame = { path = "../../coreav-frame" }
+
+[[bin]]
+name = "backend"
+path = "fuzz_targets/backend.rs"
+test = false
+doc = false
+bench = false
+
+[lints.rust]
+unsafe_code = "forbid"

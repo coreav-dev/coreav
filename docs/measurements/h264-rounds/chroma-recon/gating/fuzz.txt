@@ -1,0 +1,2 @@
+# cargo +nightly fuzz run --target x86_64-unknown-linux-gnu chroma_mb -- -max_total_time=300 -max_len=2048: the kernels of k = f5ca0ec, the target as merged (blocks placed from the first neighbour the view names)
+Done 9071241 runs in 301 second(s)

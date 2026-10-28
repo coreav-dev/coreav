@@ -1,0 +1,44 @@
+21:32:06 HOST cpu facts:
+model name	: Intel(R) Xeon(R) Processor @ 2.90GHz
+CPU(s):                                  8
+Vendor ID:                               GenuineIntel
+CPU family:                              6
+Model:                                   106
+Thread(s) per core:                      2
+Core(s) per socket:                      4
+Socket(s):                               1
+Stepping:                                6
+8
+8
+avx2 avx512 avx512bw avx512cd avx512dq avx512f avx512ifma avx512vbmi avx512vl 
+21:32:23 reference measurement 1: 36501d448eaa.0.720p 1.270s; a6af290d9053.0.1080p 4.274s
+21:37:40 reference measurement 2: 36501d448eaa.0.720p 1.293s; a6af290d9053.0.1080p 4.270s
+21:42:56 reference measurement 3: 36501d448eaa.0.720p 1.280s; a6af290d9053.0.1080p 4.270s
+21:42:56 reference {'36501d448eaa.0.720p': 1.2796917610030505, 'a6af290d9053.0.1080p': 4.270121993002249} max deviation {'36501d448eaa.0.720p': 0.010049245757392633, 'a6af290d9053.0.1080p': 0.0008468336512537089}
+21:47:03 identity 32/32 same
+21:47:19 PASS gate 36501d448eaa.0.720p ratio 0.995; a6af290d9053.0.1080p ratio 0.995
+21:50:35 PASS gate 36501d448eaa.0.720p ratio 0.996; a6af290d9053.0.1080p ratio 0.995
+21:50:35 g.sd done
+21:50:52 PASS gate 36501d448eaa.0.720p ratio 1.004; a6af290d9053.0.1080p ratio 0.992
+21:56:41 PASS gate 36501d448eaa.0.720p ratio 1.025; a6af290d9053.0.1080p ratio 1.005
+21:56:41 g.720p done
+21:56:58 PASS gate 36501d448eaa.0.720p ratio 0.998; a6af290d9053.0.1080p ratio 1.038
+22:11:38 PASS gate 36501d448eaa.0.720p ratio 1.004; a6af290d9053.0.1080p ratio 1.005
+22:11:38 g.1080p done
+22:11:55 PASS gate 36501d448eaa.0.720p ratio 0.999; a6af290d9053.0.1080p ratio 1.004
+22:18:34 PASS gate 36501d448eaa.0.720p ratio 0.999; a6af290d9053.0.1080p ratio 1.000
+22:18:34 g.4k done
+22:18:50 PASS gate 36501d448eaa.0.720p ratio 0.997; a6af290d9053.0.1080p ratio 0.995
+22:21:45 PASS gate 36501d448eaa.0.720p ratio 1.008; a6af290d9053.0.1080p ratio 1.013
+22:21:45 t8.sd done
+22:22:02 PASS gate 36501d448eaa.0.720p ratio 1.011; a6af290d9053.0.1080p ratio 1.010
+22:26:22 PASS gate 36501d448eaa.0.720p ratio 1.023; a6af290d9053.0.1080p ratio 1.007
+22:26:22 t8.720p done
+22:26:39 PASS gate 36501d448eaa.0.720p ratio 1.009; a6af290d9053.0.1080p ratio 1.001
+22:35:26 PASS gate 36501d448eaa.0.720p ratio 1.010; a6af290d9053.0.1080p ratio 1.010
+22:35:26 t8.1080p done
+22:35:43 PASS gate 36501d448eaa.0.720p ratio 1.024; a6af290d9053.0.1080p ratio 1.009
+22:40:51 PASS gate 36501d448eaa.0.720p ratio 1.010; a6af290d9053.0.1080p ratio 1.016
+22:40:51 t8.4k done
+22:40:51 analysis done elapsed 4125s events 0
+22:40:51 finished

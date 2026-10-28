@@ -1,0 +1,18 @@
+# Instructions (callgrind, --discard, frames as listed in cgab.sh/cg4.sh), base main 06141b3 against the branch.
+# One thread, first form (r18-band, Planes copied out of the whole table), 8 streams: stream base branch ratio
+36501d448eaa.0.720p 1110944992 1111839018 1.0008
+3b1b441e23ae.0.4k 1278047492 1281323614 1.0026
+41e324ebb708.0.sd 605665498 606326574 1.0011
+5185721dda11.0.sd 410239464 410357404 1.0003
+9db41aa16b5a.0.720p 1308872281 1308652607 0.9998
+a6af290d9053.0.1080p 9210835595 9214270909 1.0004
+b71b6b31e54f.0.1080p 1117299945 1119260751 1.0018
+ed75c044e944.0.4k 557998883 559220670 1.0022
+# One thread, the branch's form (r18-band2, the branch before review), 4 streams: stream base branch ratio
+3b1b441e23ae.0.4k 1278047478 1270673936 0.9942
+41e324ebb708.0.sd 605665498 602207681 0.9943
+b71b6b31e54f.0.1080p 1117299945 1107067834 0.9908
+ed75c044e944.0.4k 557998869 554961055 0.9946
+# Eight threads (callgrind runs the threads one at a time; counts only), b71b6b31e54f 1080p, 60 frames:
+base 1706535892, branch (the branch) 1549442373, ratio 0.9079
+branch: predict_fast 791,978 calls, of which 23,291 fall back to predict_list_any (2.9%); reference_band 127.8 M instructions, 161 a call

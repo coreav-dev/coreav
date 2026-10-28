@@ -1,0 +1,34 @@
+diff --git a/crates/coreav-h264/src/picture.rs b/crates/coreav-h264/src/picture.rs
+index 74efd0da..4104cb74 100644
+--- a/crates/coreav-h264/src/picture.rs
++++ b/crates/coreav-h264/src/picture.rs
+@@ -157,15 +157,27 @@ impl Geometry {
+     /// Where band `k`'s luma buffer holds sample (0, first stored row):
+     /// past the slack rows before it. The stride is the coded width
+     /// either way.
++    ///
++    /// Only the slack before, without [`Geometry::bands`]: the deblocking
++    /// filter asks for it every macroblock row, and the division there
++    /// cannot be dropped.
+     #[inline]
+     pub(crate) const fn luma_origin(&self, k: usize) -> usize {
+-        self.luma_slack(k)[0] * self.mb_width * 16
++        if self.luma_first(k) == 0 {
++            LUMA_SLACK * self.mb_width * 16
++        } else {
++            0
++        }
+     }
+ 
+     /// Where band `k`'s chroma buffers hold sample (0, first stored row).
+     #[inline]
+     pub(crate) const fn chroma_origin(&self, k: usize) -> usize {
+-        self.chroma_slack(k)[0] * self.mb_width * 8
++        if self.chroma_first(k) == 0 {
++            CHROMA_SLACK * self.mb_width * 8
++        } else {
++            0
++        }
+     }
+ 
+     /// Where sample (0, `row`) of the luma plane sits in band `k`'s

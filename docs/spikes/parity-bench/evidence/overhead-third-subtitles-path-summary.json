@@ -1,0 +1,17 @@
+{
+ "extract_subtitles": {
+  "inputs": 29,
+  "short": {
+   "inputs": 27,
+   "median_added_us": 9.3,
+   "bar_us": 50,
+   "pass": true
+  },
+  "long": {
+   "inputs": 2,
+   "median_ratio": 1.083,
+   "bar": 1.05,
+   "pass": null
+  }
+ }
+}

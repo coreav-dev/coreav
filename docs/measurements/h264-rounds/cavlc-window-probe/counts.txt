@@ -1,0 +1,11 @@
+Per CAVLC stream at the class frame counts (callgrind of prof-c5557ada, a dist build of perf/h264-bundle2 c5557ada
+with line tables): instructions, calls of the block parse (the v3 instance of CavlcSyntax::block, one a
+coeff_token read of a 4x4 block), its self instructions a call, and the predicted cut at 45 a call.
+stream        class    instructions  block calls  self/call  predicted cut   share
+5185721dda11  sd         2841134913      1561054      209.6          70.2M   2.47%
+6f7799768413  sd        11149861681      7595541      220.4         341.8M   3.07%
+9db41aa16b5a  720p       8671486495      1230933      174.9          55.4M   0.64%
+b71b6b31e54f  1080p      7277464107      2217876      193.1          99.8M   1.37%
+ec473c99c538  sd          865695691       157977      395.0           7.1M   0.82%
+f9e973f44570  sd         1382009934       655126      196.2          29.5M   2.13%
+median of the six: 1.75%

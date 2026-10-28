@@ -1,0 +1,16 @@
+{
+  "exit_code": 0,
+  "stdout": "validated S1 0 True 32\nvalidated S1 1 True 32\nvalidated S1 2 True 32\nvalidated S1 3 True 32\nvalidated S1 4 True 32\nvalidated S1 5 True 32\nvalidated S1 6 True 32\nvalidated S1 7 True 32\nvalidated S1 8 True 32\nvalidated S1 9 True 32\nvalidated S1 10 True 32\nvalidated S1 11 True 32\nvalidated S1 12 True 32\nvalidated S1 13 True 32\nvalidated S1 14 True 32\nvalidated S2 0 True 94\nvalidated S2 1 True 94\nvalidated S2 2 True 94\nvalidated S2 3 True 94\nvalidated S2 4 True 94\nvalidated S2 5 True 94\nvalidated S2 6 True 94\nvalidated S2 7 True 94\nvalidated S2 8 True 94\nvalidated S2 9 True 94\nvalidated S2 10 True 94\nvalidated S2 11 True 94\nvalidated S2 12 True 94\nvalidated S3 0 True 5\nvalidated S3 1 True 4\nvalidated S3 2 True 4\nvalidated S3 3 True 7\nvalidated S3 4 True 7\nvalidated S3 5 True 3\nvalidated S3 6 True 5\nvalidated S3 7 True 6\nvalidated S3 8 True 7\nvalidated S3 9 True 2\nvalidated S3 10 True 4\nvalidated S3 11 True 3\nvalidated S3 12 True 5\nvalidated S4 0 True 128\nvalidated S4 1 True 128\nvalidated S4 2 True 128\nvalidated S4 3 True 128\nvalidated S4 4 True 128\nvalidated S4 5 True 128\nvalidated S4 6 True 128\nvalidated S4 7 True 128\nvalidated S4 8 True 128\nvalidated S4 9 True 128\nvalidated S4 10 True 128\nvalidated S4 11 True 128\nvalidated S4 12 True 128\ntrial 0 / 160 S3 {'tc_exact': 451.4, 'coreav': 49.6, 'tc_mappings': 133.2}\ntrial 10 / 160 S3 {'tc_exact': 246.6, 'tc_mappings': 58.8, 'coreav': 24.2}\ntrial 20 / 160 S2 {'coreav': 1970.6, 'tc_mappings': 2412.2, 'tc_exact': 2579.0}\ntrial 30 / 160 S3 {'tc_mappings': 51.2, 'coreav': 20.8, 'tc_exact': 224.5}\ntrial 40 / 160 S2 {'tc_mappings': 201.7, 'coreav': 144.8, 'tc_exact': 405.8}\ntrial 50 / 160 S1 {'coreav': 53.3, 'tc_mappings': 78.7, 'tc_exact': 174.3}\ntrial 60 / 160 S2 {'tc_mappings': 2109.7, 'tc_exact': 2191.9, 'coreav': 1903.4}\ntrial 70 / 160 S3 {'tc_mappings': 35.8, 'tc_exact': 125.9, 'coreav': 14.7}\ntrial 80 / 160 S2 {'tc_mappings': 2495.1, 'tc_exact': 2598.4, 'coreav': 2045.4}\ntrial 90 / 160 S1 {'coreav': 67.7, 'tc_exact': 96.2, 'tc_mappings': 82.5}\ntrial 100 / 160 S2 {'tc_exact': 1596.3, 'coreav': 1141.6, 'tc_mappings': 1381.9}\ntrial 110 / 160 S4 {'tc_exact': 95.0, 'tc_mappings': 81.6, 'coreav': 68.1}\ntrial 120 / 160 S2 {'tc_exact': 1056.4, 'coreav': 702.1, 'tc_mappings': 851.3}\ntrial 130 / 160 S2 {'tc_exact': 5986.1, 'tc_mappings': 5867.8, 'coreav': 5617.9}\ntrial 140 / 160 S3 {'coreav': 13.5, 'tc_mappings': 33.4, 'tc_exact': 148.5}\ntrial 150 / 160 S2 {'tc_mappings': 308.4, 'coreav': 232.4, 'tc_exact': 478.9}\n",
+  "stderr": "",
+  "ptx": {
+    "source_sha256": "6c653efa241377c310460d67fd02a1c2d0c5a08e63550b9fc4b347246afbf7ca",
+    "ptx_sha256": "23e93d4dfe2cb0b6d734efae0fab784d404cbe7068bde2aad200d041aa7f60b2",
+    "options": [
+      "--gpu-architecture=compute_89",
+      "--fmad=false"
+    ],
+    "library": "/usr/local/lib/python3.13/site-packages/nvidia/cu13/lib/libnvrtc.so.13",
+    "builtins": "/usr/local/lib/python3.13/site-packages/nvidia/cu13/lib/libnvrtc-builtins.so.13.0",
+    "package_version": "13.0.88"
+  }
+}

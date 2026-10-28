@@ -1,0 +1,55 @@
+CoreAV
+Copyright (c) 2026 The CoreAV contributors. Licensed under the MIT licence or the Apache
+License 2.0, at your option (LICENSE-MIT, LICENSE-APACHE).
+
+Builds that include `coreav thumbnail` (the `thumbnail` feature, which the
+`ffmpeg-fallback`, `dav1d` and `native-h264` features turn on) encode JPEG
+with the jpeg-encoder crate (https://github.com/vstroebel/jpeg-encoder),
+licensed (MIT OR Apache-2.0) AND IJG:
+
+This software is based in part on the work of the Independent JPEG Group.
+
+The Opus decoder (the coreav-opus crate, crates/coreav-opus) contains tables
+that scripts/opus_tables.py generates from the code of RFC 6716 Appendix A,
+with the changes of RFC 8251, whose decoder part is the normative
+specification of Opus (RFC 6716 section 1); the decoder also matches that
+code's SILK resampler. That code carries this notice and licence:
+
+Copyright 1994-2011 IETF Trust, Xiph.Org, Skype Limited, Octasic,
+                    Jean-Marc Valin, Timothy B. Terriberry,
+                    CSIRO, Gregory Maxwell, Mark Borgerding,
+                    Erik de Castro Lopo. All rights reserved.
+Copyright (c) 2006-2012 IETF Trust and Skype Limited. All rights reserved.
+Copyright (c) 2002-2012 IETF Trust, CSIRO, Xiph.Org Foundation,
+                        Jean-Marc Valin, Timothy B. Terriberry,
+                        Gregory Maxwell. All rights reserved.
+Copyright (c) 2017 IETF Trust and the persons identified as the document
+authors (RFC 8251). All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+- Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+
+- Redistributions in binary form must reproduce the above copyright
+notice, this list of conditions and the following disclaimer in the
+documentation and/or other materials provided with the distribution.
+
+- Neither the name of Internet Society, IETF or IETF Trust, nor the
+names of specific contributors, may be used to endorse or promote
+products derived from this software without specific prior written
+permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
+OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.

@@ -1,0 +1,45 @@
+
+sd (n=8): CoreAV/FFmpeg mean 1.175, median 1.203; excess over 1.10 = 0.075 of FFmpeg's time
+stage                                                 CoreAV  FFmpeg  ratio core-1.1ff share of excess
+MB layer (neighbours, motion derivation, caches)       0.196   0.092   2.13      0.095            125%
+entropy (NAL, CABAC/CAVLC, MB syntax)                  0.368   0.273   1.35      0.068             90%
+deblocking (strengths and filter)                      0.249   0.200   1.24      0.028             37%
+inter prediction and reference fetch                   0.220   0.178   1.24      0.024             32%
+reconstruction (dequant, IDCT, intra)                  0.081   0.060   1.35      0.015             20%
+other (setup, output, allocation, kernel, libc)        0.062   0.197   0.31     -0.154           -205%
+
+720p (n=8): CoreAV/FFmpeg mean 1.298, median 1.325; excess over 1.10 = 0.198 of FFmpeg's time
+stage                                                 CoreAV  FFmpeg  ratio core-1.1ff share of excess
+MB layer (neighbours, motion derivation, caches)       0.193   0.083   2.32      0.101             51%
+deblocking (strengths and filter)                      0.315   0.255   1.24      0.035             18%
+inter prediction and reference fetch                   0.217   0.167   1.30      0.033             17%
+reconstruction (dequant, IDCT, intra)                  0.114   0.076   1.49      0.030             15%
+entropy (NAL, CABAC/CAVLC, MB syntax)                  0.416   0.362   1.15      0.017              9%
+other (setup, output, allocation, kernel, libc)        0.045   0.057   0.79     -0.018             -9%
+
+1080p (n=8): CoreAV/FFmpeg mean 1.344, median 1.339; excess over 1.10 = 0.244 of FFmpeg's time
+stage                                                 CoreAV  FFmpeg  ratio core-1.1ff share of excess
+MB layer (neighbours, motion derivation, caches)       0.192   0.088   2.18      0.095             39%
+inter prediction and reference fetch                   0.263   0.180   1.46      0.065             27%
+reconstruction (dequant, IDCT, intra)                  0.121   0.081   1.49      0.032             13%
+deblocking (strengths and filter)                      0.153   0.119   1.28      0.022              9%
+entropy (NAL, CABAC/CAVLC, MB syntax)                  0.570   0.499   1.14      0.021              8%
+other (setup, output, allocation, kernel, libc)        0.045   0.033   1.39      0.009              4%
+
+4k (n=8): CoreAV/FFmpeg mean 1.276, median 1.264; excess over 1.10 = 0.176 of FFmpeg's time
+stage                                                 CoreAV  FFmpeg  ratio core-1.1ff share of excess
+inter prediction and reference fetch                   0.413   0.264   1.56      0.122             69%
+MB layer (neighbours, motion derivation, caches)       0.239   0.107   2.23      0.121             69%
+deblocking (strengths and filter)                      0.146   0.104   1.40      0.031             18%
+other (setup, output, allocation, kernel, libc)        0.083   0.076   1.09     -0.000             -0%
+reconstruction (dequant, IDCT, intra)                  0.069   0.092   0.75     -0.032            -18%
+entropy (NAL, CABAC/CAVLC, MB syntax)                  0.327   0.356   0.92     -0.065            -37%
+
+all (n=32): CoreAV/FFmpeg mean 1.273, median 1.267; excess over 1.10 = 0.173 of FFmpeg's time
+stage                                                 CoreAV  FFmpeg  ratio core-1.1ff share of excess
+MB layer (neighbours, motion derivation, caches)       0.205   0.093   2.21      0.103             59%
+inter prediction and reference fetch                   0.278   0.197   1.41      0.061             35%
+deblocking (strengths and filter)                      0.216   0.170   1.27      0.029             17%
+reconstruction (dequant, IDCT, intra)                  0.096   0.077   1.24      0.011              6%
+entropy (NAL, CABAC/CAVLC, MB syntax)                  0.420   0.373   1.13      0.010              6%
+other (setup, output, allocation, kernel, libc)        0.059   0.090   0.65     -0.041            -24%

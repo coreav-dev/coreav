@@ -1,0 +1,67 @@
+   Compiling coreav-isobmff-write v0.0.1 ($HOME/coreav/crates/coreav-isobmff-write)
+   Compiling coreav-isobmff v0.0.1 ($HOME/coreav/crates/coreav-isobmff)
+    Finished `release` profile [optimized] target(s) in 1.54s
+     Running tests/memory.rs (target/release/deps/memory-2275de71db355973)
+
+running 9 tests
+test a_2_2_gb_fragmented_file_is_demuxed_under_32_mib ... probe/fragmented-2.2gb: source 2202160587 bytes
+{"measurement":"probe/fragmented-2.2gb","peak_bytes":7793,"trough_bytes":0,"bytes":8216,"allocations":20,"reallocations":1,"live_bytes":7696}
+{"measurement":"scan+packets/fragmented-2.2gb","peak_bytes":1024,"trough_bytes":0,"bytes":36240072,"allocations":140004,"reallocations":0,"live_bytes":0}
+ok
+test a_box_claiming_four_gib_is_rejected_without_allocating ... reject/box-4gib: source 1010 bytes
+{"measurement":"reject/box-4gib","peak_bytes":28,"trough_bytes":0,"bytes":28,"allocations":2,"reallocations":1,"live_bytes":0}
+ok
+test a_fragment_cannot_claim_more_samples_than_the_file_holds ... ok
+test a_fragment_flood_is_rejected_within_the_demux_bound ... {"measurement":"reject/fragment-flood","peak_bytes":8720,"trough_bytes":0,"bytes":15904,"allocations":56,"reallocations":1,"live_bytes":4096}
+ok
+test deep_nesting_is_rejected_without_allocating ... {"measurement":"reject/nesting-10000","peak_bytes":24,"trough_bytes":0,"bytes":24,"allocations":2,"reallocations":1,"live_bytes":0}
+ok
+test demux_memory_does_not_grow_with_fragments ... {"measurement":"demux/fragments-20","peak_bytes":8720,"trough_bytes":0,"bytes":44528,"allocations":164,"reallocations":1,"live_bytes":4096}
+{"measurement":"demux/fragments-200","peak_bytes":8720,"trough_bytes":0,"bytes":370688,"allocations":1424,"reallocations":1,"live_bytes":4096}
+ok
+test demux_memory_is_flat_to_twenty_thousand_fragments ... {"measurement":"demux/fragments-200","peak_bytes":8720,"trough_bytes":0,"bytes":370688,"allocations":1424,"reallocations":1,"live_bytes":4096}
+{"measurement":"demux/fragments-20000","peak_bytes":8720,"trough_bytes":0,"bytes":36248288,"allocations":140024,"reallocations":1,"live_bytes":4096}
+ok
+test huge_counts_with_tiny_tables_are_rejected_without_allocating ... {"measurement":"reject/stsz-4294967295","peak_bytes":177,"trough_bytes":0,"bytes":590,"allocations":20,"reallocations":1,"live_bytes":0}
+{"measurement":"reject/stsz-65537","peak_bytes":177,"trough_bytes":0,"bytes":590,"allocations":20,"reallocations":1,"live_bytes":0}
+{"measurement":"reject/stco-4294967295","peak_bytes":177,"trough_bytes":0,"bytes":618,"allocations":22,"reallocations":1,"live_bytes":0}
+{"measurement":"reject/stco-65537","peak_bytes":177,"trough_bytes":0,"bytes":618,"allocations":22,"reallocations":1,"live_bytes":0}
+{"measurement":"reject/stsc-4294967295","peak_bytes":177,"trough_bytes":0,"bytes":562,"allocations":18,"reallocations":1,"live_bytes":0}
+{"measurement":"reject/stsc-65537","peak_bytes":177,"trough_bytes":0,"bytes":562,"allocations":18,"reallocations":1,"live_bytes":0}
+{"measurement":"reject/stts-4294967295","peak_bytes":177,"trough_bytes":0,"bytes":490,"allocations":14,"reallocations":1,"live_bytes":0}
+{"measurement":"reject/stts-65537","peak_bytes":177,"trough_bytes":0,"bytes":490,"allocations":14,"reallocations":1,"live_bytes":0}
+{"measurement":"reject/ctts-4294967295","peak_bytes":177,"trough_bytes":0,"bytes":514,"allocations":16,"reallocations":1,"live_bytes":0}
+{"measurement":"reject/ctts-65537","peak_bytes":177,"trough_bytes":0,"bytes":514,"allocations":16,"reallocations":1,"live_bytes":0}
+{"measurement":"reject/stss-4294967295","peak_bytes":177,"trough_bytes":0,"bytes":634,"allocations":24,"reallocations":1,"live_bytes":0}
+{"measurement":"reject/stss-65537","peak_bytes":177,"trough_bytes":0,"bytes":634,"allocations":24,"reallocations":1,"live_bytes":0}
+{"measurement":"reject/trun-4294967295","peak_bytes":4215,"trough_bytes":0,"bytes":4722,"allocations":25,"reallocations":1,"live_bytes":0}
+{"measurement":"reject/trun-65537","peak_bytes":4215,"trough_bytes":0,"bytes":4722,"allocations":25,"reallocations":1,"live_bytes":0}
+ok
+test too_many_top_level_boxes_are_rejected_without_allocating ... {"measurement":"reject/top-level-10001","peak_bytes":24,"trough_bytes":0,"bytes":24,"allocations":2,"reallocations":1,"live_bytes":0}
+ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+
+     Running tests/memory.rs (target/release/deps/memory-0a2f7a533dbf2cd6)
+
+running 4 tests
+test clipping_a_2_2_gb_fragmented_file_stays_under_32_mib ... {"measurement":"clip/fragmented-2.2gb","peak_bytes":108239,"trough_bytes":0,"bytes":162343487,"allocations":477025,"reallocations":95,"live_bytes":4096}
+clip/fragmented-2.2gb: source 2318481027 bytes, 2312597019 written
+ok
+test extracting_audio_from_a_2_2_gb_fragmented_file_stays_under_32_mib ... {"measurement":"extract-audio/fragmented-2.2gb","peak_bytes":74399,"trough_bytes":0,"bytes":54528334,"allocations":160105,"reallocations":48,"live_bytes":4096}
+extract-audio/fragmented-2.2gb: 114032933 bytes written
+ok
+test splitting_a_2_2_gb_fragmented_file_stays_under_32_mib ... {"measurement":"split/fragmented-2.2gb","peak_bytes":671032,"trough_bytes":0,"bytes":172203939,"allocations":498809,"reallocations":12488,"live_bytes":29824}
+split/fragmented-2.2gb: 134 segments
+ok
+test stream_copy_memory_does_not_follow_the_file_size ... stream-copy scaling: sources 23185827 and 3385827 bytes
+{"measurement":"extract-audio/video-samples-11000b","peak_bytes":74399,"trough_bytes":0,"bytes":640314,"allocations":1705,"reallocations":48,"live_bytes":4096}
+{"measurement":"extract-audio/video-samples-1100b","peak_bytes":74399,"trough_bytes":0,"bytes":640314,"allocations":1705,"reallocations":48,"live_bytes":4096}
+{"measurement":"clip/video-samples-11000b","peak_bytes":75591,"trough_bytes":0,"bytes":1760707,"allocations":4956,"reallocations":95,"live_bytes":4096}
+{"measurement":"clip/video-samples-1100b","peak_bytes":75591,"trough_bytes":0,"bytes":1760707,"allocations":4956,"reallocations":95,"live_bytes":4096}
+{"measurement":"split/video-samples-11000b","peak_bytes":115872,"trough_bytes":0,"bytes":1838231,"allocations":5129,"reallocations":200,"live_bytes":4480}
+{"measurement":"split/video-samples-1100b","peak_bytes":115872,"trough_bytes":0,"bytes":1838231,"allocations":5129,"reallocations":200,"live_bytes":4480}
+ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.33s
+

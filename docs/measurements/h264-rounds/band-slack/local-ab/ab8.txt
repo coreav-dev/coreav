@@ -1,0 +1,5 @@
+# ab8.py 10 ab8.json m-b366429 m-b366429-null r32-slack-k: base = main b3664291, base~null = a second copy of it, k = c27c8be5; 8 threads, unpinned, discard
+wall m-b366429-null: all 0.9920 [0.9763, 1.0036] (20/32 faster) sd 0.9936 720p 1.0097 1080p 0.9877 4k 0.9768
+wall r32-slack-k: all 0.9863 [0.9724, 0.9994] (21/32 faster) sd 0.9847 720p 1.0100 1080p 0.9654 4k 0.9830
+cpu m-b366429-null: all 0.9907 [0.9783, 1.0156] (17/32 faster) sd 0.9907 720p 1.0234 1080p 0.9854 4k 0.9600
+cpu r32-slack-k: all 0.9851 [0.9683, 1.0005] (21/32 faster) sd 0.9807 720p 0.9996 1080p 0.9541 4k 0.9925

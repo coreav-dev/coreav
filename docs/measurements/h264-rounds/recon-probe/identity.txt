@@ -1,0 +1,2 @@
+REF=m-b366429 ident.sh r33-ct2 (k = d6e962f7, the branch's code commit): k at 1 and 8 threads against main at 1 thread, 32 training streams, class frame counts
+identity done bad=0 (32 of 32 identical at both thread counts)

@@ -1,0 +1,47 @@
+Reconstruction at one thread: what a change to the coefficient scaling could save. Probe plan, written before the
+time measurement of this probe.
+
+Why: the profile at 6c9e240 (../profile-6c9e240/stages.txt) puts reconstruction at 1.32 of FFmpeg's time at 720p and
+1.25 at 1080p, the next stage after the MB layer by excess over parity (1.00). Its items (items-rest.txt, means of
+FFmpeg's total): the kernels idct4x4_add_quad 0.0127, idct8x8_add 0.0077, intra4x4_mb 0.0077, intra_chroma_mb 0.0069,
+then recon.rs's apply<16> 0.0069, prepare_level_scales 0.0045, reconstruct_chroma 0.0032, apply<64> 0.0029. The
+coreav-h264 crate is unchanged from 6c9e240 to main 4f456984 (only the kernels crate changed since).
+
+The change in view (not built for the probe): coefficient scaling from per-QP tables with a fixed shift.
+  - A slice keeps, per scaling slot (luma 4x4 intra and inter, luma 8x8 intra and inter, chroma Cb and Cr intra and
+    inter), the CoeffScale of each QP it has used, built on first use, so a macroblock whose QP differs from the one
+    before looks its scalings up instead of rebuilding them (CoeffScale::new copies and shifts 16 or 64 factors).
+  - QP'C (chroma_qp, clause 8.5.8) comes with the chroma entry, not from a lookup per macroblock and component.
+  - Every scaling takes the form (level * (LevelScale << (qP / 6)) + 2^(r-1)) >> r with r = 4 for 4x4 and 6 for 8x8
+    blocks: for qP / 6 < r this equals the clause's (level * LevelScale + 2^(r-qP/6-1)) >> (r - qP/6) (numerator and
+    denominator multiplied by 2^(qP/6)), and for qP / 6 >= r it equals (level * LevelScale) << (qP/6 - r) (the added
+    2^(r-1) is below 2^r and leaves the floor unchanged). The round and the shift become constants in apply.
+What it removes: CoeffScale::new, prepare_level_scales except one look-up a slot, chroma_qp, and part of apply.
+
+Build: main at 4f456984, `CARGO_PROFILE_DIST_DEBUG=line-tables-only cargo build --locked --profile dist --example
+decode -p coreav-h264`. Both measurements run `--kernels avx2 --threads 1 --discard` so that the sampled and the
+simulated runs execute the same instructions (Valgrind has no AVX-512), at the class frame counts (sd 1800, 720p 900,
+1080p 300, 4k 150), all 32 training streams; the method of ../mb-layout-probe/ (perf.sh, cg.sh without the cache
+simulation, the per-line join of mbs.py).
+1. Time: perf cpu-clock at 10 kHz, pinned to CPU 2, five runs a stream, nothing else running.
+2. Instructions: callgrind --dump-instr=yes, one run.
+3. Per source line of our code (innermost inline frame in a CoreAV crate): time share t and instruction share i of
+   the stream.
+
+The removed set R, by innermost frame in recon.rs: CoeffScale::new, CoeffScale::apply (wherever inlined: the CABAC and
+CAVLC level loops), prepare_level_scales, chroma_qp. All of R's lines are taken as removed, apply's included, though
+the change keeps apply's multiplication and clip.
+
+Bound per stream, in % of its sampled time, generous on purpose: bound = sum over R's lines of max(t, i) (each line's
+instructions and any time sampled above them, skid included, taken as removed).
+
+Threshold (an earlier change's, as ../mb-layout-probe/plan.txt applies it to a time bound): build the change only if, in at least
+one class, the median per-stream bound is 1.5% or more. Otherwise the probe is recorded and nothing is built.
+
+Reported as information, not judged: per class, the medians of max(t, i) summed over the rest of recon.rs's lines
+(the reconstruction glue: reconstruct_intra, reconstruct_inter, reconstruct_chroma, residual_4x4_luma, chroma_dc,
+luma_dc, the offsets), and of t and i for the intra 4x4 kernel (every line whose inline chain includes intra4x4_mb),
+the plan's other named item. An exploratory callgrind of main (one thread, --discard, callgrind's class counts 240,
+120, 60 and 30, default kernels), taken before this plan, gave R's instruction share as class medians 0.49% (sd),
+0.38% (720p), 0.54% (1080p) and 0.30% (4k), and the whole of recon.rs's lines 1.24%, 1.70%, 1.75% and 1.15%; it is
+kept as cg-exploratory.txt and plays no part in the judgment.

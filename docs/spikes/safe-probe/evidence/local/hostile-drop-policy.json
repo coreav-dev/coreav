@@ -1,0 +1,3948 @@
+{
+ "counts": {
+  "A": {
+   "rejected": 20,
+   "ok": 90,
+   "dropped": 1
+  },
+  "A'": {
+   "rejected": 20,
+   "ok": 90,
+   "dropped": 1
+  },
+  "A-index": {
+   "rejected": 22,
+   "ok": 88,
+   "dropped": 1
+  },
+  "A-sbx": {
+   "rejected": 20,
+   "ok": 90,
+   "dropped": 1
+  },
+  "D": {
+   "rejected": 19,
+   "ok": 92
+  },
+  "A-strict": {
+   "rejected": 21,
+   "ok": 90
+  }
+ },
+ "worst": {
+  "A": {
+   "seconds": 0.006922287997440435,
+   "peak_kib": 2376
+  },
+  "A'": {
+   "seconds": 0.008938551000028383,
+   "peak_kib": 2384
+  },
+  "A-index": {
+   "seconds": 0.012100708001526073,
+   "peak_kib": 2376
+  },
+  "A-sbx": {
+   "seconds": 0.012367641000309959,
+   "peak_kib": 2372
+  },
+  "D": {
+   "seconds": 0.06447351099632215,
+   "peak_kib": 20528
+  },
+  "A-strict": {
+   "seconds": 0.04563605200382881,
+   "peak_kib": 2384
+  }
+ },
+ "failures": [],
+ "total_files": 111,
+ "per_file": [
+  {
+   "file": "size_past_end.mp4",
+   "part": "structural",
+   "expected": "reject",
+   "A": {
+    "outcome": "rejected",
+    "seconds": 0.0068,
+    "peak_kib": 2240
+   },
+   "A'": {
+    "outcome": "rejected",
+    "seconds": 0.0041,
+    "peak_kib": 2264
+   },
+   "A-index": {
+    "outcome": "rejected",
+    "seconds": 0.0041,
+    "peak_kib": 2228
+   },
+   "A-sbx": {
+    "outcome": "rejected",
+    "seconds": 0.0092,
+    "peak_kib": 2180
+   },
+   "D": {
+    "outcome": "rejected",
+    "seconds": 0.0645,
+    "peak_kib": 10992
+   },
+   "A-strict": {
+    "outcome": "rejected",
+    "seconds": 0.0036,
+    "peak_kib": 2244
+   }
+  },
+  {
+   "file": "size64_overflow.mp4",
+   "part": "structural",
+   "expected": "reject",
+   "A": {
+    "outcome": "rejected",
+    "seconds": 0.0032,
+    "peak_kib": 2236
+   },
+   "A'": {
+    "outcome": "rejected",
+    "seconds": 0.0036,
+    "peak_kib": 1944
+   },
+   "A-index": {
+    "outcome": "rejected",
+    "seconds": 0.0033,
+    "peak_kib": 2068
+   },
+   "A-sbx": {
+    "outcome": "rejected",
+    "seconds": 0.0049,
+    "peak_kib": 2124
+   },
+   "D": {
+    "outcome": "rejected",
+    "seconds": 0.0088,
+    "peak_kib": 11376
+   },
+   "A-strict": {
+    "outcome": "rejected",
+    "seconds": 0.0031,
+    "peak_kib": 2216
+   }
+  },
+  {
+   "file": "size_below_header.mp4",
+   "part": "structural",
+   "expected": "reject",
+   "A": {
+    "outcome": "rejected",
+    "seconds": 0.0036,
+    "peak_kib": 2212
+   },
+   "A'": {
+    "outcome": "rejected",
+    "seconds": 0.0031,
+    "peak_kib": 2244
+   },
+   "A-index": {
+    "outcome": "rejected",
+    "seconds": 0.0036,
+    "peak_kib": 2172
+   },
+   "A-sbx": {
+    "outcome": "rejected",
+    "seconds": 0.0046,
+    "peak_kib": 2248
+   },
+   "D": {
+    "outcome": "rejected",
+    "seconds": 0.007,
+    "peak_kib": 11376
+   },
+   "A-strict": {
+    "outcome": "rejected",
+    "seconds": 0.0031,
+    "peak_kib": 2248
+   }
+  },
+  {
+   "file": "nested_10000.mp4",
+   "part": "structural",
+   "expected": "reject",
+   "A": {
+    "outcome": "rejected",
+    "seconds": 0.0035,
+    "peak_kib": 2340
+   },
+   "A'": {
+    "outcome": "rejected",
+    "seconds": 0.0028,
+    "peak_kib": 2260
+   },
+   "A-index": {
+    "outcome": "rejected",
+    "seconds": 0.0032,
+    "peak_kib": 2240
+   },
+   "A-sbx": {
+    "outcome": "rejected",
+    "seconds": 0.0055,
+    "peak_kib": 2044
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0078,
+    "peak_kib": 11672
+   },
+   "A-strict": {
+    "outcome": "rejected",
+    "seconds": 0.0029,
+    "peak_kib": 2184
+   }
+  },
+  {
+   "file": "nested_100000.mp4",
+   "part": "structural",
+   "expected": "reject",
+   "A": {
+    "outcome": "rejected",
+    "seconds": 0.0031,
+    "peak_kib": 2176
+   },
+   "A'": {
+    "outcome": "rejected",
+    "seconds": 0.0031,
+    "peak_kib": 2248
+   },
+   "A-index": {
+    "outcome": "rejected",
+    "seconds": 0.0027,
+    "peak_kib": 2340
+   },
+   "A-sbx": {
+    "outcome": "rejected",
+    "seconds": 0.0046,
+    "peak_kib": 2212
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0088,
+    "peak_kib": 11672
+   },
+   "A-strict": {
+    "outcome": "rejected",
+    "seconds": 0.0032,
+    "peak_kib": 2248
+   }
+  },
+  {
+   "file": "stsz_count_max.mp4",
+   "part": "structural",
+   "expected": "reject",
+   "A": {
+    "outcome": "rejected",
+    "seconds": 0.0035,
+    "peak_kib": 2372
+   },
+   "A'": {
+    "outcome": "rejected",
+    "seconds": 0.0027,
+    "peak_kib": 2204
+   },
+   "A-index": {
+    "outcome": "rejected",
+    "seconds": 0.003,
+    "peak_kib": 2376
+   },
+   "A-sbx": {
+    "outcome": "rejected",
+    "seconds": 0.0045,
+    "peak_kib": 2300
+   },
+   "D": {
+    "outcome": "rejected",
+    "seconds": 0.009,
+    "peak_kib": 11728
+   },
+   "A-strict": {
+    "outcome": "rejected",
+    "seconds": 0.0031,
+    "peak_kib": 2356
+   }
+  },
+  {
+   "file": "stco_count_huge.mp4",
+   "part": "structural",
+   "expected": "reject",
+   "A": {
+    "outcome": "rejected",
+    "seconds": 0.003,
+    "peak_kib": 2076
+   },
+   "A'": {
+    "outcome": "rejected",
+    "seconds": 0.0083,
+    "peak_kib": 2044
+   },
+   "A-index": {
+    "outcome": "rejected",
+    "seconds": 0.0034,
+    "peak_kib": 2268
+   },
+   "A-sbx": {
+    "outcome": "rejected",
+    "seconds": 0.005,
+    "peak_kib": 2284
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.015,
+    "peak_kib": 14632
+   },
+   "A-strict": {
+    "outcome": "rejected",
+    "seconds": 0.0032,
+    "peak_kib": 2244
+   }
+  },
+  {
+   "file": "top_level_boxes.mp4",
+   "part": "structural",
+   "expected": "reject",
+   "A": {
+    "outcome": "rejected",
+    "seconds": 0.0045,
+    "peak_kib": 2288
+   },
+   "A'": {
+    "outcome": "rejected",
+    "seconds": 0.0033,
+    "peak_kib": 2264
+   },
+   "A-index": {
+    "outcome": "rejected",
+    "seconds": 0.0032,
+    "peak_kib": 2368
+   },
+   "A-sbx": {
+    "outcome": "rejected",
+    "seconds": 0.0043,
+    "peak_kib": 2240
+   },
+   "D": {
+    "outcome": "rejected",
+    "seconds": 0.0135,
+    "peak_kib": 11388
+   },
+   "A-strict": {
+    "outcome": "rejected",
+    "seconds": 0.0032,
+    "peak_kib": 2148
+   }
+  },
+  {
+   "file": "truncated_half.mp4",
+   "part": "structural",
+   "expected": "reject",
+   "A": {
+    "outcome": "rejected",
+    "seconds": 0.0033,
+    "peak_kib": 2196
+   },
+   "A'": {
+    "outcome": "rejected",
+    "seconds": 0.0026,
+    "peak_kib": 2288
+   },
+   "A-index": {
+    "outcome": "rejected",
+    "seconds": 0.0032,
+    "peak_kib": 2244
+   },
+   "A-sbx": {
+    "outcome": "rejected",
+    "seconds": 0.0057,
+    "peak_kib": 2368
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.006,
+    "peak_kib": 11448
+   },
+   "A-strict": {
+    "outcome": "rejected",
+    "seconds": 0.003,
+    "peak_kib": 2368
+   }
+  },
+  {
+   "file": "truncated_most.mp4",
+   "part": "structural",
+   "expected": "reject",
+   "A": {
+    "outcome": "rejected",
+    "seconds": 0.0069,
+    "peak_kib": 2140
+   },
+   "A'": {
+    "outcome": "rejected",
+    "seconds": 0.0089,
+    "peak_kib": 2376
+   },
+   "A-index": {
+    "outcome": "rejected",
+    "seconds": 0.0121,
+    "peak_kib": 2188
+   },
+   "A-sbx": {
+    "outcome": "rejected",
+    "seconds": 0.0124,
+    "peak_kib": 2236
+   },
+   "D": {
+    "outcome": "rejected",
+    "seconds": 0.0081,
+    "peak_kib": 11732
+   },
+   "A-strict": {
+    "outcome": "rejected",
+    "seconds": 0.003,
+    "peak_kib": 1892
+   }
+  },
+  {
+   "file": "stts_sample_mismatch.mp4",
+   "part": "structural",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0029,
+    "peak_kib": 2140
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2224
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0029,
+    "peak_kib": 2236
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0045,
+    "peak_kib": 2164
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0097,
+    "peak_kib": 14644
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0026,
+    "peak_kib": 2192
+   }
+  },
+  {
+   "file": "zero_timescale.mp4",
+   "part": "structural",
+   "expected": "reject",
+   "A": {
+    "outcome": "rejected",
+    "seconds": 0.003,
+    "peak_kib": 2076
+   },
+   "A'": {
+    "outcome": "rejected",
+    "seconds": 0.0027,
+    "peak_kib": 2152
+   },
+   "A-index": {
+    "outcome": "rejected",
+    "seconds": 0.0027,
+    "peak_kib": 2264
+   },
+   "A-sbx": {
+    "outcome": "rejected",
+    "seconds": 0.004,
+    "peak_kib": 2184
+   },
+   "D": {
+    "outcome": "rejected",
+    "seconds": 0.0077,
+    "peak_kib": 11388
+   },
+   "A-strict": {
+    "outcome": "rejected",
+    "seconds": 0.0028,
+    "peak_kib": 2336
+   }
+  },
+  {
+   "file": "mut_audio_51_0.m4a",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0047,
+    "peak_kib": 2184
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0037,
+    "peak_kib": 2240
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2144
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0055,
+    "peak_kib": 2192
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0131,
+    "peak_kib": 15344
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2272
+   }
+  },
+  {
+   "file": "mut_audio_51_1.m4a",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0036,
+    "peak_kib": 2236
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2136
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0027,
+    "peak_kib": 2248
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0047,
+    "peak_kib": 2372
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0104,
+    "peak_kib": 15428
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2264
+   }
+  },
+  {
+   "file": "mut_audio_51_2.m4a",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0031,
+    "peak_kib": 2240
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0033,
+    "peak_kib": 2268
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2376
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0043,
+    "peak_kib": 2296
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.011,
+    "peak_kib": 15428
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2148
+   }
+  },
+  {
+   "file": "mut_audio_aac_0.m4a",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0033,
+    "peak_kib": 2264
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2200
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2300
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0044,
+    "peak_kib": 2300
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0109,
+    "peak_kib": 14060
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0029,
+    "peak_kib": 2184
+   }
+  },
+  {
+   "file": "mut_audio_aac_1.m4a",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0031,
+    "peak_kib": 2232
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0031,
+    "peak_kib": 2384
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0029,
+    "peak_kib": 2272
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.005,
+    "peak_kib": 2172
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0094,
+    "peak_kib": 14056
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0039,
+    "peak_kib": 2268
+   }
+  },
+  {
+   "file": "mut_audio_aac_2.m4a",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "rejected",
+    "seconds": 0.004,
+    "peak_kib": 2272
+   },
+   "A'": {
+    "outcome": "rejected",
+    "seconds": 0.0029,
+    "peak_kib": 2344
+   },
+   "A-index": {
+    "outcome": "rejected",
+    "seconds": 0.0026,
+    "peak_kib": 2236
+   },
+   "A-sbx": {
+    "outcome": "rejected",
+    "seconds": 0.004,
+    "peak_kib": 2272
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0571,
+    "peak_kib": 14060
+   },
+   "A-strict": {
+    "outcome": "rejected",
+    "seconds": 0.0041,
+    "peak_kib": 2240
+   }
+  },
+  {
+   "file": "mut_audio_mp3_0.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0041,
+    "peak_kib": 2344
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0039,
+    "peak_kib": 2376
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0031,
+    "peak_kib": 2216
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.005,
+    "peak_kib": 2212
+   },
+   "D": {
+    "outcome": "rejected",
+    "seconds": 0.008,
+    "peak_kib": 13004
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0034,
+    "peak_kib": 2372
+   }
+  },
+  {
+   "file": "mut_audio_mp3_1.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2212
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2144
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2340
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0044,
+    "peak_kib": 2164
+   },
+   "D": {
+    "outcome": "rejected",
+    "seconds": 0.0083,
+    "peak_kib": 13004
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0033,
+    "peak_kib": 2240
+   }
+  },
+  {
+   "file": "mut_audio_mp3_2.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0036,
+    "peak_kib": 2148
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0033,
+    "peak_kib": 2240
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0033,
+    "peak_kib": 2160
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.005,
+    "peak_kib": 2240
+   },
+   "D": {
+    "outcome": "rejected",
+    "seconds": 0.0083,
+    "peak_kib": 13004
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2328
+   }
+  },
+  {
+   "file": "mut_audio_opus_0.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0034,
+    "peak_kib": 2344
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0034,
+    "peak_kib": 2272
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0033,
+    "peak_kib": 2240
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0047,
+    "peak_kib": 2252
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0098,
+    "peak_kib": 13088
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0033,
+    "peak_kib": 2196
+   }
+  },
+  {
+   "file": "mut_audio_opus_1.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0042,
+    "peak_kib": 2192
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2268
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0035,
+    "peak_kib": 2176
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0041,
+    "peak_kib": 2268
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0074,
+    "peak_kib": 13088
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0031,
+    "peak_kib": 2216
+   }
+  },
+  {
+   "file": "mut_audio_opus_2.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0041,
+    "peak_kib": 2136
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0035,
+    "peak_kib": 2232
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0035,
+    "peak_kib": 2132
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0062,
+    "peak_kib": 2136
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0095,
+    "peak_kib": 13088
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0035,
+    "peak_kib": 2032
+   }
+  },
+  {
+   "file": "mut_av1_0.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0041,
+    "peak_kib": 2240
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0041,
+    "peak_kib": 2204
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0038,
+    "peak_kib": 2212
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0043,
+    "peak_kib": 2204
+   },
+   "D": {
+    "outcome": "rejected",
+    "seconds": 0.0092,
+    "peak_kib": 12536
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.004,
+    "peak_kib": 2384
+   }
+  },
+  {
+   "file": "mut_av1_1.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0036,
+    "peak_kib": 2268
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0031,
+    "peak_kib": 2376
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2356
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0045,
+    "peak_kib": 2316
+   },
+   "D": {
+    "outcome": "rejected",
+    "seconds": 0.0074,
+    "peak_kib": 12552
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0034,
+    "peak_kib": 2204
+   }
+  },
+  {
+   "file": "mut_av1_2.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0035,
+    "peak_kib": 2216
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2268
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0039,
+    "peak_kib": 2036
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0053,
+    "peak_kib": 2368
+   },
+   "D": {
+    "outcome": "rejected",
+    "seconds": 0.0073,
+    "peak_kib": 12552
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0029,
+    "peak_kib": 2196
+   }
+  },
+  {
+   "file": "mut_basic_0.mov",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0033,
+    "peak_kib": 2360
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0039,
+    "peak_kib": 2208
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0033,
+    "peak_kib": 2368
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0047,
+    "peak_kib": 2148
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0152,
+    "peak_kib": 17608
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0033,
+    "peak_kib": 2212
+   }
+  },
+  {
+   "file": "mut_basic_1.mov",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0043,
+    "peak_kib": 2220
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0031,
+    "peak_kib": 2044
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0034,
+    "peak_kib": 2340
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0056,
+    "peak_kib": 2300
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0114,
+    "peak_kib": 17568
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2116
+   }
+  },
+  {
+   "file": "mut_basic_2.mov",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0042,
+    "peak_kib": 2324
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0036,
+    "peak_kib": 2228
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2236
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.005,
+    "peak_kib": 2260
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0133,
+    "peak_kib": 17568
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2256
+   }
+  },
+  {
+   "file": "mut_basic_0.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0035,
+    "peak_kib": 2188
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2200
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0031,
+    "peak_kib": 2372
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0045,
+    "peak_kib": 2184
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.017,
+    "peak_kib": 17568
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0037,
+    "peak_kib": 2292
+   }
+  },
+  {
+   "file": "mut_basic_1.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0038,
+    "peak_kib": 2232
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0033,
+    "peak_kib": 2044
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2044
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0043,
+    "peak_kib": 2304
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0116,
+    "peak_kib": 17568
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0031,
+    "peak_kib": 2336
+   }
+  },
+  {
+   "file": "mut_basic_2.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0036,
+    "peak_kib": 2272
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0035,
+    "peak_kib": 2204
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2216
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0047,
+    "peak_kib": 2164
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.015,
+    "peak_kib": 17568
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2240
+   }
+  },
+  {
+   "file": "mut_color_bt2020_pq_0.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0057,
+    "peak_kib": 2196
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.003,
+    "peak_kib": 2268
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.003,
+    "peak_kib": 2256
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0051,
+    "peak_kib": 2364
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0121,
+    "peak_kib": 14380
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2264
+   }
+  },
+  {
+   "file": "mut_color_bt2020_pq_1.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0036,
+    "peak_kib": 2248
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0031,
+    "peak_kib": 2300
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0034,
+    "peak_kib": 2372
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0055,
+    "peak_kib": 2264
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0088,
+    "peak_kib": 14372
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.003,
+    "peak_kib": 2172
+   }
+  },
+  {
+   "file": "mut_color_bt2020_pq_2.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0037,
+    "peak_kib": 2276
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0034,
+    "peak_kib": 2268
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.003,
+    "peak_kib": 2272
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0046,
+    "peak_kib": 2372
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0094,
+    "peak_kib": 14372
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.003,
+    "peak_kib": 2268
+   }
+  },
+  {
+   "file": "mut_color_bt709_0.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0049,
+    "peak_kib": 2288
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2192
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0033,
+    "peak_kib": 2116
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0046,
+    "peak_kib": 2256
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0119,
+    "peak_kib": 16128
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0027,
+    "peak_kib": 2192
+   }
+  },
+  {
+   "file": "mut_color_bt709_1.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0039,
+    "peak_kib": 2164
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2228
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0033,
+    "peak_kib": 2216
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0046,
+    "peak_kib": 2188
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0108,
+    "peak_kib": 16040
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0029,
+    "peak_kib": 2240
+   }
+  },
+  {
+   "file": "mut_color_bt709_2.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0036,
+    "peak_kib": 2224
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0027,
+    "peak_kib": 2336
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0027,
+    "peak_kib": 2360
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0045,
+    "peak_kib": 2232
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0099,
+    "peak_kib": 15920
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2336
+   }
+  },
+  {
+   "file": "mut_color_full_range_0.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0038,
+    "peak_kib": 2060
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.003,
+    "peak_kib": 2220
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2300
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0039,
+    "peak_kib": 2172
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0108,
+    "peak_kib": 16040
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2172
+   }
+  },
+  {
+   "file": "mut_color_full_range_1.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0035,
+    "peak_kib": 2160
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0033,
+    "peak_kib": 2036
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2268
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0037,
+    "peak_kib": 2240
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.009,
+    "peak_kib": 16040
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2232
+   }
+  },
+  {
+   "file": "mut_color_full_range_2.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0047,
+    "peak_kib": 2244
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.004,
+    "peak_kib": 2044
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0031,
+    "peak_kib": 2368
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0046,
+    "peak_kib": 2184
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0109,
+    "peak_kib": 16040
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2140
+   }
+  },
+  {
+   "file": "mut_edit_list_0.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0037,
+    "peak_kib": 2264
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0029,
+    "peak_kib": 2188
+   },
+   "A-index": {
+    "outcome": "rejected",
+    "seconds": 0.003,
+    "peak_kib": 2252
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0048,
+    "peak_kib": 2292
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0119,
+    "peak_kib": 17612
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2252
+   }
+  },
+  {
+   "file": "mut_edit_list_1.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.003,
+    "peak_kib": 2168
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.003,
+    "peak_kib": 2196
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2260
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0038,
+    "peak_kib": 2204
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.011,
+    "peak_kib": 17612
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0026,
+    "peak_kib": 2164
+   }
+  },
+  {
+   "file": "mut_edit_list_2.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2060
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0026,
+    "peak_kib": 2156
+   },
+   "A-index": {
+    "outcome": "rejected",
+    "seconds": 0.0027,
+    "peak_kib": 2348
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0042,
+    "peak_kib": 2152
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0106,
+    "peak_kib": 17612
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2256
+   }
+  },
+  {
+   "file": "mut_faststart_0.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0029,
+    "peak_kib": 2220
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2048
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0036,
+    "peak_kib": 2220
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0049,
+    "peak_kib": 2352
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0113,
+    "peak_kib": 17364
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2216
+   }
+  },
+  {
+   "file": "mut_faststart_1.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2188
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2356
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0025,
+    "peak_kib": 2244
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0045,
+    "peak_kib": 2156
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0112,
+    "peak_kib": 17612
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0029,
+    "peak_kib": 2216
+   }
+  },
+  {
+   "file": "mut_faststart_2.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0029,
+    "peak_kib": 2148
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0027,
+    "peak_kib": 2032
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2184
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.004,
+    "peak_kib": 2248
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0129,
+    "peak_kib": 17612
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2156
+   }
+  },
+  {
+   "file": "mut_fragmented_0.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.003,
+    "peak_kib": 2188
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0029,
+    "peak_kib": 2204
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2212
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0035,
+    "peak_kib": 2252
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0108,
+    "peak_kib": 17612
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2364
+   }
+  },
+  {
+   "file": "mut_fragmented_1.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0029,
+    "peak_kib": 2368
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0035,
+    "peak_kib": 2216
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2300
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0042,
+    "peak_kib": 2368
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.012,
+    "peak_kib": 17612
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.003,
+    "peak_kib": 2296
+   }
+  },
+  {
+   "file": "mut_fragmented_2.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0029,
+    "peak_kib": 2264
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0039,
+    "peak_kib": 2128
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2168
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0043,
+    "peak_kib": 2324
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0137,
+    "peak_kib": 17612
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0034,
+    "peak_kib": 2020
+   }
+  },
+  {
+   "file": "mut_fragmented_moov_0.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0035,
+    "peak_kib": 2240
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.003,
+    "peak_kib": 2316
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0033,
+    "peak_kib": 2116
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0044,
+    "peak_kib": 2220
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0111,
+    "peak_kib": 17492
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0029,
+    "peak_kib": 2160
+   }
+  },
+  {
+   "file": "mut_fragmented_moov_1.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2216
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0033,
+    "peak_kib": 2324
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0026,
+    "peak_kib": 2204
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0041,
+    "peak_kib": 2052
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0119,
+    "peak_kib": 17612
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.003,
+    "peak_kib": 2352
+   }
+  },
+  {
+   "file": "mut_fragmented_moov_2.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.003,
+    "peak_kib": 2372
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2188
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.003,
+    "peak_kib": 2156
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0036,
+    "peak_kib": 2168
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0122,
+    "peak_kib": 17612
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0026,
+    "peak_kib": 2268
+   }
+  },
+  {
+   "file": "mut_h264_avc3_0.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0031,
+    "peak_kib": 2204
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.003,
+    "peak_kib": 2044
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0026,
+    "peak_kib": 2176
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0036,
+    "peak_kib": 2364
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0089,
+    "peak_kib": 16040
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0038,
+    "peak_kib": 2296
+   }
+  },
+  {
+   "file": "mut_h264_avc3_1.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0037,
+    "peak_kib": 2124
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2060
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2148
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0039,
+    "peak_kib": 2148
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0093,
+    "peak_kib": 16040
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0029,
+    "peak_kib": 2152
+   }
+  },
+  {
+   "file": "mut_h264_avc3_2.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0038,
+    "peak_kib": 2288
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0035,
+    "peak_kib": 2244
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0026,
+    "peak_kib": 2352
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0045,
+    "peak_kib": 2216
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0092,
+    "peak_kib": 16040
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0027,
+    "peak_kib": 2244
+   }
+  },
+  {
+   "file": "mut_hevc_hev1_0.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0035,
+    "peak_kib": 2216
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2300
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.003,
+    "peak_kib": 2264
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0043,
+    "peak_kib": 2200
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0079,
+    "peak_kib": 14384
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0456,
+    "peak_kib": 2236
+   }
+  },
+  {
+   "file": "mut_hevc_hev1_1.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0044,
+    "peak_kib": 2268
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0029,
+    "peak_kib": 2028
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0029,
+    "peak_kib": 2216
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0042,
+    "peak_kib": 2248
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0092,
+    "peak_kib": 14384
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2256
+   }
+  },
+  {
+   "file": "mut_hevc_hev1_2.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0034,
+    "peak_kib": 2304
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0037,
+    "peak_kib": 2204
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0027,
+    "peak_kib": 2212
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0041,
+    "peak_kib": 2268
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0083,
+    "peak_kib": 14380
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2148
+   }
+  },
+  {
+   "file": "mut_hevc_hvc1_0.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0037,
+    "peak_kib": 2236
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2276
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0023,
+    "peak_kib": 2204
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.004,
+    "peak_kib": 2196
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0088,
+    "peak_kib": 14384
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.003,
+    "peak_kib": 2324
+   }
+  },
+  {
+   "file": "mut_hevc_hvc1_1.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.003,
+    "peak_kib": 2204
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0031,
+    "peak_kib": 2376
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0037,
+    "peak_kib": 2272
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.005,
+    "peak_kib": 2268
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0092,
+    "peak_kib": 14388
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0035,
+    "peak_kib": 2376
+   }
+  },
+  {
+   "file": "mut_hevc_hvc1_2.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0036,
+    "peak_kib": 2236
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2268
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.003,
+    "peak_kib": 2248
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0043,
+    "peak_kib": 2056
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0084,
+    "peak_kib": 14384
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0031,
+    "peak_kib": 2216
+   }
+  },
+  {
+   "file": "mut_multitrack_0.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0031,
+    "peak_kib": 2228
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0036,
+    "peak_kib": 2240
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0031,
+    "peak_kib": 2244
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0045,
+    "peak_kib": 2200
+   },
+   "D": {
+    "outcome": "rejected",
+    "seconds": 0.017,
+    "peak_kib": 20520
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0039,
+    "peak_kib": 2236
+   }
+  },
+  {
+   "file": "mut_multitrack_1.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0048,
+    "peak_kib": 2240
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0033,
+    "peak_kib": 2196
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2192
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0046,
+    "peak_kib": 2316
+   },
+   "D": {
+    "outcome": "rejected",
+    "seconds": 0.0162,
+    "peak_kib": 20528
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0037,
+    "peak_kib": 2192
+   }
+  },
+  {
+   "file": "mut_multitrack_2.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0036,
+    "peak_kib": 2324
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0031,
+    "peak_kib": 2216
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0033,
+    "peak_kib": 2184
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0049,
+    "peak_kib": 2160
+   },
+   "D": {
+    "outcome": "rejected",
+    "seconds": 0.0159,
+    "peak_kib": 20528
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0035,
+    "peak_kib": 2316
+   }
+  },
+  {
+   "file": "mut_negative_cts_0.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0039,
+    "peak_kib": 2372
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0033,
+    "peak_kib": 2340
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0041,
+    "peak_kib": 2032
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0044,
+    "peak_kib": 2240
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0121,
+    "peak_kib": 16040
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0038,
+    "peak_kib": 2264
+   }
+  },
+  {
+   "file": "mut_negative_cts_1.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0035,
+    "peak_kib": 2216
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2248
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0035,
+    "peak_kib": 2188
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.004,
+    "peak_kib": 2236
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0106,
+    "peak_kib": 16040
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2176
+   }
+  },
+  {
+   "file": "mut_negative_cts_2.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0041,
+    "peak_kib": 2316
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0036,
+    "peak_kib": 2368
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2188
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.005,
+    "peak_kib": 2124
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0115,
+    "peak_kib": 16040
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0036,
+    "peak_kib": 2204
+   }
+  },
+  {
+   "file": "mut_nested_10000_0.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "rejected",
+    "seconds": 0.0036,
+    "peak_kib": 2256
+   },
+   "A'": {
+    "outcome": "rejected",
+    "seconds": 0.0036,
+    "peak_kib": 2216
+   },
+   "A-index": {
+    "outcome": "rejected",
+    "seconds": 0.0029,
+    "peak_kib": 2264
+   },
+   "A-sbx": {
+    "outcome": "rejected",
+    "seconds": 0.0043,
+    "peak_kib": 2268
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0081,
+    "peak_kib": 11752
+   },
+   "A-strict": {
+    "outcome": "rejected",
+    "seconds": 0.0033,
+    "peak_kib": 2264
+   }
+  },
+  {
+   "file": "mut_nested_10000_1.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "rejected",
+    "seconds": 0.0035,
+    "peak_kib": 2052
+   },
+   "A'": {
+    "outcome": "rejected",
+    "seconds": 0.0034,
+    "peak_kib": 2268
+   },
+   "A-index": {
+    "outcome": "rejected",
+    "seconds": 0.0039,
+    "peak_kib": 2212
+   },
+   "A-sbx": {
+    "outcome": "rejected",
+    "seconds": 0.0048,
+    "peak_kib": 2248
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0071,
+    "peak_kib": 11752
+   },
+   "A-strict": {
+    "outcome": "rejected",
+    "seconds": 0.0033,
+    "peak_kib": 2224
+   }
+  },
+  {
+   "file": "mut_nested_10000_2.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "rejected",
+    "seconds": 0.0034,
+    "peak_kib": 2268
+   },
+   "A'": {
+    "outcome": "rejected",
+    "seconds": 0.0031,
+    "peak_kib": 2280
+   },
+   "A-index": {
+    "outcome": "rejected",
+    "seconds": 0.0035,
+    "peak_kib": 2212
+   },
+   "A-sbx": {
+    "outcome": "rejected",
+    "seconds": 0.0046,
+    "peak_kib": 2180
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0084,
+    "peak_kib": 11752
+   },
+   "A-strict": {
+    "outcome": "rejected",
+    "seconds": 0.0027,
+    "peak_kib": 2364
+   }
+  },
+  {
+   "file": "mut_pcm_f32le_0.mov",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0042,
+    "peak_kib": 2168
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0044,
+    "peak_kib": 2212
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0039,
+    "peak_kib": 2236
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0042,
+    "peak_kib": 2228
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0066,
+    "peak_kib": 12120
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2188
+   }
+  },
+  {
+   "file": "mut_pcm_f32le_1.mov",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0037,
+    "peak_kib": 2040
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0031,
+    "peak_kib": 2180
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0035,
+    "peak_kib": 2220
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.005,
+    "peak_kib": 2128
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0065,
+    "peak_kib": 12120
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0025,
+    "peak_kib": 2332
+   }
+  },
+  {
+   "file": "mut_pcm_f32le_2.mov",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.003,
+    "peak_kib": 2340
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0029,
+    "peak_kib": 2360
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.003,
+    "peak_kib": 2324
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.004,
+    "peak_kib": 2164
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0082,
+    "peak_kib": 12120
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0033,
+    "peak_kib": 2024
+   }
+  },
+  {
+   "file": "mut_pcm_s16le_0.mov",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0034,
+    "peak_kib": 2176
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0039,
+    "peak_kib": 2212
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2148
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0041,
+    "peak_kib": 2164
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0084,
+    "peak_kib": 12120
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.003,
+    "peak_kib": 2296
+   }
+  },
+  {
+   "file": "mut_pcm_s16le_1.mov",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2248
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0029,
+    "peak_kib": 2180
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.003,
+    "peak_kib": 2376
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0049,
+    "peak_kib": 2344
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0064,
+    "peak_kib": 12120
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2224
+   }
+  },
+  {
+   "file": "mut_pcm_s16le_2.mov",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0036,
+    "peak_kib": 2224
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2236
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0039,
+    "peak_kib": 2204
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0047,
+    "peak_kib": 2188
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0063,
+    "peak_kib": 12120
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.003,
+    "peak_kib": 2136
+   }
+  },
+  {
+   "file": "mut_pcm_s16le_0.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0029,
+    "peak_kib": 2324
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0037,
+    "peak_kib": 2368
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0033,
+    "peak_kib": 2268
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0045,
+    "peak_kib": 2372
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0081,
+    "peak_kib": 12248
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0039,
+    "peak_kib": 2248
+   }
+  },
+  {
+   "file": "mut_pcm_s16le_1.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0046,
+    "peak_kib": 2376
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0034,
+    "peak_kib": 2352
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0031,
+    "peak_kib": 2216
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.005,
+    "peak_kib": 2192
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0066,
+    "peak_kib": 12248
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0036,
+    "peak_kib": 2212
+   }
+  },
+  {
+   "file": "mut_pcm_s16le_2.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0038,
+    "peak_kib": 2212
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0031,
+    "peak_kib": 2180
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2368
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0043,
+    "peak_kib": 2188
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0056,
+    "peak_kib": 12248
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0034,
+    "peak_kib": 2064
+   }
+  },
+  {
+   "file": "mut_pcm_s24le_0.mov",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0034,
+    "peak_kib": 2272
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.003,
+    "peak_kib": 2144
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0027,
+    "peak_kib": 2244
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0045,
+    "peak_kib": 2212
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0075,
+    "peak_kib": 12120
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0026,
+    "peak_kib": 2364
+   }
+  },
+  {
+   "file": "mut_pcm_s24le_1.mov",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0047,
+    "peak_kib": 2152
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0031,
+    "peak_kib": 2264
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0034,
+    "peak_kib": 2368
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0047,
+    "peak_kib": 2244
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0067,
+    "peak_kib": 12120
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0037,
+    "peak_kib": 2064
+   }
+  },
+  {
+   "file": "mut_pcm_s24le_2.mov",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0038,
+    "peak_kib": 2296
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0031,
+    "peak_kib": 2288
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2372
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0039,
+    "peak_kib": 2260
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0072,
+    "peak_kib": 12120
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0025,
+    "peak_kib": 2204
+   }
+  },
+  {
+   "file": "mut_prores_proxy_0.mov",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0045,
+    "peak_kib": 2168
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2048
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0027,
+    "peak_kib": 2192
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0047,
+    "peak_kib": 2236
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0085,
+    "peak_kib": 13136
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.003,
+    "peak_kib": 2248
+   }
+  },
+  {
+   "file": "mut_prores_proxy_1.mov",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0033,
+    "peak_kib": 2072
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0027,
+    "peak_kib": 2256
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0027,
+    "peak_kib": 2300
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0046,
+    "peak_kib": 2316
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0067,
+    "peak_kib": 13136
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0029,
+    "peak_kib": 2188
+   }
+  },
+  {
+   "file": "mut_prores_proxy_2.mov",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0044,
+    "peak_kib": 2204
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.003,
+    "peak_kib": 2156
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0037,
+    "peak_kib": 2168
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0046,
+    "peak_kib": 2356
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0064,
+    "peak_kib": 13136
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0033,
+    "peak_kib": 2324
+   }
+  },
+  {
+   "file": "mut_rotate_ccw180_0.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0034,
+    "peak_kib": 2152
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0027,
+    "peak_kib": 2168
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0026,
+    "peak_kib": 2152
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0046,
+    "peak_kib": 2068
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0113,
+    "peak_kib": 17484
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0031,
+    "peak_kib": 2228
+   }
+  },
+  {
+   "file": "mut_rotate_ccw180_1.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2184
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0033,
+    "peak_kib": 2224
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0026,
+    "peak_kib": 2236
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0037,
+    "peak_kib": 2152
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.011,
+    "peak_kib": 17364
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0034,
+    "peak_kib": 2168
+   }
+  },
+  {
+   "file": "mut_rotate_ccw180_2.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2252
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0031,
+    "peak_kib": 2160
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0027,
+    "peak_kib": 2344
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.004,
+    "peak_kib": 2048
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.011,
+    "peak_kib": 17612
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.003,
+    "peak_kib": 2240
+   }
+  },
+  {
+   "file": "mut_rotate_ccw270_0.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0037,
+    "peak_kib": 2156
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0037,
+    "peak_kib": 2256
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0033,
+    "peak_kib": 2152
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0044,
+    "peak_kib": 2152
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0124,
+    "peak_kib": 17612
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.003,
+    "peak_kib": 2200
+   }
+  },
+  {
+   "file": "mut_rotate_ccw270_1.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0026,
+    "peak_kib": 2216
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0029,
+    "peak_kib": 2364
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0035,
+    "peak_kib": 2216
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0041,
+    "peak_kib": 2128
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0109,
+    "peak_kib": 17612
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0027,
+    "peak_kib": 2352
+   }
+  },
+  {
+   "file": "mut_rotate_ccw270_2.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0038,
+    "peak_kib": 2132
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2180
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0037,
+    "peak_kib": 2276
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0037,
+    "peak_kib": 2212
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0116,
+    "peak_kib": 17612
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2268
+   }
+  },
+  {
+   "file": "mut_rotate_ccw90_0.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2376
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0029,
+    "peak_kib": 2256
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0029,
+    "peak_kib": 2216
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0052,
+    "peak_kib": 2352
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0147,
+    "peak_kib": 17612
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0033,
+    "peak_kib": 2268
+   }
+  },
+  {
+   "file": "mut_rotate_ccw90_1.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0041,
+    "peak_kib": 2360
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0034,
+    "peak_kib": 2296
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0035,
+    "peak_kib": 2032
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0048,
+    "peak_kib": 2224
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0114,
+    "peak_kib": 17612
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0027,
+    "peak_kib": 2332
+   }
+  },
+  {
+   "file": "mut_rotate_ccw90_2.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.003,
+    "peak_kib": 2248
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2240
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2216
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0045,
+    "peak_kib": 2292
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0136,
+    "peak_kib": 17612
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2260
+   }
+  },
+  {
+   "file": "mut_timecode_0.mov",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0033,
+    "peak_kib": 2132
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2288
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0027,
+    "peak_kib": 2184
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0046,
+    "peak_kib": 2232
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0089,
+    "peak_kib": 16168
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0027,
+    "peak_kib": 2108
+   }
+  },
+  {
+   "file": "mut_timecode_1.mov",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0036,
+    "peak_kib": 2160
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.003,
+    "peak_kib": 2264
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0026,
+    "peak_kib": 2148
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0043,
+    "peak_kib": 2172
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0091,
+    "peak_kib": 16168
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0027,
+    "peak_kib": 2372
+   }
+  },
+  {
+   "file": "mut_timecode_2.mov",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0033,
+    "peak_kib": 2360
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0036,
+    "peak_kib": 2172
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2212
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0039,
+    "peak_kib": 2152
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0101,
+    "peak_kib": 16168
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.003,
+    "peak_kib": 2152
+   }
+  },
+  {
+   "file": "mut_truncated_0.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "rejected",
+    "seconds": 0.0034,
+    "peak_kib": 2324
+   },
+   "A'": {
+    "outcome": "rejected",
+    "seconds": 0.0026,
+    "peak_kib": 2244
+   },
+   "A-index": {
+    "outcome": "rejected",
+    "seconds": 0.0032,
+    "peak_kib": 2192
+   },
+   "A-sbx": {
+    "outcome": "rejected",
+    "seconds": 0.0041,
+    "peak_kib": 2236
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0126,
+    "peak_kib": 17612
+   },
+   "A-strict": {
+    "outcome": "rejected",
+    "seconds": 0.003,
+    "peak_kib": 2148
+   }
+  },
+  {
+   "file": "mut_truncated_1.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "rejected",
+    "seconds": 0.0032,
+    "peak_kib": 2184
+   },
+   "A'": {
+    "outcome": "rejected",
+    "seconds": 0.0028,
+    "peak_kib": 2244
+   },
+   "A-index": {
+    "outcome": "rejected",
+    "seconds": 0.0029,
+    "peak_kib": 2284
+   },
+   "A-sbx": {
+    "outcome": "rejected",
+    "seconds": 0.0052,
+    "peak_kib": 2092
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0114,
+    "peak_kib": 17612
+   },
+   "A-strict": {
+    "outcome": "rejected",
+    "seconds": 0.0033,
+    "peak_kib": 2368
+   }
+  },
+  {
+   "file": "mut_truncated_2.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "rejected",
+    "seconds": 0.003,
+    "peak_kib": 2188
+   },
+   "A'": {
+    "outcome": "rejected",
+    "seconds": 0.0027,
+    "peak_kib": 2292
+   },
+   "A-index": {
+    "outcome": "rejected",
+    "seconds": 0.0029,
+    "peak_kib": 2304
+   },
+   "A-sbx": {
+    "outcome": "rejected",
+    "seconds": 0.0037,
+    "peak_kib": 2176
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0134,
+    "peak_kib": 17612
+   },
+   "A-strict": {
+    "outcome": "rejected",
+    "seconds": 0.0029,
+    "peak_kib": 2192
+   }
+  },
+  {
+   "file": "mut_vfr_0.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0044,
+    "peak_kib": 2244
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2160
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2264
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0038,
+    "peak_kib": 2372
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0107,
+    "peak_kib": 16036
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0029,
+    "peak_kib": 2372
+   }
+  },
+  {
+   "file": "mut_vfr_1.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0027,
+    "peak_kib": 2168
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2220
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2196
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0044,
+    "peak_kib": 2264
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0106,
+    "peak_kib": 16036
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0031,
+    "peak_kib": 2264
+   }
+  },
+  {
+   "file": "mut_vfr_2.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0034,
+    "peak_kib": 2264
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0029,
+    "peak_kib": 2288
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0031,
+    "peak_kib": 2292
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0039,
+    "peak_kib": 2184
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0096,
+    "peak_kib": 16036
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0027,
+    "peak_kib": 2248
+   }
+  },
+  {
+   "file": "mut_vp9_0.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0039,
+    "peak_kib": 2048
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0036,
+    "peak_kib": 2340
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0027,
+    "peak_kib": 2236
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0038,
+    "peak_kib": 2368
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0136,
+    "peak_kib": 13680
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0031,
+    "peak_kib": 2272
+   }
+  },
+  {
+   "file": "mut_vp9_1.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0029,
+    "peak_kib": 2264
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0032,
+    "peak_kib": 2180
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.0028,
+    "peak_kib": 2336
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0047,
+    "peak_kib": 2296
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0081,
+    "peak_kib": 13820
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0029,
+    "peak_kib": 2296
+   }
+  },
+  {
+   "file": "mut_vp9_2.mp4",
+   "part": "mutation",
+   "expected": "bounded",
+   "A": {
+    "outcome": "ok",
+    "seconds": 0.0035,
+    "peak_kib": 2180
+   },
+   "A'": {
+    "outcome": "ok",
+    "seconds": 0.0026,
+    "peak_kib": 2252
+   },
+   "A-index": {
+    "outcome": "ok",
+    "seconds": 0.003,
+    "peak_kib": 2260
+   },
+   "A-sbx": {
+    "outcome": "ok",
+    "seconds": 0.0045,
+    "peak_kib": 2284
+   },
+   "D": {
+    "outcome": "ok",
+    "seconds": 0.0089,
+    "peak_kib": 13820
+   },
+   "A-strict": {
+    "outcome": "ok",
+    "seconds": 0.0033,
+    "peak_kib": 2244
+   }
+  },
+  {
+   "file": "magicyuv.avi",
+   "part": "pixelsmash",
+   "expected": "reject",
+   "A": {
+    "outcome": "rejected",
+    "seconds": 0.0032,
+    "peak_kib": 2256
+   },
+   "A'": {
+    "outcome": "rejected",
+    "seconds": 0.0032,
+    "peak_kib": 2372
+   },
+   "A-index": {
+    "outcome": "rejected",
+    "seconds": 0.0032,
+    "peak_kib": 2180
+   },
+   "A-sbx": {
+    "outcome": "rejected",
+    "seconds": 0.005,
+    "peak_kib": 1896
+   },
+   "D": {
+    "outcome": "rejected",
+    "seconds": 0.0069,
+    "peak_kib": 11324
+   },
+   "A-strict": {
+    "outcome": "rejected",
+    "seconds": 0.003,
+    "peak_kib": 2360
+   }
+  },
+  {
+   "file": "magicyuv.mov",
+   "part": "pixelsmash",
+   "expected": "reject",
+   "A": {
+    "outcome": "dropped",
+    "seconds": 0.003,
+    "peak_kib": 2108
+   },
+   "A'": {
+    "outcome": "dropped",
+    "seconds": 0.0033,
+    "peak_kib": 2216
+   },
+   "A-index": {
+    "outcome": "dropped",
+    "seconds": 0.0027,
+    "peak_kib": 2216
+   },
+   "A-sbx": {
+    "outcome": "dropped",
+    "seconds": 0.0041,
+    "peak_kib": 2164
+   },
+   "D": {
+    "outcome": "rejected",
+    "seconds": 0.0065,
+    "peak_kib": 12244
+   },
+   "A-strict": {
+    "outcome": "rejected",
+    "seconds": 0.003,
+    "peak_kib": 2144
+   }
+  },
+  {
+   "file": "magicyuv.mkv",
+   "part": "pixelsmash",
+   "expected": "reject",
+   "A": {
+    "outcome": "rejected",
+    "seconds": 0.0031,
+    "peak_kib": 2300
+   },
+   "A'": {
+    "outcome": "rejected",
+    "seconds": 0.0026,
+    "peak_kib": 2344
+   },
+   "A-index": {
+    "outcome": "rejected",
+    "seconds": 0.0033,
+    "peak_kib": 2300
+   },
+   "A-sbx": {
+    "outcome": "rejected",
+    "seconds": 0.0114,
+    "peak_kib": 2216
+   },
+   "D": {
+    "outcome": "rejected",
+    "seconds": 0.0461,
+    "peak_kib": 11324
+   },
+   "A-strict": {
+    "outcome": "rejected",
+    "seconds": 0.0039,
+    "peak_kib": 2248
+   }
+  }
+ ],
+ "note": "Local, unpinned hostile-suite run after the Decision 16 drop policy (2026-10-14, no cloud run). Engine D here is the static full ffprobe 7.0.2 stand-in, not the minimal build."
+}

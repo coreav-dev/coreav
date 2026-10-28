@@ -1,0 +1,8 @@
+Instructions executed (valgrind --tool=callgrind, total Ir), dist builds of base 678bd69 (main), w 4754464 (round 14's
+call site carried over), k1 fe97dea, k2 7140ae8; --discard, first frames (sd 200, 720p 60, 1080p 30, 4k 10); ir.sh.
+Ratios to base; k1/w in brackets.
+
+278dbf5a63bb.0.720p   base 1847766055 (1.0000)  w 1828455327 (0.9895)  k1 1883565287 (1.0194)  k2 1711164501 (0.9261)  [k1/w 1.0301]
+6e90422a670a.0.1080p  base 5032531803 (1.0000)  w 5047183283 (1.0029)  k1 5139738472 (1.0213)  k2 4834710696 (0.9607)  [k1/w 1.0183]
+41e324ebb708.0.sd     base 1080146303 (1.0000)  w 772818443 (0.7155)  k1 837829376 (0.7757)  k2 690023840 (0.6388)  [k1/w 1.0841]
+81ed4778ece2.0.4k     base 294376087 (1.0000)  w 294670068 (1.0010)  k1 315164110 (1.0706)  k2 271428308 (0.9220)  [k1/w 1.0695]

@@ -1,0 +1,26 @@
+[package]
+name = "coreav-transcode"
+description = "Transcoding to H.264 in MP4 (experimental): frames decoded through CoreAV's decode boundary, encoded by an operator-provided x264 or ffmpeg -c:v libx264 run as a separate, resource-limited process, and muxed with the source's audio copied"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+coreav-decode = { path = "../coreav-decode" }
+coreav-frame = { path = "../coreav-frame" }
+coreav-isobmff = { path = "../coreav-isobmff" }
+coreav-isobmff-write = { path = "../coreav-isobmff-write" }
+coreav-mkv = { path = "../coreav-mkv" }
+coreav-thumbnail = { path = "../coreav-thumbnail" }
+coreav-worker = { path = "../coreav-worker" }
+
+[[test]]
+name = "sandboxed"
+# Its `main` is also the sandbox launcher the tests start (`EXEC_ARG`).
+harness = false
+
+[lints]
+workspace = true

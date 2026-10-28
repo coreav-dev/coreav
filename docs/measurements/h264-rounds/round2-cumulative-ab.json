@@ -1,0 +1,317 @@
+{
+ "what": "Round 2 cumulative A/B: before ccd1621 (main), after 4679c9e (h264-deblock tip). Paired after/before time per stream, timed in the same interleaved rounds.",
+ "machine": {
+  "note": "helper workspace, not the implementer machine; absolute ratios differ between machines",
+  "cpu": "Intel(R) Xeon(R) Processor @ 2.90GHz, 8 vCPU (cloud VM)",
+  "memory_gb": 16,
+  "kernel": "Linux 6.18.49 x86_64",
+  "state": "idle during runs (load average below 1 before start)",
+  "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)"
+ },
+ "build": "cargo build --profile dist --example decode -p coreav-h264, each commit from its own clean worktree; examples/decode and scripts/h264_parity.py identical between the commits",
+ "output_identity": "before and after write byte-identical frames on all 8 streams at --frames 300 (md5 of stdout)",
+ "command": "python3 -I scripts/h264_parity.py (from 4679c9e) --decoder before=... --decoder after=... --ffmpeg ffmpeg 7.0.2-static (johnvansickle) --frames 300 --rounds 5 STREAMS",
+ "streams": {
+  "reconstruction": "From the private corpus bucket. 0ba6abe19f7b.0.sd.h264 as stored at spikes/h264-n2/es/. The other 7 from their corpus/v1 containers: ffmpeg -i SRC -map 0:v:0 -c:v copy -bsf:v h264_mp4toannexb -f h264. Identity with the implementer set: 0404af1890da before = 10,821 instructions per macroblock, as on the implementer machine.",
+  "sha256": {
+   "00d2057ba2cd.0.720p.h264": "601b2424dcc7c048dde0aa837e85395b646ec25fa29e0c6c94daf3317616ac22",
+   "02143b44a0c8.0.1080p.h264": "11587ee4ffda843a1bed58c590897d401c7949521b7ba78d73fb81e7283bc103",
+   "03be19c3a47b.0.720p.h264": "d0339d137c8fdf95c9a9c1eca0028c1323e981cd5369cc863b94b74d35e7b7ec",
+   "0404af1890da.0.1080p.h264": "38846039a671262e0c4f5af7ebbd1fa585d666016e4073626b7fe60075fd28e3",
+   "04e45b2f41df.0.720p.h264": "66c264e6e64b134a2bb565b4343f8646bb5985afd9b4500a3faca895b23bb12b",
+   "05f55a4982d8.0.1080p.h264": "0d551865aa14215e39c12da1b0b239ac779d3937e67a63bfe45448b5b586f081",
+   "0ba6abe19f7b.0.sd.h264": "e51a85e8dad53dba3b8bb812234acae0692c3a5b6a339d577c6c0aff35434056",
+   "0bb05726e428.0.sd.h264": "5815ee551f3ca7d180016f90c129a6387c15ab48c6f247c8ba59320a7239a9ca"
+  }
+ },
+ "paired_after_over_before": {
+  "discard": {
+   "n": 8,
+   "median": 0.9060788557386323,
+   "ci95": [
+    0.8413174130411405,
+    1.0220131905922836
+   ],
+   "per_stream": {
+    "00d2057ba2cd.0.720p.h264": 0.8149676699060672,
+    "02143b44a0c8.0.1080p.h264": 0.8885531968491248,
+    "03be19c3a47b.0.720p.h264": 0.9601719424470782,
+    "0404af1890da.0.1080p.h264": 0.7940816292331562,
+    "04e45b2f41df.0.720p.h264": 1.0243165044610354,
+    "05f55a4982d8.0.1080p.h264": 0.8683767133900727,
+    "0ba6abe19f7b.0.sd.h264": 1.0220131905922836,
+    "0bb05726e428.0.sd.h264": 0.92360451462814
+   }
+  },
+  "write": {
+   "n": 8,
+   "median": 0.901892627213998,
+   "ci95": [
+    0.8519120725294682,
+    0.986928638032307
+   ],
+   "per_stream": {
+    "00d2057ba2cd.0.720p.h264": 0.8519120725294682,
+    "02143b44a0c8.0.1080p.h264": 0.8867328777889106,
+    "03be19c3a47b.0.720p.h264": 0.977889346743324,
+    "0404af1890da.0.1080p.h264": 0.8109766726059277,
+    "04e45b2f41df.0.720p.h264": 1.0280936787694954,
+    "05f55a4982d8.0.1080p.h264": 0.8952855661644761,
+    "0ba6abe19f7b.0.sd.h264": 0.986928638032307,
+    "0bb05726e428.0.sd.h264": 0.9084996882635198
+   }
+  }
+ },
+ "callgrind_instructions": {
+  "command": "valgrind --tool=callgrind BIN --frames 300 --discard STREAM",
+  "streams": {
+   "0404af1890da.0.1080p.h264": {
+    "before": 18906814193,
+    "after": 12900504725,
+    "macroblocks": 1747200,
+    "per_macroblock": {
+     "before": 10821,
+     "after": 7384
+    },
+    "change": -0.3176796157558769
+   },
+   "05f55a4982d8.0.1080p.h264": {
+    "before": 34801594675,
+    "after": 27039137459,
+    "macroblocks": 1881600,
+    "per_macroblock": {
+     "before": 18496,
+     "after": 14370
+    },
+    "change": -0.22304889441104325
+   },
+   "04e45b2f41df.0.720p.h264": {
+    "before": 18145547956,
+    "after": 17822574339,
+    "macroblocks": 486000,
+    "per_macroblock": {
+     "before": 37337,
+     "after": 36672
+    },
+    "change": -0.01779905560213213
+   },
+   "0ba6abe19f7b.0.sd.h264": {
+    "before": 7614920377,
+    "after": 7629213559,
+    "change": 0.0018769969076986026
+   }
+  }
+ },
+ "note_on_symmetric_pairs": "Only discard (ours --discard vs ffmpeg -f null) and write (ours to stdout vs ffmpeg -f rawvideo) are symmetric; the parity report also carries :mixed, which is reference only.",
+ "parity_report": {
+  "frames": 300,
+  "rounds": 5,
+  "decoders": {
+   "before": "$HOME/ab/before/target/dist/examples/decode",
+   "after": "$HOME/ab/after/target/dist/examples/decode"
+  },
+  "ffmpeg": "/opt/coreav-oracle-bin/ffmpeg",
+  "resamples": 2000,
+  "streams": [
+   {
+    "stream": "00d2057ba2cd.0.720p.h264",
+    "class": "720p",
+    "seconds": {
+     "ff_null": 0.16618852099986725,
+     "ff_raw": 0.207049311999981,
+     "before_discard": 0.753586888999962,
+     "before_write": 0.761710801999925,
+     "after_discard": 0.6141489510000611,
+     "after_write": 0.6489106279998396
+    },
+    "ratio": {
+     "before:discard": 4.534530330169819,
+     "before:write": 3.6788859361193866,
+     "before:mixed": 3.6396493266301273,
+     "after:discard": 3.6954956172968867,
+     "after:write": 3.1340873424389795,
+     "after:mixed": 2.966196530998941
+    }
+   },
+   {
+    "stream": "02143b44a0c8.0.1080p.h264",
+    "class": "1080p",
+    "seconds": {
+     "ff_null": 1.3579674920001708,
+     "ff_raw": 1.3552585850000014,
+     "before_discard": 4.714697901999898,
+     "before_write": 4.985972681000021,
+     "after_discard": 4.189259892999871,
+     "after_write": 4.421225904000039
+    },
+    "ratio": {
+     "before:discard": 3.4718783253460277,
+     "before:write": 3.6789825470834527,
+     "before:mixed": 3.4788179570911133,
+     "after:discard": 3.0849485850573988,
+     "after:write": 3.2622747813104866,
+     "after:mixed": 3.0911148170294505
+    }
+   },
+   {
+    "stream": "03be19c3a47b.0.720p.h264",
+    "class": "720p",
+    "seconds": {
+     "ff_null": 0.884787605999918,
+     "ff_raw": 0.900192891000188,
+     "before_discard": 2.288617888999852,
+     "before_write": 2.274488338999845,
+     "after_discard": 2.197466684000119,
+     "after_write": 2.2241979159998664
+    },
+    "ratio": {
+     "before:discard": 2.5866296877129447,
+     "before:write": 2.5266677417022283,
+     "before:mixed": 2.542363877654055,
+     "after:discard": 2.483609251642617,
+     "after:write": 2.4708014673706216,
+     "after:mixed": 2.4411064628143797
+    }
+   },
+   {
+    "stream": "0404af1890da.0.1080p.h264",
+    "class": "1080p",
+    "seconds": {
+     "ff_null": 0.48516142799985573,
+     "ff_raw": 0.5877618869999424,
+     "before_discard": 1.8465227730000606,
+     "before_write": 1.971396759000072,
+     "after_discard": 1.4662898120000136,
+     "after_write": 1.5987567839999883
+    },
+    "ratio": {
+     "before:discard": 3.805996656850078,
+     "before:write": 3.354073822415548,
+     "before:mixed": 3.141617062693692,
+     "after:discard": 3.0222720261274554,
+     "after:write": 2.7200756281772063,
+     "after:mixed": 2.4947003955704896
+    }
+   },
+   {
+    "stream": "04e45b2f41df.0.720p.h264",
+    "class": "720p",
+    "seconds": {
+     "ff_null": 0.6216616070000782,
+     "ff_raw": 0.6390116800000669,
+     "before_discard": 1.8677948170000036,
+     "before_write": 1.8701359630001662,
+     "after_discard": 1.913213057999883,
+     "after_write": 1.9226749619999737
+    },
+    "ratio": {
+     "before:discard": 3.0045201375927477,
+     "before:write": 2.926606854823014,
+     "before:mixed": 2.922943156531674,
+     "after:discard": 3.077579564921792,
+     "after:write": 3.008826007687015,
+     "after:mixed": 2.994018916836829
+    }
+   },
+   {
+    "stream": "05f55a4982d8.0.1080p.h264",
+    "class": "1080p",
+    "seconds": {
+     "ff_null": 0.9082864220001738,
+     "ff_raw": 0.896704365000005,
+     "before_discard": 3.489237215000003,
+     "before_write": 3.60479508100002,
+     "after_discard": 3.029972345000033,
+     "after_write": 3.2273210050000216
+    },
+    "ratio": {
+     "before:discard": 3.841560470887822,
+     "before:write": 4.020048548553681,
+     "before:mixed": 3.8911790230885996,
+     "after:discard": 3.3359216559987868,
+     "after:write": 3.5990914408005623,
+     "after:mixed": 3.379009251282072
+    }
+   },
+   {
+    "stream": "0ba6abe19f7b.0.sd.h264",
+    "class": "sd",
+    "seconds": {
+     "ff_null": 0.16662806799990904,
+     "ff_raw": 0.17674976300008893,
+     "before_discard": 0.6975703470000099,
+     "before_write": 0.7261917329999505,
+     "after_discard": 0.7129260960000465,
+     "after_write": 0.716699417999962
+    },
+    "ratio": {
+     "before:discard": 4.186391616809664,
+     "before:write": 4.108586742487373,
+     "before:mixed": 3.9466550628396537,
+     "after:discard": 4.278547453364434,
+     "after:write": 4.054881918000656,
+     "after:mixed": 4.033533532939944
+    }
+   },
+   {
+    "stream": "0bb05726e428.0.sd.h264",
+    "class": "sd",
+    "seconds": {
+     "ff_null": 0.09259021599996231,
+     "ff_raw": 0.09820415099989077,
+     "before_discard": 0.2784101560000636,
+     "before_write": 0.28664339499982816,
+     "after_discard": 0.25714087699998345,
+     "after_write": 0.26041543500014086
+    },
+    "ratio": {
+     "before:discard": 3.006906863681762,
+     "before:write": 2.9188521267308443,
+     "before:mixed": 2.8350141329603598,
+     "after:discard": 2.7771927543628165,
+     "after:write": 2.651776247222284,
+     "after:mixed": 2.61843185223677
+    }
+   }
+  ],
+  "summary": {
+   "before:discard": {
+    "n": 8,
+    "median": 3.6389374910980528,
+    "ci_low": 3.0045201375927477,
+    "ci_high": 4.186391616809664
+   },
+   "before:write": {
+    "n": 8,
+    "median": 3.516479879267467,
+    "ci_low": 2.9188521267308443,
+    "ci_high": 4.020048548553681
+   },
+   "before:mixed": {
+    "n": 8,
+    "median": 3.3102175098924027,
+    "ci_low": 2.8350141329603598,
+    "ci_high": 3.8911790230885996
+   },
+   "after:discard": {
+    "n": 8,
+    "median": 3.0812640749895954,
+    "ci_low": 2.7771927543628165,
+    "ci_high": 3.6954956172968867
+   },
+   "after:write": {
+    "n": 8,
+    "median": 3.071456675062997,
+    "ci_low": 2.651776247222284,
+    "ci_high": 3.5990914408005623
+   },
+   "after:mixed": {
+    "n": 8,
+    "median": 2.980107723917885,
+    "ci_low": 2.5565661239036297,
+    "ci_high": 3.379009251282072
+   }
+  }
+ },
+ "provenance": "Measured and reported by a helper session in a separate workspace; transcribed here from its message, so the byte-for-byte SHA-256 it reported for its own file (fb8b7d2adde25dc5977c208fb4f511d06e24c6054ae52d02c7d8d19365686dcf) does not apply to this copy. The values are unchanged."
+}

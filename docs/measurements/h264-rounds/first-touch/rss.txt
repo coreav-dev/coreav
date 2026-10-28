@@ -1,0 +1,8 @@
+sd t1 m-13e4 maxrss 11 MB  minflt 1299  wall 0.80s  cpu 0.80s
+sd t1 pf2 maxrss 12 MB  minflt 1985  wall 0.80s  cpu 0.80s
+sd t8 m-13e4 maxrss 20 MB  minflt 4552  wall 0.22s  cpu 1.10s
+sd t8 pf2 maxrss 34 MB  minflt 8244  wall 0.21s  cpu 1.10s
+4k t1 m-13e4 maxrss 51 MB  minflt 12552  wall 0.40s  cpu 0.40s
+4k t1 pf2 maxrss 99 MB  minflt 24841  wall 0.41s  cpu 0.41s
+4k t8 m-13e4 maxrss 169 MB  minflt 43118  wall 0.12s  cpu 0.60s
+4k t8 pf2 maxrss 333 MB  minflt 85104  wall 0.17s  cpu 0.67s

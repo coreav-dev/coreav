@@ -1,0 +1,771 @@
+diff --git a/crates/coreav-h264/src/recon.rs b/crates/coreav-h264/src/recon.rs
+index 1becd829..9d8ca21e 100644
+--- a/crates/coreav-h264/src/recon.rs
++++ b/crates/coreav-h264/src/recon.rs
+@@ -3,7 +3,7 @@
+ //! (clauses 8.5.10 to 8.5.13).
+ #![forbid(unsafe_code)]
+ 
+-use coreav_kernels_h264::{BlockMut, IntraAvail, IntraMut, Kernels};
++use coreav_kernels_h264::{BlockMut, ChromaIntraMut, IntraAvail, IntraMut, Kernels};
+ 
+ use crate::error::Result;
+ use crate::mb::{MbKind, SliceDecoder, raster};
+@@ -395,9 +395,8 @@ impl<K: Kernels> SliceDecoder<'_, K> {
+         let ac = &self.mb.chroma_ac;
+         match intra {
+             Some((mode, avail)) => {
+-                let cb = IntraMut::new(&mut pic.cb, off, stride, 8, avail)?;
+-                let cr = IntraMut::new(&mut pic.cr, off, stride, 8, avail)?;
+-                self.kernels.intra_chroma_mb(cb, cr, mode, &dc, ac, ac_nz);
++                let view = ChromaIntraMut::new(&mut pic.cb, &mut pic.cr, off, stride, avail)?;
++                self.kernels.intra_chroma_mb(view, mode, &dc, ac, ac_nz);
+             }
+             None => {
+                 let cb = BlockMut::new(&mut pic.cb, off, stride, 8, 8)?;
+diff --git a/crates/coreav-kernels-h264/fuzz/fuzz_targets/chroma_mb.rs b/crates/coreav-kernels-h264/fuzz/fuzz_targets/chroma_mb.rs
+index f4689ced..feeb4927 100644
+--- a/crates/coreav-kernels-h264/fuzz/fuzz_targets/chroma_mb.rs
++++ b/crates/coreav-kernels-h264/fuzz/fuzz_targets/chroma_mb.rs
+@@ -4,11 +4,12 @@
+ //! of neighbours, every mode and some out of range) and the residual of
+ //! inter ones (`chroma_residual_mb`), DC and AC coefficients over their
+ //! whole range, any mask, strides from the narrowest a view allows,
+-//! planes of different strides, and planes that end at or near the
+-//! block's last sample.
++//! planes of different strides (for the residual; an intra view has one
++//! geometry for both, so there Cr's plane is only shorter or longer), and
++//! planes that end at or near the block's last sample.
+ #![no_main]
+ 
+-use coreav_kernels_h264::{Auto, BlockMut, IntraAvail, IntraMut, Kernels, Scalar, Simd};
++use coreav_kernels_h264::{Auto, BlockMut, ChromaIntraMut, IntraAvail, Kernels, Scalar, Simd};
+ use libfuzzer_sys::fuzz_target;
+ 
+ /// A coefficient from two bytes, inside -2^15 to 2^15 - 1.
+@@ -36,12 +37,7 @@ fuzz_target!(|data: &[u8]| {
+         top_right: bits & 4 != 0,
+         top_left: bits & 8 != 0,
+     };
+-    // The components share their neighbours, except now and then, which
+-    // the vector kernel hands to the reference.
+-    let (a_cb, a_cr) = (
+-        avail(bits),
+-        avail(if bits >> 7 != 0 { bits >> 4 } else { bits }),
+-    );
++    let a_cb = avail(bits);
+     let stride = 8 + usize::from(head[2] % 32);
+     let stride_cr = if head[3] % 5 == 0 {
+         8 + usize::from(head[3] / 5 % 32)
+@@ -59,7 +55,7 @@ fuzz_target!(|data: &[u8]| {
+             _ => 0,
+         };
+     let at = |stride: usize| {
+-        before(stride, a_cb).max(before(stride, a_cr)) + usize::from(head[4]) % (stride - 7)
++        before(stride, a_cb) + usize::from(head[4]) % (stride - 7)
+     };
+     let len = |stride: usize| at(stride) + 7 * stride + 8 + usize::from(head[5] % 4);
+     let ac_nz = head[6];
+@@ -80,9 +76,8 @@ fuzz_target!(|data: &[u8]| {
+     let run = |kernels: &dyn Kernels| -> Option<(Vec<u8>, Vec<u8>)> {
+         let (mut b, mut r) = (cb.clone(), cr.clone());
+         if intra {
+-            let vb = IntraMut::new(&mut b, at(stride), stride, 8, a_cb).ok()?;
+-            let vr = IntraMut::new(&mut r, at(stride_cr), stride_cr, 8, a_cr).ok()?;
+-            kernels.intra_chroma_mb(vb, vr, mode, &dc, &ac, ac_nz);
++            let v = ChromaIntraMut::new(&mut b, &mut r, at(stride), stride, a_cb).ok()?;
++            kernels.intra_chroma_mb(v, mode, &dc, &ac, ac_nz);
+         } else {
+             let vb = BlockMut::new(&mut b, at(stride), stride, 8, 8).ok()?;
+             let vr = BlockMut::new(&mut r, at(stride_cr), stride_cr, 8, 8).ok()?;
+diff --git a/crates/coreav-kernels-h264/src/lib.rs b/crates/coreav-kernels-h264/src/lib.rs
+index 614d96c2..f337fb5b 100644
+--- a/crates/coreav-kernels-h264/src/lib.rs
++++ b/crates/coreav-kernels-h264/src/lib.rs
+@@ -35,7 +35,9 @@ mod views;
+ pub use predict::{MAX_ORIGIN, MAX_SIZE, PlaneOp, Planes, PlanesMut};
+ pub use scalar::Scalar;
+ pub use simd::Simd;
+-pub use views::{Block, BlockMut, ChromaMbMut, EdgeMut, Geometry, IntraAvail, IntraMut, Reach};
++pub use views::{
++    Block, BlockMut, ChromaIntraMut, ChromaMbMut, EdgeMut, Geometry, IntraAvail, IntraMut, Reach,
++};
+ 
+ /// The thresholds one edge of a block boundary is filtered with
+ /// (clause 8.7.2), per segment of `EdgeMut::segment()` lines.
+@@ -268,20 +270,19 @@ pub trait Kernels: Send + Sync + 'static {
+     }
+ 
+     /// Intra prediction and residual of the chroma of a whole macroblock:
+-    /// each component's 8x8 block (`cb`, then `cr`) predicted in
++    /// each component's 8x8 block (Cb, then Cr) predicted in
+     /// intra_chroma_pred_mode `mode`, as [`Kernels::intra_chroma`] does,
+     /// and its residual then added as [`Kernels::chroma_residual_mb`] adds
+-    /// it. A view of another size than 8 is left unchanged.
++    /// it.
+     fn intra_chroma_mb(
+         &self,
+-        cb: IntraMut<'_>,
+-        cr: IntraMut<'_>,
++        dst: ChromaIntraMut<'_>,
+         mode: u8,
+         dc: &[[i32; 4]; 2],
+         ac: &[[[i32; 16]; 4]; 2],
+         ac_nz: u8,
+     ) {
+-        intra_chroma_mb_by_parts(self, [cb, cr], mode, dc, ac, ac_nz);
++        intra_chroma_mb_by_parts(self, dst, mode, dc, ac, ac_nz);
+     }
+ 
+     /// Luma quarter-sample interpolation (clause 8.4.2.2.1).
+@@ -515,16 +516,13 @@ pub(crate) fn chroma_mb_by_edges<K: Kernels + ?Sized>(
+ /// reference semantics, and the fallback of the vector kernel.
+ pub(crate) fn intra_chroma_mb_by_parts<K: Kernels + ?Sized>(
+     kernels: &K,
+-    views: [IntraMut<'_>; 2],
++    dst: ChromaIntraMut<'_>,
+     mode: u8,
+     dc: &[[i32; 4]; 2],
+     ac: &[[[i32; 16]; 4]; 2],
+     ac_nz: u8,
+ ) {
+-    for (c, ((mut view, dc), ac)) in views.into_iter().zip(dc).zip(ac).enumerate() {
+-        if view.n() != 8 {
+-            continue;
+-        }
++    for (c, ((mut view, dc), ac)) in dst.into_parts().into_iter().zip(dc).zip(ac).enumerate() {
+         let avail = view.avail();
+         if let Some(v) = view.sub(0, 0, 8, avail) {
+             kernels.intra_chroma(v, mode);
+@@ -897,16 +895,15 @@ impl Kernels for Auto {
+ 
+     fn intra_chroma_mb(
+         &self,
+-        cb: IntraMut<'_>,
+-        cr: IntraMut<'_>,
++        dst: ChromaIntraMut<'_>,
+         mode: u8,
+         dc: &[[i32; 4]; 2],
+         ac: &[[[i32; 16]; 4]; 2],
+         ac_nz: u8,
+     ) {
+         match self.simd {
+-            Some(simd) => simd.intra_chroma_mb(cb, cr, mode, dc, ac, ac_nz),
+-            None => Scalar.intra_chroma_mb(cb, cr, mode, dc, ac, ac_nz),
++            Some(simd) => simd.intra_chroma_mb(dst, mode, dc, ac, ac_nz),
++            None => Scalar.intra_chroma_mb(dst, mode, dc, ac, ac_nz),
+         }
+     }
+ 
+diff --git a/crates/coreav-kernels-h264/src/simd/mod.rs b/crates/coreav-kernels-h264/src/simd/mod.rs
+index a1ff59a5..dca32e1b 100644
+--- a/crates/coreav-kernels-h264/src/simd/mod.rs
++++ b/crates/coreav-kernels-h264/src/simd/mod.rs
+@@ -106,7 +106,7 @@ use portable as arch;
+ #[cfg(target_arch = "x86_64")]
+ use x86 as arch;
+ 
+-use crate::views::{Block, BlockMut, ChromaMbMut, EdgeMut, IntraMut, Reach};
++use crate::views::{Block, BlockMut, ChromaIntraMut, ChromaMbMut, EdgeMut, IntraMut, Reach};
+ use crate::{Combine, EdgeParams, Kernels, PlaneOp, Planes, PlanesMut, Scalar, Weighting};
+ 
+ /// A read hint for the cache line that holds `at` (`crate::prefetch`).
+@@ -314,8 +314,7 @@ impl Kernels for Simd {
+ 
+     fn intra_chroma_mb(
+         &self,
+-        cb: IntraMut<'_>,
+-        cr: IntraMut<'_>,
++        dst: ChromaIntraMut<'_>,
+         mode: u8,
+         dc: &[[i32; 4]; 2],
+         ac: &[[[i32; 16]; 4]; 2],
+@@ -324,10 +323,10 @@ impl Kernels for Simd {
+         #[cfg(target_arch = "x86_64")]
+         // SAFETY: as above.
+         unsafe {
+-            arch::intra_chroma_mb([cb, cr], mode, dc, ac, ac_nz)
++            arch::intra_chroma_mb(dst, mode, dc, ac, ac_nz)
+         }
+         #[cfg(not(target_arch = "x86_64"))]
+-        crate::intra_chroma_mb_by_parts(self, [cb, cr], mode, dc, ac, ac_nz);
++        crate::intra_chroma_mb_by_parts(self, dst, mode, dc, ac, ac_nz);
+     }
+ 
+     fn luma_mc(&self, dst: BlockMut<'_>, src: Block<'_>, xf: u8, yf: u8) {
+diff --git a/crates/coreav-kernels-h264/src/simd/tests.rs b/crates/coreav-kernels-h264/src/simd/tests.rs
+index 07d93c1c..11e4ffad 100644
+--- a/crates/coreav-kernels-h264/src/simd/tests.rs
++++ b/crates/coreav-kernels-h264/src/simd/tests.rs
+@@ -9,7 +9,9 @@
+ 
+ use super::arch;
+ use crate::scalar::Scalar;
+-use crate::views::{Block, BlockMut, ChromaMbMut, EdgeMut, IntraAvail, IntraMut, Reach};
++use crate::views::{
++    Block, BlockMut, ChromaIntraMut, ChromaMbMut, EdgeMut, IntraAvail, IntraMut, Reach,
++};
+ use crate::{Combine, EdgeParams, Kernels};
+ 
+ /// A reproducible pseudo-random source (SplitMix64).
+@@ -513,16 +515,12 @@ fn chroma_mb_matches_the_reference() {
+             rng.below(512) as i32 - 256
+         }
+     };
+-    fn views<'a>(
++    fn view<'a>(
+         b: &'a mut [u8],
+         r: &'a mut [u8],
+-        at: [(usize, usize, IntraAvail); 2],
+-    ) -> Option<[IntraMut<'a>; 2]> {
+-        let [(ob, sb, ab), (or, sr, ar)] = at;
+-        Some([
+-            IntraMut::new(b, ob, sb, 8, ab).ok()?,
+-            IntraMut::new(r, or, sr, 8, ar).ok()?,
+-        ])
++        (at, stride, avail): (usize, usize, IntraAvail),
++    ) -> Option<ChromaIntraMut<'a>> {
++        ChromaIntraMut::new(b, r, at, stride, avail).ok()
+     }
+     fn blocks<'a>(b: &'a mut [u8], r: &'a mut [u8], at: [(usize, usize); 2]) -> [BlockMut<'a>; 2] {
+         let [(ob, sb), (or, sr)] = at;
+@@ -534,11 +532,6 @@ fn chroma_mb_matches_the_reference() {
+     let mut cases = 0;
+     for round in 0..4000 {
+         let avail = intra_avail(round % 16);
+-        let other = if round % 37 == 0 {
+-            intra_avail(rng.below(16))
+-        } else {
+-            avail
+-        };
+         let tight = round % 3 == 0;
+         let mode = match rng.below(8) {
+             0 => 4 + rng.below(252) as u8,
+@@ -560,17 +553,28 @@ fn chroma_mb_matches_the_reference() {
+             2 => 0xff,
+             _ => rng.below(256) as u8,
+         };
++        // The components share their geometry (the intra view requires it),
++        // except now and then, when the intra view is built with Cb's and
++        // Cr's plane may be shorter (no view) or longer than Cb's.
+         let mut planes = Vec::new();
+-        for _ in 0..2 {
+-            let stride = [8, 9, 12, 16, 24][rng.below(5)];
+-            let (x, y) = (1 + rng.below(2), 1 + rng.below(2));
+-            let x = x.min(stride - 8);
++        let mut shape = None;
++        for c in 0..2 {
++            let mut fresh = || {
++                let stride = [8, 9, 12, 16, 24][rng.below(5)];
++                let (x, y) = (1 + rng.below(2), 1 + rng.below(2));
++                (stride, x.min(stride - 8), y)
++            };
++            let (stride, x, y) = match shape {
++                Some(s) if c == 1 && round % 37 != 0 => s,
++                _ => fresh(),
++            };
++            shape = Some((stride, x, y));
+             let plane = intra_plane(&mut rng, stride, x, y, 8, tight);
+             planes.push((plane, y * stride + x, stride));
+         }
+         let [(pb, ob, sb), (pr, or, sr)] = <[_; 2]>::try_from(planes).expect("two planes");
+         let what = format!(
+-            "mode {mode} ac_nz {ac_nz:#x} dc {dc:?} strides {sb}, {sr} at {ob}, {or}, {avail:?} {other:?}"
++            "mode {mode} ac_nz {ac_nz:#x} dc {dc:?} strides {sb}, {sr} at {ob}, {or}, {avail:?}"
+         );
+         // Each component's residual a block at a time, as the trait
+         // describes it.
+@@ -591,20 +595,20 @@ fn chroma_mb_matches_the_reference() {
+             }
+         };
+         // Intra.
+-        let at = [(ob, sb, avail), (or, sr, other)];
++        let at = (ob, sb, avail);
+         let (mut want_b, mut want_r, mut got_b, mut got_r) =
+             (pb.clone(), pr.clone(), pb.clone(), pr.clone());
+-        if let (Some([wb, wr]), Some([gb, gr])) = (
+-            views(&mut want_b, &mut want_r, at),
+-            views(&mut got_b, &mut got_r, at),
++        if let (Some(w), Some(g)) = (
++            view(&mut want_b, &mut want_r, at),
++            view(&mut got_b, &mut got_r, at),
+         ) {
+-            Scalar.intra_chroma_mb(wb, wr, mode, &dc, &ac, ac_nz);
+-            simd.intra_chroma_mb(gb, gr, mode, &dc, &ac, ac_nz);
++            Scalar.intra_chroma_mb(w, mode, &dc, &ac, ac_nz);
++            simd.intra_chroma_mb(g, mode, &dc, &ac, ac_nz);
+             assert_eq!(got_b, want_b, "intra Cb: {what}");
+             assert_eq!(got_r, want_r, "intra Cr: {what}");
+             let (mut b, mut r) = (pb.clone(), pr.clone());
+-            if let Some([vb, vr]) = views(&mut b, &mut r, at) {
+-                for (c, mut v) in [vb, vr].into_iter().enumerate() {
++            if let Some(v) = view(&mut b, &mut r, at) {
++                for (c, mut v) in v.into_parts().into_iter().enumerate() {
+                     let a = v.avail();
+                     Scalar.intra_chroma(v.sub(0, 0, 8, a).expect("view"), mode);
+                     residual(&mut v.block_mut().expect("block"), c);
+diff --git a/crates/coreav-kernels-h264/src/simd/x86.rs b/crates/coreav-kernels-h264/src/simd/x86.rs
+index 2ab009a5..93c2cfab 100644
+--- a/crates/coreav-kernels-h264/src/simd/x86.rs
++++ b/crates/coreav-kernels-h264/src/simd/x86.rs
+@@ -25,29 +25,30 @@ use core::arch::x86_64::{
+     __m128i, __m256i, _mm_abs_epi16, _mm_add_epi16, _mm_add_epi32, _mm_adds_epi16, _mm_and_si128,
+     _mm_avg_epu8, _mm_blendv_epi8, _mm_castpd_si128, _mm_castsi128_pd, _mm_cmpgt_epi16,
+     _mm_cvtepu8_epi16, _mm_cvtsi32_si128, _mm_cvtsi64_si128, _mm_cvtsi128_si32, _mm_cvtsi128_si64,
+-    _mm_extract_epi32, _mm_extract_epi64, _mm_insert_epi64, _mm_loadl_epi64, _mm_loadu_si128,
+-    _mm_madd_epi16, _mm_maddubs_epi16, _mm_max_epi16, _mm_min_epi16, _mm_min_epi32,
+-    _mm_mulhrs_epi16, _mm_mullo_epi16, _mm_or_si128, _mm_packs_epi32, _mm_packus_epi16,
+-    _mm_packus_epi32, _mm_sad_epu8, _mm_set_epi64x, _mm_set1_epi8, _mm_set1_epi16, _mm_set1_epi32,
+-    _mm_setr_epi8, _mm_setr_epi16, _mm_setr_epi32, _mm_setzero_si128, _mm_shuffle_epi8,
+-    _mm_shuffle_pd, _mm_slli_epi16, _mm_sra_epi16, _mm_sra_epi32, _mm_srai_epi16, _mm_srli_epi16,
+-    _mm_srli_si128, _mm_storel_epi64, _mm_storeu_si128, _mm_sub_epi8, _mm_sub_epi16,
+-    _mm_testz_si128, _mm_unpackhi_epi8, _mm_unpackhi_epi16, _mm_unpackhi_epi32, _mm_unpackhi_epi64,
+-    _mm_unpacklo_epi8, _mm_unpacklo_epi16, _mm_unpacklo_epi32, _mm_unpacklo_epi64, _mm_xor_si128,
+-    _mm256_abs_epi16, _mm256_add_epi16, _mm256_add_epi32, _mm256_adds_epi16, _mm256_alignr_epi8,
+-    _mm256_and_si256, _mm256_avg_epu8, _mm256_blend_epi32, _mm256_blendv_epi8,
+-    _mm256_broadcastsi128_si256, _mm256_castsi256_si128, _mm256_cmpeq_epi8, _mm256_cmpeq_epi32,
+-    _mm256_cmpgt_epi16, _mm256_cvtepu8_epi16, _mm256_cvtepu8_epi32, _mm256_extract_epi32,
+-    _mm256_extracti128_si256, _mm256_loadu_si256, _mm256_madd_epi16, _mm256_maddubs_epi16,
+-    _mm256_max_epi16, _mm256_min_epi16, _mm256_mulhrs_epi16, _mm256_mullo_epi16,
+-    _mm256_mullo_epi32, _mm256_or_si256, _mm256_packs_epi32, _mm256_packus_epi16,
+-    _mm256_packus_epi32, _mm256_permute2x128_si256, _mm256_permute4x64_epi64,
+-    _mm256_permutevar8x32_epi32, _mm256_sad_epu8, _mm256_set_m128i, _mm256_set1_epi8,
+-    _mm256_set1_epi16, _mm256_set1_epi32, _mm256_setr_epi8, _mm256_setr_epi16, _mm256_setr_epi32,
+-    _mm256_setzero_si256, _mm256_shuffle_epi8, _mm256_slli_epi16, _mm256_sra_epi32,
+-    _mm256_srai_epi16, _mm256_srai_epi32, _mm256_srli_epi32, _mm256_sub_epi8, _mm256_sub_epi16,
+-    _mm256_sub_epi32, _mm256_testc_si256, _mm256_testz_si256, _mm256_unpackhi_epi32,
+-    _mm256_unpackhi_epi64, _mm256_unpacklo_epi32, _mm256_unpacklo_epi64, _mm256_xor_si256,
++    _mm_extract_epi32, _mm_extract_epi64, _mm_insert_epi8, _mm_insert_epi64, _mm_loadl_epi64,
++    _mm_loadu_si128, _mm_madd_epi16, _mm_maddubs_epi16, _mm_max_epi16, _mm_min_epi16,
++    _mm_min_epi32, _mm_mulhrs_epi16, _mm_mullo_epi16, _mm_or_si128, _mm_packs_epi32,
++    _mm_packus_epi16, _mm_packus_epi32, _mm_sad_epu8, _mm_set_epi64x, _mm_set1_epi8,
++    _mm_set1_epi16, _mm_set1_epi32, _mm_setr_epi8, _mm_setr_epi16, _mm_setr_epi32,
++    _mm_setzero_si128, _mm_shuffle_epi8, _mm_shuffle_pd, _mm_slli_epi16, _mm_sra_epi16,
++    _mm_sra_epi32, _mm_srai_epi16, _mm_srli_epi16, _mm_srli_si128, _mm_storel_epi64,
++    _mm_storeu_si128, _mm_sub_epi8, _mm_sub_epi16, _mm_testz_si128, _mm_unpackhi_epi8,
++    _mm_unpackhi_epi16, _mm_unpackhi_epi32, _mm_unpackhi_epi64, _mm_unpacklo_epi8,
++    _mm_unpacklo_epi16, _mm_unpacklo_epi32, _mm_unpacklo_epi64, _mm_xor_si128, _mm256_abs_epi16,
++    _mm256_add_epi16, _mm256_add_epi32, _mm256_adds_epi16, _mm256_alignr_epi8, _mm256_and_si256,
++    _mm256_avg_epu8, _mm256_blend_epi32, _mm256_blendv_epi8, _mm256_broadcastsi128_si256,
++    _mm256_castsi256_si128, _mm256_cmpeq_epi8, _mm256_cmpeq_epi32, _mm256_cmpgt_epi16,
++    _mm256_cvtepu8_epi16, _mm256_cvtepu8_epi32, _mm256_extract_epi32, _mm256_extracti128_si256,
++    _mm256_loadu_si256, _mm256_madd_epi16, _mm256_maddubs_epi16, _mm256_max_epi16,
++    _mm256_min_epi16, _mm256_mulhrs_epi16, _mm256_mullo_epi16, _mm256_mullo_epi32, _mm256_or_si256,
++    _mm256_packs_epi32, _mm256_packus_epi16, _mm256_packus_epi32, _mm256_permute2x128_si256,
++    _mm256_permute4x64_epi64, _mm256_permutevar8x32_epi32, _mm256_sad_epu8, _mm256_set_m128i,
++    _mm256_set1_epi8, _mm256_set1_epi16, _mm256_set1_epi32, _mm256_setr_epi8, _mm256_setr_epi16,
++    _mm256_setr_epi32, _mm256_setzero_si256, _mm256_shuffle_epi8, _mm256_slli_epi16,
++    _mm256_sra_epi32, _mm256_srai_epi16, _mm256_srai_epi32, _mm256_srli_epi32, _mm256_sub_epi8,
++    _mm256_sub_epi16, _mm256_sub_epi32, _mm256_testc_si256, _mm256_testz_si256,
++    _mm256_unpackhi_epi32, _mm256_unpackhi_epi64, _mm256_unpacklo_epi32, _mm256_unpacklo_epi64,
++    _mm256_xor_si256,
+ };
+ 
+ use crate::scalar::{Tap, taps};
+@@ -78,7 +79,7 @@ pub(super) const CHROMA_COLUMN_VECTOR: bool = true;
+ /// Whether a weighted prediction goes to the vector kernel: yes, measured
+ /// at 0.93 (`docs/measurements/h264-kernels.md`).
+ pub(super) const COMBINE_VECTOR: bool = true;
+-use crate::views::{Block, BlockMut, EdgeMut, IntraAvail, IntraMut, Reach};
++use crate::views::{Block, BlockMut, ChromaIntraMut, EdgeMut, IntraAvail, IntraMut, Reach};
+ use crate::{Combine, EdgeParams, Kernels, Scalar, Weighting};
+ 
+ // ---------------------------------------------------------------------
+@@ -670,16 +671,7 @@ impl IntraRows {
+             return None;
+         }
+         let (data, origin) = dst.window();
+-        let before = if avail.top_left {
+-            stride.checked_add(1)?
+-        } else if avail.top || avail.top_right {
+-            stride
+-        } else if avail.left {
+-            1
+-        } else {
+-            0
+-        };
+-        let fits = before <= origin && rows_fit(data.len(), origin, stride, n, n);
++        let fits = Self::fits(data.len(), origin, stride, n, avail);
+         fits.then_some(IntraRows {
+             base: data.as_mut_ptr(),
+             origin,
+@@ -688,6 +680,43 @@ impl IntraRows {
+         })
+     }
+ 
++    /// The two 8x8 views of `dst`, Cb then Cr, with one check of the
++    /// geometry they share, as [`IntraRows::of`] checks each: their
++    /// samples are the same range of each plane, so the shorter slice
++    /// bounds both.
++    #[inline(always)]
++    fn pair(dst: &mut ChromaIntraMut<'_>) -> Option<[IntraRows; 2]> {
++        let stride = dst.stride();
++        let ([cb, cr], origin, bits) = dst.windows();
++        let avail = IntraAvail::from_bits(bits);
++        let len = cb.len().min(cr.len());
++        let fits = stride >= 8 && Self::fits(len, origin, stride, 8, avail);
++        let rows = |data: &mut [u8]| IntraRows {
++            base: data.as_mut_ptr(),
++            origin,
++            stride,
++            avail,
++        };
++        fits.then(|| [rows(cb), rows(cr)])
++    }
++
++    /// Whether an `n` by `n` block whose first sample is `data[origin]`,
++    /// with rows `stride` apart, lies inside `len` samples, at or after
++    /// every neighbour `avail` names.
++    #[inline(always)]
++    fn fits(len: usize, origin: usize, stride: usize, n: usize, avail: IntraAvail) -> bool {
++        let before = if avail.top_left {
++            stride.checked_add(1)
++        } else if avail.top || avail.top_right {
++            Some(stride)
++        } else if avail.left {
++            Some(1)
++        } else {
++            Some(0)
++        };
++        before.is_some_and(|before| before <= origin) && rows_fit(len, origin, stride, n, n)
++    }
++
+     /// A pointer to sample (x - 1, y - 1) of the block: `x` and `y` are
+     /// one more than the sample's coordinates, so that the row above and
+     /// the column left are 0.
+@@ -1066,63 +1095,59 @@ unsafe fn lanes16(low: i32, high: i32) -> __m256i {
+ /// set of vectors, Cb in the low lane and Cr in the high one, then each
+ /// component's residual added in registers, a horizontal pair of blocks at
+ /// a time with the DC coefficients put in place in registers, and its rows
+-/// written once.
++/// written once. Each mode reads only the neighbours it predicts from.
+ ///
+ /// # Safety
+ ///
+ /// AVX2 must be available.
+ #[target_feature(enable = "avx2")]
+ pub(super) unsafe fn intra_chroma_mb(
+-    mut views: [IntraMut<'_>; 2],
++    mut dst: ChromaIntraMut<'_>,
+     mode: u8,
+     dc: &[[i32; 4]; 2],
+     ac: &[[[i32; 16]; 4]; 2],
+     ac_nz: u8,
+ ) {
+-    let [cb, cr] = &mut views;
+-    let rows = match (IntraRows::of(cb, 8), IntraRows::of(cr, 8)) {
+-        (Some(b), Some(r)) if b.avail == r.avail => [b, r],
+-        _ => return crate::intra_chroma_mb_by_parts(&Scalar, views, mode, dc, ac, ac_nz),
++    let Some([b, r]) = IntraRows::pair(&mut dst) else {
++        return crate::intra_chroma_mb_by_parts(&Scalar, dst, mode, dc, ac, ac_nz);
+     };
+-    let [b, r] = rows;
+     let ([dc_b, dc_r], [ac_b, ac_r]) = (dc, ac);
+     let (bits_b, bits_r) = (ac_nz & 0xf, ac_nz >> 4);
+     // SAFETY: AVX2 is available (this function's contract). Each
+     // component's accesses are those of `intra_chroma` through its own
+-    // `IntraRows`: the row above where the flags have `top`, the column
+-    // left where they have `left`, p[-1, -1] where they have `top_left`,
+-    // and the block's eight rows.
++    // `IntraRows`, which `IntraRows::pair` checked together: the row above
++    // where the flags have `top`, the column left where they have `left`,
++    // p[-1, -1] where they have `top_left`, and the block's eight rows.
+     unsafe {
+         let avail = b.avail;
+-        // p[0..7, -1] and p[-1, 0..7] of a component, zero where absent.
++        // p[0..7, -1] of a component in the low eight bytes, zero where
++        // absent or where the mode does not use it; p[-1, 0..7] in the high
++        // eight bytes likewise.
+         let edge = |w: &IntraRows| {
+-            let top = if avail.top {
+-                w.at(1, 0).cast::<u64>().read_unaligned()
++            let top = if avail.top && mode != 1 {
++                _mm_loadl_epi64(w.at(1, 0).cast())
+             } else {
+-                0
++                _mm_setzero_si128()
+             };
+-            let left = if avail.left {
+-                u64::from_le_bytes(core::array::from_fn(|y| *w.at(0, y + 1)))
++            if avail.left && mode != 2 {
++                column8(w, top)
+             } else {
+-                0
+-            };
+-            (top, left)
++                top
++            }
+         };
+-        let ((tb, lb), (tr, lr)) = (edge(&b), edge(&r));
+-        let edges = _mm256_set_m128i(
+-            _mm_set_epi64x(lr as i64, tr as i64),
+-            _mm_set_epi64x(lb as i64, tb as i64),
+-        );
++        let (eb, er) = (edge(&b), edge(&r));
+         let plane = if mode == 3 {
+-            let parameters = |w: &IntraRows, top: u64, left: u64| {
++            let parameters = |w: &IntraRows, e: __m128i| {
+                 let corner = if avail.top_left { *w.at(0, 0) } else { 0 };
+-                plane_parameters::<8>(&top.to_le_bytes(), &left.to_le_bytes(), corner)
++                let top = (_mm_cvtsi128_si64(e) as u64).to_le_bytes();
++                let left = (_mm_extract_epi64::<1>(e) as u64).to_le_bytes();
++                plane_parameters::<8>(&top, &left, corner)
+             };
+-            [parameters(&b, tb, lb), parameters(&r, tr, lr)]
++            [parameters(&b, eb), parameters(&r, er)]
+         } else {
+             [[0; 3]; 2]
+         };
+-        let [p0, p1, p2, p3] = predict_chroma(mode, avail, edges, plane);
++        let [p0, p1, p2, p3] = predict_chroma(mode, avail, _mm256_set_m128i(er, eb), plane);
+         let cb = [
+             _mm256_castsi256_si128(p0),
+             _mm256_castsi256_si128(p1),
+@@ -1140,6 +1165,30 @@ pub(super) unsafe fn intra_chroma_mb(
+     }
+ }
+ 
++/// `v` with p[-1, 0..7] of an 8x8 block in bytes 8 to 15: one `pinsrb`
++/// a sample.
++///
++/// # Safety
++///
++/// SSE4.1 must be available, and the view's flags must have `left`
++/// ([`IntraRows::at`]); inlined only into functions that enable AVX2.
++#[inline(always)]
++unsafe fn column8(w: &IntraRows, v: __m128i) -> __m128i {
++    // SAFETY: SSE4.1 is available, and p[-1, y] lies inside the view for y
++    // below 8 (the caller's contract).
++    unsafe {
++        let at = |y: usize| i32::from(*w.at(0, y + 1));
++        let v = _mm_insert_epi8::<8>(v, at(0));
++        let v = _mm_insert_epi8::<9>(v, at(1));
++        let v = _mm_insert_epi8::<10>(v, at(2));
++        let v = _mm_insert_epi8::<11>(v, at(3));
++        let v = _mm_insert_epi8::<12>(v, at(4));
++        let v = _mm_insert_epi8::<13>(v, at(5));
++        let v = _mm_insert_epi8::<14>(v, at(6));
++        _mm_insert_epi8::<15>(v, at(7))
++    }
++}
++
+ /// [`crate::Kernels::chroma_residual_mb`]: each component's residual added
+ /// a horizontal pair of blocks at a time, as [`intra_chroma_mb`] adds it to
+ /// its prediction, here to the rows the block holds.
+diff --git a/crates/coreav-kernels-h264/src/views.rs b/crates/coreav-kernels-h264/src/views.rs
+index 3534aebd..b5d9422c 100644
+--- a/crates/coreav-kernels-h264/src/views.rs
++++ b/crates/coreav-kernels-h264/src/views.rs
+@@ -463,6 +463,67 @@ pub struct IntraAvail {
+     pub top_left: bool,
+ }
+ 
++impl IntraAvail {
++    const LEFT: u8 = 1;
++    const TOP: u8 = 2;
++    const TOP_RIGHT: u8 = 4;
++    const TOP_LEFT: u8 = 8;
++
++    /// The flags as one byte, a bit each.
++    const fn bits(self) -> u8 {
++        (self.left as u8 * Self::LEFT)
++            | (self.top as u8 * Self::TOP)
++            | (self.top_right as u8 * Self::TOP_RIGHT)
++            | (self.top_left as u8 * Self::TOP_LEFT)
++    }
++
++    /// The flags of [`IntraAvail::bits`].
++    pub(crate) const fn from_bits(bits: u8) -> IntraAvail {
++        IntraAvail {
++            left: bits & Self::LEFT != 0,
++            top: bits & Self::TOP != 0,
++            top_right: bits & Self::TOP_RIGHT != 0,
++            top_left: bits & Self::TOP_LEFT != 0,
++        }
++    }
++}
++
++/// For an `n` by `n` intra block whose first sample is `plane[offset]`,
++/// with the neighbours `avail` names: how far before the block's first
++/// sample its view starts, and the range of the plane the view covers,
++/// from the first neighbour to the block's last sample. The block must be
++/// at least one sample and at most `stride` wide.
++fn intra_range(
++    offset: usize,
++    stride: usize,
++    n: usize,
++    avail: IntraAvail,
++) -> Result<(usize, core::ops::Range<usize>), Geometry> {
++    if n == 0 || n > stride {
++        return Err(Geometry::new(
++            "empty intra block, or one wider than the stride",
++        ));
++    }
++    let end = block_end(offset, stride, n, n).ok_or(Geometry::new("block range overflows"))?;
++    // The row above ends inside the block's own range: with a stride of at
++    // least n, `offset - stride + 2n` is at most the end of the block's last
++    // row. So only where the view starts needs a check.
++    let before = if avail.top_left {
++        stride.checked_add(1)
++    } else if avail.top || avail.top_right {
++        Some(stride)
++    } else if avail.left {
++        Some(1)
++    } else {
++        Some(0)
++    }
++    .ok_or(Geometry::new("block range overflows"))?;
++    let start = offset
++        .checked_sub(before)
++        .ok_or(Geometry::new("intra neighbours reach before the plane"))?;
++    Ok((before, start..end))
++}
++
+ /// A writable `n` by `n` block and the neighbouring samples an intra
+ /// prediction of it reads (clauses 8.3.1.2, 8.3.2.2, 8.3.3 and 8.3.4).
+ ///
+@@ -496,30 +557,9 @@ impl<'a> IntraMut<'a> {
+         n: usize,
+         avail: IntraAvail,
+     ) -> Result<IntraMut<'a>, Geometry> {
+-        if n == 0 || n > stride {
+-            return Err(Geometry::new(
+-                "empty intra block, or one wider than the stride",
+-            ));
+-        }
+-        let end = block_end(offset, stride, n, n).ok_or(Geometry::new("block range overflows"))?;
+-        // The row above ends inside the block's own range: with a stride of
+-        // at least n, `offset - stride + 2n` is at most the end of the
+-        // block's last row. So only where the view starts needs a check.
+-        let before = if avail.top_left {
+-            stride.checked_add(1)
+-        } else if avail.top || avail.top_right {
+-            Some(stride)
+-        } else if avail.left {
+-            Some(1)
+-        } else {
+-            Some(0)
+-        }
+-        .ok_or(Geometry::new("block range overflows"))?;
+-        let start = offset
+-            .checked_sub(before)
+-            .ok_or(Geometry::new("intra neighbours reach before the plane"))?;
++        let (before, range) = intra_range(offset, stride, n, avail)?;
+         let data = plane
+-            .get_mut(start..end)
++            .get_mut(range)
+             .ok_or(Geometry::new("block reaches past the plane"))?;
+         Ok(IntraMut {
+             data,
+@@ -614,6 +654,82 @@ impl<'a> IntraMut<'a> {
+     }
+ }
+ 
++/// Both chroma blocks of a macroblock of a 4:2:0 picture, 8 by 8 at the
++/// same offset of each plane, and the neighbours their intra prediction
++/// reads (clause 8.3.4): an [`IntraMut`] of each plane, built with one
++/// check of the geometry the two share.
++///
++/// The flags are kept as one byte: a kernel that reads them reads what
++/// the constructor stored, in one load the size of that store.
++pub struct ChromaIntraMut<'a> {
++    /// Each plane's samples, from the first neighbour the view may read to
++    /// the block's last sample: the same range of both planes.
++    planes: [&'a mut [u8]; 2],
++    /// Index of the blocks' first sample inside each plane's samples.
++    origin: usize,
++    stride: usize,
++    /// [`IntraAvail::bits`].
++    avail: u8,
++}
++
++impl<'a> ChromaIntraMut<'a> {
++    /// The 8x8 blocks whose first sample is `cb[offset]` and `cr[offset]`,
++    /// with `stride` samples from one row to the next, and the neighbours
++    /// `avail` names, as [`IntraMut::new`] builds each.
++    pub fn new(
++        cb: &'a mut [u8],
++        cr: &'a mut [u8],
++        offset: usize,
++        stride: usize,
++        avail: IntraAvail,
++    ) -> Result<ChromaIntraMut<'a>, Geometry> {
++        let (origin, range) = intra_range(offset, stride, 8, avail)?;
++        let past = Geometry::new("block reaches past the plane");
++        let cb = cb.get_mut(range.clone()).ok_or(past)?;
++        let cr = cr.get_mut(range).ok_or(past)?;
++        Ok(ChromaIntraMut {
++            planes: [cb, cr],
++            origin,
++            stride,
++            avail: avail.bits(),
++        })
++    }
++
++    /// Samples from one row to the next.
++    pub const fn stride(&self) -> usize {
++        self.stride
++    }
++
++    /// Which neighbours the view covers.
++    pub const fn avail(&self) -> IntraAvail {
++        IntraAvail::from_bits(self.avail)
++    }
++
++    /// The view of each plane, Cb then Cr.
++    pub fn into_parts(self) -> [IntraMut<'a>; 2] {
++        let (origin, stride, avail) = (self.origin, self.stride, self.avail());
++        self.planes.map(|data| IntraMut {
++            data,
++            origin,
++            stride,
++            n: 8,
++            avail,
++        })
++    }
++
++    /// Each plane's samples, where the blocks' first sample sits inside
++    /// them, and the flags as [`IntraAvail::bits`]. Used by the SIMD
++    /// kernel, as [`IntraMut::window`] is.
++    #[cfg_attr(
++        not(target_arch = "x86_64"),
++        expect(dead_code, reason = "only the x86 kernels read whole rows")
++    )]
++    pub(crate) fn windows(&mut self) -> ([&mut [u8]; 2], usize, u8) {
++        let [cb, cr] = &mut self.planes;
++        ([&mut **cb, &mut **cr], self.origin, self.avail)
++    }
++}
++
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+@@ -722,4 +838,28 @@ mod tests {
+         assert!(v.sub(0, 0, 4, ALL).is_some());
+         assert!(v.sub(8, 0, 4, ALL).is_none());
+     }
++
++    #[test]
++    fn chroma_intra_view_checks_both_planes() {
++        let (mut cb, mut cr) = ([0u8; 160], [0u8; 160]);
++        // The 8x8 blocks at (1, 1) of 16-wide planes end at 8 * 16 + 9.
++        let v = ChromaIntraMut::new(&mut cb, &mut cr, 17, 16, ALL).expect("view");
++        assert_eq!((v.stride(), v.avail()), (16, ALL));
++        let [b, r] = v.into_parts();
++        assert_eq!((b.n(), r.n(), b.avail(), r.avail()), (8, 8, ALL, ALL));
++        // Each flag survives the byte the view keeps.
++        for bits in 0..16 {
++            let a = IntraAvail::from_bits(bits);
++            assert_eq!(a.bits(), bits);
++            let v = ChromaIntraMut::new(&mut cb, &mut cr, 17, 16, a).expect("view");
++            assert_eq!(v.avail(), a);
++        }
++        // Either plane too short, the first row with nothing above, a
++        // stride narrower than the block.
++        assert!(ChromaIntraMut::new(&mut cb, &mut cr[..136], 17, 16, ALL).is_err());
++        assert!(ChromaIntraMut::new(&mut cb[..136], &mut cr, 17, 16, ALL).is_err());
++        assert!(ChromaIntraMut::new(&mut cb, &mut cr[..137], 17, 16, ALL).is_ok());
++        assert!(ChromaIntraMut::new(&mut cb, &mut cr, 1, 16, ALL).is_err());
++        assert!(ChromaIntraMut::new(&mut cb, &mut cr, 9, 7, ALL).is_err());
++    }
+ }

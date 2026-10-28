@@ -1,0 +1,8 @@
+# second run, same method; cavlc-f2 = cavlc-f1 plus nC from a per-macroblock record of the neighbours' edge TotalCoeff (not taken, see the design note)
+6f7799768413.0.sd.h2 2.533  cavlc-f1 0.8775  cavlc-f2 0.8816
+5185721dda11.0.sd.h2 0.584  cavlc-f1 0.9329  cavlc-f2 0.9332
+9db41aa16b5a.0.720p. 1.362  cavlc-f1 0.9845  cavlc-f2 0.9779
+b71b6b31e54f.0.1080p 1.998  cavlc-f1 0.8267  cavlc-f2 0.8559
+ec473c99c538.0.sd.h2 0.158  cavlc-f1 0.9617  cavlc-f2 0.9628
+f9e973f44570.0.sd.h2 0.282  cavlc-f1 0.9603  cavlc-f2 0.9539
+median cavlc-f1 0.9466  cavlc-f2 0.9436

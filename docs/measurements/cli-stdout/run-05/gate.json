@@ -1,0 +1,293 @@
+{
+ "input": "a648a26938466fbf7d57f62b75365b31361797d98d44f0cf805082918b4ff62d.mp4",
+ "reference": [
+  0.24242477100051474,
+  0.24317712999982177,
+  0.24267690099986794
+ ],
+ "checks": [
+  {
+   "round": 0,
+   "when": "before",
+   "time": 0.24627181299911172,
+   "ok": true
+  },
+  {
+   "round": 0,
+   "when": "after",
+   "time": 0.24950812899987795,
+   "ok": true
+  },
+  {
+   "round": 1,
+   "when": "before",
+   "time": 0.24703546199998527,
+   "ok": true
+  },
+  {
+   "round": 1,
+   "when": "after",
+   "time": 0.2434572219999609,
+   "ok": true
+  },
+  {
+   "round": 2,
+   "when": "before",
+   "time": 0.24410394000005908,
+   "ok": true
+  },
+  {
+   "round": 2,
+   "when": "after",
+   "time": 0.251171658000203,
+   "ok": true
+  },
+  {
+   "round": 3,
+   "when": "before",
+   "time": 0.2467514089994438,
+   "ok": true
+  },
+  {
+   "round": 3,
+   "when": "after",
+   "time": 0.2427686700002596,
+   "ok": true
+  },
+  {
+   "round": 4,
+   "when": "before",
+   "time": 0.24163316099929943,
+   "ok": true
+  },
+  {
+   "round": 4,
+   "when": "after",
+   "time": 0.24119515599977603,
+   "ok": true
+  },
+  {
+   "round": 5,
+   "when": "before",
+   "time": 0.2412535029998253,
+   "ok": true
+  },
+  {
+   "round": 5,
+   "when": "after",
+   "time": 0.24901323900030548,
+   "ok": true
+  },
+  {
+   "round": 6,
+   "when": "before",
+   "time": 0.24457213900041097,
+   "ok": true
+  },
+  {
+   "round": 6,
+   "when": "after",
+   "time": 0.24525343099958263,
+   "ok": true
+  },
+  {
+   "round": 7,
+   "when": "before",
+   "time": 0.24706783100009488,
+   "ok": true
+  },
+  {
+   "round": 7,
+   "when": "after",
+   "time": 0.24095765000038227,
+   "ok": true
+  },
+  {
+   "round": 8,
+   "when": "before",
+   "time": 0.24311205300000438,
+   "ok": true
+  },
+  {
+   "round": 8,
+   "when": "after",
+   "time": 0.24195658799999364,
+   "ok": true
+  },
+  {
+   "round": 9,
+   "when": "before",
+   "time": 0.24536843100031547,
+   "ok": true
+  },
+  {
+   "round": 9,
+   "when": "after",
+   "time": 0.2636156079997818,
+   "ok": false
+  },
+  {
+   "round": 9,
+   "when": "before",
+   "time": 0.2633198789999369,
+   "ok": false
+  },
+  {
+   "round": 9,
+   "when": "before",
+   "time": 0.256446314000641,
+   "ok": false
+  },
+  {
+   "round": 9,
+   "when": "before",
+   "time": 0.25182076999954006,
+   "ok": true
+  },
+  {
+   "round": 9,
+   "when": "after",
+   "time": 0.2545587089998662,
+   "ok": true
+  },
+  {
+   "round": 10,
+   "when": "before",
+   "time": 0.25854771200010873,
+   "ok": false
+  },
+  {
+   "round": 10,
+   "when": "before",
+   "time": 0.24938361200020154,
+   "ok": true
+  },
+  {
+   "round": 10,
+   "when": "after",
+   "time": 0.24160733299959247,
+   "ok": true
+  },
+  {
+   "round": 11,
+   "when": "before",
+   "time": 0.24135784300051455,
+   "ok": true
+  },
+  {
+   "round": 11,
+   "when": "after",
+   "time": 0.24355150800056435,
+   "ok": true
+  },
+  {
+   "round": 12,
+   "when": "before",
+   "time": 0.24501678599972365,
+   "ok": true
+  },
+  {
+   "round": 12,
+   "when": "after",
+   "time": 0.25161023100008606,
+   "ok": true
+  },
+  {
+   "round": 13,
+   "when": "before",
+   "time": 0.24523461700027838,
+   "ok": true
+  },
+  {
+   "round": 13,
+   "when": "after",
+   "time": 0.2504511100005402,
+   "ok": true
+  },
+  {
+   "round": 14,
+   "when": "before",
+   "time": 0.2422285570000895,
+   "ok": true
+  },
+  {
+   "round": 14,
+   "when": "after",
+   "time": 0.24413583299974562,
+   "ok": true
+  },
+  {
+   "round": 15,
+   "when": "before",
+   "time": 0.24142769499940187,
+   "ok": true
+  },
+  {
+   "round": 15,
+   "when": "after",
+   "time": 0.24341952499980835,
+   "ok": true
+  },
+  {
+   "round": 16,
+   "when": "before",
+   "time": 0.24293853600011062,
+   "ok": true
+  },
+  {
+   "round": 16,
+   "when": "after",
+   "time": 0.2421135079994201,
+   "ok": true
+  },
+  {
+   "round": 17,
+   "when": "before",
+   "time": 0.242775900000197,
+   "ok": true
+  },
+  {
+   "round": 17,
+   "when": "after",
+   "time": 0.24347666000085155,
+   "ok": true
+  },
+  {
+   "round": 18,
+   "when": "before",
+   "time": 0.242896257999746,
+   "ok": true
+  },
+  {
+   "round": 18,
+   "when": "after",
+   "time": 0.24366804599958414,
+   "ok": true
+  },
+  {
+   "round": 19,
+   "when": "before",
+   "time": 0.24331378799979575,
+   "ok": true
+  },
+  {
+   "round": 19,
+   "when": "after",
+   "time": 0.24472237400004815,
+   "ok": true
+  },
+  {
+   "round": 20,
+   "when": "before",
+   "time": 0.24567823899997165,
+   "ok": true
+  },
+  {
+   "round": 20,
+   "when": "after",
+   "time": 0.24178581700016366,
+   "ok": true
+  }
+ ],
+ "verdict": "passed"
+}

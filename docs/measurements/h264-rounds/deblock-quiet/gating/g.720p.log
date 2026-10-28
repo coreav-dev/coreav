@@ -1,0 +1,26 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2899.9 MHz, 8 logical CPUs
+gate after 0 streams: 0.426 s (+0.0%)
+1d4b1775d78a.0.720p.h264                 host fault (attempt 1): null {'base_discard': -0.01518631904331702, 'base_write': -0.007426142405529967}, max spread 1.756
+1d4b1775d78a.0.720p.h264                 host fault (attempt 2): null {'base_discard': -0.0042048839696698925, 'base_write': 9.35505508861123e-05}, max spread 1.793
+1d4b1775d78a.0.720p.h264                 host fault (attempt 3): null {'base_discard': -0.009619121279911713, 'base_write': -0.006577548547482048}, max spread 1.650
+1d4b1775d78a.0.720p.h264                 base:discard=1.15  base:write=1.11  base:mixed=1.06  k:discard=1.12  k:write=1.09  k:mixed=1.04 UNRESOLVED
+278dbf5a63bb.0.720p.h264                 base:discard=1.13  base:write=1.11  base:mixed=1.06  k:discard=1.13  k:write=1.10  k:mixed=1.06
+36501d448eaa.0.720p.h264                 base:discard=1.29  base:write=1.26  base:mixed=1.24  k:discard=1.25  k:write=1.24  k:mixed=1.20
+3c593b8f0809.0.720p.h264                 host fault (attempt 1): null {'base_discard': -0.0010393084536716168, 'base_write': 0.006685604074413876}, max spread 1.593
+3c593b8f0809.0.720p.h264                 base:discard=1.19  base:write=1.18  base:mixed=1.14  k:discard=1.18  k:write=1.18  k:mixed=1.14
+gate after 4 streams: 0.406 s (-4.8%)
+65ec61f95a00.0.720p.h264                 base:discard=1.16  base:write=1.13  base:mixed=1.08  k:discard=1.16  k:write=1.13  k:mixed=1.08
+6b18d9f0f88d.0.720p.h264                 base:discard=0.93  base:write=0.88  base:mixed=0.79  k:discard=0.91  k:write=0.86  k:mixed=0.78
+76e0b1692494.0.720p.h264                 host fault (attempt 1): null {'base_discard': -0.00845057957795703, 'base_write': 0.0075665761224292805}, max spread 1.538
+76e0b1692494.0.720p.h264                 base:discard=1.11  base:write=1.11  base:mixed=1.01  k:discard=1.10  k:write=1.08  k:mixed=1.00
+9db41aa16b5a.0.720p.h264                 base:discard=1.09  base:write=1.02  base:mixed=0.97  k:discard=1.10  k:write=1.03  k:mixed=0.98
+gate after 8 streams: 0.406 s (-4.6%)
+
+base:discard             n=  8  median 1.140  [1.091, 1.186]
+base:write               n=  8  median 1.107  [1.021, 1.182]
+base:mixed               n=  8  median 1.064  [0.970, 1.141]
+k:discard                n=  8  median 1.126  [1.099, 1.181]
+k:write                  n=  8  median 1.096  [1.031, 1.164]
+k:mixed                  n=  8  median 1.051  [0.977, 1.121]
+
+wrote $HOME/ab/qz/out/g.720p.json

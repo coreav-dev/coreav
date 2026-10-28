@@ -1,0 +1,4 @@
+{"streams": 97, "passed": 97, "failed": 0, "kernels": "detect", "mode": "fast", "threads": "1,2,8", "seconds": 38.2}
+{"streams": 97, "passed": 97, "failed": 0, "kernels": "detect", "mode": "safe", "threads": "1,2,8", "seconds": 39.2}
+{"streams": 97, "passed": 97, "failed": 0, "kernels": "scalar", "mode": "fast", "threads": "1,2,8", "seconds": 54.4}
+{"streams": 97, "passed": 97, "failed": 0, "kernels": "scalar", "mode": "safe", "threads": "1,2,8", "seconds": 54.3}

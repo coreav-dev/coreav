@@ -1,0 +1,6 @@
+FAIL model106 rebase-check-1 05:20Z 36501d448eaa.0.720p 1.264s (ref 1.295) ratio 0.976; a6af290d9053.0.1080p 4.158s (ref 4.388) ratio 0.948
+FAIL model106 rebase-check-2 05:20Z 36501d448eaa.0.720p 1.263s (ref 1.295) ratio 0.975; a6af290d9053.0.1080p 4.160s (ref 4.388) ratio 0.948
+FAIL model106 rebase-check-3 05:21Z 36501d448eaa.0.720p 1.265s (ref 1.295) ratio 0.977; a6af290d9053.0.1080p 4.163s (ref 4.388) ratio 0.949
+FAIL model106 rebase-check-4 05:21Z 36501d448eaa.0.720p 1.264s (ref 1.295) ratio 0.976; a6af290d9053.0.1080p 4.161s (ref 4.388) ratio 0.948
+FAIL model106 rebase-check-5 05:21Z 36501d448eaa.0.720p 1.264s (ref 1.295) ratio 0.976; a6af290d9053.0.1080p 4.160s (ref 4.388) ratio 0.948
+FAIL model106 rebase-check-6 05:21Z 36501d448eaa.0.720p 1.265s (ref 1.295) ratio 0.977; a6af290d9053.0.1080p 4.160s (ref 4.388) ratio 0.948

@@ -1,0 +1,164 @@
+{
+  "frames": 300,
+  "rounds": 3,
+  "decoders": {
+    "chroma": "/tmp/dec-chroma",
+    "luma": "/tmp/dec-luma"
+  },
+  "ffmpeg": "/opt/coreav-oracle-bin/ffmpeg",
+  "resamples": 2000,
+  "streams": [
+    {
+      "stream": "0ad504671d99.0.sd.h264",
+      "class": "sd",
+      "seconds": {
+        "ff_null": 0.25242451000121946,
+        "ff_raw": 0.2574870699991152,
+        "chroma_discard": 0.9438339749995066,
+        "chroma_write": 0.9267812190009863,
+        "luma_discard": 0.9318434699998761,
+        "luma_write": 0.9239556479988096
+      },
+      "ratio": {
+        "chroma:discard": 3.7390742087404547,
+        "chroma:write": 3.5993311004089295,
+        "luma:discard": 3.6915728587345753,
+        "luma:write": 3.588357458112303
+      }
+    },
+    {
+      "stream": "0ba6abe19f7b.0.sd.h264",
+      "class": "sd",
+      "seconds": {
+        "ff_null": 0.16113307699924917,
+        "ff_raw": 0.16374825999992026,
+        "chroma_discard": 0.7089226910011348,
+        "chroma_write": 0.7210763870007213,
+        "luma_discard": 0.7071615179993387,
+        "luma_write": 0.7031723679992865
+      },
+      "ratio": {
+        "chroma:discard": 4.399609963412032,
+        "chroma:write": 4.403566712715436,
+        "luma:discard": 4.388680034966588,
+        "luma:write": 4.294228030268101
+      }
+    },
+    {
+      "stream": "00d2057ba2cd.0.720p.h264",
+      "class": "720p",
+      "seconds": {
+        "ff_null": 0.15613414099971124,
+        "ff_raw": 0.15736746299990045,
+        "chroma_discard": 0.605655356999705,
+        "chroma_write": 0.624514959001317,
+        "luma_discard": 0.6813125600001513,
+        "luma_write": 0.633335847998751
+      },
+      "ratio": {
+        "chroma:discard": 3.87907060635012,
+        "chroma:write": 3.968513866184092,
+        "luma:discard": 4.363636009637452,
+        "luma:write": 4.0245666793214525
+      }
+    },
+    {
+      "stream": "03be19c3a47b.0.720p.h264",
+      "class": "720p",
+      "seconds": {
+        "ff_null": 0.8759077479990083,
+        "ff_raw": 0.8922497740004474,
+        "chroma_discard": 2.212425688998337,
+        "chroma_write": 2.222122675999344,
+        "luma_discard": 2.262281219000215,
+        "luma_write": 2.2839213290008047
+      },
+      "ratio": {
+        "chroma:discard": 2.525866101827018,
+        "chroma:write": 2.490471548158924,
+        "luma:discard": 2.5827848014455244,
+        "luma:write": 2.559733154944637
+      }
+    },
+    {
+      "stream": "02143b44a0c8.0.1080p.h264",
+      "class": "1080p",
+      "seconds": {
+        "ff_null": 1.3658197860004293,
+        "ff_raw": 1.3523931150011776,
+        "chroma_discard": 4.313369024999702,
+        "chroma_write": 4.4559405429990875,
+        "luma_discard": 4.254210307999529,
+        "luma_write": 4.492509309000525
+      },
+      "ratio": {
+        "chroma:discard": 3.1580806408074293,
+        "chroma:write": 3.294855980537292,
+        "luma:discard": 3.1147669345582254,
+        "luma:write": 3.321896022072408
+      }
+    },
+    {
+      "stream": "0404af1890da.0.1080p.h264",
+      "class": "1080p",
+      "seconds": {
+        "ff_null": 0.5074702549991343,
+        "ff_raw": 0.510227066999505,
+        "chroma_discard": 1.417259453999577,
+        "chroma_write": 1.5523027880008158,
+        "luma_discard": 1.4380097209996165,
+        "luma_write": 1.5788865159993293
+      },
+      "ratio": {
+        "chroma:discard": 2.7927931539593285,
+        "chroma:write": 3.04237640141173,
+        "luma:discard": 2.833682776150239,
+        "luma:write": 3.0944781610358216
+      }
+    },
+    {
+      "stream": "05f55a4982d8.0.1080p.h264",
+      "class": "1080p",
+      "seconds": {
+        "ff_null": 0.9581932390010479,
+        "ff_raw": 0.9023227559991938,
+        "chroma_discard": 3.0988065490000736,
+        "chroma_write": 3.2944599900001776,
+        "luma_discard": 3.105312359000891,
+        "luma_write": 3.3606280570002127
+      },
+      "ratio": {
+        "chroma:discard": 3.234010033540515,
+        "chroma:write": 3.651088225467652,
+        "luma:discard": 3.2407996973953757,
+        "luma:write": 3.7244190448004346
+      }
+    }
+  ],
+  "summary": {
+    "chroma:discard": {
+      "n": 7,
+      "median": 3.234010033540515,
+      "ci_low": 2.7927931539593285,
+      "ci_high": 3.87907060635012
+    },
+    "chroma:write": {
+      "n": 7,
+      "median": 3.5993311004089295,
+      "ci_low": 3.04237640141173,
+      "ci_high": 3.968513866184092
+    },
+    "luma:discard": {
+      "n": 7,
+      "median": 3.2407996973953757,
+      "ci_low": 2.833682776150239,
+      "ci_high": 4.363636009637452
+    },
+    "luma:write": {
+      "n": 7,
+      "median": 3.588357458112303,
+      "ci_low": 3.0944781610358216,
+      "ci_high": 4.0245666793214525
+    }
+  }
+}

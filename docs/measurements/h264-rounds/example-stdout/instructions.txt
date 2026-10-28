@@ -1,0 +1,23 @@
+# Instructions (callgrind, whole process) of the decode example writing its frames into a pipe (| cat > /dev/null; the
+# parity script sends them to /dev/null directly, which goes through the same std::io::Stdout scan before this change),
+# one thread, before (main 9cc143d) and after this change, the same build otherwise (dist). Output MD5 identical.
+# stream frames before after ratio
+b71b6b31e54f.0.1080p 60 1676848262 1455213172 0.8678
+ed75c044e944.0.4k 30 800599192 683315063 0.8535
+41e324ebb708.0.sd 200 1150895404 1130015141 0.9819
+36501d448eaa.0.720p 100 1289845948 1216819425 0.9434
+# Share of core::slice::memchr::memrchr_aligned (under BufWriter<StdoutLock>::flush_buf) in the write decode of eight
+# streams before (round 14's tip, prof build):
+36501d448eaa.0.720p 5.72%
+3b1b441e23ae.0.4k 10.83%
+41e324ebb708.0.sd 2.51%
+5185721dda11.0.sd 4.12%
+9db41aa16b5a.0.720p 4.91%
+a6af290d9053.0.1080p 2.27%
+b71b6b31e54f.0.1080p 13.53%
+ed75c044e944.0.4k 15.04%
+# Output MD5 (frames as written), before and after, the same frame counts:
+b71b6b31e54f.0.1080p af6f3cb75ee3ec548b83c1004674cfc2 af6f3cb75ee3ec548b83c1004674cfc2
+ed75c044e944.0.4k 84291462ef851db73aa1f0752714ba20 84291462ef851db73aa1f0752714ba20
+41e324ebb708.0.sd a08649ba20c828c5bd029ea0ddbc21d0 a08649ba20c828c5bd029ea0ddbc21d0
+36501d448eaa.0.720p 1aa957ab6d8f2e547d50e9012bc45bbe 1aa957ab6d8f2e547d50e9012bc45bbe

@@ -1,0 +1,11 @@
+# Self instructions per macroblock (callgrind, --discard) of the macroblock layer's helpers, each kept out of line in a
+# profiling build of round 14 (40fa3ab plus #[inline(never)] on the helpers; not for merge); MBs = derive_neighbours calls.
+stream               MBs      total/MB ock::strengths   deblock_rows resholds>::new ive_neighbours    >::start_mb      finish_mb   decode_slice predict_direct      colocated   mv_predictor     inter_pred
+36501d448eaa.0.720p.   181440      6710          318.2          236.5           31.3           71.4           78.2           30.6          135.3            0.0            0.0           51.9           46.9
+3b1b441e23ae.0.4k.ou   465300      3397          303.3          175.9           18.8           72.5           80.1           30.7          113.9          140.4           64.6           89.5           30.6
+41e324ebb708.0.sd.ou   185840      4384          306.7          183.8           19.4           71.0           78.2           29.8          154.9          217.3           88.2           37.6           34.0
+5185721dda11.0.sd.ou    79596      5938          315.9          460.3           85.2           70.1           78.4           31.3          318.3            0.0            0.0           35.2           32.1
+9db41aa16b5a.0.720p.   206040      7438          219.9          880.7          193.0           71.6           78.2           49.7          143.8          182.9           75.5            7.5           22.3
+a6af290d9053.0.1080p   497760     19782          340.0         1017.4          237.7           72.3           80.1           31.2          130.3          160.5           73.9          164.1           53.2
+b71b6b31e54f.0.1080p   497760      2865            0.0           24.5            0.0           72.3           80.1           30.5           69.6          173.4           79.8          106.7           32.5
+ed75c044e944.0.4k.ou   259080      2621          303.4          139.7            8.7           72.3           80.1           30.5          115.3            0.0            0.0            2.8           23.6

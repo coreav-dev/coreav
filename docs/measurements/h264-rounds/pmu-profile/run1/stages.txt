@@ -1,0 +1,344 @@
+Stages: cycle-like events as a share of FFmpeg cycles; counts per macroblock. Mean over streams.
+
+branch-misses
+  class  decoder   entropy        mb     inter     recon   deblock     other     total
+  sd     core     5.8379    1.7618    1.2338    1.4560    2.9154    0.4485   13.6533
+  sd     ffa      6.7679    0.5959    1.5514    1.5385    1.1197    1.0147   12.5880
+  720p   core     8.4509    1.9178    1.0094    1.8970    2.3526    0.2779   15.9056
+  720p   ffa      9.7454    0.5703    1.0284    1.9720    1.0721    0.3160   14.7043
+  1080p  core    19.7778    2.5864    1.4066    3.3615    2.1295    0.3189   29.5807
+  1080p  ffa     23.7616    0.9007    1.5631    2.7701    0.7992    0.2216   30.0163
+  4k     core     4.9565    0.8958    0.4424    1.0075    0.6968    0.1118    8.1107
+  4k     ffa      6.1499    0.2966    0.4779    0.8720    0.2402    0.1063    8.1429
+  all    core     9.7558    1.7904    1.0230    1.9305    2.0236    0.2893   16.8126
+  all    ffa     11.6062    0.5909    1.1552    1.7881    0.8078    0.4146   16.3629
+
+cycles
+  class  decoder   entropy        mb     inter     recon   deblock     other     total
+  sd     core     0.3264    0.1764    0.1584    0.0770    0.2358    0.0556    1.0296
+  sd     ffa      0.3412    0.0332    0.1615    0.0713    0.2023    0.1906    1.0000
+  720p   core     0.3957    0.1684    0.1593    0.0899    0.2786    0.0462    1.1380
+  720p   ffa      0.4218    0.0368    0.1405    0.0790    0.2673    0.0546    1.0000
+  1080p  core     0.5429    0.1649    0.1585    0.0967    0.1364    0.0397    1.1393
+  1080p  ffa      0.5727    0.0446    0.1442    0.0848    0.1198    0.0339    1.0000
+  4k     core     0.3304    0.2520    0.2399    0.0594    0.1281    0.0843    1.0941
+  4k     ffa      0.4300    0.0501    0.2053    0.1140    0.1097    0.0908    1.0000
+  all    core     0.3989    0.1904    0.1790    0.0808    0.1947    0.0565    1.1003
+  all    ffa      0.4414    0.0412    0.1629    0.0873    0.1748    0.0925    1.0000
+
+exe_activity.bound_on_stores
+  class  decoder   entropy        mb     inter     recon   deblock     other     total
+  sd     core     0.0003    0.0089    0.0028    0.0001    0.0001    0.0033    0.0154
+  sd     ffa      0.0003    0.0002    0.0023    0.0010    0.0000    0.0021    0.0060
+  720p   core     0.0006    0.0040    0.0033    0.0003    0.0001    0.0046    0.0130
+  720p   ffa      0.0005    0.0009    0.0032    0.0014    0.0000    0.0015    0.0076
+  1080p  core     0.0004    0.0023    0.0029    0.0001    0.0000    0.0050    0.0107
+  1080p  ffa      0.0009    0.0004    0.0033    0.0005    0.0000    0.0021    0.0073
+  4k     core     0.0027    0.0123    0.0134    0.0001    0.0002    0.0209    0.0496
+  4k     ffa      0.0029    0.0025    0.0171    0.0076    0.0002    0.0101    0.0406
+  all    core     0.0010    0.0069    0.0056    0.0001    0.0001    0.0085    0.0222
+  all    ffa      0.0012    0.0010    0.0065    0.0026    0.0001    0.0040    0.0154
+
+l1d.replacement
+  class  decoder   entropy        mb     inter     recon   deblock     other     total
+  sd     core     3.3169    9.7196   15.1882    1.8438    8.6904    3.7457   42.5045
+  sd     ffa      5.6522    2.0511   17.5573    3.2110    4.8889    8.6707   42.0311
+  720p   core     5.4397    8.3480   15.0717    2.6261   10.0305    2.5632   44.0792
+  720p   ffa      5.9065    1.9280   14.6363    4.1410    9.2638    1.9374   37.8129
+  1080p  core     7.0688    9.3487   16.0103    2.7960    7.7208    2.7495   45.6942
+  1080p  ffa      6.8454    2.3762   14.8234    4.9056    6.7526    1.7364   37.4395
+  4k     core     4.9354    9.5820   19.7783    4.1860    5.0860    2.4856   46.0534
+  4k     ffa      4.9047    2.0744   22.7115    5.6278    3.8124    1.3027   40.4336
+  all    core     5.1902    9.2496   16.5121    2.8630    7.8819    2.8860   44.5828
+  all    ffa      5.8272    2.1074   17.4321    4.4713    6.1794    3.4118   39.4293
+
+l2_rqsts.rfo_miss
+  class  decoder   entropy        mb     inter     recon   deblock     other     total
+  sd     core     0.0000    0.1791    0.3523    0.0760    0.0000    0.0209    0.6284
+  sd     ffa      0.0680    0.0000    0.1117    0.0133    0.0000    0.0382    0.2313
+  720p   core     0.0210    0.1781    0.5043    0.1484    0.0000    0.1153    0.9671
+  720p   ffa      0.0715    0.0116    0.1899    0.0548    0.0000    0.1341    0.4618
+  1080p  core     0.0265    0.1345    0.2599    0.0172    0.0000    0.2596    0.6976
+  1080p  ffa      0.1862    0.0306    0.1373    0.0357    0.0051    0.0828    0.4777
+  4k     core     0.0000    0.1102    0.1438    0.0072    0.0000    0.1523    0.4136
+  4k     ffa      0.0981    0.0346    0.2178    0.0502    0.0000    0.0436    0.4443
+  all    core     0.0119    0.1505    0.3151    0.0622    0.0000    0.1370    0.6767
+  all    ffa      0.1059    0.0192    0.1641    0.0385    0.0013    0.0747    0.4038
+
+ld_blocks.store_forward
+  class  decoder   entropy        mb     inter     recon   deblock     other     total
+  sd     core     0.8915    4.8187    3.4796    0.2913   10.1491    0.6926   20.3229
+  sd     ffa      0.2465    0.0096    1.0330    0.3330    8.5699    0.3410   10.5330
+  720p   core     1.0998    3.8557    2.1841    0.7492   19.2893    0.7063   27.8843
+  720p   ffa      0.4519    0.0313    0.8762    0.5545   16.1645    0.0645   18.1429
+  1080p  core     1.2778    4.5596    2.5507    0.9203    8.4345    0.5303   18.2731
+  1080p  ffa      0.4360    0.0464    0.8097    1.1119    7.3823    0.0596    9.8459
+  4k     core     0.5378    4.7719    2.2633    0.2695    1.9750    0.4337   10.2510
+  4k     ffa      0.2140    0.0297    0.4739    0.4369    1.9408    0.0923    3.1877
+  all    core     0.9517    4.5015    2.6194    0.5576    9.9620    0.5907   19.1828
+  all    ffa      0.3371    0.0292    0.7982    0.6091    8.5144    0.1394   10.4274
+
+mem_load_retired.l1_miss
+  class  decoder   entropy        mb     inter     recon   deblock     other     total
+  sd     core     0.9959    3.3413    5.1422    1.0292    2.7243    0.9951   14.2279
+  sd     ffa      1.7246    0.7197    2.9545    0.6021    1.9731    4.5040   12.4780
+  720p   core     1.2433    1.7140    3.5647    1.1032    2.6160    0.4891   10.7304
+  720p   ffa      1.4309    0.3572    2.1264    0.6186    3.1364    0.6969    8.3664
+  1080p  core     1.7018    1.2917    2.8694    1.3590    1.5503    0.3624    9.1346
+  1080p  ffa      1.3306    0.3790    2.0577    0.9840    2.0161    0.4124    7.1797
+  4k     core     1.1559    1.2423    2.7957    1.9133    0.7982    0.4090    8.3145
+  4k     ffa      1.0267    0.4546    5.0434    1.3571    0.9662    0.1387    8.9867
+  all    core     1.2742    1.8974    3.5930    1.3511    1.9222    0.5639   10.6018
+  all    ffa      1.3782    0.4776    3.0455    0.8904    2.0229    1.4380    9.2527
+
+resource_stalls.sb
+  class  decoder   entropy        mb     inter     recon   deblock     other     total
+  sd     core     0.0007    0.0206    0.0043    0.0002    0.0001    0.0054    0.0313
+  sd     ffa      0.0003    0.0003    0.0026    0.0009    0.0000    0.0054    0.0095
+  720p   core     0.0011    0.0084    0.0055    0.0009    0.0001    0.0068    0.0227
+  720p   ffa      0.0006    0.0009    0.0042    0.0011    0.0000    0.0040    0.0108
+  1080p  core     0.0006    0.0034    0.0049    0.0002    0.0000    0.0076    0.0168
+  1080p  ffa      0.0009    0.0004    0.0041    0.0006    0.0000    0.0048    0.0108
+  4k     core     0.0042    0.0221    0.0168    0.0002    0.0003    0.0302    0.0738
+  4k     ffa      0.0037    0.0024    0.0207    0.0080    0.0000    0.0201    0.0550
+  all    core     0.0016    0.0136    0.0079    0.0004    0.0001    0.0125    0.0361
+  all    ffa      0.0014    0.0010    0.0079    0.0026    0.0000    0.0086    0.0215
+
+Totals (perf stat): median per stream of CoreAV / FFmpeg BtbN; per macroblock: CoreAV, BtbN, attribution build
+  L1-dcache-load-misses              all   core/ffb  1.104  per MB: core       13.0 ffb       11.9 ffa       11.5
+  L1-dcache-loads                    all   core/ffb  1.082  per MB: core     1293.8 ffb     1199.3 ffa     1187.9
+  br_misp_retired.all_branches       all   core/ffb  1.049  per MB: core       16.8 ffb       16.4 ffa       16.3
+  branch-misses                      all   core/ffb  1.048  per MB: core       16.8 ffb       16.4 ffa       16.3
+  cycle_activity.stalls_l1d_miss     all   core/ffb  0.762  per MB: core       31.1 ffb       38.1 ffa       31.3
+  cycle_activity.stalls_l2_miss      all   core/ffb  0.590  per MB: core       18.5 ffb       27.0 ffa       22.2
+  cycle_activity.stalls_total        all   core/ffb  0.934  per MB: core      398.1 ffb      441.0 ffa      420.7
+  cycles                             sd    core/ffb  1.048  per MB: core     1815.4 ffb     1810.0 ffa     1745.5
+  cycles                             720p  core/ffb  1.137  per MB: core     2242.7 ffb     1984.7 ffa     1948.4
+  cycles                             1080p core/ffb  1.137  per MB: core     3446.0 ffb     3097.8 ffa     3069.4
+  cycles                             4k    core/ffb  1.051  per MB: core     1335.9 ffb     1251.5 ffa     1215.0
+  cycles                             all   core/ffb  1.097  per MB: core     2210.0 ffb     2036.0 ffa     1994.6
+  exe_activity.bound_on_loads        all   core/ffb  0.900  per MB: core      197.9 ffb      241.8 ffa      228.3
+  exe_activity.bound_on_stores       all   core/ffb  1.177  per MB: core       23.5 ffb       17.9 ffa       15.4
+  instructions                       sd    core/ffb  1.142  per MB: core     5289.9 ffb     4656.0 ffa     4614.6
+  instructions                       720p  core/ffb  1.309  per MB: core     6529.5 ffb     4931.9 ffa     4935.1
+  instructions                       1080p core/ffb  1.392  per MB: core     9188.0 ffb     6503.1 ffa     6505.7
+  instructions                       4k    core/ffb  1.184  per MB: core     4050.2 ffb     3227.7 ffa     3216.1
+  instructions                       all   core/ffb  1.289  per MB: core     6264.4 ffb     4829.7 ffa     4817.9
+  l1d.replacement                    all   core/ffb  1.159  per MB: core       44.4 ffb       39.6 ffa       39.3
+  l1d_pend_miss.fb_full              all   core/ffb  1.375  per MB: core       15.9 ffb       12.4 ffa        9.5
+  l1d_pend_miss.l2_stall             all   core/ffb  1.211  per MB: core        3.5 ffb        2.8 ffa        2.7
+  l2_rqsts.all_rfo                   all   core/ffb  1.133  per MB: core        8.4 ffb        6.6 ffa        6.5
+  l2_rqsts.demand_data_rd_miss       all   core/ffb  0.723  per MB: core        0.6 ffb        0.7 ffa        0.7
+  l2_rqsts.miss                      all   core/ffb  1.026  per MB: core       16.7 ffb       16.5 ffa       16.0
+  l2_rqsts.rfo_miss                  all   core/ffb  0.875  per MB: core        0.7 ffb        0.6 ffa        0.5
+  ld_blocks.store_forward            all   core/ffb  1.158  per MB: core       19.3 ffb       17.0 ffa       10.5
+  mem_inst_retired.all_loads         all   core/ffb  1.080  per MB: core     1293.8 ffb     1199.3 ffa     1187.9
+  mem_inst_retired.all_stores        all   core/ffb  1.299  per MB: core      782.2 ffb      612.6 ffa      593.7
+  mem_load_retired.l1_miss           all   core/ffb  1.094  per MB: core       10.6 ffb        9.7 ffa        9.3
+  mem_load_retired.l2_miss           all   core/ffb  0.738  per MB: core        0.6 ffb        0.7 ffa        0.7
+  resource_stalls.sb                 all   core/ffb  1.144  per MB: core       39.7 ffb       26.2 ffa       20.0
+  resource_stalls.scoreboard         all   core/ffb  0.328  per MB: core        5.6 ffb       25.0 ffa       22.9
+
+CoreAV items within the MB layer and deblocking (mean per stream, raw weight; top 12 per event):
+
+branch-misses / deblock
+   21.4%  deblock.rs:edge_strengths
+   14.8%  deblock.rs:deblock_row
+   10.7%  deblock.rs:new
+    7.1%  deblock.rs:{closure#0}
+    6.3%  deblock.rs:same_motion
+    3.7%  deblock.rs:{closure#1}
+    3.3%  deblock.rs:differing_motion_strength
+    3.2%  avx512.rs:filter_luma16
+    3.2%  avx512.rs:{closure#0}
+    2.9%  avx512.rs:luma_columns
+    2.2%  avx512.rs:luma_rows
+    2.0%  avx512.rs:{closure#1}
+
+branch-misses / mb
+   13.1%  mb.rs:reset_body
+    8.0%  mb.rs:eq
+    5.7%  inter.rs:predict_partitions
+    4.9%  inter.rs:mv_predictor
+    4.5%  inter.rs:set
+    4.3%  mb.rs:finish_mb
+    3.9%  mb.rs:info
+    3.7%  nb.rs:put
+    3.6%  mb.rs:is_intra
+    3.0%  inter.rs:at
+    2.8%  inter.rs:fill_ctx
+    2.7%  mb.rs:neighbour_cbf
+
+cycles / deblock
+   16.0%  deblock.rs:deblock_row
+   11.1%  deblock.rs:edge_strengths
+    8.5%  avx512.rs:filter_luma16
+    7.4%  avx512.rs:luma_columns
+    7.0%  deblock.rs:new
+    5.7%  avx512.rs:{closure#0}
+    4.3%  deblock.rs:{closure#0}
+    3.4%  x86.rs:filter_chroma16
+    3.3%  avx512.rs:thresholds
+    3.1%  avx512.rs:{closure#1}
+    2.9%  deblock.rs:same_motion
+    2.5%  avx512.rs:luma_rows
+
+cycles / mb
+   14.1%  mb.rs:finish_mb
+    7.8%  inter.rs:store_mb
+    6.4%  mb.rs:reset_body
+    5.9%  inter.rs:predict_partitions
+    4.6%  inter.rs:colocated
+    4.5%  inter.rs:resolve
+    4.4%  mb.rs:eq
+    3.9%  inter.rs:mv_predictor
+    2.7%  mb.rs:info
+    2.6%  mb.rs:start_mb_body
+    2.5%  inter.rs:set
+    2.1%  nb.rs:put
+
+exe_activity.bound_on_stores / deblock
+   60.0%  deblock.rs:deblock_row
+   20.0%  deblock.rs:edge_strengths
+   10.0%  deblock.rs:deblock_rows
+   10.0%  avx512.rs:thresholds
+
+exe_activity.bound_on_stores / mb
+   30.6%  mb.rs:finish_mb
+   26.5%  inter.rs:store_mb
+    7.8%  inter.rs:resolve
+    5.1%  mb.rs:reset_body
+    4.7%  inter.rs:put_row
+    3.1%  inter.rs:colocated
+    2.4%  inter.rs:predict_partitions
+    2.3%  inter.rs:predict_p_skip
+    2.1%  mb.rs:start_mb_body
+    1.7%  inter.rs:{closure#1}
+    1.4%  inter.rs:predict_direct
+    1.3%  inter.rs:set
+
+l1d.replacement / deblock
+   18.0%  deblock.rs:edge_strengths
+   10.2%  avx512.rs:filter_luma16
+    9.5%  deblock.rs:deblock_row
+    7.8%  avx512.rs:{closure#0}
+    5.2%  x86.rs:filter_chroma16
+    5.1%  avx512.rs:luma_columns
+    3.7%  deblock.rs:same_motion
+    3.6%  deblock.rs:{closure#0}
+    3.5%  avx512.rs:{closure#1}
+    2.7%  deblock.rs:new
+    2.7%  chroma_mb.rs:{closure#0}
+    2.7%  deblock.rs:{closure#1}
+
+l1d.replacement / mb
+   20.3%  mb.rs:finish_mb
+    7.9%  inter.rs:store_mb
+    7.0%  inter.rs:predict_partitions
+    6.9%  inter.rs:mv_predictor
+    5.9%  mb.rs:reset_body
+    4.5%  mb.rs:start_mb_body
+    4.2%  mb.rs:request_destination
+    4.0%  inter.rs:resolve
+    3.0%  inter.rs:colocated
+    2.6%  inter.rs:{closure#0}
+    2.5%  mod.rs:enter
+    2.3%  inter.rs:at
+
+l2_rqsts.rfo_miss / mb
+   58.7%  mb.rs:finish_mb
+   14.1%  inter.rs:store_mb
+    3.3%  mb.rs:start_mb_body
+    3.3%  inter.rs:resolve
+    3.3%  mb.rs:request_destination
+    2.2%  mb.rs:{closure#0}
+    2.2%  inter.rs:{closure#0}
+    2.2%  inter.rs:predict_partitions
+    2.2%  mod.rs:enter
+    2.2%  mb.rs:whole
+    1.1%  mb.rs:raster
+    1.1%  mb.rs:decode_skip
+
+ld_blocks.store_forward / deblock
+   34.2%  avx512.rs:{closure#0}
+   10.2%  avx512.rs:filter_luma16
+    9.9%  x86.rs:filter_chroma16
+    8.9%  deblock.rs:deblock_row
+    7.2%  avx512.rs:luma_columns
+    6.9%  avx512.rs:thresholds
+    6.8%  x86.rs:keep16
+    3.7%  avx512.rs:{closure#1}
+    3.2%  chroma_mb.rs:{closure#1}
+    2.4%  x86.rs:spread16
+    2.4%  avx512.rs:luma_rows
+    0.5%  chroma_mb.rs:horizontal_edges
+
+ld_blocks.store_forward / mb
+   37.8%  inter.rs:store_mb
+   17.1%  inter.rs:resolve
+   10.6%  mb.rs:finish_mb
+    6.6%  inter.rs:put_row
+    3.7%  inter.rs:colocated
+    2.3%  mb.rs:{closure#0}
+    2.2%  inter.rs:predict_partitions
+    2.0%  mb.rs:start_mb_body
+    2.0%  inter.rs:store_motion
+    1.8%  inter.rs:{closure#0}
+    1.7%  mod.rs:enter
+    1.2%  inter.rs:fused_ops
+
+mem_load_retired.l1_miss / deblock
+   20.6%  avx512.rs:filter_luma16
+    9.4%  deblock.rs:edge_strengths
+    8.3%  avx512.rs:{closure#0}
+    7.4%  x86.rs:filter_chroma16
+    6.4%  deblock.rs:deblock_row
+    5.3%  avx512.rs:luma_columns
+    4.3%  chroma_mb.rs:vertical_edges
+    3.7%  x86.rs:keep16
+    3.2%  avx512.rs:{closure#3}
+    2.7%  deblock.rs:new
+    2.2%  avx512.rs:thresholds
+    2.1%  avx512.rs:luma_rows
+
+mem_load_retired.l1_miss / mb
+   39.6%  mb.rs:finish_mb
+    8.4%  inter.rs:predict_partitions
+    7.9%  inter.rs:mv_predictor
+    5.2%  mb.rs:reset_body
+    3.5%  inter.rs:colocated
+    2.6%  inter.rs:resolve
+    2.5%  inter.rs:at
+    2.5%  inter.rs:median
+    1.9%  inter.rs:store_mb
+    1.4%  inter.rs:cell
+    1.4%  mb.rs:start_mb_body
+    1.4%  inter.rs:{closure#0}
+
+resource_stalls.sb / deblock
+   59.3%  deblock.rs:deblock_row
+   19.8%  deblock.rs:deblock_rows
+    7.4%  avx512.rs:thresholds
+    3.1%  deblock.rs:edge_strengths
+    1.9%  deblock.rs:new
+    1.9%  deblock.rs:{closure#0}
+    1.9%  avx512.rs:luma_rows
+    1.2%  avx512.rs:{closure#0}
+    1.2%  avx512.rs:filter_luma16
+    0.6%  avx512.rs:{closure#1}
+    0.6%  views.rs:new
+    0.6%  views.rs:{closure#3}
+
+resource_stalls.sb / mb
+   57.4%  mb.rs:finish_mb
+   12.0%  inter.rs:store_mb
+    3.9%  inter.rs:colocated
+    3.8%  inter.rs:resolve
+    2.3%  inter.rs:predict_partitions
+    2.3%  mb.rs:reset_body
+    2.2%  inter.rs:put_row
+    1.9%  mb.rs:start_mb_body
+    1.7%  mod.rs:enter
+    1.5%  inter.rs:predict_p_skip
+    1.4%  inter.rs:{closure#1}
+    1.3%  mb.rs:{closure#0}

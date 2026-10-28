@@ -1,0 +1,36 @@
+{
+  "commands": [
+    {
+      "command": [
+        "/usr/local/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "/opt/coreav/spikes/spike-a/tests",
+        "-p",
+        "test_*.py"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "....................\n----------------------------------------------------------------------\nRan 20 tests in 3.743s\n\nOK\n"
+    },
+    {
+      "command": [
+        "/usr/local/bin/python",
+        "/opt/coreav/spikes/spike-a/h7.py",
+        "--data-dir",
+        "/inputs/data",
+        "--region",
+        "ap",
+        "--output",
+        "/evidence/h7/h7-ap-20261013T062245Z/raw.json"
+      ],
+      "returncode": 0,
+      "stdout": "H7 ap: small\nH7 ap: large\nH7 ap: fragmented\n",
+      "stderr": ""
+    }
+  ],
+  "returncode": 0,
+  "duration_seconds": 1541.8357717879999
+}

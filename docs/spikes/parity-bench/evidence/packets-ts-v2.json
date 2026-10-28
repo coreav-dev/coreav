@@ -1,0 +1,520 @@
+[
+ {
+  "sha256": "08bb28263017ff1859aba88fec6eb9b417ea14f16a82c5047a901732fee60c70",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 36495286,
+   "lav_packets": 162037091,
+   "ffprobe_packets": 199967693
+  },
+  "failure": null
+ },
+ {
+  "sha256": "08c33baa3db0c07977dd451c1f4ce15dcbbff0476066e7984a3c229dde583c2e",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 86199003,
+   "lav_packets": 87651197,
+   "ffprobe_packets": 157523066
+  },
+  "failure": null
+ },
+ {
+  "sha256": "0b5995d47efdbfac39394f41517898b951f1e2e41ba2d0abbf02c8ed619f4f9a",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 6633568,
+   "lav_packets": 8115221,
+   "ffprobe_packets": 14939368
+  },
+  "failure": null
+ },
+ {
+  "sha256": "0c4caa3f5d85dbb9bd6f94b12720e0de68134b51ec40faf6471bca4bed79aab7",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 2167971,
+   "lav_packets": 3831054,
+   "ffprobe_packets": 9689572
+  },
+  "failure": null
+ },
+ {
+  "sha256": "0e31e94916e954cf44d6f93fa37c8642c65362a6eedf1b814a11e4da3aa9acfc",
+  "ext": "mts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 129387291,
+   "lav_packets": 140825583,
+   "ffprobe_packets": 181984732
+  },
+  "failure": null
+ },
+ {
+  "sha256": "1d452ab433c292a7f6d1ce2adb4b2960f93542bff9a891a6c7d810dd2e205d18",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 77236872,
+   "lav_packets": 88200063,
+   "ffprobe_packets": 137937540
+  },
+  "failure": null
+ },
+ {
+  "sha256": "24143de80d28461d084dfb75279da520f335de36b7c35f6398ed6d510daa5937",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 207611552,
+   "lav_packets": 218311822,
+   "ffprobe_packets": 325622661
+  },
+  "failure": null
+ },
+ {
+  "sha256": "2a8cd4ef827b6c4097adecd828b4131b78ca4fb826a491e2d953835b1260bfdc",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 705124857,
+   "lav_packets": 494167246,
+   "ffprobe_packets": 1579588642
+  },
+  "failure": null
+ },
+ {
+  "sha256": "2e36931d5a8d8f223eba1c639b740b20a78a5a5c50c756495268460aa5020af6",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 3429374,
+   "lav_packets": 7046207,
+   "ffprobe_packets": 12559198
+  },
+  "failure": null
+ },
+ {
+  "sha256": "31394dc2db1351c96ebe46027c308eb2d03007bf1aa07ed51c9dc4be177e654a",
+  "ext": "m2ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 75748138,
+   "lav_packets": 123816174,
+   "ffprobe_packets": 188847072
+  },
+  "failure": null
+ },
+ {
+  "sha256": "31eb0e2e53b6d61284875c3be3fb556a2fa049d7afc27693cd78d755dd2c2519",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 1573443,
+   "lav_packets": 19930084,
+   "ffprobe_packets": 25543428
+  },
+  "failure": null
+ },
+ {
+  "sha256": "3ca9ade3833283c2bd18e4ed0201d036ea8afdc05754deea2a5ece1972b4d4e0",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 2633749,
+   "lav_packets": 8683963,
+   "ffprobe_packets": 17223803
+  },
+  "failure": null
+ },
+ {
+  "sha256": "3f62119c6eed54ffa006c5b3b3b52bb40ed9f4eed033cd63120665622def421b",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 14794521,
+   "lav_packets": 80896558,
+   "ffprobe_packets": 96037220
+  },
+  "failure": null
+ },
+ {
+  "sha256": "4441cd4b4c8e1b071302a3de496dbe1267d68b47ca079a24fb65622cb2af684b",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 623527,
+   "lav_packets": 21162260,
+   "ffprobe_packets": 28457240
+  },
+  "failure": null
+ },
+ {
+  "sha256": "463675655d96a4a58c41abeb306f007afb1c37728895af29df52a19d9c520a83",
+  "ext": "m2ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 107906226,
+   "lav_packets": 134780151,
+   "ffprobe_packets": 208794033
+  },
+  "failure": null
+ },
+ {
+  "sha256": "4e37f7f027eb92ee043e5a65ba40fa568c96d579289eb7e16379f3362901faa5",
+  "ext": "mts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 86621251,
+   "lav_packets": 223385696,
+   "ffprobe_packets": 250709220
+  },
+  "failure": null
+ },
+ {
+  "sha256": "5b5ee88b09fa4542d98837212775f5df3158732a87b78c55cd1c1adc3f25b608",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 550020,
+   "lav_packets": 11379456,
+   "ffprobe_packets": 18996579
+  },
+  "failure": null
+ },
+ {
+  "sha256": "61b0443f4bca43a131d7f002a2585390170580ce1511ee1aa1692e5c9dd2f152",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 2157722,
+   "lav_packets": 8524022,
+   "ffprobe_packets": 18941294
+  },
+  "failure": null
+ },
+ {
+  "sha256": "664337e257eff78c2091119b174858af5a936ae5c5a20c894e13204282c59477",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 2789714,
+   "lav_packets": 7036099,
+   "ffprobe_packets": 17544420
+  },
+  "failure": null
+ },
+ {
+  "sha256": "6a5fa1d73852dfff2f24c0d93ec5cbb333910300c03957fb47c06371c92d6915",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 57598745,
+   "lav_packets": 47135420,
+   "ffprobe_packets": 221838832
+  },
+  "failure": null
+ },
+ {
+  "sha256": "6a819d003155123c56f29efd8e2e0330d3eed05d3c5cffef4f48a5b9580e4bca",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 18488662,
+   "lav_packets": 19734493,
+   "ffprobe_packets": 36937189
+  },
+  "failure": null
+ },
+ {
+  "sha256": "6de513cbc0d47c7d500816b4430d77584b62b995f4d27969f61e359d96227eb4",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 24605191,
+   "lav_packets": 26310308,
+   "ffprobe_packets": 74121941
+  },
+  "failure": null
+ },
+ {
+  "sha256": "71cf2bb5ea58040f63b1e0e83de967fc00ea0650dce949eddf57f03cb1dbc957",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 115265878,
+   "lav_packets": 109298693,
+   "ffprobe_packets": 244688499
+  },
+  "failure": null
+ },
+ {
+  "sha256": "93abf6d4032fd4468f2e4d8311e56e124c06481aaf010e589db7c37acd01cc33",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 77768820,
+   "lav_packets": 86562565,
+   "ffprobe_packets": 135751759
+  },
+  "failure": null
+ },
+ {
+  "sha256": "a30632033f457f069471e244ead54b410e864bf5f27767161a196ac5e0ccb811",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 40535581,
+   "lav_packets": 47621780,
+   "ffprobe_packets": 110606513
+  },
+  "failure": null
+ },
+ {
+  "sha256": "a93bca89adf92cffea27b2149f01295198e9a8d964b7fbdf19ef81e35e7b79a6",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 23883457,
+   "lav_packets": 141559850,
+   "ffprobe_packets": 196526037
+  },
+  "failure": null
+ },
+ {
+  "sha256": "b1b043f866cb461732e0ed5cf527204d2c931461d57c42cc58c0bc0067af03f0",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 584443,
+   "lav_packets": 6147505,
+   "ffprobe_packets": 13916959
+  },
+  "failure": null
+ },
+ {
+  "sha256": "b284e79465d82923eb4c0aab3a980e6fddb95c6d750544092dca0d1957cabae9",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 4186777,
+   "lav_packets": 12191427,
+   "ffprobe_packets": 23348994
+  },
+  "failure": null
+ },
+ {
+  "sha256": "cd85d3f0e0161b6e54ceeaea6772a00eae938fe938a6a71bca03245de488e1b7",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 116584610,
+   "lav_packets": 99019013,
+   "ffprobe_packets": 292523183
+  },
+  "failure": null
+ },
+ {
+  "sha256": "ce820246a9b4f8f3395d93d8ffa90290611705f5b32ab0f363abe8baf282baae",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 3402681,
+   "lav_packets": 4488883,
+   "ffprobe_packets": 10869620
+  },
+  "failure": null
+ },
+ {
+  "sha256": "e49a13ab3e592cec8f77544e232523202ae4b8b4e318ec288d70b2a5905be507",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 474227,
+   "lav_packets": 2054893,
+   "ffprobe_packets": 7012057
+  },
+  "failure": null
+ },
+ {
+  "sha256": "e6ccd1bfb035538f976a6b6da116e7f9a69ac49d3923cfc9c7c6dc2f22e4e408",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 540523,
+   "lav_packets": 5922589,
+   "ffprobe_packets": 13936694
+  },
+  "failure": null
+ },
+ {
+  "sha256": "e758c372893cb8cff832c4aa78fc57854ec732184efc69db7db2cc3775a0d935",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 537790,
+   "lav_packets": 6795278,
+   "ffprobe_packets": 14637680
+  },
+  "failure": null
+ },
+ {
+  "sha256": "e7ce5c990f036a5769ded5105ad8aa909a6368d690313ce4e05f88d9582234a3",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 2549857,
+   "lav_packets": 4380974,
+   "ffprobe_packets": 10478165
+  },
+  "failure": null
+ },
+ {
+  "sha256": "eb26df92ef0c8c3f598f22c15b395ac4287835a57cc216bc42938f481abc0155",
+  "ext": "m2ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 54089507,
+   "lav_packets": 147228233,
+   "ffprobe_packets": 252323308
+  },
+  "failure": null
+ },
+ {
+  "sha256": "f2edb3b584fd7e0ce6dc79b63df3550a6c7d63f3e120299ec5e94e882af75b0a",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 156491521,
+   "lav_packets": 317051983,
+   "ffprobe_packets": 498758966
+  },
+  "failure": null
+ },
+ {
+  "sha256": "f8548680c530cdb7511a7803dd4319ecb205113b84ee3564f7a4f4258c4e4dec",
+  "ext": "ts",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": null,
+  "ns": {
+   "ours": 4283762,
+   "lav_packets": 5800731,
+   "ffprobe_packets": 12010143
+  },
+  "failure": null
+ }
+]

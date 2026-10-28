@@ -1,0 +1,34 @@
+{
+  "objects": [
+    {
+      "key": "spike-a/small.mp4",
+      "bytes": 64657027,
+      "sha256": "f78f39603e6774907f2faafabf26a667f4a6fc31769ec304a8a8f7c62d280508",
+      "etag": "23ac5a7c88378522f95483e5e9ac44b1",
+      "range_identity_checks": 3
+    },
+    {
+      "key": "spike-a/large.mp4",
+      "bytes": 276134947,
+      "sha256": "ae51005850b0ff757fe60c3dd7a12d754d3cd2397d87d939b55235e457f97658",
+      "etag": "babbe51b47146187a66632daa791484b",
+      "range_identity_checks": 3
+    },
+    {
+      "key": "spike-a/fragmented.mp4",
+      "bytes": 72756184,
+      "sha256": "2bc30af0282c392647abee8b37946e915b6ca67b91bd6460e8b79a117aa7b485",
+      "etag": "b96d7ebbd576b12da3247ef480153974",
+      "range_identity_checks": 3
+    }
+  ],
+  "stored_bytes": 413548158,
+  "bucket_location": "Asia Pacific (maintainer-reported)",
+  "put_requests_this_invocation": 1,
+  "prior_put_attempts": 2,
+  "prior_put_response_failure": "large PUT response lost; completed object independently verified by full MD5 ETag, SHA-256 metadata and ranges",
+  "head_requests": 3,
+  "list_requests": 2,
+  "range_requests": 9,
+  "range_bytes": 144
+}

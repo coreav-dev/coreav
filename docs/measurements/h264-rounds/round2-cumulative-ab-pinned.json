@@ -1,0 +1,78 @@
+{
+ "what": "Round 2 cumulative A/B, pinned rerun: before ccd1621, after 4679c9e, same binaries and streams as round2-cumulative-ab.json, every command under taskset -c 2.",
+ "machine": {
+  "note": "helper workspace, not the implementer machine; absolute ratios differ between machines",
+  "cpu": "Intel(R) Xeon(R) Processor @ 2.90GHz, 8 vCPU (cloud VM)",
+  "memory_gb": 16,
+  "kernel": "Linux 6.18.49 x86_64",
+  "state": "idle during runs (load average below 1 before start)",
+  "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)"
+ },
+ "build": "cargo build --profile dist --example decode -p coreav-h264, each commit from its own clean worktree; examples/decode and scripts/h264_parity.py identical between the commits",
+ "output_identity": "before and after write byte-identical frames on all 8 streams at --frames 300 (md5 of stdout)",
+ "command": "python3 -I scripts/h264_parity.py (from 67fe9c6, which adds --pin) --pin 2 --decoder before=... --decoder after=... --ffmpeg ffmpeg 7.0.2-static (johnvansickle) --frames 300 --rounds 5 STREAMS",
+ "harness_note": "The harness differs from the unpinned run only by --pin; both binaries ran under the same harness in the same rounds.",
+ "paired_after_over_before": {
+  "discard": {
+   "n": 8,
+   "median": 0.9248180942191531,
+   "ci95": [
+    0.8586943391498868,
+    0.9964955961228116
+   ],
+   "per_stream": {
+    "00d2057ba2cd.0.720p.h264": 0.912433300328955,
+    "02143b44a0c8.0.1080p.h264": 0.9038417503446429,
+    "03be19c3a47b.0.720p.h264": 0.9756420304785893,
+    "0404af1890da.0.1080p.h264": 0.7754782829896509,
+    "04e45b2f41df.0.720p.h264": 0.9964955961228116,
+    "05f55a4982d8.0.1080p.h264": 0.8586943391498868,
+    "0ba6abe19f7b.0.sd.h264": 1.0195731104718375,
+    "0bb05726e428.0.sd.h264": 0.9372028881093513
+   }
+  },
+  "write": {
+   "n": 8,
+   "median": 0.9369597388318827,
+   "ci95": [
+    0.8354859773400009,
+    0.9956328420234818
+   ],
+   "per_stream": {
+    "00d2057ba2cd.0.720p.h264": 0.7857468117469204,
+    "02143b44a0c8.0.1080p.h264": 0.931534458244658,
+    "03be19c3a47b.0.720p.h264": 0.9737326036267884,
+    "0404af1890da.0.1080p.h264": 0.805626870492491,
+    "04e45b2f41df.0.720p.h264": 0.9956328420234818,
+    "05f55a4982d8.0.1080p.h264": 0.8653450841875107,
+    "0ba6abe19f7b.0.sd.h264": 1.0141116132760892,
+    "0bb05726e428.0.sd.h264": 0.9423850194191075
+   }
+  }
+ },
+ "unpinned_for_comparison": {
+  "discard": {
+   "median": 0.9060788557386323,
+   "ci95": [
+    0.8413174130411405,
+    1.0220131905922836
+   ]
+  },
+  "write": {
+   "median": 0.901892627213998,
+   "ci95": [
+    0.8519120725294682,
+    0.986928638032307
+   ]
+  }
+ },
+ "ffmpeg_ratios_for_reference": {
+  "before:discard": 3.494981596376921,
+  "after:discard": 2.9871999383421635,
+  "before:write": 3.0873378796426447,
+  "after:write": 2.815246934911436
+ },
+ "open_question": "0ba6abe19f7b.0.sd stays 1.4 to 2.0% slower after pinning, while its instruction count moved +0.19%. Too close to the noise floor to call; recorded rather than explained.",
+ "not_included": "The chroma-copy source-shape fix (67fe9c6) lands after 4679c9e and is not in these binaries.",
+ "provenance": "Measured and reported by a helper session in a separate workspace; transcribed here from its message, so the SHA-256 it reported for its own file (d5ce0834115ff26e76d34bff1a640ab7afa4c5868838f4c12be94b01eb6238ca) does not apply to this copy. The values are unchanged."
+}

@@ -1,0 +1,12 @@
+5185721dda11 base 245313638 C 240409747 cut 4.90M (2.00%) predicted 9.31M
+  md5 identical
+6f7799768413 base 266303265 C 266045913 cut 0.26M (0.10%) predicted 0.32M
+  md5 identical
+9db41aa16b5a base 977145267 C 970298918 cut 6.85M (0.70%) predicted 12.69M
+  md5 identical
+b71b6b31e54f base 538451799 C 535320310 cut 3.13M (0.58%) predicted 4.67M
+  md5 identical
+ec473c99c538 base 98190830 C 96837903 cut 1.35M (1.38%) predicted 1.88M
+  md5 identical
+f9e973f44570 base 174252935 C 167622485 cut 6.63M (3.81%) predicted 11.75M
+  md5 identical

@@ -1,0 +1,29 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2899.9 MHz, 8 logical CPUs
+gate after 0 streams: 0.427 s (+0.0%)
+175433794e02.0.1080p.h264                base:discard=1.14  base:write=1.10  base:mixed=1.07  k:discard=1.10  k:write=1.06  k:mixed=1.04  knofast:discard=1.13  knofast:write=1.09  knofast:mixed=1.07
+6da34958296c.0.1080p.h264                host fault (attempt 1): null {'base_discard': -0.00501241183629586, 'base_write': -0.001380247664484413}, max spread 1.509
+6da34958296c.0.1080p.h264                host fault (attempt 2): null {'base_discard': -0.006659160566878319, 'base_write': 0.004726247469100997}, max spread 1.757
+6da34958296c.0.1080p.h264                base:discard=1.12  base:write=1.10  base:mixed=1.00  k:discard=1.13  k:write=1.08  k:mixed=1.01  knofast:discard=1.14  knofast:write=1.08  knofast:mixed=1.02
+6e90422a670a.0.1080p.h264                base:discard=1.13  base:write=1.10  base:mixed=1.07  k:discard=1.10  k:write=1.07  k:mixed=1.03  knofast:discard=1.13  knofast:write=1.11  knofast:mixed=1.07
+a6af290d9053.0.1080p.h264                base:discard=1.15  base:write=1.12  base:mixed=1.10  k:discard=1.12  k:write=1.09  k:mixed=1.07  knofast:discard=1.16  knofast:write=1.13  knofast:mixed=1.10
+gate after 4 streams: 0.411 s (-3.8%)
+a81de82106be.0.1080p.h264                host fault (attempt 1): null {'base_discard': 0.004846277932097243, 'base_write': -0.003243252806221064}, max spread 1.667
+a81de82106be.0.1080p.h264                host fault (attempt 2): null {'base_discard': -0.0058383107145876245, 'base_write': -0.009705418656102305}, max spread 1.570
+a81de82106be.0.1080p.h264                host fault (attempt 3): null {'base_discard': 0.0010974024343635147, 'base_write': -0.023981663995724767}, max spread 1.614
+a81de82106be.0.1080p.h264                base:discard=0.96  base:write=0.90  base:mixed=0.84  k:discard=0.93  k:write=0.88  k:mixed=0.81  knofast:discard=0.96  knofast:write=0.89  knofast:mixed=0.84 UNRESOLVED
+b41f70a7fa60.0.1080p.h264                base:discard=1.18  base:write=1.13  base:mixed=1.07  k:discard=1.19  k:write=1.13  k:mixed=1.08  knofast:discard=1.23  knofast:write=1.14  knofast:mixed=1.11
+b71b6b31e54f.0.1080p.h264                base:discard=1.13  base:write=1.03  base:mixed=0.95  k:discard=1.15  k:write=1.06  k:mixed=0.96  knofast:discard=1.14  knofast:write=1.05  knofast:mixed=0.96
+c7ecda16e4a7.0.1080p.h264                base:discard=1.22  base:write=1.20  base:mixed=1.16  k:discard=1.19  k:write=1.17  k:mixed=1.13  knofast:discard=1.22  knofast:write=1.18  knofast:mixed=1.16
+gate after 8 streams: 0.410 s (-4.0%)
+
+base:discard             n=  8  median 1.136  [1.117, 1.183]
+base:write               n=  8  median 1.103  [1.031, 1.129]
+base:mixed               n=  8  median 1.070  [0.946, 1.099]
+k:discard                n=  8  median 1.125  [1.097, 1.191]
+k:write                  n=  8  median 1.076  [1.055, 1.132]
+k:mixed                  n=  8  median 1.036  [0.960, 1.077]
+knofast:discard          n=  8  median 1.142  [1.133, 1.221]
+knofast:write            n=  8  median 1.099  [1.047, 1.142]
+knofast:mixed            n=  8  median 1.069  [0.956, 1.114]
+
+wrote $HOME/ab/residual/out/g.1080p.json

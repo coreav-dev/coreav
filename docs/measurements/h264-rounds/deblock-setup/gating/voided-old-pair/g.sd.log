@@ -1,0 +1,27 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2899.9 MHz, 8 logical CPUs
+gate after 0 streams: 0.121 s (+0.0%)
+41e324ebb708.0.sd.h264                   base:discard=1.06  base:write=1.03  base:mixed=0.98  k:discard=1.04  k:write=1.02  k:mixed=0.97
+5185721dda11.0.sd.h264                   base:discard=1.05  base:write=1.02  base:mixed=0.98  k:discard=1.04  k:write=1.00  k:mixed=0.97
+6f7799768413.0.sd.h264                   base:discard=1.26  base:write=1.20  base:mixed=1.16  k:discard=1.24  k:write=1.19  k:mixed=1.14
+7650ae466748.0.sd.h264                   base:discard=1.06  base:write=1.05  base:mixed=1.01  k:discard=1.05  k:write=1.03  k:mixed=1.00
+gate after 4 streams: 0.118 s (-2.2%)
+8ae90cadb5bc.0.sd.h264                   base:discard=1.09  base:write=1.07  base:mixed=1.04  k:discard=1.09  k:write=1.07  k:mixed=1.03
+dcb262cf0138.0.sd.h264                   base:discard=0.91  base:write=0.91  base:mixed=0.88  k:discard=0.90  k:write=0.90  k:mixed=0.87
+ec473c99c538.0.sd.h264                   base:discard=0.63  base:write=0.65  base:mixed=0.59  k:discard=0.63  k:write=0.65  k:mixed=0.59
+f9e973f44570.0.sd.h264                   base:discard=0.90  base:write=0.90  base:mixed=0.88  k:discard=0.89  k:write=0.89  k:mixed=0.86
+gate after 8 streams: 0.154 s (+27.6%)
+8ae90cadb5bc.0.sd.h264                   timed again after gate drift
+dcb262cf0138.0.sd.h264                   timed again after gate drift
+ec473c99c538.0.sd.h264                   host fault (attempt 2): null {'base_discard': -0.001368026178852566, 'base_write': -0.0010307990013829205}, max spread 1.681
+ec473c99c538.0.sd.h264                   timed again after gate drift
+f9e973f44570.0.sd.h264                   timed again after gate drift
+gate after 8 streams: 0.119 s (-1.7%)
+
+base:discard             n=  8  median 1.053  [0.899, 1.089]
+base:write               n=  8  median 1.024  [0.896, 1.062]
+base:mixed               n=  8  median 0.981  [0.872, 1.023]
+k:discard                n=  8  median 1.039  [0.884, 1.082]
+k:write                  n=  8  median 1.010  [0.885, 1.054]
+k:mixed                  n=  8  median 0.967  [0.857, 1.016]
+
+wrote $HOME/ab/deblock-setup/out/g.sd.json

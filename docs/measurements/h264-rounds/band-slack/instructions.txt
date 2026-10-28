@@ -1,0 +1,15 @@
+Instructions under callgrind (information, not a bar). base = main b3664291 (dist), k = c27c8be5 (dist),
+k2 = k with the origins computed without the band count (rejected/h264-band-slack 4b512a85), diag = k2 with the
+deblocking filter given band 0's origin (a diagnostic only, wrong for several bands). --discard, class frame counts.
+Per-function deltas: fdiff.py (callgrind_annotate --inclusive=no, function level).
+
+stream                     threads  base            k               k/base   k2              k2/base
+ec473c99c538.0.sd          8        1,352,620,408   1,246,561,126   0.9216
+ec473c99c538.0.sd          1          968,503,663     975,233,821   1.0069     971,929,349   1.0035
+36501d448eaa.0.720p        1       12,551,501,489                            12,553,368,256   1.0001
+b71b6b31e54f.0.1080p       1        7,957,022,443                             7,958,127,626   1.0001
+3b1b441e23ae.0.4k          1        4,905,346,676                             4,919,168,754   1.0028   diag 4,910,976,188 1.0011
+
+One thread, by function (k2 - base): the whole difference is deblock_rows, +3.39 M on the sd stream (k: +6.67 M),
++13.81 M on the 4k one (about 2.8 instructions a macroblock); diag still +5.62 M there. Nothing per block changes:
+Geometry::plane_samples +144,000 and BandData::fit -65,000 (sd), the rest under 0.1 M.

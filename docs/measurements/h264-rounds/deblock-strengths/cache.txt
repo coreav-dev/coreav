@@ -1,0 +1,23 @@
+Cache simulation (callgrind --cache-sim=yes, Valgrind's D1 and last-level model, no L2), main 051e1692, e624cbe0d2be (4k),
+30 pictures, --discard, --kernels avx2: first-level read misses (D1mr) of the deblocking glue's lines and functions.
+Program total D1mr 9,478,967; 972,000 macroblocks.
+
+  6,016,212 ( 0.26%) 1,599,570 (16.87%)  library/core/src/array/equality.rs:coreav_h264::deblock::deblock_rows::<coreav_kernels_h264::Auto>
+196,009,165 ( 8.54%) 1,443,414 (15.23%)  crates/coreav-h264/src/deblock.rs:coreav_h264::deblock::deblock_rows::<coreav_kernels_h264::Auto>
+ 11,967,363 ( 0.52%)    13,265 ( 0.14%)  crates/coreav-h264/src/mb.rs:coreav_h264::deblock::deblock_rows::<coreav_kernels_h264::Auto>
+
+By line in deblock.rs (Ir, D1mr, Dr):
+ 1,671,185 ( 0.07%)  63,996 ( 0.68%)  1,030,348 ( 0.22%)          out[0] = if q_intra || p.info.kind.is_intra() {
+ 3,970,520 ( 0.17%)  60,113 ( 0.63%)  1,985,260 ( 0.43%)              if q.info.uniform && p.info.uniform {
+ 2,387,600 ( 0.10%) 577,939 ( 6.10%)    590,320 ( 0.13%)          if q.slice == 0 {
+ 5,783,625 ( 0.25%) 575,967 ( 6.08%)  1,156,725 ( 0.25%)                  .is_some_and(|m| m.slice != 0 && (f.disable_idc != 2 || m.slice == q.slice))
+ 1,165,600 ( 0.05%) 145,687 ( 1.54%)  1,165,600 ( 0.25%)          let bs = strengths(&pic.motion, motion_base, mbs, addr, left, top, q.t8x8);
+
+The mask helpers and the internal words at 4k on main (same run, Ir of their lines, 972,000 macroblocks; the helpers
+also serve edge 0):
+ 5,133,264 ( 0.22%)    (m & 0xf).wrapping_mul(0x0020_4081) & 0x0101_0101
+10,350,668 ( 0.45%)    let y = (x >> e) & 0x1111;
+ 6,232,032 ( 0.27%)    (y.wrapping_mul(0x249) >> 9) & 0xf
+ 9,284,943 ( 0.40%)    (x >> (4 * e)) & 0xf
+15,580,080 ( 0.68%)        *w = ((spread(lines(coef, e)) << 1) | spread(lines(moved, e))) & on;
+Sum 46,600,372, about 48 a macroblock.

@@ -1,0 +1,90 @@
+{
+ "files": 746,
+ "reference_failures": 0,
+ "candidate_rejections": 6,
+ "stream_oracle_agreement": [
+  139,
+  746
+ ],
+ "profile_level": {
+  "agree": 674,
+  "agreement_percent": 99.11764705882354,
+  "files": 680,
+  "passed": true,
+  "required_percent": 98,
+  "unpaired_streams": 63
+ },
+ "profile_level_failures": [
+  {
+   "differences": [
+    {
+     "candidate": "LC",
+     "path": "streams/1/profile",
+     "reference": "HE-AAC"
+    }
+   ],
+   "file": "526b5dad800cdbd7f208bd35d717928bda0ee712a2dd21a6326a43a80717e496.mp4"
+  },
+  {
+   "differences": [
+    {
+     "candidate": "LC",
+     "path": "streams/1/profile",
+     "reference": null
+    }
+   ],
+   "file": "83a23ae66831be21d7dbd6bf65059d5fb43d195806580ebe806de8e8898fc6f0.mov"
+  },
+  {
+   "differences": [
+    {
+     "candidate": "LC",
+     "path": "streams/0/profile",
+     "reference": "HE-AAC"
+    }
+   ],
+   "file": "93597fd7bfdc2005bfaac48bcbdea529d52d6c88012bf1a33b86a855532010e1.mp4"
+  },
+  {
+   "differences": [
+    {
+     "candidate": "LC",
+     "path": "streams/1/profile",
+     "reference": "HE-AAC"
+    }
+   ],
+   "file": "96ace08a4d61878cfb7cc8b850b7f5aa7ba304de45017eaf832ccd3d52893130.mp4"
+  },
+  {
+   "differences": [
+    {
+     "candidate": "LC",
+     "path": "streams/1/profile",
+     "reference": null
+    }
+   ],
+   "file": "af60e040986a9242cffdfae2241e12cbc565b8126ef9bd0fc0f52e277c18c1c9.mov"
+  },
+  {
+   "differences": [
+    {
+     "candidate": "LC",
+     "path": "streams/1/profile",
+     "reference": null
+    }
+   ],
+   "file": "e2cf69779486b8146ae77dfc26b015a073c630f9dbb510dc053e7686464898f8.mp4"
+  }
+ ],
+ "bit_rate": {
+  "exact": 492,
+  "gating": false,
+  "relative_difference_max": 44783.73333333333,
+  "relative_difference_median": 5.875405101837515e-08,
+  "relative_difference_p95": 0.5,
+  "streams": 1122,
+  "within_0_1_percent": 945,
+  "within_1_percent": 1016
+ },
+ "compare_exit_status": 1
+}

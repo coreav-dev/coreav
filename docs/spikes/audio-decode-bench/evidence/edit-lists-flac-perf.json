@@ -1,0 +1,1305 @@
+{
+ "rounds": 5,
+ "results": [
+  {
+   "set": "derived",
+   "sha256": "a9df0532665c8d041cc8333ca61bf24486874ff78776a0e1cd9cee3f2442ebb2",
+   "source_sha256": "00de70872ff1a518d24171f3c783a14bc95aeb90ae2c90290ceaf30b118a2af9",
+   "class": "mp4",
+   "level": 0,
+   "bits": 16,
+   "samples": 18172032,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 161928783,
+    "lav": 166901124,
+    "lav_info": 165299995,
+    "ours_dec": 138119457,
+    "lav_dec": 148208698,
+    "ours_cli": 42900763,
+    "ffmpeg_cli": 268891859
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "4126274fc9c5fb3e080101de46c7419ab0d31e8dc4f612615e814355f43be3f4",
+   "source_sha256": "04440f46c632a6805adeab8196384901ac88a80e287b2f253e5ddaa56fe75d3c",
+   "class": "mp4",
+   "level": 5,
+   "bits": 24,
+   "samples": 88024320,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 522010194,
+    "lav": 505424318,
+    "lav_info": 506268217,
+    "ours_dec": 462721170,
+    "lav_dec": 487289840,
+    "ours_cli": 104003618,
+    "ffmpeg_cli": 180049703
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "57508f0d912b703d0ec1613cc0fc2ffc28dc46f02a40737b4e7072ad59606973",
+   "source_sha256": "0591ba9fb558745ea282ad37e36186dbfcc1ce4ba4029f56e16585aa57fa3ac1",
+   "class": "mp4",
+   "level": 8,
+   "bits": 16,
+   "samples": 66103936,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 684059785,
+    "lav": 744755398,
+    "lav_info": 752557213,
+    "ours_dec": 617721235,
+    "lav_dec": 717771182,
+    "ours_cli": 127516372,
+    "ffmpeg_cli": 225624055
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "1c04d94b0f12f3943d0b8eaf5c49c4084a730a16cd1f4dbc2cccfefd3f192f46",
+   "source_sha256": "09febe430bb4b10251fa93b6bd05b0e64974019cf12ce450225a82cac0e3517c",
+   "class": "mp4",
+   "level": 0,
+   "bits": 16,
+   "samples": 774144,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 5800267,
+    "lav": 6461438,
+    "lav_info": 6505594,
+    "ours_dec": 4781706,
+    "lav_dec": 5520164,
+    "ours_cli": 4590902,
+    "ffmpeg_cli": 8363983
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "61133a58f7394e211dcdf2d68d9d2553bc220724b56534834461baaa008fbb53",
+   "source_sha256": "0e357b6c3fe9a720e51c597dd8cc4b9d78b3718b178a96624bc0882fd158fab5",
+   "class": "mp4",
+   "level": 8,
+   "bits": 16,
+   "samples": 636995432,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 6296546543,
+    "lav": 7157204856,
+    "lav_info": 7172300238,
+    "ours_dec": 5744855299,
+    "lav_dec": 6921119157,
+    "ours_cli": 1182986191,
+    "ffmpeg_cli": 2065222881
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "3224e6f281cb3c352321c52001bd53996615b51d551224db1351c9b3bd725100",
+   "source_sha256": "12c0953f433a36ff6657228a8edb421b9dfee8062ff2f314c08167105c48f7bc",
+   "class": "mp4",
+   "level": 0,
+   "bits": 24,
+   "samples": 5081088,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 48736502,
+    "lav": 42419021,
+    "lav_info": 42586026,
+    "ours_dec": 41621190,
+    "lav_dec": 39532153,
+    "ours_cli": 17693008,
+    "ffmpeg_cli": 45252091
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "ad830b6d0cec84c67c10d0d0ce2076f8292c64f5ce699e0665214524310c518d",
+   "source_sha256": "146662b2307cb96811d9e3025c036a9e5186f152b6b1889ca61e14eb3684e49f",
+   "class": "mp4",
+   "level": 8,
+   "bits": 16,
+   "samples": 2639744,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 30357507,
+    "lav": 30762169,
+    "lav_info": 31564254,
+    "ours_dec": 26967755,
+    "lav_dec": 29017001,
+    "ours_cli": 9322014,
+    "ffmpeg_cli": 13336329
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "673d4b37f971df785f3a2558c57caf50f43557eb769501fd1f91a889e1a0ee32",
+   "source_sha256": "196be1af7d6267ab79fb49f4f535383c4d59f3d068b9d063d33cb056d806063b",
+   "class": "mp4",
+   "level": 5,
+   "bits": 16,
+   "samples": 9482000,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 88814148,
+    "lav": 110939335,
+    "lav_info": 110689005,
+    "ours_dec": 77817235,
+    "lav_dec": 105883057,
+    "ours_cli": 20530684,
+    "ffmpeg_cli": 49829441
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "49c6f59f09c36bfd44a655072068df9e3540173078de6c63335da98a5573070e",
+   "source_sha256": "1ce3933e3009bf2e9426121996f67ecc3379141bf2f392b37ac443276c55a154",
+   "class": "mp4",
+   "level": 5,
+   "bits": 16,
+   "samples": 1779712,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 16704080,
+    "lav": 19483724,
+    "lav_info": 19580858,
+    "ours_dec": 14583488,
+    "lav_dec": 18171289,
+    "ours_cli": 6761531,
+    "ffmpeg_cli": 9979308
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "20516fe3d6039a9cd4bf77ac283eec12847c5f482c2f93b0fd67c18123585d90",
+   "source_sha256": "206a65347de430d068418d00b6e958db2004a6f96e439275e1a96c512a8c6b7f",
+   "class": "mp4",
+   "level": 8,
+   "bits": 16,
+   "samples": 882552,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 10080095,
+    "lav": 10774078,
+    "lav_info": 10890866,
+    "ours_dec": 8829887,
+    "lav_dec": 9779459,
+    "ours_cli": 5694658,
+    "ffmpeg_cli": 7023380
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "3e15205d2b23cbc6b2b7f808694d390341b36f23c5e881222dd02fbe85d3659f",
+   "source_sha256": "24820089e5882c604eec07d6a2382ab28d28a951909aea29b0ab63fb63d80299",
+   "class": "mp4",
+   "level": 0,
+   "bits": 16,
+   "samples": 85254144,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 662834572,
+    "lav": 699875648,
+    "lav_info": 697195601,
+    "ours_dec": 578810735,
+    "lav_dec": 654852900,
+    "ours_cli": 140095972,
+    "ffmpeg_cli": 586356169
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "cf36bac2bb6920b418c8973873abd94f72fa1fcaec39ac84330ecacbfac9f609",
+   "source_sha256": "2893c1481a13fb001fe7efb863d32f8e95d5f4d74ebf5f47377a6e866e6bba07",
+   "class": "mp4",
+   "level": 5,
+   "bits": 16,
+   "samples": 2643840,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 25361942,
+    "lav": 29971432,
+    "lav_info": 29625531,
+    "ours_dec": 22310640,
+    "lav_dec": 28037158,
+    "ours_cli": 7762294,
+    "ffmpeg_cli": 12681572
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "9687a35b5a03f8664a4aca4a996ed92710e63aba912fa64e37c6b68d5d2b0fff",
+   "source_sha256": "2b42d40aa3287b9a8f0cf3d1ee62cbb22d142ef49022ed0afdb1a15b4369b805",
+   "class": "mp4",
+   "level": 5,
+   "bits": 16,
+   "samples": 15071232,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 79767490,
+    "lav": 91316111,
+    "lav_info": 90892042,
+    "ours_dec": 65289090,
+    "lav_dec": 84845230,
+    "ours_cli": 20470076,
+    "ffmpeg_cli": 42970906
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "92239c43bb354db855d946ac153dc84dbacb4ac271564b309a6b870d792a7cdf",
+   "source_sha256": "2c7ae378fe100eb5b105cf8afcd82f9c62d740ab3e9d78fb4066de3abe21bf69",
+   "class": "mp4",
+   "level": 8,
+   "bits": 16,
+   "samples": 1441440,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 15586023,
+    "lav": 16721461,
+    "lav_info": 17154889,
+    "ours_dec": 13755198,
+    "lav_dec": 15927648,
+    "ours_cli": 7225408,
+    "ffmpeg_cli": 8807220
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "27d1d7d33c7a2700a677dbad55710954d905776b0c097b6f5a3b0c1797086e48",
+   "source_sha256": "30c4bef3d21658634508e9d134672c21d3786d6056a82c507ba9dcfe18ba3c4a",
+   "class": "mp4",
+   "level": 0,
+   "bits": 24,
+   "samples": 33538176,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 300029503,
+    "lav": 317510742,
+    "lav_info": 314736144,
+    "ours_dec": 255246376,
+    "lav_dec": 293246173,
+    "ours_cli": 64432443,
+    "ffmpeg_cli": 303235715
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "2cae4d2c40338070c4925166071149ab5afebbc2cd84609075157508e0fbe2d9",
+   "source_sha256": "34ad774111282fbe76efe08fd4c075f9386df7c55a3aa23a855a83622c9b0d74",
+   "class": "mp4",
+   "level": 5,
+   "bits": 16,
+   "samples": 1057056,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 10585228,
+    "lav": 11999707,
+    "lav_info": 12465392,
+    "ours_dec": 9056343,
+    "lav_dec": 11172333,
+    "ours_cli": 5995510,
+    "ffmpeg_cli": 7344510
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "c0fa8fdec074065d1b8d71e2a9733ac8bdba407347a6695e5abf9c6d5db4a10b",
+   "source_sha256": "37dbfb611c958545850903ec87137c5e3fd4f17add9f83f79096727b57a06163",
+   "class": "mp4",
+   "level": 5,
+   "bits": 16,
+   "samples": 112806144,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 1062349084,
+    "lav": 1225248049,
+    "lav_info": 1228715999,
+    "ours_dec": 958056735,
+    "lav_dec": 1201582944,
+    "ours_cli": 214267216,
+    "ffmpeg_cli": 358167486
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "fc118eb082332731cb7208d92d8ae16bd555b8bd851fc1834a184a5fd8c155f2",
+   "source_sha256": "3c2f109e8a5c361beb078296100dd9a20d394a3cd4bbc235b61c4e6948af2e72",
+   "class": "mp4",
+   "level": 0,
+   "bits": 16,
+   "samples": 135833600,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 988626742,
+    "lav": 1106907655,
+    "lav_info": 1115592202,
+    "ours_dec": 872337387,
+    "lav_dec": 1037892703,
+    "ours_cli": 214521102,
+    "ffmpeg_cli": 680533683
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "7f54ad33ec320c00b51212bcfe5b0114ad91e5715fe796fad60e9d261983906f",
+   "source_sha256": "3d8f6047f82652d28a80fb5bbf48b8df0a24fc0091d3d55fdeb0b18fa957514a",
+   "class": "mp4",
+   "level": 5,
+   "bits": 16,
+   "samples": 754532352,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 7214274967,
+    "lav": 8202844085,
+    "lav_info": 8245218149,
+    "ours_dec": 6556827431,
+    "lav_dec": 7916595281,
+    "ours_cli": 1392048051,
+    "ffmpeg_cli": 2250503624
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "9c7b256dd686dddf6729a33a9efb909bd66b501e1846d412acf62ad53eb7b213",
+   "source_sha256": "3faf6fdb5c7913f80f2b9bafbdedd440c2ad40038dedd0e3de92f01645f67c81",
+   "class": "mp4",
+   "level": 0,
+   "bits": 16,
+   "samples": 1189888,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 9323975,
+    "lav": 9930760,
+    "lav_info": 10031038,
+    "ours_dec": 7947247,
+    "lav_dec": 8801760,
+    "ours_cli": 6201397,
+    "ffmpeg_cli": 9795722
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "d6d4a74fb76c593774e67bdb54a37c5af103488ccfb575f9ef3bb0c70900354d",
+   "source_sha256": "4389ba53bb9bb1820466526452f6f05a0c3df14b71b89d26c5d1ff48ea6159a0",
+   "class": "mp4",
+   "level": 5,
+   "bits": 16,
+   "samples": 10005632,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 9351929,
+    "lav": 11463231,
+    "lav_info": 12059382,
+    "ours_dec": 523898,
+    "lav_dec": 7832379,
+    "ours_cli": 9267455,
+    "ffmpeg_cli": 14866409
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "1080e5f1c6b6ee2174012820eb1fe51224406beaa6a4e170ecdcf89f83453ae7",
+   "source_sha256": "4a5fa952b81b0cd484c365cf9be63da24df9ae9fde7ed1c1e36ab05bfcde1c5f",
+   "class": "mp4",
+   "level": 8,
+   "bits": 16,
+   "samples": 221956096,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 2101149718,
+    "lav": 2481556893,
+    "lav_info": 2502129405,
+    "ours_dec": 1916975199,
+    "lav_dec": 2419473797,
+    "ours_cli": 410474873,
+    "ffmpeg_cli": 695557122
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "e1a672fb13017bf6d6b38ec97997212f7d5809be788b526f5de6ce566f45eed2",
+   "source_sha256": "4c2458a0918122fbcf45b40ca9fbac546bfe0705b72a49cb778ce7862ceb25bf",
+   "class": "mp4",
+   "level": 5,
+   "bits": 24,
+   "samples": 2349056,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 26702416,
+    "lav": 24661708,
+    "lav_info": 24880142,
+    "ours_dec": 23417116,
+    "lav_dec": 23325831,
+    "ours_cli": 8838925,
+    "ffmpeg_cli": 10617314
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "f20354a11dedaf006cf9353e4b0a0d97d78e6ffe5aa0eca7a28bee491bff3581",
+   "source_sha256": "504808481763ed2165e72eee0caf7d06ad80a2a778f7ceba568fd83dd5183b2c",
+   "class": "mp4",
+   "level": 8,
+   "bits": 24,
+   "samples": 339968,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 405650,
+    "lav": 813187,
+    "lav_info": 874168,
+    "ours_dec": 42635,
+    "lav_dec": 288688,
+    "ours_cli": 2085390,
+    "ffmpeg_cli": 3521065
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "967aa6eb365c831170c3f0e97a8b0c337558277cb865b794d36e26d7d2f39c71",
+   "source_sha256": "584a16b906bb6e7f4142f9cfc91a7f5dd786b8273a15a1adacb03aa7993440ff",
+   "class": "mp4",
+   "level": 5,
+   "bits": 16,
+   "samples": 565824,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 4770062,
+    "lav": 6402532,
+    "lav_info": 6589628,
+    "ours_dec": 4072292,
+    "lav_dec": 5747413,
+    "ours_cli": 4893610,
+    "ffmpeg_cli": 5641105
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "b22f1ee38a34280b2172d896a1db351c6955caa2fcd44683eebf82e018cdfd43",
+   "source_sha256": "5e84a05f8ee4107290e07bf38a05c44f524bb3cd0e768bd2d7a237fa7e5101f0",
+   "class": "mp4",
+   "level": 5,
+   "bits": 24,
+   "samples": 1986999,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 20703581,
+    "lav": 22875194,
+    "lav_info": 22768210,
+    "ours_dec": 17867674,
+    "lav_dec": 21515118,
+    "ours_cli": 8687498,
+    "ffmpeg_cli": 14535346
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "9519f851a482e9462c53a87e5954de376077989baf50e916098c27fe0042bcde",
+   "source_sha256": "67e0196db7067f55aadf6d1ea6bc8c65f9761348a1b6e08f815064cdcbff2ec6",
+   "class": "mp4",
+   "level": 5,
+   "bits": 24,
+   "samples": 2224512,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 23629902,
+    "lav": 23965658,
+    "lav_info": 23837919,
+    "ours_dec": 20573227,
+    "lav_dec": 22537287,
+    "ours_cli": 7894263,
+    "ffmpeg_cli": 10938242
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "7f96ba5a6f93e6cfa17958643e0a5c489de74c99a58e2130beb33d8e0f755198",
+   "source_sha256": "6d7f58803a46894a4291355246bac462d4dd59400b3333c95898e848c2d7d49c",
+   "class": "mp4",
+   "level": 5,
+   "bits": 16,
+   "samples": 1474560,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 15643239,
+    "lav": 16747754,
+    "lav_info": 16802668,
+    "ours_dec": 13593502,
+    "lav_dec": 15541862,
+    "ours_cli": 5619190,
+    "ffmpeg_cli": 7506404
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "55e6d8aa7b3c16d37b0bfe22da2197fd4bd59e8a9f7740c7b366fa207dafe20d",
+   "source_sha256": "6f60ba562a440615a1c41dfa489ac6a37aa2dc6220e6bb566d5640b73b27d84b",
+   "class": "mp4",
+   "level": 0,
+   "bits": 24,
+   "samples": 14153728,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 121926165,
+    "lav": 115018221,
+    "lav_info": 115025198,
+    "ours_dec": 103956381,
+    "lav_dec": 107612758,
+    "ours_cli": 30054882,
+    "ffmpeg_cli": 68400813
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "70a0c4df317231fb447009534cb460aee77fc82302fac88adb14095b199a716f",
+   "source_sha256": "798c5ad34921a018aa1eae31fcfb115f376d613ddcd7ba06d6bdeb01f707ec29",
+   "class": "mp4",
+   "level": 5,
+   "bits": 24,
+   "samples": 272887808,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 1824349328,
+    "lav": 1776813070,
+    "lav_info": 1773656680,
+    "ours_dec": 1545986770,
+    "lav_dec": 1698286972,
+    "ours_cli": 342990417,
+    "ffmpeg_cli": 570191678
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "d354cb20dbc0ecdaf2088d8ac0235a767662833340cd5db823e6c9c3cbbad44b",
+   "source_sha256": "82554f5904cb1b3d11daf5a331653187ccaa3c8e2b0611b46c74f8d669617c67",
+   "class": "mp4",
+   "level": 5,
+   "bits": 16,
+   "samples": 990720,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 9223722,
+    "lav": 11719937,
+    "lav_info": 11765590,
+    "ours_dec": 8111326,
+    "lav_dec": 11105639,
+    "ours_cli": 5877357,
+    "ffmpeg_cli": 7312742
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "8067375fc94c5c01bb25a15001fc3a57b00034b0de69acd13364572a6319e9ce",
+   "source_sha256": "8600cbd559164d71b4da08d9e0cc3775f5bfaafce825a8170dce23bdca084f74",
+   "class": "mp4",
+   "level": 8,
+   "bits": 24,
+   "samples": 22284288,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 270049120,
+    "lav": 247540229,
+    "lav_info": 247499086,
+    "ours_dec": 242604377,
+    "lav_dec": 236262053,
+    "ours_cli": 51803719,
+    "ffmpeg_cli": 75628735
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "f639496a173defdf0106e0ff0e01b8162a06c00cd03d7955a979e28217450da3",
+   "source_sha256": "89db448487b1e1e9ea80640a007ae0de810fdfd34616ca5550244442288b3921",
+   "class": "mp4",
+   "level": 8,
+   "bits": 16,
+   "samples": 441344,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 4612460,
+    "lav": 5915368,
+    "lav_info": 6043328,
+    "ours_dec": 4092454,
+    "lav_dec": 5309268,
+    "ours_cli": 4821737,
+    "ffmpeg_cli": 5180965
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "ebed91e67c8dcc3faca971e009803a81c958e430580bb9cba41d8866c80b95b6",
+   "source_sha256": "8da9593e9329d63fda6844b37993c24f90b26702dc01a81158ab48e13920b12d",
+   "class": "mp4",
+   "level": 0,
+   "bits": 16,
+   "samples": 5897856,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 26777065,
+    "lav": 29564575,
+    "lav_info": 29409658,
+    "ours_dec": 19935969,
+    "lav_dec": 25846443,
+    "ours_cli": 10566848,
+    "ffmpeg_cli": 29855533
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "b14dd964f9e1900ec2f758dac8c714fc8ec75c4c18c70cd34b8992ff16b50194",
+   "source_sha256": "907a58f8ab968ae29ebb38d94d53798407f622ed514dcc333776a015153297d1",
+   "class": "mp4",
+   "level": 0,
+   "bits": 16,
+   "samples": 536576,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 4001592,
+    "lav": 4828891,
+    "lav_info": 4952713,
+    "ours_dec": 3371626,
+    "lav_dec": 4093251,
+    "ours_cli": 4133719,
+    "ffmpeg_cli": 5648601
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "36527e48b57c683f5ff04bb00995c1d29d06c79d40f04007a49e6d86c44a0433",
+   "source_sha256": "960107bfd6395121d7f53ea3fb07c714461e5dced8936350a61395a28c149e46",
+   "class": "mp4",
+   "level": 0,
+   "bits": 16,
+   "samples": 971776,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 1060479,
+    "lav": 3170954,
+    "lav_info": 3154094,
+    "ours_dec": 99868,
+    "lav_dec": 1976989,
+    "ours_cli": 2940550,
+    "ffmpeg_cli": 13423133
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "b06cc85b3359cba98789d78f663314e882aa409bd6cfb54de5964df604c546e9",
+   "source_sha256": "97e505324e0e870eee5ab522077fb5e292db3862f676a2a0717060ea77db5f02",
+   "class": "mp4",
+   "level": 5,
+   "bits": 16,
+   "samples": 1763328,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 18770520,
+    "lav": 20114742,
+    "lav_info": 20005195,
+    "ours_dec": 16082163,
+    "lav_dec": 18844059,
+    "ours_cli": 7670006,
+    "ffmpeg_cli": 9223829
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "053c0ada22d7490d59281af650bba872c3751b7cd236b49599fd27d79c098164",
+   "source_sha256": "9af8b16fd0459022276d99fffc19ce7dde0e54af80f49bd0a51d3050c60c2f42",
+   "class": "mp4",
+   "level": 5,
+   "bits": 24,
+   "samples": 677299200,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 4931227635,
+    "lav": 4997794550,
+    "lav_info": 4986607579,
+    "ours_dec": 4245475100,
+    "lav_dec": 4803760975,
+    "ours_cli": 964987959,
+    "ffmpeg_cli": 1567328926
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "926d7d78c5308fda372452235d670b330654fc10ab2e6e40c97ca2f95869d3e6",
+   "source_sha256": "9dfb23530210a7a7344dffc858da283a8f89b23bc473e45167cf5f6bd248d166",
+   "class": "mp4",
+   "level": 5,
+   "bits": 16,
+   "samples": 441344,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 4264101,
+    "lav": 5561075,
+    "lav_info": 5734075,
+    "ours_dec": 3795109,
+    "lav_dec": 5012304,
+    "ours_cli": 4980235,
+    "ffmpeg_cli": 4954581
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "2f671346996905915f521a8a2247b1a3df94e23eb9138948bf21cc8519c0abf9",
+   "source_sha256": "9f6d0e623451a0cfb46a433202215c470cf5b4f0b25804b4f51b7c48004d46c1",
+   "class": "mp4",
+   "level": 0,
+   "bits": 16,
+   "samples": 10702848,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 88876887,
+    "lav": 117594715,
+    "lav_info": 116388641,
+    "ours_dec": 74912395,
+    "lav_dec": 100947398,
+    "ours_cli": 19732180,
+    "ffmpeg_cli": 203252651
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "df6edfca5e866997aba5f20e5fb644880fcdc5dff94ea691bee88ff81d28a11e",
+   "source_sha256": "a47b8a2808f1c91b2f8acb3d176da0bf5f2d8e44f25bdbd1cea4210ec2db3b14",
+   "class": "mp4",
+   "level": 8,
+   "bits": 16,
+   "samples": 2624512,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 22407923,
+    "lav": 27252134,
+    "lav_info": 27570295,
+    "ours_dec": 19036012,
+    "lav_dec": 25636801,
+    "ours_cli": 7973399,
+    "ffmpeg_cli": 13717754
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "d9d34b93ee9314193b8c058a46ba91669807b466fd78b64d15bbe7c0b5c94b5c",
+   "source_sha256": "a648a26938466fbf7d57f62b75365b31361797d98d44f0cf805082918b4ff62d",
+   "class": "mp4",
+   "level": 5,
+   "bits": 24,
+   "samples": 13230080,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 154333321,
+    "lav": 140206660,
+    "lav_info": 139992116,
+    "ours_dec": 137516146,
+    "lav_dec": 133899097,
+    "ours_cli": 30958942,
+    "ffmpeg_cli": 46291093
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "168c9012eea18d6110be912f2deb80bc89e62dc71b7f7941749b7bfaf520dd54",
+   "source_sha256": "aa7931b18bb0e229fd30c653903f3e2fc892abdbbfe6fa2b4d0fe19f7ea578bf",
+   "class": "mp4",
+   "level": 8,
+   "bits": 16,
+   "samples": 17051648,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 187105507,
+    "lav": 194991494,
+    "lav_info": 195122285,
+    "ours_dec": 168551207,
+    "lav_dec": 187014376,
+    "ours_cli": 36494255,
+    "ffmpeg_cli": 60896650
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "6f22a665509140b37098494f8a56c43d2d3ce930db4f0764018c40a764a0cf1c",
+   "source_sha256": "ac89d7a2fcb201d8ca70ed3658cdd3a8d7e7959e69297629969b5d56751d0cea",
+   "class": "mp4",
+   "level": 5,
+   "bits": 16,
+   "samples": 17050896,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 174498461,
+    "lav": 186325431,
+    "lav_info": 186581387,
+    "ours_dec": 154859322,
+    "lav_dec": 178254633,
+    "ours_cli": 33229292,
+    "ffmpeg_cli": 58801108
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "c3c46d277be843bbd67f89845f037247ec553ee52bc298844749ba4121b9f32f",
+   "source_sha256": "b109b053fc5a405dc112d2208de3ad897472ecbe386eab788a422529f17487bb",
+   "class": "mp4",
+   "level": 0,
+   "bits": 16,
+   "samples": 441344,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 3656856,
+    "lav": 4643106,
+    "lav_info": 4777547,
+    "ours_dec": 3042496,
+    "lav_dec": 3853371,
+    "ours_cli": 4815328,
+    "ffmpeg_cli": 7949562
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "86406474a11b4f3ac18923af7d9c34a465871fbe339d1f7c250086f1705bc935",
+   "source_sha256": "b368942ade78b7b07ed738843ccbf62b94d37637aaba207e0084af447afb87fa",
+   "class": "mp4",
+   "level": 8,
+   "bits": 24,
+   "samples": 12436608,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 11547347,
+    "lav": 12032193,
+    "lav_info": 12178847,
+    "ours_dec": 642624,
+    "lav_dec": 9981915,
+    "ours_cli": 10616841,
+    "ffmpeg_cli": 16057333
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "1d70568d6014f1fb5e2b1f1fec276e23f17b9a06757180a721b2cd5429a82e76",
+   "source_sha256": "b562a247eacdde12e93420bfe2fe158b262ad09c8438d1d9a966acacac69ad98",
+   "class": "mp4",
+   "level": 5,
+   "bits": 16,
+   "samples": 16597120,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 145763529,
+    "lav": 161310153,
+    "lav_info": 161032977,
+    "ours_dec": 134283737,
+    "lav_dec": 161088663,
+    "ours_cli": 31696340,
+    "ffmpeg_cli": 56362232
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "a73d4f90568442f771caed8fd585a990f9aaa341c3bd68a509b2c7d93e50ac44",
+   "source_sha256": "bcf9f3749940fe2f0f8fe6a978818d8700ca88b0f4d92103636f4b45af212bb3",
+   "class": "mp4",
+   "level": 8,
+   "bits": 16,
+   "samples": 29016064,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 284656023,
+    "lav": 320089361,
+    "lav_info": 321067158,
+    "ours_dec": 257174540,
+    "lav_dec": 308956999,
+    "ours_cli": 53474948,
+    "ffmpeg_cli": 98336662
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "3cbbf66244eebf75ae6117c5df566a5aad8379dccac5124d02aec91021a20b29",
+   "source_sha256": "bff39452485b23fa76b39fab18503151639c857d037396f5be14bd110d328d5c",
+   "class": "mp4",
+   "level": 8,
+   "bits": 16,
+   "samples": 22069248,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 233162200,
+    "lav": 249821473,
+    "lav_info": 251301089,
+    "ours_dec": 210175101,
+    "lav_dec": 240396519,
+    "ours_cli": 43349552,
+    "ffmpeg_cli": 73337629
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "ad945c6c7a62194eae9b4bf3b71fe8cef7c9ded474c2379563d8c64b1233e254",
+   "source_sha256": "c1efb800f19e6329326fbcc2ad2f4c63d07e5b9d48aadfd8fcf370889f31e930",
+   "class": "mp4",
+   "level": 5,
+   "bits": 16,
+   "samples": 668672,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 664694,
+    "lav": 1652520,
+    "lav_info": 1749402,
+    "ours_dec": 49404,
+    "lav_dec": 1005013,
+    "ours_cli": 2441658,
+    "ffmpeg_cli": 4592791
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "6315ca686fba914aa03fbf450e344006d47cf77cdc726403d87dbcc40812e8a1",
+   "source_sha256": "c86f3d1f2aff9bb7c75bc50c7b13066b00ee69d464bc48385d64758afa486e10",
+   "class": "mp4",
+   "level": 8,
+   "bits": 16,
+   "samples": 5758976,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 57542936,
+    "lav": 64517767,
+    "lav_info": 64850967,
+    "ours_dec": 51656378,
+    "lav_dec": 62041153,
+    "ours_cli": 13398645,
+    "ffmpeg_cli": 21276861
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "350e928ce096adc15807d9090729934d2630eb9f741835a31795cfc7a6c75ea6",
+   "source_sha256": "cfbee73950f167fdf5e2855c8bf8eac4841bde0e30fbe455bf7d0f9e09fee9c8",
+   "class": "mp4",
+   "level": 0,
+   "bits": 16,
+   "samples": 267967566,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 1234718554,
+    "lav": 1353203432,
+    "lav_info": 1349124341,
+    "ours_dec": 974012911,
+    "lav_dec": 1215291006,
+    "ours_cli": 317764068,
+    "ffmpeg_cli": 1237738790
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "a994acc6b3afde83e25dcac841e315e0691dacb1510c12d81683c01c726dc139",
+   "source_sha256": "d2c388be6e5117894587ae40be372e16439a829d12ecdba96245d8825a3c0654",
+   "class": "mp4",
+   "level": 0,
+   "bits": 16,
+   "samples": 2897920,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 23598916,
+    "lav": 24739208,
+    "lav_info": 24310271,
+    "ours_dec": 20232664,
+    "lav_dec": 22236463,
+    "ours_cli": 8590229,
+    "ffmpeg_cli": 17754859
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "560282e6c9945ac90d02c714f3f335bcc81cd78c0050c729e5a7d4e9b0f5257f",
+   "source_sha256": "d4973205a5b027be8767617f00539c26876b802cbbfcee8d93f872b9d6afd661",
+   "class": "mp4",
+   "level": 8,
+   "bits": 16,
+   "samples": 1118208,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 10845362,
+    "lav": 12714100,
+    "lav_info": 12796303,
+    "ours_dec": 9538827,
+    "lav_dec": 11857913,
+    "ours_cli": 5144448,
+    "ffmpeg_cli": 6315767
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "82b3273ee4535e207990a15576a991ae02592dbfb0fc57c19b6f69a99787f760",
+   "source_sha256": "d8abe4dfa32f5ab643596584106f677e3cea1731e3d6a771495ea2b4c4054c42",
+   "class": "mp4",
+   "level": 0,
+   "bits": 16,
+   "samples": 13230080,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 111087362,
+    "lav": 110181906,
+    "lav_info": 109290442,
+    "ours_dec": 97816301,
+    "lav_dec": 101511867,
+    "ours_cli": 23265098,
+    "ffmpeg_cli": 66396568
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "33f5ac93a5cc45f5efc34523e8eceb43c9816905555fb46d7a7145ab7bca58a3",
+   "source_sha256": "db2c5999262a588ad8ca2cfc85c287186d0a6e5c341a7ff0073d5a94a27a4dc5",
+   "class": "mp4",
+   "level": 0,
+   "bits": 24,
+   "samples": 1036800,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 10240795,
+    "lav": 9006914,
+    "lav_info": 8998770,
+    "ours_dec": 8416499,
+    "lav_dec": 7999732,
+    "ours_cli": 6165564,
+    "ffmpeg_cli": 9248506
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "eba0ea029be0b8b4dd0c2a1e6a954e668d125d4a15ad6ab9214c82f5235ebe40",
+   "source_sha256": "dd3d8375789636f3895b28d7e1870574c3fb0440226fb1680e6d9ac45ae211da",
+   "class": "mp4",
+   "level": 8,
+   "bits": 16,
+   "samples": 2680832,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 16160980,
+    "lav": 23101388,
+    "lav_info": 23320743,
+    "ours_dec": 13346285,
+    "lav_dec": 21542746,
+    "ours_cli": 6597336,
+    "ffmpeg_cli": 13104340
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "1e86a1025f95887019831a44edfdf89b80d14848f4d5972bc1e199acdbaabf0a",
+   "source_sha256": "e2b7ab2d21877133adb7a8fb0a5b8d76cb17d8236e95f26e31e9601f9c0d2427",
+   "class": "mp4",
+   "level": 5,
+   "bits": 16,
+   "samples": 10715136,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 99703282,
+    "lav": 115510695,
+    "lav_info": 115812961,
+    "ours_dec": 88293305,
+    "lav_dec": 111583093,
+    "ours_cli": 21323646,
+    "ffmpeg_cli": 36670664
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "55efd8a2cd176bab7e7ff39733d79aca765ca3f8edb659de25cd93e37f8e2db0",
+   "source_sha256": "e9d51288365c0001649030767aca116464af2127c20e2fd8bac11891fc7352d9",
+   "class": "mp4",
+   "level": 8,
+   "bits": 16,
+   "samples": 576512,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 668286,
+    "lav": 1576741,
+    "lav_info": 1674530,
+    "ours_dec": 123475,
+    "lav_dec": 1000981,
+    "ours_cli": 2309893,
+    "ffmpeg_cli": 4310112
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "1bf724b9cf9f37eaebcb18bc4eff2cf6e3d010bdc9fc6a19d6b2317bd2e576f3",
+   "source_sha256": "eb07c4ba1d8a1d0b669ae2b497fae4a6ea5fb364f03ee2f3599e8baf306db603",
+   "class": "mp4",
+   "level": 5,
+   "bits": 16,
+   "samples": 75456512,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 769173732,
+    "lav": 836397464,
+    "lav_info": 834716474,
+    "ours_dec": 691446985,
+    "lav_dec": 796942558,
+    "ours_cli": 141998494,
+    "ffmpeg_cli": 281805664
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "547f8b6c46f54202b6615a98793e28a8315d4ebce4a0289290591d8471909dc3",
+   "source_sha256": "f0f5920e0951c00ef61bde778d0369ed930d89e5d483d0d130bec0f24cd051a8",
+   "class": "mp4",
+   "level": 0,
+   "bits": 16,
+   "samples": 428544,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 478213,
+    "lav": 1086075,
+    "lav_info": 1210973,
+    "ours_dec": 45487,
+    "lav_dec": 499901,
+    "ours_cli": 2370892,
+    "ffmpeg_cli": 4864071
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "8114a8673b60270ea6216b914d6e1f12b200e6d978f999373ea023d096a1f031",
+   "source_sha256": "f462b8420aa9ae57892312e6767d3ff28ddeb3f4c0621d0dd9711243e3f78d26",
+   "class": "mp4",
+   "level": 5,
+   "bits": 16,
+   "samples": 11876572,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 88723307,
+    "lav": 129761627,
+    "lav_info": 129596553,
+    "ours_dec": 78079321,
+    "lav_dec": 126150075,
+    "ours_cli": 20204323,
+    "ffmpeg_cli": 38988742
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "1d3bf1ed739bbade34edf1b31e4f4b6dc9cfac6d511f09dca2fb1195b0127c85",
+   "source_sha256": "f9286c71fe3b6742fd521d7b192e39a899deaa7b1488f4a6e2b0e47df0a04cb0",
+   "class": "mp4",
+   "level": 0,
+   "bits": 24,
+   "samples": 737280,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 6836794,
+    "lav": 7411109,
+    "lav_info": 7438422,
+    "ours_dec": 5279690,
+    "lav_dec": 6394134,
+    "ours_cli": 4862967,
+    "ffmpeg_cli": 9678890
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "a7ed2f7b5538bec77fc9252430942bfcc2a9b4e3f151994335a867c197286130",
+   "source_sha256": "fd7b6c440b67d7dd412e7964e3274e4d5404b4cc4a663fd6ca952c111db3504a",
+   "class": "mp4",
+   "level": 5,
+   "bits": 16,
+   "samples": 1935360,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 19030555,
+    "lav": 21912085,
+    "lav_info": 21917390,
+    "ours_dec": 16673184,
+    "lav_dec": 20371681,
+    "ours_cli": 7536610,
+    "ffmpeg_cli": 9474703
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "77c194258a8b36c2d79afc34e15a22b3d61a449446d1eca5c131b7c603b8be0d",
+   "source_sha256": "ff721b45fe8f63ea7dbfc9afe16381d18295aa5ac60e6b8027d17f2f8b3563f7",
+   "class": "mp4",
+   "level": 0,
+   "bits": 16,
+   "samples": 1611776,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 9547773,
+    "lav": 13484673,
+    "lav_info": 13492143,
+    "ours_dec": 7904658,
+    "lav_dec": 12161387,
+    "ours_cli": 5673611,
+    "ffmpeg_cli": 10603707
+   },
+   "failed": {}
+  }
+ ]
+}

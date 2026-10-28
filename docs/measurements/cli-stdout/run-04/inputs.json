@@ -1,0 +1,43 @@
+{
+ "inputs": [
+  {
+   "name": "2a3c8259b630a2ca184070f8477fe0181636ee0e9e0391b38edc96e2dc842177.mp4",
+   "size": 974796,
+   "sha256": "587f6a227f2086a85fbcc4ea6f95ad19a220cc5fa6582a5c577ca4100dabf48c",
+   "bytes": 969318,
+   "ffmpeg_bytes": 970569
+  },
+  {
+   "name": "108521a89a7345637ec07067edf8cded82d3d55d95697cfc65ec0eca2d301ab4.mp4",
+   "size": 3879911,
+   "sha256": "e39ed91c449b45f48a9058cf28f552a0e631e69322f9902a38408c5d50e79564",
+   "bytes": 3876119,
+   "ffmpeg_bytes": 3853889
+  },
+  {
+   "name": "a648a26938466fbf7d57f62b75365b31361797d98d44f0cf805082918b4ff62d.mp4",
+   "size": 11891022,
+   "sha256": "f37105cfdf90c4619fea42fb55afcc1a91578e93ddd30962643653060ca614e8",
+   "bytes": 11837162,
+   "ffmpeg_bytes": 11829821
+  },
+  {
+   "name": "bcf9f3749940fe2f0f8fe6a978818d8700ca88b0f4d92103636f4b45af212bb3.mp4",
+   "size": 26975897,
+   "sha256": "ae4677768715922c3e7bf0ab6c82c71debce718a4552bde609474dba2f6c7737",
+   "bytes": 26810709,
+   "ffmpeg_bytes": 26775841
+  },
+  {
+   "name": "44cc2b274a94d2cb7f71148e7983ae5382c59d6b6f14b6784adec2d39644accf.mp4",
+   "size": 55116850,
+   "sha256": "3aed6ee5917997795879c9b94e23810852c5652ca073fe6ddabd8e1e823e79f4",
+   "bytes": 55100930,
+   "ffmpeg_bytes": 55124803
+  }
+ ],
+ "refused": [
+  "d94f05a6ef4b1bda712196e32ed1f75edd624bc63f1802f4e9585287f9d80020.mov",
+  "f462b8420aa9ae57892312e6767d3ff28ddeb3f4c0621d0dd9711243e3f78d26.mov"
+ ]
+}

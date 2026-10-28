@@ -1,0 +1,23 @@
+base = 1e7dd54b, k = 5f7d9fee (+ nofast builds: none); harness 46545e08dffaf95e90c3a8dbbb6690dc61e1c9eb
+build: (cd <worktree at rev> && CARGO_TARGET_DIR=<tgt> cargo build --locked --profile dist --example decode -p coreav-h264 [--no-default-features])
+a4130477143fc49a4fac475c2733a8908100ec9cad09aeadffcef296c6df0a3e  $HOME/ab/bundle4/w/decode-base
+4fbbfcf06e94777014b39aa322732fdbf96d4a39f367a0f224028bf06647d54a  $HOME/ab/bundle4/w/decode-k
+bb7224f0af46a3a0553624ebbf1c6f301bb169020b9633eb773282311410f726  $HOME/hg/hostgate.py
+c7980320e14f6473f4bed3bf9229590d84f08c1e6297af0e28ef0cfcfdadfd4e  $HOME/ab/tools-main/h264_parity.py
+rustc 1.99.1 (58cf8f9c3 2026-10-13)
+binary: rustc
+commit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67
+commit-date: 2026-10-13
+host: x86_64-unknown-linux-gnu
+release: 1.99.1
+LLVM version: 23.1.1
+model name	: Intel(R) Xeon(R) Processor @ 2.90GHz
+Model name:                              Intel(R) Xeon(R) Processor @ 2.90GHz
+CPU family:                              6
+Model:                                   106
+Stepping:                                6
+class: @ 2.90GHz model 106
+ffmpeg version n9.0.2-17-g2a571b6068-20260930 Copyright (c) 2000-2026 the FFmpeg developers
+0d709a0bed1a43f24cd2c420878c63afea4580671b6949ad19ed124572f3bc3d  $HOME/ff9/x/ffmpeg-n9.0.2-17-g2a571b6068-linux64-gpl-9.0/bin/ffmpeg
+training 32 of 32 match; differing: []
+held-out 64 of 64 match; differing: []

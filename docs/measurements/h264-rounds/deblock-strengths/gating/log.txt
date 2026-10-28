@@ -1,0 +1,72 @@
+07:09:54 HOST cpu facts:
+model name	: unknown
+CPU(s):              32
+Vendor ID:           AuthenticAMD
+CPU family:          25
+Model:               17
+Thread(s) per core:  1
+Core(s) per socket:  32
+Socket(s):           1
+Stepping:            unknown
+16
+32
+avx2 avx512 avx512bw avx512cd avx512dq avx512f avx512vbmi avx512vl 
+07:10:10 reference measurement 1: 36501d448eaa.0.720p 1.116s; a6af290d9053.0.1080p 3.720s
+07:15:26 reference measurement 2: 36501d448eaa.0.720p 1.145s; a6af290d9053.0.1080p 3.820s
+07:20:41 reference measurement 3: 36501d448eaa.0.720p 1.056s; a6af290d9053.0.1080p 3.636s
+07:20:41 reference {'36501d448eaa.0.720p': 1.1157881180000002, 'a6af290d9053.0.1080p': 3.7195404730000003} max deviation {'36501d448eaa.0.720p': 0.053475409925473394, 'a6af290d9053.0.1080p': 0.02710601557689185}
+07:20:42 host not stable within +-5%; not timing
+07:21:01 HOST cpu facts:
+model name	: unknown
+CPU(s):              32
+Vendor ID:           AuthenticAMD
+CPU family:          25
+Model:               1
+Thread(s) per core:  1
+Core(s) per socket:  32
+Socket(s):           1
+Stepping:            unknown
+16
+32
+avx2 
+07:21:22 reference measurement 1: 36501d448eaa.0.720p 1.399s; a6af290d9053.0.1080p 4.783s
+07:26:41 reference measurement 2: 36501d448eaa.0.720p 1.338s; a6af290d9053.0.1080p 4.427s
+07:32:01 reference measurement 3: 36501d448eaa.0.720p 1.433s; a6af290d9053.0.1080p 4.568s
+07:32:02 reference {'36501d448eaa.0.720p': 1.3990504460000004, 'a6af290d9053.0.1080p': 4.568325111000036} max deviation {'36501d448eaa.0.720p': 0.043297092090698985, 'a6af290d9053.0.1080p': 0.04696174041628143}
+07:38:01 identity 32/32 same
+07:38:20 PASS gate 36501d448eaa.0.720p ratio 0.966; a6af290d9053.0.1080p ratio 0.992
+07:42:16 PASS gate 36501d448eaa.0.720p ratio 0.963; a6af290d9053.0.1080p ratio 0.983
+07:42:18 g.sd done
+07:42:37 PASS gate 36501d448eaa.0.720p ratio 0.981; a6af290d9053.0.1080p ratio 0.978
+07:49:17 FAIL gate 36501d448eaa.0.720p ratio 1.046; a6af290d9053.0.1080p ratio 1.081
+07:49:18 VOID g.720p attempt 1
+07:49:39 FAIL gate 36501d448eaa.0.720p ratio 0.969; a6af290d9053.0.1080p ratio 1.089
+07:50:59 FAIL gate 36501d448eaa.0.720p ratio 1.014; a6af290d9053.0.1080p ratio 1.057
+07:52:18 PASS gate 36501d448eaa.0.720p ratio 0.984; a6af290d9053.0.1080p ratio 1.028
+07:58:47 PASS gate 36501d448eaa.0.720p ratio 0.965; a6af290d9053.0.1080p ratio 0.952
+07:58:48 g.720p done
+07:59:07 PASS gate 36501d448eaa.0.720p ratio 0.965; a6af290d9053.0.1080p ratio 0.964
+08:13:30 PASS gate 36501d448eaa.0.720p ratio 1.014; a6af290d9053.0.1080p ratio 1.022
+08:13:31 g.1080p done
+08:13:52 FAIL gate 36501d448eaa.0.720p ratio 1.039; a6af290d9053.0.1080p ratio 1.057
+08:15:12 FAIL gate 36501d448eaa.0.720p ratio 1.045; a6af290d9053.0.1080p ratio 1.064
+08:16:32 FAIL gate 36501d448eaa.0.720p ratio 1.028; a6af290d9053.0.1080p ratio 1.056
+08:17:57 FAIL gate 36501d448eaa.0.720p ratio 1.003; a6af290d9053.0.1080p ratio 1.052
+08:19:17 PASS gate 36501d448eaa.0.720p ratio 0.964; a6af290d9053.0.1080p ratio 0.981
+08:26:47 PASS gate 36501d448eaa.0.720p ratio 0.979; a6af290d9053.0.1080p ratio 0.999
+08:26:48 g.4k done
+08:27:07 PASS gate 36501d448eaa.0.720p ratio 0.985; a6af290d9053.0.1080p ratio 0.985
+08:30:28 PASS gate 36501d448eaa.0.720p ratio 0.973; a6af290d9053.0.1080p ratio 1.022
+08:30:31 t8.sd done
+08:30:50 PASS gate 36501d448eaa.0.720p ratio 0.981; a6af290d9053.0.1080p ratio 0.976
+08:34:57 PASS gate 36501d448eaa.0.720p ratio 1.009; a6af290d9053.0.1080p ratio 1.015
+08:35:00 t8.720p done
+08:35:19 PASS gate 36501d448eaa.0.720p ratio 1.006; a6af290d9053.0.1080p ratio 1.030
+08:42:44 PASS gate 36501d448eaa.0.720p ratio 0.976; a6af290d9053.0.1080p ratio 1.007
+08:42:45 t8.1080p done
+08:43:06 FAIL gate 36501d448eaa.0.720p ratio 1.035; a6af290d9053.0.1080p ratio 1.073
+08:44:25 PASS gate 36501d448eaa.0.720p ratio 0.971; a6af290d9053.0.1080p ratio 0.986
+08:49:43 PASS gate 36501d448eaa.0.720p ratio 0.979; a6af290d9053.0.1080p ratio 0.997
+08:49:44 t8.4k done
+08:49:45 analysis done elapsed 5326s events 1
+08:49:47 finished

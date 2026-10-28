@@ -1,0 +1,31 @@
+{
+ "what": "The motion clear moved from per picture to per macroblock, measured alone.",
+ "commit": "the motion-clear commit of round 3; before is its parent",
+ "machine": {
+  "cpu": "Intel(R) Xeon(R) Processor @ 2.90GHz, 4 physical cores / 8 threads",
+  "note": "implementer machine",
+  "pinned_core": 2
+ },
+ "method": "Both binaries built --profile dist from the same tree, differing only in the change. taskset -c 2, one warm-up each, then 13 rounds with the order alternated each round. The statistic is the per-round paired ratio after/before.",
+ "stream": "0404af1890da.0.1080p.h264, 300 frames, 1,747,200 macroblocks",
+ "output_identity": "byte-identical (md5 5048310bdbb49c522789b14dfd17f5de both)",
+ "instructions": {
+  "before": 5870,
+  "after": 5849,
+  "unit": "per macroblock",
+  "change": -0.0036
+ },
+ "time": {
+  "paired_median": 0.947,
+  "range": [
+   0.863,
+   1.077
+  ],
+  "rounds": 13,
+  "rounds_faster": 10,
+  "before_median_s": 1.201,
+  "after_median_s": 1.143
+ },
+ "why_it_matters": "The instruction count says nothing and the clock says 5.3% (the paired median of 0.947). The change removes about 2.6 MB of stores a picture at 1080p rather than work, and an instruction count does not see memory traffic. Four changes in the same round did the opposite: instructions down, clock unmoved.",
+ "caveat": "13 rounds on one stream, not the eight-stream paired set the round's cumulative figure uses. One round of the 13 read 1.077. The round-3 cumulative A/B covers this change together with the rest: see round3-cumulative-ab.json."
+}

@@ -1,0 +1,99 @@
+Time against FFmpeg (BtbN build), per stream, CoreAV over FFmpeg; busy = task-clock over wall time
+  class    n    wall  faster  cycles  busy C  busy F
+  sd       8   0.913   7/8     0.924    0.96    0.96
+  720p     8   1.019   2/8     1.014    0.98    0.98
+  1080p    8   1.011   4/8     1.018    0.99    0.99
+  4k       8   0.892   8/8     0.892    0.96    0.96
+  all     32   0.947  21/32    0.964    0.98    0.98
+
+The 10 slowest streams against FFmpeg (wall time), each with its stages by excess over parity (shares of its FFmpeg cycles)
+
+6f7799768413.sd: wall 1.084, cycles 1.091, busy 0.99 against 0.99
+  entropy + MB    CoreAV  0.518 FFmpeg  0.422 excess +0.096
+  reconstruction  CoreAV  0.118 FFmpeg  0.091 excess +0.027
+  inter           CoreAV  0.196 FFmpeg  0.176 excess +0.020
+  deblocking      CoreAV  0.228 FFmpeg  0.231 excess -0.004
+  other           CoreAV  0.066 FFmpeg  0.080 excess -0.013
+  in entropy + MB: CoreAV cavlc.rs:block_in 0.052, cavlc.rs:code 0.037, cavlc.rs:levels 0.032 | FFmpeg decode_residual 0.262, ff_h264_decode_mb_cavlc 0.125, fill_decode_caches 0.018
+  in reconstruction: CoreAV recon.rs:apply 0.033, x86.rs:add_residual8 0.014, x86.rs:idct4_pass 0.012 | FFmpeg hl_decode_mb_simple_8 0.039, h264_add8x4_idct_sse2 0.028, ff_h264_idct_add16_8_sse2 0.006
+
+b71b6b31e54f.1080p: wall 1.072, cycles 1.072, busy 0.98 against 0.98
+  entropy + MB    CoreAV  0.453 FFmpeg  0.359 excess +0.094
+  inter           CoreAV  0.390 FFmpeg  0.355 excess +0.036
+  other           CoreAV  0.077 FFmpeg  0.069 excess +0.008
+  deblocking      CoreAV  0.081 FFmpeg  0.092 excess -0.011
+  reconstruction  CoreAV  0.097 FFmpeg  0.125 excess -0.028
+  in entropy + MB: CoreAV mb.rs:finish_mb 0.026, cavlc.rs:block_in 0.020, bits.rs:ue 0.020 | FFmpeg ff_h264_decode_mb_cavlc 0.140, decode_residual 0.111, fill_decode_caches 0.050
+  in inter: CoreAV prefetch.rs:for_rows 0.050, x86.rs:interpolate 0.024, predict.rs:place 0.024 | FFmpeg mc_part_420_simple_8 0.062, ff_put_h264_qpel16_h_lowpass_l2_ssse3 0.048, ff_put_h264_chroma_mc8_rnd_ssse3 0.036
+
+b41f70a7fa60.1080p: wall 1.050, cycles 1.052, busy 0.99 against 0.99
+  other           CoreAV  0.255 FFmpeg  0.023 excess +0.232
+  inter           CoreAV  0.204 FFmpeg  0.164 excess +0.039
+  reconstruction  CoreAV  0.085 FFmpeg  0.088 excess -0.003
+  deblocking      CoreAV  0.174 FFmpeg  0.207 excess -0.033
+  entropy + MB    CoreAV  0.341 FFmpeg  0.517 excess -0.177
+  in other: CoreAV decision.rs:decision 0.199, picture.rs:mb_motion 0.008, [[kernel.kallsyms]] 0.007 | FFmpeg [[kernel.kallsyms]] 0.015, [libc.so.6] 0.005, av_buffer_unref 0.000
+  in inter: CoreAV predict.rs:place 0.021, prefetch.rs:for_rows 0.019, x86.rs:luma_mc_ptrs 0.011 | FFmpeg mc_part_420_simple_8 0.028, ff_put_h264_chroma_mc8_rnd_ssse3 0.021, ff_put_h264_qpel8or16_v_lowpass_sse2 0.016
+
+3c593b8f0809.720p: wall 1.037, cycles 0.974, busy 0.95 against 0.98
+  other           CoreAV  0.336 FFmpeg  0.045 excess +0.290
+  reconstruction  CoreAV  0.084 FFmpeg  0.066 excess +0.019
+  deblocking      CoreAV  0.179 FFmpeg  0.176 excess +0.004
+  inter           CoreAV  0.087 FFmpeg  0.090 excess -0.004
+  entropy + MB    CoreAV  0.306 FFmpeg  0.623 excess -0.317
+  in other: CoreAV decision.rs:decision 0.271, [[kernel.kallsyms]] 0.017, mod.rs:residual 0.011 | FFmpeg [[kernel.kallsyms]] 0.024, [libc.so.6] 0.014, av_refstruct_unref 0.001
+  in reconstruction: CoreAV recon.rs:apply 0.016, x86.rs:idct4_pass 0.009, x86.rs:intra4x4_mb 0.008 | FFmpeg hl_decode_mb_simple_8 0.020, h264_add8x4_idct_sse2 0.018, ff_h264_idct_add16_8_sse2 0.007
+
+36501d448eaa.720p: wall 1.034, cycles 1.034, busy 0.99 against 0.99
+  other           CoreAV  0.359 FFmpeg  0.040 excess +0.319
+  inter           CoreAV  0.125 FFmpeg  0.071 excess +0.054
+  reconstruction  CoreAV  0.099 FFmpeg  0.088 excess +0.012
+  deblocking      CoreAV  0.105 FFmpeg  0.110 excess -0.005
+  entropy + MB    CoreAV  0.359 FFmpeg  0.691 excess -0.332
+  in other: CoreAV decision.rs:decision 0.308, mod.rs:residual 0.014, picture.rs:mb_motion 0.008 | FFmpeg [[kernel.kallsyms]] 0.022, [libc.so.6] 0.007, av_buffer_unref 0.001
+  in inter: CoreAV mod.rs:predict_fast 0.016, predict.rs:place 0.010, predict.rs:rows 0.008 | FFmpeg mc_part_420_simple_8 0.020, ff_put_h264_chroma_mc8_rnd_ssse3 0.008, ff_put_h264_chroma_mc4_ssse3 0.004
+
+6da34958296c.1080p: wall 1.033, cycles 1.052, busy 0.99 against 0.99
+  other           CoreAV  0.220 FFmpeg  0.037 excess +0.183
+  inter           CoreAV  0.269 FFmpeg  0.184 excess +0.085
+  reconstruction  CoreAV  0.056 FFmpeg  0.066 excess -0.010
+  deblocking      CoreAV  0.189 FFmpeg  0.256 excess -0.067
+  entropy + MB    CoreAV  0.337 FFmpeg  0.457 excess -0.119
+  in other: CoreAV decision.rs:decision 0.158, [[kernel.kallsyms]] 0.012, picture.rs:mb_motion 0.012 | FFmpeg [[kernel.kallsyms]] 0.023, [libc.so.6] 0.007, ff_h264_draw_horiz_band 0.001
+  in inter: CoreAV prefetch.rs:for_rows 0.032, predict.rs:place 0.025, x86.rs:interpolate 0.017 | FFmpeg mc_part_420_simple_8 0.045, ff_put_h264_chroma_mc8_rnd_ssse3 0.024, put_pixels16_after_prologue 0.017
+
+76e0b1692494.720p: wall 1.026, cycles 1.029, busy 0.98 against 0.98
+  other           CoreAV  0.222 FFmpeg  0.047 excess +0.174
+  inter           CoreAV  0.201 FFmpeg  0.148 excess +0.053
+  reconstruction  CoreAV  0.056 FFmpeg  0.079 excess -0.023
+  deblocking      CoreAV  0.242 FFmpeg  0.274 excess -0.032
+  entropy + MB    CoreAV  0.319 FFmpeg  0.451 excess -0.132
+  in other: CoreAV decision.rs:decision 0.157, [[kernel.kallsyms]] 0.014, picture.rs:mb_motion 0.007 | FFmpeg [[kernel.kallsyms]] 0.032, [libc.so.6] 0.008, fg_output_frame 0.001
+  in inter: CoreAV prefetch.rs:for_rows 0.029, predict.rs:place 0.023, x86.rs:interpolate 0.013 | FFmpeg mc_part_420_simple_8 0.024, ff_put_h264_chroma_mc8_rnd_ssse3 0.023, ff_put_h264_qpel8or16_v_lowpass_sse2 0.018
+
+c7ecda16e4a7.1080p: wall 1.026, cycles 1.047, busy 1.00 against 0.99
+  other           CoreAV  0.301 FFmpeg  0.014 excess +0.287
+  reconstruction  CoreAV  0.146 FFmpeg  0.121 excess +0.024
+  inter           CoreAV  0.098 FFmpeg  0.092 excess +0.005
+  deblocking      CoreAV  0.174 FFmpeg  0.176 excess -0.002
+  entropy + MB    CoreAV  0.344 FFmpeg  0.596 excess -0.253
+  in other: CoreAV decision.rs:decision 0.245, mod.rs:residual 0.014, picture.rs:mb_motion 0.007 | FFmpeg [[kernel.kallsyms]] 0.008, [libc.so.6] 0.003, av_buffer_unref 0.000
+  in reconstruction: CoreAV recon.rs:apply 0.014, x86.rs:add_residual8 0.014, x86.rs:idct8_pass 0.010 | FFmpeg hl_decode_mb_simple_8 0.035, ff_h264_idct8_add4_8_sse2 0.021, h264_idct_dc_add8_mmxext 0.010
+
+1d4b1775d78a.720p: wall 1.019, cycles 1.022, busy 0.98 against 0.98
+  other           CoreAV  0.210 FFmpeg  0.038 excess +0.172
+  inter           CoreAV  0.215 FFmpeg  0.173 excess +0.042
+  reconstruction  CoreAV  0.095 FFmpeg  0.091 excess +0.003
+  deblocking      CoreAV  0.231 FFmpeg  0.251 excess -0.020
+  entropy + MB    CoreAV  0.293 FFmpeg  0.446 excess -0.153
+  in other: CoreAV decision.rs:decision 0.156, [[kernel.kallsyms]] 0.012, strengths.rs:{closure#0} 0.005 | FFmpeg [[kernel.kallsyms]] 0.023, [libc.so.6] 0.006, _init 0.001
+  in inter: CoreAV prefetch.rs:for_rows 0.028, x86.rs:store 0.014, predict.rs:place 0.014 | FFmpeg mc_part_420_simple_8 0.033, ff_put_h264_qpel8or16_v_lowpass_sse2 0.024, ff_put_h264_chroma_mc8_rnd_ssse3 0.022
+
+65ec61f95a00.720p: wall 1.018, cycles 1.019, busy 0.99 against 0.99
+  other           CoreAV  0.235 FFmpeg  0.028 excess +0.207
+  reconstruction  CoreAV  0.094 FFmpeg  0.082 excess +0.012
+  inter           CoreAV  0.178 FFmpeg  0.182 excess -0.004
+  deblocking      CoreAV  0.232 FFmpeg  0.242 excess -0.010
+  entropy + MB    CoreAV  0.289 FFmpeg  0.466 excess -0.176
+  in other: CoreAV decision.rs:decision 0.190, mod.rs:residual 0.007, picture.rs:mb_motion 0.005 | FFmpeg [[kernel.kallsyms]] 0.015, [libc.so.6] 0.006, av_buffer_unref 0.001
+  in reconstruction: CoreAV x86.rs:add_residual8 0.010, x86.rs:idct4_pass 0.007, recon.rs:reconstruct_intra 0.007 | FFmpeg hl_decode_mb_simple_8 0.032, h264_add8x4_idct_sse2 0.011, h264_idct_dc_add8_mmxext 0.007

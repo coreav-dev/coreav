@@ -1,0 +1,10 @@
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-indexing-slicing-in-tests = true
+# Clippy's version-aware lints keep to Rust 1.85, the workspace's version
+# before the H.264 kernels' AVX-512 tier raised `rust-version` to 1.89 for
+# its target features (docs/design/h264.md, "Kernel round: an AVX-512
+# tier"); suggestions of what 1.86 to 1.89 stabilized are left to a change
+# of their own.
+msrv = "1.85"

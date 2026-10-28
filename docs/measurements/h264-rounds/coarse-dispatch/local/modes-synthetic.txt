@@ -1,0 +1,22 @@
+# scripts/h264_modes_identity.py --generate <BtbN FFmpeg 9.0.2 with libx264> (the synthetic set of the CI job modes-identity)
+same cabac-b-weightp.h264 threads 1 fast 67dadc58977b safe 67dadc58977b
+same cabac-b-weightp.h264 threads 8 fast 67dadc58977b safe 67dadc58977b
+same cabac-fade.h264 threads 1 fast 6d43d3e0a0cf safe 6d43d3e0a0cf
+same cabac-fade.h264 threads 8 fast 6d43d3e0a0cf safe 6d43d3e0a0cf
+same cavlc-b.h264 threads 1 fast dd051d2cb4be safe dd051d2cb4be
+same cavlc-b.h264 threads 8 fast dd051d2cb4be safe dd051d2cb4be
+same cavlc-p-slices.h264 threads 1 fast dd78b1fabe2f safe dd78b1fabe2f
+same cavlc-p-slices.h264 threads 8 fast dd78b1fabe2f safe dd78b1fabe2f
+same high-qp-1080p.h264 threads 1 fast caa99ae930d5 safe caa99ae930d5
+same high-qp-1080p.h264 threads 8 fast caa99ae930d5 safe caa99ae930d5
+same intra-4x4.h264 threads 1 fast b0e0e0da8bb1 safe b0e0e0da8bb1
+same intra-4x4.h264 threads 8 fast b0e0e0da8bb1 safe b0e0e0da8bb1
+same intra-8x8.h264 threads 1 fast 7ab9585c586b safe 7ab9585c586b
+same intra-8x8.h264 threads 8 fast 7ab9585c586b safe 7ab9585c586b
+same low-qp-slices.h264 threads 1 fast 03309df20e1e safe 03309df20e1e
+same low-qp-slices.h264 threads 8 fast 03309df20e1e safe 03309df20e1e
+same partitions.h264 threads 1 fast 2d37e1314039 safe 2d37e1314039
+same partitions.h264 threads 8 fast 2d37e1314039 safe 2d37e1314039
+same temporal-direct-crop.h264 threads 1 fast 949b39506e1e safe 949b39506e1e
+same temporal-direct-crop.h264 threads 8 fast 949b39506e1e safe 949b39506e1e
+{'streams': 10, 'threads': [1, 8], 'decodes_compared': 20, 'different': 0, 'cpu_has_v3': True, 'seconds': 7.6}

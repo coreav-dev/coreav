@@ -1,0 +1,78 @@
+iso       00de70872ff1 refused
+iso       0119957558a2    201.5 MB ours=   4276.1ms theirs=   4543.8ms ratio=0.941
+iso       016ab71f2d04     90.5 MB ours=   1938.3ms theirs=   2728.4ms ratio=0.710
+iso       02f2c37a7ad9      5.2 MB ours=    373.2ms theirs=    441.7ms ratio=0.845
+iso       04b7b4fb3b37      0.0 MB ours=    301.5ms theirs=    727.3ms ratio=0.415
+iso       0538fb0951fa     16.1 MB ours=    628.6ms theirs=    707.0ms ratio=0.889
+iso       057ee81be8c8     75.3 MB ours=   1869.9ms theirs=   2986.5ms ratio=0.626
+iso       065b0fa2931f     35.0 MB ours=   1057.9ms theirs=   1381.1ms ratio=0.766
+iso       096d9e707920      2.3 MB ours=    315.1ms theirs=    403.5ms ratio=0.781
+iso       09a07d37fd09    208.9 MB ours=   3307.6ms theirs=   3650.5ms ratio=0.906
+iso       09febe430bb4      0.4 MB ours=    297.2ms theirs=   1099.6ms ratio=0.270
+iso       0a65884fdefd      0.0 MB ours=    319.1ms theirs=    664.9ms ratio=0.480
+iso       0c09c7607280    119.9 MB ours=   2429.2ms theirs=   4613.5ms ratio=0.527
+iso       0ced42322c65      2.0 MB ours=    286.2ms theirs=   1064.3ms ratio=0.269
+iso       0d8e77ef7d45      0.4 MB ours=    285.0ms theirs=    339.6ms ratio=0.839
+iso       0df9dd6969ab      1.0 MB ours=    280.4ms theirs=    362.4ms ratio=0.774
+iso       108521a89a73      3.9 MB ours=    323.9ms theirs=   1069.3ms ratio=0.303
+iso       1115b5bac7c2      0.5 MB ours=    326.0ms theirs=   1022.3ms ratio=0.319
+iso       12b422185953      2.4 MB ours=    348.5ms theirs=   1028.1ms ratio=0.339
+iso       12c0953f433a      0.9 MB ours=    276.7ms theirs=    370.4ms ratio=0.747
+iso       13cf128006da    109.4 MB ours=   1855.4ms theirs=   2605.9ms ratio=0.712
+iso       146662b2307c      1.1 MB ours=    286.2ms theirs=    350.8ms ratio=0.816
+iso       15affcdb19e3    126.9 MB ours=   3347.9ms theirs=   2115.2ms ratio=1.583
+iso       19d5a3aef3db      8.0 MB ours=    369.3ms theirs=   1116.6ms ratio=0.331
+iso       1b450d90085d     63.8 MB ours=   1462.5ms theirs=   1396.1ms ratio=1.048
+iso       1ce3933e3009     70.3 MB ours=   1351.7ms theirs=   2250.2ms ratio=0.601
+iso       1ced309b3617    110.6 MB ours=   2164.7ms theirs=   3049.0ms ratio=0.710
+iso       1df1e32ed6a5 refused
+iso       1fc969989fcd      0.8 MB ours=    291.3ms theirs=    373.5ms ratio=0.780
+iso       206a65347de4      2.6 MB ours=    309.3ms theirs=   1087.5ms ratio=0.284
+iso       220e29e8557e      1.9 MB ours=    324.1ms theirs=    776.3ms ratio=0.417
+iso       24e19189ff25      1.0 MB ours=    326.4ms theirs=    397.2ms ratio=0.822
+matroska  03e890cf5999      2.8 MB ours=    341.1ms theirs=    370.8ms ratio=0.920
+matroska  04a7da97aeec refused
+matroska  0591ba9fb558 refused
+matroska  0647ff86bb8c      3.5 MB ours=    344.6ms theirs=    516.0ms ratio=0.668
+matroska  0d677d9c1b57 refused
+matroska  16117de9347f refused
+matroska  17722a386ab1 refused
+matroska  196be1af7d62    123.6 MB ours=   3675.6ms theirs=   2161.7ms ratio=1.700
+matroska  1e7dbdd9da1a      3.7 MB ours=    339.0ms theirs=    395.9ms ratio=0.856
+matroska  2c5976ae305e refused
+matroska  2fa8c6f6e266      9.9 MB ours=    698.6ms theirs=    428.3ms ratio=1.631
+matroska  34616c4782c0      6.0 MB ours=    326.9ms theirs=    496.1ms ratio=0.659
+matroska  357fb30f4693    199.2 MB ours=   6114.4ms theirs=   6483.7ms ratio=0.943
+matroska  4389ba53bb9b refused
+matroska  47cb9b34f42c      9.1 MB ours=    425.7ms theirs=    479.9ms ratio=0.887
+matroska  4b23afae9445     24.3 MB ours=   1009.9ms theirs=    801.5ms ratio=1.260
+matroska  584a16b906bb      0.5 MB ours=    299.5ms theirs=    371.3ms ratio=0.807
+matroska  595cc7a83394 refused
+matroska  59ad8ee403b3      0.1 MB ours=    274.9ms theirs=    342.1ms ratio=0.804
+matroska  5d9bec208875      5.1 MB ours=    406.0ms theirs=    436.1ms ratio=0.931
+matroska  5e84a05f8ee4      0.3 MB ours=    315.1ms theirs=    343.4ms ratio=0.918
+matroska  5f9e2df6851b refused
+matroska  602e617d5529 refused
+matroska  70eec00bc7d2      4.2 MB ours=    407.1ms theirs=    408.9ms ratio=0.996
+matroska  71bd76ad3a87 refused
+matroska  7593d867aafd refused
+matroska  7926a7aaff4d      2.4 MB ours=    316.1ms theirs=    479.0ms ratio=0.660
+matroska  7bd8ff2f7abb      1.3 MB ours=    313.0ms theirs=    384.4ms ratio=0.814
+matroska  7e0aa6fa5cb6     89.3 MB ours=   2608.0ms theirs=   1670.5ms ratio=1.561
+matroska  8b0ab38d0e21     75.7 MB ours=   2693.0ms theirs=   2697.7ms ratio=0.998
+matroska  96b0669b1a66     30.9 MB ours=    965.0ms theirs=    881.9ms ratio=1.094
+matroska  9af8b16fd045     92.6 MB ours=   2212.7ms theirs=   2263.8ms ratio=0.977
+matroska  9f4dfff5cbff      3.0 MB ours=    307.4ms theirs=    402.8ms ratio=0.763
+matroska  a084bd45168c      0.4 MB ours=    314.4ms theirs=    394.4ms ratio=0.797
+matroska  a1001428921f refused
+matroska  a1eaf50f116b      4.8 MB ours=    363.0ms theirs=    581.6ms ratio=0.624
+matroska  a58a8a1aecdb refused
+matroska  a7121daf691f     48.7 MB ours=   1546.8ms theirs=   1057.0ms ratio=1.463
+matroska  a8c6bfbfcb66     36.0 MB ours=   1438.4ms theirs=   1160.6ms ratio=1.239
+matroska  ac89d7a2fcb2      3.1 MB ours=    312.8ms theirs=    395.2ms ratio=0.791
+matroska  b267a2ddac45      3.0 MB ours=    337.1ms theirs=    374.7ms ratio=0.900
+matroska  b361c03c6ec9    134.0 MB ours=   2601.7ms theirs=   1884.9ms ratio=1.380
+matroska  b368942ade78 refused
+matroska  b562a247eacd refused
+matroska  bb5d39d47357      0.4 MB ours=    401.7ms theirs=    514.9ms ratio=0.780
+matroska  c2819315cc2e     66.1 MB ours=   2188.4ms theirs=   3219.4ms ratio=0.680

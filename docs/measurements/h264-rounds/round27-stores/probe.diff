@@ -1,0 +1,43 @@
+diff --git a/crates/coreav-h264/src/inter.rs b/crates/coreav-h264/src/inter.rs
+index b3fbf048..905330a4 100644
+--- a/crates/coreav-h264/src/inter.rs
++++ b/crates/coreav-h264/src/inter.rs
+@@ -565,8 +565,12 @@ impl<'a, K: Kernels> SliceDecoder<'a, K> {
+         // whose motion array is not in cache.
+         if let Some(blocks) = self.out.motion.get_mut(base..base + 16) {
+             put_row::<4, _>(blocks, 0, &[m; 4]);
+-            for y in 1..4 {
+-                blocks.copy_within(0..4, y * 4);
++            if let Some(row) = blocks.get(0..4) {
++                for y in 0..3 {
++                    if let Some(d) = self.probe_scratch.get_mut(y * 4..y * 4 + 4) {
++                        d.copy_from_slice(row);
++                    }
++                }
+             }
+         }
+         if cfg!(debug_assertions) {
+diff --git a/crates/coreav-h264/src/mb.rs b/crates/coreav-h264/src/mb.rs
+index 1640d0c1..e1178436 100644
+--- a/crates/coreav-h264/src/mb.rs
++++ b/crates/coreav-h264/src/mb.rs
+@@ -478,6 +478,7 @@ pub(crate) struct SliceDecoder<'a, K: Kernels> {
+     /// [`MbInfo::uniform`] records once the macroblock is finished.
+     pub(crate) motion_first: Option<Motion>,
+     pub(crate) motion_uniform: bool,
++    pub(crate) probe_scratch: [crate::picture::Motion; 12],
+     pub(crate) scratch: Box<Scratch>,
+     /// What macroblocks A and B give coded_block_flag's context for the
+     /// macroblock being decoded ([`SliceDecoder::neighbour_cbf`]), taken
+diff --git a/crates/coreav-h264/src/work.rs b/crates/coreav-h264/src/work.rs
+index 2073937c..2f3069ce 100644
+--- a/crates/coreav-h264/src/work.rs
++++ b/crates/coreav-h264/src/work.rs
+@@ -174,6 +174,7 @@ impl<K: Kernels> PictureWork<K> {
+             tables: InterTables::new(&job.refs, hdr.slice_type, &job.pps, job.current_poc),
+             motion_first: None,
+             motion_uniform: true,
++            probe_scratch: [crate::picture::NO_MOTION; 12],
+             scratch,
+             cbf_nb: [0; 2],
+             level_scales: CoeffScales::NONE,

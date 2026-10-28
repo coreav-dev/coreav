@@ -1,0 +1,23 @@
+[package]
+name = "coreav-isobmff"
+description = "Memory-safe ISO base media file format (MP4/MOV) probe and packet parser"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+# Inflates QuickTime compressed movie boxes (`cmov`, docs/design/compressed-movie.md);
+# pure safe Rust, no default features but allocation.
+miniz_oxide = { version = "0.8", default-features = false, features = ["with-alloc"] }
+
+
+[dev-dependencies]
+# Test-only, never compiled into production artifacts: the counting global
+# allocator of the pinned limit tests (tests/memory.rs, docs/design/limits.md).
+coreav-counting-alloc = { path = "../../tools/counting-alloc" }
+
+[lints]
+workspace = true

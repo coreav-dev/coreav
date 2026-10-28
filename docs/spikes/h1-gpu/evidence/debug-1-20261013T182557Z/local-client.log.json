@@ -1,0 +1,4 @@
+{
+ "sha256": "353b9807c287f7017b2a32947c658a7e922f5e2efc052579b2b22af72165dbe5",
+ "log": "debug: waiting, 154 s\ndebug: waiting, 214 s\n{\n  \"run_id\": \"debug-1-20261013T182557Z\",\n  \"step\": \"debug\",\n  \"args\": [\n    1\n  ],\n  \"kind\": \"gpu\",\n  \"reservation_usd\": 0.4123,\n  \"timeout_seconds\": 900,\n  \"startup_timeout_seconds\": 600,\n  \"retries\": 0,\n  \"reserved_utc\": \"2026-10-13T18:25:57.444347+00:00\",\n  \"function_call_id\": \"call-016\",\n  \"exit_code\": 0,\n  \"outcome\": \"completed\",\n  \"local_wall_seconds\": 222.7,\n  \"settled_usd\": 0.0612\n}\n"
+}

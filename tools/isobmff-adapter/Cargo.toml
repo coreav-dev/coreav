@@ -1,0 +1,20 @@
+[package]
+name = "coreav-isobmff-adapter"
+description = "Test-only oracle adapter for coreav-isobmff; never published"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[[bin]]
+name = "isobmff-adapter"
+path = "src/main.rs"
+
+[dependencies]
+coreav-isobmff = { path = "../../crates/coreav-isobmff" }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

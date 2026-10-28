@@ -1,0 +1,1097 @@
+{
+ "note": "dev-run4 remote packet digests against local FileSource listings of the downloaded objects (indexed dev files up to 100 MB)",
+ "files": [
+  {
+   "sha256": "009339d57238508f4babf101252eef0e18403603da938259403ff2fc0a2ac474",
+   "route": "segment_index",
+   "remote": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "local": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "0143692e31b64159a1fe5ae491e04f2d6fa5c7d0c03fe04cf2642e8562b5ce5e",
+   "route": "segment_index",
+   "remote": {
+    "packets": 6894,
+    "digest": "2b40daf7997bdc9b"
+   },
+   "local": {
+    "packets": 6894,
+    "digest": "2b40daf7997bdc9b"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "089cd9d6c428f7a0e0cd7b75f53c58506323dde2c744333b55c3ff6ca0299e40",
+   "route": "segment_index",
+   "remote": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "local": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "0bb05726e4289417c082eec9bd7849740cb5fe5c48b918d3d757d873545464c6",
+   "route": "segment_index",
+   "remote": {
+    "packets": 1500,
+    "digest": "566c0a8d50dee614"
+   },
+   "local": {
+    "packets": 1500,
+    "digest": "566c0a8d50dee614"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "107c0b668f431d680f64477d1206af59a556416e819c605b451a22a15612dcc0",
+   "route": "segment_index",
+   "remote": {
+    "packets": 21312,
+    "digest": "a853d713a11720fc"
+   },
+   "local": {
+    "packets": 21312,
+    "digest": "a853d713a11720fc"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "1140243c49415ee81d2fafcccaae3e8c5952f34d197dbc1eb5dcff2c596d5fd0",
+   "route": "segment_index",
+   "remote": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "local": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "12a1c3738d6bacfdbe4f04f6e27b66cb2f9fabe0b21b6ac5787f7c49ec249dec",
+   "route": "segment_index",
+   "remote": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "local": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "12cd9dce00bc0fe14d26d4dc25a8958f5b09bbaf66a6784c1b54236bc012e3ed",
+   "route": "segment_index",
+   "remote": {
+    "packets": 82,
+    "digest": "737a4e5df7f60573"
+   },
+   "local": {
+    "packets": 82,
+    "digest": "737a4e5df7f60573"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "134407049e758e9787180410c1a531fdb6a21facbd488612996e91b4f2e0bd95",
+   "route": "segment_index",
+   "remote": {
+    "packets": 8404,
+    "digest": "8f7294563d69ced0"
+   },
+   "local": {
+    "packets": 8404,
+    "digest": "8f7294563d69ced0"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "1521bc03ee1fe450f5b1ac4a30a693b8658589f5a99756acd2782cc237890d39",
+   "route": "segment_index",
+   "remote": {
+    "packets": 7459,
+    "digest": "d90afcc219905255"
+   },
+   "local": {
+    "packets": 7459,
+    "digest": "d90afcc219905255"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "1734f2047a709e16652eae478ba9b2ed4835a568e00783793b0a398014cd0e48",
+   "route": "segment_index",
+   "remote": {
+    "packets": 21312,
+    "digest": "293f27c04cafecde"
+   },
+   "local": {
+    "packets": 21312,
+    "digest": "293f27c04cafecde"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "19e7a42d516c999ccadec5fa7a90b7330ef768a6d807973deafaf82503c8573c",
+   "route": "segment_index",
+   "remote": {
+    "packets": 41628,
+    "digest": "e85e65d4196abfc8"
+   },
+   "local": {
+    "packets": 41628,
+    "digest": "e85e65d4196abfc8"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "1b750b644b8c54e5d6cdf49a9e54d2991553437ee4141f375cff7431f8451bcc",
+   "route": "segment_index",
+   "remote": {
+    "packets": 4803,
+    "digest": "2bb9c79f18587115"
+   },
+   "local": {
+    "packets": 4803,
+    "digest": "2bb9c79f18587115"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "22a0e31832c88eab83f462984850bf0a31c50175cb1eff6fae81141898fd9156",
+   "route": "sequential",
+   "remote": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "local": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "22a50e6c29bcd46fceb88f706081315b2d00e7fc9197bfe1da13a9be9bf1e3fd",
+   "route": "segment_index",
+   "remote": {
+    "packets": 12077,
+    "digest": "793d77bb26e4609e"
+   },
+   "local": {
+    "packets": 12077,
+    "digest": "793d77bb26e4609e"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "26f24ef5243a4baec052bcfc19002b0b25f4813c0e636e39938b454af82aa3e1",
+   "route": "segment_index",
+   "remote": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "local": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "2911270a53e7c32933c620608bca80fda405c905c6a951b04850b2fbaec77337",
+   "route": "segment_index",
+   "remote": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "local": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "2a49e1a5fb287bd427d6528a28bb6f7925100b746df704de5f5897b676c9e2cc",
+   "route": "segment_index",
+   "remote": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "local": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "2cbedc36cf1ec2fdaaa54d26942ff93faeda4d4b2baf9fd25ee74bfebc15287e",
+   "route": "sequential",
+   "remote": {
+    "packets": 120,
+    "digest": "c3ef20feb46e4043"
+   },
+   "local": {
+    "packets": 120,
+    "digest": "c3ef20feb46e4043"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "2e07bae01f1e6e8668524c0a57ef021a20dde8df2f88acd3628f2734f7d0b9bc",
+   "route": "segment_index",
+   "remote": {
+    "packets": 17616,
+    "digest": "08222b0303843208"
+   },
+   "local": {
+    "packets": 17616,
+    "digest": "08222b0303843208"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "2fc20d0afd5e4fe3c1c6bbb34ee0ca5776afa21cc9985ef78c3fed8f7da10e24",
+   "route": "segment_index",
+   "remote": {
+    "packets": 4101,
+    "digest": "246960e85ba7f118"
+   },
+   "local": {
+    "packets": 4101,
+    "digest": "246960e85ba7f118"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "2feb76bf765da4df9a86ad194eb580f37c2d7263f0035e2dcae55065df666cb5",
+   "route": "segment_index",
+   "remote": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "local": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "3140b8a7f50bdc225794d85eea2ef6a39176917ff413a4630b48bdacb387ea00",
+   "route": "segment_index",
+   "remote": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "local": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "32ba200a1bbe98a0b54dc9721aedce5809144a6dba8157820916dbcb94b5b368",
+   "route": "segment_index",
+   "remote": {
+    "packets": 17620,
+    "digest": "c66d87dbdb1d73ac"
+   },
+   "local": {
+    "packets": 17620,
+    "digest": "c66d87dbdb1d73ac"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "337bd9eabe090a8be2ad9d1354ed02094bd2e95f8c3a189cb6f220819a8c7a43",
+   "route": "segment_index",
+   "remote": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "local": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "34cdd7c33169fb5b64f927375e746402d17a65a15d5d4c246928c78bd09f838c",
+   "route": "segment_index",
+   "remote": {
+    "packets": 65242,
+    "digest": "27b60b247011fc28"
+   },
+   "local": {
+    "packets": 65242,
+    "digest": "27b60b247011fc28"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "3c60933b4866087d7e71fa0b37b899c858bd1002941f55313aeca54638a3d670",
+   "route": "segment_index",
+   "remote": {
+    "packets": 2845,
+    "digest": "d05756518f09930b"
+   },
+   "local": {
+    "packets": 2845,
+    "digest": "d05756518f09930b"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "3d8a8a24d1644b673c7823b72ebe0f7d35600ff210f995859d8a7b97192f63d9",
+   "route": "segment_index",
+   "remote": {
+    "packets": 15321,
+    "digest": "9c534a54a308e823"
+   },
+   "local": {
+    "packets": 15321,
+    "digest": "9c534a54a308e823"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "3ec41834a915a43be205f92b1f38b33af7ec4da77c2604ca30ec12b54908b4d1",
+   "route": "segment_index",
+   "remote": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "local": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "3fc1634fb178852939bf60d4248a0b58c90d0673b94e260b536052c398fc3744",
+   "route": "sequential",
+   "remote": {
+    "packets": 81,
+    "digest": "dd8b802a2981e2d2"
+   },
+   "local": {
+    "packets": 81,
+    "digest": "dd8b802a2981e2d2"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "404f9bd7ae0ac7b93aabd1cff1b650500864b047d797877b915a65cd7c3f364a",
+   "route": "segment_index",
+   "remote": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "local": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "41d57bca73358ed60a078f48597fe78b8171f4ca12b24d14e1e76b3e76f2ac65",
+   "route": "segment_index",
+   "remote": {
+    "packets": 17620,
+    "digest": "d4246207d7cf88a3"
+   },
+   "local": {
+    "packets": 17620,
+    "digest": "d4246207d7cf88a3"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "4b24d9b8a61676faed73f4c8d10a17db40d0ea88b1e9f0443524e854008c3014",
+   "route": "sequential",
+   "remote": {
+    "packets": 82,
+    "digest": "48e0e27e36ffa2ba"
+   },
+   "local": {
+    "packets": 82,
+    "digest": "48e0e27e36ffa2ba"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "4b74b8a8a49a683ca0c897fef8e8d3eaa8b9ba94ee7a293f6d657f8d7da25679",
+   "route": "segment_index",
+   "remote": {
+    "packets": 3973,
+    "digest": "b4cb6708f4361f8e"
+   },
+   "local": {
+    "packets": 3973,
+    "digest": "b4cb6708f4361f8e"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "4e26426158423d5f64e3711a3032324f7a097fc77209e07ad0fc1f34c473ca08",
+   "route": "segment_index",
+   "remote": {
+    "packets": 35716,
+    "digest": "84d5dd340a6259fd"
+   },
+   "local": {
+    "packets": 35716,
+    "digest": "84d5dd340a6259fd"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "58115ce2a9b0f9d682b73457f3b7fc30d6d2ef97248a301697d9718e941373fb",
+   "route": "segment_index",
+   "remote": {
+    "packets": 21312,
+    "digest": "293f27c04cafecde"
+   },
+   "local": {
+    "packets": 21312,
+    "digest": "293f27c04cafecde"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "5a4b99ac8af1c10377a641f6d793e5ca1a22b7696af11570c81ecfe4a833ff8a",
+   "route": "sequential",
+   "remote": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "local": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "609899e4fdb972a10c5a157d024601dd3b23fedb35feca16dff8222b06955be1",
+   "route": "segment_index",
+   "remote": {
+    "packets": 13775,
+    "digest": "6ca42c0cc6f7b4a3"
+   },
+   "local": {
+    "packets": 13775,
+    "digest": "6ca42c0cc6f7b4a3"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "6593776f84861e1fa0d30929d7a79b2282fcb41f83f8cd1870ed026293f34f2c",
+   "route": "sequential",
+   "remote": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "local": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "686062a6d12d07f37abe31fed69ee38fd2dc37cb9a3190745295842fc6cdb983",
+   "route": "segment_index",
+   "remote": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "local": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "69d1e3717c6ca2d4f375470891a5d439db30efc05219fc831de8cf324276c55c",
+   "route": "sequential",
+   "remote": {
+    "packets": 233,
+    "digest": "dcd7b290562f1ed4"
+   },
+   "local": {
+    "packets": 233,
+    "digest": "dcd7b290562f1ed4"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "6d0296b5aaddd9967ab64bfb8c47285fec9bdcafa3a038c3c90a59943ed38ee1",
+   "route": "segment_index",
+   "remote": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "local": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "6e7cb95e893622ea1e5cc3afae02b935bc9c8af3fdf4824bdbdb3fe45e020931",
+   "route": "sequential",
+   "remote": {
+    "packets": 60,
+    "digest": "964338bfba4e0003"
+   },
+   "local": {
+    "packets": 60,
+    "digest": "964338bfba4e0003"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "7596a276cf1e1e4ce968ca9b0960a178346df43c2cdea2b54e5b34cef4352c74",
+   "route": "segment_index",
+   "remote": {
+    "packets": 62,
+    "digest": "8927f9e0f61ec7d1"
+   },
+   "local": {
+    "packets": 62,
+    "digest": "8927f9e0f61ec7d1"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "7fb2a8e85f683886de2db788570d2829ff3180b022255a8618753929bd7eb60b",
+   "route": "segment_index",
+   "remote": {
+    "packets": 14314,
+    "digest": "18c8fd4f302e1e11"
+   },
+   "local": {
+    "packets": 14314,
+    "digest": "18c8fd4f302e1e11"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "7ffdfe522deafb9480f21126a6b9b4a4656a14912d15adc648517fcc3056b18b",
+   "route": "sequential",
+   "remote": {
+    "packets": 212,
+    "digest": "047bad96412bdcca"
+   },
+   "local": {
+    "packets": 212,
+    "digest": "047bad96412bdcca"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "803c466fbf34963704aa17f8bd2773417a257a44b2d69f128f63f5715e6733de",
+   "route": "segment_index",
+   "remote": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "local": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "81818c6e969cbf328dc9eebb14dc9e383a81c03d620ea79b26ed85bd7239bf7f",
+   "route": "segment_index",
+   "remote": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "local": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "826271bd3799c3ef02884a93c65dd2a1437e2f2c12836fb69a4eeb25c093122c",
+   "route": "segment_index",
+   "remote": {
+    "packets": 64,
+    "digest": "c402c1de23d700f8"
+   },
+   "local": {
+    "packets": 64,
+    "digest": "c402c1de23d700f8"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "86b92a79c8620ed28d78cff1aa6ba770ee720174e11d9c20f7368f39806c3e70",
+   "route": "segment_index",
+   "remote": {
+    "packets": 17455,
+    "digest": "a7f099efe27b3d0e"
+   },
+   "local": {
+    "packets": 17455,
+    "digest": "a7f099efe27b3d0e"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "8720085bd6c2698abccca00669f4fcd66447c46d4b8e3863b071544b0786c867",
+   "route": "segment_index",
+   "remote": {
+    "packets": 3878,
+    "digest": "c4f22d1b3d83f3ff"
+   },
+   "local": {
+    "packets": 3878,
+    "digest": "c4f22d1b3d83f3ff"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "8a3ecf7146fea787d8e078ea540d617d1578843232e4d804b11f62c2d77181d9",
+   "route": "segment_index",
+   "remote": {
+    "packets": 31609,
+    "digest": "47c9abe729bd12bb"
+   },
+   "local": {
+    "packets": 31609,
+    "digest": "47c9abe729bd12bb"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "8c719463bf521d4328c9850d521dd6bbc21eb58630bb08fbc8d5e29c92f570ff",
+   "route": "segment_index",
+   "remote": {
+    "packets": 33701,
+    "digest": "e98322967d053368"
+   },
+   "local": {
+    "packets": 33701,
+    "digest": "e98322967d053368"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "90184b856febe38ab604f6912ca1e4e0a10d53952d81072ca750e0bfdfd83863",
+   "route": "segment_index",
+   "remote": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "local": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "90bdb5e17986f67b8c2cfdd617b3cb363f6247a9825a95575c4fbd59c51934ac",
+   "route": "segment_index",
+   "remote": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "local": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "92e7c7580ae56b9d9ba39e611f2aa8d3b0e362d98975a52cdf326e17d9891728",
+   "route": "segment_index",
+   "remote": {
+    "packets": 27312,
+    "digest": "6866b66cf527bcf0"
+   },
+   "local": {
+    "packets": 27312,
+    "digest": "6866b66cf527bcf0"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "93597fd7bfdc2005bfaac48bcbdea529d52d6c88012bf1a33b86a855532010e1",
+   "route": "segment_index",
+   "remote": {
+    "packets": 16853,
+    "digest": "11eb2e71d0e794f9"
+   },
+   "local": {
+    "packets": 16853,
+    "digest": "11eb2e71d0e794f9"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "987f7489ad124353ded97e5e3ddf9572f1af66186e6305eafab4eb5012c4ab62",
+   "route": "segment_index",
+   "remote": {
+    "packets": 41628,
+    "digest": "398190a93dbd6b6d"
+   },
+   "local": {
+    "packets": 41628,
+    "digest": "398190a93dbd6b6d"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "99fe419988dfca3b45087d57dde2974f81aba6d229a04ff5abe38e10299c733e",
+   "route": "segment_index",
+   "remote": {
+    "packets": 8929,
+    "digest": "a1046ca1fcb56b65"
+   },
+   "local": {
+    "packets": 8929,
+    "digest": "a1046ca1fcb56b65"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "9c123cf36549f94904bee79eabe1ccaaa7d352536eef2db8b1b308a45691a6f2",
+   "route": "segment_index",
+   "remote": {
+    "packets": 13775,
+    "digest": "2be7235c4c928f26"
+   },
+   "local": {
+    "packets": 13775,
+    "digest": "2be7235c4c928f26"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "9f13a32f05bf42e5356ac455c0608dfcbc506ad2da16d4e088223296cfe0e2c0",
+   "route": "segment_index",
+   "remote": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "local": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "a480f5bdc9924261942fc4c5ca29b60d36047e0037cc85f28cd0fe553bcc01c4",
+   "route": "segment_index",
+   "remote": {
+    "packets": 3360,
+    "digest": "939cb166f29deb3a"
+   },
+   "local": {
+    "packets": 3360,
+    "digest": "939cb166f29deb3a"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "affc4ce6c872f9d4160a92a7b959523b3cac2d171e89177e4cd211e55f756175",
+   "route": "sequential",
+   "remote": {
+    "error": "truncated structure at offset 825301"
+   },
+   "local": {
+    "error": "truncated structure at offset 825301"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "b052a82f87bd6859d143a65e8ae954e7f6132a763400ff64929bd658d115dec3",
+   "route": "segment_index",
+   "remote": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "local": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "b4bcfe059c46088b0dc9ae9553ce5a9275c93025ef8e7da998dbc29a61992e8e",
+   "route": "segment_index",
+   "remote": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "local": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "b71d3202e8c5068a20b408b57a1173a1b990bc18758cc8167692fdd10e8c0160",
+   "route": "segment_index",
+   "remote": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "local": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "be6b60e0ec9130e37e3077c24e348e78d5a9be7069fe896d4dde5cde2b13d703",
+   "route": "segment_index",
+   "remote": {
+    "packets": 41628,
+    "digest": "82ba591e46d71768"
+   },
+   "local": {
+    "packets": 41628,
+    "digest": "82ba591e46d71768"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "d21fc3938a813b6ce25efe890074b23d966a5828c9a3d33de7e8591a25dd2036",
+   "route": "sequential",
+   "remote": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "local": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "d6ec1aac818d39400a32ca1ea9e57787a14a5e4d9d2e064000a25da9752ce627",
+   "route": "segment_index",
+   "remote": {
+    "packets": 3000,
+    "digest": "d0b8401c4af30ddc"
+   },
+   "local": {
+    "packets": 3000,
+    "digest": "d0b8401c4af30ddc"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "d6f2c8017af49632f425ab3fb6a1a0391be40e2d71330f6343bf4548021c070a",
+   "route": "segment_index",
+   "remote": {
+    "packets": 31619,
+    "digest": "48c9c861eb985b5f"
+   },
+   "local": {
+    "packets": 31619,
+    "digest": "48c9c861eb985b5f"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "d7e238494e9350ebe1fce238c1d1d748d5cb059bda43e747452bd3ab0f3de3c9",
+   "route": "segment_index",
+   "remote": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "local": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "d8d2f83adebea87c837b139e895a8e80421e6dd25e4d57daf2e4db8a1d9d05d8",
+   "route": "segment_index",
+   "remote": {
+    "packets": 31617,
+    "digest": "70e92479ab535a70"
+   },
+   "local": {
+    "packets": 31617,
+    "digest": "70e92479ab535a70"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "dbf12e147b5cddaece28c487a65fdebba3cc6f3ba6b5ba219dff91fae4d6214a",
+   "route": "segment_index",
+   "remote": {
+    "packets": 4292,
+    "digest": "95272ee16dfcc74d"
+   },
+   "local": {
+    "packets": 4292,
+    "digest": "95272ee16dfcc74d"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "dcb262cf0138934feae8866f14f7de6d3881d77f29324a3368f5478676eb4640",
+   "route": "segment_index",
+   "remote": {
+    "packets": 17620,
+    "digest": "3865d9cf6b56e86e"
+   },
+   "local": {
+    "packets": 17620,
+    "digest": "3865d9cf6b56e86e"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "dd3845a48da72639a8e859dc11d003dd2a2b257123e6e09e9c7f858701025034",
+   "route": "segment_index",
+   "remote": {
+    "packets": 2814,
+    "digest": "9b029a1f42d26abb"
+   },
+   "local": {
+    "packets": 2814,
+    "digest": "9b029a1f42d26abb"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "e09f1324880b7479549c7bf03c598d7893e0cb75b6896d5fe88d15d5555fa2db",
+   "route": "segment_index",
+   "remote": {
+    "packets": 9261,
+    "digest": "d84a5aac8b81cb60"
+   },
+   "local": {
+    "packets": 9261,
+    "digest": "d84a5aac8b81cb60"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "e5ef5c9c69e36f62ad3a3a06111fd5dd786846a1323303f859fc3d7779b6c763",
+   "route": "segment_index",
+   "remote": {
+    "packets": 7770,
+    "digest": "43a76aea141e960d"
+   },
+   "local": {
+    "packets": 7770,
+    "digest": "43a76aea141e960d"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "e9c26ea6fe46d2adad07573a38c4da102e6720180c51d8c64f6289b5b9f46d19",
+   "route": "segment_index",
+   "remote": {
+    "packets": 31619,
+    "digest": "48c9c861eb985b5f"
+   },
+   "local": {
+    "packets": 31619,
+    "digest": "48c9c861eb985b5f"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "ecccbc9b3c3f5fc993a955808b008baadcfb023fb27f2f2aca605b1ac246233b",
+   "route": "segment_index",
+   "remote": {
+    "packets": 13993,
+    "digest": "8c9d9fcff4bb63d6"
+   },
+   "local": {
+    "packets": 13993,
+    "digest": "8c9d9fcff4bb63d6"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "f2debd6a37394057a6a01b40a09081d0d11fd52ad9fb1629ac79227ed0e4e738",
+   "route": "sequential",
+   "remote": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "local": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "f3b10251891bc77e720cca4071e2912b22f432529ef669d1ceb91556615c43df",
+   "route": "segment_index",
+   "remote": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "local": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "f8e7e249e26cd995885df445fc628952837c7217df7bb698fbd07b8c0d0812ff",
+   "route": "segment_index",
+   "remote": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "local": {
+    "packets": 0,
+    "digest": "cbf29ce484222325"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "f9e973f44570fffeb32651bd08c85a14377dca5013a95cb3d91929e7a3a25ae9",
+   "route": "segment_index",
+   "remote": {
+    "packets": 21312,
+    "digest": "5f1d140c00e8c985"
+   },
+   "local": {
+    "packets": 21312,
+    "digest": "5f1d140c00e8c985"
+   },
+   "equal": true
+  },
+  {
+   "sha256": "ff84167e699d5dd435e86143a47d55835d50f4a56f7fe65ae6358d98c50f5650",
+   "route": "segment_index",
+   "remote": {
+    "packets": 17531,
+    "digest": "e9da68c77d53daa7"
+   },
+   "local": {
+    "packets": 17531,
+    "digest": "e9da68c77d53daa7"
+   },
+   "equal": true
+  }
+ ],
+ "equal": 84,
+ "total": 84
+}

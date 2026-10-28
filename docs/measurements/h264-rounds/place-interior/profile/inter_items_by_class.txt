@@ -1,0 +1,52 @@
+== sd inter: CoreAV 0.213 FFmpeg 0.175
+  0.0747 K luma_block                                            | 0.0199 asm ff_put_h264_chroma_mc8_rnd_ssse3
+  0.0556 K Auto>                                                 | 0.0190 h264_mb.c mc_dir_part
+  0.0313 K chroma_block                                          | 0.0150 asm ff_put_h264_qpel8or16_v_lowpass_sse2
+  0.0129 inter.rs predict_whole                                  | 0.0137 asm ff_put_h264_qpel16_h_lowpass_l2_ssse3
+  0.0092 inter.rs coreav_h264::inter::edge_window                | 0.0109 asm ff_prefetch_mmxext
+  0.0075 inter.rs inter_pred                                     | 0.0090 asm put_pixels16_after_prologue
+  0.0055 inter.rs motion_compensate                              | 0.0088 asm ff_put_h264_qpel8or16_hv1_lowpass_op_sse2
+  0.0047 K predict_whole                                         | 0.0087 h264_mc_template.c mc_part_420_simple_8
+  0.0044 K chroma_mc                                             | 0.0070 h264_mc_template.c hl_motion_420_simple_8
+  0.0032 K Average>                                              | 0.0065 asm ff_h264_weight_16_sse2
+  0.0012 inter.rs predict_list_any                               | 0.0064 asm ff_put_h264_qpel8_h_lowpass_l2_ssse3
+  0.0012 inter.rs predict_list<coreav_kernels_h264::Auto>        | 0.0058 asm ff_put_h264_chroma_mc4_ssse3
+== 720p inter: CoreAV 0.202 FFmpeg 0.154
+  0.0725 K luma_block                                            | 0.0224 asm ff_put_h264_chroma_mc8_rnd_ssse3
+  0.0466 K Auto>                                                 | 0.0153 asm ff_put_h264_qpel16_h_lowpass_l2_ssse3
+  0.0336 K chroma_block                                          | 0.0150 h264_mb.c mc_dir_part
+  0.0170 inter.rs predict_whole                                  | 0.0146 asm ff_put_h264_qpel8or16_v_lowpass_sse2
+  0.0068 K start_mb                                              | 0.0125 asm put_pixels16_after_prologue
+  0.0064 inter.rs inter_pred                                     | 0.0113 asm ff_prefetch_mmxext
+  0.0043 K predict_whole                                         | 0.0070 h264_mc_template.c mc_part_420_simple_8
+  0.0034 inter.rs motion_compensate                              | 0.0052 asm ff_put_h264_qpel8or16_hv1_lowpass_op_sse2
+  0.0028 inter.rs coreav_h264::inter::edge_window                | 0.0049 asm ff_h264_weight_16_sse2
+  0.0018 K luma_mc                                               | 0.0044 h264_mc_template.c hl_motion_420_simple_8
+  0.0015 K Average>                                              | 0.0043 asm ff_h264_biweight_16_ssse3
+  0.0014 K chroma_mc                                             | 0.0039 asm ff_put_h264_qpel16_hv2_lowpass_ssse3
+== 1080p inter: CoreAV 0.216 FFmpeg 0.158
+  0.0804 K luma_block                                            | 0.0180 asm ff_put_h264_chroma_mc8_rnd_ssse3
+  0.0525 K Auto>                                                 | 0.0162 h264_mb.c mc_dir_part
+  0.0387 K chroma_block                                          | 0.0148 asm ff_put_h264_qpel16_h_lowpass_l2_ssse3
+  0.0104 inter.rs predict_whole                                  | 0.0121 asm ff_put_h264_qpel8or16_v_lowpass_sse2
+  0.0087 K start_mb                                              | 0.0118 asm ff_prefetch_mmxext
+  0.0078 inter.rs inter_pred                                     | 0.0101 asm put_pixels16_after_prologue
+  0.0045 K predict_whole                                         | 0.0092 asm ff_put_h264_qpel8or16_hv1_lowpass_op_sse2
+  0.0037 inter.rs motion_compensate                              | 0.0079 h264_mc_template.c mc_part_420_simple_8
+  0.0028 inter.rs coreav_h264::inter::edge_window                | 0.0064 asm ff_put_h264_qpel8_h_lowpass_l2_ssse3
+  0.0018 K luma_mc                                               | 0.0049 asm ff_put_h264_qpel16_hv2_lowpass_ssse3
+  0.0012 K {closure#6}                                           | 0.0047 h264_mc_template.c hl_motion_420_simple_8
+  0.0010 K chroma_mc                                             | 0.0046 asm ff_avg_h264_chroma_mc8_rnd_ssse3
+== 4k inter: CoreAV 0.371 FFmpeg 0.242
+  0.1283 K luma_block                                            | 0.0382 h264_mb.c mc_dir_part
+  0.1096 K Auto>                                                 | 0.0344 asm ff_put_h264_chroma_mc8_rnd_ssse3
+  0.0599 K chroma_block                                          | 0.0330 asm put_pixels16_after_prologue
+  0.0214 K start_mb                                              | 0.0227 h264_mc_template.c mc_part_420_simple_8
+  0.0171 inter.rs predict_whole                                  | 0.0207 asm ff_prefetch_mmxext
+  0.0108 inter.rs inter_pred                                     | 0.0104 h264_mb.c mc_part_std
+  0.0088 K predict_whole                                         | 0.0103 h264_mb.c prefetch_motion
+  0.0072 inter.rs motion_compensate                              | 0.0096 asm ff_put_h264_qpel16_h_lowpass_l2_ssse3
+  0.0023 inter.rs coreav_h264::inter::edge_window                | 0.0073 asm ff_put_h264_qpel8or16_v_lowpass_sse2
+  0.0022 inter.rs predict_list<coreav_kernels_h264::Auto>        | 0.0070 h264_mc_template.c hl_motion_420_simple_8
+  0.0011 K luma_mc                                               | 0.0070 asm ff_put_h264_qpel8or16_hv1_lowpass_op_sse2
+  0.0008 K Average>                                              | 0.0064 asm ff_avg_h264_chroma_mc8_rnd_ssse3

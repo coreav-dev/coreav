@@ -1,0 +1,728 @@
+[
+ {
+  "sha256": "00de70872ff1a518d24171f3c783a14bc95aeb90ae2c90290ceaf30b118a2af9",
+  "ext": "mov",
+  "size": 38860325,
+  "class": "iso",
+  "refused": "{\"kind\":\"invalid_structure\",\"limit\":null,\"message\":\"invalid 'moov' box at offset 0: missing movie header\",\"offset\":0,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "0119957558a276115f3af88175fd89f10345ab8f9c4aa6b23c361671fafaf805",
+  "ext": "mp4",
+  "size": 201477294,
+  "class": "iso",
+  "ns": {
+   "ours": 4276073068,
+   "theirs": 4543816542
+  }
+ },
+ {
+  "sha256": "016ab71f2d04bf7e3d4bed9db40c8dc1f967578898acd3c9802af4624d15e97b",
+  "ext": "mp4",
+  "size": 90548984,
+  "class": "iso",
+  "ns": {
+   "ours": 1938326658,
+   "theirs": 2728422044
+  }
+ },
+ {
+  "sha256": "02f2c37a7ad9faf03cf565299274efbb69f50684fc73d744eecd17acd0167b03",
+  "ext": "mp4",
+  "size": 5209376,
+  "class": "iso",
+  "ns": {
+   "ours": 373178326,
+   "theirs": 441729396
+  }
+ },
+ {
+  "sha256": "04b7b4fb3b3797c81c121b0bf02f1e578dc24912582cb6d24b8bed2928bf856f",
+  "ext": "mp4",
+  "size": 12762,
+  "class": "iso",
+  "ns": {
+   "ours": 301513586,
+   "theirs": 727252095
+  }
+ },
+ {
+  "sha256": "0538fb0951faa30ed690ddb625fe9404bf6e80275ec520bde176f2e0239e6537",
+  "ext": "mp4",
+  "size": 16139589,
+  "class": "iso",
+  "ns": {
+   "ours": 628629385,
+   "theirs": 707021746
+  }
+ },
+ {
+  "sha256": "057ee81be8c845e5c8321677bd3fc304af8e26894cc8f0076e937968c31f5615",
+  "ext": "mov",
+  "size": 75301888,
+  "class": "iso",
+  "ns": {
+   "ours": 1869915013,
+   "theirs": 2986544689
+  }
+ },
+ {
+  "sha256": "065b0fa2931f1f2d4725fa632d13542172fff19a83078469116eae6aa5a87b25",
+  "ext": "mp4",
+  "size": 35029117,
+  "class": "iso",
+  "ns": {
+   "ours": 1057889059,
+   "theirs": 1381133335
+  }
+ },
+ {
+  "sha256": "096d9e707920c8424d8383984c40b9f3b35a12365bbd7f54c35fe2bb92a485b1",
+  "ext": "mp4",
+  "size": 2280184,
+  "class": "iso",
+  "ns": {
+   "ours": 315116708,
+   "theirs": 403450719
+  }
+ },
+ {
+  "sha256": "09a07d37fd0963a21d6ad7c3531ea011b1cc1327d4e569a92a1a9141c389dbd9",
+  "ext": "mp4",
+  "size": 208926392,
+  "class": "iso",
+  "ns": {
+   "ours": 3307615665,
+   "theirs": 3650549783
+  }
+ },
+ {
+  "sha256": "09febe430bb4b10251fa93b6bd05b0e64974019cf12ce450225a82cac0e3517c",
+  "ext": "mp4",
+  "size": 407979,
+  "class": "iso",
+  "ns": {
+   "ours": 297223774,
+   "theirs": 1099603254
+  }
+ },
+ {
+  "sha256": "0a65884fdefdebe0a8cb7c1d188635f8d5bf4b15e00d430628b1aa94d557cef3",
+  "ext": "mp4",
+  "size": 29370,
+  "class": "iso",
+  "ns": {
+   "ours": 319144215,
+   "theirs": 664883693
+  }
+ },
+ {
+  "sha256": "0c09c76072802293960c5f2d5ea2116cca1192000c3fc0b433aa9904cb23e90f",
+  "ext": "mp4",
+  "size": 119913364,
+  "class": "iso",
+  "ns": {
+   "ours": 2429151080,
+   "theirs": 4613465441
+  }
+ },
+ {
+  "sha256": "0ced42322c655b47b4727508850d88ad8a69e9051647b38a699c047998ca6e08",
+  "ext": "mp4",
+  "size": 1969241,
+  "class": "iso",
+  "ns": {
+   "ours": 286199894,
+   "theirs": 1064281220
+  }
+ },
+ {
+  "sha256": "0d8e77ef7d452500f63f2be49a6d28eb8ad2594d8497cae47494b19e8aa59cf8",
+  "ext": "mp4",
+  "size": 427176,
+  "class": "iso",
+  "ns": {
+   "ours": 284990832,
+   "theirs": 339617530
+  }
+ },
+ {
+  "sha256": "0df9dd6969abdb8cd5e1df1015f23817408fc98dbb26aba6c21d91e5ea0bc9ca",
+  "ext": "mp4",
+  "size": 1032498,
+  "class": "iso",
+  "ns": {
+   "ours": 280386679,
+   "theirs": 362375408
+  }
+ },
+ {
+  "sha256": "108521a89a7345637ec07067edf8cded82d3d55d95697cfc65ec0eca2d301ab4",
+  "ext": "mp4",
+  "size": 3879911,
+  "class": "iso",
+  "ns": {
+   "ours": 323940201,
+   "theirs": 1069283265
+  }
+ },
+ {
+  "sha256": "1115b5bac7c25e1c3277f86bfa80c441a9e26f74b2b923f53ae01c0788892f18",
+  "ext": "mp4",
+  "size": 508868,
+  "class": "iso",
+  "ns": {
+   "ours": 326046225,
+   "theirs": 1022289192
+  }
+ },
+ {
+  "sha256": "12b4221859532842b90e0de4e54c9ef930e122c005fd28a889d6da58c56e3a6f",
+  "ext": "mp4",
+  "size": 2375790,
+  "class": "iso",
+  "ns": {
+   "ours": 348508775,
+   "theirs": 1028068474
+  }
+ },
+ {
+  "sha256": "12c0953f433a36ff6657228a8edb421b9dfee8062ff2f314c08167105c48f7bc",
+  "ext": "m4a",
+  "size": 933331,
+  "class": "iso",
+  "ns": {
+   "ours": 276722373,
+   "theirs": 370442834
+  }
+ },
+ {
+  "sha256": "13cf128006da7d55a85cabe8ec86d59a06614abee80f5ebb753a44a818d44db3",
+  "ext": "mp4",
+  "size": 109441265,
+  "class": "iso",
+  "ns": {
+   "ours": 1855362860,
+   "theirs": 2605863007
+  }
+ },
+ {
+  "sha256": "146662b2307cb96811d9e3025c036a9e5186f152b6b1889ca61e14eb3684e49f",
+  "ext": "m4a",
+  "size": 1051602,
+  "class": "iso",
+  "ns": {
+   "ours": 286244310,
+   "theirs": 350774983
+  }
+ },
+ {
+  "sha256": "15affcdb19e3f12cab92733a3a4edc817e93ad68c9e760bba69ef2b353f30af6",
+  "ext": "mp4",
+  "size": 126850059,
+  "class": "iso",
+  "ns": {
+   "ours": 3347906743,
+   "theirs": 2115152416
+  }
+ },
+ {
+  "sha256": "19d5a3aef3db7c60fd8148bcc4295929e56d7eeb9c2039ee6f2314f56b2bc990",
+  "ext": "mp4",
+  "size": 8021639,
+  "class": "iso",
+  "ns": {
+   "ours": 369269685,
+   "theirs": 1116626659
+  }
+ },
+ {
+  "sha256": "1b450d90085d977259b9e87edae9a6c00afba8981268b729dd2e5fb802897706",
+  "ext": "mov",
+  "size": 63815698,
+  "class": "iso",
+  "ns": {
+   "ours": 1462453271,
+   "theirs": 1396063283
+  }
+ },
+ {
+  "sha256": "1ce3933e3009bf2e9426121996f67ecc3379141bf2f392b37ac443276c55a154",
+  "ext": "mp4",
+  "size": 70292915,
+  "class": "iso",
+  "ns": {
+   "ours": 1351673772,
+   "theirs": 2250202329
+  }
+ },
+ {
+  "sha256": "1ced309b3617c62e64e5a9ce1bd93827ab53704fe57080492e5f5ffeaf9169e7",
+  "ext": "mp4",
+  "size": 110568798,
+  "class": "iso",
+  "ns": {
+   "ours": 2164739577,
+   "theirs": 3048996781
+  }
+ },
+ {
+  "sha256": "1df1e32ed6a5a8cefe52d15442b3465934bdfcf41356f7874184e2cd939cf7b2",
+  "ext": "mov",
+  "size": 178465188,
+  "class": "iso",
+  "refused": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"unsupported: PCM audio is not copied to MP4\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "1fc969989fcdee6e5073012d2d7f8d1af15e15a755f6d4e411ed6bdd7d04084d",
+  "ext": "mp4",
+  "size": 796511,
+  "class": "iso",
+  "ns": {
+   "ours": 291264534,
+   "theirs": 373529135
+  }
+ },
+ {
+  "sha256": "206a65347de430d068418d00b6e958db2004a6f96e439275e1a96c512a8c6b7f",
+  "ext": "mp4",
+  "size": 2574548,
+  "class": "iso",
+  "ns": {
+   "ours": 309349854,
+   "theirs": 1087478105
+  }
+ },
+ {
+  "sha256": "220e29e8557e4023bd38ea992b8e40a4602b8b6bbf6aa770b84aefdcc4b82ce0",
+  "ext": "mp4",
+  "size": 1934049,
+  "class": "iso",
+  "ns": {
+   "ours": 324074395,
+   "theirs": 776278703
+  }
+ },
+ {
+  "sha256": "24e19189ff25e376bc5ba1169f09a91f8e9ed1b895e515ceaa90196eddd5a640",
+  "ext": "m4a",
+  "size": 1027688,
+  "class": "iso",
+  "ns": {
+   "ours": 326417053,
+   "theirs": 397162773
+  }
+ },
+ {
+  "sha256": "03e890cf59993e3be2ec013cb92a1ee2833778dbd0fa67c0f9967e411597f599",
+  "ext": "webm",
+  "size": 2780850,
+  "class": "matroska",
+  "ns": {
+   "ours": 341098441,
+   "theirs": 370848411
+  }
+ },
+ {
+  "sha256": "04a7da97aeecd99a3f8fd9a8e5b16caa054a661f185fc36e812f217d04d1c6af",
+  "ext": "webm",
+  "size": 6121383,
+  "class": "matroska",
+  "refused": ":\"unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, Firefox and Safari, or re-encode to VP9, H.264 or AV1 outside CoreAV\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "0591ba9fb558745ea282ad37e36186dbfcc1ce4ba4029f56e16585aa57fa3ac1",
+  "ext": "webm",
+  "size": 25881925,
+  "class": "matroska",
+  "refused": ":\"unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, Firefox and Safari, or re-encode to VP9, H.264 or AV1 outside CoreAV\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "0647ff86bb8c6a3608d67e4751015a5aca8fbc95966493f788b449e15898fcab",
+  "ext": "mkv",
+  "size": 3459115,
+  "class": "matroska",
+  "ns": {
+   "ours": 344633481,
+   "theirs": 516025815
+  }
+ },
+ {
+  "sha256": "0d677d9c1b57fd7d6f8eb019235e685f82f78f9d49b5b52428e86ae305647377",
+  "ext": "webm",
+  "size": 5657149,
+  "class": "matroska",
+  "refused": ":\"unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, Firefox and Safari, or re-encode to VP9, H.264 or AV1 outside CoreAV\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "16117de9347fb851a53726d1d50598e3089e5aa772563523b60621045e8a3d97",
+  "ext": "webm",
+  "size": 7546013,
+  "class": "matroska",
+  "refused": ":\"unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, Firefox and Safari, or re-encode to VP9, H.264 or AV1 outside CoreAV\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "17722a386ab16fb48ddf7bc1df71f7f71dcf80a472f6f7931e18d40dc14c3b09",
+  "ext": "webm",
+  "size": 16623659,
+  "class": "matroska",
+  "refused": ":\"unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, Firefox and Safari, or re-encode to VP9, H.264 or AV1 outside CoreAV\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "196be1af7d6267ab79fb49f4f535383c4d59f3d068b9d063d33cb056d806063b",
+  "ext": "webm",
+  "size": 123634741,
+  "class": "matroska",
+  "ns": {
+   "ours": 3675621960,
+   "theirs": 2161682549
+  }
+ },
+ {
+  "sha256": "1e7dbdd9da1a4ae03526c179d70c7ef4db1baacd248360cdb643b7a9cf27a651",
+  "ext": "mkv",
+  "size": 3717998,
+  "class": "matroska",
+  "ns": {
+   "ours": 339049813,
+   "theirs": 395884862
+  }
+ },
+ {
+  "sha256": "2c5976ae305ea325f60ef1ba71b112ea22b65f558005eaddb0e251af936be3fd",
+  "ext": "webm",
+  "size": 5589184,
+  "class": "matroska",
+  "refused": ":\"unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, Firefox and Safari, or re-encode to VP9, H.264 or AV1 outside CoreAV\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "2fa8c6f6e2665334401512afff206a443210b9336a05b5d547549f6d95c387a7",
+  "ext": "webm",
+  "size": 9921292,
+  "class": "matroska",
+  "ns": {
+   "ours": 698555897,
+   "theirs": 428306750
+  }
+ },
+ {
+  "sha256": "34616c4782c0a78f4bc4f418d885a799b80c3e4fa1fb9fee5a6e6051fee126d4",
+  "ext": "webm",
+  "size": 6029292,
+  "class": "matroska",
+  "ns": {
+   "ours": 326907833,
+   "theirs": 496122117
+  }
+ },
+ {
+  "sha256": "357fb30f4693efc07943cb5f57bf912f104ae5b81e7e64c09b73b99379eae017",
+  "ext": "webm",
+  "size": 199172017,
+  "class": "matroska",
+  "ns": {
+   "ours": 6114370247,
+   "theirs": 6483726202
+  }
+ },
+ {
+  "sha256": "4389ba53bb9bb1820466526452f6f05a0c3df14b71b89d26c5d1ff48ea6159a0",
+  "ext": "webm",
+  "size": 137389508,
+  "class": "matroska",
+  "refused": ":\"unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, Firefox and Safari, or re-encode to VP9, H.264 or AV1 outside CoreAV\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "47cb9b34f42c5d2fbe76b274fcc8f01e3d3c6ce01b68523d26b6e146c3bbccda",
+  "ext": "webm",
+  "size": 9104457,
+  "class": "matroska",
+  "ns": {
+   "ours": 425698494,
+   "theirs": 479913400
+  }
+ },
+ {
+  "sha256": "4b23afae9445460fe7b7f3de166198edb3b1f8c37aeb810cd81f801898c940ba",
+  "ext": "webm",
+  "size": 24323732,
+  "class": "matroska",
+  "ns": {
+   "ours": 1009852618,
+   "theirs": 801479027
+  }
+ },
+ {
+  "sha256": "584a16b906bb6e7f4142f9cfc91a7f5dd786b8273a15a1adacb03aa7993440ff",
+  "ext": "mkv",
+  "size": 500806,
+  "class": "matroska",
+  "ns": {
+   "ours": 299543066,
+   "theirs": 371260036
+  }
+ },
+ {
+  "sha256": "595cc7a8339410f4b90d7589402ba1e59f1a3e84966b4eb10cacc47a42d9c697",
+  "ext": "webm",
+  "size": 2957787,
+  "class": "matroska",
+  "refused": ":\"unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, Firefox and Safari, or re-encode to VP9, H.264 or AV1 outside CoreAV\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "59ad8ee403b369a1cd0e4602d2a2f084abbf1ebae648ecc397db11b728d12e08",
+  "ext": "webm",
+  "size": 105374,
+  "class": "matroska",
+  "ns": {
+   "ours": 274873435,
+   "theirs": 342060095
+  }
+ },
+ {
+  "sha256": "5d9bec208875442a84550d1c488bd7d9ac69add47f80aaf44c274f758fac991d",
+  "ext": "webm",
+  "size": 5055484,
+  "class": "matroska",
+  "ns": {
+   "ours": 406036559,
+   "theirs": 436107713
+  }
+ },
+ {
+  "sha256": "5e84a05f8ee4107290e07bf38a05c44f524bb3cd0e768bd2d7a237fa7e5101f0",
+  "ext": "webm",
+  "size": 307406,
+  "class": "matroska",
+  "ns": {
+   "ours": 315145856,
+   "theirs": 343381937
+  }
+ },
+ {
+  "sha256": "5f9e2df6851b861ffb68d7980ba493c9b9d2d4817b16936ca70e62758ca48e20",
+  "ext": "webm",
+  "size": 9454390,
+  "class": "matroska",
+  "refused": ":\"unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, Firefox and Safari, or re-encode to VP9, H.264 or AV1 outside CoreAV\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "602e617d552933c71bb71030edbda487b204d9afed360c64d624a3b5ec51707f",
+  "ext": "webm",
+  "size": 6824377,
+  "class": "matroska",
+  "refused": ":\"unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, Firefox and Safari, or re-encode to VP9, H.264 or AV1 outside CoreAV\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "70eec00bc7d29be5a44a93fbd563a72e3b24a2dd32ace474a504799414de3225",
+  "ext": "webm",
+  "size": 4216934,
+  "class": "matroska",
+  "ns": {
+   "ours": 407064278,
+   "theirs": 408876849
+  }
+ },
+ {
+  "sha256": "71bd76ad3a874b106a2d80114b73d47aa6cb04037c8fe02d866be7b7d8f03fbb",
+  "ext": "webm",
+  "size": 1892327,
+  "class": "matroska",
+  "refused": ":\"unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, Firefox and Safari, or re-encode to VP9, H.264 or AV1 outside CoreAV\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "7593d867aafd0e2e446179bbc2047116b74ee70b77a6fbc54dd3d95946858714",
+  "ext": "webm",
+  "size": 826472,
+  "class": "matroska",
+  "refused": ":\"unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, Firefox and Safari, or re-encode to VP9, H.264 or AV1 outside CoreAV\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "7926a7aaff4da0c300f837dec82f18ffdbc54ae1b0034b511bccdf82f55c9530",
+  "ext": "webm",
+  "size": 2402821,
+  "class": "matroska",
+  "ns": {
+   "ours": 316076288,
+   "theirs": 479032799
+  }
+ },
+ {
+  "sha256": "7bd8ff2f7abb8fa3b64ec88c909b00450c29dd36203770467725d2b2fda82576",
+  "ext": "webm",
+  "size": 1326583,
+  "class": "matroska",
+  "ns": {
+   "ours": 312950798,
+   "theirs": 384383452
+  }
+ },
+ {
+  "sha256": "7e0aa6fa5cb62ed4c0c13aa1c9b18e1c0467b69d1ed5655d8415d0ff3ec0f8f1",
+  "ext": "webm",
+  "size": 89291141,
+  "class": "matroska",
+  "ns": {
+   "ours": 2608004227,
+   "theirs": 1670480708
+  }
+ },
+ {
+  "sha256": "8b0ab38d0e21cb46b2b24713a12b4edb4d955cdaea3d2be44f9d2b9763dee45e",
+  "ext": "webm",
+  "size": 75715618,
+  "class": "matroska",
+  "ns": {
+   "ours": 2693018957,
+   "theirs": 2697654937
+  }
+ },
+ {
+  "sha256": "96b0669b1a66721824707bd8d67605db0c9bd4f3d8ebcd06e44945165842aaf7",
+  "ext": "webm",
+  "size": 30894608,
+  "class": "matroska",
+  "ns": {
+   "ours": 964975776,
+   "theirs": 881933492
+  }
+ },
+ {
+  "sha256": "9af8b16fd0459022276d99fffc19ce7dde0e54af80f49bd0a51d3050c60c2f42",
+  "ext": "webm",
+  "size": 92597134,
+  "class": "matroska",
+  "ns": {
+   "ours": 2212706611,
+   "theirs": 2263752599
+  }
+ },
+ {
+  "sha256": "9f4dfff5cbff8e8d6d2c45e0e8765d4344a1b554b999f8ed1d8b2aa4f9e383b4",
+  "ext": "webm",
+  "size": 2955650,
+  "class": "matroska",
+  "ns": {
+   "ours": 307418119,
+   "theirs": 402762246
+  }
+ },
+ {
+  "sha256": "a084bd45168cdcfc2669340caa638118af76d90400b923c83efe9fe42df1ac0b",
+  "ext": "webm",
+  "size": 365123,
+  "class": "matroska",
+  "ns": {
+   "ours": 314392758,
+   "theirs": 394418793
+  }
+ },
+ {
+  "sha256": "a1001428921f5f1d2b7f4547590ce4ca8f8b4dfe27a9a8659e54b49078213361",
+  "ext": "webm",
+  "size": 4150883,
+  "class": "matroska",
+  "refused": ":\"unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, Firefox and Safari, or re-encode to VP9, H.264 or AV1 outside CoreAV\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "a1eaf50f116b3a39bac449fdc8361078a9c00551c0b6c176f9a5c47373eec95a",
+  "ext": "webm",
+  "size": 4819668,
+  "class": "matroska",
+  "ns": {
+   "ours": 363001279,
+   "theirs": 581600280
+  }
+ },
+ {
+  "sha256": "a58a8a1aecdbdf1a4ff424bdb7d496adbcc03347906fe8095d282391bd70074e",
+  "ext": "webm",
+  "size": 11912870,
+  "class": "matroska",
+  "refused": ":\"unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, Firefox and Safari, or re-encode to VP9, H.264 or AV1 outside CoreAV\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "a7121daf691fdd6b954e222e3898583ab5a12e177b4ffe76d96899dbbf90f729",
+  "ext": "webm",
+  "size": 48742945,
+  "class": "matroska",
+  "ns": {
+   "ours": 1546788480,
+   "theirs": 1057001216
+  }
+ },
+ {
+  "sha256": "a8c6bfbfcb6656f0606c551382ef7ecd819a6ee4d4b253610d401229d73bb49f",
+  "ext": "webm",
+  "size": 36014518,
+  "class": "matroska",
+  "ns": {
+   "ours": 1438392649,
+   "theirs": 1160590245
+  }
+ },
+ {
+  "sha256": "ac89d7a2fcb201d8ca70ed3658cdd3a8d7e7959e69297629969b5d56751d0cea",
+  "ext": "webm",
+  "size": 3089257,
+  "class": "matroska",
+  "ns": {
+   "ours": 312776576,
+   "theirs": 395191277
+  }
+ },
+ {
+  "sha256": "b267a2ddac45b26d329f13b78b293976543bbb29c749c3656c0c0f27e6618445",
+  "ext": "webm",
+  "size": 3004191,
+  "class": "matroska",
+  "ns": {
+   "ours": 337126103,
+   "theirs": 374672341
+  }
+ },
+ {
+  "sha256": "b361c03c6ec916f9a67f50da7517b8a3998191ccdba264b63ff440692260a463",
+  "ext": "webm",
+  "size": 134029379,
+  "class": "matroska",
+  "ns": {
+   "ours": 2601716245,
+   "theirs": 1884935168
+  }
+ },
+ {
+  "sha256": "b368942ade78b7b07ed738843ccbf62b94d37637aaba207e0084af447afb87fa",
+  "ext": "webm",
+  "size": 13249414,
+  "class": "matroska",
+  "refused": ":\"unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, Firefox and Safari, or re-encode to VP9, H.264 or AV1 outside CoreAV\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "b562a247eacdde12e93420bfe2fe158b262ad09c8438d1d9a966acacac69ad98",
+  "ext": "webm",
+  "size": 42631186,
+  "class": "matroska",
+  "refused": ":\"unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, Firefox and Safari, or re-encode to VP9, H.264 or AV1 outside CoreAV\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "bb5d39d47357846042a8c1a1890dc3a9c01c879068dde7f7b1833070984af657",
+  "ext": "webm",
+  "size": 439825,
+  "class": "matroska",
+  "ns": {
+   "ours": 401675010,
+   "theirs": 514854116
+  }
+ },
+ {
+  "sha256": "c2819315cc2ea4810741576b7cf1044fb02d0fce5d54631eaff1d645e1113b25",
+  "ext": "webm",
+  "size": 66116460,
+  "class": "matroska",
+  "ns": {
+   "ours": 2188403492,
+   "theirs": 3219398782
+  }
+ }
+]

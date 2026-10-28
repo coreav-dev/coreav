@@ -1,0 +1,21 @@
+[package]
+name = "coreav-ts-adapter"
+description = "Test-only oracle adapter for coreav-mpegts; never published"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[[bin]]
+name = "ts-adapter"
+path = "src/main.rs"
+
+[dependencies]
+coreav-mpegts = { path = "../../crates/coreav-mpegts" }
+coreav-isobmff = { path = "../../crates/coreav-isobmff" }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

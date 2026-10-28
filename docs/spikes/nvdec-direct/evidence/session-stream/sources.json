@@ -1,0 +1,35 @@
+{
+  "implementation_sources": "public ITU H.264 and NVIDIA API specifications only",
+  "cuda_primary_context_spec": "https://docs.nvidia.com/cuda/cuda-driver-api/group__CUDA__PRIMARY__CTX.html",
+  "nvdec_api_spec": "https://docs.nvidia.com/video-technologies/video-codec-sdk/13.0/nvdec-video-decoder-api-prog-guide/index.html",
+  "source_sha256": {
+    "Cargo.lock": "5675af415ba9f1f3eeb74a110da5bb25f5274f28fb7d54f92d63d0d6c2b170c0",
+    "Cargo.toml": "c70aaae3eebc533de032211164b925d9eb8aef18a535f5c58f2a2e653fd2b7de",
+    "build.rs": "601cb9051952555ea6a6bc191da0c412a7244cbb327bb9fdaf3ddac6c127e864",
+    "compile_rgb.py": "0d111d2bc2d7b036e057728f80564ad0ea3602cb022edde6c35904354ccb33ab",
+    "experiment.py": "253938c4da76b884e7eece8ff3a45bfd8f6f26ab506228a8d94bf6c5a35c01e2",
+    "remote_app.py": "5934eb5899e7e2ab087e98a68eb13c680b55fe99ca9f351b59b3ae8b0ca289d8",
+    "prepare-conformance.py": "fe6f95d095976b0f97b441cca4ccef8fde1ad2b241313f1075074cd81f43d97b",
+    "result_checks.py": "869980cf1aec88c60e80e0cb9e663b8002bcf3171f9e9323720bf5970dd91ac2",
+    "rgb.cu": "6c653efa241377c310460d67fd02a1c2d0c5a08e63550b9fc4b347246afbf7ca",
+    "sdk/cuda.h": "2bd07feea5d9677015f8c6688c283e45df58a8ee3ad6af3612cc44b03a6aad6e",
+    "sdk/cuviddec.h": "08db0887916a1044c9267a0726d83b9d565e3e32667bb68525e329455a9ddec4",
+    "src/dpb.rs": "b5088503cacb3111d114ac590e882b9d84f34cc5185a8daea9a819e07d3db25f",
+    "src/h264.rs": "e5d4f8b4937be8a3badb75901d14f330d6f91b68759a7e3fe16969d096ae2256",
+    "src/lib.rs": "68ce2e21a1d17cad59a35f127dee3a31dcc98275eae9ff8cbde61a38cff46417",
+    "src/main.rs": "1aad17c18ec5f04eef6130aa5ecb84d276d3441ddbce3239b6da8bb7fa35b54e",
+    "src/nvdec.rs": "394a3ee41863d0378b4bf02c8be1f3ef26e8f49841a2d09f7b993dd2b85cec17",
+    "src/shm.rs": "5fcad3ae09aedc6be34c3464e7d9c0b40b9dc890886081be12321f3a6de80035",
+    "src/stream.rs": "1dd4264a48978bd4395ebb37d51ff6e3700ef03a6888c0d0291116689d2121ee",
+    "src/transfer.rs": "2e9a7cba48c1b7ad17dca53a1c7a84e1f5dce92f9ca9b86bf0ada851a33c14b1",
+    "summarize.py": "d87229a0f556575d19d125050fd60d1000e98a462b03970725cf2f1a3b495857",
+    "torch_rgb.py": "9b34e0dc4bcf16267c2e0df2c8e6e051b328a2fb836e212d7d4726d4bb946310",
+    "verify-local.py": "9752256da9e5d44a89c465a726defa564f00f8c1aa13c0116e4ebd147ed1a009"
+  },
+  "binary_sha256": "72c2003fc573e8e0bdb1d2fd6f881d131a93398f935d6728973e946ff55f8c5c",
+  "snapshot_scope": "Source hashes captured before the L4 call. Postprocessing hashes identify the final summary/evidence verifier; runtime source hashes are unchanged.",
+  "postprocessing_source_sha256": {
+    "summarize.py": "92ff68ceee4f170eaec3b5dc15f461b11ba9423077017d6e9002396176d0dec6",
+    "verify-local.py": "b6276ac3c6f6b18db9764c83be53fab833784e1f783da5fe59d861ba0236ef1b"
+  }
+}

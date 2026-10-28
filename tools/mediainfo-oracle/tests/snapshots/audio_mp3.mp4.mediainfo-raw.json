@@ -1,0 +1,30 @@
+{
+ "creatingLibrary": {
+  "name": "MediaInfoLib",
+  "version": "26.10",
+  "url": "https://mediaarea.net/MediaInfo"
+ },
+ "media": {
+  "@ref": "audio_mp3.mp4",
+  "track": [
+   {
+    "@type": "General",
+    "Format": "MPEG-4",
+    "Format_Profile": "Base Media",
+    "CodecID": "isom",
+    "Duration": "2.000"
+   },
+   {
+    "@type": "Audio",
+    "StreamOrder": "0",
+    "Format": "MPEG Audio",
+    "Format_Profile": "Layer 3",
+    "CodecID": "mp4a-6B",
+    "Duration": "2.000",
+    "Source_Duration": "2.023",
+    "Channels": "1",
+    "SamplingRate": "48000"
+   }
+  ]
+ }
+}

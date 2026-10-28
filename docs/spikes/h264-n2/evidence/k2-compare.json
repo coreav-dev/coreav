@@ -1,0 +1,17 @@
+{
+ "n1_streams": 1125,
+ "same_outcome": 1125,
+ "changed": [],
+ "n1_status_counts": {
+  "oracle_error": 11,
+  "agree": 933,
+  "extract_failed": 41,
+  "out_of_scope": 127,
+  "disagree": 13
+ },
+ "streams_only_in_k2": [],
+ "agree_n1": 933,
+ "agree_k2": 933,
+ "disagree_n1": 13,
+ "disagree_k2": 13
+}

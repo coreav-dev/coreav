@@ -1,0 +1,2 @@
+tree 9107a80 (code of k, 04f26d6), detected kernels, 1, 2 and 8 threads: 97 of 97 passed, 0 failed
+tree 9107a80 (code of k, 04f26d6), scalar kernels, 1 thread: 97 of 97 passed, 0 failed

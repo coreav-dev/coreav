@@ -1,0 +1,18 @@
+   Compiling zmij v1.0.23
+   Compiling serde_core v1.0.229
+   Compiling serde_json v1.0.154
+   Compiling itoa v1.0.18
+   Compiling memchr v2.8.3
+   Compiling coreav-kernels-h264 v0.0.1 ($HOME/ab/pgo/w/src/crates/coreav-kernels-h264)
+   Compiling coreav-h264 v0.0.1 ($HOME/ab/pgo/w/src/crates/coreav-h264)
+    Finished `dist` profile [optimized] target(s) in 15.05s
+   Compiling serde_core v1.0.229
+   Compiling zmij v1.0.23
+   Compiling serde_json v1.0.154
+   Compiling coreav-kernels-h264 v0.0.1 ($HOME/ab/pgo/w/src/crates/coreav-kernels-h264)
+   Compiling itoa v1.0.18
+   Compiling memchr v2.8.3
+   Compiling coreav-h264 v0.0.1 ($HOME/ab/pgo/w/src/crates/coreav-h264)
+    Finished `dist` profile [optimized] target(s) in 15.69s
+$HOME/ab/pgo/w/decode-after-safe: 97 streams profiled, $HOME/ab/pgo/w/pgo/safe.profdata
+-rw-rw-r-- 1 $USER $USER 330736 Oct 25 18:18 $HOME/ab/pgo/w/pgo/safe.profdata

@@ -1,0 +1,2797 @@
+{
+ "schema": "coreav-mediainfo/three-way/1",
+ "gating": false,
+ "summary": {
+  "files": 38,
+  "probe_outcomes": {
+   "coreav fail, ffprobe ok, mediainfo ok": 3,
+   "coreav ok, ffprobe ok, mediainfo ok": 35
+  },
+  "mediainfo_failures": {},
+  "coreav_rejects_ffprobe_reads": {
+   "files": 3,
+   "mediainfo_flags_truncated": 1,
+   "mediainfo_flags_conformance_errors": 1,
+   "mediainfo_fails": 0
+  },
+  "files_with_mediainfo_unpaired_tracks": 0,
+  "triage": {
+   "probe_ok": {
+    "coreav-alone": 3
+   },
+   "stream_count": {},
+   "format_duration": {
+    "ffprobe-alone": 2
+   },
+   "kind": {},
+   "codec_fourcc": {},
+   "codec_name": {},
+   "width": {},
+   "height": {},
+   "rotation": {},
+   "duration": {
+    "ffprobe-alone": 1
+   },
+   "color_primaries": {},
+   "color_transfer": {},
+   "color_matrix": {},
+   "color_range": {}
+  },
+  "by_field": {
+   "probe_ok": {
+    "gating": true,
+    "all-agree": 35,
+    "coreav-alone": 3,
+    "ffprobe-alone": 0,
+    "mediainfo-alone": 0,
+    "mediainfo-between": 0,
+    "mediainfo-split": 0,
+    "all-differ": 0,
+    "not-comparable": 0
+   },
+   "stream_count": {
+    "gating": true,
+    "all-agree": 35,
+    "coreav-alone": 0,
+    "ffprobe-alone": 0,
+    "mediainfo-alone": 0,
+    "mediainfo-between": 0,
+    "mediainfo-split": 0,
+    "all-differ": 0,
+    "not-comparable": 3
+   },
+   "format_duration": {
+    "gating": true,
+    "all-agree": 33,
+    "coreav-alone": 0,
+    "ffprobe-alone": 2,
+    "mediainfo-alone": 0,
+    "mediainfo-between": 0,
+    "mediainfo-split": 0,
+    "all-differ": 0,
+    "not-comparable": 3
+   },
+   "kind": {
+    "gating": true,
+    "all-agree": 49,
+    "coreav-alone": 0,
+    "ffprobe-alone": 0,
+    "mediainfo-alone": 0,
+    "mediainfo-between": 0,
+    "mediainfo-split": 0,
+    "all-differ": 0,
+    "not-comparable": 5
+   },
+   "codec_fourcc": {
+    "gating": true,
+    "all-agree": 48,
+    "coreav-alone": 0,
+    "ffprobe-alone": 0,
+    "mediainfo-alone": 1,
+    "mediainfo-between": 0,
+    "mediainfo-split": 0,
+    "all-differ": 0,
+    "not-comparable": 5
+   },
+   "codec_name": {
+    "gating": true,
+    "all-agree": 48,
+    "coreav-alone": 0,
+    "ffprobe-alone": 0,
+    "mediainfo-alone": 1,
+    "mediainfo-between": 0,
+    "mediainfo-split": 0,
+    "all-differ": 0,
+    "not-comparable": 5
+   },
+   "width": {
+    "gating": true,
+    "all-agree": 49,
+    "coreav-alone": 0,
+    "ffprobe-alone": 0,
+    "mediainfo-alone": 0,
+    "mediainfo-between": 0,
+    "mediainfo-split": 0,
+    "all-differ": 0,
+    "not-comparable": 5
+   },
+   "height": {
+    "gating": true,
+    "all-agree": 49,
+    "coreav-alone": 0,
+    "ffprobe-alone": 0,
+    "mediainfo-alone": 0,
+    "mediainfo-between": 0,
+    "mediainfo-split": 0,
+    "all-differ": 0,
+    "not-comparable": 5
+   },
+   "rotation": {
+    "gating": true,
+    "all-agree": 49,
+    "coreav-alone": 0,
+    "ffprobe-alone": 0,
+    "mediainfo-alone": 0,
+    "mediainfo-between": 0,
+    "mediainfo-split": 0,
+    "all-differ": 0,
+    "not-comparable": 5
+   },
+   "duration": {
+    "gating": true,
+    "all-agree": 46,
+    "coreav-alone": 0,
+    "ffprobe-alone": 1,
+    "mediainfo-alone": 2,
+    "mediainfo-between": 0,
+    "mediainfo-split": 0,
+    "all-differ": 0,
+    "not-comparable": 5
+   },
+   "color_primaries": {
+    "gating": true,
+    "all-agree": 49,
+    "coreav-alone": 0,
+    "ffprobe-alone": 0,
+    "mediainfo-alone": 0,
+    "mediainfo-between": 0,
+    "mediainfo-split": 0,
+    "all-differ": 0,
+    "not-comparable": 5
+   },
+   "color_transfer": {
+    "gating": true,
+    "all-agree": 49,
+    "coreav-alone": 0,
+    "ffprobe-alone": 0,
+    "mediainfo-alone": 0,
+    "mediainfo-between": 0,
+    "mediainfo-split": 0,
+    "all-differ": 0,
+    "not-comparable": 5
+   },
+   "color_matrix": {
+    "gating": true,
+    "all-agree": 49,
+    "coreav-alone": 0,
+    "ffprobe-alone": 0,
+    "mediainfo-alone": 0,
+    "mediainfo-between": 0,
+    "mediainfo-split": 0,
+    "all-differ": 0,
+    "not-comparable": 5
+   },
+   "color_range": {
+    "gating": true,
+    "all-agree": 49,
+    "coreav-alone": 0,
+    "ffprobe-alone": 0,
+    "mediainfo-alone": 0,
+    "mediainfo-between": 0,
+    "mediainfo-split": 0,
+    "all-differ": 0,
+    "not-comparable": 5
+   },
+   "sample_rate": {
+    "gating": false,
+    "all-agree": 49,
+    "coreav-alone": 0,
+    "ffprobe-alone": 0,
+    "mediainfo-alone": 0,
+    "mediainfo-between": 0,
+    "mediainfo-split": 0,
+    "all-differ": 0,
+    "not-comparable": 5
+   },
+   "channels": {
+    "gating": false,
+    "all-agree": 49,
+    "coreav-alone": 0,
+    "ffprobe-alone": 0,
+    "mediainfo-alone": 0,
+    "mediainfo-between": 0,
+    "mediainfo-split": 0,
+    "all-differ": 0,
+    "not-comparable": 5
+   },
+   "language": {
+    "gating": false,
+    "all-agree": 36,
+    "coreav-alone": 13,
+    "ffprobe-alone": 0,
+    "mediainfo-alone": 0,
+    "mediainfo-between": 0,
+    "mediainfo-split": 0,
+    "all-differ": 0,
+    "not-comparable": 5
+   },
+   "sample_aspect_ratio": {
+    "gating": false,
+    "all-agree": 49,
+    "coreav-alone": 0,
+    "ffprobe-alone": 0,
+    "mediainfo-alone": 0,
+    "mediainfo-between": 0,
+    "mediainfo-split": 0,
+    "all-differ": 0,
+    "not-comparable": 5
+   },
+   "display_aspect_ratio": {
+    "gating": false,
+    "all-agree": 49,
+    "coreav-alone": 0,
+    "ffprobe-alone": 0,
+    "mediainfo-alone": 0,
+    "mediainfo-between": 0,
+    "mediainfo-split": 0,
+    "all-differ": 0,
+    "not-comparable": 5
+   }
+  },
+  "two_way": {
+   "probe_ok": {
+    "coreav_vs_ffprobe": [
+     35,
+     38
+    ],
+    "mediainfo_vs_coreav": [
+     35,
+     38
+    ],
+    "mediainfo_vs_ffprobe": [
+     38,
+     38
+    ]
+   },
+   "stream_count": {
+    "coreav_vs_ffprobe": [
+     35,
+     35
+    ],
+    "mediainfo_vs_coreav": [
+     35,
+     35
+    ],
+    "mediainfo_vs_ffprobe": [
+     37,
+     38
+    ]
+   },
+   "format_duration": {
+    "coreav_vs_ffprobe": [
+     33,
+     35
+    ],
+    "mediainfo_vs_coreav": [
+     35,
+     35
+    ],
+    "mediainfo_vs_ffprobe": [
+     36,
+     38
+    ]
+   },
+   "kind": {
+    "coreav_vs_ffprobe": [
+     49,
+     49
+    ],
+    "mediainfo_vs_coreav": [
+     49,
+     49
+    ],
+    "mediainfo_vs_ffprobe": [
+     53,
+     53
+    ]
+   },
+   "codec_fourcc": {
+    "coreav_vs_ffprobe": [
+     49,
+     49
+    ],
+    "mediainfo_vs_coreav": [
+     48,
+     49
+    ],
+    "mediainfo_vs_ffprobe": [
+     52,
+     53
+    ]
+   },
+   "codec_name": {
+    "coreav_vs_ffprobe": [
+     49,
+     49
+    ],
+    "mediainfo_vs_coreav": [
+     48,
+     49
+    ],
+    "mediainfo_vs_ffprobe": [
+     52,
+     53
+    ]
+   },
+   "width": {
+    "coreav_vs_ffprobe": [
+     49,
+     49
+    ],
+    "mediainfo_vs_coreav": [
+     49,
+     49
+    ],
+    "mediainfo_vs_ffprobe": [
+     53,
+     53
+    ]
+   },
+   "height": {
+    "coreav_vs_ffprobe": [
+     49,
+     49
+    ],
+    "mediainfo_vs_coreav": [
+     49,
+     49
+    ],
+    "mediainfo_vs_ffprobe": [
+     53,
+     53
+    ]
+   },
+   "rotation": {
+    "coreav_vs_ffprobe": [
+     49,
+     49
+    ],
+    "mediainfo_vs_coreav": [
+     49,
+     49
+    ],
+    "mediainfo_vs_ffprobe": [
+     53,
+     53
+    ]
+   },
+   "duration": {
+    "coreav_vs_ffprobe": [
+     48,
+     49
+    ],
+    "mediainfo_vs_coreav": [
+     47,
+     49
+    ],
+    "mediainfo_vs_ffprobe": [
+     48,
+     53
+    ]
+   },
+   "color_primaries": {
+    "coreav_vs_ffprobe": [
+     49,
+     49
+    ],
+    "mediainfo_vs_coreav": [
+     49,
+     49
+    ],
+    "mediainfo_vs_ffprobe": [
+     53,
+     53
+    ]
+   },
+   "color_transfer": {
+    "coreav_vs_ffprobe": [
+     49,
+     49
+    ],
+    "mediainfo_vs_coreav": [
+     49,
+     49
+    ],
+    "mediainfo_vs_ffprobe": [
+     53,
+     53
+    ]
+   },
+   "color_matrix": {
+    "coreav_vs_ffprobe": [
+     49,
+     49
+    ],
+    "mediainfo_vs_coreav": [
+     49,
+     49
+    ],
+    "mediainfo_vs_ffprobe": [
+     53,
+     53
+    ]
+   },
+   "color_range": {
+    "coreav_vs_ffprobe": [
+     49,
+     49
+    ],
+    "mediainfo_vs_coreav": [
+     49,
+     49
+    ],
+    "mediainfo_vs_ffprobe": [
+     53,
+     53
+    ]
+   },
+   "sample_rate": {
+    "coreav_vs_ffprobe": [
+     49,
+     49
+    ],
+    "mediainfo_vs_coreav": [
+     49,
+     49
+    ],
+    "mediainfo_vs_ffprobe": [
+     53,
+     53
+    ]
+   },
+   "channels": {
+    "coreav_vs_ffprobe": [
+     49,
+     49
+    ],
+    "mediainfo_vs_coreav": [
+     49,
+     49
+    ],
+    "mediainfo_vs_ffprobe": [
+     53,
+     53
+    ]
+   },
+   "language": {
+    "coreav_vs_ffprobe": [
+     36,
+     49
+    ],
+    "mediainfo_vs_coreav": [
+     36,
+     49
+    ],
+    "mediainfo_vs_ffprobe": [
+     53,
+     53
+    ]
+   },
+   "sample_aspect_ratio": {
+    "coreav_vs_ffprobe": [
+     49,
+     49
+    ],
+    "mediainfo_vs_coreav": [
+     49,
+     49
+    ],
+    "mediainfo_vs_ffprobe": [
+     53,
+     53
+    ]
+   },
+   "display_aspect_ratio": {
+    "coreav_vs_ffprobe": [
+     49,
+     49
+    ],
+    "mediainfo_vs_coreav": [
+     49,
+     49
+    ],
+    "mediainfo_vs_ffprobe": [
+     53,
+     53
+    ]
+   }
+  },
+  "patterns": {
+   "language": {
+    "coreav=\\u007f\\u007f\\u007f ffprobe=None mediainfo=None": 12,
+    "coreav=None ffprobe=eng mediainfo=eng": 1
+   },
+   "probe_ok": {
+    "coreav=False ffprobe=True mediainfo=True": 3
+   },
+   "codec_fourcc": {
+    "coreav=tmcd ffprobe=tmcd mediainfo=None": 1
+   },
+   "codec_name": {
+    "coreav=None ffprobe=None mediainfo=mi:QuickTime TC": 1
+   }
+  },
+  "duration_source_reading": {
+   "mediainfo-alone:coreav+ffprobe": 2,
+   "ffprobe-alone:ffprobe": 1
+  },
+  "mediainfo_unmapped_names": {
+   "codec_name=mi:QuickTime TC": 1
+  },
+  "not_observable": [
+   "timescale",
+   "handler_name"
+  ]
+ },
+ "items": [
+  {
+   "file": "basic.mov",
+   "stream": 0,
+   "field": "language",
+   "gating": false,
+   "class": "coreav-alone",
+   "pairs": {
+    "coreav_vs_ffprobe": false,
+    "mediainfo_vs_coreav": false,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "\\u007f\\u007f\\u007f",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "basic.mov",
+   "stream": 1,
+   "field": "language",
+   "gating": false,
+   "class": "coreav-alone",
+   "pairs": {
+    "coreav_vs_ffprobe": false,
+    "mediainfo_vs_coreav": false,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "\\u007f\\u007f\\u007f",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "browser.webm",
+   "stream": null,
+   "field": "probe_ok",
+   "gating": true,
+   "class": "coreav-alone",
+   "pairs": {
+    "coreav_vs_ffprobe": false,
+    "mediainfo_vs_coreav": false,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": false,
+    "ffprobe": true,
+    "mediainfo": true
+   }
+  },
+  {
+   "file": "browser.webm",
+   "stream": null,
+   "field": "stream_count",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": 2,
+    "mediainfo": 2
+   }
+  },
+  {
+   "file": "browser.webm",
+   "stream": null,
+   "field": "format_duration",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": "2.008",
+    "mediainfo": "2.008"
+   }
+  },
+  {
+   "file": "browser.webm",
+   "stream": 0,
+   "field": "kind",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": "video",
+    "mediainfo": "video"
+   }
+  },
+  {
+   "file": "browser.webm",
+   "stream": 0,
+   "field": "codec_fourcc",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "browser.webm",
+   "stream": 0,
+   "field": "codec_name",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": "vp9",
+    "mediainfo": "vp9"
+   }
+  },
+  {
+   "file": "browser.webm",
+   "stream": 0,
+   "field": "width",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": 320,
+    "mediainfo": 320
+   }
+  },
+  {
+   "file": "browser.webm",
+   "stream": 0,
+   "field": "height",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": 240,
+    "mediainfo": 240
+   }
+  },
+  {
+   "file": "browser.webm",
+   "stream": 0,
+   "field": "rotation",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": 0,
+    "mediainfo": 0
+   }
+  },
+  {
+   "file": "browser.webm",
+   "stream": 0,
+   "field": "duration",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": false
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": "2"
+   }
+  },
+  {
+   "file": "browser.webm",
+   "stream": 0,
+   "field": "color_primaries",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "browser.webm",
+   "stream": 0,
+   "field": "color_transfer",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "browser.webm",
+   "stream": 0,
+   "field": "color_matrix",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "browser.webm",
+   "stream": 0,
+   "field": "color_range",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": "tv",
+    "mediainfo": "tv"
+   }
+  },
+  {
+   "file": "browser.webm",
+   "stream": 0,
+   "field": "sample_rate",
+   "gating": false,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "browser.webm",
+   "stream": 0,
+   "field": "channels",
+   "gating": false,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "browser.webm",
+   "stream": 0,
+   "field": "language",
+   "gating": false,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "browser.webm",
+   "stream": 0,
+   "field": "sample_aspect_ratio",
+   "gating": false,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": "1",
+    "mediainfo": "1"
+   }
+  },
+  {
+   "file": "browser.webm",
+   "stream": 0,
+   "field": "display_aspect_ratio",
+   "gating": false,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": "1.3333333333333333",
+    "mediainfo": "1.333"
+   }
+  },
+  {
+   "file": "browser.webm",
+   "stream": 1,
+   "field": "kind",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": "audio",
+    "mediainfo": "audio"
+   }
+  },
+  {
+   "file": "browser.webm",
+   "stream": 1,
+   "field": "codec_fourcc",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "browser.webm",
+   "stream": 1,
+   "field": "codec_name",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": "opus",
+    "mediainfo": "opus"
+   }
+  },
+  {
+   "file": "browser.webm",
+   "stream": 1,
+   "field": "width",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "browser.webm",
+   "stream": 1,
+   "field": "height",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "browser.webm",
+   "stream": 1,
+   "field": "rotation",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "browser.webm",
+   "stream": 1,
+   "field": "duration",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": false
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": "2.008"
+   }
+  },
+  {
+   "file": "browser.webm",
+   "stream": 1,
+   "field": "color_primaries",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "browser.webm",
+   "stream": 1,
+   "field": "color_transfer",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "browser.webm",
+   "stream": 1,
+   "field": "color_matrix",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "browser.webm",
+   "stream": 1,
+   "field": "color_range",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "browser.webm",
+   "stream": 1,
+   "field": "sample_rate",
+   "gating": false,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": 48000,
+    "mediainfo": 48000
+   }
+  },
+  {
+   "file": "browser.webm",
+   "stream": 1,
+   "field": "channels",
+   "gating": false,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": 1,
+    "mediainfo": 1
+   }
+  },
+  {
+   "file": "browser.webm",
+   "stream": 1,
+   "field": "language",
+   "gating": false,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "browser.webm",
+   "stream": 1,
+   "field": "sample_aspect_ratio",
+   "gating": false,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "browser.webm",
+   "stream": 1,
+   "field": "display_aspect_ratio",
+   "gating": false,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "edit_list.mp4",
+   "stream": null,
+   "field": "format_duration",
+   "gating": true,
+   "class": "ffprobe-alone",
+   "pairs": {
+    "coreav_vs_ffprobe": false,
+    "mediainfo_vs_coreav": true,
+    "mediainfo_vs_ffprobe": false
+   },
+   "values": {
+    "coreav": "2.5",
+    "ffprobe": "2.023991",
+    "mediainfo": "2.5"
+   }
+  },
+  {
+   "file": "edit_list.mp4",
+   "stream": 0,
+   "field": "duration",
+   "gating": true,
+   "class": "mediainfo-alone",
+   "pairs": {
+    "coreav_vs_ffprobe": true,
+    "mediainfo_vs_coreav": false,
+    "mediainfo_vs_ffprobe": false
+   },
+   "values": {
+    "coreav": "2",
+    "ffprobe": "2",
+    "mediainfo": "2.5"
+   },
+   "mediainfo_source_duration": "2",
+   "source_duration_matches": [
+    "coreav",
+    "ffprobe"
+   ]
+  },
+  {
+   "file": "edit_list.mp4",
+   "stream": 1,
+   "field": "duration",
+   "gating": true,
+   "class": "mediainfo-alone",
+   "pairs": {
+    "coreav_vs_ffprobe": true,
+    "mediainfo_vs_coreav": false,
+    "mediainfo_vs_ffprobe": false
+   },
+   "values": {
+    "coreav": "2.023219954648526",
+    "ffprobe": "2.023219954648526",
+    "mediainfo": "2.5"
+   },
+   "mediainfo_source_duration": "2.023",
+   "source_duration_matches": [
+    "coreav",
+    "ffprobe"
+   ]
+  },
+  {
+   "file": "nested_10000.mp4",
+   "stream": null,
+   "field": "probe_ok",
+   "gating": true,
+   "class": "coreav-alone",
+   "pairs": {
+    "coreav_vs_ffprobe": false,
+    "mediainfo_vs_coreav": false,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": false,
+    "ffprobe": true,
+    "mediainfo": true
+   }
+  },
+  {
+   "file": "nested_10000.mp4",
+   "stream": null,
+   "field": "stream_count",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": false
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": 1,
+    "mediainfo": 0
+   }
+  },
+  {
+   "file": "nested_10000.mp4",
+   "stream": null,
+   "field": "format_duration",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "nested_10000.mp4",
+   "stream": 0,
+   "field": "kind",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": null
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": "data",
+    "mediainfo": "n/a"
+   }
+  },
+  {
+   "file": "nested_10000.mp4",
+   "stream": 0,
+   "field": "codec_fourcc",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": null
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": "n/a"
+   }
+  },
+  {
+   "file": "nested_10000.mp4",
+   "stream": 0,
+   "field": "codec_name",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": null
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": "n/a"
+   }
+  },
+  {
+   "file": "nested_10000.mp4",
+   "stream": 0,
+   "field": "width",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": null
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": "n/a"
+   }
+  },
+  {
+   "file": "nested_10000.mp4",
+   "stream": 0,
+   "field": "height",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": null
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": "n/a"
+   }
+  },
+  {
+   "file": "nested_10000.mp4",
+   "stream": 0,
+   "field": "rotation",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": null
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": "n/a"
+   }
+  },
+  {
+   "file": "nested_10000.mp4",
+   "stream": 0,
+   "field": "duration",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": null
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": "n/a"
+   }
+  },
+  {
+   "file": "nested_10000.mp4",
+   "stream": 0,
+   "field": "color_primaries",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": null
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": "n/a"
+   }
+  },
+  {
+   "file": "nested_10000.mp4",
+   "stream": 0,
+   "field": "color_transfer",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": null
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": "n/a"
+   }
+  },
+  {
+   "file": "nested_10000.mp4",
+   "stream": 0,
+   "field": "color_matrix",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": null
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": "n/a"
+   }
+  },
+  {
+   "file": "nested_10000.mp4",
+   "stream": 0,
+   "field": "color_range",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": null
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": "n/a"
+   }
+  },
+  {
+   "file": "nested_10000.mp4",
+   "stream": 0,
+   "field": "sample_rate",
+   "gating": false,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": null
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": "n/a"
+   }
+  },
+  {
+   "file": "nested_10000.mp4",
+   "stream": 0,
+   "field": "channels",
+   "gating": false,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": null
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": "n/a"
+   }
+  },
+  {
+   "file": "nested_10000.mp4",
+   "stream": 0,
+   "field": "language",
+   "gating": false,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": null
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": "n/a"
+   }
+  },
+  {
+   "file": "nested_10000.mp4",
+   "stream": 0,
+   "field": "sample_aspect_ratio",
+   "gating": false,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": null
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": "n/a"
+   }
+  },
+  {
+   "file": "nested_10000.mp4",
+   "stream": 0,
+   "field": "display_aspect_ratio",
+   "gating": false,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": null
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": "n/a"
+   }
+  },
+  {
+   "file": "pcm_f32le.mov",
+   "stream": 0,
+   "field": "language",
+   "gating": false,
+   "class": "coreav-alone",
+   "pairs": {
+    "coreav_vs_ffprobe": false,
+    "mediainfo_vs_coreav": false,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "\\u007f\\u007f\\u007f",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "pcm_s16le.mov",
+   "stream": 0,
+   "field": "language",
+   "gating": false,
+   "class": "coreav-alone",
+   "pairs": {
+    "coreav_vs_ffprobe": false,
+    "mediainfo_vs_coreav": false,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "\\u007f\\u007f\\u007f",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "pcm_s24le.mov",
+   "stream": 0,
+   "field": "language",
+   "gating": false,
+   "class": "coreav-alone",
+   "pairs": {
+    "coreav_vs_ffprobe": false,
+    "mediainfo_vs_coreav": false,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "\\u007f\\u007f\\u007f",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "prores_4444.mov",
+   "stream": 0,
+   "field": "language",
+   "gating": false,
+   "class": "coreav-alone",
+   "pairs": {
+    "coreav_vs_ffprobe": false,
+    "mediainfo_vs_coreav": false,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "\\u007f\\u007f\\u007f",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "prores_4444xq.mov",
+   "stream": 0,
+   "field": "language",
+   "gating": false,
+   "class": "coreav-alone",
+   "pairs": {
+    "coreav_vs_ffprobe": false,
+    "mediainfo_vs_coreav": false,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "\\u007f\\u007f\\u007f",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "prores_hq.mov",
+   "stream": 0,
+   "field": "language",
+   "gating": false,
+   "class": "coreav-alone",
+   "pairs": {
+    "coreav_vs_ffprobe": false,
+    "mediainfo_vs_coreav": false,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "\\u007f\\u007f\\u007f",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "prores_lt.mov",
+   "stream": 0,
+   "field": "language",
+   "gating": false,
+   "class": "coreav-alone",
+   "pairs": {
+    "coreav_vs_ffprobe": false,
+    "mediainfo_vs_coreav": false,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "\\u007f\\u007f\\u007f",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "prores_proxy.mov",
+   "stream": 0,
+   "field": "language",
+   "gating": false,
+   "class": "coreav-alone",
+   "pairs": {
+    "coreav_vs_ffprobe": false,
+    "mediainfo_vs_coreav": false,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "\\u007f\\u007f\\u007f",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "prores_standard.mov",
+   "stream": 0,
+   "field": "language",
+   "gating": false,
+   "class": "coreav-alone",
+   "pairs": {
+    "coreav_vs_ffprobe": false,
+    "mediainfo_vs_coreav": false,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "\\u007f\\u007f\\u007f",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "timecode.mov",
+   "stream": 0,
+   "field": "language",
+   "gating": false,
+   "class": "coreav-alone",
+   "pairs": {
+    "coreav_vs_ffprobe": false,
+    "mediainfo_vs_coreav": false,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "\\u007f\\u007f\\u007f",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "timecode.mov",
+   "stream": 1,
+   "field": "codec_fourcc",
+   "gating": true,
+   "class": "mediainfo-alone",
+   "pairs": {
+    "coreav_vs_ffprobe": true,
+    "mediainfo_vs_coreav": false,
+    "mediainfo_vs_ffprobe": false
+   },
+   "values": {
+    "coreav": "tmcd",
+    "ffprobe": "tmcd",
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "timecode.mov",
+   "stream": 1,
+   "field": "codec_name",
+   "gating": true,
+   "class": "mediainfo-alone",
+   "pairs": {
+    "coreav_vs_ffprobe": true,
+    "mediainfo_vs_coreav": false,
+    "mediainfo_vs_ffprobe": false
+   },
+   "values": {
+    "coreav": null,
+    "ffprobe": null,
+    "mediainfo": "mi:QuickTime TC"
+   }
+  },
+  {
+   "file": "timecode.mov",
+   "stream": 1,
+   "field": "language",
+   "gating": false,
+   "class": "coreav-alone",
+   "pairs": {
+    "coreav_vs_ffprobe": false,
+    "mediainfo_vs_coreav": false,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": null,
+    "ffprobe": "eng",
+    "mediainfo": "eng"
+   }
+  },
+  {
+   "file": "truncated.mp4",
+   "stream": null,
+   "field": "probe_ok",
+   "gating": true,
+   "class": "coreav-alone",
+   "pairs": {
+    "coreav_vs_ffprobe": false,
+    "mediainfo_vs_coreav": false,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": false,
+    "ffprobe": true,
+    "mediainfo": true
+   }
+  },
+  {
+   "file": "truncated.mp4",
+   "stream": null,
+   "field": "stream_count",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": 2,
+    "mediainfo": 2
+   }
+  },
+  {
+   "file": "truncated.mp4",
+   "stream": null,
+   "field": "format_duration",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": "2",
+    "mediainfo": "2"
+   }
+  },
+  {
+   "file": "truncated.mp4",
+   "stream": 0,
+   "field": "kind",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": "video",
+    "mediainfo": "video"
+   }
+  },
+  {
+   "file": "truncated.mp4",
+   "stream": 0,
+   "field": "codec_fourcc",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": "avc1",
+    "mediainfo": "avc1"
+   }
+  },
+  {
+   "file": "truncated.mp4",
+   "stream": 0,
+   "field": "codec_name",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": "h264",
+    "mediainfo": "h264"
+   }
+  },
+  {
+   "file": "truncated.mp4",
+   "stream": 0,
+   "field": "width",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": 320,
+    "mediainfo": 320
+   }
+  },
+  {
+   "file": "truncated.mp4",
+   "stream": 0,
+   "field": "height",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": 240,
+    "mediainfo": 240
+   }
+  },
+  {
+   "file": "truncated.mp4",
+   "stream": 0,
+   "field": "rotation",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": 0,
+    "mediainfo": 0
+   }
+  },
+  {
+   "file": "truncated.mp4",
+   "stream": 0,
+   "field": "duration",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": "2",
+    "mediainfo": "2"
+   }
+  },
+  {
+   "file": "truncated.mp4",
+   "stream": 0,
+   "field": "color_primaries",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "truncated.mp4",
+   "stream": 0,
+   "field": "color_transfer",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "truncated.mp4",
+   "stream": 0,
+   "field": "color_matrix",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "truncated.mp4",
+   "stream": 0,
+   "field": "color_range",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "truncated.mp4",
+   "stream": 0,
+   "field": "sample_rate",
+   "gating": false,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "truncated.mp4",
+   "stream": 0,
+   "field": "channels",
+   "gating": false,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "truncated.mp4",
+   "stream": 0,
+   "field": "language",
+   "gating": false,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": "und",
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "truncated.mp4",
+   "stream": 0,
+   "field": "sample_aspect_ratio",
+   "gating": false,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": "1",
+    "mediainfo": "1"
+   }
+  },
+  {
+   "file": "truncated.mp4",
+   "stream": 0,
+   "field": "display_aspect_ratio",
+   "gating": false,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": "1.3333333333333333",
+    "mediainfo": "1.333"
+   }
+  },
+  {
+   "file": "truncated.mp4",
+   "stream": 1,
+   "field": "kind",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": "audio",
+    "mediainfo": "audio"
+   }
+  },
+  {
+   "file": "truncated.mp4",
+   "stream": 1,
+   "field": "codec_fourcc",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": "mp4a",
+    "mediainfo": "mp4a"
+   }
+  },
+  {
+   "file": "truncated.mp4",
+   "stream": 1,
+   "field": "codec_name",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": "aac",
+    "mediainfo": "aac"
+   }
+  },
+  {
+   "file": "truncated.mp4",
+   "stream": 1,
+   "field": "width",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "truncated.mp4",
+   "stream": 1,
+   "field": "height",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "truncated.mp4",
+   "stream": 1,
+   "field": "rotation",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "truncated.mp4",
+   "stream": 1,
+   "field": "duration",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": "2",
+    "mediainfo": "2"
+   }
+  },
+  {
+   "file": "truncated.mp4",
+   "stream": 1,
+   "field": "color_primaries",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "truncated.mp4",
+   "stream": 1,
+   "field": "color_transfer",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "truncated.mp4",
+   "stream": 1,
+   "field": "color_matrix",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "truncated.mp4",
+   "stream": 1,
+   "field": "color_range",
+   "gating": true,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "truncated.mp4",
+   "stream": 1,
+   "field": "sample_rate",
+   "gating": false,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": 44100,
+    "mediainfo": 44100
+   }
+  },
+  {
+   "file": "truncated.mp4",
+   "stream": 1,
+   "field": "channels",
+   "gating": false,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": 1,
+    "mediainfo": 1
+   }
+  },
+  {
+   "file": "truncated.mp4",
+   "stream": 1,
+   "field": "language",
+   "gating": false,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": "und",
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "truncated.mp4",
+   "stream": 1,
+   "field": "sample_aspect_ratio",
+   "gating": false,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "truncated.mp4",
+   "stream": 1,
+   "field": "display_aspect_ratio",
+   "gating": false,
+   "class": "not-comparable",
+   "pairs": {
+    "coreav_vs_ffprobe": null,
+    "mediainfo_vs_coreav": null,
+    "mediainfo_vs_ffprobe": true
+   },
+   "values": {
+    "coreav": "n/a",
+    "ffprobe": null,
+    "mediainfo": null
+   }
+  },
+  {
+   "file": "vfr.mp4",
+   "stream": null,
+   "field": "format_duration",
+   "gating": true,
+   "class": "ffprobe-alone",
+   "pairs": {
+    "coreav_vs_ffprobe": false,
+    "mediainfo_vs_coreav": true,
+    "mediainfo_vs_ffprobe": false
+   },
+   "values": {
+    "coreav": "1.96",
+    "ffprobe": "1.8",
+    "mediainfo": "1.96"
+   }
+  },
+  {
+   "file": "vfr.mp4",
+   "stream": 0,
+   "field": "duration",
+   "gating": true,
+   "class": "ffprobe-alone",
+   "pairs": {
+    "coreav_vs_ffprobe": false,
+    "mediainfo_vs_coreav": true,
+    "mediainfo_vs_ffprobe": false
+   },
+   "values": {
+    "coreav": "1.96",
+    "ffprobe": "1.8",
+    "mediainfo": "1.96"
+   },
+   "mediainfo_source_duration": "1.8",
+   "source_duration_matches": [
+    "ffprobe"
+   ]
+  }
+ ],
+ "notes": [
+  {
+   "file": "audio_51.m4a",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": true,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "audio_aac.m4a",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": true,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "audio_mp3.mp4",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": true,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "audio_opus.mp4",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": true,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "av1.mp4",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": true,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "basic.mov",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": true,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "basic.mp4",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": true,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "browser.webm",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": false,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "color_bt2020_pq.mp4",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": true,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "color_bt709.mp4",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": true,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "color_full_range.mp4",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": true,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "edit_list.mp4",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": true,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "faststart.mp4",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": true,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "fragmented.mp4",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": true,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "fragmented_moov.mp4",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": true,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": true,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "h264_avc3.mp4",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": true,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "hevc_hev1.mp4",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": true,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "hevc_hvc1.mp4",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": true,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "multitrack.mp4",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": true,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "negative_cts.mp4",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": true,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "nested_10000.mp4",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": false,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "pcm_f32le.mov",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": true,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "pcm_s16le.mov",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": true,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "pcm_s16le.mp4",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": true,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "pcm_s24le.mov",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": true,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "prores_4444.mov",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": true,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "prores_4444xq.mov",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": true,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "prores_hq.mov",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": true,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "prores_lt.mov",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": true,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "prores_proxy.mov",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": true,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "prores_standard.mov",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": true,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "rotate_ccw180.mp4",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": true,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "rotate_ccw270.mp4",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": true,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "rotate_ccw90.mp4",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": true,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "timecode.mov",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": true,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "truncated.mp4",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": true,
+   "mediainfo_conformance_errors": true,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": false,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "vfr.mp4",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": true,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  },
+  {
+   "file": "vp9.mp4",
+   "mediainfo_failure": null,
+   "mediainfo_truncated": false,
+   "mediainfo_conformance_errors": false,
+   "mediainfo_unpaired_tracks": 0,
+   "coreav_probe_ok": true,
+   "ffprobe_probe_ok": true,
+   "mediainfo_probe_ok": true
+  }
+ ]
+}

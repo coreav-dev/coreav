@@ -1,0 +1,18 @@
+Plane placement and time (docs/design/h264.md, 'Where the allocator puts the planes').
+Build: part M of round 11 (perf/h264-mb-records 6e24c3c, as r11m2-wip), which frees no large block per picture.
+Arms, timed in the same rounds: m = default; t128k, t600k, t32m = MALLOC_MMAP_THRESHOLD_ 131072 / 614400 / 33554432.
+scripts/h264_parity.py --pin 3 --rounds 5, frames 900 (720p) / 300 (1080p) / 150 (4k); the 2.50 GHz class (Intel Xeon @ 2.50GHz). Seconds, median of rounds:
+stream        pairing         m    t128k    t600k     t32m   max/min  t600k/t128k  t32m/t128k  m/t128k
+1d4b1775d78a  discard    1.697    1.664    1.688    1.733   1.041    1.014        1.041       1.020
+1d4b1775d78a  write      1.782    1.755    1.778    1.820   1.037    1.013        1.037       1.015
+9db41aa16b5a  discard    2.171    2.240    2.211    2.197   1.032    0.987        0.981       0.969
+9db41aa16b5a  write      2.315    2.282    2.316    2.318   1.016    1.015        1.016       1.014
+6da34958296c  discard    3.897    3.838    3.957    3.958   1.031    1.031        1.031       1.015
+6da34958296c  write      4.124    3.994    4.144    4.077   1.038    1.038        1.021       1.033
+b71b6b31e54f  discard    2.610    2.630    2.712    2.711   1.039    1.031        1.031       0.992
+b71b6b31e54f  write      2.794    2.725    2.937    2.914   1.078    1.078        1.069       1.026
+3b1b441e23ae  discard    2.123    2.035    2.045    2.073   1.043    1.005        1.018       1.043
+3b1b441e23ae  write      2.237    2.209    2.220    2.223   1.012    1.005        1.006       1.012
+e624cbe0d2be  discard    2.008    1.999    2.006    2.071   1.036    1.004        1.036       1.005
+e624cbe0d2be  write      2.223    2.275    2.188    2.228   1.040    0.962        0.979       0.977
+medians: t600k/t128k 1.014, t32m/t128k 1.026, m/t128k 1.015 (m and t128k should place alike: the build frees no block above 128 KB, so the threshold stays at its start)

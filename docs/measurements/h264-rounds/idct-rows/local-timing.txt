@@ -1,0 +1,25 @@
+Local timing before the bars were written (information, not a bar run): this VM (2.90 GHz class, model 106),
+scripts/h264_parity.py --pin 2, the eight streams of docs/measurements/h264-gap-2 at their frame counts,
+FFmpeg (/opt/coreav-oracle-bin/ffmpeg) in the same rounds. Other work ran on the VM's other cores at times.
+
+Run 1, base (540c770c) and a (the branch's kernels, binary identical to bd0a6c07), 5 rounds, ratio a/base:
+6da34958296c 1080p  discard 0.973 write 0.979
+b71b6b31e54f 1080p  discard 0.974 write 0.980
+3b1b441e23ae 4k     discard 0.986 write 0.977
+e624cbe0d2be 4k     discard 0.989 write 1.016
+9db41aa16b5a 720p   discard 1.004 write 1.017
+1d4b1775d78a 720p   discard 1.004 write 0.960
+41e324ebb708 sd     discard 0.983 write 0.981
+5185721dda11 sd     discard 0.971 write 0.973
+median: discard 0.985, write 0.980
+
+Run 2, base, q (the four-block kernel alone, a tree equivalent to 80ddbf19 with the new 8x8 code present but
+unused) and a, 7 rounds, the 720p and 1080p streams:
+            q/base            a/q               a/base
+6da34958296c discard 0.951 write 0.981 | 1.018 1.006 | 0.968 0.987
+b71b6b31e54f discard 1.013 write 1.024 | 1.022 0.900 | 1.036 0.922
+9db41aa16b5a discard 1.011 write 1.000 | 0.989 0.989 | 1.001 0.989
+1d4b1775d78a discard 0.980 write 0.980 | 0.987 0.984 | 0.968 0.964
+
+Single streams move by 1 to 4% between pairings here, more than the effect; the bars are read on the 32
+training streams of the gating run.

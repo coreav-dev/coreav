@@ -1,0 +1,28 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2900.0 MHz, 8 logical CPUs
+gate baseline: 0.401 s (samples 0.401, 0.401, 0.401)
+175433794e02.0.1080p.h264                base:discard=1.15  base:write=1.12  base:mixed=1.10  k:discard=1.14  k:write=1.11  k:mixed=1.09
+6da34958296c.0.1080p.h264                base:discard=1.13  base:write=1.08  base:mixed=1.01  k:discard=1.12  k:write=1.07  k:mixed=1.00
+6e90422a670a.0.1080p.h264                base:discard=1.14  base:write=1.12  base:mixed=1.08  k:discard=1.14  k:write=1.12  k:mixed=1.08
+a6af290d9053.0.1080p.h264                base:discard=1.15  base:write=1.13  base:mixed=1.10  k:discard=1.14  k:write=1.12  k:mixed=1.10
+gate after 4 streams (check): 0.400 s (-0.4%)
+a81de82106be.0.1080p.h264                base:discard=0.96  base:write=0.93  base:mixed=0.88  k:discard=0.96  k:write=0.92  k:mixed=0.88
+b41f70a7fa60.0.1080p.h264                base:discard=1.17  base:write=1.12  base:mixed=1.08  k:discard=1.16  k:write=1.12  k:mixed=1.08
+b71b6b31e54f.0.1080p.h264                base:discard=1.12  base:write=1.04  base:mixed=0.94  k:discard=1.10  k:write=1.03  k:mixed=0.93
+c7ecda16e4a7.0.1080p.h264                base:discard=1.21  base:write=1.18  base:mixed=1.15  k:discard=1.21  k:write=1.17  k:mixed=1.15
+gate after 8 streams (check): 0.428 s (+6.8%)
+gate after 8 streams (confirm): 0.481 s (+19.8%)
+a81de82106be.0.1080p.h264                timed again after gate drift
+b41f70a7fa60.0.1080p.h264                timed again after gate drift
+b71b6b31e54f.0.1080p.h264                host fault (attempt 2): null {'base_discard': 0.004357373483774074, 'base_write': 0.005670970904253503}, max spread 1.582
+b71b6b31e54f.0.1080p.h264                timed again after gate drift
+c7ecda16e4a7.0.1080p.h264                timed again after gate drift
+gate after 8 streams (check): 0.400 s (-0.3%)
+
+base:discard             n=  8  median 1.143  [1.110, 1.163]
+base:write               n=  8  median 1.110  [1.028, 1.129]
+base:mixed               n=  8  median 1.068  [0.925, 1.099]
+k:discard                n=  8  median 1.138  [1.096, 1.158]
+k:write                  n=  8  median 1.110  [1.024, 1.122]
+k:mixed                  n=  8  median 1.063  [0.914, 1.096]
+
+wrote $HOME/ab/first-touch/out/g.1080p.json

@@ -1,0 +1,5 @@
+sd luma 0.080/0.071  chroma 0.094/0.028  weight 0.045/0.013  edge 0.046/0.006  prefetch 0.000/0.015  glue 0.063/0.042
+720p luma 0.102/0.073  chroma 0.100/0.029  weight 0.061/0.017  edge 0.024/0.003  prefetch 0.008/0.017  glue 0.052/0.045
+1080p luma 0.140/0.092  chroma 0.128/0.035  weight 0.023/0.004  edge 0.018/0.004  prefetch 0.012/0.017  glue 0.061/0.050
+4k luma 0.194/0.086  chroma 0.205/0.041  weight 0.006/0.007  edge 0.044/0.003  prefetch 0.023/0.033  glue 0.117/0.132
+all luma 0.129/0.081  chroma 0.132/0.033  weight 0.034/0.010  edge 0.033/0.004  prefetch 0.011/0.021  glue 0.073/0.067

@@ -1,0 +1,26 @@
+[package]
+name = "coreav-oracle"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+name = "coreav_oracle"
+path = "src/lib.rs"
+
+[[bin]]
+name = "coreav-oracle"
+path = "src/main.rs"
+
+[dependencies]
+serde_json = { workspace = true }
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "coreav-oracle-json"
+path = "src/json.rs"

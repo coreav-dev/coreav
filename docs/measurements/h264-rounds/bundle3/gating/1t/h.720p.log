@@ -1,0 +1,31 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2900.0 MHz, 8 logical CPUs
+gate baseline: 0.409 s (samples 0.408, 0.409, 0.410)
+178de4a3a5a2.0.720p.h264                 base:discard=0.74  base:write=0.71  base:mixed=0.61  k:discard=0.76  k:write=0.73  k:mixed=0.62
+391ec79e178a.0.720p.h264                 base:discard=1.14  base:write=1.13  base:mixed=1.09  k:discard=1.12  k:write=1.11  k:mixed=1.07
+3c331ca6a971.0.720p.h264                 base:discard=1.10  base:write=1.06  base:mixed=1.03  k:discard=1.08  k:write=1.07  k:mixed=1.02
+4dc155fa1f76.0.720p.h264                 base:discard=1.10  base:write=1.07  base:mixed=1.01  k:discard=1.09  k:write=1.04  k:mixed=1.00
+gate after 4 streams (check): 0.407 s (-0.5%)
+4f27662a0f72.0.720p.h264                 base:discard=1.05  base:write=1.05  base:mixed=1.01  k:discard=1.05  k:write=1.04  k:mixed=1.01
+59cf223b15f2.0.720p.h264                 base:discard=1.05  base:write=0.97  base:mixed=0.93  k:discard=1.03  k:write=0.95  k:mixed=0.92
+64e286230fca.0.720p.h264                 base:discard=1.12  base:write=1.10  base:mixed=1.06  k:discard=1.11  k:write=1.08  k:mixed=1.05
+64ef5412ed81.0.720p.h264                 base:discard=1.10  base:write=1.10  base:mixed=1.08  k:discard=1.09  k:write=1.08  k:mixed=1.07
+gate after 8 streams (check): 0.396 s (-3.2%)
+67138964d796.0.720p.h264                 base:discard=1.07  base:write=1.05  base:mixed=1.01  k:discard=1.06  k:write=1.03  k:mixed=1.00
+7eb29ce39b5c.0.720p.h264                 base:discard=1.00  base:write=0.98  base:mixed=0.94  k:discard=1.00  k:write=0.98  k:mixed=0.95
+985a28c5abe5.0.720p.h264                 base:discard=1.19  base:write=1.16  base:mixed=1.13  k:discard=1.18  k:write=1.15  k:mixed=1.13
+a9b1e81dc8f4.0.720p.h264                 base:discard=1.05  base:write=0.99  base:mixed=0.94  k:discard=1.03  k:write=0.98  k:mixed=0.93
+gate after 12 streams (check): 0.408 s (-0.3%)
+b1c6f2742fff.0.720p.h264                 base:discard=0.96  base:write=0.95  base:mixed=0.89  k:discard=0.96  k:write=1.02  k:mixed=0.89
+c187706da87d.0.720p.h264                 base:discard=1.08  base:write=1.03  base:mixed=0.98  k:discard=1.06  k:write=1.02  k:mixed=0.96
+f2a05e5926d8.0.720p.h264                 base:discard=1.07  base:write=1.03  base:mixed=1.00  k:discard=1.05  k:write=1.02  k:mixed=0.98
+f99007f006ea.0.720p.h264                 base:discard=1.06  base:write=1.04  base:mixed=1.00  k:discard=1.05  k:write=1.04  k:mixed=0.99
+gate after 16 streams (check): 0.396 s (-3.2%)
+
+base:discard             n= 16  median 1.070  [1.049, 1.102]
+base:write               n= 16  median 1.045  [0.994, 1.074]
+base:mixed               n= 16  median 1.008  [0.944, 1.035]
+k:discard                n= 16  median 1.052  [1.034, 1.088]
+k:write                  n= 16  median 1.033  [1.001, 1.065]
+k:mixed                  n= 16  median 0.994  [0.950, 1.018]
+
+wrote $HOME/ab/bundle3/out/h.720p.json

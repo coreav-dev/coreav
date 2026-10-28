@@ -1,0 +1,36 @@
+# Training streams whose picture parameter set enables the 8x8 transform (transform_8x8_mode_flag 1),
+# read from the first PPS with FFmpeg 9.0.2's trace_headers bitstream filter (black box):
+#   ffmpeg -loglevel trace -i S -frames:v 1 -c copy -bsf:v trace_headers -f null -
+# 'none' is a PPS without the field (no High profile extension), '0' a High PPS that leaves it off.
+175433794e02.0.1080p.h264 1
+1d4b1775d78a.0.720p.h264 1
+278dbf5a63bb.0.720p.h264 1
+36501d448eaa.0.720p.h264 1
+3b1b441e23ae.0.4k.h264 1
+3c593b8f0809.0.720p.h264 none
+41e324ebb708.0.sd.h264 none
+4b54de28c2b3.0.4k.h264 1
+5185721dda11.0.sd.h264 none
+65ec61f95a00.0.720p.h264 none
+6b18d9f0f88d.0.720p.h264 0
+6da34958296c.0.1080p.h264 none
+6e90422a670a.0.1080p.h264 1
+6f7799768413.0.sd.h264 none
+7650ae466748.0.sd.h264 1
+76e0b1692494.0.720p.h264 none
+81ed4778ece2.0.4k.h264 1
+8ae90cadb5bc.0.sd.h264 1
+9db41aa16b5a.0.720p.h264 1
+a6af290d9053.0.1080p.h264 1
+a81de82106be.0.1080p.h264 none
+ae16bb7c7192.0.4k.h264 none
+af38b0cfd840.0.4k.h264 1
+b41f70a7fa60.0.1080p.h264 1
+b71b6b31e54f.0.1080p.h264 none
+c7ecda16e4a7.0.1080p.h264 1
+dcb262cf0138.0.sd.h264 none
+e624cbe0d2be.0.4k.h264 none
+ec473c99c538.0.sd.h264 none
+ed75c044e944.0.4k.h264 1
+f8d92a911e72.0.4k.h264 1
+f9e973f44570.0.sd.h264 none

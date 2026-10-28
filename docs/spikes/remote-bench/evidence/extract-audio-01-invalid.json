@@ -1,0 +1,540 @@
+[
+ {
+  "sha256": "00de70872ff1a518d24171f3c783a14bc95aeb90ae2c90290ceaf30b118a2af9",
+  "ext": "mov",
+  "size": 38860325,
+  "class": "iso",
+  "refused": "{\"kind\":\"invalid_structure\",\"limit\":null,\"message\":\"invalid 'moov' box at offset 0: missing movie header\",\"offset\":0,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "0119957558a276115f3af88175fd89f10345ab8f9c4aa6b23c361671fafaf805",
+  "ext": "mp4",
+  "size": 201477294,
+  "class": "iso",
+  "refused": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"unsupported: only AAC audio can be extracted\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "016ab71f2d04bf7e3d4bed9db40c8dc1f967578898acd3c9802af4624d15e97b",
+  "ext": "mp4",
+  "size": 90548984,
+  "class": "iso",
+  "ns": {
+   "ours": 1508345437,
+   "theirs": 3073018053
+  }
+ },
+ {
+  "sha256": "02f2c37a7ad9faf03cf565299274efbb69f50684fc73d744eecd17acd0167b03",
+  "ext": "mp4",
+  "size": 5209376,
+  "class": "iso",
+  "refused": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"no such track\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "04b7b4fb3b3797c81c121b0bf02f1e578dc24912582cb6d24b8bed2928bf856f",
+  "ext": "mp4",
+  "size": 12762,
+  "class": "iso",
+  "refused": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"no such track\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "0538fb0951faa30ed690ddb625fe9404bf6e80275ec520bde176f2e0239e6537",
+  "ext": "mp4",
+  "size": 16139589,
+  "class": "iso",
+  "ns": {
+   "ours": 600943812,
+   "theirs": 547369193
+  }
+ },
+ {
+  "sha256": "057ee81be8c845e5c8321677bd3fc304af8e26894cc8f0076e937968c31f5615",
+  "ext": "mov",
+  "size": 75301888,
+  "class": "iso",
+  "refused": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"unsupported: only AAC audio can be extracted\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "065b0fa2931f1f2d4725fa632d13542172fff19a83078469116eae6aa5a87b25",
+  "ext": "mp4",
+  "size": 35029117,
+  "class": "iso",
+  "baseline_failed": "0x38840d80] Could not find tag for codec av1 in stream #0, codec not currently supported in container\n[out#0/ipod @ 0x38840c40] Could not write header (incorrect codec parameters ?): Invalid argument\n"
+ },
+ {
+  "sha256": "096d9e707920c8424d8383984c40b9f3b35a12365bbd7f54c35fe2bb92a485b1",
+  "ext": "mp4",
+  "size": 2280184,
+  "class": "iso",
+  "refused": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"no such track\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "09a07d37fd0963a21d6ad7c3531ea011b1cc1327d4e569a92a1a9141c389dbd9",
+  "ext": "mp4",
+  "size": 208926392,
+  "class": "iso",
+  "refused": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"no such track\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "09febe430bb4b10251fa93b6bd05b0e64974019cf12ce450225a82cac0e3517c",
+  "ext": "mp4",
+  "size": 407979,
+  "class": "iso",
+  "ns": {
+   "ours": 292540744,
+   "theirs": 1003759260
+  }
+ },
+ {
+  "sha256": "0a65884fdefdebe0a8cb7c1d188635f8d5bf4b15e00d430628b1aa94d557cef3",
+  "ext": "mp4",
+  "size": 29370,
+  "class": "iso",
+  "refused": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"no such track\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "0c09c76072802293960c5f2d5ea2116cca1192000c3fc0b433aa9904cb23e90f",
+  "ext": "mp4",
+  "size": 119913364,
+  "class": "iso",
+  "refused": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"no such track\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "0ced42322c655b47b4727508850d88ad8a69e9051647b38a699c047998ca6e08",
+  "ext": "mp4",
+  "size": 1969241,
+  "class": "iso",
+  "ns": {
+   "ours": 300976864,
+   "theirs": 1074683828
+  }
+ },
+ {
+  "sha256": "0d8e77ef7d452500f63f2be49a6d28eb8ad2594d8497cae47494b19e8aa59cf8",
+  "ext": "mp4",
+  "size": 427176,
+  "class": "iso",
+  "refused": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"no such track\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "0df9dd6969abdb8cd5e1df1015f23817408fc98dbb26aba6c21d91e5ea0bc9ca",
+  "ext": "mp4",
+  "size": 1032498,
+  "class": "iso",
+  "refused": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"no such track\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "108521a89a7345637ec07067edf8cded82d3d55d95697cfc65ec0eca2d301ab4",
+  "ext": "mp4",
+  "size": 3879911,
+  "class": "iso",
+  "ns": {
+   "ours": 369285224,
+   "theirs": 1069252816
+  }
+ },
+ {
+  "sha256": "1115b5bac7c25e1c3277f86bfa80c441a9e26f74b2b923f53ae01c0788892f18",
+  "ext": "mp4",
+  "size": 508868,
+  "class": "iso",
+  "ns": {
+   "ours": 317036962,
+   "theirs": 1069477949
+  }
+ },
+ {
+  "sha256": "12b4221859532842b90e0de4e54c9ef930e122c005fd28a889d6da58c56e3a6f",
+  "ext": "mp4",
+  "size": 2375790,
+  "class": "iso",
+  "ns": {
+   "ours": 380853153,
+   "theirs": 1050227263
+  }
+ },
+ {
+  "sha256": "12c0953f433a36ff6657228a8edb421b9dfee8062ff2f314c08167105c48f7bc",
+  "ext": "m4a",
+  "size": 933331,
+  "class": "iso",
+  "ns": {
+   "ours": 295658479,
+   "theirs": 350612887
+  }
+ },
+ {
+  "sha256": "13cf128006da7d55a85cabe8ec86d59a06614abee80f5ebb753a44a818d44db3",
+  "ext": "mp4",
+  "size": 109441265,
+  "class": "iso",
+  "ns": {
+   "ours": 1957694017,
+   "theirs": 2461976280
+  }
+ },
+ {
+  "sha256": "146662b2307cb96811d9e3025c036a9e5186f152b6b1889ca61e14eb3684e49f",
+  "ext": "m4a",
+  "size": 1051602,
+  "class": "iso",
+  "ns": {
+   "ours": 318747102,
+   "theirs": 361395255
+  }
+ },
+ {
+  "sha256": "15affcdb19e3f12cab92733a3a4edc817e93ad68c9e760bba69ef2b353f30af6",
+  "ext": "mp4",
+  "size": 126850059,
+  "class": "iso",
+  "baseline_failed": "x23c38800] Could not find tag for codec hevc in stream #0, codec not currently supported in container\n[out#0/ipod @ 0x23c386c0] Could not write header (incorrect codec parameters ?): Invalid argument\n"
+ },
+ {
+  "sha256": "19d5a3aef3db7c60fd8148bcc4295929e56d7eeb9c2039ee6f2314f56b2bc990",
+  "ext": "mp4",
+  "size": 8021639,
+  "class": "iso",
+  "ns": {
+   "ours": 423416838,
+   "theirs": 1118036412
+  }
+ },
+ {
+  "sha256": "1b450d90085d977259b9e87edae9a6c00afba8981268b729dd2e5fb802897706",
+  "ext": "mov",
+  "size": 63815698,
+  "class": "iso",
+  "refused": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"no such track\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "1ce3933e3009bf2e9426121996f67ecc3379141bf2f392b37ac443276c55a154",
+  "ext": "mp4",
+  "size": 70292915,
+  "class": "iso",
+  "ns": {
+   "ours": 1430635376,
+   "theirs": 2623344725
+  }
+ },
+ {
+  "sha256": "1ced309b3617c62e64e5a9ce1bd93827ab53704fe57080492e5f5ffeaf9169e7",
+  "ext": "mp4",
+  "size": 110568798,
+  "class": "iso",
+  "ns": {
+   "ours": 2780717926,
+   "theirs": 4597639299
+  }
+ },
+ {
+  "sha256": "1df1e32ed6a5a8cefe52d15442b3465934bdfcf41356f7874184e2cd939cf7b2",
+  "ext": "mov",
+  "size": 178465188,
+  "class": "iso",
+  "refused": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"unsupported: only AAC audio can be extracted\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "1fc969989fcdee6e5073012d2d7f8d1af15e15a755f6d4e411ed6bdd7d04084d",
+  "ext": "mp4",
+  "size": 796511,
+  "class": "iso",
+  "refused": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"no such track\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "206a65347de430d068418d00b6e958db2004a6f96e439275e1a96c512a8c6b7f",
+  "ext": "mp4",
+  "size": 2574548,
+  "class": "iso",
+  "ns": {
+   "ours": 307404880,
+   "theirs": 1063856072
+  }
+ },
+ {
+  "sha256": "220e29e8557e4023bd38ea992b8e40a4602b8b6bbf6aa770b84aefdcc4b82ce0",
+  "ext": "mp4",
+  "size": 1934049,
+  "class": "iso",
+  "ns": {
+   "ours": 312985499,
+   "theirs": 680964056
+  }
+ },
+ {
+  "sha256": "24e19189ff25e376bc5ba1169f09a91f8e9ed1b895e515ceaa90196eddd5a640",
+  "ext": "m4a",
+  "size": 1027688,
+  "class": "iso",
+  "ns": {
+   "ours": 332066527,
+   "theirs": 347825067
+  }
+ },
+ {
+  "sha256": "25c852bc7dae794f5e7594070b25631a790c417c930987f23a1621d1948ce8a6",
+  "ext": "mp4",
+  "size": 838805,
+  "class": "iso",
+  "refused": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"no such track\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "2893c1481a13fb001fe7efb863d32f8e95d5f4d74ebf5f47377a6e866e6bba07",
+  "ext": "m4a",
+  "size": 989448,
+  "class": "iso",
+  "ns": {
+   "ours": 311560763,
+   "theirs": 358498915
+  }
+ },
+ {
+  "sha256": "2a36309a821ba2b5f0aa30b0f4b9279e40598a443009129690a95c151f73f3b8",
+  "ext": "mp4",
+  "size": 488069,
+  "class": "iso",
+  "ns": {
+   "ours": 275116922,
+   "theirs": 987750647
+  }
+ },
+ {
+  "sha256": "2a3c8259b630a2ca184070f8477fe0181636ee0e9e0391b38edc96e2dc842177",
+  "ext": "mp4",
+  "size": 974796,
+  "class": "iso",
+  "ns": {
+   "ours": 307393048,
+   "theirs": 349984378
+  }
+ },
+ {
+  "sha256": "2ac72e8784ecca1828f8059f8995e09f9f7335f48d50c080c10a52e4ce379901",
+  "ext": "m4a",
+  "size": 28949204,
+  "class": "iso",
+  "ns": {
+   "ours": 1002886236,
+   "theirs": 843545898
+  }
+ },
+ {
+  "sha256": "2ad59527e45be6667d9730ed3ee58238b342942dd1b72610746ef77551854e63",
+  "ext": "mp4",
+  "size": 3198677,
+  "class": "iso",
+  "refused": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"no such track\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "2b42d40aa3287b9a8f0cf3d1ee62cbb22d142ef49022ed0afdb1a15b4369b805",
+  "ext": "mov",
+  "size": 51107902,
+  "class": "iso",
+  "refused": "{\"kind\":\"invalid_structure\",\"limit\":null,\"message\":\"invalid 'moov' box at offset 32: missing movie header\",\"offset\":32,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "2bc6b07151be2f843031e53dc6bc36146b1daa8f500884fe71d1ebc9e5657ad3",
+  "ext": "mov",
+  "size": 7094767,
+  "class": "iso",
+  "baseline_failed": "x1c0f65c0] Could not find tag for codec hevc in stream #0, codec not currently supported in container\n[out#0/ipod @ 0x1c0da7c0] Could not write header (incorrect codec parameters ?): Invalid argument\n"
+ },
+ {
+  "sha256": "2c7ae378fe100eb5b105cf8afcd82f9c62d740ab3e9d78fb4066de3abe21bf69",
+  "ext": "mov",
+  "size": 104985088,
+  "class": "iso",
+  "refused": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"unsupported: only AAC audio can be extracted\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "2c8794188a185a2ea2d5bd50deffc40f7b25c632150ea3f8a8a23d612a807edb",
+  "ext": "mov",
+  "size": 817,
+  "class": "iso",
+  "refused": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"no such track\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "2cf91de003dac7a476e5769c6a8a0a1a9fb172628e637db39506e6f02af4de07",
+  "ext": "mp4",
+  "size": 231506,
+  "class": "iso",
+  "refused": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"no such track\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "2d782d2c8918b5ae6005550e2ac25f62ada0395314277919d7f5ad4ec8579c9c",
+  "ext": "mp4",
+  "size": 779566,
+  "class": "iso",
+  "ns": {
+   "ours": 310618743,
+   "theirs": 345983329
+  }
+ },
+ {
+  "sha256": "3056b45192163ba8d54425d0b08980e0d0e43944d09d71e352ce9bd95ca0e243",
+  "ext": "mp4",
+  "size": 11390796,
+  "class": "iso",
+  "ns": {
+   "ours": 672572174,
+   "theirs": 1276330478
+  }
+ },
+ {
+  "sha256": "33423db1c2f67f0af26071311e7bda4e0371549bcfd62eae026e744adf34feca",
+  "ext": "mp4",
+  "size": 6826288,
+  "class": "iso",
+  "ns": {
+   "ours": 553938875,
+   "theirs": 1187062176
+  }
+ },
+ {
+  "sha256": "33b54ab1d6c95f3ee36ef0019409313a23a555e347b0be078f4b0261fc1e3513",
+  "ext": "mp4",
+  "size": 841130,
+  "class": "iso",
+  "ns": {
+   "ours": 327303243,
+   "theirs": 1082972646
+  }
+ },
+ {
+  "sha256": "34ad774111282fbe76efe08fd4c075f9386df7c55a3aa23a855a83622c9b0d74",
+  "ext": "mp4",
+  "size": 167825234,
+  "class": "iso",
+  "refused": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"unsupported: only AAC audio can be extracted\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "35c2c80530e0d6c5eed8dafd71852dac621db547bef6bf5ad375b91bd0e38347",
+  "ext": "mp4",
+  "size": 4134647,
+  "class": "iso",
+  "ns": {
+   "ours": 322545744,
+   "theirs": 1501719006
+  }
+ },
+ {
+  "sha256": "35dce647f1bba740733f5306568622d4122a8abe6c1b8634805d212cc819f537",
+  "ext": "mp4",
+  "size": 76154,
+  "class": "iso",
+  "refused": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"no such track\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "371baf1bdb08cd56e5f675df9ebcb5c618ad0339f4f0c00d7f88ab24a038c192",
+  "ext": "mp4",
+  "size": 266519710,
+  "class": "iso",
+  "baseline_failed": "0x457e1580] Could not find tag for codec av1 in stream #0, codec not currently supported in container\n[out#0/ipod @ 0x457d5640] Could not write header (incorrect codec parameters ?): Invalid argument\n"
+ },
+ {
+  "sha256": "376ad2dd72fd91d12b1986594b54bf83cd13a51baf955ee19b10ef0025c26c37",
+  "ext": "mp4",
+  "size": 7468506,
+  "class": "iso",
+  "refused": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"no such track\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "3898250f26b891f1233bee86910ae2f98394981ebbe20abedd4e5455e075a5d4",
+  "ext": "mp4",
+  "size": 2437117,
+  "class": "iso",
+  "refused": "{\"kind\":\"codec_not_allowed\",\"limit\":null,\"message\":\"codec 'enca' of track 1 is not allowed\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "39bb52e682d16c638c4b614fd3d4511703d2f05f75c904d0193d866e466ebe2d",
+  "ext": "mp4",
+  "size": 1561833,
+  "class": "iso",
+  "refused": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"no such track\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "3a4928a60b5dc334915fe8a4fe3a152bd9aa9e6d7cbb571402457ceb71ae0f2d",
+  "ext": "mp4",
+  "size": 16380342,
+  "class": "iso",
+  "refused": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"no such track\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "3b5d1c91eaa5f7e4aeb4b07d9ed641f2cfa22fae2e2365c56d20e7eefa922d24",
+  "ext": "mp4",
+  "size": 10428925,
+  "class": "iso",
+  "baseline_failed": "0x44d87d00] Could not find tag for codec av1 in stream #0, codec not currently supported in container\n[out#0/ipod @ 0x44d87bc0] Could not write header (incorrect codec parameters ?): Invalid argument\n"
+ },
+ {
+  "sha256": "3c5b4bf1a271ba2fdc32124d61034768091da834fb0374f81bf074fa74094193",
+  "ext": "mp4",
+  "size": 1288260,
+  "class": "iso",
+  "ns": {
+   "ours": 357776527,
+   "theirs": 1109326439
+  }
+ },
+ {
+  "sha256": "3c9312524de73933062ec6d9de37c3913308122980d7468575320ebfbd4a0e08",
+  "ext": "mp4",
+  "size": 110722958,
+  "class": "iso",
+  "ns": {
+   "ours": 2307119248,
+   "theirs": 5911220409
+  }
+ },
+ {
+  "sha256": "3dc2331682cde7c6e882d2590908ccb41a26e93d700ebbfaa673487b7c3d0d54",
+  "ext": "mp4",
+  "size": 201477432,
+  "class": "iso",
+  "refused": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"unsupported: only AAC audio can be extracted\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "3e2baf38a44500dc99f17a344b2b15ed5ddc6b46516cb0b183cf2434979b3348",
+  "ext": "mp4",
+  "size": 8868014,
+  "class": "iso",
+  "refused": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"no such track\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "3e3704d5c273d1defc86925dd46944a6220e925a0b8568875417833173af2974",
+  "ext": "mp4",
+  "size": 108205,
+  "class": "iso",
+  "refused": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"no such track\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "3e7b2fbc6e4d7e444e14eb63e5e3c10b7e296d38072b3eb257a7f650754d659a",
+  "ext": "mp4",
+  "size": 36059997,
+  "class": "iso",
+  "ns": {
+   "ours": 977592734,
+   "theirs": 1033849885
+  }
+ },
+ {
+  "sha256": "3f89a1f748a962fe89fbab4aab52e9aa386321dfb46dd02d0534bf3db8e92f6b",
+  "ext": "m4a",
+  "size": 17325865,
+  "class": "iso",
+  "ns": {
+   "ours": 779298028,
+   "theirs": 1286728909
+  }
+ },
+ {
+  "sha256": "3faf6fdb5c7913f80f2b9bafbdedd440c2ad40038dedd0e3de92f01645f67c81",
+  "ext": "mp4",
+  "size": 668967,
+  "class": "iso",
+  "ns": {
+   "ours": 315584668,
+   "theirs": 1096440634
+  }
+ }
+]

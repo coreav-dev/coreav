@@ -1,0 +1,19 @@
+# As ab-1t-1.txt, a second run with four builds: m-rec; m-rr, m-rec with MbData::reset clearing each coefficient array whole
+# where any block of it was written (not in this round); m-reset, that change alone on main. Information only.
+41e324ebb708.0.sd.h2 0.994  m-rec 0.9602  m-rr 0.9612  m-reset 0.9762
+5185721dda11.0.sd.h2 0.431  m-rec 1.0001  m-rr 1.0036  m-reset 0.9969
+6f7799768413.0.sd.h2 1.862  m-rec 1.0081  m-rr 0.9992  m-reset 0.9963
+dcb262cf0138.0.sd.h2 0.288  m-rec 0.9992  m-rr 0.9969  m-reset 0.9939
+f9e973f44570.0.sd.h2 0.199  m-rec 1.0237  m-rr 0.9911  m-reset 0.9946
+1d4b1775d78a.0.720p. 0.969  m-rec 1.1246  m-rr 0.9929  m-reset 0.9866
+6b18d9f0f88d.0.720p. 0.777  m-rec 0.9902  m-rr 0.9978  m-reset 1.0054
+76e0b1692494.0.720p. 0.974  m-rec 0.9894  m-rr 0.9900  m-reset 0.9997
+a81de82106be.0.1080p 0.763  m-rec 0.9911  m-rr 0.9759  m-reset 1.0027
+b71b6b31e54f.0.1080p 1.172  m-rec 0.9624  m-rr 0.9628  m-reset 0.9844
+6da34958296c.0.1080p 1.811  m-rec 0.9897  m-rr 0.9818  m-reset 1.0116
+ed75c044e944.0.4k.h2 0.347  m-rec 0.9673  m-rr 1.0082  m-reset 0.9843
+81ed4778ece2.0.4k.h2 0.365  m-rec 0.9612  m-rr 0.9954  m-reset 1.0351
+f8d92a911e72.0.4k.h2 7.830  m-rec 1.0382  m-rr 0.9989  m-reset 1.0005
+ae16bb7c7192.0.4k.h2 0.191  m-rec 0.9722  m-rr 0.9718  m-reset 1.0052
+4b54de28c2b3.0.4k.h2 0.829  m-rec 1.0023  m-rr 0.9768  m-reset 1.0023
+median m-rec 0.9906  m-rr 0.9920  m-reset 0.9983

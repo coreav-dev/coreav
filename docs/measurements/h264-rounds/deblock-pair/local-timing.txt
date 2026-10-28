@@ -1,0 +1,13 @@
+Local timing (information, before the bars): scripts/h264_parity.py --rounds 5 --pin 2, a VM that reported Intel Xeon @ 2.50GHz (family 6, model 85),
+the eight profiled streams, base = main e6d810cf, c = 31a96d3d (this branch on e6d810cf). Identity: the 32 training streams, 1 thread, md5: 32 of 32 the same.
+
+6da34958296c 1080p  discard 0.989 write 0.951  ff/c 1.628
+b71b6b31e54f 1080p  discard 0.984 write 1.027  ff/c 1.884
+3b1b441e23ae 4k     discard 0.998 write 1.019  ff/c 1.736
+e624cbe0d2be 4k     discard 1.046 write 0.981  ff/c 1.797
+9db41aa16b5a 720p   discard 1.033 write 0.964  ff/c 1.830
+1d4b1775d78a 720p   discard 0.975 write 0.969  ff/c 1.534
+41e324ebb708 sd     discard 0.967 write 0.992  ff/c 1.494
+5185721dda11 sd     discard 0.973 write 0.972  ff/c 1.345
+discard median 0.9866 n 8
+write median 0.9763 n 8

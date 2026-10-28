@@ -1,0 +1,19 @@
+# Verification of the luma kernel round's code (k = d10c367), this VM (AVX-512 host), after the gating run.
+# Fuzz targets (crates/coreav-kernels-h264/fuzz), AddressSanitizer, `cargo +nightly fuzz run --target
+# x86_64-unknown-linux-gnu TARGET -- -max_total_time=T`, no crash, no leak:
+#   predict      T=240  "Done 1168009 runs in 241 second(s)"
+#   luma_mc      T=120  "Done 3719710 runs in 121 second(s)"
+#   weighted_mc  T=120  "Done 3833030 runs in 121 second(s)"
+# Mutants, each alone, `cargo test -p coreav-kernels-h264 --release` (lib tests and the equivalence test):
+#   centre: _mm(256)_adds_epi16 -> _mm(256)_add_epi16 (c's add not saturating)     the_centre_of_extreme_rows_matches_the_reference FAILED (no other test)
+#   PAIRS [5, 4] -> [4, 5] (the third pair against (1, -5) in the wrong order)    3 tests FAILED (interpolation, every_luma_position, extreme rows)
+#   round5 pmulhrsw by 1024 -> 1025                                                 3 tests FAILED
+#   centre pmulhrsw by 512 -> 513                                                   3 tests FAILED
+#   Row8 centre (x - y) >> 2 -> >> 3                                                3 tests FAILED
+#   Words::new: the positive weights' bound 128 -> 129                              full_sample_weighting_at_its_bounds_matches_the_reference FAILED
+#   Words::new: Equation 8-288's multiplier 2^(14 - logWD) -> 2^(15 - logWD)        2 tests FAILED (the new one and three_plane_prediction)
+#   Words::new: weights cast to i8 without the range check                          2 tests FAILED
+#   Words::new: the negative weights' bound -128 -> -129                            no test fails, and none can: with weights of -128 to
+#     127, only two negative weights pass the bound, the sum is then at most 0, and a sum that saturates at -32,768 gives
+#     at most (-32,768 + 2^logWD) >> (logWD + 1) + 127 <= -1 either way, which clips to 0. The bound is kept as the
+#     argument for exactness states it.

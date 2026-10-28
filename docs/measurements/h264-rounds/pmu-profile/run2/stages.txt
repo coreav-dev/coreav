@@ -1,0 +1,100 @@
+Stages: cycle-like events as a share of FFmpeg cycles; counts per macroblock. Mean over streams.
+
+cycles
+  class  decoder   entropy        mb     inter     recon   deblock     other     total
+  sd     core     0.3260    0.1665    0.1690    0.0831    0.2290    0.0535    1.0271
+  sd     ffa      0.3306    0.0380    0.1728    0.0738    0.2005    0.1842    1.0000
+  720p   core     0.3953    0.1675    0.1636    0.0901    0.2841    0.0386    1.1392
+  720p   ffa      0.4204    0.0347    0.1416    0.0818    0.2628    0.0587    1.0000
+  1080p  core     0.5378    0.1603    0.1643    0.0975    0.1367    0.0399    1.1366
+  1080p  ffa      0.5739    0.0434    0.1434    0.0850    0.1187    0.0356    1.0000
+  4k     core     0.3407    0.2514    0.2307    0.0566    0.1264    0.0829    1.0887
+  4k     ffa      0.4282    0.0558    0.1969    0.1180    0.1062    0.0949    1.0000
+  all    core     0.4000    0.1864    0.1819    0.0818    0.1940    0.0537    1.0979
+  all    ffa      0.4383    0.0430    0.1637    0.0897    0.1721    0.0934    1.0000
+
+instructions
+  class  decoder   entropy        mb     inter     recon   deblock     other     total
+  sd     core  1587.9978  895.4447 1023.6306  312.1364 1299.9889  178.1855 5297.3840
+  sd     ffa   1197.2916  214.4791 1037.3946  339.1627 1310.9375  516.5573 4615.8228
+  720p   core  2252.3517  937.2184  911.0711  513.2077 1763.6920  156.7084 6534.2493
+  720p   ffa   1729.7769  178.6683  932.8183  422.1474 1581.9510   88.2540 4933.6159
+  1080p  core  4726.7760 1129.1884 1213.2875  844.3656 1131.4408  146.7124 9191.7707
+  1080p  ffa   3347.7113  303.8910 1131.9458  683.4430  982.5166   56.8935 6506.4011
+  4k     core  1411.7902  904.1788  810.0351  272.8924  563.5433   91.9774 4054.4172
+  4k     ffa   1235.9406  217.2106  853.4441  385.2596  470.2331   55.0292 3217.1173
+  all    core  2494.7289  966.5076  989.5061  485.6505 1189.6663  143.3959 6269.4553
+  all    ffa   1877.6801  228.5622  988.9007  457.5032 1086.4096  179.1835 4818.2393
+
+Totals (perf stat): median per stream of CoreAV / FFmpeg BtbN; per macroblock: CoreAV, BtbN, attribution build
+
+CoreAV items within the MB layer and deblocking (mean per stream, raw weight; top 12 per event):
+
+cycles / deblock
+   15.9%  deblock.rs:deblock_row
+   11.1%  deblock.rs:edge_strengths
+    8.7%  avx512.rs:filter_luma16
+    7.2%  avx512.rs:luma_columns
+    6.9%  deblock.rs:new
+    5.5%  avx512.rs:{closure#0}
+    4.2%  deblock.rs:{closure#0}
+    3.4%  avx512.rs:{closure#1}
+    3.3%  x86.rs:filter_chroma16
+    3.2%  avx512.rs:thresholds
+    2.7%  deblock.rs:same_motion
+    2.6%  avx512.rs:luma_rows
+
+cycles / mb
+   13.6%  mb.rs:finish_mb
+    8.1%  inter.rs:store_mb
+    6.0%  mb.rs:reset_body
+    5.6%  inter.rs:predict_partitions
+    4.7%  inter.rs:colocated
+    4.6%  mb.rs:eq
+    4.4%  inter.rs:resolve
+    4.4%  inter.rs:mv_predictor
+    2.6%  inter.rs:set
+    2.6%  mb.rs:info
+    2.3%  mb.rs:start_mb_body
+    2.2%  nb.rs:put
+
+instructions / deblock
+   18.9%  deblock.rs:deblock_row
+   11.5%  deblock.rs:edge_strengths
+   10.2%  avx512.rs:filter_luma16
+    8.2%  avx512.rs:{closure#0}
+    7.5%  deblock.rs:new
+    5.7%  avx512.rs:luma_columns
+    4.0%  deblock.rs:{closure#0}
+    3.1%  avx512.rs:thresholds
+    3.0%  avx512.rs:{closure#1}
+    2.4%  deblock.rs:same_motion
+    2.1%  deblock.rs:{closure#1}
+    1.9%  x86.rs:filter_chroma16
+
+instructions / mb
+   14.3%  mb.rs:finish_mb
+    8.2%  inter.rs:store_mb
+    7.1%  inter.rs:predict_partitions
+    5.3%  mb.rs:reset_body
+    5.3%  inter.rs:resolve
+    5.1%  inter.rs:mv_predictor
+    4.6%  inter.rs:colocated
+    4.3%  mb.rs:eq
+    2.3%  mb.rs:info
+    2.3%  mb.rs:is_intra
+    2.3%  inter.rs:set
+    2.1%  inter.rs:predict_direct
+
+Instructions per cycle by stage (sampled together; summed over the streams):
+  class  decoder   entropy        mb     inter     recon   deblock     other     total
+  sd     core       2.60      2.91      3.44      2.35      3.13      1.92      2.85
+  sd     ffa        1.93      3.14      3.40      2.67      3.96      1.47      2.64
+  720p   core       2.58      3.15      3.10      2.76      3.45      2.25      2.95
+  720p   ffa        1.92      2.83      3.56      2.72      3.51      0.84      2.59
+  1080p  core       2.41      2.98      3.14      2.59      3.36      1.47      2.63
+  1080p  ffa        1.61      3.06      3.33      2.86      3.66      0.69      2.09
+  4k     core       2.44      3.46      3.27      2.71      4.30      1.26      2.82
+  4k     ffa        1.76      3.26      3.52      3.03      4.37      0.71      2.30
+  all    core       2.46      3.12      3.20      2.63      3.46      1.63      2.76
+  all    ffa        1.71      3.08      3.44      2.85      3.71      0.96      2.29

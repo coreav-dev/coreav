@@ -1,0 +1,1 @@
+identical 32, different 0 (ident.sh: compact at 1 and 8 threads against main at 1, 32 training streams, raw output md5)

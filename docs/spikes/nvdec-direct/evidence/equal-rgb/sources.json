@@ -1,0 +1,15 @@
+{
+  "measurement_binary_sha256": "5677a85e811523ff3cf11d14ae545981ce6ea3fb689fb9896048fc7466033a71",
+  "files_sha256": {
+    "src/nvdec.rs": "cda74c018d1223cdcc91afda3a10bbcdca4ffc2cd220feb21d72d052f3322166",
+    "src/main.rs": "8f3cc69d45bab1ea062e348173fa24edd42f645efb6f70f068b1963f8ad21057",
+    "experiment.py": "4b097c7e29d74b45e2651d46e28eb1507dc4083b8b03a8a536e958d02af9ad0a",
+    "compile_rgb.py": "0d111d2bc2d7b036e057728f80564ad0ea3602cb022edde6c35904354ccb33ab",
+    "rgb.cu": "6c653efa241377c310460d67fd02a1c2d0c5a08e63550b9fc4b347246afbf7ca",
+    "remote_app.py": "1020e7044feb3d26dce97c3eea3ebeaec9cf701f42f32501e6b028c321b33376",
+    "result_checks.py": "da447746aa69f176fa3d422fa00e6c94af40bfbc69fa5d5b104c8e460638668c"
+  },
+  "scope": "Sources and binary staged for equal-output attempt 3; no multimedia implementation source read.",
+  "measurement_code_commit": "517b0b7",
+  "post_measurement_guard": "RGB batch bounds additionally reject extreme caller offsets before arithmetic. The measurements use valid ring batch offsets 0 and 16; see follow-up-verification.log for the bounds regression and current checks."
+}

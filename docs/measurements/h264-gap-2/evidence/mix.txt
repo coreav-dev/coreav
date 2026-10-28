@@ -1,0 +1,3 @@
+ours:   {'other': '64.3%', 'compare/test': '13.1%', 'vector': '11.8%', 'cond branch': '10.0%', 'outside the binary': '0.8%'} of 135.11 G
+ffsimd: {'other': '62.6%', 'vector': '18.0%', 'outside the binary': '7.5%', 'cond branch': '6.3%', 'compare/test': '5.6%'} of 45.95 G
+ffc:    {'other': '71.3%', 'vector': '14.6%', 'compare/test': '7.9%', 'cond branch': '5.4%', 'outside the binary': '0.8%'} of 111.71 G

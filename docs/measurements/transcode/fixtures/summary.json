@@ -1,0 +1,1155 @@
+{
+ "mode": "fixtures",
+ "configs": {
+  "default": {
+   "ffmpeg": {
+    "h264": {
+     "files": 51,
+     "apart": {
+      "refused: unsupported_feature: unsupported: the video stream has an edit list of more than ": 3,
+      "refused: truncated_structure: truncated structure at offset 89714": 1
+     },
+     "B1": {
+      "pass": 47,
+      "judged": 47,
+      "share": 1.0,
+      "met": true
+     },
+     "B1_native": {
+      "pass": 47,
+      "judged": 47,
+      "share": 1.0,
+      "met": true,
+      "apart": {}
+     },
+     "B2": {
+      "pass": 46,
+      "judged": 47,
+      "share": 0.9787234042553191,
+      "bar": 1.0,
+      "met": false
+     },
+     "B3": {
+      "pass": 29,
+      "judged": 29,
+      "share": 1.0,
+      "bar": 1.0,
+      "met": true
+     },
+     "Q1": {
+      "judged": 47,
+      "median_delta_db": 0.0,
+      "share_at_least_-0.50": 1.0,
+      "median_size_ratio": 1.0,
+      "met": true
+     },
+     "Q2": {
+      "judged": 47,
+      "median_db": Infinity,
+      "share_at_least_30": 1.0,
+      "met": true
+     },
+     "bitrate": {
+      "pass": 9,
+      "judged": 9,
+      "share": 1.0,
+      "met": true
+     },
+     "below_floor": []
+    },
+    "hevc": {
+     "files": 10,
+     "apart": {},
+     "B1": {
+      "pass": 10,
+      "judged": 10,
+      "share": 1.0,
+      "met": true
+     },
+     "B1_native": {
+      "pass": 9,
+      "judged": 9,
+      "share": 1.0,
+      "met": true,
+      "apart": {
+       "profile High 10 yuv420p10le": 1
+      }
+     },
+     "B2": {
+      "pass": 10,
+      "judged": 10,
+      "share": 1.0,
+      "bar": 1.0,
+      "met": true
+     },
+     "B3": {
+      "pass": 4,
+      "judged": 4,
+      "share": 1.0,
+      "bar": 1.0,
+      "met": true
+     },
+     "Q1": {
+      "judged": 10,
+      "median_delta_db": 0.0,
+      "share_at_least_-0.50": 1.0,
+      "median_size_ratio": 1.0,
+      "met": true
+     },
+     "Q2": {
+      "judged": 10,
+      "median_db": Infinity,
+      "share_at_least_30": 1.0,
+      "met": true
+     },
+     "bitrate": {
+      "pass": 1,
+      "judged": 1,
+      "share": 1.0,
+      "met": true
+     },
+     "below_floor": []
+    },
+    "av1": {
+     "files": 5,
+     "apart": {},
+     "B1": {
+      "pass": 5,
+      "judged": 5,
+      "share": 1.0,
+      "met": true
+     },
+     "B1_native": {
+      "pass": 5,
+      "judged": 5,
+      "share": 1.0,
+      "met": true,
+      "apart": {}
+     },
+     "B2": {
+      "pass": 5,
+      "judged": 5,
+      "share": 1.0,
+      "bar": 1.0,
+      "met": true
+     },
+     "B3": {
+      "pass": 3,
+      "judged": 3,
+      "share": 1.0,
+      "bar": 1.0,
+      "met": true
+     },
+     "Q1": {
+      "judged": 5,
+      "median_delta_db": 0.0,
+      "share_at_least_-0.50": 1.0,
+      "median_size_ratio": 1.0,
+      "met": true
+     },
+     "Q2": {
+      "judged": 5,
+      "median_db": Infinity,
+      "share_at_least_30": 1.0,
+      "met": true
+     },
+     "bitrate": {
+      "pass": 0,
+      "judged": 0,
+      "share": null,
+      "met": null
+     },
+     "below_floor": []
+    },
+    "vp9": {
+     "files": 4,
+     "apart": {},
+     "B1": {
+      "pass": 4,
+      "judged": 4,
+      "share": 1.0,
+      "met": true
+     },
+     "B1_native": {
+      "pass": 4,
+      "judged": 4,
+      "share": 1.0,
+      "met": true,
+      "apart": {}
+     },
+     "B2": {
+      "pass": 4,
+      "judged": 4,
+      "share": 1.0,
+      "bar": 1.0,
+      "met": true
+     },
+     "B3": {
+      "pass": 2,
+      "judged": 2,
+      "share": 1.0,
+      "bar": 1.0,
+      "met": true
+     },
+     "Q1": {
+      "judged": 4,
+      "median_delta_db": 0.0,
+      "share_at_least_-0.50": 1.0,
+      "median_size_ratio": 1.0,
+      "met": true
+     },
+     "Q2": {
+      "judged": 4,
+      "median_db": Infinity,
+      "share_at_least_30": 1.0,
+      "met": true
+     },
+     "bitrate": {
+      "pass": 0,
+      "judged": 0,
+      "share": null,
+      "met": null
+     },
+     "below_floor": []
+    },
+    "prores": {
+     "files": 7,
+     "apart": {
+      "refused: unsupported_feature: unsupported: the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 ": 2
+     },
+     "B1": {
+      "pass": 5,
+      "judged": 5,
+      "share": 1.0,
+      "met": true
+     },
+     "B1_native": {
+      "pass": 0,
+      "judged": 0,
+      "share": null,
+      "met": null,
+      "apart": {
+       "profile High 4:2:2 yuv422p10le": 5
+      }
+     },
+     "B2": {
+      "pass": 5,
+      "judged": 5,
+      "share": 1.0,
+      "bar": 1.0,
+      "met": true
+     },
+     "B3": {
+      "pass": 0,
+      "judged": 0,
+      "share": null,
+      "bar": 1.0,
+      "met": null
+     },
+     "Q1": {
+      "judged": 5,
+      "median_delta_db": 0.0,
+      "share_at_least_-0.50": 1.0,
+      "median_size_ratio": 1.0,
+      "met": true
+     },
+     "Q2": {
+      "judged": 5,
+      "median_db": Infinity,
+      "share_at_least_30": 1.0,
+      "met": true
+     },
+     "bitrate": {
+      "pass": 0,
+      "judged": 0,
+      "share": null,
+      "met": null
+     },
+     "below_floor": []
+    },
+    "all": {
+     "files": 77,
+     "apart": {
+      "refused: unsupported_feature: unsupported: the video stream has an edit list of more than ": 3,
+      "refused: unsupported_feature: unsupported: the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 ": 2,
+      "refused: truncated_structure: truncated structure at offset 89714": 1
+     },
+     "B1": {
+      "pass": 71,
+      "judged": 71,
+      "share": 1.0,
+      "met": true
+     },
+     "B1_native": {
+      "pass": 65,
+      "judged": 65,
+      "share": 1.0,
+      "met": true,
+      "apart": {
+       "profile High 10 yuv420p10le": 1,
+       "profile High 4:2:2 yuv422p10le": 5
+      }
+     },
+     "B2": {
+      "pass": 70,
+      "judged": 71,
+      "share": 0.9859154929577465,
+      "bar": 1.0,
+      "met": false
+     },
+     "B3": {
+      "pass": 38,
+      "judged": 38,
+      "share": 1.0,
+      "bar": 1.0,
+      "met": true
+     },
+     "Q1": {
+      "judged": 71,
+      "median_delta_db": 0.0,
+      "share_at_least_-0.50": 1.0,
+      "median_size_ratio": 1.0,
+      "met": true
+     },
+     "Q2": {
+      "judged": 71,
+      "median_db": Infinity,
+      "share_at_least_30": 1.0,
+      "met": true
+     },
+     "bitrate": {
+      "pass": 10,
+      "judged": 10,
+      "share": 1.0,
+      "met": true
+     },
+     "below_floor": []
+    }
+   },
+   "x264": {
+    "h264": {
+     "files": 51,
+     "apart": {
+      "refused: unsupported_feature: unsupported: the video stream has an edit list of more than ": 3,
+      "refused: truncated_structure: truncated structure at offset 89714": 1
+     },
+     "B1": {
+      "pass": 47,
+      "judged": 47,
+      "share": 1.0,
+      "met": true
+     },
+     "B1_native": {
+      "pass": 47,
+      "judged": 47,
+      "share": 1.0,
+      "met": true,
+      "apart": {}
+     },
+     "B2": {
+      "pass": 46,
+      "judged": 47,
+      "share": 0.9787234042553191,
+      "bar": 1.0,
+      "met": false
+     },
+     "B3": {
+      "pass": 29,
+      "judged": 29,
+      "share": 1.0,
+      "bar": 1.0,
+      "met": true
+     },
+     "Q1": {
+      "judged": 47,
+      "median_delta_db": 0.0,
+      "share_at_least_-0.50": 1.0,
+      "median_size_ratio": 1.0,
+      "met": true
+     },
+     "Q2": {
+      "judged": 47,
+      "median_db": Infinity,
+      "share_at_least_30": 1.0,
+      "met": true
+     },
+     "bitrate": {
+      "pass": 9,
+      "judged": 9,
+      "share": 1.0,
+      "met": true
+     },
+     "below_floor": []
+    },
+    "hevc": {
+     "files": 10,
+     "apart": {},
+     "B1": {
+      "pass": 10,
+      "judged": 10,
+      "share": 1.0,
+      "met": true
+     },
+     "B1_native": {
+      "pass": 9,
+      "judged": 9,
+      "share": 1.0,
+      "met": true,
+      "apart": {
+       "profile High 10 yuv420p10le": 1
+      }
+     },
+     "B2": {
+      "pass": 10,
+      "judged": 10,
+      "share": 1.0,
+      "bar": 1.0,
+      "met": true
+     },
+     "B3": {
+      "pass": 4,
+      "judged": 4,
+      "share": 1.0,
+      "bar": 1.0,
+      "met": true
+     },
+     "Q1": {
+      "judged": 10,
+      "median_delta_db": 0.0,
+      "share_at_least_-0.50": 1.0,
+      "median_size_ratio": 1.0,
+      "met": true
+     },
+     "Q2": {
+      "judged": 10,
+      "median_db": Infinity,
+      "share_at_least_30": 1.0,
+      "met": true
+     },
+     "bitrate": {
+      "pass": 1,
+      "judged": 1,
+      "share": 1.0,
+      "met": true
+     },
+     "below_floor": []
+    },
+    "av1": {
+     "files": 5,
+     "apart": {},
+     "B1": {
+      "pass": 5,
+      "judged": 5,
+      "share": 1.0,
+      "met": true
+     },
+     "B1_native": {
+      "pass": 5,
+      "judged": 5,
+      "share": 1.0,
+      "met": true,
+      "apart": {}
+     },
+     "B2": {
+      "pass": 5,
+      "judged": 5,
+      "share": 1.0,
+      "bar": 1.0,
+      "met": true
+     },
+     "B3": {
+      "pass": 3,
+      "judged": 3,
+      "share": 1.0,
+      "bar": 1.0,
+      "met": true
+     },
+     "Q1": {
+      "judged": 5,
+      "median_delta_db": 0.0,
+      "share_at_least_-0.50": 1.0,
+      "median_size_ratio": 1.0,
+      "met": true
+     },
+     "Q2": {
+      "judged": 5,
+      "median_db": Infinity,
+      "share_at_least_30": 1.0,
+      "met": true
+     },
+     "bitrate": {
+      "pass": 0,
+      "judged": 0,
+      "share": null,
+      "met": null
+     },
+     "below_floor": []
+    },
+    "vp9": {
+     "files": 4,
+     "apart": {},
+     "B1": {
+      "pass": 4,
+      "judged": 4,
+      "share": 1.0,
+      "met": true
+     },
+     "B1_native": {
+      "pass": 4,
+      "judged": 4,
+      "share": 1.0,
+      "met": true,
+      "apart": {}
+     },
+     "B2": {
+      "pass": 4,
+      "judged": 4,
+      "share": 1.0,
+      "bar": 1.0,
+      "met": true
+     },
+     "B3": {
+      "pass": 2,
+      "judged": 2,
+      "share": 1.0,
+      "bar": 1.0,
+      "met": true
+     },
+     "Q1": {
+      "judged": 4,
+      "median_delta_db": 0.0,
+      "share_at_least_-0.50": 1.0,
+      "median_size_ratio": 1.0,
+      "met": true
+     },
+     "Q2": {
+      "judged": 4,
+      "median_db": Infinity,
+      "share_at_least_30": 1.0,
+      "met": true
+     },
+     "bitrate": {
+      "pass": 0,
+      "judged": 0,
+      "share": null,
+      "met": null
+     },
+     "below_floor": []
+    },
+    "prores": {
+     "files": 7,
+     "apart": {
+      "refused: unsupported_feature: unsupported: the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 ": 2
+     },
+     "B1": {
+      "pass": 5,
+      "judged": 5,
+      "share": 1.0,
+      "met": true
+     },
+     "B1_native": {
+      "pass": 0,
+      "judged": 0,
+      "share": null,
+      "met": null,
+      "apart": {
+       "profile High 4:2:2 yuv422p10le": 5
+      }
+     },
+     "B2": {
+      "pass": 5,
+      "judged": 5,
+      "share": 1.0,
+      "bar": 1.0,
+      "met": true
+     },
+     "B3": {
+      "pass": 0,
+      "judged": 0,
+      "share": null,
+      "bar": 1.0,
+      "met": null
+     },
+     "Q1": {
+      "judged": 5,
+      "median_delta_db": 0.0,
+      "share_at_least_-0.50": 1.0,
+      "median_size_ratio": 1.0,
+      "met": true
+     },
+     "Q2": {
+      "judged": 5,
+      "median_db": Infinity,
+      "share_at_least_30": 1.0,
+      "met": true
+     },
+     "bitrate": {
+      "pass": 0,
+      "judged": 0,
+      "share": null,
+      "met": null
+     },
+     "below_floor": []
+    },
+    "all": {
+     "files": 77,
+     "apart": {
+      "refused: unsupported_feature: unsupported: the video stream has an edit list of more than ": 3,
+      "refused: unsupported_feature: unsupported: the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 ": 2,
+      "refused: truncated_structure: truncated structure at offset 89714": 1
+     },
+     "B1": {
+      "pass": 71,
+      "judged": 71,
+      "share": 1.0,
+      "met": true
+     },
+     "B1_native": {
+      "pass": 65,
+      "judged": 65,
+      "share": 1.0,
+      "met": true,
+      "apart": {
+       "profile High 10 yuv420p10le": 1,
+       "profile High 4:2:2 yuv422p10le": 5
+      }
+     },
+     "B2": {
+      "pass": 70,
+      "judged": 71,
+      "share": 0.9859154929577465,
+      "bar": 1.0,
+      "met": false
+     },
+     "B3": {
+      "pass": 38,
+      "judged": 38,
+      "share": 1.0,
+      "bar": 1.0,
+      "met": true
+     },
+     "Q1": {
+      "judged": 71,
+      "median_delta_db": 0.0,
+      "share_at_least_-0.50": 1.0,
+      "median_size_ratio": 1.0,
+      "met": true
+     },
+     "Q2": {
+      "judged": 71,
+      "median_db": Infinity,
+      "share_at_least_30": 1.0,
+      "met": true
+     },
+     "bitrate": {
+      "pass": 10,
+      "judged": 10,
+      "share": 1.0,
+      "met": true
+     },
+     "below_floor": []
+    }
+   },
+   "baseline": {
+    "h264": {
+     "files": 51,
+     "apart": {},
+     "B1": {
+      "pass": 47,
+      "judged": 47,
+      "share": 1.0,
+      "met": true
+     },
+     "B1_native": {
+      "pass": 47,
+      "judged": 47,
+      "share": 1.0,
+      "met": true,
+      "apart": {}
+     },
+     "B2": {
+      "pass": 44,
+      "judged": 47,
+      "share": 0.9361702127659575,
+      "bar": 1.0,
+      "met": false
+     },
+     "B3": {
+      "pass": 23,
+      "judged": 29,
+      "share": 0.7931034482758621,
+      "bar": 1.0,
+      "met": false
+     },
+     "Q1": {
+      "judged": 0,
+      "median_delta_db": null,
+      "share_at_least_-0.50": null,
+      "median_size_ratio": null,
+      "met": null
+     },
+     "Q2": {
+      "judged": 0,
+      "median_db": null,
+      "share_at_least_30": null,
+      "met": null
+     },
+     "bitrate": {
+      "pass": 0,
+      "judged": 0,
+      "share": null,
+      "met": null
+     },
+     "below_floor": []
+    },
+    "hevc": {
+     "files": 10,
+     "apart": {},
+     "B1": {
+      "pass": 10,
+      "judged": 10,
+      "share": 1.0,
+      "met": true
+     },
+     "B1_native": {
+      "pass": 9,
+      "judged": 9,
+      "share": 1.0,
+      "met": true,
+      "apart": {
+       "profile High 10 yuv420p10le": 1
+      }
+     },
+     "B2": {
+      "pass": 10,
+      "judged": 10,
+      "share": 1.0,
+      "bar": 1.0,
+      "met": true
+     },
+     "B3": {
+      "pass": 4,
+      "judged": 4,
+      "share": 1.0,
+      "bar": 1.0,
+      "met": true
+     },
+     "Q1": {
+      "judged": 0,
+      "median_delta_db": null,
+      "share_at_least_-0.50": null,
+      "median_size_ratio": null,
+      "met": null
+     },
+     "Q2": {
+      "judged": 0,
+      "median_db": null,
+      "share_at_least_30": null,
+      "met": null
+     },
+     "bitrate": {
+      "pass": 0,
+      "judged": 0,
+      "share": null,
+      "met": null
+     },
+     "below_floor": []
+    },
+    "av1": {
+     "files": 5,
+     "apart": {},
+     "B1": {
+      "pass": 5,
+      "judged": 5,
+      "share": 1.0,
+      "met": true
+     },
+     "B1_native": {
+      "pass": 5,
+      "judged": 5,
+      "share": 1.0,
+      "met": true,
+      "apart": {}
+     },
+     "B2": {
+      "pass": 5,
+      "judged": 5,
+      "share": 1.0,
+      "bar": 1.0,
+      "met": true
+     },
+     "B3": {
+      "pass": 3,
+      "judged": 3,
+      "share": 1.0,
+      "bar": 1.0,
+      "met": true
+     },
+     "Q1": {
+      "judged": 0,
+      "median_delta_db": null,
+      "share_at_least_-0.50": null,
+      "median_size_ratio": null,
+      "met": null
+     },
+     "Q2": {
+      "judged": 0,
+      "median_db": null,
+      "share_at_least_30": null,
+      "met": null
+     },
+     "bitrate": {
+      "pass": 0,
+      "judged": 0,
+      "share": null,
+      "met": null
+     },
+     "below_floor": []
+    },
+    "vp9": {
+     "files": 4,
+     "apart": {},
+     "B1": {
+      "pass": 4,
+      "judged": 4,
+      "share": 1.0,
+      "met": true
+     },
+     "B1_native": {
+      "pass": 4,
+      "judged": 4,
+      "share": 1.0,
+      "met": true,
+      "apart": {}
+     },
+     "B2": {
+      "pass": 3,
+      "judged": 4,
+      "share": 0.75,
+      "bar": 1.0,
+      "met": false
+     },
+     "B3": {
+      "pass": 1,
+      "judged": 2,
+      "share": 0.5,
+      "bar": 1.0,
+      "met": false
+     },
+     "Q1": {
+      "judged": 0,
+      "median_delta_db": null,
+      "share_at_least_-0.50": null,
+      "median_size_ratio": null,
+      "met": null
+     },
+     "Q2": {
+      "judged": 0,
+      "median_db": null,
+      "share_at_least_30": null,
+      "met": null
+     },
+     "bitrate": {
+      "pass": 0,
+      "judged": 0,
+      "share": null,
+      "met": null
+     },
+     "below_floor": []
+    },
+    "prores": {
+     "files": 7,
+     "apart": {},
+     "B1": {
+      "pass": 5,
+      "judged": 5,
+      "share": 1.0,
+      "met": true
+     },
+     "B1_native": {
+      "pass": 0,
+      "judged": 0,
+      "share": null,
+      "met": null,
+      "apart": {
+       "profile High 4:2:2 yuv422p10le": 5
+      }
+     },
+     "B2": {
+      "pass": 5,
+      "judged": 5,
+      "share": 1.0,
+      "bar": 1.0,
+      "met": true
+     },
+     "B3": {
+      "pass": 0,
+      "judged": 0,
+      "share": null,
+      "bar": 1.0,
+      "met": null
+     },
+     "Q1": {
+      "judged": 0,
+      "median_delta_db": null,
+      "share_at_least_-0.50": null,
+      "median_size_ratio": null,
+      "met": null
+     },
+     "Q2": {
+      "judged": 0,
+      "median_db": null,
+      "share_at_least_30": null,
+      "met": null
+     },
+     "bitrate": {
+      "pass": 0,
+      "judged": 0,
+      "share": null,
+      "met": null
+     },
+     "below_floor": []
+    },
+    "all": {
+     "files": 77,
+     "apart": {},
+     "B1": {
+      "pass": 71,
+      "judged": 71,
+      "share": 1.0,
+      "met": true
+     },
+     "B1_native": {
+      "pass": 65,
+      "judged": 65,
+      "share": 1.0,
+      "met": true,
+      "apart": {
+       "profile High 10 yuv420p10le": 1,
+       "profile High 4:2:2 yuv422p10le": 5
+      }
+     },
+     "B2": {
+      "pass": 67,
+      "judged": 71,
+      "share": 0.9436619718309859,
+      "bar": 1.0,
+      "met": false
+     },
+     "B3": {
+      "pass": 31,
+      "judged": 38,
+      "share": 0.8157894736842105,
+      "bar": 1.0,
+      "met": false
+     },
+     "Q1": {
+      "judged": 0,
+      "median_delta_db": null,
+      "share_at_least_-0.50": null,
+      "median_size_ratio": null,
+      "met": null
+     },
+     "Q2": {
+      "judged": 0,
+      "median_db": null,
+      "share_at_least_30": null,
+      "met": null
+     },
+     "bitrate": {
+      "pass": 0,
+      "judged": 0,
+      "share": null,
+      "met": null
+     },
+     "below_floor": []
+    }
+   }
+  }
+ },
+ "missing": {},
+ "refused_with_baseline_ok": {
+  "default": [
+   [
+    "edit_multi_bframes.mp4",
+    "unsupported_feature",
+    "unsupported: the video stream has an edit list of more than one media edit (docs/design/edit-lists.md)"
+   ],
+   [
+    "edit_multi_empty.mp4",
+    "unsupported_feature",
+    "unsupported: the video stream has an edit list of more than one media edit (docs/design/edit-lists.md)"
+   ],
+   [
+    "edit_multi_splice.mp4",
+    "unsupported_feature",
+    "unsupported: the video stream has an edit list of more than one media edit (docs/design/edit-lists.md)"
+   ],
+   [
+    "prores_4444.mov",
+    "unsupported_feature",
+    "unsupported: the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 at 8 or 10 bits, not Yuv { chroma: Cs444, depth: 12 }"
+   ],
+   [
+    "prores_4444xq.mov",
+    "unsupported_feature",
+    "unsupported: the encoder takes planar 4:2:0, 4:2:2 or 4:4:4 at 8 or 10 bits, not Yuv { chroma: Cs444, depth: 12 }"
+   ],
+   [
+    "truncated.mp4",
+    "truncated_structure",
+    "truncated structure at offset 89714"
+   ]
+  ]
+ },
+ "baseline_misses": {
+  "default": {
+   "B2": [
+    "browser.webm",
+    "clip_video_late.mp4",
+    "edit_list.mp4",
+    "size_inband_sps.mp4"
+   ],
+   "B3": [
+    "browser.webm",
+    "edit_list.mp4",
+    "edit_multi_av.mp4",
+    "fragmented.mp4",
+    "fragmented_many.mp4",
+    "fragmented_moov.mp4",
+    "fragmented_sidx.mp4"
+   ]
+  }
+ },
+ "run": {
+  "mode": "fixtures",
+  "preset": "veryfast",
+  "crf": 23,
+  "arms": {
+   "ffmpeg": [
+    "--encoder",
+    "ffmpeg",
+    "--ffmpeg",
+    "/opt/coreav-oracle-bin/ffmpeg"
+   ],
+   "x264": [
+    "--encoder",
+    "x264",
+    "--x264",
+    "/opt/x264-4613ac3/bin/x264"
+   ]
+  },
+  "tools": {
+   "coreav": {
+    "path": "coreav-round2",
+    "sha256": "c49f0f9045ba351803ecfccc40e33e6d9da10516f936922cefca7ceeb35a633f"
+   },
+   "ffmpeg": {
+    "path": "ffmpeg",
+    "sha256": "e7e7fb30477f717e6f55f9180a70386c62677ef8a4d4d1a5d948f4098aa3eb99"
+   },
+   "ffprobe": {
+    "path": "ffprobe",
+    "sha256": "4f231a1960d83e403d08f7971e271707bec278a9ae18e21b8b5b03186668450d"
+   },
+   "ffmpeg--ffmpeg": {
+    "path": "ffmpeg",
+    "sha256": "e7e7fb30477f717e6f55f9180a70386c62677ef8a4d4d1a5d948f4098aa3eb99"
+   },
+   "x264--x264": {
+    "path": "x264",
+    "sha256": "3977f1120e6d864d8d2b9b0899af8c61cac00d1b596b2ad1f4c021ed63b5760c"
+   },
+   "decode-oracle": {
+    "path": "decode-oracle-r2",
+    "sha256": "7c6216323fd36694ebbb991de7ecbab337ff1b7c4bd00b11ce04a883db0f747a"
+   }
+  },
+  "ffmpeg_version": [
+   "ffmpeg version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2000-2024 the FFmpeg developers"
+  ],
+  "debug_scale_all": false,
+  "max_files": 200,
+  "expected": {
+   "default": {
+    "av1.mp4": "av1",
+    "basic.mov": "h264",
+    "basic.mp4": "h264",
+    "browser.webm": "vp9",
+    "chapters.mov": "h264",
+    "chapters.mp4": "h264",
+    "chapters_chpl_only.mp4": "h264",
+    "chapters_sized.mp4": "h264",
+    "chapters_track_only.mp4": "h264",
+    "clip_audio_late.mp4": "h264",
+    "clip_av1_no_stss.mp4": "av1",
+    "clip_av1_stss_all.mp4": "av1",
+    "clip_hevc_open_gop.mp4": "hevc",
+    "clip_hevc_stss_all.mp4": "hevc",
+    "clip_no_stss.mp4": "h264",
+    "clip_no_stss_bframes.mp4": "h264",
+    "clip_open_gop.mp4": "h264",
+    "clip_stss_all.mp4": "h264",
+    "clip_stss_all_flash.mp4": "h264",
+    "clip_video_late.mp4": "h264",
+    "color_av1_colr_ignored.mp4": "av1",
+    "color_bt2020_pq.mp4": "hevc",
+    "color_bt709.mp4": "h264",
+    "color_colr_only.mp4": "h264",
+    "color_colr_vs_sps.mp4": "h264",
+    "color_full_range.mp4": "h264",
+    "color_hevc_colr_ignored.mp4": "hevc",
+    "color_sps_range_only.mp4": "h264",
+    "color_sps_unspecified.mp4": "h264",
+    "edit_list.mp4": "h264",
+    "edit_multi_av.mp4": "h264",
+    "edit_multi_bframes.mp4": "h264",
+    "edit_multi_empty.mp4": "h264",
+    "edit_multi_splice.mp4": "h264",
+    "faststart.mp4": "h264",
+    "fragmented.mp4": "h264",
+    "fragmented_many.mp4": "h264",
+    "fragmented_moov.mp4": "h264",
+    "fragmented_sidx.mp4": "h264",
+    "h264_avc3.mp4": "h264",
+    "hevc_hev1.mp4": "hevc",
+    "hevc_hvc1.mp4": "hevc",
+    "hls_h264.mp4": "h264",
+    "hls_hevc.mp4": "hevc",
+    "hls_long_gop.mp4": "h264",
+    "hls_open_gop.mp4": "h264",
+    "multitrack.mp4": "h264",
+    "negative_cts.mp4": "h264",
+    "prores_4444.mov": "prores",
+    "prores_4444xq.mov": "prores",
+    "prores_hq.mov": "prores",
+    "prores_lt.mov": "prores",
+    "prores_proxy.mov": "prores",
+    "prores_standard.mov": "prores",
+    "remux_metadata.mov": "h264",
+    "remux_metadata.mp4": "h264",
+    "rotate_ccw180.mp4": "h264",
+    "rotate_ccw270.mp4": "h264",
+    "rotate_ccw90.mp4": "h264",
+    "size_entry_understated.mp4": "h264",
+    "size_hevc_mixed_window.mp4": "hevc",
+    "size_hevc_window.mp4": "hevc",
+    "size_inband_sps.mp4": "h264",
+    "size_left_crop.mp4": "h264",
+    "size_prores_understated.mov": "prores",
+    "size_vp9_resize.mp4": "vp9",
+    "split_av1.mp4": "av1",
+    "split_hevc.mp4": "hevc",
+    "split_vp9.mp4": "vp9",
+    "text_end.mp4": "h264",
+    "text_shifted.mp4": "h264",
+    "text_sized.mp4": "h264",
+    "text_styled.mp4": "h264",
+    "timecode.mov": "h264",
+    "truncated.mp4": "h264",
+    "vfr.mp4": "h264",
+    "vp9.mp4": "vp9"
+   }
+  }
+ }
+}

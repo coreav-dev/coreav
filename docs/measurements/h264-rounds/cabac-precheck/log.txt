@@ -1,0 +1,35 @@
+10:07:13 HOST cpu facts:
+model name	: Intel(R) Xeon(R) Processor @ 2.90GHz
+CPU(s):                                  8
+Vendor ID:                               GenuineIntel
+CPU family:                              6
+Model:                                   106
+Thread(s) per core:                      2
+Core(s) per socket:                      4
+Socket(s):                               1
+Stepping:                                6
+8
+8
+avx2 avx512 avx512bw avx512cd avx512dq avx512f avx512ifma avx512vbmi avx512vl 
+10:07:29 reference measurement 1: 36501d448eaa.0.720p 1.272s; a6af290d9053.0.1080p 4.224s
+10:12:46 reference measurement 2: 36501d448eaa.0.720p 1.294s; a6af290d9053.0.1080p 4.282s
+10:18:04 reference measurement 3: 36501d448eaa.0.720p 1.317s; a6af290d9053.0.1080p 4.220s
+10:18:04 reference {'36501d448eaa.0.720p': 1.2942634520004503, 'a6af290d9053.0.1080p': 4.22372567399907} max deviation {'36501d448eaa.0.720p': 0.0172785849476762, 'a6af290d9053.0.1080p': 0.013826582384455222}
+10:24:46 identity 32/32 same
+10:25:02 PASS gate 36501d448eaa.0.720p ratio 0.984; a6af290d9053.0.1080p ratio 1.000
+10:26:47 PASS gate 36501d448eaa.0.720p ratio 0.982; a6af290d9053.0.1080p ratio 0.994
+10:26:47 g.sd done
+10:27:04 PASS gate 36501d448eaa.0.720p ratio 0.984; a6af290d9053.0.1080p ratio 0.996
+10:29:50 PASS gate 36501d448eaa.0.720p ratio 0.988; a6af290d9053.0.1080p ratio 1.017
+10:29:50 g.720p done
+10:30:07 PASS gate 36501d448eaa.0.720p ratio 0.981; a6af290d9053.0.1080p ratio 1.008
+10:40:31 PASS gate 36501d448eaa.0.720p ratio 0.983; a6af290d9053.0.1080p ratio 1.002
+10:40:31 g.1080p done
+10:40:48 PASS gate 36501d448eaa.0.720p ratio 0.978; a6af290d9053.0.1080p ratio 0.993
+10:49:16 FAIL gate 36501d448eaa.0.720p ratio 1.060; a6af290d9053.0.1080p ratio 1.044
+10:49:16 VOID g.4k attempt 1
+10:49:32 PASS gate 36501d448eaa.0.720p ratio 1.018; a6af290d9053.0.1080p ratio 0.992
+10:58:00 PASS gate 36501d448eaa.0.720p ratio 0.983; a6af290d9053.0.1080p ratio 1.001
+10:58:00 g.4k done
+10:58:00 analysis done elapsed 3048s events 1
+10:58:00 finished

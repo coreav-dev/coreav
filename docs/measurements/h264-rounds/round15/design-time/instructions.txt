@@ -1,0 +1,12 @@
+# Instructions of the whole decode (callgrind, --discard, one thread, dist builds), round 14's tip 40fa3ab (r14) and the parts
+# on top of it: n = part N (5dd6451), nz = N and Z (3f9e521), nzt = N, Z and T (e937bf4); s = the rejected split mask;
+# x = N, Z and the rejected column counter. Frames: sd 200, 720p 100, 1080p 60, 4k 30.
+# stream r14 s/r14 n/r14 nz/r14 nzt/r14 nzx/r14
+36501d448eaa.0.720p 1187398335 1.0017 0.9974 0.9875 0.9873 0.9901
+3b1b441e23ae.0.4k 1514973294 1.0064 0.9946 0.9695 0.9668 0.9710
+41e324ebb708.0.sd 789284261 1.0045 0.9960 0.9764 0.9724 0.9780
+5185721dda11.0.sd 454670413 1.0003 0.9972 0.9863 0.9860 0.9915
+9db41aa16b5a.0.720p 1457857841 1.0011 0.9976 0.9933 0.9926 1.0014
+a6af290d9053.0.1080p 9606156635 0.9989 0.9991 0.9997 0.9992 1.0040
+b71b6b31e54f.0.1080p 1386848000 1.0050 0.9937 0.9940 0.9906 0.9966
+ed75c044e944.0.4k 647221480 1.0088 0.9930 0.9607 0.9593 0.9618

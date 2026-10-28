@@ -1,0 +1,26 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2900.0 MHz, 8 logical CPUs
+178de4a3a5a2.0.720p.h264                 before:discard=0.96  before:write=0.88  before:mixed=0.78  after:discard=0.91  after:write=0.85  after:mixed=0.74
+391ec79e178a.0.720p.h264                 before:discard=1.31  before:write=1.28  before:mixed=1.24  after:discard=1.19  after:write=1.16  after:mixed=1.13
+3c331ca6a971.0.720p.h264                 before:discard=1.23  before:write=1.16  before:mixed=1.14  after:discard=1.20  after:write=1.18  after:mixed=1.11
+4dc155fa1f76.0.720p.h264                 before:discard=1.18  before:write=1.14  before:mixed=1.07  after:discard=1.18  after:write=1.13  after:mixed=1.07
+4f27662a0f72.0.720p.h264                 before:discard=1.13  before:write=1.11  before:mixed=1.08  after:discard=1.15  after:write=1.12  after:mixed=1.09
+59cf223b15f2.0.720p.h264                 before:discard=1.13  before:write=1.11  before:mixed=1.06  after:discard=1.15  after:write=1.13  after:mixed=1.08
+64e286230fca.0.720p.h264                 before:discard=1.25  before:write=1.20  before:mixed=1.17  after:discard=1.23  after:write=1.22  after:mixed=1.16
+64ef5412ed81.0.720p.h264                 before:discard=1.22  before:write=1.18  before:mixed=1.16  after:discard=1.20  after:write=1.18  after:mixed=1.15
+67138964d796.0.720p.h264                 before:discard=1.15  before:write=1.11  before:mixed=1.05  after:discard=1.16  after:write=1.12  after:mixed=1.06
+7eb29ce39b5c.0.720p.h264                 before:discard=1.17  before:write=1.15  before:mixed=1.12  after:discard=1.15  after:write=1.14  after:mixed=1.09
+985a28c5abe5.0.720p.h264                 before:discard=1.39  before:write=1.32  before:mixed=1.31  after:discard=1.24  after:write=1.24  after:mixed=1.17
+a9b1e81dc8f4.0.720p.h264                 before:discard=1.10  before:write=1.07  before:mixed=0.96  after:discard=1.14  after:write=1.08  after:mixed=1.01
+b1c6f2742fff.0.720p.h264                 before:discard=1.18  before:write=1.17  before:mixed=1.11  after:discard=1.16  after:write=1.20  after:mixed=1.10
+c187706da87d.0.720p.h264                 before:discard=1.14  before:write=1.07  before:mixed=1.03  after:discard=1.15  after:write=1.12  after:mixed=1.04
+f2a05e5926d8.0.720p.h264                 before:discard=1.20  before:write=1.19  before:mixed=1.14  after:discard=1.17  after:write=1.16  after:mixed=1.11
+f99007f006ea.0.720p.h264                 before:discard=1.16  before:write=1.19  before:mixed=1.07  after:discard=1.18  after:write=1.25  after:mixed=1.10
+
+before:discard           n= 16  median 1.175  [1.140, 1.217]
+before:write             n= 16  median 1.155  [1.107, 1.186]
+before:mixed             n= 16  median 1.095  [1.058, 1.144]
+after:discard            n= 16  median 1.167  [1.148, 1.189]
+after:write              n= 16  median 1.150  [1.124, 1.182]
+after:mixed              n= 16  median 1.095  [1.067, 1.114]
+
+wrote $HOME/ab/pgo/out/h.720p.json

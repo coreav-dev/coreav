@@ -1,0 +1,189 @@
+{
+  "schema": "coreav/known-divergences/1",
+  "applies_to": "coreav check verdicts through scripts/policy_check.py, against ffprobe 7.0.2 output mapped by scripts/policy_ref.py (from_ffprobe, from_ffprobe_matroska)",
+  "entries": [
+    {
+      "id": "KD-P-PROTECTED",
+      "level": [
+        "verdict"
+      ],
+      "fields": [
+        "stream codec",
+        "rules codecs, min_count, max_count, unidentified"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "box headers": "the stream's first sample entry is encv, enca, enct, encs, encm or encf (ISO/IEC 14496-12, 8.12)",
+        "ffprobe": "names a codec for the stream"
+      },
+      "adjustment": "_kd_protected",
+      "basis": "streams whose codec is not identified are dropped; only allowlisted inputs pass the gate"
+    },
+    {
+      "id": "KD-P-CHAPTER-TEXT",
+      "level": [
+        "verdict"
+      ],
+      "fields": [
+        "stream kind and codec",
+        "rules of the subtitle kind, unidentified"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "box headers": "another track's tref chap names the track; its handler is text, sbtl or subt",
+        "ffprobe": "lists it as a data stream"
+      },
+      "adjustment": "_kd_chapter_text",
+      "basis": "every track is described by its handler and sample entry"
+    },
+    {
+      "id": "KD-P-DECLARED-DURATION",
+      "level": [
+        "verdict"
+      ],
+      "fields": [
+        "file duration",
+        "rules max_seconds, file max_bit_rate"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "box headers": "fragmented; mehd fragment_duration above 0"
+      },
+      "adjustment": "_kd_declared_duration",
+      "basis": "the duration of a fragmented file comes from mehd"
+    },
+    {
+      "id": "KD-P-FRAGMENT-ORIGIN",
+      "level": [
+        "verdict"
+      ],
+      "fields": [
+        "stream and file duration",
+        "rules max_seconds, file max_bit_rate"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "box headers": "fragmented; the first track fragment of every listed stream has a tfdt decode time above 0 (ISO/IEC 14496-12, 8.8.12)",
+        "ffprobe": "durations run from 0 to the stream's end"
+      },
+      "adjustment": "_kd_fragment_origin",
+      "basis": "the stream duration is the media's length; docs/design/policy-check.md decision 8"
+    },
+    {
+      "id": "KD-P-UNIDENTIFIED-DURATION",
+      "level": [
+        "verdict"
+      ],
+      "fields": [
+        "file duration",
+        "rules max_seconds, file max_bit_rate"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "box headers": "fragmented, no mehd fragment_duration",
+        "ffprobe": "every listed stream maps to an unidentified one"
+      },
+      "adjustment": "_kd_unidentified_duration",
+      "basis": "unidentified streams are dropped; the duration of a fragmented file comes from mehd or its identified streams; docs/design/policy-check.md decision 6 (fail closed)"
+    },
+    {
+      "id": "KD-P-EDITED-BIT-RATE",
+      "level": [
+        "verdict"
+      ],
+      "fields": [
+        "stream bit rate",
+        "rule max_bit_rate of its kind"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "box headers": "not fragmented; a simple edit list or several edits CoreAV applies whose media edits add up to less than the mdhd duration",
+        "oracle": "the stream's bit rate equals the btrt average or the stsz bytes over the mdhd duration (within 1 b/s)"
+      },
+      "adjustment": "_kd_edited_bit_rate",
+      "basis": "the bit rate is the stored bytes over the stream duration; docs/design/edit-lists.md decision 5"
+    },
+    {
+      "id": "KD-P-MKV-UNSIZED",
+      "level": [
+        "verdict"
+      ],
+      "fields": [
+        "video parameter_set_size and scanned_size",
+        "rules max_width, max_height, max_pixels"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "ffprobe": "names the stream's codec mpeg1video, mpeg2video, mpeg4, theora, mjpeg or ffv1 and gives a size"
+      },
+      "adjustment": "_kd_mkv_unsized",
+      "basis": "docs/design/policy-matroska.md decision 3 (fail closed: an unverified size is not a bound)"
+    },
+    {
+      "id": "KD-P-MKV-LACE-TIMES",
+      "level": [
+        "verdict"
+      ],
+      "fields": [
+        "stream duration and bit rate",
+        "rules max_seconds, file max_bit_rate, max_bit_rate"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "EBML elements": "the TrackEntry has no DefaultDuration; a SimpleBlock or Block of the track is laced (RFC 9559 10.2)",
+        "ffprobe": "names a codec other than opus"
+      },
+      "adjustment": "_kd_mkv_lace_times",
+      "basis": "RFC 9559 10.3 (laced frames have no timestamp of their own); docs/design/policy-matroska.md decision 3 (fail closed)"
+    },
+    {
+      "id": "KD-P-MKV-FRAME-END",
+      "level": [
+        "verdict"
+      ],
+      "fields": [
+        "stream duration and bit rate",
+        "rules max_seconds, max_bit_rate"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "EBML elements": "the TrackEntry has no DefaultDuration",
+        "ffprobe": "names an audio or video codec other than opus; the span of its packet starts differs from the span of their ends"
+      },
+      "adjustment": "_kd_mkv_frame_end",
+      "basis": "docs/design/policy-matroska.md decision 2 (the scan reads block and frame headers; a frame without BlockDuration or DefaultDuration ends where it starts)"
+    },
+    {
+      "id": "KD-P-MKV-UNLISTED",
+      "level": [
+        "verdict"
+      ],
+      "fields": [
+        "stream duration and bit rate",
+        "rules max_seconds, max_bit_rate"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "EBML elements": "the TrackEntry has a ContentEncoding other than header stripping, or more than one"
+      },
+      "adjustment": "_kd_mkv_unlisted",
+      "basis": "docs/design/policy-matroska.md decision 3 (fail closed: frames that were not listed do not bound the duration)"
+    },
+    {
+      "id": "KD-P-MKV-UNVERIFIED",
+      "level": [
+        "verdict"
+      ],
+      "fields": [
+        "stream durations, bit rates and scanned sizes",
+        "rules max_seconds, max_bit_rate, max_width, max_height, max_pixels"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "EBML elements": "bytes after the Segment's declared end, an EBML header or unknown element in the Segment, an element past its parent or the file, a second Info or Tracks, a BlockGroup with two Blocks, a block of an undefined track, an element whose length its schema type does not allow, or a string or binary longer than the audit allows (matroska_audit)"
+      },
+      "adjustment": "_kd_mkv_unverified",
+      "basis": "docs/design/policy-matroska.md decision 8 (the scan audits the structure; values that may miss frames are not bounds)"
+    }
+  ]
+}

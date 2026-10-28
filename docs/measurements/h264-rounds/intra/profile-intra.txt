@@ -1,0 +1,18 @@
+# perf cpu-clock, 999 Hz (samples ~ ms), the eight profiled streams of docs/measurements/h264-rounds/idct-rows/profile/streams.txt,
+# pinned to CPU 2, --discard. 'base': e1ef4ff4 with pred4x4/8x8/16x16/pred_chroma #[inline(never)] (local build).
+# 'candidate': this round's tree. Lines: total samples, symbol.
+
+## base
+   107  coreav_h264::intra::pred16x16
+    98  coreav_h264::intra::pred_chroma
+    73  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reconstruct_intra
+    62  coreav_h264::intra::pred4x4
+    35  coreav_h264::intra::pred8x8
+    23  <coreav_kernels_h264::scalar::Scalar as coreav_kernels_h264::Kernels>::idct4x4_add
+
+## candidate
+    72  coreav_kernels_h264::simd::x86::intra_chroma
+    70  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reconstruct_intra
+    36  coreav_kernels_h264::intra::pred8x8
+    34  coreav_kernels_h264::simd::x86::intra4x4_mb
+    28  coreav_kernels_h264::simd::x86::intra16x16

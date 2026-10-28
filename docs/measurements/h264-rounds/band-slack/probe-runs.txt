@@ -1,0 +1,10 @@
+# void run 1 (host fault by PS-2)
+wall m-b366429-null: all 1.0029 [0.9866, 1.0248] (15/32 faster) sd 0.9931 720p 1.0135 1080p 1.0209 4k 0.9889
+wall r32-slack2: all 1.0417 [1.0221, 1.0517] (6/32 faster) sd 1.0495 720p 1.0387 1080p 1.0302 4k 1.0466
+cpu m-b366429-null: all 0.9978 [0.9832, 1.0138] (17/32 faster) sd 0.9899 720p 1.0089 1080p 1.0034 4k 1.0013
+cpu r32-slack2: all 1.0418 [1.0212, 1.0661] (5/32 faster) sd 1.0800 720p 1.0143 1080p 1.0368 4k 1.0489
+# void run 2, the one re-run PS-2 allows (host fault by PS-2)
+wall m-b366429-null: all 1.0000 [0.9914, 1.0145] (16/32 faster) sd 0.9986 720p 0.9943 1080p 1.0105 4k 1.0135
+wall r32-slack2: all 1.0252 [1.0118, 1.0527] (6/32 faster) sd 1.0690 720p 1.0102 1080p 1.0297 4k 0.9956
+cpu m-b366429-null: all 1.0003 [0.9825, 1.0083] (16/32 faster) sd 0.9887 720p 0.9790 1080p 1.0091 4k 1.0100
+cpu r32-slack2: all 1.0318 [1.0239, 1.0532] (7/32 faster) sd 1.0815 720p 1.0231 1080p 1.0457 4k 1.0073

@@ -1,0 +1,1008 @@
+[
+ {
+  "sha256": "5e84a05f8ee4107290e07bf38a05c44f524bb3cd0e768bd2d7a237fa7e5101f0",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0
+  ],
+  "ns": {
+   "ours": 758894,
+   "lav_avio": 2827967,
+   "lav_native": 2822496,
+   "ffmpeg": 11475165
+  },
+  "failure": null
+ },
+ {
+  "sha256": "7926a7aaff4da0c300f837dec82f18ffdbc54ae1b0034b511bccdf82f55c9530",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0
+  ],
+  "ns": {
+   "ours": 3800064,
+   "lav_avio": 11236215,
+   "lav_native": 11215237,
+   "ffmpeg": 42823812
+  },
+  "failure": null
+ },
+ {
+  "sha256": "9af8b16fd0459022276d99fffc19ce7dde0e54af80f49bd0a51d3050c60c2f42",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0
+  ],
+  "ns": {
+   "ours": 158491107,
+   "lav_avio": 450699224,
+   "lav_native": 455274174,
+   "ffmpeg": 1643570545
+  },
+  "failure": null
+ },
+ {
+  "sha256": "ac89d7a2fcb201d8ca70ed3658cdd3a8d7e7959e69297629969b5d56751d0cea",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0
+  ],
+  "ns": {
+   "ours": 4195928,
+   "lav_avio": 12118734,
+   "lav_native": 12035417,
+   "ffmpeg": 45170987
+  },
+  "failure": null
+ },
+ {
+  "sha256": "0647ff86bb8c6a3608d67e4751015a5aca8fbc95966493f788b449e15898fcab",
+  "ext": "mkv",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0,
+   1
+  ],
+  "ns": {
+   "ours": 6446202,
+   "lav_avio": 26415363,
+   "lav_native": 26528662,
+   "ffmpeg": 86016004
+  },
+  "failure": null
+ },
+ {
+  "sha256": "7e0aa6fa5cb62ed4c0c13aa1c9b18e1c0467b69d1ed5655d8415d0ff3ec0f8f1",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0,
+   1
+  ],
+  "ns": {
+   "ours": 52607011,
+   "lav_avio": 75907108,
+   "lav_native": 77477628,
+   "ffmpeg": 117699121
+  },
+  "failure": null
+ },
+ {
+  "sha256": "81e789596aec9d68022c1db27d4574ca7b04aa3249c46040f3b259d17555ec35",
+  "ext": "mkv",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0
+  ],
+  "ns": {
+   "ours": null,
+   "lav_avio": null,
+   "lav_native": null,
+   "ffmpeg": null
+  },
+  "failure": {
+   "lav_avio": "Invalid argument"
+  }
+ },
+ {
+  "sha256": "8ca8950b8cb6373869e04799537e99cd34407727b466e7a8cc080f937a5ffd46",
+  "ext": "mkv",
+  "set": "real",
+  "holdout": true,
+  "refused": "unsupported: no stream can be copied to MP4"
+ },
+ {
+  "sha256": "d11690704e8ef0ad46de80f2c46f34acdf014764e563282686ec6877ac9dc1e5",
+  "ext": "mkv",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0,
+   1
+  ],
+  "ns": {
+   "ours": null,
+   "lav_avio": null,
+   "lav_native": null,
+   "ffmpeg": null
+  },
+  "failure": {
+   "lav_avio": "Invalid argument"
+  }
+ },
+ {
+  "sha256": "dbb255ee38715fc79b3f3e7e09d74e4cbacce8a9c5e6d61a7e8aa78025b7a43b",
+  "ext": "mkv",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0,
+   1
+  ],
+  "ns": {
+   "ours": null,
+   "lav_avio": null,
+   "lav_native": null,
+   "ffmpeg": null
+  },
+  "failure": {
+   "lav_avio": "Invalid argument"
+  }
+ },
+ {
+  "sha256": "fe5c7d1d29040d4a0a3d5f00815efdfd5a8d726bd8273685c442fd796489c3f4",
+  "ext": "mkv",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0,
+   1
+  ],
+  "ns": {
+   "ours": null,
+   "lav_avio": null,
+   "lav_native": null,
+   "ffmpeg": null
+  },
+  "failure": {
+   "lav_avio": "Invalid argument"
+  }
+ },
+ {
+  "sha256": "0e357b6c3fe9a720e51c597dd8cc4b9d78b3718b178a96624bc0882fd158fab5",
+  "ext": "mkv",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0,
+   1
+  ],
+  "ns": {
+   "ours": null,
+   "lav_avio": null,
+   "lav_native": null,
+   "ffmpeg": null
+  },
+  "failure": {
+   "lav_avio": "Invalid argument"
+  }
+ },
+ {
+  "sha256": "6f60ba562a440615a1c41dfa489ac6a37aa2dc6220e6bb566d5640b73b27d84b",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0,
+   1
+  ],
+  "ns": {
+   "ours": 148470629,
+   "lav_avio": 233268631,
+   "lav_native": 243345900,
+   "ffmpeg": 303151427
+  },
+  "failure": null
+ },
+ {
+  "sha256": "83387741d3e35e04019d2709af8d19b6aa533feda52c150e4c64ba2db516d619",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0,
+   1
+  ],
+  "ns": {
+   "ours": 205811529,
+   "lav_avio": 343602425,
+   "lav_native": 356120664,
+   "ffmpeg": 453111948
+  },
+  "failure": null
+ },
+ {
+  "sha256": "8b0ab38d0e21cb46b2b24713a12b4edb4d955cdaea3d2be44f9d2b9763dee45e",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0,
+   1
+  ],
+  "ns": {
+   "ours": 37929154,
+   "lav_avio": 64099484,
+   "lav_native": 63688812,
+   "ffmpeg": 92601560
+  },
+  "failure": null
+ },
+ {
+  "sha256": "9f2345f06e9a15dccf9065804222aa40a5123e9d802dcf101a16d1f83947e9ef",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0,
+   1
+  ],
+  "ns": {
+   "ours": 142252800,
+   "lav_avio": 236103861,
+   "lav_native": 241600210,
+   "ffmpeg": 323490876
+  },
+  "failure": null
+ },
+ {
+  "sha256": "cfbee73950f167fdf5e2855c8bf8eac4841bde0e30fbe455bf7d0f9e09fee9c8",
+  "ext": "mkv",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0,
+   1
+  ],
+  "ns": {
+   "ours": null,
+   "lav_avio": null,
+   "lav_native": null,
+   "ffmpeg": null
+  },
+  "failure": {
+   "lav_avio": "Invalid argument"
+  }
+ },
+ {
+  "sha256": "d438e9cb804e67c0d50cd936d4060a817ac86d7c7da4cc236f1234829295748c",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0,
+   1
+  ],
+  "ns": {
+   "ours": 34070927,
+   "lav_avio": 74214878,
+   "lav_native": 76688907,
+   "ffmpeg": 100071915
+  },
+  "failure": null
+ },
+ {
+  "sha256": "0d677d9c1b57fd7d6f8eb019235e685f82f78f9d49b5b52428e86ae305647377",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "refused": "unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, Firefox and Safari, or re-encode to VP9, H.264 or AV1 outside CoreAV"
+ },
+ {
+  "sha256": "16117de9347fb851a53726d1d50598e3089e5aa772563523b60621045e8a3d97",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "refused": "unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, Firefox and Safari, or re-encode to VP9, H.264 or AV1 outside CoreAV"
+ },
+ {
+  "sha256": "17722a386ab16fb48ddf7bc1df71f7f71dcf80a472f6f7931e18d40dc14c3b09",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "refused": "unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, Firefox and Safari, or re-encode to VP9, H.264 or AV1 outside CoreAV"
+ },
+ {
+  "sha256": "eaa08a095caadea2062b534a8fe638824ee6eea840adaa1b7ebabaa0480e1def",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "refused": "unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, Firefox and Safari, or re-encode to VP9, H.264 or AV1 outside CoreAV"
+ },
+ {
+  "sha256": "03e890cf59993e3be2ec013cb92a1ee2833778dbd0fa67c0f9967e411597f599",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0
+  ],
+  "ns": {
+   "ours": 1457507,
+   "lav_avio": 5292504,
+   "lav_native": 5266377,
+   "ffmpeg": 9706867
+  },
+  "failure": null
+ },
+ {
+  "sha256": "1e7dbdd9da1a4ae03526c179d70c7ef4db1baacd248360cdb643b7a9cf27a651",
+  "ext": "mkv",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0,
+   1
+  ],
+  "ns": {
+   "ours": 2400861,
+   "lav_avio": 5359715,
+   "lav_native": 5267005,
+   "ffmpeg": 34960878
+  },
+  "failure": null
+ },
+ {
+  "sha256": "2fa8c6f6e2665334401512afff206a443210b9336a05b5d547549f6d95c387a7",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0
+  ],
+  "ns": {
+   "ours": 4474930,
+   "lav_avio": 7912989,
+   "lav_native": 7905734,
+   "ffmpeg": 13387186
+  },
+  "failure": null
+ },
+ {
+  "sha256": "4b23afae9445460fe7b7f3de166198edb3b1f8c37aeb810cd81f801898c940ba",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0,
+   1
+  ],
+  "ns": {
+   "ours": 18250816,
+   "lav_avio": 69318815,
+   "lav_native": 68781224,
+   "ffmpeg": 153378701
+  },
+  "failure": null
+ },
+ {
+  "sha256": "584a16b906bb6e7f4142f9cfc91a7f5dd786b8273a15a1adacb03aa7993440ff",
+  "ext": "mkv",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0
+  ],
+  "ns": {
+   "ours": 657068,
+   "lav_avio": 1444718,
+   "lav_native": 1516019,
+   "ffmpeg": 11322473
+  },
+  "failure": null
+ },
+ {
+  "sha256": "595cc7a8339410f4b90d7589402ba1e59f1a3e84966b4eb10cacc47a42d9c697",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "refused": "unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, Firefox and Safari, or re-encode to VP9, H.264 or AV1 outside CoreAV"
+ },
+ {
+  "sha256": "7bd8ff2f7abb8fa3b64ec88c909b00450c29dd36203770467725d2b2fda82576",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0
+  ],
+  "ns": {
+   "ours": 960841,
+   "lav_avio": 2054322,
+   "lav_native": 2130338,
+   "ffmpeg": 29187005
+  },
+  "failure": null
+ },
+ {
+  "sha256": "9f4dfff5cbff8e8d6d2c45e0e8765d4344a1b554b999f8ed1d8b2aa4f9e383b4",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0
+  ],
+  "ns": {
+   "ours": 2260220,
+   "lav_avio": 5242764,
+   "lav_native": 5296654,
+   "ffmpeg": 27231891
+  },
+  "failure": null
+ },
+ {
+  "sha256": "a1001428921f5f1d2b7f4547590ce4ca8f8b4dfe27a9a8659e54b49078213361",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "refused": "unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, Firefox and Safari, or re-encode to VP9, H.264 or AV1 outside CoreAV"
+ },
+ {
+  "sha256": "bb5d39d47357846042a8c1a1890dc3a9c01c879068dde7f7b1833070984af657",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0
+  ],
+  "ns": {
+   "ours": 388479,
+   "lav_avio": 943830,
+   "lav_native": 1037488,
+   "ffmpeg": 12764503
+  },
+  "failure": null
+ },
+ {
+  "sha256": "c9d6df0b8214c1f21c295c3d42e883f8859ae5e5ec4a619ef37bd128c42f19df",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0
+  ],
+  "ns": {
+   "ours": 665352,
+   "lav_avio": 1920752,
+   "lav_native": 2001707,
+   "ffmpeg": 49606105
+  },
+  "failure": null
+ },
+ {
+  "sha256": "04a7da97aeecd99a3f8fd9a8e5b16caa054a661f185fc36e812f217d04d1c6af",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "refused": "unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, Firefox and Safari, or re-encode to VP9, H.264 or AV1 outside CoreAV"
+ },
+ {
+  "sha256": "0591ba9fb558745ea282ad37e36186dbfcc1ce4ba4029f56e16585aa57fa3ac1",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "refused": "unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, Firefox and Safari, or re-encode to VP9, H.264 or AV1 outside CoreAV"
+ },
+ {
+  "sha256": "196be1af7d6267ab79fb49f4f535383c4d59f3d068b9d063d33cb056d806063b",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0,
+   1
+  ],
+  "ns": {
+   "ours": 65298852,
+   "lav_avio": 127702061,
+   "lav_native": 133889923,
+   "ffmpeg": 164659132
+  },
+  "failure": null
+ },
+ {
+  "sha256": "2c5976ae305ea325f60ef1ba71b112ea22b65f558005eaddb0e251af936be3fd",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "refused": "unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, Firefox and Safari, or re-encode to VP9, H.264 or AV1 outside CoreAV"
+ },
+ {
+  "sha256": "34616c4782c0a78f4bc4f418d885a799b80c3e4fa1fb9fee5a6e6051fee126d4",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0,
+   1
+  ],
+  "ns": {
+   "ours": 9173645,
+   "lav_avio": 48906328,
+   "lav_native": 48724139,
+   "ffmpeg": 116555839
+  },
+  "failure": null
+ },
+ {
+  "sha256": "357fb30f4693efc07943cb5f57bf912f104ae5b81e7e64c09b73b99379eae017",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0
+  ],
+  "ns": {
+   "ours": 76529305,
+   "lav_avio": 172769605,
+   "lav_native": 174832431,
+   "ffmpeg": 134980971
+  },
+  "failure": null
+ },
+ {
+  "sha256": "4389ba53bb9bb1820466526452f6f05a0c3df14b71b89d26c5d1ff48ea6159a0",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "refused": "unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, Firefox and Safari, or re-encode to VP9, H.264 or AV1 outside CoreAV"
+ },
+ {
+  "sha256": "47cb9b34f42c5d2fbe76b274fcc8f01e3d3c6ce01b68523d26b6e146c3bbccda",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0
+  ],
+  "ns": {
+   "ours": 10903253,
+   "lav_avio": 32714114,
+   "lav_native": 31792670,
+   "ffmpeg": 100325675
+  },
+  "failure": null
+ },
+ {
+  "sha256": "59ad8ee403b369a1cd0e4602d2a2f084abbf1ebae648ecc397db11b728d12e08",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0
+  ],
+  "ns": {
+   "ours": 173071,
+   "lav_avio": 613474,
+   "lav_native": 537285,
+   "ffmpeg": 5368292
+  },
+  "failure": null
+ },
+ {
+  "sha256": "5d9bec208875442a84550d1c488bd7d9ac69add47f80aaf44c274f758fac991d",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0
+  ],
+  "ns": {
+   "ours": 5633212,
+   "lav_avio": 15970369,
+   "lav_native": 16160795,
+   "ffmpeg": 52930802
+  },
+  "failure": null
+ },
+ {
+  "sha256": "5f9e2df6851b861ffb68d7980ba493c9b9d2d4817b16936ca70e62758ca48e20",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "refused": "unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, Firefox and Safari, or re-encode to VP9, H.264 or AV1 outside CoreAV"
+ },
+ {
+  "sha256": "602e617d552933c71bb71030edbda487b204d9afed360c64d624a3b5ec51707f",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "refused": "unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, Firefox and Safari, or re-encode to VP9, H.264 or AV1 outside CoreAV"
+ },
+ {
+  "sha256": "70eec00bc7d29be5a44a93fbd563a72e3b24a2dd32ace474a504799414de3225",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0
+  ],
+  "ns": {
+   "ours": 2512798,
+   "lav_avio": 4632892,
+   "lav_native": 4720379,
+   "ffmpeg": 13583732
+  },
+  "failure": null
+ },
+ {
+  "sha256": "71bd76ad3a874b106a2d80114b73d47aa6cb04037c8fe02d866be7b7d8f03fbb",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "refused": "unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, Firefox and Safari, or re-encode to VP9, H.264 or AV1 outside CoreAV"
+ },
+ {
+  "sha256": "7593d867aafd0e2e446179bbc2047116b74ee70b77a6fbc54dd3d95946858714",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "refused": "unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, Firefox and Safari, or re-encode to VP9, H.264 or AV1 outside CoreAV"
+ },
+ {
+  "sha256": "96b0669b1a66721824707bd8d67605db0c9bd4f3d8ebcd06e44945165842aaf7",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0
+  ],
+  "ns": {
+   "ours": 14498898,
+   "lav_avio": 24216599,
+   "lav_native": 24608731,
+   "ffmpeg": 30832468
+  },
+  "failure": null
+ },
+ {
+  "sha256": "9ffa165e752abaf7bf8e150f103062272832fba591b1102727b62afa390c2d1c",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0
+  ],
+  "ns": {
+   "ours": 135239545,
+   "lav_avio": 262797640,
+   "lav_native": 262306519,
+   "ffmpeg": 622941624
+  },
+  "failure": null
+ },
+ {
+  "sha256": "a084bd45168cdcfc2669340caa638118af76d90400b923c83efe9fe42df1ac0b",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0
+  ],
+  "ns": {
+   "ours": 296709,
+   "lav_avio": 821914,
+   "lav_native": 851547,
+   "ffmpeg": 11996403
+  },
+  "failure": null
+ },
+ {
+  "sha256": "a1eaf50f116b3a39bac449fdc8361078a9c00551c0b6c176f9a5c47373eec95a",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0
+  ],
+  "ns": {
+   "ours": 2507250,
+   "lav_avio": 9700217,
+   "lav_native": 9716765,
+   "ffmpeg": 17496182
+  },
+  "failure": null
+ },
+ {
+  "sha256": "a58a8a1aecdbdf1a4ff424bdb7d496adbcc03347906fe8095d282391bd70074e",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "refused": "unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, Firefox and Safari, or re-encode to VP9, H.264 or AV1 outside CoreAV"
+ },
+ {
+  "sha256": "a7121daf691fdd6b954e222e3898583ab5a12e177b4ffe76d96899dbbf90f729",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0
+  ],
+  "ns": {
+   "ours": 21378861,
+   "lav_avio": 37627677,
+   "lav_native": 37007461,
+   "ffmpeg": 51444475
+  },
+  "failure": null
+ },
+ {
+  "sha256": "a8c6bfbfcb6656f0606c551382ef7ecd819a6ee4d4b253610d401229d73bb49f",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0
+  ],
+  "ns": {
+   "ours": 18121590,
+   "lav_avio": 29674557,
+   "lav_native": 31123820,
+   "ffmpeg": 49787135
+  },
+  "failure": null
+ },
+ {
+  "sha256": "b267a2ddac45b26d329f13b78b293976543bbb29c749c3656c0c0f27e6618445",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0,
+   1
+  ],
+  "ns": {
+   "ours": 1856129,
+   "lav_avio": 4164985,
+   "lav_native": 4177460,
+   "ffmpeg": 26542663
+  },
+  "failure": null
+ },
+ {
+  "sha256": "b361c03c6ec916f9a67f50da7517b8a3998191ccdba264b63ff440692260a463",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0
+  ],
+  "ns": {
+   "ours": 67298558,
+   "lav_avio": 114821603,
+   "lav_native": 119282265,
+   "ffmpeg": 194367144
+  },
+  "failure": null
+ },
+ {
+  "sha256": "b368942ade78b7b07ed738843ccbf62b94d37637aaba207e0084af447afb87fa",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "refused": "unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, Firefox and Safari, or re-encode to VP9, H.264 or AV1 outside CoreAV"
+ },
+ {
+  "sha256": "b562a247eacdde12e93420bfe2fe158b262ad09c8438d1d9a966acacac69ad98",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "refused": "unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, Firefox and Safari, or re-encode to VP9, H.264 or AV1 outside CoreAV"
+ },
+ {
+  "sha256": "c2819315cc2ea4810741576b7cf1044fb02d0fce5d54631eaff1d645e1113b25",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0,
+   1
+  ],
+  "ns": {
+   "ours": 39959272,
+   "lav_avio": 68525309,
+   "lav_native": 67912146,
+   "ffmpeg": 126471316
+  },
+  "failure": null
+ },
+ {
+  "sha256": "d521daed36cf51ffad3b06ec61546c90ffbcf2d06385ebab5e86051620813bca",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "refused": "unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, Firefox and Safari, or re-encode to VP9, H.264 or AV1 outside CoreAV"
+ },
+ {
+  "sha256": "e0aa339e6a3965d4bea2f12816d7c43a2daa75e3a27a9f8f018573cb056af48b",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0,
+   1
+  ],
+  "ns": {
+   "ours": 32038101,
+   "lav_avio": 73100987,
+   "lav_native": 72450968,
+   "ffmpeg": 89240900
+  },
+  "failure": null
+ },
+ {
+  "sha256": "e4f871effaf27984b04412cf91536f16db5c34cc42c7c283642196ccd48710ae",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0
+  ],
+  "ns": {
+   "ours": 5208928,
+   "lav_avio": 8825794,
+   "lav_native": 8750343,
+   "ffmpeg": 22508453
+  },
+  "failure": null
+ },
+ {
+  "sha256": "ea684713a5bed3eb044a1251da92d412f1b85044385bc7eb766db5b0e07c4ded",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0,
+   1
+  ],
+  "ns": {
+   "ours": 41651669,
+   "lav_avio": 83944777,
+   "lav_native": 82194642,
+   "ffmpeg": 178766843
+  },
+  "failure": null
+ },
+ {
+  "sha256": "ef382b9eb4e44b8a12c465d01df39b57ddbeb00c2ac37ba430ae44e865ec2ebe",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0,
+   1
+  ],
+  "ns": {
+   "ours": 56458657,
+   "lav_avio": 82699536,
+   "lav_native": 83596666,
+   "ffmpeg": 149968940
+  },
+  "failure": null
+ },
+ {
+  "sha256": "effb7b78408d25105744fe183bfd179955c090bd5ad370a2aa7a82e9515beb75",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0
+  ],
+  "ns": {
+   "ours": 28709336,
+   "lav_avio": 69586934,
+   "lav_native": 68153225,
+   "ffmpeg": 76868631
+  },
+  "failure": null
+ },
+ {
+  "sha256": "f33563470b60892195ef0bb9d0930d9c1053c900986fed12c18c05638b258cf8",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "refused": "unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, Firefox and Safari, or re-encode to VP9, H.264 or AV1 outside CoreAV"
+ },
+ {
+  "sha256": "f51a56ed57180d981ef841e22cbb62769158a5029c1d4664d2d1ed938ee2fdaa",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0
+  ],
+  "ns": {
+   "ours": 153347379,
+   "lav_avio": 284853582,
+   "lav_native": 281900393,
+   "ffmpeg": 483868219
+  },
+  "failure": null
+ },
+ {
+  "sha256": "f944c05afaa135a9151a6c73ba0fbbfd9eff864ab715bfda069b85c7090b73e9",
+  "ext": "webm",
+  "set": "real",
+  "holdout": true,
+  "stream": null,
+  "kept": [
+   0
+  ],
+  "ns": {
+   "ours": 280779,
+   "lav_avio": 776988,
+   "lav_native": 879303,
+   "ffmpeg": 11847761
+  },
+  "failure": null
+ }
+]

@@ -1,0 +1,200 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coreav-dev/coreav/docs/schema/decode-audio-v1.schema.json",
+  "title": "coreav decode-audio summary, schema coreav.decode-audio/1",
+  "description": "The summary coreav decode-audio prints (docs/design/audio-decode.md). Keys and meanings: docs/schema/decode-audio-v1.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "output",
+    "stream",
+    "timeline",
+    "warnings"
+  ],
+  "properties": {
+    "schema": {
+      "const": "coreav.decode-audio/1"
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bytes",
+        "sample_format",
+        "sample_rate",
+        "channels",
+        "channel_mask",
+        "samples",
+        "duration"
+      ],
+      "properties": {
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sample_format": {
+          "enum": [
+            "s16",
+            "s24",
+            "s32",
+            "f32"
+          ]
+        },
+        "sample_rate": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "channels": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "channel_mask": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "samples": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "duration": {
+          "$ref": "#/$defs/time"
+        }
+      }
+    },
+    "stream": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stream_index",
+        "codec",
+        "sample_rate",
+        "channels",
+        "bits_per_sample",
+        "packets"
+      ],
+      "properties": {
+        "stream_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "codec": {
+          "enum": [
+            "flac",
+            "mp3"
+          ]
+        },
+        "sample_rate": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "channels": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "bits_per_sample": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "packets": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "timeline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start",
+        "silence"
+      ],
+      "properties": {
+        "start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "silence": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "at",
+              "samples"
+            ],
+            "properties": {
+              "at": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "samples": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "$defs": {
+    "rational": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "num",
+        "den"
+      ],
+      "properties": {
+        "num": {
+          "type": "integer"
+        },
+        "den": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "time": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ticks",
+        "timescale",
+        "seconds"
+      ],
+      "properties": {
+        "ticks": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/rational"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timescale": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "seconds": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

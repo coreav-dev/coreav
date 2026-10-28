@@ -1,0 +1,28 @@
+# cargo-fuzz project for `coreav ffprobe` (docs/design/compat-cli.md);
+# outside the workspace, never published.
+[package]
+name = "coreav-cli-fuzz"
+version = "0.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+coreav-isobmff = { path = "../../coreav-isobmff" }
+coreav-cli = { path = "..", default-features = false }
+
+[[bin]]
+name = "ffprobe"
+path = "fuzz_targets/ffprobe.rs"
+test = false
+doc = false
+bench = false
+
+[lints.rust]
+unsafe_code = "forbid"

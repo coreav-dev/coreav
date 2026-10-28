@@ -1,0 +1,12 @@
+2c2
+< sys.path.insert(0, '/tmp/ent'); from sig import per, chains, core_stage, dims, dims_ff, short
+---
+> sys.path.insert(0, "/tmp/ent2"); from sig import per, chains, core_stage, dims, dims_ff, short
+4c4
+< ENG = {'cabac.rs:decision', 'cabac.rs:consume', 'cabac.rs:refill', 'cabac.rs:load', 'cabac.rs:bypass', 'cabac.rs:renormalize',
+---
+> ENG = {'cabac.rs:decision', 'decision.rs:decision', 'cabac.rs:reserve', 'cabac.rs:consume', 'cabac.rs:refill', 'cabac.rs:load', 'cabac.rs:bypass', 'cabac.rs:renormalize',
+77c77
+< pickle.dump((dict(core), cav, ffr), open('/tmp/ent/report.pkl', 'wb'))
+---
+> pickle.dump((dict(core), cav, ffr), open('/tmp/ent2/report.pkl', 'wb'))

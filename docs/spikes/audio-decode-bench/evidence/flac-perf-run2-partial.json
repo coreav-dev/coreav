@@ -1,0 +1,905 @@
+{
+ "rounds": 5,
+ "results": [
+  {
+   "set": "corpus",
+   "sha256": "00b6ff17d6011be3656a8d4b00ca960f3e4e9adeb28c1d7f9857f13f86f90a0b",
+   "source_sha256": "00b6ff17d6011be3656a8d4b00ca960f3e4e9adeb28c1d7f9857f13f86f90a0b",
+   "class": "matroska",
+   "level": null,
+   "bits": null,
+   "samples": 17309696,
+   "holdout": false,
+   "ns": {
+    "ours_lib": 173728738,
+    "lav": 228743688,
+    "lav_info": 242129097,
+    "ours_dec": 150176756,
+    "lav_dec": 183986572,
+    "ours_cli": 71252415,
+    "ffmpeg_cli": 85929562
+   },
+   "failed": {}
+  },
+  {
+   "set": "corpus",
+   "sha256": "15d517cda0a6b4a1f6516e870c78c4a28e1a831d22ec28787bf7fea4b9c7cee9",
+   "source_sha256": "15d517cda0a6b4a1f6516e870c78c4a28e1a831d22ec28787bf7fea4b9c7cee9",
+   "class": "matroska",
+   "level": null,
+   "bits": null,
+   "samples": 44100,
+   "holdout": false,
+   "ns": {
+    "ours_lib": 419598,
+    "lav": 988755,
+    "lav_info": 1111566,
+    "ours_dec": 332098,
+    "lav_dec": 512010,
+    "ours_cli": 1545439,
+    "ffmpeg_cli": 3682599
+   },
+   "failed": {}
+  },
+  {
+   "set": "corpus",
+   "sha256": "22a0e31832c88eab83f462984850bf0a31c50175cb1eff6fae81141898fd9156",
+   "source_sha256": "22a0e31832c88eab83f462984850bf0a31c50175cb1eff6fae81141898fd9156",
+   "class": "mp4",
+   "level": null,
+   "bits": null,
+   "samples": 1052144,
+   "holdout": false,
+   "ns": {
+    "ours_lib": 5428871,
+    "lav": 6217485,
+    "lav_info": 6579709,
+    "ours_dec": 4320858,
+    "lav_dec": 5562441,
+    "ours_cli": 3950569,
+    "ffmpeg_cli": 5860758
+   },
+   "failed": {}
+  },
+  {
+   "set": "corpus",
+   "sha256": "33b6b32660f2415b911844428cbbd7c881689bc381ac4f3d8962cb73510c493c",
+   "source_sha256": "33b6b32660f2415b911844428cbbd7c881689bc381ac4f3d8962cb73510c493c",
+   "class": "mp4",
+   "level": null,
+   "bits": null,
+   "samples": 241664,
+   "holdout": false,
+   "ns": {
+    "ours_lib": 1568914,
+    "lav": 1821339,
+    "lav_info": 1986640,
+    "ours_dec": 1185831,
+    "lav_dec": 1297265,
+    "ours_cli": 2351784,
+    "ffmpeg_cli": 4541987
+   },
+   "failed": {}
+  },
+  {
+   "set": "corpus",
+   "sha256": "358d7b65ec0157b59ee5f2f8f923da255c2d906d83cfb1cb7448ac804d4b5b7e",
+   "source_sha256": "358d7b65ec0157b59ee5f2f8f923da255c2d906d83cfb1cb7448ac804d4b5b7e",
+   "class": "mp4",
+   "level": null,
+   "bits": null,
+   "samples": 241664,
+   "holdout": false,
+   "ns": {
+    "ours_lib": 1547167,
+    "lav": 1790183,
+    "lav_info": 1951030,
+    "ours_dec": 1177703,
+    "lav_dec": 1299805,
+    "ours_cli": 2241866,
+    "ffmpeg_cli": 4288355
+   },
+   "failed": {}
+  },
+  {
+   "set": "corpus",
+   "sha256": "3a6faaeb4d221a297cab45ca54bf1239cdb86c5d96c99e264c51e74145455d5b",
+   "source_sha256": "3a6faaeb4d221a297cab45ca54bf1239cdb86c5d96c99e264c51e74145455d5b",
+   "class": "matroska",
+   "level": null,
+   "bits": null,
+   "samples": 557056,
+   "holdout": false,
+   "ns": {
+    "ours_lib": 6910263,
+    "lav": 24446698,
+    "lav_info": 56102667,
+    "ours_dec": 5730654,
+    "lav_dec": 5714787,
+    "ours_cli": 4819490,
+    "ffmpeg_cli": 61141245
+   },
+   "failed": {}
+  },
+  {
+   "set": "corpus",
+   "sha256": "8e645c547d6edd8396fc03fc7f396f1cd419565a5f77dff9ffdd5f52777dc5f3",
+   "source_sha256": "8e645c547d6edd8396fc03fc7f396f1cd419565a5f77dff9ffdd5f52777dc5f3",
+   "class": "matroska",
+   "level": null,
+   "bits": null,
+   "samples": 1925120,
+   "holdout": false,
+   "ns": {
+    "ours_lib": 23318299,
+    "lav": 26002582,
+    "lav_info": 65470502,
+    "ours_dec": 20108941,
+    "lav_dec": 19748597,
+    "ours_cli": 10269288,
+    "ffmpeg_cli": 51660133
+   },
+   "failed": {}
+  },
+  {
+   "set": "corpus",
+   "sha256": "91714d97e1440bf080be1787a793edbcef775cf1f391e1966b0b5f9bd10b5491",
+   "source_sha256": "91714d97e1440bf080be1787a793edbcef775cf1f391e1966b0b5f9bd10b5491",
+   "class": "mp4",
+   "level": null,
+   "bits": null,
+   "samples": 0,
+   "holdout": false,
+   "ns": {
+    "ours_lib": 42676,
+    "lav": 319576,
+    "lav_info": 440094,
+    "ours_dec": 721,
+    "lav_dec": 1399,
+    "ours_cli": 1152722,
+    "ffmpeg_cli": 3214466
+   },
+   "failed": {}
+  },
+  {
+   "set": "corpus",
+   "sha256": "9ebdc4d9d060a73501951e15202e27fb8a76cb6d542b0983646b3b99194ad816",
+   "source_sha256": "9ebdc4d9d060a73501951e15202e27fb8a76cb6d542b0983646b3b99194ad816",
+   "class": "mp4",
+   "level": null,
+   "bits": null,
+   "samples": 1052144,
+   "holdout": false,
+   "ns": {
+    "ours_lib": 5406689,
+    "lav": 6232495,
+    "lav_info": 6596353,
+    "ours_dec": 4320028,
+    "lav_dec": 5558935,
+    "ours_cli": 4284716,
+    "ffmpeg_cli": 5618747
+   },
+   "failed": {}
+  },
+  {
+   "set": "corpus",
+   "sha256": "bb0e2b52dad5876cb7811ef3d5b8a53adca68484346206c746f54fa57a64c51c",
+   "source_sha256": "bb0e2b52dad5876cb7811ef3d5b8a53adca68484346206c746f54fa57a64c51c",
+   "class": "matroska",
+   "level": null,
+   "bits": null,
+   "samples": 296812992,
+   "holdout": false,
+   "ns": {
+    "ours_lib": 2940760995,
+    "lav": 3150060458,
+    "lav_info": 3243501460,
+    "ours_dec": 2591909220,
+    "lav_dec": 2971982278,
+    "ours_cli": 987553972,
+    "ffmpeg_cli": 939667549
+   },
+   "failed": {}
+  },
+  {
+   "set": "corpus",
+   "sha256": "e1f4c05a52625adbf231508222f0e5e9aba23a67cf326b284cb7e910fdbeff43",
+   "source_sha256": "e1f4c05a52625adbf231508222f0e5e9aba23a67cf326b284cb7e910fdbeff43",
+   "class": "matroska",
+   "level": null,
+   "bits": null,
+   "samples": 140360160,
+   "holdout": false,
+   "ns": {
+    "ours_lib": 1654648660,
+    "lav": 1667779356,
+    "lav_info": 1666084732,
+    "ours_dec": 1444640207,
+    "lav_dec": 1418070768,
+    "ours_cli": 561938734,
+    "ffmpeg_cli": 550291773
+   },
+   "failed": {}
+  },
+  {
+   "set": "corpus",
+   "sha256": "f2f78b9aaf9ab4b1efd3f3baced986f22ecc1c723c07230ed79bb5f20371a069",
+   "source_sha256": "f2f78b9aaf9ab4b1efd3f3baced986f22ecc1c723c07230ed79bb5f20371a069",
+   "class": "matroska",
+   "level": null,
+   "bits": null,
+   "samples": 1161216,
+   "holdout": false,
+   "ns": {
+    "ours_lib": 10815819,
+    "lav": 16018719,
+    "lav_info": 52356105,
+    "ours_dec": 9254096,
+    "lav_dec": 11825140,
+    "ours_cli": 5772502,
+    "ffmpeg_cli": 44226893
+   },
+   "failed": {}
+  },
+  {
+   "set": "corpus",
+   "sha256": "fe448b2aaae10a1a5f1d29d5eb5f0d7dcd578126d008f15bb3f932ac015b2aa3",
+   "source_sha256": "fe448b2aaae10a1a5f1d29d5eb5f0d7dcd578126d008f15bb3f932ac015b2aa3",
+   "class": "mp4",
+   "level": null,
+   "bits": null,
+   "samples": 48000,
+   "holdout": false,
+   "ns": {
+    "ours_lib": 450410,
+    "lav": 1104932,
+    "lav_info": 1852309,
+    "ours_dec": 345168,
+    "lav_dec": 548739,
+    "ours_cli": 1555255,
+    "ffmpeg_cli": 4622714
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "7fb1e030d19df94454106c778a9c65913633b68a0115aa3ac7ca48b84b88e200",
+   "source_sha256": "00de70872ff1a518d24171f3c783a14bc95aeb90ae2c90290ceaf30b118a2af9",
+   "class": "matroska",
+   "level": 0,
+   "bits": 16,
+   "samples": 18172032,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 158838609,
+    "lav": 170846198,
+    "lav_info": 170005617,
+    "ours_dec": 132097659,
+    "lav_dec": 146538490,
+    "ours_cli": 74934759,
+    "ffmpeg_cli": 258948895
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "a9df0532665c8d041cc8333ca61bf24486874ff78776a0e1cd9cee3f2442ebb2",
+   "source_sha256": "00de70872ff1a518d24171f3c783a14bc95aeb90ae2c90290ceaf30b118a2af9",
+   "class": "mp4",
+   "level": 0,
+   "bits": 16,
+   "samples": 18172032,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 154710761,
+    "lav": 162817881,
+    "lav_info": 162020027,
+    "ours_dec": 131180483,
+    "lav_dec": 148726229,
+    "ours_cli": 67589990,
+    "ffmpeg_cli": 259467117
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "3c49dcf1b01944dff2319282335e07a115c9360137273831c84815c7c90adfb2",
+   "source_sha256": "0119957558a276115f3af88175fd89f10345ab8f9c4aa6b23c361671fafaf805",
+   "class": "matroska",
+   "level": 5,
+   "bits": 16,
+   "samples": 552960,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 580436,
+    "lav": 1107972,
+    "lav_info": 1219155,
+    "ours_dec": 56261,
+    "lav_dec": 453131,
+    "ours_cli": 2119059,
+    "ffmpeg_cli": 4358061
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "e2dde320f655a1996c021bfeb975c93fca3e8ffecaa9027d6952bc70acacbd00",
+   "source_sha256": "0119957558a276115f3af88175fd89f10345ab8f9c4aa6b23c361671fafaf805",
+   "class": "mp4",
+   "level": 5,
+   "bits": 16,
+   "samples": 552960,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 569086,
+    "lav": 1019026,
+    "lav_info": 1159690,
+    "ours_dec": 57975,
+    "lav_dec": 449186,
+    "ours_cli": 2185789,
+    "ffmpeg_cli": 4458509
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "bf0f8b918dbb9ff6280e5bd22bfcd41d541ea16266d0f91ff72445787b6c5c90",
+   "source_sha256": "016ab71f2d04bf7e3d4bed9db40c8dc1f967578898acd3c9802af4624d15e97b",
+   "class": "matroska",
+   "level": 5,
+   "bits": 16,
+   "samples": 5761024,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 55988594,
+    "lav": 63660981,
+    "lav_info": 63997418,
+    "ours_dec": 48477902,
+    "lav_dec": 59872882,
+    "ours_cli": 20870390,
+    "ffmpeg_cli": 24551382
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "0319c1aa687af7aae26e4eca7ebe2d39158b007cdd2a41d10893477635c48c35",
+   "source_sha256": "016ab71f2d04bf7e3d4bed9db40c8dc1f967578898acd3c9802af4624d15e97b",
+   "class": "mp4",
+   "level": 5,
+   "bits": 16,
+   "samples": 5761024,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 56173329,
+    "lav": 63644412,
+    "lav_info": 63641744,
+    "ours_dec": 48488001,
+    "lav_dec": 59865827,
+    "ours_cli": 21262096,
+    "ffmpeg_cli": 24486300
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "7a980558162f3d5563a63c97042b12472cd82575ffa46e858415d68f7e5dfeeb",
+   "source_sha256": "0388073c0fae30182d463ce0aa1d500573cdbfe02968595892244b29a2a11956",
+   "class": "matroska",
+   "level": 0,
+   "bits": 24,
+   "samples": 151124992,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 1319899521,
+    "lav": 1472664732,
+    "lav_info": 1460739444,
+    "ours_dec": 1110245023,
+    "lav_dec": 1309586392,
+    "ours_cli": 563362475,
+    "ffmpeg_cli": 2165724102
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "fb60eb907989eea19ac3f143d07cf42d598c7a25a8740cbfe3bce9e64da13628",
+   "source_sha256": "0388073c0fae30182d463ce0aa1d500573cdbfe02968595892244b29a2a11956",
+   "class": "mp4",
+   "level": 0,
+   "bits": 24,
+   "samples": 151124992,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 1305890523,
+    "lav": 1434750916,
+    "lav_info": 1411564834,
+    "ours_dec": 1110630228,
+    "lav_dec": 1322670652,
+    "ours_cli": 559390944,
+    "ffmpeg_cli": 1855273812
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "fd5a28b82b3fb042fb97f59c7454946225a8de72a623b22812efd3bafe5fc570",
+   "source_sha256": "04440f46c632a6805adeab8196384901ac88a80e287b2f253e5ddaa56fe75d3c",
+   "class": "matroska",
+   "level": 5,
+   "bits": 24,
+   "samples": 88024320,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 517095213,
+    "lav": 509061706,
+    "lav_info": 505893954,
+    "ours_dec": 426584461,
+    "lav_dec": 476332111,
+    "ours_cli": 233898769,
+    "ffmpeg_cli": 220120884
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "4126274fc9c5fb3e080101de46c7419ab0d31e8dc4f612615e814355f43be3f4",
+   "source_sha256": "04440f46c632a6805adeab8196384901ac88a80e287b2f253e5ddaa56fe75d3c",
+   "class": "mp4",
+   "level": 5,
+   "bits": 24,
+   "samples": 88024320,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 519389745,
+    "lav": 501735861,
+    "lav_info": 500185662,
+    "ours_dec": 428296481,
+    "lav_dec": 477277520,
+    "ours_cli": 209664117,
+    "ffmpeg_cli": 216361418
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "c162129717eca7507a4e2989782702297d77857c8d2b206665f0a9aa592e9026",
+   "source_sha256": "04a7da97aeecd99a3f8fd9a8e5b16caa054a661f185fc36e812f217d04d1c6af",
+   "class": "matroska",
+   "level": 5,
+   "bits": 16,
+   "samples": 2181696,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 2063120,
+    "lav": 4753491,
+    "lav_info": 4795976,
+    "ours_dec": 165428,
+    "lav_dec": 3251168,
+    "ours_cli": 4044131,
+    "ffmpeg_cli": 10848553
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "37c7a9c15601e45467a7e365a519eb8d3c7f98a17f9484c948074c64995fcfe9",
+   "source_sha256": "04a7da97aeecd99a3f8fd9a8e5b16caa054a661f185fc36e812f217d04d1c6af",
+   "class": "mp4",
+   "level": 5,
+   "bits": 16,
+   "samples": 2181696,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 2043435,
+    "lav": 4439454,
+    "lav_info": 4565755,
+    "ours_dec": 162038,
+    "lav_dec": 3261623,
+    "ours_cli": 4281686,
+    "ffmpeg_cli": 10768891
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "6cbd85750437a4db33acfe5581c9016396e3ce2245d12e91a58f0c903bb52b04",
+   "source_sha256": "0538fb0951faa30ed690ddb625fe9404bf6e80275ec520bde176f2e0239e6537",
+   "class": "matroska",
+   "level": 8,
+   "bits": 24,
+   "samples": 774144,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 8831993,
+    "lav": 9028071,
+    "lav_info": 9249011,
+    "ours_dec": 7680343,
+    "lav_dec": 8213858,
+    "ours_cli": 4718577,
+    "ffmpeg_cli": 6695145
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "f69e530d33e17dbb70274cb8b591861c3a2f4a49a4c8819010691b9e67f0d1f3",
+   "source_sha256": "0538fb0951faa30ed690ddb625fe9404bf6e80275ec520bde176f2e0239e6537",
+   "class": "mp4",
+   "level": 8,
+   "bits": 24,
+   "samples": 774144,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 8902638,
+    "lav": 9043640,
+    "lav_info": 9344354,
+    "ours_dec": 11398527,
+    "lav_dec": 8199766,
+    "ours_cli": 5521820,
+    "ffmpeg_cli": 6839116
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "2fb0dd83899bd62ba98525adec238d9457417adbc2ad5bf86464288926e2ca6f",
+   "source_sha256": "057ee81be8c845e5c8321677bd3fc304af8e26894cc8f0076e937968c31f5615",
+   "class": "matroska",
+   "level": 8,
+   "bits": 16,
+   "samples": 1057056,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 11834053,
+    "lav": 13141215,
+    "lav_info": 13420237,
+    "ours_dec": 10095628,
+    "lav_dec": 11981984,
+    "ours_cli": 5745893,
+    "ffmpeg_cli": 7371580
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "1238753e83214012293bd2897732549a25dfa5470d518807f42a85bedd532795",
+   "source_sha256": "057ee81be8c845e5c8321677bd3fc304af8e26894cc8f0076e937968c31f5615",
+   "class": "mp4",
+   "level": 8,
+   "bits": 16,
+   "samples": 1057056,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 11643210,
+    "lav": 12948091,
+    "lav_info": 13100553,
+    "ours_dec": 10114018,
+    "lav_dec": 12030234,
+    "ours_cli": 6297422,
+    "ffmpeg_cli": 7538452
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "f3fc8b3c2b020246af4d254aa7dac2e8073e5c676ace411725a12a04f73c3ac6",
+   "source_sha256": "0591ba9fb558745ea282ad37e36186dbfcc1ce4ba4029f56e16585aa57fa3ac1",
+   "class": "matroska",
+   "level": 8,
+   "bits": 16,
+   "samples": 66103936,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 676256231,
+    "lav": 747362776,
+    "lav_info": 755572666,
+    "ours_dec": 607436617,
+    "lav_dec": 739098996,
+    "ours_cli": 255293634,
+    "ffmpeg_cli": 224862357
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "57508f0d912b703d0ec1613cc0fc2ffc28dc46f02a40737b4e7072ad59606973",
+   "source_sha256": "0591ba9fb558745ea282ad37e36186dbfcc1ce4ba4029f56e16585aa57fa3ac1",
+   "class": "mp4",
+   "level": 8,
+   "bits": 16,
+   "samples": 66103936,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 676454554,
+    "lav": 762114859,
+    "lav_info": 744549147,
+    "ours_dec": 607840986,
+    "lav_dec": 714433137,
+    "ours_cli": 205320850,
+    "ffmpeg_cli": 219667486
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "f5dad84cfa06665ec3f23a9854f62838ef90d8e0da9a0c712ef19310ed4f4a07",
+   "source_sha256": "0647ff86bb8c6a3608d67e4751015a5aca8fbc95966493f788b449e15898fcab",
+   "class": "matroska",
+   "level": 0,
+   "bits": 16,
+   "samples": 21176320,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 66771287,
+    "lav": 105717728,
+    "lav_info": 106625447,
+    "ours_dec": 46708182,
+    "lav_dec": 91292895,
+    "ours_cli": 40346239,
+    "ffmpeg_cli": 135176757
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "03ab651b67faf6137ce13f063234665d1c3c98dcb731a4e4228d60492ca33a3e",
+   "source_sha256": "0647ff86bb8c6a3608d67e4751015a5aca8fbc95966493f788b449e15898fcab",
+   "class": "mp4",
+   "level": 0,
+   "bits": 16,
+   "samples": 21176320,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 65598587,
+    "lav": 103247141,
+    "lav_info": 102825403,
+    "ours_dec": 47160786,
+    "lav_dec": 91121057,
+    "ours_cli": 40488008,
+    "ffmpeg_cli": 133923373
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "42215d3c671ed60946316ff0b545728b20dcd348e93181d611c2594951969ed7",
+   "source_sha256": "065b0fa2931f1f2d4725fa632d13542172fff19a83078469116eae6aa5a87b25",
+   "class": "matroska",
+   "level": 0,
+   "bits": 16,
+   "samples": 46618624,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 334273440,
+    "lav": 379759085,
+    "lav_info": 376130739,
+    "ours_dec": 282929406,
+    "lav_dec": 340624206,
+    "ours_cli": 168483831,
+    "ffmpeg_cli": 279500297
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "48ed0fe919b1d3ef7faeecc4dbc4e45fd717120550d77fd0592681ef90b8dfed",
+   "source_sha256": "065b0fa2931f1f2d4725fa632d13542172fff19a83078469116eae6aa5a87b25",
+   "class": "mp4",
+   "level": 0,
+   "bits": 16,
+   "samples": 46618624,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 334463194,
+    "lav": 367442235,
+    "lav_info": 367930325,
+    "ours_dec": 283241873,
+    "lav_dec": 341673733,
+    "ours_cli": 142449679,
+    "ffmpeg_cli": 330414993
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "5a334280b70560fe7fd63fc4dff005d8ba6b1249bc4fc21233d798047f4146ba",
+   "source_sha256": "072c3a3ae29febd8017c4ea7a29ec58f14c967da0b9534053f344418eac5e874",
+   "class": "matroska",
+   "level": 5,
+   "bits": 24,
+   "samples": 75243382,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 427387691,
+    "lav": 435067072,
+    "lav_info": 431428719,
+    "ours_dec": 348733868,
+    "lav_dec": 409218424,
+    "ours_cli": 201742278,
+    "ffmpeg_cli": 174563513
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "6b91d250ebc9ba1f632a8888e855e10d90b5aae1cc2a82b15ccfc40405ae5d7a",
+   "source_sha256": "072c3a3ae29febd8017c4ea7a29ec58f14c967da0b9534053f344418eac5e874",
+   "class": "mp4",
+   "level": 5,
+   "bits": 24,
+   "samples": 75243382,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 422744673,
+    "lav": 426795211,
+    "lav_info": 425504316,
+    "ours_dec": 347516938,
+    "lav_dec": 408438978,
+    "ours_cli": 188402413,
+    "ffmpeg_cli": 157704038
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "24e978b6146cebf5c7c13d4d5790de0734bdf9fe07fa3b6c6a019bebd505e728",
+   "source_sha256": "09febe430bb4b10251fa93b6bd05b0e64974019cf12ce450225a82cac0e3517c",
+   "class": "matroska",
+   "level": 0,
+   "bits": 16,
+   "samples": 774144,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 5690068,
+    "lav": 6524712,
+    "lav_info": 6659316,
+    "ours_dec": 4524487,
+    "lav_dec": 5914163,
+    "ours_cli": 4706354,
+    "ffmpeg_cli": 8520801
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "1c04d94b0f12f3943d0b8eaf5c49c4084a730a16cd1f4dbc2cccfefd3f192f46",
+   "source_sha256": "09febe430bb4b10251fa93b6bd05b0e64974019cf12ce450225a82cac0e3517c",
+   "class": "mp4",
+   "level": 0,
+   "bits": 16,
+   "samples": 774144,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 5477167,
+    "lav": 6373109,
+    "lav_info": 6516276,
+    "ours_dec": 4499851,
+    "lav_dec": 5424531,
+    "ours_cli": 4017622,
+    "ffmpeg_cli": 7986354
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "8e5c46ab9edb948fef14efc9296725918c962a166dc92ea60f5327fa5c18f7a7",
+   "source_sha256": "0ced42322c655b47b4727508850d88ad8a69e9051647b38a699c047998ca6e08",
+   "class": "matroska",
+   "level": 0,
+   "bits": 16,
+   "samples": 2955264,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 21406670,
+    "lav": 25483858,
+    "lav_info": 24942212,
+    "ours_dec": 17384392,
+    "lav_dec": 22153888,
+    "ours_cli": 11201794,
+    "ffmpeg_cli": 24393470
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "c3e51882d4cc9296bf5d70e0142f4fa6f3596f5633bb468f390bd2f99c17a732",
+   "source_sha256": "0ced42322c655b47b4727508850d88ad8a69e9051647b38a699c047998ca6e08",
+   "class": "mp4",
+   "level": 0,
+   "bits": 16,
+   "samples": 2955264,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 21074574,
+    "lav": 24437790,
+    "lav_info": 24435607,
+    "ours_dec": 17407582,
+    "lav_dec": 22182582,
+    "ours_cli": 10148406,
+    "ffmpeg_cli": 23384724
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "2fd03ecbe3ad4ca2020609525bc803244c422fd9287ec616d50193e623378b7d",
+   "source_sha256": "0d677d9c1b57fd7d6f8eb019235e685f82f78f9d49b5b52428e86ae305647377",
+   "class": "matroska",
+   "level": 5,
+   "bits": 16,
+   "samples": 732736,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 6215437,
+    "lav": 8986384,
+    "lav_info": 9098656,
+    "ours_dec": 5452330,
+    "lav_dec": 8209443,
+    "ours_cli": 3511077,
+    "ffmpeg_cli": 7062468
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "37e86d9e80b16aeab0438a1529de12aeed8940a84cbed06fbaa14423613d93bb",
+   "source_sha256": "0d677d9c1b57fd7d6f8eb019235e685f82f78f9d49b5b52428e86ae305647377",
+   "class": "mp4",
+   "level": 5,
+   "bits": 16,
+   "samples": 732736,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 6198024,
+    "lav": 8875189,
+    "lav_info": 9025158,
+    "ours_dec": 5432297,
+    "lav_dec": 8219698,
+    "ours_cli": 3362357,
+    "ffmpeg_cli": 6658714
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "4737ea66f04500f40d8b4a3fb0515739114b0f70a4d9969196f6bd069aec222b",
+   "source_sha256": "0da77a33f44a62fadb14369a782f0b9b52eecc89a897e27c57750d392d510921",
+   "class": "matroska",
+   "level": 5,
+   "bits": 16,
+   "samples": 46374912,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 302366780,
+    "lav": 339369826,
+    "lav_info": 346748635,
+    "ours_dec": 254951315,
+    "lav_dec": 317515532,
+    "ours_cli": 147281802,
+    "ffmpeg_cli": 117240282
+   },
+   "failed": {}
+  },
+  {
+   "set": "derived",
+   "sha256": "d1f8725517e2cf93ade92ff928a4a5ca9b532d5b6c823cb786987dfc2f3853c7",
+   "source_sha256": "0da77a33f44a62fadb14369a782f0b9b52eecc89a897e27c57750d392d510921",
+   "class": "mp4",
+   "level": 5,
+   "bits": 16,
+   "samples": 46374912,
+   "holdout": true,
+   "ns": {
+    "ours_lib": 299801153,
+    "lav": 353418179,
+    "lav_info": 335257098,
+    "ours_dec": 254131166,
+    "lav_dec": 320759293,
+    "ours_cli": 148830209,
+    "ffmpeg_cli": 113925176
+   },
+   "failed": {}
+  }
+ ]
+}

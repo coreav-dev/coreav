@@ -1,0 +1,422 @@
+{
+  "schema": "spike-c/provenance/1",
+  "inputs": [
+    {
+      "name": "basic.mp4",
+      "bytes": 92785,
+      "sha256": "52154d97ff9485e0dfe5301fead7f968ddc7c00fe8735185e0c2b7b31fff9674"
+    },
+    {
+      "name": "faststart.mp4",
+      "bytes": 92785,
+      "sha256": "742863fee07ab971e11f398b56c640f498fc534b42ad28d8e21e577c48f338ec"
+    },
+    {
+      "name": "fragmented.mp4",
+      "bytes": 92591,
+      "sha256": "d9e9accf9ffe7fe87d84d4dd5399035afe1d0452f90c39339a28f2bde309f209"
+    },
+    {
+      "name": "basic.mov",
+      "bytes": 92836,
+      "sha256": "1229635e8c78c7856b8c7f5c2322a4e7c9a2238bbab6a9bdf2eddc744fc6fe0b"
+    },
+    {
+      "name": "vfr.mp4",
+      "bytes": 59323,
+      "sha256": "41ad6924c8e2ebbe3ab6f825198c789153a6ced65ebe26e8cbb4723aee4df98f"
+    },
+    {
+      "name": "negative_cts.mp4",
+      "bytes": 73518,
+      "sha256": "bdfe6d71c81cf56f670d60d583b4f3bb39138d74a53c9f007e6e8e74371108d9"
+    },
+    {
+      "name": "edit_list.mp4",
+      "bytes": 92809,
+      "sha256": "8e0c46cb031c2a8aec0181b12e722eed73192b590b6c893ae7d875640807eb15"
+    },
+    {
+      "name": "browser.webm",
+      "bytes": 123407,
+      "sha256": "b254730d9a6b81f1a127408d3f44a7adb4d22569b08dc2358b63b7732a8e5203"
+    },
+    {
+      "name": "truncated.mp4",
+      "bytes": 92685,
+      "sha256": "f4c9d041d5d65d9b29bead9eaa2b56d1e1144aa74b17330c9f60092055365703"
+    },
+    {
+      "name": "rotate_ccw90.mp4",
+      "bytes": 92785,
+      "sha256": "f4e43fce0bbca05c0ca923aaa77178c39b6714b0dd537c4ede56ec7fa92bfb86"
+    },
+    {
+      "name": "rotate_ccw180.mp4",
+      "bytes": 92785,
+      "sha256": "0e71fc3bd83747a5b055bc2b7117cc3ab8c4e587d16160bd8fdfa43485ec737a"
+    },
+    {
+      "name": "rotate_ccw270.mp4",
+      "bytes": 92785,
+      "sha256": "fbabcfbb2d3a2b27c3bb18ecc24a4e1ee7490b411302d0e984aac3a694a6219f"
+    },
+    {
+      "name": "color_bt709.mp4",
+      "bytes": 73535,
+      "sha256": "55b43cf04691784325defdc479ca5939cad2734f18d1714cb5703e735ac59192"
+    },
+    {
+      "name": "color_full_range.mp4",
+      "bytes": 73535,
+      "sha256": "0242adfc3cbbc8d6bbb4c7e2721f810f876f9002130e9b64981fcd895819693d"
+    },
+    {
+      "name": "color_bt2020_pq.mp4",
+      "bytes": 47898,
+      "sha256": "ff5ca24e28f85dc1c2fd7cfb57ebd6c70f2e43f056bb0046dd28920270ccf7f4"
+    },
+    {
+      "name": "hevc_hev1.mp4",
+      "bytes": 48538,
+      "sha256": "a7c7dc038dfea3ec02ab7fe1de78e274c25192363b310651e029bd0bfe81ffb8"
+    },
+    {
+      "name": "hevc_hvc1.mp4",
+      "bytes": 48538,
+      "sha256": "e3c96750b15d1cf3efd60744b92c8680ea19f04dc8695f1d8a1829788ce2d756"
+    },
+    {
+      "name": "h264_avc3.mp4",
+      "bytes": 69108,
+      "sha256": "31b4bdda80c5c40087a8c18f9fb6882f603862bceb81d4ff1ecc70d1b048cdd0"
+    },
+    {
+      "name": "av1.mp4",
+      "bytes": 44124,
+      "sha256": "f598c2a208f8b46b0d149977973ee64e695e5c5360b8d213f284c4f31e37764e"
+    },
+    {
+      "name": "vp9.mp4",
+      "bytes": 104773,
+      "sha256": "abff61fc5b1754bf898c26a566edde1dbd35385c4e4030e4a58e01699d439a53"
+    },
+    {
+      "name": "prores_proxy.mov",
+      "bytes": 251947,
+      "sha256": "466a5ba9094f6ce940e74158cd926fd41e9cfed0763f2ab2fab91f24adb6e2dd"
+    },
+    {
+      "name": "prores_lt.mov",
+      "bytes": 535472,
+      "sha256": "e14a32ac655538b2eae4b6f9115388a115f9ae4c882d558c2adcb3bd17fb10f8"
+    },
+    {
+      "name": "prores_standard.mov",
+      "bytes": 710152,
+      "sha256": "542a5b1fac35fad32cf354fbdc92324de0cb20eb7d1c5ef3dbd276935950294f"
+    },
+    {
+      "name": "prores_hq.mov",
+      "bytes": 932266,
+      "sha256": "7f5198ea713f375735a7d6c59ea6057353f4d71dfbeed651ace879c8bd20dd9a"
+    },
+    {
+      "name": "prores_4444.mov",
+      "bytes": 1411541,
+      "sha256": "4638b61e58a23075f058d07d455f7c9b523589c51caf7bd6ef2a4a14e1674967"
+    },
+    {
+      "name": "prores_4444xq.mov",
+      "bytes": 1411541,
+      "sha256": "f7722fddc68a7e758a04c3a9113c873dc93339d9cdd4b48126c43a83946aeb09"
+    },
+    {
+      "name": "audio_aac.m4a",
+      "bytes": 32467,
+      "sha256": "1a0918d4f5e1e6ea59ca9a4fd461b11d4a939b7c12692ee450319f5b2e1abfc6"
+    },
+    {
+      "name": "audio_51.m4a",
+      "bytes": 87097,
+      "sha256": "92e8e4cf0b219ee6f7ab416b1e3527c67c49eac51ad9eaaa3fde108fde3e1c2c"
+    },
+    {
+      "name": "audio_opus.mp4",
+      "bytes": 19948,
+      "sha256": "e718d5d74a8ad68fc66bd9fc93f0b155277e4b7271a1b79bbf146830a7951d9a"
+    },
+    {
+      "name": "audio_mp3.mp4",
+      "bytes": 33402,
+      "sha256": "d316597e5dbe8cd5588f6b095a871ad93f34c6e6876d0b7718b8546f5f15491a"
+    },
+    {
+      "name": "pcm_s16le.mov",
+      "bytes": 192685,
+      "sha256": "103adff78624f53e334f57df1e8243ffaac2c383c4cb39b9929a8e4b90d5eae7"
+    },
+    {
+      "name": "pcm_s24le.mov",
+      "bytes": 288739,
+      "sha256": "bb915bff1e52b023d51b8cc3d25a5dd4e3923a44b4a96647095d7f2ba561ff28"
+    },
+    {
+      "name": "pcm_f32le.mov",
+      "bytes": 384739,
+      "sha256": "4518eaa47bde2f6247a1103d84336e2468f71727fb3c5b2720822c0dc793dacf"
+    },
+    {
+      "name": "pcm_s16le.mp4",
+      "bytes": 192724,
+      "sha256": "54fd777063befac9669628cac5fe8b74ad2487c5744cc71db7843299d8b56f2d"
+    },
+    {
+      "name": "multitrack.mp4",
+      "bytes": 151461,
+      "sha256": "71cd1602de3aed227a2f6ce03c0fa931fcfc9f581c4612d5f0b80c09b2e3a70e"
+    },
+    {
+      "name": "timecode.mov",
+      "bytes": 74079,
+      "sha256": "1c86aa35fab4d95fb2ede3c355069aa7be7abca32583c2c8bd07e717d668ccb7"
+    },
+    {
+      "name": "nested_10000.mp4",
+      "bytes": 80016,
+      "sha256": "873ed4591e0b97eaccb53afde416b0abc5c4fa83b4a4f423b6f31f61bf8f2f06"
+    }
+  ],
+  "normalized_capture_sha256": {
+    "reference": {
+      "audio_51.m4a.packets.json": "04c3e53ebc3ef84e49799684597868bde9c88968b4c8e31b67028b7a0e0a571d",
+      "audio_51.m4a.streams.json": "ba02a2446bc13b34067be6244e77363ac6f0a333f11b13c3f42da3109057f03d",
+      "audio_aac.m4a.packets.json": "d054d2850d8f266bd2a661bd2b07debeb46442d308ee5fe172d994bc191ce590",
+      "audio_aac.m4a.streams.json": "ff25d867667dd02cb9c1a6494a36bb825f4330258505430cd70205a1957a537d",
+      "audio_mp3.mp4.packets.json": "2541653e2c1415e82bfe2d739e987f88fc21c37f1d9697f58b8f02ebf892ff4f",
+      "audio_mp3.mp4.streams.json": "6e3b1cc9d1d7c344de0e744fdb45d15e264f307aa95fddfb5446f26ec11dc0ef",
+      "audio_opus.mp4.packets.json": "3db7ee29620ad991efd4c0f8c046ec44f6cb0cb510d743e4bcef1ef6e8c04f05",
+      "audio_opus.mp4.streams.json": "47f990ed912aa9f1ffd7e7a84fb56c22706dfb1f1ea67635a1333d9c8eff0639",
+      "av1.mp4.packets.json": "1c78d53cea749d4337d735d3d3a9078d665a10b66c7d95665026a16eb4c76285",
+      "av1.mp4.streams.json": "d8ef12370db322449c4076676e9a91c8b91e29d7d0f5a7af68f789e80f24faa4",
+      "basic.mov.packets.json": "69429a14cf020ffed6d0f1af9038a263f87aafb376d9cf1dfcefb848cd9d9a60",
+      "basic.mov.streams.json": "1cd1d5ac306711bb6497c8ebd23a7e2c8d1d7b1974399385e7a4b27134e58d28",
+      "basic.mp4.packets.json": "aa1c4093717ac6df65aceb0245df2cf4361979420ad5c32eeb4927a162a9249d",
+      "basic.mp4.streams.json": "2fb98e23b492a2e35799f50dd582b9a2a7477d7dc441bc5a8a6a007925593cd2",
+      "browser.webm.packets.json": "64238677320026660e02032078c39e8305c4ea12d81cfa3f638e2a8047f74c83",
+      "browser.webm.streams.json": "93a34d3e9622b166de9d57c1be134157154c1a28ee35505e420de3d1e7f9b49d",
+      "color_bt2020_pq.mp4.packets.json": "6fccd1cd64751beecf6aa0def8842950de5cfb3a3d98d448a5a11a2b438d1f46",
+      "color_bt2020_pq.mp4.streams.json": "48ce47de1ec470635d0770a1e76097747bc423d27128f5dd18681b7023d3b273",
+      "color_bt709.mp4.packets.json": "e0c138c3bf696aefc6ae59d1a6dd5c2823de239e01898681ce27df80c31ffa06",
+      "color_bt709.mp4.streams.json": "058c2a879f99bf42d0d08d9f4b22041bd9ce6ef2c10a8275fc4873388431e2ba",
+      "color_full_range.mp4.packets.json": "e44c929c4cdd44a666e149db0cf07c3173b1c1491f52efc0709c973d34a7cbe3",
+      "color_full_range.mp4.streams.json": "fd82999f15e697ce4443a287e51199c489d9a8c908937bce513488aad3448e4a",
+      "edit_list.mp4.packets.json": "94b285e09e22afdee8fb43079e52ac7e2f846788dc22f130a061c9b057f9410c",
+      "edit_list.mp4.streams.json": "bd1491fd67c6072d2b3daa75ad7d4e25a3d0981273ecf1aecee7890b7a320ab6",
+      "faststart.mp4.packets.json": "6c776d85ada21546258fb7fce114a8e4f3649ece56dca580a971155a1b686563",
+      "faststart.mp4.streams.json": "233c69fd92a953060dc0e14e84171a1e409921228d3fea67729024cd43e9ab70",
+      "fragmented.mp4.packets.json": "651704f1e8c9a7f738533f5ccf84c4a56b9eb5f7d47628821e7fc62cef8d76a0",
+      "fragmented.mp4.streams.json": "4e0c23179b53518c0d4a108204d7048c4df97b9354b7367b07dfe28223945a29",
+      "h264_avc3.mp4.packets.json": "43ded39bbcabe4c2ac31be0eba0c0d68a1f3495722451a394f67d021ce0e1797",
+      "h264_avc3.mp4.streams.json": "b7ac9d547fd65b5fbd2b81c2fbe93e748a4dc1c601ebdfe86726a65b8281a111",
+      "hevc_hev1.mp4.packets.json": "3431c79ec738e64e441a568b14c06b9f01de8aae6dfc7ce7ae1afc693b390652",
+      "hevc_hev1.mp4.streams.json": "038050124db602f770a1aca1c26da915d1831d7d38b966d85e4381f3bf29871b",
+      "hevc_hvc1.mp4.packets.json": "5767b1b312ca5a68159e20c933e17d9f8aa523cec4d15abf306ad869b754d7a6",
+      "hevc_hvc1.mp4.streams.json": "8457b106f8f14793ec11f8576d8092ce8c32ae2b2015e49aed3df645c1b0bb91",
+      "multitrack.mp4.packets.json": "25f2243d7949bc607720d542b27436358a69ea6e70ae2e8bc244af807d8105c1",
+      "multitrack.mp4.streams.json": "65d39d90109d23a5307f3086cbc80b6984c74a1f014310692e32dde338fb23d2",
+      "negative_cts.mp4.packets.json": "4c308a42075303a83c18ceeb04f135fa5f3b592c6850711de9fa681f1aa098c9",
+      "negative_cts.mp4.streams.json": "d63da37b149d808d49a6b62e36241f23603b7419b9b19b542dbef52f07fc29c2",
+      "nested_10000.mp4.packets.json": "c5345e50f0d892a1520052d019e93957a30b9381d37ab21e54808159bd81185e",
+      "nested_10000.mp4.streams.json": "d198b154cdff28cfc8f6fba79bcbf026d3ed1732eebdf21c88ac786b3314a0df",
+      "pcm_f32le.mov.packets.json": "621ef2ba80f8b1f5497b4db4f8fd814e04a65abf940b5b7222c77dbf25b1de93",
+      "pcm_f32le.mov.streams.json": "cbf7f0b1c469cd546c3c1cb3b9853f6524c140c6ffb697439d66f9865da5e058",
+      "pcm_s16le.mov.packets.json": "6b81e60c81a352eb3b7b7a4fcfdcc6674f67bf473a0cc3b4d848b5b4ceafc282",
+      "pcm_s16le.mov.streams.json": "247e756564e1bc92fc58cf04e121fbb8f8260c088e5c98a44b03f22c545ac529",
+      "pcm_s16le.mp4.packets.json": "883b626d9a48312c4f07ad94b2a709ef401e6aaf7bd17652016252a266eac2ce",
+      "pcm_s16le.mp4.streams.json": "01353c439edc32794daf066c45a82b9cb68ea184d9b06b4a8f477eb8ae150256",
+      "pcm_s24le.mov.packets.json": "6413da7ad715fce421c91fb10b420963537374f0b88637da6bdf1ef603972186",
+      "pcm_s24le.mov.streams.json": "d5531f0ec7a5c694a75d2a555d68b3a389006f077917347e0a6192baf711d6f8",
+      "prores_4444.mov.packets.json": "b318452946f38c4289a5ade083e0972f66dacffaeb8f40b0534a3ff429c99a82",
+      "prores_4444.mov.streams.json": "71e2c6e659a75c9d4108907de23edfabdb52d447cc7a8886c98d57da72bf1678",
+      "prores_4444xq.mov.packets.json": "ba7ca47813583258e2e5dc8ba6c1badf7a1caf4f9cc98fee2a0db9d72db366ea",
+      "prores_4444xq.mov.streams.json": "b98b7993752513b7f184b2530e383b30036d6f47654ade1da98d99000ca6a819",
+      "prores_hq.mov.packets.json": "2aa192eae224b218e1ce5751cd25aa005ff43305be27b387e27f242f229d4491",
+      "prores_hq.mov.streams.json": "4674f778f438f4c990b5e13ef14c5640e61e029f0bbbc7da52630c650400baa5",
+      "prores_lt.mov.packets.json": "51b519008bdbffeb446a01da3e654eee3c3112f0b55cf41fcc68676d0a124844",
+      "prores_lt.mov.streams.json": "ab6226108676926c9c7de3860705320e52bc6437b7a3d52ae17439550e266222",
+      "prores_proxy.mov.packets.json": "4f453ff983351210ae48bfdca8eb04aeea09d4d684d482221281390591729499",
+      "prores_proxy.mov.streams.json": "50c161ee6e5a3c276422081c672ab940f7a8803e2f612c42c0f5b10efdc286db",
+      "prores_standard.mov.packets.json": "1197951227ee0ba97bfdba3f0d60ecab9cd3b8a60cbc5c8730522fa40a756b50",
+      "prores_standard.mov.streams.json": "50b9dba3491964f1c5235755bedab3b5925f62b768237897077ff6ebe767a6b2",
+      "rotate_ccw180.mp4.packets.json": "8a3b93fa283e71158abcd4472843ab124aec0568a35a4ea8e931b095e0a2f117",
+      "rotate_ccw180.mp4.streams.json": "bfa5e3111741df8c11636032b2ff587f13114cc36dbac9bf89b7134b164166d4",
+      "rotate_ccw270.mp4.packets.json": "8b6d8cdcc8632aca68be30ce4f9a368174cdf8b820f2852873687d0b47e7b9ed",
+      "rotate_ccw270.mp4.streams.json": "a743b7f404b7bf22597914092da7d81c503e4745f783923f7d218723d12a2ba1",
+      "rotate_ccw90.mp4.packets.json": "d9b666c0a0a1e7df52f57d984e5a5eb6f999b5d137bdf12219a26123d9864bb7",
+      "rotate_ccw90.mp4.streams.json": "d2e6e373f31abf5420ddb97f3b7f4b2485ae18fba5ff8db8225284f03dbf8152",
+      "timecode.mov.packets.json": "d744325ee69c2677cad0675ca3a3f96d53de0e9ba7e6076069ed1b8a9f217dc1",
+      "timecode.mov.streams.json": "43f7e9d22d42088dcabcaeb5bf4685d7d44a9a5a0d8eb97c152e7adce4b6da20",
+      "truncated.mp4.packets.json": "4986486449b34f1a4d9b75470088f73916f8b54a5bfdf81c62bda7fd3be50657",
+      "truncated.mp4.streams.json": "a704325087ade98a5578690b9f4536f771d2f72a7f29dc49e1016fb22d7ad69e",
+      "vfr.mp4.packets.json": "4d3fe506e3b61b812e3fbb6c91cf525f82a918f53a97e91705d4715908b5f0cb",
+      "vfr.mp4.streams.json": "09376707cd0ff3c76748d2e9083c5aef6772ee440fefcdf887480ae2f99a1b7b",
+      "vp9.mp4.packets.json": "a6786def0f3d347ea4bdde5f88b38fae76550f0415762fe284cbb7fda74bde89",
+      "vp9.mp4.streams.json": "98c6219e342a7da6612ab3f2e45d5fcbd33282b586e9454b737356dacaefa18f"
+    },
+    "candidate": {
+      "audio_51.m4a.packets.json": "a9a1428970d1e0a383dc5c137a3469c1c30e5b7de746b10cc90c51583c0c6b0e",
+      "audio_51.m4a.streams.json": "bd7847e09e4ca7ff8fb4964783dadeeda9c67c8815251b1680c5809dd0f6b0ae",
+      "audio_aac.m4a.packets.json": "3588a3d2f0eaaf98b7ae0dbb7321e80c65f18e508cd14adda1872461605e632e",
+      "audio_aac.m4a.streams.json": "6940e3d65b888f18a9d01ff76baff8b2d87c81479977c5a3c6dd26797935ad57",
+      "audio_mp3.mp4.packets.json": "08836097d0af6ef89df4eebf9ca232cd76086ac44e2db01ac21baaebb66968bd",
+      "audio_mp3.mp4.streams.json": "318ebfa865bf7ab7c1aa82b0c52232db38fa8a5d7325bb1efb6a87a0b78c1b8f",
+      "audio_opus.mp4.packets.json": "f2c35b957f818d8459409973e8bb2469fbe968f4279f1c60dff8fa7319901f05",
+      "audio_opus.mp4.streams.json": "f55974b27618d09de3eaa00f5ce66f9eb980434d499b05a352937491636aff25",
+      "av1.mp4.packets.json": "6e6ce6fb76859acc4fc54c1022ef295af907d038f5794a4bb9c423eceeb9c859",
+      "av1.mp4.streams.json": "47b209554632538d152bfc0f288390f0a5ecb2715e72178fc935eff0a42afa9c",
+      "basic.mov.packets.json": "049d5da6695b47ae4162d83747cd6237d46b34f95a93f9bfb65ae7a25c511ba2",
+      "basic.mov.streams.json": "4ac5b78a7471cac36c7f95b84f47fd48f0f4dc636edfdb7dbfc616470d522a59",
+      "basic.mp4.packets.json": "aba64f106eaaa8cc64c6c15b08a43f277e36b260eb88ed4003a0baa1d9f88684",
+      "basic.mp4.streams.json": "0e8e4e41727be1ca9eb15fcc4a5247446495e3407075b65299482b3f0b052670",
+      "browser.webm.packets.json": "8a97813a1be0a3f48144f92504a9a6016aaf9db178bc310b6ccb6d65d442e8d2",
+      "browser.webm.streams.json": "cecbc2db52fb899c79ab6abd13c8f001bbb9026e01478c01f2ce673520153e0f",
+      "color_bt2020_pq.mp4.packets.json": "a24c2a5a0e74de72b6cdb37c7e27efd7a1becf40fdba305cc802048b567f477d",
+      "color_bt2020_pq.mp4.streams.json": "667489524f1ccc0d3a902017bab6d8697a0db8563a04ec6c99f891428a0a2837",
+      "color_bt709.mp4.packets.json": "88c45d55145b9236a70076a0074a68c3f084ef1ed70bd38d70a686b900d0cd6c",
+      "color_bt709.mp4.streams.json": "87133eccfa2e1770b21e7d7c3587083412d2ead72c06698e2ed2afaa41f343d0",
+      "color_full_range.mp4.packets.json": "9b8127251f7267b371c1dbabcb5c3e76862b4dd936813c29e40a8ec18bd76eef",
+      "color_full_range.mp4.streams.json": "6039400beb1777f2a0b9f20666da5bf5427af60c2c454f5956f6d8f06c2b761b",
+      "edit_list.mp4.packets.json": "7559cae631c06a66e8f5eec7c41d8e1b4993578973fe2ac642d2233bc0685054",
+      "edit_list.mp4.streams.json": "9e58e53b190110e3d5c8b524a495b5c25c2bf1472694e258929c6593ceeea012",
+      "faststart.mp4.packets.json": "d46ce2c28685c1fdb4537eea2e92c272115b2aa022512e1d5e9f254b1571e844",
+      "faststart.mp4.streams.json": "af1ef8c324d56a690e1bd2d4e3dd090db0bfca7628bdb8860afe3ee08b000cce",
+      "fragmented.mp4.packets.json": "bd168a73f5b9949b5b50879b6ef14aea0f5add5ca9c217899cbd94fc4de5c209",
+      "fragmented.mp4.streams.json": "df3d72f8f4a8f0a7a0f4c4fc6d0e29c55f61335039084eb0bc16028ed02afe64",
+      "h264_avc3.mp4.packets.json": "5cfe08bf9481a9adf1a81d3193f9bdb9d1708fe7d1e29e87fd0ffa2e632b318f",
+      "h264_avc3.mp4.streams.json": "c120f5d7f453be0b46226e0d08f733345835516d581853997e9e1e49e06050b1",
+      "hevc_hev1.mp4.packets.json": "e73d6920ca5e2ea9f271807e0b635df7263cfe83e92f8a9c88913fcbea52a15c",
+      "hevc_hev1.mp4.streams.json": "23d52819c41e1cad39cf6f9e7b02291ebfc94a8b15d5892a2ea908b96e4184f7",
+      "hevc_hvc1.mp4.packets.json": "53fd967e07206f711fe31e67774c5395d2cdd6a5379266db2b1a41bea3f6e2b9",
+      "hevc_hvc1.mp4.streams.json": "46cecd02a3aaf5be8d0a6e947e625c9d5d8d6b550c43a733a997705b53e2bbae",
+      "multitrack.mp4.packets.json": "209c95efdf39c1b22a59061cd0a9d143ff7615514ea1f91da04ab6ab71c71f19",
+      "multitrack.mp4.streams.json": "76cbe61e5f6665b11ce7f93377c0e9a36927aec10d51bc722c94f06491894d51",
+      "negative_cts.mp4.packets.json": "e5c231fc88cdad2fb76d7a72ba071554ea97e1287c8487a0c0dfebf5a4f97ede",
+      "negative_cts.mp4.streams.json": "3e86a5b452dd9b4a62b34141ba8d73807626f9e5fc741d2b15118a952e6cd6ba",
+      "nested_10000.mp4.packets.json": "1538fc701118416b41f44bc3e1434ecd5cab3fdeecc8a97203238e697c9ca667",
+      "nested_10000.mp4.streams.json": "a21db617e7d12d5aa393525e552ff88c6164540acdba4d95e3f5dffce4d8b81f",
+      "pcm_f32le.mov.packets.json": "f1c31ce2958c102f8127ecfdee16a16109df16f506b10834d547529336c8f43c",
+      "pcm_f32le.mov.streams.json": "cd1376404b5aa942bdda624ae12c22c2f01e897e0a85b45a6710a49bbe584abf",
+      "pcm_s16le.mov.packets.json": "028754b255a78ecaa1fcdda5baab7a23ead0c971d5757118a7b73abe74214325",
+      "pcm_s16le.mov.streams.json": "21f83777cb4a853cef02a8f4c6395224041f77361e73ab27efdcc784dacf4784",
+      "pcm_s16le.mp4.packets.json": "730f839d89364b3a7b1755822ff5e9a2ab15f65715b334fb43c328590dcbfca9",
+      "pcm_s16le.mp4.streams.json": "77626beed73f86cbc2e492ac7c1cf8fe75ff740ef285da799414aa37d6930a5a",
+      "pcm_s24le.mov.packets.json": "9f5419d582604572f57f564ace851d637a964cd4e73bdd81ceb5b40da3854b37",
+      "pcm_s24le.mov.streams.json": "7b47821856ddad32de3a10b364633999d64d9dd4444b9acfaa3c122a5352fcbf",
+      "prores_4444.mov.packets.json": "b153af8c511ff571654a05b19a0bf2bd584ee0860b7140dd3a1a36e1218b9c8b",
+      "prores_4444.mov.streams.json": "6102f231aa160437d8fb8be20aa260bbafdc640270c04b11ffb0c149b27b4c60",
+      "prores_4444xq.mov.packets.json": "bb304ae2d3e23c72ed0301d434c4e6d9392e98289ea5a0a212747ee5eb88ab8d",
+      "prores_4444xq.mov.streams.json": "ce2ccd657f243572151c57951514ca80a1a5d6e1c0bc270eb3b7339c5c268519",
+      "prores_hq.mov.packets.json": "a7479bc3006482d3829235b152f1e2d0764f5c55d21bef9f5f0659e007436caf",
+      "prores_hq.mov.streams.json": "b9f505c7f5fe96442662c492ba9267d00c3ba736a7716e3355044005447873f7",
+      "prores_lt.mov.packets.json": "b1057fcc1d77ff5cd7986f7eeed6d68a26d9443ebaa25eaa37d8e34057abcca0",
+      "prores_lt.mov.streams.json": "e244c09af5a8adba54bcaed3c8f8bcbe7e008e3eed8e5a6fdc5bb65aa746b31a",
+      "prores_proxy.mov.packets.json": "0b70d053a6bf323b0a3e618a6c2c451544ce579a60830a54ba24bac0483de635",
+      "prores_proxy.mov.streams.json": "0fede8cefee1dfb01c47f14033bce201c4f277abe99314db138ad53e8cbfe06a",
+      "prores_standard.mov.packets.json": "514a40bd894eb81fe5b02a387e7d257d1b6732063b6b65296a3858674f6e5a10",
+      "prores_standard.mov.streams.json": "83cdae415ddb5ce89d9470e393dc5bd66230c57c08cdaf8b611e2e207949ca84",
+      "rotate_ccw180.mp4.packets.json": "e8c150f1fc856b37a766beeda0c36375e1653955414103a19c488cb1a8a6c04c",
+      "rotate_ccw180.mp4.streams.json": "d7dbf238d0fb0d96b18255c1e8f61cb6617c05fc2f55c41805790471c59e1f60",
+      "rotate_ccw270.mp4.packets.json": "4b938ca55388c068a61eabbba73069d56feec8d30793ad3601e719335218f96c",
+      "rotate_ccw270.mp4.streams.json": "04f3864c318434fe16b9dd181d179d25707e988dd7c29b22768f2a8589ca9ea4",
+      "rotate_ccw90.mp4.packets.json": "ce4e1e53e3284e4e550d39d8bbd7e19d6421b12396cad656729570e52aabfd53",
+      "rotate_ccw90.mp4.streams.json": "03fa392b80b5e0728bfdeceaadef84ac23077ca2049f564b845b6780ff96023c",
+      "timecode.mov.packets.json": "061121a8dbaee8a1077fbc471dba2db4dab4bed7090695591e12917d0a8c677d",
+      "timecode.mov.streams.json": "09d0c056125de82b6e0725b51c38468cea2bf3f8c426b9935cbfff2944bc2907",
+      "truncated.mp4.packets.json": "fc4434e0d3237196af94771c896de7ed20e416ce969c685c8d9c27344c8ff581",
+      "truncated.mp4.streams.json": "3900f9c89cb2a0dfce3bf92340774a90e21927c8b3df52af25ea687fb3cd075b",
+      "vfr.mp4.packets.json": "7a1c1ef85165a13ffd1c1df5847de93f8db380089dad7a82cb78581fcaec19a1",
+      "vfr.mp4.streams.json": "4871504a4877706cfdd63f75985fc8e3fc04a5d1e2f2a1d8b1f0b5901669cca3",
+      "vp9.mp4.packets.json": "a2f0b75fc9f61216e6f0546aee1604a8b15026b7eeb02388df77921a09819998",
+      "vp9.mp4.streams.json": "87502ad66856ca5971e5fdaf27ffe44eb9671242b0d6fc87528f02ca5042cf44"
+    },
+    "media-reference": {
+      "audio_51.m4a.packets.json": "4b95d5bb33ee2b9bdca48615d0c7e620c84440de3afdb4f689c0ce757829a908",
+      "audio_aac.m4a.packets.json": "9767d14abeeabb9bfb067435d7fd053beb1dd6eddd2dec3977198487d15d9fb3",
+      "audio_mp3.mp4.packets.json": "761359ef0379925d80590cd44df6f9850ae9ec4fc5cb8aef1754aaed2cebaf94",
+      "audio_opus.mp4.packets.json": "4485a061844063f877316972166fac95b95819199ba69512df356fcca27f1c17",
+      "av1.mp4.packets.json": "1c78d53cea749d4337d735d3d3a9078d665a10b66c7d95665026a16eb4c76285",
+      "basic.mov.packets.json": "cb8d481b34585f65789b8be6c91a87971aa66334976b1aaaf83484d76f731e28",
+      "basic.mp4.packets.json": "f583014b0ad5a2555d68d46f5457593e974737204e460d0d549bd2fbe8f34e35",
+      "browser.webm.packets.json": "64238677320026660e02032078c39e8305c4ea12d81cfa3f638e2a8047f74c83",
+      "color_bt2020_pq.mp4.packets.json": "5d23f1a7a21486b2aa7d84ba9a6c5e46dc786d49df523425f4301b8cf1718b19",
+      "color_bt709.mp4.packets.json": "e8e1eed6877cefedefa9d9594e1865593dcc7119a0fb7bf70b41bf59c1e41d1a",
+      "color_full_range.mp4.packets.json": "5e9f59dca341890fe9b0655f0c9c3ece0aea3e58e4d762be7f27c9ed8addeb73",
+      "edit_list.mp4.packets.json": "2fe8fa6c9a2d3e007a5c36e7215e72b29fa507a16841c683125dea239c73f9de",
+      "faststart.mp4.packets.json": "ce3fa43ff1a32d6d3316eddf262407d6e4f6af93814e4f48d82c0d82791249c0",
+      "fragmented.mp4.packets.json": "651704f1e8c9a7f738533f5ccf84c4a56b9eb5f7d47628821e7fc62cef8d76a0",
+      "h264_avc3.mp4.packets.json": "e2bcbd3ac4ab83a89786a0de069c1dd2fce5c6f9160a034d7f3a2bb76050106c",
+      "hevc_hev1.mp4.packets.json": "65dcb126ed6ffa1dbc19cddedebd24b408d4216b9a69860960e596ef2f36e2ad",
+      "hevc_hvc1.mp4.packets.json": "bcbdffdc495fe22fe4d55131574d138a9df5bcc63bde0b0974a8696630f5c7da",
+      "multitrack.mp4.packets.json": "88897ac4b3b960b444055327c1c6a62e8848db524b5781aa2de91f94e3452e26",
+      "negative_cts.mp4.packets.json": "4c308a42075303a83c18ceeb04f135fa5f3b592c6850711de9fa681f1aa098c9",
+      "nested_10000.mp4.packets.json": "c5345e50f0d892a1520052d019e93957a30b9381d37ab21e54808159bd81185e",
+      "pcm_f32le.mov.packets.json": "621ef2ba80f8b1f5497b4db4f8fd814e04a65abf940b5b7222c77dbf25b1de93",
+      "pcm_s16le.mov.packets.json": "6b81e60c81a352eb3b7b7a4fcfdcc6674f67bf473a0cc3b4d848b5b4ceafc282",
+      "pcm_s16le.mp4.packets.json": "883b626d9a48312c4f07ad94b2a709ef401e6aaf7bd17652016252a266eac2ce",
+      "pcm_s24le.mov.packets.json": "6413da7ad715fce421c91fb10b420963537374f0b88637da6bdf1ef603972186",
+      "prores_4444.mov.packets.json": "b318452946f38c4289a5ade083e0972f66dacffaeb8f40b0534a3ff429c99a82",
+      "prores_4444xq.mov.packets.json": "ba7ca47813583258e2e5dc8ba6c1badf7a1caf4f9cc98fee2a0db9d72db366ea",
+      "prores_hq.mov.packets.json": "2aa192eae224b218e1ce5751cd25aa005ff43305be27b387e27f242f229d4491",
+      "prores_lt.mov.packets.json": "51b519008bdbffeb446a01da3e654eee3c3112f0b55cf41fcc68676d0a124844",
+      "prores_proxy.mov.packets.json": "4f453ff983351210ae48bfdca8eb04aeea09d4d684d482221281390591729499",
+      "prores_standard.mov.packets.json": "1197951227ee0ba97bfdba3f0d60ecab9cd3b8a60cbc5c8730522fa40a756b50",
+      "rotate_ccw180.mp4.packets.json": "d5da23f2c963714f20d222c189d15539da38719412b1349571749780dbd24bce",
+      "rotate_ccw270.mp4.packets.json": "f26b8ae062da46c748ede0778c771a91d7399230799513c83484f3b203778348",
+      "rotate_ccw90.mp4.packets.json": "b2bdb7b9b0b2a1b2165dc8c7300254f49bf9aebdc28e1b8e4518e015c12347e2",
+      "timecode.mov.packets.json": "feb2f0e1839a1eaada3296b3d2b737001a7777228817c2df3f3dd7dd263f9a70",
+      "truncated.mp4.packets.json": "8431aee47623109abfeb5f605b7df6208c39a08cb45dfbd11fa929e771c2342c",
+      "vfr.mp4.packets.json": "37d3b5fd862c342a4c280ba0a746d3a7b8dbe1ab3f99d4162b5a7632a0c0cc53",
+      "vp9.mp4.packets.json": "a6786def0f3d347ea4bdde5f88b38fae76550f0415762fe284cbb7fda74bde89"
+    },
+    "media-candidate": {
+      "audio_51.m4a.packets.json": "30c935a69f1896176d488aaa903bfa0b46cf6438cb936c54181d59fa18c24d58",
+      "audio_aac.m4a.packets.json": "37a4122900a35cd8ad9885b3d57512d836d899ce03ac0843be9dc6d974384d6f",
+      "audio_mp3.mp4.packets.json": "3a1d518fe35aff128c5282f5b74765b7c603a93022989936658cc1ec394075fc",
+      "audio_opus.mp4.packets.json": "5ad081661d4ff56041a7d676f0a82bfb6e1494b05d17e3cd7b4ffe5b6e871163",
+      "av1.mp4.packets.json": "6e6ce6fb76859acc4fc54c1022ef295af907d038f5794a4bb9c423eceeb9c859",
+      "basic.mov.packets.json": "7e579a7877f204c747494d1b28d980670c37345496009decabe7afa6289016b0",
+      "basic.mp4.packets.json": "62f17254730d1716115726d0cbd4ad197f8aa69f78d9ce5859724058f2d6c085",
+      "browser.webm.packets.json": "8a97813a1be0a3f48144f92504a9a6016aaf9db178bc310b6ccb6d65d442e8d2",
+      "color_bt2020_pq.mp4.packets.json": "f6bad48a103e24418cbb559188cee608908af52e2352a1224b95b72fe3ba02ea",
+      "color_bt709.mp4.packets.json": "4a060d2fc4ff363733efc0abd0708983a957d68ae41d455f27b6145ba69aa6fa",
+      "color_full_range.mp4.packets.json": "1ecb007f492136de2174333f9834e8c9ddfc481386b819c6c386ec7d94c2b8bd",
+      "edit_list.mp4.packets.json": "66888edac05d5ae77fde9cabbf0826517466603e741109966ff854bea86dc3b8",
+      "faststart.mp4.packets.json": "a9b701d9cb3e13e946299a9403ed33a04ab8546c0dbbe2ad1a67c0e464ced83f",
+      "fragmented.mp4.packets.json": "bd168a73f5b9949b5b50879b6ef14aea0f5add5ca9c217899cbd94fc4de5c209",
+      "h264_avc3.mp4.packets.json": "f10fd3c7e9e13ec4ad5c41fef5c0270a4086541ac852b9239a4ecc1ac874d690",
+      "hevc_hev1.mp4.packets.json": "8f8809d397245e4fbda18363116f4108596e74b5df81f4456e2f3c83f105b149",
+      "hevc_hvc1.mp4.packets.json": "05488548e5da07113d0240c10728131ef5498b8b95a76f664b67170411d31400",
+      "multitrack.mp4.packets.json": "09e059394d7ef71dee2efc83ebea8cee958a7424a8557400b0c690e0af0fa065",
+      "negative_cts.mp4.packets.json": "e5c231fc88cdad2fb76d7a72ba071554ea97e1287c8487a0c0dfebf5a4f97ede",
+      "nested_10000.mp4.packets.json": "1538fc701118416b41f44bc3e1434ecd5cab3fdeecc8a97203238e697c9ca667",
+      "pcm_f32le.mov.packets.json": "f1c31ce2958c102f8127ecfdee16a16109df16f506b10834d547529336c8f43c",
+      "pcm_s16le.mov.packets.json": "028754b255a78ecaa1fcdda5baab7a23ead0c971d5757118a7b73abe74214325",
+      "pcm_s16le.mp4.packets.json": "730f839d89364b3a7b1755822ff5e9a2ab15f65715b334fb43c328590dcbfca9",
+      "pcm_s24le.mov.packets.json": "9f5419d582604572f57f564ace851d637a964cd4e73bdd81ceb5b40da3854b37",
+      "prores_4444.mov.packets.json": "b153af8c511ff571654a05b19a0bf2bd584ee0860b7140dd3a1a36e1218b9c8b",
+      "prores_4444xq.mov.packets.json": "bb304ae2d3e23c72ed0301d434c4e6d9392e98289ea5a0a212747ee5eb88ab8d",
+      "prores_hq.mov.packets.json": "a7479bc3006482d3829235b152f1e2d0764f5c55d21bef9f5f0659e007436caf",
+      "prores_lt.mov.packets.json": "b1057fcc1d77ff5cd7986f7eeed6d68a26d9443ebaa25eaa37d8e34057abcca0",
+      "prores_proxy.mov.packets.json": "0b70d053a6bf323b0a3e618a6c2c451544ce579a60830a54ba24bac0483de635",
+      "prores_standard.mov.packets.json": "514a40bd894eb81fe5b02a387e7d257d1b6732063b6b65296a3858674f6e5a10",
+      "rotate_ccw180.mp4.packets.json": "735102f759754ec2cd71b41d8723587026a305d46489f2efce888a4c9d484ea0",
+      "rotate_ccw270.mp4.packets.json": "fd92b73751662e0ae18b3ed381e8c89048e85d8a5e85bdefda088a0f3134f5fa",
+      "rotate_ccw90.mp4.packets.json": "900e944043335cc935aacaa5a3f69979a24b93c592b73b2f5e65fd503a8173a0",
+      "timecode.mov.packets.json": "9696b62ebd7e1c72f0513b0528d621f3d4c68faf90a3c05a2b7238d8cf1243fe",
+      "truncated.mp4.packets.json": "fc4434e0d3237196af94771c896de7ed20e416ce969c685c8d9c27344c8ff581",
+      "vfr.mp4.packets.json": "d54899df8dbadad9fa7945cf301b5120869a48c27a8f7a86965a90b5b036b5bb",
+      "vp9.mp4.packets.json": "a2f0b75fc9f61216e6f0546aee1604a8b15026b7eeb02388df77921a09819998"
+    }
+  }
+}

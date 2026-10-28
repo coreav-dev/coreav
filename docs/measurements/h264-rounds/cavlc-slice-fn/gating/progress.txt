@@ -1,0 +1,16 @@
+g.sd done 00:34
+g.720p done 01:27
+VOID g.1080p attempt 1 02:52
+host noisy before g.1080p; stopping
+retry g.1080p 03:19
+VOID g.1080p attempt 1 05:29
+g.1080p done 07:13
+VOID g.4k attempt 1 08:52
+retry g.4k 09:07
+g.4k done 09:47
+h.sd done 09:59
+h.720p done 10:15
+VOID h.1080p attempt 1 10:32
+h.1080p done 10:51
+h.4k done 11:15
+ALL

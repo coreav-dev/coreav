@@ -1,0 +1,8 @@
+# r32-probe2 (probe/r32-declines with the plane split): 3c593b8f0809.0.720p, 900 frames, 8 threads, --discard; declined blocks not at the edges and using no outside sample, by reason
+58049 chromaAbove+lastRowAboveBandStart
+12677 bandLast+chromaAbove+lastRowAboveBandStart
+188 right+chromaAbove+lastRowAboveBandStart
+53 left+chromaAbove+lastRowAboveBandStart
+15 right+bandLast+chromaAbove+lastRowAboveBandStart
+3 right+bandLast
+1 left+bandLast+chromaAbove+lastRowAboveBandStart

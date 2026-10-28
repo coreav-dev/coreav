@@ -1,0 +1,23 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2900.0 MHz, 8 logical CPUs
+gate baseline: 0.399 s (samples 0.399, 0.399, 0.399)
+1d4b1775d78a.0.720p.h264                 base:discard=1.06  base:write=1.02  base:mixed=0.97  k:discard=1.07  k:write=1.01  k:mixed=0.98
+278dbf5a63bb.0.720p.h264                 base:discard=1.07  base:write=1.00  base:mixed=0.95  k:discard=1.05  k:write=1.00  k:mixed=0.93
+36501d448eaa.0.720p.h264                 base:discard=1.20  base:write=1.16  base:mixed=1.14  k:discard=1.20  k:write=1.17  k:mixed=1.14
+3c593b8f0809.0.720p.h264                 base:discard=1.14  base:write=1.14  base:mixed=1.09  k:discard=1.12  k:write=1.11  k:mixed=1.07
+gate after 4 streams (check): 0.402 s (+0.5%)
+65ec61f95a00.0.720p.h264                 host fault (attempt 1): null {'base_discard': -0.05623208777934274, 'base_write': -0.003937312211658717}, max spread 1.321
+65ec61f95a00.0.720p.h264                 base:discard=1.08  base:write=1.04  base:mixed=1.00  k:discard=1.09  k:write=1.06  k:mixed=1.02
+6b18d9f0f88d.0.720p.h264                 base:discard=0.86  base:write=0.77  base:mixed=0.70  k:discard=0.85  k:write=0.81  k:mixed=0.69
+76e0b1692494.0.720p.h264                 host fault (attempt 1): null {'base_discard': 0.05098112292430357, 'base_write': -0.00113654485895065}, max spread 1.507
+76e0b1692494.0.720p.h264                 base:discard=1.04  base:write=1.01  base:mixed=0.94  k:discard=1.04  k:write=1.03  k:mixed=0.94
+9db41aa16b5a.0.720p.h264                 base:discard=0.99  base:write=0.92  base:mixed=0.87  k:discard=1.00  k:write=0.93  k:mixed=0.87
+gate after 8 streams (check): 0.413 s (+3.5%)
+
+base:discard             n=  8  median 1.065  [0.986, 1.130]
+base:write               n=  8  median 1.018  [0.924, 1.089]
+base:mixed               n=  8  median 0.962  [0.866, 1.047]
+k:discard                n=  8  median 1.059  [0.996, 1.121]
+k:write                  n=  8  median 1.018  [0.931, 1.096]
+k:mixed                  n=  8  median 0.958  [0.875, 1.044]
+
+wrote $HOME/ab/hints-8t/out/g.720p.json

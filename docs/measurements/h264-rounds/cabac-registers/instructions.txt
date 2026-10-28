@@ -1,0 +1,22 @@
+Instructions executed per macroblock (valgrind --tool=callgrind, exclusive Ir by symbol), dist builds, decode --discard,
+one thread, the stream 0404af1890da.0.1080p.h264 (300 pictures, 1,747,200 macroblocks).
+Information, not a bar. A dash: the symbol is inlined into another in that build.
+
+                                                                          base 03e256a    c1 979df34   c1b a537086    c4 74fa599
+the decoder, all symbols                                                          3362          3328          3445          3417
+levels::<16>                                                                     351.2         336.2         382.3         382.3
+significance_map::<16>                                                           179.1         168.8         207.8         207.8
+levels::<64>                                                                      10.3           9.7          10.8          10.8
+significance_map::<64>                                                            19.9          18.6          23.0          23.0
+CabacSyntax::block::<16>                                                          46.2          45.0          48.4             -
+CabacSyntax::block_context                                                        20.0          20.0          20.0             -
+SliceDecoder::parse_residual                                                      54.4             -             -             -
+SliceDecoder::decode_mb                                                          122.8             -             -             -
+PictureWork::decode_slice                                                        154.9             -             -             -
+SliceDecoder::decode_cabac (decode_slice, decode_mb, parse_residual inlined)             -         326.7         341.9         371.4
+Cabac::mvd                                                                        32.3          33.8          38.0          38.0
+the Exp-Golomb suffix                                                             21.1          18.6          18.6          18.6
+
+Coded 4x4-class blocks (calls of levels::<16>): 417,284. In base, about 1,470 instructions a call in levels::<16> and 750 in
+significance_map::<16>; with the stream's bin counts (7.88 million significance and last flags, 10.21 million
+context-coded and 4.05 million bypass level bins), 42 to 46 instructions a bin in both loops.

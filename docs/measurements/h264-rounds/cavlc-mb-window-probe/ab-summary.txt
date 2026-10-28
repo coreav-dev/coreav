@@ -1,0 +1,8 @@
+bin-mw-pad
+  CABAC  n=26 median 1.0002 [0.9982, 1.0054] faster 12/26
+  CAVLC  n= 6 median 1.0128 [1.0057, 1.0173] faster 0/6
+  all    n=32 median 1.0020 [0.9992, 1.0059] faster 12/32
+  sd     n= 8 median 1.0102 [1.0001, 1.0147] faster 1/8
+  720p   n= 8 median 1.0004 [0.9922, 1.0054] faster 3/8
+  1080p  n= 8 median 1.0038 [0.9940, 1.0096] faster 3/8
+  4k     n= 8 median 0.9986 [0.9952, 1.0083] faster 5/8

@@ -1,0 +1,34 @@
+# cargo-fuzz project for coreav-opus (docs/design/audio-decode.md, "Opus");
+# outside the workspace, never published.
+[package]
+name = "coreav-opus-fuzz"
+version = "0.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+coreav-opus = { path = ".." }
+
+[[bin]]
+name = "opus_framing"
+path = "fuzz_targets/opus_framing.rs"
+test = false
+doc = false
+bench = false
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[[bin]]
+name = "opus_decode"
+path = "fuzz_targets/opus_decode.rs"
+test = false
+doc = false
+bench = false

@@ -1,0 +1,4 @@
+detect fast: {"streams": 97, "passed": 97, "failed": 0, "kernels": "detect", "mode": "fast", "threads": "1,2,8", "seconds": 55.6}
+detect safe: {"streams": 97, "passed": 97, "failed": 0, "kernels": "detect", "mode": "safe", "threads": "1,2,8", "seconds": 53.4}
+scalar fast: {"streams": 97, "passed": 97, "failed": 0, "kernels": "scalar", "mode": "fast", "threads": "1,2,8", "seconds": 79.3}
+scalar safe: {"streams": 97, "passed": 97, "failed": 0, "kernels": "scalar", "mode": "safe", "threads": "1,2,8", "seconds": 76.0}

@@ -1,0 +1,1 @@
+conformance of the merged code (g on 03e256a), scalar kernels, 1 thread: {"streams": 97, "passed": 97, "failed": 0, "kernels": "scalar", "threads": "1", "seconds": 145.6}

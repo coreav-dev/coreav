@@ -1,0 +1,31 @@
+{
+  "implementation_sources": "public ITU-T H.265 (V11, 01/2026) and H.264 specifications, NVIDIA cuviddec.h and CUDA Driver API documentation only",
+  "commit": "046d6484725faa8ae6b1acc098500eb9df525b7f",
+  "binary_sha256": "14de856891419c6150238a7c70185efe5ce49822a6bfb7e61e346cf00da8a8e4",
+  "source_sha256": {
+    "Cargo.lock": "5675af415ba9f1f3eeb74a110da5bb25f5274f28fb7d54f92d63d0d6c2b170c0",
+    "Cargo.toml": "c70aaae3eebc533de032211164b925d9eb8aef18a535f5c58f2a2e653fd2b7de",
+    "build.rs": "601cb9051952555ea6a6bc191da0c412a7244cbb327bb9fdaf3ddac6c127e864",
+    "compile_rgb.py": "0d111d2bc2d7b036e057728f80564ad0ea3602cb022edde6c35904354ccb33ab",
+    "conformance.json": "fa8a5de5a132a8457ede7b67189d590fd48c98b99ac4a92e222259cc1eb8a188",
+    "experiment.py": "f1e4fe5ad7e754f8b11992ff628a13925464b13d81df4b10c4893e11c0ab08cc",
+    "hevc-conformance.json": "a6dc8d29e06b3d9df89066390adb5a93a479b8935fbc7aca1cd1a0668381a017",
+    "hevc-corpus.json": "bedf811fecee6dec5f0678b38d218067725f00b49c201421dacd3c44dfd4abd0",
+    "remote_app.py": "58db18cb5c57928e0af62e07d6eeaf86711d94eb682397403e176761900a1f64",
+    "result_checks.py": "6be1e1678d714b3ba70eafdc2b5e9c58941c918a6dbf74fe28ae6e5377666c1a",
+    "rgb.cu": "6c653efa241377c310460d67fd02a1c2d0c5a08e63550b9fc4b347246afbf7ca",
+    "src/dpb.rs": "3be1fe82e7c6d8a0b49a0d782b9dd35abc8d2949d7c8ba67d37d2119e408446f",
+    "src/h264.rs": "057f31a4e2b56b79073863d6d20da25bacfa26474157d12220f5a6c0867bbd25",
+    "src/hevc.rs": "07b24b623dcfa8ee7d57a2e08e24f1ed13ea85026bd52bdf258070d7d902c2a2",
+    "src/hevc_dpb.rs": "600a98caacee9358cc3b751fa7095dba5138eae35dd8eb6c064087d386ba1083",
+    "src/lib.rs": "0558d770acf68ac7631b31a984fce09348b41d2f2855a196e46ef5d0bedc3fa5",
+    "src/main.rs": "8726ee6de0096bf857d78fbb5a3d1d5a519a308994f6352d5aea4c79a113dd2b",
+    "src/nvdec.rs": "714ec41c9b8b8e7b6f097a68fc56c24d38163651c97c956884e6b6029f136fdc",
+    "src/pipeline.rs": "e6bcb602ce4b56effc7c2f3f2cdbad257dbe68a9b7205863edf7df2bfeb8fcba",
+    "src/shm.rs": "5fcad3ae09aedc6be34c3464e7d9c0b40b9dc890886081be12321f3a6de80035",
+    "src/stream.rs": "669a33b8201eb3f20cb942d9ff23e8db651b6d175b7e12f3887814e4ea2b1cd4",
+    "src/transfer.rs": "238d4f98cd741881d8f1def044dc8add484722d73b1e3c94c8c665468e0ccbef",
+    "summarize.py": "e6898d2b2a8ac513eb76f51475ce6f9edcc84ea1373e2526723e7679a0b236ac",
+    "torch_rgb.py": "863b726b15ef479bcb3e7fcf0568f4012e23ca378671469d597528c7abc89bef"
+  }
+}

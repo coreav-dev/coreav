@@ -1,0 +1,37 @@
+# cachegrind --cache-sim=yes --branch-sim=yes, --discard, main 056bd25 (dw-4cb168e) vs round 24 (rejected/h264-mb-layer 3535661, mbl-451); 40 pictures (4k: 12). python3 -I cgcmp.py A B 12
+== 6f7799768413
+total   Ir 65.43M->64.44M (0.9849)  I1m 0.04M->0.03M (0.9835)  D1m 1.10M->1.10M (1.0012)  LLm 0.08M->0.08M (1.0000)  Br 8.21M->8.03M (0.9780)  Bm 0.05M->0.05M (1.0553)  est 92.44M->91.50M (0.9898)
+function                                                                             Ir              I1m              D1m              LLm               Br               Bm              est
+av_kernels_h264::Auto>>::start_mb<coreav_h264::fast::V3>::{closure#0}>             -952               -0               +0               +0             -181               +0             -951
+coreav_h264::fast::v3::predict_fast::<coreav_kernels_h264::Auto>                     +0               -0               -0               -0               +0               +4              +50
+ernels_h264::Auto>>::decode_cavlc<coreav_h264::fast::V3>::{closure#0}>              -36               -0               +0               -0               +0               -0              -37
+coder<coreav_kernels_h264::Auto>>::inter_pred::<coreav_h264::fast::V3>               +0               -0               +0               -0               +0               +2              +22
+<coreav_h264::picture::Canvas>::put_band                                             +0               -0               +0               +0               +0               -1              -17
+h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reconstruct_chroma               +0               -0               +0               -0               +0               -1              -17
+== 1d4b1775d78a
+total   Ir 1124.69M->1119.76M (0.9956)  I1m 11.12M->10.82M (0.9730)  D1m 7.00M->7.00M (1.0000)  LLm 0.24M->0.24M (1.0000)  Br 88.01M->87.40M (0.9931)  Bm 6.96M->6.81M (0.9776)  est 1482.77M->1471.90M (0.9927)
+function                                                                             Ir              I1m              D1m              LLm               Br               Bm              est
+av_kernels_h264::Auto>>::start_mb<coreav_h264::fast::V3>::{closure#0}>            -3160              +38               +2               +0             -607               +1            -2664
+coreav_h264::fast::v3::predict_fast::<coreav_kernels_h264::Auto>                     +0              -67               -3               -0               +0              -85            -2114
+ <coreav_h264::mb::MbData>::reset<coreav_h264::fast::V3>::{closure#0}>             -873              -23               -9               -0               +0               -3            -1302
+ernels_h264::Auto>>::decode_cabac<coreav_h264::fast::V3>::{closure#0}>             -901              -23               +4               -0               +0               -7            -1235
+coder<coreav_kernels_h264::Auto>>::inter_pred::<coreav_h264::fast::V3>               +0              -98               +2               -0               +0               +1            -1130
+coreav_h264::fast::v3::significance_map::<4>                                         +0              -66               -0               -0               +0               -1             -808
+== a81de82106be
+total   Ir 662.39M->658.47M (0.9941)  I1m 3.72M->3.71M (0.9982)  D1m 4.86M->4.86M (0.9995)  LLm 0.13M->0.13M (1.0001)  Br 56.28M->55.59M (0.9877)  Bm 3.22M->3.09M (0.9586)  est 832.54M->826.52M (0.9928)
+function                                                                             Ir              I1m              D1m              LLm               Br               Bm              est
+av_kernels_h264::Auto>>::start_mb<coreav_h264::fast::V3>::{closure#0}>            -3608              +13               +1               +0             -692              -38            -3999
+64::syntax::CabacSyntax<coreav_h264::fast::V3>, coreav_h264::fast::V3>               +0              +40               -0               +0               +0               +5             +559
+coreav_h264::fast::v3::predict_fast::<coreav_kernels_h264::Auto>                     +0              +16               -0               -0               +0              -47             -507
+coreav_h264::fast::v3::significance_map::<16>                                        +0              +37               +1               +0               +0               +2             +487
+<coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::store_mvd                +0              -17               +0               +0               +0              -14             -412
+coreav_h264::fast::v3::significance_map::<4>                                         +0              -33               -0               -0               +0               -1             -403
+== 3b1b441e23ae
+total   Ir 554.71M->549.77M (0.9911)  I1m 0.79M->0.81M (1.0183)  D1m 6.18M->6.18M (0.9994)  LLm 0.66M->0.66M (1.0000)  Br 60.65M->59.81M (0.9862)  Bm 1.81M->1.72M (0.9488)  est 765.18M->758.98M (0.9919)
+function                                                                             Ir              I1m              D1m              LLm               Br               Bm              est
+av_kernels_h264::Auto>>::start_mb<coreav_h264::fast::V3>::{closure#0}>            -4379               +6               +0               +0             -837              -50            -5054
+coreav_h264::fast::v3::predict_fast::<coreav_kernels_h264::Auto>                     +0               +3               -0               -0               +0             -110            -1616
+ernels_h264::Auto>>::decode_cabac<coreav_h264::fast::V3>::{closure#0}>             -372               -3               +1               -0               +0              +58             +473
+ <coreav_h264::mb::MbData>::reset<coreav_h264::fast::V3>::{closure#0}>             -192               -1               -7               -0               +0               -0             -295
+v_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::fill_intra_cache               +0               +2               -0               +0               +0               +9             +166
+<coreav_kernels_h264::predict::Planes>::request                                      +0               +2               -0               +0               +0              -10             -124

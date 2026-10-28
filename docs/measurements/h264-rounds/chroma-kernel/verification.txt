@@ -1,0 +1,14 @@
+# Verification of the chroma kernel round's code, this VM (AVX-512 host), before 04f26d6 was committed
+# (the tree then differed from 04f26d6 in one doc comment).
+# Fuzz target `predict` (crates/coreav-kernels-h264/fuzz), AddressSanitizer:
+#   cargo +nightly fuzz run --target x86_64-unknown-linux-gnu predict -- -max_total_time=240
+#   -> "Done 1124453 runs in 241 second(s)", no crash, no leak.
+# Mutants, each alone, `cargo test -p coreav-kernels-h264 --release --test equivalence`:
+#   _mm256_set1_epi16(512) -> 513 (the rounding)                       three_plane_prediction_matches_the_reference FAILED
+#   Weighed::apply: _mm256_set_m128i(old(1), old(0)) -> (old(0), old(0)) three_plane_prediction_matches_the_reference FAILED
+#   Weighed::new: Cr's shift -> Cb's shift                             three_plane_prediction_matches_the_reference FAILED
+#   Weighed::new: Cr's pair -> Cb's pair                               three_plane_prediction_matches_the_reference FAILED
+# After the gating run, `store` destructures its two pointers instead of indexing them, and the
+# equivalence test gives a third of its blocks Cr's operation equal to Cb's (the paired forms reached on
+# purpose): the decoder built from that tree is byte-identical to the gated `k`
+# (cmp of examples/decode, dist profile), and the test passes.

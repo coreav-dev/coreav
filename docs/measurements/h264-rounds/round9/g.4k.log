@@ -1,0 +1,21 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2900.0 MHz, 8 logical CPUs
+3b1b441e23ae.0.4k.h264                   base:discard=2.24  base:write=2.50  base:mixed=2.22  b:discard=2.23  b:write=2.44  b:mixed=2.20  ab:discard=2.04  ab:write=2.27  ab:mixed=2.02
+4b54de28c2b3.0.4k.h264                   base:discard=1.80  base:write=1.72  base:mixed=1.58  b:discard=1.75  b:write=1.60  b:mixed=1.53  ab:discard=1.70  ab:write=1.59  ab:mixed=1.49
+81ed4778ece2.0.4k.h264                   base:discard=1.50  base:write=1.33  base:mixed=1.13  b:discard=1.46  b:write=1.28  b:mixed=1.11  ab:discard=1.54  ab:write=1.38  ab:mixed=1.17
+ae16bb7c7192.0.4k.h264                   base:discard=2.29  base:write=2.02  base:mixed=1.83  b:discard=2.31  b:write=2.06  b:mixed=1.84  ab:discard=2.00  ab:write=1.78  ab:mixed=1.60
+af38b0cfd840.0.4k.h264                   base:discard=2.25  base:write=2.14  base:mixed=2.08  b:discard=2.16  b:write=2.05  b:mixed=2.00  ab:discard=2.06  ab:write=1.95  ab:mixed=1.90
+e624cbe0d2be.0.4k.h264                   base:discard=1.90  base:write=1.69  base:mixed=1.50  b:discard=1.88  b:write=1.64  b:mixed=1.48  ab:discard=1.89  ab:write=1.63  ab:mixed=1.49
+ed75c044e944.0.4k.h264                   base:discard=1.27  base:write=1.28  base:mixed=0.99  b:discard=1.26  b:write=1.27  b:mixed=0.98  ab:discard=1.48  ab:write=1.34  ab:mixed=1.15
+f8d92a911e72.0.4k.h264                   base:discard=1.83  base:write=1.75  base:mixed=1.70  b:discard=1.75  b:write=1.72  b:mixed=1.62  ab:discard=1.71  ab:write=1.61  ab:mixed=1.58
+
+base:discard             n=  8  median 1.867  [1.497, 2.253]
+base:write               n=  8  median 1.733  [1.329, 2.137]
+base:mixed               n=  8  median 1.639  [1.132, 2.080]
+b:discard                n=  8  median 1.812  [1.465, 2.196]
+b:write                  n=  8  median 1.680  [1.284, 2.051]
+b:mixed                  n=  8  median 1.577  [1.108, 1.999]
+ab:discard               n=  8  median 1.796  [1.545, 2.036]
+ab:write                 n=  8  median 1.620  [1.384, 1.947]
+ab:mixed                 n=  8  median 1.538  [1.168, 1.903]
+
+wrote /tmp/r9run/out/g.4k.json

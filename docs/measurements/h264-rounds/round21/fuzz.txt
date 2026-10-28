@@ -1,0 +1,9 @@
+# round 21, the code of 1395e3b (the bars commit fb4d378 builds the same code): crates/coreav-h264/fuzz targets built with
+# cargo +nightly fuzz build -O --target x86_64-unknown-linux-gnu (address sanitizer), each run 1,200 s on one core with
+# -rss_limit_mb=2048 -timeout=10. Seed corpus: round 19's 45 CAVLC conformance streams and the 58 Main and High profile
+# conformance streams (CABAC and CAVLC) of at most 352x288, frame_mbs_only, 4:2:0 and 8 bits, each the first 16 KB behind
+# a mode byte of 0 (decode every picture).
+target          runs     coverage  features  corpus at end  crashes, leaks, timeouts, out-of-memory
+decode          61,813   11,250    72,606    3,038          none
+decode_limited  154,893  9,844     60,670    3,806          none
+threads         18,436   11,657    71,564    3,498          none

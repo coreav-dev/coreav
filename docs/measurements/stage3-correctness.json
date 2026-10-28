@@ -1,0 +1,4690 @@
+{
+ "schema": "coreav.stage3-report/1",
+ "steps": {
+  "build": {
+   "commit": "8470744f84e2cf05dcb701ed3aeaf1a1018632b2",
+   "dirty": false,
+   "time_utc": "2026-10-20T08:07:01Z"
+  },
+  "fixtures": {
+   "commit": "8470744f84e2cf05dcb701ed3aeaf1a1018632b2",
+   "dirty": false,
+   "time_utc": "2026-10-20T08:13:43Z"
+  },
+  "corpus": {
+   "commit": "8470744f84e2cf05dcb701ed3aeaf1a1018632b2",
+   "dirty": false,
+   "time_utc": "2026-10-20T08:41:37Z"
+  },
+  "hostile": {
+   "commit": "8470744f84e2cf05dcb701ed3aeaf1a1018632b2",
+   "dirty": false,
+   "time_utc": "2026-10-20T08:43:14Z"
+  }
+ },
+ "fixtures": {
+  "provenance": {
+   "commit": "8470744f84e2cf05dcb701ed3aeaf1a1018632b2",
+   "dirty": false,
+   "time_utc": "2026-10-20T08:13:43Z"
+  },
+  "generated": {
+   "isobmff": 96,
+   "matroska": 38
+  },
+  "probe": {
+   "isobmff": {
+    "passed": true,
+    "levels": {
+     "streams": {
+      "items": 95,
+      "direct": 79,
+      "via_kd": 16,
+      "uncovered": 0,
+      "by_kd": {
+       "KD-CHAPTER-TEXT": 1,
+       "KD-DECLARED-SIZE": 4,
+       "KD-EDIT-DURATION": 1,
+       "KD-QT-TEXT": 5,
+       "KD-STRICT": 2,
+       "KD-STTS-SHORT": 5,
+       "KD-TEXT-END": 1
+      },
+      "uncovered_items": [],
+      "agreement": 1.0,
+      "passed": true
+     },
+     "packets": {
+      "items": 21273,
+      "direct": 19037,
+      "via_kd": 2236,
+      "uncovered": 0,
+      "by_kd": {
+       "KD-CHAPTER-TEXT": 6,
+       "KD-CTTS": 50,
+       "KD-EDIT-DISCARD": 158,
+       "KD-EDIT-MULTI": 1035,
+       "KD-PCM": 846,
+       "KD-QT-TEXT": 3,
+       "KD-STRICT": 138
+      },
+      "uncovered_items": [],
+      "unit": "reference_packet",
+      "per_sample": {
+       "items": 884427,
+       "direct": 19037,
+       "via_kd": 865390,
+       "uncovered": 0,
+       "by_kd": {
+        "KD-CHAPTER-TEXT": 6,
+        "KD-CTTS": 50,
+        "KD-EDIT-DISCARD": 158,
+        "KD-EDIT-MULTI": 1035,
+        "KD-PCM": 864000,
+        "KD-QT-TEXT": 3,
+        "KD-STRICT": 138
+       },
+       "agreement": 1.0
+      },
+      "agreement": 1.0,
+      "passed": true
+     }
+    }
+   },
+   "matroska": {
+    "passed": true,
+    "levels": {
+     "streams": {
+      "items": 38,
+      "direct": 34,
+      "via_kd": 4,
+      "uncovered": 0,
+      "by_kd": {
+       "KD-MKV-ATTACHMENT": 1,
+       "KD-MKV-DECLARED-SIZE": 2,
+       "KD-MKV-STREAM-DURATION": 1
+      },
+      "reference_failures": 0,
+      "uncovered_items": [],
+      "agreement": 1.0,
+      "passed": true
+     },
+     "packets": {
+      "items": 4320,
+      "direct": 3303,
+      "via_kd": 1017,
+      "uncovered": 0,
+      "by_kd": {
+       "KD-MKV-DTS": 855,
+       "KD-MKV-LACE-UNTIMED": 160,
+       "KD-MKV-WEBM-WEBVTT": 2
+      },
+      "reference_failures": 0,
+      "uncovered_items": [],
+      "agreement": 1.0,
+      "passed": true
+     }
+    }
+   }
+  },
+  "checks": [
+   {
+    "name": "probe --ffprobe-compat, MP4/MOV",
+    "passed": true,
+    "status": 0,
+    "count": [
+     94,
+     94
+    ],
+    "summary": "94 files, 0 differing keys, 27 through known divergences",
+    "stderr_tail": ""
+   },
+   {
+    "name": "probe --ffprobe-compat, Matroska",
+    "passed": true,
+    "status": 0,
+    "count": [
+     38,
+     38
+    ],
+    "summary": "38 files, 0 differing keys, 4 through known divergences",
+    "stderr_tail": ""
+   },
+   {
+    "name": "extract-audio",
+    "passed": true,
+    "status": 0,
+    "count": [
+     42,
+     42
+    ],
+    "summary": "42/42 extractions pass every oracle (41 directly), 2 refused as expected; 0 missing",
+    "stderr_tail": ""
+   },
+   {
+    "name": "clip",
+    "passed": true,
+    "status": 0,
+    "count": [
+     308,
+     308
+    ],
+    "summary": "308/308 clips pass every oracle (249 directly, 59 through known divergences); packets 57868/57868 agree",
+    "stderr_tail": ""
+   },
+   {
+    "name": "remux",
+    "passed": true,
+    "status": 0,
+    "count": [
+     76,
+     76
+    ],
+    "summary": "76/76 outputs pass every oracle (69 directly, 7 through known divergences); packets 19654/19654 agree",
+    "stderr_tail": ""
+   },
+   {
+    "name": "sanitize",
+    "passed": true,
+    "status": 0,
+    "count": [
+     76,
+     76
+    ],
+    "summary": "76/76 outputs pass every oracle (70 directly, 6 through known divergences); packets 19654/19654 agree",
+    "stderr_tail": ""
+   },
+   {
+    "name": "split",
+    "passed": true,
+    "status": 0,
+    "count": [
+     120,
+     120
+    ],
+    "summary": "120/120 splits pass every oracle (57 directly, 63 through known divergences); packets 32750/32750",
+    "stderr_tail": ""
+   },
+   {
+    "name": "hls package",
+    "passed": true,
+    "status": 0,
+    "count": [
+     67,
+     67
+    ],
+    "summary": "67/67 inputs pass every oracle (64 directly), 28 refused as expected, 0 refused unexpectedly; packets 17136/17136",
+    "stderr_tail": ""
+   },
+   {
+    "name": "extract-subtitles and chapters",
+    "passed": true,
+    "status": 0,
+    "count": [
+     15,
+     15
+    ],
+    "summary": "9/9 subtitle tracks, 6/6 chapter lists",
+    "stderr_tail": ""
+   },
+   {
+    "name": "check (upload policy)",
+    "passed": true,
+    "status": 0,
+    "count": [
+     384,
+     384
+    ],
+    "summary": "384 file and policy cases, 0 failures; ffprobe-based reference 376/376",
+    "stderr_tail": ""
+   },
+   {
+    "name": "Matroska and WebM remux",
+    "passed": true,
+    "status": 0,
+    "count": [
+     31,
+     31
+    ],
+    "summary": "31/31 files, packets 3665/3665",
+    "stderr_tail": ""
+   }
+  ],
+  "mediainfo": {
+   "isobmff": {
+    "files": 96,
+    "probe_outcomes": {
+     "coreav fail, ffprobe ok, mediainfo ok": 3,
+     "coreav ok, ffprobe ok, mediainfo ok": 93
+    },
+    "mediainfo_failures": {},
+    "coreav_rejects_ffprobe_reads": {
+     "files": 3,
+     "mediainfo_flags_truncated": 1,
+     "mediainfo_flags_conformance_errors": 1,
+     "mediainfo_fails": 0
+    },
+    "files_with_mediainfo_unpaired_tracks": 4,
+    "triage": {
+     "probe_ok": {
+      "coreav-alone": 3
+     },
+     "stream_count": {
+      "coreav-alone": 5
+     },
+     "format_duration": {
+      "ffprobe-alone": 1
+     },
+     "kind": {
+      "all-differ": 1
+     },
+     "codec_fourcc": {},
+     "codec_name": {
+      "ffprobe-alone": 1
+     },
+     "width": {
+      "ffprobe-alone": 3
+     },
+     "height": {
+      "ffprobe-alone": 3
+     },
+     "rotation": {},
+     "duration": {
+      "ffprobe-alone": 6,
+      "coreav-alone": 1
+     },
+     "color_primaries": {},
+     "color_transfer": {},
+     "color_matrix": {},
+     "color_range": {}
+    },
+    "by_field": {
+     "probe_ok": {
+      "gating": true,
+      "all-agree": 93,
+      "coreav-alone": 3,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 0
+     },
+     "stream_count": {
+      "gating": true,
+      "all-agree": 88,
+      "coreav-alone": 5,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 3
+     },
+     "format_duration": {
+      "gating": true,
+      "all-agree": 87,
+      "coreav-alone": 0,
+      "ffprobe-alone": 1,
+      "mediainfo-alone": 5,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 3
+     },
+     "kind": {
+      "gating": true,
+      "all-agree": 141,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 1,
+      "not-comparable": 10
+     },
+     "codec_fourcc": {
+      "gating": true,
+      "all-agree": 141,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 1,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 10
+     },
+     "codec_name": {
+      "gating": true,
+      "all-agree": 140,
+      "coreav-alone": 0,
+      "ffprobe-alone": 1,
+      "mediainfo-alone": 1,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 10
+     },
+     "width": {
+      "gating": true,
+      "all-agree": 137,
+      "coreav-alone": 0,
+      "ffprobe-alone": 3,
+      "mediainfo-alone": 2,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 10
+     },
+     "height": {
+      "gating": true,
+      "all-agree": 137,
+      "coreav-alone": 0,
+      "ffprobe-alone": 3,
+      "mediainfo-alone": 2,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 10
+     },
+     "rotation": {
+      "gating": true,
+      "all-agree": 142,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 10
+     },
+     "duration": {
+      "gating": true,
+      "all-agree": 126,
+      "coreav-alone": 1,
+      "ffprobe-alone": 6,
+      "mediainfo-alone": 9,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 10
+     },
+     "color_primaries": {
+      "gating": true,
+      "all-agree": 138,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 4,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 10
+     },
+     "color_transfer": {
+      "gating": true,
+      "all-agree": 138,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 4,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 10
+     },
+     "color_matrix": {
+      "gating": true,
+      "all-agree": 138,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 4,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 10
+     },
+     "color_range": {
+      "gating": true,
+      "all-agree": 139,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 3,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 10
+     },
+     "sample_rate": {
+      "gating": false,
+      "all-agree": 142,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 10
+     },
+     "channels": {
+      "gating": false,
+      "all-agree": 142,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 10
+     },
+     "language": {
+      "gating": false,
+      "all-agree": 119,
+      "coreav-alone": 23,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 10
+     },
+     "sample_aspect_ratio": {
+      "gating": false,
+      "all-agree": 141,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 1,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 10
+     },
+     "display_aspect_ratio": {
+      "gating": false,
+      "all-agree": 138,
+      "coreav-alone": 0,
+      "ffprobe-alone": 3,
+      "mediainfo-alone": 1,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 10
+     }
+    },
+    "two_way": {
+     "probe_ok": {
+      "coreav_vs_ffprobe": [
+       93,
+       96
+      ],
+      "mediainfo_vs_coreav": [
+       93,
+       96
+      ],
+      "mediainfo_vs_ffprobe": [
+       96,
+       96
+      ]
+     },
+     "stream_count": {
+      "coreav_vs_ffprobe": [
+       88,
+       93
+      ],
+      "mediainfo_vs_coreav": [
+       88,
+       93
+      ],
+      "mediainfo_vs_ffprobe": [
+       95,
+       96
+      ]
+     },
+     "format_duration": {
+      "coreav_vs_ffprobe": [
+       92,
+       93
+      ],
+      "mediainfo_vs_coreav": [
+       88,
+       93
+      ],
+      "mediainfo_vs_ffprobe": [
+       90,
+       96
+      ]
+     },
+     "kind": {
+      "coreav_vs_ffprobe": [
+       141,
+       142
+      ],
+      "mediainfo_vs_coreav": [
+       141,
+       142
+      ],
+      "mediainfo_vs_ffprobe": [
+       146,
+       151
+      ]
+     },
+     "codec_fourcc": {
+      "coreav_vs_ffprobe": [
+       142,
+       142
+      ],
+      "mediainfo_vs_coreav": [
+       141,
+       142
+      ],
+      "mediainfo_vs_ffprobe": [
+       150,
+       151
+      ]
+     },
+     "codec_name": {
+      "coreav_vs_ffprobe": [
+       141,
+       142
+      ],
+      "mediainfo_vs_coreav": [
+       141,
+       142
+      ],
+      "mediainfo_vs_ffprobe": [
+       145,
+       151
+      ]
+     },
+     "width": {
+      "coreav_vs_ffprobe": [
+       139,
+       142
+      ],
+      "mediainfo_vs_coreav": [
+       140,
+       142
+      ],
+      "mediainfo_vs_ffprobe": [
+       146,
+       151
+      ]
+     },
+     "height": {
+      "coreav_vs_ffprobe": [
+       139,
+       142
+      ],
+      "mediainfo_vs_coreav": [
+       140,
+       142
+      ],
+      "mediainfo_vs_ffprobe": [
+       146,
+       151
+      ]
+     },
+     "rotation": {
+      "coreav_vs_ffprobe": [
+       142,
+       142
+      ],
+      "mediainfo_vs_coreav": [
+       142,
+       142
+      ],
+      "mediainfo_vs_ffprobe": [
+       151,
+       151
+      ]
+     },
+     "duration": {
+      "coreav_vs_ffprobe": [
+       135,
+       142
+      ],
+      "mediainfo_vs_coreav": [
+       132,
+       142
+      ],
+      "mediainfo_vs_ffprobe": [
+       134,
+       151
+      ]
+     },
+     "color_primaries": {
+      "coreav_vs_ffprobe": [
+       142,
+       142
+      ],
+      "mediainfo_vs_coreav": [
+       138,
+       142
+      ],
+      "mediainfo_vs_ffprobe": [
+       147,
+       151
+      ]
+     },
+     "color_transfer": {
+      "coreav_vs_ffprobe": [
+       142,
+       142
+      ],
+      "mediainfo_vs_coreav": [
+       138,
+       142
+      ],
+      "mediainfo_vs_ffprobe": [
+       147,
+       151
+      ]
+     },
+     "color_matrix": {
+      "coreav_vs_ffprobe": [
+       142,
+       142
+      ],
+      "mediainfo_vs_coreav": [
+       138,
+       142
+      ],
+      "mediainfo_vs_ffprobe": [
+       147,
+       151
+      ]
+     },
+     "color_range": {
+      "coreav_vs_ffprobe": [
+       142,
+       142
+      ],
+      "mediainfo_vs_coreav": [
+       139,
+       142
+      ],
+      "mediainfo_vs_ffprobe": [
+       148,
+       151
+      ]
+     },
+     "sample_rate": {
+      "coreav_vs_ffprobe": [
+       142,
+       142
+      ],
+      "mediainfo_vs_coreav": [
+       142,
+       142
+      ],
+      "mediainfo_vs_ffprobe": [
+       151,
+       151
+      ]
+     },
+     "channels": {
+      "coreav_vs_ffprobe": [
+       142,
+       142
+      ],
+      "mediainfo_vs_coreav": [
+       142,
+       142
+      ],
+      "mediainfo_vs_ffprobe": [
+       151,
+       151
+      ]
+     },
+     "language": {
+      "coreav_vs_ffprobe": [
+       119,
+       142
+      ],
+      "mediainfo_vs_coreav": [
+       119,
+       142
+      ],
+      "mediainfo_vs_ffprobe": [
+       151,
+       151
+      ]
+     },
+     "sample_aspect_ratio": {
+      "coreav_vs_ffprobe": [
+       142,
+       142
+      ],
+      "mediainfo_vs_coreav": [
+       141,
+       142
+      ],
+      "mediainfo_vs_ffprobe": [
+       150,
+       151
+      ]
+     },
+     "display_aspect_ratio": {
+      "coreav_vs_ffprobe": [
+       139,
+       142
+      ],
+      "mediainfo_vs_coreav": [
+       141,
+       142
+      ],
+      "mediainfo_vs_ffprobe": [
+       147,
+       151
+      ]
+     }
+    },
+    "patterns": {
+     "language": {
+      "coreav=\\u007f\\u007f\\u007f ffprobe=None mediainfo=None": 21,
+      "coreav=None ffprobe=kor mediainfo=kor": 1,
+      "coreav=None ffprobe=eng mediainfo=eng": 1
+     },
+     "probe_ok": {
+      "coreav=False ffprobe=True mediainfo=True": 3
+     },
+     "kind": {
+      "coreav=subtitle ffprobe=data mediainfo=mi:Menu": 1
+     },
+     "codec_name": {
+      "coreav=mov_text ffprobe=bin_data mediainfo=mov_text": 1,
+      "coreav=None ffprobe=None mediainfo=mi:QuickTime TC": 1
+     },
+     "color_primaries": {
+      "coreav=None ffprobe=None mediainfo=bt709": 2,
+      "coreav=None ffprobe=None mediainfo=smpte170m": 1,
+      "coreav=smpte170m ffprobe=smpte170m mediainfo=bt709": 1
+     },
+     "color_transfer": {
+      "coreav=None ffprobe=None mediainfo=bt709": 2,
+      "coreav=None ffprobe=None mediainfo=smpte170m": 1,
+      "coreav=smpte170m ffprobe=smpte170m mediainfo=bt709": 1
+     },
+     "color_matrix": {
+      "coreav=None ffprobe=None mediainfo=bt709": 2,
+      "coreav=None ffprobe=None mediainfo=bt601": 1,
+      "coreav=smpte170m ffprobe=smpte170m mediainfo=bt709": 1
+     },
+     "color_range": {
+      "coreav=tv ffprobe=tv mediainfo=pc": 2,
+      "coreav=pc ffprobe=pc mediainfo=tv": 1
+     },
+     "codec_fourcc": {
+      "coreav=tmcd ffprobe=tmcd mediainfo=None": 1
+     }
+    },
+    "duration_source_reading": {
+     "ffprobe-alone:ffprobe": 5,
+     "mediainfo-alone:coreav+ffprobe": 4,
+     "mediainfo-alone:none": 3
+    },
+    "mediainfo_unmapped_names": {
+     "kind=mi:Menu": 5,
+     "codec_name=mi:QuickTime TC": 1
+    },
+    "not_observable": [
+     "timescale",
+     "handler_name"
+    ]
+   },
+   "matroska": {
+    "files": 38,
+    "probe_outcomes": {
+     "coreav ok, ffprobe ok, mediainfo ok": 38
+    },
+    "mediainfo_failures": {},
+    "coreav_rejects_ffprobe_reads": {
+     "files": 0,
+     "mediainfo_flags_truncated": 0,
+     "mediainfo_flags_conformance_errors": 0,
+     "mediainfo_fails": 0
+    },
+    "files_with_mediainfo_unpaired_tracks": 0,
+    "triage": {
+     "probe_ok": {},
+     "stream_count": {
+      "ffprobe-alone": 1
+     },
+     "format_duration": {},
+     "kind": {},
+     "codec_fourcc": {},
+     "codec_name": {},
+     "width": {
+      "ffprobe-alone": 2
+     },
+     "height": {
+      "ffprobe-alone": 2
+     },
+     "rotation": {},
+     "duration": {
+      "coreav-alone": 1
+     },
+     "color_primaries": {},
+     "color_transfer": {},
+     "color_matrix": {},
+     "color_range": {}
+    },
+    "by_field": {
+     "probe_ok": {
+      "gating": true,
+      "all-agree": 38,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 0
+     },
+     "stream_count": {
+      "gating": true,
+      "all-agree": 37,
+      "coreav-alone": 0,
+      "ffprobe-alone": 1,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 0
+     },
+     "format_duration": {
+      "gating": true,
+      "all-agree": 38,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 0
+     },
+     "kind": {
+      "gating": true,
+      "all-agree": 66,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 1
+     },
+     "codec_fourcc": {
+      "gating": true,
+      "all-agree": 66,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 1
+     },
+     "codec_name": {
+      "gating": true,
+      "all-agree": 65,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 1,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 1
+     },
+     "width": {
+      "gating": true,
+      "all-agree": 64,
+      "coreav-alone": 0,
+      "ffprobe-alone": 2,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 1
+     },
+     "height": {
+      "gating": true,
+      "all-agree": 64,
+      "coreav-alone": 0,
+      "ffprobe-alone": 2,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 1
+     },
+     "rotation": {
+      "gating": true,
+      "all-agree": 64,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 2,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 1
+     },
+     "duration": {
+      "gating": true,
+      "all-agree": 6,
+      "coreav-alone": 1,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 59,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 1
+     },
+     "color_primaries": {
+      "gating": true,
+      "all-agree": 66,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 1
+     },
+     "color_transfer": {
+      "gating": true,
+      "all-agree": 66,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 1
+     },
+     "color_matrix": {
+      "gating": true,
+      "all-agree": 66,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 1
+     },
+     "color_range": {
+      "gating": true,
+      "all-agree": 66,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 1
+     },
+     "sample_rate": {
+      "gating": false,
+      "all-agree": 66,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 1
+     },
+     "channels": {
+      "gating": false,
+      "all-agree": 66,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 1
+     },
+     "language": {
+      "gating": false,
+      "all-agree": 66,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 1
+     },
+     "sample_aspect_ratio": {
+      "gating": false,
+      "all-agree": 66,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 1
+     },
+     "display_aspect_ratio": {
+      "gating": false,
+      "all-agree": 66,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 1
+     }
+    },
+    "two_way": {
+     "probe_ok": {
+      "coreav_vs_ffprobe": [
+       38,
+       38
+      ],
+      "mediainfo_vs_coreav": [
+       38,
+       38
+      ],
+      "mediainfo_vs_ffprobe": [
+       38,
+       38
+      ]
+     },
+     "stream_count": {
+      "coreav_vs_ffprobe": [
+       37,
+       38
+      ],
+      "mediainfo_vs_coreav": [
+       38,
+       38
+      ],
+      "mediainfo_vs_ffprobe": [
+       37,
+       38
+      ]
+     },
+     "format_duration": {
+      "coreav_vs_ffprobe": [
+       38,
+       38
+      ],
+      "mediainfo_vs_coreav": [
+       38,
+       38
+      ],
+      "mediainfo_vs_ffprobe": [
+       38,
+       38
+      ]
+     },
+     "kind": {
+      "coreav_vs_ffprobe": [
+       66,
+       66
+      ],
+      "mediainfo_vs_coreav": [
+       66,
+       66
+      ],
+      "mediainfo_vs_ffprobe": [
+       66,
+       66
+      ]
+     },
+     "codec_fourcc": {
+      "coreav_vs_ffprobe": [
+       66,
+       66
+      ],
+      "mediainfo_vs_coreav": [
+       66,
+       66
+      ],
+      "mediainfo_vs_ffprobe": [
+       66,
+       66
+      ]
+     },
+     "codec_name": {
+      "coreav_vs_ffprobe": [
+       66,
+       66
+      ],
+      "mediainfo_vs_coreav": [
+       65,
+       66
+      ],
+      "mediainfo_vs_ffprobe": [
+       65,
+       66
+      ]
+     },
+     "width": {
+      "coreav_vs_ffprobe": [
+       64,
+       66
+      ],
+      "mediainfo_vs_coreav": [
+       66,
+       66
+      ],
+      "mediainfo_vs_ffprobe": [
+       64,
+       66
+      ]
+     },
+     "height": {
+      "coreav_vs_ffprobe": [
+       64,
+       66
+      ],
+      "mediainfo_vs_coreav": [
+       66,
+       66
+      ],
+      "mediainfo_vs_ffprobe": [
+       64,
+       66
+      ]
+     },
+     "rotation": {
+      "coreav_vs_ffprobe": [
+       66,
+       66
+      ],
+      "mediainfo_vs_coreav": [
+       64,
+       66
+      ],
+      "mediainfo_vs_ffprobe": [
+       64,
+       66
+      ]
+     },
+     "duration": {
+      "coreav_vs_ffprobe": [
+       65,
+       66
+      ],
+      "mediainfo_vs_coreav": [
+       6,
+       66
+      ],
+      "mediainfo_vs_ffprobe": [
+       7,
+       66
+      ]
+     },
+     "color_primaries": {
+      "coreav_vs_ffprobe": [
+       66,
+       66
+      ],
+      "mediainfo_vs_coreav": [
+       66,
+       66
+      ],
+      "mediainfo_vs_ffprobe": [
+       66,
+       66
+      ]
+     },
+     "color_transfer": {
+      "coreav_vs_ffprobe": [
+       66,
+       66
+      ],
+      "mediainfo_vs_coreav": [
+       66,
+       66
+      ],
+      "mediainfo_vs_ffprobe": [
+       66,
+       66
+      ]
+     },
+     "color_matrix": {
+      "coreav_vs_ffprobe": [
+       66,
+       66
+      ],
+      "mediainfo_vs_coreav": [
+       66,
+       66
+      ],
+      "mediainfo_vs_ffprobe": [
+       66,
+       66
+      ]
+     },
+     "color_range": {
+      "coreav_vs_ffprobe": [
+       66,
+       66
+      ],
+      "mediainfo_vs_coreav": [
+       66,
+       66
+      ],
+      "mediainfo_vs_ffprobe": [
+       66,
+       66
+      ]
+     },
+     "sample_rate": {
+      "coreav_vs_ffprobe": [
+       66,
+       66
+      ],
+      "mediainfo_vs_coreav": [
+       66,
+       66
+      ],
+      "mediainfo_vs_ffprobe": [
+       66,
+       66
+      ]
+     },
+     "channels": {
+      "coreav_vs_ffprobe": [
+       66,
+       66
+      ],
+      "mediainfo_vs_coreav": [
+       66,
+       66
+      ],
+      "mediainfo_vs_ffprobe": [
+       66,
+       66
+      ]
+     },
+     "language": {
+      "coreav_vs_ffprobe": [
+       66,
+       66
+      ],
+      "mediainfo_vs_coreav": [
+       66,
+       66
+      ],
+      "mediainfo_vs_ffprobe": [
+       66,
+       66
+      ]
+     },
+     "sample_aspect_ratio": {
+      "coreav_vs_ffprobe": [
+       66,
+       66
+      ],
+      "mediainfo_vs_coreav": [
+       66,
+       66
+      ],
+      "mediainfo_vs_ffprobe": [
+       66,
+       66
+      ]
+     },
+     "display_aspect_ratio": {
+      "coreav_vs_ffprobe": [
+       66,
+       66
+      ],
+      "mediainfo_vs_coreav": [
+       66,
+       66
+      ],
+      "mediainfo_vs_ffprobe": [
+       66,
+       66
+      ]
+     }
+    },
+    "patterns": {
+     "rotation": {
+      "coreav=270 ffprobe=270 mediainfo=0": 1,
+      "coreav=90 ffprobe=90 mediainfo=0": 1
+     },
+     "codec_name": {
+      "coreav=webvtt ffprobe=webvtt mediainfo=mi:D_WEBVTT/SUBTITLES": 1
+     }
+    },
+    "duration_source_reading": {},
+    "mediainfo_unmapped_names": {
+     "codec_name=mi:D_WEBVTT/SUBTITLES": 1
+    },
+    "not_observable": [
+     "timescale",
+     "handler_name"
+    ]
+   }
+  }
+ },
+ "corpus": {
+  "bars": {
+   "isobmff": {
+    "files": [
+     1048,
+     1049
+    ],
+    "files_checked_only": [
+     1048,
+     1049
+    ],
+    "packets": [
+     27843947,
+     27843948
+    ],
+    "packets_per_sample": [
+     226816998,
+     226816999
+    ],
+    "unchecked_files": 0,
+    "files_pre_bar_only": [
+     738,
+     1049
+    ],
+    "packets_pre_bar_only": [
+     24912695,
+     27843948
+    ],
+    "files_met": true,
+    "packets_met": true,
+    "mixed_tools": false
+   },
+   "matroska": {
+    "files": [
+     209,
+     209
+    ],
+    "files_checked_only": [
+     209,
+     209
+    ],
+    "packets": [
+     9686799,
+     9688871
+    ],
+    "packets_per_sample": [
+     9686799,
+     9688871
+    ],
+    "unchecked_files": 0,
+    "files_pre_bar_only": [
+     196,
+     209
+    ],
+    "packets_pre_bar_only": [
+     7528314,
+     9688871
+    ],
+    "files_met": true,
+    "packets_met": true,
+    "mixed_tools": false
+   }
+  },
+  "families": {
+   "isobmff": {
+    "development": {
+     "files": 746,
+     "checked": 746,
+     "tools": [
+      {
+       "adapter": "4402d6ab0357b6fc",
+       "coreav": "fec3358abdc4f13a",
+       "ffprobe": "ffprobe version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2007-2024 the FFmpeg developers sha256:4f231a1960d83e40",
+       "harness": "d9e7a8eaed522f94",
+       "mediainfo": "MediaInfoLib - v26.10 sha256:6251e7847f1cd3e9",
+       "oracle": "243c8c2f4032aad8",
+       "overlay": "065a9a00a220474d"
+      }
+     ],
+     "mixed_tools": false,
+     "missing": 0,
+     "errors": {},
+     "ffprobe_failed": 0,
+     "levels": {
+      "streams": {
+       "items": 746,
+       "direct": 515,
+       "via_kd": 231,
+       "uncovered": 0,
+       "by_kd": {
+        "KD-NOT-ALLOWED": 165,
+        "KD-QT-TEXT": 8,
+        "KD-FRAG-START": 11,
+        "KD-COVER-ART": 12,
+        "KD-CHAPTER-TEXT": 1,
+        "KD-AAC-IMPLICIT-SBR": 3,
+        "KD-PCM-END": 3,
+        "KD-AAC-LC-UNNAMED": 3,
+        "KD-STRICT": 5,
+        "KD-TEXT-END": 2,
+        "KD-EDIT-DURATION": 9,
+        "KD-DECLARED-SIZE": 4,
+        "KD-STTS-SHORT": 22
+       }
+      },
+      "packets": {
+       "items": 19184977,
+       "direct": 17108927,
+       "via_kd": 2076049,
+       "uncovered": 1,
+       "by_kd": {
+        "KD-NOT-ALLOWED": 1128435,
+        "KD-COVER-ART": 12,
+        "KD-CHAPTER-TEXT": 24,
+        "KD-PCM": 126976,
+        "KD-CTTS": 307331,
+        "KD-EDIT-DISCARD": 499,
+        "KD-STRICT": 61566,
+        "KD-CTTS-UNSIGNED": 33933,
+        "KD-EDIT-SNAP": 15190,
+        "KD-EDIT-MULTI": 366083,
+        "KD-TRUN-SHIFT": 36000
+       },
+       "per_sample": {
+        "items": 146943929,
+        "direct": 17108927,
+        "via_kd": 129835001,
+        "uncovered": 1,
+        "by_kd": {
+         "KD-NOT-ALLOWED": 1128435,
+         "KD-COVER-ART": 12,
+         "KD-CHAPTER-TEXT": 24,
+         "KD-PCM": 127885928,
+         "KD-CTTS": 307331,
+         "KD-EDIT-DISCARD": 499,
+         "KD-STRICT": 61566,
+         "KD-CTTS-UNSIGNED": 33933,
+         "KD-EDIT-SNAP": 15190,
+         "KD-EDIT-MULTI": 366083,
+         "KD-TRUN-SHIFT": 36000
+        }
+       }
+      }
+     },
+     "compat": {
+      "keys": {
+       "format.bit_rate": {
+        "files": 741,
+        "direct": 707,
+        "kd": 34,
+        "differs": 0
+       },
+       "format.duration": {
+        "files": 741,
+        "direct": 706,
+        "kd": 35,
+        "differs": 0
+       },
+       "format.filename": {
+        "files": 741,
+        "direct": 741,
+        "kd": 0,
+        "differs": 0
+       },
+       "format.format_name": {
+        "files": 741,
+        "direct": 741,
+        "kd": 0,
+        "differs": 0
+       },
+       "format.nb_streams": {
+        "files": 741,
+        "direct": 729,
+        "kd": 0,
+        "differs": 12
+       },
+       "format.size": {
+        "files": 741,
+        "direct": 741,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.channels": {
+        "files": 427,
+        "direct": 427,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.codec_name": {
+        "files": 683,
+        "direct": 682,
+        "kd": 1,
+        "differs": 0
+       },
+       "streams.codec_tag": {
+        "files": 683,
+        "direct": 683,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.codec_tag_string": {
+        "files": 683,
+        "direct": 683,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.codec_type": {
+        "files": 683,
+        "direct": 682,
+        "kd": 1,
+        "differs": 0
+       },
+       "streams.color_primaries": {
+        "files": 311,
+        "direct": 311,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.color_range": {
+        "files": 361,
+        "direct": 361,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.color_space": {
+        "files": 312,
+        "direct": 312,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.color_transfer": {
+        "files": 310,
+        "direct": 310,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.display_aspect_ratio": {
+        "files": 228,
+        "direct": 226,
+        "kd": 2,
+        "differs": 0
+       },
+       "streams.duration": {
+        "files": 683,
+        "direct": 639,
+        "kd": 44,
+        "differs": 0
+       },
+       "streams.duration_ts": {
+        "files": 683,
+        "direct": 639,
+        "kd": 44,
+        "differs": 0
+       },
+       "streams.height": {
+        "files": 615,
+        "direct": 612,
+        "kd": 3,
+        "differs": 0
+       },
+       "streams.index": {
+        "files": 683,
+        "direct": 683,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.level": {
+        "files": 596,
+        "direct": 596,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.profile": {
+        "files": 680,
+        "direct": 674,
+        "kd": 6,
+        "differs": 0
+       },
+       "streams.sample_aspect_ratio": {
+        "files": 228,
+        "direct": 228,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.sample_rate": {
+        "files": 427,
+        "direct": 424,
+        "kd": 0,
+        "differs": 3
+       },
+       "streams.side_data_list[0].bl_present_flag": {
+        "files": 2,
+        "direct": 2,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.side_data_list[0].dv_bl_signal_compatibility_id": {
+        "files": 2,
+        "direct": 2,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.side_data_list[0].dv_level": {
+        "files": 2,
+        "direct": 2,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.side_data_list[0].dv_profile": {
+        "files": 2,
+        "direct": 2,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.side_data_list[0].dv_version_major": {
+        "files": 2,
+        "direct": 2,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.side_data_list[0].dv_version_minor": {
+        "files": 2,
+        "direct": 2,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.side_data_list[0].el_present_flag": {
+        "files": 2,
+        "direct": 2,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.side_data_list[0].rotation": {
+        "files": 9,
+        "direct": 9,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.side_data_list[0].rpu_present_flag": {
+        "files": 2,
+        "direct": 2,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.side_data_list[0].side_data_type": {
+        "files": 11,
+        "direct": 11,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.tags.handler_name": {
+        "files": 628,
+        "direct": 628,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.tags.language": {
+        "files": 535,
+        "direct": 535,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.time_base": {
+        "files": 683,
+        "direct": 683,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.width": {
+        "files": 615,
+        "direct": 614,
+        "kd": 1,
+        "differs": 0
+       }
+      },
+      "compared": 741,
+      "rejected_unexplained": 0,
+      "errors": 0,
+      "records": 746,
+      "not_run": 0
+     },
+     "uncovered_stream_fields": {},
+     "uncovered_packet_fields": {
+      "streams/N/packets/N/pts": 1
+     }
+    },
+    "holdout": {
+     "files": 303,
+     "checked": 303,
+     "tools": [
+      {
+       "adapter": "4402d6ab0357b6fc",
+       "coreav": "fec3358abdc4f13a",
+       "ffprobe": "ffprobe version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2007-2024 the FFmpeg developers sha256:4f231a1960d83e40",
+       "harness": "d9e7a8eaed522f94",
+       "mediainfo": "MediaInfoLib - v26.10 sha256:6251e7847f1cd3e9",
+       "oracle": "243c8c2f4032aad8",
+       "overlay": "065a9a00a220474d"
+      }
+     ],
+     "mixed_tools": false,
+     "missing": 0,
+     "errors": {},
+     "ffprobe_failed": 0,
+     "levels": {
+      "streams": {
+       "items": 303,
+       "direct": 223,
+       "via_kd": 79,
+       "uncovered": 1,
+       "by_kd": {
+        "KD-QT-TEXT": 3,
+        "KD-NOT-ALLOWED": 53,
+        "KD-AAC-IMPLICIT-SBR": 2,
+        "KD-FRAG-START": 1,
+        "KD-COVER-ART": 4,
+        "KD-AAC-LC-UNNAMED": 1,
+        "KD-EDIT-UNPLACED": 1,
+        "KD-EDIT-DURATION": 3,
+        "KD-STTS-SHORT": 12,
+        "KD-STRICT": 1,
+        "KD-DECLARED-SIZE": 2,
+        "KD-TEXT-END": 1
+       }
+      },
+      "packets": {
+       "items": 8658971,
+       "direct": 7803768,
+       "via_kd": 855203,
+       "uncovered": 0,
+       "by_kd": {
+        "KD-NOT-ALLOWED": 627353,
+        "KD-COVER-ART": 4,
+        "KD-PCM": 70909,
+        "KD-EDIT-DISCARD": 265,
+        "KD-CTTS": 21667,
+        "KD-EDIT-MULTI": 133961,
+        "KD-EDIT-SNAP": 1030,
+        "KD-STRICT": 14
+       },
+       "per_sample": {
+        "items": 79873070,
+        "direct": 7803768,
+        "via_kd": 72069302,
+        "uncovered": 0,
+        "by_kd": {
+         "KD-NOT-ALLOWED": 627353,
+         "KD-COVER-ART": 4,
+         "KD-PCM": 71285008,
+         "KD-EDIT-DISCARD": 265,
+         "KD-CTTS": 21667,
+         "KD-EDIT-MULTI": 133961,
+         "KD-EDIT-SNAP": 1030,
+         "KD-STRICT": 14
+        }
+       }
+      }
+     },
+     "compat": {
+      "keys": {
+       "format.bit_rate": {
+        "files": 302,
+        "direct": 287,
+        "kd": 14,
+        "differs": 1
+       },
+       "format.duration": {
+        "files": 302,
+        "direct": 287,
+        "kd": 14,
+        "differs": 1
+       },
+       "format.filename": {
+        "files": 302,
+        "direct": 302,
+        "kd": 0,
+        "differs": 0
+       },
+       "format.format_name": {
+        "files": 302,
+        "direct": 302,
+        "kd": 0,
+        "differs": 0
+       },
+       "format.nb_streams": {
+        "files": 302,
+        "direct": 298,
+        "kd": 0,
+        "differs": 4
+       },
+       "format.size": {
+        "files": 302,
+        "direct": 302,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.channels": {
+        "files": 180,
+        "direct": 180,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.codec_name": {
+        "files": 285,
+        "direct": 285,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.codec_tag": {
+        "files": 285,
+        "direct": 285,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.codec_tag_string": {
+        "files": 285,
+        "direct": 285,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.codec_type": {
+        "files": 285,
+        "direct": 285,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.color_primaries": {
+        "files": 127,
+        "direct": 127,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.color_range": {
+        "files": 145,
+        "direct": 145,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.color_space": {
+        "files": 129,
+        "direct": 129,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.color_transfer": {
+        "files": 127,
+        "direct": 127,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.display_aspect_ratio": {
+        "files": 104,
+        "direct": 103,
+        "kd": 1,
+        "differs": 0
+       },
+       "streams.duration": {
+        "files": 285,
+        "direct": 270,
+        "kd": 15,
+        "differs": 0
+       },
+       "streams.duration_ts": {
+        "files": 285,
+        "direct": 270,
+        "kd": 15,
+        "differs": 0
+       },
+       "streams.height": {
+        "files": 254,
+        "direct": 252,
+        "kd": 2,
+        "differs": 0
+       },
+       "streams.index": {
+        "files": 285,
+        "direct": 285,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.level": {
+        "files": 248,
+        "direct": 248,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.profile": {
+        "files": 279,
+        "direct": 276,
+        "kd": 3,
+        "differs": 0
+       },
+       "streams.sample_aspect_ratio": {
+        "files": 104,
+        "direct": 104,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.sample_rate": {
+        "files": 180,
+        "direct": 178,
+        "kd": 0,
+        "differs": 2
+       },
+       "streams.side_data_list[0].bl_present_flag": {
+        "files": 1,
+        "direct": 1,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.side_data_list[0].dv_bl_signal_compatibility_id": {
+        "files": 1,
+        "direct": 1,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.side_data_list[0].dv_level": {
+        "files": 1,
+        "direct": 1,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.side_data_list[0].dv_profile": {
+        "files": 1,
+        "direct": 1,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.side_data_list[0].dv_version_major": {
+        "files": 1,
+        "direct": 1,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.side_data_list[0].dv_version_minor": {
+        "files": 1,
+        "direct": 1,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.side_data_list[0].el_present_flag": {
+        "files": 1,
+        "direct": 1,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.side_data_list[0].rotation": {
+        "files": 4,
+        "direct": 4,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.side_data_list[0].rpu_present_flag": {
+        "files": 1,
+        "direct": 1,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.side_data_list[0].side_data_type": {
+        "files": 5,
+        "direct": 5,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.side_data_list[1].rotation": {
+        "files": 1,
+        "direct": 1,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.side_data_list[1].side_data_type": {
+        "files": 1,
+        "direct": 1,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.tags.handler_name": {
+        "files": 263,
+        "direct": 263,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.tags.language": {
+        "files": 214,
+        "direct": 214,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.time_base": {
+        "files": 285,
+        "direct": 285,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.width": {
+        "files": 254,
+        "direct": 254,
+        "kd": 0,
+        "differs": 0
+       }
+      },
+      "compared": 302,
+      "rejected_unexplained": 0,
+      "errors": 0,
+      "records": 303,
+      "not_run": 0
+     },
+     "uncovered_stream_fields": {
+      "format_duration_us": 1
+     },
+     "uncovered_packet_fields": {}
+    },
+    "all": {
+     "files": 1049,
+     "checked": 1049,
+     "tools": [
+      {
+       "adapter": "4402d6ab0357b6fc",
+       "coreav": "fec3358abdc4f13a",
+       "ffprobe": "ffprobe version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2007-2024 the FFmpeg developers sha256:4f231a1960d83e40",
+       "harness": "d9e7a8eaed522f94",
+       "mediainfo": "MediaInfoLib - v26.10 sha256:6251e7847f1cd3e9",
+       "oracle": "243c8c2f4032aad8",
+       "overlay": "065a9a00a220474d"
+      }
+     ],
+     "mixed_tools": false,
+     "missing": 0,
+     "errors": {},
+     "ffprobe_failed": 0,
+     "levels": {
+      "streams": {
+       "items": 1049,
+       "direct": 738,
+       "via_kd": 310,
+       "uncovered": 1,
+       "by_kd": {
+        "KD-NOT-ALLOWED": 218,
+        "KD-QT-TEXT": 11,
+        "KD-FRAG-START": 12,
+        "KD-COVER-ART": 16,
+        "KD-CHAPTER-TEXT": 1,
+        "KD-AAC-IMPLICIT-SBR": 5,
+        "KD-PCM-END": 3,
+        "KD-AAC-LC-UNNAMED": 4,
+        "KD-STRICT": 6,
+        "KD-TEXT-END": 3,
+        "KD-EDIT-UNPLACED": 1,
+        "KD-EDIT-DURATION": 12,
+        "KD-DECLARED-SIZE": 6,
+        "KD-STTS-SHORT": 34
+       }
+      },
+      "packets": {
+       "items": 27843948,
+       "direct": 24912695,
+       "via_kd": 2931252,
+       "uncovered": 1,
+       "by_kd": {
+        "KD-NOT-ALLOWED": 1755788,
+        "KD-COVER-ART": 16,
+        "KD-CHAPTER-TEXT": 24,
+        "KD-PCM": 197885,
+        "KD-EDIT-DISCARD": 764,
+        "KD-CTTS": 328998,
+        "KD-STRICT": 61580,
+        "KD-CTTS-UNSIGNED": 33933,
+        "KD-EDIT-SNAP": 16220,
+        "KD-EDIT-MULTI": 500044,
+        "KD-TRUN-SHIFT": 36000
+       },
+       "per_sample": {
+        "items": 226816999,
+        "direct": 24912695,
+        "via_kd": 201904303,
+        "uncovered": 1,
+        "by_kd": {
+         "KD-NOT-ALLOWED": 1755788,
+         "KD-COVER-ART": 16,
+         "KD-CHAPTER-TEXT": 24,
+         "KD-PCM": 199170936,
+         "KD-EDIT-DISCARD": 764,
+         "KD-CTTS": 328998,
+         "KD-STRICT": 61580,
+         "KD-CTTS-UNSIGNED": 33933,
+         "KD-EDIT-SNAP": 16220,
+         "KD-EDIT-MULTI": 500044,
+         "KD-TRUN-SHIFT": 36000
+        }
+       }
+      }
+     },
+     "compat": {
+      "keys": {
+       "format.bit_rate": {
+        "files": 1043,
+        "direct": 994,
+        "kd": 48,
+        "differs": 1
+       },
+       "format.duration": {
+        "files": 1043,
+        "direct": 993,
+        "kd": 49,
+        "differs": 1
+       },
+       "format.filename": {
+        "files": 1043,
+        "direct": 1043,
+        "kd": 0,
+        "differs": 0
+       },
+       "format.format_name": {
+        "files": 1043,
+        "direct": 1043,
+        "kd": 0,
+        "differs": 0
+       },
+       "format.nb_streams": {
+        "files": 1043,
+        "direct": 1027,
+        "kd": 0,
+        "differs": 16
+       },
+       "format.size": {
+        "files": 1043,
+        "direct": 1043,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.channels": {
+        "files": 607,
+        "direct": 607,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.codec_name": {
+        "files": 968,
+        "direct": 967,
+        "kd": 1,
+        "differs": 0
+       },
+       "streams.codec_tag": {
+        "files": 968,
+        "direct": 968,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.codec_tag_string": {
+        "files": 968,
+        "direct": 968,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.codec_type": {
+        "files": 968,
+        "direct": 967,
+        "kd": 1,
+        "differs": 0
+       },
+       "streams.color_primaries": {
+        "files": 438,
+        "direct": 438,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.color_range": {
+        "files": 506,
+        "direct": 506,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.color_space": {
+        "files": 441,
+        "direct": 441,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.color_transfer": {
+        "files": 437,
+        "direct": 437,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.display_aspect_ratio": {
+        "files": 332,
+        "direct": 329,
+        "kd": 3,
+        "differs": 0
+       },
+       "streams.duration": {
+        "files": 968,
+        "direct": 909,
+        "kd": 59,
+        "differs": 0
+       },
+       "streams.duration_ts": {
+        "files": 968,
+        "direct": 909,
+        "kd": 59,
+        "differs": 0
+       },
+       "streams.height": {
+        "files": 869,
+        "direct": 864,
+        "kd": 5,
+        "differs": 0
+       },
+       "streams.index": {
+        "files": 968,
+        "direct": 968,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.level": {
+        "files": 844,
+        "direct": 844,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.profile": {
+        "files": 959,
+        "direct": 950,
+        "kd": 9,
+        "differs": 0
+       },
+       "streams.sample_aspect_ratio": {
+        "files": 332,
+        "direct": 332,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.sample_rate": {
+        "files": 607,
+        "direct": 602,
+        "kd": 0,
+        "differs": 5
+       },
+       "streams.side_data_list[0].bl_present_flag": {
+        "files": 3,
+        "direct": 3,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.side_data_list[0].dv_bl_signal_compatibility_id": {
+        "files": 3,
+        "direct": 3,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.side_data_list[0].dv_level": {
+        "files": 3,
+        "direct": 3,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.side_data_list[0].dv_profile": {
+        "files": 3,
+        "direct": 3,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.side_data_list[0].dv_version_major": {
+        "files": 3,
+        "direct": 3,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.side_data_list[0].dv_version_minor": {
+        "files": 3,
+        "direct": 3,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.side_data_list[0].el_present_flag": {
+        "files": 3,
+        "direct": 3,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.side_data_list[0].rotation": {
+        "files": 13,
+        "direct": 13,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.side_data_list[0].rpu_present_flag": {
+        "files": 3,
+        "direct": 3,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.side_data_list[0].side_data_type": {
+        "files": 16,
+        "direct": 16,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.side_data_list[1].rotation": {
+        "files": 1,
+        "direct": 1,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.side_data_list[1].side_data_type": {
+        "files": 1,
+        "direct": 1,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.tags.handler_name": {
+        "files": 891,
+        "direct": 891,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.tags.language": {
+        "files": 749,
+        "direct": 749,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.time_base": {
+        "files": 968,
+        "direct": 968,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.width": {
+        "files": 869,
+        "direct": 868,
+        "kd": 1,
+        "differs": 0
+       }
+      },
+      "compared": 1043,
+      "rejected_unexplained": 0,
+      "errors": 0,
+      "records": 1049,
+      "not_run": 0
+     },
+     "uncovered_stream_fields": {
+      "format_duration_us": 1
+     },
+     "uncovered_packet_fields": {
+      "streams/N/packets/N/pts": 1
+     }
+    },
+    "causes": {
+     "packet-timestamps": {
+      "files": 1,
+      "sole_cause_files": 1,
+      "packets": 1,
+      "codecs": {
+       "h264": 1
+      },
+      "containers": {
+       "mp4": 1
+      }
+     },
+     "format-duration": {
+      "files": 1,
+      "sole_cause_files": 1,
+      "packets": 0,
+      "codecs": {},
+      "containers": {
+       "mp4": 1
+      }
+     }
+    },
+    "runs": [
+     {
+      "time_utc": "2026-10-20T08:13:44Z",
+      "commit": "8470744f84e2cf05dcb701ed3aeaf1a1018632b2",
+      "dirty": false,
+      "files": 1049,
+      "recheck": null,
+      "codecs": [],
+      "kinds": [],
+      "adapter_sha256": "4402d6ab0357b6fce7690e2ab902604a5e9484e188494eb028aad9d1a32ba315",
+      "oracle_kd_sha256": "065a9a00a220474d72a1585c04f5a77b5cd01704e4d7030d57b1ed4c55022ff4"
+     }
+    ]
+   },
+   "matroska": {
+    "development": {
+     "files": 140,
+     "checked": 140,
+     "tools": [
+      {
+       "adapter": "2020769d9fdb0e0f",
+       "coreav": "fec3358abdc4f13a",
+       "ffprobe": "ffprobe version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2007-2024 the FFmpeg developers sha256:4f231a1960d83e40",
+       "harness": "d6d7c7ea5ebbecf3",
+       "mediainfo": "MediaInfoLib - v26.10 sha256:6251e7847f1cd3e9",
+       "oracle": "243c8c2f4032aad8",
+       "overlay": "3699bb6dc003b21d"
+      }
+     ],
+     "mixed_tools": false,
+     "missing": 0,
+     "errors": {},
+     "ffprobe_failed": 0,
+     "levels": {
+      "streams": {
+       "items": 140,
+       "direct": 130,
+       "via_kd": 10,
+       "uncovered": 0,
+       "by_kd": {
+        "KD-MKV-FMT-ROUNDING": 1,
+        "KD-MKV-STREAM-DURATION": 8,
+        "KD-MKV-UNREAD-BITSTREAM": 1,
+        "KD-MKV-HEVC-RANGE": 1
+       }
+      },
+      "packets": {
+       "items": 6423612,
+       "direct": 5060743,
+       "via_kd": 1360798,
+       "uncovered": 2071,
+       "by_kd": {
+        "KD-MKV-LACE-UNTIMED": 108742,
+        "KD-MKV-ENCRYPTED": 4143,
+        "KD-MKV-DTS": 1147598,
+        "KD-MKV-VFW-TIMESTAMPS": 73368,
+        "KD-MKV-LACE-SPLIT": 24748,
+        "KD-MKV-AUDIO-KEYFRAME": 2165,
+        "KD-MKV-WEBM-WEBVTT": 34
+       },
+       "per_sample": {
+        "items": 6423612,
+        "direct": 5060743,
+        "via_kd": 1360798,
+        "uncovered": 2071,
+        "by_kd": {
+         "KD-MKV-LACE-UNTIMED": 108742,
+         "KD-MKV-ENCRYPTED": 4143,
+         "KD-MKV-DTS": 1147598,
+         "KD-MKV-VFW-TIMESTAMPS": 73368,
+         "KD-MKV-LACE-SPLIT": 24748,
+         "KD-MKV-AUDIO-KEYFRAME": 2165,
+         "KD-MKV-WEBM-WEBVTT": 34
+        }
+       }
+      }
+     },
+     "compat": {
+      "keys": {
+       "format.bit_rate": {
+        "files": 137,
+        "direct": 137,
+        "kd": 0,
+        "differs": 0
+       },
+       "format.duration": {
+        "files": 137,
+        "direct": 136,
+        "kd": 1,
+        "differs": 0
+       },
+       "format.filename": {
+        "files": 140,
+        "direct": 140,
+        "kd": 0,
+        "differs": 0
+       },
+       "format.format_name": {
+        "files": 140,
+        "direct": 140,
+        "kd": 0,
+        "differs": 0
+       },
+       "format.nb_streams": {
+        "files": 140,
+        "direct": 140,
+        "kd": 0,
+        "differs": 0
+       },
+       "format.size": {
+        "files": 140,
+        "direct": 140,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.channels": {
+        "files": 91,
+        "direct": 91,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.codec_name": {
+        "files": 139,
+        "direct": 139,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.codec_tag": {
+        "files": 139,
+        "direct": 139,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.codec_tag_string": {
+        "files": 139,
+        "direct": 139,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.codec_type": {
+        "files": 139,
+        "direct": 139,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.color_primaries": {
+        "files": 57,
+        "direct": 57,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.color_range": {
+        "files": 89,
+        "direct": 89,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.color_space": {
+        "files": 62,
+        "direct": 62,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.color_transfer": {
+        "files": 57,
+        "direct": 57,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.display_aspect_ratio": {
+        "files": 122,
+        "direct": 122,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.height": {
+        "files": 122,
+        "direct": 122,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.index": {
+        "files": 139,
+        "direct": 139,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.level": {
+        "files": 42,
+        "direct": 42,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.profile": {
+        "files": 122,
+        "direct": 122,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.sample_aspect_ratio": {
+        "files": 122,
+        "direct": 122,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.sample_rate": {
+        "files": 91,
+        "direct": 91,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.tags.language": {
+        "files": 53,
+        "direct": 48,
+        "kd": 5,
+        "differs": 0
+       },
+       "streams.time_base": {
+        "files": 139,
+        "direct": 139,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.width": {
+        "files": 122,
+        "direct": 122,
+        "kd": 0,
+        "differs": 0
+       }
+      },
+      "compared": 140,
+      "rejected_unexplained": 0,
+      "errors": 0,
+      "records": 140,
+      "not_run": 0
+     },
+     "uncovered_stream_fields": {},
+     "uncovered_packet_fields": {
+      "streams/N/packets/N/size": 2071
+     }
+    },
+    "holdout": {
+     "files": 69,
+     "checked": 69,
+     "tools": [
+      {
+       "adapter": "2020769d9fdb0e0f",
+       "coreav": "fec3358abdc4f13a",
+       "ffprobe": "ffprobe version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2007-2024 the FFmpeg developers sha256:4f231a1960d83e40",
+       "harness": "d6d7c7ea5ebbecf3",
+       "mediainfo": "MediaInfoLib - v26.10 sha256:6251e7847f1cd3e9",
+       "oracle": "243c8c2f4032aad8",
+       "overlay": "3699bb6dc003b21d"
+      }
+     ],
+     "mixed_tools": false,
+     "missing": 0,
+     "errors": {},
+     "ffprobe_failed": 0,
+     "levels": {
+      "streams": {
+       "items": 69,
+       "direct": 66,
+       "via_kd": 3,
+       "uncovered": 0,
+       "by_kd": {
+        "KD-MKV-STREAM-DURATION": 2,
+        "KD-MKV-UNREAD-BITSTREAM": 1,
+        "KD-MKV-FMT-ROUNDING": 1
+       }
+      },
+      "packets": {
+       "items": 3265259,
+       "direct": 2467571,
+       "via_kd": 797687,
+       "uncovered": 1,
+       "by_kd": {
+        "KD-MKV-DTS": 755938,
+        "KD-MKV-LACE-SPLIT": 41749
+       },
+       "per_sample": {
+        "items": 3265259,
+        "direct": 2467571,
+        "via_kd": 797687,
+        "uncovered": 1,
+        "by_kd": {
+         "KD-MKV-DTS": 755938,
+         "KD-MKV-LACE-SPLIT": 41749
+        }
+       }
+      }
+     },
+     "compat": {
+      "keys": {
+       "format.bit_rate": {
+        "files": 69,
+        "direct": 69,
+        "kd": 0,
+        "differs": 0
+       },
+       "format.duration": {
+        "files": 69,
+        "direct": 68,
+        "kd": 1,
+        "differs": 0
+       },
+       "format.filename": {
+        "files": 69,
+        "direct": 69,
+        "kd": 0,
+        "differs": 0
+       },
+       "format.format_name": {
+        "files": 69,
+        "direct": 69,
+        "kd": 0,
+        "differs": 0
+       },
+       "format.nb_streams": {
+        "files": 69,
+        "direct": 69,
+        "kd": 0,
+        "differs": 0
+       },
+       "format.size": {
+        "files": 69,
+        "direct": 69,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.channels": {
+        "files": 40,
+        "direct": 40,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.codec_name": {
+        "files": 68,
+        "direct": 68,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.codec_tag": {
+        "files": 68,
+        "direct": 68,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.codec_tag_string": {
+        "files": 68,
+        "direct": 68,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.codec_type": {
+        "files": 68,
+        "direct": 68,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.color_primaries": {
+        "files": 27,
+        "direct": 27,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.color_range": {
+        "files": 44,
+        "direct": 44,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.color_space": {
+        "files": 28,
+        "direct": 28,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.color_transfer": {
+        "files": 27,
+        "direct": 27,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.display_aspect_ratio": {
+        "files": 64,
+        "direct": 64,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.height": {
+        "files": 64,
+        "direct": 64,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.index": {
+        "files": 68,
+        "direct": 68,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.level": {
+        "files": 17,
+        "direct": 17,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.profile": {
+        "files": 64,
+        "direct": 64,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.sample_aspect_ratio": {
+        "files": 64,
+        "direct": 64,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.sample_rate": {
+        "files": 40,
+        "direct": 40,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.tags.language": {
+        "files": 25,
+        "direct": 22,
+        "kd": 3,
+        "differs": 0
+       },
+       "streams.time_base": {
+        "files": 68,
+        "direct": 68,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.width": {
+        "files": 64,
+        "direct": 64,
+        "kd": 0,
+        "differs": 0
+       }
+      },
+      "compared": 69,
+      "rejected_unexplained": 0,
+      "errors": 0,
+      "records": 69,
+      "not_run": 0
+     },
+     "uncovered_stream_fields": {},
+     "uncovered_packet_fields": {
+      "streams/N/packets/N/pts": 1
+     }
+    },
+    "all": {
+     "files": 209,
+     "checked": 209,
+     "tools": [
+      {
+       "adapter": "2020769d9fdb0e0f",
+       "coreav": "fec3358abdc4f13a",
+       "ffprobe": "ffprobe version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2007-2024 the FFmpeg developers sha256:4f231a1960d83e40",
+       "harness": "d6d7c7ea5ebbecf3",
+       "mediainfo": "MediaInfoLib - v26.10 sha256:6251e7847f1cd3e9",
+       "oracle": "243c8c2f4032aad8",
+       "overlay": "3699bb6dc003b21d"
+      }
+     ],
+     "mixed_tools": false,
+     "missing": 0,
+     "errors": {},
+     "ffprobe_failed": 0,
+     "levels": {
+      "streams": {
+       "items": 209,
+       "direct": 196,
+       "via_kd": 13,
+       "uncovered": 0,
+       "by_kd": {
+        "KD-MKV-FMT-ROUNDING": 2,
+        "KD-MKV-STREAM-DURATION": 10,
+        "KD-MKV-UNREAD-BITSTREAM": 2,
+        "KD-MKV-HEVC-RANGE": 1
+       }
+      },
+      "packets": {
+       "items": 9688871,
+       "direct": 7528314,
+       "via_kd": 2158485,
+       "uncovered": 2072,
+       "by_kd": {
+        "KD-MKV-LACE-UNTIMED": 108742,
+        "KD-MKV-ENCRYPTED": 4143,
+        "KD-MKV-DTS": 1903536,
+        "KD-MKV-VFW-TIMESTAMPS": 73368,
+        "KD-MKV-LACE-SPLIT": 66497,
+        "KD-MKV-AUDIO-KEYFRAME": 2165,
+        "KD-MKV-WEBM-WEBVTT": 34
+       },
+       "per_sample": {
+        "items": 9688871,
+        "direct": 7528314,
+        "via_kd": 2158485,
+        "uncovered": 2072,
+        "by_kd": {
+         "KD-MKV-LACE-UNTIMED": 108742,
+         "KD-MKV-ENCRYPTED": 4143,
+         "KD-MKV-DTS": 1903536,
+         "KD-MKV-VFW-TIMESTAMPS": 73368,
+         "KD-MKV-LACE-SPLIT": 66497,
+         "KD-MKV-AUDIO-KEYFRAME": 2165,
+         "KD-MKV-WEBM-WEBVTT": 34
+        }
+       }
+      }
+     },
+     "compat": {
+      "keys": {
+       "format.bit_rate": {
+        "files": 206,
+        "direct": 206,
+        "kd": 0,
+        "differs": 0
+       },
+       "format.duration": {
+        "files": 206,
+        "direct": 204,
+        "kd": 2,
+        "differs": 0
+       },
+       "format.filename": {
+        "files": 209,
+        "direct": 209,
+        "kd": 0,
+        "differs": 0
+       },
+       "format.format_name": {
+        "files": 209,
+        "direct": 209,
+        "kd": 0,
+        "differs": 0
+       },
+       "format.nb_streams": {
+        "files": 209,
+        "direct": 209,
+        "kd": 0,
+        "differs": 0
+       },
+       "format.size": {
+        "files": 209,
+        "direct": 209,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.channels": {
+        "files": 131,
+        "direct": 131,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.codec_name": {
+        "files": 207,
+        "direct": 207,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.codec_tag": {
+        "files": 207,
+        "direct": 207,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.codec_tag_string": {
+        "files": 207,
+        "direct": 207,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.codec_type": {
+        "files": 207,
+        "direct": 207,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.color_primaries": {
+        "files": 84,
+        "direct": 84,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.color_range": {
+        "files": 133,
+        "direct": 133,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.color_space": {
+        "files": 90,
+        "direct": 90,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.color_transfer": {
+        "files": 84,
+        "direct": 84,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.display_aspect_ratio": {
+        "files": 186,
+        "direct": 186,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.height": {
+        "files": 186,
+        "direct": 186,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.index": {
+        "files": 207,
+        "direct": 207,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.level": {
+        "files": 59,
+        "direct": 59,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.profile": {
+        "files": 186,
+        "direct": 186,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.sample_aspect_ratio": {
+        "files": 186,
+        "direct": 186,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.sample_rate": {
+        "files": 131,
+        "direct": 131,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.tags.language": {
+        "files": 78,
+        "direct": 70,
+        "kd": 8,
+        "differs": 0
+       },
+       "streams.time_base": {
+        "files": 207,
+        "direct": 207,
+        "kd": 0,
+        "differs": 0
+       },
+       "streams.width": {
+        "files": 186,
+        "direct": 186,
+        "kd": 0,
+        "differs": 0
+       }
+      },
+      "compared": 209,
+      "rejected_unexplained": 0,
+      "errors": 0,
+      "records": 209,
+      "not_run": 0
+     },
+     "uncovered_stream_fields": {},
+     "uncovered_packet_fields": {
+      "streams/N/packets/N/size": 2071,
+      "streams/N/packets/N/pts": 1
+     }
+    },
+    "causes": {
+     "packet-size": {
+      "files": 1,
+      "sole_cause_files": 1,
+      "packets": 2071,
+      "codecs": {
+       "opus": 2071
+      },
+      "containers": {
+       "webm": 1
+      }
+     },
+     "packet-timestamps": {
+      "files": 1,
+      "sole_cause_files": 1,
+      "packets": 1,
+      "codecs": {
+       "vorbis": 1
+      },
+      "containers": {
+       "webm": 1
+      }
+     }
+    },
+    "runs": [
+     {
+      "time_utc": "2026-10-20T08:35:02Z",
+      "commit": "8470744f84e2cf05dcb701ed3aeaf1a1018632b2",
+      "dirty": false,
+      "files": 209,
+      "recheck": null,
+      "codecs": [],
+      "kinds": [],
+      "adapter_sha256": "2020769d9fdb0e0fda822f95572aa3922d49cd522474a4fb1f45252f7e6471b8",
+      "oracle_kd_sha256": "3699bb6dc003b21dcb734d9e253d94361f5837e00e622520655115674ff1a2c6"
+     }
+    ]
+   }
+  },
+  "mediainfo": {
+   "isobmff": {
+    "files": 1049,
+    "probe_outcomes": {
+     "coreav fail, ffprobe ok, mediainfo ok": 6,
+     "coreav ok, ffprobe ok, mediainfo ok": 1043
+    },
+    "mediainfo_failures": {},
+    "coreav_rejects_ffprobe_reads": {
+     "files": 6,
+     "mediainfo_flags_truncated": 4,
+     "mediainfo_flags_conformance_errors": 4,
+     "mediainfo_fails": 0
+    },
+    "files_with_mediainfo_unpaired_tracks": 27,
+    "triage": {
+     "probe_ok": {
+      "coreav-alone": 6
+     },
+     "stream_count": {
+      "coreav-alone": 221,
+      "all-differ": 9,
+      "ffprobe-alone": 7
+     },
+     "format_duration": {
+      "mediainfo-between": 23,
+      "ffprobe-alone": 23,
+      "all-differ": 2,
+      "coreav-alone": 2
+     },
+     "kind": {
+      "ffprobe-alone": 2
+     },
+     "codec_fourcc": {},
+     "codec_name": {
+      "ffprobe-alone": 2
+     },
+     "width": {
+      "ffprobe-alone": 1
+     },
+     "height": {
+      "ffprobe-alone": 5
+     },
+     "rotation": {},
+     "duration": {
+      "mediainfo-between": 27,
+      "coreav-alone": 5,
+      "all-differ": 12,
+      "ffprobe-alone": 20
+     },
+     "color_primaries": {},
+     "color_transfer": {},
+     "color_matrix": {},
+     "color_range": {}
+    },
+    "by_field": {
+     "probe_ok": {
+      "gating": true,
+      "all-agree": 1043,
+      "coreav-alone": 6,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 0
+     },
+     "stream_count": {
+      "gating": true,
+      "all-agree": 806,
+      "coreav-alone": 221,
+      "ffprobe-alone": 7,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 9,
+      "not-comparable": 6
+     },
+     "format_duration": {
+      "gating": true,
+      "all-agree": 824,
+      "coreav-alone": 2,
+      "ffprobe-alone": 23,
+      "mediainfo-alone": 169,
+      "mediainfo-between": 23,
+      "mediainfo-split": 0,
+      "all-differ": 2,
+      "not-comparable": 6
+     },
+     "kind": {
+      "gating": true,
+      "all-agree": 1621,
+      "coreav-alone": 0,
+      "ffprobe-alone": 2,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 344
+     },
+     "codec_fourcc": {
+      "gating": true,
+      "all-agree": 1510,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 113,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 344
+     },
+     "codec_name": {
+      "gating": true,
+      "all-agree": 1509,
+      "coreav-alone": 0,
+      "ffprobe-alone": 2,
+      "mediainfo-alone": 112,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 344
+     },
+     "width": {
+      "gating": true,
+      "all-agree": 1617,
+      "coreav-alone": 0,
+      "ffprobe-alone": 1,
+      "mediainfo-alone": 5,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 344
+     },
+     "height": {
+      "gating": true,
+      "all-agree": 1613,
+      "coreav-alone": 0,
+      "ffprobe-alone": 5,
+      "mediainfo-alone": 5,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 344
+     },
+     "rotation": {
+      "gating": true,
+      "all-agree": 1623,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 344
+     },
+     "duration": {
+      "gating": true,
+      "all-agree": 1369,
+      "coreav-alone": 5,
+      "ffprobe-alone": 20,
+      "mediainfo-alone": 190,
+      "mediainfo-between": 27,
+      "mediainfo-split": 0,
+      "all-differ": 12,
+      "not-comparable": 344
+     },
+     "color_primaries": {
+      "gating": true,
+      "all-agree": 1601,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 22,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 344
+     },
+     "color_transfer": {
+      "gating": true,
+      "all-agree": 1572,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 51,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 344
+     },
+     "color_matrix": {
+      "gating": true,
+      "all-agree": 1602,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 21,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 344
+     },
+     "color_range": {
+      "gating": true,
+      "all-agree": 1585,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 38,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 344
+     },
+     "sample_rate": {
+      "gating": false,
+      "all-agree": 1612,
+      "coreav-alone": 11,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 344
+     },
+     "channels": {
+      "gating": false,
+      "all-agree": 1599,
+      "coreav-alone": 24,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 344
+     },
+     "language": {
+      "gating": false,
+      "all-agree": 1217,
+      "coreav-alone": 406,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 344
+     },
+     "sample_aspect_ratio": {
+      "gating": false,
+      "all-agree": 1086,
+      "coreav-alone": 220,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 317,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 344
+     },
+     "display_aspect_ratio": {
+      "gating": false,
+      "all-agree": 1030,
+      "coreav-alone": 218,
+      "ffprobe-alone": 2,
+      "mediainfo-alone": 370,
+      "mediainfo-between": 1,
+      "mediainfo-split": 0,
+      "all-differ": 2,
+      "not-comparable": 344
+     }
+    },
+    "two_way": {
+     "probe_ok": {
+      "coreav_vs_ffprobe": [
+       1043,
+       1049
+      ],
+      "mediainfo_vs_coreav": [
+       1043,
+       1049
+      ],
+      "mediainfo_vs_ffprobe": [
+       1049,
+       1049
+      ]
+     },
+     "stream_count": {
+      "coreav_vs_ffprobe": [
+       806,
+       1043
+      ],
+      "mediainfo_vs_coreav": [
+       813,
+       1043
+      ],
+      "mediainfo_vs_ffprobe": [
+       1033,
+       1049
+      ]
+     },
+     "format_duration": {
+      "coreav_vs_ffprobe": [
+       993,
+       1043
+      ],
+      "mediainfo_vs_coreav": [
+       870,
+       1043
+      ],
+      "mediainfo_vs_ffprobe": [
+       854,
+       1049
+      ]
+     },
+     "kind": {
+      "coreav_vs_ffprobe": [
+       1621,
+       1623
+      ],
+      "mediainfo_vs_coreav": [
+       1623,
+       1623
+      ],
+      "mediainfo_vs_ffprobe": [
+       1933,
+       1951
+      ]
+     },
+     "codec_fourcc": {
+      "coreav_vs_ffprobe": [
+       1623,
+       1623
+      ],
+      "mediainfo_vs_coreav": [
+       1510,
+       1623
+      ],
+      "mediainfo_vs_ffprobe": [
+       1799,
+       1951
+      ]
+     },
+     "codec_name": {
+      "coreav_vs_ffprobe": [
+       1621,
+       1623
+      ],
+      "mediainfo_vs_coreav": [
+       1511,
+       1623
+      ],
+      "mediainfo_vs_ffprobe": [
+       1643,
+       1951
+      ]
+     },
+     "width": {
+      "coreav_vs_ffprobe": [
+       1622,
+       1623
+      ],
+      "mediainfo_vs_coreav": [
+       1618,
+       1623
+      ],
+      "mediainfo_vs_ffprobe": [
+       1936,
+       1951
+      ]
+     },
+     "height": {
+      "coreav_vs_ffprobe": [
+       1618,
+       1623
+      ],
+      "mediainfo_vs_coreav": [
+       1618,
+       1623
+      ],
+      "mediainfo_vs_ffprobe": [
+       1933,
+       1951
+      ]
+     },
+     "rotation": {
+      "coreav_vs_ffprobe": [
+       1623,
+       1623
+      ],
+      "mediainfo_vs_coreav": [
+       1623,
+       1623
+      ],
+      "mediainfo_vs_ffprobe": [
+       1951,
+       1951
+      ]
+     },
+     "duration": {
+      "coreav_vs_ffprobe": [
+       1559,
+       1623
+      ],
+      "mediainfo_vs_coreav": [
+       1416,
+       1623
+      ],
+      "mediainfo_vs_ffprobe": [
+       1654,
+       1951
+      ]
+     },
+     "color_primaries": {
+      "coreav_vs_ffprobe": [
+       1623,
+       1623
+      ],
+      "mediainfo_vs_coreav": [
+       1601,
+       1623
+      ],
+      "mediainfo_vs_ffprobe": [
+       1927,
+       1951
+      ]
+     },
+     "color_transfer": {
+      "coreav_vs_ffprobe": [
+       1623,
+       1623
+      ],
+      "mediainfo_vs_coreav": [
+       1572,
+       1623
+      ],
+      "mediainfo_vs_ffprobe": [
+       1898,
+       1951
+      ]
+     },
+     "color_matrix": {
+      "coreav_vs_ffprobe": [
+       1623,
+       1623
+      ],
+      "mediainfo_vs_coreav": [
+       1602,
+       1623
+      ],
+      "mediainfo_vs_ffprobe": [
+       1921,
+       1951
+      ]
+     },
+     "color_range": {
+      "coreav_vs_ffprobe": [
+       1623,
+       1623
+      ],
+      "mediainfo_vs_coreav": [
+       1585,
+       1623
+      ],
+      "mediainfo_vs_ffprobe": [
+       1885,
+       1951
+      ]
+     },
+     "sample_rate": {
+      "coreav_vs_ffprobe": [
+       1612,
+       1623
+      ],
+      "mediainfo_vs_coreav": [
+       1612,
+       1623
+      ],
+      "mediainfo_vs_ffprobe": [
+       1951,
+       1951
+      ]
+     },
+     "channels": {
+      "coreav_vs_ffprobe": [
+       1599,
+       1623
+      ],
+      "mediainfo_vs_coreav": [
+       1599,
+       1623
+      ],
+      "mediainfo_vs_ffprobe": [
+       1948,
+       1951
+      ]
+     },
+     "language": {
+      "coreav_vs_ffprobe": [
+       1217,
+       1623
+      ],
+      "mediainfo_vs_coreav": [
+       1217,
+       1623
+      ],
+      "mediainfo_vs_ffprobe": [
+       1950,
+       1951
+      ]
+     },
+     "sample_aspect_ratio": {
+      "coreav_vs_ffprobe": [
+       1403,
+       1623
+      ],
+      "mediainfo_vs_coreav": [
+       1086,
+       1623
+      ],
+      "mediainfo_vs_ffprobe": [
+       1607,
+       1951
+      ]
+     },
+     "display_aspect_ratio": {
+      "coreav_vs_ffprobe": [
+       1400,
+       1623
+      ],
+      "mediainfo_vs_coreav": [
+       1033,
+       1623
+      ],
+      "mediainfo_vs_ffprobe": [
+       1548,
+       1951
+      ]
+     }
+    },
+    "patterns": {
+     "color_range": {
+      "coreav=tv ffprobe=tv mediainfo=None": 21,
+      "coreav=pc ffprobe=pc mediainfo=tv": 17
+     },
+     "probe_ok": {
+      "coreav=False ffprobe=True mediainfo=True": 6
+     },
+     "language": {
+      "coreav=None ffprobe=eng mediainfo=eng": 400,
+      "coreav=\\u007f\\u007f\\u007f ffprobe=None mediainfo=None": 6
+     },
+     "codec_fourcc": {
+      "coreav=tmcd ffprobe=tmcd mediainfo=None": 111,
+      "coreav=tx3g ffprobe=tx3g mediainfo=None": 2
+     },
+     "codec_name": {
+      "coreav=None ffprobe=None mediainfo=mi:QuickTime TC": 111,
+      "coreav=mov_text ffprobe=bin_data mediainfo=mov_text": 2,
+      "coreav=mp3 ffprobe=mp3 mediainfo=mp2": 1
+     },
+     "color_transfer": {
+      "coreav=smpte170m ffprobe=smpte170m mediainfo=bt709": 45,
+      "coreav=None ffprobe=None mediainfo=bt709": 5,
+      "coreav=smpte170m ffprobe=smpte170m mediainfo=None": 1
+     },
+     "color_primaries": {
+      "coreav=bt470bg ffprobe=bt470bg mediainfo=bt709": 14,
+      "coreav=None ffprobe=None mediainfo=bt709": 5,
+      "coreav=bt470bg ffprobe=bt470bg mediainfo=smpte170m": 1,
+      "coreav=bt470bg ffprobe=bt470bg mediainfo=None": 1,
+      "coreav=smpte170m ffprobe=smpte170m mediainfo=bt709": 1
+     },
+     "color_matrix": {
+      "coreav=bt470bg ffprobe=bt470bg mediainfo=bt709": 13,
+      "coreav=None ffprobe=None mediainfo=bt709": 5,
+      "coreav=smpte170m ffprobe=smpte170m mediainfo=bt709": 2,
+      "coreav=bt470bg ffprobe=bt470bg mediainfo=None": 1
+     },
+     "kind": {
+      "coreav=subtitle ffprobe=data mediainfo=subtitle": 2
+     }
+    },
+    "duration_source_reading": {
+     "mediainfo-alone:coreav+ffprobe": 23,
+     "coreav-alone:none": 5,
+     "all-differ:ffprobe": 4,
+     "all-differ:coreav+ffprobe": 8,
+     "ffprobe-alone:ffprobe": 7,
+     "mediainfo-alone:none": 6,
+     "mediainfo-between:coreav+ffprobe": 2
+    },
+    "mediainfo_unmapped_names": {
+     "codec_name=mi:QuickTime TC": 111,
+     "codec_name=mi:gpmd": 38,
+     "codec_name=mi:Timed Metadata Sample": 35,
+     "codec_name=mi:Sony Real Time Metadata": 16,
+     "codec_name=mi:fdsc": 15,
+     "codec_name=mi:RTP": 13,
+     "kind=mi:Menu": 13,
+     "codec_name=mi:mett-application/octet-stream": 9,
+     "codec_name=mi:System": 8,
+     "codec_name=mi:System Core": 8,
+     "codec_name=mi:cndm": 6,
+     "codec_name=mi:AMR": 6,
+     "codec_name=mi:ADPCM": 5,
+     "codec_name=mi:wvtt": 3,
+     "codec_name=mi:Ogg": 2,
+     "codec_name=mi:EIA-608": 2,
+     "codec_name=mi:rtsp": 2,
+     "codec_name=mi:RLE": 2,
+     "codec_name=mi:priv": 2,
+     "codec_name=mi:WMA": 1,
+     "codec_name=mi:RGB": 1,
+     "codec_name=mi:moov": 1,
+     "codec_name=mi:MPEG Audio None": 1,
+     "codec_name=mi:djmd": 1,
+     "codec_name=mi:dbgi": 1,
+     "codec_name=mi:mett-application/microvideo-image-meta": 1
+    },
+    "not_observable": [
+     "timescale",
+     "handler_name"
+    ]
+   },
+   "matroska": {
+    "files": 209,
+    "probe_outcomes": {
+     "coreav ok, ffprobe ok, mediainfo ok": 209
+    },
+    "mediainfo_failures": {},
+    "coreav_rejects_ffprobe_reads": {
+     "files": 0,
+     "mediainfo_flags_truncated": 0,
+     "mediainfo_flags_conformance_errors": 0,
+     "mediainfo_fails": 0
+    },
+    "files_with_mediainfo_unpaired_tracks": 5,
+    "triage": {
+     "probe_ok": {},
+     "stream_count": {},
+     "format_duration": {
+      "mediainfo-between": 2
+     },
+     "kind": {},
+     "codec_fourcc": {},
+     "codec_name": {},
+     "width": {},
+     "height": {},
+     "rotation": {},
+     "duration": {
+      "coreav-alone": 2,
+      "ffprobe-alone": 21,
+      "all-differ": 29
+     },
+     "color_primaries": {},
+     "color_transfer": {},
+     "color_matrix": {},
+     "color_range": {
+      "ffprobe-alone": 3
+     }
+    },
+    "by_field": {
+     "probe_ok": {
+      "gating": true,
+      "all-agree": 209,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 0
+     },
+     "stream_count": {
+      "gating": true,
+      "all-agree": 209,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 0
+     },
+     "format_duration": {
+      "gating": true,
+      "all-agree": 207,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 2,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 0
+     },
+     "kind": {
+      "gating": true,
+      "all-agree": 396,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 0
+     },
+     "codec_fourcc": {
+      "gating": true,
+      "all-agree": 395,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 1,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 0
+     },
+     "codec_name": {
+      "gating": true,
+      "all-agree": 393,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 3,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 0
+     },
+     "width": {
+      "gating": true,
+      "all-agree": 375,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 21,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 0
+     },
+     "height": {
+      "gating": true,
+      "all-agree": 375,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 21,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 0
+     },
+     "rotation": {
+      "gating": true,
+      "all-agree": 396,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 0
+     },
+     "duration": {
+      "gating": true,
+      "all-agree": 22,
+      "coreav-alone": 2,
+      "ffprobe-alone": 21,
+      "mediainfo-alone": 322,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 29,
+      "not-comparable": 0
+     },
+     "color_primaries": {
+      "gating": true,
+      "all-agree": 396,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 0
+     },
+     "color_transfer": {
+      "gating": true,
+      "all-agree": 396,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 0
+     },
+     "color_matrix": {
+      "gating": true,
+      "all-agree": 396,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 0
+     },
+     "color_range": {
+      "gating": true,
+      "all-agree": 393,
+      "coreav-alone": 0,
+      "ffprobe-alone": 3,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 0
+     },
+     "sample_rate": {
+      "gating": false,
+      "all-agree": 390,
+      "coreav-alone": 6,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 0
+     },
+     "channels": {
+      "gating": false,
+      "all-agree": 396,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 0
+     },
+     "language": {
+      "gating": false,
+      "all-agree": 375,
+      "coreav-alone": 10,
+      "ffprobe-alone": 9,
+      "mediainfo-alone": 2,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 0
+     },
+     "sample_aspect_ratio": {
+      "gating": false,
+      "all-agree": 396,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 0,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 0
+     },
+     "display_aspect_ratio": {
+      "gating": false,
+      "all-agree": 395,
+      "coreav-alone": 0,
+      "ffprobe-alone": 0,
+      "mediainfo-alone": 1,
+      "mediainfo-between": 0,
+      "mediainfo-split": 0,
+      "all-differ": 0,
+      "not-comparable": 0
+     }
+    },
+    "two_way": {
+     "probe_ok": {
+      "coreav_vs_ffprobe": [
+       209,
+       209
+      ],
+      "mediainfo_vs_coreav": [
+       209,
+       209
+      ],
+      "mediainfo_vs_ffprobe": [
+       209,
+       209
+      ]
+     },
+     "stream_count": {
+      "coreav_vs_ffprobe": [
+       209,
+       209
+      ],
+      "mediainfo_vs_coreav": [
+       209,
+       209
+      ],
+      "mediainfo_vs_ffprobe": [
+       209,
+       209
+      ]
+     },
+     "format_duration": {
+      "coreav_vs_ffprobe": [
+       207,
+       209
+      ],
+      "mediainfo_vs_coreav": [
+       209,
+       209
+      ],
+      "mediainfo_vs_ffprobe": [
+       209,
+       209
+      ]
+     },
+     "kind": {
+      "coreav_vs_ffprobe": [
+       396,
+       396
+      ],
+      "mediainfo_vs_coreav": [
+       396,
+       396
+      ],
+      "mediainfo_vs_ffprobe": [
+       396,
+       396
+      ]
+     },
+     "codec_fourcc": {
+      "coreav_vs_ffprobe": [
+       396,
+       396
+      ],
+      "mediainfo_vs_coreav": [
+       395,
+       396
+      ],
+      "mediainfo_vs_ffprobe": [
+       395,
+       396
+      ]
+     },
+     "codec_name": {
+      "coreav_vs_ffprobe": [
+       396,
+       396
+      ],
+      "mediainfo_vs_coreav": [
+       393,
+       396
+      ],
+      "mediainfo_vs_ffprobe": [
+       393,
+       396
+      ]
+     },
+     "width": {
+      "coreav_vs_ffprobe": [
+       396,
+       396
+      ],
+      "mediainfo_vs_coreav": [
+       375,
+       396
+      ],
+      "mediainfo_vs_ffprobe": [
+       375,
+       396
+      ]
+     },
+     "height": {
+      "coreav_vs_ffprobe": [
+       396,
+       396
+      ],
+      "mediainfo_vs_coreav": [
+       375,
+       396
+      ],
+      "mediainfo_vs_ffprobe": [
+       375,
+       396
+      ]
+     },
+     "rotation": {
+      "coreav_vs_ffprobe": [
+       396,
+       396
+      ],
+      "mediainfo_vs_coreav": [
+       396,
+       396
+      ],
+      "mediainfo_vs_ffprobe": [
+       396,
+       396
+      ]
+     },
+     "duration": {
+      "coreav_vs_ffprobe": [
+       344,
+       396
+      ],
+      "mediainfo_vs_coreav": [
+       43,
+       396
+      ],
+      "mediainfo_vs_ffprobe": [
+       24,
+       396
+      ]
+     },
+     "color_primaries": {
+      "coreav_vs_ffprobe": [
+       396,
+       396
+      ],
+      "mediainfo_vs_coreav": [
+       396,
+       396
+      ],
+      "mediainfo_vs_ffprobe": [
+       396,
+       396
+      ]
+     },
+     "color_transfer": {
+      "coreav_vs_ffprobe": [
+       396,
+       396
+      ],
+      "mediainfo_vs_coreav": [
+       396,
+       396
+      ],
+      "mediainfo_vs_ffprobe": [
+       396,
+       396
+      ]
+     },
+     "color_matrix": {
+      "coreav_vs_ffprobe": [
+       396,
+       396
+      ],
+      "mediainfo_vs_coreav": [
+       396,
+       396
+      ],
+      "mediainfo_vs_ffprobe": [
+       396,
+       396
+      ]
+     },
+     "color_range": {
+      "coreav_vs_ffprobe": [
+       393,
+       396
+      ],
+      "mediainfo_vs_coreav": [
+       396,
+       396
+      ],
+      "mediainfo_vs_ffprobe": [
+       393,
+       396
+      ]
+     },
+     "sample_rate": {
+      "coreav_vs_ffprobe": [
+       390,
+       396
+      ],
+      "mediainfo_vs_coreav": [
+       390,
+       396
+      ],
+      "mediainfo_vs_ffprobe": [
+       396,
+       396
+      ]
+     },
+     "channels": {
+      "coreav_vs_ffprobe": [
+       396,
+       396
+      ],
+      "mediainfo_vs_coreav": [
+       396,
+       396
+      ],
+      "mediainfo_vs_ffprobe": [
+       396,
+       396
+      ]
+     },
+     "language": {
+      "coreav_vs_ffprobe": [
+       377,
+       396
+      ],
+      "mediainfo_vs_coreav": [
+       384,
+       396
+      ],
+      "mediainfo_vs_ffprobe": [
+       385,
+       396
+      ]
+     },
+     "sample_aspect_ratio": {
+      "coreav_vs_ffprobe": [
+       396,
+       396
+      ],
+      "mediainfo_vs_coreav": [
+       396,
+       396
+      ],
+      "mediainfo_vs_ffprobe": [
+       396,
+       396
+      ]
+     },
+     "display_aspect_ratio": {
+      "coreav_vs_ffprobe": [
+       396,
+       396
+      ],
+      "mediainfo_vs_coreav": [
+       395,
+       396
+      ],
+      "mediainfo_vs_ffprobe": [
+       395,
+       396
+      ]
+     }
+    },
+    "patterns": {
+     "language": {
+      "coreav=eng ffprobe=None mediainfo=eng": 8,
+      "coreav=en ffprobe=eng mediainfo=eng": 8,
+      "coreav=None ffprobe=None mediainfo=Unknown": 2,
+      "coreav=ja ffprobe=jpn mediainfo=jpn": 1,
+      "coreav=hin ffprobe=None mediainfo=hin": 1,
+      "coreav=es ffprobe=spa mediainfo=spa": 1
+     },
+     "codec_fourcc": {
+      "coreav=DX50 ffprobe=DX50 mediainfo=None": 1
+     },
+     "codec_name": {
+      "coreav=mpeg2video ffprobe=mpeg2video mediainfo=mi:MPEG Video": 2,
+      "coreav=webvtt ffprobe=webvtt mediainfo=mi:D_WEBVTT/SUBTITLES": 1
+     },
+     "color_range": {
+      "coreav=None ffprobe=tv mediainfo=None": 3
+     }
+    },
+    "duration_source_reading": {},
+    "mediainfo_unmapped_names": {
+     "codec_name=mi:MPEG Video": 2,
+     "codec_name=mi:D_WEBVTT/SUBTITLES": 1
+    },
+    "not_observable": [
+     "timescale",
+     "handler_name"
+    ]
+   }
+  },
+  "known_divergences": {
+   "pre_bar": [],
+   "added_after_the_bars": {
+    "KD-STRICT": {
+     "added": "#12 dd853a6",
+     "changed": [
+      "#116 88a660b"
+     ]
+    },
+    "KD-STTS-SHORT": {
+     "added": "#12 dd853a6",
+     "changed": [
+      "#105 2199176",
+      "#109 0bca9b9",
+      "#160 d7d79c2",
+      "#162 5316840",
+      "#161 1666715",
+      "#187 f9fa510",
+      "#254 8470744"
+     ]
+    },
+    "KD-EDIT-DISCARD": {
+     "added": "#12 dd853a6",
+     "changed": [
+      "#118 35f1801",
+      "#125 a213539",
+      "#162 5316840",
+      "#161 1666715",
+      "#187 f9fa510",
+      "#254 8470744"
+     ]
+    },
+    "KD-CTTS": {
+     "added": "#12 dd853a6",
+     "changed": [
+      "#118 35f1801",
+      "#142 36b1878",
+      "#162 5316840",
+      "#161 1666715",
+      "#187 f9fa510",
+      "#254 8470744"
+     ]
+    },
+    "KD-PCM": {
+     "added": "#12 dd853a6",
+     "changed": [
+      "#118 35f1801",
+      "#125 a213539",
+      "#126 c6236a6",
+      "#162 5316840",
+      "#161 1666715",
+      "#187 f9fa510",
+      "#254 8470744"
+     ]
+    },
+    "KD-AAC-IMPLICIT-SBR": {
+     "added": "#16 1bce9e8",
+     "changed": [
+      "#162 5316840",
+      "#161 1666715",
+      "#187 f9fa510",
+      "#254 8470744"
+     ]
+    },
+    "KD-AAC-LC-UNNAMED": {
+     "added": "#16 1bce9e8",
+     "changed": [
+      "#162 5316840",
+      "#161 1666715",
+      "#187 f9fa510",
+      "#254 8470744"
+     ]
+    },
+    "KD-DECLARED-SIZE": {
+     "added": "#70 060ed50",
+     "changed": []
+    },
+    "KD-QT-TEXT": {
+     "added": "#69 364d038",
+     "changed": [
+      "#104 3c771c2",
+      "#136 6aaafb2",
+      "#148 61a60b8"
+     ]
+    },
+    "KD-EDIT-SNAP": {
+     "added": "#107 2d79137",
+     "changed": [
+      "#142 36b1878",
+      "#162 5316840",
+      "#161 1666715",
+      "#187 f9fa510",
+      "#254 8470744"
+     ]
+    },
+    "KD-EDIT-DURATION": {
+     "added": "#109 0bca9b9",
+     "changed": [
+      "#153 31b3951",
+      "#142 36b1878",
+      "#160 d7d79c2",
+      "#162 5316840",
+      "#161 1666715",
+      "#187 f9fa510",
+      "#254 8470744"
+     ]
+    },
+    "KD-FRAG-START": {
+     "added": "#142 36b1878",
+     "changed": [
+      "#160 d7d79c2",
+      "#162 5316840",
+      "#161 1666715",
+      "#187 f9fa510",
+      "#254 8470744"
+     ]
+    },
+    "KD-NOT-ALLOWED": {
+     "added": "#104 3c771c2",
+     "changed": [
+      "#136 6aaafb2",
+      "#148 61a60b8"
+     ]
+    },
+    "KD-COVER-ART": {
+     "added": "#136 6aaafb2",
+     "changed": [
+      "#148 61a60b8"
+     ]
+    },
+    "KD-CHAPTER-TEXT": {
+     "added": "#148 61a60b8",
+     "changed": [
+      "#162 5316840",
+      "#161 1666715",
+      "#187 f9fa510",
+      "#254 8470744"
+     ]
+    },
+    "KD-EDIT-MULTI": {
+     "added": "#153 31b3951",
+     "changed": [
+      "#162 5316840",
+      "#161 1666715",
+      "#187 f9fa510",
+      "#254 8470744"
+     ]
+    },
+    "KD-TRUN-SHIFT": {
+     "added": "#160 d7d79c2",
+     "changed": [
+      "#162 5316840",
+      "#161 1666715",
+      "#187 f9fa510",
+      "#254 8470744"
+     ]
+    },
+    "KD-CTTS-UNSIGNED": {
+     "added": "#160 d7d79c2",
+     "changed": [
+      "#162 5316840",
+      "#161 1666715",
+      "#187 f9fa510",
+      "#254 8470744"
+     ]
+    },
+    "KD-PCM-END": {
+     "added": "#160 d7d79c2",
+     "changed": [
+      "#162 5316840",
+      "#161 1666715",
+      "#187 f9fa510",
+      "#254 8470744"
+     ]
+    },
+    "KD-EDIT-UNPLACED": {
+     "added": "#160 d7d79c2",
+     "changed": [
+      "#162 5316840",
+      "#161 1666715",
+      "#187 f9fa510",
+      "#254 8470744"
+     ]
+    },
+    "KD-TEXT-END": {
+     "added": "#161 1666715",
+     "changed": [
+      "#187 f9fa510",
+      "#254 8470744"
+     ]
+    },
+    "KD-MKV-DTS": {
+     "added": "#51 13600fb",
+     "changed": []
+    },
+    "KD-MKV-LACE-UNTIMED": {
+     "added": "#51 13600fb",
+     "changed": []
+    },
+    "KD-MKV-LACE-SPLIT": {
+     "added": "#51 13600fb",
+     "changed": []
+    },
+    "KD-MKV-AUDIO-KEYFRAME": {
+     "added": "#51 13600fb",
+     "changed": []
+    },
+    "KD-MKV-VFW-TIMESTAMPS": {
+     "added": "#51 13600fb",
+     "changed": []
+    },
+    "KD-MKV-WEBM-WEBVTT": {
+     "added": "#51 13600fb",
+     "changed": []
+    },
+    "KD-MKV-ENCRYPTED": {
+     "added": "#51 13600fb",
+     "changed": []
+    },
+    "KD-MKV-STREAM-DURATION": {
+     "added": "#51 13600fb",
+     "changed": []
+    },
+    "KD-MKV-FMT-ROUNDING": {
+     "added": "#51 13600fb",
+     "changed": []
+    },
+    "KD-MKV-UNREAD-BITSTREAM": {
+     "added": "#51 13600fb",
+     "changed": []
+    },
+    "KD-MKV-HEVC-RANGE": {
+     "added": "#51 13600fb",
+     "changed": []
+    },
+    "KD-MKV-ATTACHMENT": {
+     "added": "#51 13600fb",
+     "changed": []
+    },
+    "KD-MKV-DECLARED-SIZE": {
+     "added": "#90 5b3148e",
+     "changed": []
+    },
+    "KD-MKV-TAG-LANGUAGE": {
+     "added": "#255 bc1adbd",
+     "changed": []
+    },
+    "KD-TS-END-ESTIMATE": {
+     "added": "#247 dde526b",
+     "changed": []
+    },
+    "KD-TS-DUPLICATE": {
+     "added": "#247 dde526b",
+     "changed": []
+    }
+   },
+   "retired": {
+    "KD-FMT-ORIGIN": {
+     "added": "#12 dd853a6",
+     "retired": "#105 2199176"
+    }
+   }
+  }
+ },
+ "hostile": {
+  "native_met": true,
+  "reject_cases_met": true
+ },
+ "hostile_detail": {
+  "provenance": {
+   "commit": "8470744f84e2cf05dcb701ed3aeaf1a1018632b2",
+   "dirty": false,
+   "time_utc": "2026-10-20T08:43:14Z"
+  },
+  "cases": 289,
+  "by_part": {
+   "structural": {
+    "reject": 11,
+    "bounded": 1
+   },
+   "mutation": {
+    "reject": 0,
+    "bounded": 246
+   },
+   "pixelsmash": {
+    "reject": 3,
+    "bounded": 0
+   },
+   "cve": {
+    "reject": 5,
+    "bounded": 0
+   },
+   "matroska": {
+    "reject": 0,
+    "bounded": 23
+   }
+  },
+  "cves": [
+   {
+    "name": "magicyuv.avi",
+    "cve": "CVE-2026-8461",
+    "component": null,
+    "outcome": "reject"
+   },
+   {
+    "name": "magicyuv.mov",
+    "cve": "CVE-2026-8461",
+    "component": null,
+    "outcome": "reject"
+   },
+   {
+    "name": "magicyuv.mkv",
+    "cve": "CVE-2026-8461",
+    "component": null,
+    "outcome": "reject"
+   },
+   {
+    "name": "cve-2024-7055_pnm.mp4",
+    "cve": "CVE-2024-7055",
+    "component": "heap-based buffer overflow in pnm_decode_frame (libavcodec/pnmdec.c), FFmpeg up to 7.0.1",
+    "outcome": "reject"
+   },
+   {
+    "name": "cve-2020-35965_exr.mp4",
+    "cve": "CVE-2020-35965",
+    "component": "out-of-bounds write in decode_frame (libavcodec/exr.c), FFmpeg 4.3.1",
+    "outcome": "reject"
+   },
+   {
+    "name": "cve-2020-35965_exr.mkv",
+    "cve": "CVE-2020-35965",
+    "component": "out-of-bounds write in decode_frame (libavcodec/exr.c), FFmpeg 4.3.1",
+    "outcome": "reject"
+   },
+   {
+    "name": "cve-2024-36618_avi.mp4",
+    "cve": "CVE-2024-36618",
+    "component": "integer overflow in the AVI demuxer (libavformat), FFmpeg n6.1.1",
+    "outcome": "reject"
+   },
+   {
+    "name": "cve-2024-35366_sbg.mp4",
+    "cve": "CVE-2024-35366",
+    "component": "integer overflow in parse_options (libavformat/sbgdec.c), FFmpeg n6.1.1",
+    "outcome": "reject"
+   }
+  ],
+  "native": {
+   "cases": {
+    "reject": 19,
+    "bounded": 270
+   },
+   "failures": [],
+   "passed": true
+  },
+  "reject_cases_probed_ok": [
+   {
+    "name": "magicyuv.mov",
+    "allowed_streams": 0
+   }
+  ],
+  "manifest_sha256": "9a99179f5ab8ada9f0c25f700ca9d4bed2f59984f4252d884ef180901f6cf9d1"
+ }
+}

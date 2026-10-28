@@ -1,0 +1,28 @@
+{
+ "creatingLibrary": {
+  "name": "MediaInfoLib",
+  "version": "26.10",
+  "url": "https://mediaarea.net/MediaInfo"
+ },
+ "media": {
+  "@ref": "pcm_f32le.mov",
+  "track": [
+   {
+    "@type": "General",
+    "Format": "MPEG-4",
+    "Format_Profile": "QuickTime",
+    "CodecID": "qt  ",
+    "Duration": "2.000"
+   },
+   {
+    "@type": "Audio",
+    "StreamOrder": "0",
+    "Format": "PCM",
+    "CodecID": "fl32",
+    "Duration": "2.000",
+    "Channels": "1",
+    "SamplingRate": "48000"
+   }
+  ]
+ }
+}

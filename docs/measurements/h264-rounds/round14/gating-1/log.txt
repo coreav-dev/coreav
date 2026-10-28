@@ -1,0 +1,32 @@
+15:57:35 cpu facts:
+model name	: unknown
+CPU(s):              24
+Vendor ID:           AuthenticAMD
+CPU family:          25
+Model:               1
+Thread(s) per core:  1
+Core(s) per socket:  24
+Socket(s):           1
+Stepping:            unknown
+8
+24
+avx2 
+15:57:53 reference measurement 1: 36501d448eaa.0.720p 1.350s; a6af290d9053.0.1080p 4.551s
+16:03:11 reference measurement 2: 36501d448eaa.0.720p 1.406s; a6af290d9053.0.1080p 4.681s
+16:08:29 reference measurement 3: 36501d448eaa.0.720p 1.356s; a6af290d9053.0.1080p 4.520s
+16:08:29 reference {'36501d448eaa.0.720p': 1.3559647440000617, 'a6af290d9053.0.1080p': 4.551176455} max deviation {'36501d448eaa.0.720p': 0.03671323256760095, 'a6af290d9053.0.1080p': 0.028567860702729764} stable
+16:14:33 identity 32/32 same
+16:14:52 FAIL gate 36501d448eaa.0.720p ratio 1.057; a6af290d9053.0.1080p ratio 1.052
+16:16:10 PASS gate 36501d448eaa.0.720p ratio 1.025; a6af290d9053.0.1080p ratio 1.022
+16:20:29 PASS gate 36501d448eaa.0.720p ratio 1.024; a6af290d9053.0.1080p ratio 1.043
+16:20:29 g sd done
+16:20:47 PASS gate 36501d448eaa.0.720p ratio 0.994; a6af290d9053.0.1080p ratio 1.010
+16:27:52 PASS gate 36501d448eaa.0.720p ratio 1.009; a6af290d9053.0.1080p ratio 0.986
+16:27:52 g 720p done
+16:28:10 PASS gate 36501d448eaa.0.720p ratio 0.983; a6af290d9053.0.1080p ratio 1.000
+16:43:37 PASS gate 36501d448eaa.0.720p ratio 1.038; a6af290d9053.0.1080p ratio 1.021
+16:43:37 g 1080p done
+16:43:55 PASS gate 36501d448eaa.0.720p ratio 1.039; a6af290d9053.0.1080p ratio 0.992
+16:51:48 PASS gate 36501d448eaa.0.720p ratio 1.001; a6af290d9053.0.1080p ratio 0.991
+16:51:48 g 4k done
+16:51:48 analysis done elapsed 3253s

@@ -1,0 +1,34 @@
+# cargo-fuzz project (docs/design/text.md); outside the workspace, never published.
+[package]
+name = "coreav-text-fuzz"
+version = "0.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+coreav-isobmff = { path = "../../coreav-isobmff" }
+coreav-text = { path = ".." }
+
+[[bin]]
+name = "subtitles"
+path = "fuzz_targets/subtitles.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "sample"
+path = "fuzz_targets/sample.rs"
+test = false
+doc = false
+bench = false
+
+[lints.rust]
+unsafe_code = "forbid"

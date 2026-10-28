@@ -1,0 +1,12 @@
+PASS model106 level check 1 10:29Z 36501d448eaa.0.720p 1.291s (ref 1.295) ratio 0.997; a6af290d9053.0.1080p 4.382s (ref 4.388) ratio 0.999
+PASS model106 level check 2 10:29Z 36501d448eaa.0.720p 1.303s (ref 1.295) ratio 1.006; a6af290d9053.0.1080p 4.288s (ref 4.388) ratio 0.977
+PASS model106 level check 3 10:30Z 36501d448eaa.0.720p 1.294s (ref 1.295) ratio 0.999; a6af290d9053.0.1080p 4.292s (ref 4.388) ratio 0.978
+PASS model106 level check 4 10:30Z 36501d448eaa.0.720p 1.297s (ref 1.295) ratio 1.002; a6af290d9053.0.1080p 4.284s (ref 4.388) ratio 0.976
+PASS model106 level check 5 10:30Z 36501d448eaa.0.720p 1.284s (ref 1.295) ratio 0.991; a6af290d9053.0.1080p 4.475s (ref 4.388) ratio 1.020
+FAIL model106 level check 6 10:31Z 36501d448eaa.0.720p 1.445s (ref 1.295) ratio 1.116; a6af290d9053.0.1080p 4.652s (ref 4.388) ratio 1.060
+PASS model106 level check 7 10:31Z 36501d448eaa.0.720p 1.290s (ref 1.295) ratio 0.996; a6af290d9053.0.1080p 4.343s (ref 4.388) ratio 0.990
+PASS model106 level check 8 10:31Z 36501d448eaa.0.720p 1.304s (ref 1.295) ratio 1.007; a6af290d9053.0.1080p 4.352s (ref 4.388) ratio 0.992
+PASS model106 level check 9 10:32Z 36501d448eaa.0.720p 1.282s (ref 1.295) ratio 0.990; a6af290d9053.0.1080p 4.271s (ref 4.388) ratio 0.973
+PASS model106 level check 10 10:32Z 36501d448eaa.0.720p 1.292s (ref 1.295) ratio 0.998; a6af290d9053.0.1080p 4.276s (ref 4.388) ratio 0.975
+PASS model106 level check 11 10:32Z 36501d448eaa.0.720p 1.280s (ref 1.295) ratio 0.989; a6af290d9053.0.1080p 4.283s (ref 4.388) ratio 0.976
+PASS model106 level check 12 10:32Z 36501d448eaa.0.720p 1.357s (ref 1.295) ratio 1.048; a6af290d9053.0.1080p 4.393s (ref 4.388) ratio 1.001

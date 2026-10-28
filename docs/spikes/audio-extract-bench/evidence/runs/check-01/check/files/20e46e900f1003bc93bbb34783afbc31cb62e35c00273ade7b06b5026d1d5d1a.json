@@ -1,0 +1,117 @@
+{
+ "sha256": "20e46e900f1003bc93bbb34783afbc31cb62e35c00273ade7b06b5026d1d5d1a",
+ "size": 4678903542,
+ "ext": "mp4",
+ "holdout": false,
+ "tags": [
+  "a:aac",
+  "brand:isom",
+  "c:isobmff",
+  "d:tmcd",
+  "elst",
+  "large-2gb",
+  "moov-end",
+  "timecode",
+  "v:h264"
+ ],
+ "download_seconds": 73.01034260600001,
+ "ffprobe_streams": [
+  {
+   "index": 0,
+   "codec_type": "video",
+   "codec_name": "h264",
+   "codec_tag_string": "avc1",
+   "profile": "High",
+   "sample_rate": null,
+   "channels": null,
+   "duration": "1243.092500",
+   "nb_frames": "74510"
+  },
+  {
+   "index": 1,
+   "codec_type": "audio",
+   "codec_name": "aac",
+   "codec_tag_string": "mp4a",
+   "profile": "LC",
+   "sample_rate": "48000",
+   "channels": 2,
+   "duration": "1243.093333",
+   "nb_frames": "58270"
+  },
+  {
+   "index": 2,
+   "codec_type": "data",
+   "codec_name": null,
+   "codec_tag_string": "tmcd",
+   "profile": null,
+   "sample_rate": null,
+   "channels": null,
+   "duration": "1243.092500",
+   "nb_frames": "1"
+  }
+ ],
+ "coreav": {
+  "probe_ns": 7265850,
+  "fragmented": false,
+  "movie_timescale": 1000,
+  "tracks": [
+   {
+    "stream_index": 0,
+    "kind": "Video",
+    "codec": "H264",
+    "fourcc": "avc1",
+    "descriptions": 1,
+    "edit_list": "Simple { empty: 0, media_time: 0, segment: 1243093 }",
+    "timescale": 60000,
+    "sample_count": 74510,
+    "fragment_samples": 0
+   },
+   {
+    "stream_index": 1,
+    "kind": "Audio",
+    "codec": "Aac",
+    "fourcc": "mp4a",
+    "descriptions": 1,
+    "edit_list": "Simple { empty: 0, media_time: 0, segment: 1243094 }",
+    "timescale": 48000,
+    "sample_count": 58270,
+    "fragment_samples": 0
+   },
+   {
+    "stream_index": 2,
+    "kind": "Timecode",
+    "codec": "Timecode",
+    "fourcc": "tmcd",
+    "descriptions": 1,
+    "edit_list": "Simple { empty: 0, media_time: 0, segment: 1243093 }",
+    "timescale": 60000,
+    "sample_count": 1,
+    "fragment_samples": 0
+   }
+  ],
+  "dropped": [],
+  "aac": [
+   {
+    "stream_index": 1,
+    "extract_ns": 7812704301,
+    "ok": true,
+    "output": "/data/work/20e46e900f1003bc93bbb34783afbc31cb62e35c00273ade7b06b5026d1d5d1a/out/1.m4a",
+    "samples": 58270,
+    "bytes_written": 20128554,
+    "timescale": 48000,
+    "duration": 59668480,
+    "round_trip": []
+   }
+  ]
+ },
+ "checks": [
+  {
+   "stream_index": 1,
+   "extract_ok": true,
+   "round_trip": [],
+   "oracle_problems": [],
+   "oracle_informational": []
+  }
+ ],
+ "seconds": 107.740588285
+}

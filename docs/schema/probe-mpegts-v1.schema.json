@@ -1,0 +1,813 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/coreav-dev/coreav/docs/schema/probe-mpegts-v1.schema.json",
+ "title": "coreav.probe-mpegts/1",
+ "description": "Output of `coreav probe` for MPEG transport streams. Every key is always present; unknown values are null. Documented in probe-mpegts-v1.md.",
+ "type": "object",
+ "additionalProperties": false,
+ "required": [
+  "schema",
+  "file",
+  "container",
+  "start",
+  "duration",
+  "streams",
+  "dropped_streams",
+  "warnings"
+ ],
+ "properties": {
+  "schema": {
+   "const": "coreav.probe-mpegts/1"
+  },
+  "file": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "size"
+   ],
+   "properties": {
+    "size": {
+     "type": "integer",
+     "minimum": 0
+    }
+   }
+  },
+  "container": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "packet_size",
+    "first_packet",
+    "timescale",
+    "scanned",
+    "programs"
+   ],
+   "properties": {
+    "packet_size": {
+     "enum": [
+      188,
+      192,
+      204
+     ]
+    },
+    "first_packet": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "timescale": {
+     "const": 90000
+    },
+    "scanned": {
+     "type": "boolean"
+    },
+    "programs": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+       "number",
+       "pmt_pid",
+       "pcr_pid",
+       "stream_pids"
+      ],
+      "properties": {
+       "number": {
+        "type": "integer",
+        "minimum": 0
+       },
+       "pmt_pid": {
+        "type": "integer",
+        "minimum": 0
+       },
+       "pcr_pid": {
+        "type": "integer",
+        "minimum": 0
+       },
+       "stream_pids": {
+        "type": "array",
+        "items": {
+         "type": "integer",
+         "minimum": 0
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "start": {
+   "anyOf": [
+    {
+     "$ref": "#/$defs/time"
+    },
+    {
+     "type": "null"
+    }
+   ]
+  },
+  "duration": {
+   "anyOf": [
+    {
+     "$ref": "#/$defs/time"
+    },
+    {
+     "type": "null"
+    }
+   ]
+  },
+  "streams": {
+   "type": "array",
+   "items": {
+    "$ref": "#/$defs/stream"
+   }
+  },
+  "dropped_streams": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "stream_index",
+     "pid",
+     "stream_type",
+     "codec",
+     "reason"
+    ],
+    "properties": {
+     "stream_index": {
+      "type": "integer",
+      "minimum": 0
+     },
+     "pid": {
+      "type": "integer",
+      "minimum": 0
+     },
+     "stream_type": {
+      "type": "integer",
+      "minimum": 0
+     },
+     "codec": {
+      "$ref": "#/$defs/codec"
+     },
+     "reason": {
+      "const": "codec_not_allowed"
+     }
+    }
+   }
+  },
+  "warnings": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  }
+ },
+ "$defs": {
+  "rational": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "num",
+    "den"
+   ],
+   "properties": {
+    "num": {
+     "type": "integer"
+    },
+    "den": {
+     "type": "integer",
+     "minimum": 1
+    }
+   }
+  },
+  "time": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "ticks",
+    "timescale",
+    "seconds"
+   ],
+   "properties": {
+    "ticks": {
+     "type": "integer"
+    },
+    "timescale": {
+     "const": 90000
+    },
+    "seconds": {
+     "type": [
+      "number",
+      "null"
+     ]
+    }
+   }
+  },
+  "bit_rate": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "exact",
+    "bits_per_second"
+   ],
+   "properties": {
+    "exact": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/rational"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "bits_per_second": {
+     "type": [
+      "number",
+      "null"
+     ]
+    }
+   }
+  },
+  "profile": {
+   "anyOf": [
+    {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "type",
+      "name",
+      "profile_idc",
+      "constraint_flags",
+      "level_idc"
+     ],
+     "properties": {
+      "type": {
+       "const": "h264"
+      },
+      "name": {
+       "type": [
+        "string",
+        "null"
+       ]
+      },
+      "profile_idc": {
+       "type": "integer",
+       "minimum": 0
+      },
+      "constraint_flags": {
+       "type": "integer",
+       "minimum": 0
+      },
+      "level_idc": {
+       "type": "integer",
+       "minimum": 0
+      }
+     }
+    },
+    {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "type",
+      "name",
+      "profile_space",
+      "high_tier",
+      "profile_idc",
+      "compatibility_flags",
+      "constraint_flags",
+      "level_idc"
+     ],
+     "properties": {
+      "type": {
+       "const": "hevc"
+      },
+      "name": {
+       "type": [
+        "string",
+        "null"
+       ]
+      },
+      "profile_space": {
+       "type": "integer",
+       "minimum": 0
+      },
+      "high_tier": {
+       "type": "boolean"
+      },
+      "profile_idc": {
+       "type": "integer",
+       "minimum": 0
+      },
+      "compatibility_flags": {
+       "type": "integer",
+       "minimum": 0
+      },
+      "constraint_flags": {
+       "type": "integer",
+       "minimum": 0
+      },
+      "level_idc": {
+       "type": "integer",
+       "minimum": 0
+      }
+     }
+    },
+    {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "type",
+      "name",
+      "profile",
+      "level_idx",
+      "high_tier",
+      "high_bitdepth",
+      "twelve_bit",
+      "monochrome"
+     ],
+     "properties": {
+      "type": {
+       "const": "av1"
+      },
+      "name": {
+       "type": [
+        "string",
+        "null"
+       ]
+      },
+      "profile": {
+       "type": "integer",
+       "minimum": 0
+      },
+      "level_idx": {
+       "type": "integer",
+       "minimum": 0
+      },
+      "high_tier": {
+       "type": "boolean"
+      },
+      "high_bitdepth": {
+       "type": "boolean"
+      },
+      "twelve_bit": {
+       "type": "boolean"
+      },
+      "monochrome": {
+       "type": "boolean"
+      }
+     }
+    },
+    {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "type",
+      "name",
+      "profile",
+      "level",
+      "bit_depth"
+     ],
+     "properties": {
+      "type": {
+       "const": "vp9"
+      },
+      "name": {
+       "type": [
+        "string",
+        "null"
+       ]
+      },
+      "profile": {
+       "type": "integer",
+       "minimum": 0
+      },
+      "level": {
+       "type": "integer",
+       "minimum": 0
+      },
+      "bit_depth": {
+       "type": "integer",
+       "minimum": 0
+      }
+     }
+    },
+    {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "type",
+      "name",
+      "object_type",
+      "sbr",
+      "ps"
+     ],
+     "properties": {
+      "type": {
+       "const": "aac"
+      },
+      "name": {
+       "type": [
+        "string",
+        "null"
+       ]
+      },
+      "object_type": {
+       "type": "integer",
+       "minimum": 0
+      },
+      "sbr": {
+       "type": "boolean"
+      },
+      "ps": {
+       "type": "boolean"
+      }
+     }
+    },
+    {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "type",
+      "name"
+     ],
+     "properties": {
+      "type": {
+       "const": "prores"
+      },
+      "name": {
+       "type": [
+        "string",
+        "null"
+       ]
+      }
+     }
+    }
+   ]
+  },
+  "codec": {
+   "enum": [
+    "h264",
+    "hevc",
+    "vvc",
+    "mpeg1video",
+    "mpeg2video",
+    "mpeg4",
+    "aac",
+    "aac_latm",
+    "mpeg_audio",
+    "ac3",
+    "eac3",
+    "dts",
+    "bluray_pcm",
+    "opus",
+    "scte35",
+    "id3",
+    "dvb_subtitle",
+    "dvb_teletext",
+    "pgs",
+    "arib_caption",
+    "epg",
+    "other"
+   ]
+  },
+  "stream": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "index",
+    "stream_index",
+    "pid",
+    "programs",
+    "pmt_index",
+    "stream_type",
+    "codec",
+    "kind",
+    "language",
+    "descriptors",
+    "format_identifier",
+    "config_size",
+    "profile",
+    "mpeg2_profile",
+    "start",
+    "duration",
+    "scan",
+    "video",
+    "audio"
+   ],
+   "properties": {
+    "index": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "stream_index": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "pid": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "programs": {
+     "type": "array",
+     "items": {
+      "type": "integer",
+      "minimum": 0
+     }
+    },
+    "pmt_index": {
+     "type": [
+      "integer",
+      "null"
+     ],
+     "minimum": 0
+    },
+    "stream_type": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "codec": {
+     "$ref": "#/$defs/codec"
+    },
+    "kind": {
+     "enum": [
+      "video",
+      "audio",
+      "subtitle",
+      "data"
+     ]
+    },
+    "language": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "descriptors": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+       "tag",
+       "size"
+      ],
+      "properties": {
+       "tag": {
+        "type": "integer",
+        "minimum": 0
+       },
+       "size": {
+        "type": "integer",
+        "minimum": 0
+       }
+      }
+     }
+    },
+    "format_identifier": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "config_size": {
+     "type": [
+      "integer",
+      "null"
+     ],
+     "minimum": 0
+    },
+    "profile": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/profile"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "mpeg2_profile": {
+     "anyOf": [
+      {
+       "type": "object",
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "profile",
+        "level"
+       ],
+       "properties": {
+        "name": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "profile": {
+         "type": "integer",
+         "minimum": 0
+        },
+        "level": {
+         "type": "integer",
+         "minimum": 0
+        }
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "start": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/time"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "duration": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/time"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "scan": {
+     "anyOf": [
+      {
+       "type": "object",
+       "additionalProperties": false,
+       "required": [
+        "packets",
+        "bytes",
+        "first_pts",
+        "last_pts",
+        "span",
+        "bit_rate"
+       ],
+       "properties": {
+        "packets": {
+         "type": "integer",
+         "minimum": 0
+        },
+        "bytes": {
+         "type": "integer",
+         "minimum": 0
+        },
+        "first_pts": {
+         "anyOf": [
+          {
+           "$ref": "#/$defs/time"
+          },
+          {
+           "type": "null"
+          }
+         ]
+        },
+        "last_pts": {
+         "anyOf": [
+          {
+           "$ref": "#/$defs/time"
+          },
+          {
+           "type": "null"
+          }
+         ]
+        },
+        "span": {
+         "anyOf": [
+          {
+           "$ref": "#/$defs/time"
+          },
+          {
+           "type": "null"
+          }
+         ]
+        },
+        "bit_rate": {
+         "anyOf": [
+          {
+           "$ref": "#/$defs/bit_rate"
+          },
+          {
+           "type": "null"
+          }
+         ]
+        }
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "video": {
+     "anyOf": [
+      {
+       "type": "object",
+       "additionalProperties": false,
+       "required": [
+        "width",
+        "height",
+        "color"
+       ],
+       "properties": {
+        "width": {
+         "type": "integer",
+         "minimum": 0
+        },
+        "height": {
+         "type": "integer",
+         "minimum": 0
+        },
+        "color": {
+         "type": "object",
+         "additionalProperties": false,
+         "required": [
+          "primaries",
+          "transfer",
+          "matrix",
+          "full_range"
+         ],
+         "properties": {
+          "primaries": {
+           "type": [
+            "integer",
+            "null"
+           ],
+           "minimum": 0
+          },
+          "transfer": {
+           "type": [
+            "integer",
+            "null"
+           ],
+           "minimum": 0
+          },
+          "matrix": {
+           "type": [
+            "integer",
+            "null"
+           ],
+           "minimum": 0
+          },
+          "full_range": {
+           "type": [
+            "boolean",
+            "null"
+           ]
+          }
+         }
+        }
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "audio": {
+     "anyOf": [
+      {
+       "type": "object",
+       "additionalProperties": false,
+       "required": [
+        "sample_rate",
+        "channels",
+        "detail"
+       ],
+       "properties": {
+        "sample_rate": {
+         "type": "integer",
+         "minimum": 0
+        },
+        "channels": {
+         "type": [
+          "integer",
+          "null"
+         ],
+         "minimum": 0
+        },
+        "detail": {
+         "type": "integer",
+         "minimum": 0
+        }
+       }
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   }
+  }
+ }
+}

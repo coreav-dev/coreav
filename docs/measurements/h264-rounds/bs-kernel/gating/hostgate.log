@@ -1,0 +1,14 @@
+FAIL model106 before g.sd #1 07:15Z 36501d448eaa.0.720p 1.429s (ref 1.295) ratio 1.103; a6af290d9053.0.1080p 4.298s (ref 4.388) ratio 0.980
+FAIL model106 before g.sd #1 07:16Z 36501d448eaa.0.720p 1.282s (ref 1.295) ratio 0.990; a6af290d9053.0.1080p 4.641s (ref 4.388) ratio 1.058
+PASS model106 before g.sd #1 07:18Z 36501d448eaa.0.720p 1.286s (ref 1.295) ratio 0.993; a6af290d9053.0.1080p 4.248s (ref 4.388) ratio 0.968
+PASS model106 after g.sd #1 07:31Z 36501d448eaa.0.720p 1.275s (ref 1.295) ratio 0.984; a6af290d9053.0.1080p 4.323s (ref 4.388) ratio 0.985
+PASS model106 before g.720p #1 07:32Z 36501d448eaa.0.720p 1.281s (ref 1.295) ratio 0.989; a6af290d9053.0.1080p 4.268s (ref 4.388) ratio 0.973
+PASS model106 after g.720p #1 08:01Z 36501d448eaa.0.720p 1.272s (ref 1.295) ratio 0.982; a6af290d9053.0.1080p 4.244s (ref 4.388) ratio 0.967
+PASS model106 before g.1080p #1 08:02Z 36501d448eaa.0.720p 1.281s (ref 1.295) ratio 0.989; a6af290d9053.0.1080p 4.312s (ref 4.388) ratio 0.983
+PASS model106 after g.1080p #1 09:34Z 36501d448eaa.0.720p 1.303s (ref 1.295) ratio 1.006; a6af290d9053.0.1080p 4.321s (ref 4.388) ratio 0.985
+PASS model106 before g.4k #1 09:34Z 36501d448eaa.0.720p 1.302s (ref 1.295) ratio 1.005; a6af290d9053.0.1080p 4.485s (ref 4.388) ratio 1.022
+PASS model106 after g.4k #1 10:37Z 36501d448eaa.0.720p 1.289s (ref 1.295) ratio 0.995; a6af290d9053.0.1080p 4.306s (ref 4.388) ratio 0.981
+VOID g.4k attempt 1 (8 unresolved streams, above the bars' four; in-call gate baseline 0.184 s against 0.120-0.157 s after: a host fault) 10:49
+FAIL model106 before g.4k #2 10:50Z 36501d448eaa.0.720p 1.444s (ref 1.295) ratio 1.115; a6af290d9053.0.1080p 4.393s (ref 4.388) ratio 1.001
+PASS model106 before g.4k #2 10:51Z 36501d448eaa.0.720p 1.315s (ref 1.295) ratio 1.015; a6af290d9053.0.1080p 4.369s (ref 4.388) ratio 0.996
+PASS model106 after g.4k #2 11:20Z 36501d448eaa.0.720p 1.283s (ref 1.295) ratio 0.991; a6af290d9053.0.1080p 4.281s (ref 4.388) ratio 0.976

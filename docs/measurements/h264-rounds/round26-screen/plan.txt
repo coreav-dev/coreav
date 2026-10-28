@@ -1,0 +1,12 @@
+Round 26 screening (colocated), written before the run. Arms: col-base (main 056bd25 code, = dw-4cb168e), col-c (corners
+read once), col-ch (corners once + next MB's 4 corner lines hinted, ahead pictures only). ab3.py 5 rounds, all 32, pinned cpu 3.
+Queue for gating only if col-ch/base all-32 median <= 0.997 (the main bar B-1 level of recent rounds). Else record + offer
+to kernel helper's bundle.
+
+Round 26b screening (finish_mb record store), written before the run. Arms: col-base vs rec-p1 (finish_mb: MbInfo copied
+before `uniform` is set in the slot, so no 1-byte store to self.cur right before the 60-byte wide reload). ab3.py 5 rounds,
+all 32, pinned cpu 3. Queue for gating if rec-p1/base all-32 median <= 0.997; record either way.
+
+Round 26c screening (record stores), written before the run. Arms: col-base, rec-p1 (as above), rec-p2 (P1 + write hints
+for the next MB's 16 motion blocks (4 hints) and its MbInfo slot, every picture size), rec-h (the hints alone). ab3.py
+5 rounds, all 32. Queue the best arm for gating if its all-32 median vs base <= 0.997 and no class median > 1.003.

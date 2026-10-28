@@ -1,0 +1,117 @@
+{
+ "repeat-a": {
+  "packet_index": {
+   "all": 0.28674239479759855,
+   "classes": {
+    "group-a": 0.3962796265488353,
+    "group-c": 0.29455993251440343,
+    "group-e": 0.2322175001999639,
+    "group-g": 0.2716512397486931
+   }
+  },
+  "packet_index_change": {
+   "all": 0.8277449727291867,
+   "classes": {
+    "group-a": 0.46400054268989177,
+    "group-c": 0.8392077399298237,
+    "group-e": 0.6457242947403974,
+    "group-g": 0.9775794841031794
+   }
+  },
+  "hls_index": {
+   "all": 0.6202392518733617,
+   "classes": {
+    "group-a": 1.6759784231418342,
+    "group-c": 0.4432596081069717,
+    "group-e": 0.5976270575065012,
+    "group-g": 0.4749982151613498
+   }
+  },
+  "hls_index_change": {
+   "all": 0.8942319668191954,
+   "classes": {
+    "group-a": 0.8194961348933503,
+    "group-c": 0.9008204439331176,
+    "group-e": 0.8425521219310359,
+    "group-g": 0.912588980572347
+   }
+  }
+ },
+ "repeat-b": {
+  "packet_index": {
+   "all": 0.304202127154242,
+   "classes": {
+    "group-a": 0.4038964697743958,
+    "group-c": 0.30800613146745376,
+    "group-e": 0.248648961400685,
+    "group-g": 0.28193451886322085
+   }
+  },
+  "packet_index_change": {
+   "all": 0.8116728203565013,
+   "classes": {
+    "group-a": 0.382780514208032,
+    "group-c": 0.8491531788571784,
+    "group-e": 0.6692272440633937,
+    "group-g": 1.0245611209534546
+   }
+  },
+  "hls_index": {
+   "all": 0.6816391072215398,
+   "classes": {
+    "group-a": 1.8361873228750585,
+    "group-c": 0.46963922892638005,
+    "group-e": 0.6453149593030529,
+    "group-g": 0.4873356136974038
+   }
+  },
+  "hls_index_change": {
+   "all": 0.9231196514316979,
+   "classes": {
+    "group-a": 0.8284457404193573,
+    "group-c": 0.9879418370965836,
+    "group-e": 0.9328365912013066,
+    "group-g": 0.9177925005504669
+   }
+  }
+ },
+ "repeat-c": {
+  "packet_index": {
+   "all": 0.2841689645917889,
+   "classes": {
+    "group-a": 0.38478347198321944,
+    "group-c": 0.29055313920930975,
+    "group-e": 0.2470528072922826,
+    "group-g": 0.2493483021097633
+   }
+  },
+  "packet_index_change": {
+   "all": 0.8360190656973023,
+   "classes": {
+    "group-a": 0.47742129673619077,
+    "group-c": 0.8442767553218875,
+    "group-e": 0.6336806469042209,
+    "group-g": 0.944809796473723
+   }
+  },
+  "hls_index": {
+   "all": 0.663600256031708,
+   "classes": {
+    "group-a": 1.5682419288232083,
+    "group-c": 0.5566699927743178,
+    "group-e": 0.6163609868129389,
+    "group-g": 0.5011349678471908
+   }
+  },
+  "hls_index_change": {
+   "all": 0.9105813511000966,
+   "classes": {
+    "group-a": 0.8266265637112563,
+    "group-c": 0.9300079292915377,
+    "group-e": 0.8630846823244852,
+    "group-g": 0.9297861400257308
+   }
+  }
+ },
+ "note": "Three repeats of the 15-round method on the binaries and the set of run w4-01, as the record of what the measurement repeats to. The run itself is 60 rounds: 15 leave the change against the base, on files where the walk is a small part of a request, moving by more than the margin its bar has."
+}

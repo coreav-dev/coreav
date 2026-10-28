@@ -1,0 +1,203 @@
+{
+  "schema": "coreav/known-divergences/1",
+  "applies_to": "coreav extract-subtitles and coreav chapters through scripts/text_check.py, ffprobe and ffmpeg 7.0.2, MediaInfo 26.10",
+  "entries": [
+    {
+      "id": "KD-T-MI-HOURS",
+      "level": ["mediainfo"],
+      "fields": ["Events_Total", "Duration_End"],
+      "filename_pattern": "*",
+      "conditions": {
+        "output": "a cue that ends at 100 hours or later (a timestamp with three or more hour digits) and at least one that ends before",
+        "MediaInfo": "WebVTT, with the event count, first start and last end of the cues that end before 100 hours"
+      },
+      "predicate": "mediainfo_hours",
+      "basis": "W3C WebVTT 4.5 (hours are two or more digits); docs/design/text.md choice 11"
+    },
+    {
+      "id": "KD-T-ESCAPE",
+      "level": ["cues"],
+      "fields": ["cue text"],
+      "filename_pattern": "*",
+      "conditions": {
+        "coreav": "cue text with &amp;, &lt; or &gt;",
+        "rewrite": "CoreAV's cue text with those three references replaced by &, < and >"
+      },
+      "predicate": "escapes",
+      "basis": "W3C WebVTT 4.2.2 (cue text spans contain no & or <; a cue payload never contains -->); docs/design/text.md choice 8"
+    },
+    {
+      "id": "KD-T-STYLE",
+      "level": ["cues"],
+      "fields": ["cue text"],
+      "filename_pattern": "*",
+      "conditions": {
+        "coreav summary": "styl, hlit, hclr, krok or blnk boxes counted",
+        "ffmpeg": "cue text with <b>, <i>, <u> or <font ...> tags",
+        "rewrite": "ffmpeg's cue text without those tags and their end tags"
+      },
+      "predicate": "style_tags",
+      "basis": "issue #40 and docs/design/text.md choice 9 (styling is dropped and reported); 3GPP TS 26.245 5.17.1"
+    },
+    {
+      "id": "KD-T-LEAD-SPACE",
+      "level": ["cues"],
+      "fields": ["cue text"],
+      "filename_pattern": "*",
+      "conditions": {
+        "source": "a sample whose text starts with spaces (3GPP timed text or QuickTime text, with or without style records)",
+        "cues": "same count; CoreAV's text starts with spaces that ffmpeg's lacks and is otherwise equal; the cue, spaces included, is one of the source's samples: its exact times from the sample tables and edit list, and its text written as CoreAV writes cue text",
+        "rewrite": "CoreAV's cue text without those leading spaces"
+      },
+      "predicate": "leading_spaces",
+      "basis": "3GPP TS 26.245 5.17 (the text as stored); WebVTT 4.2.2 (cue text may start with spaces); docs/design/text.md choices 8 and 9 (text is kept as stored)"
+    },
+    {
+      "id": "KD-T-EMPTY",
+      "level": ["cues"],
+      "fields": ["cue count"],
+      "filename_pattern": "*",
+      "conditions": {
+        "ffmpeg": "cues whose text is empty or white space only",
+        "rewrite": "ffmpeg's cue list without them"
+      },
+      "predicate": "empty_cues",
+      "basis": "docs/design/text.md choice 8 (a sample with no text, or only white space, gives no cue)"
+    },
+    {
+      "id": "KD-T-INVALID",
+      "level": ["cues"],
+      "fields": ["cue count"],
+      "filename_pattern": "*",
+      "conditions": {
+        "coreav summary": "invalid_text above 0",
+        "coreav": "cues with U+FFFD",
+        "rewrite": "CoreAV's cue list without them",
+        "source": "each dropped cue an invalid sample of the source, by text and exact times, as many as there are"
+      },
+      "predicate": "invalid_text",
+      "basis": "3GPP TS 26.245 5.1 (UTF-8, or UTF-16 after a byte order mark); docs/design/text.md choice 8 (invalid sequences become U+FFFD and are counted; ffmpeg drops such samples)"
+    },
+    {
+      "id": "KD-T-CR",
+      "level": ["cues"],
+      "fields": ["cue text"],
+      "filename_pattern": "*",
+      "conditions": {
+        "source": "QuickTime text sample entry (text) whose samples hold CR",
+        "cues": "same count; CoreAV's text has a line break where ffmpeg's has none, and they are equal without line breaks",
+        "rewrite": "CoreAV's cue text without those line breaks"
+      },
+      "predicate": "cr_line_breaks",
+      "basis": "3GPP TS 26.245 5.11 (CR should be treated as a new line); docs/design/text.md choice 8"
+    },
+    {
+      "id": "KD-T-ZERO-END",
+      "level": ["cues"],
+      "fields": ["cue end"],
+      "filename_pattern": "*",
+      "conditions": {
+        "ffprobe": "source packets without a duration, at least as many as such cues",
+        "ffmpeg": "cues that end where they start",
+        "coreav": "the same cue start, ending later",
+        "rewrite": "ffmpeg's end replaced by CoreAV's",
+        "source": "CoreAV's cue a sample's exact times from the source's sample tables or fragments' runs, rounded as CoreAV rounds"
+      },
+      "predicate": "zero_end",
+      "basis": "ISO/IEC 14496-12 8.6.1.2 (sample durations); W3C WebVTT 4.1 (a cue ends after it starts); docs/design/text.md choice 7"
+    },
+    {
+      "id": "KD-T-EDIT-ALIGN",
+      "level": ["cues"],
+      "fields": ["cue start", "cue end"],
+      "filename_pattern": "*",
+      "conditions": {
+        "source track": "one media edit whose media time M is above 0",
+        "shift": "from the source's stts: how far after M the first sample at or after M starts, in ms (above 0)",
+        "cues": "same count; every CoreAV cue time = ffmpeg's plus the shift, to 1.5 ms as each side rounds its own times (the last end may be left to KD-T-LAST-END)",
+        "rewrite": "ffmpeg's times replaced by CoreAV's"
+      },
+      "predicate": "edit_align",
+      "basis": "ISO/IEC 14496-12 8.6.6 (the edit's media time is the first media time presented); docs/design/text.md choice 7"
+    },
+    {
+      "id": "KD-T-LAST-END",
+      "level": ["cues"],
+      "fields": ["last cue end"],
+      "filename_pattern": "*",
+      "conditions": {
+        "cues": "same count; only the last cue's end differs",
+        "ffmpeg": "the last cue ends at the format duration ffprobe reports, to 1 ms",
+        "rewrite": "ffmpeg's last end replaced by CoreAV's",
+        "source": "CoreAV's last end the source's exact last end"
+      },
+      "predicate": "last_end",
+      "basis": "ISO/IEC 14496-12 8.6.1.2 (the last sample's duration is in the decoding time to sample box); docs/design/text.md choice 7"
+    },
+    {
+      "id": "KD-T-ROUND",
+      "level": ["cues"],
+      "fields": ["cue start", "cue end"],
+      "filename_pattern": "*",
+      "conditions": {
+        "source track": "a timescale that does not divide 1000, so milliseconds are not exact",
+        "cues": "same count; times at most 1 ms apart, text equal",
+        "rewrite": "ffmpeg's times replaced by CoreAV's",
+        "source": "CoreAV's times a sample's exact times from the source's sample tables (or fragments) and edit, rounded as CoreAV rounds"
+      },
+      "predicate": "rounding",
+      "basis": "docs/design/text.md choice 7 (times are the exact presentation times rounded to the nearest millisecond)"
+    },
+    {
+      "id": "KD-T-EDIT-RATE",
+      "level": ["streams"],
+      "fields": ["coreav exit"],
+      "filename_pattern": "*",
+      "conditions": {
+        "coreav": "exit 1, an edit list outside the supported model",
+        "source track": "a media edit whose rate is not 1"
+      },
+      "predicate": "edit_rate",
+      "basis": "the edit model takes media edits at rate 1 only; docs/design/text.md choice 7"
+    },
+    {
+      "id": "KD-T-CHPL",
+      "level": ["chapters"],
+      "fields": ["chapters"],
+      "filename_pattern": "*",
+      "conditions": {
+        "coreav": "no chapters",
+        "ffprobe": "chapters",
+        "media bytes": "a chpl box in moov/udta, and no enabled track names a text track in a chap reference"
+      },
+      "predicate": "nero_chapters",
+      "basis": "docs/design/text.md choice 6: Nero chpl is in neither Apple's QuickTime File Format, ISO/IEC 14496-12 nor the MP4RA registry"
+    },
+    {
+      "id": "KD-T-HMMT",
+      "level": ["chapters"],
+      "fields": ["chapters"],
+      "filename_pattern": "*",
+      "conditions": {
+        "coreav": "no chapters",
+        "ffprobe": "chapters without titles",
+        "media bytes": "an HMMT box in moov/udta, and no enabled track names a text track in a chap reference"
+      },
+      "predicate": "gopro_hilights",
+      "basis": "docs/design/text.md: only QuickTime chapter tracks are read; HMMT (GoPro HiLight tags) is in no cited specification"
+    },
+    {
+      "id": "KD-T-CHAP-ORDER",
+      "level": ["chapters"],
+      "fields": ["chapters"],
+      "filename_pattern": "*",
+      "conditions": {
+        "media bytes": "chap references (of any track) name two or more text tracks; CoreAV's chapters come from the first one an enabled track names",
+        "coreav": "its titles are that track's sample texts, and (without an edit that moves them) its times are that track's stts times, both read from the sample tables",
+        "ffprobe": "every chapter title is the text of a sample of one of those tracks, read from their sample tables"
+      },
+      "predicate": "other_chapter_track",
+      "basis": "Apple QuickTime File Format, Chapter lists (QuickTime uses the first chapter list it finds); docs/design/text.md choice 5"
+    }
+  ]
+}

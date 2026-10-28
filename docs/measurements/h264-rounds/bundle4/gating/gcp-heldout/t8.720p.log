@@ -1,0 +1,31 @@
+machine: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz (family 6, model 207, stepping 2), 2300.0 MHz, 8 logical CPUs
+gate baseline: 0.399 s (samples 0.399, 0.399, 0.398)
+178de4a3a5a2.0.720p.h264                 base:discard=0.75  base:write=0.94  base:mixed=0.62  k:discard=0.66  k:write=0.89  k:mixed=0.55
+391ec79e178a.0.720p.h264                 base:discard=1.02  base:write=1.02  base:mixed=0.95  k:discard=0.99  k:write=0.97  k:mixed=0.93
+3c331ca6a971.0.720p.h264                 base:discard=0.88  base:write=0.85  base:mixed=0.81  k:discard=0.86  k:write=0.84  k:mixed=0.79
+4dc155fa1f76.0.720p.h264                 base:discard=0.94  base:write=0.93  base:mixed=0.91  k:discard=0.90  k:write=0.90  k:mixed=0.88
+gate after 4 streams (check): 0.399 s (+0.2%)
+4f27662a0f72.0.720p.h264                 base:discard=0.92  base:write=0.92  base:mixed=0.91  k:discard=0.92  k:write=0.92  k:mixed=0.91
+59cf223b15f2.0.720p.h264                 base:discard=0.85  base:write=0.84  base:mixed=0.80  k:discard=0.83  k:write=0.81  k:mixed=0.78
+64e286230fca.0.720p.h264                 base:discard=0.95  base:write=0.96  base:mixed=0.86  k:discard=0.95  k:write=0.94  k:mixed=0.86
+64ef5412ed81.0.720p.h264                 base:discard=0.96  base:write=0.96  base:mixed=0.94  k:discard=0.96  k:write=0.95  k:mixed=0.94
+gate after 8 streams (check): 0.401 s (+0.7%)
+67138964d796.0.720p.h264                 base:discard=0.89  base:write=0.88  base:mixed=0.84  k:discard=0.87  k:write=0.86  k:mixed=0.82
+7eb29ce39b5c.0.720p.h264                 base:discard=0.82  base:write=0.85  base:mixed=0.79  k:discard=0.81  k:write=0.84  k:mixed=0.79
+985a28c5abe5.0.720p.h264                 base:discard=0.90  base:write=1.02  base:mixed=0.85  k:discard=0.87  k:write=0.99  k:mixed=0.83
+a9b1e81dc8f4.0.720p.h264                 base:discard=0.78  base:write=0.79  base:mixed=0.73  k:discard=0.73  k:write=0.75  k:mixed=0.69
+gate after 12 streams (check): 0.401 s (+0.6%)
+b1c6f2742fff.0.720p.h264                 base:discard=0.77  base:write=0.81  base:mixed=0.73  k:discard=0.76  k:write=0.80  k:mixed=0.72
+c187706da87d.0.720p.h264                 base:discard=0.87  base:write=0.87  base:mixed=0.84  k:discard=0.83  k:write=0.83  k:mixed=0.80
+f2a05e5926d8.0.720p.h264                 base:discard=0.87  base:write=0.86  base:mixed=0.82  k:discard=0.85  k:write=0.83  k:mixed=0.80
+f99007f006ea.0.720p.h264                 base:discard=1.03  base:write=1.02  base:mixed=0.97  k:discard=1.03  k:write=1.00  k:mixed=0.97
+gate after 16 streams (check): 0.400 s (+0.4%)
+
+base:discard             n= 16  median 0.884  [0.848, 0.936]
+base:write               n= 16  median 0.899  [0.855, 0.958]
+base:mixed               n= 16  median 0.836  [0.798, 0.908]
+k:discard                n= 16  median 0.867  [0.826, 0.921]
+k:write                  n= 16  median 0.872  [0.832, 0.938]
+k:mixed                  n= 16  median 0.810  [0.786, 0.876]
+
+wrote out/t8.720p.json

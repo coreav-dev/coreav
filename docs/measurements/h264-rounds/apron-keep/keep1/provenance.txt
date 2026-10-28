@@ -1,0 +1,13 @@
+build: (cd <worktree at rev> && cargo build --locked --profile dist --example decode -p coreav-h264)
+base = c2c72c33042234333d7fa8fbb3b48c8804c07ecc
+k = 4f57e2b6f29f8465ee9d7760d6fc8649545374e5
+7d2955bb4500ccfafd7e0409b6606bbec9f950cb6fe8b0ec9f6e41b693fa08c6  $HOME/ap/decode-kbase
+da2667de975c539e25174ec245cc5ec14bcc0c8c7b34488069ce5e6751d780e2  $HOME/ap/decode-kk
+0d709a0bed1a43f24cd2c420878c63afea4580671b6949ad19ed124572f3bc3d  $HOME/ff9/x/ffmpeg-n9.0.2-17-g2a571b6068-linux64-gpl-9.0/bin/ffmpeg
+rustc 1.99.1 (58cf8f9c3 2026-10-13)
+binary: rustc
+commit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67
+commit-date: 2026-10-13
+host: x86_64-unknown-linux-gnu
+release: 1.99.1
+LLVM version: 23.1.1

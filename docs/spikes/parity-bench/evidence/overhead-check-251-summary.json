@@ -1,0 +1,17 @@
+{
+ "check": {
+  "inputs": 33,
+  "short": {
+   "inputs": 14,
+   "median_added_us": 16.4,
+   "bar_us": 50,
+   "pass": true
+  },
+  "long": {
+   "inputs": 19,
+   "median_ratio": 1.042,
+   "bar": 1.05,
+   "pass": true
+  }
+ }
+}

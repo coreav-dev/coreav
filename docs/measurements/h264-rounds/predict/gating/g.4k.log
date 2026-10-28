@@ -1,0 +1,24 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2899.9 MHz, 8 logical CPUs
+3b1b441e23ae.0.4k.h264                   base:discard=1.41  base:write=1.63  base:mixed=1.39  w:discard=1.46  w:write=1.70  w:mixed=1.44  k1:discard=1.56  k1:write=1.67  k1:mixed=1.54  k2:discard=1.36  k2:write=1.45  k2:mixed=1.34
+4b54de28c2b3.0.4k.h264                   base:discard=1.47  base:write=1.40  base:mixed=1.33  w:discard=1.49  w:write=1.39  w:mixed=1.34  k1:discard=1.50  k1:write=1.43  k1:mixed=1.35  k2:discard=1.44  k2:write=1.36  k2:mixed=1.29
+81ed4778ece2.0.4k.h264                   base:discard=1.43  base:write=1.18  base:mixed=1.06  w:discard=1.29  w:write=1.06  w:mixed=0.96  k1:discard=1.36  k1:write=1.10  k1:mixed=1.00  k2:discard=1.21  k2:write=1.03  k2:mixed=0.89
+ae16bb7c7192.0.4k.h264                   base:discard=1.47  base:write=1.31  base:mixed=1.20  w:discard=1.52  w:write=1.35  w:mixed=1.24  k1:discard=1.57  k1:write=1.44  k1:mixed=1.28  k2:discard=1.43  k2:write=1.32  k2:mixed=1.17
+af38b0cfd840.0.4k.h264                   base:discard=1.26  base:write=1.25  base:mixed=1.19  w:discard=1.26  w:write=1.24  w:mixed=1.20  k1:discard=1.30  k1:write=1.27  k1:mixed=1.23  k2:discard=1.20  k2:write=1.16  k2:mixed=1.14
+e624cbe0d2be.0.4k.h264                   base:discard=1.46  base:write=1.29  base:mixed=1.15  w:discard=1.47  w:write=1.28  w:mixed=1.16  k1:discard=1.50  k1:write=1.33  k1:mixed=1.19  k2:discard=1.39  k2:write=1.23  k2:mixed=1.10
+ed75c044e944.0.4k.h264                   base:discard=1.12  base:write=0.96  base:mixed=0.87  w:discard=1.11  w:write=0.97  w:mixed=0.87  k1:discard=1.19  k1:write=1.03  k1:mixed=0.93  k2:discard=1.07  k2:write=0.94  k2:mixed=0.84
+f8d92a911e72.0.4k.h264                   base:discard=1.30  base:write=1.24  base:mixed=1.20  w:discard=1.31  w:write=1.25  w:mixed=1.21  k1:discard=1.33  k1:write=1.26  k1:mixed=1.23  k2:discard=1.28  k2:write=1.23  k2:mixed=1.19
+
+base:discard             n=  8  median 1.423  [1.256, 1.469]
+base:write               n=  8  median 1.273  [1.183, 1.402]
+base:mixed               n=  8  median 1.196  [1.060, 1.326]
+w:discard                n=  8  median 1.387  [1.264, 1.487]
+w:write                  n=  8  median 1.263  [1.057, 1.385]
+w:mixed                  n=  8  median 1.204  [0.956, 1.338]
+k1:discard               n=  8  median 1.426  [1.297, 1.533]
+k1:write                 n=  8  median 1.297  [1.102, 1.435]
+k1:mixed                 n=  8  median 1.229  [1.003, 1.347]
+k2:discard               n=  8  median 1.323  [1.201, 1.433]
+k2:write                 n=  8  median 1.226  [1.029, 1.361]
+k2:mixed                 n=  8  median 1.155  [0.893, 1.295]
+
+wrote $HOME/ab/predict/out/g.4k.json

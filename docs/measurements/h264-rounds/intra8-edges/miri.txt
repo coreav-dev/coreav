@@ -1,0 +1,4 @@
+# RUSTFLAGS="-C target-feature=+avx2,+sse4.1" cargo +nightly miri run (tools/miri), kernels crate of a3e9e9a
+miri 0.1.0 (07e526db9d 2026-10-19)
+ok 1152
+exit 0

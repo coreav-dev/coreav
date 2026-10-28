@@ -1,0 +1,12 @@
+[package]
+name = "coreav-frame"
+description = "CoreAV's frame model (CPU and CUDA frames) and memory-safe frame operations: crop, rotate, resize and conversion to RGB"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lints]
+workspace = true

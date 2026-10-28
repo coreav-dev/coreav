@@ -1,0 +1,8 @@
+round 0
+round 1
+round 2
+round 3
+round 4
+round 5
+wall k: all 0.9943 [0.9833, 1.0068] (17/32 faster) sd 1.0209 720p 1.0068 1080p 0.9922 4k 0.9847
+cpu k: all 0.9942 [0.9871, 1.0017] (20/32 faster) sd 1.0052 720p 1.0024 1080p 0.9912 4k 0.9879

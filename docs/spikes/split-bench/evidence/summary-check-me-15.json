@@ -1,0 +1,35 @@
+{
+ "commit": "d68c8c49abe9b9f9755762cf4b5cb6c3fa0d484a",
+ "files": 6,
+ "statuses": {
+  "ok": 6
+ },
+ "refused": {},
+ "split": 6,
+ "decoded": 5,
+ "no_audio": 0,
+ "agree_files": 6,
+ "direct": 5,
+ "through_kd": 1,
+ "kd_uses": {
+  "KD-C-EMPTY-EDIT-DURATION": 1
+ },
+ "packets": {
+  "agree": 634122,
+  "disagree": 0
+ },
+ "coverage_misses": [],
+ "failing": [],
+ "harness": [],
+ "bars": {
+  "coverage_100": true,
+  "files_98": {
+   "value": 1.0,
+   "met": true
+  },
+  "packets_99": {
+   "value": 1.0,
+   "met": true
+  }
+ }
+}

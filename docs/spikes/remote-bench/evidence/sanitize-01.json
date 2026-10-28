@@ -1,0 +1,316 @@
+[
+ {
+  "sha256": "00de70872ff1a518d24171f3c783a14bc95aeb90ae2c90290ceaf30b118a2af9",
+  "ext": "mov",
+  "size": 38860325,
+  "class": "iso",
+  "refused": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"unsupported: compressed movie box (cmov): its boxes cannot be copied\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "0119957558a276115f3af88175fd89f10345ab8f9c4aa6b23c361671fafaf805",
+  "ext": "mp4",
+  "size": 201477294,
+  "class": "iso",
+  "ns": {
+   "ours": 1909084829,
+   "theirs": 2695261779
+  }
+ },
+ {
+  "sha256": "016ab71f2d04bf7e3d4bed9db40c8dc1f967578898acd3c9802af4624d15e97b",
+  "ext": "mp4",
+  "size": 90548984,
+  "class": "iso",
+  "ns": {
+   "ours": 1513084844,
+   "theirs": 1847238530
+  }
+ },
+ {
+  "sha256": "02f2c37a7ad9faf03cf565299274efbb69f50684fc73d744eecd17acd0167b03",
+  "ext": "mp4",
+  "size": 5209376,
+  "class": "iso",
+  "ns": {
+   "ours": 280795703,
+   "theirs": 347799321
+  }
+ },
+ {
+  "sha256": "04b7b4fb3b3797c81c121b0bf02f1e578dc24912582cb6d24b8bed2928bf856f",
+  "ext": "mp4",
+  "size": 12762,
+  "class": "iso",
+  "ns": {
+   "ours": 246348649,
+   "theirs": 607344339
+  }
+ },
+ {
+  "sha256": "0538fb0951faa30ed690ddb625fe9404bf6e80275ec520bde176f2e0239e6537",
+  "ext": "mp4",
+  "size": 16139589,
+  "class": "iso",
+  "ns": {
+   "ours": 478357190,
+   "theirs": 584774174
+  }
+ },
+ {
+  "sha256": "057ee81be8c845e5c8321677bd3fc304af8e26894cc8f0076e937968c31f5615",
+  "ext": "mov",
+  "size": 75301888,
+  "class": "iso",
+  "ns": {
+   "ours": 2204188095,
+   "theirs": 3177924286
+  }
+ },
+ {
+  "sha256": "065b0fa2931f1f2d4725fa632d13542172fff19a83078469116eae6aa5a87b25",
+  "ext": "mp4",
+  "size": 35029117,
+  "class": "iso",
+  "ns": {
+   "ours": 965921419,
+   "theirs": 629148174
+  }
+ },
+ {
+  "sha256": "096d9e707920c8424d8383984c40b9f3b35a12365bbd7f54c35fe2bb92a485b1",
+  "ext": "mp4",
+  "size": 2280184,
+  "class": "iso",
+  "ns": {
+   "ours": 287646888,
+   "theirs": 319941907
+  }
+ },
+ {
+  "sha256": "09a07d37fd0963a21d6ad7c3531ea011b1cc1327d4e569a92a1a9141c389dbd9",
+  "ext": "mp4",
+  "size": 208926392,
+  "class": "iso",
+  "ns": {
+   "ours": 2893884415,
+   "theirs": 3243951660
+  }
+ },
+ {
+  "sha256": "09febe430bb4b10251fa93b6bd05b0e64974019cf12ce450225a82cac0e3517c",
+  "ext": "mp4",
+  "size": 407979,
+  "class": "iso",
+  "ns": {
+   "ours": 256473240,
+   "theirs": 957181652
+  }
+ },
+ {
+  "sha256": "0a65884fdefdebe0a8cb7c1d188635f8d5bf4b15e00d430628b1aa94d557cef3",
+  "ext": "mp4",
+  "size": 29370,
+  "class": "iso",
+  "ns": {
+   "ours": 273746620,
+   "theirs": 687629570
+  }
+ },
+ {
+  "sha256": "0c09c76072802293960c5f2d5ea2116cca1192000c3fc0b433aa9904cb23e90f",
+  "ext": "mp4",
+  "size": 119913364,
+  "class": "iso",
+  "ns": {
+   "ours": 2342136704,
+   "theirs": 1583865689
+  }
+ },
+ {
+  "sha256": "0ced42322c655b47b4727508850d88ad8a69e9051647b38a699c047998ca6e08",
+  "ext": "mp4",
+  "size": 1969241,
+  "class": "iso",
+  "ns": {
+   "ours": 273627566,
+   "theirs": 1006947304
+  }
+ },
+ {
+  "sha256": "0d8e77ef7d452500f63f2be49a6d28eb8ad2594d8497cae47494b19e8aa59cf8",
+  "ext": "mp4",
+  "size": 427176,
+  "class": "iso",
+  "ns": {
+   "ours": 289752970,
+   "theirs": 321482428
+  }
+ },
+ {
+  "sha256": "0df9dd6969abdb8cd5e1df1015f23817408fc98dbb26aba6c21d91e5ea0bc9ca",
+  "ext": "mp4",
+  "size": 1032498,
+  "class": "iso",
+  "ns": {
+   "ours": 309300223,
+   "theirs": 326548376
+  }
+ },
+ {
+  "sha256": "108521a89a7345637ec07067edf8cded82d3d55d95697cfc65ec0eca2d301ab4",
+  "ext": "mp4",
+  "size": 3879911,
+  "class": "iso",
+  "ns": {
+   "ours": 276285778,
+   "theirs": 988292376
+  }
+ },
+ {
+  "sha256": "1115b5bac7c25e1c3277f86bfa80c441a9e26f74b2b923f53ae01c0788892f18",
+  "ext": "mp4",
+  "size": 508868,
+  "class": "iso",
+  "ns": {
+   "ours": 276423674,
+   "theirs": 1014544915
+  }
+ },
+ {
+  "sha256": "12b4221859532842b90e0de4e54c9ef930e122c005fd28a889d6da58c56e3a6f",
+  "ext": "mp4",
+  "size": 2375790,
+  "class": "iso",
+  "ns": {
+   "ours": 292538866,
+   "theirs": 980547512
+  }
+ },
+ {
+  "sha256": "12c0953f433a36ff6657228a8edb421b9dfee8062ff2f314c08167105c48f7bc",
+  "ext": "m4a",
+  "size": 933331,
+  "class": "iso",
+  "ns": {
+   "ours": 294660708,
+   "theirs": 327783472
+  }
+ },
+ {
+  "sha256": "13cf128006da7d55a85cabe8ec86d59a06614abee80f5ebb753a44a818d44db3",
+  "ext": "mp4",
+  "size": 109441265,
+  "class": "iso",
+  "ns": {
+   "ours": 1698267942,
+   "theirs": 2334019130
+  }
+ },
+ {
+  "sha256": "146662b2307cb96811d9e3025c036a9e5186f152b6b1889ca61e14eb3684e49f",
+  "ext": "m4a",
+  "size": 1051602,
+  "class": "iso",
+  "ns": {
+   "ours": 251946063,
+   "theirs": 382171507
+  }
+ },
+ {
+  "sha256": "15affcdb19e3f12cab92733a3a4edc817e93ad68c9e760bba69ef2b353f30af6",
+  "ext": "mp4",
+  "size": 126850059,
+  "class": "iso",
+  "ns": {
+   "ours": 3182815818,
+   "theirs": 2213859865
+  }
+ },
+ {
+  "sha256": "19d5a3aef3db7c60fd8148bcc4295929e56d7eeb9c2039ee6f2314f56b2bc990",
+  "ext": "mp4",
+  "size": 8021639,
+  "class": "iso",
+  "ns": {
+   "ours": 332759726,
+   "theirs": 1046362995
+  }
+ },
+ {
+  "sha256": "1b450d90085d977259b9e87edae9a6c00afba8981268b729dd2e5fb802897706",
+  "ext": "mov",
+  "size": 63815698,
+  "class": "iso",
+  "ns": {
+   "ours": 1284216526,
+   "theirs": 881480614
+  }
+ },
+ {
+  "sha256": "1ce3933e3009bf2e9426121996f67ecc3379141bf2f392b37ac443276c55a154",
+  "ext": "mp4",
+  "size": 70292915,
+  "class": "iso",
+  "ns": {
+   "ours": 1630893227,
+   "theirs": 1726082844
+  }
+ },
+ {
+  "sha256": "1ced309b3617c62e64e5a9ce1bd93827ab53704fe57080492e5f5ffeaf9169e7",
+  "ext": "mp4",
+  "size": 110568798,
+  "class": "iso",
+  "ns": {
+   "ours": 1783519526,
+   "theirs": 2161208887
+  }
+ },
+ {
+  "sha256": "1df1e32ed6a5a8cefe52d15442b3465934bdfcf41356f7874184e2cd939cf7b2",
+  "ext": "mov",
+  "size": 178465188,
+  "class": "iso",
+  "refused": "{\"kind\":\"unsupported_feature\",\"limit\":null,\"message\":\"unsupported: PCM audio is not copied to MP4\",\"offset\":null,\"schema\":\"coreav.error/1\"}\n"
+ },
+ {
+  "sha256": "1fc969989fcdee6e5073012d2d7f8d1af15e15a755f6d4e411ed6bdd7d04084d",
+  "ext": "mp4",
+  "size": 796511,
+  "class": "iso",
+  "ns": {
+   "ours": 312716809,
+   "theirs": 319173138
+  }
+ },
+ {
+  "sha256": "206a65347de430d068418d00b6e958db2004a6f96e439275e1a96c512a8c6b7f",
+  "ext": "mp4",
+  "size": 2574548,
+  "class": "iso",
+  "ns": {
+   "ours": 292339459,
+   "theirs": 1154639719
+  }
+ },
+ {
+  "sha256": "220e29e8557e4023bd38ea992b8e40a4602b8b6bbf6aa770b84aefdcc4b82ce0",
+  "ext": "mp4",
+  "size": 1934049,
+  "class": "iso",
+  "ns": {
+   "ours": 281399008,
+   "theirs": 764386604
+  }
+ },
+ {
+  "sha256": "24e19189ff25e376bc5ba1169f09a91f8e9ed1b895e515ceaa90196eddd5a640",
+  "ext": "m4a",
+  "size": 1027688,
+  "class": "iso",
+  "ns": {
+   "ours": 284199895,
+   "theirs": 337072053
+  }
+ }
+]

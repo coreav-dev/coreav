@@ -1,0 +1,13 @@
+sd, 8 threads, --discard, whole streams, median of 3 interleaved runs (seconds), on the 2.50 GHz host (4 cores, 8 logical CPUs).
+m8 = main 05daabc4; h2 = the branch with bands of two rows; h1 = the branch with bands of one row (before non-reference pictures were one band).
+ff1/ff8 = FFmpeg 9.0.2 -threads 1/8; m1 = main, one thread.
+
+stream             ff1     ff8      m1      m8      h2      h1   h1/h2   P3 m8   P3 h2   P3 h1
+41e324ebb708     1.317   0.415   2.064   0.774   0.740   0.793   1.073   1.189   1.136   1.219
+5185721dda11     0.394   0.246   0.658   0.540   0.442   0.382   0.863   1.316   1.077   0.930
+6f7799768413     1.463   0.553   3.124   1.313   1.040   1.015   0.976   1.113   0.881   0.860
+7650ae466748     0.993   0.228   0.909   0.338   0.343   0.341   0.994   1.617   1.644   1.634
+8ae90cadb5bc     1.395   0.538   2.205   0.981   0.785   0.759   0.967   1.154   0.924   0.894
+dcb262cf0138     0.322   0.161   0.448   0.277   0.204   0.183   0.895   1.235   0.912   0.816
+ec473c99c538     0.144   0.106   0.196   0.147   0.136   0.122   0.893   1.013   0.941   0.840
+f9e973f44570     0.184   0.136   0.300   0.308   0.208   0.168   0.809   1.389   0.939   0.760

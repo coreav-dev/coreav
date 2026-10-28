@@ -1,0 +1,18 @@
+load bias 0x0, agreed by 1 symbols
+matched 3,110,323,094 instructions, unmatched 0 (0.0%)
+  vector      360,901,285   11.6%
+  scalar    2,749,421,809   88.4%
+
+top vector mnemonics:
+  movd               58,227,984   1.87%
+  pmullw             44,678,028   1.44%
+  punpcklbw          44,024,389   1.42%
+  paddw              43,982,624   1.41%
+  movdqa             27,543,295   0.89%
+  movdqu             27,492,980   0.88%
+  movups             14,555,251   0.47%
+  packuswb           11,049,834   0.36%
+  pand               11,033,566   0.35%
+  psrlw              10,995,800   0.35%
+  vmovdqu            10,995,451   0.35%
+  pshufd              6,964,491   0.22%

@@ -1,0 +1,48 @@
+{
+ "files": 265,
+ "file_errors": [],
+ "files_without_clips": {
+  "no video track the allowlist keeps": 10
+ },
+ "clips": 825,
+ "within": 822,
+ "clips_not_cut": 18,
+ "clips_not_measured": [],
+ "outside": [
+  [
+   "a2d42b189482",
+   "head",
+   68778,
+   68380
+  ],
+  [
+   "a2d42b189482",
+   "middle",
+   69014,
+   68604
+  ],
+  [
+   "a2d42b189482",
+   "tail",
+   68970,
+   68536
+  ]
+ ],
+ "closest_within": [
+  [
+   1005,
+   "0119957558a2",
+   "head"
+  ],
+  [
+   1075,
+   "4cfdd9846b9d",
+   "whole"
+  ],
+  [
+   1083,
+   "4cfdd9846b9d",
+   "head"
+  ]
+ ]
+}

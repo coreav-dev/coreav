@@ -1,0 +1,40 @@
+{
+  "stream": {
+    "path": "0404af1890da.0.1080p.h264",
+    "sha256": "38846039a671262e0c4f5af7ebbd1fa585d666016e4073626b7fe60075fd28e3",
+    "coded": "832x1792",
+    "displayed": "828x1792",
+    "profile": "High",
+    "has_b_frames": 0,
+    "refs": 1,
+    "frames_measured": 300,
+    "macroblocks_measured": 1747200,
+    "note": "the file name says 1080p; the stream is 828x1792 portrait"
+  },
+  "production": {
+    "binary": "/tmp/wt-340/target/dist/examples/decode",
+    "sha256": "0abf10cf859948048a9552130ef32abf8771c51fdc18af4387e9d1b99952ed6e",
+    "tree": "1c3c9b1dc0b3013a88b6d01b41684d2308630592",
+    "profile": "dist"
+  },
+  "spike": {
+    "binary": "spikes/h264-n2/target/release/h264dec",
+    "sha256": "e617c7403f2640383ddcf6c78855d3c3d702566e79d66e2dfe965c6aa35da6b5"
+  },
+  "ffmpeg": {
+    "binary": "/opt/coreav-oracle-bin/ffmpeg",
+    "sha256": "e7e7fb30477f717e6f55f9180a70386c62677ef8a4d4d1a5d948f4098aa3eb99",
+    "version": "ffmpeg version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2000-2024 the FFmpeg developers",
+    "stripped": true
+  },
+  "valgrind": {
+    "version": null,
+    "source": "valgrind-3.19.0-1.amzn2023.0.2.x86_64.rpm, extracted without root"
+  },
+  "machine": {
+    "cores_physical": 4,
+    "threads": 8,
+    "model": "Intel Xeon @ 2.90GHz",
+    "pmu": "absent under the hypervisor; all hardware perf events report <not supported>"
+  }
+}

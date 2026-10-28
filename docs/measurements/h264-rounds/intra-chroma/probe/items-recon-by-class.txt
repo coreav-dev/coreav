@@ -1,0 +1,104 @@
+== sd recon: CoreAV 0.0703, FFmpeg 0.0591 (of FFmpeg total, mean per stream, 8 streams)
+  0.0134 K idct4x4_add_quad                                         | 0.0139 h264_mb_template.c hl_decode_mb_simple_8
+  0.0110 recon.rs apply<16>                                         | 0.0126 asm h264_add8x4_idct_sse2
+  0.0109 K intra4x4_mb                                              | 0.0051 asm ff_h264_idct_add16_8_sse2
+  0.0050 recon.rs prepare_level_scales                              | 0.0033 asm h264_idct_dc_add8_mmxext
+  0.0042 K chroma_residual_mb                                       | 0.0033 h264_mb.c hl_decode_mb_predict_luma
+  0.0041 K intra_chroma_mb                                          | 0.0024 h264_mb.c hl_decode_mb_idct_luma
+  0.0034 recon.rs residual_4x4_luma                                 | 0.0019 h264_mb.c ff_h264_hl_decode_mb
+  0.0026 recon.rs reconstruct_chroma                                | 0.0018 asm ff_h264_idct_add_8_avx
+  0.0023 recon.rs new                                               | 0.0017 asm ff_h264_idct_add8_8_sse2
+  0.0019 recon.rs chroma_dc<coreav_kernels_h264::Auto>              | 0.0016 asm ff_h264_idct8_add4_8_sse2
+  0.0018 K idct8x8_add                                              | 0.0013 h264_mb.c xchg_mb_border
+  0.0017 recon.rs reconstruct_intra                                 | 0.0011 h264idct_template.c ff_h264_chroma_dc_dequant_idct_8_c
+  0.0013 recon.rs reconstruct_inter                                 | 0.0011 asm ff_pred4x4_dc_8_mmxext
+  0.0011 recon.rs apply<4>                                          | 0.0009 h264pred_template.c pred4x4_horizontal_8_c
+  intra items: CoreAV K intra* 0.0191; FFmpeg pred*/intra* 0.0115
+    CoreAV intra_chroma_mb 0.0041
+    CoreAV intra16x16 0.0008
+    CoreAV intra4x4_mb 0.0109
+    CoreAV intra8x8_mb 0.0009
+    FFmpeg pred8x8_ 0.0016
+    FFmpeg pred16x16 0.0007
+    FFmpeg pred4x4 0.0051
+    FFmpeg pred8x8l 0.0006
+    FFmpeg predict_luma 0.0033
+    FFmpeg h264pred 0.0018
+== 720p recon: CoreAV 0.0955, FFmpeg 0.0740 (of FFmpeg total, mean per stream, 8 streams)
+  0.0158 K idct4x4_add_quad                                         | 0.0160 h264_mb_template.c hl_decode_mb_simple_8
+  0.0132 K intra_chroma_mb                                          | 0.0126 asm h264_add8x4_idct_sse2
+  0.0107 K intra4x4_mb                                              | 0.0046 h264_mb.c xchg_mb_border
+  0.0067 K intra8x8_mb                                              | 0.0045 asm h264_idct_dc_add8_mmxext
+  0.0052 recon.rs apply<16>                                         | 0.0044 asm ff_h264_idct_add16_8_sse2
+  0.0048 recon.rs reconstruct_chroma                                | 0.0036 h264_mb.c hl_decode_mb_predict_luma
+  0.0048 recon.rs prepare_level_scales                              | 0.0033 asm ff_h264_idct8_add4_8_sse2
+  0.0045 K intra16x16                                               | 0.0031 asm ff_pred8x8_dc_8_sse2
+  0.0044 recon.rs residual_4x4_luma                                 | 0.0017 h264_mb.c ff_h264_hl_decode_mb
+  0.0044 K idct8x8_add                                              | 0.0015 asm ff_h264_idct_add_8_avx
+  0.0039 recon.rs reconstruct_intra                                 | 0.0015 h264_mb.c hl_decode_mb_idct_luma
+  0.0037 K chroma_residual_mb                                       | 0.0012 asm ff_h264_idct_add16intra_8_sse2
+  0.0026 recon.rs chroma_dc<coreav_kernels_h264::Auto>              | 0.0012 asm ff_h264_idct_add8_8_sse2
+  0.0020 recon.rs reconstruct_inter                                 | 0.0011 asm ff_pred4x4_dc_8_mmxext
+  intra items: CoreAV K intra* 0.0405; FFmpeg pred*/intra* 0.0198
+    CoreAV intra_chroma_mb 0.0132
+    CoreAV intra16x16 0.0045
+    CoreAV intra4x4_mb 0.0107
+    CoreAV intra8x8_mb 0.0067
+    FFmpeg pred8x8_ 0.0042
+    FFmpeg pred16x16 0.0030
+    FFmpeg pred4x4 0.0046
+    FFmpeg pred8x8l 0.0031
+    FFmpeg predict_luma 0.0036
+    FFmpeg h264pred 0.0016
+== 1080p recon: CoreAV 0.0938, FFmpeg 0.0771 (of FFmpeg total, mean per stream, 8 streams)
+  0.0148 K idct8x8_add                                              | 0.0164 h264_mb_template.c hl_decode_mb_simple_8
+  0.0131 K idct4x4_add_quad                                         | 0.0142 asm h264_add8x4_idct_sse2
+  0.0076 recon.rs apply<16>                                         | 0.0128 asm ff_h264_idct8_add4_8_sse2
+  0.0070 K intra4x4_mb                                              | 0.0056 asm h264_idct_dc_add8_mmxext
+  0.0069 recon.rs apply<64>                                         | 0.0036 asm ff_h264_idct_add16_8_sse2
+  0.0060 K chroma_residual_mb                                       | 0.0026 h264_mb.c hl_decode_mb_predict_luma
+  0.0057 K intra8x8_mb                                              | 0.0023 asm ff_h264_idct_add8_8_sse2
+  0.0053 K intra_chroma_mb                                          | 0.0018 h264idct_template.c ff_h264_chroma_dc_dequant_idct_8_c
+  0.0052 recon.rs prepare_level_scales                              | 0.0017 h264_mb.c ff_h264_hl_decode_mb
+  0.0035 recon.rs chroma_dc<coreav_kernels_h264::Auto>              | 0.0016 asm ff_h264_idct8_add_8_sse2
+  0.0030 recon.rs reconstruct_chroma                                | 0.0014 h264_mb.c hl_decode_mb_idct_luma
+  0.0023 recon.rs reconstruct_intra                                 | 0.0014 h264_mb.c xchg_mb_border
+  0.0021 recon.rs reconstruct_inter                                 | 0.0011 asm ff_h264_idct_add_8_avx
+  0.0019 recon.rs new                                               | 0.0010 asm ff_pred8x8_dc_8_sse2
+  intra items: CoreAV K intra* 0.0222; FFmpeg pred*/intra* 0.0123
+    CoreAV intra_chroma_mb 0.0053
+    CoreAV intra16x16 0.0012
+    CoreAV intra4x4_mb 0.0070
+    CoreAV intra8x8_mb 0.0057
+    FFmpeg pred8x8_ 0.0020
+    FFmpeg pred16x16 0.0009
+    FFmpeg pred4x4 0.0037
+    FFmpeg pred8x8l 0.0026
+    FFmpeg predict_luma 0.0026
+    FFmpeg h264pred 0.0013
+== 4k recon: CoreAV 0.0570, FFmpeg 0.0862 (of FFmpeg total, mean per stream, 8 streams)
+  0.0099 K idct8x8_add                                              | 0.0263 asm h264_add8x4_idct_sse2
+  0.0085 K idct4x4_add_quad                                         | 0.0240 h264_mb_template.c hl_decode_mb_simple_8
+  0.0052 K intra_chroma_mb                                          | 0.0075 asm ff_h264_idct8_add4_8_sse2
+  0.0039 recon.rs apply<16>                                         | 0.0040 asm ff_h264_idct_add16_8_sse2
+  0.0035 K chroma_residual_mb                                       | 0.0036 h264_mb.c ff_h264_hl_decode_mb
+  0.0033 recon.rs apply<64>                                         | 0.0036 asm ff_h264_idct_add8_8_sse2
+  0.0029 recon.rs prepare_level_scales                              | 0.0024 h264_mb.c hl_decode_mb_idct_luma
+  0.0027 K intra8x8_mb                                              | 0.0024 asm h264_idct_dc_add8_mmxext
+  0.0024 K intra16x16                                               | 0.0021 h264_mb.c xchg_mb_border
+  0.0023 recon.rs reconstruct_chroma                                | 0.0019 h264_mb.c hl_decode_mb_predict_luma
+  0.0019 K intra4x4_mb                                              | 0.0016 asm ff_pred8x8_dc_8_sse2
+  0.0019 recon.rs residual_4x4_luma                                 | 0.0014 h264idct_template.c ff_h264_chroma_dc_dequant_idct_8_c
+  0.0018 recon.rs chroma_dc<coreav_kernels_h264::Auto>              | 0.0009 asm ff_h264_idct8_add_8_sse2
+  0.0014 recon.rs reconstruct_inter                                 | 0.0008 asm ff_h264_idct_add_8_avx
+  intra items: CoreAV K intra* 0.0138; FFmpeg pred*/intra* 0.0072
+    CoreAV intra_chroma_mb 0.0052
+    CoreAV intra16x16 0.0024
+    CoreAV intra4x4_mb 0.0019
+    CoreAV intra8x8_mb 0.0027
+    FFmpeg pred8x8_ 0.0019
+    FFmpeg pred16x16 0.0008
+    FFmpeg pred4x4 0.0008
+    FFmpeg pred8x8l 0.0013
+    FFmpeg predict_luma 0.0019
+    FFmpeg h264pred 0.0004

@@ -1,0 +1,113 @@
+{
+ "bins": [
+  "$HOME/cx/decode-base",
+  "$HOME/cx/decode-none",
+  "$HOME/cx/decode-copy"
+ ],
+ "summary": {
+  "decode-none": {
+   "median": 0.9653,
+   "ci": [
+    0.9495,
+    0.9697
+   ],
+   "sd": 0.9676,
+   "720p": 0.9579,
+   "1080p": 0.9584,
+   "4k": 0.9166
+  },
+  "decode-copy": {
+   "median": 0.9843,
+   "ci": [
+    0.9745,
+    0.99
+   ],
+   "sd": 0.9853,
+   "720p": 0.994,
+   "1080p": 0.979,
+   "4k": 0.9756
+  }
+ },
+ "streams": {
+  "175433794e02.0.1080p.h264": {
+   "$HOME/cx/decode-base": 5.308226931999343,
+   "$HOME/cx/decode-none": 5.285602918501354,
+   "$HOME/cx/decode-copy": 5.251295901500271
+  },
+  "278dbf5a63bb.0.720p.h264": {
+   "$HOME/cx/decode-base": 1.0844739325011687,
+   "$HOME/cx/decode-none": 1.0387791644998288,
+   "$HOME/cx/decode-copy": 1.0779315559993847
+  },
+  "3b1b441e23ae.0.4k.h264": {
+   "$HOME/cx/decode-base": 0.7175543204994028,
+   "$HOME/cx/decode-none": 0.6195414809990325,
+   "$HOME/cx/decode-copy": 0.6896749074994659
+  },
+  "41e324ebb708.0.sd.h264": {
+   "$HOME/cx/decode-base": 0.9941492190000645,
+   "$HOME/cx/decode-none": 0.939951198000017,
+   "$HOME/cx/decode-copy": 1.0320843515000888
+  },
+  "5185721dda11.0.sd.h264": {
+   "$HOME/cx/decode-base": 0.46730719700008194,
+   "$HOME/cx/decode-none": 0.4645535905010547,
+   "$HOME/cx/decode-copy": 0.45555069600050047
+  },
+  "6b18d9f0f88d.0.720p.h264": {
+   "$HOME/cx/decode-base": 0.8281710399996882,
+   "$HOME/cx/decode-none": 0.7897027705002984,
+   "$HOME/cx/decode-copy": 0.808896984999592
+  },
+  "6e90422a670a.0.1080p.h264": {
+   "$HOME/cx/decode-base": 4.128931696500331,
+   "$HOME/cx/decode-none": 3.9888467265000145,
+   "$HOME/cx/decode-copy": 4.060422878499594
+  },
+  "7650ae466748.0.sd.h264": {
+   "$HOME/cx/decode-base": 0.5895989730006477,
+   "$HOME/cx/decode-none": 0.5704844484989735,
+   "$HOME/cx/decode-copy": 0.5744833335002113
+  },
+  "81ed4778ece2.0.4k.h264": {
+   "$HOME/cx/decode-base": 0.3672206185001414,
+   "$HOME/cx/decode-none": 0.29147545550040377,
+   "$HOME/cx/decode-copy": 0.32868872150083916
+  },
+  "9db41aa16b5a.0.720p.h264": {
+   "$HOME/cx/decode-base": 1.0599854154997956,
+   "$HOME/cx/decode-none": 1.0409635964997506,
+   "$HOME/cx/decode-copy": 1.0768741649999356
+  },
+  "a81de82106be.0.1080p.h264": {
+   "$HOME/cx/decode-base": 0.7599145530002716,
+   "$HOME/cx/decode-none": 0.7224147765009548,
+   "$HOME/cx/decode-copy": 0.7333991885006981
+  },
+  "af38b0cfd840.0.4k.h264": {
+   "$HOME/cx/decode-base": 0.5389741319995665,
+   "$HOME/cx/decode-none": 0.5317114310000761,
+   "$HOME/cx/decode-copy": 0.5335723644993777
+  },
+  "b71b6b31e54f.0.1080p.h264": {
+   "$HOME/cx/decode-base": 1.086439921499732,
+   "$HOME/cx/decode-none": 1.0152662789996612,
+   "$HOME/cx/decode-copy": 1.0587479354990137
+  },
+  "dcb262cf0138.0.sd.h264": {
+   "$HOME/cx/decode-base": 0.3139753129999008,
+   "$HOME/cx/decode-none": 0.30440905899922654,
+   "$HOME/cx/decode-copy": 0.30934709450048103
+  },
+  "ec473c99c538.0.sd.h264": {
+   "$HOME/cx/decode-base": 0.13239643600081763,
+   "$HOME/cx/decode-none": 0.12769478549944324,
+   "$HOME/cx/decode-copy": 0.13066599000012502
+  },
+  "f8d92a911e72.0.4k.h264": {
+   "$HOME/cx/decode-base": 7.661043416000211,
+   "$HOME/cx/decode-none": 7.429202558500037,
+   "$HOME/cx/decode-copy": 7.617729171499377
+  }
+ }
+}

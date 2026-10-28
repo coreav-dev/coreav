@@ -1,0 +1,25 @@
+callgrind, whole decode, --discard, one thread, 30 pictures; base = main e6d810cf, pair = 31a96d3d (this branch on e6d810cf, before its rebase onto round 11).
+== 9db41aa16b5a base
+582,809,259 (100.0%)  PROGRAM TOTALS
+  219,645,851 (37.69%)  coreav_h264::deblock::deblock_rows::<coreav_kernels_h264::Auto>
+   23,820,455 ( 4.09%)  coreav_kernels_h264::simd::x86::filter_chroma_edge::<false, true>
+   21,957,725 ( 3.77%)  coreav_kernels_h264::simd::x86::filter_chroma_edge::<true, true>
+== 9db41aa16b5a pair
+561,378,368 (100.0%)  PROGRAM TOTALS
+  198,215,455 (35.31%)  coreav_h264::deblock::deblock_rows::<coreav_kernels_h264::Auto>
+   30,044,375 ( 5.35%)  coreav_kernels_h264::simd::x86::filter_chroma_pair
+== 6da34958296c base
+1,926,160,273 (100.0%)  PROGRAM TOTALS
+  510,296,338 (26.49%)  coreav_h264::deblock::deblock_rows::<coreav_kernels_h264::Auto>
+   45,444,600 ( 2.36%)  coreav_kernels_h264::simd::x86::filter_chroma_edge::<false, true>
+   41,786,182 ( 2.17%)  coreav_kernels_h264::simd::x86::filter_chroma_edge::<true, true>
+== 6da34958296c pair
+1,878,172,703 (100.0%)  PROGRAM TOTALS
+  462,308,457 (24.61%)  coreav_h264::deblock::deblock_rows::<coreav_kernels_h264::Auto>
+   57,418,445 ( 3.06%)  coreav_kernels_h264::simd::x86::filter_chroma_pair
+
+calls (callgrind --tree=caller, from deblock_rows):
+9db41aa16b5a base: 272,568 calls
+9db41aa16b5a pair: 136,284 calls
+6da34958296c base: 521,028 calls
+6da34958296c pair: 260,514 calls

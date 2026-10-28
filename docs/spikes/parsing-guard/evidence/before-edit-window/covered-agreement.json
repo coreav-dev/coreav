@@ -1,0 +1,1121 @@
+{
+  "schema": "spike-c/covered-agreement/1",
+  "reference_failures": 0,
+  "streams": {
+    "units": 37,
+    "direct": 32,
+    "via_kd": 2,
+    "uncovered": 3,
+    "direct_percent": 86.48648648648648,
+    "agreement_percent": 91.89189189189189,
+    "details": [
+      {
+        "file": "audio_51.m4a",
+        "units": 1,
+        "direct": 1,
+        "via_kd": 0,
+        "uncovered": 0,
+        "fields": [],
+        "kd_ids": []
+      },
+      {
+        "file": "audio_aac.m4a",
+        "units": 1,
+        "direct": 1,
+        "via_kd": 0,
+        "uncovered": 0,
+        "fields": [],
+        "kd_ids": []
+      },
+      {
+        "file": "audio_mp3.mp4",
+        "units": 1,
+        "direct": 1,
+        "via_kd": 0,
+        "uncovered": 0,
+        "fields": [],
+        "kd_ids": []
+      },
+      {
+        "file": "audio_opus.mp4",
+        "units": 1,
+        "direct": 1,
+        "via_kd": 0,
+        "uncovered": 0,
+        "fields": [],
+        "kd_ids": []
+      },
+      {
+        "file": "av1.mp4",
+        "units": 1,
+        "direct": 1,
+        "via_kd": 0,
+        "uncovered": 0,
+        "fields": [],
+        "kd_ids": []
+      },
+      {
+        "file": "basic.mov",
+        "units": 1,
+        "direct": 1,
+        "via_kd": 0,
+        "uncovered": 0,
+        "fields": [],
+        "kd_ids": []
+      },
+      {
+        "file": "basic.mp4",
+        "units": 1,
+        "direct": 1,
+        "via_kd": 0,
+        "uncovered": 0,
+        "fields": [],
+        "kd_ids": []
+      },
+      {
+        "file": "browser.webm",
+        "units": 1,
+        "direct": 0,
+        "via_kd": 0,
+        "uncovered": 1,
+        "fields": [
+          "format_duration_us",
+          "probe_ok",
+          "stream_count"
+        ],
+        "kd_ids": []
+      },
+      {
+        "file": "color_bt2020_pq.mp4",
+        "units": 1,
+        "direct": 1,
+        "via_kd": 0,
+        "uncovered": 0,
+        "fields": [],
+        "kd_ids": []
+      },
+      {
+        "file": "color_bt709.mp4",
+        "units": 1,
+        "direct": 1,
+        "via_kd": 0,
+        "uncovered": 0,
+        "fields": [],
+        "kd_ids": []
+      },
+      {
+        "file": "color_full_range.mp4",
+        "units": 1,
+        "direct": 1,
+        "via_kd": 0,
+        "uncovered": 0,
+        "fields": [],
+        "kd_ids": []
+      },
+      {
+        "file": "edit_list.mp4",
+        "units": 1,
+        "direct": 0,
+        "via_kd": 0,
+        "uncovered": 1,
+        "fields": [
+          "format_duration_us"
+        ],
+        "kd_ids": []
+      },
+      {
+        "file": "faststart.mp4",
+        "units": 1,
+        "direct": 1,
+        "via_kd": 0,
+        "uncovered": 0,
+        "fields": [],
+        "kd_ids": []
+      },
+      {
+        "file": "fragmented.mp4",
+        "units": 1,
+        "direct": 1,
+        "via_kd": 0,
+        "uncovered": 0,
+        "fields": [],
+        "kd_ids": []
+      },
+      {
+        "file": "h264_avc3.mp4",
+        "units": 1,
+        "direct": 1,
+        "via_kd": 0,
+        "uncovered": 0,
+        "fields": [],
+        "kd_ids": []
+      },
+      {
+        "file": "hevc_hev1.mp4",
+        "units": 1,
+        "direct": 1,
+        "via_kd": 0,
+        "uncovered": 0,
+        "fields": [],
+        "kd_ids": []
+      },
+      {
+        "file": "hevc_hvc1.mp4",
+        "units": 1,
+        "direct": 1,
+        "via_kd": 0,
+        "uncovered": 0,
+        "fields": [],
+        "kd_ids": []
+      },
+      {
+        "file": "multitrack.mp4",
+        "units": 1,
+        "direct": 1,
+        "via_kd": 0,
+        "uncovered": 0,
+        "fields": [],
+        "kd_ids": []
+      },
+      {
+        "file": "negative_cts.mp4",
+        "units": 1,
+        "direct": 1,
+        "via_kd": 0,
+        "uncovered": 0,
+        "fields": [],
+        "kd_ids": []
+      },
+      {
+        "file": "nested_10000.mp4",
+        "units": 1,
+        "direct": 0,
+        "via_kd": 1,
+        "uncovered": 0,
+        "fields": [
+          "probe_ok",
+          "stream_count"
+        ],
+        "kd_ids": [
+          "C-STRICT"
+        ]
+      },
+      {
+        "file": "pcm_f32le.mov",
+        "units": 1,
+        "direct": 1,
+        "via_kd": 0,
+        "uncovered": 0,
+        "fields": [],
+        "kd_ids": []
+      },
+      {
+        "file": "pcm_s16le.mov",
+        "units": 1,
+        "direct": 1,
+        "via_kd": 0,
+        "uncovered": 0,
+        "fields": [],
+        "kd_ids": []
+      },
+      {
+        "file": "pcm_s16le.mp4",
+        "units": 1,
+        "direct": 1,
+        "via_kd": 0,
+        "uncovered": 0,
+        "fields": [],
+        "kd_ids": []
+      },
+      {
+        "file": "pcm_s24le.mov",
+        "units": 1,
+        "direct": 1,
+        "via_kd": 0,
+        "uncovered": 0,
+        "fields": [],
+        "kd_ids": []
+      },
+      {
+        "file": "prores_4444.mov",
+        "units": 1,
+        "direct": 1,
+        "via_kd": 0,
+        "uncovered": 0,
+        "fields": [],
+        "kd_ids": []
+      },
+      {
+        "file": "prores_4444xq.mov",
+        "units": 1,
+        "direct": 1,
+        "via_kd": 0,
+        "uncovered": 0,
+        "fields": [],
+        "kd_ids": []
+      },
+      {
+        "file": "prores_hq.mov",
+        "units": 1,
+        "direct": 1,
+        "via_kd": 0,
+        "uncovered": 0,
+        "fields": [],
+        "kd_ids": []
+      },
+      {
+        "file": "prores_lt.mov",
+        "units": 1,
+        "direct": 1,
+        "via_kd": 0,
+        "uncovered": 0,
+        "fields": [],
+        "kd_ids": []
+      },
+      {
+        "file": "prores_proxy.mov",
+        "units": 1,
+        "direct": 1,
+        "via_kd": 0,
+        "uncovered": 0,
+        "fields": [],
+        "kd_ids": []
+      },
+      {
+        "file": "prores_standard.mov",
+        "units": 1,
+        "direct": 1,
+        "via_kd": 0,
+        "uncovered": 0,
+        "fields": [],
+        "kd_ids": []
+      },
+      {
+        "file": "rotate_ccw180.mp4",
+        "units": 1,
+        "direct": 1,
+        "via_kd": 0,
+        "uncovered": 0,
+        "fields": [],
+        "kd_ids": []
+      },
+      {
+        "file": "rotate_ccw270.mp4",
+        "units": 1,
+        "direct": 1,
+        "via_kd": 0,
+        "uncovered": 0,
+        "fields": [],
+        "kd_ids": []
+      },
+      {
+        "file": "rotate_ccw90.mp4",
+        "units": 1,
+        "direct": 1,
+        "via_kd": 0,
+        "uncovered": 0,
+        "fields": [],
+        "kd_ids": []
+      },
+      {
+        "file": "timecode.mov",
+        "units": 1,
+        "direct": 1,
+        "via_kd": 0,
+        "uncovered": 0,
+        "fields": [],
+        "kd_ids": []
+      },
+      {
+        "file": "truncated.mp4",
+        "units": 1,
+        "direct": 0,
+        "via_kd": 1,
+        "uncovered": 0,
+        "fields": [
+          "format_duration_us",
+          "probe_ok",
+          "stream_count"
+        ],
+        "kd_ids": [
+          "C-STRICT"
+        ]
+      },
+      {
+        "file": "vfr.mp4",
+        "units": 1,
+        "direct": 0,
+        "via_kd": 0,
+        "uncovered": 1,
+        "fields": [
+          "duration_ts",
+          "format_duration_us"
+        ],
+        "kd_ids": []
+      },
+      {
+        "file": "vp9.mp4",
+        "units": 1,
+        "direct": 1,
+        "via_kd": 0,
+        "uncovered": 0,
+        "fields": [],
+        "kd_ids": []
+      }
+    ]
+  },
+  "packets": {
+    "units": 386749,
+    "direct": 2409,
+    "via_kd": 384188,
+    "uncovered": 152,
+    "direct_percent": 0.6228846099149578,
+    "agreement_percent": 99.96069802378287,
+    "details": [
+      {
+        "file": "audio_51.m4a",
+        "units": 95,
+        "direct": 95,
+        "via_kd": 0,
+        "uncovered": 0,
+        "kd_counts": {},
+        "file_status_via_kd": false,
+        "uncovered_file_status": false
+      },
+      {
+        "file": "audio_aac.m4a",
+        "units": 95,
+        "direct": 95,
+        "via_kd": 0,
+        "uncovered": 0,
+        "kd_counts": {},
+        "file_status_via_kd": false,
+        "uncovered_file_status": false
+      },
+      {
+        "file": "audio_mp3.mp4",
+        "units": 85,
+        "direct": 85,
+        "via_kd": 0,
+        "uncovered": 0,
+        "kd_counts": {},
+        "file_status_via_kd": false,
+        "uncovered_file_status": false
+      },
+      {
+        "file": "audio_opus.mp4",
+        "units": 101,
+        "direct": 101,
+        "via_kd": 0,
+        "uncovered": 0,
+        "kd_counts": {},
+        "file_status_via_kd": false,
+        "uncovered_file_status": false
+      },
+      {
+        "file": "av1.mp4",
+        "units": 50,
+        "direct": 50,
+        "via_kd": 0,
+        "uncovered": 0,
+        "kd_counts": {},
+        "file_status_via_kd": false,
+        "uncovered_file_status": false
+      },
+      {
+        "file": "basic.mov",
+        "units": 138,
+        "direct": 138,
+        "via_kd": 0,
+        "uncovered": 0,
+        "kd_counts": {},
+        "file_status_via_kd": false,
+        "uncovered_file_status": false
+      },
+      {
+        "file": "basic.mp4",
+        "units": 138,
+        "direct": 138,
+        "via_kd": 0,
+        "uncovered": 0,
+        "kd_counts": {},
+        "file_status_via_kd": false,
+        "uncovered_file_status": false
+      },
+      {
+        "file": "browser.webm",
+        "units": 151,
+        "direct": 0,
+        "via_kd": 0,
+        "uncovered": 151,
+        "kd_counts": {},
+        "file_status_via_kd": false,
+        "uncovered_file_status": true
+      },
+      {
+        "file": "color_bt2020_pq.mp4",
+        "units": 50,
+        "direct": 50,
+        "via_kd": 0,
+        "uncovered": 0,
+        "kd_counts": {},
+        "file_status_via_kd": false,
+        "uncovered_file_status": false
+      },
+      {
+        "file": "color_bt709.mp4",
+        "units": 50,
+        "direct": 50,
+        "via_kd": 0,
+        "uncovered": 0,
+        "kd_counts": {},
+        "file_status_via_kd": false,
+        "uncovered_file_status": false
+      },
+      {
+        "file": "color_full_range.mp4",
+        "units": 50,
+        "direct": 50,
+        "via_kd": 0,
+        "uncovered": 0,
+        "kd_counts": {},
+        "file_status_via_kd": false,
+        "uncovered_file_status": false
+      },
+      {
+        "file": "edit_list.mp4",
+        "units": 138,
+        "direct": 138,
+        "via_kd": 0,
+        "uncovered": 0,
+        "kd_counts": {},
+        "file_status_via_kd": false,
+        "uncovered_file_status": false
+      },
+      {
+        "file": "faststart.mp4",
+        "units": 138,
+        "direct": 138,
+        "via_kd": 0,
+        "uncovered": 0,
+        "kd_counts": {},
+        "file_status_via_kd": false,
+        "uncovered_file_status": false
+      },
+      {
+        "file": "fragmented.mp4",
+        "units": 138,
+        "direct": 138,
+        "via_kd": 0,
+        "uncovered": 0,
+        "kd_counts": {},
+        "file_status_via_kd": false,
+        "uncovered_file_status": false
+      },
+      {
+        "file": "h264_avc3.mp4",
+        "units": 50,
+        "direct": 50,
+        "via_kd": 0,
+        "uncovered": 0,
+        "kd_counts": {},
+        "file_status_via_kd": false,
+        "uncovered_file_status": false
+      },
+      {
+        "file": "hevc_hev1.mp4",
+        "units": 50,
+        "direct": 50,
+        "via_kd": 0,
+        "uncovered": 0,
+        "kd_counts": {},
+        "file_status_via_kd": false,
+        "uncovered_file_status": false
+      },
+      {
+        "file": "hevc_hvc1.mp4",
+        "units": 50,
+        "direct": 50,
+        "via_kd": 0,
+        "uncovered": 0,
+        "kd_counts": {},
+        "file_status_via_kd": false,
+        "uncovered_file_status": false
+      },
+      {
+        "file": "multitrack.mp4",
+        "units": 296,
+        "direct": 295,
+        "via_kd": 0,
+        "uncovered": 1,
+        "kd_counts": {},
+        "file_status_via_kd": false,
+        "uncovered_file_status": false
+      },
+      {
+        "file": "negative_cts.mp4",
+        "units": 50,
+        "direct": 0,
+        "via_kd": 50,
+        "uncovered": 0,
+        "kd_counts": {
+          "C-CTTS": 50
+        },
+        "file_status_via_kd": false,
+        "uncovered_file_status": false
+      },
+      {
+        "file": "nested_10000.mp4",
+        "units": 0,
+        "direct": 0,
+        "via_kd": 0,
+        "uncovered": 0,
+        "kd_counts": {},
+        "file_status_via_kd": true,
+        "uncovered_file_status": false
+      },
+      {
+        "file": "pcm_f32le.mov",
+        "units": 96000,
+        "direct": 0,
+        "via_kd": 96000,
+        "uncovered": 0,
+        "kd_counts": {
+          "C-PCM": 96000
+        },
+        "file_status_via_kd": false,
+        "uncovered_file_status": false
+      },
+      {
+        "file": "pcm_s16le.mov",
+        "units": 96000,
+        "direct": 0,
+        "via_kd": 96000,
+        "uncovered": 0,
+        "kd_counts": {
+          "C-PCM": 96000
+        },
+        "file_status_via_kd": false,
+        "uncovered_file_status": false
+      },
+      {
+        "file": "pcm_s16le.mp4",
+        "units": 96000,
+        "direct": 0,
+        "via_kd": 96000,
+        "uncovered": 0,
+        "kd_counts": {
+          "C-PCM": 96000
+        },
+        "file_status_via_kd": false,
+        "uncovered_file_status": false
+      },
+      {
+        "file": "pcm_s24le.mov",
+        "units": 96000,
+        "direct": 0,
+        "via_kd": 96000,
+        "uncovered": 0,
+        "kd_counts": {
+          "C-PCM": 96000
+        },
+        "file_status_via_kd": false,
+        "uncovered_file_status": false
+      },
+      {
+        "file": "prores_4444.mov",
+        "units": 25,
+        "direct": 25,
+        "via_kd": 0,
+        "uncovered": 0,
+        "kd_counts": {},
+        "file_status_via_kd": false,
+        "uncovered_file_status": false
+      },
+      {
+        "file": "prores_4444xq.mov",
+        "units": 25,
+        "direct": 25,
+        "via_kd": 0,
+        "uncovered": 0,
+        "kd_counts": {},
+        "file_status_via_kd": false,
+        "uncovered_file_status": false
+      },
+      {
+        "file": "prores_hq.mov",
+        "units": 25,
+        "direct": 25,
+        "via_kd": 0,
+        "uncovered": 0,
+        "kd_counts": {},
+        "file_status_via_kd": false,
+        "uncovered_file_status": false
+      },
+      {
+        "file": "prores_lt.mov",
+        "units": 25,
+        "direct": 25,
+        "via_kd": 0,
+        "uncovered": 0,
+        "kd_counts": {},
+        "file_status_via_kd": false,
+        "uncovered_file_status": false
+      },
+      {
+        "file": "prores_proxy.mov",
+        "units": 25,
+        "direct": 25,
+        "via_kd": 0,
+        "uncovered": 0,
+        "kd_counts": {},
+        "file_status_via_kd": false,
+        "uncovered_file_status": false
+      },
+      {
+        "file": "prores_standard.mov",
+        "units": 25,
+        "direct": 25,
+        "via_kd": 0,
+        "uncovered": 0,
+        "kd_counts": {},
+        "file_status_via_kd": false,
+        "uncovered_file_status": false
+      },
+      {
+        "file": "rotate_ccw180.mp4",
+        "units": 138,
+        "direct": 138,
+        "via_kd": 0,
+        "uncovered": 0,
+        "kd_counts": {},
+        "file_status_via_kd": false,
+        "uncovered_file_status": false
+      },
+      {
+        "file": "rotate_ccw270.mp4",
+        "units": 138,
+        "direct": 138,
+        "via_kd": 0,
+        "uncovered": 0,
+        "kd_counts": {},
+        "file_status_via_kd": false,
+        "uncovered_file_status": false
+      },
+      {
+        "file": "rotate_ccw90.mp4",
+        "units": 138,
+        "direct": 138,
+        "via_kd": 0,
+        "uncovered": 0,
+        "kd_counts": {},
+        "file_status_via_kd": false,
+        "uncovered_file_status": false
+      },
+      {
+        "file": "timecode.mov",
+        "units": 51,
+        "direct": 51,
+        "via_kd": 0,
+        "uncovered": 0,
+        "kd_counts": {},
+        "file_status_via_kd": false,
+        "uncovered_file_status": false
+      },
+      {
+        "file": "truncated.mp4",
+        "units": 138,
+        "direct": 0,
+        "via_kd": 138,
+        "uncovered": 0,
+        "kd_counts": {
+          "C-STRICT": 138
+        },
+        "file_status_via_kd": true,
+        "uncovered_file_status": false
+      },
+      {
+        "file": "vfr.mp4",
+        "units": 33,
+        "direct": 33,
+        "via_kd": 0,
+        "uncovered": 0,
+        "kd_counts": {},
+        "file_status_via_kd": false,
+        "uncovered_file_status": false
+      },
+      {
+        "file": "vp9.mp4",
+        "units": 50,
+        "direct": 50,
+        "via_kd": 0,
+        "uncovered": 0,
+        "kd_counts": {},
+        "file_status_via_kd": false,
+        "uncovered_file_status": false
+      }
+    ]
+  },
+  "breakdown": [
+    {
+      "file": "audio_51.m4a",
+      "codec": "aac",
+      "field": "discard (informational)",
+      "cause": "oracle normalization",
+      "kd_id": null,
+      "count": 1
+    },
+    {
+      "file": "audio_aac.m4a",
+      "codec": "aac",
+      "field": "discard (informational)",
+      "cause": "oracle normalization",
+      "kd_id": null,
+      "count": 1
+    },
+    {
+      "file": "basic.mov",
+      "codec": "aac",
+      "field": "discard (informational)",
+      "cause": "oracle normalization",
+      "kd_id": null,
+      "count": 1
+    },
+    {
+      "file": "basic.mp4",
+      "codec": "aac",
+      "field": "discard (informational)",
+      "cause": "oracle normalization",
+      "kd_id": null,
+      "count": 1
+    },
+    {
+      "file": "browser.webm",
+      "codec": "container",
+      "field": "format_duration_us",
+      "cause": "unsupported container",
+      "kd_id": null,
+      "count": 1
+    },
+    {
+      "file": "browser.webm",
+      "codec": "container",
+      "field": "probe_ok",
+      "cause": "unsupported container",
+      "kd_id": null,
+      "count": 1
+    },
+    {
+      "file": "browser.webm",
+      "codec": "container",
+      "field": "stream_count",
+      "cause": "unsupported container",
+      "kd_id": null,
+      "count": 1
+    },
+    {
+      "file": "browser.webm",
+      "codec": "opus",
+      "field": "missing",
+      "cause": "unsupported container",
+      "kd_id": null,
+      "count": 101
+    },
+    {
+      "file": "browser.webm",
+      "codec": "opus",
+      "field": "probe_ok/stream_count",
+      "cause": "unsupported container",
+      "kd_id": null,
+      "count": 101
+    },
+    {
+      "file": "browser.webm",
+      "codec": "vp9",
+      "field": "missing",
+      "cause": "unsupported container",
+      "kd_id": null,
+      "count": 50
+    },
+    {
+      "file": "browser.webm",
+      "codec": "vp9",
+      "field": "probe_ok/stream_count",
+      "cause": "unsupported container",
+      "kd_id": null,
+      "count": 50
+    },
+    {
+      "file": "edit_list.mp4",
+      "codec": "aac",
+      "field": "duration (informational)",
+      "cause": "oracle normalization",
+      "kd_id": null,
+      "count": 1
+    },
+    {
+      "file": "edit_list.mp4",
+      "codec": "container",
+      "field": "format_duration_us",
+      "cause": "timestamp/edit-list modeling",
+      "kd_id": null,
+      "count": 1
+    },
+    {
+      "file": "faststart.mp4",
+      "codec": "aac",
+      "field": "discard (informational)",
+      "cause": "oracle normalization",
+      "kd_id": null,
+      "count": 1
+    },
+    {
+      "file": "fragmented.mp4",
+      "codec": "aac",
+      "field": "duration (informational)",
+      "cause": "oracle normalization",
+      "kd_id": null,
+      "count": 2
+    },
+    {
+      "file": "multitrack.mp4",
+      "codec": "aac",
+      "field": "discard (informational)",
+      "cause": "oracle normalization",
+      "kd_id": null,
+      "count": 2
+    },
+    {
+      "file": "multitrack.mp4",
+      "codec": "mov_text",
+      "field": "extra",
+      "cause": "grouping per ADR 0003 (uncovered terminal sample)",
+      "kd_id": null,
+      "count": 1
+    },
+    {
+      "file": "negative_cts.mp4",
+      "codec": "h264",
+      "field": "dts",
+      "cause": "oracle normalization",
+      "kd_id": "C-CTTS",
+      "count": 50
+    },
+    {
+      "file": "nested_10000.mp4",
+      "codec": "container",
+      "field": "probe_ok",
+      "cause": "oracle normalization",
+      "kd_id": "C-STRICT",
+      "count": 1
+    },
+    {
+      "file": "nested_10000.mp4",
+      "codec": "container",
+      "field": "stream_count",
+      "cause": "oracle normalization",
+      "kd_id": "C-STRICT",
+      "count": 1
+    },
+    {
+      "file": "pcm_f32le.mov",
+      "codec": "pcm_f32le",
+      "field": "duration (informational)",
+      "cause": "grouping per ADR 0003",
+      "kd_id": null,
+      "count": 94
+    },
+    {
+      "file": "pcm_f32le.mov",
+      "codec": "pcm_f32le",
+      "field": "extra",
+      "cause": "grouping per ADR 0003",
+      "kd_id": "C-PCM",
+      "count": 95906
+    },
+    {
+      "file": "pcm_f32le.mov",
+      "codec": "pcm_f32le",
+      "field": "size",
+      "cause": "grouping per ADR 0003",
+      "kd_id": "C-PCM",
+      "count": 94
+    },
+    {
+      "file": "pcm_s16le.mov",
+      "codec": "pcm_s16le",
+      "field": "duration (informational)",
+      "cause": "grouping per ADR 0003",
+      "kd_id": null,
+      "count": 94
+    },
+    {
+      "file": "pcm_s16le.mov",
+      "codec": "pcm_s16le",
+      "field": "extra",
+      "cause": "grouping per ADR 0003",
+      "kd_id": "C-PCM",
+      "count": 95906
+    },
+    {
+      "file": "pcm_s16le.mov",
+      "codec": "pcm_s16le",
+      "field": "size",
+      "cause": "grouping per ADR 0003",
+      "kd_id": "C-PCM",
+      "count": 94
+    },
+    {
+      "file": "pcm_s16le.mp4",
+      "codec": "pcm_s16le",
+      "field": "duration (informational)",
+      "cause": "grouping per ADR 0003",
+      "kd_id": null,
+      "count": 94
+    },
+    {
+      "file": "pcm_s16le.mp4",
+      "codec": "pcm_s16le",
+      "field": "extra",
+      "cause": "grouping per ADR 0003",
+      "kd_id": "C-PCM",
+      "count": 95906
+    },
+    {
+      "file": "pcm_s16le.mp4",
+      "codec": "pcm_s16le",
+      "field": "size",
+      "cause": "grouping per ADR 0003",
+      "kd_id": "C-PCM",
+      "count": 94
+    },
+    {
+      "file": "pcm_s24le.mov",
+      "codec": "pcm_s24le",
+      "field": "duration (informational)",
+      "cause": "grouping per ADR 0003",
+      "kd_id": null,
+      "count": 94
+    },
+    {
+      "file": "pcm_s24le.mov",
+      "codec": "pcm_s24le",
+      "field": "extra",
+      "cause": "grouping per ADR 0003",
+      "kd_id": "C-PCM",
+      "count": 95906
+    },
+    {
+      "file": "pcm_s24le.mov",
+      "codec": "pcm_s24le",
+      "field": "size",
+      "cause": "grouping per ADR 0003",
+      "kd_id": "C-PCM",
+      "count": 94
+    },
+    {
+      "file": "rotate_ccw180.mp4",
+      "codec": "aac",
+      "field": "discard (informational)",
+      "cause": "oracle normalization",
+      "kd_id": null,
+      "count": 1
+    },
+    {
+      "file": "rotate_ccw270.mp4",
+      "codec": "aac",
+      "field": "discard (informational)",
+      "cause": "oracle normalization",
+      "kd_id": null,
+      "count": 1
+    },
+    {
+      "file": "rotate_ccw90.mp4",
+      "codec": "aac",
+      "field": "discard (informational)",
+      "cause": "oracle normalization",
+      "kd_id": null,
+      "count": 1
+    },
+    {
+      "file": "truncated.mp4",
+      "codec": "aac",
+      "field": "missing",
+      "cause": "oracle normalization",
+      "kd_id": "C-STRICT",
+      "count": 88
+    },
+    {
+      "file": "truncated.mp4",
+      "codec": "aac",
+      "field": "probe_ok/stream_count",
+      "cause": "oracle normalization",
+      "kd_id": "C-STRICT",
+      "count": 88
+    },
+    {
+      "file": "truncated.mp4",
+      "codec": "container",
+      "field": "format_duration_us",
+      "cause": "oracle normalization",
+      "kd_id": "C-STRICT",
+      "count": 1
+    },
+    {
+      "file": "truncated.mp4",
+      "codec": "container",
+      "field": "probe_ok",
+      "cause": "oracle normalization",
+      "kd_id": "C-STRICT",
+      "count": 1
+    },
+    {
+      "file": "truncated.mp4",
+      "codec": "container",
+      "field": "stream_count",
+      "cause": "oracle normalization",
+      "kd_id": "C-STRICT",
+      "count": 1
+    },
+    {
+      "file": "truncated.mp4",
+      "codec": "h264",
+      "field": "missing",
+      "cause": "oracle normalization",
+      "kd_id": "C-STRICT",
+      "count": 50
+    },
+    {
+      "file": "truncated.mp4",
+      "codec": "h264",
+      "field": "probe_ok/stream_count",
+      "cause": "oracle normalization",
+      "kd_id": "C-STRICT",
+      "count": 50
+    },
+    {
+      "file": "vfr.mp4",
+      "codec": "container",
+      "field": "format_duration_us",
+      "cause": "timestamp/edit-list modeling",
+      "kd_id": null,
+      "count": 1
+    },
+    {
+      "file": "vfr.mp4",
+      "codec": "h264",
+      "field": "duration (informational)",
+      "cause": "oracle normalization",
+      "kd_id": null,
+      "count": 6
+    },
+    {
+      "file": "vfr.mp4",
+      "codec": "h264",
+      "field": "duration_ts",
+      "cause": "timestamp/edit-list modeling",
+      "kd_id": null,
+      "count": 1
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+11:57:49 cpu facts:
+model name	: unknown
+CPU(s):              24
+Vendor ID:           AuthenticAMD
+CPU family:          25
+Model:               1
+Thread(s) per core:  1
+Core(s) per socket:  24
+Socket(s):           1
+Stepping:            unknown
+8
+24
+avx2 
+11:58:07 reference measurement 1: 36501d448eaa.0.720p 1.381s; a6af290d9053.0.1080p 4.556s
+12:03:25 reference measurement 2: 36501d448eaa.0.720p 1.370s; a6af290d9053.0.1080p 4.517s
+12:08:42 reference measurement 3: 36501d448eaa.0.720p 1.350s; a6af290d9053.0.1080p 4.539s
+12:08:42 reference {'36501d448eaa.0.720p': 1.3701625570000147, 'a6af290d9053.0.1080p': 4.538528123999981} max deviation {'36501d448eaa.0.720p': 0.014469388977731978, 'a6af290d9053.0.1080p': 0.004656896337870586} stable
+12:22:34 identity 32/32 same
+12:22:52 PASS before g.sd.json 36501d448eaa.0.720p ratio 0.996; a6af290d9053.0.1080p ratio 0.997
+12:29:56 PASS after g.sd.json 36501d448eaa.0.720p ratio 0.978; a6af290d9053.0.1080p ratio 0.995
+12:29:56 g sd done
+12:30:14 PASS before g.720p.json 36501d448eaa.0.720p ratio 1.004; a6af290d9053.0.1080p ratio 1.001
+12:42:16 PASS after g.720p.json 36501d448eaa.0.720p ratio 0.974; a6af290d9053.0.1080p ratio 0.979
+12:42:16 g 720p done
+12:42:33 PASS before g.1080p.json 36501d448eaa.0.720p ratio 0.979; a6af290d9053.0.1080p ratio 0.982
+13:09:45 PASS after g.1080p.json 36501d448eaa.0.720p ratio 1.003; a6af290d9053.0.1080p ratio 1.005
+13:09:45 g 1080p done
+13:10:02 PASS before g.4k.json 36501d448eaa.0.720p ratio 0.980; a6af290d9053.0.1080p ratio 0.992
+13:23:31 PASS after g.4k.json 36501d448eaa.0.720p ratio 0.985; a6af290d9053.0.1080p ratio 1.007
+13:23:31 g 4k done
+13:23:51 FAIL before t8.sd.json 36501d448eaa.0.720p ratio 1.118; a6af290d9053.0.1080p ratio 1.122
+13:25:10 FAIL before t8.sd.json 36501d448eaa.0.720p ratio 1.063; a6af290d9053.0.1080p ratio 1.082
+13:26:31 FAIL before t8.sd.json 36501d448eaa.0.720p ratio 1.136; a6af290d9053.0.1080p ratio 1.168
+13:27:50 FAIL before t8.sd.json 36501d448eaa.0.720p ratio 1.087; a6af290d9053.0.1080p ratio 1.076
+13:29:08 PASS before t8.sd.json 36501d448eaa.0.720p ratio 1.038; a6af290d9053.0.1080p ratio 0.982
+13:30:50 PASS after t8.sd.json 36501d448eaa.0.720p ratio 0.989; a6af290d9053.0.1080p ratio 1.032
+13:30:50 t8 sd done
+13:31:08 PASS before t8.720p.json 36501d448eaa.0.720p ratio 0.989; a6af290d9053.0.1080p ratio 0.992
+13:32:56 PASS after t8.720p.json 36501d448eaa.0.720p ratio 0.994; a6af290d9053.0.1080p ratio 0.989
+13:32:56 t8 720p done
+13:33:14 PASS before t8.1080p.json 36501d448eaa.0.720p ratio 0.980; a6af290d9053.0.1080p ratio 1.009
+13:36:11 PASS after t8.1080p.json 36501d448eaa.0.720p ratio 0.996; a6af290d9053.0.1080p ratio 1.031
+13:36:11 t8 1080p done
+13:36:29 PASS before t8.4k.json 36501d448eaa.0.720p ratio 0.996; a6af290d9053.0.1080p ratio 1.037
+13:38:38 PASS after t8.4k.json 36501d448eaa.0.720p ratio 1.009; a6af290d9053.0.1080p ratio 1.003
+13:38:38 t8 4k done
+13:38:39 analysis done elapsed 6050s

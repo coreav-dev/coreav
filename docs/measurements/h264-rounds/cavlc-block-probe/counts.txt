@@ -1,0 +1,16 @@
+CAVLC block parse counts and instructions (written before the probe run).
+
+Build: perf/h264-bundle2-a a46be406 (main 16c3e239's decoder with bundle 2 item A), dist profile, line tables only.
+Counts: an instrumented copy (counters at each site, not committed), the class tenth frame counts (sd 180, 720p 90,
+1080p 30, 4k 15), --discard, one thread. Instructions: callgrind of the same frames, with block_body made
+inline(never) so that its instructions and calls can be read (block_body self cost, all instances).
+
+stream        class  calls   coded  total_zeros  run_before  levels  stream instr  block_body instr  share  per call
+5185721dda11  sd     131244  83023  82327        70913       187395  246.0M        36.2M             14.7%  276
+6f7799768413  sd       5894    791    607         2586         8144  266.3M         1.5M              0.5%  246
+9db41aa16b5a  720p   211874  71370  70397        97238       222447  981.8M        50.7M              5.2%  239
+b71b6b31e54f  1080p   39628  23145  22929        77163       156491  539.1M        22.4M              4.2%  566
+ec473c99c538  sd      17529   7951   7216        29725        71972   98.5M         9.4M              9.6%  539
+f9e973f44570  sd     133197  84117  83251       143323       284196  175.0M        46.9M             26.8%  352
+
+(block_body instr includes escaped_level; calls = block_body calls, coded = TotalCoeff above 0.)

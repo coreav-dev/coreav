@@ -1,0 +1,13 @@
+# Local build of cabac-b1 (exp/h264-cabac-bmi2 23f6877d, dist): per function, BMI2 shifts and shifts by CL. Command, per symbol S of `nm BIN | grep -e fast_exp -e significance_map -e cabac6levels`: objdump -d BIN --disassemble=S | grep -c "shlx\|shrx\|sarx" (bmi2) and grep -c "sh[lr] .*%cl\|sar .*%cl" (by_cl); names are the mangled symbols cut to the function and its N (Kj10_ = 16, Kj40_ = 64, Kj4_ = 4)
+3levKj10_ bmi2=5 by_cl=0
+3levKj40_ bmi2=5 by_cl=0
+3levKj4_ bmi2=4 by_cl=0
+3sigKj10_ bmi2=4 by_cl=0
+3sigKj40_ bmi2=4 by_cl=0
+3sigKj4_ bmi2=6 by_cl=0
+significance_mapKj10_ bmi2=0 by_cl=4
+significance_mapKj40_ bmi2=0 by_cl=4
+significance_mapKj4_ bmi2=0 by_cl=6
+levelsKj10_ bmi2=0 by_cl=5
+levelsKj40_ bmi2=0 by_cl=5
+levelsKj4_ bmi2=0 by_cl=4

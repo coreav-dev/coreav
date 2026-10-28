@@ -1,0 +1,58 @@
+# Python package `coreav`, built with maturin (docs/design/python.md). Not
+# published: publishing to PyPI waits for the maintainer.
+[build-system]
+requires = ["maturin>=1.9.4,<2"]
+build-backend = "maturin"
+
+[project]
+name = "coreav"
+description = "Media probing and stream copy (probe, check, clip, remux, sanitize, extract audio, subtitles and chapters) for MP4, MOV, Matroska and WebM"
+requires-python = ">=3.9"
+license = "MIT OR Apache-2.0"
+license-files = ["LICENSE-MIT", "LICENSE-APACHE", "NOTICE"]
+keywords = [
+    "probe",
+    "remux",
+    "clip",
+    "mp4",
+    "mov",
+    "webm",
+    "matroska",
+    "webvtt",
+    "media",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Rust",
+    "Topic :: Multimedia :: Sound/Audio",
+    "Topic :: Multimedia :: Video",
+    "Topic :: Multimedia :: Video :: Conversion",
+    "Typing :: Typed",
+]
+dynamic = ["version"]
+
+[project.urls]
+Repository = "https://github.com/coreav-dev/coreav"
+Issues = "https://github.com/coreav-dev/coreav/issues"
+Schemas = "https://github.com/coreav-dev/coreav/tree/main/docs/schema"
+
+[project.scripts]
+# The same `coreav` command as the binary: `uvx coreav probe FILE`.
+coreav = "coreav.coreav:_cli"
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[tool.maturin]
+# The shipped build (Cargo.toml's `dist`: fat LTO), also for builds from
+# the sdist.
+profile = "dist"
+bindings = "pyo3"
+module-name = "coreav"

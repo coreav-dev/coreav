@@ -1,0 +1,6 @@
+# Instructions (callgrind, --discard; sd 200, 1080p 60, 4k 30 frames), main 33e2273 against d59a943: stream base branch ratio.
+# More instructions (the stamps' tests) and less time: the fill was a store of 124 bytes a macroblock, one instruction a line.
+3b1b441e23ae.0.4k 1269097417 1282437110 1.0105
+41e324ebb708.0.sd 589454537 594528245 1.0086
+b71b6b31e54f.0.1080p 1107025643 1111253001 1.0038
+ed75c044e944.0.4k 554959118 562265415 1.0132

@@ -1,0 +1,3 @@
+a81de82106be decision chain cabac.rs:194-215, 15 lines: time 26.78%, instr 19.80%
+1d4b1775d78a decision chain cabac.rs:194-215, 15 lines: time 14.20%, instr 10.05%
+3b1b441e23ae decision chain cabac.rs:194-215, 15 lines: time 5.84%, instr 3.44%

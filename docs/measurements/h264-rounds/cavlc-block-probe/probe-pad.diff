@@ -1,0 +1,76 @@
+diff --git a/crates/coreav-h264/Cargo.toml b/crates/coreav-h264/Cargo.toml
+index 9c111b03..9a4ff65b 100644
+--- a/crates/coreav-h264/Cargo.toml
++++ b/crates/coreav-h264/Cargo.toml
+@@ -21,6 +21,7 @@ default = ["fast"]
+ # The hot-path module of ADR 0038 (`src/fast/`): the decoder's only
+ # `unsafe`. A build without it compiles none and runs the baseline twins.
+ fast = []
++probe-pad = ["fast"]
+ 
+ # The workspace's lint table, with `unsafe_code = "deny"` instead of
+ # `forbid` (ADR 0038 point 1): `#[allow(unsafe_code)]` sits on `fast` alone,
+diff --git a/crates/coreav-h264/src/cavlc.rs b/crates/coreav-h264/src/cavlc.rs
+index ece34e36..3aaa6e85 100644
+--- a/crates/coreav-h264/src/cavlc.rs
++++ b/crates/coreav-h264/src/cavlc.rs
+@@ -375,6 +375,8 @@ pub(crate) fn block_body<const N: usize>(
+     max: usize,
+     scale: &CoeffScale<N>,
+ ) -> Result<u8> {
++    #[cfg(feature = "probe-pad")]
++    crate::fast::pad::<34>(nc as u64);
+     let c = codes();
+     let mut w = Window::new(r);
+     let table = c
+@@ -399,6 +401,8 @@ pub(crate) fn block_body<const N: usize>(
+             c.total_zeros.get(total - 1)
+         };
+         let table = table.ok_or(Error::Invalid("total_zeros table index"))?;
++        #[cfg(feature = "probe-pad")]
++        crate::fast::pad::<24>(total as u64);
+         usize::from(w.code(table)?.a)
+     } else {
+         0
+@@ -411,6 +415,8 @@ pub(crate) fn block_body<const N: usize>(
+     let mut at = total + zeros_left - 1;
+     for (i, &v) in level.iter().enumerate().take(total) {
+         let raster = usize::from(scan.get(at).copied().unwrap_or(0));
++        #[cfg(feature = "probe-pad")]
++        crate::fast::pad::<3>(raster as u64);
+         if let Some(slot) = out.get_mut(raster) {
+             *slot = scale.apply(raster, v);
+         }
+@@ -422,6 +428,8 @@ pub(crate) fn block_body<const N: usize>(
+                 .run_before
+                 .get(zeros_left.min(7) - 1)
+                 .ok_or(Error::Invalid("run_before table index"))?;
++            #[cfg(feature = "probe-pad")]
++            crate::fast::pad::<26>(zeros_left as u64);
+             let run = usize::from(w.code(table)?.a);
+             if run > zeros_left {
+                 return Err(w.error("run_before past the zeros left"));
+diff --git a/crates/coreav-h264/src/fast/mod.rs b/crates/coreav-h264/src/fast/mod.rs
+index 50b11bce..72f63047 100644
+--- a/crates/coreav-h264/src/fast/mod.rs
++++ b/crates/coreav-h264/src/fast/mod.rs
+@@ -172,3 +172,19 @@ impl Tier for V3 {
+         k.predict_inlined(dst, src, px, py, w, h, mv, ops)
+     }
+ }
++
++#[cfg(feature = "probe-pad")]
++/// Probe only (not for merge): `N` independent one-uop instructions, the
++/// CAVLC block parse cut's predicted instructions at one of its sites.
++#[inline(always)]
++pub(crate) fn pad<const N: usize>(a: u64) {
++    for _ in 0..N {
++        // SAFETY: register arithmetic only; no memory, stack or flags.
++        unsafe {
++            core::arch::asm!(
++                "lea {o}, [{a} + {a}]",
++                o = out(reg) _, a = in(reg) a, options(nomem, nostack, preserves_flags)
++            );
++        }
++    }
++}

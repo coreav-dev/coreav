@@ -1,0 +1,2167 @@
+{
+  "schema": "spike-c/evidence/1",
+  "profile": "fixtures",
+  "passed": false,
+  "divergences_exempted": 0,
+  "levels": [
+    {
+      "agree": 32,
+      "agreement_percent": 86.48648648648648,
+      "disagree": 5,
+      "files": 37,
+      "level": "streams",
+      "minimum_files": 0,
+      "minimum_units": 0,
+      "passed": false,
+      "reference_failures": 0,
+      "required_percent": 100,
+      "total": 37,
+      "details": [
+        {
+          "agrees": true,
+          "file": "audio_51.m4a",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "audio_aac.m4a",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "audio_mp3.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "audio_opus.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "av1.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {
+            "streams/0/sample_aspect_ratio": 1,
+            "streams/0/display_aspect_ratio": 1
+          },
+          "informational_examples": [
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/sample_aspect_ratio",
+              "reference": [
+                1,
+                1
+              ]
+            },
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/display_aspect_ratio",
+              "reference": [
+                4,
+                3
+              ]
+            }
+          ]
+        },
+        {
+          "agrees": true,
+          "file": "basic.mov",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {
+            "streams/0/sample_aspect_ratio": 1,
+            "streams/0/display_aspect_ratio": 1,
+            "streams/0/handler_name": 1,
+            "streams/1/handler_name": 1
+          },
+          "informational_examples": [
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/sample_aspect_ratio",
+              "reference": [
+                1,
+                1
+              ]
+            },
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/display_aspect_ratio",
+              "reference": [
+                4,
+                3
+              ]
+            },
+            {
+              "candidate": "\fVideoHandler",
+              "informational": true,
+              "path": "streams/0/handler_name",
+              "reference": "VideoHandler"
+            }
+          ]
+        },
+        {
+          "agrees": true,
+          "file": "basic.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {
+            "streams/0/sample_aspect_ratio": 1,
+            "streams/0/display_aspect_ratio": 1
+          },
+          "informational_examples": [
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/sample_aspect_ratio",
+              "reference": [
+                1,
+                1
+              ]
+            },
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/display_aspect_ratio",
+              "reference": [
+                4,
+                3
+              ]
+            }
+          ]
+        },
+        {
+          "agrees": false,
+          "file": "browser.webm",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {
+            "probe_ok": 1
+          },
+          "gating_examples": [
+            {
+              "candidate": false,
+              "informational": false,
+              "path": "probe_ok",
+              "reference": true
+            }
+          ],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "color_bt2020_pq.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {
+            "streams/0/sample_aspect_ratio": 1,
+            "streams/0/display_aspect_ratio": 1
+          },
+          "informational_examples": [
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/sample_aspect_ratio",
+              "reference": [
+                1,
+                1
+              ]
+            },
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/display_aspect_ratio",
+              "reference": [
+                4,
+                3
+              ]
+            }
+          ]
+        },
+        {
+          "agrees": true,
+          "file": "color_bt709.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {
+            "streams/0/sample_aspect_ratio": 1,
+            "streams/0/display_aspect_ratio": 1
+          },
+          "informational_examples": [
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/sample_aspect_ratio",
+              "reference": [
+                1,
+                1
+              ]
+            },
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/display_aspect_ratio",
+              "reference": [
+                4,
+                3
+              ]
+            }
+          ]
+        },
+        {
+          "agrees": true,
+          "file": "color_full_range.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {
+            "streams/0/sample_aspect_ratio": 1,
+            "streams/0/display_aspect_ratio": 1
+          },
+          "informational_examples": [
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/sample_aspect_ratio",
+              "reference": [
+                1,
+                1
+              ]
+            },
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/display_aspect_ratio",
+              "reference": [
+                4,
+                3
+              ]
+            }
+          ]
+        },
+        {
+          "agrees": false,
+          "file": "edit_list.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {
+            "format_duration_us": 1
+          },
+          "gating_examples": [
+            {
+              "candidate": 2500000,
+              "informational": false,
+              "path": "format_duration_us",
+              "reference": 2023991
+            }
+          ],
+          "informational_difference_counts": {
+            "streams/0/sample_aspect_ratio": 1,
+            "streams/0/display_aspect_ratio": 1
+          },
+          "informational_examples": [
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/sample_aspect_ratio",
+              "reference": [
+                1,
+                1
+              ]
+            },
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/display_aspect_ratio",
+              "reference": [
+                4,
+                3
+              ]
+            }
+          ]
+        },
+        {
+          "agrees": true,
+          "file": "faststart.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {
+            "streams/0/sample_aspect_ratio": 1,
+            "streams/0/display_aspect_ratio": 1
+          },
+          "informational_examples": [
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/sample_aspect_ratio",
+              "reference": [
+                1,
+                1
+              ]
+            },
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/display_aspect_ratio",
+              "reference": [
+                4,
+                3
+              ]
+            }
+          ]
+        },
+        {
+          "agrees": true,
+          "file": "fragmented.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {
+            "streams/0/sample_aspect_ratio": 1,
+            "streams/0/display_aspect_ratio": 1
+          },
+          "informational_examples": [
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/sample_aspect_ratio",
+              "reference": [
+                1,
+                1
+              ]
+            },
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/display_aspect_ratio",
+              "reference": [
+                4,
+                3
+              ]
+            }
+          ]
+        },
+        {
+          "agrees": true,
+          "file": "h264_avc3.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {
+            "streams/0/sample_aspect_ratio": 1,
+            "streams/0/display_aspect_ratio": 1
+          },
+          "informational_examples": [
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/sample_aspect_ratio",
+              "reference": [
+                1,
+                1
+              ]
+            },
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/display_aspect_ratio",
+              "reference": [
+                4,
+                3
+              ]
+            }
+          ]
+        },
+        {
+          "agrees": true,
+          "file": "hevc_hev1.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {
+            "streams/0/sample_aspect_ratio": 1,
+            "streams/0/display_aspect_ratio": 1
+          },
+          "informational_examples": [
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/sample_aspect_ratio",
+              "reference": [
+                1,
+                1
+              ]
+            },
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/display_aspect_ratio",
+              "reference": [
+                4,
+                3
+              ]
+            }
+          ]
+        },
+        {
+          "agrees": true,
+          "file": "hevc_hvc1.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {
+            "streams/0/sample_aspect_ratio": 1,
+            "streams/0/display_aspect_ratio": 1
+          },
+          "informational_examples": [
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/sample_aspect_ratio",
+              "reference": [
+                1,
+                1
+              ]
+            },
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/display_aspect_ratio",
+              "reference": [
+                4,
+                3
+              ]
+            }
+          ]
+        },
+        {
+          "agrees": true,
+          "file": "multitrack.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {
+            "streams/0/sample_aspect_ratio": 1,
+            "streams/0/display_aspect_ratio": 1,
+            "streams/1/sample_aspect_ratio": 1,
+            "streams/1/display_aspect_ratio": 1
+          },
+          "informational_examples": [
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/sample_aspect_ratio",
+              "reference": [
+                1,
+                1
+              ]
+            },
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/display_aspect_ratio",
+              "reference": [
+                4,
+                3
+              ]
+            },
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/1/sample_aspect_ratio",
+              "reference": [
+                1,
+                1
+              ]
+            }
+          ]
+        },
+        {
+          "agrees": true,
+          "file": "negative_cts.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {
+            "streams/0/sample_aspect_ratio": 1,
+            "streams/0/display_aspect_ratio": 1
+          },
+          "informational_examples": [
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/sample_aspect_ratio",
+              "reference": [
+                1,
+                1
+              ]
+            },
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/display_aspect_ratio",
+              "reference": [
+                4,
+                3
+              ]
+            }
+          ]
+        },
+        {
+          "agrees": false,
+          "file": "nested_10000.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {
+            "probe_ok": 1
+          },
+          "gating_examples": [
+            {
+              "candidate": false,
+              "informational": false,
+              "path": "probe_ok",
+              "reference": true
+            }
+          ],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "pcm_f32le.mov",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {
+            "streams/0/handler_name": 1
+          },
+          "informational_examples": [
+            {
+              "candidate": "\fSoundHandler",
+              "informational": true,
+              "path": "streams/0/handler_name",
+              "reference": "SoundHandler"
+            }
+          ]
+        },
+        {
+          "agrees": true,
+          "file": "pcm_s16le.mov",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {
+            "streams/0/handler_name": 1
+          },
+          "informational_examples": [
+            {
+              "candidate": "\fSoundHandler",
+              "informational": true,
+              "path": "streams/0/handler_name",
+              "reference": "SoundHandler"
+            }
+          ]
+        },
+        {
+          "agrees": true,
+          "file": "pcm_s16le.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "pcm_s24le.mov",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {
+            "streams/0/handler_name": 1
+          },
+          "informational_examples": [
+            {
+              "candidate": "\fSoundHandler",
+              "informational": true,
+              "path": "streams/0/handler_name",
+              "reference": "SoundHandler"
+            }
+          ]
+        },
+        {
+          "agrees": true,
+          "file": "prores_4444.mov",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {
+            "streams/0/sample_aspect_ratio": 1,
+            "streams/0/display_aspect_ratio": 1,
+            "streams/0/handler_name": 1
+          },
+          "informational_examples": [
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/sample_aspect_ratio",
+              "reference": [
+                1,
+                1
+              ]
+            },
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/display_aspect_ratio",
+              "reference": [
+                4,
+                3
+              ]
+            },
+            {
+              "candidate": "\fVideoHandler",
+              "informational": true,
+              "path": "streams/0/handler_name",
+              "reference": "VideoHandler"
+            }
+          ]
+        },
+        {
+          "agrees": true,
+          "file": "prores_4444xq.mov",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {
+            "streams/0/sample_aspect_ratio": 1,
+            "streams/0/display_aspect_ratio": 1,
+            "streams/0/handler_name": 1
+          },
+          "informational_examples": [
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/sample_aspect_ratio",
+              "reference": [
+                1,
+                1
+              ]
+            },
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/display_aspect_ratio",
+              "reference": [
+                4,
+                3
+              ]
+            },
+            {
+              "candidate": "\fVideoHandler",
+              "informational": true,
+              "path": "streams/0/handler_name",
+              "reference": "VideoHandler"
+            }
+          ]
+        },
+        {
+          "agrees": true,
+          "file": "prores_hq.mov",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {
+            "streams/0/sample_aspect_ratio": 1,
+            "streams/0/display_aspect_ratio": 1,
+            "streams/0/handler_name": 1
+          },
+          "informational_examples": [
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/sample_aspect_ratio",
+              "reference": [
+                1,
+                1
+              ]
+            },
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/display_aspect_ratio",
+              "reference": [
+                4,
+                3
+              ]
+            },
+            {
+              "candidate": "\fVideoHandler",
+              "informational": true,
+              "path": "streams/0/handler_name",
+              "reference": "VideoHandler"
+            }
+          ]
+        },
+        {
+          "agrees": true,
+          "file": "prores_lt.mov",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {
+            "streams/0/sample_aspect_ratio": 1,
+            "streams/0/display_aspect_ratio": 1,
+            "streams/0/handler_name": 1
+          },
+          "informational_examples": [
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/sample_aspect_ratio",
+              "reference": [
+                1,
+                1
+              ]
+            },
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/display_aspect_ratio",
+              "reference": [
+                4,
+                3
+              ]
+            },
+            {
+              "candidate": "\fVideoHandler",
+              "informational": true,
+              "path": "streams/0/handler_name",
+              "reference": "VideoHandler"
+            }
+          ]
+        },
+        {
+          "agrees": true,
+          "file": "prores_proxy.mov",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {
+            "streams/0/sample_aspect_ratio": 1,
+            "streams/0/display_aspect_ratio": 1,
+            "streams/0/handler_name": 1
+          },
+          "informational_examples": [
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/sample_aspect_ratio",
+              "reference": [
+                1,
+                1
+              ]
+            },
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/display_aspect_ratio",
+              "reference": [
+                4,
+                3
+              ]
+            },
+            {
+              "candidate": "\fVideoHandler",
+              "informational": true,
+              "path": "streams/0/handler_name",
+              "reference": "VideoHandler"
+            }
+          ]
+        },
+        {
+          "agrees": true,
+          "file": "prores_standard.mov",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {
+            "streams/0/sample_aspect_ratio": 1,
+            "streams/0/display_aspect_ratio": 1,
+            "streams/0/handler_name": 1
+          },
+          "informational_examples": [
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/sample_aspect_ratio",
+              "reference": [
+                1,
+                1
+              ]
+            },
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/display_aspect_ratio",
+              "reference": [
+                4,
+                3
+              ]
+            },
+            {
+              "candidate": "\fVideoHandler",
+              "informational": true,
+              "path": "streams/0/handler_name",
+              "reference": "VideoHandler"
+            }
+          ]
+        },
+        {
+          "agrees": true,
+          "file": "rotate_ccw180.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {
+            "streams/0/sample_aspect_ratio": 1,
+            "streams/0/display_aspect_ratio": 1
+          },
+          "informational_examples": [
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/sample_aspect_ratio",
+              "reference": [
+                1,
+                1
+              ]
+            },
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/display_aspect_ratio",
+              "reference": [
+                4,
+                3
+              ]
+            }
+          ]
+        },
+        {
+          "agrees": true,
+          "file": "rotate_ccw270.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {
+            "streams/0/sample_aspect_ratio": 1,
+            "streams/0/display_aspect_ratio": 1
+          },
+          "informational_examples": [
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/sample_aspect_ratio",
+              "reference": [
+                1,
+                1
+              ]
+            },
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/display_aspect_ratio",
+              "reference": [
+                4,
+                3
+              ]
+            }
+          ]
+        },
+        {
+          "agrees": true,
+          "file": "rotate_ccw90.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {
+            "streams/0/sample_aspect_ratio": 1,
+            "streams/0/display_aspect_ratio": 1
+          },
+          "informational_examples": [
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/sample_aspect_ratio",
+              "reference": [
+                1,
+                1
+              ]
+            },
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/display_aspect_ratio",
+              "reference": [
+                4,
+                3
+              ]
+            }
+          ]
+        },
+        {
+          "agrees": true,
+          "file": "timecode.mov",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {
+            "streams/0/sample_aspect_ratio": 1,
+            "streams/0/display_aspect_ratio": 1,
+            "streams/0/handler_name": 1,
+            "streams/1/language": 1,
+            "streams/1/handler_name": 1
+          },
+          "informational_examples": [
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/sample_aspect_ratio",
+              "reference": [
+                1,
+                1
+              ]
+            },
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/display_aspect_ratio",
+              "reference": [
+                4,
+                3
+              ]
+            },
+            {
+              "candidate": "\fVideoHandler",
+              "informational": true,
+              "path": "streams/0/handler_name",
+              "reference": "VideoHandler"
+            }
+          ]
+        },
+        {
+          "agrees": false,
+          "file": "truncated.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {
+            "probe_ok": 1
+          },
+          "gating_examples": [
+            {
+              "candidate": false,
+              "informational": false,
+              "path": "probe_ok",
+              "reference": true
+            }
+          ],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": false,
+          "file": "vfr.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {
+            "format_duration_us": 1,
+            "streams/0/duration_ts": 1
+          },
+          "gating_examples": [
+            {
+              "candidate": 1960000,
+              "informational": false,
+              "path": "format_duration_us",
+              "reference": 1800000
+            },
+            {
+              "candidate": 25088,
+              "informational": false,
+              "path": "streams/0/duration_ts",
+              "reference": 23040
+            }
+          ],
+          "informational_difference_counts": {
+            "streams/0/sample_aspect_ratio": 1,
+            "streams/0/display_aspect_ratio": 1
+          },
+          "informational_examples": [
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/sample_aspect_ratio",
+              "reference": [
+                1,
+                1
+              ]
+            },
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/display_aspect_ratio",
+              "reference": [
+                4,
+                3
+              ]
+            }
+          ]
+        },
+        {
+          "agrees": true,
+          "file": "vp9.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {
+            "streams/0/sample_aspect_ratio": 1,
+            "streams/0/display_aspect_ratio": 1
+          },
+          "informational_examples": [
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/sample_aspect_ratio",
+              "reference": [
+                1,
+                1
+              ]
+            },
+            {
+              "candidate": null,
+              "informational": true,
+              "path": "streams/0/display_aspect_ratio",
+              "reference": [
+                4,
+                3
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "agree": 2409,
+      "agreement_percent": 0.6228846099149578,
+      "disagree": 384340,
+      "files": 37,
+      "level": "packets",
+      "minimum_files": 0,
+      "minimum_units": 0,
+      "passed": false,
+      "reference_failures": 0,
+      "required_percent": 100,
+      "total": 386749,
+      "details": [
+        {
+          "agrees": true,
+          "file": "audio_51.m4a",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 95,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "audio_aac.m4a",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 95,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "audio_mp3.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 85,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "audio_opus.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 101,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "av1.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 50,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "basic.mov",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 138,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "basic.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 138,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": false,
+          "file": "browser.webm",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 151,
+          "reference_failure": false,
+          "gating_difference_counts": {
+            "probe_ok": 1
+          },
+          "gating_examples": [
+            {
+              "candidate": false,
+              "informational": false,
+              "path": "probe_ok",
+              "reference": true
+            }
+          ],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "color_bt2020_pq.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 50,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "color_bt709.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 50,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "color_full_range.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 50,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "edit_list.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 138,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {
+            "streams/1/packets/*/duration": 1
+          },
+          "informational_examples": [
+            {
+              "candidate": 136,
+              "informational": true,
+              "path": "streams/1/packets/87/duration",
+              "reference": 1024
+            }
+          ]
+        },
+        {
+          "agrees": true,
+          "file": "faststart.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 138,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "fragmented.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 138,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {
+            "streams/1/packets/*/duration": 2
+          },
+          "informational_examples": [
+            {
+              "candidate": 3528,
+              "informational": true,
+              "path": "streams/1/packets/0/duration",
+              "reference": null
+            },
+            {
+              "candidate": 136,
+              "informational": true,
+              "path": "streams/1/packets/87/duration",
+              "reference": 1024
+            }
+          ]
+        },
+        {
+          "agrees": true,
+          "file": "h264_avc3.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 50,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "hevc_hev1.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 50,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "hevc_hvc1.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 50,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": false,
+          "file": "multitrack.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 295,
+          "packets_disagree": 1,
+          "reference_failure": false,
+          "gating_difference_counts": {
+            "streams/4/packets/extra": 1
+          },
+          "gating_examples": [
+            {
+              "candidate": {
+                "discard": true,
+                "dts": 2000000,
+                "duration": 0,
+                "exact_presentation_dts": [
+                  2000000,
+                  1
+                ],
+                "exact_presentation_pts": [
+                  2000000,
+                  1
+                ],
+                "keyframe": true,
+                "media_dts": 2000000,
+                "media_pts": 2000000,
+                "ordinal": 2,
+                "pos": 145174,
+                "presented": false,
+                "pts": 2000000,
+                "size": 2
+              },
+              "informational": false,
+              "path": "streams/4/packets/extra",
+              "reference": null
+            }
+          ],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": false,
+          "file": "negative_cts.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 50,
+          "reference_failure": false,
+          "gating_difference_counts": {
+            "streams/0/packets/*/dts": 50
+          },
+          "gating_examples": [
+            {
+              "candidate": 0,
+              "informational": false,
+              "path": "streams/0/packets/0/dts",
+              "reference": -1024
+            },
+            {
+              "candidate": 512,
+              "informational": false,
+              "path": "streams/0/packets/1/dts",
+              "reference": -512
+            },
+            {
+              "candidate": 1024,
+              "informational": false,
+              "path": "streams/0/packets/2/dts",
+              "reference": 0
+            },
+            {
+              "candidate": 1536,
+              "informational": false,
+              "path": "streams/0/packets/3/dts",
+              "reference": 512
+            },
+            {
+              "candidate": 2048,
+              "informational": false,
+              "path": "streams/0/packets/4/dts",
+              "reference": 1024
+            },
+            {
+              "candidate": 2560,
+              "informational": false,
+              "path": "streams/0/packets/5/dts",
+              "reference": 1536
+            },
+            {
+              "candidate": 3072,
+              "informational": false,
+              "path": "streams/0/packets/6/dts",
+              "reference": 2048
+            },
+            {
+              "candidate": 3584,
+              "informational": false,
+              "path": "streams/0/packets/7/dts",
+              "reference": 2560
+            }
+          ],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": false,
+          "file": "nested_10000.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {
+            "probe_ok": 1
+          },
+          "gating_examples": [
+            {
+              "candidate": false,
+              "informational": false,
+              "path": "probe_ok",
+              "reference": true
+            }
+          ],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": false,
+          "file": "pcm_f32le.mov",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 96000,
+          "reference_failure": false,
+          "gating_difference_counts": {
+            "streams/0/packets/*/size": 94,
+            "streams/0/packets/extra": 95906
+          },
+          "gating_examples": [
+            {
+              "candidate": 4,
+              "informational": false,
+              "path": "streams/0/packets/0/size",
+              "reference": 4096
+            },
+            {
+              "candidate": 4,
+              "informational": false,
+              "path": "streams/0/packets/1/size",
+              "reference": 4096
+            },
+            {
+              "candidate": 4,
+              "informational": false,
+              "path": "streams/0/packets/2/size",
+              "reference": 4096
+            },
+            {
+              "candidate": 4,
+              "informational": false,
+              "path": "streams/0/packets/3/size",
+              "reference": 4096
+            },
+            {
+              "candidate": 4,
+              "informational": false,
+              "path": "streams/0/packets/4/size",
+              "reference": 4096
+            },
+            {
+              "candidate": 4,
+              "informational": false,
+              "path": "streams/0/packets/5/size",
+              "reference": 4096
+            },
+            {
+              "candidate": 4,
+              "informational": false,
+              "path": "streams/0/packets/6/size",
+              "reference": 4096
+            },
+            {
+              "candidate": 4,
+              "informational": false,
+              "path": "streams/0/packets/7/size",
+              "reference": 4096
+            }
+          ],
+          "informational_difference_counts": {
+            "streams/0/packets/*/duration": 94
+          },
+          "informational_examples": [
+            {
+              "candidate": 1,
+              "informational": true,
+              "path": "streams/0/packets/0/duration",
+              "reference": 1024
+            },
+            {
+              "candidate": 1,
+              "informational": true,
+              "path": "streams/0/packets/1/duration",
+              "reference": 1024
+            },
+            {
+              "candidate": 1,
+              "informational": true,
+              "path": "streams/0/packets/2/duration",
+              "reference": 1024
+            }
+          ]
+        },
+        {
+          "agrees": false,
+          "file": "pcm_s16le.mov",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 96000,
+          "reference_failure": false,
+          "gating_difference_counts": {
+            "streams/0/packets/*/size": 94,
+            "streams/0/packets/extra": 95906
+          },
+          "gating_examples": [
+            {
+              "candidate": 2,
+              "informational": false,
+              "path": "streams/0/packets/0/size",
+              "reference": 2048
+            },
+            {
+              "candidate": 2,
+              "informational": false,
+              "path": "streams/0/packets/1/size",
+              "reference": 2048
+            },
+            {
+              "candidate": 2,
+              "informational": false,
+              "path": "streams/0/packets/2/size",
+              "reference": 2048
+            },
+            {
+              "candidate": 2,
+              "informational": false,
+              "path": "streams/0/packets/3/size",
+              "reference": 2048
+            },
+            {
+              "candidate": 2,
+              "informational": false,
+              "path": "streams/0/packets/4/size",
+              "reference": 2048
+            },
+            {
+              "candidate": 2,
+              "informational": false,
+              "path": "streams/0/packets/5/size",
+              "reference": 2048
+            },
+            {
+              "candidate": 2,
+              "informational": false,
+              "path": "streams/0/packets/6/size",
+              "reference": 2048
+            },
+            {
+              "candidate": 2,
+              "informational": false,
+              "path": "streams/0/packets/7/size",
+              "reference": 2048
+            }
+          ],
+          "informational_difference_counts": {
+            "streams/0/packets/*/duration": 94
+          },
+          "informational_examples": [
+            {
+              "candidate": 1,
+              "informational": true,
+              "path": "streams/0/packets/0/duration",
+              "reference": 1024
+            },
+            {
+              "candidate": 1,
+              "informational": true,
+              "path": "streams/0/packets/1/duration",
+              "reference": 1024
+            },
+            {
+              "candidate": 1,
+              "informational": true,
+              "path": "streams/0/packets/2/duration",
+              "reference": 1024
+            }
+          ]
+        },
+        {
+          "agrees": false,
+          "file": "pcm_s16le.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 96000,
+          "reference_failure": false,
+          "gating_difference_counts": {
+            "streams/0/packets/*/size": 94,
+            "streams/0/packets/extra": 95906
+          },
+          "gating_examples": [
+            {
+              "candidate": 2,
+              "informational": false,
+              "path": "streams/0/packets/0/size",
+              "reference": 2048
+            },
+            {
+              "candidate": 2,
+              "informational": false,
+              "path": "streams/0/packets/1/size",
+              "reference": 2048
+            },
+            {
+              "candidate": 2,
+              "informational": false,
+              "path": "streams/0/packets/2/size",
+              "reference": 2048
+            },
+            {
+              "candidate": 2,
+              "informational": false,
+              "path": "streams/0/packets/3/size",
+              "reference": 2048
+            },
+            {
+              "candidate": 2,
+              "informational": false,
+              "path": "streams/0/packets/4/size",
+              "reference": 2048
+            },
+            {
+              "candidate": 2,
+              "informational": false,
+              "path": "streams/0/packets/5/size",
+              "reference": 2048
+            },
+            {
+              "candidate": 2,
+              "informational": false,
+              "path": "streams/0/packets/6/size",
+              "reference": 2048
+            },
+            {
+              "candidate": 2,
+              "informational": false,
+              "path": "streams/0/packets/7/size",
+              "reference": 2048
+            }
+          ],
+          "informational_difference_counts": {
+            "streams/0/packets/*/duration": 94
+          },
+          "informational_examples": [
+            {
+              "candidate": 1,
+              "informational": true,
+              "path": "streams/0/packets/0/duration",
+              "reference": 1024
+            },
+            {
+              "candidate": 1,
+              "informational": true,
+              "path": "streams/0/packets/1/duration",
+              "reference": 1024
+            },
+            {
+              "candidate": 1,
+              "informational": true,
+              "path": "streams/0/packets/2/duration",
+              "reference": 1024
+            }
+          ]
+        },
+        {
+          "agrees": false,
+          "file": "pcm_s24le.mov",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 96000,
+          "reference_failure": false,
+          "gating_difference_counts": {
+            "streams/0/packets/*/size": 94,
+            "streams/0/packets/extra": 95906
+          },
+          "gating_examples": [
+            {
+              "candidate": 3,
+              "informational": false,
+              "path": "streams/0/packets/0/size",
+              "reference": 3072
+            },
+            {
+              "candidate": 3,
+              "informational": false,
+              "path": "streams/0/packets/1/size",
+              "reference": 3072
+            },
+            {
+              "candidate": 3,
+              "informational": false,
+              "path": "streams/0/packets/2/size",
+              "reference": 3072
+            },
+            {
+              "candidate": 3,
+              "informational": false,
+              "path": "streams/0/packets/3/size",
+              "reference": 3072
+            },
+            {
+              "candidate": 3,
+              "informational": false,
+              "path": "streams/0/packets/4/size",
+              "reference": 3072
+            },
+            {
+              "candidate": 3,
+              "informational": false,
+              "path": "streams/0/packets/5/size",
+              "reference": 3072
+            },
+            {
+              "candidate": 3,
+              "informational": false,
+              "path": "streams/0/packets/6/size",
+              "reference": 3072
+            },
+            {
+              "candidate": 3,
+              "informational": false,
+              "path": "streams/0/packets/7/size",
+              "reference": 3072
+            }
+          ],
+          "informational_difference_counts": {
+            "streams/0/packets/*/duration": 94
+          },
+          "informational_examples": [
+            {
+              "candidate": 1,
+              "informational": true,
+              "path": "streams/0/packets/0/duration",
+              "reference": 1024
+            },
+            {
+              "candidate": 1,
+              "informational": true,
+              "path": "streams/0/packets/1/duration",
+              "reference": 1024
+            },
+            {
+              "candidate": 1,
+              "informational": true,
+              "path": "streams/0/packets/2/duration",
+              "reference": 1024
+            }
+          ]
+        },
+        {
+          "agrees": true,
+          "file": "prores_4444.mov",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 25,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "prores_4444xq.mov",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 25,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "prores_hq.mov",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 25,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "prores_lt.mov",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 25,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "prores_proxy.mov",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 25,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "prores_standard.mov",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 25,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "rotate_ccw180.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 138,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "rotate_ccw270.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 138,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "rotate_ccw90.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 138,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "timecode.mov",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 51,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": false,
+          "file": "truncated.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 0,
+          "packets_disagree": 138,
+          "reference_failure": false,
+          "gating_difference_counts": {
+            "probe_ok": 1
+          },
+          "gating_examples": [
+            {
+              "candidate": false,
+              "informational": false,
+              "path": "probe_ok",
+              "reference": true
+            }
+          ],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        },
+        {
+          "agrees": true,
+          "file": "vfr.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 33,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {
+            "streams/0/packets/*/duration": 6
+          },
+          "informational_examples": [
+            {
+              "candidate": 1536,
+              "informational": true,
+              "path": "streams/0/packets/26/duration",
+              "reference": 512
+            },
+            {
+              "candidate": 1536,
+              "informational": true,
+              "path": "streams/0/packets/27/duration",
+              "reference": 512
+            },
+            {
+              "candidate": 1536,
+              "informational": true,
+              "path": "streams/0/packets/28/duration",
+              "reference": 512
+            }
+          ]
+        },
+        {
+          "agrees": true,
+          "file": "vp9.mp4",
+          "frames_agree": 0,
+          "frames_disagree": 0,
+          "packets_agree": 50,
+          "packets_disagree": 0,
+          "reference_failure": false,
+          "gating_difference_counts": {},
+          "gating_examples": [],
+          "informational_difference_counts": {},
+          "informational_examples": []
+        }
+      ]
+    }
+  ],
+  "full_report_sha256": "a7ee8aef046c8fb42799b007fd08da8ff15ae79522c2fce4dce591fbe9509a76",
+  "full_report_bytes": 293943718
+}

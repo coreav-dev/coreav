@@ -1,0 +1,225 @@
+diff --git a/crates/coreav-h264/src/cabac.rs b/crates/coreav-h264/src/cabac.rs
+index 1be437ed..cf5391ae 100644
+--- a/crates/coreav-h264/src/cabac.rs
++++ b/crates/coreav-h264/src/cabac.rs
+@@ -10,6 +10,8 @@
+ //! in range and lets the compiler drop the bounds check.
+ #![forbid(unsafe_code)]
+ 
++use core::hint;
++
+ use crate::bits::BitReader;
+ use crate::error::{Error, Result};
+ use crate::recon::CoeffScale;
+@@ -33,62 +35,56 @@ const OVERRUN: usize = 6;
+ /// after.
+ const RESERVE: u32 = 8;
+ 
+-/// rangeTabLPS (Table 9-44) by `state << 3 | codIRange >> 6`. codIRange
+-/// is 256 to 510 between decisions, so `codIRange >> 6` is 4 to 7, which is
+-/// qCodIRangeIdx plus 4: indexing by it directly saves masking it, at the
+-/// price of rows 0 to 3 of each state being unused. Rows exist for every
+-/// byte a state could hold, so that the index needs no mask and no bounds
+-/// check.
+-const LPS: [u8; 2048] = lps_table();
+-
+-/// The state after a decision by `state << 1 | binVal` (Table 9-45, with the
+-/// valMPS switch of clause 9.3.3.2.1.1), for every byte a state could hold.
+-/// Indexing by the bin rather than by whether it was the less probable one
+-/// lets a decision compute the bin once, for this and for its caller.
+-const NEXT: [u8; 512] = next_table();
+-
+-/// rangeLPS renormalized, by the index of [`LPS`]: `rangeLPS << n | n << 9`
+-/// for the shift `n` that brings it to 256 or more (clause 9.3.3.2.2).
+-const LPS_NORM: [u16; 2048] = lps_norm_table();
+-
+-#[allow(clippy::indexing_slicing)] // Constant evaluation: out of range fails the build.
+-const fn lps_norm_table() -> [u16; 2048] {
+-    let mut out = [0u16; 2048];
+-    let mut i = 0;
+-    while i < 2048 {
+-        let lps = LPS[i] as u16;
+-        if lps > 0 {
+-            let n = lps.leading_zeros() as u16 - 7;
+-            out[i] = (lps << n) | (n << 9);
+-        }
+-        i += 1;
+-    }
+-    out
++/// What a decision reads for one context state and one quarter of
++/// codIRange, in one entry so that every field is a load from one address:
++/// rangeLPS (Table 9-44), rangeLPS renormalized and the shift that does it
++/// (clause 9.3.3.2.2), and, by whether the bin was the more probable
++/// symbol (0 for the less probable, 1 for the more), the state after it
++/// (Table 9-45, with the valMPS switch of clause 9.3.3.2.1.1).
++///
++/// Eight bytes, so that an entry's address is the index scaled by the
++/// addressing mode.
++#[derive(Clone, Copy)]
++#[repr(C, align(8))]
++struct Step {
++    lps: u8,
++    shift: u8,
++    lps_norm: u16,
++    next: [u8; 2],
++    _pad: [u8; 2],
+ }
+ 
+-#[allow(clippy::indexing_slicing)] // Constant evaluation: out of range fails the build.
+-const fn lps_table() -> [u8; 2048] {
+-    let mut out = [0u8; 2048];
+-    let mut i = 0;
+-    while i < 2048 {
+-        let (state, q) = ((i >> 3) & 127, i & 7);
+-        if q >= 4 {
+-            out[i] = t::RANGE_TAB_LPS_BY_STATE[(state << 2) | (q - 4)];
+-        }
+-        i += 1;
+-    }
+-    out
+-}
++/// [`Step`] by `state << 2 | qCodIRangeIdx`. A state's four entries sit
++/// together, 32 bytes, so a state's decision touches one line. Entries
++/// exist for every byte a state could hold, so the index needs no mask and
++/// no bounds check; states above 127 never occur and their entries are
++/// unused.
++const STEPS: [Step; 1024] = step_table();
++
++/// The entry of a state above 127.
++const NO_STEP: Step = Step {
++    lps: 0,
++    shift: 0,
++    lps_norm: 0,
++    next: [0; 2],
++    _pad: [0; 2],
++};
+ 
+ #[allow(clippy::indexing_slicing)] // Constant evaluation: out of range fails the build.
+-const fn next_table() -> [u8; 512] {
+-    let mut out = [0u8; 512];
++const fn step_table() -> [Step; 1024] {
++    let mut out = [NO_STEP; 1024];
+     let mut i = 0;
+     while i < 512 {
+-        let (state, bin) = ((i >> 1) & 127, i & 1);
+-        // The bin was the less probable symbol where it differs from valMPS.
+-        let lps = (bin ^ (state & 1)) << 7;
+-        out[i] = t::NEXT_STATE[state | lps];
++        let (state, q) = (i >> 2, i & 3);
++        let lps = t::RANGE_TAB_LPS_BY_STATE[(state << 2) | q];
++        let shift = (lps as u16).leading_zeros() as u8 - 7;
++        out[i] = Step {
++            lps,
++            shift,
++            lps_norm: (lps as u16) << shift,
++            next: [t::NEXT_STATE[state | 128], t::NEXT_STATE[state]],
++            _pad: [0; 2],
++        };
+         i += 1;
+     }
+     out
+@@ -187,33 +183,39 @@ impl Engine {
+     /// DecodeDecision (clause 9.3.3.2.1) against the context state `state`.
+     ///
+     /// Written without a branch on the decoded bin: which of the two
+-    /// sub-intervals was taken is a mask, because the bin is unpredictable
+-    /// and a mispredicted branch costs more than the arithmetic.
++    /// sub-intervals was taken selects each result, because the bin is
++    /// unpredictable and a mispredicted branch costs more than the
++    /// arithmetic. Every value the decision looks up is one field of one
++    /// [`Step`].
+     #[inline(always)]
+     fn decision(&mut self, state: &mut u8, src: &mut Source) -> u32 {
+-        let s = usize::from(*state);
+-        let at = ((s << 3) | (self.range >> 6) as usize) & 2047;
+-        let lps = u32::from(LPS.get(at).copied().unwrap_or(0));
+-        let lps_norm = u32::from(LPS_NORM.get(at).copied().unwrap_or(0));
+-        let mps_range = self.range - lps;
++        let s = *state;
++        // qCodIRangeIdx: codIRange is 256 to 510 between decisions.
++        let q = (self.range >> 6) & 3;
++        let step = STEPS
++            .get((usize::from(s) << 2) | q as usize)
++            .copied()
++            .unwrap_or(NO_STEP);
++        let mps_range = self.range - u32::from(step.lps);
+         let scaled = u64::from(mps_range) << self.bits;
+         let is_lps = self.value >= scaled;
+-        self.value -= scaled & 0u64.wrapping_sub(u64::from(is_lps));
+-        let mask = 0u32.wrapping_sub(u32::from(is_lps));
+-        let bin = (s as u32 & 1) ^ u32::from(is_lps);
+-        *state = NEXT.get((s << 1) | bin as usize).copied().unwrap_or(0);
+-        // Renormalization, with no count of leading zeros on the chain from
+-        // one bin to the next. After the less probable symbol the
+-        // renormalized range and the shift are properties of the table
+-        // entry; after the more probable one codIRange - rangeLPS is at
+-        // least 128 (Table 9-44 against codIRange's quarter), so the shift
+-        // is 0 or 1.
++        self.value =
++            hint::select_unpredictable(is_lps, self.value.wrapping_sub(scaled), self.value);
++        // After the more probable symbol codIRange - rangeLPS is at least
++        // 128 (Table 9-44 against codIRange's quarter), so its shift is 0
++        // or 1; after the less probable one the shift and the renormalized
++        // range are the entry's.
+         let mps_shift = u32::from(mps_range < 256);
+-        let mps_norm = mps_range << mps_shift;
+-        self.range = mps_norm ^ ((mps_norm ^ (lps_norm & 511)) & mask);
+-        let n = mps_shift ^ ((mps_shift ^ (lps_norm >> 9)) & mask);
++        let [next_lps, next_mps] = step.next;
++        let (range, n, next) = hint::select_unpredictable(
++            is_lps,
++            (u32::from(step.lps_norm), u32::from(step.shift), next_lps),
++            (mps_range << mps_shift, mps_shift, next_mps),
++        );
++        self.range = range;
++        *state = next;
+         self.consume(n, src);
+-        bin
++        u32::from(s & 1) ^ u32::from(is_lps)
+     }
+ 
+     /// DecodeBypass (clause 9.3.3.2.3), without a branch on the bin.
+@@ -1270,34 +1272,31 @@ mod tests {
+     }
+ 
+     #[test]
+-    fn the_widened_tables_agree_with_the_specification_for_every_state() {
++    fn the_decision_steps_agree_with_the_specification_for_every_state() {
+         for state in 0..128usize {
+             for q in 0..4usize {
++                let step = STEPS[(state << 2) | q];
+                 let lps = t::RANGE_TAB_LPS_BY_STATE[(state << 2) | q];
+-                assert_eq!(
+-                    LPS[(state << 3) | (q + 4)],
+-                    lps,
+-                    "state {state}, qCodIRangeIdx {q}"
+-                );
++                assert_eq!(step.lps, lps, "state {state}, qCodIRangeIdx {q}");
+                 // RenormD (clause 9.3.3.2.2) on codIRange = rangeLPS.
+                 let (mut range, mut n) = (u16::from(lps), 0);
+                 while range < 256 {
+                     range <<= 1;
+                     n += 1;
+                 }
+-                assert_eq!(LPS_NORM[(state << 3) | (q + 4)], range | (n << 9));
++                assert_eq!((step.lps_norm, step.shift), (range, n));
++                assert_eq!(
++                    step.next,
++                    [t::NEXT_STATE[state | 128], t::NEXT_STATE[state]]
++                );
+             }
+             // After the more probable symbol codIRange - rangeLPS is at
+             // least 128, which `Engine::decision` relies on to shift by at
+             // most 1.
+             for range in 256..511usize {
+-                let lps = usize::from(LPS[(state << 3) | (range >> 6)]);
++                let lps = usize::from(STEPS[(state << 2) | ((range >> 6) & 3)].lps);
+                 assert!(range - lps >= 128, "state {state}, codIRange {range}");
+             }
+-            for bin in 0..2usize {
+-                let lps = (bin ^ (state & 1)) << 7;
+-                assert_eq!(NEXT[(state << 1) | bin], t::NEXT_STATE[state | lps]);
+-            }
+         }
+     }
+ 

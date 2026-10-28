@@ -1,0 +1,257 @@
+{
+ "sha256": "a2d42b1894824798256e9d11571c5caedef39f7455f64b741aa704b3a18da946",
+ "size": 36079699,
+ "ext": "mp4",
+ "tags": [
+  "brand:isom",
+  "c:isobmff",
+  "cmaf",
+  "elst",
+  "elst-bframe-delay",
+  "frag-sidx",
+  "fragmented",
+  "moov-front",
+  "sidx",
+  "v:hevc"
+ ],
+ "v1_holdout": true,
+ "discovery": {
+  "fragmented": true,
+  "probe_error": null,
+  "positions_error": null,
+  "d_ms": 734166,
+  "tracks": [
+   {
+    "stream_index": 0,
+    "kind": "Video",
+    "codec": "Hevc",
+    "fourcc": "hvc1",
+    "edit_list": "Simple { empty: 0, media_time: 1024, segment: 0 }",
+    "timescale": 12288,
+    "duration": {
+     "num": 9021440,
+     "den": 1
+    }
+   }
+  ],
+  "clips": [
+   {
+    "label": "head",
+    "start": {
+     "num": 0,
+     "den": 1
+    },
+    "end": {
+     "num": 10,
+     "den": 1
+    },
+    "ok": true,
+    "refused": null,
+    "error": null,
+    "no_audio": false,
+    "audio_refusal": null,
+    "snapped_start": {
+     "num": 0,
+     "den": 1
+    },
+    "written_end": {
+     "num": 10,
+     "den": 1
+    },
+    "video": {
+     "stream_index": 0,
+     "first_sample": 0,
+     "samples": 241,
+     "timescale": 12288,
+     "first_pos": 6288,
+     "first_dts": 0
+    },
+    "audio": null,
+    "bytes_written": 139645,
+    "round_trip": []
+   },
+   {
+    "label": "middle",
+    "start": {
+     "num": 362083,
+     "den": 1000
+    },
+    "end": {
+     "num": 372083,
+     "den": 1000
+    },
+    "ok": true,
+    "refused": null,
+    "error": null,
+    "no_audio": false,
+    "audio_refusal": null,
+    "snapped_start": {
+     "num": 362,
+     "den": 1
+    },
+    "written_end": {
+     "num": 381013,
+     "den": 1024
+    },
+    "video": {
+     "stream_index": 0,
+     "first_sample": 8687,
+     "samples": 245,
+     "timescale": 12288,
+     "first_pos": 17625386,
+     "first_dts": 4447744
+    },
+    "audio": null,
+    "bytes_written": 515562,
+    "round_trip": []
+   },
+   {
+    "label": "tail",
+    "start": {
+     "num": 362083,
+     "den": 500
+    },
+    "end": null,
+    "ok": true,
+    "refused": null,
+    "error": null,
+    "no_audio": false,
+    "audio_refusal": null,
+    "snapped_start": {
+     "num": 724,
+     "den": 1
+    },
+    "written_end": {
+     "num": 4405,
+     "den": 6
+    },
+    "video": {
+     "stream_index": 0,
+     "first_sample": 17374,
+     "samples": 246,
+     "timescale": 12288,
+     "first_pos": 35729122,
+     "first_dts": 8895488
+    },
+    "audio": null,
+    "bytes_written": 353684,
+    "round_trip": []
+   },
+   {
+    "label": "whole",
+    "start": {
+     "num": 0,
+     "den": 1
+    },
+    "end": null,
+    "ok": true,
+    "refused": null,
+    "error": null,
+    "no_audio": false,
+    "audio_refusal": null,
+    "snapped_start": {
+     "num": 0,
+     "den": 1
+    },
+    "written_end": {
+     "num": 4405,
+     "den": 6
+    },
+    "video": {
+     "stream_index": 0,
+     "first_sample": 0,
+     "samples": 17620,
+     "timescale": 12288,
+     "first_pos": 6288,
+     "first_dts": 0
+    },
+    "audio": null,
+    "bytes_written": 36064078,
+    "round_trip": []
+   }
+  ]
+ },
+ "memory": {
+  "head": {
+   "parser_peak": 21592,
+   "parser_retained": 0,
+   "parser_allocs": 1146,
+   "clip_peak": 88140,
+   "clip_retained": 0,
+   "clip_allocs": 421,
+   "valid": true,
+   "copy_buffer": 65536,
+   "parser_packets": 52860,
+   "ok": true,
+   "video_samples": 241,
+   "audio_samples": 0,
+   "bytes_written": 139645,
+   "table_bytes": 2844,
+   "moov_bytes": 5495,
+   "growth": 66548,
+   "bound": 68380,
+   "within_bound": true
+  },
+  "middle": {
+   "parser_peak": 21592,
+   "parser_retained": 0,
+   "parser_allocs": 1146,
+   "clip_peak": 88376,
+   "clip_retained": 0,
+   "clip_allocs": 1179,
+   "valid": true,
+   "copy_buffer": 65536,
+   "parser_packets": 52860,
+   "ok": true,
+   "video_samples": 245,
+   "audio_samples": 0,
+   "bytes_written": 515562,
+   "table_bytes": 3068,
+   "moov_bytes": 5719,
+   "growth": 66784,
+   "bound": 68604,
+   "within_bound": true
+  },
+  "tail": {
+   "parser_peak": 21592,
+   "parser_retained": 0,
+   "parser_allocs": 1146,
+   "clip_peak": 88332,
+   "clip_retained": 0,
+   "clip_allocs": 1891,
+   "valid": true,
+   "copy_buffer": 65536,
+   "parser_packets": 52860,
+   "ok": true,
+   "video_samples": 246,
+   "audio_samples": 0,
+   "bytes_written": 353684,
+   "table_bytes": 3000,
+   "moov_bytes": 5651,
+   "growth": 66740,
+   "bound": 68536,
+   "within_bound": true
+  },
+  "whole": {
+   "parser_peak": 21592,
+   "parser_retained": 0,
+   "parser_allocs": 1146,
+   "clip_peak": 292632,
+   "clip_retained": 0,
+   "clip_allocs": 18171,
+   "valid": true,
+   "copy_buffer": 65536,
+   "parser_packets": 52860,
+   "ok": true,
+   "video_samples": 17620,
+   "audio_samples": 0,
+   "bytes_written": 36064078,
+   "table_bytes": 209896,
+   "moov_bytes": 212547,
+   "growth": 271040,
+   "bound": 275432,
+   "within_bound": true
+  }
+ },
+ "seconds": 1.7322443279999789
+}

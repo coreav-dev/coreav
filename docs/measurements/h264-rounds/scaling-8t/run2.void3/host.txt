@@ -1,0 +1,9 @@
+Linux coreav-pmu-20261026-202313 6.12.113+deb13-cloud-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.12.113-1 (2026-10-15) x86_64 GNU/Linux
+perf version 6.12.113
+model name	: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz
+nproc 8
+Thread(s) per core:                      1
+ii  libc6:amd64     2.41-12+deb13u4 amd64        GNU C Library: Shared libraries
+ii  libc6-dbg:amd64 2.41-12+deb13u4 amd64        GNU C Library: detached debugging symbols
+f3d468d2adfd2ba452a3305c346de88240533783f4e9a45975eb49c55718187a  /home/coreav/job/prof-acf3ee2f
+be1f0993790be756f3a8d10b5b8f7f1cd358e9950c7c4e8d36a909c9e122fa47  /home/coreav/job/job2.sh

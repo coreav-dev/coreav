@@ -1,0 +1,43 @@
+{
+ "creatingLibrary": {
+  "name": "MediaInfoLib",
+  "version": "26.10",
+  "url": "https://mediaarea.net/MediaInfo"
+ },
+ "media": {
+  "@ref": "edit_list.mp4",
+  "track": [
+   {
+    "@type": "General",
+    "Format": "MPEG-4",
+    "Format_Profile": "Base Media",
+    "CodecID": "isom",
+    "Duration": "2.500"
+   },
+   {
+    "@type": "Video",
+    "StreamOrder": "0",
+    "Format": "AVC",
+    "Format_Profile": "High",
+    "CodecID": "avc1",
+    "Duration": "2.500",
+    "Source_Duration": "2.000",
+    "Width": "320",
+    "Height": "240",
+    "PixelAspectRatio": "1.000",
+    "DisplayAspectRatio": "1.333",
+    "Rotation": "0.000"
+   },
+   {
+    "@type": "Audio",
+    "StreamOrder": "1",
+    "Format": "AAC",
+    "CodecID": "mp4a-40-2",
+    "Duration": "2.500",
+    "Source_Duration": "2.023",
+    "Channels": "1",
+    "SamplingRate": "44100"
+   }
+  ]
+ }
+}

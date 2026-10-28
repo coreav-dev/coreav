@@ -1,0 +1,51 @@
+Deblocking driver: the per-macroblock setup of the kernels' calls. Probe plan, written before any measurement of this
+probe.
+
+Question: what is the most time a change of the deblocking driver's per-macroblock setup could save? The setup in view
+is what `deblock_row` does around each kernel call: a luma edge's view (`EdgeMut::new`, one a filtered edge) and its
+parameters (`Thresholds::params`: four t'C0 lookups and a 40-byte `EdgeParams`), a macroblock's chroma windows
+(`ChromaMbMut::new`, one a plane) and its eight chroma `EdgeParams` (zeroed, then filled per slot). Changes that would
+remove it: views checked once a macroblock or once a row instead of once an edge, and parameters handed to the kernels
+in the form the tables give (alpha, beta, the t'C0 row and the four bS bytes) for the kernel to spread with one byte
+shuffle. Nothing is built for the probe. It bounds only the part such a change removes ("For later probes: what a
+doubled call prices"): the bS derivation (`strengths`), the QPs and `Thresholds::new` are kept and not counted.
+
+Build: main at 145232d, `CARGO_PROFILE_DIST_DEBUG=line-tables-only cargo build --locked --profile dist --example
+decode -p coreav-h264` (`prof-main`). All 32 training streams at the class frame counts (sd 1800, 720p 900, 1080p 300,
+4k 150), `--threads 1 --discard`.
+
+1. Time: perf cpu-clock at 10 kHz, pinned to CPU 2, five runs a stream with `--kernels avx2` (so that the sampled and
+   simulated runs execute the same instructions; Valgrind has no AVX-512), and five with the detected kernels
+   (AVX-512 on this host; only their total time is used).
+2. Instructions and misses: callgrind --dump-instr=yes --cache-sim=yes --D1=49152,12,64, `--kernels avx2`, one run.
+3. Per source line of our code (innermost inline frame in a CoreAV crate, the MB layout probe's method): time share,
+   instruction share, excess = time share - instruction share, simulated D1 write misses.
+
+The removed set R, by the line of the `deblock_row` frame an instruction is inlined into (deblock.rs at 145232d), with
+every inlined callee's instructions (out-of-line instances of `EdgeMut::new`, `ChromaMbMut::new` and
+`Thresholds::params` count in full):
+  luma windows:   566, 571, 572, 575, 576 (the edge's position and `EdgeMut::new`);
+  luma params:    567 (`Thresholds::params`);
+  chroma params:  591 (the slots' zeroing), 613 to 615 (`Thresholds::params` per plane into a slot);
+  chroma windows: 622, 630 to 632 (the window's position and `ChromaMbMut::new` for both planes).
+The kernels' reading of the parameters K (x86.rs and x86/chroma_mb.rs at 145232d, the AVX2 tier the runs use), which
+the compact form would replace by a shuffle and is taken as removed in full: the functions `segment_bytes`,
+`spread8`, `spread16`, `per_line8`, `per_line16`, `lane_values` (x86.rs) and `lanes`, `filters` (chroma_mb.rs), and
+the lines that broadcast `params.alpha` or `params.beta`.
+
+Bound per stream, generous on purpose (the MB layout probe's formula):
+  I = instruction share of R and K;
+  S = max( sum over R and K of positive excess,
+           W x sum over every line with stores of positive excess ),
+      W = R's and K's simulated D1 write misses over all simulated D1 write misses;
+  bound = I + S, in % of the stream's sampled AVX2 time;
+  bound, detected = bound x (AVX2 time / detected-kernel time), the same milliseconds over the faster run the decoder
+  takes by default. This is the reading the threshold applies to.
+
+Threshold (an earlier change's, as the MB layout probe applied it to a time bound): build a round on the setup only if, in at
+least one class, the median per-stream bound, detected, is 1.5% or more; such a round removes at least the parts
+whose medians add up to 1.5% in that class, and its own bars, committed before its run, decide what is reached.
+Otherwise the probe is recorded and nothing is built.
+
+Also reported (information): the bound per part and per class, R's and K's instructions a macroblock, and the bound
+without the store-excess term.

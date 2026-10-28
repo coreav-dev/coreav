@@ -1,0 +1,4 @@
+cachegrind --cache-sim=no, 41e324ebb708 (sd, 640x360: no picture above 1 MiB, so no hint is issued), 300 pictures, one thread, --discard; dist builds of main 75d77dc (4c457c9 differs in documents only) and of this round's code with Planes::request inlined (the first build) and out of line (the build kept). Instructions in total and in predict_fast.
+main total 1,134,326,963 predict_fast 49,701,060
+request inlined total 1,137,691,142 predict_fast 53,065,336
+request out of line total 1,134,523,147 predict_fast 49,897,264

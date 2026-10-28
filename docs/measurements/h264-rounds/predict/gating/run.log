@@ -1,0 +1,7 @@
+    Finished `dist` profile [optimized] target(s) in 11.16s
+    Finished `dist` profile [optimized] target(s) in 11.36s
+    Finished `dist` profile [optimized] target(s) in 11.93s
+    Finished `dist` profile [optimized] target(s) in 12.40s
+32
+cp: cannot stat '$HOME/ab/predict/w/src-k2/docs/measurements/h264-rounds/predict/analyze.py': No such file or directory
+exit 1

@@ -1,0 +1,34 @@
+# Picture types of each training stream's first 300 pictures:
+# ffprobe -v error -select_streams v:0 -read_intervals %+#300 -show_entries frame=pict_type -of default=nk=1:nw=1
+175433794e02 1080p B=200 I=13 P=87 
+1d4b1775d78a 720p B=187 I=5 P=108 
+278dbf5a63bb 720p B=101 I=3 P=196 
+36501d448eaa 720p I=11 P=289 
+3b1b441e23ae 4k B=56 I=1 P=93 
+3c593b8f0809 720p I=30 P=270 
+41e324ebb708 sd B=164 I=4 P=132 
+4b54de28c2b3 4k I=1 P=149 
+5185721dda11 sd I=6 P=294 
+65ec61f95a00 720p I=6 P=294 
+6b18d9f0f88d 720p I=3 P=297 
+6da34958296c 1080p B=224 I=1 P=75 
+6e90422a670a 1080p B=200 I=13 P=87 
+6f7799768413 sd I=7 P=293 
+7650ae466748 sd B=220 I=2 P=78 
+76e0b1692494 720p B=138 I=11 P=151 
+81ed4778ece2 4k I=3 P=147 
+8ae90cadb5bc sd I=13 P=287 
+9db41aa16b5a 720p B=197 I=3 P=100 
+a6af290d9053 1080p B=200 I=13 P=87 
+a81de82106be 1080p I=3 P=297 
+ae16bb7c7192 4k B=72 I=3 P=75 
+af38b0cfd840 4k B=111 I=1 P=38 
+b41f70a7fa60 1080p B=184 I=5 P=111 
+b71b6b31e54f 1080p B=145 I=5 P=150 
+c7ecda16e4a7 1080p I=9 P=245 
+dcb262cf0138 sd B=215 I=7 P=78 
+e624cbe0d2be 4k I=4 P=146 
+ec473c99c538 sd I=12 P=288 
+ed75c044e944 4k I=1 P=149 
+f8d92a911e72 4k B=100 I=5 P=45 
+f9e973f44570 sd I=4 P=296 

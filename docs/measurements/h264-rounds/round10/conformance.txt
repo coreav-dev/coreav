@@ -1,0 +1,4 @@
+Conformance of the rebased round 10 tip (code as 61c6dac; dist-equivalent release build), JVT suite, tests/conformance.rs every_in_scope_stream_is_bit_exact:
+291 of 291 stream decodes bit-exact, 39987 frames, kernels: detected, threads: [1, 2, 8]
+97 of 97 stream decodes bit-exact, 13329 frames, kernels: scalar, threads: [1]
+Output identity of the rebased tip against main at 23ea498: 32 training streams, the branch at 1 and 8 threads: identical 64/64.

@@ -1,0 +1,461 @@
+[
+  {
+    "sample": "small",
+    "unique_frames": 139,
+    "command": [
+      "ffmpeg",
+      "-v",
+      "error",
+      "-threads",
+      "1",
+      "-i",
+      "/__remote/volumes/volume-001/data/small.mp4",
+      "-map",
+      "0:v:0",
+      "-an",
+      "-vf",
+      "select='(((((((eq(n,23)+eq(n,129))+(eq(n,130)+eq(n,131)))+((eq(n,132)+eq(n,171))+(eq(n,177)+eq(n,496))))+(((eq(n,497)+eq(n,498))+(eq(n,499)+eq(n,660)))+((eq(n,706)+eq(n,826))+(eq(n,1044)+(eq(n,1588)+eq(n,1970))))))+((((eq(n,1991)+eq(n,2185))+(eq(n,2186)+eq(n,2187)))+((eq(n,2188)+eq(n,2449))+(eq(n,2864)+eq(n,2993))))+(((eq(n,3168)+eq(n,3251))+(eq(n,3252)+eq(n,3253)))+((eq(n,3254)+eq(n,3291))+(eq(n,3461)+(eq(n,3462)+eq(n,3463)))))))+(((((eq(n,3464)+eq(n,3472))+(eq(n,3483)+eq(n,4595)))+((eq(n,4596)+eq(n,4597))+(eq(n,4598)+eq(n,4794))))+(((eq(n,5140)+eq(n,5146))+(eq(n,5287)+eq(n,5288)))+((eq(n,5289)+eq(n,5290))+(eq(n,5372)+(eq(n,5397)+eq(n,6245))))))+((((eq(n,6305)+eq(n,6306))+(eq(n,6307)+eq(n,6308)))+((eq(n,6625)+eq(n,6662))+(eq(n,6663)+(eq(n,6664)+eq(n,6665)))))+(((eq(n,6720)+eq(n,7173))+(eq(n,7213)+eq(n,7489)))+((eq(n,7490)+eq(n,7491))+(eq(n,7492)+(eq(n,7532)+eq(n,7533))))))))+((((((eq(n,7534)+eq(n,7535))+(eq(n,7701)+eq(n,7759)))+((eq(n,7880)+eq(n,7886))+(eq(n,7890)+eq(n,7938))))+(((eq(n,8434)+eq(n,8835))+(eq(n,8939)+eq(n,8940)))+((eq(n,8941)+eq(n,8942))+(eq(n,8948)+(eq(n,8949)+eq(n,8950))))))+((((eq(n,8951)+eq(n,8974))+(eq(n,9186)+eq(n,9205)))+((eq(n,9418)+eq(n,9508))+(eq(n,9648)+(eq(n,9649)+eq(n,9650)))))+(((eq(n,9651)+eq(n,9999))+(eq(n,10000)+eq(n,10001)))+((eq(n,10002)+eq(n,10679))+(eq(n,10870)+(eq(n,10877)+eq(n,11100)))))))+(((((eq(n,11158)+eq(n,11563))+(eq(n,11851)+eq(n,11919)))+((eq(n,11920)+eq(n,11921))+(eq(n,11922)+eq(n,11931))))+(((eq(n,11932)+eq(n,11933))+(eq(n,11934)+eq(n,12208)))+((eq(n,12585)+eq(n,12685))+(eq(n,12686)+(eq(n,12687)+eq(n,12688))))))+((((eq(n,12795)+eq(n,12829))+(eq(n,12830)+eq(n,12831)))+((eq(n,12832)+eq(n,12928))+(eq(n,12994)+(eq(n,13227)+eq(n,13383)))))+(((eq(n,13402)+eq(n,13434))+(eq(n,13494)+eq(n,13955)))+((eq(n,14037)+eq(n,14038))+(eq(n,14039)+(eq(n,14040)+eq(n,14147)))))))))'",
+      "-filter_threads",
+      "1",
+      "-fps_mode",
+      "passthrough",
+      "-pix_fmt",
+      "rgb24",
+      "-threads",
+      "1",
+      "-f",
+      "framemd5",
+      "-"
+    ],
+    "stderr": "",
+    "checks": [
+      {
+        "backend": "dali_gpu",
+        "mode": "indexed",
+        "observations": 160,
+        "rgb_mismatches": 160,
+        "examples": [
+          {
+            "index": 6662,
+            "observed": "53d10d5f388a45c272024029fd102ab3",
+            "oracle": "9328878567d340c4650b314cce76559d"
+          },
+          {
+            "index": 129,
+            "observed": "2246d43d8efdf24e2e4c8edcfa72e0b3",
+            "oracle": "72f92beea9476921178b3b044d27f659"
+          },
+          {
+            "index": 12928,
+            "observed": "6c866acca6a35a8820ce0636a12bf315",
+            "oracle": "ca1873760eeb47807707fdd16ef11823"
+          },
+          {
+            "index": 826,
+            "observed": "5b6308a8e74e317897aa27f847597b7e",
+            "oracle": "bbf79272cd2f49986de6408c62758b96"
+          },
+          {
+            "index": 23,
+            "observed": "2d97c98446b5eefeb01289c0b4e07c9b",
+            "oracle": "b44820c6adce5f9bcc391ca37ad2955f"
+          }
+        ]
+      },
+      {
+        "backend": "torchcodec_cuda",
+        "mode": "approximate",
+        "observations": 160,
+        "rgb_mismatches": 160,
+        "examples": [
+          {
+            "index": 6662,
+            "observed": "dd037ddeaf1739fe17adfcd4aa122778",
+            "oracle": "9328878567d340c4650b314cce76559d"
+          },
+          {
+            "index": 129,
+            "observed": "b5adeeeeb161c16b4ab6ec43df9fe3f3",
+            "oracle": "72f92beea9476921178b3b044d27f659"
+          },
+          {
+            "index": 12928,
+            "observed": "f460010a997ef14592f3d51d1026074c",
+            "oracle": "ca1873760eeb47807707fdd16ef11823"
+          },
+          {
+            "index": 826,
+            "observed": "b890ce7f7c8a09124e6ea5e82ac30a0c",
+            "oracle": "bbf79272cd2f49986de6408c62758b96"
+          },
+          {
+            "index": 23,
+            "observed": "1c13252d6cb2c1a884470a4aa6c0e3c9",
+            "oracle": "b44820c6adce5f9bcc391ca37ad2955f"
+          }
+        ]
+      },
+      {
+        "backend": "torchcodec_cuda",
+        "mode": "exact",
+        "observations": 160,
+        "rgb_mismatches": 160,
+        "examples": [
+          {
+            "index": 6662,
+            "observed": "dd037ddeaf1739fe17adfcd4aa122778",
+            "oracle": "9328878567d340c4650b314cce76559d"
+          },
+          {
+            "index": 6663,
+            "observed": "fe7dbf259bbd0d0d4afeeb2f456ae019",
+            "oracle": "01deb77a6021f3285bf595c9f3d1158a"
+          },
+          {
+            "index": 6664,
+            "observed": "f723b0cc0934d4e17da98ea0c4c99406",
+            "oracle": "3c62b8384611973bb874c249ae20da3b"
+          },
+          {
+            "index": 6665,
+            "observed": "19d03579a0d215c219c44b659e9fe8cd",
+            "oracle": "12762be48967074eec2507d5996c9223"
+          },
+          {
+            "index": 129,
+            "observed": "b5adeeeeb161c16b4ab6ec43df9fe3f3",
+            "oracle": "72f92beea9476921178b3b044d27f659"
+          }
+        ]
+      },
+      {
+        "backend": "torchcodec_cuda",
+        "mode": "mappings",
+        "observations": 160,
+        "rgb_mismatches": 160,
+        "examples": [
+          {
+            "index": 6662,
+            "observed": "dd037ddeaf1739fe17adfcd4aa122778",
+            "oracle": "9328878567d340c4650b314cce76559d"
+          },
+          {
+            "index": 6663,
+            "observed": "fe7dbf259bbd0d0d4afeeb2f456ae019",
+            "oracle": "01deb77a6021f3285bf595c9f3d1158a"
+          },
+          {
+            "index": 6664,
+            "observed": "f723b0cc0934d4e17da98ea0c4c99406",
+            "oracle": "3c62b8384611973bb874c249ae20da3b"
+          },
+          {
+            "index": 6665,
+            "observed": "19d03579a0d215c219c44b659e9fe8cd",
+            "oracle": "12762be48967074eec2507d5996c9223"
+          },
+          {
+            "index": 129,
+            "observed": "b5adeeeeb161c16b4ab6ec43df9fe3f3",
+            "oracle": "72f92beea9476921178b3b044d27f659"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "sample": "large",
+    "unique_frames": 140,
+    "command": [
+      "ffmpeg",
+      "-v",
+      "error",
+      "-threads",
+      "1",
+      "-i",
+      "/__remote/volumes/volume-001/data/large.mp4",
+      "-map",
+      "0:v:0",
+      "-an",
+      "-vf",
+      "select='(((((((eq(n,46)+eq(n,258))+(eq(n,259)+eq(n,260)))+((eq(n,261)+eq(n,343))+(eq(n,354)+eq(n,907))))+(((eq(n,979)+eq(n,993))+(eq(n,994)+eq(n,995)))+((eq(n,996)+eq(n,1320))+(eq(n,1413)+(eq(n,1652)+eq(n,1749))))))+((((eq(n,2043)+eq(n,2089))+(eq(n,2248)+eq(n,2682)))+((eq(n,3177)+eq(n,3787))+(eq(n,3941)+(eq(n,3942)+eq(n,3943)))))+(((eq(n,3944)+eq(n,3982))+(eq(n,4371)+eq(n,4372)))+((eq(n,4373)+eq(n,4374))+(eq(n,4850)+(eq(n,4899)+eq(n,5707)))))))+(((((eq(n,5729)+eq(n,5730))+(eq(n,5731)+eq(n,5732)))+((eq(n,5987)+eq(n,6336))+(eq(n,6337)+eq(n,6338))))+(((eq(n,6339)+eq(n,6360))+(eq(n,6502)+eq(n,6503)))+((eq(n,6504)+eq(n,6505))+(eq(n,6582)+(eq(n,6583)+eq(n,6584))))))+((((eq(n,6585)+eq(n,6922))+(eq(n,6923)+eq(n,6924)))+((eq(n,6925)+eq(n,6945))+(eq(n,6967)+(eq(n,7235)+eq(n,7641)))))+(((eq(n,8742)+eq(n,9191))+(eq(n,9192)+eq(n,9193)))+((eq(n,9194)+eq(n,9588))+(eq(n,9714)+(eq(n,10280)+eq(n,10281))))))))+((((((eq(n,10282)+eq(n,10283))+(eq(n,10293)+eq(n,10468)))+((eq(n,10575)+eq(n,10576))+(eq(n,10577)+eq(n,10578))))+(((eq(n,10745)+eq(n,10795))+(eq(n,10796)+eq(n,10797)))+((eq(n,10798)+eq(n,10837))+(eq(n,11728)+(eq(n,12490)+eq(n,12611))))))+((((eq(n,12612)+eq(n,12613))+(eq(n,12614)+eq(n,13250)))+((eq(n,13324)+eq(n,13325))+(eq(n,13326)+(eq(n,13327)+eq(n,13441)))))+(((eq(n,13597)+eq(n,14347))+(eq(n,14426)+eq(n,14550)))+((eq(n,14979)+eq(n,14980))+(eq(n,14981)+(eq(n,14982)+eq(n,14985)))))))+(((((eq(n,15064)+eq(n,15065))+(eq(n,15066)+eq(n,15067)))+((eq(n,15403)+eq(n,15519))+(eq(n,15760)+eq(n,15773))))+(((eq(n,15780)+eq(n,15876))+(eq(n,16226)+eq(n,16460)))+((eq(n,16643)+eq(n,16868))+(eq(n,17154)+(eq(n,17383)+eq(n,17403))))))+((((eq(n,17671)+eq(n,17859))+(eq(n,17879)+eq(n,17880)))+((eq(n,17881)+eq(n,17882))+(eq(n,17897)+(eq(n,17898)+eq(n,17899)))))+(((eq(n,17900)+eq(n,17948))+(eq(n,18372)+eq(n,18373)))+((eq(n,18374)+eq(n,18375))+(eq(n,18411)+(eq(n,18837)+eq(n,19016)))))))))'",
+      "-filter_threads",
+      "1",
+      "-fps_mode",
+      "passthrough",
+      "-pix_fmt",
+      "rgb24",
+      "-threads",
+      "1",
+      "-f",
+      "framemd5",
+      "-"
+    ],
+    "stderr": "",
+    "checks": [
+      {
+        "backend": "torchcodec_cuda",
+        "mode": "approximate",
+        "observations": 160,
+        "rgb_mismatches": 160,
+        "examples": [
+          {
+            "index": 13324,
+            "observed": "8a7623d61cde98d45bb03d476941c34b",
+            "oracle": "9ba4c59b1a50d17a8505ffb954766319"
+          },
+          {
+            "index": 258,
+            "observed": "a26d82741bcd63b0ee14e836a328dcdb",
+            "oracle": "0c00196d11cc76e7f73ed6071002cbc9"
+          },
+          {
+            "index": 1652,
+            "observed": "c3136c814a754909a2d01fb9ff64669d",
+            "oracle": "b8561378935e8d99e47bc182151cc6d2"
+          },
+          {
+            "index": 46,
+            "observed": "f07ed7baace03797d0e0c1a54e472551",
+            "oracle": "3e7ec603ace88fb286cff2c414dbb1ce"
+          },
+          {
+            "index": 1413,
+            "observed": "7be5723e692b82cc98d9f91fcf5e681d",
+            "oracle": "d3c3f6ad08c16ce3cf688e548738a244"
+          }
+        ]
+      },
+      {
+        "backend": "torchcodec_cuda",
+        "mode": "exact",
+        "observations": 160,
+        "rgb_mismatches": 160,
+        "examples": [
+          {
+            "index": 13324,
+            "observed": "8a7623d61cde98d45bb03d476941c34b",
+            "oracle": "9ba4c59b1a50d17a8505ffb954766319"
+          },
+          {
+            "index": 13325,
+            "observed": "d3ed811f05462363629a1922fd355458",
+            "oracle": "29a1af645374d1b7dd5386990b85b451"
+          },
+          {
+            "index": 13326,
+            "observed": "11159a33b9488a61754ead6c07fe1754",
+            "oracle": "33898e0ffd29ed73b7e192f1cb14eec4"
+          },
+          {
+            "index": 13327,
+            "observed": "287ca87624c5ac6ab287ba7243580f25",
+            "oracle": "9e6d56a2b095a453aaeaf37cf84b5b69"
+          },
+          {
+            "index": 258,
+            "observed": "a26d82741bcd63b0ee14e836a328dcdb",
+            "oracle": "0c00196d11cc76e7f73ed6071002cbc9"
+          }
+        ]
+      },
+      {
+        "backend": "torchcodec_cuda",
+        "mode": "mappings",
+        "observations": 160,
+        "rgb_mismatches": 160,
+        "examples": [
+          {
+            "index": 13324,
+            "observed": "8a7623d61cde98d45bb03d476941c34b",
+            "oracle": "9ba4c59b1a50d17a8505ffb954766319"
+          },
+          {
+            "index": 13325,
+            "observed": "d3ed811f05462363629a1922fd355458",
+            "oracle": "29a1af645374d1b7dd5386990b85b451"
+          },
+          {
+            "index": 13326,
+            "observed": "11159a33b9488a61754ead6c07fe1754",
+            "oracle": "33898e0ffd29ed73b7e192f1cb14eec4"
+          },
+          {
+            "index": 13327,
+            "observed": "287ca87624c5ac6ab287ba7243580f25",
+            "oracle": "9e6d56a2b095a453aaeaf37cf84b5b69"
+          },
+          {
+            "index": 258,
+            "observed": "a26d82741bcd63b0ee14e836a328dcdb",
+            "oracle": "0c00196d11cc76e7f73ed6071002cbc9"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "sample": "fragmented",
+    "unique_frames": 139,
+    "command": [
+      "ffmpeg",
+      "-v",
+      "error",
+      "-threads",
+      "1",
+      "-i",
+      "/__remote/volumes/volume-001/data/fragmented.mp4",
+      "-map",
+      "0:v:0",
+      "-an",
+      "-vf",
+      "select='(((((((eq(n,23)+eq(n,129))+(eq(n,130)+eq(n,131)))+((eq(n,132)+eq(n,171))+(eq(n,177)+eq(n,496))))+(((eq(n,497)+eq(n,498))+(eq(n,499)+eq(n,660)))+((eq(n,706)+eq(n,826))+(eq(n,1044)+(eq(n,1588)+eq(n,1970))))))+((((eq(n,1991)+eq(n,2185))+(eq(n,2186)+eq(n,2187)))+((eq(n,2188)+eq(n,2449))+(eq(n,2864)+eq(n,2993))))+(((eq(n,3168)+eq(n,3251))+(eq(n,3252)+eq(n,3253)))+((eq(n,3254)+eq(n,3291))+(eq(n,3461)+(eq(n,3462)+eq(n,3463)))))))+(((((eq(n,3464)+eq(n,3472))+(eq(n,3483)+eq(n,4595)))+((eq(n,4596)+eq(n,4597))+(eq(n,4598)+eq(n,4794))))+(((eq(n,5140)+eq(n,5146))+(eq(n,5287)+eq(n,5288)))+((eq(n,5289)+eq(n,5290))+(eq(n,5372)+(eq(n,5397)+eq(n,6245))))))+((((eq(n,6305)+eq(n,6306))+(eq(n,6307)+eq(n,6308)))+((eq(n,6625)+eq(n,6662))+(eq(n,6663)+(eq(n,6664)+eq(n,6665)))))+(((eq(n,6720)+eq(n,7173))+(eq(n,7213)+eq(n,7489)))+((eq(n,7490)+eq(n,7491))+(eq(n,7492)+(eq(n,7532)+eq(n,7533))))))))+((((((eq(n,7534)+eq(n,7535))+(eq(n,7701)+eq(n,7759)))+((eq(n,7880)+eq(n,7886))+(eq(n,7890)+eq(n,7938))))+(((eq(n,8434)+eq(n,8835))+(eq(n,8939)+eq(n,8940)))+((eq(n,8941)+eq(n,8942))+(eq(n,8948)+(eq(n,8949)+eq(n,8950))))))+((((eq(n,8951)+eq(n,8974))+(eq(n,9186)+eq(n,9205)))+((eq(n,9418)+eq(n,9508))+(eq(n,9648)+(eq(n,9649)+eq(n,9650)))))+(((eq(n,9651)+eq(n,9999))+(eq(n,10000)+eq(n,10001)))+((eq(n,10002)+eq(n,10679))+(eq(n,10870)+(eq(n,10877)+eq(n,11100)))))))+(((((eq(n,11158)+eq(n,11563))+(eq(n,11851)+eq(n,11919)))+((eq(n,11920)+eq(n,11921))+(eq(n,11922)+eq(n,11931))))+(((eq(n,11932)+eq(n,11933))+(eq(n,11934)+eq(n,12208)))+((eq(n,12585)+eq(n,12685))+(eq(n,12686)+(eq(n,12687)+eq(n,12688))))))+((((eq(n,12795)+eq(n,12829))+(eq(n,12830)+eq(n,12831)))+((eq(n,12832)+eq(n,12928))+(eq(n,12994)+(eq(n,13227)+eq(n,13383)))))+(((eq(n,13402)+eq(n,13434))+(eq(n,13494)+eq(n,13955)))+((eq(n,14037)+eq(n,14038))+(eq(n,14039)+(eq(n,14040)+eq(n,14147)))))))))'",
+      "-filter_threads",
+      "1",
+      "-fps_mode",
+      "passthrough",
+      "-pix_fmt",
+      "rgb24",
+      "-threads",
+      "1",
+      "-f",
+      "framemd5",
+      "-"
+    ],
+    "stderr": "",
+    "checks": [
+      {
+        "backend": "dali_gpu",
+        "mode": "indexed",
+        "observations": 160,
+        "rgb_mismatches": 160,
+        "examples": [
+          {
+            "index": 6662,
+            "observed": "f10bbfceb1ef1ea49df76261d4bed192",
+            "oracle": "bf59b2a359017e9ba6e80944bf494fb0"
+          },
+          {
+            "index": 129,
+            "observed": "63a7866ba8dc5b971d7ba29621f8768c",
+            "oracle": "e78ceb862b33f3ec564b652f9f82e0bb"
+          },
+          {
+            "index": 12928,
+            "observed": "a18b7364f03b95a38d6c131d385c371d",
+            "oracle": "6a17aac5243e1df3fd9a2fe725537c10"
+          },
+          {
+            "index": 826,
+            "observed": "de0160bcd95a767eb33d4ac532c0b715",
+            "oracle": "3ae5e7dc1ec3ef2e51eeac5042ec7304"
+          },
+          {
+            "index": 23,
+            "observed": "255cf7a96c8f56bf7444ce398aa1058c",
+            "oracle": "cb3aa32cfc8df608c056166e69d3aaab"
+          }
+        ]
+      },
+      {
+        "backend": "torchcodec_cuda",
+        "mode": "approximate",
+        "observations": 160,
+        "rgb_mismatches": 160,
+        "examples": [
+          {
+            "index": 6662,
+            "observed": "5e6bc96558feeda0fc8b3055d4b75140",
+            "oracle": "bf59b2a359017e9ba6e80944bf494fb0"
+          },
+          {
+            "index": 129,
+            "observed": "c751abdcd246b92c86d0e5f3a2d18c51",
+            "oracle": "e78ceb862b33f3ec564b652f9f82e0bb"
+          },
+          {
+            "index": 12928,
+            "observed": "2834f508a594c30e60d8680edbc90869",
+            "oracle": "6a17aac5243e1df3fd9a2fe725537c10"
+          },
+          {
+            "index": 826,
+            "observed": "51052612d0ace40a7dbd5159dc196f3b",
+            "oracle": "3ae5e7dc1ec3ef2e51eeac5042ec7304"
+          },
+          {
+            "index": 23,
+            "observed": "0b13f63b0e39e9158028c76887847863",
+            "oracle": "cb3aa32cfc8df608c056166e69d3aaab"
+          }
+        ]
+      },
+      {
+        "backend": "torchcodec_cuda",
+        "mode": "exact",
+        "observations": 160,
+        "rgb_mismatches": 160,
+        "examples": [
+          {
+            "index": 6662,
+            "observed": "5e6bc96558feeda0fc8b3055d4b75140",
+            "oracle": "bf59b2a359017e9ba6e80944bf494fb0"
+          },
+          {
+            "index": 6663,
+            "observed": "acb8345d397876012a41837db9523bda",
+            "oracle": "a9af218d9d75e5c417ebf43aaf4d191e"
+          },
+          {
+            "index": 6664,
+            "observed": "1beb9a51be1ce2a0cf88e3f63d3bb9b2",
+            "oracle": "d9f8988710c3a0adf190dc571a5f5ee9"
+          },
+          {
+            "index": 6665,
+            "observed": "55724a7cd1c6c1ed0448486f0646f415",
+            "oracle": "1aeac8dc14cb7a7cbd892efd352e29cb"
+          },
+          {
+            "index": 129,
+            "observed": "c751abdcd246b92c86d0e5f3a2d18c51",
+            "oracle": "e78ceb862b33f3ec564b652f9f82e0bb"
+          }
+        ]
+      },
+      {
+        "backend": "torchcodec_cuda",
+        "mode": "mappings",
+        "observations": 160,
+        "rgb_mismatches": 160,
+        "examples": [
+          {
+            "index": 6662,
+            "observed": "5e6bc96558feeda0fc8b3055d4b75140",
+            "oracle": "bf59b2a359017e9ba6e80944bf494fb0"
+          },
+          {
+            "index": 6663,
+            "observed": "acb8345d397876012a41837db9523bda",
+            "oracle": "a9af218d9d75e5c417ebf43aaf4d191e"
+          },
+          {
+            "index": 6664,
+            "observed": "1beb9a51be1ce2a0cf88e3f63d3bb9b2",
+            "oracle": "d9f8988710c3a0adf190dc571a5f5ee9"
+          },
+          {
+            "index": 6665,
+            "observed": "55724a7cd1c6c1ed0448486f0646f415",
+            "oracle": "1aeac8dc14cb7a7cbd892efd352e29cb"
+          },
+          {
+            "index": 129,
+            "observed": "c751abdcd246b92c86d0e5f3a2d18c51",
+            "oracle": "e78ceb862b33f3ec564b652f9f82e0bb"
+          }
+        ]
+      }
+    ]
+  }
+]

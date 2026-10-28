@@ -1,0 +1,4 @@
+PASS model106 prof-before 04:37Z 36501d448eaa.0.720p 1.270s (ref 1.295) ratio 0.981; a6af290d9053.0.1080p 4.170s (ref 4.388) ratio 0.950
+FAIL model106 prof-after 04:44Z 36501d448eaa.0.720p 1.265s (ref 1.295) ratio 0.977; a6af290d9053.0.1080p 4.165s (ref 4.388) ratio 0.949
+FAIL model106 prof-after-retry 04:44Z 36501d448eaa.0.720p 1.262s (ref 1.295) ratio 0.974; a6af290d9053.0.1080p 4.162s (ref 4.388) ratio 0.949
+PASS model106 check-0505 04:54Z 36501d448eaa.0.720p 1.269s (ref 1.295) ratio 0.980; a6af290d9053.0.1080p 4.171s (ref 4.388) ratio 0.951

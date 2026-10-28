@@ -1,0 +1,105 @@
+# Instruction counts of three variants of k = e49998b (callgrind, one thread, --discard, the first pictures of each training stream: sd 90, 720p 30, 1080p 12, 4k 4), built as the run builds them; each output identical to base on 32/32 streams. Information, not a bar.
+# no-intra8x8-test: k without the Intra_8x8 DC-only test (variants/no-intra8x8-test.diff). Rows: k over it.
+1d4b1775d78a.0.720p      0.9973
+f8d92a911e72.0.4k        0.9987
+278dbf5a63bb.0.720p      0.9994
+8ae90cadb5bc.0.sd        0.9995
+b41f70a7fa60.0.1080p     0.9996
+6e90422a670a.0.1080p     0.9997
+af38b0cfd840.0.4k        0.9997
+4b54de28c2b3.0.4k        0.9997
+c7ecda16e4a7.0.1080p     0.9998
+3b1b441e23ae.0.4k        0.9999
+7650ae466748.0.sd        0.9999
+41e324ebb708.0.sd        1.0000
+9db41aa16b5a.0.720p      1.0000
+6b18d9f0f88d.0.720p      1.0000
+65ec61f95a00.0.720p      1.0000
+ec473c99c538.0.sd        1.0000
+f9e973f44570.0.sd        1.0000
+76e0b1692494.0.720p      1.0000
+6f7799768413.0.sd        1.0000
+a81de82106be.0.1080p     1.0000
+5185721dda11.0.sd        1.0000
+ae16bb7c7192.0.4k        1.0000
+6da34958296c.0.1080p     1.0000
+e624cbe0d2be.0.4k        1.0000
+b71b6b31e54f.0.1080p     1.0000
+3c593b8f0809.0.720p      1.0000
+36501d448eaa.0.720p      1.0000
+81ed4778ece2.0.4k        1.0000
+ed75c044e944.0.4k        1.0000
+dcb262cf0138.0.sd        1.0000
+a6af290d9053.0.1080p     1.0001
+175433794e02.0.1080p     1.0002
+median 1.0 min 0.9973 max 1.0002 above 1: 7
+
+# intra4x4-test: k plus the same test in the Intra_4x4 kernel's add_residual4 (not kept; the patch replaced the row loads by four explicit ones and tested them as luma4x4_residual_mb's pairs). Rows: it over k.
+65ec61f95a00.0.720p      0.9995
+6da34958296c.0.1080p     0.9996
+c7ecda16e4a7.0.1080p     0.9997
+8ae90cadb5bc.0.sd        0.9999
+1d4b1775d78a.0.720p      1.0000
+278dbf5a63bb.0.720p      1.0000
+7650ae466748.0.sd        1.0000
+6f7799768413.0.sd        1.0000
+175433794e02.0.1080p     1.0000
+a6af290d9053.0.1080p     1.0000
+81ed4778ece2.0.4k        1.0000
+76e0b1692494.0.720p      1.0000
+af38b0cfd840.0.4k        1.0000
+f8d92a911e72.0.4k        1.0000
+dcb262cf0138.0.sd        1.0000
+41e324ebb708.0.sd        1.0000
+9db41aa16b5a.0.720p      1.0000
+3b1b441e23ae.0.4k        1.0001
+5185721dda11.0.sd        1.0001
+6b18d9f0f88d.0.720p      1.0001
+ae16bb7c7192.0.4k        1.0001
+4b54de28c2b3.0.4k        1.0001
+b71b6b31e54f.0.1080p     1.0002
+36501d448eaa.0.720p      1.0002
+a81de82106be.0.1080p     1.0002
+ec473c99c538.0.sd        1.0002
+e624cbe0d2be.0.4k        1.0002
+3c593b8f0809.0.720p      1.0002
+b41f70a7fa60.0.1080p     1.0003
+6e90422a670a.0.1080p     1.0003
+ed75c044e944.0.4k        1.0004
+f9e973f44570.0.sd        1.0014
+median 1.0 min 0.9995 max 1.0014 above 1: 22
+
+# mark: k plus a DC-only mask set where the entropy layer stores a block (MbData::luma_dc; n == 1 and a non-zero first coefficient), passed for inter blocks (variants/mark.diff). Rows: it over k.
+f9e973f44570.0.sd        0.9984
+5185721dda11.0.sd        0.9988
+ec473c99c538.0.sd        0.9994
+9db41aa16b5a.0.720p      0.9996
+b71b6b31e54f.0.1080p     0.9998
+6f7799768413.0.sd        1.0000
+278dbf5a63bb.0.720p      1.0000
+41e324ebb708.0.sd        1.0000
+7650ae466748.0.sd        1.0000
+dcb262cf0138.0.sd        1.0001
+3b1b441e23ae.0.4k        1.0002
+ae16bb7c7192.0.4k        1.0003
+f8d92a911e72.0.4k        1.0004
+6da34958296c.0.1080p     1.0004
+6b18d9f0f88d.0.720p      1.0004
+1d4b1775d78a.0.720p      1.0005
+76e0b1692494.0.720p      1.0005
+81ed4778ece2.0.4k        1.0005
+e624cbe0d2be.0.4k        1.0006
+af38b0cfd840.0.4k        1.0006
+ed75c044e944.0.4k        1.0007
+65ec61f95a00.0.720p      1.0008
+b41f70a7fa60.0.1080p     1.0008
+8ae90cadb5bc.0.sd        1.0008
+36501d448eaa.0.720p      1.0009
+a81de82106be.0.1080p     1.0009
+3c593b8f0809.0.720p      1.0010
+4b54de28c2b3.0.4k        1.0010
+6e90422a670a.0.1080p     1.0011
+c7ecda16e4a7.0.1080p     1.0014
+a6af290d9053.0.1080p     1.0016
+175433794e02.0.1080p     1.0018
+median 1.0005 min 0.9984 max 1.0018 above 1: 26

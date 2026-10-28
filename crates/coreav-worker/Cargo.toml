@@ -1,0 +1,48 @@
+[package]
+name = "coreav-worker"
+description = "CoreAV's sandboxed decode worker: runs decoder backends in a separate, resource-limited process; std pipes for control, shared memory for frames, every frame descriptor validated by the parent"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[features]
+default = []
+# The FFmpeg fallback backend (never in a default build of the CLI).
+ffmpeg = ["dep:coreav-backend-ffmpeg"]
+# dav1d for AV1 (links the system's libdav1d).
+dav1d = ["dep:coreav-backend-dav1d", "coreav-backend-dav1d/dav1d"]
+
+[dependencies]
+coreav-decode = { path = "../coreav-decode" }
+coreav-frame = { path = "../coreav-frame" }
+coreav-backend-ffmpeg = { path = "../coreav-backend-ffmpeg", optional = true }
+coreav-backend-dav1d = { path = "../coreav-backend-dav1d", optional = true }
+
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "1", default-features = false, features = ["std", "process"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+rustix = { version = "1", default-features = false, features = ["std", "fs", "process"] }
+memmap2 = "0.9"
+
+# An exception crate copies the workspace lint table with only
+# `unsafe_code` changed to "deny"; `#[allow(unsafe_code)]` is on `shm` alone
+# (docs/design/decode.md, "The sandboxed worker"; docs/unsafe-sites.md).
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+indexing_slicing = "deny"
+todo = "deny"
+unimplemented = "deny"
+
+[dev-dependencies]
+coreav-isobmff = { path = "../coreav-isobmff" }

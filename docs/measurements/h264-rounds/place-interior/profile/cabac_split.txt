@@ -1,0 +1,5 @@
+sd cabac_residual 0.1555/0.0590  cavlc_residual 0.1589/0.1255  cabac_other 0.1002/0.1116
+720p cabac_residual 0.2242/0.1301  cavlc_residual 0.0230/0.0187  cabac_other 0.1989/0.2367
+1080p cabac_residual 0.4039/0.2497  cavlc_residual 0.0375/0.0317  cabac_other 0.1796/0.2474
+4k cabac_residual 0.2136/0.1286  cavlc_residual 0.0000/0.0000  cabac_other 0.1848/0.2734
+all cabac_residual 0.2493/0.1418  cavlc_residual 0.0549/0.0440  cabac_other 0.1658/0.2173

@@ -1,0 +1,39 @@
+# combine's self instructions (callgrind_annotate --inclusive=no, functions named *combine*), main 28b2b22, --discard, 60 pictures, dist build with line tables
+9db41aa16b5a total 1090681753
+59,864,123 ( 5.49%)  crates/coreav-kernels-h264/src/simd/x86.rs:coreav_kernels_h264::simd::x86::combine
+38,528,224 ( 3.53%)  (std) core/src/num/uint_macros.rs:coreav_kernels_h264::simd::x86::combine
+36,262,916 ( 3.32%)  crates/coreav-kernels-h264/src/views.rs:coreav_kernels_h264::simd::x86::combine
+27,520,160 ( 2.52%)  (std) core/src/../../stdarch/crates/core_arch/src/x86/avx2.rs:coreav_kernels_h264::simd::x86::combine
+25,758,656 ( 2.36%)  (std) core/src/cmp.rs:coreav_kernels_h264::simd::x86::combine
+22,047,488 ( 2.02%)  (std) core/src/option.rs:coreav_kernels_h264::simd::x86::combine
+19,264,112 ( 1.77%)  (std) core/src/../../stdarch/crates/core_arch/src/simd.rs:coreav_kernels_h264::simd::x86::combine
+18,749,182 ( 1.72%)  (std) core/src/iter/adapters/take.rs:coreav_kernels_h264::simd::x86::combine
+11,039,424 ( 1.01%)  (std) core/src/slice/iter.rs:coreav_kernels_h264::simd::x86::combine
+ 4,901,988 ( 0.45%)  crates/coreav-kernels-h264/src/simd/mod.rs:<coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::combine
+ 4,730,234 ( 0.43%)  (std) core/src/slice/mod.rs:coreav_kernels_h264::simd::x86::combine
+ 2,752,016 ( 0.25%)  (std) core/src/../../stdarch/crates/core_arch/src/x86/sse2.rs:coreav_kernels_h264::simd::x86::combine
+ 2,752,016 ( 0.25%)  (std) core/src/ptr/mod.rs:coreav_kernels_h264::simd::x86::combine
+ 1,839,904 ( 0.17%)  (std) core/src/ptr/mut_ptr.rs:coreav_kernels_h264::simd::x86::combine
+ 1,400,568 ( 0.13%)  crates/coreav-kernels-h264/src/lib.rs:<coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::combine
+   875,355 ( 0.08%)  (std) core/src/ops/range.rs:<coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::combine
+   525,213 ( 0.05%)  (std) core/src/slice/iter/macros.rs:<coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::combine
+    31,360 ( 0.00%)  (std) core/src/iter/adapters/zip.rs:coreav_kernels_h264::simd::x86::combine
+41e324ebb708 total 354250904
+32,500,975 ( 9.17%)  crates/coreav-kernels-h264/src/simd/x86.rs:coreav_kernels_h264::simd::x86::combine
+21,020,544 ( 5.93%)  (std) core/src/num/uint_macros.rs:coreav_kernels_h264::simd::x86::combine
+19,644,468 ( 5.55%)  crates/coreav-kernels-h264/src/views.rs:coreav_kernels_h264::simd::x86::combine
+15,014,400 ( 4.24%)  (std) core/src/../../stdarch/crates/core_arch/src/x86/avx2.rs:coreav_kernels_h264::simd::x86::combine
+14,013,888 ( 3.96%)  (std) core/src/cmp.rs:coreav_kernels_h264::simd::x86::combine
+12,011,808 ( 3.39%)  (std) core/src/option.rs:coreav_kernels_h264::simd::x86::combine
+10,510,368 ( 2.97%)  (std) core/src/../../stdarch/crates/core_arch/src/simd.rs:coreav_kernels_h264::simd::x86::combine
+10,197,606 ( 2.88%)  (std) core/src/iter/adapters/take.rs:coreav_kernels_h264::simd::x86::combine
+ 6,005,952 ( 1.70%)  (std) core/src/slice/iter.rs:coreav_kernels_h264::simd::x86::combine
+ 2,627,604 ( 0.74%)  crates/coreav-kernels-h264/src/simd/mod.rs:<coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::combine
+ 2,565,042 ( 0.72%)  (std) core/src/slice/mod.rs:coreav_kernels_h264::simd::x86::combine
+ 1,501,632 ( 0.42%)  (std) core/src/../../stdarch/crates/core_arch/src/x86/sse2.rs:coreav_kernels_h264::simd::x86::combine
+ 1,501,488 ( 0.42%)  (std) core/src/ptr/mod.rs:coreav_kernels_h264::simd::x86::combine
+ 1,000,992 ( 0.28%)  (std) core/src/ptr/mut_ptr.rs:coreav_kernels_h264::simd::x86::combine
+   750,744 ( 0.21%)  crates/coreav-kernels-h264/src/lib.rs:<coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::combine
+   469,215 ( 0.13%)  (std) core/src/ops/range.rs:<coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::combine
+   281,529 ( 0.08%)  (std) core/src/slice/iter/macros.rs:<coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::combine
+        48 ( 0.00%)  (std) core/src/../../stdarch/crates/core_arch/src/x86/sse41.rs:coreav_kernels_h264::simd::x86::combine

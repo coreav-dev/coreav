@@ -1,0 +1,8 @@
+Raw numbers quoted in docs/design/h264.md, "Snapshot outliers", for 6f7799768413 (this VM, main a9017ba, 1800 pictures, one thread, pinned to core 3):
+perf record -q -F 4000 -e cpu-clock ... --discard   (perf report --no-children --sort sym -n)
+  base:  total 7217 samples (1.804 s); coreav_h264::cavlc::Code::read 695 (0.174 s); residual_block 900; parse_residual 878
+  fixed (cavlc-two-level.patch): total 7056 samples (1.764 s); Code::read 483 (0.121 s); residual_block 924; parse_residual 932
+  ffmpeg 9.0.2 attribution build -f null: total 4512 samples (1.128 s)
+perf annotate -s '<coreav_h264::cavlc::Code>::read' (base): 48.63% of the function's samples on the instruction after
+  `movzbl (%rcx,%r8,1),%esi` (the table load, index times 3), 5.76% on the compare before it.
+callgrind, --frames 200 --discard / -f null, Ir: CoreAV 367,878,196; FFmpeg attribution build 284,142,302 (1.295).

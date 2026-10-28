@@ -1,0 +1,928 @@
+{
+  "sample": {
+    "id": "small",
+    "url": "https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4.zip",
+    "archive_member": "BigBuckBunny_320x180.mp4",
+    "license": "CC-BY-3.0",
+    "license_url": "https://peach.blender.org/about/",
+    "attribution": "(c) copyright 2008, Blender Foundation / www.bigbuckbunny.org",
+    "sha256": "f78f39603e6774907f2faafabf26a667f4a6fc31769ec304a8a8f7c62d280508"
+  },
+  "object_bytes": 64657027,
+  "frame_count": 14315,
+  "rtt": {
+    "method": "20 uncached one-byte Range exchanges; fresh TLS connections",
+    "latency_ms": [
+      302.247537,
+      244.651457,
+      285.665139,
+      238.703735,
+      286.375553,
+      250.821835,
+      237.78602,
+      246.517505,
+      293.263885,
+      279.694823,
+      238.00765,
+      291.313214,
+      243.59307,
+      234.285927,
+      256.570591,
+      235.292832,
+      235.502092,
+      229.193,
+      247.663431,
+      239.745485
+    ],
+    "range_trace": [
+      {
+        "offset": 0,
+        "bytes": 1,
+        "start_ms": 0.007464,
+        "latency_ms": 302.247537
+      },
+      {
+        "offset": 0,
+        "bytes": 1,
+        "start_ms": 302.264429,
+        "latency_ms": 244.651457
+      },
+      {
+        "offset": 0,
+        "bytes": 1,
+        "start_ms": 546.922459,
+        "latency_ms": 285.665139
+      },
+      {
+        "offset": 0,
+        "bytes": 1,
+        "start_ms": 832.596595,
+        "latency_ms": 238.703735
+      },
+      {
+        "offset": 0,
+        "bytes": 1,
+        "start_ms": 1071.307464,
+        "latency_ms": 286.375553
+      },
+      {
+        "offset": 0,
+        "bytes": 1,
+        "start_ms": 1357.691293,
+        "latency_ms": 250.821835
+      },
+      {
+        "offset": 0,
+        "bytes": 1,
+        "start_ms": 1608.521064,
+        "latency_ms": 237.78602
+      },
+      {
+        "offset": 0,
+        "bytes": 1,
+        "start_ms": 1846.314728,
+        "latency_ms": 246.517505
+      },
+      {
+        "offset": 0,
+        "bytes": 1,
+        "start_ms": 2092.840439,
+        "latency_ms": 293.263885
+      },
+      {
+        "offset": 0,
+        "bytes": 1,
+        "start_ms": 2386.112299,
+        "latency_ms": 279.694823
+      },
+      {
+        "offset": 0,
+        "bytes": 1,
+        "start_ms": 2665.814817,
+        "latency_ms": 238.00765
+      },
+      {
+        "offset": 0,
+        "bytes": 1,
+        "start_ms": 2903.830934,
+        "latency_ms": 291.313214
+      },
+      {
+        "offset": 0,
+        "bytes": 1,
+        "start_ms": 3195.15526,
+        "latency_ms": 243.59307
+      },
+      {
+        "offset": 0,
+        "bytes": 1,
+        "start_ms": 3438.755464,
+        "latency_ms": 234.285927
+      },
+      {
+        "offset": 0,
+        "bytes": 1,
+        "start_ms": 3673.048154,
+        "latency_ms": 256.570591
+      },
+      {
+        "offset": 0,
+        "bytes": 1,
+        "start_ms": 3929.628974,
+        "latency_ms": 235.292832
+      },
+      {
+        "offset": 0,
+        "bytes": 1,
+        "start_ms": 4164.931194,
+        "latency_ms": 235.502092
+      },
+      {
+        "offset": 0,
+        "bytes": 1,
+        "start_ms": 4400.441962,
+        "latency_ms": 229.193
+      },
+      {
+        "offset": 0,
+        "bytes": 1,
+        "start_ms": 4629.642296,
+        "latency_ms": 247.663431
+      },
+      {
+        "offset": 0,
+        "bytes": 1,
+        "start_ms": 4877.314133,
+        "latency_ms": 239.745485
+      }
+    ]
+  },
+  "rows": [
+    {
+      "trial": 0,
+      "method": "torchcodec_url_exact",
+      "position": 0,
+      "seek_mode": "exact",
+      "source": "url",
+      "open_ms": 1964.437146,
+      "num_frames": 14315,
+      "ok": true,
+      "interface_rx_bytes": 65691999,
+      "returncode": 0,
+      "stderr_tail": "",
+      "subprocess_wall_ms": 6659.48272,
+      "ms": 1964.437146
+    },
+    {
+      "trial": 0,
+      "method": "index_sequential",
+      "position": 1,
+      "ms": 742.111008,
+      "requests": 3,
+      "bytes": 352378,
+      "fraction": 0.005449956738654253,
+      "concurrency": 1,
+      "max_read_bytes": 344186,
+      "range_trace": [
+        {
+          "offset": 0,
+          "bytes": 4096,
+          "start_ms": 0.017293,
+          "latency_ms": 239.392298
+        },
+        {
+          "offset": 64312833,
+          "bytes": 4096,
+          "start_ms": 239.444779,
+          "latency_ms": 241.959743
+        },
+        {
+          "offset": 64312841,
+          "bytes": 344186,
+          "start_ms": 481.436023,
+          "latency_ms": 255.729801
+        }
+      ],
+      "index_agreement": true
+    },
+    {
+      "trial": 0,
+      "method": "torchcodec_reader_approximate",
+      "position": 2,
+      "seek_mode": "approximate",
+      "source": "reader",
+      "open_ms": 835.880817,
+      "num_frames": 14315,
+      "ok": true,
+      "interface_rx_bytes": 719084,
+      "requests": 3,
+      "bytes": 693891,
+      "range_trace": [
+        {
+          "offset": 0,
+          "bytes": 262144,
+          "start_ms": 0.575385,
+          "latency_ms": 270.459539
+        },
+        {
+          "offset": 64225280,
+          "bytes": 262144,
+          "start_ms": 271.463204,
+          "latency_ms": 283.694136
+        },
+        {
+          "offset": 64487424,
+          "bytes": 169603,
+          "start_ms": 557.665059,
+          "latency_ms": 271.586975
+        }
+      ],
+      "returncode": 0,
+      "stderr_tail": "",
+      "subprocess_wall_ms": 4859.972418000002,
+      "ms": 835.880817
+    },
+    {
+      "trial": 0,
+      "method": "download_single",
+      "position": 3,
+      "ms": 1941.123238,
+      "requests": 1,
+      "bytes": 64657027,
+      "part_bytes": null,
+      "concurrency": 1,
+      "mb_per_s": 33.30907885406501
+    },
+    {
+      "trial": 0,
+      "method": "index_concurrent",
+      "position": 4,
+      "ms": 765.168095,
+      "requests": 3,
+      "bytes": 352378,
+      "fraction": 0.005449956738654253,
+      "concurrency": 32,
+      "max_read_bytes": 344186,
+      "range_trace": [
+        {
+          "offset": 0,
+          "bytes": 4096,
+          "start_ms": 0.021783,
+          "latency_ms": 232.006766
+        },
+        {
+          "offset": 64312833,
+          "bytes": 4096,
+          "start_ms": 232.054559,
+          "latency_ms": 261.042738
+        },
+        {
+          "offset": 64312841,
+          "bytes": 344186,
+          "start_ms": 493.124309,
+          "latency_ms": 266.448275
+        }
+      ],
+      "index_agreement": true
+    },
+    {
+      "trial": 0,
+      "method": "download_parallel",
+      "position": 5,
+      "ms": 736.770588,
+      "requests": 8,
+      "bytes": 64657027,
+      "part_bytes": 8388608,
+      "concurrency": 32,
+      "mb_per_s": 87.7573400093436
+    },
+    {
+      "trial": 0,
+      "method": "torchcodec_url_approximate",
+      "position": 6,
+      "seek_mode": "approximate",
+      "source": "url",
+      "open_ms": 857.925525,
+      "num_frames": 14315,
+      "ok": true,
+      "interface_rx_bytes": 965426,
+      "returncode": 0,
+      "stderr_tail": "",
+      "subprocess_wall_ms": 5271.125349000002,
+      "ms": 857.925525
+    },
+    {
+      "trial": 1,
+      "method": "index_sequential",
+      "position": 0,
+      "ms": 770.903578,
+      "requests": 3,
+      "bytes": 352378,
+      "fraction": 0.005449956738654253,
+      "concurrency": 1,
+      "max_read_bytes": 344186,
+      "range_trace": [
+        {
+          "offset": 0,
+          "bytes": 4096,
+          "start_ms": 0.08771,
+          "latency_ms": 245.535644
+        },
+        {
+          "offset": 64312833,
+          "bytes": 4096,
+          "start_ms": 245.658462,
+          "latency_ms": 243.394992
+        },
+        {
+          "offset": 64312841,
+          "bytes": 344186,
+          "start_ms": 489.202583,
+          "latency_ms": 277.117887
+        }
+      ],
+      "index_agreement": true
+    },
+    {
+      "trial": 1,
+      "method": "download_single",
+      "position": 1,
+      "ms": 813.575159,
+      "requests": 1,
+      "bytes": 64657027,
+      "part_bytes": null,
+      "concurrency": 1,
+      "mb_per_s": 79.47271531676645
+    },
+    {
+      "trial": 1,
+      "method": "download_parallel",
+      "position": 2,
+      "ms": 1438.008935,
+      "requests": 8,
+      "bytes": 64657027,
+      "part_bytes": 8388608,
+      "concurrency": 32,
+      "mb_per_s": 44.96288265413316
+    },
+    {
+      "trial": 1,
+      "method": "torchcodec_reader_approximate",
+      "position": 3,
+      "seek_mode": "approximate",
+      "source": "reader",
+      "open_ms": 912.672527,
+      "num_frames": 14315,
+      "ok": true,
+      "interface_rx_bytes": 718957,
+      "requests": 3,
+      "bytes": 693891,
+      "range_trace": [
+        {
+          "offset": 0,
+          "bytes": 262144,
+          "start_ms": 0.783448,
+          "latency_ms": 302.016711
+        },
+        {
+          "offset": 64225280,
+          "bytes": 262144,
+          "start_ms": 303.411383,
+          "latency_ms": 316.423035
+        },
+        {
+          "offset": 64487424,
+          "bytes": 169603,
+          "start_ms": 622.543717,
+          "latency_ms": 277.085567
+        }
+      ],
+      "returncode": 0,
+      "stderr_tail": "",
+      "subprocess_wall_ms": 5636.708184,
+      "ms": 912.672527
+    },
+    {
+      "trial": 1,
+      "method": "index_concurrent",
+      "position": 4,
+      "ms": 753.450053,
+      "requests": 3,
+      "bytes": 352378,
+      "fraction": 0.005449956738654253,
+      "concurrency": 32,
+      "max_read_bytes": 344186,
+      "range_trace": [
+        {
+          "offset": 0,
+          "bytes": 4096,
+          "start_ms": 0.013927,
+          "latency_ms": 231.236826
+        },
+        {
+          "offset": 64312833,
+          "bytes": 4096,
+          "start_ms": 231.289819,
+          "latency_ms": 254.506693
+        },
+        {
+          "offset": 64312841,
+          "bytes": 344186,
+          "start_ms": 485.856459,
+          "latency_ms": 263.503831
+        }
+      ],
+      "index_agreement": true
+    },
+    {
+      "trial": 1,
+      "method": "torchcodec_url_approximate",
+      "position": 5,
+      "seek_mode": "approximate",
+      "source": "url",
+      "open_ms": 845.867564,
+      "num_frames": 14315,
+      "ok": true,
+      "interface_rx_bytes": 968259,
+      "returncode": 0,
+      "stderr_tail": "",
+      "subprocess_wall_ms": 5008.619567000003,
+      "ms": 845.867564
+    },
+    {
+      "trial": 1,
+      "method": "torchcodec_url_exact",
+      "position": 6,
+      "seek_mode": "exact",
+      "source": "url",
+      "open_ms": 1520.008742,
+      "num_frames": 14315,
+      "ok": true,
+      "interface_rx_bytes": 65879506,
+      "returncode": 0,
+      "stderr_tail": "",
+      "subprocess_wall_ms": 5697.541307999998,
+      "ms": 1520.008742
+    },
+    {
+      "trial": 2,
+      "method": "torchcodec_url_exact",
+      "position": 0,
+      "seek_mode": "exact",
+      "source": "url",
+      "open_ms": 1698.99911,
+      "num_frames": 14315,
+      "ok": true,
+      "interface_rx_bytes": 65859687,
+      "returncode": 0,
+      "stderr_tail": "",
+      "subprocess_wall_ms": 5885.591294999997,
+      "ms": 1698.99911
+    },
+    {
+      "trial": 2,
+      "method": "download_single",
+      "position": 1,
+      "ms": 852.840278,
+      "requests": 1,
+      "bytes": 64657027,
+      "part_bytes": null,
+      "concurrency": 1,
+      "mb_per_s": 75.81375864614124
+    },
+    {
+      "trial": 2,
+      "method": "index_sequential",
+      "position": 2,
+      "ms": 806.132906,
+      "requests": 3,
+      "bytes": 352378,
+      "fraction": 0.005449956738654253,
+      "concurrency": 1,
+      "max_read_bytes": 344186,
+      "range_trace": [
+        {
+          "offset": 0,
+          "bytes": 4096,
+          "start_ms": 0.023035,
+          "latency_ms": 258.810226
+        },
+        {
+          "offset": 64312833,
+          "bytes": 4096,
+          "start_ms": 258.861836,
+          "latency_ms": 269.842628
+        },
+        {
+          "offset": 64312841,
+          "bytes": 344186,
+          "start_ms": 528.740093,
+          "latency_ms": 273.005943
+        }
+      ],
+      "index_agreement": true
+    },
+    {
+      "trial": 2,
+      "method": "torchcodec_url_approximate",
+      "position": 3,
+      "seek_mode": "approximate",
+      "source": "url",
+      "open_ms": 893.061017,
+      "num_frames": 14315,
+      "ok": true,
+      "interface_rx_bytes": 967120,
+      "returncode": 0,
+      "stderr_tail": "",
+      "subprocess_wall_ms": 4990.911479999994,
+      "ms": 893.061017
+    },
+    {
+      "trial": 2,
+      "method": "download_parallel",
+      "position": 4,
+      "ms": 1459.821143,
+      "requests": 8,
+      "bytes": 64657027,
+      "part_bytes": 8388608,
+      "concurrency": 32,
+      "mb_per_s": 44.291060798809106
+    },
+    {
+      "trial": 2,
+      "method": "torchcodec_reader_approximate",
+      "position": 5,
+      "seek_mode": "approximate",
+      "source": "reader",
+      "open_ms": 871.833678,
+      "num_frames": 14315,
+      "ok": true,
+      "interface_rx_bytes": 719811,
+      "requests": 3,
+      "bytes": 693891,
+      "range_trace": [
+        {
+          "offset": 0,
+          "bytes": 262144,
+          "start_ms": 0.678474,
+          "latency_ms": 296.250132
+        },
+        {
+          "offset": 64225280,
+          "bytes": 262144,
+          "start_ms": 297.465025,
+          "latency_ms": 258.304215
+        },
+        {
+          "offset": 64487424,
+          "bytes": 169603,
+          "start_ms": 558.148688,
+          "latency_ms": 305.539561
+        }
+      ],
+      "returncode": 0,
+      "stderr_tail": "",
+      "subprocess_wall_ms": 5273.14798399999,
+      "ms": 871.833678
+    },
+    {
+      "trial": 2,
+      "method": "index_concurrent",
+      "position": 6,
+      "ms": 827.413152,
+      "requests": 3,
+      "bytes": 352378,
+      "fraction": 0.005449956738654253,
+      "concurrency": 32,
+      "max_read_bytes": 344186,
+      "range_trace": [
+        {
+          "offset": 0,
+          "bytes": 4096,
+          "start_ms": 0.034116,
+          "latency_ms": 278.952156
+        },
+        {
+          "offset": 64312833,
+          "bytes": 4096,
+          "start_ms": 279.014256,
+          "latency_ms": 248.048992
+        },
+        {
+          "offset": 64312841,
+          "bytes": 344186,
+          "start_ms": 527.097083,
+          "latency_ms": 295.614183
+        }
+      ],
+      "index_agreement": true
+    },
+    {
+      "trial": 3,
+      "method": "index_sequential",
+      "position": 0,
+      "ms": 737.888443,
+      "requests": 3,
+      "bytes": 352378,
+      "fraction": 0.005449956738654253,
+      "concurrency": 1,
+      "max_read_bytes": 344186,
+      "range_trace": [
+        {
+          "offset": 0,
+          "bytes": 4096,
+          "start_ms": 0.011021,
+          "latency_ms": 238.940036
+        },
+        {
+          "offset": 64312833,
+          "bytes": 4096,
+          "start_ms": 239.06898,
+          "latency_ms": 240.402075
+        },
+        {
+          "offset": 64312841,
+          "bytes": 344186,
+          "start_ms": 479.506154,
+          "latency_ms": 254.302107
+        }
+      ],
+      "index_agreement": true
+    },
+    {
+      "trial": 3,
+      "method": "torchcodec_reader_approximate",
+      "position": 1,
+      "seek_mode": "approximate",
+      "source": "reader",
+      "open_ms": 800.139158,
+      "num_frames": 14315,
+      "ok": true,
+      "interface_rx_bytes": 719549,
+      "requests": 3,
+      "bytes": 693891,
+      "range_trace": [
+        {
+          "offset": 0,
+          "bytes": 262144,
+          "start_ms": 0.690207,
+          "latency_ms": 264.807472
+        },
+        {
+          "offset": 64225280,
+          "bytes": 262144,
+          "start_ms": 266.075097,
+          "latency_ms": 256.666125
+        },
+        {
+          "offset": 64487424,
+          "bytes": 169603,
+          "start_ms": 525.327691,
+          "latency_ms": 266.943149
+        }
+      ],
+      "returncode": 0,
+      "stderr_tail": "",
+      "subprocess_wall_ms": 5299.530738999991,
+      "ms": 800.139158
+    },
+    {
+      "trial": 3,
+      "method": "download_single",
+      "position": 2,
+      "ms": 1037.149827,
+      "requests": 1,
+      "bytes": 64657027,
+      "part_bytes": null,
+      "concurrency": 1,
+      "mb_per_s": 62.34106714072663
+    },
+    {
+      "trial": 3,
+      "method": "download_parallel",
+      "position": 3,
+      "ms": 688.705597,
+      "requests": 8,
+      "bytes": 64657027,
+      "part_bytes": 8388608,
+      "concurrency": 32,
+      "mb_per_s": 93.88195374285596
+    },
+    {
+      "trial": 3,
+      "method": "torchcodec_url_approximate",
+      "position": 4,
+      "seek_mode": "approximate",
+      "source": "url",
+      "open_ms": 874.501347,
+      "num_frames": 14315,
+      "ok": true,
+      "interface_rx_bytes": 969120,
+      "returncode": 0,
+      "stderr_tail": "",
+      "subprocess_wall_ms": 6030.916056999999,
+      "ms": 874.501347
+    },
+    {
+      "trial": 3,
+      "method": "torchcodec_url_exact",
+      "position": 5,
+      "seek_mode": "exact",
+      "source": "url",
+      "open_ms": 1504.609678,
+      "num_frames": 14315,
+      "ok": true,
+      "interface_rx_bytes": 65846399,
+      "returncode": 0,
+      "stderr_tail": "",
+      "subprocess_wall_ms": 6010.784455000006,
+      "ms": 1504.609678
+    },
+    {
+      "trial": 3,
+      "method": "index_concurrent",
+      "position": 6,
+      "ms": 802.385491,
+      "requests": 3,
+      "bytes": 352378,
+      "fraction": 0.005449956738654253,
+      "concurrency": 32,
+      "max_read_bytes": 344186,
+      "range_trace": [
+        {
+          "offset": 0,
+          "bytes": 4096,
+          "start_ms": 0.021712,
+          "latency_ms": 256.121972
+        },
+        {
+          "offset": 64312833,
+          "bytes": 4096,
+          "start_ms": 256.179713,
+          "latency_ms": 239.007577
+        },
+        {
+          "offset": 64312841,
+          "bytes": 344186,
+          "start_ms": 495.220755,
+          "latency_ms": 301.290716
+        }
+      ],
+      "index_agreement": true
+    },
+    {
+      "trial": 4,
+      "method": "torchcodec_url_approximate",
+      "position": 0,
+      "seek_mode": "approximate",
+      "source": "url",
+      "open_ms": 884.113967,
+      "num_frames": 14315,
+      "ok": true,
+      "interface_rx_bytes": 1119229,
+      "returncode": 0,
+      "stderr_tail": "",
+      "subprocess_wall_ms": 5461.180475999996,
+      "ms": 884.113967
+    },
+    {
+      "trial": 4,
+      "method": "torchcodec_url_exact",
+      "position": 1,
+      "seek_mode": "exact",
+      "source": "url",
+      "open_ms": 2328.935516,
+      "num_frames": 14315,
+      "ok": true,
+      "interface_rx_bytes": 65964063,
+      "returncode": 0,
+      "stderr_tail": "",
+      "subprocess_wall_ms": 6859.117995000005,
+      "ms": 2328.935516
+    },
+    {
+      "trial": 4,
+      "method": "torchcodec_reader_approximate",
+      "position": 2,
+      "seek_mode": "approximate",
+      "source": "reader",
+      "open_ms": 789.701704,
+      "num_frames": 14315,
+      "ok": true,
+      "interface_rx_bytes": 720540,
+      "requests": 3,
+      "bytes": 693891,
+      "range_trace": [
+        {
+          "offset": 0,
+          "bytes": 262144,
+          "start_ms": 0.574884,
+          "latency_ms": 266.75415
+        },
+        {
+          "offset": 64225280,
+          "bytes": 262144,
+          "start_ms": 267.819674,
+          "latency_ms": 255.215996
+        },
+        {
+          "offset": 64487424,
+          "bytes": 169603,
+          "start_ms": 525.254478,
+          "latency_ms": 257.762749
+        }
+      ],
+      "returncode": 0,
+      "stderr_tail": "",
+      "subprocess_wall_ms": 4881.0352669999875,
+      "ms": 789.701704
+    },
+    {
+      "trial": 4,
+      "method": "index_concurrent",
+      "position": 3,
+      "ms": 775.416488,
+      "requests": 3,
+      "bytes": 352378,
+      "fraction": 0.005449956738654253,
+      "concurrency": 32,
+      "max_read_bytes": 344186,
+      "range_trace": [
+        {
+          "offset": 0,
+          "bytes": 4096,
+          "start_ms": 0.03606,
+          "latency_ms": 245.490775
+        },
+        {
+          "offset": 64312833,
+          "bytes": 4096,
+          "start_ms": 245.564749,
+          "latency_ms": 255.468366
+        },
+        {
+          "offset": 64312841,
+          "bytes": 344186,
+          "start_ms": 501.141395,
+          "latency_ms": 269.577327
+        }
+      ],
+      "index_agreement": true
+    },
+    {
+      "trial": 4,
+      "method": "download_parallel",
+      "position": 4,
+      "ms": 981.656084,
+      "requests": 8,
+      "bytes": 64657027,
+      "part_bytes": 8388608,
+      "concurrency": 32,
+      "mb_per_s": 65.86525368084001
+    },
+    {
+      "trial": 4,
+      "method": "index_sequential",
+      "position": 5,
+      "ms": 794.707236,
+      "requests": 3,
+      "bytes": 352378,
+      "fraction": 0.005449956738654253,
+      "concurrency": 1,
+      "max_read_bytes": 344186,
+      "range_trace": [
+        {
+          "offset": 0,
+          "bytes": 4096,
+          "start_ms": 0.015009,
+          "latency_ms": 247.379772
+        },
+        {
+          "offset": 64312833,
+          "bytes": 4096,
+          "start_ms": 247.432715,
+          "latency_ms": 260.118916
+        },
+        {
+          "offset": 64312841,
+          "bytes": 344186,
+          "start_ms": 507.588903,
+          "latency_ms": 282.832094
+        }
+      ],
+      "index_agreement": true
+    },
+    {
+      "trial": 4,
+      "method": "download_single",
+      "position": 6,
+      "ms": 951.965902,
+      "requests": 1,
+      "bytes": 64657027,
+      "part_bytes": null,
+      "concurrency": 1,
+      "mb_per_s": 67.91947785541586
+    }
+  ],
+  "complete": false
+}

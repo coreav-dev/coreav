@@ -1,0 +1,9 @@
+3b1b441e23ae.0.4k.h2 cpu base 1.370 a 1.430 ratio 1.044
+4b54de28c2b3.0.4k.h2 cpu base 1.380 a 1.340 ratio 0.971
+81ed4778ece2.0.4k.h2 cpu base 0.870 a 0.810 ratio 0.931
+ae16bb7c7192.0.4k.h2 cpu base 0.480 a 0.440 ratio 0.917
+af38b0cfd840.0.4k.h2 cpu base 0.990 a 0.910 ratio 0.919
+e624cbe0d2be.0.4k.h2 cpu base 1.870 a 1.840 ratio 0.984
+ed75c044e944.0.4k.h2 cpu base 0.900 a 0.830 ratio 0.922
+f8d92a911e72.0.4k.h2 cpu base 9.380 a 9.260 ratio 0.987
+median a/base CPU 0.951

@@ -1,0 +1,6 @@
+Round 30 (chroma intra, one view of both planes) local screening, written before the run; bars committed at caf54d72
+(perf/h264-intra-chroma, pushed). Arms: r30-base (main b6a0bc66, dist; byte-identical binary to r29-base), r30-k
+(b9824c9d, dist). ab3.py 6 rounds, all 32 training streams, 1 thread, --discard, pinned cpu 3, rotated order.
+Request gating only if the all-32 median k/base <= 1.000 with bootstrap 95% upper end < 1.000 (abcls.py);
+otherwise rejected/ branch for a bundle. Identity 32/32 1T+8T done (ident.txt). Instructions on 1d4b1775d78a 720p
+150 pictures: kernel 24.05M -> 15.22M (322 -> 204 per call), reconstruct_chroma 33.4M -> 31.2M, total -0.38%.

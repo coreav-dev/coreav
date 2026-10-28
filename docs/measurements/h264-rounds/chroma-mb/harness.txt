@@ -1,0 +1,26 @@
+Kernel harness (tools/pairbench, information): ns a macroblock, the median of three runs of 10,000,000 macroblocks,
+Auto::detect on the development VM of the 2.90 GHz class, pinned; edges: mask of V0 (1), V4 (2), H0 (4), H4 (8), written
+H4 H0 V4 V0; pair = one filter_chroma_pair a filtered edge with its two EdgeMut views (main's path), mb =
+filter_chroma_mb with its two ChromaMbMut windows (this round). The hash of both planes after the run is the same for
+both paths of an edge set.
+pair edges 1111 81.3 ns a macroblock (hash 766a5cf78e99f376)
+mb   edges 1111 61.5 ns a macroblock (hash 766a5cf78e99f376)
+pair edges 0011 49.8 ns a macroblock (hash 2f082ce2e3b94fb4)
+mb   edges 0011 34.4 ns a macroblock (hash 2f082ce2e3b94fb4)
+pair edges 1100 34.1 ns a macroblock (hash ac56c0fcc31576b8)
+mb   edges 1100 33.5 ns a macroblock (hash ac56c0fcc31576b8)
+pair edges 0101 44.3 ns a macroblock (hash e29ac235a4ca2b8e)
+mb   edges 0101 40.3 ns a macroblock (hash e29ac235a4ca2b8e)
+pair edges 0001 27.6 ns a macroblock (hash a47e95a62af79984)
+mb   edges 0001 25.9 ns a macroblock (hash a47e95a62af79984)
+pair edges 0100 19.0 ns a macroblock (hash 384fdddf965ec666)
+mb   edges 0100 20.6 ns a macroblock (hash 384fdddf965ec666)
+
+Instructions a macroblock (callgrind, 100,000 macroblocks; Valgrind runs the AVX2 tier; the harness's own loop, about
+35 instructions, included in both):
+pair edges mask 15: 1022
+mb edges mask 15: 733
+pair edges mask 5: 534
+mb edges mask 5: 495
+pair edges mask 4: 279
+mb edges mask 4: 276

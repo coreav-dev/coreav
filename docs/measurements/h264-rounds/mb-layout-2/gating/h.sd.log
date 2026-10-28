@@ -1,0 +1,26 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2900.0 MHz, 8 logical CPUs
+176aa2655e6b.0.sd.h264                   before:discard=1.33  before:write=1.35  before:mixed=1.31  after:discard=1.33  after:write=1.38  after:mixed=1.31
+280136b1ab5c.0.sd.h264                   before:discard=1.23  before:write=1.22  before:mixed=1.17  after:discard=1.21  after:write=1.19  after:mixed=1.15
+2eb7edc04e08.0.sd.h264                   before:discard=1.08  before:write=1.08  before:mixed=1.04  after:discard=1.08  after:write=1.08  after:mixed=1.04
+35757bdf512b.0.sd.h264                   before:discard=1.08  before:write=1.06  before:mixed=1.02  after:discard=1.07  after:write=1.05  after:mixed=1.00
+4a28c14fa0b2.0.sd.h264                   before:discard=1.09  before:write=1.08  before:mixed=1.05  after:discard=1.09  after:write=1.08  after:mixed=1.05
+4e2642615842.0.sd.h264                   before:discard=1.02  before:write=1.00  before:mixed=0.95  after:discard=1.00  after:write=0.97  after:mixed=0.93
+4f2715fe7626.0.sd.h264                   before:discard=1.07  before:write=1.06  before:mixed=1.02  after:discard=1.07  after:write=1.06  after:mixed=1.02
+75cf7bf8391b.0.sd.h264                   before:discard=1.10  before:write=1.09  before:mixed=1.07  after:discard=1.10  after:write=1.10  after:mixed=1.07
+770db99b2698.0.sd.h264                   before:discard=1.11  before:write=1.13  before:mixed=1.08  after:discard=1.13  after:write=1.12  after:mixed=1.09
+7a580ff996e1.0.sd.h264                   before:discard=1.09  before:write=1.08  before:mixed=1.05  after:discard=1.08  after:write=1.09  after:mixed=1.04
+9b3a84c821e8.0.sd.h264                   before:discard=1.21  before:write=1.18  before:mixed=1.16  after:discard=1.18  after:write=1.21  after:mixed=1.13
+9b833fff929e.0.sd.h264                   before:discard=1.12  before:write=1.11  before:mixed=1.07  after:discard=1.13  after:write=1.10  after:mixed=1.08
+9d99b565f2ec.0.sd.h264                   before:discard=1.10  before:write=1.07  before:mixed=1.01  after:discard=1.04  after:write=1.02  after:mixed=0.96
+d3d3bdb17b38.0.sd.h264                   before:discard=1.10  before:write=1.08  before:mixed=1.05  after:discard=1.09  after:write=1.08  after:mixed=1.05
+d56594fb1f83.0.sd.h264                   before:discard=0.97  before:write=0.95  before:mixed=0.89  after:discard=0.93  after:write=0.93  after:mixed=0.85
+ff84167e699d.0.sd.h264                   before:discard=0.93  before:write=0.88  before:mixed=0.81  after:discard=0.85  after:write=0.82  after:mixed=0.74
+
+before:discard           n= 16  median 1.091  [1.078, 1.114]
+before:write             n= 16  median 1.079  [1.057, 1.113]
+before:mixed             n= 16  median 1.047  [1.020, 1.074]
+after:discard            n= 16  median 1.087  [1.059, 1.125]
+after:write              n= 16  median 1.080  [1.047, 1.109]
+after:mixed              n= 16  median 1.043  [0.995, 1.083]
+
+wrote $HOME/ab/mb-layout-2/out/h.sd.json

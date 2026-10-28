@@ -1,0 +1,15 @@
+[package]
+name = "coreav-decode"
+description = "CoreAV's decode boundary: the Decoder trait, stream descriptions, the codec allowlist, decode limits and backend selection"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+coreav-frame = { path = "../coreav-frame" }
+
+[lints]
+workspace = true

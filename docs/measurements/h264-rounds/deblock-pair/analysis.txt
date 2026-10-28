@@ -1,0 +1,15 @@
+failed []
+a/base   discard overall  n=32 median 0.9869 [0.9814,0.9898] faster 26/32
+a/base   discard sd       n= 8 median 0.9848 [0.9768,0.9890] faster 8/8
+a/base   discard 720p     n= 8 median 0.9784 [0.9668,0.9803] faster 8/8
+a/base   discard 1080p    n= 8 median 0.9886 [0.9868,0.9968] faster 6/8
+a/base   discard 4k       n= 8 median 0.9987 [0.9881,1.0061] faster 4/8
+a/base   write   overall  n=32 median 0.9838 [0.9798,0.9882] faster 25/32
+a/base   write   sd       n= 8 median 0.9707 [0.9650,0.9872] faster 8/8
+a/base   write   720p     n= 8 median 0.9798 [0.9726,0.9828] faster 8/8
+a/base   write   1080p    n= 8 median 0.9952 [0.9859,1.0046] faster 4/8
+a/base   write   4k       n= 8 median 0.9945 [0.9818,1.0270] faster 5/8
+base vs FFmpeg discard overall 1.497 (1/32 faster) sd 1.348 (1/8 faster) 720p 1.523 (0/8 faster) 1080p 1.460 (0/8 faster) 4k 1.571 (0/8 faster)
+base vs FFmpeg write   overall 1.469 (1/32 faster) sd 1.412 (1/8 faster) 720p 1.480 (0/8 faster) 1080p 1.421 (0/8 faster) 4k 1.430 (0/8 faster)
+a    vs FFmpeg discard overall 1.470 (1/32 faster) sd 1.331 (1/8 faster) 720p 1.480 (0/8 faster) 1080p 1.457 (0/8 faster) 4k 1.553 (0/8 faster)
+a    vs FFmpeg write   overall 1.440 (1/32 faster) sd 1.364 (1/8 faster) 720p 1.449 (0/8 faster) 1080p 1.412 (0/8 faster) 4k 1.401 (0/8 faster)

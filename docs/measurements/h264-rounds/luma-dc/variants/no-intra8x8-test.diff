@@ -1,0 +1,34 @@
+diff --git a/crates/coreav-kernels-h264/src/simd/x86.rs b/crates/coreav-kernels-h264/src/simd/x86.rs
+index 9dc3877..c4af425 100644
+--- a/crates/coreav-kernels-h264/src/simd/x86.rs
++++ b/crates/coreav-kernels-h264/src/simd/x86.rs
+@@ -1822,25 +1822,11 @@ pub(super) unsafe fn intra8x8_mb(
+                 _mm256_extracti128_si256::<1>(second),
+             ];
+             if nz & (1 << b8) != 0 {
+-                let c = load8x8(coeffs);
++                let [g0, g1, g2, g3, g4, g5, g6, g7] = idct8x8(coeffs);
+                 let [r0, r1, r2, r3] = rows;
+-                rows = if residual::only_dc8(&c) {
+-                    // The DC in every sample (`residual`).
+-                    let [first, ..] = coeffs;
+-                    let dc = residual::round_dc(_mm_set1_epi32(*first));
+-                    let [up, down] = residual::saturations(dc);
+-                    [
+-                        _mm_subs_epu8(_mm_adds_epu8(r0, up), down),
+-                        _mm_subs_epu8(_mm_adds_epu8(r1, up), down),
+-                        _mm_subs_epu8(_mm_adds_epu8(r2, up), down),
+-                        _mm_subs_epu8(_mm_adds_epu8(r3, up), down),
+-                    ]
+-                } else {
+-                    let [g0, g1, g2, g3, g4, g5, g6, g7] = idct8x8_rows(c);
+-                    let [r0, r1] = add_residual8([r0, r1], [g0, g1, g2, g3]);
+-                    let [r2, r3] = add_residual8([r2, r3], [g4, g5, g6, g7]);
+-                    [r0, r1, r2, r3]
+-                };
++                let [r0, r1] = add_residual8([r0, r1], [g0, g1, g2, g3]);
++                let [r2, r3] = add_residual8([r2, r3], [g4, g5, g6, g7]);
++                rows = [r0, r1, r2, r3];
+             }
+             let [r0, r1, r2, r3] = rows;
+             store_four_rows(w.at(x + 1, y + 1), w.stride, r0, r1);

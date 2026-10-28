@@ -1,0 +1,101 @@
+name: mediainfo-oracle
+
+# MediaInfo is a second, informational oracle. This workflow
+# reports CoreAV, ffprobe and MediaInfo agreement on the generated fixtures
+# and never fails on disagreement; it fails only on harness errors and on the
+# tool's own unit tests. It is not a required check.
+
+on:
+  # Informational: on main, on demand, and on PRs that change the tool.
+  # Documentation prose runs nothing: the report comes from the binaries and
+  # the fixtures, which that prose does not describe. Neither `docs/` nor
+  # markdown is ignored as a whole, because the gates read some of both:
+  # `docs/schema/**`, the known-divergence pages and their JSON twins, and
+  # `docs/unsafe-sites.md`.
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'docs/design/**'
+      - 'docs/measurements/**'
+      - 'docs/release/**'
+      - 'docs/schema/*.md'
+      - '*.md'
+      - '.context/**'
+      - 'docs/spikes/**'
+  pull_request:
+    paths:
+      - tools/mediainfo-oracle/**
+      - .github/workflows/mediainfo-oracle.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # PRs: one run per branch, a new push cancels the previous one. Pushes to
+  # main and manual runs each get their own group, so none is dropped.
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  three-way:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          toolchain: stable
+      - name: Test the MediaInfo oracle tool on JSON snapshots
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 -m unittest discover -s tools/mediainfo-oracle/tests -p 'test_*.py'
+      - name: Cache pinned black-box binaries
+        id: bin-cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/coreav-oracle-bin
+          key: linux-x64-ffmpeg-7.0.2-mediainfo-26.10-${{ hashFiles('scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
+      - name: Install pinned FFmpeg, ffprobe and MediaInfo
+        if: steps.bin-cache.outputs.cache-hit != 'true'
+        run: |
+          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
+          scripts/install-oracle-mediainfo.sh "$RUNNER_TEMP/coreav-oracle-bin"
+      - name: Use pinned binaries
+        run: |
+          echo "$RUNNER_TEMP/coreav-oracle-bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/coreav-oracle-bin/mediainfo" --Version
+      - name: Generate all required fixtures
+        env:
+          COREAV_REQUIRE_ALL_FIXTURES: '1'
+        run: scripts/gen-fixtures.sh "$RUNNER_TEMP/coreav-fixtures"
+      - name: Build the comparator and the coreav-isobmff adapter
+        run: cargo build --locked --release -p coreav-oracle -p coreav-isobmff-adapter
+      - name: Capture ffprobe, CoreAV and MediaInfo
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/mediainfo-oracle"
+          scripts/oracle-capture.sh --media "$RUNNER_TEMP/coreav-fixtures" --out "$OUT/ffprobe" --levels streams
+          scripts/oracle-capture.sh --media "$RUNNER_TEMP/coreav-fixtures" --out "$OUT/coreav" \
+            --adapter target/release/isobmff-adapter --levels streams
+          python3 -I tools/mediainfo-oracle/mediainfo_oracle.py capture \
+            --media "$RUNNER_TEMP/coreav-fixtures" --out "$OUT/mediainfo"
+      - name: Three-way report (informational, never gates)
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          OUT="$RUNNER_TEMP/mediainfo-oracle"
+          python3 -I tools/mediainfo-oracle/mediainfo_oracle.py report \
+            --ffprobe "$OUT/ffprobe" --coreav "$OUT/coreav" --mediainfo "$OUT/mediainfo" \
+            --out "$OUT/three-way.json" --markdown "$OUT/three-way.md" \
+            --title 'Three-way stream report on the generated fixtures'
+          cat "$OUT/three-way.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Preserve the report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mediainfo-oracle
+          path: ${{ runner.temp }}/mediainfo-oracle
+          if-no-files-found: ignore

@@ -1,0 +1,110 @@
+{
+ "summary": {
+  "streams": 8,
+  "frames": 300,
+  "rounds": 3,
+  "kernels": "auto",
+  "failed": 0,
+  "median_ratio": 3.5978,
+  "ci95": [
+   2.8463,
+   4.4257
+  ],
+  "faster_than_ffmpeg": 0,
+  "by_class": {
+   "1080p": {
+    "streams": 3,
+    "median_ratio": 3.7627,
+    "ci95": [
+     3.4329,
+     4.1759
+    ],
+    "faster_than_ffmpeg": 0
+   },
+   "4k": {
+    "streams": 1,
+    "median_ratio": 2.8463,
+    "ci95": [
+     2.8463,
+     2.8463
+    ],
+    "faster_than_ffmpeg": 0
+   },
+   "720p": {
+    "streams": 4,
+    "median_ratio": 3.7091,
+    "ci95": [
+     2.3664,
+     4.8777
+    ],
+    "faster_than_ffmpeg": 0
+   }
+  }
+ },
+ "streams": [
+  {
+   "stream": "00d2057ba2cd.0.720p.h264",
+   "status": "ok",
+   "class": "720p",
+   "ours_seconds": 0.7125,
+   "ffmpeg_seconds": 0.161,
+   "ratio": 4.4256850108202315
+  },
+  {
+   "stream": "02143b44a0c8.0.1080p.h264",
+   "status": "ok",
+   "class": "1080p",
+   "ours_seconds": 4.6463,
+   "ffmpeg_seconds": 1.3535,
+   "ratio": 3.4328652803515385
+  },
+  {
+   "stream": "029c63e01bcd.0.4k.h264",
+   "status": "ok",
+   "class": "4k",
+   "ours_seconds": 29.5019,
+   "ffmpeg_seconds": 10.365,
+   "ratio": 2.8462911625011396
+  },
+  {
+   "stream": "03be19c3a47b.0.720p.h264",
+   "status": "ok",
+   "class": "720p",
+   "ours_seconds": 2.2016,
+   "ffmpeg_seconds": 0.9304,
+   "ratio": 2.3663618423749475
+  },
+  {
+   "stream": "0404af1890da.0.1080p.h264",
+   "status": "ok",
+   "class": "1080p",
+   "ours_seconds": 2.0249,
+   "ffmpeg_seconds": 0.4849,
+   "ratio": 4.175888296861832
+  },
+  {
+   "stream": "04e45b2f41df.0.720p.h264",
+   "status": "ok",
+   "class": "720p",
+   "ours_seconds": 1.8352,
+   "ffmpeg_seconds": 0.6133,
+   "ratio": 2.9925211577502187
+  },
+  {
+   "stream": "05f55a4982d8.0.1080p.h264",
+   "status": "ok",
+   "class": "1080p",
+   "ours_seconds": 3.4828,
+   "ffmpeg_seconds": 0.9256,
+   "ratio": 3.7627145279478786
+  },
+  {
+   "stream": "060b839eaa34.0.720p.h264",
+   "status": "ok",
+   "class": "720p",
+   "ours_seconds": 1.8742,
+   "ffmpeg_seconds": 0.3842,
+   "ratio": 4.877736465417192
+  }
+ ]
+}

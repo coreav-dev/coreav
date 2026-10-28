@@ -1,0 +1,9 @@
+# round 24, the code of fec04b3: crates/coreav-h264/fuzz targets built with
+# cargo +nightly fuzz build -O --target x86_64-unknown-linux-gnu (address sanitizer), each run 1,200 s on one core with
+# -rss_limit_mb=2048 -timeout=10. Seed corpus: round 21's (the 45 CAVLC conformance streams and the 58 Main and High
+# profile conformance streams of at most 352x288, frame_mbs_only, 4:2:0 and 8 bits, each the first 16 KB behind a mode
+# byte of 0).
+target          runs     coverage  features  corpus at end  crashes, leaks, timeouts, out-of-memory
+decode          60,502   11,552    75,275    2,938          none
+decode_limited  143,652  11,074    65,513    3,519          none
+threads         20,240   11,927    73,891    3,599          none

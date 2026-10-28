@@ -1,0 +1,23 @@
+[package]
+name = "coreav-isobmff-write"
+description = "Memory-safe MP4 and M4A writing by stream copy from coreav-isobmff sources (docs/design/remux.md, docs/design/mkv-remux.md)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+coreav-isobmff = { path = "../coreav-isobmff" }
+coreav-mkv = { path = "../coreav-mkv" }
+
+[dev-dependencies]
+# Builds compressed movie boxes for the tests.
+miniz_oxide = { version = "0.8", default-features = false, features = ["with-alloc"] }
+# Test-only, never compiled into production artifacts: the counting global
+# allocator of the pinned limit tests (tests/memory.rs, docs/design/limits.md).
+coreav-counting-alloc = { path = "../../tools/counting-alloc" }
+
+[lints]
+workspace = true

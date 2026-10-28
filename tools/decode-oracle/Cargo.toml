@@ -1,0 +1,35 @@
+[package]
+name = "coreav-decode-oracle"
+description = "Test-only: decodes a stream's first packets through CoreAV's decode boundary and prints each frame's MD5, for comparison with FFmpeg's framemd5 (docs/design/decode.md, bar 1)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[[bin]]
+name = "decode-oracle"
+path = "src/main.rs"
+
+[features]
+default = []
+# dav1d, in the worker and in-process (links the system's libdav1d).
+dav1d = ["dep:coreav-backend-dav1d", "coreav-backend-dav1d/dav1d", "coreav-worker/dav1d"]
+# CoreAV's native H.264 decoder, in-process (`--backend native`).
+native-h264 = ["dep:coreav-backend-h264"]
+
+[dependencies]
+coreav-backend-dav1d = { path = "../../crates/coreav-backend-dav1d", optional = true }
+coreav-backend-ffmpeg = { path = "../../crates/coreav-backend-ffmpeg" }
+coreav-backend-h264 = { path = "../../crates/coreav-backend-h264", optional = true }
+coreav-decode = { path = "../../crates/coreav-decode" }
+coreav-frame = { path = "../../crates/coreav-frame" }
+coreav-isobmff = { path = "../../crates/coreav-isobmff" }
+coreav-thumbnail = { path = "../../crates/coreav-thumbnail" }
+coreav-worker = { path = "../../crates/coreav-worker", features = ["ffmpeg"] }
+md-5 = "0.10"
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

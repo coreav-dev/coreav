@@ -1,0 +1,11 @@
+failed []
+discard overall  n=32 after/before 0.9756 [0.9664,0.9833] faster 26/32 | vs ffmpeg before 1.574 after 1.529, faster than ffmpeg before 0 after 1 of 32
+discard sd       n= 8 after/before 0.9689 [0.9664,0.9777] faster 8/8 | vs ffmpeg before 1.451 after 1.394, faster than ffmpeg before 0 after 1 of 8
+discard 720p     n= 8 after/before 0.9545 [0.9342,0.9683] faster 8/8 | vs ffmpeg before 1.655 after 1.577, faster than ffmpeg before 0 after 0 of 8
+discard 1080p    n= 8 after/before 0.9871 [0.9597,0.9988] faster 6/8 | vs ffmpeg before 1.583 after 1.552, faster than ffmpeg before 0 after 0 of 8
+discard 4k       n= 8 after/before 0.9970 [0.9800,1.0102] faster 4/8 | vs ffmpeg before 1.447 after 1.435, faster than ffmpeg before 0 after 0 of 8
+write   overall  n=32 after/before 0.9804 [0.9672,1.0014] faster 21/32 | vs ffmpeg before 1.558 after 1.522, faster than ffmpeg before 1 after 1 of 32
+write   sd       n= 8 after/before 0.9690 [0.9620,0.9828] faster 7/8 | vs ffmpeg before 1.464 after 1.429, faster than ffmpeg before 1 after 1 of 8
+write   720p     n= 8 after/before 0.9639 [0.9573,0.9666] faster 8/8 | vs ffmpeg before 1.612 after 1.552, faster than ffmpeg before 0 after 0 of 8
+write   1080p    n= 8 after/before 0.9974 [0.9742,1.0034] faster 4/8 | vs ffmpeg before 1.568 after 1.554, faster than ffmpeg before 0 after 0 of 8
+write   4k       n= 8 after/before 1.0042 [0.9893,1.0734] faster 2/8 | vs ffmpeg before 1.426 after 1.465, faster than ffmpeg before 0 after 0 of 8

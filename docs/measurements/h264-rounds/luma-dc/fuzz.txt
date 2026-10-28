@@ -1,0 +1,4 @@
+# cargo +nightly fuzz run --target x86_64-unknown-linux-gnu luma_residual_mb -- -max_total_time=300 -max_len=2048, on e49998b's kernels (crates/coreav-kernels-h264), this VM
+INFO: Seed: 1149915498
+Done 9891317 runs in 301 second(s)
+exit 0

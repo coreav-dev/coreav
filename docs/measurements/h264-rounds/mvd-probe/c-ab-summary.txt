@@ -1,0 +1,8 @@
+bin-mvd-c2
+  CABAC  n=26 median 0.9869 [0.9831, 0.9921] faster 24/26
+  CAVLC  n= 6 median 0.9965 [0.9858, 1.0017] faster 4/6
+  all    n=32 median 0.9876 [0.9848, 0.9959] faster 28/32
+  sd     n= 8 median 0.9965 [0.9848, 1.0001] faster 6/8
+  720p   n= 8 median 0.9834 [0.9792, 0.9901] faster 8/8
+  1080p  n= 8 median 0.9847 [0.9825, 0.9919] faster 7/8
+  4k     n= 8 median 0.9970 [0.9848, 0.9995] faster 7/8

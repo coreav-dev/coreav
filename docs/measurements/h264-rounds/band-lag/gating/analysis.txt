@@ -1,0 +1,38 @@
+== 8 threads, unpinned: hosts [('unknown', 32)], failed []
+a/base discard overall  n=32 median 0.9045 [0.8710,0.9395] faster 29/32
+a/base discard sd       n= 8 median 0.7181 [0.6810,0.8710] faster 7/8
+a/base discard 720p     n= 8 median 0.9072 [0.8255,0.9572] faster 7/8
+a/base discard 1080p    n= 8 median 0.9380 [0.8818,0.9716] faster 8/8
+a/base discard 4k       n= 8 median 0.9390 [0.8601,0.9961] faster 7/8
+a/base write   overall  n=32 median 0.9331 [0.9000,0.9537] faster 28/32
+a/base write   sd       n= 8 median 0.7374 [0.6693,0.8800] faster 7/8
+a/base write   720p     n= 8 median 0.9242 [0.9012,0.9667] faster 7/8
+a/base write   1080p    n= 8 median 0.9511 [0.9000,0.9821] faster 8/8
+a/base write   4k       n= 8 median 0.9461 [0.9353,1.0050] faster 6/8
+base vs FFmpeg discard overall 1.271 (3/32 faster) sd 1.494 (1/8 faster) 720p 1.402 (0/8 faster) 1080p 1.252 (0/8 faster) 4k 1.080 (2/8 faster)
+base vs FFmpeg write   overall 1.205 (6/32 faster) sd 1.438 (1/8 faster) 720p 1.293 (0/8 faster) 1080p 1.214 (0/8 faster) 4k 0.981 (5/8 faster)
+a    vs FFmpeg discard overall 1.187 (7/32 faster) sd 1.183 (3/8 faster) 720p 1.228 (0/8 faster) 1080p 1.149 (0/8 faster) 4k 0.971 (4/8 faster)
+a    vs FFmpeg write   overall 1.136 (10/32 faster) sd 1.163 (3/8 faster) 720p 1.226 (0/8 faster) 1080p 1.133 (0/8 faster) 4k 0.919 (7/8 faster)
+base scaling against FFmpeg's (P3) discard overall 0.949 [0.853,1.001] sd 1.054 [0.971,1.201] 720p 0.918 [0.841,1.015] 1080p 0.844 [0.789,0.970] 4k 0.848 [0.762,1.124]
+base scaling against FFmpeg's (P3) write   overall 0.920 [0.880,1.026] sd 1.088 [1.047,1.306] 720p 0.927 [0.880,1.024] 1080p 0.828 [0.787,0.914] 4k 0.849 [0.727,1.026]
+a    scaling against FFmpeg's (P3) discard overall 0.830 [0.771,0.847] sd 0.832 [0.742,0.901] 720p 0.842 [0.807,0.913] 1080p 0.816 [0.737,0.847] 4k 0.723 [0.713,1.068]
+a    scaling against FFmpeg's (P3) write   overall 0.833 [0.777,0.874] sd 0.871 [0.824,0.985] 720p 0.892 [0.803,0.935] 1080p 0.774 [0.718,0.816] 4k 0.754 [0.663,0.959]
+== 1 thread, pinned: hosts [('unknown', 32)], failed []
+a/base discard overall  n=32 median 0.9994 [0.9937,1.0052] faster 17/32
+a/base discard sd       n= 8 median 0.9984 [0.9901,1.0060] faster 5/8
+a/base discard 720p     n= 8 median 1.0001 [0.9908,1.0170] faster 4/8
+a/base discard 1080p    n= 8 median 0.9973 [0.9879,1.0018] faster 6/8
+a/base discard 4k       n= 8 median 1.0084 [0.9702,1.0167] faster 2/8
+a/base write   overall  n=32 median 1.0013 [0.9938,1.0063] faster 15/32
+a/base write   sd       n= 8 median 1.0013 [0.9884,1.0038] faster 3/8
+a/base write   720p     n= 8 median 0.9962 [0.9892,1.0214] faster 5/8
+a/base write   1080p    n= 8 median 1.0057 [0.9907,1.0208] faster 3/8
+a/base write   4k       n= 8 median 0.9990 [0.9589,1.0304] faster 4/8
+base vs FFmpeg discard overall 1.373 (1/32 faster) sd 1.328 (1/8 faster) 720p 1.447 (0/8 faster) 1080p 1.430 (0/8 faster) 4k 1.291 (0/8 faster)
+base vs FFmpeg write   overall 1.404 (1/32 faster) sd 1.296 (1/8 faster) 720p 1.445 (0/8 faster) 1080p 1.460 (0/8 faster) 4k 1.314 (0/8 faster)
+a    vs FFmpeg discard overall 1.362 (1/32 faster) sd 1.331 (1/8 faster) 720p 1.451 (0/8 faster) 1080p 1.408 (0/8 faster) 4k 1.263 (0/8 faster)
+a    vs FFmpeg write   overall 1.398 (2/32 faster) sd 1.290 (1/8 faster) 720p 1.426 (0/8 faster) 1080p 1.458 (0/8 faster) 4k 1.316 (1/8 faster)
+L1 passes
+L2 passes
+L3 passes
+L4 passes

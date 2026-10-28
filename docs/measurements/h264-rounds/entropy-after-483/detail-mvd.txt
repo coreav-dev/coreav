@@ -1,0 +1,40 @@
+   54.8  cabac.rs:decision > mod.rs:decision > decision.rs:decision
+   32.3  mb.rs:store_mvd
+   30.1  mb.rs:store_mvd > nb.rs:put
+   23.8  cabac.rs:{closure#0} > cabac.rs:mvd_body > cabac.rs:unary
+   15.7  mb.rs:fill_mvd_cache > nb.rs:fill
+    9.8  mod.rs:enter > cabac.rs:{closure#0} > cabac.rs:mvd_body
+    8.5  cabac.rs:exp_golomb_bypass > cabac.rs:exp_golomb_bypass > cabac.rs:bypass
+    8.4  mb.rs:fill_mvd_cache > mb.rs:{closure#0} > mb.rs:{closure#0}
+    7.4  mb.rs:parse_inter_pred > mb.rs:parse_mb_pred > mb.rs:parse_mvd
+    7.3  cabac.rs:mvd_body > cabac.rs:unary > cabac.rs:{closure#0}
+    7.2  mb.rs:parse_mb_pred > mb.rs:parse_mvd > syntax.rs:mvd
+    6.5  mb.rs:parse_mvd > syntax.rs:mvd > cabac.rs:mvd
+    5.3  cabac.rs:mvd_body > cabac.rs:bypass > cabac.rs:bypass
+    5.0  mod.rs:decision > decision.rs:decision > cabac.rs:reserve
+--- lines
+   42.4  decision.rs:109:9
+   21.1  nb.rs:141:30
+   19.1  mb.rs:1568:22
+    8.7  cabac.rs:528:16
+    7.5  cabac.rs:531:16
+    7.4  mb.rs:1343:41
+    6.5  cabac.rs:579:13
+    6.0  nb.rs:142:13
+    5.2  syntax.rs:393:22
+    5.2  nb.rs:92:13
+    5.2  cabac.rs:0:16
+    5.0  cabac.rs:173:12
+    4.9  nb.rs:90:19
+    3.9  inter.rs:1692:24
+    3.5  mb.rs:1526:21
+    3.5  mb.rs:1529:38
+    3.2  cabac.rs:594:21
+    3.1  cabac.rs:598:12
+    3.0  nb.rs:141:41
+    3.0  cabac.rs:234:29
+    3.0  nb.rs:84:5
+    2.9  nb.rs:85:45
+    2.7  cabac.rs:236:12
+    2.6  mb.rs:1578:6
+    2.5  cabac.rs:534:13

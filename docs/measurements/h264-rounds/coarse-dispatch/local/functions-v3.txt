@@ -1,0 +1,56 @@
+total base 250448 v3 243300 ratio 0.9715
+3b1b441e23ae 0.8094
+41e324ebb708 1.0320
+65ec61f95a00 0.9778
+6b18d9f0f88d 1.0498
+6da34958296c 1.1105
+8ae90cadb5bc 0.9864
+a6af290d9053 0.9398
+f8d92a911e72 0.9584
+--- largest deltas (v3 - base), % of base total
+  -2.04%   5101      0  coreav_kernels_h264::simd::x86::predict::predict::<coreav_kernels_h264::Auto>
+  -1.93%   4843      0  coreav_kernels_h264::simd::x86::idct8x8_add
+  -1.55%   3870      0  coreav_kernels_h264::simd::x86::idct4x4_add_quad
+  -1.42%   3568      0  coreav_kernels_h264::simd::x86::chroma_mb::filter_chroma_mb
+  -0.83%  15703  13618  coreav_h264::cabac::levels::<64>
+  -0.71%  11288   9499  coreav_h264::cabac::levels::<16>
+  -0.40%    991      0  coreav_kernels_h264::simd::x86::intra4x4_mb
+  -0.36%    895      0  coreav_kernels_h264::simd::x86::intra8x8_mb
+  -0.31%  16593  15826  coreav_h264::cabac::significance_map::<64>
+  -0.29%  13381  12644  coreav_h264::cabac::significance_map::<16>
+  -0.22%    557      0  coreav_kernels_h264::simd::x86::intra_chroma
+  -0.16%   3049   2648  <coreav_h264::mb::MbData>::reset
+  -0.15%   6389   6010  <coreav_h264::cabac::Cabac>::mvd
+  -0.13%   2404   2090  coreav_h264::cabac::levels::<4>
+  -0.10%    245      0  coreav_kernels_h264::simd::x86::intra16x16
+  -0.09%    353    130  <coreav_h264::work::PictureWork<coreav_kernels_h264::Auto>>::decode_slice
+  -0.07%   6237   6067  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::start_mb
+  -0.04%    388    280  coreav_h264::cabac::exp_golomb_bypass_out_of_line
+  -0.04%    330    242  __memmove_evex_unaligned_erms
+  -0.03%   1471   1385  coreav_h264::cabac::significance_map::<4>
+  -0.03%  40291  40211  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode_cabac
+  -0.03%   1098   1032  coreav_h264::deblock::differing_motion_strength
+  -0.02%    368    307  coreav_kernels_h264::simd::x86::luma_mc_into::<coreav_kernels_h264::simd::x86::Average>
+  -0.02%    523    465  <coreav_h264::syntax::CabacSyntax as coreav_h264::syntax::Syntax>::rem_intra_mode
+  -0.02%    822    771  <coreav_h264::syntax::CabacSyntax as coreav_h264::syntax::Syntax>::transform8x8::<coreav_kernels_h264::Auto>
+  -0.02%    814    770  <coreav_h264::cabac::Cabac>::residual::<16>
+  -0.01%    517    482  <coreav_h264::cabac::Cabac>::residual::<64>
+  -0.01%     88     53  <coreav_h264::syntax::CabacSyntax as coreav_h264::syntax::Syntax>::prev_intra_flag
+  -0.01%     34      0  coreav_kernels_h264::simd::x86::luma_mc_weighted
+  -0.01%    933    908  <coreav_h264::syntax::CabacSyntax as coreav_h264::syntax::Syntax>::ref_idx::<coreav_kernels_h264::Auto>
+--- largest increases
+   1.97%      0   4934  <coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::idct8x8_add
+   1.65%      0   4121  <coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::idct4x4_add_quad
+   1.40%     96   3597  <coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::filter_chroma_mb
+   0.75%    850   2719  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reconstruct_intra
+   0.73%   7550   9380  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::predict_fast
+   0.64%  23858  25450  coreav_kernels_h264::simd::x86::predict::luma_block
+   0.31%   9788  10573  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::inter_pred
+   0.25%      0    625  <coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::intra_chroma
+   0.10%   1848   2109  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reconstruct_chroma
+   0.07%   2483   2669  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::parse_mvd::<coreav_h264::syntax::CabacSyntax>
+   0.05%    730    854  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::residual_4x4_luma
+   0.04%  18544  18651  coreav_h264::deblock::deblock_rows::<coreav_kernels_h264::Auto>
+   0.04%   4922   5014  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::colocated
+   0.03%   1410   1484  coreav_h264::nal::rbsp
+   0.03%    861    934  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reconstruct_inter

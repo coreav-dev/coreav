@@ -1,0 +1,4269 @@
+{
+  "us-west": {
+    "environment": {
+      "remote_region": "us-west",
+      "remote_cloud_provider": "CLOUD_PROVIDER_AZURE",
+      "cpu_model": "unknown",
+      "cpu_count": 2,
+      "affinity": 2,
+      "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.36",
+      "scratch": "/dev/shm",
+      "started_utc": "2026-10-15T12:04:17Z",
+      "finished_utc": "2026-10-15T12:21:53Z",
+      "r2_requests": 18966,
+      "r2_bytes": 58434926976,
+      "trials": 5,
+      "margin": 5.51,
+      "cold_defaults": {
+        "rtt_s": 0.2245,
+        "mb_per_s": 43.2,
+        "c_parse_s": 0.0043,
+        "c_local_s": 0.0043,
+        "from": "Decision 24 run time-us-west-20261015T044716Z"
+      },
+      "requested_region": "us-west",
+      "stopped_early": null,
+      "mode": "holdout"
+    },
+    "latency": {
+      "warm_one_byte_get_s_median": 0.2003642724999395,
+      "warm_one_byte_get_s_p10_p90": [
+        0.19146825019999625,
+        0.22291352349998592
+      ],
+      "single_get_MB_per_s_median_32MB_plus": 59.14286190031645,
+      "connect_s_median": 0.024981910499946025
+    },
+    "validity": {
+      "valid": true,
+      "checks": [
+        "I_faster_than_L",
+        "A_download_beats_D1L_beyond_noise",
+        "A_index_after_decision_beats_I_after_route_beyond_noise",
+        "A_accounting_mismatch",
+        "I_accounting_mismatch"
+      ],
+      "missing_gated_files": []
+    },
+    "gated_files": 17,
+    "bar_a": {
+      "passes": 1,
+      "files": 17,
+      "pass": false
+    },
+    "bar_b": {
+      "files": 6,
+      "passes": 2,
+      "median_of_median_A_over_DL": 1.2341339797072757,
+      "median_ci95": [
+        0.41913512736209235,
+        2.712363738938034
+      ],
+      "pass": false
+    },
+    "byte_bar": {
+      "pass": true,
+      "max_share": 0.0005878533438819975,
+      "index_path_trials": 15
+    },
+    "correctness": {
+      "pass": true,
+      "mismatch_files": []
+    },
+    "distributions": {
+      "A_over_best": {
+        "files": 17,
+        "p10": 0.989388727424653,
+        "p10_ci95": [
+          0.9455077794338579,
+          1.2186502507763426
+        ],
+        "median": 1.3974192334723727,
+        "median_ci95": [
+          1.1015329576734683,
+          1.957200179530374
+        ],
+        "p90": 2.3231228628307017,
+        "p90_ci95": [
+          1.772475543168386,
+          3.3649713250099906
+        ]
+      },
+      "A_over_DL": {
+        "files": 17,
+        "p10": 0.43584363953617156,
+        "p10_ci95": [
+          0.4063523688351985,
+          1.1656671092558324
+        ],
+        "median": 1.3974192334723727,
+        "median_ci95": [
+          1.0467886248495655,
+          1.8559180139706797
+        ],
+        "p90": 2.3231228628307017,
+        "p90_ci95": [
+          1.778797051074309,
+          3.3649713250099906
+        ]
+      },
+      "A_over_I": {
+        "files": 16,
+        "p10": 0.3453904835348547,
+        "p10_ci95": [
+          0.2107267263289039,
+          0.568967757337462
+        ],
+        "median": 0.8161245129657546,
+        "median_ci95": [
+          0.527317485582544,
+          1.2461561060529776
+        ],
+        "p90": 1.8052854811055608,
+        "p90_ci95": [
+          1.1015329576734683,
+          3.150094301966758
+        ]
+      }
+    },
+    "misroute": {
+      "trials": 85,
+      "misroutes": 6,
+      "rate": 0.07058823529411765,
+      "seconds_lost_median": 2.512672956999893,
+      "seconds_lost_max": 9.12921672999994,
+      "by_kind": {
+        "index_chosen_download_faster": 0,
+        "download_chosen_index_faster": 6
+      }
+    },
+    "prediction_error": {
+      "t_index_over_I": {
+        "median": 0.837533291208207,
+        "p10": 0.6614006606021926,
+        "p90": 0.9251390927468717,
+        "n": 80
+      },
+      "t_dl_over_D1L": {
+        "median": 0.8405657258051398,
+        "p10": 0.5751114729812281,
+        "p90": 1.2391094162623175,
+        "n": 85
+      }
+    },
+    "shrink_groups": {
+      "near_crossover_25pct": {
+        "files": 0,
+        "median_of_median_A_over_best": null,
+        "median_of_median_A_over_DL": null,
+        "bar_a_passes": 0,
+        "misroutes": 0,
+        "trials": 0
+      },
+      "small_under_10MB": {
+        "files": 4,
+        "median_of_median_A_over_best": 1.2221039291609692,
+        "median_of_median_A_over_DL": 1.2221039291609692,
+        "bar_a_passes": 0,
+        "misroutes": 0,
+        "trials": 20
+      },
+      "many_subsegments_over_200": {
+        "files": 5,
+        "median_of_median_A_over_best": 1.727383075810062,
+        "median_of_median_A_over_DL": 1.727383075810062,
+        "bar_a_passes": 1,
+        "misroutes": 3,
+        "trials": 25
+      },
+      "large_250MB_plus": {
+        "files": 6,
+        "median_of_median_A_over_best": 1.5656700542268622,
+        "median_of_median_A_over_DL": 1.2341339797072757,
+        "bar_a_passes": 1,
+        "misroutes": 3,
+        "trials": 30
+      },
+      "far_from_prior_trials": {
+        "definition": "measured D1 MB/s outside [0.5, 2] x prior B, or warm GET outside [1/1.5, 1.5] x prior RTT",
+        "trials": 36,
+        "of": 85,
+        "median_A_over_best": 1.2568370069113914,
+        "median_A_over_best_others": 1.9194747010885842,
+        "misroutes": 1
+      },
+      "no_leading_sidx_download": {
+        "files": 2,
+        "median_of_median_A_over_DL": 1.0849735121013369,
+        "median_of_median_A_over_best": 1.0849735121013369,
+        "paths": [
+          "download"
+        ],
+        "bar_a_would_pass": 0
+      },
+      "encrypted": {
+        "files": 7,
+        "median_of_median_A_over_DL": 1.116676219026462,
+        "median_of_median_A_over_best": 1.116676219026462,
+        "paths": [
+          "download"
+        ],
+        "bar_a_would_pass": 1
+      },
+      "cold_start": {
+        "trial": 0,
+        "A_post": null,
+        "I_post": 0.3483616829999986,
+        "A": 0.41314236100000024,
+        "path": "download",
+        "reason": "prediction",
+        "I": 0.5957506829999986,
+        "DL": 0.4325697230000003,
+        "D1L": 0.4369242939999989,
+        "best": 0.4325697230000003,
+        "faster": "download",
+        "r_best": 0.9550884840823682,
+        "r_dl": 0.9550884840823682,
+        "r_i": 0.693481976251467,
+        "share": null,
+        "digest_ok": true,
+        "i_digest_ok": true,
+        "t_index": 0.45330000000000004,
+        "t_dl": 0.25125293981481484,
+        "prior_rtt": 0.2245,
+        "prior_mbps": 43.2,
+        "choice": "download",
+        "route": "segment_index",
+        "i_route": "segment_index",
+        "subsegments": 30,
+        "cold_start": true,
+        "warm_get_s": 0.2063048700000003,
+        "d1_mbps": 2.2475158121418612
+      }
+    },
+    "sanity": {
+      "I_faster_than_L": 0,
+      "A_download_beats_D1L_beyond_noise": 0,
+      "A_index_after_decision_beats_I_after_route_beyond_noise": 0,
+      "A_index_total_faster_than_I_trials": 10,
+      "A_index_trials_with_I": 15,
+      "A_accounting_mismatch": 0,
+      "I_accounting_mismatch": 0,
+      "engine_errors": [],
+      "I_route_changes": 0,
+      "A_route_changes": 0,
+      "decision_changes": 0,
+      "digest_mismatch_files": []
+    },
+    "files": [
+      {
+        "sha256": "1ddd1a40d405da6a4b086df2449659ee3c7dbdbc81e81e54483e85c63e5a78c6",
+        "size": 523511188,
+        "group": "gated",
+        "set": "topup-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 3.956772180609536,
+          "mean_ci95": [
+            2.9782465358250043,
+            4.935297825394069
+          ],
+          "median": 3.3649713250099906,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 3.503406619007657,
+          "mean_ci95": [
+            2.795451999690161,
+            4.211361238325154
+          ],
+          "median": 3.3649713250099906,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 3.6429336600270568,
+          "mean_ci95": [
+            2.3935448992686905,
+            4.889720134992196
+          ],
+          "median": 3.150094301966758,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "index",
+          "index",
+          "download",
+          "index"
+        ],
+        "misroutes": 3,
+        "misroute_seconds_lost": [
+          8.856494852999958,
+          4.338608158999932,
+          9.12921672999994
+        ],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 7.665704054999992,
+        "median_I_s": 2.1479964870000003,
+        "median_DL_s": 2.5302729649999947,
+        "median_t_index_s": 1.964055208999981,
+        "median_t_dl_s": 6.504928026840179,
+        "subsegments": 222,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "bar_b_file": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "209b0656e14f5b77aa06c28611e00d1c6d78762e07b8c5381efc646c2a692027",
+        "size": 102235122,
+        "group": "gated",
+        "set": "topup-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 2.4261961103426617,
+          "mean_ci95": [
+            1.349817937070903,
+            3.5025742836144205
+          ],
+          "median": 1.772475543168386,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 2.388266906880132,
+          "mean_ci95": [
+            1.2739595301458437,
+            3.5025742836144205
+          ],
+          "median": 1.772475543168386,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 1.6547739724665163,
+          "mean_ci95": [
+            1.1958885357644722,
+            2.214007231443471
+          ],
+          "median": 1.3907792544324868,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "index",
+          "download",
+          "download",
+          "download",
+          "index"
+        ],
+        "misroutes": 2,
+        "misroute_seconds_lost": [
+          0.10625062500000126,
+          0.410808344999964
+        ],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 1.4620625769999833,
+        "median_I_s": 1.0672335140000087,
+        "median_DL_s": 0.7206131740000501,
+        "median_t_index_s": 0.8446727040000163,
+        "median_t_dl_s": 1.5229204770426061,
+        "subsegments": 94,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "2e9582e47a1f34e73bca858feaa43dd39a9e11ca825550fa335c342fc317ff03",
+        "size": 407713952,
+        "group": "gated",
+        "set": "topup-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 2.4046353069763935,
+          "mean_ci95": [
+            0.9369577921475531,
+            5.231824528264884
+          ],
+          "median": 0.9985258087929848,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 0.6746519654967722,
+          "mean_ci95": [
+            0.2653306731001674,
+            1.3303049518782757
+          ],
+          "median": 0.43846080863429515,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 2.4046353069763935,
+          "mean_ci95": [
+            0.9369577921475531,
+            5.231824528264884
+          ],
+          "median": 0.9985258087929848,
+          "n": 5
+        },
+        "paths": [
+          "index",
+          "index",
+          "index",
+          "index",
+          "index"
+        ],
+        "faster": [
+          "index",
+          "index",
+          "index",
+          "index",
+          "index"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": 0.0003418646806572859,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 0.7537207930000704,
+        "median_I_s": 0.7621375069999203,
+        "median_DL_s": 1.9366152479999528,
+        "median_t_index_s": 0.6359260280000122,
+        "median_t_dl_s": 5.730053191548375,
+        "subsegments": 41,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "index"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "bar_b_file": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "3898250f26b891f1233bee86910ae2f98394981ebbe20abedd4e5455e075a5d4",
+        "size": 2437117,
+        "group": "encrypted",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.214780960369926,
+          "mean_ci95": [
+            1.0477559314033935,
+            1.407901338807212
+          ],
+          "median": 1.0994045449162897,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.214780960369926,
+          "mean_ci95": [
+            1.0456916512251284,
+            1.407901338807212
+          ],
+          "median": 1.0994045449162897,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 0.7174758929060443,
+          "mean_ci95": [
+            0.6118671228159253,
+            0.8228043210456146
+          ],
+          "median": 0.732278652867653,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 0.45309819999999945,
+        "median_I_s": 0.568436994999999,
+        "median_DL_s": 0.31102698500001225,
+        "median_t_index_s": 0.445020428000006,
+        "median_t_dl_s": 0.25252107471084884,
+        "subsegments": 20,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "4642ef7a47b3c42ed02abe10d16757fabf5ebf947b9a9e3f93ff3ad9fb79f630",
+        "size": 110691219,
+        "group": "gated",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 3.3746088542194586,
+          "mean_ci95": [
+            2.2746860278592256,
+            4.674792440219095
+          ],
+          "median": 2.7181729277776383,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 3.3746088542194586,
+          "mean_ci95": [
+            2.2746860278592256,
+            4.674792440219095
+          ],
+          "median": 2.7181729277776383,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 2.3489174428461124,
+          "mean_ci95": [
+            1.6110726521118894,
+            3.1669882136680996
+          ],
+          "median": 1.962302302561344,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 1.9198061580000285,
+        "median_I_s": 0.9719685960000106,
+        "median_DL_s": 0.6937863800000059,
+        "median_t_index_s": 0.8701438799999858,
+        "median_t_dl_s": 1.5863471718719937,
+        "subsegments": 77,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "520043d30f5faabff895bc863e62a14af4b37a1db9630b72f1963f9e8d0479ef",
+        "size": 340970179,
+        "group": "gated",
+        "set": "topup-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.860780156277371,
+          "mean_ci95": [
+            1.3320977547937614,
+            2.229468597518541
+          ],
+          "median": 2.0597561528660773,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.860780156277371,
+          "mean_ci95": [
+            1.3597915218177452,
+            2.229468597518541
+          ],
+          "median": 2.0597561528660773,
+          "n": 5
+        },
+        "A_over_I": null,
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 4.299536113999977,
+        "median_I_s": NaN,
+        "median_DL_s": 2.0874005439999905,
+        "median_t_index_s": 0.45669365000000234,
+        "median_t_dl_s": 4.306843906129722,
+        "subsegments": null,
+        "routes": [
+          "download_then_index"
+        ],
+        "i_routes": [
+          "download_then_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "bar_b_file": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "574bc4ad81dedb9a42ca8145460d3d3cdca38fd1b8133cc6bf72d59236d9ce57",
+        "size": 12084418,
+        "group": "encrypted",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.2607719301952296,
+          "mean_ci95": [
+            1.0902085783688282,
+            1.4232268349324682
+          ],
+          "median": 1.2725757969183016,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.2607719301952296,
+          "mean_ci95": [
+            1.07651666057135,
+            1.4232268349324682
+          ],
+          "median": 1.2725757969183016,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 0.33087298678942045,
+          "mean_ci95": [
+            0.2967291921684779,
+            0.35869201948876267
+          ],
+          "median": 0.3472006638191198,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 0.5067224399999759,
+        "median_I_s": 1.4805197329999942,
+        "median_DL_s": 0.42133228699998426,
+        "median_t_index_s": 1.2277647770000963,
+        "median_t_dl_s": 0.36808979145956655,
+        "subsegments": 123,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "750498df470c358285b95adccbf683f38c8c6be14efd2cc2de219cf7046e23d2",
+        "size": 34663531,
+        "group": "encrypted",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.6009048566425679,
+          "mean_ci95": [
+            1.38771590451868,
+            1.8140938087664558
+          ],
+          "median": 1.61653237555698,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.6009048566425679,
+          "mean_ci95": [
+            1.38771590451868,
+            1.8140938087664558
+          ],
+          "median": 1.61653237555698,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 0.5234060733018479,
+          "mean_ci95": [
+            0.4061147820101791,
+            0.6747829609252168
+          ],
+          "median": 0.42580151469717614,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 0.8023875060000591,
+        "median_I_s": 1.7566198129999862,
+        "median_DL_s": 0.5709527509998225,
+        "median_t_index_s": 1.3505759299999704,
+        "median_t_dl_s": 0.6652066464818778,
+        "subsegments": 160,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "895d1f32f29cd537feb3bea9f9d131c18def0bb8846536cb78dae42ef34d9376",
+        "size": 986360,
+        "group": "download",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.1543191930903962,
+          "mean_ci95": [
+            1.0015128531960098,
+            1.3441715773455223
+          ],
+          "median": 1.0966510642900638,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.1543191930903962,
+          "mean_ci95": [
+            1.0015128531960098,
+            1.3441715773455223
+          ],
+          "median": 1.0966510642900638,
+          "n": 5
+        },
+        "A_over_I": null,
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 0.3278845620000084,
+        "median_I_s": NaN,
+        "median_DL_s": 0.29483735600001637,
+        "median_t_index_s": 0.4335997130000018,
+        "median_t_dl_s": 0.23171294518934266,
+        "subsegments": null,
+        "routes": [
+          "download_then_index"
+        ],
+        "i_routes": [
+          "download_then_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "97bdf1aaa8ffe010cc4eaebe4be4137e6b2cf887cf1b9fc72c3a997746d4c5c7",
+        "size": 12572672,
+        "group": "gated",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.2960349999181322,
+          "mean_ci95": [
+            1.044237719846538,
+            1.5478322799897264
+          ],
+          "median": 1.2262738531739568,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.2960349999181322,
+          "mean_ci95": [
+            1.044237719846538,
+            1.5478322799897264
+          ],
+          "median": 1.2262738531739568,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 0.2892396178770742,
+          "mean_ci95": [
+            0.24847448958388108,
+            0.33000474617026726
+          ],
+          "median": 0.27618211547520727,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 0.4643649960000005,
+        "median_I_s": 1.681372435,
+        "median_DL_s": 0.36964412499997934,
+        "median_t_index_s": 1.4603409315006313,
+        "median_t_dl_s": 0.3665786699158636,
+        "subsegments": 184,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "9858f3d1cb2d76da27e2b318a19ba76b224da56d1c412b5d83a3ef7c0bf3a161",
+        "size": 372646356,
+        "group": "gated",
+        "set": "topup-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 2.2525495188904916,
+          "mean_ci95": [
+            1.9313678353702202,
+            2.636150356960338
+          ],
+          "median": 2.029807150780256,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 2.2525495188904916,
+          "mean_ci95": [
+            1.9313678353702202,
+            2.636150356960338
+          ],
+          "median": 2.029807150780256,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 1.0956043741146897,
+          "mean_ci95": [
+            0.7360735750054347,
+            1.4010425910422313
+          ],
+          "median": 1.1406497269373803,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 3.6468635949999992,
+        "median_I_s": 3.3018391280000117,
+        "median_DL_s": 1.754535293999993,
+        "median_t_index_s": 2.8085036450001364,
+        "median_t_dl_s": 5.132881724181749,
+        "subsegments": 372,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "bar_b_file": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "98e9d0b932abb2e94aefcbbcf96651839f82f339d287826fce2538ea338144c5",
+        "size": 299873280,
+        "group": "gated",
+        "set": "topup-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.0013654729434536,
+          "mean_ci95": [
+            0.8426548414127527,
+            1.1444013555320485
+          ],
+          "median": 1.1015329576734683,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 0.4249717182333426,
+          "mean_ci95": [
+            0.3713174424445855,
+            0.47214144636940797
+          ],
+          "median": 0.43191788588898616,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 1.0013654729434536,
+          "mean_ci95": [
+            0.8426548414127527,
+            1.1444013555320485
+          ],
+          "median": 1.1015329576734683,
+          "n": 5
+        },
+        "paths": [
+          "index",
+          "index",
+          "index",
+          "index",
+          "index"
+        ],
+        "faster": [
+          "index",
+          "index",
+          "index",
+          "index",
+          "index"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": 0.00041383813856306237,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 0.6485906840000055,
+        "median_I_s": 0.5908373829999505,
+        "median_DL_s": 1.4815716129999998,
+        "median_t_index_s": 0.4335997130000018,
+        "median_t_dl_s": 4.208413772242222,
+        "subsegments": 31,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "index"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "bar_b_file": true,
+        "byte_bar": true
+      },
+      {
+        "sha256": "a2d42b1894824798256e9d11571c5caedef39f7455f64b741aa704b3a18da946",
+        "size": 36079699,
+        "group": "gated",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.7475192641088015,
+          "mean_ci95": [
+            1.1635048764518052,
+            2.5659586476792593
+          ],
+          "median": 1.3650740837909956,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.7475192641088015,
+          "mean_ci95": [
+            1.1635048764518052,
+            2.5659586476792593
+          ],
+          "median": 1.3650740837909956,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 0.6817482480048829,
+          "mean_ci95": [
+            0.47128693814690437,
+            0.9219639731647871
+          ],
+          "median": 0.568967757337462,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 0.8727753769999254,
+        "median_I_s": 1.5306524040000795,
+        "median_DL_s": 0.6338702870000077,
+        "median_t_index_s": 1.0360910649997588,
+        "median_t_dl_s": 0.6471623348867218,
+        "subsegments": 123,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "aa7931b18bb0e229fd30c653903f3e2fc892abdbbfe6fa2b4d0fe19f7ea578bf",
+        "size": 3043867,
+        "group": "gated",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.1749801752542257,
+          "mean_ci95": [
+            0.9917161901454541,
+            1.4721758207466986
+          ],
+          "median": 1.0467886248495655,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.1749801752542257,
+          "mean_ci95": [
+            0.9917161901454541,
+            1.468348656507801
+          ],
+          "median": 1.0467886248495655,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 0.45936306507137514,
+          "mean_ci95": [
+            0.39954603942805256,
+            0.547047381892785
+          ],
+          "median": 0.4145988515945021,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 0.31929063500000154,
+        "median_I_s": 0.7816344440000194,
+        "median_DL_s": 0.3038265480000746,
+        "median_t_index_s": 0.6531516230000257,
+        "median_t_dl_s": 0.2602306174155819,
+        "subsegments": 45,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "ac56f681d1983dd1c4801913272bc7bb9105c877d921e573768a55d9a281eca7",
+        "size": 1386546506,
+        "group": "gated",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 0.9151567870505533,
+          "mean_ci95": [
+            0.8618543815999755,
+            0.9577308015854367
+          ],
+          "median": 0.9455077794338579,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 0.35666979667237986,
+          "mean_ci95": [
+            0.26878228545896254,
+            0.4301089961805166
+          ],
+          "median": 0.4063523688351985,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 0.9151567870505533,
+          "mean_ci95": [
+            0.8618543815999755,
+            0.9577308015854367
+          ],
+          "median": 0.9455077794338579,
+          "n": 5
+        },
+        "paths": [
+          "index",
+          "index",
+          "index",
+          "index",
+          "index"
+        ],
+        "faster": [
+          "index",
+          "index",
+          "index",
+          "index",
+          "index"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": 0.0005878533438819975,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 1.9875014830000737,
+        "median_I_s": 2.184271177000028,
+        "median_DL_s": 5.1209722930000225,
+        "median_t_index_s": 2.0042332765000235,
+        "median_t_dl_s": 17.96836450778735,
+        "subsegments": 208,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "index"
+        ],
+        "cold_start_trial": null,
+        "bar_a": true,
+        "bar_b_file": true,
+        "byte_bar": true
+      },
+      {
+        "sha256": "b939b2c525e38623dada90b6bf6dbc1c7e2e2088b0ac9e2faef68936af014502",
+        "size": 12084418,
+        "group": "encrypted",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 0.9860897585884336,
+          "mean_ci95": [
+            0.8656265352657908,
+            1.1065529819110764
+          ],
+          "median": 1.0048121722330723,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 0.9860897585884336,
+          "mean_ci95": [
+            0.8656265352657908,
+            1.1065529819110764
+          ],
+          "median": 1.0048121722330723,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 0.26040839962700096,
+          "mean_ci95": [
+            0.2111722308174313,
+            0.2965175177133116
+          ],
+          "median": 0.271162266865594,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 0.39057250700011537,
+        "median_I_s": 1.4403645149998283,
+        "median_DL_s": 0.44425525000001187,
+        "median_t_index_s": 1.329716202000085,
+        "median_t_dl_s": 0.37254890195953194,
+        "subsegments": 123,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "baa98b681ddc078bcea9bdfc82631626c32f50f9f62c4b1338e1d7637cc8e26c",
+        "size": 35568588,
+        "group": "encrypted",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.1844314771744844,
+          "mean_ci95": [
+            0.8869132619035393,
+            1.5380441539727445
+          ],
+          "median": 1.116676219026462,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.1844314771744844,
+          "mean_ci95": [
+            0.8869132619035393,
+            1.5380441539727445
+          ],
+          "median": 1.116676219026462,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 0.41270077918026604,
+          "mean_ci95": [
+            0.3323567504367695,
+            0.5041286380830479
+          ],
+          "median": 0.4116522923554922,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 0.5916699170000186,
+        "median_I_s": 1.4644268839999768,
+        "median_DL_s": 0.4822193840000182,
+        "median_t_index_s": 1.2976272289999935,
+        "median_t_dl_s": 0.6518099350939319,
+        "subsegments": 123,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "bdecaa9f9863d8f568b988a3533aae8537b76de5aaafcfeeb47a98522aa387f5",
+        "size": 36292325,
+        "group": "encrypted",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.6068504802793626,
+          "mean_ci95": [
+            1.0469116966795853,
+            2.184669125788902
+          ],
+          "median": 1.1861729161638201,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.6068504802793626,
+          "mean_ci95": [
+            1.0469116966795853,
+            2.184669125788902
+          ],
+          "median": 1.1861729161638201,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 0.539681897807071,
+          "mean_ci95": [
+            0.37681082093181634,
+            0.7268778868819458
+          ],
+          "median": 0.41605389390193376,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 0.6126174759999969,
+        "median_I_s": 1.4794637310000098,
+        "median_DL_s": 0.5399479929999416,
+        "median_t_index_s": 1.0695310325000045,
+        "median_t_dl_s": 0.6779777458676619,
+        "subsegments": 123,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "c81111de114e7f9075d3c1f0a0ddd07c11efe0b92df818f25cf130dbb7e80272",
+        "size": 31728664,
+        "group": "gated",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.611450607865327,
+          "mean_ci95": [
+            1.1825998750216598,
+            2.0403013407089943
+          ],
+          "median": 1.957200179530374,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.5698687526500112,
+          "mean_ci95": [
+            1.1623434419097207,
+            1.9773940633903018
+          ],
+          "median": 1.8559180139706797,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 1.4504258468569051,
+          "mean_ci95": [
+            1.0328916518922677,
+            1.8614900889225177
+          ],
+          "median": 1.6482686596497775,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "index",
+          "download",
+          "download"
+        ],
+        "misroutes": 1,
+        "misroute_seconds_lost": [
+          0.6867377549998537
+        ],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 0.8801844160000201,
+        "median_I_s": 0.557281092999915,
+        "median_DL_s": 0.5486098030000903,
+        "median_t_index_s": 0.4485882040000101,
+        "median_t_dl_s": 0.6038418634483573,
+        "subsegments": 30,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "c86f3d1f2aff9bb7c75bc50c7b13066b00ee69d464bc48385d64758afa486e10",
+        "size": 969967,
+        "group": "gated",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.159962286492813,
+          "mean_ci95": [
+            0.944777489376686,
+            1.5545374375013532
+          ],
+          "median": 0.9756831053721552,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.159962286492813,
+          "mean_ci95": [
+            0.944777489376686,
+            1.5504185132433956
+          ],
+          "median": 0.9756831053721552,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 0.6535700592823267,
+          "mean_ci95": [
+            0.5095926995851571,
+            0.8613001696733738
+          ],
+          "median": 0.527317485582544,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 0.3151481350000154,
+        "median_I_s": 0.5630582760001062,
+        "median_DL_s": 0.3124920169999541,
+        "median_t_index_s": 0.4324566240000317,
+        "median_t_dl_s": 0.22862865708081595,
+        "subsegments": 30,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": {
+          "trial": 0,
+          "A_post": null,
+          "I_post": 0.3483616829999986,
+          "A": 0.41314236100000024,
+          "path": "download",
+          "reason": "prediction",
+          "I": 0.5957506829999986,
+          "DL": 0.4325697230000003,
+          "D1L": 0.4369242939999989,
+          "best": 0.4325697230000003,
+          "faster": "download",
+          "r_best": 0.9550884840823682,
+          "r_dl": 0.9550884840823682,
+          "r_i": 0.693481976251467,
+          "share": null,
+          "digest_ok": true,
+          "i_digest_ok": true,
+          "t_index": 0.45330000000000004,
+          "t_dl": 0.25125293981481484,
+          "prior_rtt": 0.2245,
+          "prior_mbps": 43.2,
+          "choice": "download",
+          "route": "segment_index",
+          "i_route": "segment_index",
+          "subsegments": 30,
+          "cold_start": true,
+          "warm_get_s": 0.2063048700000003,
+          "d1_mbps": 2.2475158121418612
+        },
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "cc6023189f53a0e3f6ca94ed15f8055fe5fdd173f6d69de03b5aa73a4dcea733",
+        "size": 40609,
+        "group": "download",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.0987327342116826,
+          "mean_ci95": [
+            0.9967535757549424,
+            1.2173722886884621
+          ],
+          "median": 1.07329595991261,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.0987327342116826,
+          "mean_ci95": [
+            0.9920661919944853,
+            1.2173722886884621
+          ],
+          "median": 1.07329595991261,
+          "n": 5
+        },
+        "A_over_I": null,
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 0.27584216200000355,
+        "median_I_s": NaN,
+        "median_DL_s": 0.2570047520000571,
+        "median_t_index_s": 0.21843267600000407,
+        "median_t_dl_s": 0.21362254206482656,
+        "subsegments": null,
+        "routes": [
+          "download_then_index"
+        ],
+        "i_routes": [
+          "download_then_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "cf502122eb675521dcb54ba5b248c49c94d68c3a646899a6ef4a8f3456806b97",
+        "size": 14702402,
+        "group": "gated",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.2522839581796483,
+          "mean_ci95": [
+            1.085822914267581,
+            1.4521753412598013
+          ],
+          "median": 1.2449194321933434,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.2522839581796483,
+          "mean_ci95": [
+            1.0801694843923153,
+            1.4521753412598013
+          ],
+          "median": 1.2449194321933434,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 0.2503712548767943,
+          "mean_ci95": [
+            0.20204137388440255,
+            0.3015047886932797
+          ],
+          "median": 0.2107267263289039,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 0.49648288899999216,
+        "median_I_s": 2.1527232160000267,
+        "median_DL_s": 0.4149561030000086,
+        "median_t_index_s": 1.9900180530001275,
+        "median_t_dl_s": 0.407429024315729,
+        "subsegments": 222,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "d4e8cc76b778ad60163bf715c7aa0e8e0bbfebbbfbc21b4639ceae936b4d435b",
+        "size": 5379386,
+        "group": "gated",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.481522084277617,
+          "mean_ci95": [
+            1.3787812689139884,
+            1.5842628996412456
+          ],
+          "median": 1.5139886518738097,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.481522084277617,
+          "mean_ci95": [
+            1.3747715699470657,
+            1.5842628996412456
+          ],
+          "median": 1.5139886518738097,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 0.6695825483996332,
+          "mean_ci95": [
+            0.6030846108239882,
+            0.753420568516732
+          ],
+          "median": 0.6197716944025012,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 0.5031246480000391,
+        "median_I_s": 0.7899000599999795,
+        "median_DL_s": 0.32797539599999936,
+        "median_t_index_s": 0.6585478010000893,
+        "median_t_dl_s": 0.292313280496348,
+        "subsegments": 20,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "de7354bf340bf007932fff114eac2cc6313bd0f2a99ed99d5e21ea8cb787bca7",
+        "size": 101491043,
+        "group": "gated",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 2.3029069037737675,
+          "mean_ci95": [
+            1.4907285532602512,
+            3.5955011469124267
+          ],
+          "median": 1.727383075810062,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 2.3029069037737675,
+          "mean_ci95": [
+            1.4907285532602512,
+            3.578183262063567
+          ],
+          "median": 1.727383075810062,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 0.5354527936753164,
+          "mean_ci95": [
+            0.3566019320459427,
+            0.8160786610792166
+          ],
+          "median": 0.4280021311708699,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 1.4161384740000074,
+        "median_I_s": 3.280827445,
+        "median_DL_s": 0.7994740309999315,
+        "median_t_index_s": 2.7653478845000117,
+        "median_t_dl_s": 1.4762200082415742,
+        "subsegments": 384,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "e4f4b288040c7873e6ab9c68aebfcf60593c67af4a896aaacc48200beb7b871b",
+        "size": 7881787,
+        "group": "gated",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.4554011477247615,
+          "mean_ci95": [
+            1.3007549337902145,
+            1.675778762424405
+          ],
+          "median": 1.3974192334723727,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.4554011477247615,
+          "mean_ci95": [
+            1.3007549337902145,
+            1.6726450515283109
+          ],
+          "median": 1.3974192334723727,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 0.6755344514553521,
+          "mean_ci95": [
+            0.5672335591927287,
+            0.7706786695408682
+          ],
+          "median": 0.6867412464976514,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 0.5138100750000376,
+        "median_I_s": 0.7676412199999731,
+        "median_DL_s": 0.37000503699999854,
+        "median_t_index_s": 0.6738579139999907,
+        "median_t_dl_s": 0.3214565242993246,
+        "subsegments": 23,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "ede6abdefba66772630f352999d715f60c17f65bfa3254fe553f15094e992ed2",
+        "size": 777530,
+        "group": "encrypted",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.027634690276578,
+          "mean_ci95": [
+            0.9681722913102252,
+            1.08051392085819
+          ],
+          "median": 1.0410644461556513,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.027634690276578,
+          "mean_ci95": [
+            0.9680206280497342,
+            1.08051392085819
+          ],
+          "median": 1.0410644461556513,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 0.5396847766695302,
+          "mean_ci95": [
+            0.5056896701359125,
+            0.5748257426080858
+          ],
+          "median": 0.5412438201447657,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 0.2850112899999431,
+        "median_I_s": 0.5318187689999831,
+        "median_DL_s": 0.2770776130000172,
+        "median_t_index_s": 0.4396281899999929,
+        "median_t_dl_s": 0.22905198581931652,
+        "subsegments": 15,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": true,
+        "byte_bar": true
+      }
+    ]
+  },
+  "ap-south": {
+    "environment": {
+      "remote_region": "ap-south",
+      "remote_cloud_provider": "CLOUD_PROVIDER_AWS",
+      "cpu_model": "unknown",
+      "cpu_count": 2,
+      "affinity": 2,
+      "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.36",
+      "scratch": "/dev/shm",
+      "started_utc": "2026-10-15T12:22:36Z",
+      "finished_utc": "2026-10-15T12:46:35Z",
+      "r2_requests": 18906,
+      "r2_bytes": 58434804096,
+      "trials": 5,
+      "margin": 5.51,
+      "cold_defaults": {
+        "rtt_s": 0.15315086999993355,
+        "mb_per_s": 57.542491549870256,
+        "c_parse_s": 0.007159,
+        "c_local_s": 0.007672243500039144,
+        "samples": {
+          "rtt": 340,
+          "mb_per_s": 145,
+          "c_parse": 330,
+          "c_local": 680
+        },
+        "from": "tuning run evidence/tuning-ap-20261015T105110Z/raw.json"
+      },
+      "requested_region": "ap",
+      "stopped_early": null,
+      "mode": "holdout"
+    },
+    "latency": {
+      "warm_one_byte_get_s_median": 0.22117806249994665,
+      "warm_one_byte_get_s_p10_p90": [
+        0.20846874439997692,
+        0.23880961569999498
+      ],
+      "single_get_MB_per_s_median_32MB_plus": 49.91474721087066,
+      "connect_s_median": 0.011109915500014722
+    },
+    "validity": {
+      "valid": true,
+      "checks": [
+        "I_faster_than_L",
+        "A_download_beats_D1L_beyond_noise",
+        "A_index_after_decision_beats_I_after_route_beyond_noise",
+        "A_accounting_mismatch",
+        "I_accounting_mismatch"
+      ],
+      "missing_gated_files": []
+    },
+    "gated_files": 17,
+    "bar_a": {
+      "passes": 0,
+      "files": 17,
+      "pass": false
+    },
+    "bar_b": {
+      "files": 6,
+      "passes": 2,
+      "median_of_median_A_over_DL": 0.9435997215142123,
+      "median_ci95": [
+        0.29977900629591425,
+        2.0414798279682667
+      ],
+      "pass": false
+    },
+    "byte_bar": {
+      "pass": true,
+      "max_share": 0.0006835731768812377,
+      "index_path_trials": 13
+    },
+    "correctness": {
+      "pass": true,
+      "mismatch_files": []
+    },
+    "distributions": {
+      "A_over_best": {
+        "files": 17,
+        "p10": 0.9701478980628209,
+        "p10_ci95": [
+          0.9089709568764476,
+          1.0600798793839705
+        ],
+        "median": 1.4649500622136076,
+        "median_ci95": [
+          1.0167153816064054,
+          1.7419597928472266
+        ],
+        "p90": 2.0332996969472346,
+        "p90_ci95": [
+          1.5853246213259764,
+          2.771553407812586
+        ]
+      },
+      "A_over_DL": {
+        "files": 17,
+        "p10": 0.3852659890598298,
+        "p10_ci95": [
+          0.2458404440171766,
+          1.0736696952700464
+        ],
+        "median": 1.4649500622136076,
+        "median_ci95": [
+          1.0167153816064054,
+          1.5494547851894356
+        ],
+        "p90": 1.8332579402663403,
+        "p90_ci95": [
+          1.50832261826286,
+          2.2635596570889707
+        ]
+      },
+      "A_over_I": {
+        "files": 16,
+        "p10": 0.32732942213126426,
+        "p10_ci95": [
+          0.1790540949273797,
+          0.48043112243707675
+        ],
+        "median": 0.7645002719115831,
+        "median_ci95": [
+          0.4366877087479409,
+          1.1460315427713335
+        ],
+        "p90": 1.5978369941012622,
+        "p90_ci95": [
+          1.0116667886166104,
+          2.771553407812586
+        ]
+      }
+    },
+    "misroute": {
+      "trials": 85,
+      "misroutes": 8,
+      "rate": 0.09411764705882353,
+      "seconds_lost_median": 3.8891616789999404,
+      "seconds_lost_max": 6.717763500999922,
+      "by_kind": {
+        "index_chosen_download_faster": 0,
+        "download_chosen_index_faster": 8
+      }
+    },
+    "prediction_error": {
+      "t_index_over_I": {
+        "median": 0.7685175363307686,
+        "p10": 0.5074918280334766,
+        "p90": 1.122840446735255,
+        "n": 79
+      },
+      "t_dl_over_D1L": {
+        "median": 0.9479904484505436,
+        "p10": 0.5515501796167748,
+        "p90": 1.3202343544415087,
+        "n": 85
+      }
+    },
+    "shrink_groups": {
+      "near_crossover_25pct": {
+        "files": 0,
+        "median_of_median_A_over_best": null,
+        "median_of_median_A_over_DL": null,
+        "bar_a_passes": 0,
+        "misroutes": 0,
+        "trials": 0
+      },
+      "small_under_10MB": {
+        "files": 4,
+        "median_of_median_A_over_best": 1.269309878741827,
+        "median_of_median_A_over_DL": 1.269309878741827,
+        "bar_a_passes": 0,
+        "misroutes": 0,
+        "trials": 20
+      },
+      "many_subsegments_over_200": {
+        "files": 5,
+        "median_of_median_A_over_best": 1.452412508184748,
+        "median_of_median_A_over_DL": 1.452412508184748,
+        "bar_a_passes": 0,
+        "misroutes": 4,
+        "trials": 25
+      },
+      "large_250MB_plus": {
+        "files": 6,
+        "median_of_median_A_over_best": 1.2477400995092682,
+        "median_of_median_A_over_DL": 0.9435997215142123,
+        "bar_a_passes": 0,
+        "misroutes": 6,
+        "trials": 30
+      },
+      "far_from_prior_trials": {
+        "definition": "measured D1 MB/s outside [0.5, 2] x prior B, or warm GET outside [1/1.5, 1.5] x prior RTT",
+        "trials": 57,
+        "of": 85,
+        "median_A_over_best": 1.4421935714897696,
+        "median_A_over_best_others": 1.4251020554814762,
+        "misroutes": 6
+      },
+      "no_leading_sidx_download": {
+        "files": 2,
+        "median_of_median_A_over_DL": 1.2255807881038496,
+        "median_of_median_A_over_best": 1.2255807881038496,
+        "paths": [
+          "download"
+        ],
+        "bar_a_would_pass": 0
+      },
+      "encrypted": {
+        "files": 7,
+        "median_of_median_A_over_DL": 1.1863603181788716,
+        "median_of_median_A_over_best": 1.1863603181788716,
+        "paths": [
+          "download"
+        ],
+        "bar_a_would_pass": 0
+      },
+      "cold_start": {
+        "trial": 0,
+        "A_post": null,
+        "I_post": 0.7828064190000001,
+        "A": 0.5431245149999988,
+        "path": "download",
+        "reason": "prediction",
+        "I": 1.137035419,
+        "DL": 0.6417957859999994,
+        "D1L": 0.7143406550000044,
+        "best": 0.6417957859999994,
+        "faster": "download",
+        "r_best": 0.8462575274684014,
+        "r_dl": 0.8462575274684014,
+        "r_i": 0.47766719129793334,
+        "share": null,
+        "digest_ok": true,
+        "i_digest_ok": true,
+        "t_index": 0.3134607399998671,
+        "t_dl": 0.17767964810378561,
+        "prior_rtt": 0.15315086999993355,
+        "prior_mbps": 57.542491549870256,
+        "choice": "download",
+        "route": "segment_index",
+        "i_route": "segment_index",
+        "subsegments": 30,
+        "cold_start": true,
+        "warm_get_s": 0.22106716200000065,
+        "d1_mbps": 1.3661122452794898
+      }
+    },
+    "sanity": {
+      "I_faster_than_L": 0,
+      "A_download_beats_D1L_beyond_noise": 0,
+      "A_index_after_decision_beats_I_after_route_beyond_noise": 0,
+      "A_index_total_faster_than_I_trials": 7,
+      "A_index_trials_with_I": 13,
+      "A_accounting_mismatch": 0,
+      "I_accounting_mismatch": 0,
+      "engine_errors": [
+        {
+          "sha256": "9858f3d1cb2d76da27e2b318a19ba76b224da56d1c412b5d83a3ef7c0bf3a161",
+          "trial": 2,
+          "engine": "I",
+          "error": "TimeoutError"
+        }
+      ],
+      "I_route_changes": 0,
+      "A_route_changes": 0,
+      "decision_changes": 1,
+      "digest_mismatch_files": []
+    },
+    "files": [
+      {
+        "sha256": "1ddd1a40d405da6a4b086df2449659ee3c7dbdbc81e81e54483e85c63e5a78c6",
+        "size": 523511188,
+        "group": "gated",
+        "set": "topup-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 2.4382393203420833,
+          "mean_ci95": [
+            1.8792962192073606,
+            2.880221357846847
+          ],
+          "median": 2.771553407812586,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.8334009545292251,
+          "mean_ci95": [
+            1.5311684908723022,
+            2.1356334181861483
+          ],
+          "median": 1.8193999988475629,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 2.4181892884750034,
+          "mean_ci95": [
+            1.8336313189725097,
+            2.880221357846847
+          ],
+          "median": 2.771553407812586,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "index",
+          "index",
+          "index",
+          "download",
+          "index"
+        ],
+        "misroutes": 4,
+        "misroute_seconds_lost": [
+          1.8751877169999887,
+          6.717763500999922,
+          6.469287826000027,
+          4.369242545999896
+        ],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 9.622088802000007,
+        "median_I_s": 3.540346797999973,
+        "median_DL_s": 4.502655894999975,
+        "median_t_index_s": 3.416156958999817,
+        "median_t_dl_s": 8.793563919349037,
+        "subsegments": 222,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "bar_b_file": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "209b0656e14f5b77aa06c28611e00d1c6d78762e07b8c5381efc646c2a692027",
+        "size": 102235122,
+        "group": "gated",
+        "set": "topup-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 2.2525519733967987,
+          "mean_ci95": [
+            1.3129866100334318,
+            3.55249166709714
+          ],
+          "median": 1.4668703511006431,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 2.2525519733967987,
+          "mean_ci95": [
+            1.3129866100334318,
+            3.55249166709714
+          ],
+          "median": 1.4668703511006431,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 1.724572718104881,
+          "mean_ci95": [
+            1.1102075890444598,
+            2.6446080632589863
+          ],
+          "median": 1.3158809313497808,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 2.6143485340000012,
+        "median_I_s": 1.5657587729999705,
+        "median_DL_s": 1.119006808999984,
+        "median_t_index_s": 1.3521298400002355,
+        "median_t_dl_s": 2.2042285549788314,
+        "subsegments": 94,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "2e9582e47a1f34e73bca858feaa43dd39a9e11ca825550fa335c342fc317ff03",
+        "size": 407713952,
+        "group": "gated",
+        "set": "topup-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 0.935020428184006,
+          "mean_ci95": [
+            0.7293486379599419,
+            1.1632107274545986
+          ],
+          "median": 0.9122379173673109,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 0.34697910524082676,
+          "mean_ci95": [
+            0.2898635804811674,
+            0.403507256619024
+          ],
+          "median": 0.3537175685746519,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 0.935020428184006,
+          "mean_ci95": [
+            0.7293486379599419,
+            1.1632107274545986
+          ],
+          "median": 0.9122379173673109,
+          "n": 5
+        },
+        "paths": [
+          "index",
+          "index",
+          "index",
+          "index",
+          "index"
+        ],
+        "faster": [
+          "index",
+          "index",
+          "index",
+          "index",
+          "index"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": 0.00036290639374538745,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 1.2062917910000124,
+        "median_I_s": 1.342298410000005,
+        "median_DL_s": 3.5767269069999656,
+        "median_t_index_s": 0.9521947655001431,
+        "median_t_dl_s": 7.499055305470706,
+        "subsegments": 41,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "index"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "bar_b_file": true,
+        "byte_bar": true
+      },
+      {
+        "sha256": "3898250f26b891f1233bee86910ae2f98394981ebbe20abedd4e5455e075a5d4",
+        "size": 2437117,
+        "group": "encrypted",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.1524140316572997,
+          "mean_ci95": [
+            0.8572588429240403,
+            1.4133546319831685
+          ],
+          "median": 1.1863603181788716,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.1524140316572997,
+          "mean_ci95": [
+            0.8572588429240403,
+            1.4133546319831685
+          ],
+          "median": 1.1863603181788716,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 0.47996158935223326,
+          "mean_ci95": [
+            0.3900815428304123,
+            0.5835238200280788
+          ],
+          "median": 0.4227636041499722,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 0.40130960299995877,
+        "median_I_s": 0.8080765089999886,
+        "median_DL_s": 0.35924757099996896,
+        "median_t_index_s": 0.5276332930000792,
+        "median_t_dl_s": 0.28118307660567343,
+        "subsegments": 20,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "4642ef7a47b3c42ed02abe10d16757fabf5ebf947b9a9e3f93ff3ad9fb79f630",
+        "size": 110691219,
+        "group": "gated",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.9356211575361193,
+          "mean_ci95": [
+            1.5366874654663265,
+            2.3345548496059125
+          ],
+          "median": 1.8797930568527434,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.6475722296009838,
+          "mean_ci95": [
+            1.2280738478306166,
+            2.067070611371351
+          ],
+          "median": 1.5494547851894356,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 1.7895056612804012,
+          "mean_ci95": [
+            1.2240809969462798,
+            2.285523382107121
+          ],
+          "median": 1.8797930568527434,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "index",
+          "index",
+          "download"
+        ],
+        "misroutes": 2,
+        "misroute_seconds_lost": [
+          1.1930428019999226,
+          2.2143494250001368
+        ],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 2.6326468410000103,
+        "median_I_s": 1.4037340250000057,
+        "median_DL_s": 1.777482536000207,
+        "median_t_index_s": 1.0346313360000325,
+        "median_t_dl_s": 2.1273348621903985,
+        "subsegments": 77,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "520043d30f5faabff895bc863e62a14af4b37a1db9630b72f1963f9e8d0479ef",
+        "size": 340970179,
+        "group": "gated",
+        "set": "topup-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.6727520297096803,
+          "mean_ci95": [
+            1.4441480809790976,
+            2.0316654225133592
+          ],
+          "median": 1.480901173645143,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.6727520297096803,
+          "mean_ci95": [
+            1.4441480809790976,
+            2.0214519316890014
+          ],
+          "median": 1.480901173645143,
+          "n": 5
+        },
+        "A_over_I": null,
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 5.054750582999986,
+        "median_I_s": NaN,
+        "median_DL_s": 3.4853225240000256,
+        "median_t_index_s": 0.6187271820000665,
+        "median_t_dl_s": 5.920610596071116,
+        "subsegments": null,
+        "routes": [
+          "download_then_index"
+        ],
+        "i_routes": [
+          "download_then_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "bar_b_file": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "574bc4ad81dedb9a42ca8145460d3d3cdca38fd1b8133cc6bf72d59236d9ce57",
+        "size": 12084418,
+        "group": "encrypted",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.3666164473456845,
+          "mean_ci95": [
+            1.0419485513376965,
+            1.8023213652911712
+          ],
+          "median": 1.219078588047084,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.3666164473456845,
+          "mean_ci95": [
+            1.0419485513376965,
+            1.7770699514552342
+          ],
+          "median": 1.219078588047084,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 0.2769604549139838,
+          "mean_ci95": [
+            0.1692733184118826,
+            0.38017393919888964
+          ],
+          "median": 0.324170950167809,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 0.6157260939999105,
+        "median_I_s": 1.9213028060000852,
+        "median_DL_s": 0.42326447599998573,
+        "median_t_index_s": 1.4345116350000586,
+        "median_t_dl_s": 0.47396620585185656,
+        "subsegments": 123,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "750498df470c358285b95adccbf683f38c8c6be14efd2cc2de219cf7046e23d2",
+        "size": 34663531,
+        "group": "encrypted",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.0783437128100757,
+          "mean_ci95": [
+            0.9963376758719278,
+            1.1598230984625326
+          ],
+          "median": 1.0976346307723124,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.0783437128100757,
+          "mean_ci95": [
+            0.9963376758719278,
+            1.1598230984625326
+          ],
+          "median": 1.0976346307723124,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 0.3137002141681303,
+          "mean_ci95": [
+            0.2742030517622922,
+            0.3683531503302142
+          ],
+          "median": 0.28343981132602464,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 0.6208073079999963,
+        "median_I_s": 2.182671062000054,
+        "median_DL_s": 0.6660762589999649,
+        "median_t_index_s": 1.5987141279998727,
+        "median_t_dl_s": 0.8987713696099118,
+        "subsegments": 160,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "895d1f32f29cd537feb3bea9f9d131c18def0bb8846536cb78dae42ef34d9376",
+        "size": 986360,
+        "group": "download",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.1340933104645516,
+          "mean_ci95": [
+            1.0085506848979597,
+            1.2334216290847175
+          ],
+          "median": 1.1986772602967337,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.1340933104645516,
+          "mean_ci95": [
+            1.0085506848979597,
+            1.2334216290847175
+          ],
+          "median": 1.1986772602967337,
+          "n": 5
+        },
+        "A_over_I": null,
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 0.3189467820000118,
+        "median_I_s": NaN,
+        "median_DL_s": 0.2870259040000178,
+        "median_t_index_s": 0.5181998980000487,
+        "median_t_dl_s": 0.2533621611024629,
+        "subsegments": null,
+        "routes": [
+          "download_then_index"
+        ],
+        "i_routes": [
+          "download_then_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "97bdf1aaa8ffe010cc4eaebe4be4137e6b2cf887cf1b9fc72c3a997746d4c5c7",
+        "size": 12572672,
+        "group": "gated",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.4536265461365456,
+          "mean_ci95": [
+            0.8972501061582845,
+            2.14387309738692
+          ],
+          "median": 0.9089709568764476,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.4536265461365456,
+          "mean_ci95": [
+            0.8972501061582845,
+            2.14387309738692
+          ],
+          "median": 0.9089709568764476,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 0.30590274545479457,
+          "mean_ci95": [
+            0.21212974887103195,
+            0.41360752926312266
+          ],
+          "median": 0.24081014141479962,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 0.7084587270000213,
+        "median_I_s": 2.273058452999976,
+        "median_DL_s": 0.46307743299996673,
+        "median_t_index_s": 1.6854658930001707,
+        "median_t_dl_s": 0.44967083665985735,
+        "subsegments": 184,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "9858f3d1cb2d76da27e2b318a19ba76b224da56d1c412b5d83a3ef7c0bf3a161",
+        "size": 372646356,
+        "group": "gated",
+        "set": "topup-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 2.3705531957487955,
+          "mean_ci95": [
+            1.7763051054461454,
+            2.9689228657165354
+          ],
+          "median": 2.2635596570889707,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 2.3705531957487955,
+          "mean_ci95": [
+            1.7763051054461454,
+            2.9689228657165354
+          ],
+          "median": 2.2635596570889707,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 1.596590097014819,
+          "mean_ci95": [
+            0.953642945779443,
+            2.4746069141320013
+          ],
+          "median": 1.2833085336828396,
+          "n": 4
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 8.362377418000051,
+        "median_I_s": 5.426811049000037,
+        "median_DL_s": 3.2567087340000285,
+        "median_t_index_s": 4.784973648999676,
+        "median_t_dl_s": 6.996542395810212,
+        "subsegments": 372,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "bar_b_file": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "98e9d0b932abb2e94aefcbbcf96651839f82f339d287826fce2538ea338144c5",
+        "size": 299873280,
+        "group": "gated",
+        "set": "topup-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 2.4120136656707127,
+          "mean_ci95": [
+            0.9504509037318458,
+            4.476428113372725
+          ],
+          "median": 1.0087545518598275,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 0.9362771986208296,
+          "mean_ci95": [
+            0.3196693468881965,
+            1.6227536124329163
+          ],
+          "median": 0.4062982693832817,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 2.4120136656707127,
+          "mean_ci95": [
+            0.9504509037318458,
+            4.476428113372725
+          ],
+          "median": 1.0087545518598275,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "index",
+          "index",
+          "index"
+        ],
+        "faster": [
+          "index",
+          "index",
+          "index",
+          "index",
+          "index"
+        ],
+        "misroutes": 2,
+        "misroute_seconds_lost": [
+          3.409080811999985,
+          4.947341316000006
+        ],
+        "max_index_share": 0.0004244592916047739,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 1.0960316250000233,
+        "median_I_s": 0.9622262419999856,
+        "median_DL_s": 2.875478219999991,
+        "median_t_index_s": 0.7010875369999494,
+        "median_t_dl_s": 5.3640188849140555,
+        "subsegments": 31,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download",
+          "index"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "bar_b_file": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "a2d42b1894824798256e9d11571c5caedef39f7455f64b741aa704b3a18da946",
+        "size": 36079699,
+        "group": "gated",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.9884216973698243,
+          "mean_ci95": [
+            1.480849403788587,
+            2.4959939909510616
+          ],
+          "median": 1.8540448523945061,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.9884216973698243,
+          "mean_ci95": [
+            1.480849403788587,
+            2.4959939909510616
+          ],
+          "median": 1.8540448523945061,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 0.5213593344504572,
+          "mean_ci95": [
+            0.29740893266997065,
+            0.7658972992865357
+          ],
+          "median": 0.42918059034461054,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 1.383832984000037,
+        "median_I_s": 2.65592863400002,
+        "median_DL_s": 0.7463859260000163,
+        "median_t_index_s": 1.218559495000122,
+        "median_t_dl_s": 0.889559107904082,
+        "subsegments": 123,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "aa7931b18bb0e229fd30c653903f3e2fc892abdbbfe6fa2b4d0fe19f7ea578bf",
+        "size": 3043867,
+        "group": "gated",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.1808343610304248,
+          "mean_ci95": [
+            0.948354185263543,
+            1.5208906503973583
+          ],
+          "median": 1.0736696952700464,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.1808343610304248,
+          "mean_ci95": [
+            0.948354185263543,
+            1.5208906503973583
+          ],
+          "median": 1.0736696952700464,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 0.46815687651817317,
+          "mean_ci95": [
+            0.3870397722462305,
+            0.5818606024701739
+          ],
+          "median": 0.4366877087479409,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 0.3638659350000353,
+        "median_I_s": 0.8737062930000548,
+        "median_DL_s": 0.32644598700005645,
+        "median_t_index_s": 1.0327965990000172,
+        "median_t_dl_s": 0.36607342504898494,
+        "subsegments": 45,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "ac56f681d1983dd1c4801913272bc7bb9105c877d921e573768a55d9a281eca7",
+        "size": 1386546506,
+        "group": "gated",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.1059827098860706,
+          "mean_ci95": [
+            0.7450488175754526,
+            1.5468126747035356
+          ],
+          "median": 1.0145790253733933,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 0.33783744055328246,
+          "mean_ci95": [
+            0.19642740004692455,
+            0.5786591151810484
+          ],
+          "median": 0.2458404440171766,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 1.1059827098860706,
+          "mean_ci95": [
+            0.7376997577150847,
+            1.5468126747035356
+          ],
+          "median": 1.0145790253733933,
+          "n": 5
+        },
+        "paths": [
+          "index",
+          "index",
+          "index",
+          "index",
+          "index"
+        ],
+        "faster": [
+          "index",
+          "index",
+          "index",
+          "index",
+          "index"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": 0.0006835731768812377,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 3.001317692999919,
+        "median_I_s": 2.777965121999955,
+        "median_DL_s": 11.242896631999884,
+        "median_t_index_s": 2.355509630499913,
+        "median_t_dl_s": 23.42218559990975,
+        "subsegments": 208,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "index"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "bar_b_file": true,
+        "byte_bar": true
+      },
+      {
+        "sha256": "b939b2c525e38623dada90b6bf6dbc1c7e2e2088b0ac9e2faef68936af014502",
+        "size": 12084418,
+        "group": "encrypted",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.2564593054962532,
+          "mean_ci95": [
+            1.069861192678133,
+            1.437275434275715
+          ],
+          "median": 1.2533623401751977,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.2564593054962532,
+          "mean_ci95": [
+            1.069861192678133,
+            1.437275434275715
+          ],
+          "median": 1.2533623401751977,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 0.29236751617929835,
+          "mean_ci95": [
+            0.24542154458534435,
+            0.3597223511843069
+          ],
+          "median": 0.2745877097367677,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 0.4637542380000923,
+        "median_I_s": 1.6633179010000276,
+        "median_DL_s": 0.4113212959999828,
+        "median_t_index_s": 1.5645298970003356,
+        "median_t_dl_s": 0.48258765130944775,
+        "subsegments": 123,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "baa98b681ddc078bcea9bdfc82631626c32f50f9f62c4b1338e1d7637cc8e26c",
+        "size": 35568588,
+        "group": "encrypted",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.4033550181063221,
+          "mean_ci95": [
+            1.10018182956926,
+            1.840918098661917
+          ],
+          "median": 1.174487099254008,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.4033550181063221,
+          "mean_ci95": [
+            1.10018182956926,
+            1.840918098661917
+          ],
+          "median": 1.174487099254008,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 0.47730071699135285,
+          "mean_ci95": [
+            0.3889727614173403,
+            0.6016835885253474
+          ],
+          "median": 0.3964397506874717,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 0.8290904099999352,
+        "median_I_s": 1.734907808999992,
+        "median_DL_s": 0.5770016120000037,
+        "median_t_index_s": 1.710430509000185,
+        "median_t_dl_s": 0.9190547615080118,
+        "subsegments": 123,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "bdecaa9f9863d8f568b988a3533aae8537b76de5aaafcfeeb47a98522aa387f5",
+        "size": 36292325,
+        "group": "encrypted",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.5138618440886344,
+          "mean_ci95": [
+            0.9349191314509555,
+            2.177601243654181
+          ],
+          "median": 1.4525232317622594,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.5138618440886344,
+          "mean_ci95": [
+            0.9349191314509555,
+            2.164882705920774
+          ],
+          "median": 1.4525232317622594,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 0.513728380773579,
+          "mean_ci95": [
+            0.35245098903425137,
+            0.7114076770254921
+          ],
+          "median": 0.4710493910668001,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 0.7830907100000104,
+        "median_I_s": 1.9959073969999963,
+        "median_DL_s": 0.7892242400000669,
+        "median_t_index_s": 1.6675545500002944,
+        "median_t_dl_s": 0.9350199456086252,
+        "subsegments": 123,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "c81111de114e7f9075d3c1f0a0ddd07c11efe0b92df818f25cf130dbb7e80272",
+        "size": 31728664,
+        "group": "gated",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 2.0938095651372257,
+          "mean_ci95": [
+            1.5565765755375751,
+            2.8684974255291875
+          ],
+          "median": 1.7419597928472266,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 2.0938095651372257,
+          "mean_ci95": [
+            1.5565765755375751,
+            2.8684974255291875
+          ],
+          "median": 1.7419597928472266,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 1.147716016030729,
+          "mean_ci95": [
+            0.6684200323025886,
+            1.7637716478772414
+          ],
+          "median": 0.8972890934740152,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 1.1594441509998887,
+        "median_I_s": 1.117779463999966,
+        "median_DL_s": 0.5555277380001371,
+        "median_t_index_s": 0.5761835030000616,
+        "median_t_dl_s": 0.8502437466665332,
+        "subsegments": 30,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "c86f3d1f2aff9bb7c75bc50c7b13066b00ee69d464bc48385d64758afa486e10",
+        "size": 969967,
+        "group": "gated",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.060879998939615,
+          "mean_ci95": [
+            0.9148370640159167,
+            1.2319632602775499
+          ],
+          "median": 1.0167153816064054,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.060879998939615,
+          "mean_ci95": [
+            0.9148370640159167,
+            1.2319632602775499
+          ],
+          "median": 1.0167153816064054,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 0.4348760177377769,
+          "mean_ci95": [
+            0.36867436682743826,
+            0.500061096839848
+          ],
+          "median": 0.4628516598896373,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 0.30642672299995866,
+        "median_I_s": 0.7455559579999544,
+        "median_DL_s": 0.28491716700000325,
+        "median_t_index_s": 0.45893506600000417,
+        "median_t_dl_s": 0.2442305834483608,
+        "subsegments": 30,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": {
+          "trial": 0,
+          "A_post": null,
+          "I_post": 0.7828064190000001,
+          "A": 0.5431245149999988,
+          "path": "download",
+          "reason": "prediction",
+          "I": 1.137035419,
+          "DL": 0.6417957859999994,
+          "D1L": 0.7143406550000044,
+          "best": 0.6417957859999994,
+          "faster": "download",
+          "r_best": 0.8462575274684014,
+          "r_dl": 0.8462575274684014,
+          "r_i": 0.47766719129793334,
+          "share": null,
+          "digest_ok": true,
+          "i_digest_ok": true,
+          "t_index": 0.3134607399998671,
+          "t_dl": 0.17767964810378561,
+          "prior_rtt": 0.15315086999993355,
+          "prior_mbps": 57.542491549870256,
+          "choice": "download",
+          "route": "segment_index",
+          "i_route": "segment_index",
+          "subsegments": 30,
+          "cold_start": true,
+          "warm_get_s": 0.22106716200000065,
+          "d1_mbps": 1.3661122452794898
+        },
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "cc6023189f53a0e3f6ca94ed15f8055fe5fdd173f6d69de03b5aa73a4dcea733",
+        "size": 40609,
+        "group": "download",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.305084424142339,
+          "mean_ci95": [
+            1.059567940584192,
+            1.5541154365477603
+          ],
+          "median": 1.2524843159109655,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.305084424142339,
+          "mean_ci95": [
+            1.059567940584192,
+            1.5541154365477603
+          ],
+          "median": 1.2524843159109655,
+          "n": 5
+        },
+        "A_over_I": null,
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 0.31902073100002326,
+        "median_I_s": NaN,
+        "median_DL_s": 0.26604607300009775,
+        "median_t_index_s": 0.37431616250000327,
+        "median_t_dl_s": 0.2912986628887423,
+        "subsegments": null,
+        "routes": [
+          "download_then_index"
+        ],
+        "i_routes": [
+          "download_then_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "cf502122eb675521dcb54ba5b248c49c94d68c3a646899a6ef4a8f3456806b97",
+        "size": 14702402,
+        "group": "gated",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.0909087862262308,
+          "mean_ci95": [
+            1.0126639046664148,
+            1.1548124908404442
+          ],
+          "median": 1.088989544569014,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.0909087862262308,
+          "mean_ci95": [
+            1.014368459366261,
+            1.1595355190099055
+          ],
+          "median": 1.088989544569014,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 0.20427533213814741,
+          "mean_ci95": [
+            0.16502842630381137,
+            0.2469014074282525
+          ],
+          "median": 0.1790540949273797,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 0.46193150700014485,
+        "median_I_s": 2.556928268999968,
+        "median_DL_s": 0.444304676999991,
+        "median_t_index_s": 2.3424393455005035,
+        "median_t_dl_s": 0.5297817048462288,
+        "subsegments": 222,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "d4e8cc76b778ad60163bf715c7aa0e8e0bbfebbbfbc21b4639ceae936b4d435b",
+        "size": 5379386,
+        "group": "gated",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.691554055377005,
+          "mean_ci95": [
+            1.4405700295607706,
+            2.0252996277077386
+          ],
+          "median": 1.4966228998179945,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.691554055377005,
+          "mean_ci95": [
+            1.4405700295607706,
+            2.0252996277077386
+          ],
+          "median": 1.4966228998179945,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 0.5722796611711743,
+          "mean_ci95": [
+            0.4618328407408643,
+            0.7242405581022962
+          ],
+          "median": 0.5470135420264246,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 0.5609140330000173,
+        "median_I_s": 1.2403291530000615,
+        "median_DL_s": 0.37421777399998746,
+        "median_t_index_s": 0.9522764445001376,
+        "median_t_dl_s": 0.41368113771276843,
+        "subsegments": 20,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "de7354bf340bf007932fff114eac2cc6313bd0f2a99ed99d5e21ea8cb787bca7",
+        "size": 101491043,
+        "group": "gated",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.3716335635804682,
+          "mean_ci95": [
+            0.977434909750382,
+            1.713107987167407
+          ],
+          "median": 1.452412508184748,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.3716335635804682,
+          "mean_ci95": [
+            0.977434909750382,
+            1.713107987167407
+          ],
+          "median": 1.452412508184748,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 0.4057071619952565,
+          "mean_ci95": [
+            0.2925901621640118,
+            0.5188241618265013
+          ],
+          "median": 0.41384870284772884,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 2.1144775550001214,
+        "median_I_s": 4.709498237000048,
+        "median_DL_s": 1.3555549719999362,
+        "median_t_index_s": 3.0975385425001267,
+        "median_t_dl_s": 1.9498248324400194,
+        "subsegments": 384,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "e4f4b288040c7873e6ab9c68aebfcf60593c67af4a896aaacc48200beb7b871b",
+        "size": 7881787,
+        "group": "gated",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.4462895825005677,
+          "mean_ci95": [
+            1.1725216697561458,
+            1.7170933250235496
+          ],
+          "median": 1.4649500622136076,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.4462895825005677,
+          "mean_ci95": [
+            1.172629569241486,
+            1.7170933250235496
+          ],
+          "median": 1.4649500622136076,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 0.5534707338730207,
+          "mean_ci95": [
+            0.4280845410443441,
+            0.6761220303928015
+          ],
+          "median": 0.631711450349151,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 0.6657839499998772,
+        "median_I_s": 1.181001436000031,
+        "median_DL_s": 0.41617580699994505,
+        "median_t_index_s": 1.191700970500136,
+        "median_t_dl_s": 0.5051309963577315,
+        "subsegments": 23,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      },
+      {
+        "sha256": "ede6abdefba66772630f352999d715f60c17f65bfa3254fe553f15094e992ed2",
+        "size": 777530,
+        "group": "encrypted",
+        "set": "v1-holdout",
+        "trials": 5,
+        "A_over_best": {
+          "mean": 1.1391039423719354,
+          "mean_ci95": [
+            0.8604119870364334,
+            1.4927810378280713
+          ],
+          "median": 0.9642639825732137,
+          "n": 5
+        },
+        "A_over_DL": {
+          "mean": 1.1391039423719354,
+          "mean_ci95": [
+            0.8604119870364334,
+            1.4411527077087984
+          ],
+          "median": 0.9642639825732137,
+          "n": 5
+        },
+        "A_over_I": {
+          "mean": 0.439020999178411,
+          "mean_ci95": [
+            0.34735653307273395,
+            0.5534431776080833
+          ],
+          "median": 0.407634087311477,
+          "n": 5
+        },
+        "paths": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "faster": [
+          "download",
+          "download",
+          "download",
+          "download",
+          "download"
+        ],
+        "misroutes": 0,
+        "misroute_seconds_lost": [],
+        "max_index_share": null,
+        "digests_ok": true,
+        "i_digests_ok": true,
+        "median_A_s": 0.302044302000013,
+        "median_I_s": 0.7878435459999764,
+        "median_DL_s": 0.2882111310000255,
+        "median_t_index_s": 0.5761835030000616,
+        "median_t_dl_s": 0.27841600498105645,
+        "subsegments": 15,
+        "routes": [
+          "segment_index"
+        ],
+        "i_routes": [
+          "segment_index"
+        ],
+        "decisions": [
+          "download"
+        ],
+        "cold_start_trial": null,
+        "bar_a": false,
+        "byte_bar": true
+      }
+    ]
+  },
+  "verdict": "fail"
+}

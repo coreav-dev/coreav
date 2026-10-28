@@ -1,0 +1,198 @@
+{
+  "schema": "coreav/known-divergences/1",
+  "applies_to": "coreav-mpegts through tools/ts-adapter, ffprobe 7.0.2",
+  "entries": [
+    {
+      "id": "KD-TS-END-ESTIMATE",
+      "level": [
+        "streams"
+      ],
+      "fields": [
+        "duration_ts",
+        "format_duration_us"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "/streams/*/codec_name": "eac3, opus (one unit) or mpeg1video (half a unit), as the file's tables and first bytes give, for the fraction clause",
+        "/streams/*/duration_ts": "candidate = the file's end by CoreAV's rule (first PES timestamp to the latest in the file's tail plus the unit it times); reference = candidate less that fraction of the unit, or the end of one of the access units the reference itself lists for the stream, which may be earlier or later than candidate's",
+        "format_duration_us": "every stream agreeing or covered and one covered by an entry the file confirms; candidate = what CoreAV's own rule gives from its streams; reference = the span of the streams it times. With no stream differing, the two within the microsecond their arithmetic differs by",
+        "evidence": "the file's values (Facts.coreav_end, Facts.end_unit), read apart from CoreAV, and the reference's own packet list"
+      },
+      "predicate": "stream_duration",
+      "basis": "ISO/IEC 13818-1 2.4.3.7 (a PTS times the first access unit that starts in its PES packet)"
+    },
+    {
+      "id": "KD-TS-STREAM-TIMING",
+      "level": [
+        "streams"
+      ],
+      "fields": [
+        "duration_ts",
+        "format_duration_us"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "/streams/*/duration_ts": "candidate = the file's end by CoreAV's rule, or null where the file states no time for the stream at all or none in the tail CoreAV reads (Facts.untimed, Facts.absent_from_the_tail), never merely where the reader could not work it out; reference = null, or the duration the reference reports for the whole file",
+        "format_duration_us": "every stream agreeing or covered; candidate = the span of its streams; reference = the span of the streams it times, within the microsecond their arithmetic differs by",
+        "evidence": "the file's values (Facts.coreav_end), read apart from CoreAV"
+      },
+      "predicate": "timed_from_the_file",
+      "basis": "ISO/IEC 13818-1 states no duration for a stream or for the file: both are estimates, and a stream whose access units state no duration of their own has none to estimate from"
+    },
+    {
+      "id": "KD-TS-AAC-PROFILE",
+      "level": [
+        "streams"
+      ],
+      "fields": [
+        "profile",
+        "sample_rate"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "/streams/*/profile": "candidate = the profile the stream's own configuration states (an ADTS header's `profile` + 1, or a LOAS StreamMuxConfig's `audioObjectType`); reference = HE-AAC or HE-AACv2",
+        "evidence": "the file's configuration (Facts.aac_object), read apart from CoreAV",
+        "/streams/*/sample_rate": "the compat output only, which gates it where the stream oracle does not: candidate = the rate the file's configuration states (Facts.aac_rate); reference = twice it"
+      },
+      "predicate": "aac_profile",
+      "basis": "ISO/IEC 14496-3 1.5.1.1 and 4.6.18: spectral band replication may be signalled implicitly, by extension payloads in the raw data blocks that only a decoder reads, while the configuration states AAC LC"
+    },
+    {
+      "id": "KD-TS-DUPLICATE",
+      "level": [
+        "packets"
+      ],
+      "fields": [
+        "size",
+        "pts",
+        "dts",
+        "pos",
+        "keyframe"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "file": "a duplicate packet of the stream's PID (Facts.duplicates), in or before the packet's PES packet",
+        "/streams/*/packets": "an ADTS AAC stream; every candidate packet (position, size, timestamps, keyframe) is the file's (Facts.units)",
+        "evidence": "the file's packets, read apart from CoreAV"
+      },
+      "predicate": "after_duplicate",
+      "basis": "ISO/IEC 13818-1 2.4.3.3 (continuity_counter: the second of two duplicate packets is discarded)"
+    },
+    {
+      "id": "KD-TS-FRAME-TIME",
+      "level": [
+        "packets"
+      ],
+      "fields": [
+        "pts",
+        "dts"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "/streams/*/packets": "an ADTS AAC stream; the packet is a frame the file states no time for (not the first frame that starts in its PES packet); every candidate packet (position, size, timestamps, keyframe) is the file's (Facts.units)",
+        "/streams/*/packets/*/pts": "candidate = the last stated time plus the samples since it, rounded once; |candidate - reference| at most 1, or the reference reports the candidate's decoding time, not carrying to a frame it times itself the distance the file states between the stream's presentation and decoding times",
+        "/streams/*/packets/*/dts": "the same",
+        "evidence": "the file's packets, read apart from CoreAV"
+      },
+      "predicate": "frame_time",
+      "basis": "ISO/IEC 13818-1 2.4.3.7 (a PTS times the first access unit that starts in its PES packet; the standard states no time for the others and no arithmetic for inferring one, nor that the distance a PES packet states between the two times stops at the unit it times)"
+    },
+    {
+      "id": "KD-TS-DECODE-TIME",
+      "level": [
+        "packets"
+      ],
+      "fields": [
+        "dts"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "/streams/*/packets": "an H.264 or HEVC stream (the codec the file's tables give it); the packet is the first access unit of a PES packet whose header states a presentation time and either no decoding time or one equal to it (Facts.stated)",
+        "/streams/*/packets/*/dts": "candidate = the presentation time the file states for the packet, which is also the candidate's pts; reference = no decoding time, or an earlier one",
+        "evidence": "the PES headers of the stream's PID, read apart from CoreAV"
+      },
+      "predicate": "stated_decode_time",
+      "basis": "ISO/IEC 13818-1 2.7.5: a decoding time is encoded only when it differs from the presentation time, so a PES packet that states none, or one equal to the PTS, states that the two are the same; 2.4.3.7 gives the stated times to the first access unit that commences in the packet"
+    },
+    {
+      "id": "KD-TS-STREAM-ORDER",
+      "level": [
+        "streams",
+        "packets"
+      ],
+      "fields": [
+        "kind",
+        "codec_fourcc",
+        "codec_name",
+        "width",
+        "height",
+        "rotation",
+        "timescale",
+        "duration_ts",
+        "color_primaries",
+        "color_transfer",
+        "color_matrix",
+        "color_range",
+        "profile",
+        "level",
+        "size",
+        "pts",
+        "dts",
+        "pos",
+        "keyframe",
+        "index"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "file": "more than one program (Facts.programs); the candidate lists the PIDs the Program Map Tables declare in the order they declare them, and nothing else but PIDs no table declares: the Event Information Table, and PIDs the file carries PES packets on (Facts.pes_offsets)",
+        "/streams": "every packet the candidate lists for a stream starts in a PES packet of the PID it gives that stream (Facts.pes_offsets); a permutation of the reference's streams, found from the packets each side lists for them, the Event Information Table apart, which pairs by the name both readers give it (epg) at the PID the standard fixes, since the two list different numbers of its sections; under the permutation every gating field agrees or is covered by another entry, and the file durations agree or the file's follows from the streams' as KD-TS-END-ESTIMATE requires",
+        "/streams/*/packets": "every packet of a stream the permutation pairs is the other side's; packets that still differ under it are not covered",
+        "evidence": "the file's programs and tables (Facts), read apart from CoreAV",
+        "/streams/*/index": "the compat output only: it pairs the streams of such a file by the stream id both readers print, and the indexes then differ"
+      },
+      "predicate": "ordered_differently",
+      "basis": "ISO/IEC 13818-1 2.4.4: a transport stream is a set of programs, each with its own Program Map Table; the standard gives no order for the streams of a file"
+    },
+    {
+      "id": "KD-TS-TELETEXT-SIZE",
+      "level": [
+        "streams"
+      ],
+      "fields": [
+        "width",
+        "height"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "/streams/*/width": "candidate = null; reference = 492",
+        "/streams/*/height": "candidate = null; reference = 250",
+        "file": "a DVB teletext stream (Facts.codec)",
+        "evidence": "the file's tables and descriptors (Facts), read apart from CoreAV"
+      },
+      "predicate": "teletext_size",
+      "basis": "ETSI EN 300 472 and EN 300 706: a teletext stream carries pages of characters, and the file states no picture size for it"
+    },
+    {
+      "id": "KD-TS-POSITION",
+      "level": [
+        "packets"
+      ],
+      "fields": [
+        "pos",
+        "size",
+        "pts",
+        "dts",
+        "keyframe"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "/streams/*/packets": "the two sides list the same number of packets for the stream; paired in order they agree on every field but `pos`",
+        "/streams/*/packets/*/pos": "candidate = the PES packet's first stored packet for the first access unit that starts in it, null for the others; reference = the same, and the PES packet's for a unit that starts past 200 KiB of its payload",
+        "evidence": "the file's PES packets (Facts.pes), read apart from CoreAV",
+        "file": "an H.264 or HEVC stream, as the file's tables give it"
+      },
+      "predicate": "read_in_pieces",
+      "basis": "ISO/IEC 13818-1 2.4.3.7: a PTS and a position belong to the first access unit that commences in a PES packet; how much of a PES packet a reader holds at once is its own affair"
+    }
+  ]
+}

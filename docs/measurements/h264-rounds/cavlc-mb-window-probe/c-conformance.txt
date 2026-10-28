@@ -1,0 +1,7 @@
+97 of 97 stream decodes bit-exact, 13329 frames, kernels: scalar, threads: [1]
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 35.42s
+291 of 291 stream decodes bit-exact, 39987 frames, kernels: detected, threads: [1, 2, 8]
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 37.44s
+without fast:
+97 of 97 stream decodes bit-exact, 13329 frames, kernels: detected, threads: [1]
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 20.63s

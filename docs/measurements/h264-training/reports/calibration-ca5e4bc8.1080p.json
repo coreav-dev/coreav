@@ -1,0 +1,92 @@
+{
+  "frames": 300,
+  "rounds": 5,
+  "pinned_core": 2,
+  "decoders": {
+    "ours": "$HOME/coreav/$WORK/bin/heldout-ca5e4bc8"
+  },
+  "ffmpeg": "/opt/coreav-oracle-bin/ffmpeg",
+  "resamples": 2000,
+  "streams": [
+    {
+      "stream": "48640c5a3dd7.0.1080p.h264",
+      "class": "1080p",
+      "seconds": {
+        "ff_null": 0.47285630999249406,
+        "ff_raw": 0.4768666939926334,
+        "ours_discard": 1.715191869996488,
+        "ours_write": 1.7323543230013456
+      },
+      "ratio": {
+        "ours:discard": 3.627300373814858,
+        "ours:write": 3.6327853146902873,
+        "ours:mixed": 3.596795271306963
+      }
+    },
+    {
+      "stream": "d0f1969d25de.0.1080p.h264",
+      "class": "1080p",
+      "seconds": {
+        "ff_null": 0.48828911999589764,
+        "ff_raw": 0.5768206379871117,
+        "ours_discard": 1.0273494139983086,
+        "ours_write": 1.1078791760082822
+      },
+      "ratio": {
+        "ours:discard": 2.1039776884787846,
+        "ours:write": 1.9206649399271951,
+        "ours:mixed": 1.7810552298949875
+      }
+    },
+    {
+      "stream": "e137204903ad.0.1080p.h264",
+      "class": "1080p",
+      "seconds": {
+        "ff_null": 0.2305477400077507,
+        "ff_raw": 0.2597122879960807,
+        "ours_discard": 0.5663222930015763,
+        "ours_write": 0.5992037870018976
+      },
+      "ratio": {
+        "ours:discard": 2.4564209260196495,
+        "ours:write": 2.3071830433026723,
+        "ours:mixed": 2.1805756568981542
+      }
+    },
+    {
+      "stream": "ea3b4d48a931.0.1080p.h264",
+      "class": "1080p",
+      "seconds": {
+        "ff_null": 2.306003637990216,
+        "ff_raw": 2.527898461004952,
+        "ours_discard": 8.713205939988256,
+        "ours_write": 8.876330974002485
+      },
+      "ratio": {
+        "ours:discard": 3.778487508190664,
+        "ours:write": 3.51134790852072,
+        "ours:mixed": 3.446818008870645
+      }
+    }
+  ],
+  "summary": {
+    "ours:discard": {
+      "n": 4,
+      "median": 3.041860649917254,
+      "ci_low": 2.1039776884787846,
+      "ci_high": 3.778487508190664
+    },
+    "ours:write": {
+      "n": 4,
+      "median": 2.9092654759116963,
+      "ci_low": 1.9206649399271951,
+      "ci_high": 3.6327853146902873
+    },
+    "ours:mixed": {
+      "n": 4,
+      "median": 2.8136968328844,
+      "ci_low": 1.7810552298949875,
+      "ci_high": 3.596795271306963
+    }
+  }
+}

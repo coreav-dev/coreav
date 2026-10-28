@@ -1,0 +1,92 @@
+{
+ "sha256": "c1758181b1d2ec21fd2805b36448fd3a7dbae0c3af77504c920d0af9a8776f70",
+ "size": 1220348163,
+ "ext": "mp4",
+ "holdout": true,
+ "tags": [
+  "a:aac",
+  "brand:isom",
+  "c:isobmff",
+  "elst",
+  "moov-front",
+  "v:av1"
+ ],
+ "download_seconds": 25.092386824000002,
+ "ffprobe_streams": [
+  {
+   "index": 0,
+   "codec_type": "video",
+   "codec_name": "av1",
+   "codec_tag_string": "av01",
+   "profile": "Main",
+   "sample_rate": null,
+   "channels": null,
+   "duration": "1349.389708",
+   "nb_frames": "32354"
+  },
+  {
+   "index": 1,
+   "codec_type": "audio",
+   "codec_name": "aac",
+   "codec_tag_string": "mp4a",
+   "profile": "LC",
+   "sample_rate": "44100",
+   "channels": 2,
+   "duration": "1349.497324",
+   "nb_frames": "58118"
+  }
+ ],
+ "coreav": {
+  "probe_ns": 31590508,
+  "fragmented": false,
+  "movie_timescale": 1000,
+  "tracks": [
+   {
+    "stream_index": 0,
+    "kind": "Video",
+    "codec": "Av1",
+    "fourcc": "av01",
+    "descriptions": 1,
+    "edit_list": "Simple { empty: 0, media_time: 0, segment: 1349390 }",
+    "timescale": 24000,
+    "sample_count": 32354,
+    "fragment_samples": 0
+   },
+   {
+    "stream_index": 1,
+    "kind": "Audio",
+    "codec": "Aac",
+    "fourcc": "mp4a",
+    "descriptions": 1,
+    "edit_list": "Simple { empty: 0, media_time: 0, segment: 1349498 }",
+    "timescale": 44100,
+    "sample_count": 58118,
+    "fragment_samples": 0
+   }
+  ],
+  "dropped": [],
+  "aac": [
+   {
+    "stream_index": 1,
+    "extract_ns": 191446894,
+    "ok": true,
+    "output": "/data/work/c1758181b1d2ec21fd2805b36448fd3a7dbae0c3af77504c920d0af9a8776f70/out/1.m4a",
+    "samples": 58118,
+    "bytes_written": 21830909,
+    "timescale": 44100,
+    "duration": 59512832,
+    "round_trip": []
+   }
+  ]
+ },
+ "checks": [
+  {
+   "stream_index": 1,
+   "extract_ok": true,
+   "round_trip": [],
+   "oracle_problems": [],
+   "oracle_informational": []
+  }
+ ],
+ "seconds": 36.518113574
+}

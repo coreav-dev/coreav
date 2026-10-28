@@ -1,0 +1,23 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2899.9 MHz, 8 logical CPUs
+gate baseline: 0.400 s (samples 0.400, 0.400, 0.399)
+1d4b1775d78a.0.720p.h264                 host fault (attempt 1): null {'base_discard': -0.002407460312083165, 'base_write': 0.002579041432622553}, max spread 1.503
+1d4b1775d78a.0.720p.h264                 base:discard=1.10  base:write=1.06  base:mixed=1.01  k:discard=1.08  k:write=1.05  k:mixed=1.00
+278dbf5a63bb.0.720p.h264                 base:discard=1.10  base:write=1.08  base:mixed=1.02  k:discard=1.08  k:write=1.05  k:mixed=1.00
+36501d448eaa.0.720p.h264                 base:discard=1.26  base:write=1.23  base:mixed=1.21  k:discard=1.25  k:write=1.22  k:mixed=1.20
+3c593b8f0809.0.720p.h264                 base:discard=1.17  base:write=1.16  base:mixed=1.13  k:discard=1.15  k:write=1.14  k:mixed=1.11
+gate after 4 streams (check): 0.415 s (+3.6%)
+65ec61f95a00.0.720p.h264                 base:discard=1.15  base:write=1.10  base:mixed=1.06  k:discard=1.12  k:write=1.07  k:mixed=1.04
+6b18d9f0f88d.0.720p.h264                 base:discard=0.91  base:write=0.85  base:mixed=0.78  k:discard=0.90  k:write=0.84  k:mixed=0.77
+76e0b1692494.0.720p.h264                 base:discard=1.10  base:write=1.08  base:mixed=1.00  k:discard=1.07  k:write=1.06  k:mixed=0.98
+9db41aa16b5a.0.720p.h264                 host fault (attempt 1): null {'base_discard': -0.0009027949629987209, 'base_write': 0.001167165696821515}, max spread 1.549
+9db41aa16b5a.0.720p.h264                 base:discard=1.05  base:write=0.99  base:mixed=0.93  k:discard=1.00  k:write=0.94  k:mixed=0.89
+gate after 8 streams (check): 0.405 s (+1.1%)
+
+base:discard             n=  8  median 1.102  [1.051, 1.171]
+base:write               n=  8  median 1.079  [0.988, 1.155]
+base:mixed               n=  8  median 1.018  [0.933, 1.112]
+k:discard                n=  8  median 1.083  [0.998, 1.149]
+k:write                  n=  8  median 1.054  [0.940, 1.137]
+k:mixed                  n=  8  median 0.999  [0.885, 1.099]
+
+wrote $HOME/ab/qb2/out/g.720p.json

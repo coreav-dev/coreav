@@ -1,0 +1,9 @@
+175433794e02.0.1080p cpu base 5.970 a 5.900 ratio 0.988
+6da34958296c.0.1080p cpu base 2.710 a 2.500 ratio 0.923
+6e90422a670a.0.1080p cpu base 4.970 a 4.620 ratio 0.930
+a6af290d9053.0.1080p cpu base 6.440 a 6.680 ratio 1.037
+a81de82106be.0.1080p cpu base 1.450 a 1.350 ratio 0.931
+b41f70a7fa60.0.1080p cpu base 3.610 a 3.690 ratio 1.022
+b71b6b31e54f.0.1080p cpu base 1.990 a 1.820 ratio 0.915
+c7ecda16e4a7.0.1080p cpu base 4.470 a 4.570 ratio 1.022
+median a/base CPU 0.9597

@@ -1,0 +1,122 @@
+diff --git a/crates/coreav-h264/examples/decode.rs b/crates/coreav-h264/examples/decode.rs
+index 13d70e50..55a8f0e9 100644
+--- a/crates/coreav-h264/examples/decode.rs
++++ b/crates/coreav-h264/examples/decode.rs
+@@ -29,6 +29,8 @@ use coreav_h264::{AnnexB, Decoder, Limits, Mode, Picture};
+ use coreav_kernels_h264::Auto;
+ 
+ fn main() -> std::process::ExitCode {
++    struct D; impl Drop for D { fn drop(&mut self) { coreav_h264::count::dump(); } }
++    let _d = D;
+     match run() {
+         Ok(()) => std::process::ExitCode::SUCCESS,
+         Err(e) => {
+diff --git a/crates/coreav-h264/src/cabac.rs b/crates/coreav-h264/src/cabac.rs
+index 1be437ed..91d7fb85 100644
+--- a/crates/coreav-h264/src/cabac.rs
++++ b/crates/coreav-h264/src/cabac.rs
+@@ -219,6 +219,7 @@ impl Engine {
+     /// DecodeBypass (clause 9.3.3.2.3), without a branch on the bin.
+     #[inline(always)]
+     fn bypass(&mut self, src: &mut Source) -> u32 {
++        crate::count::add(1031);
+         self.bits -= 1;
+         let scaled = u64::from(self.range) << self.bits;
+         let bin = u64::from(self.value >= scaled);
+@@ -475,6 +476,7 @@ impl<'a> Cabac<'a> {
+     /// Decodes one regular bin with the context `ctx_idx`.
+     #[inline(always)]
+     pub(crate) fn decision(&mut self, ctx_idx: usize) -> u32 {
++        crate::count::add(ctx_idx & CTX_MASK);
+         let Cabac {
+             engine, ctx, src, ..
+         } = self;
+@@ -487,12 +489,14 @@ impl<'a> Cabac<'a> {
+     /// Decodes one bypass bin.
+     #[inline(always)]
+     pub(crate) fn bypass(&mut self) -> u32 {
++        crate::count::add(1029);
+         self.engine.bypass(&mut self.src)
+     }
+ 
+     /// DecodeTerminate (clause 9.3.3.2.4): end_of_slice_flag and the
+     /// I_PCM bin.
+     pub(crate) fn terminate(&mut self) -> u32 {
++        crate::count::add(1030);
+         let e = &mut self.engine;
+         e.range -= 2;
+         let scaled = u64::from(e.range) << e.bits;
+@@ -681,16 +685,19 @@ pub(crate) fn significance_map_body<const N: usize>(c: &mut Cabac, sig: usize, e
+     // ctxBlockCatOffsets are the same for both, and 15 for an 8x8 block.
+     // Deriving one base from the other keeps a register free.
+     let last = sig + if N == 64 { 15 } else { 61 };
++    crate::count::add(1032 + if N == 64 { 2 } else if N == 4 { 0 } else { 1 });
+     let mut e = *engine;
+     let mut map = 0u64;
+     let mut i = 0usize;
+     while i < end {
++        crate::count::add(1024);
+         let significant = match ctx.get_mut((sig + sig_inc(i)) & CTX_MASK) {
+             Some(state) => e.decision(state, src),
+             None => 0,
+         };
+         if significant == 1 {
+             map |= 1 << (i & 63);
++            crate::count::add(1025);
+             let is_last = match ctx.get_mut((last + last_inc(i)) & CTX_MASK) {
+                 Some(state) => e.decision(state, src),
+                 None => 0,
+@@ -766,6 +773,7 @@ pub(crate) fn levels_body<const N: usize>(
+     let mut history = 0usize;
+     while map != 0 {
+         let at = |table: &[u8; 8]| usize::from(table.get(history & 7).copied().unwrap_or(0));
++        crate::count::add(1026);
+         let first = match ctx.get_mut((abs + at(&LEVEL_INC_FIRST)) & CTX_MASK) {
+             Some(state) => e.decision(state, src),
+             None => 0,
+@@ -775,7 +783,7 @@ pub(crate) fn levels_body<const N: usize>(
+             let inc = at(&LEVEL_INC_REST).min(rest_max);
+             level = 2;
+             if let Some(state) = ctx.get_mut((abs + inc) & CTX_MASK) {
+-                while level < 15 && e.decision(state, src) == 1 {
++                while level < 15 && { crate::count::add(1027); e.decision(state, src) == 1 } {
+                     level += 1;
+                 }
+             }
+@@ -799,6 +807,7 @@ pub(crate) fn levels_body<const N: usize>(
+         }
+         // coeff_sign_flag, applied without a branch: a sign is as
+         // unpredictable as a bit can be.
++        crate::count::add(1028);
+         let negative = e.bypass(src) as i32;
+         let value = (level as i32 ^ -negative) + negative;
+         let pos = 63 - map.leading_zeros() as usize;
+diff --git a/crates/coreav-h264/src/lib.rs b/crates/coreav-h264/src/lib.rs
+index 0649d171..b3b126b2 100644
+--- a/crates/coreav-h264/src/lib.rs
++++ b/crates/coreav-h264/src/lib.rs
+@@ -37,6 +37,24 @@
+ //! ```
+ 
+ mod bits;
++#[doc(hidden)]
++pub mod count {
++    use std::sync::atomic::{AtomicU64, Ordering};
++    pub static BINS: [AtomicU64; 1040] = [const { AtomicU64::new(0) }; 1040];
++    #[inline(always)]
++    pub(crate) fn add(i: usize) {
++        if let Some(c) = BINS.get(i) {
++            c.fetch_add(1, Ordering::Relaxed);
++        }
++    }
++    pub fn dump() {
++        let v: Vec<String> = BINS.iter().enumerate().filter_map(|(i, c)| {
++            let n = c.load(Ordering::Relaxed);
++            (n != 0).then(|| format!("{i}:{n}"))
++        }).collect();
++        eprintln!("BINS {}", v.join(" "));
++    }
++}
+ mod cabac;
+ mod cavlc;
+ mod deblock;

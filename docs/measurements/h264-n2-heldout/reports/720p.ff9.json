@@ -1,0 +1,272 @@
+{
+  "frames": 900,
+  "rounds": 5,
+  "pinned_core": 2,
+  "decoders": {
+    "main": "$HOME/ab/main/target/dist/examples/decode"
+  },
+  "ffmpeg": "$HOME/ff9/x/ffmpeg-n9.0.2-17-g2a571b6068-linux64-gpl-9.0/bin/ffmpeg",
+  "resamples": 2000,
+  "streams": [
+    {
+      "stream": "178de4a3a5a2.0.720p.h264",
+      "class": "720p",
+      "seconds": {
+        "ff_null": 0.3009828690001086,
+        "ff_raw": 0.3800325040001553,
+        "main_discard": 0.47792862599999353,
+        "main_write": 0.5403375260002576
+      },
+      "ratio": {
+        "main:discard": 1.5878931169329145,
+        "main:write": 1.4218192399670024,
+        "main:mixed": 1.2575993394496545
+      }
+    },
+    {
+      "stream": "391ec79e178a.0.720p.h264",
+      "class": "720p",
+      "seconds": {
+        "ff_null": 1.1952925570003572,
+        "ff_raw": 1.2820440759996927,
+        "main_discard": 4.503572599000108,
+        "main_write": 4.672291593000409
+      },
+      "ratio": {
+        "main:discard": 3.767757585893478,
+        "main:write": 3.6444079267377147,
+        "main:mixed": 3.512806371721956
+      }
+    },
+    {
+      "stream": "3c331ca6a971.0.720p.h264",
+      "class": "720p",
+      "seconds": {
+        "ff_null": 1.2050800199995138,
+        "ff_raw": 1.2928502330005358,
+        "main_discard": 4.321008767999956,
+        "main_write": 4.442603884000164
+      },
+      "ratio": {
+        "main:discard": 3.585661280818264,
+        "main:write": 3.4362865632854187,
+        "main:mixed": 3.342234589672047
+      }
+    },
+    {
+      "stream": "4dc155fa1f76.0.720p.h264",
+      "class": "720p",
+      "seconds": {
+        "ff_null": 1.8665665549997357,
+        "ff_raw": 2.116106299999956,
+        "main_discard": 5.901375172000371,
+        "main_write": 6.131829353000285
+      },
+      "ratio": {
+        "main:discard": 3.1616205466625895,
+        "main:write": 2.897694389455016,
+        "main:mixed": 2.7887895669515723
+      }
+    },
+    {
+      "stream": "4f27662a0f72.0.720p.h264",
+      "class": "720p",
+      "seconds": {
+        "ff_null": 1.0071381939997082,
+        "ff_raw": 1.077100485000301,
+        "main_discard": 3.009778863000065,
+        "main_write": 3.0501564180003697
+      },
+      "ratio": {
+        "main:discard": 2.9884467503383525,
+        "main:write": 2.831821599262874,
+        "main:mixed": 2.794334330839359
+      }
+    },
+    {
+      "stream": "59cf223b15f2.0.720p.h264",
+      "class": "720p",
+      "seconds": {
+        "ff_null": 0.9891192799996134,
+        "ff_raw": 1.0578409869995085,
+        "main_discard": 3.700782459999573,
+        "main_write": 3.852345743999649
+      },
+      "ratio": {
+        "main:discard": 3.7414925932906895,
+        "main:write": 3.641705881454411,
+        "main:mixed": 3.49842982591985
+      }
+    },
+    {
+      "stream": "64e286230fca.0.720p.h264",
+      "class": "720p",
+      "seconds": {
+        "ff_null": 1.7028080930003853,
+        "ff_raw": 1.840466695000032,
+        "main_discard": 5.7448602630001915,
+        "main_write": 5.843690806000268
+      },
+      "ratio": {
+        "main:discard": 3.373756729613389,
+        "main:write": 3.1751135849813172,
+        "main:mixed": 3.121414953395879
+      }
+    },
+    {
+      "stream": "64ef5412ed81.0.720p.h264",
+      "class": "720p",
+      "seconds": {
+        "ff_null": 6.5968778770002245,
+        "ff_raw": 6.883482109000397,
+        "main_discard": 18.981449469000836,
+        "main_write": 19.018191209999713
+      },
+      "ratio": {
+        "main:discard": 2.8773383141105238,
+        "main:write": 2.7628736312298616,
+        "main:mixed": 2.757535963401709
+      }
+    },
+    {
+      "stream": "67138964d796.0.720p.h264",
+      "class": "720p",
+      "seconds": {
+        "ff_null": 1.1152909350003029,
+        "ff_raw": 1.2304462030006107,
+        "main_discard": 4.4547482309999396,
+        "main_write": 4.561075262000486
+      },
+      "ratio": {
+        "main:discard": 3.9942476812104006,
+        "main:write": 3.7068465495506286,
+        "main:mixed": 3.620433156798265
+      }
+    },
+    {
+      "stream": "7eb29ce39b5c.0.720p.h264",
+      "class": "720p",
+      "seconds": {
+        "ff_null": 0.6832626309997067,
+        "ff_raw": 0.7182727950003027,
+        "main_discard": 1.5768053819992929,
+        "main_write": 1.6345022129999052
+      },
+      "ratio": {
+        "main:discard": 2.307758847710156,
+        "main:write": 2.275600891997053,
+        "main:mixed": 2.1952737079491205
+      }
+    },
+    {
+      "stream": "985a28c5abe5.0.720p.h264",
+      "class": "720p",
+      "seconds": {
+        "ff_null": 1.223167721000209,
+        "ff_raw": 1.3539927120000357,
+        "main_discard": 5.42568656200001,
+        "main_write": 5.586254398000165
+      },
+      "ratio": {
+        "main:discard": 4.435766631875567,
+        "main:write": 4.125764007805101,
+        "main:mixed": 4.007175602877149
+      }
+    },
+    {
+      "stream": "a9b1e81dc8f4.0.720p.h264",
+      "class": "720p",
+      "seconds": {
+        "ff_null": 0.5615310940002018,
+        "ff_raw": 0.6212044699996113,
+        "main_discard": 1.9108196059996772,
+        "main_write": 1.9972733100003097
+      },
+      "ratio": {
+        "main:discard": 3.4028740819809173,
+        "main:write": 3.215162489094065,
+        "main:mixed": 3.0759913978096014
+      }
+    },
+    {
+      "stream": "b1c6f2742fff.0.720p.h264",
+      "class": "720p",
+      "seconds": {
+        "ff_null": 0.41490075399997295,
+        "ff_raw": 0.45050879800055554,
+        "main_discard": 1.1363774749997901,
+        "main_write": 1.190894403999664
+      },
+      "ratio": {
+        "main:discard": 2.738913978931608,
+        "main:write": 2.6434431675587287,
+        "main:mixed": 2.5224312600403174
+      }
+    },
+    {
+      "stream": "c187706da87d.0.720p.h264",
+      "class": "720p",
+      "seconds": {
+        "ff_null": 0.7734173729995746,
+        "ff_raw": 0.8440402920004999,
+        "main_discard": 2.6806747219998215,
+        "main_write": 2.792515041000115
+      },
+      "ratio": {
+        "main:discard": 3.4660130682134236,
+        "main:write": 3.3085091641554727,
+        "main:mixed": 3.17600326359566
+      }
+    },
+    {
+      "stream": "f2a05e5926d8.0.720p.h264",
+      "class": "720p",
+      "seconds": {
+        "ff_null": 1.0635676239999157,
+        "ff_raw": 1.1860835229999793,
+        "main_discard": 3.9082276119997914,
+        "main_write": 4.023337040000115
+      },
+      "ratio": {
+        "main:discard": 3.6746395093351407,
+        "main:write": 3.39211949410091,
+        "main:mixed": 3.295069475473912
+      }
+    },
+    {
+      "stream": "f99007f006ea.0.720p.h264",
+      "class": "720p",
+      "seconds": {
+        "ff_null": 1.8829807019992586,
+        "ff_raw": 2.027431374999651,
+        "main_discard": 6.901516988000367,
+        "main_write": 7.218214898000042
+      },
+      "ratio": {
+        "main:discard": 3.665208560381244,
+        "main:write": 3.560275818460827,
+        "main:mixed": 3.404069342668407
+      }
+    }
+  ],
+  "summary": {
+    "main:discard": {
+      "n": 16,
+      "median": 3.4344435750971707,
+      "ci_low": 2.9884467503383525,
+      "ci_high": 3.703350576835967
+    },
+    "main:write": {
+      "n": 16,
+      "median": 3.261835826624769,
+      "ci_low": 2.831821599262874,
+      "ci_high": 3.560275818460827
+    },
+    "main:mixed": {
+      "n": 16,
+      "median": 3.1487091084957695,
+      "ci_low": 2.7887895669515723,
+      "ci_high": 3.4203322077959486
+    }
+  }
+}

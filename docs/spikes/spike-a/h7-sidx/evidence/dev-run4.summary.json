@@ -1,0 +1,54 @@
+{
+  "files": 218,
+  "routes": {
+    "download_then_index": {
+      "files": 103,
+      "with_sidx_tag": 50,
+      "max_byte_share_pct": 100.0,
+      "median_byte_share_pct": 5.411,
+      "over_5pct": 58,
+      "median_requests": 1,
+      "max_requests": 4,
+      "median_wall_ms": 385.7,
+      "max_largest_read": 8192,
+      "accounting_matches_sender": true
+    },
+    "segment_index": {
+      "files": 82,
+      "with_sidx_tag": 82,
+      "max_byte_share_pct": 4.7345,
+      "median_byte_share_pct": 2.5793,
+      "over_5pct": 0,
+      "median_requests": 86.0,
+      "max_requests": 386,
+      "median_wall_ms": 2600.4,
+      "max_largest_read": 8192,
+      "accounting_matches_sender": true,
+      "median_subsegments": 85.5,
+      "max_subsegments": 384
+    },
+    "sequential": {
+      "files": 11,
+      "with_sidx_tag": 1,
+      "max_byte_share_pct": 1.229,
+      "median_byte_share_pct": 0.5943,
+      "over_5pct": 0,
+      "median_requests": 2,
+      "max_requests": 4,
+      "median_wall_ms": 723.4,
+      "max_largest_read": 4096,
+      "accounting_matches_sender": true
+    }
+  },
+  "errors": {
+    "invalid 'moof' box": 9,
+    "truncated structure": 10,
+    "invalid 'moov' box": 3
+  },
+  "reasons": {
+    "ByteBudget": 77,
+    "TooManyUnindexedFragments Absent": 20,
+    "TooManyUnindexedFragments SeveralFragmentsPerSubsegment": 4,
+    "TooManyUnindexedFragments Incomplete": 2
+  }
+}

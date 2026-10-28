@@ -1,0 +1,127 @@
+{
+ "what": "Indicative probe for the Opus decoder choice (docs/design/audio-decode.md, \"Opus\"); not a bar, not held-out.",
+ "host": "development VM, Intel Xeon @ 2.50GHz, 8 vCPU, Amazon Linux 2023",
+ "inputs": "the 13 largest non-held-out corpus v1 files with an Opus stream in MP4/Matroska/WebM whose download fit, first audio stream remuxed by stream copy to .mka, those of 40 s and more",
+ "ffmpeg": "/opt/coreav-oracle-bin/ffmpeg 7.0.2-static (johnvansickle), libopus 1.3.1 linked statically, build flags unknown",
+ "method_ffmpeg": "ffmpeg -threads 1 -c:a {opus|libopus} -i IN -map 0:a:0 -f s16le /dev/null, wall time, median of 3 alternated runs (1 run above 1000 s); opus_probe/ffmpeg_decoders.py",
+ "method_loop": "Amazon Linux 2023 libopus 1.3.1 (opus-devel 1.3.1-8.amzn2023.0.3), opus_decode to s16 in a loop over packets held in memory, decode time only, 2 runs; opus_probe/libopus_loop.c, packets from an Ogg remux by opus_probe/ogg_packets.py; the ratio uses the mean of the 2 runs",
+ "rows": [
+  {
+   "input_sha256_prefix": "25181295b355",
+   "seconds": 49,
+   "ffmpeg_opus_s": 0.219,
+   "ffmpeg_libopus_s": 0.497,
+   "ratio_libopus_in_ffmpeg": 2.269
+  },
+  {
+   "input_sha256_prefix": "3964b2ce7481",
+   "seconds": 1763,
+   "ffmpeg_opus_s": 5.65,
+   "ffmpeg_libopus_s": 17.696,
+   "ratio_libopus_in_ffmpeg": 3.132,
+   "libopus_loop_s": [
+    6.008,
+    6.024
+   ],
+   "ratio_libopus_loop_to_ffmpeg_opus_command": 1.065
+  },
+  {
+   "input_sha256_prefix": "49f1d878e7e8",
+   "seconds": 126,
+   "ffmpeg_opus_s": 0.393,
+   "ffmpeg_libopus_s": 1.246,
+   "ratio_libopus_in_ffmpeg": 3.17
+  },
+  {
+   "input_sha256_prefix": "4aa20009bc9c",
+   "seconds": 61,
+   "ffmpeg_opus_s": 0.25,
+   "ffmpeg_libopus_s": 0.706,
+   "ratio_libopus_in_ffmpeg": 2.824,
+   "libopus_loop_s": [
+    0.229,
+    0.238
+   ],
+   "ratio_libopus_loop_to_ffmpeg_opus_command": 0.934
+  },
+  {
+   "input_sha256_prefix": "4c8ba4c080ee",
+   "seconds": 4621,
+   "ffmpeg_opus_s": 14.696,
+   "ffmpeg_libopus_s": 44.695,
+   "ratio_libopus_in_ffmpeg": 3.041
+  },
+  {
+   "input_sha256_prefix": "72f24388ade4",
+   "seconds": 1689,
+   "ffmpeg_opus_s": 3.415,
+   "ffmpeg_libopus_s": 9.697,
+   "ratio_libopus_in_ffmpeg": 2.84,
+   "libopus_loop_s": [
+    2.891,
+    2.899
+   ],
+   "ratio_libopus_loop_to_ffmpeg_opus_command": 0.848
+  },
+  {
+   "input_sha256_prefix": "888e285196ec",
+   "seconds": 91,
+   "ffmpeg_opus_s": 0.273,
+   "ffmpeg_libopus_s": 0.858,
+   "ratio_libopus_in_ffmpeg": 3.143
+  },
+  {
+   "input_sha256_prefix": "93eedfd2d253",
+   "seconds": 390,
+   "ffmpeg_opus_s": 1.409,
+   "ffmpeg_libopus_s": 4.16,
+   "ratio_libopus_in_ffmpeg": 2.952,
+   "libopus_loop_s": [
+    1.545,
+    1.506
+   ],
+   "ratio_libopus_loop_to_ffmpeg_opus_command": 1.083
+  },
+  {
+   "input_sha256_prefix": "a9de6047cb31",
+   "seconds": 3727,
+   "ffmpeg_opus_s": 7.65,
+   "ffmpeg_libopus_s": 21.335,
+   "ratio_libopus_in_ffmpeg": 2.789
+  },
+  {
+   "input_sha256_prefix": "b8eda4a1a3c8",
+   "seconds": 123,
+   "ffmpeg_opus_s": 0.367,
+   "ffmpeg_libopus_s": 1.201,
+   "ratio_libopus_in_ffmpeg": 3.272
+  },
+  {
+   "input_sha256_prefix": "c4778f281055",
+   "seconds": 2583,
+   "ffmpeg_opus_s": 7.988,
+   "ffmpeg_libopus_s": 24.918,
+   "ratio_libopus_in_ffmpeg": 3.119
+  },
+  {
+   "input_sha256_prefix": "c56987bd7fe7",
+   "seconds": 72,
+   "ffmpeg_opus_s": 0.249,
+   "ffmpeg_libopus_s": 0.749,
+   "ratio_libopus_in_ffmpeg": 3.008
+  },
+  {
+   "input_sha256_prefix": "dd16cf26796d",
+   "seconds": 397,
+   "ffmpeg_opus_s": 1.308,
+   "ffmpeg_libopus_s": 3.886,
+   "ratio_libopus_in_ffmpeg": 2.971,
+   "libopus_loop_s": [
+    1.258,
+    1.268
+   ],
+   "ratio_libopus_loop_to_ffmpeg_opus_command": 0.966
+  }
+ ],
+ "reproduce": "inputs: ffmpeg -i IN -map 0:a:0 -c copy OUT.mka for each corpus file; python3 opus_probe/ffmpeg_decoders.py (reads /tmp/opusprobe/a/*.mka, no warm-up run); ffmpeg -i OUT.mka -map 0:a:0 -c copy OUT.ogg; python3 opus_probe/ogg_packets.py OUT.ogg OUT.pk; gcc -O2 opus_probe/libopus_loop.c -lopus -o loop; ./loop OUT.pk CHANNELS"
+}

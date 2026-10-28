@@ -1,0 +1,5 @@
+sd     n= 8 median 1.0045 [0.9755, 1.0217] faster 4/8
+720p   n= 8 median 1.0295 [0.9947, 1.0426] faster 2/8
+1080p  n= 8 median 1.0425 [0.9998, 1.0587] faster 2/8
+4k     n= 8 median 1.0158 [0.9908, 1.0310] faster 3/8
+all    n=32 median 1.0198 [1.0017, 1.0317] faster 11/32

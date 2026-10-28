@@ -1,0 +1,2 @@
+PASS model106 before-l4k 19:08Z 36501d448eaa.0.720p 1.294s (ref 1.295) ratio 0.999; a6af290d9053.0.1080p 4.327s (ref 4.388) ratio 0.986
+PASS model106 after-l4k 19:20Z 36501d448eaa.0.720p 1.269s (ref 1.295) ratio 0.980; a6af290d9053.0.1080p 4.217s (ref 4.388) ratio 0.961

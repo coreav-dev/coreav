@@ -1,0 +1,9 @@
+round 0
+round 1
+round 2
+round 3
+round 4
+round 5
+round 6
+p-b6b5: all 0.9899 [0.9863, 0.9935] (28/32 faster) sd 0.9937 720p 0.9880 1080p 0.9930 4k 0.9779
+m-acf3-n: all 0.9987 [0.9973, 1.0007] (20/32 faster) sd 0.9991 720p 0.9989 1080p 0.9996 4k 0.9973

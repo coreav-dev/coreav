@@ -1,0 +1,27 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2899.9 MHz, 8 logical CPUs
+gate baseline: 0.407 s (samples 0.419, 0.407, 0.400)
+41e324ebb708.0.sd.h264                   base:discard=1.01  base:write=0.99  base:mixed=0.94  k:discard=0.99  k:write=0.97  k:mixed=0.92  basenofast:discard=1.05  basenofast:write=1.02  basenofast:mixed=0.97  knofast:discard=1.05  knofast:write=1.02  knofast:mixed=0.97
+5185721dda11.0.sd.h264                   base:discard=1.02  base:write=1.00  base:mixed=0.96  k:discard=1.02  k:write=1.00  k:mixed=0.96  basenofast:discard=1.06  basenofast:write=1.03  basenofast:mixed=0.99  knofast:discard=1.06  knofast:write=1.03  knofast:mixed=0.99
+6f7799768413.0.sd.h264                   base:discard=1.25  base:write=1.21  base:mixed=1.17  k:discard=1.25  k:write=1.20  k:mixed=1.16  basenofast:discard=1.28  basenofast:write=1.23  basenofast:mixed=1.19  knofast:discard=1.29  knofast:write=1.24  knofast:mixed=1.20
+7650ae466748.0.sd.h264                   base:discard=1.04  base:write=1.02  base:mixed=0.98  k:discard=1.01  k:write=0.99  k:mixed=0.95  basenofast:discard=1.06  basenofast:write=1.04  basenofast:mixed=1.00  knofast:discard=1.06  knofast:write=1.04  knofast:mixed=1.00
+gate after 4 streams (check): 0.404 s (-0.6%)
+8ae90cadb5bc.0.sd.h264                   base:discard=1.08  base:write=1.05  base:mixed=1.03  k:discard=1.04  k:write=1.01  k:mixed=0.98  basenofast:discard=1.12  basenofast:write=1.09  basenofast:mixed=1.07  knofast:discard=1.11  knofast:write=1.08  knofast:mixed=1.05
+dcb262cf0138.0.sd.h264                   base:discard=0.89  base:write=0.89  base:mixed=0.86  k:discard=0.86  k:write=0.86  k:mixed=0.83  basenofast:discard=0.93  basenofast:write=0.92  basenofast:mixed=0.89  knofast:discard=0.93  knofast:write=0.92  knofast:mixed=0.89
+ec473c99c538.0.sd.h264                   base:discard=0.61  base:write=0.62  base:mixed=0.56  k:discard=0.60  k:write=0.61  k:mixed=0.56  basenofast:discard=0.64  basenofast:write=0.65  basenofast:mixed=0.59  knofast:discard=0.64  knofast:write=0.65  knofast:mixed=0.59
+f9e973f44570.0.sd.h264                   base:discard=0.91  base:write=0.91  base:mixed=0.88  k:discard=0.90  k:write=0.91  k:mixed=0.88  basenofast:discard=0.94  basenofast:write=0.94  basenofast:mixed=0.91  knofast:discard=0.93  knofast:write=0.94  knofast:mixed=0.91
+gate after 8 streams (check): 0.401 s (-1.5%)
+
+base:discard             n=  8  median 1.019  [0.892, 1.083]
+base:write               n=  8  median 0.997  [0.888, 1.055]
+base:mixed               n=  8  median 0.952  [0.857, 1.027]
+k:discard                n=  8  median 1.001  [0.864, 1.036]
+k:write                  n=  8  median 0.983  [0.860, 1.014]
+k:mixed                  n=  8  median 0.939  [0.829, 0.983]
+basenofast:discard       n=  8  median 1.052  [0.930, 1.124]
+basenofast:write         n=  8  median 1.027  [0.923, 1.088]
+basenofast:mixed         n=  8  median 0.983  [0.893, 1.066]
+knofast:discard          n=  8  median 1.051  [0.928, 1.111]
+knofast:write            n=  8  median 1.029  [0.923, 1.076]
+knofast:mixed            n=  8  median 0.982  [0.891, 1.054]
+
+wrote $HOME/ab/cabac-asm/out/g.sd.json

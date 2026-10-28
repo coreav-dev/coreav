@@ -1,0 +1,58 @@
+== 8 threads, training 32 (c4-standard-16): 32 of 32 streams
+  ft/base discard overall  n=32 median 0.9884 [0.9787,0.9963] faster 26/32
+  ft/base discard sd       n= 8 median 0.9952 [0.9801,1.0001] faster 6/8
+  ft/base discard 720p     n= 8 median 0.9796 [0.9555,0.9889] faster 8/8
+  ft/base discard 1080p    n= 8 median 0.9932 [0.9560,0.9991] faster 7/8
+  ft/base discard 4k       n= 8 median 0.9883 [0.9431,1.0073] faster 5/8
+  ft/base write   overall  n=32 median 0.9824 [0.9690,0.9915] faster 29/32
+  ft/base write   sd       n= 8 median 0.9921 [0.9851,0.9964] faster 8/8
+  ft/base write   720p     n= 8 median 0.9645 [0.9567,0.9906] faster 8/8
+  ft/base write   1080p    n= 8 median 0.9818 [0.9682,0.9999] faster 6/8
+  ft/base write   4k       n= 8 median 0.9767 [0.9568,0.9940] faster 7/8
+  base vs FFmpeg discard overall 0.875 (31 faster) sd 0.912 (8 faster) 720p 0.894 (7 faster) 1080p 0.930 (8 faster) 4k 0.696 (8 faster)
+  base vs FFmpeg write   overall 0.899 (29 faster) sd 0.945 (7 faster) 720p 0.940 (6 faster) 1080p 0.925 (8 faster) 4k 0.714 (8 faster)
+  ft   vs FFmpeg discard overall 0.866 (31 faster) sd 0.912 (8 faster) 720p 0.883 (7 faster) 1080p 0.919 (8 faster) 4k 0.686 (8 faster)
+  ft   vs FFmpeg write   overall 0.876 (31 faster) sd 0.933 (7 faster) 720p 0.916 (8 faster) 1080p 0.911 (8 faster) 4k 0.690 (8 faster)
+  t8.sd: unresolved 0, retried 0, gate drift 0, largest null deviation 0.002061132313147529
+  t8.720p: unresolved 0, retried 0, gate drift 0, largest null deviation 0.0034451703959237356
+  t8.1080p: unresolved 0, retried 0, gate drift 0, largest null deviation 0.0026711129365246666
+  t8.4k: unresolved 0, retried 0, gate drift 0, largest null deviation 0.0063168491730596354
+== 1 thread pinned, training 32 (helper VM): 32 of 32 streams
+  ft/base discard overall  n=32 median 0.9992 [0.9974,1.0032] faster 19/32
+  ft/base discard sd       n= 8 median 0.9994 [0.9974,1.0047] faster 5/8
+  ft/base discard 720p     n= 8 median 0.9990 [0.9840,1.0101] faster 4/8
+  ft/base discard 1080p    n= 8 median 0.9984 [0.9930,1.0092] faster 5/8
+  ft/base discard 4k       n= 8 median 0.9995 [0.9835,1.0098] faster 5/8
+  ft/base write   overall  n=32 median 0.9990 [0.9940,1.0066] faster 17/32
+  ft/base write   sd       n= 8 median 0.9979 [0.9930,1.0008] faster 6/8
+  ft/base write   720p     n= 8 median 1.0073 [0.9893,1.0136] faster 3/8
+  ft/base write   1080p    n= 8 median 0.9999 [0.9919,1.0155] faster 4/8
+  ft/base write   4k       n= 8 median 0.9987 [0.9818,1.0093] faster 4/8
+  base vs FFmpeg discard overall 1.022 (15 faster) sd 0.944 (6 faster) 720p 1.065 (2 faster) 1080p 1.075 (1 faster) 4k 0.908 (6 faster)
+  base vs FFmpeg write   overall 0.990 (17 faster) sd 0.931 (7 faster) 720p 1.018 (2 faster) 1080p 1.044 (1 faster) 4k 0.835 (7 faster)
+  ft   vs FFmpeg discard overall 1.016 (15 faster) sd 0.945 (6 faster) 720p 1.059 (2 faster) 1080p 1.078 (1 faster) 4k 0.899 (6 faster)
+  ft   vs FFmpeg write   overall 0.981 (19 faster) sd 0.932 (7 faster) 720p 1.018 (3 faster) 1080p 1.037 (1 faster) 4k 0.843 (8 faster)
+  g.sd: unresolved 0, retried 1, gate drift 0, largest null deviation 0.008627726705145
+  g.720p: unresolved 0, retried 2, gate drift 0, largest null deviation 0.022273211482008004
+  g.1080p: unresolved 0, retried 1, gate drift 0, largest null deviation 0.03624223817853034
+  g.4k: unresolved 1, retried 1, gate drift 0, largest null deviation 0.03331615154245027
+== 8 threads, held-out 64 (c4-standard-16): 64 of 64 streams
+  ft/base discard overall  n=64 median 0.9893 [0.9777,0.9950] faster 48/64
+  ft/base discard sd       n=16 median 0.9886 [0.9807,0.9953] faster 14/16
+  ft/base discard 720p     n=16 median 0.9769 [0.9647,0.9911] faster 15/16
+  ft/base discard 1080p    n=16 median 0.9852 [0.9233,0.9995] faster 12/16
+  ft/base discard 4k       n=16 median 1.0004 [0.9936,1.0037] faster 7/16
+  ft/base write   overall  n=64 median 0.9825 [0.9735,0.9882] faster 57/64
+  ft/base write   sd       n=16 median 0.9893 [0.9820,0.9910] faster 14/16
+  ft/base write   720p     n=16 median 0.9718 [0.9616,0.9811] faster 16/16
+  ft/base write   1080p    n=16 median 0.9670 [0.9407,0.9955] faster 14/16
+  ft/base write   4k       n=16 median 0.9881 [0.9726,0.9991] faster 13/16
+  base vs FFmpeg discard overall 0.871 (59 faster) sd 0.943 (15 faster) 720p 0.909 (13 faster) 1080p 0.865 (15 faster) 4k 0.708 (16 faster)
+  base vs FFmpeg write   overall 0.877 (56 faster) sd 0.964 (13 faster) 720p 0.935 (12 faster) 1080p 0.861 (15 faster) 4k 0.726 (16 faster)
+  ft   vs FFmpeg discard overall 0.852 (61 faster) sd 0.926 (16 faster) 720p 0.888 (14 faster) 1080p 0.850 (15 faster) 4k 0.697 (16 faster)
+  ft   vs FFmpeg write   overall 0.864 (59 faster) sd 0.946 (14 faster) 720p 0.904 (14 faster) 1080p 0.845 (15 faster) 4k 0.714 (16 faster)
+  h8.sd: unresolved 0, retried 0, gate drift 0, largest null deviation 0.009488030798372904
+  h8.720p: unresolved 0, retried 0, gate drift 0, largest null deviation 0.005510892772715437
+  h8.1080p: unresolved 0, retried 0, gate drift 0, largest null deviation 0.01273150755930641
+  h8.4k: unresolved 0, retried 0, gate drift 0, largest null deviation 0.011064566009619026
+bars: HB-1 pass, HB-2 FAIL, HB-3 pass, HB-4 pass, HB-5 pass (HB-6 from identity.txt, conformance.txt)

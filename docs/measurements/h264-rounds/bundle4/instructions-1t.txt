@@ -1,0 +1,5 @@
+# base = main 1e7dd54b, k = e348cacd (bundle 4 rebased on it); callgrind Ir, 60 frames, --discard, one thread
+175433794e02.0.1080p.h264 base Collected : 5236607417
+175433794e02.0.1080p.h264 k Collected : 5238162792
+41e324ebb708.0.sd.h264 base Collected : 146955128
+41e324ebb708.0.sd.h264 k Collected : 147011328

@@ -1,0 +1,4 @@
+# cargo +nightly fuzz run --target x86_64-unknown-linux-gnu intra -- -max_total_time=600 -max_len=4096, on a3e9e9a's kernels (crates/coreav-kernels-h264), this VM
+INFO: Seed: 2303093450
+Done 14106123 runs in 601 second(s)
+exit 0

@@ -1,0 +1,1559 @@
+{
+ "per_stream": {
+  "41e324ebb708": {
+   "ours": {
+    "combine": 181,
+    "deblock strength/driver": 105,
+    "luma MC": 92,
+    "chroma MC": 98,
+    "mb control": 295,
+    "entropy": 253,
+    "deblock filter": 148,
+    "intra pred": 47,
+    "picture/edge/output": 41,
+    "idct/dequant/add": 53,
+    "other": 15
+   },
+   "ffsimd": {
+    "other": 104,
+    "mb control": 116,
+    "entropy": 221,
+    "deblock strength/driver": 107,
+    "luma MC": 87,
+    "combine": 27,
+    "picture/edge/output": 14,
+    "deblock filter": 78,
+    "chroma MC": 30,
+    "idct/dequant/add": 14,
+    "intra pred": 5
+   }
+  },
+  "5185721dda11": {
+   "ours": {
+    "deblock strength/driver": 64,
+    "entropy": 132,
+    "mb control": 102,
+    "deblock filter": 86,
+    "chroma MC": 27,
+    "idct/dequant/add": 39,
+    "picture/edge/output": 22,
+    "luma MC": 24,
+    "intra pred": 19,
+    "other": 15
+   },
+   "ffsimd": {
+    "other": 77,
+    "deblock filter": 39,
+    "mb control": 38,
+    "deblock strength/driver": 40,
+    "entropy": 97,
+    "idct/dequant/add": 17,
+    "luma MC": 16,
+    "picture/edge/output": 3,
+    "intra pred": 2,
+    "chroma MC": 3
+   }
+  },
+  "9db41aa16b5a": {
+   "ours": {
+    "combine": 263,
+    "deblock filter": 455,
+    "deblock strength/driver": 156,
+    "intra pred": 121,
+    "mb control": 230,
+    "chroma MC": 50,
+    "entropy": 126,
+    "luma MC": 37,
+    "picture/edge/output": 40,
+    "idct/dequant/add": 36,
+    "other": 14
+   },
+   "ffsimd": {
+    "other": 78,
+    "deblock filter": 230,
+    "mb control": 92,
+    "entropy": 96,
+    "luma MC": 26,
+    "deblock strength/driver": 92,
+    "picture/edge/output": 13,
+    "idct/dequant/add": 13,
+    "combine": 38,
+    "intra pred": 21,
+    "chroma MC": 12
+   }
+  },
+  "1d4b1775d78a": {
+   "ours": {
+    "deblock strength/driver": 135,
+    "entropy": 226,
+    "luma MC": 77,
+    "chroma MC": 80,
+    "deblock filter": 184,
+    "intra pred": 67,
+    "mb control": 205,
+    "combine": 35,
+    "idct/dequant/add": 66,
+    "picture/edge/output": 15,
+    "other": 21
+   },
+   "ffsimd": {
+    "other": 27,
+    "entropy": 229,
+    "deblock filter": 83,
+    "intra pred": 20,
+    "chroma MC": 23,
+    "luma MC": 56,
+    "mb control": 98,
+    "deblock strength/driver": 79,
+    "idct/dequant/add": 21,
+    "combine": 15,
+    "picture/edge/output": 8
+   }
+  },
+  "6da34958296c": {
+   "ours": {
+    "luma MC": 233,
+    "deblock strength/driver": 228,
+    "entropy": 429,
+    "chroma MC": 236,
+    "mb control": 535,
+    "deblock filter": 224,
+    "picture/edge/output": 69,
+    "idct/dequant/add": 73,
+    "intra pred": 27,
+    "combine": 5,
+    "other": 29
+   },
+   "ffsimd": {
+    "other": 49,
+    "deblock strength/driver": 183,
+    "entropy": 385,
+    "deblock filter": 97,
+    "mb control": 255,
+    "intra pred": 6,
+    "idct/dequant/add": 27,
+    "chroma MC": 59,
+    "luma MC": 134,
+    "picture/edge/output": 27,
+    "combine": 2
+   }
+  },
+  "b71b6b31e54f": {
+   "ours": {
+    "luma MC": 220,
+    "chroma MC": 217,
+    "mb control": 473,
+    "entropy": 208,
+    "deblock strength/driver": 49,
+    "idct/dequant/add": 72,
+    "intra pred": 50,
+    "deblock filter": 59,
+    "picture/edge/output": 37,
+    "other": 26
+   },
+   "ffsimd": {
+    "other": 53,
+    "entropy": 184,
+    "mb control": 165,
+    "idct/dequant/add": 33,
+    "luma MC": 124,
+    "chroma MC": 46,
+    "picture/edge/output": 17,
+    "intra pred": 6,
+    "deblock strength/driver": 41,
+    "deblock filter": 11
+   }
+  },
+  "3b1b441e23ae": {
+   "ours": {
+    "chroma MC": 167,
+    "luma MC": 138,
+    "mb control": 366,
+    "deblock strength/driver": 53,
+    "picture/edge/output": 37,
+    "combine": 14,
+    "entropy": 29,
+    "deblock filter": 25,
+    "intra pred": 11,
+    "other": 32,
+    "idct/dequant/add": 4
+   },
+   "ffsimd": {
+    "other": 29,
+    "entropy": 101,
+    "deblock filter": 12,
+    "mb control": 149,
+    "intra pred": 1,
+    "deblock strength/driver": 88,
+    "combine": 25,
+    "luma MC": 31,
+    "picture/edge/output": 19,
+    "chroma MC": 21
+   }
+  },
+  "e624cbe0d2be": {
+   "ours": {
+    "chroma MC": 212,
+    "mb control": 375,
+    "luma MC": 158,
+    "deblock strength/driver": 79,
+    "entropy": 190,
+    "picture/edge/output": 32,
+    "intra pred": 29,
+    "other": 68,
+    "deblock filter": 31,
+    "idct/dequant/add": 13
+   },
+   "ffsimd": {
+    "other": 38,
+    "entropy": 266,
+    "deblock filter": 22,
+    "deblock strength/driver": 44,
+    "intra pred": 6,
+    "luma MC": 34,
+    "mb control": 136,
+    "idct/dequant/add": 13,
+    "chroma MC": 26,
+    "picture/edge/output": 14
+   }
+  }
+ },
+ "total": {
+  "ours": {
+   "combine": 498,
+   "deblock strength/driver": 869,
+   "luma MC": 979,
+   "chroma MC": 1087,
+   "mb control": 2581,
+   "entropy": 1593,
+   "deblock filter": 1212,
+   "intra pred": 371,
+   "picture/edge/output": 293,
+   "idct/dequant/add": 356,
+   "other": 220
+  },
+  "ffsimd": {
+   "other": 455,
+   "mb control": 1049,
+   "entropy": 1579,
+   "deblock strength/driver": 674,
+   "luma MC": 508,
+   "combine": 107,
+   "picture/edge/output": 115,
+   "deblock filter": 572,
+   "chroma MC": 220,
+   "idct/dequant/add": 138,
+   "intra pred": 67
+  }
+ },
+ "functions": {
+  "ours": [
+   [
+    "coreav_kernels_h264::simd::x86::luma_mc_into",
+    939
+   ],
+   [
+    "<coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::chroma_mc",
+    893
+   ],
+   [
+    "coreav_h264::deblock::deblock_rows::<coreav_kernels_h264::Auto>",
+    830
+   ],
+   [
+    "<coreav_h264::work::PictureWork<coreav_kernels_h264::Auto>>::decode_slice",
+    650
+   ],
+   [
+    "<coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::inter_pred",
+    584
+   ],
+   [
+    "<coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::predict_list",
+    557
+   ],
+   [
+    "coreav_kernels_h264::simd::x86::filter_luma_edge::<false, true>",
+    527
+   ],
+   [
+    "coreav_kernels_h264::simd::x86::combine",
+    486
+   ],
+   [
+    "<coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode_mb::<coreav_h264::syntax::CabacSyntax>",
+    378
+   ],
+   [
+    "coreav_kernels_h264::simd::x86::filter_chroma_edge::<false, true>",
+    282
+   ],
+   [
+    "<coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reconstruct_intra",
+    252
+   ],
+   [
+    "coreav_kernels_h264::simd::x86::filter_luma_edge::<true, true>",
+    233
+   ],
+   [
+    "<coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::motion_compensate",
+    226
+   ],
+   [
+    "coreav_h264::inter::edge_window",
+    205
+   ],
+   [
+    "<coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::chroma_mc_avg",
+    194
+   ],
+   [
+    "coreav_kernels_h264::simd::x86::idct4x4_add_quad",
+    175
+   ],
+   [
+    "coreav_kernels_h264::simd::x86::filter_chroma_edge::<true, true>",
+    170
+   ],
+   [
+    "coreav_h264::cavlc::residual_block",
+    156
+   ],
+   [
+    "<coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::colocated",
+    129
+   ],
+   [
+    "<coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::parse_residual::<coreav_h264::syntax::CavlcSyntax>",
+    128
+   ],
+   [
+    "coreav_h264::cabac::significance_map::<16>",
+    124
+   ],
+   [
+    "<coreav_h264::cabac::Cabac>::mvd",
+    116
+   ],
+   [
+    "coreav_h264::cabac::levels::<16>",
+    113
+   ],
+   [
+    "<coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::mv_predictor",
+    112
+   ],
+   [
+    "<coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::start_mb",
+    110
+   ],
+   [
+    "coreav_h264::intra::pred_chroma",
+    110
+   ],
+   [
+    "<coreav_h264::cavlc::Code>::read",
+    98
+   ],
+   [
+    "<coreav_h264::decoder::Decoder>::start_picture",
+    87
+   ],
+   [
+    "<coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::parse_residual::<coreav_h264::syntax::CabacSyntax>",
+    80
+   ],
+   [
+    "<coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::parse_mvd::<coreav_h264::syntax::CabacSyntax>",
+    75
+   ],
+   [
+    "<coreav_h264::mb::MbData>::reset",
+    73
+   ],
+   [
+    "<coreav_h264::syntax::CabacSyntax as coreav_h264::syntax::Syntax>::block::<16>",
+    70
+   ],
+   [
+    "<coreav_h264::bits::BitReader>::ue",
+    55
+   ],
+   [
+    "coreav_kernels_h264::simd::x86::idct8x8_add",
+    48
+   ],
+   [
+    "<coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reconstruct_chroma",
+    44
+   ],
+   [
+    "coreav_h264::deblock::differing_motion_strength",
+    39
+   ],
+   [
+    "<coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::spatial_direct",
+    39
+   ],
+   [
+    "<coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::residual_4x4_luma",
+    33
+   ],
+   [
+    "<coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::store_motion",
+    30
+   ],
+   [
+    "<coreav_h264::syntax::CavlcSyntax as coreav_h264::syntax::Syntax>::block_context::<coreav_kernels_h264::Auto>",
+    30
+   ],
+   [
+    "<coreav_kernels_h264::scalar::Scalar as coreav_kernels_h264::Kernels>::idct4x4_add",
+    29
+   ],
+   [
+    "<coreav_h264::syntax::CabacSyntax>::intra_mb_type",
+    25
+   ],
+   [
+    "<coreav_h264::syntax::CabacSyntax as coreav_h264::syntax::Syntax>::ref_idx::<coreav_kernels_h264::Auto>",
+    25
+   ],
+   [
+    "<coreav_h264::decoder::Decoder>::decode_unit",
+    25
+   ],
+   [
+    "coreav_h264::cabac::significance_map::<4>",
+    25
+   ],
+   [
+    "do_user_addr_fault",
+    24
+   ],
+   [
+    "coreav_h264::cabac::levels::<4>",
+    23
+   ],
+   [
+    "__memmove_evex_unaligned_erms",
+    22
+   ],
+   [
+    "<coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::fill_ctx::<1>",
+    22
+   ],
+   [
+    "<coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::luma_mc",
+    21
+   ],
+   [
+    "<coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::prepare_level_scales",
+    21
+   ],
+   [
+    "<coreav_h264::syntax::CabacSyntax as coreav_h264::syntax::Syntax>::block_context::<coreav_kernels_h264::Auto>",
+    20
+   ],
+   [
+    "clear_page_erms",
+    18
+   ],
+   [
+    "<coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reconstruct_inter",
+    17
+   ],
+   [
+    "coreav_h264::cabac::significance_map::<64>",
+    14
+   ],
+   [
+    "<coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::combine",
+    12
+   ],
+   [
+    "<coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::intra_neighbours",
+    12
+   ],
+   [
+    "charge_memcg",
+    12
+   ],
+   [
+    "<coreav_h264::recon::CoeffScale<16>>::new",
+    11
+   ],
+   [
+    "<coreav_h264::cabac::Engine>::exp_golomb_bypass",
+    10
+   ],
+   [
+    "coreav_h264::cabac::levels::<64>",
+    10
+   ],
+   [
+    "___pte_offset_map",
+    10
+   ],
+   [
+    "<coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::derive_4x4_mode",
+    9
+   ],
+   [
+    "<coreav_h264::picture::BandData>::fit",
+    9
+   ],
+   [
+    "<coreav_h264::syntax::CabacSyntax as coreav_h264::syntax::Syntax>::rem_intra_mode",
+    9
+   ],
+   [
+    "decode::main",
+    8
+   ],
+   [
+    "<coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::idct4x4_add_quad",
+    7
+   ],
+   [
+    "memcg1_commit_charge",
+    7
+   ],
+   [
+    "_raw_spin_unlock_irqrestore",
+    7
+   ],
+   [
+    "zap_present_ptes.constprop.0",
+    7
+   ],
+   [
+    "<coreav_h264::syntax::CabacSyntax as coreav_h264::syntax::Syntax>::prev_intra_flag",
+    6
+   ],
+   [
+    "try_charge_memcg",
+    6
+   ],
+   [
+    "__list_del_entry_valid_or_report",
+    6
+   ],
+   [
+    "<coreav_kernels_h264::scalar::Scalar as coreav_kernels_h264::Kernels>::luma_mc::{closure#6}",
+    6
+   ],
+   [
+    "<coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::luma_mc_avg",
+    5
+   ],
+   [
+    "<coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::idct8x8_add",
+    4
+   ],
+   [
+    "<coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::derive_8x8_mode",
+    4
+   ],
+   [
+    "__memset_evex_unaligned_erms",
+    4
+   ],
+   [
+    "<coreav_kernels_h264::scalar::Scalar as coreav_kernels_h264::Kernels>::luma_mc",
+    4
+   ],
+   [
+    "_int_free",
+    3
+   ],
+   [
+    "coreav_kernels_h264::simd::x86::luma_mc",
+    3
+   ],
+   [
+    "_raw_spin_lock",
+    3
+   ],
+   [
+    "<coreav_h264::picture::Canvas>::put_band",
+    2
+   ],
+   [
+    "do_anonymous_page",
+    2
+   ],
+   [
+    "_copy_to_iter",
+    2
+   ],
+   [
+    "handle_softirqs",
+    2
+   ],
+   [
+    "<coreav_h264::syntax::CabacSyntax as coreav_h264::syntax::Syntax>::transform8x8::<coreav_kernels_h264::Auto>",
+    2
+   ],
+   [
+    "cfree@GLIBC_2.2.5",
+    2
+   ],
+   [
+    "realloc",
+    2
+   ],
+   [
+    "coreav_h264::slice::parse_slice_header",
+    2
+   ],
+   [
+    "folio_add_new_anon_rmap",
+    2
+   ],
+   [
+    "alloc_anon_folio",
+    2
+   ],
+   [
+    "alloc_pages_mpol",
+    1
+   ],
+   [
+    "do_syscall_64",
+    1
+   ],
+   [
+    "<coreav_h264::decoder::Decoder>::new_picture",
+    1
+   ],
+   [
+    "_raw_spin_trylock",
+    1
+   ],
+   [
+    "futex_hash",
+    1
+   ],
+   [
+    "folio_remove_rmap_ptes",
+    1
+   ],
+   [
+    "<coreav_h264::decoder::Decoder>::finish_picture",
+    1
+   ],
+   [
+    "<coreav_h264::picture::Canvas>::new",
+    1
+   ],
+   [
+    "__get_user_8",
+    1
+   ],
+   [
+    "__handle_mm_fault",
+    1
+   ],
+   [
+    "__lruvec_stat_mod_folio",
+    1
+   ],
+   [
+    "rcu_all_qs",
+    1
+   ],
+   [
+    "rmqueue.constprop.0",
+    1
+   ],
+   [
+    "zap_pte_range",
+    1
+   ],
+   [
+    "0x00000000000296d0",
+    1
+   ],
+   [
+    "__bitmap_and",
+    1
+   ],
+   [
+    "__folio_mod_stat",
+    1
+   ],
+   [
+    "__folio_throttle_swaprate",
+    1
+   ],
+   [
+    "__memcmp_evex_movbe",
+    1
+   ],
+   [
+    "core::ptr::drop_glue::<alloc::vec::Vec<coreav_h264::picture::BandData>>",
+    1
+   ],
+   [
+    "<coreav_h264::dpb::Dpb>::remove_unneeded",
+    1
+   ],
+   [
+    "__alloc_frozen_pages_noprof",
+    1
+   ],
+   [
+    "__futex_hash",
+    1
+   ],
+   [
+    "coreav_kernels_h264::simd::x86::luma_mc_avg",
+    1
+   ],
+   [
+    "folios_put_refs",
+    1
+   ],
+   [
+    "free_unref_folios",
+    1
+   ],
+   [
+    "mas_walk",
+    1
+   ],
+   [
+    "mod_memcg_lruvec_state",
+    1
+   ],
+   [
+    "vma_alloc_folio_noprof",
+    1
+   ],
+   [
+    "<coreav_h264::picture::Canvas>::publish_ready",
+    1
+   ],
+   [
+    "__folio_batch_add_and_move",
+    1
+   ],
+   [
+    "__pte_offset_map_lock",
+    1
+   ],
+   [
+    "coreav_h264::cabac::exp_golomb_bypass_out_of_line",
+    1
+   ],
+   [
+    "lock_vma_under_rcu",
+    1
+   ]
+  ],
+  "ffsimd": [
+   [
+    "mc_part_420_simple_8",
+    398
+   ],
+   [
+    "ff_h264_decode_mb_cabac",
+    333
+   ],
+   [
+    "loop_filter",
+    325
+   ],
+   [
+    "get_cabac_noinline",
+    309
+   ],
+   [
+    "hl_decode_mb_simple_8",
+    244
+   ],
+   [
+    "ff_h264_decode_mb_cavlc",
+    205
+   ],
+   [
+    "ff_deblock_v_luma_8_avx",
+    196
+   ],
+   [
+    "get_cabac",
+    170
+   ],
+   [
+    "decode_residual",
+    168
+   ],
+   [
+    "fill_decode_caches",
+    158
+   ],
+   [
+    "ff_h264_loop_filter_strength_mmxext.bidir",
+    144
+   ],
+   [
+    "ff_deblock_h_luma_8_avx",
+    140
+   ],
+   [
+    "ff_h264_filter_mb_fast",
+    133
+   ],
+   [
+    "ff_h264_pred_direct_motion",
+    122
+   ],
+   [
+    "put_pixels16_after_prologue.loop",
+    119
+   ],
+   [
+    "decode_significance_x86",
+    116
+   ],
+   [
+    "decode_cabac_mb_mvd",
+    108
+   ],
+   [
+    "ff_prefetch_mmxext.loop",
+    106
+   ],
+   [
+    "ff_put_h264_chroma_mc8_rnd_ssse3.next4rows",
+    92
+   ],
+   [
+    "ff_put_h264_qpel8or16_v_lowpass_sse2",
+    83
+   ],
+   [
+    "ff_put_h264_qpel16_h_lowpass_l2_ssse3.loop",
+    81
+   ],
+   [
+    "ff_deblock_v_luma_intra_8_avx",
+    71
+   ],
+   [
+    "ff_h264_loop_filter_strength_mmxext.nofield",
+    66
+   ],
+   [
+    "decode_cabac_residual_nondc_internal",
+    60
+   ],
+   [
+    "decode_cabac_mb_skip",
+    59
+   ],
+   [
+    "ff_deblock_h_chroma_8_avx",
+    54
+   ],
+   [
+    "0xffffffff812c5329 (outside ffmpeg)",
+    49
+   ],
+   [
+    "ff_deblock_h_luma_intra_8_avx",
+    48
+   ],
+   [
+    "decode_slice",
+    48
+   ],
+   [
+    "h264_add8x4_idct_sse2",
+    48
+   ],
+   [
+    "ff_h264_weight_16_sse2.nextrow",
+    42
+   ],
+   [
+    "avg_pixels16_after_prologue.loop",
+    40
+   ],
+   [
+    "fill_decode_neighbors",
+    39
+   ],
+   [
+    "ff_put_h264_qpel8or16_hv1_lowpass_op_sse2",
+    36
+   ],
+   [
+    "ff_avg_h264_chroma_mc8_rnd_ssse3.next4rows",
+    33
+   ],
+   [
+    "ff_h264_hl_decode_mb",
+    32
+   ],
+   [
+    "0xffffffff81e32548 (outside ffmpeg)",
+    30
+   ],
+   [
+    "ff_h264_biweight_16_ssse3.nextrow",
+    29
+   ],
+   [
+    "ff_deblock_v_chroma_8_avx",
+    29
+   ],
+   [
+    "0xffffffff8127158f (outside ffmpeg)",
+    28
+   ],
+   [
+    "h264_idct_dc_add8_mmxext",
+    27
+   ],
+   [
+    "ff_deblock_h_chroma_intra_8_avx",
+    26
+   ],
+   [
+    "decode_cabac_mb_ref",
+    23
+   ],
+   [
+    "ff_avg_h264_qpel16_h_lowpass_l2_ssse3.loop",
+    22
+   ],
+   [
+    "ff_put_h264_chroma_mc8_rnd_ssse3.next2rows",
+    22
+   ],
+   [
+    "ff_put_h264_qpel8_h_lowpass_l2_ssse3.loop",
+    19
+   ],
+   [
+    "decode_cabac_residual_dc_internal",
+    18
+   ],
+   [
+    "ff_put_h264_qpel8_h_lowpass_ssse3.loop",
+    18
+   ],
+   [
+    "ff_put_h264_chroma_mc8_rnd_ssse3.next2xrows",
+    17
+   ],
+   [
+    "ff_put_h264_chroma_mc4_ssse3.next2rows",
+    17
+   ],
+   [
+    "ff_put_h264_qpel16_hv2_lowpass_ssse3.loop",
+    16
+   ],
+   [
+    "ff_pred8x8_dc_8_sse2",
+    15
+   ],
+   [
+    "ff_h264_biweight_8_ssse3.nextrow",
+    13
+   ],
+   [
+    "ff_h264_biweight_8_ssse3",
+    12
+   ],
+   [
+    "ff_put_pixels16x16_sse2",
+    11
+   ],
+   [
+    "ff_h264_chroma_dc_dequant_idct_8_c",
+    11
+   ],
+   [
+    "ff_put_h264_chroma_mc8_rnd_ssse3.next2yrows",
+    10
+   ],
+   [
+    "ff_put_h264_chroma_mc8_rnd_ssse3",
+    10
+   ],
+   [
+    "0xffffffff814a17f7 (outside ffmpeg)",
+    10
+   ],
+   [
+    "put_h264_qpel8_mc00_8_c",
+    9
+   ],
+   [
+    "0xffffffff818c7950 (outside ffmpeg)",
+    9
+   ],
+   [
+    "ff_startcode_find_candidate_c",
+    8
+   ],
+   [
+    "ff_pred16x16_horizontal_8_avx2.loop",
+    8
+   ],
+   [
+    "ff_deblock_v_chroma_intra_8_avx",
+    8
+   ],
+   [
+    "ff_put_h264_qpel8_hv2_lowpass_ssse3.loop",
+    7
+   ],
+   [
+    "ff_avg_h264_qpel8_h_lowpass_ssse3.loop",
+    7
+   ],
+   [
+    "put_h264_qpel16_mc30_ssse3",
+    6
+   ],
+   [
+    "ff_h264_loop_filter_strength_mmxext",
+    6
+   ],
+   [
+    "ff_h264_queue_decode_slice",
+    6
+   ],
+   [
+    "container_packet_transfer",
+    5
+   ],
+   [
+    "ff_h264_biweight_8_ssse3.normal",
+    5
+   ],
+   [
+    "ff_h264_idct_add_8_avx",
+    5
+   ],
+   [
+    "ff_pred4x4_dc_8_mmxext",
+    5
+   ],
+   [
+    "ff_put_h264_chroma_mc4_ssse3",
+    5
+   ],
+   [
+    "ff_h264_idct_add16_8_sse2",
+    5
+   ],
+   [
+    "0x7eff7c098cad (outside ffmpeg)",
+    5
+   ],
+   [
+    "ff_h264_idct8_add4_8_sse2.nextblock",
+    5
+   ],
+   [
+    "av_frame_unref.part.0",
+    4
+   ],
+   [
+    "av_buffer_unref",
+    4
+   ],
+   [
+    "put_h264_qpel16_mc21_ssse3",
+    4
+   ],
+   [
+    "h264_frame_start",
+    4
+   ],
+   [
+    "ff_h264_idct_add8_8_sse2.try0dc",
+    4
+   ],
+   [
+    "ff_pred16x16_dc_8_ssse3",
+    4
+   ],
+   [
+    "ff_avg_h264_chroma_mc8_rnd_ssse3.next2rows",
+    4
+   ],
+   [
+    "ff_h264_idct_add8_8_sse2",
+    4
+   ],
+   [
+    "ff_h2645_extract_rbsp",
+    4
+   ],
+   [
+    "ff_h264_check_intra_pred_mode",
+    4
+   ],
+   [
+    "ff_pred16x16_dc_8_ssse3.loop",
+    4
+   ],
+   [
+    "0xffffffff815235b1 (outside ffmpeg)",
+    4
+   ],
+   [
+    "av_buffersrc_add_frame_flags",
+    3
+   ],
+   [
+    "0x7f5aaa098cad (outside ffmpeg)",
+    3
+   ],
+   [
+    "ff_h264_execute_ref_pic_marking",
+    3
+   ],
+   [
+    "ff_h264_init_cabac_states",
+    3
+   ],
+   [
+    "decode_cabac_intra_mb_type",
+    3
+   ],
+   [
+    "0x7f5aaa098a4b (outside ffmpeg)",
+    3
+   ],
+   [
+    "0xffffffff81e24d06 (outside ffmpeg)",
+    3
+   ],
+   [
+    "decode_finish_row.constprop.0",
+    3
+   ],
+   [
+    "pred4x4_horizontal_8_c",
+    3
+   ],
+   [
+    "ff_put_h264_chroma_mc8_rnd_ssse3.at_least_one_non_zero",
+    3
+   ],
+   [
+    "ff_put_pixels16_l2_shift5_sse2.loop",
+    3
+   ],
+   [
+    "h264_find_frame_end",
+    3
+   ],
+   [
+    "av_refstruct_unref",
+    3
+   ],
+   [
+    "put_h264_qpel16_mc01_sse2",
+    3
+   ],
+   [
+    "ff_h264_idct8_add4_8_sse2.no_dc",
+    3
+   ],
+   [
+    "ff_h264_biweight_16_ssse3.normal",
+    3
+   ],
+   [
+    "ff_pred16x16_horizontal_8_avx2",
+    3
+   ],
+   [
+    "ff_h264_idct_add16intra_8_sse2.try6dc",
+    3
+   ],
+   [
+    "ff_h264_idct_add8_8_sse2.try3dc",
+    3
+   ],
+   [
+    "ff_avg_h264_chroma_mc8_rnd_ssse3",
+    3
+   ],
+   [
+    "0x7fb38256d67a (outside ffmpeg)",
+    3
+   ],
+   [
+    "0x7f5aaa098ade (outside ffmpeg)",
+    2
+   ],
+   [
+    "avcodec_default_get_buffer2",
+    2
+   ],
+   [
+    "0x7f5aaa09a6bd (outside ffmpeg)",
+    2
+   ],
+   [
+    "ff_h264_build_ref_list",
+    2
+   ],
+   [
+    "av_ts_make_time_string2",
+    2
+   ],
+   [
+    "0x7f5aaa08837a (outside ffmpeg)",
+    2
+   ],
+   [
+    "av_fifo_can_write",
+    2
+   ],
+   [
+    "ff_avg_h264_chroma_mc8_rnd_ssse3.next2yrows",
+    2
+   ],
+   [
+    "h264_decode_frame",
+    2
+   ],
+   [
+    "av_refstruct_pool_get",
+    2
+   ],
+   [
+    "0xffffffff81489806 (outside ffmpeg)",
+    2
+   ],
+   [
+    "ff_decode_receive_frame_internal",
+    2
+   ],
+   [
+    "parse_packet",
+    2
+   ],
+   [
+    "av_parser_parse2",
+    2
+   ],
+   [
+    "put_h264_qpel16_mc20_ssse3",
+    2
+   ],
+   [
+    "fg_output_frame",
+    2
+   ],
+   [
+    "put_h264_qpel8_mc30_ssse3",
+    2
+   ],
+   [
+    "0xffffffff81e32b84 (outside ffmpeg)",
+    2
+   ],
+   [
+    "ff_h264_idct8_add_8_sse2",
+    2
+   ],
+   [
+    "ff_emu_edge_vfix21_sse2.bottom_loop",
+    2
+   ],
+   [
+    "0xffffffff8151c59c (outside ffmpeg)",
+    2
+   ],
+   [
+    "ff_emu_edge_vfix21_sse2.body_loop",
+    2
+   ],
+   [
+    "ff_encode_encode_cb",
+    2
+   ],
+   [
+    "0x7f92b5697c0a (outside ffmpeg)",
+    2
+   ],
+   [
+    "0x7f92b5698cad (outside ffmpeg)",
+    2
+   ],
+   [
+    "ff_h2645_sei_reset",
+    2
+   ],
+   [
+    "av_fifo_write",
+    2
+   ],
+   [
+    "put_h264_qpel8_mc33_ssse3",
+    2
+   ],
+   [
+    "0xffffffff8189abdd (outside ffmpeg)",
+    2
+   ],
+   [
+    "ff_h264_idct_add16intra_8_sse2",
+    2
+   ],
+   [
+    "ff_cpu_cpuid",
+    2
+   ],
+   [
+    "0xffffffff81e20ebb (outside ffmpeg)",
+    2
+   ],
+   [
+    "ff_avg_h264_qpel8or16_v_lowpass_sse2",
+    2
+   ],
+   [
+    "ff_pred8x8l_dc_8_ssse3",
+    2
+   ],
+   [
+    "ff_pred16x16_vertical_8_sse.loop",
+    2
+   ],
+   [
+    "ff_pred8x8_horizontal_8_avx2.loop",
+    2
+   ],
+   [
+    "0xffffffff81788b4f (outside ffmpeg)",
+    2
+   ],
+   [
+    "ff_h264_luma_dc_dequant_idct_sse2",
+    2
+   ],
+   [
+    "pred8x8_left_dc_8_c",
+    2
+   ],
+   [
+    "ff_h264_idct_add8_8_sse2.cycle0end",
+    2
+   ],
+   [
+    "av_frame_ref",
+    2
+   ],
+   [
+    "0x7f1b72888540 (outside ffmpeg)",
+    2
+   ],
+   [
+    "pred4x4_vertical_8_c",
+    2
+   ],
+   [
+    "0x7f3675f6d67a (outside ffmpeg)",
+    2
+   ],
+   [
+    "0x7f3675e98cad (outside ffmpeg)",
+    2
+   ],
+   [
+    "ff_put_pixels16x16_l2_sse2.loop",
+    2
+   ],
+   [
+    "0xffffffff818f3464 (outside ffmpeg)",
+    1
+   ],
+   [
+    "avcodec_get_hw_config",
+    1
+   ],
+   [
+    "0xffffffff815217f8 (outside ffmpeg)",
+    1
+   ],
+   [
+    "0x7f5aaa0989c1 (outside ffmpeg)",
+    1
+   ],
+   [
+    "0x7f5aaa09b8d5 (outside ffmpeg)",
+    1
+   ],
+   [
+    "h264_init_ps",
+    1
+   ],
+   [
+    "put_h264_qpel8_mc22_ssse3",
+    1
+   ],
+   [
+    "0xffffffff8151c5a6 (outside ffmpeg)",
+    1
+   ],
+   [
+    "input_thread",
+    1
+   ],
+   [
+    "0x7f5aaa09b666 (outside ffmpeg)",
+    1
+   ],
+   [
+    "0x7f5aaa0989b0 (outside ffmpeg)",
+    1
+   ],
+   [
+    "ff_pred4x4_horizontal_down_8_mmxext",
+    1
+   ],
+   [
+    "0x7f5aaa09cd5b (outside ffmpeg)",
+    1
+   ],
+   [
+    "av_mul_q",
+    1
+   ],
+   [
+    "sch_enc_receive",
+    1
+   ],
+   [
+    "av_channel_layout_copy",
+    1
+   ],
+   [
+    "0x7f5aaa08a075 (outside ffmpeg)",
+    1
+   ],
+   [
+    "ff_inlink_consume_frame",
+    1
+   ],
+   [
+    "0xffffffff812cb95d (outside ffmpeg)",
+    1
+   ],
+   [
+    "0x7f5aaa08a865 (outside ffmpeg)",
+    1
+   ],
+   [
+    "0x7f5aaa09b04e (outside ffmpeg)",
+    1
+   ],
+   [
+    "0x7f5aaa0885b7 (outside ffmpeg)",
+    1
+   ],
+   [
+    "0x7f5aaa098a5b (outside ffmpeg)",
+    1
+   ],
+   [
+    "0x7f5aaa062420 (outside ffmpeg)",
+    1
+   ],
+   [
+    "0x7f5aaa16d67a (outside ffmpeg)",
+    1
+   ],
+   [
+    "0x7f5aaa09b052 (outside ffmpeg)",
+    1
+   ],
+   [
+    "0x7f5aaa057c03 (outside ffmpeg)",
+    1
+   ],
+   [
+    "0x7f5aaa0885a0 (outside ffmpeg)",
+    1
+   ],
+   [
+    "pool_return_entry",
+    1
+   ],
+   [
+    "0x7f5aaa3c2633 (outside ffmpeg)",
+    1
+   ],
+   [
+    "0x7f5aaa09b659 (outside ffmpeg)",
+    1
+   ],
+   [
+    "ff_h2645_packet_split",
+    1
+   ],
+   [
+    "ff_put_h264_chroma_mc8_rnd_ssse3.mx_is_zero",
+    1
+   ],
+   [
+    "ff_h264_decode_seq_parameter_set",
+    1
+   ],
+   [
+    "0x7f5aaa098a1e (outside ffmpeg)",
+    1
+   ],
+   [
+    "0x7f5aaa170783 (outside ffmpeg)",
+    1
+   ],
+   [
+    "0x7f5aaa097a80 (outside ffmpeg)",
+    1
+   ],
+   [
+    "stream_update_ts",
+    1
+   ],
+   [
+    "0xffffffff81438436 (outside ffmpeg)",
+    1
+   ],
+   [
+    "tq_send",
+    1
+   ],
+   [
+    "0x7f5aaa09a184 (outside ffmpeg)",
+    1
+   ],
+   [
+    "unchoke_for_stream.constprop.0.isra.0",
+    1
+   ],
+   [
+    "ff_thread_report_progress",
+    1
+   ],
+   [
+    "0x7f5aaa09b45c (outside ffmpeg)",
+    1
+   ]
+  ]
+ }
+}

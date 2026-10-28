@@ -1,0 +1,98 @@
+h264 cbbae341505c timed  ffmpeg=1.0391 x264=1.0227
+h264 04b7b4fb3b37 timed  ffmpeg=1.0986 x264=1.0894
+h264 dc988fd0cfc0 timed  ffmpeg=1.0341 x264=1.0123
+h264 108521a89a73 timed  ffmpeg=1.0320 x264=1.0242
+h264 d235e3b9a4a8 timed  ffmpeg=1.0300 x264=1.0237
+h264 8da9593e9329 timed  ffmpeg=1.0288 x264=1.0187
+h264 220e29e8557e timed  ffmpeg=1.0313 x264=1.0149
+h264 35dce647f1bb timed  ffmpeg=1.1420 x264=1.0030
+h264 de99d72ce9ee timed  ffmpeg=1.0217 x264=1.0208
+h264 206a65347de4 timed  ffmpeg=1.0288 x264=1.0191
+h264 02f2c37a7ad9 timed  ffmpeg=1.0463 x264=1.0349
+h264 7b604c9e265c timed  ffmpeg=1.0377 x264=1.0316
+h264 6c8358b27f8b timed  ffmpeg=1.0499 x264=1.0170
+h264 4fb403dc1788 timed  ffmpeg=1.0501 x264=1.0528
+h264 a7f5bfca23e0 timed  ffmpeg=0.9958 x264=0.9968
+h264 daac04573e8d timed  ffmpeg=1.0380 x264=1.0257
+h264 c911b52b35ab timed  ffmpeg=0.9854 x264=0.9839
+h264 efc87ac97168 timed  ffmpeg=1.0862 x264=1.0602
+h264 f0f5920e0951 timed  ffmpeg=1.0413 x264=1.0339
+h264 cb7cdbe9be11 timed  ffmpeg=1.0386 x264=1.0225
+h264 2c7ae378fe10 timed  ffmpeg=1.0384 x264=1.0330
+h264 8cbc523e2a4d timed  ffmpeg=1.1309 x264=1.1268
+h264 bf7e73909ddf timed  ffmpeg=1.0678 x264=1.0585
+h264 ba81ecbdc740 timed  ffmpeg=1.0293 x264=1.0338
+h264 f0cd825c8a30 timed  ffmpeg=1.0509 x264=1.0188
+hevc dfa90bd34a2e timed  ffmpeg=1.0738 x264=1.0577
+hevc fd7b6c440b67 timed  ffmpeg=1.0774 x264=1.5988
+hevc 15affcdb19e3 timed  ffmpeg=1.0406 x264=1.1748
+hevc 5853e2ed4f54 timed  ffmpeg=1.0625 x264=1.2247
+hevc f3cd6f0c7876 timed  ffmpeg=1.0346 x264=1.0334
+hevc 0119957558a2 timed  ffmpeg=1.0539 x264=1.2655
+hevc 2cf91de003da timed  ffmpeg=1.0553 x264=1.0360
+hevc 2bc6b07151be timed  ffmpeg=1.0583 x264=1.4082
+av1 effb7b78408d timed  ffmpeg=1.0596 x264=1.0629
+av1 357fb30f4693 timed  ffmpeg=1.0648 x264=1.4614
+av1 d438e9cb804e timed  ffmpeg=1.0751 x264=1.0788
+av1 03e890cf5999 timed  ffmpeg=1.0722 x264=1.0355
+av1 a34d5ee860fb timed  ffmpeg=1.0749 x264=1.0441
+av1 d9ab22f96e5e timed  ffmpeg=1.0257 x264=1.0203
+vp9 f51a56ed5718 timed  ffmpeg=1.0831 x264=1.0847
+vp9 a084bd45168c timed  ffmpeg=1.0978 x264=1.0967
+vp9 70eec00bc7d2 timed  ffmpeg=1.0345 x264=1.0236
+vp9 9ffa165e752a timed  ffmpeg=1.1674 x264=1.1598
+vp9 584a16b906bb timed  ffmpeg=1.1790 x264=1.1227
+vp9 ea684713a5be timed  ffmpeg=1.0672 x264=1.0584
+vp9 bb5d39d47357 timed  ffmpeg=1.1512 x264=1.1482
+vp9 b267a2ddac45 timed  ffmpeg=1.0584 x264=1.0456
+vp9 f944c05afaa1 timed  ffmpeg=1.0998 x264=1.0942
+vp9 59ad8ee403b3 timed  ffmpeg=1.1108 x264=1.1067
+vp8 5f9e2df6851b timed  ffmpeg=1.1337 x264=1.1246
+vp8 4389ba53bb9b timed  ffmpeg=1.0708 x264=1.0641
+vp8 eaa08a095caa timed  ffmpeg=1.0470 x264=1.0425
+vp8 71bd76ad3a87 timed  ffmpeg=1.0596 x264=1.0489
+vp8 7593d867aafd timed  ffmpeg=1.0617 x264=1.0464
+vp8 f33563470b60 timed  ffmpeg=1.0408 x264=1.0349
+vp8 17722a386ab1 timed  ffmpeg=1.0465 x264=1.0321
+vp8 0d677d9c1b57 timed  ffmpeg=1.0519 x264=1.0272
+vp8 16117de9347f timed  ffmpeg=1.0466 x264=1.0303
+vp8 a1001428921f timed  ffmpeg=1.0949 x264=1.0686
+vp8 2c5976ae305e timed  ffmpeg=1.0482 x264=1.0207
+vp8 595cc7a83394 timed  ffmpeg=1.1329 x264=1.0870
+vp8 04a7da97aeec timed  ffmpeg=1.1334 x264=1.1084
+prores 50b9f3ee51cf timed  ffmpeg=1.0835 x264=2.0152
+prores 08cd47bdffda refused unsupported_feature 
+prores 568ca4f52c3a refused unsupported_feature 
+prores 249f6da48e0b timed  ffmpeg=1.1460 x264=2.3627
+prores 72ae2bbd26be timed  ffmpeg=1.1034 x264=1.6597
+prores 1a5fb95f5146 timed  ffmpeg=1.1131 x264=1.7640
+{
+ "void": false,
+ "reasons": []
+}
+== ffmpeg (bar: median <= 1.05)
+h264    n= 25 median 1.0384 CI [1.0313, 1.0499] met faster on 8% backends {'native': 24, 'ffmpeg': 1} apart {}
+hevc    n=  8 median 1.0568 CI [1.0443, 1.0738] MISSED faster on 0% backends {'ffmpeg': 8} apart {}
+av1     n=  6 median 1.0685 CI [1.0426, 1.0750] MISSED faster on 0% backends {'dav1d': 6} apart {}
+vp9     n= 10 median 1.0988 CI [1.0672, 1.1512] MISSED faster on 0% backends {'ffmpeg': 10} apart {}
+vp8     n= 13 median 1.0596 CI [1.0470, 1.0949] MISSED faster on 0% backends {'ffmpeg': 13} apart {}
+prores  n=  4 median 1.1083 CI [1.0835, 1.1460] MISSED faster on 0% backends {'ffmpeg': 4} apart {'refused: unsupported_feature': 2}
+all     n= 66 median 1.0583 CI [1.0482, 1.0693] MISSED faster on 3% backends {'native': 24, 'ffmpeg': 36, 'dav1d': 6} apart {'refused: unsupported_feature': 2}
+== x264 (bar: median <= 1.05)
+h264    n= 25 median 1.0237 CI [1.0188, 1.0338] met faster on 8% backends {'native': 24, 'ffmpeg': 1} apart {}
+hevc    n=  8 median 1.1998 CI [1.0360, 1.4082] MISSED faster on 0% backends {'ffmpeg': 8} apart {}
+av1     n=  6 median 1.0535 CI [1.0279, 1.2701] MISSED faster on 0% backends {'dav1d': 6} apart {}
+vp9     n= 10 median 1.0955 CI [1.0584, 1.1227] MISSED faster on 0% backends {'ffmpeg': 10} apart {}
+vp8     n= 13 median 1.0464 CI [1.0321, 1.0686] met faster on 0% backends {'ffmpeg': 13} apart {}
+prores  n=  4 median 1.8896 CI [1.6597, 2.3627] MISSED faster on 0% backends {'ffmpeg': 4} apart {'refused: unsupported_feature': 2}
+all     n= 66 median 1.0460 CI [1.0339, 1.0629] met faster on 3% backends {'native': 24, 'ffmpeg': 36, 'dav1d': 6} apart {'refused: unsupported_feature': 2}
+FAIL: ffmpeg hevc: median 1.0568 above 1.05
+FAIL: ffmpeg av1: median 1.0685 above 1.05
+FAIL: ffmpeg vp9: median 1.0988 above 1.05
+FAIL: ffmpeg vp8: median 1.0596 above 1.05
+FAIL: ffmpeg prores: median 1.1083 above 1.05
+FAIL: ffmpeg all: median 1.0583 above 1.05
+FAIL: x264 hevc: median 1.1998 above 1.05
+FAIL: x264 av1: median 1.0535 above 1.05
+FAIL: x264 vp9: median 1.0955 above 1.05
+FAIL: x264 prores: median 1.8896 above 1.05

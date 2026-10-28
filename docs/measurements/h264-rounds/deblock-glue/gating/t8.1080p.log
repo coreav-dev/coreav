@@ -1,0 +1,18 @@
+machine: unknown (family 25, model 1, stepping unknown), 3050.0 MHz, 32 logical CPUs
+175433794e02.0.1080p.h264                before:discard=1.08  before:write=1.06  before:mixed=1.06  after:discard=1.07  after:write=1.05  after:mixed=1.05
+6da34958296c.0.1080p.h264                before:discard=1.27  before:write=1.26  before:mixed=1.25  after:discard=1.25  after:write=1.24  after:mixed=1.23
+6e90422a670a.0.1080p.h264                before:discard=1.03  before:write=1.01  before:mixed=1.01  after:discard=1.02  after:write=1.01  after:mixed=0.99
+a6af290d9053.0.1080p.h264                before:discard=1.12  before:write=1.08  before:mixed=1.09  after:discard=1.09  after:write=1.14  after:mixed=1.07
+a81de82106be.0.1080p.h264                before:discard=1.14  before:write=1.04  before:mixed=1.05  after:discard=1.08  after:write=1.11  after:mixed=0.99
+b41f70a7fa60.0.1080p.h264                before:discard=1.28  before:write=1.83  before:mixed=1.73  after:discard=1.30  after:write=1.80  after:mixed=1.76
+b71b6b31e54f.0.1080p.h264                before:discard=1.40  before:write=1.03  before:mixed=1.17  after:discard=1.33  after:write=1.22  after:mixed=1.12
+c7ecda16e4a7.0.1080p.h264                before:discard=1.35  before:write=1.32  before:mixed=1.30  after:discard=1.34  after:write=1.31  after:mixed=1.30
+
+before:discard           n=  8  median 1.208  [1.085, 1.348]
+before:write             n=  8  median 1.069  [1.030, 1.317]
+before:mixed             n=  8  median 1.133  [1.054, 1.303]
+after:discard            n=  8  median 1.173  [1.070, 1.333]
+after:write              n=  8  median 1.182  [1.060, 1.313]
+after:mixed              n=  8  median 1.094  [0.994, 1.298]
+
+wrote /vol/dg1/out/t8.1080p.json

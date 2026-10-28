@@ -1,0 +1,10 @@
+{
+ "measured_run": "run 3",
+ "h264dec_sha256": "58655aef322efb01ef7e1010797d8dd387a8456d13b278b3c69a3391c39fb35b",
+ "source_commit": "fix(h264-n1): mvd range is -8192 to 8191.75 luma samples, in quarter samples",
+ "remote_app": "app-004",
+ "oracle": "ffmpeg 7.0.2 static (johnvansickle), ffmpeg sha256 e7e7fb30477f717e6f55f9180a70386c62677ef8a4d4d1a5d948f4098aa3eb99",
+ "files": 1113,
+ "results": "corpus.jsonl.gz, with corpus-4k-rerun.jsonl replacing two step-timeout records",
+ "earlier_runs": {"run 1": "corpus-run1.jsonl.gz (binary before the concealment fixes)", "run 2": "corpus-run2.jsonl.gz (stopped at 1,103 files; mvd range regression)"}
+}

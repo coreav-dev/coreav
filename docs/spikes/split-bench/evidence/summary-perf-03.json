@@ -1,0 +1,109 @@
+{
+ "files": 254,
+ "measured": 241,
+ "skipped": {
+  "refused": 13
+ },
+ "noisy_files": 0,
+ "median": 0.20776114799139606,
+ "ci95": [
+  0.18605833471495664,
+  0.24962507095372505
+ ],
+ "p90": 0.7840871988847697,
+ "max": 1.4334615814320955,
+ "classes": {
+  "non-fragmented": {
+   "files": 234,
+   "median": 0.19653572241439493,
+   "ci95": [
+    0.1842363608684367,
+    0.2380894218424492
+   ]
+  },
+  "longer than one hour": {
+   "files": 6,
+   "median": 0.22048661803275815,
+   "ci95": [
+    0.13588925643137773,
+    0.3913342949186741
+   ]
+  },
+  "fragmented": {
+   "files": 7,
+   "median": 0.303863670165819,
+   "ci95": [
+    0.2540154045797673,
+    0.514135587043446
+   ]
+  }
+ },
+ "seconds": {
+  "ours_median": 0.004874833000940271,
+  "ffmpeg_median": 0.02437878099954105
+ },
+ "memory": {
+  "files": 241,
+  "within": 241,
+  "worst": {
+   "sha256": "3d8f6047f82652d28a80fb5bbf48b8df0a24fc0091d3d55fdeb0b18fa957514a",
+   "share": 0.9832198985158066,
+   "split_kb": 12000,
+   "probe_kb": 9952,
+   "growth": 2097152,
+   "largest_moov": 9487,
+   "syncs": 1096,
+   "bound": 2132943,
+   "within": true
+  }
+ },
+ "slowest": [
+  {
+   "sha256": "d3b51296d94b8d62f475182c8a414559c5284f7a2d1400c6e42b51763f92eb36",
+   "ratio": 1.4334615814320955,
+   "ours": 0.2516055559990491,
+   "ffmpeg": 0.17552305500066723,
+   "size": 911523410
+  },
+  {
+   "sha256": "bb594ff9217a7f7c8b3079399f188ba369db79eadee4d9ae7ed2c82493eab796",
+   "ratio": 1.4206563417116904,
+   "ours": 0.7202659120011958,
+   "ffmpeg": 0.5069951759996911,
+   "size": 2594321536
+  },
+  {
+   "sha256": "82554f5904cb1b3d11daf5a331653187ccaa3c8e2b0611b46c74f8d669617c67",
+   "ratio": 1.388268181098469,
+   "ours": 0.13830618700012565,
+   "ffmpeg": 0.09962497800006531,
+   "size": 510710952
+  },
+  {
+   "sha256": "dfa90bd34a2e76f8e3a723d8abe6098e563143f64db7bb57af044863fb0f3538",
+   "ratio": 1.348967211239777,
+   "ours": 0.24883295499967062,
+   "ffmpeg": 0.184461826000188,
+   "size": 891934228
+  },
+  {
+   "sha256": "5853e2ed4f54b02c2e6d72591ff7315e62facc04bfe7f864d58172e07522a8a6",
+   "ratio": 1.3020555689799154,
+   "ours": 0.05758667699956277,
+   "ffmpeg": 0.044227510999917286,
+   "size": 205735149
+  }
+ ],
+ "bars": {
+  "median_1.0": true,
+  "classes_1.5": true,
+  "classes_1.00": true,
+  "faster_upper_bound_below_1.00": {
+   "all": true,
+   "non-fragmented": true,
+   "longer than one hour": true,
+   "fragmented": true
+  },
+  "memory_all": true
+ }
+}

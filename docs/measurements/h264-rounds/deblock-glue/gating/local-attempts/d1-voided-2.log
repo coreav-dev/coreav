@@ -1,0 +1,47 @@
+03:56:55 HOST cpu facts:
+model name	: Intel(R) Xeon(R) Processor @ 2.50GHz
+CPU(s):                                  8
+Vendor ID:                               GenuineIntel
+CPU family:                              6
+Model:                                   85
+Thread(s) per core:                      2
+Core(s) per socket:                      4
+Socket(s):                               1
+Stepping:                                7
+8
+8
+avx2 avx512 avx512bw avx512cd avx512dq avx512f avx512vl 
+03:57:17 reference measurement 1: 36501d448eaa.0.720p 1.604s; a6af290d9053.0.1080p 5.783s
+04:02:39 reference measurement 2: 36501d448eaa.0.720p 1.657s; a6af290d9053.0.1080p 5.774s
+04:08:01 reference measurement 3: 36501d448eaa.0.720p 1.593s; a6af290d9053.0.1080p 5.576s
+04:08:01 reference {'36501d448eaa.0.720p': 1.604170522000004, 'a6af290d9053.0.1080p': 5.774076937000018} max deviation {'36501d448eaa.0.720p': 0.03282029016114474, 'a6af290d9053.0.1080p': 0.0343405477903288}
+04:13:50 identity 32/32 same
+04:14:11 PASS gate 36501d448eaa.0.720p ratio 0.974; a6af290d9053.0.1080p ratio 0.959
+04:18:58 FAIL gate 36501d448eaa.0.720p ratio 0.959; a6af290d9053.0.1080p ratio 0.943
+04:18:58 VOID g.sd attempt 1
+04:19:19 FAIL gate 36501d448eaa.0.720p ratio 0.966; a6af290d9053.0.1080p ratio 0.944
+04:20:41 PASS gate 36501d448eaa.0.720p ratio 1.035; a6af290d9053.0.1080p ratio 0.968
+04:25:18 FAIL gate 36501d448eaa.0.720p ratio 0.972; a6af290d9053.0.1080p ratio 0.932
+04:25:18 VOID g.sd attempt 2
+04:25:39 PASS gate 36501d448eaa.0.720p ratio 0.968; a6af290d9053.0.1080p ratio 0.955
+04:30:19 PASS gate 36501d448eaa.0.720p ratio 1.020; a6af290d9053.0.1080p ratio 0.953
+04:30:19 g.sd done
+04:30:40 FAIL gate 36501d448eaa.0.720p ratio 0.979; a6af290d9053.0.1080p ratio 0.947
+04:32:01 FAIL gate 36501d448eaa.0.720p ratio 0.962; a6af290d9053.0.1080p ratio 0.947
+04:33:22 FAIL gate 36501d448eaa.0.720p ratio 0.960; a6af290d9053.0.1080p ratio 0.916
+04:34:43 FAIL gate 36501d448eaa.0.720p ratio 0.973; a6af290d9053.0.1080p ratio 0.950
+04:36:04 FAIL gate 36501d448eaa.0.720p ratio 0.993; a6af290d9053.0.1080p ratio 0.950
+04:37:25 PASS gate 36501d448eaa.0.720p ratio 0.969; a6af290d9053.0.1080p ratio 0.961
+04:45:52 FAIL gate 36501d448eaa.0.720p ratio 0.991; a6af290d9053.0.1080p ratio 0.940
+04:45:52 VOID g.720p attempt 1
+04:46:13 PASS gate 36501d448eaa.0.720p ratio 0.971; a6af290d9053.0.1080p ratio 0.968
+04:54:27 FAIL gate 36501d448eaa.0.720p ratio 0.946; a6af290d9053.0.1080p ratio 0.907
+04:54:27 VOID g.720p attempt 2
+04:54:47 FAIL gate 36501d448eaa.0.720p ratio 0.943; a6af290d9053.0.1080p ratio 0.907
+04:56:08 FAIL gate 36501d448eaa.0.720p ratio 0.959; a6af290d9053.0.1080p ratio 0.936
+04:57:29 FAIL gate 36501d448eaa.0.720p ratio 0.971; a6af290d9053.0.1080p ratio 0.925
+04:58:50 FAIL gate 36501d448eaa.0.720p ratio 0.974; a6af290d9053.0.1080p ratio 0.949
+05:00:11 PASS gate 36501d448eaa.0.720p ratio 0.975; a6af290d9053.0.1080p ratio 0.966
+05:08:48 FAIL gate 36501d448eaa.0.720p ratio 0.970; a6af290d9053.0.1080p ratio 0.945
+05:08:48 VOID g.720p attempt 3
+05:08:48 voided too often; stopping

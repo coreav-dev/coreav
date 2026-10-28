@@ -1,0 +1,1632 @@
+{
+ "check": {
+  "files": 423,
+  "by_set": {
+   "edge": 214,
+   "real": 209
+  },
+  "not_matroska_by_magic": [],
+  "rechecked_files": 0,
+  "harness_errors": [],
+  "cases": 1269,
+  "verdicts": {
+   "reject": 952,
+   "accept": 317
+  },
+  "unreadable": {
+   "invalid_structure": 21,
+   "truncated_structure": 6,
+   "limit": 6,
+   "unsupported_container": 3
+  },
+  "M1_crashes": {
+   "failures": [],
+   "probe_crashes": []
+  },
+  "M2_determinism": [],
+  "M3_spec": [],
+  "M4_precision": [],
+  "M5_oracle": {
+   "cases": 627,
+   "agree": 609,
+   "covered": 18,
+   "direct_share": 0.9712918660287081,
+   "share": 1.0,
+   "bar": 0.98,
+   "covered_by": {
+    "KD-P-MKV-UNSIZED": 6,
+    "KD-P-MKV-UNLISTED": 6,
+    "KD-P-MKV-UNVERIFIED": 6
+   },
+   "disagreements": [
+    {
+     "sha256": "57265448d8d8dcc1944b901f010fc025f664484f12811f1010e6520fd4062a18",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-MKV-UNSIZED"
+     ],
+     "coreav": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "above_maximum",
+       "/file/max_size",
+       null
+      ],
+      [
+       "above_maximum",
+       "/streams/max_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/formats",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       1
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       2
+      ],
+      [
+       "not_allowed",
+       "/streams/video/codecs",
+       0
+      ],
+      [
+       "unknown",
+       "/streams/video/max_height",
+       0
+      ],
+      [
+       "unknown",
+       "/streams/video/max_width",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "above_maximum",
+       "/file/max_size",
+       null
+      ],
+      [
+       "above_maximum",
+       "/streams/max_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/formats",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       1
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       2
+      ],
+      [
+       "not_allowed",
+       "/streams/video/codecs",
+       0
+      ]
+     ]
+    },
+    {
+     "sha256": "57265448d8d8dcc1944b901f010fc025f664484f12811f1010e6520fd4062a18",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-MKV-UNSIZED"
+     ],
+     "coreav": [
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       1
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       2
+      ],
+      [
+       "not_allowed",
+       "/streams/video/codecs",
+       0
+      ],
+      [
+       "unknown",
+       "/streams/video/max_height",
+       0
+      ],
+      [
+       "unknown",
+       "/streams/video/max_pixels",
+       0
+      ],
+      [
+       "unknown",
+       "/streams/video/max_width",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       1
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       2
+      ],
+      [
+       "not_allowed",
+       "/streams/video/codecs",
+       0
+      ]
+     ]
+    },
+    {
+     "sha256": "6e27c234e597ed8c25ba24829cb58e2638f3420cc4146fae43d50829a676e7e0",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-MKV-UNLISTED"
+     ],
+     "coreav": [
+      [
+       "above_maximum",
+       "/streams/audio/max_count",
+       null
+      ],
+      [
+       "above_maximum",
+       "/streams/max_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/formats",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       3
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       4
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       5
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       3
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       4
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       5
+      ],
+      [
+       "not_allowed",
+       "/streams/video/codecs",
+       0
+      ],
+      [
+       "unknown",
+       "/duration/max_seconds",
+       null
+      ]
+     ],
+     "ffprobe": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "above_maximum",
+       "/streams/audio/max_count",
+       null
+      ],
+      [
+       "above_maximum",
+       "/streams/max_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/formats",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       3
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       4
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       5
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       3
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       4
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       5
+      ],
+      [
+       "not_allowed",
+       "/streams/video/codecs",
+       0
+      ]
+     ]
+    },
+    {
+     "sha256": "6e27c234e597ed8c25ba24829cb58e2638f3420cc4146fae43d50829a676e7e0",
+     "policy": "transcription",
+     "covered_by": [
+      "KD-P-MKV-UNLISTED"
+     ],
+     "coreav": [
+      [
+       "unknown",
+       "/duration/max_seconds",
+       null
+      ]
+     ],
+     "ffprobe": []
+    },
+    {
+     "sha256": "6e27c234e597ed8c25ba24829cb58e2638f3420cc4146fae43d50829a676e7e0",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-MKV-UNLISTED"
+     ],
+     "coreav": [
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       3
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       4
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       5
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       3
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       4
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       5
+      ],
+      [
+       "unknown",
+       "/duration/max_seconds",
+       null
+      ]
+     ],
+     "ffprobe": [
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       3
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       4
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       5
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       3
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       4
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       5
+      ]
+     ]
+    },
+    {
+     "sha256": "8149bfc4fc2a67595ca717439cd84daa328823fc137de24cd4ef2ff34279ebba",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-MKV-UNSIZED"
+     ],
+     "coreav": [
+      [
+       "not_allowed",
+       "/container/formats",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       1
+      ],
+      [
+       "not_allowed",
+       "/streams/video/codecs",
+       0
+      ],
+      [
+       "unknown",
+       "/streams/video/max_height",
+       0
+      ],
+      [
+       "unknown",
+       "/streams/video/max_width",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "not_allowed",
+       "/container/formats",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       1
+      ],
+      [
+       "not_allowed",
+       "/streams/video/codecs",
+       0
+      ]
+     ]
+    },
+    {
+     "sha256": "8149bfc4fc2a67595ca717439cd84daa328823fc137de24cd4ef2ff34279ebba",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-MKV-UNSIZED"
+     ],
+     "coreav": [
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       1
+      ],
+      [
+       "not_allowed",
+       "/streams/video/codecs",
+       0
+      ],
+      [
+       "unknown",
+       "/streams/video/max_height",
+       0
+      ],
+      [
+       "unknown",
+       "/streams/video/max_pixels",
+       0
+      ],
+      [
+       "unknown",
+       "/streams/video/max_width",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       1
+      ],
+      [
+       "not_allowed",
+       "/streams/video/codecs",
+       0
+      ]
+     ]
+    },
+    {
+     "sha256": "9bc3d9759b6432713d84db08ef41c5627e28f2d8fcccf7ba84b4e0fed91f067b",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-MKV-UNLISTED"
+     ],
+     "coreav": [
+      [
+       "above_maximum",
+       "/file/max_size",
+       null
+      ],
+      [
+       "above_maximum",
+       "/streams/audio/max_count",
+       null
+      ],
+      [
+       "above_maximum",
+       "/streams/max_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/formats",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       1
+      ],
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       2
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       3
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       3
+      ],
+      [
+       "unknown",
+       "/duration/max_seconds",
+       null
+      ]
+     ],
+     "ffprobe": [
+      [
+       "above_maximum",
+       "/file/max_size",
+       null
+      ],
+      [
+       "above_maximum",
+       "/streams/audio/max_count",
+       null
+      ],
+      [
+       "above_maximum",
+       "/streams/max_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/formats",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       1
+      ],
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       2
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       3
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       3
+      ]
+     ]
+    },
+    {
+     "sha256": "9bc3d9759b6432713d84db08ef41c5627e28f2d8fcccf7ba84b4e0fed91f067b",
+     "policy": "transcription",
+     "covered_by": [
+      "KD-P-MKV-UNLISTED"
+     ],
+     "coreav": [
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       1
+      ],
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       2
+      ],
+      [
+       "unknown",
+       "/duration/max_seconds",
+       null
+      ]
+     ],
+     "ffprobe": [
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       1
+      ],
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       2
+      ]
+     ]
+    },
+    {
+     "sha256": "9bc3d9759b6432713d84db08ef41c5627e28f2d8fcccf7ba84b4e0fed91f067b",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-MKV-UNLISTED"
+     ],
+     "coreav": [
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       1
+      ],
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       2
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       3
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       3
+      ],
+      [
+       "unknown",
+       "/duration/max_seconds",
+       null
+      ]
+     ],
+     "ffprobe": [
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       1
+      ],
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       2
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       3
+      ],
+      [
+       "not_allowed",
+       "/streams/unidentified",
+       3
+      ]
+     ]
+    },
+    {
+     "sha256": "cf9c77996c1bff23cfb07104ab1eb093826f0034d595ef19d5fa12b7cd0a127c",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-MKV-UNVERIFIED"
+     ],
+     "coreav": [
+      [
+       "not_allowed",
+       "/container/formats",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       1
+      ],
+      [
+       "not_allowed",
+       "/streams/video/codecs",
+       0
+      ],
+      [
+       "unknown",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "unknown",
+       "/streams/audio/max_bit_rate",
+       1
+      ],
+      [
+       "unknown",
+       "/streams/video/max_bit_rate",
+       0
+      ],
+      [
+       "unknown",
+       "/streams/video/max_height",
+       0
+      ],
+      [
+       "unknown",
+       "/streams/video/max_width",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "not_allowed",
+       "/container/formats",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       1
+      ],
+      [
+       "not_allowed",
+       "/streams/video/codecs",
+       0
+      ]
+     ]
+    },
+    {
+     "sha256": "cf9c77996c1bff23cfb07104ab1eb093826f0034d595ef19d5fa12b7cd0a127c",
+     "policy": "transcription",
+     "covered_by": [
+      "KD-P-MKV-UNVERIFIED"
+     ],
+     "coreav": [
+      [
+       "unknown",
+       "/duration/max_seconds",
+       null
+      ]
+     ],
+     "ffprobe": []
+    },
+    {
+     "sha256": "cf9c77996c1bff23cfb07104ab1eb093826f0034d595ef19d5fa12b7cd0a127c",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-MKV-UNVERIFIED"
+     ],
+     "coreav": [
+      [
+       "unknown",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "unknown",
+       "/streams/video/max_height",
+       0
+      ],
+      [
+       "unknown",
+       "/streams/video/max_pixels",
+       0
+      ],
+      [
+       "unknown",
+       "/streams/video/max_width",
+       0
+      ]
+     ],
+     "ffprobe": []
+    },
+    {
+     "sha256": "8ca8950b8cb6373869e04799537e99cd34407727b466e7a8cc080f937a5ffd46",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-MKV-UNSIZED"
+     ],
+     "coreav": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "above_maximum",
+       "/file/max_size",
+       null
+      ],
+      [
+       "above_maximum",
+       "/streams/audio/max_bit_rate",
+       1
+      ],
+      [
+       "above_maximum",
+       "/streams/audio/max_bit_rate",
+       2
+      ],
+      [
+       "above_maximum",
+       "/streams/audio/max_channels",
+       1
+      ],
+      [
+       "above_maximum",
+       "/streams/audio/max_channels",
+       2
+      ],
+      [
+       "above_maximum",
+       "/streams/audio/max_count",
+       null
+      ],
+      [
+       "above_maximum",
+       "/streams/max_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/formats",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       1
+      ],
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       2
+      ],
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       3
+      ],
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       4
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       5
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       6
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       7
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       8
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       9
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       10
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       11
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       12
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       13
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       14
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       15
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       16
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       17
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       18
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       19
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       20
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       21
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       22
+      ],
+      [
+       "not_allowed",
+       "/streams/video/codecs",
+       0
+      ],
+      [
+       "unknown",
+       "/streams/video/max_height",
+       0
+      ],
+      [
+       "unknown",
+       "/streams/video/max_width",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "above_maximum",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "above_maximum",
+       "/file/max_size",
+       null
+      ],
+      [
+       "above_maximum",
+       "/streams/audio/max_bit_rate",
+       1
+      ],
+      [
+       "above_maximum",
+       "/streams/audio/max_bit_rate",
+       2
+      ],
+      [
+       "above_maximum",
+       "/streams/audio/max_channels",
+       1
+      ],
+      [
+       "above_maximum",
+       "/streams/audio/max_channels",
+       2
+      ],
+      [
+       "above_maximum",
+       "/streams/audio/max_count",
+       null
+      ],
+      [
+       "above_maximum",
+       "/streams/max_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/formats",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       1
+      ],
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       2
+      ],
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       3
+      ],
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       4
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       5
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       6
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       7
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       8
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       9
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       10
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       11
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       12
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       13
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       14
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       15
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       16
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       17
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       18
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       19
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       20
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       21
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       22
+      ],
+      [
+       "not_allowed",
+       "/streams/video/codecs",
+       0
+      ]
+     ]
+    },
+    {
+     "sha256": "8ca8950b8cb6373869e04799537e99cd34407727b466e7a8cc080f937a5ffd46",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-MKV-UNSIZED"
+     ],
+     "coreav": [
+      [
+       "above_maximum",
+       "/streams/audio/max_count",
+       null
+      ],
+      [
+       "above_maximum",
+       "/streams/max_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       1
+      ],
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       2
+      ],
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       3
+      ],
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       4
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       5
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       6
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       7
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       8
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       9
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       10
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       11
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       12
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       13
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       14
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       15
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       16
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       17
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       18
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       19
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       20
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       21
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       22
+      ],
+      [
+       "not_allowed",
+       "/streams/video/codecs",
+       0
+      ],
+      [
+       "unknown",
+       "/streams/video/max_height",
+       0
+      ],
+      [
+       "unknown",
+       "/streams/video/max_pixels",
+       0
+      ],
+      [
+       "unknown",
+       "/streams/video/max_width",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "above_maximum",
+       "/streams/audio/max_count",
+       null
+      ],
+      [
+       "above_maximum",
+       "/streams/max_count",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       1
+      ],
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       2
+      ],
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       3
+      ],
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       4
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       5
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       6
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       7
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       8
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       9
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       10
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       11
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       12
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       13
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       14
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       15
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       16
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       17
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       18
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       19
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       20
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       21
+      ],
+      [
+       "not_allowed",
+       "/streams/subtitle",
+       22
+      ],
+      [
+       "not_allowed",
+       "/streams/video/codecs",
+       0
+      ]
+     ]
+    },
+    {
+     "sha256": "dd16cf26796d3ff046a7506e4d7549d0328c4725c9deff93c3314116bcc3b117",
+     "policy": "strict-gate",
+     "covered_by": [
+      "KD-P-MKV-UNVERIFIED"
+     ],
+     "coreav": [
+      [
+       "not_allowed",
+       "/container/formats",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       1
+      ],
+      [
+       "not_allowed",
+       "/streams/video/codecs",
+       0
+      ],
+      [
+       "unknown",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "unknown",
+       "/file/max_bit_rate",
+       null
+      ],
+      [
+       "unknown",
+       "/streams/audio/max_bit_rate",
+       1
+      ],
+      [
+       "unknown",
+       "/streams/video/max_bit_rate",
+       0
+      ],
+      [
+       "unknown",
+       "/streams/video/max_height",
+       0
+      ],
+      [
+       "unknown",
+       "/streams/video/max_width",
+       0
+      ]
+     ],
+     "ffprobe": [
+      [
+       "not_allowed",
+       "/container/formats",
+       null
+      ],
+      [
+       "not_allowed",
+       "/container/fragmented",
+       null
+      ],
+      [
+       "not_allowed",
+       "/streams/audio/codecs",
+       1
+      ],
+      [
+       "not_allowed",
+       "/streams/video/codecs",
+       0
+      ]
+     ]
+    },
+    {
+     "sha256": "dd16cf26796d3ff046a7506e4d7549d0328c4725c9deff93c3314116bcc3b117",
+     "policy": "transcription",
+     "covered_by": [
+      "KD-P-MKV-UNVERIFIED"
+     ],
+     "coreav": [
+      [
+       "unknown",
+       "/duration/max_seconds",
+       null
+      ]
+     ],
+     "ffprobe": []
+    },
+    {
+     "sha256": "dd16cf26796d3ff046a7506e4d7549d0328c4725c9deff93c3314116bcc3b117",
+     "policy": "web-upload",
+     "covered_by": [
+      "KD-P-MKV-UNVERIFIED"
+     ],
+     "coreav": [
+      [
+       "unknown",
+       "/duration/max_seconds",
+       null
+      ],
+      [
+       "unknown",
+       "/file/max_bit_rate",
+       null
+      ],
+      [
+       "unknown",
+       "/streams/video/max_height",
+       0
+      ],
+      [
+       "unknown",
+       "/streams/video/max_pixels",
+       0
+      ],
+      [
+       "unknown",
+       "/streams/video/max_width",
+       0
+      ]
+     ],
+     "ffprobe": []
+    }
+   ]
+  },
+  "M6_bound": {
+   "streams": 279,
+   "below": [],
+   "unscanned_by_codec": {
+    "h264": 29,
+    "vp9": 3,
+    "theora": 7,
+    "mpeg2video": 7,
+    "mpeg4": 25,
+    "mjpeg": 1,
+    "vp8": 3,
+    "hevc": 1
+   }
+  },
+  "streams_without_duration_by_codec": {
+   "h264": 29,
+   "ac3": 16,
+   "ass": 34,
+   "aac": 28,
+   "vobsub": 15,
+   "mp2": 5,
+   "dvbsub": 2,
+   "subrip": 32,
+   "dts": 14,
+   "pgs": 31,
+   "vorbis": 22,
+   "flac": 2,
+   "mp3": 7,
+   "vp8": 1,
+   "mpeg4": 10,
+   "eac3": 2,
+   "truehd": 1,
+   "vp9": 2,
+   "opus": 2,
+   "pcm": 1
+  },
+  "M8_memory": {
+   "files": 423,
+   "max_kb": 3772,
+   "median_kb": 3384,
+   "over_bar": 0
+  }
+ },
+ "speed": {
+  "files": 69,
+  "median": 0.34379046658166573,
+  "ci95": [
+   0.23643403170148589,
+   0.3688019811117787
+  ],
+  "p90": 0.5209381825844992,
+  "max": 0.7754132756181538,
+  "bar": 1.0,
+  "coreav_median_ms": 4.498929003602825,
+  "ffprobe_median_ms": 21.42171800005599,
+  "by_class": {
+   "mkv": {
+    "files": 10,
+    "median": 0.37493817315344335,
+    "ci95": [
+     0.16005928944198647,
+     0.42296699174632724
+    ],
+    "p90": 0.4318939511746238,
+    "max": 0.4403761599733045,
+    "bar": 1.0,
+    "coreav_median_ms": 93.81260700138228,
+    "ffprobe_median_ms": 278.6564915004419
+   },
+   "webm": {
+    "files": 59,
+    "median": 0.3376134905345321,
+    "ci95": [
+     0.19445136246843675,
+     0.3676273916674614
+    ],
+    "p90": 0.5283794699100859,
+    "max": 0.7754132756181538,
+    "bar": 1.0,
+    "coreav_median_ms": 3.616237998357974,
+    "ffprobe_median_ms": 18.149757997889537
+   }
+  },
+  "errors": []
+ }
+}

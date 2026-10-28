@@ -1,0 +1,19 @@
+R7-4, output (checked by the implementer before the A/B run)
+
+Identity: the `dist` decoder at 3204595 against 5db6bc1, the 32 training
+streams at the class frame counts (sd 1800, 720p 900, 1080p 300, 4k 150),
+MD5 of the whole decoded output. The base at one thread, the branch at
+one and at eight threads: identical 64/64. (The A/B run checked the same
+before timing.)
+
+Conformance: `cargo test --release -p coreav-h264 --test conformance --
+--ignored`, 97 streams in scope, every picture byte for byte against the
+reference decoded files:
+  COREAV_H264_THREADS=1,2,8   pass
+  COREAV_H264_KERNELS=scalar  pass
+
+After rebasing onto `main` at fbb309f (#373, the kernels of the training
+set), checked again: the rebased branch (4dbe34a) against `main` at
+fbb309f, the same 32 streams and frame counts, the base at one thread and
+the branch at one and at eight threads: identical 64/64; conformance pass
+with COREAV_H264_THREADS=1,2,8 and with COREAV_H264_KERNELS=scalar.

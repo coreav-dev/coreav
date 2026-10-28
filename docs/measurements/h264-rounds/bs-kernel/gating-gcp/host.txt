@@ -1,0 +1,82 @@
+Architecture:                            x86_64
+CPU op-mode(s):                          32-bit, 64-bit
+Address sizes:                           52 bits physical, 57 bits virtual
+Byte Order:                              Little Endian
+CPU(s):                                  8
+On-line CPU(s) list:                     0-7
+Vendor ID:                               GenuineIntel
+Model name:                              INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz
+CPU family:                              6
+Model:                                   207
+Thread(s) per core:                      1
+Core(s) per socket:                      8
+Socket(s):                               1
+Stepping:                                2
+BogoMIPS:                                4600.00
+Flags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ss ht syscall nx pdpe1gb rdtscp lm constant_tsc arch_perfmon rep_good nopl xtopology nonstop_tsc cpuid tsc_known_freq pni pclmulqdq monitor ssse3 fma cx16 pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt aes xsave avx f16c rdrand hypervisor lahf_lm abm 3dnowprefetch ssbd ibrs ibpb stibp ibrs_enhanced fsgsbase tsc_adjust bmi1 hle avx2 smep bmi2 erms invpcid rtm avx512f avx512dq rdseed adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves avx_vnni avx512_bf16 wbnoinvd arat avx512vbmi umip avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq la57 rdpid cldemote movdiri movdir64b fsrm md_clear serialize tsxldtrk amx_bf16 avx512_fp16 amx_tile amx_int8 arch_capabilities
+Hypervisor vendor:                       KVM
+Virtualization type:                     full
+L1d cache:                               384 KiB (8 instances)
+L1i cache:                               256 KiB (8 instances)
+L2 cache:                                16 MiB (8 instances)
+L3 cache:                                260 MiB (1 instance)
+NUMA node(s):                            1
+NUMA node0 CPU(s):                       0-7
+Vulnerability Gather data sampling:      Not affected
+Vulnerability Indirect target selection: Not affected
+Vulnerability Itlb multihit:             Not affected
+Vulnerability L1tf:                      Not affected
+Vulnerability Mds:                       Not affected
+Vulnerability Meltdown:                  Not affected
+Vulnerability Mmio stale data:           Not affected
+Vulnerability Reg file data sampling:    Not affected
+Vulnerability Retbleed:                  Not affected
+Vulnerability Spec rstack overflow:      Not affected
+Vulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl
+Vulnerability Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization
+Vulnerability Spectre v2:                Mitigation; Enhanced / Automatic IBRS; IBPB conditional; PBRSB-eIBRS SW sequence; BHI BHI_DIS_S
+Vulnerability Srbds:                     Not affected
+Vulnerability Tsa:                       Not affected
+Vulnerability Tsx async abort:           Not affected
+Vulnerability Vmscape:                   Not affected
+8
+Linux coreav-pmu-20261027-071006 6.12.113+deb13-cloud-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.12.113-1 (2026-10-15) x86_64 GNU/Linux
+smt active: 0
+Python 3.13.5
+37eac56bd088eead40891d209bba21170871175671ab1ec7ab0ac393668b8881  decode-base
+f2b17a463ff40d76f5a0e1cccc43d1e2ff3bf2f8371af8179795a5eee63dd4ac  decode-k
+0d709a0bed1a43f24cd2c420878c63afea4580671b6949ad19ed124572f3bc3d  ffmpeg
+66495d433e8e7454ae8844e2c0ea6d18f269cb296bd2b48acecc81a680c43923  h264_parity.py
+1fa3ccd4aafe7d1f4f1bdf01812db531d2455dedd984276f11797562909c3dc8  gate.h264
+9db9563d5a82f6ee3ec5020b9dcbc77a8e751c7830786ff1fb96303b7c4f72e4  es/175433794e02.0.1080p.h264
+528220a5e83e738d4fcd716014a0d2171229872ffef250a727f9e2bb42f63a88  es/1d4b1775d78a.0.720p.h264
+f3e690186acada2f639d9497b3f321f8eee5e27d3cbcdfac6a54912b5a32abfb  es/278dbf5a63bb.0.720p.h264
+da087c4f021cc7738ee5aa9a21cd2175d49368b9304992f2d67e658ddb7f2960  es/36501d448eaa.0.720p.h264
+86ffb86434f807d9f69b2d11decea97c4d79eba4c917fb32b547c4c697c726db  es/3b1b441e23ae.0.4k.h264
+2a38d84049299b8d2daac3e817b45cae4c3cf08971dd37bcad9740e6674091ef  es/3c593b8f0809.0.720p.h264
+1fa3ccd4aafe7d1f4f1bdf01812db531d2455dedd984276f11797562909c3dc8  es/41e324ebb708.0.sd.h264
+f34d2761c7bbf15e6cff8a78620ad521c0cbb201b7a1e5b82c83d1eb270cc297  es/4b54de28c2b3.0.4k.h264
+5dc78973e3614b82d06b282ed323a02e7b5ebf81b3a491f5d433fca7a3083478  es/5185721dda11.0.sd.h264
+cc96f96e9e0bdf532e73a6d362cc1ce1021938f6dfc9b5e1fafa3f6f9fabe157  es/65ec61f95a00.0.720p.h264
+d3bcd48ad63ecc7f8fffc531a67ee1c21196a7a89681d5f8b6cbaa38cb683ee8  es/6b18d9f0f88d.0.720p.h264
+e8254279beeeb4b8b200bca5b833d7e1fdb0c6ec03de9d473a95583f0f1c73c9  es/6da34958296c.0.1080p.h264
+9e8b50644429a41dd1a98abad7dfa5d30b13cb82f857b5a220c68bc542b6df86  es/6e90422a670a.0.1080p.h264
+8dd1e210d8fbdd78907f1b83863acbf0c668632e9114b5777a1f7acaab134056  es/6f7799768413.0.sd.h264
+284e257d95db28add317a90fedcecc54cbbad8a38ddc474f599e559231548f0e  es/7650ae466748.0.sd.h264
+0e6051a7cfba05d0f491fba529de0642fcda6d2c270c7efa419ef238742baade  es/76e0b1692494.0.720p.h264
+c8381413094afef140fbad4834870092edc833d04a0e1a3dd802b2bf17bd6c47  es/81ed4778ece2.0.4k.h264
+30376f559610fe2ad54300841a062d738bd7001082771682a08cc097f6cb438a  es/8ae90cadb5bc.0.sd.h264
+43c4e491f1429a20c46392e20408d3bcbfdaeb172df9518dcf76754c29f3804f  es/9db41aa16b5a.0.720p.h264
+aad53ecf7fd0bf6f6fc843b6b76be6a81d163524ed8cace193bc39bd51b087d4  es/a6af290d9053.0.1080p.h264
+8b5a3e8f224c6335bdf6fd6a1dceccb52b0d24f273cefe2f1a2cdfbcee79a094  es/a81de82106be.0.1080p.h264
+43bac2d48928ae4618ee80d75e913cfcd3ec97db0407a03eb02ee8ca5614245e  es/ae16bb7c7192.0.4k.h264
+3211f919961cb840e498d5134427010ea1818b2a5031086e09fa167f9c402c6a  es/af38b0cfd840.0.4k.h264
+82ed2b6b0ca305cf1cb1f7d86ad7fa9611eda449028d4ad32b350c911b7d140f  es/b41f70a7fa60.0.1080p.h264
+6fef1e76711df99cf3a0fac519e8671e6a82ae51764778153a37d2629ef34aba  es/b71b6b31e54f.0.1080p.h264
+5d17a3ac2a2612da6063eed43a17bc9342329f0273bfec0c832b92920f7968ca  es/c7ecda16e4a7.0.1080p.h264
+2b7cb18748d435eb06421f805ae85c0ba0637a9636ac70e0632b4cf15b2b95c7  es/dcb262cf0138.0.sd.h264
+a1efbea88f7f787cf1f7adea52f6dde153a972bd6fde94a0fb0dff2567086aa1  es/e624cbe0d2be.0.4k.h264
+b8ecf4983448210ab161639a66cd5e7ca65acc3413a056e4a8533e34958d03c4  es/ec473c99c538.0.sd.h264
+b7444b729925968e5c80b5ad97f7ae40e928197aaf79d1b5c1a16364add68fad  es/ed75c044e944.0.4k.h264
+212b4a356b18b62c25cf19161f5a320e6961128e2b02ef4870ee2a391bfa1c09  es/f8d92a911e72.0.4k.h264
+43ce090ce0e82b3ecac432084e413428d80c6a4a0d19f032d4176eda9c60a753  es/f9e973f44570.0.sd.h264

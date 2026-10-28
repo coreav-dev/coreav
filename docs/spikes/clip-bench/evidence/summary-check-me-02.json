@@ -1,0 +1,45 @@
+{
+ "files": 6,
+ "holdout_files": 2,
+ "files_without_a_clip": {},
+ "refused_clips": 0,
+ "refusals": {},
+ "clips": {
+  "agree_direct": 21,
+  "agree_kd": 0,
+  "disagree": 0
+ },
+ "clips_total": 21,
+ "clip_rate": 1.0,
+ "holdout_clips": {
+  "agree_direct": 8,
+  "agree_kd": 0,
+  "disagree": 0
+ },
+ "packets": {
+  "agree": 642555,
+  "disagree": 0
+ },
+ "packet_rate": 1.0,
+ "known_divergences": {},
+ "clips_without_audio": 0,
+ "by_clip": {
+  "head": {
+   "agree": 6,
+   "disagree": 0
+  },
+  "middle": {
+   "agree": 5,
+   "disagree": 0
+  },
+  "tail": {
+   "agree": 5,
+   "disagree": 0
+  },
+  "whole": {
+   "agree": 5,
+   "disagree": 0
+  }
+ },
+ "failures": []
+}

@@ -1,0 +1,12 @@
+combine average 16x16              scalar    176.3 ns   simd    176.2 ns   ratio 1.00
+combine weighted 16x16             scalar    304.2 ns   simd    307.4 ns   ratio 1.01
+luma weighted uni 16x16 (2,2)      parts     389.8 ns   fused    208.3 ns   ratio 0.53
+luma weighted uni 16x16 (0,0)      parts     292.7 ns   fused     76.8 ns   ratio 0.26
+luma weighted uni 8x8 (1,3)        parts     169.9 ns   fused     79.0 ns   ratio 0.46
+chroma weighted uni 8x8 (3,5)      parts     161.9 ns   fused     66.6 ns   ratio 0.41
+chroma weighted uni 4x4 (3,5)      parts     150.8 ns   fused     34.3 ns   ratio 0.23
+luma weighted bi 16x16 (2,2)       parts     443.3 ns   fused    209.7 ns   ratio 0.47
+luma weighted bi 16x16 (0,0)       parts     343.7 ns   fused     77.2 ns   ratio 0.22
+luma weighted bi 8x8 (1,3)         parts     181.9 ns   fused     79.2 ns   ratio 0.44
+chroma weighted bi 8x8 (3,5)       parts     171.0 ns   fused     66.6 ns   ratio 0.39
+chroma weighted bi 4x4 (3,5)       parts     192.2 ns   fused     39.4 ns   ratio 0.20

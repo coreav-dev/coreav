@@ -1,0 +1,49 @@
+diff --git a/crates/coreav-h264/Cargo.toml b/crates/coreav-h264/Cargo.toml
+index 9c111b03..9a4ff65b 100644
+--- a/crates/coreav-h264/Cargo.toml
++++ b/crates/coreav-h264/Cargo.toml
+@@ -21,6 +21,7 @@ default = ["fast"]
+ # The hot-path module of ADR 0038 (`src/fast/`): the decoder's only
+ # `unsafe`. A build without it compiles none and runs the baseline twins.
+ fast = []
++probe-pad = ["fast"]
+ 
+ # The workspace's lint table, with `unsafe_code = "deny"` instead of
+ # `forbid` (ADR 0038 point 1): `#[allow(unsafe_code)]` sits on `fast` alone,
+diff --git a/crates/coreav-h264/src/fast/mod.rs b/crates/coreav-h264/src/fast/mod.rs
+index 8c278e50..ad94e2b2 100644
+--- a/crates/coreav-h264/src/fast/mod.rs
++++ b/crates/coreav-h264/src/fast/mod.rs
+@@ -155,3 +155,18 @@ impl Tier for V3 {
+         k.predict_inlined(dst, src, px, py, w, h, mv, ops)
+     }
+ }
++
++#[cfg(feature = "probe-pad")]
++/// Probe only (not for merge): `N` independent one-uop instructions, the
++/// part a cut of the `ue` calls would remove there.
++#[inline(always)]
++pub(crate) fn pad<const N: usize>(a: u64) {
++    // SAFETY: register arithmetic only; no memory, stack or flags.
++    unsafe {
++        core::arch::asm!(
++            ".rept {n}", "lea {o}, [{a} + {a}]", ".endr",
++            n = const N, o = out(reg) _, a = in(reg) a,
++            options(nomem, nostack, preserves_flags)
++        );
++    }
++}
+diff --git a/crates/coreav-h264/src/mb.rs b/crates/coreav-h264/src/mb.rs
+index 00e60ac4..bccfb6e3 100644
+--- a/crates/coreav-h264/src/mb.rs
++++ b/crates/coreav-h264/src/mb.rs
+@@ -1065,6 +1065,9 @@ impl<K: Kernels> SliceDecoder<'_, K> {
+                 let run = r.ue()? as usize;
+                 require(run <= total, "mb_skip_run")?;
+                 for _ in 0..run {
++                    // Every skipped macroblock: the part the slice loop probe prices.
++                    #[cfg(feature = "probe-pad")]
++                    crate::fast::pad::<200>(*addr as u64);
+                     require(
+                         *addr < total && self.mbs.get(*addr).is_some_and(|m| m.slice == 0),
+                         "mb_skip_run past the picture",

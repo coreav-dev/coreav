@@ -1,0 +1,65 @@
+scripts/h264_profile.py --decoder <main b7cad07, dist> --event cpu-clock --discard --class-frames sd=1800,720p=900,1080p=300,4k=150 --pin 2 (training set, 32 streams)
+model name	: Intel(R) Xeon(R) Processor @ 2.90GHz
+CPU family:                              6
+Model:                                   106
+Stepping:                                6
+
+| Part | Share |
+|---|---|
+| Macroblock layer (7.3.5) | 26.8% |
+| CABAC engine and binarizations (9.3.3.2) | 14.5% |
+| Interpolation kernels, vector (8.4.2.2) | 11.8% |
+| Interpolation kernels, reference (8.4.2.2) | 9.4% |
+| Deblocking: strengths and driver (8.7.2.1) | 8.5% |
+| Other | 8.2% |
+| Deblocking: the edge filter (8.7.2.3) | 7.7% |
+| Residual blocks and reconstruction (8.5) | 5.5% |
+| Inter prediction control (8.4.1) | 4.0% |
+| CAVLC (9.2) | 2.4% |
+| Intra prediction (8.3) | 0.4% |
+| Memory fill and copy | 0.4% |
+| Parameter sets, NAL framing, bit reading (7.3) | 0.3% |
+| Decoded picture buffer and output (8.2.5, C.4.5) | 0.1% |
+| Writing the frames out | 0.0% |
+
+The symbols that hold the most (mean per-stream share, pooled):
+   9.91%   8.64%  coreav_kernels_h264::simd::x86::luma_mc_into
+   8.07%   6.35%  coreav_h264::deblock::deblock_rows::<coreav_kernels_h264::Auto>
+   7.95%   6.59%  <coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::chroma_mc
+   5.56%   6.96%  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode_mb::<coreav_h264::syntax::CabacSyntax>
+   4.54%   3.59%  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::inter_pred
+   4.43%   2.82%  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::predict_list
+   4.39%   2.80%  <coreav_h264::work::PictureWork<coreav_kernels_h264::Auto>>::decode_slice
+   3.43%   4.19%  coreav_h264::cabac::significance_map::<16>
+   3.36%   4.06%  coreav_h264::cabac::levels::<16>
+   2.80%   2.25%  coreav_kernels_h264::simd::x86::filter_luma_edge::<false, true>
+   2.76%   6.79%  coreav_h264::cabac::significance_map::<64>
+   2.66%   2.30%  coreav_kernels_h264::simd::x86::filter_chroma_pair
+   2.51%   1.83%  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::start_mb
+   2.34%   1.21%  coreav_h264::inter::edge_window
+   2.22%   1.75%  coreav_kernels_h264::simd::x86::filter_luma_edge::<true, true>
+   2.22%   5.88%  coreav_h264::cabac::levels::<64>
+   1.95%   2.77%  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::parse_residual::<coreav_h264::syntax::CabacSyntax>
+   1.89%   1.59%  coreav_kernels_h264::simd::x86::combine
+   1.62%   2.33%  <coreav_h264::cabac::Cabac>::mvd
+   1.58%   1.79%  <coreav_h264::syntax::CabacSyntax as coreav_h264::syntax::Syntax>::block::<16>
+   1.36%   0.64%  coreav_h264::cavlc::residual_block
+   1.29%   1.53%  coreav_kernels_h264::simd::x86::idct4x4_add_quad
+   1.23%   0.67%  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::parse_residual::<coreav_h264::syntax::CavlcSyntax>
+   1.20%   0.86%  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::motion_compensate
+   1.01%   0.68%  <coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::chroma_mc_avg
+   1.01%   0.94%  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::colocated
+   1.00%   0.56%  <coreav_h264::cavlc::Code>::read
+   0.99%   1.18%  <coreav_h264::mb::MbData>::reset
+   0.94%   0.85%  <coreav_h264::decoder::Decoder>::start_picture
+   0.94%   0.87%  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::mv_predictor
+   0.88%   1.05%  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::parse_mvd::<coreav_h264::syntax::CabacSyntax>
+   0.69%   1.66%  coreav_kernels_h264::simd::x86::idct8x8_add
+   0.57%   0.78%  <coreav_h264::syntax::CabacSyntax as coreav_h264::syntax::Syntax>::block_context::<coreav_kernels_h264::Auto>
+   0.54%   0.68%  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reconstruct_chroma
+   0.51%   0.49%  coreav_kernels_h264::simd::x86::intra4x4_mb
+   0.51%   0.49%  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reconstruct_intra
+   0.47%   0.63%  <coreav_h264::decoder::Decoder>::decode_unit
+   0.46%   0.80%  coreav_h264::cabac::levels::<4>
+   0.43%   0.34%  coreav_h264::deblock::differing_motion_strength
+   0.43%   0.66%  coreav_kernels_h264::intra::pred8x8

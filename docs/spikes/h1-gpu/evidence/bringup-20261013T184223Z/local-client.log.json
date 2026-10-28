@@ -1,0 +1,4 @@
+{
+ "sha256": "5b0137cc844565fe6a744eaf29ec3ade2da10eb9a1e1986ba9d716fd719dd70e",
+ "log": "{\n  \"run_id\": \"bringup-20261013T184223Z\",\n  \"step\": \"bringup\",\n  \"args\": [],\n  \"kind\": \"gpu\",\n  \"reservation_usd\": 0.5772,\n  \"timeout_seconds\": 1500,\n  \"startup_timeout_seconds\": 600,\n  \"retries\": 0,\n  \"reserved_utc\": \"2026-10-13T18:42:23.397506+00:00\",\n  \"function_call_id\": \"call-017\",\n  \"exit_code\": 0,\n  \"outcome\": \"completed\",\n  \"local_wall_seconds\": 110.5,\n  \"settled_usd\": 0.0304\n}\n"
+}

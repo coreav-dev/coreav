@@ -1,0 +1,70 @@
+== entropy: CoreAV 0.387, FFmpeg 0.347 (of FFmpeg total, mean per stream)
+  0.1881 cabac.rs decision                                          | 0.1179 cabac.h get_cabac_inline_x86
+  0.0135 cabac.rs coreav_h264::cabac::levels::<16>                  | 0.0512 h264_cabac.c decode_significance_x86
+  0.0121 cabac.rs coreav_h264::cabac::significance_map::<16>        | 0.0361 h264_cabac.c decode_significance_8x8_x86
+  0.0118 mb.rs parse_residual<coreav_kernels_h264::Auto, coreav_h   | 0.0233 h264_cabac.c ff_h264_decode_mb_cabac
+  0.0104 mb.rs decode_mb<coreav_kernels_h264::Auto, coreav_h264::   | 0.0156 h264_cabac.c decode_cabac_residual_internal
+  0.0088 cabac.rs coreav_h264::cabac::levels::<64>                  | 0.0124 cabac.h get_cabac_bypass_sign_x86
+  0.0068 mb.rs is_skip                                              | 0.0103 h264_cavlc.c decode_residual
+  0.0060 mb.rs store_mvd<coreav_kernels_h264::Auto>                 | 0.0073 get_bits.h get_vlc2
+  0.0057 cabac.rs coreav_h264::cabac::significance_map::<64>        | 0.0071 h264_cabac.c decode_cabac_luma_residual
+  0.0056 mb.rs parse_mb_pred<coreav_kernels_h264::Auto, coreav_h2   | 0.0068 h264_cabac.c decode_cabac_mb_skip
+  0.0054 nal.rs coreav_h264::nal::rbsp                              | 0.0060 h264_cavlc.c ff_h264_decode_mb_cavlc
+  0.0053 cabac.rs bypass                                            | 0.0053 h264_cabac.c decode_cabac_residual_nondc
+  0.0053 cavlc.rs levels                                            | 0.0051 cabac_functions.h get_cabac
+== inter: CoreAV 0.241, FFmpeg 0.215 (of FFmpeg total, mean per stream)
+  0.0963 K luma_block                                               | 0.0268 h264_mc_template.c mc_part_420_simple_8
+  0.0468 K chroma_block                                             | 0.0259 asm ff_put_h264_chroma_mc8_rnd_ssse3
+  0.0450 K Auto>                                                    | 0.0221 h264_mb.c mc_dir_part
+  0.0113 inter.rs predict_fast                                      | 0.0201 asm put_pixels16_after_prologue
+  0.0086 K start_mb                                                 | 0.0150 asm ff_put_h264_qpel8or16_v_lowpass_sse2
+  0.0072 inter.rs inter_pred                                        | 0.0134 asm ff_prefetch_mmxext
+  0.0060 K predict_fast                                             | 0.0133 asm ff_put_h264_qpel16_h_lowpass_l2_ssse3
+  0.0049 inter.rs motion_compensate                                 | 0.0110 h264_mb.c mc_part_std
+  0.0047 inter.rs coreav_h264::inter::edge_window                   | 0.0082 asm ff_put_h264_qpel8or16_hv1_lowpass_op_sse2
+  0.0020 K fit                                                      | 0.0071 h264_mb.c prefetch_motion
+  0.0020 K chroma_mc                                                | 0.0058 h264_mc_template.c hl_motion_420_simple_8
+  0.0017 K Average>                                                 | 0.0043 asm ff_put_h264_qpel16_hv2_lowpass_ssse3
+  0.0013 inter.rs predict_list<coreav_kernels_h264::Auto>           | 0.0042 asm ff_put_h264_qpel8_h_lowpass_l2_ssse3
+== deblock: CoreAV 0.178, FFmpeg 0.162 (of FFmpeg total, mean per stream)
+  0.0317 K luma_columns                                             | 0.0272 asm ff_deblock_v_luma_8_avx
+  0.0309 deblock.rs deblock_row<coreav_kernels_h264::Auto>          | 0.0227 asm ff_h264_loop_filter_strength_mmxext
+  0.0251 K filter_chroma_mb                                         | 0.0173 asm ff_deblock_h_luma_8_avx
+  0.0169 K luma_rows                                                | 0.0129 asm ff_deblock_h_chroma_8_avx
+  0.0135 deblock.rs new                                             | 0.0128 h264_slice.c fill_filter_caches_inter
+  0.0120 deblock.rs edge_strengths<1>                               | 0.0114 h264_slice.c loop_filter
+  0.0112 deblock.rs edge_strengths<0>                               | 0.0094 h264_loopfilter.c h264_filter_mb_fast_internal
+  0.0067 deblock.rs {closure#0}                                     | 0.0090 asm ff_deblock_v_chroma_8_avx
+  0.0058 K Auto>                                                    | 0.0075 h264_slice.c backup_mb_border
+  0.0037 deblock.rs {closure#1}                                     | 0.0075 h264_slice.c fill_filter_caches
+  0.0036 deblock.rs same_motion                                     | 0.0065 asm ff_deblock_v_luma_intra_8_avx
+  0.0024 deblock.rs coreav_h264::deblock::differing_motion_strength | 0.0039 asm ff_deblock_h_luma_intra_8_avx
+  0.0021 deblock.rs column                                          | 0.0029 h264_loopfilter.c filter_mb_edgev
+== recon: CoreAV 0.086, FFmpeg 0.074 (of FFmpeg total, mean per stream)
+  0.0199 K idct4x4_add_quad                                         | 0.0176 h264_mb_template.c hl_decode_mb_simple_8
+  0.0098 recon.rs apply<16>                                         | 0.0164 asm h264_add8x4_idct_sse2
+  0.0077 K idct8x8_add                                              | 0.0063 asm ff_h264_idct8_add4_8_sse2
+  0.0072 K intra4x4_mb                                              | 0.0043 asm ff_h264_idct_add16_8_sse2
+  0.0068 recon.rs reconstruct_chroma                                | 0.0040 asm h264_idct_dc_add8_mmxext
+  0.0053 K intra_chroma                                             | 0.0028 h264_mb.c hl_decode_mb_predict_luma
+  0.0048 recon.rs apply<64>                                         | 0.0023 h264_mb.c xchg_mb_border
+  0.0043 recon.rs prepare_level_scales                              | 0.0022 h264_mb.c ff_h264_hl_decode_mb
+  0.0040 K intra8x8_mb                                              | 0.0022 asm ff_h264_idct_add8_8_sse2
+  0.0026 recon.rs residual_4x4_luma                                 | 0.0019 h264_mb.c hl_decode_mb_idct_luma
+  0.0025 recon.rs reconstruct_intra                                 | 0.0015 asm ff_pred8x8_dc_8_sse2
+  0.0022 K intra16x16                                               | 0.0013 asm ff_h264_idct_add_8_avx
+  0.0017 recon.rs reconstruct_inter                                 | 0.0013 h264idct_template.c ff_h264_chroma_dc_dequant_idct_8_c
+== other: CoreAV 0.040, FFmpeg 0.020 (of FFmpeg total, mean per stream)
+  0.0113 work.rs new<coreav_kernels_h264::Auto>                     | 0.0008 buffer.c av_buffer_unref
+  0.0095 ?                                                          | 0.0007 buffer.c buffer_replace
+  0.0024 picture.rs eq                                              | 0.0007 refstruct.c av_refstruct_unref
+  0.0023 params.rs new                                              | 0.0006 frame.c get_frame_defaults
+  0.0019 K residual_4x4_luma                                        | 0.0005 videodsp_init.c emulated_edge_mc
+  0.0016 K new                                                      | 0.0005 mathops.h NEG_USR32
+  0.0014 error.rs require                                           | 0.0004 packet.c get_packet_defaults
+  0.0010 picture.rs deblock_row<coreav_kernels_h264::Auto>          | 0.0004 videodsp_init.c emulated_edge_mc_avx2
+  0.0010 params.rs norm_adjust8                                     | 0.0004 buffer.c av_buffer_ref
+  0.0008 K reconstruct_inter                                        | 0.0004 frame.c av_frame_move_ref
+  0.0008 picture.rs band_of_mb_row                                  | 0.0003 ?? _init
+  0.0007 slice.rs eq                                                | 0.0003 refstruct.c av_refstruct_replace
+  0.0005 picture.rs <coreav_h264::picture::BandData>::fit           | 0.0003 error_resilience.c ff_er_add_slice

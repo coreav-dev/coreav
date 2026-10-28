@@ -1,0 +1,32 @@
+{
+ "probe": {
+  "inputs": 221,
+  "median_added_us": 12.7,
+  "bar_us": 50,
+  "pass": true
+ },
+ "extract_audio": {
+  "inputs": 113,
+  "median_ratio": 1.167,
+  "bar": 1.05,
+  "pass": false,
+  "median_ratio_without_copy": 1.087,
+  "median_added_us": 33.3
+ },
+ "remux": {
+  "inputs": 202,
+  "median_ratio": 1.39,
+  "bar": 1.05,
+  "pass": false,
+  "median_ratio_without_copy": 1.104,
+  "median_added_us": 189.9
+ },
+ "clip": {
+  "inputs": 172,
+  "median_ratio": 1.286,
+  "bar": 1.05,
+  "pass": false,
+  "median_ratio_without_copy": 1.191,
+  "median_added_us": 15.3
+ }
+}

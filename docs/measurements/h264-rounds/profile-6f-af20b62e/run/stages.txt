@@ -1,0 +1,106 @@
+Stages: cycle-like events as a share of FFmpeg cycles; counts per macroblock. Mean over streams.
+
+cycles
+  class  decoder   entropy        mb     inter     recon   deblock     other     total
+  sd     core     0.3827    0.1461    0.1921    0.1218    0.2156    0.0654    1.1237
+  sd     ffa      0.3841    0.0297    0.1705    0.0898    0.2389    0.0869    1.0000
+  720p   core     0.1140    0.0986    0.1996    0.0823    0.4365    0.0355    0.9665
+  720p   ffa      0.1513    0.0348    0.1541    0.0781    0.4972    0.0844    1.0000
+  all    core     0.2484    0.1224    0.1958    0.1021    0.3260    0.0505    1.0451
+  all    ffa      0.2677    0.0323    0.1623    0.0840    0.3680    0.0857    1.0000
+
+instructions
+  class  decoder   entropy        mb     inter     recon   deblock     other     total
+  sd     core  1486.3045  647.3375  849.3441  438.6387 1012.5182  244.4030 4678.5461
+  sd     ffa   1286.6454  149.4612  930.7431  374.4832 1269.9102  158.8141 4170.0572
+  720p   core   530.5738  476.9457  903.9617  439.5385 1737.8098  161.2738 4250.1034
+  720p   ffa    609.5741  100.7987  636.3354  377.1786 1895.4744   89.6808 3709.0420
+  all    core  1008.4391  562.1416  876.6529  439.0886 1375.1640  202.8384 4464.3247
+  all    ffa    948.1098  125.1300  783.5392  375.8309 1582.6923  124.2474 3939.5496
+
+Totals (perf stat): median per stream of CoreAV / FFmpeg BtbN; per macroblock: CoreAV, BtbN, attribution build
+  cycles                             sd    core/ffb  1.102  per MB: core     1690.1 ffb     1533.8 ffa     1503.2
+  cycles                             720p  core/ffb  0.947  per MB: core     1097.6 ffb     1159.5 ffa     1131.1
+  cycles                             1080p core/ffb    nan  per MB: 
+  cycles                             4k    core/ffb    nan  per MB: 
+  cycles                             all   core/ffb  1.024  per MB: core     1393.8 ffb     1346.7 ffa     1317.1
+  instructions                       sd    core/ffb  1.127  per MB: core     4675.0 ffb     4147.7 ffa     4167.8
+  instructions                       720p  core/ffb  1.143  per MB: core     4246.3 ffb     3715.4 ffa     3709.9
+  instructions                       1080p core/ffb    nan  per MB: 
+  instructions                       4k    core/ffb    nan  per MB: 
+  instructions                       all   core/ffb  1.135  per MB: core     4460.6 ffb     3931.5 ffa     3938.8
+  task-clock                         sd    core/ffb  1.094  per MB: core        0.0 ffb        0.0 ffa        0.0
+  task-clock                         720p  core/ffb  0.942  per MB: core        0.0 ffb        0.0 ffa        0.0
+  task-clock                         1080p core/ffb    nan  per MB: 
+  task-clock                         4k    core/ffb    nan  per MB: 
+  task-clock                         all   core/ffb  1.018  per MB: core        0.0 ffb        0.0 ffa        0.0
+  wall_s                             sd    core/ffb  1.091  per MB: core        0.0 ffb        0.0 ffa        0.0
+  wall_s                             720p  core/ffb  0.942  per MB: core        0.0 ffb        0.0 ffa        0.0
+  wall_s                             1080p core/ffb    nan  per MB: 
+  wall_s                             4k    core/ffb    nan  per MB: 
+  wall_s                             all   core/ffb  1.016  per MB: core        0.0 ffb        0.0 ffa        0.0
+
+CoreAV items within the MB layer and deblocking (mean per stream, raw weight; top 12 per event):
+
+cycles / deblock
+   14.7%  avx512.rs:luma_columns
+   11.3%  avx512.rs:filter_luma16
+   10.0%  avx512.rs:{closure#0}
+    9.6%  avx512.rs:luma_rows
+    8.3%  deblock.rs:deblock_row
+    6.1%  avx512.rs:{closure#1}
+    4.6%  x86.rs:filter_chroma16
+    3.6%  avx512.rs:thresholds
+    2.4%  deblock.rs:luma_edges
+    2.0%  chroma_mb.rs:{closure#1}
+    1.8%  chroma_mb.rs:{closure#0}
+    1.7%  chroma_mb.rs:filter_chroma_mb
+
+cycles / mb
+   13.4%  inter.rs:{closure#0}
+   10.9%  mb.rs:reset_body
+    6.5%  inter.rs:predict_partitions
+    4.6%  mb.rs:finish_mb
+    4.3%  inter.rs:mv_predictor
+    4.2%  mb.rs:start_mb_body
+    4.2%  inter.rs:predict_direct
+    3.7%  inter.rs:resolve
+    2.6%  mb.rs:decode_cavlc_body
+    2.5%  inter.rs:set
+    2.3%  mb.rs:{closure#0}
+    2.1%  inter.rs:put_row
+
+instructions / deblock
+   13.4%  avx512.rs:{closure#0}
+   11.2%  avx512.rs:filter_luma16
+   10.8%  avx512.rs:luma_columns
+    7.9%  deblock.rs:deblock_row
+    6.5%  avx512.rs:luma_rows
+    5.2%  avx512.rs:{closure#1}
+    4.3%  x86.rs:filter_chroma16
+    3.8%  chroma_mb.rs:{closure#0}
+    3.1%  chroma_mb.rs:lanes
+    2.9%  strengths.rs:edge_strengths
+    2.5%  avx512.rs:thresholds
+    2.2%  x86.rs:near16
+
+instructions / mb
+   10.2%  mb.rs:reset_body
+    8.7%  inter.rs:{closure#0}
+    8.2%  inter.rs:predict_direct
+    6.6%  mb.rs:finish_mb
+    4.3%  inter.rs:mv_predictor
+    4.0%  inter.rs:resolve
+    3.9%  inter.rs:predict_partitions
+    3.8%  mb.rs:start_mb_body
+    3.4%  mod.rs:enter
+    3.1%  inter.rs:temporal_direct_motion
+    2.9%  mb.rs:{closure#0}
+    2.8%  inter.rs:store_mb
+
+Instructions per cycle by stage (sampled together; summed over the streams):
+  class  decoder   entropy        mb     inter     recon   deblock     other     total
+  sd     core       2.55      2.91      2.91      2.37      3.08      2.45      2.73
+  sd     ffa        2.20      3.30      3.59      2.74      3.49      1.20      2.74
+  720p   core       4.04      4.20      3.94      4.64      3.46      3.95      3.82
+  720p   ffa        3.50      2.52      3.59      4.19      3.31      0.92      3.22

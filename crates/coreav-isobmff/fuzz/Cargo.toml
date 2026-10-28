@@ -1,0 +1,69 @@
+# cargo-fuzz project; outside the workspace, never published.
+[package]
+name = "coreav-isobmff-fuzz"
+version = "0.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+
+[dependencies]
+miniz_oxide = { version = "0.8", default-features = false, features = ["with-alloc"] }
+libfuzzer-sys = "0.4"
+coreav-isobmff = { path = ".." }
+
+[[bin]]
+name = "probe"
+path = "fuzz_targets/probe.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "packets"
+path = "fuzz_targets/packets.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "compressed_movie"
+path = "fuzz_targets/compressed_movie.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "frame_sizes"
+path = "fuzz_targets/frame_sizes.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "frame_access"
+path = "fuzz_targets/frame_access.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "buffered_reads"
+path = "fuzz_targets/buffered_reads.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "metadata"
+path = "fuzz_targets/metadata.rs"
+test = false
+doc = false
+bench = false
+
+[lints.rust]
+unsafe_code = "forbid"

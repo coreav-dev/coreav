@@ -1,0 +1,10 @@
+The four decoders of provenance.txt, each built with `cargo build --locked --profile dist --example decode` from a clean
+worktree of one commit (rustc as pinned by rust-toolchain.toml):
+  decode-base  03e256a  main, the commit the branch is based on
+  decode-c1    979df34  perf(h264): the CABAC engine in three registers, the slice data behind an out-of-line load
+  decode-c1b   a537086  perf(h264): CABAC renormalization from the rangeLPS table, no leading-zero count on the bin chain
+  decode-c4    74fa599  perf(h264): coded_block_flag decoded inline, the coefficients out of line
+The commits are in the history of branch measured/h264-cabac-registers (before the rebase onto 28b2b22).
+h264_parity.py is scripts/h264_parity.py at 03e256a (same sha256); the analysis is ../analyze.py (same sha256).
+The runner scripts (not published) are the host-gate run's cloud runner bundle
+adapted to this round. Run: a detached full run of the runner, one container (AMD, 24 CPUs visible, see cpu.txt), 3,961 s.

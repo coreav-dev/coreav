@@ -1,0 +1,134 @@
+{
+ "files": 869,
+ "holdout_files": 254,
+ "files_without_a_clip": {
+  "no video track the allowlist keeps": 21,
+  "download or SHA-256 check failed": 1,
+  "InvalidBox { offset: 32, kind: FourCc(\"moov\"), reason: \"missing movie header\" }": 1,
+  "Truncated { offset: 426381 }": 1,
+  "InvalidBox { offset: 9475193, kind: FourCc(\"moov\"), reason: \"second movie box\" }": 1,
+  "Truncated { offset: 776783 }": 1
+ },
+ "refused_clips": 117,
+ "refusals": {
+  "source: Unsupported { reason: \"edit list outside the supported model\" }": 61,
+  "source: Unsupported { reason: \"video other than H.264 avc1, HEVC hvc1, AV1 or VP9\" }": 52,
+  "source: Unsupported { reason: \"the clip starts after the end of the video\" }": 4
+ },
+ "clips": {
+  "agree_direct": 2201,
+  "agree_kd": 424,
+  "disagree": 9
+ },
+ "clips_total": 2634,
+ "clip_rate": 0.9965831435079726,
+ "holdout_clips": {
+  "agree_direct": 666,
+  "agree_kd": 93,
+  "disagree": 4
+ },
+ "packets": {
+  "agree": 16457889,
+  "disagree": 38002
+ },
+ "packet_rate": 0.9976962747874607,
+ "known_divergences": {
+  "KD-C-AUDIO-RESTART": 188,
+  "KD-C-STTS-SHORT": 99,
+  "KD-C-CTTS-UNSIGNED": 88,
+  "KD-C-AAC-PROFILE": 84,
+  "KD-C-EMPTY-EDIT-DURATION": 65,
+  "KD-C-EDIT-MIDFRAME": 18,
+  "KD-C-DTS-SHIFT": 15,
+  "KD-C-AUDIO-EDIT-RATE": 5,
+  "KD-C-SYNC-FLAGS": 2,
+  "KD-C-AUDIO-JITTER": 1
+ },
+ "clips_without_audio": 233,
+ "by_clip": {
+  "head": {
+   "agree": 809,
+   "disagree": 1
+  },
+  "middle": {
+   "agree": 605,
+   "disagree": 3
+  },
+  "tail": {
+   "agree": 605,
+   "disagree": 3
+  },
+  "whole": {
+   "agree": 606,
+   "disagree": 2
+  }
+ },
+ "failures": [
+  {
+   "sha256": "22fe923356f4fbce537c0d5dda4750d54d7efe54bf97b086c919b05f190f5553",
+   "clip": "middle",
+   "problems": [
+    "video: packets differ at [0, 1, 2, 3, 4] of 678",
+    "video framemd5 differs at frame 0 (677 source frames in the clip, 677 output frames)"
+   ]
+  },
+  {
+   "sha256": "22fe923356f4fbce537c0d5dda4750d54d7efe54bf97b086c919b05f190f5553",
+   "clip": "tail",
+   "problems": [
+    "video: packets differ at [0, 1, 2, 3, 4] of 1324",
+    "video framemd5 differs at frame 0 (1324 source frames in the clip, 1324 output frames)"
+   ]
+  },
+  {
+   "sha256": "22fe923356f4fbce537c0d5dda4750d54d7efe54bf97b086c919b05f190f5553",
+   "clip": "whole",
+   "problems": [
+    "video: packets differ at [0, 1, 2, 3, 4] of 36000",
+    "video framemd5 differs at frame 0 (35999 source frames in the clip, 36000 output frames)"
+   ]
+  },
+  {
+   "sha256": "371baf1bdb08cd56e5f675df9ebcb5c618ad0339f4f0c00d7f88ab24a038c192",
+   "clip": "head",
+   "problems": [
+    "harness: RuntimeError: ffmpeg failed (-6): Assertion pkt failed at src/fftools/ffmpeg_dec.c:710\n"
+   ]
+  },
+  {
+   "sha256": "371baf1bdb08cd56e5f675df9ebcb5c618ad0339f4f0c00d7f88ab24a038c192",
+   "clip": "middle",
+   "problems": [
+    "harness: RuntimeError: ffmpeg failed (-6): Assertion pkt failed at src/fftools/ffmpeg_dec.c:710\n"
+   ]
+  },
+  {
+   "sha256": "371baf1bdb08cd56e5f675df9ebcb5c618ad0339f4f0c00d7f88ab24a038c192",
+   "clip": "tail",
+   "problems": [
+    "harness: RuntimeError: ffmpeg failed (-6): Assertion pkt failed at src/fftools/ffmpeg_dec.c:710\n"
+   ]
+  },
+  {
+   "sha256": "371baf1bdb08cd56e5f675df9ebcb5c618ad0339f4f0c00d7f88ab24a038c192",
+   "clip": "whole",
+   "problems": [
+    "harness: RuntimeError: ffmpeg failed (-6): Assertion pkt failed at src/fftools/ffmpeg_dec.c:710\n"
+   ]
+  },
+  {
+   "sha256": "985a28c5abe51c52ea9e1b6c524b8ad4b51906f6594e23f4f4378aead68c7ab1",
+   "clip": "middle",
+   "problems": [
+    "video framemd5 differs at frame 0 (241 source frames in the clip, 164 output frames)"
+   ]
+  },
+  {
+   "sha256": "985a28c5abe51c52ea9e1b6c524b8ad4b51906f6594e23f4f4378aead68c7ab1",
+   "clip": "tail",
+   "problems": [
+    "video framemd5 differs at frame 0 (240 source frames in the clip, 207 output frames)"
+   ]
+  }
+ ]
+}

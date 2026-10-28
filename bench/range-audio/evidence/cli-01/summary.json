@@ -1,0 +1,678 @@
+{
+ "held_out": 60,
+ "cli": {
+  "commit": "2fa487887220e43055ed302120517907f63655d1",
+  "held_out_run": true,
+  "dirty": false,
+  "compared": 57,
+  "excluded": [
+   {
+    "sha256": "895d1f32f29cd537feb3bea9f9d131c18def0bb8846536cb78dae42ef34d9376",
+    "why": "the native build refuses the track"
+   },
+   {
+    "sha256": "3898250f26b891f1233bee86910ae2f98394981ebbe20abedd4e5455e075a5d4",
+    "why": "the native build refuses the track"
+   },
+   {
+    "sha256": "574bc4ad81dedb9a42ca8145460d3d3cdca38fd1b8133cc6bf72d59236d9ce57",
+    "why": "the native build refuses the track"
+   }
+  ],
+  "missing": [],
+  "equality_failures": [],
+  "bar_every_output_equal": true,
+  "all": {
+   "n": 57,
+   "median": 0.72478469721868,
+   "max": 1.193184761903038,
+   "min": 0.2440127187297123,
+   "ci95": [
+    0.6119677213486294,
+    0.8062839037970791
+   ]
+  },
+  "classes": {
+   "audio-only": {
+    "n": 9,
+    "median": 0.8702116543526974,
+    "max": 1.103587700289173,
+    "min": 0.3396996508848641,
+    "ci95": [
+     0.4437846613219251,
+     1.0717000576460252
+    ]
+   },
+   "with video": {
+    "n": 48,
+    "median": 0.682955643766981,
+    "max": 1.193184761903038,
+    "min": 0.2440127187297123,
+    "ci95": [
+     0.6004176507441411,
+     0.7823070868648383
+    ]
+   },
+   "up to 64 MiB": {
+    "n": 31,
+    "median": 0.6065065280984245,
+    "max": 1.193184761903038,
+    "min": 0.2440127187297123,
+    "ci95": [
+     0.4437846613219251,
+     0.8475405132676116
+    ]
+   },
+   "over 64 MiB": {
+    "n": 26,
+    "median": 0.7693860681787292,
+    "max": 1.0916137059913409,
+    "min": 0.3396996508848641,
+    "ci95": [
+     0.6890153722183324,
+     0.8001430940685839
+    ]
+   }
+  },
+  "bar_median_at_most_1.00": true,
+  "faster_upper_bound_below_1.00": {
+   "all": true,
+   "audio-only": false,
+   "with video": true,
+   "up to 64 MiB": true,
+   "over 64 MiB": true
+  },
+  "received_share": {
+   "n": 57,
+   "median": 1.0,
+   "max": 1.0036691627629533,
+   "min": 0.012948326653911922,
+   "ci95": [
+    1.0,
+    1.0
+   ]
+  },
+  "requests": {
+   "n": 57,
+   "median": 4,
+   "max": 198,
+   "min": 2,
+   "ci95": [
+    3,
+    6
+   ]
+  },
+  "rows": [
+   {
+    "sha256": "50a694bd8a2b4390463f3ab6429210f8b787109f9c366bbc1d75ecb69ac09aa4",
+    "size": 1769135,
+    "stratum": "video-small",
+    "seconds": 0.2812776459904853,
+    "ffmpeg_seconds": 1.0587696820002748,
+    "ratio": 0.26566462071248875,
+    "requests": 3,
+    "received_share": 1.0
+   },
+   {
+    "sha256": "54b6f8a3007310925fab25b8733a0356d971504e07f860a7aaf21b9411f1d005",
+    "size": 42673741,
+    "stratum": "video-small",
+    "seconds": 0.7598313110065646,
+    "ffmpeg_seconds": 1.8111553140042815,
+    "ratio": 0.41952852145333375,
+    "requests": 3,
+    "received_share": 0.9826758099319204
+   },
+   {
+    "sha256": "ff7fac2c85681198183ae1ea4058a02463690359e570811c65bc2e5be58785de",
+    "size": 21417927,
+    "stratum": "video-small",
+    "seconds": 0.7914391009981045,
+    "ffmpeg_seconds": 1.3049143980024382,
+    "ratio": 0.6065065280984245,
+    "requests": 3,
+    "received_share": 1.0000014006957816
+   },
+   {
+    "sha256": "9e3a1adccdc35594a518a0566aac638da929aa7651f473786e6ea44cd9687813",
+    "size": 5253880,
+    "stratum": "video-small",
+    "seconds": 0.3382820449915016,
+    "ffmpeg_seconds": 1.3863295600021956,
+    "ratio": 0.2440127187297123,
+    "requests": 3,
+    "received_share": 1.0
+   },
+   {
+    "sha256": "e9d51288365c0001649030767aca116464af2127c20e2fd8bac11891fc7352d9",
+    "size": 8505528,
+    "stratum": "video-small",
+    "seconds": 0.4171886570111383,
+    "ffmpeg_seconds": 0.7393429969961289,
+    "ratio": 0.5642694374683076,
+    "requests": 2,
+    "received_share": 1.0
+   },
+   {
+    "sha256": "b109b053fc5a405dc112d2208de3ad897472ecbe386eab788a422529f17487bb",
+    "size": 582634,
+    "stratum": "video-small",
+    "seconds": 0.28621226000541355,
+    "ffmpeg_seconds": 1.0984348339989083,
+    "ratio": 0.26056371406526063,
+    "requests": 3,
+    "received_share": 1.0
+   },
+   {
+    "sha256": "e2b7ab2d21877133adb7a8fb0a5b8d76cb17d8236e95f26e31e9601f9c0d2427",
+    "size": 8133551,
+    "stratum": "video-small",
+    "seconds": 0.5684829749952769,
+    "ffmpeg_seconds": 1.1656985790032195,
+    "ratio": 0.4876757896379891,
+    "requests": 3,
+    "received_share": 1.0
+   },
+   {
+    "sha256": "f68c654d9ffd8d47eb622f2a136b1569fc13172c7454f630e907b2cecc58ac53",
+    "size": 693038,
+    "stratum": "video-small",
+    "seconds": 0.35487943899352103,
+    "ffmpeg_seconds": 0.34519682099926285,
+    "ratio": 1.0280495572532484,
+    "requests": 2,
+    "received_share": 1.0
+   },
+   {
+    "sha256": "a162ae420b5f322fe4e894f438fb87967ef275362b9579ad0d760414f37775e5",
+    "size": 663601,
+    "stratum": "video-small",
+    "seconds": 0.4925319410103839,
+    "ffmpeg_seconds": 1.0447998190065846,
+    "ratio": 0.47141273577046805,
+    "requests": 3,
+    "received_share": 1.0
+   },
+   {
+    "sha256": "9346b5a10a3d5625cc7e45aa6d527ba2d150a3586008b1256c940e689583e27e",
+    "size": 12249661,
+    "stratum": "video-small",
+    "seconds": 1.0291529309906764,
+    "ffmpeg_seconds": 1.1485880850086687,
+    "ratio": 0.8960156773547839,
+    "requests": 3,
+    "received_share": 1.0036691627629533
+   },
+   {
+    "sha256": "a47b8a2808f1c91b2f8acb3d176da0bf5f2d8e44f25bdbd1cea4210ec2db3b14",
+    "size": 9064910,
+    "stratum": "video-small",
+    "seconds": 0.6907301199971698,
+    "ffmpeg_seconds": 1.1287035180139355,
+    "ratio": 0.6119677213486294,
+    "requests": 3,
+    "received_share": 0.9947948738597515
+   },
+   {
+    "sha256": "33423db1c2f67f0af26071311e7bda4e0371549bcfd62eae026e744adf34feca",
+    "size": 6826288,
+    "stratum": "video-small",
+    "seconds": 0.337386750994483,
+    "ffmpeg_seconds": 1.0476120179955615,
+    "ratio": 0.3220531505929254,
+    "requests": 3,
+    "received_share": 1.0
+   },
+   {
+    "sha256": "d94f05a6ef4b1bda712196e32ed1f75edd624bc63f1802f4e9585287f9d80020",
+    "size": 65030896,
+    "stratum": "video-small",
+    "seconds": 1.317452607996529,
+    "ffmpeg_seconds": 2.151184304006165,
+    "ratio": 0.6124313037906739,
+    "requests": 5,
+    "received_share": 0.9968647979262042
+   },
+   {
+    "sha256": "da6126bce64c64a3d6f7ce889fbe15b5f1c2e3f978846351d8c7a79a950b429e",
+    "size": 463547,
+    "stratum": "video-small",
+    "seconds": 0.2752031489944784,
+    "ffmpeg_seconds": 0.33349891399848275,
+    "ratio": 0.825199535719419,
+    "requests": 2,
+    "received_share": 1.0
+   },
+   {
+    "sha256": "09febe430bb4b10251fa93b6bd05b0e64974019cf12ce450225a82cac0e3517c",
+    "size": 407979,
+    "stratum": "video-small",
+    "seconds": 0.2749734570097644,
+    "ffmpeg_seconds": 0.9904061859997455,
+    "ratio": 0.2776370552776768,
+    "requests": 3,
+    "received_share": 1.0
+   },
+   {
+    "sha256": "44cc2b274a94d2cb7f71148e7983ae5382c59d6b6f14b6784adec2d39644accf",
+    "size": 55116850,
+    "stratum": "video-small",
+    "seconds": 1.0294834039959824,
+    "ffmpeg_seconds": 0.8649214949982706,
+    "ratio": 1.190262249174465,
+    "requests": 4,
+    "received_share": 0.9988109625277932
+   },
+   {
+    "sha256": "42fce01d091e6fc6f9663db69ba8d4728eee7fa7d6f9f756160da0f32daf4352",
+    "size": 40071853,
+    "stratum": "video-small",
+    "seconds": 1.1854355649993522,
+    "ffmpeg_seconds": 0.9935054509987822,
+    "ratio": 1.193184761903038,
+    "requests": 3,
+    "received_share": 1.0
+   },
+   {
+    "sha256": "9fdf98a0a10041a10cc51116484b4fd6569f0c32bd6a9880c0d67093fc56a039",
+    "size": 7352276,
+    "stratum": "video-small",
+    "seconds": 0.34301434800727293,
+    "ffmpeg_seconds": 1.1062765940005193,
+    "ratio": 0.31006201330434363,
+    "requests": 3,
+    "received_share": 1.0
+   },
+   {
+    "sha256": "2a3c8259b630a2ca184070f8477fe0181636ee0e9e0391b38edc96e2dc842177",
+    "size": 974796,
+    "stratum": "video-small",
+    "seconds": 0.33616176700161304,
+    "ffmpeg_seconds": 0.348213763005333,
+    "ratio": 0.9653890877267381,
+    "requests": 2,
+    "received_share": 1.0
+   },
+   {
+    "sha256": "d4973205a5b027be8767617f00539c26876b802cbbfcee8d93f872b9d6afd661",
+    "size": 4432542,
+    "stratum": "video-small",
+    "seconds": 0.3888976529997308,
+    "ffmpeg_seconds": 1.4652881270012585,
+    "ratio": 0.2654069502327966,
+    "requests": 2,
+    "received_share": 1.0
+   },
+   {
+    "sha256": "5b080178a03cbb8fe697bf03e2e28b0cac09de1584412625894d0ca81afd8f73",
+    "size": 1525101,
+    "stratum": "video-small",
+    "seconds": 0.3247968109935755,
+    "ffmpeg_seconds": 1.0334368430048926,
+    "ratio": 0.3142880120754876,
+    "requests": 3,
+    "received_share": 1.0
+   },
+   {
+    "sha256": "f0cd825c8a304a9023a24e40749fc0debed3a496e02e5d641f060b3aa634f909",
+    "size": 1159226,
+    "stratum": "video-small",
+    "seconds": 0.3169004549999954,
+    "ffmpeg_seconds": 0.714875771998777,
+    "ratio": 0.44329443997514234,
+    "requests": 2,
+    "received_share": 1.0
+   },
+   {
+    "sha256": "d7b1baf55586d52e6024acc5c0d872d8f6860014e6883ff5e59c842b0cefece7",
+    "size": 17674909,
+    "stratum": "video-small",
+    "seconds": 0.8734836539952084,
+    "ffmpeg_seconds": 1.5220519840077031,
+    "ratio": 0.5738855592141114,
+    "requests": 3,
+    "received_share": 1.0033565095016896
+   },
+   {
+    "sha256": "becff2c3b6a2f228c65d8286a54143b22973e70cc54c75a0d18664a75a71269f",
+    "size": 5445188,
+    "stratum": "video-small",
+    "seconds": 0.3455159199947957,
+    "ffmpeg_seconds": 0.4171197519899579,
+    "ratio": 0.8283374698667206,
+    "requests": 2,
+    "received_share": 1.0
+   },
+   {
+    "sha256": "4a5fa952b81b0cd484c365cf9be63da24df9ae9fde7ed1c1e36ab05bfcde1c5f",
+    "size": 97107228,
+    "stratum": "video-large",
+    "seconds": 1.5649387869925704,
+    "ffmpeg_seconds": 2.941447479999624,
+    "ratio": 0.5320301646156776,
+    "requests": 6,
+    "received_share": 1.0005136898769265
+   },
+   {
+    "sha256": "371baf1bdb08cd56e5f675df9ebcb5c618ad0339f4f0c00d7f88ab24a038c192",
+    "size": 266519710,
+    "stratum": "video-large",
+    "seconds": 3.9720284790091682,
+    "ffmpeg_seconds": 7.686925257992698,
+    "ratio": 0.5167252634438119,
+    "requests": 16,
+    "received_share": 0.9803167840757443
+   },
+   {
+    "sha256": "15affcdb19e3f12cab92733a3a4edc817e93ad68c9e760bba69ef2b353f30af6",
+    "size": 126850059,
+    "stratum": "video-large",
+    "seconds": 2.112025173002621,
+    "ffmpeg_seconds": 2.205195766000543,
+    "ratio": 0.9577495139277813,
+    "requests": 23,
+    "received_share": 0.012948326653911922
+   },
+   {
+    "sha256": "c247e4d5148b30b0c747b931d7a68c24c68ecab1d7510ad9d32697e1e6deb79a",
+    "size": 369313723,
+    "stratum": "video-large",
+    "seconds": 5.86813109900686,
+    "ffmpeg_seconds": 7.390572060990962,
+    "ratio": 0.7940022843400885,
+    "requests": 22,
+    "received_share": 0.9991721861903301
+   },
+   {
+    "sha256": "8600cbd559164d71b4da08d9e0cc3775f5bfaafce825a8170dce23bdca084f74",
+    "size": 124141736,
+    "stratum": "video-large",
+    "seconds": 2.1408302130002994,
+    "ffmpeg_seconds": 2.7303625470085535,
+    "ratio": 0.7840827641537352,
+    "requests": 8,
+    "received_share": 1.0002626030620354
+   },
+   {
+    "sha256": "0388073c0fae30182d463ce0aa1d500573cdbfe02968595892244b29a2a11956",
+    "size": 1013150606,
+    "stratum": "video-large",
+    "seconds": 13.199935814001947,
+    "ffmpeg_seconds": 16.793823155996506,
+    "ratio": 0.7859994529767748,
+    "requests": 62,
+    "received_share": 1.0000405013822793
+   },
+   {
+    "sha256": "c0df51f72fa4cc4bda7302ccfd7e0226a0afa153afd68a5d4bb7cf456845abf9",
+    "size": 82543440,
+    "stratum": "video-large",
+    "seconds": 1.614100488004624,
+    "ffmpeg_seconds": 1.6372284069948364,
+    "ratio": 0.9858737370476828,
+    "requests": 5,
+    "received_share": 1.0
+   },
+   {
+    "sha256": "24820089e5882c604eec07d6a2382ab28d28a951909aea29b0ab63fb63d80299",
+    "size": 282690045,
+    "stratum": "video-large",
+    "seconds": 3.775707960012369,
+    "ffmpeg_seconds": 5.708809382995241,
+    "ratio": 0.6613827344207748,
+    "requests": 17,
+    "received_share": 1.0002300293241666
+   },
+   {
+    "sha256": "ff721b45fe8f63ea7dbfc9afe16381d18295aa5ac60e6b8027d17f2f8b3563f7",
+    "size": 92391440,
+    "stratum": "video-large",
+    "seconds": 1.6145655080035795,
+    "ffmpeg_seconds": 2.291696341999341,
+    "ratio": 0.7045285531131872,
+    "requests": 6,
+    "received_share": 0.9992812970552251
+   },
+   {
+    "sha256": "afac354a8e3ef16e617396c463bf20c3ece820f8686aee4fb9b2a359ecd16845",
+    "size": 172796870,
+    "stratum": "video-large",
+    "seconds": 2.756729140994139,
+    "ffmpeg_seconds": 3.5773249530029716,
+    "ratio": 0.770611889389588,
+    "requests": 11,
+    "received_share": 0.9997570905074843
+   },
+   {
+    "sha256": "597c3955b73a7abf2110d3fe399f8b759d3f7583580df45a0a8f67bb62d7d97e",
+    "size": 522015007,
+    "stratum": "video-large",
+    "seconds": 6.944597462992533,
+    "ffmpeg_seconds": 8.703376600999036,
+    "ratio": 0.7979199087162772,
+    "requests": 32,
+    "received_share": 1.0000591707126918
+   },
+   {
+    "sha256": "bb0556f2efb25712107d2a2e39e50691fe87355768f7ce5a841ac8dcb9e017c0",
+    "size": 87360821,
+    "stratum": "video-large",
+    "seconds": 1.20459347400174,
+    "ffmpeg_seconds": 2.8688903979928,
+    "ratio": 0.4198813153839986,
+    "requests": 6,
+    "received_share": 1.0
+   },
+   {
+    "sha256": "ac8a6c36c02fa83e0a188bf237d364dfd18a0dc7a77abd1bf6443638401827ec",
+    "size": 980743402,
+    "stratum": "video-large",
+    "seconds": 11.184855503001017,
+    "ffmpeg_seconds": 13.484913367996342,
+    "ratio": 0.8294347318200771,
+    "requests": 59,
+    "received_share": 0.9855320770233436
+   },
+   {
+    "sha256": "a5541be6e6547ae4b1d0a1242204d0c5c01d92af278f85d6d03fda961476a37e",
+    "size": 89814495,
+    "stratum": "video-large",
+    "seconds": 1.031804676997126,
+    "ffmpeg_seconds": 1.439764937007567,
+    "ratio": 0.7166480100158901,
+    "requests": 6,
+    "received_share": 0.9990878977830917
+   },
+   {
+    "sha256": "fb932c60f5ef172fcb98e9981a03c8f6badb6e373bea16d1a7531c9fd5a5cc63",
+    "size": 2468119180,
+    "stratum": "video-large",
+    "seconds": 25.33307099800001,
+    "ffmpeg_seconds": 34.95254672899998,
+    "ratio": 0.72478469721868,
+    "requests": 150,
+    "received_share": 0.9132804644385123
+   },
+   {
+    "sha256": "b7d3b1abff64fbbaa5c709b4b8d4136de246cf1a27ae7f17a2118573b812040c",
+    "size": 3302214074,
+    "stratum": "video-large",
+    "seconds": 38.149872926,
+    "ffmpeg_seconds": 44.00038902599999,
+    "ratio": 0.8670349006109264,
+    "requests": 198,
+    "received_share": 0.9999620257811305
+   },
+   {
+    "sha256": "1ce3933e3009bf2e9426121996f67ecc3379141bf2f392b37ac443276c55a154",
+    "size": 70292915,
+    "stratum": "video-large",
+    "seconds": 1.0714930940000613,
+    "ffmpeg_seconds": 1.78457960500009,
+    "ratio": 0.6004176507441411,
+    "requests": 5,
+    "received_share": 1.000440855241243
+   },
+   {
+    "sha256": "b29244962bcd74d7a5c43f35b35bc0e72b3ef1a8fc0fe427491407e258cd7f7e",
+    "size": 2269006736,
+    "stratum": "video-large",
+    "seconds": 27.73185953899997,
+    "ffmpeg_seconds": 37.38469963,
+    "ratio": 0.7417970403257181,
+    "requests": 136,
+    "received_share": 0.9986208269238034
+   },
+   {
+    "sha256": "c1758181b1d2ec21fd2805b36448fd3a7dbae0c3af77504c920d0af9a8776f70",
+    "size": 1220348163,
+    "stratum": "video-large",
+    "seconds": 16.668029713000124,
+    "ffmpeg_seconds": 20.672655915000178,
+    "ratio": 0.8062839037970791,
+    "requests": 73,
+    "received_share": 0.9986190580269674
+   },
+   {
+    "sha256": "60f08fbaef6447fa9f956cb3122fd578007768dc11e3e5883b5f912f8bad758e",
+    "size": 675305498,
+    "stratum": "video-large",
+    "seconds": 8.598609841000098,
+    "ffmpeg_seconds": 9.93744863400002,
+    "ratio": 0.8652733873341277,
+    "requests": 41,
+    "received_share": 0.9786411541995176
+   },
+   {
+    "sha256": "6e94e300546fe7559c0196cc0c2815535c37e382a5a91b20dc7a00130c425445",
+    "size": 484224280,
+    "stratum": "video-large",
+    "seconds": 5.356185208999932,
+    "ffmpeg_seconds": 8.189425063000044,
+    "ratio": 0.6540367813119463,
+    "requests": 30,
+    "received_share": 0.9995413571578856
+   },
+   {
+    "sha256": "1451a38cd198595349083a03edb0c7f8529ea3ef05eed07272e32946f398afda",
+    "size": 428232233,
+    "stratum": "video-large",
+    "seconds": 5.116955714000142,
+    "ffmpeg_seconds": 6.661312836999969,
+    "ratio": 0.7681602469678704,
+    "requests": 26,
+    "received_share": 0.9989165878599334
+   },
+   {
+    "sha256": "fd75b7347b85696a1350e1d42d3a663bf7065d5447ada13ffb9041c33abda312",
+    "size": 1305174287,
+    "stratum": "video-large",
+    "seconds": 16.732922916999996,
+    "ffmpeg_seconds": 15.328611966999915,
+    "ratio": 1.0916137059913409,
+    "requests": 78,
+    "received_share": 0.9977367742918153
+   },
+   {
+    "sha256": "3d8f6047f82652d28a80fb5bbf48b8df0a24fc0091d3d55fdeb0b18fa957514a",
+    "size": 987195736,
+    "stratum": "video-large",
+    "seconds": 12.714003572000138,
+    "ffmpeg_seconds": 19.780309762999877,
+    "ratio": 0.6427605899166634,
+    "requests": 59,
+    "received_share": 0.9999502104818654
+   },
+   {
+    "sha256": "24e19189ff25e376bc5ba1169f09a91f8e9ed1b895e515ceaa90196eddd5a640",
+    "size": 1027688,
+    "stratum": "audio-only",
+    "seconds": 0.2692185870000685,
+    "ffmpeg_seconds": 0.3176468650001425,
+    "ratio": 0.8475405132676116,
+    "requests": 2,
+    "received_share": 1.0
+   },
+   {
+    "sha256": "908fabee5c49535f8bf42c8706adcfbd8a7d40afdee5aaaa68927a4647442a6c",
+    "size": 1022191,
+    "stratum": "audio-only",
+    "seconds": 0.31020788599994376,
+    "ffmpeg_seconds": 0.34874012899990703,
+    "ratio": 0.8895101544222531,
+    "requests": 2,
+    "received_share": 1.0
+   },
+   {
+    "sha256": "146662b2307cb96811d9e3025c036a9e5186f152b6b1889ca61e14eb3684e49f",
+    "size": 1051602,
+    "stratum": "audio-only",
+    "seconds": 0.3642575079998096,
+    "ffmpeg_seconds": 0.33988755099994705,
+    "ratio": 1.0717000576460252,
+    "requests": 2,
+    "received_share": 1.0
+   },
+   {
+    "sha256": "cf502122eb675521dcb54ba5b248c49c94d68c3a646899a6ef4a8f3456806b97",
+    "size": 14702402,
+    "stratum": "audio-only",
+    "seconds": 0.5566658080001616,
+    "ffmpeg_seconds": 0.5044146540001293,
+    "ratio": 1.103587700289173,
+    "requests": 2,
+    "received_share": 1.0
+   },
+   {
+    "sha256": "145cd00359874eeca40c314027266a020861a8ef51261faaba4383198206a0e6",
+    "size": 53540101,
+    "stratum": "audio-only",
+    "seconds": 0.8984058460000597,
+    "ffmpeg_seconds": 2.0244184270000005,
+    "ratio": 0.4437846613219251,
+    "requests": 4,
+    "received_share": 1.0
+   },
+   {
+    "sha256": "2893c1481a13fb001fe7efb863d32f8e95d5f4d74ebf5f47377a6e866e6bba07",
+    "size": 989448,
+    "stratum": "audio-only",
+    "seconds": 0.28017518000001473,
+    "ffmpeg_seconds": 0.327735242000017,
+    "ratio": 0.8548826738627034,
+    "requests": 2,
+    "received_share": 1.0
+   },
+   {
+    "sha256": "6024f3b8f37190e0cafadefa93adb8a16143908c4a0038b7ada4dc4ba30cbc94",
+    "size": 219901909,
+    "stratum": "audio-only",
+    "seconds": 3.5626855879997947,
+    "ffmpeg_seconds": 10.487751690999858,
+    "ratio": 0.3396996508848641,
+    "requests": 14,
+    "received_share": 1.0
+   },
+   {
+    "sha256": "d4847adafd87d6874325e2bdc79f75a3fc502e5654423e6c1d93205b1f0f2405",
+    "size": 983625,
+    "stratum": "audio-only",
+    "seconds": 0.2852113179999378,
+    "ffmpeg_seconds": 0.32774936600003457,
+    "ratio": 0.8702116543526974,
+    "requests": 2,
+    "received_share": 1.0
+   },
+   {
+    "sha256": "f0efce40f5b20794c1f3dd7577b01e0c7550b566249aafb0d40e2d500bbf08d3",
+    "size": 145634597,
+    "stratum": "audio-only",
+    "seconds": 1.6533138419999887,
+    "ffmpeg_seconds": 1.8047597550000773,
+    "ratio": 0.9160852780651227,
+    "requests": 9,
+    "received_share": 1.0
+   }
+  ]
+ }
+}

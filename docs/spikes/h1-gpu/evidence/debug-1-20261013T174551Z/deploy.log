@@ -1,0 +1,155 @@
+Building image image-032
+
+=> Step 0: FROM base
+
+=> Step 1: COPY . /
+Saving image...
+Image saved, took 460.34ms
+
+Built image image-032 in 1.53s
+
+
+Building image image-091
+
+=> Step 0: FROM base
+
+=> Step 1: RUN pip install --no-deps /opt/w2/coreav_spike_a-0.0.1-cp313-abi3-manylinux_2_28_x86_64.whl
+Looking in indexes: http://pypi-mirror.local:5555/simple
+Processing /opt/w2/coreav_spike_a-0.0.1-cp313-abi3-manylinux_2_28_x86_64.whl
+Installing collected packages: coreav-spike-a
+Successfully installed coreav-spike-a-0.0.1
+
+[notice] A new release of pip is available: 25.1.1 -> 26.2.1
+[notice] To update, run: pip install --upgrade pip
+Saving image...
+Image saved, took 684.66ms
+
+Built image image-091 in 3.00s
+
+
+Building image image-047
+
+=> Step 0: FROM base
+
+=> Step 1: COPY . /
+Saving image...
+Image saved, took 1.09s
+
+Built image image-047 in 2.97s
+
+
+Building image image-103
+
+=> Step 0: FROM base
+
+=> Step 1: COPY . /
+Saving image...
+Image saved, took 1.60s
+
+Built image image-103 in 3.02s
+
+
+Building image image-015
+
+=> Step 0: FROM base
+
+=> Step 1: COPY . /
+Saving image...
+Image saved, took 1.39s
+
+Built image image-015 in 3.21s
+
+
+Building image image-077
+
+=> Step 0: FROM base
+
+=> Step 1: COPY . /
+Saving image...
+Image saved, took 997.05ms
+
+Built image image-077 in 3.12s
+
+
+Building image image-026
+
+=> Step 0: FROM base
+
+=> Step 1: COPY . /
+Saving image...
+Image saved, took 1.33s
+
+Built image image-026 in 2.69s
+
+
+Building image image-108
+
+=> Step 0: FROM base
+
+=> Step 1: COPY . /
+Saving image...
+Image saved, took 605.00ms
+
+Built image image-108 in 2.14s
+
+
+Building image image-018
+
+=> Step 0: FROM base
+
+=> Step 1: COPY . /
+Saving image...
+Image saved, took 499.42ms
+
+Built image image-018 in 2.42s
+
+
+Building image image-042
+
+=> Step 0: FROM base
+
+=> Step 1: COPY . /
+Saving image...
+Image saved, took 611.89ms
+
+Built image image-042 in 1.77s
+
+
+Building image image-036
+
+=> Step 0: FROM base
+
+=> Step 1: COPY . /
+Saving image...
+Image saved, took 1.04s
+
+Built image image-036 in 2.48s
+
+
+✓ Created objects.
+├── ✓ Uploaded $WORK/stage2-w2/spikes/h1-gpu/remote_app.py
+├── ✓ Uploaded $WORK/stage2-w2/bench/remote_setup.py
+├── ✓ Created Function install_oracle.
+├── ✓ Created Function link_shared_libraries.
+├── ✓ Uploaded 
+│   $WORK/stage2-w2/spikes/spike-a/build/w2/coreav_spike_a-0.0.
+│   1-cp313-abi3-manylinux_2_28_x86_64.whl
+├── ✓ Uploaded $WORK/stage2-w2/spikes/nvdec-direct/rgb.cu
+├── ✓ Uploaded 
+│   $WORK/stage2-w2/spikes/nvdec-direct/compile_rgb.py
+├── ✓ Uploaded $WORK/stage2-w2/spikes/h1-gpu/corpus
+├── ✓ Uploaded $WORK/stage2-w2/spikes/h1-gpu/common.py
+├── ✓ Uploaded $WORK/stage2-w2/spikes/h1-gpu/prepare.py
+├── ✓ Uploaded $WORK/stage2-w2/spikes/h1-gpu/oracle.py
+├── ✓ Uploaded $WORK/stage2-w2/spikes/h1-gpu/bench.py
+├── ✓ Uploaded $WORK/stage2-w2/spikes/h1-gpu/fixtures.py
+├── ✓ Uploaded $WORK/stage2-w2/spikes/h1-gpu/debug.py
+├── ✓ Created Function prepare.
+├── ✓ Created Function oracle.
+├── ✓ Created Function bringup.
+├── ✓ Created Function measure.
+└── ✓ Created Function debug.
+✓ App deployed in 47.193s! 🎉
+
+View Deployment: 
+<run URL redacted>

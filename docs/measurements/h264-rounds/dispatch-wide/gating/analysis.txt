@@ -1,0 +1,138 @@
+1T        after/main discard overall n=32 0.9657 [0.9557,0.9695] faster 30/32
+1T        after/main discard sd      n= 8 0.9627 [0.9386,0.9766] faster 8/8
+1T        after/main discard 720p    n= 8 0.9724 [0.9557,1.0116] faster 6/8
+1T        after/main discard 1080p   n= 8 0.9559 [0.9395,0.9720] faster 8/8
+1T        after/main discard 4k      n= 8 0.9642 [0.9545,0.9712] faster 8/8
+1T        after/main write   overall n=32 0.9616 [0.9537,0.9677] faster 32/32
+1T        after/main write   sd      n= 8 0.9663 [0.9431,0.9734] faster 8/8
+1T        after/main write   720p    n= 8 0.9745 [0.9503,0.9936] faster 8/8
+1T        after/main write   1080p   n= 8 0.9501 [0.9406,0.9611] faster 8/8
+1T        after/main write   4k      n= 8 0.9645 [0.9573,0.9702] faster 8/8
+1T        after/v3   discard overall n=32 1.0011 [0.9954,1.0027] faster 15/32
+1T        after/v3   discard sd      n= 8 0.9962 [0.9841,1.0069] faster 5/8
+1T        after/v3   discard 720p    n= 8 1.0083 [0.9863,1.0331] faster 2/8
+1T        after/v3   discard 1080p   n= 8 0.9982 [0.9916,1.0017] faster 6/8
+1T        after/v3   discard 4k      n= 8 1.0027 [0.9953,1.0088] faster 2/8
+1T        after/v3   write   overall n=32 0.9967 [0.9945,1.0048] faster 18/32
+1T        after/v3   write   sd      n= 8 0.9991 [0.9934,1.0124] faster 4/8
+1T        after/v3   write   720p    n= 8 1.0009 [0.9939,1.0107] faster 4/8
+1T        after/v3   write   1080p   n= 8 0.9930 [0.9856,1.0039] faster 6/8
+1T        after/v3   write   4k      n= 8 1.0014 [0.9852,1.0165] faster 4/8
+1T        v3/main    discard overall n=32 0.9670 [0.9583,0.9704] faster 31/32
+1T        v3/main    discard sd      n= 8 0.9636 [0.9458,0.9726] faster 8/8
+1T        v3/main    discard 720p    n= 8 0.9734 [0.9583,0.9793] faster 8/8
+1T        v3/main    discard 1080p   n= 8 0.9601 [0.9427,0.9704] faster 8/8
+1T        v3/main    discard 4k      n= 8 0.9641 [0.9524,0.9699] faster 7/8
+1T        v3/main    write   overall n=32 0.9643 [0.9574,0.9668] faster 31/32
+1T        v3/main    write   sd      n= 8 0.9640 [0.9334,0.9773] faster 8/8
+1T        v3/main    write   720p    n= 8 0.9671 [0.9449,0.9830] faster 7/8
+1T        v3/main    write   1080p   n= 8 0.9647 [0.9425,0.9687] faster 8/8
+1T        v3/main    write   4k      n= 8 0.9588 [0.9382,0.9696] faster 8/8
+1T        after/safe discard overall n=32 0.9640 [0.9563,0.9669] faster 30/32
+1T        after/safe discard sd      n= 8 0.9622 [0.9511,0.9676] faster 8/8
+1T        after/safe discard 720p    n= 8 0.9693 [0.9648,1.0061] faster 6/8
+1T        after/safe discard 1080p   n= 8 0.9571 [0.9394,0.9689] faster 8/8
+1T        after/safe discard 4k      n= 8 0.9564 [0.9426,0.9656] faster 8/8
+1T        after/safe write   overall n=32 0.9620 [0.9581,0.9658] faster 32/32
+1T        after/safe write   sd      n= 8 0.9631 [0.9581,0.9684] faster 8/8
+1T        after/safe write   720p    n= 8 0.9773 [0.9614,0.9960] faster 8/8
+1T        after/safe write   1080p   n= 8 0.9575 [0.9449,0.9628] faster 8/8
+1T        after/safe write   4k      n= 8 0.9576 [0.9546,0.9658] faster 8/8
+1T        safe/main  discard overall n=32 1.0029 [0.9993,1.0056] faster 11/32
+1T        safe/main  discard sd      n= 8 0.9982 [0.9868,1.0091] faster 5/8
+1T        safe/main  discard 720p    n= 8 1.0043 [0.9918,1.0061] faster 2/8
+1T        safe/main  discard 1080p   n= 8 1.0024 [0.9932,1.0081] faster 3/8
+1T        safe/main  discard 4k      n= 8 1.0055 [1.0013,1.0151] faster 1/8
+1T        safe/main  write   overall n=32 0.9996 [0.9982,1.0032] faster 17/32
+1T        safe/main  write   sd      n= 8 0.9989 [0.9895,1.0044] faster 5/8
+1T        safe/main  write   720p    n= 8 0.9967 [0.9778,1.0050] faster 6/8
+1T        safe/main  write   1080p   n= 8 0.9984 [0.9924,1.0012] faster 5/8
+1T        safe/main  write   4k      n= 8 1.0043 [1.0028,1.0130] faster 1/8
+1T mapped after/main discard overall n=32 0.9633 [0.9574,0.9689] faster 32/32
+1T mapped after/main discard sd      n= 8 0.9650 [0.9461,0.9740] faster 8/8
+1T mapped after/main discard 720p    n= 8 0.9722 [0.9554,0.9883] faster 8/8
+1T mapped after/main discard 1080p   n= 8 0.9554 [0.9375,0.9719] faster 8/8
+1T mapped after/main discard 4k      n= 8 0.9586 [0.9551,0.9706] faster 8/8
+1T mapped after/main write   overall n=32 0.9656 [0.9576,0.9687] faster 31/32
+1T mapped after/main write   sd      n= 8 0.9671 [0.9446,0.9759] faster 8/8
+1T mapped after/main write   720p    n= 8 0.9685 [0.9652,0.9820] faster 7/8
+1T mapped after/main write   1080p   n= 8 0.9558 [0.9344,0.9771] faster 8/8
+1T mapped after/main write   4k      n= 8 0.9620 [0.9566,0.9661] faster 8/8
+8T        after/main discard overall n=32 0.9594 [0.9385,0.9708] faster 29/32
+8T        after/main discard sd      n= 8 0.9608 [0.9288,0.9714] faster 7/8
+8T        after/main discard 720p    n= 8 0.9604 [0.9201,0.9889] faster 7/8
+8T        after/main discard 1080p   n= 8 0.9398 [0.9247,0.9716] faster 8/8
+8T        after/main discard 4k      n= 8 0.9682 [0.9267,0.9923] faster 7/8
+8T        after/main write   overall n=32 0.9617 [0.9567,0.9763] faster 27/32
+8T        after/main write   sd      n= 8 0.9753 [0.9535,0.9953] faster 7/8
+8T        after/main write   720p    n= 8 0.9688 [0.9437,1.0062] faster 5/8
+8T        after/main write   1080p   n= 8 0.9438 [0.9388,0.9633] faster 8/8
+8T        after/main write   4k      n= 8 0.9617 [0.9599,0.9954] faster 7/8
+8T        after/v3   discard overall n=32 0.9965 [0.9923,1.0020] faster 20/32
+8T        after/v3   discard sd      n= 8 1.0027 [0.9674,1.0205] faster 4/8
+8T        after/v3   discard 720p    n= 8 0.9963 [0.9644,1.0144] faster 4/8
+8T        after/v3   discard 1080p   n= 8 0.9923 [0.9682,0.9969] faster 8/8
+8T        after/v3   discard 4k      n= 8 1.0005 [0.9803,1.0235] faster 4/8
+8T        after/v3   write   overall n=32 0.9954 [0.9912,1.0027] faster 17/32
+8T        after/v3   write   sd      n= 8 1.0018 [0.9865,1.0130] faster 3/8
+8T        after/v3   write   720p    n= 8 0.9921 [0.9867,1.0170] faster 5/8
+8T        after/v3   write   1080p   n= 8 0.9977 [0.9912,1.0032] faster 4/8
+8T        after/v3   write   4k      n= 8 0.9908 [0.9804,1.0135] faster 5/8
+8T        v3/main    discard overall n=32 0.9550 [0.9414,0.9816] faster 28/32
+8T        v3/main    discard sd      n= 8 0.9502 [0.9382,0.9816] faster 7/8
+8T        v3/main    discard 720p    n= 8 0.9671 [0.9403,1.0000] faster 7/8
+8T        v3/main    discard 1080p   n= 8 0.9602 [0.9354,0.9941] faster 7/8
+8T        v3/main    discard 4k      n= 8 0.9451 [0.9263,0.9903] faster 7/8
+8T        v3/main    write   overall n=32 0.9748 [0.9533,0.9821] faster 29/32
+8T        v3/main    write   sd      n= 8 0.9819 [0.9444,0.9929] faster 7/8
+8T        v3/main    write   720p    n= 8 0.9773 [0.9507,0.9894] faster 7/8
+8T        v3/main    write   1080p   n= 8 0.9492 [0.9392,0.9752] faster 8/8
+8T        v3/main    write   4k      n= 8 0.9800 [0.9621,0.9956] faster 7/8
+vs FFmpeg 9.0.2 g  main  discard overall 1.178 (6/32 faster) sd 1.098 (3/8 faster) 720p 1.202 (0/8 faster) 1080p 1.223 (0/8 faster) 4k 1.114 (3/8 faster)
+vs FFmpeg 9.0.2 g  main  write   overall 1.150 (7/32 faster) sd 1.068 (3/8 faster) 720p 1.160 (1/8 faster) 1080p 1.188 (0/8 faster) 4k 1.052 (3/8 faster)
+vs FFmpeg 9.0.2 g  v3    discard overall 1.146 (7/32 faster) sd 1.056 (3/8 faster) 720p 1.173 (1/8 faster) 1080p 1.177 (0/8 faster) 4k 1.074 (3/8 faster)
+vs FFmpeg 9.0.2 g  v3    write   overall 1.113 (9/32 faster) sd 1.028 (3/8 faster) 720p 1.129 (1/8 faster) 1080p 1.129 (1/8 faster) 4k 1.012 (4/8 faster)
+vs FFmpeg 9.0.2 g  after discard overall 1.142 (7/32 faster) sd 1.059 (3/8 faster) 720p 1.194 (1/8 faster) 1080p 1.172 (0/8 faster) 4k 1.059 (3/8 faster)
+vs FFmpeg 9.0.2 g  after write   overall 1.106 (8/32 faster) sd 1.030 (3/8 faster) 720p 1.141 (1/8 faster) 1080p 1.119 (1/8 faster) 4k 1.008 (3/8 faster)
+vs FFmpeg 9.0.2 g  safe  discard overall 1.185 (5/32 faster) sd 1.098 (3/8 faster) 720p 1.209 (0/8 faster) 1080p 1.226 (0/8 faster) 4k 1.112 (2/8 faster)
+vs FFmpeg 9.0.2 g  safe  write   overall 1.144 (7/32 faster) sd 1.070 (3/8 faster) 720p 1.153 (1/8 faster) 1080p 1.191 (0/8 faster) 4k 1.044 (3/8 faster)
+vs FFmpeg 9.0.2 t8 main  discard overall 1.025 (13/32 faster) sd 1.020 (3/8 faster) 720p 1.117 (1/8 faster) 1080p 1.093 (1/8 faster) 4k 0.794 (8/8 faster)
+vs FFmpeg 9.0.2 t8 main  write   overall 1.005 (15/32 faster) sd 1.013 (4/8 faster) 720p 1.025 (0/8 faster) 1080p 1.053 (3/8 faster) 4k 0.852 (8/8 faster)
+vs FFmpeg 9.0.2 t8 v3    discard overall 1.000 (16/32 faster) sd 0.996 (4/8 faster) 720p 1.060 (2/8 faster) 1080p 1.034 (2/8 faster) 4k 0.785 (8/8 faster)
+vs FFmpeg 9.0.2 t8 v3    write   overall 0.988 (18/32 faster) sd 1.000 (4/8 faster) 720p 1.030 (3/8 faster) 1080p 1.013 (3/8 faster) 4k 0.850 (8/8 faster)
+vs FFmpeg 9.0.2 t8 after discard overall 0.996 (19/32 faster) sd 0.998 (5/8 faster) 720p 1.045 (3/8 faster) 1080p 1.031 (3/8 faster) 4k 0.777 (8/8 faster)
+vs FFmpeg 9.0.2 t8 after write   overall 0.989 (18/32 faster) sd 1.001 (4/8 faster) 720p 1.031 (3/8 faster) 1080p 1.011 (3/8 faster) 4k 0.843 (8/8 faster)
+bars: {'WD-1': True, 'WD-2': True, 'WD-3': True, 'WD-4': True, 'WD-5': True, 'WD-6': True, 'WD-7': True, 'WD-8': True}
+per stream (1T discard: after/main, after/v3, v3/main, after/safe; 8T discard after/main):
+  175433794e02.0.1080p.h264 0.9395 0.9978 0.9415 0.9372 0.9348
+  1d4b1775d78a.0.720p.h264 1.0116 1.0331 0.9792 1.0061 0.9201
+  278dbf5a63bb.0.720p.h264 0.9768 1.0152 0.9622 0.9709 0.9408
+  36501d448eaa.0.720p.h264 0.9452 0.9652 0.9793 0.9670 0.9697
+  3b1b441e23ae.0.4k.h264 0.9712 1.0025 0.9687 0.9642 0.9654
+  3c593b8f0809.0.720p.h264 0.9597 1.0014 0.9583 0.9676 0.8897
+  41e324ebb708.0.sd.h264 0.9586 0.9969 0.9616 0.9614 0.9671
+  4b54de28c2b3.0.4k.h264 0.9720 1.0010 0.9710 0.9665 1.0648
+  5185721dda11.0.sd.h264 0.9669 1.0089 0.9584 0.9676 1.0042
+  65ec61f95a00.0.720p.h264 0.9681 0.9863 0.9815 0.9648 0.9512
+  6b18d9f0f88d.0.720p.h264 0.9557 1.0014 0.9543 0.9539 0.9784
+  6da34958296c.0.1080p.h264 0.9780 1.0037 0.9744 0.9706 0.9846
+  6e90422a670a.0.1080p.h264 0.9406 0.9916 0.9486 0.9331 0.9449
+  6f7799768413.0.sd.h264 0.9797 0.9954 0.9841 0.9708 0.9706
+  7650ae466748.0.sd.h264 0.9668 1.0011 0.9657 0.9629 0.9171
+  76e0b1692494.0.720p.h264 1.0265 1.0519 0.9759 1.0192 0.9889
+  81ed4778ece2.0.4k.h264 0.9647 1.0101 0.9550 0.9503 0.9267
+  8ae90cadb5bc.0.sd.h264 0.9572 0.9841 0.9726 0.9648 0.9714
+  9db41aa16b5a.0.720p.h264 0.9936 1.0235 0.9708 0.9885 1.0212
+  a6af290d9053.0.1080p.h264 0.9317 0.9883 0.9427 0.9457 0.9216
+  a81de82106be.0.1080p.h264 0.9440 0.9927 0.9510 0.9505 0.9300
+  ae16bb7c7192.0.4k.h264 0.9189 0.8299 1.1073 0.9426 0.9823
+  af38b0cfd840.0.4k.h264 0.9638 0.9953 0.9684 0.9625 0.9385
+  b41f70a7fa60.0.1080p.h264 0.9679 0.9985 0.9693 0.9709 0.9644
+  b71b6b31e54f.0.1080p.h264 0.9720 1.0017 0.9704 0.9638 0.9247
+  c7ecda16e4a7.0.1080p.h264 0.9691 0.9995 0.9696 0.9669 0.9716
+  dcb262cf0138.0.sd.h264 0.9386 0.9923 0.9458 0.9511 0.9077
+  e624cbe0d2be.0.4k.h264 0.9683 1.0088 0.9598 0.9670 0.9923
+  ec473c99c538.0.sd.h264 0.9246 0.9789 0.9446 0.9411 0.9545
+  ed75c044e944.0.4k.h264 0.9545 1.0072 0.9476 0.9387 0.9080
+  f8d92a911e72.0.4k.h264 0.9552 1.0029 0.9524 0.9500 0.9711
+  f9e973f44570.0.sd.h264 0.9766 1.0069 0.9699 0.9600 0.9500

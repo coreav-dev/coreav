@@ -1,0 +1,12 @@
+# callgrind --branch-sim=yes, examples/decode --discard --frames F, one thread; whole-program Ir
+# before = 3d8d6b96 (perf/h264-luma-mc, candidate C), after = this branch; dist profile with line tables
+41e324ebb708 300 before=2322657576 after=1944512773
+9db41aa16b5a 150 before=3421445908 after=2932024393
+b41f70a7fa60 60 before=6503709911 after=6150979611
+65ec61f95a00 150 before=6576667760 after=6363451459
+# Auto::combine, inclusive (M), and calls
+41e324ebb708 before 516.881
+41e324ebb708 after 138.736
+9db41aa16b5a before 669.494
+9db41aa16b5a after 180.072
+calls of Auto::combine: 41e324ebb708 322,137 (300 pictures), 9db41aa16b5a 419,199 (150 pictures)

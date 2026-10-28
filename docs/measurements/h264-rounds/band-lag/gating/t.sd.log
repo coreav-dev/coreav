@@ -1,0 +1,28 @@
+machine: unknown (family 25, model 1, stepping unknown), 2450.0 MHz, 32 logical CPUs
+41e324ebb708.0.sd.h264                   base:discard@1=1.58  base:write@1=1.39  base:mixed@1=1.35  a:discard@1=1.56  a:write@1=1.40  a:mixed@1=1.34  base:discard@8=1.50  base:write@8=1.46  base:mixed@8=1.40  a:discard@8=1.31  a:write@8=1.29  a:mixed@8=1.22
+5185721dda11.0.sd.h264                   base:discard@1=1.45  base:write@1=1.29  base:mixed@1=1.22  a:discard@1=1.43  a:write@1=1.27  a:mixed@1=1.20  base:discard@8=1.61  base:write@8=1.60  base:mixed@8=1.55  a:discard@8=1.15  a:write@8=1.11  a:mixed@8=1.11
+6f7799768413.0.sd.h264                   base:discard@1=1.77  base:write@1=1.51  base:mixed@1=1.47  a:discard@1=1.76  a:write@1=1.50  a:mixed@1=1.46  base:discard@8=2.13  base:write@8=2.08  base:mixed@8=2.03  a:discard@8=1.50  a:write@8=1.48  a:mixed@8=1.43
+7650ae466748.0.sd.h264                   base:discard@1=1.33  base:write@1=1.22  base:mixed@1=1.17  a:discard@1=1.33  a:write@1=1.22  a:mixed@1=1.17  base:discard@8=1.27  base:write@8=1.19  base:mixed@8=1.19  a:discard@8=1.30  a:write@8=1.27  a:mixed@8=1.21
+8ae90cadb5bc.0.sd.h264                   base:discard@1=1.35  base:write@1=1.40  base:mixed@1=1.35  a:discard@1=1.35  a:write@1=1.40  a:mixed@1=1.36  base:discard@8=1.57  base:write@8=1.56  base:mixed@8=1.55  a:discard@8=1.22  a:write@8=1.22  a:mixed@8=1.20
+dcb262cf0138.0.sd.h264                   base:discard@1=1.15  base:write@1=1.06  base:mixed@1=1.03  a:discard@1=1.16  a:write@1=1.05  a:mixed@1=1.03  base:discard@8=1.15  base:write@8=1.12  base:mixed@8=1.08  a:discard@8=0.79  a:write@8=0.75  a:mixed@8=0.73
+ec473c99c538.0.sd.h264                   base:discard@1=0.90  base:write@1=0.76  base:mixed@1=0.71  a:discard@1=0.89  a:write@1=0.75  a:mixed@1=0.70  base:discard@8=0.89  base:write@8=0.81  base:mixed@8=0.82  a:discard@8=0.64  a:write@8=0.62  a:mixed@8=0.59
+f9e973f44570.0.sd.h264                   base:discard@1=1.14  base:write@1=1.07  base:mixed@1=1.02  a:discard@1=1.13  a:write@1=1.06  a:mixed@1=1.01  base:discard@8=1.48  base:write@8=1.41  base:mixed@8=1.41  a:discard@8=0.93  a:write@8=0.90  a:mixed@8=0.89
+
+base:discard@1           n=  8  median 1.339  [1.139, 1.576]
+base:write@1             n=  8  median 1.254  [1.062, 1.400]
+base:mixed@1             n=  8  median 1.197  [1.023, 1.353]
+a:discard@1              n=  8  median 1.340  [1.130, 1.563]
+a:write@1                n=  8  median 1.245  [1.054, 1.400]
+a:mixed@1                n=  8  median 1.185  [1.015, 1.358]
+base:discard@8           n=  8  median 1.494  [1.154, 1.609]
+base:write@8             n=  8  median 1.438  [1.123, 1.599]
+base:mixed@8             n=  8  median 1.406  [1.079, 1.553]
+a:discard@8              n=  8  median 1.183  [0.786, 1.309]
+a:write@8                n=  8  median 1.163  [0.752, 1.285]
+a:mixed@8                n=  8  median 1.155  [0.735, 1.219]
+scaling:base:discard@8   n=  8  median 1.054  [0.972, 1.201]
+scaling:base:write@8     n=  8  median 1.088  [1.047, 1.324]
+scaling:a:discard@8      n=  8  median 0.832  [0.726, 0.901]
+scaling:a:write@8        n=  8  median 0.871  [0.824, 0.981]
+
+wrote /work/out/t.sd.json

@@ -1,0 +1,17 @@
+{
+  "file": "spikes/nvdec-direct/sdk/cuviddec.h",
+  "sha256": "94bf1cf9454066ca49c05a30566c2835b837e3280b900b914b2c1948cceb8c48",
+  "previous_sha256": "08db0887916a1044c9267a0726d83b9d565e3e32667bb68525e329455a9ddec4",
+  "license": "MIT, 'Copyright (c) 2010-2026 NVIDIA Corporation', notice retained in the file",
+  "source": "NVIDIA Video Codec SDK interface header as vendored unmodified by NVIDIA in its own repository NVIDIA/halos-outside-in-safety, path safety-core/cmake/third-party-headers/nvcuvid/include/cuviddec.h, commit 77e9119a672c3ea8b61de0cb925aaad47bdc2edf",
+  "retrieved_utc": "2026-10-13",
+  "why": "First publicly retrievable copy of the official header with CUVIDAV1PICPARAMS; the SDK download needs a developer login. Only this header file was read; no other file of that repository was opened.",
+  "abi_check": "src/nvdec.rs abi_tests: CUVIDPICPARAMS 4280, CUVIDH264PICPARAMS 984, CUVIDHEVCPICPARAMS 1484, CUVIDDECODECREATEINFO 176, CUVIDPROCPARAMS 264, CUVIDDECODECAPS 88 bytes and CodecSpecific offset 184 equal under both headers; added fields replace reserved space",
+  "cuda_h": "sdk/cuda.h gains one opaque CUarray typedef from the public CUDA Driver API data types, needed to parse the newer header",
+  "av1_spec": {
+    "url": "https://aomediacodec.github.io/av1-spec/av1-spec.pdf",
+    "sha256": "ec44e9fc42c4e5851faa879a1818dcb9014d834bbdd9420ccca7dcea05a3abe9",
+    "sections_used": "4.10, 5.3, 5.5, 5.9, 5.10, 5.11.1, 6.8.2 (setup_past_independence, load_previous), 7.4, 7.8, 7.12.2, 7.20, 7.21"
+  },
+  "clean_room": "Implementation from the AV1 specification and the public NVIDIA header only. No multimedia implementation source (FFmpeg, dav1d, rav1d, libaom, SVT-AV1, GStreamer, torchcodec, DALI) was read. FFmpeg, libdav1d (through FFmpeg), libsvtav1 and libaom (through FFmpeg) are black-box tools."
+}

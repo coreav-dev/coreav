@@ -1,0 +1,4 @@
+sd ff_pred8x8_dc_8_sse2=0.0006 ff_pred16x16_plane_h264_8_ssse3=0.0004 ff_pred8x8_horizontal_8_avx2=0.0004 ff_pred8x8_plane_8_ssse3=0.0002 ff_pred8x8_vertical_8_sse2=0.0002 pred8x8_left_dc_8_c=0.0001
+720p ff_pred8x8_dc_8_sse2=0.0031 ff_pred16x16_dc_8_ssse3=0.0011 ff_pred16x16_horizontal_8_avx2=0.0010 ff_pred16x16_plane_h264_8_ssse3=0.0005 ff_pred8x8_horizontal_8_avx2=0.0005 ff_pred16x16_vertical_8_sse=0.0003 ff_pred8x8_plane_8_ssse3=0.0003 ff_pred8x8_vertical_8_sse2=0.0002 pred8x8_left_dc_8_c=0.0001
+1080p ff_pred8x8_dc_8_sse2=0.0010 ff_pred8x8_horizontal_8_avx2=0.0004 ff_pred8x8_plane_8_ssse3=0.0003 ff_pred16x16_plane_h264_8_ssse3=0.0002 ff_pred16x16_horizontal_8_avx2=0.0002 ff_pred16x16_dc_8_ssse3=0.0002 ff_pred8x8_vertical_8_sse2=0.0002 ff_pred16x16_vertical_8_sse=0.0002
+4k ff_pred8x8_dc_8_sse2=0.0016 ff_pred16x16_horizontal_8_avx2=0.0003 ff_pred16x16_dc_8_ssse3=0.0002 pred16x16_top_dc_8_c=0.0002 ff_pred8x8_top_dc_8_sse2=0.0001 ff_pred16x16_vertical_8_sse=0.0001

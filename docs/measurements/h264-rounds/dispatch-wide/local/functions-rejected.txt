@@ -1,0 +1,42 @@
+# Instructions per compiled function (self, callgrind), the rejected round's commit built for x86-64-v3 (B) minus built without flags (A),
+# as % of A's total; mean over the streams, then each stream (41e324ebb708.0.sd 5185721dda11.0.sd 1d4b1775d78a.0.720p 278dbf5a63bb.0.720p 9db41aa16b5a.0.720p). The largest 35.
+41e324ebb708.0.sd: B/A 0.9834
+5185721dda11.0.sd: B/A 0.9701
+1d4b1775d78a.0.720p: B/A 0.9753
+278dbf5a63bb.0.720p: B/A 0.9710
+9db41aa16b5a.0.720p: B/A 0.9846
+ -4.19% -0.17 -3.54 -5.25 -5.48 -6.53  simd::x86::chroma_mb::filter_chroma_mb
+ +4.04% +0.16 +3.40 +5.04 +5.27 +6.34  <Auto as Kernels>::filter_chroma_mb
+ +1.58% +0.22 +2.25 +1.43 +2.66 +1.35  <mb::SliceDecoder<Auto>>::reconstruct_intra
+ +1.03% +0.17 +0.75 +0.82 +1.07 +2.34  <mb::SliceDecoder<Auto>>::reconstruct_chroma
+ -0.99% -0.18 -0.49 -0.70 -0.94 -2.63  simd::x86::intra_chroma_mb
+ +0.98% +0.00 +0.00 +1.71 +3.17 +0.00  <cabac::Cabac>::residual::<64, V3>
+ -0.76% +0.00 +0.00 -1.36 -2.41 -0.02  simd::x86::intra8x8_mb
+ +0.61% +0.97 +0.00 +0.97 +1.13 +0.00  <cabac::Cabac>::residual::<16, V3>
+ -0.59% -0.17 -2.18 -0.10 -0.30 -0.23  simd::x86::intra4x4_mb
+ -0.54% +0.00 +0.00 -0.95 -1.77 +0.00  fast::v3::significance_map::<64>
+ -0.53% +0.00 +0.00 -0.96 -1.69 +0.00  fast::v3::levels::<64>
+ -0.51% -0.83 -1.34 -0.10 -0.08 -0.19  <work::PictureWork<Auto>>::decode_slice
+ +0.44% +0.03 +0.00 +0.92 +1.24 +0.00  <cabac::Cabac>::residual::<4, V3>
+ +0.43% +0.04 +1.11 +0.44 +0.36 +0.17  <Auto as Kernels>::idct4x4_add_quad
+ -0.41% -0.04 -1.07 -0.43 -0.35 -0.17  simd::x86::idct4x4_add_quad
+ -0.36% -0.08 -0.06 -0.17 -0.13 -1.38  simd::x86::intra16x16
+ +0.35% +0.00 +0.00 +0.61 +0.66 +0.47  <Auto as Kernels>::idct8x8_add
+ -0.34% -0.56 +0.00 -0.52 -0.62 +0.00  fast::v3::levels::<16>
+ -0.34% +0.00 +0.00 -0.59 -0.64 -0.45  simd::x86::idct8x8_add
+ -0.31% -0.41 +0.00 -0.54 -0.61 +0.00  fast::v3::significance_map::<16>
+ -0.28% -0.02 +0.00 -0.59 -0.78 +0.00  fast::v3::levels::<4>
+ -0.26% -0.27 +0.00 -0.49 -0.54 +0.00  <mb::SliceDecoder<Auto>>::decode_cabac::<V3>
+ -0.23% -0.00 -0.47 -0.31 -0.36 -0.00  simd::x86::chroma_residual_mb
+ -0.21% -0.01 +0.00 -0.45 -0.60 +0.00  fast::v3::significance_map::<4>
+ -0.19% +0.00 -0.75 +0.00 +0.00 -0.22  <syntax::CavlcSyntax as syntax::Syntax>::block::<16>
+ -0.18% -0.29 -0.20 -0.13 -0.12 -0.15  <mb::SliceDecoder<Auto>>::start_mb
+ +0.18% +0.46 +0.37 +0.03 -0.07 +0.10  simd::x86::predict::chroma_block
+ +0.16% +0.02 +0.11 +0.20 +0.21 +0.28  deblock::deblock_rows::<Auto>
+ -0.14% -0.00 +0.00 -0.32 -0.37 +0.00  <cabac::Cabac>::mvd
+ +0.12% +0.36 +0.07 +0.05 +0.00 +0.14  <mb::SliceDecoder<Auto>>::motion_compensate::<V3>
+ -0.11% -0.45 +0.00 -0.05 -0.05 +0.00  <cabac::Cabac>::new
+ -0.11% -0.01 -0.14 -0.13 -0.15 -0.10  <mb::MbData>::reset
+ -0.10% -0.01 -0.08 -0.10 -0.10 -0.22  simd::x86::filter_luma_edge::<false, true>
+ -0.09% -0.15 -0.11 -0.07 -0.06 -0.08  <decoder::Decoder>::start_picture
+ -0.09% -0.02 -0.04 -0.17 -0.22 -0.01  __memcpy_avx_unaligned_erms

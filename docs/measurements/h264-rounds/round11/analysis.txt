@@ -1,0 +1,57 @@
+failed []
+mp/base  discard overall  n=32 median 0.9931 [0.9855,0.9974] faster 24/32
+mp/base  discard sd       n= 8 median 0.9893 [0.9822,0.9986] faster 7/8
+mp/base  discard 720p     n= 8 median 0.9990 [0.9893,1.0127] faster 4/8
+mp/base  discard 1080p    n= 8 median 0.9957 [0.9935,1.0018] faster 6/8
+mp/base  discard 4k       n= 8 median 0.9636 [0.9455,0.9981] faster 7/8
+mp/base  write   overall  n=32 median 0.9844 [0.9753,0.9934] faster 27/32
+mp/base  write   sd       n= 8 median 0.9860 [0.9794,1.0037] faster 6/8
+mp/base  write   720p     n= 8 median 0.9844 [0.9601,0.9982] faster 7/8
+mp/base  write   1080p    n= 8 median 0.9878 [0.9752,0.9948] faster 7/8
+mp/base  write   4k       n= 8 median 0.9623 [0.9494,0.9966] faster 7/8
+m/base   discard overall  n=32 median 1.0010 [0.9941,1.0058] faster 15/32
+m/base   discard sd       n= 8 median 0.9950 [0.9924,1.0025] faster 5/8
+m/base   discard 720p     n= 8 median 1.0145 [1.0081,1.0174] faster 1/8
+m/base   discard 1080p    n= 8 median 1.0019 [0.9812,1.0035] faster 3/8
+m/base   discard 4k       n= 8 median 0.9759 [0.9632,1.0101] faster 6/8
+m/base   write   overall  n=32 median 0.9941 [0.9910,1.0044] faster 18/32
+m/base   write   sd       n= 8 median 0.9924 [0.9896,1.0116] faster 5/8
+m/base   write   720p     n= 8 median 0.9995 [0.9836,1.0109] faster 4/8
+m/base   write   1080p    n= 8 median 1.0011 [0.9913,1.0174] faster 4/8
+m/base   write   4k       n= 8 median 0.9696 [0.9555,1.0088] faster 5/8
+p/base   discard overall  n=32 median 0.9898 [0.9821,0.9958] faster 24/32
+p/base   discard sd       n= 8 median 0.9871 [0.9767,1.0088] faster 6/8
+p/base   discard 720p     n= 8 median 0.9881 [0.9790,1.0039] faster 5/8
+p/base   discard 1080p    n= 8 median 0.9960 [0.9893,1.0067] faster 5/8
+p/base   discard 4k       n= 8 median 0.9815 [0.9600,0.9958] faster 8/8
+p/base   write   overall  n=32 median 0.9868 [0.9835,0.9931] faster 25/32
+p/base   write   sd       n= 8 median 0.9894 [0.9780,1.0089] faster 5/8
+p/base   write   720p     n= 8 median 0.9847 [0.9639,0.9967] faster 7/8
+p/base   write   1080p    n= 8 median 0.9893 [0.9823,1.0031] faster 6/8
+p/base   write   4k       n= 8 median 0.9874 [0.9743,0.9980] faster 7/8
+mp/p     discard overall  n=32 median 1.0013 [0.9914,1.0056] faster 15/32
+mp/p     discard sd       n= 8 median 1.0073 [0.9829,1.0234] faster 3/8
+mp/p     discard 720p     n= 8 median 1.0028 [0.9994,1.0118] faster 2/8
+mp/p     discard 1080p    n= 8 median 0.9950 [0.9863,1.0056] faster 5/8
+mp/p     discard 4k       n= 8 median 0.9858 [0.9721,1.0023] faster 5/8
+mp/p     write   overall  n=32 median 0.9937 [0.9882,0.9993] faster 22/32
+mp/p     write   sd       n= 8 median 0.9970 [0.9805,1.0122] faster 6/8
+mp/p     write   720p     n= 8 median 1.0010 [0.9880,1.0055] faster 4/8
+mp/p     write   1080p    n= 8 median 0.9919 [0.9793,1.0007] faster 6/8
+mp/p     write   4k       n= 8 median 0.9833 [0.9656,1.0058] faster 6/8
+mp/m     discard overall  n=32 median 0.9892 [0.9859,0.9920] faster 28/32
+mp/m     discard sd       n= 8 median 0.9916 [0.9881,0.9983] faster 7/8
+mp/m     discard 720p     n= 8 median 0.9818 [0.9795,0.9955] faster 7/8
+mp/m     discard 1080p    n= 8 median 0.9923 [0.9913,1.0000] faster 6/8
+mp/m     discard 4k       n= 8 median 0.9841 [0.9797,0.9882] faster 8/8
+mp/m     write   overall  n=32 median 0.9878 [0.9837,0.9918] faster 31/32
+mp/m     write   sd       n= 8 median 0.9909 [0.9823,0.9955] faster 8/8
+mp/m     write   720p     n= 8 median 0.9838 [0.9761,0.9889] faster 8/8
+mp/m     write   1080p    n= 8 median 0.9866 [0.9833,0.9913] faster 8/8
+mp/m     write   4k       n= 8 median 0.9924 [0.9827,0.9992] faster 7/8
+base vs FFmpeg: discard 1.720 write 1.673
+m    vs FFmpeg: discard 1.712 write 1.683
+p    vs FFmpeg: discard 1.712 write 1.670
+mp   vs FFmpeg: discard 1.685 write 1.662
+R11-5 earns its place: {'M': False, 'P': True} -> bars read for p
+bars: {'p': {'R11-1': False, 'R11-2': False, 'R11-3': True}}

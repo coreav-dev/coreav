@@ -1,0 +1,52 @@
+{
+ "rows": [
+  {
+   "class": "all",
+   "inputs": 60,
+   "median": 0.822,
+   "ci95": [
+    0.778,
+    0.887
+   ],
+   "max": 1.694,
+   "median_ms": {
+    "ours": 331.2,
+    "theirs": 551.0
+   },
+   "pass": true
+  },
+  {
+   "class": "iso",
+   "inputs": 30,
+   "median": 0.548,
+   "ci95": [
+    0.413,
+    0.783
+   ],
+   "max": 1.621,
+   "median_ms": {
+    "ours": 296.0,
+    "theirs": 966.7
+   },
+   "pass": true
+  },
+  {
+   "class": "matroska",
+   "inputs": 30,
+   "median": 0.907,
+   "ci95": [
+    0.853,
+    1.015
+   ],
+   "max": 1.694,
+   "median_ms": {
+    "ours": 344.0,
+    "theirs": 387.6
+   },
+   "pass": true
+  }
+ ],
+ "refused": 0,
+ "baseline_failed": 0,
+ "failed": 0
+}

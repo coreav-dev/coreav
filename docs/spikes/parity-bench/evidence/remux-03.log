@@ -1,0 +1,69 @@
+5e84a05f8ee4 webm  ours=0.759ms lav_avio=2.828ms lav_native=2.822ms ffmpeg=11.475ms
+7926a7aaff4d webm  ours=3.800ms lav_avio=11.236ms lav_native=11.215ms ffmpeg=42.824ms
+9af8b16fd045 webm  ours=158.491ms lav_avio=450.699ms lav_native=455.274ms ffmpeg=1643.571ms
+ac89d7a2fcb2 webm  ours=4.196ms lav_avio=12.119ms lav_native=12.035ms ffmpeg=45.171ms
+0647ff86bb8c mkv  ours=6.446ms lav_avio=26.415ms lav_native=26.529ms ffmpeg=86.016ms
+7e0aa6fa5cb6 webm  ours=52.607ms lav_avio=75.907ms lav_native=77.478ms ffmpeg=117.699ms
+81e789596aec mkv  {'lav_avio': 'Invalid argument'}
+refused 8ca8950b8cb6: unsupported: no stream can be copied to MP4
+d11690704e8e mkv  {'lav_avio': 'Invalid argument'}
+dbb255ee3871 mkv  {'lav_avio': 'Invalid argument'}
+fe5c7d1d2904 mkv  {'lav_avio': 'Invalid argument'}
+0e357b6c3fe9 mkv  {'lav_avio': 'Invalid argument'}
+6f60ba562a44 webm  ours=148.471ms lav_avio=233.269ms lav_native=243.346ms ffmpeg=303.151ms
+83387741d3e3 webm  ours=205.812ms lav_avio=343.602ms lav_native=356.121ms ffmpeg=453.112ms
+8b0ab38d0e21 webm  ours=37.929ms lav_avio=64.099ms lav_native=63.689ms ffmpeg=92.602ms
+9f2345f06e9a webm  ours=142.253ms lav_avio=236.104ms lav_native=241.600ms ffmpeg=323.491ms
+cfbee73950f1 mkv  {'lav_avio': 'Invalid argument'}
+d438e9cb804e webm  ours=34.071ms lav_avio=74.215ms lav_native=76.689ms ffmpeg=100.072ms
+refused 0d677d9c1b57: unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in C
+refused 16117de9347f: unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in C
+refused 17722a386ab1: unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in C
+refused eaa08a095caa: unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in C
+03e890cf5999 webm  ours=1.458ms lav_avio=5.293ms lav_native=5.266ms ffmpeg=9.707ms
+1e7dbdd9da1a mkv  ours=2.401ms lav_avio=5.360ms lav_native=5.267ms ffmpeg=34.961ms
+2fa8c6f6e266 webm  ours=4.475ms lav_avio=7.913ms lav_native=7.906ms ffmpeg=13.387ms
+4b23afae9445 webm  ours=18.251ms lav_avio=69.319ms lav_native=68.781ms ffmpeg=153.379ms
+584a16b906bb mkv  ours=0.657ms lav_avio=1.445ms lav_native=1.516ms ffmpeg=11.322ms
+refused 595cc7a83394: unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in C
+7bd8ff2f7abb webm  ours=0.961ms lav_avio=2.054ms lav_native=2.130ms ffmpeg=29.187ms
+9f4dfff5cbff webm  ours=2.260ms lav_avio=5.243ms lav_native=5.297ms ffmpeg=27.232ms
+refused a1001428921f: unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in C
+bb5d39d47357 webm  ours=0.388ms lav_avio=0.944ms lav_native=1.037ms ffmpeg=12.765ms
+c9d6df0b8214 webm  ours=0.665ms lav_avio=1.921ms lav_native=2.002ms ffmpeg=49.606ms
+refused 04a7da97aeec: unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in C
+refused 0591ba9fb558: unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in C
+196be1af7d62 webm  ours=65.299ms lav_avio=127.702ms lav_native=133.890ms ffmpeg=164.659ms
+refused 2c5976ae305e: unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in C
+34616c4782c0 webm  ours=9.174ms lav_avio=48.906ms lav_native=48.724ms ffmpeg=116.556ms
+357fb30f4693 webm  ours=76.529ms lav_avio=172.770ms lav_native=174.832ms ffmpeg=134.981ms
+refused 4389ba53bb9b: unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in C
+47cb9b34f42c webm  ours=10.903ms lav_avio=32.714ms lav_native=31.793ms ffmpeg=100.326ms
+59ad8ee403b3 webm  ours=0.173ms lav_avio=0.613ms lav_native=0.537ms ffmpeg=5.368ms
+5d9bec208875 webm  ours=5.633ms lav_avio=15.970ms lav_native=16.161ms ffmpeg=52.931ms
+refused 5f9e2df6851b: unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in C
+refused 602e617d5529: unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in C
+70eec00bc7d2 webm  ours=2.513ms lav_avio=4.633ms lav_native=4.720ms ffmpeg=13.584ms
+refused 71bd76ad3a87: unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in C
+refused 7593d867aafd: unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in C
+96b0669b1a66 webm  ours=14.499ms lav_avio=24.217ms lav_native=24.609ms ffmpeg=30.832ms
+9ffa165e752a webm  ours=135.240ms lav_avio=262.798ms lav_native=262.307ms ffmpeg=622.942ms
+a084bd45168c webm  ours=0.297ms lav_avio=0.822ms lav_native=0.852ms ffmpeg=11.996ms
+a1eaf50f116b webm  ours=2.507ms lav_avio=9.700ms lav_native=9.717ms ffmpeg=17.496ms
+refused a58a8a1aecdb: unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in C
+a7121daf691f webm  ours=21.379ms lav_avio=37.628ms lav_native=37.007ms ffmpeg=51.444ms
+a8c6bfbfcb66 webm  ours=18.122ms lav_avio=29.675ms lav_native=31.124ms ffmpeg=49.787ms
+b267a2ddac45 webm  ours=1.856ms lav_avio=4.165ms lav_native=4.177ms ffmpeg=26.543ms
+b361c03c6ec9 webm  ours=67.299ms lav_avio=114.822ms lav_native=119.282ms ffmpeg=194.367ms
+refused b368942ade78: unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in C
+refused b562a247eacd: unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in C
+c2819315cc2e webm  ours=39.959ms lav_avio=68.525ms lav_native=67.912ms ffmpeg=126.471ms
+refused d521daed36cf: unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in C
+e0aa339e6a39 webm  ours=32.038ms lav_avio=73.101ms lav_native=72.451ms ffmpeg=89.241ms
+e4f871effaf2 webm  ours=5.209ms lav_avio=8.826ms lav_native=8.750ms ffmpeg=22.508ms
+ea684713a5be webm  ours=41.652ms lav_avio=83.945ms lav_native=82.195ms ffmpeg=178.767ms
+ef382b9eb4e4 webm  ours=56.459ms lav_avio=82.700ms lav_native=83.597ms ffmpeg=149.969ms
+effb7b78408d webm  ours=28.709ms lav_avio=69.587ms lav_native=68.153ms ffmpeg=76.869ms
+refused f33563470b60: unsupported: VP8 in MP4 does not play in Safari; keep the WebM, which plays in C
+f51a56ed5718 webm  ours=153.347ms lav_avio=284.854ms lav_native=281.900ms ffmpeg=483.868ms
+f944c05afaa1 webm  ours=0.281ms lav_avio=0.777ms lav_native=0.879ms ffmpeg=11.848ms

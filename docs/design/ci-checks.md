@@ -1,0 +1,237 @@
+# CI checks: unique names, job-level path filters, report jobs
+
+How the workflows under `.github/workflows` are shaped so that a branch
+ruleset can require them. The exact list of names it requires is the table
+under "Required status checks" below.
+
+## The problem
+
+Branch protection matches a required status check by **name**, and the name
+of a job that sets no `name:` is its job id. Two things followed from that
+and from the path filters an earlier change put on the heavy workflows:
+
+1. **A workflow a trigger filter skips reports nothing at all.** Not a
+   skipped check, no check: GitHub leaves the pull request waiting for a
+   required check that will never arrive. (A job skipped by its own `if:`
+   is different: that reports as a success.) So before this change exactly
+   one check could be required, `deny`, the only workflow without a filter.
+2. **Job ids repeated across workflows cannot be required**, because the
+   name is ambiguous. `fixtures` was a job in four workflows, `guard` in
+   two, `build` in three and `fuzz` in two.
+
+## What the workflows do now
+
+- **Every job id is unique across all workflows.** `fixtures` became
+  `isobmff-fixtures`, `mkv-fixtures`, `ts-fixtures` and `python-fixtures`;
+  `guard` became `bench-guard`; every job of the three
+  H.264 spike workflows carries its spike's prefix (`h264-n1-build`,
+  `h264-n2-build`, `h264-n2-arm-build` and so on).
+- **A workflow that is required filters in its jobs, not in its trigger.**
+  Its first job, `<workflow>-changes`, decides from the event's changed
+  files whether the rest has to run; every other job carries
+  `needs: <workflow>-changes` and
+  `if: needs.<workflow>-changes.outputs.run == 'true'`, next to whatever
+  condition it had.
+- **It ends in `<workflow>-report`,** which carries `if: always()`, waits
+  for every other job of the workflow, prints their results and fails when
+  one failed or was cancelled. A job the filter skipped reports `skipped`
+  and passes. That name is the required check: it appears on every pull
+  request, including one that changes documentation only.
+- Workflows that are **not** required keep their trigger filters: the
+  informational `mediainfo-oracle`, the spikes (`spike-build`, `h264-n1`,
+  `h264-n2`, `h264-n2-arm-speed`, which build spike code and are kept
+  with it out of the public tree) and the nightly `pr-redirect`.
+
+`scripts/workflow_check.py` runs in `deny.yml` — the workflow nothing
+filters — and fails when the required-check table and the workflows
+disagree: a listed name no job reports, a report job missing from the
+table, a required workflow that grew a trigger filter again or lost its
+`pull_request:` trigger, a report job without `if: always()` or missing a
+dependency, two jobs that would report the same check name, a filter
+pattern the action would read differently from GitHub, or a filter written
+in a form the checker cannot read. A workflow that carries the line
+`# workflow-check: not required` is outside the table: its report job need
+not be listed, and the table may not list it.
+A row whose workflow cell reads `` `x.yml`, commit status `` is a commit
+status that a run elsewhere posts on the pull request's head after `x.yml`
+sent it there: no job may report that name, `x.yml` must run on every
+pull request, as a required workflow does, and no workflow may ask for
+`statuses: write`, with which a job could post the status itself (a
+writer still can, with their own credentials).
+
+## What a report job must not hide
+
+GitHub judges a required check by the **last** check run of that name on
+the commit. So a later event that reports green over an earlier failure of
+the same commit opens the gate, and the gate is only as good as the rule
+that decides when a job may be skipped.
+
+A job the filter skipped is benign: the event changed nothing that job
+reads, so it has nothing to say. A job skipped for a reason that has
+nothing to do with the change is not. That is why `python.yml` and
+`npm.yml` no longer skip their work on a `labeled` event whose label is
+not `wheels` or `binaries`: with that condition, adding any unrelated
+label to a pull request whose wheel build had just failed started a run in
+which every job was skipped and `python-report` went green on the same
+commit, and nothing ever fired again to correct it. A label event now does
+the same work as a push; the two labels still select the extra wheels and
+binaries, read from the pull request's label set rather than from the
+event, so they work on every event. Labels are rare, and the path filter
+still decides whether anything runs at all.
+
+Two kinds of skip remain, and neither may reach a required check.
+
+**The draft condition** is safe by construction: a draft cannot be merged,
+and `ready_for_review` is in every trigger's list, so marking it ready
+runs the jobs again. The trap in it: GitHub reports a job skipped by its `if:` as a
+successful required check, so if a push lands while the pull request is still a
+draft and it is marked ready without another push, those checks can show green
+without having run. Toggle the pull request back to draft and ready again, or push
+once more, and confirm the runs exist before merging.
+
+**The label-gated jobs** are not safe, and are therefore **not covered by
+a report job**. `binaries` and `smoke-platforms` in `npm.yml`, and
+`linux-arm64` and `macos-arm64` in `python.yml`, run only when the pull
+request carries `binaries` or `wheels`. That condition belongs to the
+pull request, not to the commit: remove the label after one of them has
+failed, and the next event of the same commit — another label, a reopen,
+a draft toggle — skips it, and a report that covered it would go green
+over the failure, with no event left to correct it. So `npm-report` waits
+for `package` and `smoke` only, and `python-report` for
+`python-fixtures` and `linux-x86_64` only. The platform builds still
+report under their own names, which is what the merge button and a
+release read; they are opt-in builds, not a gate on every pull request.
+`workflow_check.py` enforces both halves: a report job must cover every
+job that is not label-gated, and must cover none that is.
+
+## The filter
+
+`.github/actions/changed-paths` is the shared decision. It takes one
+`paths` or `paths-ignore` list, in GitHub's own filter-pattern syntax and
+with GitHub's own semantics (`paths`: run when any changed file matches;
+`paths-ignore`: run unless every changed file matches), so moving a list
+from the trigger into the action does not change which events run.
+
+The changed files come from git, which is why each `<workflow>-changes` job
+checks out with `fetch-depth: 2`:
+
+- a pull request: the merge commit against its first parent, the base —
+  the diff `ci.yml`'s fuzz job already used to choose its targets;
+- a push: the event's `before` commit against the event's commit;
+- a manual or scheduled run, an unreachable commit, or a failing diff:
+  everything runs, the safe direction.
+
+Patterns are translated to regular expressions: `*` stops at a slash and
+`**` does not, and that is all. GitHub's filter patterns are not ordinary
+globs — in them `?` and `+` quantify the **preceding** character (`*.jsx?`
+matches `.js` and `.jsx`), `\` escapes and `[]` is a character class — so
+every one of those is **refused** rather than guessed at, and no pattern
+can be read one way by GitHub and another by the action. None is in use. The unit tests are in
+`.github/actions/changed-paths/tests/`.
+
+Filter lists were **merged**: `bench-guard` carried a
+longer list on `push` than on `pull_request`. One list per workflow is the
+shape the action supports, so each took the union of the two. The effect is
+that a pull request changing the fixture generator, the pinned FFmpeg
+installer or the web-upload policy now measures as well — rare, and the
+safe direction.
+
+## Default builds and patents
+
+Default builds contain no implementation of a still-patented codec, and CI
+checks it. `scripts/patent_free_check.py` is that
+check. It runs in `deny.yml`, beside the licence checks, so no filter
+skips it. It holds the list of crates that implement such a codec
+(`coreav-h264`, `coreav-kernels-h264` and `coreav-backend-h264` today, all
+H.264), runs `cargo tree --target all -e normal,build` for the default
+features of every other workspace member, and for each build a package
+script makes with other features (the npm command's
+`--no-default-features --features cli`), and fails when one of those
+graphs holds a listed crate. It also fails when a listed crate is no
+workspace member, so a renamed crate cannot leave the list checking
+nothing. Opting in stays a feature (`native-h264` of `coreav-cli`), which
+the check leaves alone.
+
+- **The list lives in the script, not in each crate's manifest**
+  (`[package.metadata]`). A marker in the manifest would let a new codec
+  crate declare itself, but a crate that forgets the marker passes either
+  way, and the list is the patent review's result (section 12.2). It
+  belongs with the check and changes in the pull request that adds such a
+  crate.
+- **`cargo tree`, not `cargo metadata`'s resolve.** The workspace resolve
+  unifies every member's features, so it cannot say which member's default
+  build pulls a crate in; one tree per member can. All 26 trees take
+  about 3 seconds.
+- **Normal and build edges over every target.** Dev-dependencies never
+  reach a shipped artefact, and `--target all` covers the wasm builds'
+  target-specific dependencies.
+
+## Rejected alternatives
+
+- **Require the heavy jobs directly, with no report job.** It works once
+  the filters are on the jobs, because an `if:`-skipped job reports a
+  success, and it is one job cheaper per workflow. Rejected because the
+  ruleset would then name a dozen job ids and every matrix combination
+  (`smoke (20)`, `smoke (22)`, `smoke (24)`), and renaming a job or adding
+  a matrix entry would silently leave a required check unreported. The
+  report job is one stable name per workflow.
+- **Keep the trigger filters and add a companion workflow with the inverse
+  filter**, the shape GitHub's own documentation suggests. It is cheaper
+  still — the companion runs only when the real workflow does not — but it
+  duplicates every filter list in a second file, where the two can drift
+  apart without anything noticing until a pull request hangs.
+- **A filter step inside each heavy job that exits early.** No
+  `<workflow>-changes` job, but every heavy job then starts a runner, which
+  costs more than the one job it saves as soon as a workflow has two.
+- **A third-party action for the changed files** (`dorny/paths-filter`).
+  It would need a new entry in the Actions allowlist for forty lines of Python.
+
+## Required checks
+
+### Required status checks (exact names)
+
+These are the names a branch ruleset requires, exactly as written. Only a check that
+**appears on every pull request** can be required: a workflow its path filter skips
+reports nothing, and a required check that never reports leaves the pull request
+pending for ever. Each required workflow therefore filters in its jobs, not in its
+trigger, and ends in one report job that always runs and fails when a job above it
+failed.
+
+| Check | Workflow | Note |
+|---|---|---|
+| `deny` | `deny.yml` | `cargo deny check`, the fuzz projects' own graphs, and the DCO sign-off. No filter at all: it runs in full on every pull request |
+| `ci-report` | `ci.yml` | `cargo fmt`, `clippy`, the workspace tests, the MSRV build and the fuzz run |
+| `fixtures-report` | `fixtures.yml` | The ISO base media oracle: ffprobe, MediaInfo, the command and the writers |
+| `mkv-fixtures-report` | `mkv-fixtures.yml` | The Matroska and WebM oracle |
+| `ts-fixtures-report` | `ts-fixtures.yml` | The transport-stream oracle |
+| `bench-guard-report` | `bench-guard.yml` | The instruction-count guard |
+| `python-report` | `python.yml` | The abi3 wheel and its tests |
+| `npm-report` | `npm.yml` | The npm packages, the launcher and the smoke tests |
+| `h264-conformance-report` | `h264-conformance.yml` | Bar C1 of `docs/design/h264.md`: every in-scope JVT conformance bitstream decodes bit-exactly |
+| `external-check` | `external-check.yml`, commit status | A check of the pull request's head that runs outside this repository and posts only its result (below) |
+| `pr-text` | `pr-text.yml` | The pull request's title and body hold nothing that stays out of this repository (below) |
+
+`external-check` is not a job's check but a commit status: on every pull request from a
+branch of this repository, and on every commit of `main`, `external-check.yml` sends the
+commit to a check that runs outside this repository, which posts the status on that
+commit, `success` or `failure` and nothing else. No workflow on `main` or a pull request
+may ask for `statuses: write` (`workflow_check.py` fails on it), so none of this
+repository's own jobs posts the status. `pr-text` reads the pull request's title and body
+(`scripts/pr_text_check.py`) and fails on text that does not belong in this repository.
+
+## Cost
+
+Two small jobs per required workflow, about a minute each billed, so about
+twenty minutes of runner time per pull-request event, whatever the change
+touches; a documentation-only pull request paid about one before. Three
+smaller additions on top: `python.yml` and `npm.yml` now also start on a
+push to main and on a label whatever the paths, where their trigger filter
+used to stop them; and because the report jobs carry `if: always()`, a run
+cancelled by a new push starts its report jobs too, which then report the
+cancellation as a failure on the superseded commit. `!cancelled()` would
+avoid that, at the price of saying nothing when a heavy job is genuinely
+cancelled, which is the case worth seeing.
+
+The heavy jobs are still skipped, which is where the minutes of an earlier change and
+of the shorter pull request fuzz runs actually are. The whole cost falls to nothing when the
+repository is public and standard runners are free.

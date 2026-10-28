@@ -1,0 +1,11 @@
+callgrind Ir, one thread, 60 frames, --discard; base = main (decoder crates of 82ad7c31), k = perf/h264-edge-window-runs
+7650ae466748 total base 228,111,925 k 227,740,922; edge_window base 3,020,842 k 2,659,855
+f9e973f44570 total base 14,212,589 k 14,213,754; edge_window base 27,519 k 26,698
+175433794e02 total base 5,238,161,336 k 5,236,992,989; edge_window base 16,529,674 k 15,352,372
+41e324ebb708 total base 147,009,337 k 147,012,003; edge_window base 0 k 0
+
+The profile's shares of edge_window (../profile-82ad7c31/, its raw data from measured/h264-profile-82ad7c31, the
+profiled binary prof-82ad7c31): python3 -I hot.py res/t1 prof-82ad7c31 edge_window '*.sd' gives 0.0097 of CoreAV's
+cycles at sd at one thread, '*' 0.0039 over the 32, and '<stream>.sd' per stream 0.0125 to 0.0479 on four sd streams
+(f9e973f44570 most). On f9e973f44570 at one thread the first load back from the row built on the stack carries 28.8%
+of edge_window's cycles and a second 11.7% (22.6% for the first at eight threads, res/t8).

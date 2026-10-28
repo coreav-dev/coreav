@@ -1,0 +1,15 @@
+[package]
+name = "coreav-policy"
+description = "Upload policy checks over CoreAV probe output: a policy, a verdict and its reasons"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,144 @@
+iso       00de70872ff1     38.9 MB ours=    262.3ms theirs=    760.2ms ratio=0.345
+iso       0119957558a2    201.5 MB ours=   1826.1ms theirs=   3270.3ms ratio=0.558
+iso       016ab71f2d04     90.5 MB ours=   1408.6ms theirs=   2198.3ms ratio=0.641
+iso       02f2c37a7ad9      5.2 MB ours=    298.7ms theirs=    335.9ms ratio=0.890
+iso       04b7b4fb3b37      0.0 MB ours=    257.3ms theirs=    624.8ms ratio=0.412
+iso       0538fb0951fa     16.1 MB ours=    437.8ms theirs=    535.2ms ratio=0.818
+iso       057ee81be8c8     75.3 MB ours=   1099.7ms theirs=   2654.9ms ratio=0.414
+iso       065b0fa2931f     35.0 MB ours=   1386.5ms theirs=    855.3ms ratio=1.621
+iso       096d9e707920      2.3 MB ours=    263.1ms theirs=    322.3ms ratio=0.816
+iso       09a07d37fd09    208.9 MB ours=   2725.6ms theirs=   2401.5ms ratio=1.135
+iso       09febe430bb4      0.4 MB ours=    262.3ms theirs=    978.1ms ratio=0.268
+iso       0a65884fdefd      0.0 MB ours=    276.8ms theirs=    657.3ms ratio=0.421
+iso       0c09c7607280    119.9 MB ours=   1520.2ms theirs=   3340.1ms ratio=0.455
+iso       0ced42322c65      2.0 MB ours=    284.8ms theirs=    986.1ms ratio=0.289
+iso       0d8e77ef7d45      0.4 MB ours=    269.1ms theirs=    322.8ms ratio=0.834
+iso       0df9dd6969ab      1.0 MB ours=    273.4ms theirs=    320.4ms ratio=0.853
+iso       108521a89a73      3.9 MB ours=    381.1ms theirs=    992.5ms ratio=0.384
+iso       1115b5bac7c2      0.5 MB ours=    260.6ms theirs=    927.8ms ratio=0.281
+iso       12b422185953      2.4 MB ours=    268.9ms theirs=    931.9ms ratio=0.289
+iso       12c0953f433a      0.9 MB ours=    273.3ms theirs=    381.4ms ratio=0.717
+iso       13cf128006da    109.4 MB ours=    293.3ms theirs=   2718.2ms ratio=0.108
+iso       146662b2307c      1.1 MB ours=    309.1ms theirs=    324.6ms ratio=0.952
+iso       15affcdb19e3    126.9 MB ours=   1525.4ms theirs=   2597.1ms ratio=0.587
+iso       19d5a3aef3db      8.0 MB ours=    493.2ms theirs=   1062.8ms ratio=0.464
+iso       1b450d90085d     63.8 MB ours=   1142.8ms theirs=   1222.2ms ratio=0.935
+iso       1ce3933e3009     70.3 MB ours=   1303.6ms theirs=   1676.4ms ratio=0.778
+iso       1ced309b3617    110.6 MB ours=   2094.2ms theirs=   3888.9ms ratio=0.539
+iso       1df1e32ed6a5    178.5 MB ours=    276.5ms theirs=   4452.9ms ratio=0.062
+iso       1fc969989fcd      0.8 MB ours=    248.6ms theirs=    315.6ms ratio=0.788
+iso       206a65347de4      2.6 MB ours=    279.1ms theirs=    955.3ms ratio=0.292
+matroska  03e890cf5999      2.8 MB ours=    321.3ms theirs=    320.2ms ratio=1.003
+matroska  04a7da97aeec      6.1 MB ours=    304.5ms theirs=    357.5ms ratio=0.852
+matroska  0591ba9fb558     25.9 MB ours=    779.6ms theirs=    744.6ms ratio=1.047
+matroska  0647ff86bb8c      3.5 MB ours=    322.7ms theirs=    363.9ms ratio=0.887
+matroska  0d677d9c1b57      5.7 MB ours=    316.6ms theirs=    383.4ms ratio=0.826
+matroska  16117de9347f      7.5 MB ours=    397.4ms theirs=    554.7ms ratio=0.716
+matroska  17722a386ab1     16.6 MB ours=    626.4ms theirs=    513.9ms ratio=1.219
+matroska  196be1af7d62    123.6 MB ours=   2469.0ms theirs=   1714.8ms ratio=1.440
+matroska  1e7dbdd9da1a      3.7 MB ours=    352.0ms theirs=    391.7ms ratio=0.899
+matroska  2c5976ae305e      5.6 MB ours=    317.1ms theirs=    333.6ms ratio=0.951
+matroska  2fa8c6f6e266      9.9 MB ours=    685.3ms theirs=    449.8ms ratio=1.523
+matroska  34616c4782c0      6.0 MB ours=    346.7ms theirs=    380.3ms ratio=0.912
+matroska  357fb30f4693    199.2 MB ours=   3099.7ms theirs=   2880.8ms ratio=1.076
+matroska  4389ba53bb9b    137.4 MB ours=   2151.1ms theirs=   2209.1ms ratio=0.974
+matroska  47cb9b34f42c      9.1 MB ours=    321.1ms theirs=    402.9ms ratio=0.797
+matroska  4b23afae9445     24.3 MB ours=    881.9ms theirs=    547.3ms ratio=1.611
+matroska  584a16b906bb      0.5 MB ours=    253.7ms theirs=    317.7ms ratio=0.799
+matroska  595cc7a83394      3.0 MB ours=    334.0ms theirs=    332.1ms ratio=1.006
+matroska  59ad8ee403b3      0.1 MB ours=    264.2ms theirs=    325.2ms ratio=0.812
+matroska  5d9bec208875      5.1 MB ours=    345.1ms theirs=    471.8ms ratio=0.732
+matroska  5e84a05f8ee4      0.3 MB ours=    261.4ms theirs=    303.0ms ratio=0.863
+matroska  5f9e2df6851b      9.5 MB ours=    624.0ms theirs=    368.3ms ratio=1.694
+matroska  602e617d5529      6.8 MB ours=    387.4ms theirs=    461.8ms ratio=0.839
+matroska  70eec00bc7d2      4.2 MB ours=    328.3ms theirs=    364.0ms ratio=0.902
+matroska  71bd76ad3a87      1.9 MB ours=    300.7ms theirs=    352.0ms ratio=0.854
+matroska  7593d867aafd      0.8 MB ours=    259.3ms theirs=   1005.0ms ratio=0.258
+matroska  7926a7aaff4d      2.4 MB ours=    342.9ms theirs=    328.6ms ratio=1.043
+matroska  7bd8ff2f7abb      1.3 MB ours=    270.1ms theirs=    335.2ms ratio=0.806
+matroska  7e0aa6fa5cb6     89.3 MB ours=   1980.2ms theirs=   1538.7ms ratio=1.287
+matroska  8b0ab38d0e21     75.7 MB ours=   1279.8ms theirs=   1249.9ms ratio=1.024
+done check
+iso       00de70872ff1 refused
+iso       0119957558a2 refused
+iso       016ab71f2d04     90.5 MB ours=   4174.9ms theirs=   2336.8ms ratio=1.787
+iso       02f2c37a7ad9      5.2 MB ours=    297.3ms theirs=    359.1ms ratio=0.828
+iso       04b7b4fb3b37      0.0 MB ours=    263.4ms theirs=    640.3ms ratio=0.411
+iso       0538fb0951fa     16.1 MB ours=    465.4ms theirs=    851.4ms ratio=0.547
+iso       057ee81be8c8 refused
+iso       065b0fa2931f     35.0 MB ours=   1382.1ms theirs=    687.0ms ratio=2.012
+iso       096d9e707920      2.3 MB ours=    318.8ms theirs=    317.4ms ratio=1.004
+iso       09a07d37fd09    208.9 MB ours=   8026.1ms theirs=   2411.0ms ratio=3.329
+iso       09febe430bb4      0.4 MB ours=    259.0ms theirs=    959.6ms ratio=0.270
+iso       0a65884fdefd      0.0 MB ours=    256.5ms theirs=    615.8ms ratio=0.416
+iso       0c09c7607280    119.9 MB ours=   5455.4ms theirs=   2250.7ms ratio=2.424
+iso       0ced42322c65      2.0 MB ours=    277.0ms theirs=    991.5ms ratio=0.279
+iso       0d8e77ef7d45      0.4 MB ours=    277.3ms theirs=    329.9ms ratio=0.841
+iso       0df9dd6969ab      1.0 MB ours=    259.8ms theirs=    333.3ms ratio=0.779
+iso       108521a89a73      3.9 MB ours=    276.1ms theirs=   1004.3ms ratio=0.275
+iso       1115b5bac7c2      0.5 MB ours=    276.2ms theirs=    944.0ms ratio=0.293
+iso       12b422185953      2.4 MB ours=    305.5ms theirs=   1017.9ms ratio=0.300
+iso       12c0953f433a refused
+iso       13cf128006da refused
+iso       146662b2307c refused
+iso       15affcdb19e3    126.9 MB ours=   1342.2ms theirs=   1694.0ms ratio=0.792
+iso       19d5a3aef3db      8.0 MB ours=    376.6ms theirs=   1082.2ms ratio=0.348
+iso       1b450d90085d     63.8 MB ours=   1936.6ms theirs=   1130.7ms ratio=1.713
+iso       1ce3933e3009     70.3 MB ours=   1598.1ms theirs=   1597.0ms ratio=1.001
+iso       1ced309b3617    110.6 MB ours=   4900.1ms theirs=   2977.8ms ratio=1.646
+iso       1df1e32ed6a5 refused
+iso       1fc969989fcd      0.8 MB ours=    254.2ms theirs=    324.3ms ratio=0.784
+iso       206a65347de4      2.6 MB ours=    289.1ms theirs=   1069.7ms ratio=0.270
+iso       220e29e8557e      1.9 MB ours=    293.4ms theirs=    648.2ms ratio=0.453
+iso       24e19189ff25 refused
+iso       25c852bc7dae      0.8 MB ours=    302.7ms theirs=    324.6ms ratio=0.933
+iso       2893c1481a13 refused
+iso       2a36309a821b      0.5 MB ours=    283.3ms theirs=    946.1ms ratio=0.299
+iso       2a3c8259b630      1.0 MB ours=    268.0ms theirs=    315.5ms ratio=0.849
+iso       2ac72e8784ec refused
+iso       2ad59527e45b      3.2 MB ours=    464.0ms theirs=    357.0ms ratio=1.300
+iso       2b42d40aa328     51.1 MB ours=   2053.6ms theirs=   6215.3ms ratio=0.330
+iso       2bc6b07151be      7.1 MB ours=    297.4ms theirs=   1010.8ms ratio=0.294
+done split
+iso       00de70872ff1 refused
+iso       0119957558a2    201.5 MB ours=   1909.1ms theirs=   2695.3ms ratio=0.708
+iso       016ab71f2d04     90.5 MB ours=   1513.1ms theirs=   1847.2ms ratio=0.819
+iso       02f2c37a7ad9      5.2 MB ours=    280.8ms theirs=    347.8ms ratio=0.807
+iso       04b7b4fb3b37      0.0 MB ours=    246.3ms theirs=    607.3ms ratio=0.406
+iso       0538fb0951fa     16.1 MB ours=    478.4ms theirs=    584.8ms ratio=0.818
+iso       057ee81be8c8     75.3 MB ours=   2204.2ms theirs=   3177.9ms ratio=0.694
+iso       065b0fa2931f     35.0 MB ours=    965.9ms theirs=    629.1ms ratio=1.535
+iso       096d9e707920      2.3 MB ours=    287.6ms theirs=    319.9ms ratio=0.899
+iso       09a07d37fd09    208.9 MB ours=   2893.9ms theirs=   3244.0ms ratio=0.892
+iso       09febe430bb4      0.4 MB ours=    256.5ms theirs=    957.2ms ratio=0.268
+iso       0a65884fdefd      0.0 MB ours=    273.7ms theirs=    687.6ms ratio=0.398
+iso       0c09c7607280    119.9 MB ours=   2342.1ms theirs=   1583.9ms ratio=1.479
+iso       0ced42322c65      2.0 MB ours=    273.6ms theirs=   1006.9ms ratio=0.272
+iso       0d8e77ef7d45      0.4 MB ours=    289.8ms theirs=    321.5ms ratio=0.901
+iso       0df9dd6969ab      1.0 MB ours=    309.3ms theirs=    326.5ms ratio=0.947
+iso       108521a89a73      3.9 MB ours=    276.3ms theirs=    988.3ms ratio=0.280
+iso       1115b5bac7c2      0.5 MB ours=    276.4ms theirs=   1014.5ms ratio=0.272
+iso       12b422185953      2.4 MB ours=    292.5ms theirs=    980.5ms ratio=0.298
+iso       12c0953f433a      0.9 MB ours=    294.7ms theirs=    327.8ms ratio=0.899
+iso       13cf128006da    109.4 MB ours=   1698.3ms theirs=   2334.0ms ratio=0.728
+iso       146662b2307c      1.1 MB ours=    251.9ms theirs=    382.2ms ratio=0.659
+iso       15affcdb19e3    126.9 MB ours=   3182.8ms theirs=   2213.9ms ratio=1.438
+iso       19d5a3aef3db      8.0 MB ours=    332.8ms theirs=   1046.4ms ratio=0.318
+iso       1b450d90085d     63.8 MB ours=   1284.2ms theirs=    881.5ms ratio=1.457
+iso       1ce3933e3009     70.3 MB ours=   1630.9ms theirs=   1726.1ms ratio=0.945
+iso       1ced309b3617    110.6 MB ours=   1783.5ms theirs=   2161.2ms ratio=0.825
+iso       1df1e32ed6a5 refused
+iso       1fc969989fcd      0.8 MB ours=    312.7ms theirs=    319.2ms ratio=0.980
+iso       206a65347de4      2.6 MB ours=    292.3ms theirs=   1154.6ms ratio=0.253
+iso       220e29e8557e      1.9 MB ours=    281.4ms theirs=    764.4ms ratio=0.368
+iso       24e19189ff25      1.0 MB ours=    284.2ms theirs=    337.1ms ratio=0.843
+done sanitize
+iso       145cd0035987 refused
+iso       3c9312524de7    110.7 MB ours=    282.1ms theirs=   3913.5ms ratio=0.072
+iso       6024f3b8f371 refused
+iso       ff7fac2c8568 refused
+done extract-subtitles
+iso       145cd0035987     53.5 MB ours=    787.1ms theirs=   1273.1ms ratio=0.618
+iso       6024f3b8f371    219.9 MB ours=   3823.8ms theirs=   8815.0ms ratio=0.434
+iso       ff7fac2c8568     21.4 MB ours=    539.8ms theirs=    927.3ms ratio=0.582
+done chapters

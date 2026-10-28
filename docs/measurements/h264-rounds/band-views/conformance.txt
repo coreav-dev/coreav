@@ -1,0 +1,4 @@
+k = a9e568bc (rebased on 145232d): python3 scripts/h264_conformance.py --extracted <suite> --kernels detect --threads 1,2,8; --kernels scalar --threads 1; --kernels detect --mode safe --threads 1,8
+{"streams": 97, "passed": 97, "failed": 0, "kernels": "detect", "mode": "fast", "threads": "1,2,8", "seconds": 47.6}
+{"streams": 97, "passed": 97, "failed": 0, "kernels": "scalar", "mode": "fast", "threads": "1", "seconds": 49.1}
+{"streams": 97, "passed": 97, "failed": 0, "kernels": "detect", "mode": "safe", "threads": "1,8", "seconds": 39.2}

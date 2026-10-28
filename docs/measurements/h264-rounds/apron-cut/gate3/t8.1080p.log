@@ -1,0 +1,30 @@
+machine: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz (family 6, model 207, stepping 2), 2300.0 MHz, 8 logical CPUs
+gate baseline: 0.098 s (samples 0.098, 0.098, 0.097)
+175433794e02.0.1080p.h264                base:discard=0.99  base:write=0.98  base:mixed=0.97  k:discard=0.98  k:write=0.99  k:mixed=0.97  kh:discard=0.99  kh:write=0.98  kh:mixed=0.98  kc:discard=0.99  kc:write=0.98  kc:mixed=0.97  kw:discard=0.98  kw:write=0.98  kw:mixed=0.96
+6da34958296c.0.1080p.h264                base:discard=1.05  base:write=1.06  base:mixed=1.05  k:discard=1.05  k:write=1.06  k:mixed=1.05  kh:discard=1.05  kh:write=1.06  kh:mixed=1.05  kc:discard=1.05  kc:write=1.06  kc:mixed=1.04  kw:discard=1.05  kw:write=1.05  kw:mixed=1.05
+6e90422a670a.0.1080p.h264                base:discard=0.86  base:write=0.86  base:mixed=0.85  k:discard=0.86  k:write=0.86  k:mixed=0.84  kh:discard=0.86  kh:write=0.86  kh:mixed=0.84  kc:discard=0.86  kc:write=0.86  kc:mixed=0.84  kw:discard=0.86  kw:write=0.85  kw:mixed=0.84
+a6af290d9053.0.1080p.h264                base:discard=0.96  base:write=0.97  base:mixed=0.95  k:discard=0.96  k:write=0.96  k:mixed=0.95  kh:discard=0.96  kh:write=0.96  kh:mixed=0.95  kc:discard=0.97  kc:write=0.96  kc:mixed=0.95  kw:discard=0.95  kw:write=0.95  kw:mixed=0.94
+gate after 4 streams (check): 0.098 s (+0.4%)
+a81de82106be.0.1080p.h264                base:discard=0.90  base:write=0.88  base:mixed=0.85  k:discard=0.89  k:write=0.88  k:mixed=0.85  kh:discard=0.89  kh:write=0.88  kh:mixed=0.85  kc:discard=0.89  kc:write=0.88  kc:mixed=0.84  kw:discard=0.88  kw:write=0.87  kw:mixed=0.84
+b41f70a7fa60.0.1080p.h264                base:discard=1.04  base:write=1.03  base:mixed=1.02  k:discard=1.04  k:write=1.03  k:mixed=1.02  kh:discard=1.04  kh:write=1.03  kh:mixed=1.01  kc:discard=1.04  kc:write=1.03  kc:mixed=1.01  kw:discard=1.03  kw:write=1.02  kw:mixed=1.01
+b71b6b31e54f.0.1080p.h264                base:discard=0.90  base:write=0.86  base:mixed=0.75  k:discard=0.90  k:write=0.86  k:mixed=0.75  kh:discard=0.90  kh:write=0.86  kh:mixed=0.75  kc:discard=0.89  kc:write=0.86  kc:mixed=0.74  kw:discard=0.90  kw:write=0.86  kw:mixed=0.74
+c7ecda16e4a7.0.1080p.h264                base:discard=1.03  base:write=1.02  base:mixed=0.98  k:discard=1.02  k:write=1.01  k:mixed=0.98  kh:discard=1.03  kh:write=1.01  kh:mixed=0.98  kc:discard=1.03  kc:write=1.01  kc:mixed=0.99  kw:discard=1.02  kw:write=1.01  kw:mixed=0.98
+gate after 8 streams (check): 0.098 s (+0.5%)
+
+base:discard             n=  8  median 0.975  [0.896, 1.037]
+base:write               n=  8  median 0.975  [0.863, 1.029]
+base:mixed               n=  8  median 0.963  [0.845, 1.016]
+k:discard                n=  8  median 0.972  [0.893, 1.038]
+k:write                  n=  8  median 0.971  [0.863, 1.028]
+k:mixed                  n=  8  median 0.961  [0.844, 1.016]
+kh:discard               n=  8  median 0.974  [0.895, 1.036]
+kh:write                 n=  8  median 0.970  [0.862, 1.031]
+kh:mixed                 n=  8  median 0.963  [0.842, 1.015]
+kc:discard               n=  8  median 0.976  [0.889, 1.035]
+kc:write                 n=  8  median 0.967  [0.861, 1.031]
+kc:mixed                 n=  8  median 0.964  [0.842, 1.014]
+kw:discard               n=  8  median 0.965  [0.884, 1.031]
+kw:write                 n=  8  median 0.965  [0.860, 1.022]
+kw:mixed                 n=  8  median 0.954  [0.837, 1.010]
+
+wrote out/t8.1080p.json

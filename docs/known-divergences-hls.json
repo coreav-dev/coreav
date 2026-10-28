@@ -1,0 +1,196 @@
+{
+  "schema": "coreav/known-divergences/1",
+  "applies_to": "coreav-isobmff-write HLS renditions through scripts/hls_check.py, ffprobe and ffmpeg 7.0.2, MediaInfo 26.10",
+  "entries": [
+    {
+      "id": "KD-HLS-1",
+      "level": [
+        "packets",
+        "frames"
+      ],
+      "fields": [
+        "video pts",
+        "video frame time"
+      ],
+      "field_pattern": "video:time",
+      "filename_pattern": "*",
+      "conditions": {
+        "rendition": "video",
+        "source": "negative composition offsets: signed (ctts version 1, copied into trun version 1) or values of 2^31 and more in a version 0 table (copied as the same bits into trun version 0)",
+        "shift": "one value for every packet and frame, equal to the magnitude of the most negative composition offset of all media segments, read as signed 32-bit values",
+        "with KD-HLS-3": "a source edit that also starts mid-frame: the shift is KD-HLS-1's plus a remainder that meets KD-HLS-3's conditions; covered by both entries"
+      },
+      "predicate": "negative_cto_shift",
+      "basis": "ISO/IEC 14496-12 8.8.8 (composition offsets in track runs); offsets are copied as stored; docs/design/hls.md (Timing)"
+    },
+    {
+      "id": "KD-HLS-2",
+      "level": [
+        "packets",
+        "frames"
+      ],
+      "fields": [
+        "leading packets",
+        "leading decoded frames"
+      ],
+      "field_pattern": "*:lead",
+      "filename_pattern": "*",
+      "conditions": {
+        "init segment": "an edit list",
+        "packets and frames": "every source packet (frame) found in the output, by hash and time",
+        "extra": "before the first of the others or after the last, no more at either end than the rendition's samples that start before its edit or after its end (from the segments' box headers)",
+        "left out": "packets the rendition leaves out all at the end of the source's list and flagged as discarded; the source frames it lacks at most one per such packet, at its time"
+      },
+      "predicate": "hidden_lead",
+      "basis": "ISO/IEC 14496-12 8.6.6 (the edit leaves leading samples unpresented); the simple edit list is applied exactly; docs/design/hls.md (Timing)"
+    },
+    {
+      "id": "KD-HLS-3",
+      "level": [
+        "packets",
+        "frames"
+      ],
+      "fields": [
+        "packet times",
+        "frame times"
+      ],
+      "field_pattern": "*:time",
+      "filename_pattern": "*",
+      "conditions": {
+        "shift": "one value for every packet and frame, above 0",
+        "init segment": "the edit's media time is no sample's composition time; media time plus shift is one, with at most three samples between them (from the segments' box headers)",
+        "with KD-HLS-1": "a video rendition with negative composition offsets: the shift minus KD-HLS-1's meets the conditions above; covered by both entries",
+        "source": "the rendition's composition times the source's stored ones (ffprobe with edit lists ignored), and the init segment's media time the source's one media edit"
+      },
+      "predicate": "midframe_edit",
+      "basis": "ISO/IEC 14496-12 8.6.6; the simple edit list is applied exactly; the same cause as KD-C-EDIT-MIDFRAME"
+    },
+    {
+      "id": "KD-HLS-4",
+      "level": [
+        "packets",
+        "frames"
+      ],
+      "fields": [
+        "audio packet times",
+        "audio frame times"
+      ],
+      "field_pattern": "audio:time",
+      "filename_pattern": "*",
+      "conditions": {
+        "source": "an iTunSMPB tag (ffprobe format tags)",
+        "init segment": "a media edit starting at the tag's delay",
+        "shift": "one value for every packet and frame, minus the delay"
+      },
+      "predicate": "gapless_edit",
+      "basis": "a gapless tag that adds up exactly stands for an edit list, which the rendition carries; ISO/IEC 14496-12 8.6.6; the same cause as KD-X-GAPLESS-EDIT"
+    },
+    {
+      "id": "KD-HLS-5",
+      "level": [
+        "frames"
+      ],
+      "fields": [
+        "audio decoded frames"
+      ],
+      "field_pattern": "audio:frames",
+      "filename_pattern": "*",
+      "conditions": {
+        "source": "an iTunSMPB tag (ffprobe format tags)",
+        "init segment": "an edit list whose media time is not the tag's delay",
+        "frames": "every source frame but the first and the last in the output, in order and unchanged"
+      },
+      "predicate": "gapless_conflict",
+      "basis": "the edit list is applied, and a gapless tag that does not stand for it is not; the same cause as KD-X-GAPLESS-CONFLICT"
+    },
+    {
+      "id": "KD-HLS-6",
+      "level": [
+        "playlist",
+        "mediainfo"
+      ],
+      "fields": [
+        "CODECS",
+        "MediaInfo SamplingRate of the init"
+      ],
+      "field_pattern": "audio:aac",
+      "filename_pattern": "*",
+      "conditions": {
+        "ffprobe source profile": "HE-AAC or HE-AACv2",
+        "CODECS": "object type 2",
+        "MediaInfo init rate": "half the source's"
+      },
+      "predicate": "implicit_sbr",
+      "basis": "RFC 6381 3.3; the configuration is copied as stored; the same cause as KD-AAC-IMPLICIT-SBR"
+    },
+    {
+      "id": "KD-HLS-7",
+      "level": [
+        "streams"
+      ],
+      "fields": [
+        "audio profile"
+      ],
+      "field_pattern": "audio:profile",
+      "filename_pattern": "*",
+      "conditions": {
+        "codec": "aac on both sides",
+        "source profile": "none",
+        "output profile": "LC"
+      },
+      "predicate": "profile_unnamed",
+      "basis": "the esds box is copied as stored; the same cause as KD-X-PROFILE-UNNAMED"
+    },
+    {
+      "id": "KD-HLS-8",
+      "level": [
+        "frames"
+      ],
+      "fields": [
+        "decoded frames"
+      ],
+      "field_pattern": "*:frames",
+      "filename_pattern": "*",
+      "conditions": {
+        "frames": "equal, in order, to those of ffmpeg's own stream copy of the source stream into fragmented MP4 (frag_keyframe+empty_moov+default_base_moof)",
+        "other entries": "none covers the frames"
+      },
+      "predicate": "fragment_reading",
+      "basis": "samples are copied as stored; ffmpeg reads sample tables and fragments differently"
+    },
+    {
+      "id": "KD-HLS-9",
+      "level": [
+        "playlist"
+      ],
+      "fields": [
+        "RESOLUTION"
+      ],
+      "field_pattern": "video:resolution",
+      "filename_pattern": "*",
+      "conditions": {
+        "RESOLUTION": "the size of the first frame ffprobe decodes with -apply_cropping 0, at least the displayed size"
+      },
+      "predicate": "left_top_crop",
+      "basis": "docs/design/frame-sizes.md (left and top crops are not subtracted from the bound); docs/design/hls.md"
+    },
+    {
+      "id": "KD-HLS-10",
+      "level": [
+        "playlist"
+      ],
+      "fields": [
+        "segment start"
+      ],
+      "field_pattern": "*:start",
+      "filename_pattern": "*",
+      "conditions": {
+        "segments": "the source's subsegments, one each, as many as its one segment index of the track references, all to media; each holding exactly the samples of the track fragments in that subsegment's byte range",
+        "starts": "from the second segment on, the running sums of the index's subsegment_duration plus one constant, to the microsecond",
+        "drift": "each subsegment's earliest presentation time, from the source's fragments, past that sum by exactly the decode time gaps (tfdt against stored durations) before it, at least one not 0; the starts moved by it meet the start rule"
+      },
+      "predicate": "index_drift",
+      "basis": "docs/design/hls.md (each segment's EXTINF is its subsegment_duration, its tfdt the source's); ISO/IEC 14496-12 8.8.12 and 8.16.3.3"
+    }
+  ]
+}

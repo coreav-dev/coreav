@@ -1,0 +1,11 @@
+# Instructions of the whole decode (callgrind, --discard, one thread, dist builds with line tables), main 678bd69 (base) and the
+# parts on top of it: n = part N (8387994), nz = N and Z (9fdcc89), nzt = N, Z and T (92e8005). Frames: sd 200, 720p 100, 1080p 60, 4k 30.
+# stream base n/base nz/base nzt/base
+36501d448eaa.0.720p 1181015650 0.9977 0.9912 0.9915
+3b1b441e23ae.0.4k 1486801989 0.9951 0.9766 0.9746
+41e324ebb708.0.sd 1080148018 0.9974 0.9870 0.9844
+5185721dda11.0.sd 447771143 0.9974 0.9892 0.9893
+9db41aa16b5a.0.720p 1795693539 0.9982 0.9942 0.9938
+a6af290d9053.0.1080p 9629890906 0.9992 1.0001 0.9998
+b71b6b31e54f.0.1080p 1333644014 0.9942 0.9935 0.9906
+ed75c044e944.0.4k 634330822 0.9937 0.9704 0.9698

@@ -1,0 +1,26 @@
+{
+  "schema": "coreav.policy/1",
+  "name": "strict-gate",
+  "file": {"max_size": 536870912, "max_bit_rate": 20000000},
+  "container": {"formats": ["mp4"], "fragmented": false},
+  "duration": {"max_seconds": 600},
+  "streams": {
+    "max_count": 2,
+    "video": {
+      "codecs": ["h264"],
+      "min_count": 1,
+      "max_count": 1,
+      "max_width": 1920,
+      "max_height": 1920,
+      "max_bit_rate": 16000000,
+      "rotations": [0, 90, 180, 270]
+    },
+    "audio": {
+      "codecs": ["aac"],
+      "max_count": 1,
+      "max_bit_rate": 320000,
+      "max_channels": 2,
+      "max_sample_rate": 48000
+    }
+  }
+}

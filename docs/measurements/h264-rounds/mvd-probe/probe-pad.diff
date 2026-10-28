@@ -1,0 +1,70 @@
+diff --git a/crates/coreav-h264/Cargo.toml b/crates/coreav-h264/Cargo.toml
+index 9c111b03..9a4ff65b 100644
+--- a/crates/coreav-h264/Cargo.toml
++++ b/crates/coreav-h264/Cargo.toml
+@@ -21,6 +21,7 @@ default = ["fast"]
+ # The hot-path module of ADR 0038 (`src/fast/`): the decoder's only
+ # `unsafe`. A build without it compiles none and runs the baseline twins.
+ fast = []
++probe-pad = ["fast"]
+ 
+ # The workspace's lint table, with `unsafe_code = "deny"` instead of
+ # `forbid` (ADR 0038 point 1): `#[allow(unsafe_code)]` sits on `fast` alone,
+diff --git a/crates/coreav-h264/src/cabac.rs b/crates/coreav-h264/src/cabac.rs
+index 9410e254..07cde3ab 100644
+--- a/crates/coreav-h264/src/cabac.rs
++++ b/crates/coreav-h264/src/cabac.rs
+@@ -587,6 +587,8 @@ impl<'a> Cabac<'a> {
+     fn mvd_body<T: Tier>(&mut self, t: T, base: usize, inc0: usize) -> Result<i32> {
+         /// ctxIdxInc of bins 1 to 8 (clause 9.3.3.1.1.7).
+         const INC: [usize; 9] = [0, 3, 4, 5, 6, 6, 6, 6, 6];
++        #[cfg(feature = "probe-pad")]
++        crate::fast::pad::<60>(self.engine.value);
+         let prefix = self.unary(t, Some(9), |b| {
+             let inc = if b == 0 {
+                 inc0
+diff --git a/crates/coreav-h264/src/fast/mod.rs b/crates/coreav-h264/src/fast/mod.rs
+index 8dfe38bd..452a36d5 100644
+--- a/crates/coreav-h264/src/fast/mod.rs
++++ b/crates/coreav-h264/src/fast/mod.rs
+@@ -167,3 +167,18 @@ impl Tier for V3 {
+         k.predict_inlined(dst, src, px, py, w, h, mv, ops)
+     }
+ }
++
++#[cfg(feature = "probe-pad")]
++/// Probe only (not for merge): `N` independent one-uop instructions, the
++/// part a cut of the mvd sites would remove there.
++#[inline(always)]
++pub(crate) fn pad<const N: usize>(a: u64) {
++    // SAFETY: register arithmetic only; no memory, stack or flags.
++    unsafe {
++        core::arch::asm!(
++            ".rept {n}", "lea {o}, [{a} + {a}]", ".endr",
++            n = const N, o = out(reg) _, a = in(reg) a,
++            options(nomem, nostack, preserves_flags)
++        );
++    }
++}
+diff --git a/crates/coreav-h264/src/mb.rs b/crates/coreav-h264/src/mb.rs
+index bb8d60bd..9c42359d 100644
+--- a/crates/coreav-h264/src/mb.rs
++++ b/crates/coreav-h264/src/mb.rs
+@@ -1335,6 +1335,8 @@ impl<K: Kernels> SliceDecoder<'_, K> {
+     /// macroblocks A and B; the current macroblock's blocks start at 0,
+     /// which its direct sub-macroblocks keep.
+     fn fill_mvd_cache(&mut self) {
++        #[cfg(feature = "probe-pad")]
++        crate::fast::pad::<55>(self.ring_mask as u64);
+         let (a, b) = (self.mb_a(), self.mb_b());
+         let (ring, mask) = (&self.ring, self.ring_mask);
+         for (list, comps) in self.nb.mvd.iter_mut().enumerate() {
+@@ -1561,6 +1563,8 @@ impl<K: Kernels> SliceDecoder<'_, K> {
+         if !self.pps.cabac {
+             return;
+         }
++        #[cfg(feature = "probe-pad")]
++        crate::fast::pad::<115>(bx as u64);
+         let Some(comps) = self.nb.mvd.get_mut(list) else {
+             return;
+         };

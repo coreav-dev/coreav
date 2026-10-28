@@ -1,0 +1,25 @@
+{
+ "files": 869,
+ "compared": 824,
+ "identical": 824,
+ "several_edits": 6,
+ "refused_by_both": 38,
+ "taken_by_head_only": [
+  "1ae48e7b157ec0f90cb6dcfc199e197434517df8f1ca7f29198275c7eed97843",
+  "5de2646e4ea095572a3a22fc1fba65f3899ce7180259e27e46e6c61f4220b4f4",
+  "6e67814d336c695ad1aa9b51d6985e4029c7bfc8099f55cc8e9fd5ce54d91b80",
+  "a166d09989f96e13376fa7dcac3b17c4004cc0d0fe840b1318e67cc7e8c0de66",
+  "ceb55bb5fb87b82527ad03e317c46a810a7bedbebfa5653038e47aaef4efc5da",
+  "ea690039d9024dcd6965080d60eecc8d5a282e6cb5edaaf0b3e7897987854838"
+ ],
+ "differ": [],
+ "errors": [
+  {
+   "sha256": "184becaaec565182ef8d7d28eb682100b1d98dc2f8983063405f131320cb2a78",
+   "error": "RuntimeError: R2 size probe failed"
+  }
+ ],
+ "bars": {
+  "all_identical": true
+ }
+}

@@ -1,0 +1,8158 @@
+{
+ "schema": "coreav/kd-audit/1",
+ "tool": "tools/oracle/kd_audit.py",
+ "overlays": {
+  "before": "main at d7d79c2 (#160 merged)",
+  "after": "this change (#162)"
+ },
+ "cases": {
+  "13ffc348f17d": {
+   "source": "stage 3 corpus (SHA-256 prefix)",
+   "kds": [
+    "KD-PCM",
+    "KD-PCM-END"
+   ]
+  },
+  "22fe923356f4": {
+   "source": "stage 3 corpus (SHA-256 prefix)",
+   "kds": [
+    "KD-FRAG-START",
+    "KD-NOT-ALLOWED",
+    "KD-TRUN-SHIFT"
+   ]
+  },
+  "28a9e1e12df0": {
+   "source": "stage 3 corpus (SHA-256 prefix)",
+   "kds": [
+    "KD-QT-TEXT"
+   ]
+  },
+  "2b42d40aa328": {
+   "source": "stage 3 corpus (SHA-256 prefix)",
+   "kds": [
+    "KD-CTTS"
+   ]
+  },
+  "2c8794188a18": {
+   "source": "stage 3 corpus (SHA-256 prefix)",
+   "kds": [
+    "KD-NOT-ALLOWED"
+   ]
+  },
+  "35dce647f1bb": {
+   "source": "stage 3 corpus (SHA-256 prefix)",
+   "kds": [
+    "KD-DECLARED-SIZE"
+   ]
+  },
+  "387e48db2ad8": {
+   "source": "stage 3 corpus (SHA-256 prefix)",
+   "kds": [
+    "KD-FRAG-START",
+    "KD-NOT-ALLOWED"
+   ]
+  },
+  "42fce01d091e": {
+   "source": "stage 3 corpus (SHA-256 prefix)",
+   "kds": [
+    "KD-EDIT-UNPLACED",
+    "KD-NOT-ALLOWED"
+   ]
+  },
+  "5bcb3728df1c": {
+   "source": "stage 3 corpus (SHA-256 prefix)",
+   "kds": [
+    "KD-EDIT-SNAP"
+   ]
+  },
+  "6e7cb95e8936": {
+   "source": "stage 3 corpus (SHA-256 prefix)",
+   "kds": [
+    "KD-FRAG-START"
+   ]
+  },
+  "7bbc10d1135b": {
+   "source": "stage 3 corpus (SHA-256 prefix)",
+   "kds": [
+    "KD-NOT-ALLOWED",
+    "KD-PCM"
+   ]
+  },
+  "80b40872bc1c": {
+   "source": "stage 3 corpus (SHA-256 prefix)",
+   "kds": [
+    "KD-STTS-SHORT"
+   ]
+  },
+  "83a23ae66831": {
+   "source": "stage 3 corpus (SHA-256 prefix)",
+   "kds": [
+    "KD-AAC-LC-UNNAMED",
+    "KD-NOT-ALLOWED"
+   ]
+  },
+  "83e493fdc88c": {
+   "source": "stage 3 corpus (SHA-256 prefix)",
+   "kds": [
+    "KD-EDIT-DURATION"
+   ]
+  },
+  "88ba79019cd6": {
+   "source": "stage 3 corpus (SHA-256 prefix)",
+   "kds": [
+    "KD-CHAPTER-TEXT",
+    "KD-COVER-ART",
+    "KD-NOT-ALLOWED"
+   ]
+  },
+  "8d93b7e945ac": {
+   "source": "stage 3 corpus (SHA-256 prefix)",
+   "kds": [
+    "KD-FRAG-START"
+   ]
+  },
+  "959f4062b7ed": {
+   "source": "stage 3 corpus (SHA-256 prefix)",
+   "kds": [
+    "KD-EDIT-SNAP"
+   ]
+  },
+  "a5d1428fd3e2": {
+   "source": "stage 3 corpus (SHA-256 prefix)",
+   "kds": [
+    "KD-COVER-ART",
+    "KD-NOT-ALLOWED"
+   ]
+  },
+  "abdc2e3e2c84": {
+   "source": "stage 3 corpus (SHA-256 prefix)",
+   "kds": [
+    "KD-CTTS",
+    "KD-EDIT-DURATION"
+   ]
+  },
+  "c53fda51f1fd": {
+   "source": "stage 3 corpus (SHA-256 prefix)",
+   "kds": [
+    "KD-CTTS-UNSIGNED"
+   ]
+  },
+  "c86f3d1f2aff": {
+   "source": "stage 3 corpus (SHA-256 prefix)",
+   "kds": [
+    "KD-AAC-IMPLICIT-SBR"
+   ]
+  },
+  "cc6023189f53": {
+   "source": "stage 3 corpus (SHA-256 prefix)",
+   "kds": [
+    "KD-FRAG-START",
+    "KD-NOT-ALLOWED"
+   ]
+  },
+  "ceb55bb5fb87": {
+   "source": "stage 3 corpus (SHA-256 prefix)",
+   "kds": [
+    "KD-DECLARED-SIZE",
+    "KD-EDIT-MULTI"
+   ]
+  },
+  "e1c335533b26": {
+   "source": "stage 3 corpus (SHA-256 prefix)",
+   "kds": [
+    "KD-CTTS"
+   ]
+  },
+  "eb569fa7169e": {
+   "source": "stage 3 corpus (SHA-256 prefix)",
+   "kds": [
+    "KD-STRICT"
+   ]
+  },
+  "fcb01fd0c565": {
+   "source": "stage 3 corpus (SHA-256 prefix)",
+   "kds": [
+    "KD-CTTS",
+    "KD-EDIT-DISCARD"
+   ]
+  },
+  "neg": {
+   "source": "crafted: ffmpeg fragmented H.264, negative trun offsets",
+   "kds": [
+    "KD-TRUN-SHIFT"
+   ]
+  }
+ },
+ "mutations": [
+  [
+   "13ffc348f17d",
+   "format_duration_us +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "format_duration_us +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "movie header duration + 7",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: duration_ts +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: duration_ts +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: duration_ts -1",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: every pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: every pts and dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: every timestamp and media time + 1",
+   "COVERED {\"packets\": {\"KD-EDIT-SNAP\": 1233}}",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: first packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: first packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: first packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: first packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: first packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: invented discarded samples after the last",
+   "COVERED {\"packets\": {\"KD-EDIT-DISCARD\": 1}}",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: last packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: last packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: last packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: last packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: last packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: last packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: left out",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: listed as not allowed",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: listed as not allowed, as a disallowed code",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: mdhd_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: media edit + 100 in its evidence",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: media edit unreported, duration_ts the media header's",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: media_edit_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: middle keyframe flag flipped",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: middle packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: middle packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: middle packet listed twice",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: middle packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: middle packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: middle packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: middle packet pts - 512 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: middle packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: other codec",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: other profile",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: presentation offset and every timestamp + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: simple edit list called unsupported",
+   "COVERED {\"streams\": {\"KD-EDIT-UNPLACED\": 1}}",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: stts_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 0: width + 2",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: duration_ts +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: duration_ts +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: duration_ts -1",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: every pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: every pts and dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: every timestamp and media time + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: first packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: first packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: first packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: first packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: first packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: invented discarded samples after the last",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: last packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: last packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: last packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: last packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: last packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: last packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: left out",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: listed as not allowed",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: listed as not allowed, as a disallowed code",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: mdhd_duration_ticks and duration_ts + 500",
+   "COVERED absorbed [\"streams\", {\"candidate\": 494188, \"informational\": false, \"path\": \"streams/1/duration_ts\", \"reference\": 493693}]",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: middle keyframe flag flipped",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: middle packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: middle packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: middle packet listed twice",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: middle packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: middle packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: middle packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: middle packet pts - 512 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: middle packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: one more channel",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: other codec",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: presentation offset and every timestamp + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: sample rate doubled",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "13ffc348f17d",
+   "stream 1: stts_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "13ffc348f17d",
+   "valid file rejected",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "format_duration_us +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "format_duration_us +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "movie header duration + 7",
+   "no effect",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: duration_ts +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: duration_ts +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: duration_ts -1",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: every pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: every pts and dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: every timestamp and media time + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: first packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: first packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: first packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: first packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: first packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: fragment_start_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: invented discarded samples after the last",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: last packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: last packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: last packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: last packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: last packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: last packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: left out",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: listed as not allowed",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: listed as not allowed, as a disallowed code",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: mdhd_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: middle keyframe flag flipped",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: middle packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: middle packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: middle packet listed twice",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: middle packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: middle packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: middle packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: middle packet pts - 512 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: middle packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: other codec",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: other profile",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: presentation offset and every timestamp + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: stts_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "stream 0: width + 2",
+   "caught",
+   "caught"
+  ],
+  [
+   "22fe923356f4",
+   "valid file rejected",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "format_duration_us +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "format_duration_us +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "movie header duration + 7",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: duration_ts +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: duration_ts +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: duration_ts -1",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: every pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: every pts and dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: every timestamp and media time + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: first packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: first packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: first packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: first packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: first packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: invented discarded samples after the last",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: last packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: last packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: last packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: last packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: last packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: last packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: left out",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: listed as not allowed",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: listed as not allowed, as a disallowed code",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: mdhd_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: middle keyframe flag flipped",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: middle packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: middle packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: middle packet listed twice",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: middle packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: middle packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: middle packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: middle packet pts - 512 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: middle packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: one more channel",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: other codec",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: other profile",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: presentation offset and every timestamp + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: sample rate doubled",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "28a9e1e12df0",
+   "stream 0: stts_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "28a9e1e12df0",
+   "valid file rejected",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "format_duration_us +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "format_duration_us +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "movie header duration + 7",
+   "no effect",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: duration_ts +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: duration_ts +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: duration_ts -1",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: every pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: every pts and dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: every timestamp and media time + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: first packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: first packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: first packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: first packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: first packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: invented discarded samples after the last",
+   "COVERED {\"packets\": {\"KD-EDIT-DISCARD\": 1}}",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: last packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: last packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: last packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: last packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: last packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: last packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: left out",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: listed as not allowed",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: listed as not allowed, as a disallowed code",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: mdhd_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: media edit + 100 in its evidence",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: media edit unreported, duration_ts the media header's",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: media_edit_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: middle keyframe flag flipped",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: middle packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: middle packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: middle packet listed twice",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: middle packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: middle packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: middle packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: middle packet pts - 512 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: middle packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: one more channel",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: other codec",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: other profile",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: presentation offset and every timestamp + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: sample rate doubled",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: simple edit list called unsupported",
+   "COVERED {\"streams\": {\"KD-EDIT-UNPLACED\": 1}}",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 0: stts_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: duration_ts +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: duration_ts +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: duration_ts -1",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: every pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: every pts and dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: every timestamp and media time + 1",
+   "COVERED {\"packets\": {\"KD-EDIT-SNAP\": 4101}}",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: first packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: first packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: first packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: first packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: first packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: invented discarded samples after the last",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: last packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: last packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: last packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: last packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: last packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: last packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: left out",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: listed as not allowed",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: listed as not allowed, as a disallowed code",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: mdhd_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: media edit + 100 in its evidence",
+   "no effect",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: media edit unreported, duration_ts the media header's",
+   "no effect",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: media_edit_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: middle keyframe flag flipped",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: middle packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: middle packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: middle packet listed twice",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: middle packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: middle packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: middle packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: middle packet pts - 512 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: middle packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: other codec",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: other profile",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: presentation offset and every timestamp + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: simple edit list called unsupported",
+   "no effect",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: stts_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "stream 1: width + 2",
+   "caught",
+   "caught"
+  ],
+  [
+   "2b42d40aa328",
+   "valid file rejected",
+   "caught",
+   "caught"
+  ],
+  [
+   "2c8794188a18",
+   "format_duration_us +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "2c8794188a18",
+   "format_duration_us +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "2c8794188a18",
+   "movie header duration + 7",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "2c8794188a18",
+   "valid file rejected",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "format_duration_us +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "format_duration_us +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "movie header duration + 7",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: duration_ts +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: duration_ts +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: duration_ts -1",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: every pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: every pts and dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: every timestamp and media time + 1",
+   "COVERED {\"packets\": {\"KD-EDIT-SNAP\": 311}}",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: first packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: first packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: first packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: first packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: first packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: invented discarded samples after the last",
+   "COVERED {\"packets\": {\"KD-EDIT-DISCARD\": 1}}",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: last packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: last packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: last packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: last packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: last packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: last packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: left out",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: listed as not allowed",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: listed as not allowed, as a disallowed code",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: mdhd_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: media edit + 100 in its evidence",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: media edit unreported, duration_ts the media header's",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: media_edit_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: middle keyframe flag flipped",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: middle packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: middle packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: middle packet listed twice",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: middle packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: middle packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: middle packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: middle packet pts - 512 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: middle packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: other codec",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: other profile",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: presentation offset and every timestamp + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: simple edit list called unsupported",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: stts_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "stream 0: width + 2",
+   "caught",
+   "caught"
+  ],
+  [
+   "35dce647f1bb",
+   "valid file rejected",
+   "caught",
+   "caught"
+  ],
+  [
+   "387e48db2ad8",
+   "format_duration_us +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "387e48db2ad8",
+   "format_duration_us +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "387e48db2ad8",
+   "movie header duration + 7",
+   "no effect",
+   "caught"
+  ],
+  [
+   "387e48db2ad8",
+   "valid file rejected",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "format_duration_us +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "format_duration_us +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "movie header duration + 7",
+   "no effect",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: duration_ts +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: duration_ts +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: duration_ts -1",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: every pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: every pts and dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: every timestamp and media time + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: first packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: first packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: first packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: first packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: first packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: invented discarded samples after the last",
+   "COVERED {\"packets\": {\"KD-EDIT-DISCARD\": 1}}",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: last packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: last packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: last packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: last packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: last packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: last packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: left out",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: listed as not allowed",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: listed as not allowed, as a disallowed code",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: mdhd_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: media edit + 100 in its evidence",
+   "no effect",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: media edit unreported, duration_ts the media header's",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: media_edit_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: middle keyframe flag flipped",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: middle packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: middle packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: middle packet listed twice",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: middle packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: middle packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: middle packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: middle packet pts - 512 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: middle packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: one more channel",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: other codec",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: other profile",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: presentation offset and every timestamp + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: sample rate doubled",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: simple edit list called unsupported",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "stream 1: stts_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "42fce01d091e",
+   "valid file rejected",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "format_duration_us +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "format_duration_us +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "movie header duration + 7",
+   "no effect",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: duration_ts +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: duration_ts +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: duration_ts -1",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: every pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: every pts and dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: every timestamp and media time + 1",
+   "COVERED absorbed [\"packets\", {\"candidate\": -168, \"informational\": false, \"path\": \"streams/0/packets/1/dts\", \"reference\": -1530}]",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: first packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: first packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: first packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: first packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: first packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: invented discarded samples after the last",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: last packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: last packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: last packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: last packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: last packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: last packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: left out",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: listed as not allowed",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: listed as not allowed, as a disallowed code",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: mdhd_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: media edit + 100 in its evidence",
+   "no effect",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: media edit unreported, duration_ts the media header's",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: media_edit_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: middle keyframe flag flipped",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: middle packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: middle packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: middle packet listed twice",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: middle packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: middle packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: middle packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: middle packet pts - 512 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: middle packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: other codec",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: other profile",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: presentation offset and every timestamp + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: simple edit list called unsupported",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: stts_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "stream 0: width + 2",
+   "caught",
+   "caught"
+  ],
+  [
+   "5bcb3728df1c",
+   "valid file rejected",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "format_duration_us +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "format_duration_us +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "movie header duration + 7",
+   "no effect",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: duration_ts +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: duration_ts +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: duration_ts -1",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: every pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: every pts and dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: every timestamp and media time + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: first packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: first packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: first packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: first packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: first packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: fragment_start_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: invented discarded samples after the last",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: last packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: last packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: last packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: last packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: last packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: last packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: left out",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: listed as not allowed",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: listed as not allowed, as a disallowed code",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: mdhd_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: middle keyframe flag flipped",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: middle packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: middle packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: middle packet listed twice",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: middle packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: middle packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: middle packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: middle packet pts - 512 with media_cts",
+   "COVERED {\"packets\": {\"KD-TRUN-SHIFT\": 1}}",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: middle packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: other codec",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: other profile",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: presentation offset and every timestamp + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: sidx_end_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: stts_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "stream 0: width + 2",
+   "caught",
+   "caught"
+  ],
+  [
+   "6e7cb95e8936",
+   "valid file rejected",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "format_duration_us +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "format_duration_us +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "movie header duration + 7",
+   "no effect",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: duration_ts +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: duration_ts +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: duration_ts -1",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: every pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: every pts and dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: every timestamp and media time + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: first packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: first packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: first packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: first packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: first packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: invented discarded samples after the last",
+   "COVERED {\"packets\": {\"KD-EDIT-DISCARD\": 1}}",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: last packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: last packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: last packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: last packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: last packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: last packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: left out",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: listed as not allowed",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: listed as not allowed, as a disallowed code",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: mdhd_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: media edit + 100 in its evidence",
+   "no effect",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: media edit unreported, duration_ts the media header's",
+   "no effect",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: media_edit_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: middle keyframe flag flipped",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: middle packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: middle packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: middle packet listed twice",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: middle packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: middle packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: middle packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: middle packet pts - 512 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: middle packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: one more channel",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: other codec",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: presentation offset and every timestamp + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: sample rate doubled",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: simple edit list called unsupported",
+   "no effect",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "stream 1: stts_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "7bbc10d1135b",
+   "valid file rejected",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "format_duration_us +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "format_duration_us +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "movie header duration + 7",
+   "no effect",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: duration_ts +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: duration_ts +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: duration_ts -1",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: every pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: every pts and dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: every timestamp and media time + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: first packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: first packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: first packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: first packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: first packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: invented discarded samples after the last",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: last packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: last packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: last packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: last packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: last packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: last packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: left out",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: listed as not allowed",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: listed as not allowed, as a disallowed code",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: mdhd_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: middle keyframe flag flipped",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: middle packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: middle packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: middle packet listed twice",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: middle packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: middle packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: middle packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: middle packet pts - 512 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: middle packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: other codec",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: other profile",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: presentation offset and every timestamp + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: stts_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "stream 0: width + 2",
+   "caught",
+   "caught"
+  ],
+  [
+   "80b40872bc1c",
+   "valid file rejected",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "format_duration_us +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "format_duration_us +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "movie header duration + 7",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: duration_ts +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: duration_ts +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: duration_ts -1",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: every pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: every pts and dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: every timestamp and media time + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: first packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: first packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: first packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: first packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: first packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: invented discarded samples after the last",
+   "COVERED {\"packets\": {\"KD-EDIT-DISCARD\": 1}}",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: last packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: last packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: last packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: last packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: last packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: last packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: left out",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: listed as not allowed",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: listed as not allowed, as a disallowed code",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: mdhd_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: media edit + 100 in its evidence",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: media edit unreported, duration_ts the media header's",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: media_edit_duration_ticks and duration_ts + 500",
+   "COVERED {\"streams\": {\"KD-EDIT-DURATION\": 1}}",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: middle keyframe flag flipped",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: middle packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: middle packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: middle packet listed twice",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: middle packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: middle packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: middle packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: middle packet pts - 512 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: middle packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: one more channel",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: other codec",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: other profile",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: presentation offset and every timestamp + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: sample rate doubled",
+   "no effect",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: simple edit list called unsupported",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "83a23ae66831",
+   "stream 1: stts_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "83a23ae66831",
+   "valid file rejected",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "format_duration_us +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "format_duration_us +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "movie header duration + 7",
+   "no effect",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: duration_ts +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: duration_ts +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: duration_ts -1",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: every pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: every pts and dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: every timestamp and media time + 1",
+   "COVERED {\"packets\": {\"KD-EDIT-SNAP\": 66}}",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: first packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: first packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: first packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: first packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: first packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: invented discarded samples after the last",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: last packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: last packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: last packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: last packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: last packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: last packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: left out",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: listed as not allowed",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: listed as not allowed, as a disallowed code",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: mdhd_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: media edit + 100 in its evidence",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: media edit unreported, duration_ts the media header's",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: media_edit_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: middle keyframe flag flipped",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: middle packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: middle packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: middle packet listed twice",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: middle packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: middle packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: middle packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: middle packet pts - 512 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: middle packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: other codec",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: other profile",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: presentation offset and every timestamp + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: simple edit list called unsupported",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: stts_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "stream 0: width + 2",
+   "caught",
+   "caught"
+  ],
+  [
+   "83e493fdc88c",
+   "valid file rejected",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "format_duration_us +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "format_duration_us +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "movie header duration + 7",
+   "no effect",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: duration_ts +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: duration_ts +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: duration_ts -1",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: every pts + 1",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 0, \"duration\": 146719, \"keyframe\": true, \"media_cts\": 0, \"media_dts\": 0, \"pos\": 289370, \"pts\": 1, \"size\": 7}, \"informational\": false, \"path\": \"strea",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: every pts and dts + 1",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 1, \"duration\": 146719, \"keyframe\": true, \"media_cts\": 0, \"media_dts\": 0, \"pos\": 289370, \"pts\": 1, \"size\": 7}, \"informational\": false, \"path\": \"strea",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: every timestamp and media time + 1",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 1, \"duration\": 146719, \"keyframe\": true, \"media_cts\": 1, \"media_dts\": 1, \"pos\": 289370, \"pts\": 1, \"size\": 7}, \"informational\": false, \"path\": \"strea",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: first packet dts + 1",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 1, \"duration\": 146719, \"keyframe\": true, \"media_cts\": 0, \"media_dts\": 0, \"pos\": 289370, \"pts\": 0, \"size\": 7}, \"informational\": false, \"path\": \"strea",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: first packet dts + 1 with media_dts",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 1, \"duration\": 146719, \"keyframe\": true, \"media_cts\": 0, \"media_dts\": 1, \"pos\": 289370, \"pts\": 0, \"size\": 7}, \"informational\": false, \"path\": \"strea",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: first packet pts + 1",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 0, \"duration\": 146719, \"keyframe\": true, \"media_cts\": 0, \"media_dts\": 0, \"pos\": 289370, \"pts\": 1, \"size\": 7}, \"informational\": false, \"path\": \"strea",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: first packet pts + 1 with media_cts",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 0, \"duration\": 146719, \"keyframe\": true, \"media_cts\": 1, \"media_dts\": 0, \"pos\": 289370, \"pts\": 1, \"size\": 7}, \"informational\": false, \"path\": \"strea",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: first packet size + 1",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 0, \"duration\": 146719, \"keyframe\": true, \"media_cts\": 0, \"media_dts\": 0, \"pos\": 289370, \"pts\": 0, \"size\": 8}, \"informational\": false, \"path\": \"strea",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: invented discarded samples after the last",
+   "COVERED {\"packets\": {\"KD-CHAPTER-TEXT\": 1}}",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: last packet dts + 1",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 319043, \"duration\": 160998, \"keyframe\": true, \"media_cts\": 319042, \"media_dts\": 319042, \"pos\": 289521, \"pts\": 319042, \"size\": 23}, \"informational\": ",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: last packet dts + 1 with media_dts",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 319043, \"duration\": 160998, \"keyframe\": true, \"media_cts\": 319042, \"media_dts\": 319043, \"pos\": 289521, \"pts\": 319042, \"size\": 23}, \"informational\": ",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: last packet lost",
+   "unlisted",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: last packet pts + 1",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 319042, \"duration\": 160998, \"keyframe\": true, \"media_cts\": 319042, \"media_dts\": 319042, \"pos\": 289521, \"pts\": 319043, \"size\": 23}, \"informational\": ",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: last packet pts + 1 with media_cts",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 319042, \"duration\": 160998, \"keyframe\": true, \"media_cts\": 319043, \"media_dts\": 319042, \"pos\": 289521, \"pts\": 319043, \"size\": 23}, \"informational\": ",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: last packet size + 1",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 319042, \"duration\": 160998, \"keyframe\": true, \"media_cts\": 319042, \"media_dts\": 319042, \"pos\": 289521, \"pts\": 319042, \"size\": 24}, \"informational\": ",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: left out",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: listed as not allowed",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: listed as not allowed, as a disallowed code",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: mdhd_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: media edit + 100 in its evidence",
+   "no effect",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: media edit unreported, duration_ts the media header's",
+   "no effect",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: media_edit_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: middle keyframe flag flipped",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 200656, \"duration\": 12775, \"keyframe\": false, \"media_cts\": 200656, \"media_dts\": 200656, \"pos\": 289439, \"pts\": 200656, \"size\": 18}, \"informational\": ",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: middle packet dts + 1",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 200657, \"duration\": 12775, \"keyframe\": true, \"media_cts\": 200656, \"media_dts\": 200656, \"pos\": 289439, \"pts\": 200656, \"size\": 18}, \"informational\": f",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: middle packet dts + 1 with media_dts",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 200657, \"duration\": 12775, \"keyframe\": true, \"media_cts\": 200656, \"media_dts\": 200657, \"pos\": 289439, \"pts\": 200656, \"size\": 18}, \"informational\": f",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: middle packet listed twice",
+   "COVERED {\"packets\": {\"KD-CHAPTER-TEXT\": 1}}",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: middle packet lost",
+   "unlisted",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: middle packet pts + 1",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 200656, \"duration\": 12775, \"keyframe\": true, \"media_cts\": 200656, \"media_dts\": 200656, \"pos\": 289439, \"pts\": 200657, \"size\": 18}, \"informational\": f",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: middle packet pts + 1 with media_cts",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 200656, \"duration\": 12775, \"keyframe\": true, \"media_cts\": 200657, \"media_dts\": 200656, \"pos\": 289439, \"pts\": 200657, \"size\": 18}, \"informational\": f",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: middle packet pts - 512 with media_cts",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 200656, \"duration\": 12775, \"keyframe\": true, \"media_cts\": 200144, \"media_dts\": 200656, \"pos\": 289439, \"pts\": 200144, \"size\": 18}, \"informational\": f",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: middle packet size + 1",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 200656, \"duration\": 12775, \"keyframe\": true, \"media_cts\": 200656, \"media_dts\": 200656, \"pos\": 289439, \"pts\": 200656, \"size\": 19}, \"informational\": f",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: other codec",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: presentation offset and every timestamp + 1",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 1, \"duration\": 146719, \"keyframe\": true, \"media_cts\": 0, \"media_dts\": 0, \"pos\": 289370, \"pts\": 1, \"size\": 7}, \"informational\": false, \"path\": \"strea",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: simple edit list called unsupported",
+   "no effect",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 0: stts_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: duration_ts +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: duration_ts +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: duration_ts -1",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: every pts + 1",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 0, \"duration\": 146718, \"keyframe\": true, \"media_cts\": 0, \"media_dts\": 0, \"pos\": 289544, \"pts\": 1, \"size\": 21}, \"informational\": false, \"path\": \"stre",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: every pts and dts + 1",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 1, \"duration\": 146718, \"keyframe\": true, \"media_cts\": 0, \"media_dts\": 0, \"pos\": 289544, \"pts\": 1, \"size\": 21}, \"informational\": false, \"path\": \"stre",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: every timestamp and media time + 1",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 1, \"duration\": 146718, \"keyframe\": true, \"media_cts\": 1, \"media_dts\": 1, \"pos\": 289544, \"pts\": 1, \"size\": 21}, \"informational\": false, \"path\": \"stre",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: first packet dts + 1",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 1, \"duration\": 146718, \"keyframe\": true, \"media_cts\": 0, \"media_dts\": 0, \"pos\": 289544, \"pts\": 0, \"size\": 21}, \"informational\": false, \"path\": \"stre",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: first packet dts + 1 with media_dts",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 1, \"duration\": 146718, \"keyframe\": true, \"media_cts\": 0, \"media_dts\": 1, \"pos\": 289544, \"pts\": 0, \"size\": 21}, \"informational\": false, \"path\": \"stre",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: first packet pts + 1",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 0, \"duration\": 146718, \"keyframe\": true, \"media_cts\": 0, \"media_dts\": 0, \"pos\": 289544, \"pts\": 1, \"size\": 21}, \"informational\": false, \"path\": \"stre",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: first packet pts + 1 with media_cts",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 0, \"duration\": 146718, \"keyframe\": true, \"media_cts\": 1, \"media_dts\": 0, \"pos\": 289544, \"pts\": 1, \"size\": 21}, \"informational\": false, \"path\": \"stre",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: first packet size + 1",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 0, \"duration\": 146718, \"keyframe\": true, \"media_cts\": 0, \"media_dts\": 0, \"pos\": 289544, \"pts\": 0, \"size\": 22}, \"informational\": false, \"path\": \"stre",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: invented discarded samples after the last",
+   "COVERED {\"packets\": {\"KD-CHAPTER-TEXT\": 1}}",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: last packet dts + 1",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 346576, \"duration\": 133465, \"keyframe\": true, \"media_cts\": 346575, \"media_dts\": 346575, \"pos\": 11623065, \"pts\": 346575, \"size\": 21}, \"informational\"",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: last packet dts + 1 with media_dts",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 346576, \"duration\": 133465, \"keyframe\": true, \"media_cts\": 346575, \"media_dts\": 346576, \"pos\": 11623065, \"pts\": 346575, \"size\": 21}, \"informational\"",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: last packet lost",
+   "unlisted",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: last packet pts + 1",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 346575, \"duration\": 133465, \"keyframe\": true, \"media_cts\": 346575, \"media_dts\": 346575, \"pos\": 11623065, \"pts\": 346576, \"size\": 21}, \"informational\"",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: last packet pts + 1 with media_cts",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 346575, \"duration\": 133465, \"keyframe\": true, \"media_cts\": 346576, \"media_dts\": 346575, \"pos\": 11623065, \"pts\": 346576, \"size\": 21}, \"informational\"",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: last packet size + 1",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 346575, \"duration\": 133465, \"keyframe\": true, \"media_cts\": 346575, \"media_dts\": 346575, \"pos\": 11623065, \"pts\": 346575, \"size\": 22}, \"informational\"",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: left out",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: listed as not allowed",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: listed as not allowed, as a disallowed code",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: mdhd_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: media edit + 100 in its evidence",
+   "no effect",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: media edit unreported, duration_ts the media header's",
+   "no effect",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: media_edit_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: middle keyframe flag flipped",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 200656, \"duration\": 12775, \"keyframe\": false, \"media_cts\": 200656, \"media_dts\": 200656, \"pos\": 7262602, \"pts\": 200656, \"size\": 66}, \"informational\":",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: middle packet dts + 1",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 200657, \"duration\": 12775, \"keyframe\": true, \"media_cts\": 200656, \"media_dts\": 200656, \"pos\": 7262602, \"pts\": 200656, \"size\": 66}, \"informational\": ",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: middle packet dts + 1 with media_dts",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 200657, \"duration\": 12775, \"keyframe\": true, \"media_cts\": 200656, \"media_dts\": 200657, \"pos\": 7262602, \"pts\": 200656, \"size\": 66}, \"informational\": ",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: middle packet listed twice",
+   "COVERED {\"packets\": {\"KD-CHAPTER-TEXT\": 1}}",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: middle packet lost",
+   "unlisted",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: middle packet pts + 1",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 200656, \"duration\": 12775, \"keyframe\": true, \"media_cts\": 200656, \"media_dts\": 200656, \"pos\": 7262602, \"pts\": 200657, \"size\": 66}, \"informational\": ",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: middle packet pts + 1 with media_cts",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 200656, \"duration\": 12775, \"keyframe\": true, \"media_cts\": 200657, \"media_dts\": 200656, \"pos\": 7262602, \"pts\": 200657, \"size\": 66}, \"informational\": ",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: middle packet pts - 512 with media_cts",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 200656, \"duration\": 12775, \"keyframe\": true, \"media_cts\": 200144, \"media_dts\": 200656, \"pos\": 7262602, \"pts\": 200144, \"size\": 66}, \"informational\": ",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: middle packet size + 1",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 200656, \"duration\": 12775, \"keyframe\": true, \"media_cts\": 200656, \"media_dts\": 200656, \"pos\": 7262602, \"pts\": 200656, \"size\": 67}, \"informational\": ",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: other codec",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: presentation offset and every timestamp + 1",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": false, \"dts\": 1, \"duration\": 146718, \"keyframe\": true, \"media_cts\": 0, \"media_dts\": 0, \"pos\": 289544, \"pts\": 1, \"size\": 21}, \"informational\": false, \"path\": \"stre",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: simple edit list called unsupported",
+   "no effect",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 1: stts_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: duration_ts +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: duration_ts +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: duration_ts -1",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: every pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: every pts and dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: every timestamp and media time + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: first packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: first packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: first packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: first packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: first packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: invented discarded samples after the last",
+   "COVERED {\"packets\": {\"KD-EDIT-DISCARD\": 1}}",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: last packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: last packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: last packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: last packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: last packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: last packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: left out",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: listed as not allowed",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: listed as not allowed, as a disallowed code",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: mdhd_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: media edit + 100 in its evidence",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: media edit unreported, duration_ts the media header's",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: media_edit_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: middle keyframe flag flipped",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: middle packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: middle packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: middle packet listed twice",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: middle packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: middle packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: middle packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: middle packet pts - 512 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: middle packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: one more channel",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: other codec",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: other profile",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: presentation offset and every timestamp + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: sample rate doubled",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: simple edit list called unsupported",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "88ba79019cd6",
+   "stream 2: stts_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "88ba79019cd6",
+   "valid file rejected",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "format_duration_us +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "format_duration_us +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "movie header duration + 7",
+   "no effect",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: duration_ts +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: duration_ts +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: duration_ts -1",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: every pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: every pts and dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: every timestamp and media time + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: first packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: first packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: first packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: first packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: first packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: fragment_start_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: invented discarded samples after the last",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: last packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: last packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: last packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: last packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: last packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: last packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: left out",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: listed as not allowed",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: listed as not allowed, as a disallowed code",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: mdhd_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: middle keyframe flag flipped",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: middle packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: middle packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: middle packet listed twice",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: middle packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: middle packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: middle packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: middle packet pts - 512 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: middle packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: one more channel",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: other codec",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: other profile",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: presentation offset and every timestamp + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: sample rate doubled",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "8d93b7e945ac",
+   "stream 0: stts_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "8d93b7e945ac",
+   "valid file rejected",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "format_duration_us +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "format_duration_us +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "movie header duration + 7",
+   "no effect",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: duration_ts +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: duration_ts +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: duration_ts -1",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: every pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: every pts and dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: every timestamp and media time + 1",
+   "COVERED absorbed [\"packets\", {\"candidate\": -10031, \"informational\": false, \"path\": \"streams/0/packets/11/dts\", \"reference\": -10144}]",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: first packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: first packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: first packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: first packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: first packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: invented discarded samples after the last",
+   "COVERED {\"packets\": {\"KD-EDIT-DISCARD\": 1}}",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: last packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: last packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: last packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: last packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: last packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: last packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: left out",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: listed as not allowed",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: listed as not allowed, as a disallowed code",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: mdhd_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: media edit + 100 in its evidence",
+   "no effect",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: media edit unreported, duration_ts the media header's",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: media_edit_duration_ticks and duration_ts + 500",
+   "COVERED {\"streams\": {\"KD-EDIT-DURATION\": 1}}",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: middle keyframe flag flipped",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: middle packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: middle packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: middle packet listed twice",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: middle packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: middle packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: middle packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: middle packet pts - 512 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: middle packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: other codec",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: other profile",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: presentation offset and every timestamp + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: simple edit list called unsupported",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: stts_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 0: width + 2",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: duration_ts +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: duration_ts +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: duration_ts -1",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: every pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: every pts and dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: every timestamp and media time + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: first packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: first packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: first packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: first packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: first packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: invented discarded samples after the last",
+   "COVERED {\"packets\": {\"KD-EDIT-DISCARD\": 1}}",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: last packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: last packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: last packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: last packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: last packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: last packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: left out",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: listed as not allowed",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: listed as not allowed, as a disallowed code",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: mdhd_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: media edit + 100 in its evidence",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: media edit unreported, duration_ts the media header's",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: media_edit_duration_ticks and duration_ts + 500",
+   "COVERED {\"streams\": {\"KD-EDIT-DURATION\": 1}}",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: middle keyframe flag flipped",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: middle packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: middle packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: middle packet listed twice",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: middle packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: middle packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: middle packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: middle packet pts - 512 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: middle packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: one more channel",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: other codec",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: other profile",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: presentation offset and every timestamp + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: sample rate doubled",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: simple edit list called unsupported",
+   "COVERED {\"streams\": {\"KD-EDIT-UNPLACED\": 1}}",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "stream 1: stts_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "959f4062b7ed",
+   "valid file rejected",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "format_duration_us +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "format_duration_us +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "movie header duration + 7",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: duration_ts +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: duration_ts +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: duration_ts -1",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: every pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: every pts and dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: every timestamp and media time + 1",
+   "COVERED {\"packets\": {\"KD-EDIT-SNAP\": 8}}",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: first packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: first packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: first packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: first packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: first packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: invented discarded samples after the last",
+   "COVERED {\"packets\": {\"KD-EDIT-DISCARD\": 1}}",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: last packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: last packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: last packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: last packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: last packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: last packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: left out",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: listed as not allowed",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: listed as not allowed, as a disallowed code",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: mdhd_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: media edit + 100 in its evidence",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: media edit unreported, duration_ts the media header's",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: media_edit_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: middle keyframe flag flipped",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: middle packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: middle packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: middle packet listed twice",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: middle packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: middle packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: middle packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: middle packet pts - 512 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: middle packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: other codec",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: other profile",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: presentation offset and every timestamp + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: simple edit list called unsupported",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: stts_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "stream 0: width + 2",
+   "caught",
+   "caught"
+  ],
+  [
+   "a5d1428fd3e2",
+   "valid file rejected",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "format_duration_us +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "format_duration_us +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "movie header duration + 7",
+   "no effect",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: duration_ts +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: duration_ts +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: duration_ts -1",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: every pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: every pts and dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: every timestamp and media time + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: first packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: first packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: first packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: first packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: first packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: invented discarded samples after the last",
+   "COVERED {\"packets\": {\"KD-EDIT-DISCARD\": 1}}",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: last packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: last packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: last packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: last packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: last packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: last packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: left out",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: listed as not allowed",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: listed as not allowed, as a disallowed code",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: mdhd_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: media edit + 100 in its evidence",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: media edit unreported, duration_ts the media header's",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: media_edit_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: middle keyframe flag flipped",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: middle packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: middle packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: middle packet listed twice",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: middle packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: middle packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: middle packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: middle packet pts - 512 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: middle packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: one more channel",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: other codec",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: other profile",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: presentation offset and every timestamp + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: sample rate doubled",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: simple edit list called unsupported",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 0: stts_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: duration_ts +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: duration_ts +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: duration_ts -1",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: every pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: every pts and dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: every timestamp and media time + 1",
+   "COVERED {\"packets\": {\"KD-EDIT-SNAP\": 427}}",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: first packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: first packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: first packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: first packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: first packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: invented discarded samples after the last",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: last packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: last packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: last packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: last packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: last packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: last packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: left out",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: listed as not allowed",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: listed as not allowed, as a disallowed code",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: mdhd_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: media edit + 100 in its evidence",
+   "no effect",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: media edit unreported, duration_ts the media header's",
+   "no effect",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: media_edit_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: middle keyframe flag flipped",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: middle packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: middle packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: middle packet listed twice",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: middle packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: middle packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: middle packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: middle packet pts - 512 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: middle packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: other codec",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: other profile",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: presentation offset and every timestamp + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: simple edit list called unsupported",
+   "COVERED {\"streams\": {\"KD-EDIT-UNPLACED\": 1}}",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: stts_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "stream 1: width + 2",
+   "caught",
+   "caught"
+  ],
+  [
+   "abdc2e3e2c84",
+   "valid file rejected",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "format_duration_us +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "format_duration_us +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "movie header duration + 7",
+   "no effect",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: duration_ts +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: duration_ts +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: duration_ts -1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: every pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: every pts and dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: every timestamp and media time + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: first packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: first packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: first packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: first packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: first packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: invented discarded samples after the last",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: last packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: last packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: last packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: last packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: last packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: last packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: left out",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: listed as not allowed",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: listed as not allowed, as a disallowed code",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: mdhd_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: middle keyframe flag flipped",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: middle packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: middle packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: middle packet listed twice",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: middle packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: middle packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: middle packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: middle packet pts - 512 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: middle packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: other codec",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: other profile",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: presentation offset and every timestamp + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: stts_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 0: width + 2",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: duration_ts +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: duration_ts +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: duration_ts -1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: every pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: every pts and dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: every timestamp and media time + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: first packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: first packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: first packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: first packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: first packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: invented discarded samples after the last",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: last packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: last packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: last packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: last packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: last packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: last packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: left out",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: listed as not allowed",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: listed as not allowed, as a disallowed code",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: mdhd_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: middle keyframe flag flipped",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: middle packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: middle packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: middle packet listed twice",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: middle packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: middle packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: middle packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: middle packet pts - 512 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: middle packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: one more channel",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: other codec",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: other profile",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: presentation offset and every timestamp + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: sample rate doubled",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "c53fda51f1fd",
+   "stream 1: stts_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "c53fda51f1fd",
+   "valid file rejected",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "format_duration_us +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "format_duration_us +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "movie header duration + 7",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: duration_ts +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: duration_ts +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: duration_ts -1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: every pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: every pts and dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: every timestamp and media time + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: first packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: first packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: first packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: first packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: first packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: fragment_start_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: invented discarded samples after the last",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: last packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: last packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: last packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: last packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: last packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: last packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: left out",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: listed as not allowed",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: listed as not allowed, as a disallowed code",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: mdhd_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: middle keyframe flag flipped",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: middle packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: middle packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: middle packet listed twice",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: middle packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: middle packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: middle packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: middle packet pts - 512 with media_cts",
+   "COVERED {\"packets\": {\"KD-TRUN-SHIFT\": 1}}",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: middle packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: one more channel",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: other codec",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: other profile",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: presentation offset and every timestamp + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: sample rate doubled",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: sidx_end_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "stream 0: stts_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "c86f3d1f2aff",
+   "valid file rejected",
+   "caught",
+   "caught"
+  ],
+  [
+   "cc6023189f53",
+   "format_duration_us +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "cc6023189f53",
+   "format_duration_us +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "cc6023189f53",
+   "movie header duration + 7",
+   "no effect",
+   "caught"
+  ],
+  [
+   "cc6023189f53",
+   "valid file rejected",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "format_duration_us +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "format_duration_us +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "movie header duration + 7",
+   "no effect",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: duration_ts +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: duration_ts +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: duration_ts -1",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: every pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: every pts and dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: every timestamp and media time + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: first packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: first packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: first packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: first packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: first packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: invented discarded samples after the last",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: last packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: last packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: last packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: last packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: last packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: last packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: left out",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: listed as not allowed",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: listed as not allowed, as a disallowed code",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: mdhd_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: media edit unreported, duration_ts the media header's",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: media_edit_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: middle keyframe flag flipped",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: middle packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: middle packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: middle packet listed twice",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: middle packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: middle packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: middle packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: middle packet pts - 512 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: middle packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: other codec",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: other profile",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: presentation offset and every timestamp + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: stts_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "stream 0: width + 2",
+   "caught",
+   "caught"
+  ],
+  [
+   "ceb55bb5fb87",
+   "valid file rejected",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "format_duration_us +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "format_duration_us +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "movie header duration + 7",
+   "no effect",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: duration_ts +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: duration_ts +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: duration_ts -1",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: every pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: every pts and dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: every timestamp and media time + 1",
+   "COVERED {\"packets\": {\"KD-EDIT-SNAP\": 90}}",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: first packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: first packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: first packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: first packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: first packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: invented discarded samples after the last",
+   "COVERED {\"packets\": {\"KD-EDIT-DISCARD\": 1}}",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: last packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: last packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: last packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: last packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: last packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: last packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: left out",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: listed as not allowed",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: listed as not allowed, as a disallowed code",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: mdhd_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: media edit + 100 in its evidence",
+   "no effect",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: media edit unreported, duration_ts the media header's",
+   "no effect",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: media_edit_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: middle keyframe flag flipped",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: middle packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: middle packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: middle packet listed twice",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: middle packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: middle packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: middle packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: middle packet pts - 512 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: middle packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: other codec",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: other profile",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: presentation offset and every timestamp + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: simple edit list called unsupported",
+   "no effect",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: stts_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "stream 0: width + 2",
+   "caught",
+   "caught"
+  ],
+  [
+   "e1c335533b26",
+   "valid file rejected",
+   "caught",
+   "caught"
+  ],
+  [
+   "eb569fa7169e",
+   "valid file rejected",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "format_duration_us +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "format_duration_us +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "movie header duration + 7",
+   "no effect",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: duration_ts +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: duration_ts +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: duration_ts -1",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: every pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: every pts and dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: every timestamp and media time + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: first packet dts + 1",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": true, \"dts\": -5999, \"duration\": 100, \"keyframe\": true, \"media_cts\": 0, \"media_dts\": 0, \"pos\": 4096, \"pts\": -6000, \"size\": 21404}, \"informational\": false, \"path\": ",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: first packet dts + 1 with media_dts",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": true, \"dts\": -5999, \"duration\": 100, \"keyframe\": true, \"media_cts\": 0, \"media_dts\": 1, \"pos\": 4096, \"pts\": -6000, \"size\": 21404}, \"informational\": false, \"path\": ",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: first packet pts + 1",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": true, \"dts\": -6000, \"duration\": 100, \"keyframe\": true, \"media_cts\": 0, \"media_dts\": 0, \"pos\": 4096, \"pts\": -5999, \"size\": 21404}, \"informational\": false, \"path\": ",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: first packet pts + 1 with media_cts",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": true, \"dts\": -6000, \"duration\": 100, \"keyframe\": true, \"media_cts\": 1, \"media_dts\": 0, \"pos\": 4096, \"pts\": -5999, \"size\": 21404}, \"informational\": false, \"path\": ",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: first packet size + 1",
+   "COVERED absorbed [\"packets\", {\"candidate\": {\"discard\": true, \"dts\": -6000, \"duration\": 100, \"keyframe\": true, \"media_cts\": 0, \"media_dts\": 0, \"pos\": 4096, \"pts\": -6000, \"size\": 21405}, \"informational\": false, \"path\": ",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: invented discarded samples after the last",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: last packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: last packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: last packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: last packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: last packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: last packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: left out",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: listed as not allowed",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: listed as not allowed, as a disallowed code",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: mdhd_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: media edit + 100 in its evidence",
+   "no effect",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: media edit unreported, duration_ts the media header's",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: media_edit_duration_ticks and duration_ts + 500",
+   "COVERED {\"streams\": {\"KD-EDIT-DURATION\": 1}}",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: middle keyframe flag flipped",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: middle packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: middle packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: middle packet listed twice",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: middle packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: middle packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: middle packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: middle packet pts - 512 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: middle packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: other codec",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: other profile",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: presentation offset and every timestamp + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: simple edit list called unsupported",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: stts_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 0: width + 2",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: duration_ts +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: duration_ts +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: duration_ts -1",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: every pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: every pts and dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: every timestamp and media time + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: first packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: first packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: first packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: first packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: first packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: invented discarded samples after the last",
+   "COVERED {\"packets\": {\"KD-EDIT-DISCARD\": 1}}",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: last packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: last packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: last packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: last packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: last packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: last packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: left out",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: listed as not allowed",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: listed as not allowed, as a disallowed code",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: mdhd_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: media edit + 100 in its evidence",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: media edit unreported, duration_ts the media header's",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: media_edit_duration_ticks and duration_ts + 500",
+   "COVERED {\"streams\": {\"KD-EDIT-DURATION\": 1}}",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: middle keyframe flag flipped",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: middle packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: middle packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: middle packet listed twice",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: middle packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: middle packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: middle packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: middle packet pts - 512 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: middle packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: one more channel",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: other codec",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: other profile",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: presentation offset and every timestamp + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: sample rate doubled",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: simple edit list called unsupported",
+   "no effect",
+   "no effect"
+  ],
+  [
+   "fcb01fd0c565",
+   "stream 1: stts_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "fcb01fd0c565",
+   "valid file rejected",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "format_duration_us +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "format_duration_us +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "movie header duration + 7",
+   "no effect",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: duration_ts +1",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: duration_ts +1000",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: duration_ts -1",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: every pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: every pts and dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: every timestamp and media time + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: first packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: first packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: first packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: first packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: first packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: fragment_start_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: invented discarded samples after the last",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: last packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: last packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: last packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: last packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: last packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: last packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: left out",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: listed as not allowed",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: listed as not allowed, as a disallowed code",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: mdhd_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: middle keyframe flag flipped",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: middle packet dts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: middle packet dts + 1 with media_dts",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: middle packet listed twice",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: middle packet lost",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: middle packet pts + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: middle packet pts + 1 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: middle packet pts - 512 with media_cts",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: middle packet size + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: other codec",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: other profile",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: presentation offset and every timestamp + 1",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: stts_duration_ticks and duration_ts + 500",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "stream 0: width + 2",
+   "caught",
+   "caught"
+  ],
+  [
+   "neg",
+   "valid file rejected",
+   "caught",
+   "caught"
+  ]
+ ],
+ "fixtures_after": {
+  "caught": 5084,
+  "no effect": 418,
+  "unlisted": 5
+ },
+ "corpus_regression": {
+  "baseline": "stage3 baseline-9589d6e",
+  "before": {
+   "files_by_kd": {
+    "KD-NOT-ALLOWED": 215,
+    "KD-QT-TEXT": 11,
+    "KD-FRAG-START": 12,
+    "KD-COVER-ART": 14,
+    "KD-CHAPTER-TEXT": 1,
+    "KD-AAC-IMPLICIT-SBR": 5,
+    "KD-PCM-END": 3,
+    "KD-AAC-LC-UNNAMED": 4,
+    "KD-STRICT": 6,
+    "KD-EDIT-UNPLACED": 1,
+    "KD-EDIT-DURATION": 12,
+    "KD-DECLARED-SIZE": 6,
+    "KD-STTS-SHORT": 34
+   },
+   "packets_by_kd": {
+    "KD-NOT-ALLOWED": 1755788,
+    "KD-COVER-ART": 16,
+    "KD-CHAPTER-TEXT": 24,
+    "KD-PCM": 197885,
+    "KD-EDIT-DISCARD": 764,
+    "KD-CTTS": 328998,
+    "KD-STRICT": 61580,
+    "KD-CTTS-UNSIGNED": 33933,
+    "KD-EDIT-SNAP": 16220,
+    "KD-EDIT-MULTI": 500044,
+    "KD-TRUN-SHIFT": 36000
+   }
+  },
+  "after": {
+   "files_by_kd": {
+    "KD-NOT-ALLOWED": 215,
+    "KD-QT-TEXT": 11,
+    "KD-FRAG-START": 12,
+    "KD-COVER-ART": 14,
+    "KD-CHAPTER-TEXT": 1,
+    "KD-AAC-IMPLICIT-SBR": 5,
+    "KD-PCM-END": 3,
+    "KD-AAC-LC-UNNAMED": 4,
+    "KD-STRICT": 6,
+    "KD-EDIT-UNPLACED": 1,
+    "KD-EDIT-DURATION": 12,
+    "KD-DECLARED-SIZE": 6,
+    "KD-STTS-SHORT": 34
+   },
+   "packets_by_kd": {
+    "KD-NOT-ALLOWED": 1755788,
+    "KD-COVER-ART": 16,
+    "KD-CHAPTER-TEXT": 24,
+    "KD-PCM": 197885,
+    "KD-EDIT-DISCARD": 764,
+    "KD-CTTS": 328998,
+    "KD-STRICT": 61580,
+    "KD-CTTS-UNSIGNED": 33933,
+    "KD-EDIT-SNAP": 16220,
+    "KD-EDIT-MULTI": 500044,
+    "KD-TRUN-SHIFT": 36000
+   }
+  }
+ }
+}

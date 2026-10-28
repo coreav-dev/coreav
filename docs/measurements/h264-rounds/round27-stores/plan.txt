@@ -1,0 +1,7 @@
+Round 27 probe (uniform macroblock stores one motion entry), written before the run.
+Arms: r28-base (main 23b45d4 code; md5 = col-base), r28-probe (same + store_mb's motion rows 1-3 written to a
+12-entry scratch array in SliceDecoder instead of the picture: output wrong, timing only). Write side only; the
+colocated read side of the proposal is not in the probe.
+Method: ab3.py 6 rounds, all 32 training streams, 1 thread, --discard, pinned cpu 3, order rotated per round.
+Bars: build the real change only if probe/base all-32 median <= 0.990, or the 720p or 1080p class median <= 0.985.
+Otherwise stop, record docs-only.

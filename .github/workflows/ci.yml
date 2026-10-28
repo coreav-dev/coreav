@@ -1,0 +1,286 @@
+name: ci
+
+# Documentation prose skips every job here: none of them reads it, so a run
+# would only spend Actions minutes. Neither `docs/` nor markdown is ignored
+# as a whole, because the gates read some of both: `docs/schema/**` is
+# compiled into the command's tests, the oracle scripts load
+# `docs/known-divergences*.json` and their tests check each page against its
+# twin, and `scripts/unsafe_sites_check.py` reads `docs/unsafe-sites.md`.
+# What is left out of the list runs everything, which is the safe direction.
+# The licence, advisory and DCO checks are not filtered; they live in
+# .github/workflows/deny.yml and run on every pull request. A manual run is
+# never filtered.
+#
+# The filter sits on the jobs (`ci-changes`), not on the trigger: a workflow
+# a trigger filter skips reports no check at all, and `ci-report` has to
+# appear on every pull request for the branch ruleset to require it
+# (docs/design/ci-checks.md).
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # PRs: one run per branch, a new push cancels the previous one. Pushes to
+  # main and manual runs each get their own group, so none is dropped.
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  ci-changes:
+    # Whether this event's changed files need the jobs below at all. A
+    # manual run, and anything whose changed files cannot be read, runs
+    # them (docs/design/ci-checks.md).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.filter.outputs.run }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # A pull request's merge commit and its first parent, the base.
+          fetch-depth: 2
+      - id: filter
+        uses: ./.github/actions/changed-paths
+        with:
+          paths-ignore: |
+            docs/design/**
+            docs/measurements/**
+            docs/release/**
+            docs/schema/*.md
+            *.md
+            .context/**
+            docs/spikes/**
+
+  check:
+    needs: ci-changes
+    if: needs.ci-changes.outputs.run == 'true'
+    runs-on: ubuntu-24.04
+    # About 6 minutes with a warm cache; a cold one rebuilds every clippy
+    # configuration and the release tests.
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - run: cargo fmt --all --check
+      # docs/unsafe-sites.md lists every unsafe site.
+      - run: python3 -I scripts/unsafe_sites_check.py
+      # pr-redirect.yml's script, run under Node against a stand-in for the
+      # GitHub API: who is redirected, and what the issue quotes.
+      - run: python3 -I -m unittest discover -s .github/workflows/tests -p 'test_*.py'
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      # The H.264 decoder's safe mode, without its default feature `fast`
+      # (docs/design/h264.md).
+      - run: cargo clippy -p coreav-h264 --no-default-features --all-targets -- -D warnings
+      # The FFmpeg fallback of `coreav thumbnail`, a non-default feature
+      # (docs/design/decode.md).
+      - run: cargo clippy -p coreav-cli --features ffmpeg-fallback --all-targets -- -D warnings
+      # main.rs's thumbnail subcommand, compiled into coreav-py as a module.
+      - run: cargo clippy -p coreav-py --features thumbnail --all-targets -- -D warnings
+      # dav1d for AV1, a non-default feature that links the system's
+      # libdav1d (docs/design/decode.md, "dav1d"): alone and with the
+      # fallback.
+      - run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends libdav1d-dev
+      - run: |
+          cargo clippy -p coreav-cli -p coreav-backend-dav1d -p coreav-worker -p coreav-decode-oracle \
+            --features coreav-cli/dav1d,coreav-backend-dav1d/dav1d,coreav-worker/dav1d,coreav-decode-oracle/dav1d,coreav-decode-oracle/native-h264 \
+            --all-targets -- -D warnings
+          cargo clippy -p coreav-cli --features dav1d,ffmpeg-fallback --all-targets -- -D warnings
+          cargo test -p coreav-backend-dav1d --features dav1d
+      # The encoder programs of `coreav transcode`, black boxes for
+      # coreav-transcode's tests (docs/design/transcode.md): the pinned
+      # FFmpeg (libx264 4613ac3) and an x264 program built from the same
+      # commit, its source deleted after the build. With `CI` set the tests
+      # fail instead of skipping when either is missing.
+      - name: Cache the encoder programs
+        id: encoders-cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/coreav-encoders
+          key: linux-x64-ffmpeg-7.0.2-x264-4613ac3-${{ hashFiles('scripts/install-oracle-ffmpeg.sh', 'scripts/install-x264.sh') }}
+      - name: Install the pinned FFmpeg and build x264
+        if: steps.encoders-cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get install -y --no-install-recommends nasm
+          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-encoders"
+          scripts/install-x264.sh "$RUNNER_TEMP/coreav-encoders"
+      - run: cargo test --workspace
+        env:
+          COREAV_FFMPEG: ${{ runner.temp }}/coreav-encoders/ffmpeg
+          COREAV_X264: ${{ runner.temp }}/coreav-encoders/x264
+      # Pinned limit test: 2.2 GB virtual fragmented
+      # file with 20,000 fragments, reads bounded to 1 MiB.
+      - run: cargo test --release -p coreav-isobmff --test hostile -- --ignored
+      # An output above 4 GiB (co64, 64-bit mdat size), copied from a 4.4 GB
+      # virtual file.
+      - run: cargo test --release -p coreav-isobmff-write --test extract outputs_above_4_gib -- --ignored
+      # The other two pinned limit tests (docs/design/limits.md), measured with the test-only counting
+      # allocator: peak memory growth under 32 MiB while a 2.2 GB
+      # fragmented file is demuxed and stream-copied, and huge declared
+      # counts rejected without allocating. One thread and --nocapture so
+      # that every bar's measured numbers reach the log unmixed.
+      - run: cargo test --release -p coreav-isobmff -p coreav-isobmff-write --test memory -- --include-ignored --nocapture --test-threads=1
+      # A transport stream's probe and listing, run again and again, hold
+      # nothing between runs (#595, docs/design/fuzz-campaign.md).
+      - run: cargo test --release -p coreav-mpegts --test memory -- --nocapture --test-threads=1
+      # docs/design/mkv.md: a 2.2 GB virtual live recording, reads bounded
+      # to 1 MiB.
+      - run: cargo test --release -p coreav-mkv --test hostile -- --ignored
+      # docs/design/audio-decode.md ("Threads"): large packets stay within
+      # the decoding pool's byte bound. One test at a time: each reads the
+      # process's peak memory.
+      - run: cargo test --release -p coreav-audio --test pool_memory -- --ignored --test-threads=1
+
+  msrv:
+    # The workspace's declared rust-version (root Cargo.toml) must build: a
+    # newer language feature or std API raises it in the same PR (#212).
+    needs: ci-changes
+    if: needs.ci-changes.outputs.run == 'true'
+    runs-on: ubuntu-24.04
+    # Under a minute with a warm cache; `cargo check` only.
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - id: msrv
+        run: python3 -I -c "import tomllib; print('version=' + tomllib.load(open('Cargo.toml', 'rb'))['workspace']['package']['rust-version'])" >> "$GITHUB_OUTPUT"
+      # The same pinned action as the stable jobs; the toolchain is an input.
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          toolchain: ${{ steps.msrv.outputs.version }}
+          targets: wasm32-unknown-unknown
+      # rust-toolchain.toml selects stable; this makes the cache key and
+      # cargo use the declared version instead.
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        env:
+          RUSTUP_TOOLCHAIN: ${{ steps.msrv.outputs.version }}
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - run: cargo check --workspace --all-targets --locked
+        env:
+          RUSTUP_TOOLCHAIN: ${{ steps.msrv.outputs.version }}
+      # The WebAssembly build's own code (cfg(target_arch = "wasm32")).
+      - run: cargo check --locked -p coreav-wasm --target wasm32-unknown-unknown
+        env:
+          RUSTUP_TOOLCHAIN: ${{ steps.msrv.outputs.version }}
+      # The H.264 decoder builds for WebAssembly too (docs/design/h264.md), so
+      # it stays free of threads and I/O.
+      - run: cargo check --locked -p coreav-h264 -p coreav-kernels-h264 --target wasm32-unknown-unknown
+        env:
+          RUSTUP_TOOLCHAIN: ${{ steps.msrv.outputs.version }}
+
+  fuzz:
+    # Every target for 60 seconds on every push to main; on a ready PR, every
+    # target of the fuzz projects the change can affect (scripts/fuzz_plan.py).
+    # Draft PRs skip it.
+    #
+    # Temporary: a pull request runs each chosen target for 20 seconds, not
+    # 60, while this repository is private and its Actions minutes are billed. Pushes to main keep 60 seconds, so every merged change is
+    # still fuzzed in full. Restore 60 seconds here, and withdraw the temporary
+    # rule, once standard runners are free.
+    needs: ci-changes
+    if: >-
+      needs.ci-changes.outputs.run == 'true' &&
+      (github.event_name != 'pull_request' || !github.event.pull_request.draft)
+    runs-on: ubuntu-24.04
+    # Every target's 60 seconds (25 targets) and the fuzz builds of each
+    # project: past 30 minutes when a change reaches every project.
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # The PR merge commit and its first parent (the base), for the diff.
+          fetch-depth: 2
+      # The same pinned action as the stable jobs; the toolchain is an input.
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          toolchain: nightly
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --version 0.13.2 --locked
+      - name: Choose the fuzz targets
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = pull_request ]; then
+            # Both sides of a rename, NUL-separated and unquoted.
+            git -c core.quotePath=false diff --name-only --no-renames -z HEAD^1 HEAD > "$RUNNER_TEMP/changed.txt"
+            python3 scripts/fuzz_plan.py --changed "$RUNNER_TEMP/changed.txt" > "$RUNNER_TEMP/fuzz-plan.txt"
+          else
+            python3 scripts/fuzz_plan.py --all > "$RUNNER_TEMP/fuzz-plan.txt"
+          fi
+          echo "### Fuzz targets" >> "$GITHUB_STEP_SUMMARY"
+          if [ -s "$RUNNER_TEMP/fuzz-plan.txt" ]; then
+            sed 's/^/- /' "$RUNNER_TEMP/fuzz-plan.txt" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "None: the change affects no fuzz project." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Run each chosen fuzz target
+        env:
+          # 60 seconds on main, 20 on a pull request.
+          MAX_TOTAL_TIME: ${{ github.event_name == 'pull_request' && 20 || 60 }}
+          # The fuzz campaign's AddressSanitizer options
+          # (docs/design/fuzz-campaign.md, tools/fuzz-campaign/campaign.py).
+          ASAN_OPTIONS: quarantine_size_mb=64
+        run: |
+          set -euo pipefail
+          echo "Each target runs for $MAX_TOTAL_TIME seconds." >> "$GITHUB_STEP_SUMMARY"
+          while read -r dir target; do
+            echo "::group::$dir $target"
+            # Reproducers of past findings (fuzz/regressions/TARGET, kept in
+            # git, unlike the corpus) run first, under the same checks.
+            corpora=()
+            if [ -d "$dir/regressions/$target" ]; then
+              mkdir -p "$dir/corpus/$target"
+              corpora=("./corpus/$target" "regressions/$target")
+            fi
+            (cd "$dir" && cargo +nightly fuzz run "$target" "${corpora[@]}" -- "-max_total_time=$MAX_TOTAL_TIME" -rss_limit_mb=2048 -timeout=10) < /dev/null
+            echo "::endgroup::"
+          done < "$RUNNER_TEMP/fuzz-plan.txt"
+      - name: Keep crash reproducers
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: fuzz-artifacts
+          path: crates/*/fuzz/artifacts
+          if-no-files-found: ignore
+
+  ci-report:
+    # Always runs, including when the filter above skipped every job, so
+    # that the branch ruleset has one check name this workflow reports on
+    # every pull request, a documentation-only one included
+    # (docs/design/ci-checks.md).
+    needs: [ci-changes, check, msrv, fuzz]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Fail if a job above failed or was cancelled
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          { echo '| job | result |'
+            echo '|---|---|'
+            jq -r 'to_entries[] | "| \(.key) | \(.value.result) |"' <<< "$RESULTS"
+          } >> "$GITHUB_STEP_SUMMARY"
+          bad=$(jq -r '[to_entries[]
+            | select(.value.result == "failure" or .value.result == "cancelled")
+            | .key] | join(", ")' <<< "$RESULTS")
+          if [ -n "$bad" ]; then
+            echo "::error::failed or cancelled: $bad"
+            exit 1
+          fi

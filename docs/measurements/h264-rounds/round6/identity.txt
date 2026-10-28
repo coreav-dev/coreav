@@ -1,0 +1,13 @@
+R6-4, output (checked by the implementer before the A/B run)
+
+Identity: the `dist` decoder at 5db6bc1 against `main` at 0847101 (which
+decodes as dd8e81c), the 32 training streams at the class frame counts
+(sd 1800, 720p 900, 1080p 300, 4k 150), MD5 of the whole decoded output.
+The base at one thread, the branch at one and at eight threads:
+identical 64/64.
+
+Conformance: `cargo test --release -p coreav-h264 --test conformance --
+--ignored`, 97 streams in scope, every picture byte for byte against the
+reference decoded files:
+  COREAV_H264_THREADS=1,2,8   pass
+  COREAV_H264_KERNELS=scalar  pass

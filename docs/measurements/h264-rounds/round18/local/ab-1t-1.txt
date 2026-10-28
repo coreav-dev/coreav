@@ -1,0 +1,20 @@
+# One thread, pinned to cpu 3, CPU time (user+sys) of --discard, class frame counts, 7 rounds, builds rotated (ab3.py).
+# m-base: main 33e2273. m-rec: the records kept (this round's code before tidying, d59a943's logic). development VM, Intel Xeon @ 2.90GHz
+# (family 6 model 106), 4 cores x 2 threads. Information only.
+41e324ebb708.0.sd.h2 0.948  m-rec 0.9836
+5185721dda11.0.sd.h2 0.427  m-rec 1.0091
+6f7799768413.0.sd.h2 1.900  m-rec 0.9777
+dcb262cf0138.0.sd.h2 0.287  m-rec 1.0005
+f9e973f44570.0.sd.h2 0.198  m-rec 0.9995
+1d4b1775d78a.0.720p. 0.972  m-rec 0.9861
+6b18d9f0f88d.0.720p. 0.776  m-rec 0.9806
+76e0b1692494.0.720p. 0.974  m-rec 0.9936
+a81de82106be.0.1080p 0.798  m-rec 0.9799
+b71b6b31e54f.0.1080p 1.168  m-rec 0.9354
+6da34958296c.0.1080p 1.777  m-rec 0.9734
+ed75c044e944.0.4k.h2 0.320  m-rec 1.0013
+81ed4778ece2.0.4k.h2 0.364  m-rec 0.9307
+f8d92a911e72.0.4k.h2 7.879  m-rec 0.9736
+ae16bb7c7192.0.4k.h2 0.191  m-rec 0.9794
+4b54de28c2b3.0.4k.h2 0.829  m-rec 0.9846
+median m-rec 0.9821

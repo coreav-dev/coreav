@@ -1,0 +1,104 @@
+R2 placement: start address mod 64 of the CABAC path's hot functions in the dist builds of base (main 3f918b38) and
+k (983e8bc3). Hot: at least 0.1% of the instructions (callgrind, function self cost) of one of the 26 CABAC training
+streams in base, at a tenth of the class frame counts; "mean%" is the function's mean share over the 26 streams.
+
+Result: not kept. 9 of 65 hot functions start at base's address mod 64 (18.6 of the 99.4 mean per cent the hot
+functions take); the others are 16, 32 or 48 bytes off, the kernels included. No hot function keeps its whole
+address (.text starts 0x1a0 bytes later). The layout moves as found on 82a23b66 (the earlier r2-placement.txt):
+.text starts after the read-only data and unwind tables, whose sizes change with the code, and the generic
+instances the decode example instantiates are ordered by symbol name, with base's CAVLC functions between the
+CABAC ones.
+
+The aligned decision table moves more: Tables' align(64) pads .rodata, and .text's start moves with it. The same
+tree without the attribute (for this comparison only, not committed) keeps 45 of 65 (36.1 mean per cent), with
+.text 0x150 bytes later and TABLES at 4 mod 8.
+
+DecodeDecision's table: fast::decision::TABLES starts at 32 mod 64 in base (0x13b60, 8-byte aligned by accident)
+and at 0 mod 64 in k (0x13b40), where every 8-byte entry stays inside a cache line whatever the layout.
+
+Start addresses, base and k:
+hot functions (at least 0.1% of the instructions of one of the 26 CABAC streams, base callgrind): 65
+start mod 64 as base's: 9 of 65, 18.62 of their 99.41 mean per cent of the instructions
+whole start address as base's: 0 of 65 (.text starts 0x1a0 bytes later in C)
+
+     mean%        base addr            C addr  b%64  c%64  function
+DIFF  9.696           0x525f0           0x58b90    48    16  coreav_h264::fast::v3::predict_fast::<coreav_kernels_h264::Auto>
+DIFF  9.483           0x479b0           0x4df50    48    16  coreav_h264::deblock::deblock_rows::<coreav_kernels_h264::Auto>
+DIFF  8.335           0x310a0           0x37640    32     0  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode_mb::<coreav_h264::syntax::CabacSyntax<coreav_h264::fast::V3>, coreav_h264::fast::V3>
+same  7.811           0x603d0           0x68e10    16    16  coreav_h264::fast::v3::residual::<16>
+DIFF  6.073           0x3c640           0x42be0     0    32  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::inter_pred::<coreav_h264::fast::V3>
+DIFF  5.998           0xae4b0           0xb34c0    48     0  coreav_kernels_h264::simd::x86::predict::luma_block
+same  4.698           0x61220           0x69c60    32    32  coreav_h264::fast::v3::residual::<64>
+DIFF  4.576           0xb6d40           0xbbd50     0    16  coreav_kernels_h264::simd::x86::predict::chroma_block
+DIFF  4.124           0x29a40           0x2fe20     0    32  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::parse_residual::<coreav_h264::syntax::CabacSyntax<coreav_h264::fast::V3>, coreav_h264::fast::V3>
+DIFF  4.105           0xa89f0           0xada00    48     0  coreav_kernels_h264::simd::x86::filter_luma_edge::<false, true>
+same  3.686           0x5fc30           0x68670    48    48  coreav_h264::fast::v3::enter::<core::result::Result<(), coreav_h264::error::Error>, <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::start_mb<coreav_h264::fast::V3>::{closure#0}>
+DIFF  3.412           0xaa5c0           0xaf5d0     0    16  coreav_kernels_h264::simd::x86::filter_luma_edge::<true, true>
+DIFF  3.260           0x557b0           0x5bd50    48    16  coreav_h264::fast::v3::enter::<core::result::Result<(), coreav_h264::error::Error>, <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode_cabac<coreav_h264::fast::V3>::{closure#0}>
+DIFF  2.443           0xc9780           0xce790     0    16  coreav_kernels_h264::simd::x86::chroma_mb::filter_chroma_mb
+DIFF  1.772           0xa59c0           0xaa9d0     0    16  <coreav_kernels_h264::predict::Planes>::request
+DIFF  1.748           0x40ea0           0x47440    32     0  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::motion_compensate::<coreav_h264::fast::V3>
+DIFF  1.691           0x7a0f0           0x7ec80    48     0  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::mv_predictor
+DIFF  1.569           0x54820           0x5adc0    32     0  coreav_h264::fast::v3::enter::<core::result::Result<[i32; 2], coreav_h264::error::Error>, <coreav_h264::cabac::Cabac>::mvd<coreav_h264::fast::V3>::{closure#0}>
+DIFF  1.007           0xc0d50           0xc5d60    16    32  coreav_kernels_h264::simd::x86::idct8x8_add
+same  0.885           0x61fd0           0x6aa10    16    16  coreav_h264::fast::v3::residual::<4>
+DIFF  0.864           0x78300           0x7c810     0    16  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reconstruct_chroma
+DIFF  0.847           0xc1120           0xc6130    32    48  coreav_kernels_h264::simd::x86::intra4x4_mb
+DIFF  0.842           0xcb260           0xd0270    32    48  coreav_kernels_h264::simd::x86::idct4x4_add_quad
+DIFF  0.769           0xa7900           0xac910     0    16  coreav_kernels_h264::strengths::split_strengths
+DIFF  0.605           0xc2410           0xc7420    16    32  coreav_kernels_h264::simd::x86::intra8x8_mb
+same  0.566           0x686e0           0x71060    32    32  decode::main
+DIFF  0.541           0x76af0           0x7b000    48     0  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reconstruct_intra
+same  0.463           0x60230           0x68c70    48    48  coreav_h264::fast::v3::enter::<(), <coreav_h264::mb::MbData>::reset<coreav_h264::fast::V3>::{closure#0}>
+DIFF  0.451           0x743f0           0x78900    48     0  <coreav_h264::syntax::CabacSyntax<coreav_h264::fast::V3>>::intra_mb_type
+DIFF  0.435           0x77f50           0x7c460    16    32  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::residual_4x4_luma
+DIFF  0.428           0xc7310           0xcc320    16    32  coreav_kernels_h264::simd::x86::intra_chroma_mb
+DIFF  0.420           0x441c0           0x4a760     0    32  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::fill_ctx::<1, coreav_h264::fast::V3>
+DIFF  0.415           0x7cac0           0x81650     0    16  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::spatial_direct
+DIFF  0.395           0x7be10           0x809a0    16    32  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::store_motion
+DIFF  0.383           0xcf6a0           0xd46b0    32    48  coreav_kernels_h264::simd::x86::chroma_residual_mb
+DIFF  0.371           0xa76d0           0xac6e0    16    32  coreav_kernels_h264::strengths::motion_strength
+DIFF  0.365           0x766c0           0x7abd0     0    16  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reconstruct_inter
+DIFF  0.300           0x89860           0x8e3f0    32    48  <coreav_h264::syntax::CabacSyntax<coreav_h264::fast::V3> as coreav_h264::syntax::Syntax>::rem_intra_mode
+DIFF  0.299           0x79290           0x7d7a0    16    32  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::fill_mvd_cache
+DIFF  0.296           0xbe860           0xc3870    32    48  <coreav_kernels_h264::scalar::Scalar as coreav_kernels_h264::Kernels>::luma_mc
+same  0.284           0x63200           0x6bc40     0     0  <coreav_h264::syntax::CabacSyntax<coreav_h264::fast::V3> as coreav_h264::syntax::Syntax>::ref_idx::<coreav_kernels_h264::Auto>
+DIFF  0.258           0xa5760           0xaa770    32    48  <coreav_kernels_h264::predict::Windows>::fit
+DIFF  0.235           0x98690           0x9d220    16    32  <coreav_h264::cabac::Source>::load
+DIFF  0.226           0x9fe00           0xa50d0     0    16  coreav_h264::inter::edge_window
+DIFF  0.210           0x99b30           0x9e8c0    48     0  <coreav_h264::picture::BandData>::fit
+same  0.183           0x630c0           0x6bb00     0     0  <coreav_h264::syntax::CabacSyntax<coreav_h264::fast::V3> as coreav_h264::syntax::Syntax>::transform8x8::<coreav_kernels_h264::Auto>
+DIFF  0.180           0x9f8b0           0xa4640    48     0  coreav_h264::cabac::exp_golomb_bypass_out_of_line
+DIFF  0.170           0xc06a0           0xc56b0    32    48  coreav_kernels_h264::simd::x86::intra16x16
+DIFF  0.168           0x9f6d0           0xa4460    16    32  coreav_h264::nal::rbsp
+DIFF  0.158           0x79ee0           0x7ea70    32    48  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::colocated_mb
+DIFF  0.150           0xd3d60           0xd8d70    32    48  <coreav_kernels_h264::simd::Simd as coreav_kernels_h264::Kernels>::chroma_mc
+DIFF  0.141           0xbf940           0xc4950     0    16  <coreav_kernels_h264::scalar::Scalar as coreav_kernels_h264::Kernels>::luma_mc::{closure#6}
+DIFF  0.127           0x7ccb0           0x81840    48     0  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::predict_list_any
+DIFF  0.119           0xc47e0           0xc97f0    32    48  coreav_kernels_h264::simd::x86::luma_mc_into::<coreav_kernels_h264::simd::x86::Average>
+DIFF  0.080           0x81a10           0x865a0    16    32  <coreav_h264::decoder::Decoder>::start_picture
+DIFF  0.069           0x798f0           0x7e480    48     0  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::enter_row
+DIFF  0.046           0x79680           0x7db90     0    16  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::fill_intra_cache
+same  0.042           0x6b410           0x73d90    16    16  <coreav_h264::work::PictureWork<coreav_kernels_h264::Auto>>::decode_slice
+DIFF  0.040           0x9a400           0x9f190     0    16  coreav_h264::fast::v3::enter::<alloc::boxed::Box<coreav_h264::params::LevelScale>, <coreav_h264::tier::Choice>::level_scale::{closure#0}>
+DIFF  0.030           0x79810           0x7dd20    16    32  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::no_sub_8x8_partitions
+DIFF  0.016           0xd3a30           0xd8a40    48     0  <coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::chroma_mc
+DIFF  0.015           0xd2640           0xd7650     0    16  <coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::chroma_mc_avg
+DIFF  0.013           0x9d010           0xa1da0    16    32  <coreav_h264::dpb::Dpb>::ref_lists
+DIFF  0.012           0x45f60           0x4c500    32     0  coreav_h264::inter::chroma_weigh::<coreav_kernels_h264::Auto>
+DIFF  0.011   0x6b140/0xa0960   0x73ac0/0xa4d30  0/32  0/48  <coreav_h264::bits::BitReader>::ue
+
+named read-only tables the CABAC path reads (start mod 64 and mod 8):
+  DIFF 0x13b60 0x13b40 mod64 32 ->  0, mod8 0 -> 0  coreav_h264::fast::decision::TABLES
+  DIFF 0x136e4 0x13698 mod64 36 -> 24, mod8 4 -> 0  coreav_h264::deblock::BY_INDEX_A
+  DIFF 0x129ef 0x1298f mod64 47 -> 15, mod8 7 -> 7  coreav_h264::deblock::BY_INDEX_B
+  DIFF 0x12aef 0x12a8f mod64 47 -> 15, mod8 7 -> 7  coreav_h264::deblock::FIRST_ALPHA
+  DIFF 0x12bef 0x12b8f mod64 47 -> 15, mod8 7 -> 7  coreav_h264::deblock::QPC_SHIFTED
+  DIFF 0x12cef 0x12c8f mod64 47 -> 15, mod8 7 -> 7  coreav_h264::deblock::FIRST_QPC
+  DIFF 0x1319c 0x1313c mod64 28 -> 60, mod8 4 -> 4  coreav_h264::mb::NO_MB
+  DIFF 0x131a8 0x13148 mod64 40 ->  8, mod8 0 -> 0  coreav_h264::mb::NO_NB
+  same 0x1774b 0x1774b mod64 11 -> 11, mod8 3 -> 3  coreav_kernels_h264::intra::SOURCES_4X4
+  same 0x177db 0x177db mod64 27 -> 27, mod8 3 -> 3  coreav_kernels_h264::intra::SOURCES_8X8
+  same 0x17af6 0x17af6 mod64 54 -> 54, mod8 6 -> 6  coreav_kernels_h264::simd::x86::SHUFFLES_4X4
+  same 0x17ca6 0x17ca6 mod64 38 -> 38, mod8 6 -> 6  coreav_kernels_h264::simd::x86::SHUFFLES_8X8
+  same 0x185a8 0x185a8 mod64 40 -> 40, mod8 0 -> 0  coreav_kernels_h264::simd::x86::CHROMA_DC_PICKS

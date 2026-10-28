@@ -1,0 +1,192 @@
+diff --git a/crates/coreav-h264/examples/decode.rs b/crates/coreav-h264/examples/decode.rs
+index 1dca245d..b710bdbe 100644
+--- a/crates/coreav-h264/examples/decode.rs
++++ b/crates/coreav-h264/examples/decode.rs
+@@ -26,6 +26,13 @@ use coreav_h264::{AnnexB, Decoder, Limits, Mode, Picture};
+ use coreav_kernels_h264::Auto;
+ 
+ fn main() -> std::process::ExitCode {
++    let t0 = std::time::Instant::now();
++    let r = main_();
++    eprintln!("wall {:.1}ms\n{}", t0.elapsed().as_secs_f64() * 1e3, coreav_h264::diag::dump());
++    if std::env::var_os("HIST").is_some() { eprintln!("{}", coreav_h264::diag::dump_hist()); }
++    r
++}
++fn main_() -> std::process::ExitCode {
+     match run() {
+         Ok(()) => std::process::ExitCode::SUCCESS,
+         Err(e) => {
+diff --git a/crates/coreav-h264/src/decoder.rs b/crates/coreav-h264/src/decoder.rs
+index 855feb57..b643ba48 100644
+--- a/crates/coreav-h264/src/decoder.rs
++++ b/crates/coreav-h264/src/decoder.rs
+@@ -915,6 +915,12 @@ impl<K: Kernels> Decoder<K> {
+     /// threaded decoding. The picture before this one has been finished
+     /// already, so every picture in flight can be decoded to the end.
+     fn dispatch(&mut self, mut work: PictureWork<K>) -> Feed<K> {
++        let t0 = std::time::Instant::now();
++        let r = self.dispatch_(work);
++        crate::diag::add(9, t0);
++        r
++    }
++    fn dispatch_(&mut self, mut work: PictureWork<K>) -> Feed<K> {
+         self.seq += 1;
+         if self.threads <= 1 {
+             work.adopt(std::mem::take(&mut self.spare));
+diff --git a/crates/coreav-h264/src/lib.rs b/crates/coreav-h264/src/lib.rs
+index acce143b..d68f9747 100644
+--- a/crates/coreav-h264/src/lib.rs
++++ b/crates/coreav-h264/src/lib.rs
+@@ -59,6 +59,7 @@ mod tables;
+ #[path = "../tests/common/streams.rs"]
+ mod test_streams;
+ mod work;
++pub mod diag;
+ 
+ // The kernels are part of this crate's surface: a caller picks them and
+ // hands them to the decoder.
+diff --git a/crates/coreav-h264/src/mb.rs b/crates/coreav-h264/src/mb.rs
+index 8608238f..1c27a632 100644
+--- a/crates/coreav-h264/src/mb.rs
++++ b/crates/coreav-h264/src/mb.rs
+@@ -710,6 +710,7 @@ impl<K: Kernels> SliceDecoder<'_, K> {
+     /// Starts macroblock row `row`: filters the rows that are now two
+     /// behind, and holds the row's band, entering it if it is new.
+     fn enter_row(&mut self, row: usize) -> Result<()> {
++        crate::diag::MBY.with(|c| c.set(row));
+         let band = self.geometry.band_of_mb_row(row);
+         // Deblocking runs one row behind decoding: see `deblock.rs`.
+         let deblock = row >= *self.deblocked + 2;
+diff --git a/crates/coreav-h264/src/picture.rs b/crates/coreav-h264/src/picture.rs
+index 3afdd550..9d18e08f 100644
+--- a/crates/coreav-h264/src/picture.rs
++++ b/crates/coreav-h264/src/picture.rs
+@@ -453,13 +453,22 @@ impl Picture {
+         let cell = self.bands.get(k)?;
+         match cell.get() {
+             Some(data) => Some(data),
+-            None => self.wait_for(cell),
++            None => self.wait_for(cell, k),
+         }
+     }
+ 
+     /// Waits until `cell` is set.
+     #[cold]
+-    fn wait_for<'a>(&'a self, cell: &'a OnceLock<BandData>) -> Option<&'a BandData> {
++    fn wait_for<'a>(&'a self, cell: &'a OnceLock<BandData>, k: usize) -> Option<&'a BandData> {
++        let t0 = std::time::Instant::now();
++        let p = self.bands.iter().filter(|b| b.get().is_some()).count() as i64;
++        let r = self.wait_for_(cell);
++        let d = (k * self.geometry.band_mbs) as i64 - crate::diag::MBY.with(|c| c.get()) as i64;
++        crate::diag::hist(d, k as i64 + 1 - p, t0.elapsed().as_nanos() as u64);
++        crate::diag::add(if crate::diag::IN_FINISH.with(|c| c.get()) { 8 } else { 4 }, t0);
++        r
++    }
++    fn wait_for_<'a>(&'a self, cell: &'a OnceLock<BandData>) -> Option<&'a BandData> {
+         let mut guard = self.lock.lock().unwrap_or_else(PoisonError::into_inner);
+         loop {
+             if let Some(data) = cell.get() {
+@@ -627,6 +636,7 @@ impl Picture {
+ /// Copies `len` elements from `src` at `from` to `dst` at `to`.
+ fn copy<T: Copy>(src: &[T], from: usize, dst: &mut [T], to: usize, len: usize) -> Result<()> {
+     let geometry = Error::Geometry("an apron outside its band");
++    if crate::diag::early().is_some() && (src.len() < from + len || dst.len() < to + len) { return Ok(()); }
+     let src = src.get(from..from + len).ok_or(geometry)?;
+     dst.get_mut(to..to + len)
+         .ok_or(geometry)?
+@@ -790,6 +800,7 @@ impl Canvas {
+     /// back to the band above, which is then what filtering one plane
+     /// would have left.
+     pub(crate) fn return_top(&mut self, k: usize) -> Result<()> {
++        if crate::diag::early().is_some() && k > 0 && k - 1 < self.published { return Ok(()); }
+         let g = self.geometry();
+         let Some(j) = k.checked_sub(1) else {
+             return Ok(());
+@@ -876,6 +887,7 @@ impl Canvas {
+         }
+         let luma = (g.luma(k).last + FILTERED_LUMA).div_ceil(16);
+         let chroma = (g.chroma(k).last + FILTERED_CHROMA).div_ceil(8);
++        if let Some(x) = crate::diag::early() { return (g.motion(k).end + x).min(g.mb_height); }
+         luma.max(chroma).max(g.motion(k).end).min(g.mb_height)
+     }
+ 
+@@ -894,7 +906,9 @@ impl Canvas {
+         let mut result = Ok(());
+         while self.published < self.bands.len() {
+             let k = self.published;
+-            if g.luma(k).last > luma
++            if let Some(x) = crate::diag::early() {
++                if !done && g.motion(k).end + x > filtered { break; }
++            } else if g.luma(k).last > luma
+                 || g.chroma(k).last > chroma
+                 || (!done && g.motion(k).end > filtered)
+             {
+@@ -904,7 +918,7 @@ impl Canvas {
+             // so that no reader waits for it for ever; the error says the
+             // decoder has a bug.
+             if let Err(e) = self.fill_bottom(k) {
+-                result = result.and(Err(e));
++                if crate::diag::early().is_none() { result = result.and(Err(e)); }
+             }
+             let data = self
+                 .bands
+diff --git a/crates/coreav-h264/src/work.rs b/crates/coreav-h264/src/work.rs
+index d9c21bd8..1a50a437 100644
+--- a/crates/coreav-h264/src/work.rs
++++ b/crates/coreav-h264/src/work.rs
+@@ -235,6 +235,7 @@ struct Shared {
+ impl Shared {
+     /// Waits until `bytes` more fit the queue, and counts them.
+     fn reserve(&self, bytes: usize) {
++        let _g = Timed(6, std::time::Instant::now());
+         let mut queue = self.queue.lock().unwrap_or_else(PoisonError::into_inner);
+         while queue.0 > 0 && queue.0.saturating_add(bytes) > QUEUE_BYTES && !queue.1 {
+             queue = self
+@@ -306,6 +307,7 @@ impl<K: Kernels> Worker<K> {
+     /// for pictures before its own, every one of which has been sent all
+     /// its slices.
+     pub(crate) fn send(&mut self, message: Message<K>) {
++        let _g = Timed(7, std::time::Instant::now());
+         if let Message::Slice(job) = &message {
+             self.shared.reserve(job.rbsp.len());
+         }
+@@ -324,6 +326,7 @@ impl<K: Kernels> Worker<K> {
+     /// The report of the picture the worker was given, if it is finished;
+     /// with `wait`, once it is.
+     pub(crate) fn done(&mut self, wait: bool) -> Option<Done> {
++        let _g = wait.then(|| Timed(5, std::time::Instant::now()));
+         let received = if wait {
+             self.done.recv().map_err(|_| TryRecvError::Disconnected)
+         } else {
+@@ -374,7 +377,13 @@ fn run<K: Kernels>(inbox: &Receiver<Message<K>>, outbox: &Sender<Done>, shared:
+     let mut work: Option<Box<PictureWork<K>>> = None;
+     let mut error = None;
+     let mut spare = Spare::default();
+-    while let Ok(message) = inbox.recv() {
++    loop {
++        let t0 = std::time::Instant::now();
++        let Ok(message) = inbox.recv() else { break };
++        crate::diag::add(0, t0);
++        let t1 = std::time::Instant::now();
++        let kind = match &message { Message::Start(_) => 1, Message::Slice(_) => 2, Message::Finish => 3 };
++        let _g = Timed(kind, t1);
+         let cancelled = shared.cancel.load(Ordering::Relaxed);
+         match message {
+             Message::Start(mut next) => {
+@@ -400,7 +409,9 @@ fn run<K: Kernels>(inbox: &Receiver<Message<K>>, outbox: &Sender<Done>, shared:
+                     continue;
+                 }
+                 if let Some(finished) = work.take() {
++                    crate::diag::IN_FINISH.with(|c| c.set(true));
+                     let (result, kept) = finished.finish();
++                    crate::diag::IN_FINISH.with(|c| c.set(false));
+                     spare = kept;
+                     if let Err(e) = result {
+                         error.get_or_insert(e);
+@@ -420,3 +431,6 @@ fn run<K: Kernels>(inbox: &Receiver<Message<K>>, outbox: &Sender<Done>, shared:
+     // The channel closed with a picture unfinished: dropping it publishes
+     // its bands as they stand.
+ }
++
++struct Timed(usize, std::time::Instant);
++impl Drop for Timed { fn drop(&mut self) { crate::diag::add(self.0, self.1); } }

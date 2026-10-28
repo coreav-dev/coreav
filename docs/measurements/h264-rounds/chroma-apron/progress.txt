@@ -1,0 +1,8 @@
+sd VOID attempt 1 unresolved 8
+sd VOID attempt 2 unresolved 8
+sd VOID attempt 3 unresolved 8
+720p VOID attempt 1 unresolved 8
+720p VOID attempt 2 unresolved 8
+720p VOID attempt 3 unresolved 8
+1080p VOID attempt 1 unresolved 8
+1080p VOID attempt 2 unresolved 8

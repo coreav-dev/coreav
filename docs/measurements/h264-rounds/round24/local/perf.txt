@@ -1,0 +1,10 @@
+# perf record (function level, own code only), main at e18f85c (dist), --discard, one thread pinned to cpu 3, class frame
+# counts; -F 4000 one run each, a81de82106be -F 20000 over four runs. Self samples (perf report --no-children --sort symbol).
+stream          start_mb  MbData::reset
+175433794e02    1.06%     1.00%
+6f7799768413    1.09%     1.39%
+1d4b1775d78a    2.34%     1.18%
+a81de82106be    2.54%     1.11%
+# start_mb on a81de82106be by address range (perf annotate, 64-byte bins summed): the four neighbours' lookups about 29% of
+# its samples, the rows asked for ahead (request_destination, the prefetch walk) about 44%, the rest prologue, the record's
+# initialisation and the row check.

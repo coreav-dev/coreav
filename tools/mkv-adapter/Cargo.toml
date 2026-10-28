@@ -1,0 +1,20 @@
+[package]
+name = "coreav-mkv-adapter"
+description = "Test-only oracle adapter for coreav-mkv; never published"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[[bin]]
+name = "mkv-adapter"
+path = "src/main.rs"
+
+[dependencies]
+coreav-mkv = { path = "../../crates/coreav-mkv" }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

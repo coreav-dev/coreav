@@ -1,0 +1,53 @@
+# Local timing, information only. Host: Intel Xeon @ 2.50GHz (family 6, model 85), 8 logical CPUs, not the bar class.
+# base = main at 686fb48f, m = this branch (Motion in 12 bytes), both 'dist' with line tables; scripts/h264_parity.py --pin 2, discard and write.
+# def = default allocator; mmap = MALLOC_MMAP_THRESHOLD_=131072 for every command.
+
+## run.sh: the eight profiled streams, class frame counts, 5 rounds
+6da34958296c 1080p  discard 0.882 write 0.950  m/ff 1.704
+b71b6b31e54f 1080p  discard 0.974 write 0.965  m/ff 1.963
+3b1b441e23ae 4k     discard 0.992 write 0.890  m/ff 1.903
+e624cbe0d2be 4k     discard 1.024 write 1.021  m/ff 1.639
+9db41aa16b5a 720p   discard 0.950 write 1.031  m/ff 1.984
+1d4b1775d78a 720p   discard 0.964 write 0.944  m/ff 1.613
+41e324ebb708 sd     discard 1.017 write 0.993  m/ff 1.688
+5185721dda11 sd     discard 0.997 write 0.991  m/ff 1.410
+def discard median 0.9826 n 8
+def write median 0.9777 n 8
+6da34958296c 1080p  discard 0.979 write 0.981  m/ff 1.671
+b71b6b31e54f 1080p  discard 0.980 write 0.957  m/ff 2.001
+3b1b441e23ae 4k     discard 1.061 write 0.958  m/ff 2.354
+e624cbe0d2be 4k     discard 1.070 write 1.027  m/ff 1.660
+9db41aa16b5a 720p   discard 1.076 write 0.887  m/ff 2.340
+1d4b1775d78a 720p   discard 1.002 write 1.006  m/ff 1.665
+41e324ebb708 sd     discard 0.981 write 0.996  m/ff 1.617
+5185721dda11 sd     discard 0.965 write 0.928  m/ff 1.389
+mmap discard median 0.9917 n 8
+mmap write median 0.9695 n 8
+
+## run2.sh: B-heavy 1080p (300 frames) and a P-only 4k stream (150), 11 rounds
+6da34958296c 1080p  discard 0.972 write 0.984  m/ff 1.693
+b71b6b31e54f 1080p  discard 0.965 write 0.961  m/ff 1.874
+e624cbe0d2be 4k     discard 1.064 write 1.018  m/ff 1.675
+r2.def discard median 0.9723 n 3
+r2.def write median 0.9836 n 3
+6da34958296c 1080p  discard 0.979 write 0.980  m/ff 1.668
+b71b6b31e54f 1080p  discard 0.962 write 0.972  m/ff 1.918
+e624cbe0d2be 4k     discard 0.993 write 0.987  m/ff 1.691
+r2.mmap discard median 0.9795 n 3
+r2.mmap write median 0.9802 n 3
+
+## run3.sh: round 10's P_Skip-heavy 4k streams, 150 frames, 11 rounds
+ed75c044e944 4k     discard 1.054 write 1.033  m/ff 1.839
+81ed4778ece2 4k     discard 0.934 write 1.020  m/ff 1.458
+r3.def discard median 0.9937 n 2
+r3.def write median 1.0265 n 2
+ed75c044e944 4k     discard 1.017 write 1.001  m/ff 1.683
+81ed4778ece2 4k     discard 0.978 write 0.929  m/ff 1.750
+r3.mmap discard median 0.9978 n 2
+r3.mmap write median 0.9651 n 2
+
+## run4.sh: a diagnostic build mpad, the branch with each band's motion array reserved at main's size in bytes (20/12 of its length, before it is filled), not part of the branch; 11 rounds
+def ed75c044e944 m/base discard=1.003 m/base write=1.041 mpad/base discard=0.981 mpad/base write=1.006
+def e624cbe0d2be m/base discard=1.078 m/base write=0.967 mpad/base discard=0.990 mpad/base write=0.959
+mmap ed75c044e944 m/base discard=0.981 m/base write=0.961 mpad/base discard=0.977 mpad/base write=0.976
+mmap e624cbe0d2be m/base discard=1.018 m/base write=0.994 mpad/base discard=1.002 mpad/base write=0.983

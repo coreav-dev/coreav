@@ -1,0 +1,2 @@
+superseded: the two-build round 9 request (base 5dcea041 vs 1ea19de) was queued and stopped before it started, replaced by the three-build factorial request (base, b a1cc6cf, ab f23a9e8)
+ab moved from f23a9e8 to 325784d (POC distances in 64 bits, a review fix) before the run started, at the implementer's request

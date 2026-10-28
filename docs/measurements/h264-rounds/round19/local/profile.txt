@@ -1,0 +1,52 @@
+# perf cpu-clock 4 kHz, one thread pinned, --discard --frames 1800 6f7799768413.0.sd.h264, development VM (Intel Xeon 2.50 GHz class, 8 logical CPUs); self time by symbol, then the residual path's source lines
+## main 27b504a (code of 051e169), dist + line tables
+    12.39%  [.] <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::parse_residual::<coreav_h264::syntax::CavlcSyntax>
+    12.23%  [.] coreav_h264::cavlc::residual_block
+    12.15%  [.] coreav_h264::deblock::deblock_rows::<coreav_kernels_h264::Auto>
+     8.44%  [.] <coreav_h264::cavlc::Code>::read
+     6.88%  [.] <coreav_h264::work::PictureWork<coreav_kernels_h264::Auto>>::decode_slice
+     5.48%  [.] coreav_kernels_h264::simd::x86::predict::luma_block
+     4.15%  [.] coreav_kernels_h264::simd::x86::filter_luma_edge::<false, true>
+     3.93%  [.] <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::inter_pred
+     3.46%  [.] coreav_kernels_h264::simd::x86::filter_luma_edge::<true, true>
+     3.44%  [.] coreav_kernels_h264::simd::x86::filter_chroma_pair
+     3.34%  [.] coreav_kernels_h264::simd::x86::predict::predict::<coreav_kernels_h264::Auto>
+     2.69%  [.] coreav_kernels_h264::simd::x86::predict::chroma_block
+     2.52%  [.] coreav_kernels_h264::simd::x86::idct4x4_add_quad
+     2.48%  [.] <coreav_h264::syntax::CavlcSyntax as coreav_h264::syntax::Syntax>::block_context::<coreav_kernels_h264::Auto>
+     1.99%  [.] <coreav_h264::bits::BitReader>::ue
+     1.65%  [.] <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::predict_fast
+     1.22%  [.] <coreav_h264::mb::MbData>::reset
+     1.15%  [.] <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::start_mb
+     0.94%  [.] <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reconstruct_chroma
+     0.92%  [.] coreav_h264::deblock::differing_motion_strength
+### parse_residual::<CavlcSyntax> by line
+     2.92%  syntax.rs:200
+     1.11%  syntax.rs:197
+     1.08%  result.rs:0
+     0.99%  recon.rs:99
+     0.88%  zip.rs:0
+     0.70%  cmp.rs:0
+     0.48%  mb.rs:175
+     0.24%  mb.rs:1385
+## branch (one pass), dist + line tables
+    18.56%  [.] <coreav_h264::syntax::CavlcSyntax as coreav_h264::syntax::Syntax>::block::<16>
+    13.62%  [.] coreav_h264::deblock::deblock_rows::<coreav_kernels_h264::Auto>
+     6.78%  [.] <coreav_h264::work::PictureWork<coreav_kernels_h264::Auto>>::decode_slice
+     5.62%  [.] coreav_kernels_h264::simd::x86::predict::luma_block
+     5.47%  [.] <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::parse_residual::<coreav_h264::syntax::CavlcSyntax>
+     4.88%  [.] coreav_kernels_h264::simd::x86::filter_luma_edge::<false, true>
+     4.72%  [.] coreav_kernels_h264::simd::x86::filter_chroma_pair
+     4.09%  [.] <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::inter_pred
+     3.90%  [.] coreav_kernels_h264::simd::x86::predict::predict::<coreav_kernels_h264::Auto>
+     3.81%  [.] coreav_kernels_h264::simd::x86::filter_luma_edge::<true, true>
+     2.86%  [.] coreav_kernels_h264::simd::x86::idct4x4_add_quad
+     2.86%  [.] coreav_kernels_h264::simd::x86::predict::chroma_block
+     2.73%  [.] <coreav_h264::syntax::CavlcSyntax as coreav_h264::syntax::Syntax>::block_context::<coreav_kernels_h264::Auto>
+     2.20%  [.] <coreav_h264::bits::BitReader>::ue
+     1.95%  [.] <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::predict_fast
+     1.68%  [.] <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::start_mb
+     1.50%  [.] <coreav_h264::mb::MbData>::reset
+     1.17%  [.] coreav_h264::deblock::differing_motion_strength
+     1.07%  [.] <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reconstruct_chroma
+     0.97%  [.] coreav_h264::nal::rbsp

@@ -1,0 +1,56 @@
+diff --git a/crates/coreav-h264/Cargo.toml b/crates/coreav-h264/Cargo.toml
+index 9c111b03..9a4ff65b 100644
+--- a/crates/coreav-h264/Cargo.toml
++++ b/crates/coreav-h264/Cargo.toml
+@@ -21,6 +21,7 @@ default = ["fast"]
+ # The hot-path module of ADR 0038 (`src/fast/`): the decoder's only
+ # `unsafe`. A build without it compiles none and runs the baseline twins.
+ fast = []
++probe-pad = ["fast"]
+ 
+ # The workspace's lint table, with `unsafe_code = "deny"` instead of
+ # `forbid` (ADR 0038 point 1): `#[allow(unsafe_code)]` sits on `fast` alone,
+diff --git a/crates/coreav-h264/src/cabac.rs b/crates/coreav-h264/src/cabac.rs
+index 1be437ed..1e4ddf6d 100644
+--- a/crates/coreav-h264/src/cabac.rs
++++ b/crates/coreav-h264/src/cabac.rs
+@@ -616,6 +616,8 @@ impl<'a> Cabac<'a> {
+         scan: &[u8; MAX_COEFFS],
+         scale: &CoeffScale<N>,
+     ) -> Result<u8> {
++        #[cfg(feature = "probe-pad")]
++        crate::fast::pad(max as u64);
+         // The last scanning position, whose significance is not coded.
+         let end = max.clamp(1, N) - 1;
+         let map = t.significance_map::<N>(self, usize::from(cat.sig), end);
+diff --git a/crates/coreav-h264/src/fast/mod.rs b/crates/coreav-h264/src/fast/mod.rs
+index 50b11bce..e48bc3ac 100644
+--- a/crates/coreav-h264/src/fast/mod.rs
++++ b/crates/coreav-h264/src/fast/mod.rs
+@@ -172,3 +172,26 @@ impl Tier for V3 {
+         k.predict_inlined(dst, src, px, py, w, h, mv, ops)
+     }
+ }
++
++/// Probe only (not for merge): 156 independent one-uop instructions, about
++/// the residual block dispatch's instructions a coded block, added to every
++/// coded residual block.
++#[inline(always)]
++pub(crate) fn pad(a: u64) {
++    macro_rules! pad12 {
++        () => {
++            // SAFETY: register arithmetic only; no memory, stack or flags.
++            unsafe {
++                core::arch::asm!(
++                    "lea {o}, [{a} + {a}]", "lea {o}, [{a} + {a}]", "lea {o}, [{a} + {a}]",
++                    "lea {o}, [{a} + {a}]", "lea {o}, [{a} + {a}]", "lea {o}, [{a} + {a}]",
++                    "lea {o}, [{a} + {a}]", "lea {o}, [{a} + {a}]", "lea {o}, [{a} + {a}]",
++                    "lea {o}, [{a} + {a}]", "lea {o}, [{a} + {a}]", "lea {o}, [{a} + {a}]",
++                    o = out(reg) _, a = in(reg) a, options(nomem, nostack, preserves_flags)
++                );
++            }
++        };
++    }
++    pad12!(); pad12!(); pad12!(); pad12!(); pad12!(); pad12!(); pad12!();
++    pad12!(); pad12!(); pad12!(); pad12!(); pad12!(); pad12!();
++}

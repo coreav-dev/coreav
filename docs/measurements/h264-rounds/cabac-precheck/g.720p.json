@@ -1,0 +1,161 @@
+{
+  "machine": {
+    "cpu_model": "Intel(R) Xeon(R) Processor @ 2.90GHz",
+    "cpu_family": "6",
+    "cpu_model_number": "106",
+    "cpu_stepping": "6",
+    "cpu_mhz": 2899.9,
+    "logical_cpus": 8
+  },
+  "required_cpu": "Intel(R) Xeon(R) Processor @ 2.90GHz",
+  "frames": 900,
+  "rounds": 5,
+  "pinned_core": 2,
+  "threads": [
+    1
+  ],
+  "decoders": {
+    "base": "$HOME/ab/pc/bin/decode-base",
+    "bmi2all": "$HOME/ab/pc/bin/decode-bmi2all",
+    "e1": "$HOME/ab/pc/bin/decode-e1",
+    "b1": "$HOME/ab/pc/bin/decode-b1"
+  },
+  "ffmpeg": "$HOME/ab/pc/bin/ffmpeg",
+  "resamples": 2000,
+  "streams": [
+    {
+      "stream": "1d4b1775d78a.0.720p.h264",
+      "class": "720p",
+      "seconds": {
+        "ff_null": 0.6525282100010372,
+        "ff_raw": 0.7150747110008524,
+        "base_discard": 0.8635306310006854,
+        "base_write": 0.894387372998608,
+        "bmi2all_discard": 0.8418172820001928,
+        "bmi2all_write": 0.8765282399999705,
+        "e1_discard": 0.8536673729995528,
+        "e1_write": 0.8950202219984931,
+        "b1_discard": 0.8601536669993948,
+        "b1_write": 0.8913718190015061
+      },
+      "ratio": {
+        "base:discard": 1.3233613777392288,
+        "base:write": 1.2507607376392618,
+        "base:mixed": 1.2076089640927827,
+        "bmi2all:discard": 1.2900856531533782,
+        "bmi2all:write": 1.2257855389308066,
+        "bmi2all:mixed": 1.177243816694266,
+        "e1:discard": 1.3082459270200684,
+        "e1:write": 1.2516457486599972,
+        "e1:mixed": 1.1938156389347339,
+        "b1:discard": 1.3181861777255999,
+        "b1:write": 1.2465436202517914,
+        "b1:mixed": 1.202886430979335
+      }
+    },
+    {
+      "stream": "36501d448eaa.0.720p.h264",
+      "class": "720p",
+      "seconds": {
+        "ff_null": 1.2753437880001002,
+        "ff_raw": 1.3307968160006567,
+        "base_discard": 1.7458561860003101,
+        "base_write": 1.7631387339988578,
+        "bmi2all_discard": 1.7018738289989415,
+        "bmi2all_write": 1.722192797000389,
+        "e1_discard": 1.7324491430008493,
+        "e1_write": 1.7630921909985773,
+        "b1_discard": 1.7153222069991898,
+        "b1_write": 1.755976088999887
+      },
+      "ratio": {
+        "base:discard": 1.3689298543869748,
+        "base:write": 1.3248744758027642,
+        "base:mixed": 1.311887859220313,
+        "bmi2all:discard": 1.3344431870152393,
+        "bmi2all:write": 1.2941064904077282,
+        "bmi2all:mixed": 1.2788382182288762,
+        "e1:discard": 1.3584173611082138,
+        "e1:write": 1.324839502018847,
+        "e1:mixed": 1.3018134114622006,
+        "b1:discard": 1.3449880911632708,
+        "b1:write": 1.3194922529774227,
+        "b1:mixed": 1.288943726326396
+      }
+    }
+  ],
+  "summary": {
+    "base:discard": {
+      "n": 2,
+      "median": 1.3461456160631018,
+      "ci_low": 1.3233613777392288,
+      "ci_high": 1.3689298543869748
+    },
+    "base:write": {
+      "n": 2,
+      "median": 1.287817606721013,
+      "ci_low": 1.2507607376392618,
+      "ci_high": 1.3248744758027642
+    },
+    "base:mixed": {
+      "n": 2,
+      "median": 1.2597484116565478,
+      "ci_low": 1.2076089640927827,
+      "ci_high": 1.311887859220313
+    },
+    "bmi2all:discard": {
+      "n": 2,
+      "median": 1.3122644200843088,
+      "ci_low": 1.2900856531533782,
+      "ci_high": 1.3344431870152393
+    },
+    "bmi2all:write": {
+      "n": 2,
+      "median": 1.2599460146692674,
+      "ci_low": 1.2257855389308066,
+      "ci_high": 1.2941064904077282
+    },
+    "bmi2all:mixed": {
+      "n": 2,
+      "median": 1.228041017461571,
+      "ci_low": 1.177243816694266,
+      "ci_high": 1.2788382182288762
+    },
+    "e1:discard": {
+      "n": 2,
+      "median": 1.333331644064141,
+      "ci_low": 1.3082459270200684,
+      "ci_high": 1.3584173611082138
+    },
+    "e1:write": {
+      "n": 2,
+      "median": 1.2882426253394221,
+      "ci_low": 1.2516457486599972,
+      "ci_high": 1.324839502018847
+    },
+    "e1:mixed": {
+      "n": 2,
+      "median": 1.2478145251984674,
+      "ci_low": 1.1938156389347339,
+      "ci_high": 1.3018134114622006
+    },
+    "b1:discard": {
+      "n": 2,
+      "median": 1.3315871344444354,
+      "ci_low": 1.3181861777255999,
+      "ci_high": 1.3449880911632708
+    },
+    "b1:write": {
+      "n": 2,
+      "median": 1.283017936614607,
+      "ci_low": 1.2465436202517914,
+      "ci_high": 1.3194922529774227
+    },
+    "b1:mixed": {
+      "n": 2,
+      "median": 1.2459150786528657,
+      "ci_low": 1.202886430979335,
+      "ci_high": 1.288943726326396
+    }
+  }
+}

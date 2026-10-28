@@ -1,0 +1,40 @@
+### perf stat --topdown: exit 0
+%  tma_backend_bound,%  tma_retiring,%  tma_bad_speculation,%  tma_frontend_bound,
+19.5,38.9,24.8,16.8,
+
+### perf stat -M TopdownL1: exit 0
+8846245920,,TOPDOWN.SLOTS,360774386,100.00,18.7,%  tma_backend_bound
+,,,,,24.8,%  tma_bad_speculation
+,,,,,17.2,%  tma_frontend_bound
+,,,,,39.3,%  tma_retiring
+3503807207,,topdown-retiring,360774386,100.00,,
+1561102221,,topdown-fe-bound,360774386,100.00,,
+1665175702,,topdown-be-bound,360774386,100.00,,
+69382320,,topdown-heavy-ops,360774386,100.00,,
+2185543109,,topdown-bad-spec,360774386,100.00,,
+27085571,,INT_MISC.UOP_DROPPING,360774386,100.00,,
+
+### perf stat -M TopdownL2: exit 0
+8954871336,,TOPDOWN.SLOTS,365504190,100.00,15.6,%  tma_core_bound
+,,,,,0.8,%  tma_heavy_operations
+,,,,,37.9,%  tma_light_operations
+,,,,,3.9,%  tma_memory_bound
+,,,,,24.2,%  tma_branch_mispredicts
+,,,,,9.8,%  tma_fetch_bandwidth
+,,,,,7.1,%  tma_fetch_latency
+,,,,,0.7,%  tma_machine_clears
+3476597106,,topdown-retiring,365504190,100.00,,
+1545154269,,topdown-fe-bound,365504190,100.00,,
+351171424,,topdown-mem-bound,365504190,100.00,,
+1755857124,,topdown-be-bound,365504190,100.00,,
+70234284,,topdown-heavy-ops,365504190,100.00,,
+2177262834,,topdown-br-mispredict,365504190,100.00,,
+667225707,,topdown-fetch-lat,365504190,100.00,,
+2212379977,,topdown-bad-spec,365504190,100.00,,
+27069955,,INT_MISC.UOP_DROPPING,365504190,100.00,,
+
+### perf stat -e slots,topdown-retiring: exit 0
+WARNING: events were regrouped to match PMUs
+8987495748,,slots,368338519,100.00,,
+3489263055,,topdown-retiring,368338519,100.00,,
+

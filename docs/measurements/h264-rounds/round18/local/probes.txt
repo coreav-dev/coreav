@@ -1,0 +1,70 @@
+# Earlier local probes of the MB layer on main 33e2273, one thread, ab3.py 7 rounds, 16 or 13 streams (information; not in this round):
+# write prefetch of the next four macroblocks' motion and records: 1.0057 and 1.0021 (13 and 12 streams, 720p to 4k);
+# (Build names r19-* are the probes' local file names, not a round.)
+# Motion at 14 bytes (ref_id as i16, exact only while picture ids fit 16 bits, so not a candidate): 0.9969;
+# MbData::reset clearing whole arrays: 0.9968, 0.9931, 0.9983 in three runs.
+## ab-ahead-1
+1d4b1775d78a.0.720p. 0.871  r19-ahead 1.0058
+6b18d9f0f88d.0.720p. 0.765  r19-ahead 1.0185
+76e0b1692494.0.720p. 0.886  r19-ahead 1.0057
+9db41aa16b5a.0.720p. 0.970  r19-ahead 1.0053
+a81de82106be.0.1080p 0.713  r19-ahead 1.0062
+b71b6b31e54f.0.1080p 1.023  r19-ahead 0.9954
+6da34958296c.0.1080p 1.594  r19-ahead 1.0033
+a6af290d9053.0.1080p 5.435  r19-ahead 1.0025
+ed75c044e944.0.4k.h2 0.262  r19-ahead 1.0228
+81ed4778ece2.0.4k.h2 0.288  r19-ahead 1.0186
+ae16bb7c7192.0.4k.h2 0.164  r19-ahead 1.0201
+4b54de28c2b3.0.4k.h2 0.740  r19-ahead 0.9962
+3b1b441e23ae.0.4k.h2 0.617  r19-ahead 1.0004
+median r19-ahead 1.0057
+## ab-ahead-2
+1d4b1775d78a.0.720p. 0.911  r19-ahead 0.9887
+6b18d9f0f88d.0.720p. 0.769  r19-ahead 1.0220
+76e0b1692494.0.720p. 0.953  r19-ahead 0.9881
+9db41aa16b5a.0.720p. 0.976  r19-ahead 1.0184
+a81de82106be.0.1080p 0.735  r19-ahead 0.9997
+b71b6b31e54f.0.1080p 1.085  r19-ahead 0.9897
+6da34958296c.0.1080p 1.680  r19-ahead 1.0126
+ed75c044e944.0.4k.h2 0.273  r19-ahead 1.0259
+81ed4778ece2.0.4k.h2 0.308  r19-ahead 1.0044
+ae16bb7c7192.0.4k.h2 0.165  r19-ahead 1.0256
+4b54de28c2b3.0.4k.h2 0.749  r19-ahead 0.9981
+3b1b441e23ae.0.4k.h2 0.662  r19-ahead 0.9952
+median r19-ahead 1.0021
+## ab-i16-1
+41e324ebb708.0.sd.h2 0.936  m-i16 0.9963  m-reset 0.9923
+5185721dda11.0.sd.h2 0.428  m-i16 0.9983  m-reset 0.9936
+6f7799768413.0.sd.h2 1.798  m-i16 0.9930  m-reset 0.9920
+dcb262cf0138.0.sd.h2 0.287  m-i16 0.9997  m-reset 0.9939
+f9e973f44570.0.sd.h2 0.197  m-i16 0.9984  m-reset 0.9971
+1d4b1775d78a.0.720p. 0.923  m-i16 0.9975  m-reset 0.9885
+6b18d9f0f88d.0.720p. 0.766  m-i16 0.9993  m-reset 0.9977
+76e0b1692494.0.720p. 0.927  m-i16 0.9905  m-reset 0.9922
+a81de82106be.0.1080p 0.725  m-i16 1.0030  m-reset 1.0020
+b71b6b31e54f.0.1080p 1.088  m-i16 0.9937  m-reset 0.9807
+6da34958296c.0.1080p 1.700  m-i16 0.9918  m-reset 1.0003
+ed75c044e944.0.4k.h2 0.292  m-i16 0.9566  m-reset 0.9757
+81ed4778ece2.0.4k.h2 0.334  m-i16 0.9353  m-reset 0.9650
+f8d92a911e72.0.4k.h2 7.559  m-i16 0.9990  m-reset 0.9969
+ae16bb7c7192.0.4k.h2 0.177  m-i16 0.9790  m-reset 0.9971
+4b54de28c2b3.0.4k.h2 0.776  m-i16 1.0095  m-reset 0.9927
+median m-i16 0.9969  m-reset 0.9931
+## ab-reset-1
+41e324ebb708.0.sd.h2 0.935  m-reset 0.9968
+5185721dda11.0.sd.h2 0.427  m-reset 0.9969
+6f7799768413.0.sd.h2 1.789  m-reset 1.0004
+dcb262cf0138.0.sd.h2 0.287  m-reset 0.9917
+f9e973f44570.0.sd.h2 0.197  m-reset 0.9968
+1d4b1775d78a.0.720p. 0.910  m-reset 0.9943
+6b18d9f0f88d.0.720p. 0.762  m-reset 1.0021
+76e0b1692494.0.720p. 0.906  m-reset 1.0005
+a81de82106be.0.1080p 0.719  m-reset 0.9996
+b71b6b31e54f.0.1080p 1.067  m-reset 0.9915
+6da34958296c.0.1080p 1.681  m-reset 1.0055
+ed75c044e944.0.4k.h2 0.287  m-reset 0.9872
+81ed4778ece2.0.4k.h2 0.322  m-reset 0.9926
+f8d92a911e72.0.4k.h2 7.571  m-reset 0.9955
+ae16bb7c7192.0.4k.h2 0.175  m-reset 0.9956
+4b54de28c2b3.0.4k.h2 0.756  m-reset 1.0029
+median m-reset 0.9968

@@ -1,0 +1,98 @@
+{
+ "9b3a84c821e8.0.sd.h264": {
+  "es_sha256": "95e6559bb00d643689fd1599339113db1079e91fe067be9f181a80f2132e0ca9",
+  "es_size": 4776400,
+  "class": "sd",
+  "frames": 1800
+ },
+ "d56594fb1f83.0.sd.h264": {
+  "es_sha256": "f8de7c1fc58a03223bd2f8ab7bc0b86d32910c64b87c7158b259906c7f53251a",
+  "es_size": 2171421,
+  "class": "sd",
+  "frames": 1800
+ },
+ "75cf7bf8391b.0.sd.h264": {
+  "es_sha256": "f409d7111ee972004adc99af3fd1d20ace400c047bb3cc2ac0a5999ee3096eca",
+  "es_size": 4333449,
+  "class": "sd",
+  "frames": 1800
+ },
+ "9b833fff929e.0.sd.h264": {
+  "es_sha256": "5d6dcd2e5e830a309b84c402f1c6b1aa9727a363c1a3eb16c3143358d3037378",
+  "es_size": 5253773,
+  "class": "sd",
+  "frames": 1800
+ },
+ "64ef5412ed81.0.720p.h264": {
+  "es_sha256": "3f4978c6c10ac2672bb9b2acc2607d22acaa1ff609687707bfc8861607bb2867",
+  "es_size": 38839916,
+  "class": "720p",
+  "frames": 900
+ },
+ "67138964d796.0.720p.h264": {
+  "es_sha256": "3af666c3ba4e1866d8f192c01cc1a1d2a558bc919e63d608cd883e065e84b38a",
+  "es_size": 2755930,
+  "class": "720p",
+  "frames": 900
+ },
+ "3c331ca6a971.0.720p.h264": {
+  "es_sha256": "63eed3d5c7d4737b163afdc4f9b60cda11f5034fd53fdc99d9c9a6a475449be8",
+  "es_size": 3916821,
+  "class": "720p",
+  "frames": 900
+ },
+ "4dc155fa1f76.0.720p.h264": {
+  "es_sha256": "a637a500ff54cfbf33cc8374327d49546d79ea2cdfdeb214d5cedf03fc6714c6",
+  "es_size": 5757580,
+  "class": "720p",
+  "frames": 900
+ },
+ "e137204903ad.0.1080p.h264": {
+  "es_sha256": "1482153ea275c79e0d494f90473e9079ff2779cc5b92eb50a30de9ca1a6866a1",
+  "es_size": 1193613,
+  "class": "1080p",
+  "frames": 300
+ },
+ "48640c5a3dd7.0.1080p.h264": {
+  "es_sha256": "074a5b588ef8d1ecde9bb185b044d55b935a9cacfb5238c3b17706dea4b97304",
+  "es_size": 615528,
+  "class": "1080p",
+  "frames": 300
+ },
+ "d0f1969d25de.0.1080p.h264": {
+  "es_sha256": "59c7174fa1fe13c40d534b31d31f39910d2254bc62b334af624995f754bbdbf9",
+  "es_size": 1538535,
+  "class": "1080p",
+  "frames": 300
+ },
+ "ea3b4d48a931.0.1080p.h264": {
+  "es_sha256": "e440753763c58e797245c295c1166ce48e5ece08205886a25eadae1acbbfef98",
+  "es_size": 23029860,
+  "class": "1080p",
+  "frames": 300
+ },
+ "5d2107684f26.0.4k.h264": {
+  "es_sha256": "b765801cdde090c638b90b82f259033867d0220cfd420e105b27f5684269460f",
+  "es_size": 728712,
+  "class": "4k",
+  "frames": 150
+ },
+ "4762d0d77ce6.0.4k.h264": {
+  "es_sha256": "511a6c475a878622539f124612257e899a51fe1662b98ab2e8ae4cc322b2b41b",
+  "es_size": 33083,
+  "class": "4k",
+  "frames": 150
+ },
+ "d67bb9087d1a.0.4k.h264": {
+  "es_sha256": "fc1710f4743e63f2e6598878de7435f9b70267a93fb4e4cdb1ae6fc56c60ea25",
+  "es_size": 2407920,
+  "class": "4k",
+  "frames": 150
+ },
+ "aa0205e7e850.0.4k.h264": {
+  "es_sha256": "cdb524375b48b6b3f74b127ef23ca78548e87ac7cb797c7a9766f5494847b7cb",
+  "es_size": 72115011,
+  "class": "4k",
+  "frames": 150
+ }
+}

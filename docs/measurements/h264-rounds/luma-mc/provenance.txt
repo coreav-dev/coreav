@@ -1,0 +1,25 @@
+build: (cd <worktree at rev> && CARGO_TARGET_DIR=<tgt-name> cargo build --locked --profile dist --example decode -p coreav-h264)
+base = main b66e452f (#385), a = b96e94ce, c = 3d8d6b96 (perf/h264-luma-mc)
+26cc09e649d4934aaa7c6cc2b7add5ebcbb1df7a4f5d0ae714d1d365f177ef8c  $HOME/ab/luma/w/decode-base
+3ab4cb8d2348c02a00b7a92df7a1fd66858095c5d66f39959af53ee3e9d440bc  $HOME/ab/luma/w/decode-a
+e3471aca0150af03ef799af2451b7e6da543be88ed08ffee062951f5b5442069  $HOME/ab/luma/w/decode-c
+rustc 1.99.1 (58cf8f9c3 2026-10-13)
+binary: rustc
+commit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67
+commit-date: 2026-10-13
+host: x86_64-unknown-linux-gnu
+release: 1.99.1
+LLVM version: 23.1.1
+model name	: Intel(R) Xeon(R) Processor @ 2.90GHz
+Model name:                              Intel(R) Xeon(R) Processor @ 2.90GHz
+CPU family:                              6
+Model:                                   106
+Stepping:                                6
+ffmpeg version n9.0.2-17-g2a571b6068-20260930 Copyright (c) 2000-2026 the FFmpeg developers
+0d709a0bed1a43f24cd2c420878c63afea4580671b6949ad19ed124572f3bc3d  $HOME/ff9/x/ffmpeg-n9.0.2-17-g2a571b6068-linux64-gpl-9.0/bin/ffmpeg
+harness: scripts/h264_parity.py of the base tree b66e452f804889ddbc8ac62ebfe362ca6963f367; identical across the three trees
+622ac7494d9898db6ffe962112b75a31e2d5b5374ed174299513e21b989d07d6  $HOME/ab/luma/w/src-base/scripts/h264_parity.py
+622ac7494d9898db6ffe962112b75a31e2d5b5374ed174299513e21b989d07d6  $HOME/ab/luma/w/src-a/scripts/h264_parity.py
+622ac7494d9898db6ffe962112b75a31e2d5b5374ed174299513e21b989d07d6  $HOME/ab/luma/w/src-c/scripts/h264_parity.py
+streams checked against docs/measurements/h264-training/es.json of the base tree:
+32 of 32 match; differing: []

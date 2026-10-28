@@ -1,0 +1,40 @@
+MB layer: a layout that stores only what later stages read. Probe plan, written before any measurement of this probe.
+
+Question: what is the most time a structural change of the macroblock layer's stored state could save? The change in
+view: a compact per-macroblock record (deblocking's and the next picture's fields in the picture-sized array, the
+fields only neighbours read in a ring of two macroblock rows), one motion entry for a macroblock with one motion
+(readers resolve it through one accessor), no clearing of per-macroblock state beyond what the next macroblock reads,
+and the co-located motion read from that compact form. Nothing is built for the probe.
+
+Build: main (crates as 41ae60dc), `cargo build --locked --profile dist --example decode -p coreav-h264` with
+CARGO_PROFILE_DIST_DEBUG=line-tables-only. Both measurements run `--kernels avx2 --threads 1 --discard` so that the
+sampled and the simulated runs execute the same instructions (Valgrind has no AVX-512), at the class frame counts
+(sd 1800, 720p 900, 1080p 300, 4k 150), all 32 training streams.
+
+1. Time: perf cpu-clock at 10 kHz, pinned to CPU 2, five runs a stream, nothing else running.
+2. Instructions and misses: callgrind --dump-instr=yes --cache-sim=yes --D1=49152,12,64 (the host's L1D), one run.
+3. Per source line of our code (innermost inline frame in a CoreAV crate, round 26's addr.py): time share, instruction
+   share, excess = time share - instruction share; data writes times the store's width from the disassembly (round
+   27's stores.py) for bytes stored a macroblock; simulated D1 write misses.
+
+The removed set R (the lines whose stores the layout drops or shrinks), by innermost function: `finish_mb` (the
+record copy and an intra macroblock's motion fill), `start_mb_body`'s record initialisation, `store_mb` and the
+picture-motion writes of `store_motion`/`put_rows`/`put_row` (inter.rs), `reset_body`. The co-located set C:
+`colocated`, `colocated_banded`.
+
+Bound per stream, in % of its sampled time, generous on purpose:
+  I = instruction share of R (all of R's instructions taken as removed);
+  S = max( sum over R of positive excess,
+           W x sum over every line with stores of positive excess ),
+      W = R's simulated D1 write misses over all simulated D1 write misses (stalls surface at whichever store comes
+      next, "Stalls at the macroblock record, moved not removed"; this hands R its share of all of them);
+  C = sum over C of positive excess (every co-located read stall taken as removed);
+  bound = I + S + C.
+
+Threshold (an earlier change's, applied to the bound): build the layout only if, in at least one class, the median per-stream
+bound is 1.5% or more. An earlier change's 1.5% is of instructions, which reach time at about half; applying it to a time bound
+that already counts every stall as removable is the stricter reading, chosen because an earlier change put about half of such a
+bound within reach. Otherwise the probe is recorded and nothing is built.
+
+Also reported (information): bytes stored a macroblock by R, by C's readers, and by the whole decoder, per class; the
+same for the layout, estimated from macroblock kinds (one-motion share from `store_mb`'s calls).

@@ -1,0 +1,24 @@
+machine: unknown (family 25, model 1, stepping unknown), 3078.1 MHz, 24 logical CPUs
+3b1b441e23ae.0.4k.h264                   base:discard=1.17  base:write=1.52  base:mixed=1.31  g:discard=1.19  g:write=1.48  g:mixed=1.32  r:discard=1.23  r:write=1.47  r:mixed=1.38  gr:discard=1.13  gr:write=1.44  gr:mixed=1.26
+4b54de28c2b3.0.4k.h264                   base:discard=1.41  base:write=1.36  base:mixed=1.27  g:discard=1.40  g:write=1.33  g:mixed=1.26  r:discard=1.46  r:write=1.41  r:mixed=1.31  gr:discard=1.42  gr:write=1.38  gr:mixed=1.28
+81ed4778ece2.0.4k.h264                   base:discard=1.14  base:write=0.99  base:mixed=0.83  g:discard=1.13  g:write=0.94  g:mixed=0.82  r:discard=1.18  r:write=1.00  r:mixed=0.86  gr:discard=1.15  gr:write=0.98  gr:mixed=0.84
+ae16bb7c7192.0.4k.h264                   base:discard=1.30  base:write=1.18  base:mixed=1.03  g:discard=1.26  g:write=1.12  g:mixed=1.00  r:discard=1.36  r:write=1.21  r:mixed=1.07  gr:discard=1.32  gr:write=1.18  gr:mixed=1.05
+af38b0cfd840.0.4k.h264                   base:discard=1.32  base:write=1.22  base:mixed=1.21  g:discard=1.28  g:write=1.23  g:mixed=1.17  r:discard=1.32  r:write=1.23  r:mixed=1.21  gr:discard=1.30  gr:write=1.22  gr:mixed=1.19
+e624cbe0d2be.0.4k.h264                   base:discard=1.46  base:write=1.19  base:mixed=1.08  g:discard=1.33  g:write=1.14  g:mixed=0.98  r:discard=1.36  r:write=1.17  r:mixed=1.00  gr:discard=1.35  gr:write=1.20  gr:mixed=0.99
+ed75c044e944.0.4k.h264                   base:discard=1.00  base:write=0.89  base:mixed=0.77  g:discard=0.94  g:write=0.87  g:mixed=0.72  r:discard=1.04  r:write=0.89  r:mixed=0.79  gr:discard=0.99  gr:write=0.89  gr:mixed=0.76
+f8d92a911e72.0.4k.h264                   base:discard=1.21  base:write=1.23  base:mixed=1.16  g:discard=1.22  g:write=1.20  g:mixed=1.17  r:discard=1.23  r:write=1.22  r:mixed=1.17  gr:discard=1.22  gr:write=1.21  gr:mixed=1.17
+
+base:discard             n=  8  median 1.258  [1.139, 1.410]
+base:write               n=  8  median 1.209  [0.995, 1.365]
+base:mixed               n=  8  median 1.117  [0.832, 1.272]
+g:discard                n=  8  median 1.241  [1.128, 1.330]
+g:write                  n=  8  median 1.173  [0.942, 1.334]
+g:mixed                  n=  8  median 1.083  [0.824, 1.259]
+r:discard                n=  8  median 1.277  [1.177, 1.362]
+r:write                  n=  8  median 1.217  [1.003, 1.412]
+r:mixed                  n=  8  median 1.124  [0.860, 1.313]
+gr:discard               n=  8  median 1.262  [1.129, 1.351]
+gr:write                 n=  8  median 1.205  [0.984, 1.378]
+gr:mixed                 n=  8  median 1.109  [0.838, 1.261]
+
+wrote /work/out/g.4k.json

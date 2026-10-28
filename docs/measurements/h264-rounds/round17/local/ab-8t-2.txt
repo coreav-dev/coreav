@@ -1,0 +1,36 @@
+# As ab-8t-1.txt, a second run with three builds (ab8.py 5 8 all r18-base r18-band r18-band2); r18-band2 is the branch's form
+# (the whole reference's Planes borrowed). Information only.
+175433794e02.0.1080p 0.980  r18-band 0.9751  r18-band2 0.9754
+1d4b1775d78a.0.720p. 0.202  r18-band 0.9274  r18-band2 0.9045
+278dbf5a63bb.0.720p. 0.220  r18-band 0.9925  r18-band2 0.9617
+36501d448eaa.0.720p. 0.488  r18-band 0.9451  r18-band2 1.0015
+3b1b441e23ae.0.4k.h2 0.203  r18-band 1.0254  r18-band2 0.9079
+3c593b8f0809.0.720p. 0.260  r18-band 1.0294  r18-band2 1.0248
+41e324ebb708.0.sd.h2 0.266  r18-band 0.8674  r18-band2 0.9160
+4b54de28c2b3.0.4k.h2 0.180  r18-band 0.9461  r18-band2 1.0178
+5185721dda11.0.sd.h2 0.163  r18-band 0.9894  r18-band2 1.0082
+65ec61f95a00.0.720p. 0.719  r18-band 0.8790  r18-band2 0.9042
+6b18d9f0f88d.0.720p. 0.254  r18-band 0.9183  r18-band2 0.9252
+6da34958296c.0.1080p 0.386  r18-band 0.9739  r18-band2 0.9143
+6e90422a670a.0.1080p 0.816  r18-band 0.9650  r18-band2 0.9715
+6f7799768413.0.sd.h2 0.469  r18-band 0.9081  r18-band2 0.9268
+7650ae466748.0.sd.h2 0.176  r18-band 0.8499  r18-band2 0.8552
+76e0b1692494.0.720p. 0.223  r18-band 0.9840  r18-band2 0.9638
+81ed4778ece2.0.4k.h2 0.098  r18-band 0.8870  r18-band2 0.9077
+8ae90cadb5bc.0.sd.h2 0.431  r18-band 0.9884  r18-band2 1.0595
+9db41aa16b5a.0.720p. 0.214  r18-band 0.9948  r18-band2 1.0051
+a6af290d9053.0.1080p 1.288  r18-band 1.0082  r18-band2 0.9920
+a81de82106be.0.1080p 0.228  r18-band 1.0215  r18-band2 0.9744
+ae16bb7c7192.0.4k.h2 0.055  r18-band 0.9436  r18-band2 0.9545
+af38b0cfd840.0.4k.h2 0.134  r18-band 1.0063  r18-band2 0.9625
+b41f70a7fa60.0.1080p 0.537  r18-band 0.9994  r18-band2 1.0203
+b71b6b31e54f.0.1080p 0.251  r18-band 0.9084  r18-band2 0.9496
+c7ecda16e4a7.0.1080p 0.785  r18-band 0.9640  r18-band2 0.9361
+dcb262cf0138.0.sd.h2 0.110  r18-band 0.9966  r18-band2 1.0408
+e624cbe0d2be.0.4k.h2 0.289  r18-band 0.9753  r18-band2 0.9999
+ec473c99c538.0.sd.h2 0.076  r18-band 0.9088  r18-band2 0.9216
+ed75c044e944.0.4k.h2 0.100  r18-band 0.9887  r18-band2 0.9818
+f8d92a911e72.0.4k.h2 1.813  r18-band 0.9614  r18-band2 0.9373
+f9e973f44570.0.sd.h2 0.104  r18-band 0.9371  r18-band2 0.9294
+median r18-band all 0.9695  sd 0.9229  720p 0.9646  1080p 0.9745  4k 0.9684
+median r18-band2 all 0.9621  sd 0.9281  720p 0.9627  1080p 0.9729  4k 0.9585

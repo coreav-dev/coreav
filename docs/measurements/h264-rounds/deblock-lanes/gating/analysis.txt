@@ -1,0 +1,64 @@
+1 thread failed []
+  k/base discard overall  n=32 median 0.9954 [0.9923,0.9985] faster 23/32
+  k/base discard sd       n= 8 median 0.9918 [0.9881,0.9966] faster 8/8
+  k/base discard 720p     n= 8 median 0.9934 [0.9852,1.0002] faster 6/8
+  k/base discard 1080p    n= 8 median 0.9954 [0.9848,1.0031] faster 6/8
+  k/base discard 4k       n= 8 median 1.0023 [0.9963,1.0096] faster 3/8
+  k/base write   overall  n=32 median 0.9960 [0.9919,0.9987] faster 22/32
+  k/base write   sd       n= 8 median 0.9948 [0.9891,0.9978] faster 8/8
+  k/base write   720p     n= 8 median 0.9940 [0.9885,1.0064] faster 5/8
+  k/base write   1080p    n= 8 median 0.9947 [0.9901,1.0035] faster 6/8
+  k/base write   4k       n= 8 median 1.0018 [0.9903,1.0080] faster 3/8
+  base vs FFmpeg discard overall 1.136 (7/32 faster) sd 1.056 (3/8 faster) 720p 1.171 (1/8 faster) 1080p 1.177 (0/8 faster) 4k 1.042 (3/8 faster)
+  base vs FFmpeg write   overall 1.088 (10/32 faster) sd 1.026 (3/8 faster) 720p 1.133 (1/8 faster) 1080p 1.129 (1/8 faster) 4k 0.955 (5/8 faster)
+  k    vs FFmpeg discard overall 1.136 (8/32 faster) sd 1.046 (3/8 faster) 720p 1.163 (1/8 faster) 1080p 1.172 (1/8 faster) 4k 1.045 (3/8 faster)
+  k    vs FFmpeg write   overall 1.083 (10/32 faster) sd 1.022 (3/8 faster) 720p 1.141 (1/8 faster) 1080p 1.122 (1/8 faster) 4k 0.957 (5/8 faster)
+8 threads failed []
+  k/base discard overall  n=32 median 0.9986 [0.9763,1.0095] faster 17/32
+  k/base discard sd       n= 8 median 1.0007 [0.9645,1.0364] faster 3/8
+  k/base discard 720p     n= 8 median 0.9770 [0.9594,0.9974] faster 7/8
+  k/base discard 1080p    n= 8 median 1.0104 [0.9997,1.0554] faster 2/8
+  k/base discard 4k       n= 8 median 0.9750 [0.9696,1.0509] faster 5/8
+  k/base write   overall  n=32 median 0.9903 [0.9786,1.0053] faster 21/32
+  k/base write   sd       n= 8 median 0.9879 [0.9698,1.0400] faster 5/8
+  k/base write   720p     n= 8 median 0.9781 [0.9665,1.0436] faster 6/8
+  k/base write   1080p    n= 8 median 1.0004 [0.9772,1.0616] faster 4/8
+  k/base write   4k       n= 8 median 0.9975 [0.9731,1.0248] faster 6/8
+  base vs FFmpeg discard overall 1.060 (14/32 faster) sd 1.030 (4/8 faster) 720p 1.170 (0/8 faster) 1080p 1.071 (2/8 faster) 4k 0.848 (8/8 faster)
+  base vs FFmpeg write   overall 1.029 (15/32 faster) sd 1.026 (4/8 faster) 720p 1.083 (1/8 faster) 1080p 1.062 (2/8 faster) 4k 0.838 (8/8 faster)
+  k    vs FFmpeg discard overall 1.049 (13/32 faster) sd 1.058 (3/8 faster) 720p 1.112 (0/8 faster) 1080p 1.078 (2/8 faster) 4k 0.812 (8/8 faster)
+  k    vs FFmpeg write   overall 1.030 (12/32 faster) sd 1.049 (3/8 faster) 720p 1.054 (0/8 faster) 1080p 1.076 (1/8 faster) 4k 0.830 (8/8 faster)
+bars (k over base; TL-5 is read from identity.txt and the conformance report): TL-1 pass, TL-2 pass, TL-3 pass, TL-4 pass
+per stream, k over base (1 thread discard, write; 8 threads discard, write):
+  41e324ebb708.0.sd.h264 sd    0.9881 0.9978 0.9383 1.0053
+  5185721dda11.0.sd.h264 sd    0.9923 0.9936 1.0311 1.0400
+  6f7799768413.0.sd.h264 sd    0.9934 0.9891 1.0000 0.9966
+  7650ae466748.0.sd.h264 sd    0.9808 0.9868 1.0387 0.9786
+  8ae90cadb5bc.0.sd.h264 sd    0.9995 0.9984 1.0013 0.9698
+  dcb262cf0138.0.sd.h264 sd    0.9912 0.9959 0.9925 0.9791
+  ec473c99c538.0.sd.h264 sd    0.9966 0.9975 0.9645 0.9683
+  f9e973f44570.0.sd.h264 sd    0.9884 0.9919 1.0715 1.0541
+  1d4b1775d78a.0.720p.h264 720p  0.9852 1.0053 0.9650 1.0436
+  278dbf5a63bb.0.720p.h264 720p  0.9808 0.9875 0.9591 0.9573
+  36501d448eaa.0.720p.h264 720p  0.9942 0.9914 0.9426 0.9900
+  3c593b8f0809.0.720p.h264 720p  0.9968 0.9887 0.9974 0.9821
+  65ec61f95a00.0.720p.h264 720p  1.0039 1.0064 1.0095 0.9730
+  6b18d9f0f88d.0.720p.h264 720p  0.9926 0.9966 0.9818 0.9665
+  76e0b1692494.0.720p.h264 720p  1.0002 1.0087 0.9763 1.0519
+  9db41aa16b5a.0.720p.h264 720p  0.9892 0.9885 0.9777 0.9741
+  175433794e02.0.1080p.h264 1080p 1.0031 0.9987 0.9997 0.9856
+  6da34958296c.0.1080p.h264 1080p 0.9971 0.9882 1.1417 0.9545
+  6e90422a670a.0.1080p.h264 1080p 0.9795 1.0068 1.0070 0.9772
+  a6af290d9053.0.1080p.h264 1080p 0.9957 0.9881 1.0004 0.9787
+  a81de82106be.0.1080p.h264 1080p 0.9944 0.9933 1.0339 1.1079
+  b41f70a7fa60.0.1080p.h264 1080p 1.0039 0.9962 1.0554 1.0550
+  b71b6b31e54f.0.1080p.h264 1080p 0.9848 1.0035 1.0138 1.0151
+  c7ecda16e4a7.0.1080p.h264 1080p 0.9950 0.9921 0.9693 1.0616
+  3b1b441e23ae.0.4k.h264 4k    1.0098 0.9887 0.9373 1.0695
+  4b54de28c2b3.0.4k.h264 4k    1.0021 1.0051 1.0304 0.9905
+  81ed4778ece2.0.4k.h264 4k    0.9985 0.9864 0.9720 0.9961
+  ae16bb7c7192.0.4k.h264 4k    1.0096 1.0090 1.0509 0.9635
+  af38b0cfd840.0.4k.h264 4k    0.9963 1.0003 0.9708 0.9995
+  e624cbe0d2be.0.4k.h264 4k    0.9897 0.9941 0.9781 0.9988
+  ed75c044e944.0.4k.h264 4k    1.0026 1.0080 1.0731 0.9731
+  f8d92a911e72.0.4k.h264 4k    1.0048 1.0033 0.9696 1.0248

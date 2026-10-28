@@ -1,0 +1,177 @@
+{
+ "commit": "dd60869581007af39cd927747c61ba9400761d2b",
+ "files": 301,
+ "measured": 270,
+ "apart": [
+  {
+   "sha256": "00de70872ff1a518d24171f3c783a14bc95aeb90ae2c90290ceaf30b118a2af9",
+   "why": "refused by coreav sanitize"
+  },
+  {
+   "sha256": "08cd47bdffda141d6d6a9954a5f96847afba8858a8475c37ec8d5ffbd2e3b220",
+   "why": "refused by coreav sanitize"
+  },
+  {
+   "sha256": "1a5fb95f5146fee8fb5226b9f47bd8f975b99926b54da3fffd4cbb796b92b949",
+   "why": "refused by coreav sanitize"
+  },
+  {
+   "sha256": "1df1e32ed6a5a8cefe52d15442b3465934bdfcf41356f7874184e2cd939cf7b2",
+   "why": "refused by coreav sanitize"
+  },
+  {
+   "sha256": "249f6da48e0ba5641fc27c0033f87e87b0236d97f81ba1cc78656ca55536bf70",
+   "why": "refused by coreav sanitize"
+  },
+  {
+   "sha256": "2b42d40aa3287b9a8f0cf3d1ee62cbb22d142ef49022ed0afdb1a15b4369b805",
+   "why": "refused by coreav sanitize"
+  },
+  {
+   "sha256": "2c415ac3f7213db6b07bf75cf172faf5dbab4d058553fbd589ecb681371f972d",
+   "why": "refused by coreav sanitize"
+  },
+  {
+   "sha256": "2c8794188a185a2ea2d5bd50deffc40f7b25c632150ea3f8a8a23d612a807edb",
+   "why": "refused by coreav sanitize"
+  },
+  {
+   "sha256": "3898250f26b891f1233bee86910ae2f98394981ebbe20abedd4e5455e075a5d4",
+   "why": "refused by coreav sanitize"
+  },
+  {
+   "sha256": "4d2737af6fbc9a5b934f994e84d24f2d5c40568daff26a1d69f784f1167e3e1b",
+   "why": "refused by coreav sanitize"
+  },
+  {
+   "sha256": "50b9f3ee51cfb5803a824bb003bd59fd57d39fe2231d822135ad84d7bab23be0",
+   "why": "refused by coreav sanitize"
+  },
+  {
+   "sha256": "568ca4f52c3a15804be8f627131b4d192f56bfc7a45741ce82049556134ddd39",
+   "why": "refused by coreav sanitize"
+  },
+  {
+   "sha256": "574bc4ad81dedb9a42ca8145460d3d3cdca38fd1b8133cc6bf72d59236d9ce57",
+   "why": "refused by coreav sanitize"
+  },
+  {
+   "sha256": "5b0e46cf0785b7754f31aa0d222a59e35913a6b3f877295dc89040653dcb0f6f",
+   "why": "refused by coreav sanitize"
+  },
+  {
+   "sha256": "5b40cd3eb4ce85293df4f6ce66e9f975995a487ae71ad7f1a4550d4c28816556",
+   "why": "refused by coreav sanitize"
+  },
+  {
+   "sha256": "665dddf09f221cc63cedf9987281c81a226a8eb24bf1231cd32ed337de3686db",
+   "why": "refused by coreav sanitize"
+  },
+  {
+   "sha256": "6dd78289bdbcd7b2b016f48cc4d0f1987120acddaf6b2fb9198f18bd6ffc5447",
+   "why": "refused by coreav sanitize"
+  },
+  {
+   "sha256": "6f408e9a4e30bf6bc04636ba79d5c18642d5bad3b21614b4b1a156c1ec17f304",
+   "why": "refused by coreav sanitize"
+  },
+  {
+   "sha256": "72ae2bbd26be32ef146fd0aeda1455d353ee61ae62e3a0bb90e983d95682c6bd",
+   "why": "refused by coreav sanitize"
+  },
+  {
+   "sha256": "750498df470c358285b95adccbf683f38c8c6be14efd2cc2de219cf7046e23d2",
+   "why": "refused by coreav sanitize"
+  },
+  {
+   "sha256": "895d1f32f29cd537feb3bea9f9d131c18def0bb8846536cb78dae42ef34d9376",
+   "why": "refused by coreav sanitize"
+  },
+  {
+   "sha256": "98506324b6878eb5386964b1c3500dcbae28ac39832790509506f9b362d0c66c",
+   "why": "refused by coreav sanitize"
+  },
+  {
+   "sha256": "b939b2c525e38623dada90b6bf6dbc1c7e2e2088b0ac9e2faef68936af014502",
+   "why": "refused by coreav sanitize"
+  },
+  {
+   "sha256": "baa98b681ddc078bcea9bdfc82631626c32f50f9f62c4b1338e1d7637cc8e26c",
+   "why": "refused by coreav sanitize"
+  },
+  {
+   "sha256": "bdecaa9f9863d8f568b988a3533aae8537b76de5aaafcfeeb47a98522aa387f5",
+   "why": "refused by coreav sanitize"
+  },
+  {
+   "sha256": "c74ef5f510995346493f510dfe43c6da632a5de3f5cb02faf6b957481f9e47cb",
+   "why": "refused by coreav sanitize"
+  },
+  {
+   "sha256": "cc6023189f53a0e3f6ca94ed15f8055fe5fdd173f6d69de03b5aa73a4dcea733",
+   "why": "refused by coreav sanitize"
+  },
+  {
+   "sha256": "eb07c4ba1d8a1d0b669ae2b497fae4a6ea5fb364f03ee2f3599e8baf306db603",
+   "why": "refused by coreav sanitize"
+  },
+  {
+   "sha256": "ede6abdefba66772630f352999d715f60c17f65bfa3254fe553f15094e992ed2",
+   "why": "refused by coreav sanitize"
+  },
+  {
+   "sha256": "f462b8420aa9ae57892312e6767d3ff28ddeb3f4c0621d0dd9711243e3f78d26",
+   "why": "refused by coreav sanitize"
+  },
+  {
+   "sha256": "f7d552f63061a429667314937f6c285feec39cc66f37f4c24bc2c0615bb455a3",
+   "why": "refused by coreav sanitize"
+  }
+ ],
+ "all": {
+  "n": 270,
+  "median": 0.18137708963732962,
+  "max": 0.6839782128555728,
+  "ci95": [
+   0.16857980261711997,
+   0.1941781156380494
+  ]
+ },
+ "classes": {
+  "unfragmented": {
+   "n": 259,
+   "median": 0.18104226901727527,
+   "max": 0.6839782128555728,
+   "ci95": [
+    0.16810179603364406,
+    0.1925879911464335
+   ]
+  },
+  "fragmented": {
+   "n": 11,
+   "median": 0.20219371879414452,
+   "max": 0.5265631907470866,
+   "ci95": [
+    0.09938131548462659,
+    0.3490350166447875
+   ]
+  },
+  "longer than one hour": {
+   "n": 8,
+   "median": 0.1664019139960946,
+   "max": 0.3436965097371386,
+   "ci95": [
+    0.13132942443894305,
+    0.2306632444610912
+   ]
+  }
+ },
+ "bar_median_at_most_1.00": true,
+ "faster_upper_bound_below_1.00": {
+  "all": true,
+  "unfragmented": true,
+  "fragmented": true,
+  "longer than one hour": true
+ },
+ "slower_than_ffmpeg": []
+}

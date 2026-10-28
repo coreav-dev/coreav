@@ -1,0 +1,23 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2900.0 MHz, 8 logical CPUs
+gate baseline: 0.406 s (samples 0.406, 0.406, 0.406)
+41e324ebb708.0.sd.h264                   base:discard=1.00  base:write=0.99  base:mixed=0.93  k:discard=1.00  k:write=0.98  k:mixed=0.92
+5185721dda11.0.sd.h264                   base:discard=1.02  base:write=0.99  base:mixed=0.95  k:discard=1.01  k:write=0.99  k:mixed=0.95
+6f7799768413.0.sd.h264                   base:discard=1.24  base:write=1.19  base:mixed=1.15  k:discard=1.24  k:write=1.20  k:mixed=1.15
+7650ae466748.0.sd.h264                   base:discard=1.02  base:write=1.02  base:mixed=0.97  k:discard=1.02  k:write=1.01  k:mixed=0.97
+gate after 4 streams (check): 0.404 s (-0.4%)
+8ae90cadb5bc.0.sd.h264                   base:discard=1.07  base:write=1.06  base:mixed=1.01  k:discard=1.07  k:write=1.04  k:mixed=1.01
+dcb262cf0138.0.sd.h264                   base:discard=0.88  base:write=0.89  base:mixed=0.85  k:discard=0.88  k:write=0.88  k:mixed=0.85
+ec473c99c538.0.sd.h264                   host fault (attempt 1): null {'base_discard': -0.001618236326716871, 'base_write': 0.003538616551999718}, max spread 1.618
+ec473c99c538.0.sd.h264                   base:discard=0.59  base:write=0.60  base:mixed=0.55  k:discard=0.58  k:write=0.61  k:mixed=0.55
+f9e973f44570.0.sd.h264                   host fault (attempt 1): null {'base_discard': -0.000243096441940982, 'base_write': 0.00017884523849076572}, max spread 1.520
+f9e973f44570.0.sd.h264                   base:discard=0.89  base:write=0.89  base:mixed=0.86  k:discard=0.89  k:write=0.89  k:mixed=0.86
+gate after 8 streams (check): 0.405 s (-0.2%)
+
+base:discard             n=  8  median 1.009  [0.883, 1.066]
+base:write               n=  8  median 0.988  [0.889, 1.055]
+base:mixed               n=  8  median 0.937  [0.852, 1.007]
+k:discard                n=  8  median 1.008  [0.880, 1.066]
+k:write                  n=  8  median 0.987  [0.884, 1.043]
+k:mixed                  n=  8  median 0.936  [0.848, 1.008]
+
+wrote $HOME/ab/first-touch/out/g.sd.json

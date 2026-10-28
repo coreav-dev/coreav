@@ -1,0 +1,26 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2899.9 MHz, 8 logical CPUs
+gate after 0 streams: 0.411 s (+0.0%)
+1d4b1775d78a.0.720p.h264                 base:discard=1.12  base:write=1.10  base:mixed=1.04  k:discard=1.11  k:write=1.08  k:mixed=1.03  knofast:discard=1.12  knofast:write=1.11  knofast:mixed=1.04
+278dbf5a63bb.0.720p.h264                 base:discard=1.13  base:write=1.10  base:mixed=1.05  k:discard=1.12  k:write=1.07  k:mixed=1.03  knofast:discard=1.14  knofast:write=1.10  knofast:mixed=1.05
+36501d448eaa.0.720p.h264                 host fault (attempt 1): null {'base_discard': 0.007051005064565574, 'base_write': -0.013047030519131031}, max spread 1.531
+36501d448eaa.0.720p.h264                 base:discard=1.28  base:write=1.23  base:mixed=1.22  k:discard=1.25  k:write=1.21  k:mixed=1.19  knofast:discard=1.28  knofast:write=1.24  knofast:mixed=1.22
+3c593b8f0809.0.720p.h264                 base:discard=1.19  base:write=1.19  base:mixed=1.15  k:discard=1.16  k:write=1.16  k:mixed=1.13  knofast:discard=1.20  knofast:write=1.19  knofast:mixed=1.16
+gate after 4 streams: 0.401 s (-2.3%)
+65ec61f95a00.0.720p.h264                 base:discard=1.17  base:write=1.12  base:mixed=1.08  k:discard=1.15  k:write=1.10  k:mixed=1.07  knofast:discard=1.18  knofast:write=1.13  knofast:mixed=1.10
+6b18d9f0f88d.0.720p.h264                 base:discard=0.93  base:write=0.88  base:mixed=0.80  k:discard=0.92  k:write=0.87  k:mixed=0.79  knofast:discard=0.95  knofast:write=0.89  knofast:mixed=0.81
+76e0b1692494.0.720p.h264                 base:discard=1.13  base:write=1.11  base:mixed=1.03  k:discard=1.12  k:write=1.09  k:mixed=1.02  knofast:discard=1.15  knofast:write=1.11  knofast:mixed=1.04
+9db41aa16b5a.0.720p.h264                 host fault (attempt 1): null {'base_discard': 0.0013156933304903085, 'base_write': -0.00017009032401271718}, max spread 1.638
+9db41aa16b5a.0.720p.h264                 base:discard=1.09  base:write=1.02  base:mixed=0.96  k:discard=1.08  k:write=1.02  k:mixed=0.96  knofast:discard=1.11  knofast:write=1.04  knofast:mixed=0.98
+gate after 8 streams: 0.410 s (-0.2%)
+
+base:discard             n=  8  median 1.133  [1.085, 1.187]
+base:write               n=  8  median 1.105  [1.025, 1.173]
+base:mixed               n=  8  median 1.047  [0.961, 1.131]
+k:discard                n=  8  median 1.120  [1.083, 1.162]
+k:write                  n=  8  median 1.085  [1.016, 1.150]
+k:mixed                  n=  8  median 1.031  [0.959, 1.110]
+knofast:discard          n=  8  median 1.142  [1.106, 1.195]
+knofast:write            n=  8  median 1.107  [1.039, 1.172]
+knofast:mixed            n=  8  median 1.048  [0.979, 1.133]
+
+wrote $HOME/ab/residual/out/g.720p.json

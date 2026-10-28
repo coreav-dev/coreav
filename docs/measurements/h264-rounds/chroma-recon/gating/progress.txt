@@ -1,0 +1,9 @@
+g.sd done 12:46
+g.720p done 12:57
+g.1080p done 13:22
+g.4k done 13:34
+t8.sd done 13:36
+t8.720p done 13:39
+t8.1080p done 13:45
+t8.4k done 13:49
+ALL

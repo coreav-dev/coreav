@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coreav-dev/coreav/docs/schema/extract-audio-v1.schema.json",
+  "title": "coreav extract-audio summary, schema coreav.extract-audio/1",
+  "description": "The summary coreav extract-audio prints. Keys and meanings: docs/schema/extract-audio-v1.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "output",
+    "stream"
+  ],
+  "properties": {
+    "schema": {
+      "const": "coreav.extract-audio/1"
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bytes"
+      ],
+      "properties": {
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "stream": {
+      "$ref": "#/$defs/stream"
+    }
+  },
+  "$defs": {
+    "rational": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "num",
+        "den"
+      ],
+      "properties": {
+        "num": {
+          "type": "integer"
+        },
+        "den": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "time": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ticks",
+        "timescale",
+        "seconds"
+      ],
+      "properties": {
+        "ticks": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/rational"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timescale": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "seconds": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      }
+    },
+    "stream": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stream_index",
+        "track_id",
+        "codec",
+        "samples",
+        "duration"
+      ],
+      "properties": {
+        "stream_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "track_id": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "codec": {
+          "const": "aac"
+        },
+        "samples": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "duration": {
+          "$ref": "#/$defs/time"
+        }
+      }
+    }
+  }
+}

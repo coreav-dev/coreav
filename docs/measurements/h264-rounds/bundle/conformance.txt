@@ -1,0 +1,5 @@
+# The bundle (9c2d91c0), scripts/h264_conformance.py --extracted (local copy of the suite) --threads 1,2,8: detected and scalar kernels, with and without the feature fast
+{"streams": 97, "passed": 97, "failed": 0, "kernels": "detect", "mode": "fast", "threads": "1,2,8", "seconds": 42.9}
+{"streams": 97, "passed": 97, "failed": 0, "kernels": "scalar", "mode": "fast", "threads": "1,2,8", "seconds": 58.6}
+{"streams": 97, "passed": 97, "failed": 0, "kernels": "detect", "mode": "safe", "threads": "1,2,8", "seconds": 41.7}
+{"streams": 97, "passed": 97, "failed": 0, "kernels": "scalar", "mode": "safe", "threads": "1,2,8", "seconds": 59.3}

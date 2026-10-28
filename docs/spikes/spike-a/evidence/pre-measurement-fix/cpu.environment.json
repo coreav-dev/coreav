@@ -1,0 +1,117 @@
+{
+  "utc": "2026-10-12T16:04:09.192544+00:00",
+  "python": "3.13.5 (main, Jul 22 2025, 01:46:07) [GCC 12.2.0]",
+  "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.36",
+  "cpu_affinity": [
+    0,
+    1
+  ],
+  "frequency_pinned": false,
+  "loadavg": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "meminfo": "MemTotal:        8388608 kB\nMemFree:         7731032 kB\nMemAvailable:    7731032 kB\nBuffers:               0 kB\nCached:           483540 kB\nSwapCache:             0 kB\nActive:           415792 kB\nInactive:         241772 kB\nActive(anon):     174024 kB\nInactive(anon):        0 kB\nActive(file):     241768 kB\nInactive(file):   241772 kB\nUnevictable:           0 kB\nMlocked:               0 kB\nSwapTotal:             0 kB\nSwapFree:              0 kB\nDirty:                 0 kB\nWriteback:             0 kB\nAnonPages:        174024 kB\nMapped:           483540 kB\nShmem:                 0 kB\n",
+  "cpuinfo": "processor\t: 0\nvendor_id\t: AuthenticAMD\ncpu family\t: 25\nmodel\t\t: 1\nmodel name\t: unknown\nstepping\t: unknown\ncpu MHz\t\t: 3066.961\ncache size\t: 8192 KB\nphysical id\t: 0\nsiblings\t: 2\ncore id\t\t: 0\ncpu cores\t: 2\napicid\t\t: 0\ninitial apicid\t: 0\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 13\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm pni pclmulqdq ssse3 fma cx16 pcid sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand hypervisor lahf_lm cmp_legacy cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw topoext perfctr_core fsgsbase bmi1 avx2 smep bmi2 erms invpcid rdseed adx smap clwb sha_ni xsaveopt xsavec xgetbv1 xsaves umip vaes vpclmulqdq rdpid fsrm\nbogomips\t: 3066.96\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 46 bits physical, 48 bits virtual\npower management:\n\nprocessor\t: 1\nvendor_id\t: AuthenticAMD\ncpu family\t: 25\nmodel\t\t: 1\nmodel name\t: unknown\nstepping\t: unknown\ncpu MHz\t\t: 3066.961\ncache size\t: 8192 KB\nphysical id\t: 0\nsiblings\t: 2\ncore id\t\t: 1\ncpu cores\t: 2\napicid\t\t: 1\ninitial apicid\t: 1\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 13\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm pni pclmulqdq ssse3 fma cx16 pcid sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand hypervisor lahf_lm cmp_legacy cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw topoext perfctr_core fsgsbase bmi1 avx2 smep bmi2 erms invpcid rdseed adx smap clwb sha_ni xsaveopt xsavec xgetbv1 xsaves umip vaes vpclmulqdq rdpid fsrm\nbogomips\t: 3066.96\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 46 bits physical, 48 bits virtual\npower management:\n\n",
+  "cpu_max": null,
+  "ffmpeg": "ffmpeg version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2000-2024 the FFmpeg developers\nbuilt with gcc 8 (Debian 8.3.0-6)\nconfiguration: --enable-gpl --enable-version3 --enable-static --disable-debug --disable-ffplay --disable-indev=sndio --disable-outdev=sndio --cc=gcc --enable-fontconfig --enable-frei0r --enable-gnutls --enable-gmp --enable-libgme --enable-gray --enable-libaom --enable-libfribidi --enable-libass --enable-libvmaf --enable-libfreetype --enable-libmp3lame --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopenjpeg --enable-librubberband --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libvorbis --enable-libopus --enable-libtheora --enable-libvidstab --enable-libvo-amrwbenc --enable-libvpx --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxml2 --enable-libdav1d --enable-libxvid --enable-libzvbi --enable-libzimg\nlibavutil      59.  8.100 / 59.  8.100\nlibavcodec     61.  3.100 / 61.  3.100\nlibavformat    61.  1.100 / 61.  1.100\nlibavdevice    61.  1.100 / 61.  1.100\nlibavfilter    10.  1.100 / 10.  1.100\nlibswscale      8.  1.100 /  8.  1.100\nlibswresample   5.  1.100 /  5.  1.100\nlibpostproc    58.  1.100 / 58.  1.100\n",
+  "ffprobe": "ffprobe version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2007-2024 the FFmpeg developers\nbuilt with gcc 8 (Debian 8.3.0-6)\nconfiguration: --enable-gpl --enable-version3 --enable-static --disable-debug --disable-ffplay --disable-indev=sndio --disable-outdev=sndio --cc=gcc --enable-fontconfig --enable-frei0r --enable-gnutls --enable-gmp --enable-libgme --enable-gray --enable-libaom --enable-libfribidi --enable-libass --enable-libvmaf --enable-libfreetype --enable-libmp3lame --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopenjpeg --enable-librubberband --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libvorbis --enable-libopus --enable-libtheora --enable-libvidstab --enable-libvo-amrwbenc --enable-libvpx --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxml2 --enable-libdav1d --enable-libxvid --enable-libzvbi --enable-libzimg\nlibavutil      59.  8.100 / 59.  8.100\nlibavcodec     61.  3.100 / 61.  3.100\nlibavformat    61.  1.100 / 61.  1.100\nlibavdevice    61.  1.100 / 61.  1.100\nlibavfilter    10.  1.100 / 10.  1.100\nlibswscale      8.  1.100 /  8.  1.100\nlibswresample   5.  1.100 /  5.  1.100\nlibpostproc    58.  1.100 / 58.  1.100\n",
+  "lscpu": "Architecture:        x86_64\nCPU op-mode(s):      32-bit, 64-bit\nAddress sizes:       46 bits physical, 48 bits virtual\nByte Order:          Little Endian\nCPU(s):              2\nOn-line CPU(s) list: 0,1\nVendor ID:           AuthenticAMD\nModel name:          unknown\nCPU family:          25\nModel:               1\nThread(s) per core:  1\nCore(s) per socket:  2\nSocket(s):           1\nStepping:            unknown\nBogoMIPS:            3066.96\nFlags:               fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm pni pclmulqdq ssse3 fma cx16 pcid sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand hypervisor lahf_lm cmp_legacy cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw topoext perfctr_core fsgsbase bmi1 avx2 smep bmi2 erms invpcid rdseed adx smap clwb sha_ni xsaveopt xsavec xgetbv1 xsaves umip vaes vpclmulqdq rdpid fsrm\nHypervisor vendor:   Microsoft\nVirtualization type: full\n",
+  "pip_freeze": "aiohappyeyeballs==2.6.1\naiohttp==3.12.7\naiosignal==1.3.2\nattrs==25.3.0\nav==19.0.1\ncbor2==5.7.0\ncertifi==2025.4.26\ncoreav-spike-a @ file:///tmp/coreav_spike_a-0.0.1-cp313-abi3-manylinux_2_34_x86_64.whl#sha256=bbe7a8942cd9811e3150917463d9a8627b333a72f646ff2e64ad561390869fa6\nfilelock==3.32.3\nfrozenlist==1.6.0\nfsspec==2026.7.0\ngrpclib==0.4.8\nh2==4.2.0\nhpack==4.1.0\nhyperframe==6.1.0\nidna==3.10\nJinja2==3.1.6\nMarkupSafe==3.0.3\nmpmath==1.3.0\nmultidict==6.4.4\nnetworkx==3.6.1\nnumpy==2.5.4\npropcache==0.3.1\nprotobuf==6.31.1\nsetuptools==78.1.0\nsympy==1.14.0\ntorch==2.14.1+cpu\ntorchcodec==0.17.0+cpu\ntyping_extensions==4.16.0\nyarl==1.20.0\n",
+  "nproc": "2\n",
+  "base_image": "python:3.13.5-slim-bookworm@sha256:a7cb177dc60dfa77b223192cd0d9e6ce1aac7cf9a569023d68e7c91b6371a718",
+  "oracle_url": "https://johnvansickle.com/ffmpeg/releases/ffmpeg-7.0.2-amd64-static.tar.xz",
+  "oracle_archive_sha256": "abda8d77ce8309141f83ab8edf0596834087c52467f6badf376a6a2a4c87cf67",
+  "remote_spec": {
+    "cpu": [
+      2.0,
+      2.0
+    ],
+    "memory_mib": [
+      8192,
+      8192
+    ],
+    "gpu": null
+  },
+  "cuda_runtime": null,
+  "av_libraries": {
+    "libavutil": [
+      61,
+      1,
+      102
+    ],
+    "libavcodec": [
+      63,
+      1,
+      102
+    ],
+    "libavformat": [
+      63,
+      1,
+      102
+    ],
+    "libavdevice": [
+      63,
+      1,
+      102
+    ],
+    "libavfilter": [
+      12,
+      1,
+      102
+    ],
+    "libswscale": [
+      10,
+      1,
+      102
+    ],
+    "libswresample": [
+      7,
+      1,
+      102
+    ]
+  },
+  "benchmark_sources_sha256": {
+    "test_bench.py": "758468378d6c072c72afc0d02559e2403f988002a11a6543a3404f87d7455354",
+    "worker.py": "2e60bd7d686aa358e0b94d6adbc87025c0d305bcc24a1c6d42943caeb3008126",
+    "ratios.py": "bc370150697fe7e9936dc2f5f7833ed9844c49ac7ce3b1dd04db2ddbfbdcb24d",
+    "test_publish.py": "932e38406036cf8722317e6049ed002133cbfe16cd4dfd81bb2b84d2ceea2dbd",
+    "report.py": "6f03eb5dc1ad4ad067450bf5f0bff4e4b138517ecb9e0f593fedb2a6978a9d97",
+    "remote_app.py": "a6f75930cc82c591dc755cfecc16de8668589fad430eff8ea4632b34adc8f9ba",
+    "summarize.py": "0daa03b37cbe99d43a0356f4bda299819433d2b23bab8b5f5e788dcc8f8e486b",
+    "download.py": "96b14e881537cdacb0b982e22dbda09501e1879fb448163789d0090fc67e751a",
+    "run.py": "488d7a56ce38c3c2af8556655c1acb1c8c05b2ae260fcbbca65d7cf0f4f13d8a",
+    "publish.py": "f7f0104ce3edf051850986b21830b0d113a52cc6c4d2cdda19836a54883598df",
+    "verify.py": "e1b1e410ba6f51684c81c3c5dff37563ab812590835bcc40fa97e724290b4542",
+    "remote_setup.py": "597f0bd27bc3e1074bf961875cbf93e01a90dc480f82f2b7ca2338b235732967"
+  },
+  "pip_check": "No broken requirements found.\n",
+  "torchcodec_shared_linkage": {
+    "libtorchcodec_core8.so": "\tlinux-vdso.so.1 (0x00002a7bf8b1c000)\n\tlibtorch.so => not found\n\tlibc10.so => not found\n\tlibavutil.so.60 => not found\n\tlibavcodec.so.62 => not found\n\tlibavformat.so.62 => not found\n\tlibavdevice.so.62 => not found\n\tlibavfilter.so.11 => not found\n\tlibswscale.so.9 => not found\n\tlibswresample.so.6 => not found\n\tlibtorch_cpu.so => not found\n\tlibstdc++.so.6 => /lib/x86_64-linux-gnu/libstdc++.so.6 (0x00002a7bf8ba6000)\n\tlibm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00002a7bf8dc0000)\n\tlibgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1 (0x00002a7bf8ea0000)\n\tlibc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00002a7bf8ec0000)\n\t/lib64/ld-linux-x86-64.so.2 (0x00005622d0d60000)\n",
+    "libtorchcodec_core4.so": "\tlinux-vdso.so.1 (0x00002a6e9d0af000)\n\tlibtorch.so => not found\n\tlibc10.so => not found\n\tlibavutil.so.56 => not found\n\tlibavcodec.so.58 => not found\n\tlibavformat.so.58 => not found\n\tlibavdevice.so.58 => not found\n\tlibavfilter.so.7 => not found\n\tlibswscale.so.5 => not found\n\tlibswresample.so.3 => not found\n\tlibtorch_cpu.so => not found\n\tlibstdc++.so.6 => /lib/x86_64-linux-gnu/libstdc++.so.6 (0x00002a6e9d139000)\n\tlibm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00002a6e9d353000)\n\tlibgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1 (0x00002a6e9d433000)\n\tlibc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00002a6e9d453000)\n\t/lib64/ld-linux-x86-64.so.2 (0x00005596a9afd000)\n",
+    "libtorchcodec_core5.so": "\tlinux-vdso.so.1 (0x00002ac423304000)\n\tlibtorch.so => not found\n\tlibc10.so => not found\n\tlibavutil.so.57 => not found\n\tlibavcodec.so.59 => not found\n\tlibavformat.so.59 => not found\n\tlibavdevice.so.59 => not found\n\tlibavfilter.so.8 => not found\n\tlibswscale.so.6 => not found\n\tlibswresample.so.4 => not found\n\tlibtorch_cpu.so => not found\n\tlibstdc++.so.6 => /lib/x86_64-linux-gnu/libstdc++.so.6 (0x00002ac42338e000)\n\tlibm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00002ac4235a8000)\n\tlibgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1 (0x00002ac423688000)\n\tlibc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00002ac4236a8000)\n\t/lib64/ld-linux-x86-64.so.2 (0x000055cd538d6000)\n",
+    "libtorchcodec_core7.so": "\tlinux-vdso.so.1 (0x00002a5f2f02b000)\n\tlibtorch.so => not found\n\tlibc10.so => not found\n\tlibavutil.so.59 => not found\n\tlibavcodec.so.61 => not found\n\tlibavformat.so.61 => not found\n\tlibavdevice.so.61 => not found\n\tlibavfilter.so.10 => not found\n\tlibswscale.so.8 => not found\n\tlibswresample.so.5 => not found\n\tlibtorch_cpu.so => not found\n\tlibstdc++.so.6 => /lib/x86_64-linux-gnu/libstdc++.so.6 (0x00002a5f2f0b5000)\n\tlibm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00002a5f2f2cf000)\n\tlibgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1 (0x00002a5f2f3af000)\n\tlibc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00002a5f2f3cf000)\n\t/lib64/ld-linux-x86-64.so.2 (0x000056141b0aa000)\n",
+    "libtorchcodec_core6.so": "\tlinux-vdso.so.1 (0x00002adfaad39000)\n\tlibtorch.so => not found\n\tlibc10.so => not found\n\tlibavutil.so.58 => not found\n\tlibavcodec.so.60 => not found\n\tlibavformat.so.60 => not found\n\tlibavdevice.so.60 => not found\n\tlibavfilter.so.9 => not found\n\tlibswscale.so.7 => not found\n\tlibswresample.so.4 => not found\n\tlibtorch_cpu.so => not found\n\tlibstdc++.so.6 => /lib/x86_64-linux-gnu/libstdc++.so.6 (0x00002adfaadc3000)\n\tlibm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00002adfaafdd000)\n\tlibgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1 (0x00002adfab0bd000)\n\tlibc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00002adfab0dd000)\n\t/lib64/ld-linux-x86-64.so.2 (0x000055b42cc3a000)\n",
+    "libtorchcodec_core9.so": "\tlinux-vdso.so.1 (0x00002b3542e30000)\n\tlibtorch.so => not found\n\tlibc10.so => not found\n\tlibavutil.so.61 => /opt/shared/libavutil.so.61 (0x00002b3542eb6000)\n\tlibavcodec.so.63 => /opt/shared/libavcodec.so.63 (0x00002b35430d9000)\n\tlibavformat.so.63 => /opt/shared/libavformat.so.63 (0x00002b35449bc000)\n\tlibavdevice.so.63 => /opt/shared/libavdevice.so.63 (0x00002b3544ca6000)\n\tlibavfilter.so.12 => /opt/shared/libavfilter.so.12 (0x00002b3544cc7000)\n\tlibswscale.so.10 => /opt/shared/libswscale.so.10 (0x00002b3545206000)\n\tlibswresample.so.7 => /opt/shared/libswresample.so.7 (0x00002b354545d000)\n\tlibtorch_cpu.so => not found\n\tlibstdc++.so.6 => /lib/x86_64-linux-gnu/libstdc++.so.6 (0x00002b3545483000)\n\tlibm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00002b354569f000)\n\tlibgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1 (0x00002b354577f000)\n\tlibc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00002b354579f000)\n\tlibdrm-b0291a67.so.2.4.0 => /opt/shared/libdrm-b0291a67.so.2.4.0 (0x00002b3545a00000)\n\tlibvpl-e4e9cae8.so.2.16 => /opt/shared/libvpl-e4e9cae8.so.2.16 (0x00002b3545980000)\n\tlibdl.so.2 => /lib/x86_64-linux-gnu/libdl.so.2 (0x00002b35459ec000)\n\tlibpthread.so.0 => /lib/x86_64-linux-gnu/libpthread.so.0 (0x00002b35459f3000)\n\tlibvpx-e67815b1.so.12.1.0 => /opt/shared/libvpx-e67815b1.so.12.1.0 (0x00002b3545e02000)\n\tlibwebpmux-e1880640.so.3.1.2 => /opt/shared/libwebpmux-e1880640.so.3.1.2 (0x00002b3546043000)\n\tlibdav1d-0fe430b9.so.7.0.0 => /opt/shared/libdav1d-0fe430b9.so.7.0.0 (0x00002b3546053000)\n\tlibopus-114e2b1a.so.0.11.1 => /opt/shared/libopus-114e2b1a.so.0.11.1 (0x00002b3546274000)\n\tlibSvtAv1Enc-cc8e453e.so.4.2.0 => /opt/shared/libSvtAv1Enc-cc8e453e.so.4.2.0 (0x00002b35462e0000)\n\tlibwebp-0c5118d0.so.7.2.0 => /opt/shared/libwebp-0c5118d0.so.7.2.0 (0x00002b35469ef000)\n\tlibx264-d6533a8d.so.165 => /opt/shared/libx264-d6533a8d.so.165 (0x00002b3546aa7000)\n\tlibx265-eebb7db1.so.217 => /opt/shared/libx265-eebb7db1.so.217 (0x00002b3546db5000)\n\tlibz.so.1 => /lib/x86_64-linux-gnu/libz.so.1 (0x00002b3548181000)\n\tlibgnutls-e2125fb5.so.30.42.0 => /opt/shared/libgnutls-e2125fb5.so.30.42.0 (0x00002b35481a0000)\n\tlibxcb-5ddf6756.so.1.1.0 => /opt/shared/libxcb-5ddf6756.so.1.1.0 (0x00002b3548400000)\n\tlibxcb-shm-0be6dfbf.so.0.0.0 => /opt/shared/libxcb-shm-0be6dfbf.so.0.0.0 (0x00002b3548e00000)\n\tlibxcb-shape-7716c890.so.0.0.0 => /opt/shared/libxcb-shape-7716c890.so.0.0.0 (0x00002b3549800000)\n\tlibxcb-xfixes-6de855b8.so.0.0.0 => /opt/shared/libxcb-xfixes-6de855b8.so.0.0.0 (0x00002b354a200000)\n\tlibasound-c7818c60.so.2.0.0 => /opt/shared/libasound-c7818c60.so.2.0.0 (0x00002b3548c05000)\n\tlibvmaf-258f7447.so.3.2.0 => /opt/shared/libvmaf-258f7447.so.3.2.0 (0x00002b3549601000)\n\t/lib64/ld-linux-x86-64.so.2 (0x000055ea98d91000)\n\tlibsharpyuv-48a062bd.so.0.1.2 => /opt/shared/libsharpyuv-48a062bd.so.0.1.2 (0x00002b35483e2000)\n\tlibrt.so.1 => /lib/x86_64-linux-gnu/librt.so.1 (0x00002b35483f0000)\n\tlibmvec.so.1 => /lib/x86_64-linux-gnu/libmvec.so.1 (0x00002b354a001000)\n\tlibunistring-09f6121d.so.5.2.1 => /opt/shared/libunistring-09f6121d.so.5.2.1 (0x00002b354aa02000)\n\tlibhogweed-e2118ea2.so.7.0 => /opt/shared/libhogweed-e2118ea2.so.7.0 (0x00002b3548d22000)\n\tlibnettle-6eb03162.so.9.0 => /opt/shared/libnettle-6eb03162.so.9.0 (0x00002b3548d73000)\n\tlibgmp-8c6c054f.so.10.5.0 => /opt/shared/libgmp-8c6c054f.so.10.5.0 (0x00002b354a0fa000)\n\tlibXau-154567c4.so.6.0.0 => /opt/shared/libXau-154567c4.so.6.0.0 (0x00002b354ac00000)\n"
+  },
+  "evidence_volume_run": "/evidence/cpu/run-03",
+  "pyo3_version": "0.29.3",
+  "spike_sources_sha256": {
+    "check_index.py": "15c6fa6464cd89465e5ba7ea8f90461f048b67cbba5fdb33482793549a7d7945",
+    "remote_spike.py": "ec7227e6288427fcfedc1b302050f8f5b5f0c97b7e01e5a02e458cfe63d09557",
+    "run_remote.py": "b1dbd18abcc7f77b0b564d315ee3b0505890234492c0f1e54b2a61245139c2ee",
+    "range_io.py": "ae4a1a95ff3adbf90439d13c022f2118a3dd85b2c985dfd61b74194fc6f20e05",
+    "conformance.py": "900dfca0a915a0324ec174212263107b74d6ea8e38d16156b747970db0affd84",
+    "measure.py": "6d742924bb575a22ac193c37259fdb1ab02cbf3230d253cf3616e8ed88d344cf",
+    "pyproject.toml": "7c7f24330e46d30c05f06f3835dac5bda1e031ae3323609fb7da2f2c40806744",
+    "Cargo.toml": "835a95d2cfe04c1ee4ecbc6018869dc50561068355d0fe2c0770f4eb6074054d",
+    "Cargo.lock": "6e8dd2956300cb08fb6e38f0c211edd1fc588db9ddc7236eb907c21c38d89e2d",
+    "summarize.py": "16ea1782ebc3c0e606a12b2d24c91bf795f016be3ded8d8122f314119bd94be8",
+    "tests/test_spike.py": "3ea4d1b94968eb049cecd944cc41fee7da3cd7a7170f15504976e1d466845d1b",
+    "tests/parser.rs": "9e881ecbe4d2f9f7092e16fead162aef4c919ddfa767395bb5050d98c5244c42",
+    "src/mp4.rs": "cef948a4a221f9eb017d153dc00d0c44edaeb99e3e2c1277974cf75a5b4d2090",
+    "src/lib.rs": "601d983fa51eaf8cde5d04cfd2df32982207e1ea8287143b44d1b280ffc45de5"
+  },
+  "installed_extension_sha256": "20d12750ae05952ef3692a2555556dfe9f9666c441851c5bdf3bc79ea8cd5e91"
+}

@@ -1,0 +1,21 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2900.0 MHz, 8 logical CPUs
+gate baseline: 0.420 s (samples 0.412, 0.420, 0.426)
+1d4b1775d78a.0.720p.h264                 base:discard=1.08  base:write=1.02  base:mixed=0.96  k:discard=1.05  k:write=0.98  k:mixed=0.94
+278dbf5a63bb.0.720p.h264                 base:discard=1.06  base:write=1.02  base:mixed=0.98  k:discard=1.04  k:write=1.02  k:mixed=0.96
+36501d448eaa.0.720p.h264                 base:discard=1.21  base:write=1.16  base:mixed=1.15  k:discard=1.19  k:write=1.15  k:mixed=1.14
+3c593b8f0809.0.720p.h264                 base:discard=1.12  base:write=1.13  base:mixed=1.07  k:discard=1.11  k:write=1.12  k:mixed=1.06
+gate after 4 streams (check): 0.407 s (-3.0%)
+65ec61f95a00.0.720p.h264                 base:discard=1.09  base:write=1.07  base:mixed=1.03  k:discard=1.08  k:write=1.05  k:mixed=1.02
+6b18d9f0f88d.0.720p.h264                 base:discard=0.89  base:write=0.83  base:mixed=0.75  k:discard=0.86  k:write=0.82  k:mixed=0.73
+76e0b1692494.0.720p.h264                 base:discard=1.07  base:write=1.05  base:mixed=0.97  k:discard=1.05  k:write=1.04  k:mixed=0.96
+9db41aa16b5a.0.720p.h264                 base:discard=0.99  base:write=0.94  base:mixed=0.89  k:discard=0.96  k:write=0.92  k:mixed=0.86
+gate after 8 streams (check): 0.405 s (-3.5%)
+
+base:discard             n=  8  median 1.071  [0.992, 1.117]
+base:write               n=  8  median 1.039  [0.938, 1.108]
+base:mixed               n=  8  median 0.977  [0.885, 1.063]
+k:discard                n=  8  median 1.052  [0.964, 1.114]
+k:write                  n=  8  median 1.030  [0.920, 1.099]
+k:mixed                  n=  8  median 0.964  [0.860, 1.050]
+
+wrote $HOME/ab/bundle3/out/g.720p.json

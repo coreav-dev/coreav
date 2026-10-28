@@ -1,0 +1,52 @@
+{
+ "bins": [
+  "$HOME/ab/decode-main",
+  "$HOME/ab/decode-tok"
+ ],
+ "summary": {
+  "decode-tok": {
+   "median": 0.9968,
+   "ci": [
+    0.9932,
+    1.0011
+   ],
+   "sd": 0.9967,
+   "720p": 1.0026,
+   "1080p": 0.9932
+  }
+ },
+ "streams": {
+  "6f7799768413.0.sd.h264": {
+   "$HOME/ab/decode-main": 1.7761080960008258,
+   "$HOME/ab/decode-tok": 1.748558633000357
+  },
+  "5185721dda11.0.sd.h264": {
+   "$HOME/ab/decode-main": 0.4293841880025866,
+   "$HOME/ab/decode-tok": 0.42654865300210076
+  },
+  "ec473c99c538.0.sd.h264": {
+   "$HOME/ab/decode-main": 0.11560562899830984,
+   "$HOME/ab/decode-tok": 0.11573817699900246
+  },
+  "f9e973f44570.0.sd.h264": {
+   "$HOME/ab/decode-main": 0.1979679549986031,
+   "$HOME/ab/decode-tok": 0.197314881002967
+  },
+  "9db41aa16b5a.0.720p.h264": {
+   "$HOME/ab/decode-main": 0.9487518370006001,
+   "$HOME/ab/decode-tok": 0.9565765500010457
+  },
+  "b71b6b31e54f.0.1080p.h264": {
+   "$HOME/ab/decode-main": 0.965946835000068,
+   "$HOME/ab/decode-tok": 0.959377613999095
+  },
+  "8ae90cadb5bc.0.sd.h264": {
+   "$HOME/ab/decode-main": 1.3706950810010312,
+   "$HOME/ab/decode-tok": 1.3720104220010398
+  },
+  "36501d448eaa.0.720p.h264": {
+   "$HOME/ab/decode-main": 1.6711991840020346,
+   "$HOME/ab/decode-tok": 1.6659612719995494
+  }
+ }
+}

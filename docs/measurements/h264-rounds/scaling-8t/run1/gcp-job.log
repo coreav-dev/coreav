@@ -1,0 +1,5 @@
+creating coreav-pmu-20261026-194114 (c4-standard-16, us-central1-a, STANDARD, PMU STANDARD, 1 thread(s) a core, max 1.5 h)
+uploading
+running the job
+deleting coreav-pmu-20261026-194114
+{"vm": "coreav-pmu-20261026-194114", "machine": "c4-standard-16", "zone": "us-central1-a", "provisioning": "STANDARD", "threads_per_core": 1, "hours": 0.436, "usd_per_hour_bound": 1.2, "usd_bound": 0.523, "status": "ssh exit 0, job status 0"}

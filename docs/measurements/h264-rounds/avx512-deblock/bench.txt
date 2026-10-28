@@ -1,0 +1,42 @@
+luma_mc 16x16 (0,0)                scalar     65.5 ns   simd     17.9 ns   ratio 0.27
+luma_mc 16x16 (2,0)                scalar    662.7 ns   simd     47.3 ns   ratio 0.07
+luma_mc 16x16 (0,2)                scalar    628.8 ns   simd     35.9 ns   ratio 0.06
+luma_mc 16x16 (2,2)                scalar   1034.4 ns   simd     86.4 ns   ratio 0.08
+luma_mc 16x16 (1,3)                scalar   1161.3 ns   simd     76.5 ns   ratio 0.07
+luma_mc 8x8 (0,0)                  scalar     36.2 ns   simd     15.2 ns   ratio 0.42
+luma_mc 8x8 (2,0)                  scalar    241.5 ns   simd     24.9 ns   ratio 0.10
+luma_mc 8x8 (0,2)                  scalar    251.7 ns   simd     22.4 ns   ratio 0.09
+luma_mc 8x8 (2,2)                  scalar    387.0 ns   simd     47.7 ns   ratio 0.12
+luma_mc 8x8 (1,3)                  scalar    436.8 ns   simd     39.0 ns   ratio 0.09
+luma_mc 4x4 (0,0)                  scalar     23.9 ns   simd     31.4 ns   ratio 1.31
+luma_mc 4x4 (2,0)                  scalar    117.7 ns   simd    119.4 ns   ratio 1.01
+luma_mc 4x4 (0,2)                  scalar    132.3 ns   simd    138.3 ns   ratio 1.05
+luma_mc 4x4 (2,2)                  scalar    184.6 ns   simd    193.5 ns   ratio 1.05
+luma_mc 4x4 (1,3)                  scalar    208.0 ns   simd    210.8 ns   ratio 1.01
+chroma_mc 8x8                      scalar     78.6 ns   simd     32.3 ns   ratio 0.41
+chroma_mc 4x4                      scalar     38.2 ns   simd     22.5 ns   ratio 0.59
+chroma_mc 2x2                      scalar     29.9 ns   simd     14.9 ns   ratio 0.50
+idct4x4_add                        scalar     36.9 ns   simd     27.4 ns   ratio 0.74
+idct4x4_add_quad nz=0xf            scalar    120.2 ns   simd     23.6 ns   ratio 0.20
+idct4x4_add_quad nz=0x5            scalar     72.1 ns   simd     31.9 ns   ratio 0.44
+idct8x8_add                        scalar    110.0 ns   simd     26.6 ns   ratio 0.24
+combine average 16x16              scalar    106.2 ns   simd    105.0 ns   ratio 0.99
+combine weighted 16x16             scalar    238.7 ns   simd    174.5 ns   ratio 0.73
+luma weighted uni 16x16 (2,2)      parts     234.9 ns   fused    137.3 ns   ratio 0.58
+luma weighted uni 16x16 (0,0)      parts     167.5 ns   fused     50.8 ns   ratio 0.30
+luma weighted uni 8x8 (1,3)        parts     108.9 ns   fused     54.8 ns   ratio 0.50
+chroma weighted uni 8x8 (3,5)      parts     104.2 ns   fused     48.2 ns   ratio 0.46
+chroma weighted uni 4x4 (3,5)      parts     112.5 ns   fused     25.5 ns   ratio 0.23
+luma weighted bi 16x16 (2,2)       parts     270.5 ns   fused    136.7 ns   ratio 0.51
+luma weighted bi 16x16 (0,0)       parts     203.5 ns   fused     55.6 ns   ratio 0.27
+luma weighted bi 8x8 (1,3)         parts     118.9 ns   fused     55.2 ns   ratio 0.46
+chroma weighted bi 8x8 (3,5)       parts     113.4 ns   fused     49.0 ns   ratio 0.43
+chroma weighted bi 4x4 (3,5)       parts     148.6 ns   fused     29.0 ns   ratio 0.19
+filter_edge luma vertical          scalar    298.2 ns   simd     46.2 ns   ratio 0.16
+filter_edge luma vertical, tiers   avx2       53.9 ns   avx512     46.2 ns   ratio 0.86
+filter_edge chroma vertical        scalar     86.8 ns   simd     30.4 ns   ratio 0.35
+filter_edge chroma vertical, tiers avx2       30.4 ns   avx512     30.4 ns   ratio 1.00
+filter_edge luma horizontal        scalar    301.3 ns   simd     31.8 ns   ratio 0.11
+filter_edge luma horizontal, tiers avx2       40.1 ns   avx512     31.8 ns   ratio 0.79
+filter_edge chroma horizontal      scalar     92.8 ns   simd     24.0 ns   ratio 0.26
+filter_edge chroma horizontal, tiers avx2       24.0 ns   avx512     24.0 ns   ratio 1.00

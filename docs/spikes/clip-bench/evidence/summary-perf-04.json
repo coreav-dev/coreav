@@ -1,0 +1,700 @@
+{
+ "clips": 763,
+ "files": 238,
+ "median": 0.6445844995012511,
+ "ci95": [
+  0.6049142975081031,
+  0.691761609427231
+ ],
+ "p90": 2.293101872220018,
+ "max": 21.55994693260029,
+ "bar_median_at_most_1_10": true,
+ "classes": {
+  "fragmented": {
+   "clips": 20,
+   "median": 0.5919033610180855,
+   "ci95": [
+    0.45178561389261956,
+    0.8293802449018121
+   ],
+   "p90": 1.5010422600586535,
+   "max": 3.07026216267023,
+   "bar_at_most_1_5": true
+  },
+  "head": {
+   "clips": 238,
+   "median": 0.4817780141099849,
+   "ci95": [
+    0.3816149500751241,
+    0.6289907896619464
+   ],
+   "p90": 2.908668077476068,
+   "max": 21.55994693260029,
+   "bar_at_most_1_5": true
+  },
+  "longer than one hour": {
+   "clips": 24,
+   "median": 0.607568008515011,
+   "ci95": [
+    0.40379336257304443,
+    0.6902776669824777
+   ],
+   "p90": 1.1083300736701207,
+   "max": 1.277268803262285,
+   "bar_at_most_1_5": true
+  },
+  "middle": {
+   "clips": 175,
+   "median": 0.61308956874997,
+   "ci95": [
+    0.5655010267068942,
+    0.6842790026879295
+   ],
+   "p90": 2.3172039329352145,
+   "max": 17.894798831174988,
+   "bar_at_most_1_5": true
+  },
+  "non-fragmented": {
+   "clips": 743,
+   "median": 0.6469545939745859,
+   "ci95": [
+    0.6049142975081031,
+    0.6926684763112272
+   ],
+   "p90": 2.293101872220018,
+   "max": 21.55994693260029,
+   "bar_at_most_1_5": true
+  },
+  "tail": {
+   "clips": 175,
+   "median": 0.7676706035694225,
+   "ci95": [
+    0.651805464066896,
+    0.8413906672954796
+   ],
+   "p90": 1.7717516934754693,
+   "max": 9.309762266222982,
+   "bar_at_most_1_5": true
+  },
+  "whole": {
+   "clips": 175,
+   "median": 0.7085564564813586,
+   "ci95": [
+    0.6183334014124447,
+    0.8225603461153074
+   ],
+   "p90": 1.8297228218845454,
+   "max": 14.136511538595817,
+   "bar_at_most_1_5": true
+  }
+ },
+ "equal_work": {
+  "clips": 471,
+  "median": 0.641829096246403
+ },
+ "first_byte_ratio_median": 0.4744089444819429,
+ "sensitivity": {
+  "lav_native": 0.719994833606499,
+  "cli": 0.1769776426185445,
+  "ours_probe": 46.24935322707879
+ },
+ "generated": {
+  "head": {
+   "sha256": "generated-fragmented",
+   "clip": "head",
+   "ratio": 0.6363104056935786,
+   "ours_ms": 37.198147,
+   "lav_avio_ms": 58.459121,
+   "classes": [
+    "fragmented",
+    "head"
+   ],
+   "ratio_lav_native": 0.2854235918585525,
+   "ratio_cli": 0.2495297404627263,
+   "ratio_ours_probe": 444.6773179362119,
+   "first_byte_ratio": 0.03896190011090586,
+   "packets": [
+    719,
+    718
+   ]
+  },
+  "middle": {
+   "sha256": "generated-fragmented",
+   "clip": "middle",
+   "ratio": 0.6736435679838699,
+   "ours_ms": 41.425755,
+   "lav_avio_ms": 61.495065,
+   "classes": [
+    "fragmented",
+    "middle"
+   ],
+   "ratio_lav_native": 0.27905539708125027,
+   "ratio_cli": 0.2646916744506751,
+   "ratio_ours_probe": 511.0757377615476,
+   "first_byte_ratio": 0.8051730400493065,
+   "packets": [
+    760,
+    758
+   ]
+  },
+  "tail": {
+   "sha256": "generated-fragmented",
+   "clip": "tail",
+   "ratio": 0.9389488214079076,
+   "ours_ms": 55.361307,
+   "lav_avio_ms": 58.960942,
+   "classes": [
+    "fragmented",
+    "tail"
+   ],
+   "ratio_lav_native": 0.39024706645073226,
+   "ratio_cli": 0.3522298197978541,
+   "ratio_ours_probe": 639.4458920960532,
+   "first_byte_ratio": 1.4283921760535498,
+   "packets": [
+    725,
+    723
+   ]
+  },
+  "whole": {
+   "sha256": "generated-fragmented",
+   "clip": "whole",
+   "ratio": 0.7460481136392743,
+   "ours_ms": 3078.534444,
+   "lav_avio_ms": 4126.455637,
+   "classes": [
+    "fragmented",
+    "whole"
+   ],
+   "ratio_lav_native": 0.48700594652966195,
+   "ratio_cli": 1.1203054545951632,
+   "ratio_ours_probe": 36259.003627626495,
+   "first_byte_ratio": 1.0625793580412164,
+   "packets": [
+    44065,
+    44064
+   ]
+  }
+ },
+ "memory": {
+  "clips": 767,
+  "within": 767,
+  "invalid_counts": 0,
+  "closest": [
+   {
+    "sha256": "ebf7a87c958d0edace7c2ee7fd262f8f45252b021ea2b0ee793c82b6e10bb448",
+    "clip": "head",
+    "kind": "holdout",
+    "growth": 64383,
+    "bound": 65952,
+    "within": true,
+    "valid": true,
+    "d_ms": 1000,
+    "size": 188685
+   },
+   {
+    "sha256": "8ba9db60ff971c46968bfe471a5d49d1b57c705d9fe66cd297550fc3a985d87f",
+    "clip": "head",
+    "kind": "holdout",
+    "growth": 64393,
+    "bound": 66044,
+    "within": true,
+    "valid": true,
+    "d_ms": 10666,
+    "size": 258373
+   },
+   {
+    "sha256": "d429d88f1f2035d54114beaf9786dc6c944f7fc1663b6b10091db1e94a8047d5",
+    "clip": "head",
+    "kind": "holdout",
+    "growth": 64393,
+    "bound": 66060,
+    "within": true,
+    "valid": true,
+    "d_ms": 12666,
+    "size": 111574
+   },
+   {
+    "sha256": "a2e21edb2dedc644e8e494f74bd2cfacb589d8139419ef6c7c5f2edd659a6f6c",
+    "clip": "head",
+    "kind": "holdout",
+    "growth": 64372,
+    "bound": 66040,
+    "within": true,
+    "valid": true,
+    "d_ms": 13666,
+    "size": 216112
+   },
+   {
+    "sha256": "a77cad3da1f13e00a6985aa04197941b787e9efdc1942119b29b9e1c0e58567e",
+    "clip": "head",
+    "kind": "holdout",
+    "growth": 64393,
+    "bound": 66064,
+    "within": true,
+    "valid": true,
+    "d_ms": 17666,
+    "size": 203796
+   }
+  ],
+  "outside": [],
+  "longer_than_one_hour": [
+   {
+    "sha256": "09a07d37fd0963a21d6ad7c3531ea011b1cc1327d4e569a92a1a9141c389dbd9",
+    "clip": "head",
+    "kind": "holdout",
+    "growth": 64544,
+    "bound": 66280,
+    "within": true,
+    "valid": true,
+    "d_ms": 4446800,
+    "size": 208926392
+   },
+   {
+    "sha256": "09a07d37fd0963a21d6ad7c3531ea011b1cc1327d4e569a92a1a9141c389dbd9",
+    "clip": "middle",
+    "kind": "holdout",
+    "growth": 64552,
+    "bound": 66304,
+    "within": true,
+    "valid": true,
+    "d_ms": 4446800,
+    "size": 208926392
+   },
+   {
+    "sha256": "09a07d37fd0963a21d6ad7c3531ea011b1cc1327d4e569a92a1a9141c389dbd9",
+    "clip": "tail",
+    "kind": "holdout",
+    "growth": 64544,
+    "bound": 66280,
+    "within": true,
+    "valid": true,
+    "d_ms": 4446800,
+    "size": 208926392
+   },
+   {
+    "sha256": "09a07d37fd0963a21d6ad7c3531ea011b1cc1327d4e569a92a1a9141c389dbd9",
+    "clip": "whole",
+    "kind": "holdout",
+    "growth": 331216,
+    "bound": 350352,
+    "within": true,
+    "valid": true,
+    "d_ms": 4446800,
+    "size": 208926392
+   },
+   {
+    "sha256": "3d8f6047f82652d28a80fb5bbf48b8df0a24fc0091d3d55fdeb0b18fa957514a",
+    "clip": "head",
+    "kind": "holdout",
+    "growth": 31977,
+    "bound": 70052,
+    "within": true,
+    "valid": true,
+    "d_ms": 7859784,
+    "size": 987195736
+   },
+   {
+    "sha256": "3d8f6047f82652d28a80fb5bbf48b8df0a24fc0091d3d55fdeb0b18fa957514a",
+    "clip": "middle",
+    "kind": "holdout",
+    "growth": 32993,
+    "bound": 71096,
+    "within": true,
+    "valid": true,
+    "d_ms": 7859784,
+    "size": 987195736
+   },
+   {
+    "sha256": "3d8f6047f82652d28a80fb5bbf48b8df0a24fc0091d3d55fdeb0b18fa957514a",
+    "clip": "tail",
+    "kind": "holdout",
+    "growth": 34129,
+    "bound": 72260,
+    "within": true,
+    "valid": true,
+    "d_ms": 7859784,
+    "size": 987195736
+   },
+   {
+    "sha256": "3d8f6047f82652d28a80fb5bbf48b8df0a24fc0091d3d55fdeb0b18fa957514a",
+    "clip": "whole",
+    "kind": "holdout",
+    "growth": 3492788,
+    "bound": 3552424,
+    "within": true,
+    "valid": true,
+    "d_ms": 7859784,
+    "size": 987195736
+   },
+   {
+    "sha256": "6e94e300546fe7559c0196cc0c2815535c37e382a5a91b20dc7a00130c425445",
+    "clip": "head",
+    "kind": "holdout",
+    "growth": 65402,
+    "bound": 72972,
+    "within": true,
+    "valid": true,
+    "d_ms": 5886920,
+    "size": 484224280
+   },
+   {
+    "sha256": "6e94e300546fe7559c0196cc0c2815535c37e382a5a91b20dc7a00130c425445",
+    "clip": "middle",
+    "kind": "holdout",
+    "growth": 67798,
+    "bound": 75412,
+    "within": true,
+    "valid": true,
+    "d_ms": 5886920,
+    "size": 484224280
+   },
+   {
+    "sha256": "6e94e300546fe7559c0196cc0c2815535c37e382a5a91b20dc7a00130c425445",
+    "clip": "tail",
+    "kind": "holdout",
+    "growth": 68410,
+    "bound": 76032,
+    "within": true,
+    "valid": true,
+    "d_ms": 5886920,
+    "size": 484224280
+   },
+   {
+    "sha256": "6e94e300546fe7559c0196cc0c2815535c37e382a5a91b20dc7a00130c425445",
+    "clip": "whole",
+    "kind": "holdout",
+    "growth": 4262400,
+    "bound": 4305316,
+    "within": true,
+    "valid": true,
+    "d_ms": 5886920,
+    "size": 484224280
+   },
+   {
+    "sha256": "b29244962bcd74d7a5c43f35b35bc0e72b3ef1a8fc0fe427491407e258cd7f7e",
+    "clip": "head",
+    "kind": "holdout",
+    "growth": 68127,
+    "bound": 70068,
+    "within": true,
+    "valid": true,
+    "d_ms": 7771680,
+    "size": 2269006736
+   },
+   {
+    "sha256": "b29244962bcd74d7a5c43f35b35bc0e72b3ef1a8fc0fe427491407e258cd7f7e",
+    "clip": "middle",
+    "kind": "holdout",
+    "growth": 40317,
+    "bound": 70076,
+    "within": true,
+    "valid": true,
+    "d_ms": 7771680,
+    "size": 2269006736
+   },
+   {
+    "sha256": "b29244962bcd74d7a5c43f35b35bc0e72b3ef1a8fc0fe427491407e258cd7f7e",
+    "clip": "tail",
+    "kind": "holdout",
+    "growth": 9340,
+    "bound": 72576,
+    "within": true,
+    "valid": true,
+    "d_ms": 7771680,
+    "size": 2269006736
+   },
+   {
+    "sha256": "b29244962bcd74d7a5c43f35b35bc0e72b3ef1a8fc0fe427491407e258cd7f7e",
+    "clip": "whole",
+    "kind": "holdout",
+    "growth": 3099804,
+    "bound": 3159236,
+    "within": true,
+    "valid": true,
+    "d_ms": 7771680,
+    "size": 2269006736
+   },
+   {
+    "sha256": "df1c98e13cd747c809a90cfd35693f558ab54389385fc6c5c4ea9d75e892ad07",
+    "clip": "head",
+    "kind": "holdout",
+    "growth": 68868,
+    "bound": 70696,
+    "within": true,
+    "valid": true,
+    "d_ms": 4558240,
+    "size": 185398150
+   },
+   {
+    "sha256": "df1c98e13cd747c809a90cfd35693f558ab54389385fc6c5c4ea9d75e892ad07",
+    "clip": "middle",
+    "kind": "holdout",
+    "growth": 58641,
+    "bound": 71336,
+    "within": true,
+    "valid": true,
+    "d_ms": 4558240,
+    "size": 185398150
+   },
+   {
+    "sha256": "df1c98e13cd747c809a90cfd35693f558ab54389385fc6c5c4ea9d75e892ad07",
+    "clip": "tail",
+    "kind": "holdout",
+    "growth": 58165,
+    "bound": 70852,
+    "within": true,
+    "valid": true,
+    "d_ms": 4558240,
+    "size": 185398150
+   },
+   {
+    "sha256": "df1c98e13cd747c809a90cfd35693f558ab54389385fc6c5c4ea9d75e892ad07",
+    "clip": "whole",
+    "kind": "holdout",
+    "growth": 2251484,
+    "bound": 2286524,
+    "within": true,
+    "valid": true,
+    "d_ms": 4558240,
+    "size": 185398150
+   },
+   {
+    "sha256": "e9f1ee99874e1c0a1a32b87deef15cd53e8ce3914d8e90b4b9529e1217d73aac",
+    "clip": "head",
+    "kind": "holdout",
+    "growth": 64544,
+    "bound": 66280,
+    "within": true,
+    "valid": true,
+    "d_ms": 5846600,
+    "size": 207754100
+   },
+   {
+    "sha256": "e9f1ee99874e1c0a1a32b87deef15cd53e8ce3914d8e90b4b9529e1217d73aac",
+    "clip": "middle",
+    "kind": "holdout",
+    "growth": 64552,
+    "bound": 66304,
+    "within": true,
+    "valid": true,
+    "d_ms": 5846600,
+    "size": 207754100
+   },
+   {
+    "sha256": "e9f1ee99874e1c0a1a32b87deef15cd53e8ce3914d8e90b4b9529e1217d73aac",
+    "clip": "tail",
+    "kind": "holdout",
+    "growth": 64544,
+    "bound": 66280,
+    "within": true,
+    "valid": true,
+    "d_ms": 5846600,
+    "size": 207754100
+   },
+   {
+    "sha256": "e9f1ee99874e1c0a1a32b87deef15cd53e8ce3914d8e90b4b9529e1217d73aac",
+    "clip": "whole",
+    "kind": "holdout",
+    "growth": 415360,
+    "bound": 439952,
+    "within": true,
+    "valid": true,
+    "d_ms": 5846600,
+    "size": 207754100
+   }
+  ]
+ },
+ "slowest": [
+  {
+   "sha256": "0a65884fdefdebe0a8cb7c1d188635f8d5bf4b15e00d430628b1aa94d557cef3",
+   "clip": "head",
+   "ratio": 21.55994693260029,
+   "ours_ms": 35.654676,
+   "lav_avio_ms": 1.653746,
+   "classes": [
+    "non-fragmented",
+    "head"
+   ],
+   "ratio_lav_native": 18.598661697936837,
+   "ratio_cli": 0.8326793473444107,
+   "ratio_ours_probe": 429.2589301838408,
+   "first_byte_ratio": 0.40336863145672736,
+   "packets": [
+    49,
+    49
+   ]
+  },
+  {
+   "sha256": "b9e6d1e5ff9e4cd4719cc2e526490a7d2b59381b0b3147abc2d00525da8d8a56",
+   "clip": "middle",
+   "ratio": 17.894798831174988,
+   "ours_ms": 69.844563,
+   "lav_avio_ms": 3.903065,
+   "classes": [
+    "non-fragmented",
+    "middle"
+   ],
+   "ratio_lav_native": 17.512008757438167,
+   "ratio_cli": 2.159450032913693,
+   "ratio_ours_probe": 686.1161232649292,
+   "first_byte_ratio": 0.42929815128830806,
+   "packets": [
+    419,
+    420
+   ]
+  },
+  {
+   "sha256": "a2e21edb2dedc644e8e494f74bd2cfacb589d8139419ef6c7c5f2edd659a6f6c",
+   "clip": "middle",
+   "ratio": 15.820474890362352,
+   "ours_ms": 29.934585,
+   "lav_avio_ms": 1.892142,
+   "classes": [
+    "non-fragmented",
+    "middle"
+   ],
+   "ratio_lav_native": 14.599679860941425,
+   "ratio_cli": 1.2204694087863925,
+   "ratio_ours_probe": 347.44631830632807,
+   "first_byte_ratio": 0.471349702239437,
+   "packets": [
+    38,
+    38
+   ]
+  },
+  {
+   "sha256": "2cf91de003dac7a476e5769c6a8a0a1a9fb172628e637db39506e6f02af4de07",
+   "clip": "whole",
+   "ratio": 14.136511538595817,
+   "ours_ms": 24.294726,
+   "lav_avio_ms": 1.71858,
+   "classes": [
+    "non-fragmented",
+    "whole"
+   ],
+   "ratio_lav_native": 12.24760351093525,
+   "ratio_cli": 0.9019128713012431,
+   "ratio_ours_probe": 232.83968909632839,
+   "first_byte_ratio": 0.5359064456586395,
+   "packets": [
+    298,
+    298
+   ]
+  },
+  {
+   "sha256": "9e3a1adccdc35594a518a0566aac638da929aa7651f473786e6ea44cd9687813",
+   "clip": "middle",
+   "ratio": 11.491547102739101,
+   "ours_ms": 63.204957,
+   "lav_avio_ms": 5.500126,
+   "classes": [
+    "non-fragmented",
+    "middle"
+   ],
+   "ratio_lav_native": 11.992001089820443,
+   "ratio_cli": 1.3289746034578258,
+   "ratio_ours_probe": 468.60487548098666,
+   "first_byte_ratio": 0.5449083702709872,
+   "packets": [
+    821,
+    818
+   ]
+  },
+  {
+   "sha256": "dd3d8375789636f3895b28d7e1870574c3fb0440226fb1680e6d9ac45ae211da",
+   "clip": "middle",
+   "ratio": 10.627900373502127,
+   "ours_ms": 51.915646,
+   "lav_avio_ms": 4.884845,
+   "classes": [
+    "non-fragmented",
+    "middle"
+   ],
+   "ratio_lav_native": 6.5029404098072865,
+   "ratio_cli": 1.125731730071907,
+   "ratio_ours_probe": 315.5448406644502,
+   "first_byte_ratio": 0.5148418025807898,
+   "packets": [
+    773,
+    770
+   ]
+  },
+  {
+   "sha256": "5b080178a03cbb8fe697bf03e2e28b0cac09de1584412625894d0ca81afd8f73",
+   "clip": "head",
+   "ratio": 10.470292685335597,
+   "ours_ms": 65.943254,
+   "lav_avio_ms": 6.298129,
+   "classes": [
+    "non-fragmented",
+    "head"
+   ],
+   "ratio_lav_native": 5.653216379081834,
+   "ratio_cli": 1.3873066318526126,
+   "ratio_ours_probe": 652.3544937428896,
+   "first_byte_ratio": 0.56346024130869,
+   "packets": [
+    682,
+    682
+   ]
+  },
+  {
+   "sha256": "3c5b4bf1a271ba2fdc32124d61034768091da834fb0374f81bf074fa74094193",
+   "clip": "head",
+   "ratio": 9.511673268563019,
+   "ours_ms": 35.802604,
+   "lav_avio_ms": 3.76407,
+   "classes": [
+    "non-fragmented",
+    "head"
+   ],
+   "ratio_lav_native": 8.92138662153471,
+   "ratio_cli": 1.0361532131089433,
+   "ratio_ours_probe": 249.03041010516944,
+   "first_byte_ratio": 0.5000540769965546,
+   "packets": [
+    772,
+    772
+   ]
+  },
+  {
+   "sha256": "096d9e707920c8424d8383984c40b9f3b35a12365bbd7f54c35fe2bb92a485b1",
+   "clip": "tail",
+   "ratio": 9.309762266222982,
+   "ours_ms": 34.604917,
+   "lav_avio_ms": 3.717057,
+   "classes": [
+    "non-fragmented",
+    "tail"
+   ],
+   "ratio_lav_native": 9.903309639358975,
+   "ratio_cli": 1.4129338325643466,
+   "ratio_ours_probe": 403.81489001692046,
+   "first_byte_ratio": 0.4316768871245865,
+   "packets": [
+    383,
+    383
+   ]
+  },
+  {
+   "sha256": "a2e21edb2dedc644e8e494f74bd2cfacb589d8139419ef6c7c5f2edd659a6f6c",
+   "clip": "head",
+   "ratio": 8.861412857736251,
+   "ours_ms": 74.155103,
+   "lav_avio_ms": 8.368316,
+   "classes": [
+    "non-fragmented",
+    "head"
+   ],
+   "ratio_lav_native": 8.874265634745763,
+   "ratio_cli": 1.4666442291145296,
+   "ratio_ours_probe": 981.8616749420721,
+   "first_byte_ratio": 0.43458654999128254,
+   "packets": [
+    30,
+    32
+   ]
+  }
+ ]
+}

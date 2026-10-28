@@ -1,0 +1,7 @@
+T      n=10 median 0.9427 [0.9262, 0.9759] faster 10/10
+R      n=22 median 0.9986 [0.9959, 1.0029] faster 12/22
+all    n=32 median 0.9954 [0.9887, 0.9990] faster 22/32
+sd     n= 8 median 0.9964 [0.9947, 1.0037] faster 6/8
+720p   n= 8 median 0.9990 [0.9912, 1.0050] faster 4/8
+1080p  n= 8 median 0.9939 [0.9763, 1.0041] faster 5/8
+4k     n= 8 median 0.9410 [0.9134, 0.9756] faster 7/8

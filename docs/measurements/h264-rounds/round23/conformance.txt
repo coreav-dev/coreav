@@ -1,0 +1,4 @@
+# Round 23's code merged with main at ddb34e9 (97fc1f33), scripts/h264_conformance.py --extracted (local copy of the suite) --threads 1,2,8, detected then scalar kernels, RUSTFLAGS unset
+{"streams": 97, "passed": 97, "failed": 0, "kernels": "detect", "threads": "1,2,8", "seconds": 41.6}
+{"streams": 97, "passed": 97, "failed": 0, "kernels": "scalar", "threads": "1,2,8", "seconds": 57.0}
+# Before the merge, the code of fb4fcca on main at 75d77dc: the same, 97 of 97 detected (41.7 s) and scalar (57.3 s).

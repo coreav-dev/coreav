@@ -1,0 +1,8 @@
+28c28
+<     if f in ('cabac.rs', 'cavlc.rs', 'bits.rs', 'syntax.rs', 'nal.rs'): return 'entropy'
+---
+>     if f in ('cabac.rs', 'cavlc.rs', 'bits.rs', 'syntax.rs', 'nal.rs') or fr[1].endswith('/fast/decision.rs'): return 'entropy'
+36c36
+<             if re.search(r'significance_map|levels', t): return 'entropy'
+---
+>             if re.search(r'significance_map|levels|residual|decision', t): return 'entropy'

@@ -1,0 +1,509 @@
+diff --git a/crates/coreav-h264/src/deblock.rs b/crates/coreav-h264/src/deblock.rs
+index b3c1873a..2c408b1f 100644
+--- a/crates/coreav-h264/src/deblock.rs
++++ b/crates/coreav-h264/src/deblock.rs
+@@ -503,8 +503,9 @@ fn deblock_row<K: Kernels>(
+     // Offsets are the band's: its first stored rows are its top apron.
+     let luma_first = g.luma_first(k);
+     let chroma_first = g.chroma_first(k);
+-    // In a picture of one band, its slack rows come before them.
+-    let (luma_origin, chroma_origin) = (g.luma_origin(), g.chroma_origin());
++    // In a band holding the picture's first row, its slack rows come
++    // before them.
++    let (luma_origin, chroma_origin) = (g.luma_origin(k), g.chroma_origin(k));
+     let motion_base = g.motion_first(k) * mb_w;
+     let chroma_offsets = [0, 1].map(|c| shifted(chroma_qp_offset.get(c).copied().unwrap_or(0)));
+     let pic = canvas.band_mut(k)?;
+@@ -623,8 +624,8 @@ fn deblock_row<K: Kernels>(
+         // The window of ten rows of ten samples around the block, two rows
+         // above it and two columns left of it, lies inside each plane but
+         // where the plane holds less before the block: the first
+-        // macroblock of a picture of one band, the first row of the first
+-        // band of a picture of several, and a picture one macroblock wide
++        // macroblock of a band holding the picture's first row (its slack
++        // rows start at the left edge), and a picture one macroblock wide
+         // (`docs/design/h264.md`, "Kernel round: a macroblock's chroma
+         // edges in one call"). There the edges go one at a time.
+         let windows = ChromaMbMut::new(&mut pic.cb, at, chroma_stride)
+diff --git a/crates/coreav-h264/src/decoder.rs b/crates/coreav-h264/src/decoder.rs
+index b49e3c42..02b84810 100644
+--- a/crates/coreav-h264/src/decoder.rs
++++ b/crates/coreav-h264/src/decoder.rs
+@@ -350,8 +350,8 @@ impl<K: Kernels> Decoder<K> {
+     /// What a decoder needs of [`Limits::max_memory_bytes`] for pictures
+     /// of `mb_width` by `mb_height` macroblocks decoded with `threads`
+     /// threads: [`Decoder::most_pictures`] pictures stored in the bands
+-    /// those threads cut them into, with their motion and, in a picture of
+-    /// one band, the slack rows before and after each plane; a copy of the
++    /// those threads cut them into, with their motion and the slack rows
++    /// the bands at each picture's edges keep; a copy of the
+     /// samples of every picture one flush releases (the references and
+     /// the pictures in flight); each thread's state; and the decoder's
+     /// own. A bound, checked by the native backend's `tests/memory.rs`.
+@@ -1757,9 +1757,11 @@ mod tests {
+         assert_eq!((data.cb.len() + data.cr.len()) as u64, chroma);
+         // Eight threads: bands of 4 macroblock rows, 17 of them, every one
+         // but the first with a top apron of 23 luma rows, 9 chroma rows and
+-        // one macroblock row of motion, and no slack.
++        // one macroblock row of motion, and slack before the first band's
++        // planes and after the last's.
+         assert_eq!(Geometry::band_mbs_for(mb_h, 8), 4);
+-        let (luma_rows, chroma_rows, motion_rows) = (h + 16 * 23, h / 2 + 16 * 9, mb_h as u64 + 16);
++        let (luma_rows, chroma_rows, motion_rows) =
++            (h + 16 * 23 + 8, h / 2 + 16 * 9 + 4, mb_h as u64 + 16);
+         let banded = luma_rows * w + 2 * chroma_rows * (w / 2) + motion_rows * motion_row;
+         assert_eq!(Geometry::new(mb_w, mb_h, 4).stored_bytes(), banded);
+         assert_eq!(per_frame(8), 2 * banded + mbs * 384);
+diff --git a/crates/coreav-h264/src/inter.rs b/crates/coreav-h264/src/inter.rs
+index b3fbf048..ec980af1 100644
+--- a/crates/coreav-h264/src/inter.rs
++++ b/crates/coreav-h264/src/inter.rs
+@@ -1357,7 +1357,7 @@ impl<'a, K: Kernels> SliceDecoder<'a, K> {
+         let k = g.band_reading_luma_window(py as isize + isize::from(mv[1] >> 2), h);
+         let data = reference.band(k)?;
+         let first = [g.luma_first(k), g.chroma_first(k)];
+-        let origin = [g.luma_origin(), g.chroma_origin()];
++        let origin = [g.luma_origin(k), g.chroma_origin(k)];
+         Planes::band(
+             &data.y,
+             &data.cb,
+@@ -1427,8 +1427,8 @@ impl<'a, K: Kernels> SliceDecoder<'a, K> {
+         // The window is read from the band a reader takes its last row
+         // from, clamped into the picture as Equation 8-235 clamps it: that
+         // band's top apron holds the rest of the window. Each plane is
+-        // taken from its origin, past the slack rows a picture of one band
+-        // keeps before it.
++        // taken from its origin, past the slack rows a band holding the
++        // picture's first row keeps before it.
+         let (luma, first) = match (whole, reference) {
+             (Some(planes), _) => (past(planes.y(), planes.origin()[0])?, 0),
+             (None, Some(reference)) => {
+@@ -1437,7 +1437,7 @@ impl<'a, K: Kernels> SliceDecoder<'a, K> {
+                 let data = reference
+                     .band(k)
+                     .ok_or(Error::Geometry("a reference band"))?;
+-                (past(&data.y, g.luma_origin())?, g.luma_first(k))
++                (past(&data.y, g.luma_origin(k))?, g.luma_first(k))
+             }
+             (None, None) => return Err(Error::Geometry("a reference band")),
+         };
+@@ -1480,7 +1480,7 @@ impl<'a, K: Kernels> SliceDecoder<'a, K> {
+                 let data = reference
+                     .band(k)
+                     .ok_or(Error::Geometry("a reference band"))?;
+-                let origin = g.chroma_origin();
++                let origin = g.chroma_origin(k);
+                 let planes = [past(&data.cb, origin)?, past(&data.cr, origin)?];
+                 (planes, g.chroma_first(k))
+             }
+diff --git a/crates/coreav-h264/src/mb.rs b/crates/coreav-h264/src/mb.rs
+index 1640d0c1..9d54487d 100644
+--- a/crates/coreav-h264/src/mb.rs
++++ b/crates/coreav-h264/src/mb.rs
+@@ -381,7 +381,7 @@ pub(crate) fn whole_references(
+             // edges may reach into.
+             *slot = whole(r, mb_w, mb_h).and_then(|data| {
+                 let g = r.picture.geometry();
+-                let origin = [g.luma_origin(), g.chroma_origin()];
++                let origin = [g.luma_origin(0), g.chroma_origin(0)];
+                 Planes::with_origin(&data.y, &data.cb, &data.cr, mb_w * 16, mb_h * 16, origin)
+             });
+         }
+@@ -423,9 +423,10 @@ pub(crate) struct SliceDecoder<'a, K: Kernels> {
+     pub(crate) motion_base: usize,
+     /// The luma stride, `mb_w * 16`.
+     pub(crate) stride: usize,
+-    /// Where each band's first stored luma and chroma rows start in its
+-    /// buffers, past the slack rows a picture of one band keeps before
+-    /// its planes ([`Geometry::luma_origin`], [`Geometry::chroma_origin`]):
++    /// Where the band's first stored luma and chroma rows start in its
++    /// buffers, past the slack rows a band holding the picture's first row
++    /// keeps before its planes ([`Geometry::luma_origin`],
++    /// [`Geometry::chroma_origin`]), set with [`SliceDecoder::luma_first`]:
+     /// sample (x, row) of the luma plane is at `luma_origin + (row -
+     /// luma_first) * stride + x`. Every offset into the band's planes
+     /// adds these.
+@@ -771,6 +772,8 @@ impl<K: Kernels> SliceDecoder<'_, K> {
+             self.band = band;
+             self.luma_first = self.geometry.luma_first(band);
+             self.chroma_first = self.geometry.chroma_first(band);
++            self.luma_origin = self.geometry.luma_origin(band);
++            self.chroma_origin = self.geometry.chroma_origin(band);
+             self.motion_base = self.geometry.motion_first(band) * self.mb_w;
+         }
+         Ok(())
+diff --git a/crates/coreav-h264/src/picture.rs b/crates/coreav-h264/src/picture.rs
+index d19b1fa2..74efd0da 100644
+--- a/crates/coreav-h264/src/picture.rs
++++ b/crates/coreav-h264/src/picture.rs
+@@ -10,14 +10,16 @@
+ //! thread may read it. With one band and no aprons this is the plane of a
+ //! single-threaded decoder.
+ //!
+-//! A picture of one band also keeps slack rows before and after each
+-//! plane, [`LUMA_SLACK`] luma and [`CHROMA_SLACK`] chroma rows of the
+-//! picture's stride that nothing writes or shows: motion compensation
+-//! takes a window at the picture's top or bottom edge where it lies in
+-//! the buffer when the samples its fraction uses are inside the picture
+-//! (`coreav_kernels_h264::Kernels::predict`), and the slack is what keeps
+-//! such a window inside the buffer. A picture of more bands keeps none,
+-//! so its bands and aprons are as threading cuts them. Sample (x, row) of
++//! The bands at the picture's edges also keep slack rows, [`LUMA_SLACK`]
++//! luma and [`CHROMA_SLACK`] chroma rows of the picture's stride that
++//! nothing writes or shows: before the planes of a band whose stored rows
++//! start at row 0, and after the last band's ([`Geometry::luma_slack`]).
++//! Motion compensation takes a window at the picture's top or bottom edge
++//! where it lies in the buffer when the samples its fraction uses are
++//! inside the picture (`coreav_kernels_h264::Kernels::predict`), and the
++//! slack is what keeps such a window inside the band it is read from. A
++//! picture of one band keeps both; the other bands keep none, so their
++//! rows and aprons are as threading cuts them. Sample (x, row) of
+ //! a plane of band `k` sits at [`Geometry::luma_at`] (or
+ //! [`Geometry::chroma_at`]) plus x: the plane's origin, past the slack
+ //! rows before it, plus its rows from the band's first stored row on, a
+@@ -51,8 +53,8 @@ const ENTRY_LUMA: usize = 4;
+ /// Chroma rows the writer reads above a band: the filter reads two.
+ const ENTRY_CHROMA: usize = 2;
+ 
+-/// Luma rows a picture of one band keeps before its luma plane and after
+-/// it ([`Geometry::luma_slack`]). A luma window, `w + 5` by `h + 5` from two
++/// Luma rows the bands at a picture's edges keep before its luma plane
++/// and after it ([`Geometry::luma_slack`]). A luma window, `w + 5` by `h + 5` from two
+ /// samples left of and two rows above the block's integer position, is
+ /// taken as it lies when the samples its fraction uses are inside the
+ /// picture; with yFracL 0 its block rows are, so it starts at most two
+@@ -113,40 +115,57 @@ impl Geometry {
+         self.mb_height.div_ceil(self.band_mbs)
+     }
+ 
+-    /// The slack rows kept before and after the luma plane: [`LUMA_SLACK`]
+-    /// in a picture of one band, whose references the single-threaded
+-    /// path reads whole, none in one of more.
++    /// The slack rows band `k` keeps before its luma plane and after it:
++    /// [`LUMA_SLACK`] before where its stored rows start at the picture's
++    /// first row, and after where it is the last band; none elsewhere. A
++    /// picture of one band keeps both, as its references are read whole;
++    /// in one of more, the bands holding row 0 and the last band keep
++    /// theirs, so that the windows at the picture's top and bottom edges
++    /// lie in the band they are read from as they do in a whole picture
++    /// (`docs/design/h264.md`, "Threading round: slack rows at the
++    /// picture's edges in every layout").
+     #[inline]
+-    pub(crate) const fn luma_slack(&self) -> usize {
+-        if self.band_mbs >= self.mb_height {
+-            LUMA_SLACK
+-        } else {
+-            0
+-        }
++    pub(crate) const fn luma_slack(&self, k: usize) -> [usize; 2] {
++        [
++            if self.luma_first(k) == 0 {
++                LUMA_SLACK
++            } else {
++                0
++            },
++            if k + 1 >= self.bands() { LUMA_SLACK } else { 0 },
++        ]
+     }
+ 
+-    /// The slack rows kept before and after each chroma plane:
+-    /// [`CHROMA_SLACK`] in a picture of one band, none in one of more.
++    /// The slack rows band `k` keeps before each chroma plane and after
++    /// it, as [`Geometry::luma_slack`]: [`CHROMA_SLACK`] each.
+     #[inline]
+-    pub(crate) const fn chroma_slack(&self) -> usize {
+-        if self.band_mbs >= self.mb_height {
+-            CHROMA_SLACK
+-        } else {
+-            0
+-        }
++    pub(crate) const fn chroma_slack(&self, k: usize) -> [usize; 2] {
++        [
++            if self.chroma_first(k) == 0 {
++                CHROMA_SLACK
++            } else {
++                0
++            },
++            if k + 1 >= self.bands() {
++                CHROMA_SLACK
++            } else {
++                0
++            },
++        ]
+     }
+ 
+-    /// Where a band's luma buffer holds sample (0, first stored row): past
+-    /// the slack rows before it. The stride is the coded width either way.
++    /// Where band `k`'s luma buffer holds sample (0, first stored row):
++    /// past the slack rows before it. The stride is the coded width
++    /// either way.
+     #[inline]
+-    pub(crate) const fn luma_origin(&self) -> usize {
+-        self.luma_slack() * self.mb_width * 16
++    pub(crate) const fn luma_origin(&self, k: usize) -> usize {
++        self.luma_slack(k)[0] * self.mb_width * 16
+     }
+ 
+-    /// Where a band's chroma buffers hold sample (0, first stored row).
++    /// Where band `k`'s chroma buffers hold sample (0, first stored row).
+     #[inline]
+-    pub(crate) const fn chroma_origin(&self) -> usize {
+-        self.chroma_slack() * self.mb_width * 8
++    pub(crate) const fn chroma_origin(&self, k: usize) -> usize {
++        self.chroma_slack(k)[0] * self.mb_width * 8
+     }
+ 
+     /// Where sample (0, `row`) of the luma plane sits in band `k`'s
+@@ -156,7 +175,7 @@ impl Geometry {
+     pub(crate) fn luma_at(&self, k: usize, row: usize) -> Option<usize> {
+         row.checked_sub(self.luma_first(k))?
+             .checked_mul(self.mb_width * 16)?
+-            .checked_add(self.luma_origin())
++            .checked_add(self.luma_origin(k))
+     }
+ 
+     /// Where sample (0, `row`) of a chroma plane sits in band `k`'s buffer.
+@@ -164,7 +183,7 @@ impl Geometry {
+     pub(crate) fn chroma_at(&self, k: usize, row: usize) -> Option<usize> {
+         row.checked_sub(self.chroma_first(k))?
+             .checked_mul(self.mb_width * 8)?
+-            .checked_add(self.chroma_origin())
++            .checked_add(self.chroma_origin(k))
+     }
+ 
+     /// The samples band `k` stores of the luma plane and of each chroma
+@@ -172,8 +191,10 @@ impl Geometry {
+     /// slack rows before and after them, a stride each.
+     fn plane_samples(&self, k: usize) -> (usize, usize) {
+         let width = self.mb_width * 16;
+-        let luma = (self.luma(k).rows() + 2 * self.luma_slack()) * width;
+-        let chroma = (self.chroma(k).rows() + 2 * self.chroma_slack()) * (width / 2);
++        let [before, after] = self.luma_slack(k);
++        let luma = (self.luma(k).rows() + before + after) * width;
++        let [before, after] = self.chroma_slack(k);
++        let chroma = (self.chroma(k).rows() + before + after) * (width / 2);
+         (luma, chroma)
+     }
+ 
+@@ -428,8 +449,8 @@ pub(crate) const NO_MOTION: Motion = Motion {
+ 
+ /// The samples and motion of one band: its own rows and its aprons
+ /// ([`Geometry::luma`], [`Geometry::chroma`], [`Geometry::motion`]), each
+-/// plane with the picture's stride and, in a picture of one band, its
+-/// slack rows before and after; sample (x, row) is at
++/// plane with the picture's stride and the slack rows the band keeps
++/// before and after it; sample (x, row) is at
+ /// [`Geometry::luma_at`] (or [`Geometry::chroma_at`]) plus x.
+ #[derive(Debug, Default)]
+ pub(crate) struct BandData {
+@@ -509,8 +530,8 @@ impl BandData {
+ 
+ /// A decoded picture: 8-bit 4:2:0 luma and chroma planes.
+ ///
+-/// The planes hold whole macroblocks, in a picture of one band with slack
+-/// rows before and after them (`Geometry::luma_slack`); `width` and
++/// The planes hold whole macroblocks, with slack rows before and after
++/// them at the picture's edges (`Geometry::luma_slack`); `width` and
+ /// `height` are the
+ /// cropped size the stream displays (clause 7.4.2.1.1), and [`Picture::luma`]
+ /// and [`Picture::chroma`] give views that already skip the cropped samples.
+@@ -1042,9 +1063,9 @@ impl Canvas {
+             let width = g.mb_width * 16;
+             for (k, band) in self.bands.iter_mut().enumerate() {
+                 for (plane, span, stride, origin) in [
+-                    (Plane::Y, g.luma(k), width, g.luma_origin()),
+-                    (Plane::Cb, g.chroma(k), width / 2, g.chroma_origin()),
+-                    (Plane::Cr, g.chroma(k), width / 2, g.chroma_origin()),
++                    (Plane::Y, g.luma(k), width, g.luma_origin(k)),
++                    (Plane::Cb, g.chroma(k), width / 2, g.chroma_origin(k)),
++                    (Plane::Cr, g.chroma(k), width / 2, g.chroma_origin(k)),
+                 ] {
+                     let dst = match plane {
+                         Plane::Y => &mut band.y,
+@@ -1112,7 +1133,7 @@ mod tests {
+         // A 1920x1080 stream crops 8 rows at the bottom; here, 2 columns on
+         // the left and 6 rows at the bottom of a 32x32 picture.
+         p.crop = [2, 0, 0, 6];
+-        let at = p.geometry.luma_origin() + 2;
++        let at = p.geometry.luma_origin(0) + 2;
+         if let Some(s) = p.bands[0].get_mut().and_then(|b| b.y.get_mut(at)) {
+             *s = 7;
+         }
+@@ -1148,14 +1169,18 @@ mod tests {
+                 );
+                 let last = k + 1 == g.bands();
+                 let band = canvas.band_mut(k).expect("band");
+-                for (i, row) in band.y.chunks_mut(32).enumerate() {
++                // From each plane's origin, past the slack rows of a band
++                // holding row 0; the slack after the last band is left.
++                let luma = band.y[g.luma_origin(k)..].chunks_mut(32).take(l.rows());
++                for (i, row) in luma.enumerate() {
+                     // A band's own bottom rows that the next band's filter
+                     // changes are stale: a reader takes them from the next
+                     // band's apron, and must never see these.
+                     let stale = !last && l.first + i + FILTERED_LUMA >= l.end;
+                     row.fill(if stale { 0xee } else { (l.first + i) as u8 });
+                 }
+-                for (i, row) in band.cb.chunks_mut(16).enumerate() {
++                let chroma = band.cb[g.chroma_origin(k)..].chunks_mut(16).take(c.rows());
++                for (i, row) in chroma.enumerate() {
+                     let stale = !last && c.first + i + FILTERED_CHROMA >= c.end;
+                     row.fill(if stale { 0xee } else { (c.first + i) as u8 });
+                 }
+@@ -1188,7 +1213,8 @@ mod tests {
+         for k in 0..g.bands() {
+             let l = g.luma(k);
+             let band = canvas.band_mut(k).expect("band");
+-            for (i, row) in band.y.chunks_mut(16).enumerate() {
++            let luma = band.y[g.luma_origin(k)..].chunks_mut(16).take(l.rows());
++            for (i, row) in luma.enumerate() {
+                 let r = l.first + i;
+                 row.fill(if r + FILTERED_LUMA >= l.end {
+                     0xe0 + (r - l.start) as u8
+@@ -1312,14 +1338,14 @@ mod tests {
+     #[test]
+     fn a_picture_of_one_band_keeps_its_slack_rows_out_of_view() {
+         // 3 by 2 macroblocks: in one band, each plane keeps 4 luma or 2
+-        // chroma rows of slack before and after it at the coded width, and
+-        // in bands of one row none. Every sample of the picture is written
+-        // with its own value and the slack with another; the view, and a
+-        // picture concealed from it in either layout, show the samples.
++        // chroma rows of slack before and after it at the coded width.
++        // Every sample of the picture is written with its own value and
++        // the slack with another; the view, and a picture concealed from
++        // it in either layout, show the samples.
+         let one = Geometry::new(3, 2, 2);
+         let banded = Geometry::new(3, 2, 1);
+-        assert_eq!((one.luma_origin(), one.chroma_origin()), (4 * 48, 2 * 24));
+-        assert_eq!((banded.luma_origin(), banded.chroma_origin()), (0, 0));
++        assert_eq!((one.luma_origin(0), one.chroma_origin(0)), (4 * 48, 2 * 24));
++        assert_eq!((one.luma_slack(0), one.chroma_slack(0)), ([4, 4], [2, 2]));
+         assert_eq!(one.luma_at(0, 5), Some(4 * 48 + 5 * 48));
+         assert_eq!(one.chroma_at(0, 3), Some(2 * 24 + 3 * 24));
+         let value = |x: usize, y: usize, c: usize| (x * 7 + y * 13 + c * 5) as u8;
+@@ -1376,6 +1402,110 @@ mod tests {
+         }
+     }
+ 
++    #[test]
++    fn bands_at_the_pictures_edges_keep_slack_rows() {
++        // 3 by 4 macroblocks in bands of one row: the bands whose stored
++        // rows start at row 0 (the first, and the second, whose apron
++        // reaches it) keep slack before their planes, the last band after
++        // them, and no other band any.
++        let g = Geometry::new(3, 4, 1);
++        assert_eq!(
++            [0, 1, 2, 3].map(|k| g.luma_first(k)),
++            [0, 0, 32 - TOP_LUMA, 48 - TOP_LUMA]
++        );
++        assert_eq!(
++            [0, 1, 2, 3].map(|k| g.luma_slack(k)),
++            [[4, 0], [4, 0], [0, 0], [0, 4]]
++        );
++        assert_eq!(
++            [0, 1, 2, 3].map(|k| g.chroma_slack(k)),
++            [[2, 0], [2, 0], [0, 0], [0, 2]]
++        );
++        assert_eq!(
++            [0, 1, 2, 3].map(|k| g.luma_origin(k)),
++            [4 * 48, 4 * 48, 0, 0]
++        );
++        assert_eq!(
++            [0, 1, 2, 3].map(|k| g.chroma_origin(k)),
++            [2 * 24, 2 * 24, 0, 0]
++        );
++        assert_eq!(g.luma_at(1, 3), Some(4 * 48 + 3 * 48));
++        assert_eq!(g.luma_at(3, 48), Some((48 - (48 - TOP_LUMA)) * 48));
++        let (luma, chroma) = g.plane_samples(3);
++        assert_eq!(
++            (luma, chroma),
++            ((16 + TOP_LUMA + 4) * 48, (8 + TOP_CHROMA + 2) * 24)
++        );
++    }
++
++    #[test]
++    fn the_windows_at_a_banded_pictures_edges_are_taken_from_their_band() {
++        // A block at the picture's first row, or reaching its last, whose
++        // window passes the edge while every sample its fraction uses lies
++        // inside: the kernel takes it from the band it is read from, as it
++        // does from a picture of one band, and predicts the samples.
++        use coreav_kernels_h264::{Kernels, PlaneOp, Planes, PlanesMut, Scalar};
++        let g = Geometry::new(3, 4, 1);
++        let value = |x: usize, y: usize, c: usize| (x * 7 + y * 13 + c * 5) as u8;
++        let picture = Arc::new(Picture::new(g, &Limits::default()).expect("picture"));
++        let mut canvas = Canvas::new(Arc::clone(&picture), Vec::new());
++        for k in 0..g.bands() {
++            let band = canvas.band_mut(k).expect("band");
++            let (luma, chroma) = (g.luma(k), g.chroma(k));
++            for (c, plane) in [&mut band.y, &mut band.cb, &mut band.cr]
++                .into_iter()
++                .enumerate()
++            {
++                plane.fill(0xee);
++                let (width, span) = if c == 0 { (48, luma) } else { (24, chroma) };
++                for y in span.first..span.end {
++                    let at = if c == 0 {
++                        g.luma_at(k, y)
++                    } else {
++                        g.chroma_at(k, y)
++                    }
++                    .expect("row");
++                    for x in 0..width {
++                        plane[at + x] = value(x, y, c);
++                    }
++                }
++            }
++        }
++        canvas.publish_all().expect("published");
++        drop(canvas);
++        // (px, py, vector): at the top with no vertical fraction, at the
++        // top-left corner with none across either, and at the bottom.
++        for (px, py, mv) in [
++            (16, 0, [2, 0]),
++            (0, 0, [0, 0]),
++            (32, 48, [0, 0]),
++            (16, 48, [1, -4]),
++        ] {
++            let k = g.band_reading_luma_window(py as isize + (mv[1] >> 2) as isize, 16);
++            let data = picture.band(k).expect("published");
++            let src = Planes::band(
++                &data.y,
++                &data.cb,
++                &data.cr,
++                48,
++                64,
++                [g.luma_first(k), g.chroma_first(k)],
++                [g.luma_origin(k), g.chroma_origin(k)],
++            )
++            .expect("band view");
++            let (mut y, mut cb, mut cr) = (vec![0; 48 * 64], vec![0; 24 * 32], vec![0; 24 * 32]);
++            let dst = PlanesMut::new(&mut y, &mut cb, &mut cr, 48, [0, 0]);
++            let taken = Scalar.predict(dst, &src, px, py, 16, 16, mv, [PlaneOp::Put; 3]);
++            assert!(taken, "block at ({px}, {py}) from band {k}");
++            if mv == [0, 0] {
++                for r in 0..16 {
++                    let row: Vec<u8> = (0..16).map(|x| value(px + x, py + r, 0)).collect();
++                    assert_eq!(y[(py + r) * 48 + px..][..16], row[..], "row {r}");
++                }
++            }
++        }
++    }
++
+     #[test]
+     fn a_picture_larger_than_the_limit_fails() {
+         let limits = Limits {
+diff --git a/crates/coreav-h264/src/work.rs b/crates/coreav-h264/src/work.rs
+index 2073937c..c9162d32 100644
+--- a/crates/coreav-h264/src/work.rs
++++ b/crates/coreav-h264/src/work.rs
+@@ -147,8 +147,8 @@ impl<K: Kernels> PictureWork<K> {
+             chroma_first: 0,
+             motion_base: 0,
+             stride: geometry.mb_width * 16,
+-            luma_origin: geometry.luma_origin(),
+-            chroma_origin: geometry.chroma_origin(),
++            luma_origin: 0,
++            chroma_origin: 0,
+             mbs: &mut self.mbs,
+             filters: &self.filters,
+             deblocked: &mut self.deblocked,

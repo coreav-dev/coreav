@@ -1,0 +1,2598 @@
+{
+ "streams": {
+  "41e324ebb708": {
+   "class": "sd",
+   "frames": 1800,
+   "stages": {
+    "ours": {
+     "deblock filter": {
+      "ms": 224,
+      "Ir": 2824644940,
+      "D1 misses": 5036104,
+      "LL misses": 26,
+      "mispredicts": 8184073,
+      "cond branches": 195269472
+     },
+     "combine": {
+      "ms": 210,
+      "Ir": 3056472017,
+      "D1 misses": 4066214,
+      "LL misses": 0,
+      "mispredicts": 7521350,
+      "cond branches": 324137091
+     },
+     "chroma MC": {
+      "ms": 189,
+      "Ir": 2754419978,
+      "D1 misses": 8312351,
+      "LL misses": 2,
+      "mispredicts": 6440310,
+      "cond branches": 357649112
+     },
+     "deblock strength/driver": {
+      "ms": 138,
+      "Ir": 1434410266,
+      "D1 misses": 8707390,
+      "LL misses": 6,
+      "mispredicts": 7522529,
+      "cond branches": 121712107
+     },
+     "luma MC": {
+      "ms": 236,
+      "Ir": 2667554453,
+      "D1 misses": 14623468,
+      "LL misses": 14757,
+      "mispredicts": 7533127,
+      "cond branches": 264844586
+     },
+     "entropy": {
+      "ms": 237,
+      "Ir": 1826294277,
+      "D1 misses": 1062784,
+      "LL misses": 80,
+      "mispredicts": 14706435,
+      "cond branches": 125914601
+     },
+     "mb control": {
+      "ms": 396,
+      "Ir": 4053055989,
+      "D1 misses": 17654334,
+      "LL misses": 106,
+      "mispredicts": 15068029,
+      "cond branches": 414789885
+     },
+     "idct/dequant/add": {
+      "ms": 80,
+      "Ir": 858701736,
+      "D1 misses": 320079,
+      "LL misses": 5,
+      "mispredicts": 2226227,
+      "cond branches": 53309851
+     },
+     "picture/edge/output": {
+      "ms": 56,
+      "Ir": 308464435,
+      "D1 misses": 6715322,
+      "LL misses": 8352,
+      "mispredicts": 814373,
+      "cond branches": 33646515
+     },
+     "intra pred": {
+      "ms": 39,
+      "Ir": 532053889,
+      "D1 misses": 949678,
+      "LL misses": 3706,
+      "mispredicts": 3938017,
+      "cond branches": 59168851
+     },
+     "other": {
+      "ms": 24,
+      "Ir": 201844108,
+      "D1 misses": 923574,
+      "LL misses": 62131,
+      "mispredicts": 581202,
+      "cond branches": 42602871
+     }
+    },
+    "ffsimd": {
+     "other": {
+      "ms": 85,
+      "Ir": 211308006,
+      "D1 misses": 3714788,
+      "LL misses": 123287,
+      "mispredicts": 2635798,
+      "cond branches": 43840532
+     },
+     "entropy": {
+      "ms": 215,
+      "Ir": 1347937580,
+      "D1 misses": 5854962,
+      "LL misses": 105,
+      "mispredicts": 9950040,
+      "cond branches": 89386930
+     },
+     "luma MC": {
+      "ms": 89,
+      "Ir": 809776955,
+      "D1 misses": 17668010,
+      "LL misses": 37,
+      "mispredicts": 1239077,
+      "cond branches": 19884114
+     },
+     "combine": {
+      "ms": 37,
+      "Ir": 361187350,
+      "D1 misses": 27613,
+      "LL misses": 28,
+      "mispredicts": 1191933,
+      "cond branches": 22428771
+     },
+     "deblock strength/driver": {
+      "ms": 108,
+      "Ir": 1429077609,
+      "D1 misses": 5178106,
+      "LL misses": 9,
+      "mispredicts": 3012664,
+      "cond branches": 103399300
+     },
+     "mb control": {
+      "ms": 112,
+      "Ir": 1449512977,
+      "D1 misses": 2047000,
+      "LL misses": 24,
+      "mispredicts": 6234491,
+      "cond branches": 111266233
+     },
+     "picture/edge/output": {
+      "ms": 14,
+      "Ir": 111907777,
+      "D1 misses": 214084,
+      "LL misses": 1273,
+      "mispredicts": 1187106,
+      "cond branches": 29847289
+     },
+     "chroma MC": {
+      "ms": 33,
+      "Ir": 246765210,
+      "D1 misses": 8392834,
+      "LL misses": 8,
+      "mispredicts": 530734,
+      "cond branches": 17263066
+     },
+     "deblock filter": {
+      "ms": 83,
+      "Ir": 594804739,
+      "D1 misses": 2524739,
+      "LL misses": 3,
+      "mispredicts": 0,
+      "cond branches": 0
+     },
+     "idct/dequant/add": {
+      "ms": 12,
+      "Ir": 106038527,
+      "D1 misses": 92693,
+      "LL misses": 1,
+      "mispredicts": 619591,
+      "cond branches": 3576452
+     },
+     "intra pred": {
+      "ms": 6,
+      "Ir": 25923954,
+      "D1 misses": 611608,
+      "LL misses": 2,
+      "mispredicts": 82658,
+      "cond branches": 926506
+     }
+    },
+    "ffc": {
+     "other": {
+      "ms": 113,
+      "Ir": 215620452,
+      "D1 misses": 3745095,
+      "LL misses": 116836,
+      "mispredicts": 2858783,
+      "cond branches": 45265798
+     },
+     "idct/dequant/add": {
+      "ms": 66,
+      "Ir": 459808668,
+      "D1 misses": 95311,
+      "LL misses": 1,
+      "mispredicts": 2109546,
+      "cond branches": 14044725
+     },
+     "entropy": {
+      "ms": 245,
+      "Ir": 1347937580,
+      "D1 misses": 5939381,
+      "LL misses": 105,
+      "mispredicts": 10519885,
+      "cond branches": 89386930
+     },
+     "intra pred": {
+      "ms": 16,
+      "Ir": 82616234,
+      "D1 misses": 602276,
+      "LL misses": 1,
+      "mispredicts": 40360,
+      "cond branches": 407470
+     },
+     "luma MC": {
+      "ms": 364,
+      "Ir": 4668899246,
+      "D1 misses": 17751042,
+      "LL misses": 21,
+      "mispredicts": 4383836,
+      "cond branches": 72978924
+     },
+     "deblock strength/driver": {
+      "ms": 163,
+      "Ir": 1528193375,
+      "D1 misses": 5039801,
+      "LL misses": 9,
+      "mispredicts": 6417596,
+      "cond branches": 131746758
+     },
+     "mb control": {
+      "ms": 113,
+      "Ir": 1370398754,
+      "D1 misses": 1601399,
+      "LL misses": 25,
+      "mispredicts": 6517144,
+      "cond branches": 106619933
+     },
+     "combine": {
+      "ms": 247,
+      "Ir": 3076498326,
+      "D1 misses": 28583,
+      "LL misses": 31,
+      "mispredicts": 1231218,
+      "cond branches": 30036333
+     },
+     "picture/edge/output": {
+      "ms": 6,
+      "Ir": 45536783,
+      "D1 misses": 190839,
+      "LL misses": 1308,
+      "mispredicts": 491745,
+      "cond branches": 10721234
+     },
+     "chroma MC": {
+      "ms": 120,
+      "Ir": 1409718292,
+      "D1 misses": 8843494,
+      "LL misses": 8,
+      "mispredicts": 1053729,
+      "cond branches": 52180494
+     },
+     "deblock filter": {
+      "ms": 342,
+      "Ir": 3897317894,
+      "D1 misses": 2511724,
+      "LL misses": 0,
+      "mispredicts": 20141081,
+      "cond branches": 263865818
+     }
+    }
+   }
+  },
+  "5185721dda11": {
+   "class": "sd",
+   "frames": 1800,
+   "stages": {
+    "ours": {
+     "deblock filter": {
+      "ms": 137,
+      "Ir": 1399286103,
+      "D1 misses": 3316644,
+      "LL misses": 24,
+      "mispredicts": 4719669,
+      "cond branches": 98517992
+     },
+     "deblock strength/driver": {
+      "ms": 84,
+      "Ir": 679794587,
+      "D1 misses": 3537572,
+      "LL misses": 13,
+      "mispredicts": 4512323,
+      "cond branches": 56059063
+     },
+     "chroma MC": {
+      "ms": 47,
+      "Ir": 705357142,
+      "D1 misses": 2799084,
+      "LL misses": 1,
+      "mispredicts": 1908922,
+      "cond branches": 100746756
+     },
+     "entropy": {
+      "ms": 138,
+      "Ir": 1059876071,
+      "D1 misses": 2430125,
+      "LL misses": 3199,
+      "mispredicts": 11380466,
+      "cond branches": 151559140
+     },
+     "idct/dequant/add": {
+      "ms": 55,
+      "Ir": 716647245,
+      "D1 misses": 368464,
+      "LL misses": 6,
+      "mispredicts": 2024067,
+      "cond branches": 43917713
+     },
+     "mb control": {
+      "ms": 119,
+      "Ir": 1137222737,
+      "D1 misses": 6689052,
+      "LL misses": 40,
+      "mispredicts": 8180929,
+      "cond branches": 139760566
+     },
+     "luma MC": {
+      "ms": 48,
+      "Ir": 564868555,
+      "D1 misses": 5275442,
+      "LL misses": 34,
+      "mispredicts": 2058345,
+      "cond branches": 58854314
+     },
+     "intra pred": {
+      "ms": 29,
+      "Ir": 305598903,
+      "D1 misses": 286307,
+      "LL misses": 11,
+      "mispredicts": 2527446,
+      "cond branches": 40228735
+     },
+     "picture/edge/output": {
+      "ms": 16,
+      "Ir": 138884578,
+      "D1 misses": 2636968,
+      "LL misses": 1450,
+      "mispredicts": 426837,
+      "cond branches": 14420721
+     },
+     "other": {
+      "ms": 13,
+      "Ir": 114481156,
+      "D1 misses": 721358,
+      "LL misses": 62696,
+      "mispredicts": 672303,
+      "cond branches": 30368671
+     }
+    },
+    "ffsimd": {
+     "other": {
+      "ms": 64,
+      "Ir": 201750921,
+      "D1 misses": 3443257,
+      "LL misses": 95411,
+      "mispredicts": 2294968,
+      "cond branches": 48693602
+     },
+     "entropy": {
+      "ms": 65,
+      "Ir": 577181318,
+      "D1 misses": 2676296,
+      "LL misses": 20,
+      "mispredicts": 4443396,
+      "cond branches": 44812373
+     },
+     "deblock filter": {
+      "ms": 41,
+      "Ir": 317742173,
+      "D1 misses": 231981,
+      "LL misses": 3,
+      "mispredicts": 0,
+      "cond branches": 0
+     },
+     "idct/dequant/add": {
+      "ms": 18,
+      "Ir": 130044325,
+      "D1 misses": 63248,
+      "LL misses": 1,
+      "mispredicts": 627880,
+      "cond branches": 5628837
+     },
+     "deblock strength/driver": {
+      "ms": 55,
+      "Ir": 571820728,
+      "D1 misses": 395018,
+      "LL misses": 7,
+      "mispredicts": 1448277,
+      "cond branches": 45984343
+     },
+     "luma MC": {
+      "ms": 15,
+      "Ir": 154753894,
+      "D1 misses": 6055225,
+      "LL misses": 27,
+      "mispredicts": 322330,
+      "cond branches": 4976921
+     },
+     "mb control": {
+      "ms": 43,
+      "Ir": 444501876,
+      "D1 misses": 346020,
+      "LL misses": 21,
+      "mispredicts": 2289706,
+      "cond branches": 33656578
+     },
+     "picture/edge/output": {
+      "ms": 12,
+      "Ir": 50068313,
+      "D1 misses": 189779,
+      "LL misses": 1139,
+      "mispredicts": 980442,
+      "cond branches": 14408563
+     },
+     "chroma MC": {
+      "ms": 7,
+      "Ir": 71729778,
+      "D1 misses": 2958860,
+      "LL misses": 0,
+      "mispredicts": 245716,
+      "cond branches": 5236638
+     },
+     "intra pred": {
+      "ms": 7,
+      "Ir": 11271139,
+      "D1 misses": 221138,
+      "LL misses": 2,
+      "mispredicts": 31039,
+      "cond branches": 222704
+     }
+    },
+    "ffc": {
+     "other": {
+      "ms": 90,
+      "Ir": 203611700,
+      "D1 misses": 3531915,
+      "LL misses": 91825,
+      "mispredicts": 2656952,
+      "cond branches": 49104817
+     },
+     "deblock filter": {
+      "ms": 162,
+      "Ir": 1158600109,
+      "D1 misses": 216175,
+      "LL misses": 0,
+      "mispredicts": 15029550,
+      "cond branches": 94303415
+     },
+     "deblock strength/driver": {
+      "ms": 63,
+      "Ir": 727827682,
+      "D1 misses": 317699,
+      "LL misses": 7,
+      "mispredicts": 4846696,
+      "cond branches": 69865086
+     },
+     "entropy": {
+      "ms": 98,
+      "Ir": 577181318,
+      "D1 misses": 2672319,
+      "LL misses": 20,
+      "mispredicts": 4758682,
+      "cond branches": 44812373
+     },
+     "idct/dequant/add": {
+      "ms": 75,
+      "Ir": 596650693,
+      "D1 misses": 42841,
+      "LL misses": 1,
+      "mispredicts": 3290880,
+      "cond branches": 22894093
+     },
+     "mb control": {
+      "ms": 44,
+      "Ir": 444501876,
+      "D1 misses": 339371,
+      "LL misses": 22,
+      "mispredicts": 2429383,
+      "cond branches": 33656578
+     },
+     "luma MC": {
+      "ms": 66,
+      "Ir": 791138035,
+      "D1 misses": 6086372,
+      "LL misses": 20,
+      "mispredicts": 785259,
+      "cond branches": 12742514
+     },
+     "intra pred": {
+      "ms": 4,
+      "Ir": 24492550,
+      "D1 misses": 218958,
+      "LL misses": 1,
+      "mispredicts": 4542,
+      "cond branches": 50304
+     },
+     "chroma MC": {
+      "ms": 28,
+      "Ir": 285809644,
+      "D1 misses": 2949357,
+      "LL misses": 0,
+      "mispredicts": 394685,
+      "cond branches": 15896432
+     },
+     "picture/edge/output": {
+      "ms": 7,
+      "Ir": 39081842,
+      "D1 misses": 179254,
+      "LL misses": 1086,
+      "mispredicts": 442741,
+      "cond branches": 9628530
+     }
+    }
+   }
+  },
+  "9db41aa16b5a": {
+   "class": "720p",
+   "frames": 900,
+   "stages": {
+    "ours": {
+     "deblock filter": {
+      "ms": 710,
+      "Ir": 8986006418,
+      "D1 misses": 8262695,
+      "LL misses": 24,
+      "mispredicts": 28148866,
+      "cond branches": 629859574
+     },
+     "combine": {
+      "ms": 294,
+      "Ir": 4271665252,
+      "D1 misses": 5532791,
+      "LL misses": 1473,
+      "mispredicts": 8463424,
+      "cond branches": 444146280
+     },
+     "deblock strength/driver": {
+      "ms": 200,
+      "Ir": 2346013478,
+      "D1 misses": 7234718,
+      "LL misses": 12,
+      "mispredicts": 7396755,
+      "cond branches": 187059645
+     },
+     "mb control": {
+      "ms": 340,
+      "Ir": 3604724170,
+      "D1 misses": 18313464,
+      "LL misses": 94,
+      "mispredicts": 9650072,
+      "cond branches": 376061686
+     },
+     "chroma MC": {
+      "ms": 72,
+      "Ir": 1111780890,
+      "D1 misses": 4688535,
+      "LL misses": 1,
+      "mispredicts": 3883944,
+      "cond branches": 208233792
+     },
+     "intra pred": {
+      "ms": 113,
+      "Ir": 1730307493,
+      "D1 misses": 5772379,
+      "LL misses": 21029,
+      "mispredicts": 4612815,
+      "cond branches": 196043498
+     },
+     "other": {
+      "ms": 79,
+      "Ir": 326763039,
+      "D1 misses": 705004,
+      "LL misses": 93257,
+      "mispredicts": 709417,
+      "cond branches": 61796198
+     },
+     "picture/edge/output": {
+      "ms": 42,
+      "Ir": 270751585,
+      "D1 misses": 7754389,
+      "LL misses": 11107,
+      "mispredicts": 703945,
+      "cond branches": 28733284
+     },
+     "entropy": {
+      "ms": 118,
+      "Ir": 1292144497,
+      "D1 misses": 1687104,
+      "LL misses": 3138,
+      "mispredicts": 6866011,
+      "cond branches": 171816599
+     },
+     "luma MC": {
+      "ms": 45,
+      "Ir": 451056683,
+      "D1 misses": 7547534,
+      "LL misses": 2018,
+      "mispredicts": 871096,
+      "cond branches": 55442817
+     },
+     "idct/dequant/add": {
+      "ms": 31,
+      "Ir": 496446299,
+      "D1 misses": 221588,
+      "LL misses": 6,
+      "mispredicts": 1502938,
+      "cond branches": 32674705
+     }
+    },
+    "ffsimd": {
+     "other": {
+      "ms": 71,
+      "Ir": 195727163,
+      "D1 misses": 2353626,
+      "LL misses": 170853,
+      "mispredicts": 1997881,
+      "cond branches": 56365528
+     },
+     "deblock filter": {
+      "ms": 232,
+      "Ir": 2023135668,
+      "D1 misses": 3861846,
+      "LL misses": 2,
+      "mispredicts": 0,
+      "cond branches": 0
+     },
+     "entropy": {
+      "ms": 117,
+      "Ir": 828278684,
+      "D1 misses": 5422905,
+      "LL misses": 22,
+      "mispredicts": 2794848,
+      "cond branches": 64480261
+     },
+     "mb control": {
+      "ms": 84,
+      "Ir": 1284441593,
+      "D1 misses": 2259495,
+      "LL misses": 21,
+      "mispredicts": 3675148,
+      "cond branches": 101938143
+     },
+     "intra pred": {
+      "ms": 24,
+      "Ir": 154966325,
+      "D1 misses": 5093026,
+      "LL misses": 4,
+      "mispredicts": 484965,
+      "cond branches": 5283964
+     },
+     "deblock strength/driver": {
+      "ms": 94,
+      "Ir": 1406680639,
+      "D1 misses": 5734513,
+      "LL misses": 7,
+      "mispredicts": 1660890,
+      "cond branches": 105637840
+     },
+     "chroma MC": {
+      "ms": 12,
+      "Ir": 127082595,
+      "D1 misses": 7069438,
+      "LL misses": 8,
+      "mispredicts": 70343,
+      "cond branches": 11111391
+     },
+     "combine": {
+      "ms": 37,
+      "Ir": 325751474,
+      "D1 misses": 5220,
+      "LL misses": 0,
+      "mispredicts": 849619,
+      "cond branches": 19942426
+     },
+     "picture/edge/output": {
+      "ms": 10,
+      "Ir": 96558490,
+      "D1 misses": 102105,
+      "LL misses": 1538,
+      "mispredicts": 1212909,
+      "cond branches": 24909042
+     },
+     "luma MC": {
+      "ms": 19,
+      "Ir": 130719300,
+      "D1 misses": 12554722,
+      "LL misses": 38,
+      "mispredicts": 93444,
+      "cond branches": 7744932
+     },
+     "idct/dequant/add": {
+      "ms": 10,
+      "Ir": 160768073,
+      "D1 misses": 117425,
+      "LL misses": 2,
+      "mispredicts": 200123,
+      "cond branches": 20718600
+     }
+    },
+    "ffc": {
+     "other": {
+      "ms": 74,
+      "Ir": 206621745,
+      "D1 misses": 2405939,
+      "LL misses": 170891,
+      "mispredicts": 2286924,
+      "cond branches": 58453952
+     },
+     "deblock filter": {
+      "ms": 1041,
+      "Ir": 15403459677,
+      "D1 misses": 3560380,
+      "LL misses": 0,
+      "mispredicts": 36104619,
+      "cond branches": 1005801063
+     },
+     "entropy": {
+      "ms": 132,
+      "Ir": 828278684,
+      "D1 misses": 5502506,
+      "LL misses": 22,
+      "mispredicts": 2849384,
+      "cond branches": 64480261
+     },
+     "mb control": {
+      "ms": 117,
+      "Ir": 1200938620,
+      "D1 misses": 2151120,
+      "LL misses": 22,
+      "mispredicts": 3703479,
+      "cond branches": 96874076
+     },
+     "combine": {
+      "ms": 264,
+      "Ir": 3252172038,
+      "D1 misses": 173878,
+      "LL misses": 0,
+      "mispredicts": 884875,
+      "cond branches": 29974970
+     },
+     "deblock strength/driver": {
+      "ms": 139,
+      "Ir": 1743267415,
+      "D1 misses": 5556025,
+      "LL misses": 7,
+      "mispredicts": 8566123,
+      "cond branches": 166013173
+     },
+     "idct/dequant/add": {
+      "ms": 55,
+      "Ir": 759301497,
+      "D1 misses": 98693,
+      "LL misses": 1,
+      "mispredicts": 2477888,
+      "cond branches": 71098576
+     },
+     "luma MC": {
+      "ms": 91,
+      "Ir": 488517589,
+      "D1 misses": 13151716,
+      "LL misses": 24,
+      "mispredicts": 288056,
+      "cond branches": 10759499
+     },
+     "chroma MC": {
+      "ms": 55,
+      "Ir": 600261942,
+      "D1 misses": 7259538,
+      "LL misses": 8,
+      "mispredicts": 142307,
+      "cond branches": 39834882
+     },
+     "intra pred": {
+      "ms": 23,
+      "Ir": 270067910,
+      "D1 misses": 5082649,
+      "LL misses": 0,
+      "mispredicts": 14809,
+      "cond branches": 2344196
+     },
+     "picture/edge/output": {
+      "ms": 1,
+      "Ir": 27353685,
+      "D1 misses": 97664,
+      "LL misses": 1566,
+      "mispredicts": 263753,
+      "cond branches": 5680618
+     }
+    }
+   }
+  },
+  "1d4b1775d78a": {
+   "class": "720p",
+   "frames": 900,
+   "stages": {
+    "ours": {
+     "deblock filter": {
+      "ms": 296,
+      "Ir": 3680374392,
+      "D1 misses": 7852218,
+      "LL misses": 23,
+      "mispredicts": 10437760,
+      "cond branches": 249053978
+     },
+     "deblock strength/driver": {
+      "ms": 147,
+      "Ir": 1434761649,
+      "D1 misses": 5423310,
+      "LL misses": 4,
+      "mispredicts": 9642370,
+      "cond branches": 117438466
+     },
+     "entropy": {
+      "ms": 265,
+      "Ir": 1778434433,
+      "D1 misses": 1399734,
+      "LL misses": 81,
+      "mispredicts": 16268741,
+      "cond branches": 142547406
+     },
+     "chroma MC": {
+      "ms": 125,
+      "Ir": 1802535308,
+      "D1 misses": 6849932,
+      "LL misses": 1,
+      "mispredicts": 3931587,
+      "cond branches": 205187978
+     },
+     "intra pred": {
+      "ms": 107,
+      "Ir": 1248082268,
+      "D1 misses": 1873156,
+      "LL misses": 25324,
+      "mispredicts": 5002771,
+      "cond branches": 144889716
+     },
+     "luma MC": {
+      "ms": 166,
+      "Ir": 1499691374,
+      "D1 misses": 11766450,
+      "LL misses": 53790,
+      "mispredicts": 5233334,
+      "cond branches": 159236232
+     },
+     "mb control": {
+      "ms": 267,
+      "Ir": 2436500921,
+      "D1 misses": 11800873,
+      "LL misses": 107,
+      "mispredicts": 15951253,
+      "cond branches": 268556967
+     },
+     "combine": {
+      "ms": 52,
+      "Ir": 645198452,
+      "D1 misses": 817252,
+      "LL misses": 376,
+      "mispredicts": 1765210,
+      "cond branches": 67534559
+     },
+     "idct/dequant/add": {
+      "ms": 96,
+      "Ir": 1127503072,
+      "D1 misses": 844031,
+      "LL misses": 7,
+      "mispredicts": 3111225,
+      "cond branches": 71178215
+     },
+     "picture/edge/output": {
+      "ms": 24,
+      "Ir": 80286279,
+      "D1 misses": 3249912,
+      "LL misses": 39165,
+      "mispredicts": 243340,
+      "cond branches": 8139607
+     },
+     "other": {
+      "ms": 33,
+      "Ir": 148489259,
+      "D1 misses": 1024823,
+      "LL misses": 160135,
+      "mispredicts": 445497,
+      "cond branches": 29991462
+     }
+    },
+    "ffsimd": {
+     "other": {
+      "ms": 40,
+      "Ir": 87448250,
+      "D1 misses": 1407127,
+      "LL misses": 270528,
+      "mispredicts": 904606,
+      "cond branches": 34552809
+     },
+     "intra pred": {
+      "ms": 14,
+      "Ir": 56082232,
+      "D1 misses": 1266641,
+      "LL misses": 5,
+      "mispredicts": 187485,
+      "cond branches": 1866243
+     },
+     "entropy": {
+      "ms": 208,
+      "Ir": 1191606292,
+      "D1 misses": 4301645,
+      "LL misses": 105,
+      "mispredicts": 9163793,
+      "cond branches": 82686664
+     },
+     "deblock filter": {
+      "ms": 94,
+      "Ir": 778297324,
+      "D1 misses": 6727599,
+      "LL misses": 2,
+      "mispredicts": 0,
+      "cond branches": 0
+     },
+     "idct/dequant/add": {
+      "ms": 21,
+      "Ir": 137363414,
+      "D1 misses": 257612,
+      "LL misses": 2,
+      "mispredicts": 809913,
+      "cond branches": 6489067
+     },
+     "deblock strength/driver": {
+      "ms": 85,
+      "Ir": 963620935,
+      "D1 misses": 5746124,
+      "LL misses": 7,
+      "mispredicts": 3887312,
+      "cond branches": 70640211
+     },
+     "mb control": {
+      "ms": 101,
+      "Ir": 1034072283,
+      "D1 misses": 3528086,
+      "LL misses": 24,
+      "mispredicts": 8164266,
+      "cond branches": 84279407
+     },
+     "luma MC": {
+      "ms": 44,
+      "Ir": 408585258,
+      "D1 misses": 11979211,
+      "LL misses": 41,
+      "mispredicts": 488985,
+      "cond branches": 9198533
+     },
+     "chroma MC": {
+      "ms": 20,
+      "Ir": 136509491,
+      "D1 misses": 5919830,
+      "LL misses": 8,
+      "mispredicts": 784144,
+      "cond branches": 9350706
+     },
+     "picture/edge/output": {
+      "ms": 11,
+      "Ir": 61533470,
+      "D1 misses": 51506,
+      "LL misses": 980,
+      "mispredicts": 615922,
+      "cond branches": 15209604
+     },
+     "combine": {
+      "ms": 13,
+      "Ir": 106631571,
+      "D1 misses": 4847,
+      "LL misses": 30,
+      "mispredicts": 363703,
+      "cond branches": 6621690
+     }
+    },
+    "ffc": {
+     "other": {
+      "ms": 42,
+      "Ir": 93299008,
+      "D1 misses": 1428021,
+      "LL misses": 272827,
+      "mispredicts": 1003101,
+      "cond branches": 36060180
+     },
+     "intra pred": {
+      "ms": 25,
+      "Ir": 164804917,
+      "D1 misses": 1229613,
+      "LL misses": 1,
+      "mispredicts": 199385,
+      "cond branches": 1766120
+     },
+     "deblock strength/driver": {
+      "ms": 123,
+      "Ir": 1051960891,
+      "D1 misses": 5708737,
+      "LL misses": 7,
+      "mispredicts": 6791575,
+      "cond branches": 91098899
+     },
+     "deblock filter": {
+      "ms": 391,
+      "Ir": 5309629206,
+      "D1 misses": 6796014,
+      "LL misses": 0,
+      "mispredicts": 14931231,
+      "cond branches": 360498296
+     },
+     "idct/dequant/add": {
+      "ms": 93,
+      "Ir": 787902066,
+      "D1 misses": 242672,
+      "LL misses": 1,
+      "mispredicts": 3257687,
+      "cond branches": 24004027
+     },
+     "entropy": {
+      "ms": 200,
+      "Ir": 1191606292,
+      "D1 misses": 4310907,
+      "LL misses": 105,
+      "mispredicts": 9901038,
+      "cond branches": 82686664
+     },
+     "mb control": {
+      "ms": 113,
+      "Ir": 1000321329,
+      "D1 misses": 2849723,
+      "LL misses": 25,
+      "mispredicts": 8334402,
+      "cond branches": 82114225
+     },
+     "luma MC": {
+      "ms": 238,
+      "Ir": 2585735699,
+      "D1 misses": 12198812,
+      "LL misses": 27,
+      "mispredicts": 2510158,
+      "cond branches": 39832999
+     },
+     "chroma MC": {
+      "ms": 72,
+      "Ir": 673794572,
+      "D1 misses": 6603077,
+      "LL misses": 8,
+      "mispredicts": 1025117,
+      "cond branches": 27004742
+     },
+     "combine": {
+      "ms": 84,
+      "Ir": 872789804,
+      "D1 misses": 6486,
+      "LL misses": 31,
+      "mispredicts": 395005,
+      "cond branches": 8711994
+     },
+     "picture/edge/output": {
+      "ms": 6,
+      "Ir": 28860028,
+      "D1 misses": 39468,
+      "LL misses": 973,
+      "mispredicts": 279568,
+      "cond branches": 4795632
+     }
+    }
+   }
+  },
+  "6da34958296c": {
+   "class": "1080p",
+   "frames": 300,
+   "stages": {
+    "ours": {
+     "deblock filter": {
+      "ms": 355,
+      "Ir": 4108431711,
+      "D1 misses": 12439593,
+      "LL misses": 24,
+      "mispredicts": 11488031,
+      "cond branches": 283748507
+     },
+     "chroma MC": {
+      "ms": 384,
+      "Ir": 4786451544,
+      "D1 misses": 16422931,
+      "LL misses": 1,
+      "mispredicts": 10791389,
+      "cond branches": 545755202
+     },
+     "deblock strength/driver": {
+      "ms": 241,
+      "Ir": 2365860104,
+      "D1 misses": 14219954,
+      "LL misses": 4,
+      "mispredicts": 16187534,
+      "cond branches": 201593276
+     },
+     "luma MC": {
+      "ms": 430,
+      "Ir": 3652269891,
+      "D1 misses": 30735785,
+      "LL misses": 142544,
+      "mispredicts": 11441195,
+      "cond branches": 440740511
+     },
+     "entropy": {
+      "ms": 415,
+      "Ir": 2940733855,
+      "D1 misses": 2577288,
+      "LL misses": 80,
+      "mispredicts": 25556028,
+      "cond branches": 229998738
+     },
+     "mb control": {
+      "ms": 724,
+      "Ir": 7120743883,
+      "D1 misses": 28418762,
+      "LL misses": 106,
+      "mispredicts": 36284172,
+      "cond branches": 761182886
+     },
+     "idct/dequant/add": {
+      "ms": 175,
+      "Ir": 1617619929,
+      "D1 misses": 1450834,
+      "LL misses": 5,
+      "mispredicts": 5121920,
+      "cond branches": 107139283
+     },
+     "picture/edge/output": {
+      "ms": 46,
+      "Ir": 176420146,
+      "D1 misses": 7127836,
+      "LL misses": 88755,
+      "mispredicts": 514758,
+      "cond branches": 17843524
+     },
+     "intra pred": {
+      "ms": 37,
+      "Ir": 344955873,
+      "D1 misses": 1201365,
+      "LL misses": 36837,
+      "mispredicts": 2761935,
+      "cond branches": 36554744
+     },
+     "other": {
+      "ms": 41,
+      "Ir": 286321431,
+      "D1 misses": 719160,
+      "LL misses": 333510,
+      "mispredicts": 421143,
+      "cond branches": 52666250
+     },
+     "combine": {
+      "ms": 3,
+      "Ir": 84647232,
+      "D1 misses": 102553,
+      "LL misses": 712,
+      "mispredicts": 265114,
+      "cond branches": 8802320
+     }
+    },
+    "ffsimd": {
+     "other": {
+      "ms": 39,
+      "Ir": 127946376,
+      "D1 misses": 1807691,
+      "LL misses": 541230,
+      "mispredicts": 980674,
+      "cond branches": 59028979
+     },
+     "deblock filter": {
+      "ms": 95,
+      "Ir": 871601719,
+      "D1 misses": 10955755,
+      "LL misses": 2,
+      "mispredicts": 0,
+      "cond branches": 0
+     },
+     "entropy": {
+      "ms": 385,
+      "Ir": 2155608272,
+      "D1 misses": 9834821,
+      "LL misses": 102,
+      "mispredicts": 14513303,
+      "cond branches": 141333713
+     },
+     "deblock strength/driver": {
+      "ms": 168,
+      "Ir": 2222678295,
+      "D1 misses": 14118954,
+      "LL misses": 7,
+      "mispredicts": 6863629,
+      "cond branches": 161312671
+     },
+     "idct/dequant/add": {
+      "ms": 31,
+      "Ir": 231437118,
+      "D1 misses": 446005,
+      "LL misses": 1,
+      "mispredicts": 1103930,
+      "cond branches": 14347070
+     },
+     "intra pred": {
+      "ms": 8,
+      "Ir": 20074595,
+      "D1 misses": 641005,
+      "LL misses": 3,
+      "mispredicts": 50911,
+      "cond branches": 586860
+     },
+     "mb control": {
+      "ms": 267,
+      "Ir": 2615173685,
+      "D1 misses": 7007514,
+      "LL misses": 23,
+      "mispredicts": 12688579,
+      "cond branches": 204775262
+     },
+     "luma MC": {
+      "ms": 108,
+      "Ir": 800350461,
+      "D1 misses": 30280896,
+      "LL misses": 38,
+      "mispredicts": 1137865,
+      "cond branches": 24522541
+     },
+     "picture/edge/output": {
+      "ms": 29,
+      "Ir": 155946508,
+      "D1 misses": 46849,
+      "LL misses": 987,
+      "mispredicts": 1744701,
+      "cond branches": 38933161
+     },
+     "chroma MC": {
+      "ms": 63,
+      "Ir": 334434671,
+      "D1 misses": 13595019,
+      "LL misses": 9,
+      "mispredicts": 1270374,
+      "cond branches": 22927018
+     },
+     "combine": {
+      "ms": 1,
+      "Ir": 6535166,
+      "D1 misses": 2893,
+      "LL misses": 15,
+      "mispredicts": 20358,
+      "cond branches": 402020
+     }
+    },
+    "ffc": {
+     "other": {
+      "ms": 43,
+      "Ir": 132478210,
+      "D1 misses": 1843108,
+      "LL misses": 541138,
+      "mispredicts": 1137635,
+      "cond branches": 60525614
+     },
+     "mb control": {
+      "ms": 249,
+      "Ir": 2526804886,
+      "D1 misses": 4998409,
+      "LL misses": 24,
+      "mispredicts": 13030320,
+      "cond branches": 199340444
+     },
+     "deblock filter": {
+      "ms": 486,
+      "Ir": 4938319457,
+      "D1 misses": 11239865,
+      "LL misses": 0,
+      "mispredicts": 27176561,
+      "cond branches": 358314714
+     },
+     "entropy": {
+      "ms": 377,
+      "Ir": 2155608272,
+      "D1 misses": 9873889,
+      "LL misses": 103,
+      "mispredicts": 16560789,
+      "cond branches": 141333713
+     },
+     "idct/dequant/add": {
+      "ms": 97,
+      "Ir": 912343732,
+      "D1 misses": 422844,
+      "LL misses": 1,
+      "mispredicts": 7988723,
+      "cond branches": 53029991
+     },
+     "deblock strength/driver": {
+      "ms": 299,
+      "Ir": 2361283898,
+      "D1 misses": 14057490,
+      "LL misses": 7,
+      "mispredicts": 11951351,
+      "cond branches": 202933242
+     },
+     "intra pred": {
+      "ms": 5,
+      "Ir": 49375050,
+      "D1 misses": 625538,
+      "LL misses": 1,
+      "mispredicts": 20023,
+      "cond branches": 348137
+     },
+     "luma MC": {
+      "ms": 448,
+      "Ir": 4340638869,
+      "D1 misses": 30585332,
+      "LL misses": 27,
+      "mispredicts": 3867341,
+      "cond branches": 68102172
+     },
+     "chroma MC": {
+      "ms": 189,
+      "Ir": 1781101358,
+      "D1 misses": 15525007,
+      "LL misses": 8,
+      "mispredicts": 1848471,
+      "cond branches": 86278294
+     },
+     "combine": {
+      "ms": 5,
+      "Ir": 64402034,
+      "D1 misses": 3225,
+      "LL misses": 18,
+      "mispredicts": 31548,
+      "cond branches": 601442
+     },
+     "picture/edge/output": {
+      "ms": 2,
+      "Ir": 23686611,
+      "D1 misses": 38415,
+      "LL misses": 983,
+      "mispredicts": 240863,
+      "cond branches": 4000474
+     }
+    }
+   }
+  },
+  "b71b6b31e54f": {
+   "class": "1080p",
+   "frames": 300,
+   "stages": {
+    "ours": {
+     "chroma MC": {
+      "ms": 365,
+      "Ir": 4634722062,
+      "D1 misses": 12726746,
+      "LL misses": 2,
+      "mispredicts": 7910326,
+      "cond branches": 526965720
+     },
+     "luma MC": {
+      "ms": 413,
+      "Ir": 4249158826,
+      "D1 misses": 24412354,
+      "LL misses": 129173,
+      "mispredicts": 10760341,
+      "cond branches": 453864706
+     },
+     "mb control": {
+      "ms": 571,
+      "Ir": 5945895132,
+      "D1 misses": 25560787,
+      "LL misses": 53,
+      "mispredicts": 29641809,
+      "cond branches": 665455311
+     },
+     "idct/dequant/add": {
+      "ms": 126,
+      "Ir": 1332483007,
+      "D1 misses": 586964,
+      "LL misses": 6,
+      "mispredicts": 3136843,
+      "cond branches": 84825946
+     },
+     "entropy": {
+      "ms": 196,
+      "Ir": 1533278616,
+      "D1 misses": 2909549,
+      "LL misses": 3130,
+      "mispredicts": 13016636,
+      "cond branches": 217079554
+     },
+     "deblock filter": {
+      "ms": 61,
+      "Ir": 890585371,
+      "D1 misses": 3105480,
+      "LL misses": 2,
+      "mispredicts": 2368967,
+      "cond branches": 60005874
+     },
+     "deblock strength/driver": {
+      "ms": 56,
+      "Ir": 565158888,
+      "D1 misses": 4674257,
+      "LL misses": 10,
+      "mispredicts": 3056991,
+      "cond branches": 50810360
+     },
+     "intra pred": {
+      "ms": 48,
+      "Ir": 784396622,
+      "D1 misses": 1403772,
+      "LL misses": 34093,
+      "mispredicts": 5077448,
+      "cond branches": 90127602
+     },
+     "picture/edge/output": {
+      "ms": 40,
+      "Ir": 156571320,
+      "D1 misses": 6240429,
+      "LL misses": 73966,
+      "mispredicts": 377545,
+      "cond branches": 15787595
+     },
+     "other": {
+      "ms": 45,
+      "Ir": 325086361,
+      "D1 misses": 1107698,
+      "LL misses": 299976,
+      "mispredicts": 816625,
+      "cond branches": 70407558
+     }
+    },
+    "ffsimd": {
+     "other": {
+      "ms": 44,
+      "Ir": 148710359,
+      "D1 misses": 2284839,
+      "LL misses": 635114,
+      "mispredicts": 970310,
+      "cond branches": 69077856
+     },
+     "entropy": {
+      "ms": 182,
+      "Ir": 1117478936,
+      "D1 misses": 7869730,
+      "LL misses": 29,
+      "mispredicts": 6307142,
+      "cond branches": 83777724
+     },
+     "mb control": {
+      "ms": 165,
+      "Ir": 2125313794,
+      "D1 misses": 3976468,
+      "LL misses": 20,
+      "mispredicts": 7398179,
+      "cond branches": 160431698
+     },
+     "luma MC": {
+      "ms": 111,
+      "Ir": 1172550126,
+      "D1 misses": 25131542,
+      "LL misses": 27,
+      "mispredicts": 1580554,
+      "cond branches": 28169871
+     },
+     "chroma MC": {
+      "ms": 42,
+      "Ir": 348171511,
+      "D1 misses": 11111806,
+      "LL misses": 0,
+      "mispredicts": 848305,
+      "cond branches": 23391514
+     },
+     "picture/edge/output": {
+      "ms": 18,
+      "Ir": 149157130,
+      "D1 misses": 58859,
+      "LL misses": 1558,
+      "mispredicts": 2606176,
+      "cond branches": 36995665
+     },
+     "idct/dequant/add": {
+      "ms": 27,
+      "Ir": 235306641,
+      "D1 misses": 112388,
+      "LL misses": 1,
+      "mispredicts": 766072,
+      "cond branches": 10431677
+     },
+     "intra pred": {
+      "ms": 11,
+      "Ir": 35054925,
+      "D1 misses": 1170288,
+      "LL misses": 3,
+      "mispredicts": 87902,
+      "cond branches": 986623
+     },
+     "deblock filter": {
+      "ms": 18,
+      "Ir": 180778429,
+      "D1 misses": 2715155,
+      "LL misses": 1,
+      "mispredicts": 0,
+      "cond branches": 0
+     },
+     "deblock strength/driver": {
+      "ms": 47,
+      "Ir": 516108503,
+      "D1 misses": 3206531,
+      "LL misses": 7,
+      "mispredicts": 1538329,
+      "cond branches": 37709933
+     }
+    },
+    "ffc": {
+     "other": {
+      "ms": 52,
+      "Ir": 162189192,
+      "D1 misses": 2454727,
+      "LL misses": 782264,
+      "mispredicts": 1012243,
+      "cond branches": 80113236
+     },
+     "entropy": {
+      "ms": 177,
+      "Ir": 1117478936,
+      "D1 misses": 7901288,
+      "LL misses": 29,
+      "mispredicts": 6611426,
+      "cond branches": 83777724
+     },
+     "chroma MC": {
+      "ms": 178,
+      "Ir": 2016114666,
+      "D1 misses": 12424277,
+      "LL misses": 0,
+      "mispredicts": 927501,
+      "cond branches": 75362436
+     },
+     "mb control": {
+      "ms": 193,
+      "Ir": 2048461593,
+      "D1 misses": 2654114,
+      "LL misses": 21,
+      "mispredicts": 7394624,
+      "cond branches": 155925250
+     },
+     "idct/dequant/add": {
+      "ms": 132,
+      "Ir": 1106004203,
+      "D1 misses": 116655,
+      "LL misses": 1,
+      "mispredicts": 4289435,
+      "cond branches": 41533446
+     },
+     "luma MC": {
+      "ms": 579,
+      "Ir": 6920882379,
+      "D1 misses": 25184124,
+      "LL misses": 12,
+      "mispredicts": 6128090,
+      "cond branches": 105943375
+     },
+     "intra pred": {
+      "ms": 8,
+      "Ir": 74850512,
+      "D1 misses": 1157225,
+      "LL misses": 1,
+      "mispredicts": 9070,
+      "cond branches": 443053
+     },
+     "deblock strength/driver": {
+      "ms": 63,
+      "Ir": 552498464,
+      "D1 misses": 3190567,
+      "LL misses": 6,
+      "mispredicts": 2610169,
+      "cond branches": 49250347
+     },
+     "deblock filter": {
+      "ms": 92,
+      "Ir": 1016282923,
+      "D1 misses": 2760029,
+      "LL misses": 0,
+      "mispredicts": 5120788,
+      "cond branches": 74977369
+     },
+     "picture/edge/output": {
+      "ms": 5,
+      "Ir": 34548066,
+      "D1 misses": 42023,
+      "LL misses": 1536,
+      "mispredicts": 254053,
+      "cond branches": 5815459
+     }
+    }
+   }
+  },
+  "3b1b441e23ae": {
+   "class": "4k",
+   "frames": 150,
+   "stages": {
+    "ours": {
+     "chroma MC": {
+      "ms": 260,
+      "Ir": 2435906140,
+      "D1 misses": 10486293,
+      "LL misses": 369183,
+      "mispredicts": 6002070,
+      "cond branches": 337284714
+     },
+     "luma MC": {
+      "ms": 159,
+      "Ir": 1234226334,
+      "D1 misses": 20091570,
+      "LL misses": 808862,
+      "mispredicts": 2234819,
+      "cond branches": 173460616
+     },
+     "mb control": {
+      "ms": 429,
+      "Ir": 4278757590,
+      "D1 misses": 22486034,
+      "LL misses": 2392390,
+      "mispredicts": 11257148,
+      "cond branches": 456178062
+     },
+     "deblock strength/driver": {
+      "ms": 59,
+      "Ir": 922399892,
+      "D1 misses": 11629889,
+      "LL misses": 23,
+      "mispredicts": 1335544,
+      "cond branches": 86324288
+     },
+     "deblock filter": {
+      "ms": 38,
+      "Ir": 373211942,
+      "D1 misses": 1972696,
+      "LL misses": 39,
+      "mispredicts": 1138262,
+      "cond branches": 26524171
+     },
+     "picture/edge/output": {
+      "ms": 30,
+      "Ir": 114087410,
+      "D1 misses": 5401084,
+      "LL misses": 153347,
+      "mispredicts": 236316,
+      "cond branches": 11112032
+     },
+     "other": {
+      "ms": 39,
+      "Ir": 129195143,
+      "D1 misses": 734164,
+      "LL misses": 496497,
+      "mispredicts": 135491,
+      "cond branches": 28576686
+     },
+     "entropy": {
+      "ms": 36,
+      "Ir": 215851473,
+      "D1 misses": 499734,
+      "LL misses": 187,
+      "mispredicts": 1690709,
+      "cond branches": 16915987
+     },
+     "combine": {
+      "ms": 10,
+      "Ir": 146200296,
+      "D1 misses": 178800,
+      "LL misses": 15200,
+      "mispredicts": 329714,
+      "cond branches": 15255678
+     },
+     "intra pred": {
+      "ms": 16,
+      "Ir": 182011088,
+      "D1 misses": 247837,
+      "LL misses": 65425,
+      "mispredicts": 621326,
+      "cond branches": 22049087
+     },
+     "idct/dequant/add": {
+      "ms": 6,
+      "Ir": 48054574,
+      "D1 misses": 101626,
+      "LL misses": 5,
+      "mispredicts": 214862,
+      "cond branches": 4040696
+     }
+    },
+    "ffsimd": {
+     "other": {
+      "ms": 28,
+      "Ir": 103622581,
+      "D1 misses": 1337437,
+      "LL misses": 868308,
+      "mispredicts": 341868,
+      "cond branches": 67460880
+     },
+     "deblock strength/driver": {
+      "ms": 65,
+      "Ir": 1048701166,
+      "D1 misses": 7820408,
+      "LL misses": 7,
+      "mispredicts": 589456,
+      "cond branches": 81916277
+     },
+     "entropy": {
+      "ms": 106,
+      "Ir": 682708576,
+      "D1 misses": 6666304,
+      "LL misses": 226,
+      "mispredicts": 1142259,
+      "cond branches": 40900748
+     },
+     "mb control": {
+      "ms": 157,
+      "Ir": 1669100549,
+      "D1 misses": 2215438,
+      "LL misses": 22,
+      "mispredicts": 1605163,
+      "cond branches": 124808124
+     },
+     "deblock filter": {
+      "ms": 9,
+      "Ir": 98281797,
+      "D1 misses": 1700795,
+      "LL misses": 2,
+      "mispredicts": 0,
+      "cond branches": 0
+     },
+     "intra pred": {
+      "ms": 1,
+      "Ir": 12277482,
+      "D1 misses": 262654,
+      "LL misses": 5,
+      "mispredicts": 33604,
+      "cond branches": 311550
+     },
+     "idct/dequant/add": {
+      "ms": 6,
+      "Ir": 27572307,
+      "D1 misses": 43020,
+      "LL misses": 2,
+      "mispredicts": 47403,
+      "cond branches": 1085574
+     },
+     "picture/edge/output": {
+      "ms": 22,
+      "Ir": 120640463,
+      "D1 misses": 16696,
+      "LL misses": 1157,
+      "mispredicts": 812792,
+      "cond branches": 30385311
+     },
+     "chroma MC": {
+      "ms": 20,
+      "Ir": 187665543,
+      "D1 misses": 9439443,
+      "LL misses": 43,
+      "mispredicts": 294550,
+      "cond branches": 15497874
+     },
+     "luma MC": {
+      "ms": 36,
+      "Ir": 221712157,
+      "D1 misses": 20316530,
+      "LL misses": 114,
+      "mispredicts": 129532,
+      "cond branches": 12694270
+     },
+     "combine": {
+      "ms": 25,
+      "Ir": 334725325,
+      "D1 misses": 2359,
+      "LL misses": 28,
+      "mispredicts": 1315099,
+      "cond branches": 21222737
+     }
+    },
+    "ffc": {
+     "other": {
+      "ms": 34,
+      "Ir": 101388359,
+      "D1 misses": 1345389,
+      "LL misses": 868356,
+      "mispredicts": 391325,
+      "cond branches": 67710743
+     },
+     "mb control": {
+      "ms": 138,
+      "Ir": 1629471444,
+      "D1 misses": 1434177,
+      "LL misses": 23,
+      "mispredicts": 1622564,
+      "cond branches": 122375374
+     },
+     "entropy": {
+      "ms": 82,
+      "Ir": 682708576,
+      "D1 misses": 6708012,
+      "LL misses": 240,
+      "mispredicts": 1909005,
+      "cond branches": 40900748
+     },
+     "deblock filter": {
+      "ms": 50,
+      "Ir": 632367587,
+      "D1 misses": 1823109,
+      "LL misses": 0,
+      "mispredicts": 2074446,
+      "cond branches": 43199421
+     },
+     "deblock strength/driver": {
+      "ms": 79,
+      "Ir": 1079030828,
+      "D1 misses": 7783996,
+      "LL misses": 7,
+      "mispredicts": 590144,
+      "cond branches": 94802343
+     },
+     "intra pred": {
+      "ms": 2,
+      "Ir": 26044848,
+      "D1 misses": 255347,
+      "LL misses": 1,
+      "mispredicts": 21834,
+      "cond branches": 336900
+     },
+     "luma MC": {
+      "ms": 101,
+      "Ir": 849821658,
+      "D1 misses": 20365561,
+      "LL misses": 89,
+      "mispredicts": 340575,
+      "cond branches": 16546202
+     },
+     "chroma MC": {
+      "ms": 98,
+      "Ir": 986657338,
+      "D1 misses": 10211200,
+      "LL misses": 34,
+      "mispredicts": 226720,
+      "cond branches": 62886874
+     },
+     "combine": {
+      "ms": 267,
+      "Ir": 2329640692,
+      "D1 misses": 2388,
+      "LL misses": 29,
+      "mispredicts": 1319472,
+      "cond branches": 24153618
+     },
+     "idct/dequant/add": {
+      "ms": 14,
+      "Ir": 126231813,
+      "D1 misses": 40801,
+      "LL misses": 1,
+      "mispredicts": 406875,
+      "cond branches": 4403980
+     },
+     "picture/edge/output": {
+      "Ir": 1038136,
+      "D1 misses": 16776,
+      "LL misses": 1086,
+      "mispredicts": 21863,
+      "cond branches": 484388
+     }
+    }
+   }
+  },
+  "e624cbe0d2be": {
+   "class": "4k",
+   "frames": 150,
+   "stages": {
+    "ours": {
+     "chroma MC": {
+      "ms": 219,
+      "Ir": 1511355590,
+      "D1 misses": 10625334,
+      "LL misses": 4537415,
+      "mispredicts": 5431112,
+      "cond branches": 289198530
+     },
+     "mb control": {
+      "ms": 295,
+      "Ir": 2725340158,
+      "D1 misses": 24977839,
+      "LL misses": 12025525,
+      "mispredicts": 2730217,
+      "cond branches": 304230441
+     },
+     "deblock strength/driver": {
+      "ms": 100,
+      "Ir": 1243169844,
+      "D1 misses": 14321781,
+      "LL misses": 33,
+      "mispredicts": 2382633,
+      "cond branches": 116746643
+     },
+     "luma MC": {
+      "ms": 120,
+      "Ir": 607633331,
+      "D1 misses": 20297885,
+      "LL misses": 9792998,
+      "mispredicts": 1015613,
+      "cond branches": 75097309
+     },
+     "entropy": {
+      "ms": 209,
+      "Ir": 1388266813,
+      "D1 misses": 733793,
+      "LL misses": 180,
+      "mispredicts": 8817540,
+      "cond branches": 92837675
+     },
+     "deblock filter": {
+      "ms": 57,
+      "Ir": 582414652,
+      "D1 misses": 987576,
+      "LL misses": 62,
+      "mispredicts": 1812055,
+      "cond branches": 40367828
+     },
+     "idct/dequant/add": {
+      "ms": 31,
+      "Ir": 330181058,
+      "D1 misses": 115676,
+      "LL misses": 29,
+      "mispredicts": 755729,
+      "cond branches": 20593699
+     },
+     "picture/edge/output": {
+      "ms": 32,
+      "Ir": 98265968,
+      "D1 misses": 6074990,
+      "LL misses": 384500,
+      "mispredicts": 196411,
+      "cond branches": 8862620
+     },
+     "intra pred": {
+      "ms": 28,
+      "Ir": 429963964,
+      "D1 misses": 1013405,
+      "LL misses": 796148,
+      "mispredicts": 1660872,
+      "cond branches": 46259353
+     },
+     "other": {
+      "ms": 60,
+      "Ir": 106127703,
+      "D1 misses": 1765470,
+      "LL misses": 1237835,
+      "mispredicts": 152953,
+      "cond branches": 43374453
+     }
+    },
+    "ffsimd": {
+     "other": {
+      "ms": 29,
+      "Ir": 142828490,
+      "D1 misses": 1889936,
+      "LL misses": 1302917,
+      "mispredicts": 339613,
+      "cond branches": 101043478
+     },
+     "entropy": {
+      "ms": 242,
+      "Ir": 1663396337,
+      "D1 misses": 7029707,
+      "LL misses": 371,
+      "mispredicts": 8024992,
+      "cond branches": 117600961
+     },
+     "deblock strength/driver": {
+      "ms": 58,
+      "Ir": 727662434,
+      "D1 misses": 5797854,
+      "LL misses": 20,
+      "mispredicts": 367257,
+      "cond branches": 64899559
+     },
+     "intra pred": {
+      "ms": 2,
+      "Ir": 27682076,
+      "D1 misses": 1016214,
+      "LL misses": 17,
+      "mispredicts": 41510,
+      "cond branches": 795714
+     },
+     "mb control": {
+      "ms": 123,
+      "Ir": 1538082228,
+      "D1 misses": 1246168,
+      "LL misses": 29,
+      "mispredicts": 1103014,
+      "cond branches": 126675420
+     },
+     "deblock filter": {
+      "ms": 29,
+      "Ir": 186810640,
+      "D1 misses": 1069518,
+      "LL misses": 4,
+      "mispredicts": 0,
+      "cond branches": 0
+     },
+     "luma MC": {
+      "ms": 43,
+      "Ir": 158690402,
+      "D1 misses": 21293461,
+      "LL misses": 4715,
+      "mispredicts": 71129,
+      "cond branches": 10931537
+     },
+     "idct/dequant/add": {
+      "ms": 12,
+      "Ir": 191272037,
+      "D1 misses": 100803,
+      "LL misses": 1,
+      "mispredicts": 297656,
+      "cond branches": 21735293
+     },
+     "picture/edge/output": {
+      "ms": 13,
+      "Ir": 130167466,
+      "D1 misses": 15432,
+      "LL misses": 1350,
+      "mispredicts": 21112,
+      "cond branches": 32755831
+     },
+     "chroma MC": {
+      "ms": 25,
+      "Ir": 187662854,
+      "D1 misses": 11006556,
+      "LL misses": 1747,
+      "mispredicts": 46604,
+      "cond branches": 16190046
+     }
+    },
+    "ffc": {
+     "other": {
+      "ms": 30,
+      "Ir": 159532803,
+      "D1 misses": 2196002,
+      "LL misses": 1643285,
+      "mispredicts": 336764,
+      "cond branches": 121898803
+     },
+     "entropy": {
+      "ms": 310,
+      "Ir": 1663396337,
+      "D1 misses": 7058488,
+      "LL misses": 30405,
+      "mispredicts": 8165007,
+      "cond branches": 117600961
+     },
+     "deblock filter": {
+      "ms": 80,
+      "Ir": 1120393219,
+      "D1 misses": 1012893,
+      "LL misses": 0,
+      "mispredicts": 5528819,
+      "cond branches": 78401815
+     },
+     "idct/dequant/add": {
+      "ms": 86,
+      "Ir": 824359285,
+      "D1 misses": 89968,
+      "LL misses": 4,
+      "mispredicts": 9022294,
+      "cond branches": 78324618
+     },
+     "intra pred": {
+      "ms": 7,
+      "Ir": 46745519,
+      "D1 misses": 1015604,
+      "LL misses": 4628,
+      "mispredicts": 192,
+      "cond branches": 326546
+     },
+     "mb control": {
+      "ms": 129,
+      "Ir": 1538082228,
+      "D1 misses": 1239498,
+      "LL misses": 35,
+      "mispredicts": 1215874,
+      "cond branches": 126675420
+     },
+     "chroma MC": {
+      "ms": 89,
+      "Ir": 848424260,
+      "D1 misses": 10970649,
+      "LL misses": 174304,
+      "mispredicts": 179053,
+      "cond branches": 58591906
+     },
+     "deblock strength/driver": {
+      "ms": 55,
+      "Ir": 784551719,
+      "D1 misses": 5767975,
+      "LL misses": 9,
+      "mispredicts": 1490049,
+      "cond branches": 74916475
+     },
+     "luma MC": {
+      "ms": 59,
+      "Ir": 452688186,
+      "D1 misses": 21296169,
+      "LL misses": 292107,
+      "mispredicts": 98851,
+      "cond branches": 11583639
+     },
+     "picture/edge/output": {
+      "Ir": 1408225,
+      "D1 misses": 14422,
+      "LL misses": 2072,
+      "mispredicts": 22420,
+      "cond branches": 532239
+     }
+    }
+   }
+  }
+ },
+ "stages": {
+  "ours": {
+   "deblock filter": {
+    "ms": 1878,
+    "Ir": 22844955529,
+    "D1 misses": 42973006,
+    "LL misses": 224,
+    "mispredicts": 68297683,
+    "cond branches": 1583347396
+   },
+   "combine": {
+    "ms": 569,
+    "Ir": 8204183249,
+    "D1 misses": 10697610,
+    "LL misses": 17761,
+    "mispredicts": 18344812,
+    "cond branches": 859875928
+   },
+   "chroma MC": {
+    "ms": 1661,
+    "Ir": 19742528654,
+    "D1 misses": 72911206,
+    "LL misses": 4906606,
+    "mispredicts": 46299660,
+    "cond branches": 2571021804
+   },
+   "deblock strength/driver": {
+    "ms": 1025,
+    "Ir": 10991568708,
+    "D1 misses": 69748871,
+    "LL misses": 105,
+    "mispredicts": 52036679,
+    "cond branches": 937743848
+   },
+   "luma MC": {
+    "ms": 1617,
+    "Ir": 14926459447,
+    "D1 misses": 134750488,
+    "LL misses": 10944176,
+    "mispredicts": 41147870,
+    "cond branches": 1681541091
+   },
+   "entropy": {
+    "ms": 1614,
+    "Ir": 12034880035,
+    "D1 misses": 13300111,
+    "LL misses": 10075,
+    "mispredicts": 98302566,
+    "cond branches": 1148669700
+   },
+   "mb control": {
+    "ms": 3141,
+    "Ir": 31302240580,
+    "D1 misses": 155901145,
+    "LL misses": 14418421,
+    "mispredicts": 128763629,
+    "cond branches": 3386215804
+   },
+   "idct/dequant/add": {
+    "ms": 600,
+    "Ir": 6527636920,
+    "D1 misses": 4009262,
+    "LL misses": 69,
+    "mispredicts": 18093811,
+    "cond branches": 417680108
+   },
+   "picture/edge/output": {
+    "ms": 286,
+    "Ir": 1343731721,
+    "D1 misses": 45200930,
+    "LL misses": 760642,
+    "mispredicts": 3513525,
+    "cond branches": 138545898
+   },
+   "intra pred": {
+    "ms": 417,
+    "Ir": 5557370100,
+    "D1 misses": 12747899,
+    "LL misses": 982573,
+    "mispredicts": 26202630,
+    "cond branches": 635321586
+   },
+   "other": {
+    "ms": 334,
+    "Ir": 1638308200,
+    "D1 misses": 7701251,
+    "LL misses": 2746037,
+    "mispredicts": 3934631,
+    "cond branches": 359784149
+   }
+  },
+  "ffsimd": {
+   "other": {
+    "ms": 400,
+    "Ir": 1219342146,
+    "D1 misses": 18238701,
+    "LL misses": 4007648,
+    "mispredicts": 10465718,
+    "cond branches": 480063664
+   },
+   "entropy": {
+    "ms": 1520,
+    "Ir": 9564195995,
+    "D1 misses": 49656370,
+    "LL misses": 980,
+    "mispredicts": 56339773,
+    "cond branches": 664979374
+   },
+   "luma MC": {
+    "ms": 465,
+    "Ir": 3857138553,
+    "D1 misses": 145279597,
+    "LL misses": 5037,
+    "mispredicts": 5062916,
+    "cond branches": 118122719
+   },
+   "combine": {
+    "ms": 113,
+    "Ir": 1134830886,
+    "D1 misses": 42932,
+    "LL misses": 101,
+    "mispredicts": 3740712,
+    "cond branches": 70617644
+   },
+   "deblock strength/driver": {
+    "ms": 680,
+    "Ir": 8886350309,
+    "D1 misses": 47997508,
+    "LL misses": 71,
+    "mispredicts": 19367814,
+    "cond branches": 671500134
+   },
+   "mb control": {
+    "ms": 1052,
+    "Ir": 12160198985,
+    "D1 misses": 22626189,
+    "LL misses": 184,
+    "mispredicts": 43158546,
+    "cond branches": 947830865
+   },
+   "picture/edge/output": {
+    "ms": 129,
+    "Ir": 875979617,
+    "D1 misses": 695310,
+    "LL misses": 9982,
+    "mispredicts": 9181160,
+    "cond branches": 223444466
+   },
+   "chroma MC": {
+    "ms": 222,
+    "Ir": 1640021653,
+    "D1 misses": 69493786,
+    "LL misses": 1823,
+    "mispredicts": 4090770,
+    "cond branches": 120968253
+   },
+   "deblock filter": {
+    "ms": 601,
+    "Ir": 5051452489,
+    "D1 misses": 29787388,
+    "LL misses": 19,
+    "mispredicts": 0,
+    "cond branches": 0
+   },
+   "idct/dequant/add": {
+    "ms": 137,
+    "Ir": 1219802442,
+    "D1 misses": 1233194,
+    "LL misses": 11,
+    "mispredicts": 4472568,
+    "cond branches": 84012570
+   },
+   "intra pred": {
+    "ms": 73,
+    "Ir": 343332728,
+    "D1 misses": 10282574,
+    "LL misses": 41,
+    "mispredicts": 1000074,
+    "cond branches": 10980164
+   }
+  },
+  "ffc": {
+   "other": {
+    "ms": 478,
+    "Ir": 1274741469,
+    "D1 misses": 18950196,
+    "LL misses": 4487422,
+    "mispredicts": 11683727,
+    "cond branches": 519133143
+   },
+   "idct/dequant/add": {
+    "ms": 618,
+    "Ir": 5572601957,
+    "D1 misses": 1149785,
+    "LL misses": 11,
+    "mispredicts": 32843328,
+    "cond branches": 309333456
+   },
+   "entropy": {
+    "ms": 1621,
+    "Ir": 9564195995,
+    "D1 misses": 49966790,
+    "LL misses": 31029,
+    "mispredicts": 61275216,
+    "cond branches": 664979374
+   },
+   "intra pred": {
+    "ms": 90,
+    "Ir": 738997540,
+    "D1 misses": 10187210,
+    "LL misses": 4634,
+    "mispredicts": 310215,
+    "cond branches": 6022726
+   },
+   "luma MC": {
+    "ms": 1946,
+    "Ir": 21098321661,
+    "D1 misses": 146619128,
+    "LL misses": 292327,
+    "mispredicts": 18402166,
+    "cond branches": 338489324
+   },
+   "deblock strength/driver": {
+    "ms": 984,
+    "Ir": 9828614272,
+    "D1 misses": 47422290,
+    "LL misses": 59,
+    "mispredicts": 43263703,
+    "cond branches": 880626323
+   },
+   "mb control": {
+    "ms": 1096,
+    "Ir": 11758980730,
+    "D1 misses": 17267811,
+    "LL misses": 197,
+    "mispredicts": 44247790,
+    "cond branches": 923581300
+   },
+   "combine": {
+    "ms": 867,
+    "Ir": 9595502894,
+    "D1 misses": 214560,
+    "LL misses": 109,
+    "mispredicts": 3862118,
+    "cond branches": 93478357
+   },
+   "picture/edge/output": {
+    "ms": 27,
+    "Ir": 201513376,
+    "D1 misses": 618861,
+    "LL misses": 10610,
+    "mispredicts": 2017006,
+    "cond branches": 41658574
+   },
+   "chroma MC": {
+    "ms": 829,
+    "Ir": 8601882072,
+    "D1 misses": 74786599,
+    "LL misses": 174370,
+    "mispredicts": 5797583,
+    "cond branches": 418036060
+   },
+   "deblock filter": {
+    "ms": 2644,
+    "Ir": 33476370072,
+    "D1 misses": 29920189,
+    "LL misses": 0,
+    "mispredicts": 126107095,
+    "cond branches": 2279361911
+   }
+  }
+ },
+ "other": {
+  "ours": [
+   [
+    "__memmove_evex_unaligned_erms",
+    131
+   ],
+   [
+    "<coreav_h264::decoder::Decoder>::decode_unit",
+    31
+   ],
+   [
+    "__memset_evex_unaligned_erms",
+    25
+   ],
+   [
+    "do_user_addr_fault",
+    25
+   ],
+   [
+    "_raw_spin_unlock_irqrestore",
+    12
+   ],
+   [
+    "charge_memcg",
+    11
+   ],
+   [
+    "decode::main",
+    10
+   ],
+   [
+    "___pte_offset_map",
+    10
+   ],
+   [
+    "memcg1_commit_charge",
+    8
+   ],
+   [
+    "<coreav_h264::picture::BandData>::fit",
+    7
+   ],
+   [
+    "__pte_offset_map_lock",
+    5
+   ],
+   [
+    "zap_present_ptes.constprop.0",
+    4
+   ],
+   [
+    "__list_del_entry_valid_or_report",
+    4
+   ],
+   [
+    "<coreav_h264::picture::Canvas>::put_band",
+    3
+   ],
+   [
+    "clear_page_erms",
+    3
+   ]
+  ],
+  "ffsimd": [
+   [
+    "0xffffffff812c5329 (outside ffmpeg)",
+    48
+   ],
+   [
+    "0xffffffff8127158f (outside ffmpeg)",
+    32
+   ],
+   [
+    "0xffffffff81e32548 (outside ffmpeg)",
+    22
+   ],
+   [
+    "0xffffffff81e24d06 (outside ffmpeg)",
+    5
+   ],
+   [
+    "0x7f05d1e98cad (outside ffmpeg)",
+    4
+   ],
+   [
+    "0x7fb234298cad (outside ffmpeg)",
+    4
+   ],
+   [
+    "av_buffer_unref",
+    4
+   ],
+   [
+    "0xffffffff8151c5f7 (outside ffmpeg)",
+    4
+   ],
+   [
+    "ff_startcode_find_candidate_c",
+    4
+   ],
+   [
+    "0xffffffff814a17f7 (outside ffmpeg)",
+    4
+   ],
+   [
+    "0x7fd3ad36d67a (outside ffmpeg)",
+    4
+   ],
+   [
+    "0x7f05d1e97c0a (outside ffmpeg)",
+    3
+   ],
+   [
+    "0xffffffff81e32b84 (outside ffmpeg)",
+    3
+   ],
+   [
+    "ff_h264_build_ref_list",
+    3
+   ],
+   [
+    "ff_decode_frame_props",
+    2
+   ]
+  ],
+  "ffc": [
+   [
+    "0xffffffff812c5329 (outside ffmpeg)",
+    50
+   ],
+   [
+    "0xffffffff8127158f (outside ffmpeg)",
+    30
+   ],
+   [
+    "0xffffffff81e32548 (outside ffmpeg)",
+    29
+   ],
+   [
+    "just_return",
+    21
+   ],
+   [
+    "ff_startcode_find_candidate_c",
+    9
+   ],
+   [
+    "av_refstruct_unref",
+    6
+   ],
+   [
+    "av_buffer_unref",
+    6
+   ],
+   [
+    "0x7fbbac36d67a (outside ffmpeg)",
+    6
+   ],
+   [
+    "0x7f34fe697ba6 (outside ffmpeg)",
+    5
+   ],
+   [
+    "h264_decode_frame",
+    5
+   ],
+   [
+    "0xffffffff814a17f7 (outside ffmpeg)",
+    5
+   ],
+   [
+    "0x7f34fe698cad (outside ffmpeg)",
+    4
+   ],
+   [
+    "ff_encode_encode_cb",
+    4
+   ],
+   [
+    "0xffffffff81e32b84 (outside ffmpeg)",
+    4
+   ],
+   [
+    "h264_find_frame_end",
+    4
+   ]
+  ]
+ }
+}

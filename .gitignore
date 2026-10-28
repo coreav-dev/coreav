@@ -1,0 +1,16 @@
+/target
+/fuzz/target
+/fuzz/corpus
+/fuzz/artifacts
+/fuzz/coverage
+.DS_Store
+/crates/*/fuzz/target
+/crates/*/fuzz/corpus
+/crates/*/fuzz/artifacts
+/crates/*/fuzz/coverage
+
+# Python bytecode
+__pycache__/
+*.pyc
+/crates/*/fuzz/fuzz-*.log
+/crates/*/fuzz-*.log

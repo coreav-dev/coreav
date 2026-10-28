@@ -1,0 +1,194 @@
+diff --git a/crates/coreav-h264/src/cavlc.rs b/crates/coreav-h264/src/cavlc.rs
+index 963ab74..49a0af5 100644
+--- a/crates/coreav-h264/src/cavlc.rs
++++ b/crates/coreav-h264/src/cavlc.rs
+@@ -7,43 +7,120 @@ use crate::bits::BitReader;
+ use crate::error::{Error, Result};
+ use crate::tables as t;
+ 
+-/// A prefix code, as a table indexed by the next `bits` bits of the
+-/// bitstream.
++/// The first level of a [`Code`] indexes this many bits of the stream.
++const ROOT_BITS: u32 = 8;
++
++/// An entry of a [`Code`]: a code word of at most `ROOT_BITS` bits (or of
++/// the second level's) as its length and two values; a length of 0 marks a
++/// prefix that is not in the table; a root entry with the top bit of its
++/// length set points at a second-level table, whose bits it gives in the
++/// low seven bits, and whose first entry it gives in the two values (low
++/// byte first).
++#[derive(Clone, Copy)]
++struct Entry {
++    len: u8,
++    a: u8,
++    b: u8,
++}
++
++/// A prefix code, in two levels of tables: the first indexed by the next
++/// `ROOT_BITS` bits of the bitstream, the second, for the longer code
++/// words, by the bits after those. A flat table of the longest code word's
++/// bits is 64 K entries for coeff_token's longest class, and each lookup
++/// of one reads a line of its own.
+ struct Code {
+-    bits: u32,
+-    /// (code length, first value, second value); a length of 0 marks a
+-    /// prefix that is not in the table.
+-    lut: Vec<(u8, u8, u8)>,
++    root_bits: u32,
++    table: Vec<Entry>,
+ }
+ 
+ impl Code {
+-    /// Builds the lookup table of a code given as (length, code, value,
++    /// Builds the lookup tables of a code given as (length, code, value,
+     /// value) entries.
+     fn new(entries: impl Iterator<Item = (u8, u32, u8, u8)>) -> Code {
+         let entries: Vec<(u8, u32, u8, u8)> = entries.collect();
+-        let bits = entries.iter().map(|e| u32::from(e.0)).max().unwrap_or(1);
+-        let mut lut = vec![(0u8, 0u8, 0u8); 1usize << bits];
++        let longest = entries.iter().map(|e| u32::from(e.0)).max().unwrap_or(1);
++        let root_bits = longest.min(ROOT_BITS);
++        let empty = Entry { len: 0, a: 0, b: 0 };
++        let mut table = vec![empty; 1usize << root_bits];
++        // The second level of each root prefix that has code words longer
++        // than the root: its bits are those of the longest word with it.
++        let mut sub_bits = vec![0u32; 1usize << root_bits];
++        for &(len, code, _, _) in &entries {
++            let len = u32::from(len);
++            if len > root_bits {
++                let prefix = (code >> (len - root_bits)) as usize;
++                if let Some(bits) = sub_bits.get_mut(prefix) {
++                    *bits = (*bits).max(len - root_bits);
++                }
++            }
++        }
++        for prefix in 0..sub_bits.len() {
++            let bits = sub_bits.get(prefix).copied().unwrap_or(0);
++            if bits > 0 {
++                let first = table.len();
++                table.resize(first + (1usize << bits), empty);
++                if let Some(slot) = table.get_mut(prefix) {
++                    *slot = Entry {
++                        len: 0x80 | bits as u8,
++                        a: first as u8,
++                        b: (first >> 8) as u8,
++                    };
++                }
++            }
++        }
+         for (len, code, a, b) in entries {
+-            let shift = bits - u32::from(len);
+-            let base = (code as usize) << shift;
+-            for slot in lut.iter_mut().skip(base).take(1usize << shift) {
+-                *slot = (len, a, b);
++            let len = u32::from(len);
++            if len <= root_bits {
++                let shift = root_bits - len;
++                let base = (code as usize) << shift;
++                for slot in table.iter_mut().skip(base).take(1usize << shift) {
++                    *slot = Entry { len: len as u8, a, b };
++                }
++            } else {
++                let prefix = (code >> (len - root_bits)) as usize;
++                let Some(&Entry { len: head, a: lo, b: hi }) = table.get(prefix) else {
++                    continue;
++                };
++                let bits = u32::from(head & 0x7f);
++                let first = usize::from(lo) | (usize::from(hi) << 8);
++                let rest = len - root_bits;
++                let tail = code & ((1 << rest) - 1);
++                let shift = bits - rest;
++                let base = first + ((tail as usize) << shift);
++                for slot in table.iter_mut().skip(base).take(1usize << shift) {
++                    *slot = Entry { len: len as u8, a, b };
++                }
+             }
+         }
+-        Code { bits, lut }
++        Code { root_bits, table }
+     }
+ 
+     /// Reads one code word.
++    #[inline]
+     fn read(&self, r: &mut BitReader) -> Result<(u8, u8)> {
+-        let index = (r.peek32() >> (32 - self.bits)) as usize;
+-        let (len, a, b) = self.lut.get(index).copied().unwrap_or((0, 0, 0));
+-        if len == 0 {
++        let window = r.peek32();
++        let mut e = self
++            .table
++            .get((window >> (32 - self.root_bits)) as usize)
++            .copied()
++            .unwrap_or(Entry { len: 0, a: 0, b: 0 });
++        if e.len & 0x80 != 0 {
++            let bits = u32::from(e.len & 0x7f);
++            let first = usize::from(e.a) | (usize::from(e.b) << 8);
++            let rest = (window << self.root_bits) >> (32 - bits);
++            e = self
++                .table
++                .get(first + rest as usize)
++                .copied()
++                .unwrap_or(Entry { len: 0, a: 0, b: 0 });
++        }
++        if e.len == 0 {
+             return Err(Error::Invalid(
+                 "a variable-length code that is not in the table",
+             ));
+         }
+-        r.skip(usize::from(len))?;
+-        Ok((a, b))
++        r.skip(usize::from(e.len))?;
++        Ok((e.a, e.b))
+     }
+ }
+ 
+@@ -287,11 +364,47 @@ mod tests {
+     fn every_code_table_covers_its_prefixes() {
+         let c = codes();
+         for (i, table) in c.coeff_token.iter().enumerate() {
+-            assert!(table.bits <= 16, "class {i} needs {} bits", table.bits);
+-            assert_eq!(table.lut.len(), 1 << table.bits);
++            // Both levels together stay far below the flat table's 64 K entries.
++            assert!(table.table.len() <= 1 << 12, "class {i} has {} entries", table.table.len());
+         }
+         assert_eq!(c.total_zeros.len(), 15);
+         assert_eq!(c.total_zeros_chroma_dc.len(), 3);
+         assert_eq!(c.run_before.len(), 7);
+     }
++
++    /// The two-level tables decode every 16-bit window as a scan of the
++    /// code words of clause 9.2 does: the word that is a prefix of it, or
++    /// no word.
++    #[test]
++    fn two_levels_decode_every_window_as_a_scan_of_the_words() {
++        let c = codes();
++        let one = |table: &'static [(u8, u32, u8)]| -> Vec<(u8, u32, u8, u8)> {
++            table.iter().map(|&(len, code, v)| (len, code, v, 0)).collect()
++        };
++        let mut sets: Vec<(&Code, Vec<(u8, u32, u8, u8)>)> = Vec::new();
++        for (code, table) in c.coeff_token.iter().zip(t::COEFF_TOKEN.iter()) {
++            sets.push((code, table.to_vec()));
++        }
++        for (code, table) in c.total_zeros.iter().zip(t::TOTAL_ZEROS_4X4.iter()) {
++            sets.push((code, one(table)));
++        }
++        for (code, table) in c.total_zeros_chroma_dc.iter().zip(t::TOTAL_ZEROS_CHROMA_DC_2X2.iter()) {
++            sets.push((code, one(table)));
++        }
++        for (code, table) in c.run_before.iter().zip(t::RUN_BEFORE.iter()) {
++            sets.push((code, one(table)));
++        }
++        for (code, words) in sets {
++            for window in 0u32..=0xffff {
++                let bytes = [(window >> 8) as u8, window as u8, 0, 0, 0, 0, 0, 0];
++                let mut r = BitReader::new(&bytes);
++                let got = code.read(&mut r).ok().map(|v| (v, r.pos()));
++                let want = words
++                    .iter()
++                    .find(|&&(len, word, _, _)| window >> (16 - u32::from(len)) == word)
++                    .map(|&(len, _, a, b)| ((a, b), usize::from(len)));
++                assert_eq!(got, want, "window {window:016b}");
++            }
++        }
++    }
+ }

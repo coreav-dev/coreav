@@ -1,0 +1,2 @@
+probe slack2 (probe/r32-slack 64ab6b55): ident.sh (REF=m-b366429, main b3664291 at one thread), at 1 and 8 threads, the 32 training streams; prints a line per difference
+identity done bad=0

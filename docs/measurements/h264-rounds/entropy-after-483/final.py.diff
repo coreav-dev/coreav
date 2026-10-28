@@ -1,0 +1,6 @@
+4,5c4,5
+< sys.path.insert(0, '/tmp/ent')
+< exec(open('/tmp/ent/report.py').read().split('for mode in (False, True):')[0])  # RULES, cat, ENG, FFC, ffcat, per, chains...
+---
+> sys.path.insert(0, "/tmp/ent2")
+> exec(open('/tmp/ent2/report.py').read().split('for mode in (False, True):')[0])  # RULES, cat, ENG, FFC, ffcat, per, chains...

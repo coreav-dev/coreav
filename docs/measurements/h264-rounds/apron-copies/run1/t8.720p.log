@@ -1,0 +1,25 @@
+machine: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz (family 6, model 207, stepping 2), 2300.0 MHz, 8 logical CPUs
+gate after 0 streams: 0.097 s (+0.0%)
+1d4b1775d78a.0.720p.h264                 base:discard=0.93  base:write=0.92  base:mixed=0.87  twice:discard=0.95  twice:write=0.92  twice:mixed=0.88  none:discard=0.92  none:write=0.91  none:mixed=0.85
+278dbf5a63bb.0.720p.h264                 base:discard=0.93  base:write=0.93  base:mixed=0.87  twice:discard=0.93  twice:write=0.94  twice:mixed=0.87  none:discard=0.92  none:write=0.92  none:mixed=0.86
+36501d448eaa.0.720p.h264                 base:discard=0.99  base:write=0.98  base:mixed=0.95  twice:discard=0.98  twice:write=0.98  twice:mixed=0.95  none:discard=0.96  none:write=0.95  none:mixed=0.92
+3c593b8f0809.0.720p.h264                 host fault (attempt 1): null {'base_discard': 0.023965932332179696, 'base_write': -0.002825095016397605}, max spread 1.044
+3c593b8f0809.0.720p.h264                 base:discard=0.94  base:write=0.98  base:mixed=0.93  twice:discard=0.93  twice:write=0.97  twice:mixed=0.92  none:discard=0.92  none:write=0.98  none:mixed=0.91
+gate after 4 streams: 0.098 s (+0.7%)
+65ec61f95a00.0.720p.h264                 base:discard=1.02  base:write=1.03  base:mixed=0.92  twice:discard=1.02  twice:write=1.03  twice:mixed=0.91  none:discard=1.00  none:write=1.01  none:mixed=0.89
+6b18d9f0f88d.0.720p.h264                 base:discard=0.94  base:write=1.03  base:mixed=0.84  twice:discard=0.96  twice:write=1.03  twice:mixed=0.85  none:discard=0.87  none:write=0.99  none:mixed=0.77
+76e0b1692494.0.720p.h264                 base:discard=0.91  base:write=0.90  base:mixed=0.86  twice:discard=0.91  twice:write=0.91  twice:mixed=0.86  none:discard=0.88  none:write=0.88  none:mixed=0.84
+9db41aa16b5a.0.720p.h264                 base:discard=0.91  base:write=0.97  base:mixed=0.80  twice:discard=0.92  twice:write=0.98  twice:mixed=0.80  none:discard=0.91  none:write=0.96  none:mixed=0.80
+gate after 8 streams: 0.097 s (-0.5%)
+
+base:discard             n=  8  median 0.938  [0.913, 0.986]
+base:write               n=  8  median 0.977  [0.918, 1.026]
+base:mixed               n=  8  median 0.869  [0.835, 0.923]
+twice:discard            n=  8  median 0.940  [0.921, 0.983]
+twice:write              n=  8  median 0.979  [0.923, 1.028]
+twice:mixed              n=  8  median 0.872  [0.848, 0.918]
+none:discard             n=  8  median 0.920  [0.883, 0.959]
+none:write               n=  8  median 0.959  [0.907, 0.992]
+none:mixed               n=  8  median 0.857  [0.797, 0.903]
+
+wrote out/t8.720p.json

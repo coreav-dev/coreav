@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coreav-dev/coreav/docs/schema/verdict-v1.schema.json",
+  "title": "coreav.verdict/1",
+  "description": "Output of `coreav check` (coreav-policy). Every key is always present. Documented in verdict-v1.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "policy", "verdict", "reasons"],
+  "properties": {
+    "schema": {"const": "coreav.verdict/1"},
+    "policy": {"type": ["string", "null"]},
+    "verdict": {"enum": ["accept", "reject"]},
+    "reasons": {"type": "array", "items": {"$ref": "#/$defs/reason"}}
+  },
+  "$defs": {
+    "rational": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["num", "den"],
+      "properties": {
+        "num": {"type": "integer", "minimum": 0},
+        "den": {"type": "integer", "minimum": 1}
+      }
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "kind", "limit", "offset", "message"],
+      "properties": {
+        "schema": {"const": "coreav.error/1"},
+        "kind": {
+          "enum": ["invalid_structure", "truncated_structure", "limit", "unsupported_container",
+                   "unsupported_feature", "codec_not_allowed"]
+        },
+        "limit": {"type": ["string", "null"]},
+        "offset": {"type": ["integer", "null"], "minimum": 0},
+        "message": {"type": "string"}
+      }
+    },
+    "reason": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "rule", "path", "stream_index", "value", "exact", "limit", "message", "error"],
+      "properties": {
+        "code": {"enum": ["not_allowed", "above_maximum", "below_minimum", "unknown", "unreadable"]},
+        "rule": {"type": ["string", "null"]},
+        "path": {"type": ["string", "null"]},
+        "stream_index": {"type": ["integer", "null"], "minimum": 0},
+        "value": {},
+        "exact": {"anyOf": [{"$ref": "#/$defs/rational"}, {"type": "null"}]},
+        "limit": {},
+        "message": {"type": "string"},
+        "error": {"anyOf": [{"$ref": "#/$defs/error"}, {"type": "null"}]}
+      }
+    }
+  }
+}

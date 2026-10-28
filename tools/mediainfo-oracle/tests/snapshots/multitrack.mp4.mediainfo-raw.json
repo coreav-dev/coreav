@@ -1,0 +1,78 @@
+{
+ "creatingLibrary": {
+  "name": "MediaInfoLib",
+  "version": "26.10",
+  "url": "https://mediaarea.net/MediaInfo"
+ },
+ "media": {
+  "@ref": "multitrack.mp4",
+  "track": [
+   {
+    "@type": "General",
+    "Format": "MPEG-4",
+    "Format_Profile": "Base Media",
+    "CodecID": "isom",
+    "Duration": "2.000"
+   },
+   {
+    "@type": "Video",
+    "StreamOrder": "0",
+    "Format": "AVC",
+    "Format_Profile": "High",
+    "CodecID": "avc1",
+    "Duration": "2.000",
+    "Width": "320",
+    "Height": "240",
+    "PixelAspectRatio": "1.000",
+    "DisplayAspectRatio": "1.333",
+    "Rotation": "0.000"
+   },
+   {
+    "@type": "Video",
+    "StreamOrder": "1",
+    "Format": "AVC",
+    "Format_Profile": "High",
+    "CodecID": "avc1",
+    "Duration": "2.000",
+    "Width": "160",
+    "Height": "120",
+    "PixelAspectRatio": "1.000",
+    "DisplayAspectRatio": "1.333",
+    "Rotation": "0.000"
+   },
+   {
+    "@type": "Audio",
+    "StreamOrder": "2",
+    "Format": "AAC",
+    "CodecID": "mp4a-40-2",
+    "Duration": "2.000",
+    "Source_Duration": "2.021",
+    "Channels": "1",
+    "SamplingRate": "48000",
+    "Language": "en",
+    "Language_String3": "eng"
+   },
+   {
+    "@type": "Audio",
+    "StreamOrder": "3",
+    "Format": "AAC",
+    "CodecID": "mp4a-40-2",
+    "Duration": "2.000",
+    "Source_Duration": "2.023",
+    "Channels": "1",
+    "SamplingRate": "44100",
+    "Language": "ko",
+    "Language_String3": "kor"
+   },
+   {
+    "@type": "Text",
+    "StreamOrder": "4",
+    "Format": "Timed Text",
+    "CodecID": "tx3g",
+    "Duration": "2.000",
+    "Language": "en",
+    "Language_String3": "eng"
+   }
+  ]
+ }
+}

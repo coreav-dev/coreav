@@ -1,0 +1,28 @@
+{
+  "schema": "coreav.policy/1",
+  "name": "web-upload",
+  "file": {"max_size": 4294967296, "max_bit_rate": 60000000},
+  "container": {"formats": ["mp4", "mov", "webm", "matroska"]},
+  "duration": {"max_seconds": 3600},
+  "streams": {
+    "max_count": 8,
+    "video": {
+      "codecs": ["h264", "hevc", "av1", "vp8", "vp9"],
+      "min_count": 1,
+      "max_count": 1,
+      "max_width": 4096,
+      "max_height": 4096,
+      "max_pixels": 8912896,
+      "rotations": [0, 90, 180, 270]
+    },
+    "audio": {
+      "codecs": ["aac", "opus", "vorbis", "mp3"],
+      "max_count": 2,
+      "max_channels": 8,
+      "max_sample_rate": 96000
+    },
+    "timecode": {},
+    "data": {},
+    "unidentified": ["mebx", "gpmd", "camm"]
+  }
+}

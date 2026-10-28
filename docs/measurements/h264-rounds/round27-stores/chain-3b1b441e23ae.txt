@@ -1,0 +1,17 @@
+3b1b441e23ae: 543 ms a run; 4914 M instructions; shares in %; in our binary: time 96.0%, instr 99.7%
+line                               fn                      time% instr% excess  rIPC  D1m/kI  LLm/kI misp/kI
+cabac.rs:204                       decision                 1.35   0.43   0.92  0.32     3.8    0.00     0.0
+cabac.rs:197                       decision                 1.01   0.17   0.84  0.17    43.5    0.00     0.0
+cabac.rs:198                       decision                 0.53   0.09   0.44  0.16     0.0    0.00     0.0
+cabac.rs:195                       decision                 0.87   0.48   0.38  0.56     0.2    0.00     0.0
+cabac.rs:213                       decision                 0.55   0.26   0.28  0.48     0.0    0.00     0.0
+cabac.rs:200                       decision                 0.35   0.31   0.04  0.88     0.0    0.00     0.0
+cabac.rs:201                       decision                 0.33   0.31   0.02  0.95     0.0    0.00     0.0
+cabac.rs:215                       decision                 0.00   0.00  -0.00  0.00     0.0    0.00     0.0
+cabac.rs:212                       decision                 0.09   0.10  -0.01  1.10     0.0    0.00     0.0
+cabac.rs:214                       decision                 0.23   0.26  -0.03  1.11     0.0    0.00     0.0
+cabac.rs:199                       decision                 0.16   0.19  -0.03  1.16     0.0    0.00     0.0
+cabac.rs:194                       decision                 0.05   0.08  -0.03  1.70    10.6    0.00     0.0
+cabac.rs:211                       decision                 0.21   0.26  -0.04  1.21     0.0    0.00     0.0
+cabac.rs:196                       decision                 0.05   0.17  -0.12  3.45    24.5    0.00     0.0
+cabac.rs:203                       decision                 0.06   0.33  -0.27  5.33     0.0    0.00     0.0

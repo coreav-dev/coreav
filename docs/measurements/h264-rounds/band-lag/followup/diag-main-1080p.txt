@@ -1,0 +1,10 @@
+Diagnostic build (main 05daabc4), 8 threads, 1080p training streams whole, median of 3 runs; shares of the workers' time (8 x wall) and of the caller's; 2.50 GHz host (4 cores, 8 logical CPUs).
+stream        wall ms band wait   idle   busy caller blocked  waits by distance (d = band's first row - reader's row)
+175433794e02   2437.4       17%     7%    73%            76%  d=0:74% d=1:23% d=2:1%
+6da34958296c   1338.5       24%     6%    66%            84%  d=0:98% d=1:2%
+6e90422a670a   1970.2       24%     6%    67%            78%  d=0:98% d=1:2%
+a6af290d9053   2560.8       31%     4%    63%            82%  d=0:100%
+a81de82106be    591.3       44%     3%    48%            84%  d=0:95% d=1:4%
+b41f70a7fa60   1538.3       20%     7%    71%            87%  d=0:94% d=1:6%
+b71b6b31e54f    808.8       10%    21%    64%            79%  d=0:85% d=1:14% d=2:1%
+c7ecda16e4a7   2030.9       31%     4%    61%            88%  d=0:60% d=1:11% d=2:8% d=3:9% d=4:6% d=5:5%

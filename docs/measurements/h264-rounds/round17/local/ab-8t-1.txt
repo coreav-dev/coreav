@@ -1,0 +1,35 @@
+# 8 threads, unpinned, wall time of --discard, class frame counts, 5 rounds, builds rotated (ab8.py 5 8 all r18-base r18-band).
+# r18-base main 06141b3; r18-band the branch's first form (Planes copied out of the whole table). development VM as above. Information only.
+175433794e02.0.1080p 0.968  r18-band 0.9731
+1d4b1775d78a.0.720p. 0.194  r18-band 0.9419
+278dbf5a63bb.0.720p. 0.221  r18-band 0.9340
+36501d448eaa.0.720p. 0.469  r18-band 1.0045
+3b1b441e23ae.0.4k.h2 0.218  r18-band 0.8507
+3c593b8f0809.0.720p. 0.270  r18-band 0.9869
+41e324ebb708.0.sd.h2 0.266  r18-band 0.8540
+4b54de28c2b3.0.4k.h2 0.182  r18-band 0.9135
+5185721dda11.0.sd.h2 0.165  r18-band 1.0175
+65ec61f95a00.0.720p. 0.692  r18-band 0.9119
+6b18d9f0f88d.0.720p. 0.239  r18-band 0.9582
+6da34958296c.0.1080p 0.380  r18-band 0.9536
+6e90422a670a.0.1080p 0.810  r18-band 1.0037
+6f7799768413.0.sd.h2 0.486  r18-band 0.9443
+7650ae466748.0.sd.h2 0.163  r18-band 0.9648
+76e0b1692494.0.720p. 0.230  r18-band 0.9871
+81ed4778ece2.0.4k.h2 0.096  r18-band 0.9504
+8ae90cadb5bc.0.sd.h2 0.448  r18-band 0.9714
+9db41aa16b5a.0.720p. 0.234  r18-band 0.9189
+a6af290d9053.0.1080p 1.273  r18-band 1.0013
+a81de82106be.0.1080p 0.244  r18-band 0.9583
+ae16bb7c7192.0.4k.h2 0.065  r18-band 0.8274
+af38b0cfd840.0.4k.h2 0.144  r18-band 0.9044
+b41f70a7fa60.0.1080p 0.557  r18-band 0.9671
+b71b6b31e54f.0.1080p 0.284  r18-band 0.8623
+c7ecda16e4a7.0.1080p 0.730  r18-band 0.9728
+dcb262cf0138.0.sd.h2 0.109  r18-band 0.9734
+e624cbe0d2be.0.4k.h2 0.279  r18-band 0.9640
+ec473c99c538.0.sd.h2 0.070  r18-band 0.9626
+ed75c044e944.0.4k.h2 0.099  r18-band 0.9779
+f8d92a911e72.0.4k.h2 1.766  r18-band 0.9673
+f9e973f44570.0.sd.h2 0.107  r18-band 0.9501
+median r18-band all 0.9605  sd 0.9637  720p 0.9501  1080p 0.9700  4k 0.9319

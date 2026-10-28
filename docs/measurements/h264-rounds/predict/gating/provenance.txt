@@ -1,0 +1,30 @@
+build: (cd <worktree at rev> && CARGO_TARGET_DIR=<tgt-name> cargo build --locked --profile dist --example decode -p coreav-h264)
+base = 678bd69, w = 4754464, k1 = fe97dea, k2 = 7140ae8
+83de8e5e175a39a3877a4b985e5fd1a0ea4ed9523df6cfc85334a6f955484487  ab/predict/w/decode-base
+56740d0d697a79e419cd20d63d7691290bd7c033f511bce7e11ff9c9857ebf40  ab/predict/w/decode-w
+0204b58f9ea5eeedd6efba2fb6bd4d63e98981db5fc0216cdbe537b8c3ebc4eb  ab/predict/w/decode-k1
+74cb9aa3369ec93cdc855174a718d3e3ff15d64c9e252a4a26960d00e3cf9c97  ab/predict/w/decode-k2
+bb7224f0af46a3a0553624ebbf1c6f301bb169020b9633eb773282311410f726  hg/hostgate.py
+rustc 1.99.1 (58cf8f9c3 2026-10-13)
+binary: rustc
+commit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67
+commit-date: 2026-10-13
+host: x86_64-unknown-linux-gnu
+release: 1.99.1
+LLVM version: 23.1.1
+model name	: Intel(R) Xeon(R) Processor @ 2.90GHz
+Model name:                              Intel(R) Xeon(R) Processor @ 2.90GHz
+CPU family:                              6
+Model:                                   106
+Stepping:                                6
+class: @ 2.90GHz model 106
+avx512_bitalg avx512_vbmi2 avx512_vnni avx512_vpopcntdq avx512bw avx512cd avx512dq avx512f avx512ifma avx512vbmi avx512vl 
+ffmpeg version n9.0.2-17-g2a571b6068-20260930 Copyright (c) 2000-2026 the FFmpeg developers
+0d709a0bed1a43f24cd2c420878c63afea4580671b6949ad19ed124572f3bc3d  ff9/x/ffmpeg-n9.0.2-17-g2a571b6068-linux64-gpl-9.0/bin/ffmpeg
+harness: scripts/h264_parity.py of the base tree 678bd699c13d8d7bb77ca94629a873fd2688f190; identical in the branch trees
+622ac7494d9898db6ffe962112b75a31e2d5b5374ed174299513e21b989d07d6  ab/predict/w/src-base/scripts/h264_parity.py
+622ac7494d9898db6ffe962112b75a31e2d5b5374ed174299513e21b989d07d6  ab/predict/w/src-k1/scripts/h264_parity.py
+622ac7494d9898db6ffe962112b75a31e2d5b5374ed174299513e21b989d07d6  ab/predict/w/src-k2/scripts/h264_parity.py
+622ac7494d9898db6ffe962112b75a31e2d5b5374ed174299513e21b989d07d6  ab/predict/w/src-w/scripts/h264_parity.py
+streams checked against docs/measurements/h264-training/es.json of the base tree:
+32 of 32 match; differing: []

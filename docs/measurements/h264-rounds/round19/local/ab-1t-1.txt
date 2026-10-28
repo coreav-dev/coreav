@@ -1,0 +1,8 @@
+# python3 -I ab3.py 5 <six CAVLC streams> main-051e169 cavlc-f1: CPU time at one thread pinned, median of 5 rounds, ratio to main 051e169; cavlc-f1 = this branch (one pass). development VM, Intel Xeon 2.50 GHz class.
+6f7799768413.0.sd.h2 2.663  cavlc-f1 0.8318
+5185721dda11.0.sd.h2 0.579  cavlc-f1 0.9363
+9db41aa16b5a.0.720p. 1.396  cavlc-f1 0.9681
+b71b6b31e54f.0.1080p 1.963  cavlc-f1 0.9142
+ec473c99c538.0.sd.h2 0.158  cavlc-f1 0.9589
+f9e973f44570.0.sd.h2 0.284  cavlc-f1 0.9442
+median cavlc-f1 0.9403

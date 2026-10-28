@@ -1,0 +1,31 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2899.9 MHz, 8 logical CPUs
+gate after 0 streams: 0.399 s (+0.0%)
+334602b1b17e.0.1080p.h264                base:discard=0.89  base:write=0.81  base:mixed=0.75  k:discard=0.88  k:write=0.81  k:mixed=0.74
+473ec24b05eb.0.1080p.h264                base:discard=1.18  base:write=1.13  base:mixed=1.13  k:discard=1.16  k:write=1.12  k:mixed=1.11
+48640c5a3dd7.0.1080p.h264                base:discard=0.98  base:write=0.94  base:mixed=0.85  k:discard=0.97  k:write=0.94  k:mixed=0.84
+4d9717b4616b.0.1080p.h264                base:discard=1.16  base:write=1.08  base:mixed=1.05  k:discard=1.15  k:write=1.07  k:mixed=1.04
+gate after 4 streams: 0.402 s (+0.7%)
+5f9c31932296.0.1080p.h264                base:discard=1.14  base:write=1.08  base:mixed=1.03  k:discard=1.11  k:write=1.06  k:mixed=1.00
+8433b87853b2.0.1080p.h264                base:discard=1.06  base:write=1.04  base:mixed=1.02  k:discard=1.03  k:write=1.02  k:mixed=0.99
+8754f59f19d5.0.1080p.h264                base:discard=1.29  base:write=1.25  base:mixed=1.22  k:discard=1.26  k:write=1.24  k:mixed=1.19
+ac8f060d2280.0.1080p.h264                base:discard=1.39  base:write=1.37  base:mixed=1.33  k:discard=1.37  k:write=1.35  k:mixed=1.31
+gate after 8 streams: 0.399 s (+0.0%)
+cfedf7425184.0.1080p.h264                base:discard=0.91  base:write=0.83  base:mixed=0.75  k:discard=0.92  k:write=0.84  k:mixed=0.76
+d0f1969d25de.0.1080p.h264                base:discard=1.01  base:write=0.92  base:mixed=0.85  k:discard=0.98  k:write=0.90  k:mixed=0.83
+d4d0cacfe7ff.0.1080p.h264                base:discard=0.75  base:write=0.69  base:mixed=0.57  k:discard=0.75  k:write=0.68  k:mixed=0.57
+e137204903ad.0.1080p.h264                base:discard=1.11  base:write=1.05  base:mixed=1.01  k:discard=1.07  k:write=1.03  k:mixed=0.98
+gate after 12 streams: 0.402 s (+0.7%)
+e3595ddcba67.0.1080p.h264                base:discard=1.18  base:write=1.10  base:mixed=1.04  k:discard=1.15  k:write=1.08  k:mixed=1.01
+ea3b4d48a931.0.1080p.h264                base:discard=1.35  base:write=1.29  base:mixed=1.25  k:discard=1.33  k:write=1.27  k:mixed=1.24
+f487a36e1311.0.1080p.h264                base:discard=0.98  base:write=0.91  base:mixed=0.84  k:discard=0.97  k:write=0.91  k:mixed=0.84
+f6988cf7c878.0.1080p.h264                base:discard=1.17  base:write=1.14  base:mixed=1.12  k:discard=1.14  k:write=1.12  k:mixed=1.10
+gate after 16 streams: 0.404 s (+1.1%)
+
+base:discard             n= 16  median 1.123  [0.985, 1.179]
+base:write               n= 16  median 1.065  [0.925, 1.130]
+base:mixed               n= 16  median 1.022  [0.846, 1.118]
+k:discard                n= 16  median 1.089  [0.972, 1.149]
+k:write                  n= 16  median 1.044  [0.908, 1.120]
+k:mixed                  n= 16  median 0.997  [0.839, 1.097]
+
+wrote $HOME/ab/residual/out/h.1080p.json

@@ -1,0 +1,17 @@
+{
+  "before": {
+    "local_warm_wins": 0,
+    "http_warm_wins": 2
+  },
+  "after": {
+    "local_warm_wins": 0,
+    "http_warm_wins": 4
+  },
+  "accounting_validation": "Every opening/fetch count and byte sum matches its saved trace; all warm opening fields are zero/empty.",
+  "round_reservation_usd": 0.7055919199999999,
+  "round_estimated_function_usd": 0.025222184945374763,
+  "cumulative_reserved_usd": 3.9016275999999994,
+  "cumulative_estimated_function_usd": 0.15589491336919395,
+  "verdict": "inconclusive overall; local H1 fail for measured cases; H7 regular limited support, fragmented fail; representative 2-of-4 incomplete",
+  "measure_source_hash_matches_worker": true
+}

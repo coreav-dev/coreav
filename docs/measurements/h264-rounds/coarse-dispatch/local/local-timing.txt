@@ -1,0 +1,108 @@
+# ab.py (CPU time user+sys of --discard, one thread pinned to cpu 3, class frame counts, build order rotated each round); per stream each build's median over the first build's. Information only: this VM moves a stream by several percent between runs.
+## r1: 3 rounds. decode-base = main 40f29a6d; decode-v3 = main with -C target-cpu=x86-64-v3; decode-p3 = an early prototype (CABAC functions and predict_fast twinned, kernel out of line)
+175433794e02.0.1080p.h 6.489  decode-v3 0.9395  decode-p3 0.9573
+1d4b1775d78a.0.720p.h2 1.243  decode-v3 1.0121  decode-p3 0.9947
+278dbf5a63bb.0.720p.h2 1.461  decode-v3 0.9392  decode-p3 0.9816
+36501d448eaa.0.720p.h2 2.214  decode-v3 0.9993  decode-p3 0.9629
+3b1b441e23ae.0.4k.h264 1.198  decode-v3 0.9837  decode-p3 1.0001
+3c593b8f0809.0.720p.h2 1.141  decode-v3 0.9746  decode-p3 0.9582
+41e324ebb708.0.sd.h264 1.299  decode-v3 1.0124  decode-p3 0.9841
+4b54de28c2b3.0.4k.h264 0.932  decode-v3 1.0033  decode-p3 1.0391
+5185721dda11.0.sd.h264 0.528  decode-v3 1.0048  decode-p3 1.0074
+65ec61f95a00.0.720p.h2 4.561  decode-v3 0.9477  decode-p3 0.9754
+6b18d9f0f88d.0.720p.h2 0.977  decode-v3 1.0264  decode-p3 0.9574
+6da34958296c.0.1080p.h 3.037  decode-v3 0.9619  decode-p3 0.9397
+6e90422a670a.0.1080p.h 5.483  decode-v3 0.9518  decode-p3 0.9607
+6f7799768413.0.sd.h264 2.200  decode-v3 1.0323  decode-p3 1.0300
+7650ae466748.0.sd.h264 0.710  decode-v3 1.0603  decode-p3 0.9912
+76e0b1692494.0.720p.h2 1.378  decode-v3 0.9631  decode-p3 0.9121
+81ed4778ece2.0.4k.h264 0.423  decode-v3 0.9131  decode-p3 0.9453
+8ae90cadb5bc.0.sd.h264 1.843  decode-v3 0.9910  decode-p3 0.9873
+9db41aa16b5a.0.720p.h2 1.361  decode-v3 0.9978  decode-p3 0.9469
+a6af290d9053.0.1080p.h 7.224  decode-v3 1.0222  decode-p3 0.9890
+a81de82106be.0.1080p.h 0.884  decode-v3 0.9906  decode-p3 0.9510
+ae16bb7c7192.0.4k.h264 0.217  decode-v3 1.0058  decode-p3 0.9527
+af38b0cfd840.0.4k.h264 0.669  decode-v3 0.9647  decode-p3 0.9761
+b41f70a7fa60.0.1080p.h 3.491  decode-v3 0.9529  decode-p3 0.9813
+b71b6b31e54f.0.1080p.h 1.869  decode-v3 0.8894  decode-p3 0.8759
+c7ecda16e4a7.0.1080p.h 5.087  decode-v3 0.9476  decode-p3 0.9454
+dcb262cf0138.0.sd.h264 0.398  decode-v3 0.9954  decode-p3 0.9663
+e624cbe0d2be.0.4k.h264 1.311  decode-v3 0.9130  decode-p3 0.9255
+ec473c99c538.0.sd.h264 0.150  decode-v3 1.0173  decode-p3 0.9744
+ed75c044e944.0.4k.h264 0.374  decode-v3 0.9605  decode-p3 0.9892
+f8d92a911e72.0.4k.h264 10.010  decode-v3 0.9570  decode-p3 0.9633
+f9e973f44570.0.sd.h264 0.269  decode-v3 0.9663  decode-p3 0.9837
+median decode-v3 0.9791  faster 22/32  1080p 0.9524 4k 0.9626 720p 0.9862 sd 1.0086
+median decode-p3 0.9703  faster 28/32  1080p 0.9542 4k 0.9697 720p 0.9605 sd 0.9857
+## r2: 5 rounds; p4 = p3 with Kernels::predict_inlined, before the chain's helpers were made per instance (Design point 4)
+175433794e02.0.1080p.h 6.695  decode-v3 0.9335  decode-p3 0.9485  decode-p4 0.9427
+1d4b1775d78a.0.720p.h2 1.264  decode-v3 1.0644  decode-p3 1.0092  decode-p4 0.9933
+278dbf5a63bb.0.720p.h2 1.455  decode-v3 0.9426  decode-p3 1.0119  decode-p4 0.9969
+36501d448eaa.0.720p.h2 2.247  decode-v3 0.9866  decode-p3 0.9568  decode-p4 0.9578
+3b1b441e23ae.0.4k.h264 1.266  decode-v3 0.9747  decode-p3 0.9292  decode-p4 1.0001
+3c593b8f0809.0.720p.h2 1.121  decode-v3 0.9992  decode-p3 0.9598  decode-p4 0.9802
+41e324ebb708.0.sd.h264 1.283  decode-v3 0.9728  decode-p3 0.9761  decode-p4 0.9836
+4b54de28c2b3.0.4k.h264 1.003  decode-v3 0.9865  decode-p3 0.9436  decode-p4 0.9443
+5185721dda11.0.sd.h264 0.534  decode-v3 1.0114  decode-p3 0.9898  decode-p4 0.9848
+65ec61f95a00.0.720p.h2 4.446  decode-v3 0.9821  decode-p3 0.9864  decode-p4 1.0207
+6b18d9f0f88d.0.720p.h2 0.963  decode-v3 1.0169  decode-p3 0.9654  decode-p4 0.9674
+6da34958296c.0.1080p.h 2.864  decode-v3 1.0010  decode-p3 0.9686  decode-p4 0.9511
+6e90422a670a.0.1080p.h 5.567  decode-v3 0.9480  decode-p3 0.9526  decode-p4 0.9533
+6f7799768413.0.sd.h264 2.179  decode-v3 0.9849  decode-p3 1.0008  decode-p4 0.9878
+7650ae466748.0.sd.h264 0.708  decode-v3 1.0346  decode-p3 0.9775  decode-p4 0.9750
+76e0b1692494.0.720p.h2 1.264  decode-v3 0.9637  decode-p3 0.9781  decode-p4 0.9659
+81ed4778ece2.0.4k.h264 0.399  decode-v3 0.9829  decode-p3 0.9498  decode-p4 0.9106
+8ae90cadb5bc.0.sd.h264 1.829  decode-v3 0.9821  decode-p3 0.9777  decode-p4 0.9754
+9db41aa16b5a.0.720p.h2 1.279  decode-v3 1.0505  decode-p3 0.9934  decode-p4 1.0048
+a6af290d9053.0.1080p.h 7.457  decode-v3 0.9459  decode-p3 0.9442  decode-p4 0.9489
+a81de82106be.0.1080p.h 0.900  decode-v3 0.9682  decode-p3 0.9598  decode-p4 0.9600
+ae16bb7c7192.0.4k.h264 0.224  decode-v3 1.0037  decode-p3 0.9450  decode-p4 0.9639
+af38b0cfd840.0.4k.h264 0.688  decode-v3 0.9960  decode-p3 0.9934  decode-p4 0.9739
+b41f70a7fa60.0.1080p.h 3.471  decode-v3 0.9956  decode-p3 1.0035  decode-p4 1.0160
+b71b6b31e54f.0.1080p.h 1.745  decode-v3 0.9904  decode-p3 0.9711  decode-p4 0.9895
+c7ecda16e4a7.0.1080p.h 4.914  decode-v3 0.9979  decode-p3 0.9964  decode-p4 0.9752
+dcb262cf0138.0.sd.h264 0.384  decode-v3 1.0131  decode-p3 0.9730  decode-p4 0.9968
+e624cbe0d2be.0.4k.h264 1.351  decode-v3 0.9189  decode-p3 0.9357  decode-p4 0.9410
+ec473c99c538.0.sd.h264 0.146  decode-v3 1.0418  decode-p3 0.9682  decode-p4 0.9965
+ed75c044e944.0.4k.h264 0.371  decode-v3 1.0062  decode-p3 0.9497  decode-p4 0.9701
+f8d92a911e72.0.4k.h264 10.050  decode-v3 0.9609  decode-p3 0.9660  decode-p4 0.9822
+f9e973f44570.0.sd.h264 0.272  decode-v3 0.9812  decode-p3 1.0051  decode-p4 1.0149
+median decode-v3 0.9866  faster 22/32  1080p 0.9793 4k 0.9847 720p 0.9929 sd 0.9981
+median decode-p3 0.9699  faster 27/32  1080p 0.9642 4k 0.9474 720p 0.9822 sd 0.9776
+median decode-p4 0.9753  faster 27/32  1080p 0.9567 4k 0.9670 720p 0.9867 sd 0.9863
+## r3: 5 rounds; decode-p7 = this round's code (after, the commit of the bars); decode-safe = the same without the feature fast
+175433794e02.0.1080p.h 6.537  decode-v3 0.9533  decode-p7 0.9637  decode-safe 1.0182
+1d4b1775d78a.0.720p.h2 1.350  decode-v3 0.9689  decode-p7 1.0162  decode-safe 1.0204
+278dbf5a63bb.0.720p.h2 1.497  decode-v3 0.9629  decode-p7 1.0549  decode-safe 0.9963
+36501d448eaa.0.720p.h2 2.241  decode-v3 0.9789  decode-p7 0.9647  decode-safe 0.9830
+3b1b441e23ae.0.4k.h264 1.317  decode-v3 0.9442  decode-p7 0.9498  decode-safe 0.9597
+3c593b8f0809.0.720p.h2 1.130  decode-v3 0.9940  decode-p7 0.9722  decode-safe 0.9962
+41e324ebb708.0.sd.h264 1.321  decode-v3 0.9780  decode-p7 0.9456  decode-safe 0.9806
+4b54de28c2b3.0.4k.h264 1.063  decode-v3 0.9605  decode-p7 0.9614  decode-safe 0.9888
+5185721dda11.0.sd.h264 0.541  decode-v3 1.0248  decode-p7 0.9902  decode-safe 0.9997
+65ec61f95a00.0.720p.h2 4.803  decode-v3 0.9669  decode-p7 0.9693  decode-safe 0.9860
+6b18d9f0f88d.0.720p.h2 1.027  decode-v3 0.9801  decode-p7 0.9165  decode-safe 0.9891
+6da34958296c.0.1080p.h 3.008  decode-v3 0.9828  decode-p7 0.9860  decode-safe 1.0553
+6e90422a670a.0.1080p.h 5.508  decode-v3 0.9718  decode-p7 0.9833  decode-safe 1.0237
+6f7799768413.0.sd.h264 2.238  decode-v3 0.9738  decode-p7 0.9876  decode-safe 1.0094
+7650ae466748.0.sd.h264 0.718  decode-v3 1.0531  decode-p7 0.9866  decode-safe 1.0029
+76e0b1692494.0.720p.h2 1.344  decode-v3 0.9627  decode-p7 0.9646  decode-safe 0.9716
+81ed4778ece2.0.4k.h264 0.461  decode-v3 0.8682  decode-p7 0.9314  decode-safe 0.9431
+8ae90cadb5bc.0.sd.h264 1.803  decode-v3 1.0145  decode-p7 0.9980  decode-safe 1.0137
+9db41aa16b5a.0.720p.h2 1.285  decode-v3 1.0423  decode-p7 1.0017  decode-safe 1.0237
+a6af290d9053.0.1080p.h 7.492  decode-v3 0.9659  decode-p7 0.9638  decode-safe 1.0047
+a81de82106be.0.1080p.h 0.908  decode-v3 0.9639  decode-p7 0.9451  decode-safe 0.9898
+ae16bb7c7192.0.4k.h264 0.224  decode-v3 0.9874  decode-p7 0.9575  decode-safe 1.0188
+af38b0cfd840.0.4k.h264 0.692  decode-v3 0.9916  decode-p7 1.0088  decode-safe 1.0391
+b41f70a7fa60.0.1080p.h 3.680  decode-v3 0.9613  decode-p7 0.9681  decode-safe 0.9928
+b71b6b31e54f.0.1080p.h 1.833  decode-v3 0.9858  decode-p7 0.9641  decode-safe 0.9976
+c7ecda16e4a7.0.1080p.h 5.069  decode-v3 0.9776  decode-p7 0.9799  decode-safe 0.9990
+dcb262cf0138.0.sd.h264 0.392  decode-v3 0.9933  decode-p7 0.9717  decode-safe 0.9856
+e624cbe0d2be.0.4k.h264 1.326  decode-v3 0.9309  decode-p7 0.9858  decode-safe 1.0140
+ec473c99c538.0.sd.h264 0.150  decode-v3 1.0136  decode-p7 0.9656  decode-safe 0.9886
+ed75c044e944.0.4k.h264 0.396  decode-v3 0.9791  decode-p7 0.9851  decode-safe 1.0033
+f8d92a911e72.0.4k.h264 10.179  decode-v3 0.9597  decode-p7 1.0290  decode-safe 0.9842
+f9e973f44570.0.sd.h264 0.277  decode-v3 0.9676  decode-p7 0.9776  decode-safe 1.0048
+median decode-v3 0.9757  faster 27/32  1080p 0.9688 4k 0.9601 720p 0.9739 sd 1.0034
+median decode-p7 0.9719  faster 27/32  1080p 0.9661 4k 0.9733 720p 0.9707 sd 0.9821
+median decode-safe 0.9983  faster 18/32  1080p 1.0018 4k 0.9961 720p 0.9926 sd 1.0013

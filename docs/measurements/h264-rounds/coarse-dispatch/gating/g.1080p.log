@@ -1,0 +1,24 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2899.9 MHz, 8 logical CPUs
+175433794e02.0.1080p.h264                main:discard=1.23  main:write=1.21  main:mixed=1.19  v3:discard=1.16  v3:write=1.16  v3:mixed=1.12  after:discard=1.17  after:write=1.16  after:mixed=1.13  safe:discard=1.23  safe:write=1.21  safe:mixed=1.18
+6da34958296c.0.1080p.h264                main:discard=1.35  main:write=1.22  main:mixed=1.14  v3:discard=1.29  v3:write=1.16  v3:mixed=1.09  after:discard=1.28  after:write=1.14  after:mixed=1.08  safe:discard=1.31  safe:write=1.17  safe:mixed=1.11
+6e90422a670a.0.1080p.h264                main:discard=1.23  main:write=1.20  main:mixed=1.15  v3:discard=1.17  v3:write=1.13  v3:mixed=1.09  after:discard=1.18  after:write=1.13  after:mixed=1.10  safe:discard=1.23  safe:write=1.18  safe:mixed=1.14
+a6af290d9053.0.1080p.h264                main:discard=1.26  main:write=1.24  main:mixed=1.22  v3:discard=1.20  v3:write=1.19  v3:mixed=1.16  after:discard=1.19  after:write=1.17  after:mixed=1.15  safe:discard=1.24  safe:write=1.22  safe:mixed=1.20
+a81de82106be.0.1080p.h264                main:discard=1.08  main:write=1.03  main:mixed=0.98  v3:discard=1.03  v3:write=0.98  v3:mixed=0.93  after:discard=1.03  after:write=0.98  after:mixed=0.93  safe:discard=1.07  safe:write=1.02  safe:mixed=0.96
+b41f70a7fa60.0.1080p.h264                main:discard=1.34  main:write=1.22  main:mixed=1.17  v3:discard=1.26  v3:write=1.16  v3:mixed=1.10  after:discard=1.29  after:write=1.16  after:mixed=1.13  safe:discard=1.30  safe:write=1.23  safe:mixed=1.14
+b71b6b31e54f.0.1080p.h264                main:discard=1.30  main:write=1.17  main:mixed=1.10  v3:discard=1.25  v3:write=1.13  v3:mixed=1.06  after:discard=1.29  after:write=1.18  after:mixed=1.09  safe:discard=1.35  safe:write=1.20  safe:mixed=1.14
+c7ecda16e4a7.0.1080p.h264                main:discard=1.33  main:write=1.28  main:mixed=1.26  v3:discard=1.28  v3:write=1.24  v3:mixed=1.21  after:discard=1.29  after:write=1.25  after:mixed=1.22  safe:discard=1.31  safe:write=1.27  safe:mixed=1.24
+
+main:discard             n=  8  median 1.277  [1.230, 1.338]
+main:write               n=  8  median 1.213  [1.171, 1.238]
+main:mixed               n=  8  median 1.159  [1.096, 1.217]
+v3:discard               n=  8  median 1.222  [1.163, 1.276]
+v3:write                 n=  8  median 1.159  [1.132, 1.185]
+v3:mixed                 n=  8  median 1.094  [1.055, 1.159]
+after:discard            n=  8  median 1.233  [1.173, 1.291]
+after:write              n=  8  median 1.157  [1.133, 1.181]
+after:mixed              n=  8  median 1.116  [1.081, 1.150]
+safe:discard             n=  8  median 1.274  [1.225, 1.310]
+safe:write               n=  8  median 1.206  [1.174, 1.234]
+safe:mixed               n=  8  median 1.141  [1.108, 1.204]
+
+wrote $HOME/ab/cd/vol/c1/out/g.1080p.json

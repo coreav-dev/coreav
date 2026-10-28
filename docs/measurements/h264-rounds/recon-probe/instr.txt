@@ -1,0 +1,10 @@
+r33-ct   sd     median 0.9980 min 0.9952 max 1.0003
+r33-ct   720p   median 0.9979 min 0.9955 max 1.0018
+r33-ct   1080p  median 0.9970 min 0.9940 max 1.0005
+r33-ct   4k     median 0.9999 min 0.9972 max 1.0005
+r33-ct   all    median 0.9987 max 1.0018, 24 of 32 below 1
+r33-ct2  sd     median 0.9921 min 0.9821 max 0.9998
+r33-ct2  720p   median 0.9909 min 0.9832 max 0.9950
+r33-ct2  1080p  median 0.9902 min 0.9810 max 0.9974
+r33-ct2  4k     median 0.9955 min 0.9843 max 0.9991
+r33-ct2  all    median 0.9911 max 0.9998, 32 of 32 below 1

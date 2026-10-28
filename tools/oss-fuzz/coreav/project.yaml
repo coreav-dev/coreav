@@ -1,0 +1,11 @@
+# OSS-Fuzz project file (tools/oss-fuzz/README.md). The contact is the
+# project's security address, which must be tied to a Google account; the
+# homepage is a placeholder (#91), which the maintainer sets before applying.
+homepage: "https://coreav.dev"
+language: rust
+primary_contact: "security@coreav.dev"
+main_repo: "https://github.com/coreav-dev/coreav.git"
+sanitizers:
+  - address
+fuzzing_engines:
+  - libfuzzer

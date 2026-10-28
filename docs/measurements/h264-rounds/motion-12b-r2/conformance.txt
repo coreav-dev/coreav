@@ -1,0 +1,4 @@
+JVT conformance suite, the branch rebased on 72b173b5 (release build of the conformance test, the development VM, x86-64 with AVX-512):
+291 of 291 stream decodes bit-exact, 39987 frames, kernels: detected, threads: [1, 2, 8]
+97 of 97 stream decodes bit-exact, 13329 frames, kernels: scalar, threads: [1]
+arm64: the CI's conformance-arm64 job.

@@ -1,0 +1,60 @@
+time over FFmpeg total (BtbN), mean per stream; CoreAV / FFmpeg
+class           k-luma        k-chroma        strength      thresholds            loop           views          border           other           total
+sd     0.0660/0.0635 0.0469/0.0207 0.0660/0.0631 0.0302/0.0000 0.0319/0.0463 0.0077/0.0000 0.0000/0.0069 0.0000/0.0000 0.2487/0.2005
+720p   0.1045/0.1119 0.0713/0.0352 0.0484/0.0562 0.0450/0.0000 0.0346/0.0441 0.0114/0.0000 0.0000/0.0071 0.0000/0.0000 0.3152/0.2546
+1080p  0.0392/0.0389 0.0308/0.0149 0.0344/0.0367 0.0228/0.0000 0.0201/0.0242 0.0054/0.0000 0.0000/0.0044 0.0000/0.0000 0.1528/0.1191
+4k     0.0156/0.0184 0.0121/0.0069 0.0666/0.0314 0.0147/0.0000 0.0346/0.0320 0.0020/0.0000 0.0000/0.0154 0.0000/0.0000 0.1457/0.1042
+all    0.0563/0.0582 0.0403/0.0194 0.0539/0.0468 0.0282/0.0000 0.0303/0.0367 0.0066/0.0000 0.0000/0.0084 0.0000/0.0000 0.2156/0.1696
+
+CoreAV items (all 32):
+  0.0277 loop       deblock_row
+  0.0276 strength   edge_strengths
+  0.0222 k-chroma   x86.rs chroma_pair
+  0.0172 k-luma     avx512.rs filter_luma16
+  0.0155 thresholds new
+  0.0110 k-luma     avx512.rs luma_columns
+  0.0088 k-luma     avx512.rs {closure#0}
+  0.0075 thresholds params
+  0.0074 k-chroma   x86.rs filter_chroma16
+  0.0068 strength   differing_motion_strength
+  0.0061 k-luma     avx512.rs {closure#1}
+  0.0054 strength   strengths
+  0.0052 thresholds chroma_qp
+  0.0051 strength   column
+  0.0048 k-luma     avx512.rs luma_rows
+  0.0042 k-chroma   x86.rs filter_chroma_pair
+  0.0035 strength   same_motion
+  0.0032 views      views.rs new
+  0.0030 k-chroma   x86.rs near16
+  0.0028 strength   spread
+  0.0027 strength   row
+  0.0025 loop       
+  0.0020 k-luma     avx512.rs thresholds
+  0.0018 k-luma     avx512.rs filter_edge
+  0.0012 k-chroma   x86.rs keep16
+  0.0009 k-luma     avx512.rs {closure#4}
+  0.0009 k-chroma   x86.rs {closure#0}
+  0.0009 k-luma     avx512.rs {closure#3}
+  0.0008 k-luma     avx512.rs deblock_row
+  0.0007 k-chroma   x86.rs samples_by_position
+
+FFmpeg items (all 32):
+  0.0272 k-luma     ff_deblock_v_luma_8_avx
+  0.0246 strength   ff_h264_loop_filter_strength_mmxext
+  0.0195 k-luma     ff_deblock_h_luma_8_avx
+  0.0152 strength   h264_slice.c fill_filter_caches_inter
+  0.0151 loop       h264_slice.c loop_filter
+  0.0100 k-chroma   ff_deblock_h_chroma_8_avx
+  0.0094 loop       h264_loopfilter.c h264_filter_mb_fast_internal
+  0.0084 border     h264_slice.c backup_mb_border
+  0.0071 strength   h264_slice.c fill_filter_caches
+  0.0070 k-luma     ff_deblock_v_luma_intra_8_avx
+  0.0052 k-chroma   ff_deblock_v_chroma_8_avx
+  0.0045 k-luma     ff_deblock_h_luma_intra_8_avx
+  0.0039 loop       h264_loopfilter.c filter_mb_edgev
+  0.0028 k-chroma   ff_deblock_h_chroma_intra_8_avx
+  0.0026 loop       h264_loopfilter.c ff_h264_filter_mb_fast
+  0.0024 loop       h264_loopfilter.c filter_mb_edgeh
+  0.0018 loop       h264_loopfilter.c filter_mb_edgecv
+  0.0016 loop       h264_loopfilter.c filter_mb_edgech
+  0.0015 k-chroma   ff_deblock_v_chroma_intra_8_avx

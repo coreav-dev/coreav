@@ -1,0 +1,8 @@
+2026-10-27T11:05:26Z download start
+2026-10-27T11:05:36Z tarball sha256 verified
+2026-10-27T11:06:01Z configure and make exit status 0
+2026-10-27T11:06:01Z source tree, tarball and build log deleted (log unread)
+2026-10-27T11:06:01Z no .debug_* sections
+2026-10-27T11:06:02Z profiling start
+2026-10-27T11:15:38Z profiling ipc done
+2026-10-27T11:19:58Z profiling ipc8 done

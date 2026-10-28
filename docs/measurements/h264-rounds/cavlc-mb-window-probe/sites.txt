@@ -1,0 +1,6 @@
+5185721dda11 total 2694367530 mb-layer ue calls 1486395 mb_skip_run 267621 | 36 a call 1.99% | bits.rs:150=874299 bits.rs:140=612096 mb.rs:1065=267621
+6f7799768413 total 10265617481 mb-layer ue calls 6822631 mb_skip_run 853861 | 36 a call 2.39% | bits.rs:150=3508067 bits.rs:140=3314564 mb.rs:1065=853861
+9db41aa16b5a total 8582199028 mb-layer ue calls 3229125 mb_skip_run 972383 | 36 a call 1.35% | bits.rs:140=1997733 bits.rs:150=1231392 mb.rs:1065=972383
+b71b6b31e54f total 7070462775 mb-layer ue calls 3473474 mb_skip_run 757121 | 36 a call 1.77% | bits.rs:150=1772144 bits.rs:140=1701330 mb.rs:1065=757121
+ec473c99c538 total 858954035 mb-layer ue calls 219579 mb_skip_run 28171 | 36 a call 0.92% | bits.rs:140=122971 bits.rs:150=96608 mb.rs:1065=28171
+f9e973f44570 total 1312434652 mb-layer ue calls 948772 mb_skip_run 141826 | 36 a call 2.60% | bits.rs:140=489304 bits.rs:150=459468 mb.rs:1065=141826

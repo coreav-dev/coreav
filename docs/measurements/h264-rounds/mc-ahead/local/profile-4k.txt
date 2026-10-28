@@ -1,0 +1,76 @@
+perf cpu-clock samples per function at 4 kHz, one thread pinned, --discard, the 8 streams of the 4k class, 150 frames each, one round;
+CoreAV main 75d77dc3 (dist build) and FFmpeg 9.0.2 (ffmpeg_g, the profile build of ../../profile/README.md; function names only).
+Each function's samples over the stream's FFmpeg total, averaged over the 8 streams. development VM, Intel Xeon @ 2.50 GHz (not the bar class), information.
+total core/ff 1.383289447032611
+== base
+0.2258 coreav_kernels_h264::simd::x86::predict::luma_block
+0.2166 <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode_cabac
+0.1472 coreav_kernels_h264::simd::x86::predict::chroma_block
+0.1402 coreav_h264::deblock::deblock_rows::<coreav_kernels_h264::Auto>
+0.1060 <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::start_mb
+0.1046 <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::inter_pred
+0.0928 <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::predict_fast
+0.0716 coreav_kernels_h264::simd::x86::predict::predict::<coreav_kernels_h264::Auto>
+0.0412 coreav_h264::cabac::levels::<16>
+0.0337 coreav_h264::cabac::significance_map::<64>
+0.0330 coreav_h264::cabac::significance_map::<16>
+0.0324 coreav_h264::cabac::levels::<64>
+0.0277 <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::colocated
+0.0271 <coreav_h264::decoder::Decoder>::start_picture
+0.0145 <coreav_h264::cabac::Cabac>::mvd
+0.0138 coreav_kernels_h264::simd::x86::filter_luma_edge::<false, true>
+0.0120 <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::mv_predictor
+0.0118 <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::motion_compensate
+0.0107 coreav_kernels_h264::simd::x86::idct8x8_add
+0.0104 clear_page_erms
+0.0102 coreav_kernels_h264::simd::x86::filter_luma_edge::<true, true>
+0.0096 coreav_kernels_h264::simd::x86::chroma_mb::filter_chroma_mb
+0.0091 <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::parse_mvd::<coreav_h264::syntax::CabacSyntax>
+0.0089 <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reconstruct_chroma
+0.0076 <coreav_h264::mb::MbData>::reset
+0.0076 coreav_kernels_h264::simd::x86::idct4x4_add_quad
+0.0070 coreav_h264::cabac::levels::<4>
+0.0063 do_user_addr_fault
+0.0056 <coreav_h264::syntax::CabacSyntax>::intra_mb_type
+0.0054 coreav_h264::nal::rbsp
+== ff
+0.1048 mc_part_420_simple_8
+0.1027 ff_h264_decode_mb_cabac
+0.0723 hl_decode_mb_simple_8
+0.0590 decode_cabac_residual_nondc_internal
+0.0564 get_cabac
+0.0519 loop_filter
+0.0513 get_cabac_noinline
+0.0395 ff_prefetch_mmxext
+0.0323 decode_significance_x86
+0.0318 fill_decode_caches
+0.0309 put_pixels16_after_prologue.loop
+0.0205 decode_cabac_mb_skip
+0.0197 ff_put_h264_chroma_mc8_rnd_ssse3.next4rows
+0.0183 fill_decode_neighbors
+0.0152 ff_h264_hl_decode_mb
+0.0129 ff_h264_pred_direct_motion
+0.0127 decode_slice
+0.0115 ff_h264_filter_mb_fast
+0.0104 clear_page_erms
+0.0097 decode_cabac_mb_mvd
+0.0080 __memset_evex_unaligned_erms
+0.0079 do_user_addr_fault
+0.0061 ff_put_h264_qpel8or16_v_lowpass_sse2
+0.0058 avg_pixels16_after_prologue.loop
+0.0053 ff_deblock_v_luma_8_avx
+0.0051 ff_put_h264_chroma_mc8_rnd_ssse3.next2rows
+0.0051 ff_deblock_h_luma_8_avx
+0.0050 ff_put_h264_qpel8or16_hv1_lowpass_op_sse2
+0.0049 ff_h264_weight_16_sse2.nextrow
+0.0048 _raw_spin_unlock_irqrestore
+
+Per stream: the CoreAV/FFmpeg sample ratio, and the inter prediction functions over FFmpeg's total
+3b1b441e23ae ratio 1.566 | CoreAV luma_block 0.313 chroma_block 0.242 predict 0.070 predict_fast 0.150 inter_pred 0.116 | FFmpeg mc_part* 0.133 ff_prefetch* 0.095 *pixels* 0.062 *qpel* 0.003 *chroma_mc* 0.040
+4b54de28c2b3 ratio 1.614 | CoreAV luma_block 0.187 chroma_block 0.069 predict 0.035 predict_fast 0.069 inter_pred 0.066 | FFmpeg mc_part* 0.094 ff_prefetch* 0.026 *pixels* 0.024 *qpel* 0.004 *chroma_mc* 0.020
+81ed4778ece2 ratio 1.356 | CoreAV luma_block 0.168 chroma_block 0.162 predict 0.082 predict_fast 0.078 inter_pred 0.115 | FFmpeg mc_part* 0.124 ff_prefetch* 0.025 *pixels* 0.054 *qpel* 0.001 *chroma_mc* 0.033
+ae16bb7c7192 ratio 1.447 | CoreAV luma_block 0.234 chroma_block 0.151 predict 0.121 predict_fast 0.074 inter_pred 0.179 | FFmpeg mc_part* 0.148 ff_prefetch* 0.037 *pixels* 0.062 *qpel* 0.000 *chroma_mc* 0.047
+af38b0cfd840 ratio 1.296 | CoreAV luma_block 0.186 chroma_block 0.076 predict 0.027 predict_fast 0.022 inter_pred 0.072 | FFmpeg mc_part* 0.031 ff_prefetch* 0.006 *pixels* 0.016 *qpel* 0.067 *chroma_mc* 0.039
+e624cbe0d2be ratio 1.820 | CoreAV luma_block 0.289 chroma_block 0.202 predict 0.085 predict_fast 0.143 inter_pred 0.089 | FFmpeg mc_part* 0.125 ff_prefetch* 0.087 *pixels* 0.041 *qpel* 0.007 *chroma_mc* 0.032
+ed75c044e944 ratio 2.135 | CoreAV luma_block 0.310 chroma_block 0.239 predict 0.136 predict_fast 0.174 inter_pred 0.157 | FFmpeg mc_part* 0.148 ff_prefetch* 0.032 *pixels* 0.054 *qpel* 0.001 *chroma_mc* 0.034
+f8d92a911e72 ratio 1.254 | CoreAV luma_block 0.120 chroma_block 0.037 predict 0.017 predict_fast 0.031 inter_pred 0.043 | FFmpeg mc_part* 0.035 ff_prefetch* 0.009 *pixels* 0.006 *qpel* 0.051 *chroma_mc* 0.034

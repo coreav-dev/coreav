@@ -1,0 +1,18 @@
+{
+  "returncode": 0,
+  "stdout": "Measuring cpu: small\nMeasuring cpu: large\nMeasuring cpu: fragmented\n",
+  "stderr": "",
+  "duration_seconds": 672.063380618,
+  "command": [
+    "/usr/local/bin/python",
+    "/opt/coreav/spikes/spike-a/measure.py",
+    "--device",
+    "cpu",
+    "--data-dir",
+    "/inputs/data",
+    "--mapping-dir",
+    "/inputs/artifacts",
+    "--output",
+    "/evidence/cpu/raw.json"
+  ]
+}

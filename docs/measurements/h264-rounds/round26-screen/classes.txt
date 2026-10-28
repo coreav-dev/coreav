@@ -1,0 +1,36 @@
+== ab-colocated.txt col-c
+sd     n= 8 median 1.0031 [1.0002, 1.0044] faster 1/8
+720p   n= 8 median 1.0030 [0.9934, 1.0076] faster 2/8
+1080p  n= 8 median 0.9983 [0.9799, 1.0104] faster 5/8
+4k     n= 8 median 1.0080 [1.0012, 1.0170] faster 1/8
+all    n=32 median 1.0034 [1.0007, 1.0053] faster 9/32
+== ab-colocated.txt col-ch
+sd     n= 8 median 1.0029 [0.9959, 1.0091] faster 3/8
+720p   n= 8 median 1.0013 [0.9988, 1.0159] faster 3/8
+1080p  n= 8 median 0.9999 [0.9721, 1.0045] faster 4/8
+4k     n= 8 median 0.9994 [0.9890, 1.0059] faster 4/8
+all    n=32 median 1.0004 [0.9986, 1.0034] faster 14/32
+== ab-record-p1.txt rec-p1
+sd     n= 8 median 0.9926 [0.9806, 1.0033] faster 5/8
+720p   n= 8 median 0.9978 [0.9864, 1.0067] faster 5/8
+1080p  n= 8 median 1.0028 [0.9999, 1.0090] faster 2/8
+4k     n= 8 median 0.9909 [0.9888, 1.0050] faster 5/8
+all    n=32 median 0.9998 [0.9915, 1.0023] faster 17/32
+== ab-record.txt rec-p1
+sd     n= 8 median 0.9968 [0.9942, 1.0018] faster 6/8
+720p   n= 8 median 0.9987 [0.9947, 1.0042] faster 5/8
+1080p  n= 8 median 1.0056 [1.0009, 1.0110] faster 1/8
+4k     n= 8 median 0.9994 [0.9863, 1.0061] faster 4/8
+all    n=32 median 1.0000 [0.9966, 1.0038] faster 16/32
+== ab-record.txt rec-p2
+sd     n= 8 median 1.0016 [0.9989, 1.0052] faster 3/8
+720p   n= 8 median 1.0012 [0.9997, 1.0037] faster 2/8
+1080p  n= 8 median 1.0061 [0.9909, 1.0094] faster 2/8
+4k     n= 8 median 0.9969 [0.9873, 1.0053] faster 5/8
+all    n=32 median 1.0017 [0.9997, 1.0044] faster 12/32
+== ab-record.txt rec-h
+sd     n= 8 median 1.0019 [1.0001, 1.0080] faster 1/8
+720p   n= 8 median 0.9988 [0.9969, 1.0054] faster 5/8
+1080p  n= 8 median 1.0038 [0.9934, 1.0101] faster 2/8
+4k     n= 8 median 0.9919 [0.9834, 1.0075] faster 6/8
+all    n=32 median 1.0010 [0.9973, 1.0043] faster 14/32

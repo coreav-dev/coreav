@@ -1,0 +1,4512 @@
+{
+ "schema": "coreav.kd-audit-writers.v1",
+ "tools": [
+  "tools/oracle/writer_kd_audit.py",
+  "tools/oracle/writer_kd_audit_cli.py"
+ ],
+ "before_oracles": "main at fff1725 (the same tools, inputs and coreav binary)",
+ "runs": {
+  "fixtures/clip/before": {
+   "counts": {
+    "COVERED": 42,
+    "caught": 4262,
+    "n/a": 2520,
+    "no effect": 3032
+   },
+   "by_mutation": {
+    "audio: aac object type swapped": {
+     "caught": 185,
+     "n/a": 123
+    },
+    "audio: audio channels +1": {
+     "n/a": 123,
+     "no effect": 185
+    },
+    "audio: audio rate halved": {
+     "n/a": 123,
+     "no effect": 185
+    },
+    "audio: chunk offset +1": {
+     "caught": 185,
+     "n/a": 123
+    },
+    "audio: ctts offset +512": {
+     "n/a": 308
+    },
+    "audio: elst duration +1": {
+     "caught": 5,
+     "n/a": 123,
+     "no effect": 180
+    },
+    "audio: elst duration -1": {
+     "caught": 5,
+     "n/a": 123,
+     "no effect": 180
+    },
+    "audio: elst media time +1": {
+     "COVERED": 40,
+     "n/a": 123,
+     "no effect": 145
+    },
+    "audio: mdhd duration +1": {
+     "n/a": 123,
+     "no effect": 185
+    },
+    "audio: mdhd timescale +1": {
+     "COVERED": 2,
+     "caught": 18,
+     "n/a": 123,
+     "no effect": 165
+    },
+    "audio: mvhd duration +7": {
+     "n/a": 123,
+     "no effect": 185
+    },
+    "audio: sample byte flipped": {
+     "caught": 185,
+     "n/a": 123
+    },
+    "audio: stss sync moved": {
+     "n/a": 308
+    },
+    "audio: stsz first size +1": {
+     "caught": 185,
+     "n/a": 123
+    },
+    "audio: stts delta +1": {
+     "caught": 171,
+     "n/a": 123,
+     "no effect": 14
+    },
+    "audio: stts delta -1": {
+     "caught": 171,
+     "n/a": 123,
+     "no effect": 14
+    },
+    "audio: tkhd duration +1": {
+     "caught": 5,
+     "n/a": 123,
+     "no effect": 180
+    },
+    "video: chunk offset +1": {
+     "caught": 308
+    },
+    "video: ctts offset +512": {
+     "caught": 249,
+     "n/a": 59
+    },
+    "video: elst duration +1": {
+     "caught": 67,
+     "no effect": 241
+    },
+    "video: elst duration -1": {
+     "caught": 308
+    },
+    "video: elst media time +1": {
+     "caught": 308
+    },
+    "video: mdhd duration +1": {
+     "no effect": 308
+    },
+    "video: mdhd timescale +1": {
+     "caught": 307,
+     "no effect": 1
+    },
+    "video: mvhd duration +7": {
+     "no effect": 308
+    },
+    "video: sample byte flipped": {
+     "caught": 308
+    },
+    "video: stss sync moved": {
+     "caught": 43,
+     "no effect": 265
+    },
+    "video: stsz first size +1": {
+     "caught": 308
+    },
+    "video: stts delta +1": {
+     "caught": 308
+    },
+    "video: stts delta -1": {
+     "caught": 308
+    },
+    "video: tkhd duration +1": {
+     "caught": 17,
+     "no effect": 291
+    },
+    "video: video width +16": {
+     "caught": 308
+    }
+   },
+   "loopholes": [
+    {
+     "where": [
+      "clip/basic.mov.on_sync.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/basic.mp4.on_sync.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/chapters.mp4.on_sync.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/chapters_chpl_only.mp4.on_sync.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/chapters_track_only.mp4.on_sync.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/clip_audio_late.mp4.head.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "mdhd timescale +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-EMPTY-EDIT-DURATION"
+     ]
+    },
+    {
+     "where": [
+      "clip/clip_audio_late.mp4.between.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "mdhd timescale +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-EMPTY-EDIT-DURATION"
+     ]
+    },
+    {
+     "where": [
+      "clip/clip_audio_late.mp4.on_sync.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/clip_av1_no_stss.mp4.between.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/clip_av1_stss_all.mp4.between.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/clip_hevc_open_gop.mp4.on_sync.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/clip_open_gop.mp4.on_sync.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/clip_video_late.mp4.head.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/clip_video_late.mp4.between.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/clip_video_late.mp4.past_end.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/clip_video_late.mp4.whole.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/clip_video_late.mp4.on_sync.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/edit_list.mp4.on_sync.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/faststart.mp4.on_sync.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/fragmented.mp4.on_sync.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/fragmented_many.mp4.between.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/fragmented_many.mp4.past_end.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/fragmented_many.mp4.on_sync.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/fragmented_moov.mp4.on_sync.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/fragmented_sidx.mp4.on_sync.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/hls_h264.mp4.on_sync.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/hls_hevc.mp4.on_sync.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/hls_long_gop.mp4.on_sync.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/hls_open_gop.mp4.on_sync.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/multitrack.mp4.on_sync.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/remux_metadata.mov.on_sync.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/remux_metadata.mp4.on_sync.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/rotate_ccw180.mp4.on_sync.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/rotate_ccw270.mp4.on_sync.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/rotate_ccw90.mp4.on_sync.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/split_av1.mp4.between.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/split_av1.mp4.on_sync.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/split_hevc.mp4.between.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/split_hevc.mp4.on_sync.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/split_vp9.mp4.between.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/split_vp9.mp4.on_sync.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    },
+    {
+     "where": [
+      "clip/text_styled.mp4.on_sync.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-RESTART"
+     ]
+    }
+   ],
+   "inputs": "308 clips of the generated fixtures"
+  },
+  "fixtures/clip/after": {
+   "counts": {
+    "caught": 4329,
+    "n/a": 2520,
+    "no effect": 3007
+   },
+   "by_mutation": {
+    "audio: aac object type swapped": {
+     "caught": 185,
+     "n/a": 123
+    },
+    "audio: audio channels +1": {
+     "n/a": 123,
+     "no effect": 185
+    },
+    "audio: audio rate halved": {
+     "n/a": 123,
+     "no effect": 185
+    },
+    "audio: chunk offset +1": {
+     "caught": 185,
+     "n/a": 123
+    },
+    "audio: ctts offset +512": {
+     "n/a": 308
+    },
+    "audio: elst duration +1": {
+     "caught": 5,
+     "n/a": 123,
+     "no effect": 180
+    },
+    "audio: elst duration -1": {
+     "caught": 5,
+     "n/a": 123,
+     "no effect": 180
+    },
+    "audio: elst media time +1": {
+     "caught": 40,
+     "n/a": 123,
+     "no effect": 145
+    },
+    "audio: mdhd duration +1": {
+     "n/a": 123,
+     "no effect": 185
+    },
+    "audio: mdhd timescale +1": {
+     "caught": 45,
+     "n/a": 123,
+     "no effect": 140
+    },
+    "audio: mvhd duration +7": {
+     "n/a": 123,
+     "no effect": 185
+    },
+    "audio: sample byte flipped": {
+     "caught": 185,
+     "n/a": 123
+    },
+    "audio: stss sync moved": {
+     "n/a": 308
+    },
+    "audio: stsz first size +1": {
+     "caught": 185,
+     "n/a": 123
+    },
+    "audio: stts delta +1": {
+     "caught": 171,
+     "n/a": 123,
+     "no effect": 14
+    },
+    "audio: stts delta -1": {
+     "caught": 171,
+     "n/a": 123,
+     "no effect": 14
+    },
+    "audio: tkhd duration +1": {
+     "caught": 5,
+     "n/a": 123,
+     "no effect": 180
+    },
+    "video: chunk offset +1": {
+     "caught": 308
+    },
+    "video: ctts offset +512": {
+     "caught": 249,
+     "n/a": 59
+    },
+    "video: elst duration +1": {
+     "caught": 67,
+     "no effect": 241
+    },
+    "video: elst duration -1": {
+     "caught": 308
+    },
+    "video: elst media time +1": {
+     "caught": 308
+    },
+    "video: mdhd duration +1": {
+     "no effect": 308
+    },
+    "video: mdhd timescale +1": {
+     "caught": 307,
+     "no effect": 1
+    },
+    "video: mvhd duration +7": {
+     "no effect": 308
+    },
+    "video: sample byte flipped": {
+     "caught": 308
+    },
+    "video: stss sync moved": {
+     "caught": 43,
+     "no effect": 265
+    },
+    "video: stsz first size +1": {
+     "caught": 308
+    },
+    "video: stts delta +1": {
+     "caught": 308
+    },
+    "video: stts delta -1": {
+     "caught": 308
+    },
+    "video: tkhd duration +1": {
+     "caught": 17,
+     "no effect": 291
+    },
+    "video: video width +16": {
+     "caught": 308
+    }
+   },
+   "loopholes": [],
+   "inputs": "308 clips of the generated fixtures"
+  },
+  "fixtures/split/before": {
+   "counts": {
+    "caught": 2948,
+    "n/a": 1380,
+    "no effect": 1944
+   },
+   "by_mutation": {
+    "audio: aac object type swapped": {
+     "caught": 132,
+     "n/a": 64
+    },
+    "audio: audio channels +1": {
+     "n/a": 64,
+     "no effect": 132
+    },
+    "audio: audio rate halved": {
+     "n/a": 64,
+     "no effect": 132
+    },
+    "audio: chunk offset +1": {
+     "caught": 132,
+     "n/a": 64
+    },
+    "audio: ctts offset +512": {
+     "n/a": 196
+    },
+    "audio: elst duration +1": {
+     "n/a": 64,
+     "no effect": 132
+    },
+    "audio: elst duration -1": {
+     "n/a": 64,
+     "no effect": 132
+    },
+    "audio: elst media time +1": {
+     "caught": 2,
+     "n/a": 64,
+     "no effect": 130
+    },
+    "audio: mdhd duration +1": {
+     "n/a": 64,
+     "no effect": 132
+    },
+    "audio: mdhd timescale +1": {
+     "caught": 25,
+     "n/a": 64,
+     "no effect": 107
+    },
+    "audio: mvhd duration +7": {
+     "n/a": 64,
+     "no effect": 132
+    },
+    "audio: sample byte flipped": {
+     "caught": 132,
+     "n/a": 64
+    },
+    "audio: stss sync moved": {
+     "n/a": 196
+    },
+    "audio: stsz first size +1": {
+     "caught": 132,
+     "n/a": 64
+    },
+    "audio: stts delta +1": {
+     "caught": 124,
+     "n/a": 64,
+     "no effect": 8
+    },
+    "audio: stts delta -1": {
+     "caught": 124,
+     "n/a": 64,
+     "no effect": 8
+    },
+    "audio: tkhd duration +1": {
+     "n/a": 64,
+     "no effect": 132
+    },
+    "video: chunk offset +1": {
+     "caught": 196
+    },
+    "video: ctts offset +512": {
+     "caught": 168,
+     "n/a": 28
+    },
+    "video: elst duration +1": {
+     "caught": 196
+    },
+    "video: elst duration -1": {
+     "caught": 196
+    },
+    "video: elst media time +1": {
+     "caught": 196
+    },
+    "video: mdhd duration +1": {
+     "no effect": 196
+    },
+    "video: mdhd timescale +1": {
+     "caught": 190,
+     "no effect": 6
+    },
+    "video: mvhd duration +7": {
+     "no effect": 196
+    },
+    "video: sample byte flipped": {
+     "caught": 196
+    },
+    "video: stss sync moved": {
+     "caught": 23,
+     "no effect": 173
+    },
+    "video: stsz first size +1": {
+     "caught": 196
+    },
+    "video: stts delta +1": {
+     "caught": 196
+    },
+    "video: stts delta -1": {
+     "caught": 196
+    },
+    "video: tkhd duration +1": {
+     "no effect": 196
+    },
+    "video: video width +16": {
+     "caught": 196
+    }
+   },
+   "loopholes": [],
+   "inputs": "120 splits of the generated fixtures"
+  },
+  "fixtures/split/after": {
+   "counts": {
+    "caught": 2948,
+    "n/a": 1380,
+    "no effect": 1944
+   },
+   "by_mutation": {
+    "audio: aac object type swapped": {
+     "caught": 132,
+     "n/a": 64
+    },
+    "audio: audio channels +1": {
+     "n/a": 64,
+     "no effect": 132
+    },
+    "audio: audio rate halved": {
+     "n/a": 64,
+     "no effect": 132
+    },
+    "audio: chunk offset +1": {
+     "caught": 132,
+     "n/a": 64
+    },
+    "audio: ctts offset +512": {
+     "n/a": 196
+    },
+    "audio: elst duration +1": {
+     "n/a": 64,
+     "no effect": 132
+    },
+    "audio: elst duration -1": {
+     "n/a": 64,
+     "no effect": 132
+    },
+    "audio: elst media time +1": {
+     "caught": 2,
+     "n/a": 64,
+     "no effect": 130
+    },
+    "audio: mdhd duration +1": {
+     "n/a": 64,
+     "no effect": 132
+    },
+    "audio: mdhd timescale +1": {
+     "caught": 25,
+     "n/a": 64,
+     "no effect": 107
+    },
+    "audio: mvhd duration +7": {
+     "n/a": 64,
+     "no effect": 132
+    },
+    "audio: sample byte flipped": {
+     "caught": 132,
+     "n/a": 64
+    },
+    "audio: stss sync moved": {
+     "n/a": 196
+    },
+    "audio: stsz first size +1": {
+     "caught": 132,
+     "n/a": 64
+    },
+    "audio: stts delta +1": {
+     "caught": 124,
+     "n/a": 64,
+     "no effect": 8
+    },
+    "audio: stts delta -1": {
+     "caught": 124,
+     "n/a": 64,
+     "no effect": 8
+    },
+    "audio: tkhd duration +1": {
+     "n/a": 64,
+     "no effect": 132
+    },
+    "video: chunk offset +1": {
+     "caught": 196
+    },
+    "video: ctts offset +512": {
+     "caught": 168,
+     "n/a": 28
+    },
+    "video: elst duration +1": {
+     "caught": 196
+    },
+    "video: elst duration -1": {
+     "caught": 196
+    },
+    "video: elst media time +1": {
+     "caught": 196
+    },
+    "video: mdhd duration +1": {
+     "no effect": 196
+    },
+    "video: mdhd timescale +1": {
+     "caught": 190,
+     "no effect": 6
+    },
+    "video: mvhd duration +7": {
+     "no effect": 196
+    },
+    "video: sample byte flipped": {
+     "caught": 196
+    },
+    "video: stss sync moved": {
+     "caught": 23,
+     "no effect": 173
+    },
+    "video: stsz first size +1": {
+     "caught": 196
+    },
+    "video: stts delta +1": {
+     "caught": 196
+    },
+    "video: stts delta -1": {
+     "caught": 196
+    },
+    "video: tkhd duration +1": {
+     "no effect": 196
+    },
+    "video: video width +16": {
+     "caught": 196
+    }
+   },
+   "loopholes": [],
+   "inputs": "120 splits of the generated fixtures"
+  },
+  "fixtures/remux": {
+   "counts": {
+    "caught": 1393,
+    "n/a": 785,
+    "no effect": 254
+   },
+   "by_mutation": {
+    "audio: aac object type swapped": {
+     "caught": 43,
+     "n/a": 33
+    },
+    "audio: audio channels +1": {
+     "n/a": 31,
+     "no effect": 45
+    },
+    "audio: audio rate halved": {
+     "n/a": 31,
+     "no effect": 45
+    },
+    "audio: chunk offset +1": {
+     "caught": 45,
+     "n/a": 31
+    },
+    "audio: ctts offset +512": {
+     "n/a": 76
+    },
+    "audio: elst duration +1": {
+     "caught": 41,
+     "n/a": 35
+    },
+    "audio: elst duration -1": {
+     "caught": 41,
+     "n/a": 35
+    },
+    "audio: elst media time +1": {
+     "caught": 41,
+     "n/a": 35
+    },
+    "audio: mdhd duration +1": {
+     "n/a": 31,
+     "no effect": 45
+    },
+    "audio: mdhd timescale +1": {
+     "caught": 45,
+     "n/a": 31
+    },
+    "audio: mvhd duration +7": {
+     "caught": 45,
+     "n/a": 31
+    },
+    "audio: sample byte flipped": {
+     "caught": 45,
+     "n/a": 31
+    },
+    "audio: stss sync moved": {
+     "n/a": 76
+    },
+    "audio: stsz first size +1": {
+     "caught": 44,
+     "n/a": 32
+    },
+    "audio: stts delta +1": {
+     "caught": 45,
+     "n/a": 31
+    },
+    "audio: stts delta -1": {
+     "caught": 45,
+     "n/a": 31
+    },
+    "audio: tkhd duration +1": {
+     "caught": 45,
+     "n/a": 31
+    },
+    "video: chunk offset +1": {
+     "caught": 68,
+     "n/a": 8
+    },
+    "video: ctts offset +512": {
+     "caught": 54,
+     "n/a": 22
+    },
+    "video: elst duration +1": {
+     "caught": 64,
+     "n/a": 12
+    },
+    "video: elst duration -1": {
+     "caught": 64,
+     "n/a": 12
+    },
+    "video: elst media time +1": {
+     "caught": 64,
+     "n/a": 12
+    },
+    "video: mdhd duration +1": {
+     "n/a": 8,
+     "no effect": 68
+    },
+    "video: mdhd timescale +1": {
+     "caught": 68,
+     "n/a": 8
+    },
+    "video: mvhd duration +7": {
+     "caught": 68,
+     "n/a": 8
+    },
+    "video: sample byte flipped": {
+     "caught": 68,
+     "n/a": 8
+    },
+    "video: stss sync moved": {
+     "caught": 10,
+     "n/a": 15,
+     "no effect": 51
+    },
+    "video: stsz first size +1": {
+     "caught": 68,
+     "n/a": 8
+    },
+    "video: stts delta +1": {
+     "caught": 68,
+     "n/a": 8
+    },
+    "video: stts delta -1": {
+     "caught": 68,
+     "n/a": 8
+    },
+    "video: tkhd duration +1": {
+     "caught": 68,
+     "n/a": 8
+    },
+    "video: video width +16": {
+     "caught": 68,
+     "n/a": 8
+    }
+   },
+   "loopholes": [],
+   "inputs": "76 remuxes of the generated fixtures (oracle unchanged)"
+  },
+  "fixtures/sanitize": {
+   "counts": {
+    "caught": 1393,
+    "n/a": 785,
+    "no effect": 254
+   },
+   "by_mutation": {
+    "audio: aac object type swapped": {
+     "caught": 43,
+     "n/a": 33
+    },
+    "audio: audio channels +1": {
+     "n/a": 31,
+     "no effect": 45
+    },
+    "audio: audio rate halved": {
+     "n/a": 31,
+     "no effect": 45
+    },
+    "audio: chunk offset +1": {
+     "caught": 45,
+     "n/a": 31
+    },
+    "audio: ctts offset +512": {
+     "n/a": 76
+    },
+    "audio: elst duration +1": {
+     "caught": 41,
+     "n/a": 35
+    },
+    "audio: elst duration -1": {
+     "caught": 41,
+     "n/a": 35
+    },
+    "audio: elst media time +1": {
+     "caught": 41,
+     "n/a": 35
+    },
+    "audio: mdhd duration +1": {
+     "n/a": 31,
+     "no effect": 45
+    },
+    "audio: mdhd timescale +1": {
+     "caught": 45,
+     "n/a": 31
+    },
+    "audio: mvhd duration +7": {
+     "caught": 45,
+     "n/a": 31
+    },
+    "audio: sample byte flipped": {
+     "caught": 45,
+     "n/a": 31
+    },
+    "audio: stss sync moved": {
+     "n/a": 76
+    },
+    "audio: stsz first size +1": {
+     "caught": 44,
+     "n/a": 32
+    },
+    "audio: stts delta +1": {
+     "caught": 45,
+     "n/a": 31
+    },
+    "audio: stts delta -1": {
+     "caught": 45,
+     "n/a": 31
+    },
+    "audio: tkhd duration +1": {
+     "caught": 45,
+     "n/a": 31
+    },
+    "video: chunk offset +1": {
+     "caught": 68,
+     "n/a": 8
+    },
+    "video: ctts offset +512": {
+     "caught": 54,
+     "n/a": 22
+    },
+    "video: elst duration +1": {
+     "caught": 64,
+     "n/a": 12
+    },
+    "video: elst duration -1": {
+     "caught": 64,
+     "n/a": 12
+    },
+    "video: elst media time +1": {
+     "caught": 64,
+     "n/a": 12
+    },
+    "video: mdhd duration +1": {
+     "n/a": 8,
+     "no effect": 68
+    },
+    "video: mdhd timescale +1": {
+     "caught": 68,
+     "n/a": 8
+    },
+    "video: mvhd duration +7": {
+     "caught": 68,
+     "n/a": 8
+    },
+    "video: sample byte flipped": {
+     "caught": 68,
+     "n/a": 8
+    },
+    "video: stss sync moved": {
+     "caught": 10,
+     "n/a": 15,
+     "no effect": 51
+    },
+    "video: stsz first size +1": {
+     "caught": 68,
+     "n/a": 8
+    },
+    "video: stts delta +1": {
+     "caught": 68,
+     "n/a": 8
+    },
+    "video: stts delta -1": {
+     "caught": 68,
+     "n/a": 8
+    },
+    "video: tkhd duration +1": {
+     "caught": 68,
+     "n/a": 8
+    },
+    "video: video width +16": {
+     "caught": 68,
+     "n/a": 8
+    }
+   },
+   "loopholes": [],
+   "inputs": "76 sanitized outputs of the generated fixtures (oracle unchanged)"
+  },
+  "fixtures/extract": {
+   "counts": {
+    "caught": 450,
+    "n/a": 726,
+    "no effect": 168
+   },
+   "by_mutation": {
+    "audio: aac object type swapped": {
+     "caught": 42
+    },
+    "audio: audio channels +1": {
+     "no effect": 42
+    },
+    "audio: audio rate halved": {
+     "no effect": 42
+    },
+    "audio: chunk offset +1": {
+     "caught": 42
+    },
+    "audio: ctts offset +512": {
+     "n/a": 42
+    },
+    "audio: elst duration +1": {
+     "caught": 38,
+     "n/a": 4
+    },
+    "audio: elst duration -1": {
+     "caught": 38,
+     "n/a": 4
+    },
+    "audio: elst media time +1": {
+     "caught": 38,
+     "n/a": 4
+    },
+    "audio: mdhd duration +1": {
+     "no effect": 42
+    },
+    "audio: mdhd timescale +1": {
+     "caught": 42
+    },
+    "audio: mvhd duration +7": {
+     "no effect": 42
+    },
+    "audio: sample byte flipped": {
+     "caught": 42
+    },
+    "audio: stss sync moved": {
+     "n/a": 42
+    },
+    "audio: stsz first size +1": {
+     "caught": 42
+    },
+    "audio: stts delta +1": {
+     "caught": 42
+    },
+    "audio: stts delta -1": {
+     "caught": 42
+    },
+    "audio: tkhd duration +1": {
+     "caught": 42
+    },
+    "video: chunk offset +1": {
+     "n/a": 42
+    },
+    "video: ctts offset +512": {
+     "n/a": 42
+    },
+    "video: elst duration +1": {
+     "n/a": 42
+    },
+    "video: elst duration -1": {
+     "n/a": 42
+    },
+    "video: elst media time +1": {
+     "n/a": 42
+    },
+    "video: mdhd duration +1": {
+     "n/a": 42
+    },
+    "video: mdhd timescale +1": {
+     "n/a": 42
+    },
+    "video: mvhd duration +7": {
+     "n/a": 42
+    },
+    "video: sample byte flipped": {
+     "n/a": 42
+    },
+    "video: stss sync moved": {
+     "n/a": 42
+    },
+    "video: stsz first size +1": {
+     "n/a": 42
+    },
+    "video: stts delta +1": {
+     "n/a": 42
+    },
+    "video: stts delta -1": {
+     "n/a": 42
+    },
+    "video: tkhd duration +1": {
+     "n/a": 42
+    },
+    "video: video width +16": {
+     "n/a": 42
+    }
+   },
+   "loopholes": [],
+   "inputs": "42 extractions of the generated fixtures (oracle unchanged)"
+  },
+  "fixtures/text/before": {
+   "counts": {
+    "COVERED": 24,
+    "caught": 70,
+    "n/a": 116
+   },
+   "by_mutation": {
+    "chapters:chapter end +1 tick": {
+     "caught": 5,
+     "n/a": 10
+    },
+    "chapters:chapter start +1 tick": {
+     "caught": 5,
+     "n/a": 10
+    },
+    "chapters:chapter title changed": {
+     "caught": 5,
+     "n/a": 10
+    },
+    "chapters:last chapter left out": {
+     "caught": 5,
+     "n/a": 10
+    },
+    "chapters:titles swapped": {
+     "caught": 5,
+     "n/a": 10
+    },
+    "vtt:cue end +1 ms": {
+     "COVERED": 7,
+     "caught": 2,
+     "n/a": 6
+    },
+    "vtt:cue letter changed": {
+     "caught": 9,
+     "n/a": 6
+    },
+    "vtt:cue start +1 ms": {
+     "COVERED": 8,
+     "caught": 1,
+     "n/a": 6
+    },
+    "vtt:escape undone": {
+     "caught": 8,
+     "n/a": 7
+    },
+    "vtt:first cue left out": {
+     "caught": 9,
+     "n/a": 6
+    },
+    "vtt:first cue twice": {
+     "caught": 9,
+     "n/a": 6
+    },
+    "vtt:last cue end -1 ms": {
+     "COVERED": 9,
+     "n/a": 6
+    },
+    "vtt:line break joined": {
+     "caught": 7,
+     "n/a": 8
+    },
+    "vtt:style tag dropped": {
+     "n/a": 15
+    }
+   },
+   "loopholes": [
+    {
+     "where": [
+      "chapters.mp4",
+      "stream 2"
+     ],
+     "mutation": "vtt:cue start +1 ms",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-T-ROUND"
+     ]
+    },
+    {
+     "where": [
+      "chapters_chpl_only.mp4",
+      "stream 2"
+     ],
+     "mutation": "vtt:cue start +1 ms",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-T-ROUND"
+     ]
+    },
+    {
+     "where": [
+      "chapters_track_only.mp4",
+      "stream 2"
+     ],
+     "mutation": "vtt:cue start +1 ms",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-T-ROUND"
+     ]
+    },
+    {
+     "where": [
+      "multitrack.mp4",
+      "stream 4"
+     ],
+     "mutation": "vtt:cue start +1 ms",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-T-ROUND"
+     ]
+    },
+    {
+     "where": [
+      "text_end.mp4",
+      "stream 1"
+     ],
+     "mutation": "vtt:cue start +1 ms",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-T-ROUND"
+     ]
+    },
+    {
+     "where": [
+      "text_shifted.mp4",
+      "stream 1"
+     ],
+     "mutation": "vtt:cue start +1 ms",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-T-ROUND"
+     ]
+    },
+    {
+     "where": [
+      "text_sized.mp4",
+      "stream 1"
+     ],
+     "mutation": "vtt:cue start +1 ms",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-T-ROUND"
+     ]
+    },
+    {
+     "where": [
+      "text_styled.mp4",
+      "stream 2"
+     ],
+     "mutation": "vtt:cue start +1 ms",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-T-ROUND"
+     ]
+    },
+    {
+     "where": [
+      "chapters.mp4",
+      "stream 2"
+     ],
+     "mutation": "vtt:cue end +1 ms",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-T-ROUND"
+     ]
+    },
+    {
+     "where": [
+      "chapters_chpl_only.mp4",
+      "stream 2"
+     ],
+     "mutation": "vtt:cue end +1 ms",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-T-ROUND"
+     ]
+    },
+    {
+     "where": [
+      "chapters_track_only.mp4",
+      "stream 2"
+     ],
+     "mutation": "vtt:cue end +1 ms",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-T-ROUND"
+     ]
+    },
+    {
+     "where": [
+      "text_end.mp4",
+      "stream 1"
+     ],
+     "mutation": "vtt:cue end +1 ms",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-T-ROUND"
+     ]
+    },
+    {
+     "where": [
+      "text_shifted.mp4",
+      "stream 1"
+     ],
+     "mutation": "vtt:cue end +1 ms",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-T-ROUND"
+     ]
+    },
+    {
+     "where": [
+      "text_sized.mp4",
+      "stream 1"
+     ],
+     "mutation": "vtt:cue end +1 ms",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-T-ROUND"
+     ]
+    },
+    {
+     "where": [
+      "text_styled.mp4",
+      "stream 2"
+     ],
+     "mutation": "vtt:cue end +1 ms",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-T-ROUND"
+     ]
+    },
+    {
+     "where": [
+      "chapters.mp4",
+      "stream 2"
+     ],
+     "mutation": "vtt:last cue end -1 ms",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-T-LAST-END"
+     ]
+    },
+    {
+     "where": [
+      "chapters_chpl_only.mp4",
+      "stream 2"
+     ],
+     "mutation": "vtt:last cue end -1 ms",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-T-LAST-END"
+     ]
+    },
+    {
+     "where": [
+      "chapters_chpl_only.mp4",
+      "stream 3"
+     ],
+     "mutation": "vtt:last cue end -1 ms",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-T-LAST-END"
+     ]
+    },
+    {
+     "where": [
+      "chapters_track_only.mp4",
+      "stream 2"
+     ],
+     "mutation": "vtt:last cue end -1 ms",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-T-LAST-END"
+     ]
+    },
+    {
+     "where": [
+      "multitrack.mp4",
+      "stream 4"
+     ],
+     "mutation": "vtt:last cue end -1 ms",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-T-LAST-END"
+     ]
+    },
+    {
+     "where": [
+      "text_end.mp4",
+      "stream 1"
+     ],
+     "mutation": "vtt:last cue end -1 ms",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-T-ROUND"
+     ]
+    },
+    {
+     "where": [
+      "text_shifted.mp4",
+      "stream 1"
+     ],
+     "mutation": "vtt:last cue end -1 ms",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-T-LAST-END"
+     ]
+    },
+    {
+     "where": [
+      "text_sized.mp4",
+      "stream 1"
+     ],
+     "mutation": "vtt:last cue end -1 ms",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-T-ROUND"
+     ]
+    },
+    {
+     "where": [
+      "text_styled.mp4",
+      "stream 2"
+     ],
+     "mutation": "vtt:last cue end -1 ms",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-T-LAST-END"
+     ]
+    }
+   ],
+   "inputs": "the generated fixtures' subtitle streams and chapters"
+  },
+  "fixtures/text/after": {
+   "counts": {
+    "caught": 94,
+    "n/a": 116
+   },
+   "by_mutation": {
+    "chapters:chapter end +1 tick": {
+     "caught": 5,
+     "n/a": 10
+    },
+    "chapters:chapter start +1 tick": {
+     "caught": 5,
+     "n/a": 10
+    },
+    "chapters:chapter title changed": {
+     "caught": 5,
+     "n/a": 10
+    },
+    "chapters:last chapter left out": {
+     "caught": 5,
+     "n/a": 10
+    },
+    "chapters:titles swapped": {
+     "caught": 5,
+     "n/a": 10
+    },
+    "vtt:cue end +1 ms": {
+     "caught": 9,
+     "n/a": 6
+    },
+    "vtt:cue letter changed": {
+     "caught": 9,
+     "n/a": 6
+    },
+    "vtt:cue start +1 ms": {
+     "caught": 9,
+     "n/a": 6
+    },
+    "vtt:escape undone": {
+     "caught": 8,
+     "n/a": 7
+    },
+    "vtt:first cue left out": {
+     "caught": 9,
+     "n/a": 6
+    },
+    "vtt:first cue twice": {
+     "caught": 9,
+     "n/a": 6
+    },
+    "vtt:last cue end -1 ms": {
+     "caught": 9,
+     "n/a": 6
+    },
+    "vtt:line break joined": {
+     "caught": 7,
+     "n/a": 8
+    },
+    "vtt:style tag dropped": {
+     "n/a": 15
+    }
+   },
+   "loopholes": [],
+   "inputs": "the generated fixtures' subtitle streams and chapters"
+  },
+  "fixtures/hls/before": {
+   "counts": {
+    "COVERED": 79,
+    "caught": 661,
+    "n/a": 331,
+    "no effect": 135
+   },
+   "by_mutation": {
+    "hls-audio:composition offset +512": {
+     "n/a": 67
+    },
+    "hls-audio:extinf +0.1 s": {
+     "caught": 41,
+     "n/a": 26
+    },
+    "hls-audio:init channels +1": {
+     "n/a": 26,
+     "no effect": 41
+    },
+    "hls-audio:init mdhd timescale +1": {
+     "caught": 41,
+     "n/a": 26
+    },
+    "hls-audio:sample byte flipped": {
+     "caught": 41,
+     "n/a": 26
+    },
+    "hls-audio:sample duration +1": {
+     "caught": 41,
+     "n/a": 26
+    },
+    "hls-audio:sample size +1": {
+     "caught": 41,
+     "n/a": 26
+    },
+    "hls-audio:sync flag cleared": {
+     "n/a": 26,
+     "no effect": 41
+    },
+    "hls-audio:tfdt +1": {
+     "COVERED": 30,
+     "caught": 11,
+     "n/a": 26
+    },
+    "hls-video:composition offset +512": {
+     "caught": 51,
+     "n/a": 16
+    },
+    "hls-video:extinf +0.1 s": {
+     "caught": 62,
+     "n/a": 5
+    },
+    "hls-video:init mdhd timescale +1": {
+     "caught": 62,
+     "n/a": 5
+    },
+    "hls-video:init width +16": {
+     "caught": 62,
+     "n/a": 5
+    },
+    "hls-video:sample byte flipped": {
+     "caught": 62,
+     "n/a": 5
+    },
+    "hls-video:sample duration +1": {
+     "caught": 62,
+     "n/a": 5
+    },
+    "hls-video:sample size +1": {
+     "caught": 62,
+     "n/a": 5
+    },
+    "hls-video:sync flag cleared": {
+     "caught": 9,
+     "n/a": 5,
+     "no effect": 53
+    },
+    "hls-video:tfdt +1": {
+     "COVERED": 49,
+     "caught": 13,
+     "n/a": 5
+    }
+   },
+   "loopholes": [
+    {
+     "where": [
+      "av1.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "basic.mov",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "basic.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "chapters.mov",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "chapters.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "chapters_chpl_only.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "chapters_track_only.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "clip_audio_late.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "clip_av1_no_stss.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "clip_av1_stss_all.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "clip_hevc_open_gop.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "clip_hevc_stss_all.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "clip_no_stss.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "clip_no_stss_bframes.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "clip_open_gop.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "clip_stss_all.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "clip_stss_all_flash.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "color_av1_colr_ignored.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "color_bt2020_pq.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "color_bt709.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "color_colr_only.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "color_colr_vs_sps.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "color_full_range.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "color_hevc_colr_ignored.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "color_sps_range_only.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "color_sps_unspecified.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "faststart.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "hevc_hvc1.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "multitrack.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "negative_cts.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "remux_metadata.mov",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "remux_metadata.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "rotate_ccw180.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "rotate_ccw270.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "rotate_ccw90.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "size_entry_understated.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "size_hevc_mixed_window.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "size_hevc_window.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "size_inband_sps.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "size_left_crop.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "size_vp9_resize.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "split_av1.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "split_hevc.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "split_vp9.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "text_shifted.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "text_styled.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "timecode.mov",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "vfr.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "vp9.mp4",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "audio_51.m4a",
+      "package"
+     ],
+     "mutation": "hls-audio:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "audio_aac.m4a",
+      "package"
+     ],
+     "mutation": "hls-audio:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "audio_pce_entry_stereo.m4a",
+      "package"
+     ],
+     "mutation": "hls-audio:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "basic.mov",
+      "package"
+     ],
+     "mutation": "hls-audio:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "basic.mp4",
+      "package"
+     ],
+     "mutation": "hls-audio:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "chapters.m4a",
+      "package"
+     ],
+     "mutation": "hls-audio:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "chapters.mp4",
+      "package"
+     ],
+     "mutation": "hls-audio:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "chapters_chpl_only.mp4",
+      "package"
+     ],
+     "mutation": "hls-audio:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "chapters_track_only.mp4",
+      "package"
+     ],
+     "mutation": "hls-audio:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "clip_av1_no_stss.mp4",
+      "package"
+     ],
+     "mutation": "hls-audio:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "clip_av1_stss_all.mp4",
+      "package"
+     ],
+     "mutation": "hls-audio:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "clip_hevc_open_gop.mp4",
+      "package"
+     ],
+     "mutation": "hls-audio:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "clip_hevc_stss_all.mp4",
+      "package"
+     ],
+     "mutation": "hls-audio:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "clip_no_stss.mp4",
+      "package"
+     ],
+     "mutation": "hls-audio:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "clip_no_stss_bframes.mp4",
+      "package"
+     ],
+     "mutation": "hls-audio:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "clip_open_gop.mp4",
+      "package"
+     ],
+     "mutation": "hls-audio:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "clip_stss_all.mp4",
+      "package"
+     ],
+     "mutation": "hls-audio:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "clip_stss_all_flash.mp4",
+      "package"
+     ],
+     "mutation": "hls-audio:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "clip_video_late.mp4",
+      "package"
+     ],
+     "mutation": "hls-audio:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "faststart.mp4",
+      "package"
+     ],
+     "mutation": "hls-audio:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "multitrack.mp4",
+      "package"
+     ],
+     "mutation": "hls-audio:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "remux_metadata.mov",
+      "package"
+     ],
+     "mutation": "hls-audio:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "remux_metadata.mp4",
+      "package"
+     ],
+     "mutation": "hls-audio:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "rotate_ccw180.mp4",
+      "package"
+     ],
+     "mutation": "hls-audio:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "rotate_ccw270.mp4",
+      "package"
+     ],
+     "mutation": "hls-audio:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "rotate_ccw90.mp4",
+      "package"
+     ],
+     "mutation": "hls-audio:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "split_av1.mp4",
+      "package"
+     ],
+     "mutation": "hls-audio:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "split_hevc.mp4",
+      "package"
+     ],
+     "mutation": "hls-audio:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "split_vp9.mp4",
+      "package"
+     ],
+     "mutation": "hls-audio:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    },
+    {
+     "where": [
+      "text_styled.mp4",
+      "package"
+     ],
+     "mutation": "hls-audio:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-3"
+     ]
+    }
+   ],
+   "inputs": "the generated fixtures packaged"
+  },
+  "fixtures/hls/after": {
+   "counts": {
+    "caught": 740,
+    "n/a": 331,
+    "no effect": 135
+   },
+   "by_mutation": {
+    "hls-audio:composition offset +512": {
+     "n/a": 67
+    },
+    "hls-audio:extinf +0.1 s": {
+     "caught": 41,
+     "n/a": 26
+    },
+    "hls-audio:init channels +1": {
+     "n/a": 26,
+     "no effect": 41
+    },
+    "hls-audio:init mdhd timescale +1": {
+     "caught": 41,
+     "n/a": 26
+    },
+    "hls-audio:sample byte flipped": {
+     "caught": 41,
+     "n/a": 26
+    },
+    "hls-audio:sample duration +1": {
+     "caught": 41,
+     "n/a": 26
+    },
+    "hls-audio:sample size +1": {
+     "caught": 41,
+     "n/a": 26
+    },
+    "hls-audio:sync flag cleared": {
+     "n/a": 26,
+     "no effect": 41
+    },
+    "hls-audio:tfdt +1": {
+     "caught": 41,
+     "n/a": 26
+    },
+    "hls-video:composition offset +512": {
+     "caught": 51,
+     "n/a": 16
+    },
+    "hls-video:extinf +0.1 s": {
+     "caught": 62,
+     "n/a": 5
+    },
+    "hls-video:init mdhd timescale +1": {
+     "caught": 62,
+     "n/a": 5
+    },
+    "hls-video:init width +16": {
+     "caught": 62,
+     "n/a": 5
+    },
+    "hls-video:sample byte flipped": {
+     "caught": 62,
+     "n/a": 5
+    },
+    "hls-video:sample duration +1": {
+     "caught": 62,
+     "n/a": 5
+    },
+    "hls-video:sample size +1": {
+     "caught": 62,
+     "n/a": 5
+    },
+    "hls-video:sync flag cleared": {
+     "caught": 9,
+     "n/a": 5,
+     "no effect": 53
+    },
+    "hls-video:tfdt +1": {
+     "caught": 62,
+     "n/a": 5
+    }
+   },
+   "loopholes": [],
+   "inputs": "the generated fixtures packaged"
+  },
+  "fixtures/policy": {
+   "counts": {
+    "agrees": 1,
+    "caught": 811,
+    "n/a": 680,
+    "no effect": 2260
+   },
+   "by_mutation": {
+    "policy:audio channels +1": {
+     "caught": 8,
+     "n/a": 204,
+     "no effect": 324
+    },
+    "policy:audio rate x2": {
+     "caught": 103,
+     "n/a": 204,
+     "no effect": 229
+    },
+    "policy:bit rate x2": {
+     "caught": 87,
+     "n/a": 28,
+     "no effect": 421
+    },
+    "policy:duration +25%": {
+     "agrees": 1,
+     "caught": 79,
+     "n/a": 20,
+     "no effect": 436
+    },
+    "policy:last stream left out": {
+     "caught": 349,
+     "n/a": 16,
+     "no effect": 171
+    },
+    "policy:video codec renamed": {
+     "caught": 99,
+     "n/a": 104,
+     "no effect": 333
+    },
+    "policy:video width +16": {
+     "caught": 86,
+     "n/a": 104,
+     "no effect": 346
+    }
+   },
+   "loopholes": [],
+   "inputs": "the generated ISOBMFF and Matroska fixtures under four policies (oracle unchanged)"
+  },
+  "corpus/clip/first-run": {
+   "counts": {
+    "COVERED": 4,
+    "caught": 330,
+    "n/a": 240,
+    "no effect": 170
+   },
+   "by_mutation": {
+    "audio: aac object type swapped": {
+     "caught": 6,
+     "n/a": 17,
+     "no effect": 1
+    },
+    "audio: audio channels +1": {
+     "n/a": 13,
+     "no effect": 11
+    },
+    "audio: chunk offset +1": {
+     "caught": 11,
+     "n/a": 13
+    },
+    "audio: ctts offset +512": {
+     "n/a": 24
+    },
+    "audio: elst duration +1": {
+     "n/a": 13,
+     "no effect": 11
+    },
+    "audio: elst duration -1": {
+     "n/a": 13,
+     "no effect": 11
+    },
+    "audio: elst media time +1": {
+     "COVERED": 3,
+     "caught": 5,
+     "n/a": 13,
+     "no effect": 3
+    },
+    "audio: mdhd duration +1": {
+     "n/a": 13,
+     "no effect": 11
+    },
+    "audio: mdhd timescale +1": {
+     "caught": 9,
+     "n/a": 13,
+     "no effect": 2
+    },
+    "audio: mvhd duration +7": {
+     "n/a": 13,
+     "no effect": 11
+    },
+    "audio: sample byte flipped": {
+     "caught": 11,
+     "n/a": 13
+    },
+    "audio: stss sync moved": {
+     "n/a": 24
+    },
+    "audio: stsz first size +1": {
+     "caught": 10,
+     "n/a": 14
+    },
+    "audio: stts delta +1": {
+     "caught": 11,
+     "n/a": 13
+    },
+    "audio: stts delta -1": {
+     "COVERED": 1,
+     "caught": 10,
+     "n/a": 13
+    },
+    "audio: tkhd duration +1": {
+     "n/a": 13,
+     "no effect": 11
+    },
+    "video: chunk offset +1": {
+     "caught": 24
+    },
+    "video: ctts offset +512": {
+     "caught": 19,
+     "n/a": 5
+    },
+    "video: elst duration +1": {
+     "caught": 15,
+     "no effect": 9
+    },
+    "video: elst duration -1": {
+     "caught": 24
+    },
+    "video: elst media time +1": {
+     "caught": 21,
+     "no effect": 3
+    },
+    "video: mdhd duration +1": {
+     "no effect": 24
+    },
+    "video: mdhd timescale +1": {
+     "caught": 24
+    },
+    "video: mvhd duration +7": {
+     "no effect": 24
+    },
+    "video: sample byte flipped": {
+     "caught": 24
+    },
+    "video: stss sync moved": {
+     "caught": 10,
+     "no effect": 14
+    },
+    "video: stsz first size +1": {
+     "caught": 24
+    },
+    "video: stts delta +1": {
+     "caught": 24
+    },
+    "video: stts delta -1": {
+     "caught": 24
+    },
+    "video: tkhd duration +1": {
+     "no effect": 24
+    },
+    "video: video width +16": {
+     "caught": 24
+    }
+   },
+   "loopholes": [
+    {
+     "where": [
+      "bff39452485b/middle.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-EDIT-RATE"
+     ]
+    },
+    {
+     "where": [
+      "bff39452485b/tail.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-EDIT-RATE"
+     ]
+    },
+    {
+     "where": [
+      "ef00030b93da/head.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "stts delta -1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-JITTER"
+     ]
+    },
+    {
+     "where": [
+      "ef00030b93da/head.mp4",
+      "output",
+      "audio"
+     ],
+     "mutation": "elst media time +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-C-AUDIO-JITTER"
+     ]
+    }
+   ],
+   "inputs": "24 clips of 10 files"
+  },
+  "corpus/clip/after": {
+   "counts": {
+    "caught": 435,
+    "n/a": 336,
+    "no effect": 253
+   },
+   "by_mutation": {
+    "audio: aac object type swapped": {
+     "caught": 10,
+     "n/a": 21,
+     "no effect": 1
+    },
+    "audio: audio channels +1": {
+     "n/a": 17,
+     "no effect": 15
+    },
+    "audio: audio rate halved": {
+     "n/a": 17,
+     "no effect": 15
+    },
+    "audio: chunk offset +1": {
+     "caught": 15,
+     "n/a": 17
+    },
+    "audio: ctts offset +512": {
+     "n/a": 32
+    },
+    "audio: elst duration +1": {
+     "n/a": 19,
+     "no effect": 13
+    },
+    "audio: elst duration -1": {
+     "n/a": 19,
+     "no effect": 13
+    },
+    "audio: elst media time +1": {
+     "caught": 8,
+     "n/a": 19,
+     "no effect": 5
+    },
+    "audio: mdhd duration +1": {
+     "n/a": 17,
+     "no effect": 15
+    },
+    "audio: mdhd timescale +1": {
+     "caught": 9,
+     "n/a": 17,
+     "no effect": 6
+    },
+    "audio: mvhd duration +7": {
+     "n/a": 17,
+     "no effect": 15
+    },
+    "audio: sample byte flipped": {
+     "caught": 15,
+     "n/a": 17
+    },
+    "audio: stss sync moved": {
+     "n/a": 32
+    },
+    "audio: stsz first size +1": {
+     "caught": 13,
+     "n/a": 19
+    },
+    "audio: stts delta +1": {
+     "caught": 11,
+     "n/a": 17,
+     "no effect": 4
+    },
+    "audio: stts delta -1": {
+     "caught": 11,
+     "n/a": 17,
+     "no effect": 4
+    },
+    "audio: tkhd duration +1": {
+     "n/a": 17,
+     "no effect": 15
+    },
+    "video: chunk offset +1": {
+     "caught": 32
+    },
+    "video: ctts offset +512": {
+     "caught": 27,
+     "n/a": 5
+    },
+    "video: elst duration +1": {
+     "caught": 21,
+     "no effect": 11
+    },
+    "video: elst duration -1": {
+     "caught": 32
+    },
+    "video: elst media time +1": {
+     "caught": 29,
+     "no effect": 3
+    },
+    "video: mdhd duration +1": {
+     "no effect": 32
+    },
+    "video: mdhd timescale +1": {
+     "caught": 32
+    },
+    "video: mvhd duration +7": {
+     "no effect": 32
+    },
+    "video: sample byte flipped": {
+     "caught": 32
+    },
+    "video: stss sync moved": {
+     "caught": 10,
+     "no effect": 22
+    },
+    "video: stsz first size +1": {
+     "caught": 32
+    },
+    "video: stts delta +1": {
+     "caught": 32
+    },
+    "video: stts delta -1": {
+     "caught": 32
+    },
+    "video: tkhd duration +1": {
+     "no effect": 32
+    },
+    "video: video width +16": {
+     "caught": 32
+    }
+   },
+   "loopholes": [],
+   "inputs": "32 clips of 12 files (with two files that reach KD-C-DTS-SHIFT)"
+  },
+  "corpus/split/before": {
+   "counts": {
+    "COVERED": 1,
+    "caught": 182,
+    "n/a": 88,
+    "no effect": 113
+   },
+   "by_mutation": {
+    "audio: aac object type swapped": {
+     "caught": 6,
+     "n/a": 6
+    },
+    "audio: audio channels +1": {
+     "n/a": 4,
+     "no effect": 8
+    },
+    "audio: audio rate halved": {
+     "n/a": 4,
+     "no effect": 8
+    },
+    "audio: chunk offset +1": {
+     "caught": 8,
+     "n/a": 4
+    },
+    "audio: ctts offset +512": {
+     "n/a": 12
+    },
+    "audio: elst duration +1": {
+     "n/a": 4,
+     "no effect": 8
+    },
+    "audio: elst duration -1": {
+     "n/a": 4,
+     "no effect": 8
+    },
+    "audio: elst media time +1": {
+     "caught": 1,
+     "n/a": 4,
+     "no effect": 7
+    },
+    "audio: mdhd duration +1": {
+     "n/a": 4,
+     "no effect": 8
+    },
+    "audio: mdhd timescale +1": {
+     "caught": 4,
+     "n/a": 4,
+     "no effect": 4
+    },
+    "audio: mvhd duration +7": {
+     "n/a": 4,
+     "no effect": 8
+    },
+    "audio: sample byte flipped": {
+     "caught": 8,
+     "n/a": 4
+    },
+    "audio: stss sync moved": {
+     "n/a": 12
+    },
+    "audio: stsz first size +1": {
+     "caught": 8,
+     "n/a": 4
+    },
+    "audio: stts delta +1": {
+     "caught": 6,
+     "n/a": 4,
+     "no effect": 2
+    },
+    "audio: stts delta -1": {
+     "COVERED": 1,
+     "caught": 7,
+     "n/a": 4
+    },
+    "audio: tkhd duration +1": {
+     "n/a": 4,
+     "no effect": 8
+    },
+    "video: chunk offset +1": {
+     "caught": 12
+    },
+    "video: ctts offset +512": {
+     "caught": 10,
+     "n/a": 2
+    },
+    "video: elst duration +1": {
+     "caught": 12
+    },
+    "video: elst duration -1": {
+     "caught": 12
+    },
+    "video: elst media time +1": {
+     "caught": 11,
+     "no effect": 1
+    },
+    "video: mdhd duration +1": {
+     "no effect": 12
+    },
+    "video: mdhd timescale +1": {
+     "caught": 12
+    },
+    "video: mvhd duration +7": {
+     "no effect": 12
+    },
+    "video: sample byte flipped": {
+     "caught": 12
+    },
+    "video: stss sync moved": {
+     "caught": 5,
+     "no effect": 7
+    },
+    "video: stsz first size +1": {
+     "caught": 12
+    },
+    "video: stts delta +1": {
+     "caught": 12
+    },
+    "video: stts delta -1": {
+     "caught": 12
+    },
+    "video: tkhd duration +1": {
+     "no effect": 12
+    },
+    "video: video width +16": {
+     "caught": 12
+    }
+   },
+   "loopholes": [
+    {
+     "where": [
+      "959f4062b7ed/000.mp4",
+      "segment 0",
+      "audio"
+     ],
+     "mutation": "stts delta -1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-S-AUDIO-RESTART"
+     ]
+    }
+   ],
+   "inputs": "6 files"
+  },
+  "corpus/split/after": {
+   "counts": {
+    "caught": 184,
+    "n/a": 88,
+    "no effect": 112
+   },
+   "by_mutation": {
+    "audio: aac object type swapped": {
+     "caught": 6,
+     "n/a": 6
+    },
+    "audio: audio channels +1": {
+     "n/a": 4,
+     "no effect": 8
+    },
+    "audio: audio rate halved": {
+     "n/a": 4,
+     "no effect": 8
+    },
+    "audio: chunk offset +1": {
+     "caught": 8,
+     "n/a": 4
+    },
+    "audio: ctts offset +512": {
+     "n/a": 12
+    },
+    "audio: elst duration +1": {
+     "n/a": 4,
+     "no effect": 8
+    },
+    "audio: elst duration -1": {
+     "n/a": 4,
+     "no effect": 8
+    },
+    "audio: elst media time +1": {
+     "caught": 1,
+     "n/a": 4,
+     "no effect": 7
+    },
+    "audio: mdhd duration +1": {
+     "n/a": 4,
+     "no effect": 8
+    },
+    "audio: mdhd timescale +1": {
+     "caught": 4,
+     "n/a": 4,
+     "no effect": 4
+    },
+    "audio: mvhd duration +7": {
+     "n/a": 4,
+     "no effect": 8
+    },
+    "audio: sample byte flipped": {
+     "caught": 8,
+     "n/a": 4
+    },
+    "audio: stss sync moved": {
+     "n/a": 12
+    },
+    "audio: stsz first size +1": {
+     "caught": 8,
+     "n/a": 4
+    },
+    "audio: stts delta +1": {
+     "caught": 7,
+     "n/a": 4,
+     "no effect": 1
+    },
+    "audio: stts delta -1": {
+     "caught": 8,
+     "n/a": 4
+    },
+    "audio: tkhd duration +1": {
+     "n/a": 4,
+     "no effect": 8
+    },
+    "video: chunk offset +1": {
+     "caught": 12
+    },
+    "video: ctts offset +512": {
+     "caught": 10,
+     "n/a": 2
+    },
+    "video: elst duration +1": {
+     "caught": 12
+    },
+    "video: elst duration -1": {
+     "caught": 12
+    },
+    "video: elst media time +1": {
+     "caught": 11,
+     "no effect": 1
+    },
+    "video: mdhd duration +1": {
+     "no effect": 12
+    },
+    "video: mdhd timescale +1": {
+     "caught": 12
+    },
+    "video: mvhd duration +7": {
+     "no effect": 12
+    },
+    "video: sample byte flipped": {
+     "caught": 12
+    },
+    "video: stss sync moved": {
+     "caught": 5,
+     "no effect": 7
+    },
+    "video: stsz first size +1": {
+     "caught": 12
+    },
+    "video: stts delta +1": {
+     "caught": 12
+    },
+    "video: stts delta -1": {
+     "caught": 12
+    },
+    "video: tkhd duration +1": {
+     "no effect": 12
+    },
+    "video: video width +16": {
+     "caught": 12
+    }
+   },
+   "loopholes": [],
+   "inputs": "6 files"
+  },
+  "corpus/extract": {
+   "counts": {
+    "caught": 54,
+    "n/a": 85,
+    "no effect": 21
+   },
+   "by_mutation": {
+    "audio: aac object type swapped": {
+     "caught": 5
+    },
+    "audio: audio channels +1": {
+     "no effect": 5
+    },
+    "audio: audio rate halved": {
+     "no effect": 5
+    },
+    "audio: chunk offset +1": {
+     "caught": 5
+    },
+    "audio: ctts offset +512": {
+     "n/a": 5
+    },
+    "audio: elst duration +1": {
+     "caught": 5
+    },
+    "audio: elst duration -1": {
+     "caught": 5
+    },
+    "audio: elst media time +1": {
+     "caught": 5
+    },
+    "audio: mdhd duration +1": {
+     "no effect": 5
+    },
+    "audio: mdhd timescale +1": {
+     "caught": 5
+    },
+    "audio: mvhd duration +7": {
+     "no effect": 5
+    },
+    "audio: sample byte flipped": {
+     "caught": 4,
+     "no effect": 1
+    },
+    "audio: stss sync moved": {
+     "n/a": 5
+    },
+    "audio: stsz first size +1": {
+     "caught": 5
+    },
+    "audio: stts delta +1": {
+     "caught": 5
+    },
+    "audio: stts delta -1": {
+     "caught": 5
+    },
+    "audio: tkhd duration +1": {
+     "caught": 5
+    },
+    "video: chunk offset +1": {
+     "n/a": 5
+    },
+    "video: ctts offset +512": {
+     "n/a": 5
+    },
+    "video: elst duration +1": {
+     "n/a": 5
+    },
+    "video: elst duration -1": {
+     "n/a": 5
+    },
+    "video: elst media time +1": {
+     "n/a": 5
+    },
+    "video: mdhd duration +1": {
+     "n/a": 5
+    },
+    "video: mdhd timescale +1": {
+     "n/a": 5
+    },
+    "video: mvhd duration +7": {
+     "n/a": 5
+    },
+    "video: sample byte flipped": {
+     "n/a": 5
+    },
+    "video: stss sync moved": {
+     "n/a": 5
+    },
+    "video: stsz first size +1": {
+     "n/a": 5
+    },
+    "video: stts delta +1": {
+     "n/a": 5
+    },
+    "video: stts delta -1": {
+     "n/a": 5
+    },
+    "video: tkhd duration +1": {
+     "n/a": 5
+    },
+    "video: video width +16": {
+     "n/a": 5
+    }
+   },
+   "loopholes": [],
+   "inputs": "5 files (oracle unchanged)"
+  },
+  "corpus/text/before": {
+   "counts": {
+    "ABSORBED": 14,
+    "COVERED": 6,
+    "caught": 77,
+    "n/a": 164,
+    "no effect": 5
+   },
+   "by_mutation": {
+    "chapters:chapter end +1 tick": {
+     "caught": 1,
+     "n/a": 18
+    },
+    "chapters:chapter start +1 tick": {
+     "caught": 1,
+     "n/a": 18
+    },
+    "chapters:chapter title changed": {
+     "caught": 1,
+     "n/a": 18
+    },
+    "chapters:last chapter left out": {
+     "caught": 1,
+     "n/a": 18
+    },
+    "chapters:titles swapped": {
+     "caught": 1,
+     "n/a": 18
+    },
+    "vtt:cue end +1 ms": {
+     "ABSORBED": 1,
+     "caught": 14,
+     "n/a": 4
+    },
+    "vtt:cue letter changed": {
+     "ABSORBED": 2,
+     "caught": 12,
+     "n/a": 5
+    },
+    "vtt:cue start +1 ms": {
+     "ABSORBED": 3,
+     "COVERED": 1,
+     "caught": 11,
+     "n/a": 4
+    },
+    "vtt:escape undone": {
+     "caught": 2,
+     "n/a": 17
+    },
+    "vtt:first cue left out": {
+     "ABSORBED": 2,
+     "caught": 13,
+     "n/a": 4
+    },
+    "vtt:first cue twice": {
+     "caught": 15,
+     "n/a": 4
+    },
+    "vtt:last cue end -1 ms": {
+     "ABSORBED": 5,
+     "COVERED": 5,
+     "n/a": 4,
+     "no effect": 5
+    },
+    "vtt:line break joined": {
+     "ABSORBED": 1,
+     "caught": 5,
+     "n/a": 13
+    },
+    "vtt:style tag dropped": {
+     "n/a": 19
+    }
+   },
+   "loopholes": [
+    {
+     "where": [
+      "064d2d0f0628.mov",
+      "stream 2"
+     ],
+     "mutation": "vtt:cue start +1 ms",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-T-ROUND"
+     ]
+    },
+    {
+     "where": [
+      "064d2d0f0628.mov",
+      "stream 3"
+     ],
+     "mutation": "vtt:cue start +1 ms",
+     "verdict": "ABSORBED",
+     "entries": []
+    },
+    {
+     "where": [
+      "0912d46cd1b0.mov",
+      "stream 0"
+     ],
+     "mutation": "vtt:cue start +1 ms",
+     "verdict": "ABSORBED",
+     "entries": []
+    },
+    {
+     "where": [
+      "6c4af50c84d7.mov",
+      "stream 2"
+     ],
+     "mutation": "vtt:cue start +1 ms",
+     "verdict": "ABSORBED",
+     "entries": []
+    },
+    {
+     "where": [
+      "6c4af50c84d7.mov",
+      "stream 2"
+     ],
+     "mutation": "vtt:cue end +1 ms",
+     "verdict": "ABSORBED",
+     "entries": []
+    },
+    {
+     "where": [
+      "0912d46cd1b0.mov",
+      "stream 0"
+     ],
+     "mutation": "vtt:last cue end -1 ms",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-T-LAST-END"
+     ]
+    },
+    {
+     "where": [
+      "736e60d193f9.mov",
+      "stream 0"
+     ],
+     "mutation": "vtt:last cue end -1 ms",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-T-LAST-END"
+     ]
+    },
+    {
+     "where": [
+      "736e60d193f9.mov",
+      "stream 1"
+     ],
+     "mutation": "vtt:last cue end -1 ms",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-T-LAST-END"
+     ]
+    },
+    {
+     "where": [
+      "9e68ad64bfa9.m4v",
+      "stream 3"
+     ],
+     "mutation": "vtt:last cue end -1 ms",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-T-LAST-END"
+     ]
+    },
+    {
+     "where": [
+      "9e68ad64bfa9.m4v",
+      "stream 4"
+     ],
+     "mutation": "vtt:last cue end -1 ms",
+     "verdict": "ABSORBED",
+     "entries": []
+    },
+    {
+     "where": [
+      "a28dd3b0e422.mp4",
+      "stream 2"
+     ],
+     "mutation": "vtt:last cue end -1 ms",
+     "verdict": "ABSORBED",
+     "entries": []
+    },
+    {
+     "where": [
+      "c247e4d5148b.mp4",
+      "stream 2"
+     ],
+     "mutation": "vtt:last cue end -1 ms",
+     "verdict": "ABSORBED",
+     "entries": []
+    },
+    {
+     "where": [
+      "c247e4d5148b.mp4",
+      "stream 3"
+     ],
+     "mutation": "vtt:last cue end -1 ms",
+     "verdict": "ABSORBED",
+     "entries": []
+    },
+    {
+     "where": [
+      "db9cf6c6e29e.mp4",
+      "stream 0"
+     ],
+     "mutation": "vtt:last cue end -1 ms",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-T-LAST-END"
+     ]
+    },
+    {
+     "where": [
+      "ed311045ce44.mp4",
+      "stream 2"
+     ],
+     "mutation": "vtt:last cue end -1 ms",
+     "verdict": "ABSORBED",
+     "entries": []
+    },
+    {
+     "where": [
+      "064d2d0f0628.mov",
+      "stream 3"
+     ],
+     "mutation": "vtt:cue letter changed",
+     "verdict": "ABSORBED",
+     "entries": []
+    },
+    {
+     "where": [
+      "6c4af50c84d7.mov",
+      "stream 2"
+     ],
+     "mutation": "vtt:cue letter changed",
+     "verdict": "ABSORBED",
+     "entries": []
+    },
+    {
+     "where": [
+      "064d2d0f0628.mov",
+      "stream 3"
+     ],
+     "mutation": "vtt:first cue left out",
+     "verdict": "ABSORBED",
+     "entries": []
+    },
+    {
+     "where": [
+      "6c4af50c84d7.mov",
+      "stream 2"
+     ],
+     "mutation": "vtt:first cue left out",
+     "verdict": "ABSORBED",
+     "entries": []
+    },
+    {
+     "where": [
+      "6c4af50c84d7.mov",
+      "stream 2"
+     ],
+     "mutation": "vtt:line break joined",
+     "verdict": "ABSORBED",
+     "entries": []
+    }
+   ],
+   "inputs": "19 subtitle streams and chapters of 15 files"
+  },
+  "corpus/text/after": {
+   "counts": {
+    "caught": 102,
+    "n/a": 164
+   },
+   "by_mutation": {
+    "chapters:chapter end +1 tick": {
+     "caught": 1,
+     "n/a": 18
+    },
+    "chapters:chapter start +1 tick": {
+     "caught": 1,
+     "n/a": 18
+    },
+    "chapters:chapter title changed": {
+     "caught": 1,
+     "n/a": 18
+    },
+    "chapters:last chapter left out": {
+     "caught": 1,
+     "n/a": 18
+    },
+    "chapters:titles swapped": {
+     "caught": 1,
+     "n/a": 18
+    },
+    "vtt:cue end +1 ms": {
+     "caught": 15,
+     "n/a": 4
+    },
+    "vtt:cue letter changed": {
+     "caught": 14,
+     "n/a": 5
+    },
+    "vtt:cue start +1 ms": {
+     "caught": 15,
+     "n/a": 4
+    },
+    "vtt:escape undone": {
+     "caught": 2,
+     "n/a": 17
+    },
+    "vtt:first cue left out": {
+     "caught": 15,
+     "n/a": 4
+    },
+    "vtt:first cue twice": {
+     "caught": 15,
+     "n/a": 4
+    },
+    "vtt:last cue end -1 ms": {
+     "caught": 15,
+     "n/a": 4
+    },
+    "vtt:line break joined": {
+     "caught": 6,
+     "n/a": 13
+    },
+    "vtt:style tag dropped": {
+     "n/a": 19
+    }
+   },
+   "loopholes": [],
+   "inputs": "19 subtitle streams and chapters of 15 files"
+  },
+  "corpus/hls/before": {
+   "counts": {
+    "COVERED": 1,
+    "caught": 7,
+    "n/a": 9,
+    "no effect": 1
+   },
+   "by_mutation": {
+    "hls-audio:composition offset +512": {
+     "n/a": 1
+    },
+    "hls-audio:extinf +0.1 s": {
+     "n/a": 1
+    },
+    "hls-audio:init channels +1": {
+     "n/a": 1
+    },
+    "hls-audio:init mdhd timescale +1": {
+     "n/a": 1
+    },
+    "hls-audio:sample byte flipped": {
+     "n/a": 1
+    },
+    "hls-audio:sample duration +1": {
+     "n/a": 1
+    },
+    "hls-audio:sample size +1": {
+     "n/a": 1
+    },
+    "hls-audio:sync flag cleared": {
+     "n/a": 1
+    },
+    "hls-audio:tfdt +1": {
+     "n/a": 1
+    },
+    "hls-video:composition offset +512": {
+     "caught": 1
+    },
+    "hls-video:extinf +0.1 s": {
+     "caught": 1
+    },
+    "hls-video:init mdhd timescale +1": {
+     "caught": 1
+    },
+    "hls-video:init width +16": {
+     "caught": 1
+    },
+    "hls-video:sample byte flipped": {
+     "caught": 1
+    },
+    "hls-video:sample duration +1": {
+     "caught": 1
+    },
+    "hls-video:sample size +1": {
+     "caught": 1
+    },
+    "hls-video:sync flag cleared": {
+     "no effect": 1
+    },
+    "hls-video:tfdt +1": {
+     "COVERED": 1
+    }
+   },
+   "loopholes": [
+    {
+     "where": [
+      "5bcb3728df1c.mov",
+      "package"
+     ],
+     "mutation": "hls-video:tfdt +1",
+     "verdict": "COVERED",
+     "entries": [
+      "KD-HLS-1",
+      "KD-HLS-3"
+     ]
+    }
+   ],
+   "inputs": "1 file, the smallest KD-HLS-3 covers"
+  },
+  "corpus/hls/after": {
+   "counts": {
+    "caught": 78,
+    "n/a": 51,
+    "no effect": 15
+   },
+   "by_mutation": {
+    "hls-audio:composition offset +512": {
+     "n/a": 8
+    },
+    "hls-audio:extinf +0.1 s": {
+     "caught": 5,
+     "n/a": 3
+    },
+    "hls-audio:init channels +1": {
+     "n/a": 3,
+     "no effect": 5
+    },
+    "hls-audio:init mdhd timescale +1": {
+     "caught": 5,
+     "n/a": 3
+    },
+    "hls-audio:sample byte flipped": {
+     "caught": 5,
+     "n/a": 3
+    },
+    "hls-audio:sample duration +1": {
+     "caught": 5,
+     "n/a": 3
+    },
+    "hls-audio:sample size +1": {
+     "caught": 5,
+     "n/a": 3
+    },
+    "hls-audio:sync flag cleared": {
+     "n/a": 3,
+     "no effect": 5
+    },
+    "hls-audio:tfdt +1": {
+     "caught": 5,
+     "n/a": 3
+    },
+    "hls-video:composition offset +512": {
+     "caught": 5,
+     "n/a": 3
+    },
+    "hls-video:extinf +0.1 s": {
+     "caught": 6,
+     "n/a": 2
+    },
+    "hls-video:init mdhd timescale +1": {
+     "caught": 6,
+     "n/a": 2
+    },
+    "hls-video:init width +16": {
+     "caught": 6,
+     "n/a": 2
+    },
+    "hls-video:sample byte flipped": {
+     "caught": 6,
+     "n/a": 2
+    },
+    "hls-video:sample duration +1": {
+     "caught": 6,
+     "n/a": 2
+    },
+    "hls-video:sample size +1": {
+     "caught": 6,
+     "n/a": 2
+    },
+    "hls-video:sync flag cleared": {
+     "caught": 1,
+     "n/a": 2,
+     "no effect": 5
+    },
+    "hls-video:tfdt +1": {
+     "caught": 6,
+     "n/a": 2
+    }
+   },
+   "loopholes": [],
+   "inputs": "8 files"
+  },
+  "corpus/remux": {
+   "counts": {
+    "caught": 522,
+    "n/a": 228,
+    "no effect": 114
+   },
+   "by_mutation": {
+    "audio: aac object type swapped": {
+     "caught": 22,
+     "n/a": 5
+    },
+    "audio: audio channels +1": {
+     "n/a": 5,
+     "no effect": 22
+    },
+    "audio: audio rate halved": {
+     "n/a": 5,
+     "no effect": 22
+    },
+    "audio: chunk offset +1": {
+     "caught": 22,
+     "n/a": 5
+    },
+    "audio: ctts offset +512": {
+     "caught": 1,
+     "n/a": 26
+    },
+    "audio: elst duration +1": {
+     "caught": 16,
+     "n/a": 11
+    },
+    "audio: elst duration -1": {
+     "caught": 16,
+     "n/a": 11
+    },
+    "audio: elst media time +1": {
+     "caught": 16,
+     "n/a": 11
+    },
+    "audio: mdhd duration +1": {
+     "n/a": 5,
+     "no effect": 22
+    },
+    "audio: mdhd timescale +1": {
+     "caught": 22,
+     "n/a": 5
+    },
+    "audio: mvhd duration +7": {
+     "caught": 22,
+     "n/a": 5
+    },
+    "audio: sample byte flipped": {
+     "caught": 22,
+     "n/a": 5
+    },
+    "audio: stss sync moved": {
+     "n/a": 27
+    },
+    "audio: stsz first size +1": {
+     "caught": 21,
+     "n/a": 6
+    },
+    "audio: stts delta +1": {
+     "caught": 22,
+     "n/a": 5
+    },
+    "audio: stts delta -1": {
+     "caught": 22,
+     "n/a": 5
+    },
+    "audio: tkhd duration +1": {
+     "caught": 22,
+     "n/a": 5
+    },
+    "video: chunk offset +1": {
+     "caught": 20,
+     "n/a": 5,
+     "no effect": 2
+    },
+    "video: ctts offset +512": {
+     "caught": 14,
+     "n/a": 11,
+     "no effect": 2
+    },
+    "video: elst duration +1": {
+     "caught": 22,
+     "n/a": 5
+    },
+    "video: elst duration -1": {
+     "caught": 22,
+     "n/a": 5
+    },
+    "video: elst media time +1": {
+     "caught": 22,
+     "n/a": 5
+    },
+    "video: mdhd duration +1": {
+     "caught": 2,
+     "n/a": 5,
+     "no effect": 20
+    },
+    "video: mdhd timescale +1": {
+     "caught": 22,
+     "n/a": 5
+    },
+    "video: mvhd duration +7": {
+     "caught": 22,
+     "n/a": 5
+    },
+    "video: sample byte flipped": {
+     "caught": 20,
+     "n/a": 5,
+     "no effect": 2
+    },
+    "video: stss sync moved": {
+     "caught": 2,
+     "n/a": 5,
+     "no effect": 20
+    },
+    "video: stsz first size +1": {
+     "caught": 20,
+     "n/a": 5,
+     "no effect": 2
+    },
+    "video: stts delta +1": {
+     "caught": 22,
+     "n/a": 5
+    },
+    "video: stts delta -1": {
+     "caught": 22,
+     "n/a": 5
+    },
+    "video: tkhd duration +1": {
+     "caught": 22,
+     "n/a": 5
+    },
+    "video: video width +16": {
+     "caught": 22,
+     "n/a": 5
+    }
+   },
+   "loopholes": [],
+   "inputs": "24 plus 3 files chosen by tag (oracle unchanged)"
+  },
+  "corpus/policy": {
+   "counts": {
+    "agrees": 2,
+    "caught": 55,
+    "n/a": 164,
+    "no effect": 87
+   },
+   "by_mutation": {
+    "policy:audio channels +1": {
+     "caught": 7,
+     "n/a": 28,
+     "no effect": 9
+    },
+    "policy:audio rate x2": {
+     "agrees": 1,
+     "caught": 4,
+     "n/a": 28,
+     "no effect": 11
+    },
+    "policy:bit rate x2": {
+     "caught": 3,
+     "n/a": 28,
+     "no effect": 13
+    },
+    "policy:duration +25%": {
+     "agrees": 1,
+     "caught": 7,
+     "n/a": 16,
+     "no effect": 20
+    },
+    "policy:last stream left out": {
+     "caught": 22,
+     "n/a": 16,
+     "no effect": 6
+    },
+    "policy:video codec renamed": {
+     "caught": 8,
+     "n/a": 24,
+     "no effect": 12
+    },
+    "policy:video width +16": {
+     "caught": 4,
+     "n/a": 24,
+     "no effect": 16
+    }
+   },
+   "loopholes": [],
+   "inputs": "5 plus 6 files under four policies (oracle unchanged)"
+  }
+ },
+ "reach": {
+  "KD-C-AAC-PROFILE": [
+   "corpus"
+  ],
+  "KD-C-AUDIO-EDIT-RATE": [
+   "corpus"
+  ],
+  "KD-C-AUDIO-JITTER": [
+   "corpus"
+  ],
+  "KD-C-AUDIO-RESTART": [
+   "corpus",
+   "fixtures"
+  ],
+  "KD-C-CTTS-UNSIGNED": [
+   "corpus"
+  ],
+  "KD-C-DTS-SHIFT": [
+   "corpus"
+  ],
+  "KD-C-EDIT-MIDFRAME": [
+   "corpus"
+  ],
+  "KD-C-EMPTY-EDIT-DURATION": [
+   "corpus",
+   "fixtures"
+  ],
+  "KD-C-PTS-SHIFT": [
+   "corpus"
+  ],
+  "KD-C-STTS-SHORT": [
+   "corpus",
+   "fixtures"
+  ],
+  "KD-C-SYNC-VERIFIED": [
+   "fixtures"
+  ],
+  "KD-HLS-1": [
+   "corpus",
+   "fixtures"
+  ],
+  "KD-HLS-2": [
+   "corpus"
+  ],
+  "KD-HLS-3": [
+   "corpus"
+  ],
+  "KD-HLS-4": [
+   "corpus"
+  ],
+  "KD-HLS-5": [
+   "corpus"
+  ],
+  "KD-HLS-6": [
+   "corpus"
+  ],
+  "KD-HLS-7": [
+   "corpus"
+  ],
+  "KD-HLS-8": [
+   "corpus",
+   "fixtures"
+  ],
+  "KD-HLS-9": [
+   "corpus",
+   "fixtures"
+  ],
+  "KD-P-CHAPTER-TEXT": [
+   "corpus",
+   "fixtures"
+  ],
+  "KD-P-DECLARED-DURATION": [
+   "corpus"
+  ],
+  "KD-P-EDITED-BIT-RATE": [
+   "fixtures"
+  ],
+  "KD-P-FRAGMENT-ORIGIN": [
+   "corpus"
+  ],
+  "KD-P-MKV-FRAME-END": [
+   "corpus",
+   "fixtures"
+  ],
+  "KD-P-MKV-LACE-TIMES": [
+   "corpus",
+   "fixtures"
+  ],
+  "KD-P-MKV-UNLISTED": [
+   "corpus"
+  ],
+  "KD-P-MKV-UNSIZED": [
+   "corpus"
+  ],
+  "KD-P-MKV-UNVERIFIED": [
+   "corpus",
+   "fixtures"
+  ],
+  "KD-P-PROTECTED": [
+   "corpus"
+  ],
+  "KD-P-UNIDENTIFIED-DURATION": [
+   "corpus"
+  ],
+  "KD-R-BASE-TIME": [
+   "corpus"
+  ],
+  "KD-R-CHAN": [
+   "corpus",
+   "fixtures"
+  ],
+  "KD-R-FRAG-DURATION": [
+   "corpus",
+   "fixtures"
+  ],
+  "KD-R-FRAG-EDIT-END": [
+   "corpus"
+  ],
+  "KD-R-FRAG-FRAMES": [
+   "corpus",
+   "fixtures"
+  ],
+  "KD-R-FRAG-STATED-EDIT": [
+   "corpus"
+  ],
+  "KD-R-TIMECODE-TAG": [
+   "corpus",
+   "fixtures"
+  ],
+  "KD-S-AUDIO-RESTART": [
+   "corpus",
+   "fixtures"
+  ],
+  "KD-S-EDIT-MIDFRAME": [
+   "corpus"
+  ],
+  "KD-S-PTS-SHIFT": [
+   "corpus"
+  ],
+  "KD-S-SYNC-VERIFIED": [
+   "fixtures"
+  ],
+  "KD-T-CHAP-ORDER": [
+   "corpus"
+  ],
+  "KD-T-CHPL": [
+   "corpus",
+   "fixtures"
+  ],
+  "KD-T-CR": [
+   "corpus"
+  ],
+  "KD-T-EDIT-ALIGN": [
+   "corpus"
+  ],
+  "KD-T-EDIT-RATE": [
+   "corpus"
+  ],
+  "KD-T-EMPTY": [
+   "corpus"
+  ],
+  "KD-T-ESCAPE": [
+   "corpus",
+   "fixtures"
+  ],
+  "KD-T-HMMT": [
+   "corpus"
+  ],
+  "KD-T-INVALID": [
+   "corpus"
+  ],
+  "KD-T-LAST-END": [
+   "corpus"
+  ],
+  "KD-T-MI-HOURS": [
+   "corpus"
+  ],
+  "KD-T-QT-STYLE": [
+   "corpus"
+  ],
+  "KD-T-ROUND": [
+   "corpus"
+  ],
+  "KD-T-STYLE": [
+   "corpus",
+   "fixtures"
+  ],
+  "KD-T-ZERO-END": [
+   "corpus"
+  ],
+  "KD-X-EDIT-DISCARD": [
+   "corpus",
+   "fixtures"
+  ],
+  "KD-X-GAPLESS-CONFLICT": [
+   "corpus"
+  ],
+  "KD-X-GAPLESS-EDIT": [
+   "corpus"
+  ],
+  "KD-X-PROFILE-UNNAMED": [
+   "corpus"
+  ],
+  "KD-X-TKHD": [
+   "corpus",
+   "fixtures"
+  ]
+ },
+ "regression": {
+  "KD-T": "the 19 corpus streams and chapters that use a text entry: the same entries before and after; the fixtures: the same",
+  "KD-C-AUDIO-RESTART, KD-C-AUDIO-JITTER, KD-C-AUDIO-EDIT-RATE, KD-C-EMPTY-EDIT-DURATION": "133 corpus files of check-04: 188, 1, 5 and 65 clips covered before and after, no new problem",
+  "KD-C-DTS-SHIFT": "8 corpus files of check-04: 15 clips covered there, 14 now; the 15th agrees directly with the current writer; no new problem",
+  "KD-S-AUDIO-RESTART": "105 corpus files of split check-03: 2,044 covered differences before and after, no new problem",
+  "KD-HLS-3": "13 of its 14 corpus files (the 14th, 1.9 GB, not run): the same results with main's oracle and this change's",
+  "fixtures": "clip 308/308 and split 120/120 pass with the same per-output result as main's oracles; remux, sanitize, extract, text and HLS pass"
+ },
+ "unreached": {
+  "KD-R-PROBE-WINDOW": "4 corpus files in remux check-03, whose per-file records are not kept; reviewed: compares a whole-file ffprobe of both files",
+  "KD-R-LAST-DURATION": "1 corpus file; reviewed: compares both files' stts and mdhd",
+  "KD-R-VFR-RATE": "1 corpus file; reviewed: compares both files' stts",
+  "KD-S-DTS-SHIFT": "no corpus file in split check-03; narrowed as KD-C-DTS-SHIFT and pinned by a unit test"
+ }
+}

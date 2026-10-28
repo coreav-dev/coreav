@@ -1,0 +1,54 @@
+[package]
+name = "coreav-py"
+description = "The coreav command: memory-safe probing of MP4/MOV, Matroska, WebM and MPEG transport stream files, local or at an HTTP(S) URL; clipping, splitting, joining, sanitizing, audio, subtitle and chapter extraction and HLS packaging of MP4/MOV files; remuxing of all of them to MP4; decoding of their audio to WAV; and upload policy checks"
+# The same description as coreav-cli's: `#[command(about)]` in main.rs
+# prints the compiling crate's, and `coreav --help` must read the same.
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+# The Python module is `coreav` (`#[pymodule(name = "coreav")]`); the Rust
+# library name differs from the `coreav` binary's, so their docs don't collide.
+name = "coreav_py"
+crate-type = ["cdylib"]
+# The module is tested from Python (tests/test_coreav.py) against a built
+# wheel; a Rust test binary would have to link libpython.
+test = false
+doctest = false
+
+[features]
+# `main.rs`, compiled in as a module, reads URLs under this crate's `net`,
+# as the command does under coreav-cli's. Required: the module's own URL
+# code uses coreav-cli's `remote` (with `net` always on below).
+default = ["net"]
+net = []
+# `main.rs`'s `thumbnail` subcommand, as in coreav-cli: only with a decoder
+# backend, which the Python package does not ship.
+thumbnail = ["coreav-cli/thumbnail"]
+# `main.rs`'s `transcode` subcommand, as in coreav-cli: only with a decoder
+# backend, which the Python package does not ship.
+transcode = ["coreav-cli/transcode"]
+
+[dependencies]
+coreav-cli = { path = "../coreav-cli", default-features = false, features = ["net"] }
+coreav-audio = { path = "../coreav-audio" }
+coreav-isobmff = { path = "../coreav-isobmff" }
+coreav-isobmff-write = { path = "../coreav-isobmff-write" }
+coreav-mkv = { path = "../coreav-mkv" }
+coreav-mpegts = { path = "../coreav-mpegts" }
+coreav-policy = { path = "../coreav-policy" }
+coreav-text = { path = "../coreav-text" }
+serde_json = { workspace = true }
+# The `coreav` command line, compiled from the binary's source (`_cli`).
+clap = { workspace = true }
+# The stable ABI from Python 3.9: one wheel per platform for every version.
+pyo3 = { version = "0.30.1", features = ["abi3-py39"] }
+
+# The workspace lints, `unsafe_code = "forbid"` included: PyO3 0.30's macros
+# need no exception (docs/design/python.md).
+[lints]
+workspace = true

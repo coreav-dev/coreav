@@ -1,0 +1,59 @@
+failed {'g': [], 't8': []}
+1T discard overall  n=32 after/before 0.9967 [0.9846,0.9990] faster 23/32 | vs ffmpeg before 1.220 after 1.188, faster than ffmpeg 4/32 then 4/32
+1T discard sd       n= 8 after/before 1.0007 [0.9990,1.0051] faster 2/8 | vs ffmpeg before 1.110 after 1.113, faster than ffmpeg 3/8 then 3/8
+1T discard 720p     n= 8 after/before 0.9975 [0.9822,1.0003] faster 6/8 | vs ffmpeg before 1.239 after 1.223, faster than ffmpeg 0/8 then 0/8
+1T discard 1080p    n= 8 after/before 0.9884 [0.9701,0.9969] faster 8/8 | vs ffmpeg before 1.258 after 1.243, faster than ffmpeg 0/8 then 0/8
+1T discard 4k       n= 8 after/before 0.9569 [0.8951,0.9983] faster 7/8 | vs ffmpeg before 1.203 after 1.088, faster than ffmpeg 1/8 then 1/8
+1T discard large    n=16 after/before 0.9814 [0.9564,0.9966] faster 15/16 | vs ffmpeg before 1.231 after 1.212, faster than ffmpeg 1/16 then 1/16
+1T write   overall  n=32 after/before 0.9972 [0.9853,1.0007] faster 21/32 | vs ffmpeg before 1.161 after 1.146, faster than ffmpeg 6/32 then 8/32
+1T write   sd       n= 8 after/before 1.0046 [1.0019,1.0084] faster 1/8 | vs ffmpeg before 1.085 after 1.089, faster than ffmpeg 3/8 then 3/8
+1T write   720p     n= 8 after/before 0.9952 [0.9784,1.0027] faster 5/8 | vs ffmpeg before 1.179 after 1.175, faster than ffmpeg 1/8 then 1/8
+1T write   1080p    n= 8 after/before 0.9886 [0.9712,0.9967] faster 8/8 | vs ffmpeg before 1.216 after 1.178, faster than ffmpeg 0/8 then 0/8
+1T write   4k       n= 8 after/before 0.9658 [0.9056,0.9993] faster 7/8 | vs ffmpeg before 1.074 after 1.022, faster than ffmpeg 2/8 then 4/8
+1T write   large    n=16 after/before 0.9846 [0.9632,0.9967] faster 15/16 | vs ffmpeg before 1.176 after 1.164, faster than ffmpeg 2/16 then 4/16
+8T discard overall  n=32 after/before 0.9936 [0.9725,1.0080] faster 18/32 | vs ffmpeg before 1.049 after 1.042, faster than ffmpeg 11/32 then 11/32
+8T discard sd       n= 8 after/before 0.9953 [0.9877,1.0144] faster 5/8 | vs ffmpeg before 1.049 after 1.039, faster than ffmpeg 3/8 then 3/8
+8T discard 720p     n= 8 after/before 0.9716 [0.9451,1.0063] faster 6/8 | vs ffmpeg before 1.111 after 1.068, faster than ffmpeg 1/8 then 0/8
+8T discard 1080p    n= 8 after/before 1.0061 [0.9001,1.0134] faster 3/8 | vs ffmpeg before 1.146 after 1.112, faster than ffmpeg 1/8 then 1/8
+8T discard 4k       n= 8 after/before 0.9994 [0.9143,1.0990] faster 4/8 | vs ffmpeg before 0.914 after 0.885, faster than ffmpeg 6/8 then 7/8
+8T discard large    n=16 after/before 1.0042 [0.9537,1.0177] faster 7/16 | vs ffmpeg before 1.007 after 0.997, faster than ffmpeg 7/16 then 8/16
+8T write   overall  n=32 after/before 0.9916 [0.9764,1.0034] faster 19/32 | vs ffmpeg before 1.035 after 1.008, faster than ffmpeg 10/32 then 15/32
+8T write   sd       n= 8 after/before 1.0028 [0.9758,1.0063] faster 3/8 | vs ffmpeg before 1.036 after 1.031, faster than ffmpeg 3/8 then 3/8
+8T write   720p     n= 8 after/before 0.9907 [0.9294,1.0067] faster 5/8 | vs ffmpeg before 1.091 after 1.017, faster than ffmpeg 0/8 then 2/8
+8T write   1080p    n= 8 after/before 0.9916 [0.9767,1.0066] faster 6/8 | vs ffmpeg before 1.081 after 1.071, faster than ffmpeg 1/8 then 2/8
+8T write   4k       n= 8 after/before 0.9779 [0.9420,1.0187] faster 5/8 | vs ffmpeg before 0.895 after 0.890, faster than ffmpeg 6/8 then 8/8
+8T write   large    n=16 after/before 0.9901 [0.9662,1.0009] faster 11/16 | vs ffmpeg before 1.009 after 0.976, faster than ffmpeg 7/16 then 10/16
+bars: {'MA-1': True, 'MA-2': True, 'MA-3': True, 'MA-4': True, 'MA-5': True}
+per stream (1T discard, 1T write, 8T discard, 8T write):
+  175433794e02.0.1080p.h264 0.9966 0.9828 1.0026 0.9967
+  1d4b1775d78a.0.720p.h264 0.9967 0.9908 0.9818 0.9294
+  278dbf5a63bb.0.720p.h264 0.9992 1.0040 0.9502 0.9127
+  36501d448eaa.0.720p.h264 0.9983 0.9996 0.9451 1.0082
+  3b1b441e23ae.0.4k.h264 0.8319 0.8721 0.8646 0.9152
+  3c593b8f0809.0.720p.h264 1.0014 1.0105 0.9708 0.9935
+  41e324ebb708.0.sd.h264 1.0160 1.0019 0.9104 0.9758
+  4b54de28c2b3.0.4k.h264 1.0024 0.9993 0.9931 0.9687
+  5185721dda11.0.sd.h264 1.0006 1.0048 0.9877 0.9840
+  65ec61f95a00.0.720p.h264 0.9864 0.9592 0.9725 1.0067
+  6b18d9f0f88d.0.720p.h264 0.9822 0.9841 1.0375 0.9498
+  6da34958296c.0.1080p.h264 0.9701 0.9907 0.9001 0.9636
+  6e90422a670a.0.1080p.h264 0.9923 0.9916 1.0242 1.0066
+  6f7799768413.0.sd.h264 1.0001 1.0084 1.0301 0.9664
+  7650ae466748.0.sd.h264 1.0051 1.0095 0.9941 1.0063
+  76e0b1692494.0.720p.h264 0.9741 1.0015 1.0063 1.0048
+  81ed4778ece2.0.4k.h264 0.9428 0.9681 1.0989 0.9871
+  8ae90cadb5bc.0.sd.h264 0.9990 0.9988 1.0081 1.0021
+  9db41aa16b5a.0.720p.h264 1.0015 0.9784 0.9014 0.9879
+  a6af290d9053.0.1080p.h264 0.9846 0.9865 1.0096 0.9904
+  a81de82106be.0.1080p.h264 0.9983 0.9995 1.0134 0.9688
+  ae16bb7c7192.0.4k.h264 0.8999 0.9127 0.9854 0.9561
+  af38b0cfd840.0.4k.h264 0.9913 0.9978 1.1670 0.9420
+  b41f70a7fa60.0.1080p.h264 0.9782 0.9712 0.9643 0.9897
+  b71b6b31e54f.0.1080p.h264 0.9679 0.9553 0.8948 1.0227
+  c7ecda16e4a7.0.1080p.h264 0.9969 0.9967 1.0113 0.9928
+  dcb262cf0138.0.sd.h264 1.0009 1.0044 0.9929 1.0050
+  e624cbe0d2be.0.4k.h264 0.8951 0.9056 0.9143 1.0009
+  ec473c99c538.0.sd.h264 0.9934 1.0077 0.9964 1.0035
+  ed75c044e944.0.4k.h264 0.9710 0.9636 1.0990 1.0763
+  f8d92a911e72.0.4k.h264 0.9983 1.0042 1.0058 1.0187
+  f9e973f44570.0.sd.h264 1.0035 1.0027 1.0144 1.0118

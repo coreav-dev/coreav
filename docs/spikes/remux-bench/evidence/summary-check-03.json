@@ -1,0 +1,251 @@
+{
+ "files": 1043,
+ "remuxed": 933,
+ "agreeing": 924,
+ "agreeing_directly": 760,
+ "refused": 109,
+ "failed": 9,
+ "error_count": 1,
+ "unavailable": [
+  "184becaaec565182ef8d7d28eb682100b1d98dc2f8983063405f131320cb2a78"
+ ],
+ "packets": {
+  "agree": 19746936,
+  "disagree": 0
+ },
+ "bars": {
+  "files_agree": {
+   "bar": 0.99,
+   "value": 0.9903536977491961,
+   "met": true
+  },
+  "packets_agree": {
+   "bar": 0.999,
+   "value": 1.0,
+   "met": true
+  },
+  "layout_and_round_trip": {
+   "bar": 1.0,
+   "failures": [],
+   "met": true
+  },
+  "no_crash": {
+   "met": true
+  }
+ },
+ "files_agree_under_the_known_divergences_at_the_bars": {
+  "known_divergences": [
+   "KD-R-CHAN",
+   "KD-R-FRAG-DURATION",
+   "KD-R-FRAG-FRAMES",
+   "KD-R-TIMECODE-TAG"
+  ],
+  "agreeing": 894,
+  "value": 0.9581993569131833
+ },
+ "refusals_by_reason": {
+  "unsupported: no stream can be copied to MP4": 73,
+  "unsupported: ProRes has no MP4 sample entry": 25,
+  "unsupported: PCM audio is not copied to MP4": 9,
+  "unsupported: a gap or an overlap between decode times": 1,
+  "unsupported: an edit starts before the first sample": 1
+ },
+ "known_divergences": {
+  "KD-R-BASE-TIME": 108086,
+  "KD-R-FRAG-DURATION": 35134,
+  "KD-R-TIMECODE-TAG": 135,
+  "KD-R-FRAG-FRAMES": 66,
+  "KD-R-FRAG-EDIT-END": 36,
+  "KD-R-PROBE-WINDOW": 4,
+  "KD-R-CHAN": 4,
+  "KD-R-FRAG-STATED-EDIT": 3,
+  "KD-R-LAST-DURATION": 1,
+  "KD-R-VFR-RATE": 1
+ },
+ "dropped_streams_by_reason": {
+  "codec_not_allowed": 205,
+  "unsupported: timecode tracks are not copied to MP4": 89,
+  "unsupported: PCM audio is not copied to MP4": 73,
+  "unsupported: timed text is not copied to MP4": 10,
+  "unsupported: more than one sample description": 2
+ },
+ "dropped_boxes_by_path": [
+  {
+   "path": "moov/trak/tref",
+   "reason": "not_carried",
+   "files": 107
+  },
+  {
+   "path": "moov/trak/mdia/minf/stbl/free",
+   "reason": "not_carried",
+   "files": 79
+  },
+  {
+   "path": "moov/iods",
+   "reason": "not_carried",
+   "files": 75
+  },
+  {
+   "path": "moov/trak/tapt",
+   "reason": "not_carried",
+   "files": 67
+  },
+  {
+   "path": "uuid",
+   "reason": "not_carried",
+   "files": 30
+  },
+  {
+   "path": "moov/\\x00\\x00\\x00\\x00",
+   "reason": "not_carried",
+   "files": 25
+  },
+  {
+   "path": "moov/uuid",
+   "reason": "not_carried",
+   "files": 24
+  },
+  {
+   "path": "meta",
+   "reason": "not_carried",
+   "files": 21
+  },
+  {
+   "path": "moov/trak/uuid",
+   "reason": "not_carried",
+   "files": 19
+  },
+  {
+   "path": "moov/free",
+   "reason": "not_carried",
+   "files": 18
+  },
+  {
+   "path": "moov/trak/mdia/minf/stbl/stsd/mp4a/chan",
+   "reason": "not_carried",
+   "files": 12
+  },
+  {
+   "path": "moov/trak/mdia/minf/stbl/sgpd",
+   "reason": "not_carried",
+   "files": 7
+  },
+  {
+   "path": "sefd",
+   "reason": "not_carried",
+   "files": 6
+  },
+  {
+   "path": "moov/trak/load",
+   "reason": "not_carried",
+   "files": 5
+  },
+  {
+   "path": "moov/trak/mdia/elng",
+   "reason": "not_carried",
+   "files": 5
+  },
+  {
+   "path": "moov/trak/mdia/minf/stbl/stsd/mp4a/wave/srcq",
+   "reason": "not_carried",
+   "files": 3
+  },
+  {
+   "path": "beam",
+   "reason": "not_carried",
+   "files": 2
+  },
+  {
+   "path": "moov/trak/mdia/minf/stbl/csgm",
+   "reason": "not_carried",
+   "files": 2
+  },
+  {
+   "path": "moov/trak/mdia/minf/stbl/stsd/mp4a/wave/s\\x8b\\x00\\x00",
+   "reason": "not_carried",
+   "files": 1
+  },
+  {
+   "path": "moov/trak/mdia/minf/stbl/stsd/mp4a/wave/\\x00\\x8b\\x00\\x00",
+   "reason": "not_carried",
+   "files": 1
+  },
+  {
+   "path": "emsg",
+   "reason": "not_carried",
+   "files": 1
+  },
+  {
+   "path": "moov/trak/free",
+   "reason": "not_carried",
+   "files": 1
+  },
+  {
+   "path": "\\x00\\x00\\x00\\x00",
+   "reason": "not_carried",
+   "files": 1
+  }
+ ],
+ "failures": [
+  {
+   "sha256": "00de70872ff1a518d24171f3c783a14bc95aeb90ae2c90290ceaf30b118a2af9",
+   "error": "invalid 'moov' box at offset 0: missing movie header",
+   "kind": "invalid",
+   "ffprobe_reads": true
+  },
+  {
+   "sha256": "012168a196bec989473e08e845df96871fc964109bca207cef45388a7280f5c9",
+   "error": "truncated structure at offset 106532",
+   "kind": "invalid",
+   "ffprobe_reads": true
+  },
+  {
+   "sha256": "2b42d40aa3287b9a8f0cf3d1ee62cbb22d142ef49022ed0afdb1a15b4369b805",
+   "error": "invalid 'moov' box at offset 32: missing movie header",
+   "kind": "invalid",
+   "ffprobe_reads": true
+  },
+  {
+   "sha256": "665dddf09f221cc63cedf9987281c81a226a8eb24bf1231cd32ed337de3686db",
+   "error": "truncated structure at offset 426381",
+   "kind": "invalid",
+   "ffprobe_reads": true
+  },
+  {
+   "sha256": "667a8557388cf2dba67ad3f721e29e99d5688f73d3a8dee6123703b9ab50aabc",
+   "error": "invalid 'moov' box at offset 0: missing movie header",
+   "kind": "invalid",
+   "ffprobe_reads": true
+  },
+  {
+   "sha256": "9120d3c689a139ce276e600e265df9796a87d08f3c3c4a1ab477dc04782f37c6",
+   "error": "invalid 'moov' box at offset 9475193: second movie box",
+   "kind": "invalid",
+   "ffprobe_reads": true
+  },
+  {
+   "sha256": "977c3a776ac3139b6a246d0e51e61c79fe766dfc8313172330a48b6b937e38cc",
+   "error": "truncated structure at offset 21663161",
+   "kind": "invalid",
+   "ffprobe_reads": true
+  },
+  {
+   "sha256": "a7b11d95901ad51d3abfe64bcd12a5342d5e6f626ae088b93a5f2b1c99a70806",
+   "error": "truncated structure at offset 10955588",
+   "kind": "invalid",
+   "ffprobe_reads": true
+  },
+  {
+   "sha256": "eb569fa7169e84485702b1f46af8f54260bbd9278a143cda1361ef88e11dd35b",
+   "error": "truncated structure at offset 776783",
+   "kind": "invalid",
+   "ffprobe_reads": true
+  }
+ ],
+ "errors": [
+  {
+   "sha256": "184becaaec565182ef8d7d28eb682100b1d98dc2f8983063405f131320cb2a78",
+   "error": "download or SHA-256 check failed"
+  }
+ ]
+}

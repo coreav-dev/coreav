@@ -1,0 +1,7 @@
+upload 421 MB, 32 streams in 4 calls; spend bound 3.00 USD of 5.00
+creating coreav-pmu-20261026-202727 (c4-standard-16, us-east4-a, STANDARD, PMU STANDARD, 1 thread(s) a core, max 2.5 h)
+uploading
+running the job
+deleting coreav-pmu-20261026-202727
+{"vm": "coreav-pmu-20261026-202727", "machine": "c4-standard-16", "zone": "us-east4-a", "provisioning": "STANDARD", "threads_per_core": 1, "hours": 1.337, "usd_per_hour_bound": 1.2, "usd_bound": 1.604, "status": "ssh exit 0, job status 0"}
+{"void": false, "reasons": [], "reference_drift": -0.00013581187222821978, "unresolved": {"sd": 0, "720p": 0, "1080p": 0, "4k": 0}}

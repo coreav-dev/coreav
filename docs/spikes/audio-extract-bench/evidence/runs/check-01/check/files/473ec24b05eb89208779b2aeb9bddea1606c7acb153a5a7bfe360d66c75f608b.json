@@ -1,0 +1,151 @@
+{
+ "sha256": "473ec24b05eb89208779b2aeb9bddea1606c7acb153a5a7bfe360d66c75f608b",
+ "size": 1456516122,
+ "ext": "mp4",
+ "holdout": false,
+ "tags": [
+  "a:aac",
+  "brand:mp41",
+  "c:isobmff",
+  "d:bin_data",
+  "d:fdsc",
+  "d:tmcd",
+  "elst",
+  "moov-end",
+  "telemetry",
+  "telemetry-gpmf",
+  "timecode",
+  "v:h264"
+ ],
+ "download_seconds": 26.582152599,
+ "ffprobe_streams": [
+  {
+   "index": 0,
+   "codec_type": "video",
+   "codec_name": "h264",
+   "codec_tag_string": "avc1",
+   "profile": "High",
+   "sample_rate": null,
+   "channels": null,
+   "duration": "386.285900",
+   "nb_frames": "23154"
+  },
+  {
+   "index": 1,
+   "codec_type": "audio",
+   "codec_name": "aac",
+   "codec_tag_string": "mp4a",
+   "profile": "LC",
+   "sample_rate": "48000",
+   "channels": 2,
+   "duration": "386.304000",
+   "nb_frames": "18108"
+  },
+  {
+   "index": 2,
+   "codec_type": "data",
+   "codec_name": null,
+   "codec_tag_string": "tmcd",
+   "profile": null,
+   "sample_rate": null,
+   "channels": null,
+   "duration": "386.285900",
+   "nb_frames": "1"
+  },
+  {
+   "index": 3,
+   "codec_type": "data",
+   "codec_name": "bin_data",
+   "codec_tag_string": "gpmd",
+   "profile": null,
+   "sample_rate": null,
+   "channels": null,
+   "duration": "386.304000",
+   "nb_frames": "386"
+  },
+  {
+   "index": 4,
+   "codec_type": "data",
+   "codec_name": null,
+   "codec_tag_string": "fdsc",
+   "profile": null,
+   "sample_rate": null,
+   "channels": null,
+   "duration": "386.304000",
+   "nb_frames": "41650"
+  }
+ ],
+ "coreav": {
+  "probe_ns": 853910,
+  "fragmented": false,
+  "movie_timescale": 60000,
+  "tracks": [
+   {
+    "stream_index": 0,
+    "kind": "Video",
+    "codec": "H264",
+    "fourcc": "avc1",
+    "descriptions": 1,
+    "edit_list": "Simple { empty: 0, media_time: 0, segment: 23177154 }",
+    "timescale": 60000,
+    "sample_count": 23154,
+    "fragment_samples": 0
+   },
+   {
+    "stream_index": 1,
+    "kind": "Audio",
+    "codec": "Aac",
+    "fourcc": "mp4a",
+    "descriptions": 1,
+    "edit_list": "None",
+    "timescale": 48000,
+    "sample_count": 18108,
+    "fragment_samples": 0
+   },
+   {
+    "stream_index": 2,
+    "kind": "Timecode",
+    "codec": "Timecode",
+    "fourcc": "tmcd",
+    "descriptions": 1,
+    "edit_list": "None",
+    "timescale": 60000,
+    "sample_count": 1,
+    "fragment_samples": 0
+   }
+  ],
+  "dropped": [
+   {
+    "stream_index": 3,
+    "fourcc": "gpmd"
+   },
+   {
+    "stream_index": 4,
+    "fourcc": "fdsc"
+   }
+  ],
+  "aac": [
+   {
+    "stream_index": 1,
+    "extract_ns": 83646252,
+    "ok": true,
+    "output": "/data/work/473ec24b05eb89208779b2aeb9bddea1606c7acb153a5a7bfe360d66c75f608b/out/1.m4a",
+    "samples": 18108,
+    "bytes_written": 6255841,
+    "timescale": 48000,
+    "duration": 18542592,
+    "round_trip": []
+   }
+  ]
+ },
+ "checks": [
+  {
+   "stream_index": 1,
+   "extract_ok": true,
+   "round_trip": [],
+   "oracle_problems": [],
+   "oracle_informational": []
+  }
+ ],
+ "seconds": 33.684891829
+}

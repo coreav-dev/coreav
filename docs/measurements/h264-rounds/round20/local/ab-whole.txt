@@ -1,0 +1,34 @@
+# Local development VM, Intel Xeon @ 2.90GHz family 6 model 106 (the bar class's CPU, a different VM; not a bar run). ab3.py: CPU time (user+sys) of --discard at one thread pinned to cpu 3, class frame counts, 3 rounds, builds in an order rotated each round; per stream each build's median over main-c17ae06's. Builds: main-c17ae06 = main at c17ae06 dist (RUSTFLAGS unset); whole-bmi2/whole-bmi2lz/whole-v3 = main at a7d8e4b (same decoder code) dist with RUSTFLAGS '-C target-feature=+bmi2', '-C target-feature=+bmi2,+lzcnt', '-C target-cpu=x86-64-v3'.
+175433794e02.0.1080p 5.165  whole-bmi2-a7d8e4b 0.9820  whole-bmi2lz-a7d8e4b 0.9541  whole-v3-a7d8e4b 0.9420
+1d4b1775d78a.0.720p. 0.854  whole-bmi2-a7d8e4b 1.0006  whole-bmi2lz-a7d8e4b 1.0224  whole-v3-a7d8e4b 0.9938
+278dbf5a63bb.0.720p. 0.987  whole-bmi2-a7d8e4b 1.0005  whole-bmi2lz-a7d8e4b 0.9988  whole-v3-a7d8e4b 0.9770
+36501d448eaa.0.720p. 1.742  whole-bmi2-a7d8e4b 0.9705  whole-bmi2lz-a7d8e4b 0.9608  whole-v3-a7d8e4b 0.9593
+3b1b441e23ae.0.4k.h2 0.615  whole-bmi2-a7d8e4b 0.9986  whole-bmi2lz-a7d8e4b 0.9778  whole-v3-a7d8e4b 0.9343
+3c593b8f0809.0.720p. 0.866  whole-bmi2-a7d8e4b 0.9936  whole-bmi2lz-a7d8e4b 0.9788  whole-v3-a7d8e4b 0.9623
+41e324ebb708.0.sd.h2 0.899  whole-bmi2-a7d8e4b 0.9900  whole-bmi2lz-a7d8e4b 0.9914  whole-v3-a7d8e4b 0.9567
+4b54de28c2b3.0.4k.h2 0.728  whole-bmi2-a7d8e4b 1.0222  whole-bmi2lz-a7d8e4b 0.9820  whole-v3-a7d8e4b 0.9819
+5185721dda11.0.sd.h2 0.375  whole-bmi2-a7d8e4b 0.9921  whole-bmi2lz-a7d8e4b 0.9887  whole-v3-a7d8e4b 0.9760
+65ec61f95a00.0.720p. 3.061  whole-bmi2-a7d8e4b 0.9829  whole-bmi2lz-a7d8e4b 0.9702  whole-v3-a7d8e4b 0.9621
+6b18d9f0f88d.0.720p. 0.725  whole-bmi2-a7d8e4b 0.9955  whole-bmi2lz-a7d8e4b 0.9875  whole-v3-a7d8e4b 0.9523
+6da34958296c.0.1080p 1.591  whole-bmi2-a7d8e4b 1.0231  whole-bmi2lz-a7d8e4b 0.9889  whole-v3-a7d8e4b 0.9496
+6e90422a670a.0.1080p 3.907  whole-bmi2-a7d8e4b 0.9780  whole-bmi2lz-a7d8e4b 0.9599  whole-v3-a7d8e4b 0.9562
+6f7799768413.0.sd.h2 1.508  whole-bmi2-a7d8e4b 0.9917  whole-bmi2lz-a7d8e4b 0.9886  whole-v3-a7d8e4b 0.9810
+7650ae466748.0.sd.h2 0.538  whole-bmi2-a7d8e4b 0.9890  whole-bmi2lz-a7d8e4b 0.9897  whole-v3-a7d8e4b 0.9622
+76e0b1692494.0.720p. 0.865  whole-bmi2-a7d8e4b 0.9815  whole-bmi2lz-a7d8e4b 0.9880  whole-v3-a7d8e4b 0.9719
+81ed4778ece2.0.4k.h2 0.283  whole-bmi2-a7d8e4b 0.9801  whole-bmi2lz-a7d8e4b 0.9818  whole-v3-a7d8e4b 0.9714
+8ae90cadb5bc.0.sd.h2 1.337  whole-bmi2-a7d8e4b 0.9875  whole-bmi2lz-a7d8e4b 0.9817  whole-v3-a7d8e4b 0.9666
+9db41aa16b5a.0.720p. 0.868  whole-bmi2-a7d8e4b 0.9976  whole-bmi2lz-a7d8e4b 0.9953  whole-v3-a7d8e4b 0.9702
+a6af290d9053.0.1080p 5.377  whole-bmi2-a7d8e4b 0.9768  whole-bmi2lz-a7d8e4b 0.9622  whole-v3-a7d8e4b 0.9489
+a81de82106be.0.1080p 0.690  whole-bmi2-a7d8e4b 0.9874  whole-bmi2lz-a7d8e4b 0.9800  whole-v3-a7d8e4b 0.9569
+ae16bb7c7192.0.4k.h2 0.160  whole-bmi2-a7d8e4b 0.9699  whole-bmi2lz-a7d8e4b 0.9789  whole-v3-a7d8e4b 0.9401
+af38b0cfd840.0.4k.h2 0.484  whole-bmi2-a7d8e4b 0.9920  whole-bmi2lz-a7d8e4b 0.9869  whole-v3-a7d8e4b 0.9699
+b41f70a7fa60.0.1080p 2.306  whole-bmi2-a7d8e4b 1.0030  whole-bmi2lz-a7d8e4b 0.9695  whole-v3-a7d8e4b 0.9557
+b71b6b31e54f.0.1080p 0.985  whole-bmi2-a7d8e4b 0.9734  whole-bmi2lz-a7d8e4b 0.9669  whole-v3-a7d8e4b 0.9543
+c7ecda16e4a7.0.1080p 3.735  whole-bmi2-a7d8e4b 0.9800  whole-bmi2lz-a7d8e4b 0.9741  whole-v3-a7d8e4b 0.9644
+dcb262cf0138.0.sd.h2 0.281  whole-bmi2-a7d8e4b 0.9937  whole-bmi2lz-a7d8e4b 0.9838  whole-v3-a7d8e4b 0.9500
+e624cbe0d2be.0.4k.h2 0.861  whole-bmi2-a7d8e4b 1.0000  whole-bmi2lz-a7d8e4b 0.9634  whole-v3-a7d8e4b 0.9566
+ec473c99c538.0.sd.h2 0.105  whole-bmi2-a7d8e4b 0.9941  whole-bmi2lz-a7d8e4b 1.0157  whole-v3-a7d8e4b 0.9484
+ed75c044e944.0.4k.h2 0.260  whole-bmi2-a7d8e4b 0.9916  whole-bmi2lz-a7d8e4b 0.9764  whole-v3-a7d8e4b 0.9428
+f8d92a911e72.0.4k.h2 7.534  whole-bmi2-a7d8e4b 0.9927  whole-bmi2lz-a7d8e4b 0.9750  whole-v3-a7d8e4b 0.9543
+f9e973f44570.0.sd.h2 0.179  whole-bmi2-a7d8e4b 0.9972  whole-bmi2lz-a7d8e4b 0.9953  whole-v3-a7d8e4b 0.9717
+median whole-bmi2-a7d8e4b 0.9918  whole-bmi2lz-a7d8e4b 0.9817  whole-v3-a7d8e4b 0.9581

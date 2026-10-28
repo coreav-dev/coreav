@@ -1,0 +1,339 @@
+{
+ "void": false,
+ "reasons": [],
+ "gate": [
+  {
+   "which": "before",
+   "times": [
+    2.719025610000017,
+    2.7362777889999848,
+    2.7766703530000143
+   ],
+   "median": 2.7362777889999848
+  },
+  {
+   "which": "after",
+   "times": [
+    2.604182941002364,
+    2.608177197002078,
+    2.6185710839999956
+   ],
+   "median": 2.608177197002078
+  }
+ ],
+ "arms": {
+  "ffmpeg": {
+   "h264": {
+    "timed": 25,
+    "topup": 0,
+    "median_ratio": 1.0383646080287294,
+    "ci95": [
+     1.031292814705886,
+     1.0498887707489957
+    ],
+    "met": true,
+    "faster_claim": false,
+    "share_faster": 0.08,
+    "failed": 0,
+    "median_ratio_to_information_command": 1.035576779044228,
+    "apart": {},
+    "backends": {
+     "native": 24,
+     "ffmpeg": 1
+    },
+    "selection_apart": {
+     "video longer than 120 s": 58
+    }
+   },
+   "hevc": {
+    "timed": 8,
+    "topup": 0,
+    "median_ratio": 1.0568090885140078,
+    "ci95": [
+     1.0442671753094384,
+     1.0737984977327797
+    ],
+    "met": false,
+    "faster_claim": false,
+    "share_faster": 0.0,
+    "failed": 0,
+    "median_ratio_to_information_command": 1.058835716146107,
+    "apart": {},
+    "backends": {
+     "ffmpeg": 8
+    },
+    "selection_apart": {
+     "video longer than 120 s": 11,
+     "over budget": 9,
+     "video shorter than 1 s": 1
+    }
+   },
+   "av1": {
+    "timed": 6,
+    "topup": 0,
+    "median_ratio": 1.068460981082509,
+    "ci95": [
+     1.04263846015676,
+     1.0750122914445506
+    ],
+    "met": false,
+    "faster_claim": false,
+    "share_faster": 0.0,
+    "failed": 0,
+    "median_ratio_to_information_command": 1.0640791851812677,
+    "apart": {},
+    "backends": {
+     "dav1d": 6
+    },
+    "selection_apart": {
+     "video longer than 120 s": 19,
+     "over budget": 3
+    }
+   },
+   "vp9": {
+    "timed": 10,
+    "topup": 0,
+    "median_ratio": 1.098781685711516,
+    "ci95": [
+     1.0672089775337277,
+     1.1511853304425381
+    ],
+    "met": false,
+    "faster_claim": false,
+    "share_faster": 0.0,
+    "failed": 0,
+    "median_ratio_to_information_command": 1.0939746182628542,
+    "apart": {},
+    "backends": {
+     "ffmpeg": 10
+    },
+    "selection_apart": {
+     "video longer than 120 s": 8,
+     "over budget": 10
+    }
+   },
+   "vp8": {
+    "timed": 13,
+    "topup": 0,
+    "median_ratio": 1.0595982254581349,
+    "ci95": [
+     1.0469939429438657,
+     1.0948514473146822
+    ],
+    "met": false,
+    "faster_claim": false,
+    "share_faster": 0.0,
+    "failed": 0,
+    "median_ratio_to_information_command": 1.0495189449503466,
+    "apart": {},
+    "backends": {
+     "ffmpeg": 13
+    },
+    "selection_apart": {
+     "video longer than 120 s": 6
+    }
+   },
+   "prores": {
+    "timed": 4,
+    "topup": 0,
+    "median_ratio": 1.1082532071166424,
+    "ci95": [
+     1.0835147220583223,
+     1.145970338913717
+    ],
+    "met": false,
+    "faster_claim": false,
+    "share_faster": 0.0,
+    "failed": 0,
+    "median_ratio_to_information_command": 1.1051526544445132,
+    "apart": {
+     "refused: unsupported_feature": 2
+    },
+    "backends": {
+     "ffmpeg": 4
+    },
+    "selection_apart": {},
+    "reserve_used_up": true
+   },
+   "all": {
+    "timed": 66,
+    "topup": 0,
+    "median_ratio": 1.0583221931082787,
+    "ci95": [
+     1.0481638393202741,
+     1.0692980193887056
+    ],
+    "met": false,
+    "faster_claim": false,
+    "share_faster": 0.030303030303030304,
+    "failed": 0,
+    "median_ratio_to_information_command": 1.0518498368285738,
+    "apart": {
+     "refused: unsupported_feature": 2
+    },
+    "backends": {
+     "native": 24,
+     "ffmpeg": 36,
+     "dav1d": 6
+    }
+   }
+  },
+  "x264": {
+   "h264": {
+    "timed": 25,
+    "topup": 0,
+    "median_ratio": 1.0237345258164718,
+    "ci95": [
+     1.018792335539869,
+     1.0338353337820876
+    ],
+    "met": true,
+    "faster_claim": false,
+    "share_faster": 0.08,
+    "failed": 0,
+    "median_ratio_to_information_command": 1.024268886530858,
+    "apart": {},
+    "backends": {
+     "native": 24,
+     "ffmpeg": 1
+    },
+    "selection_apart": {
+     "video longer than 120 s": 58
+    }
+   },
+   "hevc": {
+    "timed": 8,
+    "topup": 0,
+    "median_ratio": 1.1997661300490507,
+    "ci95": [
+     1.0359789530513326,
+     1.4081818373444426
+    ],
+    "met": false,
+    "faster_claim": false,
+    "share_faster": 0.0,
+    "failed": 0,
+    "median_ratio_to_information_command": 1.2145088299043558,
+    "apart": {},
+    "backends": {
+     "ffmpeg": 8
+    },
+    "selection_apart": {
+     "video longer than 120 s": 11,
+     "over budget": 9,
+     "video shorter than 1 s": 1
+    }
+   },
+   "av1": {
+    "timed": 6,
+    "topup": 0,
+    "median_ratio": 1.0535210252383023,
+    "ci95": [
+     1.0279112126947119,
+     1.2700882925562136
+    ],
+    "met": false,
+    "faster_claim": false,
+    "share_faster": 0.0,
+    "failed": 0,
+    "median_ratio_to_information_command": 1.0581401341970085,
+    "apart": {},
+    "backends": {
+     "dav1d": 6
+    },
+    "selection_apart": {
+     "video longer than 120 s": 19,
+     "over budget": 3
+    }
+   },
+   "vp9": {
+    "timed": 10,
+    "topup": 0,
+    "median_ratio": 1.095480764051907,
+    "ci95": [
+     1.0583760314522883,
+     1.122701226197642
+    ],
+    "met": false,
+    "faster_claim": false,
+    "share_faster": 0.0,
+    "failed": 0,
+    "median_ratio_to_information_command": 1.0906805990388087,
+    "apart": {},
+    "backends": {
+     "ffmpeg": 10
+    },
+    "selection_apart": {
+     "video longer than 120 s": 8,
+     "over budget": 10
+    }
+   },
+   "vp8": {
+    "timed": 13,
+    "topup": 0,
+    "median_ratio": 1.0463679216517816,
+    "ci95": [
+     1.0321036474332168,
+     1.0685851835360207
+    ],
+    "met": true,
+    "faster_claim": false,
+    "share_faster": 0.0,
+    "failed": 0,
+    "median_ratio_to_information_command": 1.0366870539419828,
+    "apart": {},
+    "backends": {
+     "ffmpeg": 13
+    },
+    "selection_apart": {
+     "video longer than 120 s": 6
+    }
+   },
+   "prores": {
+    "timed": 4,
+    "topup": 0,
+    "median_ratio": 1.889620578220776,
+    "ci95": [
+     1.6597159284274328,
+     2.362712510796423
+    ],
+    "met": false,
+    "faster_claim": false,
+    "share_faster": 0.0,
+    "failed": 0,
+    "median_ratio_to_information_command": 1.889347036353804,
+    "apart": {
+     "refused: unsupported_feature": 2
+    },
+    "backends": {
+     "ffmpeg": 4
+    },
+    "selection_apart": {},
+    "reserve_used_up": true
+   },
+   "all": {
+    "timed": 66,
+    "topup": 0,
+    "median_ratio": 1.0459689283803497,
+    "ci95": [
+     1.0338697784574213,
+     1.0629350686350898
+    ],
+    "met": true,
+    "faster_claim": false,
+    "share_faster": 0.030303030303030304,
+    "failed": 0,
+    "median_ratio_to_information_command": 1.0402443713753513,
+    "apart": {
+     "refused: unsupported_feature": 2
+    },
+    "backends": {
+     "native": 24,
+     "ffmpeg": 36,
+     "dav1d": 6
+    }
+   }
+  }
+ },
+ "gate_drift": -0.046815638570352536
+}

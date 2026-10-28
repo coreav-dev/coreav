@@ -1,0 +1,18 @@
+{
+ "creatingLibrary": {
+  "name": "MediaInfoLib",
+  "version": "26.10",
+  "url": "https://mediaarea.net/MediaInfo"
+ },
+ "media": {
+  "@ref": "junk.bin",
+  "track": [
+   {
+    "@type": "General",
+    "FileExtension": "bin",
+    "FileSize": "1000",
+    "StreamSize": "1000"
+   }
+  ]
+ }
+}

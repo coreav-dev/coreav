@@ -1,0 +1,1 @@
+VOID: bench.py's polling waits rounded every time up to the next poll (docs/design/cli-stdout.md, Result). Kept for the record.

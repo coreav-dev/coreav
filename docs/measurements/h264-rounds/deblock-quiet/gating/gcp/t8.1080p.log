@@ -1,0 +1,29 @@
+machine: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz (family 6, model 207, stepping 2), 2300.0 MHz, 8 logical CPUs
+gate baseline: 0.393 s (samples 0.369, 0.364, 0.384, 0.397, 0.393)
+175433794e02.0.1080p.h264                base:discard=0.99  base:write=0.98  base:mixed=0.97  k:discard=0.98  k:write=0.98  k:mixed=0.97
+6da34958296c.0.1080p.h264                base:discard=1.06  base:write=1.08  base:mixed=1.05  k:discard=1.05  k:write=1.07  k:mixed=1.05
+6e90422a670a.0.1080p.h264                base:discard=0.87  base:write=0.86  base:mixed=0.84  k:discard=0.86  k:write=0.85  k:mixed=0.83
+a6af290d9053.0.1080p.h264                base:discard=0.97  base:write=0.96  base:mixed=0.95  k:discard=0.96  k:write=0.94  k:mixed=0.94
+gate after 4 streams (check): 0.398 s (+1.1%)
+a81de82106be.0.1080p.h264                base:discard=0.91  base:write=0.89  base:mixed=0.85  k:discard=0.89  k:write=0.87  k:mixed=0.84
+b41f70a7fa60.0.1080p.h264                base:discard=1.06  base:write=1.05  base:mixed=1.04  k:discard=1.05  k:write=1.04  k:mixed=1.03
+b71b6b31e54f.0.1080p.h264                base:discard=0.91  base:write=0.86  base:mixed=0.74  k:discard=0.91  k:write=0.86  k:mixed=0.74
+c7ecda16e4a7.0.1080p.h264                host fault (attempt 1): null {'base_discard': 0.027454092184025836, 'base_write': -0.017521501250018945}, max spread 1.106
+c7ecda16e4a7.0.1080p.h264                host fault (attempt 2): null {'base_discard': -0.021842486323496835, 'base_write': 0.0051300598018604315}, max spread 1.119
+c7ecda16e4a7.0.1080p.h264                base:discard=1.04  base:write=1.03  base:mixed=1.00  k:discard=1.04  k:write=1.02  k:mixed=1.00
+gate after 8 streams (check): 0.371 s (-5.8%)
+gate after 8 streams (confirm): 0.370 s (-5.9%)
+a81de82106be.0.1080p.h264                timed again after gate drift
+b41f70a7fa60.0.1080p.h264                host fault (attempt 2): null {'base_discard': -0.0024512410100269166, 'base_write': -0.021943438733749376}, max spread 1.127
+b41f70a7fa60.0.1080p.h264                timed again after gate drift
+b71b6b31e54f.0.1080p.h264                timed again after gate drift
+gate after 8 streams (check): 0.394 s (+0.0%)
+
+base:discard             n=  8  median 0.979  [0.898, 1.054]
+base:write               n=  8  median 0.970  [0.871, 1.049]
+base:mixed               n=  8  median 0.962  [0.837, 1.031]
+k:discard                n=  8  median 0.970  [0.891, 1.049]
+k:write                  n=  8  median 0.959  [0.876, 1.041]
+k:mixed                  n=  8  median 0.953  [0.830, 1.025]
+
+wrote out/t8.1080p.json

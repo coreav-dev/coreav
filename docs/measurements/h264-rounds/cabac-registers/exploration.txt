@@ -1,0 +1,38 @@
+Exploratory timings, not bar runs: cloud containers (2 CPUs; the CPU model is not visible inside them, so not a bar
+class), one container per training stream (32), every binary of the run in the same container in a shuffled order each
+round after one warm-up decode each, decode --discard at the class's frame count (sd 1800, 720p 900, 1080p 300, 4k 150).
+Wall-clock per decode; per stream the ratio of medians to the run's base, then the median over streams with a 95%
+bootstrap interval (2,000 resamples). They chose what the round builds; the bars of docs/design/h264.md decide it.
+Spend: five runs, about 12,400 container-seconds at 2 CPUs, under 1 USD in all.
+
+x1, 5 rounds: e0, e0b: main 03e256a twice (A/A); ec: the engine in three registers (first form); ed: ec + the state
+transition indexed by whether the bin was the LPS; ef: ed + the significance map without a branch on a bin
+  e0b  A/A                          0.9981 [0.9860, 1.0036]  sd 0.998 720p 0.995 1080p 1.005 4k 0.995
+  ec   engine, 3 registers          0.9904 [0.9825, 0.9958]  sd 0.991 720p 0.991 1080p 0.988 4k 0.997
+  ed   + transition by LPS          0.9979 [0.9891, 1.0102]  sd 1.003 720p 0.995 1080p 1.000 4k 0.997
+  ef   + branchless map             1.0085 [0.9967, 1.0201]  sd 0.998 720p 1.004 1080p 1.025 4k 1.010
+
+x2, 7 rounds: as x1; eh: ed + renormalization from the table
+  e0b  A/A                          1.0005 [0.9974, 1.0048]  sd 0.999 720p 0.997 1080p 1.004 4k 1.001
+  ec   engine, 3 registers          0.9955 [0.9886, 0.9995]  sd 0.995 720p 0.997 1080p 0.995 4k 1.008
+  ed   + transition by LPS          1.0004 [0.9936, 1.0053]  sd 0.998 720p 1.002 1080p 1.000 4k 1.003
+  eh   + renormalization by table   0.9921 [0.9838, 0.9989]  sd 0.993 720p 0.985 1080p 0.998 4k 0.998
+
+x3, 7 rounds: working forms before the commits: c1: the engine in three registers; c1b: + renormalization from the table
+(its selects written with core::hint::select_unpredictable, which clippy's MSRV of 1.85 does not allow); c3: + levels
+decoded to a list, then scaled and placed; c4: + coded_block_flag inline, on top of c3
+  c1   c1                           0.9884 [0.9780, 0.9938]  sd 0.990 720p 0.984 1080p 0.986 4k 0.988
+  c1b  + c1b                        0.9912 [0.9833, 1.0033]  sd 0.991 720p 0.987 1080p 0.991 4k 1.009
+  c3   + compact level list         0.9944 [0.9816, 1.0125]  sd 1.005 720p 0.996 1080p 0.989 4k 0.990
+  c4   + cbf inline                 0.9933 [0.9861, 1.0040]  sd 0.989 720p 0.988 1080p 0.995 4k 1.004
+
+x4, 9 rounds: the committed builds: c1 979df34, c1b a537086, c4 74fa599, against base 03e256a
+  c1   c1                           0.9891 [0.9824, 1.0016]  sd 0.991 720p 0.986 1080p 0.981 4k 0.995
+  c1b  c1b                          0.9906 [0.9858, 0.9960]  sd 0.990 720p 0.988 1080p 0.985 4k 1.019
+  c4   c4                           0.9802 [0.9749, 0.9884]  sd 0.987 720p 0.972 1080p 0.980 4k 0.989
+
+x5, 9 rounds: c14: c1 with the coded_block_flag change and without c1b
+  c1   c1                           0.9933 [0.9909, 1.0056]  sd 0.993 720p 0.991 1080p 0.992 4k 1.013
+  c14  c1 + cbf inline, no c1b      0.9886 [0.9849, 0.9991]  sd 1.001 720p 0.982 1080p 0.984 4k 0.997
+  c4   c4                           0.9833 [0.9763, 0.9860]  sd 0.983 720p 0.982 1080p 0.980 4k 0.985
+

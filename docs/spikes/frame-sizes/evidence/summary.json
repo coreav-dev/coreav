@@ -1,0 +1,537 @@
+{
+ "sizes": {
+  "files": 2356,
+  "rechecked_files": 1157,
+  "harness_errors": [],
+  "S1_failures": [],
+  "probe_seconds": {
+   "median": 0.026718449499639974,
+   "max": 1.684613764999085
+  },
+  "S2_bound": {
+   "streams": 1255,
+   "below": []
+  },
+  "S3_exact": {
+   "streams": 1181,
+   "equal": 1172,
+   "share": 0.9923793395427604,
+   "bar": 0.99,
+   "misses": [
+    {
+     "sha256": "04e45b2f41dff195b525fa18b7ed5517e5fc2d651127d1b57d1d931de306f915",
+     "stream": 0,
+     "codec": "h264",
+     "scanned": [
+      864,
+      480
+     ],
+     "ffprobe": [
+      854,
+      480
+     ],
+     "declared": [
+      854,
+      480
+     ]
+    },
+    {
+     "sha256": "0f5c517928bf1d2f4dc7cd9d7512d1e4c467cfc1bc23abd8150d31c22cb3b327",
+     "stream": 0,
+     "codec": "h264",
+     "scanned": [
+      1814,
+      906
+     ],
+     "ffprobe": [
+      1814,
+      905
+     ],
+     "declared": [
+      1814,
+      905
+     ]
+    },
+    {
+     "sha256": "2543bea7622aa2adb78e8f59ce53d8c3086cc8c86f8faa8c263ac97e0d825c8c",
+     "stream": 0,
+     "codec": "h264",
+     "scanned": [
+      854,
+      480
+     ],
+     "ffprobe": [
+      853,
+      480
+     ],
+     "declared": [
+      853,
+      480
+     ]
+    },
+    {
+     "sha256": "35c2c80530e0d6c5eed8dafd71852dac621db547bef6bf5ad375b91bd0e38347",
+     "stream": 0,
+     "codec": "h264",
+     "scanned": [
+      864,
+      480
+     ],
+     "ffprobe": [
+      854,
+      480
+     ],
+     "declared": [
+      854,
+      480
+     ]
+    },
+    {
+     "sha256": "3c2dea2809cdd3e0bb34d90e10cdf2e93444c0cd0002f78c9dc3b19ee4f5b653",
+     "stream": 0,
+     "codec": "h264",
+     "scanned": [
+      1920,
+      1088
+     ],
+     "ffprobe": [
+      1920,
+      1080
+     ],
+     "declared": [
+      1920,
+      1080
+     ]
+    },
+    {
+     "sha256": "5b9f021275a8db5e27288559dbc087763d8d6ac52fc1a07336d03e2b3cd81737",
+     "stream": 0,
+     "codec": "h264",
+     "scanned": [
+      1920,
+      1088
+     ],
+     "ffprobe": [
+      1920,
+      1080
+     ],
+     "declared": [
+      1920,
+      1080
+     ]
+    },
+    {
+     "sha256": "78512296d9afe1cb9b28c7bbf403f821fe195c9c8ac42fbacb8b21f9d8d7c39a",
+     "stream": 0,
+     "codec": "hevc",
+     "scanned": [
+      1920,
+      1080
+     ],
+     "ffprobe": [
+      960,
+      540
+     ],
+     "declared": [
+      960,
+      540
+     ]
+    },
+    {
+     "sha256": "c2fe4acd321953204f9c2c2dcf904e236a58a933c41ee47e5c542de7e69ffd0a",
+     "stream": 0,
+     "codec": "h264",
+     "scanned": [
+      582,
+      376
+     ],
+     "ffprobe": [
+      581,
+      375
+     ],
+     "declared": [
+      581,
+      375
+     ]
+    },
+    {
+     "sha256": "e6beb9e621a7cad06b162c7868c3e0d54163f1092488105befb3e80199b687d7",
+     "stream": 0,
+     "codec": "h264",
+     "scanned": [
+      800,
+      538
+     ],
+     "ffprobe": [
+      800,
+      537
+     ],
+     "declared": [
+      800,
+      537
+     ]
+    }
+   ]
+  },
+  "S3_av1_reported": {
+   "streams": 74,
+   "equal": 74
+  },
+  "S4_configuration": {
+   "streams": 1199,
+   "equal": 1199,
+   "share": 1.0,
+   "bar": 0.99,
+   "misses": []
+  },
+  "unscanned_streams_by_codec": {
+   "h264": 20,
+   "hevc": 7,
+   "av1": 3,
+   "vp9": 1
+  },
+  "declared_differs_from_scanned": [
+   {
+    "sha256": "04e45b2f41dff195b525fa18b7ed5517e5fc2d651127d1b57d1d931de306f915",
+    "stream": 0,
+    "codec": "h264",
+    "declared": [
+     854,
+     480
+    ],
+    "scanned": [
+     864,
+     480
+    ]
+   },
+   {
+    "sha256": "0f5c517928bf1d2f4dc7cd9d7512d1e4c467cfc1bc23abd8150d31c22cb3b327",
+    "stream": 0,
+    "codec": "h264",
+    "declared": [
+     1814,
+     905
+    ],
+    "scanned": [
+     1814,
+     906
+    ]
+   },
+   {
+    "sha256": "2543bea7622aa2adb78e8f59ce53d8c3086cc8c86f8faa8c263ac97e0d825c8c",
+    "stream": 0,
+    "codec": "h264",
+    "declared": [
+     853,
+     480
+    ],
+    "scanned": [
+     854,
+     480
+    ]
+   },
+   {
+    "sha256": "341abc7fd60c332cb7b268085b0912a4fe0b4242b7f830810ba5707115f171ab",
+    "stream": 0,
+    "codec": "h264",
+    "declared": [
+     802,
+     737
+    ],
+    "scanned": [
+     802,
+     736
+    ]
+   },
+   {
+    "sha256": "35c2c80530e0d6c5eed8dafd71852dac621db547bef6bf5ad375b91bd0e38347",
+    "stream": 0,
+    "codec": "h264",
+    "declared": [
+     854,
+     480
+    ],
+    "scanned": [
+     864,
+     480
+    ]
+   },
+   {
+    "sha256": "35dce647f1bba740733f5306568622d4122a8abe6c1b8634805d212cc819f537",
+    "stream": 0,
+    "codec": "h264",
+    "declared": [
+     356,
+     365
+    ],
+    "scanned": [
+     356,
+     364
+    ]
+   },
+   {
+    "sha256": "3c2dea2809cdd3e0bb34d90e10cdf2e93444c0cd0002f78c9dc3b19ee4f5b653",
+    "stream": 0,
+    "codec": "h264",
+    "declared": [
+     1920,
+     1080
+    ],
+    "scanned": [
+     1920,
+     1088
+    ]
+   },
+   {
+    "sha256": "498a1afddfa62949272ce51d5a5360ab9cc726219fc7e37db0ff1136439c16bd",
+    "stream": 2,
+    "codec": "h264",
+    "declared": [
+     800,
+     600
+    ],
+    "scanned": [
+     640,
+     480
+    ]
+   },
+   {
+    "sha256": "4f7a410f7ff589ce5345dd13d388a27c2fee241e92aa1d54f874e87bd5271e4e",
+    "stream": 0,
+    "codec": "h264",
+    "declared": [
+     320,
+     240
+    ],
+    "scanned": [
+     352,
+     200
+    ]
+   },
+   {
+    "sha256": "5b9f021275a8db5e27288559dbc087763d8d6ac52fc1a07336d03e2b3cd81737",
+    "stream": 0,
+    "codec": "h264",
+    "declared": [
+     1920,
+     1080
+    ],
+    "scanned": [
+     1920,
+     1088
+    ]
+   },
+   {
+    "sha256": "5de2646e4ea095572a3a22fc1fba65f3899ce7180259e27e46e6c61f4220b4f4",
+    "stream": 0,
+    "codec": "h264",
+    "declared": [
+     338,
+     695
+    ],
+    "scanned": [
+     338,
+     694
+    ]
+   },
+   {
+    "sha256": "70afc4c82c67368832cd4de3cf9ff5f1906feb4294d6302cb3d0d31d0d3339ed",
+    "stream": 0,
+    "codec": "h264",
+    "declared": [
+     320,
+     240
+    ],
+    "scanned": [
+     352,
+     200
+    ]
+   },
+   {
+    "sha256": "78512296d9afe1cb9b28c7bbf403f821fe195c9c8ac42fbacb8b21f9d8d7c39a",
+    "stream": 0,
+    "codec": "hevc",
+    "declared": [
+     960,
+     540
+    ],
+    "scanned": [
+     1920,
+     1080
+    ]
+   },
+   {
+    "sha256": "7c46fe923f0c29e67ec7ba17318ef3bd591be6e373fd796fce143f8c7a934787",
+    "stream": 0,
+    "codec": "vp9",
+    "declared": [
+     0,
+     64530
+    ],
+    "scanned": [
+     32,
+     18
+    ]
+   },
+   {
+    "sha256": "97367a9f03fd59475600f74900fb580d48226b6c4732b44f72d21a3ca1b6cafa",
+    "stream": 0,
+    "codec": "h264",
+    "declared": [
+     1460,
+     943
+    ],
+    "scanned": [
+     1460,
+     942
+    ]
+   },
+   {
+    "sha256": "996bc56f2e3c17407bb49a3d7b6323b65c4fb549bde31e2370d87479688c4f91",
+    "stream": 0,
+    "codec": "h264",
+    "declared": [
+     1460,
+     943
+    ],
+    "scanned": [
+     1460,
+     942
+    ]
+   },
+   {
+    "sha256": "9aaa0a0a81ab3136268585d38bc24b6fe7890fe991f2184d250f8cabc264faf8",
+    "stream": 0,
+    "codec": "h264",
+    "declared": [
+     0,
+     0
+    ],
+    "scanned": [
+     720,
+     288
+    ]
+   },
+   {
+    "sha256": "a36de723abc1b8b02922a3e81af5e13ca1a71d7ba13a253df260c4914bbec5a1",
+    "stream": 2,
+    "codec": "h264",
+    "declared": [
+     640,
+     368
+    ],
+    "scanned": [
+     640,
+     360
+    ]
+   },
+   {
+    "sha256": "a68ed4d72c8a798c845910ff29f3a356b0199342075eff446f9cc0a0ba355913",
+    "stream": 0,
+    "codec": "hevc",
+    "declared": [
+     128,
+     256
+    ],
+    "scanned": [
+     128,
+     128
+    ]
+   },
+   {
+    "sha256": "b5bcbd4edc1ce3ead58e868367e7ea72a0945d2b988d00ff2e22ddbe139d94e7",
+    "stream": 0,
+    "codec": "h264",
+    "declared": [
+     128,
+     128
+    ],
+    "scanned": [
+     256,
+     128
+    ]
+   },
+   {
+    "sha256": "c2fe4acd321953204f9c2c2dcf904e236a58a933c41ee47e5c542de7e69ffd0a",
+    "stream": 0,
+    "codec": "h264",
+    "declared": [
+     581,
+     375
+    ],
+    "scanned": [
+     582,
+     376
+    ]
+   },
+   {
+    "sha256": "ceb55bb5fb87b82527ad03e317c46a810a7bedbebfa5653038e47aaef4efc5da",
+    "stream": 0,
+    "codec": "h264",
+    "declared": [
+     422,
+     785
+    ],
+    "scanned": [
+     422,
+     784
+    ]
+   },
+   {
+    "sha256": "e6beb9e621a7cad06b162c7868c3e0d54163f1092488105befb3e80199b687d7",
+    "stream": 0,
+    "codec": "h264",
+    "declared": [
+     800,
+     537
+    ],
+    "scanned": [
+     800,
+     538
+    ]
+   },
+   {
+    "sha256": "ff426e4b779b1327846e1d07dbbdb1da01c2b0df8a2db07fa4186b0b73cb614c",
+    "stream": 1,
+    "codec": "h264",
+    "declared": [
+     384,
+     288
+    ],
+    "scanned": [
+     376,
+     288
+    ]
+   }
+  ],
+  "S5_policy": {
+   "files": 52,
+   "cases": 156,
+   "failures": {},
+   "oracle_cases": 36,
+   "oracle_agree": 36,
+   "oracle_covered": 0,
+   "disagreements": []
+  },
+  "S7_memory": {
+   "files": 2356,
+   "max_kb": 43528,
+   "median_kb": 3144.0,
+   "over_bar": 0
+  }
+ },
+ "speed": {
+  "files": 303,
+  "median": 0.1350219857715732,
+  "ci95": [
+   0.12003086262641094,
+   0.1479899906382938
+  ],
+  "p90": 0.2492568264443921,
+  "max": 0.7007192163876277,
+  "bar": 1.0,
+  "coreav_median_ms": 1.5199810004560277,
+  "ffprobe_median_ms": 17.3892729999352,
+  "errors": []
+ }
+}

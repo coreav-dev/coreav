@@ -1,0 +1,42 @@
+# cargo-fuzz project for coreav-audio (docs/design/audio-decode.md); outside
+# the workspace, never published.
+[package]
+name = "coreav-audio-fuzz"
+version = "0.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+coreav-audio = { path = ".." }
+coreav-isobmff = { path = "../../coreav-isobmff" }
+
+[[bin]]
+name = "flac_frame"
+path = "fuzz_targets/flac_frame.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "mp3_frame"
+path = "fuzz_targets/mp3_frame.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "decode"
+path = "fuzz_targets/decode.rs"
+test = false
+doc = false
+bench = false
+
+[lints.rust]
+unsafe_code = "forbid"

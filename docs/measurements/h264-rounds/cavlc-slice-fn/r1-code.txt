@@ -1,0 +1,89 @@
+R1 code: normalized disassembly of every function (text symbol) of the dist builds of base (main 3f918b38) and k
+(983e8bc3), cargo build --locked --profile dist --example decode -p coreav-h264.
+Normalization: instruction addresses dropped; a branch target inside the function becomes its offset; a call or
+jump target outside it becomes the callee's demangled name; RIP-relative data references and other literal
+addresses of 4+ hex digits are normalized (so the moved, aligned decision table does not count as a change).
+Functions matched by demangled name (instances of one name as a multiset).
+
+functions compared: 799; identical: 794; different: 5
+DIFF 0x4ccf -> 0x4e8e <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::parse_residual::<coreav_h264::syntax::CavlcSyntax<coreav_h264::tier::Base>, coreav_h264::tier::Base>
+DIFF 0x891d -> 0x44a3 <coreav_h264::work::PictureWork<coreav_kernels_h264::Auto>>::decode_slice
+DIFF 0x2e6 -> 0x339 coreav_h264::cavlc::escaped_level
+DIFF 0xbc -> 0x66 coreav_h264::cavlc::run_past_six
+DIFF 0x4503 -> 0x6234 coreav_h264::fast::v3::enter::<core::result::Result<(), coreav_h264::error::Error>, <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode_cavlc<coreav_h264::fast::V3>::{closure#0}>
+ONLY-BASE 0x129 <coreav_h264::syntax::CavlcSyntax<coreav_h264::fast::V3> as coreav_h264::syntax::Syntax>::block_context::<coreav_kernels_h264::Auto>
+ONLY-BASE 0x79 <coreav_h264::syntax::CavlcSyntax<coreav_h264::fast::V3> as coreav_h264::syntax::Syntax>::transform8x8::<coreav_kernels_h264::Auto>
+ONLY-BASE 0x4e9a coreav_h264::fast::v3::enter::<core::result::Result<(), coreav_h264::error::Error>, <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::parse_residual<coreav_h264::syntax::CavlcSyntax<coreav_h264::fast::V3>, coreav_h264::fast::V3>::{closure#0}>
+ONLY-C 0xee <core::ops::range::Range<usize> as core::iter::traits::iterator::Iterator>::fold::<u64, <coreav_h264::cavlc::Window>::fill::{closure#1}>
+ONLY-C 0x1f1 <coreav_h264::cavlc::Window>::pcm
+ONLY-C 0x4a <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode_cavlc::<coreav_h264::fast::V3>
+ONLY-C 0x61ef <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode_cavlc::<coreav_h264::tier::Base>
+ONLY-C 0x67c <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::put_pcm
+ONLY-C 0x36 coreav_h264::cavlc::error_at
+ONLY-C 0x3f coreav_h264::cavlc::past_end_or
+ONLY-C 0x120 coreav_h264::cavlc::se_long
+ONLY-C 0xd2 coreav_h264::cavlc::ue_long
+ONLY-C 0x5607 coreav_h264::fast::v3::enter::<core::result::Result<(), coreav_h264::error::Error>, <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::residual_cavlc<coreav_h264::fast::V3>::{closure#0}>
+
+Reading of the list:
+- DIFF parse_residual<CavlcSyntax<Base>, Base>, run_past_six, escaped_level, the v3 instance of the CAVLC slice loop
+  (enter<..., decode_cavlc<V3>::{closure#0}>): CAVLC only (callers below).
+- DIFF PictureWork::decode_slice: the per-slice dispatch, into which base inlines the baseline CAVLC slice loop.
+  Its callees differ only by that loop: base's calls from the inlined CAVLC loop are gone, and it calls
+  decode_cavlc<Base> and decode_cavlc<V3>; every other callee is the same. Its code outside the loop is
+  register-allocated anew (the function is half the size); it runs once a slice.
+- ONLY-BASE: base's CAVLC-only out-of-line functions (the v3 residual instance, CavlcSyntax<V3>'s transform8x8 and
+  block_context, now inlined). ONLY-C: k's CAVLC-only functions.
+- Every CABAC function, the DecodeDecision site, motion compensation, deblocking and every kernel are identical.
+
+Dispatch callees, base -> k (diff of the callee sets of PictureWork::decode_slice):
+  2,3d1
+  < <coreav_h264::bits::BitReader>::more_rbsp_data
+  < <coreav_h264::bits::BitReader>::ue
+  6,13c4,5
+  < <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::fill_intra_cache
+  < <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::fill_mvd_cache
+  < <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::inter_pred::<coreav_h264::tier::Base>
+  < <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::no_sub_8x8_partitions
+  < <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::parse_residual::<coreav_h264::syntax::CavlcSyntax<coreav_h264::tier::Base>, coreav_h264::tier::Base>
+  < <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reconstruct_inter
+  < <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reconstruct_intra
+  < <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::start_mb::<coreav_h264::tier::Base>
+  ---
+  > <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode_cavlc::<coreav_h264::fast::V3>
+  > <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode_cavlc::<coreav_h264::tier::Base>
+  15d6
+  < <coreav_h264::syntax::CavlcSyntax<coreav_h264::fast::V3> as coreav_h264::syntax::Syntax>::transform8x8::<coreav_kernels_h264::Auto>
+  21d11
+  < coreav_h264::fast::v3::enter::<core::result::Result<(), coreav_h264::error::Error>, <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode_cavlc<coreav_h264::fast::V3>:
+
+Callers in k of every function that differs from base or is new (direct calls and jumps):
+  <core::ops::range::Range<usize> as core::iter::traits::iterator::Iterator>::fold::<u64, <coreav_h264::cavlc::W  <=  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode_cavlc::<coreav_h264::tier::Base>
+  <core::ops::range::Range<usize> as core::iter::traits::iterator::Iterator>::fold::<u64, <coreav_h264::cavlc::W  <=  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::parse_residual::<coreav_h264::syntax::CavlcSyntax<coreav_h264::tier::Base>, coreav_h264::t
+  <core::ops::range::Range<usize> as core::iter::traits::iterator::Iterator>::fold::<u64, <coreav_h264::cavlc::W  <=  coreav_h264::fast::v3::enter::<core::result::Result<(), coreav_h264::error::Error>, <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode
+  <core::ops::range::Range<usize> as core::iter::traits::iterator::Iterator>::fold::<u64, <coreav_h264::cavlc::W  <=  coreav_h264::fast::v3::enter::<core::result::Result<(), coreav_h264::error::Error>, <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::residu
+  <coreav_h264::cavlc::Window>::pcm  <=  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode_cavlc::<coreav_h264::tier::Base>
+  <coreav_h264::cavlc::Window>::pcm  <=  coreav_h264::fast::v3::enter::<core::result::Result<(), coreav_h264::error::Error>, <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode
+  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode_cavlc::<coreav_h264::fast::V3>  <=  <coreav_h264::work::PictureWork<coreav_kernels_h264::Auto>>::decode_slice
+  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode_cavlc::<coreav_h264::tier::Base>  <=  <coreav_h264::work::PictureWork<coreav_kernels_h264::Auto>>::decode_slice
+  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::parse_residual::<coreav_h264::syntax::CavlcSyntax<  <=  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode_cavlc::<coreav_h264::tier::Base>
+  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::put_pcm  <=  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode_cavlc::<coreav_h264::tier::Base>
+  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::put_pcm  <=  coreav_h264::fast::v3::enter::<core::result::Result<(), coreav_h264::error::Error>, <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode
+  coreav_h264::cavlc::error_at  <=  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode_cavlc::<coreav_h264::tier::Base>
+  coreav_h264::cavlc::error_at  <=  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::parse_residual::<coreav_h264::syntax::CavlcSyntax<coreav_h264::tier::Base>, coreav_h264::t
+  coreav_h264::cavlc::error_at  <=  coreav_h264::cavlc::escaped_level
+  coreav_h264::cavlc::error_at  <=  coreav_h264::cavlc::run_past_six
+  coreav_h264::cavlc::error_at  <=  coreav_h264::fast::v3::enter::<core::result::Result<(), coreav_h264::error::Error>, <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode
+  coreav_h264::cavlc::error_at  <=  coreav_h264::fast::v3::enter::<core::result::Result<(), coreav_h264::error::Error>, <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::residu
+  coreav_h264::cavlc::escaped_level  <=  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::parse_residual::<coreav_h264::syntax::CavlcSyntax<coreav_h264::tier::Base>, coreav_h264::t
+  coreav_h264::cavlc::escaped_level  <=  coreav_h264::fast::v3::enter::<core::result::Result<(), coreav_h264::error::Error>, <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::residu
+  coreav_h264::cavlc::past_end_or  <=  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode_cavlc::<coreav_h264::tier::Base>
+  coreav_h264::cavlc::past_end_or  <=  coreav_h264::fast::v3::enter::<core::result::Result<(), coreav_h264::error::Error>, <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode
+  coreav_h264::cavlc::run_past_six  <=  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::parse_residual::<coreav_h264::syntax::CavlcSyntax<coreav_h264::tier::Base>, coreav_h264::t
+  coreav_h264::cavlc::run_past_six  <=  coreav_h264::fast::v3::enter::<core::result::Result<(), coreav_h264::error::Error>, <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::residu
+  coreav_h264::cavlc::se_long  <=  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode_cavlc::<coreav_h264::tier::Base>
+  coreav_h264::cavlc::se_long  <=  coreav_h264::fast::v3::enter::<core::result::Result<(), coreav_h264::error::Error>, <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode
+  coreav_h264::cavlc::ue_long  <=  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode_cavlc::<coreav_h264::tier::Base>
+  coreav_h264::cavlc::ue_long  <=  coreav_h264::fast::v3::enter::<core::result::Result<(), coreav_h264::error::Error>, <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode
+  coreav_h264::fast::v3::enter::<core::result::Result<(), coreav_h264::error::Error>, <coreav_h264::mb::SliceDec  <=  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode_cavlc::<coreav_h264::fast::V3>
+  coreav_h264::fast::v3::enter::<core::result::Result<(), coreav_h264::error::Error>, <coreav_h264::mb::SliceDec  <=  coreav_h264::fast::v3::enter::<core::result::Result<(), coreav_h264::error::Error>, <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::decode

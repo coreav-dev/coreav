@@ -1,0 +1,15 @@
+round 0
+round 1
+round 2
+round 3
+round 4
+round 5
+round 6
+round 7
+round 8
+round 9
+round 10
+wall dec-H: all 1.0018 [0.9784, 1.0247] (14/32 faster) sd 0.9818 720p 0.9961 1080p 1.0233 4k 1.0281
+wall dec-k: all 0.9977 [0.9852, 1.0067] (18/32 faster) sd 0.9956 720p 0.9993 1080p 0.9944 4k 1.0070
+cpu dec-H: all 0.9958 [0.9758, 1.0143] (16/32 faster) sd 0.9760 720p 0.9902 1080p 1.0096 4k 1.0149
+cpu dec-k: all 0.9983 [0.9890, 1.0162] (17/32 faster) sd 0.9844 720p 1.0054 1080p 1.0017 4k 1.0205

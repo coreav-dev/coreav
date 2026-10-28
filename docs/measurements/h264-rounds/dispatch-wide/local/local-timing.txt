@@ -1,0 +1,37 @@
+# Local timing, information only (not a bar run; 2.50 GHz Cascade Lake VM): per training stream, main's (75d77dc) seconds,
+# then the ratio to main of main's v3 build, this round's default build (c767a4ab code) and its build without fast; 3 rounds.
+175433794e02.0.1080p.h 6.597  v3 0.9843  after 0.9744  safe 0.9997
+1d4b1775d78a.0.720p.h2 1.292  v3 1.0080  after 1.0052  safe 0.9787
+278dbf5a63bb.0.720p.h2 1.468  v3 0.9463  after 0.9503  safe 1.0001
+36501d448eaa.0.720p.h2 2.256  v3 1.0034  after 0.9979  safe 0.9711
+3b1b441e23ae.0.4k.h264 1.347  v3 1.0378  after 0.9835  safe 1.0154
+3c593b8f0809.0.720p.h2 1.153  v3 0.9754  after 1.0019  safe 0.9932
+41e324ebb708.0.sd.h264 1.327  v3 0.9802  after 1.0039  safe 1.0396
+4b54de28c2b3.0.4k.h264 1.126  v3 0.9403  after 0.9313  safe 0.9548
+5185721dda11.0.sd.h264 0.540  v3 1.0497  after 1.0447  safe 1.0488
+65ec61f95a00.0.720p.h2 4.792  v3 0.9740  after 1.0140  safe 0.9768
+6b18d9f0f88d.0.720p.h2 0.988  v3 0.9989  after 1.0417  safe 1.0153
+6da34958296c.0.1080p.h 3.153  v3 0.9731  after 0.9605  safe 0.9822
+6e90422a670a.0.1080p.h 5.791  v3 0.9662  after 0.9567  safe 0.9815
+6f7799768413.0.sd.h264 2.275  v3 0.9512  after 0.9585  safe 0.9791
+7650ae466748.0.sd.h264 0.732  v3 1.0355  after 1.0406  safe 0.9717
+76e0b1692494.0.720p.h2 1.299  v3 1.0136  after 0.9842  safe 1.0014
+81ed4778ece2.0.4k.h264 0.463  v3 1.0287  after 0.9666  safe 0.9516
+8ae90cadb5bc.0.sd.h264 1.900  v3 1.0260  after 0.9994  safe 1.0161
+9db41aa16b5a.0.720p.h2 1.308  v3 1.0331  after 1.0453  safe 1.0112
+a6af290d9053.0.1080p.h 7.489  v3 0.9825  after 0.9968  safe 1.0018
+a81de82106be.0.1080p.h 0.915  v3 0.9741  after 0.9960  safe 1.0119
+ae16bb7c7192.0.4k.h264 0.221  v3 1.0016  after 1.0172  safe 1.0399
+af38b0cfd840.0.4k.h264 0.706  v3 0.9733  after 0.9888  safe 0.9939
+b41f70a7fa60.0.1080p.h 3.668  v3 0.9570  after 0.9703  safe 1.0044
+b71b6b31e54f.0.1080p.h 1.839  v3 0.9569  after 0.9782  safe 1.0208
+c7ecda16e4a7.0.1080p.h 5.108  v3 0.9504  after 0.9542  safe 0.9569
+dcb262cf0138.0.sd.h264 0.387  v3 1.0067  after 1.0294  safe 1.0152
+e624cbe0d2be.0.4k.h264 1.315  v3 0.9603  after 1.0050  safe 1.0268
+ec473c99c538.0.sd.h264 0.150  v3 1.0471  after 1.0343  safe 0.9817
+ed75c044e944.0.4k.h264 0.397  v3 1.0007  after 0.9928  safe 1.0810
+f8d92a911e72.0.4k.h264 10.485  v3 0.9289  after 0.9770  safe 0.9900
+f9e973f44570.0.sd.h264 0.276  v3 0.9799  after 0.9785  safe 0.9953
+median v3 0.9814  faster 19/32  1080p 0.9697 4k 0.9870 720p 1.0011 sd 1.0163
+median after 0.9944  faster 20/32  1080p 0.9723 4k 0.9861 720p 1.0035 sd 1.0167
+median safe 0.9999  faster 16/32  1080p 1.0008 4k 1.0047 720p 0.9967 sd 1.0052

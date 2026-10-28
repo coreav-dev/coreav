@@ -1,0 +1,78 @@
+CAVLC residual block parse probe, part-only (written before the run).
+
+Question: does the CAVLC residual block parse (cavlc.rs block_body, residual_block_cavlc() of clause 7.3.5.3.2) cost
+time in proportion to the instructions a cut of it would remove? The entropy re-measure on an earlier change's code
+(entropy-after-483) puts the CAVLC streams' entropy and MB-layer excess at +657 instructions a macroblock over FFmpeg,
+8% to 24% of the instructions of five of the six CAVLC streams, with block_body its largest piece. counts.txt gives
+block_body at 0.5% to 26.8% of a CAVLC stream's instructions (5.2% and 9.6% the middle two), 239 to 566 a call.
+
+Cut in view (C, not built), on bundle 2 item A's level reading (perf/h264-bundle2-a a46be406; C leaves levels() and
+escaped_level() as item A wrote them, and CoeffScale::apply, which bundle 2 item C changes):
+- the code tables of clause 9.2 as statics built at compile time (const fn) instead of a OnceLock of Vecs: no
+  initialization check, no Vec pointer and length loads, each code's row width and cap as constants, entries packed
+  so one load reads one, indexes masked to a power-of-two table so that no bounds check is left;
+- the coeff_token table from nC by a small table instead of a chain of compares;
+- run_before from one table indexed by min(zerosLeft, 7) and the next three bits, the run of zeros of the
+  zerosLeft > 6 code (runs above 6) from the leading-zero count; once zerosLeft is 0 the remaining levels are placed at
+  consecutive scanning positions with no further read or check;
+- the placement loop's scan and output indexes masked (scan has 64 entries, the output N, a power of two), so that
+  its bounds checks go.
+Predicted, from the instructions these parts take in base's machine code (block_body::<16>): about 35 fewer a call
+(setup and coeff_token), 25 a total_zeros read, 27 a run_before read, 4 a level placed. With counts.txt:
+
+stream        predicted cut   share of the stream's instructions
+5185721dda11   9.31M          3.78%
+6f7799768413   0.32M          0.12%
+9db41aa16b5a  12.69M          1.29%
+b71b6b31e54f   4.67M          0.87%
+ec473c99c538   1.88M          1.91%
+f9e973f44570  11.75M          6.71%
+median of the six: 1.60%, just above an earlier change's 1.5% for plain instruction cuts; the CABAC streams are untouched.
+
+Probe (P, branch probe/h264-cavlc-block-pad, feature probe-pad): independent one-uop instructions (lea o, [a + a],
+output unused, as the earlier probes) at the sites C changes, as many as C is predicted to remove there: 35 at the
+start of every block_body call, 25 at each total_zeros read, 27 at each run_before read, 4 at each level placed. So P
+adds the cut's predicted instructions in its own places. Verified before timing: callgrind instructions of P over base
+on the six CAVLC streams at counts.txt's frames (expected: the predicted cut, within 5%), and output identical to base
+(md5 of the six CAVLC streams at those frames).
+
+Arms: base = dist build of a46be406 (bin-base), P = the same tree with --features probe-pad (bin-pad), one toolchain,
+RUSTFLAGS unset. Method: ab3.py, 8 rounds, all 32 training streams, class frame counts, 1 thread, --discard, pinned to
+CPU 3, order rotated each round, CPU time (user + sys); per stream the median of P over base, bootstrap 95% interval
+of the median. Host: this development VM, Intel Xeon @ 2.90 GHz family 6 (directional; no gating bar moves).
+
+Rule (fixed now):
+- Build C only if P's median over the 6 CAVLC streams is >= 1.010 with the bootstrap lower end above 1.000, as the
+  two earlier part-only probes (cabac-decision-probe, residual-calls). Otherwise C is not built as a round of its own:
+  the part's predicted cut is below what a round resolves, its pieces are noted as bundle candidates, and the result
+  is recorded docs-only.
+- The 26 CABAC streams call no block_body and are the null control: their median should read 1.000 (within +-0.005);
+  if it does not, the run is a host fault and is rerun once.
+- Reported beside it: all 32, the sd class, the streams slower, and the price per instruction against the earlier
+  probes (cabac-decision-probe 1.0229 for about +409 a macroblock on the CABAC streams).
+
+If C is built, its local timing (written now, before any build): ab3.py, 8 rounds, all 32, arms base and C, same host
+and method; C is identical in output to base on the 32 streams at 1 and 8 threads and passes conformance first. A
+gating run is requested from the A/B helper only if the 6 CAVLC streams' median of C over base is at most 0.990 with
+the bootstrap upper end below 1.000 and the all-32 median is at most 1.000; the gating bars are written into the design
+note and committed before that run. Otherwise C goes to a rejected/ branch as a bundle candidate.
+
+Probe result (ab.txt, ab-summary.txt, 8 rounds; wording of this paragraph revised after review, numbers as at
+fe04e23d): CAVLC 6 streams 1.0168 [1.0029, 1.0304], 6 of 6 slower; CABAC null
+0.9983 [0.9953, 1.0006] (within +-0.005); all 32 0.9997; sd 1.0033. The rule is met: C is built and timed. Per stream
+the CAVLC readings do not follow the pads' share: 6f7799768413 reads 1.0382 for 0.12% more instructions and
+ec473c99c538 (0.09 s a call) 1.0048 for 1.9%, so a single stream's reading here carries a few percent of noise; the
+six-stream median is what the rule reads. Price: about +1.7% time for a median 1.6% of instructions (the decision
+probe: 1.0229 for about +409 instructions a macroblock on the CABAC streams).
+
+C as built (rejected/h264-cavlc-block 97514aa6, on a46be406): the tables as written above. Instructions of C over base
+(c-count.txt, callgrind, counts.txt's frames): 5185721dda11 -2.00%, 6f7799768413 -0.10%, 9db41aa16b5a -0.70%,
+b71b6b31e54f -0.58%, ec473c99c538 -1.38%, f9e973f44570 -3.81%; median of the six 1.04%, about two thirds of the
+predicted 1.60%. Output identical to base on the 32 streams at 1 and 8 threads (c-identity.txt, 64 of 64);
+conformance 291 of 291 at 1, 2 and 8 threads, 97 of 97 with scalar kernels and 97 of 97 without fast
+(c-conformance.txt).
+
+C's timing (c-ab.txt, c-ab-summary.txt, 8 rounds, the method above): CAVLC 6 streams 0.9844 [0.9734, 1.0008], 5 of 6
+faster; all 32 0.9971 [0.9937, 1.0007]; CABAC 26 (unchanged code) 0.9982; sd 0.9918, 720p 0.9949, 1080p 1.0007,
+4k 1.0019. The gating condition (CAVLC 6 at most 0.990 with the upper end below 1.000, all 32 at most 1.000) is not
+met: the upper end is 1.0008. No gating run is requested; C goes to rejected/h264-cavlc-block as a bundle candidate.

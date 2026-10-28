@@ -1,0 +1,21 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2900.0 MHz, 8 logical CPUs
+175433794e02.0.1080p.h264                base:discard=1.44  base:write=1.42  base:mixed=1.37  q:discard=1.42  q:write=1.38  q:mixed=1.35  a:discard=1.34  a:write=1.31  a:mixed=1.28
+6da34958296c.0.1080p.h264                base:discard=1.71  base:write=1.80  base:mixed=1.72  q:discard=1.63  q:write=1.72  q:mixed=1.65  a:discard=1.60  a:write=1.70  a:mixed=1.61
+6e90422a670a.0.1080p.h264                base:discard=1.43  base:write=1.41  base:mixed=1.37  q:discard=1.40  q:write=1.39  q:mixed=1.34  a:discard=1.37  a:write=1.35  a:mixed=1.30
+a6af290d9053.0.1080p.h264                base:discard=1.46  base:write=1.42  base:mixed=1.40  q:discard=1.41  q:write=1.38  q:mixed=1.35  a:discard=1.40  a:write=1.38  a:mixed=1.34
+a81de82106be.0.1080p.h264                base:discard=1.24  base:write=1.28  base:mixed=1.16  q:discard=1.23  q:write=1.23  q:mixed=1.15  a:discard=1.27  a:write=1.30  a:mixed=1.18
+b41f70a7fa60.0.1080p.h264                base:discard=1.88  base:write=3.34  base:mixed=3.03  q:discard=1.81  q:write=2.93  q:mixed=2.91  a:discard=1.71  a:write=2.96  a:mixed=2.75
+b71b6b31e54f.0.1080p.h264                base:discard=1.88  base:write=1.80  base:mixed=1.53  q:discard=1.94  q:write=1.69  q:mixed=1.58  a:discard=1.86  a:write=1.70  a:mixed=1.51
+c7ecda16e4a7.0.1080p.h264                base:discard=1.68  base:write=1.62  base:mixed=1.58  q:discard=1.64  q:write=1.58  q:mixed=1.53  a:discard=1.64  a:write=1.55  a:mixed=1.54
+
+base:discard             n=  8  median 1.569  [1.431, 1.878]
+base:write               n=  8  median 1.520  [1.406, 1.801]
+base:mixed               n=  8  median 1.462  [1.366, 1.723]
+q:discard                n=  8  median 1.524  [1.404, 1.808]
+q:write                  n=  8  median 1.488  [1.381, 1.719]
+q:mixed                  n=  8  median 1.443  [1.341, 1.647]
+a:discard                n=  8  median 1.498  [1.339, 1.705]
+a:write                  n=  8  median 1.465  [1.314, 1.703]
+a:mixed                  n=  8  median 1.427  [1.277, 1.611]
+
+wrote $HOME/ab/idct/out/g.1080p.json

@@ -1,0 +1,105 @@
+CAVLC slice loop probe: runs of skipped macroblocks, part-only (written before the run).
+
+Question: on the CAVLC streams, does the per-macroblock work of a skipped macroblock in the CAVLC slice data loop cost
+time in proportion to its instructions? After the CAVLC window round, the PMU profile of 6f7799768413 (#536,
+profile-6f-af20b62e) puts its gap to FFmpeg in entropy + MB (+0.115 of FFmpeg's cycles), and the macroblock layer
+outside the residual is about 975 instructions a macroblock against FFmpeg's about 640 (its macroblock function and
+neighbour cache fills, function-level counts only).
+
+Base: perf/h264-cavlc-window 9ba67d12 (main ae609547 with an earlier change merged in), as the macroblock layer window probe
+(cavlc-mb-window-probe). If an earlier change does not merge, the round is rebased onto main and counted again before any timing.
+
+Where the instructions go (callgrind of a dist build of 9ba67d12 with line tables on 6f7799768413 at 1,800 frames, each
+instruction attributed through its inline chain): 58.5% of its macroblocks are P_Skip, in runs of 9.3 on average; 38.3%
+are coded inter and 3.2% intra; no B slices. A skipped macroblock costs about 280 instructions of the macroblock layer
+before motion compensation:
+- start_mb, out of line through tier.enter (every macroblock): about 102, of which 47 derive the four neighbours (four
+  bounds-checked loads of mbs[].slice, four Option<usize> stored), 26 the call and the Result through memory, 30 the
+  next address, the MbInfo start and request_destination;
+- the skip loop's own checks and decode_skip: about 40;
+- inter_pred's entry and dispatch: about 27; predict_p_skip (A's and B's heads, their split byte, the motion loads,
+  the zero test): about 37; store_mb and resolve: about 45;
+- finish_mb<true> (the MbInfo record, the 48-byte ring entry, the motion_first branch): about 24.
+The coded macroblocks' Exp-Golomb reads (BitReader::ue out of line, 3.55 calls a macroblock on 6f7799768413, about 43
+inside a call and 24 at the call sites) cost about 237 a macroblock; the macroblock layer window probe priced that part
+(36 pads a ue call, 2.27% of the instructions: CAVLC 6 1.0128 [1.0057, 1.0173]).
+
+Cut in view (C, not built): the CAVLC slice data loop restructured.
+- (S) A run of skipped macroblocks in one loop: column and row stepped in registers, enter_row only when a row ends,
+  the neighbours' availability from the slice's first address (a slice is one run of macroblocks in raster order:
+  slice groups and arbitrary slice order are rejected), one MbInfo built for the run (QP does not change inside it),
+  P_Skip's reference resolved once a slice. Clause 8.4.1.1 gives a P_Skip macroblock a zero vector when A is not
+  available or A has refIdx 0 and a zero vector; inside a run A is the previous skipped macroblock (refIdx 0), so after
+  the first zero vector of a run every later macroblock of the run is zero (at a row start A is not available). Those
+  take no neighbour loads; the first of a run and one after a non-zero vector take the full derivation. Predicted:
+  about 280 down to about 45 a skipped macroblock.
+- (W) One cavlc::Window for the whole slice, held by the loop as a local and passed by value into the residual's
+  closure and back, so that the window's state stays in registers; mb_skip_run, mb_type, sub_mb_type, ref_idx, mvd,
+  coded_block_pattern, mb_qp_delta, intra_chroma_pred_mode and the intra modes read from it (ue/se/te inlined, u32
+  arithmetic, codes of 16 or more leading zeros on a cold path); errors leave a flag checked once a macroblock, and
+  more_rbsp_data is a compare against a stop position computed once a slice. The position is checked against the end
+  once a macroblock, as an earlier change checks it once a residual. The rejected macroblock layer window (51acb19f) kept its window
+  in CavlcSyntax, in memory across the residual's out-of-line call, and made one a macroblock: it cut 83 a macroblock
+  on 6f7799768413 of the about 190 this predicts.
+- CABAC: no change.
+This probe prices S only; W's part was priced by the macroblock layer window probe.
+
+Probe (P, branch probe/h264-cavlc-slice-loop-pad, feature probe-pad): 200 independent one-uop instructions (lea o,
+[a + a], output unused, as the earlier probes) once for every skipped macroblock of the CAVLC slice loop, at the top of
+the skip loop's body: S's predicted cut, rounded down. Verified before timing: callgrind instructions of P over base
+on the six CAVLC streams at the class frame counts (P adds 200 a skipped macroblock; the skipped macroblocks are
+counted from that difference and reported) and on two CABAC streams at a tenth of the class frame counts (no change),
+and output identical to base (md5 of the 32 streams at a tenth of the class frame counts).
+
+Arms: base = dist build of 9ba67d12 (bin-mw-base, the macroblock layer window probe's base), P = this tree with
+--features probe-pad (bin-sl-pad), one toolchain, RUSTFLAGS unset. Method: ab3.py, 8 rounds, all 32 training streams,
+class frame counts, 1 thread, --discard, pinned to CPU 3, order rotated each round, CPU time (user + sys); per stream the
+median of P over base, bootstrap 95% interval of the median (abq.py). Host: this development VM (directional; no gating
+bar moves).
+
+Rule (fixed now):
+- Build C only if P's median over the 6 CAVLC streams is >= 1.010 with the bootstrap lower end above 1.000, as the
+  earlier part-only probes. Otherwise S is not built and C is W alone, which then needs its own plan and probe rule
+  (the macroblock layer window probe's rule was already met for that part).
+- The 26 CABAC streams run none of the pads and are the null control: their median should read 1.000 (within
+  +-0.005); if it does not, the run is a host fault and is rerun once.
+- Reported beside it: all 32, per class, the streams slower, 6f7799768413's own reading (it does not decide), and the
+  price per instruction against the earlier probes.
+
+If C is built, its local timing (written now, before any build): ab3.py, 8 rounds, all 32, arms base and C, same host
+and method; C is identical in output to base on the 32 streams at 1 and 8 threads, with and without fast, and passes
+conformance first (with scalar kernels and without fast too). The slice loop's state changes shape, so C is timed at
+one thread whatever its instruction count says. A gating run is requested only if the 6 CAVLC streams' median of C over
+base is at most 0.985 with the bootstrap upper end below 1.000 and the all-32 median is at most 1.000; the gating bars
+are written into the design note and committed before that run (the eight-thread bar a no-regression guard, the gain
+bars at one thread). Otherwise C goes to a rejected/ branch as a bundle candidate, and S and W are each counted and timed
+alone (same method) to say which part carries the gain.
+
+Probe check (verify.txt): P adds 200 instructions a skipped macroblock; on the six CAVLC streams that is 0.89% to 9.04%
+of a stream's instructions, a median of 2.84% (6f7799768413: 2.46%, 1.26 M skipped macroblocks of 2.16 M, 58.4%). On
+the three CABAC streams counted (a tenth of the class frame counts) the change is under 300 instructions. Output
+identical to base on the 32 streams (md5 at a tenth of the class frame counts).
+
+Probe result (ab.txt, ab-summary.txt, 8 rounds): CAVLC 6 streams 1.0357 [1.0252, 1.1091], 6 of 6 slower; CABAC null
+0.9984 [0.9964, 1.0044] (within +-0.005); all 32 1.0011; sd 1.0193, 720p 1.0035, 1080p 0.9973, 4k 1.0039;
+6f7799768413 1.0292 for 2.46% more instructions. The rule is met: C is built and timed. Price: about +3.6% time for a
+median 2.84% of the instructions, above one to one (the macroblock layer window probe: 1.3% for 2.27%; the CAVLC window
+probe: 2.0% for 1.78%). The skipped macroblocks' path has little latency to hide added work behind.
+
+C as built (perf/h264-cavlc-slice-loop 3fc1ee31, on 9ba67d12): S and W as planned. The window is a Copy local of the
+slice loop inside CavlcSyntax, created once a slice and moved into the residual's out-of-line closure and back
+(Syntax::residual; CABAC reads its residual in place); ue/se/te/u inlined, codes of 16 or more leading zeros on a cold
+path through BitReader, so their errors are the old ones; the position is checked once after each mb_skip_run and once
+a macroblock; more_rbsp_data is a compare against the stop bit found once a slice. Runs of skipped macroblocks take the
+zero-vector shortcut after the first zero vector of a run; coded macroblocks start through an inlined start_mb_body
+with the neighbours' availability from the slice's first address. CABAC's machine code is unchanged (normalized
+disassembly diff); SliceDecoder's layout is unchanged. Instructions of C over base (c-identity.txt): CAVLC 6 a median of
+-4.34% (-2.08% to -9.65%; 6f7799768413 -4.76%: W about -150 a macroblock, S about -180 a skipped macroblock), CABAC
+-0.007% to 0.000%. Output identical to base on the 32 streams at 1 and 8 threads (64 of 64) and without fast on the six
+CAVLC streams (12 of 12); conformance 291 of 291 at 1, 2 and 8 threads, 97 of 97 with scalar kernels and 97 of 97
+without fast (c-conformance.txt). A truncated CAVLC element now reports Truncated("a syntax element") at the next check.
+
+C's timing (c-ab.txt, c-ab-summary.txt, 8 rounds, the method above): CAVLC 6 streams 0.9813 [0.9504, 0.9854], 6 of 6
+faster; all 32 0.9962 [0.9923, 1.0031], 19 of 32 faster; CABAC 26 (unchanged code) 0.9993; sd 0.9882, 720p 0.9959,
+1080p 1.0023, 4k 1.0027; 6f7799768413 0.9857. The gating condition (CAVLC 6 at most 0.985 with the upper end below
+1.000, all 32 at most 1.000) is met: a gating run is requested, its bars in the design note.

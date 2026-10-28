@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coreav-dev/coreav/docs/schema/policy-v1.schema.json",
+  "title": "coreav.policy/1",
+  "description": "An upload policy for `coreav check` and the coreav-policy crate. Documented in policy-v1.md. A missing limit does not limit; a stream kind without its object is not allowed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "streams"],
+  "properties": {
+    "schema": {"const": "coreav.policy/1"},
+    "name": {"type": "string"},
+    "file": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_size": {"$ref": "#/$defs/count"},
+        "max_bit_rate": {"$ref": "#/$defs/count"}
+      }
+    },
+    "container": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "formats": {"type": "array", "items": {"enum": ["mp4", "mov", "3gp", "webm", "matroska"]}},
+        "fragmented": {"type": "boolean"}
+      }
+    },
+    "duration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_seconds": {"type": "number", "minimum": 0}
+      }
+    },
+    "streams": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_count": {"$ref": "#/$defs/count"},
+        "video": {"$ref": "#/$defs/video"},
+        "audio": {"$ref": "#/$defs/audio"},
+        "subtitle": {"$ref": "#/$defs/kind"},
+        "timecode": {"$ref": "#/$defs/kind"},
+        "data": {"$ref": "#/$defs/kind"},
+        "unidentified": {
+          "anyOf": [
+            {"$ref": "#/$defs/action"},
+            {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[ -~]{1,64}$"}}
+          ]
+        },
+        "invalid_tables": {"$ref": "#/$defs/action"},
+        "external_data": {"$ref": "#/$defs/action"},
+        "multiple_descriptions": {"$ref": "#/$defs/action"}
+      }
+    }
+  },
+  "$defs": {
+    "count": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615},
+    "action": {"enum": ["reject", "ignore"]},
+    "codecs": {
+      "type": "array",
+      "items": {
+        "enum": ["h264", "hevc", "av1", "vp8", "vp9", "prores", "mpeg1video", "mpeg2video", "mpeg4", "theora", "mjpeg", "ffv1", "aac", "mp3", "mp2", "opus", "vorbis", "flac", "ac3", "eac3", "dts", "truehd", "alac", "pcm", "timed_text", "subrip", "ass", "webvtt", "pgs", "vobsub", "dvbsub", "timecode"]
+      }
+    },
+    "kind": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "codecs": {"$ref": "#/$defs/codecs"},
+        "min_count": {"$ref": "#/$defs/count"},
+        "max_count": {"$ref": "#/$defs/count"},
+        "max_bit_rate": {"$ref": "#/$defs/count"}
+      }
+    },
+    "video": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "codecs": {"$ref": "#/$defs/codecs"},
+        "min_count": {"$ref": "#/$defs/count"},
+        "max_count": {"$ref": "#/$defs/count"},
+        "max_bit_rate": {"$ref": "#/$defs/count"},
+        "max_width": {"$ref": "#/$defs/count"},
+        "max_height": {"$ref": "#/$defs/count"},
+        "max_pixels": {"$ref": "#/$defs/count"},
+        "rotations": {"type": "array", "items": {"enum": [0, 90, 180, 270]}},
+        "size_source": {"enum": ["scan", "configuration", "declared"]}
+      }
+    },
+    "audio": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "codecs": {"$ref": "#/$defs/codecs"},
+        "min_count": {"$ref": "#/$defs/count"},
+        "max_count": {"$ref": "#/$defs/count"},
+        "max_bit_rate": {"$ref": "#/$defs/count"},
+        "max_channels": {"$ref": "#/$defs/count"},
+        "max_sample_rate": {"$ref": "#/$defs/count"}
+      }
+    }
+  }
+}

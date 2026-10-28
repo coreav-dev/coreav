@@ -1,0 +1,9 @@
+sd intra 0.0190/0.0140  idct 0.0247/0.0305  scale 0.0219/0.0000  glue 0.0157/0.0166
+720p intra 0.0487/0.0254  idct 0.0298/0.0331  scale 0.0215/0.0000  glue 0.0158/0.0155
+1080p intra 0.0280/0.0151  idct 0.0464/0.0480  scale 0.0349/0.0000  glue 0.0179/0.0181
+4k intra 0.0161/0.0105  idct 0.0264/0.0597  scale 0.0179/0.0000  glue 0.0101/0.0258
+all intra 0.0279/0.0163  idct 0.0318/0.0428  scale 0.0241/0.0000  glue 0.0149/0.0190
+-- intra CoreAV: K intra4x4_mb 0.0081, K pred8x8 0.0066, K intra_chroma 0.0055, recon.rs reconstruct_intra 0.0027, K intra16x16 0.0023, K reconstruct_intra 0.0023, recon.rs intra_neighbours<coreav_kernels_h264::Auto> 0.0005
+-- intra FFmpeg: h264_mb.c hl_decode_mb_predict_luma 0.0031, h264_mb.c xchg_mb_border 0.0026, asm ff_pred8x8_dc_8_sse2 0.0017, asm ff_pred4x4_dc_8_mmxext 0.0008, h264pred_template.c pred4x4_horizontal_8_c 0.0006, asm ff_h264_idct_add16intra_8_sse2 0.0006, asm ff_pred16x16_dc_8_ssse3 0.0006, asm ff_pred8x8l_dc_8_ssse3 0.0005, h264pred_template.c pred4x4_vertical_8_c 0.0005, asm ff_pred4x4_down_right_8_mmxext 0.0005
+-- glue CoreAV: recon.rs reconstruct_chroma 0.0076, recon.rs residual_4x4_luma 0.0027, recon.rs reconstruct_inter 0.0020, recon.rs chroma_qp<coreav_kernels_h264::Auto> 0.0016, recon.rs {closure#0}<coreav_kernels_h264::Auto> 0.0004, recon.rs luma_dc<coreav_kernels_h264::Auto> 0.0004, recon.rs clamp 0.0001, recon.rs {closure#3}<coreav_kernels_h264::Auto> 0.0001
+-- glue FFmpeg: h264_mb_template.c hl_decode_mb_simple_8 0.0166, h264_mb.c ff_h264_hl_decode_mb 0.0023, h264_mb_template.c hl_decode_mb_complex 0.0001

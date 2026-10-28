@@ -1,0 +1,152 @@
+== ec473c99c538 total 1T 974,740,965 8T/1T 1.3949
+  +  8.17%  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reference_band
+  +  6.52%  <coreav_h264::picture::Canvas>::copy_top
+  +  6.14%  coreav_h264::inter::edge_window
+  +  5.53%  __memcpy_avx_unaligned_erms
+  +  5.13%  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::predict_list_any
+  +  2.96%  <coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::chroma_mc
+  +  2.56%  <coreav_kernels_h264::predict::Interior>::band
+  +  1.28%  coreav_kernels_h264::simd::x86::luma_mc_into::<coreav_kernels_h264::simd::x86::Average>
+  +  0.40%  coreav_h264::fast::v3::predict_fast::<coreav_kernels_h264::Auto>
+  +  0.35%  <coreav_h264::picture::Canvas>::publish_ready
+  +  0.24%  <coreav_h264::picture::BandData>::fit
+  +  0.20%  __memset_avx2_unaligned_erms
+  +  0.20%  _int_malloc
+  +  0.19%  <coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::luma_mc
+    -0.88%  coreav_kernels_h264::simd::x86::predict::luma_block
+    -0.79%  coreav_kernels_h264::simd::x86::predict::chroma_block
+    -0.06%  <coreav_kernels_h264::predict::Windows>::fit
+    -0.03%  <coreav_h264::work::PictureWork<coreav_kernels_h264::Auto>>::decode_slice
+== 41e324ebb708 total 1T 8,105,016,440 8T/1T 1.1898
+  +  5.85%  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reference_band
+  +  2.40%  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::predict_list_any
+  +  2.23%  coreav_h264::inter::edge_window
+  +  1.84%  <coreav_kernels_h264::predict::Interior>::band
+  +  1.80%  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::colocated
+  +  1.01%  __memcpy_avx_unaligned_erms
+  +  0.85%  coreav_h264::inter::chroma_weigh::<coreav_kernels_h264::Auto>
+  +  0.73%  coreav_kernels_h264::simd::x86::luma_mc_into::<coreav_kernels_h264::simd::x86::Average>
+  +  0.72%  <coreav_h264::picture::Canvas>::copy_top
+  +  0.69%  <coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::chroma_mc
+  +  0.48%  coreav_h264::fast::v3::predict_fast::<coreav_kernels_h264::Auto>
+  +  0.45%  <coreav_kernels_h264::simd::Simd as coreav_kernels_h264::Kernels>::chroma_mc
+  +  0.41%  coreav_kernels_h264::simd::x86::luma_mc_weighted
+  +  0.30%  <coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::chroma_mc_avg
+    -0.83%  coreav_kernels_h264::simd::x86::predict::luma_block
+    -0.62%  coreav_kernels_h264::simd::x86::predict::chroma_block
+    -0.00%  <coreav_h264::work::PictureWork<coreav_kernels_h264::Auto>>::decode_slice
+    -0.00%  coreav_kernels_h264::simd::x86::chroma_mb::filter_chroma_mb
+== 6b18d9f0f88d total 1T 7,109,839,825 8T/1T 1.1962
+  +  6.75%  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reference_band
+  +  4.86%  __memcpy_avx_unaligned_erms
+  +  2.12%  <coreav_kernels_h264::predict::Interior>::band
+  +  1.56%  coreav_h264::inter::edge_window
+  +  1.47%  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::predict_list_any
+  +  0.81%  <coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::chroma_mc
+  +  0.74%  <coreav_h264::picture::Canvas>::copy_top
+  +  0.63%  coreav_h264::fast::v3::predict_fast::<coreav_kernels_h264::Auto>
+  +  0.41%  coreav_kernels_h264::simd::x86::luma_mc_into::<coreav_kernels_h264::simd::x86::Average>
+  +  0.25%  __memset_avx2_unaligned_erms
+  +  0.14%  <coreav_kernels_h264::simd::Simd as coreav_kernels_h264::Kernels>::chroma_mc
+  +  0.13%  coreav_kernels_h264::simd::x86::filter_chroma_pair
+  +  0.08%  <coreav_kernels_h264::views::EdgeMut>::new
+  +  0.06%  <coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::luma_mc
+    -0.28%  coreav_kernels_h264::simd::x86::predict::luma_block
+    -0.24%  coreav_kernels_h264::simd::x86::predict::chroma_block
+    -0.11%  coreav_kernels_h264::simd::x86::chroma_mb::filter_chroma_mb
+    -0.01%  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::enter_row
+== 278dbf5a63bb total 1T 7,729,916,682 8T/1T 1.0792
+  +  2.65%  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reference_band
+  +  1.40%  __memcpy_avx_unaligned_erms
+  +  0.83%  <coreav_kernels_h264::predict::Interior>::band
+  +  0.66%  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::predict_list_any
+  +  0.51%  <coreav_kernels_h264::simd::Simd as coreav_kernels_h264::Kernels>::chroma_mc
+  +  0.44%  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::colocated
+  +  0.35%  coreav_kernels_h264::simd::x86::luma_mc_into::<coreav_kernels_h264::simd::x86::Average>
+  +  0.35%  __memset_avx2_unaligned_erms
+  +  0.27%  coreav_h264::fast::v3::predict_fast::<coreav_kernels_h264::Auto>
+  +  0.22%  <coreav_h264::picture::Canvas>::copy_top
+  +  0.19%  coreav_h264::inter::edge_window
+  +  0.12%  <coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::chroma_mc
+  +  0.11%  <coreav_kernels_h264::predict::Windows>::fit
+  +  0.08%  coreav_kernels_h264::simd::x86::filter_chroma_pair
+    -0.30%  coreav_kernels_h264::simd::x86::predict::luma_block
+    -0.19%  coreav_kernels_h264::simd::x86::predict::chroma_block
+    -0.08%  coreav_kernels_h264::simd::x86::chroma_mb::filter_chroma_mb
+    -0.02%  <coreav_kernels_h264::predict::Planes>::request
+== a81de82106be total 1T 5,756,964,332 8T/1T 1.1246
+  +  4.64%  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reference_band
+  +  2.95%  __memcpy_avx_unaligned_erms
+  +  1.46%  <coreav_kernels_h264::predict::Interior>::band
+  +  0.81%  coreav_h264::inter::edge_window
+  +  0.73%  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::predict_list_any
+  +  0.47%  coreav_h264::fast::v3::predict_fast::<coreav_kernels_h264::Auto>
+  +  0.43%  __memset_avx2_unaligned_erms
+  +  0.42%  <coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::chroma_mc
+  +  0.37%  <coreav_h264::picture::Canvas>::copy_top
+  +  0.18%  coreav_kernels_h264::simd::x86::luma_mc_into::<coreav_kernels_h264::simd::x86::Average>
+  +  0.06%  <coreav_h264::picture::BandData>::fit
+  +  0.04%  <coreav_kernels_h264::predict::Windows>::fit
+  +  0.03%  <coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::luma_mc
+  +  0.02%  <coreav_h264::picture::Canvas>::publish_ready
+    -0.12%  coreav_kernels_h264::simd::x86::predict::luma_block
+    -0.11%  coreav_kernels_h264::simd::x86::predict::chroma_block
+    -0.01%  coreav_kernels_h264::simd::x86::chroma_mb::filter_chroma_mb
+    -0.00%  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::enter_row
+== 6e90422a670a total 1T 27,215,882,078 8T/1T 1.0388
+  +  1.99%  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reference_band
+  +  0.63%  <coreav_kernels_h264::predict::Interior>::band
+  +  0.28%  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::colocated
+  +  0.22%  coreav_h264::fast::v3::predict_fast::<coreav_kernels_h264::Auto>
+  +  0.18%  __memcpy_avx_unaligned_erms
+  +  0.16%  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::predict_list_any
+  +  0.12%  coreav_h264::inter::edge_window
+  +  0.12%  __memset_avx2_unaligned_erms
+  +  0.06%  <coreav_kernels_h264::simd::Simd as coreav_kernels_h264::Kernels>::chroma_mc
+  +  0.06%  coreav_kernels_h264::simd::x86::luma_mc_into::<coreav_kernels_h264::simd::x86::Average>
+  +  0.05%  <coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::chroma_mc
+  +  0.03%  <coreav_kernels_h264::predict::Windows>::fit
+  +  0.02%  <coreav_h264::picture::Canvas>::copy_top
+  +  0.01%  <coreav_h264::picture::BandData>::fit
+    -0.05%  coreav_kernels_h264::simd::x86::predict::luma_block
+    -0.03%  coreav_kernels_h264::simd::x86::predict::chroma_block
+    -0.00%  <coreav_kernels_h264::predict::Planes>::request
+    -0.00%  <coreav_h264::work::PictureWork<coreav_kernels_h264::Auto>>::decode_slice
+== ed75c044e944 total 1T 2,298,396,639 8T/1T 1.2374
+  + 10.62%  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reference_band
+  +  3.46%  __memcpy_avx_unaligned_erms
+  +  3.34%  <coreav_kernels_h264::predict::Interior>::band
+  +  1.46%  __memset_avx2_unaligned_erms
+  +  1.33%  coreav_h264::inter::edge_window
+  +  1.16%  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::predict_list_any
+  +  1.10%  coreav_h264::fast::v3::predict_fast::<coreav_kernels_h264::Auto>
+  +  0.68%  <coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::chroma_mc
+  +  0.34%  <coreav_h264::picture::Canvas>::copy_top
+  +  0.29%  coreav_kernels_h264::simd::x86::luma_mc_into::<coreav_kernels_h264::simd::x86::Average>
+  +  0.19%  <coreav_h264::picture::BandData>::fit
+  +  0.04%  <coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::luma_mc
+  +  0.02%  <coreav_h264::picture::Canvas>::publish_ready
+  +  0.02%  _int_malloc
+    -0.20%  coreav_kernels_h264::simd::x86::predict::luma_block
+    -0.18%  coreav_kernels_h264::simd::x86::predict::chroma_block
+    -0.03%  <coreav_kernels_h264::predict::Windows>::fit
+    -0.00%  <coreav_h264::picture::Canvas>::put_band
+== 3b1b441e23ae total 1T 4,913,805,384 8T/1T 1.2493
+  + 11.11%  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::reference_band
+  +  3.49%  <coreav_kernels_h264::predict::Interior>::band
+  +  2.94%  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::colocated
+  +  1.99%  __memcpy_avx_unaligned_erms
+  +  1.42%  __memset_avx2_unaligned_erms
+  +  1.18%  coreav_h264::fast::v3::predict_fast::<coreav_kernels_h264::Auto>
+  +  1.01%  coreav_h264::inter::edge_window
+  +  0.89%  <coreav_h264::mb::SliceDecoder<coreav_kernels_h264::Auto>>::predict_list_any
+  +  0.37%  <coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::chroma_mc
+  +  0.23%  coreav_kernels_h264::simd::x86::luma_mc_into::<coreav_kernels_h264::simd::x86::Average>
+  +  0.18%  <coreav_h264::picture::BandData>::fit
+  +  0.17%  <coreav_h264::picture::Canvas>::copy_top
+  +  0.15%  <coreav_kernels_h264::Auto as coreav_kernels_h264::Kernels>::chroma_mc_avg
+  +  0.02%  <coreav_kernels_h264::simd::Simd as coreav_kernels_h264::Kernels>::chroma_mc
+    -0.16%  coreav_kernels_h264::simd::x86::predict::luma_block
+    -0.16%  coreav_kernels_h264::simd::x86::predict::chroma_block
+    -0.02%  <coreav_kernels_h264::predict::Windows>::fit
+    -0.00%  <coreav_h264::picture::Canvas>::put_band

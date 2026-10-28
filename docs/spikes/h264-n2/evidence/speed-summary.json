@@ -1,0 +1,214 @@
+{
+ "P1_x86_64": {
+  "ratio": {
+   "overall": {
+    "streams": 139,
+    "median": 1.476,
+    "ci95": [
+     1.437,
+     1.506
+    ]
+   },
+   "sd": {
+    "streams": 30,
+    "median": 1.401,
+    "ci95": [
+     1.336,
+     1.477
+    ]
+   },
+   "720p": {
+    "streams": 43,
+    "median": 1.49,
+    "ci95": [
+     1.461,
+     1.595
+    ]
+   },
+   "1080p": {
+    "streams": 48,
+    "median": 1.501,
+    "ci95": [
+     1.432,
+     1.608
+    ]
+   },
+   "4k": {
+    "streams": 18,
+    "median": 1.463,
+    "ci95": [
+     1.338,
+     1.533
+    ]
+   }
+  },
+  "scalar_ratio": {
+   "overall": {
+    "streams": 139,
+    "median": 2.219,
+    "ci95": [
+     2.068,
+     2.328
+    ]
+   },
+   "sd": {
+    "streams": 30,
+    "median": 2.301,
+    "ci95": [
+     2.156,
+     2.491
+    ]
+   },
+   "720p": {
+    "streams": 43,
+    "median": 2.235,
+    "ci95": [
+     1.979,
+     2.488
+    ]
+   },
+   "1080p": {
+    "streams": 48,
+    "median": 2.211,
+    "ci95": [
+     1.996,
+     2.346
+    ]
+   },
+   "4k": {
+    "streams": 18,
+    "median": 1.909,
+    "ci95": [
+     1.724,
+     2.209
+    ]
+   }
+  },
+  "disagree": [],
+  "scalar_disagree": []
+ },
+ "P2_arm64": {
+  "ratio": {
+   "overall": {
+    "streams": 139,
+    "median": 1.499,
+    "ci95": [
+     1.411,
+     1.605
+    ]
+   },
+   "sd": {
+    "streams": 30,
+    "median": 1.671,
+    "ci95": [
+     1.556,
+     1.73
+    ]
+   },
+   "720p": {
+    "streams": 43,
+    "median": 1.489,
+    "ci95": [
+     1.363,
+     1.653
+    ]
+   },
+   "1080p": {
+    "streams": 48,
+    "median": 1.448,
+    "ci95": [
+     1.197,
+     1.613
+    ]
+   },
+   "4k": {
+    "streams": 18,
+    "median": 1.097,
+    "ci95": [
+     0.915,
+     1.349
+    ]
+   }
+  },
+  "scalar_ratio": {
+   "overall": {
+    "streams": 139,
+    "median": 2.212,
+    "ci95": [
+     2.031,
+     2.407
+    ]
+   },
+   "sd": {
+    "streams": 30,
+    "median": 2.751,
+    "ci95": [
+     2.457,
+     2.981
+    ]
+   },
+   "720p": {
+    "streams": 43,
+    "median": 2.242,
+    "ci95": [
+     1.897,
+     2.485
+    ]
+   },
+   "1080p": {
+    "streams": 48,
+    "median": 2.025,
+    "ci95": [
+     1.635,
+     2.524
+    ]
+   },
+   "4k": {
+    "streams": 18,
+    "median": 1.538,
+    "ci95": [
+     1.004,
+     1.747
+    ]
+   }
+  },
+  "disagree": [],
+  "scalar_disagree": []
+ },
+ "K3": {
+  "streams": 139,
+  "arm64_agree_with_ffmpeg": 139,
+  "arm64_equal_to_x86_64": 139,
+  "missing_arm64": [],
+  "missing_x86_64": [],
+  "failures": []
+ },
+ "machines": {
+  "x86_64": [
+   {
+    "cpu": "AuthenticAMD family 25 model 17 (model name hidden)",
+    "logical_cpus": 2,
+    "streams": 48
+   },
+   {
+    "cpu": "AuthenticAMD family 25 model 1 (model name hidden)",
+    "logical_cpus": 2,
+    "streams": 90
+   },
+   {
+    "cpu": "GenuineIntel family 6 model 85 (model name hidden)",
+    "logical_cpus": 2,
+    "streams": 1
+   }
+  ],
+  "arm64": [
+   {
+    "cpu": "Neoverse-N2",
+    "logical_cpus": 2,
+    "shards": 14
+   }
+  ]
+ },
+ "x86_64_agree": 139,
+ "x86_64_rows": 139
+}

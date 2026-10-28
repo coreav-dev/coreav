@@ -1,0 +1,37 @@
+{
+ "rows": [
+  {
+   "class": "all",
+   "inputs": 3,
+   "median": 0.582,
+   "ci95": [
+    0.434,
+    0.618
+   ],
+   "max": 0.618,
+   "median_ms": {
+    "ours": 787.1,
+    "theirs": 1273.1
+   },
+   "pass": true
+  },
+  {
+   "class": "iso",
+   "inputs": 3,
+   "median": 0.582,
+   "ci95": [
+    0.434,
+    0.618
+   ],
+   "max": 0.618,
+   "median_ms": {
+    "ours": 787.1,
+    "theirs": 1273.1
+   },
+   "pass": true
+  }
+ ],
+ "refused": 0,
+ "baseline_failed": 0,
+ "failed": 0
+}

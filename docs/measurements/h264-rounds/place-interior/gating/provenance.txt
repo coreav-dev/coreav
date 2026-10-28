@@ -1,0 +1,26 @@
+build: (cd <worktree at rev> && CARGO_TARGET_DIR=<tgt-name> cargo build --locked --profile dist --example decode -p coreav-h264)
+base = 084ee40cc3fac4705a0df75de4a42e6321b6d174, k = 42a5388
+52b09f171ea026c018f1f0318a3175d876a6b651277e0e002b99bba9cc056d9c  $HOME/ab/interior/w/decode-base
+b0cb856b9dfe4edebb955735b57fc9f51a0c5e09d3bbbd9f4c9d554e70fd1055  $HOME/ab/interior/w/decode-k
+db2835ada5d3268d0544c5b22886806e0bf7db770f94e622a70508952f71f93e  $HOME/coreav/docs/measurements/h264-rounds/place-interior/gating/hostgate-rebased.py
+rustc 1.99.1 (58cf8f9c3 2026-10-13)
+binary: rustc
+commit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67
+commit-date: 2026-10-13
+host: x86_64-unknown-linux-gnu
+release: 1.99.1
+LLVM version: 23.1.1
+model name	: Intel(R) Xeon(R) Processor @ 2.90GHz
+Model name:                              Intel(R) Xeon(R) Processor @ 2.90GHz
+CPU family:                              6
+Model:                                   106
+Stepping:                                6
+class: @ 2.90GHz model 106
+avx512_bitalg avx512_vbmi2 avx512_vnni avx512_vpopcntdq avx512bw avx512cd avx512dq avx512f avx512ifma avx512vbmi avx512vl 
+ffmpeg version n9.0.2-17-g2a571b6068-20260930 Copyright (c) 2000-2026 the FFmpeg developers
+0d709a0bed1a43f24cd2c420878c63afea4580671b6949ad19ed124572f3bc3d  $HOME/ff9/x/ffmpeg-n9.0.2-17-g2a571b6068-linux64-gpl-9.0/bin/ffmpeg
+harness: scripts/h264_parity.py of the base tree 084ee40cc3fac4705a0df75de4a42e6321b6d174; identical in the branch trees
+36d6bbe1db1724eeef1d65efc2342ec12ff92cd5d40148bd6c80f8c08970e9ac  $HOME/ab/interior/w/src-base/scripts/h264_parity.py
+36d6bbe1db1724eeef1d65efc2342ec12ff92cd5d40148bd6c80f8c08970e9ac  $HOME/ab/interior/w/src-k/scripts/h264_parity.py
+streams checked against docs/measurements/h264-training/es.json of the base tree:
+32 of 32 match; differing: []

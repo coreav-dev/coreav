@@ -1,0 +1,26 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2900.0 MHz, 8 logical CPUs
+gate baseline: 0.401 s (samples 0.416, 0.437, 0.435, 0.400, 0.402, 0.401)
+175433794e02.0.1080p.h264                base:discard=1.08  base:write=1.05  base:mixed=1.03  k:discard=1.07  k:write=1.05  k:mixed=1.02
+6da34958296c.0.1080p.h264                host fault (attempt 1): null {'base_discard': -0.007408686120054853, 'base_write': -0.007700292449146939}, max spread 2.144
+6da34958296c.0.1080p.h264                base:discard=1.09  base:write=1.06  base:mixed=0.98  k:discard=1.08  k:write=1.03  k:mixed=0.97
+6e90422a670a.0.1080p.h264                base:discard=1.05  base:write=1.01  base:mixed=0.99  k:discard=1.04  k:write=1.01  k:mixed=0.98
+a6af290d9053.0.1080p.h264                base:discard=1.08  base:write=1.05  base:mixed=1.03  k:discard=1.07  k:write=1.04  k:mixed=1.03
+gate after 4 streams (check): 0.409 s (+2.1%)
+a81de82106be.0.1080p.h264                base:discard=0.93  base:write=0.88  base:mixed=0.83  k:discard=0.92  k:write=0.87  k:mixed=0.83
+b41f70a7fa60.0.1080p.h264                host fault (attempt 1): null {'base_discard': 0.0006553391361283634, 'base_write': 0.01633062656453399}, max spread 1.535
+b41f70a7fa60.0.1080p.h264                base:discard=1.12  base:write=1.08  base:mixed=1.02  k:discard=1.10  k:write=1.05  k:mixed=1.00
+b71b6b31e54f.0.1080p.h264                host fault (attempt 1): null {'base_discard': -0.0050679206748560635, 'base_write': -0.02105393240747533}, max spread 1.735
+b71b6b31e54f.0.1080p.h264                host fault (attempt 2): null {'base_discard': -0.028144446604359774, 'base_write': -0.008573756621468642}, max spread 1.507
+b71b6b31e54f.0.1080p.h264                host fault (attempt 3): null {'base_discard': 0.0039053681205925006, 'base_write': -0.007644116699793813}, max spread 1.809
+b71b6b31e54f.0.1080p.h264                base:discard=1.05  base:write=0.97  base:mixed=0.87  k:discard=1.02  k:write=0.97  k:mixed=0.85 UNRESOLVED
+c7ecda16e4a7.0.1080p.h264                base:discard=1.16  base:write=1.08  base:mixed=1.05  k:discard=1.12  k:write=1.05  k:mixed=1.02
+gate after 8 streams (check): 0.403 s (+0.5%)
+
+base:discard             n=  8  median 1.080  [1.048, 1.122]
+base:write               n=  8  median 1.050  [0.969, 1.077]
+base:mixed               n=  8  median 1.004  [0.869, 1.034]
+k:discard                n=  8  median 1.069  [1.023, 1.102]
+k:write                  n=  8  median 1.035  [0.971, 1.052]
+k:mixed                  n=  8  median 0.990  [0.848, 1.020]
+
+wrote $HOME/ab/bundle3/out/g.1080p.json

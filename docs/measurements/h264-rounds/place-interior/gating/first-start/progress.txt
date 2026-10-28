@@ -1,0 +1,4 @@
+VOID g.sd attempt 1 05:05
+VOID g.sd attempt 2 05:13
+VOID g.sd attempt 3 05:18
+g.sd void three times; stopping

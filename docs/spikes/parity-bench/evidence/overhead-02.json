@@ -1,0 +1,992 @@
+[
+ {
+  "file": "basic.mp4",
+  "rust": {
+   "probe": 37228,
+   "extract_audio": 29483,
+   "remux": 60206,
+   "clip": 51614
+  },
+  "python": {
+   "probe": 56655,
+   "extract_audio": 35946,
+   "remux": 117049,
+   "clip": 104477
+  }
+ },
+ {
+  "file": "faststart.mp4",
+  "rust": {
+   "probe": 36255,
+   "extract_audio": 28372,
+   "remux": 57160,
+   "clip": 51563
+  },
+  "python": {
+   "probe": 53407,
+   "extract_audio": 35330,
+   "remux": 117161,
+   "clip": 113086
+  }
+ },
+ {
+  "file": "fragmented.mp4",
+  "rust": {
+   "probe": 28018,
+   "extract_audio": 28979,
+   "remux": 60794,
+   "clip": 59740
+  },
+  "python": {
+   "probe": 41193,
+   "extract_audio": 35707,
+   "remux": 120486,
+   "clip": 112090
+  }
+ },
+ {
+  "file": "fragmented_moov.mp4",
+  "rust": {
+   "probe": 30186,
+   "extract_audio": 30638,
+   "remux": 65190,
+   "clip": 54996
+  },
+  "python": {
+   "probe": 43872,
+   "extract_audio": 37953,
+   "remux": 130457,
+   "clip": 106026
+  }
+ },
+ {
+  "file": "basic.mov",
+  "rust": {
+   "probe": 36441,
+   "extract_audio": 28361,
+   "remux": 60325,
+   "clip": 52732
+  },
+  "python": {
+   "probe": 54615,
+   "extract_audio": 35992,
+   "remux": 123386,
+   "clip": 103497
+  }
+ },
+ {
+  "file": "vfr.mp4",
+  "rust": {
+   "probe": 24844,
+   "extract_audio": null,
+   "remux": 28826,
+   "clip": 28784
+  },
+  "python": {
+   "probe": 37600,
+   "extract_audio": null,
+   "remux": 55633,
+   "clip": 54441
+  }
+ },
+ {
+  "file": "negative_cts.mp4",
+  "rust": {
+   "probe": 23437,
+   "extract_audio": null,
+   "remux": 32946,
+   "clip": 30159
+  },
+  "python": {
+   "probe": 35175,
+   "extract_audio": null,
+   "remux": 81370,
+   "clip": 58720
+  }
+ },
+ {
+  "file": "edit_list.mp4",
+  "rust": {
+   "probe": 37310,
+   "extract_audio": 36860,
+   "remux": 66042,
+   "clip": 50891
+  },
+  "python": {
+   "probe": 54530,
+   "extract_audio": 43828,
+   "remux": 124831,
+   "clip": 64402
+  }
+ },
+ {
+  "file": "truncated.mp4",
+  "rust": {
+   "probe": null,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  },
+  "python": {
+   "probe": null,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  }
+ },
+ {
+  "file": "rotate_ccw90.mp4",
+  "rust": {
+   "probe": 36297,
+   "extract_audio": 28659,
+   "remux": 58305,
+   "clip": 51778
+  },
+  "python": {
+   "probe": 53420,
+   "extract_audio": 35925,
+   "remux": 120413,
+   "clip": 108132
+  }
+ },
+ {
+  "file": "rotate_ccw180.mp4",
+  "rust": {
+   "probe": 36722,
+   "extract_audio": 28699,
+   "remux": 58043,
+   "clip": 51935
+  },
+  "python": {
+   "probe": 53329,
+   "extract_audio": 35944,
+   "remux": 116058,
+   "clip": 103857
+  }
+ },
+ {
+  "file": "rotate_ccw270.mp4",
+  "rust": {
+   "probe": 36691,
+   "extract_audio": 28544,
+   "remux": 58226,
+   "clip": 51106
+  },
+  "python": {
+   "probe": 53800,
+   "extract_audio": 35715,
+   "remux": 115950,
+   "clip": 103349
+  }
+ },
+ {
+  "file": "color_bt709.mp4",
+  "rust": {
+   "probe": 23402,
+   "extract_audio": null,
+   "remux": 32454,
+   "clip": 30654
+  },
+  "python": {
+   "probe": 35809,
+   "extract_audio": null,
+   "remux": 81058,
+   "clip": 58654
+  }
+ },
+ {
+  "file": "color_full_range.mp4",
+  "rust": {
+   "probe": 22742,
+   "extract_audio": null,
+   "remux": 32926,
+   "clip": 30286
+  },
+  "python": {
+   "probe": 35760,
+   "extract_audio": null,
+   "remux": 81151,
+   "clip": 57566
+  }
+ },
+ {
+  "file": "color_bt2020_pq.mp4",
+  "rust": {
+   "probe": 23862,
+   "extract_audio": null,
+   "remux": 32127,
+   "clip": 31269
+  },
+  "python": {
+   "probe": 38352,
+   "extract_audio": null,
+   "remux": 45333,
+   "clip": 44315
+  }
+ },
+ {
+  "file": "hevc_hev1.mp4",
+  "rust": {
+   "probe": 25470,
+   "extract_audio": null,
+   "remux": 31615,
+   "clip": null
+  },
+  "python": {
+   "probe": 37356,
+   "extract_audio": null,
+   "remux": 44581,
+   "clip": null
+  }
+ },
+ {
+  "file": "hevc_hvc1.mp4",
+  "rust": {
+   "probe": 23950,
+   "extract_audio": null,
+   "remux": 31971,
+   "clip": 31092
+  },
+  "python": {
+   "probe": 37108,
+   "extract_audio": null,
+   "remux": 44928,
+   "clip": 44150
+  }
+ },
+ {
+  "file": "h264_avc3.mp4",
+  "rust": {
+   "probe": 23358,
+   "extract_audio": null,
+   "remux": 33115,
+   "clip": null
+  },
+  "python": {
+   "probe": 34353,
+   "extract_audio": null,
+   "remux": 44467,
+   "clip": null
+  }
+ },
+ {
+  "file": "av1.mp4",
+  "rust": {
+   "probe": 24022,
+   "extract_audio": null,
+   "remux": 28756,
+   "clip": 27671
+  },
+  "python": {
+   "probe": 35019,
+   "extract_audio": null,
+   "remux": 39248,
+   "clip": 40698
+  }
+ },
+ {
+  "file": "vp9.mp4",
+  "rust": {
+   "probe": 22660,
+   "extract_audio": null,
+   "remux": 32194,
+   "clip": 31209
+  },
+  "python": {
+   "probe": 33925,
+   "extract_audio": null,
+   "remux": 96106,
+   "clip": 44360
+  }
+ },
+ {
+  "file": "prores_proxy.mov",
+  "rust": {
+   "probe": 20527,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  },
+  "python": {
+   "probe": 31201,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  }
+ },
+ {
+  "file": "prores_lt.mov",
+  "rust": {
+   "probe": 20132,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  },
+  "python": {
+   "probe": 30848,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  }
+ },
+ {
+  "file": "prores_standard.mov",
+  "rust": {
+   "probe": 21366,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  },
+  "python": {
+   "probe": 30939,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  }
+ },
+ {
+  "file": "prores_hq.mov",
+  "rust": {
+   "probe": 19909,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  },
+  "python": {
+   "probe": 30839,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  }
+ },
+ {
+  "file": "prores_4444.mov",
+  "rust": {
+   "probe": 19922,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  },
+  "python": {
+   "probe": 30677,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  }
+ },
+ {
+  "file": "prores_4444xq.mov",
+  "rust": {
+   "probe": 19740,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  },
+  "python": {
+   "probe": 30775,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  }
+ },
+ {
+  "file": "size_entry_understated.mp4",
+  "rust": {
+   "probe": 23845,
+   "extract_audio": null,
+   "remux": 50043,
+   "clip": 51223
+  },
+  "python": {
+   "probe": 36309,
+   "extract_audio": null,
+   "remux": 262330,
+   "clip": 79359
+  }
+ },
+ {
+  "file": "size_prores_understated.mov",
+  "rust": {
+   "probe": 19754,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  },
+  "python": {
+   "probe": 31501,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  }
+ },
+ {
+  "file": "size_left_crop.mp4",
+  "rust": {
+   "probe": 23962,
+   "extract_audio": null,
+   "remux": 47830,
+   "clip": 47554
+  },
+  "python": {
+   "probe": 37155,
+   "extract_audio": null,
+   "remux": 76295,
+   "clip": 84059
+  }
+ },
+ {
+  "file": "size_hevc_window.mp4",
+  "rust": {
+   "probe": 24453,
+   "extract_audio": null,
+   "remux": 41693,
+   "clip": 42260
+  },
+  "python": {
+   "probe": 38739,
+   "extract_audio": null,
+   "remux": 61610,
+   "clip": 64613
+  }
+ },
+ {
+  "file": "size_hevc_mixed_window.mp4",
+  "rust": {
+   "probe": 25755,
+   "extract_audio": null,
+   "remux": 42231,
+   "clip": 43366
+  },
+  "python": {
+   "probe": 39506,
+   "extract_audio": null,
+   "remux": 61448,
+   "clip": 63698
+  }
+ },
+ {
+  "file": "size_inband_sps.mp4",
+  "rust": {
+   "probe": 23193,
+   "extract_audio": null,
+   "remux": 53582,
+   "clip": 43224
+  },
+  "python": {
+   "probe": 35737,
+   "extract_audio": null,
+   "remux": 85265,
+   "clip": 64850
+  }
+ },
+ {
+  "file": "size_vp9_resize.mp4",
+  "rust": {
+   "probe": 22232,
+   "extract_audio": null,
+   "remux": 69659,
+   "clip": 47387
+  },
+  "python": {
+   "probe": 32969,
+   "extract_audio": null,
+   "remux": 383464,
+   "clip": 77070
+  }
+ },
+ {
+  "file": "audio_aac.m4a",
+  "rust": {
+   "probe": 19814,
+   "extract_audio": 24101,
+   "remux": 32344,
+   "clip": null
+  },
+  "python": {
+   "probe": 30470,
+   "extract_audio": 30726,
+   "remux": 42564,
+   "clip": null
+  }
+ },
+ {
+  "file": "audio_51.m4a",
+  "rust": {
+   "probe": 19349,
+   "extract_audio": 27817,
+   "remux": 36085,
+   "clip": null
+  },
+  "python": {
+   "probe": 30199,
+   "extract_audio": 36442,
+   "remux": 47609,
+   "clip": null
+  }
+ },
+ {
+  "file": "audio_opus.mp4",
+  "rust": {
+   "probe": 18075,
+   "extract_audio": null,
+   "remux": 31109,
+   "clip": null
+  },
+  "python": {
+   "probe": 27794,
+   "extract_audio": null,
+   "remux": 41368,
+   "clip": null
+  }
+ },
+ {
+  "file": "audio_mp3.mp4",
+  "rust": {
+   "probe": 17852,
+   "extract_audio": null,
+   "remux": 28450,
+   "clip": null
+  },
+  "python": {
+   "probe": 27576,
+   "extract_audio": null,
+   "remux": 38965,
+   "clip": null
+  }
+ },
+ {
+  "file": "audio_mp3.mov",
+  "rust": {
+   "probe": 16609,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  },
+  "python": {
+   "probe": 26353,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  }
+ },
+ {
+  "file": "audio_pce_entry_stereo.m4a",
+  "rust": {
+   "probe": 19361,
+   "extract_audio": 24740,
+   "remux": 32666,
+   "clip": null
+  },
+  "python": {
+   "probe": 30787,
+   "extract_audio": 32359,
+   "remux": 44314,
+   "clip": null
+  }
+ },
+ {
+  "file": "pcm_s16le.mov",
+  "rust": {
+   "probe": 17814,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  },
+  "python": {
+   "probe": 28125,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  }
+ },
+ {
+  "file": "pcm_s24le.mov",
+  "rust": {
+   "probe": 17102,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  },
+  "python": {
+   "probe": 27597,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  }
+ },
+ {
+  "file": "pcm_f32le.mov",
+  "rust": {
+   "probe": 17632,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  },
+  "python": {
+   "probe": 27684,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  }
+ },
+ {
+  "file": "pcm_s16le.mp4",
+  "rust": {
+   "probe": 18680,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  },
+  "python": {
+   "probe": 28811,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  }
+ },
+ {
+  "file": "pcm_s8_mono.mov",
+  "rust": {
+   "probe": 17461,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  },
+  "python": {
+   "probe": 27325,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  }
+ },
+ {
+  "file": "pcm_u8_stereo.mov",
+  "rust": {
+   "probe": 17461,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  },
+  "python": {
+   "probe": 27390,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  }
+ },
+ {
+  "file": "pcm_s16le_stereo.mov",
+  "rust": {
+   "probe": 17419,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  },
+  "python": {
+   "probe": 27227,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  }
+ },
+ {
+  "file": "pcm_u8_stereo_size1_frames.mov",
+  "rust": {
+   "probe": 17545,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  },
+  "python": {
+   "probe": 27170,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  }
+ },
+ {
+  "file": "pcm_s16le_stereo_size1_bytes.mov",
+  "rust": {
+   "probe": 17411,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  },
+  "python": {
+   "probe": 27144,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  }
+ },
+ {
+  "file": "multitrack.mp4",
+  "rust": {
+   "probe": 74989,
+   "extract_audio": 35463,
+   "remux": 130836,
+   "clip": 66869
+  },
+  "python": {
+   "probe": 109818,
+   "extract_audio": 41963,
+   "remux": 151942,
+   "clip": 83608
+  }
+ },
+ {
+  "file": "text_styled.mp4",
+  "rust": {
+   "probe": 49021,
+   "extract_audio": 30314,
+   "remux": 60353,
+   "clip": 54092
+  },
+  "python": {
+   "probe": 68461,
+   "extract_audio": 37002,
+   "remux": 76194,
+   "clip": 68597
+  }
+ },
+ {
+  "file": "text_shifted.mp4",
+  "rust": {
+   "probe": 33048,
+   "extract_audio": null,
+   "remux": 35928,
+   "clip": 31457
+  },
+  "python": {
+   "probe": 50432,
+   "extract_audio": null,
+   "remux": 48454,
+   "clip": 45453
+  }
+ },
+ {
+  "file": "chapters.mp4",
+  "rust": {
+   "probe": 51610,
+   "extract_audio": 31431,
+   "remux": 68726,
+   "clip": 56072
+  },
+  "python": {
+   "probe": 104400,
+   "extract_audio": 38550,
+   "remux": 92249,
+   "clip": 72093
+  }
+ },
+ {
+  "file": "chapters.m4a",
+  "rust": {
+   "probe": 21477,
+   "extract_audio": 23609,
+   "remux": 34587,
+   "clip": null
+  },
+  "python": {
+   "probe": 31791,
+   "extract_audio": 30996,
+   "remux": 47720,
+   "clip": null
+  }
+ },
+ {
+  "file": "chapters.mov",
+  "rust": {
+   "probe": 23564,
+   "extract_audio": null,
+   "remux": 37768,
+   "clip": 30812
+  },
+  "python": {
+   "probe": 36246,
+   "extract_audio": null,
+   "remux": 51193,
+   "clip": 44964
+  }
+ },
+ {
+  "file": "chapters_chpl_only.mp4",
+  "rust": {
+   "probe": 50434,
+   "extract_audio": 31486,
+   "remux": 68246,
+   "clip": 56375
+  },
+  "python": {
+   "probe": 71988,
+   "extract_audio": 39305,
+   "remux": 87215,
+   "clip": 72219
+  }
+ },
+ {
+  "file": "chapters_track_only.mp4",
+  "rust": {
+   "probe": 51505,
+   "extract_audio": 32622,
+   "remux": 68978,
+   "clip": 58006
+  },
+  "python": {
+   "probe": 73681,
+   "extract_audio": 39216,
+   "remux": 87789,
+   "clip": 121605
+  }
+ },
+ {
+  "file": "timecode.mov",
+  "rust": {
+   "probe": 32083,
+   "extract_audio": null,
+   "remux": 38141,
+   "clip": 32048
+  },
+  "python": {
+   "probe": 93866,
+   "extract_audio": null,
+   "remux": 97536,
+   "clip": 89787
+  }
+ },
+ {
+  "file": "clip_open_gop.mp4",
+  "rust": {
+   "probe": 36512,
+   "extract_audio": 40582,
+   "remux": 86051,
+   "clip": 55589
+  },
+  "python": {
+   "probe": 105599,
+   "extract_audio": 96117,
+   "remux": 217831,
+   "clip": 140593
+  }
+ },
+ {
+  "file": "clip_hevc_open_gop.mp4",
+  "rust": {
+   "probe": 39906,
+   "extract_audio": 39956,
+   "remux": 85803,
+   "clip": 53049
+  },
+  "python": {
+   "probe": 57228,
+   "extract_audio": 47843,
+   "remux": 105867,
+   "clip": 67323
+  }
+ },
+ {
+  "file": "clip_audio_late.mp4",
+  "rust": {
+   "probe": 38221,
+   "extract_audio": 36117,
+   "remux": 77970,
+   "clip": 52794
+  },
+  "python": {
+   "probe": 55162,
+   "extract_audio": 43467,
+   "remux": 99932,
+   "clip": 68437
+  }
+ },
+ {
+  "file": "clip_video_late.mp4",
+  "rust": {
+   "probe": 37691,
+   "extract_audio": 40604,
+   "remux": 84028,
+   "clip": 49459
+  },
+  "python": {
+   "probe": 54596,
+   "extract_audio": 48587,
+   "remux": 106177,
+   "clip": 64596
+  }
+ },
+ {
+  "file": "nested_10000.mp4",
+  "rust": {
+   "probe": null,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  },
+  "python": {
+   "probe": null,
+   "extract_audio": null,
+   "remux": null,
+   "clip": null
+  }
+ },
+ {
+  "file": "remux_metadata.mov",
+  "rust": {
+   "probe": 38273,
+   "extract_audio": 28868,
+   "remux": 59926,
+   "clip": 51718
+  },
+  "python": {
+   "probe": 54396,
+   "extract_audio": 36007,
+   "remux": 75710,
+   "clip": 66888
+  }
+ },
+ {
+  "file": "remux_metadata.mp4",
+  "rust": {
+   "probe": 39468,
+   "extract_audio": 28068,
+   "remux": 57071,
+   "clip": 51552
+  },
+  "python": {
+   "probe": 55925,
+   "extract_audio": 35531,
+   "remux": 72362,
+   "clip": 74220
+  }
+ },
+ {
+  "file": "fragmented_sidx.mp4",
+  "rust": {
+   "probe": 28355,
+   "extract_audio": 207780,
+   "remux": 550567,
+   "clip": 68691
+  },
+  "python": {
+   "probe": 44385,
+   "extract_audio": 231563,
+   "remux": 1912621,
+   "clip": 88807
+  }
+ },
+ {
+  "file": "fragmented_many.mp4",
+  "rust": {
+   "probe": 27719,
+   "extract_audio": 379235,
+   "remux": 901143,
+   "clip": 89916
+  },
+  "python": {
+   "probe": 41146,
+   "extract_audio": 397670,
+   "remux": 1079822,
+   "clip": 107694
+  }
+ }
+]

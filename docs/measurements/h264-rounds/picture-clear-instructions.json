@@ -1,0 +1,21 @@
+{
+ "what": "instructions executed with and without clearing a reused picture",
+ "method": "callgrind, exact instruction counts; the two binaries differ only in Picture::reset clearing the sample planes, so both carry the --frames and --discard harness fixes of this PR",
+ "stream": "0404af1890da.0.1080p.h264",
+ "frames": 300,
+ "macroblocks": 1747200,
+ "clears_the_picture": {
+  "instructions": 19575386000,
+  "per_macroblock": 11204
+ },
+ "does_not_clear": {
+  "instructions": 18906812735,
+  "per_macroblock": 10821
+ },
+ "saved": {
+  "instructions": 668573265,
+  "per_macroblock": 383,
+  "share": 0.0342
+ },
+ "note": "wall-clock on this machine puts the change near its two-point noise floor; the instruction count does not, which is why it is the evidence quoted"
+}

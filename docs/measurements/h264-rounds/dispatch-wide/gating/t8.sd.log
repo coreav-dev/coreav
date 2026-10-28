@@ -1,0 +1,21 @@
+machine: Intel(R) Xeon(R) Processor @ 2.90GHz (family 6, model 106, stepping 6), 2899.9 MHz, 8 logical CPUs
+41e324ebb708.0.sd.h264                   main:discard=1.03  main:write=1.04  main:mixed=0.96  v3:discard=1.06  v3:write=1.03  v3:mixed=0.98  after:discard=1.00  after:write=1.01  after:mixed=0.92
+5185721dda11.0.sd.h264                   main:discard=1.01  main:write=0.99  main:mixed=0.95  v3:discard=0.99  v3:write=0.98  v3:mixed=0.94  after:discard=1.01  after:write=0.99  after:mixed=0.96
+6f7799768413.0.sd.h264                   main:discard=1.26  main:write=1.23  main:mixed=1.16  v3:discard=1.21  v3:write=1.24  v3:mixed=1.11  after:discard=1.22  after:write=1.22  after:mixed=1.12
+7650ae466748.0.sd.h264                   main:discard=1.09  main:write=1.04  main:mixed=1.05  v3:discard=1.00  v3:write=1.02  v3:mixed=0.96  after:discard=1.00  after:write=1.01  after:mixed=0.96
+8ae90cadb5bc.0.sd.h264                   main:discard=1.24  main:write=1.19  main:mixed=1.17  v3:discard=1.17  v3:write=1.12  v3:mixed=1.10  after:discard=1.21  after:write=1.14  after:mixed=1.14
+dcb262cf0138.0.sd.h264                   main:discard=0.92  main:write=0.84  main:mixed=0.86  v3:discard=0.86  v3:write=0.80  v3:mixed=0.81  after:discard=0.83  after:write=0.80  after:mixed=0.78
+ec473c99c538.0.sd.h264                   main:discard=0.84  main:write=0.76  main:mixed=0.75  v3:discard=0.80  v3:write=0.72  v3:mixed=0.72  after:discard=0.80  after:write=0.72  after:mixed=0.72
+f9e973f44570.0.sd.h264                   main:discard=0.94  main:write=0.90  main:mixed=0.93  v3:discard=0.88  v3:write=0.89  v3:mixed=0.87  after:discard=0.89  after:write=0.90  after:mixed=0.88
+
+main:discard             n=  8  median 1.020  [0.919, 1.241]
+main:write               n=  8  median 1.013  [0.841, 1.193]
+main:mixed               n=  8  median 0.955  [0.859, 1.158]
+v3:discard               n=  8  median 0.996  [0.862, 1.169]
+v3:write                 n=  8  median 1.000  [0.801, 1.123]
+v3:mixed                 n=  8  median 0.950  [0.806, 1.105]
+after:discard            n=  8  median 0.998  [0.834, 1.206]
+after:write              n=  8  median 1.001  [0.803, 1.138]
+after:mixed              n=  8  median 0.941  [0.780, 1.124]
+
+wrote $HOME/ab/dw/vol/d1/out/t8.sd.json

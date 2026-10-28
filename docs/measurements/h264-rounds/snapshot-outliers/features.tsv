@@ -1,0 +1,33 @@
+id	cls	profile	lvl	cabac	transform8x8	weighted_pred	weighted_bipred_idc	poc_type	refs	frame_mbs_only	mbaff	crop	pix	slices_per_pic	slices_by_type	field	slice_groups_minus1	dbf_idc	constrained_intra	chroma
+175433794e02	1080p	High	42	1	1	0	0	0	2	1	-	1	yuv420p	4.0	P348 B800 I52	-	0	1	0	1
+1d4b1775d78a	720p	High	31	1	1	1	2	0	4	1	-	0	yuv420p	1.0	P108 B187 I5	-	0	0	0	1
+278dbf5a63bb	720p	High	31	1	1	1	2	0	4	1	-	0	yuv420p	1.0	P196 B101 I3	-	0	0	0	1
+36501d448eaa	720p	High	31	1	1	0	0	0	1	1	-	1	yuv420p	1.0	P289 B0 I11	-	0	0	0	1
+3b1b441e23ae	4k	High	62	1	1	1	2	0	4	1	-	1	yuv420p	1.0	P93 B56 I1	-	0	0	0	1
+3c593b8f0809	720p	Main	42	1	0	0	0	0	2	1	-	0	yuvj420p	1.0	P270 B0 I30	-	0	0	0	-
+41e324ebb708	sd	Main	30	1	0	1	2	0	3	1	-	1	yuv420p	1.0	P132 B164 I4	-	0	0	0	-
+4b54de28c2b3	4k	High	50	1	1	0	0	2	1	1	-	1	yuv420p	1.0	P149 B0 I1	-	0	-	0	1
+5185721dda11	sd	Constrained Baseline	13	0	0	0	0	2	1	1	-	0	yuv420p	1.0	P294 B0 I6	-	0	0	0	-
+65ec61f95a00	720p	Main	31	1	0	1	0	2	3	1	-	0	yuv420p	1.0	P294 B0 I6	-	0	0	0	-
+6b18d9f0f88d	720p	High	32	1	0	0	0	2	1	1	-	1	yuv420p	1.0	P297 B0 I3	-	0	-	0	1
+6da34958296c	1080p	Main	40	1	0	1	2	0	4	1	-	1	yuv420p	1.0	P75 B224 I1	-	0	0	0	-
+6e90422a670a	1080p	High	52	1	1	0	0	0	2	1	-	1	yuv420p	4.0	P348 B800 I52	-	0	0	0	1
+6f7799768413	sd	Constrained Baseline	30	0	0	0	0	2	3	1	-	0	yuv420p	1.0	P293 B0 I7	-	0	0	0	-
+7650ae466748	sd	High	30	1	1	1	2	0	4	1	-	1	yuv420p	1.0	P78 B220 I2	-	0	0	0	1
+76e0b1692494	720p	Main	31	1	0	0	0	0	2	1	-	0	yuv420p	1.0	P151 B138 I11	-	0	0	0	-
+81ed4778ece2	4k	High	50	1	1	0	0	2	1	1	-	1	yuv420p	1.0	P147 B0 I3	-	0	-	0	1
+8ae90cadb5bc	sd	High	30	1	1	1	0	2	4	1	-	1	yuv420p	1.0	P287 B0 I13	-	0	0	0	1
+9db41aa16b5a	720p	High	32	0	1	0	2	0	2	1	-	1	yuv420p	1.0	P100 B197 I3	-	0	0	0	1
+a6af290d9053	1080p	High	42	1	1	0	0	0	2	1	-	1	yuv420p	4.0	P348 B800 I52	-	0	0	0	1
+a81de82106be	1080p	Main	42	1	0	0	0	2	1	1	-	1	yuv420p	1.0	P297 B0 I3	-	0	0	0	-
+ae16bb7c7192	4k	Main	40	1	0	0	0	0	2	1	-	1	yuv420p	1.0	P75 B72 I3	-	0	0	0	-
+af38b0cfd840	4k	High	31	1	1	1	2	0	4	1	-	0	yuv420p	1.0	P38 B111 I1	-	0	0	0	1
+b41f70a7fa60	1080p	High	40	1	1	0	2	0	2	1	-	1	yuv420p	1.0	P111 B184 I5	-	0	0	0	1
+b71b6b31e54f	1080p	Main	40	0	0	0	0	0	2	1	-	1	yuv420p	8.0	P1200 B1160 I40	-	0	0,1	0	-
+c7ecda16e4a7	1080p	High	40	1	1	0	0	0	1	1	-	1	yuv420p	1.0	P245 B0 I9	-	0	0	0	1
+dcb262cf0138	sd	Main	12	1	0	1	2	0	5	1	-	1	yuv420p	1.0	P78 B215 I7	-	0	0	0	-
+e624cbe0d2be	4k	Main	52	1	0	0	0	0	1	1	-	1	yuv420p	1.0	P146 B0 I4	-	0	0	0	-
+ec473c99c538	sd	Constrained Baseline	13	0	0	0	0	2	3	1	-	1	yuv420p	1.0	P288 B0 I12	-	0	0	0	-
+ed75c044e944	4k	High	42	1	1	0	0	2	2	1	-	1	yuv420p	1.0	P149 B0 I1	-	0	0	0	1
+f8d92a911e72	4k	High	52	1	1	0	0	0	2	1	-	1	yuv420p	8.0	P360 B800 I40	-	0	2	0	1
+f9e973f44570	sd	Constrained Baseline	30	0	0	0	0	2	3	1	-	1	yuv420p	1.0	P296 B0 I4	-	0	0	0	-

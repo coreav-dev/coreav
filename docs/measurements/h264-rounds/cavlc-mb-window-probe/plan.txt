@@ -1,0 +1,107 @@
+CAVLC macroblock layer probe: the residual's bit window carried across the whole macroblock, part-only (written before
+the run).
+
+Question: on the CAVLC streams, does the cost of the macroblock layer's Exp-Golomb reads (each an out-of-line call to
+BitReader::ue) cost time in proportion to its instructions? 6f7799768413 is still the slowest of the 32 streams against
+FFmpeg at one thread; after bundle 2 and the CAVLC window round, its next largest parse item is ue: 3.23% of its
+instructions, 7.70 M calls at 43 instructions each (counts.txt).
+
+Base: perf/h264-cavlc-window 9ba67d12 (main ae609547, bundle 2, with the CAVLC window round, an earlier change, merged in). The cut
+builds on that round's Window. If an earlier change does not merge, this round is rebased onto main and its counts are taken again
+before anything is timed.
+
+Sites, measured on base (counts.txt, sites.txt; callgrind of a dist build of 9ba67d12 with line tables, the six CAVLC
+streams at the class frame counts, sites.py): ue runs out of line, compiled for the baseline target (bsr, not lzcnt),
+43.1 to 44.3 self instructions a call. On the six streams nearly every call comes from decode_cavlc's slice data loop:
+mb_type, sub_mb_type, ref_idx (te), coded_block_pattern and intra_chroma_pred_mode through ue_max (bits.rs:140),
+mvd and mb_qp_delta through se (bits.rs:150), and mb_skip_run (mb.rs:1065). On 6f7799768413: 6.82 M calls from the
+macroblock layer and 0.85 M for mb_skip_run.
+
+Fixed cost of a call, from base's machine code (BitReader::ue and its call sites in the decode_cavlc closure):
+- at the call site: the arguments set up, a vzeroupper, the call, and the Result<u32> loaded back from the stack and
+  tested: about 7;
+- in ue: the 8-byte window (byte index, bounds check, load, byte swap, shift), three registers pushed and popped, the
+  leading zeros by bsr, the length, the checked position, the Result stored: about 43, the self count above.
+Read from a window held in registers (need() check, leading zeros, shift, the value), a code costs about 11. Predicted:
+36 fewer instructions a call (rounded down from 43 + 7 - 11).
+
+Cut in view (C, not built):
+- CavlcSyntax keeps one cavlc::Window from the start of macroblock_layer() (before mb_type) to the end of the
+  macroblock's residual, in place of the residual's own window (begin_residual/end_residual of an earlier change). mb_type,
+  transform_size_8x8_flag, sub_mb_type, prev_intra4x4_pred_mode_flag, rem_intra4x4_pred_mode, intra_chroma_pred_mode,
+  ref_idx, mvd, coded_block_pattern and mb_qp_delta read from it: ue/se/te on the window, inlined into the slice's
+  instance of the hot paths (lzcnt there), no call and no bounds check of their own.
+- The position is checked against the end of the RBSP once, when the window is finished at the end of the macroblock;
+  past the end the window reads zeros, as in an earlier change. A macroblock's header reads a bounded number of codes (at most 16
+  partitions with two lists), each at most 63 bits, so a truncated macroblock fails at that check or earlier, as
+  Truncated. An Exp-Golomb code too long for the window's 57 bits takes a cold path.
+- I_PCM finishes the window before its samples; every error path leaves the reader where the existing code leaves it
+  or reports the same error kind.
+- mb_skip_run (0.85 M of 7.70 M calls on 6f7799768413) joins the window only if it can be read from the same window
+  without a second window a run (more_rbsp_data needs the reader's position after a run); otherwise it stays on the
+  reader. The prediction below counts the macroblock layer only.
+- CABAC: no change (the window's calls are no-ops there, as begin_residual/end_residual are).
+Predicted (sites.txt): 36 a call over the macroblock layer's calls, a median of 1.88% of a CAVLC stream's instructions
+(0.92% to 2.60%; 6f7799768413 2.39%); with mb_skip_run 2.27%. Above an earlier change's 1.5% for a plain instruction cut to show
+in a round of its own. The CABAC streams run only the slice headers' few hundred calls.
+
+Probe (P, branch probe/h264-cavlc-mb-window-pad, feature probe-pad): 36 independent one-uop instructions (lea o, [a + a],
+output unused, as the earlier probes) at the start of every BitReader::ue call (every call site above, mb_skip_run and
+the slice headers included). Verified before timing: callgrind instructions of P over base on the six CAVLC streams
+at the class frame counts (expected: 36 a ue call, within 5%; on the CABAC streams below 0.01%, checked on two of them
+at a tenth of the class frame counts), and output identical to base (md5 of the 32 streams at a tenth of the class
+frame counts).
+
+Arms: base = dist build of 9ba67d12 (bin-mw-base), P = the same tree with --features probe-pad (bin-mw-pad), one
+toolchain, RUSTFLAGS unset. Method: ab3.py, 8 rounds, all 32 training streams, class frame counts, 1 thread, --discard,
+pinned to CPU 3, order rotated each round, CPU time (user + sys); per stream the median of P over base, bootstrap 95%
+interval of the median (abq.py). Host: this development VM (directional; no gating bar moves).
+
+Rule (fixed now):
+- Build C only if P's median over the 6 CAVLC streams is >= 1.010 with the bootstrap lower end above 1.000, as the
+  earlier part-only probes (cavlc-block-probe, cavlc-window-probe, mvd-probe). Otherwise C is not built as a round of
+  its own, and the result is recorded docs-only in one paragraph of the design note.
+- The 26 CABAC streams run almost none of the pads and are the null control: their median should read 1.000 (within
+  +-0.005); if it does not, the run is a host fault and is rerun once.
+- Reported beside it: all 32, per class, the streams slower, 6f7799768413's own reading (it does not decide), and the
+  price per instruction against the earlier probes (cavlc-window-probe 1.0196 for a median 1.78%).
+
+If C is built, its local timing (written now, before any build): ab3.py, 8 rounds, all 32, arms base and C, same host
+and method; C is identical in output to base on the 32 streams at 1 and 8 threads and passes conformance first
+(including the build without fast and with scalar kernels). CavlcSyntax and the slice data loop's state change shape,
+so C is timed at one thread whatever its instruction count says. A gating run is requested only if the 6 CAVLC
+streams' median of C over base is at most 0.990 with the bootstrap upper end below 1.000 and the all-32 median is at
+most 1.000; the gating bars are written into the design note and committed before that run (the eight-thread bar a
+no-regression guard, the gain bars at one thread). Otherwise C goes to a rejected/ branch as a bundle candidate.
+
+Probe check (verify.txt): P adds 36.1 to 38.9 instructions a ue call on the six CAVLC streams (1.12% to 3.04% of a
+stream's instructions, a median of 2.27%). ec473c99c538, at 38.9, is outside the 5% the plan allowed: sites.txt counts
+only the macroblock layer's calls, and with its slice headers' calls the pads come to 36.0 a call. All 26 CABAC streams
+were checked, at a tenth of the class frame counts: 22 below the 0.01% expected, four above it (0.015% to 0.126%,
+dcb262cf0138 the most; slice headers). Output identical to base on the 32 streams (md5 at a tenth of the class frame
+counts).
+
+Probe result (ab.txt, ab-summary.txt, 8 rounds): CAVLC 6 streams 1.0128 [1.0057, 1.0173], 6 of 6 slower; CABAC null
+1.0002 [0.9982, 1.0054] (within +-0.005); all 32 1.0020; sd 1.0102, 720p 1.0004, 1080p 1.0038, 4k 0.9986;
+6f7799768413 1.0179 for 2.70% more instructions. The rule is met: C is built and timed. Price: about +1.3% time for a
+median 2.27% of the instructions, a little over half of one to one, below the CAVLC window probe (1.0196 for 1.78%):
+these instructions sit in a call whose cost the out-of-order core partly hides behind the bit reads. At that price the
+macroblock layer's predicted 1.88% would read about 0.989, at the edge of the gating condition; C counts first.
+
+C as built (rejected/h264-cavlc-mb-window 51acb19f, on 9ba67d12): CavlcSyntax starts a Window when it is made, before
+mb_type, and every element of the macroblock layer reads from it (Window::ue/se/te/u, the fast path inlined, codes of
+16 or more leading zeros on a cold path); Syntax::check, which the macroblock layer already calls after the residual
+and before reconstruction, finishes it into the reader; I_PCM finishes it before its samples and starts a new one
+behind them. begin_residual/end_residual go. mb_skip_run stays on the reader (more_rbsp_data after a run needs the
+reader's position). A test compares the window's ue/se/te/u with BitReader's on 50,000 random buffers. Instructions of
+C over base (c-count.txt): a median of -1.74% on the six CAVLC streams (-0.82% to -2.14%; 6f7799768413 -1.90%), 0.8 to
+1.0 of the prediction for the macroblock layer: the window is now made for every macroblock, skipped ones apart, not
+only for those with a residual. CABAC streams: -0.003% to 0.000%. Output identical to base on the 32 streams at 1 and 8
+threads (c-identity.txt, 64 of 64); conformance 291 of 291 at 1, 2 and 8 threads, 97 of 97 with scalar kernels and 97
+of 97 without fast (c-conformance.txt).
+
+C's timing (c-ab.txt, c-ab-summary.txt, 8 rounds, the method above): CAVLC 6 streams 0.9914 [0.9775, 0.9992], 5 of 6
+faster; all 32 0.9985 [0.9958, 1.0043], 18 of 32 faster; CABAC 26 (unchanged code) 1.0010; sd 0.9968, 720p 1.0000,
+1080p 1.0014, 4k 0.9983; 6f7799768413 0.9944. The gating condition (CAVLC 6 at most 0.990) is not met: no gating run.
+C goes to rejected/h264-cavlc-mb-window as a bundle candidate (a gain of about 0.9% on the CAVLC streams at one
+thread, about half the instruction cut, as the probe priced).

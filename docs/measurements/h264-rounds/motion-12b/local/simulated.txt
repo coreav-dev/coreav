@@ -1,0 +1,26 @@
+# Simulated, callgrind --cache-sim=yes --branch-sim=yes, --discard, one thread; main 686fb48f (base) against the branch (m).
+# Host: Intel Xeon @ 2.50GHz (family 6, model 85). Frames: 100 (1080p), 40 (4k).
+6da34958296c Ir    base   5713.37M m   5711.92M  -0.03%
+6da34958296c D1mr  base     30.31M m     28.40M  -6.32%
+6da34958296c D1mw  base     13.86M m     11.91M  -14.04%
+6da34958296c Bcm   base     30.77M m     30.53M  -0.79%
+b71b6b31e54f Ir    base   2405.50M m   2396.70M  -0.37%
+b71b6b31e54f D1mr  base     13.08M m     12.55M  -4.05%
+b71b6b31e54f D1mw  base     12.57M m     10.75M  -14.52%
+b71b6b31e54f Bcm   base      7.96M m      8.62M  +8.36%
+e624cbe0d2be Ir    base   3738.11M m   3746.28M  +0.22%
+e624cbe0d2be D1mr  base     15.21M m     14.19M  -6.72%
+e624cbe0d2be D1mw  base     15.14M m     12.80M  -15.42%
+e624cbe0d2be Bcm   base     14.82M m     14.89M  +0.46%
+
+# 6da34958296c and b71b6b31e54f together: D1 read and write misses by stage and function, base -> m (K)
+  mb control               r    9599 ->    8530   w   10839 ->    7327
+  luma MC                  r   12187 ->   12055   w    6787 ->    6794
+  chroma MC                r    7189 ->    7072   w    3530 ->    3520
+  deblock strength/driver  r    5671 ->    4795   w      77 ->      42
+  picture/edge/output      r    1556 ->    1540   w    3307 ->    3296
+  deblock filter           r    4565 ->    4586   w       3 ->       4
+  entropy                  r    1671 ->    1452   w     230 ->     226
+  colocated                r    2780 ->    1892   w       3 ->       2
+  inter_pred               r    2193 ->    2128   w    7952 ->    4807
+  deblock_rows             r    5595 ->    4742   w      77 ->      42

@@ -1,0 +1,5 @@
+# This round's code merged with a62e2b0 (64b8eec6; crates/ as measured, ea40d05e), scripts/h264_conformance.py --extracted (local copy of the suite) --threads 1,2,8: detected and scalar kernels, with and without the feature fast, RUSTFLAGS unset
+{"streams": 97, "passed": 97, "failed": 0, "kernels": "detect", "mode": "fast", "threads": "1,2,8", "seconds": 43.4}
+{"streams": 97, "passed": 97, "failed": 0, "kernels": "scalar", "mode": "fast", "threads": "1,2,8", "seconds": 58.1}
+{"streams": 97, "passed": 97, "failed": 0, "kernels": "detect", "mode": "safe", "threads": "1,2,8", "seconds": 42.7}
+{"streams": 97, "passed": 97, "failed": 0, "kernels": "scalar", "mode": "safe", "threads": "1,2,8", "seconds": 59.3}

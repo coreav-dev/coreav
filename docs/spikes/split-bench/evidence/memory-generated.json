@@ -1,0 +1,15 @@
+{
+  "what": "Peak resident memory (KB, /usr/bin/time -f %M) of coreav split on a generated two-hour file, with the summary built whole (before 'fix(cli): stream the split summary one segment at a time') and streamed (after), and the live heap of split_mp4 (bytes, sbench-mem, counting allocator)",
+  "file": {
+    "generated_with": "ffmpeg 7.0.2 (/opt/coreav-oracle-bin) -f lavfi -i testsrc2=size=160x90:rate=10 -f lavfi -i sine=frequency=440:sample_rate=44100 -t 7200 -c:v libx264 -preset ultrafast -g 50 -c:a aac -b:a 32k -shortest long.mp4",
+    "sha256": "23e13de055a932d258aee86e19bbc2f86140095426d6a97d66f5ee7a3c24d224",
+    "bytes": 167625502
+  },
+  "machine": "Intel Xeon at 2.9 GHz, 8 vCPU (the perf runs' machine)",
+  "coreav_probe_kb": 5932,
+  "coreav_split_kb": {
+    "every 10 s (720 segments)": {"summary_built_whole": 18836, "summary_streamed": 6788},
+    "every 5 s (1440 segments)": {"summary_built_whole": 34216, "summary_streamed": 7208}
+  },
+  "sbench_mem_every_10_s": {"base": 681, "probe_peak": 2651665, "split_peak": 3242260, "growth": 590595, "live_after": 138240, "segments": 720, "ok": true, "valid": true}
+}

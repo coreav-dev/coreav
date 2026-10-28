@@ -1,0 +1,440 @@
+{
+  "scope": "GPU peer equivalence, separate from failing CPU-reference RGB oracle",
+  "samples": [
+    {
+      "sample": "small",
+      "pairs": [
+        {
+          "trial": 0,
+          "workload": "random",
+          "temperature": "cold",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 0,
+          "workload": "random",
+          "temperature": "warm",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 0,
+          "workload": "clips",
+          "temperature": "cold",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 0,
+          "workload": "clips",
+          "temperature": "warm",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 1,
+          "workload": "random",
+          "temperature": "cold",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 1,
+          "workload": "random",
+          "temperature": "warm",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 1,
+          "workload": "clips",
+          "temperature": "cold",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 1,
+          "workload": "clips",
+          "temperature": "warm",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 2,
+          "workload": "random",
+          "temperature": "cold",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 2,
+          "workload": "random",
+          "temperature": "warm",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 2,
+          "workload": "clips",
+          "temperature": "cold",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 2,
+          "workload": "clips",
+          "temperature": "warm",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 3,
+          "workload": "random",
+          "temperature": "cold",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 3,
+          "workload": "random",
+          "temperature": "warm",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 3,
+          "workload": "clips",
+          "temperature": "cold",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 3,
+          "workload": "clips",
+          "temperature": "warm",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 4,
+          "workload": "random",
+          "temperature": "cold",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 4,
+          "workload": "random",
+          "temperature": "warm",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 4,
+          "workload": "clips",
+          "temperature": "cold",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 4,
+          "workload": "clips",
+          "temperature": "warm",
+          "rgb_equal": true,
+          "pts_equal": true
+        }
+      ]
+    },
+    {
+      "sample": "large",
+      "pairs": [
+        {
+          "trial": 0,
+          "workload": "random",
+          "temperature": "cold",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 0,
+          "workload": "random",
+          "temperature": "warm",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 0,
+          "workload": "clips",
+          "temperature": "cold",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 0,
+          "workload": "clips",
+          "temperature": "warm",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 1,
+          "workload": "random",
+          "temperature": "cold",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 1,
+          "workload": "random",
+          "temperature": "warm",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 1,
+          "workload": "clips",
+          "temperature": "cold",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 1,
+          "workload": "clips",
+          "temperature": "warm",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 2,
+          "workload": "random",
+          "temperature": "cold",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 2,
+          "workload": "random",
+          "temperature": "warm",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 2,
+          "workload": "clips",
+          "temperature": "cold",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 2,
+          "workload": "clips",
+          "temperature": "warm",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 3,
+          "workload": "random",
+          "temperature": "cold",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 3,
+          "workload": "random",
+          "temperature": "warm",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 3,
+          "workload": "clips",
+          "temperature": "cold",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 3,
+          "workload": "clips",
+          "temperature": "warm",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 4,
+          "workload": "random",
+          "temperature": "cold",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 4,
+          "workload": "random",
+          "temperature": "warm",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 4,
+          "workload": "clips",
+          "temperature": "cold",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 4,
+          "workload": "clips",
+          "temperature": "warm",
+          "rgb_equal": true,
+          "pts_equal": true
+        }
+      ]
+    },
+    {
+      "sample": "fragmented",
+      "pairs": [
+        {
+          "trial": 0,
+          "workload": "random",
+          "temperature": "cold",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 0,
+          "workload": "random",
+          "temperature": "warm",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 0,
+          "workload": "clips",
+          "temperature": "cold",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 0,
+          "workload": "clips",
+          "temperature": "warm",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 1,
+          "workload": "random",
+          "temperature": "cold",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 1,
+          "workload": "random",
+          "temperature": "warm",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 1,
+          "workload": "clips",
+          "temperature": "cold",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 1,
+          "workload": "clips",
+          "temperature": "warm",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 2,
+          "workload": "random",
+          "temperature": "cold",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 2,
+          "workload": "random",
+          "temperature": "warm",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 2,
+          "workload": "clips",
+          "temperature": "cold",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 2,
+          "workload": "clips",
+          "temperature": "warm",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 3,
+          "workload": "random",
+          "temperature": "cold",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 3,
+          "workload": "random",
+          "temperature": "warm",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 3,
+          "workload": "clips",
+          "temperature": "cold",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 3,
+          "workload": "clips",
+          "temperature": "warm",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 4,
+          "workload": "random",
+          "temperature": "cold",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 4,
+          "workload": "random",
+          "temperature": "warm",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 4,
+          "workload": "clips",
+          "temperature": "cold",
+          "rgb_equal": true,
+          "pts_equal": true
+        },
+        {
+          "trial": 4,
+          "workload": "clips",
+          "temperature": "warm",
+          "rgb_equal": true,
+          "pts_equal": true
+        }
+      ]
+    }
+  ]
+}

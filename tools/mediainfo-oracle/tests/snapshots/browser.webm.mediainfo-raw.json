@@ -1,0 +1,39 @@
+{
+ "creatingLibrary": {
+  "name": "MediaInfoLib",
+  "version": "26.10",
+  "url": "https://mediaarea.net/MediaInfo"
+ },
+ "media": {
+  "@ref": "browser.webm",
+  "track": [
+   {
+    "@type": "General",
+    "Format": "WebM",
+    "Duration": "2.008"
+   },
+   {
+    "@type": "Video",
+    "StreamOrder": "0",
+    "Format": "VP9",
+    "Format_Profile": "0",
+    "CodecID": "V_VP9",
+    "Duration": "2.000000000",
+    "Width": "320",
+    "Height": "240",
+    "PixelAspectRatio": "1.000",
+    "DisplayAspectRatio": "1.333",
+    "colour_range": "Limited"
+   },
+   {
+    "@type": "Audio",
+    "StreamOrder": "1",
+    "Format": "Opus",
+    "CodecID": "A_OPUS",
+    "Duration": "2.008000000",
+    "Channels": "1",
+    "SamplingRate": "48000"
+   }
+  ]
+ }
+}

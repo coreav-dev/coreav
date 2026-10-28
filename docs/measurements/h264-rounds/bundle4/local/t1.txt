@@ -1,0 +1,9 @@
+round 0
+round 1
+round 2
+round 3
+round 4
+round 5
+round 6
+dec-k: all 0.9916 [0.9838, 1.0015] (21/32 faster) sd 0.9898 720p 0.9844 1080p 0.9838 4k 1.0163
+ALL

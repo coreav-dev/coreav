@@ -1,0 +1,5 @@
+null keys: ['null'] dict_keys(['base:discard', 'base:write', 'base:mixed', 'pv2:discard', 'pv2:write', 'pv2:mixed'])
+discard pv2/base       all 1.0152 [1.0109, 1.0194] sd 1.0127 720p 1.0158 1080p 1.0149 4k 1.0341  below1 0/32
+write pv2/base         all 1.0117 [1.0081, 1.0147] sd 1.0132 720p 1.0084 1080p 1.0106 4k 1.0139  below1 2/32
+base/FFmpeg discard    all 0.9174 [0.8526, 0.9546] sd 0.9642 720p 0.9268 1080p 0.9546 4k 0.7287  below1 26/32
+pv2/FFmpeg discard     all 0.9288 [0.8639, 0.9652] sd 0.9786 720p 0.9354 1080p 0.9554 4k 0.7612  below1 25/32
