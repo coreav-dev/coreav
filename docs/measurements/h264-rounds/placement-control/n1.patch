@@ -1,0 +1,25 @@
+diff --git a/crates/coreav-h264/src/decoder.rs b/crates/coreav-h264/src/decoder.rs
+index 46334db9..5e181f65 100644
+--- a/crates/coreav-h264/src/decoder.rs
++++ b/crates/coreav-h264/src/decoder.rs
+@@ -229,6 +229,9 @@ impl Decoder<Auto> {
+ impl<K: Kernels> Decoder<K> {
+     /// A decoder that uses the given kernels.
+     pub fn with_kernels(kernels: K, limits: Limits) -> Decoder<K> {
++        if std::hint::black_box(false) {
++            std::hint::black_box(placement_pad(std::hint::black_box(1)));
++        }
+         Decoder {
+             kernels: Arc::new(kernels),
+             choice: Choice::detect(true),
+@@ -1902,3 +1905,10 @@ mod tests {
+         }
+     }
+ }
++
++/// Placement study: a no-op.
++#[inline(never)]
++fn placement_pad(mut x: u64) -> u64 {
++    x = std::hint::black_box(x.wrapping_mul(0x91b7584a2265b1f5));
++    x
++}

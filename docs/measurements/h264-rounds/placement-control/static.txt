@@ -1,0 +1,19 @@
+  d-n1: 401 functions >256 B in both (400 same size); same offset mod 64: 0, mod 4096: 0, aligned to 64 in OTHER: 104
+  d-n2: 401 functions >256 B in both (400 same size); same offset mod 64: 0, mod 4096: 0, aligned to 64 in OTHER: 101
+  d-dk: 401 functions >256 B in both (399 same size); same offset mod 64: 3, mod 4096: 0, aligned to 64 in OTHER: 99
+  f-n1: 413 functions >256 B in both (412 same size); same offset mod 64: 413, mod 4096: 65, aligned to 64 in OTHER: 413
+  f-n2: 413 functions >256 B in both (412 same size); same offset mod 64: 413, mod 4096: 65, aligned to 64 in OTHER: 413
+  f-dk: 413 functions >256 B in both (411 same size); same offset mod 64: 413, mod 4096: 0, aligned to 64 in OTHER: 413
+  o-base: 418 functions >256 B in both (418 same size); same offset mod 64: 418, mod 4096: 2, aligned to 64 in OTHER: 418
+  o-n1: 413 functions >256 B in both (412 same size); same offset mod 64: 413, mod 4096: 10, aligned to 64 in OTHER: 413
+  o-n2: 413 functions >256 B in both (412 same size); same offset mod 64: 413, mod 4096: 1, aligned to 64 in OTHER: 413
+  o-dk: 413 functions >256 B in both (411 same size); same offset mod 64: 413, mod 4096: 8, aligned to 64 in OTHER: 413
+  d-n1: 119 sampled functions; same mod 64 0, mod 4096 0
+  d-n2: 119 sampled functions; same mod 64 0, mod 4096 0
+  d-dk: 119 sampled functions; same mod 64 1, mod 4096 0
+  f-n1: 119 sampled functions; same mod 64 119, mod 4096 32
+  f-n2: 119 sampled functions; same mod 64 119, mod 4096 32
+  f-dk: 119 sampled functions; same mod 64 119, mod 4096 0
+  o-n1: 119 sampled functions; same mod 64 119, mod 4096 38
+  o-n2: 119 sampled functions; same mod 64 119, mod 4096 38
+  o-dk: 119 sampled functions; same mod 64 119, mod 4096 0

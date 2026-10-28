@@ -1,0 +1,52 @@
+Placement control: a build setting under which an A/B between two commits measures their code and not where the linker
+happened to put it (written before any timing; the design note's section "Build for A/B rounds: placement control").
+
+Why: in the CAVLC P macroblock path round (cavlc-p-fused/), the 26 CABAC streams ran code identical in disassembly in
+both arms and still read 1.0033 [1.0004, 1.0090]; 395 of the 398 functions over 256 bytes started at another offset
+within their 64-byte line (placement.txt there). The default build's placement moves with any change of code size before
+a function, and its cost is of the size of the gains the rounds measure (a few tenths of a percent at the median).
+
+Modes (both arms of an A/B built alike; cargo build --locked --profile dist --example decode -p coreav-h264, one
+toolchain, rustc 1.99.1, LLD the linker; build.sh):
+- d: the default, RUSTFLAGS unset.
+- f: RUSTFLAGS="-C llvm-args=-align-all-functions=6 -C llvm-args=-align-loops=64": every function and every loop head
+  starts on a 64-byte line, so a change of size before a function moves it by whole lines.
+- o (not timed): f plus an LLD symbol order file of the sampled functions, hottest first (order.py, order.txt). Counted
+  only (static.txt): a change inside a listed function still moves every function after it, and the no-op changes below
+  sit in one (Decoder::with_kernels is inlined into the example's main, sampled at rank 38), so o kept 38 of the 119
+  sampled functions at their offset mod 4096 where f kept 32. It is not timed, and is rejected for the extra file the
+  rounds would have to keep current.
+
+Variants of the source (each built in d and f; base = public main 901d1142, the H.264 crate identical to 5aec713a):
+- base, and copy: a second build of base. The builds are reproducible: d-base has the sha256 of the earlier round's
+  base binary (cavlc-p-fused/binaries.sha256, built from another tree path), so the copy is byte-identical and the
+  A/A pair measures the timing noise alone.
+- n1 (n1.patch): Decoder::with_kernels takes an opaque never-taken branch (std::hint::black_box(false)) to a function of
+  one multiply, 30 bytes. Executed: one more not-taken branch a decoder.
+- n2 (n2.patch): the same with 45 multiplies, 954 bytes.
+- dk: the CAVLC P macroblock path round's k (7935727b) on base. A no-op for the 26 CABAC streams only (their functions
+  are identical in disassembly), so it is read on those 26: the real case of the earlier round.
+Static counts (static.txt): with d, n1, n2 and dk keep 0, 0 and 1 of the 119 sampled functions at their offset mod 64;
+with f, 119 of 119 in each.
+
+Run: ab.py 12 bin d-base f-base d-copy f-copy d-n1 f-n1 d-n2 f-n2 d-dk f-dk: the 32 training streams at the class
+frame counts (sd 1800, 720p 900, 1080p 300, 4k 150), one thread, --discard, pinned to cpu 3, CPU time, the ten builds in
+an order rotated each round, 12 rounds, on this development VM (Intel Xeon 2.90 GHz, 8 vCPUs). Per stream, the
+ratio of the medians over rounds. pc.py prints the quantities and the bars below.
+
+Quantities, for mode m in {d, f} and change c: r_s = per-stream ratio of m-c over m-base (dk: the 26 CABAC streams; the
+others: all 32). M(m, c) = median over streams of r_s, with a bootstrap 95% interval. S(m, c) = median over streams of
+|r_s - 1| (the spread). A/A: c = copy. The no-op changes are n1, n2 and dk; S(m) is the mean of their three spreads.
+
+Bars (fixed before the run):
+- Validity: M(d, copy) and M(f, copy) within 0.002 of 1.000. Otherwise the host was not steady and the run is void
+  (a host fault): run once more with the same binaries.
+- PN-0 (premise): S(d) >= 1.5 x S(d, copy): the default build shows placement noise beyond the timing noise. If not,
+  the study is inconclusive (it cannot show a reduction of what it did not see) and f is not proposed from it.
+- PN-1 (spread): S(f) - S(f, copy) <= 0.5 x (S(d) - S(d, copy)): f removes at least half of the default's spread
+  beyond its A/A.
+- PN-2 (bias): |M(f, c) - 1| <= 0.0025 for each of n1, n2 and dk: no no-op reads as a quarter-percent change under f.
+"Placement noise reduced" = valid, PN-0, PN-1 and PN-2. Then f is proposed as the build of both arms of every later
+round (local A/B, gating, bundles); otherwise the result is recorded and the rounds keep the default.
+Reported as information: each pair's interval, range and count faster; f-base over d-base (what f costs or gives, not a
+bar: both arms take it alike); dk on the six CAVLC streams in each mode.

@@ -1,0 +1,69 @@
+diff --git a/crates/coreav-h264/src/decoder.rs b/crates/coreav-h264/src/decoder.rs
+index 46334db9..82aad534 100644
+--- a/crates/coreav-h264/src/decoder.rs
++++ b/crates/coreav-h264/src/decoder.rs
+@@ -229,6 +229,9 @@ impl Decoder<Auto> {
+ impl<K: Kernels> Decoder<K> {
+     /// A decoder that uses the given kernels.
+     pub fn with_kernels(kernels: K, limits: Limits) -> Decoder<K> {
++        if std::hint::black_box(false) {
++            std::hint::black_box(placement_pad(std::hint::black_box(1)));
++        }
+         Decoder {
+             kernels: Arc::new(kernels),
+             choice: Choice::detect(true),
+@@ -1902,3 +1905,54 @@ mod tests {
+         }
+     }
+ }
++
++/// Placement study: a no-op.
++#[inline(never)]
++fn placement_pad(mut x: u64) -> u64 {
++    x = std::hint::black_box(x.wrapping_mul(0x6aedcf4a4599a085));
++    x = std::hint::black_box(x.wrapping_mul(0x41f60be07cef6aa3));
++    x = std::hint::black_box(x.wrapping_mul(0x4d9dff9714f60b7b));
++    x = std::hint::black_box(x.wrapping_mul(0x0587212a56b73cff));
++    x = std::hint::black_box(x.wrapping_mul(0x7bf8322a12847495));
++    x = std::hint::black_box(x.wrapping_mul(0x1d6608f702d34789));
++    x = std::hint::black_box(x.wrapping_mul(0xcec2d5ef48aa69a3));
++    x = std::hint::black_box(x.wrapping_mul(0xf4d26f481e22010b));
++    x = std::hint::black_box(x.wrapping_mul(0xdafccd9f4fa0336d));
++    x = std::hint::black_box(x.wrapping_mul(0xa638caa5be541a11));
++    x = std::hint::black_box(x.wrapping_mul(0xe62d3f4c09274947));
++    x = std::hint::black_box(x.wrapping_mul(0x110edc179ffbe863));
++    x = std::hint::black_box(x.wrapping_mul(0x45869e992290176f));
++    x = std::hint::black_box(x.wrapping_mul(0xe565da21cb89c9f7));
++    x = std::hint::black_box(x.wrapping_mul(0x27749d9fbca9e905));
++    x = std::hint::black_box(x.wrapping_mul(0xfe19dbb53604c543));
++    x = std::hint::black_box(x.wrapping_mul(0xc2bf468ad91b8be9));
++    x = std::hint::black_box(x.wrapping_mul(0x6daacf24b7a115ef));
++    x = std::hint::black_box(x.wrapping_mul(0x9ce82c7013300289));
++    x = std::hint::black_box(x.wrapping_mul(0x248ee65a687b4c7b));
++    x = std::hint::black_box(x.wrapping_mul(0x0ea43d37b350c341));
++    x = std::hint::black_box(x.wrapping_mul(0x083c2879ec46fde3));
++    x = std::hint::black_box(x.wrapping_mul(0x521739ea2c160877));
++    x = std::hint::black_box(x.wrapping_mul(0x5b461bc0407a17c3));
++    x = std::hint::black_box(x.wrapping_mul(0xb9a63c39c66c7e87));
++    x = std::hint::black_box(x.wrapping_mul(0x51ecae94f671b125));
++    x = std::hint::black_box(x.wrapping_mul(0x695140eb18004d45));
++    x = std::hint::black_box(x.wrapping_mul(0x056f89f816fefc7b));
++    x = std::hint::black_box(x.wrapping_mul(0x5418f039c04d4adf));
++    x = std::hint::black_box(x.wrapping_mul(0xc8acb3b05126362d));
++    x = std::hint::black_box(x.wrapping_mul(0xb2fda54c6303c86d));
++    x = std::hint::black_box(x.wrapping_mul(0xef516257e0574c69));
++    x = std::hint::black_box(x.wrapping_mul(0x87d81695beecb78d));
++    x = std::hint::black_box(x.wrapping_mul(0x8970646aa924aed3));
++    x = std::hint::black_box(x.wrapping_mul(0xa1ceffb5de1e716f));
++    x = std::hint::black_box(x.wrapping_mul(0x9ef59cf2bb673969));
++    x = std::hint::black_box(x.wrapping_mul(0xb3c33479cf6c7895));
++    x = std::hint::black_box(x.wrapping_mul(0x4118a8cba4ac1411));
++    x = std::hint::black_box(x.wrapping_mul(0xa9ca0d2797d938bf));
++    x = std::hint::black_box(x.wrapping_mul(0x7e204ae30f5350fb));
++    x = std::hint::black_box(x.wrapping_mul(0x5fa97fe2e8dc4e65));
++    x = std::hint::black_box(x.wrapping_mul(0x35acdddfe96963c5));
++    x = std::hint::black_box(x.wrapping_mul(0x27ec999359f1a611));
++    x = std::hint::black_box(x.wrapping_mul(0xc9e201c1a0583cb9));
++    x = std::hint::black_box(x.wrapping_mul(0x3fea718f04537ef1));
++    x
++}
