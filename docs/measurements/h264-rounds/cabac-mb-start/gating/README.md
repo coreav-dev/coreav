@@ -12,7 +12,7 @@ started the runs. Each measure is the median per-stream ratio `k` over `base`, w
 streams.
 
 **Output (CM-7).** `k`, and `k` built without `fast`, byte-identical to `base` on the 32 training streams at 1 and
-8 threads (32 of 32). Conformance is the round's own (`../conformance.txt`).
+8 threads (64 of 64 decodes each). Conformance is the round's own (`../conformance.txt`).
 
 **Host faults: none.** Neither run was void; the three gate references agreed and all 8 checks of each run passed; no
 call was run again; no stream was unresolved. Largest null deviation of a stream: 1.3% (training), 2.7% (held-out),
