@@ -260,7 +260,8 @@ nothing is ignored whole, as a decoder ignores it.
     frames in each, which `ffprobe` lists one by one).
   - MPEG-1 and MPEG-2 video, data and subtitle streams, and streams whose
     codec this crate cannot name: one packet per PES packet, the unit the
-    file delivers.
+    file delivers. (The listing as `ffprobe` gives it lists MPEG-1 and
+    MPEG-2 video picture by picture; see that section.)
   - The Event Information Table, listed as the `epg` stream: one packet
     per section, its header and CRC included, with no position and no
     time, since a section carries none. `ffprobe` lists them the same
@@ -376,8 +377,15 @@ nothing is ignored whole, as a decoder ignores it.
   They are listed as a packet of their own, with the time and position of
   the PES packet they are in and the length of the frame that follows
   them, and the frames after them take their time from it; `ffprobe`
-  lists them the same way. Rejected: dropping them, which shifted every
-  later frame's time by one frame on the files that start mid-frame.
+  lists them the same way. That holds when the end of the PES packet cuts
+  the frame after them too: the cut frame follows them by one frame, with
+  no position (a capture of the corpus whose first AC-3 frame starts 290
+  bytes before the end of its PES packet, and AC-3 streams crafted with
+  100 such bytes and the first frame cut). Rejected: dropping them, which
+  shifted every later frame's time by one frame on the files that start
+  mid-frame; and reading them only when the frame after them is whole, the
+  rule until that capture, which dropped them and gave the cut frame the
+  PES packet's time and position.
 - **Keyframes.** Per access unit, from the coded data, by the rule
   `ffprobe` follows
   (`tools/oracle/SPEC.md`, "Keyframes"); a stream whose codec this
@@ -397,6 +405,13 @@ nothing is ignored whole, as a decoder ignores it.
   `ffprobe` reads it as more payload (KD-TS-DUPLICATE). The same counter
   on other bytes is a lost packet: the packet is kept, with a warning. A continuity gap is a warning; the PES packet
   is listed with the bytes that arrived.
+- **The end of the file.** An E-AC-3 dependent substream or a DTS
+  extension substream the end of the file cuts is still part of the
+  access unit before it, which is listed with what there is of it; a
+  frame of its own is listed with the bytes there are. `ffprobe` lists a
+  Blu-ray capture of the corpus cut in the extension substream of its
+  last DTS-HD frame so. Rejected: listing the cut substream as a packet of
+  its own, which no decoder can take apart from its core.
 
 ### The listing as `ffprobe` gives it (opt-in)
 
@@ -437,7 +452,59 @@ describe. With it on:
   by stream rather than the video runs of every stream first;
 - the last PES packet of a video stream listed whole (MPEG-4 Visual),
   which only the end of the file completes, carries no stream id, as
-  `ffprobe` lists it.
+  `ffprobe` lists it;
+- MPEG-1 and MPEG-2 video is cut into pictures across its PES packets, as
+  H.264 is cut into access units, and listed as H.264 is: the first
+  picture that starts in a PES packet takes its times and position, the
+  others neither (the caller places them, `coreav ffprobe` one picture
+  after the other). A picture begins at a sequence header, a group of
+  pictures header or a picture header after the slices of the one before
+  (ISO/IEC 13818-2 6.2), at the start code itself: a zero byte before it
+  is stuffing of the picture before (5.3), which `ffprobe` counts there.
+  The second field of a frame (6.1.1.2: fields come in pairs; a picture
+  coding extension's `picture_structure` of 1 or 2 after a first field) is
+  part of the frame's unit, and the time of a PES packet that starts with
+  it goes to nobody. Evidence: a capture of the corpus with four pictures
+  to a PES packet of 120 KB, another whose two fields are each in a PES
+  packet of their own with a time, and streams crafted from `ffmpeg`'s
+  with one to three pictures, and a fixed 5,000 bytes, to a PES packet,
+  with and without every other PES packet's times. Rejected: one packet
+  per PES packet, the rule until that capture, which listed 47 packets
+  where `ffprobe` lists 177; and cutting MPEG video into pictures in the
+  default listing too, which would scan every byte of it for start codes
+  in the native probe (`coreav probe --scan-frame-sizes`, which the bench
+  guard times) and change what remuxing takes, a change for the caller
+  that needs pictures;
+- an MPEG audio stream's bytes before its first frame header are the
+  start of the first frame's packet, which takes the PES packet's time
+  and position and the frame's duration, rather than a packet of their
+  own (two captures of the corpus, MP2 and MP3, and streams crafted with
+  29 and 300 such bytes, the first frame whole and cut by its PES packet;
+  AC-3 streams crafted so keep the packet of their own, as by default);
+- an AC-3 or E-AC-3 frame of which its PES packet holds fewer than seven
+  bytes (A/52 `syncinfo` and the `bsid` after it) takes the time and
+  position of the next PES packet, and so does the first frame that
+  starts there; with seven bytes the frame's start is known, and the frame
+  held before it is listed then, though this reader needs eight to read
+  the header (a capture of the corpus whose AC-3 frame starts six bytes
+  before the end of its PES packet, and AC-3 and E-AC-3 streams crafted
+  with every cut from one byte to sixteen; ADTS, MP2 and MP3 streams
+  crafted so show no such rule);
+- the splice information sections of an SCTE 35 stream (ANSI/SCTE 35
+  9.2, private sections of `table_id` 0xFC) are its packets, header and
+  CRC included, with no position and the time of the last program clock
+  reference the PCR PID of the stream's program carried before the
+  section completed (90 kHz, the PCR's base); before the first PCR, none.
+  A section whose CRC-32 fails is not listed. Evidence: a capture of the
+  corpus, each of whose 183 sections `ffprobe` times by the PCR of the
+  packet before it, another whose three sections all take the file's
+  first PCR, and streams crafted with sections before the first PCR,
+  between later ones, across two transport packets, with a spoilt CRC and
+  with PCRs on a PID no program names (which time nothing). Rejected:
+  reading the stream's PES packets, which it has none of, and listing it
+  with no packets, the rule until those captures. `coreav ffprobe` gives
+  the stream the times of its first and last timed sections as its start
+  and end.
 
 Rejected: making this the listing for every caller, which it was for a
 while. Its times are `ffprobe`'s artefacts rather than the file's (a

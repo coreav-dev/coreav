@@ -21,9 +21,13 @@
 //!   pictures of one that states no time, take no time; a second field
 //!   takes its first field's times one tick later ([`field_times`]). An
 //!   H.264 picture lasts its ticks, rounded down ([`Clock::duration`]), a
-//!   stream without a clock the period of its `r_frame_rate`. Decoding
+//!   stream without a clock the period of its `r_frame_rate`; an MPEG-1 or
+//!   MPEG-2 picture its frame period rounded down ([`floor_ticks`]), and
+//!   one no PES packet times decodes one picture after the one before, a
+//!   B-picture being shown then too ([`MpegTimes`]). Decoding
 //!   times are rebuilt from presentation times only for a stream that
-//!   reorders one picture or never states one ([`DecodeTimes`]). Audio
+//!   reorders one picture or never states one ([`DecodeTimes`]), an MPEG
+//!   video B-picture aside. Audio
 //!   frame times follow a grid of frames for AAC, the durations summed for
 //!   AC-3 and the samples rounded once for MPEG audio (`coreav-mpegts`);
 //!   audio frames before a stream's first stated time are timed back from
@@ -33,7 +37,8 @@
 //!   what the order of its first frames shows within what `ffprobe`
 //!   decodes ([`Order`]); `avg_frame_rate` counts frames, not fields, and
 //!   is `0/0` for H.264 without a clock; a stream ends one `r_frame_rate`
-//!   period after its latest time (H.264, [`reported_end`]), from the last
+//!   period after its latest time (H.264, and MPEG-2 video one picture
+//!   after, [`reported_end`]), from the last
 //!   250,000 bytes of the file, or 500,000 for a stream not found there
 //!   ([`TAIL_BYTES`]); a stream whose end is not found has no duration.
 //!   H.264 never reports closed captions. HE-AAC is read from the SBR data
@@ -45,7 +50,8 @@
 //!   its additional bit stream information ([`params::ac3`]); MPEG-4
 //!   Visual reports its configuration headers ([`params::mpeg4_visual`]);
 //!   H.265's coded size is the uncropped picture's, and a display aspect
-//!   ratio keeps terms of at most 2^20 ([`bounded_ratio`]).
+//!   ratio keeps terms of at most 2^20 ([`bounded_ratio`]). An SCTE 35
+//!   stream starts at its first timed section ([`Head::splices`]).
 //! - The file. Its duration is the latest end less the earliest start in
 //!   microseconds, each stream's start and duration rounded on their own
 //!   ([`file_micros`]). A service the SDT names alone is a program
@@ -121,6 +127,11 @@ pub fn probe<'a, S: Source + 'a>(
         if let Some(&first) = h.lead.first() {
             st.start = Some(first);
         }
+        // An SCTE 35 stream spans the times of its sections ([`Head::splices`]).
+        if let Some((first, last)) = h.splices {
+            st.start = Some(first);
+            st.end = head.eof.then_some(last);
+        }
     }
     let mut report = Report::default();
     // `ffprobe` numbers first the streams of the first Program Map Table
@@ -161,6 +172,7 @@ pub fn probe<'a, S: Source + 'a>(
             ticks: None,
             audio: st.kind == Kind::Audio,
             dvb_subtitle: st.codec == Codec::DvbSubtitle,
+            mpeg_video: matches!(st.codec, Codec::Mpeg1Video | Codec::Mpeg2Video),
             reorder: None,
             clock: None,
             lpcm: None,
@@ -203,12 +215,15 @@ pub fn probe<'a, S: Source + 'a>(
             // rebuilt (streams crafted with the first PES packets stating
             // no decoding time and the others stating theirs, reordering
             // one picture and two).
-            slot.reorder = matches!(st.codec, Codec::H264 | Codec::Hevc)
-                .then(|| has_b_frames(st, facts))
-                .flatten()
-                .and_then(|n| usize::try_from(n).ok())
-                .filter(|n| *n <= MAX_REORDER)
-                .filter(|n| *n <= 1 || !h.stated_dts);
+            slot.reorder = matches!(
+                st.codec,
+                Codec::H264 | Codec::Hevc | Codec::Mpeg1Video | Codec::Mpeg2Video
+            )
+            .then(|| has_b_frames(st, facts))
+            .flatten()
+            .and_then(|n| usize::try_from(n).ok())
+            .filter(|n| *n <= MAX_REORDER)
+            .filter(|n| *n <= 1 || !h.stated_dts);
         }
         let end = ends.get(i).copied().flatten();
         let mut times = timing(st, end, &file);
@@ -264,6 +279,15 @@ fn reported_end(st: &coreav_mpegts::Stream, facts: &Facts) -> Option<i64> {
         {
             return Some(last + period);
         }
+    }
+    // MPEG-2 video ends one picture duration after its latest
+    // presentation time, whatever the step between the times its PES
+    // packets state: a capture of the corpus with four pictures to a PES
+    // packet, and one whose two fields are in PES packets of their own,
+    // half a picture apart.
+    if let (Codec::Mpeg2Video, Some(last), Some(ticks)) = (st.codec, st.last_pts, facts.frame_ticks)
+    {
+        return Some(last + ticks);
     }
     let end = st.end?;
     Some(match (st.codec, st.last_pts) {
@@ -441,8 +465,16 @@ fn field_times(
 #[derive(Default)]
 struct Head {
     /// The decoding time (the presentation time when there is none) of
-    /// each of the first [`HEAD_UNITS`] access units.
+    /// each of the first [`HEAD_UNITS`] access units; for MPEG-1 and
+    /// MPEG-2 video, a picture no PES packet times takes the one `ffprobe`
+    /// gives it ([`MpegTimes`]), so that a PES packet of four pictures
+    /// shows the rate of its pictures, not a quarter of it (a capture of
+    /// the corpus, and streams crafted with three pictures to a PES packet).
     times: Vec<Option<i64>>,
+    /// For MPEG-1 and MPEG-2 video: the times of the pictures no PES
+    /// packet times, and the picture duration its sequence header gives.
+    mpeg: MpegTimes,
+    mpeg_ticks: Option<i64>,
     /// How many ticks of its clock each of those units is shown for
     /// ([`params::Picture::ticks`]), for an H.264 stream.
     ticks: Vec<u32>,
@@ -464,6 +496,15 @@ struct Head {
     /// A PES packet of the stream states a decoding time other than its
     /// presentation time.
     stated_dts: bool,
+    /// For an SCTE 35 stream: the times of its first and last sections
+    /// that have one, which `ffprobe` gives the stream as its start and,
+    /// when the head read the whole file, its end (streams crafted with
+    /// sections before the first PCR and between later ones, and two
+    /// captures of the corpus). A stream whose sections have no time is
+    /// timed as a stream the file times nowhere ([`timing`]). The end of
+    /// a longer file would be the last section of its tail, which the
+    /// probe does not read; the corpus files have none there.
+    splices: Option<(i64, i64)>,
     /// For an AAC stream: of the first [`SBR_FRAMES`] frames, how many
     /// were read and how many end with SBR data
     /// ([`params::aac_ends_with_sbr`]).
@@ -744,6 +785,8 @@ fn time_back(time: i64, durations: &[Option<i64>]) -> Option<Vec<i64>> {
 struct HeadRead {
     streams: Vec<Head>,
     services: Vec<Service>,
+    /// The head read to the end of the file.
+    eof: bool,
 }
 
 /// Whether `data` carries the configuration of a stream of `codec`.
@@ -802,21 +845,32 @@ fn head<S: Source>(
     // Whether the head read to the end of the file or of its budget, which
     // covers what `ffprobe` decodes of every stream ([`Order`]).
     let mut whole = true;
+    // Whether it read to the end of the file.
+    let mut eof = true;
     while let Some(item) = packets.next() {
         let packet = match item {
             Ok(packet) => packet,
             Err(Error::Io(kind)) => return Err(Failure::Mpegts(Error::Io(kind))),
             Err(_) => {
                 whole = false;
+                eof = false;
                 break;
             }
         };
         if packet.pes_offset > end {
+            eof = false;
             break;
         }
         let Some(st) = ts.streams.get(packet.stream) else {
             continue;
         };
+        // A splice information section is no PES packet of the analysis.
+        if st.codec == Codec::Scte35 {
+            if let (Some(h), Some(time)) = (streams.get_mut(packet.stream), packet.pts) {
+                h.splices = Some(h.splices.map_or((time, time), |(first, _)| (first, time)));
+            }
+            continue;
+        }
         let analysed = analysis.note(
             packet.stream,
             packet.pes_offset,
@@ -842,6 +896,14 @@ fn head<S: Source>(
                 h.stated_dts = true;
             }
             let mut times = (packet.pts, packet.dts);
+            if matches!(st.codec, Codec::Mpeg1Video | Codec::Mpeg2Video) {
+                if h.mpeg_ticks.is_none() {
+                    h.mpeg_ticks = params::mpeg2(&packet.data)
+                        .and_then(|m| mpeg_rate(&m))
+                        .and_then(|(n, d)| floor_ticks(u64::from(d), u64::from(n)));
+                }
+                times = h.mpeg.next(&packet, times, h.mpeg_ticks);
+            }
             let mut ticks = None;
             if let Some(clock) = h.clock {
                 let picture = clock.picture(&packet.data);
@@ -877,7 +939,16 @@ fn head<S: Source>(
             }
             if h.times.len() < HEAD_UNITS {
                 h.ticks.extend(ticks);
-                h.times.push(times.1.or(times.0));
+                // MPEG video by its presentation times: a stream that
+                // states a decoding time for its first picture only (a
+                // capture of the corpus) shows its rate there, where
+                // `ffprobe` rebuilds the decoding times it lists.
+                let mpeg = matches!(st.codec, Codec::Mpeg1Video | Codec::Mpeg2Video);
+                h.times.push(if mpeg {
+                    times.0.or(times.1)
+                } else {
+                    times.1.or(times.0)
+                });
                 if st.kind == Kind::Video && has_captions(&packet.data) {
                     h.captions = true;
                 }
@@ -903,6 +974,7 @@ fn head<S: Source>(
         let done = done && (analysis.over || !adts);
         if done && (named || packet.pes_offset > ts.first_packet.saturating_add(SDT_WAIT)) {
             whole = false;
+            eof = false;
             break;
         }
     }
@@ -912,7 +984,11 @@ fn head<S: Source>(
         }
     }
     let services = packets.services().to_vec();
-    Ok(HeadRead { streams, services })
+    Ok(HeadRead {
+        streams,
+        services,
+        eof,
+    })
 }
 
 /// What a stream's own bytes state, as far as they were read.
@@ -1007,7 +1083,7 @@ impl Facts {
                 facts.frame_ticks = facts
                     .mpeg
                     .and_then(|m| mpeg_rate(&m))
-                    .and_then(|(n, d)| exact_ticks(u64::from(d), u64::from(n)));
+                    .and_then(|(n, d)| floor_ticks(u64::from(d), u64::from(n)));
             }
             Codec::Mpeg4 => {
                 facts.vol = params::mpeg4_visual(unit);
@@ -1087,6 +1163,15 @@ fn exact_ticks(num: u64, den: u64) -> Option<i64> {
         return None;
     }
     i64::try_from(scaled / den).ok().filter(|t| *t > 0)
+}
+
+/// `num / den` seconds in 90 kHz ticks, rounded down: what `ffprobe` gives
+/// a picture of MPEG-1 and MPEG-2 video, 3,753 ticks at 24000/1001 frames
+/// a second (3,753.75; a capture of the corpus and a stream crafted at
+/// that rate), whole ticks at the other rates of 13818-2 table 6-4.
+fn floor_ticks(num: u64, den: u64) -> Option<i64> {
+    let ticks = num.checked_mul(90_000)?.checked_div(den)?;
+    i64::try_from(ticks).ok().filter(|t| *t > 0)
 }
 
 /// The frame rate an MPEG-1 or MPEG-2 sequence states, extension included.
@@ -1358,11 +1443,16 @@ fn mpeg_field_order(m: &Mpeg2) -> Value {
     if ext.progressive_sequence {
         return s("progressive");
     }
+    // A field picture's order is its `top_field_first` too, which 13818-2
+    // 6.3.10 has a field picture set to 0: `ffprobe` reports `bb` for a
+    // capture of the corpus whose first field is a bottom field, and `bb`
+    // and `tt` for streams crafted with field pictures of either parity
+    // whose `top_field_first` is 0 and 1.
     match m.picture {
         Some((3, _, true)) => s("progressive"),
-        Some((3, true, false)) => s("tt"),
-        Some((3, false, false)) => s("bb"),
-        _ => unknown(),
+        Some((_, true, _)) => s("tt"),
+        Some((_, false, _)) => s("bb"),
+        None => unknown(),
     }
 }
 
@@ -2230,6 +2320,9 @@ struct Listed {
     ticks: Option<i64>,
     audio: bool,
     dvb_subtitle: bool,
+    /// MPEG-1 or MPEG-2 video, whose pictures without a time of their own
+    /// `ffprobe` places one after the other ([`MpegTimes`]).
+    mpeg_video: bool,
     /// How many pictures an H.264 or H.265 stream reorders.
     reorder: Option<usize>,
     /// The clock of an H.264 stream's pictures, which gives each its
@@ -2287,6 +2380,42 @@ impl DecodeTimes {
     }
 }
 
+/// The times `ffprobe` gives the pictures of MPEG-1 and MPEG-2 video that
+/// no PES packet times: the pictures after the first one that starts in
+/// a PES packet, and those of a PES packet that states no time. Each
+/// decodes one picture duration after the picture before it, and a
+/// B-picture, which is never reordered (13818-2 6.1.1.11: it is displayed
+/// as soon as it is decoded), is presented then too; another picture has
+/// no presentation time, as the next reference picture would give it.
+/// Found on a capture of the corpus with four pictures to a PES packet,
+/// one whose two fields are in PES packets of their own, and on streams
+/// crafted from `ffmpeg`'s with one to three pictures, or 5,000 bytes, to
+/// a PES packet, and with every other PES packet's times taken out.
+#[derive(Default)]
+struct MpegTimes {
+    /// When the next picture decodes, from the one before it.
+    next: Option<i64>,
+}
+
+impl MpegTimes {
+    /// The presentation and decoding times of `p`, which carries `times`,
+    /// and lasts `duration`.
+    fn next(
+        &mut self,
+        p: &coreav_mpegts::Packet,
+        times: (Option<i64>, Option<i64>),
+        duration: Option<i64>,
+    ) -> (Option<i64>, Option<i64>) {
+        let (mut pts, mut dts) = times;
+        if p.pts.is_none() && p.dts.is_none() {
+            dts = self.next;
+            pts = dts.filter(|_| params::mpeg2_picture_type(&p.data) == Some(3));
+        }
+        self.next = dts.zip(duration).map(|(d, t)| d + t);
+        (pts, dts)
+    }
+}
+
 /// The bytes `ffprobe` lists of a unit: a DVB subtitle PES payload
 /// without its `data_identifier` and `subtitle_stream_id` and its closing
 /// `end_of_PES_data_field_marker` (EN 300 743 7.1), the others whole.
@@ -2318,6 +2447,7 @@ impl<S: Source> PacketSource for TsPackets<S> {
         let mut decode: Vec<DecodeTimes> =
             self.listed.iter().map(|_| DecodeTimes::default()).collect();
         let mut fields: Vec<OpenField> = self.listed.iter().map(|_| None).collect();
+        let mut mpeg: Vec<MpegTimes> = self.listed.iter().map(|_| MpegTimes::default()).collect();
         // Per stream, how many of its first frames were timed back, or
         // `None` once a frame stated a time.
         let mut leading: Vec<Option<usize>> = self.listed.iter().map(|_| Some(0)).collect();
@@ -2367,7 +2497,13 @@ impl<S: Source> PacketSource for TsPackets<S> {
                     (Some(r), Some(last)) => r > last,
                     _ => true,
                 };
-                if p.dts.is_none_or(|d| d == t) && forward {
+                // An MPEG-1 or MPEG-2 B-picture is never held back for
+                // reordering (13818-2 6.1.1.11: no picture refers to it):
+                // it keeps its presentation time as its decoding time.
+                let b_picture = listed.is_some_and(|l| {
+                    l.mpeg_video && params::mpeg2_picture_type(&p.data) == Some(3)
+                });
+                if p.dts.is_none_or(|d| d == t) && forward && !b_picture {
                     dts = rebuilt;
                 }
                 times.last = dts.map(|d| d.min(t));
@@ -2387,6 +2523,14 @@ impl<S: Source> PacketSource for TsPackets<S> {
                     .or_else(|| listed.and_then(|l| l.lpcm)?.duration(p.data.len()))
                     .or(listed.and_then(|l| l.ticks)),
             };
+            if let (true, Some(times)) =
+                (listed.is_some_and(|l| l.mpeg_video), mpeg.get_mut(p.stream))
+            {
+                (pts, dts) = times.next(&p, (pts, dts), duration);
+                if let (None, Some(times)) = (p.pts, decode.get_mut(p.stream)) {
+                    times.last = dts;
+                }
+            }
             // An audio frame the file gives no time of its own is placed
             // after the one before it on the decoding timeline, which
             // `ffprobe` reports as its presentation time too
@@ -2508,11 +2652,87 @@ mod tests {
     }
 
     #[test]
+    fn mpeg_pictures_without_a_time_follow_the_one_before() {
+        let picture = |kind: u8, pts: Option<i64>, dts: Option<i64>| coreav_mpegts::Packet {
+            stream: 0,
+            pos: None,
+            pes_offset: 0,
+            pts,
+            dts,
+            duration: None,
+            keyframe: false,
+            data: vec![0, 0, 1, 0x00, 0x00, (kind << 3) | 0x07, 0xFF, 0xF8],
+            corrupt: false,
+            fed: None,
+            split: false,
+        };
+        assert_eq!(
+            params::mpeg2_picture_type(&picture(3, None, None).data),
+            Some(3)
+        );
+        assert_eq!(params::mpeg2_picture_type(&[0, 0, 1, 0xB3, 0]), None);
+        let mut times = MpegTimes::default();
+        let timed = (Some(129_003), Some(126_000));
+        let i = picture(1, timed.0, timed.1);
+        assert_eq!(times.next(&i, timed, Some(3003)), timed);
+        // A B-picture decodes one picture later and is shown then; a
+        // P-picture decodes one picture after that and has no time to be
+        // shown at.
+        let b = picture(3, None, None);
+        assert_eq!(
+            times.next(&b, (None, None), Some(3003)),
+            (Some(129_003), Some(129_003))
+        );
+        let p = picture(2, None, None);
+        assert_eq!(
+            times.next(&p, (None, None), Some(3003)),
+            (None, Some(132_006))
+        );
+        // A picture of no known duration leaves the next one untimed.
+        assert_eq!(times.next(&p, (None, None), None), (None, Some(135_009)));
+        assert_eq!(times.next(&b, (None, None), Some(3003)), (None, None));
+    }
+
+    #[test]
+    fn mpeg2_field_order_follows_top_field_first() {
+        let interlaced = |picture| Mpeg2 {
+            extension: Some(params::SequenceExtension::default()),
+            picture,
+            ..Mpeg2::default()
+        };
+        assert_eq!(
+            mpeg_field_order(&interlaced(Some((3, false, true)))),
+            s("progressive")
+        );
+        assert_eq!(
+            mpeg_field_order(&interlaced(Some((3, true, false)))),
+            s("tt")
+        );
+        // A field picture, of either parity, by its `top_field_first`.
+        assert_eq!(
+            mpeg_field_order(&interlaced(Some((2, false, false)))),
+            s("bb")
+        );
+        assert_eq!(
+            mpeg_field_order(&interlaced(Some((1, false, false)))),
+            s("bb")
+        );
+        assert_eq!(
+            mpeg_field_order(&interlaced(Some((1, true, false)))),
+            s("tt")
+        );
+        assert_eq!(mpeg_field_order(&interlaced(None)), unknown());
+    }
+
+    #[test]
     fn exact_ticks_only_for_whole_ticks() {
         assert_eq!(exact_ticks(2, 50), Some(3600));
         assert_eq!(exact_ticks(2002, 60_000), Some(3003));
         assert_eq!(exact_ticks(1, 7), None);
         assert_eq!(exact_ticks(1, 0), None);
+        assert_eq!(floor_ticks(1001, 24_000), Some(3753));
+        assert_eq!(floor_ticks(1001, 30_000), Some(3003));
+        assert_eq!(floor_ticks(1, 0), None);
     }
 
     #[test]

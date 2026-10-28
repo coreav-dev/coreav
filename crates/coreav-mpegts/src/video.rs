@@ -91,6 +91,10 @@ fn rbsp(nal: &[u8], max: usize) -> Vec<u8> {
 pub(crate) enum Nal {
     H264,
     Hevc,
+    /// MPEG-1 and MPEG-2 video, which has no NAL units: its start codes
+    /// (ISO/IEC 13818-2 6.2) delimit its pictures as theirs do, and the
+    /// splitter ([`AccessUnits`]) cuts it into pictures the same way.
+    Mpeg2,
 }
 
 /// Reads the bits of an RBSP, most significant first.
@@ -270,6 +274,7 @@ impl ParameterSets {
         match nal {
             Nal::H264 => self.avcc(),
             Nal::Hevc => self.hvcc(),
+            Nal::Mpeg2 => None,
         }
     }
 
@@ -349,6 +354,7 @@ fn count(list: &[Vec<u8>]) -> Option<u8> {
 /// be read.
 pub(crate) fn keyframe(nal: Nal, data: &[u8], max_num_ref_frames: Option<u32>) -> Option<bool> {
     match nal {
+        Nal::Mpeg2 => Some(mpeg2_keyframe(data)),
         Nal::Hevc => Some(nal_units(data).iter().any(|u| {
             u.first()
                 .is_some_and(|h| (16..=23).contains(&(h >> 1 & 0x3F)))
@@ -388,6 +394,7 @@ fn first_in_picture(nal: Nal, unit: &[u8]) -> bool {
     match nal {
         Nal::H264 => unit.get(1).is_some_and(|b| b & 0x80 != 0),
         Nal::Hevc => unit.get(2).is_some_and(|b| b & 0x80 != 0),
+        Nal::Mpeg2 => false,
     }
 }
 
@@ -405,6 +412,11 @@ fn first_in_picture(nal: Nal, unit: &[u8]) -> bool {
 pub(crate) struct AccessUnits {
     /// Whether a coded picture has been read since the last boundary.
     coded: bool,
+    /// MPEG-2 video: the last picture read is the first field of a frame
+    /// whose second field is still to come, and the picture being read is
+    /// such a second field.
+    first_field: bool,
+    second_field: bool,
     /// Where the next scan starts in the caller's buffer. A start code
     /// whose kind could not be read -- the bytes that say it are past the
     /// end of what the caller holds -- is left here to be read again when
@@ -434,14 +446,37 @@ impl AccessUnits {
         while let Some(at) = next_start_code(data, i) {
             i = at + 3;
             // The start code's leading zero byte is part of it, so a unit's
-            // bytes end where the next one's start code begins.
-            let code = at - usize::from(at > 0 && data.get(at.wrapping_sub(1)) == Some(&0));
+            // bytes end where the next one's start code begins. MPEG-2
+            // video has no such byte: a zero before a start code is
+            // stuffing of the picture before it (13818-2 5.3), and
+            // `ffprobe` counts it there.
+            let code = at
+                - usize::from(
+                    nal != Nal::Mpeg2 && at > 0 && data.get(at.wrapping_sub(1)) == Some(&0),
+                );
             let Some(&first) = data.get(i) else {
                 // Not even the header byte of the unit is here: read this
                 // start code again when the rest of it arrives.
                 self.at = at;
                 return out;
             };
+            if nal == Nal::Mpeg2 {
+                if !self.mpeg2(data, i, first) {
+                    self.at = at;
+                    return out;
+                }
+                // A slice is a coded picture; a sequence header, a group
+                // of pictures header or a picture header after one begins
+                // the next picture, unless it is the second field of the
+                // frame the last picture began.
+                let picture = matches!(first, 0x00 | 0xB3 | 0xB8);
+                if self.coded && picture && !(first == 0x00 && self.second_field) {
+                    out.push(code);
+                    self.coded = false;
+                }
+                self.coded |= (0x01..=0xAF).contains(&first);
+                continue;
+            }
             let (vcl, before_picture) = match nal {
                 Nal::H264 => {
                     let kind = first & 0x1F;
@@ -454,6 +489,7 @@ impl AccessUnits {
                     let kind = (first >> 1) & 0x3F;
                     (kind <= 31, matches!(kind, 32..=35 | 39 | 41..=44))
                 }
+                Nal::Mpeg2 => (false, false),
             };
             // A VCL unit is judged on the first bits of its slice header,
             // one byte past the header for H.264 and two for HEVC: when
@@ -462,6 +498,7 @@ impl AccessUnits {
             let header = match nal {
                 Nal::H264 => 2,
                 Nal::Hevc => 3,
+                Nal::Mpeg2 => 0,
             };
             if vcl && i.saturating_add(header) > data.len() {
                 self.at = at;
@@ -480,6 +517,40 @@ impl AccessUnits {
         // begin in.
         self.at = data.len().saturating_sub(2);
         out
+    }
+
+    /// Follows the fields of MPEG-2 video at the start code whose value
+    /// `code` is at `data[i]`; `false` when the bytes that say what it
+    /// is are not all here yet. A picture coding extension (13818-2
+    /// 6.2.3.1, `extension_start_code_identifier` 8) gives its picture's
+    /// `picture_structure` in the low two bits of its third byte: 3 is a
+    /// frame, 1 and 2 a field. Fields come in pairs (6.1.1.2), so a field
+    /// picture after a first field is the second of its frame, and the
+    /// two are one access unit, as `ffprobe` lists them (a capture of the
+    /// corpus whose two fields are each in a PES packet of its own).
+    fn mpeg2(&mut self, data: &[u8], i: usize, code: u8) -> bool {
+        match code {
+            0x00 => {
+                self.second_field = self.first_field;
+                self.first_field = false;
+            }
+            0xB3 | 0xB8 => {
+                self.first_field = false;
+                self.second_field = false;
+            }
+            0xB5 => {
+                let Some(ext) = data.get(i.saturating_add(1)..i.saturating_add(4)) else {
+                    return false;
+                };
+                if let [id, _, structure] = *ext {
+                    if id >> 4 == 8 && structure & 3 != 3 && !self.second_field {
+                        self.first_field = true;
+                    }
+                }
+            }
+            _ => {}
+        }
+        true
     }
 }
 
@@ -681,6 +752,58 @@ mod tests {
         assert_eq!(next_start_code(&[0, 0], 0), None);
         assert_eq!(next_start_code(&[], 0), None);
         assert_eq!(next_start_code(&[0, 0, 1], 1), None);
+    }
+
+    /// An I-picture of MPEG-2 video: its header, a picture coding
+    /// extension of `structure` (3 a frame, 1 and 2 a field), a slice and
+    /// a zero byte of stuffing.
+    fn mpeg2_picture(structure: u8) -> Vec<u8> {
+        let mut out = vec![0, 0, 1, 0x00, 0x00, 0x0F, 0xFF, 0xF8];
+        out.extend([0, 0, 1, 0xB5, 0x8F, 0xFF, 0xF0 | structure, 0x80]);
+        out.extend([0, 0, 1, 0x01, 0x12, 0x34, 0x56, 0x00]);
+        out
+    }
+
+    #[test]
+    fn mpeg2_video_is_cut_into_pictures_with_fields_paired() {
+        // A sequence header and a group of pictures before a frame, a
+        // frame, a top and a bottom field, and a frame.
+        let mut data = vec![0, 0, 1, 0xB3, 0x14, 0x00, 0xF0, 0x13];
+        data.extend([0, 0, 1, 0xB8, 0x00, 0x08, 0x00, 0x00]);
+        data.extend(mpeg2_picture(3));
+        let second = data.len();
+        data.extend(mpeg2_picture(3));
+        let fields = data.len();
+        data.extend(mpeg2_picture(1));
+        data.extend(mpeg2_picture(2));
+        let last = data.len();
+        data.extend(mpeg2_picture(3));
+        let mut units = AccessUnits::default();
+        // A cut falls on the start code itself: the zero byte before it
+        // is the stuffing of the picture before.
+        assert_eq!(units.cuts(Nal::Mpeg2, &data), vec![second, fields, last]);
+        // Fed a byte at a time, a picture coding extension whose
+        // `picture_structure` has not arrived is read again later.
+        let mut bytewise = AccessUnits::default();
+        let mut cuts = Vec::new();
+        for end in 1..=data.len() {
+            cuts.extend(bytewise.cuts(Nal::Mpeg2, &data[..end]));
+        }
+        assert_eq!(cuts, vec![second, fields, last]);
+        // Two fields of the same frame are one unit whatever their
+        // parities; a third field begins the next.
+        let mut three = mpeg2_picture(2);
+        three.extend(mpeg2_picture(1));
+        let next = three.len();
+        three.extend(mpeg2_picture(2));
+        let mut units = AccessUnits::default();
+        assert_eq!(units.cuts(Nal::Mpeg2, &three), vec![next]);
+        // An I-picture is a keyframe; a B-picture is not.
+        assert_eq!(keyframe(Nal::Mpeg2, &data, None), Some(true));
+        assert_eq!(
+            keyframe(Nal::Mpeg2, &[0, 0, 1, 0x00, 0x00, 0x1F, 0xFF, 0xF8], None),
+            Some(false)
+        );
     }
 
     #[test]
