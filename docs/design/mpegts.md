@@ -489,8 +489,10 @@ development file carries the last two) are mapped to their codecs; the
 others stay unnamed (`unknown`), as before payloads were read. Rejected:
 naming those from the payload, which reports a codec `ffprobe` does not;
 mapping them, which needs parameter reading for codecs this crate does not
-parse (AVS, Dirac, JPEG 2000, AAC without a transport syntax). The PES packets of such a stream are joined, up to
-16 KiB or eight packets, until they show one of:
+parse (AVS, Dirac, JPEG 2000, AAC without a transport syntax).
+
+The PES packets of a stream named by its payload are joined, up to 16 KiB
+or eight packets, until they show one of:
 
 - at the start of the payload, an AC-3 or E-AC-3 sync frame, a DTS core
   frame or extension substream, an ADTS header, or an MPEG audio header in
