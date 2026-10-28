@@ -1,0 +1,56 @@
+CABAC slice loop: macroblocks started in place, still skips finished without derivation (written before any timing).
+
+Why: CABAC is 26 of the 32 training streams, and the streams between 1.00 and 1.04 against FFmpeg at one thread are CABAC
+streams with mostly coded macroblocks (720p median 1.019, 1080p 0.999 in the CAVLC slice-loop round's gating). Their one cost per macroblock
+that the CAVLC loop no longer has is the start: the CABAC loop called SliceDecoder::start_mb, out of line through
+Tier::enter, which derives the neighbours from four records (2.4% to 2.8% of the instructions of 65ec61f95a00 and
+1d4b1775d78a, 3.5% of the mispredicted branches in callgrind's model). And in a P slice of CABAC, a P_Skip macroblock
+whose macroblock before is a P_Skip with a zero vector has a zero vector (clause 8.4.1.1, as the CAVLC skip runs use
+since that round); probe-counts.txt has their share per stream (0% to 88% of the macroblocks).
+
+Base: main 8b71d3d5. k: this branch's code commit (5950bef3).
+
+Code (one file, mb.rs):
+- the CABAC slice loop starts each macroblock with start_mb_body::<true>, the CAVLC loop's in-place start, its
+  neighbours found from the slice's first address (exact: a slice is one run of macroblocks in raster order);
+- it keeps the slot of the macroblock before where that one is a P_Skip with a zero vector; a P_Skip after it takes
+  finish_still_skip, out of line (its body in the instance through Tier::enter), which writes the head, record and
+  ring entry the full path writes and predicts the same block, without deriving the motion.
+  Inlined, the still path cost the streams with few skips 0.2% of their instructions (65ec61f95a00 0.9946 out of
+  line against 0.9960 inlined), hence the call.
+
+Instructions (r-count.txt, callgrind, a tenth of the class frame counts): CABAC 26 median 0.99222 (0.96022 to 0.99726),
+all 32 0.99376, CAVLC 6 0.99834 (their skips' start_mb now has one caller).
+
+Output: identical to base on the 32 streams at 1 and 8 threads, with and without fast; conformance at 1, 2 and 8 threads,
+detected and scalar kernels, without fast, and a debug build (its asserts check the in-order neighbours against the
+derivation from records), reported in identity.txt and conformance.txt before the timing.
+
+Local timing: ab3.py, 12 rounds, the 32 training streams at the class frame counts, one thread, --discard, pinned to one
+CPU, order rotated each round, CPU time; per stream the median of k over base, bootstrap 95% interval of the median
+(abq.py). Host: this development VM (directional). A gating run is requested only if all of these hold:
+- CABAC 26: median at most 0.997, upper end below 1.000;
+- all 32: median at most 1.000;
+- CAVLC 6: median at most 1.005.
+Otherwise the code goes to a rejected/ branch for a bundle round, and the result is recorded.
+
+Gating bars (fixed now; copied into the design note before the gating run). k over base, median per-stream ratio, 95%
+bootstrap interval over streams, scripts/h264_parity.py with --null-arm base and the host-health gate, main's harness at
+the run. One-thread calls on the one-thread class of new rounds: the Compute Engine c4-standard-8 through
+scripts/h264_parity_gcp.py --one-thread-class. The eight-thread call only if CM-1 to CM-5 pass, on the
+c4-standard-16, one thread a core.
+- CM-1 (gain): one thread, discard, the 26 CABAC streams: at most 0.996, upper end below 1.000.
+- CM-2: one thread, all 32, discard and write: at most 1.000 in each.
+- CM-3: one thread, each class (sd, 720p, 1080p, 4k), discard and write: at most 1.005 in each.
+- CM-4: one thread, the six CAVLC streams, discard and write: at most 1.005 in each.
+- CM-5: one thread, discard, the 64 held-out streams (docs/measurements/h264-n2-heldout/list.json): at most 1.000.
+- CM-6 (guard): eight threads, discard, all 32: at most 1.005; each class at most 1.010.
+- CM-7: output identical to base on the 32 training streams at 1 and 8 threads, with and without fast; conformance as
+  above.
+Why CM-1 is 0.996 and not 0.990: the instruction cut is 0.8% on the CABAC median; a bar under it would be decided by how
+much more than the instructions the call and the four record loads cost in time, which nothing measured yet tells.
+The upper end below 1.000 still asks for a gain the null cannot give. Reported as information: the ratio to FFmpeg 9.0.2,
+overall, per class and for the CABAC 26, with the share of streams faster; the median of the ten streams whose still
+share is at least 40% (probe-counts.txt: 36501d448eaa, 3b1b441e23ae, 4b54de28c2b3, 6b18d9f0f88d, 81ed4778ece2,
+8ae90cadb5bc, a81de82106be, ae16bb7c7192, e624cbe0d2be, ed75c044e944), which are not a bar.
+One valid run decides; a re-run of the same arms only for a recorded host fault.
