@@ -899,6 +899,13 @@ fn packet_temporal_id<S: Source>(
 
 /// Decodes packets `choice.start..=choice.target` and returns the target's
 /// frame.
+///
+/// A decoder may hold a frame back until later packets arrive and drop it
+/// at the end of the stream: FFmpeg's H.264 decoder does so for pictures
+/// after an open GOP's I picture (a recovery point, ITU-T H.264 D.2.8),
+/// which decoded from it are the frames a decode from the start gives.
+/// When the target's frame does not come, the packets are decoded again
+/// with those after the target, in decode order up to the next keyframe.
 fn decode<S: Source>(
     source: &mut S,
     plan: &Plan,
@@ -906,6 +913,45 @@ fn decode<S: Source>(
     options: &ThumbnailOptions,
     backends: &[&dyn Backend],
 ) -> Result<(Frame, DecoderInfo, Vec<Skipped>, u32), Error> {
+    let (found, info, skipped, decoded) =
+        decode_through(source, plan, choice, choice.target, options, backends)?;
+    if let Some(frame) = found {
+        return Ok((frame, info, skipped, decoded));
+    }
+    let next_keyframe = plan
+        .packets
+        .iter()
+        .enumerate()
+        .skip(choice.target.saturating_add(1))
+        .find(|(_, p)| p.keyframe)
+        .map_or(plan.packets.len(), |(i, _)| i);
+    let last = next_keyframe.saturating_sub(1);
+    let found = if last > choice.target {
+        let (found, info, skipped, more) =
+            decode_through(source, plan, choice, last, options, backends)?;
+        found.map(|frame| (frame, info, skipped, decoded.saturating_add(more)))
+    } else {
+        None
+    };
+    found.ok_or_else(|| {
+        Error::Decode(coreav_decode::Error::new(
+            coreav_decode::ErrorKind::InvalidData,
+            "the decoder returned no frame for the packet",
+        ))
+    })
+}
+
+/// Decodes packets `choice.start..=last` (`last` at or after the target),
+/// discarding every frame but the target's, which it returns when the
+/// decoder gives it.
+fn decode_through<S: Source>(
+    source: &mut S,
+    plan: &Plan,
+    choice: Choice,
+    last: usize,
+    options: &ThumbnailOptions,
+    backends: &[&dyn Backend],
+) -> Result<(Option<Frame>, DecoderInfo, Vec<Skipped>, u32), Error> {
     let opened = coreav_decode::open(
         &plan.stream,
         &options.policy,
@@ -928,7 +974,7 @@ fn decode<S: Source>(
     // first; one that cannot be read turns skipping off.
     let mut top = 0u8;
     if let Some(rule) = skip.filter(|r| r.needs_temporal_ids()) {
-        for index in choice.start..=choice.target {
+        for index in choice.start..=last {
             match packet_temporal_id(source, plan, index, rule, options)? {
                 Some(id) => top = top.max(id),
                 None => {
@@ -938,14 +984,14 @@ fn decode<S: Source>(
             }
         }
     }
-    for index in choice.start..=choice.target {
+    for index in choice.start..=last {
         let data = read_packet(source, plan, index, options.decode_limits.max_packet_bytes)?;
         let packet = plan
             .packets
             .get(index)
             .ok_or_else(|| Error::Unsupported("no such packet".into()))?;
-        // A picture before the target that nothing depends on need not be
-        // decoded at all.
+        // A picture other than the target that nothing depends on need not
+        // be decoded at all.
         if index != choice.start
             && index != choice.target
             && packet.pts != target_pts
@@ -968,6 +1014,9 @@ fn decode<S: Source>(
                 break;
             }
         }
+        if found.is_some() {
+            break;
+        }
     }
     if found.is_none() {
         decoder.send_eof()?;
@@ -981,13 +1030,7 @@ fn decode<S: Source>(
         }
     }
     let info = decoder.info().clone();
-    let frame = found.ok_or_else(|| {
-        Error::Decode(coreav_decode::Error::new(
-            coreav_decode::ErrorKind::InvalidData,
-            "the decoder returned no frame for the packet",
-        ))
-    })?;
-    Ok((frame, info, opened.skipped, decoded))
+    Ok((found, info, opened.skipped, decoded))
 }
 
 /// Turns, squares and resizes the frame into an RGB picture.
@@ -1242,5 +1285,156 @@ mod skip_tests {
         };
         decode(&mut low_source, &low_plan, choice, &options, &backends).expect("decoded");
         assert_eq!(*sent.lock().expect("lock"), vec![0, 2]);
+    }
+
+    /// A backend whose frames come only once `hold` more packets follow
+    /// them, and whose held frames are dropped at the end of the stream, as
+    /// FFmpeg's H.264 decoder does after an open GOP's I picture.
+    struct Holding {
+        sent: Arc<Mutex<Vec<i64>>>,
+        hold: usize,
+    }
+
+    struct HoldingDecoder {
+        sent: Arc<Mutex<Vec<i64>>>,
+        hold: usize,
+        held: Vec<i64>,
+        info: DecoderInfo,
+    }
+
+    impl Backend for Holding {
+        fn kind(&self) -> BackendKind {
+            BackendKind::Fallback
+        }
+        fn supports(&self, _: &StreamConfig, _: &StreamTraits) -> Support {
+            Support::Yes
+        }
+        fn open(&self, _: &StreamConfig, _: &Limits) -> Result<Box<dyn Decoder>, DecodeError> {
+            Ok(Box::new(HoldingDecoder {
+                sent: Arc::clone(&self.sent),
+                hold: self.hold,
+                held: Vec::new(),
+                info: DecoderInfo {
+                    backend: BackendKind::Fallback,
+                    isolation: Isolation::InProcess,
+                    decoder: "holding".into(),
+                },
+            }))
+        }
+    }
+
+    impl Decoder for HoldingDecoder {
+        fn send_packet(&mut self, packet: &Packet<'_>) -> Result<(), DecodeError> {
+            let pts = packet.pts.unwrap_or(-1);
+            self.sent.lock().expect("lock").push(pts);
+            self.held.push(pts);
+            Ok(())
+        }
+        fn send_eof(&mut self) -> Result<(), DecodeError> {
+            self.held.clear();
+            Ok(())
+        }
+        fn receive_frame(&mut self) -> Result<Option<Frame>, DecodeError> {
+            if self.held.len() <= self.hold {
+                return Ok(None);
+            }
+            let pts = self.held.remove(0);
+            let picture = Picture::zeroed(2, 2, PixelFormat::YUV420P).expect("picture");
+            Ok(Some(Frame {
+                pts: Some(pts),
+                color: ColorInfo::default(),
+                pixels: Pixels::Cpu(picture),
+            }))
+        }
+        fn info(&self) -> &DecoderInfo {
+            &self.info
+        }
+    }
+
+    #[test]
+    fn a_frame_held_back_is_decoded_again_with_the_packets_after_it() {
+        // Two GOPs of HEVC reference pictures (IDR, then TRAIL_R), keyframes
+        // at 0 and 6; the target is packet 2.
+        let mut file = Vec::new();
+        let mut refs = Vec::new();
+        for i in 0..8usize {
+            let p = unit(if i % 6 == 0 { 19 } else { 1 }, 0);
+            refs.push(PacketRef {
+                offset: file.len() as u64,
+                size: p.len() as u64,
+                pts: i as i64,
+                dts: Some(i as i64),
+                keyframe: i % 6 == 0,
+            });
+            file.extend_from_slice(&p);
+        }
+        let mut hvcc = vec![0u8; 23];
+        hvcc[21] = 3;
+        let plan = Plan {
+            warnings: Vec::new(),
+            stream_index: 0,
+            stream: StreamConfig {
+                config: Some(CodecConfig {
+                    kind: ConfigKind::Hvcc,
+                    data: hvcc,
+                }),
+                ..StreamConfig::new(Codec::Hevc)
+            },
+            quarter_turns: 0,
+            pixel_aspect: None,
+            start: Rational::from_int(0),
+            samples: Vec::new(),
+            packets: refs,
+            prefix: Vec::new(),
+            rule: CutRule::Hevc { length_size: 4 },
+            stated: vec![true; 8],
+            window: None,
+            first_keyframe: None,
+            container: Container::Mp4,
+            durations: vec![None; 8],
+            time_base: Rational::from_int(1),
+            presentation: Presentation::All,
+        };
+        let options = ThumbnailOptions::at(Rational::from_int(0));
+        let choice = Choice {
+            start: 0,
+            target: 2,
+        };
+        // Held for two packets: the first pass ends at the target and loses
+        // its frame; the second sends packets 3 and 4 and stops there.
+        let sent = Arc::new(Mutex::new(Vec::new()));
+        let backend = Holding {
+            sent: Arc::clone(&sent),
+            hold: 2,
+        };
+        let backends: [&dyn Backend; 1] = [&backend];
+        let mut source = SliceSource::new(&file);
+        let (frame, _, _, decoded) =
+            decode(&mut source, &plan, choice, &options, &backends).expect("decoded");
+        assert_eq!(frame.pts, Some(2));
+        assert_eq!(*sent.lock().expect("lock"), vec![0, 1, 2, 0, 1, 2, 3, 4]);
+        assert_eq!(decoded, 8);
+        // A decoder that holds nothing back is sent the packets once.
+        sent.lock().expect("lock").clear();
+        let backend = Holding {
+            sent: Arc::clone(&sent),
+            hold: 0,
+        };
+        let backends: [&dyn Backend; 1] = [&backend];
+        decode(&mut source, &plan, choice, &options, &backends).expect("decoded");
+        assert_eq!(*sent.lock().expect("lock"), vec![0, 1, 2]);
+        // Held for longer than the GOP lasts: the next keyframe bounds the
+        // second pass, and the error is the decoder's as before.
+        sent.lock().expect("lock").clear();
+        let backend = Holding {
+            sent: Arc::clone(&sent),
+            hold: 4,
+        };
+        let backends: [&dyn Backend; 1] = [&backend];
+        assert!(matches!(
+            decode(&mut source, &plan, choice, &options, &backends),
+            Err(Error::Decode(_))
+        ));
+        assert_eq!(*sent.lock().expect("lock"), vec![0, 1, 2, 0, 1, 2, 3, 4, 5]);
     }
 }
