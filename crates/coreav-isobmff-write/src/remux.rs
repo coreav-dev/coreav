@@ -1521,7 +1521,8 @@ impl ReplacedEdits {
 }
 
 /// Pass 1 for one stream: pushes every sample to the muxer and sets the
-/// declared durations; returns the first decode time.
+/// declared durations; returns the first decode time and where the frame
+/// presented last ends, in media ticks from it.
 #[allow(clippy::too_many_arguments)]
 fn list<S: Source>(
     movie: &Movie,
@@ -1576,9 +1577,14 @@ fn list<S: Source>(
     // The edits are written once every stream is listed, in the movie
     // timescale chosen then; whether they fit this stream is known now.
     let sum = muxer.duration(index).ok_or_else(overflow)?;
+    // Frames that all end before the first decode time (offsets below
+    // the durations) present nothing; the decode durations' sum stands in
+    // rather than a media edit of length 0.
     let composition_end = end
         .and_then(|e| e.checked_sub(first))
-        .map_or(0, |e| u64::try_from(e).unwrap_or(0));
+        .and_then(|e| u64::try_from(e).ok())
+        .filter(|e| *e > 0)
+        .unwrap_or(sum);
     edits(
         movie,
         track,
@@ -1613,6 +1619,8 @@ fn computed_ticks(
 ) -> [Option<u64>; 2] {
     let first = u64::try_from(first_dts).unwrap_or(0);
     match edits.last() {
+        // Decoded from 0: no edit list, and the track lasts the media.
+        None if first == 0 => [Some(0), Some(sum)],
         None => [Some(first), Some(composition_end)],
         Some(last) if last.duration == 0 && last.media_time >= 0 => {
             let media = u64::try_from(last.media_time).unwrap_or(0);

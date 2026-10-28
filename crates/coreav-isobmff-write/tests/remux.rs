@@ -1138,6 +1138,20 @@ fn fragmented_late_start_with_b_frames_presents_every_frame() {
             segment: 200,
         }
     );
+    // Decoded from 0 the source needs no edit list, and neither does the
+    // output: a composition end that would round in the movie timescale
+    // (2,592 ticks at 12,800 Hz are 202.5 ms) leaves that timescale alone.
+    let source = fragmented_reordered_with(0, [512, 1568, 0, 0]);
+    let (summary, output) = remux(&source, &RemuxOptions::default()).unwrap();
+    assert_round_trip(&source, &output, &summary);
+    let out = probe(
+        SliceSource::new(&output),
+        &Limits::default(),
+        &Allowlist::default(),
+    )
+    .unwrap();
+    assert_eq!(out.timescale, 1_000);
+    assert_eq!(out.tracks[0].edit_list, EditList::None);
 }
 
 /// `common::fragmented_movie`'s movie with its one fragment decoded from
@@ -1146,6 +1160,11 @@ fn fragmented_late_start_with_b_frames_presents_every_frame() {
 /// 2,048, 1,024 and 1,536, so the frames end at 2,560 while the decode
 /// durations add up to 2,048.
 fn fragmented_reordered(base: u32) -> Vec<u8> {
+    fragmented_reordered_with(base, [512, 1536, 0, 0])
+}
+
+/// `fragmented_reordered` with other composition offsets.
+fn fragmented_reordered_with(base: u32, offsets: [u32; 4]) -> Vec<u8> {
     let movie = common::fragmented_movie(None, None);
     let at = movie.windows(4).position(|w| w == b"moof").expect("a moof") - 4;
     let tfhd = full(b"tfhd", 0, 0x02_0000, &u32s(&[1]));
@@ -1157,7 +1176,14 @@ fn fragmented_reordered(base: u32) -> Vec<u8> {
         b"trun",
         0,
         0x801,
-        &u32s(&[4, (moof_len + 8) as u32, 512, 1536, 0, 0]),
+        &u32s(&[
+            4,
+            (moof_len + 8) as u32,
+            offsets[0],
+            offsets[1],
+            offsets[2],
+            offsets[3],
+        ]),
     );
     let moof = bx(
         b"moof",
