@@ -396,8 +396,14 @@ impl Learn {
                 if syntax == Syntax::Adts {
                     self.config = adts_config(rest);
                 }
+                // The configuration as the frame carries it, or, where
+                // its length is not read, the two bytes that state what
+                // the frame header does.
                 if syntax == Syntax::Latm {
-                    self.config = asc(frame.detail, frame.sample_rate, frame.channels);
+                    self.config = rest
+                        .get(3..)
+                        .and_then(frames::latm_audio_specific_config)
+                        .or_else(|| asc(frame.detail, frame.sample_rate, frame.channels));
                 }
                 self.done = true;
             }

@@ -405,8 +405,8 @@ describe. With it on:
   (placing a second field is `coreav ffprobe`'s, from the picture's own
   syntax), and `Packet::fed` is the `stream_id` of the PES packet whose
   reading finished the unit;
-- an AAC frame a PES packet does not time falls on a grid of frames
-  counted from time zero (the base taken to the nearest whole frame of
+- an AAC frame (ADTS or LOAS) a PES packet does not time falls on a grid
+  of frames counted from time zero (the base taken to the nearest whole frame of
   that grid, each end of the span since it rounded to the nearest tick),
   which is where `ffprobe` puts it on the AAC streams of the v1-ts-audio
   corpus and on crafted streams at every alignment to that grid; an AC-3
@@ -418,7 +418,10 @@ describe. With it on:
   frame's header is read, even when the end of its PES packet cuts that
   frame;
 - at the end of the file, what each stream still holds is listed stream
-  by stream rather than the video runs of every stream first.
+  by stream rather than the video runs of every stream first;
+- the last PES packet of a video stream listed whole (MPEG-4 Visual),
+  which only the end of the file completes, carries no stream id, as
+  `ffprobe` lists it.
 
 Rejected: making this the listing for every caller, which it was for a
 while. Its times are `ffprobe`'s artefacts rather than the file's (a

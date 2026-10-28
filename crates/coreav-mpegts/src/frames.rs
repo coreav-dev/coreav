@@ -261,6 +261,93 @@ pub(crate) fn latm_config(element: &[u8]) -> Option<(u32, u8, u8)> {
     ))
 }
 
+/// The `AudioSpecificConfig` of an `AudioMuxElement` that starts with a
+/// `StreamMuxConfig` of `audioMuxVersion` 0 (14496-3 1.7.3), copied out
+/// of the bit stream to whole bytes, the last one padded with zero bits.
+///
+/// In this version of the syntax nothing states the configuration's
+/// length, so it ends where its own syntax does (1.6.2.1): the object
+/// type, the sampling frequency and the channel configuration, the
+/// extension frequency and core object type of explicit hierarchical SBR
+/// signalling (object types 5 and 29), and the `GASpecificConfig` of the
+/// general audio object types (4.4.1) with the `epConfig` of the
+/// error-resilient ones. `None` for a configuration whose length this
+/// does not read: another object type, a program config element
+/// (channel configuration 0), or error protection (`epConfig` 2 or 3).
+pub(crate) fn latm_audio_specific_config(element: &[u8]) -> Option<Vec<u8>> {
+    let mut bits = Bits {
+        data: element,
+        at: 0,
+    };
+    if bits.read(2)? != 0 {
+        return None; // useSameStreamMux, or audioMuxVersion 1.
+    }
+    bits.read(1 + 6 + 4 + 3)?;
+    let start = bits.at;
+    let object_type = |bits: &mut Bits<'_>| -> Option<u32> {
+        let object = bits.read(5)?;
+        if object == 31 {
+            return Some(32 + bits.read(6)?);
+        }
+        Some(object)
+    };
+    let frequency = |bits: &mut Bits<'_>| -> Option<()> {
+        if bits.read(4)? == 15 {
+            bits.read(24)?;
+        }
+        Some(())
+    };
+    let mut object = object_type(&mut bits)?;
+    frequency(&mut bits)?;
+    let channels = bits.read(4)?;
+    if matches!(object, 5 | 29) {
+        frequency(&mut bits)?;
+        object = object_type(&mut bits)?;
+        if object == 22 {
+            bits.read(4)?; // extensionChannelConfiguration
+        }
+    }
+    if !matches!(object, 1..=4 | 6 | 7 | 17 | 19..=23) || channels == 0 {
+        return None;
+    }
+    // GASpecificConfig: frameLengthFlag, dependsOnCoreCoder (and the
+    // 14-bit coreCoderDelay), extensionFlag.
+    bits.read(1)?;
+    if bits.read(1)? == 1 {
+        bits.read(14)?;
+    }
+    let extension = bits.read(1)? == 1;
+    if matches!(object, 6 | 20) {
+        bits.read(3)?; // layerNr
+    }
+    if extension {
+        if object == 22 {
+            bits.read(5 + 11)?; // numOfSubFrame, layer_length
+        }
+        if matches!(object, 17 | 19 | 20 | 23) {
+            bits.read(3)?; // the three resilience flags
+        }
+        bits.read(1)?; // extensionFlag3
+    }
+    if matches!(object, 17 | 19..=23) && bits.read(2)? >= 2 {
+        return None; // ErrorProtectionSpecificConfig follows.
+    }
+    let len = bits.at - start;
+    let mut copy = Bits {
+        data: element,
+        at: start,
+    };
+    let mut out = Vec::with_capacity(len.div_ceil(8));
+    let mut left = len;
+    while left > 0 {
+        let n = left.min(8);
+        let byte = copy.read(u32::try_from(n).ok()?)? << (8 - n);
+        out.push(u8::try_from(byte).ok()?);
+        left -= n;
+    }
+    Some(out)
+}
+
 /// Reads bits most significant first.
 struct Bits<'a> {
     data: &'a [u8],
@@ -716,6 +803,24 @@ mod tests {
             (f.len, f.sample_rate, f.channels, f.detail),
             (7, 48_000, 2, 2)
         );
+    }
+
+    #[test]
+    fn latm_configuration_bytes() {
+        // AAC LC, 48 kHz, 2 channels: the 16 bits of the configuration.
+        let element = [0b0000_0000, 0b0000_0000, 0b0001_0001, 0b1001_0000];
+        assert_eq!(latm_audio_specific_config(&element), Some(vec![0x11, 0x90]));
+        // Explicit SBR (object type 5) at 22.05 kHz, mono, 44.1 kHz out,
+        // over an LC core: 25 bits, four bytes.
+        let element = [0x20, 0x00, 0x2B, 0x8A, 0x08, 0x0F, 0xF3];
+        assert_eq!(
+            latm_audio_specific_config(&element),
+            Some(vec![0x2B, 0x8A, 0x08, 0x00])
+        );
+        // useSameStreamMux: no configuration; channel configuration 0: a
+        // program config element, whose length is not read.
+        assert_eq!(latm_audio_specific_config(&[0x80, 0, 0, 0]), None);
+        assert_eq!(latm_audio_specific_config(&[0x00, 0x00, 0x11, 0x80]), None);
     }
 
     #[test]

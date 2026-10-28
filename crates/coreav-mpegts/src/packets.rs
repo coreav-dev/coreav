@@ -474,7 +474,7 @@ impl<S: Source> Packets<'_, S> {
             let Some((offset, packet)) = self.reader.next(&mut self.source, &mut self.warnings)?
             else {
                 self.demux.finish(&mut self.warnings);
-                self.drain()?;
+                self.drain_at_end()?;
                 self.flush_leftovers();
                 self.done = true;
                 return Ok(());
@@ -488,6 +488,33 @@ impl<S: Source> Packets<'_, S> {
             }
             self.demux.feed(offset, &packet, &mut self.warnings)?;
             self.drain()?;
+        }
+        Ok(())
+    }
+
+    /// Drains the PES packets the end of the file closed. In the listing
+    /// as `ffprobe` gives it, the last PES packet of a video stream listed
+    /// whole (MPEG-4 Visual, for one), which only the end of the file
+    /// completes, carries no stream id ([`Packet::fed`]): a capture of the
+    /// corpus and streams crafted by `ffmpeg`. The units of H.264, HEVC,
+    /// MPEG-1 and MPEG-2 video are listed as they are cut out of the PES
+    /// packets, and take theirs as the rest of the listing does.
+    fn drain_at_end(&mut self) -> Result<(), Error> {
+        let before = self.queue.len();
+        self.drain()?;
+        if self.as_ffprobe {
+            for packet in self.queue.iter_mut().skip(before) {
+                let whole = self.streams.get(packet.stream).is_some_and(|s| {
+                    s.kind == StreamKind::Video
+                        && !matches!(
+                            s.codec,
+                            Codec::H264 | Codec::Hevc | Codec::Mpeg1Video | Codec::Mpeg2Video
+                        )
+                });
+                if whole {
+                    packet.fed = None;
+                }
+            }
         }
         Ok(())
     }
@@ -1093,7 +1120,8 @@ impl<S: Source> Packets<'_, S> {
             // `ffprobe` gives it, it is placed as `ffprobe` places it for
             // the codec. Where a frame is not a whole number of ticks
             // (44.1 kHz), crafted streams show three rules: AAC
-            // frames on the grid of [`grid_time`]; AC-3 and E-AC-3 frames
+            // frames, in ADTS and in LOAS (a 22.05 kHz LATM stream of the
+            // corpus), on the grid of [`grid_time`]; AC-3 and E-AC-3 frames
             // each one truncated frame duration after the one before (the
             // durations `ffprobe` lists, summed); MPEG audio frames, and
             // the codecs no stream showed otherwise, the samples since the
@@ -1113,7 +1141,7 @@ impl<S: Source> Packets<'_, S> {
                     .or(state.next),
                 (None, _) => match syntax {
                     frames::Syntax::Ac3 => state.next,
-                    frames::Syntax::Adts => state
+                    frames::Syntax::Adts | frames::Syntax::Latm => state
                         .anchor
                         .and_then(|(base, samples, r, unit)| grid_time(base, samples, r, unit))
                         .or(state.next),

@@ -13,6 +13,7 @@
 const MAX_PARAMETER_SET: usize = 4096;
 
 /// Reads bits most significant first, as the video standards write them.
+#[derive(Clone)]
 pub struct Bits<'a> {
     data: &'a [u8],
     at: usize,
@@ -141,6 +142,212 @@ pub fn annex_b_extradata(data: &[u8], hevc: bool) -> Option<usize> {
     end.checked_sub(start)
 }
 
+/// The parameter sets of a coded video stream that `ffprobe` keeps as its
+/// extradata, read one access unit after another: from the first
+/// sequence parameter set (or H.265 video parameter set) to the first
+/// slice after it, every parameter set, each from its three-byte start
+/// code prefix to the next NAL unit's (as [`annex_b_extradata`] counts a
+/// run of them). That takes in the sets a PES packet of sets alone carries
+/// before the first picture and those repeated before its slices with
+/// other NAL units between (two captures of the corpus), and leaves out
+/// the picture parameter sets and slices of a stream that starts before
+/// its first sequence parameter set (a third).
+///
+/// `state` is the bytes so far and whether a sequence parameter set was
+/// read; the result tells whether the slice that ends them was read.
+pub fn sets_before_slice(data: &[u8], hevc: bool, state: &mut (usize, bool)) -> bool {
+    let units = annex_b(data);
+    for (k, &(start, nal)) in units.iter().enumerate() {
+        let Some(&first) = nal.first() else {
+            continue;
+        };
+        let (opens, set, slice) = if hevc {
+            let kind = (first >> 1) & 0x3F;
+            (matches!(kind, 32 | 33), matches!(kind, 32..=34), kind < 32)
+        } else {
+            let kind = first & 0x1F;
+            (kind == 7, matches!(kind, 7 | 8), matches!(kind, 1..=5))
+        };
+        state.1 |= opens;
+        if !state.1 {
+            continue;
+        }
+        if slice {
+            return true;
+        }
+        if set {
+            let end = units.get(k + 1).map_or(data.len(), |(at, _)| *at);
+            state.0 = state.0.saturating_add(end.saturating_sub(start));
+        }
+    }
+    false
+}
+
+/// What the configuration headers of an MPEG-4 Visual stream (ISO/IEC
+/// 14496-2 6.2.2 and 6.2.3) state.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Mpeg4Visual {
+    /// `profile_and_level_indication` of the visual object sequence
+    /// header, when there is one.
+    pub profile_level: Option<u8>,
+    /// `video_object_layer_width` and `video_object_layer_height`.
+    pub width: u32,
+    pub height: u32,
+    /// The pixel aspect ratio `aspect_ratio_info` names (table 6-12), or
+    /// the extended one it states; `None` when it is reserved.
+    pub sar: Option<(u32, u32)>,
+    /// `low_delay`, when `vol_control_parameters` states it.
+    pub low_delay: Option<bool>,
+    /// `quarter_sample` (0 for a layer of `video_object_layer_verid` 1).
+    pub quarter_sample: bool,
+    /// `vop_time_increment_resolution`, and `fixed_vop_time_increment`
+    /// when `fixed_vop_rate` is set.
+    pub resolution: u32,
+    pub fixed_increment: Option<u32>,
+    /// The user data names a packed bitstream: a DivX string that ends in
+    /// `p` (`DivX503b1393p`).
+    pub packed: bool,
+    /// The bytes from the first configuration header to the first group
+    /// of VOPs or VOP.
+    pub extradata: Option<usize>,
+}
+
+/// Reads the configuration headers at the start of an MPEG-4 Visual
+/// access unit: the visual object sequence header (`0xB0`), the visual
+/// object header (`0xB5`), user data (`0xB2`) and the first video object
+/// layer header (`0x20` to `0x2F`), up to the first group of VOPs
+/// (`0xB3`) or VOP (`0xB6`). `None` without a rectangular video object
+/// layer that reads to `quarter_sample`.
+pub fn mpeg4_visual(data: &[u8]) -> Option<Mpeg4Visual> {
+    let mut starts = Vec::new();
+    let mut i = 0usize;
+    while let Some(rest) = data.get(i..) {
+        let Some(at) = rest.windows(3).position(|w| w == [0, 0, 1]) else {
+            break;
+        };
+        starts.push(i + at);
+        i += at + 3;
+    }
+    let mut out = Mpeg4Visual::default();
+    let mut first: Option<usize> = None;
+    let mut verid = 1u32;
+    let mut layer = false;
+    for (k, &start) in starts.iter().enumerate() {
+        let code = *data.get(start + 3)?;
+        let end = starts.get(k + 1).copied().unwrap_or(data.len());
+        let body = data.get(start + 4..end).unwrap_or_default();
+        if matches!(code, 0xB3 | 0xB6) {
+            out.extradata = first.map(|f| start - f);
+            break;
+        }
+        if matches!(code, 0x00..=0x2F | 0xB0 | 0xB5) && first.is_none() {
+            first = Some(start);
+        }
+        match code {
+            0xB0 => out.profile_level = body.first().copied(),
+            0xB5 => {
+                // is_visual_object_identifier, visual_object_verid.
+                if body.first().is_some_and(|b| b & 0x80 != 0) {
+                    verid = u32::from(body.first().map_or(0, |b| (b >> 3) & 0x0F));
+                }
+            }
+            0xB2 => {
+                let text = match body {
+                    [rest @ .., 0] => rest,
+                    _ => body,
+                };
+                if text.starts_with(b"DivX") && text.last() == Some(&b'p') {
+                    out.packed = true;
+                }
+            }
+            0x20..=0x2F if !layer => {
+                video_object_layer(body, verid, &mut out)?;
+                layer = true;
+            }
+            _ => {}
+        }
+    }
+    layer.then_some(out)
+}
+
+/// A `VideoObjectLayer()` header (14496-2 6.2.3) from after its start
+/// code, as far as `quarter_sample`.
+fn video_object_layer(body: &[u8], verid: u32, out: &mut Mpeg4Visual) -> Option<()> {
+    let mut bits = Bits::new(body);
+    bits.skip(1 + 8)?; // random_accessible_vol, video_object_type_indication
+    let mut verid = verid;
+    if bits.flag()? {
+        verid = bits.bits(4)?;
+        bits.skip(3)?;
+    }
+    out.sar = match bits.bits(4)? {
+        1 => Some((1, 1)),
+        2 => Some((12, 11)),
+        3 => Some((10, 11)),
+        4 => Some((16, 11)),
+        5 => Some((40, 33)),
+        15 => Some((bits.bits(8)?, bits.bits(8)?)).filter(|(w, h)| *w > 0 && *h > 0),
+        _ => None,
+    };
+    if bits.flag()? {
+        bits.skip(2)?; // chroma_format
+        out.low_delay = Some(bits.flag()?);
+        if bits.flag()? {
+            // vbv_parameters: 79 bits of rates, sizes and markers.
+            bits.skip(79)?;
+        }
+    }
+    let shape = bits.bits(2)?;
+    if shape != 0 {
+        return None; // Only rectangular layers state their size.
+    }
+    bits.skip(1)?;
+    out.resolution = bits.bits(16)?;
+    bits.skip(1)?;
+    if bits.flag()? {
+        let width = (32 - out.resolution.saturating_sub(1).leading_zeros()).max(1);
+        out.fixed_increment = Some(bits.bits(width)?);
+    }
+    bits.skip(1)?;
+    out.width = bits.bits(13)?;
+    bits.skip(1)?;
+    out.height = bits.bits(13)?;
+    bits.skip(1)?;
+    bits.skip(1 + 1)?; // interlaced, obmc_disable
+    let sprite = bits.bits(if verid == 1 { 1 } else { 2 })?;
+    if sprite == 1 || sprite == 2 {
+        if sprite != 2 {
+            // sprite_width, sprite_height, sprite_left_coordinate,
+            // sprite_top_coordinate, each with its marker bit.
+            bits.skip(4 * 14)?;
+        }
+        // no_of_sprite_warping_points, sprite_warping_accuracy,
+        // sprite_brightness_change.
+        bits.skip(6 + 2 + 1)?;
+        if sprite != 2 {
+            bits.skip(1)?; // low_latency_sprite_enable
+        }
+    }
+    if bits.flag()? {
+        bits.skip(4 + 4)?; // quant_precision, bits_per_pixel
+    }
+    if bits.flag()? {
+        // quant_type: the intra and non-intra matrices, each when loaded,
+        // up to 64 values that end early at a 0.
+        for _ in 0..2 {
+            if bits.flag()? {
+                for _ in 0..64 {
+                    if bits.bits(8)? == 0 {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    out.quarter_sample = verid != 1 && bits.flag()?;
+    Some(())
+}
+
 /// The first NAL unit of `data` whose type `wanted` accepts, without its
 /// emulation prevention bytes.
 pub fn find_nal(data: &[u8], wanted: impl Fn(&[u8]) -> bool) -> Option<Vec<u8>> {
@@ -178,6 +385,9 @@ pub struct Sps {
     pub frame_mbs_only: bool,
     /// H.265: `sps_max_num_reorder_pics` of the highest sub-layer.
     pub reorder: Option<u32>,
+    /// H.265: `pic_width_in_luma_samples` and `pic_height_in_luma_samples`,
+    /// the decoded picture's size before its conformance window crops it.
+    pub coded: Option<(u32, u32)>,
     pub vui: Vui,
     /// H.264: what its slice headers need of it.
     pub slices: SliceSyntax,
@@ -499,8 +709,7 @@ pub fn hevc_sps(nal: &[u8]) -> Option<Sps> {
     if sps.chroma_format_idc == 3 {
         bits.skip(1)?;
     }
-    bits.ue()?;
-    bits.ue()?;
+    sps.coded = Some((bits.ue()?, bits.ue()?));
     if bits.flag()? {
         for _ in 0..4 {
             bits.ue()?;
@@ -960,12 +1169,17 @@ pub fn mpeg_audio_bit_rate(header: &[u8]) -> Option<u32> {
 }
 
 /// What an AC-3 or E-AC-3 frame header states: the bit rate, `acmod`,
-/// `lfeon`.
+/// `lfeon`, and for E-AC-3 whether it carries Dolby Atmos.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Ac3 {
     pub bit_rate: u32,
     pub acmod: u8,
     pub lfe: bool,
+    /// `flag_ec3_extension_type_a` of the additional bit stream
+    /// information (ETSI TS 103 420 8.3): joint object coding, which
+    /// carries Dolby Atmos; `false` when the header does not set it or
+    /// cannot be read that far.
+    pub atmos: bool,
 }
 
 /// Reads an AC-3 (A/52 5.3.1) or E-AC-3 (A/52 E.1.2) frame header.
@@ -1003,15 +1217,17 @@ pub fn ac3(header: &[u8]) -> Option<Ac3> {
             bit_rate: (kbps * 1000) >> shift,
             acmod,
             lfe,
+            atmos: false,
         });
     }
     if bsid > 16 {
         return None;
     }
-    bits.skip(2)?; // strmtyp
+    let strmtyp = bits.bits(2)?;
     bits.skip(3)?; // substreamid
     let words = bits.bits(11)?.checked_add(1)?;
     let fscod = bits.bits(2)?;
+    let numblkscod = if fscod == 3 { 3 } else { bits.clone().bits(2)? };
     let (rate, blocks) = if fscod == 3 {
         let fscod2 = bits.bits(2)?;
         let rate = match fscod2 {
@@ -1039,11 +1255,139 @@ pub fn ac3(header: &[u8]) -> Option<Ac3> {
     let lfe = bits.flag()?;
     let bytes = u64::from(words) * 2;
     let bit_rate = bytes * 8 * rate / (256 * blocks);
+    let info = Eac3Info {
+        strmtyp,
+        fscod,
+        numblkscod,
+        blocks,
+        acmod,
+        lfe,
+    };
     Some(Ac3 {
         bit_rate: u32::try_from(bit_rate).ok()?,
         acmod,
         lfe,
+        atmos: eac3_atmos(&mut bits, &info).unwrap_or(false),
     })
+}
+
+/// The fields of an E-AC-3 `bsi()` the rest of it depends on.
+struct Eac3Info {
+    strmtyp: u32,
+    fscod: u32,
+    numblkscod: u32,
+    blocks: u64,
+    acmod: u8,
+    lfe: bool,
+}
+
+/// Reads an E-AC-3 `bsi()` (A/52 E.1.2.2) from `bsid` on to its
+/// additional bit stream information, and tells whether that sets
+/// `flag_ec3_extension_type_a` (ETSI TS 103 420 8.3: seven reserved bits,
+/// then the flag). Files crafted from a capture with Atmos, the flag
+/// cleared and the reserved bits set, show `ffprobe` reading the flag
+/// alone.
+fn eac3_atmos(bits: &mut Bits<'_>, f: &Eac3Info) -> Option<bool> {
+    let acmod = f.acmod;
+    bits.skip(5 + 5)?; // bsid, dialnorm
+    if bits.flag()? {
+        bits.skip(8)?; // compr
+    }
+    if acmod == 0 {
+        bits.skip(5)?; // dialnorm2
+        if bits.flag()? {
+            bits.skip(8)?; // compr2
+        }
+    }
+    if f.strmtyp == 1 && bits.flag()? {
+        bits.skip(16)?; // chanmap
+    }
+    if bits.flag()? {
+        // mixmdate
+        if acmod > 2 {
+            bits.skip(2)?; // dmixmod
+        }
+        if acmod & 1 != 0 && acmod > 2 {
+            bits.skip(6)?; // ltrtcmixlev, lorocmixlev
+        }
+        if acmod & 4 != 0 {
+            bits.skip(6)?; // ltrtsurmixlev, lorosurmixlev
+        }
+        if f.lfe && bits.flag()? {
+            bits.skip(5)?; // lfemixlevcod
+        }
+        if f.strmtyp == 0 {
+            if bits.flag()? {
+                bits.skip(6)?; // pgmscl
+            }
+            if acmod == 0 && bits.flag()? {
+                bits.skip(6)?; // pgmscl2
+            }
+            if bits.flag()? {
+                bits.skip(6)?; // extpgmscl
+            }
+            match bits.bits(2)? {
+                1 => bits.skip(5)?, // premixcmpsel, drcsrc, premixcmpscl
+                2 => bits.skip(12)?,
+                3 => {
+                    let len = bits.bits(5)?;
+                    bits.skip(8 * (len + 2))?;
+                }
+                _ => {}
+            }
+            if acmod < 2 {
+                if bits.flag()? {
+                    bits.skip(14)?; // panmean, paninfo
+                }
+                if acmod == 0 && bits.flag()? {
+                    bits.skip(14)?; // panmean2, paninfo2
+                }
+            }
+            if bits.flag()? {
+                // frmmixcfginfoe
+                if f.numblkscod == 0 {
+                    bits.skip(5)?;
+                } else {
+                    for _ in 0..f.blocks {
+                        if bits.flag()? {
+                            bits.skip(5)?;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if bits.flag()? {
+        // infomdate: bsmod, copyrightb, origbs
+        bits.skip(5)?;
+        if acmod == 2 {
+            bits.skip(4)?; // dsurmod, dheadphonmod
+        }
+        if acmod >= 6 {
+            bits.skip(2)?; // dsurexmod
+        }
+        if bits.flag()? {
+            bits.skip(8)?; // mixlevel, roomtyp, adconvtyp
+        }
+        if acmod == 0 && bits.flag()? {
+            bits.skip(8)?;
+        }
+        if f.fscod < 3 {
+            bits.skip(1)?; // sourcefscod
+        }
+    }
+    if f.strmtyp == 0 && f.numblkscod != 3 {
+        bits.skip(1)?; // convsync
+    }
+    if f.strmtyp == 2 && (f.numblkscod == 3 || bits.flag()?) {
+        bits.skip(6)?; // frmsizecod
+    }
+    if !bits.flag()? {
+        return Some(false); // addbsie
+    }
+    bits.skip(6)?; // addbsil
+    bits.skip(7)?;
+    bits.flag()
 }
 
 /// The sampling rates of `sampling_frequency_index` (ISO/IEC 14496-3
@@ -1052,6 +1396,28 @@ pub const AAC_RATES: [u32; 13] = [
     96_000, 88_200, 64_000, 48_000, 44_100, 32_000, 24_000, 22_050, 16_000, 12_000, 11_025, 8_000,
     7_350,
 ];
+
+/// The sampling rate an `AudioSpecificConfig` (ISO/IEC 14496-3 1.6.2.1)
+/// decodes to when it signals SBR explicitly (object types 5 and 29): its
+/// `extensionSamplingFrequency`. `None` for a configuration without that
+/// signalling, whose rate is the core's.
+pub fn aac_explicit_sbr_rate(config: &[u8]) -> Option<u32> {
+    let mut bits = Bits::new(config);
+    let frequency = |bits: &mut Bits<'_>| match bits.bits(4)? {
+        15 => bits.bits(24),
+        index => AAC_RATES.get(usize::try_from(index).ok()?).copied(),
+    };
+    let object = match bits.bits(5)? {
+        31 => 32 + bits.bits(6)?,
+        object => object,
+    };
+    if !matches!(object, 5 | 29) {
+        return None;
+    }
+    frequency(&mut bits)?;
+    bits.skip(4)?;
+    frequency(&mut bits)
+}
 
 /// Whether an AAC `raw_data_block()` (ISO/IEC 14496-3 4.4.2.1) ends with
 /// a fill element that carries SBR data (`extension_type` EXT_SBR_DATA
@@ -1216,6 +1582,84 @@ pub fn ac3_layout(acmod: u8, lfe: bool) -> Option<&'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn eac3_atmos_flag() {
+        // An E-AC-3 frame of a capture with Atmos: 5.1, `addbsi` of two
+        // bytes, `flag_ec3_extension_type_a` set (bit 75 of the frame).
+        let mut frame = [
+            0x0B, 0x77, 0x04, 0xFF, 0x3F, 0x86, 0xFB, 0xC4, 0x10, 0x11, 0x00, 0x7A, 0x01, 0xCA,
+            0x77, 0xB9, 0xF3, 0x94, 0xEF, 0x71, 0xDC, 0x03, 0xF0, 0x06,
+        ];
+        assert!(ac3(&frame).unwrap().atmos);
+        frame[9] &= !0x10;
+        assert!(!ac3(&frame).unwrap().atmos);
+        frame[9] |= 0x10;
+        frame[7] &= !0x04; // addbsie
+        assert!(!ac3(&frame).unwrap().atmos);
+    }
+
+    #[test]
+    fn explicit_sbr_rates() {
+        // Object type 5, 22.05 kHz core, mono, 44.1 kHz out, LC core.
+        assert_eq!(
+            aac_explicit_sbr_rate(&[0x2B, 0x8A, 0x08, 0x00]),
+            Some(44_100)
+        );
+        // Plain LC states no output rate of its own.
+        assert_eq!(aac_explicit_sbr_rate(&[0x11, 0x90]), None);
+    }
+
+    #[test]
+    fn parameter_sets_up_to_the_first_slice() {
+        let nal = |start: &[u8], body: &[u8]| [start, body].concat();
+        let four = [0, 0, 0, 1];
+        // AUD, SPS, PPS, SEI, SPS, PPS, IDR: both runs of sets count.
+        let unit = [
+            nal(&four, &[0x09, 0xF0]),
+            nal(&four, &[0x67, 1, 2, 3]),
+            nal(&four, &[0x68, 4]),
+            nal(&four, &[0x06, 5, 6]),
+            nal(&four, &[0x67, 1, 2, 3]),
+            nal(&four, &[0x68, 4]),
+            nal(&four, &[0x65, 7, 8]),
+        ]
+        .concat();
+        let mut state = (0, false);
+        assert!(sets_before_slice(&unit, false, &mut state));
+        assert_eq!(state.0, 2 * (8 + 6));
+        // A unit of a picture parameter set and slices before the first
+        // sequence parameter set counts nothing, and does not end it.
+        let lead = [nal(&four, &[0x68, 4]), nal(&four, &[0x41, 9])].concat();
+        let mut state = (0, false);
+        assert!(!sets_before_slice(&lead, false, &mut state));
+        assert_eq!(state, (0, false));
+    }
+
+    #[test]
+    fn mpeg4_visual_headers() {
+        // An `ffmpeg` stream: Simple Profile level 1, 640x360, square
+        // samples, low delay, 25 ticks a second, no fixed rate.
+        let unit = [
+            0x00, 0x00, 0x01, 0xB0, 0x01, 0x00, 0x00, 0x01, 0xB5, 0x89, 0x13, 0x00, 0x00, 0x01,
+            0x00, 0x00, 0x00, 0x01, 0x20, 0x00, 0xC4, 0x8D, 0x88, 0x00, 0xCD, 0x14, 0x04, 0x2D,
+            0x14, 0x43, 0x00, 0x00, 0x01, 0xB2, 0x4C, 0x61, 0x76, 0x63, 0x35, 0x38, 0x2E, 0x35,
+            0x34, 0x2E, 0x31, 0x30, 0x30, 0x00, 0x00, 0x01, 0xB3, 0x00, 0x10, 0x07, 0x00, 0x00,
+            0x01, 0xB6, 0x10, 0x60,
+        ];
+        let v = mpeg4_visual(&unit).unwrap();
+        assert_eq!(v.profile_level, Some(0x01));
+        assert_eq!((v.width, v.height, v.sar), (640, 360, Some((1, 1))));
+        assert_eq!(
+            (v.low_delay, v.quarter_sample, v.packed),
+            (Some(true), false, false)
+        );
+        assert_eq!((v.resolution, v.fixed_increment), (25, None));
+        // From the sequence header to the group of VOPs.
+        assert_eq!(v.extradata, Some(47));
+        // No video object layer: nothing to report.
+        assert_eq!(mpeg4_visual(unit.get(..14).unwrap()), None);
+    }
 
     #[test]
     fn exp_golomb_codes() {
