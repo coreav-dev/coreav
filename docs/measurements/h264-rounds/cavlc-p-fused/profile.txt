@@ -1,4 +1,4 @@
-# Profile summary: instructions per coded P macroblock by inline group (callgrind --dump-instr, addr2line -i; /tmp/fp/tools/grp.py)
+# Profile summary: instructions per coded P macroblock by inline group (callgrind --dump-instr, addr2line -i; grp.py)
 # binaries with line tables, same code as bin-fp-base / bin-fp-k: /tmp/fp/prof-base, /tmp/fp/prof-v4
 # coded P macroblocks (mb_type 0-4) at a tenth of the frames: 5185721dda11 16,840; f9e973f44570 8,238 (a counting build of k)
 # groups: parse_inter = parse_inter_pred/parse_mb_pred/parse_sub_mb_pred/parse_mvd/partition_shape/set_ref_gt0/store_mvd;
@@ -40,7 +40,7 @@ total 128,348,143 = 15580.0/MB
 # P-inter path total per coded P MB: 5185721dda11 901 -> 261 (-71%); f9e973f44570 1,180 -> 381 (-68%)
 # (ref_idx/mvd Exp-Golomb reads are attributed to the window's own functions in both builds)
 
-# MB mix (stats build: [skip, P0..P4, intra-in-P, B, I-slice, sub0..sub3, coded total])
+# MB mix (stats build: [skip, P0..P4, intra-in-P, B, I-slice, sub0..sub3, coded total, then two counters that are 0 in every row])
 5185721dda11.0.sd STATS [51817, 14574, 973, 872, 0, 421, 1435, 0, 1584, 1684, 0, 0, 0, 19859, 0, 0]
 6f7799768413.0.sd STATS [211170, 7, 0, 0, 0, 0, 23, 0, 4800, 0, 0, 0, 0, 4830, 0, 0]
 9db41aa16b5a.0.720p STATS [87853, 5778, 601, 205, 0, 102, 51800, 37261, 2040, 408, 0, 0, 0, 97787, 0, 0]

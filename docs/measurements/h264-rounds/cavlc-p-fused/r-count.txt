@@ -1,4 +1,4 @@
-# callgrind Ir, --threads 1 --discard, frames: sd 180, 720p 90, 1080p 30, 4k 15 (/tmp/csk/cgcount.sh)
+# callgrind Ir, --threads 1 --discard, frames: sd 180, 720p 90, 1080p 30, 4k 15 (cgcount.sh)
 # base = /tmp/rb/bin-fp-base (its H.264 crate is 5aec713a's), k = /tmp/rb/bin-fp-k (7935727b's H.264 crate)
 # stream base k k/base
 175433794e02.0.1080p          2,675,676,520  2,675,676,482 1.00000 
