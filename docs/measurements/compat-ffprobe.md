@@ -424,7 +424,7 @@ The `dist` binary of `c794eec2`, same files and method as round 1, on the develo
 | Slowest command | 0.282 (`-v error -select_streams v:0 -count_packets -show_entries stream=nb_read_packets -of csv=p=0 INPUT`) |
 | Slowest command in one container | 0.495 |
 
-**B4 met**: no command, container or overall median is over 1.00, and every interval's upper bound is below 1.00, so `coreav ffprobe` is faster than `ffprobe` on these commands and files. The five refused commands (the four without a section and `-read_intervals 999999`) have no ratio. Pairs and summaries: `compat-ffprobe/b4-round3.json`.
+**B4 met**: no command, container or overall median is over 1.00, and every interval's upper bound is below 1.00, so `coreav ffprobe` is faster than `ffprobe` on these commands and files. Most of these files were later used for development (round 4, below; `docs/design/compat-cli.md`). The five refused commands (the four without a section and `-read_intervals 999999`) have no ratio. Pairs and summaries: `compat-ffprobe/b4-round3.json`.
 
 ## Round 4
 
@@ -455,7 +455,7 @@ declare a size their samples contradict) and `KD-TS-DUPLICATE`
 every key the two tools print differently over the whole file is one the
 record names. B2 runs fall against round 3 (by 94, 38 and 41) mainly
 because `-read_intervals 999999` is now refused where it needs a seek (on
-95, 38 and 41 fixtures).
+95, 38 and 41 fixtures; one of the 95 already failed in round 3).
 **B1 met; B2 missed** as in round 1. **B3a on the fixtures met** for all
 three containers.
 
@@ -465,7 +465,7 @@ Binary of `501e685a`, same files and method as round 1: 1315 files (1049 ISO bas
 
 **B3a missed** for the keys below; every other key outside the tags is at or above 98% (tags: `compat-ffprobe/b3a-round4.json`; the tag keys below 98% are those of round 3). The counts of keys below 98% are those of round 3 (ISO base media 37 of 101, Matroska and WebM 2 of 101, MPEG-TS 65 of 157), though values moved: MPEG-TS stream `bit_rate` 61.54% to 84.62% (in programs 64.10% to 87.18%), ISO base media `bits_per_raw_sample` 93.70% to 97.05%, `has_b_frames` 95.07% to 95.48%, stream `bit_rate` 89.85% to 90.04%. Four ISO base media keys fell: `channel_layout` 97.09% to 96.07% (six files), `format.duration` 96.47% to 96.28% (two files), and stream `duration` and `duration_ts` 96.38% to 96.28% (one file).
 
-The held-out files of ISO base media and Matroska were not held out in rounds 2 to 4: by a selection error, the development files used for the fixes were 224 of the 303 held-out ISO base media files and all 69 held-out Matroska and WebM files. The MPEG-TS development files were not held out. From round 5, B3a is also reported for development and held-out files apart (`docs/design/compat-cli.md`, "The measurements, fixed before the runs").
+The held-out files of ISO base media and Matroska were not held out in rounds 2 to 4: by a selection error, the development files used for the fixes were 224 of the 303 held-out ISO base media files and all 69 held-out Matroska and WebM files. The 17 held-out MPEG-TS files were not used for development. From round 5, B3a is also reported for development and held-out files apart (`docs/design/compat-cli.md`, "The measurements, fixed before the runs").
 
 **ISO base media**: 101 keys found in at least five files; 64 at or above 98%, 37 below:
 

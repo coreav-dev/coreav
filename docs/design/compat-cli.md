@@ -357,8 +357,10 @@ error, held-out files (224 of 303 and 69 of 69); those two held-out sets
 are marked as used for development in every later report. The B3a
 verdict stays over all files, as registered: B3a is a correctness bar, and
 its held-out part shows whether a fix generalizes, not a performance
-claim. The B4 files of round 3 were among those development files; speed
-was not tuned on them, so the round 3 result is kept, but a new claim that
+claim. Of the B4 files of round 3, 19 of the 20 ISO base media files and
+all 20 Matroska and WebM files were among those development files (the
+MPEG-TS files were not); speed was not tuned on them, so the round 3
+result is kept, but a new claim that
 `coreav ffprobe` is faster than `ffprobe` is measured on held-out files
 that no development has used.
 
