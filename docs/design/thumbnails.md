@@ -62,8 +62,11 @@ without an edit list).
   after an open GOP's I picture (a recovery point, ITU-T H.264 D.2.8)
   until later packets arrive, and drops them at the end of the stream.
   When no frame comes, the packets are decoded again with those after the
-  frame, in decode order up to the next keyframe; decoded from the I
-  picture, it is the frame a decode from the start gives. Rejected:
+  frame, in decode order up to the next keyframe and at most 32 of them
+  (the seek window's margin), within what is left of the timeout; decoded
+  from the I picture, it is the frame a decode from the start gives. The
+  second pass stops once the frame comes, which through the sandbox is
+  some packets after the decoder output it. Rejected:
   sending the later packets in the first pass whenever the frame has not
   come yet, which the sandboxed decoder, whose frames arrive late, would
   pay on every image; and starting from the keyframe before, which

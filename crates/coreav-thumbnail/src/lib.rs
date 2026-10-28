@@ -897,6 +897,11 @@ fn packet_temporal_id<S: Source>(
     Ok(None)
 }
 
+/// Packets after the target a second decode sends at most, past the
+/// reordering and the reference frames a decoder may hold (the seek
+/// window's margin).
+const HELD_BACK: usize = 32;
+
 /// Decodes packets `choice.start..=choice.target` and returns the target's
 /// frame.
 ///
@@ -905,7 +910,8 @@ fn packet_temporal_id<S: Source>(
 /// after an open GOP's I picture (a recovery point, ITU-T H.264 D.2.8),
 /// which decoded from it are the frames a decode from the start gives.
 /// When the target's frame does not come, the packets are decoded again
-/// with those after the target, in decode order up to the next keyframe.
+/// with those after the target, in decode order up to the next keyframe and
+/// at most [`HELD_BACK`] of them, within what is left of the timeout.
 fn decode<S: Source>(
     source: &mut S,
     plan: &Plan,
@@ -913,8 +919,17 @@ fn decode<S: Source>(
     options: &ThumbnailOptions,
     backends: &[&dyn Backend],
 ) -> Result<(Frame, DecoderInfo, Vec<Skipped>, u32), Error> {
-    let (found, info, skipped, decoded) =
-        decode_through(source, plan, choice, choice.target, options, backends)?;
+    let started = std::time::Instant::now();
+    let limits = &options.decode_limits;
+    let (found, info, skipped, decoded) = decode_through(
+        source,
+        plan,
+        choice,
+        choice.target,
+        options,
+        limits,
+        backends,
+    )?;
     if let Some(frame) = found {
         return Ok((frame, info, skipped, decoded));
     }
@@ -925,10 +940,18 @@ fn decode<S: Source>(
         .skip(choice.target.saturating_add(1))
         .find(|(_, p)| p.keyframe)
         .map_or(plan.packets.len(), |(i, _)| i);
-    let last = next_keyframe.saturating_sub(1);
-    let found = if last > choice.target {
+    let last = next_keyframe
+        .saturating_sub(1)
+        .min(choice.target.saturating_add(HELD_BACK));
+    // Both passes share the timeout.
+    let left = limits.timeout.saturating_sub(started.elapsed());
+    let found = if last > choice.target && !left.is_zero() {
+        let limits = coreav_decode::Limits {
+            timeout: left,
+            ..limits.clone()
+        };
         let (found, info, skipped, more) =
-            decode_through(source, plan, choice, last, options, backends)?;
+            decode_through(source, plan, choice, last, options, &limits, backends)?;
         found.map(|frame| (frame, info, skipped, decoded.saturating_add(more)))
     } else {
         None
@@ -944,20 +967,17 @@ fn decode<S: Source>(
 /// Decodes packets `choice.start..=last` (`last` at or after the target),
 /// discarding every frame but the target's, which it returns when the
 /// decoder gives it.
+#[allow(clippy::too_many_arguments)]
 fn decode_through<S: Source>(
     source: &mut S,
     plan: &Plan,
     choice: Choice,
     last: usize,
     options: &ThumbnailOptions,
+    limits: &coreav_decode::Limits,
     backends: &[&dyn Backend],
 ) -> Result<(Option<Frame>, DecoderInfo, Vec<Skipped>, u32), Error> {
-    let opened = coreav_decode::open(
-        &plan.stream,
-        &options.policy,
-        &options.decode_limits,
-        backends,
-    )?;
+    let opened = coreav_decode::open(&plan.stream, &options.policy, limits, backends)?;
     let mut decoder: Box<dyn Decoder> = opened.decoder;
     let target_pts = plan
         .packets
