@@ -179,7 +179,8 @@ def main():
     if a.threads_per_core is not None:
         features['threadsPerCore'] = a.threads_per_core
     image = gce.call('GET', f'projects/debian-cloud/global/images/family/{a.image_family}')['selfLink']
-    name = f'coreav-pmu-{time.strftime("%Y%m%d-%H%M%S")}'
+    # A random suffix: two runs started in the same second must not share a name.
+    name = f'coreav-pmu-{time.strftime("%Y%m%d-%H%M%S")}-{os.urandom(3).hex()}'
     tmp = tempfile.mkdtemp(prefix='gcpjob.')
     keyfile = os.path.join(tmp, 'id')
     subprocess.run(['ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-C', 'coreav', '-f', keyfile], check=True)
@@ -204,8 +205,11 @@ def main():
     try:
         smt = '' if a.threads_per_core is None else f', {a.threads_per_core} thread(s) a core'
         print(f'creating {name} ({a.machine}, {a.zone}, {model}, PMU {a.pmu}{smt}, max {a.max_hours} h)', flush=True)
-        created = time.time()
-        gce.wait(gce.call('POST', f'{z}/instances', body))
+        t0 = time.time()
+        op = gce.call('POST', f'{z}/instances', body)
+        # Only once the insert is accepted: a refused one (the name in use) must not delete a VM it did not create.
+        created = t0
+        gce.wait(op)
         inst = gce.call('GET', f'{z}/instances/{name}')
         ip = inst['networkInterfaces'][0]['accessConfigs'][0]['natIP']
         opts = ['-i', keyfile, '-o', 'StrictHostKeyChecking=no', '-o', f'UserKnownHostsFile={tmp}/known',
