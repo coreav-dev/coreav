@@ -606,6 +606,14 @@ completes a stream's first PES packet, which puts behind the video the
 audio streams of a capture that `ffprobe` numbers before it; and listing a
 program's streams in index order, which put a PID sixteen programs
 share first in each where every table, and `ffprobe`, has it last.
+Not followed: a file of at most 4 MB (read again from its start for its
+tail) whose Program Map Table sent before the PAT names a stream the later
+version drops numbers that stream first, where `ffprobe` numbers it last;
+the early tables are looked for on at most `max_programs` PIDs, so a file
+that opens more never-completed tables than that before its PAT falls back
+to the order of the packets. A file without tables whose only PES packets
+are padding has no stream and is rejected (`NoPrograms`), as a file without
+tables or PES packets is.
 
 Codec-level fields of a transport stream's first access units, each found
 on crafted files and the development set:

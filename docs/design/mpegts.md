@@ -147,7 +147,8 @@ read -- the elementary streams of each PMT in the order that table lists
 them, the tables in the order they are read -- and a PID that two programs
 share is listed once. ISO/IEC 13818-1 2.4.4 makes a transport stream a set
 of programs, not a list of streams, so the order is a reader's choice:
-`ffprobe` lists the streams of the first table it reads in table order and
+`ffprobe` lists the streams of the first Program Map Table completed after
+the PAT in table order and
 the others where the file first shows them from its start, a table or a
 PES packet that is not padding (`Stream::found_at`, and
 `docs/design/compat-cli.md`, which numbers them so), which for a file of

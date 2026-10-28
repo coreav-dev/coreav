@@ -218,7 +218,8 @@ KD-TS-FRAME-TIME.
 - What each reports: CoreAV lists the elementary streams of each Program
   Map Table in the order that table gives them, the tables in the order
   they are read, so the document follows the file's own tables.
-  `ffprobe` lists the streams of the first table it reads in table order
+  `ffprobe` lists the streams of the first Program Map Table completed
+  after the PAT in table order
   and the others where the file first shows them from its start, a
   table or a PES packet that is not padding
   (`docs/design/compat-cli.md`, "MPEG-TS"). The two then pair stream 6 of one with
