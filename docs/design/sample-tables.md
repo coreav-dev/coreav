@@ -151,6 +151,19 @@ carrying each run's chunk offset to check the frames run by run, which
 widens the run every hot loop moves for a codec the library does not
 decode.
 
+### Subtitle samples in fragments
+
+A fragment states each sample's sync flag (`sample_is_non_sync_sample`
+in `trun`, `tfhd` or `trex`, ISO/IEC 14496-12 8.8.3.1), and the pinned
+`ffmpeg` marks the empty samples between cues of a `mov_text` track as
+non-sync. `ffprobe` lists every sample of a subtitle track as a key frame
+whatever the flags say (`fragmented_text.mp4`), and a cue does not depend
+on the cue before it, so the fragment walk reports every subtitle sample
+as a sync sample. Video and audio keep their flags. Rejected: keeping the
+flags and recording a known divergence, which would make every cut, clip
+and seek on such a track refuse a start the reader needs no earlier
+sample for.
+
 ## Bars
 
 Fixed here before any measured run (the project's pre-registration rule).

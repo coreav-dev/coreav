@@ -489,7 +489,13 @@ prints keep its derivations, which the stream oracle checks. The others:
   patched). A data or subtitle track takes its own span. A fragmented
   movie's video and audio rate is over the stream's duration as printed,
   rounded to the nearest, and with a segment index (`sidx`) `ffprobe`
-  counts only the first fragment's bytes, over the whole duration.
+  counts only the first fragment's bytes, over the whole duration
+  (`fragmented_text.mp4`, `fragmented_late.mp4`,
+  `edit_multi_audio_average.mp4`).
+- Packets of a subtitle track in a movie with fragments have no
+  duration, and every one is a key frame whatever the fragment's flags
+  say (`fragmented_text.mp4`; the library's rule,
+  `docs/design/sample-tables.md`).
 - The format's duration ends where the last audio, video or subtitle
   stream ends (a data stream's end does not count: GoPro's `gpmd` a
   millisecond past the video), and starts where the first audio or video

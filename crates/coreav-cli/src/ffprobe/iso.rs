@@ -2377,9 +2377,13 @@ fn plan(
                 None,
             )
         }
-        // WebVTT in ISO files is a data stream to `ffprobe`.
+        // WebVTT in ISO files is a data stream to `ffprobe`. In a movie
+        // with fragments, no subtitle packet has a duration
+        // (`fragmented_text.mp4`).
         TrackKind::Subtitle
-            if codec_name(movie, track).is_some() && track.description.fourcc.0 != *b"wvtt" =>
+            if codec_name(movie, track).is_some()
+                && track.description.fourcc.0 != *b"wvtt"
+                && !movie.has_fragments() =>
         {
             (Fill::Stored, 0, None)
         }

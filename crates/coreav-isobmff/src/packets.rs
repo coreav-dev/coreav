@@ -3,7 +3,7 @@
 use crate::error::LimitKind;
 use crate::fragment::Fragment;
 use crate::header::{read_header, read_payload};
-use crate::movie::{EditList, Movie, Track};
+use crate::movie::{EditList, Movie, Track, TrackKind};
 use crate::tables::{Bounds, Cursor, Position, RawSample, Work};
 use crate::{Error, FourCc, Limits, Rational, Source};
 use core::cell::Cell;
@@ -349,7 +349,12 @@ impl<S: Source> Packets<'_, S> {
                     &mut self.budget.work,
                     max,
                 )? {
-                    return Ok(Some(sample));
+                    // Every sample of a subtitle track is a sync sample,
+                    // whatever a fragment's flags say: `ffprobe` keys each
+                    // one where a muxer marks empty text samples non-sync
+                    // (`fragmented_text.mp4`).
+                    let keyframe = sample.keyframe || self.track.kind == TrackKind::Subtitle;
+                    return Ok(Some(RawSample { keyframe, ..sample }));
                 }
                 self.fragment = None;
             }
