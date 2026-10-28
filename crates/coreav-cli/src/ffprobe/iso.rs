@@ -1237,11 +1237,13 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
         None
     };
     let bit_rate = coded_rate.or(declared).or_else(|| {
-        // A fragmented movie's bytes are over the stream's duration as it
-        // is printed, its start included (the development set: 18 of the 19
-        // fragmented movies with audio agree, 10 before).
+        // A fragmented movie's video and audio bytes are over the stream's
+        // duration as it is printed, its start included (the development
+        // set: 18 of the 19 fragmented movies with audio agree, 10 before);
+        // a subtitle or data track keeps its own span, not the longest
+        // track's it is printed with.
         let own = duration_ts
-            .filter(|d| movie.has_fragments() && *d > 0)
+            .filter(|d| movie.has_fragments() && (video || audio) && *d > 0)
             .or(span)
             .or_else(|| media_duration(movie, track))?;
         let ticks = u128::try_from(own).ok().filter(|t| *t > 0)?;
@@ -1350,9 +1352,10 @@ fn media_duration(movie: &Movie, track: &Track) -> Option<i64> {
             Some(header.map_or(samples, |h| h.min(samples)))
         }
         // Fragments only, the first of them decoded from a later time
-        // (`tfdt`): the stream lasts until its last sample ends, its start
-        // included (the development set: 9 files whose duration differed
-        // now agree, none that agreed changed).
+        // (`tfdt`): that start plus the samples' durations (the development
+        // set: 9 files whose duration differed now agree, none that agreed
+        // changed). A later jump of `tfdt` between fragments, which
+        // `ffprobe` follows, is not counted.
         (coreav_isobmff::EditList::None, Some(samples)) if track.sample_count == 0 => {
             let start = track.fragment_start.filter(|t| *t > 0).unwrap_or(0);
             samples.checked_add(start)
