@@ -205,10 +205,14 @@ def main():
     try:
         smt = '' if a.threads_per_core is None else f', {a.threads_per_core} thread(s) a core'
         print(f'creating {name} ({a.machine}, {a.zone}, {model}, PMU {a.pmu}{smt}, max {a.max_hours} h)', flush=True)
-        t0 = time.time()
-        op = gce.call('POST', f'{z}/instances', body)
-        # Only once the insert is accepted: a refused one (the name in use) must not delete a VM it did not create.
-        created = t0
+        created = time.time()
+        try:
+            op = gce.call('POST', f'{z}/instances', body)
+        except SystemExit as e:
+            # The name in use (HTTP 409): no VM was created, and the one of that name is not this run's to delete.
+            if 'HTTP 409' in str(e):
+                created = None
+            raise
         gce.wait(op)
         inst = gce.call('GET', f'{z}/instances/{name}')
         ip = inst['networkInterfaces'][0]['accessConfigs'][0]['natIP']
