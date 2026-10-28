@@ -109,12 +109,21 @@ pub struct Stream {
     /// The timestamp of that access unit (90 kHz): `end` minus it is the
     /// unit's duration.
     pub last_pts: Option<i64>,
-    /// Where the file first shows the stream once a program is known (a
-    /// byte offset): the Program Map Table that names it, or its first PES
-    /// packet after the first Program Map Table, whichever comes first;
-    /// `u64::MAX` when neither is read. `ffprobe` numbers streams in this
-    /// order.
+    /// Where the file first shows the stream (a byte offset). For a
+    /// stream [`Stream::with_first_table`], the packet that completed that
+    /// table (or the Event Information Table's first section). For the
+    /// others, the first of: a Program Map Table section naming it,
+    /// whether it comes before or after the first PAT; its first PES
+    /// packet that is not padding, wherever it is; the Event Information
+    /// Table's first section. `u64::MAX` when none is read. `ffprobe`
+    /// numbers the streams [`Stream::with_first_table`] first, then the
+    /// others in this order (`docs/design/compat-cli.md`, "MPEG-TS").
     pub found_at: u64,
+    /// Whether the stream is found with the first Program Map Table the
+    /// file completes after its first PAT, or is the Event Information
+    /// Table read before that table: `ffprobe` reads the file up to that
+    /// table first, then again from the start.
+    pub with_first_table: bool,
 }
 
 impl Stream {
@@ -859,19 +868,33 @@ pub fn probe<S: Source>(
             crate::error::warn(&mut warnings, warning);
         }
     }
-    // Where the file first shows each stream: its table, or its data after
-    // the first table, in the head or in the tail.
-    // The tail may start before the head's first table (a short file is
-    // read whole again): only its data after that table counts.
-    let first_pmt = demux.first_pmt_at.unwrap_or(0);
+    // Where the file first shows each stream ([`Stream::found_at`]). The
+    // tail may start before the head's first table (a short file is read
+    // whole again); its data counts all the same, as the head's does.
+    let first_pmt = demux.first_pmt_at;
+    let with_first_table =
+        |entry: &crate::demux::Entry| first_pmt.is_some_and(|at| entry.found_at <= at);
     let found = |entry: &crate::demux::Entry| {
+        if with_first_table(entry) {
+            return entry.found_at;
+        }
+        let early = demux
+            .early_pmts
+            .iter()
+            .filter(|e| {
+                e.pids.contains(&entry.pid)
+                    && tail
+                        .programs
+                        .iter()
+                        .any(|p| p.number == e.number && p.pmt_pid == e.pmt_pid)
+            })
+            .map(|e| e.at)
+            .min();
         [
             Some(entry.found_at),
-            demux.pes_after_pmt.get(&entry.pid).copied(),
-            tail.pes_after_pmt
-                .get(&entry.pid)
-                .copied()
-                .filter(|at| *at >= first_pmt),
+            early,
+            demux.pes_pids.get(&entry.pid).copied(),
+            tail.pes_pids.get(&entry.pid).copied(),
         ]
         .into_iter()
         .flatten()
@@ -991,6 +1014,7 @@ pub fn probe<S: Source>(
             end: ends.get(index).copied().flatten(),
             last_pts: lasts.get(index).copied().flatten(),
             found_at: found(entry),
+            with_first_table: with_first_table(entry),
         });
     }
     let programs = tail

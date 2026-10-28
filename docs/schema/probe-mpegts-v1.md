@@ -104,8 +104,9 @@ same stream on both sides.
 
 For a file with **more than one program** it is not. ISO/IEC 13818-1 2.4.4
 makes a transport stream a set of programs, not a list of streams, and
-gives no order for them; `ffprobe` lists the first program's streams in
-table order and the others as their data arrives, so a stream's index
+gives no order for them; `ffprobe` lists the streams of the first Program
+Map Table completed after the PAT in table order and the others where the
+file first shows them, a table or a PES packet that is not padding, so a stream's index
 differs between the two readers. Neither order is wrong, and the
 difference is the documented divergence KD-TS-STREAM-ORDER. **A `-map 0:N`
 written against `ffprobe`'s output therefore names a different stream in

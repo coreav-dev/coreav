@@ -218,8 +218,11 @@ KD-TS-FRAME-TIME.
 - What each reports: CoreAV lists the elementary streams of each Program
   Map Table in the order that table gives them, the tables in the order
   they are read, so the document follows the file's own tables.
-  `ffprobe` lists the first program's streams in table order and the
-  others as their data arrives. The two then pair stream 6 of one with
+  `ffprobe` lists the streams of the first Program Map Table completed
+  after the PAT in table order
+  and the others where the file first shows them from its start, a
+  table or a PES packet that is not padding
+  (`docs/design/compat-cli.md`, "MPEG-TS"). The two then pair stream 6 of one with
   stream 6 of the other, and every field of nearly every stream, and
   every packet of them, disagrees.
 - Why: ISO/IEC 13818-1 2.4.4 makes a transport stream a set of programs,

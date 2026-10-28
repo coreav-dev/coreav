@@ -861,3 +861,56 @@ fn long_pes_packet() -> (Mux, u64) {
     mux.pes(0x101, 0xE0, 100_800, &picture(None, 120), false);
     (mux, start)
 }
+
+/// The PIDs of a probe's streams in the order `ffprobe` numbers them
+/// (`Stream::with_first_table`, then `Stream::found_at`).
+fn numbered(ts: &coreav_mpegts::TransportStream) -> Vec<u16> {
+    let mut streams: Vec<_> = ts.streams.iter().collect();
+    streams.sort_by_key(|s| (!s.with_first_table, s.found_at, s.stream_index));
+    streams.iter().map(|s| s.pid).collect()
+}
+
+#[test]
+fn streams_are_numbered_as_the_file_shows_them_after_the_first_table() {
+    // `ffprobe` reads up to the first Program Map Table after the PAT and
+    // takes its streams, in its order; it then reads the file again from
+    // the start and takes every other stream where it first shows: a PES
+    // packet (padding aside), or a Program Map Table section, even one
+    // that comes before the PAT (crafted files and the development set).
+    let mut mux = Mux::default();
+    // Program 2's audio, before any table.
+    mux.pes(0x201, 0xC0, 90_000, &adts(300), true);
+    // Program 3's table, before the PAT.
+    mux.pmt(0x1002, 3, &[(0x0F, 0x300)]);
+    // Padding on program 2's second audio PID, and on a PID no table
+    // names: neither places a stream, nor lists one.
+    mux.unit(0x202, &[0, 0, 1, 0xBE, 0, 4, 0xFF, 0xFF, 0xFF, 0xFF]);
+    mux.unit(0x1FE, &[0, 0, 1, 0xBE, 0, 4, 0xFF, 0xFF, 0xFF, 0xFF]);
+    mux.pat(&[(1, 0x1000), (2, 0x1001), (3, 0x1002)]);
+    mux.pmt(0x1000, 1, &[(0x1B, 0x100), (0x0F, 0x101)]);
+    mux.pes(
+        0x100,
+        0xE0,
+        90_000,
+        &picture(Some((64, 64, None)), 120),
+        false,
+    );
+    mux.pmt(0x1001, 2, &[(0x0F, 0x200), (0x0F, 0x201), (0x0F, 0x202)]);
+    mux.pmt(0x1002, 3, &[(0x0F, 0x300)]);
+    for pid in [0x101, 0x202, 0x300, 0x200, 0x201] {
+        mux.pes(pid, 0xC0, 90_000, &adts(300), true);
+    }
+    mux.pes(0x100, 0xE0, 93_600, &picture(None, 120), false);
+    let ts = probe(
+        SliceSource::new(&mux.out),
+        &Limits::default(),
+        &Allowlist::all(),
+    )
+    .unwrap();
+    assert_eq!(
+        numbered(&ts),
+        vec![0x100, 0x101, 0x201, 0x300, 0x200, 0x202]
+    );
+    let first: Vec<bool> = ts.streams.iter().map(|s| s.with_first_table).collect();
+    assert_eq!(first, vec![true, true, false, false, false, false]);
+}

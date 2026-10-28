@@ -147,9 +147,12 @@ read -- the elementary streams of each PMT in the order that table lists
 them, the tables in the order they are read -- and a PID that two programs
 share is listed once. ISO/IEC 13818-1 2.4.4 makes a transport stream a set
 of programs, not a list of streams, so the order is a reader's choice:
-`ffprobe` lists the first program's streams in table order and the others
-as their data arrives, which for a file of several programs puts a
-different stream at each index (KD-TS-STREAM-ORDER, and the `-map`
+`ffprobe` lists the streams of the first Program Map Table completed after
+the PAT in table order and
+the others where the file first shows them from its start, a table or a
+PES packet that is not padding (`Stream::found_at`, and
+`docs/design/compat-cli.md`, which numbers them so), which for a file of
+several programs puts a different stream at each index (KD-TS-STREAM-ORDER, and the `-map`
 limitation in `docs/schema/probe-mpegts-v1.md`). Following the tables keeps the
 document's order the file's own. Each stream carries `pmt_index`, its place in its own
 table's loop, so that the table's order is in the document whatever order
@@ -157,7 +160,8 @@ table's loop, so that the table's order is in the document whatever order
 
 A PID that carries PES packets and that no table declares is listed too,
 after the declared streams and with no stream type of its own: its packets
-are the file's, and `ffprobe` lists them, named by their payload ("Codecs
+are the file's, and `ffprobe` lists them (not one whose PES packets are all
+padding, `stream_id` 0xBE, which `ffprobe` does not list either), named by their payload ("Codecs
 that the PMT leaves unnamed"). One broadcast capture of
 the v1-ts-audio top-up has such a PID, and it is the only one of the forty
 development files that does. A private stream (type 0x06) whose data
