@@ -376,8 +376,9 @@ elst_entry text_sized.mp4 text_end.mp4 1
 # video with every fragment's decode time 2 s later, so the track starts
 # late and lasts until its last sample ends (docs/design/compat-cli.md,
 # stream bit rates). Video only, the M4A extraction refusing a fragmented
-# AAC track that starts late; without B-frames, whose late start the remux
-# round trip does not keep presented sample for sample.
+# AAC track that starts late; without B-frames, as its probe values were
+# measured (the remux of a late start with B-frames is tested in
+# coreav-isobmff-write's remux tests).
 try_gen fragmented_text.mp4 "${SRC[@]}" -i "$OUT/styled.srt" -map 0:v -map 1:a -map 2:s \
   "${VID[@]}" "${AUD[@]}" -c:s mov_text -movflags frag_keyframe+empty_moov+default_base_moof
 try_gen fragmented_late_src.mp4 "${VSRC[@]}" "${VID[@]}" -bf 0 \

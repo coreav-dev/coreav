@@ -1116,6 +1116,60 @@ fn fragmented_sources_are_flattened() {
     );
 }
 
+#[test]
+fn fragmented_late_start_with_b_frames_presents_every_frame() {
+    // Decoded from 2 s with no edit list, frames reordered: the frame
+    // presented last ends 512 ticks after the decode durations do, and the
+    // media edit must reach it (ISO/IEC 14496-12 8.6.1.3, 8.6.6).
+    let source = fragmented_reordered(2 * common::TIMESCALE);
+    let (summary, output) = remux(&source, &RemuxOptions::default()).unwrap();
+    assert_round_trip(&source, &output, &summary);
+    let out = probe(
+        SliceSource::new(&output),
+        &Limits::default(),
+        &Allowlist::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        out.tracks[0].edit_list,
+        EditList::Simple {
+            empty: 2_000,
+            media_time: 0,
+            segment: 200,
+        }
+    );
+}
+
+/// `common::fragmented_movie`'s movie with its one fragment decoded from
+/// `base` (`tfdt`) and composition offsets of an I, P, B, B order: decode
+/// times 0, 512, 1,024 and 1,536 after `base`, composition times 512,
+/// 2,048, 1,024 and 1,536, so the frames end at 2,560 while the decode
+/// durations add up to 2,048.
+fn fragmented_reordered(base: u32) -> Vec<u8> {
+    let movie = common::fragmented_movie(None, None);
+    let at = movie.windows(4).position(|w| w == b"moof").expect("a moof") - 4;
+    let tfhd = full(b"tfhd", 0, 0x02_0000, &u32s(&[1]));
+    let tfdt = full(b"tfdt", 0, 0, &u32s(&[base]));
+    // trun: data offset and one composition offset per sample.
+    let traf_len = 8 + tfhd.len() + tfdt.len() + 36;
+    let moof_len = 8 + 16 + traf_len;
+    let trun = full(
+        b"trun",
+        0,
+        0x801,
+        &u32s(&[4, (moof_len + 8) as u32, 512, 1536, 0, 0]),
+    );
+    let moof = bx(
+        b"moof",
+        &cat(&[
+            full(b"mfhd", 0, 0, &u32s(&[1])),
+            bx(b"traf", &cat(&[tfhd, tfdt, trun])),
+        ]),
+    );
+    assert_eq!(moof.len(), moof_len);
+    cat(&[movie[..at].to_vec(), moof, bx(b"mdat", &[0xAB; 400])])
+}
+
 /// A fragmented AAC movie: one fragment of two 10-byte samples of 1024
 /// ticks per base decode time.
 fn fragmented_aac(base_times: &[u32]) -> Vec<u8> {
