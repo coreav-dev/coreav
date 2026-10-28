@@ -158,6 +158,18 @@ elst_entry() { # SOURCE NAME TRACK EDIT...
     rm -f "$OUT/$name"; skip "$name" "elst-craft-failed(see-$name.log)"
   fi
 }
+# Fields the pinned ffmpeg does not write, patched in place by
+# scripts/iso_patch.py (no box changes size).
+iso_patch() { # SOURCE NAME OPERATION VALUE...
+  local src="$OUT/$1" name="$2"; shift 2
+  if [ ! -f "$src" ]; then
+    skip "$name" "missing-source"
+  elif python3 -I "$SCRIPTS/iso_patch.py" "$src" "$OUT/$name" "$@" 2> "$OUT/$name.log"; then
+    rm -f "$OUT/$name.log"; generated "$name"
+  else
+    rm -f "$OUT/$name"; skip "$name" "iso-patch-failed(see-$name.log)"
+  fi
+}
 ESRC=(-f lavfi -i "testsrc2=size=160x120:rate=30:duration=10")
 EGOP=(-g 30 -keyint_min 30 -sc_threshold 0 -video_track_timescale 600 -pix_fmt yuv420p)
 try_gen edit_src_h264.mp4 "${ESRC[@]}" -c:v libx264 -bf 0 "${EGOP[@]}"
@@ -171,6 +183,9 @@ elst_entry edit_src_bframes.mp4 edit_multi_bframes.mp4 0 3000:40 3000:2500
 elst_entry edit_src_h264.mp4 edit_multi_empty.mp4 0 4000:0 1000:-1 5000:2520
 # Audio: three edits that start inside AAC frames.
 elst_entry edit_src_aac.mp4 edit_multi_audio.mp4 0 4000:1024 3000:180000 2500:320000
+# The same with its declared averages (`btrt` and `esds`) set to 12345:
+# ffprobe takes the bytes over the duration, not the declared value.
+iso_patch edit_multi_audio.mp4 edit_multi_audio_average.mp4 average 0 12345
 # Video and audio, the audio with three edits (clips keep its windows).
 # Without perceptual noise substitution: its noise is random, so audio
 # decoded from a clip's restart would not be sample-exact against the
@@ -357,6 +372,18 @@ try_gen text_shifted.mp4 "${VSRC[@]}" -itsoffset 0.5 -i "$OUT/styled.srt" -map 0
 try_gen text_sized.mp4 "${ESRC[@]}" -i "$OUT/styled.srt" -map 0:v -map 1:s \
   -c:v libx264 -pix_fmt yuv420p -c:s mov_text -s:s 400x60
 elst_entry text_sized.mp4 text_end.mp4 1
+# Fragmented with a text track (its bit rate is over its own span); and
+# video with every fragment's decode time 2 s later, so the track starts
+# late and lasts until its last sample ends (docs/design/compat-cli.md,
+# stream bit rates). Video only, the M4A extraction refusing a fragmented
+# AAC track that starts late; without B-frames, whose late start the remux
+# round trip does not keep presented sample for sample.
+try_gen fragmented_text.mp4 "${SRC[@]}" -i "$OUT/styled.srt" -map 0:v -map 1:a -map 2:s \
+  "${VID[@]}" "${AUD[@]}" -c:s mov_text -movflags frag_keyframe+empty_moov+default_base_moof
+try_gen fragmented_late_src.mp4 "${VSRC[@]}" "${VID[@]}" -bf 0 \
+  -movflags frag_keyframe+empty_moov+default_base_moof
+iso_patch fragmented_late_src.mp4 fragmented_late.mp4 tfdt 2
+drop_source fragmented_late_src.mp4
 try_gen chapters.mp4 "${SRC[@]}" -i "$OUT/styled.srt" -i "$OUT/chapters.txt" \
   -map 0:v -map 1:a -map 2:s -map_chapters 3 "${VID[@]}" "${AUD[@]}" -c:s mov_text
 try_gen chapters.m4a "${ASRC[@]}" -i "$OUT/chapters.txt" -map 0:a -map_chapters 1 -c:a aac

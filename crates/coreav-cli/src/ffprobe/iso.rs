@@ -1196,27 +1196,6 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
         "duration",
         duration_ts.map_or(Value::Na, |v| time(v, 1, timescale)),
     ));
-    // For audio whose edit starts inside the media (priming), the average
-    // the container declares (`btrt`, else `esds`); else the bytes over the
-    // stream's duration. Read from `ffprobe`'s output on the development
-    // set, per stream kind and edit: video takes the bytes over the
-    // duration nearly always, audio with an edit from media time 0 or none
-    // too (30 of 30 streams), audio with an edit from a later media time
-    // the declared average (54 of 57), as with several edits (the fixtures).
-    let declared = d
-        .declared_bit_rate
-        .filter(|_| {
-            audio
-                && !movie.has_fragments()
-                && match track.edit_list {
-                    coreav_isobmff::EditList::Simple { media_time, .. } => media_time > 0,
-                    coreav_isobmff::EditList::None => false,
-                    _ => true,
-                }
-        })
-        .map(|b| b.average)
-        .filter(|b| *b > 0)
-        .map(i64::from);
     // The track's own duration: a data track's filled span does not count.
     // In a fragmented movie with a segment index, `ffprobe` counts the
     // bytes of the first fragment only (found on the development set: the
@@ -1227,16 +1206,15 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
     } else {
         track.sample_bytes
     };
-    // Video over its whole media, edits aside (8 of 8 edited video streams
-    // of the development set whose bit rate differed otherwise), and audio
-    // whose edit starts inside the media when it declares no average (MP3
-    // in QuickTime's `.mp3` entry: bytes over the 97,105 ticks of media,
-    // not the 96,000 of the edit).
-    let primed = matches!(
-        track.edit_list,
-        coreav_isobmff::EditList::Simple { media_time, .. } if media_time > 0
-    );
-    let span = if video || (audio && primed) {
+    // Video and audio over their whole media, edits aside: the shorter of
+    // the media header's duration and the samples'. Read from `ffprobe`'s
+    // output on the development set: 8 of 8 edited video streams whose
+    // rate differed otherwise, and all 176 audio streams of regular
+    // samples, with an edit from media time 0, from a later one (priming)
+    // or none, whatever average `esds` or `btrt` declares; with several
+    // edits too (fixtures whose declared averages were patched). QuickTime
+    // sound of one-byte samples has the codec's rate above.
+    let span = if video || audio {
         let samples = i64::try_from(track.sample_duration).ok().filter(|d| *d > 0);
         let header = i64::try_from(track.mdhd_duration).ok().filter(|d| *d > 0);
         match (samples, header) {
@@ -1246,8 +1224,16 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
     } else {
         None
     };
-    let bit_rate = coded_rate.or(declared).or_else(|| {
-        let own = span.or_else(|| media_duration(movie, track))?;
+    let bit_rate = coded_rate.or_else(|| {
+        // A fragmented movie's video and audio bytes are over the stream's
+        // duration as it is printed, its start included (the development
+        // set: 18 of the 19 fragmented movies with audio agree, 10 before);
+        // a subtitle or data track keeps its own span, not the longest
+        // track's it is printed with.
+        let own = duration_ts
+            .filter(|d| movie.has_fragments() && (video || audio) && *d > 0)
+            .or(span)
+            .or_else(|| media_duration(movie, track))?;
         let ticks = u128::try_from(own).ok().filter(|t| *t > 0)?;
         let bits = u128::from(bytes?)
             .checked_mul(8)?
@@ -1352,6 +1338,15 @@ fn media_duration(movie: &Movie, track: &Track) -> Option<i64> {
     match (track.edit_list, samples) {
         (coreav_isobmff::EditList::None, Some(samples)) if !movie.has_fragments() => {
             Some(header.map_or(samples, |h| h.min(samples)))
+        }
+        // Fragments only, the first of them decoded from a later time
+        // (`tfdt`): that start plus the samples' durations (the development
+        // set: 9 files whose duration differed now agree, none that agreed
+        // changed). A later jump of `tfdt` between fragments, which
+        // `ffprobe` follows, is not counted.
+        (coreav_isobmff::EditList::None, Some(samples)) if track.sample_count == 0 => {
+            let start = track.fragment_start.filter(|t| *t > 0).unwrap_or(0);
+            samples.checked_add(start)
         }
         (coreav_isobmff::EditList::None, Some(samples)) => Some(samples),
         (coreav_isobmff::EditList::Simple { segment, .. }, Some(samples)) if segment > 0 => {
@@ -2382,9 +2377,13 @@ fn plan(
                 None,
             )
         }
-        // WebVTT in ISO files is a data stream to `ffprobe`.
+        // WebVTT in ISO files is a data stream to `ffprobe`. In a movie
+        // with fragments, no subtitle packet has a duration
+        // (`fragmented_text.mp4`).
         TrackKind::Subtitle
-            if codec_name(movie, track).is_some() && track.description.fourcc.0 != *b"wvtt" =>
+            if codec_name(movie, track).is_some()
+                && track.description.fourcc.0 != *b"wvtt"
+                && !movie.has_fragments() =>
         {
             (Fill::Stored, 0, None)
         }
