@@ -22,7 +22,8 @@ written output is checked twice:
   `scripts/mkv_remux_check.py` (Matroska and WebM; the streams outside the
   selection are not expected in the output), `clip_check.py`,
   `split_check.py` and `extract_check.py`, each with its known
-  divergences.
+  divergences. A clip's requested range must also be the one the command
+  names, read here from its arguments and the input's start time.
 
 Outputs with the same bytes from the same source (the spellings of one
 command) are judged once. Prints the counts per entry; exits 1 if any
@@ -31,6 +32,7 @@ output fails. ffmpeg, ffprobe and MediaInfo are black boxes.
 import argparse
 import collections
 import concurrent.futures
+import fractions
 import hashlib
 import json
 import re
@@ -112,6 +114,64 @@ def selection(record, ffmpeg):
     return None
 
 
+def seconds(text):
+    """A time in ffmpeg's duration syntax, exactly."""
+    if ":" in text:
+        clock, _, fraction = text.partition(".")
+        *hours_minutes, whole = clock.split(":")
+        hours, minutes = ([0, 0] + [int(x) for x in hours_minutes])[-2:]
+        return hours * 3600 + minutes * 60 + fractions.Fraction(whole + "." + fraction if fraction else whole)
+    for unit, scale in (("ms", 1000), ("us", 1_000_000), ("s", 1)):
+        if text.endswith(unit):
+            return fractions.Fraction(text[:-len(unit)]) / scale
+    return fractions.Fraction(text)
+
+
+def requested(args, origin):
+    """The range on the input's timeline that a clip command names, as the
+    pinned ffmpeg reads it (black box): every time counts from the input's
+    start time, origin; an input -ss moves the output's time 0, from which
+    an output -ss and -to count; an output -t counts from the output -ss;
+    -t wins over -to. The start is at least 0, the end None when open."""
+    at = args.index("-i")
+
+    def last(group, name):
+        values = [value for option, value in zip(group, group[1:]) if option == name]
+        return seconds(values[-1]) if values else None
+
+    before, after = args[:at], args[at + 2:]
+    shift = origin + (last(before, "-ss") or 0)
+    start = shift + (last(after, "-ss") or 0)
+    ends = []
+    if last(before, "-t") is not None:
+        ends.append(shift + last(before, "-t"))
+    elif last(before, "-to") is not None:
+        ends.append(origin + last(before, "-to"))
+    if last(after, "-t") is not None:
+        ends.append(start + last(after, "-t"))
+    elif last(after, "-to") is not None:
+        ends.append(shift + last(after, "-to"))
+    return max(start, 0), min(ends) if ends else None
+
+
+def start_time(ffprobe, path):
+    """The input's start time as ffprobe prints it, 0 when it has none."""
+    done = subprocess.run([ffprobe, "-v", "error", "-show_entries", "format=start_time", "-of", "csv=p=0", str(path)],
+                          capture_output=True, timeout=TIMEOUT, check=True, text=True)
+    text = done.stdout.strip()
+    return fractions.Fraction(text) if text not in ("", "N/A") else fractions.Fraction(0)
+
+
+def range_problems(record, ffprobe):
+    """The difference between the range a clip command names and the one
+    CoreAV's clip was asked for, if any."""
+    summary = record["detail"]
+    ratio = lambda r: fractions.Fraction(r["num"], r["den"]) if r else None  # noqa: E731
+    theirs = requested(record["args"], start_time(ffprobe, record["source"]))
+    ours = (ratio(summary["start"]["requested"]), ratio(summary["end"].get("requested")))
+    return [] if ours == theirs else ["requested range: coreav %s, the command names %s" % (ours, theirs)]
+
+
 def entry(record, src_movie, source_streams):
     """The oracle's entry for one written record, as writer_corpus builds it."""
     summary, source, output = record["detail"], record["source"], record["output"]
@@ -169,7 +229,7 @@ def oracle(record, tools):
     src_movie = track_boxes.read_movie(source) if record["job"] in ("clip", "split") else None
     item = entry(record, src_movie, streams(ffprobe, source) or [])
     if record["job"] == "clip":
-        problems = clip_check.check(item, ffprobe, ffmpeg, mediainfo)[0]
+        problems = range_problems(record, ffprobe) + list(clip_check.check(item, ffprobe, ffmpeg, mediainfo)[0])
     elif record["job"] == "split":
         problems = split_check.check(item, ffprobe, ffmpeg, mediainfo)[0]
     elif "stream_index" in item:

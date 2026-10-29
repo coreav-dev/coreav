@@ -322,7 +322,8 @@ fn parse_map(text: &str) -> Result<Map, Refusal> {
     Ok(Map { remove, spec })
 }
 
-/// A time in `ffmpeg`'s duration syntax, exactly: `[HH:]MM:SS[.m...]`, or
+/// A time in `ffmpeg`'s duration syntax, exactly: `[HH:]MM:SS[.m...]`
+/// with `MM` and `SS` below 60, or
 /// `S+[.m...]` with an optional unit `s`, `ms` or `us`. A leading `-`
 /// (a negative time) is `Err(true)`; anything else not a time `Err(false)`.
 pub fn parse_duration(text: &str) -> Result<Rational, bool> {
@@ -342,7 +343,8 @@ pub fn parse_duration(text: &str) -> Result<Rational, bool> {
             [h, m, s] => (*h, *m, *s),
             _ => return Err(false),
         };
-        if !digits(hours, 9) || !digits(minutes, 2) || !digits(seconds, 2) {
+        let sexagesimal = |s: &str| digits(s, 2) && s.parse::<u8>().is_ok_and(|v| v < 60);
+        if !digits(hours, 9) || !sexagesimal(minutes) || !sexagesimal(seconds) {
             return Err(false);
         }
         let seconds = match fraction {
@@ -388,7 +390,7 @@ type Group<'a> = Vec<(&'a str, Option<&'a str>)>;
 pub fn parse(args: &[String]) -> Result<Command, Refusal> {
     let mut inputs: Vec<(&str, Group)> = Vec::new();
     let mut outputs: Vec<(&str, Group)> = Vec::new();
-    let mut overwrite = Overwrite::Ask;
+    let (mut yes, mut no) = (false, false);
     let mut group: Group = Vec::new();
     let mut i = 0;
     while let Some(arg) = args.get(i) {
@@ -434,8 +436,8 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
         };
         match (arg, value) {
             ("-i", Some(input)) => inputs.push((input, std::mem::take(&mut group))),
-            ("-y", _) => overwrite = Overwrite::Yes,
-            ("-n", _) => overwrite = Overwrite::No,
+            ("-y", _) => yes = true,
+            ("-n", _) => no = true,
             ("-v" | "-loglevel", Some(level)) => crate::ffprobe::args::loglevel(level)
                 .map_err(|_| usage(format!("Invalid loglevel \"{level}\".")))?,
             ("-hide_banner" | "-nostdin", _) => {}
@@ -445,6 +447,12 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
     if !group.is_empty() {
         return Err(Refusal::not_native("an option after the last output file"));
     }
+    let overwrite = match (yes, no) {
+        (true, true) => return Err(usage("Error, both -y and -n supplied. Exiting.")),
+        (true, false) => Overwrite::Yes,
+        (false, true) => Overwrite::No,
+        (false, false) => Overwrite::Ask,
+    };
     let (input, input_options) = match inputs.as_slice() {
         [] => return Err(usage("No input file: give one with -i INPUT.")),
         [one] => one.clone(),
@@ -763,7 +771,13 @@ mod tests {
         assert_eq!(parse_duration("1500us"), Ok(q(3, 2000)));
         assert_eq!(parse_duration("2.5s"), Ok(q(5, 2)));
         assert_eq!(parse_duration("-1"), Err(true));
-        for bad in ["", "1:2:3:4", "1:234", "a", "1e3", ".5", "1:00:"] {
+        assert_eq!(parse_duration("00:59.5"), Ok(q(119, 2)));
+        assert_eq!(parse_duration("0:5"), Ok(q(5, 1)));
+        assert_eq!(parse_duration("100:00:00"), Ok(q(360_000, 1)));
+        for bad in [
+            "", "1:2:3:4", "1:234", "a", "1e3", ".5", "1:00:", "00:99", "00:60", "60:00",
+            "1:00:60", "01:60:00", "00:60.5", "1.5:00", "5:", ":5",
+        ] {
             assert_eq!(parse_duration(bad), Err(false), "{bad}");
         }
     }

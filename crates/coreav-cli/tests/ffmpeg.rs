@@ -13,7 +13,7 @@
 #[path = "../../coreav-isobmff/tests/common/mod.rs"]
 mod common;
 
-use common::{aac_entry, av_movie_with};
+use common::{Spec, aac_entry, av_movie_with};
 use coreav_cli::ffmpeg::{Reason, Refusal, Stop};
 use coreav_cli::ffprobe::StreamKind;
 use serde_json::{Value, json};
@@ -140,6 +140,112 @@ fn malformed_commands_are_usage_errors_and_a_missing_input_is_named() {
     let r = ffmpeg(&["-i", "/nonexistent/in.mp4", "-c", "copy", o]);
     assert_eq!(r.code, 3, "{}", r.stderr);
     assert!(r.stderr.contains("/nonexistent/in.mp4"), "{}", r.stderr);
+}
+
+#[test]
+fn both_y_and_n_are_refused_and_the_output_kept() {
+    let dir = scratch("ffmpeg-y-n");
+    let input = movie(&dir);
+    let output = dir.join("out.mp4");
+    let o = output.to_str().unwrap();
+    std::fs::write(&output, b"sentinel bytes").unwrap();
+    for args in [
+        ["-i", &input, "-n", "-y", "-c", "copy", o],
+        ["-i", &input, "-y", "-n", "-c", "copy", o],
+        ["-y", "-i", &input, "-n", "-c", "copy", o],
+    ] {
+        let r = ffmpeg(&args);
+        assert_eq!(r.code, 2, "{args:?}: {}", r.stderr);
+        assert!(
+            r.stderr.contains("both -y and -n"),
+            "{args:?}: {}",
+            r.stderr
+        );
+        assert_eq!(
+            std::fs::read(&output).unwrap(),
+            b"sentinel bytes",
+            "{args:?}"
+        );
+    }
+}
+
+#[test]
+fn a_clock_time_out_of_range_is_a_usage_error() {
+    let dir = scratch("ffmpeg-clock");
+    let input = movie(&dir);
+    let output = dir.join("out.mp4");
+    let o = output.to_str().unwrap();
+    for args in [
+        vec!["-i", &input, "-t", "00:99", "-c", "copy", o],
+        vec!["-i", &input, "-ss", "00:60", "-c", "copy", o],
+        vec!["-i", &input, "-to", "1:60", "-c", "copy", o],
+        vec!["-ss", "00:99", "-i", &input, "-c", "copy", o],
+        vec!["-t", "01:60:00", "-i", &input, "-c", "copy", o],
+        vec!["-to", "00:61", "-i", &input, "-c", "copy", o],
+    ] {
+        let r = ffmpeg(&args);
+        assert_eq!(r.code, 2, "{args:?}: {}", r.stderr);
+        assert!(
+            r.stderr.contains("Invalid duration"),
+            "{args:?}: {}",
+            r.stderr
+        );
+        assert!(!output.exists(), "{args:?}");
+    }
+}
+
+#[test]
+fn the_largest_stream_ordinal_matches_nothing_without_overflow() {
+    let dir = scratch("ffmpeg-ordinal");
+    let input = movie(&dir);
+    let output = dir.join("out.mp4");
+    let o = output.to_str().unwrap();
+    let last = u64::MAX.to_string();
+    let map = format!("0:v:{last}");
+    let codec = format!("-c:v:{last}");
+    // A map that matches no stream fails in ffmpeg too; a codec option
+    // that covers no stream leaves the video to be encoded.
+    for (args, code) in [
+        (vec!["-i", &input, "-map", &map, "-c", "copy", o], 2),
+        (vec!["-i", &input, &codec, "copy", o], 4),
+    ] {
+        let r = ffmpeg(&args);
+        assert_eq!(r.code, code, "{args:?}: {}", r.stderr);
+        assert!(!output.exists(), "{args:?}");
+    }
+}
+
+#[test]
+fn clip_times_count_from_the_input_start_time() {
+    let dir = scratch("ffmpeg-start-time");
+    // Fourteen sync samples of 40 ms, presented from 200 ms on (an empty
+    // edit): `-ss 0.12` is 320 ms on the timeline, the fourth sample.
+    let input = dir.join("in.mp4");
+    std::fs::write(
+        &input,
+        common::movie(&Spec {
+            sizes: vec![100; 14],
+            composition: Vec::new(),
+            sync: (1..=14).collect(),
+            elst: Some(vec![(200, -1), (560, 0)]),
+            ctts: Some(Vec::new()),
+            ..Spec::default()
+        }),
+    )
+    .unwrap();
+    let output = dir.join("out.mp4");
+    let args: Vec<String> = ["-ss", "0.12", "-i", input.to_str().unwrap(), "-t", "0.04"]
+        .into_iter()
+        .chain(["-c", "copy", output.to_str().unwrap()])
+        .map(str::to_owned)
+        .collect();
+    let Ok(summary) = coreav_cli::ffmpeg::run(&args) else {
+        panic!("{args:?} did not run");
+    };
+    assert_eq!(summary["start"]["requested"], json!({"num": 8, "den": 25}));
+    assert_eq!(summary["end"]["requested"], json!({"num": 9, "den": 25}));
+    assert_eq!(summary["streams"][0]["first_sample"], 3, "{summary}");
+    assert_eq!(summary["streams"][0]["samples"], 1, "{summary}");
 }
 
 /// The file extensions of each container family the command set names.
