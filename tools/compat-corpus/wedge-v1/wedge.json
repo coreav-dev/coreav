@@ -2,7 +2,7 @@
  "eligible": {
   "commands": 167,
   "pairs": 236,
-  "shapes": 66
+  "shapes": 67
  },
  "entries": [
   {
@@ -37,6 +37,9 @@
       "copy",
       "OUTPUT"
      ],
+     "input_without": [
+      "s"
+     ],
      "pairs": 4
     },
     {
@@ -48,6 +51,9 @@
       "-acodec",
       "copy",
       "OUTPUT"
+     ],
+     "input_without": [
+      "s"
      ],
      "pairs": 4
     },
@@ -72,6 +78,9 @@
       "copy",
       "OUTPUT"
      ],
+     "input_without": [
+      "s"
+     ],
      "pairs": 2
     },
     {
@@ -83,6 +92,9 @@
       "-c:a",
       "copy",
       "OUTPUT"
+     ],
+     "input_without": [
+      "s"
      ],
      "pairs": 2
     },
@@ -109,6 +121,9 @@
       "mp4",
       "-y",
       "OUTPUT"
+     ],
+     "input_without": [
+      "s"
      ],
      "pairs": 1
     }
@@ -194,6 +209,9 @@
       "copy",
       "OUTPUT"
      ],
+     "input_without": [
+      "s"
+     ],
      "pairs": 1
     },
     {
@@ -252,42 +270,6 @@
       "OUTPUT"
      ],
      "pairs": 2
-    },
-    {
-     "args": [
-      "-i",
-      "INPUT",
-      "-map",
-      "0:a",
-      "-c",
-      "copy",
-      "OUTPUT"
-     ],
-     "pairs": 1
-    },
-    {
-     "args": [
-      "-i",
-      "INPUT",
-      "-map",
-      "0:a:3",
-      "-c",
-      "copy",
-      "OUTPUT"
-     ],
-     "pairs": 1
-    },
-    {
-     "args": [
-      "-i",
-      "INPUT",
-      "-map",
-      "0:v",
-      "-c",
-      "copy",
-      "OUTPUT"
-     ],
-     "pairs": 1
     },
     {
      "args": [
@@ -422,6 +404,9 @@
       "copy",
       "OUTPUT"
      ],
+     "input_without": [
+      "s"
+     ],
      "pairs": 1
     },
     {
@@ -440,6 +425,9 @@
       "0:2",
       "OUTPUT"
      ],
+     "input_without": [
+      "s"
+     ],
      "pairs": 1
     }
    ],
@@ -450,7 +438,7 @@
    "id": "W03",
    "job": "remux",
    "keys": [],
-   "pairs": 17,
+   "pairs": 14,
    "shape": [
     "job:copy",
     "map",
@@ -767,6 +755,9 @@
       "00:15:00",
       "OUTPUT"
      ],
+     "input_without": [
+      "s"
+     ],
      "pairs": 1
     },
     {
@@ -782,6 +773,9 @@
       "-c:a",
       "copy",
       "OUTPUT"
+     ],
+     "input_without": [
+      "s"
      ],
      "pairs": 1
     }
@@ -1335,6 +1329,9 @@
       "copy",
       "OUTPUT"
      ],
+     "input_without": [
+      "s"
+     ],
      "pairs": 2
     },
     {
@@ -1344,6 +1341,10 @@
       "-acodec",
       "copy",
       "OUTPUT"
+     ],
+     "input_without": [
+      "s",
+      "v"
      ],
      "pairs": 1
     },
@@ -1355,6 +1356,9 @@
       "-acodec",
       "copy",
       "OUTPUT"
+     ],
+     "input_without": [
+      "s"
      ],
      "pairs": 1
     },
@@ -1367,6 +1371,9 @@
       "-acodec",
       "copy",
       "OUTPUT"
+     ],
+     "input_without": [
+      "s"
      ],
      "pairs": 1
     }
@@ -1445,6 +1452,10 @@
       "copy",
       "OUTPUT"
      ],
+     "input_without": [
+      "s",
+      "v"
+     ],
      "pairs": 1
     },
     {
@@ -1459,6 +1470,10 @@
       "copy",
       "OUTPUT"
      ],
+     "input_without": [
+      "s",
+      "v"
+     ],
      "pairs": 1
     },
     {
@@ -1473,6 +1488,10 @@
       "copy",
       "OUTPUT"
      ],
+     "input_without": [
+      "s",
+      "v"
+     ],
      "pairs": 1
     },
     {
@@ -1486,6 +1505,10 @@
       "-c:a",
       "copy",
       "OUTPUT"
+     ],
+     "input_without": [
+      "s",
+      "v"
      ],
      "pairs": 1
     }
@@ -1578,6 +1601,10 @@
       "copy",
       "OUTPUT"
      ],
+     "input_without": [
+      "a",
+      "s"
+     ],
      "pairs": 2
     },
     {
@@ -1587,6 +1614,10 @@
       "-vcodec",
       "copy",
       "OUTPUT"
+     ],
+     "input_without": [
+      "a",
+      "s"
      ],
      "pairs": 1
     },
@@ -1598,6 +1629,9 @@
       "-vcodec",
       "copy",
       "OUTPUT"
+     ],
+     "input_without": [
+      "s"
      ],
      "pairs": 1
     }
@@ -1663,6 +1697,9 @@
       "-y",
       "OUTPUT"
      ],
+     "input_without": [
+      "s"
+     ],
      "pairs": 1
     }
    ],
@@ -1695,6 +1732,10 @@
       "copy",
       "OUTPUT"
      ],
+     "input_without": [
+      "s",
+      "v"
+     ],
      "pairs": 1
     },
     {
@@ -1708,6 +1749,10 @@
       "-c:a",
       "copy",
       "OUTPUT"
+     ],
+     "input_without": [
+      "s",
+      "v"
      ],
      "pairs": 1
     },
@@ -1723,6 +1768,10 @@
       "copy",
       "OUTPUT"
      ],
+     "input_without": [
+      "s",
+      "v"
+     ],
      "pairs": 1
     }
    ],
@@ -1737,6 +1786,59 @@
     "end",
     "job:copy",
     "seek:input",
+    "streams:audio"
+   ],
+   "tool": "ffmpeg"
+  },
+  {
+   "commands": [
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-map",
+      "0:a",
+      "-c",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-map",
+      "0:a",
+      "-c:a",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-map",
+      "0:a:3",
+      "-c",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    }
+   ],
+   "containers": [
+    "mp4-mov"
+   ],
+   "id": "W20",
+   "job": "extract-audio",
+   "keys": [],
+   "pairs": 3,
+   "shape": [
+    "job:copy",
+    "map",
     "streams:audio"
    ],
    "tool": "ffmpeg"
@@ -1791,7 +1893,7 @@
     "matroska-webm",
     "mpegts"
    ],
-   "id": "W20",
+   "id": "W21",
    "job": "probe",
    "keys": [
     "stream.height",
@@ -1855,7 +1957,7 @@
     "matroska-webm",
     "mpegts"
    ],
-   "id": "W21",
+   "id": "W22",
    "job": "probe",
    "keys": [
     "stream.display_aspect_ratio",
@@ -1897,6 +1999,9 @@
       "+faststart",
       "OUTPUT"
      ],
+     "input_without": [
+      "s"
+     ],
      "pairs": 1
     }
    ],
@@ -1904,7 +2009,7 @@
     "mp4-mov",
     "matroska-webm"
    ],
-   "id": "W22",
+   "id": "W23",
    "job": "remux",
    "keys": [],
    "pairs": 3,
@@ -1941,7 +2046,7 @@
     "matroska-webm",
     "mpegts"
    ],
-   "id": "W23",
+   "id": "W24",
    "job": "probe-packets",
    "keys": [
     "packet.*"
@@ -1967,6 +2072,10 @@
       "0:s:0",
       "OUTPUT"
      ],
+     "input_without": [
+      "s",
+      "v"
+     ],
      "pairs": 1
     },
     {
@@ -1987,7 +2096,7 @@
    "containers": [
     "mp4-mov"
    ],
-   "id": "W24",
+   "id": "W25",
    "job": "extract-audio",
    "keys": [],
    "pairs": 2,
@@ -2035,6 +2144,9 @@
       "copy",
       "OUTPUT"
      ],
+     "input_without": [
+      "s"
+     ],
      "pairs": 1
     }
    ],
@@ -2042,7 +2154,7 @@
     "mp4-mov",
     "matroska-webm"
    ],
-   "id": "W25",
+   "id": "W26",
    "job": "remux",
    "keys": [],
    "pairs": 2,
@@ -2086,7 +2198,7 @@
     "matroska-webm",
     "mpegts"
    ],
-   "id": "W26",
+   "id": "W27",
    "job": "probe",
    "keys": [
     "chapter.*"
@@ -2132,7 +2244,7 @@
     "matroska-webm",
     "mpegts"
    ],
-   "id": "W27",
+   "id": "W28",
    "job": "probe",
    "keys": [
     "stream.height",
@@ -2185,7 +2297,7 @@
     "matroska-webm",
     "mpegts"
    ],
-   "id": "W28",
+   "id": "W29",
    "job": "probe",
    "keys": [
     "stream.codec_name",
@@ -2231,7 +2343,7 @@
     "matroska-webm",
     "mpegts"
    ],
-   "id": "W29",
+   "id": "W30",
    "job": "probe",
    "keys": [
     "stream.codec_type",
@@ -2271,7 +2383,7 @@
     "matroska-webm",
     "mpegts"
    ],
-   "id": "W30",
+   "id": "W31",
    "job": "probe",
    "keys": [
     "format.*"
@@ -2307,7 +2419,7 @@
    "containers": [
     "mp4-mov"
    ],
-   "id": "W31",
+   "id": "W32",
    "job": "split",
    "keys": [],
    "pairs": 2,
@@ -2335,7 +2447,7 @@
     "matroska-webm",
     "mpegts"
    ],
-   "id": "W32",
+   "id": "W33",
    "job": "probe",
    "keys": [
     "chapter.*"
@@ -2421,7 +2533,7 @@
    "shape": [
     "job:copy",
     "map",
-    "streams:audio"
+    "streams:video"
    ],
    "tool": "ffmpeg"
   },
@@ -2758,7 +2870,7 @@
  "wedge": {
   "commands": 133,
   "pairs": 202,
-  "shapes": 32,
+  "shapes": 33,
   "share_of_eligible_pairs": 0.8559,
   "share_of_native_pairs": 0.7984
  }

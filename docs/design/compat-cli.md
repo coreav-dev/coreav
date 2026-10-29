@@ -227,7 +227,13 @@ this section, differs from what the script derives.
   `-threads`, the order of the options, `-i INPUT` against a bare input), and
   the details within a feature (the times, the stream indexes, a writer's
   settings, the `-show_entries` keys), which the entry's commands still
-  carry. `-c copy` and per-type copies of video and audio are one shape.
+  carry. The streams kept are those the command selects (FFmpeg's automatic
+  selection, `-map`, `-vn`, `-an`, `-sn`) and copies, so `-c copy` and per-type
+  copies of what it selects are one shape. A command that selects a stream
+  type it does not copy (`-i INPUT -acodec copy OUTPUT` selects video too)
+  would encode that stream, so it is a copy only on an input without that
+  type: the file records the types per command (`input_without`), and a run
+  gives such a command only inputs that have none of them.
 - **Eligible.** A native command the command refuses by design is not
   eligible: the four that ask for no section and print only the summary on
   standard error, and `-read_intervals 999999`. They hold 17 of the 253
@@ -237,18 +243,18 @@ this section, differs from what the script derives.
   the eligible pairs, with whole ties: a shape used as often as the last one
   taken is taken too, so that the order of the shapes' names breaks no tie.
 
-**Result:** 32 shapes, holding 133 of the 167 eligible native commands and
+**Result:** 33 shapes, holding 133 of the 167 eligible native commands and
 202 of their 236 command-and-answer pairs (85.6%), which is 79.8% of all 253 native pairs.
 The 34 shapes below the cut hold one pair each and are listed in the file
 (`not_in_wedge`). The cut fell inside the tier of shapes used twice; taking
-the whole tier makes 32 shapes where a cut at the first shape over 80%
-would have made 26 and left out six shapes as common as the last one taken.
+the whole tier makes 33 shapes where a cut at the first shape over 80%
+would have made 27 and left out six shapes as common as the last one taken.
 
 | | Tool | Job | Inputs | Pairs | Shape | Most used command |
 |---|---|---|---|---:|---|---|
 | W01 | ffmpeg | `remux` | MP4/MOV, Matroska/WebM | 33 | job:copy, streams:all | `-i INPUT -c copy OUTPUT` |
 | W02 | ffmpeg | `join` | MP4/MOV | 31 | job:concat, streams:all | `-f concat -i INPUT -c copy OUTPUT` |
-| W03 | ffmpeg | `remux` | MP4/MOV, Matroska/WebM | 17 | job:copy, map, streams:all | `-i INPUT -c copy -map 0 OUTPUT` |
+| W03 | ffmpeg | `remux` | MP4/MOV, Matroska/WebM | 14 | job:copy, map, streams:all | `-i INPUT -c copy -map 0 OUTPUT` |
 | W04 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 12 | entries:stream, select_streams, writer:default | `-v error -select_streams v:0 -show_entries stream=avg_frame_rate -of default=noprint_wrappers=1:nokey=1 INPUT` |
 | W05 | ffmpeg | `clip` | MP4/MOV | 10 | end, job:copy, seek:output, streams:all | `-i INPUT -ss 0 -t 120 -c copy OUTPUT` |
 | W06 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 8 | format, streams, writer:json | `-v quiet -print_format json -show_format -show_streams INPUT` |
@@ -265,19 +271,20 @@ would have made 26 and left out six shapes as common as the last one taken.
 | W17 | ffmpeg | `remux` | MP4/MOV, Matroska/WebM | 4 | job:copy, streams:video | `-y -i INPUT -vcodec copy OUTPUT` |
 | W18 | ffmpeg | `clip` | MP4/MOV | 3 | end, job:copy, seek:input, streams:all | `-ss 60 -i INPUT -to 70 -c copy OUTPUT` |
 | W19 | ffmpeg | `clip` | MP4/MOV | 3 | end, job:copy, seek:input, streams:audio | `-ss 3 -i INPUT -t 5 -c:a copy OUTPUT` |
-| W20 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 3 | entries:stream, select_streams, writer:flat | `-v error -of flat=s=_ -select_streams v:0 -show_entries stream=height INPUT` |
-| W21 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 3 | entries:stream, select_streams, writer:json | `-v error -select_streams v -show_entries stream=width,height -of json INPUT` |
-| W22 | ffmpeg | `remux` | MP4/MOV, Matroska/WebM | 3 | job:copy, movflags:faststart, streams:all | `-i INPUT -c copy -movflags +faststart OUTPUT` |
-| W23 | ffprobe | `probe-packets` | MP4/MOV, Matroska/WebM, MPEG-TS | 3 | packets, writer:default | `-i INPUT -show_packets` |
-| W24 | ffmpeg | `extract-audio` | MP4/MOV | 2 | job:copy, map, metadata, streams:audio | `-i INPUT -acodec copy -map 0 -map_metadata 0:s:0 OUTPUT` |
-| W25 | ffmpeg | `remux` | MP4/MOV, Matroska/WebM | 2 | job:copy, map, streams:all, timestamps | `-fflags +genpts -i INPUT -c:v copy -c:a copy -c:s copy -map 0 OUTPUT` |
-| W26 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 2 | chapters, writer:json | `-hide_banner INPUT -print_format json -show_chapters -loglevel error` |
-| W27 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 2 | entries:stream, entries:stream_tags, select_streams, writer:json | `-select_streams v:0 -show_entries stream=width,height:stream_tags=rotate -of json INPUT` |
-| W28 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 2 | entries:stream, select_streams, writer:compact | `-v 0 -select_streams v:0 -show_entries stream=pix_fmt -of compact=p=0:nk=1 INPUT` |
-| W29 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 2 | entries:stream, writer:csv | `-loglevel error -show_entries stream=codec_type -of csv=p=0 INPUT` |
-| W30 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 2 | format, writer:default | `-loglevel quiet -show_format INPUT` |
-| W31 | ffmpeg | `split` | MP4/MOV | 2 | job:segment, map, streams:all | `-i INPUT -c copy -map 0 -f segment -segment_time 300 -segment_format mp4 OUTPUT` |
-| W32 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 2 | chapters, writer:csv | `-print_format csv -show_chapters INPUT` |
+| W20 | ffmpeg | `extract-audio` | MP4/MOV | 3 | job:copy, map, streams:audio | `-i INPUT -map 0:a -c copy OUTPUT` |
+| W21 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 3 | entries:stream, select_streams, writer:flat | `-v error -of flat=s=_ -select_streams v:0 -show_entries stream=height INPUT` |
+| W22 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 3 | entries:stream, select_streams, writer:json | `-v error -select_streams v -show_entries stream=width,height -of json INPUT` |
+| W23 | ffmpeg | `remux` | MP4/MOV, Matroska/WebM | 3 | job:copy, movflags:faststart, streams:all | `-i INPUT -c copy -movflags +faststart OUTPUT` |
+| W24 | ffprobe | `probe-packets` | MP4/MOV, Matroska/WebM, MPEG-TS | 3 | packets, writer:default | `-i INPUT -show_packets` |
+| W25 | ffmpeg | `extract-audio` | MP4/MOV | 2 | job:copy, map, metadata, streams:audio | `-i INPUT -acodec copy -map 0 -map_metadata 0:s:0 OUTPUT` |
+| W26 | ffmpeg | `remux` | MP4/MOV, Matroska/WebM | 2 | job:copy, map, streams:all, timestamps | `-fflags +genpts -i INPUT -c:v copy -c:a copy -c:s copy -map 0 OUTPUT` |
+| W27 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 2 | chapters, writer:json | `-hide_banner INPUT -print_format json -show_chapters -loglevel error` |
+| W28 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 2 | entries:stream, entries:stream_tags, select_streams, writer:json | `-select_streams v:0 -show_entries stream=width,height:stream_tags=rotate -of json INPUT` |
+| W29 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 2 | entries:stream, select_streams, writer:compact | `-v 0 -select_streams v:0 -show_entries stream=pix_fmt -of compact=p=0:nk=1 INPUT` |
+| W30 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 2 | entries:stream, writer:csv | `-loglevel error -show_entries stream=codec_type -of csv=p=0 INPUT` |
+| W31 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 2 | format, writer:default | `-loglevel quiet -show_format INPUT` |
+| W32 | ffmpeg | `split` | MP4/MOV | 2 | job:segment, map, streams:all | `-i INPUT -c copy -map 0 -f segment -segment_time 300 -segment_format mp4 OUTPUT` |
+| W33 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 2 | chapters, writer:csv | `-print_format csv -show_chapters INPUT` |
 
 Every command of an entry is measured, not only the most used one: the
 file lists them (`commands`), 133 in all, with the `-show_entries` keys
@@ -293,9 +300,9 @@ jobs other than `remux`.
 
 **What the set leaves out.** No native command of `commands-v1` uses `-f hls`,
 so HLS output is not in the wedge; `coreav hls` is unchanged. `-f segment` is
-in through W31 only. The keys the wedge prints are not a narrow subset:
-W06, W08, W12 and W16 print every format and stream key, W26 and W32 every
-chapter key, and W23 every packet key, so the wedge keys are every key of
+in through W32 only. The keys the wedge prints are not a narrow subset:
+W06, W08, W12 and W16 print every format and stream key, W27 and W33 every
+chapter key, and W24 every packet key, so the wedge keys are every key of
 those sections that B3a measures; what drops out is the program keys of
 `-show_programs`.
 
@@ -321,8 +328,9 @@ counting keys as B3a's rounds count them (keys in at least five files; tag
 keys in fewer pooled); a key CoreAV leaves unknown disagrees, and a file
 CoreAV rejects disagrees on every key unless `KD-STRICT` explains it, as from
 round 5. W3 fills each command's placeholders with a file its container
-pair and its `-map` selectors can take, as B2 does, and a command no file of
-the draw can take is reported, not counted. W4 runs as B4: on an otherwise
+pair and its `-map` selectors can take and that has none of the stream
+types its `input_without` names, as B2 does, and a command no file of the
+draw can take is reported, not counted. W4 runs as B4: on an otherwise
 idle host, the file in the page cache, one untimed run of each first, then
 5 rounds alternating CoreAV and FFmpeg, wall time of the whole process, the
 ratio of a pair the median of CoreAV's rounds over the median of FFmpeg's;
@@ -972,17 +980,27 @@ native is not parsed in full, so the level is found by a scan for `-v` or
 that was not native, whether it ran FFmpeg or was refused, whatever the log
 level:
 
-    {"time": "2026-10-29T08:00:00Z", "coreav": "0.1.0", "tool": "ffmpeg", "args": ["-i", "in.mp4", "-vf", "scale=640:-2", "out.mp4"], "reason": "-vf", "ran": "/usr/bin/ffmpeg"}
+    {"time": "2026-10-29T08:00:00Z", "coreav": "0.1.0", "tool": "ffmpeg", "args": ["-i", "INPUT", "-vf", "VALUE", "OUTPUT"], "reason": "-vf", "ran": "/usr/bin/ffmpeg"}
 
 `ran` is null when nothing ran, and `not_run` then says why (strict-safe mode,
 no program found, `COREAV_FALLBACK` unusable, the recursion guard). The file
 is opened to append and each line is one write, so processes running at
 once do not interleave lines. A log that cannot be written costs one line
-on standard error (unless quiet) and never stops the command. `args` holds the
-file names as given; the log stays on the user's machine, and
-`classify.normalize` reduces a line to the placeholder form of
-`commands-v1` before anyone shares it. A user sees what is not native; the
-project learns which commands to implement next.
+on standard error (unless quiet) and never stops the command.
+
+`args` is redacted when the line is written, never left for a later step: it
+keeps every option name, and the value of an option only when the option is
+in step 1's vocabulary and the value names no file. Every file name, URL and
+other bare argument becomes a placeholder (`INPUT`, `OUTPUT`, `FILE`), and the
+value of every other option becomes `VALUE`. A command line can carry
+secrets in places no list foresees (`-headers "Authorization: ..."`, a URL
+with a token, a proxy password), and an option outside the vocabulary is
+exactly where they would be; its name is what the log is for. So the file
+holds nothing a user could not share, and the user sees which option was not
+native while the project learns which commands to implement next. Rejected:
+logging the arguments as given and redacting on export, which leaves the
+secrets on disk; and `classify.normalize` as the redaction, which keeps the
+values of options it does not know.
 
 A native command reads none of this: no lookup, no notice, no log line.
 

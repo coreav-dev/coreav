@@ -58,9 +58,9 @@ READ_INTERVAL = re.compile(r'\A%(\+#\d+|\+?[0-9:.]+)\Z')
 
 
 def ffprobe_shape(args):
-    """(shape, keys, refusal): the sections asked for, the writer and the
+    """(shape, keys, refusal, without): the sections asked for, the writer and the
     stream selection; the keys the command prints; why the command refuses
-    it by design, or None. A writer's settings and the selected stream's
+    it by design, or None; no stream constraint. A writer's settings and the selected stream's
     type and index make no shape."""
     options, _ = classify.walk(args, classify.FFPROBE_VALUE)
     parts, keys, refusal = set(), set(), None
@@ -92,16 +92,39 @@ def ffprobe_shape(args):
     keys.update(f'{SECTION_KEYS[s]}.*' for s in sections if s in SECTION_KEYS)
     if not any(p.startswith('writer:') for p in parts):
         parts.add('writer:default')
-    return tuple(sorted(parts)), keys, refusal
+    return tuple(sorted(parts)), keys, refusal, []
+
+
+TYPES = {'v', 'a', 's'}
+
+
+def selected(maps, drops):
+    """The stream types an output gets: FFmpeg's automatic selection (a
+    video, an audio and a subtitle stream) without `-map`, else the types
+    the selectors add less the ones they remove, then less `-vn`, `-an` and
+    `-sn`. A selector by index or by metadata may take any type."""
+    if not maps:
+        return TYPES - drops
+    types = set()
+    for value in maps:
+        kind = (value.lstrip('-').split(':') + [''])[1]
+        named = {kind} if kind in TYPES else None
+        if value.startswith('-'):
+            types -= named or set()
+        else:
+            types |= named or TYPES
+    return types - drops
 
 
 def ffmpeg_shape(args):
-    """(shape, keys, refusal) as for ffprobe: the job, the seek and its
-    position, the streams kept, and the stream selection, muxer, timestamp
-    and metadata options as one feature each. `-c copy` and per-type copies
-    of video and audio are one shape; the times and the selectors are not."""
+    """(shape, keys, refusal, without) as for ffprobe: the job, the seek and
+    its position, the streams the output keeps and copies, and the stream
+    selection, muxer, timestamp and metadata options as one feature each;
+    the times and the selectors make no shape. `without` is the stream
+    types the command selects but does not copy: FFmpeg would encode them,
+    so the command is a copy only on an input that has none."""
     options, _ = classify.walk(args, classify.FFMPEG_VALUE | set(classify.FFMPEG_CODEC))
-    parts, copied, drops, seen_input = set(), set(), set(), False
+    parts, copied, drops, maps, seen_input = set(), set(), set(), [], False
     job = 'copy'
     for option, value in options:
         codec = classify.codec_of(option)
@@ -125,6 +148,7 @@ def ffmpeg_shape(args):
             parts.add('seek:end')
         elif option == '-map':
             parts.add('map')
+            maps.append(value or '')
         elif option in ('-vn', '-an', '-sn', '-dn'):
             drops.add(option[1])
         elif option == '-movflags':
@@ -138,10 +162,11 @@ def ffmpeg_shape(args):
         else:
             parts.add(option.lstrip('-'))
     parts.add(f'job:{job}')
-    kept = {'v', 'a', 's'} if 'all' in copied or {'v', 'a'} <= copied else copied
-    kept -= drops
+    chosen = selected(maps, drops)
+    kept = chosen if 'all' in copied else chosen & copied
     parts.add('streams:' + ('audio' if kept == {'a'} else 'video' if kept == {'v'} else 'all'))
-    return tuple(sorted(parts)), set(), None
+    without = [] if 'all' in copied else sorted(chosen - copied)
+    return tuple(sorted(parts)), set(), None, without
 
 
 def job_of(tool, shape):
@@ -170,7 +195,7 @@ def derive(records):
     refused = []
     for record in native:
         shape_of = ffprobe_shape if record['tool'] == 'ffprobe' else ffmpeg_shape
-        shape, keys, refusal = shape_of(record['args'])
+        shape, keys, refusal, without = shape_of(record['args'])
         if refusal:
             refused.append({'tool': record['tool'], 'args': record['args'],
                             'pairs': len(record['sources']), 'refused': refusal})
@@ -179,7 +204,10 @@ def derive(records):
             'tool': record['tool'], 'shape': list(shape), 'pairs': 0,
             'commands': [], 'keys': set()})
         group['pairs'] += len(record['sources'])
-        group['commands'].append({'args': record['args'], 'pairs': len(record['sources'])})
+        command = {'args': record['args'], 'pairs': len(record['sources'])}
+        if without:
+            command['input_without'] = without
+        group['commands'].append(command)
         group['keys'] |= keys
     ranked = sorted(groups.values(), key=lambda g: (-g['pairs'], -len(g['commands']),
                                                     g['tool'], g['shape']))
