@@ -177,4 +177,16 @@ The sections above show where the time goes. This section asks why the conversio
    - What FFmpeg hands the library is then seen only as the absence of that step: no time in a conversion function outside `libx264`, or in FFmpeg's own scaling library.
    - If function names are not enough to tell, the question stays open here; a symbol-table build of the pinned FFmpeg would be a separate decision.
 
+**Second run, added after the first.** The first run's counter groups left question 3 without its main candidate. The 4K-aliasing event was asked for by an older processor's name, which this one does not have, and `perf sched` could not read the kernel's trace events. The first run also showed that, in all four arms, `get_frame` retires the same instructions, loads and stores, and that the extra cycles of the three slow arms are stalls the top-down method counts as memory-bound, with no more L1 or L2 misses than the fast arm. The second run, by `why2.py` on another VM of the same type, takes the same four arms and adds:
+
+- on the main thread, with `perf stat`: loads blocked by 4K aliasing or by a missing store-forward match, DTLB load and store walks and STLB hits, cycles bound on stores or loads, cycles stalled on a full store buffer or full fill buffers, memory-ordering machine clears, and the top-down level-3 split of memory-bound time (L1, L2, L3, DRAM, store) with its level-4 parts that this processor's metrics name;
+- a function-level sampled record of the 4K-aliasing group, by thread;
+- `perf sched`, run as root, for the main thread's run-queue delay beside its sleeps.
+
+What each result means:
+
+- The rule of question 3 applies unchanged: an event at least 10 times higher per sample in the three slow arms than in the 16-bit file arm is named as the mechanism.
+- The top-down part that carries most of the slow arms' extra memory-bound time names where the stall is (an L1 hit blocked, a TLB walk, or stores), and its level-4 part names the cause if one part carries it.
+- If no event or part separates the arms, question 3 stays open, and the page says so.
+
 The evidence for this section goes under `transcode/x264-10bit/why/`. If a result points at something CoreAV could change, such as the layout of the frames it writes, that change gets its own pre-registered bars before any code.
