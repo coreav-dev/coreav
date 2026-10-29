@@ -69,12 +69,14 @@ class Parity(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def run_parity(self, *extra, streams=None):
-        subprocess.run(
+    def run_parity(self, *extra, streams=None, status=0):
+        proc = subprocess.run(
             [sys.executable, PARITY, '--decoder', f'before={self.dec}',
              '--ffmpeg', self.ff, '--rounds', '3', '--report', self.report,
              *extra, *(streams or self.streams)],
-            check=True, stdout=subprocess.DEVNULL)
+            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+        self.assertEqual(proc.returncode, status, proc.stderr)
+        self.stderr = proc.stderr
         with open(self.report) as f:
             return json.load(f)
 
@@ -248,10 +250,52 @@ class Parity(unittest.TestCase):
         open(bad, 'w').close()
         report = self.run_parity('--gate-stream', self.gate_stream(),
                                  '--gate-every', '4',
-                                 streams=[self.streams[0], bad])
+                                 streams=[self.streams[0], bad], status=h264_parity.INCOMPLETE)
         self.assertEqual(len(report['streams']), 1)
         self.assertEqual([g['after_streams'] for g in report['method']['gates']],
                          [0, 0, 0, 1])
+
+    def test_a_failed_stream_is_named_and_the_call_is_incomplete(self):
+        # the past mistake: a stream whose decode failed was printed as "FAILED, skipped", left out of the
+        # rows and out of the report, and the summary and every analyzer passed on the streams left
+        bad = os.path.join(self.tmp.name, 'bad.sd.264')
+        open(bad, 'w').close()
+        report = self.run_parity(streams=[self.streams[0], bad, self.streams[1]],
+                                 status=h264_parity.INCOMPLETE)
+        self.assertEqual(report['requested'], ['a.sd.264', 'bad.sd.264', 'b.sd.264'])
+        self.assertEqual([r['stream'] for r in report['streams']], ['a.sd.264', 'b.sd.264'])
+        self.assertEqual(report['failed'], [{'stream': 'bad.sd.264', 'class': 'sd',
+                                             'reason': 'ff_null exited with an error in round 1 of attempt 1'}])
+        self.assertEqual(report['summary']['before:discard']['n'], 2)
+        self.assertIn('INCOMPLETE: 1 of 3 streams failed', self.stderr)
+        self.assertIn('bad.sd.264', self.stderr)
+        # and the shared analyzer refuses the report, naming the stream
+        manifest = os.path.join(self.tmp.name, 'es.json')
+        with open(manifest, 'w') as f:
+            json.dump({n: {'class': 'sd'} for n in report['requested']}, f)
+        bars = os.path.join(self.tmp.name, 'bars.json')
+        with open(bars, 'w') as f:
+            json.dump({'new': 'before', 'old': 'before', 'calls': {'g': {'streams': manifest}},
+                       'bars': [{'name': 'X', 'checks': [{'call': 'g', 'pairing': 'discard', 'median_max': 2}]}]}, f)
+        os.replace(self.report, os.path.join(self.tmp.name, 'g.sd.json'))
+        proc = subprocess.run([sys.executable, '-I', os.path.join(HERE, 'h264_parity_bars.py'), bars, self.tmp.name],
+                              capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 2, proc.stdout)
+        self.assertIn('the harness failed on bad.sd.264', proc.stderr)
+        self.assertIn('no row for: bad.sd.264', proc.stderr)
+
+    def test_a_call_whose_streams_all_fail_still_writes_its_report(self):
+        bad = os.path.join(self.tmp.name, 'bad.sd.264')
+        open(bad, 'w').close()
+        report = self.run_parity(streams=[bad], status=h264_parity.INCOMPLETE)
+        self.assertEqual(report['streams'], [])
+        self.assertEqual(report['summary']['before:discard'],
+                         {'n': 0, 'median': None, 'ci_low': None, 'ci_high': None})
+
+    def test_a_complete_call_names_what_it_was_asked(self):
+        report = self.run_parity('--rounds', '2')
+        self.assertEqual(report['requested'], ['a.sd.264', 'b.sd.264'])
+        self.assertEqual(report['failed'], [])
 
     def test_gate_cadence_and_a_quiet_gate(self):
         extra = os.path.join(self.tmp.name, 'c.sd.264')
