@@ -213,8 +213,8 @@ pub fn plan(command: &Command, report: &Report) -> Result<Job, Refusal> {
             return Err(Refusal::not_native("a clip written as M4A"));
         }
         let (video, audio) = one_video_one_audio()?;
-        let (start, end) =
-            clip_range(command).ok_or(Refusal::not_native("a time CoreAV cannot represent"))?;
+        let (start, end) = clip_range(command, input_start(report))
+            .ok_or(Refusal::not_native("a time CoreAV cannot represent"))?;
         return Ok(Job::Clip(ClipOptions {
             video: VideoChoice::Stream(video),
             audio,
@@ -254,17 +254,20 @@ pub fn plan(command: &Command, report: &Report) -> Result<Job, Refusal> {
 }
 
 /// Where a clip starts and ends on the input's presentation timeline, in
-/// `ffmpeg`'s meaning of the options: an input `-ss` shifts the output's
-/// time 0 to it, so an output `-to` counts from there; an input `-t` or
-/// `-to` stops reading the input; an output `-t` counts from the output
-/// `-ss`; `-t` wins over `-to` given with it.
-fn clip_range(command: &Command) -> Option<(Rational, Option<Rational>)> {
+/// `ffmpeg`'s meaning of the options: every time counts from `origin`,
+/// the input's start time; an input `-ss` shifts the output's time 0 to
+/// it, so an output `-to` counts from there; an input `-t` or `-to` stops
+/// reading the input; an output `-t` counts from the output `-ss`; `-t`
+/// wins over `-to` given with it. A start before the timeline's 0 (a
+/// negative start time) is 0.
+fn clip_range(command: &Command, origin: Rational) -> Option<(Rational, Option<Rational>)> {
     let zero = Rational::from_int(0);
-    let shift = command.input_seek.unwrap_or(zero);
+    let shift = origin.checked_add(command.input_seek.unwrap_or(zero))?;
     let start = shift.checked_add(command.seek.unwrap_or(zero))?;
     let input_end = match (command.input_duration, command.input_until) {
         (Some(duration), _) => Some(shift.checked_add(duration)?),
-        (None, until) => until,
+        (None, Some(until)) => Some(origin.checked_add(until)?),
+        (None, None) => None,
     };
     let output_end = match (command.duration, command.until) {
         (Some(duration), _) => Some(start.checked_add(duration)?),
@@ -275,7 +278,23 @@ fn clip_range(command: &Command) -> Option<(Rational, Option<Rational>)> {
         (Some(a), Some(b)) => Some(if a.checked_lt(b)? { a } else { b }),
         (a, b) => a.or(b),
     };
+    let start = if start.checked_lt(zero)? { zero } else { start };
     Some((start, end))
+}
+
+/// The input's start time as `ffprobe` prints it (whole microseconds),
+/// from which `ffmpeg` counts `-ss`, `-t` and `-to`; 0 when not known.
+fn input_start(report: &Report) -> Rational {
+    report
+        .format
+        .iter()
+        .find_map(|(key, value)| match (key, value) {
+            (&"start_time", Value::Time(seconds)) => {
+                Rational::new(i128::from((seconds * 1e6).round() as i64), 1_000_000)
+            }
+            _ => None,
+        })
+        .unwrap_or(Rational::from_int(0))
 }
 
 fn format_name(report: &Report) -> Option<&str> {
@@ -338,8 +357,9 @@ fn matching(spec: &Spec, streams: &[(usize, &Stream)]) -> Vec<usize> {
                 if !is_kind(*kind, stream) {
                     false
                 } else {
+                    let ordinal = kind_seen;
                     kind_seen += 1;
-                    n.is_none_or(|n| n + 1 == kind_seen)
+                    n.is_none_or(|n| n == ordinal)
                 }
             }
             Spec::Language(value) => match (tag(stream, "language"), value) {
@@ -602,4 +622,63 @@ fn split(
         .map_err(|error| Stop::Failed(WriteFailure::output(&error)))?;
     serde_json::from_slice(&document)
         .map_err(|error| Stop::Failed(WriteFailure::output(&std::io::Error::other(error))))
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)]
+
+    use super::*;
+
+    /// The range of `command` on an input whose start time is
+    /// `origin_tenths` tenths of a second, in tenths.
+    fn range(command: &str, origin_tenths: i128) -> (i128, Option<i128>) {
+        let args: Vec<String> = command.split_whitespace().map(str::to_owned).collect();
+        let command = args::parse(&args).unwrap();
+        let origin = Rational::new(origin_tenths, 10).unwrap();
+        let tenths = |r: Rational| {
+            let scaled = r.num.checked_mul(10).unwrap();
+            assert_eq!(scaled % i128::from(r.den), 0, "{r:?}");
+            scaled / i128::from(r.den)
+        };
+        let (start, end) = clip_range(&command, origin).unwrap();
+        (tenths(start), end.map(tenths))
+    }
+
+    #[test]
+    fn clip_times_count_from_the_input_start() {
+        // Each checked against the pinned ffmpeg on an all-intra video at
+        // one frame a second whose first frame is presented at 5 s: the
+        // copied frames are those of the range.
+        let at_5 = |command| range(command, 50);
+        assert_eq!(
+            at_5("-ss 6 -i in.mp4 -t 1 -c copy out.mp4"),
+            (110, Some(120))
+        );
+        assert_eq!(
+            at_5("-i in.mp4 -ss 6 -t 1 -c copy out.mp4"),
+            (110, Some(120))
+        );
+        assert_eq!(
+            at_5("-ss 2 -i in.mp4 -ss 3 -t 1 -c copy out.mp4"),
+            (100, Some(110))
+        );
+        assert_eq!(
+            at_5("-ss 6 -i in.mp4 -to 2 -c copy out.mp4"),
+            (110, Some(130))
+        );
+        assert_eq!(at_5("-i in.mp4 -to 2 -c copy out.mp4"), (50, Some(70)));
+        assert_eq!(
+            at_5("-ss 1 -i in.mp4 -to 3 -c copy out.mp4"),
+            (60, Some(90))
+        );
+        assert_eq!(at_5("-to 3 -i in.mp4 -c copy out.mp4"), (50, Some(80)));
+        assert_eq!(at_5("-t 4 -i in.mp4 -to 2 -c copy out.mp4"), (50, Some(70)));
+        assert_eq!(
+            range("-ss 6 -i in.mp4 -t 1 -c copy out.mp4", 0),
+            (60, Some(70))
+        );
+        // A negative start time: the clip starts at the timeline's 0.
+        assert_eq!(range("-i in.mp4 -t 1 -c copy out.mp4", -1), (0, Some(9)));
+    }
 }

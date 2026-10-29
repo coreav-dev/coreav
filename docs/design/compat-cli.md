@@ -87,9 +87,10 @@ the implementation does not get to choose later:
 
 - **`-ss` before `-i` is input seeking, after it output seeking.** Both
   are in the vocabulary, and with `-c copy` the two produce different
-  files. The oracle for either is FFmpeg running the same command, so
-  FFmpeg's semantics are the bar in both positions, not an opinion of
-  ours.
+  files. FFmpeg's semantics are the bar in both positions for the range a
+  command names (where each time counts from and what it bounds), not an
+  opinion of ours. What is written for that range is `coreav clip`'s,
+  judged by the clip oracle ("Times" under `coreav ffmpeg`).
 - **`-map` takes FFmpeg's selector grammar**: `FILE[:TYPE[:INDEX]]`,
   `FILE:m:KEY[:VALUE]` for a metadata tag, and a leading `-` to remove
   from what earlier `-map` options selected. Order matters, and a negative
@@ -555,10 +556,14 @@ one. With `-map`: the selectors in order, a leading `-` subtracting. `-vn`,
 must be covered by a `copy` codec option, since `ffmpeg` would encode the
 others, and kept in the input's order, which the writers keep.
 
-**Times.** An input `-ss` moves the output's time 0 to it, so an output `-to`
-counts from there; an input `-t` or `-to` stops reading the input; an output
-`-t` counts from the output `-ss`; `-t` wins over `-to` given with it. The clip
-starts at the keyframe at or before the start, as `coreav clip` does, with an
+**Times.** Every time counts from the input's start time (`ffprobe`'s
+`format.start_time`, 0 when it has none): on a file presented from 5 s,
+`-ss 6` before or after `-i` is 11 s on its timeline (black box). An input
+`-ss` moves the output's time 0 to it, so an output `-to` counts from there;
+an input `-t` or `-to` stops reading the input; an output `-t` counts from
+the output `-ss`; `-t` wins over `-to` given with it. Minutes and seconds of
+`[HH:]MM:SS` are below 60, or the command is a usage error, as in `ffmpeg`.
+The clip starts at the keyframe at or before the start, as `coreav clip` does, with an
 edit list that presents from the start. `ffmpeg`'s output seeking with `-c
 copy` differs: it writes no video before the next keyframe, so a range
 shorter than a GOP has no video at all (black box: `-ss 100ms -t 600ms` on
