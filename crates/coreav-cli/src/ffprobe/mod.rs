@@ -15,7 +15,7 @@ mod mkv;
 pub mod model;
 mod names;
 mod ts;
-mod video;
+pub(crate) mod video;
 pub mod writer;
 
 use crate::error::Failure;

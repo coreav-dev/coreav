@@ -949,7 +949,7 @@ def check_compat(args, path, key, cls, tmp):
     res = {'config': key, 'class': cls, 'command': COMPAT_COMMANDS[key], 'arms': {}, 'has_audio': False,
            'b2_known_miss': os.path.basename(path) in B2_KNOWN_MISSES}
     base = tmp / 'baseline.mp4'
-    cmd = [args.ffmpeg, '-nostdin', '-flags', '+unaligned'] + compat_words(key, path, base)
+    cmd = [args.ffmpeg, '-nostdin'] + compat_words(key, path, base)
     t = time.monotonic()
     r = run(cmd)
     res['baseline'] = {'exit': r.returncode, 'seconds': round(time.monotonic() - t, 3),
@@ -1425,7 +1425,8 @@ def class_verdict(rs, arm, b23_bar, fixtures, compat=False):
             b3.append(a['B3']['ok'])
         if arm == 'baseline':
             pass
-        elif r.get('baseline', {}).get('status') != 'ok':
+        elif r.get('baseline', {}).get('status') != 'ok' and not compat:
+            # B9 compares with FFmpeg running the same command line, so there a missing comparison fails Q1 and Q2.
             apart['B4: baseline failed'] += 1
         else:
             d = a['Q1'].get('delta') if a.get('Q1', {}).get('ok') else -math.inf

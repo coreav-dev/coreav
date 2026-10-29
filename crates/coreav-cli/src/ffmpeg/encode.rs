@@ -156,17 +156,25 @@ pub fn request(command: &Command, audio: &[usize]) -> Result<Request, Refusal> {
     })
 }
 
+const NOT_COPIED: &str = "copying audio the MP4 writer does not take (AAC, MP3 or Opus as MP4 \
+     carries them)";
+
 /// The track matrix of an MP4 track that leaves the frames as they are.
 const IDENTITY: [i32; 9] = [0x1_0000, 0, 0, 0, 0x1_0000, 0, 0, 0, 0x4000_0000];
 
-/// The refusals for the source's display transform, read whole from the
-/// container: without `-noautorotate` `ffmpeg` applies any transform other
-/// than the identity to the frames, and with it `ffmpeg` writes the source's
-/// matrix, which the transcode writes the same only when the matrix has no
-/// translation or projection. A Matroska projection or rotation is refused.
-fn check_transform(
+/// The refusals read from the container. Copied `audio` the MP4 writer
+/// does not take is refused before the encode, not after it: AAC or MP3 in
+/// an `mp4a` sample entry and Opus in an `Opus` one from MP4/MOV, AAC
+/// and Opus from Matroska (`coreav-isobmff-write`'s `remux` and
+/// `matroska`). The display transform is read whole: without
+/// `-noautorotate` `ffmpeg` applies any transform other than the identity
+/// to the frames, and with it `ffmpeg` writes the source's matrix, which
+/// the transcode writes the same only when the matrix has no translation or
+/// projection. A Matroska projection or rotation is refused.
+fn check_container(
     command: &Command,
     stream: &coreav_thumbnail::VideoStream,
+    audio: &[usize],
     input: &Path,
 ) -> Result<(), Stop> {
     let file = FileSource::open(input).map_err(WriteFailure::from)?;
@@ -180,6 +188,22 @@ fn check_transform(
             ) else {
                 return refused("a source whose track matrix could not be read");
             };
+            let copied = movie
+                .tracks
+                .iter()
+                .filter(|t| audio.contains(&t.stream_index))
+                .all(|t| {
+                    matches!(
+                        (t.description.codec, &t.description.fourcc.0),
+                        (
+                            coreav_isobmff::Codec::Aac | coreav_isobmff::Codec::Mp3,
+                            b"mp4a"
+                        ) | (coreav_isobmff::Codec::Opus, b"Opus")
+                    )
+                });
+            if !copied {
+                return refused(NOT_COPIED);
+            }
             let Some(track) = movie
                 .tracks
                 .iter()
@@ -213,6 +237,14 @@ fn check_transform(
             ) else {
                 return refused("a source whose projection could not be read");
             };
+            let copied = segment
+                .tracks
+                .iter()
+                .filter(|t| audio.contains(&t.stream_index))
+                .all(|t| matches!(t.codec, coreav_mkv::Codec::Aac | coreav_mkv::Codec::Opus));
+            if !copied {
+                return refused(NOT_COPIED);
+            }
             let turned = segment
                 .tracks
                 .iter()
@@ -227,11 +259,11 @@ fn check_transform(
     }
 }
 
-/// Whether `pts`, sorted, are evenly spaced: one interval between every
-/// two.
+/// Whether `pts`, sorted, are evenly spaced: one interval above zero
+/// between every two. A repeated time is not: `ffmpeg` cannot keep both
+/// frames at a constant rate, where the pipeline moves the second one on.
 fn evenly_spaced(mut pts: Vec<i64>) -> bool {
     pts.sort_unstable();
-    pts.dedup();
     let mut gaps = pts.windows(2).map(|w| match w {
         [a, b] => b.checked_sub(*a),
         _ => None,
@@ -239,17 +271,21 @@ fn evenly_spaced(mut pts: Vec<i64>) -> bool {
     let Some(first) = gaps.next() else {
         return true;
     };
-    gaps.all(|g| g == first)
+    first.is_some_and(|g| g > 0) && gaps.all(|g| g == first)
 }
 
 /// The refusals where `ffmpeg`'s defaults would change the output: a
-/// rotated source without `-noautorotate`, a source not evenly spaced or
-/// whose reordered frames have no composition offsets, without
+/// rotated source without `-noautorotate`, an H.264 picture cropped at its
+/// left or top edge (the pinned `ffmpeg` decodes a left crop that is not
+/// aligned uncropped, `docs/design/transcode.md`, B9), a source not evenly
+/// spaced or whose reordered frames have no composition offsets, without
 /// `-fps_mode passthrough`, and a video stream the pipeline would not
+/// encode; and the copied audio the MP4 writer would fail on after the
 /// encode.
 fn check_source(
     command: &Command,
     video: usize,
+    audio: &[usize],
     reordered: bool,
     input: &Path,
 ) -> Result<(), Stop> {
@@ -267,7 +303,22 @@ fn check_source(
         )
         .into());
     }
-    check_transform(command, &stream, input)?;
+    check_container(command, &stream, audio, input)?;
+    let corner_kept = match &stream.stream.config {
+        Some(coreav_decode::CodecConfig {
+            kind: coreav_decode::ConfigKind::Avcc,
+            data,
+        }) => crate::ffprobe::video::avc(data, false)
+            .is_none_or(|info| info.coded_size.is_none() || info.h264_corner.is_some()),
+        _ => true,
+    };
+    if !corner_kept {
+        return Err(Refusal::not_native(
+            "an H.264 picture cropped at its left or top edge \
+             (ffmpeg's default decode does not apply every such crop)",
+        )
+        .into());
+    }
     if reordered
         && !command.encoding.passthrough
         && stream.packets.iter().all(|p| p.dts == Some(p.pts))
@@ -303,7 +354,7 @@ pub fn write(
 ) -> Result<serde_json::Value, Stop> {
     let request = request(command, audio)?;
     let input = Path::new(&command.input);
-    check_source(command, video, reordered, input)?;
+    check_source(command, video, audio, reordered, input)?;
     let this = std::env::current_exe()
         .map_err(|_| Refusal::not_native("encoding without the path of the running program"))?;
     let path = PathBuf::from(&command.output);
@@ -351,5 +402,12 @@ mod tests {
         assert!(evenly_spaced(vec![0, 2, 1, 3]));
         assert!(evenly_spaced(vec![5]));
         assert!(!evenly_spaced(vec![0, 1, 3]));
+    }
+
+    #[test]
+    fn repeated_times_are_not_evenly_spaced() {
+        assert!(!evenly_spaced(vec![0, 0, 40, 80]));
+        assert!(!evenly_spaced(vec![0, 40, 40, 80]));
+        assert!(!evenly_spaced(vec![7, 7]));
     }
 }

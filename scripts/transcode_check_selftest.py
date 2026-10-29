@@ -342,6 +342,18 @@ class Summary(unittest.TestCase):
         self.assertNotIn(str(d), text)
         self.assertNotIn(str(d), (ev / 'calls.jsonl').read_text() + (ev / 'manifest.json').read_text())
 
+    def test_b9_run_without_a_baseline_misses(self):
+        # B9 compares a command that ran with FFmpeg running it: a failed baseline leaves Q1 and Q2 missed.
+        ok = {'ok': True}
+        r = {'config': 'x01', 'class': 'h264', 'file': 'a.mp4', 'command': '-i IN', 'has_audio': False,
+             'baseline': {'status': 'failed', 'exit': 1},
+             'arms': {'x264': {'status': 'ok', 'B1': ok, 'B2': ok,
+                               'Q1': {'ok': False, 'reason': 'no baseline or no output size'},
+                               'Q2': {'ok': False, 'reason': 'no baseline or no output size'}}}}
+        v = tc.class_verdict([r], 'x264', 1.0, True, compat=True)
+        self.assertEqual((v['B1']['met'], v['Q1']['met'], v['Q2']['met']), (True, False, False))
+        self.assertEqual(v['apart'], {})
+
 
 if __name__ == '__main__':
     unittest.main()

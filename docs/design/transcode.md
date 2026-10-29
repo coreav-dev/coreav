@@ -543,7 +543,8 @@ output, before the encoder starts:
 - **Constant rate.** Without `-fps_mode passthrough`, FFmpeg writes MP4 at
   a constant rate and duplicates or drops frames to keep it (`vfr.mp4`:
   33 frames in, 50 out). A source whose presented frames are not evenly
-  spaced (one interval between every two, in the track's time base), or
+  spaced (one interval above zero between every two, in the track's time
+  base, so a repeated time is not), or
   whose video does not start at time 0 (an empty edit, a late first
   frame: FFmpeg repeats the first frame to fill the start, `edit_list.mp4`
   50 frames in, 51 out), is refused without it; otherwise the two give the same
@@ -554,6 +555,11 @@ output, before the encoder starts:
   offsets: FFmpeg derives other times for its frames ("Times in decode
   order" above, `size_inband_sps.mp4`). Refused without
   `-fps_mode passthrough`.
+- **Left crops.** By default the pinned FFmpeg decodes an H.264 left crop
+  that is not aligned uncropped (`size_left_crop.mp4`, the B4 baseline
+  above), where CoreAV's native decoder crops as specified. An H.264
+  picture cropped at its left or top edge (its sequence parameter set in
+  the stored configuration) is refused.
 - **Size changes.** Where the frame size changes within the stream,
   FFmpeg resizes the later frames to the first size with its own scaler,
   and this pipeline with its own (`size_vp9_resize.mp4` at `-crf 0`:
@@ -569,6 +575,10 @@ output, before the encoder starts:
 - **Audio.** Without `-c:a copy` or `-an`, FFmpeg re-encodes the
   selected audio to AAC; audio encoding is not in this pipeline, so a
   command that selects an audio stream without copying it is refused.
+  Copied audio the MP4 writer does not take (PCM; anything but AAC or MP3
+  in an `mp4a` sample entry and Opus in an `Opus` one from MP4/MOV, AAC
+  and Opus from Matroska) is refused before the encode, where the writer
+  would fail after it.
 
 A refusal found once the input is read (the four above, a pixel format,
 an edit list, anything this pipeline refuses as `Unsupported`) goes
@@ -744,7 +754,9 @@ crop that is not aligned and outputs the uncropped picture (the
 `size_left_crop.mp4` fixture: 1280 columns instead of columns 48 to 1279),
 where CoreAV's native decoder crops as specified. Every FFmpeg decode of a
 source in these bars (the baseline, the Q1 reference, the PSNR inputs)
-takes it; on every other fixture it changes no decoded frame.
+takes it; on every other fixture it changes no decoded frame. B9's
+FFmpeg command does not: it is the command line a user runs, and
+`coreav ffmpeg` refuses an H.264 picture cropped at its left or top edge.
 
 The baseline is timed on every file, though its own output does not pass
 B2 or B3 on every file (FFmpeg moves the audio against the video on some edit
@@ -952,6 +964,20 @@ information command once).
      timecodes were added where the local run showed FFmpeg's output
      differing from this pipeline's, and autorotation was widened from a
      quarter turn to any matrix other than the identity.
+
+   Changed again 2026-10-29, after the run that decides B9, from review
+   of the pull request. Three refusals were added, each for sources where
+   the command ran with another output than FFmpeg's or failed only after
+   the encode: copied audio the MP4 writer does not take (PCM, which
+   failed with exit status 1 after the encode), repeated frame times
+   without `-fps_mode passthrough` (FFmpeg cannot keep both frames at a
+   constant rate), and an H.264 picture cropped at its left or top edge.
+   B9's FFmpeg command no longer takes `-flags +unaligned`: with it,
+   FFmpeg decoded `size_left_crop.mp4` as CoreAV does, where the command
+   line a user runs does not. On the fixtures the only change is that
+   `size_left_crop.mp4` is refused on every line, where it ran and passed
+   in the deciding run. That run stands for the code it ran on; the CI job
+   checks the changed code.
 
    A CI job runs B9 on every change (`scripts/transcode_check.py
    --compat`), in strict-safe mode (`COREAV_STRICT_SAFE=1`), so that a

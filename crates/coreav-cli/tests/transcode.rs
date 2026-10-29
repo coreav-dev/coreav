@@ -1073,3 +1073,76 @@ fn ffmpeg_libx264_refuses_a_matrix_ffmpeg_would_apply() {
     assert_eq!(matrix(&out)[0]["rotation"], -45);
     nothing_left(&dir);
 }
+
+/// Sources the pipeline would encode with another result than `ffmpeg`,
+/// or fail on only after the encode, are refused before it: copied PCM
+/// audio (MOV and Matroska), repeated frame times without
+/// `-fps_mode passthrough`, and an H.264 left crop.
+#[test]
+fn ffmpeg_libx264_refuses_before_encoding() {
+    let Some(tools) = tools() else { return };
+    let dir = dir("ffmpeg-libx264-refusals");
+    let ffmpeg = |args: &[&str]| {
+        let status = Command::new(&tools.ffmpeg)
+            .args(["-nostdin", "-v", "error", "-y"])
+            .args(args)
+            .status()
+            .unwrap();
+        assert!(status.success(), "ffmpeg {args:?}");
+    };
+    let path = |name: &str| dir.join(name).to_str().unwrap().to_owned();
+    let video = ["-f", "lavfi", "-i", "testsrc=s=64x48:d=1:r=25"];
+    let pcm = [
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=d=1",
+        "-c:v",
+        "libx264",
+        "-c:a",
+        "pcm_s16le",
+    ];
+    let (mov, mkv, repeated) = (path("pcm.mov"), path("pcm.mkv"), path("repeated.mkv"));
+    ffmpeg(&[&video[..], &pcm[..], &[mov.as_str()]].concat());
+    ffmpeg(&[&video[..], &pcm[..], &[mkv.as_str()]].concat());
+    ffmpeg(&[
+        "-f",
+        "lavfi",
+        "-i",
+        "testsrc=s=64x48:r=25,settb=1/1000,setpts=max(N-1\\,0)*40",
+        "-frames:v",
+        "10",
+        "-fps_mode",
+        "passthrough",
+        "-c:v",
+        "libx264",
+        "-bf",
+        "0",
+        &repeated,
+    ]);
+    let (times, _) = frame_times(&tools, Path::new(&repeated));
+    assert_eq!(relative(&times)[..4], [0, 0, 40, 80]);
+    let crop = tools.fixtures.join("size_left_crop.mp4");
+    let out = path("out.mp4");
+    for (source, why) in [
+        (mov.as_str(), "copying audio the MP4 writer does not take"),
+        (mkv.as_str(), "copying audio the MP4 writer does not take"),
+        (repeated.as_str(), "not evenly spaced"),
+        (crop.to_str().unwrap(), "cropped at its left or top edge"),
+    ] {
+        let run = Command::new(bin())
+            .args([
+                "ffmpeg", "-i", source, "-c:v", "libx264", "-c:a", "copy", &out,
+            ])
+            .env("COREAV_X264", &tools.x264)
+            .env("COREAV_FFMPEG", &tools.ffmpeg)
+            .env("COREAV_STRICT_SAFE", "1")
+            .output()
+            .unwrap();
+        let stderr = String::from_utf8_lossy(&run.stderr);
+        assert_eq!(run.status.code(), Some(4), "{source}: {stderr}");
+        assert!(stderr.contains(why), "{source}: {stderr}");
+        assert!(!Path::new(&out).exists(), "{source}");
+    }
+    nothing_left(&dir);
+}
