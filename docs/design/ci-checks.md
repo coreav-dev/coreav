@@ -219,7 +219,7 @@ failed.
 `pr-text.yml` runs on every pull request event, an edit of the title or body included, and fails when the text breaks a rule of the pull request template that a script can judge. Review used to check these by hand on every pull request, and missed them: fourteen of the first twenty-two commit subjects on `main` are longer than 72 characters, and those commits carry 49 `Co-Authored-By` lines.
 
 - `scripts/pr_text_check.py` without the private list: Korean text, a session or run identifier, spend details.
-- `scripts/pr_shape_check.py`: a title of the form `type(scope): summary` with one of the template's types, a summary of at most 50 characters and a title under 72; commit subjects of at most 72 characters; no `Co-Authored-By` trailer or "Generated with" line in a commit or the body. Each failure says what to do instead.
+- `scripts/pr_shape_check.py`: a title of the form `type(scope): summary` (a breaking change's `!` before the colon allowed) with one of the template's types, a summary of at most 50 characters and a title under 72; commit subjects of at most 72 characters; no `Co-Authored-By` trailer or "Generated with" line in a commit or the body. Each failure says what to do instead.
 - Not checked, because they need judgment: one outcome per title, the template's sections, hard-wrapped body lines.
 - Not a required check (`# workflow-check: not required`): requiring it would change the branch ruleset. Its failure still shows on the pull request, and a pull request is merged with every check green.
 - Rejected: putting it in `deny.yml`, which does not run when only the title or body is edited.

@@ -38,7 +38,7 @@ jobs:
           PYTHONDONTWRITEBYTECODE: '1'
         run: |
           set -euo pipefail
-          git log --format='%H%x00%B%x1e' "$BASE..$HEAD" > "$RUNNER_TEMP/commits"
+          git log --format='%H%x00%B%x00' "$BASE..$HEAD" > "$RUNNER_TEMP/commits"
           status=0
           python3 -I scripts/pr_text_check.py --event "$GITHUB_EVENT_PATH" || status=1
           python3 -I scripts/pr_shape_check.py --event "$GITHUB_EVENT_PATH" --commits "$RUNNER_TEMP/commits" || status=1

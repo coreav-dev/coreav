@@ -5,18 +5,21 @@ what review kept checking by hand. Run by .github/workflows/pr-text.yml on
 every pull request event, and by hand before opening one.
 
 Fails on:
-- a title that is not `type(scope): summary` with one of the template's
-  types (feat, fix, docs, test, chore, refactor, perf, ci), a summary
-  longer than 50 characters, or a title of 72 characters or more;
+- a title that is not `type(scope): summary` (or `type(scope)!: summary`)
+  with one of the template's types (feat, fix, docs, test, chore,
+  refactor, perf, ci), a summary longer than 50 characters, or a title of
+  72 characters or more;
 - a commit whose subject is longer than 72 characters;
 - a `Co-Authored-By` trailer or a "Generated with" line in a commit
-  message or in the body.
+  message or in the body;
+- a commit list that is not in the form below: none of it is checked.
 
     pr_shape_check.py --event EVENT.json [--commits FILE]
     pr_shape_check.py --title TITLE [--body-file BODY.md] [--commits FILE]
 
-FILE holds commit messages as `git log --format='%H%x00%B%x1e' BASE..HEAD`
-writes them. Prints each failure with what to do instead. Exit status 0
+FILE holds commit messages as `git log --format='%H%x00%B%x00' BASE..HEAD`
+writes them: NUL, which Git does not allow in a commit message, ends each
+field. Prints each failure with what to do instead. Exit status 0
 when nothing fails, 1 otherwise. Python standard library only.
 """
 import argparse
@@ -25,11 +28,13 @@ import re
 import sys
 
 TYPES = ('feat', 'fix', 'docs', 'test', 'chore', 'refactor', 'perf', 'ci')
-TITLE = re.compile(r'\A(?P<type>[a-z]+)(?:\([a-z0-9][a-z0-9._/-]*\))?: (?P<summary>\S.*)\Z')
+TITLE = re.compile(r'\A(?P<type>[a-z]+)(?:\([A-Za-z0-9][A-Za-z0-9._/-]*\))?!?: (?P<summary>\S.*)\Z')
 SUMMARY_MAX = 50
 TITLE_LIMIT = 72
 SUBJECT_MAX = 72
-ATTRIBUTION = re.compile(r'^[ \t]*(?:co-authored-by:|(?:\U0001f916\s*)?generated with\b)', re.I | re.M)
+# Git reads a trailer with blanks before its colon as that trailer.
+ATTRIBUTION = re.compile(r'^[ \t]*(?:co-authored-by[ \t]*:|(?:\U0001f916[ \t]*)?generated[ \t]+with\b)', re.I | re.M)
+SHA = re.compile(r'[0-9a-f]{40}|[0-9a-f]{64}')
 
 
 def title_failures(title):
@@ -54,12 +59,14 @@ def text_failures(where, text):
 
 
 def commit_failures(log):
-    """What is wrong with the commits of `git log --format='%H%x00%B%x1e'`."""
+    """What is wrong with the commits of `git log --format='%H%x00%B%x00'`."""
+    fields = log.split('\x00')
+    shas = [sha.strip('\n') for sha in fields[0:-1:2]]
+    if len(fields) % 2 == 0 or fields[-1].strip('\n') or not all(SHA.fullmatch(sha) for sha in shas):
+        return ["the commit list is not what `git log --format='%H%x00%B%x00' BASE..HEAD` writes, so no "
+                'commit was checked: write it with that command']
     out = []
-    for record in log.split('\x1e'):
-        sha, _, message = record.strip('\n').partition('\x00')
-        if not sha:
-            continue
+    for sha, message in zip(shas, fields[1:-1:2]):
         # Git's subject is the whole first paragraph, up to a blank or
         # whitespace-only line, its lines trimmed and joined.
         first = re.split(r'\n[ \t]*\n', message.strip('\n'), maxsplit=1)[0]
