@@ -60,6 +60,8 @@ pub enum BackendKind {
     Native,
     /// dav1d, for AV1.
     Dav1d,
+    /// libvpx, for VP9.
+    Libvpx,
     /// FFmpeg's decoders, run in the sandboxed worker.
     Fallback,
 }
@@ -71,15 +73,22 @@ impl BackendKind {
             Self::Nvdec => "nvdec",
             Self::Native => "native",
             Self::Dav1d => "dav1d",
+            Self::Libvpx => "libvpx",
             Self::Fallback => "ffmpeg",
         }
     }
 
     /// The kind named `name` ([`BackendKind::name`]).
     pub fn from_name(name: &str) -> Option<Self> {
-        [Self::Nvdec, Self::Native, Self::Dav1d, Self::Fallback]
-            .into_iter()
-            .find(|k| k.name() == name)
+        [
+            Self::Nvdec,
+            Self::Native,
+            Self::Dav1d,
+            Self::Libvpx,
+            Self::Fallback,
+        ]
+        .into_iter()
+        .find(|k| k.name() == name)
     }
 }
 
@@ -278,7 +287,8 @@ pub struct Policy {
 }
 
 impl Default for Policy {
-    /// The default allowlist; NVDEC, native, dav1d, then the fallback.
+    /// The default allowlist; NVDEC, native, dav1d, libvpx, then the
+    /// fallback.
     fn default() -> Self {
         Self {
             allowlist: DecodeAllowlist::default(),
@@ -286,6 +296,7 @@ impl Default for Policy {
                 BackendKind::Nvdec,
                 BackendKind::Native,
                 BackendKind::Dav1d,
+                BackendKind::Libvpx,
                 BackendKind::Fallback,
             ],
         }
@@ -522,7 +533,12 @@ mod tests {
         let skipped: Vec<BackendKind> = opened.skipped.iter().map(|s| s.backend).collect();
         assert_eq!(
             skipped,
-            vec![BackendKind::Nvdec, BackendKind::Native, BackendKind::Dav1d]
+            vec![
+                BackendKind::Nvdec,
+                BackendKind::Native,
+                BackendKind::Dav1d,
+                BackendKind::Libvpx
+            ]
         );
         let none = open(
             &stream,

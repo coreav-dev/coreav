@@ -192,6 +192,8 @@ pub enum WorkerBackend {
     Ffmpeg,
     /// dav1d (`coreav-backend-dav1d`).
     Dav1d,
+    /// libvpx (`coreav-backend-libvpx`).
+    Libvpx,
 }
 
 impl WorkerBackend {
@@ -199,6 +201,7 @@ impl WorkerBackend {
         match self {
             Self::Ffmpeg => 1,
             Self::Dav1d => 2,
+            Self::Libvpx => 3,
         }
     }
 
@@ -206,6 +209,7 @@ impl WorkerBackend {
         match code {
             1 => Some(Self::Ffmpeg),
             2 => Some(Self::Dav1d),
+            3 => Some(Self::Libvpx),
             _ => None,
         }
     }

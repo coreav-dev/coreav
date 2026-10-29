@@ -62,7 +62,7 @@
       "additionalProperties": false,
       "required": ["backend", "name", "isolation", "fell_back"],
       "properties": {
-        "backend": {"enum": ["nvdec", "native", "dav1d", "ffmpeg"]},
+        "backend": {"enum": ["nvdec", "native", "dav1d", "libvpx", "ffmpeg"]},
         "name": {"type": "string"},
         "isolation": {"enum": ["in_process", "sandboxed"]},
         "fell_back": {"type": "boolean"}
@@ -76,7 +76,7 @@
         "additionalProperties": false,
         "required": ["backend", "reason"],
         "properties": {
-          "backend": {"enum": ["nvdec", "native", "dav1d", "ffmpeg"]},
+          "backend": {"enum": ["nvdec", "native", "dav1d", "libvpx", "ffmpeg"]},
           "reason": {"type": "string"}
         }
       }

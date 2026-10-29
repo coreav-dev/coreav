@@ -38,7 +38,7 @@
         "frames": {"type": "integer", "minimum": 1},
         "dropped_frames": {"type": "integer", "minimum": 0},
         "not_presented": {"type": "integer", "minimum": 0},
-        "backend": {"enum": ["nvdec", "native", "dav1d", "ffmpeg"]},
+        "backend": {"enum": ["nvdec", "native", "dav1d", "libvpx", "ffmpeg"]},
         "encoder": {"enum": ["x264", "ffmpeg"]},
         "width": {"type": "integer", "minimum": 1},
         "height": {"type": "integer", "minimum": 1},

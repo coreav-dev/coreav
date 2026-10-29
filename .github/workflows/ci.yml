@@ -100,6 +100,15 @@ jobs:
             --all-targets -- -D warnings
           cargo clippy -p coreav-cli --features dav1d,ffmpeg-fallback --all-targets -- -D warnings
           cargo test -p coreav-backend-dav1d --features dav1d
+      # libvpx for VP9, a non-default feature that links the system's libvpx
+      # (docs/design/decode.md, "libvpx"): alone and with the other backends.
+      - run: sudo apt-get install -y --no-install-recommends libvpx-dev
+      - run: |
+          cargo clippy -p coreav-cli -p coreav-backend-libvpx -p coreav-worker -p coreav-decode-oracle \
+            --features coreav-cli/libvpx,coreav-backend-libvpx/libvpx,coreav-worker/libvpx,coreav-decode-oracle/libvpx \
+            --all-targets -- -D warnings
+          cargo clippy -p coreav-cli --features libvpx,dav1d,ffmpeg-fallback --all-targets -- -D warnings
+          cargo test -p coreav-backend-libvpx --features libvpx
       # The encoder programs of `coreav transcode`, black boxes for
       # coreav-transcode's tests (docs/design/transcode.md): the pinned
       # FFmpeg (libx264 4613ac3) and an x264 program built from the same

@@ -328,9 +328,11 @@ fn cases() -> Vec<&'static str> {
         "basic.mov",
     ];
     if cfg!(feature = "ffmpeg-fallback") {
+        cases.push("hevc_hvc1.mp4");
+    }
+    if cfg!(any(feature = "ffmpeg-fallback", feature = "libvpx")) {
         // VP9 and Opus in WebM.
         cases.push("browser.webm");
-        cases.push("hevc_hvc1.mp4");
     }
     if cfg!(any(feature = "ffmpeg-fallback", feature = "dav1d")) {
         cases.push("av1.mp4");
