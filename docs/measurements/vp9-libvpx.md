@@ -22,7 +22,7 @@ Medians of per-file ratios, CoreAV over FFmpeg, with bootstrap 95% intervals (10
 - Compute Engine `c4-standard-8` with simultaneous multithreading off (`smt active: 0`, 4 cores, one thread each), Intel Xeon Platinum 8581C, Debian 13, kernel 6.12.113. Each job alone on its VM, standard (not preemptible) provisioning.
 - FFmpeg 7.0.2, the pinned static build (`scripts/install-oracle-ffmpeg.sh`). Its default VP9 decoder is `vp9 (native)`; it also has `libvpx-vp9`.
 - libvpx 1.15.0 from Debian 13 (`libvpx9`) on the VMs. The builds were compiled against libvpx 1.14's headers (Ubuntu 24.04); both declare decoder ABI version 12, which libvpx checks when the decoder opens. The summaries name `libvpx 1.15.0` for every file.
-- Builds of `feat/vp9-libvpx` at `85ffeb7`: `coreav` with `libvpx,ffmpeg-fallback` (the `libvpx` arm) and with `ffmpeg-fallback` alone (the `fallback` arm), `decode-oracle` with `libvpx`, and for B5 `coreav` with `native-h264,dav1d,libvpx,ffmpeg-fallback`. Their SHA-256 are in each job's `host.txt`.
+- Builds of `feat/vp9-libvpx` at `85ffeb7`: `coreav` with `libvpx,ffmpeg-fallback` (the `libvpx` arm) and with `ffmpeg-fallback` alone (the `fallback` arm), `decode-oracle` with `libvpx`, and for B5 `coreav` with `native-h264,dav1d,libvpx,ffmpeg-fallback`. Their SHA-256 are in each job's `host.txt`. After these runs, the backend stopped copying the images of packets marked `discard`, which `--exact` sends before its target; that change was not measured.
 
 ## Thumbnails (S1 to S5)
 

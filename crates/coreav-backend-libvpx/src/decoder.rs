@@ -140,14 +140,13 @@ impl LibvpxDecoder {
         let mut made = Vec::new();
         self.vp9
             .decode(packet.data, |view| {
-                made.push(convert(&view, color, limits)?);
+                if !packet.discard {
+                    made.push(convert(&view, color, limits)?);
+                }
                 Ok::<(), Error>(())
             })
             .map_err(|e| failure("decoding", &e))??;
         for (mut frame, bytes) in made {
-            if packet.discard {
-                continue;
-            }
             frame.pts = Some(pts);
             self.decoded = self.decoded.saturating_add(bytes);
             if self.decoded > self.limits.max_decoded_bytes {
