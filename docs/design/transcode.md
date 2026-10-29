@@ -581,7 +581,9 @@ output, before the encoder starts:
   would fail after it.
 
 A refusal found once the input is read (the four above, a pixel format,
-an edit list, anything this pipeline refuses as `Unsupported`) goes
+an edit list, anything this pipeline refuses as `Unsupported`, a video
+no decoder of the build takes or allows, such as HEVC in a build with the
+native H.264 decoder alone) goes
 through the same refusal point as an option, so a script sees exit
 status 4, and nothing is written.
 

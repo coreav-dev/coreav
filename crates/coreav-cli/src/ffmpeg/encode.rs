@@ -370,6 +370,17 @@ pub fn write(
                 message: format!("not supported by coreav ffmpeg: {what}"),
             }))
         }
+        WriteFailure::Rejected(Failure::VideoDecode(e))
+            if matches!(
+                e.kind,
+                coreav_decode::ErrorKind::Unsupported | coreav_decode::ErrorKind::CodecNotAllowed
+            ) =>
+        {
+            Stop::Refused(Refusal::NotNative(NotNative {
+                reason: Reason::Property("a video stream no decoder of this build takes"),
+                message: format!("not supported by coreav ffmpeg: decoding: {e}"),
+            }))
+        }
         other => other.into(),
     })
 }

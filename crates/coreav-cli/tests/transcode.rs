@@ -1015,7 +1015,7 @@ fn ffmpeg_libx264_refuses_a_matrix_ffmpeg_would_apply() {
         assert!(status.success(), "ffmpeg {args:?}");
     };
     let path = |name: &str| dir.join(name).to_str().unwrap().to_owned();
-    let (lossless, turned) = (path("lossless.mp4"), path("turned.mp4"));
+    let (source, turned) = (path("source.mp4"), path("turned.mp4"));
     ffmpeg(&[
         "-f",
         "lavfi",
@@ -1023,17 +1023,15 @@ fn ffmpeg_libx264_refuses_a_matrix_ffmpeg_would_apply() {
         "testsrc=s=64x48:d=1:r=25",
         "-c:v",
         "libx264",
-        "-qp",
-        "0",
         "-pix_fmt",
         "yuv420p",
-        &lossless,
+        &source,
     ]);
     ffmpeg(&[
         "-display_rotation",
         "-45",
         "-i",
-        &lossless,
+        &source,
         "-c",
         "copy",
         &turned,
@@ -1160,5 +1158,38 @@ fn ffmpeg_libx264_refuses_before_encoding() {
         "{stderr}"
     );
     assert!(!Path::new(&out).exists());
+    nothing_left(&dir);
+}
+
+/// In a build whose decoders do not take the source's video (here HEVC,
+/// with the native H.264 decoder alone), the command is refused with exit
+/// status 4, so the fallback hands it to FFmpeg.
+#[test]
+fn ffmpeg_libx264_refuses_video_no_decoder_takes() {
+    if cfg!(feature = "ffmpeg-fallback") || cfg!(feature = "dav1d") {
+        return;
+    }
+    let Some(tools) = tools() else { return };
+    let dir = dir("ffmpeg-libx264-no-decoder");
+    let out = dir.join("out.mp4");
+    let source = tools.fixtures.join("hevc_hvc1.mp4");
+    let run = Command::new(bin())
+        .args([
+            "ffmpeg",
+            "-i",
+            source.to_str().unwrap(),
+            "-an",
+            "-c:v",
+            "libx264",
+        ])
+        .arg(&out)
+        .env("COREAV_X264", &tools.x264)
+        .env("COREAV_STRICT_SAFE", "1")
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&run.stderr);
+    assert_eq!(run.status.code(), Some(4), "{stderr}");
+    assert!(stderr.contains("no decoder for hevc"), "{stderr}");
+    assert!(!out.exists());
     nothing_left(&dir);
 }
