@@ -49,10 +49,11 @@ jobs:
           python3 -I scripts/pr_text_check_selftest.py
           python3 -I scripts/label_sync.py --check
       # tools/compat-corpus/commands-v1 stays what tools/compat-corpus/classify.py says
-      # it is, and the vocabulary table of docs/design/compat-cli.md stays
-      # what that file implements (docs/design/compat-cli.md, bar B5). It
-      # runs here, not in ci.yml, because the note it reads is behind that
-      # workflow's path filter.
+      # it is, the vocabulary table of docs/design/compat-cli.md stays what
+      # that file implements (docs/design/compat-cli.md, bar B5), and
+      # docs/measurements/compat-ffprobe.md says what its JSON evidence
+      # holds (tools/compat-corpus/record.py). It runs here, not in ci.yml,
+      # because the notes it reads are behind that workflow's path filter.
       - name: Check the command-coverage set against its rules
         env:
           PYTHONDONTWRITEBYTECODE: '1'
