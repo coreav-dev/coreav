@@ -997,3 +997,77 @@ fn ffmpeg_libx264_commands_run_the_pipeline() {
     assert_eq!(code, 0, "{stderr}");
     nothing_left(&dir);
 }
+
+/// A track matrix that is not a quarter turn (−45°): `ffmpeg` turns the
+/// pixels unless `-noautorotate`, so `coreav ffmpeg` refuses it without
+/// that option, and with it writes the matrix `ffmpeg` writes.
+#[test]
+fn ffmpeg_libx264_refuses_a_matrix_ffmpeg_would_apply() {
+    let Some(tools) = tools() else { return };
+    let dir = dir("ffmpeg-libx264-matrix");
+    let ffmpeg = |args: &[&str]| {
+        let status = Command::new(&tools.ffmpeg)
+            .args(["-nostdin", "-v", "error", "-y"])
+            .args(args)
+            .status()
+            .unwrap();
+        assert!(status.success(), "ffmpeg {args:?}");
+    };
+    let path = |name: &str| dir.join(name).to_str().unwrap().to_owned();
+    let (lossless, turned) = (path("lossless.mp4"), path("turned.mp4"));
+    ffmpeg(&[
+        "-f",
+        "lavfi",
+        "-i",
+        "testsrc=s=64x48:d=1:r=25",
+        "-c:v",
+        "libx264",
+        "-qp",
+        "0",
+        "-pix_fmt",
+        "yuv420p",
+        &lossless,
+    ]);
+    ffmpeg(&[
+        "-display_rotation",
+        "-45",
+        "-i",
+        &lossless,
+        "-c",
+        "copy",
+        &turned,
+    ]);
+    let coreav = |args: &[&str]| {
+        let out = Command::new(bin())
+            .arg("ffmpeg")
+            .args(args)
+            .env("COREAV_X264", &tools.x264)
+            .env("COREAV_FFMPEG", &tools.ffmpeg)
+            .output()
+            .unwrap();
+        (
+            out.status.code().unwrap(),
+            String::from_utf8_lossy(&out.stderr).into_owned(),
+        )
+    };
+    let out = path("out.mp4");
+    let (code, stderr) = coreav(&["-i", &turned, "-c:v", "libx264", &out]);
+    assert_eq!(code, 4, "{stderr}");
+    assert!(stderr.contains("-noautorotate"), "{stderr}");
+    assert!(!Path::new(&out).exists());
+    let (code, stderr) = coreav(&["-noautorotate", "-i", &turned, "-c:v", "libx264", &out]);
+    assert_eq!(code, 0, "{stderr}");
+    let baseline = path("baseline.mp4");
+    ffmpeg(&["-noautorotate", "-i", &turned, "-c:v", "libx264", &baseline]);
+    let matrix = |file: &str| {
+        probe_json(
+            &tools,
+            &["-select_streams", "v", "-show_entries", "stream_side_data"],
+            Path::new(file),
+        )["streams"][0]["side_data_list"]
+            .clone()
+    };
+    assert_eq!(matrix(&out), matrix(&baseline));
+    assert_eq!(matrix(&out)[0]["rotation"], -45);
+    nothing_left(&dir);
+}

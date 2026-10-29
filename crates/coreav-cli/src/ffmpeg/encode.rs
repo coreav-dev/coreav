@@ -155,6 +155,77 @@ pub fn request(command: &Command, audio: &[usize]) -> Result<Request, Refusal> {
     })
 }
 
+/// The track matrix of an MP4 track that leaves the frames as they are.
+const IDENTITY: [i32; 9] = [0x1_0000, 0, 0, 0, 0x1_0000, 0, 0, 0, 0x4000_0000];
+
+/// The refusals for the source's display transform, read whole from the
+/// container: without `-noautorotate` `ffmpeg` applies any transform other
+/// than the identity to the frames, and with it `ffmpeg` writes the source's
+/// matrix, which the transcode writes the same only when the matrix has no
+/// translation or projection. A Matroska projection or rotation is refused.
+fn check_transform(
+    command: &Command,
+    stream: &coreav_thumbnail::VideoStream,
+    input: &Path,
+) -> Result<(), Stop> {
+    let file = FileSource::open(input).map_err(WriteFailure::from)?;
+    let refused = |why: &'static str| Err(Refusal::not_native(why).into());
+    match stream.container {
+        coreav_thumbnail::Container::Mp4 => {
+            let Ok(movie) = coreav_isobmff::probe(
+                BufferedSource::new(file),
+                &coreav_isobmff::Limits::default(),
+                &coreav_isobmff::Allowlist::default(),
+            ) else {
+                return refused("a source whose track matrix could not be read");
+            };
+            let Some(track) = movie
+                .tracks
+                .iter()
+                .find(|t| t.stream_index == stream.stream_index)
+            else {
+                return refused("a source whose track matrix could not be read");
+            };
+            let m = track.matrix;
+            if m == IDENTITY {
+                return Ok(());
+            }
+            if !command.noautorotate {
+                return refused(
+                    "a track matrix other than the identity, without -noautorotate \
+                     (ffmpeg would apply it to the frames)",
+                );
+            }
+            if [m[2], m[5], m[6], m[7]] != [0; 4] || m[8] != 0x4000_0000 {
+                return refused(
+                    "a track matrix with a translation or a projection, which the transcode does \
+                     not write as ffmpeg does",
+                );
+            }
+            Ok(())
+        }
+        coreav_thumbnail::Container::Matroska => {
+            let Ok(segment) = coreav_mkv::probe(
+                BufferedSource::new(file),
+                &coreav_mkv::Limits::default(),
+                &coreav_mkv::Allowlist::any(),
+            ) else {
+                return refused("a source whose projection could not be read");
+            };
+            let turned = segment
+                .tracks
+                .iter()
+                .find(|t| t.stream_index == stream.stream_index)
+                .and_then(|t| t.video.as_ref())
+                .is_none_or(|v| v.projection_type != 0 || v.pose != [0.0; 3]);
+            if turned {
+                return refused("a Matroska projection or rotation");
+            }
+            Ok(())
+        }
+    }
+}
+
 /// Whether `pts`, sorted, are evenly spaced: one interval between every
 /// two.
 fn evenly_spaced(mut pts: Vec<i64>) -> bool {
@@ -195,18 +266,13 @@ fn check_source(
         )
         .into());
     }
-    if stream.quarter_turns != 0 && !command.noautorotate {
-        return Err(Refusal::not_native(
-            "a rotated source without -noautorotate (ffmpeg would turn its frames)",
-        )
-        .into());
-    }
+    check_transform(command, &stream, input)?;
     if reordered
         && !command.encoding.passthrough
         && stream.packets.iter().all(|p| p.dts == Some(p.pts))
     {
         return Err(Refusal::not_native(
-            "reordered frames without composition offsets, without -fps_mode passthrough \\
+            "reordered frames without composition offsets, without -fps_mode passthrough \
              (ffmpeg would take other times for them)",
         )
         .into());

@@ -531,10 +531,15 @@ CRF 23 and `medium`. Where FFmpeg's behaviour differs from this
 pipeline's, the command is refused where the difference would change the
 output, before the encoder starts:
 
-- **Autorotation.** Without `-noautorotate`, FFmpeg turns the frames of a
-  source whose matrix rotates it and writes no rotation; this pipeline
-  keeps the matrix. A source with a quarter turn is refused without
-  `-noautorotate`.
+- **Autorotation.** Without `-noautorotate`, FFmpeg applies a track's matrix
+  to the frames and writes the identity; this pipeline keeps the matrix
+  and the frames as they are. A source whose MP4 track matrix is not the
+  identity is refused without `-noautorotate`, whatever the matrix (a quarter
+  turn, −45°, a mirror). With `-noautorotate` both write the source's matrix
+  unchanged (checked on the pinned FFmpeg as a black box at −45°, 90° and
+  180°, also with `-s`), except a matrix that translates or projects,
+  which is refused either way, as is a Matroska track with a projection
+  or a pose other than zero.
 - **Constant rate.** Without `-fps_mode passthrough`, FFmpeg writes MP4 at
   a constant rate and duplicates or drops frames to keep it (`vfr.mp4`:
   33 frames in, 50 out). A source whose presented frames are not evenly
