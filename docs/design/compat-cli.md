@@ -296,7 +296,11 @@ MP4/MOV and Matroska/WebM, and `clip`, `join`, `split` and `extract-audio`
 read MP4/MOV. Every output is MP4 or M4A. `-c copy` from a transport stream
 is not in `wedge-v1`: no CoreAV writer reads MPEG-TS, so that command stays
 refused by name (or falls back, below), as does a Matroska input to the
-jobs other than `remux`.
+jobs other than `remux`. A command that forces a demuxer (`-f mpegts` before
+the input, in W16) means what it means only on files of that family: on an
+MP4 file the forced MPEG-TS probe lists no stream at all. The file records
+the family per command (`input_container`), and every bar runs such a command
+on the fixtures and files of that family alone, which is its denominator.
 
 **What the set leaves out.** No native command of `commands-v1` uses `-f hls`,
 so HLS output is not in the wedge; `coreav hls` is unchanged. `-f segment` is
@@ -330,8 +334,8 @@ CoreAV rejects disagrees on every key unless `KD-STRICT` explains it, as from
 round 5. W3 fills each command's placeholders with a file its container
 pair and its `-map` selectors can take and that has none of the stream
 types its `input_without` names, as B2 does, and a command no file of the
-draw can take is reported, not counted. W4 runs as B4: on an otherwise
-idle host, the file in the page cache, one untimed run of each first, then
+draw can take is reported, not counted. W4 runs as B4, on the host
+registered below: the file in the page cache, one untimed run of each first, then
 5 rounds alternating CoreAV and FFmpeg, wall time of the whole process, the
 ratio of a pair the median of CoreAV's rounds over the median of FFmpeg's;
 an `ffmpeg` command writes its output to the same local file system for
@@ -340,6 +344,20 @@ container family the first 20 draw files of at most 256 MB in the order
 `sha256("coreav-compat-w4:" + sha256)`. The report gives, beside each median
 and interval, the share of pairs on which CoreAV is faster, the host and
 the FFmpeg version, and per-command medians, which are not gated.
+
+**The W4 host, registered before the run.** A GCP `c4-standard-16` VM with
+SMT off (one thread per core), started through `scripts/gcp_vm_job.py`, the
+rest of the VM idle, and both tools' processes pinned to the same four
+cores. Before the draw is opened the host passes a calibration gate on
+spent files (the first 20 per container family of the spent corpus v1 and
+`v1-ts-audio` held-out sets, in the W4 order): an A/A arm (FFmpeg against
+itself) and a null arm (CoreAV against itself) over the wedge commands,
+each with every class's median ratio within 0.98 to 1.02 and its 95%
+interval containing 1.00. A failed gate is a host fault: the draw stays
+closed and the round runs on another VM of the same class. The round's
+record names the host class, the CPU model and the gate's numbers before
+the draw's results. A shared runner pool does not qualify: its CPU model
+varies between jobs.
 
 **The held-out draw.** The ISO base media and Matroska held-out files of
 corpus v1 were used for development (rounds 2 to 4), and the MPEG-TS
@@ -971,10 +989,15 @@ standard output, which carries `ffprobe`'s JSON or a piped
     coreav: ran /usr/bin/ffmpeg instead (not native: -vf)
 
 The reason is the option or property the refusal would have named. The
-line is left out only when the command's `-v` or `-loglevel` is `quiet` (or `-8`,
-with or without flags); `-v error` still shows it. A command that is not
-native is not parsed in full, so the level is found by a scan for `-v` or
-`-loglevel` followed by a value.
+line is printed at every log level, `-v quiet` and `-loglevel quiet` included: a
+quiet level silences FFmpeg's own messages, and the notice is CoreAV's
+statement that FFmpeg's code ran instead of CoreAV's, which a caller who
+asked for quiet output needs as much as any other. It costs one line on
+standard error and leaves standard output untouched. A fallback is never
+silent; the only way not to see the line is strict-safe mode, which refuses
+instead. Rejected: leaving the line out under `-v quiet`, which would make a
+service that runs everything quietly unable to tell from its own logs that
+FFmpeg read its inputs.
 
 **Log.** `COREAV_FALLBACK_LOG=<path>` appends one JSON line for every command
 that was not native, whether it ran FFmpeg or was refused, whatever the log
@@ -986,7 +1009,7 @@ level:
 no program found, `COREAV_FALLBACK` unusable, the recursion guard). The file
 is opened to append and each line is one write, so processes running at
 once do not interleave lines. A log that cannot be written costs one line
-on standard error (unless quiet) and never stops the command.
+on standard error, at every log level, and never stops the command.
 
 `args` is redacted when the line is written, never left for a later step: it
 keeps every option name, and the value of an option only when the option is
@@ -1015,7 +1038,7 @@ differences. It waits for what the fallback logs show (0.1.x).
 **Tests of the implementation** need no FFmpeg: a stand-in program in a
 directory named by `COREAV_FALLBACK` that prints its arguments and exits 7
 shows the exit status passed through, standard output untouched, the
-notice and its `-v quiet` omission, the log line, strict-safe refusing, and a
+notice at every log level (`-v quiet` included), the log line, strict-safe refusing, and a
 link to `coreav` in that directory stopped by the guard.
 
 ## What is not here yet

@@ -38,10 +38,15 @@ COVERAGE = 0.80
 # The input containers each entry is measured on. ffprobe reads all three;
 # the copy jobs read what the CoreAV job behind them reads today (job_of).
 CONTAINERS = ('mp4-mov', 'matroska-webm', 'mpegts')
+# A demuxer forced with `-f` before the input: the command means what it
+# means only on files of that family, so it runs on those alone.
+FORCED = {'mov,mp4,m4a,3gp,3g2,mj2': 'mp4-mov', 'mp4': 'mp4-mov', 'mov': 'mp4-mov',
+          'm4a': 'mp4-mov', '3gp': 'mp4-mov', 'matroska,webm': 'matroska-webm',
+          'matroska': 'matroska-webm', 'webm': 'matroska-webm', 'mpegts': 'mpegts'}
 
 # Options that do not change what the command writes, or whose value the
 # runner picks (a file, a segment length), so they make no shape.
-FFPROBE_IGNORED = {'-v', '-loglevel', '-hide_banner', '-nostdin', '-i', '-f'}
+FFPROBE_IGNORED = {'-v', '-loglevel', '-hide_banner', '-nostdin', '-i'}
 FFMPEG_IGNORED = {'-y', '-n', '-hide_banner', '-nostdin', '-loglevel', '-v',
                   '-threads', '-max_muxing_queue_size', '-safe',
                   '-ignore_unknown', '-segment_time', '-segment_format',
@@ -58,12 +63,13 @@ READ_INTERVAL = re.compile(r'\A%(\+#\d+|\+?[0-9:.]+)\Z')
 
 
 def ffprobe_shape(args):
-    """(shape, keys, refusal, without): the sections asked for, the writer and the
+    """(shape, keys, refusal, constraints): the sections asked for, the writer and the
     stream selection; the keys the command prints; why the command refuses
-    it by design, or None; no stream constraint. A writer's settings and the selected stream's
+    it by design, or None; and what limits the inputs the command runs on (a
+    forced demuxer, `input_container`). A writer's settings and the selected stream's
     type and index make no shape."""
     options, _ = classify.walk(args, classify.FFPROBE_VALUE)
-    parts, keys, refusal = set(), set(), None
+    parts, keys, refusal, constraints = set(), set(), None, {}
     for option, value in options:
         if option in SECTION_FLAGS:
             parts.add(SECTION_FLAGS[option])
@@ -78,6 +84,8 @@ def ffprobe_shape(args):
             parts.add(f'writer:{(value or "").partition("=")[0]}')
         elif option == '-select_streams':
             parts.add('select_streams')
+        elif option == '-f':
+            constraints['input_container'] = FORCED[value]
         elif option == '-read_intervals':
             parts.add('read_intervals')
             if not READ_INTERVAL.match(value or ''):
@@ -92,7 +100,7 @@ def ffprobe_shape(args):
     keys.update(f'{SECTION_KEYS[s]}.*' for s in sections if s in SECTION_KEYS)
     if not any(p.startswith('writer:') for p in parts):
         parts.add('writer:default')
-    return tuple(sorted(parts)), keys, refusal, []
+    return tuple(sorted(parts)), keys, refusal, constraints
 
 
 TYPES = {'v', 'a', 's'}
@@ -117,14 +125,14 @@ def selected(maps, drops):
 
 
 def ffmpeg_shape(args):
-    """(shape, keys, refusal, without) as for ffprobe: the job, the seek and
+    """(shape, keys, refusal, constraints) as for ffprobe: the job, the seek and
     its position, the streams the output keeps and copies, and the stream
     selection, muxer, timestamp and metadata options as one feature each;
-    the times and the selectors make no shape. `without` is the stream
+    the times and the selectors make no shape. `input_without` is the stream
     types the command selects but does not copy: FFmpeg would encode them,
     so the command is a copy only on an input that has none."""
     options, _ = classify.walk(args, classify.FFMPEG_VALUE | set(classify.FFMPEG_CODEC))
-    parts, copied, drops, maps, seen_input = set(), set(), set(), [], False
+    parts, copied, drops, maps, seen_input, constraints = set(), set(), set(), [], False, {}
     job = 'copy'
     for option, value in options:
         codec = classify.codec_of(option)
@@ -139,6 +147,8 @@ def ffmpeg_shape(args):
         if option == '-f':
             if value in ('concat', 'segment', 'hls'):
                 job = value
+            elif not seen_input:
+                constraints['input_container'] = FORCED[value]
             continue
         if option == '-ss':
             parts.add('seek:output' if seen_input else 'seek:input')
@@ -165,8 +175,9 @@ def ffmpeg_shape(args):
     chosen = selected(maps, drops)
     kept = chosen if 'all' in copied else chosen & copied
     parts.add('streams:' + ('audio' if kept == {'a'} else 'video' if kept == {'v'} else 'all'))
-    without = [] if 'all' in copied else sorted(chosen - copied)
-    return tuple(sorted(parts)), set(), None, without
+    if 'all' not in copied and chosen - copied:
+        constraints['input_without'] = sorted(chosen - copied)
+    return tuple(sorted(parts)), set(), None, constraints
 
 
 def job_of(tool, shape):
@@ -195,7 +206,7 @@ def derive(records):
     refused = []
     for record in native:
         shape_of = ffprobe_shape if record['tool'] == 'ffprobe' else ffmpeg_shape
-        shape, keys, refusal, without = shape_of(record['args'])
+        shape, keys, refusal, constraints = shape_of(record['args'])
         if refusal:
             refused.append({'tool': record['tool'], 'args': record['args'],
                             'pairs': len(record['sources']), 'refused': refusal})
@@ -204,10 +215,8 @@ def derive(records):
             'tool': record['tool'], 'shape': list(shape), 'pairs': 0,
             'commands': [], 'keys': set()})
         group['pairs'] += len(record['sources'])
-        command = {'args': record['args'], 'pairs': len(record['sources'])}
-        if without:
-            command['input_without'] = without
-        group['commands'].append(command)
+        group['commands'].append({'args': record['args'], 'pairs': len(record['sources']),
+                                  **constraints})
         group['keys'] |= keys
     ranked = sorted(groups.values(), key=lambda g: (-g['pairs'], -len(g['commands']),
                                                     g['tool'], g['shape']))
