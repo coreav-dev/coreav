@@ -47,6 +47,12 @@ class Commits(unittest.TestCase):
         self.assertEqual(len(failures), 1)
         self.assertIn('73 characters', failures[0])
 
+    def test_a_subject_wrapped_over_two_lines(self):
+        # Git joins the first paragraph into one subject of 81 characters.
+        failures = check.commit_failures(log(f'{"a" * 40}\n{"b" * 40}\n\nSigned-off-by: A <a@b.c>'))
+        self.assertEqual(len(failures), 1)
+        self.assertIn('81 characters', failures[0])
+
     def test_attribution_trailers(self):
         failures = check.commit_failures(log(
             'fix(cli): hls package refuses - as its directory\n\nCo-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>\nSigned-off-by: A <a@b.c>',

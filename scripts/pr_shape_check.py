@@ -60,7 +60,8 @@ def commit_failures(log):
         sha, _, message = record.strip('\n').partition('\x00')
         if not sha:
             continue
-        subject = message.split('\n', 1)[0]
+        # Git's subject is the whole first paragraph, its lines joined.
+        subject = ' '.join(message.strip('\n').split('\n\n', 1)[0].split('\n'))
         if len(subject) > SUBJECT_MAX:
             out.append(f'commit {sha[:12]}: its subject is {len(subject)} characters; '
                        f'shorten it to {SUBJECT_MAX} or fewer (git commit --amend, or a fixup and rebase)')
