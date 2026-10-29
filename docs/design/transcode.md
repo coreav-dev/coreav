@@ -498,6 +498,62 @@ before its first frame (none when the source has no edit list), the empty
 edit growing when leading frames are left out; with `--scale`, a rotation
 matrix's translation follows the new size.
 
+## Through `coreav ffmpeg`
+
+`coreav ffmpeg` ([`compat-cli.md`](compat-cli.md)) runs the common
+`ffmpeg` command lines of this job through this pipeline: one input, the
+video re-encoded with libx264, the audio copied or dropped, one MP4
+output. The command line is read by the compatibility parser and its
+stream selection, the same as for `-c copy`; a command that selects a
+video stream for `libx264` is routed here before the refusal of encoder
+values, and every option this section does not list is still refused,
+naming it (exit status 4).
+
+| Option | Taken as |
+|---|---|
+| `-c:v`, `-vcodec` (and `-c`/`-codec` with a specifier naming the video) `libx264` | the encoder; the selected video stream must be the one this pipeline encodes (FFmpeg's default choice, "Scope"), and only one |
+| `-c:a`, `-acodec` `copy`, or `-c copy` for the other streams | the selected audio streams copied (`AudioMode::Streams`) |
+| `-an` | no audio |
+| `-crf Q` | `--crf`, 0 to 51, fractions as given |
+| `-b:v RATE` | `--bitrate`: FFmpeg's number syntax (`k`, `M`, a fraction), in bits a second, divided by 1,000 with the remainder dropped as libx264 receives it (`1M` 1,000, `1234567` 1,234 kbit/s, checked on the pinned FFmpeg as a black box); a rate below 1,000 is refused |
+| `-preset P` | `--preset` |
+| `-threads N` after the input | `--threads`; `0` is the encoder's own choice |
+| `-vf`, `-filter:v` `scale=W:H` | `--scale W:H`, the forms it takes; any other filter or filter chain is refused |
+| `-s WxH` after the input | `--scale W:H` |
+| `-pix_fmt yuv420p` | the encoder's input must be 8-bit 4:2:0 (`TranscodeOptions::pixel_format`); frames are not converted, so a source decoded to another format is refused before the encoder starts (FFmpeg converts it) |
+| `-movflags +faststart`, `faststart` | nothing: the movie box is always first |
+| `-f mp4`, an output named `.mp4` | the output container |
+| `-noautorotate` before the input | rotation kept as metadata, which this pipeline always does |
+| `-fps_mode passthrough`, `-vsync passthrough`, `-vsync 0` | the frames' own times, which this pipeline always keeps |
+
+FFmpeg's defaults, where the command leaves them, are this pipeline's:
+CRF 23 and `medium`. Where FFmpeg's behaviour differs from this
+pipeline's, the command is refused where the difference would change the
+output, before the encoder starts:
+
+- **Autorotation.** Without `-noautorotate`, FFmpeg turns the frames of a
+  source whose matrix rotates it and writes no rotation; this pipeline
+  keeps the matrix. A source with a quarter turn is refused without
+  `-noautorotate`.
+- **Constant rate.** Without `-fps_mode passthrough`, FFmpeg writes MP4 at
+  a constant rate and duplicates or drops frames to keep it (`vfr.mp4`:
+  33 frames in, 50 out). A source whose presented frames are not evenly
+  spaced (one interval between every two, in the track's time base) is
+  refused without it; on an evenly spaced source the two give the same
+  frames (B9's Q2 pairs every frame with FFmpeg's output of the same
+  command, and fails when the counts differ).
+- **Stream order.** FFmpeg writes the selected video first, then the
+  audio; this pipeline keeps the source's order. A source whose selected
+  audio comes before its video is refused.
+- **Audio.** Without `-c:a copy` or `-an`, FFmpeg re-encodes the
+  selected audio to AAC; audio encoding is not in this pipeline, so a
+  command that selects an audio stream without copying it is refused.
+
+A refusal found once the input is read (the four above, a pixel format,
+an edit list, anything this pipeline refuses as `Unsupported`) goes
+through the same refusal point as an option, so a script sees exit
+status 4, and nothing is written.
+
 ## Crates
 
 | Crate | What it gets | `unsafe` |
@@ -820,6 +876,43 @@ information command once).
    FFmpeg and the encoder are other processes and not counted; their time
    is in B5. A CI job also runs B1 to B4 on the fixtures
    (`scripts/transcode_check.py`).
+9. **B9, through `coreav ffmpeg`.** On the fixtures, both encoder arms,
+   each of these command lines (`IN` and `OUT.mp4` substituted), the
+   first nine as they appear in the command-coverage set
+   (`commands-v1`), the rest covering each accepted option once:
+
+       -i IN -c:v libx264 OUT.mp4
+       -i IN -c:v libx264 -crf 19 OUT.mp4
+       -i IN -crf 0 -c:v libx264 OUT.mp4
+       -y -i IN -c:v libx264 -crf 24 OUT.mp4
+       -i IN -c:v libx264 -crf 23 -preset medium -pix_fmt yuv420p OUT.mp4
+       -i IN -vcodec libx264 -f mp4 OUT.mp4
+       -i IN -vf scale=1920:-2 -vcodec libx264 -crf 20 OUT.mp4
+       -y -i IN -c:a copy -c:v libx264 -pix_fmt yuv420p OUT.mp4
+       -i IN -c:v libx264 -crf 1 OUT.mp4
+       -noautorotate -i IN -c:v libx264 -preset veryfast -b:v 1M -c:a copy -movflags +faststart OUT.mp4
+       -i IN -c copy -c:v libx264 -preset veryfast -s 320x240 -threads 2 -fps_mode passthrough OUT.mp4
+       -i IN -an -c:v libx264 -preset veryfast OUT.mp4
+
+   - Each command either runs, or is refused with exit status 4 for a
+     reason this section names, writing nothing; any other failure counts
+     against the bar.
+   - A command that runs passes B1, B3 and B4 against FFmpeg running the
+     same command line (Q1 at least −0.50 dB, Q2 at least 30 dB), and B2,
+     on 100% of the fixtures it runs on, except the fixtures that miss B2
+     with `coreav transcode` too (listed in Results); its output lists
+     the same streams, by kind and codec, in the same order, as FFmpeg's.
+   - FFmpeg itself running a command that CoreAV refused is listed by
+     fixture and reason, for information.
+   - Speed: the job is `coreav transcode`'s, with the same encoder and
+     settings, so B5 is its speed and no other run is made; the
+     compatibility command's own bar (`compat-cli.md`, B4, at most 1.00
+     against the same FFmpeg command) is B5's 1.05 for these commands, for
+     B5's reason. What the command adds of its own is reading the command
+     line and the source's video index once more before the transcode.
+
+   A CI job runs B9 on every change (`scripts/transcode_check.py
+   --compat`).
 
 Spend: the correctness and speed runs together are capped at 10 USD in
 the scripts that run them, and the actual spend is reported with the
