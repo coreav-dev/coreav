@@ -20,7 +20,7 @@ use crate::ffprobe::{Report, Stream, StreamKind};
 use crate::output::{self, WriteFailure};
 use crate::split::Pattern;
 use args::{Command, Demuxer, Muxer, Overwrite, Spec};
-use coreav_isobmff::{FileSource, Rational};
+use coreav_isobmff::{Allowlist, FileSource, Limits, Rational, Track};
 use coreav_isobmff_write::{
     AudioChoice, ClipOptions, JoinAudio, JoinOptions, JoinSummary, MatroskaRemuxOptions,
     OnUnsupported, RemuxOptions, SplitAt, SplitOptions, TrackChoice, VideoChoice,
@@ -399,18 +399,35 @@ fn placed_as_concat(summary: &JoinSummary, offsets: &[i128]) -> bool {
             .all(|(input, expected)| from_first(input.offset) == Some(*expected))
 }
 
-/// Why a join is not native: it places an input elsewhere than the
-/// concat demuxer ([`placed_as_concat`]), or an input's track has more than
-/// one edit (an empty one included), which the demuxer reads by its own
+/// Why a join is not native: a track it copies has more than one edit in
+/// its file (an empty one included), which the demuxer reads by its own
 /// edit model (docs/design/edit-list-writers.md) where the join keeps the
-/// edits.
-fn concat_timing(summary: &JoinSummary, offsets: &[i128]) -> Option<&'static str> {
-    let inputs = summary.inputs.len();
-    if summary.video_edits > inputs || summary.audio_edits > inputs {
-        return Some("a join of files whose tracks have several edits");
+/// edits, or it places an input elsewhere than the concat demuxer
+/// ([`placed_as_concat`]). The edits are counted in each file, as edits
+/// that meet merge in the output.
+fn concat_timing(
+    paths: &[PathBuf],
+    summary: &JoinSummary,
+    offsets: &[i128],
+) -> Result<Option<&'static str>, WriteFailure> {
+    for (path, input) in paths.iter().zip(&summary.inputs) {
+        let file = FileSource::open(path)?;
+        let movie = coreav_isobmff::probe(file, &Limits::default(), &Allowlist::listing())
+            .map_err(|e| WriteFailure::Rejected(Failure::library(e)))?;
+        let copied = [Some(&input.video), input.audio.as_ref()];
+        let edited = |track: &Track| {
+            track.edits.len() > 1
+                && copied
+                    .iter()
+                    .flatten()
+                    .any(|c| c.track_id == track.track_id)
+        };
+        if movie.tracks.iter().any(edited) {
+            return Ok(Some("a join of files whose tracks have several edits"));
+        }
     }
-    (!placed_as_concat(summary, offsets))
-        .then_some("a join of files whose streams end at different times")
+    Ok((!placed_as_concat(summary, offsets))
+        .then_some("a join of files whose streams end at different times"))
 }
 
 fn format_name(report: &Report) -> Option<&str> {
@@ -695,7 +712,7 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
                     refused = failure.not_native;
                     WriteFailure::from(failure)
                 })?;
-            if let Some(words) = concat_timing(&summary, &offsets) {
+            if let Some(words) = concat_timing(paths, &summary, &offsets)? {
                 refused = Some(words);
                 return Err(WriteFailure::Rejected(Failure::Unsupported(
                     words.to_owned(),

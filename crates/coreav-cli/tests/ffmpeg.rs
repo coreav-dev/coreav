@@ -229,6 +229,21 @@ fn joins_ffmpeg_would_time_or_read_otherwise_are_refused() {
         ],
     );
     std::fs::write(dir.join("pcm.mp4"), av_movie(b"sowt")).unwrap();
+    // Eight frames of 40 ms, presented by two edits that meet exactly and
+    // merge in the join with the next file's single edit.
+    let video = |name: &str, elst: Vec<(u32, i32)>| {
+        let spec = Spec {
+            sizes: vec![100; 8],
+            composition: Vec::new(),
+            sync: (1..=8).collect(),
+            elst: Some(elst),
+            ctts: Some(Vec::new()),
+            ..Spec::default()
+        };
+        std::fs::write(dir.join(name), common::movie(&spec)).unwrap();
+    };
+    video("edits.mp4", vec![(160, 0), (160, 2048)]);
+    video("plain.mp4", vec![(320, 0)]);
     let output = dir.join("out.mp4");
     let o = output.to_str().unwrap();
     for (files, named) in [
@@ -238,6 +253,10 @@ fn joins_ffmpeg_would_time_or_read_otherwise_are_refused() {
         ),
         ("file in.mp4\nfile timescale.mp4\n", "streams differ"),
         ("file pcm.mp4\nfile pcm.mp4\n", "not supported"),
+        (
+            "file edits.mp4\nfile plain.mp4\n",
+            "tracks have several edits",
+        ),
     ] {
         let list = dir.join("list.txt");
         std::fs::write(&list, files).unwrap();
