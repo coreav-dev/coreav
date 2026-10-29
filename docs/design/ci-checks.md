@@ -40,8 +40,9 @@ and from the path filters an earlier change put on the heavy workflows:
 - Workflows that are **not** required keep their trigger filters: the
   informational `mediainfo-oracle`, the spikes (`spike-build`, `h264-n1`,
   `h264-n2`, `h264-n2-arm-speed`, which build spike code and are kept
-  with it out of the public tree), the nightly `pr-redirect`, `labels` and
-  `pr-text`.
+  with it out of the public tree), the nightly `pr-redirect`, `labels`,
+  `pr-text`, and `release`, whose pull-request run is the dry run of a
+  change to the release build (`docs/design/release.md`).
 
 `scripts/workflow_check.py` runs in `deny.yml` — the workflow nothing
 filters — and fails when the required-check table and the workflows
