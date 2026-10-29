@@ -22,8 +22,9 @@ use crate::split::Pattern;
 use args::{Command, Demuxer, Muxer, Overwrite, Spec};
 use coreav_isobmff::{Allowlist, FileSource, Limits, Rational, Track};
 use coreav_isobmff_write::{
-    AudioChoice, ClipOptions, JoinAudio, JoinOptions, JoinSummary, MatroskaRemuxOptions,
-    OnUnsupported, RemuxOptions, SplitAt, SplitOptions, TrackChoice, VideoChoice,
+    AudioChoice, ClipOptions, JoinAudio, JoinOptions, JoinSummary, JoinedInput,
+    MatroskaRemuxOptions, OnUnsupported, RemuxOptions, SplitAt, SplitOptions, TrackChoice,
+    VideoChoice,
 };
 use std::path::{Path, PathBuf};
 
@@ -399,8 +400,10 @@ fn placed_as_concat(summary: &JoinSummary, offsets: &[i128]) -> bool {
             .all(|(input, expected)| from_first(input.offset) == Some(*expected))
 }
 
-/// Why a join is not native: a track it copies has more than one edit in
-/// its file (an empty one included), which the demuxer reads by its own
+/// Why a join is not native: a file holds the streams it copies at other
+/// indexes than the first file, where the demuxer pairs streams by index
+/// and the join takes each file's first video and audio; a track it copies
+/// has more than one edit in its file (an empty one included), which the demuxer reads by its own
 /// edit model (docs/design/edit-list-writers.md) where the join keeps the
 /// edits, or it places an input elsewhere than the concat demuxer
 /// ([`placed_as_concat`]). The edits are counted in each file, as edits
@@ -410,6 +413,17 @@ fn concat_timing(
     summary: &JoinSummary,
     offsets: &[i128],
 ) -> Result<Option<&'static str>, WriteFailure> {
+    let indexes = |input: &JoinedInput| {
+        (
+            input.video.stream_index,
+            input.audio.as_ref().map(|a| a.stream_index),
+        )
+    };
+    let mut inputs = summary.inputs.iter().map(indexes);
+    let first = inputs.next();
+    if inputs.any(|i| Some(i) != first) {
+        return Ok(Some("a join of files whose streams are at other indexes"));
+    }
     for (path, input) in paths.iter().zip(&summary.inputs) {
         let file = FileSource::open(path)?;
         let movie = coreav_isobmff::probe(file, &Limits::default(), &Allowlist::listing())

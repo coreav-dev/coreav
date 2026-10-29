@@ -244,6 +244,19 @@ fn joins_ffmpeg_would_time_or_read_otherwise_are_refused() {
     };
     video("edits.mp4", vec![(160, 0), (160, 2048)]);
     video("plain.mp4", vec![(320, 0)]);
+    // The same tracks with the audio first: the demuxer pairs its first
+    // stream with the first file's video.
+    let mut bytes = av_movie_with(aac_entry(), false);
+    let traks: Vec<usize> = (4..bytes.len())
+        .filter(|&i| bytes[i..].starts_with(b"trak"))
+        .map(|i| i - 4)
+        .collect();
+    let size = |at: usize| u32::from_be_bytes(bytes[at..at + 4].try_into().unwrap()) as usize;
+    let (video_trak, audio_trak) = (traks[0], traks[1]);
+    let end = audio_trak + size(audio_trak);
+    let swapped = [&bytes[audio_trak..end], &bytes[video_trak..audio_trak]].concat();
+    bytes.splice(video_trak..end, swapped);
+    std::fs::write(dir.join("swapped.mp4"), bytes).unwrap();
     let output = dir.join("out.mp4");
     let o = output.to_str().unwrap();
     for (files, named) in [
@@ -256,6 +269,10 @@ fn joins_ffmpeg_would_time_or_read_otherwise_are_refused() {
         (
             "file edits.mp4\nfile plain.mp4\n",
             "tracks have several edits",
+        ),
+        (
+            "file in.mp4\nfile swapped.mp4\n",
+            "streams are at other indexes",
         ),
     ] {
         let list = dir.join("list.txt");

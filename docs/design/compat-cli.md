@@ -637,7 +637,9 @@ FFmpeg).**
   box: a 0.3 s video with 1 s of audio, listed twice, is 2.021333 s from
   `ffmpeg`), and inputs whose tracks have several edits, which the demuxer
   reads by its own edit model. Also inputs that do not match the first
-  (codec, configuration, size, time base) and streams `join_mp4` does not
+  (codec, configuration, size, time base), inputs that hold the copied
+  streams at other indexes than the first (the demuxer pairs streams by
+  index, `join_mp4` takes each file's first video and audio), and streams `join_mp4` does not
   copy (PCM audio, say). The join runs to a temporary file and finds these
   at its end; the output is left as it was.
 - **C15 and C19**, a clip of an audio-only file: `coreav clip` and `coreav
