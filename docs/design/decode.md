@@ -800,3 +800,14 @@ measurement.
 
      Items 1 and 2 are not specific to AV1 and would shorten every
      codec's short thumbnails.
+   - Measured again after items 1 and 2, on `main` at `55d126b`, with
+     bars committed before the run
+     (`docs/measurements/av1-thumbnail-fixed-cost.md`). The fixed cost is
+     gone: the files under 50 ms are at 0.673 for S3 (97% faster, a median
+     5.3 ms less than FFmpeg), 50 to 300 ms at 0.827 and over 300 ms at
+     0.744. Item 3 would now gain about 1 ms on a short thumbnail, the
+     worker's share there. Item 4 gains about 1 ms in keyframe mode with 2
+     or 4 threads and costs far more with `--exact`, so the default stays.
+     The worker's overhead was 0.156 on that run, over this bar's 0.15:
+     it grows with the frame (18.5 ms above 2.5 megapixels), so it is the
+     frame's copy, not the worker's start.

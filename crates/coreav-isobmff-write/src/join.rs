@@ -5,8 +5,9 @@
 //!
 //! Every sample of each input's kept tracks is copied once, in order. Each
 //! input keeps its own presentation: its edit lists (B-frame delay, audio
-//! priming and padding, frames outside a clip) become one edit per input in
-//! the output's edit list, and the inputs follow one another on the video's
+//! priming and padding, frames outside a clip) become one edit per media
+//! edit of each input in the output's edit list, with the empty edits
+//! between them, and the inputs follow one another on the video's
 //! timeline. Edits of inputs that meet exactly are merged, so the segments
 //! of a split join back into one edit per track.
 
@@ -52,8 +53,8 @@ const AUDIO_ID: u32 = 2;
 /// Each input keeps its own presentation, edit lists included: the output
 /// presents what each input presents, the inputs one after another, each
 /// starting where the previous input's video ends (the first at its own
-/// time 0). The output's edit list holds one edit per input and track,
-/// merged where two inputs meet exactly. Where an input's frames are
+/// time 0). The output's edit list holds one edit per media edit of each
+/// input and track, merged where two edits meet exactly. Where an input's frames are
 /// presented past the media time where the next input's start (a clip that
 /// ends inside a group of pictures, say), its last video sample's decode
 /// duration is extended so that they are not; [`JoinedInput::extended`]
@@ -424,11 +425,10 @@ pub fn join_mp4<S: Source, W: Write>(
 
     // The summary.
     let mut joined = Vec::new();
-    for (input, ((movie, pick), (span, placed))) in movies
+    for ((movie, pick), (span, placed)) in movies
         .iter()
         .zip(&picks)
         .zip(spans.iter().zip(&layout.inputs))
-        .enumerate()
     {
         let track = |t: &Track, listed: &Listed| ClipTrack {
             stream_index: t.stream_index,
@@ -467,14 +467,8 @@ pub fn join_mp4<S: Source, W: Write>(
                 .zip(span.audio.as_ref())
                 .map(|(a, s)| track(a.track, &s.listed)),
             offset: placed.offset,
-            video_start: layout
-                .video
-                .get(input)
-                .map_or(Ok(placed.offset), |p| Ok::<_, JoinError>(p.start))?,
-            video_end: layout
-                .video
-                .get(input)
-                .map_or(Ok(placed.offset), |p| Ok::<_, JoinError>(p.end))?,
+            video_start: placed.video.0,
+            video_end: placed.video.1,
             extended: placed.extended,
             left_out,
         });
@@ -765,16 +759,32 @@ struct Spans<'a> {
     audio: Option<AudioSpan<'a>>,
 }
 
-/// An input's timeline of at most one media edit: the join maps each input
-/// through one edit (`docs/design/join.md`), so an input whose edit list
-/// has several (which the clip writer now takes) is refused.
-fn one_edit(timeline: Timeline<'_>) -> Result<Timeline<'_>, Error> {
-    if timeline.has_windows() {
-        return Err(unsupported(
-            "an edit list of several edits, which a join does not take yet",
-        ));
+/// What an input presents of a track in `[from, to)` of its own timeline
+/// (media ticks): `(start, end, media time of start)` per media edit, a
+/// single one without a list of several edits.
+fn shown(
+    timeline: &Timeline<'_>,
+    from: Rational,
+    to: Rational,
+) -> Result<Vec<(Rational, Rational, Rational)>, Error> {
+    if !lt(from, to)? {
+        return Ok(Vec::new());
     }
-    Ok(timeline)
+    if !timeline.has_windows() {
+        return Ok(vec![(from, to, timeline.media(from)?)]);
+    }
+    let mut out = Vec::new();
+    for window in timeline.windows_near(from)? {
+        let (start, end, media_time) = window?;
+        if !lt(start, to)? {
+            break;
+        }
+        let (s, e) = (max(start, from)?, min(end, to)?);
+        if lt(s, e)? {
+            out.push((s, e, add(sub(s, start)?, int(media_time))?));
+        }
+    }
+    Ok(out)
 }
 
 /// Listing 1 for an input's video.
@@ -785,7 +795,7 @@ fn video_span<'a, S: Source>(
     limits: &Limits,
     budget: &mut Budget,
 ) -> Result<VideoSpan<'a>, Error> {
-    let timeline = one_edit(Timeline::of(track, movie, None)?)?;
+    let timeline = Timeline::with_several(track, movie, None)?;
     let scaled = Scaled::of(&timeline)?;
     let mut listed = Listed {
         samples: 0,
@@ -841,11 +851,7 @@ fn video_span<'a, S: Source>(
             }));
             last_cts = Some(last_cts.map_or(packet.cts, |c: i64| c.max(packet.cts)));
         }
-        if scaled.presents(packet.cts, packet.duration)? {
-            let p = scaled.present(packet.cts)?;
-            let p_end = p
-                .checked_add(scaled.span(packet.duration)?)
-                .ok_or_else(overflow)?;
+        if let Some((p, p_end)) = scaled.presented(packet.cts, packet.duration)? {
             if presented.is_none_or(|(_, hi)| p_end >= hi) {
                 last_frame = scaled.span(packet.duration)?;
             }
@@ -897,7 +903,12 @@ fn video_span<'a, S: Source>(
             end = window_end;
         }
     }
-    if let Some(duration) = track.duration {
+    // The stream's duration is what its one edit presents; with several,
+    // the edits themselves bound it, and an end between two of them is
+    // where the earlier one ends.
+    if timeline.has_windows() {
+        end = timeline.presented_until(end)?;
+    } else if let Some(duration) = track.duration {
         end = min(end, add(window_start, duration)?)?;
     }
     let start = max(scaled.ticks(first)?, window_start)?;
@@ -933,7 +944,7 @@ fn audio_span<'a, S: Source>(
     budget: &mut Budget,
 ) -> Result<AudioSpan<'a>, Error> {
     let gapless = gapless(movie, track, &mut *source)?;
-    let timeline = one_edit(Timeline::of(track, movie, gapless)?)?;
+    let timeline = Timeline::with_several(track, movie, gapless)?;
     let scaled = Scaled::of(&timeline)?;
     let mut listed = Listed {
         samples: 0,
@@ -964,11 +975,7 @@ fn audio_span<'a, S: Source>(
             .duration
             .checked_add(u64::from(packet.duration))
             .ok_or_else(overflow)?;
-        if scaled.presents(packet.dts, packet.duration)? {
-            let q = scaled.present(packet.dts)?;
-            let q_end = q
-                .checked_add(scaled.span(packet.duration)?)
-                .ok_or_else(overflow)?;
+        if let Some((q, q_end)) = scaled.presented(packet.dts, packet.duration)? {
             presented = Some(presented.map_or((q, q_end), |(lo, hi)| (lo.min(q), hi.max(q_end))));
         }
     }
@@ -980,6 +987,7 @@ fn audio_span<'a, S: Source>(
             if let Some(window_end) = window_end {
                 end = min(end, window_end)?;
             }
+            let end = timeline.presented_until(end)?;
             lt(start, end)?.then_some((start, end))
         }
         None => None,
@@ -1004,6 +1012,9 @@ struct Piece {
 struct Placed {
     offset: Rational,
     extended: u64,
+    /// Where its video is presented in the output, `[start, end)` in
+    /// seconds.
+    video: (Rational, Rational),
 }
 
 struct Layout {
@@ -1049,16 +1060,31 @@ fn place(spans: &[Spans<'_>], tv: u32, ta: Option<u32>) -> Result<Layout, Error>
         next_start = add(offset, seconds(span.video.end, tv)?)?;
         offsets.push(offset);
     }
+    // What each input presents of its video, one piece per media edit.
+    let mut shown_video = Vec::new();
+    for span in spans {
+        let pieces = shown(&span.video.timeline, span.video.start, span.video.end)?;
+        if pieces.is_empty() {
+            return Err(unsupported("no video sample is presented"));
+        }
+        shown_video.push(pieces);
+    }
     // Where each input's video is presented in the output. An input whose
     // video starts after the previous input's ends (its own video starts
     // after its audio) does not leave a gap: the previous input's last frame
-    // is held until then, its edit running on into the held time.
+    // is held until then, its edit running on into the held time; unless a
+    // frame of its own is composed after its last edit (a frame cut out
+    // between two edits, or one a clip keeps only for decoding), which the
+    // running edit would show: then the gap stays an empty edit.
     let mut video_spans = Vec::new();
-    for (index, span) in spans.iter().enumerate() {
+    for (index, (span, pieces)) in spans.iter().zip(&shown_video).enumerate() {
         let offset = *offsets.get(index).ok_or_else(overflow)?;
         let start = add(offset, seconds(span.video.start, tv)?)?;
         let mut end = add(offset, seconds(span.video.end, tv)?)?;
-        if let (Some(next), Some(next_offset)) = (
+        let &(s, e, media) = pieces.last().ok_or_else(overflow)?;
+        let holds = lt(int(span.video.last_cts), add(media, sub(e, s)?)?)?;
+        if let (true, Some(next), Some(next_offset)) = (
+            holds,
             spans.get(index.saturating_add(1)),
             offsets.get(index.saturating_add(1)),
         ) {
@@ -1077,12 +1103,17 @@ fn place(spans: &[Spans<'_>], tv: u32, ta: Option<u32>) -> Result<Layout, Error>
         let base = decode;
         video_bases.push(base);
         let relative = |t: Rational| sub(t, int(v.listed.first_dts));
-        let (out_start, out_end) = *video_spans.get(index).ok_or_else(overflow)?;
-        let media_start = relative(v.timeline.media(v.start)?)?;
-        let edit = (
-            media_start,
-            add(media_start, scale(sub(out_end, out_start)?, tv, 1)?)?,
-        );
+        let offset = *offsets.get(index).ok_or_else(overflow)?;
+        let (_, out_end) = *video_spans.get(index).ok_or_else(overflow)?;
+        // The media time where its last piece ends, held time included.
+        let &(last_start, _, last_media) = shown_video
+            .get(index)
+            .and_then(|pieces| pieces.last())
+            .ok_or_else(overflow)?;
+        let edit_end = add(
+            relative(last_media)?,
+            scale(sub(out_end, add(offset, seconds(last_start, tv)?)?)?, tv, 1)?,
+        )?;
         // Every composition time of this input must come before every one
         // of the next. When all of them lie before the end of its edit (a
         // segment cut at a frame of its source, say), the edit ends its
@@ -1093,10 +1124,10 @@ fn place(spans: &[Spans<'_>], tv: u32, ta: Option<u32>) -> Result<Layout, Error>
         // decoding) its frames' whole durations must end first, so that
         // none of them is shown in the next input's edit.
         let instants = relative(int(v.last_cts.checked_add(1).ok_or_else(overflow)?))?;
-        let hi = if lt(edit.1, instants)? {
-            max(relative(int(v.comp.1))?, edit.1)?
+        let hi = if lt(edit_end, instants)? {
+            max(relative(int(v.comp.1))?, edit_end)?
         } else {
-            edit.1
+            edit_end
         };
         let mut step = int(i64::try_from(v.listed.duration).map_err(|_| overflow())?);
         if let Some(next) = spans.get(index.saturating_add(1)) {
@@ -1121,17 +1152,24 @@ fn place(spans: &[Spans<'_>], tv: u32, ta: Option<u32>) -> Result<Layout, Error>
         let v = &span.video;
         let base = *video_bases.get(index).ok_or_else(overflow)?;
         let (start, end) = *video_spans.get(index).ok_or_else(overflow)?;
-        video.push(Piece {
-            start,
-            end,
-            media: add(
-                base,
-                sub(v.timeline.media(v.start)?, int(v.listed.first_dts))?,
-            )?,
-        });
+        let pieces = shown_video.get(index).ok_or_else(overflow)?;
+        for (k, &(s, e, media)) in pieces.iter().enumerate() {
+            // The last piece runs on to the input's end, held time included.
+            let piece_end = if k.saturating_add(1) == pieces.len() {
+                end
+            } else {
+                add(offset, seconds(e, tv)?)?
+            };
+            video.push(Piece {
+                start: add(offset, seconds(s, tv)?)?,
+                end: piece_end,
+                media: add(base, sub(media, int(v.listed.first_dts))?)?,
+            });
+        }
         inputs.push(Placed {
             offset,
             extended: *extended.get(index).ok_or_else(overflow)?,
+            video: (start, end),
         });
     }
     // Far samples are left out of the composition intervals above: no edit
@@ -1174,22 +1212,19 @@ fn place(spans: &[Spans<'_>], tv: u32, ta: Option<u32>) -> Result<Layout, Error>
                     };
                     end = min(end, next_start)?;
                 }
-                let media = sub(a.timeline.media(start)?, int(a.listed.first_dts))?;
-                let media_end = add(
-                    media,
-                    scale(sub(end, add(offset, seconds(start, ta)?)?)?, ta, 1)?,
-                )?;
-                if lt(
-                    int(i64::try_from(a.listed.duration).map_err(|_| overflow())?),
-                    media_end,
-                )? {
-                    return Err(unsupported("an audio edit runs past the audio's samples"));
+                let samples = int(i64::try_from(a.listed.duration).map_err(|_| overflow())?);
+                let local_end = scale(sub(end, offset)?, ta, 1)?;
+                for (s, e, media) in shown(&a.timeline, start, local_end)? {
+                    let media = sub(media, int(a.listed.first_dts))?;
+                    if lt(samples, add(media, sub(e, s)?)?)? {
+                        return Err(unsupported("an audio edit runs past the audio's samples"));
+                    }
+                    audio.push(Piece {
+                        start: add(offset, seconds(s, ta)?)?,
+                        end: add(offset, seconds(e, ta)?)?,
+                        media: add(base, media)?,
+                    });
                 }
-                audio.push(Piece {
-                    start: add(offset, seconds(start, ta)?)?,
-                    end,
-                    media: add(base, media)?,
-                });
             }
             base = add(
                 base,

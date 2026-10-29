@@ -1233,6 +1233,36 @@ impl<'a> Windows<'a> {
         }))
     }
 
+    /// Where media `[from, to)` (units) is presented: from where the
+    /// first window that shows part of it starts showing it to where the
+    /// last one stops, in units; a window holding `from` shows an empty
+    /// interval. `None` when no window shows any of it. The windows'
+    /// media intervals increase, so those that show part of it are
+    /// consecutive.
+    fn hull(&self, from: i64, to: i64) -> Result<Option<(i64, i64)>, Error> {
+        let mut next = Some(self.locate(from)?);
+        let mut hull: Option<(i64, i64)> = None;
+        while let Some(c) = next {
+            let w = self.window(c)?;
+            if w.0 > to {
+                break;
+            }
+            let (lo, hi) = (from.max(w.0), to.min(w.1));
+            let shown = if from == to {
+                w.0 <= from && from < w.1
+            } else {
+                lo < hi
+            };
+            if shown {
+                let at = |t: i64| t.checked_sub(w.0).and_then(|v| v.checked_add(w.2));
+                let (p, p_end) = (at(lo).ok_or_else(overflow)?, at(hi).ok_or_else(overflow)?);
+                hull = Some(hull.map_or((p, p_end), |(a, b)| (a.min(p), b.max(p_end))));
+            }
+            next = self.step_forward(c)?;
+        }
+        Ok(hull)
+    }
+
     /// The windows in order.
     fn iter(&self) -> WindowsIter<'_> {
         WindowsIter {
@@ -1599,6 +1629,29 @@ impl<'a> Scaled<'a> {
             .checked_add(self.span(duration)?)
             .ok_or_else(overflow)?;
         Ok(from < end && start < to)
+    }
+
+    /// Where the sample at media time `t` lasting `duration` is presented,
+    /// `[start, end)` in units, when any edit presents part of it. With
+    /// several edits, every window that shows part of it counts, from
+    /// where the first one starts showing it to where the last one stops
+    /// (a sample can be shown by more than one).
+    pub(crate) fn presented(&self, t: i64, duration: u32) -> Result<Option<(i64, i64)>, Error> {
+        if !self.windows.is_empty() {
+            let from = t.checked_mul(self.d).ok_or_else(overflow)?;
+            let to = from
+                .checked_add(self.span(duration)?)
+                .ok_or_else(overflow)?;
+            return self.windows.hull(from, to);
+        }
+        if !self.presents(t, duration)? {
+            return Ok(None);
+        }
+        let p = self.present(t)?;
+        Ok(Some((
+            p,
+            p.checked_add(self.span(duration)?).ok_or_else(overflow)?,
+        )))
     }
 
     /// The largest whole unit at most `r` media ticks.
