@@ -14,7 +14,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use coreav_cli::fallback::{self, NotNative, NotRun, Tool};
 
-use crate::compat_cmd::{EXIT_UNSUPPORTED, multicall};
+use super::compat_cmd::{EXIT_UNSUPPORTED, multicall};
 
 /// Set for the program that runs instead, so that a `coreav` it leads back
 /// to refuses rather than loops.
