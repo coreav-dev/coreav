@@ -234,6 +234,20 @@ class Round17(unittest.TestCase):
         self.assertEqual(status, bars.REFUSED)
         self.assertIn("subset cavlc has no stream in call h's set", err)
 
+    def test_a_subset_named_per_stream_is_refused(self):
+        # the summary keeps every stream's ratio under `per_stream` beside the groups: a subset of that name had
+        # its statistics replaced by those ratios, and a check on it raised KeyError('median')
+        spec = json.loads(json.dumps(SPEC))
+        spec['subsets'] = {'per_stream': ['5185721dda11', 'ec473c99c538']}
+        check = {'call': 'g', 'pairing': 'discard', 'groups': ['per_stream'], 'median_max': 2.0}
+        for extra in ([], [{'name': 'S', 'checks': [check]}]):
+            with self.subTest(extra=extra):
+                self.write_spec(dict(spec, bars=SPEC['bars'] + extra))
+                status, out, err = self.run_main()
+                self.assertEqual(status, bars.REFUSED, out)
+                self.assertIn('subset per_stream: a reserved name', err)
+                self.assertNotIn('bars:', out)
+
     def test_subsets_and_the_summary_file(self):
         spec = json.loads(json.dumps(SPEC))
         spec['subsets'] = {'cavlc': ['5185721dda11', 'ec473c99c538']}
