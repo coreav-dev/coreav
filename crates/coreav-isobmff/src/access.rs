@@ -429,6 +429,154 @@ pub fn av1_config_reduced(av1c: &[u8]) -> Option<bool> {
     reduced
 }
 
+/// What the NAL units of one frame seen so far add up to, so that the
+/// length-prefixed walk ([`walk`]) and the byte stream walk
+/// ([`annex_b_frame_access`]) classify a unit by the same rules. The
+/// bytes each is given of a unit differ by one: the length-prefixed walk
+/// reads the NAL unit header byte within its budget and drops it.
+#[derive(Clone, Copy, Debug)]
+struct Units {
+    access: FrameAccess,
+    slices: u64,
+    intra: bool,
+    reference: bool,
+}
+
+impl Units {
+    fn new() -> Self {
+        Self {
+            access: FrameAccess::default(),
+            slices: 0,
+            intra: true,
+            reference: true,
+        }
+    }
+
+    /// Whether an SEI unit's messages are still wanted: only until the
+    /// frame has a recovery point.
+    fn wants_sei(&self) -> bool {
+        self.access.recovery_frames.is_none()
+    }
+
+    /// One coded slice, or data partition A, which starts with the slice
+    /// header: `header` its NAL unit header byte and `head` the bytes
+    /// after it, at least [`SLICE_HEADER_BYTES`] of them where the unit
+    /// has that many. `None` when the slice header does not parse.
+    fn slice(&mut self, header: u8, head: &[u8]) -> Option<()> {
+        let slice_type = slice_type(head)?;
+        self.slices = self.slices.saturating_add(1);
+        self.intra &= matches!(slice_type % 5, 2 | 4);
+        self.reference &= header & 0x60 != 0;
+        self.access.idr |= header & 0x1f == NAL_IDR;
+        Some(())
+    }
+
+    /// One SEI unit's payload, the NAL unit header byte removed.
+    fn sei(&mut self, payload: &[u8]) {
+        if let Some((frames, exact)) = recovery_point(payload) {
+            self.access.recovery_frames = Some(frames);
+            self.access.recovery_exact = exact;
+        }
+    }
+
+    fn finish(self) -> FrameAccess {
+        FrameAccess {
+            intra: self.slices > 0 && self.intra,
+            reference: self.slices > 0 && self.reference,
+            ..self.access
+        }
+    }
+}
+
+/// Start code prefixes of the byte stream format (ITU-T H.264 Annex B):
+/// `start_code_prefix_one_3bytes`, with or without the leading
+/// `zero_byte`.
+const START_CODE: [u8; 3] = [0, 0, 1];
+
+/// [`read_frame_access`] of one frame stored as a byte stream (ITU-T
+/// H.264 Annex B), which Matroska holds for an H.264 track written
+/// without a configuration record (RFC 9559 codec mappings,
+/// `V_MPEG4/ISO/AVC`).
+///
+/// `frame` holds the frame's bytes from its first start code. `complete`
+/// says whether they are all of it: a caller that read a prefix of the
+/// frame passes `false`, and a prefix that ends before the frame's first
+/// coded slice then gives `None`, since it says nothing about the frame.
+/// Where a prefix does hold a slice, `idr` and the recovery point are the
+/// frame's (all slices of a picture are IDR slices or none is, 7.4.1.2.4,
+/// and a recovery point message precedes them), while `intra` and
+/// `reference`, which are claims about every slice, are `false`: a slice
+/// past the prefix could contradict them.
+///
+/// `None` also when `frame` holds no start code, so it is no byte stream,
+/// or when a slice header does not parse, which discards what the units
+/// before it said, as the length-prefixed walk does.
+///
+/// Emulation prevention (7.4.1.1) keeps a start code out of a NAL unit's
+/// bytes, so the units are exactly the stretches between the start codes,
+/// less the `trailing_zero_8bits` after each (B.1.1).
+#[must_use]
+pub fn annex_b_frame_access(frame: &[u8], complete: bool) -> Option<FrameAccess> {
+    let mut units = Units::new();
+    let mut at = find_start_code(frame, 0)?;
+    loop {
+        let next = find_start_code(frame, at);
+        // The unit ends where the next start code begins, three bytes
+        // before `next`, less the `trailing_zero_8bits` that may follow a
+        // NAL unit and the `zero_byte` of a four-byte start code (B.1.1);
+        // a NAL unit's last byte is never 0x00 (7.4.1).
+        let end = next.map_or(frame.len(), |n| n.saturating_sub(START_CODE.len()));
+        let unit = frame.get(at..end).unwrap_or(&[]);
+        let kept = unit.iter().rposition(|b| *b != 0).map_or(0, |i| i + 1);
+        let unit = unit.get(..kept).unwrap_or(&[]);
+        // Two start codes with nothing but zero bytes between them hold no
+        // unit.
+        if let Some((header, head)) = unit.split_first() {
+            let head = |bytes: u64| {
+                let kept = usize::try_from(bytes).unwrap_or(usize::MAX).min(head.len());
+                head.get(..kept).unwrap_or(head)
+            };
+            match header & 0x1f {
+                NAL_SLICE | NAL_PARTITION_A | NAL_IDR => {
+                    units.slice(*header, head(SLICE_HEADER_BYTES))?;
+                }
+                NAL_SEI if units.wants_sei() => units.sei(head(MAX_SEI_BYTES)),
+                _ => {}
+            }
+        }
+        match next {
+            Some(next) => at = next,
+            None => {
+                return (complete || units.slices > 0).then(|| {
+                    let frame = units.finish();
+                    if complete {
+                        frame
+                    } else {
+                        // Claims about every slice are not made of a
+                        // prefix: a slice past it could contradict them.
+                        FrameAccess {
+                            intra: false,
+                            reference: false,
+                            ..frame
+                        }
+                    }
+                });
+            }
+        }
+    }
+}
+
+/// The offset just after the next start code at or after `from`, or
+/// `None` when none follows. It is at least `from + 3`, so the unit
+/// before it is never read past.
+fn find_start_code(frame: &[u8], from: usize) -> Option<usize> {
+    let rest = frame.get(from..)?;
+    let at = rest
+        .windows(START_CODE.len())
+        .position(|w| w == START_CODE)?;
+    from.checked_add(at)?.checked_add(START_CODE.len())
+}
+
 /// The walk of [`read_frame_access`], reading SEI messages when `sei`.
 fn walk<S: Source>(
     format: AccessFormat,
@@ -441,10 +589,7 @@ fn walk<S: Source>(
     let AccessFormat::H264 { length_size } = format;
     let end = offset.checked_add(len).ok_or(Error::Overflow { offset })?;
     let length_size = u64::from(length_size);
-    let mut access = FrameAccess::default();
-    let mut slices = 0u64;
-    let mut intra = true;
-    let mut reference = true;
+    let mut units = Units::new();
     let (mut stack, mut heap) = ([0u8; STACK_BYTES], Vec::new());
     let mut at = offset;
     while at < end {
@@ -474,16 +619,15 @@ fn walk<S: Source>(
             return Ok(None);
         };
         match header & 0x1f {
-            kind @ (NAL_SLICE | NAL_PARTITION_A | NAL_IDR) => {
-                let Some(slice_type) = slice_type(head.get(1..).unwrap_or_default()) else {
+            NAL_SLICE | NAL_PARTITION_A | NAL_IDR => {
+                if units
+                    .slice(header, head.get(1..).unwrap_or_default())
+                    .is_none()
+                {
                     return Ok(None);
-                };
-                slices = slices.saturating_add(1);
-                intra &= matches!(slice_type % 5, 2 | 4);
-                reference &= header & 0x60 != 0;
-                access.idr |= kind == NAL_IDR;
+                }
             }
-            NAL_SEI if sei && access.recovery_frames.is_none() => {
+            NAL_SEI if sei && units.wants_sei() => {
                 let payload = read_head(
                     source,
                     body,
@@ -491,19 +635,13 @@ fn walk<S: Source>(
                     &mut stack,
                     &mut heap,
                 )?;
-                if let Some((frames, exact)) = recovery_point(payload.get(1..).unwrap_or_default())
-                {
-                    access.recovery_frames = Some(frames);
-                    access.recovery_exact = exact;
-                }
+                units.sei(payload.get(1..).unwrap_or_default());
             }
             _ => {}
         }
         at = next;
     }
-    access.intra = slices > 0 && intra;
-    access.reference = slices > 0 && reference;
-    Ok(Some(access))
+    Ok(Some(units.finish()))
 }
 
 /// `slice_type` of a slice header (ITU-T H.264 7.3.3), the NAL unit header
@@ -709,6 +847,104 @@ mod tests {
     }
 
     #[test]
+    fn byte_stream_frames() {
+        // A start code before each unit, with and without the leading
+        // zero byte, as a writer that muxed a byte stream leaves them.
+        let sets = [vec![0, 0, 0, 1, 0x67, 0x42], vec![0, 0, 1, 0x68, 0xCE]].concat();
+        let idr = [sets.clone(), vec![0, 0, 1], slice(5, 7)].concat();
+        assert_eq!(
+            annex_b_frame_access(&idr, true),
+            Some(FrameAccess {
+                idr: true,
+                intra: true,
+                recovery_frames: None,
+                recovery_exact: false,
+                reference: true,
+            })
+        );
+        // A picture without its parameter sets: the same P slice the
+        // length-prefixed walk reads.
+        let p = [vec![0, 0, 0, 1], slice(1, 0)].concat();
+        assert_eq!(annex_b_frame_access(&p, true), access(&nal(&slice(1, 0))));
+        assert_eq!(
+            annex_b_frame_access(&p, true).map(|a| a.starts_decoding(None)),
+            Some(false)
+        );
+        // Bytes with no start code are no byte stream.
+        assert_eq!(annex_b_frame_access(&nal(&slice(5, 7)), true), None);
+        assert_eq!(annex_b_frame_access(&[], true), None);
+        // Zero bytes between two start codes are no NAL unit, and
+        // trailing zero bytes after a unit are not part of it.
+        let padded = [vec![0, 0, 1, 0, 0, 0, 1], slice(5, 7), vec![0, 0]].concat();
+        assert_eq!(
+            annex_b_frame_access(&padded, true).map(|a| (a.idr, a.intra)),
+            Some((true, true))
+        );
+        // A frame that ends at a start code.
+        assert_eq!(
+            annex_b_frame_access(&[0, 0, 1], true).map(|a| a.intra),
+            Some(false)
+        );
+        // A slice header that does not parse, alone and with a unit after
+        // it: the start code that follows is no part of the slice, so it
+        // cannot complete the header's Exp-Golomb codes.
+        let short = [vec![0, 0, 1], vec![0x65]].concat();
+        assert_eq!(annex_b_frame_access(&short, true), None);
+        let truncated = [0x61, 0x21];
+        assert_eq!(
+            annex_b_frame_access(&[vec![0, 0, 1], truncated.to_vec()].concat(), true),
+            access(&nal(&truncated))
+        );
+        for tail in [vec![0x67, 0x42], vec![0x06, 0x80], vec![0x09, 0x10]] {
+            let frame = [vec![0, 0, 1], truncated.to_vec(), vec![0, 0, 0, 1], tail].concat();
+            assert_eq!(annex_b_frame_access(&frame, true), None);
+        }
+        // A recovery point message makes a frame without an IDR picture a
+        // start, as it does in a length-prefixed frame:
+        // recovery_frame_cnt 0 (ue 1), exact_match_flag 1,
+        // broken_link_flag 0, changing_slice_group_idc 00.
+        let exact = [0x06, 6, 1, 0b1100_0000, 0x80];
+        let recovery = [vec![0, 0, 0, 1], exact.to_vec(), vec![0, 0, 1], slice(1, 2)].concat();
+        assert_eq!(
+            annex_b_frame_access(&recovery, true).map(|a| a.starts_decoding(None)),
+            Some(true)
+        );
+        assert_eq!(
+            annex_b_frame_access(&recovery, true),
+            access(&[nal(&exact), nal(&slice(1, 2))].concat())
+        );
+        // A prefix of a frame that ends before its first slice says
+        // nothing about the frame; one that holds a slice does.
+        let long = [
+            vec![0, 0, 0, 1],
+            vec![0x67, 0x42],
+            vec![0, 0, 1],
+            slice(5, 7),
+        ]
+        .concat();
+        assert_eq!(annex_b_frame_access(&long[..6], false), None);
+        assert_eq!(
+            annex_b_frame_access(&long, false).map(|a| a.idr),
+            Some(true)
+        );
+        // Of a prefix, the claims about every slice are not made.
+        let i = [vec![0, 0, 0, 1], slice(1, 2)].concat();
+        assert_eq!(
+            annex_b_frame_access(&i, false).map(|a| (a.intra, a.reference)),
+            Some((false, false))
+        );
+        assert_eq!(
+            annex_b_frame_access(&i, true).map(|a| (a.intra, a.reference)),
+            Some((true, true))
+        );
+        // Complete, the same bytes hold a frame with no slice at all.
+        assert_eq!(
+            annex_b_frame_access(&long[..6], true).map(|a| a.starts_decoding(None)),
+            Some(false)
+        );
+    }
+
+    #[test]
     fn length_sizes_and_partitions() {
         for length_size in [1u8, 2] {
             let frame = [slice(2, 2), slice(1, 7)]
@@ -898,14 +1134,33 @@ mod tests {
     fn every_prefix_and_byte_is_safe() {
         let sei = [0x06, 6, 1, 0b0010_0100, 0x80];
         let frame = [nal(&sei), nal(&slice(5, 7)), nal(&slice(1, 0))].concat();
+        let stream = [
+            vec![0, 0, 0, 1],
+            sei.to_vec(),
+            vec![0, 0, 1],
+            slice(5, 7),
+            vec![0, 0, 1],
+            slice(1, 0),
+        ]
+        .concat();
         for end in 0..frame.len() {
             access(&frame[..end]);
+        }
+        for end in 0..=stream.len() {
+            let _ = annex_b_frame_access(&stream[..end], end == stream.len());
         }
         for i in 0..frame.len() {
             for value in [0x00, 0x03, 0x7F, 0xFF] {
                 let mut changed = frame.clone();
                 changed[i] = value;
                 access(&changed);
+            }
+        }
+        for i in 0..stream.len() {
+            for value in [0x00, 0x01, 0x03, 0x7F, 0xFF] {
+                let mut changed = stream.clone();
+                changed[i] = value;
+                let _ = annex_b_frame_access(&changed, i % 2 == 0);
             }
         }
     }

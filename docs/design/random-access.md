@@ -24,6 +24,14 @@ frame:
   without an IDR picture. With it,
   `Movie::max_num_ref_frames`: how many frames a P or B frame of the track
   may reference, from its sequence parameter set (7.4.2.1.1).
+  `access::annex_b_frame_access` answers the same for a frame stored as a
+  byte stream (Annex B), from its bytes rather than through the source,
+  since such a frame's units are the stretches between its start codes and
+  have no lengths to walk; a Matroska H.264 track written without a
+  configuration record carries one (`docs/design/thumbnails.md`, "H.264
+  without a configuration record"). A caller may pass a prefix of the
+  frame, which gives `None` when it ends before the frame's first coded
+  slice.
 
 For AV1 tracks the coded data's view is `access::read_av1_frame_start`:
 whether the sample holds a sequence header OBU, and whether its first
@@ -87,9 +95,12 @@ byte; the first 32 bytes of each coded slice (enough for
 removed); and at most 4,096 bytes of each SEI NAL unit, whose messages are
 walked for a recovery point. Coded data is never read. Each NAL unit
 charges one unit of `max_sample_work`, the budget of the packet listing it
-belongs to. A frame whose NAL unit lengths run past its end, or whose slice
+belongs to. `annex_b_frame_access` takes no budget: it reads the bytes it
+is given once, so the caller bounds it by how many it passes (the
+thumbnail passes at most 8,192). A frame whose NAL unit lengths run past its end, or whose slice
 header does not parse, gives `None` (unknown); the adapter then falls back
-to the sync sample flag. A zero NAL unit length ends the walk: zero-filled padding would
+to the sync sample flag. So does a byte stream with no start code in it,
+or a prefix of a frame that ends before its first coded slice. A zero NAL unit length ends the walk: zero-filled padding would
 otherwise cost one unit per length field. Fuzz target:
 `crates/coreav-isobmff/fuzz`, `frame_access`. Cost: on the corpus, reading
 the view while listing packets took the largest H.264 file (223 MB,
