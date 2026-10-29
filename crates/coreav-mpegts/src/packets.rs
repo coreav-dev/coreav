@@ -74,6 +74,10 @@ struct Frames {
     /// frame header are the tail of one that began before the file, and
     /// are listed as a packet of their own.
     started: bool,
+    /// The bytes before the stream's first frame header, when they join
+    /// that frame's packet rather than being one of their own (MPEG audio
+    /// in the listing as `ffprobe` gives it), until the frame is whole.
+    lead: Vec<u8>,
     /// When the next frame starts (90 kHz), from [`Frames::anchor`].
     next: Option<i64>,
     /// The last time a frame was given (a PES packet's), the samples of
@@ -99,6 +103,12 @@ struct Frames {
     /// The PTS and position of the PES packet in which the frame
     /// `leftover` starts, when it is the first frame that starts there.
     cut: Option<(Option<i64>, i64, u64)>,
+    /// The frame `leftover` starts is an AC-3 or E-AC-3 frame of which its
+    /// PES packet holds fewer than [`AC3_TIMED`] bytes: in the listing as
+    /// `ffprobe` gives it, it takes the time and position of the PES
+    /// packet it goes on in, and so does the first frame that starts
+    /// there.
+    late: bool,
     /// What the stream's presentation times are ahead of its decoding
     /// times, from the PES packet the frames of a run take their time
     /// from: a muxer that states a decoding time for sound states one
@@ -168,6 +178,22 @@ impl Frames {
     }
 }
 
+/// The bytes of an AC-3 or E-AC-3 frame a PES packet has to hold for the
+/// frame to take the time and position of the PES packet it starts in,
+/// in the listing as `ffprobe` gives it: a frame the end of its PES
+/// packet cuts within its first six bytes takes those of the next one,
+/// as the first frame that starts there does too (a capture of the
+/// corpus whose AC-3 frame starts six bytes before the end of its PES
+/// packet, and AC-3 and E-AC-3 streams crafted with every cut from one
+/// byte to sixteen; ADTS, MP2 and MP3 streams crafted so show no such
+/// rule). The six bytes are AC-3's `syncinfo` and the `bsid` after it
+/// (ATSC A/52 5.3.1, 5.4.2.1), and E-AC-3's first six.
+const AC3_TIMED: usize = 7;
+/// The samples an AC-3 frame holds (A/52 5.3.1, six blocks of 256): the
+/// duration `ffprobe` gives the bytes before a stream's first frame
+/// header, whose own header this reader may never read.
+const AC3_SAMPLES: u32 = 1536;
+
 /// Most dependent substreams in one E-AC-3 access unit (ATSC A/52 annex E
 /// 2.3.1.2: `substreamid` 0 to 7).
 const MAX_DEPENDENT: u8 = 8;
@@ -212,6 +238,22 @@ struct Piece<'a> {
     offset: u64,
     random_access: bool,
     stream_id: u8,
+}
+
+/// The start code syntax whose access units a stream of `codec` is cut
+/// into across its PES packets: H.264 and HEVC always; MPEG-1 and MPEG-2
+/// video in the listing as `ffprobe` gives it, which lists their pictures
+/// one by one however many a PES packet holds (a capture of the corpus
+/// with four pictures to a PES packet of 120 KB, and streams crafted with
+/// one to three, and a fixed 5,000 bytes, to a PES packet). Elsewhere a
+/// PES packet of MPEG video is a packet, the unit the file delivers.
+fn units_of(codec: Codec, as_ffprobe: bool) -> Option<Nal> {
+    match codec {
+        Codec::H264 => Some(Nal::H264),
+        Codec::Hevc => Some(Nal::Hevc),
+        Codec::Mpeg1Video | Codec::Mpeg2Video if as_ffprobe => Some(Nal::Mpeg2),
+        _ => None,
+    }
 }
 
 /// `num / den` rounded to the nearest integer, halves up, for either sign
@@ -377,12 +419,21 @@ impl<S: Source> Packets<'_, S> {
     /// - the PES packets of H.264, HEVC, MPEG-1 and MPEG-2 video are read
     ///   in pieces of 204,800 payload bytes as they arrive, and the first
     ///   unit that starts in a later piece takes the PES packet's position;
-    /// - an H.264 or HEVC access unit is listed as soon as the start of the
-    ///   next one shows where it ends, and the units after the first one of
-    ///   a PES packet take no time and no position, rather than dividing
-    ///   the step to the next stated time between them as a run;
+    /// - an H.264 or HEVC access unit, or an MPEG-1 or MPEG-2 picture
+    ///   (with its second field, if it is a field), is listed as soon as
+    ///   the start of the next one shows where it ends, and the units after
+    ///   the first one of a PES packet take no time and no position, rather
+    ///   than dividing the step to the next stated time between them as a
+    ///   run (MPEG video is otherwise listed a PES packet at a time);
     ///   [`Packet::fed`] is the stream id of the PES packet whose reading
     ///   finished the unit;
+    /// - the bytes before an MPEG audio stream's first frame are the start
+    ///   of that frame's packet, and an AC-3 or E-AC-3 frame of which its
+    ///   PES packet holds fewer than seven bytes takes the next PES
+    ///   packet's time and position;
+    /// - the splice information sections of an SCTE 35 stream are its
+    ///   packets, timed by the last program clock reference of its
+    ///   program;
     /// - AAC frames a PES packet does not time fall on a grid of frames
     ///   counted from time zero, AC-3 and E-AC-3 frames one truncated frame
     ///   duration after the one before, and an AC-3 frame held for the next
@@ -394,6 +445,7 @@ impl<S: Source> Packets<'_, S> {
     pub fn listing_as_ffprobe(mut self) -> Self {
         self.as_ffprobe = true;
         self.demux.pieces = Some(PES_PIECE);
+        self.demux.keep_splices = true;
         self
     }
 
@@ -525,18 +577,40 @@ impl<S: Source> Packets<'_, S> {
         Ok(())
     }
 
+    /// Lists what the demultiplexer finished, and bounds what is held.
+    /// Most transport packets finish nothing: that case does no more than
+    /// look.
+    #[inline]
     fn drain(&mut self) -> Result<(), Error> {
+        if !self.demux.sections_listed.is_empty() || !self.demux.ready.is_empty() {
+            self.list_finished();
+        }
+        if self.carried.saturating_add(self.demux.buffered()) > self.max_buffered {
+            return Err(Error::LimitExceeded {
+                limit: LimitKind::BufferedBytes,
+                offset: self.reader.position(),
+            });
+        }
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn list_finished(&mut self) {
         // Each section of the Event Information Table is a packet of the
         // `epg` stream, header and CRC included: the file states no time
-        // and no position for it, as `ffprobe` also reports.
-        while let Some(section) = self.demux.epg_sections.pop_front() {
-            if let Some(&index) = self.by_pid.get(&crate::section::EIT_PID) {
+        // and no position for it, as `ffprobe` also reports. Each splice
+        // information section of an SCTE 35 stream is a packet of it too,
+        // timed by the last clock reference of its program (in the listing
+        // as `ffprobe` gives it).
+        while let Some((pid, section, clock)) = self.demux.sections_listed.pop_front() {
+            if let Some(&index) = self.by_pid.get(&pid) {
+                let time = clock.map(|t| self.ts.unwrap(pid, t));
                 self.queue.push_back(Packet {
                     stream: index,
                     pos: None,
                     pes_offset: 0,
-                    pts: None,
-                    dts: None,
+                    pts: time,
+                    dts: time,
                     duration: None,
                     keyframe: true,
                     data: section,
@@ -553,11 +627,12 @@ impl<S: Source> Packets<'_, S> {
                 // In the listing as `ffprobe` gives it, a coded video
                 // stream's units carry the stream id from the reading that
                 // finished them ([`Au::fed`]).
-                let coded = self.as_ffprobe
+                let as_ffprobe = self.as_ffprobe;
+                let coded = as_ffprobe
                     && self
                         .streams
                         .get(index)
-                        .is_some_and(|s| matches!(s.codec, Codec::H264 | Codec::Hevc));
+                        .is_some_and(|s| units_of(s.codec, as_ffprobe).is_some());
                 self.pes(index, pes);
                 // What this PES packet released of its stream takes its
                 // damage, and the first of it its stream id.
@@ -573,13 +648,6 @@ impl<S: Source> Packets<'_, S> {
                 }
             }
         }
-        if self.carried.saturating_add(self.demux.buffered()) > self.max_buffered {
-            return Err(Error::LimitExceeded {
-                limit: LimitKind::BufferedBytes,
-                offset: self.reader.position(),
-            });
-        }
-        Ok(())
     }
 
     fn pes(&mut self, index: usize, pes: Pes) {
@@ -592,11 +660,7 @@ impl<S: Source> Packets<'_, S> {
             self.audio(index, syntax, &pes, pts, dts);
             return;
         }
-        if let Some(nal) = match stream.codec {
-            Codec::H264 => Some(Nal::H264),
-            Codec::Hevc => Some(Nal::Hevc),
-            _ => None,
-        } {
+        if let Some(nal) = units_of(stream.codec, self.as_ffprobe) {
             // A piece of a PES packet ([`PES_PIECE`], in the listing as
             // `ffprobe` gives it; otherwise the whole PES packet): the
             // first unit that starts in a later piece takes the PES
@@ -614,17 +678,6 @@ impl<S: Source> Packets<'_, S> {
                 pts,
                 dts,
             );
-            return;
-        }
-        let mpeg_video = matches!(stream.codec, Codec::Mpeg1Video | Codec::Mpeg2Video);
-        // A later piece of a picture's PES packet ([`PES_PIECE`], in the
-        // listing as `ffprobe` gives it) is more of the picture held: the
-        // first piece released the one before.
-        if mpeg_video && pes.continuation {
-            if let Some((held, _)) = self.frames.get_mut(index).and_then(|s| s.held.as_mut()) {
-                held.data.extend_from_slice(&pes.payload);
-                self.carried = self.carried.saturating_add(pes.payload.len());
-            }
             return;
         }
         let keyframe = match stream.codec {
@@ -649,19 +702,6 @@ impl<S: Source> Packets<'_, S> {
             fed: None,
             split: false,
         };
-        // A picture of MPEG-1 or MPEG-2 video ends where the next one
-        // starts, in the next PES packet: in the listing as `ffprobe` gives
-        // it, it is listed once that one is read.
-        if mpeg_video && self.as_ffprobe {
-            if let Some(state) = self.frames.get_mut(index) {
-                self.carried = self.carried.saturating_add(packet.data.len());
-                if let Some((done, _)) = state.held.replace((packet, 0)) {
-                    self.carried = self.carried.saturating_sub(done.data.len());
-                    self.queue.push_back(done);
-                }
-                return;
-            }
-        }
         self.queue.push_back(packet);
     }
 
@@ -735,17 +775,38 @@ impl<S: Source> Packets<'_, S> {
         let mut done = Vec::new();
         let mut taken = 0usize;
         let mut first_here = opens_here;
+        // Where `open.data` starts in the splitter's bytes, and where the
+        // next unit starts in `open.data`.
+        let mut shift = 0usize;
+        let mut start = 0usize;
+        let mut moved = false;
         for &cut in &cuts {
-            let Some(at) = cut.checked_sub(taken).filter(|at| *at <= open.data.len()) else {
+            let Some(at) = cut
+                .checked_sub(shift)
+                .filter(|at| *at >= start && *at <= open.data.len())
+            else {
                 break;
             };
-            // The finished unit keeps the buffer and goes to the caller
-            // without a copy; what is left of the next one, a few tens of
-            // bytes, moves to a buffer of the same room.
-            let mut rest = Vec::with_capacity(open.data.capacity());
-            rest.extend_from_slice(open.data.get(at..).unwrap_or_default());
-            open.data.truncate(at);
-            let unit = std::mem::replace(&mut open.data, rest);
+            let unit = if moved {
+                // Later units are copied out at their own size, and the
+                // bytes they took leave the buffer once, after the loop:
+                // a PES packet of many small units costs its length, not
+                // its length for every unit.
+                let unit = open.data.get(start..at).unwrap_or_default().to_vec();
+                start = at;
+                unit
+            } else {
+                // The first finished unit keeps the buffer and goes to the
+                // caller without a copy; what is left moves to a buffer of
+                // the same room.
+                moved = true;
+                let mut rest = Vec::with_capacity(open.data.capacity());
+                rest.extend_from_slice(open.data.get(at..).unwrap_or_default());
+                open.data.truncate(at);
+                let unit = std::mem::replace(&mut open.data, rest);
+                shift = at;
+                unit
+            };
             taken = cut;
             // The unit that starts here begins a run when its PES packet
             // states a time and no earlier unit of that packet took it
@@ -759,6 +820,7 @@ impl<S: Source> Packets<'_, S> {
             open.au = if first_here { later } else { here };
             first_here = true;
         }
+        open.data.drain(..start.min(open.data.len()));
         state.splitter.drained(taken);
         self.carried = self.carried.saturating_add(open.data.len());
         state.open = Some(open);
@@ -785,7 +847,7 @@ impl<S: Source> Packets<'_, S> {
         let max_refs = self.max_refs.get(index).copied().flatten();
         let keyframe = match nal {
             Nal::H264 => video::keyframe(Nal::H264, &data, max_refs),
-            Nal::Hevc => video::keyframe(Nal::Hevc, &data, None),
+            Nal::Hevc | Nal::Mpeg2 => video::keyframe(nal, &data, None),
         }
         .unwrap_or(au.random_access && au.pos.is_some());
         if !self.as_ffprobe {
@@ -983,6 +1045,17 @@ impl<S: Source> Packets<'_, S> {
         let hold = self.streams.get(index).is_some_and(|s| {
             matches!(s.codec, Codec::Eac3 | Codec::Dts) || (as_ffprobe && s.codec == Codec::Ac3)
         });
+        // The duration `ffprobe` gives a packet of bytes before the first
+        // frame header when the header after them is unread: a frame of
+        // an AC-3 stream, nothing for an E-AC-3 one, whose frames hold
+        // what their headers say.
+        let lead_ticks = self
+            .streams
+            .get(index)
+            .filter(|s| s.codec == Codec::Ac3)
+            .and(stream_rate)
+            .filter(|rate| *rate > 0)
+            .map(|rate| i64::from(AC3_SAMPLES) * 90_000 / i64::from(rate));
         let Some(state) = self.frames.get_mut(index) else {
             return;
         };
@@ -1015,8 +1088,60 @@ impl<S: Source> Packets<'_, S> {
                     .get(at..)
                     .is_some_and(|rest| frames::may_start(syntax, rest))
                 {
+                    // An AC-3 or E-AC-3 stream's bytes before its first
+                    // frame header are a packet of their own, listed here
+                    // too when the end of the PES packet cuts that header
+                    // before this reader can read it; `ffprobe` lists
+                    // them, and the frame after them is then not the
+                    // stream's first (streams crafted with 100 lead bytes
+                    // and the first frame cut at one to seven). Their
+                    // duration is the frame's, which is unread here.
+                    if as_ffprobe
+                        && syntax == frames::Syntax::Ac3
+                        && !state.started
+                        && at > 0
+                        && carried == 0
+                    {
+                        state.started = true;
+                        state.offset = offset;
+                        first_in_pes = false;
+                        self.queue.push_back(Packet {
+                            stream: index,
+                            pos: Some(pes.offset),
+                            pes_offset: pes.offset,
+                            pts,
+                            dts: pts.map(|t| t - offset),
+                            duration: lead_ticks,
+                            keyframe: true,
+                            data: data.get(..at).unwrap_or_default().to_vec(),
+                            corrupt: false,
+                            fed: None,
+                            split: false,
+                        });
+                    }
                     if at >= carried && first_in_pes {
                         state.cut = Some((pts, offset, pes.offset));
+                    }
+                    state.late = as_ffprobe
+                        && syntax == frames::Syntax::Ac3
+                        && state.started
+                        && at >= carried
+                        && data.len() - at < AC3_TIMED;
+                    // Seven bytes of an AC-3 frame show `ffprobe` where it
+                    // starts, though this reader needs eight to read its
+                    // header: an independent frame there ends the one
+                    // held before it, which is listed now (streams crafted
+                    // with seven bytes of a frame at the end of a PES
+                    // packet).
+                    let independent = data.get(at..).is_some_and(|rest| {
+                        rest.len() >= AC3_TIMED
+                            && !matches!(*rest, [_, _, s0, _, _, b5, ..] if b5 >> 3 > 10 && s0 >> 6 == 1)
+                    });
+                    if as_ffprobe && hold && syntax == frames::Syntax::Ac3 && independent {
+                        if let Some((done, _)) = state.held.take() {
+                            self.carried = self.carried.saturating_sub(done.data.len());
+                            self.queue.push_back(done);
+                        }
                     }
                     break;
                 }
@@ -1038,6 +1163,65 @@ impl<S: Source> Packets<'_, S> {
             } else {
                 frame
             };
+            // The bytes before the stream's first frame header are the
+            // tail of a frame that began before the file. `ffprobe` lists
+            // them as a packet of their own with the PES packet's time and
+            // position, one frame long, and the frames after them follow
+            // it; so does this reader, whether or not the end of the PES
+            // packet cuts the frame after them (a capture of the corpus
+            // whose first AC-3 frame starts 290 bytes before the end of
+            // its PES packet, and streams crafted so). MPEG audio is the
+            // exception in the listing as `ffprobe` gives it: there they
+            // are the start of the first frame's packet, which takes the
+            // PES packet's time and position (two captures of the corpus,
+            // MP2 and MP3, and streams crafted with 29 and 300 such bytes,
+            // with the first frame whole and cut).
+            if !state.started && at > 0 && carried == 0 {
+                state.started = true;
+                if self.as_ffprobe && syntax == frames::Syntax::MpegAudio {
+                    state.lead = data.get(..at).unwrap_or_default().to_vec();
+                    self.carried = self.carried.saturating_add(at);
+                } else {
+                    let rate = Some(frame.sample_rate)
+                        .filter(|r| *r > 0)
+                        .or(stream_rate)
+                        .filter(|r| *r > 0);
+                    let ticks = rate.map(|r| i64::from(frame.samples) * 90_000 / i64::from(r));
+                    // E-AC-3 is the exception in the listing as
+                    // `ffprobe` gives it: there those lead bytes have no
+                    // duration and the first frame starts at their time,
+                    // where an AC-3 lead packet lasts a frame and the
+                    // frames follow it (streams crafted with 29, 100 and
+                    // 300 lead bytes of each). The default listing keeps
+                    // the frame's duration for both.
+                    let eac3 =
+                        self.as_ffprobe && syntax == frames::Syntax::Ac3 && frame.detail == 1;
+                    let spent = if eac3 { 0 } else { frame.samples };
+                    state.anchor = pts
+                        .zip(rate)
+                        .map(|(time, r)| (time, u64::from(spent), r, frame.samples));
+                    state.next = if eac3 {
+                        pts
+                    } else {
+                        pts.zip(ticks).map(|(time, d)| time + d)
+                    };
+                    state.offset = offset;
+                    first_in_pes = false;
+                    self.queue.push_back(Packet {
+                        stream: index,
+                        pos: Some(pes.offset),
+                        pes_offset: pes.offset,
+                        pts,
+                        dts: pts.map(|t| t - offset),
+                        duration: if eac3 { None } else { ticks },
+                        keyframe: true,
+                        data: data.get(..at).unwrap_or_default().to_vec(),
+                        corrupt: false,
+                        fed: None,
+                        split: false,
+                    });
+                }
+            }
             let Some(bytes) = data.get(at..at + frame.len) else {
                 // Cut by the end of the PES packet. If it is the first
                 // frame that starts in this PES packet, the packet's PTS
@@ -1046,6 +1230,15 @@ impl<S: Source> Packets<'_, S> {
                 if at >= carried && first_in_pes {
                     state.cut = Some((pts, offset, pes.offset));
                 }
+                // Not for a stream's first frame: `ffprobe` keeps the
+                // first PES packet's time and position for it, however
+                // little of it that packet holds (streams crafted with
+                // the first frame cut at every byte count).
+                state.late = as_ffprobe
+                    && syntax == frames::Syntax::Ac3
+                    && state.started
+                    && at >= carried
+                    && data.len() - at < AC3_TIMED;
                 // Its header shows that the AC-3 frame (or E-AC-3 unit)
                 // held before it ended: `ffprobe` lists that one now,
                 // whole or cut as this frame is (a capture of the corpus
@@ -1079,44 +1272,19 @@ impl<S: Source> Packets<'_, S> {
                     continue;
                 }
             }
-            // The bytes before the stream's first frame header are the
-            // tail of a frame that began before the file. `ffprobe` lists
-            // them as a packet of their own with the PES packet's time and
-            // position, one frame long, and the frames after them follow
-            // it; so does this reader.
-            if !state.started && at > 0 && carried == 0 {
-                let rate = Some(frame.sample_rate)
-                    .filter(|r| *r > 0)
-                    .or(stream_rate)
-                    .filter(|r| *r > 0);
-                let ticks = rate.map(|r| i64::from(frame.samples) * 90_000 / i64::from(r));
-                state.started = true;
-                state.anchor = pts
-                    .zip(rate)
-                    .map(|(time, r)| (time, u64::from(frame.samples), r, frame.samples));
-                state.next = pts.zip(ticks).map(|(time, d)| time + d);
-                state.offset = offset;
-                first_in_pes = false;
-                self.queue.push_back(Packet {
-                    stream: index,
-                    pos: Some(pes.offset),
-                    pes_offset: pes.offset,
-                    pts,
-                    dts: pts.map(|t| t - offset),
-                    duration: ticks,
-                    keyframe: true,
-                    data: data.get(..at).unwrap_or_default().to_vec(),
-                    corrupt: false,
-                    fed: None,
-                    split: false,
-                });
-            }
             state.started = true;
             let starts_here = at >= carried;
             // `given` is the time the file states for this frame, if any:
             // the PTS of the PES packet in which it starts. A frame
             // without one follows the frames before it.
-            let (given, given_offset, pos) = if at == 0 && carried > 0 && state.cut.is_some() {
+            let (given, given_offset, pos) = if at == 0 && carried > 0 && state.late {
+                // An AC-3 frame its PES packet held too little of: this
+                // packet's time and position are its own, and the next
+                // frame's too.
+                state.late = false;
+                state.cut = None;
+                (pts, offset, Some(pes.offset))
+            } else if at == 0 && carried > 0 && state.cut.is_some() {
                 // The frame cut at the end of the previous PES packet, the
                 // first that started there.
                 let (time, cut_offset, pos) = state.cut.take().unwrap_or((None, 0, 0));
@@ -1181,6 +1349,9 @@ impl<S: Source> Packets<'_, S> {
                 (Some(t), Some(d)) => Some(t + d),
                 _ => None,
             };
+            let mut bytes = std::mem::take(&mut state.lead);
+            self.carried = self.carried.saturating_sub(bytes.len());
+            bytes.extend_from_slice(payload);
             let packet = Packet {
                 stream: index,
                 pos,
@@ -1189,7 +1360,7 @@ impl<S: Source> Packets<'_, S> {
                 dts: time.map(|t| t - given_offset),
                 duration,
                 keyframe: true,
-                data: payload.to_vec(),
+                data: bytes,
                 corrupt: false,
                 fed: None,
                 split: at == 0 && header_read,
@@ -1207,6 +1378,35 @@ impl<S: Source> Packets<'_, S> {
         }
         // At most one frame is carried: the one the end of the PES packet
         // cut, whose length its header bounds.
+        if at >= data.len()
+            && as_ffprobe
+            && syntax == frames::Syntax::Ac3
+            && !state.started
+            && carried == 0
+            && !data.is_empty()
+        {
+            // A first PES packet with no frame header in it at all: its
+            // bytes are the tail of a frame that began before the file,
+            // which `ffprobe` lists as it lists the bytes before a header
+            // (an AC-3 stream crafted with such a PES packet of 100
+            // bytes).
+            state.started = true;
+            state.offset = offset;
+            self.queue.push_back(Packet {
+                stream: index,
+                pos: Some(pes.offset),
+                pes_offset: pes.offset,
+                pts,
+                dts: pts.map(|t| t - offset),
+                duration: lead_ticks,
+                keyframe: true,
+                data,
+                corrupt: false,
+                fed: None,
+                split: false,
+            });
+            return;
+        }
         if let Some(rest) = data.get(at..) {
             state.leftover = rest.to_vec();
             self.carried = self.carried.saturating_add(rest.len());
@@ -1251,11 +1451,11 @@ impl<S: Source> Packets<'_, S> {
     /// The access unit of a coded video stream the end of the file leaves
     /// open, as `ffprobe` lists the last unit of a stream however it ends.
     fn flush_open(&mut self, index: usize) {
-        let nal = match self.streams.get(index).map(|s| s.codec) {
-            Some(Codec::H264) => Some(Nal::H264),
-            Some(Codec::Hevc) => Some(Nal::Hevc),
-            _ => None,
-        };
+        let as_ffprobe = self.as_ffprobe;
+        let nal = self
+            .streams
+            .get(index)
+            .and_then(|s| units_of(s.codec, as_ffprobe));
         let open = self.frames.get_mut(index).and_then(|s| s.open.take());
         if let (Some(nal), Some(open)) = (nal, open) {
             if !open.data.is_empty() {
@@ -1267,22 +1467,47 @@ impl<S: Source> Packets<'_, S> {
     /// The unit a stream holds for the one after it, and the frame the end
     /// of the file cuts short.
     fn flush_held(&mut self, index: usize) {
+        let syntax = self.streams.get(index).and_then(|s| s.codec.frames());
+        let stream_rate = self
+            .streams
+            .get(index)
+            .and_then(|s| s.audio)
+            .map(|a| a.sample_rate);
+        let as_ffprobe = self.as_ffprobe;
         let Some(state) = self.frames.get_mut(index) else {
             return;
         };
-        if let Some((held, _)) = state.held.take() {
-            self.queue.push_back(held);
-        }
+        let held = state.held.take();
         // The PES packet in which the cut frame started, when it is
         // the first frame that starts there: its position is the
         // frame's own, as it would be had the frame been whole.
         let cut = state.cut.take();
         state.need = 0;
         let leftover = std::mem::take(&mut state.leftover);
-        let Some(syntax) = self.streams.get(index).and_then(|s| s.codec.frames()) else {
-            return;
-        };
-        let Some(frame) = frames::header(syntax, &leftover) else {
+        let lead = std::mem::take(&mut state.lead);
+        let frame = syntax.and_then(|syntax| frames::header(syntax, &leftover));
+        // An E-AC-3 dependent substream or a DTS extension substream the
+        // end of the file cuts is still part of the access unit before it,
+        // which `ffprobe` lists with what there is of it (a Blu-ray
+        // capture of the corpus cut in the extension substream of its
+        // last DTS-HD frame).
+        let dependent = frame.is_some_and(|f| {
+            if syntax == Some(frames::Syntax::Dts) {
+                f.detail == frames::DTS_SUBSTREAM && state.dts_core
+            } else {
+                f.dependent
+            }
+        });
+        if let Some((mut unit, joined)) = held {
+            if let (true, Some(f)) = (dependent && joined < MAX_DEPENDENT, frame) {
+                unit.data
+                    .extend_from_slice(leftover.get(f.header..).unwrap_or_default());
+                self.queue.push_back(unit);
+                return;
+            }
+            self.queue.push_back(unit);
+        }
+        let Some(frame) = frame else {
             return;
         };
         let time = cut.and_then(|(time, _, _)| time).or(state.next);
@@ -1291,8 +1516,10 @@ impl<S: Source> Packets<'_, S> {
         // header says, cut or not.
         let rate = Some(frame.sample_rate)
             .filter(|r| *r > 0)
-            .or_else(|| self.streams.get(index)?.audio.map(|a| a.sample_rate))
+            .or(stream_rate)
             .filter(|r| *r > 0);
+        let mut data = lead;
+        data.extend_from_slice(leftover.get(frame.header..).unwrap_or_default());
         self.queue.push_back(Packet {
             stream: index,
             pos: cut.map(|(_, _, pos)| pos),
@@ -1300,10 +1527,10 @@ impl<S: Source> Packets<'_, S> {
             pts: time,
             dts: time.map(|t| t - offset),
             duration: rate
-                .filter(|_| self.as_ffprobe)
+                .filter(|_| as_ffprobe)
                 .map(|r| i64::from(frame.samples) * 90_000 / i64::from(r)),
             keyframe: true,
-            data: leftover.get(frame.header..).unwrap_or_default().to_vec(),
+            data,
             corrupt: false,
             fed: None,
             split: false,

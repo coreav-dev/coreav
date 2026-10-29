@@ -201,7 +201,12 @@ fn damaged_tables_are_skipped_with_warnings() {
 fn unknown_private_streams_are_sniffed_and_dropped_streams_listed() {
     let mut mux = Mux::default();
     mux.pat(&[(1, 0x1000)]);
-    mux.pmt(0x1000, 1, &[(0x06, 0x101), (0x86, 0x102)]);
+    mux.pmt_with(
+        0x1000,
+        1,
+        &Mux::registration(b"CUEI"),
+        &[(0x06, 0x101), (0x86, 0x102)],
+    );
     mux.pes(0x101, 0xC0, 0, &[adts(100), adts(100)].concat(), true);
     // The default allowlist keeps every named codec, SCTE-35 included; a
     // caller that names fewer gets the rest as dropped streams, with their
@@ -1347,4 +1352,436 @@ fn as_ffprobe_an_eac3_frame_is_listed_once_the_next_header_is_read() {
             (0x101, Some(93_134)),
         ]
     );
+}
+
+/// An MPEG-2 video picture of `kind` (1 I, 2 P, 3 B) and `structure` (3 a
+/// frame, 1 and 2 a field), with a slice of `slice` bytes; the first
+/// carries a sequence header.
+fn mpeg2_picture(kind: u8, structure: u8, slice: usize, sequence: bool) -> Vec<u8> {
+    let mut out = Vec::new();
+    if sequence {
+        out.extend([
+            0, 0, 1, 0xB3, 0x14, 0x00, 0xF0, 0x13, 0xFF, 0xFF, 0xE0, 0x18,
+        ]);
+    }
+    out.extend([0, 0, 1, 0x00, 0x00, (kind << 3) | 0x07, 0xFF, 0xF8]);
+    out.extend([0, 0, 1, 0xB5, 0x8F, 0xFF, 0xF0 | structure, 0x80]);
+    out.extend([0, 0, 1, 0x01]);
+    out.resize(out.len() + slice, 0x55);
+    out
+}
+
+fn mpeg2_listing(mux: &Mux, as_ffprobe: bool) -> Vec<(usize, Option<i64>, Option<u64>, bool)> {
+    let ts = probe(
+        SliceSource::new(&mux.out),
+        &Limits::default(),
+        &Allowlist::all(),
+    )
+    .unwrap();
+    let packets = ts.packets(SliceSource::new(&mux.out), &Limits::default());
+    let packets: Vec<_> = if as_ffprobe {
+        packets.listing_as_ffprobe().collect()
+    } else {
+        packets.collect()
+    };
+    packets
+        .into_iter()
+        .map(|p| p.unwrap())
+        .map(|p| (p.data.len(), p.pts, p.pos, p.keyframe))
+        .collect()
+}
+
+#[test]
+fn as_ffprobe_mpeg2_video_is_listed_picture_by_picture() {
+    // A PES packet of an I-picture, a B-picture and the start of a
+    // P-picture, then one of the rest of it and a B-picture: `ffprobe`
+    // lists the four pictures, the first of each PES packet with its time
+    // and position, the P-picture none (it starts in the first). By
+    // default each PES packet is a packet.
+    let i = mpeg2_picture(1, 3, 300, true);
+    let b = mpeg2_picture(3, 3, 100, false);
+    let p = mpeg2_picture(2, 3, 200, false);
+    let b2 = mpeg2_picture(3, 3, 120, false);
+    let mut mux = Mux::default();
+    mux.pat(&[(1, 0x1000)]);
+    mux.pmt(0x1000, 1, &[(0x02, 0x100)]);
+    let first = mux.out.len() as u64;
+    mux.pes(0x100, 0xE0, 93_003, &[&i[..], &b, &p[..20]].concat(), false);
+    let second = mux.out.len() as u64;
+    mux.pes(0x100, 0xE0, 99_009, &[&p[20..], &b2[..]].concat(), false);
+    assert_eq!(
+        mpeg2_listing(&mux, true),
+        vec![
+            (i.len(), Some(93_003), Some(first), true),
+            (b.len(), None, None, false),
+            (p.len(), None, None, false),
+            (b2.len(), Some(99_009), Some(second), false),
+        ]
+    );
+    assert_eq!(mpeg2_listing(&mux, false).len(), 2);
+}
+
+#[test]
+fn as_ffprobe_the_two_fields_of_a_frame_are_one_picture() {
+    // Each field in a PES packet of its own, each with a time: the second
+    // field is part of its frame's packet, and its PES packet's time is
+    // nobody's, as the first unit starting in it is the next frame's.
+    let top = mpeg2_picture(1, 1, 200, true);
+    let bottom = mpeg2_picture(1, 2, 150, false);
+    let next = mpeg2_picture(2, 1, 100, false);
+    let mut mux = Mux::default();
+    mux.pat(&[(1, 0x1000)]);
+    mux.pmt(0x1000, 1, &[(0x02, 0x100)]);
+    let first = mux.out.len() as u64;
+    mux.pes(0x100, 0xE0, 90_000, &top, false);
+    mux.pes(0x100, 0xE0, 91_877, &bottom, false);
+    let third = mux.out.len() as u64;
+    mux.pes(0x100, 0xE0, 93_754, &next, false);
+    assert_eq!(
+        mpeg2_listing(&mux, true),
+        vec![
+            (top.len() + bottom.len(), Some(90_000), Some(first), true),
+            (next.len(), Some(93_754), Some(third), false),
+        ]
+    );
+}
+
+/// An MPEG-1 layer II frame of 576 bytes (192 kbit/s at 48 kHz).
+fn mp2_frame() -> Vec<u8> {
+    let mut f = vec![0xFF, 0xFD, 0xA4, 0xC4];
+    f.resize(576, 0x55);
+    f
+}
+
+/// An AC-3 frame of 768 bytes (192 kbit/s at 48 kHz, 2/0).
+fn ac3_frame() -> Vec<u8> {
+    let mut f = vec![0x0B, 0x77, 0, 0, 0x14, 0x40, 0x40, 0x00];
+    f.resize(768, 0x55);
+    f
+}
+
+fn audio_listing(mux: &Mux, as_ffprobe: bool) -> Vec<(usize, Option<i64>, Option<u64>)> {
+    let ts = probe(
+        SliceSource::new(&mux.out),
+        &Limits::default(),
+        &Allowlist::all(),
+    )
+    .unwrap();
+    let packets = ts.packets(SliceSource::new(&mux.out), &Limits::default());
+    let packets: Vec<_> = if as_ffprobe {
+        packets.listing_as_ffprobe().collect()
+    } else {
+        packets.collect()
+    };
+    packets
+        .into_iter()
+        .map(|p| p.unwrap())
+        .map(|p| (p.data.len(), p.pts, p.pos))
+        .collect()
+}
+
+#[test]
+fn as_ffprobe_the_bytes_before_the_first_mpeg_audio_frame_join_it() {
+    // 29 bytes of a frame that began before the file, then frames: by
+    // default they are a packet of their own; as `ffprobe` lists MPEG
+    // audio, the start of the first frame's packet, whether the end of
+    // the PES packet cuts that frame or not.
+    let lead = [0x22u8; 29];
+    for cut in [None, Some(300)] {
+        let frames = [mp2_frame(), mp2_frame()].concat();
+        let all = [&lead[..], &frames].concat();
+        let split = cut.map_or(all.len(), |c| lead.len() + c);
+        let mut mux = Mux::default();
+        mux.pat(&[(1, 0x1000)]);
+        mux.pmt(0x1000, 1, &[(0x03, 0x101)]);
+        let first = mux.out.len() as u64;
+        mux.pes(0x101, 0xC0, 90_000, &all[..split], true);
+        let second = mux.out.len() as u64;
+        if split < all.len() {
+            mux.pes(0x101, 0xC0, 92_160, &all[split..], true);
+        }
+        let expected_second = if split < all.len() {
+            (576, Some(92_160), Some(second))
+        } else {
+            (576, Some(92_160), None)
+        };
+        assert_eq!(
+            audio_listing(&mux, true),
+            vec![(29 + 576, Some(90_000), Some(first)), expected_second],
+            "{cut:?}"
+        );
+        assert_eq!(audio_listing(&mux, false).len(), 3, "{cut:?}");
+    }
+}
+
+#[test]
+fn the_bytes_before_a_first_frame_its_pes_packet_cuts_are_a_packet() {
+    // 100 bytes of an AC-3 frame that began before the file, then a frame
+    // the end of the PES packet cuts: the 100 bytes are listed with the
+    // PES packet's time, and the cut frame follows them by one frame.
+    let lead = [0x22u8; 100];
+    let frame = ac3_frame();
+    let mut mux = Mux::default();
+    mux.pat(&[(1, 0x1000)]);
+    mux.pmt(0x1000, 1, &[(0x81, 0x101)]);
+    let first = mux.out.len() as u64;
+    mux.pes(
+        0x101,
+        0xBD,
+        87_120,
+        &[&lead[..], &frame[..300]].concat(),
+        true,
+    );
+    let second = mux.out.len() as u64;
+    mux.pes(
+        0x101,
+        0xBD,
+        92_880,
+        &[&frame[300..], &ac3_frame()[..]].concat(),
+        true,
+    );
+    for as_ffprobe in [false, true] {
+        assert_eq!(
+            audio_listing(&mux, as_ffprobe),
+            vec![
+                (100, Some(87_120), Some(first)),
+                (768, Some(90_000), None),
+                (768, Some(92_880), Some(second)),
+            ],
+            "{as_ffprobe}"
+        );
+    }
+}
+
+#[test]
+fn as_ffprobe_the_bytes_before_a_header_the_pes_packet_cuts_are_a_packet() {
+    // 100 bytes of a frame that began before the file, then too little of
+    // the next frame's header for this reader (one to seven bytes) or
+    // none of it: the listing as `ffprobe` gives it lists those bytes as
+    // a packet of their own all the same, and the frame after them takes
+    // the next PES packet's time and position. The default listing drops
+    // them, which it did before.
+    for held in [0usize, 1, 6, 7] {
+        let frames = [ac3_frame(), ac3_frame()].concat();
+        let lead = [0x22u8; 100];
+        let mut mux = Mux::default();
+        mux.pat(&[(1, 0x1000)]);
+        mux.pmt(0x1000, 1, &[(0x81, 0x101)]);
+        let first = mux.out.len() as u64;
+        mux.pes(
+            0x101,
+            0xBD,
+            90_000,
+            &[&lead[..], &frames[..held]].concat(),
+            true,
+        );
+        let second = mux.out.len() as u64;
+        mux.pes(0x101, 0xBD, 92_880, &frames[held..], true);
+        let listed = audio_listing(&mux, true);
+        assert_eq!(
+            listed.first().copied(),
+            Some((100, Some(90_000), Some(first))),
+            "{held}"
+        );
+        // The frames after them, timed by the rule for a frame its PES
+        // packet cuts (the test below), and none lost.
+        assert_eq!(
+            listed.iter().map(|(len, _, _)| *len).collect::<Vec<_>>(),
+            vec![100, 768, 768],
+            "{held}"
+        );
+        // Fewer than seven bytes of it: the frame takes the next PES
+        // packet's position, as it takes its time; with seven it follows
+        // the lead bytes with none (the test below).
+        assert_eq!(
+            listed[1].2,
+            if held < 7 { Some(second) } else { None },
+            "{held}"
+        );
+        // The frames alone by default, the lead bytes dropped.
+        assert_eq!(
+            audio_listing(&mux, false)
+                .into_iter()
+                .map(|(len, _, _)| len)
+                .collect::<Vec<_>>(),
+            vec![768, 768],
+            "{held}"
+        );
+    }
+}
+
+#[test]
+fn as_ffprobe_an_ac3_frame_with_six_bytes_in_its_pes_packet_starts_in_the_next() {
+    // A frame of which its PES packet holds six bytes takes the next PES
+    // packet's time and position, as the first frame that starts there
+    // does too; with seven bytes it follows the frame before it.
+    for (held, late) in [(1, true), (6, true), (7, false), (16, false)] {
+        let frames = [ac3_frame(), ac3_frame(), ac3_frame()].concat();
+        let mut mux = Mux::default();
+        mux.pat(&[(1, 0x1000)]);
+        mux.pmt(0x1000, 1, &[(0x81, 0x101)]);
+        let first = mux.out.len() as u64;
+        mux.pes(0x101, 0xBD, 90_000, &frames[..768 + held], true);
+        let second = mux.out.len() as u64;
+        mux.pes(0x101, 0xBD, 95_760, &frames[768 + held..], true);
+        let cut = if late {
+            (768, Some(95_760), Some(second))
+        } else {
+            (768, Some(92_880), None)
+        };
+        assert_eq!(
+            audio_listing(&mux, true),
+            vec![
+                (768, Some(90_000), Some(first)),
+                cut,
+                (768, Some(95_760), Some(second)),
+            ],
+            "{held}"
+        );
+    }
+}
+
+#[test]
+fn a_dependent_substream_the_end_of_the_file_cuts_joins_its_access_unit() {
+    // An E-AC-3 independent frame, then a dependent substream of which the
+    // file holds 100 bytes: one access unit, with what there is.
+    let frame = |strmtyp: u8| {
+        let mut f = vec![0x0B, 0x77, strmtyp << 6, 0x7F, 0x3F, 0x80];
+        f.resize(256, 0);
+        f
+    };
+    let mut mux = Mux::default();
+    mux.pat(&[(1, 0x1000)]);
+    mux.pmt(0x1000, 1, &[(0x87, 0x101)]);
+    mux.pes(0x101, 0xC0, 90_000, &frame(0), true);
+    mux.pes(0x101, 0xC0, 92_880, &frame(1)[..100], false);
+    for as_ffprobe in [false, true] {
+        let sizes: Vec<_> = audio_listing(&mux, as_ffprobe)
+            .into_iter()
+            .map(|(size, ..)| size)
+            .collect();
+        assert_eq!(sizes, vec![356], "{as_ffprobe}");
+    }
+}
+
+/// A transport packet of `pid` that carries only a PCR of `base`.
+fn pcr_packet(mux: &mut Mux, pid: u16, base: u64) {
+    let counter = mux.counters.entry(pid).or_insert(0);
+    // Adaptation field only: the counter does not step (13818-1 2.4.3.3).
+    let mut p = vec![0x47, (pid >> 8) as u8, pid as u8, 0x20 | *counter];
+    p.extend([183, 0x10]);
+    p.extend([
+        (base >> 25) as u8,
+        (base >> 17) as u8,
+        (base >> 9) as u8,
+        (base >> 1) as u8,
+        ((base as u8 & 1) << 7) | 0x7E,
+        0,
+    ]);
+    p.resize(188, 0xFF);
+    mux.out.extend(p);
+}
+
+/// A splice information section (SCTE 35 9.2) with a `splice_null`, and
+/// its CRC-32 spoilt when `damaged`.
+fn splice_null(damaged: bool) -> Vec<u8> {
+    let mut s = vec![
+        0xFC, 0x30, 0x11, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF, 0xFF, 0, 0, 0,
+    ];
+    let crc = crc32(&s) ^ u32::from(damaged);
+    s.extend(crc.to_be_bytes());
+    s
+}
+
+#[test]
+fn as_ffprobe_splice_sections_are_packets_timed_by_the_programs_clock() {
+    // An SCTE 35 stream: a section before the first PCR has no time, one
+    // after it the PCR's, a PCR of a PID no program names counts for
+    // nothing, and a section whose CRC fails is not listed. The default
+    // listing lists no section.
+    let mut mux = Mux::default();
+    mux.pat(&[(1, 0x1000)]);
+    mux.pmt_with(
+        0x1000,
+        1,
+        &Mux::registration(b"CUEI"),
+        &[(0x0F, 0x100), (0x86, 0x102)],
+    );
+    let section = |mux: &mut Mux, damaged: bool| {
+        mux.unit(0x102, &[&[0u8][..], &splice_null(damaged)].concat());
+    };
+    section(&mut mux, false);
+    pcr_packet(&mut mux, 0x100, 63_000);
+    section(&mut mux, false);
+    pcr_packet(&mut mux, 0x200, 5_000_000);
+    section(&mut mux, true);
+    section(&mut mux, false);
+    mux.pes(0x100, 0xC0, 90_000, &adts(100), true);
+    let ts = probe(
+        SliceSource::new(&mux.out),
+        &Limits::default(),
+        &Allowlist::all(),
+    )
+    .unwrap();
+    let listed: Vec<_> = ts
+        .packets(SliceSource::new(&mux.out), &Limits::default())
+        .listing_as_ffprobe()
+        .map(|p| p.unwrap())
+        .filter(|p| ts.streams[p.stream].codec == Codec::Scte35)
+        .map(|p| (p.data.len(), p.pts, p.dts, p.pos))
+        .collect();
+    assert_eq!(
+        listed,
+        vec![
+            (20, None, None, None),
+            (20, Some(63_000), Some(63_000), None),
+            (20, Some(63_000), Some(63_000), None),
+        ]
+    );
+    let default = ts
+        .packets(SliceSource::new(&mux.out), &Limits::default())
+        .map(|p| p.unwrap())
+        .filter(|p| ts.streams[p.stream].codec == Codec::Scte35)
+        .count();
+    assert_eq!(default, 0);
+}
+
+#[test]
+fn as_ffprobe_a_type_0x86_stream_whose_program_registers_nothing_has_no_packets() {
+    // `ffprobe` reads type 0x86 as splice information only from the
+    // program's registration; a registration in the stream's own loop,
+    // `CUEI` or another identifier, leaves the type unnamed and its
+    // sections unlisted.
+    for stream_descriptors in [
+        Vec::new(),
+        Mux::registration(b"CUEI"),
+        Mux::registration(b"ABCD"),
+    ] {
+        let mut mux = Mux::default();
+        mux.pat(&[(1, 0x1000)]);
+        mux.pmt_streams(
+            0x1000,
+            1,
+            &[],
+            &[(0x0F, 0x100, Vec::new()), (0x86, 0x102, stream_descriptors)],
+        );
+        mux.unit(0x102, &[&[0u8][..], &splice_null(false)].concat());
+        pcr_packet(&mut mux, 0x100, 63_000);
+        mux.unit(0x102, &[&[0u8][..], &splice_null(false)].concat());
+        mux.pes(0x100, 0xC0, 90_000, &adts(100), true);
+        let ts = probe(
+            SliceSource::new(&mux.out),
+            &Limits::default(),
+            &Allowlist::all(),
+        )
+        .unwrap();
+        assert_eq!(ts.streams[1].codec, Codec::Other);
+        let listed = ts
+            .packets(SliceSource::new(&mux.out), &Limits::default())
+            .listing_as_ffprobe()
+            .map(|p| p.unwrap())
+            .filter(|p| p.stream == 1)
+            .count();
+        assert_eq!(listed, 0);
+    }
 }

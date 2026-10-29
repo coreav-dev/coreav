@@ -39,7 +39,8 @@ pub enum Codec {
     BlurayPcm,
     /// Opus (registration `Opus`, ETSI TS 102 366 annex).
     Opus,
-    /// SCTE-35 splice information (0x86 without `HDMV`).
+    /// SCTE-35 splice information (0x86 whose program registers `CUEI`,
+    /// without `HDMV`).
     Scte35,
     /// ID3 timed metadata (0x15 with registration `ID3 `).
     Id3,
@@ -303,7 +304,11 @@ pub(crate) fn codec(stream_type: u8, stream: &[Descriptor], program: &[Descripto
         // secondary audio of picture-in-picture (0xA2, commonly DTS
         // Express).
         0x82 | 0x85 | 0x86 | 0xA2 if hdmv => Codec::Dts,
-        0x86 => Codec::Scte35,
+        // Splice information only where the program registers `CUEI`, as
+        // `ffprobe` reads it: a stream's own registration, whatever its
+        // identifier, leaves the type unnamed (crafted streams of every
+        // layout, `docs/design/mpegts.md`).
+        0x86 if registrations(program).any(|f| &f == b"CUEI") => Codec::Scte35,
         0x87 => Codec::Eac3,
         // Named from the type alone whatever the payload, as `ffprobe`
         // names them: DTS, and the HLS sample encryption types (AC-3,
@@ -579,7 +584,15 @@ mod tests {
         assert_eq!(caption(b"\x00\x08\x3c", 0x38), (Codec::Other, None));
         assert_eq!(caption(b"\x00\x0c\x1f", 0x40), (Codec::Other, None));
         assert_eq!(codec(0x06, &[], &[]), Codec::Other);
-        assert_eq!(codec(0x86, &[], &[]), Codec::Scte35);
+        // Type 0x86 is splice information only where the program
+        // registers `CUEI`; the stream's own registration does not name
+        // it, and neither does no registration at all.
+        let cuei = d(0x05, b"CUEI");
+        assert_eq!(codec(0x86, &[], std::slice::from_ref(&cuei)), Codec::Scte35);
+        assert_eq!(codec(0x86, std::slice::from_ref(&cuei), &[]), Codec::Other);
+        assert_eq!(codec(0x86, &[d(0x05, b"ABCD")], &[]), Codec::Other);
+        assert_eq!(codec(0x86, &[], &[d(0x05, b"ABCD")]), Codec::Other);
+        assert_eq!(codec(0x86, &[], &[]), Codec::Other);
         assert_eq!(codec(0x86, &[], &[d(0x05, b"HDMV")]), Codec::Dts);
         assert_eq!(codec(0x80, &[], &[]), Codec::Other);
         // HLS ID3 timed metadata: a metadata descriptor on the stream

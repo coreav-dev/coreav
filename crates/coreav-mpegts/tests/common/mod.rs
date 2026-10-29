@@ -77,11 +77,46 @@ impl Mux {
     }
 
     pub fn pmt(&mut self, pid: u16, program: u16, streams: &[(u8, u16)]) {
-        let mut body = vec![0xE1, 0x00, 0xF0, 0x00];
-        for (kind, es) in streams {
-            body.extend([*kind, 0xE0 | (es >> 8) as u8, *es as u8, 0xF0, 0x00]);
+        self.pmt_with(pid, program, &[], streams);
+    }
+
+    /// A program map table whose program loop holds `descriptors`
+    /// (13818-1 table 2-33), tag and length included.
+    pub fn pmt_with(&mut self, pid: u16, program: u16, descriptors: &[u8], streams: &[(u8, u16)]) {
+        let streams: Vec<_> = streams
+            .iter()
+            .map(|(kind, es)| (*kind, *es, Vec::new()))
+            .collect();
+        self.pmt_streams(pid, program, descriptors, &streams);
+    }
+
+    /// A program map table whose program loop and whose streams each hold
+    /// descriptors, tag and length included.
+    pub fn pmt_streams(
+        &mut self,
+        pid: u16,
+        program: u16,
+        descriptors: &[u8],
+        streams: &[(u8, u16, Vec<u8>)],
+    ) {
+        let mut body = vec![0xE1, 0x00, 0xF0, descriptors.len() as u8];
+        body.extend(descriptors);
+        for (kind, es, stream) in streams {
+            body.extend([
+                *kind,
+                0xE0 | (es >> 8) as u8,
+                *es as u8,
+                0xF0,
+                stream.len() as u8,
+            ]);
+            body.extend(stream);
         }
         self.section(pid, 2, program, &body);
+    }
+
+    /// The registration descriptor (13818-1 2.6.8) of `identifier`.
+    pub fn registration(identifier: &[u8; 4]) -> Vec<u8> {
+        [&[0x05, 4][..], identifier].concat()
     }
 
     pub fn pes(&mut self, pid: u16, stream_id: u8, pts: u64, payload: &[u8], bounded: bool) {

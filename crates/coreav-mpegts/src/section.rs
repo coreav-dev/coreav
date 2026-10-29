@@ -27,6 +27,11 @@ pub(crate) const MAX_SECTION: usize = 1_024;
 /// read, but a section is reassembled whole so that its CRC-32 vouches
 /// for that byte.
 pub(crate) const MAX_EIT_SECTION: usize = 4_096;
+/// `table_id` of an SCTE 35 splice information section (ANSI/SCTE 35
+/// 9.2), and the most bytes of one: a private section (ISO/IEC 13818-1
+/// 2.4.4.10, a `private_section_length` of at most 4,093).
+pub(crate) const SPLICE_INFO: u8 = 0xFC;
+pub(crate) const MAX_PRIVATE_SECTION: usize = 4_096;
 
 /// Reassembles the sections of one PID from its packets' payloads.
 #[derive(Debug)]

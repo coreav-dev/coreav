@@ -7,8 +7,8 @@ use crate::error::{Warning, warn};
 use crate::packet::{self, NULL_PID, TS_PACKET};
 use crate::pes::{self, PesHeader};
 use crate::section::{
-    self, Assembler, Descriptor, EIT_FIRST, EIT_LAST, EIT_PID, MAX_EIT_SECTION, MAX_SECTION, PAT,
-    PMT, SDT_ACTUAL, SDT_PID, Service,
+    self, Assembler, Descriptor, EIT_FIRST, EIT_LAST, EIT_PID, MAX_EIT_SECTION,
+    MAX_PRIVATE_SECTION, MAX_SECTION, PAT, PMT, SDT_ACTUAL, SDT_PID, SPLICE_INFO, Service,
 };
 use crate::{Error, LimitKind, Limits};
 use std::collections::{BTreeMap, VecDeque};
@@ -42,8 +42,6 @@ pub(crate) struct Pes {
     /// A packet of it was lost (a continuity counter skipped) or repeated
     /// while it was read.
     pub corrupt: bool,
-    /// A piece of a PES packet after its first ([`Demux::pieces`]).
-    pub continuation: bool,
 }
 
 /// Most payload bytes, and PES packets, read to learn the codec of a
@@ -180,15 +178,27 @@ pub(crate) struct Demux {
     continued: BTreeMap<u16, PesHeader>,
     counters: BTreeMap<u16, u8>,
     pub ready: VecDeque<Pes>,
-    /// Complete Event Information Table sections, while the Event
-    /// Information Table is listed as a stream: each is one of its
-    /// packets, header and CRC included, as `ffprobe` lists them.
-    pub epg_sections: VecDeque<Vec<u8>>,
+    /// Complete sections that are packets of a stream, header and CRC
+    /// included, as `ffprobe` lists them, each with its PID and its time:
+    /// those of the Event Information Table, while it is listed as a
+    /// stream ([`Demux::keep_epg`]), with no time; the splice information
+    /// sections of the SCTE 35 streams kept, while they are read
+    /// ([`Demux::keep_splices`]), with the base (90 kHz) of the last
+    /// program clock reference the PCR PID of their program carried
+    /// before they completed.
+    pub sections_listed: VecDeque<(u16, Vec<u8>, Option<u64>)>,
     /// Whether to reassemble PES packets (the tables are always read).
     pub collect: bool,
     /// Whether to keep the Event Information Table's sections: only the
     /// packet listing reads them.
     pub keep_epg: bool,
+    /// Whether to read the sections of the SCTE 35 streams kept
+    /// ([`Demux::sections_listed`]): only the listing as `ffprobe` gives
+    /// it does.
+    pub keep_splices: bool,
+    /// The base of the last program clock reference of each PID, while
+    /// splice sections are kept; bounded by `max_streams`.
+    pcrs: BTreeMap<u16, u64>,
     /// PIDs whose PES packets are reassembled whatever the tables say
     /// (the streams a probe kept), besides those the tables keep.
     pub always: std::collections::BTreeSet<u16>,
@@ -232,9 +242,11 @@ impl Demux {
             continued: BTreeMap::new(),
             counters: BTreeMap::new(),
             ready: VecDeque::new(),
-            epg_sections: VecDeque::new(),
+            sections_listed: VecDeque::new(),
             collect: true,
             keep_epg: false,
+            keep_splices: false,
+            pcrs: BTreeMap::new(),
             always: std::collections::BTreeSet::new(),
             pieces: None,
         }
@@ -272,9 +284,11 @@ impl Demux {
             continued: BTreeMap::new(),
             counters: BTreeMap::new(),
             ready: VecDeque::new(),
-            epg_sections: VecDeque::new(),
+            sections_listed: VecDeque::new(),
             collect: true,
             keep_epg: false,
+            keep_splices: false,
+            pcrs: BTreeMap::new(),
             always: self.always.clone(),
             pieces: None,
         }
@@ -388,7 +402,21 @@ impl Demux {
         if pid == NULL_PID {
             return Ok(());
         }
-        let discontinuity = header.adaptation.is_some_and(|a| a.discontinuity);
+        let discontinuity = match header.adaptation {
+            Some(adaptation) => {
+                if self.keep_splices {
+                    // Bounded by the stream limit, as every other per-PID
+                    // fact is: a PID already recorded keeps its clock.
+                    if let Some(pcr) = adaptation.pcr {
+                        if self.pcrs.len() < self.max_streams || self.pcrs.contains_key(&pid) {
+                            self.pcrs.insert(pid, pcr / 300);
+                        }
+                    }
+                }
+                adaptation.discontinuity
+            }
+            None => false,
+        };
         let Some(start) = header.payload else {
             return Ok(());
         };
@@ -422,6 +450,9 @@ impl Demux {
         }
         if !self.pat_read() {
             self.early_section(pid, payload, header.unit_start);
+        }
+        if self.keep_splices && self.splice_pid(pid) {
+            return self.splice_payload(pid, payload, header.unit_start, warnings);
         }
         // The first timestamp of the PID, recorded before any table names
         // it: the stream starts where its first PES packet does, not where
@@ -575,7 +606,6 @@ impl Demux {
                 payload: payload.to_vec(),
                 random_access: builder.random_access && continued.is_none(),
                 corrupt: builder.corrupt,
-                continuation: continued.is_some(),
             });
             builder.data.drain(..end);
             self.buffered = self.buffered.saturating_sub(end);
@@ -622,7 +652,6 @@ impl Demux {
                 payload: builder.data,
                 random_access: false,
                 corrupt: builder.corrupt,
-                continuation: true,
             });
             return;
         }
@@ -645,7 +674,6 @@ impl Demux {
                     payload,
                     random_access: builder.random_access,
                     corrupt: builder.corrupt || truncated,
-                    continuation: false,
                 });
             }
             pes::Parsed::NeedMore(_) => warn(
@@ -719,6 +747,56 @@ impl Demux {
         }
     }
 
+    /// Whether `pid` carries a kept SCTE 35 stream.
+    #[inline(never)]
+    fn splice_pid(&self, pid: u16) -> bool {
+        self.stream_of(pid)
+            .and_then(|index| self.streams.get(index))
+            .is_some_and(|entry| entry.kept && entry.codec == Codec::Scte35)
+    }
+
+    /// Reassembles the splice information sections of an SCTE 35 stream
+    /// (ANSI/SCTE 35 9.2, carried as private sections), each to be listed
+    /// as a packet of the stream with the time of the last program clock
+    /// reference of its program, as `ffprobe` lists them: on a capture of
+    /// the corpus, each section is timed by the PCR of the packet before
+    /// it on the PCR PID, and on streams crafted with sections before the
+    /// first PCR (no time), between PCRs, and across packets, by the last
+    /// PCR read on its program's PCR PID, a PCR on a PID no program names
+    /// left aside.
+    #[inline(never)]
+    fn splice_payload(
+        &mut self,
+        pid: u16,
+        payload: &[u8],
+        unit_start: bool,
+        warnings: &mut Vec<Warning>,
+    ) -> Result<(), Error> {
+        let mut sections = Vec::new();
+        let assembler = self
+            .sections
+            .entry(pid)
+            .or_insert_with(|| Assembler::new(MAX_PRIVATE_SECTION));
+        if let Err(reason) = assembler.push(payload, unit_start, &mut sections) {
+            warn(warnings, Warning::BadSection { pid, reason });
+        }
+        let clock = self
+            .stream_of(pid)
+            .and_then(|index| self.streams.get(index))
+            .and_then(|entry| entry.programs.first())
+            .and_then(|number| self.programs.iter().find(|p| p.number == *number))
+            .and_then(|program| program.pcr_pid)
+            .and_then(|pcr_pid| self.pcrs.get(&pcr_pid).copied());
+        // A section whose CRC-32 fails is not listed, as `ffprobe` does
+        // not list it (a stream crafted with one).
+        for data in sections {
+            if data.first() == Some(&SPLICE_INFO) && section::crc32(&data) == 0 {
+                self.sections_listed.push_back((pid, data, clock));
+            }
+        }
+        Ok(())
+    }
+
     fn section_payload(
         &mut self,
         pid: u16,
@@ -767,7 +845,8 @@ impl Demux {
                         .and_then(|&index| self.streams.get(index))
                         .is_some_and(|entry| entry.kept);
                     if self.keep_epg && listed {
-                        self.epg_sections.push_back(data.clone());
+                        self.sections_listed
+                            .push_back((EIT_PID, data.clone(), None));
                     }
                 }
                 (SDT_PID, SDT_ACTUAL) => {

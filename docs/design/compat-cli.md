@@ -653,6 +653,55 @@ on crafted files and the development set:
 - Opus channel layouts follow the Vorbis order (RFC 7845 5.1.1.2), and an
   ISO 639 `audio_type` 3 sets the `visual_impaired` and `descriptions`
   dispositions.
+- MPEG-1 and MPEG-2 video is listed picture by picture
+  (`docs/design/mpegts.md`). A picture no PES packet times decodes one
+  picture duration after the picture before it, and a B-picture, which no
+  picture refers to (ISO/IEC 13818-2 6.1.1.11), is shown then too; the
+  others have no presentation time. A picture lasts its frame period
+  rounded down (3,753 ticks at 24000/1001). Decoding times are rebuilt as
+  for H.264 reordering one picture (`DecodeTimes`), except a B-picture's,
+  which keeps its presentation time. An MPEG-2 stream (not MPEG-1, which
+  no measured file needed) ends one picture
+  duration after its latest presentation time in the tail, whatever the
+  step between its PES packets' times. Evidence: a capture with four
+  pictures to a PES packet of 120 KB, one of field pictures each in a PES
+  packet of its own, three captures whose first picture is a B-picture
+  with a presentation time only, and streams crafted from `ffmpeg`'s at
+  29.97 and 23.976 frames a second, regrouped one to three pictures (and
+  5,000 bytes) to a PES packet, with every other PES packet's times taken
+  out and starting one to five pictures in. Rejected: rebuilding a
+  B-picture's decoding time, which gave the B-pictures that start those
+  captures none; and ending the stream at the smallest step between its
+  times, which ends the field-picture capture half a picture after its
+  last field. Not explained, so left: a stream that never states a
+  decoding time gives its first reference picture its presentation time
+  less one picture (an I-picture) or its presentation time (a P-picture),
+  and a reference picture after leading B-pictures the decoding time one
+  picture after theirs, which no window over the presentation times
+  gives (crafted streams only). For H.264 and HEVC the same exemption
+  does not hold: a muxer of the corpus that states decoding times equal to
+  the presentation times has `ffprobe` rebuild those of its non-reference
+  pictures, while streams that state no decoding time for their
+  B-pictures (an HEVC capture and crafted streams starting with a
+  B-picture, or jumping forward before one) keep the presentation time.
+  What tells the two apart is not found, so H.264 and HEVC keep the
+  window for every picture.
+- A field picture's `field_order` is its `top_field_first`, as a frame
+  picture's is (`bb` for a capture whose first field is a bottom field,
+  and for crafted field pictures of either parity with the flag clear;
+  `tt` with it set). Rejected: `unknown` for a field picture, the rule
+  until that capture.
+- An SCTE 35 stream has no `codec_tag` (0, on three captures and crafted
+  streams) unless its own descriptors register an identifier, which is
+  then the tag, `CUEI` or any other; a stream of type 0x86 whose program
+  registers no `CUEI` is not one of these, and keeps its own identifier or
+  its stream type as the tag, as any other stream does (crafted streams of
+  every layout). An SCTE 35 stream starts at the time of its first section
+  that has one (the PCR before it) and, when the head read to the end of
+  the file, ends at its last; one with no timed section is timed as a
+  stream the file times nowhere. A section in the tail of a longer file
+  would give `ffprobe` an end the probe does not read (none of the
+  development files has one there).
 
 **Selections.** `-show_streams` also prints the disposition and the tags of
 a program's streams, empty unless `-show_entries` names their entries,

@@ -1097,6 +1097,14 @@ pub fn mpeg2(data: &[u8]) -> Option<Mpeg2> {
     seen
 }
 
+/// The `picture_coding_type` of the first picture header of an MPEG-1 or
+/// MPEG-2 video access unit (13818-2 6.2.3: 1 for I, 2 for P, 3 for B, 4
+/// for D), after its 10-bit `temporal_reference`.
+pub fn mpeg2_picture_type(data: &[u8]) -> Option<u8> {
+    let (_, body) = start_codes(data).find(|(code, _)| *code == 0x00)?;
+    body.get(1).map(|b| (b >> 3) & 0x07)
+}
+
 /// The frame rate `frame_rate_code` stands for (13818-2 table 6-4), as a
 /// fraction.
 pub fn mpeg2_frame_rate(code: u8) -> Option<(u32, u32)> {
