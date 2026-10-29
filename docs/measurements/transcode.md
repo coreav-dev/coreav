@@ -1,4 +1,4 @@
-# `coreav transcode`: bars B1 to B5, and B6
+# `coreav transcode`: bars B1 to B6, and B9
 
 The correctness bars (B1 to B4) and the speed bar (B5) of
 [`docs/design/transcode.md`](../design/transcode.md), "Bars", fixed before
@@ -23,6 +23,36 @@ rounds (`corpus-selection.json`: 270 files, 128 H.264, 20 HEVC, 28 AV1, 32
 VP9, 38 VP8, 24 ProRes; 100 of them in the scaled configuration), and so is
 the speed selection ([`transcode/speed-selection.json`](transcode/speed-selection.json):
 68 held-out files).
+
+## B9, through `coreav ffmpeg` (bars 100%)
+
+The bar of [`docs/design/transcode.md`](../design/transcode.md), item 9, with its criterion as changed on 2026-10-29 (the dated note there). The run that decides it is the fixtures CI job on the commit that made that change: GitHub's merge `90590d8c` of `6cbbf6c1` into `57ce872b`, the base branch at the time (run `40863119182`, the `isobmff-fixtures` job). Earlier runs do not count. Arms as above: `x264` (the x264 program, SHA-256 `c4d88654…`) and `ffmpeg` (no x264 program, so FFmpeg's libx264), each against the pinned FFmpeg 7.0.2 running the same command line. Lines x01 to x12 are the command lines of the note, in its order (also in `manifest.json`). Of the 100 fixture files, 79 have a video stream and are judged.
+
+| Line | Runs | B1 | B2 | B3 | Q1 median, min (dB), `x264` arm | Q1 median, min (dB), `ffmpeg` arm | Q2 min (dB), `x264` / `ffmpeg` |
+|---|---|---|---|---|---|---|---|
+| x01 | 27/79 | 27/27 | 27/27 | | 0.000, 0.000 | 0.000, 0.000 | identical / identical |
+| x02 | 27/79 | 27/27 | 27/27 | | 0.000, 0.000 | 0.000, 0.000 | identical / identical |
+| x03 | 27/79 | 27/27 | 27/27 | | 0.000, 0.000 | 0.000, 0.000 | identical / identical |
+| x04 | 27/79 | 27/27 | 27/27 | | 0.000, 0.000 | 0.000, 0.000 | identical / identical |
+| x05 | 21/79 | 21/21 | 21/21 | | 0.000, 0.000 | 0.000, 0.000 | 42.1 / 42.1 |
+| x06 | 27/79 | 27/27 | 27/27 | | 0.000, 0.000 | 0.000, 0.000 | identical / identical |
+| x07 | 27/79 | 27/27 | 27/27 | | −0.035, −0.085 | −0.035, −0.092 | 46.5 / 46.5 |
+| x08 | 46/79 | 46/46 | 46/46 | 25/25 | 0.000, −0.007 | 0.000, 0.000 | 42.1 / 42.1 |
+| x09 | 27/79 | 27/27 | 27/27 | | 0.000, 0.000 | 0.000, 0.000 | identical / identical |
+| x10 | 55/79 | 55/55 | 55/55 | 28/28 | −0.096, −0.154 | −0.096, −0.194 | 44.7 / 44.7 |
+| x11 | 62/79 | 62/62 | 62/62 | 33/33 | 0.000, −0.037 | 0.000, −0.036 | 39.5 / 39.5 |
+| x12 | 52/79 | 52/52 | 52/52 | 25/25 | 0.000, 0.000 | 0.000, 0.000 | 99.2 / identical |
+
+Both arms ran on the same fixtures for every line, and every call either ran, or was refused with exit status 4 for a reason the note names, writing nothing. Of the 523 refused calls per arm, 312 are audio that would be re-encoded (x01 to x07, x09, x11 on a source with audio; `-c:a aac` is not covered), 48 chapters or a timecode, 36 edit lists of more than one edit, 32 a late start, 20 a 12-bit 4:4:4 source the encoder does not take, 16 a decoded pixel format other than `-pix_fmt`, 14 uneven frame spacing, 13 a size change, 11 reordered frames without composition offsets, and 9 a track matrix other than the identity without `-noautorotate`. Set apart: `truncated.mp4` on each of the 12 lines, exit status 1, "truncated structure", as `-c copy` rejects it. The one fixture that misses B2 with `coreav transcode` too (`size_inband_sps.mp4`) was refused on every line, so no call relied on that exception. Q2 "identical" means every frame equals FFmpeg's output's.
+
+Evidence, in [`transcode/b9/`](transcode/b9): `calls.jsonl.gz` (one row per line, fixture and arm, the baseline included: status, exit status, reason, B1 to B3, Q1, Q2, size ratio), `manifest.json` (commit, command lines, arms, SHA-256 of the tools and the fixtures, FFmpeg version) and `results.tar.gz` (`run.json`, `summary.json` and every per-file result). They are the job's `oracle-output` artifact, `coreav-b9/evidence`; `calls.jsonl.gz` is its `calls.jsonl` gzipped. To recompute the bars and the tables the job printed (paths aside: the evidence names files by name):
+
+    mkdir b9 && tar -xzf docs/measurements/transcode/b9/results.tar.gz -C b9
+    python3 -I scripts/transcode_check.py --summarize --out b9
+
+It exits 0 when every bar is met. The table above, from the per-call rows:
+
+    zcat docs/measurements/transcode/b9/calls.jsonl.gz | jq -c -s 'map(select(.arm != "baseline" and .status == "ok")) | group_by([.config, .arm])[] | {line: .[0].config, arm: .[0].arm, runs: length, B1: map(select(.B1)) | length, B2: map(select(.B2)) | length, Q1_median: (map(.Q1_delta_db) | sort | if length % 2 == 1 then .[length / 2 | floor] else (.[length / 2 - 1] + .[length / 2]) / 2 end)}'
 
 ## Round 2
 
