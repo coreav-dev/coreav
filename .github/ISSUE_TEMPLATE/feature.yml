@@ -1,5 +1,6 @@
 name: Feature request or proposal
 description: Something CoreAV should do, or a change to what it does or how.
+labels: [feature]
 body:
   - type: markdown
     attributes:

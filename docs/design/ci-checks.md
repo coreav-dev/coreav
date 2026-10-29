@@ -40,7 +40,7 @@ and from the path filters an earlier change put on the heavy workflows:
 - Workflows that are **not** required keep their trigger filters: the
   informational `mediainfo-oracle`, the spikes (`spike-build`, `h264-n1`,
   `h264-n2`, `h264-n2-arm-speed`, which build spike code and are kept
-  with it out of the public tree) and the nightly `pr-redirect`.
+  with it out of the public tree), the nightly `pr-redirect` and `labels`.
 
 `scripts/workflow_check.py` runs in `deny.yml` — the workflow nothing
 filters — and fails when the required-check table and the workflows
@@ -159,6 +159,15 @@ the check leaves alone.
 - **Normal and build edges over every target.** Dev-dependencies never
   reach a shipped artefact, and `--target all` covers the wasm builds'
   target-specific dependencies.
+
+## Labels
+
+The repository's labels are kept as code in `.github/labels.yml`: area labels (`area:h264`, `area:compat` and so on), kind labels (`bug`, `perf`, `feature`, `docs`, `tracking`) and resolution labels (`duplicate`, `wontfix`). `labels.yml` in `.github/workflows` runs `scripts/label_sync.py` on a push to main that changes the file, the script or the workflow, and by hand: it creates or updates every label in the file and deletes the ones listed under `retired` (GitHub's default labels this set replaces). `deny.yml` runs `label_sync.py --check` on every pull request, so a file the script would refuse fails before it merges, not after.
+
+- **Retired labels are named, not inferred.** A label in neither list is left alone and printed. A strict mirror would delete every label not in the file, including the ones workflows own: `pr-redirect` finds the issues it already opened by `from-pull-request`, and `python.yml` and `npm.yml` read `wheels` and `binaries`. Deleting a label also strips it from every issue that carries it, so deletion happens only for a name someone wrote down.
+- **The built-in token with `issues: write`, and nothing else.** The labels API needs that permission and no secret; the workflow runs only on a push to main or by hand, never on a pull request's code. It is not a required check (`# workflow-check: not required`): it never runs on a pull request.
+- **A short standard-library script with `gh`, not a third-party action.** The label-sync actions in common use would each need an entry in the Actions allowlist, for what is one short script. The file is written in a narrow shape the script parses itself, as `workflow_check.py` does, rather than adding a YAML library to the runner.
+- **The issue forms set a kind label** (`bug`, `feature`, and `perf` for a benchmark result); areas are added by whoever triages, since a form cannot know them.
 
 ## Rejected alternatives
 

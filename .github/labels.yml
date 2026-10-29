@@ -1,0 +1,80 @@
+# The repository's issue and pull-request labels. .github/workflows/labels.yml
+# makes the repository match this file on a push to main that changes it
+# (scripts/label_sync.py, docs/design/ci-checks.md "Labels"): every label
+# under `labels` is created or updated, and every label under `retired` is
+# deleted where it exists. A label in neither list is left alone, so the
+# labels a workflow creates or reads for itself (`from-pull-request`,
+# `wheels`, `binaries`) survive a sync.
+#
+# The shape is narrow on purpose, and the script refuses anything else:
+# `name`, `color` (six hex digits, no `#`) and `description` (at most 100
+# characters) for each label, one plain name per line for each retired one.
+
+labels:
+  # Areas: the part of CoreAV an issue or pull request is about.
+  - name: area:h264
+    color: 1d76db
+    description: H.264 decoding, its kernels and its speed
+  - name: area:av1
+    color: 5319e7
+    description: AV1 decoding
+  - name: area:audio
+    color: 0e8a16
+    description: Audio decoding to PCM and the audio containers
+  - name: area:mp4
+    color: 006b75
+    description: MP4 and MOV (ISO base media files)
+  - name: area:mpegts
+    color: 0052cc
+    description: MPEG transport streams
+  - name: area:matroska
+    color: 8250df
+    description: Matroska and WebM
+  - name: area:compat
+    color: bfdadc
+    description: coreav ffprobe and coreav ffmpeg, compatibility with FFmpeg's tools
+  - name: area:transcode
+    color: c5def5
+    description: Transcoding (decode, scale, encode)
+  - name: area:cli
+    color: d4c5f9
+    description: The coreav command-line tool
+  - name: area:python
+    color: 3572a5
+    description: The Python package
+  - name: area:ci
+    color: 57606a
+    description: CI workflows, checks and repository tooling
+  # Kinds: what sort of change or report it is.
+  - name: bug
+    color: d73a4a
+    description: Something does not work as documented
+  - name: perf
+    color: fbca04
+    description: Speed or memory use
+  - name: feature
+    color: a2eeef
+    description: A new capability or a change to what CoreAV does
+  - name: docs
+    color: 0075ca
+    description: Documentation
+  - name: tracking
+    color: ff7619
+    description: Tracks a goal across several pull requests
+  # Resolutions: why an issue closed without a change.
+  - name: duplicate
+    color: cfd3d7
+    description: Already covered by another issue or pull request
+  - name: wontfix
+    color: ffffff
+    description: Out of scope, or will not change
+
+# GitHub's default labels that the list above replaces.
+retired:
+  - accessibility
+  - documentation
+  - enhancement
+  - good first issue
+  - help wanted
+  - invalid
+  - question

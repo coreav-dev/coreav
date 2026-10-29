@@ -1,5 +1,6 @@
 name: Benchmark result
 description: A measurement of CoreAV, ideally next to FFmpeg on the same machine.
+labels: [perf]
 body:
   - type: textarea
     id: inputs
