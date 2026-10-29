@@ -194,21 +194,18 @@ fn not_native(option: &str, value: Option<&str>, why: &str) -> Refusal {
     ))
 }
 
-/// The protocol a file name starts with, as `ffmpeg` reads one: a name of
-/// letters, digits, `+`, `-`, `.` and `_` before the first colon
-/// (`file:in.mp4`, `pipe:1`, `https://`). On Windows a drive letter
-/// before a separator (`C:\in.mp4`, `C:/in.mp4`) starts a path instead.
-fn protocol(name: &str, windows: bool) -> Option<&str> {
-    let (prefix, rest) = name.split_once(':')?;
+/// Whether a file name is surely a path to `ffmpeg`: no colon in its first
+/// component (before the first `/`, and on Windows the first `\`), where
+/// `ffmpeg` may read a protocol and its options (`file:in.mp4`,
+/// `subfile,,start,0,,:in.mp4`, `:in.mp4`). A name that starts with `/` or
+/// `./` is a path, and on Windows so is a drive letter before a separator
+/// (`C:\in.mp4`, `C:/in.mp4`); elsewhere `ffmpeg` reads `C` as a protocol.
+fn local(name: &str, windows: bool) -> bool {
     let drive = windows
-        && prefix.len() == 1
-        && prefix.bytes().all(|b| b.is_ascii_alphabetic())
-        && (rest.starts_with('\\') || rest.starts_with('/'));
-    let named = !prefix.is_empty()
-        && prefix
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b"+-._".contains(&b));
-    (named && !drive).then_some(prefix)
+        && matches!(name.as_bytes(), [letter, b':', b'\\' | b'/', ..] if letter.is_ascii_alphabetic());
+    let separator = |c: char| c == '/' || (windows && c == '\\');
+    let first = name.split(separator).next().unwrap_or(name);
+    name.starts_with('/') || name.starts_with("./") || drive || !first.contains(':')
 }
 
 fn usage(text: impl Into<String>) -> Refusal {
@@ -489,11 +486,10 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             "it is an option of the concat demuxer, and joining files is not native yet",
         ));
     }
-    let prefix = protocol(input, cfg!(windows));
-    if input == "-" || prefix == Some("pipe") {
+    if input == "-" || input.starts_with("pipe:") {
         return Err(Refusal::not_native("an input from a pipe"));
     }
-    if prefix.is_some() || input.contains("://") {
+    if !local(input, cfg!(windows)) {
         return Err(Refusal::not_native("an input named with a protocol"));
     }
     let mut format = None;
@@ -564,11 +560,10 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             }
         }
     }
-    let prefix = protocol(output, cfg!(windows));
-    if output == "-" || prefix == Some("pipe") {
+    if output == "-" || output.starts_with("pipe:") {
         return Err(Refusal::not_native("an output to a pipe"));
     }
-    if prefix.is_some() || output.contains("://") {
+    if !local(output, cfg!(windows)) {
         return Err(Refusal::not_native("an output named with a protocol"));
     }
     command.muxer = muxer(format, output)?;
@@ -814,22 +809,35 @@ mod tests {
     }
 
     #[test]
-    fn names_with_a_protocol_are_not_paths() {
+    fn names_with_a_colon_in_their_first_component_are_not_paths() {
         for name in [
             "file:in.mp4",
             "pipe:1",
             "https://e.com/a.mp4",
             "crypto+file:a",
+            "subfile,,start,0,end,99999,,:in.mp4",
+            ":in.mp4",
+            ":x",
+            "a,b:c",
+            "a:b/c.mp4",
+            "C:in.mp4",
         ] {
-            assert!(protocol(name, false).is_some(), "{name}");
-            assert!(protocol(name, true).is_some(), "{name}");
+            assert!(!local(name, false), "{name}");
+            assert!(!local(name, true), "{name}");
         }
-        for name in ["in.mp4", "dir/a:b.mp4", "./file:in.mp4", ":in.mp4"] {
-            assert_eq!(protocol(name, false), None, "{name}");
+        for name in [
+            "in.mp4",
+            "dir/a:b.mp4",
+            "./file:in.mp4",
+            "./a:b.mp4",
+            "/a:b.mp4",
+        ] {
+            assert!(local(name, false), "{name}");
+            assert!(local(name, true), "{name}");
         }
-        for name in [r"C:\in.mp4", "C:/in.mp4"] {
-            assert_eq!(protocol(name, true), None, "{name}");
-            assert_eq!(protocol(name, false), Some("C"), "{name}");
+        for name in [r"C:\in.mp4", "C:/in.mp4", r"dir\a:b.mp4"] {
+            assert!(local(name, true), "{name}");
+            assert!(!local(name, false), "{name}");
         }
         for text in [
             "-i file:in.mp4 -c copy out.mp4",

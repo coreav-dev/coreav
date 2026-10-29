@@ -629,6 +629,15 @@ fn coreav_ffmpeg_runs_ffmpeg_for_a_name_with_a_protocol() {
     for args in [
         ["ffmpeg", "-i", "file:in.mp4", "-c", "copy", "out.mp4"],
         ["ffmpeg", "-i", "in.mp4", "-c", "copy", "file:out.mp4"],
+        [
+            "ffmpeg",
+            "-i",
+            "subfile,,start,0,end,99999,,:in.mp4",
+            "-c",
+            "copy",
+            "out.mp4",
+        ],
+        ["ffmpeg", "-i", "in.mp4", "-c", "copy", ":out.mp4"],
     ] {
         let r = coreav(&args, &[], &[("COREAV_FALLBACK", dir)]);
         assert_eq!(r.code, 7, "{args:?}: {}", r.stderr);
