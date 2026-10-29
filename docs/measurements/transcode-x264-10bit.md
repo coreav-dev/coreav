@@ -226,3 +226,37 @@ Each input is named as a file or a pipe. "File" is the regular file itself on th
 **What this means for CoreAV.** No lever from outside the x264 program is confirmed. The conversion is scalar code in the program that stalls on L1-hit loads on this Intel core. Only 16-bit input from a regular file avoids most of the stall, and `coreav transcode` streams through a pipe. Writing every frame to a file first would trade the stall for spooling the whole video to disk, and it was not measured. The AMD host shows no file or depth timing penalty. The design's choice stays as it is (`docs/design/transcode.md`).
 
 The raw results are in `transcode/x264-10bit/why/`: `run1/` (`why.py`, Intel), `run2/` (`why2.py`, Intel, a second VM of the same type) and `amd/` (`why.py --part amd`). The first run's `perf sched` step failed (no read access to the kernel's trace events, rc 129 in `run1/why.jsonl`), and its 4K-aliasing event was asked for by a name this processor does not have. The second run repeated both. In `perf report --group` tables, perf 6.12 leaves out the column of an event with no samples: L3-miss events in `mem` and `stall`, `assists.fp` in `assist`, and 2 of 4 events in `fp1` and all 4 in `fp2`. The `perf stat` files of the second run print every event, including those at zero.
+
+### Input methods CoreAV controls
+
+Status: planned. These questions and bars were committed before the run that answers them.
+
+The runs above leave one question CoreAV can act on: whether some way of handing x264 the frames, from the caller's side alone, removes the L1-hit stall that only the 16-bit file arm avoids. This round changes only the input path. The x264 program, its arguments and the frames stay the same, and no source, `perf annotate` or disassembly is used. The runner is `why3.py`, on one `c4-standard-8` as above (standard PMU, SMT on, not preemptible), by `scripts/gcp_vm_job.py`. No AMD control is run. That host has no PMU on Compute Engine and showed no file or depth penalty, so it would add nothing to these questions.
+
+**Arms.** The 129 frames of the 4K ProRes file as `yuv420p10le`, and the first 1080p copy of them scaled by the pinned `ffmpeg`. "16-bit" is each 10-bit sample shifted up 6 bits, as above.
+
+- Controls: 10-bit and 16-bit from a regular file on tmpfs (`/dev/shm`), and 16-bit through a 64 KiB pipe, which is the form a streaming caller uses today.
+- 16-bit through a 1 MiB pipe (`F_SETPIPE_SZ`). That is the largest size an unprivileged caller can set by default.
+- 16-bit from a memfd (`memfd_create`, filled before x264 starts and given as standard input), and from a regular file on the boot disk (`ext4`, in the page cache).
+- 16-bit as a y4m file (diagnostic). Each frame there starts after a 6-byte frame header, so no frame starts on a page or a 64-byte boundary.
+- 16-bit with the top 6 bits of each sample copied into its low 6 bits (diagnostic, "16r"). The sample values change, and the encoded stream may too.
+- At 1080p: the controls and the memfd only.
+
+**Observations, per arm.**
+
+- The median wall time of 3 runs in rotated order.
+- The main thread's cycles, instructions, cycles bound on loads, all stall cycles, loads, and 4K-aliasing blocks. These come from `perf stat` with one explicit event group of 4 programmable events. If the file shows a running share under 100%, the page labels the counts as scaled.
+- `get_frame`'s share of a cpu-clock profile.
+- The output stream's hash.
+- For the file-like arms, `strace` counts of `mmap` and `read` for 10 frames.
+
+**Bars.**
+
+1. An arm **helps** when all of the following hold. Its median wall time is at most 0.95 times that of the 16-bit 64 KiB pipe arm. Its 3 times are all below that arm's 3 times. Its output stream has the same hash as the 10-bit file arm's.
+2. An arm **removes the stall** when its main-thread cycles are at most 1.25 times those of the 16-bit tmpfs file arm, which is the fast form already known. It **shrinks the stall** when they fall between that bound and 0.9 times those of the 16-bit 64 KiB pipe arm.
+3. A **lever** for `coreav transcode` must help (bar 1) and must work while streaming, which means a pipe arm. A memfd or disk arm that helps needs the whole video in memory or on disk first. It is reported with that cost in bytes, and it is not called a streaming lever.
+4. The y4m arm: if it misses the remove-the-stall bound, the fast path depends on where frames start in the mapping. If it meets that bound, the alignment of frame starts within a page does not matter.
+5. The 16r arm: if it misses the remove-the-stall bound, the fast path depends on the sample values. If it meets that bound, it does not.
+6. At 1080p, the fast path exists when the 16-bit file arm's main-thread cycles are at most 0.8 times the 10-bit file arm's. The memfd arm is judged there by bars 1 and 2.
+
+If no pipe arm helps, the page says that no streaming input method removes the stall. It then names the question that remains.
