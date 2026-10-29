@@ -21,7 +21,8 @@ written output is checked twice:
   `scripts/remux_check.py` (MP4 and MOV sources),
   `scripts/mkv_remux_check.py` (Matroska and WebM; the streams outside the
   selection are not expected in the output), `clip_check.py`,
-  `split_check.py` and `extract_check.py`, each with its known
+  `split_check.py`, `extract_check.py` and `scripts/join_check.py` (a join
+  also against `ffmpeg -f concat` on the same inputs), each with its known
   divergences. A clip's requested range must also be the one the command
   names, read here from its arguments and the input's start time.
 
@@ -55,7 +56,8 @@ MATROSKA = (".mkv", ".webm")
 # decoder that reinitializes mid-stream, and their own fixture runs leave
 # them out, so their clips and segments are set aside here too.
 UNMODELLED = {"clip": ("size_inband_sps.mp4", "size_vp9_resize.mp4"),
-              "split": ("size_inband_sps.mp4", "size_vp9_resize.mp4")}
+              "split": ("size_inband_sps.mp4", "size_vp9_resize.mp4"),
+              "join": ("size_inband_sps.mp4", "size_vp9_resize.mp4")}
 
 
 def outputs(record):
@@ -89,6 +91,8 @@ def selected(record):
     summary = record["detail"]
     if "stream" in summary:
         return [summary["stream"]["stream_index"]]
+    if "inputs" in summary:
+        return [s["stream_index"] for s in summary["inputs"][0]["streams"]]
     if "segments" in summary:
         listed = [s for seg in summary["segments"] for s in seg["streams"]]
         return sorted({s["stream_index"] for s in listed}, key=lambda i: [s["stream_index"] for s in listed].index(i))
@@ -102,7 +106,7 @@ def selection(record, ffmpeg):
     "ffmpeg fails" when it cannot run the command, else the difference."""
     with tempfile.TemporaryDirectory(prefix="copy-check-") as tmp:
         target = pathlib.Path(tmp) / pathlib.Path(record["output"]).name
-        args = [record["source"] if a == "INPUT" else str(target) if a == "OUTPUT" else a for a in record["args"]]
+        args = [record.get("input", record["source"]) if a == "INPUT" else str(target) if a == "OUTPUT" else a for a in record["args"]]
         done = subprocess.run([ffmpeg, "-nostdin", "-hide_banner", "-v", "info"] + args, capture_output=True,
                               timeout=TIMEOUT, check=False)
     mapped = sorted((int(o), int(i)) for i, o in MAPPING.findall(done.stderr.decode(errors="replace")))
@@ -172,6 +176,79 @@ def range_problems(record, ffprobe):
     return [] if ours == theirs else ["requested range: coreav %s, the command names %s" % (ours, theirs)]
 
 
+def micros(value):
+    """A time in whole microseconds, halves away from zero, as ffmpeg's
+    demuxers count a file's start time and duration."""
+    exact = abs(fractions.Fraction(value)) * 1_000_000
+    whole = int(exact + fractions.Fraction(1, 2))
+    return whole if value >= 0 else -whole
+
+
+def placement(offsets, formats):
+    """The problems of a join's placement: each input's offset (from the
+    first input's) against where ffmpeg's concat demuxer places that file,
+    after the files before it, each as long as its format duration, less its
+    own start time; `formats` holds each input's (start_time, duration) in
+    microseconds. Any difference is a problem."""
+    problems, end = [], 0
+    for index, (offset, (start, duration)) in enumerate(zip(offsets, formats)):
+        expected = end - start + formats[0][0]
+        ours = micros(offset - offsets[0])
+        if ours != expected:
+            problems.append(f"timing: input {index} placed at {ours} us, ffmpeg concat {expected} us")
+        end += duration
+    return problems
+
+
+def packet_times(ffprobe, path):
+    """The first video stream's (pts, dts) in seconds, from its first
+    packet's pts, edit lists applied."""
+    done = subprocess.run([ffprobe, "-v", "error", "-of", "json", "-select_streams", "v:0", "-show_entries",
+                           "stream=time_base:packet=pts,dts", str(path)], capture_output=True, timeout=TIMEOUT,
+                          check=True)
+    data = json.loads(done.stdout)
+    base = fractions.Fraction(data["streams"][0]["time_base"])
+    packets = data.get("packets", [])
+    first = packets[0]["pts"] if packets else 0
+    return [((p["pts"] - first) * base, (p["dts"] - first) * base) for p in packets]
+
+
+def concat_problems(record, ffprobe, ffmpeg):
+    """A join's timing against ffmpeg's concat demuxer, where any
+    disagreement fails (join_check.py only reports its own concat timing
+    comparison): every input placed where the demuxer places it
+    ([placement], from each input's format start_time and duration by the
+    pinned ffprobe), and the video packets' times, from the first packet's,
+    those of the pinned ffmpeg's output of the same command. The audio
+    packets are not compared one for one: where a file's audio runs past
+    its edit, ffmpeg's muxer moves the next file's first packet to one tick
+    after the overlapping one (black box: durations of 1 and 135 ticks at
+    the seam of a fixture listed twice), so its times there are not the
+    demuxer's placement, which the first check covers for every stream."""
+    formats = []
+    for item in record["detail"]["inputs"]:
+        done = subprocess.run([ffprobe, "-v", "error", "-of", "json", "-show_entries", "format=start_time,duration",
+                               item["path"]], capture_output=True, timeout=TIMEOUT, check=True)
+        fmt = json.loads(done.stdout)["format"]
+        formats.append((micros(fractions.Fraction(fmt["start_time"])), micros(fractions.Fraction(fmt["duration"]))))
+    offsets = [fractions.Fraction(r["num"], r["den"]) for r in (writer_corpus.ratio(item["offset"]) for item in record["detail"]["inputs"])]
+    problems = placement(offsets, formats)
+    with tempfile.TemporaryDirectory(prefix="copy-check-concat-") as tmp:
+        reference = pathlib.Path(tmp) / "concat.mp4"
+        args = [record["input"] if a == "INPUT" else str(reference) if a == "OUTPUT" else a for a in record["args"]]
+        done = subprocess.run([ffmpeg, "-nostdin", "-v", "error"] + args, capture_output=True, timeout=TIMEOUT,
+                              check=False)
+        if done.returncode != 0:
+            return problems + [f"timing: ffmpeg fails on the command ({done.stderr.decode(errors='replace')[-120:]})"]
+        theirs = packet_times(ffprobe, reference)
+    ours = packet_times(ffprobe, record["output"])
+    if ours != theirs:
+        differ = next((i for i, (a, b) in enumerate(zip(ours, theirs)) if a != b), min(len(ours), len(theirs)))
+        problems.append(f"timing: video packet {differ} of {len(ours)} at other times than ffmpeg concat's "
+                        f"({len(theirs)} packets)")
+    return problems
+
+
 def entry(record, src_movie, source_streams):
     """The oracle's entry for one written record, as writer_corpus builds it."""
     summary, source, output = record["detail"], record["source"], record["output"]
@@ -185,6 +262,17 @@ def entry(record, src_movie, source_streams):
                 "written_end": writer_corpus.ratio(summary["end"]["written"]),
                 "video": writer_corpus.kept_track(src_movie, kinds["video"]),
                 "audio": writer_corpus.kept_track(src_movie, kinds["audio"]) if "audio" in kinds else None}
+    if job == "join":
+        inputs = []
+        for item in summary["inputs"]:
+            kinds = {s["kind"]: s["stream_index"] for s in item["streams"]}
+            inputs.append({"path": item["path"], "offset": writer_corpus.ratio(item["offset"]),
+                           "video_start": writer_corpus.ratio(item["video_start"]),
+                           "video_end": writer_corpus.ratio(item["video_end"]), "extended": item["extended"],
+                           "video_stream": kinds["video"], "audio_stream": kinds.get("audio")})
+        return {"label": record["id"], "source": None, "source_offset": None, "output": output,
+                "duration": writer_corpus.ratio(summary["duration"]), "video_edits": summary["edits"]["video"],
+                "audio_edits": summary["edits"]["audio"], "inputs": inputs}
     if job == "split":
         first = summary["segments"][0]["streams"]
         segments = []
@@ -216,6 +304,7 @@ def oracle(record, tools):
     """The problems the job's oracle finds in one written record."""
     import clip_check
     import extract_check
+    import join_check
     import mkv_remux_check
     import remux_check
     import split_check
@@ -227,6 +316,9 @@ def oracle(record, tools):
         result = mkv_remux_check.check(source, record["output"], summary, mediainfo, selected=selected)
         return [json.dumps(p) for p in result["problems"]]
     src_movie = track_boxes.read_movie(source) if record["job"] in ("clip", "split") else None
+    if record["job"] == "join":
+        problems = join_check.check(entry(record, None, []), ffprobe, ffmpeg, mediainfo, concat=True)[0]
+        return [str(p) for p in problems] + concat_problems(record, ffprobe, ffmpeg)
     item = entry(record, src_movie, streams(ffprobe, source) or [])
     if record["job"] == "clip":
         problems = range_problems(record, ffprobe) + list(clip_check.check(item, ffprobe, ffmpeg, mediainfo)[0])
