@@ -45,7 +45,7 @@ TRIGGER = re.compile(r'\A {2}\S')
 ROW = re.compile(r'\A\| `([^`]+)` \| `([^`]+)` \|')
 SECTION = '### Required status checks (exact names)'
 LABELS = 'github.event.pull_request.labels'
-ANY_USES = re.compile(r'''\A\s*(?:-\s+)?uses:\s*['"]?([^'"\s#]+)''')
+ANY_USES = re.compile(r'''(?:\A\s*(?:-\s+)?|[{,]\s*)['"]?uses['"]?:\s*['"]?([^'"\s#,}]+)''')
 PINNED = re.compile(r'\A[^@\s]+@[0-9a-f]{40}\Z|\Adocker://[^@\s]+@sha256:[0-9a-f]{64}\Z')
 # A workflow whose checks the table does not require, such as one this
 # repository runs for itself alone.
@@ -208,8 +208,9 @@ def unpinned(lines):
     """Steps that use an action by a name whose code can move."""
     out = []
     for n, line in enumerate(lines, 1):
-        match = ANY_USES.match(line)
-        if match and not match.group(1).startswith('./') and not PINNED.match(match.group(1)):
+        for match in ANY_USES.finditer(line):
+            if match.group(1).startswith('./') or PINNED.match(match.group(1)):
+                continue
             out.append(f'line {n}: `{match.group(1)}` is not pinned: use the full commit sha with the '
                        'version as a comment (`owner/repo@<40-hex sha> # vX.Y.Z`), as every other step does')
     return out
