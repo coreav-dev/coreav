@@ -24,7 +24,12 @@ gate is that of `docs/measurements/h264-rounds/host-gate/` with the class's own 
 streams (`--ref-stream PATH:FRAMES`, twice) five minutes apart before the first call, a check before and after every call, and a
 call whose after-check fails is run again (at most 3 attempts; the voided files stay as `*.void<N>`). The run is void when the
 three references disagree by more than 5%, when a call never passed its checks, or by the rules above (no reference drift rule:
-the checks stand in for it).
+the checks stand in for it). `--turbo` names the class's frequency and is required: `all-core-max` creates the VM with
+`turboMode=ALL_CORE_MAX` (the fixed-frequency class of docs/design/h264.md, "The one-thread class at a fixed frequency"),
+`unrestricted` leaves the platform's default boost (the class of the rounds whose bars named it before). Either way the job
+measures the frequency of the call's core (`perf stat` cycles over task-clock on FFmpeg decoding the first reference stream)
+after the references, after every call and at the end, into `freq.json`; with `all-core-max` the run is also void when the VM
+does not report that turbo mode (`instance.json`) or a sample is missing or more than 3% from 3.1 GHz.
 
 Every call is `--threads 8 --min-seconds 3 --shuffle-seed N --null-arm A` with the in-call gate and the bars of
 that host (`--null-bar 0.02 --spread-bar 1.25`), one call per class at its frame count. `--threads N` (and
@@ -69,7 +74,22 @@ def measure():
         out[n] = statistics.median(ts)
     return out
 mode, label = sys.argv[1], sys.argv[2]
-m = measure(); now = time.strftime('%H:%M:%SZ', time.gmtime())
+now = time.strftime('%H:%M:%SZ', time.gmtime())
+if mode == 'freq':
+    n, f = next(iter(S.items()))
+    p = 'out/freq.json'
+    d = json.load(open(p)) if os.path.exists(p) else []
+    try:
+        r = subprocess.run(['perf', 'stat', '-x,', '-e', 'cycles,task-clock', '--', 'taskset', '-c', CORE, './ffmpeg', '-nostdin',
+                            '-v', 'error', '-threads', '1', '-i', f'refs/{n}', '-frames:v', str(f), '-f', 'null', '-'],
+                           capture_output=True, text=True, check=True)
+        c = {l.split(',')[2].split(':')[0]: float(l.split(',')[0]) for l in r.stderr.splitlines() if l.count(',') >= 2
+             and l.split(',')[0].replace('.', '', 1).isdigit()}
+        d.append({'label': label, 'time': now, 'ghz': c['cycles'] / (c['task-clock'] * 1e6)})
+    except (OSError, subprocess.CalledProcessError, KeyError, ZeroDivisionError) as e:
+        d.append({'label': label, 'time': now, 'error': type(e).__name__})
+    json.dump(d, open(p, 'w'), indent=1); print(label, d[-1]); sys.exit(0)
+m = measure()
 if mode == 'ref':
     p = 'out/gate-refs.json'
     d = json.load(open(p)) if os.path.exists(p) else []
@@ -84,6 +104,8 @@ else:
     sys.exit(0 if ok else 1)
 '''
 CPU_MATCH = '8581C'            # the CPU of the calibration (Xeon Platinum 8581C @ 2.30 GHz)
+FREQ_1T = 3.1                  # GHz: the all-core turbo of that CPU in C4, which turboMode=ALL_CORE_MAX holds
+FREQ_TOL = 0.03
 REF_DRIFT = 0.05
 MAX_UNRESOLVED = 2
 
@@ -94,9 +116,13 @@ def job_script_1t(args, calls, decoders):
     lines = ['set -u', 'mkdir -p out', 'chmod +x decode-* ffmpeg',
              '{ lscpu; nproc; uname -a; echo "smt active: $(cat /sys/devices/system/cpu/smt/active 2>&1)";'
              ' python3 --version; sha256sum decode-* ffmpeg h264_parity.py gate1t.py gate.h264 refs/* es/*; } > out/host.txt 2>&1',
+             # perf for the frequency samples (Debian's package; its counters need perf_event_paranoid at most 2)
+             '[ "${PERF_INSTALL:-1}" = 0 ] || { sudo apt-get -q update && sudo DEBIAN_FRONTEND=noninteractive apt-get -q -y install '
+             'linux-perf && sudo sysctl -q kernel.perf_event_paranoid=1; } > out/perf-install.log 2>&1',
              'echo "start $(date -u +%T)" >> out/progress.txt',
              'for i in 1 2 3; do', '  python3 gate1t.py ref "ref$i" >> out/progress.txt 2>&1',
-             '  [ $i -lt 3 ] && sleep ${REF_SLEEP:-300}', 'done', 'echo "refs done $(date -u +%T)" >> out/progress.txt']
+             '  [ $i -lt 3 ] && sleep ${REF_SLEEP:-300}', 'done', 'echo "refs done $(date -u +%T)" >> out/progress.txt',
+             'python3 gate1t.py freq start >> out/progress.txt 2>&1']
     for cls, files in calls:
         flags = (f'--ffmpeg ./ffmpeg --frames {FRAMES[cls]} --pin {args.pin} --rounds {args.rounds} '
                  f'--shuffle-seed {args.seed} --gate-stream gate.h264 --gate-frames {args.gate_frames} --gate-every 4 '
@@ -113,11 +139,13 @@ def job_script_1t(args, calls, decoders):
                   f'  python3 h264_parity.py {decoders} {flags} --report out/{tag}.json '
                   + ' '.join(shlex.quote(f) for f in files) + f' > out/{tag}.log 2>&1',
                   f'  echo "{tag} rc=$? $(date -u +%T)" >> out/progress.txt',
-                  f'  if [ -f out/{tag}.json ] && python3 gate1t.py check "after {cls} #$attempt"; then touch out/{tag}.gate_ok; break; fi',
+                  f'  ok=0; [ -f out/{tag}.json ] && python3 gate1t.py check "after {cls} #$attempt" && ok=1',
+                  f'  python3 gate1t.py freq "after {cls} #$attempt" >> out/progress.txt 2>&1',
+                  f'  if [ $ok = 1 ]; then touch out/{tag}.gate_ok; break; fi',
                   f'  [ -f out/{tag}.json ] && mv out/{tag}.json out/{tag}.json.void$attempt',
                   f'  [ -f out/{tag}.log ] && mv out/{tag}.log out/{tag}.log.void$attempt',
                   'done']
-    lines.append('echo "end $(date -u +%T)" >> out/progress.txt')
+    lines += ['python3 gate1t.py freq end >> out/progress.txt 2>&1', 'echo "end $(date -u +%T)" >> out/progress.txt']
     return '\n'.join(lines) + '\n'
 
 
@@ -205,12 +233,41 @@ def refs_problems(out):
         return ['no usable gate references']
 
 
-def verdict(out, calls, threads=8, one_thread_class=False):
+def frequency_problems(out):
+    """The fixed-frequency class: the VM must report turboMode ALL_CORE_MAX (instance.json), and every frequency sample
+    (freq.json: after the references, after each call, at the end) must be within FREQ_TOL of FREQ_1T."""
+    problems = []
+    try:
+        with open(os.path.join(out, 'instance.json')) as f:
+            features = json.load(f).get('advanced_machine_features') or {}
+        if features.get('turboMode') != 'ALL_CORE_MAX':
+            problems.append('the VM does not report turboMode ALL_CORE_MAX')
+    except (OSError, ValueError, AttributeError):
+        problems.append('no instance.json: the turbo mode of the VM is not on record')
+    try:
+        with open(os.path.join(out, 'freq.json')) as f:
+            samples = json.load(f)
+        labels = [s['label'] for s in samples]
+        if 'start' not in labels or 'end' not in labels:
+            problems.append('no frequency sample at the start or at the end')
+        for s in samples:
+            ghz = s.get('ghz')
+            if not isinstance(ghz, (int, float)) or not math.isfinite(ghz) or abs(ghz / FREQ_1T - 1) > FREQ_TOL:
+                problems.append(f'frequency sample {s["label"]!r}: {ghz if ghz is not None else s.get("error")}, '
+                                f'not {FREQ_1T} GHz within {FREQ_TOL:.0%}')
+    except (OSError, ValueError, KeyError, TypeError):
+        problems.append('no usable frequency samples')
+    return problems
+
+
+def verdict(out, calls, threads=8, one_thread_class=False, turbo=None):
     """Whether the run is void, and why, from the files that came back. `calls` is the list of (class, files),
     `threads` the count each call timed (its reports are `t<threads>.<class>.json`); with `one_thread_class` the reports
     are `g.<class>.json`, each call must have passed its gate checks (`g.<class>.gate_ok`) and the three references
-    must agree, in place of the reference before and after."""
+    must agree, in place of the reference before and after; with `turbo` 'all-core-max' the frequency rules apply too."""
     reasons = host_problems(out, 4 if one_thread_class else 8)
+    if turbo == 'all-core-max':
+        reasons += frequency_problems(out)
     drift = None
     prefix = 'g' if one_thread_class else f't{threads}'
     if one_thread_class:
@@ -273,6 +330,8 @@ def main():
     ap.add_argument('--one-thread-class', action='store_true',
                     help='the one-thread arms on a c4-standard-8 with one thread a core (see the module docstring); needs '
                          'two --ref-stream; --pin defaults to 2')
+    ap.add_argument('--turbo', choices=['all-core-max', 'unrestricted'],
+                    help='with --one-thread-class, required: the frequency of the class (see the module docstring)')
     ap.add_argument('--ref-stream', action='append', default=[], metavar='PATH:FRAMES',
                     help='a reference stream of the host-health gate and its frame count (twice, with --one-thread-class)')
     ap.add_argument('--null-bar', type=float, default=None, help='default 0.02 (0.04 with --one-thread-class)')
@@ -305,6 +364,8 @@ def main():
             args.spread_bar = 1.50
         if len(args.ref_stream) != 2:
             ap.error('--one-thread-class needs two --ref-stream PATH:FRAMES')
+        if args.turbo is None:
+            ap.error('--one-thread-class needs --turbo all-core-max or --turbo unrestricted: the class its bars name')
         refs = []
         for r in args.ref_stream:
             path, _, frames = r.rpartition(':')
@@ -314,8 +375,8 @@ def main():
         args.refs = refs
     else:
         args.machine, args.usd_per_hour = MACHINE, USD_PER_HOUR
-        if args.ref_stream:
-            ap.error('--ref-stream is for --one-thread-class')
+        if args.ref_stream or args.turbo:
+            ap.error('--ref-stream and --turbo are for --one-thread-class')
         if args.threads is None:
             args.threads = 8
         if args.min_seconds is None:
@@ -392,6 +453,8 @@ def main():
                '--download', args.out, '--zone', args.zone, '--machine', args.machine, '--provisioning', 'standard',
                '--threads-per-core', '1',
                '--usd-per-hour', str(args.usd_per_hour), '--max-hours', str(args.max_hours), '--cap-usd', str(args.cap_usd)]
+        if args.turbo == 'all-core-max':
+            cmd += ['--turbo-mode', 'ALL_CORE_MAX']
         print(f'upload {size / 1e6:.0f} MB, {sum(len(f) for _, f in calls)} streams in {len(calls)} calls; '
               f'spend bound {args.max_hours * args.usd_per_hour:.2f} USD of {args.cap_usd:.2f}', flush=True)
         if args.dry_run:
@@ -407,7 +470,7 @@ def main():
             print(f'gcp_vm_job.py exited {rc}: no verdict', flush=True)
         if rc != 0:
             return 4
-        v = verdict(args.out, calls, args.threads, args.one_thread_class)
+        v = verdict(args.out, calls, args.threads, args.one_thread_class, args.turbo)
         print(json.dumps(v), flush=True)
         return 3 if v['void'] else 0
     finally:
