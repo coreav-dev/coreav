@@ -1,0 +1,44 @@
+# started on Thu Oct 29 13:28:00 2026
+
+
+ Performance counter stats for thread id '2544':
+
+      211911039444      TOPDOWN.SLOTS                    #      0.0 %  tma_dram_bound         
+                                                  #      3.8 %  tma_l3_bound             (25.04%)
+       27423781574      topdown-retiring                                                        (25.04%)
+        1663246683      topdown-fe-bound                                                        (25.04%)
+      121329457876      topdown-mem-bound                                                       (25.04%)
+      182825210498      topdown-be-bound                                                        (25.04%)
+            198316      topdown-bad-spec                                                        (25.04%)
+        2060114832      MEMORY_ACTIVITY.STALLS_L2_MISS                                          (25.04%)
+                 0      MEMORY_ACTIVITY.STALLS_L3_MISS                                          (25.04%)
+       54389614141      CPU_CLK_UNHALTED.THREAD                                                 (25.04%)
+      212545975241      TOPDOWN.SLOTS                    #      0.5 %  tma_l2_bound             (24.99%)
+       22507589642      topdown-retiring                                                        (24.99%)
+        3339563825      topdown-fe-bound                                                        (24.99%)
+      127527657690      topdown-mem-bound                                                       (24.99%)
+      186707052760      topdown-be-bound                                                        (24.99%)
+         834238824      topdown-bad-spec                                                        (24.99%)
+        1893954128      MEMORY_ACTIVITY.STALLS_L2_MISS                                          (24.99%)
+        2155898631      MEMORY_ACTIVITY.STALLS_L1D_MISS                                         (24.99%)
+       54348133197      CPU_CLK_UNHALTED.THREAD                                                 (24.99%)
+      212046216758      TOPDOWN.SLOTS                    #     47.5 %  tma_l1_bound             (25.04%)
+       29117151828      topdown-retiring                                                        (25.04%)
+        2496858125      topdown-fe-bound                                                        (25.04%)
+      125564622470      topdown-mem-bound                                                       (25.04%)
+      181278726483      topdown-be-bound                                                        (25.04%)
+         831606539      topdown-bad-spec                                                        (25.04%)
+       27941893293      EXE_ACTIVITY.BOUND_ON_LOADS                                             (25.04%)
+        2103861624      MEMORY_ACTIVITY.STALLS_L1D_MISS                                         (25.04%)
+       54348114108      CPU_CLK_UNHALTED.THREAD                                                 (25.04%)
+      212065524265      TOPDOWN.SLOTS                    #      3.2 %  tma_store_bound          (24.93%)
+       31604989086      topdown-retiring                                                        (24.93%)
+        1664435877      topdown-fe-bound                                                        (24.93%)
+      121417908010      topdown-mem-bound                                                       (24.93%)
+      178800343988      topdown-be-bound                                                        (24.93%)
+                 0      topdown-bad-spec                                                        (24.93%)
+        1755945923      EXE_ACTIVITY.BOUND_ON_STORES                                            (24.93%)
+       54394297904      CPU_CLK_UNHALTED.THREAD                                                 (24.93%)
+
+      23.185937937 seconds time elapsed
+

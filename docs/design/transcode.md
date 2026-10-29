@@ -1011,4 +1011,7 @@ above are unchanged. Round 2 (`e4b215ed`):
 What the misses are, in the measurement: a 16 GB host's memory cap at
 8K, the pacing on one HEVC stream, repeated millisecond times in WebM,
 one 8K AV1 stream through `--encoder ffmpeg`, and, for speed, the cost of
-the sandboxed decoders above the 5% that B5 allows.
+the sandboxed decoders above the 5% that B5 allows. On the `x264` arm, 10-bit
+sources add the x264 program's own conversion of 10-bit input, which no input
+CoreAV can stream avoids
+([`docs/measurements/transcode-x264-10bit.md`](../measurements/transcode-x264-10bit.md)).

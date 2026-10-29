@@ -1,0 +1,22 @@
+{"rc": 0, "wall": 11.728, "main_cpu": 6.01, "total_cpu": 68.36, "threads": 17, "err": "", "kind": "time", "case": "4k", "arm": "x264-d10-file", "input": "file", "rep": 0, "samples": 1604966400, "frames": 129, "sha256": "cf013b4599fd7e23"}
+{"rc": 0, "wall": 11.592, "main_cpu": 5.93, "total_cpu": 67.29, "threads": 17, "err": "", "kind": "time", "case": "4k", "arm": "x264-d16-file", "input": "file", "rep": 0, "samples": 1604966400, "frames": 129, "sha256": "cf013b4599fd7e23"}
+{"rc": 0, "wall": 11.753, "main_cpu": 6.02, "total_cpu": 68.49, "threads": 17, "err": "", "kind": "time", "case": "4k", "arm": "x264-d10-pipe", "input": "pipe", "rep": 0, "samples": 1604966400, "frames": 129, "sha256": "cf013b4599fd7e23"}
+{"rc": 0, "wall": 11.697, "main_cpu": 6.04, "total_cpu": 67.86, "threads": 17, "err": "", "kind": "time", "case": "4k", "arm": "x264-d16-pipe", "input": "pipe", "rep": 0, "samples": 1604966400, "frames": 129, "sha256": "cf013b4599fd7e23"}
+{"rc": 0, "wall": 9.668, "main_cpu": 0.0, "total_cpu": 62.5, "threads": 29, "err": "", "kind": "time", "case": "4k", "arm": "libx264-file", "input": "file", "rep": 0, "samples": 1604966400, "frames": 129, "sha256": "21e70ab4ab95bcd0"}
+{"rc": 0, "wall": 11.588, "main_cpu": 5.93, "total_cpu": 67.35, "threads": 17, "err": "", "kind": "time", "case": "4k", "arm": "x264-d16-file", "input": "file", "rep": 1, "samples": 1604966400, "frames": 129, "sha256": "cf013b4599fd7e23"}
+{"rc": 0, "wall": 11.722, "main_cpu": 6.02, "total_cpu": 68.53, "threads": 17, "err": "", "kind": "time", "case": "4k", "arm": "x264-d10-pipe", "input": "pipe", "rep": 1, "samples": 1604966400, "frames": 129, "sha256": "cf013b4599fd7e23"}
+{"rc": 0, "wall": 11.649, "main_cpu": 5.99, "total_cpu": 67.96, "threads": 17, "err": "", "kind": "time", "case": "4k", "arm": "x264-d16-pipe", "input": "pipe", "rep": 1, "samples": 1604966400, "frames": 129, "sha256": "cf013b4599fd7e23"}
+{"rc": 0, "wall": 9.634, "main_cpu": 0.0, "total_cpu": 62.29, "threads": 29, "err": "", "kind": "time", "case": "4k", "arm": "libx264-file", "input": "file", "rep": 1, "samples": 1604966400, "frames": 129, "sha256": "21e70ab4ab95bcd0"}
+{"rc": 0, "wall": 11.73, "main_cpu": 6.01, "total_cpu": 68.37, "threads": 17, "err": "", "kind": "time", "case": "4k", "arm": "x264-d10-file", "input": "file", "rep": 1, "samples": 1604966400, "frames": 129, "sha256": "cf013b4599fd7e23"}
+{"rc": 0, "wall": 11.815, "main_cpu": 6.05, "total_cpu": 68.92, "threads": 17, "err": "", "kind": "time", "case": "4k", "arm": "x264-d10-pipe", "input": "pipe", "rep": 2, "samples": 1604966400, "frames": 129, "sha256": "cf013b4599fd7e23"}
+{"rc": 0, "wall": 11.741, "main_cpu": 6.02, "total_cpu": 68.02, "threads": 17, "err": "", "kind": "time", "case": "4k", "arm": "x264-d16-pipe", "input": "pipe", "rep": 2, "samples": 1604966400, "frames": 129, "sha256": "cf013b4599fd7e23"}
+{"rc": 0, "wall": 9.725, "main_cpu": 0.01, "total_cpu": 62.71, "threads": 29, "err": "", "kind": "time", "case": "4k", "arm": "libx264-file", "input": "file", "rep": 2, "samples": 1604966400, "frames": 129, "sha256": "21e70ab4ab95bcd0"}
+{"rc": 0, "wall": 11.699, "main_cpu": 6.04, "total_cpu": 68.58, "threads": 17, "err": "", "kind": "time", "case": "4k", "arm": "x264-d10-file", "input": "file", "rep": 2, "samples": 1604966400, "frames": 129, "sha256": "cf013b4599fd7e23"}
+{"rc": 0, "wall": 11.665, "main_cpu": 5.92, "total_cpu": 67.69, "threads": 17, "err": "", "kind": "time", "case": "4k", "arm": "x264-d16-file", "input": "file", "rep": 2, "samples": 1604966400, "frames": 129, "sha256": "cf013b4599fd7e23"}
+{"step": "time-4k", "ok": true, "seconds": 169.6}
+{"rc": 0, "wall": 12.246, "main_cpu": 0.15, "total_cpu": 0.15, "threads": 2, "err": "", "kind": "profile", "case": "4k", "arm": "x264-d10-file", "input": "file"}
+{"rc": 0, "wall": 12.124, "main_cpu": 0.11, "total_cpu": 0.11, "threads": 2, "err": "", "kind": "profile", "case": "4k", "arm": "x264-d16-file", "input": "file"}
+{"rc": 0, "wall": 12.098, "main_cpu": 0.11, "total_cpu": 0.11, "threads": 2, "err": "", "kind": "profile", "case": "4k", "arm": "x264-d10-pipe", "input": "pipe"}
+{"rc": 0, "wall": 12.125, "main_cpu": 0.11, "total_cpu": 0.11, "threads": 2, "err": "", "kind": "profile", "case": "4k", "arm": "x264-d16-pipe", "input": "pipe"}
+{"rc": 0, "wall": 10.124, "main_cpu": 0.11, "total_cpu": 0.11, "threads": 2, "err": "", "kind": "profile", "case": "4k", "arm": "libx264-file", "input": "file"}
+{"step": "profile-4k", "ok": true, "seconds": 59.3}

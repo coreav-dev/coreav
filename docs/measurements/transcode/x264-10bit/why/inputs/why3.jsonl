@@ -1,0 +1,66 @@
+{"kind": "input", "case": "4k", "frames": 129, "samples": 1604966400, "bytes_16bit": 3209932800}
+{"rc": 0, "wall": 23.609, "main_cpu": 17.5, "total_cpu": 122.7, "err": "", "kind": "time", "case": "4k", "arm": "d10-file", "rep": 0, "samples": 1604966400, "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 19.021, "main_cpu": 8.6, "total_cpu": 113.79, "err": "", "kind": "time", "case": "4k", "arm": "d16-file", "rep": 0, "samples": 1604966400, "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 23.43, "main_cpu": 17.5, "total_cpu": 122.16, "err": "", "kind": "time", "case": "4k", "arm": "d16-pipe-64k", "rep": 0, "samples": 1604966400, "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 18.944, "main_cpu": 8.52, "total_cpu": 114.04, "err": "", "kind": "time", "case": "4k", "arm": "d16-memfd", "rep": 0, "samples": 1604966400, "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 23.426, "main_cpu": 17.53, "total_cpu": 122.82, "err": "", "kind": "time", "case": "4k", "arm": "d16-pipe-1m", "rep": 0, "samples": 1604966400, "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 18.938, "main_cpu": 8.61, "total_cpu": 114.43, "err": "", "kind": "time", "case": "4k", "arm": "d16-disk-file", "rep": 0, "samples": 1604966400, "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 18.842, "main_cpu": 8.57, "total_cpu": 114.15, "err": "", "kind": "time", "case": "4k", "arm": "d16-y4m-file", "rep": 0, "samples": 1604966400, "sha256": "db6ba30aad17ff6e"}
+{"rc": 0, "wall": 18.942, "main_cpu": 8.56, "total_cpu": 114.01, "err": "", "kind": "time", "case": "4k", "arm": "d16r-file", "rep": 0, "samples": 1604966400, "sha256": "ad31cd0f9b50be4b"}
+{"rc": 0, "wall": 18.928, "main_cpu": 8.56, "total_cpu": 113.87, "err": "", "kind": "time", "case": "4k", "arm": "d16-file", "rep": 1, "samples": 1604966400, "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 23.413, "main_cpu": 17.53, "total_cpu": 121.99, "err": "", "kind": "time", "case": "4k", "arm": "d16-pipe-64k", "rep": 1, "samples": 1604966400, "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 18.888, "main_cpu": 8.53, "total_cpu": 113.9, "err": "", "kind": "time", "case": "4k", "arm": "d16-memfd", "rep": 1, "samples": 1604966400, "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 23.068, "main_cpu": 16.8, "total_cpu": 122.34, "err": "", "kind": "time", "case": "4k", "arm": "d16-pipe-1m", "rep": 1, "samples": 1604966400, "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 18.824, "main_cpu": 8.6, "total_cpu": 113.95, "err": "", "kind": "time", "case": "4k", "arm": "d16-disk-file", "rep": 1, "samples": 1604966400, "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 18.926, "main_cpu": 8.53, "total_cpu": 113.78, "err": "", "kind": "time", "case": "4k", "arm": "d16-y4m-file", "rep": 1, "samples": 1604966400, "sha256": "db6ba30aad17ff6e"}
+{"rc": 0, "wall": 18.879, "main_cpu": 8.53, "total_cpu": 114.07, "err": "", "kind": "time", "case": "4k", "arm": "d16r-file", "rep": 1, "samples": 1604966400, "sha256": "ad31cd0f9b50be4b"}
+{"rc": 0, "wall": 23.301, "main_cpu": 17.19, "total_cpu": 122.78, "err": "", "kind": "time", "case": "4k", "arm": "d10-file", "rep": 1, "samples": 1604966400, "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 23.509, "main_cpu": 17.6, "total_cpu": 122.06, "err": "", "kind": "time", "case": "4k", "arm": "d16-pipe-64k", "rep": 2, "samples": 1604966400, "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 19.001, "main_cpu": 8.59, "total_cpu": 114.54, "err": "", "kind": "time", "case": "4k", "arm": "d16-memfd", "rep": 2, "samples": 1604966400, "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 23.563, "main_cpu": 17.57, "total_cpu": 122.51, "err": "", "kind": "time", "case": "4k", "arm": "d16-pipe-1m", "rep": 2, "samples": 1604966400, "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 18.98, "main_cpu": 8.67, "total_cpu": 114.68, "err": "", "kind": "time", "case": "4k", "arm": "d16-disk-file", "rep": 2, "samples": 1604966400, "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 18.929, "main_cpu": 8.54, "total_cpu": 114.24, "err": "", "kind": "time", "case": "4k", "arm": "d16-y4m-file", "rep": 2, "samples": 1604966400, "sha256": "db6ba30aad17ff6e"}
+{"rc": 0, "wall": 18.945, "main_cpu": 8.57, "total_cpu": 114.44, "err": "", "kind": "time", "case": "4k", "arm": "d16r-file", "rep": 2, "samples": 1604966400, "sha256": "ad31cd0f9b50be4b"}
+{"rc": 0, "wall": 23.219, "main_cpu": 17.22, "total_cpu": 123.44, "err": "", "kind": "time", "case": "4k", "arm": "d10-file", "rep": 2, "samples": 1604966400, "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 18.944, "main_cpu": 8.61, "total_cpu": 114.52, "err": "", "kind": "time", "case": "4k", "arm": "d16-file", "rep": 2, "samples": 1604966400, "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 24.263, "main_cpu": 0.22, "total_cpu": 0.22, "err": "", "kind": "profile", "case": "4k", "arm": "d10-file"}
+{"rc": 0, "wall": 23.598, "main_cpu": 17.62, "total_cpu": 123.89, "err": "", "kind": "stat", "case": "4k", "arm": "d10-file"}
+{"rc": 0, "wall": 20.175, "main_cpu": 0.16, "total_cpu": 0.16, "err": "", "kind": "profile", "case": "4k", "arm": "d16-file"}
+{"rc": 0, "wall": 19.09, "main_cpu": 8.66, "total_cpu": 115.48, "err": "", "kind": "stat", "case": "4k", "arm": "d16-file"}
+{"rc": 0, "wall": 24.136, "main_cpu": 0.15, "total_cpu": 0.15, "err": "", "kind": "profile", "case": "4k", "arm": "d16-pipe-64k"}
+{"rc": 0, "wall": 23.823, "main_cpu": 17.31, "total_cpu": 123.64, "err": "", "kind": "stat", "case": "4k", "arm": "d16-pipe-64k"}
+{"rc": 0, "wall": 20.135, "main_cpu": 0.17, "total_cpu": 0.17, "err": "", "kind": "profile", "case": "4k", "arm": "d16-memfd"}
+{"rc": 0, "wall": 19.065, "main_cpu": 8.64, "total_cpu": 115.16, "err": "", "kind": "stat", "case": "4k", "arm": "d16-memfd"}
+{"rc": 0, "wall": 24.147, "main_cpu": 0.17, "total_cpu": 0.17, "err": "", "kind": "profile", "case": "4k", "arm": "d16-pipe-1m"}
+{"rc": 0, "wall": 23.383, "main_cpu": 16.93, "total_cpu": 123.18, "err": "", "kind": "stat", "case": "4k", "arm": "d16-pipe-1m"}
+{"rc": 0, "wall": 20.145, "main_cpu": 0.17, "total_cpu": 0.17, "err": "", "kind": "profile", "case": "4k", "arm": "d16-disk-file"}
+{"rc": 0, "wall": 19.312, "main_cpu": 8.75, "total_cpu": 115.62, "err": "", "kind": "stat", "case": "4k", "arm": "d16-disk-file"}
+{"rc": 0, "wall": 20.168, "main_cpu": 0.16, "total_cpu": 0.16, "err": "", "kind": "profile", "case": "4k", "arm": "d16-y4m-file"}
+{"rc": 0, "wall": 19.639, "main_cpu": 8.89, "total_cpu": 118.02, "err": "", "kind": "stat", "case": "4k", "arm": "d16-y4m-file"}
+{"rc": 0, "wall": 20.153, "main_cpu": 0.16, "total_cpu": 0.16, "err": "", "kind": "profile", "case": "4k", "arm": "d16r-file"}
+{"rc": 0, "wall": 18.972, "main_cpu": 8.6, "total_cpu": 114.58, "err": "", "kind": "stat", "case": "4k", "arm": "d16r-file"}
+{"rc": 0, "wall": 1.969, "main_cpu": 0.0, "total_cpu": 0.0, "err": "", "kind": "strace", "case": "4k", "arm": "d16-file", "calls": {"mmap": 80, "read": 2, "+++": 1}}
+{"rc": 0, "wall": 1.963, "main_cpu": 0.0, "total_cpu": 0.0, "err": "", "kind": "strace", "case": "4k", "arm": "d16-memfd", "calls": {"mmap": 80, "read": 2, "+++": 1}}
+{"rc": 0, "wall": 2.063, "main_cpu": 0.0, "total_cpu": 0.0, "err": "", "kind": "strace", "case": "4k", "arm": "d16-disk-file", "calls": {"mmap": 80, "read": 2, "+++": 1}}
+{"rc": 0, "wall": 2.014, "main_cpu": 0.0, "total_cpu": 0.0, "err": "", "kind": "strace", "case": "4k", "arm": "d16-y4m-file", "calls": {"mmap": 80, "read": 5, "+++": 1}}
+{"kind": "input", "case": "1080p", "frames": 129, "samples": 401241600, "bytes_16bit": 802483200}
+{"rc": 0, "wall": 5.04, "main_cpu": 3.54, "total_cpu": 26.64, "err": "", "kind": "time", "case": "1080p", "arm": "d10-file", "rep": 0, "samples": 401241600, "sha256": "f4567acf4a356a03"}
+{"rc": 0, "wall": 4.335, "main_cpu": 2.13, "total_cpu": 25.04, "err": "", "kind": "time", "case": "1080p", "arm": "d16-file", "rep": 0, "samples": 401241600, "sha256": "f4567acf4a356a03"}
+{"rc": 0, "wall": 5.091, "main_cpu": 3.56, "total_cpu": 26.5, "err": "", "kind": "time", "case": "1080p", "arm": "d16-pipe-64k", "rep": 0, "samples": 401241600, "sha256": "f4567acf4a356a03"}
+{"rc": 0, "wall": 4.384, "main_cpu": 2.15, "total_cpu": 24.89, "err": "", "kind": "time", "case": "1080p", "arm": "d16-memfd", "rep": 0, "samples": 401241600, "sha256": "f4567acf4a356a03"}
+{"rc": 0, "wall": 4.329, "main_cpu": 2.14, "total_cpu": 25.02, "err": "", "kind": "time", "case": "1080p", "arm": "d16-file", "rep": 1, "samples": 401241600, "sha256": "f4567acf4a356a03"}
+{"rc": 0, "wall": 5.089, "main_cpu": 3.54, "total_cpu": 26.39, "err": "", "kind": "time", "case": "1080p", "arm": "d16-pipe-64k", "rep": 1, "samples": 401241600, "sha256": "f4567acf4a356a03"}
+{"rc": 0, "wall": 4.334, "main_cpu": 2.13, "total_cpu": 24.98, "err": "", "kind": "time", "case": "1080p", "arm": "d16-memfd", "rep": 1, "samples": 401241600, "sha256": "f4567acf4a356a03"}
+{"rc": 0, "wall": 5.095, "main_cpu": 3.55, "total_cpu": 26.62, "err": "", "kind": "time", "case": "1080p", "arm": "d10-file", "rep": 1, "samples": 401241600, "sha256": "f4567acf4a356a03"}
+{"rc": 0, "wall": 5.032, "main_cpu": 3.56, "total_cpu": 26.66, "err": "", "kind": "time", "case": "1080p", "arm": "d16-pipe-64k", "rep": 2, "samples": 401241600, "sha256": "f4567acf4a356a03"}
+{"rc": 0, "wall": 4.334, "main_cpu": 2.14, "total_cpu": 24.94, "err": "", "kind": "time", "case": "1080p", "arm": "d16-memfd", "rep": 2, "samples": 401241600, "sha256": "f4567acf4a356a03"}
+{"rc": 0, "wall": 5.091, "main_cpu": 3.55, "total_cpu": 26.71, "err": "", "kind": "time", "case": "1080p", "arm": "d10-file", "rep": 2, "samples": 401241600, "sha256": "f4567acf4a356a03"}
+{"rc": 0, "wall": 4.385, "main_cpu": 2.12, "total_cpu": 25.01, "err": "", "kind": "time", "case": "1080p", "arm": "d16-file", "rep": 2, "samples": 401241600, "sha256": "f4567acf4a356a03"}
+{"rc": 0, "wall": 6.165, "main_cpu": 0.14, "total_cpu": 0.14, "err": "", "kind": "profile", "case": "1080p", "arm": "d10-file"}
+{"rc": 0, "wall": 5.002, "main_cpu": 3.55, "total_cpu": 26.65, "err": "", "kind": "stat", "case": "1080p", "arm": "d10-file"}
+{"rc": 0, "wall": 5.122, "main_cpu": 0.14, "total_cpu": 0.14, "err": "", "kind": "profile", "case": "1080p", "arm": "d16-file"}
+{"rc": 0, "wall": 4.343, "main_cpu": 2.14, "total_cpu": 25.03, "err": "", "kind": "stat", "case": "1080p", "arm": "d16-file"}
+{"rc": 0, "wall": 6.155, "main_cpu": 0.14, "total_cpu": 0.14, "err": "", "kind": "profile", "case": "1080p", "arm": "d16-pipe-64k"}
+{"rc": 0, "wall": 5.35, "main_cpu": 3.58, "total_cpu": 26.76, "err": "", "kind": "stat", "case": "1080p", "arm": "d16-pipe-64k"}
+{"rc": 0, "wall": 5.158, "main_cpu": 0.14, "total_cpu": 0.14, "err": "", "kind": "profile", "case": "1080p", "arm": "d16-memfd"}
+{"rc": 0, "wall": 4.333, "main_cpu": 2.12, "total_cpu": 25.03, "err": "", "kind": "stat", "case": "1080p", "arm": "d16-memfd"}

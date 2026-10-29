@@ -1,0 +1,14 @@
+# started on Thu Oct 29 13:26:29 2026
+
+
+ Performance counter stats for thread id '2428':
+
+       53023028128      cycles                                                                
+       37858032536      instructions                     #    0.71  insn per cycle            
+           1658846      ld_blocks.address_alias                                               
+             54622      ld_blocks.no_sr                                                       
+        7394950190      mem_inst_retired.all_loads                                            
+        3671164445      mem_inst_retired.all_stores                                           
+
+      22.434492841 seconds time elapsed
+

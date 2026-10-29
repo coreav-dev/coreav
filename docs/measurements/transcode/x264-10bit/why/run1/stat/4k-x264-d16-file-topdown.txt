@@ -1,0 +1,29 @@
+# started on Thu Oct 29 12:51:00 2026
+
+
+ Performance counter stats for thread id '5054':
+
+      106180207926      TOPDOWN.SLOTS                    #     72.2 %  tma_backend_bound      
+                                                  #      0.9 %  tma_bad_speculation    
+                                                  #     -0.1 %  tma_frontend_bound     
+                                                  #     27.0 %  tma_retiring           
+                                                  #     46.5 %  tma_core_bound         
+                                                  #      0.4 %  tma_heavy_operations   
+                                                  #     26.5 %  tma_light_operations   
+                                                  #     25.7 %  tma_memory_bound       
+                                                  #      0.0 %  tma_branch_mispredicts 
+                                                  #      0.4 %  tma_fetch_bandwidth    
+                                                  #     -0.5 %  tma_fetch_latency      
+                                                  #      0.9 %  tma_machine_clears     
+       26649150224      topdown-retiring                                                      
+         832785944      topdown-fe-bound                                                      
+       25399971307      topdown-mem-bound                                                     
+       71358381227      topdown-be-bound                                                      
+         416394423      topdown-heavy-ops                                                     
+              1451      topdown-br-mispredict                                                 
+         416392972      topdown-fetch-lat                                                     
+              1866      topdown-bad-spec                                                      
+         979387849      INT_MISC.UOP_DROPPING                                                 
+
+      18.407413637 seconds time elapsed
+

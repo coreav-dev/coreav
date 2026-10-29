@@ -1,0 +1,14 @@
+# started on Thu Oct 29 13:21:30 2026
+
+
+ Performance counter stats for thread id '1998':
+
+       55000533440      cycles                                                                
+       41429916985      instructions                     #    0.75  insn per cycle            
+             29173      machine_clears.memory_ordering                                        
+          45481491      resource_stalls.scoreboard                                            
+        2157442005      memory_activity.stalls_l1d_miss                                       
+             34903      mem_inst_retired.stlb_miss_loads                                      
+
+      22.317305012 seconds time elapsed
+

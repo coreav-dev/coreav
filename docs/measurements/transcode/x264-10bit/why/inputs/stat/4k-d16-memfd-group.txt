@@ -1,0 +1,14 @@
+# started on Thu Oct 29 14:23:12 2026
+
+
+ Performance counter stats for thread id '2784':
+
+       27996250949      cycles                                                                
+       42150307480      instructions                     #    1.51  insn per cycle            
+        4101781613      exe_activity.bound_on_loads                                           
+        6507248129      cycle_activity.stalls_total                                           
+        8391873039      mem_inst_retired.all_loads                                            
+           1816398      ld_blocks.address_alias                                               
+
+      19.053958727 seconds time elapsed
+

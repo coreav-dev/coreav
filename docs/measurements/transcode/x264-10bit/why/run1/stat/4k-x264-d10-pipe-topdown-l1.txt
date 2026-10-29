@@ -1,0 +1,10 @@
+# started on Thu Oct 29 12:52:18 2026
+
+
+ Performance counter stats for thread id '5159':
+
+ %  tma_backend_bound      %  tma_retiring %  tma_bad_speculation %  tma_frontend_bound 
+                        82.4                 15.0                             1.0                            1.6 
+
+      23.166928943 seconds time elapsed
+

@@ -1,0 +1,14 @@
+# started on Thu Oct 29 14:21:01 2026
+
+
+ Performance counter stats for thread id '2612':
+
+       55761442602      cycles                                                                
+       41431349876      instructions                     #    0.74  insn per cycle            
+       28293832009      exe_activity.bound_on_loads                                           
+       30319407039      cycle_activity.stalls_total                                           
+        8178848037      mem_inst_retired.all_loads                                            
+           2140526      ld_blocks.address_alias                                               
+
+      23.587279875 seconds time elapsed
+

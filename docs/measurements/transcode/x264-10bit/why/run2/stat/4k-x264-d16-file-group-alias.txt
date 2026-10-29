@@ -1,0 +1,14 @@
+# started on Thu Oct 29 13:23:45 2026
+
+
+ Performance counter stats for thread id '2175':
+
+       26200065734      cycles                                                                
+       38354918653      instructions                     #    1.46  insn per cycle            
+           1990604      ld_blocks.address_alias                                               
+             57729      ld_blocks.no_sr                                                       
+        7566061022      mem_inst_retired.all_loads                                            
+        3745851488      mem_inst_retired.all_stores                                           
+
+      18.025786929 seconds time elapsed
+
