@@ -70,6 +70,17 @@ Per stream: one warm-up per command, then `--rounds` interleaved rounds.
 A command's time is the median of its rounds, a stream's ratio is ours
 over FFmpeg's, and the report gives the median per-stream ratio with a
 bootstrap 95% confidence interval, overall and per resolution class.
+
+A stream one of whose commands fails cannot be timed and has no row. The
+report names every stream the call was given (`requested`) and each one
+that failed with the command and round that failed (`failed`); the summary
+is of the rows alone, so a call with a failure writes its report and then
+exits with status 3, and a report with a `failed` entry is not a complete
+measurement of `requested` (docs/design/h264.md, "A round's bars: one
+analyzer, complete reports"; `scripts/h264_parity_bars.py` refuses it).
+A command that fails while a stream is timed again after a gate drift is
+the same failure: the stream is listed in `failed` and the call exits with
+status 3; its row from before the drift is kept, flagged `unresolved`.
 """
 import argparse
 import json
@@ -78,6 +89,7 @@ import os
 import random
 import statistics
 import subprocess
+import sys
 import time
 
 RESAMPLES = 2_000
@@ -94,6 +106,12 @@ GATE_DRIFT = 0.05
 MAX_RETRIES = 2
 GATE_RUNS = 3
 GATE_BASELINE = 3
+# The exit status of a call in which a stream failed, after its report.
+INCOMPLETE = 3
+
+
+class CommandFailed(Exception):
+    """A command of a stream exited with an error: the stream has no time."""
 
 
 def timed(argv, repeat=1):
@@ -230,8 +248,8 @@ def time_stream(args, cmds, stream_name, attempt=0, repeat=None):
     retry does not replay the order that was faulty). A timed value is of
     one run: the call repeats the command `repeat` times (from the warm-up
     when not given: the same for every command of the stream).
-    Returns (times by command, order of each round, repeat) or None if a
-    command failed."""
+    Returns (times by command, order of each round, repeat); raises
+    CommandFailed naming the command that failed."""
     warm = {name: timed(argv) for name, argv in cmds.items()}   # not recorded
     if repeat is None:
         repeat = repeat_for(args, warm)
@@ -240,7 +258,7 @@ def time_stream(args, cmds, stream_name, attempt=0, repeat=None):
     rng = None
     if args.shuffle_seed is not None:
         rng = random.Random(f'{args.shuffle_seed}:{stream_name}:{attempt}')
-    for _ in range(args.rounds):
+    for index in range(args.rounds):
         order = list(cmds)
         if rng is not None:
             rng.shuffle(order)
@@ -248,7 +266,8 @@ def time_stream(args, cmds, stream_name, attempt=0, repeat=None):
         for name in order:
             value = timed(cmds[name], repeat)
             if value is None:
-                return None
+                raise CommandFailed(f'{name} exited with an error in round {index + 1} '
+                                    f'of attempt {attempt + 1}')
             times[name].append(value)
     return times, orders, repeat
 
@@ -461,7 +480,7 @@ def main():
     def measure(stream, used, repeat=None):
         """Time one stream, from attempt number `used`, until it passes the
         verdict or its attempts (the first and MAX_RETRIES retries) are spent. Returns
-        the attempts, or None if a command failed."""
+        the attempts; raises CommandFailed if a command failed."""
         name = os.path.basename(stream)
         cmds = commands(args, stream)
         if args.null_arm:
@@ -472,10 +491,7 @@ def main():
         cmds = {k: args.prefix + argv for k, argv in cmds.items()}
         attempts = []
         for attempt in range(used, attempts_allowed):
-            got = time_stream(args, cmds, name, attempt, repeat)
-            if got is None:
-                return None
-            times, orders, repeat = got
+            times, orders, repeat = time_stream(args, cmds, name, attempt, repeat)
             verdict = judge(args, times)
             attempts.append({'rounds': times, 'order': orders, 'repeat': repeat, **verdict})
             if not verdict['faulty']:
@@ -509,7 +525,13 @@ def main():
             old = rows[i]
             more = None
             if old['attempts'] < attempts_allowed:
-                more = measure(paths[i], old['attempts'], old['repeat'])
+                try:
+                    more = measure(paths[i], old['attempts'], old['repeat'])
+                except CommandFailed as error:
+                    # a defect, not a host fault: the call is incomplete
+                    failed.append({'stream': old['stream'], 'class': old['class'],
+                                   'reason': f'timed again after a gate drift: {error}'})
+                    print(f'{old["stream"]}: FAILED when timed again ({error})', flush=True)
             if more is None:
                 old['unresolved'] = True
                 old['gate_drift'] = True
@@ -525,12 +547,16 @@ def main():
         # a drift of every sample after it.
         gate_sample(args)
         baseline()
+    failed = []
     for index, stream in enumerate(args.streams):
-        attempts = measure(stream, 0)
-        if attempts is None:
-            print(f'{os.path.basename(stream)}: FAILED, skipped', flush=True)
+        name = os.path.basename(stream)
+        try:
+            attempts = measure(stream, 0)
+        except CommandFailed as error:
+            failed.append({'stream': name, 'class': class_of(name), 'reason': str(error)})
+            print(f'{name}: FAILED ({error})', flush=True)
         else:
-            row = finish(os.path.basename(stream), attempts)
+            row = finish(name, attempts)
             rows.append(row)
             paths.append(stream)
             flag = ' UNRESOLVED' if row['unresolved'] else ''
@@ -557,7 +583,9 @@ def main():
               'frames': args.frames, 'rounds': args.rounds, 'pinned_core': args.pin,
               'threads': args.threads,
               'decoders': dict(args.decoders), 'ffmpeg': args.ffmpeg,
-              'resamples': RESAMPLES, 'streams': rows, 'summary': {},
+              'resamples': RESAMPLES,
+              'requested': [os.path.basename(s) for s in args.streams], 'failed': failed,
+              'streams': rows, 'summary': {},
               'method': {'shuffle_seed': args.shuffle_seed,
                          'null_arm': args.null_arm,
                          'null_deviation': thresholds(args)[0],
@@ -573,17 +601,23 @@ def main():
                          'gate_drift_streams': sum(bool(r.get('gate_drift')) for r in rows)}}
     for pairing in list(pairs) + list(scales):
         values = [r['ratio'][pairing] for r in rows]
+        median = statistics.median(values) if values else None
         low, high = interval(values, seed=SEED)
         report['summary'][pairing] = {
-            'n': len(values), 'median': statistics.median(values),
+            'n': len(values), 'median': median,
             'ci_low': low, 'ci_high': high}
         band = '' if low is None else f'  [{low:.3f}, {high:.3f}]'
-        print(f'{pairing:24} n={len(values):3}  median '
-              f'{statistics.median(values):.3f}{band}')
+        shown = 'none' if median is None else f'{median:.3f}'
+        print(f'{pairing:24} n={len(values):3}  median {shown}{band}')
     if args.report:
         with open(args.report, 'w') as handle:
             json.dump(report, handle, indent=2)
         print(f'\nwrote {args.report}')
+    if failed:
+        print(f'INCOMPLETE: {len(failed)} of {len(args.streams)} streams failed '
+              f'(the summary is of the {len(rows)} rows): '
+              + '; '.join(f"{f['stream']} ({f['reason']})" for f in failed), file=sys.stderr)
+        sys.exit(INCOMPLETE)
 
 
 if __name__ == '__main__':

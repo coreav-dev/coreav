@@ -237,12 +237,14 @@ def verdict(out, calls, threads=8, one_thread_class=False):
                 report = json.load(f)
             n = report['method']['unresolved']
             got = len(report['streams'])
+            failed = [f"{f['stream']} ({f['reason']})" for f in report.get('failed') or []]
         except (OSError, KeyError, TypeError, ValueError):
             reasons.append(f'no report for {prefix}.{cls}')
             continue
         unresolved[cls] = n
-        if got != len(files):
-            reasons.append(f'{prefix}.{cls}: {got} of {len(files)} streams in the report (a stream failed)')
+        if got != len(files) or failed:
+            reasons.append(f'{prefix}.{cls}: {got} of {len(files)} streams in the report (failed: '
+                           f'{"; ".join(failed) or "a stream, the report does not say which"})')
         if n > MAX_UNRESOLVED:
             reasons.append(f'{prefix}.{cls}: {n} unresolved streams')
     v = {'void': bool(reasons), 'reasons': reasons, 'reference_drift': drift, 'unresolved': unresolved}

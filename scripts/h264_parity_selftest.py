@@ -6,7 +6,8 @@ uses no CPU to speak of and can run beside a measurement. A script's delay
 is 0.2 s; a file `burst` (lines of "FROM TO" call numbers) makes those calls
 take 0.5 s, a file `every3` makes every third call take 0.5 s, a file `slow3rd`
 makes the calls whose number is 3 modulo 4 take 0.3 s (with the harness's
-command order, the decoder's third command of a round: its null copy), and a
+command order, the decoder's third command of a round: its null copy), a file
+`failfrom` (a call number) makes that call and every later one fail, and a
 stream whose name contains `bad` makes the call fail.
 
     python3 scripts/h264_parity_selftest.py
@@ -24,6 +25,7 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import h264_parity  # noqa: E402
+import h264_parity_gcp  # noqa: E402
 PARITY = os.path.join(HERE, 'h264_parity.py')
 
 FAKE = '''#!/bin/sh
@@ -31,6 +33,7 @@ d=$(dirname "$0")
 case "$*" in */bad.sd.264*) exit 1;; esac
 echo x >> "$d/count"
 n=$(wc -l < "$d/count")
+if [ -f "$d/failfrom" ] && [ "$n" -ge "$(cat "$d/failfrom")" ]; then exit 1; fi
 s=0.2
 if [ -f "$d/burst" ]; then
   while read a b; do
@@ -69,12 +72,14 @@ class Parity(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def run_parity(self, *extra, streams=None):
-        subprocess.run(
+    def run_parity(self, *extra, streams=None, status=0):
+        proc = subprocess.run(
             [sys.executable, PARITY, '--decoder', f'before={self.dec}',
              '--ffmpeg', self.ff, '--rounds', '3', '--report', self.report,
              *extra, *(streams or self.streams)],
-            check=True, stdout=subprocess.DEVNULL)
+            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+        self.assertEqual(proc.returncode, status, proc.stderr)
+        self.stderr = proc.stderr
         with open(self.report) as f:
             return json.load(f)
 
@@ -166,6 +171,35 @@ class Parity(unittest.TestCase):
         orders = [tuple(map(tuple, h['order'])) for h in row['history']]
         self.assertEqual(len(set(orders)), 3, 'a retry replayed an earlier order')
 
+    def test_a_failure_when_timed_again_after_a_drift_fails_the_call(self):
+        # FFmpeg-script calls as in the drift test below: the check (21-23) and its confirmation (24-26) are
+        # slowed, so the stream is timed again; the decoder's calls of the first timing are 2 warm-ups and 3
+        # rounds x 2 (1-8), and from call 9, the retime's, it fails. A defect, not a host fault: the stream is
+        # listed in `failed`, the call exits with status 3, and the runner voids it
+        self.touch(self.ff_dir, 'burst', '21 26\n')
+        self.touch(self.dec_dir, 'failfrom', '9')
+        report = self.run_parity('--gate-stream', self.gate_stream(), '--gate-every', '1',
+                                 streams=self.streams[:1], status=h264_parity.INCOMPLETE)
+        self.assertEqual(report['failed'], [{
+            'stream': 'a.sd.264', 'class': 'sd',
+            'reason': 'timed again after a gate drift: before_discard exited with an error in round 1 of attempt 2'}])
+        row = report['streams'][0]
+        self.assertTrue(row['unresolved'])
+        self.assertEqual(row['attempts'], 1)
+        self.assertIn('INCOMPLETE: 1 of 1 streams failed', self.stderr)
+        # a healthy VM and reference, one unresolved stream (within the runner's allowance): void for the failure
+        out = os.path.join(self.tmp.name, 'out')
+        os.makedirs(out)
+        os.replace(self.report, os.path.join(out, 't8.sd.json'))
+        with open(os.path.join(out, 'host.txt'), 'w') as f:
+            f.write('CPU(s):                                  8\nsmt active: 0\n')
+        with open(os.path.join(out, 'ref.json'), 'w') as f:
+            json.dump({'before': {'median': 1.0}, 'after': {'median': 1.0}}, f)
+        verdict = h264_parity_gcp.verdict(out, [('sd', ['es/a.sd.264'])])
+        self.assertTrue(verdict['void'], verdict)
+        self.assertIn('failed: a.sd.264 (timed again after a gate drift: before_discard exited with an error',
+                      ' '.join(verdict['reasons']))
+
     def test_gate_drift_marks_and_retimes_streams(self):
         # FFmpeg-script calls: the warm gate sample 3 and the baseline 3 x 3,
         # stream a 2 warm-ups + 3 rounds x 2 (calls 13-20), then the check
@@ -248,10 +282,52 @@ class Parity(unittest.TestCase):
         open(bad, 'w').close()
         report = self.run_parity('--gate-stream', self.gate_stream(),
                                  '--gate-every', '4',
-                                 streams=[self.streams[0], bad])
+                                 streams=[self.streams[0], bad], status=h264_parity.INCOMPLETE)
         self.assertEqual(len(report['streams']), 1)
         self.assertEqual([g['after_streams'] for g in report['method']['gates']],
                          [0, 0, 0, 1])
+
+    def test_a_failed_stream_is_named_and_the_call_is_incomplete(self):
+        # the past mistake: a stream whose decode failed was printed as "FAILED, skipped", left out of the
+        # rows and out of the report, and the summary and every analyzer passed on the streams left
+        bad = os.path.join(self.tmp.name, 'bad.sd.264')
+        open(bad, 'w').close()
+        report = self.run_parity(streams=[self.streams[0], bad, self.streams[1]],
+                                 status=h264_parity.INCOMPLETE)
+        self.assertEqual(report['requested'], ['a.sd.264', 'bad.sd.264', 'b.sd.264'])
+        self.assertEqual([r['stream'] for r in report['streams']], ['a.sd.264', 'b.sd.264'])
+        self.assertEqual(report['failed'], [{'stream': 'bad.sd.264', 'class': 'sd',
+                                             'reason': 'ff_null exited with an error in round 1 of attempt 1'}])
+        self.assertEqual(report['summary']['before:discard']['n'], 2)
+        self.assertIn('INCOMPLETE: 1 of 3 streams failed', self.stderr)
+        self.assertIn('bad.sd.264', self.stderr)
+        # and the shared analyzer refuses the report, naming the stream
+        manifest = os.path.join(self.tmp.name, 'es.json')
+        with open(manifest, 'w') as f:
+            json.dump({n: {'class': 'sd'} for n in report['requested']}, f)
+        bars = os.path.join(self.tmp.name, 'bars.json')
+        with open(bars, 'w') as f:
+            json.dump({'new': 'before', 'old': 'before', 'calls': {'g': {'streams': manifest}},
+                       'bars': [{'name': 'X', 'checks': [{'call': 'g', 'pairing': 'discard', 'median_max': 2}]}]}, f)
+        os.replace(self.report, os.path.join(self.tmp.name, 'g.sd.json'))
+        proc = subprocess.run([sys.executable, '-I', os.path.join(HERE, 'h264_parity_bars.py'), bars, self.tmp.name],
+                              capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 2, proc.stdout)
+        self.assertIn('the harness failed on bad.sd.264', proc.stderr)
+        self.assertIn('no row for: bad.sd.264', proc.stderr)
+
+    def test_a_call_whose_streams_all_fail_still_writes_its_report(self):
+        bad = os.path.join(self.tmp.name, 'bad.sd.264')
+        open(bad, 'w').close()
+        report = self.run_parity(streams=[bad], status=h264_parity.INCOMPLETE)
+        self.assertEqual(report['streams'], [])
+        self.assertEqual(report['summary']['before:discard'],
+                         {'n': 0, 'median': None, 'ci_low': None, 'ci_high': None})
+
+    def test_a_complete_call_names_what_it_was_asked(self):
+        report = self.run_parity('--rounds', '2')
+        self.assertEqual(report['requested'], ['a.sd.264', 'b.sd.264'])
+        self.assertEqual(report['failed'], [])
 
     def test_gate_cadence_and_a_quiet_gate(self):
         extra = os.path.join(self.tmp.name, 'c.sd.264')

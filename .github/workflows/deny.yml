@@ -63,6 +63,15 @@ jobs:
         env:
           PYTHONDONTWRITEBYTECODE: '1'
         run: python3 -I scripts/transcode_check_selftest.py
+      # A round's speed bars go through scripts/h264_parity_bars.py, which
+      # refuses reports that miss a stream; no new per-round analyze*.py is
+      # added under docs/measurements (docs/design/h264.md, "A round's bars:
+      # one analyzer, complete reports"). It runs here, not in ci.yml, because
+      # that workflow's filter skips a change to docs/measurements alone.
+      - name: Check the measurement analyzers
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 -I -m unittest discover -s scripts/tests -p 'test_*.py'
       - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
       # The fuzz projects are outside the workspace; check their own license
       # graphs. Projects are found as scripts/fuzz_plan.py finds them

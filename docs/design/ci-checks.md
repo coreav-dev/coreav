@@ -160,6 +160,19 @@ the check leaves alone.
   reach a shipped artefact, and `--target all` covers the wasm builds'
   target-specific dependencies.
 
+## Measurement analyzers
+
+`deny.yml` runs `python3 -I -m unittest discover -s scripts/tests`: the
+tests of `scripts/h264_parity_bars.py`, the one analyzer of an H.264
+round's speed bars, and the check that no new file named `analyze*.py`
+is added under `docs/measurements` (it reads names only; the ones there
+are listed in
+`scripts/tests/analyzers-grandfathered.txt`; `docs/design/h264.md`, "A
+round's bars: one analyzer, complete reports"). It runs there, not in
+`ci.yml`, because a round's measurements often change `docs/measurements`
+alone, which `ci.yml`'s filter skips. A new step of an existing job, so
+the required-check list does not change.
+
 ## Labels
 
 The repository's labels are kept as code in `.github/labels.yml`: area labels (`area:h264`, `area:compat` and so on), kind labels (`bug`, `perf`, `feature`, `docs`, `tracking`) and resolution labels (`duplicate`, `wontfix`). `labels.yml` in `.github/workflows` runs `scripts/label_sync.py` on a push to main that changes the file, the script or the workflow, and by hand: it creates or updates every label in the file and deletes the ones listed under `retired` (GitHub's default labels this set replaces). `deny.yml` runs `label_sync.py --check` on every pull request, so a file the script would refuse, or an issue form that sets a label the file does not define (GitHub drops such a label silently), fails before it merges, not after.
