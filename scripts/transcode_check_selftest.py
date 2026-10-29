@@ -11,6 +11,7 @@ import json
 import os
 import pathlib
 import sys
+import tarfile
 import tempfile
 import unittest
 from fractions import Fraction
@@ -311,6 +312,35 @@ class Summary(unittest.TestCase):
         self.assertIsNone(v['B2']['met'])
         with mock.patch('builtins.print'):
             self.assertEqual(tc.verdict_status(rep), 1)
+
+    def test_b9_evidence_has_no_absolute_paths(self):
+        d = pathlib.Path(tempfile.mkdtemp())
+        fixtures, out, tools = d / 'fixtures', d / 'out', d / 'tools'
+        for p in (fixtures, tools):
+            p.mkdir()
+        (fixtures / 'a.mp4').write_bytes(b'a')
+        stderr = f'coreav ffmpeg: {fixtures}/a.mp4: truncated structure at offset 1'
+        r = {'config': 'x01', 'class': 'h264', 'file': 'a.mp4', 'complete': True, 'command': '-i IN',
+             'baseline': {'status': 'ok', 'exit': 0},
+             'arms': {'x264': {'status': 'refused', 'exit': 1, 'reason': 'rejected: ' + stderr, 'stderr': stderr}}}
+        tc._write(tc.result_path(out, 'x01', 'a.mp4'), r)
+        tc._write(out / 'run.json', {'arms': {'x264': [['COREAV_X264', f'{tools}/x264']]}})
+        tc._write(out / 'summary.json', {})
+        args = argparse.Namespace(fixtures=str(fixtures), out=str(out), tmp=None, coreav=f'{tools}/coreav',
+                                  ffmpeg=f'{tools}/ffmpeg', ffprobe=f'{tools}/ffprobe',
+                                  arms=[('x264', [('COREAV_X264', f'{tools}/x264')])])
+        tc.export_evidence(args, out, {'tools': {}, 'ffmpeg_version': []})
+        ev = out / 'evidence'
+        rows = [json.loads(line) for line in (ev / 'calls.jsonl').read_text().splitlines()]
+        self.assertEqual([(x['arm'], x['status']) for x in rows], [('baseline', 'ok'), ('x264', 'refused')])
+        self.assertEqual(rows[1]['reason'], 'rejected: coreav ffmpeg: a.mp4: truncated structure at offset 1')
+        manifest = json.loads((ev / 'manifest.json').read_text())
+        self.assertEqual(manifest['arms'], {'x264': ['COREAV_X264=x264']})
+        self.assertEqual(list(manifest['fixtures']), ['a.mp4'])
+        with tarfile.open(ev / 'results.tar.gz') as tar:
+            text = ''.join(tar.extractfile(m).read().decode() for m in tar.getmembers())
+        self.assertNotIn(str(d), text)
+        self.assertNotIn(str(d), (ev / 'calls.jsonl').read_text() + (ev / 'manifest.json').read_text())
 
 
 if __name__ == '__main__':

@@ -557,6 +557,7 @@ jobs:
             ${{ runner.temp }}/coreav-sanitize.json
             ${{ runner.temp }}/coreav-hls.json
             ${{ runner.temp }}/coreav-join.json
+            ${{ runner.temp }}/coreav-b9/evidence
           if-no-files-found: ignore
 
   fixtures-report:

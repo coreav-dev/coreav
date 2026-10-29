@@ -114,6 +114,7 @@ import bisect
 import collections
 import concurrent.futures
 import hashlib
+import io
 import json
 import math
 import os
@@ -124,6 +125,7 @@ import shutil
 import statistics
 import subprocess
 import sys
+import tarfile
 import tempfile
 import threading
 import time
@@ -977,6 +979,9 @@ def check_compat(args, path, key, cls, tmp):
                                 expected_audio=expected if expected is not None else []))
         if res['baseline']['status'] == 'ok' and kinds != res['baseline']['streams']:
             arm['B1'] = dict(arm['B1'], ok=False, reason='the streams written differ from FFmpeg\'s')
+        elif res['baseline']['status'] == 'ok' and (display_matrix(args, out, vi)
+                                                    != display_matrix(args, base, written(args, base)[1])):
+            arm['B1'] = dict(arm['B1'], ok=False, reason='the display matrix differs from FFmpeg\'s')
         w, h = arm['video'].get('width'), arm['video'].get('height')
         if res['baseline']['status'] != 'ok' or not (w and h):
             arm['Q1'] = arm['Q2'] = {'ok': False, 'reason': 'no baseline or no output size'}
@@ -996,6 +1001,62 @@ def check_compat(args, path, key, cls, tmp):
     base.unlink(missing_ok=True)
     res['complete'] = True
     return res
+
+
+def display_matrix(args, path, index):
+    """The display matrices `ffprobe` lists for a stream's side data (none for the identity)."""
+    _, d = jrun([args.ffprobe, '-v', 'error', '-select_streams', str(index), '-show_entries',
+                 'stream_side_data=displaymatrix', '-of', 'json', path])
+    s = ((d or {}).get('streams') or [{}])[0]
+    return [x.get('displaymatrix') for x in s.get('side_data_list', [])]
+
+
+def export_evidence(args, out, run_info):
+    """B9's per-call evidence with absolute paths taken out, in OUT/evidence: calls.jsonl (one row per command
+    line, file and arm, the baseline included), manifest.json (the command lines, the arms, the programs' and the
+    fixtures' SHA-256) and results.tar.gz (run.json, summary.json and results/, from which `--summarize` recomputes
+    the summary)."""
+    dirs = [args.fixtures, args.out, args.tmp, os.path.dirname(os.path.abspath(args.coreav)),
+            os.path.dirname(shutil.which(args.ffmpeg) or args.ffmpeg),
+            os.path.dirname(shutil.which(args.ffprobe) or args.ffprobe), os.path.expanduser('~'),
+            tempfile.gettempdir()]
+    dirs += [os.path.dirname(v) for _, words in args.arms for _, v in words if os.path.isabs(v)]
+    roots = sorted({str(pathlib.Path(d).resolve()) for d in dirs if d} | {os.path.abspath(d) for d in dirs if d},
+                   key=len, reverse=True)
+
+    def clean(text):
+        for r in roots:
+            text = text.replace(r + os.sep, '').replace(r, '')
+        return text
+
+    out = pathlib.Path(out)
+    ev = out / 'evidence'
+    ev.mkdir(parents=True, exist_ok=True)
+    rows = []
+    with tarfile.open(ev / 'results.tar.gz', 'w:gz') as tar:
+        for p in [out / 'run.json', out / 'summary.json'] + sorted((out / 'results').rglob('*.json')):
+            data = clean(p.read_text()).encode()
+            info = tarfile.TarInfo(str(p.relative_to(out)))
+            info.size = len(data)
+            tar.addfile(info, io.BytesIO(data))
+            if p.parent.parent.name != 'results':
+                continue
+            r = json.loads(p.read_text())
+            for arm, a in [('baseline', r.get('baseline', {}))] + list(r.get('arms', {}).items()):
+                rows.append({'config': r.get('config'), 'file': r.get('file'), 'class': r.get('class'), 'arm': arm,
+                             'status': a.get('status'), 'exit': a.get('exit'),
+                             'reason': clean(str(a.get('reason') or '')) or None,
+                             **{b: (a.get(b) or {}).get('ok') for b in ('B1', 'B2', 'B3')},
+                             'Q1_delta_db': (a.get('Q1') or {}).get('delta'),
+                             'Q2_db': (a.get('Q2') or {}).get('average'), 'size_ratio': a.get('size_ratio'),
+                             'b2_known_miss': r.get('b2_known_miss')})
+    (ev / 'calls.jsonl').write_text(''.join(json.dumps(x, sort_keys=True) + '\n' for x in rows))
+    fixtures = sorted(p for p in pathlib.Path(args.fixtures).iterdir() if p.is_file())
+    _write(ev / 'manifest.json', {
+        'commit': os.environ.get('GITHUB_SHA'), 'commands': COMPAT_COMMANDS,
+        'arms': {n: [f'{var}={os.path.basename(v)}' for var, v in w] for n, w in args.arms},
+        'tools': run_info['tools'], 'ffmpeg_version': run_info['ffmpeg_version'],
+        'fixtures': {p.name: sha256_file(p) for p in fixtures}})
 
 
 def probe_size(args, path, index):
@@ -1569,6 +1630,8 @@ def main():
     if not args.fixtures:
         rep['selection_apart'] = {c: v['apart'] for c, v in corpus_selection(args)['classes'].items()}
     _write(out / 'summary.json', rep)
+    if args.compat:
+        export_evidence(args, out, run_info)
     print(table(rep))
     return verdict_status(rep)
 
