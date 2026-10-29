@@ -911,3 +911,89 @@ fn hostile_encoders_end_in_an_error_and_leave_nothing() {
     assert!(!out.exists());
     nothing_left(&out_dir);
 }
+
+/// `coreav ffmpeg` with `-c:v libx264` (`docs/design/transcode.md`,
+/// "Through `coreav ffmpeg`"): the pipeline's encode, the audio copied; and
+/// the refusals where `ffmpeg`'s defaults would give another output, at
+/// exit status 4 with nothing written.
+#[test]
+fn ffmpeg_libx264_commands_run_the_pipeline() {
+    let Some(tools) = tools() else { return };
+    let dir = dir("ffmpeg-libx264");
+    let run = |words: &str, source: &str, out: &Path| {
+        let mut command = Command::new(bin());
+        command
+            .arg("ffmpeg")
+            .args(words.split(' ').map(|w| match w {
+                "IN" => tools.fixtures.join(source).into_os_string(),
+                "OUT" => out.as_os_str().to_owned(),
+                _ => w.into(),
+            }))
+            .env("COREAV_X264", &tools.x264)
+            .env("COREAV_FFMPEG", &tools.ffmpeg);
+        let out = command.output().unwrap();
+        (
+            out.status.code().unwrap(),
+            String::from_utf8_lossy(&out.stderr).into_owned(),
+        )
+    };
+    let out = dir.join("out.mp4");
+    let (code, stderr) = run(
+        "-i IN -c:v libx264 -preset veryfast -crf 23 -c:a copy OUT",
+        "basic.mp4",
+        &out,
+    );
+    assert_eq!(code, 0, "{stderr}");
+    let streams = probe_json(
+        &tools,
+        &["-show_entries", "stream=codec_type,codec_name"],
+        &out,
+    );
+    let kinds: Vec<(&str, &str)> = streams["streams"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|s| {
+            (
+                s["codec_type"].as_str().unwrap(),
+                s["codec_name"].as_str().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(kinds, [("video", "h264"), ("audio", "aac")]);
+    assert_eq!(
+        audio_packets(&tools, &out),
+        audio_packets(&tools, &tools.fixtures.join("basic.mp4"))
+    );
+    decodes_cleanly(&tools, &out);
+    std::fs::remove_file(&out).unwrap();
+    for (words, source) in [
+        ("-i IN -c:v libx264 OUT", "rotate_ccw90.mp4"),
+        ("-i IN -c:v libx264 OUT", "vfr.mp4"),
+        ("-i IN -an -c:v libx264 OUT", "edit_list.mp4"),
+        ("-i IN -an -c:v libx264 OUT", "size_inband_sps.mp4"),
+        ("-i IN -an -c:v libx264 OUT", "timecode.mov"),
+        ("-i IN -an -c:v libx264 OUT", "chapters.mov"),
+        ("-i IN -c:v libx264 -pix_fmt yuv444p OUT", "basic.mp4"),
+        ("-i IN -c:v libx264 -vf hflip OUT", "basic.mp4"),
+        ("-i IN -c:v libx264 OUT", "basic.mp4"),
+        ("-i IN -c copy -crf 20 OUT", "basic.mp4"),
+    ] {
+        let (code, stderr) = run(words, source, &out);
+        assert_eq!(code, 4, "{words} on {source}: {stderr}");
+        assert!(!out.exists(), "{words} on {source}");
+    }
+    let (code, stderr) = run(
+        "-noautorotate -i IN -an -c:v libx264 -preset ultrafast OUT",
+        "rotate_ccw90.mp4",
+        &out,
+    );
+    assert_eq!(code, 0, "{stderr}");
+    let (code, stderr) = run(
+        "-i IN -an -c:v libx264 -preset ultrafast -fps_mode passthrough OUT",
+        "vfr.mp4",
+        &dir.join("vfr.mp4"),
+    );
+    assert_eq!(code, 0, "{stderr}");
+    nothing_left(&dir);
+}

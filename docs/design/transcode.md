@@ -538,10 +538,26 @@ output, before the encoder starts:
 - **Constant rate.** Without `-fps_mode passthrough`, FFmpeg writes MP4 at
   a constant rate and duplicates or drops frames to keep it (`vfr.mp4`:
   33 frames in, 50 out). A source whose presented frames are not evenly
-  spaced (one interval between every two, in the track's time base) is
-  refused without it; on an evenly spaced source the two give the same
+  spaced (one interval between every two, in the track's time base), or
+  whose video does not start at time 0 (an empty edit, a late first
+  frame: FFmpeg repeats the first frame to fill the start, `edit_list.mp4`
+  50 frames in, 51 out), is refused without it; otherwise the two give the same
   frames (B9's Q2 pairs every frame with FFmpeg's output of the same
   command, and fails when the counts differ).
+- **Times in decode order.** A source whose frames are reordered
+  (`has_b_frames` above 0) but whose container gives no composition
+  offsets: FFmpeg derives other times for its frames ("Times in decode
+  order" above, `size_inband_sps.mp4`). Refused without
+  `-fps_mode passthrough`.
+- **Size changes.** Where the frame size changes within the stream,
+  FFmpeg resizes the later frames to the first size with its own scaler,
+  and this pipeline with its own (`size_vp9_resize.mp4` at `-crf 0`:
+  0.77 dB below FFmpeg against the source). `TranscodeOptions::one_size`
+  refuses such a stream when the first other size comes, before anything
+  is written.
+- **Chapters and timecodes.** FFmpeg writes a source's chapters as a text
+  track and its timecode as a `tmcd` track; this pipeline writes neither.
+  A source with chapters, or a stream with a `timecode` tag, is refused.
 - **Stream order.** FFmpeg writes the selected video first, then the
   audio; this pipeline keeps the source's order. A source whose selected
   audio comes before its video is refused.
@@ -895,7 +911,10 @@ information command once).
        -i IN -an -c:v libx264 -preset veryfast OUT.mp4
 
    - Each command either runs, or is refused with exit status 4 for a
-     reason this section names, writing nothing; any other failure counts
+     reason this section names, writing nothing. A file CoreAV rejects
+     (exit status 1 naming a truncated or invalid structure, which
+     `compat-cli.md` keeps as CoreAV's verdict) is set apart and listed,
+     as B1 to B4 set a rejected file apart. Any other failure counts
      against the bar.
    - A command that runs passes B1, B3 and B4 against FFmpeg running the
      same command line (Q1 at least −0.50 dB, Q2 at least 30 dB), and B2,

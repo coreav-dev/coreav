@@ -113,6 +113,10 @@ pub struct TranscodeOptions {
     /// decoded to another format is refused before the encoder starts.
     /// `None` for the decoded format.
     pub pixel_format: Option<PixelFormat>,
+    /// Refuse a stream whose frame size changes instead of resizing its
+    /// frames to the first one's (`coreav ffmpeg`: FFmpeg resizes them with
+    /// its own scaler).
+    pub one_size: bool,
     /// The source's audio.
     pub audio: AudioMode,
     /// Which encoder program.
@@ -149,6 +153,7 @@ impl Default for TranscodeOptions {
             preset: "medium".into(),
             scale: None,
             pixel_format: None,
+            one_size: false,
             audio: AudioMode::Copy,
             encoder: EncoderChoice::Auto,
             x264: None,
@@ -382,6 +387,7 @@ pub fn transcode<S: Source, W: Write>(
         deadline,
         spool: &spool,
         encoder: None,
+        first_size: None,
         sent: Arc::new(AtomicU64::new(0)),
         sent_pts: Vec::new(),
         last: None,
@@ -1001,6 +1007,8 @@ struct Run<'a> {
     timecodes: Option<PathBuf>,
     /// The encoder, once the first presented frame started it.
     encoder: Option<(Encoder<SpoolSink>, EncoderSettings)>,
+    /// The first presented frame's decoded size.
+    first_size: Option<(u32, u32)>,
     /// Frames sent, for the reader's picture limit.
     sent: Arc<AtomicU64>,
     /// The time each frame was sent at: its source presentation time, or
@@ -1094,6 +1102,12 @@ impl Run<'_> {
                 settings.format,
                 picture.format()
             )));
+        }
+        let size = (picture.width(), picture.height());
+        if self.options.one_size && *self.first_size.get_or_insert(size) != size {
+            return Err(unsupported(
+                "the frame size changes within the stream, and the frames are not resized",
+            ));
         }
         if Instant::now() >= self.deadline {
             return Err(timed_out());

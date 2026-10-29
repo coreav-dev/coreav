@@ -192,6 +192,9 @@ COMPAT_COMMANDS = {
 # Fixtures that miss B2 with `coreav transcode` as well (docs/measurements/transcode.md): B9 sets their B2 apart.
 B2_KNOWN_MISSES = {'size_inband_sps.mp4'}
 EXIT_UNSUPPORTED = 4
+# A file `coreav ffmpeg` rejects (exit status 1, docs/design/compat-cli.md) is set apart as `coreav transcode`'s runs
+# set a rejected file apart, when the message names one of these defects of the file.
+REJECTED_DEFECTS = ('truncated structure', 'invalid structure')
 
 ENV = None          # the tools' environment: no credentials
 _print = threading.Lock()
@@ -894,7 +897,8 @@ def compat_words(key, path, out):
 
 
 def compat_run(args, arm_env, key, path, out):
-    """`coreav ffmpeg` with one B9 command line: 'ok', 'refused' (exit status 4, nothing written) or 'failed'."""
+    """`coreav ffmpeg` with one B9 command line: 'ok', 'refused' (exit status 4, or exit status 1 naming a defect of
+    the file as REJECTED_DEFECTS lists, nothing written either way) or 'failed'."""
     env = dict(ENV, **arm_env)
     t = time.monotonic()
     try:
@@ -907,7 +911,9 @@ def compat_run(args, arm_env, key, path, out):
     if r.returncode == 0 and os.path.isfile(out) and not r.stdout:
         return dict(res, status='ok')
     if r.returncode == EXIT_UNSUPPORTED and not os.path.exists(out):
-        return dict(res, status='refused', reason=res['stderr'].strip().splitlines()[-1:] or [''])
+        return dict(res, status='refused', reason=(res['stderr'].strip().splitlines() or [''])[-1])
+    if r.returncode == 1 and not os.path.exists(out) and any(d in res['stderr'] for d in REJECTED_DEFECTS):
+        return dict(res, status='refused', reason='rejected: ' + (res['stderr'].strip().splitlines() or [''])[-1])
     return dict(res, status='failed', reason=f'exit {r.returncode}' + (', output left' if os.path.exists(out) else ''))
 
 
@@ -1261,7 +1267,7 @@ def share(values, floor):
     return sum(1 for v in values if v >= floor) / len(values) if values else None
 
 
-def summarize(out, fixtures, expected, arms):
+def summarize(out, fixtures, expected, arms, compat=False):
     """Per configuration, arm and class (and over all classes): each bar's counts and verdict, over the inputs
     of the run only (`expected`: {config: {file: class}}). An input without a complete result is counted as
     missing, and a class with one missing gets no verdict."""
@@ -1289,7 +1295,7 @@ def summarize(out, fixtures, expected, arms):
             for cls, rs in groups.items():
                 # Fixtures: 100%. Corpus: 99% over all classes together, and 95% in every class.
                 bar = 1.0 if fixtures else (CORPUS_SHARE if cls == 'all' else CLASS_SHARE)
-                per[cls] = class_verdict(rs, arm, bar, fixtures)
+                per[cls] = class_verdict(rs, arm, bar, fixtures, compat)
                 if missing[config][cls]:
                     per[cls]['missing'] = missing[config][cls]
                     for v in per[cls].values():
@@ -1313,7 +1319,7 @@ def summarize(out, fixtures, expected, arms):
     return report
 
 
-def class_verdict(rs, arm, b23_bar, fixtures):
+def class_verdict(rs, arm, b23_bar, fixtures, compat=False):
     apart = collections.Counter()
     b1 = []
     native = []
@@ -1325,8 +1331,9 @@ def class_verdict(rs, arm, b23_bar, fixtures):
             apart['download failed'] += 1
             continue
         a = r.get('baseline') if arm == 'baseline' else r.get('arms', {}).get(arm)
-        if a is None or a.get('maps_from') == 'probe':
-            # A baseline row of a file CoreAV refused: only the list of refusals uses it.
+        if a is None or a.get('maps_from') == 'probe' or (arm == 'baseline' and 'command' in r):
+            # A baseline row of a file CoreAV refused, or of a B9 command line (FFmpeg's own run, not judged): only
+            # the list of refusals uses it.
             continue
         if a['status'] == 'refused':
             apart[f'refused: {a["reason"]}: {str((a.get("error") or {}).get("message"))[:60]}'] += 1
@@ -1393,7 +1400,12 @@ def class_verdict(rs, arm, b23_bar, fixtures):
                                            and sm is not None and SIZE_RATIO[0] <= sm <= SIZE_RATIO[1])}
     v['Q2'] = {'judged': len(q2), 'median_db': q2m, 'share_at_least_30': share(q2, Q2_FLOOR),
                'met': None if not q2 else (q2m >= Q2_MEDIAN and share(q2, Q2_FLOOR) >= SHARE)}
-    if fixtures:
+    if compat:
+        # B9: Q1 and Q2 for every fixture a command line runs on; the medians and the size ratio are B4's.
+        v['Q1']['met'] = share(q1, Q1_FLOOR) == 1.0 if q1 else None
+        v['Q2']['met'] = share(q2, Q2_FLOOR) == 1.0 if q2 else None
+        v['below_floor'] = files_below
+    elif fixtures:
         # Fixtures: Q1 and Q2 for every fixture, and the bit-rate check.
         v['Q1']['met'] = v['Q1']['met'] and share(q1, Q1_FLOOR) == 1.0 if q1 else None
         v['Q2']['met'] = v['Q2']['met'] and share(q2, Q2_FLOOR) == 1.0 if q2 else None
@@ -1505,7 +1517,8 @@ def main():
         p.error(f'--classes: {CLASSES}')
     if args.summarize:
         info = json.loads((pathlib.Path(args.out) / 'run.json').read_text())
-        rep = summarize(args.out, info['mode'] == 'fixtures', info['expected'], list(info['arms']))
+        rep = summarize(args.out, info['mode'] == 'fixtures', info['expected'], list(info['arms']),
+                        info.get('compat') is not None)
         rep['run'] = info
         print(table(rep))
         return verdict_status(rep)
@@ -1540,7 +1553,8 @@ def main():
     for i in items:
         for c in i['configs']:
             expected.setdefault(c, {})[i['key']] = i['class']
-    expected.setdefault('default', {})
+    if not args.compat:
+        expected.setdefault('default', {})
     if not args.fixtures and not args.only:
         # A class of the selection without files has no judged file: it is reported, and fails the run.
         run_info['empty_classes'] = [c for c in args.classes if c not in expected['default'].values()]
@@ -1550,7 +1564,7 @@ def main():
     with concurrent.futures.ThreadPoolExecutor(max(1, args.jobs)) as ex:
         for fut in [ex.submit(process, args, i) for i in items]:
             fut.result()
-    rep = summarize(args.out, bool(args.fixtures), expected, [n for n, _ in args.arms])
+    rep = summarize(args.out, bool(args.fixtures), expected, [n for n, _ in args.arms], args.compat)
     rep['run'] = run_info
     if not args.fixtures:
         rep['selection_apart'] = {c: v['apart'] for c, v in corpus_selection(args)['classes'].items()}
@@ -1567,12 +1581,16 @@ def verdict_status(rep):
         problems.append(f'inputs without a complete result: {rep["missing"]}')
     for c in (rep.get('run') or {}).get('empty_classes', []):
         problems.append(f'class {c} has no selected file')
+    compat = (rep.get('run') or {}).get('compat') is not None
+    judged = collections.Counter()
     for config, arms in rep['configs'].items():
         for arm, classes in arms.items():
             if arm == 'baseline':
                 continue
             for cls, v in classes.items():
-                if v['B1']['judged'] == 0:
+                judged[arm] += v['B1']['judged']
+                # B9: a command line every fixture refuses is listed, not a failure; an arm that runs none fails.
+                if v['B1']['judged'] == 0 and not compat:
                     problems.append(f'{config} {arm} {cls}: no judged file')
                 for bar in ('B1', 'B1_native', 'B2', 'B3', 'Q1', 'Q2', 'bitrate'):
                     if (v.get(bar) or {}).get('met') is False:
@@ -1580,6 +1598,8 @@ def verdict_status(rep):
                 for bar in ('B2', 'B3'):
                     if (v.get(bar) or {}).get('met_with_every_class') is False:
                         problems.append(f'{config} {arm}: {bar} missed in a class (95%)')
+    if compat:
+        problems += [f'{arm}: no command line ran on any fixture' for arm, n in judged.items() if n == 0]
     for p in problems:
         print('FAIL:', p)
     return 1 if problems else 0

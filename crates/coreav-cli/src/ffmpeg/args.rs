@@ -53,6 +53,39 @@ pub struct Map {
     pub spec: Spec,
 }
 
+/// What a codec option asks for its streams.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Codec {
+    /// `copy`.
+    Copy,
+    /// `libx264`: the video re-encoded (`docs/design/transcode.md`,
+    /// "Through `coreav ffmpeg`").
+    Libx264,
+}
+
+/// The encoder options of a command that encodes with `libx264`, as given;
+/// [`crate::ffmpeg::encode`] reads their values. The last of a repeated
+/// option wins, as in `ffmpeg`.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Encoding {
+    /// `-crf`.
+    pub crf: Option<String>,
+    /// `-b:v`.
+    pub bitrate: Option<String>,
+    /// `-preset`.
+    pub preset: Option<String>,
+    /// `-threads` after the input.
+    pub threads: Option<String>,
+    /// `-vf` or `-filter:v`.
+    pub filter: Option<String>,
+    /// `-s` after the input.
+    pub size: Option<String>,
+    /// `-pix_fmt`.
+    pub pixel_format: Option<String>,
+    /// `-fps_mode` or `-vsync`: `passthrough` (or `0`).
+    pub passthrough: bool,
+}
+
 /// What `-y` and `-n` say about an existing output.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Overwrite {
@@ -90,8 +123,13 @@ pub struct Command {
     pub until: Option<Rational>,
     /// The `-map` options, in order.
     pub maps: Vec<Map>,
-    /// The specifiers of the codec options, all `copy`, in order.
-    pub copied: Vec<Spec>,
+    /// The codec options, in order: for each stream the last one that
+    /// names it decides.
+    pub codecs: Vec<(Spec, Codec)>,
+    /// The encoder options; with no `libx264` codec option there are none.
+    pub encoding: Encoding,
+    /// `-noautorotate` before the input.
+    pub noautorotate: bool,
     /// `-vn`.
     pub no_video: bool,
     /// `-an`.
@@ -126,7 +164,7 @@ const GLOBAL: [(&str, Arity); 6] = [
 ];
 
 /// Options that apply to the next file named, codec options aside.
-const PER_FILE: [(&str, Arity); 17] = [
+const PER_FILE: [(&str, Arity); 27] = [
     ("-ss", Arity::Value),
     ("-t", Arity::Value),
     ("-to", Arity::Value),
@@ -144,6 +182,16 @@ const PER_FILE: [(&str, Arity); 17] = [
     ("-vn", Arity::Flag),
     ("-sn", Arity::Flag),
     ("-dn", Arity::Flag),
+    ("-noautorotate", Arity::Flag),
+    ("-crf", Arity::Value),
+    ("-b:v", Arity::Value),
+    ("-preset", Arity::Value),
+    ("-vf", Arity::Value),
+    ("-filter:v", Arity::Value),
+    ("-s", Arity::Value),
+    ("-pix_fmt", Arity::Value),
+    ("-fps_mode", Arity::Value),
+    ("-vsync", Arity::Value),
 ];
 
 /// Options of `ffmpeg` that are refused, with the reason.
@@ -419,7 +467,9 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
         duration: None,
         until: None,
         maps: Vec::new(),
-        copied: Vec::new(),
+        codecs: Vec::new(),
+        encoding: Encoding::default(),
+        noautorotate: false,
         no_video: false,
         no_audio: false,
         no_subtitle: false,
@@ -445,6 +495,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
                 ));
             }
             "-threads" => threads(text)?,
+            "-noautorotate" => command.noautorotate = true,
             "-safe" => safe = true,
             _ => {
                 return Err(not_native(
@@ -471,17 +522,58 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
     let mut format = None;
     let mut segment_format = None;
     let mut segment_time = None;
+    let mut encoders = Vec::new();
     for (option, value) in output_options {
         let text = value.unwrap_or_default();
         if let Some(spec) = codec_option(option) {
-            if text != "copy" {
-                return Err(not_native(
-                    option,
-                    Some(text),
-                    "encoding is not native: coreav ffmpeg copies streams (-c copy)",
-                ));
+            let codec = match text {
+                "copy" => Codec::Copy,
+                "libx264" => Codec::Libx264,
+                _ => {
+                    return Err(not_native(
+                        option,
+                        Some(text),
+                        "coreav ffmpeg copies streams (-c copy) and encodes only video, with libx264",
+                    ));
+                }
+            };
+            command.codecs.push((spec?, codec));
+            continue;
+        }
+        let value = Some(text.to_owned());
+        let encoding = &mut command.encoding;
+        match option {
+            "-crf" => encoding.crf = value,
+            "-b:v" => encoding.bitrate = value,
+            "-preset" => encoding.preset = value,
+            "-vf" | "-filter:v" => encoding.filter = value,
+            "-s" => encoding.size = value,
+            "-pix_fmt" => encoding.pixel_format = value,
+            "-fps_mode" | "-vsync" => {
+                if !matches!(text, "passthrough") && !(option == "-vsync" && text == "0") {
+                    return Err(not_native(
+                        option,
+                        Some(text),
+                        "of the frame-rate modes only passthrough is native",
+                    ));
+                }
+                encoding.passthrough = true;
             }
-            command.copied.push(spec?);
+            _ => {}
+        }
+        if matches!(
+            option,
+            "-crf"
+                | "-b:v"
+                | "-preset"
+                | "-vf"
+                | "-filter:v"
+                | "-s"
+                | "-pix_fmt"
+                | "-fps_mode"
+                | "-vsync"
+        ) {
+            encoders.push(option);
             continue;
         }
         match option {
@@ -517,7 +609,10 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
                 });
             }
             "-segment_format" => segment_format = Some(text),
-            "-threads" => threads(text)?,
+            "-threads" => {
+                threads(text)?;
+                command.encoding.threads = Some(text.to_owned());
+            }
             "-max_muxing_queue_size" => {
                 text.parse::<u32>().map_err(|_| {
                     usage(format!("Invalid value '{text}' for max_muxing_queue_size"))
@@ -541,6 +636,15 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
     }
     if output.contains("://") {
         return Err(Refusal::not_native("an output URL"));
+    }
+    if let Some(option) = encoders.first()
+        && !command.codecs.iter().any(|(_, c)| *c == Codec::Libx264)
+    {
+        return Err(not_native(
+            option,
+            None,
+            "it is an encoder option, and coreav ffmpeg encodes only with -c:v libx264",
+        ));
     }
     command.muxer = muxer(format, output)?;
     if command.muxer == Muxer::Segment {
@@ -671,11 +775,14 @@ mod tests {
         assert_eq!(c.until, Some(q(70, 1)));
         assert_eq!(c.seek, None);
         assert_eq!(c.overwrite, Overwrite::Yes);
-        assert_eq!(c.copied, vec![Spec::All]);
+        assert_eq!(c.codecs, vec![(Spec::All, Codec::Copy)]);
         let c = parse(&args("-t 5 -i in.mp4 -ss 3 -c:a copy out.m4a")).unwrap();
         assert_eq!((c.input_duration, c.seek), (Some(q(5, 1)), Some(q(3, 1))));
         assert_eq!(c.muxer, Muxer::Ipod);
-        assert_eq!(c.copied, vec![Spec::Kind(Kind2::Audio, None)]);
+        assert_eq!(
+            c.codecs,
+            vec![(Spec::Kind(Kind2::Audio, None), Codec::Copy)]
+        );
     }
 
     #[test]
@@ -726,8 +833,20 @@ mod tests {
             named("-vf", None)
         );
         assert_eq!(
-            option("-i in.mp4 -c:v libx264 out.mp4"),
-            named("-c:v", Some("libx264"))
+            option("-i in.mp4 -c:v libx265 out.mp4"),
+            named("-c:v", Some("libx265"))
+        );
+        assert_eq!(
+            option("-i in.mp4 -c copy -crf 23 out.mp4"),
+            named("-crf", None)
+        );
+        assert_eq!(
+            option("-crf 23 -i in.mp4 -c:v libx264 out.mp4"),
+            named("-crf", None)
+        );
+        assert_eq!(
+            option("-i in.mp4 -c:v libx264 -fps_mode cfr out.mp4"),
+            named("-fps_mode", Some("cfr"))
         );
         assert_eq!(
             option("-f concat -safe 0 -i list.txt -c copy out.mp4"),
@@ -775,6 +894,37 @@ mod tests {
         ] {
             assert!(matches!(refused(text), Reason::Property(_)), "{text}");
         }
+    }
+
+    #[test]
+    fn libx264_commands_keep_their_encoder_options() {
+        let c = parse(&args(
+            "-noautorotate -i in.mp4 -c copy -c:v libx264 -crf 19 -preset slow -preset fast -b:v 1M \
+             -vf scale=-2:360 -s 640x360 -pix_fmt yuv420p -threads 2 -vsync 0 out.mp4",
+        ))
+        .unwrap();
+        assert!(c.noautorotate);
+        assert_eq!(
+            c.codecs,
+            vec![
+                (Spec::All, Codec::Copy),
+                (Spec::Kind(Kind2::Video, None), Codec::Libx264)
+            ]
+        );
+        let text = |s: &str| Some(s.to_owned());
+        assert_eq!(
+            c.encoding,
+            Encoding {
+                crf: text("19"),
+                bitrate: text("1M"),
+                preset: text("fast"),
+                threads: text("2"),
+                filter: text("scale=-2:360"),
+                size: text("640x360"),
+                pixel_format: text("yuv420p"),
+                passthrough: true,
+            }
+        );
     }
 
     #[test]

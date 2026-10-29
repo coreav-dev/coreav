@@ -13,7 +13,7 @@ use std::time::Duration;
 use coreav_isobmff::Source;
 use coreav_transcode::encoder::{EncoderChoice, RateControl};
 use coreav_transcode::{
-    AudioMode, Remuxed, Scale, SourceKind, Summary, TranscodeOptions, parse_scale,
+    AudioMode, PixelFormat, Remuxed, Scale, SourceKind, Summary, TranscodeOptions, parse_scale,
 };
 use coreav_worker::{EXEC_ARG, ExecLauncher, WorkerCommand};
 use serde_json::{Value, json};
@@ -34,6 +34,13 @@ pub struct Request {
     pub scale: Option<Scale>,
     /// `--audio none`.
     pub no_audio: bool,
+    /// The audio streams to copy (source stream indices), instead of every
+    /// one MP4 carries: an `ffmpeg` command line's selection.
+    pub audio_streams: Option<Vec<usize>>,
+    /// The pixel format the encoder must be given (`-pix_fmt`).
+    pub pixel_format: Option<PixelFormat>,
+    /// Refuse a stream whose frame size changes, instead of resizing it.
+    pub one_size: bool,
     /// `--encoder`: `auto`, `x264` or `ffmpeg`.
     pub encoder: String,
     /// `--x264`.
@@ -85,10 +92,12 @@ pub fn make<S: Source>(
         },
         preset: request.preset.clone(),
         scale: request.scale,
-        audio: if request.no_audio {
-            AudioMode::None
-        } else {
-            AudioMode::Copy
+        pixel_format: request.pixel_format,
+        one_size: request.one_size,
+        audio: match (&request.audio_streams, request.no_audio) {
+            (_, true) => AudioMode::None,
+            (Some(streams), false) => AudioMode::Streams(streams.clone()),
+            (None, false) => AudioMode::Copy,
         },
         encoder: match request.encoder.as_str() {
             "x264" => EncoderChoice::X264,

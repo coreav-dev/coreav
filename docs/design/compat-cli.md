@@ -77,6 +77,16 @@ every encoder value of a codec option, `-f lavfi`, `-f image2`,
 `-encoders`, `-decoders`, `-filters`, `-muxers`, `-pix_fmts`,
 `-sample_fmts`, `-layouts`, `-sections`, `-version`).
 
+One encode is taken since: in a build with a decoder backend, a command
+line that encodes the video with `libx264`, with the few options
+[`transcode.md`](transcode.md) lists under "Through `coreav ffmpeg`", runs
+through `coreav transcode`'s pipeline, and its bar is B9 there. The
+vocabulary above and the labels of the command-coverage set stay step 1's,
+so those command lines remain `out-of-scope` in the set, and B1 holds for
+the default build, which has no decoder backend and refuses them. B1 on a
+build with a decoder backend needs those lines relabelled first, a change
+to `classify.py` this step does not make.
+
 Every one of those is refused by **naming it**: the error says which
 option or property is not supported, and the exit status is non-zero. A
 refused command never runs differently: in strict-safe mode it is refused,
