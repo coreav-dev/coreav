@@ -21,8 +21,8 @@ use crate::split::Pattern;
 use args::{Command, Demuxer, Muxer, Overwrite, Spec};
 use coreav_isobmff::{FileSource, Rational};
 use coreav_isobmff_write::{
-    AudioChoice, ClipOptions, MatroskaRemuxOptions, OnUnsupported, RemuxOptions, SplitAt,
-    SplitOptions, TrackChoice, VideoChoice,
+    AudioChoice, ClipOptions, JoinAudio, JoinOptions, MatroskaRemuxOptions, OnUnsupported,
+    RemuxOptions, SplitAt, SplitOptions, TrackChoice, VideoChoice,
 };
 use std::path::{Path, PathBuf};
 
@@ -108,6 +108,13 @@ pub enum Job {
     Clip(ClipOptions),
     /// Segments, written to the names of the output pattern.
     Split(SplitOptions),
+    /// The files of a concat list, joined in order.
+    Join {
+        /// The files.
+        paths: Vec<PathBuf>,
+        /// The audio kept.
+        audio: JoinAudio,
+    },
 }
 
 /// The container families CoreAV reads.
@@ -118,29 +125,68 @@ enum Container {
 }
 
 /// Parses, plans and runs a command line. Returns the summary its writer's
-/// own command prints (`coreav remux`, `clip`, `split`, `extract-audio`),
-/// which `coreav ffmpeg` does not print; the fixture tests check outputs
-/// with it.
+/// own command prints (`coreav remux`, `clip`, `split`, `extract-audio`,
+/// `join`), which `coreav ffmpeg` does not print; the fixture tests check
+/// outputs with it.
 pub fn run(args: &[String]) -> Result<serde_json::Value, Stop> {
     let command = args::parse(args)?;
-    let input = Path::new(&command.input);
-    let size = std::fs::metadata(input)
-        .map_err(|e| WriteFailure::Rejected(Failure::io(e)))?
-        .len();
-    let mut file = FileSource::open(input).map_err(WriteFailure::from)?;
-    let force = command.demuxer.map(|d| match d {
-        Demuxer::Isobmff => crate::ffprobe::args::Container::Isobmff,
-        Demuxer::Matroska => crate::ffprobe::args::Container::Matroska,
-    });
-    let report = crate::ffprobe::probe(&mut file, size, &command.input, force)
+    let io = |e| WriteFailure::Rejected(Failure::io(e));
+    let input = PathBuf::from(&command.input);
+    std::fs::metadata(&input).map_err(io)?;
+    let (list, force) = match command.demuxer {
+        Some(Demuxer::Concat { safe }) => (Some(list(&input, safe)?), None),
+        Some(Demuxer::Isobmff) => (None, Some(crate::ffprobe::args::Container::Isobmff)),
+        Some(Demuxer::Matroska) => (None, Some(crate::ffprobe::args::Container::Matroska)),
+        None => (None, None),
+    };
+    let probed = list.as_ref().and_then(|l| l.first()).unwrap_or(&input);
+    let size = std::fs::metadata(probed).map_err(io)?.len();
+    let mut file = FileSource::open(probed).map_err(WriteFailure::from)?;
+    let name = probed.display().to_string();
+    let report = crate::ffprobe::probe(&mut file, size, &name, force)
         .map_err(WriteFailure::Rejected)?
         .report;
-    let job = plan(&command, &report)?;
+    let job = plan(&command, &report, list)?;
     write(&command, &job)
 }
 
-/// The writer and options for `command` on the input `report` describes.
-pub fn plan(command: &Command, report: &Report) -> Result<Job, Refusal> {
+/// The files a concat list names (`crate::concat::read`). A directive or a
+/// path `ffmpeg` reads differently is not native; a list `ffmpeg` fails
+/// too is rejected.
+fn list(path: &Path, safe: bool) -> Result<Vec<PathBuf>, Stop> {
+    use crate::concat::ListError;
+    crate::concat::read(path, safe).map_err(|error| match error {
+        ListError::Directive { known: true, .. }
+        | ListError::Version { .. }
+        | ListError::Protocol { .. }
+        | ListError::TooLarge => Stop::Refused(Refusal::NotNative(NotNative {
+            reason: Reason::Property("a concat list other than local files"),
+            message: format!("not supported by coreav ffmpeg: {error}"),
+        })),
+        ListError::Directive { known: false, .. }
+        | ListError::Read(_)
+        | ListError::NoPath { .. }
+        | ListError::Unsafe { .. }
+        | ListError::Empty => Stop::Failed(WriteFailure::Object {
+            json: serde_json::json!({
+                "schema": "coreav.error/1",
+                "kind": "invalid_structure",
+                "limit": null,
+                "offset": null,
+                "message": error.to_string(),
+            }),
+            io: false,
+        }),
+    })
+}
+
+/// The writer and options for `command` on the input `report` describes,
+/// or on the first file of the concat list `list` when the input is one.
+pub fn plan(
+    command: &Command,
+    report: &Report,
+    list: Option<Vec<PathBuf>>,
+) -> Result<Job, Refusal> {
     let container = match format_name(report) {
         Some("mov,mp4,m4a,3gp,3g2,mj2") => Container::Isobmff,
         Some("matroska,webm") => Container::Matroska,
@@ -185,6 +231,31 @@ pub fn plan(command: &Command, report: &Report) -> Result<Job, Refusal> {
         return Err(Refusal::not_native(
             "-map_metadata -1 on another output than an M4A file",
         ));
+    }
+    if let Some(paths) = list {
+        if container != Container::Isobmff {
+            return Err(Refusal::not_native("joining Matroska or WebM files"));
+        }
+        if trims || command.muxer != Muxer::Mp4 {
+            return Err(Refusal::not_native(
+                "a join that also seeks, trims, segments or writes M4A",
+            ));
+        }
+        if !selected.iter().any(|i| kind(*i) == Some(StreamKind::Video)) {
+            return Err(Refusal::not_native("a join without video"));
+        }
+        let first = |k: StreamKind| streams.iter().position(|s| s.kind == k);
+        let video = first(StreamKind::Video);
+        let audio = match selected.as_slice() {
+            [v] if Some(*v) == video => JoinAudio::None,
+            [v, a] if Some(*v) == video && Some(*a) == first(StreamKind::Audio) => JoinAudio::First,
+            _ => {
+                return Err(Refusal::not_native(
+                    "a join of other streams than the first video and audio stream",
+                ));
+            }
+        };
+        return Ok(Job::Join { paths, audio });
     }
     if command.muxer == Muxer::Segment {
         if trims {
@@ -528,6 +599,15 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
     }
     let path = PathBuf::from(&command.output);
     let force = check_output(command, &path)?;
+    if let Job::Join { paths, .. } = job
+        && paths.iter().any(|p| output::same_file(p, &path))
+    {
+        return Err(Refusal::Usage(format!(
+            "{} is an input file; write the output to another path",
+            path.display()
+        ))
+        .into());
+    }
     let document = output::to_file(&path, force, |out| match job {
         Job::Remux {
             streams,
@@ -559,6 +639,13 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
         }
         Job::Clip(options) => crate::clip::run(input, options, &allowlist, out)
             .map(|summary| crate::clip::document(&summary)),
+        Job::Join { paths, audio } => {
+            let summary = crate::join::run(paths, &JoinOptions { audio: *audio }, &allowlist, out)?;
+            let mut document = Vec::new();
+            crate::join::write_document(&mut document, &summary, paths)
+                .and_then(|()| Ok(serde_json::from_slice(&document)?))
+                .map_err(|e| WriteFailure::Rejected(Failure::io(e)))
+        }
         Job::Split(_) => Ok(serde_json::Value::Null),
     })?;
     Ok(document)

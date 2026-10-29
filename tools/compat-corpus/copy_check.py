@@ -21,7 +21,8 @@ written output is checked twice:
   `scripts/remux_check.py` (MP4 and MOV sources),
   `scripts/mkv_remux_check.py` (Matroska and WebM; the streams outside the
   selection are not expected in the output), `clip_check.py`,
-  `split_check.py` and `extract_check.py`, each with its known
+  `split_check.py`, `extract_check.py` and `scripts/join_check.py` (a join
+  also against `ffmpeg -f concat` on the same inputs), each with its known
   divergences. A clip's requested range must also be the one the command
   names, read here from its arguments and the input's start time.
 
@@ -55,7 +56,8 @@ MATROSKA = (".mkv", ".webm")
 # decoder that reinitializes mid-stream, and their own fixture runs leave
 # them out, so their clips and segments are set aside here too.
 UNMODELLED = {"clip": ("size_inband_sps.mp4", "size_vp9_resize.mp4"),
-              "split": ("size_inband_sps.mp4", "size_vp9_resize.mp4")}
+              "split": ("size_inband_sps.mp4", "size_vp9_resize.mp4"),
+              "join": ("size_inband_sps.mp4", "size_vp9_resize.mp4")}
 
 
 def outputs(record):
@@ -89,6 +91,8 @@ def selected(record):
     summary = record["detail"]
     if "stream" in summary:
         return [summary["stream"]["stream_index"]]
+    if "inputs" in summary:
+        return [s["stream_index"] for s in summary["inputs"][0]["streams"]]
     if "segments" in summary:
         listed = [s for seg in summary["segments"] for s in seg["streams"]]
         return sorted({s["stream_index"] for s in listed}, key=lambda i: [s["stream_index"] for s in listed].index(i))
@@ -102,7 +106,7 @@ def selection(record, ffmpeg):
     "ffmpeg fails" when it cannot run the command, else the difference."""
     with tempfile.TemporaryDirectory(prefix="copy-check-") as tmp:
         target = pathlib.Path(tmp) / pathlib.Path(record["output"]).name
-        args = [record["source"] if a == "INPUT" else str(target) if a == "OUTPUT" else a for a in record["args"]]
+        args = [record.get("input", record["source"]) if a == "INPUT" else str(target) if a == "OUTPUT" else a for a in record["args"]]
         done = subprocess.run([ffmpeg, "-nostdin", "-hide_banner", "-v", "info"] + args, capture_output=True,
                               timeout=TIMEOUT, check=False)
     mapped = sorted((int(o), int(i)) for i, o in MAPPING.findall(done.stderr.decode(errors="replace")))
@@ -185,6 +189,17 @@ def entry(record, src_movie, source_streams):
                 "written_end": writer_corpus.ratio(summary["end"]["written"]),
                 "video": writer_corpus.kept_track(src_movie, kinds["video"]),
                 "audio": writer_corpus.kept_track(src_movie, kinds["audio"]) if "audio" in kinds else None}
+    if job == "join":
+        inputs = []
+        for item in summary["inputs"]:
+            kinds = {s["kind"]: s["stream_index"] for s in item["streams"]}
+            inputs.append({"path": item["path"], "offset": writer_corpus.ratio(item["offset"]),
+                           "video_start": writer_corpus.ratio(item["video_start"]),
+                           "video_end": writer_corpus.ratio(item["video_end"]), "extended": item["extended"],
+                           "video_stream": kinds["video"], "audio_stream": kinds.get("audio")})
+        return {"label": record["id"], "source": None, "source_offset": None, "output": output,
+                "duration": writer_corpus.ratio(summary["duration"]), "video_edits": summary["edits"]["video"],
+                "audio_edits": summary["edits"]["audio"], "inputs": inputs}
     if job == "split":
         first = summary["segments"][0]["streams"]
         segments = []
@@ -216,6 +231,7 @@ def oracle(record, tools):
     """The problems the job's oracle finds in one written record."""
     import clip_check
     import extract_check
+    import join_check
     import mkv_remux_check
     import remux_check
     import split_check
@@ -227,6 +243,8 @@ def oracle(record, tools):
         result = mkv_remux_check.check(source, record["output"], summary, mediainfo, selected=selected)
         return [json.dumps(p) for p in result["problems"]]
     src_movie = track_boxes.read_movie(source) if record["job"] in ("clip", "split") else None
+    if record["job"] == "join":
+        return [str(p) for p in join_check.check(entry(record, None, []), ffprobe, ffmpeg, mediainfo, concat=True)[0]]
     item = entry(record, src_movie, streams(ffprobe, source) or [])
     if record["job"] == "clip":
         problems = range_problems(record, ffprobe) + list(clip_check.check(item, ffprobe, ffmpeg, mediainfo)[0])

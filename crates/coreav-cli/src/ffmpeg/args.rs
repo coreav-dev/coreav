@@ -17,6 +17,11 @@ pub enum Demuxer {
     Isobmff,
     /// `matroska,webm` and its aliases.
     Matroska,
+    /// `concat`: the input is a list of files to join.
+    Concat {
+        /// The demuxer's `safe` option (on unless `-safe 0`).
+        safe: bool,
+    },
 }
 
 /// What the output is written as: `-f`, or the output's extension.
@@ -436,7 +441,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
         segment_time: Rational::from_int(2),
         overwrite,
     };
-    let mut safe = false;
+    let mut safe = None;
     for (option, value) in input_options {
         let text = value.unwrap_or_default();
         match option {
@@ -453,7 +458,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
                 ));
             }
             "-threads" => threads(text)?,
-            "-safe" => safe = true,
+            "-safe" => safe = Some(boolean(option, text)?),
             _ => {
                 return Err(not_native(
                     option,
@@ -463,12 +468,10 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             }
         }
     }
-    if safe {
-        return Err(not_native(
-            "-safe",
-            None,
-            "it is an option of the concat demuxer, and joining files is not native yet",
-        ));
+    match (&mut command.demuxer, safe) {
+        (Some(Demuxer::Concat { safe }), Some(given)) => *safe = given,
+        (_, Some(_)) => return Err(usage("Option safe not found.")),
+        (_, None) => {}
     }
     if input == "-" || input.starts_with("pipe:") {
         return Err(Refusal::not_native("an input from a pipe"));
@@ -586,16 +589,26 @@ fn demuxer(name: &str) -> Result<Demuxer, Refusal> {
             Ok(Demuxer::Isobmff)
         }
         "matroska,webm" | "matroska" | "webm" => Ok(Demuxer::Matroska),
-        "concat" => Err(not_native(
-            "-f",
-            Some(name),
-            "joining files is not native yet",
-        )),
+        "concat" => Ok(Demuxer::Concat { safe: true }),
         _ => Err(not_native(
             "-f",
             Some(name),
             "coreav ffmpeg reads MP4/MOV, Matroska and WebM",
         )),
+    }
+}
+
+/// A boolean option's value: a number that is 0 or 1, or `true`, `yes`,
+/// `false` or `no` (black box); another number is a usage error, as in
+/// `ffmpeg`.
+fn boolean(option: &str, text: &str) -> Result<bool, Refusal> {
+    match (text, text.parse::<i64>()) {
+        (_, Ok(1)) | ("true" | "yes", _) => Ok(true),
+        (_, Ok(0)) | ("false" | "no", _) => Ok(false),
+        (_, Ok(_)) => Err(usage(format!(
+            "Unable to parse option value \"{text}\" as boolean"
+        ))),
+        _ => Err(not_native(option, Some(text), "an unknown boolean value")),
     }
 }
 
@@ -693,6 +706,32 @@ mod tests {
     }
 
     #[test]
+    fn the_concat_demuxer_takes_its_safe_option() {
+        let demuxer = |text: &str| parse(&args(text)).unwrap().demuxer;
+        let concat = |safe| Some(Demuxer::Concat { safe });
+        assert_eq!(demuxer("-f concat -i l.txt -c copy o.mp4"), concat(true));
+        assert_eq!(
+            demuxer("-f concat -safe 0 -i l.txt -c copy o.mp4"),
+            concat(false)
+        );
+        assert_eq!(
+            demuxer("-safe 00 -f concat -i l.txt -c copy o.mp4"),
+            concat(false)
+        );
+        assert_eq!(
+            demuxer("-safe yes -f concat -i l.txt -c copy o.mp4"),
+            concat(true)
+        );
+        for bad in [
+            "-f concat -safe 2 -i l.txt -c copy o.mp4",
+            "-f concat -safe -1 -i l.txt -c copy o.mp4",
+            "-safe 0 -i in.mp4 -c copy o.mp4",
+        ] {
+            assert!(matches!(parse(&args(bad)), Err(Refusal::Usage(_))), "{bad}");
+        }
+    }
+
+    #[test]
     fn maps_read_the_selector_grammar() {
         let c = parse(&args(
             "-i in.mkv -map 0 -map -0:a:2 -map 0:1 -map -0:m:language:eng -map 0:m:language -c copy out.mp4",
@@ -744,12 +783,8 @@ mod tests {
             named("-c:v", Some("libx264"))
         );
         assert_eq!(
-            option("-f concat -safe 0 -i list.txt -c copy out.mp4"),
-            named("-f", Some("concat"))
-        );
-        assert_eq!(
-            option("-safe 0 -f concat -i list.txt -c copy out.mp4"),
-            named("-f", Some("concat"))
+            option("-f concat -safe auto -i list.txt -c copy out.mp4"),
+            named("-safe", Some("auto"))
         );
         assert_eq!(
             option("-fflags +igndts -i in.mp4 -c copy out.mp4"),

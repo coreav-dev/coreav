@@ -541,6 +541,7 @@ implies:
 | a copy of one audio stream to `.m4a` (or `-f ipod`) | `coreav extract-audio` |
 | `-ss`, `-t` or `-to`, before or after `-i` | `coreav clip`: one video stream and at most one audio stream |
 | `-f segment` with MP4 segments | `coreav split --every` the `-segment_time` (2 s when absent) |
+| `-f concat` with an MP4 output | `coreav join` of the list's files (`coreav_cli::concat::read`, with the demuxer's `safe` option): the first video stream and, unless `-an`, the first audio stream, which is what `ffmpeg` selects from the first file when the selection is that |
 
 Every other output container, MOV and 3GP included, is refused: the MOV
 muxer's output is not the MP4 writer's.
@@ -596,15 +597,20 @@ no writer takes. `tools/compat-corpus/copy_check.py` then checks every
 output twice: the pinned `ffmpeg`, run on the same command, must map the
 same input streams to the same output streams, and the oracle of the job
 (`remux_check` or `mkv_remux_check`, `clip_check`, `split_check`,
-`extract_check`) must pass it at its own rules, which set aside the two
-fixtures whose picture size changes inside the track for the clip and split
-oracles. Threshold: 100% of the outputs, in `fixtures.yml` and
+`extract_check`, `join_check` with `--ffmpeg-concat`'s comparison) must pass it
+at its own rules, which set aside the two fixtures whose picture size
+changes inside the track for the clip, split and join oracles. A join's
+list names the fixture twice. Threshold: 100% of the outputs, in `fixtures.yml` and
 `mkv-fixtures.yml`.
 
 **Not covered: refused, exit 4, by name.**
 
-- **C02**, `-f concat`: the job is `coreav join`, and the list file is not
-  read yet. It is refused as `-f concat` until the list reader lands.
+- A join of other streams than the first video and audio stream of the
+  list's first file, a join without video (`join_mp4` cuts at video), a
+  join that also seeks or trims, and a list with a directive other than
+  `file` and `ffconcat version 1.0` (`duration`, `inpoint`, ...) or a path
+  that names a protocol. A list `ffmpeg` fails too (an unsafe file name
+  without `-safe 0`, no file) is rejected, exit 1.
 - **C15 and C19**, a clip of an audio-only file: `coreav clip` and `coreav
   split` need a video stream to cut at, and no writer clips audio alone. A
   clip or a segmented output of any file without video is refused the
@@ -1242,5 +1248,4 @@ command refused for the option that carries the marker.
 
 ## What is not here yet
 
-The `-f concat` list reader for `coreav ffmpeg` (C02), a writer that clips audio
-alone (C15 and C19), and the fallback.
+A writer that clips audio alone (C15 and C19), and the fallback.

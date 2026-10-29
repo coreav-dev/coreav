@@ -90,7 +90,7 @@ fn commands_outside_the_vocabulary_are_refused_by_name() {
             vec!["-i", i, "-vf", "scale=320:-2", "-c:a", "copy", o],
             "-vf",
         ),
-        (vec!["-f", "concat", "-i", i, "-c", "copy", o], "concat"),
+        (vec!["-f", "mpegts", "-i", i, "-c", "copy", o], "mpegts"),
         (vec!["-i", i, "-c", "copy", "-f", "hls", o], "hls"),
         (
             vec!["-i", i, "-c", "copy", "-movflags", "+frag_keyframe", o],
@@ -121,8 +121,8 @@ fn a_refusal_carries_its_reason() {
         Reason::Option("-c:v".to_owned(), Some("libx264".to_owned()))
     );
     assert_eq!(
-        refusal(&["-f", "concat", "-i", "list.txt", "-c", "copy", "out.mp4"]),
-        Reason::Option("-f".to_owned(), Some("concat".to_owned()))
+        refusal(&["-f", "mpegts", "-i", "in.ts", "-c", "copy", "out.mp4"]),
+        Reason::Option("-f".to_owned(), Some("mpegts".to_owned()))
     );
     assert_eq!(
         refusal(&["-i", "a.mp4", "-i", "b.mp4", "-c", "copy", "out.mp4"]),
@@ -140,6 +140,85 @@ fn malformed_commands_are_usage_errors_and_a_missing_input_is_named() {
     let r = ffmpeg(&["-i", "/nonexistent/in.mp4", "-c", "copy", o]);
     assert_eq!(r.code, 3, "{}", r.stderr);
     assert!(r.stderr.contains("/nonexistent/in.mp4"), "{}", r.stderr);
+}
+
+#[test]
+fn a_concat_list_is_joined() {
+    let dir = scratch("ffmpeg-concat");
+    let input = movie(&dir);
+    let list = dir.join("list.txt");
+    std::fs::write(&list, "ffconcat version 1.0\nfile in.mp4\nfile 'in.mp4'\n").unwrap();
+    let output = dir.join("out.mp4");
+    let o = output.to_str().unwrap();
+    let l = list.to_str().unwrap();
+    let args: Vec<String> = ["-f", "concat", "-i", l, "-c", "copy", o]
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+    let Ok(summary) = coreav_cli::ffmpeg::run(&args) else {
+        panic!("{args:?} did not run");
+    };
+    assert_eq!(summary["schema"], "coreav.join/1");
+    assert_eq!(summary["inputs"].as_array().unwrap().len(), 2, "{summary}");
+    assert_eq!(summary["inputs"][0]["streams"].as_array().unwrap().len(), 2);
+    let r = ffmpeg(&[
+        "-y", "-f", "concat", "-safe", "0", "-i", l, "-an", "-c", "copy", o,
+    ]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    // A list file is read from the list's directory; the same path in it
+    // named absolutely needs -safe 0, as in ffmpeg.
+    let absolute = dir.join("absolute.txt");
+    std::fs::write(&absolute, format!("file '{input}'\n")).unwrap();
+    let a = absolute.to_str().unwrap();
+    std::fs::remove_file(&output).unwrap();
+    let r = ffmpeg(&["-f", "concat", "-i", a, "-c", "copy", o]);
+    assert_eq!(r.code, 1, "{}", r.stderr);
+    assert!(r.stderr.contains("unsafe file name"), "{}", r.stderr);
+    assert!(!output.exists());
+    assert_eq!(
+        ffmpeg(&["-f", "concat", "-safe", "0", "-i", a, "-c", "copy", o]).code,
+        0
+    );
+}
+
+#[test]
+fn concat_lists_and_options_outside_the_join_are_refused() {
+    let dir = scratch("ffmpeg-concat-refused");
+    movie(&dir);
+    let output = dir.join("out.mp4");
+    let o = output.to_str().unwrap();
+    let list = |name: &str, text: &str| {
+        let path = dir.join(name);
+        std::fs::write(&path, text).unwrap();
+        path.to_string_lossy().into_owned()
+    };
+    let trimmed = list("inpoint.txt", "file in.mp4\ninpoint 1\n");
+    let plain = list("list.txt", "file in.mp4\nfile in.mp4\n");
+    let empty = list("empty.txt", "# nothing\n");
+    let input = dir.join("in.mp4");
+    let i = input.to_str().unwrap();
+    for (args, code) in [
+        (vec!["-f", "concat", "-i", &trimmed, "-c", "copy", o], 4),
+        (
+            vec!["-f", "concat", "-i", &plain, "-t", "1", "-c", "copy", o],
+            4,
+        ),
+        (
+            vec!["-f", "concat", "-i", &plain, "-map", "0:a", "-c", "copy", o],
+            4,
+        ),
+        (vec!["-f", "concat", "-i", &empty, "-c", "copy", o], 1),
+        (
+            vec!["-f", "concat", "-safe", "2", "-i", &plain, "-c", "copy", o],
+            2,
+        ),
+        (vec!["-safe", "0", "-i", i, "-c", "copy", o], 2),
+        (vec!["-y", "-f", "concat", "-i", &plain, "-c", "copy", i], 2),
+    ] {
+        let r = ffmpeg(&args);
+        assert_eq!(r.code, code, "{args:?}: {}", r.stderr);
+        assert!(!output.exists(), "{args:?}");
+    }
 }
 
 #[test]
@@ -254,11 +333,24 @@ const FAMILIES: [(&str, &[&str]); 2] = [
     ("matroska-webm", &["mkv", "webm"]),
 ];
 
+/// A concat list in `dir` that names a copy of `source` twice, by its
+/// name alone, as the demuxer's `safe` option takes it.
+fn concat_list(dir: &Path, source: &Path) -> PathBuf {
+    let name = source.file_name().unwrap();
+    std::fs::create_dir_all(dir).unwrap();
+    let copy = dir.join(name);
+    if std::fs::hard_link(source, &copy).is_err() {
+        std::fs::copy(source, &copy).unwrap();
+    }
+    let list = dir.join("list.txt");
+    let line = format!("file '{}'\n", name.to_str().unwrap());
+    std::fs::write(&list, line.repeat(2)).unwrap();
+    list
+}
+
 /// The entries that run on no fixture, and what their refusal names: a job
-/// no writer takes yet (joining from a `-f concat` list, a clip of audio
-/// alone).
-const NOT_NATIVE: [(&str, &str); 3] = [
-    ("C02", "concat"),
+/// no writer takes yet (a clip of audio alone).
+const NOT_NATIVE: [(&str, &str); 2] = [
     ("C15", "a clip or a segment without video"),
     ("C19", "a clip or a segment without video"),
 ];
@@ -287,7 +379,8 @@ fn stream_kinds(path: &Path) -> Option<Vec<StreamKind>> {
 /// container families that has none of the stream types its
 /// `input_without` names (R3's rule), run as the binary runs it, writing
 /// the output to `out.mp4`, `out.m4a` for an audio extraction or
-/// `out%03d.mp4` for segments. A command a file cannot take (a `-map` that
+/// `out%03d.mp4` for segments; a join's input is a concat list that names
+/// the fixture twice ([`concat_list`]). A command a file cannot take (a `-map` that
 /// matches no stream of it, or a selection left empty, which `ffmpeg` fails
 /// too) is recorded as not taken. Every entry runs
 /// natively on at least one fixture of each of its families, but those of
@@ -358,14 +451,19 @@ fn the_0_1_0_commands_on_the_fixtures() {
                 let Some(family) = family(name).filter(|f| families.contains(f)) else {
                     continue;
                 };
-                let input = fixtures.join(name);
-                if stream_kinds(&input)
+                let source = fixtures.join(name);
+                if stream_kinds(&source)
                     .is_some_and(|kinds| kinds.iter().any(|k| without.contains(k)))
                 {
                     continue;
                 }
                 let work = out.join(format!("{id}.{n}.{name}"));
                 std::fs::create_dir_all(&work).unwrap();
+                let input = if job == "join" {
+                    concat_list(&out.join(format!("{id}.{n}.{name}.list")), &source)
+                } else {
+                    source.clone()
+                };
                 let output = work.join(match job {
                     "extract-audio" => "out.m4a",
                     "split" => "out%03d.mp4",
@@ -421,7 +519,8 @@ fn the_0_1_0_commands_on_the_fixtures() {
                     "job": job,
                     "command": n,
                     "args": template,
-                    "source": input.display().to_string(),
+                    "source": source.display().to_string(),
+                    "input": input.display().to_string(),
                     "family": family,
                     "output": output.display().to_string(),
                     "status": status,
