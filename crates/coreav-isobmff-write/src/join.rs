@@ -851,11 +851,7 @@ fn video_span<'a, S: Source>(
             }));
             last_cts = Some(last_cts.map_or(packet.cts, |c: i64| c.max(packet.cts)));
         }
-        if scaled.presents(packet.cts, packet.duration)? {
-            let p = scaled.present(packet.cts)?;
-            let p_end = p
-                .checked_add(scaled.span(packet.duration)?)
-                .ok_or_else(overflow)?;
+        if let Some((p, p_end)) = scaled.presented(packet.cts, packet.duration)? {
             if presented.is_none_or(|(_, hi)| p_end >= hi) {
                 last_frame = scaled.span(packet.duration)?;
             }
@@ -979,11 +975,7 @@ fn audio_span<'a, S: Source>(
             .duration
             .checked_add(u64::from(packet.duration))
             .ok_or_else(overflow)?;
-        if scaled.presents(packet.dts, packet.duration)? {
-            let q = scaled.present(packet.dts)?;
-            let q_end = q
-                .checked_add(scaled.span(packet.duration)?)
-                .ok_or_else(overflow)?;
+        if let Some((q, q_end)) = scaled.presented(packet.dts, packet.duration)? {
             presented = Some(presented.map_or((q, q_end), |(lo, hi)| (lo.min(q), hi.max(q_end))));
         }
     }

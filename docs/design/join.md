@@ -233,6 +233,10 @@ returns the files to pass to `coreav_cli::join::run`, in order:
   read or where a file is placed) or not; a path that names a protocol
   (`file:`, `https:`); `file` without a path; a list with no file; a list
   that is not UTF-8.
+- At most `MAX_LIST_BYTES` (1 MiB) of the list file is read, and a longer
+  one is refused. That bound also limits every line, every path and the
+  number of files, and it makes an endless file such as a device fail
+  at the limit.
 
 Each rule was checked against the pinned `ffmpeg` as a black box (the
 same list accepted or refused, the same files read); the unit tests of

@@ -1100,6 +1100,20 @@ def concat_list(paths):
     return "".join("file '" + str(p).replace("'", "'\\''") + "'\n" for p in paths)
 
 
+def concat_agree(ours, theirs, stripped=None):
+    """Whether each of our packets is ffmpeg concat's: the same data, size
+    and keyframe flag. With ``stripped``, the two files' packets without NAL
+    units of types 7 and 8, a packet whose data differs agrees when both
+    are keyframes and their data agrees without those units."""
+    def key(p):
+        return p.get("data_hash"), p.get("size"), (p.get("flags") or "")[:1]
+    ours_s, theirs_s = stripped or ([], [])
+    usable = len(ours_s) == len(theirs_s) == len(ours)
+    return [key(a) == key(b) or (usable and key(a)[2] == key(b)[2] == "K"
+                                 and ours_s[n].get("data_hash") == theirs_s[n].get("data_hash"))
+            for n, (a, b) in enumerate(zip(ours, theirs))]
+
+
 def check_ffmpeg_concat(entry, ffprobe, ffmpeg, found, info):
     """The join against `ffmpeg -f concat -safe 0 -i LIST -c copy` on the same
     inputs, run as a black box: for each kept stream, the same packets one
@@ -1155,15 +1169,7 @@ def check_ffmpeg_concat(entry, ffprobe, ffmpeg, found, info):
             if len(ours) != len(theirs):
                 found.append((f"concat:{kind}", f"{kind}: {len(ours)} packets, ffmpeg concat {len(theirs)}"))
                 continue
-            plain = [(p.get("data_hash"), p.get("size"), (p.get("flags") or "")[:1]) for p in ours]
-            other = [(p.get("data_hash"), p.get("size"), (p.get("flags") or "")[:1]) for p in theirs]
-            if kind == "video" and stripped:
-                ours_s, theirs_s = stripped
-                same = [a == b or (a[2] == "K" and len(ours_s) == len(theirs_s) == len(ours)
-                                   and ours_s[n].get("data_hash") == theirs_s[n].get("data_hash"))
-                        for n, (a, b) in enumerate(zip(plain, other))]
-            else:
-                same = [a == b for a, b in zip(plain, other)]
+            same = concat_agree(ours, theirs, stripped if kind == "video" else None)
             if not all(same):
                 found.append((f"concat:{kind}", f"{kind}: {same.count(False)} packets differ from ffmpeg concat's, "
                               f"first {same.index(False)}"))

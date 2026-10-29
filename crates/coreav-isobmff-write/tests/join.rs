@@ -656,6 +656,21 @@ fn audio_with_several_edits_keeps_its_windows() {
 }
 
 #[test]
+fn audio_shown_twice_from_one_frame_keeps_both_passages() {
+    // Two 1 ms passages of the first AAC frame, one second apart: the
+    // frame is presented by both edits.
+    let twice = movie(&[
+        ibbp_video(100, 25),
+        aac_audio(190, vec![(1, 0), (1000, -1), (1, 96)]),
+    ]);
+    let inputs = vec![&twice[..], &twice[..]];
+    let (summary, out) = join(&inputs).unwrap();
+    assert_join(&inputs, &out, &summary);
+    let audio = &edit_lists(&out)[1].2;
+    assert_eq!(audio.iter().filter(|e| e.1 != -1).count(), 4, "{audio:?}");
+}
+
+#[test]
 fn segments_across_an_empty_edit_join_back() {
     // The cut at 1 s falls where the gap starts: the first segment ends
     // with frames no edit presents, the second starts with the gap.

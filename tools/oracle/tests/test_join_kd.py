@@ -498,5 +498,35 @@ class SeveralEdits(unittest.TestCase):
         self.assertEqual([f for f, _ in found], ['audio:edits'])
 
 
+class ConcatAgree(unittest.TestCase):
+    """The packet comparison with ffmpeg concat's output."""
+
+    @staticmethod
+    def packet(data, flags='K_', size=10):
+        return {'data_hash': data, 'size': size, 'flags': flags}
+
+    def test_equal_packets_agree(self):
+        p = [self.packet('a'), self.packet('b', '__')]
+        self.assertEqual(jc.concat_agree(p, copy.deepcopy(p)), [True, True])
+
+    def test_keyframes_agree_without_parameter_sets(self):
+        ours, theirs = [self.packet('a', size=10)], [self.packet('x', size=30)]
+        stripped = ([self.packet('s')], [self.packet('s')])
+        self.assertEqual(jc.concat_agree(ours, theirs, stripped), [True])
+        self.assertEqual(jc.concat_agree(ours, theirs), [False])
+
+    def test_a_keyframe_flag_ffmpeg_lacks_fails(self):
+        stripped = ([self.packet('s')], [self.packet('s')])
+        for ours, theirs in (('K_', '__'), ('__', 'K_')):
+            with self.subTest(ours=ours, theirs=theirs):
+                self.assertEqual(jc.concat_agree([self.packet('a', ours)], [self.packet('a', theirs)], stripped),
+                                 [False])
+                self.assertEqual(jc.concat_agree([self.packet('a', ours)], [self.packet('x', theirs)], stripped),
+                                 [False])
+
+    def test_other_data_without_parameter_sets_fails(self):
+        stripped = ([self.packet('s')], [self.packet('t')])
+        self.assertEqual(jc.concat_agree([self.packet('a')], [self.packet('x')], stripped), [False])
+
 if __name__ == '__main__':
     unittest.main()

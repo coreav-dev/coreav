@@ -5,7 +5,14 @@
 //! what the demuxer reads or where it places a file, and is refused by name.
 
 use std::fmt;
+use std::fs::File;
+use std::io::Read;
 use std::path::{Path, PathBuf};
+
+/// Most bytes of a list file that are read. It holds ten thousand files
+/// named by 100-byte paths, and it bounds every line, every path and the
+/// number of files.
+pub const MAX_LIST_BYTES: u64 = 1 << 20;
 
 /// Why a concat list cannot be joined.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -49,12 +56,16 @@ pub enum ListError {
     },
     /// No `file` directive.
     Empty,
+    /// A list file longer than [`MAX_LIST_BYTES`]; nothing after that
+    /// limit is read.
+    TooLarge,
 }
 
 impl fmt::Display for ListError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Read(reason) => write!(f, "cannot read the concat list: {reason}"),
+            Self::TooLarge => write!(f, "the concat list is longer than {MAX_LIST_BYTES} bytes"),
             Self::Directive {
                 line,
                 name,
@@ -110,9 +121,19 @@ const DOCUMENTED: &[&str] = &[
 /// concat demuxer resolves it. With `safe` (the demuxer's default, off
 /// with `-safe 0`), a path must be relative, and each of its components
 /// non-empty, made of letters, digits, `.`, `_` and `-`, and not start
-/// with `.`.
+/// with `.`. At most [`MAX_LIST_BYTES`] and one byte are read, so a
+/// longer file, or an endless one such as a device, is refused.
 pub fn read(list: &Path, safe: bool) -> Result<Vec<PathBuf>, ListError> {
-    let bytes = std::fs::read(list).map_err(|e| ListError::Read(e.to_string()))?;
+    let error = |e: std::io::Error| ListError::Read(e.to_string());
+    let mut bytes = Vec::new();
+    File::open(list)
+        .map_err(error)?
+        .take(MAX_LIST_BYTES.saturating_add(1))
+        .read_to_end(&mut bytes)
+        .map_err(error)?;
+    if u64::try_from(bytes.len()).map_or(true, |n| n > MAX_LIST_BYTES) {
+        return Err(ListError::TooLarge);
+    }
     let text = String::from_utf8(bytes).map_err(|_| ListError::Read("not UTF-8".into()))?;
     let dir = list.parent().unwrap_or(Path::new(""));
     Ok(files(&text, safe)?
@@ -350,6 +371,19 @@ mod tests {
         );
         std::fs::write(&list, b"file \xff.mp4\n").unwrap();
         assert!(matches!(read(&list, false), Err(ListError::Read(_))));
+        let mut long = "file a.mp4\n".to_owned();
+        long.push_str(&"#".repeat(usize::try_from(MAX_LIST_BYTES).unwrap() - long.len()));
+        std::fs::write(&list, &long).unwrap();
+        assert_eq!(read(&list, true).unwrap(), vec![dir.join("a.mp4")]);
+        long.push('#');
+        std::fs::write(&list, &long).unwrap();
+        assert_eq!(read(&list, true), Err(ListError::TooLarge));
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn an_endless_list_is_refused_at_the_limit() {
+        assert_eq!(read(Path::new("/dev/zero"), true), Err(ListError::TooLarge));
     }
 }

@@ -1041,7 +1041,11 @@ of edits join back.
    holding the last frame across the gap would show frames the input's
    edits cut out. The stream duration that bounds the end of an input
    with one edit (the edit's own length) does not bound one with several,
-   whose edits bound it.
+   whose edits bound it. Where an input presents its samples is taken
+   from every edit that shows part of a sample (`Scaled::presented`), not
+   only from the edit that owns the sample's time: two edits can show
+   parts of one AAC frame or video frame, and the later one is kept (a
+   test, `audio_shown_twice_from_one_frame_keeps_both_passages`).
 3. **The hold before a later video start** (`docs/design/join.md`,
    "Timing") is kept only where no frame of the input is composed after
    its last edit. Otherwise the running edit would show that frame (cut
