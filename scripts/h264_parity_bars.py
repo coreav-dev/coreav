@@ -22,13 +22,14 @@ round supplies (docs/design/h264.md, "A round's bars: one analyzer, complete rep
 - `bars`: a bar passes when each of its checks does. A check reads one call and one pairing (`discard` or `write`)
   and holds for each of its `groups` (`overall`, the default; a class; `classes` for each class of the call; or a
   subset): the median per-stream ratio new/old is at most `median_max`, and the upper end of its 95% bootstrap
-  interval is below `ci_high_below`, of those given. A key the script does not know, an empty `groups` and two bars
-  of one name are errors, not ignored: each would let a check pass without being evaluated.
+  interval is below `ci_high_below`, of those given. A key the script does not know, an empty `bars` or `groups`
+  and two bars of one name are errors, not ignored: each would let a check pass without being evaluated.
 
 Each call's reports must be a complete measurement of its stream set, or no bar is evaluated: per class, the
 report exists, lists no `failed` stream, was asked for exactly the class's streams (`requested`, where the report
-has it), and has exactly one row with the times of both decoders for each of them. A refusal names every missing,
-failed and unexpected stream and exits with status 2. A call none of whose reports exists is pending, and so is
+has it), and has exactly one row with the times and ratios to FFmpeg of both decoders for each of them, every one a
+finite number above zero. A refusal names every missing, failed and unexpected stream and every bad value, and exits
+with status 2. A call none of whose reports exists is pending, and so is
 each bar that reads it.
 
 Per call, pairing and group: the median per-stream ratio with a 95% bootstrap interval over streams (2,000
@@ -38,6 +39,7 @@ every bar passes, 1 when one fails or is pending, 2 for a refusal or a bars file
 """
 import argparse
 import json
+import math
 import os
 import random
 import statistics
@@ -92,6 +94,8 @@ def load_spec(path):
     for key in ('new', 'old', 'calls', 'bars'):
         if key not in spec:
             raise Refused(f'{path}: no `{key}`')
+    if not isinstance(spec['bars'], list) or not spec['bars']:
+        raise Refused(f'{path}: `bars` must list at least one bar; a round with no bar evaluates nothing')
     calls = {}
     for name, call in spec['calls'].items():
         unknown(f'call {name}', call, CALL_KEYS)
@@ -190,10 +194,15 @@ def load_call(d, name, streams, new, old):
         if twice:
             problems.append(f'{tag}: more than one row for: {", ".join(twice)}')
         for row in got:
-            lacking = [k for k in needed if k not in (row.get('seconds') or {})]
-            lacking += [k for k in ratios if k not in (row.get('ratio') or {})]
+            seconds, ratio = row.get('seconds') or {}, row.get('ratio') or {}
+            lacking = [k for k in needed if k not in seconds] + [k for k in ratios if k not in ratio]
             if lacking:
                 problems.append(f"{tag}: the row of {row.get('stream')} has no {', '.join(lacking)}")
+            bad = [f'seconds.{k} = {seconds[k]!r}' for k in needed if k in seconds and not positive(seconds[k])]
+            bad += [f'ratio.{k} = {ratio[k]!r}' for k in ratios if k in ratio and not positive(ratio[k])]
+            if bad:
+                problems.append(f"{tag}: the row of {row.get('stream')} has values that are not finite positive "
+                                f"numbers: {', '.join(bad)}")
         method = report.get('method') or {}
         records[tag] = {'unresolved': [r.get('stream') for r in got if r.get('unresolved')],
                         'retried': method.get('retried'), 'gate_drift_streams': method.get('gate_drift_streams'),
@@ -202,6 +211,11 @@ def load_call(d, name, streams, new, old):
     if problems:
         raise Refused('\n'.join(problems))
     return rows, records
+
+
+def positive(value):
+    """A time or a ratio: a finite number above zero (JSON lets NaN and Infinity through)."""
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value > 0
 
 
 def interval(values, seed):

@@ -78,6 +78,9 @@ is of the rows alone, so a call with a failure writes its report and then
 exits with status 3, and a report with a `failed` entry is not a complete
 measurement of `requested` (docs/design/h264.md, "A round's bars: one
 analyzer, complete reports"; `scripts/h264_parity_bars.py` refuses it).
+A command that fails while a stream is timed again after a gate drift is
+the same failure: the stream is listed in `failed` and the call exits with
+status 3; its row from before the drift is kept, flagged `unresolved`.
 """
 import argparse
 import json
@@ -524,8 +527,11 @@ def main():
             if old['attempts'] < attempts_allowed:
                 try:
                     more = measure(paths[i], old['attempts'], old['repeat'])
-                except CommandFailed:
-                    more = None
+                except CommandFailed as error:
+                    # a defect, not a host fault: the call is incomplete
+                    failed.append({'stream': old['stream'], 'class': old['class'],
+                                   'reason': f'timed again after a gate drift: {error}'})
+                    print(f'{old["stream"]}: FAILED when timed again ({error})', flush=True)
             if more is None:
                 old['unresolved'] = True
                 old['gate_drift'] = True
@@ -608,8 +614,8 @@ def main():
             json.dump(report, handle, indent=2)
         print(f'\nwrote {args.report}')
     if failed:
-        print(f'INCOMPLETE: {len(failed)} of {len(args.streams)} streams failed and have no row '
-              f'(the summary is of the other {len(rows)}): '
+        print(f'INCOMPLETE: {len(failed)} of {len(args.streams)} streams failed '
+              f'(the summary is of the {len(rows)} rows): '
               + '; '.join(f"{f['stream']} ({f['reason']})" for f in failed), file=sys.stderr)
         sys.exit(INCOMPLETE)
 

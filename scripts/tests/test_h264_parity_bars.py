@@ -167,6 +167,38 @@ class Round17(unittest.TestCase):
         self.assertIn('bar B-1: `groups` is empty', err)
         self.assertNotIn('bars:', out)
 
+    def test_an_empty_bar_list_is_refused(self):
+        for spec in (dict(SPEC, bars=[]), {'new': 'after', 'old': 'before', 'calls': {}, 'bars': []}):
+            with self.subTest(spec=spec):
+                self.write_spec(spec)
+                status, out, err = self.run_main()
+                self.assertEqual(status, bars.REFUSED, out)
+                self.assertIn('`bars` must list at least one bar', err)
+
+    def test_times_and_ratios_that_are_not_finite_positive_numbers_are_refused(self):
+        # zero times passed every bar (a ratio new/old of 0), and a zero denominator raised ZeroDivisionError
+        cases = [('seconds', 'after_discard', 0), ('seconds', 'after_write', -0.5),
+                 ('seconds', 'before_discard', 0.0), ('seconds', 'after_discard', float('nan')),
+                 ('seconds', 'before_write', float('inf')), ('seconds', 'after_discard', '0.9'),
+                 ('seconds', 'after_discard', True), ('ratio', 'after:discard', float('nan')),
+                 ('ratio', 'before:write', 0)]
+        for table, key, value in cases:
+            with self.subTest(table=table, key=key, value=value):
+                self.setUp()
+                stream = []
+
+                def spoil(report):
+                    stream.append(report['streams'][0]['stream'])
+                    report['streams'][0][table][key] = value
+                self.edit('t8.sd.json', spoil)
+                status, out, err = self.run_main()
+                self.assertEqual(status, bars.REFUSED, out)
+                self.assertIn(f't8.sd: the row of {stream[0]} has values that are not finite positive numbers: '
+                              f'{table}.{key} = {value!r}', err)
+                self.assertNotIn('bars:', out)
+                self.tearDown()
+        self.setUp()
+
     def test_two_bars_of_one_name_are_refused(self):
         # the passing second B-1 would replace the failing first in the verdicts
         spec = json.loads(json.dumps(SPEC))

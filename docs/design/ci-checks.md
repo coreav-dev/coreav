@@ -164,8 +164,9 @@ the check leaves alone.
 
 `deny.yml` runs `python3 -I -m unittest discover -s scripts/tests`: the
 tests of `scripts/h264_parity_bars.py`, the one analyzer of an H.264
-round's speed bars, and the check that no new `analyze*.py` is added
-under `docs/measurements` (the ones there are listed in
+round's speed bars, and the check that no new file named `analyze*.py`
+is added under `docs/measurements` (it reads names only; the ones there
+are listed in
 `scripts/tests/analyzers-grandfathered.txt`; `docs/design/h264.md`, "A
 round's bars: one analyzer, complete reports"). It runs there, not in
 `ci.yml`, because a round's measurements often change `docs/measurements`

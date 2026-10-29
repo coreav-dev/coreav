@@ -6,7 +6,8 @@ uses no CPU to speak of and can run beside a measurement. A script's delay
 is 0.2 s; a file `burst` (lines of "FROM TO" call numbers) makes those calls
 take 0.5 s, a file `every3` makes every third call take 0.5 s, a file `slow3rd`
 makes the calls whose number is 3 modulo 4 take 0.3 s (with the harness's
-command order, the decoder's third command of a round: its null copy), and a
+command order, the decoder's third command of a round: its null copy), a file
+`failfrom` (a call number) makes that call and every later one fail, and a
 stream whose name contains `bad` makes the call fail.
 
     python3 scripts/h264_parity_selftest.py
@@ -24,6 +25,7 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import h264_parity  # noqa: E402
+import h264_parity_gcp  # noqa: E402
 PARITY = os.path.join(HERE, 'h264_parity.py')
 
 FAKE = '''#!/bin/sh
@@ -31,6 +33,7 @@ d=$(dirname "$0")
 case "$*" in */bad.sd.264*) exit 1;; esac
 echo x >> "$d/count"
 n=$(wc -l < "$d/count")
+if [ -f "$d/failfrom" ] && [ "$n" -ge "$(cat "$d/failfrom")" ]; then exit 1; fi
 s=0.2
 if [ -f "$d/burst" ]; then
   while read a b; do
@@ -167,6 +170,35 @@ class Parity(unittest.TestCase):
         self.assertEqual(report['method']['unresolved'], 1)
         orders = [tuple(map(tuple, h['order'])) for h in row['history']]
         self.assertEqual(len(set(orders)), 3, 'a retry replayed an earlier order')
+
+    def test_a_failure_when_timed_again_after_a_drift_fails_the_call(self):
+        # FFmpeg-script calls as in the drift test below: the check (21-23) and its confirmation (24-26) are
+        # slowed, so the stream is timed again; the decoder's calls of the first timing are 2 warm-ups and 3
+        # rounds x 2 (1-8), and from call 9, the retime's, it fails. A defect, not a host fault: the stream is
+        # listed in `failed`, the call exits with status 3, and the runner voids it
+        self.touch(self.ff_dir, 'burst', '21 26\n')
+        self.touch(self.dec_dir, 'failfrom', '9')
+        report = self.run_parity('--gate-stream', self.gate_stream(), '--gate-every', '1',
+                                 streams=self.streams[:1], status=h264_parity.INCOMPLETE)
+        self.assertEqual(report['failed'], [{
+            'stream': 'a.sd.264', 'class': 'sd',
+            'reason': 'timed again after a gate drift: before_discard exited with an error in round 1 of attempt 2'}])
+        row = report['streams'][0]
+        self.assertTrue(row['unresolved'])
+        self.assertEqual(row['attempts'], 1)
+        self.assertIn('INCOMPLETE: 1 of 1 streams failed', self.stderr)
+        # a healthy VM and reference, one unresolved stream (within the runner's allowance): void for the failure
+        out = os.path.join(self.tmp.name, 'out')
+        os.makedirs(out)
+        os.replace(self.report, os.path.join(out, 't8.sd.json'))
+        with open(os.path.join(out, 'host.txt'), 'w') as f:
+            f.write('CPU(s):                                  8\nsmt active: 0\n')
+        with open(os.path.join(out, 'ref.json'), 'w') as f:
+            json.dump({'before': {'median': 1.0}, 'after': {'median': 1.0}}, f)
+        verdict = h264_parity_gcp.verdict(out, [('sd', ['es/a.sd.264'])])
+        self.assertTrue(verdict['void'], verdict)
+        self.assertIn('failed: a.sd.264 (timed again after a gate drift: before_discard exited with an error',
+                      ' '.join(verdict['reasons']))
 
     def test_gate_drift_marks_and_retimes_streams(self):
         # FFmpeg-script calls: the warm gate sample 3 and the baseline 3 x 3,
