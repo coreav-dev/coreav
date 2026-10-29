@@ -1,0 +1,2765 @@
+{
+ "eligible": {
+  "commands": 167,
+  "pairs": 236,
+  "shapes": 66
+ },
+ "entries": [
+  {
+   "commands": [
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-c",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 12
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-codec",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 5
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-acodec",
+      "copy",
+      "-vcodec",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 4
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-vcodec",
+      "copy",
+      "-acodec",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 4
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-c",
+      "copy",
+      "-an",
+      "OUTPUT"
+     ],
+     "pairs": 2
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-c:a",
+      "copy",
+      "-c:v",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 2
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-c:v",
+      "copy",
+      "-c:a",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 2
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-sn",
+      "-c",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-vcodec",
+      "copy",
+      "-acodec",
+      "copy",
+      "-f",
+      "mp4",
+      "-y",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    }
+   ],
+   "containers": [
+    "mp4-mov",
+    "matroska-webm"
+   ],
+   "id": "W01",
+   "job": "remux",
+   "keys": [],
+   "pairs": 33,
+   "shape": [
+    "job:copy",
+    "streams:all"
+   ],
+   "tool": "ffmpeg"
+  },
+  {
+   "commands": [
+    {
+     "args": [
+      "-f",
+      "concat",
+      "-i",
+      "INPUT",
+      "-c",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 16
+    },
+    {
+     "args": [
+      "-f",
+      "concat",
+      "-safe",
+      "0",
+      "-i",
+      "INPUT",
+      "-c",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 9
+    },
+    {
+     "args": [
+      "-safe",
+      "0",
+      "-f",
+      "concat",
+      "-i",
+      "INPUT",
+      "-c",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 3
+    },
+    {
+     "args": [
+      "-y",
+      "-f",
+      "concat",
+      "-i",
+      "INPUT",
+      "-c",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-f",
+      "concat",
+      "-i",
+      "INPUT",
+      "-vcodec",
+      "copy",
+      "-acodec",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-y",
+      "-safe",
+      "0",
+      "-f",
+      "concat",
+      "-i",
+      "INPUT",
+      "-c",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    }
+   ],
+   "containers": [
+    "mp4-mov"
+   ],
+   "id": "W02",
+   "job": "join",
+   "keys": [],
+   "pairs": 31,
+   "shape": [
+    "job:concat",
+    "streams:all"
+   ],
+   "tool": "ffmpeg"
+  },
+  {
+   "commands": [
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-c",
+      "copy",
+      "-map",
+      "0",
+      "OUTPUT"
+     ],
+     "pairs": 2
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-map",
+      "0",
+      "-map",
+      "-0:a",
+      "-c",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 2
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-map",
+      "0:a",
+      "-c",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-map",
+      "0:a:3",
+      "-c",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-map",
+      "0:v",
+      "-c",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-c",
+      "copy",
+      "-map",
+      "0",
+      "-map",
+      "-0:m:language:eng",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-c",
+      "copy",
+      "-map",
+      "0:v",
+      "-map",
+      "0:m:language:eng",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-map",
+      "0",
+      "-map",
+      "-0:a:2",
+      "-c",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-map",
+      "0",
+      "-map",
+      "-0:s",
+      "-c",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-map",
+      "0:v",
+      "-map",
+      "0:a",
+      "-c",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-c:v",
+      "copy",
+      "-c:a",
+      "copy",
+      "-c:s",
+      "copy",
+      "-map",
+      "0",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-map",
+      "0",
+      "-map",
+      "-0:a:3",
+      "-map",
+      "-0:a:6",
+      "-c",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-map",
+      "0",
+      "-map",
+      "-0:s",
+      "-map",
+      "-0:d",
+      "-c",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-y",
+      "-threads",
+      "4",
+      "-i",
+      "INPUT",
+      "-map",
+      "0",
+      "-acodec",
+      "copy",
+      "-vcodec",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-vcodec",
+      "copy",
+      "-c:a",
+      "copy",
+      "-map",
+      "0:0",
+      "-map",
+      "0:1",
+      "-map",
+      "0:2",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    }
+   ],
+   "containers": [
+    "mp4-mov",
+    "matroska-webm"
+   ],
+   "id": "W03",
+   "job": "remux",
+   "keys": [],
+   "pairs": 17,
+   "shape": [
+    "job:copy",
+    "map",
+    "streams:all"
+   ],
+   "tool": "ffmpeg"
+  },
+  {
+   "commands": [
+    {
+     "args": [
+      "-v",
+      "error",
+      "-select_streams",
+      "v:0",
+      "-show_entries",
+      "stream=avg_frame_rate",
+      "-of",
+      "default=noprint_wrappers=1:nokey=1",
+      "INPUT"
+     ],
+     "pairs": 2
+    },
+    {
+     "args": [
+      "-loglevel",
+      "panic",
+      "-show_entries",
+      "stream=bits_per_raw_sample",
+      "-select_streams",
+      "v",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-loglevel",
+      "error",
+      "-select_streams",
+      "v",
+      "-show_entries",
+      "stream=codec_name",
+      "-of",
+      "default=nw=1:nk=1",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-v",
+      "error",
+      "-select_streams",
+      "a",
+      "-of",
+      "default=noprint_wrappers=1:nokey=1",
+      "-show_entries",
+      "stream=sample_rate",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-v",
+      "error",
+      "-select_streams",
+      "v",
+      "-of",
+      "default=noprint_wrappers=1:nokey=1",
+      "-show_entries",
+      "stream=r_frame_rate",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-v",
+      "error",
+      "-select_streams",
+      "v:0",
+      "-show_entries",
+      "stream=codec_name",
+      "-of",
+      "default=nokey=1:noprint_wrappers=1",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-v",
+      "error",
+      "-select_streams",
+      "v:0",
+      "-show_entries",
+      "stream=codec_name",
+      "-of",
+      "default=noprint_wrappers=1:nokey=1",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-v",
+      "error",
+      "-select_streams",
+      "v:0",
+      "-show_entries",
+      "stream=codec_name,codec_type",
+      "-of",
+      "default=nw=1",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-v",
+      "error",
+      "-select_streams",
+      "v:0",
+      "-show_entries",
+      "stream=duration",
+      "-of",
+      "default=noprint_wrappers=1:nokey=1",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-v",
+      "error",
+      "-select_streams",
+      "v:0",
+      "-show_entries",
+      "stream=r_frame_rate",
+      "-of",
+      "default=noprint_wrappers=1:nokey=1",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-v",
+      "error",
+      "-select_streams",
+      "v:0",
+      "-show_entries",
+      "stream=r_frame_rate,duration",
+      "-of",
+      "default=nw=1",
+      "INPUT"
+     ],
+     "pairs": 1
+    }
+   ],
+   "containers": [
+    "mp4-mov",
+    "matroska-webm",
+    "mpegts"
+   ],
+   "id": "W04",
+   "job": "probe",
+   "keys": [
+    "stream.avg_frame_rate",
+    "stream.bits_per_raw_sample",
+    "stream.codec_name",
+    "stream.codec_type",
+    "stream.duration",
+    "stream.r_frame_rate",
+    "stream.sample_rate"
+   ],
+   "pairs": 12,
+   "shape": [
+    "entries:stream",
+    "select_streams",
+    "writer:default"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": [
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-ss",
+      "0",
+      "-t",
+      "120",
+      "-c",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-ss",
+      "00:01:00",
+      "-to",
+      "00:02:00",
+      "-c",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-ss",
+      "00:01:02.500",
+      "-t",
+      "00:01:03.250",
+      "-c",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-ss",
+      "03:10",
+      "-to",
+      "03:30",
+      "-c",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-ss",
+      "100ms",
+      "-t",
+      "600ms",
+      "-c",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-ss",
+      "1:00",
+      "-to",
+      "2:00",
+      "-c",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-ss",
+      "00:00:00",
+      "-to",
+      "00:00:30",
+      "-c",
+      "copy",
+      "-y",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-ss",
+      "00:00:20",
+      "-to",
+      "00:00:40",
+      "-c",
+      "copy",
+      "-y",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-acodec",
+      "copy",
+      "-vcodec",
+      "copy",
+      "-ss",
+      "0",
+      "-t",
+      "00:15:00",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-ss",
+      "01:19:27",
+      "-to",
+      "02:18:51",
+      "-c:v",
+      "copy",
+      "-c:a",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    }
+   ],
+   "containers": [
+    "mp4-mov"
+   ],
+   "id": "W05",
+   "job": "clip",
+   "keys": [],
+   "pairs": 10,
+   "shape": [
+    "end",
+    "job:copy",
+    "seek:output",
+    "streams:all"
+   ],
+   "tool": "ffmpeg"
+  },
+  {
+   "commands": [
+    {
+     "args": [
+      "-v",
+      "quiet",
+      "-print_format",
+      "json",
+      "-show_format",
+      "-show_streams",
+      "INPUT"
+     ],
+     "pairs": 5
+    },
+    {
+     "args": [
+      "-loglevel",
+      "error",
+      "-show_format",
+      "-show_streams",
+      "INPUT",
+      "-print_format",
+      "json"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-hide_banner",
+      "-loglevel",
+      "panic",
+      "-show_format",
+      "-show_streams",
+      "-of",
+      "json",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-v",
+      "quiet",
+      "-print_format",
+      "json",
+      "-show_format",
+      "-show_streams",
+      "-hide_banner"
+     ],
+     "pairs": 1
+    }
+   ],
+   "containers": [
+    "mp4-mov",
+    "matroska-webm",
+    "mpegts"
+   ],
+   "id": "W06",
+   "job": "probe",
+   "keys": [
+    "format.*",
+    "stream.*"
+   ],
+   "pairs": 8,
+   "shape": [
+    "format",
+    "streams",
+    "writer:json"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": [
+    {
+     "args": [
+      "-v",
+      "quiet",
+      "-show_streams",
+      "-select_streams",
+      "v:0",
+      "INPUT"
+     ],
+     "pairs": 2
+    },
+    {
+     "args": [
+      "-show_streams",
+      "-select_streams",
+      "a",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-loglevel",
+      "error",
+      "-show_streams",
+      "-select_streams",
+      "a",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-loglevel",
+      "error",
+      "-show_streams",
+      "-select_streams",
+      "v",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-show_streams",
+      "-select_streams",
+      "a",
+      "-loglevel",
+      "error"
+     ],
+     "pairs": 1
+    }
+   ],
+   "containers": [
+    "mp4-mov",
+    "matroska-webm",
+    "mpegts"
+   ],
+   "id": "W07",
+   "job": "probe",
+   "keys": [
+    "stream.*"
+   ],
+   "pairs": 6,
+   "shape": [
+    "select_streams",
+    "streams",
+    "writer:default"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": [
+    {
+     "args": [
+      "-show_streams",
+      "INPUT"
+     ],
+     "pairs": 2
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-show_streams"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-show_streams",
+      "-i",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-show_streams",
+      "-hide_banner"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-loglevel",
+      "error",
+      "-show_streams",
+      "INPUT"
+     ],
+     "pairs": 1
+    }
+   ],
+   "containers": [
+    "mp4-mov",
+    "matroska-webm",
+    "mpegts"
+   ],
+   "id": "W08",
+   "job": "probe",
+   "keys": [
+    "stream.*"
+   ],
+   "pairs": 6,
+   "shape": [
+    "streams",
+    "writer:default"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": [
+    {
+     "args": [
+      "-v",
+      "error",
+      "-show_entries",
+      "format=duration",
+      "-of",
+      "default=noprint_wrappers=1:nokey=1",
+      "INPUT"
+     ],
+     "pairs": 3
+    },
+    {
+     "args": [
+      "-show_entries",
+      "format=filename,size,duration",
+      "-i",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-v",
+      "quiet",
+      "-show_entries",
+      "format=duration",
+      "-of",
+      "default=noprint_wrappers=1:nokey=1",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "INPUT",
+      "-v",
+      "quiet",
+      "-show_entries",
+      "format=duration",
+      "-output_format",
+      "default=noprint_wrappers=1:nokey=1"
+     ],
+     "pairs": 1
+    }
+   ],
+   "containers": [
+    "mp4-mov",
+    "matroska-webm",
+    "mpegts"
+   ],
+   "id": "W09",
+   "job": "probe",
+   "keys": [
+    "format.duration",
+    "format.filename",
+    "format.size"
+   ],
+   "pairs": 6,
+   "shape": [
+    "entries:format",
+    "writer:default"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": [
+    {
+     "args": [
+      "-loglevel",
+      "error",
+      "-select_streams",
+      "a",
+      "-show_entries",
+      "stream=codec_type",
+      "-of",
+      "csv=p=0",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-v",
+      "error",
+      "-select_streams",
+      "v",
+      "-show_entries",
+      "stream=width,height",
+      "-of",
+      "csv=p=0:s=x",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-v",
+      "error",
+      "-select_streams",
+      "v:0",
+      "-show_entries",
+      "stream=codec_type",
+      "-of",
+      "csv=p=0",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-v",
+      "error",
+      "-select_streams",
+      "v:0",
+      "-show_entries",
+      "stream=width,height",
+      "-of",
+      "csv=s=x:p=0",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-v",
+      "error",
+      "-select_streams",
+      "v:0",
+      "-show_entries",
+      "stream=width,height,r_frame_rate,bit_rate,codec_name,duration",
+      "-of",
+      "csv=p=0:s=x",
+      "INPUT"
+     ],
+     "pairs": 1
+    }
+   ],
+   "containers": [
+    "mp4-mov",
+    "matroska-webm",
+    "mpegts"
+   ],
+   "id": "W10",
+   "job": "probe",
+   "keys": [
+    "stream.bit_rate",
+    "stream.codec_name",
+    "stream.codec_type",
+    "stream.duration",
+    "stream.height",
+    "stream.r_frame_rate",
+    "stream.width"
+   ],
+   "pairs": 5,
+   "shape": [
+    "entries:stream",
+    "select_streams",
+    "writer:csv"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": [
+    {
+     "args": [
+      "-v",
+      "error",
+      "-show_entries",
+      "stream=codec_name",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-v",
+      "error",
+      "-show_entries",
+      "stream=index,codec_name,codec_type",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-show_entries",
+      "stream",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-loglevel",
+      "error",
+      "-show_entries",
+      "stream=codec_type",
+      "-of",
+      "default=nw=1",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-v",
+      "error",
+      "-show_entries",
+      "stream=width,height",
+      "-of",
+      "default=noprint_wrappers=1",
+      "INPUT"
+     ],
+     "pairs": 1
+    }
+   ],
+   "containers": [
+    "mp4-mov",
+    "matroska-webm",
+    "mpegts"
+   ],
+   "id": "W11",
+   "job": "probe",
+   "keys": [
+    "stream.*",
+    "stream.codec_name",
+    "stream.codec_type",
+    "stream.height",
+    "stream.index",
+    "stream.width"
+   ],
+   "pairs": 5,
+   "shape": [
+    "entries:stream",
+    "writer:default"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": [
+    {
+     "args": [
+      "-show_streams",
+      "-show_format",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-show_format",
+      "-hide_banner",
+      "-show_streams"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-show_streams",
+      "-hide_banner",
+      "-show_format"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-loglevel",
+      "error",
+      "-show_format",
+      "-show_streams",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-v",
+      "error",
+      "-show_format",
+      "-show_streams",
+      "INPUT"
+     ],
+     "pairs": 1
+    }
+   ],
+   "containers": [
+    "mp4-mov",
+    "matroska-webm",
+    "mpegts"
+   ],
+   "id": "W12",
+   "job": "probe",
+   "keys": [
+    "format.*",
+    "stream.*"
+   ],
+   "pairs": 5,
+   "shape": [
+    "format",
+    "streams",
+    "writer:default"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": [
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-vn",
+      "-c:a",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 2
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-acodec",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-vn",
+      "-acodec",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-y",
+      "-i",
+      "INPUT",
+      "-vn",
+      "-acodec",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    }
+   ],
+   "containers": [
+    "mp4-mov"
+   ],
+   "id": "W13",
+   "job": "extract-audio",
+   "keys": [],
+   "pairs": 5,
+   "shape": [
+    "job:copy",
+    "streams:audio"
+   ],
+   "tool": "ffmpeg"
+  },
+  {
+   "commands": [
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-show_entries",
+      "format=duration",
+      "-v",
+      "quiet",
+      "-of",
+      "csv=p=0"
+     ],
+     "pairs": 4
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-show_entries",
+      "format=filename,duration",
+      "-v",
+      "quiet",
+      "-of",
+      "csv=p=0"
+     ],
+     "pairs": 1
+    }
+   ],
+   "containers": [
+    "mp4-mov",
+    "matroska-webm",
+    "mpegts"
+   ],
+   "id": "W14",
+   "job": "probe",
+   "keys": [
+    "format.duration",
+    "format.filename"
+   ],
+   "pairs": 5,
+   "shape": [
+    "entries:format",
+    "writer:csv"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": [
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-ss",
+      "00:02:54.583",
+      "-t",
+      "300",
+      "-acodec",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-ss",
+      "10",
+      "-t",
+      "6",
+      "-acodec",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-ss",
+      "3",
+      "-t",
+      "5",
+      "-c:a",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-t",
+      "5",
+      "-i",
+      "INPUT",
+      "-ss",
+      "3",
+      "-c:a",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    }
+   ],
+   "containers": [
+    "mp4-mov"
+   ],
+   "id": "W15",
+   "job": "clip",
+   "keys": [],
+   "pairs": 4,
+   "shape": [
+    "end",
+    "job:copy",
+    "seek:output",
+    "streams:audio"
+   ],
+   "tool": "ffmpeg"
+  },
+  {
+   "commands": [
+    {
+     "args": [
+      "-of",
+      "json",
+      "-show_streams",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-show_streams",
+      "-print_format",
+      "json",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-v",
+      "quiet",
+      "-print_format",
+      "json",
+      "-show_streams",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-v",
+      "quiet",
+      "-f",
+      "mpegts",
+      "-print_format",
+      "json",
+      "-show_streams",
+      "INPUT"
+     ],
+     "pairs": 1
+    }
+   ],
+   "containers": [
+    "mp4-mov",
+    "matroska-webm",
+    "mpegts"
+   ],
+   "id": "W16",
+   "job": "probe",
+   "keys": [
+    "stream.*"
+   ],
+   "pairs": 4,
+   "shape": [
+    "streams",
+    "writer:json"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": [
+    {
+     "args": [
+      "-y",
+      "-i",
+      "INPUT",
+      "-vcodec",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 2
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-vcodec",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-an",
+      "-vcodec",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    }
+   ],
+   "containers": [
+    "mp4-mov",
+    "matroska-webm"
+   ],
+   "id": "W17",
+   "job": "remux",
+   "keys": [],
+   "pairs": 4,
+   "shape": [
+    "job:copy",
+    "streams:video"
+   ],
+   "tool": "ffmpeg"
+  },
+  {
+   "commands": [
+    {
+     "args": [
+      "-ss",
+      "60",
+      "-i",
+      "INPUT",
+      "-to",
+      "70",
+      "-c",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-hide_banner",
+      "-y",
+      "-ss",
+      "01:19:16",
+      "-t",
+      "00:03:01",
+      "-i",
+      "INPUT",
+      "-c",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-ss",
+      "00:00:09",
+      "-i",
+      "INPUT",
+      "-t",
+      "00:00:03",
+      "-vcodec",
+      "copy",
+      "-acodec",
+      "copy",
+      "-y",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    }
+   ],
+   "containers": [
+    "mp4-mov"
+   ],
+   "id": "W18",
+   "job": "clip",
+   "keys": [],
+   "pairs": 3,
+   "shape": [
+    "end",
+    "job:copy",
+    "seek:input",
+    "streams:all"
+   ],
+   "tool": "ffmpeg"
+  },
+  {
+   "commands": [
+    {
+     "args": [
+      "-ss",
+      "3",
+      "-i",
+      "INPUT",
+      "-t",
+      "5",
+      "-c:a",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-ss",
+      "3",
+      "-t",
+      "5",
+      "-i",
+      "INPUT",
+      "-c:a",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-ss",
+      "30",
+      "-t",
+      "70",
+      "-i",
+      "INPUT",
+      "-acodec",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    }
+   ],
+   "containers": [
+    "mp4-mov"
+   ],
+   "id": "W19",
+   "job": "clip",
+   "keys": [],
+   "pairs": 3,
+   "shape": [
+    "end",
+    "job:copy",
+    "seek:input",
+    "streams:audio"
+   ],
+   "tool": "ffmpeg"
+  },
+  {
+   "commands": [
+    {
+     "args": [
+      "-v",
+      "error",
+      "-of",
+      "flat=s=_",
+      "-select_streams",
+      "v:0",
+      "-show_entries",
+      "stream=height",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-v",
+      "error",
+      "-of",
+      "flat=s=_",
+      "-select_streams",
+      "v:0",
+      "-show_entries",
+      "stream=height,width",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-v",
+      "error",
+      "-of",
+      "flat=s=_",
+      "-select_streams",
+      "v:0",
+      "-show_entries",
+      "stream=width",
+      "INPUT"
+     ],
+     "pairs": 1
+    }
+   ],
+   "containers": [
+    "mp4-mov",
+    "matroska-webm",
+    "mpegts"
+   ],
+   "id": "W20",
+   "job": "probe",
+   "keys": [
+    "stream.height",
+    "stream.width"
+   ],
+   "pairs": 3,
+   "shape": [
+    "entries:stream",
+    "select_streams",
+    "writer:flat"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": [
+    {
+     "args": [
+      "-v",
+      "error",
+      "-select_streams",
+      "v",
+      "-show_entries",
+      "stream=width,height",
+      "-of",
+      "json",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-v",
+      "error",
+      "-select_streams",
+      "v",
+      "-show_entries",
+      "stream=width,height",
+      "-of",
+      "json=compact=1",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-v",
+      "error",
+      "-select_streams",
+      "v:0",
+      "-show_entries",
+      "stream=width,height,sample_aspect_ratio,display_aspect_ratio",
+      "-of",
+      "json=c=1",
+      "INPUT"
+     ],
+     "pairs": 1
+    }
+   ],
+   "containers": [
+    "mp4-mov",
+    "matroska-webm",
+    "mpegts"
+   ],
+   "id": "W21",
+   "job": "probe",
+   "keys": [
+    "stream.display_aspect_ratio",
+    "stream.height",
+    "stream.sample_aspect_ratio",
+    "stream.width"
+   ],
+   "pairs": 3,
+   "shape": [
+    "entries:stream",
+    "select_streams",
+    "writer:json"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": [
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-c",
+      "copy",
+      "-movflags",
+      "+faststart",
+      "OUTPUT"
+     ],
+     "pairs": 2
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-vcodec",
+      "copy",
+      "-acodec",
+      "copy",
+      "-movflags",
+      "+faststart",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    }
+   ],
+   "containers": [
+    "mp4-mov",
+    "matroska-webm"
+   ],
+   "id": "W22",
+   "job": "remux",
+   "keys": [],
+   "pairs": 3,
+   "shape": [
+    "job:copy",
+    "movflags:faststart",
+    "streams:all"
+   ],
+   "tool": "ffmpeg"
+  },
+  {
+   "commands": [
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-show_packets"
+     ],
+     "pairs": 2
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-show_packets",
+      "-v",
+      "quiet"
+     ],
+     "pairs": 1
+    }
+   ],
+   "containers": [
+    "mp4-mov",
+    "matroska-webm",
+    "mpegts"
+   ],
+   "id": "W23",
+   "job": "probe-packets",
+   "keys": [
+    "packet.*"
+   ],
+   "pairs": 3,
+   "shape": [
+    "packets",
+    "writer:default"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": [
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-acodec",
+      "copy",
+      "-map",
+      "0",
+      "-map_metadata",
+      "0:s:0",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-map",
+      "0:a",
+      "-c:a",
+      "copy",
+      "-map_metadata",
+      "-1",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    }
+   ],
+   "containers": [
+    "mp4-mov"
+   ],
+   "id": "W24",
+   "job": "extract-audio",
+   "keys": [],
+   "pairs": 2,
+   "shape": [
+    "job:copy",
+    "map",
+    "metadata",
+    "streams:audio"
+   ],
+   "tool": "ffmpeg"
+  },
+  {
+   "commands": [
+    {
+     "args": [
+      "-fflags",
+      "+genpts",
+      "-i",
+      "INPUT",
+      "-c:v",
+      "copy",
+      "-c:a",
+      "copy",
+      "-c:s",
+      "copy",
+      "-map",
+      "0",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-fflags",
+      "+igndts",
+      "-i",
+      "INPUT",
+      "-map",
+      "0:0",
+      "-map",
+      "0:2",
+      "-c:v",
+      "copy",
+      "-c:a",
+      "copy",
+      "OUTPUT"
+     ],
+     "pairs": 1
+    }
+   ],
+   "containers": [
+    "mp4-mov",
+    "matroska-webm"
+   ],
+   "id": "W25",
+   "job": "remux",
+   "keys": [],
+   "pairs": 2,
+   "shape": [
+    "job:copy",
+    "map",
+    "streams:all",
+    "timestamps"
+   ],
+   "tool": "ffmpeg"
+  },
+  {
+   "commands": [
+    {
+     "args": [
+      "-hide_banner",
+      "INPUT",
+      "-print_format",
+      "json",
+      "-show_chapters",
+      "-loglevel",
+      "error"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-print_format",
+      "json",
+      "-show_chapters",
+      "-loglevel",
+      "error"
+     ],
+     "pairs": 1
+    }
+   ],
+   "containers": [
+    "mp4-mov",
+    "matroska-webm",
+    "mpegts"
+   ],
+   "id": "W26",
+   "job": "probe",
+   "keys": [
+    "chapter.*"
+   ],
+   "pairs": 2,
+   "shape": [
+    "chapters",
+    "writer:json"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": [
+    {
+     "args": [
+      "-select_streams",
+      "v:0",
+      "-show_entries",
+      "stream=width,height:stream_tags=rotate",
+      "-of",
+      "json",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-loglevel",
+      "quiet",
+      "-select_streams",
+      "v:0",
+      "-show_entries",
+      "stream=width,height:stream_tags=rotate",
+      "-of",
+      "json",
+      "INPUT"
+     ],
+     "pairs": 1
+    }
+   ],
+   "containers": [
+    "mp4-mov",
+    "matroska-webm",
+    "mpegts"
+   ],
+   "id": "W27",
+   "job": "probe",
+   "keys": [
+    "stream.height",
+    "stream.width",
+    "stream_tags.rotate"
+   ],
+   "pairs": 2,
+   "shape": [
+    "entries:stream",
+    "entries:stream_tags",
+    "select_streams",
+    "writer:json"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": [
+    {
+     "args": [
+      "-v",
+      "0",
+      "-select_streams",
+      "v:0",
+      "-show_entries",
+      "stream=pix_fmt",
+      "-of",
+      "compact=p=0:nk=1",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-hide_banner",
+      "-v",
+      "error",
+      "-of",
+      "compact=nk=1:p=0",
+      "-select_streams",
+      "v:1",
+      "-show_entries",
+      "stream=codec_name",
+      "INPUT"
+     ],
+     "pairs": 1
+    }
+   ],
+   "containers": [
+    "mp4-mov",
+    "matroska-webm",
+    "mpegts"
+   ],
+   "id": "W28",
+   "job": "probe",
+   "keys": [
+    "stream.codec_name",
+    "stream.pix_fmt"
+   ],
+   "pairs": 2,
+   "shape": [
+    "entries:stream",
+    "select_streams",
+    "writer:compact"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": [
+    {
+     "args": [
+      "-loglevel",
+      "error",
+      "-show_entries",
+      "stream=codec_type",
+      "-of",
+      "csv=p=0",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-loglevel",
+      "error",
+      "-show_entries",
+      "stream=index,codec_type",
+      "-of",
+      "csv=p=0",
+      "INPUT"
+     ],
+     "pairs": 1
+    }
+   ],
+   "containers": [
+    "mp4-mov",
+    "matroska-webm",
+    "mpegts"
+   ],
+   "id": "W29",
+   "job": "probe",
+   "keys": [
+    "stream.codec_type",
+    "stream.index"
+   ],
+   "pairs": 2,
+   "shape": [
+    "entries:stream",
+    "writer:csv"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": [
+    {
+     "args": [
+      "-loglevel",
+      "quiet",
+      "-show_format",
+      "INPUT"
+     ],
+     "pairs": 1
+    },
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-show_format",
+      "-v",
+      "quiet"
+     ],
+     "pairs": 1
+    }
+   ],
+   "containers": [
+    "mp4-mov",
+    "matroska-webm",
+    "mpegts"
+   ],
+   "id": "W30",
+   "job": "probe",
+   "keys": [
+    "format.*"
+   ],
+   "pairs": 2,
+   "shape": [
+    "format",
+    "writer:default"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": [
+    {
+     "args": [
+      "-i",
+      "INPUT",
+      "-c",
+      "copy",
+      "-map",
+      "0",
+      "-f",
+      "segment",
+      "-segment_time",
+      "300",
+      "-segment_format",
+      "mp4",
+      "OUTPUT"
+     ],
+     "pairs": 2
+    }
+   ],
+   "containers": [
+    "mp4-mov"
+   ],
+   "id": "W31",
+   "job": "split",
+   "keys": [],
+   "pairs": 2,
+   "shape": [
+    "job:segment",
+    "map",
+    "streams:all"
+   ],
+   "tool": "ffmpeg"
+  },
+  {
+   "commands": [
+    {
+     "args": [
+      "-print_format",
+      "csv",
+      "-show_chapters",
+      "INPUT"
+     ],
+     "pairs": 2
+    }
+   ],
+   "containers": [
+    "mp4-mov",
+    "matroska-webm",
+    "mpegts"
+   ],
+   "id": "W32",
+   "job": "probe",
+   "keys": [
+    "chapter.*"
+   ],
+   "pairs": 2,
+   "shape": [
+    "chapters",
+    "writer:csv"
+   ],
+   "tool": "ffprobe"
+  }
+ ],
+ "native": {
+  "commands": 172,
+  "pairs": 253
+ },
+ "not_in_wedge": [
+  {
+   "commands": 1,
+   "pairs": 1,
+   "shape": [
+    "end",
+    "job:copy",
+    "seek:input",
+    "streams:all",
+    "timestamps"
+   ],
+   "tool": "ffmpeg"
+  },
+  {
+   "commands": 1,
+   "pairs": 1,
+   "shape": [
+    "end",
+    "job:copy",
+    "streams:all"
+   ],
+   "tool": "ffmpeg"
+  },
+  {
+   "commands": 1,
+   "pairs": 1,
+   "shape": [
+    "end",
+    "job:copy",
+    "streams:audio"
+   ],
+   "tool": "ffmpeg"
+  },
+  {
+   "commands": 1,
+   "pairs": 1,
+   "shape": [
+    "job:concat",
+    "map",
+    "streams:all"
+   ],
+   "tool": "ffmpeg"
+  },
+  {
+   "commands": 1,
+   "pairs": 1,
+   "shape": [
+    "job:concat",
+    "streams:video"
+   ],
+   "tool": "ffmpeg"
+  },
+  {
+   "commands": 1,
+   "pairs": 1,
+   "shape": [
+    "job:copy",
+    "map",
+    "movflags:faststart",
+    "streams:all"
+   ],
+   "tool": "ffmpeg"
+  },
+  {
+   "commands": 1,
+   "pairs": 1,
+   "shape": [
+    "job:copy",
+    "map",
+    "streams:audio"
+   ],
+   "tool": "ffmpeg"
+  },
+  {
+   "commands": 1,
+   "pairs": 1,
+   "shape": [
+    "job:copy",
+    "metadata",
+    "streams:all"
+   ],
+   "tool": "ffmpeg"
+  },
+  {
+   "commands": 1,
+   "pairs": 1,
+   "shape": [
+    "job:copy",
+    "movflags:fragmented",
+    "streams:all"
+   ],
+   "tool": "ffmpeg"
+  },
+  {
+   "commands": 1,
+   "pairs": 1,
+   "shape": [
+    "job:copy",
+    "seek:input",
+    "streams:all"
+   ],
+   "tool": "ffmpeg"
+  },
+  {
+   "commands": 1,
+   "pairs": 1,
+   "shape": [
+    "job:copy",
+    "seek:input",
+    "streams:audio"
+   ],
+   "tool": "ffmpeg"
+  },
+  {
+   "commands": 1,
+   "pairs": 1,
+   "shape": [
+    "job:copy",
+    "seek:output",
+    "streams:audio"
+   ],
+   "tool": "ffmpeg"
+  },
+  {
+   "commands": 1,
+   "pairs": 1,
+   "shape": [
+    "job:copy",
+    "streams:all",
+    "timestamps"
+   ],
+   "tool": "ffmpeg"
+  },
+  {
+   "commands": 1,
+   "pairs": 1,
+   "shape": [
+    "job:segment",
+    "map",
+    "streams:all",
+    "timestamps"
+   ],
+   "tool": "ffmpeg"
+  },
+  {
+   "commands": 1,
+   "pairs": 1,
+   "shape": [
+    "job:segment",
+    "streams:all",
+    "timestamps"
+   ],
+   "tool": "ffmpeg"
+  },
+  {
+   "commands": 1,
+   "pairs": 1,
+   "shape": [
+    "count_packets",
+    "entries:stream",
+    "select_streams",
+    "writer:csv"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": 1,
+   "pairs": 1,
+   "shape": [
+    "entries:format",
+    "entries:stream",
+    "streams",
+    "writer:json"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": 1,
+   "pairs": 1,
+   "shape": [
+    "entries:format",
+    "writer:compact"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": 1,
+   "pairs": 1,
+   "shape": [
+    "entries:format",
+    "writer:flat"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": 1,
+   "pairs": 1,
+   "shape": [
+    "entries:format",
+    "writer:json"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": 1,
+   "pairs": 1,
+   "shape": [
+    "entries:packet",
+    "packets",
+    "select_streams",
+    "writer:default"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": 1,
+   "pairs": 1,
+   "shape": [
+    "entries:packet",
+    "select_streams",
+    "writer:csv"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": 1,
+   "pairs": 1,
+   "shape": [
+    "entries:packet",
+    "writer:default"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": 1,
+   "pairs": 1,
+   "shape": [
+    "entries:stream",
+    "entries:stream_tags",
+    "select_streams",
+    "writer:compact"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": 1,
+   "pairs": 1,
+   "shape": [
+    "entries:stream",
+    "entries:stream_tags",
+    "select_streams",
+    "writer:csv"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": 1,
+   "pairs": 1,
+   "shape": [
+    "entries:stream",
+    "entries:stream_tags",
+    "sexagesimal",
+    "writer:default"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": 1,
+   "pairs": 1,
+   "shape": [
+    "entries:stream",
+    "entries:stream_tags",
+    "writer:compact"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": 1,
+   "pairs": 1,
+   "shape": [
+    "entries:stream",
+    "writer:json"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": 1,
+   "pairs": 1,
+   "shape": [
+    "entries:stream_side_data",
+    "select_streams",
+    "writer:default"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": 1,
+   "pairs": 1,
+   "shape": [
+    "entries:stream_tags",
+    "select_streams",
+    "writer:default"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": 1,
+   "pairs": 1,
+   "shape": [
+    "entries:stream_tags",
+    "writer:json"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": 1,
+   "pairs": 1,
+   "shape": [
+    "format",
+    "pretty",
+    "writer:default"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": 1,
+   "pairs": 1,
+   "shape": [
+    "select_streams",
+    "streams",
+    "writer:json"
+   ],
+   "tool": "ffprobe"
+  },
+  {
+   "commands": 1,
+   "pairs": 1,
+   "shape": [
+    "streams",
+    "writer:csv"
+   ],
+   "tool": "ffprobe"
+  }
+ ],
+ "refused_by_design": [
+  {
+   "args": [
+    "INPUT"
+   ],
+   "pairs": 13,
+   "refused": "no section: only the summary on standard error",
+   "tool": "ffprobe"
+  },
+  {
+   "args": [
+    "-v",
+    "0",
+    "-show_entries",
+    "packet=pts,duration",
+    "-of",
+    "compact=p=0:nk=1",
+    "-read_intervals",
+    "999999",
+    "-select_streams",
+    "v",
+    "INPUT"
+   ],
+   "pairs": 1,
+   "refused": "-read_intervals 999999",
+   "tool": "ffprobe"
+  },
+  {
+   "args": [
+    "INPUT",
+    "-print_format",
+    "json"
+   ],
+   "pairs": 1,
+   "refused": "no section: only the summary on standard error",
+   "tool": "ffprobe"
+  },
+  {
+   "args": [
+    "-i",
+    "INPUT",
+    "-v",
+    "debug"
+   ],
+   "pairs": 1,
+   "refused": "no section: only the summary on standard error",
+   "tool": "ffprobe"
+  },
+  {
+   "args": [
+    "INPUT",
+    "-hide_banner"
+   ],
+   "pairs": 1,
+   "refused": "no section: only the summary on standard error",
+   "tool": "ffprobe"
+  }
+ ],
+ "set": "commands-v1",
+ "wedge": {
+  "commands": 133,
+  "pairs": 202,
+  "shapes": 32,
+  "share_of_eligible_pairs": 0.8559,
+  "share_of_native_pairs": 0.7984
+ }
+}
