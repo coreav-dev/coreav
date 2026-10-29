@@ -151,9 +151,14 @@ sign-off by its author. `scripts/dco_check.py` is that check; it runs in
 `scripts/dco_check_selftest.py` run in the same job. A commit passes when
 one of its `Signed-off-by` trailers carries the author's email, compared
 without regard to case; a merge commit is judged like any other. On a
-failure it names the commit and the command that fixes it:
-`git commit --amend -s --no-edit` for the last commit, or
-`git rebase --signoff <base>` for every commit of the branch.
+failure it names the commit and how to fix it:
+`git commit --amend -s --no-edit` for the last commit. For earlier
+commits, `git rebase --signoff <base>` signs every commit of the branch,
+but it rewrites history, so the branch is pushed with
+`--force-with-lease`, and it drops merge commits. On a branch that uses
+merge commits, `git rebase --signoff --rebase-merges <base>` keeps them,
+but the merges it recreates carry no sign-off, so an unsigned merge is
+redone with `git merge --signoff`.
 
 - **The email, not the name and email.** GitHub writes a squash merge with
   the account's display name as its author and signs it with the account's

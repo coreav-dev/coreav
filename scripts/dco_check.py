@@ -41,8 +41,11 @@ def problems(base, head, main, repo='.'):
         signed = {found[1].casefold() for value in signoffs.split('\x01') if (found := EMAIL.search(value))}
         if email.casefold() not in signed:
             out.append(f'commit {sha[:12]} ("{subject}") has no Signed-off-by with its author\'s email <{email}>: '
-                       f'sign it off with `git commit --amend -s --no-edit` if it is the last commit, or every commit '
-                       f'of the branch with `git rebase --signoff {base}`, then push with --force-with-lease')
+                       f'sign it off with `git commit --amend -s --no-edit` if it is the last commit. Otherwise '
+                       f'`git rebase --signoff {base}` signs every commit of the branch, but it rewrites history (push '
+                       f'with --force-with-lease) and drops merge commits; on a branch with merges, '
+                       f'`git rebase --signoff --rebase-merges {base}` keeps them but leaves each merge unsigned, so '
+                       f'redo an unsigned merge with `git merge --signoff`')
     return out
 
 

@@ -69,6 +69,8 @@ class DcoCheck(unittest.TestCase):
         for problem in found:
             self.assertIn('git commit --amend -s', problem)
             self.assertIn(f'git rebase --signoff {self.base}', problem)
+            self.assertIn(f'git rebase --signoff --rebase-merges {self.base}', problem)
+            self.assertIn('git merge --signoff', problem)
 
     def test_a_commit_already_on_main_is_skipped(self):
         self.repo.commit('feat: own', signoff='Gunwoo Kim <gunwooterry@gmail.com>')
