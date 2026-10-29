@@ -410,7 +410,6 @@ fn names_with_a_protocol_are_refused_and_never_written() {
 fn names_that_are_paths_despite_a_colon_run_natively() {
     let dir = scratch("ffmpeg-colon-paths");
     movie(&dir);
-    std::fs::copy(dir.join("in.mp4"), dir.join("a:b.mp4")).unwrap();
     let run = |args: &[&str]| {
         Command::new(bin())
             .arg("ffmpeg")
@@ -420,9 +419,13 @@ fn names_that_are_paths_despite_a_colon_run_natively() {
             .output()
             .unwrap()
     };
-    let out = run(&["-i", "./a:b.mp4", "-c", "copy", "./c:d.mp4"]);
-    assert_eq!(out.status.code(), Some(0), "{out:?}");
-    assert!(dir.join("c:d.mp4").exists());
+    // Windows file names cannot hold a colon.
+    if !cfg!(windows) {
+        std::fs::copy(dir.join("in.mp4"), dir.join("a:b.mp4")).unwrap();
+        let out = run(&["-i", "./a:b.mp4", "-c", "copy", "./c:d.mp4"]);
+        assert_eq!(out.status.code(), Some(0), "{out:?}");
+        assert!(dir.join("c:d.mp4").exists());
+    }
     // A drive letter starts a path on Windows only; elsewhere `ffmpeg`
     // reads `C` as a protocol.
     let drive = if cfg!(windows) {
