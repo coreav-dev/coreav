@@ -1,0 +1,243 @@
+#!/usr/bin/env python3
+"""R3 on the fixtures (docs/design/compat-cli.md, "The 0.1.0 bars"): the
+outputs `coreav ffmpeg` wrote for the `ffmpeg` commands of `commands-0.1.0`,
+judged with the oracle of each command's job at that oracle's own rules
+(those rules set aside the fixtures UNMODELLED names).
+
+    copy_check.py --records FILE [--ffmpeg PATH] [--ffprobe PATH]
+                  [--mediainfo PATH] [--jobs N] [--report FILE]
+
+FILE is the `records.json` the `the_0_1_0_commands_on_the_fixtures` test of
+coreav-cli writes (`COREAV_FFMPEG_OUT`): each command run on a fixture, its
+outcome and the summary its writer's own command would print. Every
+written output is checked twice:
+
+- selection: the pinned `ffmpeg` runs the same command on the same file, and
+  its output must have the same streams as CoreAV's (count, and each
+  stream's type and codec), in order. A command `ffmpeg` fails is reported
+  apart and checked by its oracle alone;
+- the job's oracle, from an entry built from the summary as
+  `tools/oracle/writer_corpus.py` builds it for the native commands:
+  `scripts/remux_check.py` (MP4 and MOV sources),
+  `scripts/mkv_remux_check.py` (Matroska and WebM; the streams outside the
+  selection are not expected in the output), `clip_check.py`,
+  `split_check.py` and `extract_check.py`, each with its known
+  divergences.
+
+Outputs with the same bytes from the same source (the spellings of one
+command) are judged once. Prints the counts per entry; exits 1 if any
+output fails. ffmpeg, ffprobe and MediaInfo are black boxes.
+"""
+import argparse
+import collections
+import concurrent.futures
+import hashlib
+import json
+import re
+import pathlib
+import subprocess
+import sys
+import tempfile
+
+ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "tools" / "oracle"))
+
+import track_boxes  # noqa: E402
+import writer_corpus  # noqa: E402
+
+TIMEOUT = 600
+MATROSKA = (".mkv", ".webm")
+# Fixtures whose picture size changes inside the track
+# (docs/design/frame-sizes.md): the clip and split oracles do not model a
+# decoder that reinitializes mid-stream, and their own fixture runs leave
+# them out, so their clips and segments are set aside here too.
+UNMODELLED = {"clip": ("size_inband_sps.mp4", "size_vp9_resize.mp4"),
+              "split": ("size_inband_sps.mp4", "size_vp9_resize.mp4")}
+
+
+def outputs(record):
+    """The files a written record produced, in order."""
+    output = pathlib.Path(record["output"])
+    if record["job"] == "split":
+        return [seg["output"]["path"] for seg in record["detail"]["segments"]]
+    return [str(output)]
+
+
+def digest(paths):
+    h = hashlib.sha256()
+    for path in paths:
+        h.update(pathlib.Path(path).read_bytes())
+    return h.hexdigest()
+
+
+def streams(ffprobe, path):
+    done = subprocess.run([ffprobe, "-v", "error", "-of", "json", "-show_streams", str(path)],
+                          capture_output=True, timeout=TIMEOUT, check=False)
+    if done.returncode != 0:
+        return None
+    return json.loads(done.stdout).get("streams", [])
+
+
+MAPPING = re.compile(r"^\s*Stream #0:(\d+)(?:\[[^]]*\])? -> #0:(\d+) \(copy\)", re.M)
+
+
+def selected(record):
+    """The input streams CoreAV wrote, in output order, from the summary."""
+    summary = record["detail"]
+    if "stream" in summary:
+        return [summary["stream"]["stream_index"]]
+    if "segments" in summary:
+        listed = [s for seg in summary["segments"] for s in seg["streams"]]
+        return sorted({s["stream_index"] for s in listed}, key=lambda i: [s["stream_index"] for s in listed].index(i))
+    return [s["stream_index"] for s in summary["streams"]]
+
+
+def selection(record, ffmpeg):
+    """None when the pinned ffmpeg maps the same input streams to the same
+    output streams (its "Stream mapping", the streams it selects, not the
+    tracks its muxer adds or those it ends up writing no packet of),
+    "ffmpeg fails" when it cannot run the command, else the difference."""
+    with tempfile.TemporaryDirectory(prefix="copy-check-") as tmp:
+        target = pathlib.Path(tmp) / pathlib.Path(record["output"]).name
+        args = [record["source"] if a == "INPUT" else str(target) if a == "OUTPUT" else a for a in record["args"]]
+        done = subprocess.run([ffmpeg, "-nostdin", "-hide_banner", "-v", "info"] + args, capture_output=True,
+                              timeout=TIMEOUT, check=False)
+    mapped = sorted((int(o), int(i)) for i, o in MAPPING.findall(done.stderr.decode(errors="replace")))
+    if done.returncode != 0 or not mapped:
+        return "ffmpeg fails"
+    theirs, ours = [i for _, i in mapped], selected(record)
+    if theirs != ours:
+        return f"streams: coreav {ours}, ffmpeg {theirs}"
+    return None
+
+
+def entry(record, src_movie, source_streams):
+    """The oracle's entry for one written record, as writer_corpus builds it."""
+    summary, source, output = record["detail"], record["source"], record["output"]
+    job = record["job"]
+    if job == "clip":
+        kinds = {s["kind"]: s for s in summary["streams"]}
+        requested = summary["end"].get("requested")
+        return {"source": source, "output": output, "label": record["id"],
+                "end": {"num": requested["num"], "den": requested["den"]} if requested else None,
+                "snapped_start": writer_corpus.ratio(summary["start"]["snapped"]),
+                "written_end": writer_corpus.ratio(summary["end"]["written"]),
+                "video": writer_corpus.kept_track(src_movie, kinds["video"]),
+                "audio": writer_corpus.kept_track(src_movie, kinds["audio"]) if "audio" in kinds else None}
+    if job == "split":
+        first = summary["segments"][0]["streams"]
+        segments = []
+        for seg in summary["segments"]:
+            kinds = {s["kind"]: s for s in seg["streams"]}
+            segments.append({"output": seg["output"]["path"], "start": writer_corpus.ratio(seg["start"]),
+                             "video_start": writer_corpus.ratio(seg["video_start"]),
+                             "end": writer_corpus.ratio(seg["end"]),
+                             "video_first": kinds["video"]["first_sample"],
+                             "video_samples": kinds["video"]["samples"],
+                             "audio_first": kinds["audio"]["first_sample"] if "audio" in kinds else 0,
+                             "audio_samples": kinds["audio"]["samples"] if "audio" in kinds else 0})
+        return {"source": source, "label": record["id"],
+                "video_stream": next(s["stream_index"] for s in first if s["kind"] == "video"),
+                "audio_stream": next((s["stream_index"] for seg in summary["segments"] for s in seg["streams"]
+                                      if s["kind"] == "audio"), None),
+                "segments": segments}
+    if "stream" in summary:
+        return {"source": source, "stream_index": summary["stream"]["stream_index"], "output": output}
+    kept = [s["stream_index"] for s in summary["streams"]]
+    return {"source": source, "output": output,
+            "dropped_streams": [s["index"] for s in source_streams if s["index"] not in kept],
+            "streams": [{"stream_index": s["stream_index"], "track_id": s["track_id"],
+                         "source_track_id": s.get("source_track_id")} for s in summary["streams"]],
+            "keep": None}
+
+
+def oracle(record, tools):
+    """The problems the job's oracle finds in one written record."""
+    import clip_check
+    import extract_check
+    import mkv_remux_check
+    import remux_check
+    import split_check
+    ffprobe, ffmpeg, mediainfo = tools["ffprobe"], tools["ffmpeg"], tools["mediainfo"]
+    source = record["source"]
+    if source.endswith(MATROSKA):
+        summary = record["detail"]
+        selected = [s["stream_index"] for s in summary["streams"]]
+        result = mkv_remux_check.check(source, record["output"], summary, mediainfo, selected=selected)
+        return [json.dumps(p) for p in result["problems"]]
+    src_movie = track_boxes.read_movie(source) if record["job"] in ("clip", "split") else None
+    item = entry(record, src_movie, streams(ffprobe, source) or [])
+    if record["job"] == "clip":
+        problems = clip_check.check(item, ffprobe, ffmpeg, mediainfo)[0]
+    elif record["job"] == "split":
+        problems = split_check.check(item, ffprobe, ffmpeg, mediainfo)[0]
+    elif "stream_index" in item:
+        problems = extract_check.check(item, ffprobe, ffmpeg, mediainfo)[0]
+    else:
+        problems = [p["message"] for p in remux_check.check(item, ffprobe, ffmpeg, mediainfo)[0]]
+    return [str(p) for p in problems]
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--records", required=True)
+    parser.add_argument("--ffmpeg", default="ffmpeg")
+    parser.add_argument("--ffprobe", default="ffprobe")
+    parser.add_argument("--mediainfo")
+    parser.add_argument("--jobs", type=int, default=None)
+    parser.add_argument("--report")
+    args = parser.parse_args()
+    records = json.loads(pathlib.Path(args.records).read_text(encoding="utf-8"))
+    tools = {"ffmpeg": args.ffmpeg, "ffprobe": args.ffprobe, "mediainfo": args.mediainfo}
+    counts = collections.defaultdict(collections.Counter)
+    written = []
+    for record in records:
+        counts[record["id"]][record["status"]] += 1
+        if record["status"] == "written":
+            written.append(record)
+    # One oracle run per distinct output of a source; the selection check
+    # runs per command, since each spelling is its own ffmpeg command.
+    groups = collections.defaultdict(list)
+    for record in written:
+        groups[(record["source"], record["job"], digest(outputs(record)))].append(record)
+    failures = []
+    with concurrent.futures.ProcessPoolExecutor(max_workers=args.jobs) as pool:
+        judged = {key: pool.submit(oracle, group[0], tools) for key, group in groups.items()
+                  if pathlib.Path(key[0]).name not in UNMODELLED.get(key[1], ())}
+        mapped = {id(r): pool.submit(selection, r, tools["ffmpeg"]) for r in written}
+        for key, group in groups.items():
+            try:
+                problems = judged[key].result() if key in judged else None
+            except Exception as error:  # noqa: BLE001
+                problems = [f"harness: {type(error).__name__}: {error}"]
+            for record in group:
+                difference = mapped[id(record)].result()
+                c = counts[record["id"]]
+                if difference == "ffmpeg fails":
+                    c["ffmpeg fails"] += 1
+                    difference = None
+                if problems is None and not difference:
+                    c["set aside"] += 1
+                elif problems or difference:
+                    c["failed"] += 1
+                    failures.append({"id": record["id"], "args": record["args"], "source": record["source"],
+                                     "selection": difference, "problems": (problems or [])[:5]})
+                else:
+                    c["passed"] += 1
+    for id_, c in sorted(counts.items()):
+        print(id_, dict(sorted(c.items())))
+    for f in failures:
+        print("FAIL", f["id"], " ".join(f["args"]), pathlib.Path(f["source"]).name,
+              f["selection"] or "", "; ".join(f["problems"])[:600])
+    if args.report:
+        pathlib.Path(args.report).write_text(json.dumps({"counts": counts, "failures": failures}, indent=1) + "\n",
+                                             encoding="utf-8")
+    if not written:
+        print("no output was written", file=sys.stderr)
+        return 1
+    return 1 if failures else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -53,8 +53,6 @@ pub enum Refusal {
     NotNative(NotNative),
     /// Malformed, as `ffmpeg` would also fail it: exit 2.
     Usage(String),
-    /// `-h`, `-help`, `--help`: the usage text, exit 0.
-    Help,
 }
 
 impl Refusal {
@@ -91,16 +89,6 @@ impl From<WriteFailure> for Stop {
     }
 }
 
-/// The usage text of `coreav ffmpeg -h`.
-pub const USAGE: &str = "usage: coreav ffmpeg [OPTIONS] -i INPUT [OPTIONS] OUTPUT
-
-Runs an ffmpeg stream-copy command line (-c copy) with CoreAV's own writers:
-remuxing MP4/MOV, Matroska and WebM to MP4, clipping (-ss, -t, -to),
-segmenting (-f segment) and audio extraction to M4A, with ffmpeg's stream
-selection (-map, -vn, -an, -sn, -dn). A command outside that vocabulary is
-refused by name with exit status 4. See docs/design/compat-cli.md.
-";
-
 /// What [`plan`] chose: the writer and its options.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Job {
@@ -129,8 +117,11 @@ enum Container {
     Matroska,
 }
 
-/// Parses, plans and runs a command line.
-pub fn run(args: &[String]) -> Result<(), Stop> {
+/// Parses, plans and runs a command line. Returns the summary its writer's
+/// own command prints (`coreav remux`, `clip`, `split`, `extract-audio`),
+/// which `coreav ffmpeg` does not print; the fixture tests check outputs
+/// with it.
+pub fn run(args: &[String]) -> Result<serde_json::Value, Stop> {
     let command = args::parse(args)?;
     let input = Path::new(&command.input);
     let size = std::fs::metadata(input)
@@ -308,6 +299,13 @@ fn int(stream: &Stream, key: &str) -> i64 {
         .unwrap_or(0)
 }
 
+fn is_default(stream: &Stream) -> bool {
+    stream
+        .disposition
+        .iter()
+        .any(|(k, v)| *k == "default" && matches!(v, Value::Int(1)))
+}
+
 fn tag<'a>(stream: &'a Stream, key: &str) -> Option<&'a str> {
     stream
         .tags
@@ -357,12 +355,15 @@ fn matching(spec: &Spec, streams: &[(usize, &Stream)]) -> Vec<usize> {
     out
 }
 
-/// Subtitle codecs that are text, which `ffmpeg` selects automatically for
-/// an MP4 output (whose default subtitle encoder, `mov_text`, is one).
+/// Subtitle codecs that are text, of which `ffmpeg` selects the first
+/// automatically for an MP4 output when a codec option names the subtitle
+/// type alone (`-c:s`, `-scodec`; neither `-c` nor `-c:s:0` does).
 const TEXT_SUBTITLES: [&str; 7] = ["mov_text", "subrip", "srt", "ass", "ssa", "webvtt", "text"];
 
 /// The streams `ffmpeg` would write, in order: `-map`, or the automatic
-/// selection, less the disabled types. Each must be covered by a `copy`
+/// selection (the video and the audio stream with the default disposition
+/// first, then the largest picture or the most channels, the first of
+/// equals), less the disabled types. Each must be covered by a `copy`
 /// codec option, appear once and keep the input's order.
 fn select(command: &Command, streams: &[Stream]) -> Result<Vec<usize>, Refusal> {
     let all: Vec<(usize, &Stream)> = streams.iter().enumerate().collect();
@@ -378,8 +379,8 @@ fn select(command: &Command, streams: &[Stream]) -> Result<Vec<usize>, Refusal> 
         let best = |kind: StreamKind, score: &dyn Fn(&Stream) -> i64| {
             all.iter()
                 .filter(|(_, s)| s.kind == kind && !disabled(s))
-                .fold(None::<(usize, i64)>, |best, (i, s)| {
-                    let value = score(s);
+                .fold(None::<(usize, (bool, i64))>, |best, (i, s)| {
+                    let value = (is_default(s), score(s));
                     match best {
                         Some((_, top)) if top >= value => best,
                         _ => Some((*i, value)),
@@ -393,6 +394,7 @@ fn select(command: &Command, streams: &[Stream]) -> Result<Vec<usize>, Refusal> 
         selected.extend(best(StreamKind::Audio, &|s| int(s, "channels")));
         let subtitle = all
             .iter()
+            .filter(|_| command.copied.contains(&Spec::Kind(Kind2::Subtitle, None)))
             .find(|(_, s)| s.kind == StreamKind::Subtitle && !disabled(s));
         if let Some((i, s)) = subtitle {
             let codec = s.entries.iter().find_map(|(k, v)| match v {
@@ -496,7 +498,7 @@ fn check_output(command: &Command, path: &Path) -> Result<bool, Refusal> {
 
 /// Writes the output of `job`: to a temporary file next to each output,
 /// moved into place only once the whole job succeeded.
-fn write(command: &Command, job: &Job) -> Result<(), Stop> {
+fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
     let input = Path::new(&command.input);
     let (allowlist, mkv_allowlist) = crate::matroska::allowlists(None, false).map_err(|_| {
         Refusal::Usage("the default codec allowlists could not be built".to_owned())
@@ -506,7 +508,7 @@ fn write(command: &Command, job: &Job) -> Result<(), Stop> {
     }
     let path = PathBuf::from(&command.output);
     let force = check_output(command, &path)?;
-    output::to_file(&path, force, |out| match job {
+    let document = output::to_file(&path, force, |out| match job {
         Job::Remux {
             streams,
             matroska: false,
@@ -516,7 +518,8 @@ fn write(command: &Command, job: &Job) -> Result<(), Stop> {
                 on_unsupported: OnUnsupported::Fail,
                 ..RemuxOptions::default()
             };
-            crate::remux::run(input, &options, &allowlist, out).map(drop)
+            crate::remux::run(input, &options, &allowlist, out)
+                .map(|summary| crate::remux::document(&summary, &options))
         }
         Job::Remux {
             streams,
@@ -527,15 +530,18 @@ fn write(command: &Command, job: &Job) -> Result<(), Stop> {
                 on_unsupported: OnUnsupported::Fail,
                 drop_video: false,
             };
-            crate::remux::run_matroska(input, &options, &mkv_allowlist, out).map(drop)
+            crate::remux::run_matroska(input, &options, &mkv_allowlist, out)
+                .map(|summary| crate::remux::matroska_document(&summary))
         }
         Job::ExtractAudio { stream } => {
-            crate::extract::run(input, TrackChoice::Stream(*stream), &allowlist, out).map(drop)
+            crate::extract::run(input, TrackChoice::Stream(*stream), &allowlist, out)
+                .map(|summary| crate::extract::document(&summary))
         }
-        Job::Clip(options) => crate::clip::run(input, options, &allowlist, out).map(drop),
-        Job::Split(_) => Ok(()),
+        Job::Clip(options) => crate::clip::run(input, options, &allowlist, out)
+            .map(|summary| crate::clip::document(&summary)),
+        Job::Split(_) => Ok(serde_json::Value::Null),
     })?;
-    Ok(())
+    Ok(document)
 }
 
 /// Writes the segments of a split, each to a temporary file, and moves them
@@ -544,7 +550,7 @@ fn split(
     command: &Command,
     options: &SplitOptions,
     allowlist: &coreav_isobmff::Allowlist,
-) -> Result<(), Stop> {
+) -> Result<serde_json::Value, Stop> {
     let Some(pattern) = Pattern::parse(&command.output) else {
         return Err(Refusal::not_native("a segment name without one %d or %0Nd").into());
     };
@@ -567,16 +573,18 @@ fn split(
         written.push((temporary, name, force));
         Ok(std::io::BufWriter::new(file))
     };
-    let result = crate::split::run(Path::new(&command.input), options, allowlist, open);
-    if let Err(failure) = result {
-        for (temporary, _, _) in &written {
-            let _ = std::fs::remove_file(temporary);
+    let summary = match crate::split::run(Path::new(&command.input), options, allowlist, open) {
+        Ok(summary) => summary,
+        Err(failure) => {
+            for (temporary, _, _) in &written {
+                let _ = std::fs::remove_file(temporary);
+            }
+            return Err(match refused {
+                Some(refusal) => refusal.into(),
+                None => failure.into(),
+            });
         }
-        return Err(match refused {
-            Some(refusal) => refusal.into(),
-            None => failure.into(),
-        });
-    }
+    };
     for (n, (temporary, name, force)) in written.iter().enumerate() {
         if let Err(error) = output::place(temporary, name, *force) {
             for (rest, _, _) in written.iter().skip(n) {
@@ -585,5 +593,13 @@ fn split(
             return Err(Stop::Failed(WriteFailure::output(&error)));
         }
     }
-    Ok(())
+    let names: Vec<String> = written
+        .iter()
+        .map(|(_, name, _)| name.display().to_string())
+        .collect();
+    let mut document = Vec::new();
+    crate::split::write_document(&mut document, &summary, &names)
+        .map_err(|error| Stop::Failed(WriteFailure::output(&error)))?;
+    serde_json::from_slice(&document)
+        .map_err(|error| Stop::Failed(WriteFailure::output(&std::io::Error::other(error))))
 }

@@ -67,17 +67,7 @@ pub fn run_ffmpeg(args: &[OsString]) -> ExitCode {
         Err(code) => return code,
     };
     match ffmpeg::run(&args) {
-        Ok(()) => ExitCode::SUCCESS,
-        Err(Stop::Refused(Refusal::Help)) => {
-            let mut out = std::io::stdout().lock();
-            match out
-                .write_all(ffmpeg::USAGE.as_bytes())
-                .and_then(|()| out.flush())
-            {
-                Ok(()) => ExitCode::SUCCESS,
-                Err(error) => super::write_error(&error),
-            }
-        }
+        Ok(_) => ExitCode::SUCCESS,
         Err(Stop::Refused(Refusal::NotNative(refusal))) => refuse_ffmpeg(&refusal),
         Err(Stop::Refused(Refusal::Usage(text))) => {
             message("ffmpeg", &text);

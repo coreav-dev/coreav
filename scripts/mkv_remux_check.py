@@ -9,7 +9,9 @@ each output stream is):
   order, and ffprobe reads it as an MP4 file;
 - kept: every source stream of a codec the remux copies is in the output,
   unless the summary drops it as encrypted, without frames or with nothing
-  presented (not trusting the summary for anything else);
+  presented (not trusting the summary for anything else); with a stream
+  selection (`check`'s `selected`, as `coreav ffmpeg -map` makes one),
+  every selected stream of such a codec;
 - streams: one output stream per kept source stream, with the source's
   codec, profile, dimensions, colour description, sample rate and channels
   in ffprobe;
@@ -112,7 +114,7 @@ def mediainfo(binary, path):
         return None
 
 
-def check(source, output, summary, mediainfo_bin=None):
+def check(source, output, summary, mediainfo_bin=None, selected=None):
     problems, packets_ok, packets_total = [], 0, 0
 
     def problem(field, **data):
@@ -134,6 +136,7 @@ def check(source, output, summary, mediainfo_bin=None):
     for s in src["streams"]:
         if (s.get("codec_type") in ("video", "audio") and s.get("codec_name") in COPYABLE
                 and s.get("index") not in kept_indexes
+                and (selected is None or s.get("index") in selected)
                 and reasons.get(s.get("index")) not in ACCEPTED_DROPS):
             problem("stream_not_kept", stream=s.get("index"), codec=s.get("codec_name"),
                     reason=reasons.get(s.get("index")))

@@ -347,7 +347,11 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
         let arg = arg.as_str();
         i += 1;
         if matches!(arg, "-h" | "-help" | "--help" | "-?") {
-            return Err(Refusal::Help);
+            return Err(not_native(
+                arg,
+                None,
+                "an informational query; coreav ffmpeg runs stream-copy command lines only (docs/design/compat-cli.md)",
+            ));
         }
         if !arg.starts_with('-') || arg == "-" {
             outputs.push((arg, std::mem::take(&mut group)));
