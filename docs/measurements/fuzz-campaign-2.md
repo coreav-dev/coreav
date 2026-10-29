@@ -34,8 +34,8 @@ same plan; their reproducers are kept for the fixes.
   `crates/coreav-wasm/fuzz/regressions/ops/campaign-2-crash` (65,487
   bytes), beside a minimized copy of the same failure; CI's fuzz job runs
   both before fuzzing the target.
-- **`packets`:** no single input causes it (the artifact is empty), and
-  the target holds nothing between inputs
+- **`packets`:** no single-input reproducer was captured (the artifact is
+  empty), and the target holds nothing between inputs
   (`crates/coreav-mpegts/tests/memory.rs`). The growth was
   AddressSanitizer's quarantine and libFuzzer's corpus
   ([fuzz-campaign.md](../design/fuzz-campaign.md), "AddressSanitizer
@@ -44,4 +44,5 @@ same plan; their reproducers are kept for the fixes.
   corpus for this target, 30 minutes, one core of a cloud VM) ended with
   no finding: peak RSS 766 MB with the 64 MiB quarantine (239,094 inputs)
   and 1,029 MB with the default one (205,486 inputs), against the
-  2,048 MB limit.
+  2,048 MB limit. That rerun shows the report does not recur on that
+  shard; it is not a proof that no input can raise one.

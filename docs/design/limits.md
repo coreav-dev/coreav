@@ -170,10 +170,19 @@ Every field of each crate's limits struct is also pinned at its boundary in
 that crate's `tests/limits.rs` (`coreav-isobmff`, `coreav-mkv`,
 `coreav-mpegts`, `coreav-h264`, `coreav-decode`, `coreav-audio`,
 `coreav-text`, `coreav-transcode`): an input at the limit is accepted and
-one past it is refused with the error that names that limit, and one test
-asserts the documented defaults. Where an older test elsewhere already
-pins a field, the file does not repeat it. These run in the ordinary
-`cargo test --workspace`.
+one past it is refused with the error that names that limit, or, for a
+limit that does not fail the request, gets the documented fallback (a
+Matroska frame past `max_inflated_bytes` has no inflated size; cues past
+`max_elements` or `max_index_bytes` give way to a cluster scan). The
+expected count or byte total comes from the input itself, not from a
+search of what the code accepts, and one test per file asserts the
+documented defaults. Where an older test elsewhere already pins a field,
+the file does not repeat it. These run in the ordinary
+`cargo test --workspace`. Four `coreav-decode` limits are enforced in the
+backends (`max_decoded_bytes`, `max_pending_bytes`,
+`max_reference_frames`, `max_memory_bytes`); their boundary tests there
+need `ffmpeg` and run in the fixtures workflow, and `tests/limits.rs`
+pins only their defaults.
 
 ## Results
 

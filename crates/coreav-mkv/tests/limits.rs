@@ -32,19 +32,42 @@ fn limit_of(result: Result<impl Sized, Error>) -> LimitKind {
     }
 }
 
-fn least(highest: u64, accepted: impl Fn(u64) -> bool) -> u64 {
-    assert!(accepted(highest), "{highest} is not enough");
-    let (mut low, mut high) = (0, highest);
-    while low < high {
-        let mid = low + (high - low) / 2;
-        if accepted(mid) {
-            high = mid;
-        } else {
-            low = mid + 1;
-        }
-    }
-    low
+fn vint(data: &[u8], keep_marker: bool) -> (u64, usize) {
+    let len = data[0].leading_zeros() as usize + 1;
+    let first = if keep_marker {
+        data[0]
+    } else {
+        data[0] & (0xFF >> len)
+    };
+    let value = data[1..len].iter().fold(u64::from(first), |value, byte| {
+        value << 8 | u64::from(*byte)
+    });
+    (value, len)
 }
+
+/// The element headers in `data`, counted from the bytes alone, descending
+/// into the masters named.
+fn headers(data: &[u8], masters: &[u32]) -> u64 {
+    let mut count = 0;
+    let mut at = 0;
+    while at < data.len() {
+        let (id, id_len) = vint(&data[at..], true);
+        let (size, size_len) = vint(&data[at + id_len..], false);
+        let body = at + id_len + size_len;
+        let end = body + size as usize;
+        count += 1;
+        if masters.contains(&(id as u32)) {
+            count += headers(&data[body..end], masters);
+        }
+        at = end;
+    }
+    count
+}
+
+/// The strings `info(None)` holds: its muxing and writing applications.
+const INFO_STRINGS: u64 = 2 * "coreav-tests".len() as u64;
+/// The strings `tracks()` holds: its codec ID and the default language.
+const TRACK_STRINGS: u64 = ("A_OPUS".len() + "eng".len()) as u64;
 
 fn tracks() -> Vec<u8> {
     el(TRACKS, &audio_track(1, "A_OPUS", 48_000.0, 2, &[]))
@@ -70,7 +93,7 @@ fn cluster_file(clusters: usize) -> Vec<u8> {
     file("webm", &[&[info(None), tracks()][..], &clusters].concat())
 }
 
-fn cue_file(cue_points: usize) -> Vec<u8> {
+fn cue_file(cue_points: usize) -> (Vec<u8>, Vec<u8>) {
     let cues = |position: u64| {
         let points: Vec<Vec<u8>> = (0..cue_points)
             .map(|i| {
@@ -89,16 +112,18 @@ fn cue_file(cue_points: usize) -> Vec<u8> {
         el(CUES, &points.concat())
     };
     let head_len = info(None).len() + tracks().len() + cues(0).len();
-    file(
+    let cues = cues(head_len as u64);
+    let data = file(
         "webm",
         &[
             info(None),
             tracks(),
-            cues(head_len as u64),
+            cues.clone(),
             cluster(0, &[simple_block(1, 0, true, &[0; 4])]),
             cluster(1, &[simple_block(1, 0, true, &[0; 4])]),
         ],
-    )
+    );
+    (data, cues)
 }
 
 #[test]
@@ -119,54 +144,47 @@ fn defaults_match_the_documented_values() {
 }
 
 #[test]
-fn each_element_header_in_the_probe_costs_one_of_max_elements() {
-    let fewest = |voids: usize| {
+fn every_element_header_of_the_probe_counts_against_max_elements() {
+    for voids in [0, 1_000] {
         let data = file("webm", &[el(INFO, &[0xEC, 0x80].repeat(voids)), tracks()]);
-        let fewest = least(10_000, |max| {
-            let limits = Limits {
-                max_elements: max as u32,
-                ..Limits::default()
-            };
-            probe_with(&data, &limits).is_ok()
-        });
-        let below = Limits {
-            max_elements: fewest as u32 - 1,
+        let count = headers(&data, &[EBML, SEGMENT, INFO, TRACKS, TRACK_ENTRY, 0xE1]);
+        let limits = |max_elements: u64| Limits {
+            max_elements: max_elements as u32,
             ..Limits::default()
         };
+        assert!(probe_with(&data, &limits(count)).is_ok(), "{voids} voids");
         assert_eq!(
-            limit_of(probe_with(&data, &below)),
+            limit_of(probe_with(&data, &limits(count - 1))),
             LimitKind::Elements,
             "{voids} voids"
         );
-        fewest
-    };
-    assert_eq!(fewest(1_000), fewest(0) + 1_000);
+    }
 }
 
 #[test]
-fn each_element_header_in_the_cues_costs_one_of_max_elements() {
-    let fewest = |cue_points: usize| {
-        let data = cue_file(cue_points);
+fn cues_of_more_element_headers_than_max_elements_are_not_used_as_the_index() {
+    for cue_points in [1, 41] {
+        let (data, cues) = cue_file(cue_points);
+        let count = headers(&cues, &[CUES, 0xBB, 0xB7]);
         let segment = probe_with(&data, &Limits::default()).unwrap();
-        let from_cues = |max: u64| {
+        let index = |max_elements: u64| {
             let limits = Limits {
-                max_elements: max as u32,
+                max_elements: max_elements as u32,
                 ..Limits::default()
             };
-            let index = segment.index(SliceSource::new(&data), &limits).unwrap();
-            index.source == IndexSource::Cues
+            segment.index(SliceSource::new(&data), &limits).unwrap()
         };
-        let fewest = least(10_000, from_cues);
-        let below = Limits {
-            max_elements: fewest as u32 - 1,
-            ..Limits::default()
-        };
-        let index = segment.index(SliceSource::new(&data), &below).unwrap();
-        assert_eq!(index.source, IndexSource::ClusterScan);
-        assert!(index.warnings.contains(&Warning::InvalidCuePoint));
-        fewest
-    };
-    assert_eq!(fewest(41) - fewest(1), 40 * 5);
+        let all = index(count);
+        assert_eq!(all.source, IndexSource::Cues, "{cue_points} cue points");
+        assert_eq!(all.points.len(), cue_points);
+        let fewer = index(count - 1);
+        assert_eq!(
+            fewer.source,
+            IndexSource::ClusterScan,
+            "{cue_points} cue points"
+        );
+        assert!(fewer.warnings.contains(&Warning::InvalidCuePoint));
+    }
 }
 
 #[test]
@@ -216,9 +234,10 @@ fn a_track_entry_of_exactly_max_element_bytes_is_read_and_one_more_is_refused() 
 }
 
 #[test]
-fn a_block_header_of_more_than_max_element_bytes_is_refused() {
+fn a_block_header_of_exactly_max_element_bytes_is_read_and_one_more_is_refused() {
     let mut lace = vec![0x81, 0, 0, 0x82, 255];
     lace.extend(vec![0u8; 255]);
+    let header = lace.len() as u64;
     let data = file(
         "webm",
         &[info(None), tracks(), cluster(0, &[el(SIMPLE_BLOCK, &lace)])],
@@ -227,49 +246,49 @@ fn a_block_header_of_more_than_max_element_bytes_is_refused() {
         max_element_bytes,
         ..Limits::default()
     };
-    assert_eq!(list(&data, &limit(260)).unwrap().len(), 256);
-    assert_eq!(limit_of(list(&data, &limit(100))), LimitKind::ElementBytes);
+    assert_eq!(list(&data, &limit(header)).unwrap().len(), 256);
+    assert_eq!(
+        limit_of(list(&data, &limit(header - 1))),
+        LimitKind::ElementBytes
+    );
 }
 
 #[test]
 fn codec_private_bytes_count_one_for_one_against_max_retained_bytes() {
-    let fewest = |private: usize| {
+    for private in [1_000, 5_000] {
         let track = audio_track(1, "A_OPUS", 48_000.0, 2, &el(0x63A2, &vec![0; private]));
         let data = file("webm", &[info(None), el(TRACKS, &track)]);
-        let fewest = least(1 << 20, |max| {
-            let limits = Limits {
-                max_retained_bytes: max,
-                ..Limits::default()
-            };
-            probe_with(&data, &limits).is_ok()
-        });
-        let below = Limits {
-            max_retained_bytes: fewest - 1,
+        let retained = INFO_STRINGS + TRACK_STRINGS + private as u64;
+        let limits = |max_retained_bytes| Limits {
+            max_retained_bytes,
             ..Limits::default()
         };
+        assert!(probe_with(&data, &limits(retained)).is_ok(), "{private}");
         assert_eq!(
-            limit_of(probe_with(&data, &below)),
-            LimitKind::RetainedBytes
+            limit_of(probe_with(&data, &limits(retained - 1))),
+            LimitKind::RetainedBytes,
+            "{private}"
         );
-        fewest
-    };
-    assert_eq!(fewest(5_000) - fewest(1_000), 4_000);
+    }
 }
 
 #[test]
 fn info_strings_count_one_for_one_against_max_retained_bytes() {
-    let fewest = |title: usize| {
+    for title in [1_000, 3_000] {
         let body = cat(&[uint(0x2A_D7B1, 1_000_000), el(0x7BA9, &vec![b'a'; title])]);
         let data = file("webm", &[el(INFO, &body), tracks()]);
-        least(1 << 20, |max| {
-            let limits = Limits {
-                max_retained_bytes: max,
-                ..Limits::default()
-            };
-            probe_with(&data, &limits).is_ok()
-        })
-    };
-    assert_eq!(fewest(3_000) - fewest(1_000), 2_000);
+        let retained = title as u64 + TRACK_STRINGS;
+        let limits = |max_retained_bytes| Limits {
+            max_retained_bytes,
+            ..Limits::default()
+        };
+        assert!(probe_with(&data, &limits(retained)).is_ok(), "{title}");
+        assert_eq!(
+            limit_of(probe_with(&data, &limits(retained - 1))),
+            LimitKind::RetainedBytes,
+            "{title}"
+        );
+    }
 }
 
 #[test]
@@ -292,7 +311,7 @@ fn a_cluster_scan_keeps_at_most_max_index_bytes_of_seek_points() {
 
 #[test]
 fn cues_past_max_index_bytes_are_not_used_as_the_index() {
-    let data = cue_file(10);
+    let (data, _) = cue_file(10);
     let segment = probe_with(&data, &Limits::default()).unwrap();
     let point = std::mem::size_of::<SeekPoint>() as u64;
     let index = |max_index_bytes| {
@@ -353,49 +372,94 @@ fn a_laced_frame_over_max_packet_bytes_refuses_the_whole_block() {
 }
 
 #[test]
-fn each_block_in_a_listing_costs_one_of_max_block_work() {
-    let fewest = |count: usize| {
-        let data = file("webm", &[info(None), tracks(), cluster(0, &blocks(count))]);
-        let fewest = least(1 << 20, |max| {
-            let limits = Limits {
-                max_block_work: max,
-                ..Limits::default()
-            };
-            list(&data, &limits).is_ok()
-        });
-        let below = Limits {
-            max_block_work: fewest - 1,
+fn every_element_header_of_a_listing_counts_against_max_block_work() {
+    for count in [10, 1_010] {
+        let clusters = cluster(0, &blocks(count));
+        let work = headers(&clusters, &[CLUSTER]);
+        let data = file("webm", &[info(None), tracks(), clusters]);
+        let limits = |max_block_work| Limits {
+            max_block_work,
             ..Limits::default()
         };
-        assert_eq!(limit_of(list(&data, &below)), LimitKind::BlockWork);
-        fewest
-    };
-    assert_eq!(fewest(1_010) - fewest(10), 1_000);
+        assert_eq!(list(&data, &limits(work)).unwrap().len(), count);
+        assert_eq!(
+            limit_of(list(&data, &limits(work - 1))),
+            LimitKind::BlockWork,
+            "{count} blocks"
+        );
+    }
 }
 
 #[test]
-fn each_cluster_in_an_index_scan_costs_two_of_max_block_work() {
-    let fewest = |clusters: usize| {
+fn a_cluster_scan_reads_two_element_headers_a_cluster_against_max_block_work() {
+    for clusters in [50, 150] {
         let data = cluster_file(clusters);
         let segment = probe_with(&data, &Limits::default()).unwrap();
-        let fewest = least(1 << 20, |max| {
+        let work = 2 * clusters as u64;
+        let index = |max_block_work| {
             let limits = Limits {
-                max_block_work: max,
+                max_block_work,
                 ..Limits::default()
             };
-            segment.index(SliceSource::new(&data), &limits).is_ok()
-        });
-        let below = Limits {
-            max_block_work: fewest - 1,
+            segment.index(SliceSource::new(&data), &limits)
+        };
+        assert_eq!(index(work).unwrap().points.len(), clusters);
+        assert_eq!(
+            limit_of(index(work - 1)),
+            LimitKind::BlockWork,
+            "{clusters} clusters"
+        );
+    }
+}
+
+/// Each zlib frame is charged its inflated bytes plus 4 KiB; a frame the
+/// rest of the budget cannot cover has an unknown size, not an error.
+#[test]
+fn zlib_frames_are_sized_while_their_charge_fits_max_inflated_bytes() {
+    const FRAME_CHARGE: u64 = 4 << 10;
+    let inflated = 1_000;
+    let frame = miniz_oxide::deflate::compress_to_vec_zlib(&vec![7u8; inflated as usize], 9);
+    let encoding = el(
+        0x6240,
+        &cat(&[
+            uint(0x5031, 0),
+            uint(0x5032, 1),
+            uint(0x5033, 0),
+            el(0x5034, &uint(0x4254, 0)),
+        ]),
+    );
+    let track = audio_track(1, "A_OPUS", 48_000.0, 2, &el(0x6D80, &encoding));
+    let data = file(
+        "webm",
+        &[
+            info(None),
+            el(TRACKS, &track),
+            cluster(
+                0,
+                &[
+                    simple_block(1, 0, true, &frame),
+                    simple_block(1, 1, true, &frame),
+                ],
+            ),
+        ],
+    );
+    let segment = probe_with(&data, &Limits::default()).unwrap();
+    let sizes = |max_inflated_bytes| {
+        let limits = Limits {
+            max_inflated_bytes,
             ..Limits::default()
         };
-        assert_eq!(
-            limit_of(segment.index(SliceSource::new(&data), &below)),
-            LimitKind::BlockWork
-        );
-        fewest
+        segment
+            .packets(SliceSource::new(&data), &limits)
+            .with_inflated_sizes()
+            .map(|packet| packet.unwrap().inflated_size)
+            .collect::<Vec<_>>()
     };
-    assert_eq!(fewest(150) - fewest(50), 100 * 2);
+    let one = FRAME_CHARGE + inflated;
+    assert_eq!(sizes(2 * one), [Some(inflated), Some(inflated)]);
+    assert_eq!(sizes(2 * one - 1), [Some(inflated), None]);
+    assert_eq!(sizes(one), [Some(inflated), None]);
+    assert_eq!(sizes(one - 1), [None, None]);
 }
 
 #[test]
