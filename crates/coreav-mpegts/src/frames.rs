@@ -120,7 +120,7 @@ const MAX_FRAMES_READ: usize = 64;
 /// layer II at 160 kbit/s and 8 kHz, with its padding byte. An Opus
 /// access unit runs to
 /// [`MAX_OPUS_ACCESS_UNIT`] and takes the cap below instead.
-fn longest_frame(syntax: Syntax) -> usize {
+pub(crate) fn longest_frame(syntax: Syntax) -> usize {
     match syntax {
         Syntax::Adts => 8_191,
         Syntax::Latm => 8_194,

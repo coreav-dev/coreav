@@ -385,11 +385,8 @@ nothing is ignored whole, as a decoder ignores it.
   and the first frame cut). With less than that, or with no frame header
   in the PES packet at all, the default listing drops those bytes and
   every later packet of the stream shifts by one against `ffprobe`'s. The
-  listing as `ffprobe` gives it lists them there too, for AC-3 and E-AC-3
-  streams alone (below); an AAC, DTS or MPEG audio stream cut so keeps
-  the gap, which costs it one packet and shifts the rest (crafted ADTS
-  streams of 100 such bytes with the first frame cut at one, two and six
-  bytes). Rejected: dropping them, which
+  listing as `ffprobe` gives it reads them by the stream's syntax, however
+  the PES packets cut them (below). Rejected: dropping them, which
   shifted every later frame's time by one frame on the files that start
   mid-frame; and reading them only when the frame after them is whole, the
   rule until that capture, which dropped them and gave the cut frame the
@@ -483,22 +480,38 @@ describe. With it on:
   in the native probe (`coreav probe --scan-frame-sizes`, which the bench
   guard times) and change what remuxing takes, a change for the caller
   that needs pictures;
-- an MPEG audio stream's bytes before its first frame header are the
-  start of the first frame's packet, which takes the PES packet's time
-  and position and the frame's duration, rather than a packet of their
-  own (two captures of the corpus, MP2 and MP3, and streams crafted with
-  29 and 300 such bytes, the first frame whole and cut by its PES packet;
-  AC-3 streams crafted so keep the packet of their own, as by default).
-  An E-AC-3 stream keeps the packet of its own too, but with no duration,
-  and its first frame starts at that packet's time rather than a frame
-  later (streams crafted with 29, 100 and 300 such bytes of each). Such
-  a packet is listed here even where the end of the PES packet leaves too
-  little of the frame after it for a header, and where a first PES packet
-  holds no header at all, which the default listing drops: its duration
-  is then a frame of the stream's rate for AC-3 (1,536 samples, A/52
-  5.3.1), none for E-AC-3, and none where the stream states no rate
-  (streams crafted with 100 lead bytes and the first frame cut at one to
-  eight bytes, and with a first PES packet of lead bytes alone);
+- the bytes before a stream's first frame header, or before the start of
+  one that the end of a PES packet cuts, are gathered over as many PES
+  packets as hold no header, and take the time and position of the PES
+  packet they began in. Then, by the stream's syntax: AC-3 and ADTS list
+  them as a packet of their own, one frame long (as the header after them
+  says, else 1,536 samples for AC-3, A/52 5.3.1, and 1,024 for AAC,
+  ISO/IEC 14496-3 4.5.2.1.1, at the stream's rate, and none where the
+  stream states no rate), and the first frame follows them; E-AC-3 as a
+  packet with no duration, its first frame starting at their time; MPEG
+  audio and LOAS as the start of the first frame's packet, which takes
+  their time and position; DTS not at all, its first frame taking their
+  time and position. Where they began in an earlier PES packet, the time
+  of the one the first header is in goes to the first frame that starts
+  there. An AC-3 stream's are listed at once, and its first frame follows
+  them from seven bytes of it on (the rule for a late frame below applies
+  under seven); an ADTS stream's only once the header after them is
+  whole: with fewer than seven bytes of it in the PES packet, the reading
+  of the next one lists them, and the frame takes that PES packet's time
+  and position, as the first frame that starts there does too. A file
+  that ends before any header lists what it holds of them, and of a
+  header after them, as one packet with no duration. Opus is read as by
+  default. Evidence: two captures of the corpus (MP2 and MP3), and
+  streams crafted with 100 such bytes before AC-3, E-AC-3, ADTS, LOAS, MP2,
+  MP3 and DTS frames, with the first frame whole and cut at every byte
+  count from one to sixteen, with the bytes alone in one and in two PES
+  packets, and with nothing after them. Rejected: a packet of their own
+  for every syntax, as the default listing lists them, which costs a DTS
+  stream an extra packet and MPEG audio and LOAS their first frame's
+  size; and listing them only where the PES packet holds the header
+  after them (AC-3 and E-AC-3 apart), the rule until these streams, which
+  dropped them, and the first frame after a lead packet cut at seven
+  bytes, which took no time;
 - an AC-3 or E-AC-3 frame of which its PES packet holds fewer than seven
   bytes (A/52 `syncinfo` and the `bsid` after it) takes the time and
   position of the next PES packet, and so does the first frame that
