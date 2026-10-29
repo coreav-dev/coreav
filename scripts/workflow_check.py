@@ -17,19 +17,30 @@
   other job of its workflow, so that a failure below it could pass
   unnoticed;
 - a filter pattern passed to .github/actions/changed-paths is one GitHub
-  and the action would read differently.
+  and the action would read differently;
+- a step in a workflow (.yml or .yaml), in a local action
+  (.github/actions/*/action.yml or .yaml) or in a local action or workflow
+  a step calls (`./...`) uses an action by a tag or branch instead of a
+  full lowercase commit sha, so the code it runs can change under the same
+  name; or such a file is not one YAML document Ruby's standard library
+  (Psych) can read. The pin check walks Psych's node tree, so keys are
+  compared as written and anchors, aliases, merge keys, duplicate keys and
+  every quoting form hide no step.
 
     workflow_check.py [--root DIR]
 
 Exit status 0 when the workflows and the note agree, 1 otherwise. Reads the
-files as text: the workflows are written in the narrow shape this parser
-accepts, and anything else is an error rather than a silent pass. Python
-3.11 standard library only.
+files as text for the required-check table: the workflows are written in
+the narrow shape this parser accepts, and anything else is an error rather
+than a silent pass. Python 3.11 standard library, and `ruby` (on the
+runners) for the pin check's YAML.
 """
 import argparse
 import importlib.util
+import json
 import pathlib
 import re
+import subprocess
 import sys
 
 JOB = re.compile(r'\A {2}([A-Za-z0-9_-]+):\s*\Z')
@@ -42,6 +53,9 @@ TRIGGER = re.compile(r'\A {2}\S')
 ROW = re.compile(r'\A\| `([^`]+)` \| `([^`]+)` \|')
 SECTION = '### Required status checks (exact names)'
 LABELS = 'github.event.pull_request.labels'
+# A step's ref: a full lowercase commit sha, or a Docker image by digest.
+PINNED = re.compile(r'\A[^@\s]+@[0-9a-f]{40}\Z|\Adocker://[^@\s]+@sha256:[0-9a-f]{64}\Z')
+WORKFLOW_SUFFIXES = ('.yml', '.yaml')
 # A workflow whose checks the table does not require, such as one this
 # repository runs for itself alone.
 UNLISTED = '# workflow-check: not required'
@@ -195,15 +209,112 @@ def required_names(note):
 def unlisted_workflows(root):
     """The file names of the workflows that carry the line UNLISTED: their
     checks are not required in the table."""
-    return {workflow.name for workflow in (root / '.github' / 'workflows').glob('*.yml')
+    return {workflow.name for workflow in workflow_files(root)
             if UNLISTED in (line.strip() for line in workflow.read_text(encoding='utf-8').splitlines())}
+
+
+def workflow_files(root):
+    """Every workflow GitHub runs: .yml and .yaml files alike."""
+    return sorted(path for path in (root / '.github' / 'workflows').iterdir()
+                  if path.is_file() and path.suffix in WORKFLOW_SUFFIXES)
+
+
+# Ruby's standard YAML library (Psych) parses each file for the pin check,
+# and the check walks the node tree it builds rather than loading it into
+# objects: a key is compared as the string it is written as, so YAML 1.1's
+# booleans (`on`, `yes`), merge keys and duplicate keys cannot hide a step.
+# Every `uses` key is read wherever it appears, anchored subtrees included;
+# an alias is resolved through the anchors defined before it.
+PARSE = r'''
+require "json"
+require "psych"
+begin
+  stream = Psych.parse_stream(STDIN.read)
+rescue Psych::SyntaxError => e
+  abort e.message
+end
+documents = stream.children.size
+abort "it holds #{documents} YAML documents; a workflow or action file holds one" if documents > 1
+anchors, out = {}, []
+resolve = lambda do |node|
+  next node unless node.is_a?(Psych::Nodes::Alias)
+  anchors[node.anchor] or out << { line: node.start_line + 1, error: "the alias *#{node.anchor} names no anchor" }
+  anchors[node.anchor]
+end
+walk = lambda do |node|
+  anchors[node.anchor] = node if !node.is_a?(Psych::Nodes::Alias) && node.respond_to?(:anchor) && node.anchor
+  resolve.(node) if node.is_a?(Psych::Nodes::Alias)
+  if node.is_a?(Psych::Nodes::Mapping)
+    node.children.each_slice(2) do |key, value|
+      walk.(key)
+      name = key.is_a?(Psych::Nodes::Alias) ? anchors[key.anchor] : key
+      if name.is_a?(Psych::Nodes::Scalar) && name.value == "uses"
+        ref = value.is_a?(Psych::Nodes::Alias) ? anchors[value.anchor] : value
+        out << if ref.is_a?(Psych::Nodes::Scalar)
+                 { line: value.start_line + 1, ref: ref.value }
+               else
+                 { line: value.start_line + 1, error: "a uses value that is not a string" }
+               end
+      end
+      walk.(value)
+    end
+  elsif node.respond_to?(:children) && node.children
+    node.children.each { |child| walk.(child) }
+  end
+end
+walk.(stream)
+puts JSON.generate(out)
+'''
+
+
+def uses_entries(text):
+    """[{'line': n, 'ref': str} or {'line': n, 'error': str}] for the `uses`
+    keys of a file, or a str saying why it cannot be read."""
+    try:
+        run = subprocess.run(['ruby', '--disable-gems', '-e', PARSE], input=text, capture_output=True, text=True,
+                             timeout=60)
+    except FileNotFoundError:
+        return 'ruby is not installed; the pin check parses YAML with its standard library (Psych)'
+    if run.returncode != 0:
+        return 'not readable as YAML: ' + (run.stderr.strip().splitlines() or ['ruby failed'])[-1]
+    return json.loads(run.stdout)
+
+
+def pin_problems(root, path, seen):
+    """What is wrong with the refs of one workflow or action file, and of the
+    local actions and workflows it calls (`./...`), each read once."""
+    if path in seen:
+        return []
+    seen.add(path)
+    name = path.relative_to(root)
+    entries = uses_entries(path.read_text(encoding='utf-8'))
+    if isinstance(entries, str):
+        return [f'{name}: {entries}']
+    out = []
+    for entry in entries:
+        where, ref = f'{name}: line {entry["line"]}: ', entry.get('ref')
+        if ref is None:
+            out.append(where + entry['error'])
+        elif ref.startswith('./'):
+            target = (root / ref).resolve()
+            files = [target] if target.suffix in WORKFLOW_SUFFIXES else [target / 'action.yml', target / 'action.yaml']
+            found = [f for f in files if f.is_file()]
+            if not target.is_relative_to(root.resolve()) or not found:
+                out.append(f'{where}{ref} names no action or workflow file in this repository')
+            for f in found:
+                out += pin_problems(root, root / f.relative_to(root.resolve()), seen)
+        elif not PINNED.match(ref):
+            out.append(f'{where}`{ref}` is not pinned: use the full lowercase commit sha with the '
+                       'version as a comment (`owner/repo@<40-hex sha> # vX.Y.Z`), as every other step does')
+    return out
 
 
 def check(root):
     problems = []
     unlisted = unlisted_workflows(root)
     changed_paths = load_changed_paths(root)
-    workflows = sorted((root / '.github' / 'workflows').glob('*.yml'))
+    workflows = workflow_files(root)
+    seen = set()
     jobs = {}        # workflow file name -> job id -> fields
     names = {}       # check name -> [(workflow, job id)]
     for path in workflows:
@@ -213,6 +324,7 @@ def check(root):
             problems.append(f'{path.name}: no job found; the parser expects two-space job ids')
         for job, fields in found.items():
             names.setdefault(fields['name'] or job, []).append((path.name, job))
+        problems += pin_problems(root, path, seen)
         patterns, bad = filter_patterns(lines)
         problems.extend(f'{path.name}: {problem}' for problem in bad)
         for key, pattern in patterns:
@@ -220,6 +332,9 @@ def check(root):
                 changed_paths.to_regex(pattern)
             except SystemExit as error:
                 problems.append(f'{path.name}: {key}: {error}')
+
+    for action in sorted((root / '.github' / 'actions').glob('*/action.y*ml')):
+        problems += pin_problems(root, action, seen)
 
     for name, where in sorted(names.items()):
         if len(where) > 1:

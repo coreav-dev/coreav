@@ -48,10 +48,22 @@ disagree: a listed name no job reports, a report job missing from the
 table, a required workflow that grew a trigger filter again or lost its
 `pull_request:` trigger, a report job without `if: always()` or missing a
 dependency, two jobs that would report the same check name, a filter
-pattern the action would read differently from GitHub, or a filter written
-in a form the checker cannot read. A workflow that carries the line
-`# workflow-check: not required` is outside the table: its report job need
-not be listed, and the table may not list it.
+pattern the action would read differently from GitHub, a filter written
+in a form the checker cannot read, or a step (in a `.yml` or `.yaml` workflow,
+in a local action, or in any local action or workflow a step calls with
+`./...`) that uses an action by a tag or branch rather than a full
+lowercase commit sha: a tag can be moved to other code, so every step names
+the commit and keeps the version as a comment. The pin check parses each
+file with Ruby's standard YAML library (Psych, on the runners) and walks
+the node tree, not the objects a loader would build: every mapping key
+written `uses` is checked wherever it is, its value read through an alias
+if it is one, so YAML 1.1's boolean keys (`on`, `yes`), merge keys and
+duplicate keys hide no step. A file that is not one readable YAML
+document, an alias that names no anchor and a `uses` value that is not a
+string fail.
+A workflow that carries the line `# workflow-check: not required` is
+outside the table: its report job need not be listed, and the table may
+not list it.
 
 ## What a report job must not hide
 
