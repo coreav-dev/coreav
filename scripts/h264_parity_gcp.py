@@ -234,9 +234,17 @@ def refs_problems(out):
 
 
 def frequency_problems(out):
-    """The fixed-frequency class: the VM must report turboMode ALL_CORE_MAX (instance.json), and every frequency sample
-    (freq.json: after the references, after each call, at the end) must be within FREQ_TOL of FREQ_1T."""
+    """The fixed-frequency class: the VM must report turboMode ALL_CORE_MAX (instance.json), freq.json must hold a sample
+    after the references, after every call attempt that started (progress.txt, retries included) and at the end, and
+    every sample must be within FREQ_TOL of FREQ_1T."""
     problems = []
+    try:
+        with open(os.path.join(out, 'progress.txt')) as f:
+            started = re.findall(r'^g\.(\S+) attempt (\d+) \d', f.read(), re.M)
+        expected = ['start'] + [f'after {cls} #{n}' for cls, n in started] + ['end']
+    except OSError:
+        expected = None
+        problems.append('no progress.txt: the call attempts that need a frequency sample are not on record')
     try:
         with open(os.path.join(out, 'instance.json')) as f:
             features = json.load(f).get('advanced_machine_features') or {}
@@ -248,8 +256,9 @@ def frequency_problems(out):
         with open(os.path.join(out, 'freq.json')) as f:
             samples = json.load(f)
         labels = [s['label'] for s in samples]
-        if 'start' not in labels or 'end' not in labels:
-            problems.append('no frequency sample at the start or at the end')
+        for label in expected or ():
+            if label not in labels:
+                problems.append(f'no frequency sample {label!r}')
         for s in samples:
             ghz = s.get('ghz')
             if not isinstance(ghz, (int, float)) or not math.isfinite(ghz) or abs(ghz / FREQ_1T - 1) > FREQ_TOL:

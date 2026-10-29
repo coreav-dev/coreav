@@ -4,8 +4,9 @@ frequency"): its bars H-1 to V-2, from the two runs of scripts/h264_parity_gcp.p
     python3 -I calibration.py ES_JSON AA_DIR NA_DIR [--json OUT]
 
 ES_JSON is the training set's es.json; AA_DIR and NA_DIR are the --out directories of the two runs. A run whose reports
-do not hold every stream of ES_JSON exactly once, each with every command timed, is refused (exit 2) with the streams
-named: no bar is judged on part of the set. Exit 0 when every bar of the class's acceptance is met, 1 when one is not.
+do not hold every stream of ES_JSON exactly once, each with every command timed in every round of its call (the per-round
+times in `rounds`, whose medians must be the row's `seconds` and `null`), is refused (exit 2) with the streams named: no
+bar is judged on part of the set, or on a summary its rounds do not support. Exit 0 when every bar of the class's acceptance is met, 1 when one is not.
 """
 import argparse
 import glob
@@ -27,24 +28,37 @@ ACCEPT = ('H-1', 'H-2', 'A-1', 'A-2', 'A-3', 'A-4', 'N-1', 'N-2')
 
 def load(d, es, arms, null_arm):
     """The rows of a run's four reports, checked against the set: every stream once, every command with a time."""
-    rows, reports = [], []
+    rows, reports, rounds = [], [], {}
     for cls in CLASSES:
         with open(os.path.join(d, f'g.{cls}.json')) as f:
             r = json.load(f)
         reports.append(r)
         rows += r['streams']
+        rounds.update((s['stream'], r['rounds']) for s in r['streams'])
     names = [r['stream'] for r in rows]
     missing = sorted(set(es) - set(names))
     extra = sorted({n for n in names if names.count(n) > 1 or n not in es})
     want = [f'{a}_{m}' for a in arms for m in MODES] + ['ff_null', 'ff_raw']
-    untimed = sorted(r['stream'] for r in rows if not all(
-        isinstance(r['seconds'].get(c), (int, float)) and math.isfinite(r['seconds'][c]) and r['seconds'][c] > 0
-        for c in want) or not all(isinstance(r['null'].get(f'{null_arm}_{m}'), (int, float)) for m in MODES))
+    untimed = sorted(r['stream'] for r in rows if not timed(r, want, null_arm, rounds[r['stream']]))
     if missing or extra or untimed:
         print(f'{d}: refused, the reports do not hold the set: missing {missing}, duplicated or unknown {extra}, '
-              f'without every command {untimed}', file=sys.stderr)
+              f'without every command in every round, or with summaries its rounds do not give {untimed}', file=sys.stderr)
         sys.exit(2)
     return rows, reports
+
+
+def timed(row, want, null_arm, n):
+    """Every command of the row timed in all n rounds, the medians of those times being the row's seconds and null."""
+    t = row.get('rounds', {})
+    runs = want + [f'{null_arm}~null_{m}' for m in MODES]
+    if not isinstance(n, int) or n < 1 or len(row.get('order', [])) != n or not all(
+            isinstance(t.get(c), list) and len(t[c]) == n
+            and all(isinstance(x, (int, float)) and math.isfinite(x) and x > 0 for x in t[c]) for c in runs):
+        return False
+    same = lambda a, b: isinstance(b, (int, float)) and math.isclose(a, b, rel_tol=1e-9, abs_tol=1e-12)
+    return (all(same(statistics.median(t[c]), row['seconds'].get(c)) for c in want)
+            and all(same(statistics.median(t[f'{null_arm}~null_{m}']) / statistics.median(t[f'{null_arm}_{m}']) - 1,
+                         row['null'].get(f'{null_arm}_{m}')) for m in MODES))
 
 
 def med(values):

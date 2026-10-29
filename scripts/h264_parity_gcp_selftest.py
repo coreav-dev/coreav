@@ -284,7 +284,30 @@ class Gcp(unittest.TestCase):
         self.assertIn('not on record', ' '.join(d(None, good)['reasons']))
         self.assertIn("'after sd #1': 3.9", ' '.join(d(acm, good[:1] + [{'label': 'after sd #1', 'ghz': 3.9}] + good[2:])['reasons']))
         self.assertIn('CalledProcessError', ' '.join(d(acm, good[:3] + [{'label': 'end', 'error': 'CalledProcessError'}])['reasons']))
-        self.assertIn('at the end', ' '.join(d(acm, good[:3])['reasons']))
+        self.assertIn("no frequency sample 'end'", ' '.join(d(acm, good[:3])['reasons']))
+        self.assertEqual(d(acm, good[:1] + good[2:])['reasons'], ["no frequency sample 'after sd #1'"])
+
+    def test_one_thread_class_frequency_sample_of_every_attempt(self):
+        # the sd call ran twice (its first after-check failed): the retry needs its own sample too
+        ff = ('#!/bin/sh\ncase "$*" in *refs/*) echo x >> gatecount; n=$(wc -l < gatecount); '
+              'if [ "$n" -ge 25 ] && [ "$n" -le 30 ]; then sleep 0.6; else sleep 0.2; fi;; *) sleep 0.2;; esac\n')
+        out = self.run_1t_job(ff)
+        local = set(gcp.verdict(out, self.CALLS_1T, 1, True)['reasons'])
+        with open(os.path.join(out, 'instance.json'), 'w') as f:
+            json.dump({'advanced_machine_features': {'turboMode': 'ALL_CORE_MAX'}}, f)
+        labels = ['start', 'after sd #1', 'after sd #2', 'after 720p #1', 'end']
+        with open(os.path.join(out, 'freq.json')) as f:
+            self.assertEqual([s['label'] for s in json.load(f)], labels)
+
+        def reasons(kept):
+            with open(os.path.join(out, 'freq.json'), 'w') as f:
+                json.dump([{'label': l, 'ghz': 3.1} for l in kept], f)
+            return [r for r in gcp.verdict(out, self.CALLS_1T, 1, True, 'all-core-max')['reasons'] if r not in local]
+        self.assertEqual(reasons(labels), [])
+        self.assertEqual(reasons([l for l in labels if l != 'after sd #2']), ["no frequency sample 'after sd #2'"])
+        self.assertEqual(reasons([l for l in labels if l != 'after sd #1']), ["no frequency sample 'after sd #1'"])
+        os.remove(os.path.join(out, 'progress.txt'))
+        self.assertIn('no progress.txt', ' '.join(reasons(labels)))
 
     def run_1t_job(self, ff_script=None):
         self.build_1t('--rounds', '2')
