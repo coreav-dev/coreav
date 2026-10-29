@@ -28,6 +28,25 @@ class Mapping(unittest.TestCase):
         self.assertEqual(copy_check.selected(record(segments)), [1, 0])
 
 
+class Concat(unittest.TestCase):
+    def test_microseconds_round_halves_away_from_zero(self):
+        F = copy_check.fractions.Fraction
+        self.assertEqual(copy_check.micros(F(1, 2_000_000)), 1)
+        self.assertEqual(copy_check.micros(F(-1, 2_000_000)), -1)
+        self.assertEqual(copy_check.micros(F(1, 3)), 333_333)
+
+    def test_each_input_follows_the_durations_before_it(self):
+        F = copy_check.fractions.Fraction
+        # A 0.3 s video with 1 s of audio, listed twice: the demuxer places
+        # the second file at 1 s, a join at the video's end at 0.3 s.
+        formats = [(0, 1_000_000), (0, 1_000_000)]
+        self.assertEqual(copy_check.placement([F(0), F(1)], formats), [])
+        self.assertEqual(copy_check.placement([F(0), F(3, 10)], formats),
+                         ["timing: input 1 placed at 300000 us, ffmpeg concat 1000000 us"])
+        # Each file's own start time is moved to where the file goes.
+        self.assertEqual(copy_check.placement([F(5), F(8)], [(500_000, 2_000_000), (-500_000, 1_000_000)]), [])
+
+
 class Range(unittest.TestCase):
     def test_times_in_ffmpeg_syntax(self):
         F = copy_check.fractions.Fraction

@@ -221,7 +221,11 @@ returns the files to pass to `coreav_cli::join::run`, in order:
 
 - `file PATH` names a file. The path is one token by FFmpeg's quoting and
   escaping rules (`'...'` and `\`; whitespace ends it; the rest of the
-  line is ignored), resolved against the list's directory.
+  line is ignored), resolved against the list's directory. A `\` that ends
+  the line stays in the path, as `ffmpeg` keeps it (black box).
+- A directive is the line's first word as written, neither unquoted nor
+  unescaped: `'file' a.mp4` and `fi\le a.mp4` are unknown directives, as
+  they are to `ffmpeg` (black box).
 - `ffconcat version 1.0` is accepted on any line; other versions are
   refused. Empty lines and lines whose first token starts with `#` are
   skipped.

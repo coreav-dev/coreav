@@ -1077,7 +1077,7 @@ fn ffmpeg_libx264_refuses_a_matrix_ffmpeg_would_apply() {
 /// Sources the pipeline would encode with another result than `ffmpeg`,
 /// or fail on only after the encode, are refused before it: copied PCM
 /// audio (MOV and Matroska), repeated frame times without
-/// `-fps_mode passthrough`, and an H.264 left crop.
+/// `-fps_mode passthrough`, an H.264 left crop, and a concat list.
 #[test]
 fn ffmpeg_libx264_refuses_before_encoding() {
     let Some(tools) = tools() else { return };
@@ -1144,5 +1144,21 @@ fn ffmpeg_libx264_refuses_before_encoding() {
         assert!(stderr.contains(why), "{source}: {stderr}");
         assert!(!Path::new(&out).exists(), "{source}");
     }
+    let list = path("list.txt");
+    std::fs::write(&list, format!("file '{mov}'\nfile '{mov}'\n")).unwrap();
+    let run = Command::new(bin())
+        .args(["ffmpeg", "-f", "concat", "-safe", "0", "-i", &list])
+        .args(["-c:v", "libx264", "-c:a", "copy", &out])
+        .env("COREAV_X264", &tools.x264)
+        .env("COREAV_STRICT_SAFE", "1")
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&run.stderr);
+    assert_eq!(run.status.code(), Some(4), "{stderr}");
+    assert!(
+        stderr.contains("encoding the files of a concat list"),
+        "{stderr}"
+    );
+    assert!(!Path::new(&out).exists());
     nothing_left(&dir);
 }

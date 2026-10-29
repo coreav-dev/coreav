@@ -5,7 +5,7 @@ use crate::clip::{left_out, seconds_as_time, stream};
 use crate::error::Failure;
 use crate::output::WriteFailure;
 use crate::pretty::{write_array, write_indented};
-use coreav_isobmff::{Allowlist, BufferedSource, FileSource, Limits, Rational};
+use coreav_isobmff::{Allowlist, BufferedSource, Error, FileSource, Limits, Rational};
 use coreav_isobmff_write::{
     ExtractError, JoinError, JoinOptions, JoinSummary, JoinedInput, join_mp4,
 };
@@ -19,6 +19,10 @@ pub struct JoinFailure {
     pub json: Value,
     /// Exit code 3 rather than 1.
     pub io: bool,
+    /// What the join does not implement, as opposed to inputs it rejects:
+    /// a stream it cannot copy, a codec it does not copy, or inputs that do
+    /// not match the first. `coreav ffmpeg` runs FFmpeg for these.
+    pub not_native: Option<&'static str>,
 }
 
 impl JoinFailure {
@@ -48,7 +52,23 @@ impl JoinFailure {
             map.insert("message".into(), Value::String(error.to_string()));
             map.insert("input".into(), input.map_or(Value::Null, Value::from));
         }
-        Self { json, io }
+        let not_native = match error {
+            JoinError::Input {
+                error: ExtractError::Source(Error::Unsupported { reason }),
+                ..
+            } => Some(*reason),
+            JoinError::Input {
+                error: ExtractError::Source(Error::CodecNotAllowed { .. }),
+                ..
+            } => Some("a codec that CoreAV does not copy"),
+            JoinError::Mismatch { .. } => Some("a join of files whose streams differ"),
+            _ => None,
+        };
+        Self {
+            json,
+            io,
+            not_native,
+        }
     }
 }
 
