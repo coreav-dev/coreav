@@ -17,11 +17,13 @@ round supplies (docs/design/h264.md, "A round's bars: one analyzer, complete rep
 
 - `calls`: each call's stream set is a manifest, a JSON object keyed by stream name whose values carry the stream's
   `class` (the `es.json` of a set), path relative to the repository root; `classes` (optional) narrows it.
-- `subsets` (optional): named groups of the streams whose name starts with one of the prefixes.
+- `subsets` (optional): named groups of the streams whose name starts with one of the prefixes; a call whose set has
+  none of them has no such group, and a check that asks for it there is an error.
 - `bars`: a bar passes when each of its checks does. A check reads one call and one pairing (`discard` or `write`)
   and holds for each of its `groups` (`overall`, the default; a class; `classes` for each class of the call; or a
   subset): the median per-stream ratio new/old is at most `median_max`, and the upper end of its 95% bootstrap
-  interval is below `ci_high_below`, of those given. A key the script does not know is an error, not ignored.
+  interval is below `ci_high_below`, of those given. A key the script does not know, an empty `groups` and two bars
+  of one name are errors, not ignored: each would let a check pass without being evaluated.
 
 Each call's reports must be a complete measurement of its stream set, or no bar is evaluated: per class, the
 report exists, lists no `failed` stream, was asked for exactly the class's streams (`requested`, where the report
@@ -100,6 +102,10 @@ def load_spec(path):
     for name in subsets:
         if name in CLASSES or name in ('overall', 'classes'):
             raise Refused(f'subset {name}: the name of a built-in group')
+    names = [bar.get('name') for bar in spec['bars']]
+    twice = sorted({str(n) for n in names if names.count(n) > 1})
+    if twice:
+        raise Refused(f'bars named more than once: {", ".join(twice)} (a later verdict would hide an earlier one)')
     for bar in spec['bars']:
         unknown(f"bar {bar.get('name')}", bar, BAR_KEYS)
         if not bar.get('name') or not bar.get('checks'):
@@ -113,11 +119,17 @@ def load_spec(path):
                 raise Refused(f"{where}: pairing {check.get('pairing')!r} is not one of {list(PAIRINGS)}")
             if 'median_max' not in check and 'ci_high_below' not in check:
                 raise Refused(f'{where}: a check needs `median_max`, `ci_high_below` or both')
-            classes = set(calls[check['call']]['streams'].values())
-            for group in check.get('groups', ['overall']):
-                if group not in ('overall', 'classes') and group not in classes and group not in subsets:
+            streams = calls[check['call']]['streams']
+            groups = check.get('groups', ['overall'])
+            if not groups:
+                raise Refused(f'{where}: `groups` is empty, so the check would compare nothing; '
+                              'leave it out for overall')
+            for group in groups:
+                if group not in ('overall', 'classes') and group not in streams.values() and group not in subsets:
                     raise Refused(f'{where}: group {group!r} is not overall, classes, a class of call '
                                   f"{check['call']} or a subset")
+                if group in subsets and not any(s.startswith(tuple(subsets[group])) for s in streams):
+                    raise Refused(f"{where}: subset {group} has no stream in call {check['call']}'s set")
     return {'new': spec['new'], 'old': spec['old'], 'seed': spec.get('seed', SEED), 'calls': calls,
             'subsets': subsets, 'bars': spec['bars']}
 
@@ -212,7 +224,9 @@ def analyze(spec, d):
         for cls in class_order(call['streams'].values()):
             groups[cls] = [r for r in rows if r['class'] == cls]
         for subset, prefixes in spec['subsets'].items():
-            groups[subset] = [r for r in rows if r['stream'].startswith(tuple(prefixes))]
+            sel = [r for r in rows if r['stream'].startswith(tuple(prefixes))]
+            if sel:
+                groups[subset] = sel
         result = {'label': call['label'], 'streams': len(rows), 'records': records}
         for p in PAIRINGS:
             result[p] = {}

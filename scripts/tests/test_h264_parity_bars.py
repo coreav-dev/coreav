@@ -157,6 +157,51 @@ class Round17(unittest.TestCase):
         self.assertEqual(status, bars.REFUSED)
         self.assertIn("unknown keys ['median_mx']", err)
 
+    def test_an_empty_group_list_is_refused(self):
+        # an empty list would compare nothing and leave the bar passing: B-1 at 0.95 fails on these reports
+        spec = json.loads(json.dumps(SPEC))
+        spec['bars'][0]['checks'][0].update(median_max=0.95, groups=[])
+        self.write_spec(spec)
+        status, out, err = self.run_main()
+        self.assertEqual(status, bars.REFUSED)
+        self.assertIn('bar B-1: `groups` is empty', err)
+        self.assertNotIn('bars:', out)
+
+    def test_two_bars_of_one_name_are_refused(self):
+        # the passing second B-1 would replace the failing first in the verdicts
+        spec = json.loads(json.dumps(SPEC))
+        spec['bars'][0]['checks'][0]['median_max'] = 0.95
+        spec['bars'].append(dict(spec['bars'][1], name='B-1'))
+        self.write_spec(spec)
+        status, _, err = self.run_main()
+        self.assertEqual(status, bars.REFUSED)
+        self.assertIn('bars named more than once: B-1', err)
+
+    def test_a_subset_outside_a_calls_set_is_left_out_of_that_call(self):
+        # a training-only subset beside a held-out call: the held-out call has no such group, and a check that
+        # asks for it there is refused
+        heldout = 'docs/measurements/h264-n2-heldout/es.json'
+        spec = json.loads(json.dumps(SPEC))
+        spec['subsets'] = {'cavlc': ['5185721dda11', 'ec473c99c538']}
+        spec['calls']['h'] = {'label': '1 thread pinned, 64 held-out', 'streams': heldout}
+        manifest = json.loads((ROOT / heldout).read_text())
+        for cls in CLASSES:
+            want = sorted(n for n, e in manifest.items() if e['class'] == cls)
+            report = json.loads((ROUND17 / f'g.{cls}.json').read_text())
+            report['streams'] = [dict(report['streams'][i % len(report['streams'])], stream=n)
+                                 for i, n in enumerate(want)]
+            (self.dir / f'h.{cls}.json').write_text(json.dumps(report))
+        spec['bars'].append({'name': 'H', 'checks': [{'call': 'h', 'pairing': 'discard', 'median_max': 2.0}]})
+        self.write_spec(spec)
+        status, out, err = self.run_main()
+        self.assertEqual(status, 0, err)
+        self.assertIn('H pass', out)
+        spec['bars'][-1]['checks'][0]['groups'] = ['cavlc']
+        self.write_spec(spec)
+        status, _, err = self.run_main()
+        self.assertEqual(status, bars.REFUSED)
+        self.assertIn("subset cavlc has no stream in call h's set", err)
+
     def test_subsets_and_the_summary_file(self):
         spec = json.loads(json.dumps(SPEC))
         spec['subsets'] = {'cavlc': ['5185721dda11', 'ec473c99c538']}
