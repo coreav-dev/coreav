@@ -13,7 +13,7 @@ Round 2's per-file results ([`transcode/round-2/speed/files.jsonl`](transcode/ro
 | 8-bit | 56 | 0.991 | 0.878 to 1.004 |
 | 10-bit | 10 | 1.428 | 1.129 to 2.062 |
 
-Every file whose source is 10-bit is slower on the `x264` arm, by 13% or more. The 8-bit files are within 0.5% of the `ffmpeg` arm: 6 of them are slightly above it, at most 1.0044. The 10-bit files are 5 of the 8 HEVC files, 1 of the 6 AV1 files and all 4 timed ProRes files:
+Every file whose source is 10-bit is slower on the `x264` arm, by 13% or more. The 8-bit files are at most 0.5% slower than on the `ffmpeg` arm: 6 of them are slightly above it, at most 1.0044. The 10-bit files are 5 of the 8 HEVC files, 1 of the 6 AV1 files and all 4 timed ProRes files:
 
 | Class | Source | `x264` arm | `ffmpeg` arm | `x264` over `ffmpeg` |
 |---|---|---|---|---|

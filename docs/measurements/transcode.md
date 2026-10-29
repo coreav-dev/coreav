@@ -154,7 +154,7 @@ program's input conversion running serially, while 8-bit frames took the
 same time (4.26 s and 4.35 s). It was not measured on these files.
 [`transcode-x264-10bit.md`](transcode-x264-10bit.md) measured it later.
 All 10 files with 10-bit sources are 13% or more slower on the `x264` arm
-than on the `ffmpeg` arm, and the 56 with 8-bit sources are within 0.5%. The cause is the x264
+than on the `ffmpeg` arm, and the 56 with 8-bit sources are at most 0.5% slower. The cause is the x264
 program's conversion of 10-bit input, which no input CoreAV can stream
 avoids.
 
