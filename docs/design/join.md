@@ -83,14 +83,18 @@ it, but many players read only the first).
 ## Timing
 
 Each output track's decode times follow the inputs one after another; its
-edit list holds one edit per input:
+edit list holds one edit per media edit of each input (one per input
+where an input has at most one), with the empty edits between an input's
+media edits kept:
 
 - **Offsets.** The first input keeps its own timeline. Each next input is
   placed so that its earliest presented sample (its video's start, or its
   audio's when that starts earlier, moved back by whole video ticks so that
   the video stays exact) starts where the previous input's video ends.
-- **Video edits.** One media edit per input: from the media time the
-  input's own edit presents first, for as long as the input presents video:
+- **Video edits.** One media edit per media edit of the input (see
+  "Inputs with several edits" below for how they are cut): from the media
+  time the input's own edit presents first, for as long as the input
+  presents video:
   until its edit ends, its samples end, or its track ends, whichever comes
   first; but until its edit ends when the edit lies within the media's
   declared duration (a sample is shown until the next one's composition
@@ -109,7 +113,10 @@ edit list holds one edit per input:
   that much early, and a split's segments would no longer meet. When the
   next input's video starts later than this input's ends (its own audio
   starts first), this input's last frame is held until then: its edit runs
-  on, so there is no gap.
+  on, so there is no gap. It is not held where a frame of the input is
+  composed after its last edit ends (a frame its edits cut out, or one a
+  clip keeps only for decoding): the running edit would show that frame,
+  so the gap stays an empty edit.
 - **Decode times.** Each input's samples follow the previous input's, and
   every composition time of an input lies before every composition time of
   the next. When an input's frames are composed past where the next input's
@@ -127,7 +134,7 @@ edit list holds one edit per input:
   this rule: they lie past every edit, and keeping them before the next
   input would move every later input by some 2^32 ticks. The join is
   refused if one of them would fall inside an edit of the output.
-- **Audio edits.** One media edit per input: from its edit's media time
+- **Audio edits.** One media edit per media edit of the input: from its edit's media time
   (after priming or pre-roll) to its end, cut where the next input's audio
   starts so that the two never overlap; an empty edit where an input
   presents no audio. AAC frames are never shortened: a decoded frame is
@@ -152,6 +159,17 @@ Rejected:
   samples after them would decode differently.
 - **An empty edit for a video gap.** `ffmpeg` 7.0.2 plays the next input's
   first frames during an empty edit after a media edit and again after it.
+
+### Inputs with several edits
+
+An input whose edit list has several media edits (`EditList::Multiple`,
+`docs/design/edit-lists.md`) is joined as it presents itself: each of its
+media edits becomes an output edit, cut to the span the input presents
+(`[start, end)` above), and the empty edits between them stay empty
+edits. Where the input's presentation would end between two of its edits,
+it ends where the earlier one does. The placement, the decode times and
+the refusals are those of any input. The design, its oracle and its
+results are in `docs/design/edit-list-writers.md` ("Join").
 
 ### Edit lists of more than one edit
 
@@ -194,6 +212,39 @@ change the library's input from sources to paths. The three listings
 visit each input's samples once each, so an input whose first listing
 already uses more than a third of `max_sample_work` is refused before
 anything is written, as for a split.
+
+## `ffmpeg -f concat` lists
+
+`coreav_cli::concat::read(list, safe)` reads the list file of FFmpeg's
+concat demuxer (its documentation's "Syntax" and `safe` option) and
+returns the files to pass to `coreav_cli::join::run`, in order:
+
+- `file PATH` names a file. The path is one token by FFmpeg's quoting and
+  escaping rules (`'...'` and `\`; whitespace ends it; the rest of the
+  line is ignored), resolved against the list's directory. A `\` that ends
+  the line stays in the path, as `ffmpeg` keeps it (black box).
+- A directive is the line's first word as written, neither unquoted nor
+  unescaped: `'file' a.mp4` and `fi\le a.mp4` are unknown directives, as
+  they are to `ffmpeg` (black box).
+- `ffconcat version 1.0` is accepted on any line; other versions are
+  refused. Empty lines and lines whose first token starts with `#` are
+  skipped.
+- With `safe` (the demuxer's default; `-safe 0` turns it off), a path
+  must be relative, and each component non-empty, of letters, digits,
+  `.`, `_` and `-`, and not start with `.`.
+- Refused, with the line: every other directive, documented (`duration`,
+  `inpoint`, `outpoint`, `option`, `stream`, ...: each changes what is
+  read or where a file is placed) or not; a path that names a protocol
+  (`file:`, `https:`); `file` without a path; a list with no file; a list
+  that is not UTF-8.
+- At most `MAX_LIST_BYTES` (1 MiB) of the list file is read, and a longer
+  one is refused. That bound also limits every line, every path and the
+  number of files, and it makes an endless file such as a device fail
+  at the limit.
+
+Each rule was checked against the pinned `ffmpeg` as a black box (the
+same list accepted or refused, the same files read); the unit tests of
+`crates/coreav-cli/src/concat.rs` hold the cases.
 
 ## Reuse
 
@@ -242,6 +293,23 @@ copy run that goes from one input to the next.
   past its bound, the output's smallest composition offset moved alone or
   with the decode times it moves) through the comparison and the
   predicates, and each must stay an uncovered difference (the earlier method).
+- **Inputs with several edits** (`scripts/join_check.py`): where an input,
+  or the source of joined segments, has several edits, the checks above
+  that read ffmpeg's edit-applied view give way to those of common
+  decision 3 of `docs/design/edit-list-writers.md` ("Join").
+- **`ffmpeg -f concat`** (`scripts/join_check.py --ffmpeg-concat`, in the
+  fixtures CI job): the inputs of every join, joined by `ffmpeg -f concat
+  -safe 0 -i LIST -c copy` as a black box, give the same packets per kept
+  stream (data hash, size, sync flag), one for one. Where ffmpeg converts
+  H.264 to Annex B on the way (its `auto_convert` option, on by default),
+  it puts the parameter sets into sync samples; those packets agree once
+  both files are read without NAL units of types 7 and 8. Not compared:
+  inputs whose kept streams sit at other stream indexes than the first
+  input's (the demuxer pairs streams by index), joins with several edits
+  (its demuxer applies its own edit model, which drops and repeats samples
+  near edits), and inputs ffmpeg refuses to join. Presentation times are
+  not compared: ffmpeg places each file at the end of the previous file's
+  duration, the join at the end of its video.
 - **Fuzzing**: the `join` target of `crates/coreav-isobmff-write/fuzz` cuts
   arbitrary input into two files and joins them; the join either fails or
   writes an output that parses and holds both files' samples once.

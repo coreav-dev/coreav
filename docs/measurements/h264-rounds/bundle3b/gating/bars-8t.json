@@ -1,0 +1,55 @@
+{
+ "new": "k",
+ "old": "base",
+ "seed": 20261026,
+ "calls": {
+  "t8": {
+   "label": "8 threads, 32 training, 10 rounds",
+   "streams": "docs/measurements/h264-training/es.json"
+  }
+ },
+ "bars": [
+  {
+   "name": "B3b-5",
+   "checks": [
+    {
+     "call": "t8",
+     "pairing": "discard",
+     "groups": [
+      "overall"
+     ],
+     "median_max": 1.005
+    },
+    {
+     "call": "t8",
+     "pairing": "write",
+     "groups": [
+      "overall"
+     ],
+     "median_max": 1.005
+    }
+   ]
+  },
+  {
+   "name": "B3b-6",
+   "checks": [
+    {
+     "call": "t8",
+     "pairing": "discard",
+     "groups": [
+      "classes"
+     ],
+     "median_max": 1.01
+    },
+    {
+     "call": "t8",
+     "pairing": "write",
+     "groups": [
+      "classes"
+     ],
+     "median_max": 1.01
+    }
+   ]
+  }
+ ]
+}

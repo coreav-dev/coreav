@@ -61,22 +61,58 @@ impl Ownership {
     }
 }
 
-/// One check of where the rows start, then a strided walk that ends at the
-/// slice's end: two or three instructions a hint, where a checked index a
-/// row cost several times that (`docs/design/h264.md`, "Motion round: the
-/// reference's lines requested ahead, cheaply").
+/// One check of where the last row starts. When it lies inside the plane,
+/// so does every row before it, and the counts the decoder asks for (16,
+/// 8, 4 and 2 rows) are hinted straight from the first row's address with
+/// no check a row: about one and a half instructions a hint, where the
+/// strided walk below takes seven (`docs/design/h264.md`, "The reference
+/// hints against FFmpeg's prefetch: stall or issue"). Other counts, and
+/// rows that run past the plane, take the walk: one check of where the
+/// rows start, then a stride at a time until the rows or the slice end.
 #[inline(always)]
-fn for_rows(plane: &[u8], first: usize, stride: usize, rows: usize, mut hint: impl FnMut(&u8)) {
+fn for_rows(
+    plane: &[u8],
+    first: usize,
+    stride: usize,
+    rows: usize,
+    mut hint: impl FnMut(*const u8),
+) {
+    let last = rows
+        .checked_sub(1)
+        .and_then(|r| r.checked_mul(stride))
+        .and_then(|offset| offset.checked_add(first));
+    if last.is_some_and(|last| last < plane.len()) {
+        let at = plane.as_ptr().wrapping_add(first);
+        match rows {
+            16 => return straight::<16>(at, stride, hint),
+            8 => return straight::<8>(at, stride, hint),
+            4 => return straight::<4>(at, stride, hint),
+            2 => return straight::<2>(at, stride, hint),
+            _ => {}
+        }
+    }
     let Some(from) = plane.get(first..) else {
         return;
     };
     if stride == 0 {
         if let Some(sample) = from.first() {
-            (0..rows).for_each(|_| hint(sample));
+            (0..rows).for_each(|_| hint(core::ptr::from_ref(sample)));
         }
         return;
     }
-    from.iter().step_by(stride).take(rows).for_each(hint);
+    from.iter()
+        .step_by(stride)
+        .take(rows)
+        .for_each(|sample| hint(core::ptr::from_ref(sample)));
+}
+
+/// `N` rows from `at`, `stride` apart, all of which [`for_rows`] has found
+/// inside the plane (so `(N - 1) * stride` does not overflow).
+#[inline(always)]
+fn straight<const N: usize>(at: *const u8, stride: usize, mut hint: impl FnMut(*const u8)) {
+    for row in 0..N {
+        hint(at.wrapping_add(row.wrapping_mul(stride)));
+    }
 }
 
 #[cfg(test)]
@@ -127,12 +163,12 @@ mod tests {
             out
         }
         let plane = [0u8; 100];
-        for first in [0, 1, 37, 99, 100, 101, usize::MAX] {
-            for stride in [0, 1, 7, 50, 99, 100, usize::MAX] {
-                for rows in [0, 1, 2, 3, 15, 200] {
+        for first in [0, 1, 4, 37, 84, 85, 99, 100, 101, usize::MAX] {
+            for stride in [0, 1, 5, 6, 7, 12, 33, 50, 99, 100, usize::MAX] {
+                for rows in [0, 1, 2, 3, 4, 8, 15, 16, 200] {
                     let mut seen = Vec::new();
-                    for_rows(&plane, first, stride, rows, |s: &u8| {
-                        seen.push(core::ptr::from_ref(s).addr() - plane.as_ptr().addr());
+                    for_rows(&plane, first, stride, rows, |s: *const u8| {
+                        seen.push(s.addr() - plane.as_ptr().addr());
                     });
                     assert_eq!(
                         seen,

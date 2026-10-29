@@ -6,7 +6,7 @@
 //! the syntax elements themselves in `syntax.rs`.
 #![forbid(unsafe_code)]
 
-use coreav_kernels_h264::{Kernels, Planes};
+use coreav_kernels_h264::{Kernels, Macroblocks, Planes, PlanesMut};
 
 use crate::bits::stop_bit;
 use crate::cabac::Cabac;
@@ -511,6 +511,10 @@ pub(crate) struct SliceDecoder<'a, K: Kernels> {
     /// adds these.
     pub(crate) luma_origin: usize,
     pub(crate) chroma_origin: usize,
+    /// The macroblocks the band being decoded holds whole, found when it
+    /// is taken ([`SliceDecoder::enter_row`]): where inter prediction
+    /// writes ([`Kernels::predict_part`]).
+    pub(crate) macroblocks: Macroblocks,
     pub(crate) mbs: &'a mut [MbInfo],
     /// What macroblocks A and B read of the macroblocks before the current
     /// one, at `addr & ring_mask` ([`ring_entries`]). An entry is read only
@@ -1000,6 +1004,16 @@ impl<K: Kernels> SliceDecoder<'_, K> {
             self.chroma_origin = self.geometry.chroma_origin(band);
             self.motion_base = self.geometry.motion_first(band) * self.mb_w;
         }
+        let out = &mut self.out;
+        self.macroblocks = PlanesMut::with_origin(
+            &mut out.y,
+            &mut out.cb,
+            &mut out.cr,
+            self.stride,
+            [self.luma_first, self.chroma_first],
+            [self.luma_origin, self.chroma_origin],
+        )
+        .macroblocks();
         Ok(())
     }
 
@@ -1336,7 +1350,7 @@ impl<K: Kernels> SliceDecoder<'_, K> {
         if cfg!(debug_assertions) {
             self.derived = 0xffff;
         }
-        self.motion_compensate(tier, 0, 0, 16, 16, STILL)?;
+        self.motion_compensate(tier, crate::inter::part(0, 0, 16, 16)?, STILL)?;
         // `finish_mb::<true>` of a macroblock whose head is written.
         debug_assert!(
             self.motion_first.is_none() && self.derived == 0xffff,

@@ -8,13 +8,14 @@
 
 use super::model::{Selection, Sid};
 use super::writer::{Escape, Kind, Style};
+use crate::fallback::NotNative;
 
 /// A command that is not run.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Refusal {
-    /// Outside the vocabulary: exit 4. The text names the option or
-    /// property and says why.
-    Unsupported(String),
+    /// Outside the vocabulary: exit 4, or FFmpeg in its place. The message
+    /// names the option or property and says why.
+    Unsupported(NotNative),
     /// Malformed, as `ffprobe` would also fail it: exit 2.
     Usage(String),
     /// `-h`, `-help`, `--help`: the usage text, exit 0.
@@ -174,8 +175,8 @@ const ENTRY_SECTIONS: [&str; 11] = [
     "program_tags",
 ];
 
-fn unsupported(text: impl Into<String>) -> Refusal {
-    Refusal::Unsupported(text.into())
+fn unsupported(option: &str, value: Option<&str>, text: impl Into<String>) -> Refusal {
+    Refusal::Unsupported(NotNative::option(option, value, text))
 }
 
 /// Parses `ffprobe`'s arguments, without the program name.
@@ -220,13 +221,17 @@ pub fn parse(args: &[String]) -> Result<Options, Refusal> {
                 continue;
             }
             if let Some((_, why)) = REFUSED.iter().find(|(name, _)| *name == arg) {
-                return Err(unsupported(format!(
-                    "option '{arg}' is not supported: {why}"
-                )));
+                return Err(unsupported(
+                    arg,
+                    None,
+                    format!("option '{arg}' is not supported: {why}"),
+                ));
             }
-            return Err(unsupported(format!(
-                "option '{arg}' is not supported by coreav ffprobe"
-            )));
+            return Err(unsupported(
+                arg,
+                None,
+                format!("option '{arg}' is not supported by coreav ffprobe"),
+            ));
         }
         pairs.push(("", Some(arg)));
         i += 1;
@@ -243,7 +248,7 @@ pub fn parse(args: &[String]) -> Result<Options, Refusal> {
                 input = Some(value.to_owned());
             }
             "-v" | "-loglevel" => loglevel(value)?,
-            "-of" | "-print_format" | "-output_format" => writer = parse_writer(value)?,
+            "-of" | "-print_format" | "-output_format" => writer = parse_writer(option, value)?,
             "-show_entries" => {
                 parse_entries(value, &mut selection)?;
                 sections = true;
@@ -256,9 +261,13 @@ pub fn parse(args: &[String]) -> Result<Options, Refusal> {
                     "matroska,webm" => Container::Matroska,
                     "mpegts" => Container::Mpegts,
                     other => {
-                        return Err(unsupported(format!(
-                            "'-f {other}' is not supported: coreav ffprobe reads mov,mp4,m4a,3gp,3g2,mj2, matroska,webm and mpegts"
-                        )));
+                        return Err(unsupported(
+                            "-f",
+                            Some(other),
+                            format!(
+                                "'-f {other}' is not supported: coreav ffprobe reads mov,mp4,m4a,3gp,3g2,mj2, matroska,webm and mpegts"
+                            ),
+                        ));
                     }
                 });
             }
@@ -305,16 +314,20 @@ pub fn parse(args: &[String]) -> Result<Options, Refusal> {
     if !input.starts_with("http://") && !input.starts_with("https://") && input.contains(':') {
         if let Some((protocol, _)) = input.split_once(':') {
             if protocol.len() > 1 && protocol.chars().all(|c| c.is_ascii_alphanumeric()) {
-                return Err(unsupported(format!(
-                    "input '{input}' is not supported: coreav ffprobe reads files and HTTP(S) URLs"
+                return Err(Refusal::Unsupported(NotNative::property(
+                    "an input other than a file or an HTTP(S) URL",
+                    format!(
+                        "input '{input}' is not supported: coreav ffprobe reads files and HTTP(S) URLs"
+                    ),
                 )));
             }
         }
     }
     if input == "-" {
-        return Err(unsupported(
+        return Err(Refusal::Unsupported(NotNative::property(
+            "standard input",
             "input '-' is not supported: coreav ffprobe reads files and HTTP(S) URLs",
-        ));
+        )));
     }
     selection.finish();
     Ok(Options {
@@ -337,7 +350,7 @@ fn is_option(arg: &str) -> bool {
 
 /// `-v`: a level name or number, with `+`/`-` flags; checked, then
 /// ignored (nothing is logged).
-fn loglevel(value: &str) -> Result<(), Refusal> {
+pub(crate) fn loglevel(value: &str) -> Result<(), Refusal> {
     const LEVELS: [&str; 9] = [
         "quiet", "panic", "fatal", "error", "warning", "info", "verbose", "debug", "trace",
     ];
@@ -383,7 +396,7 @@ fn parse_char(option: &str, value: &str) -> Result<u8, Refusal> {
     }
 }
 
-fn parse_writer(value: &str) -> Result<Kind, Refusal> {
+fn parse_writer(option: &str, value: &str) -> Result<Kind, Refusal> {
     let (name, settings) = value.split_once('=').unwrap_or((value, ""));
     let mut kind = match name {
         "default" => Kind::Default {
@@ -408,17 +421,23 @@ fn parse_writer(value: &str) -> Result<Kind, Refusal> {
         },
         "json" => Kind::Json { compact: false },
         other => {
-            return Err(unsupported(format!(
-                "writer '{other}' is not supported: coreav ffprobe writes default, compact, csv, flat and json"
-            )));
+            return Err(unsupported(
+                option,
+                Some(value),
+                format!(
+                    "writer '{other}' is not supported: coreav ffprobe writes default, compact, csv, flat and json"
+                ),
+            ));
         }
     };
     for setting in settings.split(':').filter(|s| !s.is_empty()) {
         let parts: Vec<&str> = setting.split('=').collect();
         let [key, v] = parts.as_slice() else {
-            return Err(unsupported(format!(
-                "writer option '{setting}' is not supported: each option is one key=value"
-            )));
+            return Err(unsupported(
+                option,
+                Some(value),
+                format!("writer option '{setting}' is not supported: each option is one key=value"),
+            ));
         };
         let (key, v) = (*key, *v);
         match (&mut kind, key) {
@@ -450,9 +469,11 @@ fn parse_writer(value: &str) -> Result<Kind, Refusal> {
             }
             (Kind::Json { compact }, "compact" | "c") => *compact = parse_bool(key, v)?,
             _ => {
-                return Err(unsupported(format!(
-                    "writer option '{key}' of '{name}' is not supported"
-                )));
+                return Err(unsupported(
+                    option,
+                    Some(value),
+                    format!("writer option '{key}' of '{name}' is not supported"),
+                ));
             }
         }
     }
@@ -467,10 +488,14 @@ fn parse_entries(value: &str, selection: &mut Selection) -> Result<(), Refusal> 
             None => (part.trim(), None),
         };
         if !ENTRY_SECTIONS.contains(&section) {
-            return Err(unsupported(format!(
-                "'-show_entries {section}' is not supported: coreav ffprobe prints {}",
-                ENTRY_SECTIONS.join(", ")
-            )));
+            return Err(unsupported(
+                "-show_entries",
+                Some(section),
+                format!(
+                    "'-show_entries {section}' is not supported: coreav ffprobe prints {}",
+                    ENTRY_SECTIONS.join(", ")
+                ),
+            ));
         }
         let keys: Option<Vec<String>> = keys.map(|k| {
             k.split(',')
@@ -481,9 +506,11 @@ fn parse_entries(value: &str, selection: &mut Selection) -> Result<(), Refusal> 
         });
         for key in keys.iter().flatten() {
             if let Some(why) = super::undecided(section, key) {
-                return Err(unsupported(format!(
-                    "'-show_entries {section}={key}' is not supported: {why}"
-                )));
+                return Err(unsupported(
+                    "-show_entries",
+                    Some(&format!("{section}={key}")),
+                    format!("'-show_entries {section}={key}' is not supported: {why}"),
+                ));
             }
         }
         for sid in Sid::ALL {
@@ -507,9 +534,13 @@ fn parse_entries(value: &str, selection: &mut Selection) -> Result<(), Refusal> 
 /// `-select_streams`: an index, or a type with an optional index.
 fn parse_spec(value: &str) -> Result<StreamSpec, Refusal> {
     let refuse = || {
-        unsupported(format!(
-            "'-select_streams {value}' is not supported: coreav ffprobe takes N, v, a, s, d, t, V and TYPE:N"
-        ))
+        unsupported(
+            "-select_streams",
+            Some(value),
+            format!(
+                "'-select_streams {value}' is not supported: coreav ffprobe takes N, v, a, s, d, t, V and TYPE:N"
+            ),
+        )
     };
     if let Ok(n) = value.parse::<usize>() {
         return Ok(StreamSpec::Index(n));
@@ -576,9 +607,13 @@ fn parse_intervals(value: &str) -> Result<Vec<Interval>, Refusal> {
             } else if let Some(d) = e.strip_prefix('+') {
                 IntervalEnd::After(parse_time(d).ok_or_else(bad)?)
             } else if e.starts_with('#') {
-                return Err(unsupported(format!(
-                    "'-read_intervals {value}' is not supported: an end given as a packet count needs +#N"
-                )));
+                return Err(unsupported(
+                    "-read_intervals",
+                    Some(value),
+                    format!(
+                        "'-read_intervals {value}' is not supported: an end given as a packet count needs +#N"
+                    ),
+                ));
             } else {
                 IntervalEnd::At(parse_time(e).ok_or_else(bad)?)
             }),
@@ -591,9 +626,13 @@ fn parse_intervals(value: &str) -> Result<Vec<Interval>, Refusal> {
         // sections asked for (`%` reads every packet with `-show_entries`
         // and none with `-show_packets` alone): it is refused too.
         if start.is_some() || end.is_none() {
-            return Err(unsupported(format!(
-                "'-read_intervals {value}' is not supported: coreav ffprobe does not seek; give the interval as %END, %+DURATION or %+#PACKETS"
-            )));
+            return Err(unsupported(
+                "-read_intervals",
+                Some(value),
+                format!(
+                    "'-read_intervals {value}' is not supported: coreav ffprobe does not seek; give the interval as %END, %+DURATION or %+#PACKETS"
+                ),
+            ));
         }
         out.push(Interval {
             start,
@@ -602,9 +641,13 @@ fn parse_intervals(value: &str) -> Result<Vec<Interval>, Refusal> {
         });
     }
     if out.len() > 1 {
-        return Err(unsupported(format!(
-            "'-read_intervals {value}' is not supported: coreav ffprobe reads one interval"
-        )));
+        return Err(unsupported(
+            "-read_intervals",
+            Some(value),
+            format!(
+                "'-read_intervals {value}' is not supported: coreav ffprobe reads one interval"
+            ),
+        ));
     }
     Ok(out)
 }
@@ -612,6 +655,7 @@ fn parse_intervals(value: &str) -> Result<Vec<Interval>, Refusal> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fallback::Reason;
 
     fn args(text: &str) -> Vec<String> {
         text.split(' ').map(str::to_owned).collect()
@@ -643,10 +687,11 @@ mod tests {
 
     #[test]
     fn refusals_name_the_option() {
-        let Err(Refusal::Unsupported(text)) = parse(&args("-show_frames in.mp4")) else {
+        let Err(Refusal::Unsupported(refusal)) = parse(&args("-show_frames in.mp4")) else {
             panic!()
         };
-        assert!(text.contains("-show_frames"));
+        assert!(refusal.message.contains("-show_frames"));
+        assert_eq!(refusal.reason, Reason::Option("-show_frames".into(), None));
         assert!(matches!(
             parse(&args("-of xml in.mp4")),
             Err(Refusal::Unsupported(_))

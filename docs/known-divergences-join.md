@@ -14,7 +14,7 @@ which applies to joins as it is: `ffprobe` names the AAC profile from what
 it decodes at the stream's start, so the same configuration bytes can be
 named differently in two files whose layouts differ.
 
-The output of a join holds one edit per input and track
+The output of a join holds one edit per media edit of each input and track
 ([`docs/design/join.md`](design/join.md)). ISO/IEC 14496-12 defines what an
 edit list of several edits presents. `ffmpeg` 7.0.2 applies the first edit
 exactly and edits after it approximately; every entry below but

@@ -1,0 +1,14 @@
+8T  discard all    n=32 k/base 0.9984 [0.9943, 1.0003] faster 21/32 | vs FFmpeg base 0.849 (32/32) k 0.843 (32/32)
+8T  discard sd     n= 8 k/base 1.0013 [0.9969, 1.0023] faster 3/8 | vs FFmpeg base 0.886 (8/8) k 0.887 (8/8)
+8T  discard 720p   n= 8 k/base 0.9966 [0.9885, 0.9996] faster 7/8 | vs FFmpeg base 0.858 (8/8) k 0.851 (8/8)
+8T  discard 1080p  n= 8 k/base 0.9960 [0.9837, 1.0010] faster 6/8 | vs FFmpeg base 0.891 (8/8) k 0.883 (8/8)
+8T  discard 4k     n= 8 k/base 0.9957 [0.9886, 1.0138] faster 5/8 | vs FFmpeg base 0.637 (8/8) k 0.626 (8/8)
+8T  discard cavlc  n= 6 k/base 1.0019 [1.0000, 1.0075] faster 1/6 | vs FFmpeg base 0.836 (6/6) k 0.839 (6/6)
+8T  write   all    n=32 k/base 0.9994 [0.9961, 1.0020] faster 18/32 | vs FFmpeg base 0.867 (31/32) k 0.864 (30/32)
+8T  write   sd     n= 8 k/base 0.9985 [0.9952, 1.0017] faster 5/8 | vs FFmpeg base 0.925 (7/8) k 0.922 (7/8)
+8T  write   720p   n= 8 k/base 1.0011 [0.9939, 1.0058] faster 3/8 | vs FFmpeg base 0.897 (8/8) k 0.887 (7/8)
+8T  write   1080p  n= 8 k/base 0.9977 [0.9905, 1.0006] faster 6/8 | vs FFmpeg base 0.886 (8/8) k 0.881 (8/8)
+8T  write   4k     n= 8 k/base 1.0011 [0.9913, 1.0095] faster 4/8 | vs FFmpeg base 0.666 (8/8) k 0.661 (8/8)
+8T  write   cavlc  n= 6 k/base 1.0026 [0.9978, 1.0100] faster 1/6 | vs FFmpeg base 0.886 (5/6) k 0.887 (5/6)
+unresolved 8T []
+bars {'B3b-5': True, 'B3b-6': True}

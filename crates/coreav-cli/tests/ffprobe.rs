@@ -1,4 +1,4 @@
-//! `coreav ffprobe` and `coreav ffmpeg` through the binary
+//! `coreav ffprobe` through the binary
 //! (`docs/design/compat-cli.md`): refusals and their exit status, the
 //! command run under the name `ffprobe`, and a few outputs. Agreement with
 //! `ffprobe` itself is measured by `tools/compat-corpus/run.py`.
@@ -35,8 +35,14 @@ struct Run {
     stderr: String,
 }
 
+/// Runs in strict-safe mode, so that a refused command is refused rather
+/// than handed to an FFmpeg on `PATH` (`tests/fallback.rs` tests that).
 fn run(program: &Path, args: &[&str]) -> Run {
-    let out = Command::new(program).args(args).output().unwrap();
+    let out = Command::new(program)
+        .args(args)
+        .env("COREAV_STRICT_SAFE", "1")
+        .output()
+        .unwrap();
     Run {
         code: out.status.code().unwrap(),
         stdout: String::from_utf8(out.stdout).unwrap(),
@@ -221,23 +227,6 @@ fn the_binary_named_ffprobe_is_coreav_ffprobe() {
     assert_eq!(through_link.code, 0, "{}", through_link.stderr);
     assert_eq!(through_link.stdout, direct.stdout);
     assert_eq!(run(&link, &["-show_frames", path.as_str()]).code, 4);
-}
-
-#[test]
-fn coreav_ffmpeg_refuses_every_command_for_now() {
-    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("ffmpeg-refusal");
-    std::fs::create_dir_all(&dir).unwrap();
-    let out = dir.join("out.mp4");
-    let _ = std::fs::remove_file(&out);
-    let path = movie("ffmpeg-in.mp4");
-    let r = run(
-        Path::new(bin()),
-        &["ffmpeg", "-i", &path, "-c", "copy", out.to_str().unwrap()],
-    );
-    assert_eq!(r.code, 4);
-    assert!(r.stdout.is_empty());
-    assert!(!r.stderr.is_empty());
-    assert!(!out.exists());
 }
 
 #[test]

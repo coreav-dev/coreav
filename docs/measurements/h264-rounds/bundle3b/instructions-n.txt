@@ -1,0 +1,9 @@
+# the four streams with 4-wide luma blocks: callgrind totals of P+R+C (b3r) and P+R+C+N (b3n, before cargo fmt; same code), 1 thread, discard, class frame counts
+36501d448eaa.0.720p b3n 2800393792
+36501d448eaa.0.720p b3r 2881507504
+a81de82106be.0.1080p b3n 1322503652
+a81de82106be.0.1080p b3r 1367517798
+c7ecda16e4a7.0.1080p b3n 9111085685
+c7ecda16e4a7.0.1080p b3r 9253662773
+e624cbe0d2be.0.4k b3n 2548758377
+e624cbe0d2be.0.4k b3r 2614696217

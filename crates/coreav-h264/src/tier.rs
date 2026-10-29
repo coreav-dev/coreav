@@ -16,7 +16,7 @@
 //! inlines it as it does with one instance.
 #![forbid(unsafe_code)]
 
-use coreav_kernels_h264::{Kernels, PlaneOp, Planes, PlanesMut};
+use coreav_kernels_h264::{Kernels, Macroblocks, Ops, Part, Planes};
 
 use crate::cabac::{self, Cabac, Category, Engine, Source};
 use crate::error::Result;
@@ -57,32 +57,27 @@ pub(crate) trait Tier: Copy {
     ) -> Result<u8>;
 
     /// One list's prediction of a block ([`SliceDecoder::predict_fast`]).
-    #[allow(clippy::too_many_arguments)]
     fn predict_fast<K: Kernels>(
         self,
         d: &mut SliceDecoder<'_, K>,
         list: usize,
         m: &Motion,
         target: Target<'_>,
-        px: usize,
-        py: usize,
-        w: usize,
-        h: usize,
+        part: Part,
     ) -> Result<()>;
 
-    /// [`Kernels::predict`], from [`SliceDecoder::predict_fast`].
+    /// [`Kernels::predict_part`], from [`SliceDecoder::predict_fast`].
     #[allow(clippy::too_many_arguments)]
     fn predict_kernel<K: Kernels>(
         self,
         k: &K,
-        dst: PlanesMut<'_>,
+        dst: [&mut [u8]; 3],
+        mbs: &Macroblocks,
+        mb: [usize; 2],
+        part: Part,
         src: &Planes<'_>,
-        px: usize,
-        py: usize,
-        w: usize,
-        h: usize,
         mv: [i16; 2],
-        ops: [PlaneOp; 3],
+        ops: Ops,
     ) -> bool;
 }
 
@@ -122,28 +117,24 @@ impl Tier for Base {
         list: usize,
         m: &Motion,
         target: Target<'_>,
-        px: usize,
-        py: usize,
-        w: usize,
-        h: usize,
+        part: Part,
     ) -> Result<()> {
-        d.predict_fast(list, m, target, px, py, w, h)
+        d.predict_fast(list, m, target, part)
     }
 
     #[inline(always)]
     fn predict_kernel<K: Kernels>(
         self,
         k: &K,
-        dst: PlanesMut<'_>,
+        dst: [&mut [u8]; 3],
+        mbs: &Macroblocks,
+        mb: [usize; 2],
+        part: Part,
         src: &Planes<'_>,
-        px: usize,
-        py: usize,
-        w: usize,
-        h: usize,
         mv: [i16; 2],
-        ops: [PlaneOp; 3],
+        ops: Ops,
     ) -> bool {
-        k.predict(dst, src, px, py, w, h, mv, ops)
+        k.predict_part(dst, mbs, mb, part, src, mv, ops)
     }
 }
 
