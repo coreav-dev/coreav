@@ -6,6 +6,7 @@ use crate::demux::{Demux, Pes};
 use crate::error::Warning;
 use crate::frames::{self, Syntax};
 use crate::packet::PacketSize;
+use crate::pid_map::PidMap;
 use crate::reader::{Reader, detect};
 use crate::section::{Descriptor, Service};
 use crate::video::{self, Nal, ParameterSets};
@@ -13,7 +14,6 @@ use crate::{Error, Limits, Source};
 use coreav_isobmff::{
     Color, ConfigRecord, FourCc, Profile, describe_audio_specific_config, describe_config_record,
 };
-use std::collections::BTreeMap;
 
 /// The 33-bit timestamp range at 90 kHz.
 pub(crate) const WRAP: i64 = 1 << 33;
@@ -186,7 +186,7 @@ pub struct TransportStream {
     /// system time base of its own (ISO/IEC 13818-1 2.4.2.1), so the
     /// programs of one file can be hours apart and a timestamp is only
     /// before or after the wrap of its own program.
-    pub(crate) program_reference: BTreeMap<u16, u64>,
+    pub(crate) program_reference: PidMap<u64>,
     pub(crate) allowlist: Allowlist,
 }
 
@@ -240,7 +240,7 @@ impl TransportStream {
 /// demultiplexer knows: the first timestamp of the earliest PES packet of
 /// any of the program's PIDs. A PID that two programs declare keeps the
 /// first program's.
-fn note_references(references: &mut BTreeMap<u16, u64>, demux: &Demux) {
+fn note_references(references: &mut PidMap<u64>, demux: &Demux) {
     for program in &demux.programs {
         let base = program
             .pids
@@ -250,7 +250,7 @@ fn note_references(references: &mut BTreeMap<u16, u64>, demux: &Demux) {
             .map(|(_, time)| *time);
         if let Some(time) = base {
             for pid in &program.pids {
-                references.entry(*pid).or_insert(time);
+                let _ = references.get_or_insert_with(*pid, || time);
             }
         }
     }
@@ -470,7 +470,7 @@ struct TailRead<'a> {
     /// The streams from this index on are learnt from the tail: those the
     /// head did not show.
     learn_from: usize,
-    program_reference: &'a BTreeMap<u16, u64>,
+    program_reference: &'a PidMap<u64>,
     reference: Option<u64>,
 }
 
@@ -795,7 +795,7 @@ pub fn probe<S: Source>(
     // Taking the file's first timestamp for every stream put the streams
     // of a multi-program capture whose clocks are hours apart a whole
     // wrap (2^33 ticks, 26 hours) from where the file has them.
-    let mut program_reference: BTreeMap<u16, u64> = BTreeMap::new();
+    let mut program_reference = PidMap::streams(limits);
     note_references(&mut program_reference, &demux);
     // The tail: where each stream's last access unit ends.
     let mut tail = demux.resume();
@@ -858,7 +858,7 @@ pub fn probe<S: Source>(
     // Programs and PIDs the tail's tables added, and the PIDs that
     // carried PES packets no table declares, after the declared streams.
     note_references(&mut program_reference, &tail);
-    tail.add_undeclared(&demux.pes_pids)?;
+    tail.add_undeclared(Some(&demux.pes_pids))?;
     note_references(&mut program_reference, &tail);
     ends.resize(tail.streams.len(), None);
     lasts.resize(tail.streams.len(), None);

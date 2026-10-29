@@ -23,6 +23,7 @@ mod limits;
 mod packet;
 mod packets;
 mod pes;
+mod pid_map;
 mod probe;
 mod reader;
 mod section;

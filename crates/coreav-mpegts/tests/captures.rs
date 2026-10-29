@@ -2,6 +2,7 @@
 //! corpus set `v1-ts-audio` (`docs/corpus.md`) showed, each the shape of a
 //! case the reader once read wrongly (docs/design/mpegts.md, #208).
 #![allow(
+    clippy::disallowed_types,
     clippy::indexing_slicing,
     clippy::unwrap_used,
     clippy::expect_used,
