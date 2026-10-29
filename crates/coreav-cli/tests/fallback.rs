@@ -16,7 +16,7 @@
 mod common;
 
 use std::io::Write;
-use std::os::unix::fs::{PermissionsExt, symlink};
+use std::os::unix::fs::{MetadataExt, PermissionsExt, symlink};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::OnceLock;
@@ -196,6 +196,42 @@ fn a_relative_coreav_fallback_is_the_file_in_the_working_directory() {
 }
 
 #[test]
+fn an_empty_path_element_is_the_working_directory_after_coreav() {
+    let links = tmp("empty-path-element");
+    symlink(bin(), links.join("ffmpeg")).unwrap();
+    let out = Command::new(bin())
+        .args(["ffmpeg", "-i", "in.mp4", "-vf", "x", "out.mp4"])
+        .current_dir(stand_in())
+        .env_clear()
+        .env("PATH", format!("{}:", links.display()))
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8(out.stderr).unwrap();
+    assert_eq!(out.status.code(), Some(7), "{stderr}");
+    let expected = format!("coreav: ran {}/ffmpeg instead", stand_in().display());
+    assert!(stderr.starts_with(&expected), "{stderr}");
+}
+
+#[test]
+fn a_program_on_path_this_process_cannot_run_is_skipped() {
+    let bad = tmp("not-executable-by-owner");
+    let program = bad.join("ffmpeg");
+    std::fs::write(&program, "#!/bin/sh\nexit 9\n").unwrap();
+    std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o654)).unwrap();
+    if std::fs::metadata(&program).unwrap().uid() == 0 {
+        return;
+    }
+    let r = coreav(
+        &["ffmpeg", "-i", "in.mp4", "-vf", "x", "out.mp4"],
+        &[&bad, stand_in()],
+        &[],
+    );
+    assert_eq!(r.code, 7, "{}", r.stderr);
+    let expected = format!("coreav: ran {}/ffmpeg instead", stand_in().display());
+    assert!(r.stderr.starts_with(&expected), "{}", r.stderr);
+}
+
+#[test]
 fn a_program_that_cannot_start_is_logged_as_not_run() {
     let dir = tmp("cannot-start");
     let program = dir.join("ffmpeg");
@@ -294,6 +330,25 @@ fn strict_safe_mode_never_runs_another_program() {
     }
     let off = coreav(&args, &[stand_in()], &[("COREAV_STRICT_SAFE", "0")]);
     assert_eq!(off.code, 7, "{}", off.stderr);
+}
+
+#[test]
+fn the_guard_is_set_by_any_value() {
+    let dir = stand_in().to_str().unwrap();
+    for value in ["", "0", "1"] {
+        let r = coreav(
+            &["ffmpeg", "-i", "in.mp4", "-vf", "x", "out.mp4"],
+            &[],
+            &[("COREAV_FALLBACK", dir), ("COREAV_FALLBACK_ACTIVE", value)],
+        );
+        assert_eq!(r.code, 4, "{value:?}: {}", r.stderr);
+        assert!(r.stdout.is_empty(), "{value:?}");
+        assert!(
+            r.stderr.contains("led back to CoreAV"),
+            "{value:?}: {}",
+            r.stderr
+        );
+    }
 }
 
 #[test]

@@ -7,7 +7,25 @@
 
 mod names;
 
+use std::path::Path;
+
 use serde_json::{Value, json};
+
+/// Whether this process can run the file at `path`: on Unix `access` with
+/// `X_OK`, so that a file with an execute bit only for others is not one.
+pub fn executable(path: &Path) -> bool {
+    if !std::fs::metadata(path).is_ok_and(|m| m.is_file()) {
+        return false;
+    }
+    #[cfg(unix)]
+    {
+        rustix::fs::access(path, rustix::fs::Access::EXEC_OK).is_ok()
+    }
+    #[cfg(not(unix))]
+    {
+        true
+    }
+}
 
 /// The tool a command line is for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

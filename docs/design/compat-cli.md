@@ -1008,8 +1008,10 @@ service's input. Every bar of this note is measured in it.
    executable, nothing runs: the refusal stands (exit 4) with one more line
    that names the variable and the reason. It never falls through to `PATH`,
    which would run a different FFmpeg than the one asked for.
-2. Otherwise the first `ffmpeg` or `ffprobe` on `PATH` that is an executable file
-   and is not this program: its file identity is compared with the running
+2. Otherwise the first `ffmpeg` or `ffprobe` on `PATH` that this process can
+   run (on Unix, `access` with `X_OK`, so an execute bit for others only does
+   not count) and is not this program, made absolute before it is logged or
+   run (an empty element of `PATH` is the working directory): its file identity is compared with the running
    executable's, so the multicall link and a hard link to `coreav` are
    skipped. Windows has no file identity in Rust's standard library, so
    there the bytes are compared, which skips a copy of `coreav` too.
@@ -1034,7 +1036,8 @@ are FFmpeg's; on Windows it starts the program, waits, and exits with its
 exit code. Either way the exit status of a fallback is the program's.
 
 **Recursion guard.** The added variable is `COREAV_FALLBACK_ACTIVE=1`. A
-`coreav` started with it set never falls back: it refuses (exit 4) with a line
+`coreav` started with it set, to any value, empty and `0` included, never
+falls back: it refuses (exit 4) with a line
 saying the fallback led back to CoreAV. That stops a loop through a wrapper
 script, or a copy of `coreav` under another name, that the path comparison
 cannot see. The variable reaches FFmpeg's own children too, which is

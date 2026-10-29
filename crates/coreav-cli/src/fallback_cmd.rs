@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use coreav_cli::fallback::{self, NotNative, NotRun, Tool};
+use coreav_cli::fallback::{self, NotNative, NotRun, Tool, executable};
 
 use super::compat_cmd::{EXIT_UNSUPPORTED, multicall};
 
@@ -29,7 +29,7 @@ const SECONDS_1904_TO_1970: u64 = 2_082_844_800;
 pub fn refuse(tool: Tool, args: &[String], refusal: NotNative, strict_safe: bool) -> ExitCode {
     let found = if strict_safe || on("COREAV_STRICT_SAFE") {
         Err((NotRun::StrictSafe, None))
-    } else if on(GUARD) {
+    } else if std::env::var_os(GUARD).is_some() {
         Err((
             NotRun::Guard,
             Some(format!(
@@ -116,6 +116,7 @@ fn program(tool: Tool) -> Result<PathBuf, (NotRun, Option<String>)> {
         .iter()
         .flat_map(std::env::split_paths)
         .map(|dir| dir.join(&file))
+        .filter_map(|path| std::path::absolute(path).ok())
         .find(|path| executable(path) && !this.as_deref().is_some_and(|this| same(path, this)))
         .ok_or_else(|| {
             (
@@ -123,21 +124,6 @@ fn program(tool: Tool) -> Result<PathBuf, (NotRun, Option<String>)> {
                 Some(format!("no other {} on PATH to run instead", tool.name())),
             )
         })
-}
-
-fn executable(path: &Path) -> bool {
-    let Ok(metadata) = std::fs::metadata(path) else {
-        return false;
-    };
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        metadata.is_file() && metadata.permissions().mode() & 0o111 != 0
-    }
-    #[cfg(not(unix))]
-    {
-        metadata.is_file()
-    }
 }
 
 /// Whether two paths are the same program: a symbolic link to this program
