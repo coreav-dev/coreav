@@ -794,16 +794,12 @@ impl<S: Source> Packets<'_, S> {
             } else {
                 // The first finished unit keeps the buffer and goes to the
                 // caller without a copy; what is left moves to a buffer of
-                // the same room. A unit much smaller than that room gives
-                // the rest back, so units held for the listing stay small.
+                // the same room.
                 moved = true;
                 let mut rest = Vec::with_capacity(open.data.capacity());
                 rest.extend_from_slice(open.data.get(at..).unwrap_or_default());
                 open.data.truncate(at);
-                let mut unit = std::mem::replace(&mut open.data, rest);
-                if unit.len() < unit.capacity() / 2 {
-                    unit.shrink_to_fit();
-                }
+                let unit = std::mem::replace(&mut open.data, rest);
                 shift = at;
                 unit
             };
