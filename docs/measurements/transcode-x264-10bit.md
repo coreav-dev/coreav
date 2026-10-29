@@ -223,13 +223,13 @@ Each input is named as a file or a pipe. "File" is the regular file itself on th
    - Debian's `ffmpeg` with the same library has no row from FFmpeg's own libraries among its 60 largest thread and function rows. Apart from two kernel rows, all of them are `libx264.so.164` functions.
    - Their totals match the pinned pair: 121.3 against 106.8 CPU-seconds and 22.94 against 16.22 s wall. That is a difference of 14.5 CPU-seconds (15.3 for the pinned pair) and a wall ratio of 1.41 (1.44).
 
-**What this means for CoreAV.** No lever from outside the x264 program is confirmed. The conversion is scalar code in the program that stalls on L1-hit loads on this Intel core. Only 16-bit input from a regular file avoids most of the stall, and `coreav transcode` streams through a pipe. Writing every frame to a file first would trade the stall for spooling the whole video to disk, and it was not measured. The AMD host shows no file or depth timing penalty. The design's choice stays as it is (`docs/design/transcode.md`).
+**What this means for CoreAV.** No lever from outside the x264 program is confirmed. The conversion is scalar code in the program that stalls on L1-hit loads on this Intel core. Only 16-bit input from a regular file avoids most of the stall, and `coreav transcode` streams through a pipe. Writing every frame to a file first would trade the stall for spooling the whole video to disk. The next section measures reading such a file, not the cost of writing it. The AMD host shows no file or depth timing penalty. The design's choice stays as it is (`docs/design/transcode.md`).
 
 The raw results are in `transcode/x264-10bit/why/`: `run1/` (`why.py`, Intel), `run2/` (`why2.py`, Intel, a second VM of the same type) and `amd/` (`why.py --part amd`). The first run's `perf sched` step failed (no read access to the kernel's trace events, rc 129 in `run1/why.jsonl`), and its 4K-aliasing event was asked for by a name this processor does not have. The second run repeated both. In `perf report --group` tables, perf 6.12 leaves out the column of an event with no samples: L3-miss events in `mem` and `stall`, `assists.fp` in `assist`, and 2 of 4 events in `fp1` and all 4 in `fp2`. The `perf stat` files of the second run print every event, including those at zero.
 
 ### Input methods CoreAV controls
 
-Status: planned. These questions and bars were committed before the run that answers them.
+Status: run. These questions and bars were committed before the run that answers them. The results follow the bars.
 
 The runs above leave one question CoreAV can act on: whether some way of handing x264 the frames, from the caller's side alone, removes the L1-hit stall that only the 16-bit file arm avoids. This round changes only the input path. The x264 program, its arguments and the frames stay the same, and no source, `perf annotate` or disassembly is used. The runner is `why3.py`, on one `c4-standard-8` as above (standard PMU, SMT on, not preemptible), by `scripts/gcp_vm_job.py`. No AMD control is run. That host has no PMU on Compute Engine and showed no file or depth penalty, so it would add nothing to these questions.
 
@@ -260,3 +260,29 @@ The runs above leave one question CoreAV can act on: whether some way of handing
 6. At 1080p, the fast path exists when the 16-bit file arm's main-thread cycles are at most 0.8 times the 10-bit file arm's. The memfd arm is judged there by bars 1 and 2.
 
 If no pipe arm helps, the page says that no streaming input method removes the stall. It then names the question that remains.
+
+#### What the input-method run found
+
+No streaming input method removes the stall. A 1 MiB pipe costs the same as a 64 KiB pipe. A memfd and a file on the boot disk are as fast as the tmpfs file, but both need every frame written before x264 starts. Where frames start in the mapping and what the low bits hold make no difference.
+
+All counts are exact. Each `perf stat` file shows one group with no running share, so nothing was multiplexed. The VM is a different one from the runs above, and its 10-bit file arm took 23.30 s against 22.11 s there. Cycles below are for the whole main thread, not `get_frame` alone, so they are larger than the `get_frame` cycles above. `strace` counted 80 `mmap` and 2 `read` calls for 10 frames from the tmpfs file, the memfd and the disk file, and 80 and 5 from the y4m file. So the program maps a memfd as it maps a regular file.
+
+| Arm, 4K (Intel `c4-standard-8`) | Input | Wall, 3 runs (s) | Main thread on CPU (s) | Main-thread cycles (billions) | Cycles bound on loads (billions) | `get_frame` share | Output hash |
+|---|---|---|---|---|---|---|---|
+| 10-bit, file | regular file, tmpfs | 23.22, 23.30, 23.61 | 17.22 | 55.76 | 28.29 | 12.8% | `9a8e114d` |
+| 16-bit, file | regular file, tmpfs | 18.93, 18.94, 19.02 | 8.60 | 27.98 | 4.11 | 5.8% | `9a8e114d` |
+| 16-bit, 64 KiB pipe | pipe | 23.41, 23.43, 23.51 | 17.53 | 54.75 | 27.44 | 12.7% | `9a8e114d` |
+| 16-bit, 1 MiB pipe | pipe | 23.07, 23.43, 23.56 | 17.53 | 53.56 | 26.44 | 12.6% | `9a8e114d` |
+| 16-bit, memfd | memfd | 18.89, 18.94, 19.00 | 8.53 | 28.00 | 4.10 | 5.8% | `9a8e114d` |
+| 16-bit, disk file | regular file, ext4, page cache | 18.82, 18.94, 18.98 | 8.61 | 28.28 | 4.34 | 6.0% | `9a8e114d` |
+| 16-bit, y4m file | regular file, tmpfs | 18.84, 18.93, 18.93 | 8.54 | 28.63 | 4.41 | 5.8% | `db6ba30a` |
+| 16r, file | regular file, tmpfs | 18.88, 18.94, 18.95 | 8.56 | 27.85 | 4.00 | 5.9% | `ad31cd0f` |
+
+| Arm, 1080p | Input | Wall, 3 runs (s) | Main thread on CPU (s) | Main-thread cycles (billions) | Cycles bound on loads (billions) | `get_frame` share | Output hash |
+|---|---|---|---|---|---|---|---|
+| 10-bit, file | regular file, tmpfs | 5.04, 5.09, 5.10 | 3.55 | 11.00 | 4.78 | 11.7% | `f4567acf` |
+| 16-bit, file | regular file, tmpfs | 4.33, 4.34, 4.39 | 2.13 | 6.62 | 0.98 | 6.6% | `f4567acf` |
+| 16-bit, 64 KiB pipe | pipe | 5.03, 5.09, 5.09 | 3.56 | 11.04 | 4.82 | 11.8% | `f4567acf` |
+| 16-bit, memfd | memfd | 4.33, 4.33, 4.38 | 2.14 | 6.58 | 0.96 | 6.7% | `f4567acf` |
+
+Every arm retired 41.4 to 42.2 billion main-thread instructions at 4K and 9.5 to 9.7 billion at 1080p, with 8.2 to 8.4 and 1.85 to 1.91 billion loads. 4K-aliasing blocks were under 0.01 billion in every arm.
