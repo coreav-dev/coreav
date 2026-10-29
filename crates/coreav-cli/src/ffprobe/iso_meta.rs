@@ -1128,19 +1128,35 @@ fn chapters<S: Source>(
         }
     }
     ids.reverse();
+    // The title bytes limit holds for the merged list too: a track whose
+    // chapters would take it over, with what they replace and what they
+    // keep, is left out, as a track over the limit on its own is.
     let mut listed: Vec<Chapter> = Vec::new();
+    let mut title_sizes: Vec<u64> = Vec::new();
+    let mut title_bytes = 0u64;
     let read =
         coreav_text::read_chapter_tracks(&mut *source, &ids, &limits, &text_limits, |result| {
             match result {
                 Ok(list) => {
+                    let replaced: u64 = title_sizes.iter().take(list.chapters.len()).sum();
+                    let added: u64 = list.chapters.iter().map(|c| c.title.len() as u64).sum();
+                    let merged = title_bytes.saturating_sub(replaced).saturating_add(added);
+                    if merged > text_limits.max_title_bytes {
+                        return ControlFlow::Continue(());
+                    }
+                    title_bytes = merged;
                     let den = i64::from(list.timescale.max(1));
                     for (n, c) in list.chapters.iter().enumerate() {
                         let start = crate::time::rounded(c.start).unwrap_or(0);
                         let end = crate::time::rounded(c.end).unwrap_or(start);
                         let one = chapter(n, den, start, end, &c.title);
-                        match listed.get_mut(n) {
-                            Some(slot) => *slot = one,
-                            None => listed.push(one),
+                        let size = c.title.len() as u64;
+                        match (listed.get_mut(n), title_sizes.get_mut(n)) {
+                            (Some(slot), Some(slot_size)) => (*slot, *slot_size) = (one, size),
+                            _ => {
+                                listed.push(one);
+                                title_sizes.push(size);
+                            }
                         }
                     }
                     ControlFlow::Continue(())
