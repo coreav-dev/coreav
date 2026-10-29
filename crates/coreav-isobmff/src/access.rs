@@ -431,9 +431,9 @@ pub fn av1_config_reduced(av1c: &[u8]) -> Option<bool> {
 
 /// What the NAL units of one frame seen so far add up to, so that the
 /// length-prefixed walk ([`walk`]) and the byte stream walk
-/// ([`annex_b_frame_access`]) classify a unit by the same rules. The
-/// bytes each is given of a unit differ by one: the length-prefixed walk
-/// reads the NAL unit header byte within its budget and drops it.
+/// ([`annex_b_frame_access`]) classify a unit by the same rules. Both
+/// read the same first bytes of a unit, its NAL unit header byte among
+/// them, and hand on the bytes after the header.
 #[derive(Clone, Copy, Debug)]
 struct Units {
     access: FrameAccess,
@@ -460,8 +460,8 @@ impl Units {
 
     /// One coded slice, or data partition A, which starts with the slice
     /// header: `header` its NAL unit header byte and `head` the bytes
-    /// after it, at least [`SLICE_HEADER_BYTES`] of them where the unit
-    /// has that many. `None` when the slice header does not parse.
+    /// after it within the unit's first [`SLICE_HEADER_BYTES`]. `None`
+    /// when the slice header does not parse.
     fn slice(&mut self, header: u8, head: &[u8]) -> Option<()> {
         let slice_type = slice_type(head)?;
         self.slices = self.slices.saturating_add(1);
@@ -531,10 +531,12 @@ pub fn annex_b_frame_access(frame: &[u8], complete: bool) -> Option<FrameAccess>
         let unit = unit.get(..kept).unwrap_or(&[]);
         // Two start codes with nothing but zero bytes between them hold no
         // unit.
-        if let Some((header, head)) = unit.split_first() {
+        if let Some(header) = unit.first() {
+            // The unit's first `bytes` bytes, its header among them, as
+            // the length-prefixed walk reads them, less the header.
             let head = |bytes: u64| {
-                let kept = usize::try_from(bytes).unwrap_or(usize::MAX).min(head.len());
-                head.get(..kept).unwrap_or(head)
+                let kept = usize::try_from(bytes).unwrap_or(usize::MAX).min(unit.len());
+                unit.get(1..kept).unwrap_or_default()
             };
             match header & 0x1f {
                 NAL_SLICE | NAL_PARTITION_A | NAL_IDR => {
