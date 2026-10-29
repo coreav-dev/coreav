@@ -178,7 +178,13 @@ really hold:
   writer that flagged every block leaves both the Cues and that stop rule
   pointing at blocks that do not start decoding, so the listing is read
   again from the first cluster, and then, if no block at or before the
-  time starts decoding either, to the end of the clusters. A thumbnail
+  time starts decoding either, to the end of the clusters. Whether a
+  listing holds one is asked by keyframe mode's own search
+  (`select::latest_keyframe`, over `select::offered`: a flagged block
+  presented at a known time), not by a filter of the glue's: a copy kept
+  in sync by hand lost the presented test once (PR #16), and a listing it
+  accepted without the frame keyframe mode gives yields the frame at the
+  time instead. A test pins that the two agree. A thumbnail
   near the end of a long file whose flags are wrong therefore lists the
   blocks from its start, which costs a pass over the file's block headers
   rather than one cluster's; stepping back one Cue at a time instead would

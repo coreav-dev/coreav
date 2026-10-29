@@ -58,23 +58,39 @@ fn check_end(samples: &[Sample], at: Rational) -> Result<(), Error> {
     }
 }
 
-/// Keyframe mode: the latest keyframe presented at or before `at`. When
-/// none is (`at` before the first presented keyframe, or an edit list that
-/// presents no keyframe at all), the frame [`exact`] chooses. `cut_point(i)`
-/// says whether a sync sample really starts decoding
-/// (`docs/design/cut-points.md`); `forward` allows the last resort of
-/// [`exact`].
-pub(crate) fn keyframe(
+/// The time at which `sample` may be given as a keyframe image: a sync
+/// sample the container presents, at a known time. A keyframe whose time
+/// is unknown is not one: the image would be reported at the time asked
+/// for. The one rule for every search that offers a keyframe as the image
+/// ([`latest_keyframe`], the last resort of [`exact`], and the window
+/// check of `crate::window_holds`).
+pub(crate) fn offered(sample: &Sample) -> Option<Rational> {
+    if sample.keyframe && sample.presented {
+        sample.time
+    } else {
+        None
+    }
+}
+
+/// Whether `sample` is a keyframe [`offered`] at or before `at`.
+pub(crate) fn offered_by(sample: &Sample, at: Rational) -> bool {
+    offered(sample).is_some_and(|t| le(t, at))
+}
+
+/// The latest keyframe [`offered_by`] `at` that starts decoding
+/// (`cut_point(i)`), checked from the latest presented back: the frame
+/// keyframe mode gives. The Matroska listing asks the same question of
+/// its blocks (`mkv::cut_point_before`), so the two cannot disagree on
+/// whether a listing holds that frame.
+pub(crate) fn latest_keyframe(
     samples: &[Sample],
     at: Rational,
-    forward: bool,
     cut_point: &mut dyn FnMut(usize) -> Result<bool, Error>,
-) -> Result<Choice, Error> {
-    check_end(samples, at)?;
+) -> Result<Option<usize>, Error> {
     let mut candidates: Vec<(usize, Rational)> = samples
         .iter()
         .enumerate()
-        .filter(|(_, s)| s.keyframe && s.presented)
+        .filter(|(_, s)| offered_by(s, at))
         .filter_map(|(i, s)| s.time.map(|t| (i, t)))
         .collect();
     candidates.sort_by(|a, b| {
@@ -86,15 +102,32 @@ pub(crate) fn keyframe(
             a.0.cmp(&b.0)
         }
     });
-    let split = candidates.partition_point(|(_, t)| le(*t, at));
-    let before = candidates.get(..split).unwrap_or(&[]);
-    for (index, _) in before.iter().rev() {
+    for (index, _) in candidates.iter().rev() {
         if cut_point(*index)? {
-            return Ok(Choice {
-                start: *index,
-                target: *index,
-            });
+            return Ok(Some(*index));
         }
+    }
+    Ok(None)
+}
+
+/// Keyframe mode: the latest keyframe presented at or before `at`
+/// ([`latest_keyframe`]). When none is (`at` before the first presented
+/// keyframe, or an edit list that presents no keyframe at all), the frame
+/// [`exact`] chooses. `cut_point(i)` says whether a sync sample really
+/// starts decoding (`docs/design/cut-points.md`); `forward` allows the
+/// last resort of [`exact`].
+pub(crate) fn keyframe(
+    samples: &[Sample],
+    at: Rational,
+    forward: bool,
+    cut_point: &mut dyn FnMut(usize) -> Result<bool, Error>,
+) -> Result<Choice, Error> {
+    check_end(samples, at)?;
+    if let Some(index) = latest_keyframe(samples, at, cut_point)? {
+        return Ok(Choice {
+            start: index,
+            target: index,
+        });
     }
     exact(samples, at, forward, cut_point)
 }
@@ -141,13 +174,11 @@ pub(crate) fn exact(
     // for FFmpeg's decoder, which drops them and gives the frame of the
     // first picture that decodes; that frame is this one.
     if forward {
-        // Every keyframe presented after the frame, in decode order: one
-        // before it in decode order can be presented after it. A keyframe
-        // whose time is unknown is not one, as in the searches above: the
-        // image would be reported at the time asked for.
+        // Every keyframe [`offered`] after the frame, in decode order: one
+        // before it in decode order can be presented after it.
         for (index, sample) in samples.iter().enumerate() {
-            let after = sample.time.is_some_and(|t| lt(time, t));
-            if sample.keyframe && sample.presented && after && cut_point(index)? {
+            let after = offered(sample).is_some_and(|t| lt(time, t));
+            if after && cut_point(index)? {
                 return Ok(Choice {
                     start: index,
                     target: index,

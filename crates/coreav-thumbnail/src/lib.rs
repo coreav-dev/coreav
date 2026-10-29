@@ -661,7 +661,7 @@ fn window_holds(plan: &Plan, choice: Choice, at: Rational, exact: bool) -> bool 
         return false;
     };
     if !exact {
-        if choice.start == choice.target && target.keyframe && target.presented && le(time, at) {
+        if choice.start == choice.target && select::offered_by(target, at) {
             // The latest keyframe at or before `at`: nothing before the
             // window is presented after it, nothing after the window at or
             // before `at`.

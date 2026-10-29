@@ -7,7 +7,7 @@ use coreav_isobmff::access::AccessFormat;
 use coreav_mkv::{Allowlist, Encoding, Packet, Segment, Source, TrackKind, probe};
 
 use crate::mp4::color_info;
-use crate::select::Sample;
+use crate::select::{self, Sample};
 use crate::{Container, CutRule, Error, PacketRef, Plan, Presentation, ThumbnailOptions};
 
 /// Packets read from the start to find where the file starts.
@@ -281,10 +281,9 @@ fn packets<S: Source>(
     )
 }
 
-/// Whether a block of the listing presented at or before `at` starts
-/// decoding (`crate::starts_decoding`), checked from the latest back and
-/// filtered as `select::keyframe` checks them, so that a listing which
-/// holds one costs one check and the two agree on what it holds.
+/// Whether the listing holds the frame keyframe mode gives at `at`: the
+/// search is `select::latest_keyframe` itself, so the two agree on what
+/// the listing holds, and a listing which holds it costs one check.
 fn cut_point_before<S: Source>(
     source: &mut S,
     samples: &[Sample],
@@ -293,25 +292,13 @@ fn cut_point_before<S: Source>(
     rule: CutRule,
     prefix: &[u8],
 ) -> Result<bool, Error> {
-    let candidates = samples
-        .iter()
-        .enumerate()
-        .rev()
-        .filter(|(_, s)| {
-            s.keyframe && s.presented && s.time.is_some_and(|t| !at.checked_lt(t).unwrap_or(true))
-        })
-        .map(|(i, _)| i);
-    for index in candidates {
-        let Some(packet) = packets.get(index) else {
-            continue;
-        };
+    let mut starts = |index: usize| match packets.get(index) {
         // Matroska states every block's keyframe flag, so an unreadable
         // frame keeps it (`crate::cut_point`).
-        if crate::starts_decoding(source, rule, prefix, packet, true)? {
-            return Ok(true);
-        }
-    }
-    Ok(false)
+        Some(packet) => crate::starts_decoding(source, rule, prefix, packet, true),
+        None => Ok(false),
+    };
+    Ok(select::latest_keyframe(samples, at, &mut starts)?.is_some())
 }
 
 /// The track's packets of `listing`, at most `limit` of them. With `stop`,
@@ -397,3 +384,73 @@ fn read<S: Source>(
 /// The packets a listing gives: what selection needs of each, where its
 /// bytes are, and its duration in Segment Ticks when known.
 type Listed = (Vec<Sample>, Vec<PacketRef>, Vec<Option<u64>>);
+
+#[cfg(test)]
+mod tests {
+    use coreav_isobmff::SliceSource;
+
+    use super::*;
+    use crate::select::Choice;
+
+    fn r(n: i128) -> Rational {
+        Rational::from_int(n)
+    }
+
+    /// A Cues listing is kept when it holds a block `select::keyframe`
+    /// would give, so `cut_point_before` must find a block exactly when
+    /// keyframe mode chooses one: a listing it accepts without one gives
+    /// the frame at the time instead of a keyframe (PR #16, finding 5).
+    #[test]
+    fn cut_point_before_offers_what_keyframe_mode_gives() {
+        let at = r(2);
+        let key = |time: Option<i128>, presented: bool| Sample {
+            time: time.map(r),
+            end: time.map(|t| r(t + 1)),
+            presented,
+            keyframe: true,
+        };
+        let cases = [
+            ("presented before the time", key(Some(1), true), true),
+            ("presented at the time", key(Some(2), true), true),
+            ("invisible, flagged a keyframe", key(Some(1), false), false),
+            ("without a time", key(None, true), false),
+            ("presented after the time", key(Some(3), true), false),
+        ];
+        for (name, keyframe, offered) in cases {
+            // The keyframe, then the frame at the time, which exact mode
+            // gives when keyframe mode falls back to it.
+            let samples = [
+                keyframe,
+                Sample {
+                    time: Some(at),
+                    end: Some(r(3)),
+                    presented: true,
+                    keyframe: false,
+                },
+            ];
+            let packet = PacketRef {
+                offset: 0,
+                size: 0,
+                pts: 0,
+                dts: None,
+                keyframe: true,
+            };
+            let mut source = SliceSource::new(&[]);
+            let mkv = cut_point_before(
+                &mut source,
+                &samples,
+                &[packet; 2],
+                at,
+                CutRule::Container,
+                &[],
+            )
+            .expect("cut_point_before");
+            let given = select::keyframe(&samples, at, false, &mut |_| Ok(true)).ok()
+                == Some(Choice {
+                    start: 0,
+                    target: 0,
+                });
+            assert_eq!((mkv, given), (offered, offered), "{name}");
+        }
+    }
+}
