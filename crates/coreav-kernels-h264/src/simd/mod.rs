@@ -47,9 +47,13 @@
 //!    flags name (`x86::IntraRows::of`), then read the neighbours and write
 //!    the rows through pointers inside those extents; the chroma residual
 //!    of a macroblock (`x86::chroma_residual_mb`) checks each plane's block
-//!    as the inverse transforms do (`x86::rows_at_mut`). These are the places
-//!    where a pointer is formed after the check that justified it rather
-//!    than immediately before;
+//!    as the inverse transforms do (`x86::rows_at_mut`), and the chroma
+//!    edges of a macroblock (`x86::chroma_mb`) check each plane's window
+//!    once and read and write rows inside it. These are the places where a
+//!    pointer is formed after the check that justified it rather than
+//!    immediately before. The chroma macroblock's parameters are read as
+//!    the bytes of their `repr(C)` records (`EdgeParams`), whose type fixes
+//!    the extent, with no check at run time;
 //! 3. the calls into `#[target_feature]` functions, which [`Simd::detect`]
 //!    has established the CPU supports;
 //! 4. the SSE2 register operations of the x86 chroma interpolation
@@ -111,21 +115,21 @@ use x86 as arch;
 
 use crate::views::{Block, BlockMut, ChromaIntraMut, ChromaMbMut, EdgeMut, IntraMut, Reach};
 use crate::{
-    Combine, EdgeParams, Kernels, PlaneOp, Planes, PlanesMut, Scalar, StrengthMb, Weighting,
+    Combine, EdgeParams, Kernels, Macroblocks, Ops, Part, PlaneOp, Planes, PlanesMut, Scalar,
+    StrengthMb, Weighting,
 };
 
 /// A read hint for the cache line that holds `at` (`crate::prefetch`).
-/// The reference proves the address lies inside a slice the caller holds.
+/// Its one caller, `prefetch::for_rows`, hands it only addresses inside a
+/// slice the caller holds.
 #[inline(always)]
-pub(crate) fn hint_read(at: &u8) {
+pub(crate) fn hint_read(at: *const u8) {
     #[cfg(target_arch = "x86_64")]
     // SAFETY: a prefetch makes no architectural access, cannot fault and
-    // changes no value; SSE, which has it, is part of the x86-64 baseline;
-    // and the address is that of a live reference.
+    // changes no value, whatever the address; SSE, which has it, is part
+    // of the x86-64 baseline.
     unsafe {
-        core::arch::x86_64::_mm_prefetch::<{ core::arch::x86_64::_MM_HINT_T0 }>(
-            core::ptr::from_ref(at).cast(),
-        );
+        core::arch::x86_64::_mm_prefetch::<{ core::arch::x86_64::_MM_HINT_T0 }>(at.cast());
     }
     #[cfg(not(target_arch = "x86_64"))]
     let _ = at;
@@ -136,7 +140,7 @@ pub(crate) fn hint_read(at: &u8) {
 /// feature, which the release build does not enable, and the decoder's
 /// measurement was of `prefetcht0` for both.
 #[inline(always)]
-pub(crate) fn hint_write(at: &u8) {
+pub(crate) fn hint_write(at: *const u8) {
     hint_read(at);
 }
 
@@ -168,20 +172,21 @@ pub(crate) fn has_prefetchw() -> bool {
 /// (`crate::prefetch::Ownership`). Holding an `Ownership`, which only
 /// [`has_prefetchw`] grants, is the proof that the CPU has the
 /// instruction; it is written out because its target feature, `prfchw`,
-/// is not stable to enable. The reference proves the address lies inside
-/// a slice the caller holds.
+/// is not stable to enable. Its one caller, `prefetch::Ownership::rows`,
+/// hands it only addresses inside a slice the caller holds, as
+/// `prefetch::for_rows` finds them.
 #[inline(always)]
-pub(crate) fn hint_own(_: crate::prefetch::Ownership, at: &u8) {
+pub(crate) fn hint_own(_: crate::prefetch::Ownership, at: *const u8) {
     #[cfg(target_arch = "x86_64")]
     // SAFETY: the `Ownership` held proves `has_prefetchw`, so the CPU has
     // the instruction; like any prefetch it makes no architectural access,
     // cannot fault and changes no value, no register but the address
     // operand is named, and no flag or stack slot is touched; the address
-    // is that of a live reference.
+    // lies inside a slice the caller holds.
     unsafe {
         core::arch::asm!(
             "prefetchw [{at}]",
-            at = in(reg) core::ptr::from_ref(at),
+            at = in(reg) at,
             options(nostack, preserves_flags, readonly),
         );
     }
@@ -252,9 +257,16 @@ impl Simd {
     /// `Simd` itself always takes the vector path where it has one, so
     /// that a test or a benchmark can reach every kernel.
     pub(crate) fn prefers_luma_mc(w: usize, xf: u8, yf: u8) -> bool {
-        // A 4-wide block is faster in the reference, and so is an 8-wide
-        // one that is only copied, where the architecture says so.
-        matches!(w, 8 | 16) && ((xf & 3, yf & 3) != (0, 0) || w == 16 || arch::LUMA_COPY8_VECTOR)
+        // An 8-wide block that is only copied is faster in the reference
+        // where the architecture says so, and so is a 4-wide one, copied
+        // or, where the architecture has no 4-wide path, interpolated.
+        let copied = (xf & 3, yf & 3) == (0, 0);
+        match w {
+            4 => arch::LUMA4_VECTOR && !copied,
+            8 => !copied || arch::LUMA_COPY8_VECTOR,
+            16 => true,
+            _ => false,
+        }
     }
 
     /// Whether the vector kernel beats the reference for this chroma
@@ -449,7 +461,7 @@ impl Kernels for Simd {
         let (w, h) = (dst.w(), dst.h());
         if src.w() != w + 5
             || src.h() != h + 5
-            || !matches!(w, 8 | 16)
+            || !matches!(w, 4 | 8 | 16)
             || h > 16
             || !weighting.in_range()
         {
@@ -531,6 +543,45 @@ impl Kernels for Simd {
         // with AVX2, the body's AVX2 code is inlined with it; into any
         // other, it is called, which the same detection makes sound.
         unsafe { arch::predict::predict_body(&four, dst, src, px, py, w, h, mv, ops) }
+    }
+
+    fn predict_part(
+        &self,
+        dst: [&mut [u8]; 3],
+        mbs: &Macroblocks,
+        mb: [usize; 2],
+        part: Part,
+        src: &Planes<'_>,
+        mv: [i16; 2],
+        ops: Ops,
+    ) -> bool {
+        // A 4-wide luma block goes where the dispatching kernels send it.
+        #[cfg(target_arch = "x86_64")]
+        // SAFETY: as above.
+        unsafe {
+            let four = crate::Auto { simd: Some(*self) };
+            arch::predict::predict_part(&four, dst, mbs, mb, part, src, mv, ops)
+        }
+        #[cfg(not(target_arch = "x86_64"))]
+        crate::predict::predict_part_by_parts(self, dst, mbs, mb, part, src, mv, ops)
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    #[inline(always)]
+    fn predict_part_inlined(
+        &self,
+        dst: [&mut [u8]; 3],
+        mbs: &Macroblocks,
+        mb: [usize; 2],
+        part: Part,
+        src: &Planes<'_>,
+        mv: [i16; 2],
+        ops: Ops,
+    ) -> bool {
+        let four = crate::Auto { simd: Some(*self) };
+        // SAFETY: as in `predict_inlined`: a `Simd` exists only where the
+        // CPU has AVX2, the contract of `predict_part_body`.
+        unsafe { arch::predict::predict_part_body(&four, dst, mbs, mb, part, src, mv, ops) }
     }
 
     fn combine(&self, dst: BlockMut<'_>, p0: Block<'_>, p1: Block<'_>, mode: Combine) {

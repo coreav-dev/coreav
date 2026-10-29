@@ -4,7 +4,7 @@
 #![forbid(unsafe_code)]
 
 use coreav_kernels_h264::{
-    Block, BlockMut, Combine, Kernels, PlaneOp, Planes, PlanesMut, Weighting,
+    Block, BlockMut, Combine, Kernels, Ops, Part, PlaneOp, Planes, Weighting,
 };
 
 use crate::dpb::RefPic;
@@ -696,7 +696,7 @@ impl<'a, K: Kernels> SliceDecoder<'a, K> {
             ref_slot: [NO_SLOT; 2],
         };
         self.store_mb(m)?;
-        self.motion_compensate(tier, 0, 0, 16, 16, m)
+        self.motion_compensate(tier, part(0, 0, 16, 16)?, m)
     }
 
     /// A macroblock with one or two whole-macroblock partitions.
@@ -748,7 +748,7 @@ impl<'a, K: Kernels> SliceDecoder<'a, K> {
             } else {
                 self.store_motion(x / 4, y / 4, usize::from(w) / 4, usize::from(h) / 4, m)?;
             }
-            self.motion_compensate(tier, x, y, usize::from(w), usize::from(h), m)?;
+            self.motion_compensate(tier, part(x, y, usize::from(w), usize::from(h))?, m)?;
         }
         Ok(())
     }
@@ -807,7 +807,7 @@ impl<'a, K: Kernels> SliceDecoder<'a, K> {
                     }
                 }
                 self.store_motion(x / 4, y / 4, usize::from(w) / 4, usize::from(h) / 4, m)?;
-                self.motion_compensate(tier, x, y, usize::from(w), usize::from(h), m)?;
+                self.motion_compensate(tier, part(x, y, usize::from(w), usize::from(h))?, m)?;
             }
         }
         Ok(())
@@ -837,7 +837,7 @@ impl<'a, K: Kernels> SliceDecoder<'a, K> {
         let [q0, q1, q2, q3] = q;
         if q0 == q1 && q0 == q2 && q0 == q3 {
             self.store_mb(q0)?;
-            return self.motion_compensate(tier, 0, 0, 16, 16, q0);
+            return self.motion_compensate(tier, part(0, 0, 16, 16)?, q0);
         }
         for (p, m) in q.into_iter().enumerate() {
             self.store_motion((p % 2) * 2, (p / 2) * 2, 2, 2, m)?;
@@ -854,18 +854,18 @@ impl<'a, K: Kernels> SliceDecoder<'a, K> {
     fn predict_quadrants<T: Tier>(&mut self, tier: T, q: [Motion; 4]) -> Result<()> {
         let [q0, q1, q2, q3] = q;
         if q0 == q1 && q0 == q2 && q0 == q3 {
-            return self.motion_compensate(tier, 0, 0, 16, 16, q0);
+            return self.motion_compensate(tier, part(0, 0, 16, 16)?, q0);
         }
         if q0 == q1 && q2 == q3 {
-            self.motion_compensate(tier, 0, 0, 16, 8, q0)?;
-            return self.motion_compensate(tier, 0, 8, 16, 8, q2);
+            self.motion_compensate(tier, part(0, 0, 16, 8)?, q0)?;
+            return self.motion_compensate(tier, part(0, 8, 16, 8)?, q2);
         }
         if q0 == q2 && q1 == q3 {
-            self.motion_compensate(tier, 0, 0, 8, 16, q0)?;
-            return self.motion_compensate(tier, 8, 0, 8, 16, q1);
+            self.motion_compensate(tier, part(0, 0, 8, 16)?, q0)?;
+            return self.motion_compensate(tier, part(8, 0, 8, 16)?, q1);
         }
         for (i, m) in q.into_iter().enumerate() {
-            self.motion_compensate(tier, (i % 2) * 8, (i / 2) * 8, 8, 8, m)?;
+            self.motion_compensate(tier, part((i % 2) * 8, (i / 2) * 8, 8, 8)?, m)?;
         }
         Ok(())
     }
@@ -894,11 +894,11 @@ impl<'a, K: Kernels> SliceDecoder<'a, K> {
             let (x, y) = ((q % 2) * 8, (q / 2) * 8);
             let o = (q / 2) * 8 + (q % 2) * 2;
             if uniform(q) {
-                self.motion_compensate(tier, x, y, 8, 8, at(o))?;
+                self.motion_compensate(tier, part(x, y, 8, 8)?, at(o))?;
             } else {
                 for k in 0..4 {
                     let m = at(o + (k / 2) * 4 + k % 2);
-                    self.motion_compensate(tier, x + (k % 2) * 4, y + (k / 2) * 4, 4, 4, m)?;
+                    self.motion_compensate(tier, part(x + (k % 2) * 4, y + (k / 2) * 4, 4, 4)?, m)?;
                 }
             }
         }
@@ -979,7 +979,7 @@ impl<'a, K: Kernels> SliceDecoder<'a, K> {
             let size = if inference { 2 } else { 1 };
             self.store_motion(bx, by, size, size, m)?;
             if compensate {
-                self.motion_compensate(tier, bx * 4, by * 4, size * 4, size * 4, m)?;
+                self.motion_compensate(tier, part(bx * 4, by * 4, size * 4, size * 4)?, m)?;
             }
         }
         Ok(())
@@ -1114,33 +1114,31 @@ impl<'a, K: Kernels> SliceDecoder<'a, K> {
         (64 - w1, w1)
     }
 
-    /// Predicts the block (x, y, w, h) of the current macroblock from its
-    /// motion `m`, into the picture.
+    /// Predicts the block `part` of the current macroblock from its motion
+    /// `m`, into the picture.
     pub(crate) fn motion_compensate<T: Tier>(
         &mut self,
         tier: T,
-        x: usize,
-        y: usize,
-        w: usize,
-        h: usize,
+        part: Part,
         m: Motion,
     ) -> Result<()> {
         let used = [m.ref_idx[0] >= 0, m.ref_idx[1] >= 0];
-        let (px, py) = (self.mbx * 16 + x, self.mby * 16 + y);
+        let (w, h) = (part.w(), part.h());
+        let (px, py) = (self.mbx * 16 + part.x(), self.mby * 16 + part.y());
         // A slice without weighted prediction, most slices: one list goes
         // straight into the picture, and the second is averaged into it
         // (Equation 8-273), as below, without the weights' tests.
         if !self.tables.explicit && !self.tables.implicit {
             match used {
                 [true, true] => {
-                    self.predict_list(tier, 0, &m, Target::Picture, px, py, w, h)?;
-                    return self.predict_list(tier, 1, &m, Target::Average, px, py, w, h);
+                    self.predict_list(tier, 0, &m, Target::Picture, part)?;
+                    return self.predict_list(tier, 1, &m, Target::Average, part);
                 }
                 [true, false] => {
-                    return self.predict_list(tier, 0, &m, Target::Picture, px, py, w, h);
+                    return self.predict_list(tier, 0, &m, Target::Picture, part);
                 }
                 [false, true] => {
-                    return self.predict_list(tier, 1, &m, Target::Picture, px, py, w, h);
+                    return self.predict_list(tier, 1, &m, Target::Picture, part);
                 }
                 [false, false] => {}
             }
@@ -1170,8 +1168,8 @@ impl<'a, K: Kernels> SliceDecoder<'a, K> {
                 None => !explicit || (default_weights(0) && default_weights(1)),
             };
             if average {
-                self.predict_list(tier, 0, &m, Target::Picture, px, py, w, h)?;
-                return self.predict_list(tier, 1, &m, Target::Average, px, py, w, h);
+                self.predict_list(tier, 0, &m, Target::Picture, part)?;
+                return self.predict_list(tier, 1, &m, Target::Average, part);
             }
         }
         // One list with the default weighting, implied or explicit: the
@@ -1181,21 +1179,21 @@ impl<'a, K: Kernels> SliceDecoder<'a, K> {
         let straight =
             implicit.is_none() && used[0] != used[1] && (!explicit || default_weights(one));
         if straight {
-            return self.predict_list(tier, one, &m, Target::Picture, px, py, w, h);
+            return self.predict_list(tier, one, &m, Target::Picture, part);
         }
         // Weighted: the kernels weight each plane as they interpolate it,
         // list 1 of two over list 0's prediction in the picture.
         let modes = self.combine_modes::<T>(&m, used, explicit, implicit);
         if let Some(ops) = fused_ops::<T>(modes, used) {
             if used[0] && used[1] {
-                self.predict_list(tier, 0, &m, Target::Picture, px, py, w, h)?;
-                return self.predict_list(tier, 1, &m, Target::Weighted(&ops), px, py, w, h);
+                self.predict_list(tier, 0, &m, Target::Picture, part)?;
+                return self.predict_list(tier, 1, &m, Target::Weighted(&ops), part);
             }
-            return self.predict_list(tier, one, &m, Target::Weighted(&ops), px, py, w, h);
+            return self.predict_list(tier, one, &m, Target::Weighted(&ops), part);
         }
         for list in 0..2 {
             if used.get(list).copied().unwrap_or(false) {
-                self.predict_list(tier, list, &m, Target::Scratch, px, py, w, h)?;
+                self.predict_list(tier, list, &m, Target::Scratch, part)?;
             }
         }
         // Where the block goes, in its band.
@@ -1222,7 +1220,6 @@ impl<'a, K: Kernels> SliceDecoder<'a, K> {
     /// with more, the band of a reference its window is read from. Either
     /// way, a block into the picture whose window lies in what the band
     /// holds takes [`Self::predict_fast`].
-    #[allow(clippy::too_many_arguments)]
     #[inline(always)]
     fn predict_list<T: Tier>(
         &mut self,
@@ -1230,24 +1227,23 @@ impl<'a, K: Kernels> SliceDecoder<'a, K> {
         list: usize,
         m: &Motion,
         target: Target<'_>,
-        px: usize,
-        py: usize,
-        w: usize,
-        h: usize,
+        part: Part,
     ) -> Result<()> {
-        tier.predict_fast(self, list, m, target, px, py, w, h)
+        tier.predict_fast(self, list, m, target, part)
     }
 
     /// [`Self::predict_list`] for a block into the picture. A block from a
     /// whole reference, or from the band of a banded one its window is
     /// read from ([`Self::reference_band`]), is predicted in all three
-    /// planes by one call, [`Kernels::predict`], which checks that the
+    /// planes by one call, [`Kernels::predict_part`], which checks that the
     /// samples each window's fraction uses lie inside the reference, that
     /// every window lies in its buffer (a reference of one band keeps
     /// slack rows before and after each plane, which the windows at its
     /// top and bottom edges reach into; a band holds its top apron and its
-    /// own rows), and that every block lies inside the picture's planes,
-    /// and declines the block, writing nothing, where one does not. Every
+    /// own rows), and that the block's macroblock is one the band's planes
+    /// hold whole ([`SliceDecoder::macroblocks`], found when the band was
+    /// taken, and each slice's length against the one found then), and
+    /// declines the block, writing nothing, where one does not. Every
     /// other block, and every declined one, takes
     /// [`Self::predict_list_any`], out of line, so that what it keeps live
     /// does not cost the common block registers.
@@ -1255,26 +1251,21 @@ impl<'a, K: Kernels> SliceDecoder<'a, K> {
     /// Out of line on purpose: inlined into [`Self::motion_compensate`], the
     /// compiler prepares the work of both lists before it knows a block
     /// uses one, which most blocks do. One call site of
-    /// [`Kernels::predict`] for both kinds of reference, so that its
+    /// [`Kernels::predict_part`] for both kinds of reference, so that its
     /// dispatch stays inlined here.
-    #[allow(clippy::too_many_arguments)]
     #[inline(never)]
     pub(crate) fn predict_fast(
         &mut self,
         list: usize,
         m: &Motion,
         target: Target<'_>,
-        px: usize,
-        py: usize,
-        w: usize,
-        h: usize,
+        part: Part,
     ) -> Result<()> {
-        self.predict_fast_body(Base, list, m, target, px, py, w, h)
+        self.predict_fast_body(Base, list, m, target, part)
     }
 
     /// [`Self::predict_fast`]'s body, which each instance of the hot paths
     /// compiles ([`Tier`]).
-    #[allow(clippy::too_many_arguments)]
     #[inline(always)]
     pub(crate) fn predict_fast_body<T: Tier>(
         &mut self,
@@ -1282,16 +1273,18 @@ impl<'a, K: Kernels> SliceDecoder<'a, K> {
         list: usize,
         m: &Motion,
         target: Target<'_>,
-        px: usize,
-        py: usize,
-        w: usize,
-        h: usize,
+        part: Part,
     ) -> Result<()> {
+        let (px, py) = (self.mbx * 16 + part.x(), self.mby * 16 + part.y());
+        let (w, h) = (part.w(), part.h());
         let idx = usize::try_from(m.ref_idx.get(list).copied().unwrap_or(-1)).unwrap_or(usize::MAX);
         let ops = match target {
-            Target::Picture => [PlaneOp::Put; 3],
-            Target::Average => [PlaneOp::Avg; 3],
-            Target::Weighted(ops) => ops.map(Op::plane_op),
+            Target::Picture => Ops::PUT,
+            Target::Average => Ops::AVG,
+            Target::Weighted(ops) => match Ops::new(ops.map(Op::plane_op)) {
+                Some(ops) => ops,
+                None => return self.predict_list_any(list, m, target, px, py, w, h),
+            },
             Target::Scratch => return self.predict_list_any(list, m, target, px, py, w, h),
         };
         let mv = m.mv.get(list).copied().unwrap_or([0, 0]);
@@ -1321,11 +1314,13 @@ impl<'a, K: Kernels> SliceDecoder<'a, K> {
             src.request(x, y, h);
         }
         let pic = &mut self.out;
-        let first = [self.luma_first, self.chroma_first];
-        let origin = [self.luma_origin, self.chroma_origin];
-        let (y, cb, cr) = (&mut pic.y, &mut pic.cb, &mut pic.cr);
-        let dst = PlanesMut::with_origin(y, cb, cr, self.stride, first, origin);
-        if tier.predict_kernel(self.kernels, dst, src, px, py, w, h, mv, ops) {
+        let dst = [
+            pic.y.as_mut_slice(),
+            pic.cb.as_mut_slice(),
+            pic.cr.as_mut_slice(),
+        ];
+        let mb = [self.mbx, self.mby];
+        if tier.predict_kernel(self.kernels, dst, &self.macroblocks, mb, part, src, mv, ops) {
             return Ok(());
         }
         self.predict_list_any(list, m, target, px, py, w, h)
@@ -1347,7 +1342,7 @@ impl<'a, K: Kernels> SliceDecoder<'a, K> {
     /// ends at least two rows above the band's last chroma row, the only
     /// one the next band's filter changes (`docs/design/h264.md`, "Round
     /// 17"); a chroma window above the band's top apron lies outside what
-    /// it holds, which [`Kernels::predict`] declines.
+    /// it holds, which [`Kernels::predict_part`] declines.
     ///
     /// A band's view is built at the first block of the slice that reads
     /// the band and kept in [`SliceDecoder::band_views`] for the blocks
@@ -1893,6 +1888,14 @@ fn narrow_window<'b>(
         }
     }
     Ok((edge.get(..w * h).unwrap_or(edge), w))
+}
+
+/// The `w` by `h` block at (`x`, `y`) of a macroblock, checked
+/// ([`Part::new`]) where it is made: the callers' sizes are mostly
+/// constants, for which the check folds away.
+#[inline(always)]
+pub(crate) fn part(x: usize, y: usize, w: usize, h: usize) -> Result<Part> {
+    Part::new(x, y, w, h).ok_or(Error::Invalid("a partition's size"))
 }
 
 #[cfg(test)]

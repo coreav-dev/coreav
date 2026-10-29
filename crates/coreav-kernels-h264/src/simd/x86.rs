@@ -63,6 +63,10 @@ pub(super) use chroma_mb::filter_chroma_mb;
 /// interpolation by position").
 pub(super) const LUMA_COPY8_VECTOR: bool = true;
 
+/// Whether a 4-wide luma block at a fractional position goes to the
+/// vector kernel: yes, through the 8-wide one on copies (`luma4_padded`).
+pub(super) const LUMA4_VECTOR: bool = true;
+
 /// Whether a chroma block at a fractional position goes to the vector
 /// kernel, `chroma_mc`: SSE2, inlined into the dispatch
 /// (`docs/design/h264.md`, "Kernel round: chroma interpolation
@@ -2656,14 +2660,16 @@ fn window_fits(len: usize, stride: usize, n: usize, w: usize) -> bool {
     rows_fit(len, 0, stride, n, w)
 }
 
-/// Luma quarter-sample interpolation (clause 8.4.2.2.1) of an 8- or
+/// Luma quarter-sample interpolation (clause 8.4.2.2.1) of a 4-, 8- or
 /// 16-wide block, 1 to 16 rows, finished into `dst` by `finish`: written,
 /// averaged into it (`(dst + pred + 1) >> 1`, which `pavgb` computes) or
 /// weighted.
 ///
-/// The views hold exactly the window and the block, and one check of each
-/// (`window_fits`) comes before any pointer is formed. Any other shape, or
-/// a check that fails, which no view allows, goes to the reference.
+/// A 4-wide block goes through the 8-wide kernel on copies
+/// ([`luma4_padded`]). For the others, the views hold exactly the window and
+/// the block, and one check of each (`window_fits`) comes before any
+/// pointer is formed. Any other shape, or a check that fails, which no view
+/// allows, goes to the reference.
 #[target_feature(enable = "avx2")]
 unsafe fn luma_mc_into<F: LumaFinish>(
     mut dst: BlockMut<'_>,
@@ -2673,6 +2679,10 @@ unsafe fn luma_mc_into<F: LumaFinish>(
     finish: F,
 ) {
     let (w, h) = (dst.w(), dst.h());
+    if w == 4 && (1..=16).contains(&h) && src.w() == 9 && src.h() == h + 5 {
+        // SAFETY: AVX2 is available (this function's feature).
+        return unsafe { luma4_padded(dst, src, xf, yf, finish) };
+    }
     let (stride, dst_stride) = (src.stride(), dst.stride());
     let fits = matches!(w, 8 | 16)
         && (1..=16).contains(&h)
@@ -2687,6 +2697,70 @@ unsafe fn luma_mc_into<F: LumaFinish>(
     // SAFETY: AVX2 is available (this function's feature); `fits` checked
     // the window and the block.
     unsafe { luma_mc_ptrs(to, dst_stride, from, stride, w, h, xf, yf, finish) }
+}
+
+/// A 4-wide block of [`luma_mc_into`], `h` rows of 1 to 16, by the 8-wide
+/// kernel on copies: the window's rows go into rows of 16 bytes, the
+/// block's into rows of 8, the kernel predicts and finishes 8 columns, and
+/// the block's 4 go back. An output column's taps read only the window's
+/// columns from its own to five past it (clause 8.4.2.2.1), so the first 4
+/// columns are the 4-wide block's whatever the copy holds past the
+/// window's 9; the finishes that read the block (averaging, and weighting
+/// both lists) find its rows in the copy. A row is copied as 16 bytes where
+/// the window's samples hold that many from its start, which every row but
+/// the last few does, and as its 9 otherwise.
+///
+/// # Safety
+///
+/// AVX2 is available; `dst` is 4 wide and 1 to 16 rows, and `src` 9 wide
+/// and 5 rows more.
+#[target_feature(enable = "avx2")]
+unsafe fn luma4_padded<F: LumaFinish>(
+    mut dst: BlockMut<'_>,
+    src: Block<'_>,
+    xf: u8,
+    yf: u8,
+    finish: F,
+) {
+    let h = dst.h();
+    let (samples, stride) = (src.samples(), src.stride());
+    let mut window = [[0u8; 16]; 21];
+    for (r, row) in window.iter_mut().enumerate().take(h + 5) {
+        let from = samples.get(r.saturating_mul(stride)..).unwrap_or_default();
+        if let Some(whole) = from.first_chunk::<16>() {
+            *row = *whole;
+        } else if let (Some(to), Some(from)) = (row.first_chunk_mut::<9>(), from.first_chunk::<9>())
+        {
+            *to = *from;
+        }
+    }
+    let mut block = [[0u8; 8]; 16];
+    for (to, from) in block.iter_mut().zip(dst.rows_mut()) {
+        if let (Some(to), Some(from)) = (to.first_chunk_mut::<4>(), from.first_chunk::<4>()) {
+            *to = *from;
+        }
+    }
+    // SAFETY: AVX2 is available; `window` holds 21 rows of 16 samples, 16
+    // apart, so the `h + 5` rows of 13 the kernel reads (`h` at most 16),
+    // and `block` 16 rows of 8, 8 apart, so the `h` it writes.
+    unsafe {
+        luma_mc_ptrs(
+            block.as_mut_ptr().cast::<u8>(),
+            8,
+            window.as_ptr().cast::<u8>(),
+            16,
+            8,
+            h,
+            xf,
+            yf,
+            finish,
+        );
+    }
+    for (to, from) in dst.rows_mut().zip(&block) {
+        if let (Some(to), Some(from)) = (to.first_chunk_mut::<4>(), from.first_chunk::<4>()) {
+            *to = *from;
+        }
+    }
 }
 
 /// [`luma_mc_into`] after its check: the prediction of a `w` by `h` block

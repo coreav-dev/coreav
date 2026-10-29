@@ -1,0 +1,4 @@
+# cargo +nightly fuzz run --target x86_64-unknown-linux-gnu weighted_mc -- -max_total_time=300 -max_len=4096, on 4b5a85af (bundle 3b, crates of bd1f8b30); this VM (AVX-512)
+INFO: Seed: 1550314906
+Done 4098445 runs in 301 second(s)
+exit 0
