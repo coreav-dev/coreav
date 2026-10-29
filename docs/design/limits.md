@@ -166,6 +166,15 @@ in the release step CI already uses for the other pinned limit tests. Every
 measurement prints one JSON line, so a CI log holds the numbers behind each
 bar it checked, not only that it passed.
 
+Every field of each crate's limits struct is also pinned at its boundary in
+that crate's `tests/limits.rs` (`coreav-isobmff`, `coreav-mkv`,
+`coreav-mpegts`, `coreav-h264`, `coreav-decode`, `coreav-audio`,
+`coreav-text`, `coreav-transcode`): an input at the limit is accepted and
+one past it is refused with the error that names that limit, and one test
+asserts the documented defaults. Where an older test elsewhere already
+pins a field, the file does not repeat it. These run in the ordinary
+`cargo test --workspace`.
+
 ## Results
 
 [docs/measurements/0004-limit-bounds.md](../measurements/0004-limit-bounds.md).
