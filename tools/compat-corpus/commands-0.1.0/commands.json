@@ -132,7 +132,7 @@
     "mp4-mov",
     "matroska-webm"
    ],
-   "id": "W01",
+   "id": "C01",
    "job": "remux",
    "keys": [],
    "pairs": 33,
@@ -233,7 +233,7 @@
    "containers": [
     "mp4-mov"
    ],
-   "id": "W02",
+   "id": "C02",
    "job": "join",
    "keys": [],
    "pairs": 31,
@@ -435,7 +435,7 @@
     "mp4-mov",
     "matroska-webm"
    ],
-   "id": "W03",
+   "id": "C03",
    "job": "remux",
    "keys": [],
    "pairs": 14,
@@ -606,7 +606,7 @@
     "matroska-webm",
     "mpegts"
    ],
-   "id": "W04",
+   "id": "C04",
    "job": "probe",
    "keys": [
     "stream.avg_frame_rate",
@@ -783,7 +783,7 @@
    "containers": [
     "mp4-mov"
    ],
-   "id": "W05",
+   "id": "C05",
    "job": "clip",
    "keys": [],
    "pairs": 10,
@@ -854,7 +854,7 @@
     "matroska-webm",
     "mpegts"
    ],
-   "id": "W06",
+   "id": "C06",
    "job": "probe",
    "keys": [
     "format.*",
@@ -930,7 +930,7 @@
     "matroska-webm",
     "mpegts"
    ],
-   "id": "W07",
+   "id": "C07",
    "job": "probe",
    "keys": [
     "stream.*"
@@ -992,7 +992,7 @@
     "matroska-webm",
     "mpegts"
    ],
-   "id": "W08",
+   "id": "C08",
    "job": "probe",
    "keys": [
     "stream.*"
@@ -1057,7 +1057,7 @@
     "matroska-webm",
     "mpegts"
    ],
-   "id": "W09",
+   "id": "C09",
    "job": "probe",
    "keys": [
     "format.duration",
@@ -1149,7 +1149,7 @@
     "matroska-webm",
     "mpegts"
    ],
-   "id": "W10",
+   "id": "C10",
    "job": "probe",
    "keys": [
     "stream.bit_rate",
@@ -1231,7 +1231,7 @@
     "matroska-webm",
     "mpegts"
    ],
-   "id": "W11",
+   "id": "C11",
    "job": "probe",
    "keys": [
     "stream.*",
@@ -1304,7 +1304,7 @@
     "matroska-webm",
     "mpegts"
    ],
-   "id": "W12",
+   "id": "C12",
    "job": "probe",
    "keys": [
     "format.*",
@@ -1381,7 +1381,7 @@
    "containers": [
     "mp4-mov"
    ],
-   "id": "W13",
+   "id": "C13",
    "job": "extract-audio",
    "keys": [],
    "pairs": 5,
@@ -1425,7 +1425,7 @@
     "matroska-webm",
     "mpegts"
    ],
-   "id": "W14",
+   "id": "C14",
    "job": "probe",
    "keys": [
     "format.duration",
@@ -1516,7 +1516,7 @@
    "containers": [
     "mp4-mov"
    ],
-   "id": "W15",
+   "id": "C15",
    "job": "clip",
    "keys": [],
    "pairs": 4,
@@ -1579,7 +1579,7 @@
     "matroska-webm",
     "mpegts"
    ],
-   "id": "W16",
+   "id": "C16",
    "job": "probe",
    "keys": [
     "stream.*"
@@ -1641,7 +1641,7 @@
     "mp4-mov",
     "matroska-webm"
    ],
-   "id": "W17",
+   "id": "C17",
    "job": "remux",
    "keys": [],
    "pairs": 4,
@@ -1707,7 +1707,7 @@
    "containers": [
     "mp4-mov"
    ],
-   "id": "W18",
+   "id": "C18",
    "job": "clip",
    "keys": [],
    "pairs": 3,
@@ -1779,7 +1779,7 @@
    "containers": [
     "mp4-mov"
    ],
-   "id": "W19",
+   "id": "C19",
    "job": "clip",
    "keys": [],
    "pairs": 3,
@@ -1833,7 +1833,7 @@
    "containers": [
     "mp4-mov"
    ],
-   "id": "W20",
+   "id": "C20",
    "job": "extract-audio",
    "keys": [],
    "pairs": 3,
@@ -1894,7 +1894,7 @@
     "matroska-webm",
     "mpegts"
    ],
-   "id": "W21",
+   "id": "C21",
    "job": "probe",
    "keys": [
     "stream.height",
@@ -1958,7 +1958,7 @@
     "matroska-webm",
     "mpegts"
    ],
-   "id": "W22",
+   "id": "C22",
    "job": "probe",
    "keys": [
     "stream.display_aspect_ratio",
@@ -2010,7 +2010,7 @@
     "mp4-mov",
     "matroska-webm"
    ],
-   "id": "W23",
+   "id": "C23",
    "job": "remux",
    "keys": [],
    "pairs": 3,
@@ -2047,7 +2047,7 @@
     "matroska-webm",
     "mpegts"
    ],
-   "id": "W24",
+   "id": "C24",
    "job": "probe-packets",
    "keys": [
     "packet.*"
@@ -2097,7 +2097,7 @@
    "containers": [
     "mp4-mov"
    ],
-   "id": "W25",
+   "id": "C25",
    "job": "extract-audio",
    "keys": [],
    "pairs": 2,
@@ -2155,7 +2155,7 @@
     "mp4-mov",
     "matroska-webm"
    ],
-   "id": "W26",
+   "id": "C26",
    "job": "remux",
    "keys": [],
    "pairs": 2,
@@ -2199,7 +2199,7 @@
     "matroska-webm",
     "mpegts"
    ],
-   "id": "W27",
+   "id": "C27",
    "job": "probe",
    "keys": [
     "chapter.*"
@@ -2245,7 +2245,7 @@
     "matroska-webm",
     "mpegts"
    ],
-   "id": "W28",
+   "id": "C28",
    "job": "probe",
    "keys": [
     "stream.height",
@@ -2298,7 +2298,7 @@
     "matroska-webm",
     "mpegts"
    ],
-   "id": "W29",
+   "id": "C29",
    "job": "probe",
    "keys": [
     "stream.codec_name",
@@ -2344,7 +2344,7 @@
     "matroska-webm",
     "mpegts"
    ],
-   "id": "W30",
+   "id": "C30",
    "job": "probe",
    "keys": [
     "stream.codec_type",
@@ -2384,7 +2384,7 @@
     "matroska-webm",
     "mpegts"
    ],
-   "id": "W31",
+   "id": "C31",
    "job": "probe",
    "keys": [
     "format.*"
@@ -2420,7 +2420,7 @@
    "containers": [
     "mp4-mov"
    ],
-   "id": "W32",
+   "id": "C32",
    "job": "split",
    "keys": [],
    "pairs": 2,
@@ -2448,7 +2448,7 @@
     "matroska-webm",
     "mpegts"
    ],
-   "id": "W33",
+   "id": "C33",
    "job": "probe",
    "keys": [
     "chapter.*"
@@ -2465,7 +2465,7 @@
   "commands": 172,
   "pairs": 253
  },
- "not_in_wedge": [
+ "not_selected": [
   {
    "commands": 1,
    "pairs": 1,
@@ -2867,12 +2867,12 @@
    "tool": "ffprobe"
   }
  ],
- "set": "commands-v1",
- "wedge": {
+ "selected": {
   "commands": 133,
   "pairs": 202,
   "shapes": 33,
   "share_of_eligible_pairs": 0.8559,
   "share_of_native_pairs": 0.7984
- }
+ },
+ "set": "commands-v1"
 }

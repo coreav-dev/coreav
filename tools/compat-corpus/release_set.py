@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""Derives `wedge-v1`, the command set CoreAV 0.1.0 runs natively, from the
-native commands of `commands-v1` (docs/design/compat-cli.md, "The 0.1.0
-wedge").
+"""Derives `commands-0.1.0`, the command set CoreAV 0.1.0 runs natively, from
+the native commands of `commands-v1` (docs/design/compat-cli.md, "The 0.1.0
+command set").
 
-    wedge.py            writes tools/compat-corpus/wedge-v1/wedge.json
-    wedge.py --check    exits 1 when the committed file differs
-    wedge.py --table    prints the table of docs/design/compat-cli.md
+    release_set.py            writes tools/compat-corpus/commands-0.1.0/commands.json
+    release_set.py --check    exits 1 when the committed file differs
+    release_set.py --table    prints the table of docs/design/compat-cli.md
 
 Every native command is reduced to its **shape**: what it asks the tool to
 do, with what does not change the output left out (the log level, `-y`,
 option order, `-i` against a bare input, the time values, the stream
 indexes, the `-show_entries` keys). Shapes are ranked by how many
-command-and-answer pairs of the set use them, and the wedge is the
+command-and-answer pairs of the set use them, and the set is the
 smallest prefix of that ranking that reaches COVERAGE of the eligible
 native pairs, taking whole ties: a shape used as often as the last one taken
 is taken too, so that no tie is broken by the order of the shapes' names.
@@ -29,7 +29,7 @@ import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
 COMMANDS = HERE / 'commands-v1' / 'commands.jsonl'
-OUT = HERE / 'wedge-v1' / 'wedge.json'
+OUT = HERE / 'commands-0.1.0' / 'commands.json'
 SPEC = importlib.util.spec_from_file_location('classify', HERE / 'classify.py')
 classify = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(classify)
@@ -223,35 +223,35 @@ def derive(records):
                                                     g['tool'], g['shape']))
     native_pairs = sum(len(r['sources']) for r in native)
     eligible_pairs = sum(g['pairs'] for g in ranked)
-    wedge, covered = [], 0
+    chosen, covered = [], 0
     for group in ranked:
-        if covered >= COVERAGE * eligible_pairs and group['pairs'] < wedge[-1]['pairs']:
+        if covered >= COVERAGE * eligible_pairs and group['pairs'] < chosen[-1]['pairs']:
             break
         covered += group['pairs']
-        wedge.append(group)
+        chosen.append(group)
     entries = []
-    for n, group in enumerate(wedge, 1):
+    for n, group in enumerate(chosen, 1):
         job, containers = job_of(group['tool'], group['shape'])
         entries.append({
-            'id': f'W{n:02d}', 'tool': group['tool'], 'job': job,
+            'id': f'C{n:02d}', 'tool': group['tool'], 'job': job,
             'containers': list(containers), 'shape': group['shape'],
             'pairs': group['pairs'], 'keys': sorted(group['keys']),
             'commands': sorted(group['commands'], key=lambda c: (-c['pairs'], len(c['args']), c['args'])),
         })
-    tail = ranked[len(wedge):]
+    tail = ranked[len(chosen):]
     return {
         'set': 'commands-v1',
         'native': {'commands': len(native), 'pairs': native_pairs},
         'eligible': {'commands': len(native) - len(refused), 'pairs': eligible_pairs,
                      'shapes': len(ranked)},
-        'wedge': {'shapes': len(wedge),
+        'selected': {'shapes': len(chosen),
                   'commands': sum(len(e['commands']) for e in entries),
                   'pairs': covered,
                   'share_of_eligible_pairs': round(covered / eligible_pairs, 4),
                   'share_of_native_pairs': round(covered / native_pairs, 4)},
         'entries': entries,
         'refused_by_design': refused,
-        'not_in_wedge': [{'tool': g['tool'], 'shape': g['shape'], 'pairs': g['pairs'],
+        'not_selected': [{'tool': g['tool'], 'shape': g['shape'], 'pairs': g['pairs'],
                           'commands': len(g['commands'])} for g in tail],
     }
 
@@ -283,7 +283,7 @@ def main():
     text = json.dumps(derived, indent=1, sort_keys=True) + '\n'
     if a.check:
         if not OUT.exists() or OUT.read_text(encoding='utf-8') != text:
-            sys.exit(f'wedge: {OUT.relative_to(HERE.parents[1])} is not what wedge.py derives; run it')
+            sys.exit(f'release_set: {OUT.relative_to(HERE.parents[1])} is not what release_set.py derives; run it')
         return
     OUT.parent.mkdir(exist_ok=True)
     OUT.write_text(text, encoding='utf-8')
