@@ -26,15 +26,70 @@
    "sha256": "1d97cb99fc62df3c21cfcb1e0bb32d0cf94980f9ca75df14a30662a89a4bb44d",
    "instructions": 309987
   },
-  "probe-ts": {
-   "fixture": "basic.ts",
-   "sha256": "af909a3d37042e04d5cbbe7576c9998a9f804be60b241b50657e09eca92f0f04",
-   "instructions": 1442492
+  "remux-mov": {
+   "fixture": "basic.mov",
+   "sha256": "1fd41a5f06ee19b31db285cf0b6a5856b94393aa3830d10789bb6d6ad165a2bf",
+   "instructions": 629327
   },
-  "probe-packets-ts": {
-   "fixture": "basic.ts",
-   "sha256": "af909a3d37042e04d5cbbe7576c9998a9f804be60b241b50657e09eca92f0f04",
-   "instructions": 2966244
+  "remux-fragmented": {
+   "fixture": "fragmented_many.mp4",
+   "sha256": "0b5b5ac877ae954f91c2922c1dc36579f089f9895b6fe97dfcd8f905827922ab",
+   "instructions": 4339820
+  },
+  "remux-mkv": {
+   "fixture": "basic.mkv",
+   "sha256": "7187aae43e1ccb582b591c44d9c806eb3c07b92559605e504d3cffb9b29a4b1e",
+   "instructions": 680493
+  },
+  "remux-webm": {
+   "fixture": "vp9.webm",
+   "sha256": "1d97cb99fc62df3c21cfcb1e0bb32d0cf94980f9ca75df14a30662a89a4bb44d",
+   "instructions": 357492
+  },
+  "clip": {
+   "fixture": "basic.mp4",
+   "sha256": "9afd2ffcd04c6fa50d8e8a10b36bfc56f915f131b4457f2deb7ed8f1b777ad60",
+   "instructions": 617474
+  },
+  "extract-audio": {
+   "fixture": "basic.mp4",
+   "sha256": "9afd2ffcd04c6fa50d8e8a10b36bfc56f915f131b4457f2deb7ed8f1b777ad60",
+   "instructions": 310818
+  },
+  "sanitize": {
+   "fixture": "basic.mp4",
+   "sha256": "9afd2ffcd04c6fa50d8e8a10b36bfc56f915f131b4457f2deb7ed8f1b777ad60",
+   "instructions": 719458
+  },
+  "check": {
+   "fixture": "basic.mp4",
+   "sha256": "7204df2f03b5076db8adbeb05121c8bc530e2d4640f4a22280a3a303388e7d88",
+   "instructions": 505000
+  },
+  "extract-subtitles": {
+   "fixture": "text_styled.mp4",
+   "sha256": "3e13fc6461db2dc9fe58fcb0e340a930f78f62127099445426ee6df3972d4e3a",
+   "instructions": 182631
+  },
+  "chapters": {
+   "fixture": "chapters.mp4",
+   "sha256": "b269e91f24c99b2ea5b3f25279efd911f21074d37943f718fc87bf54ae1dd5d2",
+   "instructions": 243890
+  },
+  "hls-index": {
+   "fixture": "hls_h264.mp4",
+   "sha256": "bcb2e433c1cea601013870648d4c219a9aa346a68b7b5518e2299c6b789579fd",
+   "instructions": 1116335
+  },
+  "hls-segment": {
+   "fixture": "hls_h264.mp4",
+   "sha256": "bcb2e433c1cea601013870648d4c219a9aa346a68b7b5518e2299c6b789579fd",
+   "instructions": 211964
+  },
+  "clip-multi-edit": {
+   "fixture": "edit_multi_splice.mp4",
+   "sha256": "2b0d43779607433182decb9b04debd16509d99f5dfa2439eae3906e60af915ee",
+   "instructions": 807689
   },
   "probe-compat-mp4": {
    "fixture": "fragmented_many.mp4",
@@ -45,6 +100,56 @@
    "fixture": "basic.mkv",
    "sha256": "d5447fa199eb07d74318c1074e77f7daac657724c7d460e83341c0396037ffcd",
    "instructions": 193123
+  },
+  "probe-frame-sizes-mp4": {
+   "fixture": "basic.mp4",
+   "sha256": "7204df2f03b5076db8adbeb05121c8bc530e2d4640f4a22280a3a303388e7d88",
+   "instructions": 371741
+  },
+  "probe-frame-sizes-mkv": {
+   "fixture": "basic.mkv",
+   "sha256": "adb43c897a99a419c7e37dd430daae77648639fae934829248a68727cd59f1d7",
+   "instructions": 849379
+  },
+  "check-mkv": {
+   "fixture": "basic.mkv",
+   "sha256": "adb43c897a99a419c7e37dd430daae77648639fae934829248a68727cd59f1d7",
+   "instructions": 976502
+  },
+  "split": {
+   "fixture": "basic.mp4",
+   "sha256": "9afd2ffcd04c6fa50d8e8a10b36bfc56f915f131b4457f2deb7ed8f1b777ad60",
+   "instructions": 886476
+  },
+  "split-multi-edit": {
+   "fixture": "edit_multi_splice.mp4",
+   "sha256": "a4afc243c4281f28fb5285acdbea65928c62a4e5dfd09f145168a46df10c4145",
+   "instructions": 1991742
+  },
+  "hls-package": {
+   "fixture": "hls_h264.mp4",
+   "sha256": "bcb2e433c1cea601013870648d4c219a9aa346a68b7b5518e2299c6b789579fd",
+   "instructions": 2038236
+  },
+  "join": {
+   "fixture": "basic.mp4",
+   "sha256": "9afd2ffcd04c6fa50d8e8a10b36bfc56f915f131b4457f2deb7ed8f1b777ad60",
+   "instructions": 858835
+  },
+  "join-fragmented": {
+   "fixture": "fragmented_many.mp4",
+   "sha256": "0b5b5ac877ae954f91c2922c1dc36579f089f9895b6fe97dfcd8f905827922ab",
+   "instructions": 7209140
+  },
+  "join-clips": {
+   "fixture": "basic.mp4",
+   "sha256": "9afd2ffcd04c6fa50d8e8a10b36bfc56f915f131b4457f2deb7ed8f1b777ad60",
+   "instructions": 870124
+  },
+  "probe-ts": {
+   "fixture": "basic.ts",
+   "sha256": "af909a3d37042e04d5cbbe7576c9998a9f804be60b241b50657e09eca92f0f04",
+   "instructions": 1442492
   },
   "probe-compat-ts": {
    "fixture": "basic.ts",
@@ -91,50 +196,20 @@
    "sha256": "6e348962e6ab8d7676880084e05a9a9c8d2bef8d3c679dbbff28cbf8835b572e",
    "instructions": 34450355
   },
-  "probe-frame-sizes-mp4": {
+  "probe-packets-ts": {
+   "fixture": "basic.ts",
+   "sha256": "af909a3d37042e04d5cbbe7576c9998a9f804be60b241b50657e09eca92f0f04",
+   "instructions": 2966244
+  },
+  "thumbnail": {
+   "fixture": "basic.mp4",
+   "sha256": "9afd2ffcd04c6fa50d8e8a10b36bfc56f915f131b4457f2deb7ed8f1b777ad60",
+   "instructions": 7656385
+  },
+  "transcode": {
    "fixture": "basic.mp4",
    "sha256": "7204df2f03b5076db8adbeb05121c8bc530e2d4640f4a22280a3a303388e7d88",
-   "instructions": 371741
-  },
-  "probe-frame-sizes-mkv": {
-   "fixture": "basic.mkv",
-   "sha256": "adb43c897a99a419c7e37dd430daae77648639fae934829248a68727cd59f1d7",
-   "instructions": 849379
-  },
-  "remux-mov": {
-   "fixture": "basic.mov",
-   "sha256": "1fd41a5f06ee19b31db285cf0b6a5856b94393aa3830d10789bb6d6ad165a2bf",
-   "instructions": 629327
-  },
-  "remux-fragmented": {
-   "fixture": "fragmented_many.mp4",
-   "sha256": "0b5b5ac877ae954f91c2922c1dc36579f089f9895b6fe97dfcd8f905827922ab",
-   "instructions": 4339820
-  },
-  "remux-mkv": {
-   "fixture": "basic.mkv",
-   "sha256": "7187aae43e1ccb582b591c44d9c806eb3c07b92559605e504d3cffb9b29a4b1e",
-   "instructions": 680493
-  },
-  "remux-webm": {
-   "fixture": "vp9.webm",
-   "sha256": "1d97cb99fc62df3c21cfcb1e0bb32d0cf94980f9ca75df14a30662a89a4bb44d",
-   "instructions": 357492
-  },
-  "clip": {
-   "fixture": "basic.mp4",
-   "sha256": "9afd2ffcd04c6fa50d8e8a10b36bfc56f915f131b4457f2deb7ed8f1b777ad60",
-   "instructions": 617474
-  },
-  "clip-multi-edit": {
-   "fixture": "edit_multi_splice.mp4",
-   "sha256": "2b0d43779607433182decb9b04debd16509d99f5dfa2439eae3906e60af915ee",
-   "instructions": 807689
-  },
-  "extract-audio": {
-   "fixture": "basic.mp4",
-   "sha256": "9afd2ffcd04c6fa50d8e8a10b36bfc56f915f131b4457f2deb7ed8f1b777ad60",
-   "instructions": 310818
+   "instructions": 312721280
   },
   "decode-audio-flac-mkv": {
    "fixture": "flac.mka",
@@ -165,81 +240,6 @@
    "fixture": "flac.mka",
    "sha256": "803038225a10721e2c3794574ab8c6cf85a8fc25ee678fb68e5a1eec9c694c38",
    "instructions": 22879481
-  },
-  "sanitize": {
-   "fixture": "basic.mp4",
-   "sha256": "9afd2ffcd04c6fa50d8e8a10b36bfc56f915f131b4457f2deb7ed8f1b777ad60",
-   "instructions": 719458
-  },
-  "check": {
-   "fixture": "basic.mp4",
-   "sha256": "7204df2f03b5076db8adbeb05121c8bc530e2d4640f4a22280a3a303388e7d88",
-   "instructions": 505000
-  },
-  "check-mkv": {
-   "fixture": "basic.mkv",
-   "sha256": "adb43c897a99a419c7e37dd430daae77648639fae934829248a68727cd59f1d7",
-   "instructions": 976502
-  },
-  "split": {
-   "fixture": "basic.mp4",
-   "sha256": "9afd2ffcd04c6fa50d8e8a10b36bfc56f915f131b4457f2deb7ed8f1b777ad60",
-   "instructions": 886476
-  },
-  "split-multi-edit": {
-   "fixture": "edit_multi_splice.mp4",
-   "sha256": "a4afc243c4281f28fb5285acdbea65928c62a4e5dfd09f145168a46df10c4145",
-   "instructions": 1991742
-  },
-  "extract-subtitles": {
-   "fixture": "text_styled.mp4",
-   "sha256": "3e13fc6461db2dc9fe58fcb0e340a930f78f62127099445426ee6df3972d4e3a",
-   "instructions": 182631
-  },
-  "chapters": {
-   "fixture": "chapters.mp4",
-   "sha256": "b269e91f24c99b2ea5b3f25279efd911f21074d37943f718fc87bf54ae1dd5d2",
-   "instructions": 243890
-  },
-  "hls-index": {
-   "fixture": "hls_h264.mp4",
-   "sha256": "bcb2e433c1cea601013870648d4c219a9aa346a68b7b5518e2299c6b789579fd",
-   "instructions": 1116335
-  },
-  "hls-segment": {
-   "fixture": "hls_h264.mp4",
-   "sha256": "bcb2e433c1cea601013870648d4c219a9aa346a68b7b5518e2299c6b789579fd",
-   "instructions": 211964
-  },
-  "hls-package": {
-   "fixture": "hls_h264.mp4",
-   "sha256": "bcb2e433c1cea601013870648d4c219a9aa346a68b7b5518e2299c6b789579fd",
-   "instructions": 2038236
-  },
-  "join": {
-   "fixture": "basic.mp4",
-   "sha256": "9afd2ffcd04c6fa50d8e8a10b36bfc56f915f131b4457f2deb7ed8f1b777ad60",
-   "instructions": 858835
-  },
-  "join-fragmented": {
-   "fixture": "fragmented_many.mp4",
-   "sha256": "0b5b5ac877ae954f91c2922c1dc36579f089f9895b6fe97dfcd8f905827922ab",
-   "instructions": 7209140
-  },
-  "join-clips": {
-   "fixture": "basic.mp4",
-   "sha256": "9afd2ffcd04c6fa50d8e8a10b36bfc56f915f131b4457f2deb7ed8f1b777ad60",
-   "instructions": 870124
-  },
-  "thumbnail": {
-   "fixture": "basic.mp4",
-   "sha256": "9afd2ffcd04c6fa50d8e8a10b36bfc56f915f131b4457f2deb7ed8f1b777ad60",
-   "instructions": 7656385
-  },
-  "transcode": {
-   "fixture": "basic.mp4",
-   "sha256": "7204df2f03b5076db8adbeb05121c8bc530e2d4640f4a22280a3a303388e7d88",
-   "instructions": 312721280
   }
  },
  "url_cases": {
