@@ -1641,6 +1641,168 @@ fn as_ffprobe_an_ac3_frame_with_six_bytes_in_its_pes_packet_starts_in_the_next()
     }
 }
 
+/// An E-AC-3 independent frame of 256 bytes (one block of 256 samples at
+/// 48 kHz).
+fn eac3_frame() -> Vec<u8> {
+    let mut f = vec![0x0B, 0x77, 0x00, 0x7F, 0x3F, 0x80];
+    f.resize(256, 0x55);
+    f
+}
+
+/// A DTS core frame of 1,024 bytes (512 samples at 48 kHz).
+fn dts_frame() -> Vec<u8> {
+    let mut f = vec![
+        0x7F, 0xFE, 0x80, 0x01, 0xFC, 0x3C, 0x3F, 0xF0, 0xB5, 0xE0, 0x01, 0x38, 0x00, 0x03, 0xEF,
+        0x7F,
+    ];
+    f.resize(1024, 0x55);
+    f
+}
+
+/// A stream of `stream_type` whose PES packets hold `payloads`, timed from
+/// 90,000 in steps of 5,000, and the position of each.
+fn audio_mux(stream_type: u8, payloads: &[&[u8]]) -> (Mux, Vec<u64>) {
+    let mut mux = Mux::default();
+    mux.pat(&[(1, 0x1000)]);
+    mux.pmt(0x1000, 1, &[(stream_type, 0x101)]);
+    let stream_id = if matches!(stream_type, 0x03 | 0x0F) {
+        0xC0
+    } else {
+        0xBD
+    };
+    let mut at = Vec::new();
+    for (k, payload) in payloads.iter().enumerate() {
+        at.push(mux.out.len() as u64);
+        mux.pes(0x101, stream_id, 90_000 + 5_000 * k as u64, payload, true);
+    }
+    (mux, at)
+}
+
+#[test]
+fn as_ffprobe_a_frame_seven_bytes_after_lead_bytes_follows_them() {
+    // 100 bytes before the first frame header and seven bytes of the
+    // frame, enough for `ffprobe` to place it: the frame follows the
+    // packet of those bytes, a frame later for AC-3 and at their time for
+    // E-AC-3, whose lead packet takes none.
+    let lead = [0x22u8; 100];
+    for (stream_type, frame, after) in [(0x81, ac3_frame(), 92_880), (0x87, eac3_frame(), 90_000)] {
+        let frames = [frame.clone(), frame.clone()].concat();
+        let (mux, at) = audio_mux(
+            stream_type,
+            &[&[&lead[..], &frames[..7]].concat(), &frames[7..]],
+        );
+        assert_eq!(
+            audio_listing(&mux, true),
+            vec![
+                (100, Some(90_000), Some(at[0])),
+                (frame.len(), Some(after), None),
+                (frame.len(), Some(95_000), Some(at[1])),
+            ],
+            "{stream_type:#x}"
+        );
+    }
+}
+
+#[test]
+fn as_ffprobe_the_bytes_before_an_adts_header_wait_for_it() {
+    // 100 bytes before the first ADTS header, then part of the frame: with
+    // too little of the header for it to read, the frame takes the next
+    // PES packet's time and position, as the first frame that starts there
+    // does too; with the header whole, it follows the lead packet.
+    let lead = [0x22u8; 100];
+    let frames = [adts(300), adts(300)].concat();
+    for (held, second) in [(3, None), (7, Some(91_920))] {
+        let (mux, at) = audio_mux(
+            0x0F,
+            &[&[&lead[..], &frames[..held]].concat(), &frames[held..]],
+        );
+        let second = second.map_or((300, Some(95_000), Some(at[1])), |t| (300, Some(t), None));
+        assert_eq!(
+            audio_listing(&mux, true),
+            vec![
+                (100, Some(90_000), Some(at[0])),
+                second,
+                (300, Some(95_000), Some(at[1])),
+            ],
+            "{held}"
+        );
+    }
+}
+
+#[test]
+fn as_ffprobe_lead_bytes_in_pes_packets_of_their_own_by_syntax() {
+    // Two PES packets of 50 bytes each before the first frame header: one
+    // packet of them for AC-3, the start of the first frame for MPEG
+    // audio, nothing for DTS, each with the first PES packet's time and
+    // position; the third PES packet's time goes to the first frame that
+    // starts in it after that.
+    let lead = [0x22u8; 50];
+    let ac3 = [ac3_frame(), ac3_frame()].concat();
+    let (mux, at) = audio_mux(0x81, &[&lead, &lead, &ac3]);
+    assert_eq!(
+        audio_listing(&mux, true),
+        vec![
+            (100, Some(90_000), Some(at[0])),
+            (768, Some(100_000), Some(at[2])),
+            (768, Some(102_880), None),
+        ]
+    );
+    let mp2 = [mp2_frame(), mp2_frame()].concat();
+    let (mux, at) = audio_mux(0x03, &[&lead, &lead, &mp2]);
+    assert_eq!(
+        audio_listing(&mux, true),
+        vec![
+            (676, Some(90_000), Some(at[0])),
+            (576, Some(100_000), Some(at[2])),
+        ]
+    );
+    let dts = dts_frame().repeat(2);
+    let (mux, at) = audio_mux(0x82, &[&lead, &lead, &dts, &dts]);
+    assert_eq!(
+        audio_listing(&mux, true)[..2],
+        [
+            (1024, Some(90_000), Some(at[0])),
+            (1024, Some(100_000), Some(at[2])),
+        ]
+    );
+    // A file that ends before any header: one packet of what there is.
+    let (mux, at) = audio_mux(0x81, &[&lead, &lead]);
+    assert_eq!(
+        audio_listing(&mux, true),
+        vec![(100, Some(90_000), Some(at[0]))]
+    );
+}
+
+#[test]
+fn as_ffprobe_bytes_before_a_header_are_bounded_by_a_frame() {
+    // 50 KB without a header before the first AC-3 frame, more than any
+    // frame holds: dropped rather than held, so a buffer limit of 16 KB
+    // is not met, and the frames are listed.
+    let junk = [0x22u8; 1_000];
+    let frames = [ac3_frame(), ac3_frame()].concat();
+    let mut payloads: Vec<&[u8]> = vec![&junk; 50];
+    payloads.push(&frames);
+    let (mux, at) = audio_mux(0x81, &payloads);
+    let limits = Limits {
+        max_buffered_bytes: 16 << 10,
+        ..Limits::default()
+    };
+    let ts = probe(SliceSource::new(&mux.out), &limits, &Allowlist::all()).unwrap();
+    let listed: Vec<_> = ts
+        .packets(SliceSource::new(&mux.out), &limits)
+        .listing_as_ffprobe()
+        .map(|p| p.map(|p| (p.data.len(), p.pts, p.pos)))
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(
+        listed,
+        vec![
+            (768, Some(340_000), Some(at[50])),
+            (768, Some(342_880), None),
+        ]
+    );
+}
+
 #[test]
 fn a_dependent_substream_the_end_of_the_file_cuts_joins_its_access_unit() {
     // An E-AC-3 independent frame, then a dependent substream of which the
