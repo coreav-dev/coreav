@@ -48,8 +48,11 @@ disagree: a listed name no job reports, a report job missing from the
 table, a required workflow that grew a trigger filter again or lost its
 `pull_request:` trigger, a report job without `if: always()` or missing a
 dependency, two jobs that would report the same check name, a filter
-pattern the action would read differently from GitHub, or a filter written
-in a form the checker cannot read. A workflow that carries the line
+pattern the action would read differently from GitHub, a filter written
+in a form the checker cannot read, or a step (in a workflow or a local
+action) that uses an action by a tag or branch rather than a full commit
+sha: a tag can be moved to other code, so every step names the commit and
+keeps the version as a comment. A workflow that carries the line
 `# workflow-check: not required` is outside the table: its report job need
 not be listed, and the table may not list it.
 

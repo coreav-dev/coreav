@@ -17,7 +17,10 @@
   other job of its workflow, so that a failure below it could pass
   unnoticed;
 - a filter pattern passed to .github/actions/changed-paths is one GitHub
-  and the action would read differently.
+  and the action would read differently;
+- a step in a workflow or in a local action (.github/actions/*/action.yml)
+  uses an action by a tag or branch instead of a full commit sha, so the
+  code it runs can change under the same name.
 
     workflow_check.py [--root DIR]
 
@@ -42,6 +45,8 @@ TRIGGER = re.compile(r'\A {2}\S')
 ROW = re.compile(r'\A\| `([^`]+)` \| `([^`]+)` \|')
 SECTION = '### Required status checks (exact names)'
 LABELS = 'github.event.pull_request.labels'
+ANY_USES = re.compile(r'''\A\s*(?:-\s+)?uses:\s*['"]?([^'"\s#]+)''')
+PINNED = re.compile(r'\A[^@\s]+@[0-9a-f]{40}\Z|\Adocker://[^@\s]+@sha256:[0-9a-f]{64}\Z')
 # A workflow whose checks the table does not require, such as one this
 # repository runs for itself alone.
 UNLISTED = '# workflow-check: not required'
@@ -199,6 +204,17 @@ def unlisted_workflows(root):
             if UNLISTED in (line.strip() for line in workflow.read_text(encoding='utf-8').splitlines())}
 
 
+def unpinned(lines):
+    """Steps that use an action by a name whose code can move."""
+    out = []
+    for n, line in enumerate(lines, 1):
+        match = ANY_USES.match(line)
+        if match and not match.group(1).startswith('./') and not PINNED.match(match.group(1)):
+            out.append(f'line {n}: `{match.group(1)}` is not pinned: use the full commit sha with the '
+                       'version as a comment (`owner/repo@<40-hex sha> # vX.Y.Z`), as every other step does')
+    return out
+
+
 def check(root):
     problems = []
     unlisted = unlisted_workflows(root)
@@ -213,6 +229,7 @@ def check(root):
             problems.append(f'{path.name}: no job found; the parser expects two-space job ids')
         for job, fields in found.items():
             names.setdefault(fields['name'] or job, []).append((path.name, job))
+        problems.extend(f'{path.name}: {problem}' for problem in unpinned(lines))
         patterns, bad = filter_patterns(lines)
         problems.extend(f'{path.name}: {problem}' for problem in bad)
         for key, pattern in patterns:
@@ -220,6 +237,10 @@ def check(root):
                 changed_paths.to_regex(pattern)
             except SystemExit as error:
                 problems.append(f'{path.name}: {key}: {error}')
+
+    for action in sorted((root / '.github' / 'actions').glob('*/action.yml')):
+        lines = action.read_text(encoding='utf-8').splitlines()
+        problems.extend(f'{action.relative_to(root)}: {problem}' for problem in unpinned(lines))
 
     for name, where in sorted(names.items()):
         if len(where) > 1:
