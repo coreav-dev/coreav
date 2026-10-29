@@ -133,3 +133,48 @@ From a regular file the x264 program maps its input into memory (`strace`: 90 `m
 ## Conclusion
 
 On the round-2 host class, the `x264` arm's extra time on 10-bit sources is the x264 program's conversion of its 10-bit input (the function `get_frame`). It runs on the program's main thread before each frame is encoded, and it does not run for 8-bit input. From a regular file, raw `i420` and `nv12`, `y4m`, input depths 10, 12 and 14 and `--thread-input` all pay it in full (`nv12` was tried on the development VM only), and input depth 16 pays about half. Through a pipe, which is the only way `coreav transcode` streams frames, input depth 16 pays the same as depth 10, with a pipe of 64 KiB or 1 MiB. The `ffmpeg` arm gives libx264 the same frames and shows no such cost (criterion 1). CoreAV changes no code for it. The `x264` arm keeps missing B5 in the classes whose sources are 10-bit (HEVC, AV1 and ProRes in the speed selection) until the program changes or the design routes 10-bit frames differently.
+
+## Why the conversion is slow
+
+Status: planned. These questions, and what each result would mean, were committed before the run that answers them.
+
+The sections above show where the time goes. This section asks why the conversion costs what it does. The method is the same as above: black-box binaries, `perf stat`, function-level `perf record` and `perf report`, `perf sched`, `strace` and timing. No x264 or FFmpeg source is read, and neither `perf annotate` nor disassembly is used. If a question cannot be settled without instruction-level annotation, the page says what is left open and why.
+
+**Host and inputs.** One Compute Engine `c4-standard-8`, as above (SMT on, not preemptible), with the PMU's enhanced events, by `scripts/gcp_vm_job.py`. One `c4d-standard-8` (AMD EPYC) for question 3 only. Inputs are the three development files above, plus copies of the 4K ProRes frames scaled by the pinned `ffmpeg`. Timing arms are run 3 times, and the median is taken. Counter groups are run once each, with at most 4 programmable events a group so that nothing is multiplexed.
+
+**The arms.** The 4K ProRes frames as `yuv420p10le` go to the pinned x264 program with `--input-depth 10` or `--input-depth 16` (each sample shifted up 6 bits), from a regular file on standard input or through a pipe of 64 KiB. libx264 through the pinned `ffmpeg` reads the same 10-bit frames from the file.
+
+1. **How much of the gap does the conversion explain?**
+   - Observations: the x264 main thread's on-CPU time by function (sampled, function level); its off-CPU time by what it waits in (`perf sched timehist`, and `strace -T` on its reads and futex waits); and the slope of wall time against the main thread's `get_frame` time between the 10-bit and 16-bit file arms.
+   - A slope of 0.8 or more means the conversion is almost all on the critical path, so the gap is the conversion.
+   - A slope of 0.3 or less means the main thread mostly overlaps with encoding. The off-CPU split then has to show the second cause: input reads or waits for encoder threads.
+   - A slope between the two is reported as a partial explanation, with the off-CPU split beside it.
+2. **Is the conversion compute-bound or memory-bound?**
+   - Observations: Top-down levels 1 and 2 on the main thread (`perf stat -M TopdownL1,TopdownL2` on that thread), and, for `get_frame`, sampled instructions per cycle, L1, L2 and L3 load misses, and cycles stalled on L3 misses.
+   - Backend-bound with most of it memory-bound, and L3 misses for at least 1% of loads, means it is limited by memory bandwidth or latency.
+   - Core-bound or retiring, with an IPC under 1 and few misses, means a long or slow instruction stream.
+   - Retiring with an IPC of 2 or more means the work itself is large: many instructions a sample.
+3. **Why is 16-bit input fast only from a file, and only on Intel?**
+   - Observations: for `get_frame` in the four arms (10 or 16 bits, file or pipe), the sampled counts of microcode assists (all, and floating point), loads blocked by 4K aliasing, loads blocked on store forwarding, split loads and stores, and machine clears per sample converted. Then the four arms' times on the AMD host.
+   - An event that is at least 10 times higher per sample in the three slow arms than in the fast one, the 16-bit file arm, is named as the mechanism.
+   - Assists pointing at floating point mean value-dependent slow paths, such as denormal numbers.
+   - Aliasing or split accesses mean the alignment of the input buffer, which a regular file and a pipe set differently.
+   - The same times in all four arms on AMD mean the penalty is particular to this Intel core.
+   - If no event separates the arms, the question stays open, and the page says that annotation would be needed to settle it.
+4. **Is the conversion vectorised?**
+   - Observations: `get_frame`'s instructions retired per sample converted, and the floating-point and integer vector instruction counts by width where the PMU has them.
+   - Under 0.5 instruction a sample means vector code, and the width counts say which.
+   - 2 or more a sample, with only scalar counts, means scalar code.
+   - In between is reported as such.
+5. **How does it scale?**
+   - Observations: `get_frame` time per sample, and x264 over libx264, at 1280x720, 1920x1080, 3840x2160 and 7680x4320 (10-bit 4:2:0 from a file); and the x264 program at 4K with `--fps 24` and `--fps 60`.
+   - A per-sample time within ±15% across sizes means a cost per sample.
+   - None of these frames fits in the core's 2 MiB L2 (a 720p frame is 2.8 MB at 2 bytes a sample). A per-sample time that grows with frame size by more than 15% therefore means a cache or memory effect beyond L2, and the page says between which sizes the step falls.
+   - `--fps` is expected to change nothing. A difference of more than 3% is a finding.
+6. **Why does libx264 through FFmpeg not pay it?**
+   - Observations: the pinned static `ffmpeg` has no symbols, so Debian's packaged `x264` and `ffmpeg` programs, which link Debian's one shared `libx264`, are profiled by binary and function on the same 10-bit file. The pinned binaries stay the reference for every timing on this page.
+   - If Debian's `x264` program also spends its main thread in a function of the x264 program itself, with the library's functions taking the time libx264 takes under FFmpeg, then the conversion belongs to the x264 command-line program and not to the library.
+   - What FFmpeg hands the library is then seen only as the absence of that step: no time in a conversion function outside `libx264`, or in FFmpeg's own scaling library.
+   - If function names are not enough to tell, the question stays open here; a symbol-table build of the pinned FFmpeg would be a separate decision.
+
+The evidence for this section goes under `transcode/x264-10bit/why/`. If a result points at something CoreAV could change, such as the layout of the frames it writes, that change gets its own pre-registered bars before any code.
