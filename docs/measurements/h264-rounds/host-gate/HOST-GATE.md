@@ -19,7 +19,9 @@ Since then every timing call of a gating run is bracketed by a gate:
 `c4-standard-8`, one thread a core (family 6 model 207). Its references are not in the script: each run measures its own (the two gate streams three times,
 five minutes apart, which must agree within 5%; the median is the reference) and checks before and after every call within 5% of them, with the call run again
 after a failed after-check (3 attempts, voided files kept) and not started on a failed before-check. `scripts/h264_parity_gcp.py --one-thread-class` does this
-(`gate1t.py` is the same check as `hostgate.py`, with the run's references).
+(`gate1t.py` is the same check as `hostgate.py`, with the run's references). `--turbo all-core-max` names the fixed-frequency class of
+`docs/design/h264.md` ("The one-thread class at a fixed frequency"), the default for rounds whose bars are committed after its result; `--turbo unrestricted`
+names the class of the rounds whose bars were committed before.
 
 ## Earlier cloud-container runs
 
