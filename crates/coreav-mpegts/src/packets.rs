@@ -1144,7 +1144,15 @@ impl<S: Source> Packets<'_, S> {
                 data.drain(..end);
             } else if end > 0 {
                 if state.lead.is_empty() {
-                    state.lead_from = Some((pts, offset, pes.offset));
+                    // Bytes carried from an earlier PES packet as the start
+                    // of a header that turned out not to be one began
+                    // there, and take its time and position.
+                    let here = (pts, offset, pes.offset);
+                    state.lead_from = Some(if carried > 0 {
+                        state.cut.take().unwrap_or(here)
+                    } else {
+                        here
+                    });
                 }
                 state.lead.extend(data.drain(..end));
                 self.carried = self.carried.saturating_add(end);
@@ -1171,7 +1179,7 @@ impl<S: Source> Packets<'_, S> {
             }
             if let Some(from) = state.lead_from.take() {
                 state.started = true;
-                let here = state.lead.len() == end;
+                let here = from.2 == pes.offset;
                 first_in_pes = !here;
                 match rule {
                     Lead::Packet => {

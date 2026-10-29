@@ -1786,17 +1786,22 @@ fn as_ffprobe_a_carried_byte_that_starts_no_header_joins_the_lead_bytes() {
     // header, and a next one whose first byte shows it does not: that
     // byte is among the lead bytes, and the frames after them in the next
     // PES packet take its time once, then follow one another.
-    let lead = [[0x22u8; 100].as_slice(), &[0xFF]].concat();
+    // The same with that byte alone in the first PES packet: it still
+    // takes that packet's time and position.
     let rest = [&[0x22u8][..], &adts(300), &adts(300)].concat();
-    let (mux, at) = audio_mux(0x0F, &[&lead, &rest]);
-    assert_eq!(
-        audio_listing(&mux, true),
-        vec![
-            (102, Some(90_000), Some(at[0])),
-            (300, Some(95_000), Some(at[1])),
-            (300, Some(96_920), None),
-        ]
-    );
+    for lead_len in [100, 0] {
+        let lead = [vec![0x22u8; lead_len], vec![0xFF]].concat();
+        let (mux, at) = audio_mux(0x0F, &[&lead, &rest]);
+        assert_eq!(
+            audio_listing(&mux, true),
+            vec![
+                (lead_len + 2, Some(90_000), Some(at[0])),
+                (300, Some(95_000), Some(at[1])),
+                (300, Some(96_920), None),
+            ],
+            "{lead_len}"
+        );
+    }
 }
 
 #[test]
