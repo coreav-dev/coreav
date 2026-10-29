@@ -1118,10 +1118,26 @@ fn chapters<S: Source>(
     // Every referenced text track in turn, each chapter replacing the one
     // of the same number before it (found black box: of `chap` 2, 1 with
     // 15 and 9 chapters, the first 9 are track 1's and the rest track 2's).
+    // Only the last time a track is named matters, as it replaces what
+    // the earlier ones gave.
+    let mut ids: Vec<u32> = Vec::new();
+    for id in list.iter().rev() {
+        if !ids.contains(id) {
+            ids.push(*id);
+        }
+    }
+    ids.reverse();
+    let read = match coreav_text::read_chapter_tracks(&mut *source, &ids, &limits, &text_limits) {
+        Ok(read) => read,
+        Err(coreav_text::TextError::Source(error @ Error::Io(_))) => {
+            return Err(Failure::library(error));
+        }
+        Err(_) => Vec::new(),
+    };
     let mut listed: Vec<Chapter> = Vec::new();
-    for id in list {
-        match coreav_text::read_chapter_track(&mut *source, *id, &limits, &text_limits) {
-            Ok(Some(list)) => {
+    for result in read {
+        match result {
+            Ok(list) => {
                 let den = i64::from(list.timescale.max(1));
                 for (n, c) in list.chapters.iter().enumerate() {
                     let start = crate::time::rounded(c.start).unwrap_or(0);

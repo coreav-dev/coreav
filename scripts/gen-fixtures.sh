@@ -600,6 +600,12 @@ iso_patch codec_qtrle24.mov matrix_scale.mov matrix 0 0 131072
 iso_patch codec_qtrle24.mov movie_matrix_x.mov movie-matrix 0 131072
 iso_patch movie_matrix_x.mov movie_matrix_xy.mov movie-matrix 4 128222
 iso_patch movie_matrix_xy.mov nopasp_movie_matrix.mov free 0 pasp
+# The rotation is that of the composed matrix: a movie header turned 90 or
+# 30 degrees, and one that undoes the track's 90 (no display matrix).
+iso_patch codec_qtrle24.mov movie_matrix_rot90.mov movie-matrix 0 0 1 65536 3 -65536 4 0
+iso_patch codec_qtrle24.mov movie_matrix_rot30.mov movie-matrix 0 56756 1 32768 3 -32768 4 56756
+iso_patch codec_qtrle24.mov matrix_rot90.mov matrix 0 0 0 1 65536 3 -65536 4 0
+iso_patch matrix_rot90.mov movie_matrix_undo.mov movie-matrix 0 0 1 -65536 3 65536 4 0
 iso_patch codec_qtrle24.mov nopasp_qtrle24.mov free 0 pasp
 iso_patch nopasp_qtrle24.mov nopasp_header_640.mov size 0 640 240
 iso_patch nopasp_qtrle24.mov nopasp_header_400.mov size 0 400 300

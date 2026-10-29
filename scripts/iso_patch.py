@@ -19,14 +19,15 @@ Usage:
   iso_patch.py INPUT OUTPUT free TRACK TYPE
       Turn every TYPE box among the children of the track's sample entries
       into a `free` box (8.1.2), as if the entry had none: `pasp`, for one.
-  iso_patch.py INPUT OUTPUT matrix TRACK INDEX VALUE
+  iso_patch.py INPUT OUTPUT matrix TRACK INDEX VALUE [INDEX VALUE...]
       Set element INDEX (0 to 8) of the track header's matrix (`tkhd`,
-      8.3.2) to VALUE.
+      8.3.2) to VALUE, for each pair.
   iso_patch.py INPUT OUTPUT channels TRACK COUNT
       Set the channelcount of the track's version 0 audio sample entries
       (12.2.3).
-  iso_patch.py INPUT OUTPUT movie-matrix INDEX VALUE
-      Set element INDEX of the movie header's matrix (`mvhd`, 8.2.2).
+  iso_patch.py INPUT OUTPUT movie-matrix INDEX VALUE [INDEX VALUE...]
+      Set element INDEX of the movie header's matrix (`mvhd`, 8.2.2), for
+      each pair.
   iso_patch.py INPUT OUTPUT size TRACK WIDTH HEIGHT
       Set the track header's width and height (`tkhd`, 8.3.2), in whole
       pixels.
@@ -278,11 +279,13 @@ def main():
     elif operation == 'free':
         free_boxes(data, int(values[0]), values[1].encode())
     elif operation == 'matrix':
-        set_matrix(data, int(values[0]), int(values[1]), int(values[2]))
+        for index, value in zip(values[1::2], values[2::2]):
+            set_matrix(data, int(values[0]), int(index), int(value))
     elif operation == 'channels':
         set_channels(data, int(values[0]), int(values[1]))
     elif operation == 'movie-matrix':
-        set_movie_matrix(data, int(values[0]), int(values[1]))
+        for index, value in zip(values[0::2], values[1::2]):
+            set_movie_matrix(data, int(index), int(value))
     elif operation == 'size':
         set_size(data, int(values[0]), int(values[1]), int(values[2]))
     elif operation == 'chap':

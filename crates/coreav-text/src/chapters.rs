@@ -4,7 +4,7 @@ use crate::sample::parse_sample;
 use crate::timing::Edit;
 use crate::{Dropped, TextError, TextLimits};
 use coreav_isobmff::{
-    Allowlist, Budget, Codec, Error, LimitKind, Limits, Rational, Source, Track, probe,
+    Allowlist, Budget, Codec, Error, LimitKind, Limits, Movie, Rational, Source, Track, probe,
 };
 
 /// One chapter.
@@ -60,42 +60,52 @@ pub fn read_chapters<S: Source>(
     limits: &Limits,
     text_limits: &TextLimits,
 ) -> Result<Option<Chapters>, TextError> {
-    read_chapters_from(source, None, limits, text_limits)
-}
-
-/// [`read_chapters`], from the text track `track_id` names whether or not
-/// a `chap` reference names it; `Ok(None)` when the file has no text
-/// track of that ID.
-pub fn read_chapter_track<S: Source>(
-    source: S,
-    track_id: u32,
-    limits: &Limits,
-    text_limits: &TextLimits,
-) -> Result<Option<Chapters>, TextError> {
-    read_chapters_from(source, Some(track_id), limits, text_limits)
-}
-
-/// The chapters of the track `track_id` names, else of the first
-/// referenced one.
-fn read_chapters_from<S: Source>(
-    source: S,
-    track_id: Option<u32>,
-    limits: &Limits,
-    text_limits: &TextLimits,
-) -> Result<Option<Chapters>, TextError> {
     let mut source = source;
-    let allowlist = Allowlist::new(&[Codec::QuickTimeText, Codec::TimedText]);
-    let movie = probe(&mut source, limits, &allowlist)?;
-    let first = movie
+    let movie = probe_text(&mut source, limits)?;
+    let Some(track) = movie
         .chapter_tracks
         .iter()
-        .find(|id| movie.tracks.iter().any(|t| t.track_id == **id));
-    let Some(id) = track_id.or(first.copied()) else {
+        .find_map(|id| movie.tracks.iter().find(|t| t.track_id == *id))
+    else {
         return Ok(None);
     };
-    let Some(track) = movie.tracks.iter().find(|t| t.track_id == id) else {
-        return Ok(None);
-    };
+    track_chapters(&movie, track, &mut source, limits, text_limits).map(Some)
+}
+
+/// [`read_chapters`], from each text track `track_ids` names, in order,
+/// whether or not a `chap` reference names it, the file probed once: a
+/// result for each ID of a text track, none for other IDs.
+pub fn read_chapter_tracks<S: Source>(
+    source: S,
+    track_ids: &[u32],
+    limits: &Limits,
+    text_limits: &TextLimits,
+) -> Result<Vec<Result<Chapters, TextError>>, TextError> {
+    let mut source = source;
+    let movie = probe_text(&mut source, limits)?;
+    Ok(track_ids
+        .iter()
+        .filter_map(|id| movie.tracks.iter().find(|t| t.track_id == *id))
+        .map(|track| track_chapters(&movie, track, &mut source, limits, text_limits))
+        .collect())
+}
+
+fn probe_text<S: Source>(source: &mut S, limits: &Limits) -> Result<Movie, Error> {
+    probe(
+        source,
+        limits,
+        &Allowlist::new(&[Codec::QuickTimeText, Codec::TimedText]),
+    )
+}
+
+/// The chapters of one text track of `movie`.
+fn track_chapters<S: Source>(
+    movie: &Movie,
+    track: &Track,
+    source: &mut S,
+    limits: &Limits,
+    text_limits: &TextLimits,
+) -> Result<Chapters, TextError> {
     check(track)?;
     let mut edit = Edit::of(track, movie.timescale)?;
     let mut list = Chapters {
@@ -108,7 +118,7 @@ fn read_chapters_from<S: Source>(
         dropped: Dropped::default(),
     };
     let mut budget = Budget::new(limits);
-    let mut packets = movie.packets(track.index, &mut source, limits, &mut budget)?;
+    let mut packets = movie.packets(track.index, source, limits, &mut budget)?;
     let mut buffer = Vec::new();
     // The parts of one sample the edits present, reused sample by sample.
     let mut shown = Vec::new();
@@ -154,7 +164,7 @@ fn read_chapters_from<S: Source>(
             });
         }
     }
-    Ok(Some(list))
+    Ok(list)
 }
 
 fn check(track: &Track) -> Result<(), Error> {

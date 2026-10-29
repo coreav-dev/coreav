@@ -1469,17 +1469,13 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
     }
     // Any matrix but the identity, rotating or not (a translation, a
     // scale), the track's and the movie's together, as `ffprobe` lists it.
-    let rotated = track.rotation.is_some_and(|r| r != 0);
-    if video && (rotated || matrix != coreav_isobmff::IDENTITY_MATRIX) {
-        let clockwise = track.rotation.unwrap_or(0);
-        let ccw = (360 - i32::from(clockwise % 360)) % 360;
-        let signed = if ccw >= 180 { ccw - 360 } else { ccw };
+    if video && matrix != coreav_isobmff::IDENTITY_MATRIX {
         side_data.push(SideData {
             typ: "display_matrix",
             entries: vec![
                 ("side_data_type", s("Display Matrix")),
                 ("displaymatrix", s(display_matrix(&matrix))),
-                ("rotation", Value::Int(i64::from(signed))),
+                ("rotation", Value::Int(rotation(&matrix))),
             ],
         });
     }
@@ -1718,6 +1714,19 @@ fn header_aspect(
         u32::try_from(n.checked_div(a)?).ok()?,
         u32::try_from(m.checked_div(a)?).ok()?,
     ))
+}
+
+/// The counterclockwise angle in whole degrees, toward zero, by which a
+/// matrix turns the picture once each axis is scaled back to unit length
+/// (found black box: a turn of 30 degrees stored as 56756 and 32768 is
+/// -29, of -10 degrees 9; a skew of 1000 is 0).
+fn rotation(m: &[i32; 9]) -> i64 {
+    let [a, b, _, c, d, ..] = m.map(f64::from);
+    let (sx, sy) = (a.hypot(c), b.hypot(d));
+    if sx == 0.0 || sy == 0.0 {
+        return 0;
+    }
+    -(b / sy).atan2(a / sx).to_degrees() as i64
 }
 
 /// A display matrix as `ffprobe` prints one: three rows of three
