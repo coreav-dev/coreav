@@ -384,8 +384,12 @@ nothing is ignored whole, as a decoder ignores it.
   the end of its PES packet, and AC-3 streams crafted with 100 such bytes
   and the first frame cut). With less than that, or with no frame header
   in the PES packet at all, the default listing drops those bytes and
-  every later packet of the stream shifts by one against `ffprobe`'s; the
-  listing as `ffprobe` gives it lists them there too (below). Rejected: dropping them, which
+  every later packet of the stream shifts by one against `ffprobe`'s. The
+  listing as `ffprobe` gives it lists them there too, for AC-3 and E-AC-3
+  streams alone (below); an AAC, DTS or MPEG audio stream cut so keeps
+  the gap, which costs it one packet and shifts the rest (crafted ADTS
+  streams of 100 such bytes with the first frame cut at one, two and six
+  bytes). Rejected: dropping them, which
   shifted every later frame's time by one frame on the files that start
   mid-frame; and reading them only when the frame after them is whole, the
   rule until that capture, which dropped them and gave the cut frame the
