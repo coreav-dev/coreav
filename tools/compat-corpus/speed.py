@@ -27,6 +27,7 @@ Python 3 standard library only, besides boto3 for `select`.
 import argparse
 import hashlib
 import json
+import os
 import pathlib
 import random
 import statistics
@@ -96,9 +97,14 @@ def native_commands():
     return out
 
 
+# `coreav` in strict-safe mode, so that a command it refuses is reported as
+# refused and never timed as the `ffprobe` on PATH.
+ENV = {**os.environ, 'COREAV_STRICT_SAFE': '1'}
+
+
 def timed(argv):
     start = time.perf_counter()
-    p = subprocess.run(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    p = subprocess.run(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=ENV)
     return time.perf_counter() - start, p.returncode
 
 

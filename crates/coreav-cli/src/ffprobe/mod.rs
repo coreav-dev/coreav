@@ -629,6 +629,11 @@ The common ffprobe invocations, over CoreAV's own probes. Options:
   -select_streams SPEC -read_intervals INTERVALS -f FORMAT
   -of|-print_format default|compact|csv|flat|json[=OPTIONS]
   -pretty -sexagesimal -v LEVEL -loglevel LEVEL -hide_banner -nostdin
-Anything else is refused (exit status 4). Reads MP4, MOV, Matroska, WebM
-and MPEG-TS files and HTTP(S) URLs. See docs/design/compat-cli.md.
+Reads MP4, MOV, Matroska, WebM and MPEG-TS files and HTTP(S) URLs.
+
+For untrusted input, set COREAV_STRICT_SAFE=1: anything else is then
+refused (exit status 4). Without it, anything else runs the ffprobe
+program on PATH instead (or the one COREAV_FALLBACK names), which is
+FFmpeg's C code, and says so on standard error.
+See docs/design/compat-cli.md.
 ";

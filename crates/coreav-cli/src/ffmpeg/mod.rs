@@ -13,6 +13,7 @@
 pub mod args;
 
 use crate::error::Failure;
+use crate::fallback::NotNative;
 use crate::ffprobe::args::Kind2;
 use crate::ffprobe::model::Value;
 use crate::ffprobe::{Report, Stream, StreamKind};
@@ -26,26 +27,6 @@ use coreav_isobmff_write::{
 };
 use std::path::{Path, PathBuf};
 
-/// What a command that is not native names: the option, with its value
-/// when the value is what is refused, or a property of the command or of
-/// its input.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Reason {
-    /// An option as given (`-vf`, `-c:v`), and the refused value.
-    Option(String, Option<String>),
-    /// A fixed description that holds no user data.
-    Property(&'static str),
-}
-
-/// A command `coreav ffmpeg` does not run itself (exit status 4).
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct NotNative {
-    /// What is not native.
-    pub reason: Reason,
-    /// The message for standard error.
-    pub message: String,
-}
-
 /// A command that is not run.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Refusal {
@@ -58,10 +39,10 @@ pub enum Refusal {
 impl Refusal {
     /// A refusal for a property of the command or of its input.
     pub fn not_native(property: &'static str) -> Self {
-        Self::NotNative(NotNative {
-            reason: Reason::Property(property),
-            message: format!("not supported by coreav ffmpeg: {property}"),
-        })
+        Self::NotNative(NotNative::property(
+            property,
+            format!("not supported by coreav ffmpeg: {property}"),
+        ))
     }
 }
 
@@ -159,10 +140,10 @@ fn list(path: &Path, safe: bool) -> Result<Vec<PathBuf>, Stop> {
         ListError::Directive { known: true, .. }
         | ListError::Version { .. }
         | ListError::Protocol { .. }
-        | ListError::TooLarge => Stop::Refused(Refusal::NotNative(NotNative {
-            reason: Reason::Property("a concat list other than local files"),
-            message: format!("not supported by coreav ffmpeg: {error}"),
-        })),
+        | ListError::TooLarge => Stop::Refused(Refusal::NotNative(NotNative::property(
+            "a concat list other than local files",
+            format!("not supported by coreav ffmpeg: {error}"),
+        ))),
         ListError::Directive { known: false, .. }
         | ListError::Read(_)
         | ListError::NoPath { .. }

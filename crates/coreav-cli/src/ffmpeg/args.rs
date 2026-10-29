@@ -5,8 +5,9 @@
 //! CoreAV implements is accepted; every other option is refused by name
 //! before the input is opened.
 
-use super::{NotNative, Reason, Refusal};
+use super::Refusal;
 use crate::clip::parse_time;
+use crate::fallback::NotNative;
 use crate::ffprobe::args::Kind2;
 use coreav_isobmff::Rational;
 
@@ -191,10 +192,11 @@ const REFUSED: [(&str, &str); 22] = [
 
 fn not_native(option: &str, value: Option<&str>, why: &str) -> Refusal {
     let named = value.map_or_else(|| option.to_owned(), |v| format!("{option} {v}"));
-    Refusal::NotNative(NotNative {
-        reason: Reason::Option(option.to_owned(), value.map(str::to_owned)),
-        message: format!("'{named}' is not supported: {why}"),
-    })
+    Refusal::NotNative(NotNative::option(
+        option,
+        value,
+        format!("'{named}' is not supported: {why}"),
+    ))
 }
 
 fn usage(text: impl Into<String>) -> Refusal {
@@ -652,6 +654,7 @@ fn muxer(format: Option<&str>, output: &str) -> Result<Muxer, Refusal> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fallback::Reason;
 
     fn q(num: i128, den: u64) -> Rational {
         Rational::new(num, den).unwrap()
