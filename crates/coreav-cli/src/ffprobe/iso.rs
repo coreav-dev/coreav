@@ -1722,11 +1722,40 @@ fn header_aspect(
 /// -29, of -10 degrees 9; a skew of 1000 is 0).
 fn rotation(m: &[i32; 9]) -> i64 {
     let [a, b, _, c, d, ..] = m.map(f64::from);
-    let (sx, sy) = (a.hypot(c), b.hypot(d));
+    let (sx, sy) = ((a * a + c * c).sqrt(), (b * b + d * d).sqrt());
     if sx == 0.0 || sy == 0.0 {
         return 0;
     }
-    -(b / sy).atan2(a / sx).to_degrees() as i64
+    let (x, y) = (a / sx, b / sy);
+    let degrees = if y.abs() > x.abs() {
+        y.signum() * 90.0 - atan_degrees(x / y)
+    } else if x > 0.0 {
+        atan_degrees(y / x)
+    } else if x < 0.0 {
+        atan_degrees(y / x) + if y < 0.0 { -180.0 } else { 180.0 }
+    } else {
+        0.0
+    };
+    -degrees as i64
+}
+
+/// The arctangent of `t`, at most 1 in size, in degrees, from its series
+/// after halving the angle twice, with no C math library (the start-up
+/// cost of linking one, `docs/design/audio-decode.md`). Exact at 0 and 45.
+fn atan_degrees(t: f64) -> f64 {
+    if t.abs() == 1.0 {
+        return 45.0 * t;
+    }
+    let mut t = t;
+    for _ in 0..2 {
+        t /= 1.0 + (1.0 + t * t).sqrt();
+    }
+    let (mut term, mut sum) = (t, 0.0);
+    for k in 0..12 {
+        sum += term / f64::from(2 * k + 1);
+        term *= -t * t;
+    }
+    sum * 4.0 * (180.0 / std::f64::consts::PI)
 }
 
 /// A display matrix as `ffprobe` prints one: three rows of three
@@ -3222,6 +3251,25 @@ impl<S: Source> PacketSource for IsoPackets<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The rotations the pinned `ffprobe` printed for these matrices.
+    #[test]
+    fn rotation_is_that_of_the_matrix() {
+        let w = 0x4000_0000;
+        for (m, expected) in [
+            ([0x10000, 0, 0, 0, 0x10000, 0, 0, 0, w], 0),
+            ([0, 0x10000, 0, -0x10000, 0, 0, 0, 0, w], -90),
+            ([-0x10000, 0, 0, 0, -0x10000, 0, 0, 0, w], -180),
+            ([0, -0x10000, 0, 0x10000, 0, 0, 0, 0, w], 90),
+            ([0, 0x10000, 0, -0x20000, 0, 0, 0, 0, w], -90),
+            ([46341, 46341, 0, -46341, 46341, 0, 0, 0, w], -45),
+            ([56756, 32768, 0, -32768, 56756, 0, 0, 0, w], -29),
+            ([64540, -11380, 0, 11380, 64540, 0, 0, 0, w], 9),
+            ([0x10000, 1000, 0, 0, 0x10000, 0, 0, 0, w], 0),
+        ] {
+            assert_eq!(rotation(&m), expected, "{m:?}");
+        }
+    }
 
     fn run(offset: u64, count: u32) -> coreav_isobmff::SampleRun {
         coreav_isobmff::SampleRun {
