@@ -197,7 +197,7 @@ pub(crate) struct Demux {
     /// it does.
     pub keep_splices: bool,
     /// The base of the last program clock reference of each PID, while
-    /// splice sections are kept.
+    /// splice sections are kept; bounded by `max_streams`.
     pcrs: BTreeMap<u16, u64>,
     /// PIDs whose PES packets are reassembled whatever the tables say
     /// (the streams a probe kept), besides those the tables keep.
@@ -405,8 +405,12 @@ impl Demux {
         let discontinuity = match header.adaptation {
             Some(adaptation) => {
                 if self.keep_splices {
+                    // Bounded by the stream limit, as every other per-PID
+                    // fact is: a PID already recorded keeps its clock.
                     if let Some(pcr) = adaptation.pcr {
-                        self.pcrs.insert(pid, pcr / 300);
+                        if self.pcrs.len() < self.max_streams || self.pcrs.contains_key(&pid) {
+                            self.pcrs.insert(pid, pcr / 300);
+                        }
                     }
                 }
                 adaptation.discontinuity

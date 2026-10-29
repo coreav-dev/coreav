@@ -480,21 +480,33 @@ describe. With it on:
   and position and the frame's duration, rather than a packet of their
   own (two captures of the corpus, MP2 and MP3, and streams crafted with
   29 and 300 such bytes, the first frame whole and cut by its PES packet;
-  AC-3 streams crafted so keep the packet of their own, as by default);
+  AC-3 streams crafted so keep the packet of their own, as by default).
+  An E-AC-3 stream keeps the packet of its own too, but with no duration,
+  and its first frame starts at that packet's time rather than a frame
+  later (streams crafted with 29, 100 and 300 such bytes of each);
 - an AC-3 or E-AC-3 frame of which its PES packet holds fewer than seven
   bytes (A/52 `syncinfo` and the `bsid` after it) takes the time and
   position of the next PES packet, and so does the first frame that
-  starts there; with seven bytes the frame's start is known, and the frame
-  held before it is listed then, though this reader needs eight to read
-  the header (a capture of the corpus whose AC-3 frame starts six bytes
+  starts there, unless it is the stream's first frame, which keeps the
+  first PES packet's time and position however little of it that packet
+  holds; with seven bytes the frame's start is known, and the frame held
+  before it is listed then, though this reader needs eight to read the
+  header (a capture of the corpus whose AC-3 frame starts six bytes
   before the end of its PES packet, and AC-3 and E-AC-3 streams crafted
-  with every cut from one byte to sixteen; ADTS, MP2 and MP3 streams
-  crafted so show no such rule);
+  with every cut from one byte to sixteen, of the first frame and of
+  later ones; ADTS, MP2 and MP3 streams crafted so show no such rule);
 - the splice information sections of an SCTE 35 stream (ANSI/SCTE 35
-  9.2, private sections of `table_id` 0xFC) are its packets, header and
-  CRC included, with no position and the time of the last program clock
-  reference the PCR PID of the stream's program carried before the
-  section completed (90 kHz, the PCR's base); before the first PCR, none.
+  9.2, private sections of `table_id` 0xFC) are its packets. A stream of
+  type 0x86 is one only where its program's descriptors register `CUEI`,
+  which is how `ffprobe` reads it: a registration in the stream's own
+  loop, `CUEI` or any other identifier, leaves the type unnamed, and such
+  a stream is listed with no packets at all (crafted single-program
+  streams of every layout: the identifier in the program loop, in the
+  stream loop, in both, in neither, and another identifier in each
+  place). Its sections, header and CRC included, take no position and
+  the time of the last program clock reference the PCR PID of the
+  stream's program carried before the section completed (90 kHz, the
+  PCR's base); before the first PCR, none.
   A section whose CRC-32 fails is not listed. Evidence: a capture of the
   corpus, each of whose 183 sections `ffprobe` times by the PCR of the
   packet before it, another whose three sections all take the file's

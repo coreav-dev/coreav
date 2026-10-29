@@ -1078,6 +1078,7 @@ impl<S: Source> Packets<'_, S> {
                     }
                     state.late = as_ffprobe
                         && syntax == frames::Syntax::Ac3
+                        && state.started
                         && at >= carried
                         && data.len() - at < AC3_TIMED;
                     // Seven bytes of an AC-3 frame show `ffprobe` where it
@@ -1140,10 +1141,21 @@ impl<S: Source> Packets<'_, S> {
                         .or(stream_rate)
                         .filter(|r| *r > 0);
                     let ticks = rate.map(|r| i64::from(frame.samples) * 90_000 / i64::from(r));
+                    // E-AC-3 is the exception: `ffprobe` gives those lead
+                    // bytes no duration and starts the first frame at
+                    // their time, where an AC-3 lead packet lasts a frame
+                    // and the frames follow it (streams crafted with 29,
+                    // 100 and 300 lead bytes of each).
+                    let eac3 = syntax == frames::Syntax::Ac3 && frame.detail == 1;
+                    let spent = if eac3 { 0 } else { frame.samples };
                     state.anchor = pts
                         .zip(rate)
-                        .map(|(time, r)| (time, u64::from(frame.samples), r, frame.samples));
-                    state.next = pts.zip(ticks).map(|(time, d)| time + d);
+                        .map(|(time, r)| (time, u64::from(spent), r, frame.samples));
+                    state.next = if eac3 {
+                        pts
+                    } else {
+                        pts.zip(ticks).map(|(time, d)| time + d)
+                    };
                     state.offset = offset;
                     first_in_pes = false;
                     self.queue.push_back(Packet {
@@ -1152,7 +1164,7 @@ impl<S: Source> Packets<'_, S> {
                         pes_offset: pes.offset,
                         pts,
                         dts: pts.map(|t| t - offset),
-                        duration: ticks,
+                        duration: if eac3 { None } else { ticks },
                         keyframe: true,
                         data: data.get(..at).unwrap_or_default().to_vec(),
                         corrupt: false,
@@ -1169,8 +1181,13 @@ impl<S: Source> Packets<'_, S> {
                 if at >= carried && first_in_pes {
                     state.cut = Some((pts, offset, pes.offset));
                 }
+                // Not for a stream's first frame: `ffprobe` keeps the
+                // first PES packet's time and position for it, however
+                // little of it that packet holds (streams crafted with
+                // the first frame cut at every byte count).
                 state.late = as_ffprobe
                     && syntax == frames::Syntax::Ac3
+                    && state.started
                     && at >= carried
                     && data.len() - at < AC3_TIMED;
                 // Its header shows that the AC-3 frame (or E-AC-3 unit)

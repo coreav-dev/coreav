@@ -692,12 +692,16 @@ on crafted files and the development set:
   `tt` with it set). Rejected: `unknown` for a field picture, the rule
   until that capture.
 - An SCTE 35 stream has no `codec_tag` (0, on three captures and crafted
-  streams); it starts at the time of its first section that has one
-  (the PCR before it) and, when the head read to the end of the file,
-  ends at its last; one with no timed section is timed as a stream the
-  file times nowhere. A section in the tail of a longer file would give
-  `ffprobe` an end the probe does not read (none of the development files
-  has one there).
+  streams) unless its own descriptors register an identifier, which is
+  then the tag, `CUEI` or any other; a stream of type 0x86 whose program
+  registers no `CUEI` is not one of these, and keeps its own identifier or
+  its stream type as the tag, as any other stream does (crafted streams of
+  every layout). An SCTE 35 stream starts at the time of its first section
+  that has one (the PCR before it) and, when the head read to the end of
+  the file, ends at its last; one with no timed section is timed as a
+  stream the file times nowhere. A section in the tail of a longer file
+  would give `ffprobe` an end the probe does not read (none of the
+  development files has one there).
 
 **Selections.** `-show_streams` also prints the disposition and the tags of
 a program's streams, empty unless `-show_entries` names their entries,

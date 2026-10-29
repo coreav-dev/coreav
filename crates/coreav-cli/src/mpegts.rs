@@ -455,13 +455,12 @@ pub(crate) fn ffprobe_codec(s: &Stream) -> Option<&'static str> {
 
 /// The four bytes `ffprobe`'s `codec_tag` holds: the identifier the
 /// stream's descriptors give its format, else the stream type; none for an
-/// SCTE 35 stream, which `ffprobe` reads as sections rather than PES
-/// packets (three captures of the corpus, six streams, and crafted
-/// streams with sections and without), unless the stream's own
-/// descriptors register `CUEI`, which `ffprobe` then gives as the tag.
+/// SCTE 35 stream whose own descriptors give none, which `ffprobe` reads
+/// as sections rather than PES packets (three captures of the corpus, six
+/// streams, and crafted streams of every registration layout).
 pub(crate) fn tag_bytes(s: &Stream) -> [u8; 4] {
-    if s.codec == Codec::Scte35 && s.format_identifier != Some(*b"CUEI") {
-        return [0; 4];
+    if s.codec == Codec::Scte35 {
+        return s.format_identifier.unwrap_or([0; 4]);
     }
     s.format_identifier.unwrap_or([s.stream_type, 0, 0, 0])
 }

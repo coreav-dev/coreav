@@ -201,7 +201,12 @@ fn damaged_tables_are_skipped_with_warnings() {
 fn unknown_private_streams_are_sniffed_and_dropped_streams_listed() {
     let mut mux = Mux::default();
     mux.pat(&[(1, 0x1000)]);
-    mux.pmt(0x1000, 1, &[(0x06, 0x101), (0x86, 0x102)]);
+    mux.pmt_with(
+        0x1000,
+        1,
+        &Mux::registration(b"CUEI"),
+        &[(0x06, 0x101), (0x86, 0x102)],
+    );
     mux.pes(0x101, 0xC0, 0, &[adts(100), adts(100)].concat(), true);
     // The default allowlist keeps every named codec, SCTE-35 included; a
     // caller that names fewer gets the rest as dropped streams, with their
@@ -1639,7 +1644,12 @@ fn as_ffprobe_splice_sections_are_packets_timed_by_the_programs_clock() {
     // listing lists no section.
     let mut mux = Mux::default();
     mux.pat(&[(1, 0x1000)]);
-    mux.pmt(0x1000, 1, &[(0x0F, 0x100), (0x86, 0x102)]);
+    mux.pmt_with(
+        0x1000,
+        1,
+        &Mux::registration(b"CUEI"),
+        &[(0x0F, 0x100), (0x86, 0x102)],
+    );
     let section = |mux: &mut Mux, damaged: bool| {
         mux.unit(0x102, &[&[0u8][..], &splice_null(damaged)].concat());
     };
@@ -1677,4 +1687,44 @@ fn as_ffprobe_splice_sections_are_packets_timed_by_the_programs_clock() {
         .filter(|p| ts.streams[p.stream].codec == Codec::Scte35)
         .count();
     assert_eq!(default, 0);
+}
+
+#[test]
+fn as_ffprobe_a_type_0x86_stream_whose_program_registers_nothing_has_no_packets() {
+    // `ffprobe` reads type 0x86 as splice information only from the
+    // program's registration; a registration in the stream's own loop,
+    // `CUEI` or another identifier, leaves the type unnamed and its
+    // sections unlisted.
+    for stream_descriptors in [
+        Vec::new(),
+        Mux::registration(b"CUEI"),
+        Mux::registration(b"ABCD"),
+    ] {
+        let mut mux = Mux::default();
+        mux.pat(&[(1, 0x1000)]);
+        mux.pmt_streams(
+            0x1000,
+            1,
+            &[],
+            &[(0x0F, 0x100, Vec::new()), (0x86, 0x102, stream_descriptors)],
+        );
+        mux.unit(0x102, &[&[0u8][..], &splice_null(false)].concat());
+        pcr_packet(&mut mux, 0x100, 63_000);
+        mux.unit(0x102, &[&[0u8][..], &splice_null(false)].concat());
+        mux.pes(0x100, 0xC0, 90_000, &adts(100), true);
+        let ts = probe(
+            SliceSource::new(&mux.out),
+            &Limits::default(),
+            &Allowlist::all(),
+        )
+        .unwrap();
+        assert_eq!(ts.streams[1].codec, Codec::Other);
+        let listed = ts
+            .packets(SliceSource::new(&mux.out), &Limits::default())
+            .listing_as_ffprobe()
+            .map(|p| p.unwrap())
+            .filter(|p| p.stream == 1)
+            .count();
+        assert_eq!(listed, 0);
+    }
 }
