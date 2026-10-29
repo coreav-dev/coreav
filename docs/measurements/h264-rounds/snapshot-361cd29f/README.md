@@ -1,6 +1,6 @@
 # H.264 decoder against FFmpeg 9.0.2: the official snapshot of 2026-10-29
 
-CoreAV's H.264 decoder (the `decode` example of `coreav-h264`, built with `cargo build --locked --profile dist`, rustc 1.99.1) against FFmpeg 9.0.2 (the BtbN build `n9.0.2-17-g2a571b6068`, sha256 `0d709a0bed1a43f24cd2c420878c63afea4580671b6949ad19ed124572f3bc3d`), on the project's main as of 00:00 UTC on 2026-10-29 (the project's internal commit `361cd29f`). Measured once; nothing was tuned after seeing a number. This page records numbers and gives no verdict on any bar.
+CoreAV's H.264 decoder (the `decode` example of `coreav-h264`, built with `cargo build --locked --profile dist`, rustc 1.99.1) against FFmpeg 9.0.2 (the BtbN build `n9.0.2-17-g2a571b6068`, sha256 `0d709a0bed1a43f24cd2c420878c63afea4580671b6949ad19ed124572f3bc3d`), on the project's main as of 00:00 UTC on 2026-10-29. The measured H.264 code and harness are byte-identical to those of public main at 898bfa4 (unchanged since the initial release e669e5d7). Measured once; nothing was tuned after seeing a number. This page records numbers and gives no verdict on any bar.
 
 ## How to read the numbers
 
@@ -45,6 +45,10 @@ The two hosts are different machines. One-thread and eight-thread numbers are ea
 - **No run is void and no stream ended unresolved.** One-thread: one call (the 4k training call) failed its after-check and was run again, and passed; 2 training and 10 held-out streams were timed again after a disagreement between their repeats. Eight threads: the reference stream's time moved by +4.5% between the first call and the last of the training run (+0.9% for the held-out run), both inside the 5% limit; one call (720p, training) had a confirmed drift of +5.0% in the in-call gate, and its 4 streams were timed again.
 - The elementary streams match the recorded digests in the training and held-out stream lists.
 
+## Evidence
+
+The per-call result files are in `raw/`: per-stream timings of every round, the null-arm timings, each stream's spread and retries, and the in-call gate samples (`raw/one-thread/{g,h}.<class>.json`, `raw/eight-thread-training/t8.<class>.json`, `raw/eight-thread-heldout/t8.<class>.json`), the voided one-thread call kept as `g.4k.json.void1`, the host-check log of the one-thread run, the reference times and verdict of each eight-thread run, and the machine description (`host.txt`). `analyze-snapshot.py` recomputes every table: put the one-thread reports, and the two eight-thread directories' `t8.*.json` as `t8.*.json` (training) and `h8.*.json` (held-out), in one directory and run `python3 -I analyze-snapshot.py DIR`; its output is `raw/one-thread/analysis-1t.txt` and `raw/eight-thread-analysis.txt`. The files are as the runs wrote them, except that the VM's name is replaced by `<vm>` and home-directory paths are shortened to the file name.
+
 ## What this is not
 
-It is a snapshot of one commit on two machines, not a promise for other machines: the ratio to FFmpeg moved by about 10% between the 2.90 GHz and the 2.50 GHz classes in an earlier calibration (`docs/measurements/h264-training/README.md`). The per-call raw reports stay with the project's measurement archive; the numbers above are the medians they give.
+It is a snapshot of one commit on two machines, not a promise for other machines: the ratio to FFmpeg moved by about 10% between the 2.90 GHz and the 2.50 GHz classes in an earlier calibration (`docs/measurements/h264-training/README.md`). The run logs, the job scripts and the cost records are not published.
