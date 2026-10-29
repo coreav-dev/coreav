@@ -1,0 +1,41 @@
+name: labels
+
+# Makes the repository's labels match .github/labels.yml
+# (docs/design/ci-checks.md, "Labels"). Runs on a push to main that changes
+# the file or the script, and by hand. Only the built-in token, with
+# `issues: write` (the permission the labels API asks for); no secret. The
+# job runs only on main, so a manual run on another branch, a pull
+# request's included, does nothing; and only in this repository, so a
+# fork's labels are left alone.
+# workflow-check: not required
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/labels.yml
+      - .github/workflows/labels.yml
+      - scripts/label_sync.py
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: labels
+  cancel-in-progress: false
+
+jobs:
+  label-sync:
+    runs-on: ubuntu-24.04
+    if: github.repository == 'coreav-dev/coreav' && github.ref == 'refs/heads/main'
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Sync the labels to the file
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 -I scripts/label_sync.py --repo "$GITHUB_REPOSITORY"

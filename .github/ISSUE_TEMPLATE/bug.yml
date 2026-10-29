@@ -1,5 +1,6 @@
 name: Bug report
 description: CoreAV rejects, misreads or mishandles a file, or a command or API call misbehaves.
+labels: [bug]
 body:
   - type: markdown
     attributes:
