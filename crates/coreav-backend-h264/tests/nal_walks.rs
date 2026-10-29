@@ -280,7 +280,7 @@ fn prefixed(rng: &mut Rng, units: &[Vec<u8>], seen: &mut Seen) -> (Vec<u8>, usiz
     let longest = units.iter().map(Vec::len).max().unwrap_or(0);
     let sizes: Vec<usize> = [1, 2, 4]
         .into_iter()
-        .filter(|&s| longest < 1 << (8 * s))
+        .filter(|&s| (longest as u64) < 1 << (8 * s))
         .collect();
     let size = sizes[rng.below(sizes.len())];
     seen.length_sizes[size] += 1;
