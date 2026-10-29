@@ -173,9 +173,13 @@ impl Writer {
                         Some(t) if def.typed => format!("{base}{}/{t}:", def.element),
                         _ => format!("{base}{}:", def.element),
                     };
-                    // A typed section starts with the separator, entries
-                    // or not, and its first entry adds none.
-                    if def.typed {
+                    // The first typed section of a list starts with the
+                    // separator, entries or not, and its first entry adds
+                    // none; a later one adds separators only before its
+                    // entries (found black box on side data lists of one,
+                    // two and three items).
+                    let first = self.stack.last().is_none_or(|f| f.elements == 0);
+                    if def.typed && first {
                         if let Some(owner) = self.owner() {
                             if owner.items > 0 {
                                 out.push(sep);

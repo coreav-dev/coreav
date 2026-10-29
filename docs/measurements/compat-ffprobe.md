@@ -922,6 +922,107 @@ them.
 | `streams.avg_frame_rate` | 44/45 | 97.78% | 31/31 (100.00%) | 13/14 (92.86%) |
 | `streams.r_frame_rate` | 44/45 | 97.78% | 31/31 (100.00%) | 13/14 (92.86%) |
 
+## Round 7
+
+The code of round 6 with ISO base media and Matroska fixes (#24): codec
+fields of sample entries without a configuration record, read from the
+first frame or fixed by the codec; display matrices composed with the
+movie header's, and their rotation; chapters merged over every text track
+a `chap` reference names, with chapter pictures; typed covers only; the
+durations of tracks with a leading empty edit; the last AC-3 packet; and
+the packet durations of laced Matroska audio. The method is that of round
+5, unchanged. B3a on the corpus ran on the binary of `4795950`; B1, B2 and
+B3a on the fixtures run in the fixture workflows on every change, against
+`tools/compat-corpus/baseline-*.json`, and are not tabulated here. B4 was
+last measured in round 3 and was not run again on this code.
+
+### B3a on the corpus
+
+Binary of `4795950`: 1315 files, the files of round 1 (1049 ISO base
+media: 746 development, 303 held out; 209 Matroska and WebM: 140 and 69;
+57 MPEG-TS: 40 and 17). 12 that `ffprobe` rejects are not compared (9
+development and 3 held-out MPEG-TS files). `coreav ffprobe` rejects the
+same 6 files as round 6, all ISO base media, and `KD-STRICT` explains
+all 6. The held-out ISO base media and Matroska files were used for
+development in rounds 2 to 4 (round 4), and this round's work saw them
+too: a first run on them showed one regression (the ambient viewing
+environment listed before the display matrix), which was reproduced on a
+copy of a fixture and fixed before this run. Their counts are therefore
+not an independent check of these fixes. Only the held-out MPEG-TS files
+are unseen, and this round did not change MPEG-TS. Full tables, overall
+and per part: `compat-ffprobe/b3a-round7.json`.
+
+**B3a missed.** Keys below 98% (in at least five files, outside the
+tags): ISO base media 9 of 101 (round 6: 34; development 9 of 101, held
+out 3 of 95), Matroska and WebM 0 of 101 (round 6: 2; development 0 of 95,
+held out 0 of 92), MPEG-TS 35 of 157 (round 6: 35; development 6 of 157,
+held out 35 of 151). No key's rate fell against round 6.
+
+On ISO base media what is left is `streams.r_frame_rate` (95.52% of
+1049 files), whose base-rate guess follows no one rule on these files, a
+tail of separate causes in `packets.duration` (97.24% of 1049), and the
+chapter keys on one file (`chapters.id` 93.33% of 15). MPEG-TS did not
+move.
+
+**ISO base media**: 101 keys found in at least five files; 92 at or above 98%, 9 below:
+
+| Key | All files | Rate | Development | Held out |
+|---|---|---|---|---|
+| `chapters.end` | 14/15 | 93.33% | 10/11 (90.91%) | 4/4 (100.00%) |
+| `chapters.end_time` | 14/15 | 93.33% | 10/11 (90.91%) | 4/4 (100.00%) |
+| `chapters.id` | 14/15 | 93.33% | 10/11 (90.91%) | 4/4 (100.00%) |
+| `chapters.start` | 14/15 | 93.33% | 10/11 (90.91%) | 4/4 (100.00%) |
+| `chapters.start_time` | 14/15 | 93.33% | 10/11 (90.91%) | 4/4 (100.00%) |
+| `chapters.time_base` | 14/15 | 93.33% | 10/11 (90.91%) | 4/4 (100.00%) |
+| `streams.r_frame_rate` | 1002/1049 | 95.52% | 709/746 (95.04%) | 293/303 (96.70%) |
+| `packets.duration` | 1020/1049 | 97.24% | 724/746 (97.05%) | 296/303 (97.69%) |
+| `packets.duration_time` | 1020/1049 | 97.24% | 724/746 (97.05%) | 296/303 (97.69%) |
+
+**Matroska and WebM**: 101 keys found in at least five files; 101 at or above 98%, 0 below:
+
+| Key | All files | Rate | Development | Held out |
+|---|---|---|---|---|
+
+**MPEG-TS**: 157 keys found in at least five files; 122 at or above 98%, 35 below:
+
+| Key | All files | Rate | Development | Held out |
+|---|---|---|---|---|
+| `programs.streams.bit_rate` | 34/39 | 87.18% | 24/27 (88.89%) | 10/12 (83.33%) |
+| `streams.bit_rate` | 34/39 | 87.18% | 24/27 (88.89%) | 10/12 (83.33%) |
+| `programs.streams.profile` | 40/42 | 95.24% | 28/29 (96.55%) | 12/13 (92.31%) |
+| `programs.streams.sample_rate` | 40/42 | 95.24% | 27/28 (96.43%) | 13/14 (92.86%) |
+| `streams.profile` | 40/42 | 95.24% | 28/29 (96.55%) | 12/13 (92.31%) |
+| `streams.sample_rate` | 40/42 | 95.24% | 27/28 (96.43%) | 13/14 (92.86%) |
+| `packets.codec_type` | 43/45 | 95.56% | 31/31 (100.00%) | 12/14 (85.71%) |
+| `packets.dts` | 43/45 | 95.56% | 31/31 (100.00%) | 12/14 (85.71%) |
+| `packets.dts_time` | 43/45 | 95.56% | 31/31 (100.00%) | 12/14 (85.71%) |
+| `packets.duration` | 43/45 | 95.56% | 31/31 (100.00%) | 12/14 (85.71%) |
+| `packets.duration_time` | 43/45 | 95.56% | 31/31 (100.00%) | 12/14 (85.71%) |
+| `packets.flags` | 43/45 | 95.56% | 31/31 (100.00%) | 12/14 (85.71%) |
+| `packets.pos` | 43/45 | 95.56% | 31/31 (100.00%) | 12/14 (85.71%) |
+| `packets.pts` | 43/45 | 95.56% | 31/31 (100.00%) | 12/14 (85.71%) |
+| `packets.pts_time` | 43/45 | 95.56% | 31/31 (100.00%) | 12/14 (85.71%) |
+| `packets.size` | 43/45 | 95.56% | 31/31 (100.00%) | 12/14 (85.71%) |
+| `packets.stream_index` | 43/45 | 95.56% | 31/31 (100.00%) | 12/14 (85.71%) |
+| `programs.streams.channel_layout` | 39/40 | 97.50% | 28/28 (100.00%) | 11/12 (91.67%) |
+| `programs.streams.closed_captions` | 39/40 | 97.50% | 27/27 (100.00%) | 12/13 (92.31%) |
+| `streams.channel_layout` | 39/40 | 97.50% | 28/28 (100.00%) | 11/12 (91.67%) |
+| `streams.closed_captions` | 39/40 | 97.50% | 27/27 (100.00%) | 12/13 (92.31%) |
+| `programs.streams.channels` | 41/42 | 97.62% | 28/28 (100.00%) | 13/14 (92.86%) |
+| `streams.channels` | 41/42 | 97.62% | 28/28 (100.00%) | 13/14 (92.86%) |
+| `format.bit_rate` | 43/44 | 97.73% | 30/30 (100.00%) | 13/14 (92.86%) |
+| `format.duration` | 43/44 | 97.73% | 30/30 (100.00%) | 13/14 (92.86%) |
+| `packets.side_data_list.id` | 43/44 | 97.73% | 31/31 (100.00%) | 12/13 (92.31%) |
+| `packets.side_data_list.side_data_type` | 43/44 | 97.73% | 31/31 (100.00%) | 12/13 (92.31%) |
+| `programs.streams.duration` | 43/44 | 97.73% | 30/30 (100.00%) | 13/14 (92.86%) |
+| `programs.streams.duration_ts` | 43/44 | 97.73% | 30/30 (100.00%) | 13/14 (92.86%) |
+| `streams.duration` | 43/44 | 97.73% | 30/30 (100.00%) | 13/14 (92.86%) |
+| `streams.duration_ts` | 43/44 | 97.73% | 30/30 (100.00%) | 13/14 (92.86%) |
+| `programs.streams.avg_frame_rate` | 44/45 | 97.78% | 31/31 (100.00%) | 13/14 (92.86%) |
+| `programs.streams.r_frame_rate` | 44/45 | 97.78% | 31/31 (100.00%) | 13/14 (92.86%) |
+| `streams.avg_frame_rate` | 44/45 | 97.78% | 31/31 (100.00%) | 13/14 (92.86%) |
+| `streams.r_frame_rate` | 44/45 | 97.78% | 31/31 (100.00%) | 13/14 (92.86%) |
+
 ## B6
 
 `scripts/bench_guard.py` has six `coreav ffprobe` cases (`ffprobe-mp4`,
@@ -932,4 +1033,4 @@ against the baselines in `tools/compat-corpus/baseline-*.json`.
 
 ## Hosts
 
-B3a ran as 1,315 one-file containers of 1 CPU and 4 GiB each per round, on a cloud host. B4 and the fixtures ran on the development VM.
+B3a ran as 1,315 one-file containers of 1 CPU and 4 GiB each per round, on a cloud host, in rounds 1 to 6; in round 7 it ran on one cloud VM of 8 vCPUs, eight files at a time. B4 and the fixtures ran on the development VM.

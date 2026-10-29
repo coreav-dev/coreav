@@ -887,6 +887,9 @@ pub struct Mpeg4 {
     /// A DivX user data string ending in `p`: B-frames packed with their
     /// reference.
     pub divx_packed: bool,
+    /// The `video_signal_type` of the visual object header (6.2.2): the
+    /// range, and the colour description when it has one.
+    pub color: Option<coreav_isobmff::Color>,
 }
 
 /// Reads the VOS and VOL headers that follow start codes in `data`.
@@ -903,6 +906,7 @@ pub fn mpeg4(data: &[u8]) -> Option<Mpeg4> {
         let body = data.get(i + 4..).unwrap_or_default();
         match code {
             0xB0 => out.profile_and_level = body.first().copied(),
+            0xB5 => out.color = mpeg4_signal(body),
             0xB2 => {
                 let end = body
                     .windows(3)
@@ -928,6 +932,30 @@ pub fn mpeg4(data: &[u8]) -> Option<Mpeg4> {
         i += 4;
     }
     found.then_some(out)
+}
+
+/// The `video_signal_type` of a visual object header of the video type
+/// (ISO/IEC 14496-2 6.2.2).
+fn mpeg4_signal(body: &[u8]) -> Option<coreav_isobmff::Color> {
+    let mut bits = Bits::new(body);
+    if bits.flag()? {
+        bits.skip(7)?;
+    }
+    if bits.bits(4)? != 1 || !bits.flag()? {
+        return None;
+    }
+    bits.skip(3)?;
+    let full_range = bits.flag()?;
+    let mut color = coreav_isobmff::Color {
+        full_range: Some(full_range),
+        ..coreav_isobmff::Color::default()
+    };
+    if bits.flag()? {
+        color.primaries = Some(u16::try_from(bits.bits(8)?).ok()?);
+        color.transfer = Some(u16::try_from(bits.bits(8)?).ok()?);
+        color.matrix = Some(u16::try_from(bits.bits(8)?).ok()?);
+    }
+    Some(color)
 }
 
 /// `low_delay` and `quarter_sample` of a video object layer header.

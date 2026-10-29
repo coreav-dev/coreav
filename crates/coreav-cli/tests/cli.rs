@@ -1126,6 +1126,51 @@ fn extract_subtitles_errors() {
     assert_eq!(command("extract-subtitles", &["--force", i, i]).code, 2);
 }
 
+/// Chapter tracks merged by `ffprobe` keep to the title bytes limit
+/// together: the earlier track's longer list keeps its tail, so a later
+/// track that would take the whole over the limit is left out.
+#[test]
+fn ffprobe_chapters_keep_the_title_limit_across_tracks() {
+    use text_movie::{TrackSpec, movie, text_sample};
+    let long = vec![b'a'; 65_500];
+    let mut first: Vec<_> = (0..64).map(|_| (text_sample(b"", &[]), 1000)).collect();
+    first.extend((0..64).map(|_| (text_sample(&long, &[]), 1000)));
+    let second = (0..64).map(|_| (text_sample(&long, &[]), 1000)).collect();
+    let video = TrackSpec {
+        chap: vec![2, 3],
+        ..TrackSpec::video(1, &[1000; 128])
+    };
+    let path = file(
+        "chapter-title-limit.mp4",
+        &movie(&[
+            video,
+            TrackSpec::qt_text(2, first),
+            TrackSpec::qt_text(3, second),
+        ]),
+    );
+    let result = command(
+        "ffprobe",
+        &[
+            "-v",
+            "error",
+            "-show_chapters",
+            "-of",
+            "json",
+            path.to_str().unwrap(),
+        ],
+    );
+    assert_eq!(result.code, 0, "{}", result.stderr);
+    let chapters = json(&result.stdout)["chapters"].as_array().unwrap().clone();
+    let titles: Vec<usize> = chapters
+        .iter()
+        .map(|c| c["tags"]["title"].as_str().map_or(0, str::len))
+        .collect();
+    assert_eq!(titles.len(), 128);
+    assert!(titles.iter().sum::<usize>() <= 4 << 20);
+    assert_eq!(titles[..64], [0; 64]);
+    assert_eq!(titles[64..], [65_500; 64]);
+}
+
 #[test]
 fn chapters_print_the_list() {
     let input = file("chapters_in.mp4", &text_movie_bytes());

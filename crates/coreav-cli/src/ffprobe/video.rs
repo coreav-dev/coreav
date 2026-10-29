@@ -3,8 +3,13 @@
 //! chroma location, the field order, the coded size and the bit depth.
 //! Read from the stored configuration records (ITU-T H.264 7.3.2.1.1 and
 //! E.1.1, ITU-T H.265 7.3.2.2, the AV1 and VP codec ISOBMFF bindings,
-//! SMPTE RDD 36 for ProRes frame headers); untrusted bytes, so every read
-//! is bounded and a record that does not parse gives nothing.
+//! SMPTE RDD 36 for ProRes frame headers) and, for codecs without one, from
+//! the first frame (ITU-T T.81 and JFIF for JPEG, ITU-T H.263 5.1, the DV
+//! header and VAUX packs of IEC 61834-2 and -4, SMPTE 314M and 370M);
+//! untrusted bytes, so every read is bounded and a record that does not
+//! parse gives nothing.
+
+use coreav_isobmff::Color;
 
 /// What the configuration says, as `ffprobe` names it. `None` is unknown.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -30,6 +35,13 @@ pub struct VideoInfo {
     /// MPEG-4 Part 2's `quarter_sample` (unknown when the header stops
     /// before it) and whether DivX packs B-frames with their reference.
     pub mpeg4_flags: Option<(Option<bool>, bool)>,
+    /// The colour the stream itself states, over the container's.
+    pub color: Option<Color>,
+    /// The picture size the stream states, which `ffprobe` prints over
+    /// the sample entry's (DV).
+    pub size: Option<(u32, u32)>,
+    /// The bit rate the coding fixes (DV).
+    pub bit_rate: Option<i64>,
 }
 
 /// `aspect_ratio_idc` 1 to 16 (ITU-T H.264 table E-1, H.265 table E.1).
@@ -247,13 +259,19 @@ pub fn avc_sps(nal: &[u8], full_range: bool) -> Option<VideoInfo> {
         let y = top.checked_add(bottom)?.checked_mul(unit_y)?;
         w.checked_sub(x).zip(h.checked_sub(y))
     });
+    // An 8-bit monochrome stream is decoded as 4:2:0 (found black box).
+    let shown = if chroma_format == 0 && bit_depth == 8 {
+        1
+    } else {
+        chroma_format
+    };
     let mut info = VideoInfo {
-        pix_fmt: yuv(chroma_format, bit_depth, full_range),
+        pix_fmt: yuv(shown, bit_depth, full_range),
         coded_size: cropped,
         h264_corner: cropped.filter(|_| left == 0 && top == 0),
         bits_per_raw_sample: Some(bit_depth),
         field_order: frame_mbs_only.then_some("progressive"),
-        chroma_location: (chroma_format == 1).then_some("left"),
+        chroma_location: (shown > 0).then_some("left"),
         ..VideoInfo::default()
     };
     if !b.flag()? {
@@ -427,6 +445,9 @@ pub fn hevc_sps(nal: &[u8], full_range: bool) -> Option<VideoInfo> {
         sar: None,
         profile: None,
         mpeg4_flags: None,
+        color: None,
+        size: None,
+        bit_rate: None,
     };
     // What follows only adds the VUI's fields; a set that ends early
     // keeps what was read.
@@ -610,6 +631,9 @@ pub fn av1(av1c: &[u8]) -> Option<VideoInfo> {
         sar: None,
         profile: None,
         mpeg4_flags: None,
+        color: None,
+        size: None,
+        bit_rate: None,
     })
 }
 
@@ -636,6 +660,9 @@ pub fn vp9(vpcc: &[u8]) -> Option<VideoInfo> {
         sar: None,
         profile: None,
         mpeg4_flags: None,
+        color: None,
+        size: None,
+        bit_rate: None,
     })
 }
 
@@ -705,6 +732,169 @@ pub fn prores(frame: &[u8]) -> Option<VideoInfo> {
         sar: None,
         profile: None,
         mpeg4_flags: None,
+        color: None,
+        size: None,
+        bit_rate: None,
+    })
+}
+
+/// A JPEG frame (Motion JPEG): what its frame header and JFIF density say,
+/// in full range with BT.601 colour, as a JPEG decoder reports it.
+pub fn mjpeg(frame: &[u8]) -> Option<VideoInfo> {
+    let picture = super::mkv::image::jpeg(frame)?;
+    Some(VideoInfo {
+        pix_fmt: picture.pix_fmt.map(str::to_owned),
+        has_b_frames: Some(0),
+        chroma_location: Some("center"),
+        bits_per_raw_sample: picture.bits,
+        sar: picture.aspect,
+        profile: picture.profile.map(|name| (name.to_owned(), -99)),
+        color: Some(Color {
+            matrix: Some(5),
+            full_range: Some(true),
+            ..Color::default()
+        }),
+        ..VideoInfo::default()
+    })
+}
+
+/// An H.263 stream (4:2:0, no B-frames) from its first picture header
+/// (ITU-T H.263 5.1.1 to 5.1.3): the standard source formats have pixels
+/// of 12:11 (4.1); an extended type (`PLUSPTYPE`) is not read.
+pub fn h263(frame: &[u8]) -> VideoInfo {
+    let sar = || -> Option<(u32, u32)> {
+        let mut b = Bits::new(frame);
+        if b.bits(22)? != 0x20 {
+            return None;
+        }
+        b.bits(8)?;
+        if b.bits(2)? != 0b10 {
+            return None;
+        }
+        b.bits(3)?;
+        matches!(b.bits(3)?, 1..=5).then_some((12, 11))
+    };
+    VideoInfo {
+        pix_fmt: Some("yuv420p".to_owned()),
+        has_b_frames: Some(0),
+        chroma_location: Some("center"),
+        sar: sar(),
+        ..VideoInfo::default()
+    }
+}
+
+/// A DV frame: the sampling its header and VAUX source pack state (IEC
+/// 61834-2: the DSF bit and APT of the header DIF block; SMPTE 314M and
+/// 370M: the source type of pack 0x60) and the pixel aspect of its display
+/// mode (pack 0x61, 4:3 or 16:9).
+pub fn dv(frame: &[u8], frame_bytes: u32) -> Option<VideoInfo> {
+    let header = frame.get(..80)?;
+    if header.first()? >> 5 != 0 {
+        return None;
+    }
+    let lines_625 = header.get(3)? >> 7 == 1;
+    let apt = header.get(4)? & 0x07;
+    let (mut stype, mut display) = (None, None);
+    for block in 3..6 {
+        let Some(vaux) = frame.get(block * 80 + 3..block * 80 + 78) else {
+            break;
+        };
+        for pack in vaux.chunks_exact(5) {
+            match *pack {
+                [0x60, _, _, pc3, _] => {
+                    stype.get_or_insert(pc3 & 0x1f);
+                }
+                [0x61, _, pc2, _, _] => {
+                    display.get_or_insert(pc2 & 0x07);
+                }
+                _ => {}
+            }
+        }
+    }
+    let hd = matches!(stype, Some(0x14 | 0x15 | 0x18));
+    let pix_fmt = if hd || stype == Some(0x04) {
+        "yuv422p"
+    } else if lines_625 && apt == 0 {
+        "yuv420p"
+    } else {
+        "yuv411p"
+    };
+    let wide = display == Some(2);
+    let sar = match (stype, lines_625, wide) {
+        (Some(0x00 | 0x04), false, false) => Some((8, 9)),
+        (Some(0x00 | 0x04), false, true) => Some((32, 27)),
+        (Some(0x00 | 0x04), true, false) => Some((16, 15)),
+        (Some(0x00 | 0x04), true, true) => Some((64, 45)),
+        (Some(0x18), _, _) => Some((4, 3)),
+        _ => None,
+    };
+    // A decoder reports the coded picture and the bit rate of the system's
+    // nominal frame rate (525/60 or 625/50, doubled for 720p).
+    let size = match (stype, lines_625) {
+        (Some(0x00 | 0x04), false) => Some((720, 480)),
+        (Some(0x00 | 0x04), true) => Some((720, 576)),
+        (Some(0x18), _) => Some((960, 720)),
+        _ => None,
+    };
+    let (num, den) = match (lines_625, stype == Some(0x18)) {
+        (false, false) => (30_000, 1001),
+        (false, true) => (60_000, 1001),
+        (true, false) => (25, 1),
+        (true, true) => (50, 1),
+    };
+    let bits = i64::from(frame_bytes) * 8 * num;
+    Some(VideoInfo {
+        pix_fmt: Some(pix_fmt.to_owned()),
+        has_b_frames: Some(0),
+        chroma_location: Some("topleft"),
+        sar,
+        size,
+        bit_rate: Some((bits + den / 2) / den),
+        ..VideoInfo::default()
+    })
+}
+
+/// A PNG frame: the pixel format of its `IHDR`, in full range RGB.
+pub fn png(frame: &[u8]) -> Option<VideoInfo> {
+    let picture = super::mkv::image::png(frame)?;
+    Some(VideoInfo {
+        pix_fmt: picture.pix_fmt.map(str::to_owned),
+        has_b_frames: Some(0),
+        sar: picture.aspect,
+        color: Some(Color {
+            matrix: Some(0),
+            full_range: Some(true),
+            ..picture.color()
+        }),
+        ..VideoInfo::default()
+    })
+}
+
+/// A codec whose decoder output is fixed (SVQ1 4:1:0; SVQ3 4:2:0 in full
+/// range), or set by the sample entry's depth alone (QuickTime Animation,
+/// 8BPS), with no reordering: what `ffprobe` reports, observed on files of
+/// each.
+pub fn fixed(codec: &str, depth: Option<u16>) -> Option<VideoInfo> {
+    let (pix_fmt, bits, full_range) = match (codec, depth) {
+        ("svq1", _) => ("yuv410p", None, false),
+        ("svq3", _) => ("yuvj420p", Some(8), true),
+        ("qtrle", Some(1)) => ("monow", None, false),
+        ("qtrle", Some(2 | 4 | 8)) => ("pal8", None, false),
+        ("qtrle", Some(16)) => ("rgb555le", None, false),
+        ("qtrle", Some(24)) => ("rgb24", None, false),
+        ("qtrle", Some(32)) => ("argb", None, false),
+        ("8bps", Some(24)) => ("gbrp", None, false),
+        _ => return None,
+    };
+    Some(VideoInfo {
+        pix_fmt: Some(pix_fmt.to_owned()),
+        has_b_frames: Some(0),
+        bits_per_raw_sample: bits,
+        color: full_range.then(|| Color {
+            full_range: Some(true),
+            ..Color::default()
+        }),
+        ..VideoInfo::default()
     })
 }
 

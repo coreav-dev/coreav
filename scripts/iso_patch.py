@@ -16,6 +16,34 @@ Usage:
       position TRACK (0 for the first `trak`): the `btrt` box's avgBitrate
       (8.5.2.2) and the `esds` decoder configuration's avgBitrate
       (14496-1 7.2.6.6).
+  iso_patch.py INPUT OUTPUT free TRACK TYPE
+      Turn every TYPE box among the children of the track's sample entries
+      into a `free` box (8.1.2), as if the entry had none: `pasp`, for one.
+  iso_patch.py INPUT OUTPUT matrix TRACK INDEX VALUE [INDEX VALUE...]
+      Set element INDEX (0 to 8) of the track header's matrix (`tkhd`,
+      8.3.2) to VALUE, for each pair.
+  iso_patch.py INPUT OUTPUT channels TRACK COUNT
+      Set the channelcount of the track's version 0 audio sample entries
+      (12.2.3).
+  iso_patch.py INPUT OUTPUT movie-matrix INDEX VALUE [INDEX VALUE...]
+      Set element INDEX of the movie header's matrix (`mvhd`, 8.2.2), for
+      each pair.
+  iso_patch.py INPUT OUTPUT size TRACK WIDTH HEIGHT
+      Set the track header's width and height (`tkhd`, 8.3.2), in whole
+      pixels.
+  iso_patch.py INPUT OUTPUT chap TRACK ID...
+      Set the track IDs of the track's `chap` reference (`tref`, 8.3.3),
+      as many as it holds.
+  iso_patch.py INPUT OUTPUT unref TRACK
+      Turn the track's `tref` box into a `free` box.
+  iso_patch.py INPUT OUTPUT amve TRACK LUX X Y
+      Turn the `pasp` box of the track's video sample entries, the same
+      size, into an ambient viewing environment box (`amve`, ISO/IEC
+      23008-2 D.2.39): illuminance LUX in 1/10000 cd/m2, light x and y
+      in 1/50000.
+  iso_patch.py INPUT OUTPUT cover-type TYPE
+      Set the type of the cover picture's `data` atom (`covr` in the
+      item list of `moov/udta/meta`, QuickTime well-known types).
 Python 3 standard library only.
 """
 import struct
@@ -115,6 +143,96 @@ def set_average(data, track, bits):
         raise SystemExit('no btrt or esds in the track')
 
 
+def track_box(data, track):
+    traks = list(find(data, 0, len(data), [b'moov', b'trak']))
+    if track >= len(traks):
+        raise SystemExit(f'no track at position {track}')
+    return traks[track]
+
+
+def entries(data, track):
+    # (handler, entry start, entry end) of each sample entry of TRACK.
+    s, e = track_box(data, track)
+    (hdlr, _), = find(data, s + 8, e, [b'mdia', b'hdlr'])
+    handler = bytes(data[hdlr + 16:hdlr + 20])
+    (stsd, stsd_end), = find(data, s + 8, e, [b'mdia', b'minf', b'stbl', b'stsd'])
+    return [(handler, es, ee) for _, es, ee in boxes(data, stsd + 16, stsd_end)]
+
+
+def free_boxes(data, track, kind):
+    freed = 0
+    for handler, es, ee in entries(data, track):
+        if handler not in ENTRY_FIELDS:
+            raise SystemExit('only audio and video tracks have these fields')
+        for child, cs, _ in boxes(data, es + 8 + ENTRY_FIELDS[handler], ee):
+            if child == kind:
+                data[cs + 4:cs + 8] = b'free'
+                freed += 1
+    if not freed:
+        raise SystemExit(f'no {kind.decode()} box in the track')
+
+
+def set_matrix(data, track, index, value):
+    s, e = track_box(data, track)
+    (tkhd, _), = find(data, s + 8, e, [b'tkhd'])
+    at = tkhd + (60 if data[tkhd + 8] == 1 else 48) + 4 * index
+    data[at:at + 4] = struct.pack('>i', value)
+
+
+def set_channels(data, track, count):
+    for handler, es, _ in entries(data, track):
+        if handler != b'soun' or struct.unpack('>H', data[es + 16:es + 18])[0] != 0:
+            raise SystemExit('only version 0 audio sample entries')
+        data[es + 24:es + 26] = struct.pack('>H', count)
+
+
+def set_movie_matrix(data, index, value):
+    (mvhd, _), = find(data, 0, len(data), [b'moov', b'mvhd'])
+    at = mvhd + (56 if data[mvhd + 8] == 1 else 44) + 4 * index
+    data[at:at + 4] = struct.pack('>i', value)
+
+
+def set_size(data, track, width, height):
+    s, e = track_box(data, track)
+    (tkhd, _), = find(data, s + 8, e, [b'tkhd'])
+    at = tkhd + (60 if data[tkhd + 8] == 1 else 48) + 36
+    data[at:at + 8] = struct.pack('>II', width << 16, height << 16)
+
+
+def set_chap(data, track, ids):
+    s, e = track_box(data, track)
+    (chap, chap_end), = find(data, s + 8, e, [b'tref', b'chap'])
+    if (chap_end - chap - 8) // 4 != len(ids):
+        raise SystemExit('give as many IDs as the reference holds')
+    data[chap + 8:chap_end] = b''.join(struct.pack('>I', i) for i in ids)
+
+
+def unref(data, track):
+    s, e = track_box(data, track)
+    (tref, _), = find(data, s + 8, e, [b'tref'])
+    data[tref + 4:tref + 8] = b'free'
+
+
+def set_ambient(data, track, lux, x, y):
+    found = 0
+    for handler, es, ee in entries(data, track):
+        if handler != b'vide':
+            raise SystemExit('only video tracks have an ambient viewing environment')
+        for child, cs, ce in boxes(data, es + 8 + ENTRY_FIELDS[handler], ee):
+            if child == b'pasp' and ce - cs == 16:
+                data[cs + 4:ce] = b'amve' + struct.pack('>IHH', lux, x, y)
+                found += 1
+    if not found:
+        raise SystemExit('no pasp box in the track')
+
+
+def set_cover_type(data, kind):
+    (meta, meta_end), = find(data, 0, len(data), [b'moov', b'udta', b'meta'])
+    # `meta` is a full box: its children follow version and flags.
+    (cover, _), = find(data, meta + 12, meta_end, [b'ilst', b'covr', b'data'])
+    data[cover + 8:cover + 12] = struct.pack('>I', kind)
+
+
 def descriptor(data, at, end):
     """Tag, body start and body end of the descriptor at AT (14496-1 8.3.3)."""
     tag, size, at = data[at], 0, at + 1
@@ -158,6 +276,26 @@ def main():
         shift_tfdt(data, int(values[0]))
     elif operation == 'average':
         set_average(data, int(values[0]), int(values[1]))
+    elif operation == 'free':
+        free_boxes(data, int(values[0]), values[1].encode())
+    elif operation == 'matrix':
+        for index, value in zip(values[1::2], values[2::2]):
+            set_matrix(data, int(values[0]), int(index), int(value))
+    elif operation == 'channels':
+        set_channels(data, int(values[0]), int(values[1]))
+    elif operation == 'movie-matrix':
+        for index, value in zip(values[0::2], values[1::2]):
+            set_movie_matrix(data, int(index), int(value))
+    elif operation == 'size':
+        set_size(data, int(values[0]), int(values[1]), int(values[2]))
+    elif operation == 'chap':
+        set_chap(data, int(values[0]), [int(v) for v in values[1:]])
+    elif operation == 'unref':
+        unref(data, int(values[0]))
+    elif operation == 'amve':
+        set_ambient(data, int(values[0]), int(values[1]), int(values[2]), int(values[3]))
+    elif operation == 'cover-type':
+        set_cover_type(data, int(values[0]))
     else:
         raise SystemExit(f'unknown operation {operation}')
     open(target, 'wb').write(data)

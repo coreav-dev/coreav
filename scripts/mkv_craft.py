@@ -29,8 +29,10 @@ would invalidate. Operations, applied to one track (--track, a TrackNumber):
                         Annex B), the record's SPS and PPS before every
                         keyframe
 
+--default-duration NS sets the track's DefaultDuration, with any operation.
+
 Usage: mkv_craft.py OP [ARGS] INPUT OUTPUT [--track N] [--group K] [--bytes K]
-                   [--timestamp-scale NS]
+                   [--timestamp-scale NS] [--default-duration NS]
 Python 3 standard library only.
 """
 import argparse
@@ -208,6 +210,8 @@ def rewrite_track_entry(payload, number, op, args, prefix):
             continue
         if is_target and op == 'lace' and eid == FLAG_LACING:
             value = uint(1)
+        if is_target and args.default_duration and eid == DEFAULT_DURATION:
+            continue
         if eid == DEFAULT_DURATION:
             default_duration = int.from_bytes(value, 'big')
         if is_target and op == 'annexb' and eid == CODEC_PRIVATE:
@@ -224,6 +228,9 @@ def rewrite_track_entry(payload, number, op, args, prefix):
                 video += element(vid, part)
             value = video
         out += element(eid, value)
+    if is_target and args.default_duration:
+        out += element(DEFAULT_DURATION, uint(args.default_duration))
+        default_duration = args.default_duration
     if is_target and op == 'strip':
         # ContentEncoding: order 0, scope 1 (frames), type 0 (compression),
         # ContentCompression: algorithm 3, settings = the stripped bytes.
@@ -243,6 +250,7 @@ def main():
     parser.add_argument('--group', type=int, default=4)
     parser.add_argument('--bytes', type=int, default=4)
     parser.add_argument('--timestamp-scale', type=int, default=500000)
+    parser.add_argument('--default-duration', type=int)
     args = parser.parse_intermixed_args()
     if args.op == 'lace':
         lacing, src, dst = args.rest

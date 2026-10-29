@@ -133,6 +133,7 @@ pub fn iso_codec(fourcc: &[u8; 4], object_type: Option<u8>) -> Option<&'static s
             0x69 | 0x6b => return Some("mp3"),
             0xa5 => return Some("ac3"),
             0xa6 => return Some("eac3"),
+            0xdd => return Some("vorbis"),
             _ => {}
         }
     }
@@ -243,10 +244,17 @@ pub fn sample_fmt(codec: &str, bits: Option<u16>) -> Option<&'static str> {
         "aac" | "aac_latm" | "mp3" | "mp2" | "mp1" | "opus" | "vorbis" | "ac3" | "eac3" | "dts" => {
             "fltp"
         }
-        "flac" | "alac" => match bits {
+        "flac" => match bits {
             Some(b) if b > 16 => "s32",
             _ => "s16",
         },
+        "alac" => match bits {
+            Some(b) if b > 16 => "s32p",
+            _ => "s16p",
+        },
+        "amr_nb" | "amr_wb" => "fltp",
+        "qdm2" => "s16",
+        "mace3" | "mace6" => "s16p",
         "pcm_u8" => "u8",
         "pcm_s8" => "u8",
         "pcm_s16le" | "pcm_s16be" | "pcm_u16le" | "pcm_u16be" | "pcm_bluray" | "pcm_dvd" => "s16",

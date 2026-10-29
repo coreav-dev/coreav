@@ -34,7 +34,7 @@ mod subtitles;
 mod timing;
 mod webvtt;
 
-pub use chapters::{Chapter, Chapters, read_chapters};
+pub use chapters::{Chapter, Chapters, read_chapter_tracks, read_chapters};
 pub use sample::{
     MODIFIERS, ModifierCounts, OTHER_MODIFIER, SampleError, TextSample, modifier_type, parse_sample,
 };

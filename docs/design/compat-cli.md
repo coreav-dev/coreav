@@ -123,14 +123,14 @@ holds the option sequence and not the names an answer happened to use.
 | **B6 Guard** | the set runs in CI on the generated fixtures on every change, and the speed bar has a regression guard |
 
 **Where the bars stand.** In the last round
-(`docs/measurements/compat-ffprobe.md`, round 6) B1 is met, B2 and B3a
+(`docs/measurements/compat-ffprobe.md`, round 7) B1 is met, B2 and B3a
 are missed, and B4 was last measured in round 3 (met) and not run again on
 this code. B3a now misses on the
 corpus only: the fixtures print byte-identical output for every command
 that runs, in all three containers (100%, with the runs a recorded known
-divergence explains set aside), but on the corpus 34 of 101 ISO base media
+divergence explains set aside), but on the corpus 9 of 101 ISO base media
 keys and 35 of 157 MPEG-TS keys agree on fewer than 98% of files
-(Matroska and WebM: 2 of 101). On the development files alone, 32 of 101
+(Matroska and WebM: 0 of 101). On the development files alone, 9 of 101
 ISO base media keys and 6 of 157 MPEG-TS keys are below 98%; the MPEG-TS
 work measured in round 6 generalized, taking the held-out count from 62
 to 35 while the development count stayed at 6.

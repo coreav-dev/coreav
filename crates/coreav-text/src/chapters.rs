@@ -1,10 +1,12 @@
 //! QuickTime chapter lists (Apple QuickTime File Format, "Chapter lists").
 
+use std::ops::ControlFlow;
+
 use crate::sample::parse_sample;
 use crate::timing::Edit;
 use crate::{Dropped, TextError, TextLimits};
 use coreav_isobmff::{
-    Allowlist, Budget, Codec, Error, LimitKind, Limits, Rational, Source, Track, probe,
+    Allowlist, Budget, Codec, Error, LimitKind, Limits, Movie, Rational, Source, Track, probe,
 };
 
 /// One chapter.
@@ -61,8 +63,7 @@ pub fn read_chapters<S: Source>(
     text_limits: &TextLimits,
 ) -> Result<Option<Chapters>, TextError> {
     let mut source = source;
-    let allowlist = Allowlist::new(&[Codec::QuickTimeText, Codec::TimedText]);
-    let movie = probe(&mut source, limits, &allowlist)?;
+    let movie = probe_text(&mut source, limits)?;
     let Some(track) = movie
         .chapter_tracks
         .iter()
@@ -70,6 +71,56 @@ pub fn read_chapters<S: Source>(
     else {
         return Ok(None);
     };
+    track_chapters(&movie, track, &mut source, limits, text_limits).map(Some)
+}
+
+/// [`read_chapters`], from each text track `track_ids` names, in order,
+/// whether or not a `chap` reference names it, the file probed once:
+/// `each` gets the result of each ID of a text track as it is read, so
+/// only one track's chapters are held at a time, and none for other IDs.
+/// Stops at the first `ControlFlow::Break` and returns it.
+pub fn read_chapter_tracks<S: Source, B>(
+    source: S,
+    track_ids: &[u32],
+    limits: &Limits,
+    text_limits: &TextLimits,
+    mut each: impl FnMut(Result<Chapters, TextError>) -> ControlFlow<B>,
+) -> Result<ControlFlow<B>, TextError> {
+    let mut source = source;
+    let movie = probe_text(&mut source, limits)?;
+    for track in track_ids
+        .iter()
+        .filter_map(|id| movie.tracks.iter().find(|t| t.track_id == *id))
+    {
+        if let ControlFlow::Break(b) = each(track_chapters(
+            &movie,
+            track,
+            &mut source,
+            limits,
+            text_limits,
+        )) {
+            return Ok(ControlFlow::Break(b));
+        }
+    }
+    Ok(ControlFlow::Continue(()))
+}
+
+fn probe_text<S: Source>(source: &mut S, limits: &Limits) -> Result<Movie, Error> {
+    probe(
+        source,
+        limits,
+        &Allowlist::new(&[Codec::QuickTimeText, Codec::TimedText]),
+    )
+}
+
+/// The chapters of one text track of `movie`.
+fn track_chapters<S: Source>(
+    movie: &Movie,
+    track: &Track,
+    source: &mut S,
+    limits: &Limits,
+    text_limits: &TextLimits,
+) -> Result<Chapters, TextError> {
     check(track)?;
     let mut edit = Edit::of(track, movie.timescale)?;
     let mut list = Chapters {
@@ -82,7 +133,7 @@ pub fn read_chapters<S: Source>(
         dropped: Dropped::default(),
     };
     let mut budget = Budget::new(limits);
-    let mut packets = movie.packets(track.index, &mut source, limits, &mut budget)?;
+    let mut packets = movie.packets(track.index, source, limits, &mut budget)?;
     let mut buffer = Vec::new();
     // The parts of one sample the edits present, reused sample by sample.
     let mut shown = Vec::new();
@@ -128,7 +179,7 @@ pub fn read_chapters<S: Source>(
             });
         }
     }
-    Ok(Some(list))
+    Ok(list)
 }
 
 fn check(track: &Track) -> Result<(), Error> {

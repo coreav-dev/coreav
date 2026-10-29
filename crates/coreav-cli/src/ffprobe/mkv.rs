@@ -316,6 +316,14 @@ enum Parser {
     Pcm(u64),
 }
 
+impl Parser {
+    /// Whether a packet's samples are read from its frame header, rather
+    /// than known from the track alone.
+    fn reads_frame(&self) -> bool {
+        !matches!(self, Parser::None | Parser::Fixed(_) | Parser::Pcm(_))
+    }
+}
+
 /// What the packets of a track need, and what the stream section shows of
 /// the codec.
 #[derive(Clone, Debug)]
@@ -2633,8 +2641,20 @@ pub(super) fn picture_stream(
         ("closed_captions", Value::Int(0)),
         ("film_grain", Value::Int(0)),
         ("has_b_frames", Value::Int(0)),
-        ("sample_aspect_ratio", s("1:1")),
-        ("display_aspect_ratio", ratio(w, h).map_or(Value::Na, s)),
+        (
+            "sample_aspect_ratio",
+            picture
+                .aspect
+                .and_then(|(x, y)| ratio(u64::from(x), u64::from(y)))
+                .map_or(Value::Na, s),
+        ),
+        (
+            "display_aspect_ratio",
+            picture
+                .aspect
+                .and_then(|(x, y)| ratio(w * u64::from(x), h * u64::from(y)))
+                .map_or(Value::Na, s),
+        ),
         (
             "pix_fmt",
             picture.pix_fmt.map_or(Value::Unset("unknown"), s),
@@ -2642,8 +2662,22 @@ pub(super) fn picture_stream(
         ("level", Value::Int(-99)),
         ("color_range", s("pc")),
         ("color_space", s(if jpeg { "bt470bg" } else { "gbr" })),
-        ("color_transfer", Value::Unset("unknown")),
-        ("color_primaries", Value::Unset("unknown")),
+        (
+            "color_transfer",
+            if picture.srgb {
+                s("iec61966-2-1")
+            } else {
+                Value::Unset("unknown")
+            },
+        ),
+        (
+            "color_primaries",
+            if picture.srgb {
+                s("bt709")
+            } else {
+                Value::Unset("unknown")
+            },
+        ),
         (
             "chroma_location",
             if jpeg {
@@ -2762,10 +2796,7 @@ impl<S: Source> PacketSource for MkvPackets<S> {
                 Vec::new()
             } else if track.codec == Codec::TrueHd {
                 frame_head(track, &p, iter.source_mut())
-            } else if matches!(
-                info.parser,
-                Parser::None | Parser::Fixed(_) | Parser::Pcm(_)
-            ) {
+            } else if !info.parser.reads_frame() {
                 Vec::new()
             } else {
                 frame_head(track, &p, iter.source_mut())
@@ -2811,17 +2842,27 @@ impl<S: Source> PacketSource for MkvPackets<S> {
                 .and_then(|dd| u128::from(dd).checked_mul(frames).map(|n| n / scale));
             let share = |i: u128| block_ticks.and_then(|b| b.checked_mul(i).map(|n| n / frames));
             // Each frame lasts its `DefaultDuration` truncated to the
-            // tick; one shorter than a tick is no duration.
-            let lace_duration = info
-                .default_ns
-                .map(|dd| u128::from(dd) / scale)
-                .filter(|t| *t > 0)
-                .and_then(|t| i64::try_from(t).ok());
+            // tick; one shorter than a tick is no duration. An audio frame
+            // of a lace lasts from its start to the next frame's.
+            let lace_duration = if info.kind == TrackKind::Audio && frames > 1 {
+                share(lace + 1)
+                    .zip(share(lace))
+                    .map(|(end, start)| end - start)
+            } else {
+                info.default_ns.map(|dd| u128::from(dd) / scale)
+            }
+            .filter(|t| *t > 0)
+            .and_then(|t| i64::try_from(t).ok());
             let block_duration = p.block_duration.and_then(|d| i64::try_from(d).ok());
-            // An audio packet lasts what the track or its codec says; a
-            // video packet what its block or the track says, or after the
+            // An audio packet lasts what its frame header says, else what
+            // the track or its codec says (found black box: a
+            // `DefaultDuration` that disagrees with the frames is ignored);
+            // a video packet what its block or the track says, or after the
             // rate analysis, a frame of the estimated rate.
             let duration = match info.kind {
+                TrackKind::Audio if info.parser.reads_frame() => {
+                    parsed.or(lace_duration).or(block_duration)
+                }
                 TrackKind::Audio => lace_duration.or(parsed).or(block_duration),
                 TrackKind::Video => block_duration
                     .or(lace_duration)

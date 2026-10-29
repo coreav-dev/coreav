@@ -163,6 +163,9 @@ pub struct SampleDescription {
     pub width: Option<u16>,
     /// Coded height in pixels (visual entries).
     pub height: Option<u16>,
+    /// Bits a pixel (visual entries' `depth`, ISO/IEC 14496-12 12.1.3;
+    /// QuickTime adds 32 for a grey palette).
+    pub depth: Option<u16>,
     /// Pixel aspect ratio from `pasp`.
     pub pixel_aspect: Option<(u32, u32)>,
     /// Color description.
@@ -212,6 +215,10 @@ pub struct SampleDescription {
     /// first readable one if a malformed entry has several (the
     /// specification allows one).
     pub dolby_vision: Option<DolbyVision>,
+    /// The ambient viewing environment of a visual entry (`amve`):
+    /// illuminance in 0.0001 lux, then the light's chromaticity x and y in
+    /// 0.00002 steps.
+    pub ambient: Option<(u32, u16, u16)>,
     /// The first `pasp`, `clap`, `colr` and `btrt` boxes of a visual entry,
     /// each as stored, in the entry's order (ISO/IEC 14496-12). The clip
     /// writer copies them.
@@ -383,6 +390,7 @@ pub(crate) fn parse_sample_entry(
         codec: codec_from_fourcc(fourcc),
         width: None,
         height: None,
+        depth: None,
         pixel_aspect: None,
         color: Color::default(),
         channels: None,
@@ -396,6 +404,7 @@ pub(crate) fn parse_sample_entry(
         declared_bit_rate: None,
         codec_config: None,
         dolby_vision: None,
+        ambient: None,
         entry_boxes: Vec::new(),
         other_boxes: Vec::new(),
         parameter_set_size: None,
@@ -407,7 +416,9 @@ pub(crate) fn parse_sample_entry(
             bytes.skip(16)?;
             desc.width = Some(bytes.u16()?);
             desc.height = Some(bytes.u16()?);
-            bytes.skip(VISUAL_FIXED - 20)?;
+            bytes.skip(4 + 4 + 4 + 2 + 32)?;
+            desc.depth = Some(bytes.u16()?);
+            bytes.skip(VISUAL_FIXED - 20 - 48)?;
             bytes
         }
         EntryLayout::Audio => audio_fields(&mut bytes, &mut desc)?,
@@ -497,6 +508,12 @@ pub(crate) fn parse_sample_entry(
                 b"colr" => parse_colr(payload, &mut desc.color),
                 b"dvcC" | b"dvvC" | b"dvwC" if desc.dolby_vision.is_none() => {
                     desc.dolby_vision = dolby_vision(payload);
+                }
+                b"amve" if desc.ambient.is_none() => {
+                    let mut p = Bytes::new(payload, 0);
+                    if let (Ok(lux), Ok(x), Ok(y)) = (p.u32(), p.u16(), p.u16()) {
+                        desc.ambient = Some((lux, x, y));
+                    }
                 }
                 b"hvcC" => {
                     codec_range = bitstream::hevc_full_range(payload);
@@ -650,8 +667,9 @@ fn dolby_vision(payload: &[u8]) -> Option<DolbyVision> {
 }
 
 /// Configuration boxes whose payload is kept as `codec_config`.
-const CONFIG_BOXES: [&[u8; 4]; 7] = [
-    b"avcC", b"hvcC", b"av1C", b"vpcC", b"esds", b"dOps", b"dfLa",
+const CONFIG_BOXES: [&[u8; 4]; 11] = [
+    b"avcC", b"hvcC", b"av1C", b"vpcC", b"esds", b"dOps", b"dfLa", b"alac", b"dac3", b"dec3",
+    b"QDCA",
 ];
 
 /// Visual sample entry children kept as stored, for the clip writer to copy.

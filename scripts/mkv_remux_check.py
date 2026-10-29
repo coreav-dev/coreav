@@ -223,6 +223,7 @@ def check(source, output, summary, mediainfo_bin=None, selected=None):
 FIXTURE_REFUSALS = {
     "mkv_ac3.mkv": "unsupported: no stream can be copied to MP4",
     "mkv_flac.mkv": "unsupported: no stream can be copied to MP4",
+    "mkv_lace_ac3_44k.mkv": "unsupported: no stream can be copied to MP4",
     "mkv_lace_fixed.mkv": "unsupported: PCM audio is not copied to MP4",
     "mkv_mp3.mkv": "unsupported: MP3 is not copied to MP4 by this remux",
     "mkv_pcm.mkv": "unsupported: PCM audio is not copied to MP4",

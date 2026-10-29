@@ -43,8 +43,8 @@ class CommittedRecord(unittest.TestCase):
 
     def test_every_round_with_tables_is_rendered_from_its_evidence(self):
         blocks = record.Record(RECORD.read_text(), EVIDENCE, NAME).blocks
-        self.assertEqual(sorted({n for n, _, _, _ in blocks}), [1, 3, 4, 5, 6])
-        self.assertEqual(len(blocks), 15)
+        self.assertEqual(sorted({n for n, _, _, _ in blocks}), [1, 3, 4, 5, 6, 7])
+        self.assertEqual(len(blocks), 18)
 
 
 class PastMistakes(unittest.TestCase):
@@ -165,11 +165,11 @@ class Evidence(unittest.TestCase):
 
     def test_a_round_without_evidence(self):
         with tempfile.TemporaryDirectory() as tmp:
-            for p in EVIDENCE.glob('b3a-round[1-5].json'):
+            for p in EVIDENCE.glob('b3a-round[1-6].json'):
                 (pathlib.Path(tmp) / p.name).write_bytes(p.read_bytes())
             problems = check(RECORD.read_text(), tmp)
         self.assertTrue(problems)
-        self.assertTrue(all('round 6' in p and 'b3a-round6.json' in p for p in problems), problems)
+        self.assertTrue(all('round 7' in p and 'b3a-round7.json' in p for p in problems), problems)
 
 
 if __name__ == '__main__':
