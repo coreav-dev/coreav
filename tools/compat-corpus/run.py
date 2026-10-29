@@ -35,6 +35,10 @@ import sys
 HERE = pathlib.Path(__file__).resolve().parent
 COMMANDS = HERE / 'commands-v1' / 'commands.jsonl'
 TIMEOUT = 600
+# `coreav` in strict-safe mode: a command it does not run natively is
+# refused, never handed to the `ffprobe` on PATH, which would agree with
+# itself (docs/design/compat-cli.md, "Fallback to FFmpeg").
+ENV = {**os.environ, 'COREAV_STRICT_SAFE': '1'}
 
 
 def media_files(dirs):
@@ -58,7 +62,7 @@ def media_files(dirs):
 
 def run(cmd):
     try:
-        p = subprocess.run(cmd, capture_output=True, timeout=TIMEOUT)
+        p = subprocess.run(cmd, capture_output=True, timeout=TIMEOUT, env=ENV)
         return p.returncode, p.stdout, p.stderr
     except subprocess.TimeoutExpired:
         return None, b'', b'timeout'
@@ -291,7 +295,8 @@ def packet_fields(line):
 def run_to_file(cmd, path):
     with open(path, 'wb') as f:
         try:
-            return subprocess.run(cmd, stdout=f, stderr=subprocess.DEVNULL, timeout=TIMEOUT).returncode
+            return subprocess.run(cmd, stdout=f, stderr=subprocess.DEVNULL, timeout=TIMEOUT,
+                                  env=ENV).returncode
         except subprocess.TimeoutExpired:
             return None
 

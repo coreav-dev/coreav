@@ -35,8 +35,14 @@ struct Run {
     stderr: String,
 }
 
+/// Runs in strict-safe mode, so that a refused command is refused rather
+/// than handed to an FFmpeg on `PATH` (`tests/fallback.rs` tests that).
 fn run(program: &Path, args: &[&str]) -> Run {
-    let out = Command::new(program).args(args).output().unwrap();
+    let out = Command::new(program)
+        .args(args)
+        .env("COREAV_STRICT_SAFE", "1")
+        .output()
+        .unwrap();
     Run {
         code: out.status.code().unwrap(),
         stdout: String::from_utf8(out.stdout).unwrap(),
