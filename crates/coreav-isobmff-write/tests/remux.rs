@@ -494,6 +494,23 @@ fn hevc_parameter_sets(config: &[u8]) -> Vec<u8> {
     out
 }
 
+/// An H.264 configuration (ISO/IEC 14496-15 5.3.3.1.2) cut after its PPS
+/// array when its profile carries no chroma format and bit depth fields.
+fn avc_without_extras(config: &mut Vec<u8>) {
+    if matches!(config[1], 100 | 110 | 122 | 144) {
+        return;
+    }
+    let mut at = 6;
+    for mask in [0x1f, 0xff] {
+        let count = config[at - 1] & mask;
+        for _ in 0..count {
+            at += 2 + usize::from(u16::from_be_bytes([config[at], config[at + 1]]));
+        }
+        at += 1;
+    }
+    config.truncate(at - 1);
+}
+
 fn assert_copied(source: &[u8], output: &[u8], summary: &RemuxSummary, keep: Option<Keep>) {
     assert_eq!(top_level(output), [*b"ftyp", *b"moov", *b"mdat"]);
     let limits = Limits::default();
@@ -524,9 +541,13 @@ fn assert_copied(source: &[u8], output: &[u8], summary: &RemuxSummary, keep: Opt
         let mut entry_boxes = s.description.entry_boxes.clone();
         if keep.is_some() {
             // Sanitized: an HEVC configuration keeps only its parameter
-            // sets, a `colr` only coded colour parameters.
+            // sets, an H.264 one nothing past the fields of its profile, a
+            // `colr` only coded colour parameters.
             if let Some(c) = config.as_mut().filter(|c| &c.kind.0 == b"hvcC") {
                 c.data = hevc_parameter_sets(&c.data);
+            }
+            if let Some(c) = config.as_mut().filter(|c| &c.kind.0 == b"avcC") {
+                avc_without_extras(&mut c.data);
             }
             entry_boxes
                 .retain(|b| &b.kind.0 != b"colr" || matches!(&b.data[..4], b"nclx" | b"nclc"));

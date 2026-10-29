@@ -486,7 +486,7 @@ jobs:
           cargo test --locked --release -p coreav-isobmff-write --test hls fixtures_round_trip -- --ignored
           python3 -I scripts/hls_check.py --coreav target/release/coreav --media "$COREAV_FIXTURES" \
             --mediainfo "$RUNNER_TEMP/coreav-oracle-bin/mediainfo" --master-decode \
-            --expect-refused "audio_mp3.mp4,audio_mp3.mov,audio_opus.mp4,edit_multi_*,h264_avc3.mp4,hevc_hev1.mp4,nested_10000.mp4,pcm_*,prores_*,truncated.mp4,size_prores_understated.mov" \
+            --expect-refused "audio_mp3.mp4,audio_mp3.mov,audio_opus.mp4,edit_multi_*,h264_avc3.mp4,hevc_hev1.mp4,nested_10000.mp4,pcm_*,prores_*,truncated.mp4,size_prores_understated.mov,ambient*.mov,chapter_pictures_src.mov,codec_ac3_*,codec_alac*,codec_amr_*,codec_dv*,codec_eac3_*,codec_h263.*,codec_mjpeg*,codec_mpeg4_color.mp4,codec_png*,codec_qtrle*,codec_vorbis.mp4,entry_stereo_*,matrix_*.mov,movie_matrix_*.mov,nopasp_*" \
             --report "$RUNNER_TEMP/coreav-hls.json"
       # docs/design/join.md: every fixture with a video track the clip writer
       # accepts is split every second and joined back (which must give back

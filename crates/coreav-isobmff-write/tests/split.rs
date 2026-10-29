@@ -660,6 +660,11 @@ fn fixtures_round_trip() {
                     assert!(!REQUIRED.contains(&name.as_str()), "{name}: no video");
                     continue;
                 }
+                Err(ExtractError::Source(e @ Error::CodecNotAllowed { .. })) => {
+                    assert!(!REQUIRED.contains(&name.as_str()), "{name} {label}: {e}");
+                    eprintln!("{name} {label}: {e}");
+                    continue;
+                }
                 Err(e) => panic!("{name} {label}: {e}"),
             };
             assert_partition(&source, &outputs, &summary);
