@@ -1,0 +1,6 @@
+    98.67%  vf#0:0         
+     0.90%  enc0:0:libx264 
+     0.38%  dmx0:rawvideo  
+     0.03%  mux0:h264      
+     0.01%  ffmpeg         
+     0.01%  dec0:0:rawvideo
