@@ -79,7 +79,8 @@ every encoder value of a codec option, `-f lavfi`, `-f image2`,
 
 Every one of those is refused by **naming it**: the error says which
 option or property is not supported, and the exit status is non-zero. A
-refusal is never a silent fallback.
+refused command never runs differently: in strict-safe mode it is refused,
+and otherwise it runs FFmpeg itself and says so ("Fallback to FFmpeg").
 
 Three option meanings the set makes unavoidable, pre-registered here so
 the implementation does not get to choose later:
@@ -196,6 +197,199 @@ above move with it in this note.
 - **A snapshot is a version.** Scores change and answers are edited, so
   the set is frozen as `commands-v1`; a later snapshot is `commands-v2`,
   in the pull request that measures against it.
+
+## The 0.1.0 command set
+
+Release 0.1.0 does not wait for B2, B3a and B3b over the whole vocabulary.
+It ships the commands that upload and preprocessing pipelines run most, the
+`ffprobe` listings and the `ffmpeg -c copy` jobs, as **`commands-0.1.0`**, and
+holds them to the bars below. This section is written before any run of a
+0.1.0 command, and the bars above stay as registered for everything the
+set leaves out.
+
+### The set
+
+[`commands-0.1.0/commands.json`](../../tools/compat-corpus/commands-0.1.0/commands.json), derived
+from the native commands of `commands-v1` by
+[`release_set.py`](../../tools/compat-corpus/release_set.py). `tools/compat-corpus/tests/`
+derives it again and fails when the committed file, or a number or row of
+this section, differs from what the script derives.
+
+- **Shape.** Each native command is reduced to what it asks the tool to do.
+  For `ffprobe`: the sections it asks for (`-show_format`, `-show_streams`,
+  `-show_chapters`, `-show_packets`, and each section named by
+  `-show_entries`), the writer, and whether it selects streams. For
+  `ffmpeg`: the job (a copy, `-f concat`, `-f segment`, `-f hls`), the seek
+  and whether it comes before or after `-i`, an end (`-t` or `-to`), the
+  streams kept (all, audio only, video only), and `-map`, `-movflags`, the
+  timestamp options and the metadata options as one feature each. Left
+  out: what does not change the output (the log level, `-y`, `-hide_banner`,
+  `-threads`, the order of the options, `-i INPUT` against a bare input), and
+  the details within a feature (the times, the stream indexes, a writer's
+  settings, the `-show_entries` keys), which the entry's commands still
+  carry. The streams kept are those the command selects (FFmpeg's automatic
+  selection, `-map`, `-vn`, `-an`, `-sn`) and copies, so `-c copy` and per-type
+  copies of what it selects are one shape. A command that selects a stream
+  type it does not copy (`-i INPUT -acodec copy OUTPUT` selects video too)
+  would encode that stream, so it is a copy only on an input without that
+  type: the file records the types per command (`input_without`), and a run
+  gives such a command only inputs that have none of them.
+- **Eligible.** A native command the command refuses by design is not
+  eligible: the four that ask for no section and print only the summary on
+  standard error, and `-read_intervals 999999`. They hold 17 of the 253
+  native command-and-answer pairs.
+- **The cut.** Shapes are ranked by the command-and-answer pairs that use
+  them. The set is the smallest prefix of that ranking that reaches 80% of
+  the eligible pairs, with whole ties: a shape used as often as the last one
+  taken is taken too, so that the order of the shapes' names breaks no tie.
+
+**Result:** 33 shapes, holding 133 of the 167 eligible native commands and
+202 of their 236 command-and-answer pairs (85.6%), which is 79.8% of all 253 native pairs.
+The 34 shapes below the cut hold one pair each and are listed in the file
+(`not_selected`). The cut fell inside the tier of shapes used twice; taking
+the whole tier makes 33 shapes where a cut at the first shape over 80%
+would have made 27 and left out six shapes as common as the last one taken.
+
+| | Tool | Job | Inputs | Pairs | Shape | Most used command |
+|---|---|---|---|---:|---|---|
+| C01 | ffmpeg | `remux` | MP4/MOV, Matroska/WebM | 33 | job:copy, streams:all | `-i INPUT -c copy OUTPUT` |
+| C02 | ffmpeg | `join` | MP4/MOV | 31 | job:concat, streams:all | `-f concat -i INPUT -c copy OUTPUT` |
+| C03 | ffmpeg | `remux` | MP4/MOV, Matroska/WebM | 14 | job:copy, map, streams:all | `-i INPUT -c copy -map 0 OUTPUT` |
+| C04 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 12 | entries:stream, select_streams, writer:default | `-v error -select_streams v:0 -show_entries stream=avg_frame_rate -of default=noprint_wrappers=1:nokey=1 INPUT` |
+| C05 | ffmpeg | `clip` | MP4/MOV | 10 | end, job:copy, seek:output, streams:all | `-i INPUT -ss 0 -t 120 -c copy OUTPUT` |
+| C06 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 8 | format, streams, writer:json | `-v quiet -print_format json -show_format -show_streams INPUT` |
+| C07 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 6 | select_streams, streams, writer:default | `-v quiet -show_streams -select_streams v:0 INPUT` |
+| C08 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 6 | streams, writer:default | `-show_streams INPUT` |
+| C09 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 6 | entries:format, writer:default | `-v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 INPUT` |
+| C10 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 5 | entries:stream, select_streams, writer:csv | `-loglevel error -select_streams a -show_entries stream=codec_type -of csv=p=0 INPUT` |
+| C11 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 5 | entries:stream, writer:default | `-v error -show_entries stream=codec_name INPUT` |
+| C12 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 5 | format, streams, writer:default | `-show_streams -show_format INPUT` |
+| C13 | ffmpeg | `extract-audio` | MP4/MOV | 5 | job:copy, streams:audio | `-i INPUT -vn -c:a copy OUTPUT` |
+| C14 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 5 | entries:format, writer:csv | `-i INPUT -show_entries format=duration -v quiet -of csv=p=0` |
+| C15 | ffmpeg | `clip` | MP4/MOV | 4 | end, job:copy, seek:output, streams:audio | `-i INPUT -ss 00:02:54.583 -t 300 -acodec copy OUTPUT` |
+| C16 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 4 | streams, writer:json | `-of json -show_streams INPUT` |
+| C17 | ffmpeg | `remux` | MP4/MOV, Matroska/WebM | 4 | job:copy, streams:video | `-y -i INPUT -vcodec copy OUTPUT` |
+| C18 | ffmpeg | `clip` | MP4/MOV | 3 | end, job:copy, seek:input, streams:all | `-ss 60 -i INPUT -to 70 -c copy OUTPUT` |
+| C19 | ffmpeg | `clip` | MP4/MOV | 3 | end, job:copy, seek:input, streams:audio | `-ss 3 -i INPUT -t 5 -c:a copy OUTPUT` |
+| C20 | ffmpeg | `extract-audio` | MP4/MOV | 3 | job:copy, map, streams:audio | `-i INPUT -map 0:a -c copy OUTPUT` |
+| C21 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 3 | entries:stream, select_streams, writer:flat | `-v error -of flat=s=_ -select_streams v:0 -show_entries stream=height INPUT` |
+| C22 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 3 | entries:stream, select_streams, writer:json | `-v error -select_streams v -show_entries stream=width,height -of json INPUT` |
+| C23 | ffmpeg | `remux` | MP4/MOV, Matroska/WebM | 3 | job:copy, movflags:faststart, streams:all | `-i INPUT -c copy -movflags +faststart OUTPUT` |
+| C24 | ffprobe | `probe-packets` | MP4/MOV, Matroska/WebM, MPEG-TS | 3 | packets, writer:default | `-i INPUT -show_packets` |
+| C25 | ffmpeg | `extract-audio` | MP4/MOV | 2 | job:copy, map, metadata, streams:audio | `-i INPUT -acodec copy -map 0 -map_metadata 0:s:0 OUTPUT` |
+| C26 | ffmpeg | `remux` | MP4/MOV, Matroska/WebM | 2 | job:copy, map, streams:all, timestamps | `-fflags +genpts -i INPUT -c:v copy -c:a copy -c:s copy -map 0 OUTPUT` |
+| C27 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 2 | chapters, writer:json | `-hide_banner INPUT -print_format json -show_chapters -loglevel error` |
+| C28 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 2 | entries:stream, entries:stream_tags, select_streams, writer:json | `-select_streams v:0 -show_entries stream=width,height:stream_tags=rotate -of json INPUT` |
+| C29 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 2 | entries:stream, select_streams, writer:compact | `-v 0 -select_streams v:0 -show_entries stream=pix_fmt -of compact=p=0:nk=1 INPUT` |
+| C30 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 2 | entries:stream, writer:csv | `-loglevel error -show_entries stream=codec_type -of csv=p=0 INPUT` |
+| C31 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 2 | format, writer:default | `-loglevel quiet -show_format INPUT` |
+| C32 | ffmpeg | `split` | MP4/MOV | 2 | job:segment, map, streams:all | `-i INPUT -c copy -map 0 -f segment -segment_time 300 -segment_format mp4 OUTPUT` |
+| C33 | ffprobe | `probe` | MP4/MOV, Matroska/WebM, MPEG-TS | 2 | chapters, writer:csv | `-print_format csv -show_chapters INPUT` |
+
+Every command of an entry is measured, not only the most used one: the
+file lists them (`commands`), 133 in all, with the `-show_entries` keys
+each entry prints (`keys`).
+
+**Containers.** The `ffprobe` entries run on all three container families.
+A copy entry runs on the inputs its CoreAV job reads today: `remux` reads
+MP4/MOV and Matroska/WebM, and `clip`, `join`, `split` and `extract-audio`
+read MP4/MOV. Every output is MP4 or M4A. `-c copy` from a transport stream
+is not in `commands-0.1.0`: no CoreAV writer reads MPEG-TS, so that command stays
+refused by name (or falls back, below), as does a Matroska input to the
+jobs other than `remux`. A command that forces a demuxer (`-f mpegts` before
+the input, in C16) means what it means only on files of that family: on an
+MP4 file the forced MPEG-TS probe lists no stream at all. The file records
+the family per command (`input_container`), and every bar runs such a command
+on the fixtures and files of that family alone, which is its denominator.
+
+**What the set leaves out.** No native command of `commands-v1` uses `-f hls`,
+so HLS output is not in the set; `coreav hls` is unchanged. `-f segment` is
+in through C32 only. The keys the set prints are not a narrow subset:
+C06, C08, C12 and C16 print every format and stream key, C27 and C33 every
+chapter key, and C24 every packet key, so the set's keys are every key of
+those sections that B3a measures; what drops out is the program keys of
+`-show_programs`.
+
+### The 0.1.0 bars, pre-registered
+
+Every run of these bars sets `COREAV_STRICT_SAFE=1`, so a command that is
+not native is refused and never handed to FFmpeg ("Fallback to FFmpeg",
+below), and sets `COREAV_FALLBACK_LOG` to a file of the run; a run whose log
+holds any line is void. A fallback would pass every comparison by being
+FFmpeg.
+
+| | Bar | Refines |
+|---|---|---|
+| **R1 Keys, fixtures** | for each `commands-0.1.0` `ffprobe` command, standard output identical to the pinned `ffprobe`'s on **100%** of the generated fixtures of each container family, after the documented known divergences, as B3a sets them aside | B3a's fixture half, for the 0.1.0 commands |
+| **R2 Keys, held-out draw** | for each key the set prints, CoreAV's value equals the pinned `ffprobe`'s on **at least 98%** of the files of the held-out draw below that the key appears in, in each container family | B3a's corpus half: the same comparison and threshold, over the set's keys and a fresh draw |
+| **R3 Copy output** | the output of each `commands-0.1.0` `ffmpeg` command passes the oracle of its job (the `Job` column) at that oracle's own rules on **100%** of the fixtures, and on **at least 98%** of the (command, file) pairs of the draw on which the pinned `ffmpeg` runs the same command to success | B3b, which it keeps for the fixtures and extends to the draw |
+| **R4 Speed** | per command class (the `Job` column), the median of the per-(command, file) ratios against the same FFmpeg command is **at most 1.00**, in each container family and overall, with the bootstrap 95% interval; a "faster" claim needs the interval's upper bound below 1.00 | B4, per class of the set instead of per command |
+
+**Method.** R1 runs `run.py commands` on the 0.1.0 commands, as B3a's fixture
+half does. R2 compares the keys of the two listings of `run.py keys`, as
+B3a's corpus half does, counting only the keys the set prints and
+counting keys as B3a's rounds count them (keys in at least five files; tag
+keys in fewer pooled); a key CoreAV leaves unknown disagrees, and a file
+CoreAV rejects disagrees on every key unless `KD-STRICT` explains it, as from
+round 5. R3 fills each command's placeholders with a file its container
+pair and its `-map` selectors can take and that has none of the stream
+types its `input_without` names, as B2 does, and a command no file of the
+draw can take is reported, not counted. R4 runs as B4, on the host
+registered below: the file in the page cache, one untimed run of each first, then
+5 rounds alternating CoreAV and FFmpeg, wall time of the whole process, the
+ratio of a pair the median of CoreAV's rounds over the median of FFmpeg's;
+an `ffmpeg` command writes its output to the same local file system for
+both tools and the file is deleted after each run. R4 takes from each
+container family the first 20 draw files of at most 256 MB in the order
+`sha256("coreav-compat-r4:" + sha256)`. The report gives, beside each median
+and interval, the share of pairs on which CoreAV is faster, the host and
+the FFmpeg version, and per-command medians, which are not gated.
+
+**The R4 host, registered before the run.** A GCP `c4-standard-16` VM with
+SMT off (one thread per core), started through `scripts/gcp_vm_job.py`, the
+rest of the VM idle, and both tools' processes pinned to the same four
+cores. Before the draw is opened the host passes a calibration gate on
+spent files (the first 20 per container family of the spent corpus v1 and
+`v1-ts-audio` held-out sets, in the R4 order): an A/A arm (FFmpeg against
+itself) and a null arm (CoreAV against itself) over the 0.1.0 commands,
+each with every class's median ratio within 0.98 to 1.02 and its 95%
+interval containing 1.00. A failed gate is a host fault: the draw stays
+closed and the round runs on another VM of the same class. The round's
+record names the host class, the CPU model and the gate's numbers before
+the draw's results. A shared runner pool does not qualify: its CPU model
+varies between jobs.
+
+**The held-out draw.** The ISO base media and Matroska held-out files of
+corpus v1 were used for development (rounds 2 to 4), and the MPEG-TS
+held-out files of `v1-ts-audio` have been reported from in rounds 5 and 6,
+so every one of them is spent. R2, R3 and R4 run on a new `v2-heldout` draw,
+operation `compat`, salt `coreav-corpus-v2-heldout-compat:`, held out whole,
+under these rules, fixed before any file is fetched:
+
+- **Form:** files unchanged, at most 200 MB.
+- **Coverage:** 60 to 100 `real` files of each container family: ISO base
+  media (`mp4`, `mov`, `m4v`, `m4a`, `3gp`), Matroska and WebM (`mkv`, `webm`),
+  and transport streams (`ts`, `m2ts`, `mts`). At 60 files one file is 1.7%,
+  so a key in all of them can miss on one file and meet 98%.
+- **Nothing seen before:** a candidate whose SHA-256 is in corpus v1,
+  `v1-fmp4-large`, `v1-ts-audio`, `mediarecorder-v1` or draws 1 to 5 is dropped.
+- **Diversity:** a file whose structural signature (draw 4's) is already in
+  this draw or an earlier one is skipped.
+- **Sets and oracle** as the shared corpus rules; files the set's jobs do
+  not read stay in the draw for the `ffprobe` bars.
+- **The collection runs no measurement:** `ffprobe` is the only tool run over
+  the files; no `coreav` command runs on the draw before the round that
+  opens it.
+
+The draw is spent by the first round reported from it. A round that misses
+a bar is final for that round; a later attempt, on new code, takes a new
+draw with its own salt, and development uses spent sets only.
+
+**What meeting them allows.** When one round on new code meets R1 to R4,
+the commands of the set are supported in 0.1.0: the experimental label of
+`coreav ffprobe` no longer applies to them, and stays on every other
+`ffprobe` command until B3a is met. B1 is unchanged and still applies to every
+command outside the set.
 
 ## The command
 
@@ -832,7 +1026,166 @@ lists `ffprobe` rewrites (`KD-EDIT-*` of `docs/known-divergences.md`
 describe the same differences for the packet oracle). Each key's agreement
 is measured below.
 
+## Fallback to FFmpeg
+
+Design only: the implementation is a later pull request, under these
+rules. A command that is not native (one refused above with exit status 4,
+the commands that ask for no section included) runs the real `ffmpeg` or
+`ffprobe` instead, unless strict-safe mode is on. With the fallback, the
+compatibility command can stand in for FFmpeg in a pipeline that also runs
+commands CoreAV does not implement.
+
+### Strict-safe mode, for services that read untrusted input
+
+`COREAV_STRICT_SAFE=1`, or `coreav --strict-safe ffprobe ...` and
+`coreav --strict-safe ffmpeg ...`, never runs another program: a command that
+is not native is refused by name with exit status 4, as without the
+fallback. Under a link named `ffprobe` or `ffmpeg` every argument is the tool's,
+so only the variable works there. Any value but empty and `0` turns it on,
+so a mistyped value fails closed. This is the mode for a service that reads
+files it did not make, and the user documentation and the commands' help
+text present it first: only in this mode does no FFmpeg code run on the
+service's input. Every bar of this note is measured in it.
+
+### Which program runs
+
+1. `COREAV_FALLBACK=<path>`: a directory names its `ffmpeg` and `ffprobe` (with
+   `.exe` on Windows); a file names that program, for the tool its file name
+   names. When the path names the other tool, does not exist or is not
+   executable, nothing runs: the refusal stands (exit 4) with one more line
+   that names the variable and the reason. It never falls through to `PATH`,
+   which would run a different FFmpeg than the one asked for.
+2. Otherwise the first `ffmpeg` or `ffprobe` on `PATH` that is an executable file
+   and is not this program: the canonical path and the file identity are
+   compared with the running executable's, so the multicall link and a hard
+   link to `coreav` are skipped.
+3. None found: the refusal stands, exit 4, as today.
+
+Only a refusal is handed on. A file CoreAV rejects (exit 1), a malformed
+command (2) and an input that cannot be read (3) keep their status: the
+rejection of a file is CoreAV's verdict on that file, and handing it on
+would send FFmpeg exactly the files the checks stopped. A refusal comes
+before the input is opened and before any output is written, so FFmpeg
+gets standard input unread and no partial output exists. Rejected: falling
+back on exit 1 too, which a drop-in would like but which defeats the
+checks; and a per-tool pair of variables, where one directory is how FFmpeg
+installs both tools.
+
+### Running it
+
+The program gets the arguments unchanged, standard input, output and error
+inherited, and the environment with one variable added. On Unix CoreAV
+replaces itself with it (`exec`), so the process id, signals and exit status
+are FFmpeg's; on Windows it starts the program, waits, and exits with its
+exit code. Either way the exit status of a fallback is the program's.
+
+**Recursion guard.** The added variable is `COREAV_FALLBACK_ACTIVE=1`. A
+`coreav` started with it set never falls back: it refuses (exit 4) with a line
+saying the fallback led back to CoreAV. That stops a loop through a wrapper
+script, or a copy of `coreav` under another name, that the path comparison
+cannot see. The variable reaches FFmpeg's own children too, which is
+harmless: it only turns the fallback off, never a native command.
+
+**Notice.** One line on standard error before the program starts, never on
+standard output, which carries `ffprobe`'s JSON or a piped
+`-f mpegts -` and must stay byte for byte the program's:
+
+    coreav: ran /usr/bin/ffmpeg instead (not native: -vf)
+
+The reason is the option or property the refusal would have named. The
+line is printed at every log level, `-v quiet` and `-loglevel quiet` included: a
+quiet level silences FFmpeg's own messages, and the notice is CoreAV's
+statement that FFmpeg's code ran instead of CoreAV's, which a caller who
+asked for quiet output needs as much as any other. It costs one line on
+standard error and leaves standard output untouched. A fallback is never
+silent; the only way not to see the line is strict-safe mode, which refuses
+instead. Rejected: leaving the line out under `-v quiet`, which would make a
+service that runs everything quietly unable to tell from its own logs that
+FFmpeg read its inputs.
+
+**Log.** `COREAV_FALLBACK_LOG=<path>` appends one JSON line for every command
+that was not native, whether it ran FFmpeg or was refused, whatever the log
+level:
+
+    {"time": "2026-10-29T08:00:00Z", "coreav": "0.1.0", "tool": "ffmpeg", "args": ["-i", "INPUT", "-vf", "VALUE", "-c:a", "copy", "OUTPUT"], "reason": "-vf", "ran": "/usr/bin/ffmpeg"}
+
+`ran` is null when nothing ran, and `not_run` then says why (strict-safe mode,
+no program found, `COREAV_FALLBACK` unusable, the recursion guard). The file
+is opened to append and each line is one write, so processes running at
+once do not interleave lines. A log that cannot be written costs one line
+on standard error, at every log level, and never stops the command.
+
+`args` is redacted when the line is written, never left for a later step,
+by allow-lists of enumerated public names: a part of the command is kept
+only when it is one of the names listed for its place, or a time or an
+integer where the table says so, and short identifier syntax alone never
+qualifies, since a metadata key or a tag value can take that form too.
+Every file name, URL and other bare argument becomes a placeholder (`INPUT`,
+`OUTPUT`, `FILE`), and every other value becomes `VALUE`.
+
+- **Option names.** An option is written as its base name (`-c`, `-map_metadata`),
+  up to any `=` in it. A stream-specifier suffix is kept only when it is a
+  stream type or an index (`-c:v`, `-c:a:0`, `-b:1`); any other suffix becomes
+  `:SPEC`, so `-c:m:comment:private_id` is logged as `-c:SPEC`.
+- **Values:**
+
+| Options | Value kept when it is |
+|---|---|
+| `-ss`, `-sseof`, `-t`, `-to`, `-segment_time`, `-hls_time` | a time in FFmpeg's syntax (`classify.is_time`) |
+| `-threads`, `-hls_list_size`, `-max_muxing_queue_size`, `-reset_timestamps`, `-safe` | an integer |
+| `-map`, `-select_streams`, `-map_metadata`, `-map_chapters` | a stream specifier of file index, type and index only (`0`, `-0:a`, `0:v:1`, `-1`); a metadata selector (`0:m:KEY:VALUE`) becomes `VALUE` |
+| the codec options (`-c`, `-c:v` ...) | `copy`, or an encoder name the pinned `ffmpeg -encoders` lists |
+| `-f`, `-segment_format` | a format name the pinned `ffmpeg -formats` lists |
+| `-v`, `-loglevel` | a level name or number of FFmpeg's documentation, with its `+`/`-` flags |
+| `-movflags`, `-fflags`, `-avoid_negative_ts`, `-hls_playlist_type` | flags or values the pinned FFmpeg's documentation names for that option, joined by `+` or `-` |
+| `-of`, `-print_format`, `-output_format` | a writer of the vocabulary, with settings only of its documented names (`nokey`, `nk`, `noprint_wrappers`, `nw`, `print_section`, `p`, `item_sep`, `s`, `escape`, `e`, `compact`, `c`, `sep_char`, `hierarchical`, `h`) and a value of `0`, `1`, an `escape` mode, or one character |
+| `-show_entries` | section names of the vocabulary, and keys on the list of keys CoreAV's sections print; every key of a tags section (`format_tags`, `stream_tags`, `packet_tags`, `chapter_tags`, `program_tags`) and every key off the list becomes `KEY`, so `format_tags=private_label` is logged as `format_tags=KEY` |
+
+The name lists are taken from the pinned binaries' own listings and from the
+documentation, committed with the implementation, never from the command
+being logged. The same redaction applies to `reason`, which names the option
+or property the command was refused for, so a refusal of
+`-show_entries format_tags=private_label` logs `format_tags=KEY` there too.
+
+Every option outside the table, step 1's or not, keeps its redacted name and
+loses its value. A command line can carry private data in places no list of
+dangerous options foresees: `-headers "Authorization: ..."`, a URL with a
+token, a proxy password, a metadata selector inside the vocabulary
+(`-map 0:m:comment:...`), a metadata key in a stream specifier
+(`-c:m:comment:...`) or in `-show_entries`. Keeping only enumerated public
+names means the file holds nothing a user could not share, in every mode,
+strict-safe included; the user still sees which option was not native, and
+the project learns which commands to implement next. Rejected: accepting
+any short lower-case identifier, which a metadata key satisfies; keeping
+the values of the vocabulary's options, which lets a metadata selector or a
+tag value through; logging the arguments as given and redacting on export,
+which leaves private data on disk; and `classify.normalize` as the
+redaction, which keeps the values of options it does not know.
+
+A native command reads none of this: no lookup, no notice, no log line.
+
+**What the fallback means for claims.** With the fallback, a command that
+is not native runs FFmpeg's C code on its input. The statement that no C
+code runs holds in strict-safe mode only, and every place that makes it
+says so.
+
+**Not in 0.1.0: a shadow mode** that runs both tools and reports their
+differences. It waits for what the fallback logs show (0.1.x).
+
+**Tests of the implementation** need no FFmpeg: a stand-in program in a
+directory named by `COREAV_FALLBACK` that prints its arguments and exits 7
+shows the exit status passed through, standard output untouched, the
+notice at every log level (`-v quiet` included), the log line, strict-safe refusing, and a
+link to `coreav` in that directory stopped by the guard. The redaction has
+its own regression cases, each a refused command with a private marker
+string that must appear nowhere in the log line, `args` and `reason` alike:
+`-c:m:comment:MARKER copy`, `-map 0:m:comment:MARKER`,
+`-show_entries format_tags=MARKER` and `stream_tags=MARKER`, an inline
+`-opt=MARKER`, `-headers "Authorization: Bearer MARKER"`, an input URL with
+`MARKER` in its query, a codec value and a writer setting of `MARKER`, and a
+command refused for the option that carries the marker.
+
 ## What is not here yet
 
 `coreav ffmpeg`, the concatenation writer and its oracle come next, under
-these bars.
+these bars, and the fallback after them.
