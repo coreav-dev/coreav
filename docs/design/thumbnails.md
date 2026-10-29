@@ -178,7 +178,17 @@ really hold:
   writer that flagged every block leaves both the Cues and that stop rule
   pointing at blocks that do not start decoding, so the listing is read
   again from the first cluster, and then, if no block at or before the
-  time starts decoding either, to the end of the clusters. A thumbnail
+  time starts decoding either, to the end of the clusters. Which blocks
+  count is keyframe mode's own rule (`select::offered_by`: a flagged
+  block presented at a known time at or before the time), not a filter
+  of the glue's: a copy kept in sync by hand lost the presented test once
+  (PR #16), and a listing it accepted without the frame keyframe mode
+  gives yields the frame at the time instead. A test pins that the two
+  agree. The blocks are checked from the last in decode order back, not
+  in keyframe mode's order (latest presented first): reading a block can
+  fail (a work limit), and with `--exact` a block before the one found
+  is never read, so sharing keyframe mode's search was rejected because
+  it made such a file fail where it had given an image. A thumbnail
   near the end of a long file whose flags are wrong therefore lists the
   blocks from its start, which costs a pass over the file's block headers
   rather than one cluster's; stepping back one Cue at a time instead would
