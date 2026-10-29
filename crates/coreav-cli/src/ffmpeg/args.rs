@@ -199,6 +199,23 @@ fn not_native(option: &str, value: Option<&str>, why: &str) -> Refusal {
     ))
 }
 
+/// The protocol a file name starts with, as `ffmpeg` reads one: a name of
+/// letters, digits, `+`, `-`, `.` and `_` before the first colon
+/// (`file:in.mp4`, `pipe:1`, `https://`). On Windows a drive letter
+/// before a separator (`C:\in.mp4`, `C:/in.mp4`) starts a path instead.
+fn protocol(name: &str, windows: bool) -> Option<&str> {
+    let (prefix, rest) = name.split_once(':')?;
+    let drive = windows
+        && prefix.len() == 1
+        && prefix.bytes().all(|b| b.is_ascii_alphabetic())
+        && (rest.starts_with('\\') || rest.starts_with('/'));
+    let named = !prefix.is_empty()
+        && prefix
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"+-._".contains(&b));
+    (named && !drive).then_some(prefix)
+}
+
 fn usage(text: impl Into<String>) -> Refusal {
     Refusal::Usage(text.into())
 }
@@ -475,11 +492,12 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
         (_, Some(_)) => return Err(usage("Option safe not found.")),
         (_, None) => {}
     }
-    if input == "-" || input.starts_with("pipe:") {
+    let prefix = protocol(input, cfg!(windows));
+    if input == "-" || prefix == Some("pipe") {
         return Err(Refusal::not_native("an input from a pipe"));
     }
-    if input.contains("://") {
-        return Err(Refusal::not_native("an input URL"));
+    if prefix.is_some() || input.contains("://") {
+        return Err(Refusal::not_native("an input named with a protocol"));
     }
     let mut format = None;
     let mut segment_format = None;
@@ -549,11 +567,12 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             }
         }
     }
-    if output == "-" || output.starts_with("pipe:") {
+    let prefix = protocol(output, cfg!(windows));
+    if output == "-" || prefix == Some("pipe") {
         return Err(Refusal::not_native("an output to a pipe"));
     }
-    if output.contains("://") {
-        return Err(Refusal::not_native("an output URL"));
+    if prefix.is_some() || output.contains("://") {
+        return Err(Refusal::not_native("an output named with a protocol"));
     }
     command.muxer = muxer(format, output)?;
     if command.muxer == Muxer::Segment {
@@ -824,6 +843,33 @@ mod tests {
             "-i in.mp4 -map 0:m:title:x -c copy out.mp4",
             "-i in.mp4 -c copy out.mp4 -an",
             "-ss -1 -i in.mp4 -c copy out.mp4",
+        ] {
+            assert!(matches!(refused(text), Reason::Property(_)), "{text}");
+        }
+    }
+
+    #[test]
+    fn names_with_a_protocol_are_not_paths() {
+        for name in [
+            "file:in.mp4",
+            "pipe:1",
+            "https://e.com/a.mp4",
+            "crypto+file:a",
+        ] {
+            assert!(protocol(name, false).is_some(), "{name}");
+            assert!(protocol(name, true).is_some(), "{name}");
+        }
+        for name in ["in.mp4", "dir/a:b.mp4", "./file:in.mp4", ":in.mp4"] {
+            assert_eq!(protocol(name, false), None, "{name}");
+        }
+        for name in [r"C:\in.mp4", "C:/in.mp4"] {
+            assert_eq!(protocol(name, true), None, "{name}");
+            assert_eq!(protocol(name, false), Some("C"), "{name}");
+        }
+        for text in [
+            "-i file:in.mp4 -c copy out.mp4",
+            "-i in.mp4 -c copy file:out.mp4",
+            "-i in.mp4 -c copy pipe:1",
         ] {
             assert!(matches!(refused(text), Reason::Property(_)), "{text}");
         }

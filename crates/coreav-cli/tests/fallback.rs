@@ -622,3 +622,23 @@ fn coreav_ffmpeg_runs_ffmpeg_for_what_it_refuses_once_the_input_is_read() {
     assert_eq!(lines[0]["reason"], words);
     assert_eq!(lines[0]["ran"], format!("{dir}/ffmpeg"));
 }
+
+#[test]
+fn coreav_ffmpeg_runs_ffmpeg_for_a_name_with_a_protocol() {
+    let dir = stand_in().to_str().unwrap();
+    for args in [
+        ["ffmpeg", "-i", "file:in.mp4", "-c", "copy", "out.mp4"],
+        ["ffmpeg", "-i", "in.mp4", "-c", "copy", "file:out.mp4"],
+    ] {
+        let r = coreav(&args, &[], &[("COREAV_FALLBACK", dir)]);
+        assert_eq!(r.code, 7, "{args:?}: {}", r.stderr);
+        assert_eq!(r.stdout, format!("args: {}\n", args[1..].join(" ")));
+        assert!(
+            r.stderr.starts_with(&format!(
+                "coreav: ran {dir}/ffmpeg instead (not native: an "
+            )),
+            "{}",
+            r.stderr
+        );
+    }
+}

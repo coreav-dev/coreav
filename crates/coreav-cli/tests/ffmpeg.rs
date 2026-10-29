@@ -278,6 +278,43 @@ fn a_clock_time_out_of_range_is_a_usage_error() {
 }
 
 #[test]
+fn names_with_a_protocol_are_refused_and_never_written() {
+    let dir = scratch("ffmpeg-protocol");
+    let input = movie(&dir);
+    for (args, named) in [
+        (
+            vec!["-i", "file:in.mp4", "-c", "copy", "out.mp4"],
+            "an input",
+        ),
+        (
+            vec!["-i", "in.mp4", "-c", "copy", "file:out.mp4"],
+            "an output",
+        ),
+    ] {
+        let out = Command::new(bin())
+            .arg("ffmpeg")
+            .args(&args)
+            .current_dir(&dir)
+            .env("COREAV_STRICT_SAFE", "1")
+            .output()
+            .unwrap();
+        let stderr = String::from_utf8(out.stderr).unwrap();
+        assert_eq!(out.status.code(), Some(4), "{args:?}: {stderr}");
+        assert!(
+            stderr.contains(&format!("{named} named with a protocol")),
+            "{args:?}: {stderr}"
+        );
+        let mut names: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .collect();
+        names.sort();
+        assert_eq!(names, ["in.mp4"], "{args:?}");
+    }
+    assert!(input.ends_with("in.mp4"));
+}
+
+#[test]
 fn the_largest_stream_ordinal_matches_nothing_without_overflow() {
     let dir = scratch("ffmpeg-ordinal");
     let input = movie(&dir);
