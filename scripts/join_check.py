@@ -678,6 +678,12 @@ def check_inputs(entry, ffprobe, ffmpeg, mediainfo, found, counts, evidence, dec
                               f"input frames, {len(actual)} output frames)"))
         else:
             check_audio(entry, ffprobe, ffmpeg, out_index, out, oh, found, evidence)
+    check_mediainfo(mediainfo, inputs, kinds, output, oh, found)
+
+
+def check_mediainfo(mediainfo, inputs, kinds, output, oh, found):
+    """MediaInfo reads an MPEG-4 file with the first input's formats, and
+    durations equal to the track header durations."""
     if mediainfo:
         tracks = cc.mediainfo_tracks(mediainfo, output)
         first_tracks = cc.mediainfo_tracks(mediainfo, inputs[0]["path"])
@@ -825,6 +831,349 @@ def _same(path_a, offset_a, path_b, offset_b, length):
                 return False
             left -= n
     return True
+
+
+# Several edits (docs/design/edit-list-writers.md, common decision 3): when
+# an input, or the source of joined segments, has a list of several edits,
+# ffmpeg's edit model differs from ISO/IEC 14496-12's, so samples and frames
+# are read with edit lists ignored and the edit arithmetic is the harness's
+# own (`clip_check.iso_windows`, `clip_check.iso_presented`), from each
+# file's own boxes. ffmpeg's edit-applied video is reported beside it, not
+# gating. Joins of inputs with one edit each keep the checks above, whose
+# known divergences describe how ffmpeg plays the output's edits.
+
+# The window of a track without an edit list: presentation is media time.
+NO_EDITS = [(Fraction(-(1 << 62)), Fraction(1 << 62), Fraction(-(1 << 62)))]
+
+
+def has_several(entry, ffprobe):
+    """Whether an input, or the source of joined segments, has a kept track
+    with several edits."""
+    tracks = [(item["path"], item[key]) for item in entry["inputs"] for key in ("video_stream", "audio_stream")
+              if item.get(key) is not None]
+    if entry.get("source"):
+        probe = cc.ffprobe_json(ffprobe, "-show_streams", entry["source"])
+        tracks += [(entry["source"], i) for i in (stream_index(probe, "video"), stream_index(probe, "audio"))
+                   if i is not None]
+    for path, index in tracks:
+        edits = cc.full_edit_list(path, index)
+        if edits and cc.several_edits(edits[2]):
+            return True
+    return False
+
+
+def iso_track(ffprobe, path, index):
+    """(media timescale, windows) of a track from its own boxes: the windows
+    of its edit list; without one, the samples an `iTunSMPB` item keeps
+    after its encoder delay (which the writers read as an edit), else
+    `NO_EDITS`. None when unreadable."""
+    edits = cc.full_edit_list(path, index)
+    if edits is None:
+        return None
+    if edits[2]:
+        return edits[1], cc.iso_windows(*edits)
+    smpb = (cc.ffprobe_json(ffprobe, "-show_format", path)["format"].get("tags") or {}).get("iTunSMPB", "").split()
+    stream = cc.ffprobe_json(ffprobe, "-select_streams", str(index), "-show_streams", path)["streams"]
+    if len(smpb) >= 4 and stream and stream[0].get("codec_type") == "audio":
+        delay, samples = int(smpb[1], 16), int(smpb[3], 16)
+        return edits[1], [(Fraction(delay), Fraction(delay + samples), Fraction(0))]
+    return edits[1], NO_EDITS
+
+
+def stored(ffprobe, path, index):
+    """Every stored sample in order, edit lists ignored, at its stored decode
+    and composition times (`clip_check.stored_times`)."""
+    return cc.stored_times(cc.packets(ffprobe, path, index, raw=True))
+
+
+def check_several(entry, ffprobe, ffmpeg, mediainfo, found, counts, info):
+    """A join where a file has several edits. The output's stored samples
+    are its parts' (the inputs, or for a join of a source's segments the
+    source) one after another: data, size, sync flag, composition offset,
+    each part's times moved by one constant. Its edits present the frames
+    each part's edits present, at the part's time plus its offset (for a
+    source's segments, the source's frames from the first segment's start
+    to the joined video's end); the inputs follow one another as in
+    `check_inputs`. Each output audio edit presents the media its part's edits
+    present at that time, and the output's audio covers what the parts
+    present, each up to where the next one starts. Streams, ends and
+    MediaInfo as for other joins."""
+    output, inputs, source = entry["output"], entry["inputs"], entry.get("source")
+    probe = cc.ffprobe_json(ffprobe, "-show_format", "-show_streams", output)
+    oh = cc.headers(output)
+    brand = probe["format"].get("tags", {}).get("major_brand")
+    if "mp4" not in probe["format"].get("format_name", "") or brand != "isom":
+        found.append(("format", f"output format {probe['format'].get('format_name')!r}, brand {brand!r}"))
+    kinds = [("video", "video_stream")]
+    if inputs[0].get("audio_stream") is not None:
+        kinds.append(("audio", "audio_stream"))
+    if len(probe["streams"]) != len(kinds):
+        found.append(("streams", f"output has {len(probe['streams'])} streams, expected {len(kinds)}"))
+        return
+    if source:
+        first = cc.ffprobe_json(ffprobe, "-show_streams", source)
+        first_index = {kind: stream_index(first, kind) for kind, _ in kinds}
+        start = cc.fraction(entry.get("source_offset") or {"num": 0, "den": 1})
+        parts = [(source, None, -start)]
+    else:
+        first = cc.ffprobe_json(ffprobe, "-show_streams", inputs[0]["path"])
+        first_index = {kind: inputs[0][key] for kind, key in kinds}
+        parts = [(item["path"], item, cc.fraction(item["offset"])) for item in inputs]
+        check_ends(ffprobe, inputs, kinds, output, oh, found)
+    for out_index, (kind, key) in enumerate(kinds):
+        out = probe["streams"][out_index]
+        src = next((s for s in first["streams"] if s.get("index") == first_index[kind]), {})
+        for name in cc.VIDEO_KEYS if kind == "video" else cc.AUDIO_KEYS:
+            if src.get(name) != out.get(name):
+                found.append((f"{kind}:{name}", f"{kind} {name}: first input {src.get(name)!r}, "
+                              f"output {out.get(name)!r}"))
+        indexes = [first_index[kind] if item is None else item[key] for _, item, _ in parts]
+        out_track = iso_track(ffprobe, output, out_index)
+        tracks = [iso_track(ffprobe, path, index) for (path, _, _), index in zip(parts, indexes)]
+        if out_track is None or None in tracks:
+            found.append((f"{kind}:edits", f"{kind}: an edit list cannot be read"))
+            continue
+        if any(t[0] != out_track[0] for t in tracks):
+            found.append((f"{kind}:timescale", f"{kind}: media timescales differ"))
+            continue
+        # Coverage of the stored samples, and each part's run in the output:
+        # (its first decode time there, its own first decode time, where its
+        # samples end in its media).
+        out_packets = stored(ffprobe, output, out_index)
+        runs, at = [], 0
+        for n, ((path, _, _), index) in enumerate(zip(parts, indexes)):
+            part = stored(ffprobe, path, index)
+            run = out_packets[at:at + len(part)]
+            timed = [(s, o) for s, o in zip(part, run)
+                     if all(isinstance(p.get(t), int) for p in (s, o) for t in ("pts", "dts"))]
+            moves = {(o["dts"] - s["dts"], o["pts"] - s["pts"]) for s, o in timed}
+            same = sum(1 for s, o in zip(part, run)
+                       if (s.get("data_hash"), s.get("size"), (s.get("flags") or "")[:1])
+                       == (o.get("data_hash"), o.get("size"), (o.get("flags") or "")[:1]))
+            if len(run) != len(part) or same != len(part) or len(timed) != len(part) or len(moves) != 1 \
+                    or any(a != b for a, b in moves):
+                found.append((f"{kind}:packets", f"{kind}: input {n}'s stored samples are not the output's "
+                              f"{at} to {at + len(part)} ({same} of {len(part)} equal, times moved by "
+                              f"{sorted(moves)[:3]})"))
+            counts["agree"] += same
+            counts["disagree"] += max(len(part), len(run)) - same
+            first_dts = part[0]["dts"] if timed else 0
+            base = run[0]["dts"] if timed else 0
+            end = max((s["pts"] + int(s.get("duration") or 0) for s, _ in timed), default=first_dts)
+            runs.append((base, first_dts, end))
+            at += len(part)
+        if at < len(out_packets):
+            found.append((f"{kind}:extra", f"{kind}: {len(out_packets) - at} output packets of no input"))
+            counts["disagree"] += len(out_packets) - at
+        if kind == "video":
+            several_video(entry, ffmpeg, parts, indexes, tracks, out_track, out_index, found, info)
+        else:
+            several_audio(bool(source), parts, tracks, out_track, runs, found)
+    if not source:
+        check_mediainfo(mediainfo, inputs, kinds, output, oh, found)
+
+
+def iso_frames(ffmpeg, path, index, windows, ts):
+    """(time in seconds, content) of each frame a track's edits present
+    (ISO/IEC 14496-12 8.6.6), from its frames decoded with edit lists
+    ignored; None when they are not in media ticks."""
+    base, frames = cc.framemd5(ffmpeg, path, index, video=True, raw=True)
+    if base != Fraction(1, ts):
+        return None
+    listed = [(Fraction(pts), Fraction(duration), (size, h)) for pts, size, h, duration in frames]
+    return [(t / ts, c) for t, c in cc.iso_presented(listed, windows)]
+
+
+def several_video(entry, ffmpeg, parts, indexes, tracks, out_track, out_index, found, info):
+    """The video of `check_several`."""
+    ts, out_windows = out_track
+    actual = iso_frames(ffmpeg, entry["output"], out_index, out_windows, ts)
+    shown = [iso_frames(ffmpeg, path, index, windows, ts)
+             for (path, _, _), index, (_, windows) in zip(parts, indexes, tracks)]
+    if actual is None or None in shown:
+        found.append(("video:framemd5", "video: decoded frames not in media ticks"))
+        return
+    inputs = entry["inputs"]
+    video_end = cc.fraction(inputs[-1]["video_end"])
+    if entry.get("source"):
+        expected = [(t + parts[0][2], c) for t, c in shown[0] if 0 <= t + parts[0][2] < video_end]
+    else:
+        expected = [(t + offset, c) for (_, _, offset), frames in zip(parts, shown) for t, c in frames]
+        for n, (item, frames) in enumerate(zip(inputs, shown)):
+            start, end = cc.fraction(item["video_start"]), cc.fraction(item["video_end"])
+            if n > 0 and start != cc.fraction(inputs[n - 1]["video_end"]):
+                found.append(("video:placement", f"video: input {n} starts at {float(start):.6f} s, "
+                              f"not where input {n - 1} ends"))
+            moved = [t + cc.fraction(item["offset"]) for t, _ in frames]
+            if moved and not (start <= moved[0] and moved[-1] < end):
+                found.append(("video:placement", f"video: input {n}'s frames lie outside its span"))
+            # What it presents on its own: its edits but an empty run before
+            # the first media edit, plus the hold before an input whose
+            # audio starts first.
+            edits = cc.full_edit_list(item["path"], item["video_stream"])
+            if edits and edits[2]:
+                lead_in = 0
+                for duration, media, _ in edits[2]:
+                    if media != -1:
+                        break
+                    lead_in += duration
+                own = Fraction(sum(d for d, _, _ in edits[2]) - lead_in, edits[0])
+                lead = Fraction(0)
+                if n + 1 < len(inputs):
+                    lead = cc.fraction(inputs[n + 1]["video_start"]) - cc.fraction(inputs[n + 1]["offset"])
+                if end - start > own + lead:
+                    found.append(("video:placement", f"video: input {n} spans {float(end - start):.6f} s, "
+                                  f"more than its edits' {float(own):.6f} s"))
+    if expected != actual:
+        first = next((i for i, (a, b) in enumerate(zip(expected, actual)) if a != b),
+                     min(len(expected), len(actual)))
+        found.append(("video:framemd5", f"video frames the edits present differ at frame {first} "
+                      f"({len(expected)} from the inputs, {len(actual)} in the output)"))
+    # The second view: ffmpeg's edit-applied frames, reported.
+    ob, of = cc.framemd5(ffmpeg, entry["output"], out_index, video=True)
+    applied = []
+    for (path, _, offset), index in zip(parts, indexes):
+        ib, frames = cc.framemd5(ffmpeg, path, index, video=True)
+        applied += [(pts * ib + offset, h) for pts, _, h, _ in frames] if ib else []
+    if entry.get("source"):
+        applied = [f for f in applied if 0 <= f[0] < video_end]
+    mine = [(pts * ob, h) for pts, _, h, _ in of] if ob else []
+    differ = len(set(applied) ^ set(mine))
+    info.append("second view, video: " + ("agrees" if not differ else
+                f"{differ} frames differ in ffmpeg's edit-applied decode"))
+
+
+def several_audio(segments, parts, tracks, out_track, runs, found):
+    """The audio of `check_several`: each output edit presents, at its time,
+    the media its part's edits present there, within one tick (edits are
+    rounded to the movie timescale); and the output presents what the parts
+    present, each from its offset up to where the next one starts (for a
+    source's segments, from the first one's start to the output's end),
+    within one tick at each boundary."""
+    ts, out_windows = out_track
+
+    def merged(spans):
+        out = []
+        for a, b in sorted(spans):
+            if out and a <= out[-1][1] + 1:
+                out[-1] = (out[-1][0], max(out[-1][1], b))
+            elif b > a:
+                out.append((a, b))
+        return out
+    bounds = [base for base, _, _ in runs[1:]] + [Fraction(1 << 62)]
+    for m0, m1, at in out_windows:
+        for (_, _, offset), (_, windows), (base, first_dts, _), next_base in zip(parts, tracks, runs, bounds):
+            lo, hi = max(m0, base), min(m1, next_base)
+            if lo >= hi:
+                continue
+            sm0, sm1 = lo - base + first_dts, hi - base + first_dts
+            s_at = at + lo - m0 - offset * ts
+            holder = next((w for w in windows if w[0] - 1 <= sm0 and sm1 <= w[1] + 1), None)
+            if holder is None or abs(sm0 - holder[0] + holder[2] - s_at) > 1:
+                found.append(("audio:edits", f"audio: the output's edit at {float(at / ts):.6f} s presents "
+                              "other media than its input's edits"))
+                return
+    shown = merged([(at, at + m1 - m0) for m0, m1, at in out_windows])
+    pieces = []
+    for (_, _, offset), (_, windows), (_, first_dts, media_end) in zip(parts, tracks, runs):
+        spans = [(at + max(m0, first_dts) - m0, at + min(m1, media_end) - m0)
+                 for m0, m1, at in windows if min(m1, media_end) > max(m0, first_dts)]
+        pieces.append(merged([(a + offset * ts, b + offset * ts) for a, b in spans]))
+    expected = []
+    for n, spans in enumerate(pieces):
+        if segments:
+            until, spans = (shown[-1][1] if shown else 0), [(max(a, 0), b) for a, b in spans if b > 0]
+        else:
+            until = next((p[0][0] for p in pieces[n + 1:] if p), None)
+        expected += [(a, b if until is None else min(b, until)) for a, b in spans if until is None or a < until]
+    expected = merged(expected)
+    if len(expected) != len(shown) or any(abs(a - c) > 1 or abs(b - d) > 1
+                                          for (a, b), (c, d) in zip(expected, shown)):
+        found.append(("audio:edits", "audio: the output presents "
+                      f"{[(float(a / ts), float(b / ts)) for a, b in shown][:4]} s, its inputs "
+                      f"{[(float(a / ts), float(b / ts)) for a, b in expected][:4]} s"))
+
+
+def concat_list(paths):
+    """A concat demuxer list naming `paths`, each quoted (FFmpeg's quoting:
+    a ' closes the quote, is escaped, and the quote reopens)."""
+    return "".join("file '" + str(p).replace("'", "'\\''") + "'\n" for p in paths)
+
+
+def check_ffmpeg_concat(entry, ffprobe, ffmpeg, found, info):
+    """The join against `ffmpeg -f concat -safe 0 -i LIST -c copy` on the same
+    inputs, run as a black box: for each kept stream, the same packets one
+    for one (data hash, size, sync flag). ffmpeg's demuxer converts H.264 to
+    Annex B on the way (its `auto_convert` option), which puts the parameter
+    sets into sync samples; there the packets agree once both are read
+    without NAL units of type 7 and 8 (`filter_units`). Not compared, and said
+    so: inputs whose kept streams are at other indexes than the first's (the
+    demuxer pairs streams by index), and joins with several edits (its
+    demuxer applies its own edit model and drops or repeats samples, as
+    docs/design/edit-list-writers.md records)."""
+    inputs = entry["inputs"]
+    keys = [k for k in ("video_stream", "audio_stream") if inputs[0].get(k) is not None]
+    if any(item.get(k) != inputs[0][k] for item in inputs for k in keys):
+        info.append("ffmpeg concat: not compared, the inputs' streams are at other indexes")
+        return
+    if has_several(entry, ffprobe):
+        info.append("ffmpeg concat: not compared, several edits")
+        return
+    work = pathlib.Path(tempfile.mkdtemp(dir=cc._work()))
+    try:
+        listing = work / "list.txt"
+        listing.write_text(concat_list(item["path"] for item in inputs), encoding="utf-8")
+        reference = work / "concat.mp4"
+        maps = [a for k in keys for a in ("-map", f"0:{inputs[0][k]}")]
+        try:
+            cc.run([ffmpeg, "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(listing), *maps, "-c",
+                    "copy", str(reference)])
+        except RuntimeError as error:
+            info.append(f"ffmpeg concat: not compared, ffmpeg fails on these inputs ({str(error)[-120:]})")
+            return
+
+        def without_parameter_sets(path):
+            """The video's packets, every stored one, without NAL units of
+            types 7 and 8."""
+            stripped = work / f"{pathlib.Path(path).stem}.stripped.mp4"
+            cc.run([ffmpeg, "-v", "error", "-y", "-ignore_editlist", "1", "-i", str(path), "-map", "0:v:0", "-c",
+                    "copy", "-bsf:v", "filter_units=remove_types=7|8", str(stripped)])
+            return cc.packets(ffprobe, str(stripped), 0, raw=True)
+        h264 = cc.ffprobe_json(ffprobe, "-show_streams", str(reference))["streams"][0].get("codec_name") == "h264"
+        stripped = None
+        if h264:
+            try:
+                stripped = (without_parameter_sets(entry["output"]), without_parameter_sets(reference))
+            except RuntimeError as error:
+                found.append(("concat:video", f"video: cannot read the packets without parameter sets ({error})"))
+                return
+        times = 0
+        for out_index, key in enumerate(keys):
+            kind = key.split("_")[0]
+            ours = cc.packets(ffprobe, entry["output"], out_index, raw=True)
+            theirs = cc.packets(ffprobe, str(reference), out_index, raw=True)
+            if len(ours) != len(theirs):
+                found.append((f"concat:{kind}", f"{kind}: {len(ours)} packets, ffmpeg concat {len(theirs)}"))
+                continue
+            plain = [(p.get("data_hash"), p.get("size"), (p.get("flags") or "")[:1]) for p in ours]
+            other = [(p.get("data_hash"), p.get("size"), (p.get("flags") or "")[:1]) for p in theirs]
+            if kind == "video" and stripped:
+                ours_s, theirs_s = stripped
+                same = [a == b or (a[2] == "K" and len(ours_s) == len(theirs_s) == len(ours)
+                                   and ours_s[n].get("data_hash") == theirs_s[n].get("data_hash"))
+                        for n, (a, b) in enumerate(zip(plain, other))]
+            else:
+                same = [a == b for a, b in zip(plain, other)]
+            if not all(same):
+                found.append((f"concat:{kind}", f"{kind}: {same.count(False)} packets differ from ffmpeg concat's, "
+                              f"first {same.index(False)}"))
+            times += [p.get("pts") for p in cc.packets(ffprobe, entry["output"], out_index)] == \
+                [p.get("pts") for p in cc.packets(ffprobe, str(reference), out_index)]
+        info.append(f"ffmpeg concat: packets compared; presentation times equal in {times} of {len(keys)} streams")
+    finally:
+        for path in work.iterdir():
+            path.unlink()
+        work.rmdir()
 
 
 # Known divergences of joins (docs/known-divergences-join.md).
@@ -1129,18 +1478,23 @@ def known_divergences():
     return [(e["id"], e["field_pattern"], PREDICATES[e["predicate"]]) for e in entries]
 
 
-def check(entry, ffprobe, ffmpeg, mediainfo, decode=True):
+def check(entry, ffprobe, ffmpeg, mediainfo, decode=True, concat=False):
     """Returns the problems, the informational differences, the covered
     differences and the packet counts of one join. Without `decode`, the
-    decoded video and audio are not compared."""
+    decoded video and audio are not compared; with `concat`, the output is
+    also compared with `ffmpeg -f concat`'s (`check_ffmpeg_concat`)."""
     found, info, covered = [], [], []
     counts = {"agree": 0, "disagree": 0}
     evidence = {}
     try:
-        if entry.get("source"):
+        if has_several(entry, ffprobe):
+            check_several(entry, ffprobe, ffmpeg, mediainfo, found, counts, info)
+        elif entry.get("source"):
             check_source(entry, ffprobe, ffmpeg, found, counts, evidence, decode)
         else:
             check_inputs(entry, ffprobe, ffmpeg, mediainfo, found, counts, evidence, decode)
+        if concat:
+            check_ffmpeg_concat(entry, ffprobe, ffmpeg, found, info)
         problems = []
         fields = {field for field, _ in found}
         for field, message in found:
@@ -1169,13 +1523,16 @@ def main():
     parser.add_argument("--ffmpeg", default="ffmpeg")
     parser.add_argument("--mediainfo")
     parser.add_argument("--report")
+    parser.add_argument("--ffmpeg-concat", action="store_true",
+                        help="also compare each output with ffmpeg -f concat -c copy on its inputs")
     args = parser.parse_args()
     with open(args.manifest, encoding="utf-8") as f:
         manifest = json.load(f)
     results = []
     for entry in manifest:
         try:
-            problems, info, covered, counts = check(entry, args.ffprobe, args.ffmpeg, args.mediainfo)
+            problems, info, covered, counts = check(entry, args.ffprobe, args.ffmpeg, args.mediainfo,
+                                                    concat=args.ffmpeg_concat)
         except (RuntimeError, ValueError, KeyError) as error:
             problems, info, covered, counts = [f"harness: {error}"], [], [], {"agree": 0, "disagree": 0}
         results.append({**entry, "problems": problems, "informational": info, "covered": covered,

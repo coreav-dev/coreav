@@ -582,29 +582,115 @@ fn the_work_limit_is_checked_before_writing() {
     }
 }
 
+/// `av_movie`'s 100 frames and audio, its video with `edits`, and its
+/// audio presented for as long as the video.
+fn spliced(edits: Vec<(u32, i32)>) -> Vec<u8> {
+    let shown = edits.iter().filter(|e| e.1 >= 0).map(|e| e.0).sum();
+    let mut video = ibbp_video(100, 25);
+    video.edits = edits;
+    movie(&[video, aac_audio(190, vec![(shown, 2112)])])
+}
+
 #[test]
-fn an_input_with_several_edits_is_refused() {
-    // Two media edits of the same video: the join maps each input through
-    // one edit.
-    let mut video = ibbp_video(50, 25);
-    video.edits = vec![(400, 1024), (400, 7168)];
-    let several = movie(&[video]);
-    let single = movie(&[ibbp_video(50, 25)]);
+fn inputs_with_several_edits_keep_them() {
+    // Seconds 0 to 1 of the media, then 2 to 4: the second GOP is cut out.
+    let several = spliced(vec![(1000, 1024), (2000, 1024 + 25_600)]);
+    let single = av_movie();
     for inputs in [
         vec![&several[..], &single[..]],
         vec![&single[..], &several[..]],
+        vec![&several[..], &several[..]],
     ] {
-        let expected = if inputs[0] == &several[..] { 0 } else { 1 };
-        match join_with(&inputs, JoinAudio::None) {
-            Err(JoinError::Input {
-                input,
-                error: ExtractError::Source(Error::Unsupported { reason }),
-            }) => {
-                assert_eq!(input, expected);
-                assert!(reason.contains("several edits"), "{reason}");
-            }
-            other => panic!("{other:?}"),
+        let (summary, out) = join(&inputs).unwrap();
+        assert_join(&inputs, &out, &summary);
+        // Each input presents its three or four seconds.
+        let expected = inputs
+            .iter()
+            .map(|i| if *i == &several[..] { 3 } else { 4 })
+            .sum::<i128>();
+        assert_eq!(summary.duration, q(expected, 1));
+        // The two windows of each spliced input and the single input's one
+        // edit, where each input's media and presentation follow the
+        // previous one's, merged.
+        let windows = inputs.iter().filter(|i| **i == &several[..]).count();
+        assert_eq!(
+            summary.video_edits,
+            2 * windows + (inputs.len() - windows) - 1
+        );
+    }
+}
+
+#[test]
+fn an_empty_edit_inside_an_input_is_kept() {
+    // Half a second of nothing between the two windows.
+    let gap = spliced(vec![(1000, 1024), (500, -1), (2000, 1024 + 25_600)]);
+    let inputs: Vec<&[u8]> = vec![&gap, &gap];
+    let (summary, out) = join(&inputs).unwrap();
+    assert_join(&inputs, &out, &summary);
+    assert_eq!(summary.duration, q(7, 1));
+    let empty: Vec<_> = edit_lists(&out)[0]
+        .2
+        .iter()
+        .filter(|e| e.1 == -1)
+        .copied()
+        .collect();
+    assert_eq!(empty.len(), 2, "{empty:?}");
+}
+
+#[test]
+fn audio_with_several_edits_keeps_its_windows() {
+    // Audio: its first second after priming, then a skip of one second.
+    let skipping = movie(&[
+        ibbp_video(100, 25),
+        aac_audio(190, vec![(1000, 2112), (2000, 2112 + 96_000)]),
+    ]);
+    let single = av_movie();
+    for inputs in [
+        vec![&skipping[..], &single[..]],
+        vec![&single[..], &skipping[..]],
+    ] {
+        let (summary, out) = join(&inputs).unwrap();
+        assert_join(&inputs, &out, &summary);
+        assert!(summary.audio_edits >= 3, "{}", summary.audio_edits);
+    }
+}
+
+#[test]
+fn segments_across_an_empty_edit_join_back() {
+    // The cut at 1 s falls where the gap starts: the first segment ends
+    // with frames no edit presents, the second starts with the gap.
+    let source = spliced(vec![(1000, 1024), (500, -1), (2000, 1024 + 25_600)]);
+    let segments = split(&source, q(1, 1));
+    let inputs: Vec<&[u8]> = segments.iter().map(Vec::as_slice).collect();
+    let (summary, out) = join(&inputs).unwrap();
+    assert_join(&inputs, &out, &summary);
+    // The gap stays an empty edit rather than the first segment's hidden
+    // frames; the second segment starts at its audio, which starts after
+    // the cut by less than an AAC frame (docs/design/join.md, Offsets).
+    let edits = &edit_lists(&out)[0].2;
+    assert_eq!(edits.iter().filter(|e| e.1 == -1).count(), 1, "{edits:?}");
+    let lead = sum(q(7, 2), q(-summary.duration.num, summary.duration.den));
+    assert!(!lead.checked_lt(q(0, 1)).unwrap() && lead.checked_lt(q(1024, 48_000)).unwrap());
+    let (src, joined) = (probe_all(&source), probe_all(&out));
+    let (pa, pb) = (packets(&source, &src, 0), packets(&out, &joined, 0));
+    assert_eq!(pa.len(), pb.len());
+    for (x, y) in pa.iter().zip(&pb) {
+        assert_eq!(
+            (x.size, x.dts, x.cts, x.keyframe, x.presented),
+            (y.size, y.dts, y.cts, y.keyframe, y.presented),
+            "sample {}",
+            x.sample
+        );
+        if !x.presented {
+            continue;
         }
+        let pts = x.pts.unwrap();
+        let expected = if pts.checked_lt(q(12_800, 1)).unwrap() {
+            pts
+        } else {
+            sum(pts, q(-lead.num * 12_800, lead.den))
+        };
+        assert_eq!(y.pts, Some(expected), "sample {}", x.sample);
     }
 }
 
@@ -929,20 +1015,7 @@ fn fixtures_round_trip() {
             Err(e) => panic!("{name} split: {e}"),
         };
         let inputs: Vec<&[u8]> = segments.iter().map(Vec::as_slice).collect();
-        // The join takes one edit per track (docs/design/join.md), so a
-        // segment that carries several windows of a source with several
-        // edits is not joinable.
-        let (summary, out) = match join(&inputs) {
-            Ok(joined) => joined,
-            Err(JoinError::Input {
-                input,
-                error: ExtractError::Source(Error::Unsupported { reason }),
-            }) if reason.contains("several edits") => {
-                eprintln!("{name} segments: segment {input} is not joinable: {reason}");
-                continue;
-            }
-            Err(e) => panic!("{name} segments: {e}"),
-        };
+        let (summary, out) = join(&inputs).unwrap_or_else(|e| panic!("{name} segments: {e}"));
         assert_join(&inputs, &out, &summary);
         eprintln!(
             "{name} segments: {} inputs, {} video and {} audio edits",
@@ -960,16 +1033,6 @@ fn fixtures_round_trip() {
                 &summary,
                 &mut manifest,
             );
-        }
-        // The join takes one edit per track, so a source with several is
-        // not an input to the clip joins or the pairs below; its segments
-        // are checked above.
-        if probe_all(&source)
-            .tracks
-            .iter()
-            .any(|t| t.edit_list == EditList::Multiple)
-        {
-            continue;
         }
         let clips = clip(&source, q(0, 1), Some(q(7, 10)))
             .and_then(|a| Ok((a, clip(&source, q(11, 10), None)?)));

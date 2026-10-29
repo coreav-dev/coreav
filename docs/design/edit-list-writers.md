@@ -11,7 +11,8 @@ writer, in the order the writers are done:
 2. split;
 3. the HLS writers;
 4. M4A extraction;
-5. `coreav-text` timing.
+5. `coreav-text` timing;
+6. join.
 
 Each section, with its pass criteria, is committed before that writer's
 measurement run. Each writer is one pull request.
@@ -28,7 +29,7 @@ the message below) and writes nothing; a test per writer checks each case.
 |---|---|---|
 | An edit list outside the edit model (`EditList::Unsupported`): overlapping or backward windows, a rate other than 1, a dwell, a media time below −1, a zero-length media edit in a movie without fragments | all | `edit list outside the supported model` (`coreav-text`: `an edit list outside the supported model`) |
 | Several edits in a movie with fragments (classified `Unsupported` by probe, `docs/design/edit-lists.md` decision 1) | all | `edit list outside the supported model` |
-| Several edits in a writer that has not taken them on yet | the HLS writers, which their section leaves refusing; join, which takes one edit per input (`docs/design/join.md`) | `edit list with several edits (multi-edit), not supported here yet` |
+| Several edits in a writer that has not taken them on yet | the HLS writers, which their section leaves refusing | `edit list with several edits (multi-edit), not supported here yet` |
 | Several edits whose kept durations need an output movie timescale above 32 bits | clip and split, and any later writer that chooses an output movie timescale; extraction keeps the source's, so it cannot reach this | `edit list whose edit durations need a movie timescale above 32 bits` |
 | Several edits with more than 4,096 empty edits in a row (the windows are read from the track's own entries, clip decision 7; a longer run would make one lookup walk without bound) | clip and split, and any later writer that looks a window up per sample; extraction writes the entries once and looks none up | `edit list with a long run of empty edits` |
 
@@ -1016,6 +1017,104 @@ Fixed here, before the run:
 ### Results
 
 In `docs/measurements/text-several-edits.md`.
+
+## Join
+
+`join_mp4` (`docs/design/join.md`) took one edit per input and refused an
+input with several. Every input it otherwise takes is now joined as it
+presents itself, several edits included, as `coreav clip` and `coreav
+split` write them; the segments of a split whose cuts fall inside a run
+of edits join back.
+
+### Decisions
+
+1. **One output edit per media edit of each input.** Each media edit of
+   an input becomes an output edit at the input's offset, cut to the span
+   the input presents (its start and end as `docs/design/join.md`
+   computes them); the empty edits between them stay empty edits. Edits
+   that meet in both presentation and media time merge, as before, so the
+   segments of a split give back the source's edits. Rejected: rewriting
+   decode times to close the gaps an input's edits leave (no writer
+   rewrites them, `docs/design/hls.md`, "Timing").
+2. **An input's end between two of its edits** is where the earlier edit
+   ends (`Timeline::presented_until`): nothing is presented after it, and
+   holding the last frame across the gap would show frames the input's
+   edits cut out. The stream duration that bounds the end of an input
+   with one edit (the edit's own length) does not bound one with several,
+   whose edits bound it.
+3. **The hold before a later video start** (`docs/design/join.md`,
+   "Timing") is kept only where no frame of the input is composed after
+   its last edit. Otherwise the running edit would show that frame (cut
+   out by an edit, or kept by a clip only for decoding), and the gap stays
+   an empty edit, as the input's own empty edit was. The empty edit after
+   a media edit is what `docs/design/join.md` rejects for a gap between
+   inputs (ffmpeg plays frames of the next edit during it); here it
+   reproduces the input, which ffmpeg plays the same way.
+4. **Placement is unchanged.** Each input still starts at its earliest
+   presented sample. For the segment of a split that starts in an empty
+   edit of its source, that is its audio, which starts after the cut by
+   less than an AAC frame (`docs/design/split.md`): such a join gives back
+   the source's samples and edits with that gap shorter by the audio's
+   lead, the following times earlier by as much (a test,
+   `segments_across_an_empty_edit_join_back`). Rejected: starting every
+   input at its own time 0, which would turn the leading empty edits of
+   clips and remuxes into gaps between inputs.
+5. **Refusals.** The cases of common decision 1 that apply to any writer
+   still refuse (an edit list outside the model, several edits in a movie
+   with fragments); the join no longer refuses several edits.
+
+### Oracle
+
+`scripts/join_check.py`, as for every join, with common decision 3 for
+joins where an input, or the source of joined segments, has several
+edits: samples and frames read with edit lists ignored, and the edit
+arithmetic the harness's own (`iso_windows`, `iso_presented`):
+
+- the output's stored samples are the parts' (the inputs, or the source)
+  one after another: data hash, size, sync flag, composition offset, each
+  part's times moved by one constant;
+- the frames the output's edits present are the frames each input's edits
+  present, at its time plus its offset (for segments, the source's frames
+  from the first segment's start to the joined video's end), and the
+  inputs follow one another as for any join;
+- each output audio edit presents, at its time, the media its input's
+  edits present there (within one tick), and the output presents what
+  each input presents, up to where the next one starts;
+- streams, ends and MediaInfo as for any join; ffmpeg's edit-applied
+  video is reported (the second view), not gating.
+
+Each check fails on a bug-shaped change of the output (an edit's media
+time moved by a frame, a sample's data, an empty edit closed up, an audio
+edit's media time moved by an AAC frame), and
+`tools/oracle/tests/test_join_kd.py` holds the audio check's cases.
+
+Every join of the fixtures is also compared with `ffmpeg -f concat -safe
+0 -i LIST -c copy` on its inputs (`--ffmpeg-concat`,
+`docs/design/join.md`, "Verification"), the join of the 0.1.0 command
+set (`ffmpeg -f concat [-safe 0] -i LIST -c copy OUTPUT`).
+
+### Pass criteria
+
+Fixed with this section, before the fixture run below:
+
+- **Fixtures, 100%.** Every fixture join of the `fixtures_round_trip`
+  test passes the round trip and `join_check.py` with `--ffmpeg-concat`:
+  the segments and clips of `edit_multi_splice.mp4`,
+  `edit_multi_bframes.mp4`, `edit_multi_empty.mp4` and
+  `edit_multi_av.mp4` (no longer skipped), every pair, and every join
+  that passed before.
+- **Tests.** `crates/coreav-isobmff-write/tests/join.rs`: inputs with
+  several edits in either place, an empty edit inside an input, audio with
+  several edits, and segments cut at an empty edit.
+- **Corpus.** Not in this round: the six corpus files with several edits
+  are the next measurement, under the split protocol, split then joined.
+
+### Results
+
+On the fixtures, with the pinned FFmpeg 7.0.2 and MediaInfo: every fixture
+joins (no join refused for several edits), 230 of 230 joins pass every
+oracle, the nine with several edits directly; and every packet of the
+joins `ffmpeg -f concat` takes agrees with ffmpeg's output.
 
 ## Speed comparisons for the writers that follow
 
