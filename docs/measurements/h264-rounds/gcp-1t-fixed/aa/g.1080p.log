@@ -1,0 +1,21 @@
+machine: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz (family 6, model 207, stepping 2), 2300.0 MHz, 4 logical CPUs
+gate baseline: 1.314 s (samples 1.314, 1.314, 1.314)
+175433794e02.0.1080p.h264                a:discard=1.00  a:write=0.99  a:mixed=0.97  b:discard=1.00  b:write=0.99  b:mixed=0.97
+6da34958296c.0.1080p.h264                a:discard=1.06  a:write=1.01  a:mixed=0.96  b:discard=1.06  b:write=1.01  b:mixed=0.96
+6e90422a670a.0.1080p.h264                a:discard=0.98  a:write=0.97  a:mixed=0.95  b:discard=0.98  b:write=0.96  b:mixed=0.95
+a6af290d9053.0.1080p.h264                a:discard=0.99  a:write=0.98  a:mixed=0.96  b:discard=0.99  b:write=0.98  b:mixed=0.96
+gate after 4 streams (check): 1.312 s (-0.1%)
+a81de82106be.0.1080p.h264                a:discard=0.90  a:write=0.87  a:mixed=0.82  b:discard=0.90  b:write=0.87  b:mixed=0.82
+b41f70a7fa60.0.1080p.h264                a:discard=1.04  a:write=1.01  a:mixed=0.98  b:discard=1.04  b:write=1.01  b:mixed=0.98
+b71b6b31e54f.0.1080p.h264                a:discard=1.06  a:write=0.98  a:mixed=0.90  b:discard=1.06  b:write=0.98  b:mixed=0.90
+c7ecda16e4a7.0.1080p.h264                a:discard=1.05  a:write=1.04  a:mixed=1.02  b:discard=1.05  b:write=1.04  b:mixed=1.02
+gate after 8 streams (check): 1.313 s (-0.0%)
+
+a:discard                n=  8  median 1.021  [0.977, 1.056]
+a:write                  n=  8  median 0.983  [0.967, 1.010]
+a:mixed                  n=  8  median 0.961  [0.901, 0.977]
+b:discard                n=  8  median 1.021  [0.977, 1.057]
+b:write                  n=  8  median 0.983  [0.965, 1.010]
+b:mixed                  n=  8  median 0.962  [0.901, 0.977]
+
+wrote out/g.1080p.json

@@ -1,0 +1,24 @@
+H-1: met
+H-2: met
+A-1: met
+A-2: met
+A-3: met
+A-4: met
+N-1: met
+N-2: met
+V-1: met
+V-2: met
+AA b/a discard: 1.0000 [0.9997, 1.0003] half-width 0.03%, classes sd 1.0002, 720p 1.0002, 1080p 0.9999, 4k 0.9996, max dev 1.06%
+NA null discard: 1.0001 [0.9995, 1.0004] half-width 0.05%, classes sd 1.0001, 720p 1.0000, 1080p 1.0004, 4k 0.9995
+AA b/a write: 1.0000 [0.9995, 1.0007] half-width 0.06%, classes sd 0.9994, 720p 1.0002, 1080p 0.9997, 4k 1.0008, max dev 0.55%
+NA null write: 1.0001 [0.9999, 1.0008] half-width 0.05%, classes sd 1.0003, 720p 1.0000, 1080p 1.0000, 4k 1.0005
+AA: void [], CPU ok True, voided calls [], confirmed drifts 0, failed checks [] of 8, GHz [3.0835, 3.0828, 3.0775, 3.0853, 3.0743, 3.0737], refs 36501d448eaa.0.720p.h264 1.312s, a6af290d9053.0.1080p.h264 4.450s, faults {'ok': True, 'unresolved': 0, 'retried': 0, 'max_null_dev': 0.006922803018482915, 'max_round_spread': 1.1168407553703832}
+AA X/FFmpeg discard: 0.964 (22/32 faster), sd 0.923, 720p 1.014, 1080p 1.021, 4k 0.880
+AA X/FFmpeg write: 0.939 (26/32 faster), sd 0.920, 720p 0.989, 1080p 0.983, 4k 0.820
+NA: void [], CPU ok True, voided calls [], confirmed drifts 0, failed checks [] of 8, GHz [3.0877, 3.0878, 3.0868, 3.0876, 3.0867, 3.0866], refs 36501d448eaa.0.720p.h264 1.312s, a6af290d9053.0.1080p.h264 4.442s, faults {'ok': True, 'unresolved': 0, 'retried': 0, 'max_null_dev': 0.005377048172996113, 'max_round_spread': 1.0681350650727914}
+NA X/FFmpeg discard: 0.966 (21/32 faster), sd 0.927, 720p 1.020, 1080p 1.026, 4k 0.875
+NA X/FFmpeg write: 0.940 (26/32 faster), sd 0.923, 720p 0.991, 1080p 0.987, 4k 0.814
+reference gap NA/AA: 36501d448eaa.0.720p.h264 +0.02%, a6af290d9053.0.1080p.h264 -0.18%; X/FFmpeg discard gap +0.21%
+k/base discard: 1.055 [1.051, 1.063]
+k/base write: 1.051 [1.047, 1.057]
+accepted

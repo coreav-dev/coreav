@@ -14,7 +14,8 @@
 mod common;
 
 use common::{Spec, aac_entry, av_movie_with};
-use coreav_cli::ffmpeg::{Reason, Refusal, Stop};
+use coreav_cli::fallback::Reason;
+use coreav_cli::ffmpeg::{Refusal, Stop};
 use coreav_cli::ffprobe::StreamKind;
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
@@ -41,10 +42,13 @@ struct Run {
     stderr: String,
 }
 
+/// Runs in strict-safe mode, so that a refused command is refused rather
+/// than handed to an FFmpeg on `PATH` (`tests/fallback.rs` tests that).
 fn ffmpeg(args: &[&str]) -> Run {
     let out = Command::new(bin())
         .arg("ffmpeg")
         .args(args)
+        .env("COREAV_STRICT_SAFE", "1")
         .output()
         .unwrap();
     Run {
