@@ -436,6 +436,37 @@ pub(crate) struct BandView<'a> {
     pub(crate) planes: Planes<'a>,
 }
 
+/// [`BandView::band`] of a view kept under no band: one of a reference
+/// cut otherwise than [`SliceDecoder::band_shift`] says, which no block
+/// finds by its band.
+pub(crate) const NO_BAND: usize = usize::MAX;
+
+/// [`SliceDecoder::band_views`]: the views of the bands of banded
+/// references that the slice's blocks have read. Per list, reference
+/// `idx`'s band `k` goes to slot `(4 * idx + k % 4) % BAND_VIEWS`, which
+/// keeps four consecutive bands of each of the first four references.
+pub(crate) struct KeptViews<'a>(pub(crate) [[Option<BandView<'a>>; BAND_VIEWS]; 2]);
+
+/// [`SliceDecoder::band_shift`] of a slice that reads no reference of the
+/// picture's size cut into bands of a power of two rows.
+pub(crate) const NO_BAND_SHIFT: u8 = u8::MAX;
+
+/// The base-2 logarithm of the band height of the references of `refs`
+/// that are pictures `mb_w` by `mb_h` macroblocks cut into more than one
+/// band, for [`SliceDecoder::band_shift`]: every such reference is cut
+/// alike, since a picture's bands follow its height and the thread count
+/// ([`Geometry::band_mbs_for`]). [`NO_BAND_SHIFT`] where there is none, or
+/// where its bands are not a power of two rows high.
+pub(crate) fn band_shift(refs: &[Vec<RefPic>; 2], mb_w: usize, mb_h: usize) -> u8 {
+    refs.iter()
+        .flatten()
+        .map(|r| *r.picture.geometry())
+        .find(|g| g.mb_width == mb_w && g.mb_height == mb_h && g.bands() > 1)
+        .filter(|g| g.band_mbs().is_power_of_two())
+        .and_then(|g| u8::try_from(g.band_mbs().trailing_zeros()).ok())
+        .unwrap_or(NO_BAND_SHIFT)
+}
+
 /// Each reference of `refs` that is one published band of a picture
 /// `mb_w` by `mb_h` macroblocks, as the planes [`Kernels::predict`] reads,
 /// for [`SliceDecoder::whole`], and the band of the first of list 1.
@@ -540,10 +571,8 @@ pub(crate) struct SliceDecoder<'a, K: Kernels> {
     /// blocks have read, kept for the slice so that a block reading a
     /// band an earlier block read takes the view as it was built rather
     /// than building it again (`docs/design/h264.md`, "Threading round:
-    /// band views kept for the slice"). Per list, reference `idx`'s band
-    /// `k` goes to slot `(4 * idx + k % 4) % BAND_VIEWS`, which keeps
-    /// four consecutive bands of each of the first four references.
-    pub(crate) band_views: [[Option<BandView<'a>>; BAND_VIEWS]; 2],
+    /// band views kept for the slice").
+    pub(crate) band_views: KeptViews<'a>,
     /// The band of the first picture of list 1, where it is whole, whose
     /// motion direct prediction reads.
     pub(crate) colocated_whole: Option<&'a BandData>,
@@ -598,6 +627,12 @@ pub(crate) struct SliceDecoder<'a, K: Kernels> {
     /// banded picture added no field, so the decoder's layout stays as it
     /// was, and a macroblock that asks for nothing makes one check.
     pub(crate) hints: u8,
+    /// [`band_shift`] of the slice's references: where it is not
+    /// [`NO_BAND_SHIFT`], a block predicted from a banded reference of the
+    /// picture's size finds its band's kept view in [`Self::band_views`]
+    /// without reading the reference. A byte, so that the decoder's other
+    /// fields keep their places (`docs/design/h264.md`, "Bundle 6").
+    pub(crate) band_shift: u8,
 }
 
 /// The lines macroblocks write and read are asked for a cache line ahead
