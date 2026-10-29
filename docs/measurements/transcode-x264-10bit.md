@@ -13,7 +13,7 @@ Round 2's per-file results ([`transcode/round-2/speed/files.jsonl`](transcode/ro
 | 8-bit | 56 | 0.991 | 0.878 to 1.004 |
 | 10-bit | 10 | 1.428 | 1.129 to 2.062 |
 
-Every file whose source is 10-bit is slower on the `x264` arm, and no 8-bit file is. The 10-bit files are 5 of the 8 HEVC files, 1 of the 6 AV1 files and all 4 timed ProRes files:
+Every file whose source is 10-bit is slower on the `x264` arm, by 13% or more. The 8-bit files are within 0.5% of the `ffmpeg` arm: 6 of them are slightly above it, at most 1.0044. The 10-bit files are 5 of the 8 HEVC files, 1 of the 6 AV1 files and all 4 timed ProRes files:
 
 | Class | Source | `x264` arm | `ffmpeg` arm | `x264` over `ffmpeg` |
 |---|---|---|---|---|
@@ -43,7 +43,7 @@ A check on a development VM (2 vCPUs; not a measurement) gave the hypothesis thi
 
 The runner is [`transcode/x264-10bit/profile.py`](transcode/x264-10bit/profile.py), run by [`job.sh`](transcode/x264-10bit/job.sh).
 
-1. **The encoder programs on the same frames.** For each case, the pinned `ffmpeg` decodes the source's frames once to a raw file on a tmpfs. Then, 3 rounds in rotated order, the x264 program with the arguments `coreav transcode` gives it (with `--fps` for the timecode file) and `ffmpeg -f rawvideo ... -c:v libx264 -preset medium -crf 23` read the raw file through a pipe. Each run is timed from outside, and the CPU time of each of its threads is sampled from `/proc` every 50 ms. The cases:
+1. **The encoder programs on the same frames.** For each case, the pinned `ffmpeg` decodes the source's frames once to a raw file on a tmpfs. Then, 3 rounds in rotated order, the x264 program with the arguments `coreav transcode` gives it (with `--fps` for the timecode file) and `ffmpeg -f rawvideo ... -c:v libx264 -preset medium -crf 23` read the raw file on standard input. The plan said a pipe, but the runner opens the file and hands it to the program as standard input, so both programs read a regular file (see "Which input was a file"). Each run is timed from outside, and the CPU time of each of its threads is sampled from `/proc` every 50 ms. The cases:
    - `prores-4k-422p10`: the 4K ProRes frames as `yuv422p10le` (x264 `i422`, depth 10);
    - `prores-4k-420p10`: the same frames as `yuv420p10le` (`i420`, depth 10);
    - `prores-4k-420p8`: the same frames as `yuv420p` (`i420`, depth 8), the 8-bit control on the same pictures;
@@ -99,13 +99,15 @@ The last column is an estimate. It is `get_frame`'s share of all the profile's s
 3. Met: `get_frame` is the main thread's top function, with 87% to 90% of its samples on the 10-bit cases and 78% to 91% in the other input forms. It is absent on the 8-bit cases.
 4. Met: 1.406 and 1.676 on the 10-bit sources, 1.004 on the 8-bit source.
 
+**Which input was a file.** In steps 1 to 3 of this run the encoder programs read the raw file itself on standard input, a regular file and not a pipe, as the plan wrongly said. Step 4, the command, gives x264 its frames through a pipe, as `coreav transcode` always does. In the development checks below, the depth table read a regular file on standard input, the command rows went through a pipe, and the last table names its input on each row. The 16-bit result depends on that difference.
+
 The missed criterion 2 did not point at a cause outside the x264 program. Criterion 1 times the two encoder programs on the same frames with no CoreAV code involved, and its gap is about the size of the command's gap in criterion 4. So the work went on to the one finding that pointed at a change on CoreAV's side, `--input-depth 16`, instead of looking elsewhere. That is a departure from the rule above, and it is recorded here.
 
 ## Development check: 16-bit input
 
 `--input-depth 16` took 17% less time in the run above. Checks on the development VM showed that 16-bit samples (each 10-bit sample shifted up 6 bits) give the same stream as the 10-bit input. That held for synthetic 4:2:0, 4:2:2 and 4:4:4 frames in both ranges, and through `coreav transcode` on a 10-bit ProRes 4:2:2 source and on 4:2:0 and full-range 4:4:4 10-bit sources made from it. A change that did this for the x264 program ([`transcode/x264-10bit/input-depth-16.diff`](transcode/x264-10bit/input-depth-16.diff)) was timed in two development runs on the same host class, with the same three files. Neither run is a round, and neither judges a bar.
 
-**The depth, from a file** ([`ab.py`](transcode/x264-10bit/ab.py), [`ab/`](transcode/x264-10bit/ab); median of 3 rounds; every depth gave the same stream as depth 10):
+**The depth, from a regular file on standard input** ([`ab.py`](transcode/x264-10bit/ab.py), [`ab/`](transcode/x264-10bit/ab); median of 3 rounds; every depth gave the same stream as depth 10):
 
 | Input | 4:2:0 | 4:2:2 |
 |---|---|---|
@@ -114,7 +116,7 @@ The missed criterion 2 did not point at a cause outside the x264 program. Criter
 | `--input-depth 14`, samples shifted 4 bits | 22.45 s | |
 | `--input-depth 16`, samples shifted 6 bits | 18.02 s | 22.46 s |
 
-**The command with the change**, in the same run: 30.95 s against 30.73 s on the 4K ProRes source, 6.50 s against 6.46 s on the 1080p one, and 16.81 s against 16.72 s on the 8-bit HEVC source. The output was the same stream, and the x264 program's main thread spent 22.2 s as before.
+**The command with the change**, in the same run (x264 reads a pipe): 30.95 s against 30.73 s on the 4K ProRes source, 6.50 s against 6.46 s on the 1080p one, and 16.81 s against 16.72 s on the 8-bit HEVC source. The output was the same stream, and the x264 program's main thread spent 22.2 s as before.
 
 **File or pipe** ([`diag.py`](transcode/x264-10bit/diag.py), [`diag/`](transcode/x264-10bit/diag); 4K ProRes frames as 4:2:2, 2 rounds each):
 
@@ -130,4 +132,4 @@ From a regular file the x264 program maps its input into memory (`strace`: 90 `m
 
 ## Conclusion
 
-On the round-2 host class, the `x264` arm's extra time on 10-bit sources is the x264 program's conversion of its 10-bit input (the function `get_frame`). It runs on the program's main thread before each frame is encoded, and it does not run for 8-bit input. Every streamed input form tried pays the same: raw `i420` and `nv12`, `y4m`, input depths 10, 12, 14 and 16, `--thread-input`, and pipes of 64 KiB and 1 MiB. The `ffmpeg` arm gives libx264 the same frames and shows no such cost (criterion 1). CoreAV changes no code for it. The `x264` arm keeps missing B5 in the classes whose sources are 10-bit (HEVC, AV1 and ProRes in the speed selection) until the program changes or the design routes 10-bit frames differently.
+On the round-2 host class, the `x264` arm's extra time on 10-bit sources is the x264 program's conversion of its 10-bit input (the function `get_frame`). It runs on the program's main thread before each frame is encoded, and it does not run for 8-bit input. From a regular file, raw `i420` and `nv12`, `y4m`, input depths 10, 12 and 14 and `--thread-input` all pay it in full (`nv12` was tried on the development VM only), and input depth 16 pays about half. Through a pipe, which is the only way `coreav transcode` streams frames, input depth 16 pays the same as depth 10, with a pipe of 64 KiB or 1 MiB. The `ffmpeg` arm gives libx264 the same frames and shows no such cost (criterion 1). CoreAV changes no code for it. The `x264` arm keeps missing B5 in the classes whose sources are 10-bit (HEVC, AV1 and ProRes in the speed selection) until the program changes or the design routes 10-bit frames differently.

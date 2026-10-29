@@ -5,8 +5,8 @@
 
 docs/measurements/transcode-x264-10bit.md, "Method". For each case: the source's frames decoded once by the
 pinned ffmpeg to a raw file on TMP; then, REPS rounds in rotated order, the x264 program with the arguments
-`coreav transcode` gives it and `ffmpeg -c:v libx264` on the same raw file through a pipe, each timed from
-outside with every thread's CPU time sampled from /proc; then one function-level `perf record` of each. On
+`coreav transcode` gives it and `ffmpeg -c:v libx264` reading the same raw file as standard input (the file
+itself, not a pipe), each timed from outside with every thread's CPU time sampled from /proc; then one function-level `perf record` of each. On
 VARIANTS_CASE, other input forms of the x264 program, each timed and profiled once. Then `coreav transcode` on
 the source itself, each arm and the FFmpeg command, REPS rounds rotated. Results in OUT/results.jsonl, perf
 tables in OUT/perf-*.txt. Uses only the Python standard library; `perf` must be on PATH.
