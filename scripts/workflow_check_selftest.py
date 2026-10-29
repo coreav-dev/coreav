@@ -90,6 +90,19 @@ class Steps(unittest.TestCase):
         self.assertTrue(problems('jobs: [\n'))
         self.assertTrue(problems(steps('- uses: [actions/checkout@v4]')))
 
+    def test_keys_are_compared_as_written(self):
+        # YAML 1.1 reads the job ids on and yes as one boolean key; GitHub keeps both jobs.
+        text = ('jobs:\n  on:\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/checkout@v4\n'
+                '  yes:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: echo harmless\n')
+        self.assertEqual(len(problems(text)), 1, problems(text))
+        for text in (steps('- uses: actions/checkout@v4', f'  uses: actions/checkout@{SHA}'),
+                     'r: &r actions/checkout@v4\n' + steps('- uses: *r'),
+                     'k: &k uses\n' + steps('- *k : actions/checkout@v4'),
+                     's: &s {uses: actions/checkout@v4}\n' + steps('- <<: *s', '  name: x')):
+            with self.subTest(text=text):
+                self.assertTrue(any('actions/checkout@v4' in p for p in problems(text)), problems(text))
+        self.assertTrue(any('names no anchor' in p for p in problems(steps('- uses: *missing'))))
+
     def test_a_block_scalar_ends_where_its_indentation_does(self):
         self.assertEqual(len(problems(steps('- run: |', '    echo', '- uses: actions/checkout@v4'))), 1)
 
@@ -130,6 +143,13 @@ class Repository(unittest.TestCase):
         self.labels.write_text(text.replace('- uses: actions/checkout@' + text.split('- uses: actions/checkout@')[1].split()[0],
                                             '- uses : actions/checkout@v4', 1))
         self.assertTrue(any('actions/checkout@v4' in p for p in check.check(self.root)))
+
+    def test_boolean_job_ids_hide_no_job(self):
+        self.labels.write_text(self.labels.read_text() + '  on:\n    runs-on: ubuntu-24.04\n    steps:\n'
+                               '      - uses: actions/checkout@v4\n  yes:\n    runs-on: ubuntu-24.04\n    steps:\n'
+                               '      - run: echo harmless\n')
+        self.assertTrue(any(p.startswith('.github/workflows/labels.yml: line ') and 'actions/checkout@v4' in p
+                            for p in check.check(self.root)), check.check(self.root))
 
     def test_a_yaml_workflow_is_read(self):
         self.write('.github/workflows/probe.yaml', '# workflow-check: not required\non: push\njobs:\n  probe:\n'

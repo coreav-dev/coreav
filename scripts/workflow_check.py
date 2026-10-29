@@ -23,8 +23,9 @@
   a step calls (`./...`) uses an action by a tag or branch instead of a
   full lowercase commit sha, so the code it runs can change under the same
   name; or such a file is not one YAML document Ruby's standard library
-  (Psych) can read. The pin check walks the parsed tree, so it sees anchors,
-  aliases, merge keys and every quoting form as GitHub does.
+  (Psych) can read. The pin check walks Psych's node tree, so keys are
+  compared as written and anchors, aliases, merge keys, duplicate keys and
+  every quoting form hide no step.
 
     workflow_check.py [--root DIR]
 
@@ -218,23 +219,57 @@ def workflow_files(root):
                   if path.is_file() and path.suffix in WORKFLOW_SUFFIXES)
 
 
-# Ruby's standard YAML library parses each file for the pin check, so the
-# check sees the steps GitHub sees: anchors and aliases expanded, merge
-# keys applied, every quoting and flow form decoded.
+# Ruby's standard YAML library (Psych) parses each file for the pin check,
+# and the check walks the node tree it builds rather than loading it into
+# objects: a key is compared as the string it is written as, so YAML 1.1's
+# booleans (`on`, `yes`), merge keys and duplicate keys cannot hide a step.
+# Every `uses` key is read wherever it appears, anchored subtrees included;
+# an alias is resolved through the anchors defined before it.
 PARSE = r'''
-require "date"
 require "json"
 require "psych"
-text = STDIN.read
-documents = Psych.parse_stream(text).children.size
+begin
+  stream = Psych.parse_stream(STDIN.read)
+rescue Psych::SyntaxError => e
+  abort e.message
+end
+documents = stream.children.size
 abort "it holds #{documents} YAML documents; a workflow or action file holds one" if documents > 1
-puts JSON.generate(Psych.safe_load(text, permitted_classes: [Date, Time], aliases: true))
+anchors, out = {}, []
+resolve = lambda do |node|
+  next node unless node.is_a?(Psych::Nodes::Alias)
+  anchors[node.anchor] or out << { line: node.start_line + 1, error: "the alias *#{node.anchor} names no anchor" }
+  anchors[node.anchor]
+end
+walk = lambda do |node|
+  anchors[node.anchor] = node if !node.is_a?(Psych::Nodes::Alias) && node.respond_to?(:anchor) && node.anchor
+  resolve.(node) if node.is_a?(Psych::Nodes::Alias)
+  if node.is_a?(Psych::Nodes::Mapping)
+    node.children.each_slice(2) do |key, value|
+      walk.(key)
+      name = key.is_a?(Psych::Nodes::Alias) ? anchors[key.anchor] : key
+      if name.is_a?(Psych::Nodes::Scalar) && name.value == "uses"
+        ref = value.is_a?(Psych::Nodes::Alias) ? anchors[value.anchor] : value
+        out << if ref.is_a?(Psych::Nodes::Scalar)
+                 { line: value.start_line + 1, ref: ref.value }
+               else
+                 { line: value.start_line + 1, error: "a uses value that is not a string" }
+               end
+      end
+      walk.(value)
+    end
+  elsif node.respond_to?(:children) && node.children
+    node.children.each { |child| walk.(child) }
+  end
+end
+walk.(stream)
+puts JSON.generate(out)
 '''
 
 
-def parse_yaml(text):
-    """The file's YAML as JSON-shaped Python values, or a str saying why it
-    cannot be read."""
+def uses_entries(text):
+    """[{'line': n, 'ref': str} or {'line': n, 'error': str}] for the `uses`
+    keys of a file, or a str saying why it cannot be read."""
     try:
         run = subprocess.run(['ruby', '--disable-gems', '-e', PARSE], input=text, capture_output=True, text=True,
                              timeout=60)
@@ -245,19 +280,6 @@ def parse_yaml(text):
     return json.loads(run.stdout)
 
 
-def uses_values(node):
-    """Every value of a `uses` key anywhere in a parsed file: workflow steps,
-    reusable-workflow jobs and composite action steps alike."""
-    if isinstance(node, dict):
-        for key, value in node.items():
-            if key == 'uses':
-                yield value
-            yield from uses_values(value)
-    elif isinstance(node, list):
-        for item in node:
-            yield from uses_values(item)
-
-
 def pin_problems(root, path, seen):
     """What is wrong with the refs of one workflow or action file, and of the
     local actions and workflows it calls (`./...`), each read once."""
@@ -265,27 +287,24 @@ def pin_problems(root, path, seen):
         return []
     seen.add(path)
     name = path.relative_to(root)
-    text = path.read_text(encoding='utf-8')
-    tree = parse_yaml(text)
-    if isinstance(tree, str):
-        return [f'{name}: {tree}']
-    lines = text.splitlines()
+    entries = uses_entries(path.read_text(encoding='utf-8'))
+    if isinstance(entries, str):
+        return [f'{name}: {entries}']
     out = []
-    for ref in uses_values(tree):
-        if not isinstance(ref, str):
-            out.append(f'{name}: a `uses` value is not a string: {json.dumps(ref)}')
-            continue
-        where = next((f'line {n}: ' for n, line in enumerate(lines, 1) if ref in line), '')
-        if ref.startswith('./'):
+    for entry in entries:
+        where, ref = f'{name}: line {entry["line"]}: ', entry.get('ref')
+        if ref is None:
+            out.append(where + entry['error'])
+        elif ref.startswith('./'):
             target = (root / ref).resolve()
             files = [target] if target.suffix in WORKFLOW_SUFFIXES else [target / 'action.yml', target / 'action.yaml']
             found = [f for f in files if f.is_file()]
             if not target.is_relative_to(root.resolve()) or not found:
-                out.append(f'{name}: {where}{ref} names no action or workflow file in this repository')
+                out.append(f'{where}{ref} names no action or workflow file in this repository')
             for f in found:
                 out += pin_problems(root, root / f.relative_to(root.resolve()), seen)
         elif not PINNED.match(ref):
-            out.append(f'{name}: {where}`{ref}` is not pinned: use the full lowercase commit sha with the '
+            out.append(f'{where}`{ref}` is not pinned: use the full lowercase commit sha with the '
                        'version as a comment (`owner/repo@<40-hex sha> # vX.Y.Z`), as every other step does')
     return out
 
