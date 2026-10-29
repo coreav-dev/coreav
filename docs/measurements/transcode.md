@@ -26,7 +26,7 @@ the speed selection ([`transcode/speed-selection.json`](transcode/speed-selectio
 
 ## B9, through `coreav ffmpeg` (bars 100%)
 
-The bar of [`docs/design/transcode.md`](../design/transcode.md), item 9, with its criterion as changed on 2026-10-29 (the dated note there). The run that decides it is the fixtures CI job on the commit that made that change: GitHub's merge `90590d8c` of `6cbbf6c1` into `57ce872b`, the base branch at the time (run `40863119182`, the `isobmff-fixtures` job). Earlier runs do not count. Arms as above: `x264` (the x264 program, SHA-256 `c4d88654…`) and `ffmpeg` (no x264 program, so FFmpeg's libx264), each against the pinned FFmpeg 7.0.2 running the same command line. Lines x01 to x12 are the command lines of the note, in its order (also in `manifest.json`). Of the 100 fixture files, 79 have a video stream and are judged.
+The bar of [`docs/design/transcode.md`](../design/transcode.md), item 9, with its criterion as changed on 2026-10-29 (the dated note there). The run that decides it is the first `isobmff-fixtures` run on `90590d8c`, GitHub's merge of `6cbbf6c1` (the commit that made that change) into `57ce872b`, the base branch at the time. Earlier runs do not count. Arms as above: `x264` (the x264 program, SHA-256 `c4d88654…`) and `ffmpeg` (no x264 program, so FFmpeg's libx264), each against the pinned FFmpeg 7.0.2 running the same command line. Lines x01 to x12 are the command lines of the note, in its order (also in `manifest.json`). Of the 100 fixture files, 79 have a video stream and are judged.
 
 | Line | Runs | B1 | B2 | B3 | Q1 median, min (dB), `x264` arm | Q1 median, min (dB), `ffmpeg` arm | Q2 min (dB), `x264` / `ffmpeg` |
 |---|---|---|---|---|---|---|---|
