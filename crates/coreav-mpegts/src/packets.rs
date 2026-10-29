@@ -189,6 +189,10 @@ impl Frames {
 /// rule). The six bytes are AC-3's `syncinfo` and the `bsid` after it
 /// (ATSC A/52 5.3.1, 5.4.2.1), and E-AC-3's first six.
 const AC3_TIMED: usize = 7;
+/// The samples an AC-3 frame holds (A/52 5.3.1, six blocks of 256): the
+/// duration `ffprobe` gives the bytes before a stream's first frame
+/// header, whose own header this reader may never read.
+const AC3_SAMPLES: u32 = 1536;
 
 /// Most dependent substreams in one E-AC-3 access unit (ATSC A/52 annex E
 /// 2.3.1.2: `substreamid` 0 to 7).
@@ -1041,6 +1045,17 @@ impl<S: Source> Packets<'_, S> {
         let hold = self.streams.get(index).is_some_and(|s| {
             matches!(s.codec, Codec::Eac3 | Codec::Dts) || (as_ffprobe && s.codec == Codec::Ac3)
         });
+        // The duration `ffprobe` gives a packet of bytes before the first
+        // frame header when the header after them is unread: a frame of
+        // an AC-3 stream, nothing for an E-AC-3 one, whose frames hold
+        // what their headers say.
+        let lead_ticks = self
+            .streams
+            .get(index)
+            .filter(|s| s.codec == Codec::Ac3)
+            .and(stream_rate)
+            .filter(|rate| *rate > 0)
+            .map(|rate| i64::from(AC3_SAMPLES) * 90_000 / i64::from(rate));
         let Some(state) = self.frames.get_mut(index) else {
             return;
         };
@@ -1073,6 +1088,37 @@ impl<S: Source> Packets<'_, S> {
                     .get(at..)
                     .is_some_and(|rest| frames::may_start(syntax, rest))
                 {
+                    // An AC-3 or E-AC-3 stream's bytes before its first
+                    // frame header are a packet of their own, listed here
+                    // too when the end of the PES packet cuts that header
+                    // before this reader can read it; `ffprobe` lists
+                    // them, and the frame after them is then not the
+                    // stream's first (streams crafted with 100 lead bytes
+                    // and the first frame cut at one to seven). Their
+                    // duration is the frame's, which is unread here.
+                    if as_ffprobe
+                        && syntax == frames::Syntax::Ac3
+                        && !state.started
+                        && at > 0
+                        && carried == 0
+                    {
+                        state.started = true;
+                        state.offset = offset;
+                        first_in_pes = false;
+                        self.queue.push_back(Packet {
+                            stream: index,
+                            pos: Some(pes.offset),
+                            pes_offset: pes.offset,
+                            pts,
+                            dts: pts.map(|t| t - offset),
+                            duration: lead_ticks,
+                            keyframe: true,
+                            data: data.get(..at).unwrap_or_default().to_vec(),
+                            corrupt: false,
+                            fed: None,
+                            split: false,
+                        });
+                    }
                     if at >= carried && first_in_pes {
                         state.cut = Some((pts, offset, pes.offset));
                     }
@@ -1141,12 +1187,15 @@ impl<S: Source> Packets<'_, S> {
                         .or(stream_rate)
                         .filter(|r| *r > 0);
                     let ticks = rate.map(|r| i64::from(frame.samples) * 90_000 / i64::from(r));
-                    // E-AC-3 is the exception: `ffprobe` gives those lead
-                    // bytes no duration and starts the first frame at
-                    // their time, where an AC-3 lead packet lasts a frame
-                    // and the frames follow it (streams crafted with 29,
-                    // 100 and 300 lead bytes of each).
-                    let eac3 = syntax == frames::Syntax::Ac3 && frame.detail == 1;
+                    // E-AC-3 is the exception in the listing as
+                    // `ffprobe` gives it: there those lead bytes have no
+                    // duration and the first frame starts at their time,
+                    // where an AC-3 lead packet lasts a frame and the
+                    // frames follow it (streams crafted with 29, 100 and
+                    // 300 lead bytes of each). The default listing keeps
+                    // the frame's duration for both.
+                    let eac3 =
+                        self.as_ffprobe && syntax == frames::Syntax::Ac3 && frame.detail == 1;
                     let spent = if eac3 { 0 } else { frame.samples };
                     state.anchor = pts
                         .zip(rate)
@@ -1329,6 +1378,35 @@ impl<S: Source> Packets<'_, S> {
         }
         // At most one frame is carried: the one the end of the PES packet
         // cut, whose length its header bounds.
+        if at >= data.len()
+            && as_ffprobe
+            && syntax == frames::Syntax::Ac3
+            && !state.started
+            && carried == 0
+            && !data.is_empty()
+        {
+            // A first PES packet with no frame header in it at all: its
+            // bytes are the tail of a frame that began before the file,
+            // which `ffprobe` lists as it lists the bytes before a header
+            // (an AC-3 stream crafted with such a PES packet of 100
+            // bytes).
+            state.started = true;
+            state.offset = offset;
+            self.queue.push_back(Packet {
+                stream: index,
+                pos: Some(pes.offset),
+                pes_offset: pes.offset,
+                pts,
+                dts: pts.map(|t| t - offset),
+                duration: lead_ticks,
+                keyframe: true,
+                data,
+                corrupt: false,
+                fed: None,
+                split: false,
+            });
+            return;
+        }
         if let Some(rest) = data.get(at..) {
             state.leftover = rest.to_vec();
             self.carried = self.carried.saturating_add(rest.len());

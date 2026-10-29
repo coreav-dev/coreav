@@ -377,11 +377,15 @@ nothing is ignored whole, as a decoder ignores it.
   They are listed as a packet of their own, with the time and position of
   the PES packet they are in and the length of the frame that follows
   them, and the frames after them take their time from it; `ffprobe`
-  lists them the same way. That holds when the end of the PES packet cuts
-  the frame after them too: the cut frame follows them by one frame, with
-  no position (a capture of the corpus whose first AC-3 frame starts 290
-  bytes before the end of its PES packet, and AC-3 streams crafted with
-  100 such bytes and the first frame cut). Rejected: dropping them, which
+  lists them the same way. That holds when the end of the PES packet
+  leaves at least eight bytes of the frame after them, enough for its
+  header: the cut frame follows them by one frame, with no position (a
+  capture of the corpus whose first AC-3 frame starts 290 bytes before
+  the end of its PES packet, and AC-3 streams crafted with 100 such bytes
+  and the first frame cut). With less than that, or with no frame header
+  in the PES packet at all, the default listing drops those bytes and
+  every later packet of the stream shifts by one against `ffprobe`'s; the
+  listing as `ffprobe` gives it lists them there too (below). Rejected: dropping them, which
   shifted every later frame's time by one frame on the files that start
   mid-frame; and reading them only when the frame after them is whole, the
   rule until that capture, which dropped them and gave the cut frame the
@@ -483,7 +487,14 @@ describe. With it on:
   AC-3 streams crafted so keep the packet of their own, as by default).
   An E-AC-3 stream keeps the packet of its own too, but with no duration,
   and its first frame starts at that packet's time rather than a frame
-  later (streams crafted with 29, 100 and 300 such bytes of each);
+  later (streams crafted with 29, 100 and 300 such bytes of each). Such
+  a packet is listed here even where the end of the PES packet leaves too
+  little of the frame after it for a header, and where a first PES packet
+  holds no header at all, which the default listing drops: its duration
+  is then a frame of the stream's rate for AC-3 (1,536 samples, A/52
+  5.3.1), none for E-AC-3, and none where the stream states no rate
+  (streams crafted with 100 lead bytes and the first frame cut at one to
+  eight bytes, and with a first PES packet of lead bytes alone);
 - an AC-3 or E-AC-3 frame of which its PES packet holds fewer than seven
   bytes (A/52 `syncinfo` and the `bsid` after it) takes the time and
   position of the next PES packet, and so does the first frame that

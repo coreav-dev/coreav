@@ -1554,6 +1554,63 @@ fn the_bytes_before_a_first_frame_its_pes_packet_cuts_are_a_packet() {
 }
 
 #[test]
+fn as_ffprobe_the_bytes_before_a_header_the_pes_packet_cuts_are_a_packet() {
+    // 100 bytes of a frame that began before the file, then too little of
+    // the next frame's header for this reader (one to seven bytes) or
+    // none of it: the listing as `ffprobe` gives it lists those bytes as
+    // a packet of their own all the same, and the frame after them takes
+    // the next PES packet's time and position. The default listing drops
+    // them, which it did before.
+    for held in [0usize, 1, 6, 7] {
+        let frames = [ac3_frame(), ac3_frame()].concat();
+        let lead = [0x22u8; 100];
+        let mut mux = Mux::default();
+        mux.pat(&[(1, 0x1000)]);
+        mux.pmt(0x1000, 1, &[(0x81, 0x101)]);
+        let first = mux.out.len() as u64;
+        mux.pes(
+            0x101,
+            0xBD,
+            90_000,
+            &[&lead[..], &frames[..held]].concat(),
+            true,
+        );
+        let second = mux.out.len() as u64;
+        mux.pes(0x101, 0xBD, 92_880, &frames[held..], true);
+        let listed = audio_listing(&mux, true);
+        assert_eq!(
+            listed.first().copied(),
+            Some((100, Some(90_000), Some(first))),
+            "{held}"
+        );
+        // The frames after them, timed by the rule for a frame its PES
+        // packet cuts (the test below), and none lost.
+        assert_eq!(
+            listed.iter().map(|(len, _, _)| *len).collect::<Vec<_>>(),
+            vec![100, 768, 768],
+            "{held}"
+        );
+        // Fewer than seven bytes of it: the frame takes the next PES
+        // packet's position, as it takes its time; with seven it follows
+        // the lead bytes with none (the test below).
+        assert_eq!(
+            listed[1].2,
+            if held < 7 { Some(second) } else { None },
+            "{held}"
+        );
+        // The frames alone by default, the lead bytes dropped.
+        assert_eq!(
+            audio_listing(&mux, false)
+                .into_iter()
+                .map(|(len, _, _)| len)
+                .collect::<Vec<_>>(),
+            vec![768, 768],
+            "{held}"
+        );
+    }
+}
+
+#[test]
 fn as_ffprobe_an_ac3_frame_with_six_bytes_in_its_pes_packet_starts_in_the_next() {
     // A frame of which its PES packet holds six bytes takes the next PES
     // packet's time and position, as the first frame that starts there

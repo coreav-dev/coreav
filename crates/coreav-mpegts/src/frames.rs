@@ -22,7 +22,10 @@ pub(crate) struct Frame {
     /// Channels, when the header states them (0 for an ADTS
     /// `channel_configuration` of 0, whose channels are in the payload).
     pub channels: u8,
-    /// Codec detail: the AAC audio object type, or the MPEG audio layer.
+    /// Codec detail: the AAC audio object type, the MPEG audio layer, 1
+    /// for an E-AC-3 frame (`bsid` 11 to 16, A/52 annex E) against 0 for
+    /// AC-3, which is what tells the two apart, or
+    /// [`DTS_SUBSTREAM`] for a DTS extension substream.
     pub detail: u8,
     /// An E-AC-3 dependent substream (`strmtyp` 1, A/52 annex E 2.3.1.1),
     /// part of the access unit of the independent frame before it.
