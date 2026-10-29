@@ -1,0 +1,20 @@
+== g: Compute Engine one-thread class, 64 held-out, 5 rounds (information), 64 streams
+  k/base discard overall  n=64 median 0.9886 [0.9859,0.9915] faster 55/64
+  k/base discard sd       n=16 median 0.9918 [0.9887,0.9958] faster 14/16
+  k/base discard 720p     n=16 median 0.9894 [0.9856,1.0018] faster 11/16
+  k/base discard 1080p    n=16 median 0.9869 [0.9785,0.9945] faster 15/16
+  k/base discard 4k       n=16 median 0.9858 [0.9786,0.9897] faster 15/16
+  k/base write   overall  n=64 median 0.9900 [0.9886,0.9920] faster 58/64
+  k/base write   sd       n=16 median 0.9923 [0.9904,0.9939] faster 15/16
+  k/base write   720p     n=16 median 0.9907 [0.9870,0.9942] faster 13/16
+  k/base write   1080p    n=16 median 0.9885 [0.9808,0.9920] faster 15/16
+  k/base write   4k       n=16 median 0.9893 [0.9837,0.9902] faster 15/16
+  k vs FFmpeg discard overall 0.952 (46/64 faster) sd 0.952 (14/16 faster) 720p 0.996 (9/16 faster) 1080p 0.964 (9/16 faster) 4k 0.872 (14/16 faster)
+  k vs FFmpeg write   overall 0.949 (55/64 faster) sd 0.949 (14/16 faster) 720p 0.971 (13/16 faster) 1080p 0.940 (13/16 faster) 4k 0.837 (15/16 faster)
+  base vs FFmpeg discard overall 0.960 (42/64 faster) sd 0.960 (14/16 faster) 720p 1.011 (6/16 faster) 1080p 0.975 (8/16 faster) 4k 0.889 (14/16 faster)
+  base vs FFmpeg write   overall 0.957 (52/64 faster) sd 0.957 (14/16 faster) 720p 0.983 (10/16 faster) 1080p 0.947 (12/16 faster) 4k 0.846 (16/16 faster)
+  g.sd: unresolved 0 [], retried 0, gate drift 0, largest null deviation 0.010332516315595841
+  g.720p: unresolved 0 [], retried 4, gate drift 4, largest null deviation 0.015050060893191386
+  g.1080p: unresolved 0 [], retried 0, gate drift 0, largest null deviation 0.019307782017685904
+  g.4k: unresolved 0 [], retried 0, gate drift 0, largest null deviation 0.011264235805455547
+bars: B3b-2 (information) pass

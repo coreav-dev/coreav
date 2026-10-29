@@ -13,7 +13,7 @@ use std::sync::mpsc::{self, Receiver, Sender, SyncSender, TryRecvError};
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use std::thread::JoinHandle;
 
-use coreav_kernels_h264::Kernels;
+use coreav_kernels_h264::{Kernels, Macroblocks};
 
 use crate::deblock::{SliceFilter, ThresholdTable, deblock_rows};
 use crate::dpb::RefPic;
@@ -175,6 +175,7 @@ impl<K: Kernels> PictureWork<K> {
             stride: geometry.mb_width * 16,
             luma_origin: 0,
             chroma_origin: 0,
+            macroblocks: Macroblocks::NONE,
             mbs: &mut self.mbs,
             ring,
             ring_mask: entries - 1,

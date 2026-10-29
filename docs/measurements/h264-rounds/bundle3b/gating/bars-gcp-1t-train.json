@@ -1,0 +1,61 @@
+{
+ "new": "k",
+ "old": "base",
+ "seed": 20261026,
+ "calls": {
+  "g": {
+   "label": "Compute Engine one-thread class, 32 training, 20 rounds (information)",
+   "streams": "docs/measurements/h264-training/es.json"
+  }
+ },
+ "bars": [
+  {
+   "name": "B3b-1 (information)",
+   "checks": [
+    {
+     "call": "g",
+     "pairing": "discard",
+     "groups": [
+      "overall"
+     ],
+     "median_max": 0.99,
+     "ci_high_below": 1
+    }
+   ]
+  },
+  {
+   "name": "B3b-3 (information)",
+   "checks": [
+    {
+     "call": "g",
+     "pairing": "write",
+     "groups": [
+      "overall"
+     ],
+     "median_max": 1
+    }
+   ]
+  },
+  {
+   "name": "B3b-4 (information)",
+   "checks": [
+    {
+     "call": "g",
+     "pairing": "discard",
+     "groups": [
+      "classes"
+     ],
+     "median_max": 1.005
+    },
+    {
+     "call": "g",
+     "pairing": "write",
+     "groups": [
+      "classes"
+     ],
+     "median_max": 1.005
+    }
+   ]
+  }
+ ]
+}

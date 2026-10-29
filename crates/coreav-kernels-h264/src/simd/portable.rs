@@ -13,6 +13,10 @@ use crate::{Combine, EdgeParams, Kernels};
 /// vector kernel; there is none.
 pub(super) const LUMA_COPY8_VECTOR: bool = false;
 
+/// Whether a 4-wide luma block at a fractional position goes to the
+/// vector kernel; there is none.
+pub(super) const LUMA4_VECTOR: bool = false;
+
 /// Never: there is no vector kernel here.
 pub(super) const CHROMA_MC_VECTOR: bool = false;
 /// The same.

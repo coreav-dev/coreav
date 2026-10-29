@@ -393,6 +393,166 @@ impl<'a> PlanesMut<'a> {
     }
 }
 
+impl PlanesMut<'_> {
+    /// The macroblocks these planes hold whole, found once for
+    /// [`crate::Kernels::predict_part`]: those whose luma rows and chroma
+    /// rows all lie inside the slices, from each plane's first row on.
+    /// None where the stride is not a multiple of 16 from 16 to
+    /// [`MAX_SIZE`], a first row is above [`MAX_SIZE`] or an origin above
+    /// [`MAX_ORIGIN`].
+    pub fn macroblocks(&self) -> Macroblocks {
+        let s = self.stride;
+        let [first, chroma_first] = self.first;
+        let [origin, chroma_origin] = self.origin;
+        let fits = (16..=MAX_SIZE).contains(&s)
+            && s % 16 == 0
+            && first <= MAX_SIZE
+            && chroma_first <= MAX_SIZE
+            && origin <= MAX_ORIGIN
+            && chroma_origin <= MAX_ORIGIN;
+        if !fits {
+            return Macroblocks::NONE;
+        }
+        let len = [self.y.len(), self.cb.len().min(self.cr.len())];
+        // The rows each slice holds whole after its origin: luma row `r`
+        // from `origin + (r - first) * s`, for `r` from `first` to
+        // `first + n - 1`, and chroma row `r` likewise.
+        let n = len[0].saturating_sub(origin) / s;
+        let cn = len[1].saturating_sub(chroma_origin) / (s / 2);
+        // Macroblock row `m` is luma rows `16 * m` to `16 * m + 15` and
+        // chroma rows `8 * m` to `8 * m + 7`; at most `MAX_SIZE / 16`
+        // rows, so that a block's position stays within `MAX_SIZE`.
+        let rows = [
+            first.div_ceil(16).max(chroma_first.div_ceil(8)),
+            ((first + n) / 16)
+                .min((chroma_first + cn) / 8)
+                .min(MAX_SIZE / 16),
+        ];
+        // Within +-2^31 with these bounds, as `place` requires.
+        let at = [
+            origin as i64 - (first * s) as i64,
+            chroma_origin as i64 - (chroma_first * (s / 2)) as i64,
+        ];
+        Macroblocks {
+            stride: s,
+            cols: s / 16,
+            rows,
+            at,
+            len,
+        }
+    }
+}
+
+/// The macroblocks of the picture being decoded, or of the band of it,
+/// that its planes hold whole ([`PlanesMut::macroblocks`]): found once,
+/// so that a block written into one ([`crate::Kernels::predict_part`]) is
+/// checked by comparing its macroblock with the rows held and each
+/// plane's length with the one found, instead of by its own offsets.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Macroblocks {
+    /// Luma samples from one row to the next; chroma's are half.
+    stride: usize,
+    /// Macroblocks in a row, `stride / 16`.
+    cols: usize,
+    /// The macroblock rows held whole, from the first to one past the
+    /// last.
+    rows: [usize; 2],
+    /// Where sample (0, 0) of the luma plane would sit in its slice, and
+    /// of each chroma plane in its: the origin less the rows before the
+    /// first held.
+    at: [i64; 2],
+    /// The lengths they were found with: the luma slice's, and the
+    /// shorter chroma slice's.
+    len: [usize; 2],
+}
+
+impl Macroblocks {
+    /// No macroblock: every block is declined.
+    pub const NONE: Macroblocks = Macroblocks {
+        stride: 0,
+        cols: 0,
+        rows: [0, 0],
+        at: [0, 0],
+        len: [0, 0],
+    };
+}
+
+/// What [`crate::Kernels::predict_part`] does with each plane's
+/// prediction (luma, Cb, Cr), every weighting checked once, where it is
+/// made ([`Ops::new`]), so that a block written or averaged in every
+/// plane, most blocks, is not tested for one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Ops([PlaneOp; 3]);
+
+impl Ops {
+    /// Each plane's prediction written.
+    pub const PUT: Ops = Ops([PlaneOp::Put; 3]);
+    /// Each plane's prediction averaged into its block.
+    pub const AVG: Ops = Ops([PlaneOp::Avg; 3]);
+
+    /// `ops`, or `None` where a weighting is outside
+    /// [`Weighting::in_range`], which [`crate::Kernels::predict`]
+    /// declines.
+    pub fn new(ops: [PlaneOp; 3]) -> Option<Ops> {
+        weights(ops).then_some(Ops(ops))
+    }
+
+    /// The operations.
+    pub const fn get(self) -> [PlaneOp; 3] {
+        self.0
+    }
+}
+
+/// One block of a macroblock, as [`crate::Kernels::predict_part`] takes
+/// it: `w` by `h` luma samples, each 4, 8 or 16, at (`x`, `y`) inside the
+/// 16 by 16 macroblock.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Part {
+    x: u8,
+    y: u8,
+    w: u8,
+    h: u8,
+}
+
+impl Part {
+    /// The `w` by `h` block at (`x`, `y`) of a macroblock, or `None` where
+    /// a size is not 4, 8 or 16 or the block does not lie inside the
+    /// macroblock.
+    pub const fn new(x: usize, y: usize, w: usize, h: usize) -> Option<Part> {
+        let fits = matches!(w, 4 | 8 | 16) && matches!(h, 4 | 8 | 16) && x <= 16 - w && y <= 16 - h;
+        if fits {
+            Some(Part {
+                x: x as u8,
+                y: y as u8,
+                w: w as u8,
+                h: h as u8,
+            })
+        } else {
+            None
+        }
+    }
+
+    /// The block's first column in its macroblock.
+    pub const fn x(self) -> usize {
+        self.x as usize
+    }
+
+    /// The block's first row in its macroblock.
+    pub const fn y(self) -> usize {
+        self.y as usize
+    }
+
+    /// The block's width.
+    pub const fn w(self) -> usize {
+        self.w as usize
+    }
+
+    /// The block's height.
+    pub const fn h(self) -> usize {
+        self.h as usize
+    }
+}
+
 /// Where one call reads and writes, every range checked: the result of
 /// [`place`].
 #[derive(Clone, Copy, Debug)]
@@ -461,10 +621,6 @@ pub(crate) fn place(
     ops: [PlaneOp; 3],
 ) -> Option<Placement> {
     let sizes = matches!(w, 4 | 8 | 16) && matches!(h, 4 | 8 | 16);
-    let weights = ops.iter().all(|op| match op {
-        PlaneOp::Weigh(weighting) => weighting.in_range(),
-        PlaneOp::Put | PlaneOp::Avg => true,
-    });
     let stride = src.stride;
     // `Planes::with_origin` and `Planes::band` held `stride` and `rows` to
     // `MAX_SIZE`, the reference's origins to `MAX_ORIGIN` and its first
@@ -481,11 +637,121 @@ pub(crate) fn place(
         && chroma_first <= py / 2
         && origin <= MAX_ORIGIN
         && chroma_origin <= MAX_ORIGIN;
-    if !sizes || !weights || !bounded || dst.stride != stride {
+    if !sizes || !weights(ops) || !bounded || dst.stride != stride {
         return None;
     }
     let s = stride as i64;
     let (x0, y0, wi, hi) = (px as i64, py as i64, w as i64, h as i64);
+    let read = read(src, x0, y0, wi, hi, mv)?;
+    // The blocks written: the block's rows from the planes' first, each
+    // block's last row ending inside its plane.
+    let (cs, cw, ch) = (s >> 1, wi >> 1, hi >> 1);
+    let (row, crow) = (y0 - first as i64, (y0 >> 1) - chroma_first as i64);
+    let luma_dst = origin as i64 + row * s + x0;
+    let chroma_dst = chroma_origin as i64 + crow * cs + (x0 >> 1);
+    let written = x0 + wi <= s
+        && luma_dst + (hi - 1) * s + wi <= dst.y.len() as i64
+        && chroma_dst + (ch - 1) * cs + cw <= dst.cb.len().min(dst.cr.len()) as i64;
+    if !written {
+        return None;
+    }
+    Some(read.placement(stride, luma_dst, chroma_dst))
+}
+
+/// [`place`] for the block `part` of macroblock `mb` (its column and row)
+/// of the picture whose planes, of lengths `len` (luma, Cb, Cr), `mbs`
+/// was found from ([`PlanesMut::macroblocks`]): the same placement, or
+/// `None` where [`place`] declines the block or `mbs` does not hold the
+/// macroblock, a slice is shorter than `mbs` holds it to (the luma slice
+/// than the luma slice it was found from, each chroma slice than the
+/// shorter of those), or `src`'s stride is not `mbs`'s.
+///
+/// The block's position comes from the macroblock and its size from
+/// `part`, both checked once ([`Macroblocks`], [`Part`]), as are the
+/// weightings ([`Ops`]), so where [`place`] bounds the position, checks
+/// the blocks written against the planes and tests each weighting, this
+/// compares the macroblock with the rows held and each plane's length
+/// with the one checked.
+#[inline(always)]
+pub(crate) fn place_part(
+    len: [usize; 3],
+    mbs: &Macroblocks,
+    [mbx, mby]: [usize; 2],
+    part: Part,
+    src: &Planes<'_>,
+    mv: [i16; 2],
+) -> Option<Placement> {
+    let [luma_len, chroma_len] = mbs.len;
+    let held = mbx < mbs.cols
+        && mbs.rows[0] <= mby
+        && mby < mbs.rows[1]
+        && len[0] >= luma_len
+        && len[1].min(len[2]) >= chroma_len
+        && src.stride == mbs.stride;
+    if !held {
+        return None;
+    }
+    // `Macroblocks` holds rows and columns to `MAX_SIZE / 16`, so both
+    // positions are below `MAX_SIZE`, as `place` requires, and the block
+    // lies inside its macroblock (`Part`).
+    let s = mbs.stride as i64;
+    let x0 = (mbx * 16 + part.x()) as i64;
+    let y0 = (mby * 16 + part.y()) as i64;
+    let read = read(src, x0, y0, part.w() as i64, part.h() as i64, mv)?;
+    // The blocks written lie inside their macroblock, whose rows the
+    // planes hold whole (`Macroblocks`).
+    let [luma_at, chroma_at] = mbs.at;
+    let luma_dst = luma_at + y0 * s + x0;
+    let chroma_dst = chroma_at + (y0 >> 1) * (s >> 1) + (x0 >> 1);
+    Some(read.placement(mbs.stride, luma_dst, chroma_dst))
+}
+
+/// Whether every weighting of `ops` is one the call takes
+/// ([`Weighting::in_range`]).
+#[inline(always)]
+fn weights(ops: [PlaneOp; 3]) -> bool {
+    ops.iter().all(|op| match op {
+        PlaneOp::Weigh(weighting) => weighting.in_range(),
+        PlaneOp::Put | PlaneOp::Avg => true,
+    })
+}
+
+/// Where a block's windows start in the reference, and its fractions:
+/// what [`place`] reads.
+struct Read {
+    luma_src: i64,
+    chroma_src: i64,
+    /// xFracL, yFracL, xFracC and yFracC.
+    fraction: [i64; 4],
+}
+
+impl Read {
+    /// The placement of a block read from here, written from `luma_dst`
+    /// and `chroma_dst`.
+    #[inline(always)]
+    fn placement(&self, stride: usize, luma_dst: i64, chroma_dst: i64) -> Placement {
+        let [xf, yf, cxf, cyf] = self.fraction;
+        // Every value is non-negative here, so the conversions keep them.
+        Placement {
+            stride,
+            luma_src: self.luma_src as usize,
+            chroma_src: self.chroma_src as usize,
+            luma_dst: luma_dst as usize,
+            chroma_dst: chroma_dst as usize,
+            xf: xf as u8,
+            yf: yf as u8,
+            cxf: cxf as u8,
+            cyf: cyf as u8,
+        }
+    }
+}
+
+/// The windows of a `wi` by `hi` block at luma position (`x0`, `y0`),
+/// both within [`MAX_SIZE`], predicted with `mv` from `src`, or `None`
+/// where they do not lie as [`place`] requires.
+#[inline(always)]
+fn read(src: &Planes<'_>, x0: i64, y0: i64, wi: i64, hi: i64, mv: [i16; 2]) -> Option<Read> {
+    let s = src.stride as i64;
     let [mx, my] = mv.map(i64::from);
     let (xf, yf, cxf, cyf) = (mx & 3, my & 3, mx & 7, my & 7);
     // The block's integer position in the reference (Equations 8-228 and
@@ -516,29 +782,10 @@ pub(crate) fn place(
             return None;
         }
     }
-    // The blocks written: the block's rows from the planes' first, each
-    // block's last row ending inside its plane.
-    let (cw, ch) = (wi >> 1, hi >> 1);
-    let (row, crow) = (y0 - first as i64, (y0 >> 1) - chroma_first as i64);
-    let luma_dst = origin as i64 + row * s + x0;
-    let chroma_dst = chroma_origin as i64 + crow * cs + (x0 >> 1);
-    let written = x0 + wi <= s
-        && luma_dst + (hi - 1) * s + wi <= dst.y.len() as i64
-        && chroma_dst + (ch - 1) * cs + cw <= dst.cb.len().min(dst.cr.len()) as i64;
-    if !written {
-        return None;
-    }
-    // Every value is non-negative here, so the conversions keep them.
-    Some(Placement {
-        stride,
-        luma_src: luma_src as usize,
-        chroma_src: chroma_src as usize,
-        luma_dst: luma_dst as usize,
-        chroma_dst: chroma_dst as usize,
-        xf: xf as u8,
-        yf: yf as u8,
-        cxf: cxf as u8,
-        cyf: cyf as u8,
+    Some(Read {
+        luma_src,
+        chroma_src,
+        fraction: [xf, yf, cxf, cyf],
     })
 }
 
@@ -631,10 +878,43 @@ pub(crate) fn predict_by_parts<K: Kernels + ?Sized>(
     let Some(p) = place(&dst, src, px, py, w, h, mv, ops) else {
         return false;
     };
-    let (cstride, cw, ch) = (p.stride / 2, w / 2, h / 2);
     let PlanesMut { y, cb, cr, .. } = dst;
-    // `place` checked every one of these ranges, so none fails; one that
-    // did would decline the block before anything is written.
+    placed_by_parts(kernels, [y, cb, cr], src, &p, (w, h), ops)
+}
+
+/// [`crate::Kernels::predict_part`] by parts, as [`predict_by_parts`].
+#[allow(clippy::too_many_arguments, reason = "the trait method's arguments")]
+pub(crate) fn predict_part_by_parts<K: Kernels + ?Sized>(
+    kernels: &K,
+    dst: [&mut [u8]; 3],
+    mbs: &Macroblocks,
+    mb: [usize; 2],
+    part: Part,
+    src: &Planes<'_>,
+    mv: [i16; 2],
+    ops: Ops,
+) -> bool {
+    let len = dst.each_ref().map(|plane| plane.len());
+    let Some(p) = place_part(len, mbs, mb, part, src, mv) else {
+        return false;
+    };
+    placed_by_parts(kernels, dst, src, &p, (part.w(), part.h()), ops.get())
+}
+
+/// The views of each plane of a `w` by `h` block at placement `p`, which
+/// [`place`] or [`place_part`] found for `dst` and `src`, and each plane's
+/// kernel on them.
+fn placed_by_parts<K: Kernels + ?Sized>(
+    kernels: &K,
+    [y, cb, cr]: [&mut [u8]; 3],
+    src: &Planes<'_>,
+    p: &Placement,
+    (w, h): (usize, usize),
+    ops: [PlaneOp; 3],
+) -> bool {
+    let (cstride, cw, ch) = (p.stride / 2, w / 2, h / 2);
+    // The placement checked every one of these ranges, so none fails; one
+    // that did would decline the block before anything is written.
     let views = (
         Block::new(src.y, p.luma_src, p.stride, w + 5, h + 5),
         Block::new(src.cb, p.chroma_src, cstride, cw + 1, ch + 1),
@@ -815,9 +1095,9 @@ mod tests {
 
         /// Pictures for a reference `stride` by `rows`: the whole picture
         /// as long as it must be; with slack before and after; a band from
-        /// halfway down; a band whose chroma starts a row late; slices a
-        /// sample short; a luma slice of half the rows; and a different
-        /// stride, which declines every block.
+        /// halfway down; a band whose chroma starts a row late, and one
+        /// whose luma does; slices a sample short; a luma slice of half the
+        /// rows; and a different stride, which declines every block.
         fn targets(stride: usize, rows: usize) -> Vec<Picture> {
             let (s, cs) = (stride, stride / 2);
             let (luma, chroma) = (s * rows, cs * (rows / 2));
@@ -845,6 +1125,12 @@ mod tests {
                 ),
                 Picture::new(
                     s,
+                    [band + 1, band / 2],
+                    [0, 0],
+                    [band_luma - s, band_chroma, band_chroma],
+                ),
+                Picture::new(
+                    s,
                     [0, 0],
                     [0, 0],
                     [luma - 1, chroma, chroma.saturating_sub(1)],
@@ -862,6 +1148,35 @@ mod tests {
         inside: usize,
         tested: usize,
         declined: usize,
+        /// Blocks `place_part` placed.
+        parts: usize,
+    }
+
+    /// Whether planes of `stride`, first rows `first`, origins `origin`
+    /// and slice lengths `len` hold macroblock (`mbx`, `mby`) whole, each
+    /// of its rows tested on its own, as [`Macroblocks`] must find.
+    fn holds_macroblock(
+        stride: usize,
+        first: [usize; 2],
+        origin: [usize; 2],
+        len: [usize; 3],
+        [mbx, mby]: [usize; 2],
+    ) -> bool {
+        let fits = stride % 16 == 0
+            && (16..=MAX_SIZE).contains(&stride)
+            && first.iter().all(|&f| f <= MAX_SIZE)
+            && origin.iter().all(|&o| o <= MAX_ORIGIN)
+            && (mby + 1) * 16 <= MAX_SIZE
+            && (mbx + 1) * 16 <= stride;
+        let row_held = |r: usize, first: usize, origin: usize, s: usize, len: usize| {
+            r >= first && origin + (r - first + 1) * s <= len
+        };
+        let cs = stride / 2;
+        fits && (16 * mby..16 * mby + 16).all(|r| row_held(r, first[0], origin[0], stride, len[0]))
+            && (8 * mby..8 * mby + 8).all(|r| {
+                row_held(r, first[1], origin[1], cs, len[1])
+                    && row_held(r, first[1], origin[1], cs, len[2])
+            })
     }
 
     /// `place` with the reference's interior and with the window test
@@ -888,6 +1203,40 @@ mod tests {
         );
         let got = place(&dst, src, px, py, w, h, mv, ops);
         let want = place(&dst, &without_interior(src), px, py, w, h, mv, ops);
+        // `place_part` places what `place` does where the planes hold the
+        // block's macroblock, and nothing elsewhere.
+        // `Ops` declines what `place` declines for its weightings.
+        let checked = Ops::new(ops);
+        assert!(checked.is_some() || got.is_none(), "{ops:?}");
+        if let (Some(part), Some(_)) = (Part::new(px % 16, py % 16, w, h), checked) {
+            let len = [dst.y.len(), dst.cb.len(), dst.cr.len()];
+            let mb = [px / 16, py / 16];
+            let held = holds_macroblock(dst.stride, dst.first, dst.origin, len, mb);
+            let by_part = place_part(len, &dst.macroblocks(), mb, part, src, mv);
+            let want_part = if held { got } else { None };
+            assert_eq!(
+                by_part, want_part,
+                "part {part:?} of {mb:?}, {mv:?}, {ops:?}, picture {} first {:?} at {:?} in {len:?}",
+                dst.stride, dst.first, dst.origin,
+            );
+            tally.parts += usize::from(by_part.is_some());
+            // A slice one sample shorter than the length the macroblocks
+            // hold it to (the luma slice's, and the shorter chroma
+            // slice's) is declined.
+            for plane in 0..3 {
+                let mut short = len;
+                let bound = if plane == 0 {
+                    len[0]
+                } else {
+                    len[1].min(len[2])
+                };
+                short[plane] = bound.saturating_sub(1);
+                if short != len {
+                    let mbs = dst.macroblocks();
+                    assert_eq!(place_part(short, &mbs, mb, part, src, mv), None, "{plane}");
+                }
+            }
+        }
         assert_eq!(
             got,
             want,
@@ -1084,6 +1433,139 @@ mod tests {
             let d = t - p - (f >> 2);
             let d = d - d.rem_euclid(2);
             (p as usize, i16::try_from(4 * d + f).expect("vector"))
+        }
+    }
+
+    #[test]
+    fn place_part_is_place_where_the_planes_hold_the_macroblock() {
+        // Pictures whose strides are whole macroblocks, so that the
+        // targets' layouts (slack, bands, short slices, half the rows, a
+        // different stride) hold some macroblocks and not others; blocks
+        // in and around every macroblock, of every size, at any position
+        // in it, with vectors near the reference's edges and inside.
+        let mut rng = Rng(0x2545_f491_4f6c_dd1d);
+        let mut tally = Tally::default();
+        let mut declined = 0;
+        for _ in 0..2_000 {
+            let stride = 16 * (1 + rng.below(5) as usize);
+            // Whole macroblock rows, or two more.
+            let rows = 16 * (1 + rng.below(4) as usize) + 2 * rng.below(2) as usize;
+            let cs = stride / 2;
+            let before = [
+                rng.below(4) as usize * stride + rng.below(6) as usize,
+                rng.below(3) as usize * cs + rng.below(3) as usize,
+            ];
+            let after = [0, 1, 2].map(|_| rng.below(2 * stride as u64 + 9) as usize);
+            let reference = Reference::new(stride, rows, before, after);
+            let src = reference.planes();
+            let mut pictures = Picture::targets(stride, rows);
+            for _ in 0..200 {
+                let (w, h) = SIZES[rng.below(9) as usize];
+                let x = rng.below(17 - w as u64) as usize;
+                let y = rng.below(17 - h as u64) as usize;
+                let mbx = rng.below((stride / 16 + 1) as u64) as usize;
+                let mby = rng.below((rows / 16 + 2) as u64) as usize;
+                let (px, py) = (16 * mbx + x, 16 * mby + y);
+                // A target near an edge of the reference, or anywhere in it.
+                let mut target = |n: usize| {
+                    let n = n as i64;
+                    if rng.below(2) == 0 {
+                        let edge = if rng.below(2) == 0 { 0 } else { n };
+                        edge + rng.below(47) as i64 - 23
+                    } else {
+                        rng.below(n as u64 + 7) as i64 - 3
+                    }
+                };
+                let (tx, ty) = (target(stride), target(rows));
+                let (_, mx) = rng.aim(px as i64, tx);
+                let (_, my) = rng.aim(py as i64, ty);
+                let picture = rng.below(pictures.len() as u64) as usize;
+                let ops = ops(rng.below(16) as usize);
+                let before = tally.parts;
+                check(
+                    &mut tally,
+                    &mut pictures[picture],
+                    &src,
+                    px,
+                    py,
+                    w,
+                    h,
+                    [mx, my],
+                    ops,
+                );
+                declined += usize::from(tally.parts == before);
+            }
+        }
+        // Most windows of these small references leave them.
+        assert!(tally.parts > 10_000, "{} placed by part", tally.parts);
+        assert!(declined > 100_000, "{declined} declined by part");
+    }
+
+    #[test]
+    fn macroblocks_are_those_whose_rows_every_plane_holds() {
+        for stride in [16, 32, 48, 64] {
+            for rows in [16, 18, 32, 46, 48, 64] {
+                for picture in Picture::targets(stride, rows) {
+                    let mut picture = picture;
+                    let len = [picture.y.len(), picture.cb.len(), picture.cr.len()];
+                    let (first, origin) = (picture.first, picture.origin);
+                    let dst = PlanesMut::with_origin(
+                        &mut picture.y,
+                        &mut picture.cb,
+                        &mut picture.cr,
+                        picture.stride,
+                        first,
+                        origin,
+                    );
+                    let mbs = dst.macroblocks();
+                    for mby in 0..rows / 16 + 2 {
+                        for mbx in 0..stride / 16 + 2 {
+                            let held = holds_macroblock(dst.stride, first, origin, len, [mbx, mby]);
+                            let found = mbx < mbs.cols && mbs.rows[0] <= mby && mby < mbs.rows[1];
+                            assert_eq!(found, held, "({mbx}, {mby}) of {mbs:?}");
+                        }
+                    }
+                }
+            }
+        }
+        let mut y = vec![0; 1 << 12];
+        let (mut cb, mut cr) = (vec![0; 1 << 10], vec![0; 1 << 10]);
+        // Strides that are not whole macroblocks, and origins and first
+        // rows past the bounds, hold none.
+        for (stride, first, origin) in [
+            (8, [0, 0], [0, 0]),
+            (24, [0, 0], [0, 0]),
+            (2 * MAX_SIZE, [0, 0], [0, 0]),
+            (16, [MAX_SIZE + 1, 0], [0, 0]),
+            (16, [0, MAX_SIZE + 1], [0, 0]),
+            (16, [0, 0], [MAX_ORIGIN + 1, 0]),
+            (16, [0, 0], [0, MAX_ORIGIN + 1]),
+        ] {
+            let dst = PlanesMut::with_origin(&mut y, &mut cb, &mut cr, stride, first, origin);
+            assert_eq!(
+                dst.macroblocks(),
+                Macroblocks::NONE,
+                "{stride} {first:?} {origin:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_part_lies_inside_its_macroblock() {
+        for w in 0..=20 {
+            for h in 0..=20 {
+                for x in 0..=20 {
+                    for y in 0..=20 {
+                        let sizes = [4, 8, 16].contains(&w) && [4, 8, 16].contains(&h);
+                        let inside = x + w <= 16 && y + h <= 16;
+                        let part = Part::new(x, y, w, h);
+                        assert_eq!(part.is_some(), sizes && inside, "{w}x{h} at ({x}, {y})");
+                        if let Some(part) = part {
+                            assert_eq!((part.x(), part.y(), part.w(), part.h()), (x, y, w, h));
+                        }
+                    }
+                }
+            }
         }
     }
 

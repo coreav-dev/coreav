@@ -29,6 +29,10 @@ use crate::scalar::{MAX_B1_ROWS, MAX_BLOCK, Tap, taps};
 /// (`docs/measurements/h264-kernels.md`).
 pub(super) const LUMA_COPY8_VECTOR: bool = false;
 
+/// Whether a 4-wide luma block at a fractional position goes to the
+/// vector kernel: no, as measured (`docs/measurements/h264-kernels.md`).
+pub(super) const LUMA4_VECTOR: bool = false;
+
 /// Whether a chroma block goes to the vector kernel: no, as on x86-64.
 /// The `kernels-arm64` job measured it at 1.01 to 1.05 against the
 /// reference (`docs/measurements/h264-kernels.md`).

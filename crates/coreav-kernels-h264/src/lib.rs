@@ -33,7 +33,7 @@ mod simd;
 mod strengths;
 mod views;
 
-pub use predict::{MAX_ORIGIN, MAX_SIZE, PlaneOp, Planes, PlanesMut};
+pub use predict::{MAX_ORIGIN, MAX_SIZE, Macroblocks, Ops, Part, PlaneOp, Planes, PlanesMut};
 pub use scalar::Scalar;
 pub use simd::Simd;
 pub use strengths::{Motion, Motions, StrengthMb, StrengthSide, uniform_strengths};
@@ -52,7 +52,13 @@ pub use views::{
 /// beside it, and a vector kernel spreads t'C0 over its lines with one byte
 /// shuffle by the bS (`docs/design/h264.md`, "Deblocking round: the
 /// kernels' setup in the form the tables give").
+///
+/// The fields lie in the order declared, fourteen bytes without padding
+/// (`repr(C)`; a compile-time assertion below), so that a vector kernel
+/// reads the records of a call as bytes (`docs/design/h264.md`, "Kernel
+/// round: chroma deblocking on bytes").
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[repr(C)]
 pub struct EdgeParams {
     /// α' of Table 8-16 (Equation 8-462 at 8 bits).
     pub alpha: u8,
@@ -66,6 +72,10 @@ pub struct EdgeParams {
     /// with bS = 0 is not filtered.
     pub bs: [u8; 4],
 }
+
+// Fourteen bytes, aligned to one: no padding anywhere in an array of them.
+const _: () =
+    assert!(core::mem::size_of::<EdgeParams>() == 14 && core::mem::align_of::<EdgeParams>() == 1);
 
 impl EdgeParams {
     /// The t'C0 of segment `segment`: the entry of its bS (modulo 8), or 0
@@ -472,6 +482,58 @@ pub trait Kernels: Send + Sync + 'static {
         ops: [PlaneOp; 3],
     ) -> bool {
         self.predict(dst, src, px, py, w, h, mv, ops)
+    }
+
+    /// [`Kernels::predict`] of the block `part` of macroblock `mb` (its
+    /// column and row) of the picture whose planes `dst` are, and of
+    /// which `mbs` was found ([`PlanesMut::macroblocks`]): the luma block
+    /// at (`16 * mb[0] + part.x()`, `16 * mb[1] + part.y()`). The same
+    /// result as [`Kernels::predict`] on those planes where `mbs` holds
+    /// the macroblock; it also declines the block, writing nothing, where
+    /// `mbs` does not hold the macroblock, a slice of `dst` is shorter
+    /// than `mbs` holds it to (the luma slice than the luma slice it was
+    /// found from, each chroma slice than the shorter of those), or
+    /// `src`'s stride is not the planes'.
+    ///
+    /// The macroblocks a picture's planes hold are found once, so a block
+    /// is checked by comparing its macroblock with them and each slice's
+    /// length with the one found, where [`Kernels::predict`] checks the
+    /// block's own position and offsets.
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "a block's macroblock, part, vector and operations"
+    )]
+    fn predict_part(
+        &self,
+        dst: [&mut [u8]; 3],
+        mbs: &Macroblocks,
+        mb: [usize; 2],
+        part: Part,
+        src: &Planes<'_>,
+        mv: [i16; 2],
+        ops: Ops,
+    ) -> bool {
+        predict::predict_part_by_parts(self, dst, mbs, mb, part, src, mv, ops)
+    }
+
+    /// [`Kernels::predict_part`], for a caller compiled for x86-64-v3, as
+    /// [`Kernels::predict_inlined`] is [`Kernels::predict`].
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "a block's macroblock, part, vector and operations"
+    )]
+    #[inline(always)]
+    fn predict_part_inlined(
+        &self,
+        dst: [&mut [u8]; 3],
+        mbs: &Macroblocks,
+        mb: [usize; 2],
+        part: Part,
+        src: &Planes<'_>,
+        mv: [i16; 2],
+        ops: Ops,
+    ) -> bool {
+        self.predict_part(dst, mbs, mb, part, src, mv, ops)
     }
 
     /// Writes the prediction of a block from the list 0 and list 1
@@ -1113,6 +1175,40 @@ impl Kernels for Auto {
         match self.simd {
             Some(simd) => simd.predict_inlined(dst, src, px, py, w, h, mv, ops),
             None => predict::predict_by_parts(&Scalar, dst, src, px, py, w, h, mv, ops),
+        }
+    }
+
+    fn predict_part(
+        &self,
+        dst: [&mut [u8]; 3],
+        mbs: &Macroblocks,
+        mb: [usize; 2],
+        part: Part,
+        src: &Planes<'_>,
+        mv: [i16; 2],
+        ops: Ops,
+    ) -> bool {
+        match self.simd {
+            Some(simd) => simd.predict_part(dst, mbs, mb, part, src, mv, ops),
+            None => predict::predict_part_by_parts(&Scalar, dst, mbs, mb, part, src, mv, ops),
+        }
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    #[inline(always)]
+    fn predict_part_inlined(
+        &self,
+        dst: [&mut [u8]; 3],
+        mbs: &Macroblocks,
+        mb: [usize; 2],
+        part: Part,
+        src: &Planes<'_>,
+        mv: [i16; 2],
+        ops: Ops,
+    ) -> bool {
+        match self.simd {
+            Some(simd) => simd.predict_part_inlined(dst, mbs, mb, part, src, mv, ops),
+            None => predict::predict_part_by_parts(&Scalar, dst, mbs, mb, part, src, mv, ops),
         }
     }
 

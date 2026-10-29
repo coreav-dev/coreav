@@ -1,0 +1,79 @@
+{
+ "new": "k",
+ "old": "base",
+ "seed": 20261026,
+ "calls": {
+  "g": {
+   "label": "1 thread pinned, 32 training, 20 rounds",
+   "streams": "docs/measurements/h264-training/es.json"
+  },
+  "h": {
+   "label": "1 thread pinned, 64 held-out, 5 rounds",
+   "streams": "docs/measurements/h264-n2-heldout/es.json"
+  }
+ },
+ "bars": [
+  {
+   "name": "B3b-1",
+   "checks": [
+    {
+     "call": "g",
+     "pairing": "discard",
+     "groups": [
+      "overall"
+     ],
+     "median_max": 0.99,
+     "ci_high_below": 1
+    }
+   ]
+  },
+  {
+   "name": "B3b-2",
+   "checks": [
+    {
+     "call": "h",
+     "pairing": "discard",
+     "groups": [
+      "overall"
+     ],
+     "median_max": 0.995,
+     "ci_high_below": 1
+    }
+   ]
+  },
+  {
+   "name": "B3b-3",
+   "checks": [
+    {
+     "call": "g",
+     "pairing": "write",
+     "groups": [
+      "overall"
+     ],
+     "median_max": 1
+    }
+   ]
+  },
+  {
+   "name": "B3b-4",
+   "checks": [
+    {
+     "call": "g",
+     "pairing": "discard",
+     "groups": [
+      "classes"
+     ],
+     "median_max": 1.005
+    },
+    {
+     "call": "g",
+     "pairing": "write",
+     "groups": [
+      "classes"
+     ],
+     "median_max": 1.005
+    }
+   ]
+  }
+ ]
+}
