@@ -185,25 +185,23 @@ fn is_option(arg: &str) -> bool {
 /// Whether a listed option takes a value; `None` for one off the listing. A
 /// flag's `-no` form (`-nostdin`) is a flag.
 fn takes_value(tool: Tool, option: &str) -> Option<bool> {
-    let listing = match tool {
-        Tool::Ffprobe => names::FFPROBE_OPTIONS,
-        Tool::Ffmpeg => names::FFMPEG_OPTIONS,
+    let (values, flags) = match tool {
+        Tool::Ffprobe => (names::FFPROBE_VALUES, names::FFPROBE_FLAGS),
+        Tool::Ffmpeg => (names::FFMPEG_VALUES, names::FFMPEG_FLAGS),
     };
-    let find = |name: &str| {
-        listing
-            .binary_search_by(|(o, _)| (*o).cmp(name))
-            .ok()
-            .and_then(|i| listing.get(i))
-            .map(|(_, value)| *value)
-    };
-    find(option).or_else(|| {
-        let flag = format!("-{}", option.strip_prefix("-no")?);
-        (find(&flag) == Some(false)).then_some(false)
-    })
+    if listed(values, option) {
+        return Some(true);
+    }
+    if listed(flags, option) {
+        return Some(false);
+    }
+    let flag = format!("-{}", option.strip_prefix("-no")?);
+    listed(flags, &flag).then_some(false)
 }
 
-fn listed(list: &[&str], name: &str) -> bool {
-    list.binary_search(&name).is_ok()
+/// Whether `name` is a line of `list`.
+fn listed(list: &str, name: &str) -> bool {
+    list.split('\n').any(|line| line == name)
 }
 
 /// The value of an option, kept when it is a public name or a time or an
@@ -227,7 +225,7 @@ fn redact_value(option: &str, value: &str) -> String {
             value == "copy" || listed(names::ENCODERS, value)
         }
         "-f" | "-segment_format" => listed(names::FORMATS, value),
-        "-v" | "-loglevel" => named(value, &LOG_LEVELS),
+        "-v" | "-loglevel" => named(value, LOG_LEVELS),
         "-movflags" => named(value, names::MOVFLAGS),
         "-fflags" => named(value, names::FFLAGS),
         "-avoid_negative_ts" => named(value, names::AVOID_NEGATIVE_TS),
@@ -239,15 +237,12 @@ fn redact_value(option: &str, value: &str) -> String {
 }
 
 /// The level names and flags of `-loglevel` in FFmpeg's documentation.
-const LOG_LEVELS: [&str; 13] = [
-    "datetime", "debug", "error", "fatal", "info", "level", "panic", "quiet", "repeat", "time",
-    "trace", "verbose", "warning",
-];
+const LOG_LEVELS: &str = "datetime\ndebug\nerror\nfatal\ninfo\nlevel\npanic\nquiet\nrepeat\ntime\ntrace\nverbose\nwarning";
 
 /// Names of `list` or integers, joined by `+` or `-`.
-fn named(value: &str, list: &[&str]) -> bool {
+fn named(value: &str, list: &str) -> bool {
     let mut parts = value.split(['+', '-']).filter(|p| !p.is_empty()).peekable();
-    parts.peek().is_some() && parts.all(|p| integer(p) || list.contains(&p))
+    parts.peek().is_some() && parts.all(|p| integer(p) || listed(list, p))
 }
 
 fn integer(text: &str) -> bool {
@@ -368,8 +363,13 @@ mod tests {
     }
 
     #[test]
-    fn listings_are_sorted() {
+    fn listings_hold_one_name_per_line() {
         for list in [
+            names::FFMPEG_VALUES,
+            names::FFMPEG_FLAGS,
+            names::FFPROBE_VALUES,
+            names::FFPROBE_FLAGS,
+            LOG_LEVELS,
             names::ENCODERS,
             names::FORMATS,
             names::MOVFLAGS,
@@ -379,10 +379,13 @@ mod tests {
             names::SECTIONS,
             names::KEYS,
         ] {
-            assert!(list.is_sorted());
+            for name in list.split('\n') {
+                assert!(
+                    !name.is_empty() && !name.contains(char::is_whitespace),
+                    "{name:?}"
+                );
+            }
         }
-        assert!(names::FFMPEG_OPTIONS.is_sorted_by_key(|(o, _)| *o));
-        assert!(names::FFPROBE_OPTIONS.is_sorted_by_key(|(o, _)| *o));
     }
 
     #[test]
