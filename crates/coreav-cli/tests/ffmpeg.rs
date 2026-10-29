@@ -306,6 +306,9 @@ fn concat_lists_and_options_outside_the_join_are_refused() {
     let trimmed = list("inpoint.txt", "file in.mp4\ninpoint 1\n");
     let plain = list("list.txt", "file in.mp4\nfile in.mp4\n");
     let empty = list("empty.txt", "# nothing\n");
+    let missing = dir.join("missing.txt").to_string_lossy().into_owned();
+    std::fs::write(dir.join("latin1.txt"), b"file \xff.mp4\n").unwrap();
+    let latin1 = dir.join("latin1.txt").to_string_lossy().into_owned();
     let input = dir.join("in.mp4");
     let i = input.to_str().unwrap();
     for (args, code) in [
@@ -319,6 +322,8 @@ fn concat_lists_and_options_outside_the_join_are_refused() {
             4,
         ),
         (vec!["-f", "concat", "-i", &empty, "-c", "copy", o], 1),
+        (vec!["-f", "concat", "-i", &latin1, "-c", "copy", o], 1),
+        (vec!["-f", "concat", "-i", &missing, "-c", "copy", o], 3),
         (
             vec!["-f", "concat", "-safe", "2", "-i", &plain, "-c", "copy", o],
             2,

@@ -17,7 +17,9 @@ pub const MAX_LIST_BYTES: u64 = 1 << 20;
 /// Why a concat list cannot be joined.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ListError {
-    /// The list file cannot be read, or is not UTF-8.
+    /// The list file cannot be opened or read.
+    Io(std::io::ErrorKind),
+    /// The list file is not UTF-8.
     Read(String),
     /// A directive other than `file` and `ffconcat`; `known` when the
     /// concat demuxer documents it (`duration`, `inpoint`, ...).
@@ -64,6 +66,7 @@ pub enum ListError {
 impl fmt::Display for ListError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Io(kind) => write!(f, "cannot read the concat list: {kind}"),
             Self::Read(reason) => write!(f, "cannot read the concat list: {reason}"),
             Self::TooLarge => write!(f, "the concat list is longer than {MAX_LIST_BYTES} bytes"),
             Self::Directive {
@@ -124,7 +127,7 @@ const DOCUMENTED: &[&str] = &[
 /// with `.`. At most [`MAX_LIST_BYTES`] and one byte are read, so a
 /// longer file, or an endless one such as a device, is refused.
 pub fn read(list: &Path, safe: bool) -> Result<Vec<PathBuf>, ListError> {
-    let error = |e: std::io::Error| ListError::Read(e.to_string());
+    let error = |e: std::io::Error| ListError::Io(e.kind());
     let mut bytes = Vec::new();
     File::open(list)
         .map_err(error)?

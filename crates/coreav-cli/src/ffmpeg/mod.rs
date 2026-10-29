@@ -145,6 +145,7 @@ fn list(path: &Path, safe: bool) -> Result<Vec<PathBuf>, Stop> {
             "a concat list other than local files",
             format!("not supported by coreav ffmpeg: {error}"),
         ))),
+        ListError::Io(kind) => Stop::Failed(WriteFailure::Rejected(Failure::Io(kind))),
         ListError::Directive { known: false, .. }
         | ListError::Read(_)
         | ListError::NoPath { .. }
