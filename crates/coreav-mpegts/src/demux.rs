@@ -495,12 +495,12 @@ impl Demux {
         if !self.collect {
             return Ok(());
         }
-        let wanted = self.always.contains(&pid)
-            || self
-                .by_pid
-                .get(&pid)
-                .and_then(|&index| self.streams.get(index))
-                .is_some_and(|s| s.kept || s.sniff);
+        let stream = self
+            .by_pid
+            .get(&pid)
+            .and_then(|&index| self.streams.get(index));
+        let sniffing = stream.is_some_and(|s| s.sniff);
+        let wanted = self.always.contains(&pid) || sniffing || stream.is_some_and(|s| s.kept);
         if !wanted {
             return Ok(());
         }
@@ -509,7 +509,7 @@ impl Demux {
             self.stays_unnamed(pid);
             return Ok(());
         }
-        if header.unit_start && matches!(pes::parse(payload), pes::Parsed::Invalid(_)) {
+        if header.unit_start && sniffing && matches!(pes::parse(payload), pes::Parsed::Invalid(_)) {
             self.stays_unnamed(pid);
         }
         if header.unit_start {
