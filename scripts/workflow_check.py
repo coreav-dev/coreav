@@ -45,10 +45,9 @@ TRIGGER = re.compile(r'\A {2}\S')
 ROW = re.compile(r'\A\| `([^`]+)` \| `([^`]+)` \|')
 SECTION = '### Required status checks (exact names)'
 LABELS = 'github.event.pull_request.labels'
-# A block step's value runs to the end of the line or a comment; a flow
-# mapping's (`{uses: ...}`) ends at its comma or brace.
-BLOCK_USES = re.compile(r'''\A\s*(?:-\s+)?(['"]?)uses\1:\s*(.*?)\s*(?:\s#.*)?\Z''')
-FLOW_USES = re.compile(r'''[{,]\s*(['"]?)uses\1:\s*([^,}]*)''')
+# A `uses` key at the start of a block step or inside a flow mapping
+# (`{uses: ...}`); group 1 is set for the flow form.
+USES_KEY = re.compile(r'''(?:\A\s*(?:-\s+)?|([{,])\s*)(['"]?)uses\2:[ \t]*''')
 PINNED = re.compile(r'\A[^@\s]+@[0-9a-f]{40}\Z|\Adocker://[^@\s]+@sha256:[0-9a-f]{64}\Z')
 # A workflow whose checks the table does not require, such as one this
 # repository runs for itself alone.
@@ -207,17 +206,28 @@ def unlisted_workflows(root):
             if UNLISTED in (line.strip() for line in workflow.read_text(encoding='utf-8').splitlines())}
 
 
+def scalar(text, flow):
+    """The YAML scalar at the start of `text`, or None when it is quoted in a
+    form this reader does not decode (an escape, or no closing quote)."""
+    quote = text[:1]
+    if quote in ('"', "'"):
+        end = text.find(quote, 1)
+        if end < 0 or (quote == '"' and '\\' in text[1:end]) or (quote == "'" and text[end + 1:end + 2] == "'"):
+            return None
+        return text[1:end]
+    return re.split(r'\s#|[,}]' if flow else r'\s#', text, maxsplit=1)[0].strip()
+
+
 def unpinned(lines):
     """Steps that use an action by a name whose code can move."""
     out = []
     for n, line in enumerate(lines, 1):
-        block = BLOCK_USES.match(line)
-        found = [block] if block and not block.group(2).startswith('{') else FLOW_USES.finditer(line)
-        for match in found:
-            ref = match.group(2).strip().strip('\'"')
-            if ref.startswith('./') or PINNED.match(ref):
+        for key in USES_KEY.finditer(line):
+            ref = scalar(line[key.end():], flow=key.group(1) is not None)
+            if ref is not None and (ref.startswith('./') or PINNED.match(ref)):
                 continue
-            out.append(f'line {n}: `{ref}` is not pinned: use the full commit sha with the '
+            shown = line[key.end():].strip() if ref is None else ref
+            out.append(f'line {n}: `{shown}` is not pinned: use the full commit sha with the '
                        'version as a comment (`owner/repo@<40-hex sha> # vX.Y.Z`), as every other step does')
     return out
 
