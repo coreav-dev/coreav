@@ -1,0 +1,45 @@
+name: pr-text
+
+# The pull request's title, body and commits (docs/design/ci-checks.md,
+# "The pull request's shape"): scripts/pr_text_check.py without the private
+# list (Korean text, a run identifier, spend details), and
+# scripts/pr_shape_check.py (the title's form and length, commit subjects of
+# at most 72 characters, no attribution lines). It runs again when the
+# title or body is edited. Read-only token, no secret: the private list
+# stays on the agent's machine ("Before opening a pull request"). Not a
+# required check, so the ruleset is unchanged; a failure still shows on the
+# pull request.
+# workflow-check: not required
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pr-text:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # The pull request's commits, base to head.
+          fetch-depth: 0
+      - name: Check the title, the body and the commits
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          set -euo pipefail
+          git log --format='%H%x00%B%x1e' "$BASE..$HEAD" > "$RUNNER_TEMP/commits"
+          status=0
+          python3 -I scripts/pr_text_check.py --event "$GITHUB_EVENT_PATH" || status=1
+          python3 -I scripts/pr_shape_check.py --event "$GITHUB_EVENT_PATH" --commits "$RUNNER_TEMP/commits" || status=1
+          exit "$status"
