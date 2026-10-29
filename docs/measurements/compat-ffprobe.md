@@ -7,6 +7,8 @@ measured here: it refuses every command for now.
 
 The bars and methods were committed in `0f3237db` before any run.
 
+Each round's per-key tables are written from its `compat-ffprobe/b3a-roundN.json` by `tools/compat-corpus/record.py`, and `record.py --check` fails CI when a table, a figure the prose ties to a key, a count of keys below 98% or a file count differs from that JSON (`docs/design/compat-cli.md`, "The measurements, fixed before the runs").
+
 ## Round 1
 
 ### B1, B2 and the writers (B3a on the fixtures)
@@ -463,7 +465,7 @@ three containers.
 
 Binary of `501e685a`, same files and method as round 1: 1315 files (1049 ISO base media, 209 Matroska and WebM, 57 MPEG-TS; 389 held out); 12 that `ffprobe` rejects are not compared, and 8 that `coreav ffprobe` rejects count as disagreeing on every key. Full tables: `compat-ffprobe/b3a-round4.json`.
 
-**B3a missed** for the keys below; every other key outside the tags is at or above 98% (tags: `compat-ffprobe/b3a-round4.json`; the tag keys below 98% are those of round 3). The counts of keys below 98% are those of round 3 (ISO base media 37 of 101, Matroska and WebM 2 of 101, MPEG-TS 65 of 157), though values moved: MPEG-TS stream `bit_rate` 61.54% to 84.62% (in programs 64.10% to 87.18%), ISO base media `bits_per_raw_sample` 93.70% to 97.05%, `has_b_frames` 95.07% to 95.48%, stream `bit_rate` 89.85% to 90.04%. Four ISO base media keys fell: `channel_layout` 97.09% to 96.07% (six files), `format.duration` 96.47% to 96.28% (two files), and stream `duration` and `duration_ts` 96.38% to 96.28% (one file).
+**B3a missed** for the keys below; every other key outside the tags is at or above 98% (tags: `compat-ffprobe/b3a-round4.json`; the tag keys below 98% are those of round 3). The counts of keys below 98% are those of round 3 (ISO base media 37 of 101, Matroska and WebM 2 of 101, MPEG-TS 65 of 157), though values moved: MPEG-TS stream `bit_rate` 61.54% to 84.62% (`programs.streams.bit_rate` 64.10% to 87.18%), ISO base media `bits_per_raw_sample` 93.70% to 97.05%, `has_b_frames` 95.07% to 95.48%, stream `bit_rate` 89.85% to 90.04%. Four ISO base media keys fell: `channel_layout` 97.09% to 96.07% (six files), `format.duration` 96.47% to 96.28% (two files), and stream `duration` and `duration_ts` 96.38% to 96.28% (one file).
 
 The held-out files of ISO base media and Matroska were not held out in rounds 2 to 4: by a selection error, the development files used for the fixes were 224 of the 303 held-out ISO base media files and all 69 held-out Matroska and WebM files. The 17 held-out MPEG-TS files were not used for development. From round 5, B3a is also reported for development and held-out files apart (`docs/design/compat-cli.md`, "The measurements, fixed before the runs").
 

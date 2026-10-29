@@ -402,6 +402,48 @@ listing in the default writer, on ISO base media, Matroska and transport
 stream fixtures, so a slower `coreav ffprobe` fails CI as any other
 command does.
 
+**The record.** `docs/measurements/compat-ffprobe.md` states each
+round's numbers, and the round's JSON under
+`docs/measurements/compat-ffprobe/` is their evidence: the record may say
+nothing the evidence contradicts. `tools/compat-corpus/record.py` writes
+every per-key block of the record (each container's counts line and its
+table of the keys below 98%) from `b3a-roundN.json`. A rate has two
+decimals, or as many more as keep a share below the bar from reading as
+98.00% (1028/1049 is 97.998%). `record.py --check` runs in
+`tools/compat-corpus/tests`, which the deny workflow runs on every pull
+request; that workflow has no path filter, so a change to the record alone
+is checked. It fails on a block that differs from its rendering, on a
+per-key table outside a block, and on a figure in the prose that the JSON
+does not hold:
+
+- a rate, or an agree or files count, tied to a named key. The key is
+  named in backticks after its container, and a key without a dot is a
+  stream key (stream `bit_rate`). In "X to Y", X is the round before, or
+  the round an "against round K" in the paragraph names;
+- a container's count of keys below 98%, overall, for development and
+  for held-out files, and as "round K: N";
+- the file counts of each round's corpus paragraphs: the files, the
+  held-out files, each container's files and their two parts, and the
+  files each tool rejects.
+
+It also checks each JSON's own `rate` and `below_98` against its
+counts. Each failure names the line of the record, the round, the key and
+the JSON's value. Not checked, because no committed JSON holds them or
+they name no key: the fixture tables (B1, B2, B3a on the fixtures), whose
+`run.py commands` reports are not committed; B4, which has its own JSON
+and method; changes in the count of keys below 98% between rounds written
+as "from 84 to 37" or "(84 in round 1)"; statements about a group of keys
+that name none of them ("the packet keys rose from 93.33% to 95.56%");
+the development and held-out split of the files `ffprobe` rejects; and
+the figures this note quotes in "Where the bars stand". `record.py` is a
+sibling of `run.py`, not one of its modes, because `run.py` runs both
+tools on media and `record.py` reads committed files only, in well under
+a second. Rejected: generating the whole record from the JSON, which
+would turn each round's account of why numbers moved into a template; and
+checking the tables alone, which would have passed round 6 as first
+written, when its prose gave `format.duration` as 97.81% and the table
+below it 97.71% (#21).
+
 ### How the values are derived
 
 What the black box showed, rule by rule, and what each rule rests on.
