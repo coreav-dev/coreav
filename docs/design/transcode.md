@@ -48,8 +48,9 @@ In:
 - Video: the stream `coreav thumbnail` decodes (FFmpeg's default choice:
   the highest resolution, the first on a tie), decoded through the decode
   boundary (`docs/design/decode.md`) with the backends of the build: the
-  native H.264 decoder (`native-h264`), dav1d for AV1 (`dav1d`), the
-  sandboxed FFmpeg fallback (`ffmpeg-fallback`) for the rest. Encoded to
+  native H.264 decoder (`native-h264`), dav1d for AV1 (`dav1d`), libvpx
+  for VP9 (`libvpx`), the sandboxed FFmpeg fallback (`ffmpeg-fallback`) for
+  the rest. Encoded to
   H.264 by x264, with `--crf` or `--bitrate`, `--preset`, and `--scale`
   (`coreav-frame`'s resize).
 - Audio: every audio stream that MP4 can carry, stream-copied as
@@ -179,7 +180,7 @@ otherwise the `ffmpeg` program the fallback uses (`--ffmpeg PATH`,
 
 - **Why both.** An operator who installs x264 gets the encoder with no
   FFmpeg at all; with a decoder backend of CoreAV's own (native H.264,
-  dav1d), no FFmpeg C code then runs. An operator who has FFmpeg for the
+  dav1d, libvpx), no FFmpeg C code then runs. An operator who has FFmpeg for the
   fallback already has libx264 in most builds. The pinned oracle FFmpeg
   (7.0.2, static) carries libx264 core 164 r3191 (4613ac3), so CI and the
   measurements have the same encoder in the baseline and in CoreAV.
@@ -506,7 +507,7 @@ matrix's translation follows the new size.
 | `coreav-isobmff-write` | Remux with one video stream replaced | forbidden |
 | `coreav-thumbnail` | The video stream's packets as a stream, for a whole file | forbidden |
 | `coreav-worker` | The hidden sandbox entry that sets limits and `exec`s | crate `deny`, this module `forbid` |
-| `coreav-cli` | `coreav transcode`, in builds with a decoder backend (the `transcode` feature, which `ffmpeg-fallback`, `native-h264` and `dav1d` turn on, and which brings in `coreav-worker` for the sandbox launcher, so a `native-h264`-only build has it too) | forbidden |
+| `coreav-cli` | `coreav transcode`, in builds with a decoder backend (the `transcode` feature, which `ffmpeg-fallback`, `native-h264`, `dav1d` and `libvpx` turn on, and which brings in `coreav-worker` for the sandbox launcher, so a `native-h264`-only build has it too) | forbidden |
 
 No new FFI and no encoder crate: x264 and FFmpeg are programs. Nothing GPL
 is linked or bundled; the operator installs the encoder.

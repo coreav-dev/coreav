@@ -290,7 +290,8 @@ and any packet with the target's presentation time are always sent.
 VP8 and VP9 are not skipped. A frame that refreshes no reference may still
 update probability contexts, loop-filter deltas or segmentation that
 later frames read, and telling which frames do needs most of their header
-decoding. AV1 gets dav1d instead.
+decoding. AV1 gets dav1d instead, and VP9 libvpx in builds with it
+(`docs/design/decode.md`, "libvpx").
 
 This holds for conforming bitstreams. A stream that labels a picture other
 pictures reference as non-reference (`nal_ref_idc` 0, or an HEVC `_N`
