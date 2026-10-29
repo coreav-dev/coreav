@@ -954,7 +954,9 @@ information command once).
      quarter turn to any matrix other than the identity.
 
    A CI job runs B9 on every change (`scripts/transcode_check.py
-   --compat`).
+   --compat`), in strict-safe mode (`COREAV_STRICT_SAFE=1`), so that a
+   refusal stands and is not handed to FFmpeg (`compat-cli.md`, "Fallback
+   to FFmpeg").
 
 Spend: the correctness and speed runs together are capped at 10 USD in
 the scripts that run them, and the actual spend is reported with the

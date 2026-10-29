@@ -930,7 +930,8 @@ fn ffmpeg_libx264_commands_run_the_pipeline() {
                 _ => w.into(),
             }))
             .env("COREAV_X264", &tools.x264)
-            .env("COREAV_FFMPEG", &tools.ffmpeg);
+            .env("COREAV_FFMPEG", &tools.ffmpeg)
+            .env("COREAV_STRICT_SAFE", "1");
         let out = command.output().unwrap();
         (
             out.status.code().unwrap(),
@@ -1043,6 +1044,7 @@ fn ffmpeg_libx264_refuses_a_matrix_ffmpeg_would_apply() {
             .args(args)
             .env("COREAV_X264", &tools.x264)
             .env("COREAV_FFMPEG", &tools.ffmpeg)
+            .env("COREAV_STRICT_SAFE", "1")
             .output()
             .unwrap();
         (

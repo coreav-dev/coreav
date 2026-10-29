@@ -12,8 +12,9 @@ use coreav_transcode::PixelFormat;
 use coreav_transcode::encoder::{MAX_BITRATE, MAX_THREADS, PRESETS};
 
 use super::args::{Command, Encoding};
-use super::{NotNative, Reason, Refusal, Stop};
+use super::{NotNative, Refusal, Stop};
 use crate::error::Failure;
+use crate::fallback::Reason;
 use crate::output::{self, WriteFailure};
 use crate::transcode::{self, Request};
 

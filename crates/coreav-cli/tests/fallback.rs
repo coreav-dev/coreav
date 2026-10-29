@@ -120,28 +120,19 @@ fn a_command_that_is_not_native_runs_the_program_coreav_fallback_names() {
     for named in [dir.to_owned(), format!("{dir}/ffmpeg")] {
         let r = run(
             Path::new(bin()),
-            &[
-                "ffmpeg",
-                "-i",
-                "-",
-                "-vf",
-                "scale=640:-2",
-                "-f",
-                "mpegts",
-                "-",
-            ],
+            &["ffmpeg", "-i", "-", "-af", "volume=2", "-f", "mpegts", "-"],
             &[],
             &[("COREAV_FALLBACK", &named)],
             "piped bytes",
         );
         assert_eq!(r.code, 7, "{named}: {}", r.stderr);
         assert_eq!(
-            r.stdout, "args: -i - -vf scale=640:-2 -f mpegts -\npiped bytes",
+            r.stdout, "args: -i - -af volume=2 -f mpegts -\npiped bytes",
             "{named}"
         );
         assert_eq!(
             r.stderr,
-            format!("coreav: ran {dir}/ffmpeg instead (not native: -vf)\nguard=1\n"),
+            format!("coreav: ran {dir}/ffmpeg instead (not native: -af)\nguard=1\n"),
             "{named}"
         );
     }

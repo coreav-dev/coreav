@@ -213,6 +213,7 @@ def child_env(ffmpeg=None):
     env = {k: v for k, v in os.environ.items()
            if not k.startswith(('R2_', 'AWS_', 'COREAV_GCP_', 'CORPUS_R2'))}
     env['PYTHONDONTWRITEBYTECODE'] = '1'
+    env['COREAV_STRICT_SAFE'] = '1'
     if ffmpeg:
         env['COREAV_FFMPEG'] = ffmpeg
     return env
