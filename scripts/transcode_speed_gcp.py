@@ -15,10 +15,10 @@ behind; when a class ends with fewer than 5 timed files while some did, the summ
 (`topup_not_honoured`) and the run must be completed with those files. Files missing from WORK/files are
 fetched from R2 here first (R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_ENDPOINT; never printed).
 
-The upload holds the `coreav` build (`native-h264`, `dav1d`, `ffmpeg-fallback`), the pinned `ffmpeg` and
-`ffprobe`, the x264 program, scripts/transcode_speed.py and scripts/transcode_check.py, the files, the gate file
-and a generated `job.sh`, which installs libdav1d from Debian (the `dav1d` build links it), records the host,
-and runs `transcode_speed.py run` with the two arms of the note:
+The upload holds the `coreav` build (`native-h264`, `dav1d`, `ffmpeg-fallback`, and `libvpx` for `--classes vp9`),
+the pinned `ffmpeg` and `ffprobe`, the x264 program, scripts/transcode_speed.py and scripts/transcode_check.py, the files, the gate file
+and a generated `job.sh`, which installs libdav1d and libvpx from Debian (the `dav1d` and `libvpx` builds link
+them), records the host, and runs `transcode_speed.py run` with the two arms of the note:
 
     --arm ffmpeg="--encoder ffmpeg --ffmpeg bin/ffmpeg" --arm x264="--encoder x264 --x264 bin/x264"
 
@@ -28,7 +28,8 @@ of the uploaded files plus half an hour, times 1.5, capped at `--cap-usd` / 0.60
 refuses to start when the estimate alone does not fit (split the run with --classes). The spend of the task so
 far is `--spent-usd` plus the `usd_bound` of every earlier `spend.json` given with `--spend-json` (the runs of
 this task); the script refuses when that and `--cap-usd` together pass 10 USD, the per-task limit. The exit status is that of `transcode_speed.py run` (0, 1 for a missed bar, 3 for a void run), 4 when
-gcp_vm_job.py failed. `--dry-run` builds the upload and prints the plan, without touching Compute Engine.
+gcp_vm_job.py failed. `--threads-per-core 1` turns SMT off on the VM (unset: the machine type's default). `--dry-run`
+builds the upload and prints the plan, without touching Compute Engine.
 Uses only the Python standard library.
 """
 import argparse
@@ -62,7 +63,7 @@ def job_script(gate_name, classes):
         'set -u',
         'mkdir -p out',
         'chmod +x bin/*',
-        '(sudo apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq libdav1d7) '
+        '(sudo apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq libdav1d7 libvpx9) '
         '> out/apt.log 2>&1',
         '{ lscpu; nproc; free -g; uname -a; df -h /dev/shm; echo "smt active: '
         '$(cat /sys/devices/system/cpu/smt/active 2>&1)"; python3 --version; ldd bin/coreav; '
@@ -112,6 +113,8 @@ def main():
     ap.add_argument('--spend-json', action='append', default=[], metavar='FILE',
                     help="an earlier run's spend.json of this task (repeatable)")
     ap.add_argument('--max-hours', type=float)
+    ap.add_argument('--threads-per-core', type=int, choices=[1, 2],
+                    help='passed to gcp_vm_job.py: 1 turns SMT off (unset: the machine type\'s default)')
     ap.add_argument('--zone', default='us-central1-a')
     ap.add_argument('--upload-dir', help='build the upload here and keep it')
     ap.add_argument('--dry-run', action='store_true')
@@ -179,6 +182,8 @@ def main():
                '--download', a.out, '--zone', a.zone, '--machine', MACHINE, '--provisioning', 'standard',
                '--usd-per-hour', str(USD_PER_HOUR), '--max-hours', str(hours), '--cap-usd', str(a.cap_usd),
                '--disk-gb', str(disk)]
+        if a.threads_per_core:
+            cmd += ['--threads-per-core', str(a.threads_per_core)]
         summary = {'files': len(files), 'upload_bytes': size, 'pixel_frames': pixel_frames,
                    'estimate_hours': round(estimate, 2), 'max_hours': hours,
                    'spend_bound_usd': round(hours * USD_PER_HOUR, 2), 'cap_usd': a.cap_usd, 'disk_gb': disk,
