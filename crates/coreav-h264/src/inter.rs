@@ -18,6 +18,9 @@ use crate::slice::SliceType;
 use crate::tables::{self as t, PredMode};
 use crate::tier::{Base, Tier};
 
+mod p_cavlc;
+pub(crate) use p_cavlc::{PPred, PShape};
+
 /// Where [`SliceDecoder::predict_list`] puts a list's prediction.
 ///
 /// Two words at most, since the hot path takes it by value: the weighted

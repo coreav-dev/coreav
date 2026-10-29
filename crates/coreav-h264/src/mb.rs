@@ -14,7 +14,7 @@ use crate::cavlc::Window;
 use crate::deblock::{SliceFilter, ThresholdTable, deblock_rows};
 use crate::dpb::RefPic;
 use crate::error::{Error, Result, require};
-use crate::inter::{InterTables, MotionCtx, Scratch};
+use crate::inter::{InterTables, MotionCtx, PPred, PShape, Scratch};
 use crate::nb::{self, Edge, NbCache};
 use crate::params::{LevelScale, Pps, Sps};
 use crate::picture::{
@@ -1401,6 +1401,11 @@ impl<K: Kernels> SliceDecoder<'_, K> {
             SliceType::B => raw.checked_sub(23),
             SliceType::Si => return Err(Error::Unsupported("SI slices")),
         };
+        // The motion syntax of a coded macroblock of a CAVLC P slice, and
+        // whether `predict_p` derives its motion from it
+        // (`inter/p_cavlc.rs`) rather than the generic path's `inter_pred`.
+        let mut pred = PPred::default();
+        let mut fused = false;
         if let Some(it) = intra_type {
             require(it <= 25, "mb_type")?;
             if it == 25 {
@@ -1418,7 +1423,13 @@ impl<K: Kernels> SliceDecoder<'_, K> {
                 MbKind::P(raw as u8)
             };
             self.cur.kind = self.mb.kind;
-            self.parse_inter_pred::<S, T>(s)?;
+            // A constant for each reader: the CABAC instance keeps the
+            // generic path alone.
+            if !s.is_cabac() && st == SliceType::P {
+                fused = self.parse_p_inter::<S, T>(s, raw, &mut pred)?;
+            } else {
+                self.parse_inter_pred::<S, T>(s)?;
+            }
         }
         let kind = self.mb.kind;
         if kind == MbKind::I16x16 {
@@ -1452,7 +1463,11 @@ impl<K: Kernels> SliceDecoder<'_, K> {
             self.intra_head();
             self.reconstruct_intra()
         } else {
-            self.inter_pred(tier)?;
+            if fused {
+                self.predict_p(tier, &pred)?;
+            } else {
+                self.inter_pred(tier)?;
+            }
             self.reconstruct_inter()
         }
     }
@@ -1662,6 +1677,97 @@ impl<K: Kernels> SliceDecoder<'_, K> {
             for (list, cache) in self.nb.mvd.iter().enumerate().take(lists) {
                 if let Some(slot) = self.cur_nb.entropy.get_mut(2 * list..2 * list + 2) {
                     slot.copy_from_slice(&[nb::mvd_row(cache), nb::mvd_col(cache)]);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// mb_pred() or sub_mb_pred() of a coded inter macroblock of a CAVLC P
+    /// slice, mb_type `raw` (clauses 7.3.5.1 and 7.3.5.2), read in the generic
+    /// path's order and with its checks but one (below), into `p`, which starts
+    /// as [`PPred::default`], for [`SliceDecoder::predict_p`]: nothing that
+    /// only CABAC reads is kept. False for a P_8x8 or P_8x8ref0 macroblock with
+    /// a sub-macroblock partition smaller than 8x8, whose syntax goes into
+    /// `MbData` for the generic path's `predict_sub_partitions`.
+    ///
+    /// The reference indices read are at most num_ref_idx_l0_active_minus1,
+    /// which `te(v)` bounds them by: the generic path's check of that cannot
+    /// fail.
+    ///
+    /// `T`, unused, gives each instance of the hot paths its own copy
+    /// ([`crate::tier`]).
+    #[inline(always)]
+    fn parse_p_inter<S: Syntax, T: Tier>(
+        &mut self,
+        s: &mut S,
+        raw: u32,
+        p: &mut PPred,
+    ) -> Result<bool> {
+        let n = self.hdr.num_ref_idx_active[0];
+        if raw == 0 {
+            // P_L0_16x16, the most common, without the loops.
+            p.shape = PShape::P16x16;
+            if n > 1 {
+                p.ref_idx[0] = s.ref_idx(self, 0, 0, 0)? as i8;
+            }
+            p.mvd[0] = self.parse_mvd::<S, T>(s, 0, 0, 0)?;
+            return Ok(true);
+        }
+        // One loop for the reference indices and one for the vector
+        // differences of the other shapes: each read is a site of its own
+        // in the slice loop, with its cold paths.
+        let (parts, sub) = match raw {
+            1 => {
+                p.shape = PShape::P16x8;
+                (2, false)
+            }
+            2 => {
+                p.shape = PShape::P8x16;
+                (2, false)
+            }
+            _ => {
+                let mut sub = [0u8; 4];
+                for slot in sub.iter_mut() {
+                    let ty = s.sub_mb_type(self)?;
+                    require(ty <= 3, "sub_mb_type")?;
+                    *slot = ty;
+                }
+                self.mb.sub = sub;
+                p.shape = PShape::P8x8;
+                (4, sub != [0; 4])
+            }
+        };
+        // ref_idx_l0, inferred to be 0 where it is not coded: one entry in
+        // the list, or P_8x8ref0.
+        if n > 1 && raw != 4 {
+            for slot in p.ref_idx.iter_mut().take(parts) {
+                *slot = s.ref_idx(self, 0, 0, 0)? as i8;
+            }
+        }
+        if sub {
+            self.parse_p_sub_mvd::<S, T>(s, p.ref_idx)?;
+            return Ok(false);
+        }
+        for slot in p.mvd.iter_mut().take(parts) {
+            *slot = self.parse_mvd::<S, T>(s, 0, 0, 0)?;
+        }
+        Ok(true)
+    }
+
+    /// The vector differences of a P_8x8 or P_8x8ref0 macroblock with a
+    /// sub-macroblock partition smaller than 8x8, into `MbData` with its
+    /// reference indices `ref_idx`, as the generic path keeps them.
+    #[inline(always)]
+    fn parse_p_sub_mvd<S: Syntax, T: Tier>(&mut self, s: &mut S, ref_idx: [i8; 4]) -> Result<()> {
+        self.mb.ref_idx[0] = ref_idx;
+        let sub = self.mb.sub;
+        for (p, &ty) in sub.iter().enumerate() {
+            let (parts, ..) = sub_shape(false, ty);
+            for sp in 0..usize::from(parts) {
+                let v = self.parse_mvd::<S, T>(s, 0, 0, 0)?;
+                if let Some(slot) = self.mb.mvd[0].get_mut(p * 4 + sp) {
+                    *slot = v;
                 }
             }
         }
