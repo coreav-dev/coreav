@@ -3,6 +3,7 @@
 //! and ADTS frames (ISO/IEC 13818-1, 13818-7).
 #![allow(
     dead_code,
+    clippy::disallowed_types,
     clippy::indexing_slicing,
     clippy::unwrap_used,
     clippy::expect_used,

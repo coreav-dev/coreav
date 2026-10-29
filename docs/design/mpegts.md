@@ -779,6 +779,57 @@ Opus access unit by 2 MiB). Parameter sets are kept up to 31 of a kind
 and 64 KiB per stream. Every limit is an error, never a panic or an
 unbounded allocation.
 
+### Per-PID state
+
+Every map the crate keys by PID is a `PidMap` (`src/pid_map.rs`), which is
+built only from a limit of `Limits` or from the 8,192 PIDs a packet can
+name, and which refuses a PID it does not hold yet once it holds that
+many; its reads are inlined calls on the `BTreeMap` inside it. The
+crate's `clippy.toml` forbids `BTreeMap` and `HashMap` everywhere else in
+the crate, with a reason that names `PidMap`, so a new per-PID fact
+cannot be kept without choosing its bound. Each map keeps the bound and
+the refusal it had before the type:
+
+- `max_streams`: the streams listed (`Demux::by_pid`, a refusal being the
+  `LimitKind::Streams` error), the first PES packet of each PID and its
+  first time (`pes_pids`, `first_pes`: once full, no more PIDs are
+  read), the clock of each PCR PID while splice sections are read
+  (`pcrs`: a PID past the limit keeps none) and the wrap reference of
+  each stream's PID (`TransportStream::program_reference`, whose PIDs are
+  streams already listed).
+- `max_programs`: the sections reassembled on PIDs that may carry a
+  Program Map Table before the first PAT (`early_sections`: a PID past
+  the limit is not read).
+- The PID space: the continuity counter and the last packet of every PID
+  with a payload (`counters`, `last`: 188 bytes each, 1.5 MiB at most,
+  the cost of telling a duplicate or a lost packet on any PID), the
+  section assemblers of the table PIDs and of the SCTE 35 streams kept
+  (`sections`: a program may move its PMT to another PID any number of
+  times), the PES packets being reassembled and the header of one
+  delivered in pieces (`builders`, `continued`: their bytes are bounded
+  by `max_buffered_bytes`), the PIDs a pass found that no table declares
+  (`Demux::add_undeclared`, which then lists them under `max_streams`) and
+  the listing's streams (`Packets::by_pid`: the probe's, whose limits may
+  differ from the listing's, and those the listing adds). These cannot
+  be full of PIDs a packet names, so they refuse nothing.
+
+The rule came from PR #17, which added `pcrs` bounded only by the PID
+space while the per-PID facts beside it were bounded by `max_streams`; a
+review caught it and the bound was written by hand, as it was at each map
+that had one. Rejected: those hand-written comparisons, which a new map
+can leave out, as `pcrs` did; bounding every map by `max_streams`, which
+would stop telling lost packets on a file with more PIDs than streams
+and change which PIDs a listing reads; arrays of 8,192 entries, which
+hold the whole PID space for a file of three PIDs (1.5 MiB for `last`
+alone, again for each pass over the tail); forbidding `BTreeSet` and
+`HashSet` too, since the one set of PIDs (`Demux::always`, the probe's
+streams) holds two bytes a PID and the parameter sets of `video.rs` are
+not kept per PID. Clippy reads only the `clippy.toml` nearest a crate, so
+the crate's repeats the workspace's settings, which
+`tests/clippy_config.rs` checks; putting `disallowed-types` in the
+workspace's file was rejected because it would forbid the maps of every
+other crate.
+
 ### The oracle's environment
 
 The pinned static `ffprobe` 7.0.2 crashes on transport streams on hosts

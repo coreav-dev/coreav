@@ -15,11 +15,12 @@ use crate::codec::{Codec, StreamKind};
 use crate::demux::{Demux, Pes};
 use crate::error::Warning;
 use crate::frames;
+use crate::pid_map::PidMap;
 use crate::probe::{Audio, Stream, TransportStream};
 use crate::reader::Reader;
 use crate::video::{self, Nal};
 use crate::{Error, LimitKind, Limits, Source};
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 
 /// One access unit.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -387,7 +388,7 @@ pub struct Packets<'a, S> {
     queue: VecDeque<Packet>,
     /// The probe's streams, then those a later PMT version adds.
     streams: Vec<Stream>,
-    by_pid: HashMap<u16, usize>,
+    by_pid: PidMap<usize>,
     frames: Vec<Frames>,
     /// Bytes of audio frames carried from one PES packet to the next.
     carried: usize,
@@ -426,12 +427,13 @@ impl TransportStream {
             demux,
             queue: VecDeque::new(),
             streams: self.streams.clone(),
-            by_pid: self
-                .streams
-                .iter()
-                .enumerate()
-                .map(|(i, s)| (s.pid, i))
-                .collect(),
+            by_pid: {
+                let mut by_pid = PidMap::pids();
+                for (i, s) in self.streams.iter().enumerate() {
+                    let _ = by_pid.insert(s.pid, i);
+                }
+                by_pid
+            },
             frames: (0..self.streams.len()).map(|_| Frames::default()).collect(),
             carried: 0,
             held: 0,
@@ -568,7 +570,7 @@ impl<S: Source> Packets<'_, S> {
             found_at: entry.found_at,
             with_first_table: false,
         });
-        self.by_pid.insert(entry.pid, index);
+        let _ = self.by_pid.insert(entry.pid, index);
         self.frames.push(Frames::default());
         self.max_refs.push(None);
         Some(index)

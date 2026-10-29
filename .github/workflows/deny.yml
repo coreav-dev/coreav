@@ -48,6 +48,7 @@ jobs:
           python3 -I scripts/workflow_check_selftest.py
           python3 -I -m unittest discover -s .github/actions/changed-paths/tests -p 'test_*.py'
           python3 -I scripts/pr_text_check_selftest.py
+          python3 -I scripts/pr_shape_check_selftest.py
           python3 -I scripts/label_sync.py --check
       # tools/compat-corpus/commands-v1 stays what tools/compat-corpus/classify.py says
       # it is, the vocabulary table of docs/design/compat-cli.md stays what
