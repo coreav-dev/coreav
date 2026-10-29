@@ -1467,17 +1467,6 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
             ],
         });
     }
-    if let Some((lux, x, y)) = d.ambient.filter(|_| video) {
-        side_data.push(SideData {
-            typ: "ambient_viewing_environment",
-            entries: vec![
-                ("side_data_type", s("Ambient viewing environment")),
-                ("ambient_illuminance", s(format!("{lux}/10000"))),
-                ("ambient_light_x", s(format!("{x}/50000"))),
-                ("ambient_light_y", s(format!("{y}/50000"))),
-            ],
-        });
-    }
     // Any matrix but the identity, rotating or not (a translation, a
     // scale), the track's and the movie's together, as `ffprobe` lists it.
     let rotated = track.rotation.is_some_and(|r| r != 0);
@@ -1491,6 +1480,19 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
                 ("side_data_type", s("Display Matrix")),
                 ("displaymatrix", s(display_matrix(&matrix))),
                 ("rotation", Value::Int(i64::from(signed))),
+            ],
+        });
+    }
+    // The ambient viewing environment after the display matrix, as
+    // `ffprobe` lists them.
+    if let Some((lux, x, y)) = d.ambient.filter(|_| video) {
+        side_data.push(SideData {
+            typ: "ambient_viewing_environment",
+            entries: vec![
+                ("side_data_type", s("Ambient viewing environment")),
+                ("ambient_illuminance", s(format!("{lux}/10000"))),
+                ("ambient_light_x", s(format!("{x}/50000"))),
+                ("ambient_light_y", s(format!("{y}/50000"))),
             ],
         });
     }

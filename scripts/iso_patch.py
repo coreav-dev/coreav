@@ -35,6 +35,11 @@ Usage:
       as many as it holds.
   iso_patch.py INPUT OUTPUT unref TRACK
       Turn the track's `tref` box into a `free` box.
+  iso_patch.py INPUT OUTPUT amve TRACK LUX X Y
+      Turn the `pasp` box of the track's video sample entries, the same
+      size, into an ambient viewing environment box (`amve`, ISO/IEC
+      23008-2 D.2.39): illuminance LUX in 1/10000 cd/m2, light x and y
+      in 1/50000.
   iso_patch.py INPUT OUTPUT cover-type TYPE
       Set the type of the cover picture's `data` atom (`covr` in the
       item list of `moov/udta/meta`, QuickTime well-known types).
@@ -207,6 +212,19 @@ def unref(data, track):
     data[tref + 4:tref + 8] = b'free'
 
 
+def set_ambient(data, track, lux, x, y):
+    found = 0
+    for handler, es, ee in entries(data, track):
+        if handler != b'vide':
+            raise SystemExit('only video tracks have an ambient viewing environment')
+        for child, cs, ce in boxes(data, es + 8 + ENTRY_FIELDS[handler], ee):
+            if child == b'pasp' and ce - cs == 16:
+                data[cs + 4:ce] = b'amve' + struct.pack('>IHH', lux, x, y)
+                found += 1
+    if not found:
+        raise SystemExit('no pasp box in the track')
+
+
 def set_cover_type(data, kind):
     (meta, meta_end), = find(data, 0, len(data), [b'moov', b'udta', b'meta'])
     # `meta` is a full box: its children follow version and flags.
@@ -271,6 +289,8 @@ def main():
         set_chap(data, int(values[0]), [int(v) for v in values[1:]])
     elif operation == 'unref':
         unref(data, int(values[0]))
+    elif operation == 'amve':
+        set_ambient(data, int(values[0]), int(values[1]), int(values[2]), int(values[3]))
     elif operation == 'cover-type':
         set_cover_type(data, int(values[0]))
     else:

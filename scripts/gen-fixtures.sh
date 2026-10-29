@@ -604,6 +604,10 @@ iso_patch codec_qtrle24.mov nopasp_qtrle24.mov free 0 pasp
 iso_patch nopasp_qtrle24.mov nopasp_header_640.mov size 0 640 240
 iso_patch nopasp_qtrle24.mov nopasp_header_400.mov size 0 400 300
 iso_patch nopasp_qtrle24.mov nopasp_matrix_scale.mov matrix 0 0 131072
+# An ambient viewing environment (amve) in place of pasp, listed after the
+# display matrix.
+iso_patch codec_qtrle24.mov ambient.mov amve 0 3140000 15635 16450
+iso_patch matrix_scale.mov ambient_matrix.mov amve 0 3140000 15635 16450
 # Chapter pictures: a video track that the last chap reference names.
 # ffmpeg names its chapter text track from the audio and the video track;
 # the audio's reference is pointed at the video, and the video's removed.
