@@ -1,0 +1,11 @@
+{
+ "machine_type": "c4-standard-8",
+ "zone": "us-central1-a",
+ "cpu_platform": "Intel Emerald Rapids",
+ "advanced_machine_features": {
+  "threadsPerCore": 1,
+  "performanceMonitoringUnit": "STANDARD",
+  "turboMode": "ALL_CORE_MAX"
+ },
+ "provisioning": "STANDARD"
+}
