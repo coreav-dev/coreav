@@ -380,6 +380,11 @@ class Record:
                     if c is None:
                         continue
                     earlier, low = int(m.group(4)), int(m.group(5))
+                    if earlier != before:
+                        problems.append(f'{where(m.start(4))}: round {n}, {CONTAINERS[c]}: the text gives '
+                                        f'the count of round {earlier}, but the paragraph compares with '
+                                        f'round {before}')
+                        continue
                     name, d = self.evidence(earlier)
                     counted = sum(below(x) for x in table_keys(d[c]).values()) if d else None
                     if low != counted:

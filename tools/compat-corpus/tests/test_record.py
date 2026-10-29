@@ -107,6 +107,15 @@ class PastMistakes(unittest.TestCase):
             with self.subTest(sentence):
                 self.assertEqual(check(text.replace('## Round 6\n', f'## Round 6\n\n{sentence}\n', 1)), [])
 
+    def test_a_count_of_another_round(self):
+        # Found in review: round 4 also had 65 MPEG-TS keys below the bar,
+        # so the count alone could not catch the wrong round.
+        text, line = replace_once(RECORD.read_text(), 'MPEG-TS 35 of 157 (round 5: 65;',
+                                  'MPEG-TS 35 of 157 (round 4: 65;')
+        self.assertEqual(check(text), [
+            f'{NAME}:{line}: round 6, MPEG-TS: the text gives the count of round 4, '
+            'but the paragraph compares with round 5'])
+
     def test_a_count_of_keys_below_the_bar(self):
         text, line = replace_once(RECORD.read_text(), 'MPEG-TS 35 of 157 (round 5: 65;',
                                   'MPEG-TS 36 of 157 (round 5: 65;')

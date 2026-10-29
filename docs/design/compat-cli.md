@@ -429,7 +429,8 @@ does not hold:
   under the rate; after "above", "over", "crossed" or "reaches", at or
   over it;
 - a container's count of keys below 98%, overall, for development and
-  for held-out files, and as "round K: N";
+  for held-out files, and as "round K: N", where K must be the round the
+  paragraph compares with (the round before, or its "against round K");
 - the file counts of each round's corpus paragraphs: the files, the
   held-out files, each container's files and their two parts, and the
   files each tool rejects.
