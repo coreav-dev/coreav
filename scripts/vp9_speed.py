@@ -7,6 +7,7 @@ boundary (docs/design/decode.md) for the libvpx backend, on corpus v1.
         --out DIR [--decode-oracle PATH] [--tmp /dev/shm/vp9-speed] [--ffmpeg PATH] [--ffprobe PATH]
     vp9_speed.py oracle --selection SEL.json --files DIR --decode-oracle PATH --out DIR [--backend libvpx]
     vp9_speed.py summarize --out DIR
+    vp9_speed.py merge --out DIR --from JOB_OUT [--from JOB_OUT ...]
 
 `select` (the manifest at corpus/v1/manifest.json under the checkout root; no download): corpus v1 `real` files whose
 first video stream's codec is VP9, in the order of sha256, each with its `holdout` flag. Encrypted files are counted
@@ -58,7 +59,12 @@ a rerun skips the files in it. The exit status is 1 when fewer than 99% of the s
 `summarize`: per bar and arm, the median of the per-file ratios with a bootstrap 95% interval (10,000 resamples), the
 share of files below 1.00, over all files, the development files and the held-out files, and split by FFmpeg's own
 time for the bar's command (under 50 ms, 50 to 300 ms, over 300 ms); libvpx / fallback beside them; the decode-only
-pair; the oracle counts. Markdown to standard output and OUT/summary.json. Uses only the Python standard library.
+pair; the oracle counts. Markdown to standard output and OUT/summary.json.
+
+`merge`: a run split into jobs on VMs of the same class (vp9_speed_gcp.py, `--sha`), each with its own gate: the rows
+and gate times of each job's OUT, tagged with the job (the name of its directory), into a new OUT, which is then
+summarized. Each file's ratios come from one job, and the run is void when any job's gate moved more than 5%.
+Uses only the Python standard library.
 """
 import argparse
 import collections
@@ -536,16 +542,22 @@ def summarize(out):
     arms = list(info.get('arms', {})) or sorted({a for r in ok for a in r.get('ratios', {})})
     rep = {'void': False, 'reasons': [], 'gate': gates, 'arms': arms, 'files': len(rows),
            'expected_backends': info.get('expected_backends')}
-    if rows:
-        before = next((g for g in gates if g['which'] == 'before'), None)
-        after = next((g for g in reversed(gates) if g['which'] == 'after'), None)
+    for job in dict.fromkeys(g.get('job') for g in gates) if rows else ():
+        of_job = [g for g in gates if g.get('job') == job]
+        before = next((g for g in of_job if g['which'] == 'before'), None)
+        after = next((g for g in reversed(of_job) if g['which'] == 'after'), None)
+        where = f' in job {job}' if job else ''
         if not before or not after:
-            rep['void'], rep['reasons'] = True, ['no gate time before and after']
-        else:
-            rep['gate_drift'] = after['median'] / before['median'] - 1
-            if abs(rep['gate_drift']) > GATE_DRIFT:
-                rep['void'] = True
-                rep['reasons'].append(f'the gate moved {rep["gate_drift"]:+.1%}')
+            rep['void'] = True
+            rep['reasons'].append(f'no gate time before and after{where}')
+            continue
+        drift = after['median'] / before['median'] - 1
+        rep.setdefault('gate_drift', {})[job or 'run'] = drift
+        if abs(drift) > GATE_DRIFT:
+            rep['void'] = True
+            rep['reasons'].append(f'the gate moved {drift:+.1%}{where}')
+    if rows and not gates:
+        rep['void'], rep['reasons'] = True, ['no gate time before and after']
     rep['apart'] = dict(collections.Counter(
         f'{r["status"]}: {json.dumps(r["error"])[:80]}' if r.get('error') else r['status']
         for r in rows if r.get('status') != 'ok'))
@@ -582,6 +594,26 @@ def summarize(out):
     rep['oracle'] = oracle_summary(read_rows(out / 'oracle.jsonl'))
     tc._write(out / 'summary.json', rep)
     return rep
+
+
+def merge(out, dirs):
+    out = pathlib.Path(out)
+    out.mkdir(parents=True, exist_ok=False)
+    hosts, gates = {}, []
+    for d in map(pathlib.Path, dirs):
+        job = d.name
+        for name in ('files.jsonl', 'oracle.jsonl'):
+            with open(out / name, 'a') as w:
+                for r in read_rows(d / name):
+                    w.write(json.dumps(dict(r, job=job)) + '\n')
+        if (d / 'gate.json').exists():
+            gates += [dict(g, job=job) for g in json.loads((d / 'gate.json').read_text())]
+        if (d / 'host.json').exists():
+            hosts[job] = json.loads((d / 'host.json').read_text())
+    tc._write(out / 'gate.json', gates)
+    tc._write(out / 'hosts.json', hosts)
+    if hosts:
+        tc._write(out / 'host.json', next(iter(hosts.values())))
 
 
 def oracle_summary(rows):
@@ -623,7 +655,8 @@ def stat_cells(s):
 def report(rep):
     lines = []
     if rep['files']:
-        lines += [f'Gate drift {fmt(rep.get("gate_drift"), 4)}; void: {rep["void"]} {rep["reasons"]}; '
+        drift = ', '.join(f'{k} {v:+.1%}' for k, v in (rep.get('gate_drift') or {}).items()) or '-'
+        lines += [f'Gate drift {drift}; void: {rep["void"]} {rep["reasons"]}; '
                   f'expected backends {rep["expected_backends"]}\n',
                   f'Arms {rep["arms"]}; backends {rep["backends"]}; ratios left out for another backend '
                   f'{rep["excluded"]}; files where the arms chose another frame {rep["frame_differs_between_arms"]}; '
@@ -695,7 +728,9 @@ def parse_arms(values, parser):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    p.add_argument('command', choices=('select', 'run', 'oracle', 'summarize'))
+    p.add_argument('command', choices=('select', 'run', 'oracle', 'summarize', 'merge'))
+    p.add_argument('--from', dest='dirs', action='append', default=[], metavar='DIR',
+                   help='merge: the OUT of one job of a run split into jobs (repeatable)')
     p.add_argument('--selection')
     p.add_argument('--files')
     p.add_argument('--coreav', action='append', metavar='NAME=PATH')
@@ -733,6 +768,11 @@ def main():
         if not args.selection:
             p.error('select needs --selection')
         return select(args)
+    if args.command == 'merge':
+        if not args.out or not args.dirs:
+            p.error('merge needs --out and --from')
+        merge(args.out, args.dirs)
+        args.command = 'summarize'
     if args.command == 'summarize':
         if not args.out:
             p.error('summarize needs --out')

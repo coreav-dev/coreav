@@ -8,7 +8,9 @@
 SEL.json comes from `vp9_speed.py select`. No job on these VMs is given the R2 credentials: the files go up with the
 job, fetched from R2 here first when WORK/files lacks them (R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_ENDPOINT; never
 printed). `--gate-sha` names, by SHA-256 prefix, the selected file the S1 gate times: a VP9 file whose FFmpeg S1 command
-takes a few hundred milliseconds. `--set`, `--sha` and `--limit` narrow the files, as for `vp9_speed.py`.
+takes a few hundred milliseconds; it goes up with every job and is timed as a file only when the narrowed files hold
+it. `--set`, `--sha` and `--limit` narrow the files, as for `vp9_speed.py`, so that a run too long for one job is
+split into jobs on VMs of the same class, each with its own gate.
 
 The upload holds the two `coreav` builds (`libvpx`: `libvpx,ffmpeg-fallback`; `fallback`: `ffmpeg-fallback` only), the
 `decode-oracle` build with `libvpx`,
@@ -179,9 +181,8 @@ def main():
         ap.error('--gate-sha names no selected file, or more than one')
     a.selection_args = argparse.Namespace(selection=a.selection, set=a.set, sha=a.sha, limit=a.limit)
     files = vs.queue_of(a.selection_args)
-    if gate[0] not in files:
-        files = sorted(files + gate, key=lambda f: f['sha256'])
-    estimate = estimate_hours(files, a)
+    upload = files if gate[0] in files else sorted(files + gate, key=lambda f: f['sha256'])
+    estimate = estimate_hours(files, a) + UPLOAD_HOURS_PER_GB * (gate[0] not in files) * gate[0]['size'] / 1e9
     ceiling = a.cap_usd / USD_PER_HOUR
     if estimate > ceiling:
         ap.error(f'the estimate, {estimate:.1f} h, is above {ceiling:.1f} h ({a.cap_usd:.2f} USD at '
@@ -197,7 +198,7 @@ def main():
             shutil.copy(path, up / 'bin' / name)
         for name in SCRIPTS:
             shutil.copy(HERE / name, up / name)
-        for f in files:
+        for f in upload:
             name = f'{f["sha256"]}.{f["ext"]}'
             src = pathlib.Path(a.work) / 'files' / name
             if not src.exists() or tc.sha256_file(src) != f['sha256']:
