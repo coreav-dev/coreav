@@ -3,11 +3,18 @@ Copyright (c) 2026 The CoreAV contributors. Licensed under the MIT licence or th
 License 2.0, at your option (LICENSE-MIT, LICENSE-APACHE).
 
 Builds that include `coreav thumbnail` (the `thumbnail` feature, which the
-`ffmpeg-fallback`, `dav1d` and `native-h264` features turn on) encode JPEG
+`ffmpeg-fallback`, `dav1d`, `libvpx` and `native-h264` features turn on) encode JPEG
 with the jpeg-encoder crate (https://github.com/vstroebel/jpeg-encoder),
 licensed (MIT OR Apache-2.0) AND IJG:
 
 This software is based in part on the work of the Independent JPEG Group.
+
+Builds with the `libvpx` feature decode VP9 with libvpx
+(https://chromium.googlesource.com/webm/libvpx), copyright The WebM
+Project authors, licensed under the BSD 3-Clause licence, with Google's
+additional IP rights grant for the WebM codecs (libvpx's LICENSE and
+PATENTS files). They link the system's libvpx; a distribution that ships
+libvpx with the command ships those two files with it.
 
 The Opus decoder (the coreav-opus crate, crates/coreav-opus) contains tables
 that scripts/opus_tables.py generates from the code of RFC 6716 Appendix A,

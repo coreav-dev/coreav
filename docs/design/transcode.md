@@ -48,8 +48,9 @@ In:
 - Video: the stream `coreav thumbnail` decodes (FFmpeg's default choice:
   the highest resolution, the first on a tie), decoded through the decode
   boundary (`docs/design/decode.md`) with the backends of the build: the
-  native H.264 decoder (`native-h264`), dav1d for AV1 (`dav1d`), the
-  sandboxed FFmpeg fallback (`ffmpeg-fallback`) for the rest. Encoded to
+  native H.264 decoder (`native-h264`), dav1d for AV1 (`dav1d`), libvpx
+  for VP9 (`libvpx`), the sandboxed FFmpeg fallback (`ffmpeg-fallback`) for
+  the rest. Encoded to
   H.264 by x264, with `--crf` or `--bitrate`, `--preset`, and `--scale`
   (`coreav-frame`'s resize).
 - Audio: every audio stream that MP4 can carry, stream-copied as
@@ -179,7 +180,7 @@ otherwise the `ffmpeg` program the fallback uses (`--ffmpeg PATH`,
 
 - **Why both.** An operator who installs x264 gets the encoder with no
   FFmpeg at all; with a decoder backend of CoreAV's own (native H.264,
-  dav1d), no FFmpeg C code then runs. An operator who has FFmpeg for the
+  dav1d, libvpx), no FFmpeg C code then runs. An operator who has FFmpeg for the
   fallback already has libx264 in most builds. The pinned oracle FFmpeg
   (7.0.2, static) carries libx264 core 164 r3191 (4613ac3), so CI and the
   measurements have the same encoder in the baseline and in CoreAV.
@@ -506,7 +507,7 @@ matrix's translation follows the new size.
 | `coreav-isobmff-write` | Remux with one video stream replaced | forbidden |
 | `coreav-thumbnail` | The video stream's packets as a stream, for a whole file | forbidden |
 | `coreav-worker` | The hidden sandbox entry that sets limits and `exec`s | crate `deny`, this module `forbid` |
-| `coreav-cli` | `coreav transcode`, in builds with a decoder backend (the `transcode` feature, which `ffmpeg-fallback`, `native-h264` and `dav1d` turn on, and which brings in `coreav-worker` for the sandbox launcher, so a `native-h264`-only build has it too) | forbidden |
+| `coreav-cli` | `coreav transcode`, in builds with a decoder backend (the `transcode` feature, which `ffmpeg-fallback`, `native-h264`, `dav1d` and `libvpx` turn on, and which brings in `coreav-worker` for the sandbox launcher, so a `native-h264`-only build has it too) | forbidden |
 
 No new FFI and no encoder crate: x264 and FFmpeg are programs. Nothing GPL
 is linked or bundled; the operator installs the encoder.
@@ -837,7 +838,7 @@ above are unchanged. Round 2 (`e4b215ed`):
 | B2 | Missed: fixtures 70/71 (`size_inband_sps.mp4`, "Times in decode order"); corpus 97.6% and 98.0% (bar 99%), HEVC 78% (bar 95%); scaled configuration 96.7% (89/92), HEVC 15/16, VP9 7/8 and VP8 6/7; H.264 125/125 and 57/57. |
 | B3 | Met: fixtures 38/38, corpus 99/99 (VP8 and ProRes have no file whose audio MP4 carries, so no B3 share). |
 | B4 | Missed: the share of files within −0.50 dB and at 30 dB is 0.976 and 0.980 over all classes, 0.78 in HEVC, 0.97 in VP8, 0.96 in AV1 on the `ffmpeg` arm, and 0.94, 0.88 and 0.86 in the scaled configuration's HEVC, VP9 and VP8 (the files that failed or lost frames); every median ΔPSNR within ±0.02 dB and size ratio within 0.997 to 1.002; H.264 1.00. |
-| B5 | Missed on both arms: the bar holds overall and in every class, and some classes are above it. At most 1.05: H.264 on both arms (`ffmpeg` 1.038 [1.031, 1.050], `x264` 1.024 [1.019, 1.034]); VP8 (1.046) and all classes (1.046 [1.034, 1.063]) on the `x264` arm. Above: HEVC, AV1, VP9 and ProRes on both arms, VP8 and all classes (1.058) on the `ffmpeg` arm. |
+| B5 | Missed on both arms: the bar holds overall and in every class, and some classes are above it. At most 1.05: H.264 on both arms (`ffmpeg` 1.038 [1.031, 1.050], `x264` 1.024 [1.019, 1.034]); VP8 (1.046) and all classes (1.046 [1.034, 1.063]) on the `x264` arm. Above: HEVC, AV1, VP9 and ProRes on both arms, VP8 and all classes (1.058) on the `ffmpeg` arm. VP9 through libvpx, a later run on the same files: 1.075 and 1.074, missed (`docs/measurements/vp9-libvpx.md`). |
 | B6 | Met: the hostile suite (321 files) and 276 mutated copies through the command, no failure (`scripts/cli_hostile_check.py --transcode`, in CI and in the evidence); the hostile encoders (`hostile_encoders_end_in_an_error_and_leave_nothing`). |
 | B7 | Met: the fuzz targets `coreav-transcode/fuzz` (`annexb`, which also takes the sample timing, and `scale`) and `coreav-isobmff-write/fuzz` (`replace`). |
 | B8 | Missed: the guard counts `transcode` (`bench/guard/baseline.json`), but the CI job that runs B1 to B4 on the fixtures is not in place: it would fail on B2's fixture miss above. |

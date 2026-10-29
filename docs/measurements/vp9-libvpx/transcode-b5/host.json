@@ -1,0 +1,51 @@
+{
+ "platform": "Linux-6.12.113+deb13-cloud-amd64-x86_64-with-glibc2.41",
+ "python": "3.13.5",
+ "cpus": 4,
+ "lscpu": "Architecture:                            x86_64\nCPU op-mode(s):                          32-bit, 64-bit\nAddress sizes:                           52 bits physical, 57 bits virtual\nByte Order:                              Little Endian\nCPU(s):                                  4\nOn-line CPU(s) list:                     0-3\nVendor ID:                               GenuineIntel\nModel name:                              INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz\nCPU family:                              6\nModel:                                   207\nThread(s) per core:                      1\nCore(s) per socket:                      4\nSocket(s):                               1\nStepping:                                2\nBogoMIPS:                                4600.00\nFlags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ss ht syscall nx pdpe1gb rdtscp lm constant_tsc arch_perfmon rep_good nopl xtopology nonstop_tsc cpuid tsc_known_freq pni pclmulqdq monitor ssse3 fma cx16 pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand hypervisor lahf_lm abm 3dnowprefetch ssbd ibrs ibpb stibp ibrs_enhanced fsgsbase tsc_adjust bmi1 hle avx2 smep bmi2 erms invpcid rtm avx512f avx512dq rdseed adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves avx_vnni avx512_bf16 wbnoinvd arat avx512vbmi umip avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq la57 rdpid cldemote movdiri movdir64b fsrm md_clear serialize tsxldtrk amx_bf16 avx512_fp16 amx_tile amx_int8 arch_capabilities\nHypervisor vendor:                       KVM\nVirtualization type:                     full\nL1d cache:                               192 KiB (4 instances)\nL1i cache:                               128 KiB (4 instances)\nL2 cache:                                8 MiB (4 instances)\nL3 cache:                                260 MiB (1 instance)\nNUMA node(s):                            1\nNUMA node0 CPU(s):                       0-3\nVulnerability Gather data sampling:      Not affected\nVulnerability Indirect target selection: Not affected\nVulnerability Itlb multihit:             Not affected\nVulnerability L1tf:                      Not affected\nVulnerability Mds:                       Not affected\nVulnerability Meltdown:                  Not affected\nVulnerability Mmio stale data:           Not affected\nVulnerability Reg file data sampling:    Not affected\nVulnerability Retbleed:                  Not affected\nVulnerability Spec rstack overflow:      Not affected\nVulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl\nVulnerability Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization\nVulnerability Spectre v2:                Mitigation; Enhanced / Automatic IBRS; IBPB conditional; PBRSB-eIBRS SW sequence; BHI BHI_DIS_S\nVulnerability Srbds:                     Not affected\nVulnerability Tsa:                       Not affected\nVulnerability Tsx async abort:           Not affected\nVulnerability Vmscape:                   Not affected\n",
+ "meminfo": [
+  "MemTotal:       30805804 kB",
+  "MemFree:        28232636 kB",
+  "MemAvailable:   29602872 kB"
+ ],
+ "tmp_filesystem": "tmpfs",
+ "tools": {
+  "coreav": {
+   "path": "coreav",
+   "sha256": "b298c248365b1e01f036da0387840eb9b1938e89c4d854d3b55e2ce83930de10"
+  },
+  "ffmpeg": {
+   "path": "ffmpeg",
+   "sha256": "e7e7fb30477f717e6f55f9180a70386c62677ef8a4d4d1a5d948f4098aa3eb99"
+  },
+  "ffprobe": {
+   "path": "ffprobe",
+   "sha256": "4f231a1960d83e403d08f7971e271707bec278a9ae18e21b8b5b03186668450d"
+  },
+  "ffmpeg--ffmpeg": {
+   "path": "ffmpeg",
+   "sha256": "e7e7fb30477f717e6f55f9180a70386c62677ef8a4d4d1a5d948f4098aa3eb99"
+  },
+  "x264--x264": {
+   "path": "x264",
+   "sha256": "6788392c90a55959b50354363a1ef7f04f236d9f0f1a1f62adc20f15dafb7d5f"
+  }
+ },
+ "ffmpeg_version": [
+  "ffmpeg version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2000-2024 the FFmpeg developers"
+ ],
+ "arms": {
+  "ffmpeg": [
+   "--encoder",
+   "ffmpeg",
+   "--ffmpeg",
+   "$HOME/job/bin/ffmpeg"
+  ],
+  "x264": [
+   "--encoder",
+   "x264",
+   "--x264",
+   "$HOME/job/bin/x264"
+  ]
+ }
+}

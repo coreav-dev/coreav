@@ -1,4 +1,4 @@
-//! `decode-oracle FILE [--packets N] [--backend ffmpeg|dav1d|native] [--transfer shared|pipe]`
+//! `decode-oracle FILE [--packets N] [--backend ffmpeg|dav1d|libvpx|native] [--transfer shared|pipe]`
 //!
 //! Decodes the first `N` packets (default 120) of the first video stream of
 //! an MP4, MOV, Matroska or WebM file through CoreAV's decode boundary, and
@@ -83,11 +83,12 @@ fn run(args: &[String]) -> Result<Value, String> {
                 backend = match it.next().map(String::as_str) {
                     Some("ffmpeg") => WorkerBackend::Ffmpeg,
                     Some("dav1d") => WorkerBackend::Dav1d,
+                    Some("libvpx") => WorkerBackend::Libvpx,
                     Some("native") => {
                         native = true;
                         WorkerBackend::Ffmpeg
                     }
-                    _ => return Err("--backend takes ffmpeg, dav1d or native".into()),
+                    _ => return Err("--backend takes ffmpeg, dav1d, libvpx or native".into()),
                 };
             }
             // The backend without the worker: for debugging, and for the
@@ -108,7 +109,7 @@ fn run(args: &[String]) -> Result<Value, String> {
         }
     }
     let file = file.ok_or(
-        "usage: decode-oracle FILE [--packets N] [--backend ffmpeg|dav1d|native] [--in-process] \
+        "usage: decode-oracle FILE [--packets N] [--backend ffmpeg|dav1d|libvpx|native] [--in-process] \
          [--transfer shared|pipe] [--max-memory-gib N]",
     )?;
     let source = FileSource::open(&file).map_err(|e| e.to_string())?;
@@ -157,6 +158,8 @@ fn run(args: &[String]) -> Result<Value, String> {
             .decoder
     } else if in_process && backend == WorkerBackend::Dav1d {
         in_process_dav1d(&stream, &options.decode_limits)?
+    } else if in_process && backend == WorkerBackend::Libvpx {
+        in_process_libvpx(&stream, &options.decode_limits)?
     } else if in_process {
         let program = coreav_worker::find_ffmpeg().ok_or("no ffmpeg")?;
         let options = coreav_backend_ffmpeg::FfmpegOptions {
@@ -266,7 +269,8 @@ fn run_thumbnail(args: &[String]) -> Result<Value, String> {
                 backend = match it.next().map(String::as_str) {
                     Some("ffmpeg") => WorkerBackend::Ffmpeg,
                     Some("dav1d") => WorkerBackend::Dav1d,
-                    _ => return Err("--backend takes ffmpeg or dav1d".into()),
+                    Some("libvpx") => WorkerBackend::Libvpx,
+                    _ => return Err("--backend takes ffmpeg, dav1d or libvpx".into()),
                 };
             }
             // dav1d in this process instead of the worker.
@@ -280,7 +284,7 @@ fn run_thumbnail(args: &[String]) -> Result<Value, String> {
         _ => {
             return Err(
                 "usage: decode-oracle thumbnail FILE --at SECONDS [--skip on|off] [--keyframe] \
-                 [--width N] [--backend ffmpeg|dav1d] [--in-process] -o OUT"
+                 [--width N] [--backend ffmpeg|dav1d|libvpx] [--in-process] -o OUT"
                     .into(),
             );
         }
@@ -397,6 +401,25 @@ fn in_process_dav1d(
     _: &Limits,
 ) -> Result<Box<dyn Decoder>, String> {
     Err("built without the dav1d feature".into())
+}
+
+#[cfg(feature = "libvpx")]
+fn in_process_libvpx(
+    stream: &coreav_decode::StreamConfig,
+    limits: &Limits,
+) -> Result<Box<dyn Decoder>, String> {
+    let options = coreav_backend_libvpx::LibvpxOptions::default();
+    coreav_backend_libvpx::LibvpxDecoder::open(&options, stream, limits)
+        .map(|d| Box::new(d) as Box<dyn Decoder>)
+        .map_err(|e| e.to_string())
+}
+
+#[cfg(not(feature = "libvpx"))]
+fn in_process_libvpx(
+    _: &coreav_decode::StreamConfig,
+    _: &Limits,
+) -> Result<Box<dyn Decoder>, String> {
+    Err("built without the libvpx feature".into())
 }
 
 /// dav1d in this process, for `thumbnail --in-process`.

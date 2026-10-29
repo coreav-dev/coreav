@@ -409,6 +409,7 @@ fn make_decoder(open: &Open) -> Result<Box<dyn Decoder>, Error> {
     match open.backend {
         WorkerBackend::Ffmpeg => ffmpeg_decoder(open),
         WorkerBackend::Dav1d => dav1d_decoder(open),
+        WorkerBackend::Libvpx => libvpx_decoder(open),
     }
 }
 
@@ -456,5 +457,26 @@ fn dav1d_decoder(_: &Open) -> Result<Box<dyn Decoder>, Error> {
     Err(Error::new(
         ErrorKind::Unsupported,
         "this worker was built without dav1d",
+    ))
+}
+
+#[cfg(feature = "libvpx")]
+fn libvpx_decoder(open: &Open) -> Result<Box<dyn Decoder>, Error> {
+    use coreav_backend_libvpx::{LibvpxDecoder, LibvpxOptions};
+    let options = LibvpxOptions {
+        threads: open.threads,
+    };
+    Ok(Box::new(LibvpxDecoder::open(
+        &options,
+        &open.stream,
+        &open.limits,
+    )?))
+}
+
+#[cfg(not(feature = "libvpx"))]
+fn libvpx_decoder(_: &Open) -> Result<Box<dyn Decoder>, Error> {
+    Err(Error::new(
+        ErrorKind::Unsupported,
+        "this worker was built without libvpx",
     ))
 }

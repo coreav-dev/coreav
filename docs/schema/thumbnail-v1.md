@@ -27,7 +27,7 @@ shared shape `rational` is that of `probe-v1.md`.
 | `keyframe` | boolean | The frame is the keyframe decoding started from (always so without `--exact`, unless no keyframe is presented at or before the time). |
 | `packet.offset`, `packet.size` | integer | Byte offset and size of the frame's packet in the file. |
 | `packets_decoded` | integer | Packets sent to the decoder: from the keyframe to the frame's packet, less the packets nothing depends on, which `--exact` skips (`docs/design/thumbnails.md`). |
-| `decoder.backend` | string | `nvdec`, `native`, `dav1d` or `ffmpeg` (the sandboxed FFmpeg fallback). |
+| `decoder.backend` | string | `nvdec`, `native`, `dav1d`, `libvpx` or `ffmpeg` (the sandboxed FFmpeg fallback). |
 | `decoder.name` | string | The decoder within the backend, for people. |
 | `decoder.isolation` | string | `sandboxed` (a worker process) or `in_process`. |
 | `decoder.fell_back` | boolean | The fallback ran: FFmpeg's C decoders, sandboxed. |

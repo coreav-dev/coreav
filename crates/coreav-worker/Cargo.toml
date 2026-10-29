@@ -14,12 +14,15 @@ default = []
 ffmpeg = ["dep:coreav-backend-ffmpeg"]
 # dav1d for AV1 (links the system's libdav1d).
 dav1d = ["dep:coreav-backend-dav1d", "coreav-backend-dav1d/dav1d"]
+# libvpx for VP9 (links the system's libvpx).
+libvpx = ["dep:coreav-backend-libvpx", "coreav-backend-libvpx/libvpx"]
 
 [dependencies]
 coreav-decode = { path = "../coreav-decode" }
 coreav-frame = { path = "../coreav-frame" }
 coreav-backend-ffmpeg = { path = "../coreav-backend-ffmpeg", optional = true }
 coreav-backend-dav1d = { path = "../coreav-backend-dav1d", optional = true }
+coreav-backend-libvpx = { path = "../coreav-backend-libvpx", optional = true }
 
 [target.'cfg(unix)'.dependencies]
 rustix = { version = "1", default-features = false, features = ["std", "process"] }

@@ -207,7 +207,12 @@ mod with_ffmpeg {
                     assert_eq!(code, 0, "{name} {format} exact={exact}: {stderr}");
                     let summary: Value = serde_json::from_str(&stdout).unwrap();
                     schema::validate(&summary, &schema, &schema, "$").unwrap();
-                    assert_eq!(summary["decoder"]["backend"], "ffmpeg");
+                    let backend = if name == "vp9.webm" && cfg!(feature = "libvpx") {
+                        "libvpx"
+                    } else {
+                        "ffmpeg"
+                    };
+                    assert_eq!(summary["decoder"]["backend"], backend);
                     assert_eq!(
                         summary["keyframe"],
                         !exact || summary["packets_decoded"] == 1

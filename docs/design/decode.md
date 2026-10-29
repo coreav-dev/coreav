@@ -7,18 +7,21 @@ and frame extraction. This note records the boundary
 (`crates/coreav-decode`), the frame model (`crates/coreav-frame`), how a
 backend is chosen, the sandboxed worker (`crates/coreav-worker`) and the
 backends behind it: the FFmpeg fallback (`crates/coreav-backend-ffmpeg`),
-dav1d for AV1 (`crates/coreav-backend-dav1d`) and NVDEC
-(`crates/coreav-backend-nvdec`). Frame operations and thumbnails are in
+dav1d for AV1 (`crates/coreav-backend-dav1d`), libvpx for VP9
+(`crates/coreav-backend-libvpx`) and NVDEC (`crates/coreav-backend-nvdec`). Frame operations and thumbnails are in
 `docs/design/thumbnails.md`.
 
 Specifications: ISO/IEC 14496-15 (AVC and HEVC configuration records and
 sample formats), the AV1 ISOBMFF binding, the VP codec ISOBMFF binding,
 RFC 9559 and the Matroska codec mappings (the Matroska stream written to
 the fallback), ITU-T H.273 (colour code points), ITU-T H.264 and H.265
-(parameter sets, for selection and NVDEC), the AV1 specification. FFmpeg is
+(parameter sets, for selection and NVDEC), the AV1 specification, the VP9
+Bitstream and Decoding Process Specification 0.6 (frame headers and
+superframes, for the libvpx backend's frame sizes). FFmpeg is
 used only as a binary, as the fallback backend and as the oracle, observed
 through its documented command-line options; dav1d through its published
-Rust binding; NVDEC through NVIDIA's published Video Codec SDK headers. No
+Rust binding; libvpx through its public API headers and documentation;
+NVDEC through NVIDIA's published Video Codec SDK headers. No
 multimedia implementation source was read.
 
 ## Crates and what each may do
@@ -31,6 +34,7 @@ multimedia implementation source was read.
 | `coreav-backend-ffmpeg` | Drives an `ffmpeg` binary inside the worker | forbidden |
 | `coreav-backend-h264` | CoreAV's own H.264 decoder, in the calling process | forbidden |
 | `coreav-backend-dav1d` | dav1d through the `dav1d` crate | forbidden (the binding's own `unsafe` is a dependency's) |
+| `coreav-backend-libvpx` | libvpx through CoreAV's declarations of its decoder API; the frame sizes of each packet, read in safe Rust | `deny`, allowed only in its FFI module |
 | `coreav-backend-nvdec` | NVDEC through FFI | `deny`, allowed only in its FFI module |
 
 The container crates do not depend on any of them, and `coreav-decode`
@@ -173,7 +177,7 @@ the backend says:
 
 1. The codec must be on the allowlist.
 2. The candidates, in the policy's order (default: NVDEC, native,
-   dav1d, fallback), each say whether they support the stream (codec,
+   dav1d, libvpx, fallback), each say whether they support the stream (codec,
    profile, bit depth, chroma format, size, and for NVDEC what the device
    reports); the first that does and that the policy enables is opened.
    If opening fails (no GPU, no `ffmpeg` binary), the next is tried, and
@@ -184,9 +188,10 @@ the backend says:
    of their traffic avoids C decoders.
 
 CoreAV's own H.264 decoder is the `native` backend
-(`crates/coreav-backend-h264`, `docs/design/h264.md`), and dav1d decodes
-AV1 (section "dav1d"); both are opt-in and never in a default build. The
-other codecs go through the fallback.
+(`crates/coreav-backend-h264`, `docs/design/h264.md`), dav1d decodes
+AV1 (section "dav1d") and libvpx decodes VP9 (section "libvpx"); all
+three are opt-in and never in a default build. The other codecs go
+through the fallback.
 
 **A caller may order the backends by the work it is about to ask for.**
 The order is the policy's, and `coreav thumbnail` sets two of them
@@ -654,6 +659,110 @@ Rejected:
   only). `--exact` needs the target frame, which may not be a reference
   frame, so the filter cannot be used to decode up to it.
 
+## libvpx
+
+libvpx (BSD-3, with Google's patent grant for the WebM codecs) decodes VP9
+through CoreAV's own declarations of its decoder API, in
+`crates/coreav-backend-libvpx/src/ffi.rs`, the crate's only module that may
+use `unsafe`.
+- **Build.** The crate's `libvpx` feature links the system's libvpx,
+  found with `pkg-config` (`PKG_CONFIG_PATH` for an install elsewhere) and
+  linked as it describes it, a shared library on the usual distributions.
+  The CLI, the worker and the decode oracle each have a `libvpx` feature
+  that turns it on. No C source is vendored or compiled, and a default
+  build has none of it.
+  - The declarations are those of decoder ABI version 12, which libvpx
+    1.14's headers declare (built and tested with 1.14, Ubuntu 24.04's). libvpx
+    refuses to open a decoder for any other version, so a library with
+    other layouts fails at open, and selection moves on, instead of being
+    misread. The structures' sizes are asserted at compile time.
+- **FFI.** Ten functions and three structures (`vpx_codec_ctx_t`,
+  `vpx_codec_dec_cfg_t`, `vpx_image_t`), each site listed in
+  `docs/unsafe-sites.md`. The safe API is one decoder instance, `Vp9`, and
+  `Vp9::decode`, which decodes one packet and lends each image it makes
+  ready to a callback as a `View`. A `View`'s rows are slices computed from
+  the image's own size, format, chroma shifts and strides, and checked;
+  the decoder's own code (`src/decoder.rs`) never sees a pointer. The
+  CLI's `libvpx` feature turns on `coreav thumbnail` and `coreav
+  transcode` like `ffmpeg-fallback` does; with both, VP9 goes to libvpx
+  (the policy's order) and the other codecs to the fallback.
+- **Frame sizes before libvpx.** Untrusted bytes are parsed in safe Rust
+  before a C library sees them. `src/header.rs` reads the uncompressed
+  header of every frame of a packet, the frames of a superframe found
+  through its index (the specification's Annex B), for the size it states
+  (`frame_size()`). The decoder checks every stated size against
+  `max_width`, `max_height` and `max_pixels` before the packet goes to
+  libvpx, so libvpx never allocates a frame over them. A frame that
+  states no size (one shown again, or one taking a reference frame's
+  size) has a size an earlier frame stated and that was checked. A packet
+  whose headers cannot be read (a frame marker or sync code that is
+  wrong, a header cut short, an index larger or smaller than its frames)
+  fails with `InvalidData`. The reader has a fuzz target (bar 4).
+  - Every packet reaches libvpx with an index. The specification makes a
+    packet without one a single frame, but libvpx reads such a packet as
+    frames one after another until its bytes end, so a second frame
+    there would reach libvpx unread. The decoder appends an index of one
+    frame to such a packet (`indexed`), and libvpx then decodes the
+    frames the index lists and only those: a test sends two key frames
+    in one packet, the second over the limits, and gets the first.
+  - Frames of a packet marked `discard` are decoded and not copied; their
+    sizes are checked against the limits all the same.
+- **Isolation.** The CLI runs libvpx inside the sandboxed worker, in the
+  worker process itself, as dav1d (section 5.4). `LibvpxBackend` decodes
+  in the calling process, for callers that ask for it.
+- **Packets and output.** A packet is one frame or superframe (the VP9
+  ISOBMFF and Matroska mappings). libvpx decodes it at once and makes
+  ready the frame it shows, if any, which takes the packet's pts: VP9
+  shows frames in decode order, so no timestamp goes through libvpx. A
+  packet marked `discard` is decoded and its frame dropped. Formats:
+  4:2:0, 4:2:2 and 4:4:4 at 8, 10 and 12 bits, profiles 0 to 3. Samples
+  above 8 bits are 16 bits in host order in libvpx and little-endian in
+  the frame model. Refused with `Unsupported`: 4:4:0 (profile 1 or 3), for
+  which the frame model has no format, when its first frame decodes; and,
+  at open, a stream whose configuration record says more than 8 bits when
+  libvpx was built without high bit depth (`vpx_codec_get_caps`), so that
+  selection moves to the fallback.
+- **Limits.** Besides the stated sizes, every image is checked against
+  the frame limits before its planes are copied, and the decoded and
+  pending bytes are counted as in the fallback. The deadline is checked
+  on every call.
+- **Memory.** The estimate is 64 MiB plus 10 decoded frames at the
+  declared size (VP9's 8 reference frames, the frame being decoded and
+  the frame being output), with the same frame bytes as dav1d's estimate.
+  A stream over the budget is refused with `Limit` at open. As for dav1d,
+  this trusts the declared size; the stated sizes and, in the worker, the
+  address-space limit are what hold.
+- **Threads.** `--threads`, or one per CPU (0) by default, with libvpx's
+  row-based multithreading on when there are several. This libvpx's VP9
+  decoder offers no frame threading (`vpx_codec_get_caps` returns
+  `0x440005`, without `VPX_CODEC_CAP_FRAME_THREADING`), so its threads work
+  within one frame: on its tiles, and with row multithreading on its rows.
+- **Tests.** Frames equal to FFmpeg's own VP9 decoder, byte for byte, for
+  4:2:0 at 8, 10 and 12 bits, 4:2:2, 4:4:4 at 8 and 10 bits, an odd size,
+  hidden alternate reference frames in superframes, and tiles; the sizes
+  the reader states against the decoded ones; discarded packets and the
+  frame, decoded-bytes and memory limits; a key frame header over the
+  limits refused before libvpx; packets of pseudo-random bytes (errors,
+  never a panic). In CI the fixtures go through it (bar 1), and the
+  hostile suite and the flipped-byte copies of the VP9 fixtures reach it
+  through `coreav thumbnail` and `coreav transcode` (bar 2).
+
+Rejected:
+- A Rust binding, as for dav1d. None carries the calls for CoreAV, which
+  was dav1d's reason: `vpx-rs` (BSD-2) depends on `env-libvpx-sys`, whose
+  MPL-2.0 is outside the licence policy (`deny.toml`); `vpx-sys` (MIT,
+  2021) and `media-codec-vpx-sys` (MIT or Apache-2.0) are raw declarations
+  that bindgen generates at build time, which needs libclang in every
+  build, and CoreAV would still write the same `unsafe` calls. Declaring the
+  ten functions by hand adds no `unsafe` beyond those calls, and
+  libvpx's ABI check guards the layouts.
+- Decoding VP9 only through the fallback (FFmpeg's VP9 decoder in a
+  second process). It pays for a process, the Matroska stream and the
+  raw-frame pipe on every thumbnail and every transcode, and runs FFmpeg's
+  C code.
+- libvpx's frame-based threading. Its VP9 decoder does not offer it
+  (above).
+
 ## NVDEC
 
 Not in this change; it comes next, behind the same trait, and the bars
@@ -696,7 +805,7 @@ measurement.
    - Corpus v1 `real` files whose first video stream's codec is on the
      default allowlist: at least **99% of streams** agree on every compared
      frame and at least **99.9% of compared frames** agree, per backend
-     (fallback: every codec; dav1d: AV1). Disagreements are investigated;
+     (fallback: every codec; dav1d: AV1; libvpx: VP9). Disagreements are investigated;
      intentional ones are recorded as known divergences.
    - How the two sides are made to hash the same frames, set after the
      preliminary runs and before the final one (no threshold changed):
@@ -705,7 +814,8 @@ measurement.
      it); for a format with alpha, with the same format without alpha
      (the frame model drops alpha); on the stream CoreAV decodes (FFmpeg's
      default: the highest resolution, the first on a tie); with
-     `-c:v libdav1d` for the dav1d backend. A stream CoreAV fails to
+     `-c:v libdav1d` for the dav1d backend; with `-c:v vp9`, FFmpeg's own
+     VP9 decoder and never its libvpx wrapper, for the libvpx backend. A stream CoreAV fails to
      decode, or gets no frame from, counts FFmpeg's first 120 frames of
      it as compared and unequal; a run that hangs, crashes or runs out of
      memory counts as a disagreeing stream.
@@ -739,7 +849,8 @@ measurement.
 4. **Fuzz targets**: descriptor validation and plane copies
    (`coreav-worker/fuzz`: `descriptor`, `messages`); `showinfo` and raw
    frame parsing (`coreav-backend-ffmpeg/fuzz`); the configuration-record
-   readers (`coreav-decode/fuzz`); every frame operation
+   readers (`coreav-decode/fuzz`); the VP9 frame-size reader in front of
+   libvpx (`coreav-backend-libvpx/fuzz`: `frame_sizes`); every frame operation
    (`coreav-frame/fuzz`).
 5. **Speed.** The decode boundary is measured through its user-facing
    operation, thumbnails: the bars are in `docs/design/thumbnails.md`.
@@ -762,6 +873,52 @@ measurement.
      beside the development set's, with no claim of being faster than
      FFmpeg. That claim waits for a fresh held-out draw.
    - Results: `docs/spikes/thumbnail-bench/`, "AV1 through dav1d".
+   - For VP9 with libvpx (`docs/measurements/vp9-libvpx.md`), fixed
+     before its runs. One run each, alone on its VM, on a Compute Engine
+     `c4-standard-8` with simultaneous multithreading off (4 cores, one
+     thread each; `scripts/gcp_vm_job.py`); a run is repeated only for a
+     host fault (a void gate, a preempted or failed VM).
+     - Frames (bar 1 for the libvpx backend): every corpus v1 `real` file
+       whose first video stream is VP9, through `decode-oracle --backend
+       libvpx` against `framemd5` with `-c:v vp9`: at least 99% of streams
+       and 99.9% of compared frames agree, counted as above.
+     - Thumbnails: S1 to S5 of `docs/design/thumbnails.md` for the VP9
+       class, `coreav thumbnail` built with `libvpx` and `ffmpeg-fallback`
+       (VP9 through libvpx) against the `ffmpeg` command line, whose VP9
+       decoder is FFmpeg's own (`vp9 (native)`, recorded per run), by
+       `scripts/vp9_speed.py`: one warm-up and 5 rounds in rotated order, as
+       `docs/spikes/thumbnail-bench/` times them. Bars (Decision 34): the
+       median per-file ratio is at most 1.00 for each of S1 to S5. The
+       files are both partitions of corpus v1's VP9 files. Earlier rounds
+       timed the held-out ones through the fallback, so this is a
+       development measurement: it decides, and backs no claim of being
+       faster than FFmpeg. Reported beside, with no bar: the same
+       commands built with `ffmpeg-fallback` alone (VP9 through FFmpeg's
+       decoder in the worker), each partition apart, and the split by
+       FFmpeg's own time.
+     - Transcode: B5 of `docs/design/transcode.md` for the VP9 class
+       (its bar, 1.05, each arm), on the VP9 files of its speed selection,
+       built with `native-h264`, `dav1d`, `libvpx` and `ffmpeg-fallback`,
+       by `scripts/transcode_speed_gcp.py` on the host above. Reported
+       beside: the same medians against 1.00.
+     - Decoder alone, no bar: per file, FFmpeg decoding the stream with
+       `-c:v libvpx-vp9` (FFmpeg's libvpx wrapper) over the same with `-c:v
+       vp9`, both `-f null`, which compares the two decoders with nothing
+       else around them.
+     - The read on a native VP9 decoder, fixed with the bars. If the
+       libvpx build meets S1 to S5 and B5, no native VP9 decoder is needed
+       for these bars. If it misses S3 (decoding from the keyframe to the
+       frame asked for) or B5, and the decoder-alone median is above 1.10,
+       libvpx itself is the limit, and reaching the bars needs another
+       decoder: a native one, or FFmpeg's in the fallback. If it misses
+       with the decoder-alone median at or below 1.10, the cost is around
+       the decoder, and a native decoder is not the first change to make.
+     - Results (`docs/measurements/vp9-libvpx.md`): bar 1 met (74 of 74
+       streams, 8,408 of 8,408 frames); S1 to S5 met (S3 0.994, 0.895 to
+       1.053, 51% of files below 1.00); B5 missed on both arms (1.075 and
+       1.074). The decoder-alone median is 1.036, so by the rule above
+       these bars need no native VP9 decoder, and it is not the first
+       change for B5.
      S3 for AV1 is 0.927 on the development set and 0.934 on the held-out
      AV1 files. Only 60% and 62% of those files are faster than FFmpeg,
      short of the 80% of files the project aims for beside the median

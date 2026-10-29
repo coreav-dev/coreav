@@ -67,7 +67,7 @@ pub fn run_worker() -> Option<std::process::ExitCode> {
     {
         let mut args = std::env::args_os().skip(1);
         let first = args.next();
-        #[cfg(any(feature = "ffmpeg-fallback", feature = "dav1d"))]
+        #[cfg(any(feature = "ffmpeg-fallback", feature = "dav1d", feature = "libvpx"))]
         if first.as_deref() == Some(std::ffi::OsStr::new(WORKER_ARG)) {
             return Some(coreav_worker::worker_main());
         }
@@ -182,33 +182,36 @@ pub fn make<S: Source>(
 /// `--exact` prefers the fallback. dav1d (AV1 only) decodes on its own
 /// threads and is ahead of the fallback in both modes: through the
 /// fallback, `--exact` on AV1 was 1.186 of FFmpeg's time, through dav1d
-/// 0.934 (`docs/spikes/thumbnail-bench/`, "AV1 through dav1d").
+/// 0.934 (`docs/spikes/thumbnail-bench/`, "AV1 through dav1d"). libvpx
+/// (VP9 only) comes where dav1d does, before the fallback in both modes
+/// (`docs/design/decode.md`, "libvpx").
 #[cfg(feature = "thumbnail")]
 fn order(exact: bool) -> Vec<coreav_decode::BackendKind> {
-    use coreav_decode::BackendKind::{Dav1d, Fallback, Native, Nvdec};
+    use coreav_decode::BackendKind::{Dav1d, Fallback, Libvpx, Native, Nvdec};
     if exact {
-        vec![Nvdec, Dav1d, Fallback, Native]
+        vec![Nvdec, Dav1d, Libvpx, Fallback, Native]
     } else {
-        vec![Nvdec, Native, Dav1d, Fallback]
+        vec![Nvdec, Native, Dav1d, Libvpx, Fallback]
     }
 }
 
 /// The decoder backends of this build: CoreAV's own H.264 decoder with
 /// the `native-h264` feature, and, run by this program as its sandboxed
-/// worker, dav1d with the `dav1d` feature and the FFmpeg fallback with the
-/// `ffmpeg-fallback` feature. The policy's order decides between them
+/// worker, dav1d with the `dav1d` feature, libvpx with the `libvpx` feature
+/// and the FFmpeg fallback with the `ffmpeg-fallback` feature. The policy's order decides between them
 /// (`docs/design/decode.md`).
 #[cfg(feature = "thumbnail")]
 #[cfg_attr(
     not(any(
         feature = "ffmpeg-fallback",
         feature = "native-h264",
-        feature = "dav1d"
+        feature = "dav1d",
+        feature = "libvpx"
     )),
     allow(unused_mut)
 )]
 #[cfg_attr(
-    not(any(feature = "ffmpeg-fallback", feature = "dav1d")),
+    not(any(feature = "ffmpeg-fallback", feature = "dav1d", feature = "libvpx")),
     allow(unused_variables)
 )]
 // With one backend in the build, the vector is made and pushed to once.
@@ -223,7 +226,7 @@ pub(crate) fn backends(
     let mut out: Vec<Box<dyn coreav_decode::Backend>> = Vec::new();
     #[cfg(feature = "native-h264")]
     out.push(Box::new(coreav_backend_h264::NativeH264::new()));
-    #[cfg(any(feature = "ffmpeg-fallback", feature = "dav1d"))]
+    #[cfg(any(feature = "ffmpeg-fallback", feature = "dav1d", feature = "libvpx"))]
     if let Some(program) = this {
         use coreav_worker::{SandboxedBackend, WorkerBackend, WorkerCommand, WorkerOptions};
         let options = WorkerOptions {
@@ -236,6 +239,11 @@ pub(crate) fn backends(
         #[cfg(feature = "dav1d")]
         out.push(Box::new(SandboxedBackend {
             backend: WorkerBackend::Dav1d,
+            options: options.clone(),
+        }));
+        #[cfg(feature = "libvpx")]
+        out.push(Box::new(SandboxedBackend {
+            backend: WorkerBackend::Libvpx,
             options: options.clone(),
         }));
         #[cfg(feature = "ffmpeg-fallback")]

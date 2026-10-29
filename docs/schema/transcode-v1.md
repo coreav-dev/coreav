@@ -33,7 +33,7 @@ change.
 | `frames` | integer | Frames encoded: every frame the source presents, less `dropped_frames`. The output's stream has as many. |
 | `dropped_frames` | integer | Frames the decoder returned whose timestamp was not above the one before (or that had none): not encoded. |
 | `not_presented` | integer | Frames decoded that the source does not present (before or after its edit list's media edit), not encoded. The decoder is told it need not return them, so this counts only those it returned anyway. |
-| `backend` | string | The decoder that ran: `nvdec`, `native`, `dav1d` or `ffmpeg` (the sandboxed FFmpeg fallback). |
+| `backend` | string | The decoder that ran: `nvdec`, `native`, `dav1d`, `libvpx` or `ffmpeg` (the sandboxed FFmpeg fallback). |
 | `encoder` | string | The encoder program: `x264`, or `ffmpeg` (FFmpeg's libx264). |
 | `width`, `height` | integer | The output's size in pixels (after `--scale`). |
 | `sample_aspect` | string or `null` | The output's sample aspect ratio as `N:D` when it is not 1:1 (`--scale` changes it to keep the display aspect ratio, as FFmpeg's `scale` filter does); `null` otherwise. |

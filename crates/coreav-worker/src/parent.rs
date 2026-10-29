@@ -126,8 +126,8 @@ impl WorkerOptions {
     }
 }
 
-/// A backend that runs in a worker: the FFmpeg fallback, or dav1d
-/// sandboxed.
+/// A backend that runs in a worker: the FFmpeg fallback, or dav1d or
+/// libvpx sandboxed.
 #[derive(Clone, Debug)]
 pub struct SandboxedBackend {
     /// The backend the worker hosts.
@@ -141,6 +141,7 @@ impl Backend for SandboxedBackend {
         match self.backend {
             WorkerBackend::Ffmpeg => BackendKind::Fallback,
             WorkerBackend::Dav1d => BackendKind::Dav1d,
+            WorkerBackend::Libvpx => BackendKind::Libvpx,
         }
     }
 
@@ -152,6 +153,8 @@ impl Backend for SandboxedBackend {
             WorkerBackend::Ffmpeg => Support::Yes,
             WorkerBackend::Dav1d if stream.codec == coreav_decode::Codec::Av1 => Support::Yes,
             WorkerBackend::Dav1d => Support::No("dav1d decodes AV1 only".into()),
+            WorkerBackend::Libvpx if stream.codec == coreav_decode::Codec::Vp9 => Support::Yes,
+            WorkerBackend::Libvpx => Support::No("libvpx here decodes VP9 only".into()),
         }
     }
 
@@ -519,6 +522,7 @@ impl SandboxedDecoder {
                 backend: match backend {
                     WorkerBackend::Ffmpeg => BackendKind::Fallback,
                     WorkerBackend::Dav1d => BackendKind::Dav1d,
+                    WorkerBackend::Libvpx => BackendKind::Libvpx,
                 },
                 isolation: Isolation::Sandboxed,
                 decoder: String::new(),

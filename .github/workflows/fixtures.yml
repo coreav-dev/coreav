@@ -209,13 +209,15 @@ jobs:
       # and flipped-byte copies of the fixtures through `coreav thumbnail`
       # with no crash, signal, hang or out-of-memory.
       # dav1d for AV1 (docs/design/decode.md, "dav1d") links the system's
-      # libdav1d; the pinned FFmpeg's libdav1d is the reference.
-      - name: Install libdav1d
-        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends libdav1d-dev
-      - name: Build coreav with the FFmpeg fallback and dav1d, and the decode oracle
+      # libdav1d; the pinned FFmpeg's libdav1d is the reference. libvpx for
+      # VP9 ("libvpx") links the system's libvpx; the pinned FFmpeg's own VP9
+      # decoder is the reference.
+      - name: Install libdav1d and libvpx
+        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends libdav1d-dev libvpx-dev
+      - name: Build coreav with the FFmpeg fallback, dav1d and libvpx, and the decode oracle
         run: |
           cargo build --locked --release -p coreav-cli -p coreav-decode-oracle \
-            --features coreav-cli/ffmpeg-fallback,coreav-cli/dav1d,coreav-decode-oracle/dav1d \
+            --features coreav-cli/ffmpeg-fallback,coreav-cli/dav1d,coreav-cli/libvpx,coreav-decode-oracle/dav1d,coreav-decode-oracle/libvpx \
             --target-dir target/fallback
       - name: Decode boundary and thumbnail tests against the pinned FFmpeg
         run: |
@@ -228,7 +230,9 @@ jobs:
           cargo test --locked --release -p coreav-worker --features ffmpeg --test ffmpeg -- --ignored
           cargo test --locked --release -p coreav-backend-dav1d --features dav1d --test decode \
             -- --include-ignored
-          cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d --test thumbnail \
+          cargo test --locked --release -p coreav-backend-libvpx --features libvpx --test decode \
+            -- --include-ignored
+          cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx --test thumbnail \
             --target-dir target/fallback -- --include-ignored
       # docs/design/transcode.md: the Annex B reader on the pinned FFmpeg's
       # libx264 output (and an x264 program's, when the runner has one),
@@ -271,7 +275,7 @@ jobs:
           COREAV_X264: ${{ runner.temp }}/coreav-x264/x264
           COREAV_FIXTURES: ${{ runner.temp }}/coreav-fixtures
         run: |
-          cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d --test transcode \
+          cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx --test transcode \
             --target-dir target/fallback
       - name: Frames and thumbnails of the fixtures against FFmpeg
         env:
@@ -283,6 +287,9 @@ jobs:
           python3 -I scripts/thumbnail_oracle.py --coreav target/fallback/release/coreav \
             --decode-oracle target/fallback/release/decode-oracle --backend dav1d \
             --fixtures "$RUNNER_TEMP/coreav-fixtures" --report "$RUNNER_TEMP/coreav-thumbnail-oracle-dav1d.json"
+          python3 -I scripts/thumbnail_oracle.py --coreav target/fallback/release/coreav \
+            --decode-oracle target/fallback/release/decode-oracle --backend libvpx \
+            --fixtures "$RUNNER_TEMP/coreav-fixtures" --report "$RUNNER_TEMP/coreav-thumbnail-oracle-libvpx.json"
       # docs/design/thumbnails.md, "Frames nothing depends on": --exact gives
       # the same image whether disposable packets are skipped or not.
       - name: Exact thumbnails with skipped packets against decoding every packet

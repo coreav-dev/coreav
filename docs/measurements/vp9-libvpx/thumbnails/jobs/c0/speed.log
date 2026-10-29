@@ -1,0 +1,144 @@
+1/1 3964b2ce7481 ok libvpx:S1=0.203 fallback:S1=0.257
+{'ok': 1}
+Gate drift -0.0122; void: False []; expected backends {'libvpx': 'libvpx', 'fallback': 'ffmpeg'}
+
+Arms ['libvpx', 'fallback']; backends {'libvpx': {'libvpx': 1}, 'fallback': {'ffmpeg': 1}}; ratios left out for another backend {'libvpx': 0, 'fallback': 0}; files where the arms chose another frame 0; apart {}
+
+### S1 (ratio: arm / FFmpeg; libvpx/fallback: libvpx / fallback)
+
+| Arm | Set | Files | Median | 95% CI | Below 1.00 | Max | Left out |
+|---|---|---:|---:|---|---:|---:|---:|
+| libvpx | all | 1 | 0.203 | 0.203 to 0.203 | 100% | 0.203 | 0 |
+| libvpx | dev | 1 | 0.203 | 0.203 to 0.203 | 100% | 0.203 | 0 |
+| libvpx | held-out | 0 | - | - to - | - | - | 0 |
+| fallback | all | 1 | 0.257 | 0.257 to 0.257 | 100% | 0.257 | 0 |
+| fallback | dev | 1 | 0.257 | 0.257 to 0.257 | 100% | 0.257 | 0 |
+| fallback | held-out | 0 | - | - to - | - | - | 0 |
+| libvpx/fallback | all | 1 | 0.790 | 0.790 to 0.790 | 100% | 0.790 | 0 |
+| libvpx/fallback | dev | 1 | 0.790 | 0.790 to 0.790 | 100% | 0.790 | 0 |
+| libvpx/fallback | held-out | 0 | - | - to - | - | - | 0 |
+
+### S2 (ratio: arm / FFmpeg; libvpx/fallback: libvpx / fallback)
+
+| Arm | Set | Files | Median | 95% CI | Below 1.00 | Max | Left out |
+|---|---|---:|---:|---|---:|---:|---:|
+| libvpx | all | 1 | 0.418 | 0.418 to 0.418 | 100% | 0.418 | 0 |
+| libvpx | dev | 1 | 0.418 | 0.418 to 0.418 | 100% | 0.418 | 0 |
+| libvpx | held-out | 0 | - | - to - | - | - | 0 |
+| fallback | all | 1 | 0.530 | 0.530 to 0.530 | 100% | 0.530 | 0 |
+| fallback | dev | 1 | 0.530 | 0.530 to 0.530 | 100% | 0.530 | 0 |
+| fallback | held-out | 0 | - | - to - | - | - | 0 |
+| libvpx/fallback | all | 1 | 0.790 | 0.790 to 0.790 | 100% | 0.790 | 0 |
+| libvpx/fallback | dev | 1 | 0.790 | 0.790 to 0.790 | 100% | 0.790 | 0 |
+| libvpx/fallback | held-out | 0 | - | - to - | - | - | 0 |
+
+### S3 (ratio: arm / FFmpeg; libvpx/fallback: libvpx / fallback)
+
+| Arm | Set | Files | Median | 95% CI | Below 1.00 | Max | Left out |
+|---|---|---:|---:|---|---:|---:|---:|
+| libvpx | all | 1 | 0.679 | 0.679 to 0.679 | 100% | 0.679 | 0 |
+| libvpx | dev | 1 | 0.679 | 0.679 to 0.679 | 100% | 0.679 | 0 |
+| libvpx | held-out | 0 | - | - to - | - | - | 0 |
+| fallback | all | 1 | 0.960 | 0.960 to 0.960 | 100% | 0.960 | 0 |
+| fallback | dev | 1 | 0.960 | 0.960 to 0.960 | 100% | 0.960 | 0 |
+| fallback | held-out | 0 | - | - to - | - | - | 0 |
+| libvpx/fallback | all | 1 | 0.707 | 0.707 to 0.707 | 100% | 0.707 | 0 |
+| libvpx/fallback | dev | 1 | 0.707 | 0.707 to 0.707 | 100% | 0.707 | 0 |
+| libvpx/fallback | held-out | 0 | - | - to - | - | - | 0 |
+
+### S4 (ratio: arm / FFmpeg; libvpx/fallback: libvpx / fallback)
+
+| Arm | Set | Files | Median | 95% CI | Below 1.00 | Max | Left out |
+|---|---|---:|---:|---|---:|---:|---:|
+| libvpx | all | 1 | 0.442 | 0.442 to 0.442 | 100% | 0.442 | 0 |
+| libvpx | dev | 1 | 0.442 | 0.442 to 0.442 | 100% | 0.442 | 0 |
+| libvpx | held-out | 0 | - | - to - | - | - | 0 |
+| fallback | all | 1 | 0.555 | 0.555 to 0.555 | 100% | 0.555 | 0 |
+| fallback | dev | 1 | 0.555 | 0.555 to 0.555 | 100% | 0.555 | 0 |
+| fallback | held-out | 0 | - | - to - | - | - | 0 |
+| libvpx/fallback | all | 1 | 0.796 | 0.796 to 0.796 | 100% | 0.796 | 0 |
+| libvpx/fallback | dev | 1 | 0.796 | 0.796 to 0.796 | 100% | 0.796 | 0 |
+| libvpx/fallback | held-out | 0 | - | - to - | - | - | 0 |
+
+### S5 (ratio: arm / FFmpeg; libvpx/fallback: libvpx / fallback)
+
+| Arm | Set | Files | Median | 95% CI | Below 1.00 | Max | Left out |
+|---|---|---:|---:|---|---:|---:|---:|
+| libvpx | all | 1 | 0.338 | 0.338 to 0.338 | 100% | 0.338 | 0 |
+| libvpx | dev | 1 | 0.338 | 0.338 to 0.338 | 100% | 0.338 | 0 |
+| libvpx | held-out | 0 | - | - to - | - | - | 0 |
+| fallback | all | 1 | 0.432 | 0.432 to 0.432 | 100% | 0.432 | 0 |
+| fallback | dev | 1 | 0.432 | 0.432 to 0.432 | 100% | 0.432 | 0 |
+| fallback | held-out | 0 | - | - to - | - | - | 0 |
+| libvpx/fallback | all | 1 | 0.781 | 0.781 to 0.781 | 100% | 0.781 | 0 |
+| libvpx/fallback | dev | 1 | 0.781 | 0.781 to 0.781 | 100% | 0.781 | 0 |
+| libvpx/fallback | held-out | 0 | - | - to - | - | - | 0 |
+
+### By FFmpeg's time for the bar's command
+
+| Bar | Arm | FFmpeg's time | Files | Median | 95% CI | Below 1.00 | Max |
+|---|---|---|---:|---:|---|---:|---:|
+| S1 | libvpx | under 50 ms | 0 | - | - to - | - | - |
+| S1 | libvpx | 50 to 300 ms | 0 | - | - to - | - | - |
+| S1 | libvpx | over 300 ms | 1 | 0.203 | 0.203 to 0.203 | 100% | 0.203 |
+| S1 | fallback | under 50 ms | 0 | - | - to - | - | - |
+| S1 | fallback | 50 to 300 ms | 0 | - | - to - | - | - |
+| S1 | fallback | over 300 ms | 1 | 0.257 | 0.257 to 0.257 | 100% | 0.257 |
+| S1 | libvpx/fallback | under 50 ms | 0 | - | - to - | - | - |
+| S1 | libvpx/fallback | 50 to 300 ms | 0 | - | - to - | - | - |
+| S1 | libvpx/fallback | over 300 ms | 1 | 0.790 | 0.790 to 0.790 | 100% | 0.790 |
+| S2 | libvpx | under 50 ms | 0 | - | - to - | - | - |
+| S2 | libvpx | 50 to 300 ms | 1 | 0.418 | 0.418 to 0.418 | 100% | 0.418 |
+| S2 | libvpx | over 300 ms | 0 | - | - to - | - | - |
+| S2 | fallback | under 50 ms | 0 | - | - to - | - | - |
+| S2 | fallback | 50 to 300 ms | 1 | 0.530 | 0.530 to 0.530 | 100% | 0.530 |
+| S2 | fallback | over 300 ms | 0 | - | - to - | - | - |
+| S2 | libvpx/fallback | under 50 ms | 0 | - | - to - | - | - |
+| S2 | libvpx/fallback | 50 to 300 ms | 1 | 0.790 | 0.790 to 0.790 | 100% | 0.790 |
+| S2 | libvpx/fallback | over 300 ms | 0 | - | - to - | - | - |
+| S3 | libvpx | under 50 ms | 0 | - | - to - | - | - |
+| S3 | libvpx | 50 to 300 ms | 0 | - | - to - | - | - |
+| S3 | libvpx | over 300 ms | 1 | 0.679 | 0.679 to 0.679 | 100% | 0.679 |
+| S3 | fallback | under 50 ms | 0 | - | - to - | - | - |
+| S3 | fallback | 50 to 300 ms | 0 | - | - to - | - | - |
+| S3 | fallback | over 300 ms | 1 | 0.960 | 0.960 to 0.960 | 100% | 0.960 |
+| S3 | libvpx/fallback | under 50 ms | 0 | - | - to - | - | - |
+| S3 | libvpx/fallback | 50 to 300 ms | 0 | - | - to - | - | - |
+| S3 | libvpx/fallback | over 300 ms | 1 | 0.707 | 0.707 to 0.707 | 100% | 0.707 |
+| S4 | libvpx | under 50 ms | 0 | - | - to - | - | - |
+| S4 | libvpx | 50 to 300 ms | 1 | 0.442 | 0.442 to 0.442 | 100% | 0.442 |
+| S4 | libvpx | over 300 ms | 0 | - | - to - | - | - |
+| S4 | fallback | under 50 ms | 0 | - | - to - | - | - |
+| S4 | fallback | 50 to 300 ms | 1 | 0.555 | 0.555 to 0.555 | 100% | 0.555 |
+| S4 | fallback | over 300 ms | 0 | - | - to - | - | - |
+| S4 | libvpx/fallback | under 50 ms | 0 | - | - to - | - | - |
+| S4 | libvpx/fallback | 50 to 300 ms | 1 | 0.796 | 0.796 to 0.796 | 100% | 0.796 |
+| S4 | libvpx/fallback | over 300 ms | 0 | - | - to - | - | - |
+| S5 | libvpx | under 50 ms | 0 | - | - to - | - | - |
+| S5 | libvpx | 50 to 300 ms | 1 | 0.338 | 0.338 to 0.338 | 100% | 0.338 |
+| S5 | libvpx | over 300 ms | 0 | - | - to - | - | - |
+| S5 | fallback | under 50 ms | 0 | - | - to - | - | - |
+| S5 | fallback | 50 to 300 ms | 1 | 0.432 | 0.432 to 0.432 | 100% | 0.432 |
+| S5 | fallback | over 300 ms | 0 | - | - to - | - | - |
+| S5 | libvpx/fallback | under 50 ms | 0 | - | - to - | - | - |
+| S5 | libvpx/fallback | 50 to 300 ms | 1 | 0.781 | 0.781 to 0.781 | 100% | 0.781 |
+| S5 | libvpx/fallback | over 300 ms | 0 | - | - to - | - | - |
+
+Frames under 30 dB against FFmpeg's PNG (or not comparable), by bar and arm: {'S2': {'libvpx': 0, 'fallback': 0}, 'S3': {'libvpx': 0, 'fallback': 0}}
+
+### Decode only (information, no bar; 0 files; first / second)
+
+FFmpeg decoders in the binary: {'vp9': True, 'libvpx-vp9': True}; median seconds {}; failed {}; skipped {}
+
+| Pair | Set | Files | Median | 95% CI | Below 1.00 | Max |
+|---|---|---:|---:|---|---:|---:|
+| ffmpeg_libvpx_vp9/ffmpeg_vp9 | all | 0 | - | - to - | - | - |
+| ffmpeg_libvpx_vp9/ffmpeg_vp9 | dev | 0 | - | - to - | - | - |
+| ffmpeg_libvpx_vp9/ffmpeg_vp9 | held-out | 0 | - | - to - | - | - |
+| oracle/ffmpeg_vp9 | all | 0 | - | - to - | - | - |
+| oracle/ffmpeg_vp9 | dev | 0 | - | - to - | - | - |
+| oracle/ffmpeg_vp9 | held-out | 0 | - | - to - | - | - |
+| oracle/ffmpeg_libvpx_vp9 | all | 0 | - | - to - | - | - |
+| oracle/ffmpeg_libvpx_vp9 | dev | 0 | - | - to - | - | - |
+| oracle/ffmpeg_libvpx_vp9 | held-out | 0 | - | - to - | - | - |
+

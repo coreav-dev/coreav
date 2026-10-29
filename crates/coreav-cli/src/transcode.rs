@@ -107,8 +107,8 @@ pub fn make<S: Source>(
             args: vec![EXEC_ARG.into()],
         },
     };
-    // The decoder's own thread choice; the default policy's order (native
-    // and dav1d before the fallback), as `coreav thumbnail` without
+    // The decoder's own thread choice; the default policy's order (native,
+    // dav1d and libvpx before the fallback), as `coreav thumbnail` without
     // `--exact`.
     let owned = crate::thumbnail::backends(Some(this), 0);
     let backends: Vec<&dyn coreav_decode::Backend> = owned.iter().map(|b| b.as_ref()).collect();

@@ -11,12 +11,15 @@ with binary distributions. That licence is allowed for that crate alone
 
 | Distribution | Links `coreav-thumbnail` | `NOTICE` |
 |---|---|---|
-| `coreav` command built from source with `thumbnail`, `ffmpeg-fallback`, `dav1d` or `native-h264` | yes | ship it beside the binary |
+| `coreav` command built from source with `thumbnail`, `ffmpeg-fallback`, `dav1d`, `libvpx` or `native-h264` | yes | ship it beside the binary |
+| `coreav` command built with `libvpx`, shipped with a copy of libvpx | yes | ship it beside the binary, and libvpx's own `LICENSE` and `PATENTS` files with that copy |
 | `coreav` command, default build | no | not required |
 | Python wheel (`crates/coreav-py`) | with its `thumbnail` feature | in the wheel's licence files (`pyproject.toml`, `license-files`) |
 | npm `coreav` (WebAssembly) | no | not required |
 | A build that links `coreav-opus` (none does yet) | n/a | ship it: the crate's tables come from the code of RFC 6716 Appendix A, whose BSD licence asks binary distributions to reproduce its notice |
 | Crates (`publish = false` today) | `coreav-thumbnail`, `coreav-cli` | when a crate that links it is published, `NOTICE` goes in its package |
+
+`NOTICE` also says that builds with the `libvpx` feature link libvpx (BSD-3, with Google's additional IP rights grant for the WebM codecs). The command links the system's shared library and ships no part of it; a distribution that ships libvpx with the command ships libvpx's `LICENSE` and `PATENTS` files, as their licence asks of binary distributions.
 
 `NOTICE` also carries the notice and licence of the code of RFC 6716 Appendix A, from which `scripts/opus_tables.py` generates the Opus decoder's tables; the generated files name it in their header.
 

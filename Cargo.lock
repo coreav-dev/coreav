@@ -250,6 +250,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "coreav-backend-libvpx"
+version = "0.0.1"
+dependencies = [
+ "coreav-decode",
+ "coreav-frame",
+ "coreav-isobmff",
+ "pkg-config",
+]
+
+[[package]]
 name = "coreav-cli"
 version = "0.0.1"
 dependencies = [
@@ -293,6 +303,7 @@ dependencies = [
  "coreav-backend-dav1d",
  "coreav-backend-ffmpeg",
  "coreav-backend-h264",
+ "coreav-backend-libvpx",
  "coreav-decode",
  "coreav-frame",
  "coreav-isobmff",
@@ -482,6 +493,7 @@ version = "0.0.1"
 dependencies = [
  "coreav-backend-dav1d",
  "coreav-backend-ffmpeg",
+ "coreav-backend-libvpx",
  "coreav-decode",
  "coreav-frame",
  "coreav-isobmff",

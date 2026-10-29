@@ -1,0 +1,158 @@
+1/14 13e0154bf1dd ok libvpx:S1=0.119 fallback:S1=0.210
+2/14 6fe370af8f0b ok libvpx:S1=0.290 fallback:S1=0.408
+3/14 855e2ea1d942 ok libvpx:S1=0.226 fallback:S1=0.225
+4/14 9ffa165e752a ok libvpx:S1=0.069 fallback:S1=0.112
+5/14 a084bd45168c ok libvpx:S1=0.295 fallback:S1=0.346
+6/14 a7121daf691f ok libvpx:S1=0.075 fallback:S1=0.083
+7/14 b361c03c6ec9 ok libvpx:S1=0.494 fallback:S1=0.495
+8/14 b8eda4a1a3c8 ok libvpx:S1=0.081 fallback:S1=0.142
+9/14 bb6ed6e2c6d1 ok libvpx:S1=0.233 fallback:S1=0.252
+10/14 d5792dc40ff6 ok libvpx:S1=0.040 fallback:S1=0.036
+11/14 d6c0cad13eb9 ok libvpx:S1=0.096 fallback:S1=0.130
+12/14 ed2387759700 ok libvpx:S1=0.445 fallback:S1=0.490
+13/14 ef382b9eb4e4 ok libvpx:S1=0.260 fallback:S1=0.332
+14/14 f81ffa011a5a ok libvpx:S1=0.254 fallback:S1=0.261
+{'ok': 14}
+Gate drift 0.0156; void: False []; expected backends {'libvpx': 'libvpx', 'fallback': 'ffmpeg'}
+
+Arms ['libvpx', 'fallback']; backends {'libvpx': {'libvpx': 14}, 'fallback': {'ffmpeg': 14}}; ratios left out for another backend {'libvpx': 0, 'fallback': 0}; files where the arms chose another frame 0; apart {}
+
+### S1 (ratio: arm / FFmpeg; libvpx/fallback: libvpx / fallback)
+
+| Arm | Set | Files | Median | 95% CI | Below 1.00 | Max | Left out |
+|---|---|---:|---:|---|---:|---:|---:|
+| libvpx | all | 14 | 0.229 | 0.086 to 0.277 | 100% | 0.494 | 0 |
+| libvpx | dev | 9 | 0.226 | 0.081 to 0.290 | 100% | 0.445 | 0 |
+| libvpx | held-out | 5 | 0.260 | 0.069 to 0.494 | 100% | 0.494 | 0 |
+| fallback | all | 14 | 0.239 | 0.130 to 0.346 | 100% | 0.495 | 0 |
+| fallback | dev | 9 | 0.225 | 0.130 to 0.408 | 100% | 0.490 | 0 |
+| fallback | held-out | 5 | 0.332 | 0.083 to 0.495 | 100% | 0.495 | 0 |
+| libvpx/fallback | all | 14 | 0.873 | 0.711 to 0.960 | 86% | 1.103 | 0 |
+| libvpx/fallback | dev | 9 | 0.909 | 0.574 to 1.003 | 78% | 1.103 | 0 |
+| libvpx/fallback | held-out | 5 | 0.850 | 0.618 to 0.999 | 100% | 0.999 | 0 |
+
+### S2 (ratio: arm / FFmpeg; libvpx/fallback: libvpx / fallback)
+
+| Arm | Set | Files | Median | 95% CI | Below 1.00 | Max | Left out |
+|---|---|---:|---:|---|---:|---:|---:|
+| libvpx | all | 14 | 0.520 | 0.410 to 0.669 | 100% | 0.739 | 0 |
+| libvpx | dev | 9 | 0.592 | 0.422 to 0.725 | 100% | 0.739 | 0 |
+| libvpx | held-out | 5 | 0.402 | 0.336 to 0.696 | 100% | 0.696 | 0 |
+| fallback | all | 14 | 0.589 | 0.537 to 0.723 | 100% | 0.920 | 0 |
+| fallback | dev | 9 | 0.687 | 0.571 to 0.802 | 100% | 0.920 | 0 |
+| fallback | held-out | 5 | 0.537 | 0.405 to 0.697 | 100% | 0.697 | 0 |
+| libvpx/fallback | all | 14 | 0.873 | 0.711 to 0.960 | 86% | 1.103 | 0 |
+| libvpx/fallback | dev | 9 | 0.909 | 0.574 to 1.003 | 78% | 1.103 | 0 |
+| libvpx/fallback | held-out | 5 | 0.850 | 0.618 to 0.999 | 100% | 0.999 | 0 |
+
+### S3 (ratio: arm / FFmpeg; libvpx/fallback: libvpx / fallback)
+
+| Arm | Set | Files | Median | 95% CI | Below 1.00 | Max | Left out |
+|---|---|---:|---:|---|---:|---:|---:|
+| libvpx | all | 14 | 1.004 | 0.783 to 1.141 | 50% | 1.318 | 0 |
+| libvpx | dev | 9 | 1.014 | 0.706 to 1.254 | 33% | 1.292 | 0 |
+| libvpx | held-out | 5 | 0.872 | 0.663 to 1.318 | 80% | 1.318 | 0 |
+| fallback | all | 14 | 1.071 | 0.962 to 1.287 | 36% | 3.033 | 0 |
+| fallback | dev | 9 | 1.102 | 1.036 to 1.328 | 11% | 1.397 | 0 |
+| fallback | held-out | 5 | 0.962 | 0.703 to 3.033 | 80% | 3.033 | 0 |
+| libvpx/fallback | all | 14 | 0.899 | 0.824 to 0.939 | 100% | 0.963 | 0 |
+| libvpx/fallback | dev | 9 | 0.912 | 0.797 to 0.944 | 100% | 0.963 | 0 |
+| libvpx/fallback | held-out | 5 | 0.883 | 0.435 to 0.950 | 100% | 0.950 | 0 |
+
+### S4 (ratio: arm / FFmpeg; libvpx/fallback: libvpx / fallback)
+
+| Arm | Set | Files | Median | 95% CI | Below 1.00 | Max | Left out |
+|---|---|---:|---:|---|---:|---:|---:|
+| libvpx | all | 14 | 0.654 | 0.561 to 0.728 | 100% | 0.878 | 0 |
+| libvpx | dev | 9 | 0.656 | 0.555 to 0.767 | 100% | 0.878 | 0 |
+| libvpx | held-out | 5 | 0.567 | 0.343 to 0.750 | 100% | 0.750 | 0 |
+| fallback | all | 14 | 0.757 | 0.649 to 0.831 | 100% | 0.963 | 0 |
+| fallback | dev | 9 | 0.823 | 0.649 to 0.952 | 100% | 0.963 | 0 |
+| fallback | held-out | 5 | 0.713 | 0.550 to 0.768 | 100% | 0.768 | 0 |
+| libvpx/fallback | all | 14 | 0.874 | 0.778 to 0.932 | 93% | 1.113 | 0 |
+| libvpx/fallback | dev | 9 | 0.868 | 0.673 to 0.973 | 89% | 1.113 | 0 |
+| libvpx/fallback | held-out | 5 | 0.880 | 0.624 to 0.977 | 100% | 0.977 | 0 |
+
+### S5 (ratio: arm / FFmpeg; libvpx/fallback: libvpx / fallback)
+
+| Arm | Set | Files | Median | 95% CI | Below 1.00 | Max | Left out |
+|---|---|---:|---:|---|---:|---:|---:|
+| libvpx | all | 14 | 0.207 | 0.151 to 0.262 | 100% | 0.404 | 0 |
+| libvpx | dev | 9 | 0.205 | 0.147 to 0.298 | 100% | 0.404 | 0 |
+| libvpx | held-out | 5 | 0.209 | 0.118 to 0.334 | 100% | 0.334 | 0 |
+| fallback | all | 14 | 0.232 | 0.192 to 0.275 | 100% | 0.723 | 0 |
+| fallback | dev | 9 | 0.254 | 0.192 to 0.336 | 100% | 0.723 | 0 |
+| fallback | held-out | 5 | 0.227 | 0.154 to 0.541 | 100% | 0.541 | 0 |
+| libvpx/fallback | all | 14 | 0.862 | 0.724 to 0.926 | 79% | 1.102 | 0 |
+| libvpx/fallback | dev | 9 | 0.888 | 0.560 to 1.032 | 78% | 1.102 | 0 |
+| libvpx/fallback | held-out | 5 | 0.836 | 0.618 to 1.027 | 80% | 1.027 | 0 |
+
+### By FFmpeg's time for the bar's command
+
+| Bar | Arm | FFmpeg's time | Files | Median | 95% CI | Below 1.00 | Max |
+|---|---|---|---:|---:|---|---:|---:|
+| S1 | libvpx | under 50 ms | 2 | 0.470 | 0.445 to 0.494 | 100% | 0.494 |
+| S1 | libvpx | 50 to 300 ms | 8 | 0.244 | 0.096 to 0.290 | 100% | 0.295 |
+| S1 | libvpx | over 300 ms | 4 | 0.072 | 0.040 to 0.119 | 100% | 0.119 |
+| S1 | fallback | under 50 ms | 2 | 0.492 | 0.490 to 0.495 | 100% | 0.495 |
+| S1 | fallback | 50 to 300 ms | 8 | 0.257 | 0.142 to 0.346 | 100% | 0.408 |
+| S1 | fallback | over 300 ms | 4 | 0.098 | 0.036 to 0.210 | 100% | 0.210 |
+| S1 | libvpx/fallback | under 50 ms | 2 | 0.954 | 0.909 to 0.999 | 100% | 0.999 |
+| S1 | libvpx/fallback | 50 to 300 ms | 8 | 0.816 | 0.711 to 0.975 | 88% | 1.003 |
+| S1 | libvpx/fallback | over 300 ms | 4 | 0.757 | 0.570 to 1.103 | 75% | 1.103 |
+| S2 | libvpx | under 50 ms | 9 | 0.649 | 0.456 to 0.725 | 100% | 0.739 |
+| S2 | libvpx | 50 to 300 ms | 4 | 0.393 | 0.278 to 0.525 | 100% | 0.525 |
+| S2 | libvpx | over 300 ms | 1 | 0.336 | 0.336 to 0.336 | 100% | 0.336 |
+| S2 | fallback | under 50 ms | 9 | 0.687 | 0.537 to 0.798 | 100% | 0.802 |
+| S2 | fallback | 50 to 300 ms | 4 | 0.527 | 0.405 to 0.920 | 100% | 0.920 |
+| S2 | fallback | over 300 ms | 1 | 0.544 | 0.544 to 0.544 | 100% | 0.544 |
+| S2 | libvpx/fallback | under 50 ms | 9 | 0.922 | 0.782 to 1.003 | 78% | 1.103 |
+| S2 | libvpx/fallback | 50 to 300 ms | 4 | 0.657 | 0.570 to 0.896 | 100% | 0.896 |
+| S2 | libvpx/fallback | over 300 ms | 1 | 0.618 | 0.618 to 0.618 | 100% | 0.618 |
+| S3 | libvpx | under 50 ms | 2 | 0.954 | 0.914 to 0.994 | 100% | 0.994 |
+| S3 | libvpx | 50 to 300 ms | 8 | 1.022 | 0.695 to 1.254 | 38% | 1.292 |
+| S3 | libvpx | over 300 ms | 4 | 0.943 | 0.674 to 1.318 | 50% | 1.318 |
+| S3 | fallback | under 50 ms | 2 | 1.026 | 0.962 to 1.091 | 50% | 1.091 |
+| S3 | fallback | 50 to 300 ms | 8 | 1.077 | 0.815 to 1.328 | 38% | 1.397 |
+| S3 | fallback | over 300 ms | 4 | 1.145 | 0.987 to 3.033 | 25% | 3.033 |
+| S3 | libvpx/fallback | under 50 ms | 2 | 0.931 | 0.912 to 0.950 | 100% | 0.950 |
+| S3 | libvpx/fallback | 50 to 300 ms | 8 | 0.930 | 0.852 to 0.944 | 100% | 0.963 |
+| S3 | libvpx/fallback | over 300 ms | 4 | 0.730 | 0.435 to 0.883 | 100% | 0.883 |
+| S4 | libvpx | under 50 ms | 9 | 0.722 | 0.653 to 0.767 | 100% | 0.878 |
+| S4 | libvpx | 50 to 300 ms | 4 | 0.525 | 0.390 to 0.642 | 100% | 0.642 |
+| S4 | libvpx | over 300 ms | 1 | 0.343 | 0.343 to 0.343 | 100% | 0.343 |
+| S4 | fallback | under 50 ms | 9 | 0.768 | 0.671 to 0.842 | 100% | 0.952 |
+| S4 | fallback | 50 to 300 ms | 4 | 0.678 | 0.563 to 0.963 | 100% | 0.963 |
+| S4 | fallback | over 300 ms | 1 | 0.550 | 0.550 to 0.550 | 100% | 0.550 |
+| S4 | libvpx/fallback | under 50 ms | 9 | 0.922 | 0.795 to 0.977 | 89% | 1.113 |
+| S4 | libvpx/fallback | 50 to 300 ms | 4 | 0.750 | 0.576 to 0.880 | 100% | 0.880 |
+| S4 | libvpx/fallback | over 300 ms | 1 | 0.624 | 0.624 to 0.624 | 100% | 0.624 |
+| S5 | libvpx | under 50 ms | 1 | 0.298 | 0.298 to 0.298 | 100% | 0.298 |
+| S5 | libvpx | 50 to 300 ms | 12 | 0.196 | 0.143 to 0.237 | 100% | 0.404 |
+| S5 | libvpx | over 300 ms | 1 | 0.334 | 0.334 to 0.334 | 100% | 0.334 |
+| S5 | fallback | under 50 ms | 1 | 0.336 | 0.336 to 0.336 | 100% | 0.336 |
+| S5 | fallback | 50 to 300 ms | 12 | 0.223 | 0.175 to 0.261 | 100% | 0.723 |
+| S5 | fallback | over 300 ms | 1 | 0.541 | 0.541 to 0.541 | 100% | 0.541 |
+| S5 | libvpx/fallback | under 50 ms | 1 | 0.888 | 0.888 to 0.888 | 100% | 0.888 |
+| S5 | libvpx/fallback | 50 to 300 ms | 12 | 0.862 | 0.736 to 0.976 | 75% | 1.102 |
+| S5 | libvpx/fallback | over 300 ms | 1 | 0.618 | 0.618 to 0.618 | 100% | 0.618 |
+
+Frames under 30 dB against FFmpeg's PNG (or not comparable), by bar and arm: {'S2': {'libvpx': 0, 'fallback': 0}, 'S3': {'libvpx': 0, 'fallback': 0}}
+
+### Decode only (information, no bar; 14 files; first / second)
+
+FFmpeg decoders in the binary: {'vp9': True, 'libvpx-vp9': True}; median seconds {'ffmpeg_libvpx_vp9': 2.390786493499945, 'ffmpeg_vp9': 2.056839113000251, 'oracle': 6.98591491500008}; failed {'oracle': 1}; skipped {}
+
+| Pair | Set | Files | Median | 95% CI | Below 1.00 | Max |
+|---|---|---:|---:|---|---:|---:|
+| ffmpeg_libvpx_vp9/ffmpeg_vp9 | all | 14 | 1.017 | 0.955 to 1.207 | 43% | 1.590 |
+| ffmpeg_libvpx_vp9/ffmpeg_vp9 | dev | 9 | 1.035 | 0.878 to 1.239 | 33% | 1.590 |
+| ffmpeg_libvpx_vp9/ffmpeg_vp9 | held-out | 5 | 0.973 | 0.864 to 1.375 | 60% | 1.375 |
+| oracle/ffmpeg_vp9 | all | 13 | 3.396 | 2.112 to 4.780 | 0% | 10.165 |
+| oracle/ffmpeg_vp9 | dev | 8 | 4.462 | 2.366 to 6.974 | 0% | 10.165 |
+| oracle/ffmpeg_vp9 | held-out | 5 | 2.112 | 1.040 to 4.780 | 0% | 4.780 |
+| oracle/ffmpeg_libvpx_vp9 | all | 13 | 3.145 | 2.286 to 5.117 | 0% | 6.391 |
+| oracle/ffmpeg_libvpx_vp9 | dev | 8 | 4.446 | 2.286 to 5.627 | 0% | 6.391 |
+| oracle/ffmpeg_libvpx_vp9 | held-out | 5 | 2.445 | 1.068 to 4.734 | 0% | 4.734 |
+
+FAIL: libvpx S3: median 1.0038 above 1.0

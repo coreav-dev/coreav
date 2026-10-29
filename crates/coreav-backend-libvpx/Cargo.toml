@@ -1,0 +1,42 @@
+[package]
+name = "coreav-backend-libvpx"
+description = "CoreAV's VP9 backend: decodes packets with libvpx; inside the sandboxed worker by default"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[features]
+default = []
+# Links the system's libvpx (found with pkg-config). Off by default so that
+# the workspace builds without it (docs/design/decode.md, "libvpx"). Without
+# it the crate has only the frame-size reader, which needs no library.
+libvpx = ["dep:pkg-config"]
+
+[dependencies]
+coreav-decode = { path = "../coreav-decode" }
+coreav-frame = { path = "../coreav-frame" }
+
+[build-dependencies]
+pkg-config = { version = "0.3", optional = true }
+
+# An exception crate copies the workspace lint table with only
+# `unsafe_code` changed to "deny"; `#[allow(unsafe_code)]` is on `ffi` alone
+# (docs/design/decode.md, "libvpx"; docs/unsafe-sites.md).
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+indexing_slicing = "deny"
+todo = "deny"
+unimplemented = "deny"
+
+[dev-dependencies]
+coreav-isobmff = { path = "../coreav-isobmff" }
