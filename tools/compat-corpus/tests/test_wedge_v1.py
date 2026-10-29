@@ -68,12 +68,14 @@ class WedgeV1(unittest.TestCase):
         for text in expected:
             self.assertIn(text, self.note, 'docs/design/compat-cli.md does not quote wedge-v1')
 
-    def test_the_note_lists_every_entry(self):
-        for entry in self.derived['entries']:
-            example = ' '.join(entry['commands'][0]['args'])
-            row = f'| {entry["id"]} | {entry["tool"]} | `{entry["job"]}` | '
-            self.assertIn(row, self.note, entry['id'])
-            self.assertIn(f'`{example}`', self.note, entry['id'])
+    def test_the_note_tables_every_entry_as_derived(self):
+        """Each row whole: the family, the pair count and the shape as well as
+        the identifier and the example, in the derived order."""
+        rows = wedge.table(self.derived).split('\n')
+        for row in rows:
+            self.assertIn(' '.join(row.split()), self.note,
+                          'docs/design/compat-cli.md: paste the output of wedge.py --table')
+        self.assertIn(' '.join(' '.join(rows).split()), self.note, 'the rows are out of order')
 
 
 if __name__ == '__main__':

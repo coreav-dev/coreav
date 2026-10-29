@@ -1003,7 +1003,7 @@ FFmpeg read its inputs.
 that was not native, whether it ran FFmpeg or was refused, whatever the log
 level:
 
-    {"time": "2026-10-29T08:00:00Z", "coreav": "0.1.0", "tool": "ffmpeg", "args": ["-i", "INPUT", "-vf", "VALUE", "OUTPUT"], "reason": "-vf", "ran": "/usr/bin/ffmpeg"}
+    {"time": "2026-10-29T08:00:00Z", "coreav": "0.1.0", "tool": "ffmpeg", "args": ["-i", "INPUT", "-vf", "VALUE", "-c:a", "copy", "OUTPUT"], "reason": "-vf", "ran": "/usr/bin/ffmpeg"}
 
 `ran` is null when nothing ran, and `not_run` then says why (strict-safe mode,
 no program found, `COREAV_FALLBACK` unusable, the recursion guard). The file
@@ -1011,19 +1011,35 @@ is opened to append and each line is one write, so processes running at
 once do not interleave lines. A log that cannot be written costs one line
 on standard error, at every log level, and never stops the command.
 
-`args` is redacted when the line is written, never left for a later step: it
-keeps every option name, and the value of an option only when the option is
-in step 1's vocabulary and the value names no file. Every file name, URL and
-other bare argument becomes a placeholder (`INPUT`, `OUTPUT`, `FILE`), and the
-value of every other option becomes `VALUE`. A command line can carry
-secrets in places no list foresees (`-headers "Authorization: ..."`, a URL
-with a token, a proxy password), and an option outside the vocabulary is
-exactly where they would be; its name is what the log is for. So the file
-holds nothing a user could not share, and the user sees which option was not
-native while the project learns which commands to implement next. Rejected:
-logging the arguments as given and redacting on export, which leaves the
-secrets on disk; and `classify.normalize` as the redaction, which keeps the
-values of options it does not know.
+`args` is redacted when the line is written, never left for a later step,
+by an allow-list of value forms that cannot hold a name, a secret or a free
+text. Every option name is kept, up to an `=` in it. A value is kept only in
+the form listed for its option, and anything else becomes `VALUE`; every
+file name, URL and other bare argument becomes a placeholder (`INPUT`,
+`OUTPUT`, `FILE`):
+
+| Options | Value kept when it is |
+|---|---|
+| `-ss`, `-sseof`, `-t`, `-to`, `-segment_time`, `-hls_time` | a time in FFmpeg's syntax (`classify.is_time`) |
+| `-threads`, `-hls_list_size`, `-max_muxing_queue_size`, `-reset_timestamps`, `-safe` | an integer |
+| `-map`, `-select_streams`, `-map_metadata`, `-map_chapters` | a stream specifier of file index, type and index only (`0`, `-0:a`, `0:v:1`, `-1`); a metadata selector (`0:m:KEY:VALUE`) is not kept |
+| the codec options (`-c`, `-c:v` ...), `-f`, `-segment_format`, `-hls_playlist_type`, `-avoid_negative_ts`, `-v`, `-loglevel` | a name of at most 32 lower-case letters, digits, `_` and `,` |
+| `-movflags`, `-fflags` | flags of that form joined by `+` or `-` |
+| `-of`, `-print_format`, `-output_format` | a writer name, with settings only of the form `key=value` where the value is at most three characters |
+| `-show_entries` | section and key names of lower-case letters and `_` |
+
+Every option outside the table, step 1's or not, keeps its name and loses
+its value. A command line can carry private data in places no list of
+dangerous options foresees: `-headers "Authorization: ..."`, a URL with a
+token, a proxy password, or a metadata selector such as
+`-map 0:m:comment:...` inside the vocabulary. Keeping only forms known to
+be safe means the file holds nothing a user could not share, in every mode,
+strict-safe included; the user still sees which option was not native, and
+the project learns which commands to implement next. Rejected: keeping the
+values of the vocabulary's options, which lets a metadata selector or a tag
+value through; logging the arguments as given and redacting on export, which
+leaves private data on disk; and `classify.normalize` as the redaction,
+which keeps the values of options it does not know.
 
 A native command reads none of this: no lookup, no notice, no log line.
 

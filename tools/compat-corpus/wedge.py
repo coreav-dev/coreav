@@ -5,6 +5,7 @@ wedge").
 
     wedge.py            writes tools/compat-corpus/wedge-v1/wedge.json
     wedge.py --check    exits 1 when the committed file differs
+    wedge.py --table    prints the table of docs/design/compat-cli.md
 
 Every native command is reduced to its **shape**: what it asks the tool to
 do, with what does not change the output left out (the log level, `-y`,
@@ -255,12 +256,31 @@ def derive(records):
     }
 
 
+FAMILIES = {'mp4-mov': 'MP4/MOV', 'matroska-webm': 'Matroska/WebM', 'mpegts': 'MPEG-TS'}
+
+
+def table(derived):
+    """The entries as the Markdown table of the design note, one row each."""
+    rows = ['| | Tool | Job | Inputs | Pairs | Shape | Most used command |',
+            '|---|---|---|---|---:|---|---|']
+    for e in derived['entries']:
+        rows.append(f"| {e['id']} | {e['tool']} | `{e['job']}` | "
+                    f"{', '.join(FAMILIES[c] for c in e['containers'])} | {e['pairs']} | "
+                    f"{', '.join(e['shape'])} | `{' '.join(e['commands'][0]['args'])}` |")
+    return '\n'.join(rows)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     ap.add_argument('--check', action='store_true', help='compare with the committed file')
+    ap.add_argument('--table', action='store_true', help="print the design note's table")
     a = ap.parse_args()
     records = [json.loads(line) for line in COMMANDS.read_text(encoding='utf-8').splitlines()]
-    text = json.dumps(derive(records), indent=1, sort_keys=True) + '\n'
+    derived = derive(records)
+    if a.table:
+        print(table(derived))
+        return
+    text = json.dumps(derived, indent=1, sort_keys=True) + '\n'
     if a.check:
         if not OUT.exists() or OUT.read_text(encoding='utf-8') != text:
             sys.exit(f'wedge: {OUT.relative_to(HERE.parents[1])} is not what wedge.py derives; run it')
