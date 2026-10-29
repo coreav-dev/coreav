@@ -85,6 +85,28 @@ class PastMistakes(unittest.TestCase):
         self.assertTrue(problems[0].startswith(f'{NAME}:{line}: round 6, ISO base media, `packets.pos`'),
                         problems)
 
+    def test_a_whole_percent_on_the_wrong_side_of_the_bar(self):
+        # Found in review: a whole-number rate was not read at all.
+        text = RECORD.read_text()
+        heading = text[:text.index('## Round 6\n')].count('\n') + 1
+        for sentence, claim in (('ISO base media `format.duration` now reaches 98%.', 'reaches 98%'),
+                                ('ISO base media `format.duration` is 98%.', '98%'),
+                                ('ISO base media `format.duration` is 97%.', '97%'),
+                                ('ISO base media `format.duration` crossed 98%.', 'crossed 98%')):
+            with self.subTest(sentence):
+                mutated = text.replace('## Round 6\n', f'## Round 6\n\n{sentence}\n', 1)
+                self.assertEqual(check(mutated), [
+                    f'{NAME}:{heading + 2}: round 6, ISO base media, `format.duration`: the text says '
+                    f'{claim}, b3a-round6.json has 1025/1049 = 97.71%'])
+
+    def test_a_whole_percent_that_holds(self):
+        text = RECORD.read_text()
+        for sentence in ('ISO base media `format.duration` stays below 98%.',
+                         'ISO base media `streams.bit_rate` is 98%.',
+                         'ISO base media `streams.bit_rate` crossed 98%.'):
+            with self.subTest(sentence):
+                self.assertEqual(check(text.replace('## Round 6\n', f'## Round 6\n\n{sentence}\n', 1)), [])
+
     def test_a_count_of_keys_below_the_bar(self):
         text, line = replace_once(RECORD.read_text(), 'MPEG-TS 35 of 157 (round 5: 65;',
                                   'MPEG-TS 36 of 157 (round 5: 65;')

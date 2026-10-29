@@ -419,7 +419,15 @@ does not hold:
 - a rate, or an agree or files count, tied to a named key. The key is
   named in backticks after its container, and a key without a dot is a
   stream key (stream `bit_rate`). In "X to Y", X is the round before, or
-  the round an "against round K" in the paragraph names;
+  the round an "against round K" in the paragraph names. A rate with
+  decimals must be the share as the tables write it. A whole-number rate
+  claims the share to the nearest whole percent and on the same side of
+  the bar, so 97.71% may be written "97.71%" or "below 98%" but neither
+  "98%" nor "97%": a rounding that crosses the bar would state the
+  verdict the evidence denies, and a truncation would be a second rule
+  for the reader to know. After "below" or "under" the share must be
+  under the rate; after "above", "over", "crossed" or "reaches", at or
+  over it;
 - a container's count of keys below 98%, overall, for development and
   for held-out files, and as "round K: N";
 - the file counts of each round's corpus paragraphs: the files, the

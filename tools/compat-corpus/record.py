@@ -45,9 +45,10 @@ TOKEN = re.compile(
     r'|(?P<container>ISO base media|Matroska(?: and WebM)?|MPEG-TS)'
     r'|(?P<open>\()|(?P<close>\))'
     r'|`(?P<key>[^`]+)`'
+    r'|(?P<cmp>below|under|above|over|cross(?:es|ed)?|reach(?:es|ed)?|reaching) (?P<bound>\d+(?:\.\d+)?%)'
     r'|(?P<a>\d+(?:\.\d+)?%?) to (?P<b>\d+(?:\.\d+)?%?)(?: of (?P<n>\d+))?'
     r'|(?P<agree>\d+) of (?P<files>\d+)'
-    r'|(?P<rate>\d+\.\d+%)')
+    r'|(?P<rate>\d+(?:\.\d+)?%)')
 FILES = (
     (re.compile(r'(?:^|: |\()(\d+) files ?[(;,]'), 'files compared or not',
      lambda d: d['files']),
@@ -77,6 +78,21 @@ def rate(agree, files):
         if (float(text) < BAR) == (agree * 100 < BAR * files):
             break
     return text + '%'
+
+
+def states(said, agree, files, comparison=None):
+    """Whether the rate `said` (`97.71%`, `98%`) holds of `agree / files`.
+    After `below` or `under` the share is under the rate, after `above`,
+    `over`, `crossed` or `reaches` at or over it. Otherwise a rate with
+    decimals is the share as `rate` writes it, and a whole number is the
+    share to the nearest whole percent, on the same side of the bar: 97.71%
+    is not 98%, nor 97%."""
+    value, share = float(said.rstrip('%')), 100 * agree / files
+    if comparison:
+        return share < value if comparison in ('below', 'under') else share >= value
+    if '.' in said:
+        return said == rate(agree, files)
+    return abs(share - value) <= 0.5 and (share < BAR) == (value < BAR)
 
 
 def table_keys(table):
@@ -296,7 +312,7 @@ class Record:
         def where(offset):
             return f'{self.name}:{para[bisect.bisect_right(starts, offset) - 1][0]}'
 
-        def compare(offset, said, k, c, m, field):
+        def compare(offset, said, k, c, m, field, comparison=None):
             name, d = self.evidence(m)
             entry = d[c].get(k) if d else None
             if entry is None:
@@ -304,11 +320,15 @@ class Record:
                                 f'quotes {said} for round {m}, where there is no {name} or no such key')
                 return
             share = rate(entry['agree'], entry['files'])
-            value = {'rate': share, 'agree': str(entry['agree']), 'files': str(entry['files'])}[field]
-            if said != value:
+            if field == 'rate':
+                holds = states(said, entry['agree'], entry['files'], comparison)
+            else:
+                holds = said == str(entry[field])
+            if not holds:
                 of_round = '' if m == n else f' (round {m})'
+                claim = f'{comparison} {said}' if comparison else said
                 problems.append(f"{where(offset)}: round {n}, {CONTAINERS[c]}, `{k}`: the text says "
-                                f"{said}, {name} has {entry['agree']}/{entry['files']} = {share}{of_round}")
+                                f"{claim}, {name} has {entry['agree']}/{entry['files']} = {share}{of_round}")
 
         container, group, sentence, depth, group_depth, last_key = None, [], 0, 0, 0, 0
         for t in TOKEN.finditer(text):
@@ -339,6 +359,8 @@ class Record:
                 for k, c in group:
                     if t.group('rate'):
                         compare(t.start(), t.group('rate'), k, c, n, 'rate')
+                    elif t.group('cmp'):
+                        compare(t.start('bound'), t.group('bound'), k, c, n, 'rate', t.group('cmp'))
                     elif t.group('agree'):
                         compare(t.start('agree'), t.group('agree'), k, c, n, 'agree')
                         compare(t.start('files'), t.group('files'), k, c, n, 'files')
