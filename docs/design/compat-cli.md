@@ -636,6 +636,12 @@ FFmpeg).**
   drops.
 - Matroska and WebM inputs to the jobs other than the remux, and
   MPEG-TS inputs to all of them, as "Containers" says.
+- An input or output named with a protocol: standard input or output
+  (`-`, `pipe:`), a URL, and any name that starts with letters, digits, `+`,
+  `-`, `.` or `_` and a colon, `file:in.mp4` included, which `ffmpeg` opens
+  through that protocol (black box: `foo:in.mp4` fails with "Protocol not
+  found"). On Windows a drive letter before a separator (`C:\in.mp4`,
+  `C:/in.mp4`) is a path.
 
 ### The measurements, fixed before the runs
 
