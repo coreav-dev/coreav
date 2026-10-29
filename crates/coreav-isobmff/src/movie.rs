@@ -581,6 +581,9 @@ pub struct Movie {
     pub timescale: u32,
     /// Movie header duration in movie ticks (0 when unknown).
     pub mvhd_duration: u64,
+    /// Movie header transformation matrix as stored (the identity when the
+    /// box ends before it), applied after each track's.
+    pub matrix: [i32; 9],
     /// Movie header creation time, seconds since 1904-01-01 UTC as stored
     /// (see [`unix_time`]).
     pub creation_time: u64,
@@ -1355,7 +1358,7 @@ fn parse_moov<S: Source>(
     allowlist: &Allowlist,
     inflated: bool,
 ) -> Result<Movie, Error> {
-    let mut mvhd: Option<(u32, u64, u64)> = None;
+    let mut mvhd: Option<(u32, u64, u64, [i32; 9])> = None;
     let mut cmov: Option<(BoxHeader, u32)> = None;
     let mut tracks: Vec<Track> = Vec::new();
     let mut trex: Vec<Trex> = Vec::new();
@@ -1376,7 +1379,24 @@ fn parse_moov<S: Source>(
                 if timescale == 0 {
                     return Err(invalid(&child, "zero timescale"));
                 }
-                mvhd = Some((timescale, unknown_duration(version, duration), created));
+                // Rate, volume and reserved bytes, then the matrix; a box
+                // that ends before it keeps the identity.
+                let mut matrix = IDENTITY_MATRIX;
+                if b.skip(16).is_ok() {
+                    for value in &mut matrix {
+                        let Ok(v) = b.i32() else {
+                            matrix = IDENTITY_MATRIX;
+                            break;
+                        };
+                        *value = v;
+                    }
+                }
+                mvhd = Some((
+                    timescale,
+                    unknown_duration(version, duration),
+                    created,
+                    matrix,
+                ));
             }
             b"trak" => {
                 let stream_index = tracks.len().saturating_add(dropped.len());
@@ -1450,7 +1470,7 @@ fn parse_moov<S: Source>(
         }
         return parse_compressed_moov(w, &cmov, depth, allowlist);
     }
-    let (timescale, mvhd_duration, creation_time) =
+    let (timescale, mvhd_duration, creation_time, matrix) =
         mvhd.ok_or(invalid(moov, "missing movie header"))?;
     // `trex` may come before or after the tracks; resolve it now.
     for defaults in &trex {
@@ -1516,6 +1536,7 @@ fn parse_moov<S: Source>(
         timescale,
         mvhd_duration,
         creation_time,
+        matrix,
         tracks,
         dropped,
         fragmented,
@@ -2217,6 +2238,9 @@ struct Tkhd {
     size: (u32, u32),
     created: u64,
 }
+
+/// The identity transformation matrix (ISO/IEC 14496-12 8.2.2.3).
+pub const IDENTITY_MATRIX: [i32; 9] = [0x10000, 0, 0, 0, 0x10000, 0, 0, 0, 0x4000_0000];
 
 /// Version, creation time, timescale and duration of `mvhd` or `mdhd`
 /// (ISO/IEC 14496-12 8.2.2 and 8.4.2); the modification time is skipped.

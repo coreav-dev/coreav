@@ -150,6 +150,57 @@ pub(crate) fn ratio(a: u64, b: u64) -> Option<String> {
     Some(format!("{}:{}", a / g, b / g))
 }
 
+/// The largest term of a display aspect ratio `ffprobe` prints.
+const MAX_RATIO_TERM: u64 = 1 << 20;
+
+/// `num / den` as the closest fraction whose terms are both at most
+/// [`MAX_RATIO_TERM`], which is how `ffprobe` prints a display aspect
+/// ratio that does not reduce that far (1045314:784271 for a 914x686
+/// picture of samples 2740:2739, exactly 1252180:939477): the best of
+/// the convergents and intermediate fractions of its continued fraction
+/// within the bound. `None` when either term is 0.
+pub(crate) fn bounded_ratio(num: u64, den: u64) -> Option<(u64, u64)> {
+    if num == 0 || den == 0 {
+        return None;
+    }
+    let g = gcd(num, den);
+    let (num, den) = (num / g, den / g);
+    if num <= MAX_RATIO_TERM && den <= MAX_RATIO_TERM {
+        return Some((num, den));
+    }
+    // Convergents p/q of num/den, and between two of them the
+    // intermediate fractions, kept while both terms stay in bounds.
+    let (mut p0, mut q0, mut p1, mut q1) = (0u64, 1u64, 1u64, 0u64);
+    let (mut a, mut b) = (num, den);
+    let mut best: Option<(u64, u64)> = None;
+    // |p/q - num/den| times q * den, exactly.
+    let off = |(p, q): (u64, u64)| {
+        (u128::from(p) * u128::from(den)).abs_diff(u128::from(num) * u128::from(q))
+    };
+    // Whether x lies closer to num/den than y does.
+    let closer = |x: (u64, u64), y: (u64, u64)| off(x) * u128::from(y.1) < off(y) * u128::from(x.1);
+    while b != 0 {
+        let q = a / b;
+        for t in 1..=q {
+            let p = t.checked_mul(p1).and_then(|v| v.checked_add(p0));
+            let k = t.checked_mul(q1).and_then(|v| v.checked_add(q0));
+            let (Some(p), Some(k)) = (p, k) else {
+                return best;
+            };
+            if p > MAX_RATIO_TERM || k > MAX_RATIO_TERM {
+                return best;
+            }
+            if best.is_none_or(|b| closer((p, k), b)) {
+                best = Some((p, k));
+            }
+        }
+        (p0, p1) = (p1, q * p1 + p0);
+        (q0, q1) = (q1, q * q1 + q0);
+        (a, b) = (b, a % b);
+    }
+    best
+}
+
 /// Ticks times the time base, as `ffprobe` prints a stream duration.
 pub(crate) fn duration_string(ticks: i64, timescale: u32) -> Option<String> {
     if timescale == 0 {
@@ -327,6 +378,18 @@ fn stream(movie: &Movie, track: &Track) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn display_aspect_ratios_within_twenty_bits() {
+        // 914x686 at 2740:2739 is 1252180:939477, which `ffprobe` prints
+        // as the closest fraction of terms up to 2^20.
+        assert_eq!(
+            bounded_ratio(914 * 2740, 686 * 2739),
+            Some((1_045_314, 784_271))
+        );
+        assert_eq!(bounded_ratio(1920, 1080), Some((16, 9)));
+        assert_eq!(bounded_ratio(0, 9), None);
+    }
 
     #[test]
     fn number_formats() {

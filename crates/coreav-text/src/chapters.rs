@@ -60,14 +60,40 @@ pub fn read_chapters<S: Source>(
     limits: &Limits,
     text_limits: &TextLimits,
 ) -> Result<Option<Chapters>, TextError> {
+    read_chapters_from(source, None, limits, text_limits)
+}
+
+/// [`read_chapters`], from the text track `track_id` names whether or not
+/// a `chap` reference names it; `Ok(None)` when the file has no text
+/// track of that ID.
+pub fn read_chapter_track<S: Source>(
+    source: S,
+    track_id: u32,
+    limits: &Limits,
+    text_limits: &TextLimits,
+) -> Result<Option<Chapters>, TextError> {
+    read_chapters_from(source, Some(track_id), limits, text_limits)
+}
+
+/// The chapters of the track `track_id` names, else of the first
+/// referenced one.
+fn read_chapters_from<S: Source>(
+    source: S,
+    track_id: Option<u32>,
+    limits: &Limits,
+    text_limits: &TextLimits,
+) -> Result<Option<Chapters>, TextError> {
     let mut source = source;
     let allowlist = Allowlist::new(&[Codec::QuickTimeText, Codec::TimedText]);
     let movie = probe(&mut source, limits, &allowlist)?;
-    let Some(track) = movie
+    let first = movie
         .chapter_tracks
         .iter()
-        .find_map(|id| movie.tracks.iter().find(|t| t.track_id == *id))
-    else {
+        .find(|id| movie.tracks.iter().any(|t| t.track_id == **id));
+    let Some(id) = track_id.or(first.copied()) else {
+        return Ok(None);
+    };
+    let Some(track) = movie.tracks.iter().find(|t| t.track_id == id) else {
         return Ok(None);
     };
     check(track)?;

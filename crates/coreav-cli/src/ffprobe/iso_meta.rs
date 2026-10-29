@@ -93,6 +93,10 @@ pub struct IsoMeta {
     /// The cover pictures of the movie's item list (`covr`), which
     /// `ffprobe` lists as attached-picture streams after the tracks.
     pub covers: Vec<Cover>,
+    /// The video tracks of the chapter list ([`chapter_list`]), by
+    /// `track_ID`: chapter pictures, whose first picture `ffprobe` lists
+    /// again as an attached picture before every other packet.
+    pub chapter_pictures: Vec<u32>,
     /// The same as `stream_tags`, `dispositions` and `extradata_sizes`, for
     /// every track box of the movie, dropped streams included (index =
     /// `Track::stream_index`, `DroppedStream::stream_index`).
@@ -139,7 +143,9 @@ fn is_cover(key: &metadata::ListKey) -> bool {
     }
 }
 
-/// The covers of the movie's item lists, in file order.
+/// The covers of the movie's item lists, in file order, that `ffprobe`
+/// lists: those typed JPEG (13) or PNG (14) (found black box: the same picture typed 0 or 1 is not listed; one typed
+/// 27, BMP, is listed as BMP, which is not described here).
 fn covers(meta: &metadata::Metadata) -> Vec<Cover> {
     meta.items
         .iter()
@@ -149,10 +155,15 @@ fn covers(meta: &metadata::Metadata) -> Vec<Cover> {
                 key,
                 data: Some(data),
                 ..
-            } if !data.value.is_empty() && is_cover(key) => Some(Cover {
-                data: data.value.clone(),
-                offset: data.offset,
-            }),
+            } if !data.value.is_empty()
+                && is_cover(key)
+                && matches!(data.type_indicator, 13 | 14) =>
+            {
+                Some(Cover {
+                    data: data.value.clone(),
+                    offset: data.offset,
+                })
+            }
             _ => None,
         })
         .collect()
@@ -229,6 +240,15 @@ pub fn read<S: Source>(movie: &Movie, source: &mut S) -> Result<IsoMeta, Failure
             by_id.entry(id).or_insert(timecode);
         }
     }
+    let chapter_list = chapter_list(&meta);
+    let chapter_pictures: Vec<u32> = movie
+        .tracks
+        .iter()
+        .filter(|t| {
+            t.kind == coreav_isobmff::TrackKind::Video && chapter_list.contains(&t.track_id)
+        })
+        .map(|t| t.track_id)
+        .collect();
     let mut all_streams = Vec::with_capacity(meta.tracks.len());
     for (index, track) in meta.tracks.iter().enumerate() {
         let kept = movie.tracks.iter().find(|t| t.stream_index == index);
@@ -240,7 +260,10 @@ pub fn read<S: Source>(movie: &Movie, source: &mut S) -> Result<IsoMeta, Failure
         let timecode = own_or_referenced_timecode(track, own, &by_id);
         all_streams.push(StreamMeta {
             tags: stream_tags(track, handler_name, timecode),
-            disposition: disposition(track),
+            disposition: disposition(
+                track,
+                kept.is_some_and(|t| chapter_pictures.contains(&t.track_id)),
+            ),
             extradata_size: track.sample_entry.as_ref().and_then(extradata_size),
             protected: track.sample_entry.as_ref().and_then(protected),
             pcm_layout: track.sample_entry.as_ref().and_then(pcm_layout),
@@ -256,7 +279,8 @@ pub fn read<S: Source>(movie: &Movie, source: &mut S) -> Result<IsoMeta, Failure
     let mut out = IsoMeta {
         covers: covers(&meta),
         format_tags: format_tags(&meta, &timecodes),
-        chapters: chapters(movie, &meta, &mut *source)?,
+        chapters: chapters(movie, &chapter_list, &meta, &mut *source)?,
+        chapter_pictures,
         protection_headers: meta.protection_headers > 0,
         ..IsoMeta::default()
     };
@@ -824,8 +848,17 @@ fn stream_tags(
 /// The scheme of the `kind` values `ffprobe` reads.
 const DASH_ROLE: &[u8] = b"urn:mpeg:dash:role:2011";
 
-fn disposition(track: &TrackMetadata) -> Entries {
+/// A video track a `chap` reference names holds chapter pictures, which
+/// `ffprobe` marks as an attached picture and timed thumbnails.
+fn disposition(track: &TrackMetadata, chapter_pictures: bool) -> Entries {
     let mut entries = super::iso::disposition(track.flags.is_some_and(|f| f & 1 != 0));
+    if chapter_pictures {
+        for (key, v) in &mut entries {
+            if *key == "attached_pic" || *key == "timed_thumbnails" {
+                *v = Value::Int(1);
+            }
+        }
+    }
     for (scheme, value) in &track.kinds {
         if scheme.as_slice() != DASH_ROLE {
             continue;
@@ -1052,44 +1085,62 @@ fn timecode(entry: TimecodeEntry, value: i32) -> Option<String> {
     Some(format!("{sign}{hh:02}:{mm:02}:{ss:02}{sep}{ff:0width$}"))
 }
 
-/// The chapters: those of the QuickTime chapter track when it has any,
-/// else those of the Nero chapter list.
+/// The chapter list as `ffprobe` reads it: the `chap` reference of the
+/// last track box that has one, each track box's list replacing the one
+/// before (found black box: with the audio naming a picture track and the
+/// picture track a text track, the pictures are not chapter pictures; with
+/// the second reference gone, they are).
+fn chapter_list(meta: &Metadata) -> Vec<u32> {
+    let chap = FourCc(*b"chap");
+    meta.tracks
+        .iter()
+        .rev()
+        .find_map(|t| {
+            t.references
+                .iter()
+                .find(|r| r.kind == chap && !r.track_ids.is_empty())
+        })
+        .map(|r| r.track_ids.clone())
+        .unwrap_or_default()
+}
+
+/// The chapters: those of the text tracks of the chapter list
+/// ([`chapter_list`]) when they have any, else those of the Nero chapter
+/// list.
 fn chapters<S: Source>(
     movie: &Movie,
+    list: &[u32],
     meta: &Metadata,
     source: &mut S,
 ) -> Result<Vec<Chapter>, Failure> {
-    let chap = FourCc(*b"chap");
-    let referenced = meta.tracks.iter().any(|t| {
-        t.references
-            .iter()
-            .any(|r| r.kind == chap && !r.track_ids.is_empty())
-    });
     let limits = Limits::default();
     let text_limits = coreav_text::TextLimits::default();
-    let track_list = if referenced {
-        coreav_text::read_chapters(&mut *source, &limits, &text_limits)
-    } else {
-        Ok(None)
-    };
-    match track_list {
-        Ok(Some(list)) if !list.chapters.is_empty() => {
-            let den = i64::from(list.timescale.max(1));
-            return Ok(list
-                .chapters
-                .iter()
-                .enumerate()
-                .map(|(id, c)| {
+    // Every referenced text track in turn, each chapter replacing the one
+    // of the same number before it (found black box: of `chap` 2, 1 with
+    // 15 and 9 chapters, the first 9 are track 1's and the rest track 2's).
+    let mut listed: Vec<Chapter> = Vec::new();
+    for id in list {
+        match coreav_text::read_chapter_track(&mut *source, *id, &limits, &text_limits) {
+            Ok(Some(list)) => {
+                let den = i64::from(list.timescale.max(1));
+                for (n, c) in list.chapters.iter().enumerate() {
                     let start = crate::time::rounded(c.start).unwrap_or(0);
                     let end = crate::time::rounded(c.end).unwrap_or(start);
-                    chapter(id, den, start, end, &c.title)
-                })
-                .collect());
+                    let one = chapter(n, den, start, end, &c.title);
+                    match listed.get_mut(n) {
+                        Some(slot) => *slot = one,
+                        None => listed.push(one),
+                    }
+                }
+            }
+            Err(coreav_text::TextError::Source(error @ Error::Io(_))) => {
+                return Err(Failure::library(error));
+            }
+            _ => {}
         }
-        Err(coreav_text::TextError::Source(error @ Error::Io(_))) => {
-            return Err(Failure::library(error));
-        }
-        _ => {}
+    }
+    if !listed.is_empty() {
+        return Ok(listed);
     }
     let Some(list) = &meta.nero_chapters else {
         return Ok(Vec::new());

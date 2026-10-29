@@ -300,6 +300,9 @@ pub struct IsoProbed {
     /// The cover pictures' streams: index, position and size of the one
     /// packet each, which `ffprobe` lists before every other.
     pub covers: Vec<(usize, u64, u64)>,
+    /// The chapter picture tracks ([`super::iso_meta::IsoMeta::chapter_pictures]`), by
+    /// index.
+    pub pictures: Vec<usize>,
 }
 
 /// What the packet listing takes from a stream's entries.
@@ -500,6 +503,13 @@ pub fn probe<S: Source>(source: &mut S, size: u64, name: &str) -> Result<IsoProb
         .map(|(st, (_, _, _, duration))| Listed::of(st, *duration))
         .collect();
     let covers = cover_streams(&mut report, &spans, &meta.covers);
+    let pictures = probed
+        .movie
+        .tracks
+        .iter()
+        .filter(|t| meta.chapter_pictures.contains(&t.track_id))
+        .map(|t| t.index)
+        .collect();
     Ok(IsoProbed {
         report,
         movie: probed.movie,
@@ -508,6 +518,7 @@ pub fn probe<S: Source>(source: &mut S, size: u64, name: &str) -> Result<IsoProb
         shifts,
         steps,
         covers,
+        pictures,
     })
 }
 
@@ -636,6 +647,11 @@ fn aac_layout(d: &coreav_isobmff::SampleDescription) -> Option<Option<&'static s
         bits.bits(24)?;
     }
     let config = bits.bits(4)?;
+    // Parametric stereo (object type 29) makes a mono core stereo
+    // (ISO/IEC 14496-3 8.6.4).
+    if config == 1 && object_type == 29 {
+        return Some(Some("stereo"));
+    }
     if config != 0 {
         return Some(u8::try_from(config).ok().and_then(names::aac_layout));
     }
@@ -679,6 +695,84 @@ fn aac_layout(d: &coreav_isobmff::SampleDescription) -> Option<Option<&'static s
             _ => None,
         },
     )
+}
+
+/// What an AC-3 (`dac3`) or E-AC-3 (`dec3`) specific box says (ETSI TS
+/// 102 366 F.4 and F.6): the channels of the (first independent) stream,
+/// `ffprobe`'s name for their layout, the bit rate and `bsmod`, the
+/// service type.
+struct Ac3Config {
+    channels: u32,
+    layout: Option<&'static str>,
+    bit_rate: Option<i64>,
+    service: u32,
+}
+
+fn ac3_config(d: &coreav_isobmff::SampleDescription) -> Option<Ac3Config> {
+    let config = d.codec_config.as_ref()?;
+    let mut bits = video::Bits::new(&config.data);
+    let (bit_rate, service, acmod, lfe, dependent) = match &config.kind.0 {
+        b"dac3" => {
+            bits.bits(2 + 5)?;
+            let service = bits.bits(3)?;
+            let acmod = bits.bits(3)?;
+            let lfe = bits.bits(1)? == 1;
+            const KBPS: [i64; 19] = [
+                32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384, 448, 512, 576,
+                640,
+            ];
+            let code = usize::try_from(bits.bits(5)?).ok()?;
+            (KBPS.get(code).map(|k| k * 1000), service, acmod, lfe, 0)
+        }
+        b"dec3" => {
+            let kbps = i64::from(bits.bits(13)?);
+            bits.bits(3)?;
+            bits.bits(2 + 5 + 1 + 1)?;
+            let service = bits.bits(3)?;
+            let acmod = bits.bits(3)?;
+            let lfe = bits.bits(1)? == 1;
+            bits.bits(3)?;
+            let dependent = bits.bits(4)?;
+            (Some(kbps * 1000), service, acmod, lfe, dependent)
+        }
+        _ => return None,
+    };
+    let (front, layouts): (u32, [Option<&'static str>; 2]) = match acmod {
+        1 => (1, [Some("mono"), None]),
+        2 => (2, [Some("stereo"), Some("2.1")]),
+        3 => (3, [Some("3.0"), Some("3.1")]),
+        4 => (3, [Some("3.0(back)"), None]),
+        5 => (4, [Some("4.0"), Some("4.1")]),
+        6 => (4, [Some("quad(side)"), None]),
+        7 => (5, [Some("5.0(side)"), Some("5.1(side)")]),
+        _ => (2, [None, None]),
+    };
+    let [plain, with_lfe] = layouts;
+    Some(Ac3Config {
+        channels: front + u32::from(lfe),
+        layout: if dependent > 0 {
+            None
+        } else if lfe {
+            with_lfe
+        } else {
+            plain
+        },
+        bit_rate: bit_rate.filter(|r| *r > 0),
+        service,
+    })
+}
+
+/// The bit depth an ALAC magic cookie states (`ALACSpecificConfig`, after
+/// the box's version and flags: `frameLength`, `compatibleVersion`,
+/// `bitDepth`).
+fn alac_depth(d: &coreav_isobmff::SampleDescription) -> Option<u16> {
+    let config = d.codec_config.as_ref().filter(|c| c.kind.0 == *b"alac")?;
+    config
+        .data
+        .get(9)
+        .copied()
+        .map(u16::from)
+        .filter(|b| *b > 0)
 }
 
 /// `bits_per_raw_sample` of integer PCM of 24 and 32 bits, which
@@ -824,23 +918,42 @@ fn video_info<S: Source>(track: &Track, head: &Head, source: &mut S) -> Option<V
         Codec::Hevc => record(b"hvcC").and_then(|r| video::hevc(r, full_range)),
         Codec::Av1 => record(b"av1C").and_then(video::av1),
         Codec::Vp9 => record(b"vpcC").and_then(video::vp9),
-        Codec::Other if codec_name_of(track).as_deref() == Some("mpeg4") => {
-            let dsi = config
-                .filter(|c| c.kind.0 == *b"esds")
-                .and_then(|c| esds_config(&c.data))?;
-            let m = super::mkv::video::mpeg4(dsi)?;
-            Some(VideoInfo {
-                pix_fmt: Some("yuv420p".to_owned()),
-                has_b_frames: m.low_delay.map(|l| u32::from(!l)).or(Some(0)),
-                chroma_location: Some("left"),
-                profile: m
-                    .profile_and_level
-                    .and_then(super::mkv::video::mpeg4_profile)
-                    .map(|(name, level)| (name.to_owned(), i64::from(level))),
-                mpeg4_flags: Some((m.quarter_sample, m.divx_packed)),
-                sar: video::mpeg4_aspect(dsi),
-                ..VideoInfo::default()
-            })
+        Codec::Other => {
+            let name = codec_name_of(track)?;
+            let mut frame = |limit: u32| -> Option<Vec<u8>> {
+                let (offset, size) = head.first?;
+                let mut frame = vec![0u8; usize::try_from(size.min(limit)).ok()?];
+                source.read_exact_at(offset, &mut frame).ok()?;
+                Some(frame)
+            };
+            match name.as_str() {
+                "mpeg4" => {
+                    let dsi = config
+                        .filter(|c| c.kind.0 == *b"esds")
+                        .and_then(|c| esds_config(&c.data))?;
+                    let m = super::mkv::video::mpeg4(dsi)?;
+                    Some(VideoInfo {
+                        pix_fmt: Some("yuv420p".to_owned()),
+                        has_b_frames: m.low_delay.map(|l| u32::from(!l)).or(Some(0)),
+                        chroma_location: Some("left"),
+                        profile: m
+                            .profile_and_level
+                            .and_then(super::mkv::video::mpeg4_profile)
+                            .map(|(name, level)| (name.to_owned(), i64::from(level))),
+                        mpeg4_flags: Some((m.quarter_sample, m.divx_packed)),
+                        sar: video::mpeg4_aspect(dsi),
+                        color: m.color,
+                        ..VideoInfo::default()
+                    })
+                }
+                // A JPEG frame's header may follow an Exif segment of up to
+                // 64 KiB; a PNG's colour chunks come before its image data.
+                "mjpeg" => video::mjpeg(&frame(1 << 18)?),
+                "png" => video::png(&frame(1 << 16)?),
+                "h263" => Some(video::h263(&frame(16).unwrap_or_default())),
+                "dvvideo" => video::dv(&frame(480)?, head.first?.1),
+                other => video::fixed(other, d.depth),
+            }
         }
         Codec::ProRes => {
             let (offset, size) = head.first?;
@@ -954,6 +1067,8 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
     let video = track.kind == TrackKind::Video;
     let audio = track.kind == TrackKind::Audio;
     let codec_name = codec_name(movie, track);
+    let alac = alac_depth(d).filter(|_| audio);
+    let matrix = compose(&track.matrix, &movie.matrix);
     let mut e: Entries = Vec::with_capacity(48);
     e.push(("index", int(track.stream_index)));
     match &codec_name {
@@ -992,8 +1107,11 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
     // The bit rate of a constant-rate coding: rate, channels and bits.
     let mut coded_rate: Option<i64> = None;
     if video {
-        let w = d.width.map(u32::from);
-        let h = d.height.map(u32::from);
+        let (w, h) = info.size.map_or(
+            (d.width.map(u32::from), d.height.map(u32::from)),
+            |(w, h)| (Some(w), Some(h)),
+        );
+        coded_rate = info.bit_rate;
         e.push(("width", w.map_or(Value::Na, int)));
         e.push(("height", h.map_or(Value::Na, int)));
         // An H.264 decoder takes the entry's size as its coded size when it
@@ -1027,13 +1145,15 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
         };
         e.push(("has_b_frames", has_b_frames.map_or(Value::Na, int)));
         // The container's ratio (`pasp`), else the one the stream signals.
-        let (sar, dar) = match (d.pixel_aspect.or(info.sar), w, h) {
+        let header = header_aspect(track.presentation_size, &matrix, w, h);
+        let (sar, dar) = match (d.pixel_aspect.or(info.sar).or(header), w, h) {
             (Some((hs, vs)), Some(w), Some(h)) => (
                 ratio(u64::from(hs), u64::from(vs)),
-                ratio(
+                compat::bounded_ratio(
                     u64::from(w).saturating_mul(u64::from(hs)),
                     u64::from(h).saturating_mul(u64::from(vs)),
-                ),
+                )
+                .and_then(|(n, d)| ratio(n, d)),
             ),
             _ => (None, None),
         };
@@ -1053,7 +1173,13 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
                     .unwrap_or(-99),
             ),
         ));
-        let color = compat::reported_color(track);
+        let boxed = compat::reported_color(track);
+        let color = info.color.map_or(boxed, |own| coreav_isobmff::Color {
+            primaries: own.primaries.or(boxed.primaries),
+            transfer: own.transfer.or(boxed.transfer),
+            matrix: own.matrix.or(boxed.matrix),
+            full_range: own.full_range.or(boxed.full_range),
+        });
         e.push((
             "color_range",
             color
@@ -1111,9 +1237,19 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
             e.push(("nal_length_size", s(length.unwrap_or(0).to_string())));
         }
     } else if audio {
-        let rate = d.configured_sample_rate.or(d.sample_rate);
-        let channels = if d.implicit_ps_possible {
+        // AMR is mono at a fixed rate (3GPP TS 26.244 6.5), whatever the
+        // sample entry says.
+        let amr = match codec_name.as_deref() {
+            Some("amr_nb") => Some(8000),
+            Some("amr_wb") => Some(16000),
+            _ => None,
+        };
+        let ac3 = ac3_config(d);
+        let rate = amr.or(d.configured_sample_rate).or(d.sample_rate);
+        let channels = if d.implicit_ps_possible || amr.is_some() {
             Some(1)
+        } else if let Some(a) = &ac3 {
+            Some(a.channels)
         } else {
             d.channels
         };
@@ -1126,11 +1262,27 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
                 .checked_mul(i64::from(r))?
                 .checked_mul(i64::from(c))
         });
+        if let Some(rate) = ac3.as_ref().and_then(|a| a.bit_rate) {
+            coded_rate = Some(rate);
+        }
+        // QDesign's `QDCA` atom states the bit rate after its version,
+        // channels and sample rate.
+        if let Some(rate) = d
+            .codec_config
+            .as_ref()
+            .filter(|c| c.kind.0 == *b"QDCA")
+            .and_then(|c| c.data.get(12..16))
+            .and_then(|b| b.try_into().ok())
+            .map(u32::from_be_bytes)
+            .filter(|r| *r > 0)
+        {
+            coded_rate = Some(i64::from(rate));
+        }
         e.push((
             "sample_fmt",
             codec_name
                 .as_deref()
-                .and_then(|n| names::sample_fmt(n, bits))
+                .and_then(|n| names::sample_fmt(n, bits.or(alac)))
                 .map_or(Value::Unset("unknown"), s),
         ));
         e.push((
@@ -1139,7 +1291,11 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
         ));
         e.push(("channels", channels.map_or(Value::Na, int)));
         // AAC is named by its own configuration ([`aac_layout`]).
-        let layout = aac_layout(d).unwrap_or_else(|| channels.and_then(names::default_layout));
+        let layout = aac_layout(d).unwrap_or_else(|| {
+            ac3.as_ref()
+                .and_then(|a| a.layout)
+                .or_else(|| channels.and_then(names::default_layout))
+        });
         e.push(("channel_layout", layout.map_or(Value::Unset("unknown"), s)));
         e.push(("bits_per_sample", int(coded_bits.map_or(0, i64::from))));
         // Opus states its pre-skip (RFC 7845 5.1, in the `dOps` box of
@@ -1177,8 +1333,18 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
                 rate(n, d)
             })
             .unwrap_or_else(|| "0/0".to_owned());
-        let real =
-            real_rate(&head.decode_times, track.timescale).unwrap_or_else(|| "0/0".to_owned());
+        // A single frame's base rate is its own: one over its duration, as
+        // listed (`1/0` when it has none, or is not presented), on single
+        // picture tracks of the development set.
+        let real = if frames == 1 {
+            if head.start.is_some() && avg != "0/0" {
+                avg.clone()
+            } else {
+                "1/0".to_owned()
+            }
+        } else {
+            real_rate(&head.decode_times, track.timescale).unwrap_or_else(|| "0/0".to_owned())
+        };
         e.push(("r_frame_rate", s(real)));
         e.push(("avg_frame_rate", s(avg)));
     } else {
@@ -1255,6 +1421,7 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
         "bits_per_raw_sample",
         info.bits_per_raw_sample
             .or_else(|| pcm_raw_bits(track))
+            .or(alac.map(u32::from))
             .map_or(Value::Na, |b| s(b.to_string())),
     ));
     // The samples of the movie box's tables: `ffprobe` counts none of a
@@ -1300,15 +1467,39 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
             ],
         });
     }
-    if let Some(clockwise) = track.rotation.filter(|r| *r != 0 && video) {
+    if let Some((lux, x, y)) = d.ambient.filter(|_| video) {
+        side_data.push(SideData {
+            typ: "ambient_viewing_environment",
+            entries: vec![
+                ("side_data_type", s("Ambient viewing environment")),
+                ("ambient_illuminance", s(format!("{lux}/10000"))),
+                ("ambient_light_x", s(format!("{x}/50000"))),
+                ("ambient_light_y", s(format!("{y}/50000"))),
+            ],
+        });
+    }
+    // Any matrix but the identity, rotating or not (a translation, a
+    // scale), the track's and the movie's together, as `ffprobe` lists it.
+    let rotated = track.rotation.is_some_and(|r| r != 0);
+    if video && (rotated || matrix != coreav_isobmff::IDENTITY_MATRIX) {
+        let clockwise = track.rotation.unwrap_or(0);
         let ccw = (360 - i32::from(clockwise % 360)) % 360;
         let signed = if ccw >= 180 { ccw - 360 } else { ccw };
         side_data.push(SideData {
             typ: "display_matrix",
             entries: vec![
                 ("side_data_type", s("Display Matrix")),
-                ("displaymatrix", s(display_matrix(&track.matrix))),
+                ("displaymatrix", s(display_matrix(&matrix))),
                 ("rotation", Value::Int(i64::from(signed))),
+            ],
+        });
+    }
+    if let Some(a) = ac3_config(d).filter(|_| audio) {
+        side_data.push(SideData {
+            typ: "audio_service_type",
+            entries: vec![
+                ("side_data_type", s("Audio Service Type")),
+                ("service_type", Value::Int(i64::from(a.service))),
             ],
         });
     }
@@ -1328,8 +1519,9 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
 
 /// A track's own duration in its ticks, as `ffprobe` reads it: without
 /// an edit list the decode durations of every sample, no longer than the
-/// media header says unless fragments follow; with one edit, no longer than the edit presents
-/// ([`Track::duration`], which the stream oracle checks); otherwise the
+/// media header says unless fragments follow; with one media edit, no
+/// longer than it and a leading empty edit present ([`Track::duration`],
+/// which the stream oracle checks, is the media edit's); otherwise the
 /// probe's.
 fn media_duration(movie: &Movie, track: &Track) -> Option<i64> {
     let edited = track.duration.and_then(crate::time::rounded);
@@ -1349,14 +1541,28 @@ fn media_duration(movie: &Movie, track: &Track) -> Option<i64> {
             samples.checked_add(start)
         }
         (coreav_isobmff::EditList::None, Some(samples)) => Some(samples),
+        (coreav_isobmff::EditList::Simple { empty, segment, .. }, Some(samples))
+            if segment > 0 && empty > 0 && movie.timescale > 0 =>
+        {
+            // A leading empty edit counts too, rounded to the nearest tick
+            // (the development set: 7 files whose duration differed agree),
+            // no longer than the samples or the media header.
+            let den = u128::from(movie.timescale);
+            u128::from(empty)
+                .checked_add(u128::from(segment))
+                .and_then(|t| t.checked_mul(u128::from(track.timescale)))
+                .and_then(|t| i64::try_from((t + den / 2) / den).ok())
+                .map(|e| header.map_or(e, |h| h.min(e)).min(samples))
+        }
         (coreav_isobmff::EditList::Simple { segment, .. }, Some(samples)) if segment > 0 => {
             Some(edited.map_or(samples, |e| e.min(samples)))
         }
         (_, None) => edited.filter(|d| *d > 0).or(header),
         // Several edits last as long as all of them, empty ones in
         // between included (`edit_multi_empty.mp4`: 4 s of media, 1 s
-        // empty, 5 s of media last 10 s), rounded to the nearest tick.
-        (coreav_isobmff::EditList::Multiple, _) if movie.timescale > 0 => {
+        // empty, 5 s of media last 10 s), rounded to the nearest tick, and
+        // no longer than the samples or the media header.
+        (coreav_isobmff::EditList::Multiple, Some(samples)) if movie.timescale > 0 => {
             let total = track.edits.iter().try_fold(0u128, |sum, e| {
                 sum.checked_add(u128::from(e.segment_duration))
             });
@@ -1364,6 +1570,7 @@ fn media_duration(movie: &Movie, track: &Track) -> Option<i64> {
             total
                 .and_then(|t| t.checked_mul(u128::from(track.timescale)))
                 .and_then(|t| i64::try_from((t + den / 2) / den).ok())
+                .map(|t| header.map_or(t, |h| h.min(t)).min(samples))
                 .or(edited)
         }
         _ => edited,
@@ -1456,6 +1663,59 @@ pub fn disposition(default: bool) -> Entries {
     .into_iter()
     .map(|k| (k, Value::Int(i64::from(k == "default" && default))))
     .collect()
+}
+
+/// A track's matrix followed by the movie's, as a point is transformed
+/// through them (ISO/IEC 14496-12 6.2.2): the first two columns 16.16
+/// fixed point, the third 2.30.
+fn compose(track: &[i32; 9], movie: &[i32; 9]) -> [i32; 9] {
+    if *movie == coreav_isobmff::IDENTITY_MATRIX {
+        return *track;
+    }
+    let mut out = [0i32; 9];
+    for (at, cell) in out.iter_mut().enumerate() {
+        let (row, col) = (at / 3, at % 3);
+        let sum: i64 = (0..3)
+            .map(|k| {
+                let a = i64::from(track.get(row * 3 + k).copied().unwrap_or(0));
+                let b = i64::from(movie.get(k * 3 + col).copied().unwrap_or(0));
+                (a * b) >> if k == 2 { 30 } else { 16 }
+            })
+            .sum();
+        *cell = i32::try_from(sum).unwrap_or(0);
+    }
+    out
+}
+
+/// The sample aspect ratio a track header's size gives, scaled by a matrix
+/// that only scales, over the picture's size: none when they are the
+/// same size. Found black box on entries without `pasp`: a 640×240
+/// header over a 320×240 picture is 2:1, a 400×300 one 1:1, a matrix
+/// that doubles the width 2:1.
+fn header_aspect(
+    size: (u32, u32),
+    matrix: &[i32; 9],
+    w: Option<u32>,
+    h: Option<u32>,
+) -> Option<(u32, u32)> {
+    let [sx, 0, _, 0, sy, ..] = *matrix else {
+        return None;
+    };
+    let (w, h) = (u128::from(w?), u128::from(h?));
+    let dw = u128::from(size.0) * u128::from(sx.unsigned_abs());
+    let dh = u128::from(size.1) * u128::from(sy.unsigned_abs());
+    if dw == 0 || dh == 0 || (dw == w << 32 && dh == h << 32) {
+        return None;
+    }
+    let (n, m) = (dw * h, dh * w);
+    let (mut a, mut b) = (n, m);
+    while b != 0 {
+        (a, b) = (b, a % b);
+    }
+    Some((
+        u32::try_from(n.checked_div(a)?).ok()?,
+        u32::try_from(m.checked_div(a)?).ok()?,
+    ))
 }
 
 /// A display matrix as `ffprobe` prints one: three rows of three
@@ -1645,6 +1905,7 @@ pub fn packets<'a, S: Source + 'a>(
         shifts: probed.shifts,
         steps: probed.steps,
         covers: probed.covers,
+        pictures: probed.pictures,
     })
 }
 
@@ -2204,6 +2465,10 @@ struct Plan {
     /// Whether the first sample description is encrypted (`encv`, `enca`):
     /// the packets of its samples carry encryption side data.
     encrypted: bool,
+    /// AC-3 and E-AC-3: every packet lasts one frame of `fill`, the last
+    /// one too (found black box: a last sample of 384 ticks, or one that
+    /// ends past the edit, is listed at 1,536).
+    framed: bool,
 }
 
 impl Default for Plan {
@@ -2215,6 +2480,7 @@ impl Default for Plan {
             lead_fill: None,
             end: None,
             encrypted: false,
+            framed: false,
         }
     }
 }
@@ -2402,6 +2668,8 @@ fn plan(
         },
         end: listed_duration(movie, track).or(listed.duration),
         encrypted: protected,
+        framed: track.kind == TrackKind::Audio
+            && matches!(&track.description.fourcc.0, b"ac-3" | b"ec-3"),
     }
 }
 
@@ -2435,6 +2703,10 @@ fn trim_last(queue: &mut Queue, plan: Plan, tables: u64, raw: bool) {
     if plan.ctts || p.sample >= tables || d.is_some() {
         return;
     }
+    if let (true, Fill::Frame(Some(frame))) = (plan.framed, plan.fill) {
+        *d = Some(Some(frame));
+        return;
+    }
     let pts = p.pts.and_then(|r| i64::try_from(r.round()).ok());
     let left = plan
         .end
@@ -2462,6 +2734,8 @@ pub struct IsoProbedPackets {
     pub steps: Vec<Option<i64>>,
     /// See [`IsoProbed::covers`].
     pub covers: Vec<(usize, u64, u64)>,
+    /// See [`IsoProbed::pictures`].
+    pub pictures: Vec<usize>,
 }
 
 /// A track's next packets, each with the duration it is listed with when
@@ -2485,6 +2759,8 @@ struct IsoPackets<S> {
     steps: Vec<Option<i64>>,
     /// The cover pictures' packets.
     covers: Vec<(usize, u64, u64)>,
+    /// See [`IsoProbed::pictures`].
+    pictures: Vec<usize>,
 }
 
 /// One source shared by the iterators of every track, which are advanced
@@ -2509,7 +2785,37 @@ impl<S: Source> Source for Shared<'_, S> {
 
 impl<S: Source> PacketSource for IsoPackets<S> {
     fn visit(&mut self, f: &mut dyn FnMut(Packet) -> Result<bool, Failure>) -> Result<(), Failure> {
-        // A cover picture's packet comes first, untimed.
+        // A chapter picture track's first sample comes first, as it is
+        // stored, then a cover picture's packet, untimed.
+        let limits = Limits::default();
+        for &index in &self.pictures {
+            let Some(track) = self.movie.tracks.get(index) else {
+                continue;
+            };
+            let mut budget = Budget::new(&limits);
+            let first = self
+                .movie
+                .packets(index, Shared(&self.source), &limits, &mut budget)
+                .ok()
+                .and_then(|mut samples| samples.next())
+                .and_then(Result::ok);
+            let Some(p) = first else {
+                continue;
+            };
+            let packet = Packet {
+                stream: track.stream_index,
+                pts: Some(p.cts),
+                dts: Some(p.dts),
+                duration: Some(i64::from(p.duration)),
+                size: u64::from(p.size),
+                pos: Some(p.offset),
+                keyframe: true,
+                ..Packet::default()
+            };
+            if !f(packet)? {
+                return Ok(());
+            }
+        }
         for &(stream, pos, size) in &self.covers {
             let packet = Packet {
                 stream,
@@ -2522,7 +2828,6 @@ impl<S: Source> PacketSource for IsoPackets<S> {
                 return Ok(());
             }
         }
-        let limits = Limits::default();
         let movie = &self.movie;
         let tracks = movie.tracks.len();
         let mut budgets: Vec<Budget> = movie.tracks.iter().map(|_| Budget::new(&limits)).collect();
@@ -2854,8 +3159,12 @@ impl<S: Source> PacketSource for IsoPackets<S> {
                 });
             }
             // Audio presented from inside its first packet: the samples
-            // before the start are skipped, as `ffprobe` marks the packet.
-            if first.get(i).copied().unwrap_or(false) && track.kind == TrackKind::Audio {
+            // before the start are skipped, as `ffprobe` marks the packet
+            // (not Vorbis's, found black box).
+            if first.get(i).copied().unwrap_or(false)
+                && track.kind == TrackKind::Audio
+                && codec_name_of(track).as_deref() != Some("vorbis")
+            {
                 let skip = match self.edits.get(i).copied().flatten() {
                     Some(edit) => edit.skip,
                     None => self.priming.get(i).copied(),

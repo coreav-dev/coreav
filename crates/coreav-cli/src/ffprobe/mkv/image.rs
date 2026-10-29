@@ -16,6 +16,21 @@ pub struct Picture {
     pub profile: Option<&'static str>,
     /// Sample precision, for JPEG.
     pub bits: Option<u32>,
+    /// A PNG in the sRGB colour space.
+    pub srgb: bool,
+    /// The pixel aspect the image states: JFIF densities, PNG `pHYs`.
+    pub aspect: Option<(u32, u32)>,
+}
+
+impl Picture {
+    /// The colour the image states: sRGB's transfer and BT.709 primaries.
+    pub fn color(&self) -> coreav_isobmff::Color {
+        coreav_isobmff::Color {
+            primaries: self.srgb.then_some(1),
+            transfer: self.srgb.then_some(13),
+            ..coreav_isobmff::Color::default()
+        }
+    }
 }
 
 /// Reads a JPEG's first frame header.
@@ -82,6 +97,8 @@ pub fn jpeg(data: &[u8]) -> Option<Picture> {
                 pix_fmt,
                 profile,
                 bits: Some(bits),
+                srgb: false,
+                aspect: jfif_density(data),
             });
         }
         if marker == 0xDA {
@@ -126,7 +143,58 @@ pub fn png(data: &[u8]) -> Option<Picture> {
         pix_fmt,
         profile: None,
         bits: None,
+        srgb: png_chunk(data, b"sRGB").is_some(),
+        aspect: png_chunk(data, b"pHYs").and_then(|p| {
+            let x = u32::from_be_bytes(p.get(..4)?.try_into().ok()?);
+            let y = u32::from_be_bytes(p.get(4..8)?.try_into().ok()?);
+            let g = u32::try_from(crate::compat::gcd(u64::from(x), u64::from(y))).ok()?;
+            (x > 0 && y > 0).then(|| (x / g, y / g))
+        }),
     })
+}
+
+/// The pixel aspect a JFIF header (`APP0`, JFIF 1.02) states by its
+/// densities, when both are set.
+pub fn jfif_density(data: &[u8]) -> Option<(u32, u32)> {
+    let mut at = 2usize;
+    while data.get(at) == Some(&0xFF) {
+        let marker = *data.get(at + 1)?;
+        if matches!(marker, 0xD9 | 0xDA) {
+            return None;
+        }
+        let len = usize::from(u16::from_be_bytes([*data.get(at + 2)?, *data.get(at + 3)?]));
+        let segment = data.get(at + 4..at + 2 + len)?;
+        if marker == 0xE0 && segment.starts_with(b"JFIF\0") {
+            let x = u32::from(u16::from_be_bytes([*segment.get(8)?, *segment.get(9)?]));
+            let y = u32::from(u16::from_be_bytes([*segment.get(10)?, *segment.get(11)?]));
+            if x == 0 || y == 0 {
+                return None;
+            }
+            let g = crate::compat::gcd(u64::from(x), u64::from(y));
+            let g = u32::try_from(g).ok()?;
+            return Some((x / g, y / g));
+        }
+        at += 2 + len;
+    }
+    None
+}
+
+/// The data of a PNG's first chunk of type `kind` before its image data
+/// (ISO/IEC 15948 5.3: `sRGB` 11.3.3.5, `pHYs` 11.3.5.3).
+fn png_chunk<'a>(data: &'a [u8], kind: &[u8; 4]) -> Option<&'a [u8]> {
+    let mut at = 8usize;
+    loop {
+        let len =
+            usize::try_from(u32::from_be_bytes(data.get(at..at + 4)?.try_into().ok()?)).ok()?;
+        let name = data.get(at + 4..at + 8)?;
+        if name == b"IDAT" || name == b"IEND" {
+            return None;
+        }
+        if name == kind {
+            return data.get(at + 8..at.checked_add(8 + len)?);
+        }
+        at = at.checked_add(12 + len)?;
+    }
 }
 
 #[cfg(test)]

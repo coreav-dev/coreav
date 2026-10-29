@@ -190,6 +190,7 @@ pub fn probe<'a, S: Source + 'a>(
                 shifts,
                 steps,
                 covers,
+                pictures,
             }) => {
                 let listing = iso::IsoProbedPackets {
                     movie,
@@ -198,6 +199,7 @@ pub fn probe<'a, S: Source + 'a>(
                     shifts,
                     steps,
                     covers,
+                    pictures,
                 };
                 return Ok(Probed {
                     report,

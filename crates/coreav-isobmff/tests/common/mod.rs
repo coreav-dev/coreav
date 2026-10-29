@@ -21,6 +21,16 @@ pub fn cat(parts: &[Vec<u8>]) -> Vec<u8> {
     parts.concat()
 }
 
+/// What follows a version 0 `mvhd`'s duration: rate and volume (zero), the
+/// identity matrix as real files carry it, and zero pre-defined fields and
+/// next track ID.
+fn mvhd_rest() -> Vec<u8> {
+    let mut rest = vec![0u8; 16];
+    rest.extend_from_slice(&u32s(&[0x10000, 0, 0, 0, 0x10000, 0, 0, 0, 0x4000_0000]));
+    rest.extend_from_slice(&[0u8; 28]);
+    rest
+}
+
 pub fn u32s(values: &[u32]) -> Vec<u8> {
     values.iter().flat_map(|v| v.to_be_bytes()).collect()
 }
@@ -98,7 +108,7 @@ pub fn movie(spec: &Spec) -> Vec<u8> {
         MOVIE_TIMESCALE,
         duration * MOVIE_TIMESCALE / TIMESCALE,
     ]);
-    mvhd.extend_from_slice(&[0u8; 80]);
+    mvhd.extend_from_slice(&mvhd_rest());
     let matrix = u32s(&[0x10000, 0, 0, 0, 0x10000, 0, 0, 0, 0x4000_0000]);
     let mut tkhd = u32s(&[0, 0, 1, 0, duration]);
     tkhd.extend_from_slice(&[0u8; 16]);
@@ -230,7 +240,7 @@ pub fn movie(spec: &Spec) -> Vec<u8> {
 pub fn fragmented_movie(mehd: Option<u32>, edit: Option<(u32, i32)>) -> Vec<u8> {
     let ftyp = bx(b"ftyp", b"iso6\0\0\x02\0");
     let mut mvhd = u32s(&[0, 0, MOVIE_TIMESCALE, 0]);
-    mvhd.extend_from_slice(&[0u8; 80]);
+    mvhd.extend_from_slice(&mvhd_rest());
     let mut tkhd = u32s(&[0, 0, 1, 0, 0]);
     tkhd.extend_from_slice(&[0u8; 16]);
     tkhd.extend_from_slice(&u32s(&[
@@ -321,7 +331,7 @@ pub fn fragmented_movie(mehd: Option<u32>, edit: Option<(u32, i32)>) -> Vec<u8> 
 pub fn two_track_fragmented_movie(entry: &[u8; 4], external: bool) -> Vec<u8> {
     let ftyp = bx(b"ftyp", b"iso6\0\0\x02\0");
     let mut mvhd = u32s(&[0, 0, MOVIE_TIMESCALE, 0]);
-    mvhd.extend_from_slice(&[0u8; 80]);
+    mvhd.extend_from_slice(&mvhd_rest());
     let trak = |track_id: u32, entry: &[u8; 4], self_contained: bool| {
         let mut tkhd = u32s(&[0, 0, track_id, 0, 0]);
         tkhd.extend_from_slice(&[0u8; 16]);
@@ -541,7 +551,7 @@ pub fn av_movie_with(audio: Vec<u8>, minf_first: bool) -> Vec<u8> {
     let mdat = bx(b"mdat", &data);
     let video_at = (ftyp.len() + 8) as u32;
     let mut mvhd = u32s(&[0, 0, MOVIE_TIMESCALE, 160]);
-    mvhd.extend_from_slice(&[0u8; 80]);
+    mvhd.extend_from_slice(&mvhd_rest());
     let video = visual_entry(b"avc1", &bx(b"avcC", &[1, 100, 0, 30, 0xff, 0xe0, 0]));
     let moov = bx(
         b"moov",
@@ -563,7 +573,7 @@ pub fn av_movie_with(audio: Vec<u8>, minf_first: bool) -> Vec<u8> {
 pub fn implicit_base_fragments() -> (Vec<u8>, u64) {
     let ftyp = bx(b"ftyp", b"iso6\0\0\x02\0");
     let mut mvhd = u32s(&[0, 0, MOVIE_TIMESCALE, 0]);
-    mvhd.extend_from_slice(&[0u8; 80]);
+    mvhd.extend_from_slice(&mvhd_rest());
     let empty_trak = |id: u32, handler: &[u8; 4], entry: Vec<u8>| {
         let mut tkhd = u32s(&[0, 0, id, 0, 0]);
         tkhd.extend_from_slice(&[0u8; 16]);

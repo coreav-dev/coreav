@@ -50,7 +50,7 @@
 //!   its additional bit stream information ([`params::ac3`]); MPEG-4
 //!   Visual reports its configuration headers ([`params::mpeg4_visual`]);
 //!   H.265's coded size is the uncropped picture's, and a display aspect
-//!   ratio keeps terms of at most 2^20 ([`bounded_ratio`]). An SCTE 35
+//!   ratio keeps terms of at most 2^20 ([`crate::compat::bounded_ratio`]). An SCTE 35
 //!   stream starts at its first timed section ([`Head::splices`]).
 //! - The file. Its duration is the latest end less the earliest start in
 //!   microseconds, each stream's start and duration rounded on their own
@@ -1243,57 +1243,6 @@ fn picture_rate(times: &[Option<i64>]) -> Option<(u64, u64)> {
     (d <= 1001).then_some((n, d))
 }
 
-/// The largest term of a display aspect ratio `ffprobe` prints.
-const MAX_RATIO_TERM: u64 = 1 << 20;
-
-/// `num / den` as the closest fraction whose terms are both at most
-/// [`MAX_RATIO_TERM`], which is how `ffprobe` prints a display aspect
-/// ratio that does not reduce that far (1045314:784271 for a 914x686
-/// picture of samples 2740:2739, exactly 1252180:939477): the best of
-/// the convergents and intermediate fractions of its continued fraction
-/// within the bound. `None` when either term is 0.
-fn bounded_ratio(num: u64, den: u64) -> Option<(u64, u64)> {
-    if num == 0 || den == 0 {
-        return None;
-    }
-    let g = crate::compat::gcd(num, den);
-    let (num, den) = (num / g, den / g);
-    if num <= MAX_RATIO_TERM && den <= MAX_RATIO_TERM {
-        return Some((num, den));
-    }
-    // Convergents p/q of num/den, and between two of them the
-    // intermediate fractions, kept while both terms stay in bounds.
-    let (mut p0, mut q0, mut p1, mut q1) = (0u64, 1u64, 1u64, 0u64);
-    let (mut a, mut b) = (num, den);
-    let mut best: Option<(u64, u64)> = None;
-    // |p/q - num/den| times q * den, exactly.
-    let off = |(p, q): (u64, u64)| {
-        (u128::from(p) * u128::from(den)).abs_diff(u128::from(num) * u128::from(q))
-    };
-    // Whether x lies closer to num/den than y does.
-    let closer = |x: (u64, u64), y: (u64, u64)| off(x) * u128::from(y.1) < off(y) * u128::from(x.1);
-    while b != 0 {
-        let q = a / b;
-        for t in 1..=q {
-            let p = t.checked_mul(p1).and_then(|v| v.checked_add(p0));
-            let k = t.checked_mul(q1).and_then(|v| v.checked_add(q0));
-            let (Some(p), Some(k)) = (p, k) else {
-                return best;
-            };
-            if p > MAX_RATIO_TERM || k > MAX_RATIO_TERM {
-                return best;
-            }
-            if best.is_none_or(|b| closer((p, k), b)) {
-                best = Some((p, k));
-            }
-        }
-        (p0, p1) = (p1, q * p1 + p0);
-        (q0, q1) = (q1, q * q1 + q0);
-        (a, b) = (b, a % b);
-    }
-    best
-}
-
 /// Whether `times`, in order, step from one to the next by the period of
 /// `num / den` pictures a second, give or take a 90 kHz tick: no picture
 /// missing, and no drift from the rate.
@@ -1544,7 +1493,10 @@ fn video_entries(st: &coreav_mpegts::Stream, head: &Head, facts: &Facts, e: &mut
     e.push((
         "display_aspect_ratio",
         sar.and_then(|(a, b)| {
-            let (n, d) = bounded_ratio(u64::from(w).checked_mul(a)?, u64::from(h).checked_mul(b)?)?;
+            let (n, d) = crate::compat::bounded_ratio(
+                u64::from(w).checked_mul(a)?,
+                u64::from(h).checked_mul(b)?,
+            )?;
             ratio(n, d)
         })
         .map_or(Value::Na, s),
@@ -2579,18 +2531,6 @@ impl<S: Source> PacketSource for TsPackets<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn display_aspect_ratios_within_twenty_bits() {
-        // 914x686 at 2740:2739 is 1252180:939477, which `ffprobe` prints
-        // as the closest fraction of terms up to 2^20.
-        assert_eq!(
-            bounded_ratio(914 * 2740, 686 * 2739),
-            Some((1_045_314, 784_271))
-        );
-        assert_eq!(bounded_ratio(1920, 1080), Some((16, 9)));
-        assert_eq!(bounded_ratio(0, 9), None);
-    }
 
     #[test]
     fn frames_before_the_first_time_are_timed_back() {

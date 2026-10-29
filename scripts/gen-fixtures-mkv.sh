@@ -133,6 +133,20 @@ craft mkv_lace_fixed.mkv mkv_pcm.mkv lace fixed --track 1 --group 3
 craft mkv_header_strip.mkv mkv_h264_aac.mkv strip --track 1 --bytes 4
 craft mkv_block_groups.mkv mkv_h264_aac.mkv groups --track 1
 craft mkv_timestamp_scale.webm webm_vp9_opus.webm scale --timestamp-scale 500000
+# Laced audio at 44.1 kHz, where a frame's DefaultDuration is not a whole
+# millisecond: an AAC frame lasts its share of the block, an AC-3 frame
+# what its header says (found black box). ffmpeg writes no DefaultDuration
+# for AAC; this one is 1024 samples.
+A44=(-f lavfi -i "sine=frequency=440:duration=2:sample_rate=44100")
+if "${FF[@]}" "${A44[@]}" -c:a aac "$SRC/aac_44k.mkv" 2> /dev/null \
+    && "${FF[@]}" "${A44[@]}" -c:a ac3 "$SRC/ac3_44k.mkv" 2> /dev/null; then
+  craft mkv_lace_aac_44k.mkv .sources/aac_44k.mkv lace ebml --track 1 --group 8 \
+    --default-duration 23219954
+  craft mkv_lace_ac3_44k.mkv .sources/ac3_44k.mkv lace ebml --track 1 --group 8
+else
+  skip mkv_lace_aac_44k.mkv "ffmpeg-failed"
+  skip mkv_lace_ac3_44k.mkv "ffmpeg-failed"
+fi
 craft mkv_live_clusters.webm webm_vp9_opus.webm live
 
 # Headers that understate what the blocks hold (docs/design/policy-matroska.md):

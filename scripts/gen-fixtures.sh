@@ -545,6 +545,85 @@ gen_nested() { # OUT_FILE LEVELS
 }
 gen_nested "$OUT/nested_10000.mp4" 10000; generated nested_10000.mp4
 
+# --- Codecs that carry no configuration record, read from their first
+# frame or fixed by the codec, and audio configurations (B3a). ---
+KSRC=(-f lavfi -i "testsrc2=size=320x240:rate=25:duration=1")
+KAUD=(-f lavfi -i "sine=frequency=440:duration=1:sample_rate=48000")
+KSIX=(-af "pan=5.1|c0=c0|c1=c0|c2=c0|c3=c0|c4=c0|c5=c0")
+try_gen codec_mjpeg420.mov "${KSRC[@]}" -c:v mjpeg -pix_fmt yuvj420p
+try_gen codec_mjpeg422.mov "${KSRC[@]}" -c:v mjpeg -pix_fmt yuvj422p
+# 256x192: at 320x240 the JPEG data happens to hold what a forced MPEG-TS
+# probe takes for transport packets.
+try_gen codec_mjpeg444.mp4 -f lavfi -i "testsrc2=size=256x192:rate=25:duration=1" -c:v mjpeg -pix_fmt yuvj444p
+try_gen codec_mjpeg_sar.mov "${KSRC[@]}" -vf setsar=2/1 -c:v mjpeg
+try_gen codec_png.mov "${KSRC[@]}" -c:v png
+try_gen codec_png_sar.mov "${KSRC[@]}" -vf setsar=2/1 -c:v png
+try_gen codec_h263.3gp -f lavfi -i "testsrc2=size=176x144:rate=15:duration=1" -c:v h263
+try_gen codec_h263.mov -f lavfi -i "testsrc2=size=352x288:rate=25:duration=1" -c:v h263
+try_gen codec_dv_ntsc.mov -f lavfi -i "testsrc2=size=720x480:rate=30000/1001:duration=1" -c:v dvvideo -pix_fmt yuv411p
+try_gen codec_dv_pal.mov -f lavfi -i "testsrc2=size=720x576:rate=25:duration=1" -c:v dvvideo -pix_fmt yuv420p
+try_gen codec_dv50.mov -f lavfi -i "testsrc2=size=720x576:rate=25:duration=1" -c:v dvvideo -pix_fmt yuv422p
+try_gen codec_dv_hd720.mov -f lavfi -i "testsrc2=size=960x720:rate=60000/1001:duration=1" -c:v dvvideo -pix_fmt yuv422p
+try_gen codec_qtrle16.mov "${KSRC[@]}" -c:v qtrle -pix_fmt rgb555be
+try_gen codec_qtrle24.mov "${KSRC[@]}" -c:v qtrle -pix_fmt rgb24
+try_gen codec_qtrle32.mov "${KSRC[@]}" -c:v qtrle -pix_fmt argb
+try_gen codec_mpeg4_color.mp4 "${KSRC[@]}" -c:v mpeg4 -color_range pc -colorspace smpte170m -color_trc smpte170m
+try_gen codec_h264_gray.mp4 "${KSRC[@]}" -c:v libx264 -pix_fmt gray
+try_gen codec_h264_yuv422p.mp4 "${KSRC[@]}" -c:v libx264 -pix_fmt yuv422p
+try_gen codec_h264_yuv444p.mp4 "${KSRC[@]}" -c:v libx264 -pix_fmt yuv444p
+try_gen codec_h264_one_frame.mp4 "${KSRC[@]}" -frames:v 1 -c:v libx264 -pix_fmt yuv420p
+try_gen codec_mjpeg_one_frame.mov "${KSRC[@]}" -frames:v 1 -c:v mjpeg
+try_gen codec_alac16.m4a "${KAUD[@]}" -c:a alac -sample_fmt s16p
+try_gen codec_alac24.m4a "${KAUD[@]}" -c:a alac -sample_fmt s32p
+try_gen codec_amr_nb.3gp -f lavfi -i "sine=frequency=440:duration=1:sample_rate=8000" -c:a libopencore_amrnb -ar 8000 -ac 1
+try_gen codec_amr_wb.3gp -f lavfi -i "sine=frequency=440:duration=1:sample_rate=16000" -c:a libvo_amrwbenc -ar 16000 -ac 1
+try_gen codec_ac3_stereo.mp4 "${KAUD[@]}" -c:a ac3
+try_gen codec_ac3_51.mp4 "${KAUD[@]}" "${KSIX[@]}" -c:a ac3
+try_gen codec_eac3_stereo.mp4 "${KAUD[@]}" -c:a eac3
+try_gen codec_eac3_51.mp4 "${KAUD[@]}" "${KSIX[@]}" -c:a eac3
+try_gen codec_vorbis.mp4 "${KAUD[@]}" -c:a libvorbis -strict -2
+# Entries without pasp: the frame's own aspect ratio, or the DV system's.
+for src in codec_mjpeg_sar.mov codec_png_sar.mov codec_h263.3gp codec_dv_ntsc.mov codec_dv_pal.mov \
+    codec_dv50.mov codec_dv_hd720.mov; do
+  iso_patch "$src" "nopasp_$src" free 0 pasp
+done
+# AMR is mono, and AC-3 has the channels its dac3 or dec3 box states,
+# whatever the sample entry says.
+iso_patch codec_amr_nb.3gp entry_stereo_amr_nb.3gp channels 0 2
+iso_patch codec_ac3_51.mp4 entry_stereo_ac3_51.mp4 channels 0 2
+iso_patch codec_eac3_51.mp4 entry_stereo_eac3_51.mp4 channels 0 2
+# A matrix that scales or translates lists a display matrix, the movie
+# header's applied after the track's; without pasp, a scale or a track
+# header size other than the picture's gives the aspect ratio.
+iso_patch codec_qtrle24.mov matrix_translate.mov matrix 0 2 256
+iso_patch codec_qtrle24.mov matrix_scale.mov matrix 0 0 131072
+iso_patch codec_qtrle24.mov movie_matrix_x.mov movie-matrix 0 131072
+iso_patch movie_matrix_x.mov movie_matrix_xy.mov movie-matrix 4 128222
+iso_patch movie_matrix_xy.mov nopasp_movie_matrix.mov free 0 pasp
+iso_patch codec_qtrle24.mov nopasp_qtrle24.mov free 0 pasp
+iso_patch nopasp_qtrle24.mov nopasp_header_640.mov size 0 640 240
+iso_patch nopasp_qtrle24.mov nopasp_header_400.mov size 0 400 300
+iso_patch nopasp_qtrle24.mov nopasp_matrix_scale.mov matrix 0 0 131072
+# Chapter pictures: a video track that the last chap reference names.
+# ffmpeg names its chapter text track from the audio and the video track;
+# the audio's reference is pointed at the video, and the video's removed.
+printf ';FFMETADATA1\n[CHAPTER]\nTIMEBASE=1/1000\nSTART=0\nEND=500\ntitle=one\n[CHAPTER]\nTIMEBASE=1/1000\nSTART=500\nEND=1000\ntitle=two\n' \
+  > "$OUT/chapters.ffmeta"
+try_gen chapter_pictures_src.mov -f lavfi -i sine=d=2 -f lavfi -i "testsrc2=size=64x64:rate=1:duration=2" \
+  -i "$OUT/chapters.ffmeta" -map 0 -map 1 -map_chapters 2 -c:a aac -c:v mjpeg
+rm -f "$OUT/chapters.ffmeta"
+iso_patch chapter_pictures_src.mov chapter_pictures_ref.mov chap 0 2
+iso_patch chapter_pictures_ref.mov chapter_pictures.mov unref 1
+# Cover art is listed only when its data is typed JPEG (13) or PNG (14):
+# the PNG cover's type set to 0. The typed source is not a fixture, since
+# CoreAV's own probe lists no cover (KD-COVER-ART).
+"${FF[@]}" -f lavfi -i "testsrc2=size=64x64:rate=1:duration=1" -frames:v 1 "$OUT/cover_src.png"
+"${FF[@]}" "${KAUD[@]}" -i "$OUT/cover_src.png" -map 0 -map 1 -c:a aac -c:v copy \
+  -disposition:v attached_pic "$OUT/cover_src.m4a" || true
+rm -f "$OUT/cover_src.png"
+iso_patch cover_src.m4a cover_untyped.m4a cover-type 0
+rm -f "$OUT/cover_src.m4a"
+
 # --- Full-file remux and sanitization (docs/design/remux.md): location,
 # device and creation metadata as QuickTime keys (MOV) and user data (MP4). ---
 META=(-metadata "title=CoreAV fixture" -metadata creation_time=2026-01-02T03:04:05Z
