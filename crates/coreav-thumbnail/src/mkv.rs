@@ -75,6 +75,11 @@ pub(crate) fn plan<S: Source>(
                 max_num_ref_frames: None,
             })
             .unwrap_or(CutRule::Container),
+        // No `CodecPrivate`: the frames are a byte stream and carry their
+        // own parameter sets (RFC 9559 codec mappings, `V_MPEG4/ISO/AVC`;
+        // `docs/design/thumbnails.md`, "H.264 without a configuration
+        // record"), so the block's keyframe flag is checked against them.
+        (Codec::H264, None) => CutRule::H264ByteStream,
         (Codec::Hevc, Some(c)) => c
             .data
             .get(21)
@@ -121,10 +126,10 @@ pub(crate) fn plan<S: Source>(
             track.index,
             segment.packets(&mut *source, &options.matroska_limits),
             options,
-            at,
+            None,
             Some(limit),
         )?,
-        None => packets(&segment, track.index, source, options, at)?,
+        None => packets(&segment, track.index, source, options, at, rule, &prefix)?,
     };
     let stated = vec![true; packets.len()];
     Ok(Plan {
@@ -218,6 +223,8 @@ fn packets<S: Source>(
     source: &mut S,
     options: &ThumbnailOptions,
     at: Rational,
+    rule: CutRule,
+    prefix: &[u8],
 ) -> Result<Listed, Error> {
     let limits = &options.matroska_limits;
     let number = segment.tracks.get(track).map(|t| t.number);
@@ -239,42 +246,84 @@ fn packets<S: Source>(
             track,
             segment.packets_from(&mut *source, limits, cluster),
             options,
-            at,
+            Some(at),
             None,
         )?;
         // The Cues led to no keyframe at or before the time (they point
-        // past it, or at a cluster without one): read from the start.
-        let key_before = samples
-            .iter()
-            .any(|s| s.keyframe && s.time.is_some_and(|t| !at.checked_lt(t).unwrap_or(true)));
-        if !key_before {
-            return read(
-                segment,
-                track,
-                segment.packets(&mut *source, limits),
-                options,
-                at,
-                None,
-            );
+        // past it, at a cluster without one, or at blocks whose coded data
+        // does not start decoding, as a writer that flagged every block
+        // leaves them): read from the start.
+        if cut_point_before(source, &samples, &packets, at, rule, prefix)? {
+            return Ok((samples, packets, durations));
         }
+    }
+    let (samples, packets, durations) = read(
+        segment,
+        track,
+        segment.packets(&mut *source, limits),
+        options,
+        Some(at),
+        None,
+    )?;
+    if cut_point_before(source, &samples, &packets, at, rule, prefix)? {
         return Ok((samples, packets, durations));
     }
+    // No block at or before the time starts decoding: the stop rule would
+    // end the listing before the first that does, which `select` falls
+    // back to, so every block is listed.
     read(
         segment,
         track,
         segment.packets(&mut *source, limits),
         options,
-        at,
+        None,
         None,
     )
 }
 
+/// Whether a block of the listing presented at or before `at` starts
+/// decoding (`crate::starts_decoding`), checked from the latest back and
+/// filtered as `select::keyframe` checks them, so that a listing which
+/// holds one costs one check and the two agree on what it holds.
+fn cut_point_before<S: Source>(
+    source: &mut S,
+    samples: &[Sample],
+    packets: &[PacketRef],
+    at: Rational,
+    rule: CutRule,
+    prefix: &[u8],
+) -> Result<bool, Error> {
+    let candidates = samples
+        .iter()
+        .enumerate()
+        .rev()
+        .filter(|(_, s)| {
+            s.keyframe && s.presented && s.time.is_some_and(|t| !at.checked_lt(t).unwrap_or(true))
+        })
+        .map(|(i, _)| i);
+    for index in candidates {
+        let Some(packet) = packets.get(index) else {
+            continue;
+        };
+        // Matroska states every block's keyframe flag, so an unreadable
+        // frame keeps it (`crate::cut_point`).
+        if crate::starts_decoding(source, rule, prefix, packet, true)? {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+/// The track's packets of `listing`, at most `limit` of them. With `stop`,
+/// the listing ends at the first keyframe presented after that time and
+/// the frames it leads (`select`'s stop rule); without one it runs to the
+/// end of the listing.
 fn read<S: Source>(
     segment: &Segment,
     track: usize,
     listing: coreav_mkv::Packets<'_, S>,
     options: &ThumbnailOptions,
-    at: Rational,
+    stop: Option<Rational>,
     limit: Option<usize>,
 ) -> Result<Listed, Error> {
     let scale = i128::from(segment.timestamp_scale);
@@ -300,7 +349,7 @@ fn read<S: Source>(
         }
         let ns = p.pts_ns(segment);
         let time = ns.and_then(nanos);
-        if let (Some(k), None) = (later_key, limit) {
+        if let Some(k) = later_key {
             // Stop at the first packet after it that it does not lead.
             let leads = time.is_some_and(|t| t.checked_lt(k).unwrap_or(false));
             if !leads || !options.exact {
@@ -337,7 +386,7 @@ fn read<S: Source>(
         }));
         if p.keyframe
             && later_key.is_none()
-            && time.is_some_and(|t| at.checked_lt(t).unwrap_or(false))
+            && stop.is_some_and(|at| time.is_some_and(|t| at.checked_lt(t).unwrap_or(false)))
         {
             later_key = time;
         }

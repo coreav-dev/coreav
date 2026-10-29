@@ -62,10 +62,12 @@ fn check_end(samples: &[Sample], at: Rational) -> Result<(), Error> {
 /// none is (`at` before the first presented keyframe, or an edit list that
 /// presents no keyframe at all), the frame [`exact`] chooses. `cut_point(i)`
 /// says whether a sync sample really starts decoding
-/// (`docs/design/cut-points.md`).
+/// (`docs/design/cut-points.md`); `forward` allows the last resort of
+/// [`exact`].
 pub(crate) fn keyframe(
     samples: &[Sample],
     at: Rational,
+    forward: bool,
     cut_point: &mut dyn FnMut(usize) -> Result<bool, Error>,
 ) -> Result<Choice, Error> {
     check_end(samples, at)?;
@@ -94,15 +96,18 @@ pub(crate) fn keyframe(
             });
         }
     }
-    exact(samples, at, cut_point)
+    exact(samples, at, forward, cut_point)
 }
 
 /// Exact mode: the first frame presented at or after `at`, decoded from
 /// the latest keyframe before it in decode order that is not presented
-/// after it.
+/// after it. When no keyframe at or before it starts decoding and
+/// `forward`, the first one after it that does, whose frame is the one a
+/// decoder gives first there.
 pub(crate) fn exact(
     samples: &[Sample],
     at: Rational,
+    forward: bool,
     cut_point: &mut dyn FnMut(usize) -> Result<bool, Error>,
 ) -> Result<Choice, Error> {
     check_end(samples, at)?;
@@ -128,6 +133,26 @@ pub(crate) fn exact(
                 start: index,
                 target,
             });
+        }
+    }
+    // Nothing at or before the frame starts decoding: a stream whose
+    // first pictures precede its first parameter sets, or whose first
+    // keyframe comes later. Its first frames are undecodable, as they are
+    // for FFmpeg's decoder, which drops them and gives the frame of the
+    // first picture that decodes; that frame is this one.
+    if forward {
+        // Every keyframe presented after the frame, in decode order: one
+        // before it in decode order can be presented after it. A keyframe
+        // whose time is unknown is not one, as in the searches above: the
+        // image would be reported at the time asked for.
+        for (index, sample) in samples.iter().enumerate() {
+            let after = sample.time.is_some_and(|t| lt(time, t));
+            if sample.keyframe && sample.presented && after && cut_point(index)? {
+                return Ok(Choice {
+                    start: index,
+                    target: index,
+                });
+            }
         }
     }
     Err(Error::Unsupported(
@@ -170,14 +195,14 @@ mod tests {
         let s = gop();
         let mut all = |_| Ok(true);
         assert_eq!(
-            keyframe(&s, r(5), &mut all).expect("k"),
+            keyframe(&s, r(5), true, &mut all).expect("k"),
             Choice {
                 start: 0,
                 target: 0
             }
         );
         assert_eq!(
-            keyframe(&s, r(7), &mut all).expect("k"),
+            keyframe(&s, r(7), true, &mut all).expect("k"),
             Choice {
                 start: 7,
                 target: 7
@@ -185,15 +210,15 @@ mod tests {
         );
         // A sync sample that does not start decoding is skipped.
         let mut not7 = |i| Ok(i != 7);
-        assert_eq!(keyframe(&s, r(7), &mut not7).expect("k").target, 0);
+        assert_eq!(keyframe(&s, r(7), true, &mut not7).expect("k").target, 0);
         assert!(matches!(
-            keyframe(&s, r(8), &mut all),
+            keyframe(&s, r(8), true, &mut all),
             Err(Error::TimeOutOfRange)
         ));
         // Before the first keyframe: the first frame, decoded from it.
         let before = Rational::new(-1, 1).expect("-1");
         assert_eq!(
-            keyframe(&s, before, &mut all).expect("k"),
+            keyframe(&s, before, true, &mut all).expect("k"),
             Choice {
                 start: 0,
                 target: 0
@@ -203,7 +228,7 @@ mod tests {
         let mut hidden = gop();
         hidden[0].presented = false;
         assert_eq!(
-            keyframe(&hidden, r(2), &mut all).expect("k"),
+            keyframe(&hidden, r(2), true, &mut all).expect("k"),
             Choice {
                 start: 0,
                 target: 3
@@ -217,7 +242,7 @@ mod tests {
         let mut all = |_| Ok(true);
         // Time 2 is the third B frame in decode order (index 3).
         assert_eq!(
-            exact(&s, r(2), &mut all).expect("e"),
+            exact(&s, r(2), true, &mut all).expect("e"),
             Choice {
                 start: 0,
                 target: 3
@@ -225,21 +250,21 @@ mod tests {
         );
         let half = Rational::new(9, 2).expect("4.5");
         assert_eq!(
-            exact(&s, half, &mut all).expect("e"),
+            exact(&s, half, true, &mut all).expect("e"),
             Choice {
                 start: 0,
                 target: 6
             }
         );
         assert_eq!(
-            exact(&s, r(7), &mut all).expect("e"),
+            exact(&s, r(7), true, &mut all).expect("e"),
             Choice {
                 start: 7,
                 target: 7
             }
         );
         let before = Rational::new(-1, 1).expect("-1");
-        assert_eq!(exact(&s, before, &mut all).expect("e").target, 0);
+        assert_eq!(exact(&s, before, true, &mut all).expect("e").target, 0);
     }
 
     #[test]
@@ -256,11 +281,62 @@ mod tests {
             .collect();
         let mut all = |_| Ok(true);
         assert_eq!(
-            exact(&s, r(3), &mut all).expect("e"),
+            exact(&s, r(3), true, &mut all).expect("e"),
             Choice {
                 start: 0,
                 target: 3
             }
         );
+    }
+
+    #[test]
+    fn nothing_before_the_frame_starts_decoding() {
+        // Every block flagged a keyframe, only every fourth one a cut
+        // point: a writer that muxed a byte stream whose parameter sets
+        // and IDR pictures are in every fourth frame.
+        let s: Vec<Sample> = (0..8)
+            .map(|t| Sample {
+                time: Some(r(t)),
+                end: Some(r(t + 1)),
+                presented: true,
+                keyframe: true,
+            })
+            .collect();
+        let mut every_fourth = |i: usize| Ok(i % 4 == 3);
+        // The first cut point after a time before it.
+        assert_eq!(
+            keyframe(&s, r(0), true, &mut every_fourth).expect("k"),
+            Choice {
+                start: 3,
+                target: 3
+            }
+        );
+        assert_eq!(
+            exact(&s, r(1), true, &mut every_fourth).expect("e"),
+            Choice {
+                start: 3,
+                target: 3
+            }
+        );
+        // The cut point at or before the time wins over it.
+        assert_eq!(
+            keyframe(&s, r(5), true, &mut every_fourth).expect("k"),
+            Choice {
+                start: 3,
+                target: 3
+            }
+        );
+        // Not taken from a window: a packet before it might be a cut
+        // point.
+        assert!(matches!(
+            keyframe(&s, r(0), false, &mut every_fourth),
+            Err(Error::Unsupported(_))
+        ));
+        // No cut point at all.
+        let mut none = |_| Ok(false);
+        assert!(matches!(
+            exact(&s, r(0), true, &mut none),
+            Err(Error::Unsupported(_))
+        ));
     }
 }

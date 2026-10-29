@@ -236,6 +236,10 @@ pub(crate) enum CutRule {
         format: coreav_isobmff::access::AccessFormat,
         max_num_ref_frames: Option<u32>,
     },
+    /// H.264 stored as a byte stream (ITU-T H.264 Annex B), which a
+    /// Matroska track written without a configuration record carries: the
+    /// frame starts decoding by itself, read from the packet's bytes.
+    H264ByteStream,
     /// HEVC: the first coded slice is an IRAP picture.
     Hevc { length_size: u8 },
     /// AV1: a sequence header, then a key frame shown at once.
@@ -629,10 +633,15 @@ fn choose<S: Source>(
     exact: bool,
 ) -> Result<Choice, Error> {
     let mut cut_point = |index: usize| cut_point(source, plan, index);
+    // The first cut point after the frame is a last resort, taken only
+    // from a listing of every packet: a packet before a window might be a
+    // cut point, and `planned` lists every packet when a window's choice
+    // does not hold.
+    let forward = plan.window.is_none();
     if exact {
-        select::exact(&plan.samples, at, &mut cut_point)
+        select::exact(&plan.samples, at, forward, &mut cut_point)
     } else {
-        select::keyframe(&plan.samples, at, &mut cut_point)
+        select::keyframe(&plan.samples, at, forward, &mut cut_point)
     }
 }
 
@@ -765,9 +774,19 @@ fn cut_point<S: Source>(source: &mut S, plan: &Plan, index: usize) -> Result<boo
     let Some(packet) = plan.packets.get(index) else {
         return Ok(false);
     };
-    if !plan.prefix.is_empty() {
-        return Ok(stated);
-    }
+    starts_decoding(source, plan.rule, &plan.prefix, packet, stated)
+}
+
+/// Whether the frame of `packet` starts decoding under `rule`
+/// (`docs/design/cut-points.md`); `stated` is the container's word, which
+/// a frame whose coded data cannot be read keeps.
+pub(crate) fn starts_decoding<S: Source>(
+    source: &mut S,
+    rule: CutRule,
+    prefix: &[u8],
+    packet: &PacketRef,
+    stated: bool,
+) -> Result<bool, Error> {
     let mut work = 0u32;
     let mut charge = || {
         work += 1;
@@ -780,7 +799,26 @@ fn cut_point<S: Source>(source: &mut S, plan: &Plan, index: usize) -> Result<boo
             Ok(())
         }
     };
-    let read = match plan.rule {
+    let read = match rule {
+        CutRule::H264ByteStream => {
+            // A byte stream's units are the stretches between its start
+            // codes, so they are read from the packet's bytes rather than
+            // walked through the source a unit at a time: its first
+            // [`BYTE_STREAM_BYTES`], after the stripped prefix, which
+            // belongs to them (and which bounds the read, so no limit
+            // applies). Without a configuration record no
+            // `max_num_ref_frames` is known, so an intra reference
+            // picture of a one-reference stream is not taken for a cut
+            // point; an IDR picture and an exact recovery point are, and
+            // both are in those bytes.
+            let size = packet.size.min(BYTE_STREAM_BYTES);
+            let data = read_bytes(source, packet.offset, size, prefix, u64::MAX)?;
+            coreav_isobmff::access::annex_b_frame_access(&data, size == packet.size)
+                .map(|frame| frame.starts_decoding(None))
+        }
+        // The stored packet lacks the bytes the source holds (Matroska
+        // header stripping), so the frame cannot be walked through it.
+        _ if !prefix.is_empty() => return Ok(stated),
         CutRule::H264 {
             format,
             max_num_ref_frames,
@@ -896,6 +934,13 @@ fn packet_temporal_id<S: Source>(
     }
     Ok(None)
 }
+
+/// Bytes of a byte-stream packet read for its cut point: the parameter
+/// sets, any SEI messages ([`coreav_isobmff::access`] reads at most 4,096
+/// bytes of one) and the first slice header of a frame fit in them. A
+/// frame whose first slice lies past them cannot be read, so it keeps the
+/// container's word.
+const BYTE_STREAM_BYTES: u64 = 8_192;
 
 /// Packets after the target a second decode sends at most, past the
 /// reordering and the reference frames a decoder may hold (the seek

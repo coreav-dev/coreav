@@ -134,6 +134,105 @@ permissively licensed, but C code in the parent process would need a
 backend exception crate for a few milliseconds of work on a
 small image.
 
+## H.264 without a configuration record
+
+Matroska's codec mapping for `V_MPEG4/ISO/AVC` (RFC 9559) stores an
+`AVCDecoderConfigurationRecord` (ISO/IEC 14496-15 5.3.3.1) in
+`CodecPrivate`, and the frames then hold length-prefixed NAL units. Some
+writers store no `CodecPrivate` at all and mux the byte stream as it came
+(ITU-T H.264 Annex B: start codes, with the parameter sets before the
+pictures that use them). The decode boundary already reads those frames
+as a byte stream when the stream has no configuration record, so the
+pictures decode; what such a file needs besides is a cut point its blocks
+really hold:
+
+- **The keyframe flag of such a track is checked against the frame's own
+  NAL units**, read from the packet's bytes rather than walked through
+  the source a unit at a time, since a byte stream's units are the
+  stretches between its start codes
+  (`coreav_isobmff::access::annex_b_frame_access`, the thumbnail's
+  `CutRule::H264ByteStream`). The rule is the one cut points use
+  (`docs/design/cut-points.md`): an IDR picture, or an exact recovery
+  point with `recovery_frame_cnt` 0. FFmpeg's Matroska demuxer does not
+  take the flag for such a track either: it parses the byte stream, and
+  `ffprobe` reports only its IDR pictures as keyframes however the blocks
+  are flagged. Without a configuration record no
+  `max_num_ref_frames` is known, so an intra reference picture of a
+  one-reference stream is not taken for a cut point; that is the
+  reversible choice, and a stream with no record keeps its parameter sets
+  before its IDR pictures anyway. The first 8,192 bytes of the packet are
+  read: a frame's parameter sets, its SEI messages (at most 4,096 bytes
+  of one are read for a recovery point) and its first slice header are in
+  them. A frame whose units cannot be read keeps Matroska's flag, which
+  the container always states: a packet with no start code in those bytes,
+  one whose slice header does not parse, and one whose first slice lies
+  past them, which 8,192 bytes of parameter sets and SEI messages before a
+  slice would cause. The test is the IDR picture and the recovery point
+  alone, not whether the frame carries parameter sets: a stream whose
+  later IDR pictures do not repeat theirs still cannot be decoded from
+  them, and FFmpeg's decoder cannot either ("non-existing PPS 0
+  referenced"), so neither writes an image at such a time.
+- **A listing that holds no cut point at or before the time is read
+  again.** The Matroska glue lists the blocks from the Cues' cluster at
+  or before the time, until the first keyframe presented after it. A
+  writer that flagged every block leaves both the Cues and that stop rule
+  pointing at blocks that do not start decoding, so the listing is read
+  again from the first cluster, and then, if no block at or before the
+  time starts decoding either, to the end of the clusters. A thumbnail
+  near the end of a long file whose flags are wrong therefore lists the
+  blocks from its start, which costs a pass over the file's block headers
+  rather than one cluster's; stepping back one Cue at a time instead would
+  keep the cost nearer the Cues' and is a possible later change. Files
+  whose flagged keyframes are cut points, which is all of the fixtures and
+  the corpus (the instruction-count guard is unchanged), take neither
+  listing.
+- **When no frame at or before the time starts decoding, the first one
+  after it that does is the image** (`select::exact`'s last resort, taken
+  only from a listing of every packet; it holds for every container, an
+  ISO file whose first sync sample comes after the time included). Its pictures before that frame
+  cannot be decoded at all: FFmpeg's decoder reports "non-existing PPS 0
+  referenced" for each, gives no frame for them, and the first frame it
+  outputs is that cut point's. A time before the first cut point
+  therefore gives the same picture in both, rather than an error.
+
+This is why a Matroska file whose first pictures precede its first
+parameter sets now gives an image at every time. On such a file
+(Lavf 53.6.0, 720×480, 18 s, every block flagged a keyframe, parameter
+sets and an IDR picture in every fourth), `thumbnail` refused at 40% of
+the duration with "a slice names a missing picture parameter set"; it now
+decodes the IDR picture at or before the time, 43.57 dB against FFmpeg's
+image of the same frame in keyframe mode (I1) and 43.59 dB in exact mode
+(I2), against the 40 dB median of those bars; its JPEG is 1.93 dB closer
+to the lossless image than FFmpeg's of the same frame (I3), and the
+decode oracle's 118 compared frames of the file are all equal to
+FFmpeg's.
+
+Rejected alternatives:
+
+- *Decode past the undecodable pictures and present the frame that comes*,
+  as FFmpeg does with its error resilience. It gives the same image here,
+  for more decoding and a frame whose time is not the one asked for; and a
+  thumbnail that decodes pictures known to be undecodable cannot say
+  which frame it presents.
+- *Treat an empty `CodecPrivate` as a missing one.* An empty record holds
+  no parameter sets, so such a stream must carry them in-band, but it
+  says nothing about the framing: a writer that wrote one with
+  length-prefixed frames decodes today through the fallback backend and
+  would not with the byte stream assumed. Left alone until a file needs
+  it.
+- *Read the whole packet for the cut point.* The parameter sets and the
+  first slice header are at its start, and a frame's later slices only
+  bear on the intra and reference tests, which no stream without a record
+  can pass.
+- *A Matroska fixture of this shape for the oracle gates.* `mkv_craft.py
+  annexb` already makes a byte-stream fixture whose flags are honest
+  (`mkv_h264_annexb.mkv`); one with every block flagged would also need a
+  known divergence for the Matroska probe oracle, whose `ffprobe`
+  reference flags only the IDR pictures while `coreav-mkv` reports the
+  blocks' flags as stored. The shape is covered by
+  `crates/coreav-thumbnail/tests/mkv_byte_stream.rs` instead, and by the
+  file above.
+
 ## Frames nothing depends on
 
 `--exact` decodes from the keyframe before the frame at `T` up to it.

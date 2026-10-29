@@ -2,7 +2,8 @@
 //! (docs/design/random-access.md, docs/design/cut-points.md): as a file,
 //! probed and every H.264 track's packets read with `Packets::frame_access`;
 //! as one frame of length-prefixed NAL units through
-//! `access::read_frame_access` and `access::read_starts_decoding`; or as
+//! `access::read_frame_access` and `access::read_starts_decoding`, and as
+//! one stored as a byte stream through `access::annex_b_frame_access`; or as
 //! one AV1 sample through `access::read_av1_sync` and
 //! `access::read_av1_frame_start` (and as an `av1C` payload); each with a work limit.
 //! Every result is an answer or `None`, never a panic.
@@ -30,6 +31,9 @@ fuzz_target!(|data: &[u8]| {
         let format = AccessFormat::H264 {
             length_size: [1, 2, 4][usize::from(mode % 4) - 1],
         };
+        // The same bytes as one frame stored as a byte stream (ITU-T
+        // H.264 Annex B), whose units are read from the bytes.
+        let _ = access::annex_b_frame_access(rest, mode & 0x08 == 0);
         let source = &mut SliceSource::new(rest);
         if mode & 0x80 == 0 {
             let _ = access::read_frame_access(format, source, 0, len, &mut charge);
