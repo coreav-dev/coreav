@@ -18,13 +18,16 @@ use core::arch::x86_64::{
 use core::ptr;
 
 use super::{Average, Finish, Weigh, Weights, Words, low8, luma_mc_ptrs, vector8, weigh_full};
-use crate::predict::{PlaneOp, Planes, PlanesMut, place};
+use crate::predict::{
+    Macroblocks, Ops, Part, Placement, PlaneOp, Planes, PlanesMut, place, place_part,
+};
 use crate::views::{Block, BlockMut};
 use crate::{Kernels, Weighting};
 
-/// [`crate::Kernels::predict`]. `four` predicts a 4-wide luma block, for
-/// which there is no vector kernel here (`Simd::prefers_luma_mc`): the
-/// dispatching kernels, so that such a block goes where it went before.
+/// [`crate::Kernels::predict`]. `four` predicts a 4-wide luma block: the
+/// dispatching kernels, so that such a block goes where
+/// `Simd::prefers_luma_mc` sends it (`x86::luma4_padded`, or the reference
+/// for a block that is only copied).
 ///
 /// # Safety
 ///
@@ -69,7 +72,77 @@ pub(in crate::simd) unsafe fn predict_body<K: Kernels>(
     let Some(p) = place(&dst, src, px, py, w, h, mv, ops) else {
         return false;
     };
-    let [y, cb, cr] = dst.into_planes();
+    // SAFETY: AVX2 is available (the contract); `place` found `p` for
+    // these planes, `src` and this size.
+    unsafe { predict_placed(four, dst.into_planes(), src, &p, (w, h), ops) }
+}
+
+/// [`crate::Kernels::predict_part`], as [`predict`] is
+/// [`crate::Kernels::predict`].
+///
+/// # Safety
+///
+/// AVX2 is available.
+#[target_feature(enable = "avx2")]
+#[allow(clippy::too_many_arguments, reason = "the trait method's arguments")]
+pub(in crate::simd) unsafe fn predict_part<K: Kernels>(
+    four: &K,
+    dst: [&mut [u8]; 3],
+    mbs: &Macroblocks,
+    mb: [usize; 2],
+    part: Part,
+    src: &Planes<'_>,
+    mv: [i16; 2],
+    ops: Ops,
+) -> bool {
+    // SAFETY: AVX2 is available (this function's feature).
+    unsafe { predict_part_body(four, dst, mbs, mb, part, src, mv, ops) }
+}
+
+/// [`predict_part`]'s body, inlined wherever it is called, as
+/// [`predict_body`].
+///
+/// # Safety
+///
+/// AVX2 is available.
+#[inline(always)]
+#[allow(clippy::too_many_arguments, reason = "the trait method's arguments")]
+pub(in crate::simd) unsafe fn predict_part_body<K: Kernels>(
+    four: &K,
+    dst: [&mut [u8]; 3],
+    mbs: &Macroblocks,
+    mb: [usize; 2],
+    part: Part,
+    src: &Planes<'_>,
+    mv: [i16; 2],
+    ops: Ops,
+) -> bool {
+    let len = dst.each_ref().map(|plane| plane.len());
+    let Some(p) = place_part(len, mbs, mb, part, src, mv) else {
+        return false;
+    };
+    // SAFETY: AVX2 is available (the contract); `place_part` found `p`
+    // for slices of these lengths, `src` and this size.
+    unsafe { predict_placed(four, dst, src, &p, (part.w(), part.h()), ops.get()) }
+}
+
+/// The three planes of a `w` by `h` block at placement `p`.
+///
+/// # Safety
+///
+/// AVX2 is available, and `p` is the placement [`place`] or
+/// [`place_part`] returned for a `w` by `h` block, slices of the lengths
+/// of `[y, cb, cr]` and `src`: every region it names lies inside its
+/// slice.
+#[inline(always)]
+unsafe fn predict_placed<K: Kernels>(
+    four: &K,
+    [y, cb, cr]: [&mut [u8]; 3],
+    src: &Planes<'_>,
+    p: &Placement,
+    (w, h): (usize, usize),
+    ops: [PlaneOp; 3],
+) -> bool {
     let [luma, op_cb, op_cr] = ops;
     let stride = p.stride;
     if w == 4 {
@@ -89,11 +162,11 @@ pub(in crate::simd) unsafe fn predict_body<K: Kernels>(
             PlaneOp::Weigh(weighting) => four.luma_mc_weighted(to, from, p.xf, p.yf, weighting),
         }
     } else {
-        // SAFETY: AVX2 is available (this function's feature); `place`
-        // checked that the window from `luma_src` holds `h + 5` rows of
-        // `w + 5` samples and the block from `luma_dst` `h` rows of `w`,
-        // `stride` apart, so both pointers lie inside their slices; `w` is
-        // 8 or 16 and `h` 4 to 16.
+        // SAFETY: AVX2 is available (the contract); the placement holds
+        // that the window from `luma_src` holds `h + 5` rows of `w + 5`
+        // samples and the block from `luma_dst` `h` rows of `w`, `stride`
+        // apart, so both pointers lie inside their slices; `w` is 8 or 16
+        // and `h` 4 to 16.
         unsafe {
             luma_block(
                 y.as_mut_ptr().wrapping_add(p.luma_dst),
@@ -106,7 +179,7 @@ pub(in crate::simd) unsafe fn predict_body<K: Kernels>(
         }
     }
     let (from, to) = (p.chroma_src, p.chroma_dst);
-    // SAFETY: AVX2 is available; `place` checked that each window from
+    // SAFETY: AVX2 is available; the placement holds that each window from
     // `chroma_src` holds `h / 2 + 1` rows of `w / 2 + 1` samples and each
     // block from `chroma_dst` `h / 2` rows of `w / 2`, `stride / 2` apart,
     // so the pointers lie inside their slices; `w / 2` is 2, 4 or 8 and

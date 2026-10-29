@@ -8,7 +8,7 @@ When a review corrects a mistake, fix it and add its rule here. If the rule is a
 |---|---|
 | No `unwrap`, `expect`, `panic!`, `todo!`, `unimplemented!` or slice indexing in production code | Workspace lints in `Cargo.toml`, `cargo clippy --workspace --all-targets -- -D warnings` (`ci.yml`) |
 | No `unsafe` outside the files `docs/unsafe-sites.md` lists; the change that adds or changes an `unsafe` site adds or updates its row there | `unsafe_code = "forbid"` (`Cargo.toml`); `scripts/unsafe_sites_check.py` (`ci.yml`) fails on a file with `unsafe` and no row. It checks files, not sites: a new site in a listed file passes it, so its row is review judgment |
-| Every commit carries `Signed-off-by` matching its author (`git commit -s`) | DCO step of `deny.yml` |
+| Every commit a pull request adds carries a `Signed-off-by` with its author's email (`git commit -s`) | `scripts/dco_check.py` (`deny.yml`): the name may differ and the email's case is ignored; commits already on `main` are skipped |
 | Dependencies keep to the license policy | `cargo deny check` and the fuzz projects' license check (`deny.yml`) |
 | Default builds link no still-patented codec | `deny.yml` |
 | A pull request's title and its commit subjects are Conventional Commits, `type(scope): summary` with the template's types (merge commits excepted); the title's summary is at most 50 characters and the title under 72; commit subjects are at most 72 characters | `scripts/pr_shape_check.py` (`pr-text.yml`) |

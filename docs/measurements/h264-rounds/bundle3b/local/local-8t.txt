@@ -1,0 +1,8 @@
+round 0
+round 1
+round 2
+round 3
+round 4
+round 5
+wall b3n: all 0.9861 [0.9633, 1.0031] (21/32 faster) sd 0.9963 720p 0.9572 1080p 1.0014 4k 0.9730
+cpu b3n: all 0.9878 [0.9681, 1.0011] (21/32 faster) sd 1.0014 720p 0.9587 1080p 0.9749 4k 1.0007

@@ -1,0 +1,4 @@
+gating base/k same 96
+port fast same 96
+port safe same 96
+port vs gating base same 96

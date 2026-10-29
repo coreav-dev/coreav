@@ -13,8 +13,8 @@
 #![allow(clippy::expect_used, clippy::indexing_slicing)]
 
 use coreav_kernels_h264::{
-    Auto, Block, BlockMut, Combine, EdgeMut, EdgeParams, Kernels, MAX_ORIGIN, MAX_SIZE, PlaneOp,
-    Planes, PlanesMut, Reach, Scalar, Simd, Weighting,
+    Auto, Block, BlockMut, Combine, EdgeMut, EdgeParams, Kernels, MAX_ORIGIN, MAX_SIZE, Ops, Part,
+    PlaneOp, Planes, PlanesMut, Reach, Scalar, Simd, Weighting,
 };
 
 /// A reproducible pseudo-random source.
@@ -1030,6 +1030,7 @@ fn three_plane_prediction_matches_the_reference() {
             rows,
         };
         let (mut declined, mut predicted_blocks, mut past_the_edge) = (0, 0, 0);
+        let mut by_part = 0;
         for (w, h) in [4, 8, 16]
             .into_iter()
             .flat_map(|w| [4, 8, 16].map(|h| (w, h)))
@@ -1128,6 +1129,46 @@ fn three_plane_prediction_matches_the_reference() {
                     );
                     assert_eq!(done, expected.is_some(), "{what}");
                     assert_eq!(got, want, "{what}");
+                    // `predict_part` of the same block, from the
+                    // macroblocks the planes hold: what `predict` writes,
+                    // or nothing; and nothing from any slice shorter than
+                    // the one they were found from.
+                    let Some(part) = Part::new(px % 16, py % 16, w, h) else {
+                        continue;
+                    };
+                    // `Ops` declines the weightings `predict` declines.
+                    let Some(checked) = Ops::new(ops) else {
+                        assert!(expected.is_none(), "{what}");
+                        continue;
+                    };
+                    let mb = [px / 16, py / 16];
+                    // Each slice in turn one sample shorter than the
+                    // macroblocks hold it to, after the whole.
+                    for short in [None, Some(0), Some(1), Some(2)] {
+                        let mut got = picture.clone();
+                        let [gy, gcb, gcr] = &mut got[..] else {
+                            unreachable!()
+                        };
+                        let mbs = PlanesMut::with_origin(gy, gcb, gcr, stride, first, dst_origin)
+                            .macroblocks();
+                        // The length the macroblocks hold each slice to: the
+                        // luma slice's, and the shorter chroma slice's.
+                        let chroma = gcb.len().min(gcr.len());
+                        let cut = |plane, n: usize, bound: usize| {
+                            if short == Some(plane) { bound - 1 } else { n }
+                        };
+                        let ny = cut(0, gy.len(), gy.len());
+                        let (ncb, ncr) = (cut(1, gcb.len(), chroma), cut(2, gcr.len(), chroma));
+                        let dst = [&mut gy[..ny], &mut gcb[..ncb], &mut gcr[..ncr]];
+                        let done = k.predict_part(dst, &mbs, mb, part, &src, mv, checked);
+                        if done {
+                            assert!(expected.is_some() && short.is_none(), "{what}, part");
+                            assert_eq!(got, want, "{what}, part");
+                            by_part += 1;
+                        } else {
+                            assert_eq!(got, picture, "{what}, part declined");
+                        }
+                    }
                 }
             }
         }
@@ -1135,6 +1176,7 @@ fn three_plane_prediction_matches_the_reference() {
             declined > 100 && predicted_blocks > 1000,
             "{slack:?}: {declined} {predicted_blocks}"
         );
+        assert!(by_part > 1000, "{slack:?}: {by_part} by part");
         // With slack, windows past the picture's edge are taken.
         assert!(
             slack == [0, 0] || past_the_edge > 100,
