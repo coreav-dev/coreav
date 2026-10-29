@@ -3,8 +3,8 @@ name: pr-text
 # The pull request's title, body and commits (docs/design/ci-checks.md,
 # "The pull request's shape"): scripts/pr_text_check.py without the private
 # list (Korean text, a run identifier, spend details), and
-# scripts/pr_shape_check.py (the title's form and length, commit subjects of
-# at most 72 characters, no attribution lines). It runs again when the
+# scripts/pr_shape_check.py (Conventional Commits titles and commit
+# subjects, and their lengths). It runs again when the
 # title or body is edited. Read-only token, no secret: the private list
 # stays on the agent's machine ("Before opening a pull request"). Not a
 # required check, so the ruleset is unchanged; a failure still shows on the
@@ -38,7 +38,7 @@ jobs:
           PYTHONDONTWRITEBYTECODE: '1'
         run: |
           set -euo pipefail
-          git log --format='%H%x00%B%x00' "$BASE..$HEAD" > "$RUNNER_TEMP/commits"
+          git log --format='%H%x00%P%x00%B%x00' "$BASE..$HEAD" > "$RUNNER_TEMP/commits"
           status=0
           python3 -I scripts/pr_text_check.py --event "$GITHUB_EVENT_PATH" || status=1
           python3 -I scripts/pr_shape_check.py --event "$GITHUB_EVENT_PATH" --commits "$RUNNER_TEMP/commits" || status=1

@@ -13,10 +13,11 @@ HERE = pathlib.Path(__file__).resolve().parent
 SPEC = importlib.util.spec_from_file_location('pr_shape_check', HERE / 'pr_shape_check.py')
 check = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(check)
+NOT_FORM = 'is not ' + chr(96) + 'type(scope): summary' + chr(96)
 
 
 def log(*messages):
-    return ''.join(f'{n:040x}\x00{m}\n\x00\n' for n, m in enumerate(messages, 1))
+    return ''.join(f'{n:040x}'[::-1] + f'\x00{0:040x}\x00{m}\n\x00\n' for n, m in enumerate(messages, 1))
 
 
 class Titles(unittest.TestCase):
@@ -50,38 +51,42 @@ class Commits(unittest.TestCase):
 
     def test_a_subject_wrapped_over_two_lines(self):
         # Git joins the first paragraph into one subject of 81 characters.
-        failures = check.commit_failures(log(f'{"a" * 40}\n{"b" * 40}\n\nSigned-off-by: A <a@b.c>'))
+        failures = check.commit_failures(log(f'fix: {"a" * 35}\n{"b" * 40}\n\nSigned-off-by: A <a@b.c>'))
         self.assertEqual(len(failures), 1)
         self.assertIn('81 characters', failures[0])
 
     def test_a_whitespace_only_line_ends_the_subject(self):
-        self.assertEqual(check.commit_failures(log(f'{"a" * 72}  \n \t\n{"b" * 300}\n\nSigned-off-by: A <a@b.c>')), [])
+        self.assertEqual(check.commit_failures(log(f'fix: {"a" * 67}  \n \t\n{"b" * 300}\n\nSigned-off-by: A <a@b.c>')), [])
 
-    def test_attribution_trailers(self):
-        failures = check.commit_failures(log(
-            'fix(cli): hls package refuses - as its directory\n\nCo-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>\nSigned-off-by: A <a@b.c>',
-            'fix: x\n\n\U0001f916 Generated with [Claude Code](https://claude.com/claude-code)\n\nSigned-off-by: A <a@b.c>'))
-        self.assertEqual(len(failures), 2, failures)
-        self.assertIn('line 3', failures[0])
-        self.assertTrue(check.text_failures('body', 'text\nco-authored-by: someone'))
-        self.assertTrue(check.text_failures('body', 'Generated with Claude Code'))
-        self.assertEqual(check.text_failures('body', '- "Generated with" lines are caught here'), [])
+    def test_a_subject_that_is_not_conventional(self):
+        # Subjects main had before the check: no type, and a type the template does not list.
+        for subject in ('Minimal site: hero only, and the introduction post as a draft', 'build(cli): x', 'fix:no space'):
+            with self.subTest(subject=subject):
+                failures = check.commit_failures(log(subject))
+                self.assertEqual(len(failures), 1, failures)
+                self.assertIn(NOT_FORM, failures[0])
+        for subject in ('fix!: reject invalid input', 'fix(H264): reject invalid input', 'ci: fine'):
+            self.assertEqual(check.commit_failures(log(subject)), [], subject)
 
-    def test_attribution_with_blanks_git_still_reads(self):
-        # git interpret-trailers --parse reads "Co-Authored-By : A" as the trailer.
-        for line in ('Co-Authored-By : A <a@b.c>', 'Co-Authored-By\t: A <a@b.c>', 'Generated  with Tool', 'Generated\twith Tool'):
-            self.assertTrue(check.text_failures('body', f'text\n\n{line}'), line)
-            self.assertEqual(len(check.commit_failures(log(f'fix: x\n\n{line}'))), 1, line)
+    def test_a_merge_commit_needs_no_type(self):
+        merge = f'{1:040x}\x00{2:040x} {3:040x}\x00Merge remote-tracking branch \'origin/main\' into x\n\x00\n'
+        self.assertEqual(check.commit_failures(merge), [])
+        self.assertEqual(len(check.commit_failures(merge.replace(f' {3:040x}', ''))), 1)
+
+    def test_attribution_lines_are_not_checked(self):
+        self.assertEqual(check.commit_failures(log(
+            'fix(cli): hls package refuses - as its directory\n\nCo-Authored-By: A <a@b.c>\nSigned-off-by: A <a@b.c>',
+            'fix: x\n\n\U0001f916 Generated with [a tool](https://example.com)\n\nSigned-off-by: A <a@b.c>')), [])
 
     def test_a_record_separator_in_a_message_hides_nothing(self):
-        failures = check.commit_failures(log('fix: x\n\n\x1e\nCo-Authored-By: A <a@b.c>'))
+        failures = check.commit_failures(log('update things\n\n\x1e\nmore', 'ci: fine'))
         self.assertEqual(len(failures), 1, failures)
-        self.assertIn('attribution', failures[0])
+        self.assertIn(f'commit 1{0:011x}', failures[0])
 
     def test_a_commit_list_in_another_form_is_refused(self):
         sha = 'a' * 40
-        for text in (f'{sha}\x00fix: x\n\x1e\n', f'{sha}\x00fix: x\n', f'{sha}\x00fix: x\n\x00\n{sha}',
-                     'not a sha\x00fix: x\n\x00\n', f'{sha}\x00fix: x\x00extra\x00\n'):
+        for text in (f'{sha}\x00fix: x\n\x1e\n', f'{sha}\x00\x00fix: x\n', f'{sha}\x00\x00fix: x\n\x00\n{sha}',
+                     'not a sha\x00\x00fix: x\n\x00\n', f'{sha}\x00fix: x\x00extra\x00\n', f'{sha}\x00fix: x\n\x00\n'):
             failures = check.commit_failures(text)
             self.assertEqual(len(failures), 1, text)
             self.assertIn('no commit was checked', failures[0])
@@ -89,7 +94,7 @@ class Commits(unittest.TestCase):
 
     def test_ordinary_commits_pass(self):
         self.assertEqual(check.commit_failures(log(
-            'perf(mpegts): parse a PES header once per packet\n\nThe co-authored code of #9 and text generated with ffmpeg stay.\n\nSigned-off-by: A <a@b.c>')), [])
+            'perf(mpegts): parse a PES header once per packet\n\nThe code of #9 stays.\n\nSigned-off-by: A <a@b.c>')), [])
 
 
 class Command(unittest.TestCase):
@@ -105,10 +110,10 @@ class Command(unittest.TestCase):
             commits.write_text(log('ci: fine\n\nSigned-off-by: A <a@b.c>'))
             run = self.run_check('--event', str(event), '--commits', str(commits))
             self.assertEqual(run.returncode, 0, run.stdout)
-            commits.write_text(log('ci: fine\n\nCo-Authored-By: B <b@c.d>'))
+            commits.write_text(log('fine\n\nSigned-off-by: A <a@b.c>'))
             run = self.run_check('--event', str(event), '--commits', str(commits))
             self.assertEqual(run.returncode, 1)
-            self.assertIn('attribution', run.stdout)
+            self.assertIn(NOT_FORM, run.stdout)
             commits.write_text(log('ci: fine').replace('\x00\n', '\x1e\n'))
             run = self.run_check('--event', str(event), '--commits', str(commits))
             self.assertEqual(run.returncode, 1)
@@ -118,18 +123,22 @@ class Command(unittest.TestCase):
             self.assertIn('pr-shape: cannot read', run.stderr)
 
     def test_the_workflow_command_on_a_real_repository(self):
-        # The log command pr-text.yml runs, on a commit whose message holds a record separator.
+        # The log command pr-text.yml runs: a merge, a message holding a record separator, a plain subject.
         with tempfile.TemporaryDirectory() as d:
             git = ['git', '-C', d, '-c', 'user.name=T', '-c', 'user.email=t@t.t']
-            subprocess.run(git + ['init', '-q'], check=True)
-            subprocess.run(git + ['commit', '-q', '--allow-empty', '-m', 'ci: base'], check=True)
-            subprocess.run(git + ['commit', '-q', '--allow-empty', '-m', 'fix: x\n\n\x1e\nCo-Authored-By: A <a@b.c>'], check=True)
-            subprocess.run(git + ['commit', '-q', '--allow-empty', '-m', 'ci: fine'], check=True)
-            text = subprocess.run(git + ['log', '--format=%H%x00%B%x00', 'HEAD~2..HEAD'], check=True,
-                                  capture_output=True, text=True).stdout
-            failures = check.commit_failures(text)
+
+            def run(*args):
+                return subprocess.run(git + list(args), check=True, capture_output=True, text=True).stdout
+            run('init', '-q', '-b', 'main')
+            run('commit', '-q', '--allow-empty', '-m', 'ci: base')
+            run('checkout', '-q', '-b', 'side')
+            run('commit', '-q', '--allow-empty', '-m', 'fix: x\n\n\x1e\nupdate things')
+            run('checkout', '-q', 'main')
+            run('commit', '-q', '--allow-empty', '-m', 'update things')
+            run('merge', '-q', '--no-ff', '--no-edit', 'side')
+            failures = check.commit_failures(run('log', '--format=%H%x00%P%x00%B%x00', 'HEAD~2..HEAD'))
             self.assertEqual(len(failures), 1, failures)
-            self.assertIn('attribution', failures[0])
+            self.assertIn(NOT_FORM, failures[0])
 
 
 if __name__ == '__main__':
