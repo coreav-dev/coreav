@@ -18,7 +18,7 @@
 
 #![allow(unsafe_code)]
 
-use coreav_kernels_h264::{Kernels, PlaneOp, Planes, PlanesMut};
+use coreav_kernels_h264::{Kernels, Macroblocks, Ops, Part, Planes};
 
 use crate::cabac::{self, Cabac, Category, Engine, Source};
 use crate::error::Result;
@@ -88,7 +88,6 @@ mod v3 {
         cabac::residual_body::<N, V3>(t, c, cat, max, out, scan, scale)
     }
 
-    #[allow(clippy::too_many_arguments)]
     #[target_feature(
         enable = "avx,avx2,bmi1,bmi2,f16c,fma,lzcnt,movbe,popcnt,sse3,ssse3,sse4.1,sse4.2"
     )]
@@ -98,12 +97,9 @@ mod v3 {
         list: usize,
         m: &Motion,
         target: Target<'_>,
-        px: usize,
-        py: usize,
-        w: usize,
-        h: usize,
+        part: Part,
     ) -> Result<()> {
-        d.predict_fast_body(t, list, m, target, px, py, w, h)
+        d.predict_fast_body(t, list, m, target, part)
     }
 }
 
@@ -142,28 +138,24 @@ impl Tier for V3 {
         list: usize,
         m: &Motion,
         target: Target<'_>,
-        px: usize,
-        py: usize,
-        w: usize,
-        h: usize,
+        part: Part,
     ) -> Result<()> {
         // SAFETY: `self` proves the CPU has the features (`V3::detect`).
-        unsafe { v3::predict_fast(self, d, list, m, target, px, py, w, h) }
+        unsafe { v3::predict_fast(self, d, list, m, target, part) }
     }
 
     #[inline(always)]
     fn predict_kernel<K: Kernels>(
         self,
         k: &K,
-        dst: PlanesMut<'_>,
+        dst: [&mut [u8]; 3],
+        mbs: &Macroblocks,
+        mb: [usize; 2],
+        part: Part,
         src: &Planes<'_>,
-        px: usize,
-        py: usize,
-        w: usize,
-        h: usize,
         mv: [i16; 2],
-        ops: [PlaneOp; 3],
+        ops: Ops,
     ) -> bool {
-        k.predict_inlined(dst, src, px, py, w, h, mv, ops)
+        k.predict_part_inlined(dst, mbs, mb, part, src, mv, ops)
     }
 }

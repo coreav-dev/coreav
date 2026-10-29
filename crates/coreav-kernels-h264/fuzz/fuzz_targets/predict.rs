@@ -8,15 +8,19 @@
 //! write past a window or block leaves its slice. And the same reference
 //! cut to the rows one band of it holds (`Planes::band`): every kernel
 //! takes from it only blocks the whole reference takes, predicts them
-//! alike, and writes nothing for the others.
+//! alike, and writes nothing for the others. And the same block by its
+//! macroblock (`Kernels::predict_part`): what `predict` writes, or
+//! nothing.
 #![no_main]
 
-use coreav_kernels_h264::{Auto, Kernels, PlaneOp, Planes, PlanesMut, Scalar, Simd, Weighting};
+use coreav_kernels_h264::{
+    Auto, Kernels, Ops, Part, PlaneOp, Planes, PlanesMut, Scalar, Simd, Weighting,
+};
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
     let Some(simd) = Simd::detect() else { return };
-    let Some((head, samples)) = data.split_at_checked(18) else {
+    let Some((head, samples)) = data.split_at_checked(19) else {
         return;
     };
     let size = |b: u8| [4, 8, 16][usize::from(b) % 3];
@@ -117,6 +121,40 @@ fuzz_target!(|data: &[u8]| {
             run(k) == want,
             "{name} {w}x{h} at ({px}, {py}), first {first} {chroma_first}, {mv:?}, {ops:?}"
         );
+    }
+    // The same block by its macroblock (`Kernels::predict_part`), from the
+    // macroblocks the picture's planes hold: what `predict` writes, or
+    // nothing.
+    if let (Some(part), Some(checked)) = (Part::new(px % 16, py % 16, w, h), Ops::new(ops)) {
+        for (name, k) in [("scalar", &Scalar as &dyn Kernels)].into_iter().chain(kernels) {
+            let (mut y, mut cb, mut cr) = (dy.clone(), dcb.clone(), dcr.clone());
+            let first = [first, chroma_first];
+            let mbs = PlanesMut::with_origin(&mut y, &mut cb, &mut cr, stride, first, dst_origin)
+                .macroblocks();
+            // One slice, chosen by the input, shorter than the macroblocks
+            // hold it to (the luma slice's length, and the shorter chroma
+            // slice's), which must be declined; or none.
+            let cut = usize::from(head[18] / 4).max(1);
+            let chroma = cb.len().min(cr.len());
+            let short = |plane: usize, n: usize, bound: usize| {
+                if usize::from(head[18] % 4) == plane {
+                    bound.saturating_sub(cut)
+                } else {
+                    n
+                }
+            };
+            let ny = short(0, y.len(), y.len());
+            let (ncb, ncr) = (short(1, cb.len(), chroma), short(2, cr.len(), chroma));
+            let shortened = (ny, ncb, ncr) != (y.len(), cb.len(), cr.len());
+            let dst = [&mut y[..ny], &mut cb[..ncb], &mut cr[..ncr]];
+            let done = k.predict_part(dst, &mbs, [px / 16, py / 16], part, &src, mv, checked);
+            let what = format!("part: {name} {w}x{h} at ({px}, {py}), {mv:?}, {mbs:?}, short {head:?}");
+            if done {
+                assert!(!shortened && want.0 && (done, y, cb, cr) == want, "{what}");
+            } else {
+                assert!(y == dy && cb == dcb && cr == dcr, "{what}: a declined block wrote");
+            }
+        }
     }
     // The reference's rows `held[0]..` and chroma rows `held[1]..`, as many
     // as the slices hold, from the picture's rows (not its slack).

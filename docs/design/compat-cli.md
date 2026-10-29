@@ -480,6 +480,10 @@ failed remote read), 141 standard output closed by its reader. `ffprobe`
 itself exits 1 for all of 1 to 3; a script that tests for success sees the
 same answer.
 
+A refused command runs FFmpeg's `ffmpeg` or `ffprobe` instead unless
+strict-safe mode is on (`COREAV_STRICT_SAFE=1`, `coreav --strict-safe`),
+the mode for services that read untrusted input: see "Fallback to FFmpeg".
+
 ### Output fidelity
 
 **Standard output is the contract**, byte for byte: the section order,
@@ -587,10 +591,15 @@ rules, so the cut points need not be `ffmpeg`'s.
 
 **One refusal point.** Every command that is not native, whether the
 parser, the plan or a writer finds it (a writer's `Unsupported` or a codec
-it does not copy), reaches one function, `refuse_ffmpeg` in `compat_cmd.rs`,
-as a `NotNative` with a typed `Reason`: `Option(name, value)` for an option
-or the value refused, `Property(text)` for a property of the command or its
-input. It exits 4, and the fallback (below) hooks there. A file CoreAV
+it does not copy), reaches one call, `fallback_cmd::refuse` in `run_ffmpeg`
+(`compat_cmd.rs`), as the `NotNative` of `fallback.rs` that `coreav
+ffprobe` refuses with, its typed `Reason` `Option(name, value)` for an
+option or the value refused, `Property(text)` for a property of the command
+or its input. In strict-safe mode it exits 4; otherwise FFmpeg's `ffmpeg`
+runs the command as given ("Fallback to FFmpeg"). Each refusal comes
+before any output is written, the ones found once the input is read
+included (an output that exists without `-y` or `-n`), so FFmpeg finds
+the files as they were. A file CoreAV
 rejects exits 1, a malformed command 2, an unreadable input 3. `-h`,
 `-help` and `--help` are refused like the other informational queries
 (unlike `coreav ffprobe -h`, which prints a usage text): `commands-v1` lists
@@ -611,7 +620,8 @@ fixtures whose picture size changes inside the track for the clip and split
 oracles. Threshold: 100% of the outputs, in `fixtures.yml` and
 `mkv-fixtures.yml`.
 
-**Not covered: refused, exit 4, by name.**
+**Not covered: refused by name (exit 4 in strict-safe mode, else run by
+FFmpeg).**
 
 - **C02**, `-f concat`: the job is `coreav join`, and the list file is not
   read yet. It is refused as `-f concat` until the list reader lands.
@@ -636,6 +646,16 @@ oracles. Threshold: 100% of the outputs, in `fixtures.yml` and
   drops.
 - Matroska and WebM inputs to the jobs other than the remux, and
   MPEG-TS inputs to all of them, as "Containers" says.
+- An input or output named with a protocol: standard input or output
+  (`-`, `pipe:`), and any name with a colon before its first `/` (on
+  Windows, its first `/` or `\`), where `ffmpeg` may read a protocol and its
+  options: `file:in.mp4`, a URL, `subfile,,start,0,end,99999,,:in.mp4`,
+  `:in.mp4`, `a,b:c.mp4`. Some of these `ffmpeg` opens as a plain file, so
+  the rule refuses more than it must (black box: `foo:in.mp4` and
+  `:out.mp4` fail with "Protocol not found", `a,b:c.mp4` is written as
+  named). A name that starts with `/` or `./` is a path, as is, on Windows
+  only, a drive letter before a separator (`C:\in.mp4`, `C:/in.mp4`):
+  elsewhere `ffmpeg` reads `C:/in.mp4` as protocol `C`.
 
 ### The measurements, fixed before the runs
 
@@ -1093,8 +1113,9 @@ is measured below.
 
 ## Fallback to FFmpeg
 
-Design only: the implementation is a later pull request, under these
-rules. A command that is not native (one refused above with exit status 4,
+Implemented in `coreav-cli` (`fallback.rs` redacts and writes the log
+line, `fallback_cmd.rs` finds and runs the program) under these rules. A
+command that is not native (one refused above with exit status 4,
 the commands that ask for no section included) runs the real `ffmpeg` or
 `ffprobe` instead, unless strict-safe mode is on. With the fallback, the
 compatibility command can stand in for FFmpeg in a pipeline that also runs
@@ -1116,14 +1137,18 @@ service's input. Every bar of this note is measured in it.
 
 1. `COREAV_FALLBACK=<path>`: a directory names its `ffmpeg` and `ffprobe` (with
    `.exe` on Windows); a file names that program, for the tool its file name
-   names. When the path names the other tool, does not exist or is not
+   names. A relative path is taken from the working directory, never looked
+   up on `PATH`. When the path names the other tool, does not exist or is not
    executable, nothing runs: the refusal stands (exit 4) with one more line
    that names the variable and the reason. It never falls through to `PATH`,
    which would run a different FFmpeg than the one asked for.
-2. Otherwise the first `ffmpeg` or `ffprobe` on `PATH` that is an executable file
-   and is not this program: the canonical path and the file identity are
-   compared with the running executable's, so the multicall link and a hard
-   link to `coreav` are skipped.
+2. Otherwise the first `ffmpeg` or `ffprobe` on `PATH` that this process can
+   run (on Unix, `access` with `X_OK`, so an execute bit for others only does
+   not count) and is not this program, made absolute before it is logged or
+   run (an empty element of `PATH` is the working directory): its file identity is compared with the running
+   executable's, so the multicall link and a hard link to `coreav` are
+   skipped. Windows has no file identity in Rust's standard library, so
+   there the bytes are compared, which skips a copy of `coreav` too.
 3. None found: the refusal stands, exit 4, as today.
 
 Only a refusal is handed on. A file CoreAV rejects (exit 1), a malformed
@@ -1145,7 +1170,8 @@ are FFmpeg's; on Windows it starts the program, waits, and exits with its
 exit code. Either way the exit status of a fallback is the program's.
 
 **Recursion guard.** The added variable is `COREAV_FALLBACK_ACTIVE=1`. A
-`coreav` started with it set never falls back: it refuses (exit 4) with a line
+`coreav` started with it set, to any value, empty and `0` included, never
+falls back: it refuses (exit 4) with a line
 saying the fallback led back to CoreAV. That stops a loop through a wrapper
 script, or a copy of `coreav` under another name, that the path comparison
 cannot see. The variable reaches FFmpeg's own children too, which is
@@ -1174,8 +1200,13 @@ level:
 
     {"time": "2026-10-29T08:00:00Z", "coreav": "0.1.0", "tool": "ffmpeg", "args": ["-i", "INPUT", "-vf", "VALUE", "-c:a", "copy", "OUTPUT"], "reason": "-vf", "ran": "/usr/bin/ffmpeg"}
 
-`ran` is null when nothing ran, and `not_run` then says why (strict-safe mode,
-no program found, `COREAV_FALLBACK` unusable, the recursion guard). The file
+`ran` is null when nothing ran, and `not_run` then says why: `strict_safe`,
+`no_program`, `fallback_unusable` (`COREAV_FALLBACK` names nothing that can
+run, or the program could not start) or `recursion_guard`. The line is
+written before the program starts, since on Unix nothing of CoreAV runs
+after it; a program that then cannot start (a script whose interpreter is
+missing) adds a second line for the same command, with `ran` null and
+`not_run` `fallback_unusable`, and the command exits 4. The file
 is opened to append and each line is one write, so processes running at
 once do not interleave lines. A log that cannot be written costs one line
 on standard error, at every log level, and never stops the command.
@@ -1189,7 +1220,10 @@ Every file name, URL and other bare argument becomes a placeholder (`INPUT`,
 `OUTPUT`, `FILE`), and every other value becomes `VALUE`.
 
 - **Option names.** An option is written as its base name (`-c`, `-map_metadata`),
-  up to any `=` in it. A stream-specifier suffix is kept only when it is a
+  up to any `=` in it, when the pinned binaries' `-h full` lists it, and as
+  `-OPTION` otherwise: after an option whose arity is unknown, a value that
+  starts with `-` would otherwise be logged as an option name. An option off
+  the listing is taken to have a value, which becomes `VALUE`. A stream-specifier suffix is kept only when it is a
   stream type or an index (`-c:v`, `-c:a:0`, `-b:1`); any other suffix becomes
   `:SPEC`, so `-c:m:comment:private_id` is logged as `-c:SPEC`.
 - **Values:**
@@ -1208,12 +1242,15 @@ Every file name, URL and other bare argument becomes a placeholder (`INPUT`,
 
 The name lists are taken from the pinned binaries' own listings and from the
 documentation, committed with the implementation, never from the command
-being logged. The same redaction applies to `reason`, which names the option
+being logged: `scripts/fallback_names.py` generates
+`crates/coreav-cli/src/fallback/names.rs` from FFmpeg 7.0.2's `-h full`,
+`-encoders`, `-formats` and `ffprobe -sections`, and the keys from
+`coreav ffprobe`'s source. libaom-av1's private options are left out of it. The same redaction applies to `reason`, which names the option
 or property the command was refused for, so a refusal of
 `-show_entries format_tags=private_label` logs `format_tags=KEY` there too.
 
-Every option outside the table, step 1's or not, keeps its redacted name and
-loses its value. A command line can carry private data in places no list of
+Every option outside the table, step 1's or not, keeps its redacted name
+(`-OPTION` when it is off the listing) and loses its value. A command line can carry private data in places no list of
 dangerous options foresees: `-headers "Authorization: ..."`, a URL with a
 token, a proxy password, a metadata selector inside the vocabulary
 (`-map 0:m:comment:...`), a metadata key in a stream specifier
@@ -1241,7 +1278,9 @@ differences. It waits for what the fallback logs show (0.1.x).
 directory named by `COREAV_FALLBACK` that prints its arguments and exits 7
 shows the exit status passed through, standard output untouched, the
 notice at every log level (`-v quiet` included), the log line, strict-safe refusing, and a
-link to `coreav` in that directory stopped by the guard. The redaction has
+link to `coreav` in that directory stopped by the guard, and a `coreav
+ffmpeg` command refused once its input is read (an output that exists)
+handed over with the output untouched. The redaction has
 its own regression cases, each a refused command with a private marker
 string that must appear nowhere in the log line, `args` and `reason` alike:
 `-c:m:comment:MARKER copy`, `-map 0:m:comment:MARKER`,
@@ -1252,5 +1291,5 @@ command refused for the option that carries the marker.
 
 ## What is not here yet
 
-The `-f concat` list reader for `coreav ffmpeg` (C02), a writer that clips audio
-alone (C15 and C19), and the fallback.
+The `-f concat` list reader for `coreav ffmpeg` (C02) and a writer that clips
+audio alone (C15 and C19).

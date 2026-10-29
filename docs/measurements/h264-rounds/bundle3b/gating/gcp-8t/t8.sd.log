@@ -1,0 +1,21 @@
+machine: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz (family 6, model 207, stepping 2), 2300.0 MHz, 8 logical CPUs
+gate baseline: 0.401 s (samples 0.401, 0.401, 0.402)
+41e324ebb708.0.sd.h264                   base:discard=0.86  base:write=0.92  base:mixed=0.79  k:discard=0.86  k:write=0.92  k:mixed=0.79
+5185721dda11.0.sd.h264                   base:discard=0.97  base:write=0.95  base:mixed=0.88  k:discard=0.97  k:write=0.95  k:mixed=0.88
+6f7799768413.0.sd.h264                   base:discard=0.95  base:write=1.06  base:mixed=0.89  k:discard=0.95  k:write=1.06  k:mixed=0.89
+7650ae466748.0.sd.h264                   base:discard=0.91  base:write=0.93  base:mixed=0.87  k:discard=0.91  k:write=0.93  k:mixed=0.87
+gate after 4 streams (check): 0.400 s (-0.3%)
+8ae90cadb5bc.0.sd.h264                   base:discard=0.93  base:write=0.95  base:mixed=0.90  k:discard=0.92  k:write=0.94  k:mixed=0.90
+dcb262cf0138.0.sd.h264                   base:discard=0.78  base:write=0.78  base:mixed=0.74  k:discard=0.78  k:write=0.78  k:mixed=0.74
+ec473c99c538.0.sd.h264                   base:discard=0.79  base:write=0.74  base:mixed=0.69  k:discard=0.79  k:write=0.75  k:mixed=0.69
+f9e973f44570.0.sd.h264                   base:discard=0.85  base:write=0.83  base:mixed=0.81  k:discard=0.85  k:write=0.83  k:mixed=0.81
+gate after 8 streams (check): 0.405 s (+0.9%)
+
+base:discard             n=  8  median 0.886  [0.790, 0.946]
+base:write               n=  8  median 0.925  [0.782, 0.949]
+base:mixed               n=  8  median 0.841  [0.735, 0.886]
+k:discard                n=  8  median 0.887  [0.791, 0.945]
+k:write                  n=  8  median 0.922  [0.782, 0.948]
+k:mixed                  n=  8  median 0.840  [0.737, 0.888]
+
+wrote out/t8.sd.json

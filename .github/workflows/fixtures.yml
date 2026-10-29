@@ -518,7 +518,7 @@ jobs:
           set -euo pipefail
           cargo test --locked --release -p coreav-isobmff-write --test join fixtures_round_trip -- --ignored
           python3 -I scripts/join_check.py --manifest "$COREAV_JOIN_OUT/manifest.json" \
-            --mediainfo "$RUNNER_TEMP/coreav-oracle-bin/mediainfo" \
+            --mediainfo "$RUNNER_TEMP/coreav-oracle-bin/mediainfo" --ffmpeg-concat \
             --report "$RUNNER_TEMP/coreav-join.json"
       # docs/design/compat-cli.md, "coreav ffmpeg" (R3 on the fixtures):
       # every ffmpeg command of commands-0.1.0 on every fixture it can take,

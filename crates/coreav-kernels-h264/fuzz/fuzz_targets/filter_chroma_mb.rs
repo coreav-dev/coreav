@@ -4,7 +4,8 @@
 //! segment, thresholds that differ between the planes (α 0 included),
 //! strides from the narrowest a window takes, planes of different strides,
 //! and windows that start at their plane's first sample and end at or
-//! near its last.
+//! near its last; and parameters of any bytes, which the decoder never
+//! forms but the trait allows (t'C0 past the bytes kernel's 31, bS past 4).
 #![no_main]
 
 use coreav_kernels_h264::{Auto, ChromaMbMut, EdgeParams, Kernels, Scalar, Simd};
@@ -30,6 +31,26 @@ fn params(b: &[u8], bs: [u8; 4]) -> EdgeParams {
     }
 }
 
+/// Parameters of any bytes.
+fn any_params(b: &[u8]) -> EdgeParams {
+    let at = |i: usize| b.get(i).copied().unwrap_or(0);
+    EdgeParams {
+        alpha: at(2),
+        beta: at(3),
+        tc0: [
+            at(4),
+            at(5),
+            at(6),
+            at(7),
+            at(8),
+            at(9),
+            at(2) ^ at(5),
+            at(3) ^ at(6),
+        ],
+        bs: [at(0), at(1), at(0) ^ at(9), at(1) ^ at(8)],
+    }
+}
+
 fuzz_target!(|data: &[u8]| {
     let Some(simd) = Simd::detect() else { return };
     let Some((head, samples)) = data.split_at_checked(44) else {
@@ -48,6 +69,13 @@ fuzz_target!(|data: &[u8]| {
     for (slot, pair) in table.iter_mut().enumerate() {
         let b = &head[4 + 10 * slot..14 + 10 * slot];
         if b[0] % 3 == 0 {
+            continue;
+        }
+        if head[3] >= 128 {
+            *pair = [
+                any_params(b),
+                any_params(&[b[9], b[8], b[7], b[6], b[5], b[4], b[3], b[2], b[1], b[0]]),
+            ];
             continue;
         }
         let bs = [b[1] % 5, b[1] / 5 % 5, b[1] / 25 % 5, b[0] / 3 % 5];

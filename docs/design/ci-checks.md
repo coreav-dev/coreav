@@ -143,6 +143,35 @@ that a pull request changing the fixture generator, the pinned FFmpeg
 installer or the web-upload policy now measures as well — rare, and the
 safe direction.
 
+## DCO sign-off
+
+Every commit a pull request adds carries a Developer Certificate of Origin
+sign-off by its author. `scripts/dco_check.py` is that check; it runs in
+`deny.yml`, which nothing filters, and its tests in
+`scripts/dco_check_selftest.py` run in the same job. A commit passes when
+one of its `Signed-off-by` trailers carries the author's email, compared
+without regard to case; a merge commit is judged like any other. On a
+failure it names the commit and how to fix it:
+`git commit --amend -s --no-edit` for the last commit. For earlier
+commits, `git rebase --signoff <base>` signs every commit of the branch,
+but it rewrites history, so the branch is pushed with
+`--force-with-lease`, and it drops merge commits. On a branch that uses
+merge commits, `git rebase --signoff --rebase-merges <base>` keeps them,
+but the merges it recreates carry no sign-off, so an unsigned merge is
+redone with `git merge --signoff`.
+
+- **The email, not the name and email.** GitHub writes a squash merge with
+  the account's display name as its author and signs it with the account's
+  login, so on `main` the two names differ while the email is the same.
+  The email is what identifies the person; the name is free text.
+- **Commits already on `main` are skipped.** The check reads
+  `BASE..HEAD` minus everything reachable from `origin/main`. A stacked
+  pull request's base is another branch, and once that branch merges
+  `main` in, `BASE..HEAD` holds `main`'s own commits, which the pull
+  request did not write and cannot sign. The checkout fetches every branch
+  (`fetch-depth: 0`), so `origin/main` is there; when it is not, the
+  check fails rather than judging nothing.
+
 ## Default builds and patents
 
 Default builds contain no implementation of a still-patented codec, and CI

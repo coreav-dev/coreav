@@ -14,7 +14,8 @@
 mod common;
 
 use common::{Spec, aac_entry, av_movie_with};
-use coreav_cli::ffmpeg::{Reason, Refusal, Stop};
+use coreav_cli::fallback::Reason;
+use coreav_cli::ffmpeg::{Refusal, Stop};
 use coreav_cli::ffprobe::StreamKind;
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
@@ -41,10 +42,13 @@ struct Run {
     stderr: String,
 }
 
+/// Runs in strict-safe mode, so that a refused command is refused rather
+/// than handed to an FFmpeg on `PATH` (`tests/fallback.rs` tests that).
 fn ffmpeg(args: &[&str]) -> Run {
     let out = Command::new(bin())
         .arg("ffmpeg")
         .args(args)
+        .env("COREAV_STRICT_SAFE", "1")
         .output()
         .unwrap();
     Run {
@@ -192,6 +196,78 @@ fn a_clock_time_out_of_range_is_a_usage_error() {
         );
         assert!(!output.exists(), "{args:?}");
     }
+}
+
+#[test]
+fn names_with_a_protocol_are_refused_and_never_written() {
+    let dir = scratch("ffmpeg-protocol");
+    let input = movie(&dir);
+    let subfile = "subfile,,start,0,end,99999,,:";
+    let cases = ["file:", subfile, ":", "a,b:"].into_iter().flat_map(|p| {
+        [
+            (vec![format!("{p}in.mp4"), "out.mp4".to_owned()], "an input"),
+            (
+                vec!["in.mp4".to_owned(), format!("{p}out.mp4")],
+                "an output",
+            ),
+        ]
+    });
+    for (names, named) in cases.chain([(vec![":x".to_owned(), "out.mp4".to_owned()], "an input")]) {
+        let args = ["-i", &names[0], "-c", "copy", &names[1]];
+        let out = Command::new(bin())
+            .arg("ffmpeg")
+            .args(args)
+            .current_dir(&dir)
+            .env("COREAV_STRICT_SAFE", "1")
+            .output()
+            .unwrap();
+        let stderr = String::from_utf8(out.stderr).unwrap();
+        assert_eq!(out.status.code(), Some(4), "{args:?}: {stderr}");
+        assert!(
+            stderr.contains(&format!("{named} named with a protocol")),
+            "{args:?}: {stderr}"
+        );
+        let mut names: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .collect();
+        names.sort();
+        assert_eq!(names, ["in.mp4"], "{args:?}");
+    }
+    assert!(input.ends_with("in.mp4"));
+}
+
+#[test]
+fn names_that_are_paths_despite_a_colon_run_natively() {
+    let dir = scratch("ffmpeg-colon-paths");
+    movie(&dir);
+    let run = |args: &[&str]| {
+        Command::new(bin())
+            .arg("ffmpeg")
+            .args(args)
+            .current_dir(&dir)
+            .env("COREAV_STRICT_SAFE", "1")
+            .output()
+            .unwrap()
+    };
+    // Windows file names cannot hold a colon.
+    if !cfg!(windows) {
+        std::fs::copy(dir.join("in.mp4"), dir.join("a:b.mp4")).unwrap();
+        let out = run(&["-i", "./a:b.mp4", "-c", "copy", "./c:d.mp4"]);
+        assert_eq!(out.status.code(), Some(0), "{out:?}");
+        assert!(dir.join("c:d.mp4").exists());
+    }
+    // A drive letter starts a path on Windows only; elsewhere `ffmpeg`
+    // reads `C` as a protocol.
+    let drive = if cfg!(windows) {
+        dir.join("e.mp4").to_str().unwrap().replace('\\', "/")
+    } else {
+        "C:/e.mp4".to_owned()
+    };
+    let out = run(&["-i", "in.mp4", "-c", "copy", &drive]);
+    let code = if cfg!(windows) { 0 } else { 4 };
+    assert_eq!(out.status.code(), Some(code), "{drive}: {out:?}");
+    assert_eq!(dir.join("e.mp4").exists(), cfg!(windows), "{drive}");
 }
 
 #[test]

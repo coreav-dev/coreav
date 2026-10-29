@@ -198,6 +198,69 @@ fn interpolation_matches_the_reference() {
     }
 }
 
+/// A 4-wide luma block, which the x86 kernels predict through the 8-wide
+/// one on copies: every height and position, written, averaged and
+/// weighted, from windows whose rows end at the slice's end (stride 9, and
+/// the last row of every stride) as well as from wider ones, into blocks
+/// whose neighbours must stay as they were.
+#[cfg(target_arch = "x86_64")]
+#[test]
+fn a_4_wide_luma_block_matches_the_reference() {
+    use crate::Weighting;
+    if !available() {
+        return;
+    }
+    let mut rng = Rng(41);
+    for case in 0..4096 {
+        let h = 1 + case % 16;
+        let (xf, yf) = (((case / 16) % 4) as u8, ((case / 64) % 4) as u8);
+        let src_stride = [9, 10, 13, 16, 24][rng.below(5)];
+        // Exactly the window: the last row ends the slice.
+        let src = rng.samples(src_stride * (h + 4) + 9);
+        let source = Block::new(&src, 0, src_stride, 9, h + 5).expect("window");
+        let dst_stride = 4 + rng.below(13);
+        let plane = rng.samples(dst_stride * (h + 1) + 4);
+        let at = rng.below(dst_stride as u64 - 3);
+        let weighting = match rng.below(3) {
+            0 => Weighting::Uni {
+                log_wd: rng.below(8) as i32,
+                w: rng.below(256) as i32 - 128,
+                o: rng.below(256) as i32 - 128,
+            },
+            _ => Weighting::Bi {
+                log_wd: rng.below(8) as i32,
+                w0: rng.below(256) as i32 - 128,
+                w1: rng.below(256) as i32 - 128,
+                o: rng.below(256) as i32 - 128,
+            },
+        };
+        for form in 0..3 {
+            let mut want = plane.clone();
+            let mut got = plane.clone();
+            let block = |out| BlockMut::new(out, at, dst_stride, 4, h).expect("block");
+            match form {
+                0 => Scalar.luma_mc(block(want.as_mut_slice()), source, xf, yf),
+                1 => Scalar.luma_mc_avg(block(want.as_mut_slice()), source, xf, yf),
+                _ => Scalar.luma_mc_weighted(block(want.as_mut_slice()), source, xf, yf, weighting),
+            }
+            // SAFETY: as above.
+            unsafe {
+                match form {
+                    0 => arch::luma_mc(block(got.as_mut_slice()), source, xf, yf),
+                    1 => arch::luma_mc_avg(block(got.as_mut_slice()), source, xf, yf),
+                    _ => {
+                        arch::luma_mc_weighted(block(got.as_mut_slice()), source, xf, yf, weighting)
+                    }
+                }
+            }
+            assert_eq!(
+                got, want,
+                "4x{h} ({xf}, {yf}), form {form}, strides {src_stride} and {dst_stride}, case {case}"
+            );
+        }
+    }
+}
+
 #[test]
 fn prediction_combining_matches_the_reference() {
     if !available() {
@@ -748,6 +811,56 @@ fn the_chroma_macroblock_matches_the_reference() {
         assert_eq!(got_cr, want_cr, "case {case}: Cr, Auto");
     }
     assert!(changed > 4000, "{changed} planes filtered");
+}
+
+/// The chroma edges of a macroblock in one call against the reference on
+/// parameters of any bytes (`x86::chroma_mb::tests::extreme_params`): bS
+/// past 4 and t'C0 past the 31 the vector kernel on bytes takes, which it
+/// hands to the paired kernel, and in-range rows beside them.
+#[cfg(target_arch = "x86_64")]
+#[test]
+fn the_chroma_macroblock_matches_the_reference_on_any_parameters() {
+    let Some(simd) = super::Simd::detect() else {
+        return;
+    };
+    let mut rng = Rng(0x51c3);
+    let all = super::x86::chroma_mb::tests::extreme_params(8 * 3000);
+    for (case, eight) in all.chunks_exact(8).enumerate() {
+        let stride = [10, 16, 24][case % 3];
+        // Smooth samples, so that lines pass the thresholds that let them.
+        let base = rng.below(200) as u8;
+        let plane = |rng: &mut Rng| -> Vec<u8> {
+            (0..12 * stride)
+                .map(|_| base.saturating_add(rng.below(12) as u8))
+                .collect()
+        };
+        let (cb, cr) = (plane(&mut rng), plane(&mut rng));
+        let mut params = [[EdgeParams::default(); 2]; 4];
+        for (k, p) in params.iter_mut().flatten().enumerate() {
+            *p = eight[k];
+            // Half the rows within the table's range, so that the vector
+            // kernel runs as well as its fallback.
+            if case % 2 == 0 {
+                p.tc0 = p.tc0.map(|t| t % 32);
+            }
+        }
+        let at = 2 * stride + 2;
+        let (mut want_cb, mut want_cr) = (cb.clone(), cr.clone());
+        crate::chroma_mb_by_edges(
+            &Scalar,
+            ChromaMbMut::new(&mut want_cb, at, stride).expect("window"),
+            ChromaMbMut::new(&mut want_cr, at, stride).expect("window"),
+            &params,
+        );
+        let (mut got_cb, mut got_cr) = (cb, cr);
+        simd.filter_chroma_mb(
+            ChromaMbMut::new(&mut got_cb, at, stride).expect("window"),
+            ChromaMbMut::new(&mut got_cr, at, stride).expect("window"),
+            &params,
+        );
+        assert_eq!(got_cb, want_cb, "case {case}: Cb, {params:?}");
+        assert_eq!(got_cr, want_cr, "case {case}: Cr, {params:?}");
+    }
 }
 
 /// The paired chroma filter against the reference on each plane: both

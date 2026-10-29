@@ -5,8 +5,9 @@
 //! CoreAV implements is accepted; every other option is refused by name
 //! before the input is opened.
 
-use super::{NotNative, Reason, Refusal};
+use super::Refusal;
 use crate::clip::parse_time;
+use crate::fallback::NotNative;
 use crate::ffprobe::args::Kind2;
 use coreav_isobmff::Rational;
 
@@ -234,10 +235,25 @@ const REFUSED: [(&str, &str); 22] = [
 
 fn not_native(option: &str, value: Option<&str>, why: &str) -> Refusal {
     let named = value.map_or_else(|| option.to_owned(), |v| format!("{option} {v}"));
-    Refusal::NotNative(NotNative {
-        reason: Reason::Option(option.to_owned(), value.map(str::to_owned)),
-        message: format!("'{named}' is not supported: {why}"),
-    })
+    Refusal::NotNative(NotNative::option(
+        option,
+        value,
+        format!("'{named}' is not supported: {why}"),
+    ))
+}
+
+/// Whether a file name is surely a path to `ffmpeg`: no colon in its first
+/// component (before the first `/`, and on Windows the first `\`), where
+/// `ffmpeg` may read a protocol and its options (`file:in.mp4`,
+/// `subfile,,start,0,,:in.mp4`, `:in.mp4`). A name that starts with `/` or
+/// `./` is a path, and on Windows so is a drive letter before a separator
+/// (`C:\in.mp4`, `C:/in.mp4`); elsewhere `ffmpeg` reads `C` as a protocol.
+fn local(name: &str, windows: bool) -> bool {
+    let drive = windows
+        && matches!(name.as_bytes(), [letter, b':', b'\\' | b'/', ..] if letter.is_ascii_alphabetic());
+    let separator = |c: char| c == '/' || (windows && c == '\\');
+    let first = name.split(separator).next().unwrap_or(name);
+    name.starts_with('/') || name.starts_with("./") || drive || !first.contains(':')
 }
 
 fn usage(text: impl Into<String>) -> Refusal {
@@ -524,8 +540,8 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
     if input == "-" || input.starts_with("pipe:") {
         return Err(Refusal::not_native("an input from a pipe"));
     }
-    if input.contains("://") {
-        return Err(Refusal::not_native("an input URL"));
+    if !local(input, cfg!(windows)) {
+        return Err(Refusal::not_native("an input named with a protocol"));
     }
     let mut format = None;
     let mut segment_format = None;
@@ -642,8 +658,8 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
     if output == "-" || output.starts_with("pipe:") {
         return Err(Refusal::not_native("an output to a pipe"));
     }
-    if output.contains("://") {
-        return Err(Refusal::not_native("an output URL"));
+    if !local(output, cfg!(windows)) {
+        return Err(Refusal::not_native("an output named with a protocol"));
     }
     if let Some(option) = encoders.first()
         && !command.codecs.iter().any(|(_, c)| *c == Codec::Libx264)
@@ -743,6 +759,7 @@ fn muxer(format: Option<&str>, output: &str) -> Result<Muxer, Refusal> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fallback::Reason;
 
     fn q(num: i128, den: u64) -> Rational {
         Rational::new(num, den).unwrap()
@@ -905,6 +922,46 @@ mod tests {
             "-i in.mp4 -map 0:m:title:x -c copy out.mp4",
             "-i in.mp4 -c copy out.mp4 -an",
             "-ss -1 -i in.mp4 -c copy out.mp4",
+        ] {
+            assert!(matches!(refused(text), Reason::Property(_)), "{text}");
+        }
+    }
+
+    #[test]
+    fn names_with_a_colon_in_their_first_component_are_not_paths() {
+        for name in [
+            "file:in.mp4",
+            "pipe:1",
+            "https://e.com/a.mp4",
+            "crypto+file:a",
+            "subfile,,start,0,end,99999,,:in.mp4",
+            ":in.mp4",
+            ":x",
+            "a,b:c",
+            "a:b/c.mp4",
+            "C:in.mp4",
+        ] {
+            assert!(!local(name, false), "{name}");
+            assert!(!local(name, true), "{name}");
+        }
+        for name in [
+            "in.mp4",
+            "dir/a:b.mp4",
+            "./file:in.mp4",
+            "./a:b.mp4",
+            "/a:b.mp4",
+        ] {
+            assert!(local(name, false), "{name}");
+            assert!(local(name, true), "{name}");
+        }
+        for name in [r"C:\in.mp4", "C:/in.mp4", r"dir\a:b.mp4"] {
+            assert!(local(name, true), "{name}");
+            assert!(!local(name, false), "{name}");
+        }
+        for text in [
+            "-i file:in.mp4 -c copy out.mp4",
+            "-i in.mp4 -c copy file:out.mp4",
+            "-i in.mp4 -c copy pipe:1",
         ] {
             assert!(matches!(refused(text), Reason::Property(_)), "{text}");
         }
