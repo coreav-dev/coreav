@@ -34,7 +34,7 @@ reader can tell a redaction from the output of a tool.
 | a scratch directory of the checkout that git ignores, as a path component (`.../<dir>/bin/...`, where the runs kept their builds) | `$WORK` | 23 paths in 13 files under `docs/measurements/h264-*` |
 | the name of the machine's provider in "`<provider>` VM" or "`<provider>` cloud VM" | "development VM" | 41 in 39 files under `docs/measurements/` and `docs/spikes/*/evidence/`, the round notes beside the logs included, then 4 more in 4 files (three round notes under `docs/measurements/h264-rounds/` and `docs/design/h264.md`) |
 | the name of a cloud VM, in the `uname` line of a machine description | `<vm>` | 2 files under `docs/measurements/h264-rounds/snapshot-361cd29f/raw/` |
-| a path under the home directory that names a binary, script or stream, in the paths of a report or a provenance record | the file name | 12 files under `docs/measurements/h264-rounds/snapshot-361cd29f/raw/` |
+| a path under the home directory that names a binary, script or stream, in the paths of a report or a provenance record | the file name | 10 files under `docs/measurements/h264-rounds/snapshot-361cd29f/raw/` |
 
 - Records of cloud-host runs that name accounts or cost (run and deployment URLs, application, image
   and task ids, billing reports, budget ledgers, launch scripts) are not published; the ids that
