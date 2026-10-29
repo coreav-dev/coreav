@@ -1,0 +1,24 @@
+vp9 f51a56ed5718 timed  ffmpeg=1.0321 x264=1.0495
+vp9 a084bd45168c timed  ffmpeg=1.0768 x264=1.0745
+vp9 70eec00bc7d2 timed  ffmpeg=1.0412 x264=1.0292
+vp9 9ffa165e752a timed  ffmpeg=1.1234 x264=1.1375
+vp9 584a16b906bb timed  ffmpeg=1.1297 x264=1.1123
+vp9 ea684713a5be timed  ffmpeg=1.0730 x264=1.0729
+vp9 bb5d39d47357 timed  ffmpeg=1.1037 x264=1.1058
+vp9 b267a2ddac45 timed  ffmpeg=1.0418 x264=1.0398
+vp9 f944c05afaa1 timed  ffmpeg=1.1228 x264=1.1094
+vp9 59ad8ee403b3 timed  ffmpeg=1.0345 x264=1.0244
+{
+ "void": false,
+ "reasons": []
+}
+== ffmpeg (bar: median <= 1.05)
+vp9     n= 10 median 1.0749 CI [1.0382, 1.1228] MISSED faster on 0% backends {'libvpx': 10} apart {}
+all     n= 10 median 1.0749 CI [1.0382, 1.1228] MISSED faster on 0% backends {'libvpx': 10} apart {}
+== x264 (bar: median <= 1.05)
+vp9     n= 10 median 1.0737 CI [1.0398, 1.1094] MISSED faster on 0% backends {'libvpx': 10} apart {}
+all     n= 10 median 1.0737 CI [1.0398, 1.1094] MISSED faster on 0% backends {'libvpx': 10} apart {}
+FAIL: ffmpeg vp9: median 1.0749 above 1.05
+FAIL: ffmpeg all: median 1.0749 above 1.05
+FAIL: x264 vp9: median 1.0737 above 1.05
+FAIL: x264 all: median 1.0737 above 1.05

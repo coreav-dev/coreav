@@ -741,6 +741,7 @@ Results are in `docs/spikes/thumbnail-bench/`, "Results":
 - Faster rendering and JPEG (`docs/spikes/thumbnail-bench/`, "Faster rendering and JPEG"): PNG byte-identical; I3 unchanged and met. Development set: S3 0.772 → 0.760; under 50 ms of FFmpeg time, 84% → 87% of files faster.
 - Planning from a window of the packets (`docs/design/seek.md`) gives the same choice on all 611 development MP4 and MOV files. Development set: S1 0.441 → 0.419, S3 0.807 → 0.780, and under 50 ms of FFmpeg time S3 goes from 65% to 81% of files faster (`docs/spikes/thumbnail-bench/`, "Planning from a window").
 - AV1 through dav1d (`docs/spikes/thumbnail-bench/`, "AV1 through dav1d"), a development measurement on the development set and on the held-out AV1 files, which the fallback's rounds had timed: S3 is met (0.927 and 0.934, 60% and 62% of files below 1.00; fallback round 2: 1.186). S4 is missed on the development set (1.082), because of the PNG writer.
+- VP9 through libvpx (`docs/measurements/vp9-libvpx.md`), a development measurement on both partitions of the VP9 files: S1 to S5 are met, S3 at 0.994 (51% of files below 1.00; through the fallback in the same run, 1.114).
 
 The cost of `--exact` grows with the distance from the keyframe: through the fallback, FFmpeg writes every decoded frame to the worker, and the worker drops the unwanted ones.
 

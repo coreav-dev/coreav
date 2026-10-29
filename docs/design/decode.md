@@ -905,6 +905,12 @@ measurement.
        decoder: a native one, or FFmpeg's in the fallback. If it misses
        with the decoder-alone median at or below 1.10, the cost is around
        the decoder, and a native decoder is not the first change to make.
+     - Results (`docs/measurements/vp9-libvpx.md`): bar 1 met (74 of 74
+       streams, 8,408 of 8,408 frames); S1 to S5 met (S3 0.994, 0.895 to
+       1.053, 51% of files below 1.00); B5 missed on both arms (1.075 and
+       1.074). The decoder-alone median is 1.036, so by the rule above
+       these bars need no native VP9 decoder, and it is not the first
+       change for B5.
      S3 for AV1 is 0.927 on the development set and 0.934 on the held-out
      AV1 files. Only 60% and 62% of those files are faster than FFmpeg,
      short of the 80% of files the project aims for beside the median
