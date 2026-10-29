@@ -11,7 +11,7 @@ When a review corrects a mistake, fix it and add its rule here. If the rule is a
 | Every commit carries `Signed-off-by` matching its author (`git commit -s`) | DCO step of `deny.yml` |
 | Dependencies keep to the license policy | `cargo deny check` and the fuzz projects' license check (`deny.yml`) |
 | Default builds link no still-patented codec | `deny.yml` |
-| A pull request's title is `type(scope): summary` with the template's types, a summary of at most 50 characters and the whole under 72; commit subjects are at most 72 characters; no `Co-Authored-By` or "Generated with" line | `scripts/pr_shape_check.py` (`pr-text.yml`) |
+| A pull request's title and its commit subjects are Conventional Commits, `type(scope): summary` with the template's types (merge commits excepted); the title's summary is at most 50 characters and the title under 72; commit subjects are at most 72 characters | `scripts/pr_shape_check.py` (`pr-text.yml`) |
 | No Korean text, run identifiers or spend details in a pull request's text | `scripts/pr_text_check.py` (`pr-text.yml`; the private list only on the agent's machine before opening) |
 | Every action is pinned to a full commit sha | `scripts/workflow_check.py` (`deny.yml`) |
 | The required-check table in `docs/design/ci-checks.md` and the workflows agree | `scripts/workflow_check.py` (`deny.yml`) |
@@ -19,6 +19,7 @@ When a review corrects a mistake, fix it and add its rule here. If the rule is a
 | An H.264 speed round's bars are judged on every stream of its set | `scripts/h264_parity.py` records requested and failed streams; `scripts/h264_parity_bars.py` refuses incomplete reports |
 | A new round adds no copy of an analyzer under `docs/measurements` | `scripts/tests/test_measurement_analyzers.py` (`deny.yml`) |
 | The numbers of `docs/measurements/compat-ffprobe.md` are those of its `b3a-round*.json` | `tools/compat-corpus/record.py --check` (`deny.yml`) |
+| State kept per PID in `coreav-mpegts` is bounded by a limit of `Limits` | `PidMap` (`crates/coreav-mpegts/src/pid_map.rs`); `disallowed-types` in `crates/coreav-mpegts/clippy.toml` refuses the standard maps elsewhere in the crate (clippy, `ci.yml`) |
 | Which keyframe a thumbnail may give is decided in one place | `select::offered` in `coreav-thumbnail`, and the agreement test in `mkv.rs` |
 | Thresholds are committed before the run they judge | Not enforced: judgment (the commit before the run is the evidence) |
 | One outcome per pull request; the template's sections; no hard-wrapped body lines | Not enforced: judgment |
