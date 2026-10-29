@@ -322,3 +322,16 @@ Samples are counted per instruction offset within `get_frame`. The data addresse
 4. **Where do the slow loads point?** This needs load-latency sampling. Per arm: the share of `get_frame`'s slow-load samples whose address lies in the input mapping, in other memory without a file behind it, or on the stack. If the slow arms' slow loads point at the program's own memory and the fast arms' do not, the stall lives in a buffer that the program fills itself. If they point at the input in every arm, it lives in how the program reads the input.
 5. **Why does 16-bit plus a mapped input avoid it?** The answer is put together from questions 2 to 4. It names something CoreAV could change only if the deciding condition is one that a caller sets and that holds while streaming, through a pipe. Such a condition is described for the maintainer, not implemented. If the deciding condition is internal to the program, the page says no caller-side lever follows from it.
 
+
+**Addendum, committed before its run.** If the guest refuses load-latency sampling, question 4 is asked again by sampling registers, which needs no special hardware. The runner is `why5.py`. In both builds the conversion loop keeps the input row, the output row and an error row in fixed registers, with one shared index. So each cycle sample inside the loop also records the three addresses. Per program and arm (the same five arms):
+
+- where the input address lies: the input mapping (any mapping of the input file or memfd seen during the run), other memory without a file behind it, or the stack;
+- the share of loop samples where the input and output addresses have the same offset within a 4 KiB page;
+- for each loop sample, the largest power of two that divides the distance between the input and output addresses.
+
+What each answer would mean:
+
+- If the input lies in the input mapping in the fast arms and in the program's own memory in every slow arm, the stall goes with where the loop reads its input.
+- If at least 90% of the loop samples in every slow arm have the input and output at the same page offset, and at most 10% in every fast arm, the reload waits on a false match with the store before it (the 4K aliasing pattern), and the aliasing counter above misses this case. If the fast arms also exceed 10%, this pattern does not separate the arms.
+- If at least 90% of the loop samples in every slow arm have an input-to-output distance that is a multiple of 64 KiB, and at most 10% in every fast arm, the page names that placement as what separates the arms. It is a finding about where the buffers lie, not a proven mechanism, because no counter on this host names the block.
+
