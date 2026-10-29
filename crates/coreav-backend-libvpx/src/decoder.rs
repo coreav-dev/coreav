@@ -129,20 +129,24 @@ impl LibvpxDecoder {
         Ok(())
     }
 
-    /// Checks the sizes the packet's frames state, then decodes it.
+    /// Checks the sizes the packet's frames state, then decodes it with
+    /// its superframe index, so that libvpx decodes those frames only.
     fn decode(&mut self, packet: &Packet<'_>, pts: i64) -> Result<(), Error> {
-        for size in header::frame_sizes(packet.data)
-            .map_err(|e| Error::new(ErrorKind::InvalidData, format!("VP9 packet: {e}")))?
-        {
+        let malformed =
+            |e: header::Malformed| Error::new(ErrorKind::InvalidData, format!("VP9 packet: {e}"));
+        let data = header::indexed(packet.data).map_err(malformed)?;
+        for size in header::frame_sizes(&data).map_err(malformed)? {
             self.limits.check_frame(size.width, size.height, 0)?;
         }
         let (color, limits) = (self.color, &self.limits);
         let mut made = Vec::new();
         self.vp9
-            .decode(packet.data, |view| {
-                if !packet.discard {
-                    made.push(convert(&view, color, limits)?);
+            .decode(&data, |view| {
+                if packet.discard {
+                    let (width, height) = view.size();
+                    return limits.check_frame(width, height, 0);
                 }
+                made.push(convert(&view, color, limits)?);
                 Ok::<(), Error>(())
             })
             .map_err(|e| failure("decoding", &e))??;

@@ -696,9 +696,17 @@ use `unsafe`.
   states no size (one shown again, or one taking a reference frame's
   size) has a size an earlier frame stated and that was checked. A packet
   whose headers cannot be read (a frame marker or sync code that is
-  wrong, a header cut short, an index larger than its frames) fails with
-  `InvalidData`; libvpx refuses those packets too. The reader has a fuzz
-  target (bar 4).
+  wrong, a header cut short, an index larger or smaller than its frames)
+  fails with `InvalidData`. The reader has a fuzz target (bar 4).
+  - Every packet reaches libvpx with an index. The specification makes a
+    packet without one a single frame, but libvpx reads such a packet as
+    frames one after another until its bytes end, so a second frame
+    there would reach libvpx unread. The decoder appends an index of one
+    frame to such a packet (`indexed`), and libvpx then decodes the
+    frames the index lists and only those: a test sends two key frames
+    in one packet, the second over the limits, and gets the first.
+  - Frames of a packet marked `discard` are decoded and not copied; their
+    sizes are checked against the limits all the same.
 - **Isolation.** The CLI runs libvpx inside the sandboxed worker, in the
   worker process itself, as dav1d (section 5.4). `LibvpxBackend` decodes
   in the calling process, for callers that ask for it.

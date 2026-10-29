@@ -283,6 +283,85 @@ fn discarded_packets_give_no_frame_and_limits_hold() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// The first packet of a one-frame VP9 file of the given size, with no
+/// hidden frame, so no superframe index.
+fn key_frame(dir: &Path, name: &str, size: &str) -> Vec<u8> {
+    let file = generate(
+        dir,
+        name,
+        size,
+        "yuv420p",
+        &[
+            "-frames:v",
+            "1",
+            "-auto-alt-ref",
+            "0",
+            "-lag-in-frames",
+            "0",
+        ],
+    );
+    let (_, packets) = packets(&file);
+    packets.into_iter().next().expect("a packet").data
+}
+
+#[test]
+#[ignore = "needs ffmpeg with libvpx-vp9"]
+fn frames_after_the_first_in_an_unindexed_packet_are_checked() {
+    let dir = scratch("concatenated");
+    let small = key_frame(&dir, "small.mp4", "64x64");
+    let large = key_frame(&dir, "large.mp4", "128x128");
+    let mut packet = small.clone();
+    packet.extend_from_slice(&large);
+    let limits = Limits {
+        max_width: 64,
+        max_height: 64,
+        ..Limits::default()
+    };
+    for discard in [false, true] {
+        let mut decoder = LibvpxDecoder::open(
+            &LibvpxOptions::default(),
+            &StreamConfig::new(Codec::Vp9),
+            &limits,
+        )
+        .expect("open");
+        let sent = decoder.send_packet(&Packet {
+            data: &packet,
+            pts: Some(0),
+            dts: Some(0),
+            keyframe: true,
+            discard,
+        });
+        assert!(sent.is_ok(), "discard {discard}: {sent:?}");
+        let mut sizes = Vec::new();
+        while let Some(frame) = decoder.receive_frame().expect("frame") {
+            let picture = frame.to_cpu().expect("cpu");
+            sizes.push((picture.width(), picture.height()));
+        }
+        // One frame, the first: the second's bytes are part of it, and
+        // libvpx never decodes a frame no header check has seen.
+        let expected = if discard { vec![] } else { vec![(64, 64)] };
+        assert_eq!(sizes, expected, "discard {discard}");
+    }
+    let mut decoder = LibvpxDecoder::open(
+        &LibvpxOptions::default(),
+        &StreamConfig::new(Codec::Vp9),
+        &Limits::default(),
+    )
+    .expect("open");
+    for data in [&small, &large] {
+        decoder
+            .send_packet(&Packet {
+                data,
+                pts: Some(0),
+                dts: Some(0),
+                keyframe: true,
+                discard: false,
+            })
+            .expect("each frame alone decodes");
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 #[test]
 fn a_key_frame_too_large_for_the_limits_is_refused_before_libvpx() {
     // A key frame header stating 65,536 x 65,536 and nothing else.

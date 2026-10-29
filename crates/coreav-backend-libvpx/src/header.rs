@@ -3,7 +3,11 @@
 //! 6.2, "Uncompressed header syntax", and Annex B, "Superframes").
 //!
 //! A packet is one frame, or a superframe: frames one after another and an
-//! index at the end. Each frame's uncompressed header states its size
+//! index at the end. libvpx reads a packet without an index as frames one
+//! after another until its bytes end, while the specification makes it one
+//! frame, so [`indexed`] gives libvpx every packet with an index: then
+//! libvpx decodes the frames the index lists, whose headers are the ones
+//! read here. Each frame's uncompressed header states its size
 //! (`frame_size()`) when it is a key frame, an intra-only frame or an
 //! inter frame that does not take a reference frame's size. A frame that
 //! shows a frame again (`show_existing_frame`) or takes a reference
@@ -12,6 +16,7 @@
 //! every frame libvpx decodes.
 #![forbid(unsafe_code)]
 
+use std::borrow::Cow;
 use std::fmt;
 
 /// A frame's coded size, as its header states it.
@@ -45,28 +50,51 @@ pub fn frame_sizes(packet: &[u8]) -> Result<Vec<FrameSize>, Malformed> {
     Ok(sizes)
 }
 
-/// The frames of a packet: those its superframe index lists (Annex B.3),
-/// or the packet itself when its last byte and the byte the index would
-/// start at are not the same marker.
-fn frames(packet: &[u8]) -> Result<Vec<&[u8]>, Malformed> {
-    let Some(&marker) = packet.last() else {
-        return Err(Malformed("empty packet"));
-    };
+/// The packet with a superframe index: itself when it has one, or the
+/// packet as one frame, with an index of that frame appended.
+pub fn indexed(packet: &[u8]) -> Result<Cow<'_, [u8]>, Malformed> {
+    if index(packet).is_some() {
+        return Ok(Cow::Borrowed(packet));
+    }
+    let size = u32::try_from(packet.len())
+        .map_err(|_| Malformed("packet larger than an index can state"))?;
+    // Marker 0b110, sizes of 4 bytes, one frame.
+    const ONE_FRAME: u8 = 0b1101_1000;
+    let mut out = Vec::with_capacity(packet.len() + 6);
+    out.extend_from_slice(packet);
+    out.push(ONE_FRAME);
+    out.extend_from_slice(&size.to_le_bytes());
+    out.push(ONE_FRAME);
+    Ok(Cow::Owned(out))
+}
+
+/// Where the packet's superframe index starts and the width of its
+/// entries, when its last byte and the byte the index would start at are
+/// the same marker (Annex B.3).
+fn index(packet: &[u8]) -> Option<(usize, usize)> {
+    let &marker = packet.last()?;
     if marker & 0xE0 != 0xC0 {
-        return Ok(vec![packet]);
+        return None;
     }
     let count = usize::from(marker & 7) + 1;
     let width = usize::from((marker >> 3) & 3) + 1;
-    let index = 2 + width * count;
-    let Some(start) = packet.len().checked_sub(index) else {
+    let start = packet.len().checked_sub(2 + width * count)?;
+    (packet.get(start) == Some(&marker)).then_some((start, width))
+}
+
+/// The frames of a packet: those its superframe index lists, which must
+/// cover every byte before the index, or the packet itself when it has no
+/// index.
+fn frames(packet: &[u8]) -> Result<Vec<&[u8]>, Malformed> {
+    if packet.is_empty() {
+        return Err(Malformed("empty packet"));
+    }
+    let Some((start, width)) = index(packet) else {
         return Ok(vec![packet]);
     };
-    if packet.get(start) != Some(&marker) {
-        return Ok(vec![packet]);
-    }
     let table = packet.get(start + 1..packet.len() - 1).unwrap_or_default();
     let mut rest = packet.get(..start).unwrap_or_default();
-    let mut out = Vec::with_capacity(count);
+    let mut out = Vec::new();
     for entry in table.chunks_exact(width) {
         let size = entry
             .iter()
@@ -80,6 +108,9 @@ fn frames(packet: &[u8]) -> Result<Vec<&[u8]>, Malformed> {
         };
         out.push(frame);
         rest = tail;
+    }
+    if !rest.is_empty() {
+        return Err(Malformed("superframe index smaller than its frames"));
     }
     Ok(out)
 }
@@ -317,11 +348,17 @@ mod tests {
                 Ok(vec![size(352, 288), size(176, 144)]),
                 "{width}-byte sizes"
             );
+            assert_eq!(indexed(&packet), Ok(Cow::Borrowed(&packet[..])));
             let last = packet.len() - 1 - width;
             packet[last] = packet[last].wrapping_add(1);
             assert_eq!(
                 frame_sizes(&packet).err(),
                 Some(Malformed("superframe index larger than its frames"))
+            );
+            packet[last] = packet[last].wrapping_sub(2);
+            assert_eq!(
+                frame_sizes(&packet).err(),
+                Some(Malformed("superframe index smaller than its frames"))
             );
         }
         // A last byte that looks like a marker without its twin at the
@@ -329,6 +366,18 @@ mod tests {
         let mut single = key_frame(0, 64, 64);
         single.push(0xC1);
         assert_eq!(frame_sizes(&single), Ok(vec![size(64, 64)]));
+    }
+
+    #[test]
+    fn a_packet_without_an_index_gets_one_of_one_frame() {
+        // Two key frames one after another: per the specification one
+        // frame, the first, and the second's bytes part of it.
+        let packet = [key_frame(0, 64, 64), key_frame(0, 128, 128)].concat();
+        let with = indexed(&packet).expect("indexed");
+        assert_eq!(&with[..packet.len()], &packet[..]);
+        assert_eq!(index(&with), Some((packet.len(), 4)));
+        assert_eq!(frames(&with), Ok(vec![&packet[..]]));
+        assert_eq!(frame_sizes(&with), Ok(vec![size(64, 64)]));
     }
 
     #[test]

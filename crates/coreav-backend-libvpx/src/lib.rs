@@ -12,7 +12,7 @@
 
 mod header;
 
-pub use header::{FrameSize, Malformed, frame_sizes};
+pub use header::{FrameSize, Malformed, frame_sizes, indexed};
 
 #[cfg(feature = "libvpx")]
 mod decoder;
