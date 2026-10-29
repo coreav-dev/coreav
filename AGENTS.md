@@ -7,19 +7,19 @@ When a review corrects a mistake, fix it and add its rule here. If the rule is a
 | Rule | Enforced by |
 |---|---|
 | No `unwrap`, `expect`, `panic!`, `todo!`, `unimplemented!` or slice indexing in production code | Workspace lints in `Cargo.toml`, `cargo clippy --workspace --all-targets -- -D warnings` (`ci.yml`) |
-| No `unsafe` outside the crates `docs/unsafe-sites.md` names; every `unsafe` site has a row there | `unsafe_code = "forbid"` (`Cargo.toml`); `scripts/unsafe_sites_check.py` (`ci.yml`) |
+| No `unsafe` outside the files `docs/unsafe-sites.md` lists; the change that adds or changes an `unsafe` site adds or updates its row there | `unsafe_code = "forbid"` (`Cargo.toml`); `scripts/unsafe_sites_check.py` (`ci.yml`) fails on a file with `unsafe` and no row. It checks files, not sites: a new site in a listed file passes it, so its row is review judgment |
 | Every commit carries `Signed-off-by` matching its author (`git commit -s`) | DCO step of `deny.yml` |
 | Dependencies keep to the license policy | `cargo deny check` and the fuzz projects' license check (`deny.yml`) |
 | Default builds link no still-patented codec | `deny.yml` |
-| A pull request's title and its commit subjects are Conventional Commits, `type(scope): summary` with the template's types (merge commits excepted); the title's summary is at most 50 characters and the title under 72; commit subjects are at most 72 characters | `scripts/pr_shape_check.py` (`pr-text.yml`) |
-| No Korean text, run identifiers or spend details in a pull request's text | `scripts/pr_text_check.py` (`pr-text.yml`; the private list only on the agent's machine before opening) |
+| A pull request's title and its commit subjects are Conventional Commits, `type(scope): summary` with the template's types (merge commits excepted); the title's summary is at most 50 characters and the title under 72; commit subjects are at most 72 characters | `scripts/pr_shape_check.py` (`pr-text.yml`), once #37 merges; until then, review |
+| No Korean text, run identifiers or spend details in a pull request's text | `scripts/pr_text_check.py` (`pr-text.yml` once #37 merges, by hand until then; the private list only on the agent's machine before opening) |
 | Every action is pinned to a full commit sha | `scripts/workflow_check.py` (`deny.yml`) |
 | The required-check table in `docs/design/ci-checks.md` and the workflows agree | `scripts/workflow_check.py` (`deny.yml`) |
-| No change makes a guarded command run more instructions without a stated cost | `bench-guard.yml`: a pull request against its base, `main` against `bench/guard/baseline.json` |
+| No change makes a guarded command run more instructions without a stated cost | `bench-guard.yml` fails when a case counts more than the tolerance above its count (5%, `tolerance` in `bench/guard/baseline.json`): a pull request against its base, `main` against the baseline. A rise within the tolerance passes, and a change that moves the baseline only gets a warning: that its cost is stated is review judgment |
 | An H.264 speed round's bars are judged on every stream of its set | `scripts/h264_parity.py` records requested and failed streams; `scripts/h264_parity_bars.py` refuses incomplete reports |
 | A new round adds no copy of an analyzer under `docs/measurements` | `scripts/tests/test_measurement_analyzers.py` (`deny.yml`) |
 | The numbers of `docs/measurements/compat-ffprobe.md` are those of its `b3a-round*.json` | `tools/compat-corpus/record.py --check` (`deny.yml`) |
-| State kept per PID in `coreav-mpegts` is bounded by a limit of `Limits` | `PidMap` (`crates/coreav-mpegts/src/pid_map.rs`); `disallowed-types` in `crates/coreav-mpegts/clippy.toml` refuses the standard maps elsewhere in the crate (clippy, `ci.yml`) |
+| State kept per PID in `coreav-mpegts` is bounded: by a limit of `Limits`, or by the 8,192 PIDs a packet can name | `PidMap` (`crates/coreav-mpegts/src/pid_map.rs`): `PidMap::streams` and `PidMap::programs` take their limit from `Limits`, `PidMap::pids` the PID space; `disallowed-types` in `crates/coreav-mpegts/clippy.toml` refuses the standard maps elsewhere in the crate (clippy, `ci.yml`). Both once #46 merges; until then, review |
 | Which keyframe a thumbnail may give is decided in one place | `select::offered` in `coreav-thumbnail`, and the agreement test in `mkv.rs` |
 | Thresholds are committed before the run they judge | Not enforced: judgment (the commit before the run is the evidence) |
 | One outcome per pull request; the template's sections; no hard-wrapped body lines | Not enforced: judgment |
