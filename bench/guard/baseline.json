@@ -4,12 +4,12 @@
   "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
   "valgrind": "valgrind-3.22.0"
  },
- "startup": 510115,
+ "startup": 486964,
  "cases": {
   "probe-mp4": {
    "fixture": "basic.mp4",
-   "sha256": "9afd2ffcd04c6fa50d8e8a10b36bfc56f915f131b4457f2deb7ed8f1b777ad60",
-   "instructions": 325377
+   "sha256": "3422bfdfb6646ae3ef889a94def28830805efc9a23137d463f07d3f3a12ebd7a",
+   "instructions": 321686
   },
   "probe-fragmented": {
    "fixture": "fragmented_many.mp4",
@@ -38,13 +38,13 @@
   },
   "probe-compat-mp4": {
    "fixture": "fragmented_many.mp4",
-   "sha256": "0b5b5ac877ae954f91c2922c1dc36579f089f9895b6fe97dfcd8f905827922ab",
-   "instructions": 1230951
+   "sha256": "5bdf6f3be1d768e130de3670eb9f085630f512b906f172467a7657e70117a1a1",
+   "instructions": 1215149
   },
   "probe-compat-mkv": {
    "fixture": "basic.mkv",
-   "sha256": "7187aae43e1ccb582b591c44d9c806eb3c07b92559605e504d3cffb9b29a4b1e",
-   "instructions": 195797
+   "sha256": "d5447fa199eb07d74318c1074e77f7daac657724c7d460e83341c0396037ffcd",
+   "instructions": 193123
   },
   "probe-compat-ts": {
    "fixture": "basic.ts",
@@ -84,22 +84,22 @@
   "probe-ts-no-frames": {
    "fixture": "ts_no_frames.ts",
    "sha256": "880ae3eb1f6a01a81363e4d667fbe70740d6e16f46487f509c3f4444ffcd421b",
-   "instructions": 66674472
+   "instructions": 65600136
   },
   "probe-packets-ts-no-period": {
    "fixture": "ts_no_period.ts",
    "sha256": "6e348962e6ab8d7676880084e05a9a9c8d2bef8d3c679dbbff28cbf8835b572e",
-   "instructions": 35927473
+   "instructions": 34450355
   },
   "probe-frame-sizes-mp4": {
    "fixture": "basic.mp4",
-   "sha256": "9afd2ffcd04c6fa50d8e8a10b36bfc56f915f131b4457f2deb7ed8f1b777ad60",
-   "instructions": 372671
+   "sha256": "7204df2f03b5076db8adbeb05121c8bc530e2d4640f4a22280a3a303388e7d88",
+   "instructions": 371741
   },
   "probe-frame-sizes-mkv": {
    "fixture": "basic.mkv",
-   "sha256": "7187aae43e1ccb582b591c44d9c806eb3c07b92559605e504d3cffb9b29a4b1e",
-   "instructions": 849859
+   "sha256": "adb43c897a99a419c7e37dd430daae77648639fae934829248a68727cd59f1d7",
+   "instructions": 849379
   },
   "remux-mov": {
    "fixture": "basic.mov",
@@ -164,7 +164,7 @@
   "decode-audio-resample": {
    "fixture": "flac.mka",
    "sha256": "803038225a10721e2c3794574ab8c6cf85a8fc25ee678fb68e5a1eec9c694c38",
-   "instructions": 22880130
+   "instructions": 22879481
   },
   "sanitize": {
    "fixture": "basic.mp4",
@@ -173,13 +173,13 @@
   },
   "check": {
    "fixture": "basic.mp4",
-   "sha256": "9afd2ffcd04c6fa50d8e8a10b36bfc56f915f131b4457f2deb7ed8f1b777ad60",
-   "instructions": 506798
+   "sha256": "7204df2f03b5076db8adbeb05121c8bc530e2d4640f4a22280a3a303388e7d88",
+   "instructions": 505000
   },
   "check-mkv": {
    "fixture": "basic.mkv",
-   "sha256": "7187aae43e1ccb582b591c44d9c806eb3c07b92559605e504d3cffb9b29a4b1e",
-   "instructions": 977293
+   "sha256": "adb43c897a99a419c7e37dd430daae77648639fae934829248a68727cd59f1d7",
+   "instructions": 976502
   },
   "split": {
    "fixture": "basic.mp4",
@@ -188,13 +188,13 @@
   },
   "split-multi-edit": {
    "fixture": "edit_multi_splice.mp4",
-   "sha256": "2b0d43779607433182decb9b04debd16509d99f5dfa2439eae3906e60af915ee",
-   "instructions": 1993488
+   "sha256": "a4afc243c4281f28fb5285acdbea65928c62a4e5dfd09f145168a46df10c4145",
+   "instructions": 1991742
   },
   "extract-subtitles": {
    "fixture": "text_styled.mp4",
-   "sha256": "c514c39b5bd3f090af96ed9b6b3c1a14eb3881f5ad16ec55f402ccec533de1e0",
-   "instructions": 184182
+   "sha256": "3e13fc6461db2dc9fe58fcb0e340a930f78f62127099445426ee6df3972d4e3a",
+   "instructions": 182631
   },
   "chapters": {
    "fixture": "chapters.mp4",
@@ -238,8 +238,8 @@
   },
   "transcode": {
    "fixture": "basic.mp4",
-   "sha256": "9afd2ffcd04c6fa50d8e8a10b36bfc56f915f131b4457f2deb7ed8f1b777ad60",
-   "instructions": 312774554
+   "sha256": "7204df2f03b5076db8adbeb05121c8bc530e2d4640f4a22280a3a303388e7d88",
+   "instructions": 312721280
   }
  },
  "url_cases": {
@@ -259,10 +259,10 @@
   },
   "url-probe-mkv": {
    "fixture": "basic.mkv",
-   "sha256": "7187aae43e1ccb582b591c44d9c806eb3c07b92559605e504d3cffb9b29a4b1e",
+   "sha256": "adb43c897a99a419c7e37dd430daae77648639fae934829248a68727cd59f1d7",
    "requests": 2,
    "rounds": 1,
-   "bytes": 91630
+   "bytes": 91137
   },
   "url-extract-audio": {
    "fixture": "large_av.mp4",
@@ -276,14 +276,14 @@
    "sha256": "41deb4d50b1915f1b39f08cfb2242d6547ef0ef27121217253a78425a24a62a6",
    "requests": 5,
    "rounds": 3,
-   "bytes": 14890033
+   "bytes": 14883645
   },
   "url-remux": {
    "fixture": "large_av.mp4",
    "sha256": "41deb4d50b1915f1b39f08cfb2242d6547ef0ef27121217253a78425a24a62a6",
    "requests": 5,
    "rounds": 2,
-   "bytes": 82837451
+   "bytes": 82781023
   },
   "url-sanitize": {
    "fixture": "large_av.mp4",
@@ -297,28 +297,28 @@
    "sha256": "41deb4d50b1915f1b39f08cfb2242d6547ef0ef27121217253a78425a24a62a6",
    "requests": 17,
    "rounds": 9,
-   "bytes": 83185664
+   "bytes": 83148800
   },
   "url-check": {
    "fixture": "large_av.mp4",
    "sha256": "41deb4d50b1915f1b39f08cfb2242d6547ef0ef27121217253a78425a24a62a6",
    "requests": 5,
    "rounds": 2,
-   "bytes": 82683359
+   "bytes": 82692009
   },
   "url-extract-subtitles": {
    "fixture": "text_styled.mp4",
-   "sha256": "c514c39b5bd3f090af96ed9b6b3c1a14eb3881f5ad16ec55f402ccec533de1e0",
+   "sha256": "3e13fc6461db2dc9fe58fcb0e340a930f78f62127099445426ee6df3972d4e3a",
    "requests": 2,
    "rounds": 1,
-   "bytes": 92587
+   "bytes": 92095
   },
   "url-chapters": {
    "fixture": "chapters.mp4",
-   "sha256": "b269e91f24c99b2ea5b3f25279efd911f21074d37943f718fc87bf54ae1dd5d2",
+   "sha256": "7bd558040001eaa5b4b1ac607b856f816d6dcd086b081358c0bbe89ec75ca66e",
    "requests": 2,
    "rounds": 1,
-   "bytes": 93378
+   "bytes": 92886
   }
  }
 }
