@@ -281,9 +281,13 @@ fn packets<S: Source>(
     )
 }
 
-/// Whether the listing holds the frame keyframe mode gives at `at`: the
-/// search is `select::latest_keyframe` itself, so the two agree on what
-/// the listing holds, and a listing which holds it costs one check.
+/// Whether a block of the listing that `select` offers as a keyframe at
+/// or before `at` (`select::offered_by`, the rule `select::keyframe`
+/// applies) starts decoding (`crate::starts_decoding`). The blocks are
+/// checked from the last in decode order back, so that a listing which
+/// holds one costs one check; the order decides which block's error, such
+/// as a work limit, is met first, and a block before the one found is
+/// never read.
 fn cut_point_before<S: Source>(
     source: &mut S,
     samples: &[Sample],
@@ -292,13 +296,23 @@ fn cut_point_before<S: Source>(
     rule: CutRule,
     prefix: &[u8],
 ) -> Result<bool, Error> {
-    let mut starts = |index: usize| match packets.get(index) {
+    let candidates = samples
+        .iter()
+        .enumerate()
+        .rev()
+        .filter(|(_, s)| select::offered_by(s, at))
+        .map(|(i, _)| i);
+    for index in candidates {
+        let Some(packet) = packets.get(index) else {
+            continue;
+        };
         // Matroska states every block's keyframe flag, so an unreadable
         // frame keeps it (`crate::cut_point`).
-        Some(packet) => crate::starts_decoding(source, rule, prefix, packet, true),
-        None => Ok(false),
-    };
-    Ok(select::latest_keyframe(samples, at, &mut starts)?.is_some())
+        if crate::starts_decoding(source, rule, prefix, packet, true)? {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 /// The track's packets of `listing`, at most `limit` of them. With `stop`,
@@ -452,5 +466,48 @@ mod tests {
                 });
             assert_eq!((mkv, given), (offered, offered), "{name}");
         }
+    }
+
+    /// The listing check visits the blocks offered at or before the time
+    /// from the last in decode order back, so a block it need not read is
+    /// not read: here the block at 40 ms, whose filler units exceed the
+    /// work limit, comes before the one at 0 ms in decode order, and
+    /// `--exact` at 41 ms decodes from the block at 0 ms.
+    #[test]
+    fn cut_point_before_reads_from_the_last_block_in_decode_order() {
+        let ms = |n: i128| Rational::new(n, 1000).expect("ms");
+        // An IDR slice of four-byte NAL units, and a filler NAL unit.
+        let idr = [0, 0, 0, 5, 0x65, 0xb8, 0, 0, 0];
+        let filler = [0, 0, 0, 2, 0x0c, 0x80];
+        let mut data = Vec::new();
+        let mut packets = Vec::new();
+        let mut samples = Vec::new();
+        for (time, keyframe, fillers) in [(40, true, 100_001), (0, true, 0), (60, false, 0)] {
+            let offset = u64::try_from(data.len()).expect("offset");
+            for _ in 0..fillers {
+                data.extend_from_slice(&filler);
+            }
+            data.extend_from_slice(&idr);
+            packets.push(PacketRef {
+                offset,
+                size: u64::try_from(data.len()).expect("size") - offset,
+                pts: 0,
+                dts: None,
+                keyframe,
+            });
+            samples.push(Sample {
+                time: Some(ms(time)),
+                end: Some(ms(time + 40)),
+                presented: true,
+                keyframe,
+            });
+        }
+        let rule = CutRule::H264 {
+            format: AccessFormat::H264 { length_size: 4 },
+            max_num_ref_frames: None,
+        };
+        let mut source = SliceSource::new(&data);
+        let found = cut_point_before(&mut source, &samples, &packets, ms(41), rule, &[]);
+        assert!(matches!(found, Ok(true)), "{found:?}");
     }
 }

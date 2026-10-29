@@ -62,8 +62,9 @@ fn check_end(samples: &[Sample], at: Rational) -> Result<(), Error> {
 /// sample the container presents, at a known time. A keyframe whose time
 /// is unknown is not one: the image would be reported at the time asked
 /// for. The one rule for every search that offers a keyframe as the image
-/// ([`latest_keyframe`], the last resort of [`exact`], and the window
-/// check of `crate::window_holds`).
+/// ([`keyframe`], the last resort of [`exact`], the window check of
+/// `crate::window_holds`, and the Matroska listing check,
+/// `mkv::cut_point_before`).
 pub(crate) fn offered(sample: &Sample) -> Option<Rational> {
     if sample.keyframe && sample.presented {
         sample.time
@@ -77,16 +78,19 @@ pub(crate) fn offered_by(sample: &Sample, at: Rational) -> bool {
     offered(sample).is_some_and(|t| le(t, at))
 }
 
-/// The latest keyframe [`offered_by`] `at` that starts decoding
-/// (`cut_point(i)`), checked from the latest presented back: the frame
-/// keyframe mode gives. The Matroska listing asks the same question of
-/// its blocks (`mkv::cut_point_before`), so the two cannot disagree on
-/// whether a listing holds that frame.
-pub(crate) fn latest_keyframe(
+/// Keyframe mode: the latest keyframe [`offered_by`] `at`. When none is
+/// (`at` before the first presented keyframe, or an edit list that
+/// presents no keyframe at all), the frame [`exact`] chooses.
+/// `cut_point(i)` says whether a sync sample really starts decoding
+/// (`docs/design/cut-points.md`); `forward` allows the last resort of
+/// [`exact`].
+pub(crate) fn keyframe(
     samples: &[Sample],
     at: Rational,
+    forward: bool,
     cut_point: &mut dyn FnMut(usize) -> Result<bool, Error>,
-) -> Result<Option<usize>, Error> {
+) -> Result<Choice, Error> {
+    check_end(samples, at)?;
     let mut candidates: Vec<(usize, Rational)> = samples
         .iter()
         .enumerate()
@@ -104,30 +108,11 @@ pub(crate) fn latest_keyframe(
     });
     for (index, _) in candidates.iter().rev() {
         if cut_point(*index)? {
-            return Ok(Some(*index));
+            return Ok(Choice {
+                start: *index,
+                target: *index,
+            });
         }
-    }
-    Ok(None)
-}
-
-/// Keyframe mode: the latest keyframe presented at or before `at`
-/// ([`latest_keyframe`]). When none is (`at` before the first presented
-/// keyframe, or an edit list that presents no keyframe at all), the frame
-/// [`exact`] chooses. `cut_point(i)` says whether a sync sample really
-/// starts decoding (`docs/design/cut-points.md`); `forward` allows the
-/// last resort of [`exact`].
-pub(crate) fn keyframe(
-    samples: &[Sample],
-    at: Rational,
-    forward: bool,
-    cut_point: &mut dyn FnMut(usize) -> Result<bool, Error>,
-) -> Result<Choice, Error> {
-    check_end(samples, at)?;
-    if let Some(index) = latest_keyframe(samples, at, cut_point)? {
-        return Ok(Choice {
-            start: index,
-            target: index,
-        });
     }
     exact(samples, at, forward, cut_point)
 }
