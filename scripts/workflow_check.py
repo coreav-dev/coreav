@@ -18,9 +18,12 @@
   unnoticed;
 - a filter pattern passed to .github/actions/changed-paths is one GitHub
   and the action would read differently;
-- a step in a workflow or in a local action (.github/actions/*/action.yml)
-  uses an action by a tag or branch instead of a full commit sha, so the
-  code it runs can change under the same name.
+- a step in a workflow (.yml or .yaml), in a local action
+  (.github/actions/*/action.yml or .yaml) or in a local action or workflow
+  a step calls (`./...`) uses an action by a tag or branch instead of a
+  full lowercase commit sha, so the code it runs can change under the same
+  name; or such a file is written in a form the pin reader does not
+  decode (see `action_refs`).
 
     workflow_check.py [--root DIR]
 
@@ -45,10 +48,13 @@ TRIGGER = re.compile(r'\A {2}\S')
 ROW = re.compile(r'\A\| `([^`]+)` \| `([^`]+)` \|')
 SECTION = '### Required status checks (exact names)'
 LABELS = 'github.event.pull_request.labels'
-# A `uses` key at the start of a block step or inside a flow mapping
-# (`{uses: ...}`); group 1 is set for the flow form.
-USES_KEY = re.compile(r'''(?:\A\s*(?:-\s+)?|([{,])\s*)(['"]?)uses\2:[ \t]*''')
+# A step's ref: a full lowercase commit sha, or a Docker image by digest.
 PINNED = re.compile(r'\A[^@\s]+@[0-9a-f]{40}\Z|\Adocker://[^@\s]+@sha256:[0-9a-f]{64}\Z')
+# Where a plain mapping key ends (its colon), or a comment starts first.
+PLAIN_KEY = re.compile(r':(?=[ \t]|$)|[ \t]#')
+SEQUENCE_ITEM = re.compile(r'-(?=[ \t]|$)[ \t]*')
+BLOCK_SCALAR = re.compile(r'(?:[&!]\S*[ \t]+)*[|>][1-9+-]{0,2}(?:[ \t]+#.*)?\Z')
+WORKFLOW_SUFFIXES = ('.yml', '.yaml')
 # A workflow whose checks the table does not require, such as one this
 # repository runs for itself alone.
 UNLISTED = '# workflow-check: not required'
@@ -202,32 +208,181 @@ def required_names(note):
 def unlisted_workflows(root):
     """The file names of the workflows that carry the line UNLISTED: their
     checks are not required in the table."""
-    return {workflow.name for workflow in (root / '.github' / 'workflows').glob('*.yml')
+    return {workflow.name for workflow in workflow_files(root)
             if UNLISTED in (line.strip() for line in workflow.read_text(encoding='utf-8').splitlines())}
 
 
-def scalar(text, flow):
-    """The YAML scalar at the start of `text`, or None when it is quoted in a
-    form this reader does not decode (an escape, or no closing quote)."""
+def workflow_files(root):
+    """Every workflow GitHub runs: .yml and .yaml files alike."""
+    return sorted(path for path in (root / '.github' / 'workflows').iterdir()
+                  if path.is_file() and path.suffix in WORKFLOW_SUFFIXES)
+
+
+def quoted_end(text):
+    """The index just past the quoted scalar that opens `text`, or -1 when
+    it does not close on this line."""
+    quote, i = text[0], 1
+    while i < len(text):
+        if quote == '"' and text[i] == '\\':
+            i += 2
+        elif text[i] == quote and quote == "'" and text[i + 1:i + 2] == "'":
+            i += 2
+        elif text[i] == quote:
+            return i + 1
+        else:
+            i += 1
+    return -1
+
+
+def mapping_key(text):
+    """(key, value) when `text` opens a block mapping entry, else (None, text).
+    The key is False when it is written in a form this reader does not
+    decode: an escape, an anchor, an alias, a tag or a merge key."""
+    if text[:1] in ('"', "'"):
+        end = quoted_end(text)
+        rest = text[end:].lstrip(' \t') if end > 0 else ''
+        if not rest.startswith(':') or rest[1:2] not in ('', ' ', '\t'):
+            return None, text
+        raw = text[1:end - 1]
+        if text[0] == "'":
+            return raw.replace("''", "'"), rest[1:]
+        return (False if '\\' in raw else raw), rest[1:]
+    found = PLAIN_KEY.search(text)
+    if text[:1] in ('{', '[') or not found or found.group() != ':':
+        return None, text
+    key = text[:found.start()].rstrip()
+    if not key or key[0] in '&*!' or key == '<<':
+        return False, text[found.end():]
+    return key, text[found.end():]
+
+
+def flow_mapping(text):
+    """[(key, value)] of a one-line flow mapping (`{ a: 1, b: 2 }`), or None when it
+    nests, spans lines, or holds an entry this reader does not decode."""
+    if not text.endswith('}'):
+        return None
+    body, entries, entry, i = text[1:-1], [], '', 0
+    while i < len(body):
+        if body[i] in ('"', "'"):
+            end = quoted_end(body[i:])
+            if end < 0:
+                return None
+            entry, i = entry + body[i:i + end], i + end
+        elif body[i] in '{}[]':
+            return None
+        elif body[i] == ',':
+            entries, entry, i = entries + [entry], '', i + 1
+        else:
+            entry, i = entry + body[i], i + 1
+    out = []
+    for entry in entries + [entry]:
+        if not entry.strip():
+            continue
+        key, value = mapping_key(entry.strip())
+        if not key:
+            return None
+        out.append((key, value.strip()))
+    return out
+
+
+def scalar(text):
+    """The block-context YAML scalar at the start of `text`, or None when it
+    is quoted in a form this reader does not decode (an escape, or no
+    closing quote)."""
     quote = text[:1]
     if quote in ('"', "'"):
         end = text.find(quote, 1)
         if end < 0 or (quote == '"' and '\\' in text[1:end]) or (quote == "'" and text[end + 1:end + 2] == "'"):
             return None
         return text[1:end]
-    return re.split(r'\s#|[,}]' if flow else r'\s#', text, maxsplit=1)[0].strip()
+    return re.split(r'\s#', text, maxsplit=1)[0].strip()
 
 
-def unpinned(lines):
-    """Steps that use an action by a name whose code can move."""
-    out = []
+def action_refs(lines):
+    """([(line number, ref)], problems) for the `uses` keys of a workflow or an
+    action file. The file is read as YAML block mappings and sequences:
+    comments, block scalars (`run: |`) and quoted scalars that span lines
+    are skipped, so text in a script is not a step; a form this reader does
+    not decode (a flow mapping, an alias, an explicit `?` key, an escaped or
+    tagged key, a `uses` value that continues on the next line) is a problem,
+    never a silent pass. A ref is None when its value cannot be read."""
+    refs, problems = [], []
+    deeper = None       # lines indented more than this belong to a block scalar
+    closing = False     # inside a quoted scalar that spans lines
+    pending = None      # (line number, column) of a uses whose plain value may continue
     for n, line in enumerate(lines, 1):
-        for key in USES_KEY.finditer(line):
-            ref = scalar(line[key.end():], flow=key.group(1) is not None)
-            if ref is not None and (ref.startswith('./') or PINNED.match(ref)):
+        stripped = line.lstrip(' ')
+        indent = len(line) - len(stripped)
+        if closing:
+            closing = not re.search(r'(?<!\\)"|(?<!\')\'(?!\')', line)
+            continue
+        if deeper is not None:
+            if not stripped.strip() or indent > deeper:
                 continue
-            shown = line[key.end():].strip() if ref is None else ref
-            out.append(f'line {n}: `{shown}` is not pinned: use the full commit sha with the '
+            deeper = None
+        if not stripped.strip() or stripped.startswith('#') or stripped.rstrip() in ('---', '...'):
+            continue
+        if pending:
+            if indent > pending[1]:
+                problems.append(f'line {pending[0]}: the `uses` value continues on the next line: '
+                                'write it on one line')
+            pending = None
+        column, text, dash = indent, stripped.rstrip(), None
+        while (item := SEQUENCE_ITEM.match(text)):
+            dash, column, text = column, column + item.end(), text[item.end():]
+        if not text:
+            continue
+        if re.match(r'[?:](?:[ \t]|$)', text):
+            problems.append(f'line {n}: an explicit `?` key or a bare `:` value: write the entry as `key: value`')
+            continue
+        key, value = mapping_key(text)
+        if key is False:
+            problems.append(f'line {n}: a key written with an escape, an anchor, an alias, a tag or `<<`: '
+                            'write it plainly')
+            continue
+        value = value.lstrip(' \t') if key is not None else text
+        if key == 'uses':
+            refs.append((n, scalar(value)))
+            if value[:1] not in ('"', "'"):
+                pending = (n, column)
+        flow = re.split(r'\s#', value, maxsplit=1)[0].rstrip()
+        if flow in ('{}', '[]'):
+            continue
+        entries = flow_mapping(flow) if flow.startswith('{') else []
+        refs += [(n, scalar(v)) for k, v in entries or [] if k == 'uses']
+        if entries is None or (flow.startswith('[') and (
+                '{' in flow or re.search(r':(?=[\s,\]])', flow) or not flow.endswith(']'))):
+            problems.append(f'line {n}: a flow collection that nests, spans lines or holds a form this reader '
+                            'does not decode: write it in block form, or as a one-line `{ key: value }`')
+        elif value.startswith('*'):
+            problems.append(f'line {n}: an alias: write the content out')
+        elif value[:1] in ('"', "'") and quoted_end(value) < 0:
+            closing = True
+        elif BLOCK_SCALAR.match(value):
+            deeper = column if key is not None else dash
+    return refs, problems
+
+
+def pin_problems(root, path, seen):
+    """What is wrong with the refs of one workflow or action file, and of the
+    local actions and workflows it calls (`./...`), each read once."""
+    if path in seen:
+        return []
+    seen.add(path)
+    name = path.relative_to(root)
+    refs, problems = action_refs(path.read_text(encoding='utf-8').splitlines())
+    out = [f'{name}: {problem}' for problem in problems]
+    for n, ref in refs:
+        if ref is not None and ref.startswith('./'):
+            target = (root / ref).resolve()
+            files = [target] if target.suffix in WORKFLOW_SUFFIXES else [target / 'action.yml', target / 'action.yaml']
+            found = [f for f in files if f.is_file()]
+            if not target.is_relative_to(root.resolve()) or not found:
+                out.append(f'{name}: line {n}: {ref} names no action or workflow file in this repository')
+            for f in found:
+                out += pin_problems(root, root / f.relative_to(root.resolve()), seen)
+        elif ref is None or not PINNED.match(ref):
+            out.append(f'{name}: line {n}: `{ref}` is not pinned: use the full lowercase commit sha with the '
                        'version as a comment (`owner/repo@<40-hex sha> # vX.Y.Z`), as every other step does')
     return out
 
@@ -236,7 +391,8 @@ def check(root):
     problems = []
     unlisted = unlisted_workflows(root)
     changed_paths = load_changed_paths(root)
-    workflows = sorted((root / '.github' / 'workflows').glob('*.yml'))
+    workflows = workflow_files(root)
+    seen = set()
     jobs = {}        # workflow file name -> job id -> fields
     names = {}       # check name -> [(workflow, job id)]
     for path in workflows:
@@ -246,7 +402,7 @@ def check(root):
             problems.append(f'{path.name}: no job found; the parser expects two-space job ids')
         for job, fields in found.items():
             names.setdefault(fields['name'] or job, []).append((path.name, job))
-        problems.extend(f'{path.name}: {problem}' for problem in unpinned(lines))
+        problems += pin_problems(root, path, seen)
         patterns, bad = filter_patterns(lines)
         problems.extend(f'{path.name}: {problem}' for problem in bad)
         for key, pattern in patterns:
@@ -255,9 +411,8 @@ def check(root):
             except SystemExit as error:
                 problems.append(f'{path.name}: {key}: {error}')
 
-    for action in sorted((root / '.github' / 'actions').glob('*/action.yml')):
-        lines = action.read_text(encoding='utf-8').splitlines()
-        problems.extend(f'{action.relative_to(root)}: {problem}' for problem in unpinned(lines))
+    for action in sorted((root / '.github' / 'actions').glob('*/action.y*ml')):
+        problems += pin_problems(root, action, seen)
 
     for name, where in sorted(names.items()):
         if len(where) > 1:
