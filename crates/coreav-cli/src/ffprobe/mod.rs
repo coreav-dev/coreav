@@ -618,9 +618,10 @@ pub const USAGE: &str = "\
 usage: coreav ffprobe [OPTIONS] INPUT
 
 Experimental: values can differ from ffprobe's for MP4/MOV and MPEG-TS
-(measured on 1,315 files: 35 of 101 MP4/MOV keys and 65 of 157 MPEG-TS
-keys agree on fewer than 98% of files); Matroska/WebM agree on 98% or
-more of files for 99 of 101 keys. See docs/measurements/compat-ffprobe.md.
+(measured on 1,315 files: of the keys outside the tags, 34 of 101
+MP4/MOV and 35 of 157 MPEG-TS agree on fewer than 98% of files);
+Matroska/WebM agree on 98% or more of files for 99 of 101 keys.
+See docs/measurements/compat-ffprobe.md.
 
 The common ffprobe invocations, over CoreAV's own probes. Options:
   -show_format -show_streams -show_chapters -show_programs -show_packets

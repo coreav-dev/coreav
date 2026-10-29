@@ -456,7 +456,10 @@ def cmd_keys(opts):
               'examples': examples}
     if opts.report:
         pathlib.Path(opts.report).write_text(json.dumps(report, indent=1))
-    below = [r for r in rows if r['rate'] < opts.bar]
+    # A key is below the bar on its unrounded share, as the measurement
+    # record counts it: 97.998% of files misses a bar of 98, where the
+    # rounded `rate` of the tables reads 98.0.
+    below = [r for r in rows if r['agree'] * 100.0 < opts.bar * r['files']]
     uncovered = [r for r in rejected if not r['covered_by']]
     print(json.dumps({'files': len(files), 'keys': len(rows), 'below_bar': len(below),
                       'rejected': len(rejected), 'rejected_uncovered': len(uncovered)}))
