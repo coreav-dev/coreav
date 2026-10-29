@@ -1,0 +1,14 @@
+# started on Thu Oct 29 13:29:58 2026
+
+
+ Performance counter stats for thread id '2700':
+
+       54166417865      cycles                                                                
+       37784354818      instructions                     #    0.70  insn per cycle            
+           1662598      ld_blocks.address_alias                                               
+             55934      ld_blocks.no_sr                                                       
+        7382798747      mem_inst_retired.all_loads                                            
+        3658907800      mem_inst_retired.all_stores                                           
+
+      22.820270142 seconds time elapsed
+

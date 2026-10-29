@@ -1,0 +1,50 @@
+# started on Thu Oct 29 13:28:47 2026
+
+
+ Performance counter stats for thread id '2601':
+
+      211121962004      TOPDOWN.SLOTS                    #      2.1 %  tma_store_latency        (25.00%)
+       27323512831      topdown-retiring                                                        (25.00%)
+        2490056108      topdown-fe-bound                                                        (25.00%)
+      123361460149      topdown-mem-bound                                                       (25.00%)
+      182144437805      topdown-be-bound                                                        (25.00%)
+         827938774      topdown-bad-spec                                                        (25.00%)
+                 0      OFFCORE_REQUESTS_OUTSTANDING.CYCLES_WITH_DEMAND_RFO                                        (25.00%)
+            365738      MEM_INST_RETIRED.LOCK_LOADS                                             (25.00%)
+        3629784422      MEM_INST_RETIRED.ALL_STORES                                             (25.00%)
+        1698730070      EXE_ACTIVITY.BOUND_ON_STORES                                            (25.00%)
+       53289575241      CPU_CLK_UNHALTED.THREAD                                                 (25.00%)
+         109397108      MEM_STORE_RETIRED.L2_HIT                                                (25.00%)
+      209847369766      TOPDOWN.SLOTS                    #      nan %  tma_dtlb_store           (24.95%)
+       27979649301      topdown-retiring                                                        (24.95%)
+        2476793854      topdown-fe-bound                                                        (24.95%)
+      121793767547      topdown-mem-bound                                                       (24.95%)
+      179398927875      topdown-be-bound                                                        (24.95%)
+         823454033      topdown-bad-spec                                                        (24.95%)
+           8132495      DTLB_STORE_MISSES.WALK_ACTIVE                                           (24.95%)
+        1910432042      EXE_ACTIVITY.BOUND_ON_STORES                                            (24.95%)
+           2414652      cpu/DTLB_STORE_MISSES.STLB_HIT,cmask=1/                                        (24.95%)
+       53194280834      CPU_CLK_UNHALTED.THREAD                                                 (24.95%)
+                 0      CPU_CLK_UNHALTED.DISTRIBUTED                                            (24.95%)
+      211131419690      TOPDOWN.SLOTS                    #      nan %  tma_split_stores         (25.01%)
+       30648190188      topdown-retiring                                                        (25.01%)
+        2489357360      topdown-fe-bound                                                        (25.01%)
+      113489616273      topdown-mem-bound                                                       (25.01%)
+      179668698321      topdown-be-bound                                                        (25.01%)
+            611332      topdown-bad-spec                                                        (25.01%)
+        1823816893      EXE_ACTIVITY.BOUND_ON_STORES                                            (25.01%)
+             25361      MEM_INST_RETIRED.SPLIT_STORES                                           (25.01%)
+       53293002752      CPU_CLK_UNHALTED.THREAD                                                 (25.01%)
+                 0      CPU_CLK_UNHALTED.DISTRIBUTED                                            (25.01%)
+     <not counted>      TOPDOWN.SLOTS                                                         
+     <not counted>      topdown-retiring                                                      
+     <not counted>      topdown-fe-bound                                                      
+     <not counted>      topdown-mem-bound                                                     
+     <not counted>      topdown-be-bound                                                      
+     <not counted>      topdown-bad-spec                                                      
+     <not counted>      EXE_ACTIVITY.BOUND_ON_STORES                                          
+   <not supported>      OCR.STREAMING_WR.ANY_RESPONSE                                         
+     <not counted>      CPU_CLK_UNHALTED.THREAD                                               
+
+      22.906950205 seconds time elapsed
+

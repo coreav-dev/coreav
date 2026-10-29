@@ -1,0 +1,14 @@
+# started on Thu Oct 29 13:20:22 2026
+
+
+ Performance counter stats for thread id '1908':
+
+       53843924988      cycles                                                                
+       37728180163      instructions                     #    0.70  insn per cycle            
+           1678054      ld_blocks.address_alias                                               
+             54372      ld_blocks.no_sr                                                       
+        7371135990      mem_inst_retired.all_loads                                            
+        3652896440      mem_inst_retired.all_stores                                           
+
+      22.576807982 seconds time elapsed
+

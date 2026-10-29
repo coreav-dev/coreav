@@ -1,0 +1,14 @@
+# started on Thu Oct 29 13:26:52 2026
+
+
+ Performance counter stats for thread id '2457':
+
+       55302782652      cycles                                                                
+       41437238115      instructions                     #    0.75  insn per cycle            
+           7975931      dtlb_load_misses.walk_active                                          
+           1607246      dtlb_load_misses.stlb_hit                                             
+           7663297      dtlb_store_misses.walk_active                                         
+           2328613      dtlb_store_misses.stlb_hit                                            
+
+      22.814401478 seconds time elapsed
+

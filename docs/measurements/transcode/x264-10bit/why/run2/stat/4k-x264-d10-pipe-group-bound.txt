@@ -1,0 +1,14 @@
+# started on Thu Oct 29 13:27:15 2026
+
+
+ Performance counter stats for thread id '2487':
+
+       55230338006      cycles                                                                
+       41436127086      instructions                     #    0.75  insn per cycle            
+        1743623706      exe_activity.bound_on_stores                                          
+       27838829014      exe_activity.bound_on_loads                                           
+        2473069518      resource_stalls.sb                                                    
+        2214839371      l1d_pend_miss.fb_full                                                 
+
+      22.535953487 seconds time elapsed
+
