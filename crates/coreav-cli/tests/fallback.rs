@@ -178,6 +178,53 @@ fn the_first_program_on_path_that_is_not_coreav_runs() {
 }
 
 #[test]
+fn a_relative_coreav_fallback_is_the_file_in_the_working_directory() {
+    let decoy = tmp("relative-decoy");
+    symlink("/bin/false", decoy.join("ffmpeg")).unwrap();
+    let out = Command::new(bin())
+        .args(["ffmpeg", "-i", "in.mp4", "-vf", "x", "out.mp4"])
+        .current_dir(stand_in())
+        .env_clear()
+        .env("PATH", &decoy)
+        .env("COREAV_FALLBACK", "ffmpeg")
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8(out.stderr).unwrap();
+    assert_eq!(out.status.code(), Some(7), "{stderr}");
+    let expected = format!("coreav: ran {}/ffmpeg instead", stand_in().display());
+    assert!(stderr.starts_with(&expected), "{stderr}");
+}
+
+#[test]
+fn a_program_that_cannot_start_is_logged_as_not_run() {
+    let dir = tmp("cannot-start");
+    let program = dir.join("ffmpeg");
+    std::fs::write(&program, "#!/nonexistent/interpreter\n").unwrap();
+    std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let log = dir.join("fallback.log");
+    let r = coreav(
+        &["ffmpeg", "-i", "in.mp4", "-vf", "x", "out.mp4"],
+        &[],
+        &[
+            ("COREAV_FALLBACK", dir.to_str().unwrap()),
+            ("COREAV_FALLBACK_LOG", log.to_str().unwrap()),
+        ],
+    );
+    assert_eq!(r.code, 4, "{}", r.stderr);
+    assert!(
+        r.stderr
+            .contains(&format!("could not run {}", program.display())),
+        "{}",
+        r.stderr
+    );
+    let lines = log_lines(&log);
+    assert_eq!(lines.len(), 2);
+    assert_eq!(lines[0]["ran"], program.to_str().unwrap());
+    assert_eq!(lines[1]["ran"], Value::Null);
+    assert_eq!(lines[1]["not_run"], "fallback_unusable");
+}
+
+#[test]
 fn without_a_program_the_command_is_refused_and_says_why() {
     let links = tmp("missing");
     symlink(bin(), links.join("ffmpeg")).unwrap();

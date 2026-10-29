@@ -50,7 +50,10 @@ pub fn refuse(tool: Tool, args: &[String], refusal: NotNative, strict_safe: bool
                 path.display(),
                 reason.redacted(tool)
             );
-            run(tool, &path, args)
+            let error = run(&path, args);
+            message(tool, &format!("could not run {}: {error}", path.display()));
+            log(tool, args, reason, Err(NotRun::Unusable));
+            ExitCode::from(EXIT_UNSUPPORTED)
         }
         Err((not_run, why)) => {
             message(tool, &refusal.message);
@@ -98,7 +101,7 @@ fn program(tool: Tool) -> Result<PathBuf, (NotRun, Option<String>)> {
             return unusable(format!("names no {} program", tool.name()));
         };
         return if executable(&path) {
-            Ok(path)
+            std::path::absolute(&path).or_else(|error| unusable(error.to_string()))
         } else if path.exists() {
             unusable(format!(
                 "names {}, which is not an executable file",
@@ -137,8 +140,10 @@ fn executable(path: &Path) -> bool {
     }
 }
 
-/// Whether two paths are the same file: a symbolic link to this program
-/// (the multicall link) and a hard link to it included.
+/// Whether two paths are the same program: a symbolic link to this program
+/// (the multicall link) and a hard link to it included. Windows has no file
+/// identity in the standard library, so there the same bytes count, which
+/// takes in a copy too.
 fn same(a: &Path, b: &Path) -> bool {
     #[cfg(unix)]
     {
@@ -150,10 +155,10 @@ fn same(a: &Path, b: &Path) -> bool {
     }
     #[cfg(not(unix))]
     {
-        match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
-            (Ok(a), Ok(b)) => a == b,
-            _ => false,
-        }
+        let len = |path: &Path| std::fs::metadata(path).map(|m| m.len()).ok();
+        len(a).is_some()
+            && len(a) == len(b)
+            && std::fs::read(a).is_ok_and(|a| std::fs::read(b).is_ok_and(|b| a == b))
     }
 }
 
@@ -189,7 +194,8 @@ fn log(tool: Tool, args: &[String], reason: &fallback::Reason, ran: Result<&str,
 /// Runs the program in this process's place: on Unix it replaces this
 /// process (`exec`), so the process id, signals and exit status are the
 /// program's; elsewhere it waits for it and exits with its exit code.
-fn run(tool: Tool, path: &Path, args: &[String]) -> ExitCode {
+/// Returns only when the program could not start.
+fn run(path: &Path, args: &[String]) -> std::io::Error {
     let mut command = Command::new(path);
     command.args(args).env(GUARD, "1");
     #[cfg(unix)]
@@ -202,6 +208,5 @@ fn run(tool: Tool, path: &Path, args: &[String]) -> ExitCode {
         Ok(status) => std::process::exit(status.code().unwrap_or(1)),
         Err(error) => error,
     };
-    message(tool, &format!("could not run {}: {error}", path.display()));
-    ExitCode::from(EXIT_UNSUPPORTED)
+    error
 }

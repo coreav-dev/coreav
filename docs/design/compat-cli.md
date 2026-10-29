@@ -1003,14 +1003,16 @@ service's input. Every bar of this note is measured in it.
 
 1. `COREAV_FALLBACK=<path>`: a directory names its `ffmpeg` and `ffprobe` (with
    `.exe` on Windows); a file names that program, for the tool its file name
-   names. When the path names the other tool, does not exist or is not
+   names. A relative path is taken from the working directory, never looked
+   up on `PATH`. When the path names the other tool, does not exist or is not
    executable, nothing runs: the refusal stands (exit 4) with one more line
    that names the variable and the reason. It never falls through to `PATH`,
    which would run a different FFmpeg than the one asked for.
 2. Otherwise the first `ffmpeg` or `ffprobe` on `PATH` that is an executable file
-   and is not this program: the canonical path and the file identity are
-   compared with the running executable's, so the multicall link and a hard
-   link to `coreav` are skipped.
+   and is not this program: its file identity is compared with the running
+   executable's, so the multicall link and a hard link to `coreav` are
+   skipped. Windows has no file identity in Rust's standard library, so
+   there the bytes are compared, which skips a copy of `coreav` too.
 3. None found: the refusal stands, exit 4, as today.
 
 Only a refusal is handed on. A file CoreAV rejects (exit 1), a malformed
@@ -1063,7 +1065,11 @@ level:
 
 `ran` is null when nothing ran, and `not_run` then says why: `strict_safe`,
 `no_program`, `fallback_unusable` (`COREAV_FALLBACK` names nothing that can
-run) or `recursion_guard`. The file
+run, or the program could not start) or `recursion_guard`. The line is
+written before the program starts, since on Unix nothing of CoreAV runs
+after it; a program that then cannot start (a script whose interpreter is
+missing) adds a second line for the same command, with `ran` null and
+`not_run` `fallback_unusable`, and the command exits 4. The file
 is opened to append and each line is one write, so processes running at
 once do not interleave lines. A log that cannot be written costs one line
 on standard error, at every log level, and never stops the command.
