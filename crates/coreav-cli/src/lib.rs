@@ -24,6 +24,7 @@ pub mod compat;
 pub mod decode_audio;
 pub mod error;
 pub mod extract;
+pub mod ffmpeg;
 pub mod ffprobe;
 pub mod hls;
 pub mod join;
