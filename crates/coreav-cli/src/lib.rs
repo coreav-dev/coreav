@@ -21,6 +21,7 @@
 pub mod check;
 pub mod clip;
 pub mod compat;
+pub mod concat;
 pub mod decode_audio;
 pub mod error;
 pub mod extract;
