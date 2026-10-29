@@ -121,6 +121,17 @@ class Evidence(unittest.TestCase):
             'b3a-round6.json: isobmff `packets.pos`: below_98 is False, but 1028/1049 is 97.998% '
             '(a key is below the bar on its unrounded share)'])
 
+    def test_a_rare_tag_row_whose_rate_or_flag_contradicts_its_counts(self):
+        doc = json.loads((EVIDENCE / 'b3a-round6.json').read_text())
+        row = '(tag keys in fewer than 5 files, together)'
+        bad = copy.deepcopy(doc)
+        bad['all'][row]['rate'] = 100.0
+        bad['all'][row]['below_98'] = False
+        self.assertEqual(record.consistency('b3a-round6.json', bad), [
+            f'b3a-round6.json: all `{row}`: rate 100.0, but 204/210 rounds to 97.14',
+            f'b3a-round6.json: all `{row}`: below_98 is False, but 204/210 is 97.14% '
+            '(a key is below the bar on its unrounded share)'])
+
     def test_a_round_without_evidence(self):
         with tempfile.TemporaryDirectory() as tmp:
             for p in EVIDENCE.glob('b3a-round[1-5].json'):

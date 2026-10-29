@@ -113,21 +113,24 @@ def render(doc, container):
 
 def consistency(name, doc):
     """A JSON's `rate` is its share rounded to two decimals, and its
-    `below_98` the unrounded share against the bar."""
+    `below_98` the unrounded share against the bar. The share is over
+    `files`, or over `occurrences` for the row that counts the rare tag
+    keys together."""
     problems = []
     for table_name, table in doc.items():
         if not isinstance(table, dict):
             continue
         for k, e in table.items():
-            if not isinstance(e, dict) or 'files' not in e:
+            if not isinstance(e, dict) or 'agree' not in e:
                 continue
-            rounded = round(100 * e['agree'] / e['files'], 2)
+            agree, total = e['agree'], e.get('files', e.get('occurrences'))
+            rounded = round(100 * agree / total, 2)
             if e['rate'] != rounded:
                 problems.append(f"{name}: {table_name} `{k}`: rate {e['rate']}, but "
-                                f"{e['agree']}/{e['files']} rounds to {rounded}")
-            if 'below_98' in e and e['below_98'] != below(e):
+                                f"{agree}/{total} rounds to {rounded}")
+            if 'below_98' in e and e['below_98'] != (agree * 100 < BAR * total):
                 problems.append(f"{name}: {table_name} `{k}`: below_98 is {e['below_98']}, but "
-                                f"{e['agree']}/{e['files']} is {rate(e['agree'], e['files'])} "
+                                f"{agree}/{total} is {rate(agree, total)} "
                                 f'(a key is below the bar on its unrounded share)')
     return problems
 
