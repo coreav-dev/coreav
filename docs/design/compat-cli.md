@@ -467,58 +467,9 @@ failed remote read), 141 standard output closed by its reader. `ffprobe`
 itself exits 1 for all of 1 to 3; a script that tests for success sees the
 same answer.
 
-### Strict-safe mode, and the fallback to FFmpeg
-
-**For a service that reads files it did not make, use strict-safe mode:**
-`COREAV_STRICT_SAFE=1`, or `coreav --strict-safe ffprobe ...` and
-`coreav --strict-safe ffmpeg ...`. A command that is not native is then
-refused as above, exit status 4, and no other program runs, so no FFmpeg
-code reads the service's input. Under a link named `ffprobe` or `ffmpeg`
-every argument is the tool's, so only the variable works there. Any value
-but empty and `0` turns it on.
-
-**Without strict-safe mode, a command that is not native runs FFmpeg's C
-code:** the real `ffmpeg` or `ffprobe` runs in place of the refusal, with
-the arguments unchanged, standard input, output and error inherited, and
-its exit status returned unchanged (on Unix it replaces the `coreav`
-process). Only a refusal (exit status 4) is handed on: a file CoreAV
-rejects (1), a malformed command (2) and an input that cannot be read (3)
-keep their status. A native command reads none of what follows.
-
-- **Which program.** `COREAV_FALLBACK=PATH` names a directory holding
-  `ffmpeg` and `ffprobe`, or one of the two programs. When it names nothing
-  that can run (it does not exist, it is not executable, it is the other
-  tool), the refusal stands with one more line naming the variable and why,
-  and `PATH` is not searched. Without the variable, the first `ffmpeg` or
-  `ffprobe` on `PATH` that is an executable file and not `coreav` itself
-  (the multicall link and a hard link are skipped). When there is none, the
-  refusal stands with a line saying so.
-- **Recursion guard.** The program runs with `COREAV_FALLBACK_ACTIVE=1`. A
-  `coreav` started with it set never falls back: a wrapper or a copy that
-  leads back to CoreAV is refused instead of looping.
-- **Notice.** One line on standard error before the program starts, at
-  every log level (`-v quiet` included), never on standard output:
-  `coreav: ran /usr/bin/ffmpeg instead (not native: -vf)`.
-- **Log.** `COREAV_FALLBACK_LOG=PATH` appends one JSON line, in one write,
-  for every command that is not native, whether FFmpeg ran or the command
-  was refused: `time`, `coreav` (the version), `tool`, `args`, `reason`,
-  `ran` (the program, or null) and, when nothing ran, `not_run`
-  (`strict_safe`, `no_program`, `fallback_unusable` or `recursion_guard`).
-  `args` and `reason` are redacted when the line is written: an option, a
-  stream specifier or a value is kept only when it is a public name of the
-  pinned FFmpeg 7.0.2's own listings (options, encoders, formats, flag
-  values, sections) or a key `coreav ffprobe` prints, or a time or an
-  integer where the option takes one. File names and URLs become `INPUT`,
-  `OUTPUT` or `FILE`, other values `VALUE` (`SECTION` and `KEY` in
-  `-show_entries`, every key of a tags section included), an option off the
-  listings `-OPTION`, and a specifier other than a stream type or index
-  `SPEC`. `scripts/fallback_names.py` generates the lists from the
-  binaries. A log that cannot be written costs one line on standard error
-  and never stops the command.
-
-Every measurement of this note runs in strict-safe mode
-(`tools/compat-corpus/run.py` and `speed.py` set it), so a refused
-command is never measured as FFmpeg agreeing with itself.
+A refused command runs FFmpeg's `ffmpeg` or `ffprobe` instead unless
+strict-safe mode is on (`COREAV_STRICT_SAFE=1`, `coreav --strict-safe`),
+the mode for services that read untrusted input: see "Fallback to FFmpeg".
 
 ### Output fidelity
 
@@ -1028,8 +979,9 @@ is measured below.
 
 ## Fallback to FFmpeg
 
-Design only: the implementation is a later pull request, under these
-rules. A command that is not native (one refused above with exit status 4,
+Implemented in `coreav-cli` (`fallback.rs` redacts and writes the log
+line, `fallback_cmd.rs` finds and runs the program) under these rules. A
+command that is not native (one refused above with exit status 4,
 the commands that ask for no section included) runs the real `ffmpeg` or
 `ffprobe` instead, unless strict-safe mode is on. With the fallback, the
 compatibility command can stand in for FFmpeg in a pipeline that also runs
@@ -1109,8 +1061,9 @@ level:
 
     {"time": "2026-10-29T08:00:00Z", "coreav": "0.1.0", "tool": "ffmpeg", "args": ["-i", "INPUT", "-vf", "VALUE", "-c:a", "copy", "OUTPUT"], "reason": "-vf", "ran": "/usr/bin/ffmpeg"}
 
-`ran` is null when nothing ran, and `not_run` then says why (strict-safe mode,
-no program found, `COREAV_FALLBACK` unusable, the recursion guard). The file
+`ran` is null when nothing ran, and `not_run` then says why: `strict_safe`,
+`no_program`, `fallback_unusable` (`COREAV_FALLBACK` names nothing that can
+run) or `recursion_guard`. The file
 is opened to append and each line is one write, so processes running at
 once do not interleave lines. A log that cannot be written costs one line
 on standard error, at every log level, and never stops the command.
@@ -1124,7 +1077,10 @@ Every file name, URL and other bare argument becomes a placeholder (`INPUT`,
 `OUTPUT`, `FILE`), and every other value becomes `VALUE`.
 
 - **Option names.** An option is written as its base name (`-c`, `-map_metadata`),
-  up to any `=` in it. A stream-specifier suffix is kept only when it is a
+  up to any `=` in it, when the pinned binaries' `-h full` lists it, and as
+  `-OPTION` otherwise: after an option whose arity is unknown, a value that
+  starts with `-` would otherwise be logged as an option name. An option off
+  the listing is taken to have a value, which becomes `VALUE`. A stream-specifier suffix is kept only when it is a
   stream type or an index (`-c:v`, `-c:a:0`, `-b:1`); any other suffix becomes
   `:SPEC`, so `-c:m:comment:private_id` is logged as `-c:SPEC`.
 - **Values:**
@@ -1143,12 +1099,15 @@ Every file name, URL and other bare argument becomes a placeholder (`INPUT`,
 
 The name lists are taken from the pinned binaries' own listings and from the
 documentation, committed with the implementation, never from the command
-being logged. The same redaction applies to `reason`, which names the option
+being logged: `scripts/fallback_names.py` generates
+`crates/coreav-cli/src/fallback/names.rs` from FFmpeg 7.0.2's `-h full`,
+`-encoders`, `-formats` and `ffprobe -sections`, and the keys from
+`coreav ffprobe`'s source. libaom-av1's private options are left out of it. The same redaction applies to `reason`, which names the option
 or property the command was refused for, so a refusal of
 `-show_entries format_tags=private_label` logs `format_tags=KEY` there too.
 
-Every option outside the table, step 1's or not, keeps its redacted name and
-loses its value. A command line can carry private data in places no list of
+Every option outside the table, step 1's or not, keeps its redacted name
+(`-OPTION` when it is off the listing) and loses its value. A command line can carry private data in places no list of
 dangerous options foresees: `-headers "Authorization: ..."`, a URL with a
 token, a proxy password, a metadata selector inside the vocabulary
 (`-map 0:m:comment:...`), a metadata key in a stream specifier
