@@ -662,11 +662,15 @@ FFmpeg).**
 - Matroska and WebM inputs to the jobs other than the remux, and
   MPEG-TS inputs to all of them, as "Containers" says.
 - An input or output named with a protocol: standard input or output
-  (`-`, `pipe:`), a URL, and any name that starts with letters, digits, `+`,
-  `-`, `.` or `_` and a colon, `file:in.mp4` included, which `ffmpeg` opens
-  through that protocol (black box: `foo:in.mp4` fails with "Protocol not
-  found"). On Windows a drive letter before a separator (`C:\in.mp4`,
-  `C:/in.mp4`) is a path.
+  (`-`, `pipe:`), and any name with a colon before its first `/` (on
+  Windows, its first `/` or `\`), where `ffmpeg` may read a protocol and its
+  options: `file:in.mp4`, a URL, `subfile,,start,0,end,99999,,:in.mp4`,
+  `:in.mp4`, `a,b:c.mp4`. Some of these `ffmpeg` opens as a plain file, so
+  the rule refuses more than it must (black box: `foo:in.mp4` and
+  `:out.mp4` fail with "Protocol not found", `a,b:c.mp4` is written as
+  named). A name that starts with `/` or `./` is a path, as is, on Windows
+  only, a drive letter before a separator (`C:\in.mp4`, `C:/in.mp4`):
+  elsewhere `ffmpeg` reads `C:/in.mp4` as protocol `C`.
 
 ### The measurements, fixed before the runs
 
