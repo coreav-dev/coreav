@@ -693,7 +693,8 @@ def report(rep):
 
 
 def status(rep, args, parts):
-    """3 for a void run; 1 when a judged arm misses the bar or has no timed file, or bar 1 is missed; else 0."""
+    """3 for a void run; 1 when a judged arm misses the bar or has no timed file, or bar 1 is missed or, for the
+    oracle alone, has no stream; else 0."""
     if 'speed' in parts and rep['void']:
         return 3
     problems = []
@@ -706,6 +707,8 @@ def status(rep, args, parts):
                 elif s['median'] > args.bar:
                     problems.append(f'{name} {bar}: median {s["median"]:.4f} above {args.bar}')
     o = rep['oracle'] if 'oracle' in parts else None
+    if parts == ('oracle',) and not o:
+        problems.append('no stream compared')
     if o:
         if o['all']['streams_share'] < STREAMS_SHARE:
             problems.append(f'streams agreeing {pct(o["all"]["streams_share"], 1)}')
