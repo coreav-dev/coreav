@@ -499,6 +499,95 @@ before its first frame (none when the source has no edit list), the empty
 edit growing when leading frames are left out; with `--scale`, a rotation
 matrix's translation follows the new size.
 
+## Through `coreav ffmpeg`
+
+`coreav ffmpeg` ([`compat-cli.md`](compat-cli.md)) runs the common
+`ffmpeg` command lines of this job through this pipeline: one input, the
+video re-encoded with libx264, the audio copied or dropped, one MP4
+output. The command line is read by the compatibility parser and its
+stream selection, the same as for `-c copy`; a command that selects a
+video stream for `libx264` is routed here before the refusal of encoder
+values, and every option this section does not list is still refused,
+naming it (exit status 4).
+
+| Option | Taken as |
+|---|---|
+| `-c:v`, `-vcodec` (and `-c`/`-codec` with a specifier naming the video) `libx264` | the encoder; the selected video stream must be the one this pipeline encodes (FFmpeg's default choice, "Scope"), and only one |
+| `-c:a`, `-acodec` `copy`, or `-c copy` for the other streams | the selected audio streams copied (`AudioMode::Streams`) |
+| `-an` | no audio |
+| `-crf Q` | `--crf`, 0 to 51, fractions as given |
+| `-b:v RATE` | `--bitrate`: FFmpeg's number syntax (`k`, `M`, a fraction), in bits a second, divided by 1,000 with the remainder dropped as libx264 receives it (`1M` 1,000, `1234567` 1,234 kbit/s, checked on the pinned FFmpeg as a black box); a rate below 1,000 is refused |
+| `-preset P` | `--preset` |
+| `-threads N` after the input | `--threads`; `0` is the encoder's own choice |
+| `-vf`, `-filter:v` `scale=W:H` | `--scale W:H`, the forms it takes; any other filter or filter chain is refused |
+| `-s WxH` after the input | `--scale W:H` |
+| `-pix_fmt yuv420p` | the encoder's input must be 8-bit 4:2:0 (`TranscodeOptions::pixel_format`); frames are not converted, so a source decoded to another format is refused before the encoder starts (FFmpeg converts it) |
+| `-movflags +faststart`, `faststart` | nothing: the movie box is always first |
+| `-f mp4`, an output named `.mp4` | the output container |
+| `-noautorotate` before the input | rotation kept as metadata, which this pipeline always does |
+| `-fps_mode passthrough`, `-vsync passthrough`, `-vsync 0` | the frames' own times, which this pipeline always keeps |
+
+FFmpeg's defaults, where the command leaves them, are this pipeline's:
+CRF 23 and `medium`. Where FFmpeg's behaviour differs from this
+pipeline's, the command is refused where the difference would change the
+output, before the encoder starts:
+
+- **Autorotation.** Without `-noautorotate`, FFmpeg applies a track's matrix
+  to the frames and writes the identity; this pipeline keeps the matrix
+  and the frames as they are. A source whose MP4 track matrix is not the
+  identity is refused without `-noautorotate`, whatever the matrix (a quarter
+  turn, −45°, a mirror). With `-noautorotate` both write the source's matrix
+  unchanged (checked on the pinned FFmpeg as a black box at −45°, 90° and
+  180°, also with `-s`), except a matrix that translates or projects,
+  which is refused either way, as is a Matroska track with a projection
+  or a pose other than zero.
+- **Constant rate.** Without `-fps_mode passthrough`, FFmpeg writes MP4 at
+  a constant rate and duplicates or drops frames to keep it (`vfr.mp4`:
+  33 frames in, 50 out). A source whose presented frames are not evenly
+  spaced (one interval above zero between every two, in the track's time
+  base, so a repeated time is not), or
+  whose video does not start at time 0 (an empty edit, a late first
+  frame: FFmpeg repeats the first frame to fill the start, `edit_list.mp4`
+  50 frames in, 51 out), is refused without it; otherwise the two give the same
+  frames (B9's Q2 pairs every frame with FFmpeg's output of the same
+  command, and fails when the counts differ).
+- **Times in decode order.** A source whose frames are reordered
+  (`has_b_frames` above 0) but whose container gives no composition
+  offsets: FFmpeg derives other times for its frames ("Times in decode
+  order" above, `size_inband_sps.mp4`). Refused without
+  `-fps_mode passthrough`.
+- **Left crops.** By default the pinned FFmpeg decodes an H.264 left crop
+  that is not aligned uncropped (`size_left_crop.mp4`, the B4 baseline
+  above), where CoreAV's native decoder crops as specified. An H.264
+  picture cropped at its left or top edge (its sequence parameter set in
+  the stored configuration) is refused.
+- **Size changes.** Where the frame size changes within the stream,
+  FFmpeg resizes the later frames to the first size with its own scaler,
+  and this pipeline with its own (`size_vp9_resize.mp4` at `-crf 0`:
+  0.77 dB below FFmpeg against the source). `TranscodeOptions::one_size`
+  refuses such a stream when the first other size comes, before anything
+  is written.
+- **Chapters and timecodes.** FFmpeg writes a source's chapters as a text
+  track and its timecode as a `tmcd` track; this pipeline writes neither.
+  A source with chapters, or a stream with a `timecode` tag, is refused.
+- **Stream order.** FFmpeg writes the selected video first, then the
+  audio; this pipeline keeps the source's order. A source whose selected
+  audio comes before its video is refused.
+- **Audio.** Without `-c:a copy` or `-an`, FFmpeg re-encodes the
+  selected audio to AAC; audio encoding is not in this pipeline, so a
+  command that selects an audio stream without copying it is refused.
+  Copied audio the MP4 writer does not take (PCM; anything but AAC or MP3
+  in an `mp4a` sample entry and Opus in an `Opus` one from MP4/MOV, AAC
+  and Opus from Matroska) is refused before the encode, where the writer
+  would fail after it.
+
+A refusal found once the input is read (the four above, a pixel format,
+an edit list, anything this pipeline refuses as `Unsupported`, a video
+no decoder of the build takes or allows, such as HEVC in a build with the
+native H.264 decoder alone) goes
+through the same refusal point as an option, so a script sees exit
+status 4, and nothing is written.
+
 ## Crates
 
 | Crate | What it gets | `unsafe` |
@@ -668,7 +757,9 @@ crop that is not aligned and outputs the uncropped picture (the
 `size_left_crop.mp4` fixture: 1280 columns instead of columns 48 to 1279),
 where CoreAV's native decoder crops as specified. Every FFmpeg decode of a
 source in these bars (the baseline, the Q1 reference, the PSNR inputs)
-takes it; on every other fixture it changes no decoded frame.
+takes it; on every other fixture it changes no decoded frame. B9's
+FFmpeg command does not: it is the command line a user runs, and
+`coreav ffmpeg` refuses an H.264 picture cropped at its left or top edge.
 
 The baseline is timed on every file, though its own output does not pass
 B2 or B3 on every file (FFmpeg moves the audio against the video on some edit
@@ -821,6 +912,80 @@ information command once).
    FFmpeg and the encoder are other processes and not counted; their time
    is in B5. A CI job also runs B1 to B4 on the fixtures
    (`scripts/transcode_check.py`).
+9. **B9, through `coreav ffmpeg`.** On the fixtures, both encoder arms,
+   each of these command lines (`IN` and `OUT.mp4` substituted), the
+   first nine as they appear in the command-coverage set
+   (`commands-v1`), the rest covering each accepted option once:
+
+       -i IN -c:v libx264 OUT.mp4
+       -i IN -c:v libx264 -crf 19 OUT.mp4
+       -i IN -crf 0 -c:v libx264 OUT.mp4
+       -y -i IN -c:v libx264 -crf 24 OUT.mp4
+       -i IN -c:v libx264 -crf 23 -preset medium -pix_fmt yuv420p OUT.mp4
+       -i IN -vcodec libx264 -f mp4 OUT.mp4
+       -i IN -vf scale=1920:-2 -vcodec libx264 -crf 20 OUT.mp4
+       -y -i IN -c:a copy -c:v libx264 -pix_fmt yuv420p OUT.mp4
+       -i IN -c:v libx264 -crf 1 OUT.mp4
+       -noautorotate -i IN -c:v libx264 -preset veryfast -b:v 1M -c:a copy -movflags +faststart OUT.mp4
+       -i IN -c copy -c:v libx264 -preset veryfast -s 320x240 -threads 2 -fps_mode passthrough OUT.mp4
+       -i IN -an -c:v libx264 -preset veryfast OUT.mp4
+
+   - Each command either runs, or is refused with exit status 4 for a
+     reason this section names, writing nothing. A file CoreAV rejects
+     (exit status 1 naming a truncated or invalid structure, which
+     `compat-cli.md` keeps as CoreAV's verdict) is set apart and listed,
+     as B1 to B4 set a rejected file apart. Any other failure counts
+     against the bar.
+   - A command that runs passes B1, B3 and B4 against FFmpeg running the
+     same command line (Q1 at least −0.50 dB, Q2 at least 30 dB), and B2,
+     on 100% of the fixtures it runs on, except the fixtures that miss B2
+     with `coreav transcode` too (listed in Results); its output lists
+     the same streams, by kind and codec, in the same order, as FFmpeg's.
+   - FFmpeg itself running a command that CoreAV refused is listed by
+     fixture and reason, for information.
+   - Speed: the job is `coreav transcode`'s, with the same encoder and
+     settings, so B5 is its speed and no other run is made; the
+     compatibility command's own bar (`compat-cli.md`, B4, at most 1.00
+     against the same FFmpeg command) is B5's 1.05 for these commands, for
+     B5's reason. What the command adds of its own is reading the command
+     line and the source's video index once more before the transcode.
+
+   Changed 2026-10-29, after a local run on the fixtures and before the
+   GitHub Actions run that decides B9 (the first run at the commit that
+   makes this change; earlier runs do not count). The criterion first
+   committed was "refused with exit status 4 for a reason this section
+   names, writing nothing; any other failure counts against the bar".
+   Two things changed:
+
+   - A file CoreAV rejects with exit status 1 naming a truncated or
+     invalid structure is set apart. `truncated.mp4` is rejected so, as
+     `-c copy` rejects it (`compat-cli.md`) and as B1 to B4 set it
+     apart; under the first criterion it would count against the bar for a
+     defect of the input, which no encoder change can pass.
+   - The refusals this section names grew: a late start, reordered frames
+     without composition offsets, size changes, and chapters and
+     timecodes were added where the local run showed FFmpeg's output
+     differing from this pipeline's, and autorotation was widened from a
+     quarter turn to any matrix other than the identity.
+
+   Changed again 2026-10-29, after the run that decides B9, from review
+   of the pull request. Three refusals were added, each for sources where
+   the command ran with another output than FFmpeg's or failed only after
+   the encode: copied audio the MP4 writer does not take (PCM, which
+   failed with exit status 1 after the encode), repeated frame times
+   without `-fps_mode passthrough` (FFmpeg cannot keep both frames at a
+   constant rate), and an H.264 picture cropped at its left or top edge.
+   B9's FFmpeg command no longer takes `-flags +unaligned`: with it,
+   FFmpeg decoded `size_left_crop.mp4` as CoreAV does, where the command
+   line a user runs does not. On the fixtures the only change is that
+   `size_left_crop.mp4` is refused on every line, where it ran and passed
+   in the deciding run. That run stands for the code it ran on; the CI job
+   checks the changed code.
+
+   A CI job runs B9 on every change (`scripts/transcode_check.py
+   --compat`), in strict-safe mode (`COREAV_STRICT_SAFE=1`), so that a
+   refusal stands and is not handed to FFmpeg (`compat-cli.md`, "Fallback
+   to FFmpeg").
 
 Spend: the correctness and speed runs together are capped at 10 USD in
 the scripts that run them, and the actual spend is reported with the

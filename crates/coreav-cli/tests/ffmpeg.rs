@@ -89,7 +89,7 @@ fn commands_outside_the_vocabulary_are_refused_by_name() {
     let o = output.to_str().unwrap();
     let i = input.as_str();
     for (args, named) in [
-        (vec!["-i", i, "-c:v", "libx264", o], "libx264"),
+        (vec!["-i", i, "-c:v", "libx265", o], "libx265"),
         (
             vec!["-i", i, "-vf", "scale=320:-2", "-c:a", "copy", o],
             "-vf",
@@ -121,8 +121,8 @@ fn a_refusal_carries_its_reason() {
         }
     };
     assert_eq!(
-        refusal(&["-i", "in.mp4", "-c:v", "libx264", "out.mp4"]),
-        Reason::Option("-c:v".to_owned(), Some("libx264".to_owned()))
+        refusal(&["-i", "in.mp4", "-c:v", "libx265", "out.mp4"]),
+        Reason::Option("-c:v".to_owned(), Some("libx265".to_owned()))
     );
     assert_eq!(
         refusal(&["-f", "mpegts", "-i", "in.ts", "-c", "copy", "out.mp4"]),

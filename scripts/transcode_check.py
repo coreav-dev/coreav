@@ -114,6 +114,7 @@ import bisect
 import collections
 import concurrent.futures
 import hashlib
+import io
 import json
 import math
 import os
@@ -124,6 +125,7 @@ import shutil
 import statistics
 import subprocess
 import sys
+import tarfile
 import tempfile
 import threading
 import time
@@ -173,6 +175,29 @@ TIMEOUT = 7200
 PREFLIGHT = '/opt/coreav-fixtures/basic.mp4'
 CONFIGS = ('default', 'scaled')
 
+# B9 (docs/design/transcode.md): `coreav ffmpeg` command lines, IN and OUT.mp4 substituted, each against FFmpeg
+# running the same command line. The first nine as `commands-v1` has them; the rest cover each accepted option.
+COMPAT_COMMANDS = {
+    'x01': '-i IN -c:v libx264 OUT.mp4',
+    'x02': '-i IN -c:v libx264 -crf 19 OUT.mp4',
+    'x03': '-i IN -crf 0 -c:v libx264 OUT.mp4',
+    'x04': '-y -i IN -c:v libx264 -crf 24 OUT.mp4',
+    'x05': '-i IN -c:v libx264 -crf 23 -preset medium -pix_fmt yuv420p OUT.mp4',
+    'x06': '-i IN -vcodec libx264 -f mp4 OUT.mp4',
+    'x07': '-i IN -vf scale=1920:-2 -vcodec libx264 -crf 20 OUT.mp4',
+    'x08': '-y -i IN -c:a copy -c:v libx264 -pix_fmt yuv420p OUT.mp4',
+    'x09': '-i IN -c:v libx264 -crf 1 OUT.mp4',
+    'x10': '-noautorotate -i IN -c:v libx264 -preset veryfast -b:v 1M -c:a copy -movflags +faststart OUT.mp4',
+    'x11': '-i IN -c copy -c:v libx264 -preset veryfast -s 320x240 -threads 2 -fps_mode passthrough OUT.mp4',
+    'x12': '-i IN -an -c:v libx264 -preset veryfast OUT.mp4',
+}
+# Fixtures that miss B2 with `coreav transcode` as well (docs/measurements/transcode.md): B9 sets their B2 apart.
+B2_KNOWN_MISSES = {'size_inband_sps.mp4'}
+EXIT_UNSUPPORTED = 4
+# A file `coreav ffmpeg` rejects (exit status 1, docs/design/compat-cli.md) is set apart as `coreav transcode`'s runs
+# set a rejected file apart, when the message names one of these defects of the file.
+REJECTED_DEFECTS = ('truncated structure', 'invalid structure')
+
 ENV = None          # the tools' environment: no credentials
 _print = threading.Lock()
 
@@ -188,6 +213,7 @@ def child_env(ffmpeg=None):
     env = {k: v for k, v in os.environ.items()
            if not k.startswith(('R2_', 'AWS_', 'COREAV_GCP_', 'CORPUS_R2'))}
     env['PYTHONDONTWRITEBYTECODE'] = '1'
+    env['COREAV_STRICT_SAFE'] = '1'
     if ffmpeg:
         env['COREAV_FFMPEG'] = ffmpeg
     return env
@@ -725,9 +751,10 @@ def streams_read(ostreams, layout, audio):
                     for a in layout['audio']))
 
 
-def judge_output(args, src, out, layout, video_index, audio_indices, tmp):
+def judge_output(args, src, out, layout, video_index, audio_indices, tmp, expected_audio=None):
     """B1 to B3 of one output file, and what B4 needs of it. `layout` places the written streams in the output
-    (output_layout, baseline_layout); video_index and audio_indices are the source streams they come from."""
+    (output_layout, baseline_layout); video_index and audio_indices are the source streams they come from.
+    `expected_audio`: the source audio streams B3 expects written, by default those `coreav remux IN` keeps."""
     res = {'layout': layout}
     vi = layout['video']
     # B1
@@ -784,12 +811,13 @@ def judge_output(args, src, out, layout, video_index, audio_indices, tmp):
             if isinstance(remux, str):
                 c['remux_error'] = remux
             per.append(dict(c, stream_index=a))
-        same_set = src.remux_audio is not None and sorted(audio_indices) == src.remux_audio
+        expected = src.remux_audio if expected_audio is None else sorted(expected_audio)
+        same_set = expected is not None and sorted(audio_indices) == expected
         res['B3'] = {'ok': same_set and all(p['ok'] for p in per), 'streams': per,
-                     'kept_audio': sorted(audio_indices), 'remux_audio': src.remux_audio,
+                     'kept_audio': sorted(audio_indices), 'expected_audio': expected,
                      'remux_streams': src.remux_streams}
         if not same_set:
-            res['B3']['reason'] = 'the audio streams kept differ from coreav remux IN'
+            res['B3']['reason'] = 'the audio streams kept differ from those expected'
     return res
 
 
@@ -867,6 +895,178 @@ def check_input(args, path, config, cls, tmp):
     return res
 
 
+def compat_words(key, path, out):
+    return [str(path) if w == 'IN' else str(out) if w == 'OUT.mp4' else w for w in shlex.split(COMPAT_COMMANDS[key])]
+
+
+def compat_run(args, arm_env, key, path, out):
+    """`coreav ffmpeg` with one B9 command line: 'ok', 'refused' (exit status 4, or exit status 1 naming a defect of
+    the file as REJECTED_DEFECTS lists, nothing written either way) or 'failed'."""
+    env = dict(ENV, **arm_env)
+    t = time.monotonic()
+    try:
+        r = subprocess.run([args.coreav, 'ffmpeg'] + compat_words(key, path, out), stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE, timeout=TIMEOUT, check=False, env=env)
+    except subprocess.TimeoutExpired:
+        r = subprocess.CompletedProcess([], -999, b'', b'timeout')
+    res = {'exit': r.returncode, 'seconds': round(time.monotonic() - t, 3),
+           'stderr': r.stderr.decode(errors='replace')[-400:]}
+    if r.returncode == 0 and os.path.isfile(out) and not r.stdout:
+        return dict(res, status='ok')
+    if r.returncode == EXIT_UNSUPPORTED and not os.path.exists(out):
+        return dict(res, status='refused', reason=(res['stderr'].strip().splitlines() or [''])[-1])
+    if r.returncode == 1 and not os.path.exists(out) and any(d in res['stderr'] for d in REJECTED_DEFECTS):
+        return dict(res, status='refused', reason='rejected: ' + (res['stderr'].strip().splitlines() or [''])[-1])
+    return dict(res, status='failed', reason=f'exit {r.returncode}' + (', output left' if os.path.exists(out) else ''))
+
+
+def written(args, out):
+    """The output's streams in order, (kind, codec), and its video and audio stream indices."""
+    _, d = jrun([args.ffprobe, '-v', 'error', '-show_entries', 'stream=index,codec_type,codec_name', '-of', 'json',
+                 out])
+    streams = (d or {}).get('streams', [])
+    kinds = [(s.get('codec_type'), s.get('codec_name')) for s in streams]
+    video = next((s['index'] for s in streams if s.get('codec_type') == 'video'), None)
+    return kinds, video, [s['index'] for s in streams if s.get('codec_type') == 'audio']
+
+
+def audio_origin(args, src, out, index):
+    """The source audio stream whose packets an output audio stream carries (same data, packet by packet)."""
+    _, ours = packets(args.ffprobe, out, str(index), data_hash=True)
+    mine = [p.get('data_hash') for p in ours or []]
+    for s in src.streams:
+        if s.get('codec_type') == 'audio':
+            _, theirs = src.audio(s['index'])
+            if mine and [p.get('data_hash') for p in theirs or []] == mine:
+                return s['index']
+    return None
+
+
+def check_compat(args, path, key, cls, tmp):
+    """B9: one `coreav ffmpeg` command line on one fixture, each arm against FFmpeg running the same line."""
+    src = Source(args, path)
+    src.remux(tmp)
+    res = {'config': key, 'class': cls, 'command': COMPAT_COMMANDS[key], 'arms': {}, 'has_audio': False,
+           'b2_known_miss': os.path.basename(path) in B2_KNOWN_MISSES}
+    base = tmp / 'baseline.mp4'
+    cmd = [args.ffmpeg, '-nostdin'] + compat_words(key, path, base)
+    t = time.monotonic()
+    r = run(cmd)
+    res['baseline'] = {'exit': r.returncode, 'seconds': round(time.monotonic() - t, 3),
+                       'status': 'ok' if r.returncode == 0 and base.is_file() else 'failed'}
+    if res['baseline']['status'] != 'ok':
+        res['baseline']['reason'] = r.stderr.decode(errors='replace')[-300:]
+    else:
+        kinds, bv, ba = written(args, base)
+        res['baseline'].update(streams=kinds, audio_from=[audio_origin(args, src, base, a) for a in ba])
+        res['has_audio'] = bool(ba)
+    for name, arm_env in args.arms:
+        out = tmp / f'{name}.mp4'
+        arm = res['arms'][name] = compat_run(args, dict(arm_env), key, path, out)
+        if arm['status'] != 'ok':
+            continue
+        kinds, vi, ai = written(args, out)
+        arm['streams'] = kinds
+        src_audio = [audio_origin(args, src, out, a) for a in ai]
+        if vi is None or None in src_audio:
+            arm.update(status='failed', reason='no video stream, or an audio stream not from the source')
+            out.unlink(missing_ok=True)
+            continue
+        layout = {'video': vi, 'audio': ai, 'videos': sum(1 for k, _ in kinds if k == 'video'),
+                  'streams': len(kinds)}
+        video = default_video(src.streams)['index']
+        expected = res['baseline'].get('audio_from') if res['baseline']['status'] == 'ok' else None
+        arm.update(judge_output(args, src, out, layout, video, src_audio, tmp,
+                                expected_audio=expected if expected is not None else []))
+        if res['baseline']['status'] == 'ok' and kinds != res['baseline']['streams']:
+            arm['B1'] = dict(arm['B1'], ok=False, reason='the streams written differ from FFmpeg\'s')
+        elif res['baseline']['status'] == 'ok' and (display_matrix(args, out, vi)
+                                                    != display_matrix(args, base, written(args, base)[1])):
+            arm['B1'] = dict(arm['B1'], ok=False, reason='the display matrix differs from FFmpeg\'s')
+        w, h = arm['video'].get('width'), arm['video'].get('height')
+        if res['baseline']['status'] != 'ok' or not (w and h):
+            arm['Q1'] = arm['Q2'] = {'ok': False, 'reason': 'no baseline or no output size'}
+        else:
+            q1 = psnr(args.ffmpeg, out, vi, path, video, w, h)
+            bv = written(args, base)[1]
+            bq = res['baseline'].get('Q1')
+            if bq is None:
+                bw, bh = probe_size(args, base, bv)
+                bq = res['baseline']['Q1'] = psnr(args.ffmpeg, base, bv, path, video, bw, bh)
+            arm['Q1'] = ({'ok': True, 'delta': 0.0 if q1['average'] == bq['average'] else q1['average'] - bq['average']}
+                         if q1['ok'] and bq['ok'] else {'ok': False, 'reason': 'a PSNR failed'})
+            arm['Q2'] = psnr(args.ffmpeg, out, vi, base, bv, w, h)
+            bs, cs = video_bytes_and_rate(args, base, bv)[0], arm['video'].get('bytes')
+            arm['size_ratio'] = cs / bs if bs and cs else None
+        out.unlink(missing_ok=True)
+    base.unlink(missing_ok=True)
+    res['complete'] = True
+    return res
+
+
+def display_matrix(args, path, index):
+    """The display matrices `ffprobe` lists for a stream's side data (none for the identity)."""
+    _, d = jrun([args.ffprobe, '-v', 'error', '-select_streams', str(index), '-show_entries',
+                 'stream_side_data=displaymatrix', '-of', 'json', path])
+    s = ((d or {}).get('streams') or [{}])[0]
+    return [x.get('displaymatrix') for x in s.get('side_data_list', [])]
+
+
+def export_evidence(args, out, run_info):
+    """B9's per-call evidence with absolute paths taken out, in OUT/evidence: calls.jsonl (one row per command
+    line, file and arm, the baseline included), manifest.json (the command lines, the arms, the programs' and the
+    fixtures' SHA-256) and results.tar.gz (run.json, summary.json and results/, from which `--summarize` recomputes
+    the summary)."""
+    dirs = [args.fixtures, args.out, args.tmp, os.path.dirname(os.path.abspath(args.coreav)),
+            os.path.dirname(shutil.which(args.ffmpeg) or args.ffmpeg),
+            os.path.dirname(shutil.which(args.ffprobe) or args.ffprobe), os.path.expanduser('~'),
+            tempfile.gettempdir()]
+    dirs += [os.path.dirname(v) for _, words in args.arms for _, v in words if os.path.isabs(v)]
+    roots = sorted({str(pathlib.Path(d).resolve()) for d in dirs if d} | {os.path.abspath(d) for d in dirs if d},
+                   key=len, reverse=True)
+
+    def clean(text):
+        for r in roots:
+            text = text.replace(r + os.sep, '').replace(r, '')
+        return text
+
+    out = pathlib.Path(out)
+    ev = out / 'evidence'
+    ev.mkdir(parents=True, exist_ok=True)
+    rows = []
+    with tarfile.open(ev / 'results.tar.gz', 'w:gz') as tar:
+        for p in [out / 'run.json', out / 'summary.json'] + sorted((out / 'results').rglob('*.json')):
+            data = clean(p.read_text()).encode()
+            info = tarfile.TarInfo(str(p.relative_to(out)))
+            info.size = len(data)
+            tar.addfile(info, io.BytesIO(data))
+            if p.parent.parent.name != 'results':
+                continue
+            r = json.loads(p.read_text())
+            for arm, a in [('baseline', r.get('baseline', {}))] + list(r.get('arms', {}).items()):
+                rows.append({'config': r.get('config'), 'file': r.get('file'), 'class': r.get('class'), 'arm': arm,
+                             'status': a.get('status'), 'exit': a.get('exit'),
+                             'reason': clean(str(a.get('reason') or '')) or None,
+                             **{b: (a.get(b) or {}).get('ok') for b in ('B1', 'B2', 'B3')},
+                             'Q1_delta_db': (a.get('Q1') or {}).get('delta'),
+                             'Q2_db': (a.get('Q2') or {}).get('average'), 'size_ratio': a.get('size_ratio'),
+                             'b2_known_miss': r.get('b2_known_miss')})
+    (ev / 'calls.jsonl').write_text(''.join(json.dumps(x, sort_keys=True) + '\n' for x in rows))
+    fixtures = sorted(p for p in pathlib.Path(args.fixtures).iterdir() if p.is_file())
+    _write(ev / 'manifest.json', {
+        'commit': os.environ.get('GITHUB_SHA'), 'commands': COMPAT_COMMANDS,
+        'arms': {n: [f'{var}={os.path.basename(v)}' for var, v in w] for n, w in args.arms},
+        'tools': run_info['tools'], 'ffmpeg_version': run_info['ffmpeg_version'],
+        'fixtures': {p.name: sha256_file(p) for p in fixtures}})
+
+
+def probe_size(args, path, index):
+    _, d = jrun([args.ffprobe, '-v', 'error', '-select_streams', str(index), '-show_entries', 'stream=width,height',
+                 '-of', 'json', path])
+    s = ((d or {}).get('streams') or [{}])[0]
+    return s.get('width'), s.get('height')
+
+
 def bitrate_check(args, name, path, tmp, video, audio):
     stb, sframes = Source(args, path).video_frames(video)
     first, last = first_time(stb, sframes), first_time(stb, list(reversed(sframes or [])))
@@ -905,6 +1105,8 @@ def fixture_inputs(args):
             continue
         # The scaled configuration is a corpus run (docs/design/transcode.md); on fixtures only for debugging.
         configs = ['default'] + (['scaled'] if args.debug_scale_all else [])
+        if args.compat:
+            configs = list(COMPAT_COMMANDS)
         items.append({'key': path.name, 'path': str(path), 'class': p['codec'], 'configs': configs})
     return items
 
@@ -1075,7 +1277,8 @@ def process(args, item):
         for config in todo:
             with tempfile.TemporaryDirectory(dir=args.tmp) as d:
                 t = time.monotonic()
-                res = check_input(args, path, config, item['class'], pathlib.Path(d))
+                check = check_compat if args.compat else check_input
+                res = check(args, path, config, item['class'], pathlib.Path(d))
                 res['seconds'] = round(time.monotonic() - t, 1)
                 res['file'] = item['key']
                 _write(result_path(args.out, config, item['key']), res)
@@ -1126,7 +1329,7 @@ def share(values, floor):
     return sum(1 for v in values if v >= floor) / len(values) if values else None
 
 
-def summarize(out, fixtures, expected, arms):
+def summarize(out, fixtures, expected, arms, compat=False):
     """Per configuration, arm and class (and over all classes): each bar's counts and verdict, over the inputs
     of the run only (`expected`: {config: {file: class}}). An input without a complete result is counted as
     missing, and a class with one missing gets no verdict."""
@@ -1154,7 +1357,7 @@ def summarize(out, fixtures, expected, arms):
             for cls, rs in groups.items():
                 # Fixtures: 100%. Corpus: 99% over all classes together, and 95% in every class.
                 bar = 1.0 if fixtures else (CORPUS_SHARE if cls == 'all' else CLASS_SHARE)
-                per[cls] = class_verdict(rs, arm, bar, fixtures)
+                per[cls] = class_verdict(rs, arm, bar, fixtures, compat)
                 if missing[config][cls]:
                     per[cls]['missing'] = missing[config][cls]
                     for v in per[cls].values():
@@ -1178,7 +1381,7 @@ def summarize(out, fixtures, expected, arms):
     return report
 
 
-def class_verdict(rs, arm, b23_bar, fixtures):
+def class_verdict(rs, arm, b23_bar, fixtures, compat=False):
     apart = collections.Counter()
     b1 = []
     native = []
@@ -1190,8 +1393,9 @@ def class_verdict(rs, arm, b23_bar, fixtures):
             apart['download failed'] += 1
             continue
         a = r.get('baseline') if arm == 'baseline' else r.get('arms', {}).get(arm)
-        if a is None or a.get('maps_from') == 'probe':
-            # A baseline row of a file CoreAV refused: only the list of refusals uses it.
+        if a is None or a.get('maps_from') == 'probe' or (arm == 'baseline' and 'command' in r):
+            # A baseline row of a file CoreAV refused, or of a B9 command line (FFmpeg's own run, not judged): only
+            # the list of refusals uses it.
             continue
         if a['status'] == 'refused':
             apart[f'refused: {a["reason"]}: {str((a.get("error") or {}).get("message"))[:60]}'] += 1
@@ -1213,12 +1417,16 @@ def class_verdict(rs, arm, b23_bar, fixtures):
                 native_apart[n['reason']] += 1
             else:
                 native.append(n.get('ok', False))
-        b2.append(a['B2']['ok'])
+        if r.get('b2_known_miss'):
+            apart['B2 set apart: a known miss of coreav transcode'] += 1
+        else:
+            b2.append(a['B2']['ok'])
         if 'B3' in a:
             b3.append(a['B3']['ok'])
         if arm == 'baseline':
             pass
-        elif r.get('baseline', {}).get('status') != 'ok':
+        elif r.get('baseline', {}).get('status') != 'ok' and not compat:
+            # B9 compares with FFmpeg running the same command line, so there a missing comparison fails Q1 and Q2.
             apart['B4: baseline failed'] += 1
         else:
             d = a['Q1'].get('delta') if a.get('Q1', {}).get('ok') else -math.inf
@@ -1255,7 +1463,12 @@ def class_verdict(rs, arm, b23_bar, fixtures):
                                            and sm is not None and SIZE_RATIO[0] <= sm <= SIZE_RATIO[1])}
     v['Q2'] = {'judged': len(q2), 'median_db': q2m, 'share_at_least_30': share(q2, Q2_FLOOR),
                'met': None if not q2 else (q2m >= Q2_MEDIAN and share(q2, Q2_FLOOR) >= SHARE)}
-    if fixtures:
+    if compat:
+        # B9: Q1 and Q2 for every fixture a command line runs on; the medians and the size ratio are B4's.
+        v['Q1']['met'] = share(q1, Q1_FLOOR) == 1.0 if q1 else None
+        v['Q2']['met'] = share(q2, Q2_FLOOR) == 1.0 if q2 else None
+        v['below_floor'] = files_below
+    elif fixtures:
         # Fixtures: Q1 and Q2 for every fixture, and the bit-rate check.
         v['Q1']['met'] = v['Q1']['met'] and share(q1, Q1_FLOOR) == 1.0 if q1 else None
         v['Q2']['met'] = v['Q2']['met'] and share(q2, Q2_FLOOR) == 1.0 if q2 else None
@@ -1300,6 +1513,11 @@ def tool_hashes(args):
     """SHA-256 of every program the run used: coreav, ffmpeg, ffprobe and the arms' encoder programs."""
     files = {'coreav': args.coreav, 'ffmpeg': args.ffmpeg, 'ffprobe': args.ffprobe}
     for name, words in args.arms:
+        if args.compat:
+            for var, value in words:
+                if var in ('COREAV_X264', 'COREAV_FFMPEG') and value:
+                    files[f'{name} {var}'] = value
+            continue
         for i, w in enumerate(words[:-1]):
             if w in ('--x264', '--ffmpeg'):
                 files[f'{name}{w}'] = words[i + 1]
@@ -1312,13 +1530,20 @@ def tool_hashes(args):
     return out
 
 
-def parse_arms(values, parser):
+def parse_arms(values, parser, compat=False):
+    """NAME=ARGS: the words added to every `coreav transcode` of the arm; with --compat, VAR=VALUE words, the
+    environment of every `coreav ffmpeg` of the arm (which encoder program it finds)."""
     arms = []
     for v in values or []:
         name, _, rest = v.partition('=')
         if not re.fullmatch(r'[A-Za-z0-9_-]+', name) or name == 'baseline' or name in dict(arms):
             parser.error(f'--arm {v!r}: NAME=ARGS, NAME distinct, of letters, digits, - and _')
-        arms.append((name, shlex.split(rest)))
+        words = shlex.split(rest)
+        if compat:
+            if not all(re.fullmatch(r'[A-Z][A-Z0-9_]*=.*', w) for w in words):
+                parser.error(f'--arm {v!r}: with --compat, ARGS are VAR=VALUE environment words')
+            words = [tuple(w.split('=', 1)) for w in words]
+        arms.append((name, words))
     return arms
 
 
@@ -1345,6 +1570,8 @@ def main():
                    help=f'debug: files a class (default {MAX_FILES}; a selection with another value is not official)')
     p.add_argument('--preflight', default=PREFLIGHT,
                    help=f'the fixture each arm must transcode before the run (default {PREFLIGHT})')
+    p.add_argument('--compat', action='store_true',
+                   help='with --fixtures: bar B9, the coreav ffmpeg command lines of COMPAT_COMMANDS')
     p.add_argument('--debug-scale-all', action='store_true',
                    help='debug: run the scaled configuration on every input, whatever its height')
     args = p.parse_args()
@@ -1353,12 +1580,15 @@ def main():
         p.error(f'--classes: {CLASSES}')
     if args.summarize:
         info = json.loads((pathlib.Path(args.out) / 'run.json').read_text())
-        rep = summarize(args.out, info['mode'] == 'fixtures', info['expected'], list(info['arms']))
+        rep = summarize(args.out, info['mode'] == 'fixtures', info['expected'], list(info['arms']),
+                        info.get('compat') is not None)
         rep['run'] = info
         print(table(rep))
         return verdict_status(rep)
     args.work = args.work or str(pathlib.Path(args.out) / 'work')
-    args.arms = parse_arms(args.arm, p)
+    if args.compat and not args.fixtures:
+        p.error('--compat runs on --fixtures')
+    args.arms = parse_arms(args.arm, p, args.compat)
     if not args.coreav or not args.arms:
         p.error('--coreav and at least one --arm are required')
     if not args.ffmpeg or not args.ffprobe:
@@ -1368,6 +1598,7 @@ def main():
     out = pathlib.Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     run_info = {'mode': 'fixtures' if args.fixtures else 'corpus', 'preset': PRESET, 'crf': CRF,
+                'compat': COMPAT_COMMANDS if args.compat else None,
                 'arms': {n: a for n, a in args.arms}, 'tools': tool_hashes(args),
                 'ffmpeg_version': run([args.ffmpeg, '-version']).stdout.decode(errors='replace').splitlines()[:1],
                 'debug_scale_all': args.debug_scale_all, 'max_files': args.max_files}
@@ -1385,7 +1616,8 @@ def main():
     for i in items:
         for c in i['configs']:
             expected.setdefault(c, {})[i['key']] = i['class']
-    expected.setdefault('default', {})
+    if not args.compat:
+        expected.setdefault('default', {})
     if not args.fixtures and not args.only:
         # A class of the selection without files has no judged file: it is reported, and fails the run.
         run_info['empty_classes'] = [c for c in args.classes if c not in expected['default'].values()]
@@ -1395,11 +1627,13 @@ def main():
     with concurrent.futures.ThreadPoolExecutor(max(1, args.jobs)) as ex:
         for fut in [ex.submit(process, args, i) for i in items]:
             fut.result()
-    rep = summarize(args.out, bool(args.fixtures), expected, [n for n, _ in args.arms])
+    rep = summarize(args.out, bool(args.fixtures), expected, [n for n, _ in args.arms], args.compat)
     rep['run'] = run_info
     if not args.fixtures:
         rep['selection_apart'] = {c: v['apart'] for c, v in corpus_selection(args)['classes'].items()}
     _write(out / 'summary.json', rep)
+    if args.compat:
+        export_evidence(args, out, run_info)
     print(table(rep))
     return verdict_status(rep)
 
@@ -1412,12 +1646,16 @@ def verdict_status(rep):
         problems.append(f'inputs without a complete result: {rep["missing"]}')
     for c in (rep.get('run') or {}).get('empty_classes', []):
         problems.append(f'class {c} has no selected file')
+    compat = (rep.get('run') or {}).get('compat') is not None
+    judged = collections.Counter()
     for config, arms in rep['configs'].items():
         for arm, classes in arms.items():
             if arm == 'baseline':
                 continue
             for cls, v in classes.items():
-                if v['B1']['judged'] == 0:
+                judged[arm] += v['B1']['judged']
+                # B9: a command line every fixture refuses is listed, not a failure; an arm that runs none fails.
+                if v['B1']['judged'] == 0 and not compat:
                     problems.append(f'{config} {arm} {cls}: no judged file')
                 for bar in ('B1', 'B1_native', 'B2', 'B3', 'Q1', 'Q2', 'bitrate'):
                     if (v.get(bar) or {}).get('met') is False:
@@ -1425,6 +1663,8 @@ def verdict_status(rep):
                 for bar in ('B2', 'B3'):
                     if (v.get(bar) or {}).get('met_with_every_class') is False:
                         problems.append(f'{config} {arm}: {bar} missed in a class (95%)')
+    if compat:
+        problems += [f'{arm}: no command line ran on any fixture' for arm, n in judged.items() if n == 0]
     for p in problems:
         print('FAIL:', p)
     return 1 if problems else 0
@@ -1437,7 +1677,9 @@ def preflight(args):
         raise SystemExit('--preflight names no file: each arm must be checked on one fixture before a run')
     with tempfile.TemporaryDirectory(dir=args.tmp) as d:
         for name, arm_args in args.arms:
-            t = transcode(args, arm_args, args.preflight, pathlib.Path(d) / f'{name}.mp4', 'default')
+            out = pathlib.Path(d) / f'{name}.mp4'
+            t = (compat_run(args, dict(arm_args), 'x12', args.preflight, out) if args.compat
+                 else transcode(args, arm_args, args.preflight, out, 'default'))
             if t['status'] != 'ok':
                 raise SystemExit(f'arm {name} does not transcode {os.path.basename(args.preflight)}: '
                                  f'{t["status"]} {t.get("reason")} {json.dumps(t.get("error"))[:300]}')

@@ -75,7 +75,7 @@ const ENCODER_FIXED_BYTES: u64 = 1 << 30;
 const ENCODER_BUDGET_TIMES: u64 = 4;
 
 /// What happens to the source's audio.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum AudioMode {
     /// Every stream MP4 can carry is stream-copied, as `coreav remux`
     /// copies it; the others are dropped and listed.
@@ -83,6 +83,10 @@ pub enum AudioMode {
     Copy,
     /// Only the video stream is written.
     None,
+    /// These source streams (indices among all of the source's streams)
+    /// are stream-copied beside the video, as `coreav remux --streams`
+    /// copies them: the streams an `ffmpeg` command line selects.
+    Streams(Vec<usize>),
 }
 
 /// The source's container, as the caller detected it.
@@ -104,6 +108,15 @@ pub struct TranscodeOptions {
     pub preset: String,
     /// The output size; `None` for the first frame's.
     pub scale: Option<Scale>,
+    /// The pixel format the encoder must be given (`-pix_fmt` of
+    /// `coreav ffmpeg`); frames go to the encoder unconverted, so a source
+    /// decoded to another format is refused before the encoder starts.
+    /// `None` for the decoded format.
+    pub pixel_format: Option<PixelFormat>,
+    /// Refuse a stream whose frame size changes instead of resizing its
+    /// frames to the first one's (`coreav ffmpeg`: FFmpeg resizes them with
+    /// its own scaler).
+    pub one_size: bool,
     /// The source's audio.
     pub audio: AudioMode,
     /// Which encoder program.
@@ -139,6 +152,8 @@ impl Default for TranscodeOptions {
             rate: RateControl::Crf(23.0),
             preset: "medium".into(),
             scale: None,
+            pixel_format: None,
+            one_size: false,
             audio: AudioMode::Copy,
             encoder: EncoderChoice::Auto,
             x264: None,
@@ -372,6 +387,7 @@ pub fn transcode<S: Source, W: Write>(
         deadline,
         spool: &spool,
         encoder: None,
+        first_size: None,
         sent: Arc::new(AtomicU64::new(0)),
         sent_pts: Vec::new(),
         last: None,
@@ -482,9 +498,14 @@ pub fn transcode<S: Source, W: Write>(
         last_duration,
         data,
     };
-    let streams = match options.audio {
+    let streams = match &options.audio {
         AudioMode::Copy => None,
         AudioMode::None => Some(vec![video.stream_index]),
+        AudioMode::Streams(audio) => Some(
+            std::iter::once(video.stream_index)
+                .chain(audio.iter().copied().filter(|&s| s != video.stream_index))
+                .collect(),
+        ),
     };
     let remux = match kind {
         SourceKind::Mp4 => Remuxed::Mp4(
@@ -986,6 +1007,8 @@ struct Run<'a> {
     timecodes: Option<PathBuf>,
     /// The encoder, once the first presented frame started it.
     encoder: Option<(Encoder<SpoolSink>, EncoderSettings)>,
+    /// The first presented frame's decoded size.
+    first_size: Option<(u32, u32)>,
     /// Frames sent, for the reader's picture limit.
     sent: Arc<AtomicU64>,
     /// The time each frame was sent at: its source presentation time, or
@@ -1080,6 +1103,12 @@ impl Run<'_> {
                 picture.format()
             )));
         }
+        let size = (picture.width(), picture.height());
+        if self.options.one_size && *self.first_size.get_or_insert(size) != size {
+            return Err(unsupported(
+                "the frame size changes within the stream, and the frames are not resized",
+            ));
+        }
         if Instant::now() >= self.deadline {
             return Err(timed_out());
         }
@@ -1117,6 +1146,13 @@ impl Run<'_> {
     /// aspect ratio that keeps the display aspect ratio, the colour
     /// description and the frame rate.
     fn settings(&self, picture: &Picture, frame: &Frame) -> Result<EncoderSettings, Error> {
+        if let Some(wanted) = self.options.pixel_format
+            && picture.format() != wanted
+        {
+            return Err(unsupported(
+                "the frames decode to another pixel format than the one asked for, and are not converted",
+            ));
+        }
         let (width, height) = (picture.width(), picture.height());
         let (out_w, out_h) = match self.options.scale {
             Some(scale) => scale.resolve(width, height).ok_or_else(|| {

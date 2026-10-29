@@ -277,6 +277,19 @@ jobs:
         run: |
           cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx --test transcode \
             --target-dir target/fallback
+      # docs/design/transcode.md, bar B9: the coreav ffmpeg command lines that
+      # encode with libx264, on the fixtures, each arm against FFmpeg running
+      # the same command line. The ffmpeg arm names no x264 program, so the
+      # pipeline falls back to the pinned FFmpeg's libx264.
+      - name: coreav ffmpeg with libx264 on the fixtures (B9)
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          python3 -I scripts/transcode_check.py --compat --coreav target/fallback/release/coreav \
+            --ffmpeg "$RUNNER_TEMP/coreav-oracle-bin/ffmpeg" --ffprobe "$RUNNER_TEMP/coreav-oracle-bin/ffprobe" \
+            --preflight "$RUNNER_TEMP/coreav-fixtures/basic.mp4" --fixtures "$RUNNER_TEMP/coreav-fixtures" \
+            --arm "x264=COREAV_X264=$RUNNER_TEMP/coreav-x264/x264" --arm ffmpeg=COREAV_X264=none \
+            --jobs 4 --out "$RUNNER_TEMP/coreav-b9"
       - name: Frames and thumbnails of the fixtures against FFmpeg
         env:
           PYTHONDONTWRITEBYTECODE: '1'
@@ -551,6 +564,7 @@ jobs:
             ${{ runner.temp }}/coreav-sanitize.json
             ${{ runner.temp }}/coreav-hls.json
             ${{ runner.temp }}/coreav-join.json
+            ${{ runner.temp }}/coreav-b9/evidence
           if-no-files-found: ignore
 
   fixtures-report:

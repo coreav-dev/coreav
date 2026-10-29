@@ -28,6 +28,7 @@ pub mod rawmkv;
 pub mod scale;
 pub mod timing;
 
+pub use coreav_frame::PixelFormat;
 pub use pipeline::{
     AudioMode, Error, Remuxed, SourceKind, Summary, TranscodeOptions, VideoSummary, transcode,
 };

@@ -913,3 +913,285 @@ fn hostile_encoders_end_in_an_error_and_leave_nothing() {
     assert!(!out.exists());
     nothing_left(&out_dir);
 }
+
+/// `coreav ffmpeg` with `-c:v libx264` (`docs/design/transcode.md`,
+/// "Through `coreav ffmpeg`"): the pipeline's encode, the audio copied; and
+/// the refusals where `ffmpeg`'s defaults would give another output, at
+/// exit status 4 with nothing written.
+#[test]
+fn ffmpeg_libx264_commands_run_the_pipeline() {
+    let Some(tools) = tools() else { return };
+    let dir = dir("ffmpeg-libx264");
+    let run = |words: &str, source: &str, out: &Path| {
+        let mut command = Command::new(bin());
+        command
+            .arg("ffmpeg")
+            .args(words.split(' ').map(|w| match w {
+                "IN" => tools.fixtures.join(source).into_os_string(),
+                "OUT" => out.as_os_str().to_owned(),
+                _ => w.into(),
+            }))
+            .env("COREAV_X264", &tools.x264)
+            .env("COREAV_FFMPEG", &tools.ffmpeg)
+            .env("COREAV_STRICT_SAFE", "1");
+        let out = command.output().unwrap();
+        (
+            out.status.code().unwrap(),
+            String::from_utf8_lossy(&out.stderr).into_owned(),
+        )
+    };
+    let out = dir.join("out.mp4");
+    let (code, stderr) = run(
+        "-i IN -c:v libx264 -preset veryfast -crf 23 -c:a copy OUT",
+        "basic.mp4",
+        &out,
+    );
+    assert_eq!(code, 0, "{stderr}");
+    let streams = probe_json(
+        &tools,
+        &["-show_entries", "stream=codec_type,codec_name"],
+        &out,
+    );
+    let kinds: Vec<(&str, &str)> = streams["streams"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|s| {
+            (
+                s["codec_type"].as_str().unwrap(),
+                s["codec_name"].as_str().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(kinds, [("video", "h264"), ("audio", "aac")]);
+    assert_eq!(
+        audio_packets(&tools, &out),
+        audio_packets(&tools, &tools.fixtures.join("basic.mp4"))
+    );
+    decodes_cleanly(&tools, &out);
+    std::fs::remove_file(&out).unwrap();
+    for (words, source) in [
+        ("-i IN -c:v libx264 OUT", "rotate_ccw90.mp4"),
+        ("-i IN -c:v libx264 OUT", "vfr.mp4"),
+        ("-i IN -an -c:v libx264 OUT", "edit_list.mp4"),
+        ("-i IN -an -c:v libx264 OUT", "size_inband_sps.mp4"),
+        ("-i IN -an -c:v libx264 OUT", "timecode.mov"),
+        ("-i IN -an -c:v libx264 OUT", "chapters.mov"),
+        ("-i IN -c:v libx264 -pix_fmt yuv444p OUT", "basic.mp4"),
+        ("-i IN -c:v libx264 -vf hflip OUT", "basic.mp4"),
+        ("-i IN -c:v libx264 OUT", "basic.mp4"),
+        ("-i IN -c copy -crf 20 OUT", "basic.mp4"),
+    ] {
+        let (code, stderr) = run(words, source, &out);
+        assert_eq!(code, 4, "{words} on {source}: {stderr}");
+        assert!(!out.exists(), "{words} on {source}");
+    }
+    let (code, stderr) = run(
+        "-noautorotate -i IN -an -c:v libx264 -preset ultrafast OUT",
+        "rotate_ccw90.mp4",
+        &out,
+    );
+    assert_eq!(code, 0, "{stderr}");
+    let (code, stderr) = run(
+        "-i IN -an -c:v libx264 -preset ultrafast -fps_mode passthrough OUT",
+        "vfr.mp4",
+        &dir.join("vfr.mp4"),
+    );
+    assert_eq!(code, 0, "{stderr}");
+    nothing_left(&dir);
+}
+
+/// A track matrix that is not a quarter turn (−45°): `ffmpeg` turns the
+/// pixels unless `-noautorotate`, so `coreav ffmpeg` refuses it without
+/// that option, and with it writes the matrix `ffmpeg` writes.
+#[test]
+fn ffmpeg_libx264_refuses_a_matrix_ffmpeg_would_apply() {
+    let Some(tools) = tools() else { return };
+    let dir = dir("ffmpeg-libx264-matrix");
+    let ffmpeg = |args: &[&str]| {
+        let status = Command::new(&tools.ffmpeg)
+            .args(["-nostdin", "-v", "error", "-y"])
+            .args(args)
+            .status()
+            .unwrap();
+        assert!(status.success(), "ffmpeg {args:?}");
+    };
+    let path = |name: &str| dir.join(name).to_str().unwrap().to_owned();
+    let (source, turned) = (path("source.mp4"), path("turned.mp4"));
+    ffmpeg(&[
+        "-f",
+        "lavfi",
+        "-i",
+        "testsrc=s=64x48:d=1:r=25",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        &source,
+    ]);
+    ffmpeg(&[
+        "-display_rotation",
+        "-45",
+        "-i",
+        &source,
+        "-c",
+        "copy",
+        &turned,
+    ]);
+    let coreav = |args: &[&str]| {
+        let out = Command::new(bin())
+            .arg("ffmpeg")
+            .args(args)
+            .env("COREAV_X264", &tools.x264)
+            .env("COREAV_FFMPEG", &tools.ffmpeg)
+            .env("COREAV_STRICT_SAFE", "1")
+            .output()
+            .unwrap();
+        (
+            out.status.code().unwrap(),
+            String::from_utf8_lossy(&out.stderr).into_owned(),
+        )
+    };
+    let out = path("out.mp4");
+    let (code, stderr) = coreav(&["-i", &turned, "-c:v", "libx264", &out]);
+    assert_eq!(code, 4, "{stderr}");
+    assert!(stderr.contains("-noautorotate"), "{stderr}");
+    assert!(!Path::new(&out).exists());
+    let (code, stderr) = coreav(&["-noautorotate", "-i", &turned, "-c:v", "libx264", &out]);
+    assert_eq!(code, 0, "{stderr}");
+    let baseline = path("baseline.mp4");
+    ffmpeg(&["-noautorotate", "-i", &turned, "-c:v", "libx264", &baseline]);
+    let matrix = |file: &str| {
+        probe_json(
+            &tools,
+            &["-select_streams", "v", "-show_entries", "stream_side_data"],
+            Path::new(file),
+        )["streams"][0]["side_data_list"]
+            .clone()
+    };
+    assert_eq!(matrix(&out), matrix(&baseline));
+    assert_eq!(matrix(&out)[0]["rotation"], -45);
+    nothing_left(&dir);
+}
+
+/// Sources the pipeline would encode with another result than `ffmpeg`,
+/// or fail on only after the encode, are refused before it: copied PCM
+/// audio (MOV and Matroska), repeated frame times without
+/// `-fps_mode passthrough`, an H.264 left crop, and a concat list.
+#[test]
+fn ffmpeg_libx264_refuses_before_encoding() {
+    let Some(tools) = tools() else { return };
+    let dir = dir("ffmpeg-libx264-refusals");
+    let ffmpeg = |args: &[&str]| {
+        let status = Command::new(&tools.ffmpeg)
+            .args(["-nostdin", "-v", "error", "-y"])
+            .args(args)
+            .status()
+            .unwrap();
+        assert!(status.success(), "ffmpeg {args:?}");
+    };
+    let path = |name: &str| dir.join(name).to_str().unwrap().to_owned();
+    let video = ["-f", "lavfi", "-i", "testsrc=s=64x48:d=1:r=25"];
+    let pcm = [
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=d=1",
+        "-c:v",
+        "libx264",
+        "-c:a",
+        "pcm_s16le",
+    ];
+    let (mov, mkv, repeated) = (path("pcm.mov"), path("pcm.mkv"), path("repeated.mkv"));
+    ffmpeg(&[&video[..], &pcm[..], &[mov.as_str()]].concat());
+    ffmpeg(&[&video[..], &pcm[..], &[mkv.as_str()]].concat());
+    ffmpeg(&[
+        "-f",
+        "lavfi",
+        "-i",
+        "testsrc=s=64x48:r=25,settb=1/1000,setpts=max(N-1\\,0)*40",
+        "-frames:v",
+        "10",
+        "-fps_mode",
+        "passthrough",
+        "-c:v",
+        "libx264",
+        "-bf",
+        "0",
+        &repeated,
+    ]);
+    let (times, _) = frame_times(&tools, Path::new(&repeated));
+    assert_eq!(relative(&times)[..4], [0, 0, 40, 80]);
+    let crop = tools.fixtures.join("size_left_crop.mp4");
+    let out = path("out.mp4");
+    for (source, why) in [
+        (mov.as_str(), "copying audio the MP4 writer does not take"),
+        (mkv.as_str(), "copying audio the MP4 writer does not take"),
+        (repeated.as_str(), "not evenly spaced"),
+        (crop.to_str().unwrap(), "cropped at its left or top edge"),
+    ] {
+        let run = Command::new(bin())
+            .args([
+                "ffmpeg", "-i", source, "-c:v", "libx264", "-c:a", "copy", &out,
+            ])
+            .env("COREAV_X264", &tools.x264)
+            .env("COREAV_FFMPEG", &tools.ffmpeg)
+            .env("COREAV_STRICT_SAFE", "1")
+            .output()
+            .unwrap();
+        let stderr = String::from_utf8_lossy(&run.stderr);
+        assert_eq!(run.status.code(), Some(4), "{source}: {stderr}");
+        assert!(stderr.contains(why), "{source}: {stderr}");
+        assert!(!Path::new(&out).exists(), "{source}");
+    }
+    let list = path("list.txt");
+    std::fs::write(&list, format!("file '{mov}'\nfile '{mov}'\n")).unwrap();
+    let run = Command::new(bin())
+        .args(["ffmpeg", "-f", "concat", "-safe", "0", "-i", &list])
+        .args(["-c:v", "libx264", "-c:a", "copy", &out])
+        .env("COREAV_X264", &tools.x264)
+        .env("COREAV_STRICT_SAFE", "1")
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&run.stderr);
+    assert_eq!(run.status.code(), Some(4), "{stderr}");
+    assert!(
+        stderr.contains("encoding the files of a concat list"),
+        "{stderr}"
+    );
+    assert!(!Path::new(&out).exists());
+    nothing_left(&dir);
+}
+
+/// In a build whose decoders do not take the source's video (here HEVC,
+/// with the native H.264 decoder alone), the command is refused with exit
+/// status 4, so the fallback hands it to FFmpeg.
+#[test]
+fn ffmpeg_libx264_refuses_video_no_decoder_takes() {
+    if cfg!(feature = "ffmpeg-fallback") || cfg!(feature = "dav1d") {
+        return;
+    }
+    let Some(tools) = tools() else { return };
+    let dir = dir("ffmpeg-libx264-no-decoder");
+    let out = dir.join("out.mp4");
+    let source = tools.fixtures.join("hevc_hvc1.mp4");
+    let run = Command::new(bin())
+        .args([
+            "ffmpeg",
+            "-i",
+            source.to_str().unwrap(),
+            "-an",
+            "-c:v",
+            "libx264",
+        ])
+        .arg(&out)
+        .env("COREAV_X264", &tools.x264)
+        .env("COREAV_STRICT_SAFE", "1")
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&run.stderr);
+    assert_eq!(run.status.code(), Some(4), "{stderr}");
+    assert!(stderr.contains("no decoder for hevc"), "{stderr}");
+    assert!(!out.exists());
+    nothing_left(&dir);
+}

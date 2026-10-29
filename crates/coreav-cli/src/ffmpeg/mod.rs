@@ -11,6 +11,8 @@
 //! written.
 
 pub mod args;
+#[cfg(feature = "transcode")]
+pub mod encode;
 
 use crate::error::Failure;
 use crate::fallback::NotNative;
@@ -19,7 +21,7 @@ use crate::ffprobe::model::Value;
 use crate::ffprobe::{Report, Stream, StreamKind};
 use crate::output::{self, WriteFailure};
 use crate::split::Pattern;
-use args::{Command, Demuxer, Muxer, Overwrite, Spec};
+use args::{Codec, Command, Demuxer, Muxer, Overwrite, Spec};
 use coreav_isobmff::{Allowlist, FileSource, Limits, Rational, Track};
 use coreav_isobmff_write::{
     AudioChoice, ClipOptions, JoinAudio, JoinOptions, JoinSummary, JoinedInput,
@@ -90,6 +92,16 @@ pub enum Job {
     Clip(ClipOptions),
     /// Segments, written to the names of the output pattern.
     Split(SplitOptions),
+    /// The video stream encoded with libx264 and these audio streams copied,
+    /// as MP4 (`docs/design/transcode.md`, "Through `coreav ffmpeg`").
+    Transcode {
+        /// The video stream.
+        video: usize,
+        /// The audio streams, in input order.
+        audio: Vec<usize>,
+        /// Whether the decoder reorders the video's frames (B-frames).
+        reordered: bool,
+    },
     /// The files of a concat list, joined in order.
     Join {
         /// The files.
@@ -215,6 +227,30 @@ pub fn plan(
             "-map_metadata -1 on another output than an M4A file",
         ));
     }
+    let output: Vec<(usize, &Stream)> = selected
+        .iter()
+        .filter_map(|i| streams.get(*i).map(|s| (*i, s)))
+        .collect();
+    let encoded: Vec<usize> = selected
+        .iter()
+        .copied()
+        .filter(|i| codec(command, &output, *i) == Some(Codec::Libx264))
+        .collect();
+    if !encoded.is_empty() {
+        if list.is_some() {
+            return Err(Refusal::not_native("encoding the files of a concat list"));
+        }
+        return transcode_job(command, report, &output, &encoded, trims);
+    }
+    if (args::Encoding {
+        threads: None,
+        ..command.encoding.clone()
+    }) != args::Encoding::default()
+    {
+        return Err(Refusal::not_native(
+            "encoder options while every selected stream is copied",
+        ));
+    }
     if let Some(paths) = list {
         if container != Container::Isobmff {
             return Err(Refusal::not_native("joining Matroska or WebM files"));
@@ -305,6 +341,81 @@ pub fn plan(
         streams: selected,
         matroska: container == Container::Matroska,
     })
+}
+
+/// The job of a command that encodes: one video stream with libx264, the
+/// other selected streams audio, copied, into one MP4 file.
+fn transcode_job(
+    command: &Command,
+    report: &Report,
+    output: &[(usize, &Stream)],
+    encoded: &[usize],
+    trims: bool,
+) -> Result<Job, Refusal> {
+    let [video] = encoded else {
+        return Err(Refusal::not_native("encoding more than one stream"));
+    };
+    if !output
+        .iter()
+        .any(|(i, s)| i == video && s.kind == StreamKind::Video && !s.attached_pic)
+    {
+        return Err(Refusal::not_native(
+            "encoding a stream other than video with libx264",
+        ));
+    }
+    if command.muxer != Muxer::Mp4 {
+        return Err(Refusal::not_native(
+            "an encoded output other than one MP4 file",
+        ));
+    }
+    if trims {
+        return Err(Refusal::not_native("seeking or trimming while encoding"));
+    }
+    if !report.chapters.is_empty() || report.streams.iter().any(|s| tag(s, "timecode").is_some()) {
+        return Err(Refusal::not_native(
+            "an input with chapters or a timecode (ffmpeg writes them as tracks of their own)",
+        ));
+    }
+    if !command.encoding.passthrough
+        && output
+            .iter()
+            .any(|(i, s)| i == video && int(s, "start_pts") != 0)
+    {
+        return Err(Refusal::not_native(
+            "a video that does not start at time 0, without -fps_mode passthrough \
+             (ffmpeg would repeat its first frame to fill the start)",
+        ));
+    }
+    let others: Vec<(usize, &Stream)> =
+        output.iter().filter(|(i, _)| i != video).copied().collect();
+    if others.iter().any(|(i, _)| i < video) {
+        return Err(Refusal::not_native(
+            "audio before the video in the input (ffmpeg writes the video first; the transcode keeps the input's order)",
+        ));
+    }
+    if others.iter().any(|(_, s)| s.kind != StreamKind::Audio) {
+        return Err(Refusal::not_native(
+            "copying a stream other than audio beside the encoded video",
+        ));
+    }
+    Ok(Job::Transcode {
+        video: *video,
+        audio: others.iter().map(|(i, _)| *i).collect(),
+        reordered: output
+            .iter()
+            .any(|(i, s)| i == video && int(s, "has_b_frames") > 0),
+    })
+}
+
+/// The codec option that decides stream `index` of `output`: the last one
+/// that names it, as in `ffmpeg` (`-c:v libx264 -c copy` copies the video).
+fn codec(command: &Command, output: &[(usize, &Stream)], index: usize) -> Option<Codec> {
+    command
+        .codecs
+        .iter()
+        .rev()
+        .find(|(spec, _)| matching(spec, output).contains(&index))
+        .map(|(_, codec)| *codec)
 }
 
 /// Where a clip starts and ends on the input's presentation timeline, in
@@ -562,7 +673,12 @@ fn select(command: &Command, streams: &[Stream]) -> Result<Vec<usize>, Refusal> 
         selected.extend(best(StreamKind::Audio, &|s| int(s, "channels")));
         let subtitle = all
             .iter()
-            .filter(|_| command.copied.contains(&Spec::Kind(Kind2::Subtitle, None)))
+            .filter(|_| {
+                command
+                    .codecs
+                    .iter()
+                    .any(|(spec, _)| *spec == Spec::Kind(Kind2::Subtitle, None))
+            })
             .find(|(_, s)| s.kind == StreamKind::Subtitle && !disabled(s));
         if let Some((i, s)) = subtitle {
             let codec = s.entries.iter().find_map(|(k, v)| match v {
@@ -603,12 +719,10 @@ fn select(command: &Command, streams: &[Stream]) -> Result<Vec<usize>, Refusal> 
         .iter()
         .filter_map(|i| streams.get(*i).map(|s| (*i, s)))
         .collect();
-    let copied: Vec<usize> = command
-        .copied
+    if selected
         .iter()
-        .flat_map(|spec| matching(spec, &output))
-        .collect();
-    if selected.iter().any(|i| !copied.contains(i)) {
+        .any(|i| codec(command, &output, *i).is_none())
+    {
         return Err(Refusal::not_native(
             "a selected stream that no -c copy option covers (it would be encoded)",
         ));
@@ -656,7 +770,7 @@ fn may_replace(command: &Command, path: &Path) -> Result<bool, Refusal> {
     }
 }
 
-fn check_output(command: &Command, path: &Path) -> Result<bool, Refusal> {
+pub(crate) fn check_output(command: &Command, path: &Path) -> Result<bool, Refusal> {
     let force = may_replace(command, path)?;
     match output::refuse(Path::new(&command.input), path, force) {
         Some(message) => Err(Refusal::Usage(message)),
@@ -673,6 +787,22 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
     })?;
     if let Job::Split(options) = job {
         return split(command, options, &allowlist);
+    }
+    if let Job::Transcode {
+        video,
+        audio,
+        reordered,
+    } = job
+    {
+        #[cfg(feature = "transcode")]
+        return encode::write(command, *video, audio, *reordered);
+        #[cfg(not(feature = "transcode"))]
+        {
+            let _ = (video, audio, reordered);
+            return Err(
+                Refusal::not_native("encoding, in a build without a decoder backend").into(),
+            );
+        }
     }
     let path = PathBuf::from(&command.output);
     let force = check_output(command, &path)?;
@@ -738,7 +868,7 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
                 .and_then(|()| Ok(serde_json::from_slice(&document)?))
                 .map_err(|e| WriteFailure::Rejected(Failure::io(e)))
         }
-        Job::Split(_) => Ok(serde_json::Value::Null),
+        Job::Split(_) | Job::Transcode { .. } => Ok(serde_json::Value::Null),
     });
     match (written, refused) {
         (Err(_), Some(words)) => Err(Refusal::not_native(words).into()),
