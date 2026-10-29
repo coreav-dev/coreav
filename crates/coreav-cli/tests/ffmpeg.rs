@@ -13,7 +13,7 @@
 #[path = "../../coreav-isobmff/tests/common/mod.rs"]
 mod common;
 
-use common::{Spec, aac_entry, av_movie_with};
+use common::{Spec, aac_entry, av_movie, av_movie_with};
 use coreav_cli::fallback::Reason;
 use coreav_cli::ffmpeg::{Refusal, Stop};
 use coreav_cli::ffprobe::StreamKind;
@@ -183,6 +183,77 @@ fn a_concat_list_is_joined() {
         ffmpeg(&["-f", "concat", "-safe", "0", "-i", a, "-c", "copy", o]).code,
         0
     );
+}
+
+/// [`movie`] with words changed: each `(n, from, to)` writes the 32-bit
+/// big-endian words `to` over the `n`th (from 1) run of the words `from`.
+fn patched_movie(dir: &Path, name: &str, patch: &[(usize, &[u32], &[u32])]) -> String {
+    let mut bytes = std::fs::read(movie(dir)).unwrap();
+    let be = |words: &[u32]| -> Vec<u8> { words.iter().flat_map(|w| w.to_be_bytes()).collect() };
+    for (n, from, to) in patch {
+        let (from, to) = (be(from), be(to));
+        let at = (0..bytes.len())
+            .filter(|&i| bytes[i..].starts_with(&from))
+            .nth(n - 1)
+            .unwrap();
+        bytes[at..at + to.len()].copy_from_slice(&to);
+    }
+    let path = dir.join(name);
+    std::fs::write(&path, bytes).unwrap();
+    path.to_string_lossy().into_owned()
+}
+
+#[test]
+fn joins_ffmpeg_would_time_or_read_otherwise_are_refused() {
+    let dir = scratch("ffmpeg-concat-not-native");
+    movie(&dir);
+    // The audio lasts 0.32 s, twice the video (its `stts`, `mdhd` and the
+    // movie's duration): the concat demuxer places the next file at 0.32 s,
+    // the join at the video's end.
+    patched_movie(
+        &dir,
+        "long.mp4",
+        &[
+            (2, &[1, 4, 512], &[1, 4, 1024]),
+            (2, &[12_800, 2048], &[12_800, 4096]),
+            (1, &[1000, 160], &[1000, 320]),
+        ],
+    );
+    // The video's media timescale is 20000 rather than 12800.
+    patched_movie(
+        &dir,
+        "timescale.mp4",
+        &[
+            (1, &[1, 4, 512], &[1, 4, 800]),
+            (1, &[12_800, 2048], &[20_000, 3200]),
+        ],
+    );
+    std::fs::write(dir.join("pcm.mp4"), av_movie(b"sowt")).unwrap();
+    let output = dir.join("out.mp4");
+    let o = output.to_str().unwrap();
+    for (files, named) in [
+        (
+            "file long.mp4\nfile long.mp4\n",
+            "streams end at different times",
+        ),
+        ("file in.mp4\nfile timescale.mp4\n", "streams differ"),
+        ("file pcm.mp4\nfile pcm.mp4\n", "not supported"),
+    ] {
+        let list = dir.join("list.txt");
+        std::fs::write(&list, files).unwrap();
+        let r = ffmpeg(&[
+            "-f",
+            "concat",
+            "-i",
+            list.to_str().unwrap(),
+            "-c",
+            "copy",
+            o,
+        ]);
+        assert_eq!(r.code, 4, "{files:?}: {}", r.stderr);
+        assert!(r.stderr.contains(named), "{files:?}: {}", r.stderr);
+        assert!(!output.exists(), "{files:?}");
+    }
 }
 
 #[test]

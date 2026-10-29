@@ -22,8 +22,8 @@ use crate::split::Pattern;
 use args::{Command, Demuxer, Muxer, Overwrite, Spec};
 use coreav_isobmff::{FileSource, Rational};
 use coreav_isobmff_write::{
-    AudioChoice, ClipOptions, JoinAudio, JoinOptions, MatroskaRemuxOptions, OnUnsupported,
-    RemuxOptions, SplitAt, SplitOptions, TrackChoice, VideoChoice,
+    AudioChoice, ClipOptions, JoinAudio, JoinOptions, JoinSummary, MatroskaRemuxOptions,
+    OnUnsupported, RemuxOptions, SplitAt, SplitOptions, TrackChoice, VideoChoice,
 };
 use std::path::{Path, PathBuf};
 
@@ -337,16 +337,80 @@ fn clip_range(command: &Command, origin: Rational) -> Option<(Rational, Option<R
 /// The input's start time as `ffprobe` prints it (whole microseconds),
 /// from which `ffmpeg` counts `-ss`, `-t` and `-to`; 0 when not known.
 fn input_start(report: &Report) -> Rational {
-    report
-        .format
-        .iter()
-        .find_map(|(key, value)| match (key, value) {
-            (&"start_time", Value::Time(seconds)) => {
-                Rational::new(i128::from((seconds * 1e6).round() as i64), 1_000_000)
-            }
-            _ => None,
-        })
+    micros(report, "start_time")
+        .and_then(|us| Rational::new(us, 1_000_000))
         .unwrap_or(Rational::from_int(0))
+}
+
+/// A time of the format as `ffprobe` prints it, in whole microseconds.
+fn micros(report: &Report, key: &str) -> Option<i128> {
+    report.format.iter().find_map(|(name, value)| match value {
+        Value::Time(seconds) if *name == key => Some(i128::from((seconds * 1e6).round() as i64)),
+        _ => None,
+    })
+}
+
+/// Where the concat demuxer of `ffmpeg` places each listed file, in whole
+/// microseconds from where it places the first: at the end of the files
+/// before it, each as long as its `duration`, less its own `start_time`
+/// (black box: a file whose audio outlasts its video is followed at the
+/// audio's end).
+fn concat_offsets(paths: &[PathBuf]) -> Result<Vec<i128>, Stop> {
+    let mut offsets = Vec::new();
+    let mut end: i128 = 0;
+    let mut first = None;
+    for path in paths {
+        let size = std::fs::metadata(path)
+            .map_err(|e| WriteFailure::Rejected(Failure::io(e)))?
+            .len();
+        let mut file = FileSource::open(path).map_err(WriteFailure::from)?;
+        let report = crate::ffprobe::probe(&mut file, size, &path.display().to_string(), None)
+            .map_err(WriteFailure::Rejected)?
+            .report;
+        let (Some(start), Some(duration)) =
+            (micros(&report, "start_time"), micros(&report, "duration"))
+        else {
+            return Err(Refusal::not_native("a concat list of a file of unknown duration").into());
+        };
+        let first = *first.get_or_insert(start);
+        offsets.push(end.saturating_sub(start).saturating_add(first));
+        end = end.saturating_add(duration);
+    }
+    Ok(offsets)
+}
+
+/// Whether the join placed every input where the concat demuxer does
+/// ([`concat_offsets`]), to the microsecond.
+fn placed_as_concat(summary: &JoinSummary, offsets: &[i128]) -> bool {
+    let Some(first) = summary.inputs.first() else {
+        return false;
+    };
+    let from_first = |offset: Rational| {
+        Rational::new(first.offset.num.checked_neg()?, first.offset.den)
+            .and_then(|minus| offset.checked_add(minus))
+            .and_then(|r| Rational::new(r.num.checked_mul(1_000_000)?, r.den))
+            .map(Rational::round)
+    };
+    summary.inputs.len() == offsets.len()
+        && summary
+            .inputs
+            .iter()
+            .zip(offsets)
+            .all(|(input, expected)| from_first(input.offset) == Some(*expected))
+}
+
+/// Why a join is not native: it places an input elsewhere than the
+/// concat demuxer ([`placed_as_concat`]), or an input's track has more than
+/// one edit (an empty one included), which the demuxer reads by its own
+/// edit model (docs/design/edit-list-writers.md) where the join keeps the
+/// edits.
+fn concat_timing(summary: &JoinSummary, offsets: &[i128]) -> Option<&'static str> {
+    let inputs = summary.inputs.len();
+    if summary.video_edits > inputs || summary.audio_edits > inputs {
+        return Some("a join of files whose tracks have several edits");
+    }
+    (!placed_as_concat(summary, offsets))
+        .then_some("a join of files whose streams end at different times")
 }
 
 fn format_name(report: &Report) -> Option<&str> {
@@ -589,7 +653,12 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
         ))
         .into());
     }
-    let document = output::to_file(&path, force, |out| match job {
+    let offsets = match job {
+        Job::Join { paths, .. } => concat_offsets(paths)?,
+        _ => Vec::new(),
+    };
+    let mut refused = None;
+    let written = output::to_file(&path, force, |out| match job {
         Job::Remux {
             streams,
             matroska: false,
@@ -621,15 +690,28 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
         Job::Clip(options) => crate::clip::run(input, options, &allowlist, out)
             .map(|summary| crate::clip::document(&summary)),
         Job::Join { paths, audio } => {
-            let summary = crate::join::run(paths, &JoinOptions { audio: *audio }, &allowlist, out)?;
+            let summary = crate::join::run(paths, &JoinOptions { audio: *audio }, &allowlist, out)
+                .map_err(|failure| {
+                    refused = failure.not_native;
+                    WriteFailure::from(failure)
+                })?;
+            if let Some(words) = concat_timing(&summary, &offsets) {
+                refused = Some(words);
+                return Err(WriteFailure::Rejected(Failure::Unsupported(
+                    words.to_owned(),
+                )));
+            }
             let mut document = Vec::new();
             crate::join::write_document(&mut document, &summary, paths)
                 .and_then(|()| Ok(serde_json::from_slice(&document)?))
                 .map_err(|e| WriteFailure::Rejected(Failure::io(e)))
         }
         Job::Split(_) => Ok(serde_json::Value::Null),
-    })?;
-    Ok(document)
+    });
+    match (written, refused) {
+        (Err(_), Some(words)) => Err(Refusal::not_native(words).into()),
+        (written, _) => Ok(written?),
+    }
 }
 
 /// Writes the segments of a split, each to a temporary file, and moves them

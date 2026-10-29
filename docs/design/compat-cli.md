@@ -587,10 +587,11 @@ it does not copy), reaches one call, `fallback_cmd::refuse` in `run_ffmpeg`
 ffprobe` refuses with, its typed `Reason` `Option(name, value)` for an
 option or the value refused, `Property(text)` for a property of the command
 or its input. In strict-safe mode it exits 4; otherwise FFmpeg's `ffmpeg`
-runs the command as given ("Fallback to FFmpeg"). Each refusal comes
-before any output is written, the ones found once the input is read
-included (an output that exists without `-y` or `-n`), so FFmpeg finds
-the files as they were. A file CoreAV
+runs the command as given ("Fallback to FFmpeg"). Each refusal
+leaves the files as they were, so FFmpeg finds them so: most come before
+any output is written, the ones found once the input is read included (an
+output that exists without `-y` or `-n`), and a join's come at its end,
+with the join written to a temporary file that is then removed. A file CoreAV
 rejects exits 1, a malformed command 2, an unreadable input 3. `-h`,
 `-help` and `--help` are refused like the other informational queries
 (unlike `coreav ffprobe -h`, which prints a usage text): `commands-v1` lists
@@ -609,7 +610,15 @@ same input streams to the same output streams, and the oracle of the job
 `extract_check`, `join_check` with `--ffmpeg-concat`'s comparison) must pass it
 at its own rules, which set aside the two fixtures whose picture size
 changes inside the track for the clip, split and join oracles. A join's
-list names the fixture twice. Threshold: 100% of the outputs, in `fixtures.yml` and
+list names the fixture twice, and its timing is held to `ffmpeg -f concat`'s
+with no tolerance: every input placed where the demuxer places it (after
+the files before it, each as long as its format duration, less its own
+start time, to the microsecond), and the video packets' times, from the
+first one's, those of the pinned `ffmpeg`'s output of the same command.
+The audio packets are not compared one for one there: where a file's audio
+runs past its edit, `ffmpeg`'s muxer moves the next file's first packet to
+one tick after the overlap (black box), so the placement check stands for
+them. Threshold: 100% of the outputs, in `fixtures.yml` and
 `mkv-fixtures.yml`.
 
 **Not covered: refused by name (exit 4 in strict-safe mode, else run by
@@ -620,7 +629,17 @@ FFmpeg).**
   join that also seeks or trims, and a list with a directive other than
   `file` and `ffconcat version 1.0` (`duration`, `inpoint`, ...) or a path
   that names a protocol. A list `ffmpeg` fails too (an unsafe file name
-  without `-safe 0`, no file) is rejected, exit 1.
+  without `-safe 0`, no file, a directive written quoted or escaped) is
+  rejected, exit 1.
+- A join that would not be timed as the concat demuxer times it: an input
+  `join_mp4` places elsewhere than the demuxer, which follows each file at
+  its format duration where `join_mp4` follows it at its video's end (black
+  box: a 0.3 s video with 1 s of audio, listed twice, is 2.021333 s from
+  `ffmpeg`), and inputs whose tracks have several edits, which the demuxer
+  reads by its own edit model. Also inputs that do not match the first
+  (codec, configuration, size, time base) and streams `join_mp4` does not
+  copy (PCM audio, say). The join runs to a temporary file and finds these
+  at its end; the output is left as it was.
 - **C15 and C19**, a clip of an audio-only file: `coreav clip` and `coreav
   split` need a video stream to cut at, and no writer clips audio alone. A
   clip or a segmented output of any file without video is refused the

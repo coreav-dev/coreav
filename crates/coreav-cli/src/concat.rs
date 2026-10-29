@@ -148,13 +148,13 @@ fn files(text: &str, safe: bool) -> Result<Vec<String>, ListError> {
     for (index, raw) in text.lines().enumerate() {
         let line = index.saturating_add(1);
         let mut rest = raw;
-        let Some(keyword) = token(&mut rest) else {
+        let Some(keyword) = word(&mut rest) else {
             continue;
         };
         if keyword.starts_with('#') {
             continue;
         }
-        match keyword.as_str() {
+        match keyword {
             "file" => {
                 let path = token(&mut rest)
                     .filter(|p| !p.is_empty())
@@ -189,9 +189,21 @@ fn files(text: &str, safe: bool) -> Result<Vec<String>, ListError> {
     Ok(out)
 }
 
+/// The next word of `rest`, as written: a directive's name is not
+/// unquoted or unescaped (black box: `'file' a.mp4` and `fi\le a.mp4` are
+/// unknown directives to `ffmpeg`). `None` at the end of the line.
+fn word<'a>(rest: &mut &'a str) -> Option<&'a str> {
+    let trimmed = rest.trim_start_matches([' ', '\t', '\r']);
+    let end = trimmed.find([' ', '\t', '\r']).unwrap_or(trimmed.len());
+    let (word, after) = trimmed.split_at(end);
+    *rest = after;
+    (!word.is_empty()).then_some(word)
+}
+
 /// The next token of `rest`, by FFmpeg's quoting and escaping rules
 /// (ffmpeg-utils, "Quoting and escaping"): whitespace ends a token, `\`
-/// takes the next character as it is, and text between `'` quotes is
+/// takes the next character as it is (a `\` that ends the line stays, as
+/// `ffmpeg` keeps it in the name), and text between `'` quotes is
 /// taken as it is. `None` at the end of the line.
 fn token(rest: &mut &str) -> Option<String> {
     let trimmed = rest.trim_start_matches([' ', '\t', '\r']);
@@ -208,11 +220,7 @@ fn token(rest: &mut &str) -> Option<String> {
                 end = at;
                 break;
             }
-            '\\' => {
-                if let Some((_, next)) = chars.next() {
-                    out.push(next);
-                }
-            }
+            '\\' => out.push(chars.next().map_or('\\', |(_, next)| next)),
             '\'' => {
                 for (_, quoted) in chars.by_ref() {
                     if quoted == '\'' {
@@ -279,6 +287,26 @@ mod tests {
                 "sp"
             ]
         );
+    }
+
+    #[test]
+    fn directives_are_read_as_written_and_a_final_backslash_stays() {
+        for (list, name) in [("'file' a.mp4\n", "'file'"), ("fi\\le a.mp4\n", "fi\\le")] {
+            assert_eq!(
+                paths(list, false),
+                Err(ListError::Directive {
+                    line: 1,
+                    name: name.into(),
+                    known: false
+                }),
+                "{list:?}"
+            );
+        }
+        assert_eq!(paths("file a.mp4\\\n", false).unwrap(), vec!["a.mp4\\"]);
+        assert!(matches!(
+            paths("file a.mp4\\\n", true),
+            Err(ListError::Unsafe { line: 1, .. })
+        ));
     }
 
     #[test]
