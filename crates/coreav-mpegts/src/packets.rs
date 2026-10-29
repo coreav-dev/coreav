@@ -1104,7 +1104,7 @@ impl<S: Source> Packets<'_, S> {
             self.carried = self.carried.saturating_add(pes.payload.len());
             return;
         }
-        let carried = state.leftover.len();
+        let mut carried = state.leftover.len();
         self.carried = self.carried.saturating_sub(carried);
         // The carried frame's header was read in an earlier PES packet.
         let header_read = state.need > 0;
@@ -1146,6 +1146,9 @@ impl<S: Source> Packets<'_, S> {
                 state.lead.extend(data.drain(..end));
                 self.carried = self.carried.saturating_add(end);
             }
+            // A carried start of a header that turned out not to be one is
+            // among those bytes now.
+            carried = carried.saturating_sub(end);
             // An ADTS stream's are listed once the header after them is
             // whole, by the reading of the PES packet that completes it;
             // the first frame then takes that PES packet's time and

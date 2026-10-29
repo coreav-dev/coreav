@@ -1774,6 +1774,25 @@ fn as_ffprobe_lead_bytes_in_pes_packets_of_their_own_by_syntax() {
 }
 
 #[test]
+fn as_ffprobe_a_carried_byte_that_starts_no_header_joins_the_lead_bytes() {
+    // A first PES packet that ends in 0xFF, which may start an ADTS
+    // header, and a next one whose first byte shows it does not: that
+    // byte is among the lead bytes, and the frames after them in the next
+    // PES packet take its time once, then follow one another.
+    let lead = [[0x22u8; 100].as_slice(), &[0xFF]].concat();
+    let rest = [&[0x22u8][..], &adts(300), &adts(300)].concat();
+    let (mux, at) = audio_mux(0x0F, &[&lead, &rest]);
+    assert_eq!(
+        audio_listing(&mux, true),
+        vec![
+            (102, Some(90_000), Some(at[0])),
+            (300, Some(95_000), Some(at[1])),
+            (300, Some(96_920), None),
+        ]
+    );
+}
+
+#[test]
 fn as_ffprobe_bytes_before_a_header_are_bounded_by_a_frame() {
     // 50 KB without a header before the first AC-3 frame, more than any
     // frame holds: dropped rather than held, so a buffer limit of 16 KB
