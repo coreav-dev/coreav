@@ -2,12 +2,15 @@
 """Run one job on a short-lived Compute Engine VM with hardware performance counters, and delete the VM.
 
     gcp_vm_job.py --upload LOCAL_DIR --job job.sh --download RESULTS_DIR [--max-hours 2] [--cap-usd 2]
-                  [--provisioning spot|standard] [--threads-per-core N]
+                  [--provisioning spot|standard] [--threads-per-core N] [--turbo-mode ALL_CORE_MAX]
 
 Creates a VM (default a SPOT c4-standard-8 in us-central1-a, Debian, hyperdisk-balanced boot disk) with
 `advancedMachineFeatures.performanceMonitoringUnit` set, and `threadsPerCore` where `--threads-per-core` is given
 (1 turns simultaneous multithreading off: the VM has one vCPU a physical core, and is billed for the machine's full
-vCPU count). `--provisioning standard` makes an on-demand VM, which is not preempted. Copies LOCAL_DIR to `~/job`
+vCPU count), and `turboMode` where `--turbo-mode` is given (ALL_CORE_MAX holds every core at the all-core turbo
+frequency instead of letting a busy core boost above it; C4 and C4N only). `--provisioning standard` makes an on-demand
+VM, which is not preempted. What Compute Engine reports for the VM (machine type, zone, CPU platform, advanced machine
+features, provisioning; not its name) is written to RESULTS_DIR/instance.json before the job runs. Copies LOCAL_DIR to `~/job`
 on it over SSH with a key made for this run, runs `bash ~/job/JOB` there with a hard timeout, copies `~/job/out` back
 to RESULTS_DIR, and deletes the VM in a `finally` (not when its insert is refused as a name in use). The VM also
 carries `scheduling.maxRunDuration` with `instanceTerminationAction=DELETE`, so it deletes itself if this script dies
@@ -160,6 +163,8 @@ def main():
     ap.add_argument('--threads-per-core', type=int, choices=[1, 2],
                     help='advancedMachineFeatures.threadsPerCore; 1 turns SMT off (unset: the machine type\'s '
                          'default)')
+    ap.add_argument('--turbo-mode', choices=['ALL_CORE_MAX'],
+                    help='advancedMachineFeatures.turboMode (unset: the platform\'s default, unrestricted boost)')
     a = ap.parse_args()
     if a.usd_per_hour is None:
         if a.machine != 'c4-standard-8':
@@ -179,6 +184,8 @@ def main():
     features = {'performanceMonitoringUnit': a.pmu}
     if a.threads_per_core is not None:
         features['threadsPerCore'] = a.threads_per_core
+    if a.turbo_mode is not None:
+        features['turboMode'] = a.turbo_mode
     image = gce.call('GET', f'projects/debian-cloud/global/images/family/{a.image_family}')['selfLink']
     # A random suffix: two runs started in the same second must not share a name.
     name = f'coreav-pmu-{time.strftime("%Y%m%d-%H%M%S")}-{os.urandom(3).hex()}'
@@ -205,7 +212,9 @@ def main():
     status = 'not started'
     try:
         smt = '' if a.threads_per_core is None else f', {a.threads_per_core} thread(s) a core'
-        print(f'creating {name} ({a.machine}, {a.zone}, {model}, PMU {a.pmu}{smt}, max {a.max_hours} h)', flush=True)
+        turbo = '' if a.turbo_mode is None else f', turbo {a.turbo_mode}'
+        print(f'creating {name} ({a.machine}, {a.zone}, {model}, PMU {a.pmu}{smt}{turbo}, max {a.max_hours} h)',
+              flush=True)
         created = time.time()
         try:
             op = gce.call('POST', f'{z}/instances', body)
@@ -216,6 +225,12 @@ def main():
             raise
         gce.wait(op)
         inst = gce.call('GET', f'{z}/instances/{name}')
+        os.makedirs(a.download, exist_ok=True)
+        with open(os.path.join(a.download, 'instance.json'), 'w') as f:
+            json.dump({'machine_type': inst['machineType'].rsplit('/', 1)[-1], 'zone': inst['zone'].rsplit('/', 1)[-1],
+                       'cpu_platform': inst.get('cpuPlatform'),
+                       'advanced_machine_features': inst.get('advancedMachineFeatures'),
+                       'provisioning': inst.get('scheduling', {}).get('provisioningModel')}, f, indent=1)
         ip = inst['networkInterfaces'][0]['accessConfigs'][0]['natIP']
         opts = ['-i', keyfile, '-o', 'StrictHostKeyChecking=no', '-o', f'UserKnownHostsFile={tmp}/known',
                 '-o', 'ConnectTimeout=20', '-o', 'ServerAliveInterval=30', '-o', 'LogLevel=ERROR']

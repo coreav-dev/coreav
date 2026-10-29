@@ -60,6 +60,7 @@
 //! messages keep `Stdout` (`docs/design/cli-stdout.md`).
 
 mod compat_cmd;
+mod fallback_cmd;
 
 use clap::{Args, CommandFactory, FromArgMatches, Parser, Subcommand};
 use std::ffi::OsString;
@@ -89,6 +90,13 @@ use serde_json::Value;
 #[derive(Parser)]
 #[command(name = "coreav", version, about, long_about = None)]
 struct Cli {
+    /// For services that read untrusted input: `coreav ffprobe` and
+    /// `coreav ffmpeg` never run FFmpeg in place of a command that is not
+    /// native, and refuse it (exit status 4), as COREAV_STRICT_SAFE=1 does.
+    /// Without it, such a command runs the ffmpeg or ffprobe program found
+    /// on PATH (or named by COREAV_FALLBACK), which is FFmpeg's C code.
+    #[arg(long)]
+    strict_safe: bool,
     #[command(subcommand)]
     command: Command,
 }
@@ -230,15 +238,19 @@ enum Command {
     #[cfg(feature = "transcode")]
     Transcode(Deferred<TranscodeArgs>),
     /// Experimental. Runs an ffprobe command line: ffprobe's own options, a
-    /// supported subset, anything else refused with exit status 4
-    /// (docs/design/compat-cli.md). Values can differ from ffprobe's for
+    /// supported subset. With --strict-safe (COREAV_STRICT_SAFE=1), for
+    /// untrusted input, anything else is refused with exit status 4;
+    /// without it, anything else runs the ffprobe program on PATH, FFmpeg's
+    /// C code (docs/design/compat-cli.md). Values can differ from ffprobe's for
     /// MP4/MOV and MPEG-TS; Matroska/WebM agree on 98% or more of files for
     /// 99 of 101 keys (docs/measurements/compat-ffprobe.md). `coreav` run
     /// as `ffprobe` does the same.
     #[command(disable_help_flag = true)]
     Ffprobe(Deferred<ToolArgs>),
-    /// Run an ffmpeg command line: not implemented yet, every command is
-    /// refused with exit status 4 (docs/design/compat-cli.md).
+    /// Run an ffmpeg command line: not implemented yet. With --strict-safe
+    /// (COREAV_STRICT_SAFE=1), for untrusted input, every command is
+    /// refused with exit status 4; without it, every command runs the ffmpeg
+    /// program on PATH, FFmpeg's C code (docs/design/compat-cli.md).
     #[command(disable_help_flag = true)]
     Ffmpeg(Deferred<ToolArgs>),
 }
@@ -765,8 +777,10 @@ fn main() -> ExitCode {
     // command line, whole (docs/design/compat-cli.md, "Multicall").
     let args: Vec<OsString> = std::env::args_os().collect();
     match args.first().and_then(compat_cmd::multicall) {
-        Some("ffprobe") => return compat_cmd::run_ffprobe(args.get(1..).unwrap_or_default()),
-        Some(_) => return compat_cmd::run_ffmpeg(args.get(1..).unwrap_or_default()),
+        Some("ffprobe") => {
+            return compat_cmd::run_ffprobe(args.get(1..).unwrap_or_default(), false);
+        }
+        Some(_) => return compat_cmd::run_ffmpeg(args.get(1..).unwrap_or_default(), false),
         None => {}
     }
     main_with(args, std::env::current_exe().ok())
@@ -922,8 +936,8 @@ impl<W: Write> Write for Watched<W> {
 fn run(cli: Cli, this: Option<PathBuf>) -> ExitCode {
     match cli.command {
         Command::Mcp(args) => run_mcp(&args, this),
-        Command::Ffprobe(args) => compat_cmd::run_ffprobe(&args.args),
-        Command::Ffmpeg(args) => compat_cmd::run_ffmpeg(&args.args),
+        Command::Ffprobe(args) => compat_cmd::run_ffprobe(&args.args, cli.strict_safe),
+        Command::Ffmpeg(args) => compat_cmd::run_ffmpeg(&args.args, cli.strict_safe),
         Command::Probe(args) => run_probe(&args),
         Command::Clip(args) => run_clip(&args),
         Command::Check(args) => run_check(&args),

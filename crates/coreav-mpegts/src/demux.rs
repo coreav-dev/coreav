@@ -6,12 +6,13 @@ use crate::codec::{Allowlist, Codec, codec, format_identifier};
 use crate::error::{Warning, warn};
 use crate::packet::{self, NULL_PID, TS_PACKET};
 use crate::pes::{self, PesHeader};
+use crate::pid_map::PidMap;
 use crate::section::{
     self, Assembler, Descriptor, EIT_FIRST, EIT_LAST, EIT_PID, MAX_EIT_SECTION,
     MAX_PRIVATE_SECTION, MAX_SECTION, PAT, PMT, SDT_ACTUAL, SDT_PID, SPLICE_INFO, Service,
 };
 use crate::{Error, LimitKind, Limits};
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::VecDeque;
 
 /// Whether two packets of one PID are the same apart from a PCR, which a
 /// duplicate may carry anew (ISO/IEC 13818-1 2.4.3.3).
@@ -120,19 +121,19 @@ pub(crate) struct Demux {
     /// Bytes held by `builders`.
     buffered: usize,
     /// The last packet with a payload of each PID, to tell a duplicate.
-    last: BTreeMap<u16, [u8; TS_PACKET]>,
+    last: PidMap<[u8; TS_PACKET]>,
     /// The offset and the first timestamp (PTS, else DTS) of each PID's
     /// PES packets, whether or not a Program Map Table had named it yet:
     /// a stream's PES packets commonly start before the tables that name
     /// it, and those packets are the stream's too.
-    pub first_pes: BTreeMap<u16, (u64, u64)>,
+    pub first_pes: PidMap<(u64, u64)>,
     /// Where each PID's first PES packet is, whether or not it states a
     /// time: a PID no table declares is a stream all the same. A padding
     /// stream's PES packets (`stream_id` 0xBE, ISO/IEC 13818-1 table 2-22)
     /// carry no data and do not count: `ffprobe` lists no stream for a PID
     /// that carries only those, and does not place a stream at one
     /// (crafted files).
-    pub pes_pids: BTreeMap<u16, u64>,
+    pub pes_pids: PidMap<u64>,
     /// Where the first Program Map Table was read.
     pub first_pmt_at: Option<u64>,
     /// The Program Map Table sections that came before the first PAT, at
@@ -141,11 +142,10 @@ pub(crate) struct Demux {
     pub early_pmts: Vec<EarlyPmt>,
     /// The sections being reassembled on PIDs that may carry a Program
     /// Map Table, before the first PAT says which do.
-    early_sections: BTreeMap<u16, Assembler>,
+    early_sections: PidMap<Assembler>,
     /// The offset of the packet being read.
     current: u64,
     max_programs: usize,
-    max_streams: usize,
     pat_version: Option<u8>,
     /// The sections of the current PAT version seen so far, and its
     /// `last_section_number`.
@@ -168,15 +168,15 @@ pub(crate) struct Demux {
     /// packets starts, to be named by its payload (the probe's head; a
     /// later read takes the probe's streams).
     pub name_undeclared: bool,
-    by_pid: BTreeMap<u16, usize>,
-    sections: BTreeMap<u16, Assembler>,
-    builders: BTreeMap<u16, Builder>,
+    by_pid: PidMap<usize>,
+    sections: PidMap<Assembler>,
+    builders: PidMap<Builder>,
     /// Per PID, the header of the PES packet in progress once a piece of
     /// it was delivered ([`Demux::pieces`]), its times cleared: what the
     /// later pieces carry. Kept apart from the builders, so that reading
     /// whole PES packets carries none of it.
-    continued: BTreeMap<u16, PesHeader>,
-    counters: BTreeMap<u16, u8>,
+    continued: PidMap<PesHeader>,
+    counters: PidMap<u8>,
     pub ready: VecDeque<Pes>,
     /// Complete sections that are packets of a stream, header and CRC
     /// included, as `ffprobe` lists them, each with its PID and its time:
@@ -198,7 +198,7 @@ pub(crate) struct Demux {
     pub keep_splices: bool,
     /// The base of the last program clock reference of each PID, while
     /// splice sections are kept; bounded by `max_streams`.
-    pcrs: BTreeMap<u16, u64>,
+    pcrs: PidMap<u64>,
     /// PIDs whose PES packets are reassembled whatever the tables say
     /// (the streams a probe kept), besides those the tables keep.
     pub always: std::collections::BTreeSet<u16>,
@@ -218,15 +218,14 @@ impl Demux {
             max_packet: usize::try_from(limits.max_packet_bytes).unwrap_or(usize::MAX),
             max_buffered: usize::try_from(limits.max_buffered_bytes).unwrap_or(usize::MAX),
             buffered: 0,
-            last: BTreeMap::new(),
-            first_pes: BTreeMap::new(),
-            pes_pids: BTreeMap::new(),
+            last: PidMap::pids(),
+            first_pes: PidMap::streams(limits),
+            pes_pids: PidMap::streams(limits),
             first_pmt_at: None,
             early_pmts: Vec::new(),
-            early_sections: BTreeMap::new(),
+            early_sections: PidMap::programs(limits),
             current: 0,
             max_programs: usize::try_from(limits.max_programs).unwrap_or(usize::MAX),
-            max_streams: usize::try_from(limits.max_streams).unwrap_or(usize::MAX),
             pat_version: None,
             pat_sections: (0, 0),
             transport_stream_id: None,
@@ -236,17 +235,17 @@ impl Demux {
             streams: Vec::new(),
             tableless: false,
             name_undeclared: false,
-            by_pid: BTreeMap::new(),
-            sections: BTreeMap::new(),
-            builders: BTreeMap::new(),
-            continued: BTreeMap::new(),
-            counters: BTreeMap::new(),
+            by_pid: PidMap::streams(limits),
+            sections: PidMap::pids(),
+            builders: PidMap::pids(),
+            continued: PidMap::pids(),
+            counters: PidMap::pids(),
             ready: VecDeque::new(),
             sections_listed: VecDeque::new(),
             collect: true,
             keep_epg: false,
             keep_splices: false,
-            pcrs: BTreeMap::new(),
+            pcrs: PidMap::streams(limits),
             always: std::collections::BTreeSet::new(),
             pieces: None,
         }
@@ -260,15 +259,14 @@ impl Demux {
             max_packet: self.max_packet,
             max_buffered: self.max_buffered,
             buffered: 0,
-            last: BTreeMap::new(),
-            first_pes: BTreeMap::new(),
-            pes_pids: BTreeMap::new(),
+            last: self.last.cleared(),
+            first_pes: self.first_pes.cleared(),
+            pes_pids: self.pes_pids.cleared(),
             first_pmt_at: self.first_pmt_at,
             early_pmts: Vec::new(),
-            early_sections: BTreeMap::new(),
+            early_sections: self.early_sections.cleared(),
             current: 0,
             max_programs: self.max_programs,
-            max_streams: self.max_streams,
             pat_version: self.pat_version,
             pat_sections: self.pat_sections,
             transport_stream_id: self.transport_stream_id,
@@ -279,16 +277,16 @@ impl Demux {
             tableless: self.tableless,
             name_undeclared: false,
             by_pid: self.by_pid.clone(),
-            sections: BTreeMap::new(),
-            builders: BTreeMap::new(),
-            continued: BTreeMap::new(),
-            counters: BTreeMap::new(),
+            sections: self.sections.cleared(),
+            builders: self.builders.cleared(),
+            continued: self.continued.cleared(),
+            counters: self.counters.cleared(),
             ready: VecDeque::new(),
             sections_listed: VecDeque::new(),
             collect: true,
             keep_epg: false,
             keep_splices: false,
-            pcrs: BTreeMap::new(),
+            pcrs: self.pcrs.cleared(),
             always: self.always.clone(),
             pieces: None,
         }
@@ -320,7 +318,7 @@ impl Demux {
     /// Association Table as its streams, in the order of their first PES
     /// packets (`pids` gives where each is), each named by its payload
     /// ([`crate::codec::sniff`]).
-    pub(crate) fn without_tables(&mut self, pids: &BTreeMap<u16, u64>) -> Result<(), Error> {
+    pub(crate) fn without_tables(&mut self, pids: &PidMap<u64>) -> Result<(), Error> {
         self.tableless = true;
         let mut order: Vec<(u64, u16)> = pids.iter().map(|(pid, at)| (*at, *pid)).collect();
         order.sort_unstable();
@@ -405,12 +403,10 @@ impl Demux {
         let discontinuity = match header.adaptation {
             Some(adaptation) => {
                 if self.keep_splices {
-                    // Bounded by the stream limit, as every other per-PID
-                    // fact is: a PID already recorded keeps its clock.
+                    // A PID past the stream limit has no clock kept; one
+                    // already recorded keeps its own.
                     if let Some(pcr) = adaptation.pcr {
-                        if self.pcrs.len() < self.max_streams || self.pcrs.contains_key(&pid) {
-                            self.pcrs.insert(pid, pcr / 300);
-                        }
+                        let _ = self.pcrs.insert(pid, pcr / 300);
                     }
                 }
                 adaptation.discontinuity
@@ -424,11 +420,17 @@ impl Demux {
         // payload. A packet that repeats the one before it (the same counter
         // and the same bytes, its PCR aside: 2.4.3.3) is a duplicate, and
         // is dropped; the same counter on other bytes is a lost packet.
-        let previous = self.counters.insert(pid, header.counter);
-        let repeated = self.last.insert(pid, *bytes);
+        let previous = self.counters.insert(pid, header.counter).ok().flatten();
+        let repeated = previous == Some(header.counter)
+            && !discontinuity
+            && self
+                .last
+                .get(&pid)
+                .is_some_and(|before| same_but_pcr(before, bytes));
+        let _ = self.last.set(pid, *bytes);
         if let Some(previous) = previous {
             if previous == header.counter && !discontinuity {
-                if repeated.is_some_and(|before| same_but_pcr(&before, bytes)) {
+                if repeated {
                     warn(warnings, Warning::Duplicate { pid, offset });
                     self.mark_corrupt(pid);
                     return Ok(());
@@ -456,22 +458,19 @@ impl Demux {
         }
         // The first timestamp of the PID, recorded before any table names
         // it: the stream starts where its first PES packet does, not where
-        // the reader learnt that the PID carries one. Bounded by the
-        // stream limit, as every other per-PID fact is.
-        if header.unit_start
-            && !self.first_pes.contains_key(&pid)
-            && self.pes_pids.len() < self.max_streams
-        {
+        // the reader learnt that the PID carries one. Once the stream
+        // limit's worth of PIDs is recorded, no more are read.
+        if header.unit_start && !self.first_pes.contains_key(&pid) && !self.pes_pids.is_full() {
             let header = match pes::parse(payload) {
                 pes::Parsed::Done(first) if first.stream_id != PADDING_STREAM => Some(first),
                 _ => None,
             };
             if let Some(first) = header {
-                self.pes_pids.entry(pid).or_insert(offset);
+                let _ = self.pes_pids.get_or_insert_with(pid, || offset);
                 // A PES packet of the stream may state no time; the first
                 // that does gives the stream its start.
                 if let Some(time) = first.pts.or(first.dts) {
-                    self.first_pes.insert(pid, (offset, time));
+                    let _ = self.first_pes.insert(pid, (offset, time));
                 }
             }
         }
@@ -487,7 +486,7 @@ impl Demux {
             && self.tables_complete()
         {
             let before = self.streams.len();
-            self.add_undeclared(&BTreeMap::new())?;
+            self.add_undeclared(None)?;
             for entry in self.streams.iter_mut().skip(before) {
                 entry.sniff = true;
             }
@@ -514,7 +513,7 @@ impl Demux {
         }
         if header.unit_start {
             self.complete(pid, warnings);
-            self.builders.insert(
+            let _ = self.builders.set(
                 pid,
                 Builder {
                     offset,
@@ -609,7 +608,7 @@ impl Demux {
             });
             builder.data.drain(..end);
             self.buffered = self.buffered.saturating_sub(end);
-            self.continued.insert(
+            let _ = self.continued.set(
                 pid,
                 PesHeader {
                     pts: None,
@@ -706,11 +705,10 @@ impl Demux {
                 .first()
                 .and_then(|&pointer| payload.get(usize::from(pointer).saturating_add(1)))
                 == Some(&PMT);
-        if opens_pmt
-            && !self.early_sections.contains_key(&pid)
-            && self.early_sections.len() < self.max_programs
-        {
-            self.early_sections.insert(pid, Assembler::new(MAX_SECTION));
+        if opens_pmt {
+            let _ = self
+                .early_sections
+                .get_or_insert_with(pid, || Assembler::new(MAX_SECTION));
         }
         let Some(assembler) = self.early_sections.get_mut(&pid) else {
             return;
@@ -773,10 +771,12 @@ impl Demux {
         warnings: &mut Vec<Warning>,
     ) -> Result<(), Error> {
         let mut sections = Vec::new();
-        let assembler = self
+        let Ok(assembler) = self
             .sections
-            .entry(pid)
-            .or_insert_with(|| Assembler::new(MAX_PRIVATE_SECTION));
+            .get_or_insert_with(pid, || Assembler::new(MAX_PRIVATE_SECTION))
+        else {
+            return Ok(());
+        };
         if let Err(reason) = assembler.push(payload, unit_start, &mut sections) {
             warn(warnings, Warning::BadSection { pid, reason });
         }
@@ -805,13 +805,15 @@ impl Demux {
         warnings: &mut Vec<Warning>,
     ) -> Result<(), Error> {
         let mut sections = Vec::new();
-        let assembler = self.sections.entry(pid).or_insert_with(|| {
+        let Ok(assembler) = self.sections.get_or_insert_with(pid, || {
             Assembler::new(if pid == EIT_PID {
                 MAX_EIT_SECTION
             } else {
                 MAX_SECTION
             })
-        });
+        }) else {
+            return Ok(());
+        };
         if let Err(reason) = assembler.push(payload, unit_start, &mut sections) {
             warn(warnings, Warning::BadSection { pid, reason });
         }
@@ -888,10 +890,14 @@ impl Demux {
     /// declares, after the tables have been read: its packets are the
     /// file's too, and `ffprobe` lists them, after the declared streams.
     /// `earlier` holds the first PES packet of each PID of an earlier
-    /// pass over the file.
-    pub(crate) fn add_undeclared(&mut self, earlier: &BTreeMap<u16, u64>) -> Result<(), Error> {
-        let mut found: BTreeMap<u16, u64> = BTreeMap::new();
-        for (pid, offset) in earlier.iter().chain(self.pes_pids.iter()) {
+    /// pass over the file, if any.
+    pub(crate) fn add_undeclared(&mut self, earlier: Option<&PidMap<u64>>) -> Result<(), Error> {
+        let mut found = PidMap::pids();
+        for (pid, offset) in earlier
+            .into_iter()
+            .flat_map(|earlier| earlier.iter())
+            .chain(self.pes_pids.iter())
+        {
             if self.by_pid.contains_key(pid)
                 || *pid == 0
                 || *pid == EIT_PID
@@ -899,10 +905,11 @@ impl Demux {
             {
                 continue;
             }
-            let at = found.entry(*pid).or_insert(*offset);
-            *at = (*at).min(*offset);
+            if let Ok(at) = found.get_or_insert_with(*pid, || *offset) {
+                *at = (*at).min(*offset);
+            }
         }
-        let mut order: Vec<(u64, u16)> = found.into_iter().map(|(pid, at)| (at, pid)).collect();
+        let mut order: Vec<(u64, u16)> = found.iter().map(|(pid, at)| (*at, *pid)).collect();
         order.sort_unstable();
         for (_, pid) in order {
             self.undeclared(pid)?;
@@ -913,14 +920,7 @@ impl Demux {
     /// Lists a PID that carries PES packets and that no Program Map Table
     /// declares, with no stream type of its own.
     fn undeclared(&mut self, pid: u16) -> Result<(), Error> {
-        if self.streams.len() >= self.max_streams {
-            return Err(Error::LimitExceeded {
-                limit: LimitKind::Streams,
-                offset: 0,
-            });
-        }
-        self.by_pid.insert(pid, self.streams.len());
-        self.streams.push(Entry {
+        self.add_stream(Entry {
             pid,
             programs: Vec::new(),
             stream_type: 0,
@@ -932,7 +932,18 @@ impl Demux {
             sniff: false,
             sniffed: (Vec::new(), 0),
             found_at: u64::MAX,
-        });
+        })
+    }
+
+    /// Lists a stream, past the last; at most `max_streams` of them.
+    fn add_stream(&mut self, entry: Entry) -> Result<(), Error> {
+        self.by_pid
+            .insert(entry.pid, self.streams.len())
+            .map_err(|_| Error::LimitExceeded {
+                limit: LimitKind::Streams,
+                offset: 0,
+            })?;
+        self.streams.push(entry);
         Ok(())
     }
 
@@ -941,14 +952,7 @@ impl Demux {
         if self.by_pid.contains_key(&EIT_PID) {
             return Ok(());
         }
-        if self.streams.len() >= self.max_streams {
-            return Err(Error::LimitExceeded {
-                limit: LimitKind::Streams,
-                offset: 0,
-            });
-        }
-        self.by_pid.insert(EIT_PID, self.streams.len());
-        self.streams.push(Entry {
+        self.add_stream(Entry {
             pid: EIT_PID,
             programs: Vec::new(),
             // No Program Map Table declares it, so it has no stream type;
@@ -962,8 +966,7 @@ impl Demux {
             sniff: false,
             sniffed: (Vec::new(), 0),
             found_at: self.current,
-        });
-        Ok(())
+        })
     }
 
     fn pat(&mut self, version: u8, body: &[u8]) -> Result<(), Error> {
@@ -1033,15 +1036,8 @@ impl Demux {
                 }
                 continue;
             }
-            if self.streams.len() >= self.max_streams {
-                return Err(Error::LimitExceeded {
-                    limit: LimitKind::Streams,
-                    offset: 0,
-                });
-            }
             let codec = codec(es.stream_type, &es.descriptors, &parsed.descriptors);
-            self.by_pid.insert(es.pid, self.streams.len());
-            self.streams.push(Entry {
+            self.add_stream(Entry {
                 pid: es.pid,
                 programs: vec![number],
                 stream_type: es.stream_type,
@@ -1058,7 +1054,7 @@ impl Demux {
                 sniff: codec == Codec::Other && crate::codec::sniffed_type(es.stream_type),
                 sniffed: (Vec::new(), 0),
                 found_at: self.current,
-            });
+            })?;
         }
         if let Some(entry) = self.programs.get_mut(program) {
             entry.pmt_version = Some(version);

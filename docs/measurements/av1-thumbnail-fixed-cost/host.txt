@@ -1,0 +1,17 @@
+== host
+Linux 6.12.113+deb13-cloud-amd64 x86_64
+8
+CPU(s):                                  8
+Model name:                              INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz
+Thread(s) per core:                      1
+Core(s) per socket:                      8
+Socket(s):                               1
+L3 cache:                                260 MiB (1 instance)
+ro console=tty0 console=ttyS0,115200 earlyprintk=ttyS0,115200 consoleblank=0 intel_iommu=off 
+libdav1d7:amd64	1.5.1-1
+ffmpeg version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2000-2024 the FFmpeg developers
+coreav 0.0.1
+a6c3a536cbb5e6975ae4d5ff61f4c7fa177d2401da50f59b44505b196ad6f3d3  bin/coreav
+27104f37a84059a258c0035b4509b1c1d699075d49da7c204421a74f8e577246  bin/decode-oracle
+e7e7fb30477f717e6f55f9180a70386c62677ef8a4d4d1a5d948f4098aa3eb99  bin/ffmpeg
+4f231a1960d83e403d08f7971e271707bec278a9ae18e21b8b5b03186668450d  bin/ffprobe

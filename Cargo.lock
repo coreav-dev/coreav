@@ -267,6 +267,7 @@ dependencies = [
  "coreav-thumbnail",
  "coreav-transcode",
  "coreav-worker",
+ "rustix",
  "rustls",
  "rustls-native-certs",
  "serde_json",

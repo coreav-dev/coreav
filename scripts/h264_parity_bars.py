@@ -18,7 +18,8 @@ round supplies (docs/design/h264.md, "A round's bars: one analyzer, complete rep
 - `calls`: each call's stream set is a manifest, a JSON object keyed by stream name whose values carry the stream's
   `class` (the `es.json` of a set), path relative to the repository root; `classes` (optional) narrows it.
 - `subsets` (optional): named groups of the streams whose name starts with one of the prefixes; a call whose set has
-  none of them has no such group, and a check that asks for it there is an error.
+  none of them has no such group, and a check that asks for it there is an error. A subset may not take the name of
+  a built-in group or `per_stream`.
 - `bars`: a bar passes when each of its checks does. A check reads one call and one pairing (`discard` or `write`)
   and holds for each of its `groups` (`overall`, the default; a class; `classes` for each class of the call; or a
   subset): the median per-stream ratio new/old is at most `median_max`, and the upper end of its 95% bootstrap
@@ -106,6 +107,8 @@ def load_spec(path):
     for name in subsets:
         if name in CLASSES or name in ('overall', 'classes'):
             raise Refused(f'subset {name}: the name of a built-in group')
+        if name == 'per_stream':
+            raise Refused(f"subset {name}: a reserved name; the summary keeps every stream's ratio under it")
     names = [bar.get('name') for bar in spec['bars']]
     twice = sorted({str(n) for n in names if names.count(n) > 1})
     if twice:
