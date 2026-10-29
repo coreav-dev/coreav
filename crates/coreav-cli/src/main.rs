@@ -237,8 +237,11 @@ enum Command {
     /// as `ffprobe` does the same.
     #[command(disable_help_flag = true)]
     Ffprobe(Deferred<ToolArgs>),
-    /// Run an ffmpeg command line: not implemented yet, every command is
-    /// refused with exit status 4 (docs/design/compat-cli.md).
+    /// Runs an ffmpeg stream-copy command line (-c copy) with CoreAV's own
+    /// writers: remuxing to MP4, clipping, segmenting and audio extraction
+    /// to M4A, with ffmpeg's stream selection; anything else refused with
+    /// exit status 4 (docs/design/compat-cli.md). `coreav` run as `ffmpeg`
+    /// does the same.
     #[command(disable_help_flag = true)]
     Ffmpeg(Deferred<ToolArgs>),
 }

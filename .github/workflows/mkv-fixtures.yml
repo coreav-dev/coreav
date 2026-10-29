@@ -160,6 +160,19 @@ jobs:
         run: |
           python3 -I scripts/mkv_remux_check.py fixtures --coreav target/release/coreav \
             --media "$RUNNER_TEMP/mkv-fixtures" --out "$RUNNER_TEMP/mkv-remux" --mediainfo mediainfo
+      # docs/design/compat-cli.md, "coreav ffmpeg" (R3 on the fixtures): the
+      # ffmpeg commands of commands-0.1.0 that read Matroska and WebM, on
+      # every fixture they can take. Threshold: 100% of the outputs.
+      - name: Run the 0.1.0 ffmpeg commands on the fixtures and check the outputs
+        env:
+          COREAV_FIXTURES: ${{ runner.temp }}/mkv-fixtures
+          COREAV_FFMPEG_OUT: ${{ runner.temp }}/mkv-ffmpeg
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          set -euo pipefail
+          cargo test --locked --release -p coreav-cli --test ffmpeg the_0_1_0_commands_on_the_fixtures -- --ignored
+          python3 -I tools/compat-corpus/copy_check.py --records "$COREAV_FFMPEG_OUT/records.json" \
+            --mediainfo mediainfo --report "$RUNNER_TEMP/mkv-ffmpeg.json"
       # docs/design/policy-matroska.md: `coreav check` with the example
       # policies and the tight test policy on every Matroska fixture: no
       # crash, the same bytes twice, the reasons of scripts/policy_ref.py
