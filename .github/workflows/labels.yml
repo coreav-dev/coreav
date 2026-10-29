@@ -3,8 +3,10 @@ name: labels
 # Makes the repository's labels match .github/labels.yml
 # (docs/design/ci-checks.md, "Labels"). Runs on a push to main that changes
 # the file or the script, and by hand. Only the built-in token, with
-# `issues: write` (the permission the labels API asks for); no secret, and
-# nothing from a pull request runs here: the trigger is a push to main.
+# `issues: write` (the permission the labels API asks for); no secret. The
+# job runs only on main, so a manual run on another branch, a pull
+# request's included, does nothing; and only in this repository, so a
+# fork's labels are left alone.
 # workflow-check: not required
 
 on:
@@ -25,6 +27,7 @@ concurrency:
 jobs:
   label-sync:
     runs-on: ubuntu-24.04
+    if: github.repository == 'coreav-dev/coreav' && github.ref == 'refs/heads/main'
     timeout-minutes: 5
     permissions:
       contents: read

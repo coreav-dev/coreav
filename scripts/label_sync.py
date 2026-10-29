@@ -12,7 +12,8 @@ a workflow creates for itself survive.
 
 `--check` reads and validates the file only, with no network: names unique
 (GitHub compares them without case), a colour of six hex digits, a
-description of at most 100 characters, no name in both lists. The sync runs
+description of at most 100 characters, no name in both lists, and every
+label an issue form in .github/ISSUE_TEMPLATE sets is in `labels`. The sync runs
 `gh`, which reads its token from GH_TOKEN. Exit status 0 on success, 1 on
 a file the parser refuses or a failed `gh` call. Reads the file as text in
 the narrow shape it is written in; anything else is an error rather than a
@@ -28,8 +29,10 @@ import sys
 SECTION = re.compile(r'\A(labels|retired):\s*\Z')
 FIRST = re.compile(r'\A  - name: (\S.*?)\s*\Z')
 MORE = re.compile(r'\A    (color|description): (\S.*?)\s*\Z')
-RETIRED = re.compile(r'\A  - (\S.*?)\s*\Z')
+RETIRED = re.compile(r'\A  - (?!(?:name|color|description):)(\S.*?)\s*\Z')
 COLOR = re.compile(r'\A[0-9a-f]{6}\Z')
+# An issue form's labels, in the one form the forms use: `labels: [a, b]`.
+FORM_LABELS = re.compile(r'\Alabels: \[(.*)\]\s*\Z')
 
 
 def parse(text):
@@ -61,8 +64,8 @@ def parse(text):
     return labels, retired
 
 
-def problems_of(labels, retired):
-    out, seen = [], set()
+def problems_of(labels, retired, forms):
+    out, seen, gone = [], set(), set()
     if not labels:
         out.append('no label under `labels`')
     for label in labels:
@@ -76,9 +79,25 @@ def problems_of(labels, retired):
         if not description or len(description) > 100:
             out.append(f'`{name}`: the description is missing or longer than 100 characters')
     for name in retired:
-        if name.lower() in seen:
+        if name.lower() in gone:
+            out.append(f'`{name}` is retired twice')
+        elif name.lower() in seen:
             out.append(f'`{name}` is both a label and retired')
-        seen.add(name.lower())
+        gone.add(name.lower())
+    for form, name in forms:
+        if name.lower() not in seen:
+            out.append(f'{form} sets `{name}`, which is not under `labels`')
+    return out
+
+
+def form_labels(root):
+    """(file name, label) for each label an issue form sets."""
+    out = []
+    for form in sorted((root / 'ISSUE_TEMPLATE').glob('*.yml')):
+        for line in form.read_text(encoding='utf-8').splitlines():
+            match = FORM_LABELS.match(line)
+            if match:
+                out.extend((form.name, name.strip()) for name in match.group(1).split(',') if name.strip())
     return out
 
 
@@ -95,8 +114,15 @@ def sync(repo, labels, retired, dry_run):
                 label['name'], label['color'], label['description']):
             continue
         print(f"{'update' if now else 'create'} {label['name']}")
-        if not dry_run:
-            gh('label', 'create', label['name'], '--repo', repo, '--force',
+        if dry_run:
+            continue
+        if now:
+            # `edit` with `--name`, so a label whose name differs only in
+            # case is renamed to the file's spelling.
+            gh('label', 'edit', now['name'], '--repo', repo, '--name', label['name'],
+               '--color', label['color'], '--description', label['description'])
+        else:
+            gh('label', 'create', label['name'], '--repo', repo,
                '--color', label['color'], '--description', label['description'])
     for name in retired:
         if name.lower() in existing:
@@ -118,8 +144,13 @@ def main():
     mode.add_argument('--repo', help='OWNER/NAME of the repository to sync')
     parser.add_argument('--dry-run', action='store_true', help='print what would change, change nothing')
     args = parser.parse_args()
-    labels, retired = parse(args.file.read_text(encoding='utf-8'))
-    problems = problems_of(labels, retired)
+    try:
+        text = args.file.read_text(encoding='utf-8')
+    except OSError as error:
+        print(f'label-sync: cannot read {args.file}: {error.strerror}', file=sys.stderr)
+        return 1
+    labels, retired = parse(text)
+    problems = problems_of(labels, retired, form_labels(args.file.resolve().parent))
     for problem in problems:
         print(f'label-sync: {problem}', file=sys.stderr)
     if problems:
