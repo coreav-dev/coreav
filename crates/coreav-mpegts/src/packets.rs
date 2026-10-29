@@ -1134,10 +1134,13 @@ impl<S: Source> Packets<'_, S> {
                 .unwrap_or(data.len());
             if state.lead.len().saturating_add(end) > frames::longest_frame(syntax) {
                 // More than one frame of the syntax holds: not the tail of
-                // a frame, and dropped, as the default listing drops them.
+                // a frame, and dropped up to the first header, as the
+                // default listing drops them; the stream is taken as
+                // started, so that no later run of them is gathered again.
                 self.carried = self.carried.saturating_sub(state.lead.len());
                 state.lead.clear();
                 state.lead_from = None;
+                state.started = true;
                 data.drain(..end);
             } else if end > 0 {
                 if state.lead.is_empty() {
@@ -1559,7 +1562,8 @@ impl<S: Source> Packets<'_, S> {
         // the first frame that starts there: its position is the
         // frame's own, as it would be had the frame been whole.
         let cut = state.cut.take();
-        let cut = state.first.take().or(cut);
+        let first = state.first.take();
+        let cut = first.or(cut);
         state.need = 0;
         let leftover = std::mem::take(&mut state.leftover);
         let lead = std::mem::take(&mut state.lead);
@@ -1589,8 +1593,12 @@ impl<S: Source> Packets<'_, S> {
         // the listing as `ffprobe` gives it: one packet of them and of
         // the start of a header after them, with no duration (AC-3, ADTS
         // and MP2 streams crafted with 100 such bytes alone, in one and in
-        // two PES packets, and with the first three bytes of a frame).
-        if let Some((time, offset, pos)) = state.lead_from.take() {
+        // two PES packets, and with the first three bytes of a frame). The
+        // same where they were to join a first frame whose header the file
+        // cuts (MPEG audio, LOAS).
+        if let Some((time, offset, pos)) =
+            state.lead_from.take().or(first.filter(|_| frame.is_none()))
+        {
             let mut data = lead;
             data.extend_from_slice(&leftover);
             self.queue.push_back(Packet {

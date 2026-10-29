@@ -1765,6 +1765,13 @@ fn as_ffprobe_lead_bytes_in_pes_packets_of_their_own_by_syntax() {
             (1024, Some(100_000), Some(at[2])),
         ]
     );
+    // MPEG audio whose first header the end of the file cuts: the bytes
+    // before it and those of it, one packet.
+    let (mux, at) = audio_mux(0x03, &[&lead, &mp2_frame()[..3]]);
+    assert_eq!(
+        audio_listing(&mux, true),
+        vec![(53, Some(90_000), Some(at[0]))]
+    );
     // A file that ends before any header: one packet of what there is.
     let (mux, at) = audio_mux(0x81, &[&lead, &lead]);
     assert_eq!(
@@ -1794,12 +1801,13 @@ fn as_ffprobe_a_carried_byte_that_starts_no_header_joins_the_lead_bytes() {
 
 #[test]
 fn as_ffprobe_bytes_before_a_header_are_bounded_by_a_frame() {
-    // 50 KB without a header before the first AC-3 frame, more than any
-    // frame holds: dropped rather than held, so a buffer limit of 16 KB
-    // is not met, and the frames are listed.
+    // 51 KB without a header before the first AC-3 frame, more than any
+    // frame holds: dropped up to that frame rather than held, so a buffer
+    // limit of 16 KB is not met, none of them is listed, and the frames
+    // are.
     let junk = [0x22u8; 1_000];
     let frames = [ac3_frame(), ac3_frame()].concat();
-    let mut payloads: Vec<&[u8]> = vec![&junk; 50];
+    let mut payloads: Vec<&[u8]> = vec![&junk; 51];
     payloads.push(&frames);
     let (mux, at) = audio_mux(0x81, &payloads);
     let limits = Limits {
@@ -1816,8 +1824,8 @@ fn as_ffprobe_bytes_before_a_header_are_bounded_by_a_frame() {
     assert_eq!(
         listed,
         vec![
-            (768, Some(340_000), Some(at[50])),
-            (768, Some(342_880), None),
+            (768, Some(345_000), Some(at[51])),
+            (768, Some(347_880), None),
         ]
     );
 }
