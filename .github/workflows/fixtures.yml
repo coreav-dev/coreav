@@ -507,6 +507,22 @@ jobs:
           python3 -I scripts/join_check.py --manifest "$COREAV_JOIN_OUT/manifest.json" \
             --mediainfo "$RUNNER_TEMP/coreav-oracle-bin/mediainfo" --ffmpeg-concat \
             --report "$RUNNER_TEMP/coreav-join.json"
+      # docs/design/compat-cli.md, "coreav ffmpeg" (R3 on the fixtures):
+      # every ffmpeg command of commands-0.1.0 on every fixture it can take,
+      # through coreav ffmpeg. Each output must select the streams the pinned
+      # ffmpeg selects and pass the oracle of its job, with that oracle's
+      # known divergences. Threshold: 100% of the outputs.
+      - name: Run the 0.1.0 ffmpeg commands on the fixtures and check the outputs
+        env:
+          COREAV_FIXTURES: ${{ runner.temp }}/coreav-fixtures
+          COREAV_FFMPEG_OUT: ${{ runner.temp }}/coreav-ffmpeg
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          set -euo pipefail
+          cargo test --locked --release -p coreav-cli --test ffmpeg the_0_1_0_commands_on_the_fixtures -- --ignored
+          python3 -I tools/compat-corpus/copy_check.py --records "$COREAV_FFMPEG_OUT/records.json" \
+            --mediainfo "$RUNNER_TEMP/coreav-oracle-bin/mediainfo" \
+            --report "$RUNNER_TEMP/coreav-ffmpeg.json"
       - name: Preserve normalized output and diffs
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

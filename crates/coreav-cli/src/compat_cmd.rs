@@ -14,7 +14,8 @@ use std::process::ExitCode;
 
 use coreav_cli::error::Failure;
 use coreav_cli::fallback::{NotNative, Tool};
-use coreav_cli::ffprobe::{self, args::Refusal};
+use coreav_cli::ffmpeg::{self, Refusal, Stop};
+use coreav_cli::ffprobe::{self, args::Refusal as ProbeRefusal};
 use coreav_isobmff::{BufferedSource, FileSource, Source};
 
 use super::{EXIT_IO, EXIT_REJECTED, EXIT_USAGE, fallback_cmd};
@@ -62,22 +63,44 @@ fn strings(tool: &str, args: &[OsString]) -> Result<Vec<String>, ExitCode> {
         })
 }
 
-/// `coreav ffmpeg`: not implemented yet, so no command is native.
-/// `strict_safe` is `coreav --strict-safe`.
+/// `coreav ffmpeg` with `ffmpeg`'s arguments. `strict_safe` is
+/// `coreav --strict-safe`.
 pub fn run_ffmpeg(args: &[OsString], strict_safe: bool) -> ExitCode {
-    let Ok(args) = strings("ffmpeg", args) else {
-        return ExitCode::from(EXIT_UNSUPPORTED);
+    let args = match strings("ffmpeg", args) {
+        Ok(args) => args,
+        Err(code) => return code,
     };
-    let first = args.iter().find(|a| a.starts_with('-'));
-    let what = first.map_or_else(|| "this command".to_owned(), |first| format!("'{first}'"));
-    let message = format!(
-        "{what} is not supported: coreav ffmpeg runs no ffmpeg command yet (docs/design/compat-cli.md)"
-    );
-    let refusal = match first {
-        Some(first) => NotNative::option(first, None, message),
-        None => NotNative::property("an ffmpeg command", message),
-    };
-    fallback_cmd::refuse(Tool::Ffmpeg, &args, refusal, strict_safe)
+    match ffmpeg::run(&args) {
+        Ok(_) => ExitCode::SUCCESS,
+        Err(Stop::Refused(Refusal::NotNative(refusal))) => {
+            fallback_cmd::refuse(Tool::Ffmpeg, &args, refusal, strict_safe)
+        }
+        Err(Stop::Refused(Refusal::Usage(text))) => {
+            message("ffmpeg", &text);
+            ExitCode::from(EXIT_USAGE)
+        }
+        Err(Stop::Failed(failure)) => {
+            let json = failure.to_json();
+            let text = json
+                .get("message")
+                .and_then(serde_json::Value::as_str)
+                .map_or_else(|| json.to_string(), str::to_owned);
+            message("ffmpeg", &format!("{}: {text}", args_input(&args)));
+            ExitCode::from(if failure.is_io() {
+                EXIT_IO
+            } else {
+                EXIT_REJECTED
+            })
+        }
+    }
+}
+
+/// The value of the first `-i`, to name the input in a message.
+fn args_input(args: &[String]) -> &str {
+    args.iter()
+        .position(|a| a == "-i")
+        .and_then(|i| args.get(i + 1))
+        .map_or("", String::as_str)
 }
 
 /// `coreav ffprobe` with `ffprobe`'s arguments. `strict_safe` is
@@ -89,7 +112,7 @@ pub fn run_ffprobe(args: &[OsString], strict_safe: bool) -> ExitCode {
     };
     let options = match ffprobe::args::parse(&args) {
         Ok(options) => options,
-        Err(Refusal::Help) => {
+        Err(ProbeRefusal::Help) => {
             let mut out = std::io::stdout().lock();
             return match out
                 .write_all(ffprobe::USAGE.as_bytes())
@@ -99,10 +122,10 @@ pub fn run_ffprobe(args: &[OsString], strict_safe: bool) -> ExitCode {
                 Err(error) => super::write_error(&error),
             };
         }
-        Err(Refusal::Unsupported(refusal)) => {
+        Err(ProbeRefusal::Unsupported(refusal)) => {
             return fallback_cmd::refuse(Tool::Ffprobe, &args, refusal, strict_safe);
         }
-        Err(Refusal::Usage(text)) => {
+        Err(ProbeRefusal::Usage(text)) => {
             message("ffprobe", &text);
             return ExitCode::from(EXIT_USAGE);
         }

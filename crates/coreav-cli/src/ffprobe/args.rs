@@ -350,7 +350,7 @@ fn is_option(arg: &str) -> bool {
 
 /// `-v`: a level name or number, with `+`/`-` flags; checked, then
 /// ignored (nothing is logged).
-fn loglevel(value: &str) -> Result<(), Refusal> {
+pub(crate) fn loglevel(value: &str) -> Result<(), Refusal> {
     const LEVELS: [&str; 9] = [
         "quiet", "panic", "fatal", "error", "warning", "info", "verbose", "debug", "trace",
     ];

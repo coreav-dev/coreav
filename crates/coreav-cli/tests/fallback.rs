@@ -141,7 +141,7 @@ fn a_command_that_is_not_native_runs_the_program_coreav_fallback_names() {
         );
         assert_eq!(
             r.stderr,
-            format!("coreav: ran {dir}/ffmpeg instead (not native: -i)\nguard=1\n"),
+            format!("coreav: ran {dir}/ffmpeg instead (not native: -vf)\nguard=1\n"),
             "{named}"
         );
     }
@@ -271,7 +271,7 @@ fn without_a_program_the_command_is_refused_and_says_why() {
     );
     assert_eq!(r.code, 4);
     assert!(r.stdout.is_empty());
-    assert!(r.stderr.contains("'-i' is not supported"), "{}", r.stderr);
+    assert!(r.stderr.contains("'-vf' is not supported"), "{}", r.stderr);
     assert!(
         r.stderr.contains("no other ffmpeg on PATH to run instead"),
         "{}",
@@ -549,4 +549,105 @@ fn native_commands_and_rejected_files_are_never_handed_on() {
     let malformed = coreav(&["ffprobe", "-show_streams"], &[], &env);
     assert_eq!(malformed.code, 2);
     assert!(!log.exists());
+}
+
+#[test]
+fn coreav_ffmpeg_runs_ffmpeg_for_what_it_refuses_once_the_input_is_read() {
+    let dir = stand_in().to_str().unwrap();
+    let work = tmp("ffmpeg-native");
+    let log = work.join("fallback.log");
+    let env = [
+        ("COREAV_FALLBACK", dir),
+        ("COREAV_FALLBACK_LOG", log.to_str().unwrap()),
+    ];
+    let input = movie(&work);
+    let output = work.join("out.mp4");
+    let o = output.to_str().unwrap();
+    let native = coreav(&["ffmpeg", "-i", &input, "-c", "copy", o], &[], &env);
+    assert_eq!(native.code, 0, "{}", native.stderr);
+    assert!(native.stdout.is_empty());
+    assert!(native.stderr.is_empty(), "{}", native.stderr);
+    let written = std::fs::read(&output).unwrap();
+    let garbage = work.join("garbage.mp4");
+    std::fs::write(&garbage, b"not a movie at all").unwrap();
+    let rejected = coreav(
+        &[
+            "ffmpeg",
+            "-i",
+            garbage.to_str().unwrap(),
+            "-c",
+            "copy",
+            "-y",
+            o,
+        ],
+        &[],
+        &env,
+    );
+    assert_eq!(rejected.code, 1, "{}", rejected.stderr);
+    let malformed = coreav(
+        &["ffmpeg", "-y", "-n", "-i", &input, "-c", "copy", o],
+        &[],
+        &env,
+    );
+    assert_eq!(malformed.code, 2, "{}", malformed.stderr);
+    assert!(!log.exists());
+    // The output exists and neither -y nor -n is given: ffmpeg would ask.
+    let ask = ["ffmpeg", "-i", &input, "-c", "copy", o];
+    let ran = coreav(&ask, &[], &env);
+    assert_eq!(ran.code, 7, "{}", ran.stderr);
+    assert_eq!(ran.stdout, format!("args: -i {input} -c copy {o}\n"));
+    let words = "asking whether to overwrite an existing output (pass -y or -n)";
+    assert!(
+        ran.stderr.starts_with(&format!(
+            "coreav: ran {dir}/ffmpeg instead (not native: {words})\n"
+        )),
+        "{}",
+        ran.stderr
+    );
+    let strict = coreav(
+        &ask,
+        &[],
+        &[("COREAV_FALLBACK", dir), ("COREAV_STRICT_SAFE", "1")],
+    );
+    assert_eq!(strict.code, 4, "{}", strict.stderr);
+    assert!(strict.stdout.is_empty());
+    assert_eq!(
+        strict.stderr,
+        format!("coreav ffmpeg: not supported by coreav ffmpeg: {words}\n")
+    );
+    assert_eq!(std::fs::read(&output).unwrap(), written);
+    let lines = log_lines(&log);
+    assert_eq!(lines.len(), 1);
+    assert_eq!(lines[0]["tool"], "ffmpeg");
+    assert_eq!(lines[0]["reason"], words);
+    assert_eq!(lines[0]["ran"], format!("{dir}/ffmpeg"));
+}
+
+#[test]
+fn coreav_ffmpeg_runs_ffmpeg_for_a_name_with_a_protocol() {
+    let dir = stand_in().to_str().unwrap();
+    for args in [
+        ["ffmpeg", "-i", "file:in.mp4", "-c", "copy", "out.mp4"],
+        ["ffmpeg", "-i", "in.mp4", "-c", "copy", "file:out.mp4"],
+        [
+            "ffmpeg",
+            "-i",
+            "subfile,,start,0,end,99999,,:in.mp4",
+            "-c",
+            "copy",
+            "out.mp4",
+        ],
+        ["ffmpeg", "-i", "in.mp4", "-c", "copy", ":out.mp4"],
+    ] {
+        let r = coreav(&args, &[], &[("COREAV_FALLBACK", dir)]);
+        assert_eq!(r.code, 7, "{args:?}: {}", r.stderr);
+        assert_eq!(r.stdout, format!("args: {}\n", args[1..].join(" ")));
+        assert!(
+            r.stderr.starts_with(&format!(
+                "coreav: ran {dir}/ffmpeg instead (not native: an "
+            )),
+            "{}",
+            r.stderr
+        );
+    }
 }
