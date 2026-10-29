@@ -129,10 +129,12 @@ The guard is in `.github/workflows/bench-guard.yml`, run by
   `release`, which would slow every `cargo test --release` in CI; packed
   relative relocations (`DT_RELR`), which need glibc 2.36 at run time; a
   non-PIE binary, which loses address-space randomization. The stored
-  baseline holds `dist` counts, recorded by a guard run on `main` (run
-  39282462874, commit `44131be`) once earlier changes had fixed the
-  regressions an earlier change brought, so that `main` compares `dist` with `dist`
-(three entries were lowered later, "The probe document's nested values"). A
+  baseline holds `dist` counts, recorded by a `workflow_dispatch` guard run
+  with `update: true` (run 40828255844) on the change that stopped parsing
+  a transport stream's PES headers twice (#32). The baseline before it
+  predated the public release and had drifted from `main` by up to 4.75%
+  up (start-up) and 45% down (`probe-packets-ts`), so `main` failed on
+  a case each pull request had passed against its own base. A
   start-up failure on a change that does not touch the binary's dependencies
   or `main` points at the runner image (a new C library): the baseline needs
   updating, not the code.
