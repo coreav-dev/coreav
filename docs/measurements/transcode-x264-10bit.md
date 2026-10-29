@@ -297,3 +297,28 @@ Every arm retired 41.4 to 42.2 billion main-thread instructions at 4K and 9.5 to
 **The question that remains.** The fast path needs two things together: 16-bit samples, and an input the program can map (a regular file or a memfd). 10-bit samples from a mapped file are slow, and 16-bit samples from a pipe are slow at either pipe size. Filling the low bits is ruled out. Frame alignment is ruled out only under the condition in bar 4. What is left is what the program does differently with a mapped 16-bit input, for example which buffer `get_frame` loads from. That happens inside the x264 program and cannot be seen from the caller's side. Only an instruction-level view or the program's source would show it, and this page uses neither. So the design's choice stays as it is (`docs/design/transcode.md`).
 
 The raw results of this run are in `transcode/x264-10bit/why/inputs/`: `why3.jsonl` (each run, with its input form, times and output hash, and the `strace` counts), `stat/` (one `perf stat` file per arm), `perf/` (one cpu-clock profile by thread and function per arm) and `host.txt`.
+
+### An instruction-level view of `get_frame`
+
+Status: planned. These questions and what each answer would mean were committed before the run that answers them.
+
+The input-method round leaves one question: why the conversion stalls unless the samples are 16-bit and the input is mapped. The maintainer allowed one exception to this page's rule against instruction-level views: `perf annotate` of the x264 command-line program, limited to this stall. No x264, FFmpeg or libx264 source is read. The annotated disassembly is used only to explain the stall and is not published. The page gives short descriptions, a few instruction names, offsets within `get_frame` and sample counts. Nothing from it goes into CoreAV's code.
+
+**Programs and arms.** Two builds of the x264 program: Debian's packaged `x264` (0.164.3108, with its debug-symbol package for names) and the pinned build the runs above used. For each, five arms on the 129 frames of the 4K ProRes file: 10-bit through a 64 KiB pipe (the slow arm named in the request), 10-bit from a tmpfs file, 16-bit through a 64 KiB pipe, 16-bit from a tmpfs file and 16-bit from a memfd (the fast arms). The command and arguments are those above. One `c4-standard-8` (standard PMU) runs it all through `scripts/gcp_vm_job.py`. The runner is `why4.py`.
+
+**Observations, per arm.** The main thread is sampled while it runs (`perf record -t`):
+
+- cycles, precise if the guest allows it, else plain cycles;
+- cycles bound on loads (`exe_activity.bound_on_loads`), not precise;
+- loads that took more than 8 cycles (`mem_trans_retired.load_latency_gt_8`), with their data addresses, if the guest allows load-latency sampling. Otherwise this observation is skipped, and the page says so.
+
+Samples are counted per instruction offset within `get_frame`. The data addresses are sorted into the input mapping (the file or memfd that x264 maps), other memory without a file behind it, and the stack, from the thread's memory map read during the run. One timed run per arm gives main-thread CPU time and the output hash.
+
+**Questions and what each answer would mean.**
+
+1. **Does the Debian program show the split?** It does if its 16-bit file arm's main-thread CPU time is at most 0.7 times its 10-bit pipe arm's. If it does not, the answer below comes from the pinned program only. The pinned program is the one the runs above measured.
+2. **Same loop, or a different path?** Take the instructions in `get_frame` that hold 80% of the 10-bit pipe arm's cycle samples. If they hold at least 60% of the 16-bit file arm's samples, the fast arm runs the same loop and stalls less in it. Under 30% means the fast arm takes a different path through the program, and the answer is whatever selects that path. In between, both apply in part, and the page says so.
+3. **Which instructions stall?** In the 10-bit pipe arm, every instruction in `get_frame` with at least 10% of the load-bound samples is named by kind (a load from the input frame, a load of data the same loop stored before, a load from a table, or an instruction that only receives the samples of the stalled one before it). The page also gives its share and its cycles in the fast arm.
+4. **Where do the slow loads point?** This needs load-latency sampling. Per arm: the share of `get_frame`'s slow-load samples whose address lies in the input mapping, in other memory without a file behind it, or on the stack. If the slow arms' slow loads point at the program's own memory and the fast arms' do not, the stall lives in a buffer that the program fills itself. If they point at the input in every arm, it lives in how the program reads the input.
+5. **Why does 16-bit plus a mapped input avoid it?** The answer is put together from questions 2 to 4. It names something CoreAV could change only if the deciding condition is one that a caller sets and that holds while streaming, through a pipe. Such a condition is described for the maintainer, not implemented. If the deciding condition is internal to the program, the page says no caller-side lever follows from it.
+
