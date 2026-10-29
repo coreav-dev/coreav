@@ -660,7 +660,8 @@ on crafted files and the development set:
   others have no presentation time. A picture lasts its frame period
   rounded down (3,753 ticks at 24000/1001). Decoding times are rebuilt as
   for H.264 reordering one picture (`DecodeTimes`), except a B-picture's,
-  which keeps its presentation time. The stream ends one picture
+  which keeps its presentation time. An MPEG-2 stream (not MPEG-1, which
+  no measured file needed) ends one picture
   duration after its latest presentation time in the tail, whatever the
   step between its PES packets' times. Evidence: a capture with four
   pictures to a PES packet of 120 KB, one of field pictures each in a PES

@@ -771,17 +771,42 @@ impl<S: Source> Packets<'_, S> {
         let mut done = Vec::new();
         let mut taken = 0usize;
         let mut first_here = opens_here;
+        // Where `open.data` starts in the splitter's bytes, and where the
+        // next unit starts in `open.data`.
+        let mut shift = 0usize;
+        let mut start = 0usize;
+        let mut moved = false;
         for &cut in &cuts {
-            let Some(at) = cut.checked_sub(taken).filter(|at| *at <= open.data.len()) else {
+            let Some(at) = cut
+                .checked_sub(shift)
+                .filter(|at| *at >= start && *at <= open.data.len())
+            else {
                 break;
             };
-            // The finished unit keeps the buffer and goes to the caller
-            // without a copy; what is left of the next one, a few tens of
-            // bytes, moves to a buffer of the same room.
-            let mut rest = Vec::with_capacity(open.data.capacity());
-            rest.extend_from_slice(open.data.get(at..).unwrap_or_default());
-            open.data.truncate(at);
-            let unit = std::mem::replace(&mut open.data, rest);
+            let unit = if moved {
+                // Later units are copied out at their own size, and the
+                // bytes they took leave the buffer once, after the loop:
+                // a PES packet of many small units costs its length, not
+                // its length for every unit.
+                let unit = open.data.get(start..at).unwrap_or_default().to_vec();
+                start = at;
+                unit
+            } else {
+                // The first finished unit keeps the buffer and goes to the
+                // caller without a copy; what is left moves to a buffer of
+                // the same room. A unit much smaller than that room gives
+                // the rest back, so units held for the listing stay small.
+                moved = true;
+                let mut rest = Vec::with_capacity(open.data.capacity());
+                rest.extend_from_slice(open.data.get(at..).unwrap_or_default());
+                open.data.truncate(at);
+                let mut unit = std::mem::replace(&mut open.data, rest);
+                if unit.len() < unit.capacity() / 2 {
+                    unit.shrink_to_fit();
+                }
+                shift = at;
+                unit
+            };
             taken = cut;
             // The unit that starts here begins a run when its PES packet
             // states a time and no earlier unit of that packet took it
@@ -795,6 +820,7 @@ impl<S: Source> Packets<'_, S> {
             open.au = if first_here { later } else { here };
             first_here = true;
         }
+        open.data.drain(..start.min(open.data.len()));
         state.splitter.drained(taken);
         self.carried = self.carried.saturating_add(open.data.len());
         state.open = Some(open);
