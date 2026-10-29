@@ -935,6 +935,24 @@ information command once).
      B5's reason. What the command adds of its own is reading the command
      line and the source's video index once more before the transcode.
 
+   Changed 2026-10-29, after a local run on the fixtures and before the
+   GitHub Actions run that decides B9 (the first run at the commit that
+   makes this change; earlier runs do not count). The criterion first
+   committed was "refused with exit status 4 for a reason this section
+   names, writing nothing; any other failure counts against the bar".
+   Two things changed:
+
+   - A file CoreAV rejects with exit status 1 naming a truncated or
+     invalid structure is set apart. `truncated.mp4` is rejected so, as
+     `-c copy` rejects it (`compat-cli.md`) and as B1 to B4 set it
+     apart; under the first criterion it would count against the bar for a
+     defect of the input, which no encoder change can pass.
+   - The refusals this section names grew: a late start, reordered frames
+     without composition offsets, size changes, and chapters and
+     timecodes were added where the local run showed FFmpeg's output
+     differing from this pipeline's, and autorotation was widened from a
+     quarter turn to any matrix other than the identity.
+
    A CI job runs B9 on every change (`scripts/transcode_check.py
    --compat`).
 
