@@ -1,5 +1,7 @@
 //! QuickTime chapter lists (Apple QuickTime File Format, "Chapter lists").
 
+use std::ops::ControlFlow;
+
 use crate::sample::parse_sample;
 use crate::timing::Edit;
 use crate::{Dropped, TextError, TextLimits};
@@ -73,21 +75,34 @@ pub fn read_chapters<S: Source>(
 }
 
 /// [`read_chapters`], from each text track `track_ids` names, in order,
-/// whether or not a `chap` reference names it, the file probed once: a
-/// result for each ID of a text track, none for other IDs.
-pub fn read_chapter_tracks<S: Source>(
+/// whether or not a `chap` reference names it, the file probed once:
+/// `each` gets the result of each ID of a text track as it is read, so
+/// only one track's chapters are held at a time, and none for other IDs.
+/// Stops at the first `ControlFlow::Break` and returns it.
+pub fn read_chapter_tracks<S: Source, B>(
     source: S,
     track_ids: &[u32],
     limits: &Limits,
     text_limits: &TextLimits,
-) -> Result<Vec<Result<Chapters, TextError>>, TextError> {
+    mut each: impl FnMut(Result<Chapters, TextError>) -> ControlFlow<B>,
+) -> Result<ControlFlow<B>, TextError> {
     let mut source = source;
     let movie = probe_text(&mut source, limits)?;
-    Ok(track_ids
+    for track in track_ids
         .iter()
         .filter_map(|id| movie.tracks.iter().find(|t| t.track_id == *id))
-        .map(|track| track_chapters(&movie, track, &mut source, limits, text_limits))
-        .collect())
+    {
+        if let ControlFlow::Break(b) = each(track_chapters(
+            &movie,
+            track,
+            &mut source,
+            limits,
+            text_limits,
+        )) {
+            return Ok(ControlFlow::Break(b));
+        }
+    }
+    Ok(ControlFlow::Continue(()))
 }
 
 fn probe_text<S: Source>(source: &mut S, limits: &Limits) -> Result<Movie, Error> {

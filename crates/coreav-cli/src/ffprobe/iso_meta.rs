@@ -58,6 +58,7 @@ use coreav_isobmff::metadata::{
 };
 use coreav_isobmff::{Error, FourCc, Limits, Movie, Source};
 use std::collections::{HashMap, HashSet};
+use std::ops::ControlFlow;
 
 /// What `ffprobe` prints of a file's metadata.
 #[derive(Clone, Debug, Default)]
@@ -1127,33 +1128,33 @@ fn chapters<S: Source>(
         }
     }
     ids.reverse();
-    let read = match coreav_text::read_chapter_tracks(&mut *source, &ids, &limits, &text_limits) {
-        Ok(read) => read,
-        Err(coreav_text::TextError::Source(error @ Error::Io(_))) => {
-            return Err(Failure::library(error));
-        }
-        Err(_) => Vec::new(),
-    };
     let mut listed: Vec<Chapter> = Vec::new();
-    for result in read {
-        match result {
-            Ok(list) => {
-                let den = i64::from(list.timescale.max(1));
-                for (n, c) in list.chapters.iter().enumerate() {
-                    let start = crate::time::rounded(c.start).unwrap_or(0);
-                    let end = crate::time::rounded(c.end).unwrap_or(start);
-                    let one = chapter(n, den, start, end, &c.title);
-                    match listed.get_mut(n) {
-                        Some(slot) => *slot = one,
-                        None => listed.push(one),
+    let read =
+        coreav_text::read_chapter_tracks(&mut *source, &ids, &limits, &text_limits, |result| {
+            match result {
+                Ok(list) => {
+                    let den = i64::from(list.timescale.max(1));
+                    for (n, c) in list.chapters.iter().enumerate() {
+                        let start = crate::time::rounded(c.start).unwrap_or(0);
+                        let end = crate::time::rounded(c.end).unwrap_or(start);
+                        let one = chapter(n, den, start, end, &c.title);
+                        match listed.get_mut(n) {
+                            Some(slot) => *slot = one,
+                            None => listed.push(one),
+                        }
                     }
+                    ControlFlow::Continue(())
                 }
+                Err(coreav_text::TextError::Source(error @ Error::Io(_))) => {
+                    ControlFlow::Break(error)
+                }
+                Err(_) => ControlFlow::Continue(()),
             }
-            Err(coreav_text::TextError::Source(error @ Error::Io(_))) => {
-                return Err(Failure::library(error));
-            }
-            _ => {}
-        }
+        });
+    if let Ok(ControlFlow::Break(error))
+    | Err(coreav_text::TextError::Source(error @ Error::Io(_))) = read
+    {
+        return Err(Failure::library(error));
     }
     if !listed.is_empty() {
         return Ok(listed);
