@@ -45,7 +45,10 @@ TRIGGER = re.compile(r'\A {2}\S')
 ROW = re.compile(r'\A\| `([^`]+)` \| `([^`]+)` \|')
 SECTION = '### Required status checks (exact names)'
 LABELS = 'github.event.pull_request.labels'
-ANY_USES = re.compile(r'''(?:\A\s*(?:-\s+)?|[{,]\s*)['"]?uses['"]?:\s*['"]?([^'"\s#,}]+)''')
+# A block step's value runs to the end of the line or a comment; a flow
+# mapping's (`{uses: ...}`) ends at its comma or brace.
+BLOCK_USES = re.compile(r'''\A\s*(?:-\s+)?(['"]?)uses\1:\s*(.*?)\s*(?:\s#.*)?\Z''')
+FLOW_USES = re.compile(r'''[{,]\s*(['"]?)uses\1:\s*([^,}]*)''')
 PINNED = re.compile(r'\A[^@\s]+@[0-9a-f]{40}\Z|\Adocker://[^@\s]+@sha256:[0-9a-f]{64}\Z')
 # A workflow whose checks the table does not require, such as one this
 # repository runs for itself alone.
@@ -208,10 +211,13 @@ def unpinned(lines):
     """Steps that use an action by a name whose code can move."""
     out = []
     for n, line in enumerate(lines, 1):
-        for match in ANY_USES.finditer(line):
-            if match.group(1).startswith('./') or PINNED.match(match.group(1)):
+        block = BLOCK_USES.match(line)
+        found = [block] if block and not block.group(2).startswith('{') else FLOW_USES.finditer(line)
+        for match in found:
+            ref = match.group(2).strip().strip('\'"')
+            if ref.startswith('./') or PINNED.match(ref):
                 continue
-            out.append(f'line {n}: `{match.group(1)}` is not pinned: use the full commit sha with the '
+            out.append(f'line {n}: `{ref}` is not pinned: use the full commit sha with the '
                        'version as a comment (`owner/repo@<40-hex sha> # vX.Y.Z`), as every other step does')
     return out
 
