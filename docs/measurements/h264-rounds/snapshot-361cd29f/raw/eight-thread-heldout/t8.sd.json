@@ -1,0 +1,3638 @@
+{
+  "machine": {
+    "cpu_model": "INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz",
+    "cpu_family": "6",
+    "cpu_model_number": "207",
+    "cpu_stepping": "2",
+    "cpu_mhz": 2300.0,
+    "logical_cpus": 8
+  },
+  "required_cpu": "8581C",
+  "frames": 1800,
+  "rounds": 5,
+  "pinned_core": null,
+  "threads": [
+    8
+  ],
+  "decoders": {
+    "main": "./decode-main"
+  },
+  "ffmpeg": "./ffmpeg",
+  "resamples": 2000,
+  "streams": [
+    {
+      "stream": "176aa2655e6b.0.sd.h264",
+      "class": "sd",
+      "seconds": {
+        "ff_null": 0.46471872287500204,
+        "ff_raw": 0.486108909875,
+        "main_discard": 0.4029455373750004,
+        "main_write": 0.4627150513749996
+      },
+      "ratio": {
+        "main:discard": 0.8670740332607233,
+        "main:write": 0.9518752731645754,
+        "main:mixed": 0.8289202875927854
+      },
+      "rounds": {
+        "ff_null": [
+          0.46158339987499986,
+          0.4647836768750011,
+          0.46471872287500204,
+          0.46035723812499896,
+          0.46642903162500104
+        ],
+        "ff_raw": [
+          0.486108909875,
+          0.48744572274999953,
+          0.4832028699999995,
+          0.4870732958749997,
+          0.48584504824999897
+        ],
+        "main_discard": [
+          0.40300361375000016,
+          0.4037756356249993,
+          0.4029455373750004,
+          0.4005355076249977,
+          0.39986228637500076
+        ],
+        "main_write": [
+          0.4609330309999997,
+          0.4615504286249994,
+          0.46699064450000094,
+          0.4627150513749996,
+          0.46376479512499813
+        ],
+        "main~null_discard": [
+          0.3995615587500012,
+          0.4030927927499999,
+          0.40511186299999835,
+          0.4061097462499994,
+          0.4007087358749999
+        ],
+        "main~null_write": [
+          0.4628918477500008,
+          0.4647020993750015,
+          0.46457853362500146,
+          0.4628207992500002,
+          0.46734175224999674
+        ]
+      },
+      "order": [
+        [
+          "main~null_discard",
+          "main_write",
+          "main_discard",
+          "main~null_write",
+          "ff_null",
+          "ff_raw"
+        ],
+        [
+          "main~null_discard",
+          "ff_raw",
+          "main_discard",
+          "main~null_write",
+          "ff_null",
+          "main_write"
+        ],
+        [
+          "ff_raw",
+          "main_write",
+          "ff_null",
+          "main_discard",
+          "main~null_discard",
+          "main~null_write"
+        ],
+        [
+          "main~null_discard",
+          "ff_raw",
+          "main_write",
+          "ff_null",
+          "main_discard",
+          "main~null_write"
+        ],
+        [
+          "ff_null",
+          "main_write",
+          "ff_raw",
+          "main~null_discard",
+          "main_discard",
+          "main~null_write"
+        ]
+      ],
+      "repeat": 8,
+      "null": {
+        "main_discard": 0.0003654473404985925,
+        "main_write": 0.004027278223313502
+      },
+      "spread": {
+        "ff_null": 1.0131893082092769,
+        "ff_raw": 1.0087806861536233,
+        "main_discard": 1.0097867425444782,
+        "main_write": 1.013142068570914,
+        "main~null_discard": 1.0163884321617018,
+        "main~null_write": 1.0097682580543543
+      },
+      "attempts": 1,
+      "unresolved": false,
+      "history": [
+        {
+          "rounds": {
+            "ff_null": [
+              0.46158339987499986,
+              0.4647836768750011,
+              0.46471872287500204,
+              0.46035723812499896,
+              0.46642903162500104
+            ],
+            "ff_raw": [
+              0.486108909875,
+              0.48744572274999953,
+              0.4832028699999995,
+              0.4870732958749997,
+              0.48584504824999897
+            ],
+            "main_discard": [
+              0.40300361375000016,
+              0.4037756356249993,
+              0.4029455373750004,
+              0.4005355076249977,
+              0.39986228637500076
+            ],
+            "main_write": [
+              0.4609330309999997,
+              0.4615504286249994,
+              0.46699064450000094,
+              0.4627150513749996,
+              0.46376479512499813
+            ],
+            "main~null_discard": [
+              0.3995615587500012,
+              0.4030927927499999,
+              0.40511186299999835,
+              0.4061097462499994,
+              0.4007087358749999
+            ],
+            "main~null_write": [
+              0.4628918477500008,
+              0.4647020993750015,
+              0.46457853362500146,
+              0.4628207992500002,
+              0.46734175224999674
+            ]
+          },
+          "order": [
+            [
+              "main~null_discard",
+              "main_write",
+              "main_discard",
+              "main~null_write",
+              "ff_null",
+              "ff_raw"
+            ],
+            [
+              "main~null_discard",
+              "ff_raw",
+              "main_discard",
+              "main~null_write",
+              "ff_null",
+              "main_write"
+            ],
+            [
+              "ff_raw",
+              "main_write",
+              "ff_null",
+              "main_discard",
+              "main~null_discard",
+              "main~null_write"
+            ],
+            [
+              "main~null_discard",
+              "ff_raw",
+              "main_write",
+              "ff_null",
+              "main_discard",
+              "main~null_write"
+            ],
+            [
+              "ff_null",
+              "main_write",
+              "ff_raw",
+              "main~null_discard",
+              "main_discard",
+              "main~null_write"
+            ]
+          ],
+          "repeat": 8,
+          "null": {
+            "main_discard": 0.0003654473404985925,
+            "main_write": 0.004027278223313502
+          },
+          "spread": {
+            "ff_null": 1.0131893082092769,
+            "ff_raw": 1.0087806861536233,
+            "main_discard": 1.0097867425444782,
+            "main_write": 1.013142068570914,
+            "main~null_discard": 1.0163884321617018,
+            "main~null_write": 1.0097682580543543
+          },
+          "faulty": false
+        }
+      ]
+    },
+    {
+      "stream": "280136b1ab5c.0.sd.h264",
+      "class": "sd",
+      "seconds": {
+        "ff_null": 0.3122698472727269,
+        "ff_raw": 0.33549572290908974,
+        "main_discard": 0.2830221693636345,
+        "main_write": 0.316738381818182
+      },
+      "ratio": {
+        "main:discard": 0.9063384500151616,
+        "main:write": 0.9440906699845157,
+        "main:mixed": 0.8435939716594415
+      },
+      "rounds": {
+        "ff_null": [
+          0.31270633200000214,
+          0.3116845906363634,
+          0.3127711834545463,
+          0.3122698472727269,
+          0.3119803945454526
+        ],
+        "ff_raw": [
+          0.33549572290908974,
+          0.3353927001818187,
+          0.33689120790908916,
+          0.33644109018181534,
+          0.3329684509999993
+        ],
+        "main_discard": [
+          0.2830452726363639,
+          0.2834586685454548,
+          0.2828775591818168,
+          0.2830221693636345,
+          0.28262834554545757
+        ],
+        "main_write": [
+          0.316738381818182,
+          0.3162135313636363,
+          0.31823946990909296,
+          0.31915723427272785,
+          0.31563086972727206
+        ],
+        "main~null_discard": [
+          0.2826137032727264,
+          0.2824189134545479,
+          0.2850208279999978,
+          0.2845293379090931,
+          0.2810617807272706
+        ],
+        "main~null_write": [
+          0.31613312872727306,
+          0.3155175424545446,
+          0.31830146636363565,
+          0.3172852521818186,
+          0.3177541768181827
+        ]
+      },
+      "order": [
+        [
+          "main_write",
+          "ff_raw",
+          "main~null_discard",
+          "ff_null",
+          "main~null_write",
+          "main_discard"
+        ],
+        [
+          "ff_null",
+          "main~null_write",
+          "ff_raw",
+          "main~null_discard",
+          "main_discard",
+          "main_write"
+        ],
+        [
+          "main~null_write",
+          "main~null_discard",
+          "main_discard",
+          "ff_null",
+          "main_write",
+          "ff_raw"
+        ],
+        [
+          "ff_raw",
+          "main_write",
+          "main~null_discard",
+          "main~null_write",
+          "main_discard",
+          "ff_null"
+        ],
+        [
+          "main_write",
+          "main_discard",
+          "main~null_discard",
+          "ff_null",
+          "main~null_write",
+          "ff_raw"
+        ]
+      ],
+      "repeat": 11,
+      "null": {
+        "main_discard": -0.0014432300191413727,
+        "main_write": 0.0017265680291014274
+      },
+      "spread": {
+        "ff_null": 1.003486193577823,
+        "ff_raw": 1.011781166946324,
+        "main_discard": 1.0029378617293137,
+        "main_write": 1.0111724323685538,
+        "main~null_discard": 1.0140860392419162,
+        "main~null_write": 1.0088233569754432
+      },
+      "attempts": 1,
+      "unresolved": false,
+      "history": [
+        {
+          "rounds": {
+            "ff_null": [
+              0.31270633200000214,
+              0.3116845906363634,
+              0.3127711834545463,
+              0.3122698472727269,
+              0.3119803945454526
+            ],
+            "ff_raw": [
+              0.33549572290908974,
+              0.3353927001818187,
+              0.33689120790908916,
+              0.33644109018181534,
+              0.3329684509999993
+            ],
+            "main_discard": [
+              0.2830452726363639,
+              0.2834586685454548,
+              0.2828775591818168,
+              0.2830221693636345,
+              0.28262834554545757
+            ],
+            "main_write": [
+              0.316738381818182,
+              0.3162135313636363,
+              0.31823946990909296,
+              0.31915723427272785,
+              0.31563086972727206
+            ],
+            "main~null_discard": [
+              0.2826137032727264,
+              0.2824189134545479,
+              0.2850208279999978,
+              0.2845293379090931,
+              0.2810617807272706
+            ],
+            "main~null_write": [
+              0.31613312872727306,
+              0.3155175424545446,
+              0.31830146636363565,
+              0.3172852521818186,
+              0.3177541768181827
+            ]
+          },
+          "order": [
+            [
+              "main_write",
+              "ff_raw",
+              "main~null_discard",
+              "ff_null",
+              "main~null_write",
+              "main_discard"
+            ],
+            [
+              "ff_null",
+              "main~null_write",
+              "ff_raw",
+              "main~null_discard",
+              "main_discard",
+              "main_write"
+            ],
+            [
+              "main~null_write",
+              "main~null_discard",
+              "main_discard",
+              "ff_null",
+              "main_write",
+              "ff_raw"
+            ],
+            [
+              "ff_raw",
+              "main_write",
+              "main~null_discard",
+              "main~null_write",
+              "main_discard",
+              "ff_null"
+            ],
+            [
+              "main_write",
+              "main_discard",
+              "main~null_discard",
+              "ff_null",
+              "main~null_write",
+              "ff_raw"
+            ]
+          ],
+          "repeat": 11,
+          "null": {
+            "main_discard": -0.0014432300191413727,
+            "main_write": 0.0017265680291014274
+          },
+          "spread": {
+            "ff_null": 1.003486193577823,
+            "ff_raw": 1.011781166946324,
+            "main_discard": 1.0029378617293137,
+            "main_write": 1.0111724323685538,
+            "main~null_discard": 1.0140860392419162,
+            "main~null_write": 1.0088233569754432
+          },
+          "faulty": false
+        }
+      ]
+    },
+    {
+      "stream": "2eb7edc04e08.0.sd.h264",
+      "class": "sd",
+      "seconds": {
+        "ff_null": 0.15901673776190386,
+        "ff_raw": 0.16281247266666588,
+        "main_discard": 0.14883507895238035,
+        "main_write": 0.15176199447618965
+      },
+      "ratio": {
+        "main:discard": 0.9359711502523179,
+        "main:write": 0.9321275697771606,
+        "main:mixed": 0.9141503504900258
+      },
+      "rounds": {
+        "ff_null": [
+          0.15925703304761674,
+          0.15812532061904894,
+          0.15815046480952333,
+          0.15901673776190386,
+          0.15951383700000102
+        ],
+        "ff_raw": [
+          0.16281247266666588,
+          0.16298633628571224,
+          0.16212002023809463,
+          0.16285308152380853,
+          0.1627944067619047
+        ],
+        "main_discard": [
+          0.14883507895238035,
+          0.1495025974285714,
+          0.14852803361904826,
+          0.1492902857619058,
+          0.14874939961904537
+        ],
+        "main_write": [
+          0.15176199447618965,
+          0.1519638023809518,
+          0.15110151871428593,
+          0.15183911285714385,
+          0.15163245795238145
+        ],
+        "main~null_discard": [
+          0.1492435089523816,
+          0.14921818809523843,
+          0.1491744538095239,
+          0.14969379342857164,
+          0.14943887290476304
+        ],
+        "main~null_write": [
+          0.15183702366666857,
+          0.15226276466666736,
+          0.15219377723809385,
+          0.1521203439047635,
+          0.1518185772380943
+        ]
+      },
+      "order": [
+        [
+          "main~null_write",
+          "ff_raw",
+          "main_write",
+          "main_discard",
+          "main~null_discard",
+          "ff_null"
+        ],
+        [
+          "main_discard",
+          "main~null_discard",
+          "ff_raw",
+          "main~null_write",
+          "ff_null",
+          "main_write"
+        ],
+        [
+          "ff_null",
+          "main_discard",
+          "main_write",
+          "main~null_discard",
+          "ff_raw",
+          "main~null_write"
+        ],
+        [
+          "main~null_write",
+          "ff_raw",
+          "ff_null",
+          "main_discard",
+          "main_write",
+          "main~null_discard"
+        ],
+        [
+          "ff_null",
+          "ff_raw",
+          "main~null_write",
+          "main~null_discard",
+          "main_write",
+          "main_discard"
+        ]
+      ],
+      "repeat": 21,
+      "null": {
+        "main_discard": 0.0027441783407251563,
+        "main_write": 0.0023612593509376723
+      },
+      "spread": {
+        "ff_null": 1.008781113458086,
+        "ff_raw": 1.0053436709811985,
+        "main_discard": 1.0065614805890633,
+        "main_write": 1.0057066512236474,
+        "main~null_discard": 1.0034814246393076,
+        "main~null_write": 1.0029257778372962
+      },
+      "attempts": 1,
+      "unresolved": false,
+      "history": [
+        {
+          "rounds": {
+            "ff_null": [
+              0.15925703304761674,
+              0.15812532061904894,
+              0.15815046480952333,
+              0.15901673776190386,
+              0.15951383700000102
+            ],
+            "ff_raw": [
+              0.16281247266666588,
+              0.16298633628571224,
+              0.16212002023809463,
+              0.16285308152380853,
+              0.1627944067619047
+            ],
+            "main_discard": [
+              0.14883507895238035,
+              0.1495025974285714,
+              0.14852803361904826,
+              0.1492902857619058,
+              0.14874939961904537
+            ],
+            "main_write": [
+              0.15176199447618965,
+              0.1519638023809518,
+              0.15110151871428593,
+              0.15183911285714385,
+              0.15163245795238145
+            ],
+            "main~null_discard": [
+              0.1492435089523816,
+              0.14921818809523843,
+              0.1491744538095239,
+              0.14969379342857164,
+              0.14943887290476304
+            ],
+            "main~null_write": [
+              0.15183702366666857,
+              0.15226276466666736,
+              0.15219377723809385,
+              0.1521203439047635,
+              0.1518185772380943
+            ]
+          },
+          "order": [
+            [
+              "main~null_write",
+              "ff_raw",
+              "main_write",
+              "main_discard",
+              "main~null_discard",
+              "ff_null"
+            ],
+            [
+              "main_discard",
+              "main~null_discard",
+              "ff_raw",
+              "main~null_write",
+              "ff_null",
+              "main_write"
+            ],
+            [
+              "ff_null",
+              "main_discard",
+              "main_write",
+              "main~null_discard",
+              "ff_raw",
+              "main~null_write"
+            ],
+            [
+              "main~null_write",
+              "ff_raw",
+              "ff_null",
+              "main_discard",
+              "main_write",
+              "main~null_discard"
+            ],
+            [
+              "ff_null",
+              "ff_raw",
+              "main~null_write",
+              "main~null_discard",
+              "main_write",
+              "main_discard"
+            ]
+          ],
+          "repeat": 21,
+          "null": {
+            "main_discard": 0.0027441783407251563,
+            "main_write": 0.0023612593509376723
+          },
+          "spread": {
+            "ff_null": 1.008781113458086,
+            "ff_raw": 1.0053436709811985,
+            "main_discard": 1.0065614805890633,
+            "main_write": 1.0057066512236474,
+            "main~null_discard": 1.0034814246393076,
+            "main~null_write": 1.0029257778372962
+          },
+          "faulty": false
+        }
+      ]
+    },
+    {
+      "stream": "35757bdf512b.0.sd.h264",
+      "class": "sd",
+      "seconds": {
+        "ff_null": 0.13777354423076923,
+        "ff_raw": 0.1483741669230767,
+        "main_discard": 0.11898876580769323,
+        "main_write": 0.1271093004615387
+      },
+      "ratio": {
+        "main:discard": 0.8636546767526594,
+        "main:write": 0.8566808029826204,
+        "main:mixed": 0.8019506917897772
+      },
+      "rounds": {
+        "ff_null": [
+          0.13762391842307736,
+          0.13855841953846074,
+          0.13752754976923143,
+          0.13802926069230964,
+          0.13777354423076923
+        ],
+        "ff_raw": [
+          0.14935498723076973,
+          0.1479736088846135,
+          0.14830518769230794,
+          0.1483741669230767,
+          0.14915691642307777
+        ],
+        "main_discard": [
+          0.11943602730769079,
+          0.1188196268076922,
+          0.11898876580769323,
+          0.1195729198076925,
+          0.11883028603846067
+        ],
+        "main_write": [
+          0.1275902088461534,
+          0.1269497832692318,
+          0.12738051907692238,
+          0.1271093004615387,
+          0.12675121253846117
+        ],
+        "main~null_discard": [
+          0.11915241953846152,
+          0.11923082438461453,
+          0.11960517546153736,
+          0.11875931592307701,
+          0.11884447349999924
+        ],
+        "main~null_write": [
+          0.12764406069230788,
+          0.12801484496153884,
+          0.12810224750000124,
+          0.12794621207692322,
+          0.12789357515384617
+        ]
+      },
+      "order": [
+        [
+          "main~null_write",
+          "ff_null",
+          "main_discard",
+          "main~null_discard",
+          "main_write",
+          "ff_raw"
+        ],
+        [
+          "ff_null",
+          "main~null_discard",
+          "main_write",
+          "ff_raw",
+          "main_discard",
+          "main~null_write"
+        ],
+        [
+          "main_discard",
+          "main_write",
+          "ff_raw",
+          "main~null_write",
+          "ff_null",
+          "main~null_discard"
+        ],
+        [
+          "main_write",
+          "ff_null",
+          "main_discard",
+          "main~null_write",
+          "ff_raw",
+          "main~null_discard"
+        ],
+        [
+          "main_discard",
+          "main~null_discard",
+          "main_write",
+          "ff_raw",
+          "ff_null",
+          "main~null_write"
+        ]
+      ],
+      "repeat": 26,
+      "null": {
+        "main_discard": 0.0013753712769219995,
+        "main_write": 0.00658418866554733
+      },
+      "spread": {
+        "ff_null": 1.0074957328255982,
+        "ff_raw": 1.009335302129675,
+        "main_discard": 1.0063398027770234,
+        "main_write": 1.0066192369358018,
+        "main~null_discard": 1.0071224689354747,
+        "main~null_write": 1.0035895662141134
+      },
+      "attempts": 1,
+      "unresolved": false,
+      "history": [
+        {
+          "rounds": {
+            "ff_null": [
+              0.13762391842307736,
+              0.13855841953846074,
+              0.13752754976923143,
+              0.13802926069230964,
+              0.13777354423076923
+            ],
+            "ff_raw": [
+              0.14935498723076973,
+              0.1479736088846135,
+              0.14830518769230794,
+              0.1483741669230767,
+              0.14915691642307777
+            ],
+            "main_discard": [
+              0.11943602730769079,
+              0.1188196268076922,
+              0.11898876580769323,
+              0.1195729198076925,
+              0.11883028603846067
+            ],
+            "main_write": [
+              0.1275902088461534,
+              0.1269497832692318,
+              0.12738051907692238,
+              0.1271093004615387,
+              0.12675121253846117
+            ],
+            "main~null_discard": [
+              0.11915241953846152,
+              0.11923082438461453,
+              0.11960517546153736,
+              0.11875931592307701,
+              0.11884447349999924
+            ],
+            "main~null_write": [
+              0.12764406069230788,
+              0.12801484496153884,
+              0.12810224750000124,
+              0.12794621207692322,
+              0.12789357515384617
+            ]
+          },
+          "order": [
+            [
+              "main~null_write",
+              "ff_null",
+              "main_discard",
+              "main~null_discard",
+              "main_write",
+              "ff_raw"
+            ],
+            [
+              "ff_null",
+              "main~null_discard",
+              "main_write",
+              "ff_raw",
+              "main_discard",
+              "main~null_write"
+            ],
+            [
+              "main_discard",
+              "main_write",
+              "ff_raw",
+              "main~null_write",
+              "ff_null",
+              "main~null_discard"
+            ],
+            [
+              "main_write",
+              "ff_null",
+              "main_discard",
+              "main~null_write",
+              "ff_raw",
+              "main~null_discard"
+            ],
+            [
+              "main_discard",
+              "main~null_discard",
+              "main_write",
+              "ff_raw",
+              "ff_null",
+              "main~null_write"
+            ]
+          ],
+          "repeat": 26,
+          "null": {
+            "main_discard": 0.0013753712769219995,
+            "main_write": 0.00658418866554733
+          },
+          "spread": {
+            "ff_null": 1.0074957328255982,
+            "ff_raw": 1.009335302129675,
+            "main_discard": 1.0063398027770234,
+            "main_write": 1.0066192369358018,
+            "main~null_discard": 1.0071224689354747,
+            "main~null_write": 1.0035895662141134
+          },
+          "faulty": false
+        }
+      ]
+    },
+    {
+      "stream": "4a28c14fa0b2.0.sd.h264",
+      "class": "sd",
+      "seconds": {
+        "ff_null": 0.3370335096999952,
+        "ff_raw": 0.34783584150000024,
+        "main_discard": 0.30847442529999397,
+        "main_write": 0.3194566456000075
+      },
+      "ratio": {
+        "main:discard": 0.9152633682466096,
+        "main:write": 0.9184120998640887,
+        "main:mixed": 0.8868391019445699
+      },
+      "rounds": {
+        "ff_null": [
+          0.333052844000008,
+          0.33897081640000126,
+          0.33744379429999755,
+          0.33647204339999914,
+          0.3370335096999952
+        ],
+        "ff_raw": [
+          0.3425675348000027,
+          0.34683754659999977,
+          0.35015050039999096,
+          0.34967185479999896,
+          0.34783584150000024
+        ],
+        "main_discard": [
+          0.3069068835000053,
+          0.30916733880000036,
+          0.3087263747999941,
+          0.30847442529999397,
+          0.3084543338000003
+        ],
+        "main_write": [
+          0.31662183299999924,
+          0.3194566456000075,
+          0.3198391511999944,
+          0.31870755759999836,
+          0.32037701929999685
+        ],
+        "main~null_discard": [
+          0.3027139747999968,
+          0.3096685089999937,
+          0.30766484450000464,
+          0.30772541709999357,
+          0.3078314658999943
+        ],
+        "main~null_write": [
+          0.3172576116999949,
+          0.3198830670999996,
+          0.32028418619999,
+          0.31661611739999673,
+          0.31947380499999556
+        ]
+      },
+      "order": [
+        [
+          "main~null_write",
+          "ff_raw",
+          "main~null_discard",
+          "main_discard",
+          "ff_null",
+          "main_write"
+        ],
+        [
+          "ff_raw",
+          "main~null_write",
+          "main~null_discard",
+          "main_write",
+          "main_discard",
+          "ff_null"
+        ],
+        [
+          "ff_null",
+          "main~null_write",
+          "main_write",
+          "ff_raw",
+          "main~null_discard",
+          "main_discard"
+        ],
+        [
+          "main~null_write",
+          "ff_null",
+          "ff_raw",
+          "main_discard",
+          "main~null_discard",
+          "main_write"
+        ],
+        [
+          "main_discard",
+          "main~null_write",
+          "ff_null",
+          "main_write",
+          "main~null_discard",
+          "ff_raw"
+        ]
+      ],
+      "repeat": 10,
+      "null": {
+        "main_discard": -0.0024281046938396944,
+        "main_write": 5.371433095646694e-05
+      },
+      "spread": {
+        "ff_null": 1.0177688691347524,
+        "ff_raw": 1.022135680791863,
+        "main_discard": 1.0073652805509494,
+        "main_write": 1.0118601622143903,
+        "main~null_discard": 1.0229739449742674,
+        "main~null_write": 1.0115852244987238
+      },
+      "attempts": 1,
+      "unresolved": false,
+      "history": [
+        {
+          "rounds": {
+            "ff_null": [
+              0.333052844000008,
+              0.33897081640000126,
+              0.33744379429999755,
+              0.33647204339999914,
+              0.3370335096999952
+            ],
+            "ff_raw": [
+              0.3425675348000027,
+              0.34683754659999977,
+              0.35015050039999096,
+              0.34967185479999896,
+              0.34783584150000024
+            ],
+            "main_discard": [
+              0.3069068835000053,
+              0.30916733880000036,
+              0.3087263747999941,
+              0.30847442529999397,
+              0.3084543338000003
+            ],
+            "main_write": [
+              0.31662183299999924,
+              0.3194566456000075,
+              0.3198391511999944,
+              0.31870755759999836,
+              0.32037701929999685
+            ],
+            "main~null_discard": [
+              0.3027139747999968,
+              0.3096685089999937,
+              0.30766484450000464,
+              0.30772541709999357,
+              0.3078314658999943
+            ],
+            "main~null_write": [
+              0.3172576116999949,
+              0.3198830670999996,
+              0.32028418619999,
+              0.31661611739999673,
+              0.31947380499999556
+            ]
+          },
+          "order": [
+            [
+              "main~null_write",
+              "ff_raw",
+              "main~null_discard",
+              "main_discard",
+              "ff_null",
+              "main_write"
+            ],
+            [
+              "ff_raw",
+              "main~null_write",
+              "main~null_discard",
+              "main_write",
+              "main_discard",
+              "ff_null"
+            ],
+            [
+              "ff_null",
+              "main~null_write",
+              "main_write",
+              "ff_raw",
+              "main~null_discard",
+              "main_discard"
+            ],
+            [
+              "main~null_write",
+              "ff_null",
+              "ff_raw",
+              "main_discard",
+              "main~null_discard",
+              "main_write"
+            ],
+            [
+              "main_discard",
+              "main~null_write",
+              "ff_null",
+              "main_write",
+              "main~null_discard",
+              "ff_raw"
+            ]
+          ],
+          "repeat": 10,
+          "null": {
+            "main_discard": -0.0024281046938396944,
+            "main_write": 5.371433095646694e-05
+          },
+          "spread": {
+            "ff_null": 1.0177688691347524,
+            "ff_raw": 1.022135680791863,
+            "main_discard": 1.0073652805509494,
+            "main_write": 1.0118601622143903,
+            "main~null_discard": 1.0229739449742674,
+            "main~null_write": 1.0115852244987238
+          },
+          "faulty": false
+        }
+      ]
+    },
+    {
+      "stream": "4e2642615842.0.sd.h264",
+      "class": "sd",
+      "seconds": {
+        "ff_null": 0.1597653119545467,
+        "ff_raw": 0.17413318640908734,
+        "main_discard": 0.1379205847727266,
+        "main_write": 0.15755013231818216
+      },
+      "ratio": {
+        "main:discard": 0.8632698993631674,
+        "main:write": 0.904767985741977,
+        "main:mixed": 0.7920407799160852
+      },
+      "rounds": {
+        "ff_null": [
+          0.15995608922727136,
+          0.1597653119545467,
+          0.15929956827272918,
+          0.1596122414090928,
+          0.15988628013636488
+        ],
+        "ff_raw": [
+          0.1747880570909088,
+          0.17412990404545264,
+          0.17393006040908754,
+          0.17448558531818167,
+          0.17413318640908734
+        ],
+        "main_discard": [
+          0.13742976795454484,
+          0.1379205847727266,
+          0.13755852572727048,
+          0.13829404822727362,
+          0.13806559931818316
+        ],
+        "main_write": [
+          0.1575063794090955,
+          0.1578058368181804,
+          0.15755013231818216,
+          0.15793250859090593,
+          0.15725529727273047
+        ],
+        "main~null_discard": [
+          0.1371884985000003,
+          0.1374047042272702,
+          0.13728197099999823,
+          0.13817105009091143,
+          0.13798347359090712
+        ],
+        "main~null_write": [
+          0.15654109459091037,
+          0.15736075259091173,
+          0.15779140004545153,
+          0.15678168072727514,
+          0.15670607381818255
+        ]
+      },
+      "order": [
+        [
+          "main~null_discard",
+          "ff_null",
+          "main_discard",
+          "main_write",
+          "ff_raw",
+          "main~null_write"
+        ],
+        [
+          "main~null_write",
+          "ff_raw",
+          "main~null_discard",
+          "ff_null",
+          "main_discard",
+          "main_write"
+        ],
+        [
+          "main~null_write",
+          "main_write",
+          "main_discard",
+          "ff_null",
+          "main~null_discard",
+          "ff_raw"
+        ],
+        [
+          "main_discard",
+          "main_write",
+          "ff_raw",
+          "ff_null",
+          "main~null_discard",
+          "main~null_write"
+        ],
+        [
+          "ff_raw",
+          "main_discard",
+          "main~null_discard",
+          "main~null_write",
+          "ff_null",
+          "main_write"
+        ]
+      ],
+      "repeat": 22,
+      "null": {
+        "main_discard": -0.0037404173300634724,
+        "main_write": -0.004877505208025434
+      },
+      "spread": {
+        "ff_null": 1.0041212977640854,
+        "ff_raw": 1.0049329982396558,
+        "main_discard": 1.0062888869390703,
+        "main_write": 1.0043064451876682,
+        "main~null_discard": 1.0071620551405853,
+        "main~null_write": 1.007987074945455
+      },
+      "attempts": 1,
+      "unresolved": false,
+      "history": [
+        {
+          "rounds": {
+            "ff_null": [
+              0.15995608922727136,
+              0.1597653119545467,
+              0.15929956827272918,
+              0.1596122414090928,
+              0.15988628013636488
+            ],
+            "ff_raw": [
+              0.1747880570909088,
+              0.17412990404545264,
+              0.17393006040908754,
+              0.17448558531818167,
+              0.17413318640908734
+            ],
+            "main_discard": [
+              0.13742976795454484,
+              0.1379205847727266,
+              0.13755852572727048,
+              0.13829404822727362,
+              0.13806559931818316
+            ],
+            "main_write": [
+              0.1575063794090955,
+              0.1578058368181804,
+              0.15755013231818216,
+              0.15793250859090593,
+              0.15725529727273047
+            ],
+            "main~null_discard": [
+              0.1371884985000003,
+              0.1374047042272702,
+              0.13728197099999823,
+              0.13817105009091143,
+              0.13798347359090712
+            ],
+            "main~null_write": [
+              0.15654109459091037,
+              0.15736075259091173,
+              0.15779140004545153,
+              0.15678168072727514,
+              0.15670607381818255
+            ]
+          },
+          "order": [
+            [
+              "main~null_discard",
+              "ff_null",
+              "main_discard",
+              "main_write",
+              "ff_raw",
+              "main~null_write"
+            ],
+            [
+              "main~null_write",
+              "ff_raw",
+              "main~null_discard",
+              "ff_null",
+              "main_discard",
+              "main_write"
+            ],
+            [
+              "main~null_write",
+              "main_write",
+              "main_discard",
+              "ff_null",
+              "main~null_discard",
+              "ff_raw"
+            ],
+            [
+              "main_discard",
+              "main_write",
+              "ff_raw",
+              "ff_null",
+              "main~null_discard",
+              "main~null_write"
+            ],
+            [
+              "ff_raw",
+              "main_discard",
+              "main~null_discard",
+              "main~null_write",
+              "ff_null",
+              "main_write"
+            ]
+          ],
+          "repeat": 22,
+          "null": {
+            "main_discard": -0.0037404173300634724,
+            "main_write": -0.004877505208025434
+          },
+          "spread": {
+            "ff_null": 1.0041212977640854,
+            "ff_raw": 1.0049329982396558,
+            "main_discard": 1.0062888869390703,
+            "main_write": 1.0043064451876682,
+            "main~null_discard": 1.0071620551405853,
+            "main~null_write": 1.007987074945455
+          },
+          "faulty": false
+        }
+      ]
+    },
+    {
+      "stream": "4f2715fe7626.0.sd.h264",
+      "class": "sd",
+      "seconds": {
+        "ff_null": 0.2787240942499996,
+        "ff_raw": 0.29062945658333206,
+        "main_discard": 0.2543534825000033,
+        "main_write": 0.267453978499996
+      },
+      "ratio": {
+        "main:discard": 0.9125636704800365,
+        "main:write": 0.9202576423058103,
+        "main:mixed": 0.8751813580433565
+      },
+      "rounds": {
+        "ff_null": [
+          0.2787240942499996,
+          0.27775049133333596,
+          0.2780398691666619,
+          0.27913574675000064,
+          0.2790248373333289
+        ],
+        "ff_raw": [
+          0.29062945658333206,
+          0.2898061817499998,
+          0.29043142733332655,
+          0.29076864749999726,
+          0.29189915466667077
+        ],
+        "main_discard": [
+          0.2543534825000033,
+          0.2547426495833349,
+          0.2541525164999996,
+          0.25389421516666744,
+          0.2543950491666654
+        ],
+        "main_write": [
+          0.267453978499996,
+          0.26895452925000046,
+          0.2667573630833336,
+          0.26743148975000014,
+          0.2681554447500029
+        ],
+        "main~null_discard": [
+          0.2543772934166668,
+          0.25389555583333845,
+          0.25339321483333305,
+          0.25567486600000205,
+          0.254628700083335
+        ],
+        "main~null_write": [
+          0.26748887833333396,
+          0.26915722175000195,
+          0.2671681355833376,
+          0.26737191899999857,
+          0.26918466741667163
+        ]
+      },
+      "order": [
+        [
+          "ff_null",
+          "ff_raw",
+          "main_discard",
+          "main~null_write",
+          "main~null_discard",
+          "main_write"
+        ],
+        [
+          "ff_null",
+          "main~null_write",
+          "ff_raw",
+          "main_write",
+          "main~null_discard",
+          "main_discard"
+        ],
+        [
+          "main~null_discard",
+          "ff_raw",
+          "ff_null",
+          "main_write",
+          "main~null_write",
+          "main_discard"
+        ],
+        [
+          "ff_raw",
+          "main~null_discard",
+          "ff_null",
+          "main_discard",
+          "main~null_write",
+          "main_write"
+        ],
+        [
+          "main~null_discard",
+          "ff_null",
+          "main~null_write",
+          "ff_raw",
+          "main_discard",
+          "main_write"
+        ]
+      ],
+      "repeat": 12,
+      "null": {
+        "main_discard": 9.361348792835678e-05,
+        "main_write": 0.00013048911642177252
+      },
+      "spread": {
+        "ff_null": 1.0049874094192048,
+        "ff_raw": 1.0072219747143851,
+        "main_discard": 1.0033416847095573,
+        "main_write": 1.008236571771706,
+        "main~null_discard": 1.009004389356557,
+        "main~null_write": 1.007547800672154
+      },
+      "attempts": 1,
+      "unresolved": false,
+      "history": [
+        {
+          "rounds": {
+            "ff_null": [
+              0.2787240942499996,
+              0.27775049133333596,
+              0.2780398691666619,
+              0.27913574675000064,
+              0.2790248373333289
+            ],
+            "ff_raw": [
+              0.29062945658333206,
+              0.2898061817499998,
+              0.29043142733332655,
+              0.29076864749999726,
+              0.29189915466667077
+            ],
+            "main_discard": [
+              0.2543534825000033,
+              0.2547426495833349,
+              0.2541525164999996,
+              0.25389421516666744,
+              0.2543950491666654
+            ],
+            "main_write": [
+              0.267453978499996,
+              0.26895452925000046,
+              0.2667573630833336,
+              0.26743148975000014,
+              0.2681554447500029
+            ],
+            "main~null_discard": [
+              0.2543772934166668,
+              0.25389555583333845,
+              0.25339321483333305,
+              0.25567486600000205,
+              0.254628700083335
+            ],
+            "main~null_write": [
+              0.26748887833333396,
+              0.26915722175000195,
+              0.2671681355833376,
+              0.26737191899999857,
+              0.26918466741667163
+            ]
+          },
+          "order": [
+            [
+              "ff_null",
+              "ff_raw",
+              "main_discard",
+              "main~null_write",
+              "main~null_discard",
+              "main_write"
+            ],
+            [
+              "ff_null",
+              "main~null_write",
+              "ff_raw",
+              "main_write",
+              "main~null_discard",
+              "main_discard"
+            ],
+            [
+              "main~null_discard",
+              "ff_raw",
+              "ff_null",
+              "main_write",
+              "main~null_write",
+              "main_discard"
+            ],
+            [
+              "ff_raw",
+              "main~null_discard",
+              "ff_null",
+              "main_discard",
+              "main~null_write",
+              "main_write"
+            ],
+            [
+              "main~null_discard",
+              "ff_null",
+              "main~null_write",
+              "ff_raw",
+              "main_discard",
+              "main_write"
+            ]
+          ],
+          "repeat": 12,
+          "null": {
+            "main_discard": 9.361348792835678e-05,
+            "main_write": 0.00013048911642177252
+          },
+          "spread": {
+            "ff_null": 1.0049874094192048,
+            "ff_raw": 1.0072219747143851,
+            "main_discard": 1.0033416847095573,
+            "main_write": 1.008236571771706,
+            "main~null_discard": 1.009004389356557,
+            "main~null_write": 1.007547800672154
+          },
+          "faulty": false
+        }
+      ]
+    },
+    {
+      "stream": "75cf7bf8391b.0.sd.h264",
+      "class": "sd",
+      "seconds": {
+        "ff_null": 0.09363056233333332,
+        "ff_raw": 0.1009317743999999,
+        "main_discard": 0.06864963737777746,
+        "main_write": 0.07556295691111295
+      },
+      "ratio": {
+        "main:discard": 0.7331968928412339,
+        "main:write": 0.7486538046151008,
+        "main:mixed": 0.6801588279396932
+      },
+      "rounds": {
+        "ff_null": [
+          0.09341804433333387,
+          0.09363056233333332,
+          0.09382754715555722,
+          0.09343524357777824,
+          0.09368474197777787
+        ],
+        "ff_raw": [
+          0.10053982117777752,
+          0.10121293624444358,
+          0.10145811028888956,
+          0.10089392788888997,
+          0.1009317743999999
+        ],
+        "main_discard": [
+          0.06911358497777656,
+          0.06830300373333355,
+          0.06864963737777746,
+          0.06835623731111203,
+          0.06918691791111087
+        ],
+        "main_write": [
+          0.07596881102222142,
+          0.07556295691111295,
+          0.07578182799999872,
+          0.07547112888888831,
+          0.07554215177777779
+        ],
+        "main~null_discard": [
+          0.06845625573333412,
+          0.06878113713333328,
+          0.06890341940000123,
+          0.06914653073333234,
+          0.06836763155555571
+        ],
+        "main~null_write": [
+          0.07586380053333212,
+          0.0755593036666672,
+          0.07600719777777713,
+          0.0757788420222217,
+          0.075775565066667
+        ]
+      },
+      "order": [
+        [
+          "main_discard",
+          "main~null_write",
+          "ff_null",
+          "ff_raw",
+          "main~null_discard",
+          "main_write"
+        ],
+        [
+          "main_write",
+          "main~null_write",
+          "ff_null",
+          "main~null_discard",
+          "ff_raw",
+          "main_discard"
+        ],
+        [
+          "main_write",
+          "main~null_write",
+          "ff_raw",
+          "main_discard",
+          "main~null_discard",
+          "ff_null"
+        ],
+        [
+          "main~null_discard",
+          "main~null_write",
+          "main_write",
+          "main_discard",
+          "ff_null",
+          "ff_raw"
+        ],
+        [
+          "main_write",
+          "main~null_write",
+          "ff_null",
+          "main~null_discard",
+          "ff_raw",
+          "main_discard"
+        ]
+      ],
+      "repeat": 45,
+      "null": {
+        "main_discard": 0.0019155200315505994,
+        "main_write": 0.002857023069686049
+      },
+      "spread": {
+        "ff_null": 1.0043835516483535,
+        "ff_raw": 1.0091335860791744,
+        "main_discard": 1.0129410732978636,
+        "main_write": 1.0065943380026263,
+        "main~null_discard": 1.011392806216253,
+        "main~null_write": 1.0059277162357905
+      },
+      "attempts": 1,
+      "unresolved": false,
+      "history": [
+        {
+          "rounds": {
+            "ff_null": [
+              0.09341804433333387,
+              0.09363056233333332,
+              0.09382754715555722,
+              0.09343524357777824,
+              0.09368474197777787
+            ],
+            "ff_raw": [
+              0.10053982117777752,
+              0.10121293624444358,
+              0.10145811028888956,
+              0.10089392788888997,
+              0.1009317743999999
+            ],
+            "main_discard": [
+              0.06911358497777656,
+              0.06830300373333355,
+              0.06864963737777746,
+              0.06835623731111203,
+              0.06918691791111087
+            ],
+            "main_write": [
+              0.07596881102222142,
+              0.07556295691111295,
+              0.07578182799999872,
+              0.07547112888888831,
+              0.07554215177777779
+            ],
+            "main~null_discard": [
+              0.06845625573333412,
+              0.06878113713333328,
+              0.06890341940000123,
+              0.06914653073333234,
+              0.06836763155555571
+            ],
+            "main~null_write": [
+              0.07586380053333212,
+              0.0755593036666672,
+              0.07600719777777713,
+              0.0757788420222217,
+              0.075775565066667
+            ]
+          },
+          "order": [
+            [
+              "main_discard",
+              "main~null_write",
+              "ff_null",
+              "ff_raw",
+              "main~null_discard",
+              "main_write"
+            ],
+            [
+              "main_write",
+              "main~null_write",
+              "ff_null",
+              "main~null_discard",
+              "ff_raw",
+              "main_discard"
+            ],
+            [
+              "main_write",
+              "main~null_write",
+              "ff_raw",
+              "main_discard",
+              "main~null_discard",
+              "ff_null"
+            ],
+            [
+              "main~null_discard",
+              "main~null_write",
+              "main_write",
+              "main_discard",
+              "ff_null",
+              "ff_raw"
+            ],
+            [
+              "main_write",
+              "main~null_write",
+              "ff_null",
+              "main~null_discard",
+              "ff_raw",
+              "main_discard"
+            ]
+          ],
+          "repeat": 45,
+          "null": {
+            "main_discard": 0.0019155200315505994,
+            "main_write": 0.002857023069686049
+          },
+          "spread": {
+            "ff_null": 1.0043835516483535,
+            "ff_raw": 1.0091335860791744,
+            "main_discard": 1.0129410732978636,
+            "main_write": 1.0065943380026263,
+            "main~null_discard": 1.011392806216253,
+            "main~null_write": 1.0059277162357905
+          },
+          "faulty": false
+        }
+      ]
+    },
+    {
+      "stream": "770db99b2698.0.sd.h264",
+      "class": "sd",
+      "seconds": {
+        "ff_null": 0.36674675979999166,
+        "ff_raw": 0.37895286570000053,
+        "main_discard": 0.3297964771000011,
+        "main_write": 0.34308582520000075
+      },
+      "ratio": {
+        "main:discard": 0.899248509461565,
+        "main:write": 0.9053522383746953,
+        "main:mixed": 0.870283634063044
+      },
+      "rounds": {
+        "ff_null": [
+          0.3670816098000046,
+          0.36798580109999646,
+          0.36664994630000364,
+          0.36674675979999166,
+          0.3663726803999907
+        ],
+        "ff_raw": [
+          0.37895286570000053,
+          0.379137889499998,
+          0.3783953423000071,
+          0.3797999735999952,
+          0.3787288386
+        ],
+        "main_discard": [
+          0.32922536039999384,
+          0.3293034585999976,
+          0.3301292802000034,
+          0.3297964771000011,
+          0.33054870239999445
+        ],
+        "main_write": [
+          0.34319598409999796,
+          0.34181728620000057,
+          0.34308582520000075,
+          0.3433662023000011,
+          0.34208776109999234
+        ],
+        "main~null_discard": [
+          0.32922865280000907,
+          0.3303007721999961,
+          0.33036201040000607,
+          0.32982321929999897,
+          0.331429722200005
+        ],
+        "main~null_write": [
+          0.3420049598999981,
+          0.3423278327999924,
+          0.3423239593000062,
+          0.34165758200000484,
+          0.342565700199998
+        ]
+      },
+      "order": [
+        [
+          "ff_raw",
+          "ff_null",
+          "main_write",
+          "main~null_write",
+          "main_discard",
+          "main~null_discard"
+        ],
+        [
+          "ff_raw",
+          "ff_null",
+          "main_write",
+          "main~null_discard",
+          "main~null_write",
+          "main_discard"
+        ],
+        [
+          "main_write",
+          "ff_raw",
+          "main~null_discard",
+          "main~null_write",
+          "main_discard",
+          "ff_null"
+        ],
+        [
+          "ff_raw",
+          "main~null_discard",
+          "main_discard",
+          "main_write",
+          "ff_null",
+          "main~null_write"
+        ],
+        [
+          "main_discard",
+          "ff_raw",
+          "main~null_discard",
+          "ff_null",
+          "main~null_write",
+          "main_write"
+        ]
+      ],
+      "repeat": 10,
+      "null": {
+        "main_discard": 0.0015291100269760882,
+        "main_write": -0.00222062773811893
+      },
+      "spread": {
+        "ff_null": 1.0044029502916119,
+        "ff_raw": 1.0037120734400435,
+        "main_discard": 1.004019562765131,
+        "main_write": 1.0045314153570755,
+        "main~null_discard": 1.0066855341455745,
+        "main~null_write": 1.0026579776004887
+      },
+      "attempts": 1,
+      "unresolved": false,
+      "history": [
+        {
+          "rounds": {
+            "ff_null": [
+              0.3670816098000046,
+              0.36798580109999646,
+              0.36664994630000364,
+              0.36674675979999166,
+              0.3663726803999907
+            ],
+            "ff_raw": [
+              0.37895286570000053,
+              0.379137889499998,
+              0.3783953423000071,
+              0.3797999735999952,
+              0.3787288386
+            ],
+            "main_discard": [
+              0.32922536039999384,
+              0.3293034585999976,
+              0.3301292802000034,
+              0.3297964771000011,
+              0.33054870239999445
+            ],
+            "main_write": [
+              0.34319598409999796,
+              0.34181728620000057,
+              0.34308582520000075,
+              0.3433662023000011,
+              0.34208776109999234
+            ],
+            "main~null_discard": [
+              0.32922865280000907,
+              0.3303007721999961,
+              0.33036201040000607,
+              0.32982321929999897,
+              0.331429722200005
+            ],
+            "main~null_write": [
+              0.3420049598999981,
+              0.3423278327999924,
+              0.3423239593000062,
+              0.34165758200000484,
+              0.342565700199998
+            ]
+          },
+          "order": [
+            [
+              "ff_raw",
+              "ff_null",
+              "main_write",
+              "main~null_write",
+              "main_discard",
+              "main~null_discard"
+            ],
+            [
+              "ff_raw",
+              "ff_null",
+              "main_write",
+              "main~null_discard",
+              "main~null_write",
+              "main_discard"
+            ],
+            [
+              "main_write",
+              "ff_raw",
+              "main~null_discard",
+              "main~null_write",
+              "main_discard",
+              "ff_null"
+            ],
+            [
+              "ff_raw",
+              "main~null_discard",
+              "main_discard",
+              "main_write",
+              "ff_null",
+              "main~null_write"
+            ],
+            [
+              "main_discard",
+              "ff_raw",
+              "main~null_discard",
+              "ff_null",
+              "main~null_write",
+              "main_write"
+            ]
+          ],
+          "repeat": 10,
+          "null": {
+            "main_discard": 0.0015291100269760882,
+            "main_write": -0.00222062773811893
+          },
+          "spread": {
+            "ff_null": 1.0044029502916119,
+            "ff_raw": 1.0037120734400435,
+            "main_discard": 1.004019562765131,
+            "main_write": 1.0045314153570755,
+            "main~null_discard": 1.0066855341455745,
+            "main~null_write": 1.0026579776004887
+          },
+          "faulty": false
+        }
+      ]
+    },
+    {
+      "stream": "7a580ff996e1.0.sd.h264",
+      "class": "sd",
+      "seconds": {
+        "ff_null": 0.26058528142855913,
+        "ff_raw": 0.2737387794285756,
+        "main_discard": 0.22935581935714058,
+        "main_write": 0.24364517157143187
+      },
+      "ratio": {
+        "main:discard": 0.8801564620218956,
+        "main:write": 0.8900645063152413,
+        "main:mixed": 0.8378638197916876
+      },
+      "rounds": {
+        "ff_null": [
+          0.26058528142855913,
+          0.2600819935714266,
+          0.26101484035715267,
+          0.2618956947142936,
+          0.259881884928583
+        ],
+        "ff_raw": [
+          0.2730321617857174,
+          0.2732288189999963,
+          0.2737387794285756,
+          0.2764959032857145,
+          0.2739212950714318
+        ],
+        "main_discard": [
+          0.22955653100000614,
+          0.22935581935714058,
+          0.2304040453571393,
+          0.22924730492858153,
+          0.22875403707142336
+        ],
+        "main_write": [
+          0.24404766250000062,
+          0.24365452435714424,
+          0.24364517157143187,
+          0.24356190514285053,
+          0.24332269414285942
+        ],
+        "main~null_discard": [
+          0.2285407708571451,
+          0.22819818692856383,
+          0.22974326199999137,
+          0.22940726399999026,
+          0.22871900771428955
+        ],
+        "main~null_write": [
+          0.24444140957142022,
+          0.24492586864284607,
+          0.24289288278571672,
+          0.24448457728570766,
+          0.24276115342857857
+        ]
+      },
+      "order": [
+        [
+          "main_discard",
+          "main~null_discard",
+          "main_write",
+          "ff_null",
+          "ff_raw",
+          "main~null_write"
+        ],
+        [
+          "main_discard",
+          "main~null_discard",
+          "ff_raw",
+          "ff_null",
+          "main_write",
+          "main~null_write"
+        ],
+        [
+          "main~null_write",
+          "ff_null",
+          "main_write",
+          "ff_raw",
+          "main~null_discard",
+          "main_discard"
+        ],
+        [
+          "ff_null",
+          "ff_raw",
+          "main_write",
+          "main~null_discard",
+          "main~null_write",
+          "main_discard"
+        ],
+        [
+          "main~null_discard",
+          "ff_raw",
+          "ff_null",
+          "main_discard",
+          "main_write",
+          "main~null_write"
+        ]
+      ],
+      "repeat": 14,
+      "null": {
+        "main_discard": -0.002776522717565899,
+        "main_write": 0.0032680228992549853
+      },
+      "spread": {
+        "ff_null": 1.007748942510033,
+        "ff_raw": 1.0126862032565802,
+        "main_discard": 1.0072130236774828,
+        "main_write": 1.002979452285349,
+        "main~null_discard": 1.0067707596288273,
+        "main~null_write": 1.008917057707523
+      },
+      "attempts": 1,
+      "unresolved": false,
+      "history": [
+        {
+          "rounds": {
+            "ff_null": [
+              0.26058528142855913,
+              0.2600819935714266,
+              0.26101484035715267,
+              0.2618956947142936,
+              0.259881884928583
+            ],
+            "ff_raw": [
+              0.2730321617857174,
+              0.2732288189999963,
+              0.2737387794285756,
+              0.2764959032857145,
+              0.2739212950714318
+            ],
+            "main_discard": [
+              0.22955653100000614,
+              0.22935581935714058,
+              0.2304040453571393,
+              0.22924730492858153,
+              0.22875403707142336
+            ],
+            "main_write": [
+              0.24404766250000062,
+              0.24365452435714424,
+              0.24364517157143187,
+              0.24356190514285053,
+              0.24332269414285942
+            ],
+            "main~null_discard": [
+              0.2285407708571451,
+              0.22819818692856383,
+              0.22974326199999137,
+              0.22940726399999026,
+              0.22871900771428955
+            ],
+            "main~null_write": [
+              0.24444140957142022,
+              0.24492586864284607,
+              0.24289288278571672,
+              0.24448457728570766,
+              0.24276115342857857
+            ]
+          },
+          "order": [
+            [
+              "main_discard",
+              "main~null_discard",
+              "main_write",
+              "ff_null",
+              "ff_raw",
+              "main~null_write"
+            ],
+            [
+              "main_discard",
+              "main~null_discard",
+              "ff_raw",
+              "ff_null",
+              "main_write",
+              "main~null_write"
+            ],
+            [
+              "main~null_write",
+              "ff_null",
+              "main_write",
+              "ff_raw",
+              "main~null_discard",
+              "main_discard"
+            ],
+            [
+              "ff_null",
+              "ff_raw",
+              "main_write",
+              "main~null_discard",
+              "main~null_write",
+              "main_discard"
+            ],
+            [
+              "main~null_discard",
+              "ff_raw",
+              "ff_null",
+              "main_discard",
+              "main_write",
+              "main~null_write"
+            ]
+          ],
+          "repeat": 14,
+          "null": {
+            "main_discard": -0.002776522717565899,
+            "main_write": 0.0032680228992549853
+          },
+          "spread": {
+            "ff_null": 1.007748942510033,
+            "ff_raw": 1.0126862032565802,
+            "main_discard": 1.0072130236774828,
+            "main_write": 1.002979452285349,
+            "main~null_discard": 1.0067707596288273,
+            "main~null_write": 1.008917057707523
+          },
+          "faulty": false
+        }
+      ]
+    },
+    {
+      "stream": "9b3a84c821e8.0.sd.h264",
+      "class": "sd",
+      "seconds": {
+        "ff_null": 0.27172202250000055,
+        "ff_raw": 0.276838020583322,
+        "main_discard": 0.2586356139999945,
+        "main_write": 0.2638696564166594
+      },
+      "ratio": {
+        "main:discard": 0.9518389846373015,
+        "main:write": 0.9531554078470249,
+        "main:mixed": 0.9342488920236699
+      },
+      "rounds": {
+        "ff_null": [
+          0.27081607599999796,
+          0.27172202250000055,
+          0.2737289275833443,
+          0.2729141382499923,
+          0.2714882139166737
+        ],
+        "ff_raw": [
+          0.2770816896666588,
+          0.27623636350000424,
+          0.2766156439166707,
+          0.276838020583322,
+          0.27864893925000916
+        ],
+        "main_discard": [
+          0.25795954141667227,
+          0.2586356139999945,
+          0.2586303497499974,
+          0.2587636940833325,
+          0.260187327416664
+        ],
+        "main_write": [
+          0.2638574829166676,
+          0.26535746033332924,
+          0.2631987979166676,
+          0.2638696564166594,
+          0.2646487189999978
+        ],
+        "main~null_discard": [
+          0.2586254765833284,
+          0.2588224590833382,
+          0.25948445924999913,
+          0.2584189348333439,
+          0.25883199441667176
+        ],
+        "main~null_write": [
+          0.2644841870000126,
+          0.26479036208333656,
+          0.2646555060000158,
+          0.2649546353333297,
+          0.2644365235833372
+        ]
+      },
+      "order": [
+        [
+          "ff_null",
+          "main~null_write",
+          "ff_raw",
+          "main_discard",
+          "main~null_discard",
+          "main_write"
+        ],
+        [
+          "main_write",
+          "main~null_write",
+          "ff_raw",
+          "main_discard",
+          "main~null_discard",
+          "ff_null"
+        ],
+        [
+          "main_write",
+          "main~null_write",
+          "main_discard",
+          "main~null_discard",
+          "ff_null",
+          "ff_raw"
+        ],
+        [
+          "main~null_discard",
+          "ff_null",
+          "main_discard",
+          "main~null_write",
+          "main_write",
+          "ff_raw"
+        ],
+        [
+          "main~null_write",
+          "main_write",
+          "main~null_discard",
+          "main_discard",
+          "ff_raw",
+          "ff_null"
+        ]
+      ],
+      "repeat": 12,
+      "null": {
+        "main_discard": 0.0007224259662230725,
+        "main_write": 0.002978173367973458
+      },
+      "spread": {
+        "ff_null": 1.0107558296625874,
+        "ff_raw": 1.0087337370049214,
+        "main_discard": 1.0086361837509754,
+        "main_write": 1.0082016423849516,
+        "main~null_discard": 1.0041232443642043,
+        "main~null_write": 1.0019593048001525
+      },
+      "attempts": 1,
+      "unresolved": false,
+      "history": [
+        {
+          "rounds": {
+            "ff_null": [
+              0.27081607599999796,
+              0.27172202250000055,
+              0.2737289275833443,
+              0.2729141382499923,
+              0.2714882139166737
+            ],
+            "ff_raw": [
+              0.2770816896666588,
+              0.27623636350000424,
+              0.2766156439166707,
+              0.276838020583322,
+              0.27864893925000916
+            ],
+            "main_discard": [
+              0.25795954141667227,
+              0.2586356139999945,
+              0.2586303497499974,
+              0.2587636940833325,
+              0.260187327416664
+            ],
+            "main_write": [
+              0.2638574829166676,
+              0.26535746033332924,
+              0.2631987979166676,
+              0.2638696564166594,
+              0.2646487189999978
+            ],
+            "main~null_discard": [
+              0.2586254765833284,
+              0.2588224590833382,
+              0.25948445924999913,
+              0.2584189348333439,
+              0.25883199441667176
+            ],
+            "main~null_write": [
+              0.2644841870000126,
+              0.26479036208333656,
+              0.2646555060000158,
+              0.2649546353333297,
+              0.2644365235833372
+            ]
+          },
+          "order": [
+            [
+              "ff_null",
+              "main~null_write",
+              "ff_raw",
+              "main_discard",
+              "main~null_discard",
+              "main_write"
+            ],
+            [
+              "main_write",
+              "main~null_write",
+              "ff_raw",
+              "main_discard",
+              "main~null_discard",
+              "ff_null"
+            ],
+            [
+              "main_write",
+              "main~null_write",
+              "main_discard",
+              "main~null_discard",
+              "ff_null",
+              "ff_raw"
+            ],
+            [
+              "main~null_discard",
+              "ff_null",
+              "main_discard",
+              "main~null_write",
+              "main_write",
+              "ff_raw"
+            ],
+            [
+              "main~null_write",
+              "main_write",
+              "main~null_discard",
+              "main_discard",
+              "ff_raw",
+              "ff_null"
+            ]
+          ],
+          "repeat": 12,
+          "null": {
+            "main_discard": 0.0007224259662230725,
+            "main_write": 0.002978173367973458
+          },
+          "spread": {
+            "ff_null": 1.0107558296625874,
+            "ff_raw": 1.0087337370049214,
+            "main_discard": 1.0086361837509754,
+            "main_write": 1.0082016423849516,
+            "main~null_discard": 1.0041232443642043,
+            "main~null_write": 1.0019593048001525
+          },
+          "faulty": false
+        }
+      ]
+    },
+    {
+      "stream": "9b833fff929e.0.sd.h264",
+      "class": "sd",
+      "seconds": {
+        "ff_null": 0.30148947133333576,
+        "ff_raw": 0.31549868533333364,
+        "main_discard": 0.2738644439999878,
+        "main_write": 0.28611851191665966
+      },
+      "ratio": {
+        "main:discard": 0.9083715022910207,
+        "main:write": 0.9068770337802423,
+        "main:mixed": 0.8680367200599964
+      },
+      "rounds": {
+        "ff_null": [
+          0.3022950295833387,
+          0.3022928024166542,
+          0.30094977883334195,
+          0.30065509916666616,
+          0.30148947133333576
+        ],
+        "ff_raw": [
+          0.31598337166667534,
+          0.3144956145833362,
+          0.31549868533333364,
+          0.3173024570000014,
+          0.3153223768333267
+        ],
+        "main_discard": [
+          0.2729937764166645,
+          0.27452699425000066,
+          0.2739354117499981,
+          0.2730565087499978,
+          0.2738644439999878
+        ],
+        "main_write": [
+          0.2870344129166635,
+          0.2855172698333301,
+          0.2852395556666541,
+          0.2872367535833291,
+          0.28611851191665966
+        ],
+        "main~null_discard": [
+          0.2746592512500001,
+          0.2735933278333391,
+          0.2734549005000038,
+          0.2740128164999949,
+          0.2736808511666595
+        ],
+        "main~null_write": [
+          0.28721296883333025,
+          0.2849565696666711,
+          0.2875528403333381,
+          0.2866879899999996,
+          0.2867568668333244
+        ]
+      },
+      "order": [
+        [
+          "main~null_write",
+          "main_discard",
+          "ff_raw",
+          "main~null_discard",
+          "main_write",
+          "ff_null"
+        ],
+        [
+          "main_discard",
+          "main~null_write",
+          "ff_raw",
+          "main~null_discard",
+          "ff_null",
+          "main_write"
+        ],
+        [
+          "ff_null",
+          "main~null_discard",
+          "main_write",
+          "main_discard",
+          "ff_raw",
+          "main~null_write"
+        ],
+        [
+          "ff_raw",
+          "ff_null",
+          "main_write",
+          "main~null_discard",
+          "main~null_write",
+          "main_discard"
+        ],
+        [
+          "main_write",
+          "main_discard",
+          "ff_raw",
+          "ff_null",
+          "main~null_write",
+          "main~null_discard"
+        ]
+      ],
+      "repeat": 12,
+      "null": {
+        "main_discard": -0.000670378493267676,
+        "main_write": 0.002231085686796419
+      },
+      "spread": {
+        "ff_null": 1.005454523875424,
+        "ff_raw": 1.0089249016091493,
+        "main_discard": 1.005616310574773,
+        "main_write": 1.0070018266295753,
+        "main~null_discard": 1.0044042024765114,
+        "main~null_write": 1.0091111100533812
+      },
+      "attempts": 1,
+      "unresolved": false,
+      "history": [
+        {
+          "rounds": {
+            "ff_null": [
+              0.3022950295833387,
+              0.3022928024166542,
+              0.30094977883334195,
+              0.30065509916666616,
+              0.30148947133333576
+            ],
+            "ff_raw": [
+              0.31598337166667534,
+              0.3144956145833362,
+              0.31549868533333364,
+              0.3173024570000014,
+              0.3153223768333267
+            ],
+            "main_discard": [
+              0.2729937764166645,
+              0.27452699425000066,
+              0.2739354117499981,
+              0.2730565087499978,
+              0.2738644439999878
+            ],
+            "main_write": [
+              0.2870344129166635,
+              0.2855172698333301,
+              0.2852395556666541,
+              0.2872367535833291,
+              0.28611851191665966
+            ],
+            "main~null_discard": [
+              0.2746592512500001,
+              0.2735933278333391,
+              0.2734549005000038,
+              0.2740128164999949,
+              0.2736808511666595
+            ],
+            "main~null_write": [
+              0.28721296883333025,
+              0.2849565696666711,
+              0.2875528403333381,
+              0.2866879899999996,
+              0.2867568668333244
+            ]
+          },
+          "order": [
+            [
+              "main~null_write",
+              "main_discard",
+              "ff_raw",
+              "main~null_discard",
+              "main_write",
+              "ff_null"
+            ],
+            [
+              "main_discard",
+              "main~null_write",
+              "ff_raw",
+              "main~null_discard",
+              "ff_null",
+              "main_write"
+            ],
+            [
+              "ff_null",
+              "main~null_discard",
+              "main_write",
+              "main_discard",
+              "ff_raw",
+              "main~null_write"
+            ],
+            [
+              "ff_raw",
+              "ff_null",
+              "main_write",
+              "main~null_discard",
+              "main~null_write",
+              "main_discard"
+            ],
+            [
+              "main_write",
+              "main_discard",
+              "ff_raw",
+              "ff_null",
+              "main~null_write",
+              "main~null_discard"
+            ]
+          ],
+          "repeat": 12,
+          "null": {
+            "main_discard": -0.000670378493267676,
+            "main_write": 0.002231085686796419
+          },
+          "spread": {
+            "ff_null": 1.005454523875424,
+            "ff_raw": 1.0089249016091493,
+            "main_discard": 1.005616310574773,
+            "main_write": 1.0070018266295753,
+            "main~null_discard": 1.0044042024765114,
+            "main~null_write": 1.0091111100533812
+          },
+          "faulty": false
+        }
+      ]
+    },
+    {
+      "stream": "9d99b565f2ec.0.sd.h264",
+      "class": "sd",
+      "seconds": {
+        "ff_null": 0.17281405254545296,
+        "ff_raw": 0.19178847895454965,
+        "main_discard": 0.14198643186363247,
+        "main_write": 0.16506801450000033
+      },
+      "ratio": {
+        "main:discard": 0.8216139241702447,
+        "main:write": 0.8606774265054703,
+        "main:mixed": 0.7403282649594434
+      },
+      "rounds": {
+        "ff_null": [
+          0.17289044327273215,
+          0.17274026763637226,
+          0.17281405254545296,
+          0.1720851254090948,
+          0.1735803334999921
+        ],
+        "ff_raw": [
+          0.19202163609090597,
+          0.19106421181817784,
+          0.19185682340909435,
+          0.1911024054090934,
+          0.19178847895454965
+        ],
+        "main_discard": [
+          0.14237015113636434,
+          0.14150547945453953,
+          0.14186486813636376,
+          0.14271052636363699,
+          0.14198643186363247
+        ],
+        "main_write": [
+          0.16456383699999771,
+          0.16507161013636173,
+          0.1657214062272694,
+          0.1644219930909065,
+          0.16506801450000033
+        ],
+        "main~null_discard": [
+          0.1424111167727295,
+          0.14185086481818002,
+          0.14286322600000032,
+          0.1413868226363568,
+          0.1424209156818134
+        ],
+        "main~null_write": [
+          0.16425223713635909,
+          0.1642116530909086,
+          0.16514535436363076,
+          0.16496174572727218,
+          0.16498498672726988
+        ]
+      },
+      "order": [
+        [
+          "ff_raw",
+          "main~null_discard",
+          "main~null_write",
+          "main_write",
+          "main_discard",
+          "ff_null"
+        ],
+        [
+          "main_write",
+          "ff_null",
+          "ff_raw",
+          "main_discard",
+          "main~null_write",
+          "main~null_discard"
+        ],
+        [
+          "ff_raw",
+          "main_write",
+          "main~null_write",
+          "main_discard",
+          "main~null_discard",
+          "ff_null"
+        ],
+        [
+          "main~null_write",
+          "ff_null",
+          "main_discard",
+          "ff_raw",
+          "main~null_discard",
+          "main_write"
+        ],
+        [
+          "main_discard",
+          "ff_null",
+          "ff_raw",
+          "main_write",
+          "main~null_write",
+          "main~null_discard"
+        ]
+      ],
+      "repeat": 22,
+      "null": {
+        "main_discard": 0.0029910245896234144,
+        "main_write": -0.0006437877928685554
+      },
+      "spread": {
+        "ff_null": 1.0086887700917948,
+        "ff_raw": 1.0050110078890087,
+        "main_discard": 1.0085159028027928,
+        "main_write": 1.0079029156132688,
+        "main~null_discard": 1.0104422982008783,
+        "main~null_write": 1.0056859623245207
+      },
+      "attempts": 1,
+      "unresolved": false,
+      "history": [
+        {
+          "rounds": {
+            "ff_null": [
+              0.17289044327273215,
+              0.17274026763637226,
+              0.17281405254545296,
+              0.1720851254090948,
+              0.1735803334999921
+            ],
+            "ff_raw": [
+              0.19202163609090597,
+              0.19106421181817784,
+              0.19185682340909435,
+              0.1911024054090934,
+              0.19178847895454965
+            ],
+            "main_discard": [
+              0.14237015113636434,
+              0.14150547945453953,
+              0.14186486813636376,
+              0.14271052636363699,
+              0.14198643186363247
+            ],
+            "main_write": [
+              0.16456383699999771,
+              0.16507161013636173,
+              0.1657214062272694,
+              0.1644219930909065,
+              0.16506801450000033
+            ],
+            "main~null_discard": [
+              0.1424111167727295,
+              0.14185086481818002,
+              0.14286322600000032,
+              0.1413868226363568,
+              0.1424209156818134
+            ],
+            "main~null_write": [
+              0.16425223713635909,
+              0.1642116530909086,
+              0.16514535436363076,
+              0.16496174572727218,
+              0.16498498672726988
+            ]
+          },
+          "order": [
+            [
+              "ff_raw",
+              "main~null_discard",
+              "main~null_write",
+              "main_write",
+              "main_discard",
+              "ff_null"
+            ],
+            [
+              "main_write",
+              "ff_null",
+              "ff_raw",
+              "main_discard",
+              "main~null_write",
+              "main~null_discard"
+            ],
+            [
+              "ff_raw",
+              "main_write",
+              "main~null_write",
+              "main_discard",
+              "main~null_discard",
+              "ff_null"
+            ],
+            [
+              "main~null_write",
+              "ff_null",
+              "main_discard",
+              "ff_raw",
+              "main~null_discard",
+              "main_write"
+            ],
+            [
+              "main_discard",
+              "ff_null",
+              "ff_raw",
+              "main_write",
+              "main~null_write",
+              "main~null_discard"
+            ]
+          ],
+          "repeat": 22,
+          "null": {
+            "main_discard": 0.0029910245896234144,
+            "main_write": -0.0006437877928685554
+          },
+          "spread": {
+            "ff_null": 1.0086887700917948,
+            "ff_raw": 1.0050110078890087,
+            "main_discard": 1.0085159028027928,
+            "main_write": 1.0079029156132688,
+            "main~null_discard": 1.0104422982008783,
+            "main~null_write": 1.0056859623245207
+          },
+          "faulty": false
+        }
+      ]
+    },
+    {
+      "stream": "d3d3bdb17b38.0.sd.h264",
+      "class": "sd",
+      "seconds": {
+        "ff_null": 0.12928569935714254,
+        "ff_raw": 0.13380970164286055,
+        "main_discard": 0.11061004675000115,
+        "main_write": 0.1136469548571394
+      },
+      "ratio": {
+        "main:discard": 0.8555474217179176,
+        "main:write": 0.8493177509689415,
+        "main:mixed": 0.8266220265943084
+      },
+      "rounds": {
+        "ff_null": [
+          0.12928951371428962,
+          0.12928569935714254,
+          0.1292926128928603,
+          0.1288969485357175,
+          0.12876761203571213
+        ],
+        "ff_raw": [
+          0.13380970164286055,
+          0.13379551196428402,
+          0.13428118182142562,
+          0.1338150993928561,
+          0.13243611653571666
+        ],
+        "main_discard": [
+          0.11114799546429108,
+          0.11046336292857209,
+          0.11046896628572053,
+          0.11118469489285385,
+          0.11061004675000115
+        ],
+        "main_write": [
+          0.11360159660714382,
+          0.11417371482143121,
+          0.1136469548571394,
+          0.1139173156785692,
+          0.11361786214285985
+        ],
+        "main~null_discard": [
+          0.11072147803571397,
+          0.11080093842857,
+          0.11029672539285684,
+          0.11087426825000486,
+          0.11094570010714376
+        ],
+        "main~null_write": [
+          0.11371323928571948,
+          0.11413935907143014,
+          0.11403160157142825,
+          0.11383461771428724,
+          0.11315002482142843
+        ]
+      },
+      "order": [
+        [
+          "ff_raw",
+          "main~null_write",
+          "main~null_discard",
+          "main_discard",
+          "ff_null",
+          "main_write"
+        ],
+        [
+          "main_write",
+          "ff_null",
+          "ff_raw",
+          "main~null_discard",
+          "main_discard",
+          "main~null_write"
+        ],
+        [
+          "main~null_discard",
+          "ff_null",
+          "main_discard",
+          "main~null_write",
+          "main_write",
+          "ff_raw"
+        ],
+        [
+          "ff_raw",
+          "main~null_discard",
+          "main_discard",
+          "main_write",
+          "main~null_write",
+          "ff_null"
+        ],
+        [
+          "main~null_write",
+          "main_write",
+          "ff_null",
+          "main~null_discard",
+          "ff_raw",
+          "main_discard"
+        ]
+      ],
+      "repeat": 28,
+      "null": {
+        "main_discard": 0.0017258077740469613,
+        "main_write": 0.0016512792391467634
+      },
+      "spread": {
+        "ff_null": 1.0040771188410527,
+        "ff_raw": 1.0139317380633959,
+        "main_discard": 1.0065300561666604,
+        "main_write": 1.0050361811046185,
+        "main~null_discard": 1.0058838982932212,
+        "main~null_write": 1.0087435619352543
+      },
+      "attempts": 1,
+      "unresolved": false,
+      "history": [
+        {
+          "rounds": {
+            "ff_null": [
+              0.12928951371428962,
+              0.12928569935714254,
+              0.1292926128928603,
+              0.1288969485357175,
+              0.12876761203571213
+            ],
+            "ff_raw": [
+              0.13380970164286055,
+              0.13379551196428402,
+              0.13428118182142562,
+              0.1338150993928561,
+              0.13243611653571666
+            ],
+            "main_discard": [
+              0.11114799546429108,
+              0.11046336292857209,
+              0.11046896628572053,
+              0.11118469489285385,
+              0.11061004675000115
+            ],
+            "main_write": [
+              0.11360159660714382,
+              0.11417371482143121,
+              0.1136469548571394,
+              0.1139173156785692,
+              0.11361786214285985
+            ],
+            "main~null_discard": [
+              0.11072147803571397,
+              0.11080093842857,
+              0.11029672539285684,
+              0.11087426825000486,
+              0.11094570010714376
+            ],
+            "main~null_write": [
+              0.11371323928571948,
+              0.11413935907143014,
+              0.11403160157142825,
+              0.11383461771428724,
+              0.11315002482142843
+            ]
+          },
+          "order": [
+            [
+              "ff_raw",
+              "main~null_write",
+              "main~null_discard",
+              "main_discard",
+              "ff_null",
+              "main_write"
+            ],
+            [
+              "main_write",
+              "ff_null",
+              "ff_raw",
+              "main~null_discard",
+              "main_discard",
+              "main~null_write"
+            ],
+            [
+              "main~null_discard",
+              "ff_null",
+              "main_discard",
+              "main~null_write",
+              "main_write",
+              "ff_raw"
+            ],
+            [
+              "ff_raw",
+              "main~null_discard",
+              "main_discard",
+              "main_write",
+              "main~null_write",
+              "ff_null"
+            ],
+            [
+              "main~null_write",
+              "main_write",
+              "ff_null",
+              "main~null_discard",
+              "ff_raw",
+              "main_discard"
+            ]
+          ],
+          "repeat": 28,
+          "null": {
+            "main_discard": 0.0017258077740469613,
+            "main_write": 0.0016512792391467634
+          },
+          "spread": {
+            "ff_null": 1.0040771188410527,
+            "ff_raw": 1.0139317380633959,
+            "main_discard": 1.0065300561666604,
+            "main_write": 1.0050361811046185,
+            "main~null_discard": 1.0058838982932212,
+            "main~null_write": 1.0087435619352543
+          },
+          "faulty": false
+        }
+      ]
+    },
+    {
+      "stream": "d56594fb1f83.0.sd.h264",
+      "class": "sd",
+      "seconds": {
+        "ff_null": 0.09309217361904605,
+        "ff_raw": 0.10563121954762014,
+        "main_discard": 0.07298760623809487,
+        "main_write": 0.08374561728571518
+      },
+      "ratio": {
+        "main:discard": 0.7840359012002066,
+        "main:write": 0.7928112317964993,
+        "main:mixed": 0.6909662365981769
+      },
+      "rounds": {
+        "ff_null": [
+          0.09274465726190599,
+          0.09322515633333037,
+          0.09309217361904605,
+          0.09369262776190335,
+          0.09278255197619144
+        ],
+        "ff_raw": [
+          0.10563121954762014,
+          0.10581443697619111,
+          0.1053166633809529,
+          0.10560665552380517,
+          0.10586025130952575
+        ],
+        "main_discard": [
+          0.07316593247618844,
+          0.07301276697619198,
+          0.0729153263571442,
+          0.07286970135714368,
+          0.07298760623809487
+        ],
+        "main_write": [
+          0.08347959538095243,
+          0.08404114419047237,
+          0.08374561728571518,
+          0.08378567978571114,
+          0.08362776297618828
+        ],
+        "main~null_discard": [
+          0.07313985730952698,
+          0.07290818845238045,
+          0.0732294852619069,
+          0.07326356873809778,
+          0.07302898421428272
+        ],
+        "main~null_write": [
+          0.08410729185714315,
+          0.08376827454761886,
+          0.08354727723809403,
+          0.08375736097619188,
+          0.08372631000000161
+        ]
+      },
+      "order": [
+        [
+          "main_discard",
+          "main~null_discard",
+          "ff_raw",
+          "main_write",
+          "ff_null",
+          "main~null_write"
+        ],
+        [
+          "main~null_write",
+          "main_discard",
+          "main_write",
+          "ff_null",
+          "ff_raw",
+          "main~null_discard"
+        ],
+        [
+          "ff_raw",
+          "ff_null",
+          "main_write",
+          "main~null_write",
+          "main~null_discard",
+          "main_discard"
+        ],
+        [
+          "main~null_write",
+          "ff_raw",
+          "main_discard",
+          "main~null_discard",
+          "ff_null",
+          "main_write"
+        ],
+        [
+          "main_discard",
+          "main~null_discard",
+          "main~null_write",
+          "ff_raw",
+          "ff_null",
+          "main_write"
+        ]
+      ],
+      "repeat": 42,
+      "null": {
+        "main_discard": 0.0020859852689980585,
+        "main_write": 0.00014023050826206251
+      },
+      "spread": {
+        "ff_null": 1.0102212949832823,
+        "ff_raw": 1.0051614617395026,
+        "main_discard": 1.0040652165924613,
+        "main_write": 1.0067267792441656,
+        "main~null_discard": 1.0048743535295688,
+        "main~null_write": 1.0067029667221012
+      },
+      "attempts": 1,
+      "unresolved": false,
+      "history": [
+        {
+          "rounds": {
+            "ff_null": [
+              0.09274465726190599,
+              0.09322515633333037,
+              0.09309217361904605,
+              0.09369262776190335,
+              0.09278255197619144
+            ],
+            "ff_raw": [
+              0.10563121954762014,
+              0.10581443697619111,
+              0.1053166633809529,
+              0.10560665552380517,
+              0.10586025130952575
+            ],
+            "main_discard": [
+              0.07316593247618844,
+              0.07301276697619198,
+              0.0729153263571442,
+              0.07286970135714368,
+              0.07298760623809487
+            ],
+            "main_write": [
+              0.08347959538095243,
+              0.08404114419047237,
+              0.08374561728571518,
+              0.08378567978571114,
+              0.08362776297618828
+            ],
+            "main~null_discard": [
+              0.07313985730952698,
+              0.07290818845238045,
+              0.0732294852619069,
+              0.07326356873809778,
+              0.07302898421428272
+            ],
+            "main~null_write": [
+              0.08410729185714315,
+              0.08376827454761886,
+              0.08354727723809403,
+              0.08375736097619188,
+              0.08372631000000161
+            ]
+          },
+          "order": [
+            [
+              "main_discard",
+              "main~null_discard",
+              "ff_raw",
+              "main_write",
+              "ff_null",
+              "main~null_write"
+            ],
+            [
+              "main~null_write",
+              "main_discard",
+              "main_write",
+              "ff_null",
+              "ff_raw",
+              "main~null_discard"
+            ],
+            [
+              "ff_raw",
+              "ff_null",
+              "main_write",
+              "main~null_write",
+              "main~null_discard",
+              "main_discard"
+            ],
+            [
+              "main~null_write",
+              "ff_raw",
+              "main_discard",
+              "main~null_discard",
+              "ff_null",
+              "main_write"
+            ],
+            [
+              "main_discard",
+              "main~null_discard",
+              "main~null_write",
+              "ff_raw",
+              "ff_null",
+              "main_write"
+            ]
+          ],
+          "repeat": 42,
+          "null": {
+            "main_discard": 0.0020859852689980585,
+            "main_write": 0.00014023050826206251
+          },
+          "spread": {
+            "ff_null": 1.0102212949832823,
+            "ff_raw": 1.0051614617395026,
+            "main_discard": 1.0040652165924613,
+            "main_write": 1.0067267792441656,
+            "main~null_discard": 1.0048743535295688,
+            "main~null_write": 1.0067029667221012
+          },
+          "faulty": false
+        }
+      ]
+    },
+    {
+      "stream": "ff84167e699d.0.sd.h264",
+      "class": "sd",
+      "seconds": {
+        "ff_null": 0.1309848185555556,
+        "ff_raw": 0.15396886455555095,
+        "main_discard": 0.11341598125925513,
+        "main_write": 0.15013498725925778
+      },
+      "ratio": {
+        "main:discard": 0.8658711941579026,
+        "main:write": 0.9750996585747378,
+        "main:mixed": 0.7366163385476899
+      },
+      "rounds": {
+        "ff_null": [
+          0.13066977255556156,
+          0.13115799322222468,
+          0.13134286937037765,
+          0.1304336940740743,
+          0.1309848185555556
+        ],
+        "ff_raw": [
+          0.1536187839259313,
+          0.1549308131851898,
+          0.15378741937037274,
+          0.15396886455555095,
+          0.15410172440740805
+        ],
+        "main_discard": [
+          0.11341598125925513,
+          0.11314562607407828,
+          0.11343360788888883,
+          0.11301133133333173,
+          0.11410567011111433
+        ],
+        "main_write": [
+          0.14984915244444555,
+          0.15013498725925778,
+          0.15031426348148805,
+          0.15003124592592737,
+          0.15103213792592754
+        ],
+        "main~null_discard": [
+          0.11298498051851143,
+          0.11354809285185857,
+          0.11355910244444406,
+          0.11425455699999373,
+          0.11460241162962524
+        ],
+        "main~null_write": [
+          0.15077326344444206,
+          0.15061956022222384,
+          0.150775839962964,
+          0.15039966537037125,
+          0.15001461822221582
+        ]
+      },
+      "order": [
+        [
+          "main~null_discard",
+          "main_discard",
+          "ff_null",
+          "ff_raw",
+          "main~null_write",
+          "main_write"
+        ],
+        [
+          "main_discard",
+          "ff_null",
+          "main~null_discard",
+          "ff_raw",
+          "main_write",
+          "main~null_write"
+        ],
+        [
+          "main~null_write",
+          "ff_null",
+          "ff_raw",
+          "main_discard",
+          "main~null_discard",
+          "main_write"
+        ],
+        [
+          "main_write",
+          "main~null_discard",
+          "main~null_write",
+          "ff_raw",
+          "ff_null",
+          "main_discard"
+        ],
+        [
+          "main~null_write",
+          "main_write",
+          "ff_null",
+          "main_discard",
+          "main~null_discard",
+          "ff_raw"
+        ]
+      ],
+      "repeat": 27,
+      "null": {
+        "main_discard": 0.0012619137409020098,
+        "main_write": 0.0032275818702358627
+      },
+      "spread": {
+        "ff_null": 1.0069704021093433,
+        "ff_raw": 1.0085408126905309,
+        "main_discard": 1.0096834429333001,
+        "main_write": 1.0078945089924387,
+        "main~null_discard": 1.0143154524051878,
+        "main~null_write": 1.005074317088356
+      },
+      "attempts": 1,
+      "unresolved": false,
+      "history": [
+        {
+          "rounds": {
+            "ff_null": [
+              0.13066977255556156,
+              0.13115799322222468,
+              0.13134286937037765,
+              0.1304336940740743,
+              0.1309848185555556
+            ],
+            "ff_raw": [
+              0.1536187839259313,
+              0.1549308131851898,
+              0.15378741937037274,
+              0.15396886455555095,
+              0.15410172440740805
+            ],
+            "main_discard": [
+              0.11341598125925513,
+              0.11314562607407828,
+              0.11343360788888883,
+              0.11301133133333173,
+              0.11410567011111433
+            ],
+            "main_write": [
+              0.14984915244444555,
+              0.15013498725925778,
+              0.15031426348148805,
+              0.15003124592592737,
+              0.15103213792592754
+            ],
+            "main~null_discard": [
+              0.11298498051851143,
+              0.11354809285185857,
+              0.11355910244444406,
+              0.11425455699999373,
+              0.11460241162962524
+            ],
+            "main~null_write": [
+              0.15077326344444206,
+              0.15061956022222384,
+              0.150775839962964,
+              0.15039966537037125,
+              0.15001461822221582
+            ]
+          },
+          "order": [
+            [
+              "main~null_discard",
+              "main_discard",
+              "ff_null",
+              "ff_raw",
+              "main~null_write",
+              "main_write"
+            ],
+            [
+              "main_discard",
+              "ff_null",
+              "main~null_discard",
+              "ff_raw",
+              "main_write",
+              "main~null_write"
+            ],
+            [
+              "main~null_write",
+              "ff_null",
+              "ff_raw",
+              "main_discard",
+              "main~null_discard",
+              "main_write"
+            ],
+            [
+              "main_write",
+              "main~null_discard",
+              "main~null_write",
+              "ff_raw",
+              "ff_null",
+              "main_discard"
+            ],
+            [
+              "main~null_write",
+              "main_write",
+              "ff_null",
+              "main_discard",
+              "main~null_discard",
+              "ff_raw"
+            ]
+          ],
+          "repeat": 27,
+          "null": {
+            "main_discard": 0.0012619137409020098,
+            "main_write": 0.0032275818702358627
+          },
+          "spread": {
+            "ff_null": 1.0069704021093433,
+            "ff_raw": 1.0085408126905309,
+            "main_discard": 1.0096834429333001,
+            "main_write": 1.0078945089924387,
+            "main~null_discard": 1.0143154524051878,
+            "main~null_write": 1.005074317088356
+          },
+          "faulty": false
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "main:discard": {
+      "n": 16,
+      "median": 0.8736152476413095,
+      "ci_low": 0.8596010492352886,
+      "ci_high": 0.9083715022910207
+    },
+    "main:write": {
+      "n": 16,
+      "median": 0.9061146360774688,
+      "ci_low": 0.8606774265054703,
+      "ci_high": 0.9321275697771606
+    },
+    "main:mixed": {
+      "n": 16,
+      "median": 0.8333920536922365,
+      "ci_low": 0.7834751457768758,
+      "ci_high": 0.870283634063044
+    }
+  },
+  "method": {
+    "shuffle_seed": 20261026,
+    "null_arm": "main",
+    "null_deviation": 0.02,
+    "round_spread": 1.25,
+    "max_retries": 2,
+    "min_seconds": 3.0,
+    "gate_stream": "gate.h264",
+    "gate_every": 4,
+    "gate_drift_threshold": 0.05,
+    "gates": [
+      {
+        "after_streams": 0,
+        "seconds": 0.4172090512499995,
+        "repeat": 8,
+        "kind": "baseline",
+        "drift": 0.0026781780452371784,
+        "drifted": false
+      },
+      {
+        "after_streams": 0,
+        "seconds": 0.4160946756250006,
+        "repeat": 8,
+        "kind": "baseline",
+        "drift": 0.0,
+        "drifted": false
+      },
+      {
+        "after_streams": 0,
+        "seconds": 0.415811579375001,
+        "repeat": 8,
+        "kind": "baseline",
+        "drift": -0.0006803649904300046,
+        "drifted": false
+      },
+      {
+        "after_streams": 4,
+        "seconds": 0.416409396749998,
+        "repeat": 8,
+        "kind": "check",
+        "drift": 0.0007563690271323864,
+        "drifted": false
+      },
+      {
+        "after_streams": 8,
+        "seconds": 0.4162942168750021,
+        "repeat": 8,
+        "kind": "check",
+        "drift": 0.00047955732599036516,
+        "drifted": false
+      },
+      {
+        "after_streams": 12,
+        "seconds": 0.41720252537498936,
+        "repeat": 8,
+        "kind": "check",
+        "drift": 0.0026624944150623886,
+        "drifted": false
+      },
+      {
+        "after_streams": 16,
+        "seconds": 0.41624256099999,
+        "repeat": 8,
+        "kind": "check",
+        "drift": 0.0003554128030291981,
+        "drifted": false
+      }
+    ],
+    "unresolved": 0,
+    "retried": 0,
+    "gate_base": 0.4160946756250006,
+    "gate_baseline_stable": true,
+    "gate_drift_streams": 0
+  }
+}
