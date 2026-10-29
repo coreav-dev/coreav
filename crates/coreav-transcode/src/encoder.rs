@@ -463,16 +463,6 @@ fn color_options(
         .collect()
 }
 
-/// The depth the x264 program reads samples of `depth` bits at: 16 for
-/// 10-bit frames, their samples shifted up by 6 bits ([`Encoder`] shifts
-/// them). The program converts every input deeper than 8 bits on its main
-/// thread, and on the measured host that conversion took half the time
-/// from 16 bits that it took from 10, for the same stream out
-/// (`docs/measurements/transcode-x264-10bit.md`).
-fn x264_input_depth(depth: u8) -> u8 {
-    if depth > 8 { 16 } else { depth }
-}
-
 /// x264's arguments for `settings` (`docs/design/transcode.md`, "The
 /// encoder program"): raw frames on standard input, an Annex B stream on
 /// standard output.
@@ -494,7 +484,7 @@ pub fn x264_args(settings: &EncoderSettings) -> Result<Vec<String>, Error> {
         s("--output-csp"),
         s(csp),
         s("--input-depth"),
-        x264_input_depth(depth).to_string(),
+        depth.to_string(),
         s("--output-depth"),
         depth.to_string(),
         s("--input-res"),
@@ -810,9 +800,6 @@ pub struct Encoder<S: Sink> {
     settings: EncoderSettings,
     name: &'static str,
     frame_bytes: usize,
-    /// Bits each 16-bit sample is shifted up by before it is written: the
-    /// depth the program reads ([`x264_input_depth`]) less the frames'.
-    shift: u32,
     deadline: Instant,
     frames: u64,
     /// FFmpeg with the frames' times: the Matroska stream's time scale, and
@@ -911,13 +898,6 @@ impl<S: Sink> Encoder<S> {
             .map(OsString::from)
             .collect();
         let frame_bytes = settings.frame_bytes()?;
-        let shift = match program {
-            EncoderProgram::X264(_) => {
-                let (_, depth) = input_format(settings.format)?;
-                u32::from(x264_input_depth(depth) - depth)
-            }
-            EncoderProgram::Ffmpeg(_) => 0,
-        };
         // Checked before the encoder starts: an error after it would leave
         // the process to no keeper.
         let blocks = match (program, &settings.timing) {
@@ -1037,7 +1017,6 @@ impl<S: Sink> Encoder<S> {
             settings: settings.clone(),
             name,
             frame_bytes,
-            shift,
             deadline,
             frames: 0,
             blocks,
@@ -1123,17 +1102,6 @@ impl<S: Sink> Encoder<S> {
                 ErrorKind::InvalidData,
                 "frame of the wrong size",
             ));
-        }
-        if self.shift > 0 {
-            for sample in bytes
-                .get_mut(head..)
-                .unwrap_or_default()
-                .chunks_exact_mut(2)
-            {
-                if let [lo, hi] = sample {
-                    [*lo, *hi] = (u16::from_le_bytes([*lo, *hi]) << self.shift).to_le_bytes();
-                }
-            }
         }
         let outcome = {
             let Ok(mut queue) = self.shared.queue.lock() else {
@@ -1554,7 +1522,7 @@ mod tests {
         assert_eq!(
             x264_args(&s).unwrap(),
             split(
-                "--demuxer raw --input-csp i422 --output-csp i422 --input-depth 16 \
+                "--demuxer raw --input-csp i422 --output-csp i422 --input-depth 10 \
                  --output-depth 10 --input-res 1920x1080 --fps 30000/1001 \
                  --colorprim bt2020 --transfer smpte2084 --colormatrix bt2020nc \
                  --input-range pc --range pc --sar 10:11 --preset veryfast \

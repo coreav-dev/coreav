@@ -12,10 +12,8 @@
 
 mod common;
 
-use std::process::Command;
-
 use coreav_frame::{Chroma, ColorInfo, PixelFormat};
-use coreav_transcode::encoder::{EncoderProgram, EncoderSettings, x264_args};
+use coreav_transcode::encoder::EncoderSettings;
 
 use common::*;
 
@@ -259,47 +257,4 @@ fn a_frame_that_differs_from_the_settings_is_refused() {
         coreav_decode::ErrorKind::InvalidData,
         "{error:?}"
     );
-}
-
-/// 10-bit frames reach the x264 program at 16 bits, shifted up
-/// (`encoder::x264_args`), and come out as the stream x264 makes from the
-/// same frames given at 10 bits, in each chroma format and both ranges.
-#[test]
-fn ten_bit_frames_encode_as_at_ten_bits() {
-    let Some(program) = programs()
-        .into_iter()
-        .find(|p| matches!(p, EncoderProgram::X264(_)))
-    else {
-        return;
-    };
-    let x264 = program.path();
-    let dir = scratch("ten-bit");
-    let input = dir.join("frames.yuv");
-    for chroma in [Chroma::Cs420, Chroma::Cs422, Chroma::Cs444] {
-        for full_range in [None, Some(true)] {
-            let format = yuv(chroma, 10);
-            let frames: Vec<_> = (0..8).map(|n| moving(96, 64, format, n)).collect();
-            let s = EncoderSettings {
-                color: ColorInfo {
-                    full_range,
-                    ..ColorInfo::default()
-                },
-                ..settings(96, 64, format)
-            };
-            let ours = encode(&program, &s, None, &frames).unwrap();
-            let mut raw = Vec::new();
-            for frame in &frames {
-                frame.write_packed(&mut raw).unwrap();
-            }
-            std::fs::write(&input, &raw).unwrap();
-            let mut args = x264_args(&s).unwrap();
-            let depth = args.iter().position(|a| a == "--input-depth").unwrap() + 1;
-            args[depth] = "10".into();
-            *args.last_mut().unwrap() = input.to_string_lossy().into_owned();
-            let theirs = Command::new(x264).args(&args).output().unwrap();
-            assert!(theirs.status.success(), "{format:?} {full_range:?}");
-            assert!(ours == theirs.stdout, "{format:?} {full_range:?}");
-        }
-    }
-    std::fs::remove_dir_all(&dir).unwrap();
 }
