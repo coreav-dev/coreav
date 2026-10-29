@@ -25,6 +25,7 @@ pub mod concat;
 pub mod decode_audio;
 pub mod error;
 pub mod extract;
+pub mod fallback;
 pub mod ffprobe;
 pub mod hls;
 pub mod join;
