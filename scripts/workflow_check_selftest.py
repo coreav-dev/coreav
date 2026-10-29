@@ -71,6 +71,25 @@ class Steps(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertEqual(problems(text), [])
 
+    def test_anchors_aliases_and_merges_are_expanded(self):
+        for text in ('jobs:\n  a:\n    steps: &steps [{uses: actions/checkout@v4}]\n',
+                     steps('- &step {"uses":"actions/checkout@v4"}'),
+                     'x: &s\n  - uses: actions/checkout@v4\njobs:\n  a:\n    steps: *s\n',
+                     steps('- <<: {uses: actions/checkout@v4}', '  name: x')):
+            with self.subTest(text=text):
+                self.assertTrue(any('actions/checkout@v4' in p for p in problems(text)), problems(text))
+
+    def test_quoted_scripts_over_several_lines_end_where_yaml_ends_them(self):
+        # The closing quote after an escaped backslash ends the script, so the next step is read.
+        self.assertEqual(len(problems(steps('- run: "echo', '    b\\\\"', '- uses: actions/checkout@v4'))), 1)
+        # A single quote inside a double-quoted script does not end it.
+        self.assertEqual(problems(steps('- run: "echo it\'s', '    uses: actions/checkout@v4"')), [])
+
+    def test_files_that_are_not_one_readable_document_are_reported(self):
+        self.assertTrue(problems(steps(f'- uses: actions/checkout@{SHA}') + '---\n' + steps('- uses: actions/checkout@v4')))
+        self.assertTrue(problems('jobs: [\n'))
+        self.assertTrue(problems(steps('- uses: [actions/checkout@v4]')))
+
     def test_a_block_scalar_ends_where_its_indentation_does(self):
         self.assertEqual(len(problems(steps('- run: |', '    echo', '- uses: actions/checkout@v4'))), 1)
 
@@ -121,10 +140,13 @@ class Repository(unittest.TestCase):
         composite = "runs:\n  using: composite\n  steps:\n    - uses: actions/checkout@v4\n"
         for ref, file in (('./tools/probe', 'tools/probe/action.yml'), ('./.github/actions/probe', '.github/actions/probe/action.yaml')):
             self.write(file, composite)
+        self.write('tools/anchored/action.yml', 'runs:\n  using: composite\n  steps: &s [{uses: actions/checkout@v4}]\n')
+        self.call_local('./tools/anchored')
+        for ref in ('./tools/probe', './.github/actions/probe'):
             self.call_local(ref)
         found = check.check(self.root)
-        for file in ('tools/probe/action.yml', '.github/actions/probe/action.yaml'):
-            self.assertTrue(any(p.startswith(f'{file}: line 4') for p in found), (file, found))
+        for file in ('tools/probe/action.yml', '.github/actions/probe/action.yaml', 'tools/anchored/action.yml'):
+            self.assertTrue(any(p.startswith(f'{file}: line ') and 'actions/checkout@v4' in p for p in found), (file, found))
 
     def test_a_local_ref_to_nothing_is_reported(self):
         self.call_local('./tools/none')

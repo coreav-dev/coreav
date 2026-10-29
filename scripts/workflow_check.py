@@ -22,20 +22,24 @@
   (.github/actions/*/action.yml or .yaml) or in a local action or workflow
   a step calls (`./...`) uses an action by a tag or branch instead of a
   full lowercase commit sha, so the code it runs can change under the same
-  name; or such a file is written in a form the pin reader does not
-  decode (see `action_refs`).
+  name; or such a file is not one YAML document Ruby's standard library
+  (Psych) can read. The pin check walks the parsed tree, so it sees anchors,
+  aliases, merge keys and every quoting form as GitHub does.
 
     workflow_check.py [--root DIR]
 
 Exit status 0 when the workflows and the note agree, 1 otherwise. Reads the
-files as text: the workflows are written in the narrow shape this parser
-accepts, and anything else is an error rather than a silent pass. Python
-3.11 standard library only.
+files as text for the required-check table: the workflows are written in
+the narrow shape this parser accepts, and anything else is an error rather
+than a silent pass. Python 3.11 standard library, and `ruby` (on the
+runners) for the pin check's YAML.
 """
 import argparse
 import importlib.util
+import json
 import pathlib
 import re
+import subprocess
 import sys
 
 JOB = re.compile(r'\A {2}([A-Za-z0-9_-]+):\s*\Z')
@@ -50,10 +54,6 @@ SECTION = '### Required status checks (exact names)'
 LABELS = 'github.event.pull_request.labels'
 # A step's ref: a full lowercase commit sha, or a Docker image by digest.
 PINNED = re.compile(r'\A[^@\s]+@[0-9a-f]{40}\Z|\Adocker://[^@\s]+@sha256:[0-9a-f]{64}\Z')
-# Where a plain mapping key ends (its colon), or a comment starts first.
-PLAIN_KEY = re.compile(r':(?=[ \t]|$)|[ \t]#')
-SEQUENCE_ITEM = re.compile(r'-(?=[ \t]|$)[ \t]*')
-BLOCK_SCALAR = re.compile(r'(?:[&!]\S*[ \t]+)*[|>][1-9+-]{0,2}(?:[ \t]+#.*)?\Z')
 WORKFLOW_SUFFIXES = ('.yml', '.yaml')
 # A workflow whose checks the table does not require, such as one this
 # repository runs for itself alone.
@@ -218,149 +218,44 @@ def workflow_files(root):
                   if path.is_file() and path.suffix in WORKFLOW_SUFFIXES)
 
 
-def quoted_end(text):
-    """The index just past the quoted scalar that opens `text`, or -1 when
-    it does not close on this line."""
-    quote, i = text[0], 1
-    while i < len(text):
-        if quote == '"' and text[i] == '\\':
-            i += 2
-        elif text[i] == quote and quote == "'" and text[i + 1:i + 2] == "'":
-            i += 2
-        elif text[i] == quote:
-            return i + 1
-        else:
-            i += 1
-    return -1
+# Ruby's standard YAML library parses each file for the pin check, so the
+# check sees the steps GitHub sees: anchors and aliases expanded, merge
+# keys applied, every quoting and flow form decoded.
+PARSE = r'''
+require "date"
+require "json"
+require "psych"
+text = STDIN.read
+documents = Psych.parse_stream(text).children.size
+abort "it holds #{documents} YAML documents; a workflow or action file holds one" if documents > 1
+puts JSON.generate(Psych.safe_load(text, permitted_classes: [Date, Time], aliases: true))
+'''
 
 
-def mapping_key(text):
-    """(key, value) when `text` opens a block mapping entry, else (None, text).
-    The key is False when it is written in a form this reader does not
-    decode: an escape, an anchor, an alias, a tag or a merge key."""
-    if text[:1] in ('"', "'"):
-        end = quoted_end(text)
-        rest = text[end:].lstrip(' \t') if end > 0 else ''
-        if not rest.startswith(':') or rest[1:2] not in ('', ' ', '\t'):
-            return None, text
-        raw = text[1:end - 1]
-        if text[0] == "'":
-            return raw.replace("''", "'"), rest[1:]
-        return (False if '\\' in raw else raw), rest[1:]
-    found = PLAIN_KEY.search(text)
-    if text[:1] in ('{', '[') or not found or found.group() != ':':
-        return None, text
-    key = text[:found.start()].rstrip()
-    if not key or key[0] in '&*!' or key == '<<':
-        return False, text[found.end():]
-    return key, text[found.end():]
+def parse_yaml(text):
+    """The file's YAML as JSON-shaped Python values, or a str saying why it
+    cannot be read."""
+    try:
+        run = subprocess.run(['ruby', '--disable-gems', '-e', PARSE], input=text, capture_output=True, text=True,
+                             timeout=60)
+    except FileNotFoundError:
+        return 'ruby is not installed; the pin check parses YAML with its standard library (Psych)'
+    if run.returncode != 0:
+        return 'not readable as YAML: ' + (run.stderr.strip().splitlines() or ['ruby failed'])[-1]
+    return json.loads(run.stdout)
 
 
-def flow_mapping(text):
-    """[(key, value)] of a one-line flow mapping (`{ a: 1, b: 2 }`), or None when it
-    nests, spans lines, or holds an entry this reader does not decode."""
-    if not text.endswith('}'):
-        return None
-    body, entries, entry, i = text[1:-1], [], '', 0
-    while i < len(body):
-        if body[i] in ('"', "'"):
-            end = quoted_end(body[i:])
-            if end < 0:
-                return None
-            entry, i = entry + body[i:i + end], i + end
-        elif body[i] in '{}[]':
-            return None
-        elif body[i] == ',':
-            entries, entry, i = entries + [entry], '', i + 1
-        else:
-            entry, i = entry + body[i], i + 1
-    out = []
-    for entry in entries + [entry]:
-        if not entry.strip():
-            continue
-        key, value = mapping_key(entry.strip())
-        if not key:
-            return None
-        out.append((key, value.strip()))
-    return out
-
-
-def scalar(text):
-    """The block-context YAML scalar at the start of `text`, or None when it
-    is quoted in a form this reader does not decode (an escape, or no
-    closing quote)."""
-    quote = text[:1]
-    if quote in ('"', "'"):
-        end = text.find(quote, 1)
-        if end < 0 or (quote == '"' and '\\' in text[1:end]) or (quote == "'" and text[end + 1:end + 2] == "'"):
-            return None
-        return text[1:end]
-    return re.split(r'\s#', text, maxsplit=1)[0].strip()
-
-
-def action_refs(lines):
-    """([(line number, ref)], problems) for the `uses` keys of a workflow or an
-    action file. The file is read as YAML block mappings and sequences:
-    comments, block scalars (`run: |`) and quoted scalars that span lines
-    are skipped, so text in a script is not a step; a form this reader does
-    not decode (a flow mapping, an alias, an explicit `?` key, an escaped or
-    tagged key, a `uses` value that continues on the next line) is a problem,
-    never a silent pass. A ref is None when its value cannot be read."""
-    refs, problems = [], []
-    deeper = None       # lines indented more than this belong to a block scalar
-    closing = False     # inside a quoted scalar that spans lines
-    pending = None      # (line number, column) of a uses whose plain value may continue
-    for n, line in enumerate(lines, 1):
-        stripped = line.lstrip(' ')
-        indent = len(line) - len(stripped)
-        if closing:
-            closing = not re.search(r'(?<!\\)"|(?<!\')\'(?!\')', line)
-            continue
-        if deeper is not None:
-            if not stripped.strip() or indent > deeper:
-                continue
-            deeper = None
-        if not stripped.strip() or stripped.startswith('#') or stripped.rstrip() in ('---', '...'):
-            continue
-        if pending:
-            if indent > pending[1]:
-                problems.append(f'line {pending[0]}: the `uses` value continues on the next line: '
-                                'write it on one line')
-            pending = None
-        column, text, dash = indent, stripped.rstrip(), None
-        while (item := SEQUENCE_ITEM.match(text)):
-            dash, column, text = column, column + item.end(), text[item.end():]
-        if not text:
-            continue
-        if re.match(r'[?:](?:[ \t]|$)', text):
-            problems.append(f'line {n}: an explicit `?` key or a bare `:` value: write the entry as `key: value`')
-            continue
-        key, value = mapping_key(text)
-        if key is False:
-            problems.append(f'line {n}: a key written with an escape, an anchor, an alias, a tag or `<<`: '
-                            'write it plainly')
-            continue
-        value = value.lstrip(' \t') if key is not None else text
-        if key == 'uses':
-            refs.append((n, scalar(value)))
-            if value[:1] not in ('"', "'"):
-                pending = (n, column)
-        flow = re.split(r'\s#', value, maxsplit=1)[0].rstrip()
-        if flow in ('{}', '[]'):
-            continue
-        entries = flow_mapping(flow) if flow.startswith('{') else []
-        refs += [(n, scalar(v)) for k, v in entries or [] if k == 'uses']
-        if entries is None or (flow.startswith('[') and (
-                '{' in flow or re.search(r':(?=[\s,\]])', flow) or not flow.endswith(']'))):
-            problems.append(f'line {n}: a flow collection that nests, spans lines or holds a form this reader '
-                            'does not decode: write it in block form, or as a one-line `{ key: value }`')
-        elif value.startswith('*'):
-            problems.append(f'line {n}: an alias: write the content out')
-        elif value[:1] in ('"', "'") and quoted_end(value) < 0:
-            closing = True
-        elif BLOCK_SCALAR.match(value):
-            deeper = column if key is not None else dash
-    return refs, problems
+def uses_values(node):
+    """Every value of a `uses` key anywhere in a parsed file: workflow steps,
+    reusable-workflow jobs and composite action steps alike."""
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key == 'uses':
+                yield value
+            yield from uses_values(value)
+    elif isinstance(node, list):
+        for item in node:
+            yield from uses_values(item)
 
 
 def pin_problems(root, path, seen):
@@ -370,19 +265,27 @@ def pin_problems(root, path, seen):
         return []
     seen.add(path)
     name = path.relative_to(root)
-    refs, problems = action_refs(path.read_text(encoding='utf-8').splitlines())
-    out = [f'{name}: {problem}' for problem in problems]
-    for n, ref in refs:
-        if ref is not None and ref.startswith('./'):
+    text = path.read_text(encoding='utf-8')
+    tree = parse_yaml(text)
+    if isinstance(tree, str):
+        return [f'{name}: {tree}']
+    lines = text.splitlines()
+    out = []
+    for ref in uses_values(tree):
+        if not isinstance(ref, str):
+            out.append(f'{name}: a `uses` value is not a string: {json.dumps(ref)}')
+            continue
+        where = next((f'line {n}: ' for n, line in enumerate(lines, 1) if ref in line), '')
+        if ref.startswith('./'):
             target = (root / ref).resolve()
             files = [target] if target.suffix in WORKFLOW_SUFFIXES else [target / 'action.yml', target / 'action.yaml']
             found = [f for f in files if f.is_file()]
             if not target.is_relative_to(root.resolve()) or not found:
-                out.append(f'{name}: line {n}: {ref} names no action or workflow file in this repository')
+                out.append(f'{name}: {where}{ref} names no action or workflow file in this repository')
             for f in found:
                 out += pin_problems(root, root / f.relative_to(root.resolve()), seen)
-        elif ref is None or not PINNED.match(ref):
-            out.append(f'{name}: line {n}: `{ref}` is not pinned: use the full lowercase commit sha with the '
+        elif not PINNED.match(ref):
+            out.append(f'{name}: {where}`{ref}` is not pinned: use the full lowercase commit sha with the '
                        'version as a comment (`owner/repo@<40-hex sha> # vX.Y.Z`), as every other step does')
     return out
 

@@ -53,12 +53,13 @@ in a form the checker cannot read, or a step (in a `.yml` or `.yaml` workflow,
 in a local action, or in any local action or workflow a step calls with
 `./...`) that uses an action by a tag or branch rather than a full
 lowercase commit sha: a tag can be moved to other code, so every step names
-the commit and keeps the version as a comment. The pin check reads the
-files as YAML block mappings, skipping comments and scripts, and fails on
-a form it does not decode (an escaped or tagged key, an alias, an explicit
-`?` key, a flow collection that nests or spans lines) rather than passing it. A workflow that carries the line
-`# workflow-check: not required` is outside the table: its report job need
-not be listed, and the table may not list it.
+the commit and keeps the version as a comment. The pin check parses each
+file with Ruby's standard YAML library (Psych, on the runners), walks every
+`uses` value in the parsed tree, with anchors, aliases and merge keys
+expanded, and fails on a file that is not one readable YAML document.
+A workflow that carries the line `# workflow-check: not required` is
+outside the table: its report job need not be listed, and the table may
+not list it.
 
 ## What a report job must not hide
 
