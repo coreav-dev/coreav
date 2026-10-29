@@ -2,7 +2,7 @@
 
 Bars and method: `../plan.md`, "Bars", and `../gating-request.md`. Arms: `base` = `main` at `1e7dd54b`, `k` = the bundle (its code is `bd1f8b30`'s; the later commits before the runs changed comments and `docs/` only), null arm `base`. Each built with `cargo build --locked --profile dist --example decode -p coreav-h264`, `RUSTFLAGS` unset. FFmpeg 9.0.2 (BtbN `n9.0.2-17-g2a571b6068`) is the reference command.
 
-Each bar is the median of the per-stream ratios `k` over `base` (each stream's time the median of its rounds) with a 95% bootstrap interval over streams. `analyze-b3b.py` reads every call's report and writes `analysis.txt`.
+Each bar is the median of the per-stream ratios `k` over `base` (each stream's time the median of its rounds) with a 95% bootstrap interval over streams. The bars are written as `bars-1t.json` and `bars-8t.json` (and, for the information runs, `bars-gcp-1t-train.json` and `bars-gcp-1t-heldout.json`); `python3 -I scripts/h264_parity_bars.py <bars> <directory>` reads every call's report and writes the matching `analysis-*.txt`.
 
 ## The runs that decide
 
@@ -26,7 +26,7 @@ The one-thread builds are bit-identical to the eight-thread run's (`1t/provenanc
 
 B3b-7 (output) is in `../checks.md`, and it was checked again on the tree merged with today's `main` (below).
 
-Information: the time ratio to FFmpeg 9.0.2, a median per-stream ratio on each run's host, `base` then `k`. One thread, discard: training 0.973 then 0.972, held-out 0.956 then 0.951. One thread, write: training 0.943 then 0.930, held-out 0.946 then 0.943. Eight threads, discard: 0.849 then 0.843. Per class, and the count of streams below 1.000, are in `analysis.txt`.
+Information: the time ratio to FFmpeg 9.0.2, a median per-stream ratio on each run's host, `base` then `k`. One thread, discard: training 0.973 then 0.972, held-out 0.956 then 0.951. One thread, write: training 0.943 then 0.930, held-out 0.946 then 0.943. Eight threads, discard: 0.849 then 0.843. Per class, and the count of streams below 1.000, are in `analysis-1t.txt` and `analysis-8t.txt`.
 
 ## A second one-thread run, on the Compute Engine class (information)
 
