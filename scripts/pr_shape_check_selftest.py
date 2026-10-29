@@ -53,6 +53,9 @@ class Commits(unittest.TestCase):
         self.assertEqual(len(failures), 1)
         self.assertIn('81 characters', failures[0])
 
+    def test_a_whitespace_only_line_ends_the_subject(self):
+        self.assertEqual(check.commit_failures(log(f'{"a" * 72}  \n \t\n{"b" * 300}\n\nSigned-off-by: A <a@b.c>')), [])
+
     def test_attribution_trailers(self):
         failures = check.commit_failures(log(
             'fix(cli): hls package refuses - as its directory\n\nCo-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>\nSigned-off-by: A <a@b.c>',
