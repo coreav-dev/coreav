@@ -6,8 +6,7 @@
   branch ruleset matches a required check by name, so a repeated name
   cannot be required);
 - a check name listed as required in docs/design/ci-checks.md is no
-  job's check name (or, for a commit status posted from outside, is one, or
-  its workflow does not run on every pull request), or a report job exists
+  job's check name, or a report job exists
   whose name is not listed there
   (a workflow that carries the line `# workflow-check: not required`
   may not be listed, and its report job need not be);
@@ -18,10 +17,7 @@
   other job of its workflow, so that a failure below it could pass
   unnoticed;
 - a filter pattern passed to .github/actions/changed-paths is one GitHub
-  and the action would read differently;
-- a workflow asks for `statuses: write` (or `write-all`) while a required
-  check is a commit status posted from outside: a job here could then post
-  that status itself.
+  and the action would read differently.
 
     workflow_check.py [--root DIR]
 
@@ -44,10 +40,6 @@ USES = re.compile(r'\A\s+uses: \./\.github/actions/changed-paths/?\s*\Z')
 PULL_REQUEST = re.compile(r'\A {2}pull_request:\s*\Z')
 TRIGGER = re.compile(r'\A {2}\S')
 ROW = re.compile(r'\A\| `([^`]+)` \| `([^`]+)` \|')
-# A check no job reports: a commit status that a run elsewhere posts for
-# the pull request's head, after the named workflow sent it the head.
-STATUS_ROW = re.compile(r'\A\| `([^`]+)` \| `([^`]+)`, commit status \|')
-STATUSES_WRITE = re.compile(r'''statuses['"]?\s*:\s*['"]?write|write-all''')
 SECTION = '### Required status checks (exact names)'
 LABELS = 'github.event.pull_request.labels'
 # A workflow whose checks the table does not require, such as one this
@@ -196,10 +188,7 @@ def required_names(note):
             break
         match = ROW.match(line)
         if match and match.group(1) != 'Check':
-            names.append((match.group(1), match.group(2), 'job'))
-        match = STATUS_ROW.match(line)
-        if match:
-            names.append((match.group(1), match.group(2), 'status'))
+            names.append((match.group(1), match.group(2)))
     return names
 
 
@@ -239,30 +228,11 @@ def check(root):
 
     note = root / 'docs' / 'design' / 'ci-checks.md'
     listed = required_names(note)
-    for name, workflow, kind in listed:
+    for name, workflow in listed:
         if workflow in unlisted:
             problems.append(f'{note.name} requires `{name}` of {workflow}, which is marked not required')
             continue
         where = names.get(name)
-        if kind == 'status':
-            # The status comes from outside, so no job may report the name,
-            # and the workflow that asks for it has to run on every pull
-            # request, as a required workflow does.
-            if where:
-                problems.append(f'{note.name} lists `{name}` as a commit status, but a job reports it')
-            elif not (root / '.github' / 'workflows' / workflow).is_file():
-                problems.append(f'{note.name} has `{name}` sent by {workflow}, which does not exist')
-            else:
-                filtered, pull_request = trigger(
-                    (root / '.github' / 'workflows' / workflow).read_text().splitlines())
-                if filtered or not pull_request:
-                    problems.append(f'{workflow}: it asks for the required status `{name}`, so it has to '
-                                    'run on every pull request, with no trigger filter')
-            for path in workflows:
-                if any(STATUSES_WRITE.search(line.split('#', 1)[0]) for line in path.read_text(encoding='utf-8').splitlines()):
-                    problems.append(f'{path.name}: asks for `statuses: write`, so a job here could post '
-                                    f'the required status `{name}` itself')
-            continue
         if not where:
             problems.append(f'{note.name} requires `{name}`, which no job reports')
             continue
@@ -296,7 +266,7 @@ def check(root):
             problems.append(f'{workflow}: the report job `{job}` does not wait for '
                             + ', '.join(missing))
 
-    required = {name for name, _, _ in listed}
+    required = {name for name, _ in listed}
     for workflow, found in jobs.items():
         if workflow in unlisted:
             continue

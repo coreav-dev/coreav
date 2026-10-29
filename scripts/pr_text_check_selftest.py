@@ -56,10 +56,14 @@ class Matches(unittest.TestCase):
             run = subprocess.run([sys.executable, '-I', str(HERE / 'pr_text_check.py'), '--event', str(event)],
                                  capture_output=True, text=True, env=env)
             self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
-            env['PR_TEXT_REQUIRE_TERMS'] = '1'
-            run = subprocess.run([sys.executable, '-I', str(HERE / 'pr_text_check.py'), '--event', str(event)],
-                                 capture_output=True, text=True, env=env)
+            # The local form: a title and a body file.
+            body = pathlib.Path(d) / 'body.md'
+            body.write_text('Fine\nsecret-word here\n')
+            run = subprocess.run([sys.executable, '-I', str(HERE / 'pr_text_check.py'), '--title', 'Fine',
+                                  '--body-file', str(body)], capture_output=True, text=True,
+                                 env={**env, 'PR_TEXT_TERMS': r'secret-w\w+'})
             self.assertEqual(run.returncode, 1)
+            self.assertIn('body, line 2', run.stdout)
             env['PR_TEXT_TERMS'] = '(unclosed'
             run = subprocess.run([sys.executable, '-I', str(HERE / 'pr_text_check.py'), '--event', str(event)],
                                  capture_output=True, text=True, env=env)

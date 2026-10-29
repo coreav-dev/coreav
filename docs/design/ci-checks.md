@@ -52,12 +52,6 @@ pattern the action would read differently from GitHub, or a filter written
 in a form the checker cannot read. A workflow that carries the line
 `# workflow-check: not required` is outside the table: its report job need
 not be listed, and the table may not list it.
-A row whose workflow cell reads `` `x.yml`, commit status `` is a commit
-status that a run elsewhere posts on the pull request's head after `x.yml`
-sent it there: no job may report that name, `x.yml` must run on every
-pull request, as a required workflow does, and no workflow may ask for
-`statuses: write`, with which a job could post the status itself (a
-writer still can, with their own credentials).
 
 ## What a report job must not hide
 
@@ -208,16 +202,14 @@ failed.
 | `python-report` | `python.yml` | The abi3 wheel and its tests |
 | `npm-report` | `npm.yml` | The npm packages, the launcher and the smoke tests |
 | `h264-conformance-report` | `h264-conformance.yml` | Bar C1 of `docs/design/h264.md`: every in-scope JVT conformance bitstream decodes bit-exactly |
-| `external-check` | `external-check.yml`, commit status | A check of the pull request's head that runs outside this repository and posts only its result (below) |
-| `pr-text` | `pr-text.yml` | The pull request's title and body hold nothing that stays out of this repository (below) |
 
-`external-check` is not a job's check but a commit status: on every pull request from a
-branch of this repository, and on every commit of `main`, `external-check.yml` sends the
-commit to a check that runs outside this repository, which posts the status on that
-commit, `success` or `failure` and nothing else. No workflow on `main` or a pull request
-may ask for `statuses: write` (`workflow_check.py` fails on it), so none of this
-repository's own jobs posts the status. `pr-text` reads the pull request's title and body
-(`scripts/pr_text_check.py`) and fails on text that does not belong in this repository.
+## Before opening a pull request
+
+Two checks run on the agent's machine, not in CI: this repository holds no
+cross-repository token and no private secret.
+
+- **The pull request's text.** `scripts/pr_text_check.py --title TITLE --body-file BODY.md` fails on Korean text, a session or run identifier and spend details, and, given the private list of names and message forms in `PR_TEXT_TERMS` (one case-insensitive regular expression per line), on those too. Run it with that list before opening the pull request and after editing its text.
+- **The code-similarity check.** A change to `crates/coreav-h264`, `crates/coreav-kernels-h264` or `crates/coreav-opus` is compared, before it merges, with the other implementations' sources by the check kept in the operations repository, run there on the pull request's head; its result (pass or fail, and the commit checked) goes into the pull request's Evidence.
 
 ## Cost
 
