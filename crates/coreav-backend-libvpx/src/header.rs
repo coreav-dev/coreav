@@ -53,6 +53,9 @@ pub fn frame_sizes(packet: &[u8]) -> Result<Vec<FrameSize>, Malformed> {
 /// The packet with a superframe index: itself when it has one, or the
 /// packet as one frame, with an index of that frame appended.
 pub fn indexed(packet: &[u8]) -> Result<Cow<'_, [u8]>, Malformed> {
+    if packet.is_empty() {
+        return Err(Malformed("empty packet"));
+    }
     if index(packet).is_some() {
         return Ok(Cow::Borrowed(packet));
     }
@@ -378,6 +381,7 @@ mod tests {
         assert_eq!(index(&with), Some((packet.len(), 4)));
         assert_eq!(frames(&with), Ok(vec![&packet[..]]));
         assert_eq!(frame_sizes(&with), Ok(vec![size(64, 64)]));
+        assert_eq!(indexed(&[]), Err(Malformed("empty packet")));
     }
 
     #[test]
