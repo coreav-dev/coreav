@@ -391,7 +391,7 @@ and every bar passes.
 - `npx` adds 219 ms of npm's start-up per call.
 - The launch costs: native 0.7 ms, Node launcher 28.6 ms, WASI 61.2 ms.
 
-The CI regression guard (`bench-guard.yml`,
+The CI regression guard (`ci.yml`'s `bench-guard` job,
 `docs/design/benchmarks.md`) counts the instructions of the `coreav`
 command, the same source as the native packages' binaries; the npm
 packages add no code to that path.

@@ -27,16 +27,19 @@ and from the path filters an earlier change put on the heavy workflows:
   H.264 spike workflows carries its spike's prefix (`h264-n1-build`,
   `h264-n2-build`, `h264-n2-arm-build` and so on).
 - **A workflow that is required filters in its jobs, not in its trigger.**
-  Its first job, `<workflow>-changes`, decides from the event's changed
-  files whether the rest has to run; every other job carries
-  `needs: <workflow>-changes` and
-  `if: needs.<workflow>-changes.outputs.run == 'true'`, next to whatever
-  condition it had.
-- **It ends in `<workflow>-report`,** which carries `if: always()`, waits
-  for every other job of the workflow, prints their results and fails when
-  one failed or was cancelled. A job the filter skipped reports `skipped`
-  and passes. That name is the required check: it appears on every pull
-  request, including one that changes documentation only.
+  Its first job decides from the event's changed files whether the rest
+  has to run; every other job carries `needs:` on it and an `if:` on its
+  output, next to whatever condition it had. In `ci.yml` that job is
+  `ci-changes`, and it gives one output per group of jobs (`run`,
+  `h264-conformance`, `bench-guard`; "One changes job" below);
+  `python.yml` and `npm.yml` keep their own `<workflow>-changes`.
+- **Each group ends in a report job** (`ci-report`, `fixtures-report` and
+  so on), which carries `if: always()`, waits for the changes job and every
+  job of its group, prints their results and fails when one failed or was
+  cancelled. A job the filter skipped reports `skipped` and passes. That
+  name is the required check: it appears on every pull request, including
+  one that changes documentation only. Every job of a workflow with a
+  required report job is waited for by one of them.
 - Workflows that are **not** required keep their trigger filters: the
   informational `mediainfo-oracle`, the spikes (`spike-build`, `h264-n1`,
   `h264-n2`, `h264-n2-arm-speed`, which build spike code and are kept
@@ -48,8 +51,8 @@ and from the path filters an earlier change put on the heavy workflows:
 filters — and fails when the required-check table and the workflows
 disagree: a listed name no job reports, a report job missing from the
 table, a required workflow that grew a trigger filter again or lost its
-`pull_request:` trigger, a report job without `if: always()` or missing a
-dependency, two jobs that would report the same check name, a filter
+`pull_request:` trigger, a report job without `if: always()`, a job of a
+required workflow that no report job waits for, two jobs that would report the same check name, a filter
 pattern the action would read differently from GitHub, a filter written
 in a form the checker cannot read, or a step (in a `.yml` or `.yaml` workflow,
 in a local action, or in any local action or workflow a step calls with
@@ -109,8 +112,9 @@ for `package` and `smoke` only, and `python-report` for
 `python-fixtures` and `linux-x86_64` only. The platform builds still
 report under their own names, which is what the merge button and a
 release read; they are opt-in builds, not a gate on every pull request.
-`workflow_check.py` enforces both halves: a report job must cover every
-job that is not label-gated, and must cover none that is.
+`workflow_check.py` enforces both halves: every job that is not
+label-gated must be covered by a report job of its workflow, and no report
+job may cover one that is.
 
 ## The filter
 
@@ -120,8 +124,8 @@ with GitHub's own semantics (`paths`: run when any changed file matches;
 `paths-ignore`: run unless every changed file matches), so moving a list
 from the trigger into the action does not change which events run.
 
-The changed files come from git, which is why each `<workflow>-changes` job
-checks out with `fetch-depth: 2`:
+The changed files come from git, which is why each changes job checks out
+with `fetch-depth: 2`:
 
 - a pull request: the merge commit against its first parent, the base —
   the diff `ci.yml`'s fuzz job already used to choose its targets;
@@ -143,6 +147,42 @@ shape the action supports, so each took the union of the two. The effect is
 that a pull request changing the fixture generator, the pinned FFmpeg
 installer or the web-upload policy now measures as well — rare, and the
 safe direction.
+
+## One changes job
+
+`ci.yml` holds the jobs of what used to be six workflows: itself,
+`fixtures.yml`, `mkv-fixtures.yml`, `ts-fixtures.yml`,
+`h264-conformance.yml` and `bench-guard.yml`. Each had its own changes
+job, so every pull request push queued six one-minute jobs that each
+checked out the repository and diffed the same two commits. Now
+`ci-changes` runs the changed-paths action once per filter list, in one
+job, and the moved jobs read its outputs: `run` for the three fixture
+oracles, whose list was the same as `ci.yml`'s, and `h264-conformance`
+and `bench-guard` for the two that had their own. The job ids did not
+change, so neither did a required check name: the ruleset matches a check
+by its job's name, not by its workflow.
+
+- **The report jobs stay one per group.** One report over every job would
+  have saved four more jobs per push, but it would rename four required
+  checks, and a failing H.264 conformance run would then show as a red
+  `ci-report`, not under its own name.
+- **A list names `ci.yml` where it named its old workflow file,** so a
+  change to `ci.yml` runs the H.264 conformance suite and the guard. That
+  is the safe direction: a change to those jobs runs them.
+- **A manual run of `ci.yml` runs everything,** the H.264 conformance suite
+  included, which had no manual trigger before; `update` keeps the
+  guard's counts as an artifact, as `bench-guard.yml`'s input did.
+- **Not moved:** `deny.yml` is one job, so moving it saves nothing, and
+  folding its steps into `ci-changes` would drop the required `deny` name
+  and hold every heavy job back by its run time. `python.yml` and
+  `npm.yml` also run on `labeled`, so in `ci.yml` a label would rerun, and
+  cancel, every job of the pull request. `pr-text.yml` runs on `edited`, for
+  the same reason. The workflows that are not required keep their trigger
+  filters, so they queue nothing on a pull request that does not touch
+  them; moved here, they would add a skipped check to every one.
+- **Rejected: calling the old workflows from `ci.yml`** as reusable
+  workflows. A called workflow's job reports as `<caller job> / <job>`,
+  which renames every required check it holds.
 
 ## DCO sign-off
 
@@ -291,20 +331,20 @@ These are the names a branch ruleset requires, exactly as written. Only a check 
 **appears on every pull request** can be required: a workflow its path filter skips
 reports nothing, and a required check that never reports leaves the pull request
 pending for ever. Each required workflow therefore filters in its jobs, not in its
-trigger, and ends in one report job that always runs and fails when a job above it
-failed.
+trigger, and each group of its jobs ends in a report job that always runs and fails
+when a job above it failed.
 
 | Check | Workflow | Note |
 |---|---|---|
 | `deny` | `deny.yml` | `cargo deny check`, the fuzz projects' own graphs, and the DCO sign-off. No filter at all: it runs in full on every pull request |
 | `ci-report` | `ci.yml` | `cargo fmt`, `clippy`, the workspace tests, the MSRV build and the fuzz run |
-| `fixtures-report` | `fixtures.yml` | The ISO base media oracle: ffprobe, MediaInfo, the command and the writers |
-| `mkv-fixtures-report` | `mkv-fixtures.yml` | The Matroska and WebM oracle |
-| `ts-fixtures-report` | `ts-fixtures.yml` | The transport-stream oracle |
-| `bench-guard-report` | `bench-guard.yml` | The instruction-count guard |
+| `fixtures-report` | `ci.yml` | The ISO base media oracle: ffprobe, MediaInfo, the command and the writers |
+| `mkv-fixtures-report` | `ci.yml` | The Matroska and WebM oracle |
+| `ts-fixtures-report` | `ci.yml` | The transport-stream oracle |
+| `bench-guard-report` | `ci.yml` | The instruction-count guard |
 | `python-report` | `python.yml` | The abi3 wheel and its tests |
 | `npm-report` | `npm.yml` | The npm packages, the launcher and the smoke tests |
-| `h264-conformance-report` | `h264-conformance.yml` | Bar C1 of `docs/design/h264.md`: every in-scope JVT conformance bitstream decodes bit-exactly |
+| `h264-conformance-report` | `ci.yml` | Bar C1 of `docs/design/h264.md`: every in-scope JVT conformance bitstream decodes bit-exactly |
 
 ## The pull request's shape
 
@@ -326,9 +366,10 @@ cross-repository token and no private secret.
 
 ## Cost
 
-Two small jobs per required workflow, about a minute each billed, so about
-twenty minutes of runner time per pull-request event, whatever the change
-touches; a documentation-only pull request paid about one before. Three
+A report job per group and a changes job per workflow (one for `ci.yml`,
+which used to be six), about a minute each billed, so about eleven minutes
+of runner time per pull-request event, whatever the change touches; a
+documentation-only pull request paid about one before the report jobs. Three
 smaller additions on top: `python.yml` and `npm.yml` now also start on a
 push to main and on a label whatever the paths, where their trigger filter
 used to stop them; and because the report jobs carry `if: always()`, a run
