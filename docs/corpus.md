@@ -87,6 +87,7 @@ before any benchmark:
 | v2-heldout draw 5 | `coreav-corpus-v2-heldout-ts:` | every `real` file |
 | v2-heldout draw 6 | `coreav-corpus-v2-heldout-compat:` | every `real` file |
 | v2-heldout draw 7 | `coreav-corpus-v2-heldout-ts-speed:` | every `real` file |
+| v2-heldout draw 8 | `coreav-corpus-v2-heldout-audio-decode:` | every `real` file |
 
 Held-out files are used only for reported numbers, never for profiling
 or tuning. Where a whole draw is held out, the salt still orders each
@@ -254,6 +255,7 @@ draw's operation.
 | 5 | MPEG-TS demux | `ts-probe` | 37 | 48 | 1.7 | spent: [`measurements/ts-demux.md`](measurements/ts-demux.md) |
 | 6 | the 0.1.0 bars R2 to R4 | `compat` | 300 | 332 | 13.62 | unspent |
 | 7 | MPEG-TS demux speed, round 2 | `ts-probe` | | | | rules committed, not yet collected |
+| 8 | Opus speed, round 2 | `audio-decode` | | | | rules committed, not yet collected |
 
 No `hls` draw is unspent, so the next `hls index` measurement needs a
 draw of its own before it can run.
@@ -497,6 +499,21 @@ The held-out draw of the second round of the transport stream speed bars ([`desi
 - **Diversity:** draw 5's structural signature, across this draw, draw 5 and `v1-ts-audio`'s transport streams.
 - **Holdout:** every `real` file. Each class's `real` files are ordered by `sha256("coreav-corpus-v2-heldout-ts-speed:" + sha256)`.
 - **The collection runs no measurement:** `ffprobe` is the only tool run over the files, and no `coreav` command runs on the draw before the round that opens it.
+
+### Draw 8
+
+The held-out draw of the second Opus speed round ([`design/audio-decode.md`](design/audio-decode.md), "Opus speed, round 2"). Corpus v1's held-out files with audio are spent: they are the sources of the FLAC, MP3 and Opus derived sets. Operation `audio-decode`, salt `coreav-corpus-v2-heldout-audio-decode:`. The rules were committed before any file was fetched.
+
+- **Form:** files unchanged, at most 200 MB (1 MB = 10^6 bytes).
+- **Usable by the operation:** the pinned `ffprobe` lists an audio stream, the first of which lasts 5 seconds to 30 minutes, and the pinned `ffmpeg` 7.0.2 decodes that stream to the derived set's FLAC intermediate without an error. Any other file is `edge`. The round re-encodes every source, so the source's own codec and structure never reach the decoder under test.
+- **Classes**, by the container the pinned `ffprobe` names: `mov,mp4,m4a,3gp,3g2,mj2` is ISO base media, `matroska,webm` is Matroska and WebM, `ogg` is Ogg, and every other container (MP3, FLAC, WAV and the rest) is `other`. The round's own classes are the derived inputs' containers, MP4 and Matroska/WebM, of which every source gives one each; the draw's classes keep one kind of source from taking the draw.
+- **Coverage:** 100 to 160 `real` files. A class stops taking files at 60, and the draw stops when it holds 160 or the candidates run out. A draw under 100 is reported short, not filled by relaxing a rule.
+- **Caps:** at most 16 `real` files from one source (a site, an archive or a data set), which is 10% of a full draw and 16% of the smallest; at most 3 from one uploader, album, collection or recording device. Candidates are taken in turn across their sources, so that no source fills a class first, and the result reports the largest share one source holds.
+- **No structural signature:** the caps stand in for it, since the round re-encodes every source.
+- **Candidates:** new listings only. A candidate whose SHA-256 or URL is in corpus v1, `v1-fmp4-large`, `v1-ts-audio`, `mediarecorder-v1`, or in any listing or ledger of draws 1 to 7, is dropped, whether or not that draw fetched it.
+- **Sets:** the shared rules, with the oracle run with `GCONV_PATH` as `scripts/oracle-ffprobe.sh` sets it. A file a device, an application or a publisher produced that meets the rule above is `real`; a conformance vector, a test signal or a file the oracle rejects is `edge`; a crash or a run over 30 s is `hostile`.
+- **Holdout:** every `real` file. Each class's `real` files are ordered by `sha256("coreav-corpus-v2-heldout-audio-decode:" + sha256)`.
+- **The collection runs no measurement:** `ffprobe` and the pinned `ffmpeg` 7.0.2's FLAC decode are the only tools run over the files, and no `coreav` command runs on the draw before the round that opens it.
 
 ### Rules withdrawn or not held
 
