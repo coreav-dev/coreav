@@ -39,6 +39,7 @@ pub mod probe;
 pub mod remote;
 pub mod remux;
 pub mod split;
+pub mod strict_safe;
 pub mod text;
 pub mod thumbnail;
 pub mod time;

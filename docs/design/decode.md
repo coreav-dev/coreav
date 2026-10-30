@@ -196,7 +196,8 @@ CoreAV's own H.264 decoder is the `native` backend
 (`crates/coreav-backend-h264`, `docs/design/h264.md`), dav1d decodes
 AV1 (section "dav1d") and libvpx decodes VP9 (section "libvpx"); all
 three are opt-in and never in a default build. The other codecs go
-through the fallback.
+through the fallback, except in strict-safe mode, which never runs it
+(section "The FFmpeg fallback").
 
 **A caller may order the backends by the work it is about to ask for.**
 The order is the policy's, and `coreav thumbnail` sets two of them
@@ -229,7 +230,8 @@ picture for the same file.
 Third-party decoders run in a worker process by default. The parent treats the worker as untrusted and possibly
 compromised.
 
-**Process.** The worker is a program that calls `coreav_worker::worker_main`:
+**Process.** The worker is a program that calls `coreav_worker::worker_main`
+with a check of the backends it hosts (`coreav`'s is strict-safe mode's):
 the `coreav` binary itself, run again with a hidden argument, or the
 `coreav-worker` binary of the crate for library users. The parent starts
 it with `std::process` (no shell), a cleared environment, and pipes for
@@ -254,8 +256,9 @@ decoder backend (the `thumbnail` feature), the native H.264 decoder alone
 included. The program must be a path: with no
 environment there is no `PATH`, and a search would depend on the
 launcher's defaults. A launcher that cannot set the limits or start the
-program exits with 125, 126 (not runnable) or 127 (not found), after one
-line on standard error. The parent side builds the command (its own
+program exits with 125, 126 (not runnable, or refused by the check its
+caller gives `sandbox_exec_main`: strict-safe mode's in `coreav`) or 127
+(not found), after one line on standard error. The parent side builds the command (its own
 process group, empty environment, piped streams), and `exec` also holds
 the two process-control calls the keepers need (`kill_group`, and
 `has_exited`, Linux's `waitid` with `WNOWAIT`), so `coreav-transcode`
@@ -502,6 +505,23 @@ the `ffmpeg-fallback` feature. It runs an `ffmpeg` binary, the system's or
 one the operator names, as a child of the worker, so FFmpeg's C code never
 runs in the parent process. FFmpeg's libraries are never linked: binding
 them would mean reading their headers, which are FFmpeg source.
+
+**Strict-safe mode** (`coreav --strict-safe`, `COREAV_STRICT_SAFE`;
+`compat-cli.md`, "Strict-safe mode") never runs it. The CLI's backend list
+(`coreav-cli`, `strict_safe::Decoders`) then holds a stand-in in its place:
+the same `supports`, and an `open` that fails with `unsupported`, so
+selection goes on to the next backend in the policy's order as for any
+backend that fails to open. A stream no other backend opens is refused with
+exit status 4, naming the build that decodes it without FFmpeg; a stream
+another backend opens decodes there, and the summary lists the fallback as
+skipped (`not run in strict-safe mode`). The order is not changed, so
+`--exact` still tries the fallback first and, in strict-safe mode, decodes
+H.264 with the native decoder. The worker and the launcher are started
+with `--strict-safe` after their entry argument in the mode
+(`StrictSafe::entry`), since every launch clears the environment, or read
+`COREAV_STRICT_SAFE` when run directly; the worker then refuses an `Open` of the fallback
+(`StrictSafe::worker`, through `worker_main`'s check), and the launcher a
+program named `ffmpeg` or `ffprobe` (`StrictSafe::program`).
 
 CoreAV demuxes; FFmpeg only decodes. The worker writes the packets to
 FFmpeg's standard input as a Matroska stream that it writes itself (RFC

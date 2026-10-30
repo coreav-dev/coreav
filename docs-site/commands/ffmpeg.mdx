@@ -14,7 +14,7 @@ description: "Run an ffmpeg stream-copy command line (-c copy) with CoreAV's own
 | `-f segment` with MP4 segments | [`coreav split --every`](/commands/split) at `-segment_time` |
 | `-f concat` with an MP4 output | [`coreav join`](/commands/join) of the list's files |
 
-In a build with a decoder backend, it also runs a command line that encodes the video with `libx264`, through [`coreav transcode`](/commands/transcode). The build's backends decode the video, and an `x264` program encodes it, or an `ffmpeg` program built with libx264 when no `x264` program is found. Strict-safe mode changes neither ([what strict-safe mode covers](/strict-safe#what-strict-safe-mode-covers)).
+In a build with a decoder backend, it also runs a command line that encodes the video with `libx264`, through [`coreav transcode`](/commands/transcode). The build's backends decode the video, and an `x264` program encodes it, or an `ffmpeg` program built with libx264 when no `x264` program is found. In strict-safe mode no `ffmpeg` program runs: the command line needs an `x264` program and a backend other than `ffmpeg-fallback` that decodes the video, and is refused with exit status 4 otherwise ([what strict-safe mode covers](/strict-safe#what-strict-safe-mode-covers)).
 
 Any other command line is refused in strict-safe mode, and goes to the real `ffmpeg` otherwise ([strict-safe mode and the fallback](/strict-safe)). The outputs pass the job oracles on the fixtures in CI. The 0.1.0 bars on held-out files are not measured yet ([the 0.1.0 release issue](https://github.com/coreav-dev/coreav/issues/43)).
 
