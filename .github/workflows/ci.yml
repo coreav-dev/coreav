@@ -209,89 +209,87 @@ jobs:
         env:
           RUSTUP_TOOLCHAIN: ${{ steps.msrv.outputs.version }}
 
-  fuzz:
-    # Every target for 60 seconds on every push to main; on a ready PR, every
-    # target of the fuzz projects the change can affect (scripts/fuzz_plan.py).
-    # Draft PRs skip it.
-    #
-    # Temporary: a pull request runs each chosen target for 20 seconds, not
-    # 60, while this repository is private and its Actions minutes are billed. Pushes to main keep 60 seconds, so every merged change is
-    # still fuzzed in full. Restore 60 seconds here, and withdraw the temporary
-    # rule, once standard runners are free.
+  fuzz-changes:
+    # The fuzz targets a ready pull request can affect: every target of each
+    # fuzz project whose own directory, or a workspace crate it depends on,
+    # the change touches (scripts/fuzz_plan.py). Pushes to main and manual
+    # runs do not fuzz here; fuzz-nightly.yml runs every target daily
+    # (docs/design/ci-checks.md, "The fuzz runs"). Draft PRs skip it.
     needs: ci-changes
     if: >-
       needs.ci-changes.outputs.run == 'true' &&
-      (github.event_name != 'pull_request' || !github.event.pull_request.draft)
+      github.event_name == 'pull_request' && !github.event.pull_request.draft
     runs-on: ubuntu-24.04
-    # Every target's 60 seconds (25 targets) and the fuzz builds of each
-    # project: past 30 minutes when a change reaches every project.
-    timeout-minutes: 50
+    timeout-minutes: 10
+    outputs:
+      plan: ${{ steps.plan.outputs.plan }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           # The PR merge commit and its first parent (the base), for the diff.
           fetch-depth: 2
-      # The same pinned action as the stable jobs; the toolchain is an input.
-      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
-        with:
-          toolchain: nightly
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Install cargo-fuzz
-        run: cargo install cargo-fuzz --version 0.13.2 --locked
-      - name: Choose the fuzz targets
+      - id: plan
         run: |
           set -euo pipefail
-          if [ "${{ github.event_name }}" = pull_request ]; then
-            # Both sides of a rename, NUL-separated and unquoted.
-            git -c core.quotePath=false diff --name-only --no-renames -z HEAD^1 HEAD > "$RUNNER_TEMP/changed.txt"
-            python3 scripts/fuzz_plan.py --changed "$RUNNER_TEMP/changed.txt" > "$RUNNER_TEMP/fuzz-plan.txt"
-          else
-            python3 scripts/fuzz_plan.py --all > "$RUNNER_TEMP/fuzz-plan.txt"
-          fi
+          # Both sides of a rename, NUL-separated and unquoted.
+          git -c core.quotePath=false diff --name-only --no-renames -z HEAD^1 HEAD > "$RUNNER_TEMP/changed.txt"
+          python3 scripts/fuzz_plan.py --changed "$RUNNER_TEMP/changed.txt" > "$RUNNER_TEMP/fuzz-plan.txt"
+          { echo 'plan<<PLAN'; cat "$RUNNER_TEMP/fuzz-plan.txt"; echo PLAN; } >> "$GITHUB_OUTPUT"
           echo "### Fuzz targets" >> "$GITHUB_STEP_SUMMARY"
           if [ -s "$RUNNER_TEMP/fuzz-plan.txt" ]; then
             sed 's/^/- /' "$RUNNER_TEMP/fuzz-plan.txt" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "None: the change affects no fuzz project." >> "$GITHUB_STEP_SUMMARY"
           fi
-      - name: Run each chosen fuzz target
+
+  fuzz:
+    # The targets above share a budget of FUZZ_BUDGET seconds, 5 to 30 each:
+    # 30 when few are affected, and a short pass over every target when a
+    # change reaches every project (the lock file, this workflow). A finding
+    # fails the job; its input and output stay off the log and off the
+    # artifacts (scripts/fuzz_run.sh), and are found again locally.
+    needs: fuzz-changes
+    if: needs.fuzz-changes.outputs.plan != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - run: scripts/fuzz_run.sh setup
+      # The build fuzz-nightly.yml cached on main.
+      - uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: target/fuzz
+          key: fuzz-target-${{ hashFiles('scripts/fuzz_run.sh', 'Cargo.lock', 'crates/*/fuzz/Cargo.lock') }}
+          restore-keys: fuzz-target-
+      - name: Build the fuzz projects
         env:
-          # 60 seconds on main, 20 on a pull request.
-          MAX_TOTAL_TIME: ${{ github.event_name == 'pull_request' && 20 || 60 }}
+          PLAN: ${{ needs.fuzz-changes.outputs.plan }}
+        run: |
+          printf '%s\n' "$PLAN" > "$RUNNER_TEMP/fuzz-plan.txt"
+          scripts/fuzz_run.sh build "$RUNNER_TEMP/fuzz-plan.txt"
+      - name: Run each target
+        env:
+          FUZZ_BUDGET: 480
           # The fuzz campaign's AddressSanitizer options
           # (docs/design/fuzz-campaign.md, tools/fuzz-campaign/campaign.py).
           ASAN_OPTIONS: quarantine_size_mb=64
         run: |
           set -euo pipefail
-          echo "Each target runs for $MAX_TOTAL_TIME seconds." >> "$GITHUB_STEP_SUMMARY"
-          while read -r dir target; do
-            echo "::group::$dir $target"
-            # Reproducers of past findings (fuzz/regressions/TARGET, kept in
-            # git, unlike the corpus) run first, under the same checks.
-            corpora=()
-            if [ -d "$dir/regressions/$target" ]; then
-              mkdir -p "$dir/corpus/$target"
-              corpora=("./corpus/$target" "regressions/$target")
-            fi
-            (cd "$dir" && cargo +nightly fuzz run "$target" "${corpora[@]}" -- "-max_total_time=$MAX_TOTAL_TIME" -rss_limit_mb=2048 -timeout=10) < /dev/null
-            echo "::endgroup::"
-          done < "$RUNNER_TEMP/fuzz-plan.txt"
-      - name: Keep crash reproducers
-        if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: fuzz-artifacts
-          path: crates/*/fuzz/artifacts
-          if-no-files-found: ignore
+          n=$(wc -l < "$RUNNER_TEMP/fuzz-plan.txt")
+          seconds=$(( FUZZ_BUDGET / n ))
+          seconds=$(( seconds > 30 ? 30 : seconds < 5 ? 5 : seconds ))
+          echo "Each of the $n targets runs for $seconds seconds." >> "$GITHUB_STEP_SUMMARY"
+          if ! scripts/fuzz_run.sh run "$RUNNER_TEMP/fuzz-plan.txt" "$seconds" "$RUNNER_TEMP/fuzz"; then
+            echo "A target failed. Run it locally: scripts/fuzz_run.sh run PLAN $seconds OUT, with the plan above; the input and output are in OUT/findings." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
 
   ci-report:
     # Always runs, including when the filter above skipped every job, so
     # that the branch ruleset has one check name this workflow reports on
     # every pull request, a documentation-only one included
     # (docs/design/ci-checks.md).
-    needs: [ci-changes, check, msrv, fuzz]
+    needs: [ci-changes, check, msrv, fuzz-changes, fuzz]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
