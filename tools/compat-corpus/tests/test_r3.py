@@ -216,6 +216,15 @@ class Judge(unittest.TestCase):
         self.assertEqual(self.judge(['C01'], FAKE_STATUS='refused'), {('C01', 0): ('failed', 'refused')})
         self.assertEqual(release_round.fallback_verdict(self.log), {'lines': 1, 'refused': 1, 'void': True})
 
+    def test_a_pair_the_check_sets_aside_is_not_passed(self):
+        source = self.d / 'size_inband_sps.mp4'
+        source.write_bytes(b'')
+        scratch = self.d / 'scratch'
+        scratch.mkdir()
+        pairs = [{**p, 'job': 'clip', 'source': str(source), 'input': str(source)} for p in self.pairs(['C07'])]
+        self.assertEqual(r3.judge(self.opts, pairs, scratch, release_round.environment(self.log)),
+                         {('C07', 0): ('set aside', 'no oracle models a picture size change')})
+
 
 class Run(unittest.TestCase):
     def run_lines(self, lines, log_line=None):
@@ -246,6 +255,13 @@ class Run(unittest.TestCase):
         self.assertEqual(self.run_lines([self.line('passed')]), 0)
         self.assertEqual(self.run_lines([self.line('passed')], json.dumps({'not_run': 'strict_safe'})), 2)
         self.assertEqual(self.run_lines([self.line('failed', 'oracle')]), 1)
+
+    def test_a_set_aside_pair_leaves_its_command_unmeasured(self):
+        lines = [self.line('passed')] * 99 + [self.line('set aside', 'no oracle models a picture size change')]
+        summary = r3.summarize(r3.counts(lines), 98.0)
+        self.assertEqual(summary['unmeasured'], ['C01.0'])
+        self.assertEqual(summary['commands'][0]['counted'], 99)
+        self.assertEqual(self.run_lines(lines), 1)
 
 
 if __name__ == '__main__':

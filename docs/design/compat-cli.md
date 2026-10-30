@@ -393,7 +393,10 @@ through `coreav_cli::ffmpeg::run` in the ignored test
 through the binary, which must write the same bytes; a pair passes when
 both wrote and `copy_check.py` finds no problem. A refusal, a rejection, a
 `-map` the CLI finds empty, or a binary that writes otherwise, fails the
-pair. A command meets R3 when at least 98% of its counted pairs pass, each
+pair. A pair whose output no oracle checks (`copy_check.py` sets aside the
+clips, segments and joins of a file whose picture size changes inside the
+track) is set aside rather than passed, and its command is unmeasured and
+misses. A command meets R3 when at least 98% of its counted pairs pass, each
 spelling of the set counted on its own, as the bar says "each command".
 
 **The R4 host, registered before the run.** A GCP `c4-standard-16` VM with
