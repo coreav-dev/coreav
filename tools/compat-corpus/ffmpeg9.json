@@ -2135,6 +2135,23 @@
    }
   },
   {
+   "id": "KD-FF9-FIXTURE-SIDX-DURATION",
+   "keys": {
+    "format.bit_rate": [
+     "fragmented_sidx.mp4"
+    ],
+    "format.duration": [
+     "fragmented_sidx.mp4"
+    ],
+    "streams.duration": [
+     "fragmented_sidx.mp4"
+    ],
+    "streams.duration_ts": [
+     "fragmented_sidx.mp4"
+    ]
+   }
+  },
+  {
    "id": "KD-FF9-FIXTURE-COLOUR-RANGE",
    "keys": {
     "streams.pix_fmt": [
@@ -2152,21 +2169,9 @@
    }
   },
   {
-   "id": "KD-FF9-FIXTURE-SIDX-DURATION",
+   "id": "KD-FF9-FIXTURE-SIDX-BIT-RATE",
    "keys": {
-    "format.bit_rate": [
-     "fragmented_sidx.mp4"
-    ],
-    "format.duration": [
-     "fragmented_sidx.mp4"
-    ],
     "streams.bit_rate": [
-     "fragmented_sidx.mp4"
-    ],
-    "streams.duration": [
-     "fragmented_sidx.mp4"
-    ],
-    "streams.duration_ts": [
      "fragmented_sidx.mp4"
     ]
    }

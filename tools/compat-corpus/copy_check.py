@@ -207,6 +207,68 @@ def placement(offsets, formats):
     return problems
 
 
+# KD-FF9-FIXTURE-SIDX-DURATION (docs/known-divergences-ffprobe9.md): on a
+# fragmented file with a segment index and no edit list whose video starts
+# presenting after 0, ffmpeg makes the file that much longer than its boxes
+# do, so its concat demuxer places the next file that much later.
+SIDX_DURATION = "KD-FF9-FIXTURE-SIDX-DURATION"
+
+
+def presentation(movie):
+    """(end, video start, video samples) of a fragmented movie none of whose
+    tracks has an edit list, from its boxes, times in seconds; None for any
+    other movie. With no edit list a track's media timeline is its
+    presentation timeline (ISO/IEC 14496-12 8.6.6), and a sample presents
+    from its composition time, its decode time (the fragment's tfdt,
+    8.8.12, then the durations before it, 8.8.8) plus its composition
+    offset (8.6.1.3), for its duration. The end is the latest over every
+    track; the video start is the first video track's earliest."""
+    if not movie["fragmented"] or any(t["edits"] is not None for t in movie["tracks"]):
+        return None
+    end, video = fractions.Fraction(0), None
+    for track in movie["tracks"]:
+        samples = track["samples"]
+        if samples["gap"] or not track["timescale"]:
+            return None
+        dts, first = samples["base_dts"], None
+        for duration, cto in zip(samples["durations"], samples["cto"]):
+            composition = fractions.Fraction(dts + cto, track["timescale"])
+            first = composition if first is None else min(first, composition)
+            end = max(end, composition + fractions.Fraction(duration, track["timescale"]))
+            dts += duration
+        if track["handler"] == "vide" and video is None and first is not None:
+            video = (first, len(samples["sizes"]))
+    if video is None:
+        return None
+    return end, video[0], video[1]
+
+
+def composition_gaps(formats, found):
+    """Per input, the time by which ffmpeg's format duration exceeds the end
+    of its presentation by its boxes ([presentation]) when that excess is
+    exactly the video's first composition time
+    (SIDX_DURATION), else 0; `formats` as [placement] takes them."""
+    gaps = []
+    for (_, duration), item in zip(formats, found):
+        gap = fractions.Fraction(0)
+        if item is not None and item[1] > 0 and duration - micros(item[0]) == micros(item[1]):
+            gap = item[1]
+        gaps.append(gap)
+    return gaps
+
+
+def without_gaps(times, gaps, counts):
+    """The packet times of a concat output, each input's packets moved back
+    by the gaps of the inputs before it; `counts` holds each input's video
+    packet count."""
+    out, shift, at = [], fractions.Fraction(0), 0
+    for gap, count in zip(gaps, counts):
+        out.extend((pts - shift, dts - shift) for pts, dts in times[at:at + count])
+        at += count
+        shift += gap
+    return out + times[at:]
+
+
 def packet_times(ffprobe, path):
     """The first video stream's (pts, dts) in seconds, from its first
     packet's pts, edit lists applied."""
@@ -231,7 +293,11 @@ def concat_problems(record, ffprobe, ffmpeg):
     its edit, ffmpeg's muxer moves the next file's first packet to one tick
     after the overlapping one (black box: durations of 1 and 135 ticks at
     the seam of a fixture listed twice), so its times there are not the
-    demuxer's placement, which the first check covers for every stream."""
+    demuxer's placement, which the first check covers for every stream.
+    Where ffmpeg makes an input longer than its boxes by its video's first
+    composition time (SIDX_DURATION), both checks use the end by
+    the boxes: the placement takes it as the input's duration, and
+    ffmpeg's packets after that input move back by the excess."""
     formats = []
     for item in record["detail"]["inputs"]:
         done = subprocess.run([ffprobe, "-v", "error", "-of", "json", "-show_entries", "format=start_time,duration",
@@ -239,7 +305,15 @@ def concat_problems(record, ffprobe, ffmpeg):
         fmt = json.loads(done.stdout)["format"]
         formats.append((micros(fractions.Fraction(fmt["start_time"])), micros(fractions.Fraction(fmt["duration"]))))
     offsets = [fractions.Fraction(r["num"], r["den"]) for r in (writer_corpus.ratio(item["offset"]) for item in record["detail"]["inputs"])]
-    problems = placement(offsets, formats)
+    found = []
+    for item in record["detail"]["inputs"]:
+        try:
+            indexed = any(kind == b"sidx" for kind, *_ in track_boxes.top_level(item["path"]))
+            found.append(presentation(track_boxes.read_movie(item["path"])) if indexed else None)
+        except track_boxes.Unreadable:
+            found.append(None)
+    gaps = composition_gaps(formats, found)
+    problems = placement(offsets, [(start, duration - micros(gap)) for (start, duration), gap in zip(formats, gaps)])
     with tempfile.TemporaryDirectory(prefix="copy-check-concat-") as tmp:
         reference = pathlib.Path(tmp) / "concat.mp4"
         args = [record["input"] if a == "INPUT" else str(reference) if a == "OUTPUT" else a for a in record["args"]]
@@ -248,6 +322,8 @@ def concat_problems(record, ffprobe, ffmpeg):
         if done.returncode != 0:
             return problems + [f"timing: ffmpeg fails on the command ({done.stderr.decode(errors='replace')[-120:]})"]
         theirs = packet_times(ffprobe, reference)
+    if any(gaps):
+        theirs = without_gaps(theirs, gaps, [item[2] for item in found])
     ours = packet_times(ffprobe, record["output"])
     if ours != theirs:
         differ = next((i for i, (a, b) in enumerate(zip(ours, theirs)) if a != b), min(len(ours), len(theirs)))

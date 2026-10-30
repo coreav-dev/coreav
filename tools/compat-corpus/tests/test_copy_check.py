@@ -46,6 +46,35 @@ class Concat(unittest.TestCase):
         # Each file's own start time is moved to where the file goes.
         self.assertEqual(copy_check.placement([F(5), F(8)], [(500_000, 2_000_000), (-500_000, 1_000_000)]), [])
 
+    def test_the_presentation_end_by_the_boxes(self):
+        F = copy_check.fractions.Fraction
+
+        def track(handler, timescale, durations, cto, base=0):
+            return {"handler": handler, "timescale": timescale, "edits": None,
+                    "samples": {"durations": durations, "cto": cto, "sizes": [1] * len(durations),
+                                "base_dts": base, "gap": False}}
+        # Two frames of 512 ticks presented from 1024, and 1 s of audio.
+        video = track("vide", 12_800, [512, 512], [1024, 1024])
+        audio = track("soun", 1000, [500, 500], [0, 0])
+        movie = {"fragmented": True, "tracks": [video, audio]}
+        self.assertEqual(copy_check.presentation(movie), (F(1), F(2, 25), 2))
+        longer = dict(video, samples=dict(video["samples"], durations=[512, 12_800]))
+        self.assertEqual(copy_check.presentation(dict(movie, tracks=[longer, audio])), (F(28, 25), F(2, 25), 2))
+        self.assertIsNone(copy_check.presentation(dict(movie, fragmented=False)))
+        self.assertIsNone(copy_check.presentation(dict(movie, tracks=[dict(video, edits=[(1, 1024, 1)]), audio])))
+        self.assertIsNone(copy_check.presentation(dict(movie, tracks=[audio])))
+
+    def test_only_an_excess_of_the_first_composition_time_is_set_aside(self):
+        F = copy_check.fractions.Fraction
+        found = [(F(502, 25), F(2, 25), 500)] * 2
+        self.assertEqual(copy_check.composition_gaps([(0, 20_160_000)] * 2, found), [F(2, 25)] * 2)
+        self.assertEqual(copy_check.composition_gaps([(0, 20_080_000)] * 2, found), [0, 0])
+        self.assertEqual(copy_check.composition_gaps([(0, 20_200_000), (0, 20_160_000)], [None, found[1]]),
+                         [0, F(2, 25)])
+        times = [(F(i), F(i)) for i in range(4)]
+        self.assertEqual(copy_check.without_gaps(times, [F(1, 2), F(1, 2)], [2, 2]),
+                         [(F(0), F(0)), (F(1), F(1)), (F(3, 2), F(3, 2)), (F(5, 2), F(5, 2))])
+
 
 class Range(unittest.TestCase):
     def test_times_in_ffmpeg_syntax(self):
