@@ -13,7 +13,7 @@ the run). Each arm: REPS timed runs in rotated order, the x264 process's largest
 stat of its main thread. One strace of the default 10-bit pipe arm on 5 frames counts its large anonymous mappings,
 how many of them start on a 2 MiB boundary, and its madvise calls. Results in OUT/thp.jsonl and OUT/stat.
 """
-import argparse, json, os, pathlib, re, subprocess, sys, threading, time
+import argparse, json, os, pathlib, re, signal, subprocess, sys, threading, time
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from why import SOURCE, sha  # noqa: E402
@@ -72,6 +72,7 @@ def main():
         print(json.dumps(rec)[:300], flush=True)
 
     default = current_thp()
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(128 + signal.SIGTERM))
     emit({'kind': 'host', 'thp_enabled': SYSFS.read_text().strip(),
           'thp_defrag': pathlib.Path('/sys/kernel/mm/transparent_hugepage/defrag').read_text().strip()})
     w, h = 3840, 2160
