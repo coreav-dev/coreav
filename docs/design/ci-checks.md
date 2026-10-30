@@ -144,6 +144,15 @@ that a pull request changing the fixture generator, the pinned FFmpeg
 installer or the web-upload policy now measures as well — rare, and the
 safe direction.
 
+## The platform jobs
+
+`check-macos` (Apple Silicon) and `check-windows` (x86-64, MSVC) run the tests and `clippy` configurations of `check` that build there. They are the slowest jobs of `ci.yml` and contend for the smallest runner pools, so a pull request runs them only when it changes code that differs between the platforms. `ci-changes` decides it with a second `paths` list beside its `paths-ignore` list, and a push to main or a manual run always runs them.
+
+- **What is on the list.** The sandbox and the processes it starts (`coreav-worker`, `coreav-transcode`, `coreav-cli`, whose launcher entry, external programs and file outputs have Unix and non-Unix halves), the dav1d and libvpx backends (the macOS job links them against Homebrew's libraries), positioned file reads (`coreav-isobmff/src/source.rs`), the one example with a Unix half, every `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`, `clippy.toml`, `ci.yml` and the filter action. A file outside it that grows a `cfg(unix)`, `cfg(windows)` or `target_os` condition belongs on it.
+- **Covered by `ci-report`.** A job the filter skipped has nothing to say, so the report may cover it (section "What a report job must not hide"). The condition reads only the changed files, which belong to the commit.
+- **No label to force them.** A label such as `ci:all-platforms` would make the condition read the pull request's labels, which is the case that section rules out and `workflow_check.py` refuses for a covered job. To run them on a pull request outside the list, start `ci.yml` by hand on its branch: a manual run is never filtered.
+- **Every step of `check-windows` runs**, even after one fails (`if: ${{ !cancelled() }}`), so one run lists every failure there; the job still fails.
+
 ## DCO sign-off
 
 Every commit a pull request adds carries a Developer Certificate of Origin

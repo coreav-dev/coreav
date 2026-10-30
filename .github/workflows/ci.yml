@@ -40,6 +40,9 @@ jobs:
     timeout-minutes: 5
     outputs:
       run: ${{ steps.filter.outputs.run }}
+      # Whether `check-macos` and `check-windows` run: always on a push or
+      # a manual run, and on a pull request when it changes a path below.
+      platforms: ${{ github.event_name != 'pull_request' || steps.platforms.outputs.run == 'true' }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -56,6 +59,30 @@ jobs:
             *.md
             .context/**
             docs/spikes/**
+      # The code that differs between Linux, macOS and Windows (the sandbox,
+      # the processes it starts, positioned file reads), the backends the
+      # macOS job links against Homebrew's libraries, what the build depends
+      # on, and these jobs themselves (docs/design/ci-checks.md, "The
+      # platform jobs").
+      - id: platforms
+        if: github.event_name == 'pull_request'
+        uses: ./.github/actions/changed-paths
+        with:
+          paths: |
+            crates/coreav-worker/**
+            crates/coreav-transcode/**
+            crates/coreav-cli/**
+            crates/coreav-backend-dav1d/**
+            crates/coreav-backend-libvpx/**
+            crates/coreav-isobmff/src/source.rs
+            crates/coreav-h264/examples/decode.rs
+            Cargo.toml
+            **/Cargo.toml
+            Cargo.lock
+            rust-toolchain.toml
+            clippy.toml
+            .github/workflows/ci.yml
+            .github/actions/changed-paths/**
 
   check:
     needs: ci-changes
@@ -175,7 +202,7 @@ jobs:
     # x264 are Linux x86-64 programs, so the tests run with `CI` unset and
     # those that need them skip, as on a developer's Mac.
     needs: ci-changes
-    if: needs.ci-changes.outputs.run == 'true'
+    if: needs.ci-changes.outputs.run == 'true' && needs.ci-changes.outputs.platforms == 'true'
     runs-on: macos-15
     timeout-minutes: 45
     env:
@@ -227,7 +254,7 @@ jobs:
     # link libraries this runner does not have. The tests run with `CI`
     # unset, as on macOS.
     needs: ci-changes
-    if: needs.ci-changes.outputs.run == 'true'
+    if: needs.ci-changes.outputs.run == 'true' && needs.ci-changes.outputs.platforms == 'true'
     runs-on: windows-2025
     timeout-minutes: 60
     defaults:
@@ -244,13 +271,26 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - run: cargo clippy --workspace --all-targets -- -D warnings
-      - run: cargo clippy -p coreav-h264 --no-default-features --all-targets -- -D warnings
-      - run: cargo clippy -p coreav-cli --features ffmpeg-fallback --all-targets -- -D warnings
-      - run: cargo clippy -p coreav-py --features thumbnail --all-targets -- -D warnings
-      - run: env -u CI cargo test --workspace --no-fail-fast
-      - run: cargo test -p coreav-cli --features ffmpeg-fallback --test docs_site
-      - run: |
+      # Each step runs even after one above failed, so one run lists every
+      # failure on this platform.
+      - if: ${{ !cancelled() }}
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - if: ${{ !cancelled() }}
+        run: cargo clippy -p coreav-h264 --no-default-features --all-targets -- -D warnings
+      - if: ${{ !cancelled() }}
+        run: cargo clippy -p coreav-cli --features ffmpeg-fallback --all-targets -- -D warnings
+      - if: ${{ !cancelled() }}
+        run: cargo clippy -p coreav-py --features thumbnail --all-targets -- -D warnings
+      - if: ${{ !cancelled() }}
+        run: env -u CI cargo test --workspace --no-fail-fast
+      - if: ${{ !cancelled() }}
+        run: |
+          env -u CI cargo test -p coreav-cli --features ffmpeg-fallback --test strict_safe
+          env -u CI cargo test -p coreav-cli --features native-h264 --test strict_safe
+      - if: ${{ !cancelled() }}
+        run: cargo test -p coreav-cli --features ffmpeg-fallback --test docs_site
+      - if: ${{ !cancelled() }}
+        run: |
           cargo test --release -p coreav-isobmff --test hostile -- --ignored
           cargo test --release -p coreav-isobmff-write --test extract outputs_above_4_gib -- --ignored
           cargo test --release -p coreav-isobmff -p coreav-isobmff-write --test memory -- --include-ignored --nocapture --test-threads=1
