@@ -297,7 +297,8 @@ def concat_problems(record, ffprobe, ffmpeg):
     Where ffmpeg makes an input longer than its boxes by its video's first
     composition time (SIDX_DURATION), both checks use the end by
     the boxes: the placement takes it as the input's duration, and
-    ffmpeg's packets after that input move back by the excess."""
+    ffmpeg's packets after that input move back by the excess, each input
+    holding the video packets the pinned ffprobe lists for it."""
     formats = []
     for item in record["detail"]["inputs"]:
         done = subprocess.run([ffprobe, "-v", "error", "-of", "json", "-show_entries", "format=start_time,duration",
@@ -323,7 +324,8 @@ def concat_problems(record, ffprobe, ffmpeg):
             return problems + [f"timing: ffmpeg fails on the command ({done.stderr.decode(errors='replace')[-120:]})"]
         theirs = packet_times(ffprobe, reference)
     if any(gaps):
-        theirs = without_gaps(theirs, gaps, [item[2] for item in found])
+        counts = [len(packet_times(ffprobe, item["path"])) for item in record["detail"]["inputs"]]
+        theirs = without_gaps(theirs, gaps, counts)
     ours = packet_times(ffprobe, record["output"])
     if ours != theirs:
         differ = next((i for i, (a, b) in enumerate(zip(ours, theirs)) if a != b), min(len(ours), len(theirs)))

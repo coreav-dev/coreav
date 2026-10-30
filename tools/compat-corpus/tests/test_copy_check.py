@@ -1,8 +1,11 @@
 """copy_check.py's reading of ffmpeg's stream mapping and of the
 summaries (docs/design/compat-cli.md, "coreav ffmpeg")."""
+import json
 import pathlib
+import subprocess
 import sys
 import unittest
+from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
@@ -74,6 +77,47 @@ class Concat(unittest.TestCase):
         times = [(F(i), F(i)) for i in range(4)]
         self.assertEqual(copy_check.without_gaps(times, [F(1, 2), F(1, 2)], [2, 2]),
                          [(F(0), F(0)), (F(1), F(1)), (F(3, 2), F(3, 2)), (F(5, 2), F(5, 2))])
+
+    def test_an_indexed_input_beside_an_ordinary_one(self):
+        # The first input has a segment index and its video presents from
+        # 0.08 s: ffmpeg gives it 1.08 s, its boxes 1 s, and places the
+        # second, ordinary input (two frames from 0) that much later. The
+        # join places it at 1 s, and ffmpeg's packets after the first input
+        # are read 0.08 s earlier.
+        def track(handler, timescale, durations, cto):
+            return {"handler": handler, "timescale": timescale, "edits": None,
+                    "samples": {"durations": durations, "cto": cto, "sizes": [1] * len(durations),
+                                "base_dts": 0, "gap": False}}
+        movie = {"fragmented": True, "tracks": [track("vide", 12_800, [512, 512], [1024, 1024]),
+                                                track("soun", 1000, [500, 500], [0, 0])]}
+        formats = {"indexed.mp4": (0, 1.08), "plain.mp4": (0, 1)}
+        packets = {"indexed.mp4": [8, 12], "plain.mp4": [0, 4], "concat.mp4": [8, 12, 108, 112],
+                   "join.mp4": [8, 12, 100, 104]}
+
+        def run(args, **_):
+            path = pathlib.Path(args[-1]).name
+            if "format=start_time,duration" in args:
+                start, duration = formats[path]
+                out = {"format": {"start_time": str(start), "duration": str(duration)}}
+            elif "stream=time_base:packet=pts,dts" in args:
+                out = {"streams": [{"time_base": "1/100"}], "packets": [{"pts": t, "dts": t} for t in packets[path]]}
+            else:
+                out = {}
+            return subprocess.CompletedProcess(args, 0, json.dumps(out).encode(), b"")
+
+        record = {"detail": {"inputs": [{"path": "indexed.mp4", "offset": {"num": 0, "den": 1}},
+                                        {"path": "plain.mp4", "offset": {"num": 1, "den": 1}}]},
+                  "input": "list.txt", "args": ["-f", "concat", "-i", "INPUT", "-c", "copy", "OUTPUT"],
+                  "output": "join.mp4"}
+        boxes = {"indexed.mp4": [(b"ftyp",), (b"sidx",), (b"moof",)], "plain.mp4": [(b"ftyp",), (b"moov",)]}
+        with mock.patch.object(copy_check.subprocess, "run", run), \
+                mock.patch.object(copy_check.track_boxes, "top_level", lambda path: boxes[path]), \
+                mock.patch.object(copy_check.track_boxes, "read_movie", lambda path: movie), \
+                mock.patch.object(copy_check.writer_corpus, "ratio", lambda value: value):
+            self.assertEqual(copy_check.concat_problems(record, "ffprobe", "ffmpeg"), [])
+            packets["join.mp4"] = [8, 12, 108, 112]
+            self.assertEqual(copy_check.concat_problems(record, "ffprobe", "ffmpeg"),
+                             ["timing: video packet 2 of 4 at other times than ffmpeg concat's (4 packets)"])
 
 
 class Range(unittest.TestCase):
