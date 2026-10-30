@@ -5,7 +5,7 @@
  "first_candidate_build_utc": "2026-10-30 12:55",
  "instructions": "callgrind instruction count, collection inside MultistreamDecoder::decode only",
  "ns": "wall time on one development machine, loop mode, minimum of 5 after a first pass; for orientation only",
- "projection": "library_median_if_cut: the round-1 library medians (evidence/opus-perf.json) with each CELT input library time reduced by (1 - instructions_ratio_median) times its decoder-alone time",
+ "projection": "An estimate from instruction counts, not a measured time ceiling. library_median_if_cut: the round-1 library medians (evidence/opus-perf.json) with each CELT input library time reduced by (1 - instructions_ratio_median) times its decoder-alone time; library_median_if_smallest_cut: the same with the smallest saving of the six inputs. Both apply one saving to every CELT input and take an instruction saving as an equal time saving; the ns figures, single development runs, do not confirm that stage by stage",
  "library_median_round1": {
   "all": 1.00248,
   "mp4": 1.00424,
@@ -56,10 +56,19 @@
    },
    "instructions_ratio_median": 0.8542,
    "time_ratio_median": 0.8905,
+   "instructions_saving_range": [
+    0.0772,
+    0.2452
+   ],
    "library_median_if_cut": {
     "all": 0.8691,
     "mp4": 0.87138,
     "matroska": 0.86699
+   },
+   "library_median_if_smallest_cut": {
+    "all": 0.92996,
+    "mp4": 0.93258,
+    "matroska": 0.92434
    }
   },
   "no_fft": {
@@ -82,10 +91,19 @@
    },
    "instructions_ratio_median": 0.9469,
    "time_ratio_median": 0.9592,
+   "instructions_saving_range": [
+    0.0194,
+    0.0947
+   ],
    "library_median_if_cut": {
     "all": 0.95175,
     "mp4": 0.95411,
     "matroska": 0.94629
+   },
+   "library_median_if_smallest_cut": {
+    "all": 0.98368,
+    "mp4": 0.9857,
+    "matroska": 0.97816
    }
   },
   "no_first": {
@@ -108,10 +126,19 @@
    },
    "instructions_ratio_median": 0.9649,
    "time_ratio_median": 1.0011,
+   "instructions_saving_range": [
+    0.0138,
+    0.0584
+   ],
    "library_median_if_cut": {
     "all": 0.96866,
     "mp4": 0.97146,
     "matroska": 0.96293
+   },
+   "library_median_if_smallest_cut": {
+    "all": 0.98914,
+    "mp4": 0.99112,
+    "matroska": 0.98358
    }
   },
   "no_pre": {
@@ -134,10 +161,19 @@
    },
    "instructions_ratio_median": 0.99,
    "time_ratio_median": 1.015,
+   "instructions_saving_range": [
+    0.0054,
+    0.0164
+   ],
    "library_median_if_cut": {
     "all": 0.9928,
     "mp4": 0.99478,
     "matroska": 0.98724
+   },
+   "library_median_if_smallest_cut": {
+    "all": 0.99724,
+    "mp4": 0.99912,
+    "matroska": 0.99168
    }
   },
   "no_post": {
@@ -160,10 +196,19 @@
    },
    "instructions_ratio_median": 0.9895,
    "time_ratio_median": 1.0498,
+   "instructions_saving_range": [
+    0.0052,
+    0.0172
+   ],
    "library_median_if_cut": {
     "all": 0.99232,
     "mp4": 0.9943,
     "matroska": 0.98676
+   },
+   "library_median_if_smallest_cut": {
+    "all": 0.99745,
+    "mp4": 0.99933,
+    "matroska": 0.99189
    }
   },
   "no_gather": {
@@ -186,10 +231,19 @@
    },
    "instructions_ratio_median": 0.9864,
    "time_ratio_median": 1.0108,
+   "instructions_saving_range": [
+    0.0084,
+    0.0222
+   ],
    "library_median_if_cut": {
     "all": 0.98934,
     "mp4": 0.99133,
     "matroska": 0.98379
+   },
+   "library_median_if_smallest_cut": {
+    "all": 0.99436,
+    "mp4": 0.99632,
+    "matroska": 0.98881
    }
   },
   "no_unpack": {
@@ -212,10 +266,19 @@
    },
    "instructions_ratio_median": 0.9868,
    "time_ratio_median": 1.0765,
+   "instructions_saving_range": [
+    0.0063,
+    0.0219
+   ],
    "library_median_if_cut": {
     "all": 0.98974,
     "mp4": 0.99173,
     "matroska": 0.98419
+   },
+   "library_median_if_smallest_cut": {
+    "all": 0.99634,
+    "mp4": 0.99825,
+    "matroska": 0.99079
    }
   },
   "no_window": {
@@ -238,10 +301,19 @@
    },
    "instructions_ratio_median": 0.9847,
    "time_ratio_median": 1.0264,
+   "instructions_saving_range": [
+    0.0096,
+    0.0175
+   ],
    "library_median_if_cut": {
     "all": 0.98772,
     "mp4": 0.98971,
     "matroska": 0.98217
+   },
+   "library_median_if_smallest_cut": {
+    "all": 0.99324,
+    "mp4": 0.99522,
+    "matroska": 0.98768
    }
   },
   "no_clear": {
@@ -264,10 +336,19 @@
    },
    "instructions_ratio_median": 0.9694,
    "time_ratio_median": 0.9895,
+   "instructions_saving_range": [
+    0.0149,
+    0.1105
+   ],
    "library_median_if_cut": {
     "all": 0.97308,
     "mp4": 0.97552,
     "matroska": 0.9673
+   },
+   "library_median_if_smallest_cut": {
+    "all": 0.9881,
+    "mp4": 0.99008,
+    "matroska": 0.98254
    }
   },
   "no_rotate": {
@@ -290,10 +371,19 @@
    },
    "instructions_ratio_median": 0.9456,
    "time_ratio_median": 0.95,
+   "instructions_saving_range": [
+    0.0012,
+    0.1287
+   ],
    "library_median_if_cut": {
     "all": 0.9506,
     "mp4": 0.95291,
     "matroska": 0.94511
+   },
+   "library_median_if_smallest_cut": {
+    "all": 1.0013,
+    "mp4": 1.00309,
+    "matroska": 0.99574
    }
   },
   "no_postfilter": {
@@ -316,10 +406,19 @@
    },
    "instructions_ratio_median": 0.9745,
    "time_ratio_median": 0.9878,
+   "instructions_saving_range": [
+    0.0103,
+    0.0748
+   ],
    "library_median_if_cut": {
     "all": 0.97786,
     "mp4": 0.97983,
     "matroska": 0.9723
+   },
+   "library_median_if_smallest_cut": {
+    "all": 0.99255,
+    "mp4": 0.99454,
+    "matroska": 0.987
    }
   },
   "no_deemphasis": {
@@ -342,10 +441,19 @@
    },
    "instructions_ratio_median": 0.976,
    "time_ratio_median": 1.0044,
+   "instructions_saving_range": [
+    0.0105,
+    0.0399
+   ],
    "library_median_if_cut": {
     "all": 0.9793,
     "mp4": 0.98129,
     "matroska": 0.97376
+   },
+   "library_median_if_smallest_cut": {
+    "all": 0.99232,
+    "mp4": 0.9943,
+    "matroska": 0.98676
    }
   },
   "no_denorm": {
@@ -368,10 +476,19 @@
    },
    "instructions_ratio_median": 0.9816,
    "time_ratio_median": 0.9986,
+   "instructions_saving_range": [
+    0.0072,
+    0.0257
+   ],
    "library_median_if_cut": {
     "all": 0.98466,
     "mp4": 0.98667,
     "matroska": 0.97913
+   },
+   "library_median_if_smallest_cut": {
+    "all": 0.99548,
+    "mp4": 0.99741,
+    "matroska": 0.98992
    }
   }
  }
