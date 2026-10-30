@@ -506,8 +506,14 @@ fn decodes_an_mp4_aac_track_as_ffmpeg_does() {
     assert!(outputs[0] == outputs[1]);
     let data = outputs[0].windows(4).position(|w| w == b"data").unwrap() + 8;
     let ours = floats(&outputs[0][data..]);
+    assert!(
+        ours.len().abs_diff(theirs.len()) <= 2 * 1024,
+        "{} values, ffmpeg {}",
+        ours.len(),
+        theirs.len()
+    );
     let n = ours.len().min(theirs.len());
-    assert!(n > 8 * 44_100);
+    assert!(n >= 2 * (8 * 44_100 - 1024), "{n} values compared");
     let (mut sum, mut max) = (0f64, 0f64);
     for (a, b) in ours[..n].iter().zip(&theirs[..n]) {
         let d = f64::from(a - b).abs();
