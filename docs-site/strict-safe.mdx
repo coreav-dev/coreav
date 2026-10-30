@@ -5,7 +5,7 @@ description: "Choose what coreav ffprobe and coreav ffmpeg do with a command lin
 
 `coreav ffprobe` and `coreav ffmpeg` take FFmpeg's command lines. CoreAV implements a subset of them. A command line outside that subset either goes to the real `ffprobe` or `ffmpeg` (the fallback), or is refused (strict-safe mode).
 
-The fallback is on by default, so a script that calls FFmpeg keeps working. If your service reads files it did not make, such as uploads, turn on strict-safe mode. In a default build, it is the only mode in which no FFmpeg code runs on the input. A build with a decoder backend differs: [what strict-safe mode covers](#what-strict-safe-mode-covers) says how.
+The fallback is on by default, so a script that calls FFmpeg keeps working. If your service reads files it did not make, such as uploads, turn on strict-safe mode. In a default build, it is the only mode in which no FFmpeg code runs. A build with a decoder backend can still run an `ffmpeg` program to decode or encode video: [what strict-safe mode covers](#what-strict-safe-mode-covers) says when.
 
 <Note>
 The other commands (`probe`, `check`, `clip`, `split`, `join`, `remux`, `sanitize`, `extract-audio`, `extract-subtitles`, `chapters`, `decode-audio`, `hls`) never run FFmpeg, in either mode.
@@ -13,14 +13,15 @@ The other commands (`probe`, `check`, `clip`, `split`, `join`, `remux`, `sanitiz
 
 ## What strict-safe mode covers
 
-Strict-safe mode turns off the command-line fallback: a command line that CoreAV does not implement is refused instead of handed to the real `ffprobe` or `ffmpeg`. It does not turn off decoding through FFmpeg, which only builds with the `ffmpeg-fallback` decoder backend have.
+Strict-safe mode turns off the command-line fallback: a command line that CoreAV does not implement is refused instead of handed to the real `ffprobe` or `ffmpeg`. It does not stop `coreav transcode`, `coreav thumbnail` and the `libx264` command lines of `coreav ffmpeg` from running an `ffmpeg` program as their decoder or encoder. Only builds with a decoder backend have those commands.
 
-| Build | `ffmpeg` runs on the input in strict-safe mode |
+| Build | What an `ffmpeg` program can do in strict-safe mode |
 |---|---|
-| Default build, which the release binaries planned for 0.1.0 are | Never. It has no decoder backend. |
-| With the `ffmpeg-fallback` [build feature](/build-features) | To decode video for `coreav transcode`, `coreav thumbnail` and the `libx264` command lines of `coreav ffmpeg`, in the sandboxed worker. It gets the packets of one video stream, never the file ([decoding through FFmpeg](#decoding-through-ffmpeg-in-builds-with-a-decoder-backend)). |
+| Default build, which the release binaries planned for 0.1.0 are | Nothing. No FFmpeg code runs. |
+| With any decoder backend ([build features](/build-features)) | Encode. `coreav transcode` and the `libx264` command lines of `coreav ffmpeg` send decoded frames to an `ffmpeg` program when it is the encoder: with `--encoder ffmpeg`, or with `--encoder auto` (the default) when no `x264` program is found. |
+| With the `ffmpeg-fallback` backend | Also decode. For the video streams that the build gives to this backend, `ffmpeg` in the sandboxed worker gets the packets of one video stream, in a Matroska stream that CoreAV writes ([decoding through FFmpeg](#decoding-through-ffmpeg-in-builds-with-a-decoder-backend)). |
 
-If no FFmpeg code may run on your input, use a build without `ffmpeg-fallback`.
+In none of these builds does FFmpeg open the input file or parse its container. To keep FFmpeg from encoding, use `--encoder x264` with `coreav transcode`, or install an `x264` program (`COREAV_X264`, or `x264` on `PATH`). To keep it from decoding, use a build without `ffmpeg-fallback`.
 
 ## Turn on strict-safe mode
 
@@ -47,7 +48,7 @@ $ echo $?
 4
 ```
 
-A refusal of an option or a value that CoreAV does not implement comes before the input is opened. Some refusals depend on the input or the output, such as a source with chapters or an output file that already exists, so they come after the input is opened. No refusal writes or changes the output. A program that gets exit status 4 can send the job somewhere else, or reject it.
+A refusal can come after the input is opened, for example for a source with chapters, an output file that already exists, or a value such as `-crf 90`. No refusal writes or changes the output. A program that gets exit status 4 can send the job somewhere else, or reject it.
 
 ## The FFmpeg fallback
 

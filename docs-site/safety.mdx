@@ -29,7 +29,7 @@ Builds with a decoder backend run dav1d, libvpx and the `ffmpeg` program in a se
 
 ## Strict-safe mode turns off the FFmpeg fallback
 
-`coreav ffprobe` and `coreav ffmpeg` hand the command lines they do not implement to the real FFmpeg, unless strict-safe mode is on. In strict-safe mode they refuse those command lines. In a default build, which the release binaries planned for 0.1.0 are, no FFmpeg code then runs on the input. A build with the `ffmpeg-fallback` decoder backend still decodes video through `ffmpeg` in the worker for `transcode`, `thumbnail` and `libx264` command lines, in strict-safe mode too. For input that no FFmpeg code may touch, use a build without that feature ([what strict-safe mode covers](/strict-safe#what-strict-safe-mode-covers)).
+`coreav ffprobe` and `coreav ffmpeg` hand the command lines they do not implement to the real FFmpeg, unless strict-safe mode is on. In strict-safe mode they refuse those command lines. In a default build, which the release binaries planned for 0.1.0 are, no FFmpeg code then runs. A build with a decoder backend can still run an `ffmpeg` program in strict-safe mode: as the encoder of `transcode` and `libx264` command lines when no `x264` program is used, and, with the `ffmpeg-fallback` feature, as the decoder of those and `thumbnail`. FFmpeg then gets frames or packets that CoreAV sends it, never the input file ([what strict-safe mode covers](/strict-safe#what-strict-safe-mode-covers)).
 
 ## Written from specifications
 

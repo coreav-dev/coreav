@@ -480,10 +480,11 @@ failed remote read), 141 standard output closed by its reader. `ffprobe`
 itself exits 1 for all of 1 to 3; a script that tests for success sees the
 same answer.
 
-An option or value outside the vocabulary is refused while the command
-line is parsed, before the input is opened. A refusal that depends on the
-input or the output (a property of the source that `coreav ffmpeg` does not
-copy, an output that already exists) comes once the input is read.
+A refusal while the command line is parsed comes before the input is
+opened. A refusal while the job is planned or run comes once the input is
+read: a property of the source that `coreav ffmpeg` does not copy, an
+output that already exists, or an encoder value it does not implement
+(`-crf 90`).
 
 A refused command runs FFmpeg's `ffmpeg` or `ffprobe` instead unless
 strict-safe mode is on (`COREAV_STRICT_SAFE=1`, `coreav --strict-safe`),
@@ -1187,10 +1188,10 @@ Only a refusal is handed on. A file CoreAV rejects (exit 1), a malformed
 command (2) and an input that cannot be read (3) keep their status: the
 rejection of a file is CoreAV's verdict on that file, and handing it on
 would send FFmpeg exactly the files the checks stopped. No refusal writes
-output, so no partial output exists. A refusal of an option or value comes
-before the input is opened, so FFmpeg gets standard input unread; one that
-depends on the input or the output comes once the input is read ("Refusal
-and exit codes"). Rejected: falling
+output, so no partial output exists. A refusal while the command line is
+parsed comes before the input is opened, so FFmpeg gets standard input
+unread; one while the job is planned or run comes once the input is read
+("Refusal and exit codes"). Rejected: falling
 back on exit 1 too, which a drop-in would like but which defeats the
 checks; and a per-tool pair of variables, where one directory is how FFmpeg
 installs both tools.
