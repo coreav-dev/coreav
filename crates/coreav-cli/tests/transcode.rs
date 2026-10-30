@@ -486,6 +486,7 @@ fn repeated_webm_times_keep_every_frame() {
         .args(["-nostdin", "-v", "error", "-y", "-f", "lavfi", "-i"])
         .arg("testsrc=size=64x48:rate=30,settb=1/10000,setpts=floor(N/3)*400+mod(N\\,3)")
         .args(["-frames:v", "12", "-fps_mode", "passthrough"])
+        .args(["-enc_time_base:v", "1/10000"])
         .args(["-c:v", "libvpx", "-pix_fmt", "yuv420p"])
         .arg(&source)
         .status()
