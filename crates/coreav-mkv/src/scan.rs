@@ -318,7 +318,7 @@ impl Segment {
                 // A ProRes frame stored without the frame size and `icpf`
                 // that start it in an ISO base media sample reads as if they
                 // were there. A frame too short for the atom has none; a
-                // source that fails to read fails the scan (#594).
+                // source that fails to read fails the scan.
                 let mut head = [0u8; 8];
                 let atom = match frame.read_exact_at(0, &mut head) {
                     Ok(()) => head.get(4..8) == Some(b"icpf".as_slice()),

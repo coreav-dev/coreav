@@ -1,5 +1,5 @@
 build: (cd <worktree at rev> && CARGO_TARGET_DIR=<tgt-name> cargo build --locked --profile dist --example decode -p coreav-h264)
-base = main b66e452f (#385), a = b96e94ce, c = 3d8d6b96 (perf/h264-luma-mc)
+base = main b66e452f, a = b96e94ce, c = 3d8d6b96 (perf/h264-luma-mc)
 26cc09e649d4934aaa7c6cc2b7add5ebcbb1df7a4f5d0ae714d1d365f177ef8c  $HOME/ab/luma/w/decode-base
 3ab4cb8d2348c02a00b7a92df7a1fd66858095c5d66f39959af53ee3e9d440bc  $HOME/ab/luma/w/decode-a
 e3471aca0150af03ef799af2451b7e6da543be88ed08ffee062951f5b5442069  $HOME/ab/luma/w/decode-c

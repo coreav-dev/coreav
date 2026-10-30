@@ -246,7 +246,7 @@ fn slow_consumer_after_the_end_of_input() {
 /// end: the frames FFmpeg decodes meanwhile reach the parent, as a caller
 /// that paces its packets on the frames it gets needs. Before the worker
 /// handed frames on while idle they waited for the next message, and such
-/// a caller stalled (#585).
+/// a caller stalled.
 #[test]
 #[ignore = "needs ffmpeg"]
 fn frames_come_while_no_packet_does() {

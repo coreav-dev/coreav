@@ -101,8 +101,8 @@ not the writer:
   sample tables and edit list. It covers this stream and the two
   `KD-T-QT-STYLE` covered.
 
-The recheck ([`text-corpus-v1.recheck-334.json.gz`](text-corpus-v1.recheck-334.json.gz),
-crash check [`text-corpus-v1.recheck-334.smoke.txt`](text-corpus-v1.recheck-334.smoke.txt))
+The recheck ([`text-corpus-v1.recheck-quicktime-text.json.gz`](text-corpus-v1.recheck-quicktime-text.json.gz),
+crash check [`text-corpus-v1.recheck-quicktime-text.smoke.txt`](text-corpus-v1.recheck-quicktime-text.smoke.txt))
 used `ffmpeg`, `ffprobe` 7.0.2 and MediaInfo 26.10 with `coreav` built from
 `main`. With `main`'s oracle on the same files and binary, 59 of 61 streams
 pass, the two above failing; with this change's, 61 of 61. The chapter

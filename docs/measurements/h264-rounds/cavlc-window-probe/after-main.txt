@@ -1,4 +1,4 @@
-After bundle 2 merged (#515): main ae609547 merged into the branch (92d452fb). k (bin-cw-k2) against main (bin-main2):
+After bundle 2 merged: main ae609547 merged into the branch (92d452fb). k (bin-cw-k2) against main (bin-main2):
 output md5 at the class frame counts, 1 and 8 threads, and callgrind instructions of the six CAVLC streams there.
 3c593b8f0809 720p t1 3f9afa696522748ac06fa3837804a7e9 3f9afa696522748ac06fa3837804a7e9 identical
 1d4b1775d78a 720p t1 56fea60138a4e7d564c2b0a79b94e981 56fea60138a4e7d564c2b0a79b94e981 identical

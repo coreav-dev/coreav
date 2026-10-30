@@ -1,5 +1,5 @@
 """The fixture check counters of tools/stage3-report/run.py: each reads its
-check's report, whatever line the check prints last (issue #178)."""
+check's report, whatever line the check prints last."""
 import importlib.util
 import json
 import pathlib

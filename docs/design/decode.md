@@ -156,8 +156,13 @@ class that produced PixelSmash: they are decoded only when an operator
 adds them.
 
 `Limits`, the decode limits on resolution, reference frames and decoded
-bytes, checked by the parent on every frame whatever
-the backend says:
+bytes. The frame limits (`max_width`, `max_height`, `max_pixels`,
+`max_frame_bytes`) and `max_packet_bytes` are checked by `open` on every
+packet sent and every frame received, whatever the backend checks: the
+decoder it returns wraps the backend's, so no backend can leave them out.
+A backend checks them too where it can refuse earlier (a stated picture
+size before it allocates) and for a caller that opens it directly. The
+other limits are the backend's to enforce:
 
 | Limit | Default | Why |
 |---|---|---|
@@ -165,7 +170,7 @@ the backend says:
 | `max_pixels` | 2^27 (134,217,728) | 16K × 8K; 8K UHD is 33 million. |
 | `max_frame_bytes` | 512 MiB | 8K 4:4:4 at 16 bits is 398 MiB. |
 | `max_decoded_bytes` | 4 GiB | Per decoder: bytes of every frame it outputs. |
-| `max_pending_bytes` | 1 GiB | Frames decoded but not yet received; and, apart, packets sent but not yet taken by the decoder (in the worker, and on their way to FFmpeg). |
+| `max_pending_bytes` | 1 GiB | Frames decoded but not yet received; and, apart, packets sent but not yet taken by the decoder (in the worker, and on their way to FFmpeg). Past it the sandboxed worker waits for the caller to receive frames ("Threads and backpressure"), while the in-process backends (native, dav1d, libvpx) refuse with `Limit`, as they cannot block a caller that is not receiving. Packets waiting past it in the worker, or on their way to FFmpeg, are refused with `Limit`. |
 | `max_packet_bytes` | 128 MiB | The container limit. |
 | `timeout` | 60 s | Wall clock per decoder, from open to the last frame; the worker is killed when it passes. |
 | `max_reference_frames` | 16 | The most H.264 and HEVC allow; NVDEC's DPB. |

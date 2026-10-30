@@ -1,7 +1,7 @@
 """rec_miss.py ES_DIR OUT ROUNDS CORE_MAIN CORE_FT FFMPEG_ATTR: the eight-thread miss probe's records (README.md), a
 variant of ../profile-ae609547-pmu/rec_pmu.py.
 
-Decoders: `main` (CoreAV `main`), `ft` (`main` with #508's code commit) and `ffa` (FFmpeg's attribution build), on the
+Decoders: `main` (CoreAV `main`), `ft` (`main` with the first-touch round's code commit) and `ffa` (FFmpeg's attribution build), on the
 32 training streams at the class frame counts, CoreAV `--discard` against `ffmpeg -f null`. Placements:
 - `p1`: one thread (`--threads 1`, `-threads 1`) pinned to CPU 3;
 - `p81`: eight threads (`--threads 8`, `-threads 8`), every thread pinned to CPU 3: the banded decode's work and

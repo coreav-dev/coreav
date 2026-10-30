@@ -262,7 +262,7 @@ def output_mutations(packets, half):
 class PacketMutations(unittest.TestCase):
     """Each packet known divergence covers its pattern, and a bug-shaped
     change to the output's packets on top of it stays visible: an
-    uncovered difference (the #162 method, on the packet evidence)."""
+    uncovered difference (the known-divergence audit's method, on the packet evidence)."""
 
     def test_each_pattern_is_covered(self):
         for name, (make, kd) in SCENARIOS.items():

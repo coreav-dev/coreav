@@ -607,7 +607,7 @@ impl<'scope> Stream<'scope> {
         };
         let mut warnings = Vec::new();
         // The container's values are cross-checked; the codec
-        // configuration wins (#209's interface).
+        // configuration wins.
         if let Some(rate) = container
             .sample_rate
             .filter(|&r| r != 0 && r != format.sample_rate)

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Gating run for the entropy round "the residual's block dispatch" (#480): run-ab-helper.sh BASE K
+# Gating run for the entropy round "the residual's block dispatch": run-ab-helper.sh BASE K
 # (BASE: main e2271b3a; K: the branch's code commit fded8560). Bars RD-1 to RD-6 of docs/design/h264.md, "Entropy round:
 # the residual's block dispatch". Harness: scripts/h264_parity.py of main acf3ee2f, beside this script, with the options of
 # the method section: --shuffle-seed 20261026 --null-arm base --gate-stream 36501d448eaa.0.720p.h264 --gate-every 4.

@@ -775,12 +775,12 @@ below 98% miss by one file.
 ## Round 6
 
 The code of round 5 with ISO base media bit rates and durations over the
-whole media (#8), fragmented tracks that start late (#8, #12), and three
+whole media (coreav-dev/coreav#8), fragmented tracks that start late (coreav-dev/coreav#8, coreav-dev/coreav#12), and three
 rounds of MPEG-TS work: streams without tables, payload-named streams,
-decoding times and codec fields (#9); streams numbered and listed per
-program (#15); and the packet listing, with MPEG-1/2 video cut into
+decoding times and codec fields (coreav-dev/coreav#9); streams numbered and listed per
+program (coreav-dev/coreav#15); and the packet listing, with MPEG-1/2 video cut into
 pictures, SCTE 35 sections as data packets, and audio frames cut by PES
-packets or by the end of the file (#17). The method is that of round 5,
+packets or by the end of the file (coreav-dev/coreav#17). The method is that of round 5,
 unchanged. B3a, on the fixtures and on the corpus, ran on the binary of
 `3a7cb49`. B4 was last measured in round 3 and was not run again on this
 code.
@@ -790,7 +790,7 @@ code.
 Binary of `3a7cb49`. The ISO base media set has grown by three fixtures
 since round 5 (a fragmented subtitle track, a fragmented file whose
 decoding times all start late, and declared averages patched into an
-edit-list file; #8):
+edit-list file; coreav-dev/coreav#8):
 
 | Fixtures | B1 `ffprobe` refusals | B1 `ffmpeg` refusals | B2 runs | B3a identical output |
 |---|---|---|---|---|
@@ -821,7 +821,7 @@ out 21 of 95), Matroska and WebM 2 of 101 (development 2 of 95, held out
 0 of 92), MPEG-TS 35 of 157 (round 5: 65; development 6 of 157, held out
 35 of 151). No key's rate fell against round 5.
 
-The MPEG-TS work of #9, #15 and #17 was written against the
+The MPEG-TS work of coreav-dev/coreav#9, coreav-dev/coreav#15 and coreav-dev/coreav#17 was written against the
 development files, and it generalizes: 27 held-out keys crossed 98% and
 the held-out count fell from 62 to 35, while the development count stayed
 at 6. With 14 held-out MPEG-TS files compared, one disagreeing file puts
@@ -830,7 +830,7 @@ every packet key (12 of 14 on each) and one that disagrees on the stream
 and format keys.
 
 On ISO base media five keys rose, all from the bit-rate and duration work
-of #8: stream `bit_rate` crossed the bar (90.61% to 98.18% of 1044
+of coreav-dev/coreav#8: stream `bit_rate` crossed the bar (90.61% to 98.18% of 1044
 files), and stream `duration` and `duration_ts` (96.85% to 97.81% of
 1049), `format.duration` (96.85% to 97.71% of 1049) and `format.bit_rate`
 (97.14% to 97.90% of 1048) rose without reaching it. Matroska and WebM did not move: nothing in this round touched
@@ -924,7 +924,7 @@ them.
 
 ## Round 7
 
-The code of round 6 with ISO base media and Matroska fixes (#24): codec
+The code of round 6 with ISO base media and Matroska fixes (coreav-dev/coreav#24): codec
 fields of sample entries without a configuration record, read from the
 first frame or fixed by the codec; display matrices composed with the
 movie header's, and their rotation; chapters merged over every text track

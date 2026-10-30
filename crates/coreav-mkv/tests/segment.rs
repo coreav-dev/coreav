@@ -79,7 +79,7 @@ impl coreav_mkv::Source for FailingAt<'_> {
     }
 }
 
-/// A read that fails is not the end of the data (#594): wherever the
+/// A read that fails is not the end of the data: wherever the
 /// failure falls, including the reads of the first key frame's header,
 /// which are best effort for a damaged file, the probe fails with it.
 #[test]

@@ -1,4 +1,4 @@
-# Gating run of #573 (bars SF-1 to SF-7)
+# Gating run of the CAVLC slice function round (bars SF-1 to SF-7)
 
 `base` = `main` at `3f918b38`, `k` = `983e8bc3` (`perf/h264-cavlc-slice-fn`; the branch's later commits change a comment in `decoder.rs` and docs only). One-thread calls on helper VM 2
 (Intel Xeon @ 2.90 GHz, family 6 model 106; calibration `helper2-calibration/` on `measured/h264-helper2-calibration`); `provenance.txt`: binaries' sha256 (`k`, and `k` built without `fast`), the

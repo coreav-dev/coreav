@@ -255,7 +255,7 @@ PREDICATES = {
 
 
 # Entries for keys the stream oracle does not gate, which
-# scripts/compat_check.py applies to `--ffprobe-compat` output (#219):
+# scripts/compat_check.py applies to `--ffprobe-compat` output:
 # compat key -> (entry, predicate with the signature of `tag_language`).
 COMPAT_ENTRIES = {'streams.tags.language': ('KD-MKV-TAG-LANGUAGE', tag_language)}
 
@@ -269,7 +269,7 @@ def stream_at(document, index):
 
 def stream_item(detail, reference, candidate, media_dir=None):
     # The entries that cover each differing field, for the compat check
-    # (scripts/compat_check.py, #219).
+    # (scripts/compat_check.py).
     ids, uncovered, paths = set(), [], {}
     for diff in detail['gating_differences']:
         path = diff['path']

@@ -76,7 +76,7 @@ pub fn extract_audio<S: Source, W: Write>(
     let mut first_offset = None;
     let mut last_end = 0u64;
     // A remote source that can skip bytes is told exactly which bytes pass
-    // 2 reads (#31). Only without fragments: pass 2 then reads nothing but
+    // 2 reads. Only without fragments: pass 2 then reads nothing but
     // the samples, while fragments would have it read their boxes too.
     let mut plan = (source.wants_regions() && !movie.has_fragments())
         .then(|| {

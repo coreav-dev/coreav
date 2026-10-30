@@ -1,4 +1,4 @@
-"""Pins the box checks of scripts/writer_boxes.py (#324) on small MP4 files
+"""Pins the box checks of scripts/writer_boxes.py on small MP4 files
 built here: a copy agrees with its source, and each change the writer audit
 makes (tools/oracle/writer_kd_audit.py) to the copy is a problem; the rules
 of clip and split (media durations, the audio edit, sync flags where the
@@ -206,7 +206,7 @@ class CopyChanges(unittest.TestCase):
                 self.assertNotEqual(wb.check_copy(str(src), str(bad), [1], 'extract'), [], name)
 
     def test_a_sample_outside_the_edit(self):
-        """A sample no edit presents is still compared (#324)."""
+        """A sample no edit presents is still compared."""
         with tempfile.TemporaryDirectory() as tmp:
             src, out = pathlib.Path(tmp) / 'src.mp4', pathlib.Path(tmp) / 'out.mp4'
             tracks = av_tracks()
@@ -301,7 +301,7 @@ class Sync(unittest.TestCase):
         self.assertTrue(self.runs(claim, (1, 0, 0, 0, 1, 0)), 'an intra reference picture unmarked')
         self.assertTrue(self.runs(claim, (1, 0, 1, 0, 0, 1)), 'an IDR picture unmarked, a P frame marked')
         self.assertTrue(self.runs(claim, (1, 1, 1, 0, 1, 0)), 'a P frame marked')
-        # Sixteen reference frames: it does not (#143's flash fixture).
+        # Sixteen reference frames: it does not (the flash fixture of the cut-point checks).
         self.assertEqual(self.runs(claim, (1, 0, 0, 0, 1, 0), sps=SPS_16_REFS), [])
         self.assertTrue(self.runs(claim, (1, 0, 1, 0, 1, 0), sps=SPS_16_REFS), 'an intra frame of 16 references')
         # Not a reference picture: it does not either.
@@ -522,7 +522,7 @@ class HlsStarts(unittest.TestCase):
 
     def test_audio(self):
         # The audio edit starts 2 s into the media (samples of 0.1 s): the
-        # rendition still starts at the first sample (#344).
+        # rendition still starts at the first sample.
         audio = self.track([1] * 30)
         window = (Fraction(2000), Fraction(3000), Fraction(0))
         self.assertEqual(wb.hls_start(None, audio, window, 'audio'), 0)

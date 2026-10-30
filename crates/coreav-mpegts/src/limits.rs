@@ -7,7 +7,8 @@
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Limits {
     /// Bytes from the start of the file the probe reads to find the tables
-    /// and each stream's parameters (16 MiB).
+    /// and each stream's parameters (16 MiB); a packet that ends past them
+    /// is not read.
     pub max_probe_bytes: u64,
     /// Bytes at the end of the file the probe reads for the last
     /// timestamps (4 MiB).

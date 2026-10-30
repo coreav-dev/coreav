@@ -2,7 +2,7 @@
   "frames": 300,
   "rounds": 3,
   "decoders": {
-    "base": "/tmp/wt-340/target/dist/examples/decode",
+    "base": "/tmp/wt-base/target/dist/examples/decode",
     "opt": "/tmp/dec-chroma"
   },
   "ffmpeg": "/opt/coreav-oracle-bin/ffmpeg",

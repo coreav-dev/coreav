@@ -3,10 +3,8 @@
 use crate::sample::parse_sample;
 use crate::timing::{Edit, milliseconds, unsupported};
 use crate::webvtt::{HEADER, cue_text, write_cue};
-use crate::{Dropped, TextError, TextLimits, TrackChoice};
-use coreav_isobmff::{
-    Allowlist, Budget, Codec, Error, LimitKind, Limits, Movie, Source, Track, probe,
-};
+use crate::{Dropped, TextError, TextLimitKind, TextLimits, TrackChoice};
+use coreav_isobmff::{Allowlist, Budget, Codec, Error, Limits, Movie, Source, Track, probe};
 use std::io::Write;
 
 /// What [`extract_subtitles`] wrote.
@@ -94,11 +92,10 @@ pub fn extract_subtitles<S: Source, W: Write>(
         }
         summary.samples = summary.samples.saturating_add(1);
         if packet.size > text_limits.max_sample_bytes {
-            return Err(Error::LimitExceeded {
-                limit: LimitKind::PacketBytes,
+            return Err(TextError::LimitExceeded {
+                limit: TextLimitKind::SampleBytes,
                 offset: packet.offset,
-            }
-            .into());
+            });
         }
         // Every part of the sample the edits present; a cue each.
         if edit.intervals(&packet, &mut shown).is_none() || shown.is_empty() {

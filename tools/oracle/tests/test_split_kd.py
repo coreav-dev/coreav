@@ -1,7 +1,7 @@
 """Keeps docs/known-divergences-split.md, its JSON twin and the predicates of
 scripts/split_check.py in sync, checks that each predicate rejects near
 misses, and that the comparisons reject a bug-shaped change
-(#162): a packet held twice, missing, out of order or at the wrong time
+(the known-divergence audit): a packet held twice, missing, out of order or at the wrong time
 (docs/design/split.md), and, for a source with several edits, a frame or a
 window moved, dropped or shown twice (docs/design/edit-list-writers.md,
 split section)."""
@@ -160,7 +160,7 @@ class Predicates(unittest.TestCase):
              'source_headers': {'traks': [{'ctts_min': -400}]}, 'video_stream': 0}
         self.assertTrue(sc.dts_shift('video:packets', set(), c))
         self.assertFalse(sc.dts_shift('video:framemd5', set(), c))
-        # A constant other than the source's offset less the segment's (#225).
+        # A constant other than the source's offset less the segment's.
         other = copy.deepcopy(c)
         other['video_ctts_min'][1] = -250
         self.assertFalse(sc.dts_shift('video:packets', set(), other))
@@ -172,7 +172,7 @@ class Predicates(unittest.TestCase):
         self.assertFalse(sc.dts_shift('video:packets', set(), presented))
 
     def test_dts_shift_with_a_midframe_edit(self):
-        # #576: offsets down to -335 in the source, -310 in the second
+        # A writer corpus file: offsets down to -335 in the source, -310 in the second
         # segment, and an edit at media time 169 with frames of 10 ticks:
         # the second segment's packets are 1 tick off in presentation
         # (KD-S-EDIT-MIDFRAME) and 1 + 25 in decode.
@@ -229,7 +229,7 @@ class Predicates(unittest.TestCase):
                 mock.patch.object(sc.cc, '_restart_matches', return_value=True):
             self.assertTrue(sc.audio_restart('audio:pcm', set(), c))
             # Decode durations one tick short: the decode would still agree
-            # with itself (#225).
+            # with itself.
             short = copy.deepcopy(c)
             short['output_headers']['traks'][1]['stts'] = [(47, 1023)]
             self.assertFalse(sc.audio_restart('audio:pcm', set(), short))

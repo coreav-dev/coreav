@@ -41,7 +41,7 @@ salts were committed before each draw was collected. Every `real` file of
 a draw is held out, and a draw is spent once a number comes from it.
 
 - **Draw 1** (40 files) and **draw 2** (46 files) are spent: run `w3-01`
-  of `docs/spikes/w2-248/` reported an earlier change's result from draw 2, for the HLS
+  of `docs/spikes/w2-hls-index/` reported an earlier change's result from draw 2, for the HLS
   index and the packet index both. (That spike's runs are numbered
   `w2-01` to `w2-04` and `w3-01`; this one's carries on at `w4-01`.)
   They are tuning pools, and the profile and the tuning behind an earlier change used

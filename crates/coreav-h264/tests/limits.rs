@@ -11,24 +11,6 @@ use coreav_h264::{AnnexB, Auto, Decoder, Error, LimitKind, Limits, annex_b};
 mod streams;
 use streams::*;
 
-fn sps(mb_w: u32, mb_h: u32, max_num_ref_frames: u32) -> Vec<u8> {
-    let mut w = Writer::default();
-    w.u(8, 66).u(8, 0xc0).u(8, 10);
-    w.ue(0) // seq_parameter_set_id
-        .ue(0) // log2_max_frame_num_minus4
-        .ue(0) // pic_order_cnt_type
-        .ue(2) // log2_max_pic_order_cnt_lsb_minus4
-        .ue(max_num_ref_frames)
-        .flag(false) // gaps_in_frame_num_value_allowed_flag
-        .ue(mb_w - 1)
-        .ue(mb_h - 1)
-        .flag(true) // frame_mbs_only_flag
-        .flag(true) // direct_8x8_inference_flag
-        .flag(false) // frame_cropping_flag
-        .flag(false); // vui_parameters_present_flag
-    w.finish()
-}
-
 /// An IDR slice of `macroblocks` I_PCM macroblocks starting at `first_mb`.
 fn idr_slice(first_mb: u32, macroblocks: usize) -> Vec<u8> {
     let mut w = Writer::default();
@@ -53,7 +35,7 @@ fn idr_slice(first_mb: u32, macroblocks: usize) -> Vec<u8> {
 /// `slices` slices, which must divide the macroblock count.
 fn stream(mb_w: u32, mb_h: u32, max_num_ref_frames: u32, slices: usize) -> Vec<u8> {
     let mut out = Vec::new();
-    out.extend(nal(3, 7, sps(mb_w, mb_h, max_num_ref_frames)));
+    out.extend(nal(3, 7, sps_with_max_refs(mb_w, mb_h, max_num_ref_frames)));
     out.extend(nal(3, 8, pps()));
     let per_slice = (mb_w * mb_h) as usize / slices;
     for slice in 0..slices {

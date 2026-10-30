@@ -2273,7 +2273,7 @@
   },
   "tools": {
    "coreav": {
-    "path": "coreav-549",
+    "path": "coreav-round-1",
     "sha256": "ae0f837b88a399d7e53744aea53c44ca5d9ff4c5b57d40cd699308e03338aadc"
    },
    "ffmpeg": {

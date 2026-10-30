@@ -14,7 +14,7 @@
 //! non-fragmented movie are (`tables::table_header` refuses an entry count
 //! that exceeds its box, and `SampleTables::validate` refuses a sample count
 //! the other tables do not back). A `trun`'s count is checked the same way,
-//! against the three things that can back a sample (issue #289):
+//! against the three things that can back a sample:
 //!
 //! 1. its per-sample fields must fit in the `trun` box
 //!    (`count * stride <= remaining`);
