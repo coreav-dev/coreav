@@ -155,7 +155,7 @@ Each target starts from the same seed set in every shard, built by
 
 A campaign does not read `crates/*/fuzz/regressions/<target>`, which holds
 the inputs of past findings and of reported bugs, kept in git unlike the
-corpus: CI runs those on every change (`ci.yml`), and the hostile suite
+corpus: CI runs those on every pull request that can affect them and every day (`ci.yml`, `fuzz-nightly.yml`), and the hostile suite
 above carries the ones that are also hostile-suite files into every
 campaign.
 
@@ -260,10 +260,7 @@ in the advisory, not in a public issue or a pull request's description or
 comments; the input becomes a regression test in the change the advisory
 publishes. A campaign's results stay off GitHub (the cloud host and the private
 bucket) until then, and its evidence pull request names the finding only
-by the advisory. CI's short fuzz runs on each change (`ci.yml`) log in
-public and keep a crash's input as a run artifact: when one crashes in
-released code, the run's logs and artifacts are deleted once the advisory
-holds them.
+by the advisory. CI's fuzz runs (`ci.yml` on a pull request, `fuzz-nightly.yml` once a day; docs/design/ci-checks.md, "The fuzz runs") log in public, so they never show an input: each target's output goes to a file, and the log names a failing target only. The daily run uploads the target's output, stack trace included, and its libFuzzer artifacts to the private bucket, as `fuzz-nightly/DATE/RUN-ATTEMPT/shard-N/NAME.tar.gz`, logs that key, and fails, so the run shows red. A pull request's run, which has no access to the bucket, keeps nothing: its author reproduces the finding locally with `scripts/fuzz_run.sh`. Neither keeps a run artifact.
 
 A shard that fails for an infrastructure reason (a preempted container, a
 lost connection) is not a finding: it is run again, and only completed
