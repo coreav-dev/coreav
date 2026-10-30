@@ -81,10 +81,31 @@ class Report(unittest.TestCase):
         self.assertFalse(totals['C01.1']['meets'])
         self.assertIsNone(totals['C02.0']['meets'])
         self.assertEqual(s['missed'], ['C01.1'])
-        self.assertEqual(s['taken_by_no_file'], ['C02.0'])
+        self.assertEqual(s['taken_by_no_file'], [])
+        self.assertEqual(s['unmeasured'], ['C02.0'])
         self.assertEqual(s['files'], {'matroska-webm': 1, 'mp4-mov': 51})
         self.assertNotIn('f1', str(s))
         self.assertEqual(s['fallback_log'], {'lines': 1, 'refused': 1, 'void': True})
+
+    def test_a_command_ffmpeg_fails_on_every_taker_misses(self):
+        line = lambda f, cmd, outcome: {  # noqa: E731
+            'file': f, 'family': 'mp4-mov', 'id': cmd.split('.')[0], 'command': int(cmd.split('.')[1]),
+            'job': 'remux', 'outcome': outcome, 'reason': None}
+        lines = [line('f1', 'C01.0', 'passed'), line('f1', 'C02.0', 'ffmpeg fails'),
+                 line('f2', 'C02.0', 'cannot take'), line('f1', 'C03.0', 'cannot take'),
+                 line('f1', 'C04.0', 'ffprobe fails'),
+                 {'fallback_log': {'lines': 0, 'refused': 0, 'void': False}}]
+        s = r3.summarize(r3.counts(lines), 98.0)
+        self.assertEqual(s['unmeasured'], ['C02.0', 'C04.0'])
+        self.assertEqual(s['taken_by_no_file'], ['C03.0'])
+        self.assertEqual(s['missed'], [])
+        with tempfile.TemporaryDirectory() as tmp:
+            records = pathlib.Path(tmp) / 'r.jsonl'
+            for kept, code in ((lines, 1), ([x for x in lines if x.get('id') not in ('C02', 'C04')], 0)):
+                records.write_text(''.join(json.dumps(x) + '\n' for x in kept))
+                done = subprocess.run([sys.executable, '-I', str(HERE / 'r3.py'), 'report', '--records', str(records)],
+                                      capture_output=True, text=True, timeout=60)
+                self.assertEqual(done.returncode, code, done.stdout)
 
     def test_summaries_add_up(self):
         line = lambda f, cmd, outcome, reason=None: {  # noqa: E731
