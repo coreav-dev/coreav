@@ -204,6 +204,15 @@ video presentation times those commands give.
   `media_time` converted the same way from the first packet's timestamp;
   a media time before it (a fragment's decode time above 0) starts the
   window before the media, which still ends where the edit ends.
+- **Priming samples are never presented**: Opus's pre-skip (RFC 7845
+  4.2) is the decoder's priming, not audio, so a media edit whose window
+  starts inside it starts after it, and a track without an edit list
+  starts after it. The Opus-in-ISOBMFF mapping leaves the pre-skip to the
+  edit list (its `PreSkip` is informative), but `ffmpeg` 7.0.2 writes
+  Opus edit lists from media time 0 and drops the `dOps` pre-skip when it
+  reads them; files that skip it in the edit list decode as before.
+  Rejected: presenting them, which puts the priming (6.5 ms from libopus)
+  before the audio of every such file and delays the audio by as much.
 - **Missing media is not padded**: the clock holds while the media covers
   each window. A window that starts before the first packet, or reaches
   past the last sample, writes only the samples there are, so the output
@@ -928,7 +937,8 @@ in ISO Base Media File Format") and Matroska/WebM (`A_OPUS`, `OpusHead` in
 `CodecPrivate`), decoded to 48 kHz, the rate of every Opus stream's
 timestamps and of `ffmpeg`'s output. Specifications: RFC 6716 as updated
 by RFC 8251 (the codec), RFC 7845 (`OpusHead`, pre-skip, channel mapping
-families 0, 1, 2 and 255).
+families 0, 1, 2 and 255). As for FLAC, an encrypted entry (`enca`) and an
+IAMF stream (`iamf`) that carries Opus are refused with their names.
 Output channels: family 0 and 1 streams in WAV order with their speaker
 mask (family 1's Vorbis order moved to WAV's), so that a downmix reads
 the layout from the mask; families 2 (ambisonics) and 255 (no layout)
@@ -1045,9 +1055,12 @@ either decoder.
    is built in CI from libopus 1.6.1, and run as a black box; its source is not read. Bar: all 24 decodes, in CI
    (`.github/workflows/audio-conformance.yml`).
 2. **Agreement with the reference, through `ffmpeg`.** On every input of
-   the sets below, `coreav decode-audio --format s16` against `ffmpeg
-   -c:a libopus -i IN -map 0:a:K -f s16le -` (libopus is the normative
-   decoder): passing `opus_compare -r 48000`, with `-s` for two channels,
+   the sets below, `coreav decode-audio --format s16` against libopus's
+   output through `ffmpeg -request_sample_fmt flt -c:a libopus -i IN -map
+   0:a:K -f f32le -`, rounded to 16-bit with hard clipping (libopus is the
+   normative decoder; its own 16-bit output soft-clips samples beyond full
+   scale, a step after the decoder that neither CoreAV nor FFmpeg's decoder
+   takes): passing `opus_compare -r 48000`, with `-s` for two channels,
    each channel alone for more than two. The tolerance is the specification's own conformance criterion applied to
    real inputs; Opus decoders are not bit-exact (floating point, a
    non-normative SILK resampler). The lengths must be equal: pre-skip,
@@ -1059,14 +1072,17 @@ either decoder.
    the largest difference in 16-bit steps.
 3. **Speed.** As MP3's bar 3, against FFmpeg's default Opus
    decoder (`opus`): library (`coreav_audio::decode` to `s16` in memory
-   against libavformat and libavcodec 7.0.2 in-process with `opus` and
+   against libavformat and libavcodec 9.0.2 in-process with `opus` and
    `swr_convert` to `s16`, one thread each) and command (`coreav
-   decode-audio IN OUT.wav` against `ffmpeg -i IN -map 0:a:K OUT.wav`,
-   default threads), median per-input ratio at most **1.00** on the
-   held-out set, overall and for each class (MP4, Matroska/WebM),
+   decode-audio IN OUT.wav` against the pinned `ffmpeg` 9.0.2's `ffmpeg
+   -i IN -map 0:a:K OUT.wav`, default threads), median per-input ratio at
+   most **1.00** on the held-out set, overall and for each class (MP4, Matroska/WebM),
    reported with the share of inputs on which CoreAV is faster. Reported,
    not gating: the decoder alone, the corpus set, and each Opus mode
-   (SILK, hybrid, CELT) of the derived set.
+   (SILK, hybrid, CELT) of the derived set. The baseline is FFmpeg 9.0.2,
+   the project's pinned version. The sets and bar 2's reference stay on
+   `ffmpeg` 7.0.2, with which the agreement run was recorded, so that the
+   timed files are the files bar 2 checked.
 4. **Safety.** A fuzz target `opus_packet` (the decoder on arbitrary
    packets after arbitrary earlier ones, every channel mapping) beside
    `decode`, 60 seconds each in CI; no panics. Limits, checked before
@@ -1078,6 +1094,17 @@ either decoder.
    duration, and the frame sizes of RFC 6716 section 3.4.
 5. **Regression guard.** A `decode-audio-opus` case of the CI benchmark
    guard on a generated Opus fixture.
+
+Results (`docs/spikes/audio-decode-bench/`, "Opus"; binaries of
+`22a0a9d`): bar 1 met in CI. Bar 2 not met: 606 of the 607 counted
+inputs pass; the miss is the 3-channel input of mapping family 255, whose
+channels libopus reorders as Vorbis does while CoreAV and `ffmpeg`'s
+`opus` decoder keep the coded order (a family without a layout), and 4
+long derived MP4 inputs were not run. Bar 3: the command met (0.523, MP4
+and Matroska 0.523); the library not met overall (1.002, 95% CI 0.992 to
+1.009) and for MP4 (1.004), met for Matroska (0.997). The CELT decoder is
+where it loses (decoder alone 1.069 on CELT inputs; SILK 0.784). Bars 4
+and 5 in CI.
 
 ### Opus sets
 
