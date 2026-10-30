@@ -24,6 +24,9 @@ pub enum Codec {
     Mp3,
     /// Opus (RFC 6716, RFC 7845), decoded to 48 kHz.
     Opus,
+    /// AAC LC (ISO/IEC 14496-3, 13818-7), with the opt-in feature `aac`.
+    #[cfg(feature = "aac")]
+    Aac,
 }
 
 impl Codec {
@@ -33,6 +36,8 @@ impl Codec {
             Self::Flac => "flac",
             Self::Mp3 => "mp3",
             Self::Opus => "opus",
+            #[cfg(feature = "aac")]
+            Self::Aac => "aac",
         }
     }
 }
@@ -241,6 +246,8 @@ fn mp4_codec(codec: mp4::Codec) -> Option<Codec> {
         mp4::Codec::Flac => Some(Codec::Flac),
         mp4::Codec::Mp3 => Some(Codec::Mp3),
         mp4::Codec::Opus => Some(Codec::Opus),
+        #[cfg(feature = "aac")]
+        mp4::Codec::Aac => Some(Codec::Aac),
         _ => None,
     }
 }
@@ -251,6 +258,8 @@ fn mkv_codec(codec: mkv::Codec) -> Option<Codec> {
         mkv::Codec::Flac => Some(Codec::Flac),
         mkv::Codec::Mp3 => Some(Codec::Mp3),
         mkv::Codec::Opus => Some(Codec::Opus),
+        #[cfg(feature = "aac")]
+        mkv::Codec::Aac => Some(Codec::Aac),
         _ => None,
     }
 }
@@ -331,6 +340,19 @@ fn decode_mp4<'scope, 'env, S: Source>(
         .as_ref()
         .map(|c| c.data.as_slice())
         .unwrap_or_default();
+    // AAC's configuration is the `DecoderSpecificInfo` inside `esds`;
+    // MP4 has no fallback without it.
+    #[cfg(feature = "aac")]
+    let config = if codec == Codec::Aac {
+        match mp4::esds_decoder_specific_info(config) {
+            Some((0x66, _)) => return Err(not_decoded("AAC Main")),
+            Some((0x68, _)) => return Err(not_decoded("AAC SSR")),
+            Some((_, Some(specific))) if !specific.is_empty() => specific,
+            _ => return Err(Error::Invalid("an AAC track without a DecoderSpecificInfo")),
+        }
+    } else {
+        config
+    };
     let timescale = u64::from(track.timescale.max(1));
     let mut budget = mp4::Budget::new(&limits.isobmff);
     let mut packets = movie.packets(track.index, &mut source, &limits.isobmff, &mut budget)?;
@@ -513,6 +535,21 @@ fn decode_matroska<'scope, 'env, S: Source>(
             return Err(Error::Unsupported("the track's content encoding"));
         }
     };
+    // A legacy AAC codec ID without `CodecPrivate` names its object type
+    // and SBR (the configuration then comes from the rate and channels).
+    #[cfg(feature = "aac")]
+    if codec == Codec::Aac && track.codec_private.is_none() {
+        let refused = match track.profile {
+            Some(mkv::Profile::Aac { sbr: true, .. }) => Some("HE-AAC (SBR)"),
+            Some(mkv::Profile::Aac { object_type: 1, .. }) => Some("AAC Main"),
+            Some(mkv::Profile::Aac { object_type: 3, .. }) => Some("AAC SSR"),
+            Some(mkv::Profile::Aac { object_type: 4, .. }) => Some("AAC LTP"),
+            _ => None,
+        };
+        if let Some(name) = refused {
+            return Err(not_decoded(name));
+        }
+    }
     let audio = track.audio.as_ref();
     let ns_per_tick = segment.timestamp_scale.max(1);
     let mut data = Vec::new();

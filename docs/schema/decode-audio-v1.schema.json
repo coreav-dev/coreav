@@ -82,7 +82,8 @@
           "enum": [
             "flac",
             "mp3",
-            "opus"
+            "opus",
+            "aac"
           ]
         },
         "sample_rate": {

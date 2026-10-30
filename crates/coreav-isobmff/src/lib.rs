@@ -37,7 +37,8 @@ mod tables;
 pub use codec::{
     Allowlist, Codec, CodecConfig, Color, ConfigRecord, DeclaredBitRate, DolbyVision,
     MAX_OTHER_BOXES, PcmFormat, ProResProfile, Profile, SampleDescription, avc_max_num_ref_frames,
-    avc_timing, describe_audio_specific_config, describe_config_record, parameter_set_color,
+    avc_timing, describe_audio_specific_config, describe_config_record, esds_decoder_specific_info,
+    parameter_set_color,
 };
 pub use error::{Error, LimitKind, Warning};
 pub use fragment::{FragmentSamples, TrackDefaults, subsegment_samples};

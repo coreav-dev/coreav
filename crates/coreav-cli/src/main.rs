@@ -203,7 +203,7 @@ enum Command {
     /// without re-encoding.
     ExtractAudio(Deferred<ExtractAudioArgs>),
     /// Decode an audio track of an MP4/MOV, Matroska or WebM file to a WAV
-    /// file (FLAC, MP3, Opus).
+    /// file (FLAC, MP3, Opus; AAC LC in a build with the feature `aac`).
     DecodeAudio(Deferred<DecodeAudioArgs>),
     /// Rewrite an MP4/MOV, Matroska or WebM file as MP4 with the movie
     /// header first (faststart), without re-encoding.
