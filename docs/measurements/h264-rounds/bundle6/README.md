@@ -1,0 +1,13 @@
+# Bundle 6: the round's evidence
+
+Design, diagnosis, ceiling and bars: `docs/design/h264.md`, "Bundle 6: a band's kept view lent and the CAVLC P path, without the edge window". The bars were committed with this directory before any timing run.
+
+- `binaries.sha256`: `base` (`main` at `28d96a6`, byte-identical to bundle 5's `base`) and `k` (this round's P4 and P1 on it), with and without `fast` (`-nf`, `--no-default-features`), each `cargo build --locked --profile dist --example decode -p coreav-h264` with `RUSTFLAGS` unset.
+- `diagnosis/`: why bundle 5's CABAC streams were slower at one thread, before any code of this round. Two runs, each on its own spot Compute Engine VM of the one-thread class (`c4-standard-8`, one thread a core, `turboMode=ALL_CORE_MAX`, PMU on, Xeon Platinum 8581C), by `scripts/gcp_vm_job.py`. Each run's `run.py` runs `perf stat` of each build on the 32 training streams at a third of each class's frames (sd 600, 720p 300, 1080p 100, 4k 50), pinned to core 2, eight rounds in a shuffled order per stream and round; `counters.py` reads its records (`run*/counters.txt`).
+  - `run1/` (`job.sh`, `run.py`): `base`; `a2`, a copy of `base`; `p2`, P2 alone; `p4`, P4 alone; `p14`, bundle 5's P1 and P4; `k` here is **bundle 5**. Also `topdown.jsonl.gz`, two rounds of `perf stat -M TopdownL1,TopdownL2` (not read in the note).
+  - `run2/` (`job.sh`, `run.py`, `cg.sh`): `base`, `a2`, `p4`, `p14`, and `p1z`, which is **this round's `k`** (the same sha256). Then callgrind of `base`, `p14` and `p1z` at eight threads and of `base` and `p1z` at one thread; `ceiling.py` reads those outputs into `../instructions.txt` (the outputs, 7 MB, are not committed).
+  - `host.txt` (the VM's name replaced by `VM`), `instance.json`, `progress.txt` of each run.
+- `instructions.txt`: the instruction ceiling, before the bars.
+- `identity-job/`: the output check, bundle 5's job unchanged (`ident.sh` decodes one stream with `base` and `k`, checks each decoder's exit status, counts an empty output as a failure, and on the first failure or difference writes a stop file that keeps every later call from starting; `job.sh` runs it over the 32 training streams at 1 and 8 threads with and without `fast`, and the 64 held-out streams at 1 and 8 threads, and fails unless every call is recorded and the same). `identity.txt`, `identity-summary.txt`, `identity-host.txt`: its run.
+- `bars-8t.json`, `bars-8t-heldout.json`, `bars-1t.json`: the bars as `scripts/h264_parity_bars.py` reads them, one file a run directory.
+- `gating/`: the timed runs and their analyses (B6-1 to B6-7), after the bars.

@@ -20,7 +20,8 @@ use crate::dpb::RefPic;
 use crate::error::{Error, Result};
 use crate::inter::{InterTables, MotionCtx, Scratch};
 use crate::mb::{
-    BAND_VIEWS, MbData, MbInfo, NbInfo, SliceDecoder, hints, ring_entries, whole_references,
+    BAND_VIEWS, KeptViews, MbData, MbInfo, NbInfo, SliceDecoder, band_shift, hints, ring_entries,
+    whole_references,
 };
 use crate::nb::NbCache;
 use crate::params::{Pps, Sps};
@@ -184,7 +185,7 @@ impl<K: Kernels> PictureWork<K> {
             thresholds,
             refs: &job.refs,
             whole,
-            band_views: [[None; BAND_VIEWS]; 2],
+            band_views: KeptViews([[None; BAND_VIEWS]; 2]),
             colocated_whole,
             default_weights: hdr
                 .pred_weights
@@ -210,6 +211,7 @@ impl<K: Kernels> PictureWork<K> {
             coeff_tables: &coeff_tables,
             level_scales: LevelScales::NONE,
             hints: hints(geometry.mb_width * geometry.mb_height, geometry.bands()),
+            band_shift: band_shift(&job.refs, geometry.mb_width, geometry.mb_height),
         };
         let result = slice.decode(rbsp, self.choice);
         slice.store_band();
