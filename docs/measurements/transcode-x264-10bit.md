@@ -287,7 +287,7 @@ All counts are exact. Each `perf stat` file shows one group with no running shar
 
 #### What the corpus round found
 
-Both bars hold. The run is valid: the gate took 2.728 s before and 2.712 s after (0.6% apart), and every file was timed except the two 12-bit ProRes files with alpha, which the command refuses (`unsupported_feature`) as it did in round 2. The evidence is in [`transcode/x264-10bit/corpus/`](transcode/x264-10bit/corpus): `files.jsonl` (each file's times), `summary.json`, `gate.json`, `speed.log` and `host.txt`.
+Both bars hold. The run is valid: the gate took 2.728 s before and 2.712 s after (0.6% apart), and every file was timed except the two 12-bit ProRes files with alpha, which the command refuses (`unsupported_feature`) as it did in round 2. The evidence is in [`transcode/x264-10bit/command/`](transcode/x264-10bit/command): `files.jsonl` (each file's times), `summary.json`, `gate.json`, `speed.log` and `host.txt`.
 
 1. **10-bit sources: met.** The median of the 10 files' `x264`-over-`ffmpeg` ratios is 1.172, at most 1.30. Round 2 had 1.428 on the same files, and every one of them is lower now.
 2. **8-bit sources: met.** The median of the 8 files' ratios is 1.007, at most 1.01. Round 2 had 0.990. Every 8-bit ratio is 0.8% to 2.3% above round 2's, where the change does not apply; round 2 ran FFmpeg 7.0.2 and an older x264, so part of the gap between the two rounds is the pins, not the code.

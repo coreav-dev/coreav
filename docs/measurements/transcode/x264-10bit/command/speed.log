@@ -1,0 +1,42 @@
+hevc dfa90bd34a2e timed  ffmpeg=1.0508 x264=1.0596
+hevc fd7b6c440b67 timed  ffmpeg=1.0917 x264=1.2444
+hevc 15affcdb19e3 timed  ffmpeg=1.0472 x264=1.1377
+hevc 5853e2ed4f54 timed  ffmpeg=1.0608 x264=1.1546
+hevc f3cd6f0c7876 timed  ffmpeg=1.0373 x264=1.0538
+hevc 0119957558a2 timed  ffmpeg=1.0571 x264=1.1742
+hevc 2cf91de003da timed  ffmpeg=1.0748 x264=1.0712
+hevc 2bc6b07151be timed  ffmpeg=1.0559 x264=1.2713
+av1 effb7b78408d timed  ffmpeg=1.0664 x264=1.0781
+av1 357fb30f4693 timed  ffmpeg=1.0644 x264=1.2090
+av1 d438e9cb804e timed  ffmpeg=1.0872 x264=1.0943
+av1 03e890cf5999 timed  ffmpeg=1.0824 x264=1.0609
+av1 a34d5ee860fb timed  ffmpeg=1.0706 x264=1.0657
+av1 d9ab22f96e5e timed  ffmpeg=1.0221 x264=1.0292
+prores 50b9f3ee51cf timed  ffmpeg=1.1159 x264=1.5611
+prores 08cd47bdffda refused unsupported_feature 
+prores 568ca4f52c3a refused unsupported_feature 
+prores 249f6da48e0b timed  ffmpeg=1.1469 x264=1.4319
+prores 72ae2bbd26be timed  ffmpeg=1.1140 x264=1.3426
+prores 1a5fb95f5146 timed  ffmpeg=1.1216 x264=1.3818
+{
+ "void": false,
+ "reasons": []
+}
+== ffmpeg (bar: median <= 1.05)
+hevc    n=  8 median 1.0565 CI [1.0472, 1.0748] MISSED faster on 0% backends {'ffmpeg': 8} apart {}
+av1     n=  6 median 1.0685 CI [1.0432, 1.0848] MISSED faster on 0% backends {'dav1d': 6} apart {}
+prores  n=  4 median 1.1187 CI [1.1140, 1.1469] MISSED faster on 0% backends {'ffmpeg': 4} apart {'refused: unsupported_feature': 2}
+all     n= 18 median 1.0685 CI [1.0565, 1.0872] MISSED faster on 0% backends {'ffmpeg': 12, 'dav1d': 6} apart {'refused: unsupported_feature': 2}
+== x264 (bar: median <= 1.05)
+hevc    n=  8 median 1.1462 CI [1.0596, 1.2444] MISSED faster on 0% backends {'ffmpeg': 8} apart {}
+av1     n=  6 median 1.0719 CI [1.0450, 1.1517] MISSED faster on 0% backends {'dav1d': 6} apart {}
+prores  n=  4 median 1.4069 CI [1.3426, 1.5611] MISSED faster on 0% backends {'ffmpeg': 4} apart {'refused: unsupported_feature': 2}
+all     n= 18 median 1.1462 CI [1.0685, 1.2579] MISSED faster on 0% backends {'ffmpeg': 12, 'dav1d': 6} apart {'refused: unsupported_feature': 2}
+FAIL: ffmpeg hevc: median 1.0565 above 1.05
+FAIL: ffmpeg av1: median 1.0685 above 1.05
+FAIL: ffmpeg prores: median 1.1187 above 1.05
+FAIL: ffmpeg all: median 1.0685 above 1.05
+FAIL: x264 hevc: median 1.1462 above 1.05
+FAIL: x264 av1: median 1.0719 above 1.05
+FAIL: x264 prores: median 1.4069 above 1.05
+FAIL: x264 all: median 1.1462 above 1.05
