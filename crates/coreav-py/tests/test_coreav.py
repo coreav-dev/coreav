@@ -351,28 +351,6 @@ def test_the_command_reports_standard_output_errors():
 
 
 @needs_command
-@needs_fixtures
-def test_the_command_serves_mcp(tmp_path):
-    """`coreav mcp` from the wheel runs each tool through the installed
-    command (docs/design/mcp.md)."""
-    source = ALL[0]
-    (tmp_path / source.name).write_bytes(source.read_bytes())
-    messages = [
-        {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18"}},
-        {"jsonrpc": "2.0", "method": "notifications/initialized"},
-        {"jsonrpc": "2.0", "id": 2, "method": "tools/call",
-         "params": {"name": "probe", "arguments": {"path": source.name}}},
-    ]
-    result = subprocess.run([COMMAND, "mcp", "--root", tmp_path], capture_output=True, check=True,
-                            input="".join(json.dumps(m) + "\n" for m in messages).encode())
-    answers = [json.loads(line) for line in result.stdout.splitlines()]
-    assert [a["id"] for a in answers] == [1, 2]
-    call = answers[1]["result"]
-    assert call["isError"] is False, call
-    assert call["structuredContent"] == coreav.probe(source)
-
-
-@needs_command
 @needs_cli
 @pytest.mark.parametrize("path", ALL, ids=lambda p: p.name)
 def test_the_command_matches_the_binary(path):

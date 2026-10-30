@@ -198,7 +198,6 @@ The guard is in `.github/workflows/bench-guard.yml`, run by
   (`docs/design/join.md`, "Speed guard in CI"); `extract-audio`;
   `sanitize`; `extract-subtitles`; `chapters`; and `hls index`, `hls get`
   and `hls package`, and the URL cases below.
-  Not yet guarded: the `mcp` server's own request handling.
 - **URL cases**: every command but `hls` reads HTTP(S) URLs by byte
   ranges (`docs/design/remote.md`), and a change to the read plan
   (`crates/coreav-range`) that adds round trips or bytes costs time over a
@@ -320,7 +319,7 @@ fixtures):
   it parses anything, `coreav --version` included: each subcommand's
   arguments, value parsers and help strings are allocated and copied. The
   `split` subcommand added 24,200 instructions on the runners (nine
-  arguments), the `mcp` server 49,900, and `hls` about
+  arguments), the `mcp` server 49,900 (since removed), and `hls` about
   61,000. This is the cost of offering the subcommand, paid once per
   process (some tens of thousands of instructions, a few microseconds);
   the baseline's start-up is raised by what the merged subcommands add

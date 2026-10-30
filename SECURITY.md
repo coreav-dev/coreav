@@ -28,8 +28,8 @@ Include:
 In scope:
 
 - the crates under `crates/` and the packages under `packages/` that read
-  untrusted input, including the `coreav` command, its MCP server, the
-  Python bindings and the WebAssembly module;
+  untrusted input, including the `coreav` command, the Python bindings and
+  the WebAssembly module;
 - a panic or crash on any input (production code has a no-panic rule);
 - work or memory beyond the `Limits` in force, or a limit that does not
   hold;

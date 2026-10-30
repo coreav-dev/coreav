@@ -1,6 +1,5 @@
 //! `coreav` on URLs: the same results as for local files over a local
-//! range server, the remote reason on failures, and the guarded mode's
-//! refusals.
+//! range server, and the remote reason on failures.
 #![allow(
     clippy::indexing_slicing,
     clippy::unwrap_used,
@@ -177,31 +176,4 @@ fn a_changed_object_fails_the_read() {
         assert_eq!(run.code, Some(3), "{}", run.stderr);
         assert!(run.stderr.contains("changed"), "{}", run.stderr);
     }
-}
-
-#[test]
-fn the_guarded_mode_reads_public_https_urls_only() {
-    let (_, data) = movie("remote_guarded.mp4");
-    let server = Server::start(data, Mode::Ranges);
-    let guarded = [("COREAV_REMOTE", "public")];
-    let run = coreav(&["probe", server.url().as_str()], &guarded);
-    assert_eq!(run.code, Some(3));
-    assert!(run.stderr.contains("only https://"), "{}", run.stderr);
-    // Loopback over https is refused before any connection.
-    let https = server.url().replacen("http://", "https://", 1);
-    let run = coreav(&["probe", https.as_str()], &guarded);
-    assert_eq!(run.code, Some(3));
-    assert!(
-        run.stderr.contains("not a public address"),
-        "{}",
-        run.stderr
-    );
-    assert_eq!(server.requests.load(Ordering::SeqCst), 0);
-    // Credentials in a URL are refused.
-    let run = coreav(
-        &["probe", "https://user:secret@example.com/a.mp4"],
-        &guarded,
-    );
-    assert_eq!(run.code, Some(3));
-    assert!(run.stderr.contains("credentials"), "{}", run.stderr);
 }
