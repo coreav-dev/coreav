@@ -80,6 +80,7 @@ pub fn run_ffmpeg(args: &[OsString], strict_safe: StrictSafe) -> ExitCode {
             message("ffmpeg", &text);
             ExitCode::from(EXIT_USAGE)
         }
+        Err(Stop::Refused(Refusal::Help)) => print_usage(ffmpeg::USAGE),
         Err(Stop::Failed(failure)) => {
             let json = failure.to_json();
             let text = json
@@ -93,6 +94,15 @@ pub fn run_ffmpeg(args: &[OsString], strict_safe: StrictSafe) -> ExitCode {
                 EXIT_REJECTED
             })
         }
+    }
+}
+
+/// A tool's usage text on standard output, for `-h` and `--help`.
+fn print_usage(text: &str) -> ExitCode {
+    let mut out = std::io::stdout().lock();
+    match out.write_all(text.as_bytes()).and_then(|()| out.flush()) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => super::write_error(&error),
     }
 }
 
@@ -113,16 +123,7 @@ pub fn run_ffprobe(args: &[OsString], strict_safe: StrictSafe) -> ExitCode {
     };
     let options = match ffprobe::args::parse(&args) {
         Ok(options) => options,
-        Err(ProbeRefusal::Help) => {
-            let mut out = std::io::stdout().lock();
-            return match out
-                .write_all(ffprobe::USAGE.as_bytes())
-                .and_then(|()| out.flush())
-            {
-                Ok(()) => ExitCode::SUCCESS,
-                Err(error) => super::write_error(&error),
-            };
-        }
+        Err(ProbeRefusal::Help) => return print_usage(ffprobe::USAGE),
         Err(ProbeRefusal::Unsupported(refusal)) => {
             return fallback_cmd::refuse(Tool::Ffprobe, &args, refusal, strict_safe);
         }
