@@ -19,6 +19,10 @@ const BR: u32 = 0x20;
 const FLC: u32 = 0x40;
 const FRC: u32 = 0x80;
 const BC: u32 = 0x100;
+const SL: u32 = 0x200;
+const SR: u32 = 0x400;
+const TFL: u32 = 0x1000;
+const TFR: u32 = 0x4000;
 
 /// A decoder configuration: AAC LC, its rate, frame length and channels.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -57,9 +61,13 @@ enum Slot {
     Lfe(u32),
 }
 
-/// The elements of channel configurations 1 to 7 (Table 1.19), in their
-/// order in a frame. Configuration 7's second pair is the outside front
-/// pair, written as WAV's front left and right of centre.
+/// The elements of channel configurations 1 to 7, 11, 12 and 14 (Table
+/// 1.19, with the values ISO/IEC 14496-3:2009/Amd.4:2013 adds, as ITU-R
+/// BS.1196-6 Table 2 quotes them), in their order in a frame.
+/// Configuration 7's second pair is the outside front pair, written as
+/// WAV's front left and right of centre; the surround pair at ±110° is
+/// WAV's back pair, except beside a back centre (11), where it is the side
+/// pair; 12's pairs at ±90° and ±135° are the side and back pairs.
 fn configuration_slots(configuration: u8) -> Option<&'static [Slot]> {
     use Slot::{Lfe, Pair, Single};
     Some(match configuration {
@@ -75,6 +83,21 @@ fn configuration_slots(configuration: u8) -> Option<&'static [Slot]> {
             Pair(FLC, FRC),
             Pair(BL, BR),
             Lfe(LFE),
+        ],
+        11 => &[Single(FC), Pair(FL, FR), Pair(SL, SR), Single(BC), Lfe(LFE)],
+        12 => &[
+            Single(FC),
+            Pair(FL, FR),
+            Pair(SL, SR),
+            Pair(BL, BR),
+            Lfe(LFE),
+        ],
+        14 => &[
+            Single(FC),
+            Pair(FL, FR),
+            Pair(BL, BR),
+            Lfe(LFE),
+            Pair(TFL, TFR),
         ],
         _ => return None,
     })
@@ -359,6 +382,9 @@ impl Config {
         let layout = match (&program, configuration_slots(channel_configuration)) {
             (Some(program), _) => program.layout(),
             (None, Some(slots)) => Layout::new(slots, &[], true),
+            (None, None) if channel_configuration == 13 => {
+                return Err(Error::Unsupported("channel configuration 13 (22.2)"));
+            }
             (None, None) => return Err(Error::Invalid("reserved channel configuration")),
         };
         Self::finish(rate, frame_length, channel_configuration, layout, limits)
@@ -502,6 +528,23 @@ mod tests {
         assert_eq!(config.layout.sce, vec![2]);
         assert_eq!(config.layout.cpe, vec![[0, 1], [4, 5]]);
         assert_eq!(config.layout.lfe, vec![3]);
+    }
+
+    #[test]
+    fn seven_one_back_goes_in_wav_order() {
+        // LC, 48 kHz, configuration 12: C, L/R, the side pair, the back
+        // pair, LFE.
+        let config = parse(&[0x11, 0xe0]).unwrap();
+        assert_eq!(config.channels(), 8);
+        assert_eq!(config.channel_mask(), 0x63f);
+        assert_eq!(config.layout.sce, vec![2]);
+        assert_eq!(config.layout.cpe, vec![[0, 1], [6, 7], [4, 5]]);
+        assert_eq!(config.layout.lfe, vec![3]);
+        // Configuration 13 (22.2) is refused by name.
+        assert_eq!(
+            parse(&[0x11, 0xe8]),
+            Err(Error::Unsupported("channel configuration 13 (22.2)"))
+        );
     }
 
     #[test]

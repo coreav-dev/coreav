@@ -24,7 +24,7 @@ yours to make.
 ## What it decodes
 
 - AAC LC (audio object type 2, and MPEG-2 AAC LC), frames of 1,024 or 960
-  samples, every sample rate, channel configurations 1 to 7 and program
+  samples, every sample rate, channel configurations 1 to 7, 11, 12 and 14 and program
   configurations: single channel, channel pair, LFE and coupling channel
   elements; M/S and intensity stereo, perceptual noise substitution,
   temporal noise shaping, every window sequence and both window shapes.

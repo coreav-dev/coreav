@@ -14,7 +14,7 @@
 //!
 //! - [`Config`] parses an `AudioSpecificConfig`: object type 2 (AAC LC),
 //!   frames of 1,024 or 960 samples, every sample rate, channel
-//!   configurations 1 to 7 and a program configuration. Other object
+//!   configurations 1 to 7, 11, 12 and 14 and a program configuration. Other object
 //!   types, and SBR or PS signalled in the configuration (HE-AAC), are
 //!   [`Error::Unsupported`] with their name.
 //! - [`Decoder`] decodes `raw_data_block()`s, as MP4 and Matroska store
