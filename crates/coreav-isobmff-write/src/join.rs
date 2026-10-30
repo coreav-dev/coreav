@@ -905,11 +905,19 @@ fn video_span<'a, S: Source>(
     }
     // The stream's duration is what its one edit presents; with several,
     // the edits themselves bound it, and an end between two of them is
-    // where the earlier one ends.
+    // where the earlier one ends. The media header's duration can end
+    // before the last frame its one edit presents (the sum of the decode
+    // durations, as ISO/IEC 14496-12 8.4.2.3 has it, when frames are
+    // composed further apart than they are decoded): the stream then
+    // ends where that frame does.
     if timeline.has_windows() {
         end = timeline.presented_until(end)?;
     } else if let Some(duration) = track.duration {
-        end = min(end, add(window_start, duration)?)?;
+        let mut stream_end = add(window_start, duration)?;
+        if window_end.is_some() {
+            stream_end = max(stream_end, scaled.ticks(last)?)?;
+        }
+        end = min(end, stream_end)?;
     }
     let start = max(scaled.ticks(first)?, window_start)?;
     if !lt(start, end)? {
