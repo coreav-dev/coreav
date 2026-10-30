@@ -96,12 +96,15 @@ pub enum Job {
     /// Segments, written to the names of the output pattern.
     Split(SplitOptions),
     /// The video stream encoded with libx264 and these audio streams copied,
-    /// as MP4 (`docs/design/transcode.md`, "Through `coreav ffmpeg`").
+    /// or the one audio stream encoded with libopus, as MP4
+    /// (`docs/design/transcode.md`, "Through `coreav ffmpeg`").
     Transcode {
         /// The video stream.
         video: usize,
         /// The audio streams, in input order.
         audio: Vec<usize>,
+        /// The audio stream, then the only one, is encoded with libopus.
+        opus: bool,
         /// Whether the decoder reorders the video's frames (B-frames).
         reordered: bool,
     },
@@ -154,12 +157,21 @@ pub fn run(args: &[String], strict_safe: StrictSafe) -> Result<serde_json::Value
         Job::Transcode {
             video,
             audio,
+            opus,
             reordered,
         },
         Some(encoder),
     ) = (&job, encoder)
     {
-        return encode::write(&command, *video, audio, *reordered, encoder, strict_safe);
+        return encode::write(
+            &command,
+            *video,
+            audio,
+            *opus,
+            *reordered,
+            encoder,
+            strict_safe,
+        );
     }
     write(&command, &job)
 }
@@ -256,11 +268,21 @@ pub fn plan(
         .copied()
         .filter(|i| codec(command, &output, *i) == Some(Codec::Libx264))
         .collect();
+    let opus: Vec<usize> = selected
+        .iter()
+        .copied()
+        .filter(|i| codec(command, &output, *i) == Some(Codec::Libopus))
+        .collect();
     if !encoded.is_empty() {
         if list.is_some() {
             return Err(Refusal::not_native("encoding the files of a concat list"));
         }
-        return transcode_job(command, report, &output, &encoded, trims);
+        return transcode_job(command, report, &output, &encoded, &opus, trims);
+    }
+    if !opus.is_empty() {
+        return Err(Refusal::not_native(
+            "encoding audio with libopus without encoding the video with libx264",
+        ));
     }
     if (args::Encoding {
         threads: None,
@@ -378,12 +400,14 @@ pub fn plan(
 }
 
 /// The job of a command that encodes: one video stream with libx264, the
-/// other selected streams audio, copied, into one MP4 file.
+/// other selected streams audio, copied, or one audio stream encoded with
+/// libopus (`opus`, the selected streams it names), into one MP4 file.
 fn transcode_job(
     command: &Command,
     report: &Report,
     output: &[(usize, &Stream)],
     encoded: &[usize],
+    opus: &[usize],
     trims: bool,
 ) -> Result<Job, Refusal> {
     let [video] = encoded else {
@@ -432,13 +456,58 @@ fn transcode_job(
             "copying a stream other than audio beside the encoded video",
         ));
     }
+    let encodes_opus = match (opus, others.as_slice()) {
+        ([], _) => false,
+        ([index], [(other, stream)]) if index == other => {
+            opus_source(stream)?;
+            true
+        }
+        ([_], _) => {
+            return Err(Refusal::not_native(
+                "copying audio beside the audio stream libopus encodes",
+            ));
+        }
+        _ => {
+            return Err(Refusal::not_native(
+                "encoding more than one audio stream with libopus",
+            ));
+        }
+    };
     Ok(Job::Transcode {
         video: *video,
         audio: others.iter().map(|(i, _)| *i).collect(),
+        opus: encodes_opus,
         reordered: output
             .iter()
             .any(|(i, s)| i == video && int(s, "has_b_frames") > 0),
     })
+}
+
+/// The refusals of an audio stream to encode with libopus where the
+/// pipeline would not encode it as `ffmpeg` does: audio CoreAV does not
+/// decode (it decodes FLAC and MP3), more than two channels (`ffmpeg`
+/// writes a surround Opus stream), or a build without the encoder.
+fn opus_source(stream: &Stream) -> Result<(), Refusal> {
+    if !cfg!(feature = "libopus") {
+        return Err(Refusal::not_native(
+            "encoding with libopus, in a build without the libopus feature",
+        ));
+    }
+    let codec = stream.entries.iter().find_map(|(k, v)| match v {
+        Value::Str(name) if *k == "codec_name" => Some(name.as_str()),
+        _ => None,
+    });
+    if !matches!(codec, Some("flac" | "mp3")) {
+        return Err(Refusal::not_native(
+            "encoding audio other than FLAC or MP3 with libopus (CoreAV decodes only those)",
+        ));
+    }
+    if !(1..=2).contains(&int(stream, "channels")) {
+        return Err(Refusal::not_native(
+            "encoding other than mono or stereo with libopus (ffmpeg writes a surround Opus stream)",
+        ));
+    }
+    Ok(())
 }
 
 /// The codec option that decides stream `index` of `output`: the last one

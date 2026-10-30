@@ -78,7 +78,9 @@ every encoder value of a codec option, `-f lavfi`, `-f image2`,
 `-sample_fmts`, `-layouts`, `-sections`, `-version`).
 
 One encode is taken since: in a build with a decoder backend, a command
-line that encodes the video with `libx264`, with the few options
+line that encodes the video with `libx264`, and in a build with the
+`libopus` feature also its audio with `libopus` (`-c:a libopus`, `-b:a`),
+with the few options
 [`transcode.md`](transcode.md) lists under "Through `coreav ffmpeg`", runs
 through `coreav transcode`'s pipeline, and its bar is B9 there. The
 vocabulary above and the labels of the command-coverage set stay step 1's,
