@@ -201,10 +201,11 @@ by its job's name, not by its workflow.
 
 ## The fixture jobs
 
-`isobmff-fixtures` ran every check of the ISO base media fixtures in one job: a median of 34.9 minutes over the successful jobs of the last 60 completed pull request runs, against 15.2 for `fuzz`, 11.6 for `bench-guard` and under 9 for every other job, so it alone set how long a pull request waited. Its steps now run in five jobs side by side, with the same commands, bars and thresholds:
+`isobmff-fixtures` ran every check of the ISO base media fixtures in one job: a median of 34.9 minutes over the successful jobs of the last 60 completed pull request runs, against 15.2 for `fuzz`, 11.6 for `bench-guard` and under 9 for every other job, so it alone set how long a pull request waited. Its steps now run in six jobs, with the same commands, bars and thresholds:
 
-- `isobmff-fixtures`: fixture generation, the oracle self-checks, the stream and packet oracles against `ffprobe` and their known-divergence audit, `coreav probe` and `coreav ffprobe`, the output schemas, the hostile suite through the `coreav` binary, `coreav check`, audio extraction, subtitles and chapters. Its artifact is `oracle-output`.
-- `isobmff-writers`: the text known-divergence audit, clip, remux, video replacement, split, sanitize, HLS, join and the 0.1.0 `ffmpeg` commands. Their reports are the `writer-output` artifact.
+- `isobmff-fixtures`: fixture generation, the oracle self-checks, the stream and packet oracles against `ffprobe` and their known-divergence audit, `coreav probe` and `coreav ffprobe`, the output schemas, the hostile suite through the `coreav` binary, `coreav check`, audio extraction, subtitles and chapters, and the text known-divergence audit. It generates its own fixtures on every run, as before, so every run exercises generation. Its artifact is `oracle-output`.
+- `isobmff-fixture-set`: the one set of fixtures that the three jobs below check, an artifact of the run. Generation is not byte for byte reproducible (a WebM fixture generated twice with the same FFmpeg differs), so jobs, and B9 shards, that generated their own would check different bytes, and `--merge` refuses shards whose fixtures differ.
+- `isobmff-writers`: clip, remux, video replacement, split, sanitize, HLS, join and the 0.1.0 `ffmpeg` commands. Their reports are the `writer-output` artifact.
 - `isobmff-decode`: the build with the FFmpeg fallback, dav1d and libvpx, then decoding, thumbnails and `coreav transcode` against the pinned FFmpeg, and the hostile suite through `coreav thumbnail` and `coreav transcode`.
 - `b9-shard`, three legs, and `b9`: bar B9 of `docs/design/transcode.md`.
 
@@ -264,7 +265,7 @@ run, so nothing on main is cancelled or dropped.
   5.5 minutes), and a job the new run skips is not cancelled at all. Over
   the same four hours that would have been about 106 more runner-minutes,
   against 1,254 minutes that pull requests waited on a held run.
-- **A job with a `strategy:`** (`fuzz`, `b9-shard`) puts `-$@{{ strategy.job-index }}` after its id in the group: its legs would otherwise share one group and cancel each other. `workflow_check.py` takes only that form for such a job.
+- **A job with a `strategy:`** (`fuzz`, `b9-shard`) puts `-${{ strategy.job-index }}` after its id in the group: its legs would otherwise share one group and cancel each other. `workflow_check.py` takes only that form for such a job.
 - **Re-running an old run's job** cancels the head's job of the same id,
   whose `ci-report` then fails: re-run the head's run instead.
 - `github.job` is not available where GitHub reads a job's `concurrency`,
@@ -288,11 +289,12 @@ key is one entry per job id, toolchain and `Cargo.lock`.
   `isobmff-fixtures` runs on main only, after its checks, so that its entry
   keeps holding it: one entry for the four jobs instead of a new one for
   `target/fallback`, with the repository already at its 10 GB.
-- **The generated fixtures** are saved by `isobmff-fixtures` right after it
-  generates them, before any check runs on them, keyed by
-  `scripts/gen-fixtures.sh` and `scripts/install-oracle-ffmpeg.sh`; the other
-  ISO base media jobs restore them, and generate them themselves when no
-  entry matches yet.
+- **`isobmff-fixture-set` keeps its fixtures between runs**, saved on main
+  only, under a key of everything that generates them:
+  `scripts/gen-fixtures.sh`, every file of `scripts/` it runs (found in the
+  script itself, so a new helper joins the key without an edit here) and
+  `scripts/install-oracle-ffmpeg.sh`. A pull request that changes one of
+  them generates the fixtures on every push.
 - **The Matroska and transport stream oracles restore `isobmff-fixtures`'
   cache** (`shared-key: isobmff-fixtures`, `save-if: false`). That job
   builds every crate, profile and feature the other two build, so their

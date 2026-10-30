@@ -1706,6 +1706,12 @@ def merge(args):
     if len(counts) != 1 or sorted(infos) != list(range(1, counts.pop() + 1)):
         raise SystemExit(f'--merge: shards {sorted(infos)} are not shards 1 to N of one run, each once')
 
+    fixtures = [m.get('fixtures') or {} for m in manifests]
+    differ = sorted(n for n in set().union(*fixtures) if any(f.get(n) != fixtures[0].get(n) for f in fixtures))
+    if differ:
+        raise SystemExit(f'--merge: the shards ran on different bytes of {", ".join(differ)}: '
+                         'give every shard the one fixture set of the run')
+
     def common(d):
         return {k: v for k, v in d.items() if k not in ('shard', 'expected', 'tools')}
     if any(common(i) != common(infos[1]) for i in infos.values()) or \

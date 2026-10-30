@@ -546,13 +546,6 @@ jobs:
         env:
           COREAV_REQUIRE_ALL_FIXTURES: '1'
         run: scripts/gen-fixtures.sh "$RUNNER_TEMP/coreav-fixtures"
-      # Saved as generated, before any step here runs on them, for
-      # isobmff-writers, isobmff-decode and b9-shard to restore.
-      - name: Save the generated fixtures
-        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
-        with:
-          path: ${{ runner.temp }}/coreav-fixtures
-          key: linux-x64-fixtures-${{ hashFiles('scripts/gen-fixtures.sh', 'scripts/install-oracle-ffmpeg.sh') }}
       - name: Build test-only comparator
         run: cargo build --locked -p coreav-oracle
       - name: Test capture normalization
@@ -723,8 +716,18 @@ jobs:
             --mediainfo "$RUNNER_TEMP/coreav-oracle-bin/mediainfo" \
             --kd-overlay "$RUNNER_TEMP/coreav-isobmff-oracle/known-divergences.json" \
             --report "$RUNNER_TEMP/coreav-text.json"
+      # docs/measurements/kd-audit-writers.md: every bug-shaped change to a
+      # WebVTT or chapters output must stay visible, never covered by a
+      # docs/known-divergences-text.md entry. The other writers' audits take
+      # an hour each and run on demand.
+      - name: Audit the text known divergences
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          python3 -I tools/oracle/writer_kd_audit_cli.py --oracle text --coreav target/release/coreav \
+            --media "$RUNNER_TEMP/coreav-fixtures" --mediainfo "$RUNNER_TEMP/coreav-oracle-bin/mediainfo"
       # Built on main for the cache only: isobmff-writers, isobmff-decode
-      # and b9-shard restore this job's entry, and isobmff-decode and
+      # and b9-shard restore this job's Rust cache entry, and isobmff-decode and
       # b9-shard run this build (docs/design/ci-checks.md, "Caches").
       - name: Install libdav1d and libvpx for the cache
         if: github.ref == 'refs/heads/main'
@@ -755,10 +758,73 @@ jobs:
           if-no-files-found: ignore
 
 
+  # The ISO base media fixtures that isobmff-writers, isobmff-decode and
+  # b9-shard check, generated once a run so that they all, and every B9
+  # shard, check the same bytes: generation is not byte for byte
+  # reproducible. Kept between runs under a key of the generator, every
+  # file it runs from scripts/, and the FFmpeg install; isobmff-fixtures
+  # generates its own on every run (docs/design/ci-checks.md, "The fixture
+  # jobs").
+  isobmff-fixture-set:
+    needs: ci-changes
+    if: >-
+      needs.ci-changes.outputs.run == 'true' &&
+      (github.event_name != 'pull_request' || !github.event.pull_request.draft)
+    concurrency:
+      group: ${{ github.workflow }}-isobmff-fixture-set-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Key the fixtures by what generates them
+        id: key
+        run: |
+          set -euo pipefail
+          helpers=$(grep -o '\$SCRIPTS/[A-Za-z0-9_.-]*' scripts/gen-fixtures.sh | sed 's|^\$SCRIPTS/|scripts/|' | sort -u)
+          echo "key=linux-x64-fixtures-$(cat scripts/gen-fixtures.sh scripts/install-oracle-ffmpeg.sh $helpers | sha256sum | cut -c1-32)" >> "$GITHUB_OUTPUT"
+      - name: Restore the fixtures
+        id: fixtures
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/coreav-fixtures
+          key: ${{ steps.key.outputs.key }}
+      - name: Cache pinned black-box binaries
+        if: steps.fixtures.outputs.cache-hit != 'true'
+        id: ffmpeg-cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/coreav-oracle-bin
+          key: linux-x64-ffmpeg-7.0.2-mediainfo-26.10-${{ hashFiles('scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
+      - name: Install pinned FFmpeg, ffprobe and MediaInfo
+        if: steps.fixtures.outputs.cache-hit != 'true' && steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        run: |
+          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
+          scripts/install-oracle-mediainfo.sh "$RUNNER_TEMP/coreav-oracle-bin"
+      - name: Generate all required fixtures
+        if: steps.fixtures.outputs.cache-hit != 'true'
+        env:
+          COREAV_REQUIRE_ALL_FIXTURES: '1'
+        run: |
+          export PATH="$RUNNER_TEMP/coreav-oracle-bin:$PATH"
+          scripts/gen-fixtures.sh "$RUNNER_TEMP/coreav-fixtures"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: isobmff-fixture-set
+          path: ${{ runner.temp }}/coreav-fixtures
+          if-no-files-found: error
+          retention-days: 1
+      - name: Save the fixtures
+        if: steps.fixtures.outputs.cache-hit != 'true' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/coreav-fixtures
+          key: ${{ steps.key.outputs.key }}
+
   # The writers' oracles of the ISO base media fixtures, beside
   # isobmff-fixtures (docs/design/ci-checks.md, "The fixture jobs").
   isobmff-writers:
-    needs: ci-changes
+    needs: [ci-changes, isobmff-fixture-set]
     if: >-
       needs.ci-changes.outputs.run == 'true' &&
       (github.event_name != 'pull_request' || !github.event.pull_request.draft)
@@ -790,35 +856,17 @@ jobs:
           scripts/install-oracle-mediainfo.sh "$RUNNER_TEMP/coreav-oracle-bin"
       - name: Use pinned binaries
         run: echo "$RUNNER_TEMP/coreav-oracle-bin" >> "$GITHUB_PATH"
-      # The fixtures isobmff-fixtures generates, saved for these scripts
-      # and this FFmpeg; generated here when no run has saved them yet.
-      - name: Restore the generated fixtures
-        id: fixtures
-        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      # The one fixture set of this run (isobmff-fixture-set).
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
+          name: isobmff-fixture-set
           path: ${{ runner.temp }}/coreav-fixtures
-          key: linux-x64-fixtures-${{ hashFiles('scripts/gen-fixtures.sh', 'scripts/install-oracle-ffmpeg.sh') }}
-      - name: Generate the fixtures
-        if: steps.fixtures.outputs.cache-hit != 'true'
-        env:
-          COREAV_REQUIRE_ALL_FIXTURES: '1'
-        run: scripts/gen-fixtures.sh "$RUNNER_TEMP/coreav-fixtures"
       # The coreav binary. Every key --ffprobe-compat prints is
       # compared with ffprobe (known divergences from the overlay above apply),
       # native output is validated against docs/schema/probe-v1.schema.json, and
       # the hostile-input suite runs through the binary in both output modes.
       - name: Build the coreav binary
         run: cargo build --locked --release -p coreav-cli
-      # docs/measurements/kd-audit-writers.md: every bug-shaped change to a
-      # WebVTT or chapters output must stay visible, never covered by a
-      # docs/known-divergences-text.md entry. The other writers' audits take
-      # an hour each and run on demand.
-      - name: Audit the text known divergences
-        env:
-          PYTHONDONTWRITEBYTECODE: '1'
-        run: |
-          python3 -I tools/oracle/writer_kd_audit_cli.py --oracle text --coreav target/release/coreav \
-            --media "$RUNNER_TEMP/coreav-fixtures" --mediainfo "$RUNNER_TEMP/coreav-oracle-bin/mediainfo"
       # Every MP4 and MOV fixture with a video track the clip writer accepts is
       # clipped at five ranges, and every MP4, MOV and M4A fixture without
       # video whose audio is AAC is clipped alone at five. Each output round-trips
@@ -966,7 +1014,7 @@ jobs:
   # The decoders, thumbnails and `coreav transcode` on the ISO base media
   # fixtures: the build with the FFmpeg fallback, dav1d and libvpx.
   isobmff-decode:
-    needs: ci-changes
+    needs: [ci-changes, isobmff-fixture-set]
     if: >-
       needs.ci-changes.outputs.run == 'true' &&
       (github.event_name != 'pull_request' || !github.event.pull_request.draft)
@@ -998,19 +1046,11 @@ jobs:
           scripts/install-oracle-mediainfo.sh "$RUNNER_TEMP/coreav-oracle-bin"
       - name: Use pinned binaries
         run: echo "$RUNNER_TEMP/coreav-oracle-bin" >> "$GITHUB_PATH"
-      # The fixtures isobmff-fixtures generates, saved for these scripts
-      # and this FFmpeg; generated here when no run has saved them yet.
-      - name: Restore the generated fixtures
-        id: fixtures
-        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      # The one fixture set of this run (isobmff-fixture-set).
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
+          name: isobmff-fixture-set
           path: ${{ runner.temp }}/coreav-fixtures
-          key: linux-x64-fixtures-${{ hashFiles('scripts/gen-fixtures.sh', 'scripts/install-oracle-ffmpeg.sh') }}
-      - name: Generate the fixtures
-        if: steps.fixtures.outputs.cache-hit != 'true'
-        env:
-          COREAV_REQUIRE_ALL_FIXTURES: '1'
-        run: scripts/gen-fixtures.sh "$RUNNER_TEMP/coreav-fixtures"
       # docs/design/decode.md and docs/design/thumbnails.md: the sandboxed
       # FFmpeg fallback (a non-default feature) and thumbnails. Bars on the
       # fixtures: every frame of every allowlisted video fixture equal to
@@ -1146,7 +1186,7 @@ jobs:
   # of the fixtures a job; `b9` judges the bars once over all three
   # (docs/design/ci-checks.md, "The fixture jobs").
   b9-shard:
-    needs: ci-changes
+    needs: [ci-changes, isobmff-fixture-set]
     strategy:
       fail-fast: false
       matrix:
@@ -1182,19 +1222,11 @@ jobs:
           scripts/install-oracle-mediainfo.sh "$RUNNER_TEMP/coreav-oracle-bin"
       - name: Use pinned binaries
         run: echo "$RUNNER_TEMP/coreav-oracle-bin" >> "$GITHUB_PATH"
-      # The fixtures isobmff-fixtures generates, saved for these scripts
-      # and this FFmpeg; generated here when no run has saved them yet.
-      - name: Restore the generated fixtures
-        id: fixtures
-        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      # The one fixture set of this run (isobmff-fixture-set).
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
+          name: isobmff-fixture-set
           path: ${{ runner.temp }}/coreav-fixtures
-          key: linux-x64-fixtures-${{ hashFiles('scripts/gen-fixtures.sh', 'scripts/install-oracle-ffmpeg.sh') }}
-      - name: Generate the fixtures
-        if: steps.fixtures.outputs.cache-hit != 'true'
-        env:
-          COREAV_REQUIRE_ALL_FIXTURES: '1'
-        run: scripts/gen-fixtures.sh "$RUNNER_TEMP/coreav-fixtures"
       # The same build as isobmff-decode's.
       - name: Install libdav1d and libvpx
         run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends libdav1d-dev libvpx-dev
@@ -2078,7 +2110,7 @@ jobs:
     # (docs/design/ci-checks.md). It waits for every job of the workflow,
     # and its summary names each job's result. It has no concurrency group:
     # it has to report on a cancelled run too.
-    needs: [ci-changes, check, check-macos, check-windows, msrv, fuzz, isobmff-fixtures, isobmff-writers, isobmff-decode, b9-shard, b9, mkv-fixtures, ts-fixtures, conformance, vector-width, modes-identity, training-identity, kernels-arm64, conformance-arm64, bench-guard]
+    needs: [ci-changes, check, check-macos, check-windows, msrv, fuzz, isobmff-fixtures, isobmff-fixture-set, isobmff-writers, isobmff-decode, b9-shard, b9, mkv-fixtures, ts-fixtures, conformance, vector-width, modes-identity, training-identity, kernels-arm64, conformance-arm64, bench-guard]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5

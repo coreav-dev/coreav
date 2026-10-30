@@ -33,7 +33,7 @@ def check(*args):
 
 
 class Merge(unittest.TestCase):
-    def runs(self, status_of, n=2):
+    def runs(self, status_of, n=2, fixtures=lambda i: {'a.mp4': 'aa'}):
         """A whole run's OUT, and the evidence directories of its n shards."""
         tmp = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
         expected = {c: dict(FILES) for c in CONFIGS}
@@ -60,7 +60,7 @@ class Merge(unittest.TestCase):
                     tar.addfile(info, io.BytesIO(data))
             (d / 'calls.jsonl').write_text(''.join(
                 json.dumps({'config': c, 'file': k, 'arm': 'x264'}) + '\n' for c in CONFIGS for k in mine))
-            (d / 'manifest.json').write_text(json.dumps({'commands': {}, 'fixtures': {}, 'tools': {}}))
+            (d / 'manifest.json').write_text(json.dumps({'commands': {}, 'fixtures': fixtures(i), 'tools': {}}))
             shards.append(str(d))
         return tmp, whole, shards
 
@@ -95,6 +95,18 @@ class Merge(unittest.TestCase):
         status, text = check('--merge', shards[0], shards[0], shards[1], '--out', str(tmp / 'merged'))
         self.assertEqual(status, 1)
         self.assertIn('twice', text)
+
+    def test_shards_on_different_fixture_bytes_are_refused(self):
+        tmp, _, shards = self.runs(lambda c, k: 'refused', fixtures=lambda i: {'a.mp4': 'aa', 'd.webm': f'd{i}'})
+        status, text = check('--merge', *shards, '--out', str(tmp / 'merged'))
+        self.assertEqual(status, 1)
+        self.assertIn('different bytes of d.webm', text)
+
+    def test_a_fixture_one_shard_lacks_is_refused(self):
+        tmp, _, shards = self.runs(lambda c, k: 'refused', fixtures=lambda i: {'a.mp4': 'aa'} if i == 1 else {})
+        status, text = check('--merge', *shards, '--out', str(tmp / 'merged'))
+        self.assertEqual(status, 1)
+        self.assertIn('different bytes of a.mp4', text)
 
 
 if __name__ == '__main__':
