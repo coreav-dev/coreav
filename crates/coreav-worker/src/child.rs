@@ -33,10 +33,12 @@ const IDLE_DRAIN: Duration = Duration::from_millis(2);
 /// Runs the worker on standard input and output until the parent closes
 /// the session. Call it from a program's `main` when the parent started it
 /// as a worker (the `coreav` binary does with a hidden argument; the
-/// `coreav-worker` binary always does).
-pub fn worker_main() -> ExitCode {
+/// `coreav-worker` binary always does). `allow` says whether this program
+/// hosts a backend: an `Open` of one it refuses gets an error with its
+/// message, before the worker does anything else.
+pub fn worker_main(allow: impl Fn(WorkerBackend) -> Result<(), String>) -> ExitCode {
     let mut out = io::BufWriter::new(io::stdout());
-    match run(&mut out) {
+    match run(&mut out, &allow) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             let _ = WorkerMessage::Error(e.kind, e.message).write(&mut out);
@@ -61,7 +63,10 @@ enum Command {
     OutOfMemory,
 }
 
-fn run(out: &mut impl Write) -> Result<(), Error> {
+fn run(
+    out: &mut impl Write,
+    allow: &impl Fn(WorkerBackend) -> Result<(), String>,
+) -> Result<(), Error> {
     let mut stdin = io::stdin();
     let mut open = match read_message(&mut stdin, |_| MAX_OPEN) {
         Ok(Incoming::Message(kind, payload)) => match ParentMessage::decode(kind, &payload) {
@@ -70,6 +75,7 @@ fn run(out: &mut impl Write) -> Result<(), Error> {
         },
         _ => return Err(Error::new(ErrorKind::Backend, "expected Open")),
     };
+    allow(open.backend).map_err(|message| Error::new(ErrorKind::Unsupported, message))?;
     sandbox::apply(&open.sandbox)
         .map_err(|e| Error::new(ErrorKind::Backend, format!("cannot limit the worker: {e}")))?;
     // The backend fits itself to the address-space limit in force, which an

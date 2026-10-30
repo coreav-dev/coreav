@@ -1,5 +1,5 @@
 #!/bin/bash
-# Round 13 re-measure (#400): base main 9cc143d, g perf/h264-mc-glue-2 14435e9, r perf/h264-mc-ref-13b a445499, gr perf/h264-mc-glue-r 22c6fbd.
+# Round 13 re-measure: base main 9cc143d, g perf/h264-mc-glue-2 14435e9, r perf/h264-mc-ref-13b a445499, gr perf/h264-mc-glue-r 22c6fbd.
 # Host-health gate before and after every timing call; main may have moved since, the base stays 9cc143d (recorded).
 set -euo pipefail
 OUT=$HOME/ab/r13b/out; W=$HOME/ab/r13b/w; mkdir -p $OUT $W

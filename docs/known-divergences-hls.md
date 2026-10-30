@@ -216,7 +216,7 @@ predicates rely on are the source's.
   (`docs/design/hls.md`, "The segments are the subsegments"), and each
   segment's `tfdt` is its first sample's decode time; the samples are
   copied as stored. The writer does not read every fragment
-  to build the playlist (#248). ISO/IEC 14496-12 8.8.12 makes a fragment's
+  to build the playlist. ISO/IEC 14496-12 8.8.12 makes a fragment's
   decode time the sum of the earlier samples' durations; the source's
   `tfdt` values break it, so its index (8.16.3.3) disagrees with its own
   fragments.

@@ -295,7 +295,7 @@ fn stream(movie: &Movie, track: &Track) -> Value {
     );
     if audio {
         // AAC: the rate its configuration declares, as a reader that does
-        // not decode sees it (#219); else the sample entry's.
+        // not decode sees it; else the sample entry's.
         put(
             &mut s,
             "sample_rate",
@@ -307,7 +307,7 @@ fn stream(movie: &Movie, track: &Track) -> Value {
         // document keeps the entry's 2 for a possible implicit parametric
         // stereo, which only decoding shows; this output prints the
         // configuration's 1, the channels it declares (ISO/IEC 14496-12
-        // 12.2.3), as ffprobe does without decoding (#219).
+        // 12.2.3), as ffprobe does without decoding.
         let channels = if d.implicit_ps_possible {
             Some(1)
         } else {
@@ -347,8 +347,7 @@ fn stream(movie: &Movie, track: &Track) -> Value {
         s.insert("tags".to_owned(), Value::Object(tags));
     }
     let mut side_data = Vec::new();
-    // The Dolby Vision configuration record first, as `ffprobe` lists it
-    // (#219).
+    // The Dolby Vision configuration record first, as `ffprobe` lists it.
     if let Some(dv) = d.dolby_vision.filter(|_| video) {
         side_data.push(json!({
             "side_data_type": "DOVI configuration record",

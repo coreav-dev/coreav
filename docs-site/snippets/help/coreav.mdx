@@ -4,7 +4,7 @@ The coreav command: memory-safe probing of MP4/MOV, Matroska, WebM and MPEG tran
 Usage: coreav [OPTIONS] <COMMAND>
 
 Commands:
-  probe              Describe an MP4, MOV, Matroska or WebM file as JSON
+  probe              Describe an MP4, MOV, Matroska, WebM or MPEG-TS file as JSON
   clip               Cut a keyframe-aligned clip of an MP4/MOV file to MP4, without re-encoding
   split              Split an MP4/MOV file at keyframes into MP4 segments, without re-encoding. Together the segments hold every packet of the kept streams exactly once
   check              Check an MP4, MOV, Matroska or WebM file against an upload policy and print the verdict as JSON
@@ -15,14 +15,13 @@ Commands:
   chapters           Print the QuickTime chapter list of an MP4/MOV file as JSON
   sanitize           Rewrite an MP4/MOV file as MP4 without its metadata (location, device, dates), keeping only allowlisted boxes, without re-encoding
   join               Join MP4/MOV files that share a codec configuration into one MP4, without re-encoding
-  mcp                Serve these commands as Model Context Protocol tools over standard input and output, for agents (docs/design/mcp.md)
   hls                Serve an MP4/MOV file as HLS with fragmented MP4 (CMAF) segments, without re-encoding
-  ffprobe            Experimental. Runs an ffprobe command line: ffprobe's own options, a supported subset. With --strict-safe (COREAV_STRICT_SAFE=1), for untrusted input, anything else is refused with exit status 4; without it, anything else runs the ffprobe program on PATH, FFmpeg's C code (docs/design/compat-cli.md). Values can differ from ffprobe's for MP4/MOV and MPEG-TS; Matroska/WebM agree on 98% or more of files for 99 of 101 keys (docs/measurements/compat-ffprobe.md). `coreav` run as `ffprobe` does the same
-  ffmpeg             Runs an ffmpeg stream-copy command line (-c copy) with CoreAV's own writers: remuxing to MP4, clipping, segmenting and audio extraction to M4A, with ffmpeg's stream selection. With --strict-safe (COREAV_STRICT_SAFE=1), for untrusted input, anything else is refused with exit status 4; without it, anything else runs the ffmpeg program on PATH, FFmpeg's C code (docs/design/compat-cli.md). `coreav` run as `ffmpeg` does the same
+  ffprobe            Experimental. Runs an ffprobe command line: ffprobe's own options, a supported subset. With --strict-safe (COREAV_STRICT_SAFE=1), for untrusted input, anything else is refused with exit status 4; without it, anything else runs the ffprobe program on PATH, FFmpeg's C code (docs/design/compat-cli.md). Values can differ from ffprobe's for MP4/MOV and MPEG-TS; Matroska/WebM agree on 98% or more of files for all 101 keys (docs/measurements/compat-ffprobe.md). `coreav` run as `ffprobe` does the same
+  ffmpeg             Experimental. Runs an ffmpeg stream-copy command line (-c copy) with CoreAV's own writers: remuxing to MP4, clipping, segmenting and audio extraction to M4A, with ffmpeg's stream selection. With --strict-safe (COREAV_STRICT_SAFE=1), for untrusted input, anything else is refused with exit status 4; without it, anything else runs the ffmpeg program on PATH, FFmpeg's C code (docs/design/compat-cli.md). `coreav` run as `ffmpeg` does the same
   help               Print this message or the help of the given subcommand(s)
 
 Options:
-      --strict-safe  For services that read untrusted input: `coreav ffprobe` and `coreav ffmpeg` never run FFmpeg in place of a command that is not native, and refuse it (exit status 4), as COREAV_STRICT_SAFE=1 does. Without it, such a command runs the ffmpeg or ffprobe program found on PATH (or named by COREAV_FALLBACK), which is FFmpeg's C code
+      --strict-safe  For services that read untrusted input: CoreAV never runs an ffmpeg or ffprobe program, which is FFmpeg's C code, as COREAV_STRICT_SAFE=1 does. `coreav ffprobe` and `coreav ffmpeg` refuse a command that is not native (exit status 4) instead of running it with FFmpeg, and a thumbnail or transcode never decodes or encodes with FFmpeg: a video only FFmpeg would decode, and an encode without an x264 program, are refused (exit status 4)
   -h, --help         Print help
   -V, --version      Print version
 ```

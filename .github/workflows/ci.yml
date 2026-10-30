@@ -130,6 +130,15 @@ jobs:
         env:
           COREAV_FFMPEG: ${{ runner.temp }}/coreav-encoders/ffmpeg
           COREAV_X264: ${{ runner.temp }}/coreav-encoders/x264
+      # Strict-safe mode runs no ffmpeg program, as the decoder, the encoder
+      # or in place of a command (docs/design/compat-cli.md, "Strict-safe
+      # mode"): in a build with the FFmpeg fallback and in one with CoreAV's
+      # own H.264 decoder alone. The pinned FFmpeg only makes the source.
+      - run: |
+          cargo test -p coreav-cli --features ffmpeg-fallback --test strict_safe
+          cargo test -p coreav-cli --features native-h264 --test strict_safe
+        env:
+          COREAV_FFMPEG: ${{ runner.temp }}/coreav-encoders/ffmpeg
       # Checks the documentation site's help text of `coreav thumbnail` and
       # `coreav transcode`, which only builds with a decoder backend include
       # (docs/design/docs-site.md); `cargo test --workspace` checks the rest.
@@ -147,7 +156,7 @@ jobs:
       # that every bar's measured numbers reach the log unmixed.
       - run: cargo test --release -p coreav-isobmff -p coreav-isobmff-write --test memory -- --include-ignored --nocapture --test-threads=1
       # A transport stream's probe and listing, run again and again, hold
-      # nothing between runs (#595, docs/design/fuzz-campaign.md).
+      # nothing between runs (docs/design/fuzz-campaign.md).
       - run: cargo test --release -p coreav-mpegts --test memory -- --nocapture --test-threads=1
       # docs/design/mkv.md: a 2.2 GB virtual live recording, reads bounded
       # to 1 MiB.
@@ -159,7 +168,7 @@ jobs:
 
   msrv:
     # The workspace's declared rust-version (root Cargo.toml) must build: a
-    # newer language feature or std API raises it in the same PR (#212).
+    # newer language feature or std API raises it in the same PR.
     needs: ci-changes
     if: needs.ci-changes.outputs.run == 'true'
     runs-on: ubuntu-24.04

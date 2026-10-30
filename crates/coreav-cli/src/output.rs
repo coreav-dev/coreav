@@ -49,6 +49,11 @@ impl WriteFailure {
         }
     }
 
+    /// Strict-safe mode's refusal: exit status 4.
+    pub fn is_strict_safe(&self) -> bool {
+        matches!(self, Self::Rejected(failure) if failure.is_strict_safe())
+    }
+
     /// An output that could not be created, written or put in place.
     pub fn output(error: &std::io::Error) -> Self {
         Self::Io(io_object(&format!("write error: {}", error.kind())))
@@ -318,7 +323,7 @@ mod tests {
     }
 
     /// Without `force`, a file that appeared at the output after the checks
-    /// is not replaced (#64).
+    /// is not replaced.
     #[test]
     fn a_file_created_meanwhile_is_not_replaced() {
         let dir = scratch("race");
@@ -337,7 +342,7 @@ mod tests {
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
-    /// With `force`, the replaced file's permissions are kept (#64).
+    /// With `force`, the replaced file's permissions are kept.
     #[cfg(unix)]
     #[test]
     fn a_forced_overwrite_keeps_the_permissions() {
@@ -359,7 +364,7 @@ mod tests {
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
-    /// A directory is refused before any work, with or without `force` (#64).
+    /// A directory is refused before any work, with or without `force`.
     #[test]
     fn a_directory_output_is_refused() {
         let dir = scratch("dir");

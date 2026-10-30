@@ -1,4 +1,4 @@
-"""python3 -I analyze-b4.py DIR -> bundle 4's (#561) bars B4-1 to B4-3 and B4-5 (B4-4, one thread, is run by another helper) (docs/design/h264.md, "Threading round: a banded picture's
+"""python3 -I analyze-b4.py DIR -> bundle 4's bars B4-1 to B4-3 and B4-5 (B4-4, one thread, is run by another helper) (docs/design/h264.md, "Threading round: a banded picture's
 lines asked for ahead", "Bars"). DIR holds t8.<class>.json (eight threads, c4-standard-16, the 32
 training streams), g.<class>.json (one thread pinned, helper VM, the 32 training streams) and h8.<class>.json (eight threads,
 c4-standard-16, the 64 held-out streams, five rounds), from scripts/h264_parity*.py with decoders `base` and `k` (= the branch), built

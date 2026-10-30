@@ -1,4 +1,4 @@
-"""python3 -I analyze-cw.py DIR1 [DIR8]: the bars SL-1 to SL-5 of #540 (docs/design/h264.md, 'CAVLC slice loop', Bars)
+"""python3 -I analyze-cw.py DIR1 [DIR8]: the bars SL-1 to SL-5 of the CAVLC slice loop round (docs/design/h264.md, 'CAVLC slice loop', Bars)
 from the calls' reports: g.<class>.json in DIR1 (one thread pinned, 32 training streams, arms `base` and `k`), t8.<class>.json in DIR8 (eight threads, the
 32 training streams, Compute Engine) and in h.<class>.json in DIR1 (one thread pinned, the 64 held-out streams). Per call and mode: the median per-stream ratio `k` over `base` with a
 bootstrap 95% interval (2,000 resamples over streams), over all streams, per class and over the six CAVLC streams, and the ratios to FFmpeg with the

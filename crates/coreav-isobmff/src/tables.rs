@@ -492,7 +492,7 @@ impl Cursor {
     /// `Ok(None)` after the last sample. Advancing over a run is arithmetic
     /// on the run-length tables; only variable sample sizes are read one by
     /// one.
-    // Always inlined: it has two callers since #248's HLS index listed
+    // Always inlined: it has two callers since the HLS index listed
     // its samples in batches (`Packets::next_runs` and so `fill`), and
     // left to itself the compiler then stops inlining it into
     // `Packets::next_raw`, which costs every packet-by-packet caller a
@@ -663,7 +663,7 @@ impl Cursor {
     /// took. After each general step, the samples that stay inside the
     /// current chunk, decode-duration entry and composition-offset entry,
     /// before the next sync sample, are stepped in a tight loop that reads
-    /// only their sizes (#30). Work is counted as `Packets::next_run` counts
+    /// only their sizes. Work is counted as `Packets::next_run` counts
     /// it and in the same order, one unit for each run before its step, so a
     /// budget that runs out stops both at the same run with the same work.
     pub(crate) fn fill(
@@ -802,7 +802,7 @@ impl Cursor {
     /// chunk, the decode-duration entry, the composition-offset entry and
     /// the next sync sample, the samples until the next of those are a span
     /// whose sizes alone are read, and nothing about a run is built or
-    /// compared (#308).
+    /// compared.
     pub(crate) fn visit<E: From<Error>>(
         &mut self,
         tables: &SampleTables,

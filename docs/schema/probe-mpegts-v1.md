@@ -119,8 +119,9 @@ stream's `pid`, names the same stream on both sides. The same holds for
 `coreav.error/1`, as for `coreav.probe/1`. A file no reader recognises keeps
 the ISO base media reader's `unsupported_container`. The transport stream
 reader's own rejections are `invalid_structure` (a structure it cannot skip,
-and a file shaped like a transport stream whose first 16 MiB name no
-program), `limit`, `codec_not_allowed` (`--strict`) and `io`. The `limit`
+and a file shaped like a transport stream of at most 16 MiB that names no
+program), `limit` (a longer file whose first 16 MiB name no program is
+`max_probe_bytes`), `codec_not_allowed` (`--strict`) and `io`. The `limit`
 names are the fields of `coreav_mpegts::Limits`: `max_probe_bytes`,
 `max_resync_bytes`, `max_programs`, `max_streams`, `max_packet_bytes`,
 `max_buffered_bytes`, `max_listing_packets`.

@@ -59,7 +59,7 @@ IN_SCOPE = ('.mp4', '.mov', '.m4a')
 
 # The compat keys that follow each field the stream oracle gates, for the
 # field paths an overlay entry covered on a file (`covered_items[].paths`,
-# scripts/oracle_kd.py and oracle_kd_mkv.py, #219): a compat key counts as
+# scripts/oracle_kd.py and oracle_kd_mkv.py): a compat key counts as
 # covered only where the entry was checked on the field it follows, on the
 # same stream. The format bit rate is the file size over the format
 # duration, so it follows the duration.
@@ -76,7 +76,7 @@ FORMAT_KEYS = {'format_duration_us': {'format.duration', 'format.bit_rate'}}
 # A declared picture size the parameter sets contradict also moves the
 # aspect ratios computed from it.
 # The display ratio counts only with a sample aspect ratio ffprobe agrees
-# with; the sample ratio itself is never excused by the size (#254 review).
+# with; the sample ratio itself is never excused by the size (a review finding).
 SIZE_ENTRIES = {'KD-DECLARED-SIZE': {'streams.display_aspect_ratio'},
                 'KD-MKV-DECLARED-SIZE': {'streams.display_aspect_ratio'}}
 
@@ -125,8 +125,7 @@ def bound(key, mine, field, value, ours, their_format, theirs=None):
     """Whether the compat value `mine` of `key` is what the oracle's checked
     candidate `value` of `field` gives: the same value, or the documented
     conversion of it. A covered field excuses a difference from ffprobe, not
-    a compat output that differs from the value the entry was checked on
-    (#219)."""
+    a compat output that differs from the value the entry was checked on."""
     try:
         if field == 'format_duration_us':
             if not isinstance(value, int):

@@ -1,6 +1,6 @@
 #!/bin/bash
 # build.sh: the two arms' binaries (dist with line tables): ~/m8/src-main = main at df389085, ~/m8/src-ft = df389085
-# with #508's code commit 68c8f059 cherry-picked (99f6e3e9 locally; picture.rs only).
+# with the first-touch round's code commit 68c8f059 cherry-picked (99f6e3e9 locally; picture.rs only).
 set -euo pipefail
 [ -z "${RUSTFLAGS:-}" ] || { echo RUSTFLAGS set; exit 4; }
 for a in main ft; do

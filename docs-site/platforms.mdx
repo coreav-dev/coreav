@@ -20,14 +20,20 @@ The native binaries and the WebAssembly build are those of the npm package `core
 
 ## The npm package
 
-The npm package needs Node 20 or later. It runs the native binary on Linux (x86-64 and arm64, glibc or musl), macOS (arm64 and x86-64) and Windows (x86-64), and the WebAssembly build elsewhere. Both give the same output, output files and exit statuses. The WebAssembly build has two limits:
+The npm package needs Node 20 or later. It runs the native binary on Linux (x86-64 and arm64, glibc or musl), macOS (arm64 and x86-64) and Windows (x86-64), and the WebAssembly build elsewhere. Both give the same output, output files and exit statuses. The WebAssembly build reads local files only: an input that names a URL is refused with exit status 2.
 
-- It reads local files only. An input that names a URL is refused with exit status 2.
-- It cannot run [`coreav mcp`](/commands/mcp), which starts the command as a child process for each tool call. It exits with status 2 and says so.
+The WebAssembly build has a few more differences:
+
+- Exit status 70 means that the WebAssembly module could not run.
+- An error's `message` may word its cause differently. Its `kind` is the same.
+- On Windows, paths must be on the working directory's drive, not another drive or a network share. `\` and `/` both work.
+- It cannot tell hard links apart, because WASI does not expose file identities. For an output path that is a hard link to the input, it reports that the output exists, or with `--force` replaces that link. The input file itself is never changed.
+
+Installed with `npm install`, `coreav` is the native binary on Linux and macOS, so no Node.js starts first. A small Node.js launcher starts the binary instead, adding about 30 ms per call, on Windows, in installs that run no install scripts (`--ignore-scripts`), and with package managers that skip the scripts of dependencies unless they are allowed (pnpm 10 and later, Bun). The WebAssembly build adds about 60 ms per call. `npx coreav` adds npm's own start-up, about 0.2 s, to every call, so for many files, install the package and call `coreav` directly.
 
 [The npm package's design note](https://github.com/coreav-dev/coreav/blob/main/docs/design/npm-cli.md) covers how the package picks a binary.
 
 ## Known gaps
 
-- The fallback's tests do not run on Windows yet ([issue #43](https://github.com/coreav-dev/coreav/issues/43)).
+- The fallback's tests do not run on Windows yet ([the 0.1.0 release issue](https://github.com/coreav-dev/coreav/issues/43)).
 - The macOS wheel is built on macOS arm64 only. There is no x86-64 macOS wheel.

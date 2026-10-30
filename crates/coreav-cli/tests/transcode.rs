@@ -26,6 +26,13 @@ use std::process::Command;
 
 const TRANSCODE_SCHEMA: &str = include_str!("../../../docs/schema/transcode-v1.schema.json");
 
+/// What `COREAV_FALLBACK` names for the `coreav ffmpeg` commands: no
+/// program, so that a command `coreav ffmpeg` refuses stays refused (exit
+/// status 4) instead of running FFmpeg in its place, while the pinned FFmpeg
+/// still decodes and encodes, which strict-safe mode would refuse too
+/// (`docs/design/compat-cli.md`, "Fallback to FFmpeg").
+const NO_FALLBACK: &str = "/nonexistent/coreav-fallback";
+
 fn bin() -> &'static str {
     env!("CARGO_BIN_EXE_coreav")
 }
@@ -472,8 +479,7 @@ fn times_in_decode_order_keep_every_frame() {
 /// WebM blocks whose millisecond times repeat (bursts of three frames
 /// 40 ms apart, at 0, 0, 0, 40, 40, 40, ... ms): every frame is encoded,
 /// each repeat one tick after the frame before, where dropping each frame
-/// whose time is not above the last one's dropped two thirds of them
-/// (#586).
+/// whose time is not above the last one's dropped two thirds of them.
 #[test]
 fn repeated_webm_times_keep_every_frame() {
     // VP8 decodes through the fallback.
@@ -945,7 +951,7 @@ fn ffmpeg_libx264_commands_run_the_pipeline() {
             }))
             .env("COREAV_X264", &tools.x264)
             .env("COREAV_FFMPEG", &tools.ffmpeg)
-            .env("COREAV_STRICT_SAFE", "1");
+            .env("COREAV_FALLBACK", NO_FALLBACK);
         let out = command.output().unwrap();
         (
             out.status.code().unwrap(),
@@ -1056,7 +1062,7 @@ fn ffmpeg_libx264_refuses_a_matrix_ffmpeg_would_apply() {
             .args(args)
             .env("COREAV_X264", &tools.x264)
             .env("COREAV_FFMPEG", &tools.ffmpeg)
-            .env("COREAV_STRICT_SAFE", "1")
+            .env("COREAV_FALLBACK", NO_FALLBACK)
             .output()
             .unwrap();
         (
@@ -1148,7 +1154,7 @@ fn ffmpeg_libx264_refuses_before_encoding() {
             ])
             .env("COREAV_X264", &tools.x264)
             .env("COREAV_FFMPEG", &tools.ffmpeg)
-            .env("COREAV_STRICT_SAFE", "1")
+            .env("COREAV_FALLBACK", NO_FALLBACK)
             .output()
             .unwrap();
         let stderr = String::from_utf8_lossy(&run.stderr);
@@ -1162,7 +1168,7 @@ fn ffmpeg_libx264_refuses_before_encoding() {
         .args(["ffmpeg", "-f", "concat", "-safe", "0", "-i", &list])
         .args(["-c:v", "libx264", "-c:a", "copy", &out])
         .env("COREAV_X264", &tools.x264)
-        .env("COREAV_STRICT_SAFE", "1")
+        .env("COREAV_FALLBACK", NO_FALLBACK)
         .output()
         .unwrap();
     let stderr = String::from_utf8_lossy(&run.stderr);

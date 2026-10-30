@@ -839,7 +839,7 @@ fn plan(track: &Track) -> Result<Plan, &'static str> {
             (rate, aac_frame_length(track))
         }
         // VP8 in MP4 (the binding's `vp08`) does not play in Safari, while
-        // the WebM plays in Chrome, Firefox and Safari (#68).
+        // the WebM plays in Chrome, Firefox and Safari.
         (_, Codec::Vp8) => {
             return Err(
                 "VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, \

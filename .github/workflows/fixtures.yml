@@ -415,7 +415,8 @@ jobs:
           python3 -I tools/oracle/writer_kd_audit_cli.py --oracle text --coreav target/release/coreav \
             --media "$RUNNER_TEMP/coreav-fixtures" --mediainfo "$RUNNER_TEMP/coreav-oracle-bin/mediainfo"
       # Every MP4 and MOV fixture with a video track the clip writer accepts is
-      # clipped at five ranges. Each output round-trips
+      # clipped at five ranges, and every MP4, MOV and M4A fixture without
+      # video whose audio is AAC is clipped alone at five. Each output round-trips
       # through coreav-isobmff (samples, times, no missing frame) and is checked
       # against its source with ffprobe (streams, durations, packet hashes),
       # ffmpeg (framemd5 of the video, decoded audio) and MediaInfo, with

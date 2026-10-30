@@ -4,9 +4,9 @@ use std::ops::ControlFlow;
 
 use crate::sample::parse_sample;
 use crate::timing::Edit;
-use crate::{Dropped, TextError, TextLimits};
+use crate::{Dropped, TextError, TextLimitKind, TextLimits};
 use coreav_isobmff::{
-    Allowlist, Budget, Codec, Error, LimitKind, Limits, Movie, Rational, Source, Track, probe,
+    Allowlist, Budget, Codec, Error, Limits, Movie, Rational, Source, Track, probe,
 };
 
 /// One chapter.
@@ -147,7 +147,10 @@ fn track_chapters<S: Source>(
         }
         list.samples = list.samples.saturating_add(1);
         if packet.size > text_limits.max_sample_bytes {
-            return Err(limit(packet.offset));
+            return Err(TextError::LimitExceeded {
+                limit: TextLimitKind::SampleBytes,
+                offset: packet.offset,
+            });
         }
         // Every part of the sample the edits present; a chapter each.
         if edit.intervals(&packet, &mut shown).is_none() || shown.is_empty() {
@@ -167,10 +170,18 @@ fn track_chapters<S: Source>(
         let title = sample.text;
         for (start, end) in &shown {
             title_bytes = title_bytes.saturating_add(title.len() as u64);
-            if title_bytes > text_limits.max_title_bytes
-                || list.chapters.len() >= text_limits.max_chapters as usize
-            {
-                return Err(limit(packet.offset));
+            let exceeded = if list.chapters.len() >= text_limits.max_chapters as usize {
+                Some(TextLimitKind::Chapters)
+            } else if title_bytes > text_limits.max_title_bytes {
+                Some(TextLimitKind::TitleBytes)
+            } else {
+                None
+            };
+            if let Some(limit) = exceeded {
+                return Err(TextError::LimitExceeded {
+                    limit,
+                    offset: packet.offset,
+                });
             }
             list.chapters.push(Chapter {
                 start: *start,
@@ -194,11 +205,4 @@ fn check(track: &Track) -> Result<(), Error> {
         });
     }
     Ok(())
-}
-
-fn limit(offset: u64) -> TextError {
-    TextError::Source(Error::LimitExceeded {
-        limit: LimitKind::PacketBytes,
-        offset,
-    })
 }

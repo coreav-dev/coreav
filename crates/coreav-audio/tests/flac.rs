@@ -119,7 +119,7 @@ fn conformance_vectors() {
             let data = std::fs::read(&path).unwrap();
             if !data.starts_with(b"fLaC") {
                 // uncommon/10 and 11 start at a frame or with junk: finding
-                // frames in a raw stream is the raw FLAC demuxer's (#209).
+                // frames in a raw stream is the raw FLAC demuxer's.
                 println!("skipped {name}: no fLaC signature");
                 continue;
             }

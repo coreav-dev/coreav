@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Media on standard output (#407): `coreav remux IN -` before and after the
+"""Media on standard output: `coreav remux IN -` before and after the
 fix, against the same command writing a file and against FFmpeg 9.0.2
 writing MP4 to `pipe:1`. The method and the bars are in
 docs/design/cli-stdout.md; this script only runs them.

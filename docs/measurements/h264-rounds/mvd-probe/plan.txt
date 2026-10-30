@@ -2,7 +2,7 @@ CABAC mvd sites probe, part-only (written before the run).
 
 Question: does the CABAC motion vector difference path (mvd_lX of clause 7.3.5.1 and 7.3.5.2, its binarization of
 clause 9.3.2.3 and its ctxIdxInc of clause 9.3.3.1.1.7) cost time in proportion to the instructions a cut of it would
-remove? The entropy re-measure on an earlier change's code (entropy-after-483) puts "mvd and ref_idx" at 267 instructions a
+remove? The entropy re-measure on an earlier change's code (entropy-after-decision-asm) puts "mvd and ref_idx" at 267 instructions a
 macroblock on the 26 CABAC streams against FFmpeg's 126: +141, a median excess of 2.49% of a CABAC stream's
 instructions (max 3.85%), the largest entropy group left after earlier changes. Its pieces (detail-mvd.txt there):
 DecodeDecision (55 a macroblock, kept), store_mvd with nb::put (62), the per-component mvd call with its unary
@@ -11,7 +11,7 @@ closure (about 60 outside the engine) and fill_mvd_cache (24).
 Base: perf/h264-cabac-decision-asm 4b909fd8 (code 200f9a79: an earlier change's residual dispatch and an earlier change's asm decision), the
 code the entropy re-measure profiled.
 
-Sites, measured on base (calls.py over entropy-after-483's callgrind records of prof-200f9a79, 26 CABAC streams at a
+Sites, measured on base (calls.py over entropy-after-decision-asm's callgrind records of prof-200f9a79, 26 CABAC streams at a
 tenth of the class frame counts; sites.txt): per call, self instructions
 - the mvd call (v3::enter of Cabac::mvd's closure, one a component; DecodeDecision and the bypass bins inlined):
   73 to 389, by the bins a call reads;

@@ -10,7 +10,7 @@ docs/known-divergences-ts.json; the captures come from tools/ts-adapter and
 scripts/oracle-ffprobe.sh. Each predicate checks CoreAV's values against
 the file itself, read by `Facts`, a reader written apart from CoreAV's
 (with --media; without it no entry covers anything), as the ISO base
-media overlay does (#162). Captures are read, never rewritten.
+media overlay does. Captures are read, never rewritten.
 
 Usage: oracle_kd_ts.py --report R [--report R2 ...] --reference DIR
                        --candidate DIR --out OUT --media DIR
@@ -1517,7 +1517,7 @@ def overlay(reports, reference_dir, candidate_dir, media_dir=None):
                         # The field paths the entries covered, with the
                         # values they were checked on, so that
                         # scripts/compat_check.py can require the compat
-                        # output to be those values (#219). A covered item
+                        # output to be those values. A covered item
                         # has no uncovered path left, so every gating
                         # difference of it is one of them; the transport
                         # stream overlay has one stream-level entry, so each

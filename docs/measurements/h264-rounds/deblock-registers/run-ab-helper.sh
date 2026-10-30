@@ -1,5 +1,5 @@
 #!/bin/bash
-# Gating run for DR-1..DR-4: run.sh BEFORE AFTER (main with #386, perf/h264-deblock-registers tip). Paths adapted to the A/B helper's VM.
+# Gating run for DR-1..DR-4: run.sh BEFORE AFTER (main with the luma interpolation round, perf/h264-deblock-registers tip). Paths adapted to the A/B helper's VM.
 set -euo pipefail
 BEFORE=$1; AFTER=$2
 OUT=$HOME/ab/dr/out; W=$HOME/ab/dr/w; mkdir -p $OUT $W

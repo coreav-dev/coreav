@@ -5,10 +5,10 @@
 //! vocabulary. [`plan`] reads the input's streams as `coreav ffprobe` lists
 //! them, selects the streams as `ffmpeg` does (`-map`, or one video, one
 //! audio and one subtitle stream chosen automatically, less `-vn`, `-an`,
-//! `-sn`, `-dn`), and picks the writer: a remux, a clip, a split or an
-//! audio extraction. [`run`] writes the output. Whatever a writer does not
-//! implement is a [`NotNative`] refusal, found before any output is
-//! written.
+//! `-sn`, `-dn`), and picks the writer: a remux, a clip (of audio alone
+//! when no video is selected), a split or an audio extraction. [`run`]
+//! writes the output. Whatever a writer does not implement is a
+//! [`NotNative`] refusal, found before any output is written.
 
 pub mod args;
 #[cfg(feature = "transcode")]
@@ -21,10 +21,11 @@ use crate::ffprobe::model::Value;
 use crate::ffprobe::{Report, Stream, StreamKind};
 use crate::output::{self, WriteFailure};
 use crate::split::Pattern;
+use crate::strict_safe::StrictSafe;
 use args::{Codec, Command, Demuxer, Muxer, Overwrite, Spec};
 use coreav_isobmff::{Allowlist, FileSource, Limits, Rational, Track};
 use coreav_isobmff_write::{
-    AudioChoice, ClipOptions, JoinAudio, JoinOptions, JoinSummary, JoinedInput,
+    AudioChoice, AudioClipOptions, ClipOptions, JoinAudio, JoinOptions, JoinSummary, JoinedInput,
     MatroskaRemuxOptions, OnUnsupported, RemuxOptions, SplitAt, SplitOptions, TrackChoice,
     VideoChoice,
 };
@@ -90,6 +91,8 @@ pub enum Job {
     },
     /// A keyframe-aligned clip.
     Clip(ClipOptions),
+    /// A clip of one AAC stream alone, presenting the range exactly.
+    AudioClip(AudioClipOptions),
     /// Segments, written to the names of the output pattern.
     Split(SplitOptions),
     /// The video stream encoded with libx264 and these audio streams copied,
@@ -121,9 +124,14 @@ enum Container {
 /// Parses, plans and runs a command line. Returns the summary its writer's
 /// own command prints (`coreav remux`, `clip`, `split`, `extract-audio`,
 /// `join`), which `coreav ffmpeg` does not print; the fixture tests check
-/// outputs with it.
-pub fn run(args: &[String]) -> Result<serde_json::Value, Stop> {
+/// outputs with it. `strict_safe` is `coreav --strict-safe`: an encode
+/// then runs no `ffmpeg` program (`crate::strict_safe`), and its encoder
+/// is decided from the command line, before the input is read.
+#[cfg_attr(not(feature = "transcode"), allow(unused_variables))]
+pub fn run(args: &[String], strict_safe: StrictSafe) -> Result<serde_json::Value, Stop> {
     let command = args::parse(args)?;
+    #[cfg(feature = "transcode")]
+    let encoder = encode::encoder(&command, strict_safe)?;
     let io = |e| WriteFailure::Rejected(Failure::io(e));
     let input = PathBuf::from(&command.input);
     std::fs::metadata(&input).map_err(io)?;
@@ -141,6 +149,18 @@ pub fn run(args: &[String]) -> Result<serde_json::Value, Stop> {
         .map_err(WriteFailure::Rejected)?
         .report;
     let job = plan(&command, &report, list)?;
+    #[cfg(feature = "transcode")]
+    if let (
+        Job::Transcode {
+            video,
+            audio,
+            reordered,
+        },
+        Some(encoder),
+    ) = (&job, encoder)
+    {
+        return encode::write(&command, *video, audio, *reordered, encoder, strict_safe);
+    }
     write(&command, &job)
 }
 
@@ -210,7 +230,7 @@ pub fn plan(
             )),
             ([video], [audio]) => Ok((*video, AudioChoice::Stream(*audio))),
             ([video], []) => Ok((*video, AudioChoice::None)),
-            ([], _) => Err(Refusal::not_native("a clip or a segment without video")),
+            ([], _) => Err(Refusal::not_native("a segment without video")),
             _ => Err(Refusal::not_native(
                 "a clip or a segment of more than one video or audio stream",
             )),
@@ -302,9 +322,23 @@ pub fn plan(
         if command.muxer != Muxer::Mp4 {
             return Err(Refusal::not_native("a clip written as M4A"));
         }
-        let (video, audio) = one_video_one_audio()?;
         let (start, end) = clip_range(command, input_start(report))
             .ok_or(Refusal::not_native("a time CoreAV cannot represent"))?;
+        if of(StreamKind::Video).next().is_none() {
+            return match selected.as_slice() {
+                [stream] if kind(*stream) == Some(StreamKind::Audio) => {
+                    Ok(Job::AudioClip(AudioClipOptions {
+                        audio: TrackChoice::Stream(*stream),
+                        start,
+                        end,
+                    }))
+                }
+                _ => Err(Refusal::not_native(
+                    "a clip without video of other than one audio stream",
+                )),
+            };
+        }
+        let (video, audio) = one_video_one_audio()?;
         return Ok(Job::Clip(ClipOptions {
             video: VideoChoice::Stream(video),
             audio,
@@ -779,7 +813,8 @@ pub(crate) fn check_output(command: &Command, path: &Path) -> Result<bool, Refus
 }
 
 /// Writes the output of `job`: to a temporary file next to each output,
-/// moved into place only once the whole job succeeded.
+/// moved into place only once the whole job succeeded. A transcode is
+/// [`encode::write`]'s, in a build that has it.
 fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
     let input = Path::new(&command.input);
     let (allowlist, mkv_allowlist) = crate::matroska::allowlists(None, false).map_err(|_| {
@@ -788,21 +823,8 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
     if let Job::Split(options) = job {
         return split(command, options, &allowlist);
     }
-    if let Job::Transcode {
-        video,
-        audio,
-        reordered,
-    } = job
-    {
-        #[cfg(feature = "transcode")]
-        return encode::write(command, *video, audio, *reordered);
-        #[cfg(not(feature = "transcode"))]
-        {
-            let _ = (video, audio, reordered);
-            return Err(
-                Refusal::not_native("encoding, in a build without a decoder backend").into(),
-            );
-        }
+    if let Job::Transcode { .. } = job {
+        return Err(Refusal::not_native("encoding, in a build without a decoder backend").into());
     }
     let path = PathBuf::from(&command.output);
     let force = check_output(command, &path)?;
@@ -851,6 +873,8 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
         }
         Job::Clip(options) => crate::clip::run(input, options, &allowlist, out)
             .map(|summary| crate::clip::document(&summary)),
+        Job::AudioClip(options) => crate::clip::run_audio(input, options, &allowlist, out)
+            .map(|summary| crate::clip::audio_document(&summary)),
         Job::Join { paths, audio } => {
             let summary = crate::join::run(paths, &JoinOptions { audio: *audio }, &allowlist, out)
                 .map_err(|failure| {

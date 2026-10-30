@@ -5,8 +5,8 @@
 //! Each request runs on its own thread, so that a pipeline's segments are
 //! fetched at once; a thread reads its response into a bounded queue (the
 //! plan's read-ahead) and stops when the request is cancelled. Redirects
-//! are followed only to HTTPS URLs. With [`Options::guarded`] (the MCP
-//! server's) a request goes only to public addresses: every address a host
+//! are followed only to HTTPS URLs. With [`Options::guarded`] (the Python
+//! module's default) a request goes only to public addresses: every address a host
 //! name resolves to is checked, the connection is made to a checked address
 //! (so a second, different DNS answer cannot redirect it), proxies are not
 //! used, and only HTTPS is accepted.
@@ -77,24 +77,17 @@ impl Options {
         }
     }
 
-    /// The command line's options, or [`Self::guarded`] when the
-    /// environment variable `COREAV_REMOTE` is `public` (the MCP server sets
-    /// it for the commands it runs). The variable can only make the rules
-    /// stricter.
+    /// The command line's options, with the read plan's numbers tuned by
+    /// `COREAV_REMOTE_SETTINGS`.
     pub fn from_env() -> Self {
-        match std::env::var("COREAV_REMOTE") {
-            Ok(value) if value == "public" => Self::guarded(),
-            _ => {
-                let mut options = Self::command();
-                if let Ok(text) = std::env::var("COREAV_REMOTE_SETTINGS") {
-                    tune(&mut options.settings, &text);
-                }
-                options
-            }
+        let mut options = Self::command();
+        if let Ok(text) = std::env::var("COREAV_REMOTE_SETTINGS") {
+            tune(&mut options.settings, &text);
         }
+        options
     }
 
-    /// For URLs an agent or another program chose (the MCP server): public
+    /// For URLs another program chose (the Python module's default): public
     /// addresses only, HTTPS only, no proxies, and at most 16 GiB received
     /// per object.
     pub fn guarded() -> Self {
@@ -957,6 +950,28 @@ mod tests {
         assert!(is_public("::ffff:8.8.8.8".parse().unwrap()));
         assert!(is_public("64:ff9b::808:808".parse().unwrap()));
         assert!(is_public("2002:808:808::1".parse().unwrap()));
+    }
+
+    #[test]
+    fn the_guarded_mode_reads_public_https_urls_only() {
+        let refusal = |url: &str| match open(url, &Options::guarded()) {
+            Err(Failure::Remote(reason)) => reason,
+            _ => panic!("{url} was not refused as a remote failure"),
+        };
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let reason = refusal(&format!("http://127.0.0.1:{port}/a.mp4"));
+        assert!(reason.contains("only https://"), "{reason}");
+        let reason = refusal(&format!("https://127.0.0.1:{port}/a.mp4"));
+        assert!(reason.contains("not a public address"), "{reason}");
+        assert_eq!(
+            listener.accept().map(|_| ()).unwrap_err().kind(),
+            std::io::ErrorKind::WouldBlock,
+            "a refused address was connected to"
+        );
+        let reason = refusal("https://user:secret@example.com/a.mp4");
+        assert!(reason.contains("credentials"), "{reason}");
     }
 
     #[test]

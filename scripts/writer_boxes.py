@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Box checks shared by the writer oracles (#324).
+"""Box checks shared by the writer oracles.
 
 The black-box oracles (`ffprobe`, `ffmpeg`, MediaInfo) do not see some of
 what a writer writes: they take an AAC track's channels and rate from its
@@ -923,7 +923,8 @@ def check_clip(entry, several=False):
     src_movie, out_movie, found = _load(entry["source"], entry["output"])
     if found:
         return found
-    kept = [("video", entry["video"])] + ([("audio", entry["audio"])] if entry.get("audio") else [])
+    kept = ([("video", entry["video"])] if entry.get("video") else []) + (
+        [("audio", entry["audio"])] if entry.get("audio") else [])
     if len(out_movie["tracks"]) != len(kept):
         return [("box:tracks", f"{len(out_movie['tracks'])} tracks, {len(kept)} kept")]
     for out_index, (kind, track) in enumerate(kept):
@@ -1107,7 +1108,7 @@ def _starts_coded_sequence(codec, sample, size):
 
 def hls_start(source, track, window, kind):
     """The source sample a rendition starts with (`hls.md`, "Timing"):
-    audio keeps every sample, however early the edit starts (#344); video
+    audio keeps every sample, however early the edit starts; video
     starts as `hls_video_start` says."""
     return hls_video_start(source, track, window) if kind == "video" else 0
 

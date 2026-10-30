@@ -662,7 +662,7 @@ fn audio_marked_not_sync_never_starts_a_segment() {
 /// A trimmed source: both edits start 1.5 s into the media. The video is
 /// copied from the sync sample at 1 s; the audio keeps every sample, so a
 /// reader that counts the edit's media time from the first decode time
-/// (the pinned ffmpeg does) still presents all of it (#344).
+/// (the pinned ffmpeg does) still presents all of it.
 #[test]
 fn an_edit_inside_the_media_leaves_the_video_lead_out() {
     let mut video = ibbp_video(100, 25);
@@ -677,7 +677,7 @@ fn an_edit_inside_the_media_leaves_the_video_lead_out() {
 }
 
 /// The edit starts exactly at a sync sample's composition time, or inside
-/// its display interval (#344): the video is copied from that sample, the
+/// its display interval: the video is copied from that sample, the
 /// latest sync sample at or before the edit's start, not from the GOP
 /// before it.
 #[test]

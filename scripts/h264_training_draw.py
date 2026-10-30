@@ -3,7 +3,7 @@
 
     python3 -I scripts/h264_training_draw.py --out docs/measurements/h264-training
 
-Pool: the pool of the held-out draw of #366
+Pool: the pool of the held-out draw of step 6's measurement
 (docs/measurements/h264-n2-heldout/pool.json), which is already corpus v1
 `real` streams that N1's corpus run decoded in agreement with FFmpeg, minus
 N2's held-out set, minus every stream named in the tracked text of the

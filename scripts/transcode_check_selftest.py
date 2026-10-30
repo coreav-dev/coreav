@@ -90,7 +90,7 @@ class Timestamps(unittest.TestCase):
         self.assertFalse(r['ok'])
 
     def test_repeated_times_are_expected_moved(self):
-        # WebM blocks whose millisecond times repeat (#586): each repeat one tick after the frame before, while
+        # WebM blocks whose millisecond times repeat: each repeat one tick after the frame before, while
         # that is below the next source time.
         self.assertEqual(tc.moved_repeats([9580, 9580, 9580, 9929]), ([9580, 9581, 9582, 9929], 2, 0))
         self.assertEqual(tc.moved_repeats([0, 1, 1, 2, 3, 3, 4]), ([0, 1, 2, 3, 4], 0, 2))
@@ -274,7 +274,7 @@ class Layout(unittest.TestCase):
         self.assertEqual(tc.baseline_layout([3, 5]), {'video': 0, 'audio': [1, 2], 'videos': 1, 'streams': 3})
 
     def test_attached_picture_is_no_track(self):
-        # A copied `udta` with a cover image (#587): ffprobe lists the image as a second video stream.
+        # A copied `udta` with a cover image: ffprobe lists the image as a second video stream.
         layout = {'video': 0, 'audio': [], 'videos': 1, 'streams': 1}
         h264 = {'index': 0, 'codec_type': 'video', 'codec_name': 'h264', 'disposition': {'attached_pic': 0}}
         cover = {'index': 1, 'codec_type': 'video', 'codec_name': 'mjpeg', 'disposition': {'attached_pic': 1}}

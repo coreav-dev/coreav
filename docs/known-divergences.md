@@ -212,8 +212,8 @@ directly.
   edit.
 - Why: CoreAV emits one packet per sample and applies the simple edit list
   exactly; first registered in the parsing-guard spike, as
-  `C-EDIT-DISCARD`. The entry here was added in pull
-  request 12, which `tools/stage3-report/report.py` dates it from.
+  `C-EDIT-DISCARD`. The entry here is dated from the commit
+  that added it, in `tools/stage3-report/report.py`.
 - Coverage requires: the extra packet is marked discarded and its composition
   interval lies outside the media edit window, recomputed by the overlay from
   the stream's edit properties; its `pts` and `dts` are the edit's mapping of

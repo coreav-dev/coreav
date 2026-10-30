@@ -32,7 +32,7 @@ use common::*;
 fn main() -> ExitCode {
     let mut args = std::env::args_os().skip(1);
     if args.next().as_deref() == Some(std::ffi::OsStr::new(coreav_worker::EXEC_ARG)) {
-        return coreav_worker::sandbox_exec_main(args);
+        return coreav_worker::sandbox_exec_main(args, |_| Ok(()));
     }
     if !cfg!(unix) {
         eprintln!("skipping: the launcher needs Unix");

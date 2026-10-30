@@ -1,5 +1,5 @@
 #!/bin/bash
-# Gating run of PR #546 (bundle 3) (B3-1 to B3-4 and B3-7: one thread pinned, discard and write, twenty rounds over the 32 training streams (g), five over the 64 held-out (h), --min-seconds 3): base = main 974f46c1, k = perf/h264-bundle3 (e40e6db2; its crates/ are 72cf01fe's). Adapted from the first-touch round's run-ft-1t.sh: the same binaries as the Compute Engine arms (w/decode-base, w/decode-k).
+# Gating run of bundle 3 (B3-1 to B3-4 and B3-7: one thread pinned, discard and write, twenty rounds over the 32 training streams (g), five over the 64 held-out (h), --min-seconds 3): base = main 974f46c1, k = perf/h264-bundle3 (e40e6db2; its crates/ are 72cf01fe's). Adapted from the first-touch round's run-ft-1t.sh: the same binaries as the Compute Engine arms (w/decode-base, w/decode-k).
 # Gating run for the boundary-strength kernel round, one-thread arms: run-ab-helper.sh BASE K (BASE: main, the commit
 # the branch is based on; K: the branch's code commit). Bars BS-1 to BS-3 and BS-5's identity of docs/design/h264.md,
 # "Kernel round: boundary strengths in vector registers"; the eight-thread arms (BS-4) run on Compute Engine

@@ -7,6 +7,7 @@
 mod common;
 
 use common::fragments::{Fragmented, Track};
+use common::sound::{FRAME_BYTES, qdm2_movie};
 use common::{Spec, bx, cat, full, movie, u32s};
 use coreav_isobmff::{
     Allowlist, Budget, Error, LimitKind, Limits, Movie, RangePolicy, RangeReader, SliceSource,
@@ -275,6 +276,43 @@ fn listing_from_a_sample_stops_after_a_packet_over_the_limit_before_it() {
     };
     assert_eq!(from_last(largest), 1);
     assert_eq!(from_last(largest - 1), 0);
+}
+
+/// A QuickTime compressed audio track counted in audio samples
+/// (`docs/design/sample-tables.md`, "QuickTime compressed audio counted in
+/// audio samples") has its compressed frames taken as its bytes only while
+/// one frame is within `max_packet_bytes`. A frame over the limit is not an
+/// error, and that is intended: the listing falls back to the tables as
+/// stored, one byte a sample checked against the file, so it lists the same
+/// samples where those bytes lie inside the file and stops as truncated
+/// where they do not. Either way no packet it lists is over one byte, so
+/// the limit is never passed.
+#[test]
+fn sound_frames_over_the_packet_limit_fall_back_to_the_tables_as_stored() {
+    let listed = |data: &[u8], max_packet_bytes| {
+        let limits = Limits {
+            max_packet_bytes,
+            ..Limits::default()
+        };
+        let movie = probe(SliceSource::new(data), &limits, &Allowlist::listing())?;
+        let mut budget = Budget::new(&limits);
+        let mut count = 0u64;
+        for packet in movie.packets(0, SliceSource::new(data), &limits, &mut budget)? {
+            assert_eq!(packet?.size, 1);
+            count += 1;
+        }
+        Ok::<u64, Error>(count)
+    };
+    let frame = u64::from(FRAME_BYTES);
+    // One frame a chunk, longer than the chunk's 300 bytes in the tables.
+    let short = qdm2_movie(&[300, 300], 0);
+    assert_eq!(listed(&short, frame), Ok(600));
+    assert_eq!(listed(&short, frame - 1), Ok(600));
+    // Five frames a chunk, 8,150 bytes shorter than the tables count.
+    let long = qdm2_movie(&[10_000, 10_000], 0);
+    assert_eq!(listed(&long, frame), Ok(20_000));
+    let error = listed(&long, frame - 1).err();
+    assert!(matches!(error, Some(Error::Truncated { .. })), "{error:?}");
 }
 
 #[test]

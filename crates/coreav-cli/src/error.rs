@@ -11,6 +11,13 @@ pub enum Failure {
     Matroska(coreav_mkv::Error),
     /// The transport stream library rejected the file or could not read it.
     Mpegts(coreav_mpegts::Error),
+    /// The text library went past a limit of its own (`coreav_text::TextLimits`).
+    TextLimit {
+        /// The limit.
+        limit: coreav_text::TextLimitKind,
+        /// Offset of the sample at which it was exceeded.
+        offset: u64,
+    },
     /// The file could not be inspected before probing.
     Io(std::io::ErrorKind),
     /// The file cannot be processed as asked, for the reason given.
@@ -29,6 +36,10 @@ pub enum Failure {
     Encode(coreav_decode::Error),
     /// The time asked for is at or after the end of the video.
     OutOfRange,
+    /// Strict-safe mode refused what would run an `ffmpeg` program, for
+    /// the reason given, which names the way out (`crate::strict_safe`):
+    /// exit status 4.
+    StrictSafe(String),
 }
 
 impl Failure {
@@ -59,9 +70,15 @@ impl Failure {
         ) || matches!(self, Self::VideoDecode(e) | Self::Encode(e) if e.kind == coreav_decode::ErrorKind::Io)
     }
 
+    /// Strict-safe mode's refusal: exit status 4.
+    pub fn is_strict_safe(&self) -> bool {
+        matches!(self, Self::StrictSafe(_))
+    }
+
     /// The error object.
     pub fn to_json(&self) -> Value {
         match self {
+            Self::StrictSafe(message) => object("unsupported_feature", None, None, message),
             Self::Io(kind) => object("io", None, None, &format!("I/O error: {kind}")),
             Self::Remote(reason) => object("io", None, None, &format!("remote: {reason}")),
             Self::Decode(value) => value.clone(),
@@ -94,6 +111,16 @@ impl Failure {
                 None,
                 None,
                 &format!("unsupported: {message}"),
+            ),
+            Self::TextLimit { limit, offset } => object(
+                "limit",
+                Some(limit.name()),
+                Some(*offset),
+                &coreav_text::TextError::LimitExceeded {
+                    limit: *limit,
+                    offset: *offset,
+                }
+                .to_string(),
             ),
             Self::Library(error) => {
                 let (kind, offset) = match error {

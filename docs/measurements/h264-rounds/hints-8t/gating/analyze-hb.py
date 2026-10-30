@@ -1,4 +1,4 @@
-"""python3 -I analyze-hb.py DIR -> the banded-hints round's (#539) bars HB-1 to HB-5 (docs/design/h264.md, "Threading round: a banded picture's
+"""python3 -I analyze-hb.py DIR -> the banded-hints round's bars HB-1 to HB-5 (docs/design/h264.md, "Threading round: a banded picture's
 lines asked for ahead", "Bars"). DIR holds t8.<class>.json (eight threads, c4-standard-16, the 32
 training streams), g.<class>.json (one thread pinned, helper VM, the 32 training streams) and h8.<class>.json (eight threads,
 c4-standard-16, the 64 held-out streams, five rounds), from scripts/h264_parity*.py with decoders `base` and `k` (= the branch), built

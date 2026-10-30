@@ -6,7 +6,8 @@
 # linux-arm64, darwin-arm64, darwin-x64, win32-x64); RUST_TARGET defaults
 # to that platform's target. The binary is `coreav` built with the `dist`
 # profile, stripped; Linux binaries are static (musl), Windows ones carry the C
-# runtime (crt-static). Prints the binary's SHA-256.
+# runtime (crt-static). Prints the binary's SHA-256. The release archives
+# take the same binary (.github/workflows/release.yml).
 set -euo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd)"
 root="$(cd "$here/../.." && pwd)"

@@ -11,7 +11,7 @@ The `coreav` command reads media files and rewrites them without re-encoding:
 - It cuts, splits, joins and sanitizes MP4 and MOV files by stream copy, and remuxes MP4, MOV, Matroska and WebM files to MP4 with the movie header first.
 - It checks a file against an upload policy and prints the verdict.
 - It copies audio, subtitles and chapters out of MP4 and MOV files, and decodes FLAC and MP3 audio to WAV.
-- It serves an MP4 or MOV file as HLS, and serves its commands to agents over the Model Context Protocol.
+- It serves an MP4 or MOV file as HLS.
 - It takes `ffprobe` and `ffmpeg -c copy` command lines. In [strict-safe mode](/strict-safe) it refuses the command lines it does not implement. Without that mode it hands them to the real FFmpeg.
 
 [Commands](/commands) has a page for each command.
@@ -22,14 +22,14 @@ The same code is also a [Python module](/python), and an npm package that runs t
 
 ## Status
 
-CoreAV is pre-release. The workspace is at version 0.0.1, and no CoreAV release is published: not on GitHub Releases, crates.io, npm or PyPI. The first release is 0.1.0, tracked in [issue #43](https://github.com/coreav-dev/coreav/issues/43). Until then, commands, options and library APIs can change. Each JSON document names a versioned schema, such as `coreav.probe/1` ([`docs/schema`](https://github.com/coreav-dev/coreav/tree/main/docs/schema)).
+CoreAV is pre-release. The workspace is at version 0.0.1, and no CoreAV release is published: not on GitHub Releases, crates.io, npm or PyPI. The first release is 0.1.0, tracked in [the 0.1.0 release issue](https://github.com/coreav-dev/coreav/issues/43). Until then, commands, options and library APIs can change. Each JSON document names a versioned schema, such as `coreav.probe/1` ([`docs/schema`](https://github.com/coreav-dev/coreav/tree/main/docs/schema)).
 
 Some parts are experimental, not measured yet, or not in a default build:
 
 | Part | Where it stands |
 |---|---|
 | [`coreav ffprobe`](/commands/ffprobe) | Experimental. Its values can differ from `ffprobe`'s for MP4, MOV and MPEG-TS files ([measurements](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/compat-ffprobe.md)). |
-| [`coreav ffmpeg`](/commands/ffmpeg) | Its outputs pass the job oracles on the fixtures in CI. Its 0.1.0 bars on held-out files are not measured yet. |
+| [`coreav ffmpeg`](/commands/ffmpeg) | Experimental until it meets its 0.1.0 bars, R1 to R4. Its outputs pass the job oracles on the fixtures in CI, and the bars on held-out files are not measured yet. |
 | [`coreav transcode`](/commands/transcode) | Supported for H.264 sources. Experimental for other source codecs. Only in builds with a decoder backend. |
 | [`coreav thumbnail`](/commands/thumbnail) | Only in builds with a decoder backend. |
 | The native H.264 decoder | Opt-in and never in a default build ([build features](/build-features)). |

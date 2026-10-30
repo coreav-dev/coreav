@@ -10,7 +10,7 @@ placement of the code after it.
 Question: with the CAVLC slice loop out of line in a function of its own, so that the CABAC path's functions are
 byte-identical to base and the dispatch is a call, does the CAVLC gain hold while the CABAC streams read unchanged?
 
-Base: main at the branch point (82a23b66; its decoder is #507's, dc468a95). k: this branch's code commit.
+Base: main at the branch point (82a23b66; its decoder is the CAVLC window round's, dc468a95). k: this branch's code commit.
 
 Code (C): the rejected round's design (runs of skipped macroblocks; one cavlc::Window a slice), rebuilt on main, with
 the CAVLC slice loop as an #[inline(never)] function of its own. Requirements checked before any timing, reported in
@@ -65,6 +65,6 @@ Addendum (after R1 to R4 on 82a23b66, before any timing):
   accident. C therefore also gives Tables #[repr(C, align(64))]: no entry straddles a line whatever the layout. It is
   the one change outside the CAVLC code, a placement attribute on read-only data; the site's code and its results
   do not change, and SF-4 (the CABAC streams) judges it with the rest.
-- #498 (the CABAC mvd round) merged after the plan was written. The round is rebased onto main 3f918b38, which is
+- The CABAC mvd round merged after the plan was written. The round is rebased onto main 3f918b38, which is
   base from now on, and R1 to R4 are run again there before any timing. The bars SF-1 to SF-7 and the local timing's
   condition do not change.

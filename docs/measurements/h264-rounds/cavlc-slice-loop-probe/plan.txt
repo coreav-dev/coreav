@@ -1,8 +1,8 @@
 CAVLC slice loop probe: runs of skipped macroblocks, part-only (written before the run).
 
 Question: on the CAVLC streams, does the per-macroblock work of a skipped macroblock in the CAVLC slice data loop cost
-time in proportion to its instructions? After the CAVLC window round, the PMU profile of 6f7799768413 (#536,
-profile-6f-af20b62e) puts its gap to FFmpeg in entropy + MB (+0.115 of FFmpeg's cycles), and the macroblock layer
+time in proportion to its instructions? After the CAVLC window round, the PMU profile of 6f7799768413
+(profile-6f-af20b62e) puts its gap to FFmpeg in entropy + MB (+0.115 of FFmpeg's cycles), and the macroblock layer
 outside the residual is about 975 instructions a macroblock against FFmpeg's about 640 (its macroblock function and
 neighbour cache fills, function-level counts only).
 

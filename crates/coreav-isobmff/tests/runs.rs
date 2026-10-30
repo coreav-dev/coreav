@@ -152,7 +152,7 @@ fn expanded(
     (samples, error, budget.used())
 }
 
-/// The same samples from `for_each_sample` (#308).
+/// The same samples from `for_each_sample`.
 fn walked(
     movie: &Movie,
     data: &[u8],
@@ -182,7 +182,7 @@ fn walked(
     (samples, error, budget.used())
 }
 
-/// The walk of every sample (#308) visits the samples `next_run(1)` lists,
+/// The walk of every sample visits the samples `next_run(1)` lists,
 /// with the same error and the same work, under `limits`.
 fn same_walk(movie: &Movie, data: &[u8], limits: &Limits) {
     for track in 0..movie.tracks.len() {
@@ -217,7 +217,7 @@ fn same_walk(movie: &Movie, data: &[u8], limits: &Limits) {
     }
 }
 
-/// Batches of runs (#30) are the runs one by one, with the same error and
+/// Batches of runs are the runs one by one, with the same error and
 /// the same work, under `limits`.
 fn same_batches(movie: &Movie, data: &[u8], limits: &Limits) {
     for track in 0..movie.tracks.len() {
@@ -416,8 +416,8 @@ fn mixed(
 /// run that declares as many samples as the file can back costs one step
 /// and the budget. The walk of every sample keeps
 /// that: it charges the run's samples before it expands any of them, so
-/// such a `trun` costs the budget and not the loop (#308). Since #289 a
-/// declared count must be backed by the bytes of the file, so the run
+/// such a `trun` costs the budget and not the loop. Since the `trun`
+/// count check, a declared count must be backed by the bytes of the file, so the run
 /// below is one of 1-byte samples with the media data to match.
 #[test]
 fn a_huge_fragment_run_costs_one_step() {
@@ -471,8 +471,8 @@ fn a_huge_fragment_run_costs_one_step() {
 }
 
 /// A caller that stops the walk stops the iteration: the error is its own,
-/// and every later call returns `Ok(0)`, as after an error of the crate's
-/// (#308). Checked on the movie tables and on fragments, which the walk
+/// and every later call returns `Ok(0)`, as after an error of the crate's.
+/// Checked on the movie tables and on fragments, which the walk
 /// reaches by different paths.
 #[test]
 fn a_caller_can_stop_the_walk() {
@@ -514,7 +514,7 @@ fn a_caller_can_stop_the_walk() {
     }
 }
 
-/// Tables that reach the batch loop's fast path (#30): several chunks and
+/// Tables that reach the batch loop's fast path: several chunks and
 /// `stsc` entries, `stts` and `ctts` entries spanning several samples (some
 /// with a count of 0), no `ctts`, equal and varying sizes, and `stss` absent,
 /// sorted or hostile (unsorted, repeated, 0, past the end); a quarter of
@@ -612,7 +612,7 @@ fn batched_runs_match_on_varied_tables() {
 }
 
 /// The batch equivalence of `same` on real files: the paths in
-/// `COREAV_RUNS_FILES`, separated by `:` (#30; run with `--ignored`).
+/// `COREAV_RUNS_FILES`, separated by `:` (run with `--ignored`).
 #[test]
 #[ignore = "needs COREAV_RUNS_FILES"]
 fn batched_runs_match_on_files() {
@@ -663,7 +663,7 @@ fn batched_runs_match_on_files() {
             let expected = run_all(None);
             assert_eq!(run_all(Some(256)), expected, "{path} track {track}");
             checked += expected.0.len();
-            // The walk of every sample (#308) lists the same samples.
+            // The walk of every sample lists the same samples.
             assert_eq!(
                 walked(&movie, &data, track, &limits),
                 expanded(&movie, &data, track, &limits),

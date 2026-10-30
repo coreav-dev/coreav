@@ -1375,7 +1375,7 @@ fn descriptor(data: &[u8], at: &mut usize) -> Option<(u8, usize)> {
 mod tests {
     use super::*;
 
-    /// The record's fields at their bit positions; cut short, none (#219).
+    /// The record's fields at their bit positions; cut short, none.
     #[test]
     fn dolby_vision_record() {
         // Version 1.0, profile 8, level 4, RPU and base layer present, base
@@ -1520,7 +1520,7 @@ mod tests {
 
     /// The output frequency: the core's, from the table or after the
     /// escape; the extension's with explicit SBR, hierarchical or in the
-    /// backward compatible extension; none for a reserved index (#219).
+    /// backward compatible extension; none for a reserved index.
     #[test]
     fn aac_output_rates() {
         let rate = |fields: &[(u32, u32)]| aac_layout(&pack(fields)).and_then(|l| l.rate);

@@ -315,7 +315,8 @@ pub struct Skipped {
 
 /// A decoder opened by [`open`], with the backends tried before it.
 pub struct Opened {
-    /// The decoder.
+    /// The decoder: the backend's, whose every packet and frame `open`
+    /// checks against the packet and frame limits.
     pub decoder: Box<dyn Decoder>,
     /// Backends earlier in the policy's order that were not used.
     pub skipped: Vec<Skipped>,
@@ -323,7 +324,10 @@ pub struct Opened {
 
 /// Opens a decoder for `stream`: the first backend in the policy's order
 /// that is among `backends`, supports the stream and opens
-/// (`docs/design/decode.md`, "Selection").
+/// (`docs/design/decode.md`, "Selection"). Whatever the backend checks
+/// itself, every packet sent to the decoder goes through
+/// [`Limits::check_packet`] and every frame it returns through
+/// [`Limits::check_frame`].
 pub fn open(
     stream: &StreamConfig,
     policy: &Policy,
@@ -361,7 +365,13 @@ pub fn open(
                     reason,
                 }),
                 Support::Yes => match backend.open(stream, limits) {
-                    Ok(decoder) => return Ok(Opened { decoder, skipped }),
+                    Ok(decoder) => {
+                        let decoder = Box::new(Checked {
+                            decoder,
+                            limits: limits.clone(),
+                        });
+                        return Ok(Opened { decoder, skipped });
+                    }
                     Err(e) => {
                         skipped.push(Skipped {
                             backend: *kind,
@@ -402,6 +412,54 @@ pub fn open(
             reasons.join("; ")
         ),
     ))
+}
+
+/// A backend's decoder with the packet and frame limits applied to it, so
+/// that no backend can leave them out (`docs/design/decode.md`, "Codec
+/// allowlist and limits").
+struct Checked {
+    decoder: Box<dyn Decoder>,
+    limits: Limits,
+}
+
+impl Decoder for Checked {
+    fn send_packet(&mut self, packet: &Packet<'_>) -> Result<(), Error> {
+        self.limits.check_packet(packet)?;
+        self.decoder.send_packet(packet)
+    }
+
+    fn send_eof(&mut self) -> Result<(), Error> {
+        self.decoder.send_eof()
+    }
+
+    fn receive_frame(&mut self) -> Result<Option<Frame>, Error> {
+        let frame = self.decoder.receive_frame()?;
+        if let Some(frame) = &frame {
+            self.limits
+                .check_frame(frame.width(), frame.height(), packed_bytes(frame))?;
+        }
+        Ok(frame)
+    }
+
+    fn info(&self) -> &DecoderInfo {
+        self.decoder.info()
+    }
+}
+
+/// The bytes of `frame` with every plane packed, as
+/// [`Limits::max_frame_bytes`] counts them.
+fn packed_bytes(frame: &Frame) -> u64 {
+    let (format, width, height) = (frame.format(), frame.width(), frame.height());
+    (0..format.plane_count()).fold(0u64, |total, plane| {
+        let rows = format
+            .plane_size(plane, width, height)
+            .map_or(0, |(_, rows)| u64::from(rows));
+        let row = format
+            .row_bytes(plane, width, height)
+            .and_then(|bytes| u64::try_from(bytes).ok())
+            .unwrap_or(u64::MAX);
+        total.saturating_add(row.saturating_mul(rows))
+    })
 }
 
 #[cfg(test)]

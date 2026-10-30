@@ -23,9 +23,8 @@ The `coreav` command has one subcommand per job. Each page here shows the comman
 | [`extract-subtitles`](/commands/extract-subtitles) | Writes the text subtitles of an MP4 or MOV file as WebVTT. |
 | [`decode-audio`](/commands/decode-audio) | Decodes a FLAC or MP3 track to WAV. |
 | [`hls`](/commands/hls) | Serves an MP4 or MOV file as HLS. |
-| [`mcp`](/commands/mcp) | Serves the commands as Model Context Protocol tools. |
 | [`ffprobe`](/commands/ffprobe) | Experimental. Runs an `ffprobe` command line. |
-| [`ffmpeg`](/commands/ffmpeg) | Runs an `ffmpeg -c copy` command line. |
+| [`ffmpeg`](/commands/ffmpeg) | Experimental. Runs an `ffmpeg -c copy` command line. |
 | [`thumbnail`](/commands/thumbnail) | Writes an image of the frame at a time. Builds with a decoder backend only. |
 | [`transcode`](/commands/transcode) | Re-encodes the video to H.264 in MP4. Builds with a decoder backend only. |
 
@@ -37,7 +36,7 @@ An input is a local file. In native builds, the commands that read one media fil
 
 ## Outputs
 
-- A command that writes a file writes it under a temporary name and renames it into place, so a failed run leaves no partial output.
+- A command that writes a file writes it under a temporary name and renames it into place, so a failed run leaves no partial output. `split` keeps the segments it finished.
 - A command refuses to overwrite an existing file unless you pass `--force`, and never writes over its input.
 - Most commands take `-` as the output, for standard output. The JSON summary then goes to standard error.
 - Each JSON document names its schema, such as `coreav.probe/1`. The schemas are in [`docs/schema`](https://github.com/coreav-dev/coreav/tree/main/docs/schema).
@@ -50,7 +49,7 @@ An input is a local file. In native builds, the commands that read one media fil
 | 1 | The file was rejected: unsupported, damaged or not allowed. For `check`, the verdict is on standard output. |
 | 2 | Usage error: bad arguments or an invalid policy. |
 | 3 | I/O error: a missing file, an unreadable URL or an unwritable output. |
-| 4 | `coreav ffprobe` or `coreav ffmpeg` refused a command line it does not implement ([strict-safe mode](/strict-safe)). |
+| 4 | Refused: `coreav ffprobe` or `coreav ffmpeg` refused a command line it does not implement, or strict-safe mode refused what would run an `ffmpeg` program ([strict-safe mode](/strict-safe)). |
 | 141 | Standard output was closed by its reader, as in `coreav probe input.mp4 \| head`. |
 
 ## Errors

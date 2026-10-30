@@ -146,14 +146,22 @@ fn launch_args(
 }
 
 /// Runs the launcher on `args`, the arguments after [`EXEC_ARG`]: sets the
-/// limits, then replaces this process with the program. Returns only when
-/// that fails, with 125 for bad arguments or limits that could not be set,
-/// 126 for a program that cannot be run and 127 for one that does not
+/// limits, then replaces this process with the program, when `allow`
+/// allows it. Returns only when that fails, with 125 for bad arguments or
+/// limits that could not be set, 126 for a program that cannot be run or
+/// that `allow` refuses (with its message) and 127 for one that does not
 /// exist, after a line on standard error. Outside Unix it always fails.
-pub fn sandbox_exec_main(args: impl IntoIterator<Item = OsString>) -> ExitCode {
-    match parse(args) {
-        Ok(request) => run(&request),
-        Err(e) => report(&e, LAUNCH_FAILED),
+pub fn sandbox_exec_main(
+    args: impl IntoIterator<Item = OsString>,
+    allow: impl FnOnce(&Path) -> Result<(), String>,
+) -> ExitCode {
+    let request = match parse(args) {
+        Ok(request) => request,
+        Err(e) => return report(&e, LAUNCH_FAILED),
+    };
+    match allow(&request.program) {
+        Ok(()) => run(&request),
+        Err(e) => report(&e, CANNOT_RUN),
     }
 }
 

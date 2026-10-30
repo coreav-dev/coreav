@@ -34,7 +34,7 @@
 //! The crate does no I/O: a [`Host`] starts requests and moves their bytes,
 //! blocking or not, and may run several requests at once. The plan is the
 //! one of the range reader of the JavaScript package around the WebAssembly
-//! module (issue #87), with the numbers sized for that host as parameters
+//! module, with the numbers sized for that host as parameters
 //! ([`Settings::WORKERS`]) and a preset for native hosts
 //! ([`Settings::NATIVE`]).
 

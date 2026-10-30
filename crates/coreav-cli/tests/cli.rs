@@ -720,7 +720,7 @@ fn extract_audio_refusals_exit_1_and_leave_no_file() {
         (vec!["--stream", "0"], "unsupported_feature"),
         (vec!["--stream", "7"], "unsupported_feature"),
         // The allowlist dropped the only audio track: its codec is not
-        // allowed (#61), whether chosen by default or by index.
+        // allowed, whether chosen by default or by index.
         (vec!["--allow", "h264"], "codec_not_allowed"),
         (
             vec!["--allow", "h264", "--stream", "1"],
@@ -790,7 +790,7 @@ fn extract_audio_keeps_existing_files() {
 fn extract_audio_output_errors_exit_3() {
     let input = file("extract_io_in.mp4", &av_movie_with(aac_entry(), false));
     // A directory cannot be replaced by the output file: refused before
-    // any work, as a usage error (#64).
+    // any work, as a usage error.
     let dir = output("extract_io_dir.m4a");
     let _ = std::fs::remove_dir(&dir);
     std::fs::create_dir(&dir).unwrap();
@@ -1590,7 +1590,7 @@ fn malformed_matroska_is_rejected_with_a_json_error() {
     );
 }
 
-// ------------------------------------------- long output names (issue #73)
+// ------------------------------------------- long output names
 
 /// An output name of exactly 255 bytes, the usual file-name limit: the
 /// temporary file next to it must fit as well. Each command writes it, and
@@ -2344,7 +2344,7 @@ fn every_command_succeeds_on_a_working_standard_output() {
 }
 
 /// A document that cannot be written (a full device) is an I/O error, never
-/// a success (#111).
+/// a success.
 #[cfg(target_os = "linux")]
 #[test]
 fn a_full_standard_output_exits_3() {
@@ -2386,7 +2386,7 @@ fn a_full_standard_output_exits_3() {
 }
 
 /// Media written to `-` go through a duplicate of the standard output
-/// descriptor rather than `Stdout`'s line buffer (#407): the bytes are the
+/// descriptor rather than `Stdout`'s line buffer: the bytes are the
 /// ones written to a file, whether standard output is a pipe or a file.
 #[test]
 fn media_on_standard_output_are_the_file_bytes() {
@@ -2454,7 +2454,7 @@ fn closed_reader() -> std::process::Stdio {
 }
 
 /// A closed pipe ends the command with 141, as `SIGPIPE` would, without a
-/// message (#111).
+/// message.
 #[cfg(unix)]
 #[test]
 fn a_closed_standard_output_exits_141_quietly() {

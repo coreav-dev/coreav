@@ -779,6 +779,19 @@ Opus access unit by 2 MiB). Parameter sets are kept up to 31 of a kind
 and 64 KiB per stream. Every limit is an error, never a panic or an
 unbounded allocation.
 
+`max_probe_bytes` stops the head's read. It bounds every byte the head
+reads: the packet reader is given the budget as the end of the file, so
+a packet only partly inside it is not read, and a resynchronisation does
+not search past it. Streams that showed no decodable
+start by then are listed without parameters. A head that names no program
+by then is refused with `LimitExceeded` and `LimitKind::ProbeBytes` when
+the reader came to the budget's end before the file's (by a
+resynchronisation too), and with `NoPrograms` only when the
+probe read the whole file: a caller can then tell a file that names no
+program from one whose tables come later than it allowed, and raise the
+limit for the second. Rejected: removing the kind and keeping
+`NoPrograms` for both, which told a caller that a valid file was invalid.
+
 ### Per-PID state
 
 Every map the crate keys by PID is a `PidMap` (`src/pid_map.rs`), which is
@@ -813,7 +826,7 @@ the refusal it had before the type:
   differ from the listing's, and those the listing adds). These cannot
   be full of PIDs a packet names, so they refuse nothing.
 
-The rule came from PR #17, which added `pcrs` bounded only by the PID
+The rule came from coreav-dev/coreav#17, which added `pcrs` bounded only by the PID
 space while the per-PID facts beside it were bounded by `max_streams`; a
 review caught it and the bound was written by hand, as it was at each map
 that had one. Rejected: those hand-written comparisons, which a new map

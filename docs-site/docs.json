@@ -99,8 +99,7 @@
           {
             "group": "Serve",
             "pages": [
-              "commands/hls",
-              "commands/mcp"
+              "commands/hls"
             ]
           },
           {

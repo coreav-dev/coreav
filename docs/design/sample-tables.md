@@ -202,7 +202,7 @@ Fixed here before any measured run (the project's pre-registration rule).
 
 Run `w4-01` on draw 3 of corpus v2-heldout, 46 held-out files, 60
 rounds after a warm-up, five engines on one core
-(`docs/spikes/w3-308/`). **Every bar is met but one, which was
+(`docs/spikes/w3-sample-walk/`). **Every bar is met but one, which was
 pre-registered as expected to miss.**
 
 - **Correctness: met.** The packet index's entries and what `coreav hls

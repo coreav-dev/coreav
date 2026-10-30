@@ -67,8 +67,8 @@ unimplemented = "deny"
 # (docs/design/npm-cli.md), `cargo install --profile dist`, and the builds
 # the benchmark guard counts (docs/design/benchmarks.md). Fat LTO with one
 # codegen unit removes the dead code of the linked HTTP and TLS crates,
-# which halves the binary's relocations (most of what #127 added to
-# start-up).
+# which halves the binary's relocations (most of what the HTTP range
+# reader added to start-up).
 [profile.dist]
 inherits = "release"
 lto = "fat"

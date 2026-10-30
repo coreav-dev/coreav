@@ -174,7 +174,9 @@ ESRC=(-f lavfi -i "testsrc2=size=160x120:rate=30:duration=10")
 EGOP=(-g 30 -keyint_min 30 -sc_threshold 0 -video_track_timescale 600 -pix_fmt yuv420p)
 try_gen edit_src_h264.mp4 "${ESRC[@]}" -c:v libx264 -bf 0 "${EGOP[@]}"
 try_gen edit_src_bframes.mp4 "${ESRC[@]}" -c:v libx264 -bf 2 "${EGOP[@]}"
-try_gen edit_src_aac.mp4 -f lavfi -i "sine=d=10:r=44100" -c:a aac
+# Without perceptual noise substitution, as edit_src_av.mp4 below: clips of
+# audio alone restart its decoder too.
+try_gen edit_src_aac.mp4 -f lavfi -i "sine=d=10:r=44100" -c:a aac -aac_pns 0
 # Two edits joined at a sync sample, skipping a second of media.
 elst_entry edit_src_h264.mp4 edit_multi_splice.mp4 0 3000:0 3000:2400
 # B-frames; the second edit starts inside a group of pictures.
@@ -302,11 +304,11 @@ try_gen audio_aac.m4a "${ASRC[@]}" -c:a aac -b:a 128k
 try_gen audio_51.m4a "${ASRC[@]}" -af "pan=5.1|c0=c0|c1=c0|c2=c0|c3=c0|c4=c0|c5=c0" -c:a aac
 try_gen audio_opus.mp4 "${ASRC[@]}" -c:a libopus -b:a 64k
 try_gen audio_mp3.mp4 "${ASRC[@]}" -c:a libmp3lame -b:a 128k
-# QuickTime's own MP3 sound sample entry, `.mp3` (#57).
+# QuickTime's own MP3 sound sample entry, `.mp3`.
 try_gen audio_mp3.mov "${ASRC[@]}" -c:a libmp3lame -b:a 128k
 # AAC whose channels are in a program config element (channelConfiguration
 # 0; ffmpeg writes one for a hexagonal layout, 6 channels), under a sample
-# entry that says 2 (#56): a copy with the mp4a channelcount (20 bytes after
+# entry that says 2: a copy with the mp4a channelcount (20 bytes after
 # the entry type) rewritten.
 try_gen audio_pce_source.m4a "${ASRC[@]}" -af "aformat=channel_layouts=hexagonal" -c:a aac
 if [ -f "$OUT/audio_pce_source.m4a" ]; then
