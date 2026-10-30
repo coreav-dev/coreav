@@ -13,10 +13,14 @@ bars"; docs/measurements/compat-0.1.0/README.md, "Before the round", item 2).
         HARNESS (the coreav-cli `ffmpeg` test executable, test
         `the_0_1_0_commands_on_listed_pairs`) runs them through the
         function `coreav ffmpeg` runs, for the writer's summary the binary
-        does not print; the `coreav` binary runs each again and must write
-        the same bytes with the same outcome; copy_check.py judges every
-        written output by the oracle of its job. Outputs are deleted chunk
-        by chunk. FILE gets one line per pair (the file's name: private).
+        does not print; the `coreav` binary runs every one of them too,
+        refusals included, so that its fallback log holds each refusal, and
+        must write the same bytes with the same outcome; copy_check.py judges
+        every written output by the oracle of its job, and a chunk whose
+        check exits abnormally or leaves no fresh report for all its outputs
+        fails them. Outputs are deleted chunk by chunk. FILE gets one line
+        per pair (the file's name: private). `run` exits as `report` does on
+        its own records.
 
     r3.py report [--records FILE...] [--summaries FILE...] [--report FILE]
                  [--summary FILE] [--bar 98]
@@ -133,7 +137,19 @@ def judge(opts, pairs, scratch, env):
         pair['work'] = str(base / 'coreav')
         pair['output'] = str(base / 'coreav' / release_round.output_name(pair['job']))
         pair['args_filled'] = release_round.fill(pair['args'], pair['input'], pair['output'])
+    # The binary runs every pair first, whatever the harness makes of it, so
+    # that each refusal writes its line to the run's fallback log.
+    binary = {}
+    for p in pairs:
+        theirs = scratch / f"{p['id']}.{p['command']}" / 'binary'
+        shutil.rmtree(theirs, ignore_errors=True)
+        theirs.mkdir(parents=True)
+        outcome = binary_outcome(run([opts.coreav, 'ffmpeg'] + release_round.fill(
+            p['args'], p['input'], theirs / release_round.output_name(p['job'])), env))
+        binary[(p['id'], p['command'])] = (outcome, written(theirs) if outcome == 'written' else None)
+        shutil.rmtree(theirs)
     listing, records_path = scratch / 'pairs.json', scratch / 'records.json'
+    records_path.unlink(missing_ok=True)
     listing.write_text(json.dumps([{**p, 'args': p['args_filled']} for p in pairs]))
     harness_env = {**env, 'COREAV_R3_PAIRS': str(listing), 'COREAV_R3_RECORDS': str(records_path)}
     code = run([opts.harness, '--ignored', '--exact', TEST, '--test-threads', '1'], harness_env,
@@ -148,26 +164,23 @@ def judge(opts, pairs, scratch, env):
         record['args'] = next(p['args'] for p in pairs if (p['id'], p['command']) == key)
         if record['status'] != 'written' or not record['files']:
             results[key] = ('failed', record['status'] if record['status'] != 'written' else 'no output')
-            continue
-        theirs = pathlib.Path(record['work']).parent / 'binary'
-        theirs.mkdir()
-        code = run([opts.coreav, 'ffmpeg'] + release_round.fill(
-            record['args'], record['input'], theirs / release_round.output_name(record['job'])), env)
-        same = binary_outcome(code) == 'written' and written(theirs) == written(record['work'])
-        shutil.rmtree(theirs)
-        if not same:
+        elif binary[key] != ('written', written(record['work'])):
             results[key] = ('failed', 'binary differs')
     judged = [r for r in records if (r['id'], r['command']) not in results]
     if judged:
         (scratch / 'judged.json').write_text(json.dumps(judged))
+        check = scratch / 'check.json'
+        check.unlink(missing_ok=True)
         cmd = [sys.executable, '-I', str(HERE / 'copy_check.py'), '--records', str(scratch / 'judged.json'),
-               '--ffmpeg', opts.ffmpeg, '--ffprobe', opts.ffprobe, '--jobs', '1',
-               '--report', str(scratch / 'check.json')]
+               '--ffmpeg', opts.ffmpeg, '--ffprobe', opts.ffprobe, '--jobs', '1', '--report', str(check)]
         if opts.mediainfo:
             cmd += ['--mediainfo', opts.mediainfo]
         with open(opts.log, 'ab') as log:
-            subprocess.run(cmd, stdin=subprocess.DEVNULL, stdout=log, stderr=log, env=env, check=False)
-        report = json.loads((scratch / 'check.json').read_text()) if (scratch / 'check.json').exists() else None
+            code = subprocess.run(cmd, stdin=subprocess.DEVNULL, stdout=log, stderr=log, env=env,
+                                  check=False).returncode
+        report = json.loads(check.read_text()) if code in (0, 1) and check.exists() else None
+        if report and sum(c.get('written', 0) for c in report['counts'].values()) != len(judged):
+            report = None
         failed = {}
         for f in (report or {}).get('failures', []):
             failed[(f['id'], tuple(f['args']), f['source'])] = 'selection' if f['selection'] else 'oracle'
@@ -205,6 +218,20 @@ def one_file(opts, path, env):
         shutil.rmtree(scratch, ignore_errors=True)
 
 
+def verdict(summary):
+    """The exit status of a summary: 2 void, 3 nothing counted, 1 a command
+    missed or unmeasured, else 0."""
+    if summary['fallback_log']['void']:
+        print('VOID: the fallback log holds a line')
+        return 2
+    if not any(t['counted'] for t in summary['commands']):
+        print('UNMEASURED: no pair that ffmpeg ran to success')
+        return release_round.UNMEASURED
+    for cmd in summary['unmeasured']:
+        print(f'UNMEASURED {cmd}: files took it but the pinned ffprobe or ffmpeg failed on every one, so it misses R3')
+    return 1 if summary['missed'] or summary['unmeasured'] else 0
+
+
 def cmd_run(opts):
     files = media_files(opts)
     if not files:
@@ -219,9 +246,9 @@ def cmd_run(opts):
     lines = [line for chunk in per_file for line in chunk]
     lines.append({'fallback_log': release_round.fallback_verdict(log)})
     pathlib.Path(opts.records).write_text(''.join(json.dumps(line) + '\n' for line in lines))
-    counts = collections.Counter(line.get('outcome') for line in lines if 'outcome' in line)
-    print(json.dumps({'files': len(files), 'pairs': dict(counts)}))
-    return 0
+    outcomes = collections.Counter(line.get('outcome') for line in lines if 'outcome' in line)
+    print(json.dumps({'files': len(files), 'pairs': dict(outcomes)}))
+    return verdict(summarize(counts(lines), opts.bar))
 
 
 def counts(lines):
@@ -301,15 +328,7 @@ def cmd_report(opts):
                       'missed': summary['missed'], 'unmeasured': summary['unmeasured'],
                       'taken_by_no_file': summary['taken_by_no_file'],
                       'fallback_log': summary['fallback_log']}))
-    if summary['fallback_log']['void']:
-        print('VOID: the fallback log holds a line')
-        return 2
-    if not any(t['counted'] for t in summary['commands']):
-        print('UNMEASURED: no pair that ffmpeg ran to success')
-        return release_round.UNMEASURED
-    for cmd in summary['unmeasured']:
-        print(f'UNMEASURED {cmd}: files took it but the pinned ffprobe or ffmpeg failed on every one, so it misses R3')
-    return 1 if summary['missed'] or summary['unmeasured'] else 0
+    return verdict(summary)
 
 
 def main():
@@ -327,6 +346,7 @@ def main():
     p.add_argument('--records', required=True)
     p.add_argument('--jobs', type=int, default=4)
     p.add_argument('--chunk', type=int, default=16, help='pairs whose outputs are on disk at once, per file')
+    p.add_argument('--bar', type=float, default=98.0)
     p = sub.add_parser('report')
     p.add_argument('--records', nargs='+', default=[])
     p.add_argument('--summaries', nargs='+', default=[], help='--summary files of other runs, added up')
