@@ -568,9 +568,20 @@ def fragment_last_frame(field, c):
     packets = c["output_packets"]
     if not a or b is None or len(a) != len(b) or len(packets) != len(c["source_packets"]):
         return False
-    stored = packets[-1].get("duration") if packets else None
-    return (a[:-1] == b[:-1] and a[-1][:2] == b[-1][:2]
-            and c["source_packets"][-1].get("duration") == stored
+    if not packets:
+        return False
+    durations = []
+    for stream, packet in ((c["source_stream"], c["source_packets"][-1]), (c["output_stream"], packets[-1])):
+        try:
+            num, den = (int(x) for x in stream["time_base"].split("/"))
+            ticks = int(packet["duration"]) * num * int(stream["sample_rate"])
+        except (KeyError, AttributeError, TypeError, ValueError):
+            return False
+        if den <= 0 or ticks % den:
+            return False
+        durations.append(ticks // den)
+    stored = durations[1]
+    return (a[:-1] == b[:-1] and a[-1][:2] == b[-1][:2] and durations[0] == stored
             and b[-1][2] == stored and a[-1][2] > stored)
 
 

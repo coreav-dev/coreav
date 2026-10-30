@@ -82,6 +82,13 @@ class Predicates(unittest.TestCase):
         stored = copy.deepcopy(packets)
         stored[-1]['duration'] = 1024
         self.assertFalse(ec.fragment_last_frame('framemd5', dict(c, source_packets=stored)))
+        ticks = copy.deepcopy(packets)
+        ticks[-1]['duration'] = 272
+        at_96k = {'source_packets': ticks, 'output_packets': copy.deepcopy(ticks),
+                  'source_stream': dict(c['source_stream'], time_base='1/96000'),
+                  'output_stream': dict(c['output_stream'], time_base='1/96000')}
+        self.assertTrue(ec.fragment_last_frame('framemd5', dict(c, **at_96k)))
+        self.assertFalse(ec.fragment_last_frame('framemd5', dict(c, output_packets=copy.deepcopy(ticks))))
 
     def test_tkhd_needs_the_sum_of_the_edits_and_each_files_own_value(self):
         c = evidence()
