@@ -9,8 +9,10 @@
 #[path = "../../coreav-isobmff/tests/common/text_movie.rs"]
 mod text_movie;
 
-use coreav_isobmff::{Error, LimitKind, Limits, SliceSource};
-use coreav_text::{Chapters, TextError, TextLimits, TrackChoice, extract_subtitles, read_chapters};
+use coreav_isobmff::{Limits, SliceSource};
+use coreav_text::{
+    Chapters, TextError, TextLimitKind, TextLimits, TrackChoice, extract_subtitles, read_chapters,
+};
 use text_movie::{TrackSpec, movie, text_sample};
 
 fn subtitles(data: &[u8], text_limits: &TextLimits) -> Result<u64, TextError> {
@@ -45,18 +47,18 @@ fn chapter_movie(titles: &[&[u8]]) -> Vec<u8> {
     movie(&[video, chapters])
 }
 
-fn refused(result: Result<impl Sized, TextError>) -> LimitKind {
+fn refused(result: Result<impl Sized, TextError>) -> TextLimitKind {
     match result.err() {
-        Some(TextError::Source(Error::LimitExceeded { limit, .. })) => limit,
+        Some(TextError::LimitExceeded { limit, .. }) => limit,
         other => panic!("expected a limit error, got {other:?}"),
     }
 }
 
-fn is_limit_error(result: Result<impl Sized, TextError>) -> bool {
-    matches!(
-        result.err(),
-        Some(TextError::Source(Error::LimitExceeded { .. }))
-    )
+#[test]
+fn each_limit_is_named_by_its_field() {
+    assert_eq!(TextLimitKind::SampleBytes.name(), "max_sample_bytes");
+    assert_eq!(TextLimitKind::Chapters.name(), "max_chapters");
+    assert_eq!(TextLimitKind::TitleBytes.name(), "max_title_bytes");
 }
 
 #[test]
@@ -81,7 +83,7 @@ fn a_subtitle_sample_of_exactly_max_sample_bytes_is_read_and_one_more_is_refused
     assert_eq!(subtitles(&subtitle_movie(&[b'a'; 100]), &limits), Ok(1));
     assert_eq!(
         refused(subtitles(&subtitle_movie(&[b'a'; 101]), &limits)),
-        LimitKind::PacketBytes
+        TextLimitKind::SampleBytes
     );
 }
 
@@ -101,7 +103,7 @@ fn a_chapter_sample_of_exactly_max_sample_bytes_is_read_and_one_more_is_refused(
     );
     assert_eq!(
         refused(chapters(&chapter_movie(&[&[b'a'; 101]]), &limits)),
-        LimitKind::PacketBytes
+        TextLimitKind::SampleBytes
     );
 }
 
@@ -113,7 +115,10 @@ fn exactly_max_chapters_are_kept_and_one_more_is_refused() {
     };
     let titles = |count: usize| chapter_movie(&vec![&b"title"[..]; count]);
     assert_eq!(chapters(&titles(20), &limits).unwrap().chapters.len(), 20);
-    assert!(is_limit_error(chapters(&titles(21), &limits)));
+    assert_eq!(
+        refused(chapters(&titles(21), &limits)),
+        TextLimitKind::Chapters
+    );
 }
 
 #[test]
@@ -131,5 +136,8 @@ fn exactly_max_title_bytes_of_titles_are_kept_and_one_more_is_refused() {
         chapters(&titles(b"title"), &limits).unwrap().chapters.len(),
         20
     );
-    assert!(is_limit_error(chapters(&titles(b"titles"), &limits)));
+    assert_eq!(
+        refused(chapters(&titles(b"titles"), &limits)),
+        TextLimitKind::TitleBytes
+    );
 }

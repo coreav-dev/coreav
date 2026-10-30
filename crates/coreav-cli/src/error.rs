@@ -11,6 +11,13 @@ pub enum Failure {
     Matroska(coreav_mkv::Error),
     /// The transport stream library rejected the file or could not read it.
     Mpegts(coreav_mpegts::Error),
+    /// The text library went past a limit of its own (`coreav_text::TextLimits`).
+    TextLimit {
+        /// The limit.
+        limit: coreav_text::TextLimitKind,
+        /// Offset of the sample at which it was exceeded.
+        offset: u64,
+    },
     /// The file could not be inspected before probing.
     Io(std::io::ErrorKind),
     /// The file cannot be processed as asked, for the reason given.
@@ -94,6 +101,16 @@ impl Failure {
                 None,
                 None,
                 &format!("unsupported: {message}"),
+            ),
+            Self::TextLimit { limit, offset } => object(
+                "limit",
+                Some(limit.name()),
+                Some(*offset),
+                &coreav_text::TextError::LimitExceeded {
+                    limit: *limit,
+                    offset: *offset,
+                }
+                .to_string(),
             ),
             Self::Library(error) => {
                 let (kind, offset) = match error {
