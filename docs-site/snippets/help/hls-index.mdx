@@ -1,0 +1,19 @@
+```text
+Build the index that playlists and segments are cut from
+
+Usage: coreav hls index [OPTIONS] <INPUT> <INDEX>
+
+Arguments:
+  <INPUT>  The file to index
+  <INDEX>  Where to write the index: a new file, or `-` for standard output
+
+Options:
+      --segment-duration <TIME>  Target segment duration in seconds [default: 6]
+      --video <STREAM|none>      The video stream index, or `none` for audio alone (default: the first video stream)
+      --audio <STREAM|none>      The audio stream index, or `none` (default: the first audio stream)
+      --allow <CODEC>            Codecs to accept, comma separated, as for `coreav probe`
+      --strict                   Reject the whole file when a stream's codec is not allowed
+      --tag <TEXT>               Text stored in the index to identify the source version (for example its entity tag), at most 255 bytes [default: ""]
+      --force                    Overwrite INDEX if it exists (a symbolic link is replaced, not written through; the new file keeps the old one's permissions)
+  -h, --help                     Print help
+```

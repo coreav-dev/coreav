@@ -1,0 +1,53 @@
+---
+title: "Install"
+description: "Install CoreAV today, and what comes with the first release."
+---
+
+Today you can only build CoreAV from source. Release binaries and the npm package come with 0.1.0.
+
+## Build from source
+
+You need Rust 1.89 or later ([rustup](https://rustup.rs)), git, and a C compiler for the TLS library that reads `https://` inputs.
+
+1. Clone the repository:
+
+   ```sh
+   git clone https://github.com/coreav-dev/coreav
+   cd coreav
+   ```
+
+2. Build and install the `coreav` command:
+
+   ```sh
+   cargo install --locked --path crates/coreav-cli --profile dist
+   ```
+
+   The `dist` profile is the optimized build that CoreAV ships. Cargo puts the binary in `~/.cargo/bin`.
+
+3. Check the installed version:
+
+   ```console
+   $ coreav --version
+   coreav 0.0.1
+   ```
+
+This default build has every command except [`thumbnail`](/commands/thumbnail) and [`transcode`](/commands/transcode). Those two need a decoder backend, which you add with a Cargo feature:
+
+```sh
+cargo install --locked --path crates/coreav-cli --profile dist --features ffmpeg-fallback
+```
+
+[Build features](/build-features) lists each backend, what it needs on your machine, and the licence notes that come with it.
+
+## Build the Python module
+
+The Python module builds from `crates/coreav-py` with [maturin](https://www.maturin.rs). [Python](/python) has the steps.
+
+## Coming with 0.1.0
+
+These are planned for the first release ([issue #43](https://github.com/coreav-dev/coreav/issues/43)):
+
+- `coreav` binaries for Linux, macOS and Windows on GitHub Releases, with checksums.
+- The npm package `coreav`, which installs the native binary where one exists and runs the WebAssembly build elsewhere.
+
+The Python and Rust library packages come in a later release.
