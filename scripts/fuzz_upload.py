@@ -11,7 +11,8 @@ Usage:
   fuzz_upload.py FINDINGS PREFIX
 
 Credentials from R2_ENDPOINT, R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY, the
-bucket from R2_BUCKET. Exits 1 when there is a finding it cannot upload.
+bucket from R2_BUCKET. A failed upload is tried again, and the other
+findings still go up; exits 1 when there is a finding it could not upload.
 """
 
 import io
@@ -19,6 +20,8 @@ import os
 import pathlib
 import sys
 import tarfile
+
+ATTEMPTS = 3
 
 
 def main():
@@ -41,14 +44,24 @@ def main():
         aws_secret_access_key=env["R2_SECRET_ACCESS_KEY"],
         region_name="auto",
     )
+    lost = []
     for path in names:
         body = io.BytesIO()
         with tarfile.open(fileobj=body, mode="w:gz") as tar:
             tar.add(path, arcname=path.name)
         key = f"{prefix}/{path.name}.tar.gz"
-        s3.put_object(Bucket=env["R2_BUCKET"], Key=key, Body=body.getvalue())
-        print(f"{path.name}: {key}")
-    return 0
+        for attempt in range(ATTEMPTS):
+            try:
+                s3.put_object(Bucket=env["R2_BUCKET"], Key=key, Body=body.getvalue())
+                print(f"{path.name}: {key}")
+                break
+            except Exception as error:
+                # The class only: a message could quote the request.
+                failure = type(error).__name__
+        else:
+            print(f"::error::{path.name}: not kept, {ATTEMPTS} uploads failed ({failure})")
+            lost.append(path.name)
+    return 1 if lost else 0
 
 
 if __name__ == "__main__":
