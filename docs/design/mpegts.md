@@ -61,7 +61,8 @@ other implementation.
 - `packet`: sans-IO transport packet header and adaptation field (PCR,
   discontinuity and random access indicators).
 - `section`: PSI section reassembly per PID (pointer field, sections that
-  span packets, several sections in one packet), CRC-32 check, and the PAT
+  span packets, several sections in one packet), CRC-32 check (eight
+  bytes a step, from a table made at compile time), and the PAT
   and PMT with their descriptor loops.
 - `pes`: PES header (stream id, PTS, DTS, header length) and the
   reassembly of a PES packet's payload from its transport packets. The
@@ -399,7 +400,12 @@ nothing is ignored whole, as a decoder ignores it.
   flag, as `ffprobe` reports both: for H.264 an IDR picture, a
   recovery point SEI message, or only I slices when the SPS keeps at most
   one reference frame; for HEVC an IRAP picture; for MPEG-1 and MPEG-2
-  video an I picture; every audio frame. Rejected: the
+  video an I picture; every audio frame. For H.264 only the NAL units up
+  to the first coded slice, and that slice's first 32 bytes, are read
+  unless the SPS keeps at most one reference frame: those units decide an
+  IDR picture and a recovery point (ITU-T H.264 7.4.1.2.3), and the
+  slices after them, nearly all of an access unit's bytes, matter only to
+  the intra rule. Rejected: the
   `random_access_indicator` (optional, and set inconsistently by muxers);
   it is the fallback when the NAL units cannot be read.
 - **Damaged input.** A packet with `transport_error_indicator` set is read
@@ -778,6 +784,16 @@ bounds its descriptors. Frame lengths are bounded by their syntax (an
 Opus access unit by 2 MiB). Parameter sets are kept up to 31 of a kind
 and 64 KiB per stream. Every limit is an error, never a panic or an
 unbounded allocation.
+
+A PES packet being reassembled starts with room for its stated length
+and one more transport packet or, with no stated length, for the longest
+unit read on its PID so far, so that the buffer of a coded picture is not
+copied each time it doubles; either is capped at `max_buffered_bytes`
+over `max_streams`, so the room the buffers reserve together stays within
+`max_buffered_bytes`. When the first transport packet holds the whole PES
+header, the header is parsed there and only the payload is kept, so the
+completed payload is handed on without moving its bytes; the header
+still counts toward `max_packet_bytes` and `max_buffered_bytes`.
 
 `max_probe_bytes` stops the head's read. It bounds every byte the head
 reads: the packet reader is given the budget as the end of the file, so
