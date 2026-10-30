@@ -97,7 +97,8 @@ for arm in aa null; do
   {r4} --arm "$arm" --files data/gate/files.json --out "out/gate-$arm.json" 2> "out/gate-$arm.log" || gate=error
   rc=0
   {report} --gate --results "out/gate-$arm.json" --out "out/gate-$arm.report.json" > "out/gate-$arm.report.txt" || rc=$?
-  if [ "$rc" -gt 1 ]; then gate=error; elif [ "$rc" = 1 ] && [ "$gate" = pass ]; then gate=fail; fi
+  if [ "$rc" -gt 2 ] || [ "$gate" = error ]; then gate=error; elif [ "$rc" = 2 ]; then gate=void
+  elif [ "$rc" = 1 ] && [ "$gate" = pass ]; then gate=fail; fi
 done
 echo "$gate" > out/gate.verdict
 rm -rf data/gate
@@ -177,7 +178,8 @@ def judge(out, rc, run):
             reasons.append(f"{name} left {', '.join(reports[name]['unmeasured'])} unmeasured")
     if (gate == 'pass' or run['rehearsal']) and not reports['r4']:
         reasons.append('R4 produced no report')
-    if gate not in ('pass', 'fail'):
+    gate_void = any(reports[name] and reports[name]['fallback_log']['void'] for name in ('gate-aa', 'gate-null'))
+    if gate not in ('pass', 'fail') and not (gate == 'void' and gate_void):
         reasons.append(f'the gate did not finish ({gate})')
     verdict = 'void' if reasons else 'gate failed' if gate == 'fail' else 'r4'
     result = {'verdict': verdict, 'reasons': reasons, 'machine': run['machine'], 'local': run['local'],

@@ -117,8 +117,8 @@ class Job(unittest.TestCase):
         self.assertIn('[ "$gate" = pass ] || [ true = true ]', compat_r4_gcp.job_script(5, '4-7', rehearsal=True))
 
     def test_only_a_failing_gate_report_fails_the_gate(self):
-        for codes, verdict in (((0, 0), 'pass'), ((1, 0), 'fail'), ((0, 3), 'error'), ((1, 2), 'error'),
-                               ((2, 1), 'error')):
+        for codes, verdict in (((0, 0), 'pass'), ((1, 0), 'fail'), ((0, 3), 'error'), ((0, 2), 'void'),
+                               ((1, 2), 'void'), ((2, 1), 'void'), ((2, 3), 'error')):
             with tempfile.TemporaryDirectory() as tmp:
                 d = pathlib.Path(tmp)
                 job = compat_r4_gcp.job_script(1, '0', rehearsal=False)
@@ -231,6 +231,15 @@ class Verdict(unittest.TestCase):
         out, run = self.vm({**self.HOST, 'gate.verdict': 'error', 'gate-aa.report.json': self.REPORT,
                             'gate-null.report.json': {**self.REPORT, 'classes': []}})
         self.assertEqual(compat_r4_gcp.judge(str(out), 0, run), 5)
+
+    def test_a_gate_voided_by_its_fallback_log_is_reported_once(self):
+        void = {**self.REPORT, 'fallback_log': {'void': True}}
+        code, reasons = self.reasons({**self.HOST, 'gate.verdict': 'void', 'gate-aa.report.json': self.REPORT,
+                                      'gate-null.report.json': void})
+        self.assertEqual((code, reasons), (5, ['the fallback log of gate-null is void']))
+        code, reasons = self.reasons({**self.HOST, 'gate.verdict': 'void', 'gate-aa.report.json': self.REPORT,
+                                      'gate-null.report.json': self.REPORT})
+        self.assertEqual((code, reasons), (5, ['the gate did not finish (void)']))
 
     def test_nothing_came_back(self):
         out, run = self.vm({})
