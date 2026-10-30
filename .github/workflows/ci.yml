@@ -155,6 +155,9 @@ jobs:
       # The FFmpeg fallback of `coreav thumbnail`, a non-default feature
       # (docs/design/decode.md).
       - run: cargo clippy -p coreav-cli --features ffmpeg-fallback --all-targets -- -D warnings
+      # AAC LC, an opt-in feature that no default build has
+      # (docs/design/audio-decode.md, "AAC-LC").
+      - run: cargo clippy -p coreav-audio -p coreav-cli --features coreav-audio/aac,coreav-cli/aac --all-targets -- -D warnings
       # main.rs's thumbnail subcommand, compiled into coreav-py as a module.
       - run: cargo clippy -p coreav-py --features thumbnail --all-targets -- -D warnings
       # dav1d for AV1, a non-default feature that links the system's
@@ -216,6 +219,13 @@ jobs:
       # (`coreav ffmpeg`'s encode, `coreav transcode`), which
       # `cargo test --workspace` does not build.
       - run: cargo test -p coreav-cli --features ffmpeg-fallback --lib
+      # The AAC LC pipeline and command, with the opt-in feature
+      # (docs/design/audio-decode.md, "AAC-LC").
+      - run: |
+          cargo test -p coreav-audio --features aac
+          cargo test -p coreav-cli --features aac --test decode_audio
+        env:
+          COREAV_FFMPEG: ${{ runner.temp }}/coreav-encoders/ffmpeg
       # Pinned limit test: 2.2 GB virtual fragmented
       # file with 20,000 fragments, reads bounded to 1 MiB.
       - run: cargo test --release -p coreav-isobmff --test hostile -- --ignored
@@ -1663,8 +1673,11 @@ jobs:
           # (docs/design/thumbnails.md, "Regression guard").
           DECODER=
           if grep -q '^ffmpeg-fallback' "$RUNNER_TEMP/base/crates/coreav-cli/Cargo.toml"; then
+            # With the opt-in AAC decoder where the base has it.
+            FEATURES=ffmpeg-fallback
+            if grep -q '^aac' "$RUNNER_TEMP/base/crates/coreav-cli/Cargo.toml"; then FEATURES=ffmpeg-fallback,aac; fi
             (cd "$RUNNER_TEMP/base" && cargo build --locked --profile "$PROFILE" -p coreav-cli --bin coreav \
-              --features ffmpeg-fallback --target-dir "$RUNNER_TEMP/base-decoder-target")
+              --features "$FEATURES" --target-dir "$RUNNER_TEMP/base-decoder-target")
             cp "$RUNNER_TEMP/base-decoder-target/$PROFILE/coreav" "$RUNNER_TEMP/coreav-base-decoder"
             DECODER="--decoder-coreav $RUNNER_TEMP/coreav-base-decoder"
           fi
@@ -1701,12 +1714,13 @@ jobs:
           fi
       - name: Build the decoder binary
         # The cases that need a decoder (the thumbnail, the transcode, whose
-        # encoder is the pinned ffmpeg on PATH): a second build with
-        # the FFmpeg fallback, in its own target directory, so that the
-        # shipped binary above stays the one counted for every other case.
+        # encoder is the pinned ffmpeg on PATH, and AAC LC's decode-audio,
+        # opt-in): a second build with the FFmpeg fallback and the feature
+        # `aac`, in its own target directory, so that the shipped binary
+        # above stays the one counted for every other case.
         run: |
           if grep -q '^ffmpeg-fallback' crates/coreav-cli/Cargo.toml; then
-            cargo build --locked --profile dist -p coreav-cli --bin coreav --features ffmpeg-fallback \
+            cargo build --locked --profile dist -p coreav-cli --bin coreav --features ffmpeg-fallback,aac \
               --target-dir "$RUNNER_TEMP/decoder-target"
             echo "DECODER=--decoder-coreav $RUNNER_TEMP/decoder-target/dist/coreav" >> "$GITHUB_ENV"
           fi
