@@ -211,9 +211,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
 
 [[package]]
+name = "coreav-aac"
+version = "0.0.1"
+dependencies = [
+ "coreav-isobmff",
+]
+
+[[package]]
 name = "coreav-audio"
 version = "0.0.1"
 dependencies = [
+ "coreav-aac",
  "coreav-isobmff",
  "coreav-kernels-audio",
  "coreav-mkv",

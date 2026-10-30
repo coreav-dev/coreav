@@ -88,6 +88,9 @@ jobs:
       # The FFmpeg fallback of `coreav thumbnail`, a non-default feature
       # (docs/design/decode.md).
       - run: cargo clippy -p coreav-cli --features ffmpeg-fallback --all-targets -- -D warnings
+      # AAC LC, an opt-in feature that no default build has
+      # (docs/design/audio-decode.md, "AAC-LC").
+      - run: cargo clippy -p coreav-audio -p coreav-cli --features coreav-audio/aac,coreav-cli/aac --all-targets -- -D warnings
       # main.rs's thumbnail subcommand, compiled into coreav-py as a module.
       - run: cargo clippy -p coreav-py --features thumbnail --all-targets -- -D warnings
       # dav1d for AV1, a non-default feature that links the system's
@@ -143,6 +146,13 @@ jobs:
       # `coreav transcode`, which only builds with a decoder backend include
       # (docs/design/docs-site.md); `cargo test --workspace` checks the rest.
       - run: cargo test -p coreav-cli --features ffmpeg-fallback --test docs_site
+      # The AAC LC pipeline and command, with the opt-in feature
+      # (docs/design/audio-decode.md, "AAC-LC").
+      - run: |
+          cargo test -p coreav-audio --features aac
+          cargo test -p coreav-cli --features aac --test decode_audio
+        env:
+          COREAV_FFMPEG: ${{ runner.temp }}/coreav-encoders/ffmpeg
       # Pinned limit test: 2.2 GB virtual fragmented
       # file with 20,000 fragments, reads bounded to 1 MiB.
       - run: cargo test --release -p coreav-isobmff --test hostile -- --ignored

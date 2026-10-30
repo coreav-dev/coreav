@@ -1,0 +1,17 @@
+[package]
+name = "coreav-aac"
+description = "Memory-safe AAC-LC decoding (ISO/IEC 14496-3, ISO/IEC 13818-7). Opt-in and never in a default CoreAV build: decoding AAC may need a patent licence where you are"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+readme = "README.md"
+
+[dev-dependencies]
+# The conformance test reads the MP4 streams of the conformance package.
+coreav-isobmff = { path = "../coreav-isobmff" }
+
+[lints]
+workspace = true
