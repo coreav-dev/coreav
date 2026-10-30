@@ -400,7 +400,7 @@ take it. The runner pins itself to the CPUs of `--cpus`, so every timed
 process runs there; an `ffmpeg` command writes into a scratch directory on
 the local disk that is emptied after every run. A pair whose untimed run
 fails on either side has no ratio and is reported, a strict-safe refusal
-apart. `speed.py r4-report --gate` judges the gate on each class's ratios
+apart (its fallback-log line voids the run). `speed.py r4-report --gate` judges the gate on each class's ratios
 over the three families, as the gate names "every class's median"; the
 families' rows are reported and not gated.
 
