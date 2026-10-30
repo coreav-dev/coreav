@@ -1,6 +1,6 @@
 # `coreav transcode`: the `x264` arm on 10-bit sources
 
-Status: measured. The method and the criteria were committed before the run (`e23d749`). The answer is yes. The `x264` arm's extra time on 10-bit sources is the x264 program's own conversion of its input, and no input that `coreav transcode` can stream avoids it. CoreAV's code is unchanged.
+Status: measured. The method and the criteria were committed before the run (`e23d749`). The answer is yes. The `x264` arm's extra time on 10-bit sources is the x264 program's own conversion of its input, and no input that `coreav transcode` can stream avoids it. A later run found that most of that conversion's cost was a stall on transparent huge pages, which the command now turns off for the program ("Huge pages").
 
 Round 2 of [`transcode.md`](transcode.md) missed B5 on the `x264` arm in HEVC (1.200) and ProRes (1.890), where the `ffmpeg` arm took 1.057 and 1.108 on the same files. That page's profile after the run pointed at 10-bit input to the x264 program, on synthetic frames, and was not measured on the corpus. This page asks one question: is the `x264` arm's extra time on 10-bit sources spent inside the x264 program, on a thread that runs serially, so that no form of input CoreAV could pipe removes it?
 
@@ -132,7 +132,7 @@ From a regular file the x264 program maps its input into memory (`strace`: 90 `m
 
 ## Conclusion
 
-On the round-2 host class, the `x264` arm's extra time on 10-bit sources is the x264 program's conversion of its 10-bit input (the function `get_frame`). It runs on the program's main thread before each frame is encoded, and it does not run for 8-bit input. From a regular file, raw `i420` and `nv12`, `y4m`, input depths 10, 12 and 14 and `--thread-input` all pay it in full (`nv12` was tried on the development VM only), and input depth 16 pays about half. Through a pipe, which is the only way `coreav transcode` streams frames, input depth 16 pays the same as depth 10, with a pipe of 64 KiB or 1 MiB. The `ffmpeg` arm gives libx264 the same frames and shows no such cost (criterion 1). CoreAV changes no code for it. The `x264` arm keeps missing B5 in the classes whose sources are 10-bit (HEVC, AV1 and ProRes in the speed selection) until the program changes or the design routes 10-bit frames differently.
+On the round-2 host class, the `x264` arm's extra time on 10-bit sources is the x264 program's conversion of its 10-bit input (the function `get_frame`). It runs on the program's main thread before each frame is encoded, and it does not run for 8-bit input. From a regular file, raw `i420` and `nv12`, `y4m`, input depths 10, 12 and 14 and `--thread-input` all pay it in full (`nv12` was tried on the development VM only), and input depth 16 pays about half. Through a pipe, which is the only way `coreav transcode` streams frames, input depth 16 pays the same as depth 10, with a pipe of 64 KiB or 1 MiB. The `ffmpeg` arm gives libx264 the same frames and shows no such cost (criterion 1). CoreAV changes no code for the conversion itself. Most of its cost turned out to be a stall on transparent huge pages, which the command now avoids ("Huge pages"); with that, the `x264` arm's median over the `ffmpeg` arm on 10-bit sources went from 1.428 to 1.172 on the corpus. The `x264` arm keeps missing B5 in the classes whose sources are 10-bit (HEVC, AV1 and ProRes in the speed selection) until the program changes or the design routes 10-bit frames differently.
 
 ## Why the conversion is slow
 
@@ -363,3 +363,130 @@ In every arm, over 99.99% of `get_frame`'s cycle samples lie in this loop. Betwe
 5. **Why does 16-bit plus a mapped input avoid it? Because only then does the loop read its input from the mapping, which is what separates the arms.** A 10-bit input is first widened into a buffer the program owns, whether it comes from a file or a pipe. A pipe's input is read into a buffer the program owns. In both cases the stalled spot after the second read of each input sample waits. Only 16-bit samples from a mapped file or memfd go to the loop directly, and then that spot does not wait. Where the program keeps its input copy is decided inside the program. A caller reaches the fast path only by handing over the whole video as a 16-bit file or memfd, which the input-method round showed cannot stream. So no caller-side lever follows. The page does not name what that spot waits on when the input is the program's own buffer, and it does not confirm that the second read is the instruction held up. Neither the aliasing counter nor the 4K and 64 KiB placement rules explain it. Precise or load-latency sampling would show both, and this guest offers neither.
 
 The raw results are in `transcode/x264-10bit/why/annotate/` (`why4.jsonl`: the sampled events this host allowed, the timed runs, and per arm and event the samples per offset in `get_frame`; `perf/`: the top symbols on the main thread per arm and event) and `transcode/x264-10bit/why/registers/` (`why5.jsonl`: per arm, the loop's samples, where its input address lies, and the page-offset and distance counts). The annotated disassembly, the memory maps and the raw samples are not published.
+
+## Huge pages
+
+Status: measured. The question, the arms and what each result would mean were committed before the run (`f789196`). The answer is yes: with transparent huge pages off for the x264 process, 10-bit input through a pipe runs as fast as the fast arm. That the stall goes is inferred from the host arm, because criterion 4 was not judged as registered ("What the huge-page run found"). The launcher now turns them off for the x264 program when the input has more than 8 bits.
+
+The instruction-level view found one placement pattern it had not registered: in every slow arm the loop's input and output rows lie a multiple of 2 MiB apart, and in no fast arm. 2 MiB is the size of a transparent huge page on x86-64. A development check (an AMD host, where the stall does not occur, 3 frames) showed that the x264 program asks the kernel for huge pages itself. On 5 frames of the 10-bit pipe arm it made 23 `madvise(MADV_HUGEPAGE)` calls, and on 3 frames it held 366 MiB of anonymous huge pages, on a host whose setting gives huge pages only where a program asks for them (`madvise`). A caller can turn transparent huge pages off for one process and the programs it runs, with `prctl(PR_SET_THP_DISABLE)`, which the kernel keeps across `execve`. `coreav transcode` starts the encoder through its own launcher (`coreav-worker`'s `sandbox_exec_main`), which could set that flag before it runs the program. This run asks whether doing so removes the stall.
+
+**Host and inputs.** One Compute Engine `c4-standard-8` (Intel Xeon Platinum 8581C, standard PMU, two threads a core, not preemptible), by `scripts/gcp_vm_job.py`, as above. The host's own transparent huge page settings are recorded and left as they are, except in the host arm. The input is the 129 frames of the 4K ProRes development file above, decoded once by the pinned `ffmpeg` to `yuv420p10le`, `yuv422p10le` and `yuv420p`. The runner is [`thp.py`](transcode/x264-10bit/thp.py), run by [`thp-job.sh`](transcode/x264-10bit/thp-job.sh). The x264 program and its arguments are those of the input-method run; the 8-bit arms use `--input-depth 8 --output-depth 8`.
+
+**Arms.** Each is the pinned x264 program, through a 64 KiB pipe unless named "file", in one of three settings: `default` (the host's), `process` (huge pages off for the x264 process alone, set by a launcher that then runs x264) or `host` (the host's setting `never`, restored after the run).
+
+| Arm | Input | Setting |
+|---|---|---|
+| `d10-pipe` | 10-bit 4:2:0 | default |
+| `d10-pipe-nothp` | 10-bit 4:2:0 | process |
+| `d10-pipe-never` | 10-bit 4:2:0 | host |
+| `d10-file-nothp` | 10-bit 4:2:0, file | process |
+| `d16-pipe-nothp` | 16-bit 4:2:0 | process |
+| `d16-file` | 16-bit 4:2:0, file | default (the fast arm above) |
+| `d10-422-pipe` | 10-bit 4:2:2 | default |
+| `d10-422-pipe-nothp` | 10-bit 4:2:2 | process |
+| `d8-pipe` | 8-bit 4:2:0 | default |
+| `d8-pipe-nothp` | 8-bit 4:2:0 | process |
+
+**Observations.** Per arm: 3 timed runs in rotated order (wall time, the main thread's CPU time, the output's hash), the largest `AnonHugePages` of the x264 process seen during each run, and one `perf stat` of the main thread (cycles, instructions, cycles bound on loads, all stall cycles; one group, not multiplexed). One `strace` of `d10-pipe` on 5 frames counts its anonymous mappings of 1 MiB or more, how many start on a 2 MiB boundary, and its `madvise` calls.
+
+**Criteria.**
+
+1. **The switch works.** Every `default` arm's x264 process holds anonymous huge pages in every run, and no `process` or `host` arm's does. If this fails, the run says nothing about huge pages.
+2. **Lever at 4:2:0.** `d10-pipe-nothp`'s median wall time is at most 0.90 times `d10-pipe`'s, all 3 of its times are below `d10-pipe`'s fastest, and the two give the same stream.
+3. **Lever at 4:2:2.** The same rule for `d10-422-pipe-nothp` against `d10-422-pipe`.
+4. **The stall goes.** `d10-pipe-nothp`'s main-thread cycles bound on loads are at most 0.5 times `d10-pipe`'s.
+5. **8-bit input.** `d8-pipe-nothp`'s median wall time is at most 1.02 times `d8-pipe`'s.
+6. **The process flag does what the host setting does.** `d10-pipe-never`'s median wall time is within 5% of `d10-pipe-nothp`'s.
+
+**What follows from the result.** If 1 to 4 hold, the launcher turns huge pages off for the x264 program, and a corpus round with its own bars, committed before it runs, judges that change through `coreav transcode`. If 5 also holds, it does so for every input; if 5 fails, only for input of more than 8 bits. If 2 or 3 fails, huge pages are not the lever, and the page records that and stops there. `d10-file-nothp` and `d16-pipe-nothp` judge nothing; they show whether, with huge pages off, the 10-bit file and 16-bit pipe arms reach the fast arm too.
+
+
+### What the huge-page run found
+
+With huge pages off, every 10-bit and 16-bit arm runs at one speed, whether its input comes from a pipe or a file, and the main thread's CPU time halves. The host's setting was `always` (`[always] madvise never`; defrag `madvise`). The evidence is in [`transcode/x264-10bit/thp/`](transcode/x264-10bit/thp): `thp.jsonl` (each run), `stat/` (one `perf stat` file per arm) and `host.txt`. The run used the pins of the earlier runs on this page, FFmpeg 7.0.2 and x264 `4613ac3` (`host.txt`), so that its arms run the program whose stall those runs found. Every arm runs the same x264 program, and `ffmpeg` only decodes the input once, so no arm is compared with FFmpeg. Since the run, `thp.py` also restores the host's setting when it is stopped with `SIGTERM`; `host.txt` holds the hash of the version that ran.
+
+| Arm | Wall, 3 runs (s) | Median (s) | Main thread on CPU (s) | Anonymous huge pages (MiB) | Output hash |
+|---|---|---|---|---|---|
+| `d10-pipe` | 22.34, 22.74, 22.96 | 22.74 | 16.87 | 3,706 | `9a8e114d` |
+| `d10-pipe-nothp` | 18.93, 19.16, 19.71 | 19.16 | 8.63 | 0 | `9a8e114d` |
+| `d10-pipe-never` | 19.09, 19.20, 19.22 | 19.20 | 8.68 | 0 | `9a8e114d` |
+| `d10-file-nothp` | 18.95, 19.00, 19.05 | 19.00 | 8.64 | 0 | `9a8e114d` |
+| `d16-pipe-nothp` | 18.90, 18.97, 19.25 | 18.96 | 8.62 | 0 | `9a8e114d` |
+| `d16-file` | 18.00, 18.08, 18.08 | 18.08 | 8.20 | 3,658 | `9a8e114d` |
+| `d10-422-pipe` | 28.36, 28.58, 28.95 | 28.58 | 22.01 | 4,332 | `c2babd7b` |
+| `d10-422-pipe-nothp` | 24.00, 24.04, 24.27 | 24.04 | 11.68 | 0 | `c2babd7b` |
+| `d8-pipe` | 12.23, 12.45, 12.48 | 12.45 | 0.97 | 2,120 | `c3679dc8` |
+| `d8-pipe-nothp` | 12.70, 12.79, 13.34 | 12.79 | 1.28 | 0 | `c3679dc8` |
+
+The main thread's CPU time comes from `/proc` in every arm, and the huge-page figure is the largest `AnonHugePages` seen in a run. On 5 frames of `d10-pipe`, the program made 68 anonymous mappings of 1 MiB or more, 1 of them on a 2 MiB boundary, and 52 `madvise(MADV_HUGEPAGE)` and 3 `madvise(MADV_DONTNEED)` calls.
+
+1. **The switch works: met.** Every `default` run held 2,116 to 4,332 MiB of anonymous huge pages, and every `process` and `host` run held none.
+2. **Lever at 4:2:0: met.** 19.16 s against 22.74 s, 0.843 times. All three times are below 22.34 s, and the stream is the same.
+3. **Lever at 4:2:2: met.** 24.04 s against 28.58 s, 0.841 times. All three are below 28.36 s, and the stream is the same.
+4. **The stall goes: not judged as registered.** In the `process` arms, `perf stat` attached to the launcher before it ran x264, so its counters followed every thread x264 started (369 billion cycles in `d10-pipe-nothp`, the whole program), not the main thread. This was found after the run. The `host` arm has the same setting without a launcher, and criterion 6 shows it behaves as the `process` arm. Its main thread had 4.87 billion cycles bound on loads against 28.23 billion in `d10-pipe` (0.17 times), and `d16-file` had 4.14 billion. The main thread's CPU time also halves in every `process` arm (8.63 s against 16.87 s).
+5. **8-bit input: missed.** 12.79 s against 12.45 s, 1.027 times, above 1.02. Huge pages help the rest of the encoder a little, so they stay on for 8-bit input.
+6. **The process flag does what the host setting does: met.** 19.20 s against 19.16 s, 0.2% apart.
+
+`d10-file-nothp` and `d16-pipe-nothp` reach the fast arm's speed too: with huge pages off, neither the depth nor a pipe matters. `d16-file`, the fast arm with huge pages on, is still 5% faster (18.08 s) than every arm without them, as the 8-bit arms are. So the stall needs both the program's own anonymous buffers and huge pages under them, which fits the 2 MiB distance that the register view recorded: on huge pages, the input and output rows then agree in their low 21 address bits, physical as well as virtual. No counter on this host names the block, so that remains the likely mechanism, not a proven one.
+
+**What follows.** `coreav transcode` starts the encoder through its launcher (`coreav_worker::exec`), which now turns transparent huge pages off (`PR_SET_THP_DISABLE`, through `rustix`'s safe API) before it runs the x264 program on input of more than 8 bits, and leaves them as they are for 8-bit input and for `ffmpeg`. A corpus round with its own bars judges that change through the command.
+
+
+### The command on the corpus
+
+Status: run. The files, the method and the bars were committed before the run (`e434eb3`); the result is under "What the corpus round found".
+
+This round times `coreav transcode` with the change above against FFmpeg on the corpus files of round 2's speed selection, to see how much of the `x264` arm's gap on 10-bit sources the change closes.
+
+- **Code:** this branch, built with `cargo build --release -p coreav-cli --features native-h264,dav1d,ffmpeg-fallback`, the features of round 2.
+- **FFmpeg and x264:** FFmpeg 9.0.2 (the BtbN static build `n9.0.2-17-g2a571b6068`) and the x264 program built at `0480cb0`, the libx264 that build links, as pinned by the change that moves the oracle to FFmpeg 9 (coreav-dev/coreav#69). Both arms then run the same encoder, and the baseline is the FFmpeg version the maintainer named for comparisons.
+- **Files:** round 2's speed selection ([`transcode/speed-selection.json`](transcode/speed-selection.json)), classes HEVC, AV1 and ProRes, which hold every 10-bit source of the selection (10 files) and 8 files with 8-bit sources. They carried round 2's result, so they are not held out; rounds 1 and 2 also shared one selection.
+- **Host and method:** one Compute Engine `c4-standard-8` (two threads a core, not preemptible), by `scripts/transcode_speed_gcp.py` with `--classes hevc,av1,prores`, which runs `scripts/transcode_speed.py` as in round 2: the two arms (`--encoder x264` and `--encoder ffmpeg`) and the baseline, 3 rounds in rotated order a file, and the gate before and after (void above 5%). The gate file is 20 s of 1280x720 `testsrc2` at 30 frames a second, encoded by the pinned `ffmpeg` with libx264 at `-preset medium -crf 23`.
+
+**Bars.** A file's `x264`-over-`ffmpeg` ratio is its `x264` arm's median time over its `ffmpeg` arm's. Both arms decode the same way, so the ratio isolates the encoder program. A file counts as 10-bit when the selection gives its source more than 8 bits a sample.
+
+1. **10-bit sources.** The median of the 10-bit files' `x264`-over-`ffmpeg` ratios is at most **1.30**. Round 2 had 1.428 on the same files.
+2. **8-bit sources.** The median of the 8-bit files' ratios is at most **1.01**. Round 2 had 0.990. The change does not apply to them.
+
+Bar B5 of the design note (each arm's median ratio against the baseline at most 1.05 per class) is reported for both arms and is not changed here. The share of files where each arm is faster than the baseline is reported beside it.
+
+**What follows from the result.** If both bars hold, the change stays and the page reports how far the `x264` arm still is from B5 on 10-bit sources. If bar 1 misses, the corpus does not show the gain of the frame run, and the change is reported as not judged effective on the command. If bar 2 misses, the run shows a cost that the change does not touch, and the page says so; the cause is found before merging.
+
+#### What the corpus round found
+
+Both bars hold. The run is valid: the gate took 2.728 s before and 2.712 s after (0.6% apart), and every file was timed except the two 12-bit ProRes files with alpha, which the command refuses (`unsupported_feature`) as it did in round 2. The evidence is in [`transcode/x264-10bit/command/`](transcode/x264-10bit/command): `files.jsonl` (each file's times), `summary.json`, `gate.json`, `speed.log` and `host.txt`.
+
+1. **10-bit sources: met.** The median of the 10 files' `x264`-over-`ffmpeg` ratios is 1.172, at most 1.30. Round 2 had 1.428 on the same files, and every one of them is lower now.
+2. **8-bit sources: met.** The median of the 8 files' ratios is 1.007, at most 1.01. Round 2 had 0.990. Every 8-bit ratio is 0.8% to 2.3% above round 2's, where the change does not apply; round 2 ran FFmpeg 7.0.2 and an older x264, so part of the gap between the two rounds is the pins, not the code.
+
+| Arm | HEVC (8) | AV1 (6) | ProRes (4) | All (18) | Faster than the baseline |
+|---|---|---|---|---|---|
+| `ffmpeg` | 1.056 [1.047, 1.075] | 1.069 [1.043, 1.085] | 1.119 [1.114, 1.147] | 1.069 [1.056, 1.087] | 0% |
+| `x264` | 1.146 [1.060, 1.244] | 1.072 [1.045, 1.152] | 1.407 [1.343, 1.561] | 1.146 [1.068, 1.258] | 0% |
+
+B5 (at most 1.05 per class, against the baseline) is still missed by both arms in every class here. On the 10-bit files the `x264` arm now takes a median 1.12 times the `ffmpeg` arm's time at 4:2:0 (6 files) and 1.24 times at 4:2:2 (4 files): the x264 program's conversion of 10-bit input still runs serially on its main thread, now without the stall.
+
+| Class | File | Source | x264 / ffmpeg | Round 2 | ffmpeg arm / baseline | x264 arm / baseline |
+|---|---|---|---|---|---|---|
+| hevc | `dfa90bd34a2e` | `yuv420p` | 1.008 | 0.985 | 1.051 | 1.060 |
+| hevc | `fd7b6c440b67` | `yuv420p10le` | 1.140 | 1.484 | 1.092 | 1.244 |
+| hevc | `15affcdb19e3` | `yuv420p10le` | 1.086 | 1.129 | 1.047 | 1.138 |
+| hevc | `5853e2ed4f54` | `yuv420p10le` | 1.088 | 1.153 | 1.061 | 1.155 |
+| hevc | `f3cd6f0c7876` | `yuvj420p` | 1.016 | 0.999 | 1.037 | 1.054 |
+| hevc | `0119957558a2` | `yuv420p10le` | 1.111 | 1.201 | 1.057 | 1.174 |
+| hevc | `2cf91de003da` | `yuv420p` | 0.997 | 0.982 | 1.075 | 1.071 |
+| hevc | `2bc6b07151be` | `yuv420p10le` | 1.204 | 1.331 | 1.056 | 1.271 |
+| av1 | `effb7b78408d` | `yuv420p` | 1.011 | 1.003 | 1.066 | 1.078 |
+| av1 | `357fb30f4693` | `yuv420p10le` | 1.136 | 1.373 | 1.064 | 1.209 |
+| av1 | `d438e9cb804e` | `yuv420p` | 1.007 | 1.003 | 1.087 | 1.094 |
+| av1 | `03e890cf5999` | `yuv420p` | 0.980 | 0.966 | 1.082 | 1.061 |
+| av1 | `a34d5ee860fb` | `yuv420p` | 0.995 | 0.971 | 1.071 | 1.066 |
+| av1 | `d9ab22f96e5e` | `yuv420p` | 1.007 | 0.995 | 1.022 | 1.029 |
+| prores | `50b9f3ee51cf` | `yuv422p10le` | 1.399 | 1.860 | 1.116 | 1.561 |
+| prores | `08cd47bdffda` | `yuva444p12le` | refused | refused | | |
+| prores | `568ca4f52c3a` | `yuva444p12le` | refused | refused | | |
+| prores | `249f6da48e0b` | `yuv422p10le` | 1.248 | 2.062 | 1.147 | 1.432 |
+| prores | `72ae2bbd26be` | `yuv422p10le` | 1.205 | 1.504 | 1.114 | 1.343 |
+| prores | `1a5fb95f5146` | `yuv422p10le` | 1.232 | 1.585 | 1.122 | 1.382 |
+
+**What follows.** The change stays: it removes about 60% of the `x264` arm's extra time on 10-bit sources over the `ffmpeg` arm (median 1.428 to 1.172) and costs 8-bit sources nothing measurable beyond the bar. Closing the rest to B5 needs the conversion itself to cost less, which is the x264 program's code, or 10-bit frames routed differently.
