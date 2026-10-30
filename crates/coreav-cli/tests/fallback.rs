@@ -543,6 +543,32 @@ fn native_commands_and_rejected_files_are_never_handed_on() {
 }
 
 #[test]
+fn coreav_ffprobe_help_is_its_own_and_help_on_a_topic_is_ffprobes() {
+    let dir = stand_in().to_str().unwrap();
+    let work = tmp("ffprobe-help");
+    let log = work.join("fallback.log");
+    let env = [
+        ("COREAV_FALLBACK", dir),
+        ("COREAV_FALLBACK_LOG", log.to_str().unwrap()),
+    ];
+    for help in ["-h", "-?", "-help", "--help"] {
+        let r = coreav(&["ffprobe", help], &[stand_in()], &env);
+        assert_eq!(r.code, 0, "{help}: {}", r.stderr);
+        assert_eq!(r.stdout, coreav_cli::ffprobe::USAGE, "{help}");
+        assert!(r.stderr.is_empty(), "{help}: {}", r.stderr);
+    }
+    assert!(!log.exists(), "help wrote a fallback log line");
+    let r = coreav(&["ffprobe", "-h", "demuxer=mov"], &[stand_in()], &env);
+    assert_eq!(r.code, 7, "{}", r.stderr);
+    assert!(
+        r.stdout.starts_with("args: -h demuxer=mov\n"),
+        "{}",
+        r.stdout
+    );
+    assert_eq!(log_lines(&log).len(), 1);
+}
+
+#[test]
 fn coreav_ffmpeg_runs_ffmpeg_for_what_it_refuses_once_the_input_is_read() {
     let dir = stand_in().to_str().unwrap();
     let work = tmp("ffmpeg-native");

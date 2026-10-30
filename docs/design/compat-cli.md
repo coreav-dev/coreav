@@ -530,6 +530,19 @@ read: a property of the source that `coreav ffmpeg` does not copy, an
 output that already exists, or an encoder value it does not implement
 (`-crf 90`).
 
+**Help in `coreav ffprobe`.** `-h`, `-?`, `-help` and `--help` with
+nothing after them print `coreav ffprobe`'s own usage text on standard
+output and exit 0, in strict-safe mode or not: no `ffprobe` program runs
+and the fallback log gets no line. `ffprobe`'s documentation gives the
+help option an optional topic, and FFmpeg's `-h full` listing has it take
+a value: with any argument after it (`-h long`, `-h full`,
+`-h demuxer=mov`, `-help INPUT`) the query asks about FFmpeg's own options
+and components, so it is refused by name, the option and its topic, like
+any other command that is not native. This is the rule `coreav ffmpeg`
+follows. Rejected: answering topic queries from CoreAV (a listing of
+FFmpeg's components is not CoreAV's to print). The `ffprobe` commands of
+`commands-v1` hold no help query, so B1 is judged on the same commands.
+
 A refused command runs FFmpeg's `ffmpeg` or `ffprobe` instead unless
 strict-safe mode is on (`COREAV_STRICT_SAFE=1`, `coreav --strict-safe`),
 the mode for services that read untrusted input: see "Fallback to FFmpeg".
