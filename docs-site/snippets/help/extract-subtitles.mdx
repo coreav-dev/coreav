@@ -1,0 +1,14 @@
+```text
+Write the text subtitles (mov_text: 3GPP timed text or QuickTime text) of an MP4/MOV file as WebVTT
+
+Usage: coreav extract-subtitles [OPTIONS] <INPUT> <OUTPUT>
+
+Arguments:
+  <INPUT>   The file to read
+  <OUTPUT>  Where to write the WebVTT file: a new file, or `-` for standard output
+
+Options:
+      --stream <STREAM>  The subtitle stream index (default: the first text stream that is not a chapter track)
+      --force            Overwrite OUTPUT if it exists (a symbolic link is replaced, not written through; the new file keeps the old one's permissions)
+  -h, --help             Print help
+```

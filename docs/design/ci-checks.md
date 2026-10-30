@@ -41,8 +41,8 @@ and from the path filters an earlier change put on the heavy workflows:
   informational `mediainfo-oracle`, the spikes (`spike-build`, `h264-n1`,
   `h264-n2`, `h264-n2-arm-speed`, which build spike code and are kept
   with it out of the public tree), the nightly `pr-redirect`, `labels`,
-  `pr-text`, and `release`, whose pull-request run is the dry run of a
-  change to the release build (`docs/design/release.md`).
+  `pr-text`, `docs-site`, and `release`, whose pull-request run is the dry
+  run of a change to the release build (`docs/design/release.md`).
 
 `scripts/workflow_check.py` runs in `deny.yml` — the workflow nothing
 filters — and fails when the required-check table and the workflows
@@ -215,6 +215,16 @@ round's bars: one analyzer, complete reports"). It runs there, not in
 `ci.yml`, because a round's measurements often change `docs/measurements`
 alone, which `ci.yml`'s filter skips. A new step of an existing job, so
 the required-check list does not change.
+
+## The documentation site
+
+Three checks keep the documentation site in `docs-site/` true to the code (`docs/design/docs-site.md`, "Checks"), each in a workflow that already runs where its input changes:
+
+- `crates/coreav-cli/tests/docs_site.rs` compares each command's `--help` with the help text its page shows, and fails on a command without a page. `cargo test --workspace` runs it in the default build; one more step of `ci.yml`'s `check` job runs it with `--features ffmpeg-fallback`, for `coreav thumbnail` and `coreav transcode`.
+- `scripts/tests/test_docs_site.py` checks the page list, the links into the repository and between pages, the measurements index and the public text. It is one of the tests `deny.yml` already discovers in `scripts/tests`, so it runs on every pull request, including one that only renames a design note a page links.
+- `docs-site.yml` runs Mintlify's strict build and its link check with the CLI's npm package at a pinned version and no account, on changes to `docs-site/`. It is not required (`# workflow-check: not required`): requiring it would change the branch ruleset, and the two checks above, which are, cover what a broken page costs most often.
+
+None of them adds a required check name, so the table below is unchanged.
 
 ## Labels
 

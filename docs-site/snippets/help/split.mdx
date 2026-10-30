@@ -1,0 +1,19 @@
+```text
+Split an MP4/MOV file at keyframes into MP4 segments, without re-encoding. Together the segments hold every packet of the kept streams exactly once
+
+Usage: coreav split [OPTIONS] <INPUT> <OUTPUT>
+
+Arguments:
+  <INPUT>   The file to split
+  <OUTPUT>  Where to write the segments: a name with `%d`, or `%03d` for three digits, replaced by the segment number from 0 (for example `seg-%03d.mp4`)
+
+Options:
+      --every <SECONDS>      Cut at the latest keyframe at or before every multiple of this many seconds (for example `10`)
+      --at <TIMES>           Cut at the latest keyframe at or before each of these times, in increasing seconds, comma separated (for example `10,25.5`)
+      --video <STREAM>       The video stream index (default: the first video stream)
+      --audio <STREAM|none>  The audio stream index, or `none` (default: the first audio stream)
+      --allow <CODEC>        Codecs to accept, comma separated, as for `coreav probe`
+      --strict               Reject the whole file when a stream's codec is not allowed
+      --force                Overwrite segment files that exist (a symbolic link is replaced, not written through; a new file keeps the old one's permissions)
+  -h, --help                 Print help
+```

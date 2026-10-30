@@ -1,0 +1,21 @@
+---
+title: "coreav extract-audio"
+sidebarTitle: "extract-audio"
+description: "Copy the AAC audio track of an MP4 or MOV file into an M4A file, without re-encoding."
+---
+
+import Help from '/snippets/help/extract-audio.mdx';
+
+`coreav extract-audio INPUT OUTPUT` copies the AAC audio track of an MP4 or MOV file into an M4A file. The audio is not decoded or re-encoded. The summary is [`coreav.extract-audio/1`](https://github.com/coreav-dev/coreav/blob/main/docs/schema/extract-audio-v1.md).
+
+## Example
+
+```sh
+coreav extract-audio input.mp4 audio.m4a
+```
+
+To decode audio to PCM instead, use [`coreav decode-audio`](/commands/decode-audio).
+
+## Options
+
+<Help />

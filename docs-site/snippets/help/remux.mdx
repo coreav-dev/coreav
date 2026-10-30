@@ -1,0 +1,18 @@
+```text
+Rewrite an MP4/MOV, Matroska or WebM file as MP4 with the movie header first (faststart), without re-encoding
+
+Usage: coreav remux [OPTIONS] <INPUT> <OUTPUT>
+
+Arguments:
+  <INPUT>   The file to rewrite
+  <OUTPUT>  Where to write the MP4 file: a new file, or `-` for standard output
+
+Options:
+      --streams <STREAM>     Stream indexes to keep, comma separated (default: every stream MP4 can carry; for Matroska and WebM, a video stream it cannot carry fails the remux unless --drop-unsupported is given)
+      --fail-on-unsupported  Fail instead of dropping a stream that MP4 cannot carry
+      --drop-unsupported     Matroska and WebM sources: also drop a video stream that MP4 cannot carry (or that the allowlist leaves out), writing the other streams; by default that fails, so a video never silently becomes an audio-only file. MP4 sources drop such streams anyway
+      --allow <CODEC>        Codecs to accept, comma separated, as for `coreav probe`
+      --strict               Reject the whole file when a stream's codec is not allowed
+      --force                Overwrite OUTPUT if it exists (a symbolic link is replaced, not written through; the new file keeps the old one's permissions)
+  -h, --help                 Print help
+```
