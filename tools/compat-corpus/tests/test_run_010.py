@@ -118,7 +118,7 @@ class KeysReport(unittest.TestCase):
                    for i in range(4)]
         records += [record('mpegts', {'streams.codec_name': False})]
         records += [{'file': 'g', 'family': 'mpegts', 'ffprobe_failed': True}]
-        out = run.keys_report(records, 98.0)['families']['mpegts']
+        out = run.keys_report(run.keys_counts(records), 98.0)['families']['mpegts']
         rows = {r['key']: r for r in out['keys']}
         self.assertEqual(out['files'], {'compared': 5, 'ffprobe failed': 1})
         self.assertEqual(rows['streams.codec_name'], {
@@ -133,13 +133,22 @@ class KeysReport(unittest.TestCase):
 
     def test_a_key_is_below_on_its_unrounded_share(self):
         records = [record('mp4-mov', {'format.duration': i >= 21}) for i in range(1049)]
-        row = run.keys_report(records, 98.0)['families']['mp4-mov']['keys'][0]
+        row = run.keys_report(run.keys_counts(records), 98.0)['families']['mp4-mov']['keys'][0]
         self.assertEqual((row['agree'], row['rate'], row['below']), (1028, 98.0, True))
 
     def test_shards_merge_their_fallback_logs(self):
         records = [{'fallback_log': {'lines': 1, 'refused': 1, 'void': False}},
                    {'fallback_log': {'lines': 2, 'refused': 1, 'void': True}}]
-        self.assertEqual(run.keys_report(records, 98.0)['fallback_log'], {'lines': 3, 'refused': 2, 'void': True})
+        self.assertEqual(run.keys_counts(records)['fallback_log'], {'lines': 3, 'refused': 2, 'void': True})
+
+    def test_summaries_add_up_to_the_report_of_all_files(self):
+        records = [record('mp4-mov', {'format.duration': i % 7 != 0, 'format.tags.title': True}) for i in range(9)]
+        records += [{'file': 'g', 'family': 'mp4-mov', 'ffprobe_failed': True}]
+        whole = run.keys_report(run.keys_counts(records), 98.0)
+        halves = run.merge_counts([run.keys_counts(records[:4]), run.keys_counts(records[4:])])
+        split = run.keys_report(halves, 98.0)
+        self.assertEqual(split, whole)
+        self.assertNotIn("'file'", str(whole))
 
 
 class Commands010(unittest.TestCase):
