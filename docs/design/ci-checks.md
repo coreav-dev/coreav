@@ -128,7 +128,7 @@ The changed files come from git, which is why each changes job checks out
 with `fetch-depth: 2`:
 
 - a pull request: the merge commit against its first parent, the base —
-  the diff `ci.yml`'s `fuzz-changes` job also uses to choose its targets;
+  the diff `ci-changes` also uses to choose the fuzz targets;
 - a push: the event's `before` commit against the event's commit;
 - a manual or scheduled run, an unreachable commit, or a failing diff:
   everything runs, the safe direction.
@@ -158,7 +158,9 @@ checked out the repository and diffed the same two commits. Now
 `ci-changes` runs the changed-paths action once per filter list, in one
 job, and the moved jobs read its outputs: `run` for the three fixture
 oracles, whose list was the same as `ci.yml`'s, and `h264-conformance`
-and `bench-guard` for the two that had their own. The job ids did not
+and `bench-guard` for the two that had their own. The fuzz job's list of
+targets is its `fuzz-plan` output, which a job of its own,
+`fuzz-changes`, used to compute. The job ids did not
 change, so neither did a required check name: the ruleset matches a check
 by its job's name, not by its workflow.
 
@@ -188,7 +190,7 @@ by its job's name, not by its workflow.
 
 Fuzzing runs in two places, and a push to main is neither.
 
-- **A pull request** fuzzes the targets it can affect. `fuzz-changes` lists every target of each fuzz project whose own directory, or a workspace crate it depends on, the change touches (`scripts/fuzz_plan.py --changed`); `fuzz` runs only when that list is not empty, so a pull request that reaches no fuzz project starts no fuzz job and `ci-report` still covers both. The targets share 480 seconds, 5 to 30 each: a change to one container parser (7 to 24 targets) gets 20 to 30 seconds per target, and a change that reaches every project (the lock file, `ci.yml`, `scripts/fuzz_plan.py`) gets a pass of 7 seconds over each of the 66 targets instead of the 20 each that took about 38 minutes.
+- **A pull request** fuzzes the targets it can affect. `ci-changes` lists every target of each fuzz project whose own directory, or a workspace crate it depends on, the change touches (`scripts/fuzz_plan.py --changed`); `fuzz` runs only when that list is not empty, so a pull request that reaches no fuzz project starts no fuzz job and `ci-report` still covers it. The targets share 480 seconds, 5 to 30 each: a change to one container parser (7 to 24 targets) gets 20 to 30 seconds per target, and a change that reaches every project (the lock file, `ci.yml`, `scripts/fuzz_plan.py`) gets a pass of 7 seconds over each of the 66 targets instead of the 20 each that took about 38 minutes.
 - **`fuzz-nightly.yml`**, once a day and by hand, runs every target (`scripts/fuzz_plan.py --all`) for 15 minutes, in shards of six that run side by side, six at a time. It is not a required check: it never runs on a pull request.
 
 Main stopped fuzzing on push because the run had outgrown its job. Every target for 60 seconds was 66 minutes of fuzzing in a job with a 50-minute timeout, so every push to main ended cancelled, `ci-report` red, after about 40 targets, and the last 26 were never fuzzed on main. A timed-out job also skips its cache step, so no fuzz build was ever cached. The daily run gives every target 15 minutes a day; a day of pushes gave about 40 of them 60 seconds per push.

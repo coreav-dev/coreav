@@ -14,6 +14,8 @@ name: ci
 #   left out of the list runs everything, which is the safe direction.
 # - `h264-conformance` and `bench-guard`: the decoder's conformance suite
 #   and the instruction-count guard, each on its own, narrower list.
+# - `fuzz-plan`: the fuzz targets a ready pull request can affect, empty on
+#   any other event.
 #
 # Each group ends in its own report job, which a branch ruleset requires.
 # The licence, advisory and DCO checks are not filtered; they live in
@@ -56,6 +58,7 @@ jobs:
       run: ${{ steps.filter.outputs.run }}
       h264-conformance: ${{ steps.h264-conformance.outputs.run }}
       bench-guard: ${{ steps.bench-guard.outputs.run }}
+      fuzz-plan: ${{ steps.fuzz-plan.outputs.plan }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -98,6 +101,28 @@ jobs:
             bench/guard/**
             .github/workflows/ci.yml
             .github/actions/changed-paths/**
+      # The fuzz targets a ready pull request can affect: every target of
+      # each fuzz project whose own directory, or a workspace crate it
+      # depends on, the change touches (scripts/fuzz_plan.py). Pushes to
+      # main and manual runs do not fuzz here; fuzz-nightly.yml runs every
+      # target daily (docs/design/ci-checks.md, "The fuzz runs"). Draft PRs
+      # skip it.
+      - id: fuzz-plan
+        if: >-
+          steps.filter.outputs.run == 'true' &&
+          github.event_name == 'pull_request' && !github.event.pull_request.draft
+        run: |
+          set -euo pipefail
+          # Both sides of a rename, NUL-separated and unquoted.
+          git -c core.quotePath=false diff --name-only --no-renames -z HEAD^1 HEAD > "$RUNNER_TEMP/changed.txt"
+          python3 scripts/fuzz_plan.py --changed "$RUNNER_TEMP/changed.txt" > "$RUNNER_TEMP/fuzz-plan.txt"
+          { echo 'plan<<PLAN'; cat "$RUNNER_TEMP/fuzz-plan.txt"; echo PLAN; } >> "$GITHUB_OUTPUT"
+          echo "### Fuzz targets" >> "$GITHUB_STEP_SUMMARY"
+          if [ -s "$RUNNER_TEMP/fuzz-plan.txt" ]; then
+            sed 's/^/- /' "$RUNNER_TEMP/fuzz-plan.txt" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "None: the change affects no fuzz project." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   check:
     needs: ci-changes
@@ -251,38 +276,6 @@ jobs:
         env:
           RUSTUP_TOOLCHAIN: ${{ steps.msrv.outputs.version }}
 
-  fuzz-changes:
-    # The fuzz targets a ready pull request can affect: every target of each
-    # fuzz project whose own directory, or a workspace crate it depends on,
-    # the change touches (scripts/fuzz_plan.py). Pushes to main and manual
-    # runs do not fuzz here; fuzz-nightly.yml runs every target daily
-    # (docs/design/ci-checks.md, "The fuzz runs"). Draft PRs skip it.
-    needs: ci-changes
-    if: >-
-      needs.ci-changes.outputs.run == 'true' &&
-      github.event_name == 'pull_request' && !github.event.pull_request.draft
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    outputs:
-      plan: ${{ steps.plan.outputs.plan }}
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          # The PR merge commit and its first parent (the base), for the diff.
-          fetch-depth: 2
-      - id: plan
-        run: |
-          set -euo pipefail
-          # Both sides of a rename, NUL-separated and unquoted.
-          git -c core.quotePath=false diff --name-only --no-renames -z HEAD^1 HEAD > "$RUNNER_TEMP/changed.txt"
-          python3 scripts/fuzz_plan.py --changed "$RUNNER_TEMP/changed.txt" > "$RUNNER_TEMP/fuzz-plan.txt"
-          { echo 'plan<<PLAN'; cat "$RUNNER_TEMP/fuzz-plan.txt"; echo PLAN; } >> "$GITHUB_OUTPUT"
-          echo "### Fuzz targets" >> "$GITHUB_STEP_SUMMARY"
-          if [ -s "$RUNNER_TEMP/fuzz-plan.txt" ]; then
-            sed 's/^/- /' "$RUNNER_TEMP/fuzz-plan.txt" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "None: the change affects no fuzz project." >> "$GITHUB_STEP_SUMMARY"
-          fi
 
   fuzz:
     # The targets above share a budget of FUZZ_BUDGET seconds, 5 to 30 each:
@@ -290,8 +283,8 @@ jobs:
     # change reaches every project (the lock file, this workflow). A finding
     # fails the job; its input and output stay off the log and off the
     # artifacts (scripts/fuzz_run.sh), and are found again locally.
-    needs: fuzz-changes
-    if: needs.fuzz-changes.outputs.plan != ''
+    needs: ci-changes
+    if: needs.ci-changes.outputs.fuzz-plan != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
@@ -305,7 +298,7 @@ jobs:
           restore-keys: fuzz-target-
       - name: Build the fuzz projects
         env:
-          PLAN: ${{ needs.fuzz-changes.outputs.plan }}
+          PLAN: ${{ needs.ci-changes.outputs.fuzz-plan }}
         run: |
           printf '%s\n' "$PLAN" > "$RUNNER_TEMP/fuzz-plan.txt"
           scripts/fuzz_run.sh build "$RUNNER_TEMP/fuzz-plan.txt"
@@ -331,7 +324,7 @@ jobs:
     # that the branch ruleset has one check name this workflow reports on
     # every pull request, a documentation-only one included
     # (docs/design/ci-checks.md).
-    needs: [ci-changes, check, msrv, fuzz-changes, fuzz]
+    needs: [ci-changes, check, msrv, fuzz]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
