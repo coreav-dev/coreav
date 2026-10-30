@@ -43,8 +43,8 @@ A round that misses a bar is final, and the draw is spent by the first
 round reported from it. So the round starts only when nothing it needs is
 still being built:
 
-- **Every command of the set runs natively.** Today the clips of audio
-  alone (C15, C19) have no writer, and the rest of coreav-dev/coreav#25 and coreav-dev/coreav#24 is open.
+- **Every command of the set runs natively.** Today the `ffmpeg` commands
+  do, the clips of audio alone (C15, C19) included, and coreav-dev/coreav#24 is open.
   A command still refused when the round runs misses its bar.
 - **The tools below exist, each merged through its own pull request** and
   tested on the fixtures and on spent sets:

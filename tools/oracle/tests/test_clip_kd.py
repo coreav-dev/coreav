@@ -52,7 +52,7 @@ def evidence(video=None, audio=None, streams=None, mvhd=(12800, 0)):
     return {
         'output_headers': {'brand': 'isom', 'mvhd': mvhd, 'traks': traks},
         'output_streams': streams or [{'duration_ts': 19456}, {'duration_ts': 34816, 'sample_rate': '48000'}],
-        'entry': {'source': '/nonexistent', 'audio': None},
+        'entry': {'source': '/nonexistent', 'video': {'stream_index': 0}, 'audio': None},
         'ffmpeg': 'ffmpeg',
     }
 
@@ -315,6 +315,15 @@ class Predicates(unittest.TestCase):
         mp3 = copy.deepcopy(c)
         mp3['audio_source_stream']['codec_name'] = 'mp3'
         self.assertFalse(cc.aac_profile('audio:profile', set(), mp3))
+
+    def test_the_audio_of_a_clip_without_video_is_the_first_output_stream(self):
+        c = evidence(video=trak([[20480, 1024]], (48000, 20480), 19456), streams=[
+            {'codec_name': 'aac', 'profile': 'unknown'}])
+        c['entry']['video'] = None
+        c['audio_source_stream'] = {'codec_name': 'aac', 'profile': 'LC'}
+        c['audio_source_extradata'] = c['audio_output_extradata'] = '00000000: 1190'
+        self.assertEqual(cc.audio_trak(c), c['output_headers']['traks'][0])
+        self.assertTrue(cc.aac_profile('audio:profile', set(), c))
 
     def test_ctts_unsigned_needs_the_table_and_frames_in_order(self):
         c = evidence()

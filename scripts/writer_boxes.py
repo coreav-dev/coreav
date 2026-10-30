@@ -923,7 +923,8 @@ def check_clip(entry, several=False):
     src_movie, out_movie, found = _load(entry["source"], entry["output"])
     if found:
         return found
-    kept = [("video", entry["video"])] + ([("audio", entry["audio"])] if entry.get("audio") else [])
+    kept = ([("video", entry["video"])] if entry.get("video") else []) + (
+        [("audio", entry["audio"])] if entry.get("audio") else [])
     if len(out_movie["tracks"]) != len(kept):
         return [("box:tracks", f"{len(out_movie['tracks'])} tracks, {len(kept)} kept")]
     for out_index, (kind, track) in enumerate(kept):

@@ -10,7 +10,7 @@ description: "Run an ffmpeg stream-copy command line (-c copy) with CoreAV's own
 |---|---|
 | A copy to `.mp4` (or `-f mp4`) from MP4, MOV, Matroska or WebM | [`coreav remux`](/commands/remux) of the selected streams |
 | A copy of one audio stream to `.m4a` (or `-f ipod`) | [`coreav extract-audio`](/commands/extract-audio) |
-| `-ss`, `-t` or `-to`, before or after `-i` | [`coreav clip`](/commands/clip) |
+| `-ss`, `-t` or `-to`, before or after `-i` | [`coreav clip`](/commands/clip), or for a copy of one audio stream and no video, a clip of that audio alone |
 | `-f segment` with MP4 segments | [`coreav split --every`](/commands/split) at `-segment_time` |
 | `-f concat` with an MP4 output | [`coreav join`](/commands/join) of the list's files |
 

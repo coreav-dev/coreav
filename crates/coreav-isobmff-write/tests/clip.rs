@@ -14,12 +14,12 @@
 mod common;
 
 use coreav_isobmff::{
-    Allowlist, Budget, EditList, Error, FourCc, Limits, Movie, Packet, Rational, SliceSource,
-    Source, TrackKind, probe,
+    Allowlist, Budget, Codec, EditList, Error, FourCc, Limits, Movie, Packet, Rational,
+    SliceSource, Source, TrackKind, probe,
 };
 use coreav_isobmff_write::{
-    AudioChoice, ClipOptions, ClipSummary, ClipTrack, ExtractError, LeftOutReason, VideoChoice,
-    clip_mp4,
+    AudioChoice, AudioClipOptions, AudioClipSummary, ClipOptions, ClipSummary, ClipTrack,
+    ExtractError, LeftOutReason, TrackChoice, VideoChoice, clip_audio_mp4, clip_mp4,
 };
 use std::path::Path;
 
@@ -50,6 +50,24 @@ fn clip(source: &[u8], options: &ClipOptions) -> Result<(ClipSummary, Vec<u8>), 
         &Limits::default(),
         &Allowlist::default(),
         options,
+        &mut out,
+    )?;
+    assert_eq!(summary.bytes_written, out.len() as u64);
+    Ok((summary, out))
+}
+
+fn audio_clip(
+    source: &[u8],
+    audio: TrackChoice,
+    start: Rational,
+    end: Option<Rational>,
+) -> Result<(AudioClipSummary, Vec<u8>), ExtractError> {
+    let mut out = Vec::new();
+    let summary = clip_audio_mp4(
+        SliceSource::new(source),
+        &Limits::default(),
+        &Allowlist::default(),
+        &AudioClipOptions { audio, start, end },
         &mut out,
     )?;
     assert_eq!(summary.bytes_written, out.len() as u64);
@@ -97,7 +115,7 @@ fn assert_track(
     out_movie: &Movie,
     out_index: usize,
     kept: &ClipTrack,
-    summary: &ClipSummary,
+    snapped_start: Rational,
     exact: bool,
 ) -> Vec<Packet> {
     let src_track = source_movie
@@ -120,7 +138,7 @@ fn assert_track(
     let marked = run.iter().all(|p| p.keyframe);
     let written = packets(output, out_movie, out_track.index);
     assert_eq!(written.len(), run.len());
-    let zero = ticks(summary.snapped_start, kept.timescale);
+    let zero = ticks(snapped_start, kept.timescale);
     for (s, o) in run.iter().zip(&written) {
         assert_eq!(o.size, s.size);
         assert_eq!(o.duration, s.duration);
@@ -181,7 +199,7 @@ fn assert_round_trip(source: &[u8], output: &[u8], summary: &ClipSummary) {
         &out_movie,
         0,
         video,
-        summary,
+        summary.snapped_start,
         true,
     );
     let src_video = source_movie
@@ -257,7 +275,7 @@ fn assert_round_trip(source: &[u8], output: &[u8], summary: &ClipSummary) {
             &out_movie,
             1,
             audio,
-            summary,
+            summary.snapped_start,
             false,
         );
     }
@@ -317,6 +335,111 @@ fn an_exact_end_keeps_the_frames_it_needs() {
     // 12,800 / 7 = 1828.57 ticks, rounded up.
     assert_eq!(summary.written_end, q(1829, 12_800));
     assert_round_trip(&source, &out, &summary);
+}
+
+/// The round trip of a clip of audio alone: one audio track in the
+/// audio's movie timescale, the source's kept run presented from the
+/// requested start, and edits (or, without them, the media) that last to
+/// the written end.
+fn assert_audio_round_trip(source: &[u8], output: &[u8], summary: &AudioClipSummary) {
+    let source_movie = probe(
+        SliceSource::new(source),
+        &Limits::default(),
+        &Allowlist::default(),
+    )
+    .unwrap();
+    let out_movie = probe(
+        SliceSource::new(output),
+        &Limits::default(),
+        &Allowlist::default(),
+    )
+    .unwrap();
+    assert!(!out_movie.has_fragments());
+    assert_eq!(out_movie.tracks.len(), 1);
+    let track = &out_movie.tracks[0];
+    assert_eq!(track.kind, TrackKind::Audio);
+    assert_eq!(out_movie.timescale, summary.audio.timescale);
+    assert_track(
+        source,
+        &source_movie,
+        output,
+        &out_movie,
+        0,
+        &summary.audio,
+        summary.start,
+        false,
+    );
+    let presented: u64 = if track.edits.is_empty() {
+        track.mdhd_duration
+    } else {
+        track.edits.iter().map(|e| e.segment_duration).sum()
+    };
+    assert_eq!(
+        summary
+            .start
+            .checked_add(q(i128::from(presented), u64::from(out_movie.timescale)))
+            .unwrap(),
+        summary.written_end
+    );
+}
+
+#[test]
+fn audio_alone_is_clipped_from_one_frame_before_the_start() {
+    // 100 frames of 1,024 ticks at 48 kHz, no edit list.
+    let source = movie(&[aac_audio(100, vec![])]);
+    let (summary, out) =
+        audio_clip(&source, TrackChoice::FirstAudio, q(1, 2), Some(q(3, 2))).unwrap();
+    // 0.5 s is tick 24,000, inside frame 23; frame 22 is the pre-roll. 1.5 s
+    // is tick 72,000, inside frame 70.
+    assert_eq!(summary.audio.first_sample, 22);
+    assert_eq!(summary.audio.samples, 49);
+    assert_eq!(summary.written_end, q(3, 2));
+    assert_eq!(output_edits(&out, 0), vec![(48_000, 24_000 - 22 * 1024)]);
+    assert_audio_round_trip(&source, &out, &summary);
+}
+
+#[test]
+fn audio_alone_without_an_end_runs_to_the_end_of_the_track() {
+    // Priming of 2,112 ticks skipped by the source's edit, which presents 2 s.
+    let source = movie(&[aac_audio(100, vec![(2000, 2112)])]);
+    let (summary, out) = audio_clip(&source, TrackChoice::FirstAudio, q(1, 1), None).unwrap();
+    // 1 s is media tick 50,112, inside frame 48; frame 47 is the pre-roll.
+    assert_eq!(summary.audio.first_sample, 47);
+    assert_eq!(summary.written_end, q(2, 1));
+    assert_eq!(output_edits(&out, 0), vec![(48_000, 50_112 - 47 * 1024)]);
+    assert_audio_round_trip(&source, &out, &summary);
+}
+
+#[test]
+fn audio_alone_is_taken_from_a_file_with_video() {
+    let source = av_movie();
+    let (summary, out) =
+        audio_clip(&source, TrackChoice::Stream(1), q(1, 1), Some(q(2, 1))).unwrap();
+    assert_eq!(summary.audio.stream_index, 1);
+    assert_eq!(summary.left_out.len(), 1);
+    assert_eq!(summary.left_out[0].stream_index, 0);
+    assert_eq!(summary.left_out[0].reason, LeftOutReason::NotSelected);
+    assert_audio_round_trip(&source, &out, &summary);
+}
+
+#[test]
+fn audio_alone_is_refused_where_the_range_presents_none() {
+    let source = movie(&[aac_audio(100, vec![])]);
+    for (start, end) in [(q(3, 1), Some(q(4, 1))), (q(1, 1), Some(q(1, 1)))] {
+        let refused = audio_clip(&source, TrackChoice::FirstAudio, start, end);
+        assert!(
+            matches!(
+                refused,
+                Err(ExtractError::Source(Error::Unsupported { .. }))
+            ),
+            "{start:?} {end:?}: {refused:?}"
+        );
+    }
+    let video_only = movie(&[ibbp_video(25, 25)]);
+    assert!(matches!(
+        audio_clip(&video_only, TrackChoice::FirstAudio, q(0, 1), None),
+        Err(ExtractError::Source(Error::NoSuchTrack))
+    ));
 }
 
 #[test]
@@ -650,8 +773,12 @@ fn json_track(source: &[u8], movie: &Movie, t: &ClipTrack) -> String {
 /// Every MP4 and MOV fixture with a video track the writer accepts is
 /// clipped at these ranges: from the start, starting
 /// between sync samples, starting exactly on one, ending past the end, and
-/// the whole file. With `COREAV_CLIP_OUT` the outputs and a manifest are
-/// written for `scripts/clip_check.py`.
+/// the whole file. Every MP4, MOV and M4A fixture without video whose audio
+/// is AAC is clipped with [`clip_audio_mp4`] from the start, between two
+/// frames, past the end, whole, and from 3 s to 8 s, which crosses the
+/// windows of the edit-list fixtures and is refused on shorter files. With
+/// `COREAV_CLIP_OUT` the outputs and a manifest are written for
+/// `scripts/clip_check.py`.
 #[test]
 #[ignore = "needs COREAV_FIXTURES"]
 fn fixtures_round_trip() {
@@ -664,7 +791,12 @@ fn fixtures_round_trip() {
     let mut entries: Vec<_> = std::fs::read_dir(&dir)
         .unwrap()
         .map(|e| e.unwrap().path())
-        .filter(|p| matches!(p.extension().and_then(|e| e.to_str()), Some("mp4" | "mov")))
+        .filter(|p| {
+            matches!(
+                p.extension().and_then(|e| e.to_str()),
+                Some("mp4" | "mov" | "m4a")
+            )
+        })
         .collect();
     entries.sort();
     let mut manifest = Vec::new();
@@ -686,6 +818,52 @@ fn fixtures_round_trip() {
             continue;
         };
         let Some(video) = movie.tracks.iter().find(|t| t.kind == TrackKind::Video) else {
+            let aac = movie
+                .tracks
+                .iter()
+                .any(|t| t.kind == TrackKind::Audio && t.description.codec == Codec::Aac);
+            if !aac {
+                continue;
+            }
+            for (label, start, end) in [
+                ("audio_head", q(0, 1), Some(q(1, 1))),
+                ("audio_between", q(3, 5), Some(q(8, 5))),
+                ("audio_past_end", q(3, 10), Some(q(100, 1))),
+                ("audio_whole", q(0, 1), None),
+                ("audio_late", q(3, 1), Some(q(8, 1))),
+            ] {
+                let (summary, output) =
+                    match audio_clip(&source, TrackChoice::FirstAudio, start, end) {
+                        Ok(done) => done,
+                        Err(ExtractError::Source(Error::Unsupported { reason }))
+                            if label == "audio_late" =>
+                        {
+                            eprintln!("{name} {label}: refused: {reason}");
+                            continue;
+                        }
+                        Err(e) => panic!("{name} {label}: {e}"),
+                    };
+                assert_audio_round_trip(&source, &output, &summary);
+                eprintln!(
+                    "{name} {label}: start {start:?} end {:?}, {} audio samples",
+                    summary.written_end, summary.audio.samples
+                );
+                if let Some(out_dir) = &out_dir {
+                    let output_path = Path::new(out_dir).join(format!("{name}.{label}.mp4"));
+                    std::fs::write(&output_path, &output).unwrap();
+                    manifest.push(format!(
+                        "{{\"source\": {}, \"output\": {}, \"label\": {}, \"start\": {}, \"end\": {}, \"snapped_start\": {}, \"written_end\": {}, \"video\": null, \"audio\": {}}}",
+                        json_string(&path.display().to_string()),
+                        json_string(&output_path.display().to_string()),
+                        json_string(label),
+                        json_rational(start),
+                        end.map_or("null".to_string(), json_rational),
+                        json_rational(summary.start),
+                        json_rational(summary.written_end),
+                        json_track(&source, &movie, &summary.audio),
+                    ));
+                }
+            }
             continue;
         };
         // The second sync sample's presentation time, to start exactly on it.

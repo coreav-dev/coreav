@@ -1005,8 +1005,10 @@ def check_several(kind, entry, track, src, out, src_edits, out_edits, out_index,
     if oh and abs(Fraction(oh["traks"][out_index]["tkhd"], movie_ts) - total) > 0:
         found.append((f"{kind}:duration", f"{kind}: track header {oh['traks'][out_index]['tkhd']} ticks, "
                       f"edits {float(total)} s"))
-    if kind == "video" and total != end - zero:
-        found.append(("video:edit", f"video edits {float(total)} s, clip {float(end - zero)} s"))
+    # The first track's edits span the clip: the video's, or the audio's in
+    # a clip without video.
+    if out_index == 0 and total != end - zero:
+        found.append((f"{kind}:edit", f"{kind} edits {float(total)} s, clip {float(end - zero)} s"))
     # Packets: stored times, the output's decode times starting at the run's.
     src_raw = cached((source, "raw packets", track["stream_index"]),
                      lambda: stored_times(packets(ffprobe, source, track["stream_index"], raw=True)))
@@ -1063,7 +1065,8 @@ def check(entry, ffprobe, ffmpeg, mediainfo):
     brand = probe["format"].get("tags", {}).get("major_brand")
     if "mp4" not in probe["format"].get("format_name", "") or brand != "isom":
         found.append(("format", f"output format {probe['format'].get('format_name')!r}, brand {brand!r}"))
-    kept = [("video", entry["video"])] + ([("audio", entry["audio"])] if entry.get("audio") else [])
+    kept = ([("video", entry["video"])] if entry.get("video") else []) + (
+        [("audio", entry["audio"])] if entry.get("audio") else [])
     if len(probe["streams"]) != len(kept) or not oh or len(oh["traks"]) != len(kept):
         found.append(("streams", f"output has {len(probe['streams'])} streams, expected {len(kept)}"))
         return [m for _, m in found], [], [], counts
@@ -1113,6 +1116,8 @@ def check(entry, ffprobe, ffmpeg, mediainfo):
         written = media_duration if segment is None else segment
         if kind == "video" and written != end - zero:
             found.append(("video:edit", f"video edit {float(written)} s, clip {float(end - zero)} s"))
+        if kind == "audio" and out_index == 0 and empty + written != end - zero:
+            found.append(("audio:edit", f"audio edits {float(empty + written)} s, clip {float(end - zero)} s"))
         try:
             reported = Fraction(out["duration_ts"]) * base
             if abs(reported - expected_duration) > Fraction(1, timescale):
@@ -1449,11 +1454,29 @@ def ctts_unsigned(field, fields, c):
     return _frames_but_edges(expected, actual, 4, 8)
 
 
+def audio_index(c):
+    """The audio's position in the output: after the video, or first in a
+    clip without video."""
+    return 1 if c["entry"].get("video") else 0
+
+
+def audio_stream(c):
+    """The output's audio stream as ffprobe lists it, {} when it has none."""
+    streams = c.get("output_streams") or []
+    return streams[audio_index(c)] if len(streams) > audio_index(c) else {}
+
+
+def audio_trak(c):
+    """The output's audio track headers, None when it has none."""
+    oh = c["output_headers"]
+    return oh["traks"][audio_index(c)] if oh and len(oh["traks"]) > audio_index(c) else None
+
+
 def aac_profile(field, fields, c):
     """KD-C-AAC-PROFILE."""
-    if field != "audio:profile" or len(c.get("output_streams") or []) < 2:
+    if field != "audio:profile" or not audio_stream(c):
         return False
-    src, out = c.get("audio_source_stream") or {}, c["output_streams"][1]
+    src, out = c.get("audio_source_stream") or {}, audio_stream(c)
     if src.get("codec_name") != "aac" or out.get("codec_name") != "aac":
         return False
     if src.get("profile") == out.get("profile"):
@@ -1671,8 +1694,7 @@ def audio_restart(field, fields, c):
     """KD-C-AUDIO-RESTART."""
     if field != "audio:pcm" or not c["entry"].get("audio") or not c.get("audio_output_pcm"):
         return False
-    oh = c["output_headers"]
-    trak = oh["traks"][1] if oh and len(oh["traks"]) > 1 else None
+    trak = audio_trak(c)
     if not trak or not trak.get("elst"):
         return False
     media = [t for d, t in trak["elst"] if t != -1]
@@ -1697,16 +1719,14 @@ def audio_jitter(field, fields, c):
     spans, channels, output = c["audio_output_pcm"]
     frame_samples = {samples for _, samples in spans}
     durations = {p.get("duration") for p in run_packets}
-    rate = int((c.get("output_streams") or [{}, {}])[1].get("sample_rate") or 0)
-    oh = c["output_headers"]
-    if (len(frame_samples) != 1 or not run_packets or not oh or len(oh["traks"]) < 2
-            or oh["traks"][1]["mdhd"][0] != rate):
+    rate = int(audio_stream(c).get("sample_rate") or 0)
+    trak = audio_trak(c)
+    if len(frame_samples) != 1 or not run_packets or not trak or trak["mdhd"][0] != rate:
         return False
     samples = frame_samples.pop()
     # The stored decode durations are not the decoded frames' length.
     if durations <= {samples} or None in durations:
         return False
-    trak = oh["traks"][1]
     media = [t for d, t in trak.get("elst") or [] if t != -1]
     if len(media) != 1 or not _audio_timing_is_the_sources(c, trak, media[0]):
         return False
@@ -1753,7 +1773,7 @@ def _audio_media_time_is_the_sources(c, media_time):
     time; rounded to the nearest tick, as the clip writer rounds it."""
     audio = c["entry"].get("audio") or {}
     source, output = c["entry"]["source"], c["entry"]["output"]
-    src_edits, out_edits = full_edit_list(source, audio.get("stream_index", -1)), full_edit_list(output, 1)
+    src_edits, out_edits = full_edit_list(source, audio.get("stream_index", -1)), full_edit_list(output, audio_index(c))
     if not src_edits or not out_edits or not audio.get("first_pos"):
         return False
     movie_out, media_out, out_entries = out_edits
@@ -1784,7 +1804,7 @@ def _restart_matches(c, trak, media, decoded):
         return False
     # The output presents the decoded samples from its edit's media time on,
     # in samples when the media timescale is not the sample rate.
-    rate = int(c["output_streams"][1].get("sample_rate") or 0)
+    rate = int(audio_stream(c).get("sample_rate") or 0)
     timescale = trak["mdhd"][0]
     if not rate or not timescale:
         return False
@@ -1809,12 +1829,11 @@ def audio_edit_rate(field, fields, c):
     """KD-C-AUDIO-EDIT-RATE."""
     if field != "audio:pcm" or not c["entry"].get("audio") or not c.get("audio_output_pcm"):
         return False
-    oh = c["output_headers"]
-    trak = oh["traks"][1] if oh and len(oh["traks"]) > 1 else None
+    trak = audio_trak(c)
     if not trak or not trak.get("elst"):
         return False
     media = [t for d, t in trak["elst"] if t != -1]
-    rate = int((c.get("output_streams") or [{}, {}])[1].get("sample_rate") or 0)
+    rate = int(audio_stream(c).get("sample_rate") or 0)
     timescale = trak["mdhd"][0]
     durations = {p.get("duration") for p in (c.get("audio_run") or ([], [], 0))[0]}
     if (len(media) != 1 or not timescale or rate <= timescale or rate % timescale
