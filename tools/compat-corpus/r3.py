@@ -17,7 +17,7 @@ bars"; docs/measurements/compat-0.1.0/README.md, "Before the round", item 2).
         refusals included, so that its fallback log holds each refusal, and
         must write the same bytes with the same outcome; copy_check.py judges
         every written output by the oracle of its job (a pair it sets aside
-        is not passed), and a chunk whose
+        is not passed; one whose selection differs fails), and a chunk whose
         check exits abnormally or leaves no fresh report for all its outputs
         fails them. Outputs are deleted chunk by chunk. FILE gets one line
         per pair (the file's name: private). `run` exits as `report` does on
