@@ -1,0 +1,218 @@
+name: release
+
+# Builds the `coreav` command for each release target and packs it with the
+# licence files (docs/design/release.md, docs/release/notices.md).
+#
+# - A pushed `v*` tag: builds every target, checks that the tag names the
+#   version the command prints, writes SHA256SUMS, attests the files'
+#   build provenance and attaches them to a draft GitHub Release of the tag.
+#   Publishing the draft is the maintainer's step.
+# - A manual run (workflow_dispatch) is the dry run: the same builds and
+#   checks, with the archives and SHA256SUMS uploaded as the `release-dist`
+#   artifact only. It makes no release, no attestation and no tag.
+# - A pull request that changes this file or the build scripts it runs gets
+#   the dry run too: GitHub starts a manual run only of a workflow on the
+#   default branch, so this is how a change to it is tried before merging.
+#
+# Only the built-in token; no secret. Every job reads the repository only,
+# except `release-draft`, which runs on a tag alone.
+# workflow-check: not required
+
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - packages/cli/scripts/platform.sh
+      - packages/cli/scripts/platform-package.js
+      - packages/cli/scripts/zig.sh
+      - packages/cli/scripts/zig-requirements.txt
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  release-build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: linux-x64, target: x86_64-unknown-linux-musl, os: ubuntu-24.04 }
+          # Cross-built on Linux x86-64 and run under QEMU, as the npm package.
+          - { platform: linux-arm64, target: aarch64-unknown-linux-musl, os: ubuntu-24.04 }
+          - { platform: darwin-arm64, target: aarch64-apple-darwin, os: macos-15 }
+          - { platform: darwin-x64, target: x86_64-apple-darwin, os: macos-15-intel }
+          - { platform: win32-x64, target: x86_64-pc-windows-msvc, os: windows-2025 }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    env:
+      PLATFORM: ${{ matrix.platform }}
+      TARGET: ${{ matrix.target }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # The licence files and NOTICE ship as committed, without CRLF.
+      - if: runner.os == 'Windows'
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      # No build cache: a release builds from the lock file alone, with
+      # nothing restored that another workflow saved.
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+      - if: matrix.platform == 'linux-arm64'
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+        with:
+          platforms: arm64
+      - name: Install zig (the musl C compiler of the Linux builds)
+        if: runner.os == 'Linux'
+        run: |
+          python3 -m venv "$RUNNER_TEMP/zig"
+          "$RUNNER_TEMP/zig/bin/pip" install --require-hashes -r packages/cli/scripts/zig-requirements.txt
+          echo "ZIG=$RUNNER_TEMP/zig/bin/python -m ziglang" >> "$GITHUB_ENV"
+      - name: Build the command
+        run: |
+          rustc -Vv
+          packages/cli/scripts/platform.sh "$PLATFORM" "$TARGET"
+      - name: Check the command on its platform
+        env:
+          COREAV_STRICT_SAFE: '1'
+          TAG: ${{ github.event_name == 'push' && github.ref_name || '' }}
+        run: |
+          set -euo pipefail
+          exe=coreav; [ "$RUNNER_OS" = Windows ] && exe=coreav.exe
+          bin="$PWD/packages/cli/npm/$PLATFORM/bin/$exe"
+          version="$("$bin" --version | tr -d '\r')"
+          version="${version#coreav }"
+          if [ -n "$TAG" ] && [ "v$version" != "$TAG" ]; then
+            echo "::error::the tag $TAG does not name the command's version $version"
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/dist/smoke" "$RUNNER_TEMP/multicall"
+          # The 0.1.0 command, in strict-safe mode: no FFmpeg is installed
+          # or run. The five targets' outputs must agree (release-checksums).
+          "$bin" ffprobe -v error -of json -show_format -show_streams \
+            crates/coreav-audio/fuzz/regressions/decode/edit-rounding.mp4 \
+            > "$RUNNER_TEMP/dist/smoke/$TARGET.json"
+          # A command that is not native is refused with exit status 4,
+          # also under the name `ffprobe` (multicall).
+          cp "$bin" "$RUNNER_TEMP/multicall/${exe/coreav/ffprobe}"
+          for program in "$bin" "$RUNNER_TEMP/multicall/${exe/coreav/ffprobe}"; do
+            args=(-show_frames missing.mp4)
+            [ "$program" = "$bin" ] && args=(ffprobe "${args[@]}")
+            status=0
+            "$program" "${args[@]}" || status=$?
+            if [ "$status" != 4 ]; then
+              echo "::error::$program ${args[*]} exited $status, not 4"
+              exit 1
+            fi
+          done
+      - name: Pack the archive
+        run: |
+          set -euo pipefail
+          name="coreav-$VERSION-$TARGET"
+          stage="$RUNNER_TEMP/stage/$name"
+          mkdir -p "$stage"
+          cp "packages/cli/npm/$PLATFORM/bin/"coreav* "$stage/"
+          # NOTICE in every archive (docs/release/notices.md).
+          cp LICENSE-MIT LICENSE-APACHE NOTICE "$stage/"
+          cd "$RUNNER_TEMP/stage"
+          if [ "$RUNNER_OS" = Windows ]; then
+            7z a -tzip "$RUNNER_TEMP/dist/$name.zip" "$name"
+          else
+            tar --no-xattrs -czf "$RUNNER_TEMP/dist/$name.tar.gz" "$name"
+          fi
+          ls -l "$RUNNER_TEMP/dist"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-${{ matrix.target }}
+          path: ${{ runner.temp }}/dist
+          if-no-files-found: error
+          retention-days: 7
+
+  release-checksums:
+    needs: release-build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+      - name: Compare the targets and write SHA256SUMS
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          archives=(coreav-*.tar.gz coreav-*.zip)
+          outputs=(smoke/*.json)
+          if [ "${#archives[@]}" != 5 ] || [ "${#outputs[@]}" != 5 ]; then
+            echo "::error::expected 5 archives and 5 outputs, found ${archives[*]} ${outputs[*]}"
+            exit 1
+          fi
+          for output in "${outputs[@]}"; do
+            cmp "${outputs[0]}" "$output"
+          done
+          rm -r smoke
+          sha256sum "${archives[@]}" > SHA256SUMS
+          sha256sum -c SHA256SUMS
+          { echo '```'; cat SHA256SUMS; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-dist
+          path: dist
+          if-no-files-found: error
+          retention-days: 7
+
+  release-draft:
+    # A pushed tag only; the dry run stops above.
+    needs: release-checksums
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      # The draft release and its files.
+      contents: write
+      # The OIDC token and the attestation store of the provenance.
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-dist
+          path: dist
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: dist/*
+      - name: Attach the files to the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if state=$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null); then
+            if [ "$state" != true ]; then
+              echo "::error::release $TAG is already published; its files are left as they are"
+              exit 1
+            fi
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* --draft --verify-tag --title "coreav ${TAG#v}" \
+              --notes "Archives of the coreav command and SHA256SUMS. Verify an archive with \`sha256sum -c SHA256SUMS --ignore-missing\` or \`gh attestation verify ARCHIVE --repo $GH_REPO\`."
+          fi
