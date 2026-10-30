@@ -187,7 +187,7 @@ impl std::ops::Deref for Sanitize {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Describe an MP4, MOV, Matroska or WebM file as JSON.
+    /// Describe an MP4, MOV, Matroska, WebM or MPEG-TS file as JSON.
     Probe(Deferred<ProbeArgs>),
     /// Cut a keyframe-aligned clip of an MP4/MOV file to MP4, without
     /// re-encoding.
@@ -244,7 +244,7 @@ enum Command {
     /// without it, anything else runs the ffprobe program on PATH, FFmpeg's
     /// C code (docs/design/compat-cli.md). Values can differ from ffprobe's for
     /// MP4/MOV and MPEG-TS; Matroska/WebM agree on 98% or more of files for
-    /// 99 of 101 keys (docs/measurements/compat-ffprobe.md). `coreav` run
+    /// all 101 keys (docs/measurements/compat-ffprobe.md). `coreav` run
     /// as `ffprobe` does the same.
     #[command(disable_help_flag = true)]
     Ffprobe(Deferred<ToolArgs>),
