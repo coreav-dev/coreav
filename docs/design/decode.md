@@ -393,9 +393,11 @@ decoder that spins without doing I/O, even if the parent has gone.
 - The budget is per process: a worker and its FFmpeg may each use it.
   The parent has no address-space limit; the frames and packets it holds
   are bounded by the frame and pending limits above.
-- The limit is enforced on Linux. On other systems `RLIMIT_AS` may not be
-  enforced, and outside Unix there is none; there the budget only fits the
-  threads.
+- The limit is enforced on Linux. macOS refuses (`EINVAL`) any
+  `RLIMIT_AS` below the address space a process reserves from its start,
+  hundreds of GiB, so the worker sets none there. On macOS, on other
+  systems where `RLIMIT_AS` may not be enforced, and outside Unix, the
+  budget is advisory: it only fits the threads.
 
 A decoder that runs into the limit fails with `Limit`. FFmpeg exits by
 itself with an error code after an allocation was refused or a thread
