@@ -642,3 +642,52 @@ fn coreav_ffmpeg_runs_ffmpeg_for_a_name_with_a_protocol() {
         );
     }
 }
+
+/// Without the libopus feature a `-c:a libopus` line is not native
+/// (`docs/design/compat-cli.md`, "Fallback to FFmpeg"): outside strict-safe
+/// mode it runs the operator's `ffmpeg` with the same arguments, and in
+/// strict-safe mode it is refused and nothing runs. Default builds only:
+/// with `transcode`, strict-safe mode asks for an `x264` program first.
+#[cfg(not(feature = "transcode"))]
+#[test]
+fn coreav_ffmpeg_hands_libopus_lines_on_without_the_libopus_feature() {
+    let dir = stand_in().to_str().unwrap();
+    let work = tmp("ffmpeg-libopus");
+    let input = movie(&work);
+    let output = work.join("out.mp4");
+    let o = output.to_str().unwrap();
+    let encoded = [
+        "ffmpeg", "-i", &input, "-c:v", "libx264", "-c:a", "libopus", "-b:a", "48k", o,
+    ];
+    let copied = ["ffmpeg", "-i", &input, "-c:v", "copy", "-c:a", "libopus", o];
+    for (line, words) in [
+        (
+            &encoded[..],
+            "encoding with libopus, in a build without the libopus feature",
+        ),
+        (
+            &copied[..],
+            "encoding audio with libopus without encoding the video with libx264",
+        ),
+    ] {
+        let ran = coreav(line, &[], &[("COREAV_FALLBACK", dir)]);
+        assert_eq!(ran.code, 7, "{line:?}: {}", ran.stderr);
+        assert_eq!(ran.stdout, format!("args: {}\n", line[1..].join(" ")));
+        assert_eq!(
+            ran.stderr,
+            format!("coreav: ran {dir}/ffmpeg instead (not native: {words})\nguard=1\n")
+        );
+        let strict = coreav(
+            line,
+            &[],
+            &[("COREAV_FALLBACK", dir), ("COREAV_STRICT_SAFE", "1")],
+        );
+        assert_eq!(strict.code, 4, "{line:?}: {}", strict.stderr);
+        assert!(strict.stdout.is_empty(), "{line:?}: ran {}", strict.stdout);
+        assert_eq!(
+            strict.stderr,
+            format!("coreav ffmpeg: not supported by coreav ffmpeg: {words}\n")
+        );
+        assert!(!output.exists());
+    }
+}

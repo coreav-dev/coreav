@@ -87,7 +87,10 @@ vocabulary above and the labels of the command-coverage set stay step 1's,
 so those command lines remain `out-of-scope` in the set, and B1 holds for
 the default build, which has no decoder backend and refuses them. B1 on a
 build with a decoder backend needs those lines relabelled first, a change
-to `classify.py` this step does not make.
+to `classify.py` this step does not make. A build with the `libopus`
+feature encodes a `-c:a libopus` line natively; in any other build such a
+line is not native, so it runs FFmpeg outside strict-safe mode ("Fallback
+to FFmpeg") and is refused in strict-safe mode, where nothing runs.
 
 Every one of those is refused by **naming it**: the error says which
 option or property is not supported, and the exit status is non-zero. A

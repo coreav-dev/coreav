@@ -674,7 +674,7 @@ is refused (exit status 4) and never handed to FFmpeg.
 |---|---|
 | `-c:v`, `-vcodec` (and `-c`/`-codec` with a specifier naming the video) `libx264` | the encoder; the selected video stream must be the one this pipeline encodes (FFmpeg's default choice, "Scope"), and only one |
 | `-c:a`, `-acodec` `copy`, or `-c copy` for the other streams | the selected audio streams copied (`AudioMode::Streams`) |
-| `-c:a`, `-acodec` `libopus` | `--audio opus` for the one selected audio stream ("Opus audio"), beside a video encoded with libx264; refused when other audio is selected beside it, for audio other than FLAC or MP3 (CoreAV decodes only those), for more than two channels (`ffmpeg` writes a surround Opus stream), without `-c:v libx264`, and in a build without the `libopus` feature |
+| `-c:a`, `-acodec` `libopus` | `--audio opus` for the one selected audio stream ("Opus audio"), beside a video encoded with libx264; refused when other audio is selected beside it, for audio other than FLAC or MP3 (CoreAV decodes only those), for more than two channels (`ffmpeg` writes a surround Opus stream), and without `-c:v libx264`. In a build without the `libopus` feature every `-c:a libopus` line is not native: FFmpeg runs it, or strict-safe mode refuses it and nothing runs |
 | `-b:a RATE` | `--audio-bitrate`: FFmpeg's number syntax, in bits a second, 6k to 510k as libopus takes it; only with `-c:a libopus` |
 | `-an` | no audio |
 | `-crf Q` | `--crf`, 0 to 51, fractions as given |
