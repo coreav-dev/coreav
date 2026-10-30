@@ -15,7 +15,7 @@ mod common;
 #[path = "../../coreav-mpegts/tests/common/mod.rs"]
 mod ts;
 
-use common::{aac_entry, av_movie_with};
+use common::{aac_entry, alac_cookie, av_movie_with, dfla, lossless_entry};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -164,6 +164,44 @@ fn the_common_forms_print_what_ffprobe_prints() {
     // The flat writer escapes a backslash, as in a Windows path.
     let escaped = path.replace('\\', "\\\\");
     assert_eq!(r.stdout, format!("format.filename=\"{escaped}\"\n"));
+}
+
+/// FLAC's and ALAC's rate and bit depth are their configuration's, not
+/// the sample entry's 16.16 rate, which cannot hold 96 kHz or 192 kHz.
+#[test]
+fn lossless_audio_takes_its_rate_and_depth_from_its_configuration() {
+    for (name, entry, expected) in [
+        (
+            "ffprobe-flac.mp4",
+            lossless_entry(b"fLaC", dfla(96_000, 24)),
+            "flac,s32,96000,24\n",
+        ),
+        (
+            "ffprobe-flac16.mp4",
+            lossless_entry(b"fLaC", dfla(44_100, 16)),
+            "flac,s16,44100,16\n",
+        ),
+        (
+            "ffprobe-alac.m4a",
+            lossless_entry(b"alac", alac_cookie(192_000, 16)),
+            "alac,s16p,192000,16\n",
+        ),
+    ] {
+        let path = file(name, &av_movie_with(entry, false));
+        let r = ffprobe(&[
+            "-v",
+            "error",
+            "-select_streams",
+            "a",
+            "-show_entries",
+            "stream=codec_name,sample_fmt,sample_rate,bits_per_raw_sample",
+            "-of",
+            "csv=p=0",
+            path.to_str().unwrap(),
+        ]);
+        assert_eq!(r.code, 0, "{}", r.stderr);
+        assert_eq!(r.stdout, expected, "{name}");
+    }
 }
 
 #[test]
