@@ -5,8 +5,9 @@ CoreAV's native H.264 decoder (`coreav-h264`) behind the decode boundary
 
 **This backend is opt-in and is never part of a default build.** Decoding
 H.264 may require a patent licence depending on where you are and what you
-do with it; CoreAV's default H.264 path is unchanged — NVDEC where it is
-available, then the sandboxed FFmpeg fallback. The packaging rules are in
+do with it; CoreAV's default H.264 path is unchanged: the sandboxed FFmpeg
+fallback (an NVDEC backend is planned but not built yet,
+`docs/design/decode.md`, "NVDEC"). The packaging rules are in
 `docs/design/h264.md` ("Packaging"), and the same disclaimer is in
 [`crates/coreav-h264/README.md`](../coreav-h264/README.md).
 

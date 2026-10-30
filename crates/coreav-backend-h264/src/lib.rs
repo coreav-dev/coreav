@@ -5,8 +5,8 @@
 //! **Opt-in, and never in a default build.** Decoding H.264 may need a
 //! patent licence where you are (`README.md` in this crate,
 //! `docs/design/h264.md`, "Packaging"). The default H.264 path is
-//! unchanged: NVDEC where there is a GPU, then the sandboxed FFmpeg
-//! fallback.
+//! unchanged: the sandboxed FFmpeg fallback (an NVDEC backend is planned
+//! but not built yet, `docs/design/decode.md`, "NVDEC").
 //!
 //! The decoder runs in the calling process ([`Isolation::InProcess`]),
 //! which is a different proposition from running a C decoder there:
