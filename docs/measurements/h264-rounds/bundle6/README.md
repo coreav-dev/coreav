@@ -10,3 +10,4 @@ Design, diagnosis, ceiling and bars: `docs/design/h264.md`, "Bundle 6: a band's 
 - `instructions.txt`: the instruction ceiling, before the bars.
 - `identity-job/`: the output check, bundle 5's job unchanged (`ident.sh` decodes one stream with `base` and `k`, checks each decoder's exit status, counts an empty output as a failure, and on the first failure or difference writes a stop file that keeps every later call from starting; `job.sh` runs it over the 32 training streams at 1 and 8 threads with and without `fast`, and the 64 held-out streams at 1 and 8 threads, and fails unless every call is recorded and the same). `identity.txt`, `identity-summary.txt`, `identity-host.txt`: its run.
 - `bars-8t.json`, `bars-8t-heldout.json`, `bars-1t.json`: the bars as `scripts/h264_parity_bars.py` reads them, one file a run directory.
+- `gating/`: the timed runs and their analyses (B6-1 to B6-7), after the bars.
