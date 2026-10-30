@@ -59,25 +59,27 @@ fn sexagesimal(units: &[&str], seconds: &str) -> Option<Rational> {
 /// program's first argument is [`WORKER_ARG`], or the sandbox launcher
 /// (`coreav_worker::exec`, the encoder of `coreav transcode`) in any build
 /// with a decoder backend when it is `coreav_worker::EXEC_ARG`; `None`
-/// otherwise. Each hosts or runs only what strict-safe mode, from
-/// `COREAV_STRICT_SAFE`, allows (`crate::strict_safe`). A build without a
+/// otherwise. Each hosts or runs only what strict-safe mode allows
+/// (`crate::strict_safe`), on with `--strict-safe` right after the entry
+/// argument, which every launch in the mode passes
+/// (`StrictSafe::entry`), or with `COREAV_STRICT_SAFE`. A build without a
 /// decoder backend does nothing here, not even read its arguments, which
 /// every command's start-up would pay for (`docs/design/benchmarks.md`).
 pub fn run_worker() -> Option<std::process::ExitCode> {
     #[cfg(feature = "thumbnail")]
     {
-        use crate::strict_safe::StrictSafe;
-        let mut args = std::env::args_os().skip(1);
+        use crate::strict_safe::{FLAG, StrictSafe};
+        let mut args = std::env::args_os().skip(1).peekable();
         let first = args.next();
         #[cfg(any(feature = "ffmpeg-fallback", feature = "dav1d", feature = "libvpx"))]
         if first.as_deref() == Some(std::ffi::OsStr::new(WORKER_ARG)) {
-            let strict_safe = StrictSafe::new(false);
+            let strict_safe = StrictSafe::new(args.next_if(|a| a == FLAG).is_some());
             return Some(coreav_worker::worker_main(|backend| {
                 strict_safe.worker(backend)
             }));
         }
         if first.as_deref() == Some(std::ffi::OsStr::new(coreav_worker::EXEC_ARG)) {
-            let strict_safe = StrictSafe::new(false);
+            let strict_safe = StrictSafe::new(args.next_if(|a| a == FLAG).is_some());
             return Some(coreav_worker::sandbox_exec_main(args, |program| {
                 strict_safe.program(program)
             }));
@@ -237,7 +239,7 @@ pub(crate) fn backends(
             threads,
             ..WorkerOptions::new(WorkerCommand {
                 program: program.to_path_buf(),
-                args: vec![WORKER_ARG.into()],
+                args: strict_safe.entry(WORKER_ARG),
             })
         };
         #[cfg(feature = "dav1d")]

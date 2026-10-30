@@ -511,8 +511,10 @@ exit status 4, naming the build that decodes it without FFmpeg; a stream
 another backend opens decodes there, and the summary lists the fallback as
 skipped (`not run in strict-safe mode`). The order is not changed, so
 `--exact` still tries the fallback first and, in strict-safe mode, decodes
-H.264 with the native decoder. The worker run directly with
-`COREAV_STRICT_SAFE` set refuses an `Open` of the fallback
+H.264 with the native decoder. The worker and the launcher are started
+with `--strict-safe` after their entry argument in the mode
+(`StrictSafe::entry`), since every launch clears the environment, or read
+`COREAV_STRICT_SAFE` when run directly; the worker then refuses an `Open` of the fallback
 (`StrictSafe::worker`, through `worker_main`'s check), and the launcher a
 program named `ffmpeg` or `ffprobe` (`StrictSafe::program`).
 

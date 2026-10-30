@@ -1179,14 +1179,18 @@ decision, 2026-10-30):
   `--encoder ffmpeg` is refused, and `--encoder auto`, the default and what
   the `libx264` lines of `coreav ffmpeg` use, takes an `x264` program only
   and is refused when there is none, with exit status 4 and a message that
-  names installing x264 and turning the mode off. Both come before the
-  input is read: a `coreav ffmpeg` line that names `libx264` takes its
+  names installing x264 and turning the mode off. An `x264` program the
+  launcher would refuse (below), named by `--x264` or `COREAV_X264`, is
+  refused the same way. All come before the input is read: a `coreav ffmpeg` line that names `libx264` takes its
   encoder from the command line alone, so in the mode it is refused
   without x264 even when its input turns out to hold no video to encode.
 - **In the hidden entries.** `coreav` runs itself as its decode worker
   (`__coreav_worker`) and as the sandbox launcher of its encoder
   (`__coreav_exec`; `decode.md`, "The sandboxed worker"), before it
-  parses any argument, so only the variable reaches them. In the mode the
+  parses any argument. Every launch clears the environment, so the mode
+  travels in the arguments: in the mode the command starts them with
+  `--strict-safe` right after the entry argument (`StrictSafe::entry`),
+  and run directly they also read the variable. In the mode the
   worker refuses to host the FFmpeg backend, and the launcher refuses a
   program whose file name, or the name of the file it links to, begins
   with `ffmpeg` or `ffprobe`, with exit status 126. A copy of FFmpeg under
@@ -1203,7 +1207,8 @@ encoder is an `Encoder` only it makes, the FFmpeg backend reaches the
 decoder list only through `Decoders::push_ffmpeg`, which takes it, and
 the hidden entries ask it, the worker `StrictSafe::worker` and the
 launcher `StrictSafe::program` (`coreav_worker::worker_main` and
-`sandbox_exec_main` take the check from their caller). A new
+`sandbox_exec_main` take the check from their caller), with the mode
+carried to them by `StrictSafe::entry`. A new
 command that decodes or encodes goes through the same list and the same
 type. Rejected: a check in each command, which a new command could leave
 out; and leaving the FFmpeg backend out of the list in strict-safe mode,
@@ -1228,9 +1233,11 @@ runs, and check that none runs in the mode for `coreav thumbnail` (with
 and without `--exact`), `coreav transcode` and a `coreav ffmpeg` `libx264`
 line, and that it does run outside the mode. They also check that a
 `libx264` line is refused without reading a missing input or a pipe no
-one writes to, that the launcher run directly refuses the stand-ins and a
-link to one and still runs `x264`, and that the worker run directly
-refuses to open the FFmpeg backend.
+one writes to, that an `x264` program named `ffmpeg` (by `--x264`, by
+`COREAV_X264` or through a link) is refused, that the launcher run
+directly refuses the stand-ins and a link to one and still runs `x264`,
+also when only the arguments a launch in the mode passes turn the mode on,
+and that the worker run directly refuses to open the FFmpeg backend.
 
 ### Which program runs
 

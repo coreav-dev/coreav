@@ -112,7 +112,7 @@ pub fn make<S: Source>(
     let launcher = ExecLauncher {
         command: WorkerCommand {
             program: this.to_path_buf(),
-            args: vec![EXEC_ARG.into()],
+            args: request.strict_safe.entry(EXEC_ARG),
         },
     };
     // The decoder's own thread choice; the default policy's order (native,

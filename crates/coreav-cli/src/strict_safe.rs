@@ -32,6 +32,11 @@ use crate::output::WriteFailure;
 #[cfg(feature = "thumbnail")]
 const OFF: &str = "or run without --strict-safe and COREAV_STRICT_SAFE";
 
+/// The argument that turns the mode on, after a command's name or after a
+/// hidden entry's ([`StrictSafe::entry`]).
+#[cfg(feature = "thumbnail")]
+pub const FLAG: &str = "--strict-safe";
+
 /// Whether this run is in strict-safe mode.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct StrictSafe {
@@ -51,6 +56,19 @@ impl StrictSafe {
     /// Whether the mode is on.
     pub fn on(self) -> bool {
         self.on
+    }
+
+    /// The arguments that start this program as the hidden entry `entry`
+    /// (`crate::thumbnail::run_worker`), with [`FLAG`] after it in
+    /// strict-safe mode: every launch clears the environment, so the mode
+    /// travels in the arguments.
+    #[cfg(feature = "thumbnail")]
+    pub fn entry(self, entry: &str) -> Vec<std::ffi::OsString> {
+        let mut args = vec![entry.into()];
+        if self.on {
+            args.push(FLAG.into());
+        }
+        args
     }
 
     /// Whether the decode worker hosts `backend`: in strict-safe mode not
@@ -93,9 +111,10 @@ impl StrictSafe {
 
     /// The encoder `--encoder` names (`auto`, `x264` or `ffmpeg`), where
     /// the x264 program is the one `--x264` names, if any. In strict-safe
-    /// mode `ffmpeg` is refused, and `auto` is the x264 program alone,
-    /// refused when there is none; both before the input is read. Err is
-    /// the refusal's message.
+    /// mode `ffmpeg` is refused, `auto` is the x264 program alone, refused
+    /// when there is none, and an x264 program [`StrictSafe::program`]
+    /// refuses is refused; all before the input is read. Err is the
+    /// refusal's message.
     #[cfg(feature = "transcode")]
     pub fn encoder(self, name: &str, x264: Option<&Path>) -> Result<Encoder, String> {
         let choice = match name {
@@ -106,22 +125,22 @@ impl StrictSafe {
         if !self.on {
             return Ok(Encoder(choice));
         }
-        match choice {
-            EncoderChoice::X264 => Ok(Encoder(EncoderChoice::X264)),
-            EncoderChoice::Ffmpeg => Err(format!(
+        if choice == EncoderChoice::Ffmpeg {
+            return Err(format!(
                 "strict-safe mode never runs the ffmpeg program, so it cannot be the encoder: \
                  use --encoder x264 with an x264 program, {OFF}"
+            ));
+        }
+        match find_encoder(EncoderChoice::X264, x264.map(Path::to_path_buf), None) {
+            Some(program) => self
+                .program(program.path())
+                .map(|()| Encoder(EncoderChoice::X264)),
+            None if choice == EncoderChoice::X264 => Ok(Encoder(EncoderChoice::X264)),
+            None => Err(format!(
+                "strict-safe mode never runs the ffmpeg program, so the encoder is an x264 \
+                 program, and none was found: install x264 (on PATH, or named by COREAV_X264 \
+                 or coreav transcode's --x264), {OFF}"
             )),
-            EncoderChoice::Auto => {
-                match find_encoder(EncoderChoice::X264, x264.map(Path::to_path_buf), None) {
-                    Some(_) => Ok(Encoder(EncoderChoice::X264)),
-                    None => Err(format!(
-                        "strict-safe mode never runs the ffmpeg program, so the encoder is an \
-                         x264 program, and none was found: install x264 (on PATH, or named by \
-                         COREAV_X264 or coreav transcode's --x264), {OFF}"
-                    )),
-                }
-            }
         }
     }
 }

@@ -430,8 +430,94 @@ fn the_decode_worker_runs_no_ffmpeg() {
             );
             assert!(!ran(&dir, "ffmpeg"));
         } else {
+            // The worker starts the stand-in once it has the stream; wait
+            // for its file before the decoder ends the worker.
+            let start = Instant::now();
+            while !ran(&dir, "ffmpeg") && start.elapsed() < Duration::from_secs(10) {
+                std::thread::sleep(Duration::from_millis(20));
+            }
             drop(opened);
             assert!(ran(&dir, "ffmpeg"));
         }
+    }
+}
+
+#[test]
+fn an_x264_program_named_ffmpeg_is_refused_before_the_input_is_read() {
+    let dir = dir("x264-named-ffmpeg");
+    std::os::unix::fs::symlink(dir.join("bin/ffmpeg"), dir.join("x264/encoder")).unwrap();
+    // Named by --x264, by its name or through a link of another name.
+    for x264 in ["bin/ffmpeg", "x264/encoder"] {
+        for mode in [Mode::Flag, Mode::Variable] {
+            let run = coreav(
+                &dir,
+                mode,
+                false,
+                &[
+                    "transcode",
+                    "missing.mp4",
+                    "out.mp4",
+                    "--encoder",
+                    "x264",
+                    "--x264",
+                    x264,
+                ],
+            );
+            refused(&run, &dir, "so it does not run");
+            error(&run);
+            assert!(!ran(&dir, "ffmpeg"), "{x264} {mode:?}");
+        }
+    }
+    // Named by COREAV_X264, for --encoder auto and a libx264 line.
+    for args in [
+        &["transcode", "missing.mp4", "out.mp4"][..],
+        &[
+            "ffmpeg",
+            "-i",
+            "missing.mp4",
+            "-an",
+            "-c:v",
+            "libx264",
+            "-fps_mode",
+            "passthrough",
+            "out.mp4",
+        ][..],
+    ] {
+        for mode in [Mode::Flag, Mode::Variable] {
+            let out = command(&dir, mode, false, args)
+                .env("COREAV_X264", dir.join("bin/ffmpeg"))
+                .output()
+                .unwrap();
+            let run = Run {
+                code: out.status.code().unwrap(),
+                stderr: String::from_utf8(out.stderr).unwrap(),
+            };
+            refused(&run, &dir, "so it does not run");
+            assert!(!ran(&dir, "ffmpeg"), "{args:?} {mode:?}");
+        }
+    }
+}
+
+#[test]
+fn every_launch_carries_the_mode_in_its_arguments() {
+    use coreav_cli::strict_safe::StrictSafe;
+    let dir = dir("exec-flag");
+    // The arguments a run in the mode starts the launcher with, and no
+    // variable: the launch clears the environment.
+    let entry = StrictSafe::new(true).entry(coreav_worker::EXEC_ARG);
+    for (program, standin, code) in [("bin/ffmpeg", "ffmpeg", 126), ("x264/x264", "x264", 1)] {
+        let out = command(&dir, Mode::Off, false, &[])
+            .args(&entry)
+            .arg("--")
+            .arg(dir.join(program))
+            .output()
+            .unwrap();
+        assert_eq!(
+            out.status.code(),
+            Some(code),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        assert_eq!(ran(&dir, standin), code == 1, "{program}");
     }
 }
