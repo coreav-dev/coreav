@@ -342,6 +342,70 @@ fn envelope_shift(ours: &[f32], reference: &[f32]) -> (i64, f64) {
     best
 }
 
+/// Bar 1's comparison of decoded channels with the reference channels of
+/// a conformance stream: the shift, then (worst RMS, worst largest
+/// difference, worst noise level, most noise blocks, worst per-block
+/// noise level) over the reference channels, each matched to the decoded
+/// channel with the smallest RMS difference.
+fn against_reference(
+    channels: &[Vec<f32>],
+    reference: &[Vec<f32>],
+    noisy: &[bool],
+    frame: usize,
+) -> (i64, (f64, f64, f64, usize, f64)) {
+    let loudest = (0..reference.len())
+        .max_by(|&a, &b| {
+            let e = |c: usize| {
+                reference[c]
+                    .iter()
+                    .take(1 << 16)
+                    .map(|v| f64::from(*v).powi(2))
+                    .sum::<f64>()
+            };
+            e(a).total_cmp(&e(b))
+        })
+        .unwrap_or(0);
+    // Channels are matched to reference channels by the smallest RMS
+    // difference at the stream's shift (the references' order is the
+    // package's, not WAV's).
+    let mostly_noise = noisy.iter().filter(|&&n| n).count() * 2 > noisy.len();
+    let shift = channels
+        .iter()
+        .map(|c| {
+            if mostly_noise {
+                envelope_shift(c, &reference[loudest])
+            } else {
+                best_shift(c, &reference[loudest])
+            }
+        })
+        .min_by(|a, b| a.1.total_cmp(&b.1))
+        .map_or(0, |(s, _)| s);
+    let mut worst = (0f64, 0f64, 0f64, 0usize, 0f64);
+    let mut used = vec![false; channels.len()];
+    for want in reference {
+        let mut best: Option<(Comparison, usize)> = None;
+        for (c, got) in channels.iter().enumerate() {
+            if used[c] {
+                continue;
+            }
+            let cmp = compare(got, want, shift, noisy, frame, true);
+            if best.as_ref().is_none_or(|b| cmp.rms < b.0.rms) {
+                best = Some((cmp, c));
+            }
+        }
+        let Some((cmp, c)) = best else { break };
+        used[c] = true;
+        worst = (
+            worst.0.max(cmp.rms),
+            worst.1.max(cmp.max),
+            worst.2.max(cmp.noise_db),
+            worst.3.max(cmp.noise_blocks),
+            worst.4.max(cmp.noise_block_db),
+        );
+    }
+    (shift, worst)
+}
+
 /// The reference channels of stream `name`: one file, or one per element
 /// (`_f00`, `_s00`, `_b00`, `_l00`, ...), in name order.
 fn references(dir: &Path, name: &str) -> Vec<Vec<f32>> {
@@ -420,56 +484,7 @@ fn conformance_streams() {
             ));
             continue;
         }
-        let loudest = (0..reference.len())
-            .max_by(|&a, &b| {
-                let e = |c: usize| {
-                    reference[c]
-                        .iter()
-                        .take(1 << 16)
-                        .map(|v| f64::from(*v).powi(2))
-                        .sum::<f64>()
-                };
-                e(a).total_cmp(&e(b))
-            })
-            .unwrap_or(0);
-        // Channels are matched to reference channels by the smallest RMS
-        // difference at the stream's shift (the references' order is the
-        // package's, not WAV's).
-        let mostly_noise = noisy.iter().filter(|&&n| n).count() * 2 > noisy.len();
-        let shift = channels
-            .iter()
-            .map(|c| {
-                if mostly_noise {
-                    envelope_shift(c, &reference[loudest])
-                } else {
-                    best_shift(c, &reference[loudest])
-                }
-            })
-            .min_by(|a, b| a.1.total_cmp(&b.1))
-            .map_or(0, |(s, _)| s);
-        let mut worst = (0f64, 0f64, 0f64, 0usize, 0f64);
-        let mut used = vec![false; channels.len()];
-        for want in &reference {
-            let mut best: Option<(Comparison, usize)> = None;
-            for (c, got) in channels.iter().enumerate() {
-                if used[c] {
-                    continue;
-                }
-                let cmp = compare(got, want, shift, &noisy, frame, true);
-                if best.as_ref().is_none_or(|b| cmp.rms < b.0.rms) {
-                    best = Some((cmp, c));
-                }
-            }
-            let Some((cmp, c)) = best else { break };
-            used[c] = true;
-            worst = (
-                worst.0.max(cmp.rms),
-                worst.1.max(cmp.max),
-                worst.2.max(cmp.noise_db),
-                worst.3.max(cmp.noise_blocks),
-                worst.4.max(cmp.noise_block_db),
-            );
-        }
+        let (shift, worst) = against_reference(&channels, &reference, &noisy, frame);
         let pass =
             worst.0 <= MAX_RMS && worst.1 <= MAX_ABS && worst.2 <= MAX_NOISE_DB && damaged == 0;
         println!(
@@ -588,8 +603,28 @@ fn ffmpeg_agreement() {
                 cmp.noise_block_db
             ));
         }
+        // A conformance stream: both decoders against its reference, as
+        // bar 1 measures CoreAV.
+        let references_dir = Path::new(input)
+            .parent()
+            .and_then(Path::parent)
+            .map(|root| root.join("referencesWav"))
+            .filter(|_| input.contains("/compressedMp4/"));
+        let against = references_dir.map_or_else(String::new, |dir| {
+            let stem = Path::new(input)
+                .file_stem()
+                .map(|s| s.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            let reference = references(&dir, &stem);
+            let (_, ours) = against_reference(&channels, &reference, &noisy, frame);
+            let (_, ffmpeg) = against_reference(&theirs, &reference, &noisy, frame);
+            format!(
+                ", \"reference\": {{\"coreav\": [{:e}, {:e}], \"ffmpeg\": [{:e}, {:e}]}}",
+                ours.0, ours.1, ffmpeg.0, ffmpeg.1
+            )
+        });
         lines += &format!(
-            "{{\"input\": {name}, \"status\": \"decoded\", \"channels\": {count}, \"frame\": {frame}, \"packets\": {}, \"length\": {}, \"reference_length\": {}, \"reference_values\": {}, \"damaged\": {damaged}, \"noise_frames\": {}, \"intensity_all_ms_frames\": {}, \"pce\": {pce}, \"matched\": [{}], \"per_channel\": [{}]}}\n",
+            "{{\"input\": {name}, \"status\": \"decoded\", \"channels\": {count}, \"frame\": {frame}, \"packets\": {}, \"length\": {}, \"reference_length\": {}, \"reference_values\": {}, \"damaged\": {damaged}, \"noise_frames\": {}, \"intensity_all_ms_frames\": {}, \"pce\": {pce}, \"matched\": [{}], \"per_channel\": [{}]{against}}}\n",
             noisy.len(),
             channels.first().map_or(0, Vec::len),
             theirs.first().map_or(0, Vec::len),

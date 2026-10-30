@@ -37,6 +37,9 @@ MAX_RMS = 2 * 2.0 ** -15 / 12 ** 0.5
 MAX_ABS = 2 * 2.0 ** -14
 MAX_NOISE_DB = 0.1
 MIN_NOISE_BLOCKS = 100
+# Bar 1's full accuracy against a conformance reference.
+REF_RMS = 2.0 ** -15 / 12 ** 0.5
+REF_ABS = 2.0 ** -14
 TIMEOUT = 600
 
 
@@ -108,17 +111,36 @@ def prepare(a):
         for f in sorted((a.conformance / 'compressedMp4').glob('al*.mp4')):
             mp4s.append((f'conf-{f.stem}', f))
     refs = {}
+    probe = a.ffmpeg.rsplit('ffmpeg', 1)[0] + 'ffprobe'
     for key, path in mp4s:
         ref = work / 'ref' / f'{key}.f32'
         dec = run([a.ffmpeg, '-v', 'error', '-ignore_editlist', '1', '-i', path, '-map', '0:a:0', '-f', 'f32le', ref])
         refs[str(path)] = {'key': key, 'returncode': dec.returncode, 'errors': bool(dec.stderr.strip()),
-                           'stderr': dec.stderr.decode(errors='replace')[-300:]}
+                           'stderr': dec.stderr.decode(errors='replace')[-300:], **stated(probe, path)}
         if dec.returncode == 0:
             tsv.append(f'{path}\t{ref}')
     (work / 'agreement.tsv').write_text('\n'.join(tsv) + '\n')
     version = run([a.ffmpeg, '-version']).stdout.decode().splitlines()[0]
     (work / 'set.json').write_text(json.dumps({'ffmpeg': version, 'inputs': inputs, 'references': refs}, indent=1))
     print(f"{sum(r['status'] == 'encoded' for r in inputs)} of {len(inputs)} encodes, {len(tsv)} references")
+
+
+def stated(ffprobe, path):
+    """Raw values of an MP4 input: its AudioSpecificConfig (hex) and the
+    samples its packets' durations state, in the stream's time base."""
+    out = run([ffprobe, '-v', 'error', '-ignore_editlist', '1', '-select_streams', 'a:0', '-show_entries',
+               'packet=duration:stream=time_base,sample_rate,extradata', '-show_data', '-of', 'json', path])
+    try:
+        info = json.loads(out.stdout)
+        stream = info['streams'][0]
+        num, den = (int(x) for x in stream['time_base'].split('/'))
+        ticks = sum(int(p.get('duration', 0)) for p in info.get('packets', []))
+        samples = round(ticks * num * int(stream['sample_rate']) / den)
+        extradata = ''.join(line.split(':', 1)[1][:40].replace(' ', '')
+                            for line in stream.get('extradata', '').splitlines() if ':' in line)
+        return {'stated_samples': samples, 'asc': extradata}
+    except (ValueError, KeyError, IndexError):
+        return {'stated_samples': None, 'asc': None}
 
 
 def wav_floats(blob):
@@ -150,10 +172,11 @@ def bar2_verdict(r, ref):
     if r['status'] == 'refused':
         return 'refused'
     n = r['packets'] * r['frame']
+    theirs = min(n, ref['stated_samples']) if ref.get('stated_samples') is not None else n
     problems = []
     if r['damaged']:
         problems.append('damaged frames')
-    if r['length'] != n or r['reference_length'] != n or r['reference_values'] != n * r['channels']:
+    if r['length'] != n or r['reference_length'] != theirs or r['reference_values'] != theirs * r['channels']:
         problems.append('lengths')
     for c in r['per_channel']:
         if c['rms'] > MAX_RMS or c['max'] > MAX_ABS:
@@ -161,7 +184,13 @@ def bar2_verdict(r, ref):
         if level_only(r) and (c['noise_db'] is None or
                                   (c['noise_blocks'] >= MIN_NOISE_BLOCKS and c['noise_db'] > MAX_NOISE_DB)):
             problems.append('noise level')
-    return 'pass' if not problems else 'FAIL: ' + ', '.join(sorted(set(problems)))
+    if not problems:
+        return 'pass'
+    against = r.get('reference')
+    if (problems == ['samples'] * len(problems) and against and against['coreav'][0] <= REF_RMS
+            and against['coreav'][1] <= REF_ABS and (against['ffmpeg'][0] > REF_RMS or against['ffmpeg'][1] > REF_ABS)):
+        return 'ffmpeg off the reference'
+    return 'FAIL: ' + ', '.join(sorted(set(problems)))
 
 
 def judge(a):
@@ -185,6 +214,9 @@ def judge(a):
             row['noise'] = [[c['noise_db'], c['noise_blocks'], c['noise_block_db']] for c in r['per_channel']]
         elif r:
             row['reason'] = r.get('reason')
+        if r and 'reference' in r:
+            row['reference'] = r['reference']
+        row['asc'] = ref.get('asc')
         if ref['returncode'] != 0 or ref['errors']:
             row['ffmpeg_stderr'] = ref['stderr']
         bar2.append(row)
@@ -192,6 +224,8 @@ def judge(a):
     out['bar2'] = {'counted': len(counted), 'passed': sum(r['verdict'] == 'pass' for r in counted),
                    'refused': [[r['input'], r.get('reason')] for r in bar2 if r['verdict'] == 'refused'],
                    'ffmpeg_errors': [r['input'] for r in bar2 if r['verdict'] == 'ffmpeg error'],
+                   'ffmpeg_off_the_reference': [[r['input'], r['reference']] for r in bar2
+                                                if r['verdict'] == 'ffmpeg off the reference'],
                    'largest_difference': max((r['max'] for r in counted if 'max' in r), default=0),
                    'largest_rms': max((r['rms'] for r in counted if 'rms' in r), default=0),
                    'results': bar2}
@@ -205,9 +239,13 @@ def judge(a):
     for r, f, res in zip(gen, files, results):
         d = decoded.get(str(f))
         noisy = d is None or level_only(d) != 0
+        # A program configuration's channel order is the decoder's choice
+        # (docs/design/audio-decode.md, "Choices"): reported where ffmpeg's
+        # differs (bar 2 matched the channels by RMS, not in order).
+        reordered = d is not None and d.get('pce') and d.get('matched') != list(range(d.get('channels') or 0))
         ok = res.get('status') == 'ok' and res.get('model') and res.get('timeline')
         clean = res.get('status') == 'ok' and not res.get('decode_errors')
-        bar3.append({'input': r['name'], 'gating': not noisy, 'status': res.get('status'),
+        bar3.append({'input': r['name'], 'gating': not noisy and not reordered, 'status': res.get('status'),
                      'clean': clean, 'model': res.get('model'), 'timeline': res.get('timeline'),
                      'ffmpeg': res.get('ffmpeg'), 'entries': res.get('entries', []), 'pass': bool(ok)})
     gating = [r for r in bar3 if r['gating']]
