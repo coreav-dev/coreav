@@ -37,4 +37,4 @@ CAVLC streams, the class frame counts:
   f9e973f44570 sd    1800 frames    1,318,478,333   1,272,001,365     -46,476,968 -3.53%
   median -4.03% (min -7.99%, max -1.92%)
 
-The rejected round (against its base, #507): median -4.34%. This round against 82a23b66: median -3.99%.
+The rejected round (against its base): median -4.34%. This round against 82a23b66: median -3.99%.

@@ -3189,13 +3189,13 @@
   }
  },
  "before": "main's oracles at 3548e488",
- "binary": "audits: coreav built from main 3548e488, except HLS (fixtures and corpus), re-run with main cd9a63e0 (after #348); this change has no Rust code",
+ "binary": "audits: coreav built from main 3548e488, except HLS (fixtures and corpus), re-run with main cd9a63e0 (after the trimmed-source fix); this change has no Rust code",
  "black_boxes": "ffmpeg and ffprobe 7.0.2, MediaInfo 26.10",
  "issue": 324,
- "schema": "coreav.kd-audit-writers-324/2",
+ "schema": "coreav.kd-audit-writers-box-checks/2",
  "corpus_run": {
   "what": "every real ISOBMFF file of corpus v1 through every writer, each output judged by this change's oracles; main's oracles judge every output this change's fail and a 5% sample (by SHA-256) of those it passes",
-  "binary": "main 3548e488 for 1,029 files; main cd9a63e0 for the 20 re-run files (host disk faults, the five #344 files, the three not reached, and every file with a failing output)",
+  "binary": "main 3548e488 for 1,029 files; main cd9a63e0 for the 20 re-run files (host disk faults, the five trimmed-source files, the three not reached, and every file with a failing output)",
   "summary": {
    "files": 1049,
    "errors": 0,

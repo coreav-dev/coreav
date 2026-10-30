@@ -2,6 +2,6 @@ Output of the 32 training streams (class frame counts: sd 1800, 720p 900, 1080p 
 the decode example (dist builds): main 814eb2a1 at one thread against this branch at one and at eight threads.
 identical 32, different 0
 
-After rebasing onto main 33e2273c (the luma kernel round #422 and round 17 #424, neither touching the deblocking
+After rebasing onto main 33e2273c (the luma kernel round and round 17, neither touching the deblocking
 filter): the rebased branch at one and eight threads against main 33e2273c at one thread.
 identical 32, different 0

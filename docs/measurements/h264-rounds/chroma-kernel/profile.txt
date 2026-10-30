@@ -1,7 +1,7 @@
 # main at 3ebeda9 (dist, line tables), one round of profile/rec.py on the 32 training streams, one thread, pinned, this VM
 # (Intel Xeon 2.90 GHz, family 6 model 106); host gate passed before and after (prof-before ratio 0.987/0.973, prof-after 0.993/0.972).
 # core_split.py: CoreAV's inter prediction split as profile/inter_split.py does it, time over each stream's FFmpeg 9.0.2 (BtbN) time from the same run.
-# FFmpeg's own split is #418's (profile/inter_split.txt; FFmpeg has not changed): chroma sd 0.028, 720p 0.029, 1080p 0.035, 4k 0.041, all 0.033;
+# FFmpeg's own split is the time profile's (profile/inter_split.txt; FFmpeg has not changed): chroma sd 0.028, 720p 0.029, 1080p 0.035, 4k 0.041, all 0.033;
 # luma 0.071, 0.073, 0.092, 0.086, 0.081.
 sd luma 0.083  chroma 0.055  weight 0.002  edge 0.050  prefetch 0.000  glue 0.084
 720p luma 0.087  chroma 0.050  weight 0.001  edge 0.023  prefetch 0.007  glue 0.074

@@ -3,7 +3,7 @@
 Throwaway measurement code, outside the Cargo workspace. It
 re-measures the HLS index build against libavformat opening the same file
 in process, after the speed-up of an earlier change, on a held-out set that
-`docs/spikes/w1-227/`'s run `w1-01` did not use.
+`docs/spikes/w1-remeasure/`'s run `w1-01` did not use.
 
 ## Hypothesis and bar
 

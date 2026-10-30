@@ -1,4 +1,4 @@
-"""python3 -I analyze-b3.py DIR -> bundle 3's (#546) bars B3-1 to B3-7 (docs/measurements/h264-rounds/bundle3/plan.md, "Bars"). DIR holds t8.<class>.json (eight threads, c4-standard-16, the 32
+"""python3 -I analyze-b3.py DIR -> bundle 3's bars B3-1 to B3-7 (docs/measurements/h264-rounds/bundle3/plan.md, "Bars"). DIR holds t8.<class>.json (eight threads, c4-standard-16, the 32
 training streams), g.<class>.json (one thread pinned, helper VM, the 32 training streams) and h1.<class>.json (one thread pinned, the 64 held-out streams, five rounds), from scripts/h264_parity*.py with decoders `base` and `k` (= the bundle), built
 alike. Each ratio is the median over streams of the per-stream ratio ft/base with a 95% bootstrap interval over streams (2,000
 resamples, random.Random(20261027)). Missing sets are printed as pending. B3-8 (output) is read from identity.txt and the

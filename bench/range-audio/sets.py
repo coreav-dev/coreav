@@ -1,5 +1,5 @@
-"""Writes the sets of #31's measurement (README.md, "Sets") from corpus
-v1's manifest: the objects with an AAC track that corpus v1 holds out, drawn per stratum by a new salt, and the tuning pool.
+"""Writes the sets of the range-read audio extraction measurement
+(README.md, "Sets") from corpus v1's manifest: the objects with an AAC track that corpus v1 holds out, drawn per stratum by a new salt, and the tuning pool.
 
     python3 -I sets.py > OUT.json
 

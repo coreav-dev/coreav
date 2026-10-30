@@ -796,8 +796,7 @@ fn tracks_that_cannot_be_extracted_write_nothing() {
         TrackChoice::FirstAudio,
         &mut out,
     );
-    // The allowlist dropped the only audio track: its codec is not allowed
-    // (#61).
+    // The allowlist dropped the only audio track: its codec is not allowed.
     assert!(matches!(
         result,
         Err(ExtractError::Source(Error::CodecNotAllowed {
@@ -1478,7 +1477,7 @@ fn the_copy_pass_advises_where_it_starts_and_how_much_it_copies() {
     assert_eq!(advised.advice, vec![(all[0].offset, end - all[0].offset)]);
 }
 
-/// What a remote source that can skip bytes sees (#31): its reads and its
+/// What a remote source that can skip bytes sees: its reads and its
 /// advice, in order.
 #[derive(Debug, PartialEq)]
 enum Seen {

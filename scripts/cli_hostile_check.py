@@ -12,9 +12,9 @@ manifest marks each file `reject` (a structured error at probe time) or
     above;
   - never a crash (signal), a timeout or an exit code other than 0 or 1.
 Matroska and WebM files also go through the commands that walk their
-blocks (issue #108): `probe --scan-frame-sizes`, `check` under the
+blocks: `probe --scan-frame-sizes`, `check` under the
 web-upload policy and `remux`; transport streams through
-`probe --scan-frame-sizes`, which lists every access unit (issue #208).
+`probe --scan-frame-sizes`, which lists every access unit.
 Each must end with exit code 0, or 1 with
 either a `coreav.error/1` object on stderr or (for `check`) a
 `coreav.verdict/1` on stdout, within the same limits.
@@ -142,7 +142,7 @@ def walking_ops(coreav, path, labelled):
 
 def matroska_ops(coreav, path):
     """`probe --scan-frame-sizes`, `check` and `remux`, which walk a
-    Matroska or WebM file's blocks (issue #108)."""
+    Matroska or WebM file's blocks."""
     return walking_ops(coreav, path, lambda tmp: (
         ('scan', [coreav, 'probe', '--scan-frame-sizes', str(path)]),
         ('check', [coreav, 'check', '--policy', str(POLICY), str(path)]),
@@ -151,7 +151,7 @@ def matroska_ops(coreav, path):
 
 def mpegts_ops(coreav, path):
     """`probe --scan-frame-sizes`, which lists every access unit of a
-    transport stream (issue #208)."""
+    transport stream."""
     return walking_ops(coreav, path, lambda tmp: (
         ('scan', [coreav, 'probe', '--scan-frame-sizes', str(path)]),))
 

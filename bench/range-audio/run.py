@@ -1,5 +1,5 @@
-"""#31's measurement (README.md): audio extraction over HTTP range reads of a
-presigned R2 URL by `coreav extract-audio URL`, against FFmpeg reading the
+"""The range-read audio extraction measurement (README.md): audio
+extraction over HTTP range reads of a presigned R2 URL by `coreav extract-audio URL`, against FFmpeg reading the
 same URL, each output checked against the native build's on a downloaded
 copy.
 

@@ -8,7 +8,7 @@ The same shards the cloud launcher runs in containers, run here as
 processes: one libFuzzer per core, each with its own seed, its own corpus
 directory and the plan's options, writing the result schema
 `campaign.py report` reads. A campaign that fits one machine needs no
-cloud and costs nothing (#266); the release gate's 126 shards still want
+cloud and costs nothing; the release gate's 126 shards still want
 the cloud launcher's containers.
 
 A CPU-hour here is what it is there: one process with a core to itself

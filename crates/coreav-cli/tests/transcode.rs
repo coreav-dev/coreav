@@ -472,8 +472,7 @@ fn times_in_decode_order_keep_every_frame() {
 /// WebM blocks whose millisecond times repeat (bursts of three frames
 /// 40 ms apart, at 0, 0, 0, 40, 40, 40, ... ms): every frame is encoded,
 /// each repeat one tick after the frame before, where dropping each frame
-/// whose time is not above the last one's dropped two thirds of them
-/// (#586).
+/// whose time is not above the last one's dropped two thirds of them.
 #[test]
 fn repeated_webm_times_keep_every_frame() {
     // VP8 decodes through the fallback.

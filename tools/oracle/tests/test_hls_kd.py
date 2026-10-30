@@ -93,7 +93,7 @@ class SegmentIndex(unittest.TestCase):
 # Three subsegments of 100 bytes from offset 1000, each one track fragment
 # of two samples of 100 ticks (timescale 1000) whose decode time lies 150
 # ticks past where the durations reach, while the index gives each the 200
-# ticks its durations add up to (#576).
+# ticks its durations add up to.
 INDEX = (1, 1000, [(100, 200), (100, 200), (100, 200)], 1000)
 RUNS = [(1000, 0, [100, 100], [0, 0]), (1100, 350, [100, 100], [0, 0]), (1200, 700, [100, 100], [0, 0])]
 CONTINUOUS = [(1000, 0, [100, 100], [0, 0]), (1100, 200, [100, 100], [0, 0]), (1200, 400, [100, 100], [0, 0])]
@@ -124,7 +124,7 @@ class IndexDrift(unittest.TestCase):
         self.assertIsNone(drift(runs=CONTINUOUS))
         # A writer that cuts a consistent source at other samples, or the
         # inconsistent one: the counts are the index's byte ranges', not
-        # the segments' own (review of #576).
+        # the segments' own (a review finding).
         self.assertIsNone(drift(runs=CONTINUOUS, counts=(4, 1, 1)))
         self.assertIsNone(drift(counts=(4, 1, 1)))
         self.assertIsNone(drift(counts=(2, 2, 1)))
@@ -171,7 +171,7 @@ class DecodeGaps(unittest.TestCase):
 
 
 class LeftOutFrames(unittest.TestCase):
-    """#576: an AV1 source whose last sample (decode duration 0) lies at the
+    """An AV1 source of the writer corpus whose last sample (decode duration 0) lies at the
     edit's end; ffmpeg decodes its frame from the source, the rendition
     leaves the sample out."""
 

@@ -37,7 +37,7 @@
         "rewrite": "ffmpeg's cue text without those tags and their end tags"
       },
       "predicate": "style_tags",
-      "basis": "issue #40 and docs/design/text.md choice 9 (styling is dropped and reported); 3GPP TS 26.245 5.17.1"
+      "basis": "docs/design/text.md choice 9 (styling is dropped and reported); 3GPP TS 26.245 5.17.1"
     },
     {
       "id": "KD-T-LEAD-SPACE",

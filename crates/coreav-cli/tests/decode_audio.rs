@@ -305,8 +305,8 @@ fn writes_wav_to_standard_output() {
     assert_eq!(&wav[74..80], &[0, 1, 0, 0, 0xFF, 0xFF]);
 }
 
-/// Standard output, a pipe or a file, carries the samples written to a file
-/// (#407); only the sizes in the header differ, unknown on standard output.
+/// Standard output, a pipe or a file, carries the samples written to a file;
+/// only the sizes in the header differ, unknown on standard output.
 #[test]
 fn standard_output_carries_the_file_samples() {
     let input = flac_file("da_same.mka");

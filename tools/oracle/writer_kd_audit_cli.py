@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Mutation audit of the known divergences of the oracles that run `coreav`
-themselves (#225): scripts/text_check.py (docs/known-divergences-text.md),
+themselves: scripts/text_check.py (docs/known-divergences-text.md),
 scripts/hls_check.py (docs/known-divergences-hls.md) and
 scripts/policy_check.py (docs/known-divergences-policy.md). The method is
 tools/oracle/writer_kd_audit.py's: one bug-shaped change at a time, judged

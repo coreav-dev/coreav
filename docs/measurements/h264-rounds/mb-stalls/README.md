@@ -2,7 +2,7 @@
 
 Evidence for `docs/design/h264.md`, "Why the MB layer's instruction cuts move little time". Development VM,
 Intel Xeon @ 2.90GHz (family 6 model 106), one thread. Builds: `dw-4cb168e` = `main` at `056bd25` (dist),
-`mbl-451` = round 24 (`rejected/h264-mb-layer` at `3535661`, dist), md5 identical to fresh builds of those
+`mbl-r24` = round 24 (`rejected/h264-mb-layer` at `3535661`, dist), md5 identical to fresh builds of those
 commits. The scripts ran from a local work directory (`~/h264work/r25`), whose paths they name.
 
 - `plan.txt`: the readings of the layout run (information; this is an investigation, not a gated round).

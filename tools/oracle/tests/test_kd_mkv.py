@@ -109,7 +109,7 @@ def ebml(eid, payload=b''):
 
 
 class TagLanguage(unittest.TestCase):
-    """KD-MKV-TAG-LANGUAGE (#219): covered only with the file's evidence."""
+    """KD-MKV-TAG-LANGUAGE: covered only with the file's evidence."""
 
     def file(self, language=b'eng', tag=b'LANGUAGE', target=b'\x07', bcp47=None):
         stored = ebml(0x22B59C, language) if language is not None else b''

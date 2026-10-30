@@ -57,13 +57,12 @@ MP3_MAX = 2 * 2.0 ** -14
 UNIT_RATE = 0x0001_0000
 
 # Every entry of docs/known-divergences-decode-audio.json was written after
-# the bars ("Edit list bars", fixed in the commit named), in the pull
-# request named.
+# the bars ("Edit list bars"), in the commit named.
 ADDED_AFTER_THE_BARS = {
-    'KD-A-LEADING-EMPTY': ('#322', '9cac71f'),
-    'KD-A-EDIT-END': ('#322', '9cac71f'),
-    'KD-A-LATER-EDIT-START': ('#322', '9cac71f'),
-    'KD-A-INNER-EMPTY': ('#322', '9cac71f'),
+    'KD-A-LEADING-EMPTY': '9cac71f',
+    'KD-A-EDIT-END': '9cac71f',
+    'KD-A-LATER-EDIT-START': '9cac71f',
+    'KD-A-INNER-EMPTY': '9cac71f',
 }
 
 

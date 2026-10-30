@@ -1,5 +1,5 @@
 #!/bin/bash
-# Gating run for LM-1..LM-4 and LM-C: base b66e452f (main, #385), a b96e94ce, c 3d8d6b96 (perf/h264-luma-mc).
+# Gating run for LM-1..LM-4 and LM-C: base b66e452f (main), a b96e94ce, c 3d8d6b96 (perf/h264-luma-mc).
 set -euo pipefail
 OUT=$HOME/ab/luma/out; W=$HOME/ab/luma/w; mkdir -p $OUT $W
 REPO=$HOME/coreav; E=$HOME/tr/es
@@ -15,7 +15,7 @@ for pair in "base b66e452f" "a b96e94ce" "c 3d8d6b96"; do
 done
 {
   echo "build: (cd <worktree at rev> && CARGO_TARGET_DIR=<tgt-name> cargo build --locked --profile dist --example decode -p coreav-h264)"
-  echo "base = main b66e452f (#385), a = b96e94ce, c = 3d8d6b96 (perf/h264-luma-mc)"
+  echo "base = main b66e452f, a = b96e94ce, c = 3d8d6b96 (perf/h264-luma-mc)"
   sha256sum $W/decode-base $W/decode-a $W/decode-c
   rustc -vV
   grep -m1 "model name" /proc/cpuinfo

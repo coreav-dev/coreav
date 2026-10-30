@@ -128,16 +128,16 @@ class DatedAgainstTheBars(unittest.TestCase):
         for kd_id, fingerprint in self.entries().items():
             if kd_id in report.ADDED_AFTER_THE_BARS:
                 self.assertEqual(report.ADDED_AFTER_THE_BARS[kd_id][2], fingerprint,
-                                 f'{kd_id} changed: add the pull request to its changed records in '
+                                 f'{kd_id} changed: add the commit to its changed records in '
                                  'tools/stage3-report/report.py and update its fingerprint')
 
-    def test_each_date_names_a_pull_request_and_commit(self):
+    def test_each_date_names_a_commit(self):
         for kd_id, (added, changed, _) in report.ADDED_AFTER_THE_BARS.items():
             for record in (added, *changed):
-                self.assertRegex(record, r'^#\d+ [0-9a-f]{7}$', kd_id)
+                self.assertRegex(record, r'^[0-9a-f]{7}$', kd_id)
         for kd_id, records in report.RETIRED.items():
             for record in records:
-                self.assertRegex(record, r'^#\d+ [0-9a-f]{7}$', kd_id)
+                self.assertRegex(record, r'^[0-9a-f]{7}$', kd_id)
 
     def test_no_stale_names(self):
         listed = set(report.PRE_BAR) | set(report.ADDED_AFTER_THE_BARS)
@@ -509,7 +509,7 @@ class QuickTimeText(unittest.TestCase):
         reference, candidate = self.documents()
         detail = {'gating_differences': [{'path': 'streams/count'}]}
         self.assertEqual(kd.stream_item(detail, reference, candidate, set)[:2], ('kd', {'KD-QT-TEXT'}))
-        # The field each entry covered, for the compat check (#219).
+        # The field each entry covered, for the compat check.
         self.assertEqual(kd.stream_item(detail, reference, candidate, set)[3],
                          {'streams/count': {'kd': ['KD-QT-TEXT'], 'candidate': None, 'reference': None}})
         # The count is no packet unit; other units are judged on their own.

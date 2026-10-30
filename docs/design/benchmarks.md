@@ -62,7 +62,7 @@ where the upper bound of the bootstrap 95% interval is below 1.00.
 (The engines ran pinned to one shared core, one request at a time, rather
 than each to its own core as written above; requests never overlap, so the
 timings are the same.)
-**Result: met** (`docs/spikes/w1-227/`, run `w1-01` on the crates of `1114aa6`, round 2): CoreAV
+**Result: met** (`docs/spikes/w1-remeasure/`, run `w1-01` on the crates of `1114aa6`, round 2): CoreAV
 takes 0.316 (95% CI 0.294 to 0.343) of libavformat's time over 232 files.
 Every category is at most 0.553, every upper bound below 1.00, so CoreAV is
 faster overall and in each category. One audio-only file is at 1.01.
@@ -130,7 +130,7 @@ The guard is in `.github/workflows/bench-guard.yml`, run by
   relative relocations (`DT_RELR`), which need glibc 2.36 at run time; a
   non-PIE binary, which loses address-space randomization. The stored
   baseline holds `dist` counts. The entries a `workflow_dispatch` guard
-  run with `update: true` (run 40828255844, on #32's head) counted lower
+  run with `update: true` (run 40828255844, on coreav-dev/coreav#32's head) counted lower
   were lowered to its counts, and the cases it counted for the first time
   (`ffprobe-*`) were added; every entry it counted higher kept its earlier
   limit, since no stated cost covers the rise, and so did start-up and the

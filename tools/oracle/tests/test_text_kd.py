@@ -56,7 +56,7 @@ class Rewrites(unittest.TestCase):
         self.assertIsNone(self.reconcile(evidence(invalid_text=1), ours, theirs), 'needs the file\'s samples')
         self.assertEqual(self.reconcile(raw, ours, theirs), ['KD-T-EMPTY', 'KD-T-INVALID'])
         # A dropped cue that is not the file's invalid sample: other text,
-        # other times, or one cue fewer than such samples (#225).
+        # other times, or one cue fewer than such samples.
         self.assertIsNone(self.reconcile(raw, [(0, 10, 'a'), (20, 30, 'c\ufffd')], theirs))
         self.assertIsNone(self.reconcile(raw, [(0, 10, 'a'), (21, 30, 'b\ufffd')], theirs))
         two = dict(raw, invalid_samples=[('b\ufffd', (20, 30)), ('d\ufffd', (40, 50))])
@@ -71,7 +71,7 @@ class Rewrites(unittest.TestCase):
         self.assertIsNone(self.reconcile(cr, [(0, 10, 'a\nb')], [(0, 10, 'ac')]))
 
     def test_leading_spaces(self):
-        # ffmpeg drops a cue's leading spaces in any mov_text (#334): the
+        # ffmpeg drops a cue's leading spaces in any mov_text: the
         # cue must be, spaces and times included, one of the source's own
         # samples.
         lead = ([(0, 10, ' a')], [(0, 10, 'a')])
@@ -97,7 +97,7 @@ class Rewrites(unittest.TestCase):
                          ['KD-T-ZERO-END'])
         self.assertIsNone(self.reconcile(evidence(packets_without_duration=2, exact_ms=exact), ours,
                                          [(5, 5, 'a'), (11, 11, 'b')]))
-        # CoreAV's end is the source's exact end: ffmpeg gives none (#225).
+        # CoreAV's end is the source's exact end: ffmpeg gives none.
         self.assertIsNone(self.reconcile(evidence(packets_without_duration=2, exact_ms=exact),
                                          [(5, 10, 'a'), (10, 19, 'b')], theirs))
         self.assertIsNone(self.reconcile(evidence(packets_without_duration=2), ours, theirs), 'needs exact times')
@@ -111,7 +111,7 @@ class Rewrites(unittest.TestCase):
                           'needs the last sample\'s end')
         self.assertEqual(self.reconcile(evidence(edit_shift_ms=1500.4, format_ms=9000, exact_ms=exact), ours, theirs),
                          ['KD-T-EDIT-ALIGN', 'KD-T-LAST-END'])
-        # CoreAV's last end other than the last sample's end (#225).
+        # CoreAV's last end other than the last sample's end.
         self.assertIsNone(self.reconcile(evidence(edit_shift_ms=1500.4, format_ms=9000, exact_ms=exact),
                                          [(1500, 2000, 'a'), (2500, 2999, 'b')], theirs))
         self.assertIsNone(self.reconcile(evidence(edit_shift_ms=1400, format_ms=9000), ours, theirs))
@@ -123,7 +123,7 @@ class Rewrites(unittest.TestCase):
         self.assertIsNone(self.reconcile(evidence(timescale=30), ours, theirs), 'needs the exact times')
         self.assertEqual(self.reconcile(evidence(timescale=30, exact_ms=[(0, 1067)]), ours, theirs), ['KD-T-ROUND'])
         self.assertIsNone(self.reconcile(evidence(timescale=30, exact_ms=[(0, 1067)]), ours, [(0, 1065, 'a')]))
-        # CoreAV's time 1 ms off the sample's exact time (#225).
+        # CoreAV's time 1 ms off the sample's exact time.
         self.assertIsNone(self.reconcile(evidence(timescale=30, exact_ms=[(0, 1066)]), ours, theirs))
 
     def test_fragment_samples(self):

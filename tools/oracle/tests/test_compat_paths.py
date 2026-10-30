@@ -1,7 +1,7 @@
 """scripts/compat_check.py counts a compat key as covered only where an
 overlay entry covered the field it follows, on the same file and stream,
 and only when the compat value is the value the entry was checked on, or
-its documented conversion (#219)."""
+its documented conversion."""
 import importlib.util
 import json
 import pathlib

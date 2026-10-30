@@ -1,4 +1,4 @@
-# perf cpu-clock 10 kHz, 8 runs per build alternating, pinned, class frame counts (perfab.sh); instructions: cachegrind of the same frames. python3 -I ipc.py STREAM dw-4cb168e mbl-451 12
+# perf cpu-clock 10 kHz, 8 runs per build alternating, pinned, class frame counts (perfab.sh); instructions: cachegrind of the same frames. python3 -I ipc.py STREAM dw-4cb168e mbl-r24 12
 a81de82106be: time 671.5 -> 663.6 ms (0.9884); instructions 5760.0 -> 5729.7 M (0.9947); mean instructions per ms 8.578 G/s
 function                                                         time A ms rel IPC d time ms d instr M
 nels_h264::Auto>>::start_mb<coreav_h264::fast::V3>::{closure#0}>     17.56    1.40     -2.59    -27.06

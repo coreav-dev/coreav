@@ -1,7 +1,7 @@
 {
  "first_version": {
-  "change": "#344",
-  "method": "docs/design/hls.md, 'The start of a trimmed source (#344)'; affected.py with main's binary (old) and this change's (new) on every input of evidence/inputs.json, then check.py at the default target with MediaInfo on every affected input, each with its own tree's scripts/hls_check.py and known divergences; one machine (8 vCPU, AWS), the same oracle binaries",
+  "change": "the start of a trimmed source",
+  "method": "docs/design/hls.md, 'The start of a trimmed source'; affected.py with main's binary (old) and this change's (new) on every input of evidence/inputs.json, then check.py at the default target with MediaInfo on every affected input, each with its own tree's scripts/hls_check.py and known divergences; one machine (8 vCPU, AWS), the same oracle binaries",
   "binaries": {
    "old": "origin/main 3548e488",
    "new": "this change"

@@ -1,8 +1,8 @@
-"""#486's cycle and instruction samples in CoreAV's chroma deblocking kernel, by part of the kernel.
+"""The acf3ee2f PMU profile's cycle and instruction samples in CoreAV's chroma deblocking kernel, by part of the kernel.
 
 Usage: python3 -I cpi_parts.py RES CORE_BIN > cpi-parts.txt
 
-RES and CORE_BIN are those of ../kernel-gaps/kernels_pmu.py (#486's raw records and the rebuild of acf3ee2f with line
+RES and CORE_BIN are those of ../kernel-gaps/kernels_pmu.py (the profile's raw records and the rebuild of acf3ee2f with line
 tables that reproduces its stages); that script's classification is run as it is, up to its family of each address.
 A sample of the `deblock-chroma` family goes to the part named by the outermost two of its inline frames below
 `filter_chroma_mb` among the kernel's functions (`vertical_edges`, `horizontal_edges`, `lanes`, `filter_pair`,

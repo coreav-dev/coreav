@@ -15,7 +15,7 @@ it, is in [`../measurements/README.md`](../measurements/README.md).
 | [`parsing-guard`](parsing-guard/README.md) | Spike C: the parsing-layer guard, with its isolated libavformat [`baseline`](parsing-guard/baseline/README.md) |
 | [`safe-probe`](safe-probe/README.md) | Stage 2 W1: the safe probe benchmark, with its probe [`baseline`](safe-probe/baseline/README.md) and sandbox |
 | [`h1-gpu`](h1-gpu/README.md) | Stage 2 W2: H1 with direct NVDEC in the Spike A loader |
-| [`w1-227`](w1-227/README.md), [`w2-248`](w2-248/README.md), [`w3-308`](w3-308/README.md) | The library probe, the packet index and the HLS index against libavformat, in three rounds |
+| [`w1-remeasure`](w1-remeasure/README.md), [`w2-hls-index`](w2-hls-index/README.md), [`w3-sample-walk`](w3-sample-walk/README.md) | The library probe, the packet index and the HLS index against libavformat, in three rounds |
 | [`h264-n1`](h264-n1/README.md) | Track N1: H.264 decoder conformance |
 | [`h264-n2`](h264-n2/README.md) | Track N2: H.264 decoder performance |
 | [`h264-native-thumbnail`](h264-native-thumbnail/README.md) | Thumbnails on CoreAV's own H.264 decoder |

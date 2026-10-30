@@ -24,7 +24,7 @@ CYCLE_LIKE = ('cycles', 'exe_activity.bound_on_stores', 'resource_stalls.sb', 'c
               'cycle_activity.stalls_l1d_miss', 'cycle_activity.stalls_l2_miss', 'exe_activity.bound_on_loads',
               'resource_stalls.scoreboard', 'l1d_pend_miss.fb_full', 'l1d_pend_miss.l2_stall')
 
-# The CoreAV classifier of the #459 profile, taken from its file rather than copied.
+# The CoreAV classifier of the 6c9e240 profile, taken from its file rather than copied.
 src = open(os.path.join(here, '..', 'profile-6c9e240', 'classify.py')).read()
 fn = next(n for n in ast.parse(src).body if isinstance(n, ast.FunctionDef) and n.name == 'core_stage')
 ns = {'re': re}

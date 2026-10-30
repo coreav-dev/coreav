@@ -1,5 +1,5 @@
 //! The probe and the packet listing hold nothing once they return, measured
-//! with the test-only counting allocator (#595): a fuzz target that runs
+//! with the test-only counting allocator: a fuzz target that runs
 //! them on input after input must not grow, so a listing run many times
 //! peaks where one run peaks and leaves no live bytes, also when it ends
 //! on an error.

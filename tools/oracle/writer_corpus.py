@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The writer oracles on the real corpus, locally (#324).
+"""The writer oracles on the real corpus, locally.
 
 For each real ISOBMFF file of corpus v1, one worker downloads it from R2
 (SHA-256 checked), runs every writer through the `coreav` command and

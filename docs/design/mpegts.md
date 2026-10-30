@@ -826,7 +826,7 @@ the refusal it had before the type:
   differ from the listing's, and those the listing adds). These cannot
   be full of PIDs a packet names, so they refuse nothing.
 
-The rule came from PR #17, which added `pcrs` bounded only by the PID
+The rule came from coreav-dev/coreav#17, which added `pcrs` bounded only by the PID
 space while the per-PID facts beside it were bounded by `max_streams`; a
 review caught it and the bound was written by hand, as it was at each map
 that had one. Rejected: those hand-written comparisons, which a new map

@@ -62,9 +62,9 @@ Commands (repository root, after the tests were added)
 - cargo test -p coreav-h264: 44 unit, 19 decode, 6 threads, 1 doc test pass; 2 conformance tests
   ignored as usual.
 
-Rebase onto main 33e2273 (#424, banded references on the fast path)
+Rebase onto main 33e2273 (banded references on the fast path)
 
-The branch was rebased onto 33e2273. place() keeps #424's src.at (where sample (0, 0) would sit in
+The branch was rebased onto 33e2273. place() keeps round 17's src.at (where sample (0, 0) would sit in
 each slice, negative for a band whose first row is not 0) for luma_src and chroma_src, and this
 round's interior fast path; Windows::fit tests what main's place() tested (fits, used, and held
 with at). Planes::band had an empty interior in the rebased 10444f7 and has its own, narrowed to
