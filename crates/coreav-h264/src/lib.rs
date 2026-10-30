@@ -5,7 +5,8 @@
 //! H.264 may need a patent licence where you are; CoreAV ships it as a
 //! separately packaged backend that an operator turns on deliberately
 //! (`README.md` in this crate, `docs/design/h264.md`, "Packaging").
-//! The default H.264 path stays NVDEC and the sandboxed FFmpeg fallback.
+//! The default H.264 path stays the sandboxed FFmpeg fallback (an NVDEC
+//! backend is planned but not built yet, `docs/design/decode.md`, "NVDEC").
 //!
 //! The decoder is sans-IO: it takes NAL units and returns pictures and
 //! reads no files. It starts no threads unless asked to

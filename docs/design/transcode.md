@@ -205,7 +205,11 @@ same rule (`decode.md`, "The FFmpeg fallback").
   no encoder there), no core
   files, no regular-file writes (`RLIMIT_FSIZE` 0; the encoder writes only
   to its pipe), a small descriptor count, and CPU seconds bounded by the
-  timeout times the CPU count. It runs in its own process group with a
+  timeout times the CPU count. For the x264 program on input of more than
+  8 bits the launcher also turns transparent huge pages off: its conversion
+  of that input stalls on them, and without them it takes about 0.84 times
+  as long on 4K frames (`docs/measurements/transcode-x264-10bit.md`, "Huge
+  pages"). 8-bit input and `ffmpeg` keep them. It runs in its own process group with a
   cleared environment, and is killed with its group at the deadline, on an
   error, or when the transcode is dropped. Its keeper looks every 20 ms
   whether it has exited (Linux's `waitid` with `WNOWAIT`, which leaves it
@@ -1037,5 +1041,7 @@ What the misses are, in the measurement: a 16 GB host's memory cap at
 one 8K AV1 stream through `--encoder ffmpeg`, and, for speed, the cost of
 the sandboxed decoders above the 5% that B5 allows. On the `x264` arm, 10-bit
 sources add the x264 program's own conversion of 10-bit input, which no input
-CoreAV can stream avoids
+CoreAV can stream avoids. With transparent huge pages off for that program its
+median over the `ffmpeg` arm on 10-bit sources went from 1.428 to 1.172, still
+above B5
 ([`docs/measurements/transcode-x264-10bit.md`](../measurements/transcode-x264-10bit.md)).

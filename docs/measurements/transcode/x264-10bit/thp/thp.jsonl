@@ -1,0 +1,42 @@
+{"kind": "host", "thp_enabled": "[always] madvise never", "thp_defrag": "always defer defer+madvise [madvise] never"}
+{"rc": 0, "wall": 22.74, "main_cpu": 16.87, "total_cpu": 117.24, "err": "", "arm": "d10-pipe", "setting": "default", "anon_huge_kib": 3794944, "sha256": "9a8e114defcef62a", "kind": "time", "rep": 0}
+{"rc": 0, "wall": 19.161, "main_cpu": 8.63, "total_cpu": 113.93, "err": "", "arm": "d10-pipe-nothp", "setting": "process", "anon_huge_kib": 0, "sha256": "9a8e114defcef62a", "kind": "time", "rep": 0}
+{"rc": 0, "wall": 19.215, "main_cpu": 8.74, "total_cpu": 113.37, "err": "", "arm": "d10-pipe-never", "setting": "host", "anon_huge_kib": 0, "sha256": "9a8e114defcef62a", "kind": "time", "rep": 0}
+{"rc": 0, "wall": 19.047, "main_cpu": 8.62, "total_cpu": 113.14, "err": "", "arm": "d10-file-nothp", "setting": "process", "anon_huge_kib": 0, "sha256": "9a8e114defcef62a", "kind": "time", "rep": 0}
+{"rc": 0, "wall": 19.253, "main_cpu": 8.7, "total_cpu": 114.02, "err": "", "arm": "d16-pipe-nothp", "setting": "process", "anon_huge_kib": 0, "sha256": "9a8e114defcef62a", "kind": "time", "rep": 0}
+{"rc": 0, "wall": 18.083, "main_cpu": 8.2, "total_cpu": 108.94, "err": "", "arm": "d16-file", "setting": "default", "anon_huge_kib": 3739648, "sha256": "9a8e114defcef62a", "kind": "time", "rep": 0}
+{"rc": 0, "wall": 28.952, "main_cpu": 22.44, "total_cpu": 144.64, "err": "", "arm": "d10-422-pipe", "setting": "default", "anon_huge_kib": 4431872, "sha256": "c2babd7b8606b26c", "kind": "time", "rep": 0}
+{"rc": 0, "wall": 24.002, "main_cpu": 11.63, "total_cpu": 139.54, "err": "", "arm": "d10-422-pipe-nothp", "setting": "process", "anon_huge_kib": 0, "sha256": "c2babd7b8606b26c", "kind": "time", "rep": 0}
+{"rc": 0, "wall": 12.234, "main_cpu": 0.97, "total_cpu": 78.79, "err": "", "arm": "d8-pipe", "setting": "default", "anon_huge_kib": 2166784, "sha256": "c3679dc8237e618d", "kind": "time", "rep": 0}
+{"rc": 0, "wall": 12.791, "main_cpu": 1.28, "total_cpu": 79.87, "err": "", "arm": "d8-pipe-nothp", "setting": "process", "anon_huge_kib": 0, "sha256": "c3679dc8237e618d", "kind": "time", "rep": 0}
+{"rc": 0, "wall": 18.931, "main_cpu": 8.63, "total_cpu": 112.7, "err": "", "arm": "d10-pipe-nothp", "setting": "process", "anon_huge_kib": 0, "sha256": "9a8e114defcef62a", "kind": "time", "rep": 1}
+{"rc": 0, "wall": 19.09, "main_cpu": 8.6, "total_cpu": 113.67, "err": "", "arm": "d10-pipe-never", "setting": "host", "anon_huge_kib": 0, "sha256": "9a8e114defcef62a", "kind": "time", "rep": 1}
+{"rc": 0, "wall": 18.95, "main_cpu": 8.64, "total_cpu": 112.38, "err": "", "arm": "d10-file-nothp", "setting": "process", "anon_huge_kib": 0, "sha256": "9a8e114defcef62a", "kind": "time", "rep": 1}
+{"rc": 0, "wall": 18.904, "main_cpu": 8.57, "total_cpu": 111.08, "err": "", "arm": "d16-pipe-nothp", "setting": "process", "anon_huge_kib": 0, "sha256": "9a8e114defcef62a", "kind": "time", "rep": 1}
+{"rc": 0, "wall": 18.082, "main_cpu": 8.18, "total_cpu": 108.56, "err": "", "arm": "d16-file", "setting": "default", "anon_huge_kib": 3745792, "sha256": "9a8e114defcef62a", "kind": "time", "rep": 1}
+{"rc": 0, "wall": 28.58, "main_cpu": 22.01, "total_cpu": 145.69, "err": "", "arm": "d10-422-pipe", "setting": "default", "anon_huge_kib": 4423680, "sha256": "c2babd7b8606b26c", "kind": "time", "rep": 1}
+{"rc": 0, "wall": 24.041, "main_cpu": 11.68, "total_cpu": 140.29, "err": "", "arm": "d10-422-pipe-nothp", "setting": "process", "anon_huge_kib": 0, "sha256": "c2babd7b8606b26c", "kind": "time", "rep": 1}
+{"rc": 0, "wall": 12.449, "main_cpu": 0.97, "total_cpu": 79.89, "err": "", "arm": "d8-pipe", "setting": "default", "anon_huge_kib": 2170880, "sha256": "c3679dc8237e618d", "kind": "time", "rep": 1}
+{"rc": 0, "wall": 13.342, "main_cpu": 1.3, "total_cpu": 82.47, "err": "", "arm": "d8-pipe-nothp", "setting": "process", "anon_huge_kib": 0, "sha256": "c3679dc8237e618d", "kind": "time", "rep": 1}
+{"rc": 0, "wall": 22.341, "main_cpu": 16.71, "total_cpu": 118.11, "err": "", "arm": "d10-pipe", "setting": "default", "anon_huge_kib": 3790848, "sha256": "9a8e114defcef62a", "kind": "time", "rep": 1}
+{"rc": 0, "wall": 19.201, "main_cpu": 8.68, "total_cpu": 114.02, "err": "", "arm": "d10-pipe-never", "setting": "host", "anon_huge_kib": 0, "sha256": "9a8e114defcef62a", "kind": "time", "rep": 2}
+{"rc": 0, "wall": 19.004, "main_cpu": 8.64, "total_cpu": 112.55, "err": "", "arm": "d10-file-nothp", "setting": "process", "anon_huge_kib": 0, "sha256": "9a8e114defcef62a", "kind": "time", "rep": 2}
+{"rc": 0, "wall": 18.965, "main_cpu": 8.62, "total_cpu": 111.98, "err": "", "arm": "d16-pipe-nothp", "setting": "process", "anon_huge_kib": 0, "sha256": "9a8e114defcef62a", "kind": "time", "rep": 2}
+{"rc": 0, "wall": 17.997, "main_cpu": 8.21, "total_cpu": 108.74, "err": "", "arm": "d16-file", "setting": "default", "anon_huge_kib": 3743744, "sha256": "9a8e114defcef62a", "kind": "time", "rep": 2}
+{"rc": 0, "wall": 28.356, "main_cpu": 21.66, "total_cpu": 145.07, "err": "", "arm": "d10-422-pipe", "setting": "default", "anon_huge_kib": 4435968, "sha256": "c2babd7b8606b26c", "kind": "time", "rep": 2}
+{"rc": 0, "wall": 24.274, "main_cpu": 11.89, "total_cpu": 142.88, "err": "", "arm": "d10-422-pipe-nothp", "setting": "process", "anon_huge_kib": 0, "sha256": "c2babd7b8606b26c", "kind": "time", "rep": 2}
+{"rc": 0, "wall": 12.483, "main_cpu": 0.96, "total_cpu": 79.23, "err": "", "arm": "d8-pipe", "setting": "default", "anon_huge_kib": 2168832, "sha256": "c3679dc8237e618d", "kind": "time", "rep": 2}
+{"rc": 0, "wall": 12.703, "main_cpu": 1.24, "total_cpu": 80.26, "err": "", "arm": "d8-pipe-nothp", "setting": "process", "anon_huge_kib": 0, "sha256": "c3679dc8237e618d", "kind": "time", "rep": 2}
+{"rc": 0, "wall": 22.961, "main_cpu": 17.27, "total_cpu": 120.59, "err": "", "arm": "d10-pipe", "setting": "default", "anon_huge_kib": 3794944, "sha256": "9a8e114defcef62a", "kind": "time", "rep": 2}
+{"rc": 0, "wall": 19.713, "main_cpu": 8.87, "total_cpu": 117.1, "err": "", "arm": "d10-pipe-nothp", "setting": "process", "anon_huge_kib": 0, "sha256": "9a8e114defcef62a", "kind": "time", "rep": 2}
+{"rc": 0, "wall": 23.47, "main_cpu": 17.27, "total_cpu": 121.48, "err": "", "arm": "d10-pipe", "setting": "default", "anon_huge_kib": 3792896, "sha256": "9a8e114defcef62a", "kind": "stat"}
+{"rc": 0, "wall": 20.296, "main_cpu": 9.01, "total_cpu": 118.32, "err": "", "arm": "d10-pipe-nothp", "setting": "process", "anon_huge_kib": 0, "sha256": "9a8e114defcef62a", "kind": "stat"}
+{"rc": 0, "wall": 19.825, "main_cpu": 8.94, "total_cpu": 115.79, "err": "", "arm": "d10-pipe-never", "setting": "host", "anon_huge_kib": 0, "sha256": "9a8e114defcef62a", "kind": "stat"}
+{"rc": 0, "wall": 19.222, "main_cpu": 8.69, "total_cpu": 113.95, "err": "", "arm": "d10-file-nothp", "setting": "process", "anon_huge_kib": 0, "sha256": "9a8e114defcef62a", "kind": "stat"}
+{"rc": 0, "wall": 19.33, "main_cpu": 8.68, "total_cpu": 112.44, "err": "", "arm": "d16-pipe-nothp", "setting": "process", "anon_huge_kib": 0, "sha256": "9a8e114defcef62a", "kind": "stat"}
+{"rc": 0, "wall": 17.927, "main_cpu": 8.19, "total_cpu": 108.33, "err": "", "arm": "d16-file", "setting": "default", "anon_huge_kib": 3745792, "sha256": "9a8e114defcef62a", "kind": "stat"}
+{"rc": 0, "wall": 28.935, "main_cpu": 21.98, "total_cpu": 145.73, "err": "", "arm": "d10-422-pipe", "setting": "default", "anon_huge_kib": 4423680, "sha256": "c2babd7b8606b26c", "kind": "stat"}
+{"rc": 0, "wall": 25.1, "main_cpu": 12.01, "total_cpu": 146.29, "err": "", "arm": "d10-422-pipe-nothp", "setting": "process", "anon_huge_kib": 0, "sha256": "c2babd7b8606b26c", "kind": "stat"}
+{"rc": 0, "wall": 13.119, "main_cpu": 0.99, "total_cpu": 82.63, "err": "", "arm": "d8-pipe", "setting": "default", "anon_huge_kib": 2168832, "sha256": "c3679dc8237e618d", "kind": "stat"}
+{"rc": 0, "wall": 13.743, "main_cpu": 1.35, "total_cpu": 84.38, "err": "", "arm": "d8-pipe-nothp", "setting": "process", "anon_huge_kib": 0, "sha256": "c3679dc8237e618d", "kind": "stat"}
+{"rc": 0, "wall": 1.505, "main_cpu": 0.05, "total_cpu": 0.05, "err": "", "kind": "strace", "arm": "d10-pipe", "frames": 5, "anonymous_mappings_1mib": 68, "on_2mib_boundary": 1, "madvise": {"MADV_HUGEPAGE": 52, "MADV_DONTNEED": 3}}
