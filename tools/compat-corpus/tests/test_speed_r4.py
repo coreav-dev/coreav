@@ -14,6 +14,7 @@ import unittest
 HERE = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HERE))
 
+import release_round  # noqa: E402
 import speed  # noqa: E402
 
 # Records every call; `ffprobe -show_streams` lists one video and one audio
@@ -95,13 +96,27 @@ class Runner(unittest.TestCase):
             self.assertEqual(calls[0][1:] if sides[0] == 'coreav' else calls[0], calls[1][1:] if sides[1] == 'coreav' else calls[1])
             self.assertFalse(any((self.d / 'scratch' / 'out').iterdir()))
 
-    def test_a_refusal_has_no_ratio_and_does_not_void(self):
+    def test_a_refusal_has_no_ratio_and_voids_the_run(self):
         data, _ = self.arm('r4')
         refused = [r for r in data['results'] if r.get('refused')]
         self.assertTrue(refused)
         self.assertTrue(all('ratio' not in r for r in refused))
-        self.assertFalse(data['fallback_log']['void'])
-        self.assertEqual(data['fallback_log']['refused'], len(refused))
+        self.assertEqual(data['fallback_log'], {'lines': len(refused), 'refused': len(refused), 'void': True})
+        self.assertFalse(self.arm('aa')[0]['fallback_log']['void'])
+
+    def test_no_pair_is_unmeasured(self):
+        empty = self.d / 'empty.json'
+        empty.write_text('[]')
+        done = subprocess.run([sys.executable, '-I', str(HERE / 'speed.py'), 'r4', '--arm', 'r4',
+                               '--coreav', str(self.bin / 'coreav'), '--ffmpeg', str(self.bin / 'ffmpeg'),
+                               '--ffprobe', str(self.bin / 'ffprobe'), '--files', str(empty),
+                               '--scratch', str(self.d / 'scratch'), '--out', str(self.d / 'none.json'),
+                               '--cpus', str(sorted(os.sched_getaffinity(0))[0])],
+                              env={**os.environ, 'FAKE_CALLS': str(self.d / 'none.calls')},
+                              capture_output=True, text=True, timeout=60)
+        self.assertEqual(done.returncode, release_round.UNMEASURED)
+        self.assertIn('UNMEASURED', done.stdout)
+        self.assertFalse((self.d / 'none.json').exists())
 
     def test_commands_run_on_their_families_and_name_no_file(self):
         data, _ = self.arm('aa')
@@ -136,6 +151,18 @@ class Report(unittest.TestCase):
         # A median inside the band whose interval misses 1.00 fails too.
         tight = [('probe', 'mpegts', 1.015 + rng.uniform(-0.001, 0.001)) for _ in range(40)]
         self.assertEqual(speed.r4_summary(results('null', tight), gate=True)['failing'], ['probe all'])
+
+    def test_no_ratio_is_unmeasured(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for arm, gate in (('r4', []), ('aa', ['--gate'])):
+                data = results(arm, [])
+                data['results'] = [{'class': 'remux', 'family': 'mpegts', 'id': 'C01', 'command': 0, 'exit': [1, 0]}]
+                path = pathlib.Path(tmp) / f'{arm}.json'
+                path.write_text(json.dumps(data))
+                done = subprocess.run([sys.executable, '-I', str(HERE / 'speed.py'), 'r4-report',
+                                       '--results', str(path)] + gate, capture_output=True, text=True, timeout=60)
+                self.assertEqual(done.returncode, release_round.UNMEASURED, arm)
+                self.assertIn('UNMEASURED', done.stdout)
 
     def test_cpu_lists(self):
         self.assertEqual(speed.cpu_list('4-7'), {4, 5, 6, 7})

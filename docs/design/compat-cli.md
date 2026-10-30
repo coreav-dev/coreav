@@ -372,10 +372,11 @@ rejection `KD-STRICT` covers as on the corpus. R2 gates a key alone in a
 family where it is found in at least five files, and pools the tag keys
 found in fewer into one row gated on their occurrences; any other key found
 in fewer than five files is reported and not gated, as the rounds' tables
-leave it out. A strict-safe refusal in the fallback log misses the bar of
-its command and does not void the run, since nothing ran in its place; any
-other line voids the run, because then a program other than CoreAV ran or
-could have.
+leave it out. As the round's plan registers, a run whose fallback log holds
+any line is void, a strict-safe refusal included; the tools count the
+refusals among the lines for diagnosis. A run that measured nothing (no
+file of the set's families, or none the pinned `ffprobe` reads) exits 3,
+never 0, so a missing input cannot pass a bar.
 
 `tools/compat-corpus/r3.py` runs R3 on files other than the fixtures. A
 file can take a command when its family is the command's, the pinned
@@ -399,7 +400,7 @@ take it. The runner pins itself to the CPUs of `--cpus`, so every timed
 process runs there; an `ffmpeg` command writes into a scratch directory on
 the local disk that is emptied after every run. A pair whose untimed run
 fails on either side has no ratio and is reported, a strict-safe refusal
-apart. `speed.py r4-report --gate` judges the gate on each class's ratios
+apart (its fallback-log line voids the run). `speed.py r4-report --gate` judges the gate on each class's ratios
 over the three families, as the gate names "every class's median"; the
 families' rows are reported and not gated.
 

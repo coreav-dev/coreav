@@ -46,7 +46,9 @@
         with --gate (the `aa` and `null` arms), the host passes when every
         class's median over the families is within 0.98 to 1.02 and its
         interval holds 1.00. Exit 1 when a class misses or the gate fails,
-        2 when the run is void (its fallback log).
+        2 when the run is void (its fallback log holds a line, a strict-safe
+        refusal included), 3 when no pair has a ratio. `r4` exits 3 when it
+        has no pair to time.
 
 Every run has no gconv modules (release_round.NO_GCONV). Python 3 standard
 library only, besides boto3 for `select`.
@@ -301,6 +303,9 @@ def r4(opts):
     env = release_round.environment(log)
     files = r4_files(opts)
     pairs = r4_pairs(opts, files, env)
+    if not pairs:
+        print('UNMEASURED: no pair to time')
+        return release_round.UNMEASURED
     left, right = ARMS[opts.arm]
     results = []
     for k, (entry, i, command, label, fam, path) in enumerate(pairs):
@@ -390,8 +395,11 @@ def r4_report(opts):
               f"ci95=[{r['ci95'][0]:.3f}, {r['ci95'][1]:.3f}] faster={r['faster_share']:.0%} {verdict}")
     print(json.dumps({k: summary[k] for k in ('arm', 'pairs', 'no_ratio', 'failing', 'fallback_log')}))
     if summary['fallback_log']['void']:
-        print('VOID: the fallback log holds a line that is not a strict-safe refusal')
+        print('VOID: the fallback log holds a line')
         return 2
+    if not summary['classes']:
+        print('UNMEASURED: no pair has a ratio')
+        return release_round.UNMEASURED
     return 1 if summary['failing'] else 0
 
 

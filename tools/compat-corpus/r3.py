@@ -24,7 +24,9 @@ bars"; docs/measurements/compat-0.1.0/README.md, "Before the round", item 2).
         many passed, and the commands no file could take. A command meets
         R3 when at least BAR% of its counted pairs pass. --summary names no
         file, and the summaries of several runs add up. Exit 1 when a
-        command misses, 2 when a run is void.
+        command misses, 2 when a run is void (its fallback log holds a
+        line, a strict-safe refusal included), 3 when no pair was counted.
+        `run` exits 3 when it has no file to run.
 
 Both tools run with no gconv modules; the binary's runs share a fallback
 log. ffmpeg, ffprobe and MediaInfo are black boxes. Python 3 standard
@@ -203,6 +205,9 @@ def one_file(opts, path, env):
 
 def cmd_run(opts):
     files = media_files(opts)
+    if not files:
+        print('UNMEASURED: no file to run')
+        return release_round.UNMEASURED
     pathlib.Path(opts.work).mkdir(parents=True, exist_ok=True)
     opts.log = str(pathlib.Path(opts.records).with_suffix('.copy_check.log'))
     log = pathlib.Path(opts.work) / 'fallback.log'
@@ -290,8 +295,11 @@ def cmd_report(opts):
                       'missed': summary['missed'], 'taken_by_no_file': summary['taken_by_no_file'],
                       'fallback_log': summary['fallback_log']}))
     if summary['fallback_log']['void']:
-        print('VOID: the fallback log holds a line that is not a strict-safe refusal')
+        print('VOID: the fallback log holds a line')
         return 2
+    if not any(t['counted'] for t in summary['commands']):
+        print('UNMEASURED: no pair that ffmpeg ran to success')
+        return release_round.UNMEASURED
     return 1 if summary['missed'] else 0
 
 
