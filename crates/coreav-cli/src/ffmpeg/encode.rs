@@ -11,12 +11,22 @@ use coreav_thumbnail::ThumbnailOptions;
 use coreav_transcode::PixelFormat;
 use coreav_transcode::encoder::{MAX_BITRATE, MAX_THREADS, PRESETS};
 
-use super::args::{Command, Encoding};
+use super::args::{Codec, Command, Encoding};
 use super::{NotNative, Refusal, Stop};
 use crate::error::Failure;
 use crate::fallback::Reason;
 use crate::output::{self, WriteFailure};
+use crate::strict_safe::{Encoder, StrictSafe};
 use crate::transcode::{self, Request};
+
+/// Strict-safe mode's refusal (`crate::strict_safe`), as a command that is
+/// not native: refused with exit status 4, and never handed to FFmpeg.
+fn refused_strict(message: String) -> Refusal {
+    Refusal::NotNative(NotNative {
+        reason: Reason::Property("strict-safe mode"),
+        message,
+    })
+}
 
 fn refused(option: &str, value: &str, why: &str) -> Refusal {
     Refusal::NotNative(NotNative {
@@ -50,9 +60,27 @@ fn kbps(text: &str) -> Option<u32> {
     u32::try_from(bits / 1_000).ok()
 }
 
-/// The request for the pipeline from the command's encoder options and the
-/// audio streams it copies.
-pub fn request(command: &Command, audio: &[usize]) -> Result<Request, Refusal> {
+/// The encoder of a command that encodes with `libx264`, as strict-safe
+/// mode allows it, from the command line alone: refused before the input
+/// is read. `None` for a command that names no `libx264`.
+pub fn encoder(command: &Command, strict_safe: StrictSafe) -> Result<Option<Encoder>, Refusal> {
+    if !command.codecs.iter().any(|(_, c)| *c == Codec::Libx264) {
+        return Ok(None);
+    }
+    strict_safe
+        .encoder("auto", None)
+        .map(Some)
+        .map_err(refused_strict)
+}
+
+/// The request for the pipeline from the command's encoder options, its
+/// `encoder` and the audio streams it copies.
+pub fn request(
+    command: &Command,
+    audio: &[usize],
+    encoder: Encoder,
+    strict_safe: StrictSafe,
+) -> Result<Request, Refusal> {
     let Encoding {
         crf,
         bitrate,
@@ -148,11 +176,12 @@ pub fn request(command: &Command, audio: &[usize]) -> Result<Request, Refusal> {
         audio_streams: Some(audio.to_vec()),
         pixel_format,
         one_size: true,
-        encoder: "auto".to_owned(),
+        encoder,
         x264: None,
         ffmpeg: None,
         threads,
         timeout: 3600,
+        strict_safe,
     })
 }
 
@@ -162,24 +191,28 @@ const NOT_COPIED: &str = "copying audio the MP4 writer does not take (AAC, MP3 o
 /// The track matrix of an MP4 track that leaves the frames as they are.
 const IDENTITY: [i32; 9] = [0x1_0000, 0, 0, 0, 0x1_0000, 0, 0, 0, 0x4000_0000];
 
-/// The refusals read from the container. Copied `audio` the MP4 writer
-/// does not take is refused before the encode, not after it: AAC or MP3 in
-/// an `mp4a` sample entry and Opus in an `Opus` one from MP4/MOV, AAC
-/// and Opus from Matroska (`coreav-isobmff-write`'s `remux` and
-/// `matroska`). The display transform is read whole: without
+/// The refusals read from the `container` of the input, whose `video` is
+/// encoded. Copied `audio` the MP4 writer does not take is refused before
+/// the encode, not after it: each copied stream must be AAC or MP3 in an
+/// `mp4a` sample entry or Opus in an `Opus` one from MP4/MOV, AAC or Opus
+/// from Matroska (`coreav-isobmff-write`'s `remux` and `matroska`). The
+/// MP4/MOV input is probed with the writer's allowlist, so a stream it
+/// leaves out (FLAC, ALAC, AC-3) is among no tracks and is not taken
+/// either. The display transform is read whole: without
 /// `-noautorotate` `ffmpeg` applies any transform other than the identity
 /// to the frames, and with it `ffmpeg` writes the source's matrix, which
 /// the transcode writes the same only when the matrix has no translation or
 /// projection. A Matroska projection or rotation is refused.
 fn check_container(
     command: &Command,
-    stream: &coreav_thumbnail::VideoStream,
+    container: coreav_thumbnail::Container,
+    video: usize,
     audio: &[usize],
     input: &Path,
 ) -> Result<(), Stop> {
     let file = FileSource::open(input).map_err(WriteFailure::from)?;
     let refused = |why: &'static str| Err(Refusal::not_native(why).into());
-    match stream.container {
+    match container {
         coreav_thumbnail::Container::Mp4 => {
             let Ok(movie) = coreav_isobmff::probe(
                 BufferedSource::new(file),
@@ -188,27 +221,22 @@ fn check_container(
             ) else {
                 return refused("a source whose track matrix could not be read");
             };
-            let copied = movie
-                .tracks
-                .iter()
-                .filter(|t| audio.contains(&t.stream_index))
-                .all(|t| {
-                    matches!(
-                        (t.description.codec, &t.description.fourcc.0),
-                        (
-                            coreav_isobmff::Codec::Aac | coreav_isobmff::Codec::Mp3,
-                            b"mp4a"
-                        ) | (coreav_isobmff::Codec::Opus, b"Opus")
-                    )
-                });
+            let copied = audio.iter().all(|i| {
+                movie.tracks.iter().any(|t| {
+                    t.stream_index == *i
+                        && matches!(
+                            (t.description.codec, &t.description.fourcc.0),
+                            (
+                                coreav_isobmff::Codec::Aac | coreav_isobmff::Codec::Mp3,
+                                b"mp4a"
+                            ) | (coreav_isobmff::Codec::Opus, b"Opus")
+                        )
+                })
+            });
             if !copied {
                 return refused(NOT_COPIED);
             }
-            let Some(track) = movie
-                .tracks
-                .iter()
-                .find(|t| t.stream_index == stream.stream_index)
-            else {
+            let Some(track) = movie.tracks.iter().find(|t| t.stream_index == video) else {
                 return refused("a source whose track matrix could not be read");
             };
             let m = track.matrix;
@@ -237,18 +265,19 @@ fn check_container(
             ) else {
                 return refused("a source whose projection could not be read");
             };
-            let copied = segment
-                .tracks
-                .iter()
-                .filter(|t| audio.contains(&t.stream_index))
-                .all(|t| matches!(t.codec, coreav_mkv::Codec::Aac | coreav_mkv::Codec::Opus));
+            let copied = audio.iter().all(|i| {
+                segment.tracks.iter().any(|t| {
+                    t.stream_index == *i
+                        && matches!(t.codec, coreav_mkv::Codec::Aac | coreav_mkv::Codec::Opus)
+                })
+            });
             if !copied {
                 return refused(NOT_COPIED);
             }
             let turned = segment
                 .tracks
                 .iter()
-                .find(|t| t.stream_index == stream.stream_index)
+                .find(|t| t.stream_index == video)
                 .and_then(|t| t.video.as_ref())
                 .is_none_or(|v| v.projection_type != 0 || v.pose != [0.0; 3]);
             if turned {
@@ -303,7 +332,7 @@ fn check_source(
         )
         .into());
     }
-    check_container(command, &stream, audio, input)?;
+    check_container(command, stream.container, video, audio, input)?;
     let corner_kept = match &stream.stream.config {
         Some(coreav_decode::CodecConfig {
             kind: coreav_decode::ConfigKind::Avcc,
@@ -351,8 +380,10 @@ pub fn write(
     video: usize,
     audio: &[usize],
     reordered: bool,
+    encoder: Encoder,
+    strict_safe: StrictSafe,
 ) -> Result<serde_json::Value, Stop> {
-    let request = request(command, audio)?;
+    let request = request(command, audio, encoder, strict_safe)?;
     let input = Path::new(&command.input);
     check_source(command, video, audio, reordered, input)?;
     let this = std::env::current_exe()
@@ -364,6 +395,9 @@ pub fn write(
         transcode::make(&request, Some(&this), BufferedSource::new(file), &path, out)
     })
     .map_err(|failure| match failure {
+        WriteFailure::Rejected(Failure::StrictSafe(message)) => {
+            Stop::Refused(refused_strict(message))
+        }
         WriteFailure::Rejected(Failure::Unsupported(what)) => {
             Stop::Refused(Refusal::NotNative(NotNative {
                 reason: Reason::Property("a source the transcode pipeline does not take"),
@@ -386,8 +420,52 @@ pub fn write(
 }
 
 #[cfg(test)]
+#[path = "../../../coreav-isobmff/tests/common/mod.rs"]
+#[allow(clippy::indexing_slicing)]
+mod common;
+
+#[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used, clippy::panic)]
+
+    use super::common::{aac_entry, audio_entry, av_movie_with};
     use super::*;
+
+    /// Copied MP4 audio the writer does not take is refused before the
+    /// encode, whether the writer's allowlist keeps its stream (PCM) or
+    /// leaves it out of the probe (FLAC, ALAC, AC-3).
+    #[test]
+    fn copied_audio_the_mp4_writer_does_not_take_is_refused() {
+        let dir = std::env::temp_dir().join(format!("coreav-encode-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let args = ["-i", "in.mp4", "-c:v", "libx264", "-c:a", "copy", "out.mp4"].map(String::from);
+        let command = super::super::args::parse(&args).unwrap();
+        for (name, entry, taken) in [
+            ("aac", aac_entry(), true),
+            ("flac", audio_entry(b"fLaC"), false),
+            ("alac", audio_entry(b"alac"), false),
+            ("ac3", audio_entry(b"ac-3"), false),
+            ("pcm", audio_entry(b"sowt"), false),
+        ] {
+            let path = dir.join(format!("{name}.mp4"));
+            std::fs::write(&path, av_movie_with(entry, false)).unwrap();
+            let checked =
+                check_container(&command, coreav_thumbnail::Container::Mp4, 0, &[1], &path);
+            match checked {
+                Ok(()) => assert!(taken, "{name}: taken"),
+                Err(Stop::Refused(Refusal::NotNative(refusal))) => {
+                    assert!(!taken, "{name}: {}", refusal.message);
+                    assert!(
+                        refusal.message.contains(NOT_COPIED),
+                        "{name}: {}",
+                        refusal.message
+                    );
+                }
+                Err(_) => panic!("{name}: neither taken nor refused"),
+            }
+        }
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 
     #[test]
     fn bit_rates_are_read_as_libx264_receives_them() {

@@ -17,6 +17,7 @@ use common::{Spec, aac_entry, av_movie, av_movie_with};
 use coreav_cli::fallback::Reason;
 use coreav_cli::ffmpeg::{Refusal, Stop};
 use coreav_cli::ffprobe::StreamKind;
+use coreav_cli::strict_safe::StrictSafe;
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -115,7 +116,7 @@ fn commands_outside_the_vocabulary_are_refused_by_name() {
 fn a_refusal_carries_its_reason() {
     let refusal = |list: &[&str]| {
         let args: Vec<String> = list.iter().map(|a| (*a).to_owned()).collect();
-        match coreav_cli::ffmpeg::run(&args) {
+        match coreav_cli::ffmpeg::run(&args, StrictSafe::new(false)) {
             Err(Stop::Refused(Refusal::NotNative(refusal))) => refusal.reason,
             _ => panic!("{list:?} was not refused"),
         }
@@ -159,7 +160,7 @@ fn a_concat_list_is_joined() {
         .into_iter()
         .map(str::to_owned)
         .collect();
-    let Ok(summary) = coreav_cli::ffmpeg::run(&args) else {
+    let Ok(summary) = coreav_cli::ffmpeg::run(&args, StrictSafe::new(false)) else {
         panic!("{args:?} did not run");
     };
     assert_eq!(summary["schema"], "coreav.join/1");
@@ -506,7 +507,7 @@ fn clip_times_count_from_the_input_start_time() {
         .chain(["-c", "copy", output.to_str().unwrap()])
         .map(str::to_owned)
         .collect();
-    let Ok(summary) = coreav_cli::ffmpeg::run(&args) else {
+    let Ok(summary) = coreav_cli::ffmpeg::run(&args, StrictSafe::new(false)) else {
         panic!("{args:?} did not run");
     };
     assert_eq!(summary["start"]["requested"], json!({"num": 8, "den": 25}));
@@ -653,7 +654,8 @@ fn the_0_1_0_commands_on_the_fixtures() {
                     })
                     .collect();
                 let label = format!("{id} {} on {name}", template.join(" "));
-                let (status, detail) = match coreav_cli::ffmpeg::run(&args) {
+                let (status, detail) = match coreav_cli::ffmpeg::run(&args, StrictSafe::new(false))
+                {
                     Ok(summary) => {
                         native.insert((id, family));
                         ("written", summary)
@@ -705,6 +707,61 @@ fn the_0_1_0_commands_on_the_fixtures() {
     std::fs::write(
         out.join("records.json"),
         serde_json::to_string_pretty(&Value::Array(records)).unwrap(),
+    )
+    .unwrap();
+}
+
+/// The R3 runner's half in Rust (`tools/compat-corpus/r3.py`): each pair
+/// of `COREAV_R3_PAIRS` (a JSON array whose objects carry `args`, the
+/// `coreav ffmpeg` arguments with every placeholder filled, and `work`,
+/// the directory that holds the pair's output and nothing else) is run
+/// through [`coreav_cli::ffmpeg::run`], the function `coreav ffmpeg` runs,
+/// in strict-safe mode. The object is written back to `COREAV_R3_RECORDS`
+/// with its `status` (`written`, `refused`, `not taken`, `usage`,
+/// `rejected` or `io`), its `detail` (the writer's summary, which the
+/// binary does not print, or the reason) and the number of files left in
+/// `work`, which `tools/compat-corpus/copy_check.py` reads. Unlike
+/// [`the_0_1_0_commands_on_the_fixtures`], an outcome is recorded, never
+/// asserted: the files are not the fixtures, and the runner judges.
+#[test]
+#[ignore = "run by tools/compat-corpus/r3.py; set COREAV_R3_PAIRS and COREAV_R3_RECORDS"]
+fn the_0_1_0_commands_on_listed_pairs() {
+    let pairs: Vec<Value> = serde_json::from_str(
+        &std::fs::read_to_string(std::env::var("COREAV_R3_PAIRS").expect("set COREAV_R3_PAIRS"))
+            .unwrap(),
+    )
+    .unwrap();
+    let mut records = Vec::with_capacity(pairs.len());
+    for mut pair in pairs {
+        let args: Vec<String> = pair["args"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|a| a.as_str().unwrap().to_owned())
+            .collect();
+        let work = PathBuf::from(pair["work"].as_str().unwrap());
+        std::fs::create_dir_all(&work).unwrap();
+        let (status, detail) = match coreav_cli::ffmpeg::run(&args, StrictSafe::new(true)) {
+            Ok(summary) => ("written", summary),
+            Err(Stop::Refused(Refusal::NotNative(refusal))) => ("refused", json!(refusal.message)),
+            Err(Stop::Refused(Refusal::Usage(text))) => {
+                let taken = text.starts_with("A -map matches no streams")
+                    || text == "Output file does not contain any stream";
+                (if taken { "not taken" } else { "usage" }, json!(text))
+            }
+            Err(Stop::Failed(failure)) => (
+                if failure.is_io() { "io" } else { "rejected" },
+                failure.to_json(),
+            ),
+        };
+        pair["status"] = json!(status);
+        pair["detail"] = detail;
+        pair["files"] = json!(std::fs::read_dir(&work).unwrap().count());
+        records.push(pair);
+    }
+    std::fs::write(
+        std::env::var("COREAV_R3_RECORDS").expect("set COREAV_R3_RECORDS"),
+        serde_json::to_string(&Value::Array(records)).unwrap(),
     )
     .unwrap();
 }

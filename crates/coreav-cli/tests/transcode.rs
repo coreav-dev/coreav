@@ -26,6 +26,13 @@ use std::process::Command;
 
 const TRANSCODE_SCHEMA: &str = include_str!("../../../docs/schema/transcode-v1.schema.json");
 
+/// What `COREAV_FALLBACK` names for the `coreav ffmpeg` commands: no
+/// program, so that a command `coreav ffmpeg` refuses stays refused (exit
+/// status 4) instead of running FFmpeg in its place, while the pinned FFmpeg
+/// still decodes and encodes, which strict-safe mode would refuse too
+/// (`docs/design/compat-cli.md`, "Fallback to FFmpeg").
+const NO_FALLBACK: &str = "/nonexistent/coreav-fallback";
+
 fn bin() -> &'static str {
     env!("CARGO_BIN_EXE_coreav")
 }
@@ -944,7 +951,7 @@ fn ffmpeg_libx264_commands_run_the_pipeline() {
             }))
             .env("COREAV_X264", &tools.x264)
             .env("COREAV_FFMPEG", &tools.ffmpeg)
-            .env("COREAV_STRICT_SAFE", "1");
+            .env("COREAV_FALLBACK", NO_FALLBACK);
         let out = command.output().unwrap();
         (
             out.status.code().unwrap(),
@@ -1055,7 +1062,7 @@ fn ffmpeg_libx264_refuses_a_matrix_ffmpeg_would_apply() {
             .args(args)
             .env("COREAV_X264", &tools.x264)
             .env("COREAV_FFMPEG", &tools.ffmpeg)
-            .env("COREAV_STRICT_SAFE", "1")
+            .env("COREAV_FALLBACK", NO_FALLBACK)
             .output()
             .unwrap();
         (
@@ -1087,7 +1094,8 @@ fn ffmpeg_libx264_refuses_a_matrix_ffmpeg_would_apply() {
 
 /// Sources the pipeline would encode with another result than `ffmpeg`,
 /// or fail on only after the encode, are refused before it: copied PCM
-/// audio (MOV and Matroska), repeated frame times without
+/// audio (MOV and Matroska), copied FLAC audio from MP4 (a codec the MP4
+/// writer's allowlist leaves out), repeated frame times without
 /// `-fps_mode passthrough`, an H.264 left crop, and a concat list.
 #[test]
 fn ffmpeg_libx264_refuses_before_encoding() {
@@ -1116,6 +1124,17 @@ fn ffmpeg_libx264_refuses_before_encoding() {
     let (mov, mkv, repeated) = (path("pcm.mov"), path("pcm.mkv"), path("repeated.mkv"));
     ffmpeg(&[&video[..], &pcm[..], &[mov.as_str()]].concat());
     ffmpeg(&[&video[..], &pcm[..], &[mkv.as_str()]].concat());
+    let flac = path("flac.mp4");
+    ffmpeg(
+        &[
+            &video[..],
+            &[
+                "-f", "lavfi", "-i", "sine=d=1", "-c:v", "libx264", "-c:a", "flac",
+            ],
+            &[flac.as_str()],
+        ]
+        .concat(),
+    );
     ffmpeg(&[
         "-f",
         "lavfi",
@@ -1138,6 +1157,7 @@ fn ffmpeg_libx264_refuses_before_encoding() {
     for (source, why) in [
         (mov.as_str(), "copying audio the MP4 writer does not take"),
         (mkv.as_str(), "copying audio the MP4 writer does not take"),
+        (flac.as_str(), "copying audio the MP4 writer does not take"),
         (repeated.as_str(), "not evenly spaced"),
         (crop.to_str().unwrap(), "cropped at its left or top edge"),
     ] {
@@ -1147,7 +1167,7 @@ fn ffmpeg_libx264_refuses_before_encoding() {
             ])
             .env("COREAV_X264", &tools.x264)
             .env("COREAV_FFMPEG", &tools.ffmpeg)
-            .env("COREAV_STRICT_SAFE", "1")
+            .env("COREAV_FALLBACK", NO_FALLBACK)
             .output()
             .unwrap();
         let stderr = String::from_utf8_lossy(&run.stderr);
@@ -1161,7 +1181,7 @@ fn ffmpeg_libx264_refuses_before_encoding() {
         .args(["ffmpeg", "-f", "concat", "-safe", "0", "-i", &list])
         .args(["-c:v", "libx264", "-c:a", "copy", &out])
         .env("COREAV_X264", &tools.x264)
-        .env("COREAV_STRICT_SAFE", "1")
+        .env("COREAV_FALLBACK", NO_FALLBACK)
         .output()
         .unwrap();
     let stderr = String::from_utf8_lossy(&run.stderr);

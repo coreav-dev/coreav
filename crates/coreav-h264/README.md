@@ -12,8 +12,9 @@ what you do with it. Patents essential to H.264 are still in force in some
 jurisdictions, and pool licences exist for decoders as well as encoders.
 CoreAV therefore ships this decoder as a separately packaged backend that an
 operator enables deliberately, behind a non-default Cargo feature
-(`docs/design/h264.md`, "Packaging"). CoreAV's default H.264 path is unchanged: NVDEC
-where it is available, then the sandboxed FFmpeg fallback.
+(`docs/design/h264.md`, "Packaging"). CoreAV's default H.264 path is unchanged: the
+sandboxed FFmpeg fallback. An NVDEC backend is planned but not built yet
+(`docs/design/decode.md`, "NVDEC").
 
 Nothing here is legal advice. Deciding whether you may use this decoder is
 yours to make.

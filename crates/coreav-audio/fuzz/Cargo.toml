@@ -14,7 +14,8 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-coreav-audio = { path = ".." }
+# With the opt-in AAC LC decoder, so that `decode` reaches it too.
+coreav-audio = { path = "..", features = ["aac"] }
 coreav-isobmff = { path = "../../coreav-isobmff" }
 
 [[bin]]

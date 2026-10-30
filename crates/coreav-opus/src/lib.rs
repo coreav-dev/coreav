@@ -1,23 +1,25 @@
 //! Memory-safe Opus decoding (`docs/design/audio-decode.md`, "Opus").
 //!
-//! This crate holds what does not depend on the codec's layers, and the
-//! layers as they land, written from RFC 6716 and its reference code. So far:
+//! This crate holds the codec's layers, written from RFC 6716 and its
+//! reference code, and what does not depend on them:
 //!
-//! - [`Decoder`] decodes SILK-only and CELT-only packets to 48 kHz, mono or
-//!   stereo. The SILK layer (`silk`, RFC 6716 4.2) reads its bitstream,
-//!   ending every SILK-only packet of the RFC 8251 vectors without
-//!   redundancy in the reference decoder's range state, and reconstructs it
-//!   in the reference's integer arithmetic; `resample` brings it to 48 kHz
-//!   as the reference decoder does. The output of the SILK-only vectors (02
-//!   to 04), stereo and mono, is the reference decoder's, sample for sample,
-//!   and `opus_compare` scores it 100.0 against the stereo reference. The
-//!   CELT layer (`celt`, RFC 6716 4.3) ends every packet of the CELT-only
-//!   vectors (01, 07, 11) in the reference's range state and synthesizes
-//!   in `f32`; `opus_compare` scores those vectors 99.8 to 99.9 in stereo
-//!   and 98.1 to 98.4 in mono. Hybrid packets, SILK frames with a redundant
-//!   CELT frame and the cross-fades of mode switches are
-//!   [`Error::Unsupported`] or missing until the hybrid layer lands; lost
-//!   frames decode to silence until concealment does.
+//! - [`Decoder`] decodes packets of every mode (SILK-only, Hybrid and
+//!   CELT-only) to 48 kHz, mono or stereo, with the redundant CELT frames
+//!   and the cross-fades of mode switches (4.5). The SILK layer (`silk`,
+//!   RFC 6716 4.2) reconstructs in the reference's integer arithmetic, and
+//!   `resample` brings it to 48 kHz as the reference decoder does; the
+//!   CELT layer (`celt`, RFC 6716 4.3) synthesizes in `f32`. Every
+//!   packet of the twelve RFC 8251 vectors ends in the reference decoder's
+//!   range state. The output of the SILK-only vectors (02 to 04) is the
+//!   reference decoder's, sample for sample, and `opus_compare` scores it
+//!   100.0 against the stereo reference; it scores the other vectors 99.8
+//!   or 99.9 in stereo and every mono decode 96.2 to 99.8. A lost frame
+//!   (one the caller reports with [`Decoder::conceal`], or of 0 or 1
+//!   bytes) decodes to silence, and so does the previous mode's 5 ms that
+//!   a mode switch without a redundant frame fades from: the reference's
+//!   concealment (4.4) is not implemented.
+//! - [`MultistreamDecoder`]: a whole track, one [`Decoder`] per elementary
+//!   stream, mapped to the output channels with the header's output gain.
 //!
 //! - [`Head`]: the identification header as Matroska and Ogg carry it
 //!   (`OpusHead`, RFC 7845 5.1) and as MP4 does (the body of the `dOps`
@@ -77,6 +79,13 @@
 //!   and their enumeration (`cwrs.c`, whose order the decoder's own
 //!   recurrence was checked against); and the inverse MDCT's output, its
 //!   window and scale (`mdct.c`, matched as a definition, not as code).
+//! - the decoding of an Opus frame across the layers, which 4.5 states in
+//!   outline: the SILK rate of Hybrid frames, the conditions and order of
+//!   the redundancy flags and size, the redundant frame's bands, duration
+//!   and place, which mode switches reset the CELT and SILK states, the
+//!   silent CELT frame of a switch from Hybrid to SILK, the cross-fades'
+//!   window, and the final range of a frame with a redundant one
+//!   (`src/opus_decoder.c`).
 //!
 //! And its non-normative SILK resampler, for the upsampling
 //! to 48 kHz that the conformance test's reference output has passed
@@ -110,6 +119,8 @@ use core::fmt;
 mod celt;
 mod decoder;
 mod head;
+mod math;
+mod multistream;
 mod packet;
 mod range;
 mod resample;
@@ -190,6 +201,7 @@ mod tables {
 
 pub use decoder::Decoder;
 pub use head::{Head, Layout, Source};
+pub use multistream::MultistreamDecoder;
 pub use packet::{Bandwidth, MAX_FRAMES, MAX_PACKET_SAMPLES, Mode, Packet, Toc, for_each_stream};
 
 /// Why a configuration or a packet could not be read.

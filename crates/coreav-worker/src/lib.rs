@@ -29,12 +29,13 @@ mod sandbox;
 pub mod shm;
 
 pub use child::worker_main;
-pub use exec::{EXEC_ARG, ExecLauncher, sandbox_exec_main};
+pub use exec::{EXEC_ARG, ExecLauncher, HugePages, sandbox_exec_main};
 pub use parent::{
     SandboxedBackend, SandboxedDecoder, TransferMode, WorkerCommand, WorkerOptions, find_ffmpeg,
     find_on_path,
 };
 pub use protocol::{SandboxLimits, WorkerBackend};
+pub use sandbox::enforces_memory_limit;
 
 /// The argument after which the `coreav` binary runs as a worker.
 pub const WORKER_ARG: &str = "__coreav_worker";
