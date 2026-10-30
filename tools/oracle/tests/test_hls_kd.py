@@ -170,6 +170,36 @@ class DecodeGaps(unittest.TestCase):
             self.assertEqual(hc.source_decode_gaps('source.mp4', 1), {})
 
 
+class SourceLastCut(unittest.TestCase):
+    """basic.mp4's last AAC sample, stored with 136 ticks of a 1,024-sample
+    frame: ffmpeg 9 cuts it in the source only."""
+
+    FRAMES = [(0, Fraction(n * 1024, 44100), f'h{n}') for n in range(3)]
+    PACKET = {'hash': 'p', 'duration': Fraction(136, 44100)}
+
+    def cut(self, unmatched=None, extra=None, src=None, out=None, source_side=(0, 888), output_side=None):
+        sides = {'source.mp4': source_side, 'whole.mp4': output_side}
+        last = self.FRAMES[-1]
+        with mock.patch.object(hc.remux_check, 'last_skip_samples', side_effect=lambda _, path, __: sides[path]):
+            return hc.kd_source_last_cut('source.mp4', 1, 'whole.mp4', src or [self.PACKET], out or [self.PACKET],
+                                         self.FRAMES, unmatched or [(last[1], last[2])],
+                                         extra if extra is not None else [last[1]], Fraction(0))
+
+    def test_the_last_frame_cut_in_the_source_only(self):
+        self.assertTrue(self.cut())
+
+    def test_rejects_near_misses(self):
+        first = self.FRAMES[0]
+        self.assertFalse(self.cut(unmatched=[(first[1], first[2])]))
+        self.assertFalse(self.cut(extra=[]))
+        self.assertFalse(self.cut(extra=[self.FRAMES[-1][1] + 1]))
+        self.assertFalse(self.cut(out=[dict(self.PACKET, duration=Fraction(1024, 44100))]))
+        self.assertFalse(self.cut(out=[dict(self.PACKET, hash='q')]))
+        self.assertFalse(self.cut(source_side=None))
+        self.assertFalse(self.cut(source_side=(1024, 0)))
+        self.assertFalse(self.cut(output_side=(0, 888)))
+
+
 class LeftOutFrames(unittest.TestCase):
     """An AV1 source of the writer corpus whose last sample (decode duration 0) lies at the
     edit's end; ffmpeg decodes its frame from the source, the rendition
