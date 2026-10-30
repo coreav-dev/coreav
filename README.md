@@ -1,51 +1,54 @@
-# CoreAV
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs-site/logo/dark.svg">
+    <img alt="CoreAV" src="docs-site/logo/light.svg" width="320">
+  </picture>
+</h1>
 
-A Rust-based media toolkit, built to be safe and fast. It aims to become a modern alternative to FFmpeg.
+<h3 align="center">The modern FFmpeg alternative</h3>
 
-## Status
+<p align="center">A Rust-based media toolkit, built to be safe and fast.</p>
 
-CoreAV is pre-release: no release exists yet. The first release is 0.1.0, tracked in [#43](https://github.com/coreav-dev/coreav/issues/43). Until then, commands, options and APIs can change.
+<p align="center">
+  <a href="https://coreav.dev/docs">Documentation</a> ·
+  <a href="https://coreav.dev/docs/measurements">Measurements</a> ·
+  <a href="https://github.com/coreav-dev/coreav/releases">Releases</a>
+</p>
 
-Experimental: `coreav ffprobe` and `coreav ffmpeg`, until they meet their [0.1.0 bars](docs/design/compat-cli.md#the-010-bars-pre-registered), and `coreav transcode` for sources other than H.264.
+## Highlights
 
-## Install
+- **Safe.** Every container parser is safe Rust with limits on memory and work, so a damaged or hostile file gives an error, never a crash. [Safety](https://coreav.dev/docs/safety)
+- **Fast.** CoreAV reads only the bytes a job needs, from a local file or an `https://` URL, and every speed claim is measured against FFmpeg in the open. [Measurements](https://coreav.dev/docs/measurements)
+- **Drop-in.** `coreav ffprobe` and `coreav ffmpeg` take the command lines your scripts already run. Name the binary `ffprobe` or `ffmpeg`, and the scripts keep working. [Commands](https://coreav.dev/docs/commands)
+- **No re-encoding.** Probe, cut, split, join, remux and sanitize media files, and copy out their audio, subtitles and chapters, all by stream copy.
+- **Everywhere.** Native binaries for Linux, macOS and Windows, and an npm package that runs as WebAssembly wherever else Node.js runs. [Platforms](https://coreav.dev/docs/platforms)
 
-Build from source with Rust 1.89 or later:
+## Installation
 
 ```sh
-git clone https://github.com/coreav-dev/coreav
-cd coreav
-cargo install --locked --path crates/coreav-cli --profile dist
+npm install -g coreav
 ```
 
-The default build has every command except `thumbnail` and `transcode`, which need a decoder backend feature ([build features](https://coreav.dev/docs/build-features)).
+Or download a binary from [GitHub Releases](https://github.com/coreav-dev/coreav/releases). [Install](https://coreav.dev/docs/install) has every option.
 
-Coming with 0.1.0: `coreav` binaries for Linux, macOS and Windows on GitHub Releases, and the npm package `coreav`.
-
-## Quick start
+## Usage
 
 ```sh
-coreav probe input.mp4                            # prints a coreav.probe/1 JSON document
-coreav clip --start 1 --end 3 input.mp4 clip.mp4  # cuts from the keyframe at or before 1 s
-coreav remux input.mkv output.mp4                 # writes MP4 with the movie header first
+coreav probe input.mp4                               # describe the file as JSON
+coreav clip --start 10 --end 20 input.mp4 clip.mp4   # cut at keyframes
+coreav remux input.mkv output.mp4                    # Matroska to MP4, movie header first
+coreav ffprobe -v error -show_streams input.mp4      # the ffprobe command line you already use
 ```
 
-`coreav --help` lists every command, and `coreav <command> --help` describes one. `coreav ffmpeg` has no help text of its own: strict-safe mode refuses `coreav ffmpeg --help` with exit status 4, and otherwise it prints the real `ffmpeg`'s help. [Its reference](https://coreav.dev/docs/commands/ffmpeg) lists what it runs.
-
-## Read untrusted files in strict-safe mode
-
-`coreav ffprobe` and `coreav ffmpeg` take `ffprobe` and `ffmpeg -c copy` command lines. A command line that CoreAV does not implement runs the real `ffprobe` or `ffmpeg` program instead, which is FFmpeg's C code, and CoreAV prints a one-line notice on standard error when it does. If you read files you did not make, such as uploads, set `COREAV_STRICT_SAFE=1` or pass `coreav --strict-safe`. In that mode CoreAV refuses such a command line with exit status 4 instead of running FFmpeg. See [strict-safe mode](https://coreav.dev/docs/strict-safe) for the details.
+For files you didn't make, such as uploads, add `--strict-safe` (`coreav --strict-safe ffprobe ...`), and no FFmpeg code runs. [Strict-safe mode](https://coreav.dev/docs/strict-safe)
 
 ## Documentation
 
-- [coreav.dev/docs](https://coreav.dev/docs): installing, a quick start, a page for each command, strict-safe mode, the Python module and safety.
-- [Measurements](https://coreav.dev/docs/measurements): every measurement page, with its bars, method and raw evidence.
-- Design notes: [docs/design](docs/design).
-- Contributing: [CONTRIBUTING.md](CONTRIBUTING.md). CoreAV takes bug reports, feature requests and sample files as issues, not code pull requests.
+CoreAV's documentation is at [coreav.dev/docs](https://coreav.dev/docs), and `coreav --help` lists every command.
 
-## Security
+## Contributing
 
-Report a vulnerability privately, as [SECURITY.md](SECURITY.md) describes, and not in a public issue.
+CoreAV takes bug reports, feature requests and sample files as issues, not code pull requests. [CONTRIBUTING.md](CONTRIBUTING.md) says what to send, and the design notes are in [docs/design](docs/design). Report a vulnerability privately, as [SECURITY.md](SECURITY.md) describes.
 
 ## License
 
