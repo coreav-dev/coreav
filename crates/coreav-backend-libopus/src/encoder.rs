@@ -1,6 +1,6 @@
 //! The [`OpusEncoder`] over libopus.
 
-use opus::{Application, Bitrate, Channels, Encoder};
+use opusic_c::{Application, Bitrate, Channels, Encoder, SampleRate};
 
 /// The sample rate libopus is given: 48 kHz, the rate Opus codes at.
 pub const SAMPLE_RATE: u32 = 48_000;
@@ -10,8 +10,9 @@ pub const SAMPLE_RATE: u32 = 48_000;
 pub const FRAME_SAMPLES: usize = 960;
 
 /// One libopus encoder for mono or stereo at 48 kHz: the `audio`
-/// application, unconstrained variable bit rate (libopus's defaults) at the
-/// given target, one 20 ms frame per packet.
+/// application, complexity 10 and unconstrained variable bit rate
+/// (libopus's defaults, set explicitly) at the given target, one 20 ms
+/// frame per packet.
 pub struct OpusEncoder {
     encoder: Encoder,
     channels: usize,
@@ -26,16 +27,15 @@ impl OpusEncoder {
             2 => Channels::Stereo,
             _ => return Err(format!("{channels} channels: the encoder takes 1 or 2")),
         };
-        let bits = i32::try_from(bitrate).map_err(|_| format!("bit rate {bitrate}"))?;
+        let failed = |e: opusic_c::ErrorCode| e.message().to_owned();
         let mut encoder =
-            Encoder::new(SAMPLE_RATE, layout, Application::Audio).map_err(|e| e.to_string())?;
+            Encoder::new(layout, SampleRate::Hz48000, Application::Audio).map_err(failed)?;
         encoder
-            .set_bitrate(Bitrate::Bits(bits))
-            .map_err(|e| e.to_string())?;
-        encoder.set_vbr(true).map_err(|e| e.to_string())?;
-        encoder
-            .set_vbr_constraint(false)
-            .map_err(|e| e.to_string())?;
+            .set_bitrate(Bitrate::Value(bitrate))
+            .map_err(failed)?;
+        encoder.set_complexity(10).map_err(failed)?;
+        encoder.set_vbr(true).map_err(failed)?;
+        encoder.set_vbr_constraint(false).map_err(failed)?;
         Ok(Self {
             encoder,
             channels: usize::from(channels),
@@ -45,8 +45,9 @@ impl OpusEncoder {
     /// The samples of delay at the start of the decoded stream, which a
     /// player skips (the Opus pre-skip).
     pub fn lookahead(&mut self) -> Result<u32, String> {
-        let samples = self.encoder.get_lookahead().map_err(|e| e.to_string())?;
-        u32::try_from(samples).map_err(|_| format!("a lookahead of {samples} samples"))
+        self.encoder
+            .get_look_ahead()
+            .map_err(|e| e.message().to_owned())
     }
 
     /// Encodes one frame, [`FRAME_SAMPLES`] samples of every channel
@@ -60,8 +61,8 @@ impl OpusEncoder {
             ));
         }
         self.encoder
-            .encode_float(frame, out)
-            .map_err(|e| e.to_string())
+            .encode_float_to_slice(frame, out)
+            .map_err(|e| e.message().to_owned())
     }
 }
 

@@ -526,15 +526,17 @@ matrix's translation follows the new size.
 stream to Opus (RFC 6716) with libopus, as policy record 0042 allows an
 encoder backend: a crate of its own, `coreav-backend-libopus`, built only
 with the `libopus` feature, which links the system's libopus (BSD-3-Clause)
-through the `opus` crate and its `audiopus_sys` binding. No default build
+through the `opusic-c` crate and its `opusic-sys` binding (both
+BSD-3-Clause), with their bundled build of libopus turned off. No default build
 links it, and a build without the feature refuses `--audio opus`
 (`unsupported_feature`, exit status 1) before it opens the input; its help
 says so. The crate has no `unsafe` of its own: the FFI surface is the
 binding's, and the safe API it uses is `Encoder::new` (48 kHz, mono or
-stereo, `Application::Audio`), `set_bitrate`, `set_vbr(true)`,
-`set_vbr_constraint(false)`, `get_lookahead` and `encode_float`, one
-20 ms frame per call. These are libopus's defaults for the `audio`
-application (complexity 10, unconstrained variable bit rate) and the
+stereo, `Application::Audio`), `set_bitrate`, `set_complexity(10)`,
+`set_vbr(true)`, `set_vbr_constraint(false)`, `get_look_ahead` and
+`encode_float_to_slice`, one 20 ms frame per call. These are libopus's
+defaults for the `audio` application (complexity 10, unconstrained
+variable bit rate), set explicitly, and the
 settings FFmpeg documents for `-c:a libopus`; the default rates are its
 too, 64 kbit/s for mono and 96 kbit/s for stereo.
 
@@ -751,7 +753,7 @@ status 4, and nothing is written.
 |---|---|---|
 | `coreav-transcode` (new) | Options, the pipeline, the encoder process, the Annex B reader | forbidden |
 | `coreav-isobmff-write` | Remux with one video stream, one audio stream, or one of each replaced | forbidden |
-| `coreav-backend-libopus` (new) | The libopus encoder, behind the `libopus` feature | forbidden: the `opus` crate's `unsafe` is a dependency's |
+| `coreav-backend-libopus` (new) | The libopus encoder, behind the `libopus` feature | forbidden: the `opusic-c` crate's `unsafe` is a dependency's |
 | `coreav-audio` | Used as it is: the audio decoded to 48 kHz float for the Opus encoder | forbidden |
 | `coreav-thumbnail` | The video stream's packets as a stream, for a whole file | forbidden |
 | `coreav-worker` | The hidden sandbox entry that sets limits and `exec`s; the Opus encoder process and its reader (`opus`, the `libopus` feature) | crate `deny`, these modules `forbid` |
@@ -773,12 +775,12 @@ encoder crate links, opt-in (policy record 0042).
   and a crash or a runaway allocation in the encoder would take the
   transcode with it. The process costs one copy of the samples through a
   pipe, small beside the video's frames.
-- **The `opus` 0.4 crate (`opusic-sys`)** instead of 0.3
-  (`audiopus_sys`): 0.3 links the system's libopus through `pkg-config`,
-  which is how the other backends link theirs (dav1d, libvpx), and its
-  safe API covers every setting this needs. It has no setter for the
-  complexity, which stays at libopus's documented default of 10, the
-  value FFmpeg's `-c:a libopus` documents as its own default.
+- **The `opus` crate.** Its 0.3 binding, `audiopus_sys`, is unmaintained
+  (RUSTSEC-2026-0150), and 0.4 always builds the libopus that
+  `opusic-sys` bundles. `opusic-c` without its default features links the
+  system's libopus, as the dav1d and libvpx backends link theirs, and its
+  safe API sets the complexity too, which the bars compare at FFmpeg's
+  documented default of 10.
 - **Downmixing more than two channels to stereo.** FFmpeg's `-c:a
   libopus` writes such a stream as surround Opus (channel mapping family
   1), so a downmix would be another output than the command's; it is
