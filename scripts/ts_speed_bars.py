@@ -16,9 +16,9 @@ report has them, are reported as information.
 --gate judges instead the level of docs/design/mpegts.md ("When the code goes to the draw"): a median of at most
 0.90 overall and at most 0.95 on the files of 64 MB or more.
 
-The report is refused, and nothing is judged, when a file is over 200 MB, a run of a listing arm failed or has no
-time, or two listing arms disagree on a file's access units (CoreAV and its null arm must list the same count and
-bytes). The exit status is 0 when every bar is met, 1 when one is missed, 3 for a void run and 2 for a refused
+The report is refused, and nothing is judged, when a file is over 200 MB, a run of a listing arm (its warm-up
+included) failed or has no time, or two listing arms disagree on a file's access units (every run of CoreAV and its
+null arm, the warm-ups included, must list the same count and bytes). The exit status is 0 when every bar is met, 1 when one is missed, 3 for a void run and 2 for a refused
 report.
 """
 import argparse
@@ -67,6 +67,12 @@ def per_file(report):
         name = f.get('name')
         row = {'name': name, 'bytes': f.get('bytes'), 'class': size_class(f.get('bytes', 0)), 'ns': {}}
         listed = set()
+        for arm in LISTING:
+            warm = f.get('warm', {}).get(arm)
+            if not (isinstance(warm, dict) and warm.get('ok') is True and positive(warm.get('ns'))):
+                raise Refused(f'{name}: the warm-up run of {arm} failed or has no time')
+            if arm in ('coreav', 'null'):
+                listed.add((warm.get('count'), warm.get('bytes')))
         for arm, runs in f.get('runs', {}).items():
             if not runs or not all(isinstance(r, dict) and r.get('ok') is True and positive(r.get('ns')) for r in runs):
                 if arm in LISTING:

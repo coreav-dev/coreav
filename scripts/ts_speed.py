@@ -9,7 +9,8 @@ The engines are three in-process arms, each a program that prints one JSON line 
 measured around the operation: CoreAV (tools/ts-speed, `packets FILE`), the null arm (a second, byte-identical copy of
 CoreAV's binary) and libavformat (tools/ts-speed/lav_ts.c, `packets FILE`). With --coreav-cli and --ffprobe, two more
 arms time, as information and as whole commands, `coreav probe FILE` and `ffprobe -v error -of json -show_format
--show_streams FILE`.
+-show_streams FILE`. A run whose process exits with a status other than 0 is recorded as failed, whatever its JSON
+line says.
 
 One file at a time: it is copied to --tmp (a tmpfs) and read once, then each arm runs once as a warm-up and then
 --rounds times, the order of the arms rotated by one each round; every run is pinned to --core with taskset. After
@@ -49,7 +50,11 @@ def run_arm(arm, args, path):
         line = json.loads(r.stdout.strip().splitlines()[-1])
     except (IndexError, ValueError):
         return {'ok': False, 'ns': None, 'error': f'exit {r.returncode}, no JSON line'}
-    return {k: line.get(k) for k in ('ok', 'ns', 'count', 'bytes', 'error') if k in line}
+    result = {k: line.get(k) for k in ('ok', 'ns', 'count', 'bytes', 'error') if k in line}
+    if r.returncode != 0:
+        result['ok'] = False
+        result['error'] = f'exit {r.returncode}' + (f': {result["error"]}' if result.get('error') else '')
+    return result
 
 
 SPIN = 'import time\nstart = time.perf_counter()\nwhile time.perf_counter() - start < 0.5:\n    pass\n'

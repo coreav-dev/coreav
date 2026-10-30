@@ -8,7 +8,8 @@ one-thread class at a fixed frequency (docs/design/h264.md), and write its verdi
 Builds one upload directory (CoreAV's `ts-speed` binary and its byte-identical copy for the null arm, the directory
 tools/ts-speed/build-lav.sh writes, `scripts/ts_speed.py`, the files and a generated `job.sh`) and runs
 `scripts/gcp_vm_job.py` with a `c4-standard-8`, one thread a core, `turboMode=ALL_CORE_MAX`, STANDARD provisioning
-and the spend bound checked against --cap-usd before the VM is made. On the VM, `job.sh` records the host
+and the spend bound checked against --cap-usd before the VM is made (--max-hours and --cap-usd must be finite and
+above 0, --rounds at least 1, and every file within the large class, or nothing starts). On the VM, `job.sh` records the host
 (`host.txt`: lscpu, the SMT state, the library identity, the sha256 of every binary), installs perf for the frequency
 samples, and runs `ts_speed.py` on core 2 into `report.json`. With --coreav-cli, the command arms time that CLI's
 `probe` and the `ffprobe` of the same FFmpeg build (DIR/bin/ffprobe) as information.
@@ -185,6 +186,16 @@ def main():
         ap.error('--out, --coreav, --lav-dir and at least one file are required')
     if os.path.exists(args.out):
         ap.error(f'{args.out} exists: every run takes a new directory')
+    for flag, value in (('--max-hours', args.max_hours), ('--cap-usd', args.cap_usd)):
+        if not math.isfinite(value) or value <= 0:
+            ap.error(f'{flag} must be a finite number above 0, not {value}')
+    if args.rounds < 1:
+        ap.error('--rounds is at least 1')
+    for path in args.files:
+        try:
+            ts_speed_bars.size_class(os.path.getsize(path))
+        except ts_speed_bars.Refused as e:
+            ap.error(f'{path}: {e}')
     if args.cap_usd > CAP_LIMIT:
         ap.error(f'--cap-usd is at most {CAP_LIMIT:.0f} (the per-task spend limit)')
     if args.max_hours * USD_PER_HOUR > args.cap_usd:

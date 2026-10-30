@@ -23,6 +23,7 @@ MB = 10 ** 6
 def entry(name, size, coreav, lav, null=None, count=10, rounds=3):
     runs = lambda ns: [{'ok': True, 'ns': ns, 'count': count, 'bytes': 100} for _ in range(rounds)]
     return {'name': name, 'bytes': size,
+            'warm': {'coreav': runs(coreav)[0], 'null': runs(null or coreav)[0], 'lav': runs(lav)[0]},
             'runs': {'coreav': runs(coreav), 'null': runs(null or coreav), 'lav': runs(lav)}}
 
 
@@ -104,13 +105,25 @@ class Timing(unittest.TestCase):
                 files.append(str(d / n))
             out = d / 'r.json'
             subprocess.run([sys.executable, '-I', str(SCRIPTS / 'ts_speed.py'), '--coreav', str(engine), '--null',
-                            str(d / 'null'), '--lav', str(lav), '--core', '0', '--rounds', '3', '--tmp', str(d / 'tmp'),
+                            str(d / 'null'), '--lav', str(lav), '--core', str(min(os.sched_getaffinity(0))), '--rounds', '3',
+                            '--tmp', str(d / 'tmp'),
                             '--report', str(out)] + files, check=True, capture_output=True)
             r = json.loads(out.read_text())
             self.assertEqual([f['name'] for f in r['files']], ['a.ts', 'b.ts'])
             self.assertEqual({arm: len(v) for arm, v in r['files'][0]['runs'].items()}, {'coreav': 3, 'null': 3, 'lav': 3})
             self.assertEqual([s['label'] for s in r['freq']], ['start', 'after a.ts', 'after b.ts'])
             self.assertEqual(ts_speed_bars.analyze(r)['overall']['median'], 0.5)
+
+    def test_a_listing_that_exits_nonzero_failed_whatever_its_line_says(self):
+        import ts_speed
+        with tempfile.TemporaryDirectory() as d:
+            engine = pathlib.Path(d) / 'engine'
+            engine.write_text('#!/bin/sh\necho \'{"ok":true,"ns":1000,"count":3,"bytes":30}\'\nexit 9\n')
+            engine.chmod(0o755)
+            args = type('A', (), {'core': min(os.sched_getaffinity(0)), 'coreav': str(engine), 'null': str(engine), 'lav': str(engine)})()
+            result = ts_speed.run_arm('coreav', args, str(engine))
+        self.assertIs(result['ok'], False)
+        self.assertIn('exit 9', result['error'])
 
     def test_the_frequency_is_sampled_over_a_busy_loop_not_a_file(self):
         import ts_speed
@@ -198,6 +211,24 @@ class Verdict(unittest.TestCase):
         self.assertIn('null arm list different access units', verdict['failures'][0])
         self.assertTrue(any('turboMode' in r for r in verdict['reasons']))
 
+    def test_a_failed_warm_up_fails_the_run(self):
+        files = [entry(f'f{i}', MB, 90, 100) for i in range(5)]
+        rep = report(files)
+        rep['files'][0]['warm']['coreav'] = {'ok': False, 'ns': None}
+        with tempfile.TemporaryDirectory() as d:
+            rc, verdict = self.judge(d, files, rep)
+        self.assertEqual(rc, 5)
+        self.assertIn('f0: the warm-up run of coreav failed', verdict['failures'][0])
+
+    def test_a_warm_up_null_copy_that_lists_other_units_fails_the_run(self):
+        files = [entry(f'f{i}', MB, 90, 100) for i in range(5)]
+        rep = report(files)
+        rep['files'][3]['warm']['null']['count'] = 99
+        with tempfile.TemporaryDirectory() as d:
+            rc, verdict = self.judge(d, files, rep)
+        self.assertEqual(rc, 5)
+        self.assertIn('f3: CoreAV and its null arm list different access units', verdict['failures'][0])
+
     def test_a_job_cut_short_before_any_file_is_void_not_failed(self):
         files = [entry('f0', MB, 90, 100)]
         rep = report([])
@@ -205,6 +236,30 @@ class Verdict(unittest.TestCase):
             rc, verdict = self.judge(d, files, rep, rc=1)
         self.assertEqual(rc, 3)
         self.assertEqual((verdict['failed'], verdict['void']), (False, True))
+
+    def launch(self, d, *extra):
+        d = pathlib.Path(d)
+        f = d / 'a.ts'
+        f.write_bytes(b'\x47' + bytes(187))
+        (d / 'lav').mkdir()
+        return subprocess.run([sys.executable, '-I', str(SCRIPTS / 'ts_speed_gcp.py'), '--out', str(d / 'run'), '--coreav',
+                               str(f), '--lav-dir', str(d / 'lav'), '--dry-run', *extra, str(f)],
+                              capture_output=True, text=True), d / 'run'
+
+    def test_a_cap_or_a_duration_that_is_not_a_finite_positive_number_refuses_to_start(self):
+        for extra in (['--cap-usd', 'nan'], ['--cap-usd', 'inf'], ['--cap-usd', '-1'], ['--max-hours', 'nan'],
+                      ['--max-hours', 'inf', '--cap-usd', '2'], ['--max-hours', '0'], ['--rounds', '0']):
+            with self.subTest(extra=extra), tempfile.TemporaryDirectory() as d:
+                r, out = self.launch(d, *extra)
+                self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+                self.assertFalse(out.exists())
+                self.assertNotIn('dry run', r.stdout)
+
+    def test_a_valid_launch_reaches_the_dry_run(self):
+        with tempfile.TemporaryDirectory() as d:
+            r, out = self.launch(d, '--cap-usd', '2', '--max-hours', '1')
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn('dry run', r.stdout)
 
     def test_the_job_names_its_class(self):
         script = ts_speed_gcp.job_script({'files': ['a.ts'], 'rounds': 7, 'commands': False})
