@@ -1094,7 +1094,8 @@ fn ffmpeg_libx264_refuses_a_matrix_ffmpeg_would_apply() {
 
 /// Sources the pipeline would encode with another result than `ffmpeg`,
 /// or fail on only after the encode, are refused before it: copied PCM
-/// audio (MOV and Matroska), repeated frame times without
+/// audio (MOV and Matroska), copied FLAC audio from MP4 (a codec the MP4
+/// writer's allowlist leaves out), repeated frame times without
 /// `-fps_mode passthrough`, an H.264 left crop, and a concat list.
 #[test]
 fn ffmpeg_libx264_refuses_before_encoding() {
@@ -1123,6 +1124,17 @@ fn ffmpeg_libx264_refuses_before_encoding() {
     let (mov, mkv, repeated) = (path("pcm.mov"), path("pcm.mkv"), path("repeated.mkv"));
     ffmpeg(&[&video[..], &pcm[..], &[mov.as_str()]].concat());
     ffmpeg(&[&video[..], &pcm[..], &[mkv.as_str()]].concat());
+    let flac = path("flac.mp4");
+    ffmpeg(
+        &[
+            &video[..],
+            &[
+                "-f", "lavfi", "-i", "sine=d=1", "-c:v", "libx264", "-c:a", "flac",
+            ],
+            &[flac.as_str()],
+        ]
+        .concat(),
+    );
     ffmpeg(&[
         "-f",
         "lavfi",
@@ -1145,6 +1157,7 @@ fn ffmpeg_libx264_refuses_before_encoding() {
     for (source, why) in [
         (mov.as_str(), "copying audio the MP4 writer does not take"),
         (mkv.as_str(), "copying audio the MP4 writer does not take"),
+        (flac.as_str(), "copying audio the MP4 writer does not take"),
         (repeated.as_str(), "not evenly spaced"),
         (crop.to_str().unwrap(), "cropped at its left or top edge"),
     ] {

@@ -361,6 +361,26 @@ container family the first 20 draw files of at most 256 MB in the order
 and interval, the share of pairs on which CoreAV is faster, the host and
 the FFmpeg version, and per-command medians, which are not gated.
 
+**How the tools read the method.** `run.py commands --set 0.1.0` (R1) and
+`run.py keys --set 0.1.0` (R2) run each command on the files of its own
+families (`containers`, or the command's `input_container` when it forces
+a demuxer), a file's family read from its extension, and run both tools
+with `GCONV_PATH` naming a directory with no gconv modules and a fallback
+log of the run (`tools/compat-corpus/release_round.py`). R1's known
+divergences are B3a's: the fixtures `run.py` lists in `SET_ASIDE`, and a
+rejection `KD-STRICT` covers as on the corpus. R2 gates a key alone in a
+family where it is found in at least five files, and pools the tag keys
+found in fewer into one row gated on their occurrences; any other key found
+in fewer than five files is reported and not gated, as the rounds' tables
+leave it out. As the round's plan registers, a run whose fallback log holds
+any line is void, a strict-safe refusal included; the tools count the
+refusals among the lines for diagnosis. A run that measured nothing (no
+file of the set's families, or none the pinned `ffprobe` reads) exits 3,
+never 0, so a missing input cannot pass a bar; and in a run that measured
+something, a family given that measured nothing misses (in R1, each of its
+(command, family) pairs whose files the pinned `ffprobe` reads none of; in
+R2, a family with no file it reads).
+
 **The R4 host, registered before the run.** A GCP `c4-standard-16` VM with
 SMT off (one thread per core), started through `scripts/gcp_vm_job.py`, the
 rest of the VM idle, and both tools' processes pinned to the same four

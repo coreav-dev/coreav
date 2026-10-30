@@ -185,6 +185,10 @@ jobs:
       # `coreav transcode`, which only builds with a decoder backend include
       # (docs/design/docs-site.md); `cargo test --workspace` checks the rest.
       - run: cargo test -p coreav-cli --features ffmpeg-fallback --test docs_site
+      # The unit tests of what only a build with a decoder backend has
+      # (`coreav ffmpeg`'s encode, `coreav transcode`), which
+      # `cargo test --workspace` does not build.
+      - run: cargo test -p coreav-cli --features ffmpeg-fallback --lib
       # Pinned limit test: 2.2 GB virtual fragmented
       # file with 20,000 fragments, reads bounded to 1 MiB.
       - run: cargo test --release -p coreav-isobmff --test hostile -- --ignored
