@@ -537,13 +537,6 @@ fn concat_list(dir: &Path, source: &Path) -> PathBuf {
     list
 }
 
-/// The entries that run on no fixture, and what their refusal names: a job
-/// no writer takes yet (a clip of audio alone).
-const NOT_NATIVE: [(&str, &str); 2] = [
-    ("C15", "a clip or a segment without video"),
-    ("C19", "a clip or a segment without video"),
-];
-
 fn stream_kind(letter: &str) -> StreamKind {
     match letter {
         "v" => StreamKind::Video,
@@ -572,9 +565,7 @@ fn stream_kinds(path: &Path) -> Option<Vec<StreamKind>> {
 /// the fixture twice ([`concat_list`]). A command a file cannot take (a `-map` that
 /// matches no stream of it, or a selection left empty, which `ffmpeg` fails
 /// too) is recorded as not taken. Every entry runs
-/// natively on at least one fixture of each of its families, but those of
-/// [`NOT_NATIVE`], which run on none and are refused for their reason
-/// wherever the file is not rejected first; a refusal or a
+/// natively on at least one fixture of each of its families; a refusal or a
 /// rejection leaves no file behind. With `COREAV_FFMPEG_OUT` the outputs and
 /// `records.json` (each run, its outcome and its writer's summary) are
 /// written there for `tools/compat-corpus/copy_check.py`.
@@ -620,10 +611,6 @@ fn the_0_1_0_commands_on_the_fixtures() {
             .iter()
             .map(|c| c.as_str().unwrap())
             .collect();
-        let not_native = NOT_NATIVE
-            .iter()
-            .find(|(e, _)| *e == id)
-            .map(|(_, why)| *why);
         for (n, command) in entry["commands"].as_array().unwrap().iter().enumerate() {
             let template: Vec<&str> = command["args"]
                 .as_array()
@@ -695,14 +682,6 @@ fn the_0_1_0_commands_on_the_fixtures() {
                 } else {
                     assert_eq!(files, 0, "{label}: {status}, but a file was left");
                 }
-                if let Some(why) = not_native {
-                    assert!(
-                        status != "written"
-                            && (status != "refused"
-                                || detail.as_str().is_some_and(|m| m.contains(why))),
-                        "{label}: {status}: {detail}"
-                    );
-                }
                 eprintln!("{label}: {status}");
                 records.push(json!({
                     "id": id,
@@ -718,13 +697,11 @@ fn the_0_1_0_commands_on_the_fixtures() {
                 }));
             }
         }
-        if not_native.is_none() {
-            for family in families.iter().filter(|f| present.contains(*f)) {
-                assert!(
-                    native.contains(&(id, *family)),
-                    "{id}: no {family} fixture ran natively"
-                );
-            }
+        for family in families.iter().filter(|f| present.contains(*f)) {
+            assert!(
+                native.contains(&(id, *family)),
+                "{id}: no {family} fixture ran natively"
+            );
         }
     }
     std::fs::write(

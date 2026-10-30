@@ -1,13 +1,16 @@
-//! Arbitrary input through the clip writer: it either
-//! fails with an error or writes an output that the parser accepts, whose
-//! tracks hold the source's kept samples: the same bytes and decode
-//! durations, in order.
+//! Arbitrary input through the clip writer, with video and of audio alone:
+//! each either fails with an error or writes an output that the parser
+//! accepts, whose tracks hold the source's kept samples: the same bytes and
+//! decode durations, in order.
 #![no_main]
 
 use coreav_isobmff::{
     Allowlist, Budget, BufferedSource, Limits, Packet, Rational, SliceSource, Source, probe,
 };
-use coreav_isobmff_write::{AudioChoice, ClipOptions, ClipTrack, VideoChoice, clip_mp4};
+use coreav_isobmff_write::{
+    AudioChoice, AudioClipOptions, ClipOptions, ClipTrack, TrackChoice, VideoChoice,
+    clip_audio_mp4, clip_mp4,
+};
 use libfuzzer_sys::fuzz_target;
 
 /// The first `count` packets of a track: the clip read no further, so a
@@ -77,6 +80,20 @@ fuzz_target!(|data: &[u8]| {
         start: Rational::new(i128::from(start), 10).expect("rational"),
         end: (end > 0).then(|| Rational::new(i128::from(end), 10).expect("rational")),
     };
+    let alone = AudioClipOptions {
+        audio: match options.audio {
+            AudioChoice::Stream(index) => TrackChoice::Stream(index),
+            AudioChoice::First | AudioChoice::None => TrackChoice::FirstAudio,
+        },
+        start: options.start,
+        end: options.end,
+    };
+    let mut out = Vec::new();
+    let source = BufferedSource::new(SliceSource::new(input));
+    if let Ok(summary) = clip_audio_mp4(source, &limits, &Allowlist::default(), &alone, &mut out) {
+        assert_eq!(summary.bytes_written, out.len() as u64);
+        check(input, &out, &limits, &summary.audio, 0);
+    }
     let mut out = Vec::new();
     let source = BufferedSource::new(SliceSource::new(input));
     let Ok(summary) = clip_mp4(source, &limits, &Allowlist::default(), &options, &mut out) else {

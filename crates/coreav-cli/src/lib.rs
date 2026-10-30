@@ -11,12 +11,10 @@
 //! (`docs/design/text.md`) with `coreav.extract-subtitles/1` and
 //! `coreav.chapters/1`; joins (`docs/design/join.md`) with their
 //! `coreav.join/1` summary; upload policy checks (`coreav-policy`) with
-//! their `coreav.verdict/1` verdict; and `coreav mcp`, the Model Context
-//! Protocol server that offers the commands to agents (`mcp`,
-//! `docs/design/mcp.md`). The binary adds only argument parsing and
-//! output. Exposed as a library so that other builds of the command's work,
-//! such as the WebAssembly module (`coreav-wasm`), carry
-//! the same serializer.
+//! their `coreav.verdict/1` verdict. The binary adds only argument parsing
+//! and output. Exposed as a library so that other builds of the command's
+//! work, such as the WebAssembly module (`coreav-wasm`), carry the same
+//! serializer.
 
 pub mod check;
 pub mod clip;
@@ -31,7 +29,6 @@ pub mod ffprobe;
 pub mod hls;
 pub mod join;
 pub mod matroska;
-pub mod mcp;
 pub mod mpegts;
 pub mod names;
 pub mod native;
@@ -60,25 +57,5 @@ pub fn remote_url(input: &str) -> bool {
     {
         let _ = input;
         false
-    }
-}
-
-/// Whether a URL may be read: under the guarded rules (`https://`, no
-/// credentials) or the command line's; the reason if not. Without the
-/// `net` feature no URL may.
-pub fn check_remote(url: &str, guarded: bool) -> Result<(), String> {
-    #[cfg(feature = "net")]
-    {
-        let options = if guarded {
-            remote::Options::guarded()
-        } else {
-            remote::Options::command()
-        };
-        remote::check(url, &options)
-    }
-    #[cfg(not(feature = "net"))]
-    {
-        let _ = (url, guarded);
-        Err("this build reads local files only".to_owned())
     }
 }

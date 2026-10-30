@@ -36,10 +36,6 @@ differently.
 | `coreav split --every S INPUT DIR/%03d.mp4` | Splits an MP4/MOV file at keyframes into MP4 segments | `coreav.split/1` summary |
 | `coreav chapters FILE` | Lists the QuickTime chapters of an MP4/MOV file | `coreav.chapters/1` JSON |
 
-`coreav mcp` (the MCP server) runs with the native binaries; the
-WebAssembly build cannot start the processes it needs and refuses it
-(exit 2).
-
 `coreav --help` and `coreav COMMAND --help` list every option. `OUTPUT` may
 be `-` to write the file to stdout, and the summary then goes to stderr. An
 existing output file is kept unless `--force` is given, and a failed run

@@ -31,10 +31,7 @@ usage error (exit 2) and reads local files only. It is built without the
 command's `net` feature.
 They get the native command on Linux (x86-64 and arm64, glibc or musl),
 macOS (arm64 and x86-64) and Windows (x86-64), and the WASI build
-elsewhere, with the same output, output files and exit codes. `coreav mcp`
-works with the native binaries. The WASI build cannot run it, because the
-server starts the command as a child process for each tool call and a WASI
-module has no processes. It then exits with a usage error (2) that says so.
+elsewhere, with the same output, output files and exit codes.
 
 ## Design
 
@@ -172,9 +169,8 @@ rather than let it fail as a missing file.
   nanoseconds there, read once per process, instead of the process id;
   opening it with `create_new` still refuses a name in use.
 - `COREAV_CWD`, read on WASI only.
-- `coreav mcp` is a usage error on WASI.
 
-All three are WASI only; the native command is unchanged.
+Both are WASI only; the native command is unchanged.
 
 What the WASI build does differently from the native command, documented in
 the README:
