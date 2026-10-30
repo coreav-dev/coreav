@@ -637,6 +637,8 @@ fn mp4_allowlist(audio: Option<coreav_audio::Codec>) -> coreav_isobmff::Allowlis
     let own = audio.map(|codec| match codec {
         coreav_audio::Codec::Flac => I::Flac,
         coreav_audio::Codec::Mp3 => I::Mp3,
+        #[cfg(feature = "aac")]
+        coreav_audio::Codec::Aac => I::Aac,
     });
     if let Some(own) = own.filter(|c| !codecs.contains(c)) {
         codecs.push(own);
@@ -668,6 +670,8 @@ fn matroska_allowlist(codec: Codec, audio: Option<coreav_audio::Codec>) -> corea
     let audio = audio.map(|codec| match codec {
         coreav_audio::Codec::Flac => M::Flac,
         coreav_audio::Codec::Mp3 => M::Mp3,
+        #[cfg(feature = "aac")]
+        coreav_audio::Codec::Aac => M::Aac,
     });
     for own in std::iter::once(own).chain(audio) {
         if !codecs.contains(&own) {

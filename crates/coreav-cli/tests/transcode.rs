@@ -1393,12 +1393,41 @@ fn opus_audio_takes_the_place_of_the_source_audio() {
 
 #[cfg(feature = "libopus")]
 #[test]
+fn the_opus_encode_passes_over_aac_for_the_flac_after_it() {
+    let Some(tools) = tools() else { return };
+    let dir = dir("opus-after-aac");
+    let source = made(
+        &tools,
+        &dir,
+        "aac-flac.mp4",
+        &[
+            "-map", "0:v", "-map", "1:a", "-map", "1:a", "-c:a:0", "aac", "-c:a:1", "flac",
+        ],
+    );
+    let out = dir.join("out.mp4");
+    let mut args = vec![
+        source.to_str().unwrap(),
+        out.to_str().unwrap(),
+        "--audio",
+        "opus",
+    ];
+    args.extend(["--encoder", "x264", "--x264", tools.x264.to_str().unwrap()]);
+    let run = transcode(Some(&tools), &args);
+    assert_eq!(run.code, 0, "{}", run.stderr);
+    let summary: Value = serde_json::from_str(&run.stdout).unwrap();
+    assert_eq!(summary["encoded_audio"]["stream_index"], 2, "{summary}");
+    assert_eq!(summary["encoded_audio"]["codec"], "flac", "{summary}");
+    nothing_left(&dir);
+}
+
+#[cfg(feature = "libopus")]
+#[test]
 fn audio_the_opus_encode_does_not_take_is_refused_first() {
     let Some(tools) = tools() else { return };
     let dir = dir("opus-refused");
     let x264 = ["--encoder", "x264", "--x264", tools.x264.to_str().unwrap()];
     for (name, audio, says) in [
-        // CoreAV does not decode AAC in a default build.
+        // The Opus encode takes no AAC, in a build that decodes it too.
         ("aac.mp4", &["-c:a", "aac"][..], "aac is not decoded"),
         (
             "six.mkv",

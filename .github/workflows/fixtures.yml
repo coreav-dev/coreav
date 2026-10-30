@@ -280,6 +280,9 @@ jobs:
         run: |
           cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus --test transcode \
             --target-dir target/fallback
+          # The Opus encode passes over AAC in a build that decodes it.
+          cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,libopus,aac --test transcode \
+            --target-dir target/fallback -- opus_encode
       # docs/design/transcode.md, bar B9: the coreav ffmpeg command lines that
       # encode with libx264, on the fixtures, each arm against FFmpeg running
       # the same command line. The ffmpeg arm names no x264 program, so the

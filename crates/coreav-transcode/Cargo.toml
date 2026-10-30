@@ -18,6 +18,11 @@ coreav-mkv = { path = "../coreav-mkv" }
 coreav-thumbnail = { path = "../coreav-thumbnail" }
 coreav-worker = { path = "../coreav-worker" }
 
+[features]
+# AAC LC decoding in `coreav-audio`, for a build that has it: AAC stays out
+# of the Opus encode all the same (docs/design/transcode.md, "Opus audio").
+aac = ["coreav-audio/aac"]
+
 [[test]]
 name = "sandboxed"
 # Its `main` is also the sandbox launcher the tests start (`EXEC_ARG`).
