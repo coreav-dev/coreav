@@ -90,7 +90,7 @@ use serde_json::Value;
 
 /// Memory-safe media probing.
 #[derive(Parser)]
-#[command(name = "coreav", version, about, long_about = None)]
+#[command(name = "coreav", bin_name = "coreav", version, about, long_about = None)]
 struct Cli {
     /// For services that read untrusted input: CoreAV never runs an ffmpeg
     /// or ffprobe program, which is FFmpeg's C code, as COREAV_STRICT_SAFE=1

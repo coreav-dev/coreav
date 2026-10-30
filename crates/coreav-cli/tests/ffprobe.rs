@@ -161,7 +161,9 @@ fn the_common_forms_print_what_ffprobe_prints() {
     assert_eq!(doc["format"]["filename"], path.as_str());
     assert_eq!(doc["format"]["nb_streams"], 2);
     let r = ffprobe(&["-show_entries", "format=filename", "-of", "flat", &path]);
-    assert_eq!(r.stdout, format!("format.filename=\"{path}\"\n"));
+    // The flat writer escapes a backslash, as in a Windows path.
+    let escaped = path.replace('\\', "\\\\");
+    assert_eq!(r.stdout, format!("format.filename=\"{escaped}\"\n"));
 }
 
 #[test]
