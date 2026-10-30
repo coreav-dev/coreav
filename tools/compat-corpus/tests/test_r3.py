@@ -71,7 +71,7 @@ class Report(unittest.TestCase):
         lines += [line('f1', 'C01.1', 'passed'), line('f2', 'C01.1', 'failed', 'oracle', 'matroska-webm')]
         lines += [line('f1', 'C02.0', 'cannot take'), line('f2', 'C02.0', 'ffmpeg fails')]
         lines += [{'fallback_log': {'lines': 1, 'refused': 1, 'void': False}}]
-        s = r3.summarize(lines, 98.0)
+        s = r3.summarize(r3.counts(lines), 98.0)
         totals = {t['command']: t for t in s['commands']}
         self.assertEqual((totals['C01.0']['counted'], totals['C01.0']['passed'], totals['C01.0']['meets']),
                          (50, 49, True))
@@ -82,6 +82,17 @@ class Report(unittest.TestCase):
         self.assertEqual(s['files'], {'matroska-webm': 1, 'mp4-mov': 51})
         self.assertNotIn('f1', str(s))
         self.assertEqual(s['fallback_log'], {'lines': 1, 'refused': 1, 'void': False})
+
+    def test_summaries_add_up(self):
+        line = lambda f, cmd, outcome, reason=None: {  # noqa: E731
+            'file': f, 'family': 'mp4-mov', 'id': cmd.split('.')[0], 'command': int(cmd.split('.')[1]),
+            'job': 'remux', 'outcome': outcome, 'reason': reason}
+        lines = [line(f'f{i}', 'C01.0', 'passed' if i % 9 else 'failed', None if i % 9 else 'oracle')
+                 for i in range(30)]
+        lines += [{'fallback_log': {'lines': 0, 'refused': 0, 'void': False}}]
+        whole = r3.summarize(r3.counts(lines), 98.0)
+        split = r3.summarize(r3.merge([r3.counts(lines[:10]), r3.counts(lines[10:])]), 98.0)
+        self.assertEqual(split, whole)
 
     def test_the_binarys_exit_statuses(self):
         self.assertEqual([r3.binary_outcome(c) for c in (0, 4, 1, None)], ['written', 'refused', 'failed', 'failed'])
