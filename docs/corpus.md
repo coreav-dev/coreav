@@ -85,6 +85,7 @@ before any benchmark:
 | v2-heldout draw 3 | `coreav-corpus-v2-heldout-draw3:` | every `real` file |
 | v2-heldout draw 4 | `coreav-corpus-v2-heldout-draw4:` | every `real` file |
 | v2-heldout draw 5 | `coreav-corpus-v2-heldout-ts:` | every `real` file |
+| v2-heldout draw 6 | `coreav-corpus-v2-heldout-compat:` | every `real` file |
 
 Held-out files are used only for reported numbers, never for profiling
 or tuning. Where a whole draw is held out, the salt still orders each
@@ -250,6 +251,7 @@ draw's operation.
 | 3 | `hls index` and packet index | `hls` | 46 | 102 | 3.13 | spent: run `w4-01` of [`spikes/w3-308/README.md`](spikes/w3-308/README.md) |
 | 4 | thumbnail and decode | `thumbnail` | 52 | 80 | 1.71 | spent: the joint confirmation of [`spikes/thumbnail-bench/README.md`](spikes/thumbnail-bench/README.md) |
 | 5 | MPEG-TS demux | `ts-probe` | 37 | 48 | 1.7 | spent: [`measurements/ts-demux.md`](measurements/ts-demux.md) |
+| 6 | the 0.1.0 bars R2 to R4 | `compat` | | | | collecting |
 
 No `hls` draw is unspent, so the next `hls index` measurement needs a
 draw of its own before it can run.
@@ -413,6 +415,54 @@ rule are met, one of them by a single file.
   forbids.
 
 The draw was opened once, on 2026-10-21, and is spent.
+
+### Draw 6
+
+The held-out draw of the 0.1.0 bars R2, R3 and R4
+([`design/compat-cli.md`](design/compat-cli.md), "The held-out draw"),
+operation `compat`, salt `coreav-corpus-v2-heldout-compat:`. The rules are
+that note's, committed with it before any file was fetched; the collector's
+choices below, where the note leaves one open, were committed here before
+the first fetch.
+
+- **Form:** files unchanged, at most 200 MB.
+- **Families**, by what the pinned `ffprobe` names the container:
+  `mov,mp4,m4a,3gp,3g2,mj2` is ISO base media, `matroska,webm` is Matroska
+  and WebM, and `mpegts` is a transport stream. Candidates are taken only
+  with an extension the rules list (`mp4`, `mov`, `m4v`, `m4a`, `3gp`,
+  `mkv`, `webm`, `ts`, `m2ts`, `mts`). A file whose container is not
+  the family its extension names is `edge`.
+- **Coverage:** 60 to 100 `real` files per family. A family stops taking
+  `real` files at 100; the families are collected side by side, and the
+  draw stops when each family holds 100 or the candidates run out. A
+  family under 60 is reported short, not filled by relaxing a rule.
+- **Sets:** the shared rules. A file `ffprobe` reads without error and
+  lists a stream in is `real`; a conformance vector, an ISO base media
+  initialization segment (no sample) or media segment (no movie box), and
+  a file `ffprobe` rejects are `edge`; a crash or a run over 30 s is
+  `hostile`. A transport-stream media segment of an HLS stream is a
+  whole transport stream and is `real`, as in `v1-ts-audio` and draw 5.
+- **Nothing seen before:** a candidate whose SHA-256 is in corpus v1,
+  `v1-fmp4-large`, `v1-ts-audio`, `mediarecorder-v1` or draws 1 to 5 is
+  dropped.
+- **Diversity:** draw 4's structural signature (the container brands, the
+  streams' codecs, profiles, sizes, channels, sample rates and pixel
+  formats, the structural tags and the encoder or device key), across this
+  draw and draws 1 to 5. Draws 1 to 4 recorded that signature when they
+  were collected; draw 5 recorded its own, so draw 4's is computed for its
+  files with `ffprobe` before the collection starts.
+- **No cap on a source or a device** beyond the signature: the note sets
+  none. Candidates are taken in turn across their sources, so that no
+  source fills a family first, and the result reports the largest share
+  one source holds in each family.
+- **Holdout:** every `real` file. Each family's `real` files are ordered
+  by `sha256("coreav-corpus-v2-heldout-compat:" + sha256)`; R4's own
+  order is the note's.
+- **The collection runs no measurement:** `ffprobe` is the only tool run
+  over the files, and no `coreav` command runs on the draw before the
+  round that opens it.
+
+Collection has not finished; the counts follow it here.
 
 ### Rules withdrawn or not held
 
