@@ -16,7 +16,8 @@ bars"; docs/measurements/compat-0.1.0/README.md, "Before the round", item 2).
         does not print; the `coreav` binary runs every one of them too,
         refusals included, so that its fallback log holds each refusal, and
         must write the same bytes with the same outcome; copy_check.py judges
-        every written output by the oracle of its job, and a chunk whose
+        every written output by the oracle of its job (a pair it sets aside
+        is not passed; one whose selection differs fails), and a chunk whose
         check exits abnormally or leaves no fresh report for all its outputs
         fails them. Outputs are deleted chunk by chunk. FILE gets one line
         per pair (the file's name: private). `run` exits as `report` does on
@@ -29,7 +30,8 @@ bars"; docs/measurements/compat-0.1.0/README.md, "Before the round", item 2).
         R3 when at least BAR% of its counted pairs pass. --summary names no
         file, and the summaries of several runs add up. A command no file
         can take is reported, not counted; one whose files the pinned ffprobe
-        or ffmpeg failed on every time is unmeasured and misses. Exit 1 when a
+        or ffmpeg failed on every time, or with a pair copy_check.py sets
+        aside, is unmeasured and misses. Exit 1 when a
         command misses, 2 when a run is void (its fallback log holds a
         line, a strict-safe refusal included), 3 when no pair was counted.
         `run` exits 3 when it has no file to run.
@@ -51,6 +53,7 @@ import tempfile
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+import copy_check  # noqa: E402
 import release_round  # noqa: E402
 
 TIMEOUT = 600
@@ -190,6 +193,8 @@ def judge(opts, pairs, scratch, env):
                 results[key] = ('failed', 'copy_check crashed')
             elif (r['id'], tuple(r['args']), r['source']) in failed:
                 results[key] = ('failed', failed[(r['id'], tuple(r['args']), r['source'])])
+            elif pathlib.Path(r['source']).name in copy_check.UNMODELLED.get(r['job'], ()):
+                results[key] = ('set aside', 'no oracle models a picture size change')
             else:
                 results[key] = ('passed', None)
     return results
@@ -228,7 +233,8 @@ def verdict(summary):
         print('UNMEASURED: no pair that ffmpeg ran to success')
         return release_round.UNMEASURED
     for cmd in summary['unmeasured']:
-        print(f'UNMEASURED {cmd}: files took it but the pinned ffprobe or ffmpeg failed on every one, so it misses R3')
+        print(f'UNMEASURED {cmd}: a pair no oracle checks, or files that the pinned ffprobe or ffmpeg failed on '
+              'every time, so it misses R3')
     return 1 if summary['missed'] or summary['unmeasured'] else 0
 
 
@@ -306,7 +312,7 @@ def summarize(c, bar):
                        'rate': round(100.0 * t['passed'] / counted, 2) if counted else None,
                        'meets': t['passed'] * 100.0 >= bar * counted if counted else None})
     unmeasured = [cmd for cmd, t in sorted(commands.items())
-                  if not t['passed'] + t['failed'] and (t['ffmpeg fails'] or t['ffprobe fails'])]
+                  if t['set aside'] or (not t['passed'] + t['failed'] and (t['ffmpeg fails'] or t['ffprobe fails']))]
     return {'bar': bar, 'fallback_log': c['fallback_log'], 'files': dict(sorted(c['files'].items())),
             'cells': rows, 'commands': totals,
             'missed': [t['command'] for t in totals if t['meets'] is False],

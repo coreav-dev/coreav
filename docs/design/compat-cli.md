@@ -393,7 +393,11 @@ through `coreav_cli::ffmpeg::run` in the ignored test
 through the binary, which must write the same bytes; a pair passes when
 both wrote and `copy_check.py` finds no problem. A refusal, a rejection, a
 `-map` the CLI finds empty, or a binary that writes otherwise, fails the
-pair. A command meets R3 when at least 98% of its counted pairs pass, each
+pair. A pair whose output no oracle checks (`copy_check.py` skips the job's
+oracle for the clips, segments and joins of a file whose picture size
+changes inside the track) is set aside rather than passed when its stream
+selection matches FFmpeg's, and its command is unmeasured and misses; a
+selection that differs fails it. A command meets R3 when at least 98% of its counted pairs pass, each
 spelling of the set counted on its own, as the bar says "each command".
 
 `speed.py r4` times R4 and both gate arms: `r4` CoreAV against FFmpeg,
@@ -453,7 +457,9 @@ draw with its own salt, and development uses spent sets only.
 the commands of the set are supported in 0.1.0: the experimental label of
 `coreav ffprobe` no longer applies to them, and stays on every other
 `ffprobe` command until B3a is met. B1 is unchanged and still applies to every
-command outside the set.
+command outside the set. Until that round, `coreav ffmpeg` is labelled
+experimental where users see it (`coreav --help` and the documentation
+site), as `coreav ffprobe` is; after it, the label stays on the `ffmpeg` commands outside the set.
 
 ## The command
 
@@ -696,8 +702,8 @@ first one's, those of the pinned `ffmpeg`'s output of the same command.
 The audio packets are not compared one for one there: where a file's audio
 runs past its edit, `ffmpeg`'s muxer moves the next file's first packet to
 one tick after the overlap (black box), so the placement check stands for
-them. Threshold: 100% of the outputs, in `fixtures.yml` and
-`mkv-fixtures.yml`.
+them. Threshold: 100% of the outputs, in `ci.yml`'s `isobmff-fixtures` and
+`mkv-fixtures` jobs.
 
 **Not covered: refused by name (exit 4 in strict-safe mode, else run by
 FFmpeg).**
@@ -1254,11 +1260,33 @@ decision, 2026-10-30):
   travels in the arguments: in the mode the command starts them with
   `--strict-safe` right after the entry argument (`StrictSafe::entry`),
   and run directly they also read the variable. In the mode the
-  worker refuses to host the FFmpeg backend, and the launcher refuses a
-  program whose file name, or the name of the file it links to, begins
-  with `ffmpeg` or `ffprobe`, with exit status 126. A copy of FFmpeg under
+  worker refuses to host the FFmpeg backend (it sends an `Unsupported`
+  error and exits with status 1), and the launcher refuses a program whose
+  file name, or the name of the file it links to, begins with `ffmpeg` or
+  `ffprobe` (exit status 126). A copy of FFmpeg under
   another name is not recognised, as an `x264` program that is FFmpeg
   under another name is not: the mode trusts the names the operator gives.
+- **Without an enforced memory limit.** Where the sandbox's address-space
+  limit cannot be enforced (`coreav_worker::enforces_memory_limit`: macOS,
+  and outside Unix; `decode.md`, "Memory"), the mode starts no sandboxed
+  process at all, so a stream that decodes to more than it declares cannot
+  take the host's memory through one (maintainer decision, 2026-10-30).
+  Every encoder is refused before the input is read, with exit status 4.
+  The dav1d and libvpx backends are stand-ins like the FFmpeg one: a
+  stream only they would decode is refused with exit status 4 when the
+  decoder is chosen. That comes after CoreAV's own demuxer has read the
+  container's headers and sample index in the `coreav` process, under the
+  parse limits that hold in every mode, because the codec decides whether
+  a sandboxed decoder is needed at all: the native H.264 decoder needs
+  none. No packet is read for decoding and no decoder starts before the
+  refusal. Run directly, the worker reads its `Open` message (at most
+  2 MiB) and then refuses every backend, exiting with status 1; the
+  launcher refuses every program before it starts one, with exit status
+  126. The
+  message begins `strict-safe: no enforceable memory limit for the sandbox
+  on this platform`. The native H.264 decoder runs in the calling process,
+  not in the sandbox, and still decodes. Outside the mode the budget stays
+  advisory there.
 
 `coreav thumbnail` and `coreav transcode` print the refusal as a
 `coreav.error/1` object of kind `unsupported_feature`; `coreav ffmpeg` as
@@ -1267,8 +1295,10 @@ its other refusals, with the log line's `not_run` `strict_safe`.
 One type decides all of them, `StrictSafe` (`coreav-cli`, `strict_safe.rs`),
 made from the flag and the variable: the fallback asks it, a transcode's
 encoder is an `Encoder` only it makes, the FFmpeg backend reaches the
-decoder list only through `Decoders::push_ffmpeg`, which takes it, and
-the hidden entries ask it, the worker `StrictSafe::worker` and the
+decoder list only through `Decoders::push_ffmpeg`, which takes it, the
+dav1d and libvpx backends only through `Decoders::push_sandboxed`, which
+asks `StrictSafe::sandbox` (the one place that reads
+`coreav_worker::enforces_memory_limit`), and the hidden entries ask it, the worker `StrictSafe::worker` and the
 launcher `StrictSafe::program` (`coreav_worker::worker_main` and
 `sandbox_exec_main` take the check from their caller), with the mode
 carried to them by `StrictSafe::entry`. A new

@@ -228,6 +228,9 @@ fn exits_without_reading() {
 /// own redirections (POSIX; dash does, bash keeps `<&0`). The variant
 /// without a child is `exits_early`.
 fn fails_with_child_on_input() {
+    if !sees_the_exit() {
+        return;
+    }
     let p = script("boom", "echo boom >&2; exec 3<&0; sleep 60 <&3 & exit 3");
     let (result, took) = run(&p, 30, 1 << 20);
     let e = result.unwrap_err();
@@ -240,6 +243,9 @@ fn fails_with_child_on_input() {
 /// The same with a successful exit: the frames it never read make it an
 /// error, also at once.
 fn quits_with_child_on_input() {
+    if !sees_the_exit() {
+        return;
+    }
     let p = script("quit", "exec 3<&0; sleep 60 <&3 & exit 0");
     let (result, took) = run(&p, 30, 1 << 20);
     let e = result.unwrap_err();
@@ -247,7 +253,22 @@ fn quits_with_child_on_input() {
     assert!(took < WELL_BEFORE_THE_DEADLINE, "{took:?}");
 }
 
+/// Whether the encoder's exit is seen while a child holds its pipes, so the
+/// cases that call this end at once: only Linux's `waitid` with `WNOWAIT`
+/// sees it; elsewhere the encode ends at its deadline
+/// (`docs/design/transcode.md`, "Sandbox"). Says so when it is not.
+fn sees_the_exit() -> bool {
+    if cfg!(target_os = "linux") {
+        return true;
+    }
+    eprintln!("skipping: only Linux sees the encoder exit while its child holds its pipes");
+    false
+}
+
 fn child_keeps_pipes() {
+    if !sees_the_exit() {
+        return;
+    }
     // The encoder exits, its child (same process group) keeps the pipes
     // open: the group is killed when the encoder exits, so the output ends
     // without waiting for the deadline.

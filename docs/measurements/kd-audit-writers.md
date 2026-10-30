@@ -205,7 +205,7 @@ it compare raw values from both files?
 
 ## In CI
 
-`fixtures.yml` runs the text audit on the fixtures (about two minutes)
+`ci.yml`'s `isobmff-fixtures` job runs the text audit on the fixtures (about two minutes)
 and fails on a COVERED or ABSORBED verdict, or when nothing is caught
 (the wrapper or the oracle did not run). The other audits take up to an
 hour each and run on demand; the unit tests above guard their fixes.

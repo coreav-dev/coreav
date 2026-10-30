@@ -187,7 +187,7 @@ impl std::ops::Deref for Sanitize {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Describe an MP4, MOV, Matroska or WebM file as JSON.
+    /// Describe an MP4, MOV, Matroska, WebM or MPEG-TS file as JSON.
     Probe(Deferred<ProbeArgs>),
     /// Cut a keyframe-aligned clip of an MP4/MOV file to MP4, without
     /// re-encoding.
@@ -203,7 +203,7 @@ enum Command {
     /// without re-encoding.
     ExtractAudio(Deferred<ExtractAudioArgs>),
     /// Decode an audio track of an MP4/MOV, Matroska or WebM file to a WAV
-    /// file (FLAC, MP3).
+    /// file (FLAC, MP3; AAC LC in a build with the feature `aac`).
     DecodeAudio(Deferred<DecodeAudioArgs>),
     /// Rewrite an MP4/MOV, Matroska or WebM file as MP4 with the movie
     /// header first (faststart), without re-encoding.
@@ -244,13 +244,13 @@ enum Command {
     /// without it, anything else runs the ffprobe program on PATH, FFmpeg's
     /// C code (docs/design/compat-cli.md). Values can differ from ffprobe's for
     /// MP4/MOV and MPEG-TS; Matroska/WebM agree on 98% or more of files for
-    /// 99 of 101 keys (docs/measurements/compat-ffprobe.md). `coreav` run
+    /// all 101 keys (docs/measurements/compat-ffprobe.md). `coreav` run
     /// as `ffprobe` does the same.
     #[command(disable_help_flag = true)]
     Ffprobe(Deferred<ToolArgs>),
-    /// Runs an ffmpeg stream-copy command line (-c copy) with CoreAV's own
-    /// writers: remuxing to MP4, clipping, segmenting and audio extraction
-    /// to M4A, with ffmpeg's stream selection. With --strict-safe
+    /// Experimental. Runs an ffmpeg stream-copy command line (-c copy) with
+    /// CoreAV's own writers: remuxing to MP4, clipping, segmenting and audio
+    /// extraction to M4A, with ffmpeg's stream selection. With --strict-safe
     /// (COREAV_STRICT_SAFE=1), for untrusted input, anything else is refused
     /// with exit status 4; without it, anything else runs the ffmpeg program
     /// on PATH, FFmpeg's C code (docs/design/compat-cli.md). `coreav` run as
