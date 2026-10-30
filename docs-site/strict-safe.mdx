@@ -1,0 +1,95 @@
+---
+title: "Strict-safe mode and the FFmpeg fallback"
+description: "Choose what coreav ffprobe and coreav ffmpeg do with a command line CoreAV does not implement: refuse it, or run the real FFmpeg."
+---
+
+`coreav ffprobe` and `coreav ffmpeg` take FFmpeg's command lines. CoreAV implements a subset of them. A command line outside that subset either goes to the real `ffprobe` or `ffmpeg` (the fallback), or is refused (strict-safe mode).
+
+The fallback is on by default, so a script that calls FFmpeg keeps working. If your service reads files it did not make, such as uploads, turn on strict-safe mode. It is the only mode in which no FFmpeg code runs on the input.
+
+<Note>
+The other commands (`probe`, `check`, `clip`, `split`, `join`, `remux`, `sanitize`, `extract-audio`, `extract-subtitles`, `chapters`, `decode-audio`, `hls`) never run FFmpeg, in either mode.
+</Note>
+
+## Turn on strict-safe mode
+
+Set the environment variable or pass the flag:
+
+```sh
+export COREAV_STRICT_SAFE=1
+coreav ffprobe -v error -show_format input.mp4
+
+coreav --strict-safe ffprobe -v error -show_format input.mp4
+```
+
+- Any value of `COREAV_STRICT_SAFE` other than empty or `0` turns the mode on, so a mistyped value fails closed.
+- Under a link named `ffprobe` or `ffmpeg` that points to `coreav`, every argument belongs to the tool. Only the variable works there.
+
+## What a refusal looks like
+
+In strict-safe mode, a command line that CoreAV does not implement is refused by name, with exit status 4:
+
+```console
+$ coreav --strict-safe ffprobe -v error -show_frames input.mp4
+coreav ffprobe: option '-show_frames' is not supported: frames need a decoder
+$ echo $?
+4
+```
+
+A refusal comes before the input is opened and before any output is written. A program that gets exit status 4 can send the job somewhere else, or reject it.
+
+## The FFmpeg fallback
+
+Without strict-safe mode, a command line that CoreAV does not implement runs the real program instead. That program is FFmpeg's C code, and CoreAV's limits and checks do not apply to it. CoreAV says so in one line on standard error, at every log level, `-v quiet` included:
+
+```console
+$ coreav ffprobe -v error -show_frames -of csv input.mp4
+coreav: ran /usr/bin/ffprobe instead (not native: -show_frames)
+frame,video,0,1,0,0.000000,...
+```
+
+Standard output is the program's, byte for byte, and so is the exit status. On Unix CoreAV replaces itself with the program, so its process id and signals are FFmpeg's too.
+
+### Which program runs
+
+1. If `COREAV_FALLBACK` is set, it names the program. A directory names its `ffmpeg` and `ffprobe` (with `.exe` on Windows). A file names that one program. If the path does not exist, cannot run, or names the other tool, nothing runs: the refusal stands, with exit status 4 and a line that names the variable and the reason.
+2. Otherwise CoreAV runs the first `ffmpeg` or `ffprobe` on `PATH` that it can run and that is not `coreav` itself.
+3. If there is none, the refusal stands, with exit status 4.
+
+### What is never handed on
+
+Only a refusal goes to FFmpeg. These keep their own exit status and never reach FFmpeg:
+
+| Exit status | Meaning |
+|---|---|
+| 1 | CoreAV rejected the file. Handing it on would send FFmpeg exactly the files the checks stopped. |
+| 2 | The command line is malformed. |
+| 3 | An input cannot be read, or an output cannot be written. |
+
+### Log the commands that were not native
+
+Set `COREAV_FALLBACK_LOG` to a file path, and CoreAV appends one JSON line for each command line that was not native, whether FFmpeg ran it or CoreAV refused it:
+
+```json
+{"args":["-v","error","-show_frames","-of","csv","INPUT"],"coreav":"0.0.1","ran":"/usr/bin/ffprobe","reason":"-show_frames","time":"2026-10-30T00:51:20Z","tool":"ffprobe"}
+{"args":["-i","INPUT","-vf","VALUE","OUTPUT"],"coreav":"0.0.1","not_run":"strict_safe","ran":null,"reason":"-vf","time":"2026-10-30T00:51:20Z","tool":"ffmpeg"}
+```
+
+File names, URLs and option values become placeholders (`INPUT`, `OUTPUT`, `VALUE`), so the log holds nothing private and you can share it. Only option names and values that FFmpeg publicly lists are kept. When nothing ran, `ran` is `null` and `not_run` says why: `strict_safe`, `no_program`, `fallback_unusable` or `recursion_guard`. A log that cannot be written costs one line on standard error and never stops the command.
+
+### The recursion guard
+
+The program that the fallback starts gets `COREAV_FALLBACK_ACTIVE=1` in its environment. A `coreav` started with that variable set never falls back. It refuses with exit status 4 instead, so a wrapper script or a renamed copy of `coreav` on `PATH` cannot cause a loop.
+
+## Decoding through FFmpeg in builds with a decoder backend
+
+Builds with the `ffmpeg-fallback` [build feature](/build-features) also use an `ffmpeg` program to decode video for [`coreav thumbnail`](/commands/thumbnail) and [`coreav transcode`](/commands/transcode). This is a separate path from the command-line fallback, and it is never in a default build:
+
+- CoreAV demuxes the file itself and sends FFmpeg only the packets of one video stream, in a Matroska stream that CoreAV writes. FFmpeg's container probing never runs on the untrusted file.
+- The decoder is chosen by name from an allowlist, so a file cannot steer FFmpeg to another decoder.
+- FFmpeg runs as a child of a separate worker process with resource limits. Its libraries are never linked into CoreAV.
+
+## More detail
+
+- [Fallback to FFmpeg](https://github.com/coreav-dev/coreav/blob/main/docs/design/compat-cli.md#fallback-to-ffmpeg), the design note, covers the rules above in full, including how the log is redacted.
+- [The FFmpeg fallback](https://github.com/coreav-dev/coreav/blob/main/docs/design/decode.md#the-ffmpeg-fallback) and [the sandboxed worker](https://github.com/coreav-dev/coreav/blob/main/docs/design/decode.md#the-sandboxed-worker) cover the decode path.

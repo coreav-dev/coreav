@@ -1,0 +1,64 @@
+---
+title: "Measurements"
+description: "Every measurement page in the repository, and what each one measures."
+---
+
+Each measurement page states its bars, committed before the run, then the result, the method and the host, with the raw evidence beside it. A failed or superseded run stays on its page, marked as such ([measurements and their evidence](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/README.md)).
+
+The media corpus that the correctness bars use is private and is never published. [`docs/corpus.md`](https://github.com/coreav-dev/coreav/blob/main/docs/corpus.md) records how its files were selected and how many there are.
+
+## Probe and stream copy
+
+| Page | What it measures |
+|---|---|
+| [Stage 3 correctness report](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/stage3-correctness.md) | Probe and stream-copy correctness on the fixtures and the corpus, and the hostile-input suite |
+| [Probe metadata against ffprobe](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/0025-probe-metadata.md) | `coreav probe` metadata against `ffprobe` 7.0.2 |
+| [Matroska demuxing](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/mkv-demux.md) | The Matroska and WebM parser against `ffprobe` and MediaInfo |
+| [One walk for the Matroska scan](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/mkv-one-pass.md) | Reading a Matroska file for the policy check in one pass |
+| [MPEG-TS demuxing](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/ts-demux.md) | The MPEG transport stream parser against `ffprobe` |
+| [Matroska and WebM to MP4](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/mkv-remux.md) | `coreav remux` of Matroska and WebM files against the black-box oracles |
+| [Subtitles and chapters](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/text-corpus-v1.md) | `coreav extract-subtitles` and `coreav chapters` against `ffmpeg`, `ffprobe` and MediaInfo |
+| [Sources with several media edits](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/text-several-edits.md) | Subtitle and chapter timing on sources with several media edits |
+| [Known-divergence audit](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/kd-audit.md) | Whether an accepted difference from the oracles can hide a probe bug |
+| [Known-divergence audit: the writers](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/kd-audit-writers.md) | The same question for the writers' accepted differences |
+
+## The compatibility command
+
+| Page | What it measures |
+|---|---|
+| [`coreav ffprobe`](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/compat-ffprobe.md) | Which `ffprobe` command lines it covers, how often its values agree with `ffprobe`'s, and its speed |
+
+## Speed of the command
+
+| Page | What it measures |
+|---|---|
+| [`npx coreav` against FFmpeg](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/npx-coreav.md) | The installed `coreav` command against the FFmpeg command line for the same job |
+| [Tool baselines](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/0001-baselines.md) | Timing baselines of the reference tools. No CoreAV code is measured. |
+
+## Decoding and transcoding
+
+| Page | What it measures |
+|---|---|
+| [`coreav transcode`](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/transcode.md) | Correctness and speed of the transcode against FFmpeg with libx264 |
+| [The `x264` program on 10-bit sources](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/transcode-x264-10bit.md) | Where the extra time on 10-bit sources goes |
+| [VP9 through libvpx](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/vp9-libvpx.md) | `coreav thumbnail` and `coreav transcode` on VP9 with libvpx |
+| [AV1 thumbnails](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/av1-thumbnail-fixed-cost.md) | The fixed cost of short AV1 decodes |
+
+## The H.264 decoder
+
+| Page | What it measures |
+|---|---|
+| [Correctness](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/h264-decoder.md) | Conformance: 97 of 97 in-scope JVT streams decode bit-exactly |
+| [Speed rounds](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/h264-decoder-speed.md) | Single-thread speed against FFmpeg, round by round |
+| [SIMD kernels](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/h264-kernels.md) | Each SIMD kernel, and the decoder with them |
+| [Kernels on the training set](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/h264-kernels-training.md) | Kernel candidates timed on the training streams |
+| [Where the single-thread gap is](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/h264-gap-attribution.md) | Which parts of the decoder the time difference to FFmpeg comes from |
+| [Changes measurement rejected](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/h264-rejected.md) | Each change that did not pass its bar, and the branch that keeps it |
+
+## Limits and fuzzing
+
+| Page | What it measures |
+|---|---|
+| [The pinned memory bounds](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/0004-limit-bounds.md) | Peak memory on a 2.2 GB fragmented file, and allocation on hostile sample counts |
+| [Fuzz campaign 1](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/fuzz-campaign-1.md) | A bug-finding pass before the release gate |
+| [Fuzz campaign 2](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/fuzz-campaign-2.md) | The release gate on its commit |

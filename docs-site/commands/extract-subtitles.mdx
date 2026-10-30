@@ -1,0 +1,19 @@
+---
+title: "coreav extract-subtitles"
+sidebarTitle: "extract-subtitles"
+description: "Write the text subtitles of an MP4 or MOV file as WebVTT."
+---
+
+import Help from '/snippets/help/extract-subtitles.mdx';
+
+`coreav extract-subtitles INPUT OUTPUT` writes the text subtitles of an MP4 or MOV file (mov_text: 3GPP timed text or QuickTime text) as a WebVTT file. The summary is [`coreav.extract-subtitles/1`](https://github.com/coreav-dev/coreav/blob/main/docs/schema/extract-subtitles-v1.md).
+
+## Example
+
+```sh
+coreav extract-subtitles input.mp4 subtitles.vtt
+```
+
+## Options
+
+<Help />

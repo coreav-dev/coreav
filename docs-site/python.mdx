@@ -1,0 +1,95 @@
+---
+title: "Python"
+description: "Call CoreAV's commands from Python with import coreav."
+---
+
+`import coreav` gives the commands of `coreav` as functions. Each function runs the same library code as the command and returns the same versioned JSON document as a `dict`.
+
+<Note>
+The module is not on PyPI yet. Build it from source as below.
+</Note>
+
+## Build and install the module
+
+You need Rust 1.89 or later, Python 3.9 or later, and [maturin](https://www.maturin.rs) 1.x.
+
+1. Build the wheel from the repository:
+
+   ```sh
+   cd crates/coreav-py
+   maturin build --profile dist --out dist
+   ```
+
+   The `dist` profile is the optimized build that CoreAV ships. Maturin writes the wheel to `crates/coreav-py/dist/`.
+
+2. Install the wheel into your environment:
+
+   ```sh
+   pip install dist/coreav-0.0.1-*.whl
+   ```
+
+The wheel also installs the `coreav` command. It is the same command as the Rust binary, with the same options, output and exit codes.
+
+## Use it
+
+```python
+import json
+import coreav
+
+info = coreav.probe("input.mp4")
+print(info["schema"])                  # coreav.probe/1
+
+policy = json.load(open("web-upload.json"))
+print(coreav.check("input.mp4", policy)["verdict"])   # accept
+
+data, summary = coreav.remux("input.mkv")
+print(summary["schema"])               # coreav.remux/1
+```
+
+## Functions
+
+| Function | Command | Returns |
+|---|---|---|
+| `probe(source, *, allow=None, strict=False, scan_fragments=False, scan_frame_sizes=False)` | [`coreav probe`](/commands/probe) | `coreav.probe/1`, `coreav.probe-matroska/1` or `coreav.probe-mpegts/1` |
+| `check(source, policy)` | [`coreav check`](/commands/check) | `coreav.verdict/1`. `policy` is a `coreav.policy/1` `dict` or JSON text. |
+| `clip(source, output=None, *, start, end=None, video=None, audio="first", allow=None, strict=False, force=False)` | [`coreav clip`](/commands/clip) | `coreav.clip/1` |
+| `extract_audio(source, output=None, *, stream=None, allow=None, strict=False, force=False)` | [`coreav extract-audio`](/commands/extract-audio) | `coreav.extract-audio/1` |
+| `remux(source, output=None, *, streams=None, fail_on_unsupported=False, drop_unsupported=False, allow=None, strict=False, force=False)` | [`coreav remux`](/commands/remux) | `coreav.remux/1` |
+| `sanitize(source, output=None, *, keep=["rotation", "language", "gapless", "kinds"], streams=None, fail_on_unsupported=False, allow=None, strict=False, force=False)` | [`coreav sanitize`](/commands/sanitize) | `coreav.remux/1` |
+| `extract_subtitles(source, output=None, *, stream=None, force=False)` | [`coreav extract-subtitles`](/commands/extract-subtitles) | `coreav.extract-subtitles/1` |
+| `chapters(source)` | [`coreav chapters`](/commands/chapters) | `coreav.chapters/1` |
+
+Every function also takes `private_network=False`. The type stub, [`coreav.pyi`](https://github.com/coreav-dev/coreav/blob/main/crates/coreav-py/coreav.pyi), has the exact signatures.
+
+## Sources and outputs
+
+- A `source` is a path (`str` or `os.PathLike`), the file's bytes (`bytes` or `bytearray`), or a URL such as `"https://…"`, read by byte ranges.
+- A URL must be `https://` and resolve to public addresses only, since a program's URLs often come from its users. `private_network=True` also allows private addresses and `http://`, for a server on your own network.
+- A writing function with an `output` path writes the file as the command does and returns the summary. With `output=None` it returns `(bytes, summary)` instead.
+
+## Errors
+
+Errors raise one of three exceptions, which match the command's exit statuses. All three are subclasses of `coreav.CoreavError`.
+
+| Exception | Exit status | Attributes |
+|---|---|---|
+| `coreav.RejectedError` | 1: the file was rejected or cannot be processed as asked | `error` (the `coreav.error/1` object), `kind`, `limit`, `offset` |
+| `coreav.UsageError` | 2: the arguments are not valid | The message only |
+| `coreav.IoError` | 3: a file could not be read or written | `error`, `kind`, `limit`, `offset` |
+
+```python
+try:
+    coreav.probe(b"not a media file")
+except coreav.RejectedError as e:
+    print(e.kind)   # unsupported_container
+```
+
+`kind` is stable and meant for programs. The message is for people.
+
+## Platforms
+
+CI builds abi3 wheels for Linux x86-64 and arm64 and for macOS arm64 ([platforms](/platforms)).
+
+## More detail
+
+[The Python module's design note](https://github.com/coreav-dev/coreav/blob/main/docs/design/python.md) covers the choices behind the module and its measured call overhead.

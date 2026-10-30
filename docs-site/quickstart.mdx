@@ -1,0 +1,76 @@
+---
+title: "Quick start"
+description: "Describe a file, cut a clip, remux Matroska to MP4, check an upload, and run an ffprobe command line in strict-safe mode."
+---
+
+These steps use the `coreav` command from [Install](/install) and two files of your own: an MP4 file, `input.mp4`, and a Matroska file, `input.mkv`. Every command exits with status 0 on success.
+
+## Describe a file
+
+```console
+$ coreav probe input.mp4
+{
+  "container": {
+    "creation_time": null,
+    "fragmented": false,
+    "major_brand": "isom",
+    "timescale": 1000
+  },
+  ...
+  "schema": "coreav.probe/1",
+  "streams": [
+  ...
+```
+
+`coreav probe` also reads MOV, Matroska, WebM and MPEG-TS files. A Matroska or WebM file gives `coreav.probe-matroska/1`, and an MPEG-TS file gives `coreav.probe-mpegts/1`.
+
+## Cut a clip
+
+Cut from the keyframe at or before 1 s up to 3 s, without re-encoding:
+
+```sh
+coreav clip --start 1 --end 3 input.mp4 clip.mp4
+```
+
+The summary (`coreav.clip/1`) says where the clip starts after the start time snaps back to a keyframe, and how many samples of each stream it holds.
+
+## Remux Matroska to MP4
+
+```sh
+coreav remux input.mkv output.mp4
+```
+
+The MP4 file has its movie header first (faststart). A stream that MP4 cannot carry is dropped and listed in the summary (`coreav.remux/1`).
+
+## Check an upload against a policy
+
+A policy is a `coreav.policy/1` JSON file. The repository has an example, [`web-upload.json`](https://github.com/coreav-dev/coreav/blob/main/docs/schema/policy-examples/web-upload.json).
+
+```console
+$ coreav check --policy web-upload.json input.mp4
+{
+  "policy": "web-upload",
+  "reasons": [],
+  "schema": "coreav.verdict/1",
+  "verdict": "accept"
+}
+```
+
+Exit status 0 means that the file is accepted, and 1 that it is rejected. The verdict is on standard output in both cases.
+
+## Run an ffprobe command line in strict-safe mode
+
+Strict-safe mode is the mode for files you did not make. It runs only what CoreAV implements. For an H.264 file of 320 by 240 pixels with AAC audio, this command prints:
+
+```console
+$ coreav --strict-safe ffprobe -v error -show_entries stream=codec_name,width,height -of csv=p=0 input.mp4
+h264,320,240
+aac
+```
+
+A command line that CoreAV does not implement is refused with exit status 4, and no FFmpeg code runs. [Strict-safe mode and the FFmpeg fallback](/strict-safe) explains both modes.
+
+## Next steps
+
+- [Commands](/commands) lists every command and its options. `coreav --help` and `coreav COMMAND --help` print the same text.
+- [Python](/python) shows the same operations from Python.
