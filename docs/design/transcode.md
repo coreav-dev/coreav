@@ -49,7 +49,7 @@ In:
   the highest resolution, the first on a tie), decoded through the decode
   boundary (`docs/design/decode.md`) with the backends of the build: the
   native H.264 decoder (`native-h264`), dav1d for AV1 (`dav1d`), libvpx
-  for VP9 (`libvpx`), the sandboxed FFmpeg fallback (`ffmpeg-fallback`) for
+  for VP8 and VP9 (`libvpx`), the sandboxed FFmpeg fallback (`ffmpeg-fallback`) for
   the rest. Encoded to
   H.264 by x264, with `--crf` or `--bitrate`, `--preset`, and `--scale`
   (`coreav-frame`'s resize).

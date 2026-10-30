@@ -52,7 +52,7 @@ IMAGES_NOT_COMPARED = {
 }
 ALLOWED = ('h264', 'hevc', 'av1', 'vp9', 'vp8', 'prores')
 # The codecs a backend other than the fallback decodes.
-BACKEND_CODECS = {'dav1d': ('av1',), 'libvpx': ('vp9',)}
+BACKEND_CODECS = {'dav1d': ('av1',), 'libvpx': ('vp9', 'vp8')}
 
 
 def default_video(path, ffprobe='ffprobe'):
@@ -273,6 +273,8 @@ def framemd5(ffmpeg, ffprobe, path, ext, stream_index, n, backend):
     # compare the colour planes, in the decoder's format without alpha.
     probe = run([ffprobe, '-v', 'error', '-select_streams', str(stream_index), '-show_entries',
                  'stream=pix_fmt', '-of', 'csv=p=0', str(path)]).stdout.decode().strip()
+    codec = run([ffprobe, '-v', 'error', '-select_streams', str(stream_index), '-show_entries',
+                 'stream=codec_name', '-of', 'csv=p=0', str(path)]).stdout.decode().strip()
     alpha = None
     if probe.startswith('yuva'):
         alpha = 'yuv' + probe[4:]
@@ -284,9 +286,9 @@ def framemd5(ffmpeg, ffprobe, path, ext, stream_index, n, backend):
         # The same decoder (docs/design/decode.md, bar 1).
         cmd += ['-c:v', 'libdav1d']
     elif backend == 'libvpx':
-        # FFmpeg's own VP9 decoder, never its libvpx wrapper: an independent
-        # decoder of the same exactly specified process.
-        cmd += ['-c:v', 'vp9']
+        # FFmpeg's own VP8 or VP9 decoder, never its libvpx wrapper: an
+        # independent decoder of the same exactly specified process.
+        cmd += ['-c:v', 'vp8' if codec == 'vp8' else 'vp9']
     # Crop exactly as the bitstream says: by default FFmpeg 7 skips a left crop
     # that would break its planes' alignment (docs/design/decode.md).
     cmd += ['-flags', 'unaligned']
