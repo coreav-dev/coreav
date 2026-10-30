@@ -1,0 +1,34 @@
+---
+title: "coreav mcp"
+sidebarTitle: "mcp"
+description: "Serve CoreAV's commands as Model Context Protocol tools over standard input and output."
+---
+
+import Help from '/snippets/help/mcp.mdx';
+
+`coreav mcp` is a Model Context Protocol server over standard input and output, for agents. It offers one tool per command: `probe`, `check`, `clip`, `split`, `remux`, `sanitize`, `extract_audio`, `extract_subtitles` and `chapters`. Each tool returns the command's JSON document, or an error result with the command's `coreav.error/1` object.
+
+- The tools read and write only inside the directories that `--root` names, the current directory by default. Paths outside every root are refused.
+- `--urls` decides which URLs the tools read: `public` (`https://` URLs of public addresses, the default), `any`, or `none`.
+- Each tool call runs the command as a child process, stopped after `--timeout` seconds.
+
+## Example
+
+An MCP client starts the server as a command:
+
+```json
+{
+  "mcpServers": {
+    "coreav": {
+      "command": "coreav",
+      "args": ["mcp", "--root", "/srv/media"]
+    }
+  }
+}
+```
+
+[The MCP design note](https://github.com/coreav-dev/coreav/blob/main/docs/design/mcp.md) has the details.
+
+## Options
+
+<Help />

@@ -1,0 +1,42 @@
+---
+title: "coreav hls"
+sidebarTitle: "hls"
+description: "Serve an MP4 or MOV file as HLS with fragmented MP4 (CMAF) segments, without re-encoding."
+---
+
+import Help from '/snippets/help/hls.mdx';
+import HlsIndex from '/snippets/help/hls-index.mdx';
+import HlsGet from '/snippets/help/hls-get.mdx';
+import HlsPackage from '/snippets/help/hls-package.mdx';
+
+`coreav hls` serves an MP4 or MOV file as HLS, with fragmented MP4 (CMAF) segments, without packaging the file first. It has three subcommands:
+
+- `coreav hls index` lists the source once and writes a small index. Its summary is [`coreav.hls-index/2`](https://github.com/coreav-dev/coreav/blob/main/docs/schema/hls-index-v2.md).
+- `coreav hls get` writes one resource (a playlist, an init segment or a media segment) from the index and the source, on request.
+- `coreav hls package` builds the index and writes every resource into a directory.
+
+## Examples
+
+```sh
+coreav hls index input.mp4 input.cavhls
+coreav hls get input.cavhls input.mp4 master.m3u8 -
+coreav hls package input.mp4 out/
+```
+
+[The HLS design note](https://github.com/coreav-dev/coreav/blob/main/docs/design/hls.md) covers segment boundaries, timing and the index.
+
+## Options
+
+<Help />
+
+### coreav hls index
+
+<HlsIndex />
+
+### coreav hls get
+
+<HlsGet />
+
+### coreav hls package
+
+<HlsPackage />

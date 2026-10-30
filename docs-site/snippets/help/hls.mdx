@@ -1,0 +1,14 @@
+```text
+Serve an MP4/MOV file as HLS with fragmented MP4 (CMAF) segments, without re-encoding
+
+Usage: coreav hls <COMMAND>
+
+Commands:
+  index    Build the index that playlists and segments are cut from
+  get      Write one resource (`master.m3u8`, `video.m3u8`, `video-init.mp4`, `video-0.m4s`, ...) from an index and its source
+  package  Build the index and write every resource into a directory
+  help     Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help  Print help
+```

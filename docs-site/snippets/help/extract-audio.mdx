@@ -1,0 +1,16 @@
+```text
+Copy the AAC audio track of an MP4/MOV file into an M4A file, without re-encoding
+
+Usage: coreav extract-audio [OPTIONS] <INPUT> <OUTPUT>
+
+Arguments:
+  <INPUT>   The file to read
+  <OUTPUT>  Where to write the M4A file: a new file, or `-` for standard output
+
+Options:
+      --stream <STREAM>  The audio stream index (default: the first audio stream)
+      --allow <CODEC>    Codecs to accept, comma separated, as for `coreav probe`
+      --strict           Reject the whole file when a stream's codec is not allowed
+      --force            Overwrite OUTPUT if it exists (a symbolic link is replaced, not written through; the new file keeps the old one's permissions)
+  -h, --help             Print help
+```

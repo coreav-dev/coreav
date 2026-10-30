@@ -1,0 +1,33 @@
+---
+title: "coreav check"
+sidebarTitle: "check"
+description: "Check a file against an upload policy and print the verdict as JSON."
+---
+
+import Help from '/snippets/help/check.mdx';
+
+`coreav check --policy POLICY FILE` checks an MP4, MOV, Matroska or WebM file against an upload policy and prints the verdict ([`coreav.verdict/1`](https://github.com/coreav-dev/coreav/blob/main/docs/schema/verdict-v1.md)) on standard output. A policy is a [`coreav.policy/1`](https://github.com/coreav-dev/coreav/blob/main/docs/schema/policy-v1.md) JSON file that sets limits on codecs, resolution, duration, size and more.
+
+| Exit status | Meaning |
+|---|---|
+| 0 | The file is accepted. |
+| 1 | The file is rejected. The verdict on standard output lists the reasons. |
+| 2 | The policy is not valid. |
+
+## Example
+
+```console
+$ coreav check --policy web-upload.json input.mp4
+{
+  "policy": "web-upload",
+  "reasons": [],
+  "schema": "coreav.verdict/1",
+  "verdict": "accept"
+}
+```
+
+The repository has example policies in [`docs/schema/policy-examples`](https://github.com/coreav-dev/coreav/tree/main/docs/schema/policy-examples).
+
+## Options
+
+<Help />

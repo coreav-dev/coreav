@@ -1,0 +1,23 @@
+```text
+Write a thumbnail of an MP4, MOV, Matroska or WebM file: the keyframe at or before a time (or with --exact the frame at it), resized and encoded as JPEG, PNG or WebP
+
+Usage: coreav thumbnail [OPTIONS] --output <FILE> <INPUT>
+
+Arguments:
+  <INPUT>  The file (or http(s) URL) to take the thumbnail of
+
+Options:
+  -o, --output <FILE>      Where to write the image: a new file, or `-` for standard output
+      --at <TIME>          The time, from the file's start as for `ffmpeg -ss`: seconds (`12`, `12.5`, `12.5s`), milliseconds (`1500ms`) or `[HH:]MM:SS[.fff]` [default: 0]
+      --exact              The first frame at or after the time (decoding from the keyframe before it) instead of the keyframe at or before it
+      --width <PIXELS>     Image width; the height follows the display aspect ratio unless --height is given too
+      --height <PIXELS>    Image height
+      --format <FORMAT>    `jpeg`, `png` or `webp` (lossless); default: from the output's extension, else `jpeg` [possible values: jpeg, jpg, png, webp]
+      --quality <Q>        JPEG quality, 1 to 100 [default: 91]
+      --stream <STREAM>    The video stream index (default: the first video stream)
+      --allow <CODEC>      Codecs that may be decoded, comma separated, by `ffprobe`'s names (default: h264, hevc, av1, vp9, vp8, prores)
+      --threads <N>        Decoder threads (default: the decoder's own choice); fewer when the frames would not fit the decoder's memory budget [default: 0]
+      --timeout <SECONDS>  Seconds decoding may take before it is stopped [default: 30]
+      --force              Overwrite OUTPUT if it exists
+  -h, --help               Print help
+```

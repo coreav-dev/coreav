@@ -20,6 +20,8 @@ When a review corrects a mistake, fix it and add its rule here. If the rule is a
 | An H.264 speed round's bars are judged on every stream of its set | `scripts/h264_parity.py` records requested and failed streams; `scripts/h264_parity_bars.py` refuses incomplete reports |
 | A new round adds no copy of an analyzer under `docs/measurements` | `scripts/tests/test_measurement_analyzers.py` (`deny.yml`) |
 | The numbers of `docs/measurements/compat-ffprobe.md` are those of its `b3a-round*.json` | `tools/compat-corpus/record.py --check` (`deny.yml`) |
+| The documentation site's command reference shows each command's `--help` as the command prints it, and every command has a page | `crates/coreav-cli/tests/docs_site.rs` (`ci.yml`; `COREAV_BLESS_DOCS=1` rewrites the help text) |
+| The documentation site's links into the repository and between pages resolve, without the `/docs` base path | `scripts/tests/test_docs_site.py` (`deny.yml`); Mintlify's link check (`docs-site.yml`, not required) |
 | State kept per PID in `coreav-mpegts` is bounded: by a limit of `Limits`, or by the 8,192 PIDs a packet can name | `PidMap` (`crates/coreav-mpegts/src/pid_map.rs`): `PidMap::streams` and `PidMap::programs` take their limit from `Limits`, `PidMap::pids` the PID space; `disallowed-types` in `crates/coreav-mpegts/clippy.toml` refuses the standard maps elsewhere in the crate (clippy, `ci.yml`) |
 | Which keyframe a thumbnail may give is decided in one place | `select::offered` in `coreav-thumbnail`, and the agreement test in `mkv.rs` |
 | Thresholds are committed before the run they judge | Not enforced: judgment (the commit before the run is the evidence) |

@@ -1,0 +1,48 @@
+---
+title: "Build features"
+description: "The Cargo features of the coreav command: the default build, and the decoder backends that add thumbnail and transcode."
+---
+
+The `coreav` command is the `coreav-cli` crate. Its Cargo features decide which commands a build has and which third-party code it links.
+
+## The default build
+
+`cargo install --locked --path crates/coreav-cli --profile dist` builds the default features, `cli` and `net`:
+
+| Feature | What it adds |
+|---|---|
+| `cli` | The command-line parser. Without it, the library builds alone, as the WebAssembly build does. |
+| `net` | Reading `https://` inputs by byte ranges ([remote media](https://github.com/coreav-dev/coreav/blob/main/docs/design/remote.md)). |
+
+A default build has every command except `thumbnail` and `transcode`, and links no decoder or encoder. It contains no implementation of a codec that is still under patent, and a CI check enforces that.
+
+## Decoder backends
+
+Each backend feature adds [`coreav thumbnail`](/commands/thumbnail) and [`coreav transcode`](/commands/transcode), and the decoder it names. None is in a default build. Combine them with commas, for example `--features dav1d,ffmpeg-fallback`.
+
+| Feature | Decodes | What it needs |
+|---|---|---|
+| `ffmpeg-fallback` | The allowlisted codecs (by default H.264, HEVC, AV1, VP9, VP8 and ProRes), through an `ffmpeg` program in the sandboxed worker | An `ffmpeg` program at run time. FFmpeg's libraries are never linked ([decoding through FFmpeg](/strict-safe#decoding-through-ffmpeg-in-builds-with-a-decoder-backend)). |
+| `dav1d` | AV1, with dav1d in the sandboxed worker | The system's libdav1d 1.3.0 or later, found with `pkg-config` |
+| `libvpx` | VP9, with libvpx in the sandboxed worker | The system's libvpx with decoder ABI version 12, as in libvpx 1.14, found with `pkg-config` |
+| `native-h264` | H.264, with CoreAV's own decoder in the `coreav` process | Nothing else. Read the patent note below. |
+
+When a build has more than one backend, CoreAV picks one for each stream from those that support it, and `coreav thumbnail` reports which one decoded the frame. `coreav transcode` also needs an encoder program at run time: an `x264` program, or an `ffmpeg` program built with libx264.
+
+For example, to build with dav1d and the FFmpeg fallback:
+
+```sh
+cargo install --locked --path crates/coreav-cli --profile dist --features dav1d,ffmpeg-fallback
+```
+
+## The native H.264 decoder and patents
+
+<Warning>
+Decoding H.264 may require a patent licence, depending on where you are and what you do with it. Patents essential to H.264 are still in force in some jurisdictions, and pool licences exist for decoders as well as encoders. Deciding whether you may use this decoder is yours to make. Nothing here is legal advice.
+</Warning>
+
+That is why the native H.264 decoder is opt-in behind `native-h264` and never in a default build. It decodes High profile, 8-bit 4:2:0, progressive streams, and rejects what it does not decode (field pictures, MBAFF, 4:2:2, 4:4:4 and bit depths above 8, among others) with an error instead of a wrong picture ([`coreav-h264`](https://github.com/coreav-dev/coreav/blob/main/crates/coreav-h264/README.md)).
+
+## Licence notices
+
+Every distribution of CoreAV ships its licence files, `LICENSE-MIT` and `LICENSE-APACHE`. A build with a decoder backend also links the thumbnail code, whose JPEG encoder's licence asks binary distributions to carry a statement. If you distribute such a build, ship [`NOTICE`](https://github.com/coreav-dev/coreav/blob/main/NOTICE) beside the binary. If you also ship a copy of libvpx with it, ship libvpx's own `LICENSE` and `PATENTS` files with that copy. A default build needs no `NOTICE` ([notices in distributions](https://github.com/coreav-dev/coreav/blob/main/docs/release/notices.md)).
