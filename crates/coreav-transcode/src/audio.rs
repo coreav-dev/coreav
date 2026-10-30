@@ -21,11 +21,11 @@ use coreav_decode::ErrorKind;
 use coreav_isobmff::{FourCc, Source};
 use coreav_isobmff_write::AudioSample;
 use coreav_isobmff_write::mux::{RawBox, audio_sample_entry};
-use coreav_worker::ExecLauncher;
 use coreav_worker::opus::{
     FRAME_SAMPLES, MAX_BITRATE, MAX_PRE_SKIP, MIN_BITRATE, PacketReader, ReadError, encode_args,
     packets_for,
 };
+use coreav_worker::{ExecLauncher, HugePages};
 
 use crate::encoder::{EncoderLimits, Process, Sink, command};
 use crate::pipeline::{Error, Spool};
@@ -301,6 +301,7 @@ impl Feed<'_> {
         let command = command(
             program,
             &encode_args(channels, bitrate),
+            HugePages::Kept,
             self.launcher,
             &EncoderLimits::new(ENCODER_MEMORY),
             self.deadline,
@@ -452,6 +453,7 @@ mod tests {
         let command = command(
             &script,
             &encode_args(2, 96_000),
+            HugePages::Kept,
             None,
             &EncoderLimits::new(1 << 30),
             deadline,

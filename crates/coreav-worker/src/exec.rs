@@ -34,6 +34,7 @@ pub const EXEC_ARG: &str = "__coreav_exec";
 const ADDRESS_SPACE: &str = "--address-space";
 const CPU_SECONDS: &str = "--cpu-seconds";
 const OPEN_FILES: &str = "--open-files";
+const NO_HUGE_PAGES: &str = "--no-huge-pages";
 const END: &str = "--";
 
 /// Exit status of a launcher whose arguments or limits failed, as `env`
@@ -44,16 +45,27 @@ const CANNOT_RUN: u8 = 126;
 /// Exit status when the program does not exist.
 const NOT_FOUND: u8 = 127;
 
+/// Whether the program the launcher runs may use transparent huge pages.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HugePages {
+    /// As the system's settings give them.
+    Kept,
+    /// None, whatever the program asks for (Linux's `PR_SET_THP_DISABLE`,
+    /// which `exec` keeps); elsewhere the same as [`HugePages::Kept`].
+    Off,
+}
+
 /// What the launcher was asked to run.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Request {
     limits: SandboxLimits,
+    huge_pages: HugePages,
     program: PathBuf,
     args: Vec<OsString>,
 }
 
-/// Reads `[--address-space N] [--cpu-seconds N] [--open-files N] --
-/// PROGRAM [ARG]...`. The program must be a path (it has a `/`): with an
+/// Reads `[--address-space N] [--cpu-seconds N] [--open-files N]
+/// [--no-huge-pages] -- PROGRAM [ARG]...`. The program must be a path (it has a `/`): with an
 /// empty environment there is no `PATH` to search, and a search would
 /// depend on the launcher's own defaults.
 fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Request, String> {
@@ -63,12 +75,20 @@ fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Request, String> {
         cpu_seconds: None,
         open_files: None,
     };
+    let mut huge_pages = HugePages::Kept;
     loop {
         let Some(flag) = args.next() else {
             return Err("no program after the limits".into());
         };
         let slot = match flag.to_str() {
             Some(END) => break,
+            Some(NO_HUGE_PAGES) => {
+                if huge_pages == HugePages::Off {
+                    return Err(format!("{NO_HUGE_PAGES} given twice"));
+                }
+                huge_pages = HugePages::Off;
+                continue;
+            }
             Some(ADDRESS_SPACE) => &mut limits.address_space,
             Some(CPU_SECONDS) => &mut limits.cpu_seconds,
             Some(OPEN_FILES) => &mut limits.open_files,
@@ -91,13 +111,20 @@ fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Request, String> {
     }
     Ok(Request {
         limits,
+        huge_pages,
         program,
         args: args.collect(),
     })
 }
 
-/// The arguments [`parse`] reads for `limits`, `program` and `args`.
-fn launch_args(limits: &SandboxLimits, program: &Path, args: &[OsString]) -> Vec<OsString> {
+/// The arguments [`parse`] reads for `limits`, `huge_pages`, `program`
+/// and `args`.
+fn launch_args(
+    limits: &SandboxLimits,
+    huge_pages: HugePages,
+    program: &Path,
+    args: &[OsString],
+) -> Vec<OsString> {
     let mut out = Vec::with_capacity(args.len() + 8);
     for (flag, value) in [
         (ADDRESS_SPACE, limits.address_space),
@@ -108,6 +135,9 @@ fn launch_args(limits: &SandboxLimits, program: &Path, args: &[OsString]) -> Vec
             out.push(flag.into());
             out.push(value.to_string().into());
         }
+    }
+    if huge_pages == HugePages::Off {
+        out.push(NO_HUGE_PAGES.into());
     }
     out.push(END.into());
     out.push(program.as_os_str().to_owned());
@@ -148,6 +178,9 @@ fn run(request: &Request) -> ExitCode {
     if let Err(e) = crate::sandbox::apply(&request.limits) {
         return report(&format!("cannot set the limits: {e}"), LAUNCH_FAILED);
     }
+    if let Err(e) = huge_pages_off(request.huge_pages) {
+        return report(&format!("cannot turn huge pages off: {e}"), LAUNCH_FAILED);
+    }
     // `exec` returns only on failure. The standard streams are this
     // process's, which the parent piped; `std` restores `SIGPIPE`'s
     // default action for the new program.
@@ -164,6 +197,19 @@ fn run(request: &Request) -> ExitCode {
         &format!("cannot run {}: {error}", request.program.display()),
         status,
     )
+}
+
+#[cfg(target_os = "linux")]
+fn huge_pages_off(huge_pages: HugePages) -> io::Result<()> {
+    match huge_pages {
+        HugePages::Kept => Ok(()),
+        HugePages::Off => Ok(rustix::thread::disable_transparent_huge_pages(true)?),
+    }
+}
+
+#[cfg(all(unix, not(target_os = "linux")))]
+fn huge_pages_off(_: HugePages) -> io::Result<()> {
+    Ok(())
 }
 
 #[cfg(not(unix))]
@@ -196,15 +242,21 @@ impl ExecLauncher {
         })
     }
 
-    /// A command that runs `program` with `args` under `limits`: through
-    /// the launcher, in a process group of its own (Unix), with an empty
-    /// environment and piped standard input, output and error. The
-    /// program must be a path, never a name to search for.
-    pub fn command(&self, limits: &SandboxLimits, program: &Path, args: &[OsString]) -> Command {
+    /// A command that runs `program` with `args` under `limits` and
+    /// `huge_pages`: through the launcher, in a process group of its own
+    /// (Unix), with an empty environment and piped standard input, output
+    /// and error. The program must be a path, never a name to search for.
+    pub fn command(
+        &self,
+        limits: &SandboxLimits,
+        huge_pages: HugePages,
+        program: &Path,
+        args: &[OsString],
+    ) -> Command {
         let mut command = Command::new(&self.command.program);
         command
             .args(&self.command.args)
-            .args(launch_args(limits, program, args));
+            .args(launch_args(limits, huge_pages, program, args));
         isolate(&mut command);
         command
     }
@@ -282,6 +334,7 @@ mod tests {
         };
         let args = launch_args(
             &limits,
+            HugePages::Off,
             Path::new("/opt/x/x264"),
             &os(&["--crf", "23", "-"]),
         );
@@ -292,6 +345,7 @@ mod tests {
                 "1073741824",
                 "--cpu-seconds",
                 "70",
+                "--no-huge-pages",
                 "--",
                 "/opt/x/x264",
                 "--crf",
@@ -301,6 +355,7 @@ mod tests {
         );
         let request = parse(args).unwrap();
         assert_eq!(request.limits, limits);
+        assert_eq!(request.huge_pages, HugePages::Off);
         assert_eq!(request.program, PathBuf::from("/opt/x/x264"));
         assert_eq!(request.args, os(&["--crf", "23", "-"]));
     }
@@ -313,6 +368,8 @@ mod tests {
             &["--address-space", "x", "--", "/bin/true"],
             &["--open-files", "1", "--open-files", "2", "--", "/bin/true"],
             &["--nice", "1", "--", "/bin/true"],
+            &["--no-huge-pages", "--no-huge-pages", "--", "/bin/true"],
+            &["--no-huge-pages", "1", "--", "/bin/true"],
             &["--"],
             &["--", "true"],
             &["/bin/true"],
