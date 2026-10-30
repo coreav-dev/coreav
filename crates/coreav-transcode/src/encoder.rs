@@ -36,7 +36,7 @@ use std::time::{Duration, Instant};
 use coreav_decode::{Error, ErrorKind};
 use coreav_frame::{Chroma, ColorInfo, Picture, PixelFormat};
 use coreav_worker::exec;
-use coreav_worker::{ExecLauncher, SandboxLimits};
+use coreav_worker::{ExecLauncher, HugePages, SandboxLimits};
 
 /// The encoder program.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -70,6 +70,17 @@ impl EncoderProgram {
         match self {
             Self::X264(_) => x264_args(settings),
             Self::Ffmpeg(_) => ffmpeg_args(settings),
+        }
+    }
+
+    /// Whether the program may use transparent huge pages on frames of
+    /// `format`: not x264 on samples of more than 8 bits, whose conversion
+    /// of its input stalls on them
+    /// (`docs/measurements/transcode-x264-10bit.md`, "Huge pages").
+    pub fn huge_pages(&self, format: PixelFormat) -> HugePages {
+        match (self, format) {
+            (Self::X264(_), PixelFormat::Yuv { depth, .. }) if depth > 8 => HugePages::Off,
+            _ => HugePages::Kept,
         }
     }
 }
@@ -881,12 +892,13 @@ pub fn write_timecodes(
 }
 
 /// The command that runs `program` with `args`: through `launcher` with
-/// `limits` and a CPU time of what is left to `deadline` times the CPU
-/// count (the sandbox), or directly when `launcher` is `None` (no limits;
-/// for tests).
+/// `limits`, `huge_pages` and a CPU time of what is left to `deadline`
+/// times the CPU count (the sandbox), or directly when `launcher` is
+/// `None` (no limits; for tests).
 pub(crate) fn command(
     program: &Path,
     args: &[OsString],
+    huge_pages: HugePages,
     launcher: Option<&ExecLauncher>,
     limits: &EncoderLimits,
     deadline: Instant,
@@ -905,7 +917,7 @@ pub(crate) fn command(
                 cpu_seconds: Some(cpu_seconds),
                 open_files: limits.open_files,
             };
-            launcher.command(&sandbox, program, args)
+            launcher.command(&sandbox, huge_pages, program, args)
         }
         None => exec::direct_command(program, args),
     }
@@ -992,7 +1004,14 @@ impl<S: Sink> Encoder<S> {
             }
             _ => None,
         };
-        let command = command(program.path(), &args, launcher, limits, deadline);
+        let command = command(
+            program.path(),
+            &args,
+            program.huge_pages(settings.format),
+            launcher,
+            limits,
+            deadline,
+        );
         let process = Process::spawn(name, "frames", command, program.path(), deadline, sink)?;
         Ok(Self {
             process,
@@ -1887,6 +1906,19 @@ mod tests {
                 .unwrap()
                 .contains(&"sar=65535/65534".to_owned())
         );
+    }
+
+    #[test]
+    fn x264_runs_without_huge_pages_on_samples_of_more_than_8_bits() {
+        let x264 = EncoderProgram::X264(PathBuf::from("/opt/x264"));
+        let ffmpeg = EncoderProgram::Ffmpeg(PathBuf::from("/opt/ffmpeg"));
+        for chroma in [Chroma::Cs420, Chroma::Cs422, Chroma::Cs444] {
+            let at = |depth| PixelFormat::Yuv { chroma, depth };
+            assert_eq!(x264.huge_pages(at(10)), HugePages::Off);
+            assert_eq!(x264.huge_pages(at(8)), HugePages::Kept);
+            assert_eq!(ffmpeg.huge_pages(at(10)), HugePages::Kept);
+            assert_eq!(ffmpeg.huge_pages(at(8)), HugePages::Kept);
+        }
     }
 
     #[test]

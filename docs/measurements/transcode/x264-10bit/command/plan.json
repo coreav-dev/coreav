@@ -1,0 +1,25 @@
+{
+ "files": 28,
+ "upload_bytes": 8353620647,
+ "pixel_frames": 111453128352,
+ "estimate_hours": 3.6,
+ "max_hours": 5.5,
+ "disk_gb": 41,
+ "per_class": {
+  "hevc": {
+   "files": 8,
+   "reserve": 5,
+   "reserve_not_uploaded": 4
+  },
+  "av1": {
+   "files": 6,
+   "reserve": 3,
+   "reserve_not_uploaded": 0
+  },
+  "prores": {
+   "files": 6,
+   "reserve": 0,
+   "reserve_not_uploaded": 0
+  }
+ }
+}

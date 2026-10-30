@@ -434,6 +434,7 @@ def main():
     args = p.parse_args()
     args.classes = [c for c in args.classes.split(',') if c]
     args.decode_oracle = None
+    args.compat = False
     if not set(args.classes) <= set(tc.CLASSES):
         p.error(f'--classes: {tc.CLASSES}')
     if args.command == 'select':
