@@ -1492,3 +1492,20 @@ each found after round 1:
 
 The tolerances, the level rule, the sets and the other bars are
 unchanged.
+
+Round 2 results, on `7deca1b`, against the same FFmpeg build: every bar
+met. Bar 1: 336 of 336 LC streams. Bar 2: 458 of 458 counted inputs (146
+generated, 312 conformance). The largest difference was 3.9 × 10^-5
+(RMS at most 4.1 × 10^-7), and the noise level agreed to 0.0006 dB on the
+76 channels with 100 or more noise blocks. Not counted: 105 HE-AAC
+streams (95 refused by name, and 10 that `ffmpeg` decodes with errors),
+and the 24 streams of `al03`, which FFmpeg decodes off the reference
+(RMS 1.8 to 3.9 × 10^-3 from the reference; CoreAV's at most
+3.5 × 10^-8). Bar 3: 120 of 120 gating inputs. Reported: 23 inputs with
+noise bands or intensity under an all-ones mask, and the program
+configurations 6.1, 6.1 with `-aac_pce 1` and 7.1 with `-aac_pce 1`,
+whose channels FFmpeg orders differently. `ffmpeg`'s default output
+equals the presentation model on 120 inputs. Bar 4: 146 Matroska inputs,
+lengths equal to `ffmpeg`'s on all of them; on the 123 without noise or
+intensity frames, samples agreed within the tolerance except on those
+three program configurations (channel order). Bar 5: 292 of 292.
