@@ -56,6 +56,7 @@ from fractions import Fraction
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 import clip_check as cc  # noqa: E402
+import remux_check  # noqa: E402
 
 KD_FILE = pathlib.Path(__file__).resolve().parent.parent / "docs" / "known-divergences-join.json"
 
@@ -193,6 +194,9 @@ def check_source(entry, ffprobe, ffmpeg, found, counts, evidence, decode=True):
         actual = [(round((t * ob + offset) / sb) * sb, size, h) for t, size, h, _ in of]
         if kind == "video":
             evidence["source_video_frames"] = (sb, sf, ob, of, offset, cc.fraction(entry["inputs"][-1]["video_end"]))
+        else:
+            evidence["source_audio_last"] = (expected, actual, [f[3] for f in sf], [f[3] for f in of],
+                                             (source, src_index), (output, out_index))
         if actual not in (expected, expected + at_end):
             found.append((f"{kind}:framemd5", f"{kind}: decoded frames differ from the source's"))
 
@@ -1438,6 +1442,30 @@ def audio_noise(field, fields, c):
         pathlib.Path(delivered[0]).unlink(missing_ok=True)
 
 
+def audio_last_cut(field, fields, c):
+    """KD-J-AUDIO-LAST-CUT: ffmpeg cuts the last audio frame of one of the
+    two files where Skip Samples side data on its last packet ends it, and
+    decodes the other file's last frame whole. Holds when every frame but
+    the last is the same at the same time, the last ones start at the same
+    time, and ffprobe lists Skip Samples on exactly one file's last packet,
+    skipping nothing and discarding what that file's last frame lacks of
+    the other's."""
+    if field != "audio:framemd5" or "audio:packets" in fields:
+        return False
+    expected, actual, durations_a, durations_b, a, b = c["source_audio_last"]
+    if not expected or len(expected) != len(actual) or expected[:-1] != actual[:-1]:
+        return False
+    if expected[-1][0] != actual[-1][0] or expected[-1][2] == actual[-1][2]:
+        return False
+    ffprobe = c["ffprobe"]
+    cuts = [remux_check.last_skip_samples(ffprobe, str(path), index) for path, index in (a, b)]
+    if sum(cut is not None for cut in cuts) != 1:
+        return False
+    cut = next(x for x in cuts if x is not None)
+    short, whole = (durations_a[-1], durations_b[-1]) if cuts[0] else (durations_b[-1], durations_a[-1])
+    return cut[0] == 0 and cut[1] > 0 and short + cut[1] == whole
+
+
 PREDICATES = {
     "video_later_edit": video_later_edit,
     "sync_verified": sync_verified,
@@ -1446,6 +1474,7 @@ PREDICATES = {
     "audio_edit_start": audio_edit_start,
     "video_edit_end": video_edit_end,
     "audio_noise": audio_noise,
+    "audio_last_cut": audio_last_cut,
 }
 
 
