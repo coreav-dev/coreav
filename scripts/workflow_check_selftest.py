@@ -168,6 +168,13 @@ class Repository(unittest.TestCase):
         for file in ('tools/probe/action.yml', '.github/actions/probe/action.yaml', 'tools/anchored/action.yml'):
             self.assertTrue(any(p.startswith(f'{file}: line ') and 'actions/checkout@v4' in p for p in found), (file, found))
 
+    def test_a_job_no_report_waits_for_is_reported(self):
+        ci = self.root / '.github' / 'workflows' / 'ci.yml'
+        text = ci.read_text()
+        self.assertIn('    needs: [ci-changes, bench-guard]\n', text)
+        ci.write_text(text.replace('    needs: [ci-changes, bench-guard]\n', '    needs: [ci-changes]\n'))
+        self.assertIn('ci.yml: no report job waits for bench-guard', check.check(self.root))
+
     def test_a_local_ref_to_nothing_is_reported(self):
         self.call_local('./tools/none')
         self.assertTrue(any('names no action or workflow file' in p for p in check.check(self.root)))

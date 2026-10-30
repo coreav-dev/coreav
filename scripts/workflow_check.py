@@ -13,9 +13,9 @@
 - a required job does not always run: a workflow its trigger's `paths` or
   `paths-ignore` skips reports nothing at all, and a required check that
   never reports leaves every pull request pending;
-- a report job does not carry `if: always()`, or does not wait for every
-  other job of its workflow, so that a failure below it could pass
-  unnoticed;
+- a report job does not carry `if: always()`, or a job of a workflow
+  with a required report job is waited for by none of them, so that its
+  failure could pass unnoticed;
 - a filter pattern passed to .github/actions/changed-paths is one GitHub
   and the action would read differently;
 - a step in a workflow (.yml or .yaml), in a local action
@@ -343,6 +343,7 @@ def check(root):
 
     note = root / 'docs' / 'design' / 'ci-checks.md'
     listed = required_names(note)
+    reports = {}     # workflow file name -> its required report jobs
     for name, workflow in listed:
         if workflow in unlisted:
             problems.append(f'{note.name} requires `{name}` of {workflow}, which is marked not required')
@@ -376,10 +377,14 @@ def check(root):
         for other in sorted(labelled & set(fields['needs'])):
             problems.append(f'{workflow}: the report job `{job}` waits for `{other}`, '
                             'whose condition reads the pull request labels')
-        missing = sorted(set(jobs[workflow]) - {job} - labelled - set(fields['needs']))
+        reports.setdefault(workflow, set()).add(job)
+
+    for workflow, covering in sorted(reports.items()):
+        found = jobs[workflow]
+        covered = set().union(*(found[job]['needs'] for job in covering))
+        missing = sorted(set(found) - covering - label_gated(found) - covered)
         if missing:
-            problems.append(f'{workflow}: the report job `{job}` does not wait for '
-                            + ', '.join(missing))
+            problems.append(f'{workflow}: no report job waits for ' + ', '.join(missing))
 
     required = {name for name, _ in listed}
     for workflow, found in jobs.items():

@@ -1,0 +1,20 @@
+[package]
+name = "coreav-ts-speed"
+description = "CoreAV's side of the MPEG-TS packet-listing speed bar; never published"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[[bin]]
+name = "ts-speed"
+path = "src/main.rs"
+
+[dependencies]
+coreav-mpegts = { path = "../../crates/coreav-mpegts" }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

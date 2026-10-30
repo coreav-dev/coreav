@@ -81,7 +81,8 @@
         "codec": {
           "enum": [
             "flac",
-            "mp3"
+            "mp3",
+            "aac"
           ]
         },
         "sample_rate": {

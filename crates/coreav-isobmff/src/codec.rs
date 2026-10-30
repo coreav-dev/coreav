@@ -1292,7 +1292,29 @@ struct AacLayout {
     rate: Option<u32>,
 }
 
+/// The `objectTypeIndication` and `DecoderSpecificInfo` of an `esds`
+/// box's payload (ISO/IEC 14496-1 7.2.6.5 and 7.2.6.6): for AAC, the
+/// `AudioSpecificConfig` a decoder needs. The information is `None` when
+/// the descriptor is truncated or lacks it.
+pub fn esds_decoder_specific_info(esds: &[u8]) -> Option<(u8, Option<&[u8]>)> {
+    esds_parts(esds).map(|(object_type, _, specific)| (object_type, specific))
+}
+
 fn parse_esds(payload: &[u8]) -> Option<Esds> {
+    let (object_type, rates, specific) = esds_parts(payload)?;
+    Some(Esds {
+        object_type,
+        rates,
+        aac: specific.and_then(aac_profile),
+        layout: specific.and_then(aac_layout),
+    })
+}
+
+type EsdsParts<'a> = (u8, Option<(u32, u32, u32)>, Option<&'a [u8]>);
+
+/// The object type, rates and decoder-specific information of an `esds`
+/// payload.
+fn esds_parts(payload: &[u8]) -> Option<EsdsParts<'_>> {
     let mut at = 4usize;
     let (tag, len) = descriptor(payload, &mut at)?;
     if tag != 3 {
@@ -1343,12 +1365,7 @@ fn parse_esds(payload: &[u8]) -> Option<Esds> {
                 }
                 inner = stop;
             }
-            return Some(Esds {
-                object_type,
-                rates,
-                aac: specific.and_then(aac_profile),
-                layout: specific.and_then(aac_layout),
-            });
+            return Some((object_type, rates, specific));
         }
         at = body_end;
     }
