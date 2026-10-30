@@ -1458,12 +1458,15 @@ and a timed run on a fixed host ("Speed" above records the design).
 **Round 1**, on `fa508ad`, in the `aac` job of `audio-conformance`
 against FFmpeg `n9.0.2-17-g2a571b6068`: bar 1 met (336 LC streams within
 full accuracy, 105 HE-AAC streams refused by name); bars 2, 3 and 5
-missed, final for that code. Bar 2: 322 of 481 counted inputs. Every one
-of the 145 generated MP4 inputs missed the length rule alone:
-`ffmpeg -ignore_editlist 1` 9.0.2 writes the samples its packets'
-durations state (481,024 for a 10-second input at 48 kHz, with the
-encoder's 1,024 priming samples), not every packet's 1,024. The rule
-assumed every packet's, as FFmpeg 8.1 writes. Their samples agreed to
+missed, final for that code. Bar 2: 322 of 481 counted inputs. Of the
+146 generated MP4 inputs, 135 missed the length rule alone, 10 passed
+and one was refused (below, not counted). `ffmpeg -ignore_editlist 1`
+9.0.2 writes the samples its packets' durations state (481,024 for a
+10-second input at 48 kHz, with the encoder's 1,024 priming samples),
+not every packet's 1,024. The rule assumed every packet's, as FFmpeg 8.1
+writes. The 10 that passed are the 64 kHz inputs, where the stated
+samples are a whole number of packets (641,024, 626 × 1,024). The
+samples of the 145 decoded inputs agreed to
 4.8 × 10^-7 at most (RMS 5.8 × 10^-8), and the noise level to 0.0001 dB
 on the 28 channels with 100 or more noise blocks. The 24 streams of
 `al03` (every rate, both frame lengths; one channel, a program
