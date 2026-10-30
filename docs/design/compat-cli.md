@@ -466,8 +466,8 @@ documented syntax:
 An option outside the vocabulary, a value of an accepted option CoreAV
 does not implement (a writer, a specifier form, a section, a key), or a
 command whose only output would be what CoreAV does not produce, is
-**refused before the input is opened**: one line on standard error naming
-the option or property and why, nothing on standard output, and **exit
+**refused**: one line on standard error naming the option or property and
+why, nothing on standard output, no output written or changed, and **exit
 status 4**, a status no other `coreav` command uses, so a script can tell
 "not supported here" from a failure. Rejected: reusing 1 (a rejected file)
 or 2 (a usage error), which would make a refusal look like a bad file or a
@@ -479,6 +479,11 @@ refuses those), 3 the input could not be read (missing, unreadable, a
 failed remote read), 141 standard output closed by its reader. `ffprobe`
 itself exits 1 for all of 1 to 3; a script that tests for success sees the
 same answer.
+
+An option or value outside the vocabulary is refused while the command
+line is parsed, before the input is opened. A refusal that depends on the
+input or the output (a property of the source that `coreav ffmpeg` does not
+copy, an output that already exists) comes once the input is read.
 
 A refused command runs FFmpeg's `ffmpeg` or `ffprobe` instead unless
 strict-safe mode is on (`COREAV_STRICT_SAFE=1`, `coreav --strict-safe`),
@@ -1181,9 +1186,11 @@ service's input. Every bar of this note is measured in it.
 Only a refusal is handed on. A file CoreAV rejects (exit 1), a malformed
 command (2) and an input that cannot be read (3) keep their status: the
 rejection of a file is CoreAV's verdict on that file, and handing it on
-would send FFmpeg exactly the files the checks stopped. A refusal comes
-before the input is opened and before any output is written, so FFmpeg
-gets standard input unread and no partial output exists. Rejected: falling
+would send FFmpeg exactly the files the checks stopped. No refusal writes
+output, so no partial output exists. A refusal of an option or value comes
+before the input is opened, so FFmpeg gets standard input unread; one that
+depends on the input or the output comes once the input is read ("Refusal
+and exit codes"). Rejected: falling
 back on exit 1 too, which a drop-in would like but which defeats the
 checks; and a per-tool pair of variables, where one directory is how FFmpeg
 installs both tools.

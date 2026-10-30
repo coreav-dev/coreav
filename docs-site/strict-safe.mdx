@@ -5,11 +5,22 @@ description: "Choose what coreav ffprobe and coreav ffmpeg do with a command lin
 
 `coreav ffprobe` and `coreav ffmpeg` take FFmpeg's command lines. CoreAV implements a subset of them. A command line outside that subset either goes to the real `ffprobe` or `ffmpeg` (the fallback), or is refused (strict-safe mode).
 
-The fallback is on by default, so a script that calls FFmpeg keeps working. If your service reads files it did not make, such as uploads, turn on strict-safe mode. It is the only mode in which no FFmpeg code runs on the input.
+The fallback is on by default, so a script that calls FFmpeg keeps working. If your service reads files it did not make, such as uploads, turn on strict-safe mode. In a default build, it is the only mode in which no FFmpeg code runs on the input. A build with a decoder backend differs: [what strict-safe mode covers](#what-strict-safe-mode-covers) says how.
 
 <Note>
 The other commands (`probe`, `check`, `clip`, `split`, `join`, `remux`, `sanitize`, `extract-audio`, `extract-subtitles`, `chapters`, `decode-audio`, `hls`) never run FFmpeg, in either mode.
 </Note>
+
+## What strict-safe mode covers
+
+Strict-safe mode turns off the command-line fallback: a command line that CoreAV does not implement is refused instead of handed to the real `ffprobe` or `ffmpeg`. It does not turn off decoding through FFmpeg, which only builds with the `ffmpeg-fallback` decoder backend have.
+
+| Build | `ffmpeg` runs on the input in strict-safe mode |
+|---|---|
+| Default build, which the release binaries planned for 0.1.0 are | Never. It has no decoder backend. |
+| With the `ffmpeg-fallback` [build feature](/build-features) | To decode video for `coreav transcode`, `coreav thumbnail` and the `libx264` command lines of `coreav ffmpeg`, in the sandboxed worker. It gets the packets of one video stream, never the file ([decoding through FFmpeg](#decoding-through-ffmpeg-in-builds-with-a-decoder-backend)). |
+
+If no FFmpeg code may run on your input, use a build without `ffmpeg-fallback`.
 
 ## Turn on strict-safe mode
 
@@ -36,7 +47,7 @@ $ echo $?
 4
 ```
 
-A refusal comes before the input is opened and before any output is written. A program that gets exit status 4 can send the job somewhere else, or reject it.
+A refusal of an option or a value that CoreAV does not implement comes before the input is opened. Some refusals depend on the input or the output, such as a source with chapters or an output file that already exists, so they come after the input is opened. No refusal writes or changes the output. A program that gets exit status 4 can send the job somewhere else, or reject it.
 
 ## The FFmpeg fallback
 
@@ -83,7 +94,7 @@ The program that the fallback starts gets `COREAV_FALLBACK_ACTIVE=1` in its envi
 
 ## Decoding through FFmpeg in builds with a decoder backend
 
-Builds with the `ffmpeg-fallback` [build feature](/build-features) also use an `ffmpeg` program to decode video for [`coreav thumbnail`](/commands/thumbnail) and [`coreav transcode`](/commands/transcode). This is a separate path from the command-line fallback, and it is never in a default build:
+Builds with the `ffmpeg-fallback` [build feature](/build-features) also use an `ffmpeg` program to decode video for [`coreav thumbnail`](/commands/thumbnail), [`coreav transcode`](/commands/transcode) and the `libx264` command lines of [`coreav ffmpeg`](/commands/ffmpeg). This is a separate path from the command-line fallback. Strict-safe mode does not turn it off, and it is never in a default build:
 
 - CoreAV demuxes the file itself and sends FFmpeg only the packets of one video stream, in a Matroska stream that CoreAV writes. FFmpeg's container probing never runs on the untrusted file.
 - The decoder is chosen by name from an allowlist, so a file cannot steer FFmpeg to another decoder.

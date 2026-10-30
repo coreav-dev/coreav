@@ -40,7 +40,7 @@ The summary (`coreav.clip/1`) says where the clip starts after the start time sn
 coreav remux input.mkv output.mp4
 ```
 
-The MP4 file has its movie header first (faststart). A stream that MP4 cannot carry is dropped and listed in the summary (`coreav.remux/1`).
+The MP4 file has its movie header first (faststart). A stream other than video that MP4 cannot carry is dropped and listed in the summary (`coreav.remux/1`). A video stream that MP4 cannot carry fails the remux with exit status 1 and no output, unless you add `--drop-unsupported` ([`coreav remux`](/commands/remux)).
 
 ## Check an upload against a policy
 
@@ -68,7 +68,7 @@ h264,320,240
 aac
 ```
 
-A command line that CoreAV does not implement is refused with exit status 4, and no FFmpeg code runs. [Strict-safe mode and the FFmpeg fallback](/strict-safe) explains both modes.
+A command line that CoreAV does not implement is refused with exit status 4, and the real `ffprobe` does not run. [Strict-safe mode and the FFmpeg fallback](/strict-safe) explains both modes.
 
 ## Next steps
 
