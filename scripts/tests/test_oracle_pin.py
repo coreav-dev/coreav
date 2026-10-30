@@ -47,12 +47,13 @@ class OraclePin(unittest.TestCase):
             'scripts/x264_pin.py': "X264_COMMIT = '4613ac3c15fd75cebc4b9f65b7fb95e70a3acce1'\n",
             'scripts/ffmpeg_pin.py': "FFMPEG_VERSION = '10.0'\n",
             'crates/a/tests/t.rs': f'// {pin["X264_COMMIT"][:7]}\n',
+            'tools/ts-speed/fetch.sh': f'echo "{pin["LAV_SHA256"]}  lav.tar.xz" | sha256sum -c\n',
             'docs/measurements/r/job.sh': 'curl https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz\n',
         })
         found = [p.split(':')[0] for p in oracle_pin.problems(root)]
         self.assertEqual(sorted(found), ['.github/workflows/a.yml', 'crates/a/tests/t.rs', 'scripts/ffmpeg_pin.py',
                                          'scripts/install.sh', 'scripts/names.py', 'scripts/x264.sh',
-                                         'scripts/x264_pin.py'])
+                                         'scripts/x264_pin.py', 'tools/ts-speed/fetch.sh'])
 
 
 if __name__ == '__main__':

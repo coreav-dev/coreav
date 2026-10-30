@@ -11,8 +11,9 @@ Markdown, and `evidence/` and `results/` directories. A second pin is:
 - an FFmpeg archive name with a version (`ffmpeg-7.0.2-amd64-static`);
 - a cache key or a `VERSION` assignment naming an FFmpeg version;
 - an x264 commit in a path, a cache key or a `COMMIT` assignment;
-- one of the pin's own values (its build, archive, SHA-256 or x264 commit),
-  which only scripts/oracle-ffmpeg.env may hold.
+- one of the pin's own values (its build, archive, SHA-256, the LGPL
+  build's SHA-256 or x264 commit), which only scripts/oracle-ffmpeg.env
+  may hold.
 
 The fix it names: read the value from scripts/oracle-ffmpeg.env
 (`source` in shell, `oracle_pin.load()` in Python, `hashFiles` of the file
@@ -66,7 +67,7 @@ def tracked(root):
 
 def problems(root):
     pin = load(root)
-    own = [re.compile(re.escape(pin[name])) for name in ('BUILD', 'ARCHIVE', 'SHA256', 'X264_COMMIT')]
+    own = [re.compile(re.escape(pin[name])) for name in ('BUILD', 'ARCHIVE', 'SHA256', 'LAV_SHA256', 'X264_COMMIT')]
     own.append(re.compile(rf'\b{re.escape(pin["X264_COMMIT"][:7])}\b'))
     for rel in tracked(root):
         try:
