@@ -18,15 +18,20 @@ prerequisite below has merged and before the first run. The binary is
 `coreav` built from that commit with `cargo build --locked --profile dist
 -p coreav-cli` and default features, so no decoder backend is linked;
 its SHA-256 is recorded with the results. Every comparison runs the pinned
-FFmpeg 7.0.2 (`scripts/install-oracle-ffmpeg.sh`), `ffmpeg` and
-`ffprobe` alike.
+FFmpeg 9.x that `scripts/install-oracle-ffmpeg.sh` installs at that
+commit, `ffmpeg` and `ffprobe` alike; the pin moves from 7.0.2 to the
+latest stable 9.x before the round, and the record names the exact
+version. Draw 6's sets were sorted with `ffprobe` 7.0.2, as the corpus
+rules then stated; R2 and R3 run on every `real` file of the draw,
+with the 9.x build as the reference.
 
 Every run sets `COREAV_STRICT_SAFE=1` and `COREAV_FALLBACK_LOG`, as the
 note requires; a run whose log holds a line is void. Every run of the pinned
 `ffmpeg` or `ffprobe` sets `GCONV_PATH` to a directory with no gconv
 modules, as `scripts/oracle-ffprobe.sh` does, and CoreAV's runs get the
-same environment: the static 7.0.2 build crashes on transport streams
-with broadcast text when it loads a newer system's gconv modules
+same environment: the static 7.0.2 build crashed on transport streams
+with broadcast text when it loaded a newer system's gconv modules, and a
+static 9.x build is kept to the same environment
 ([`design/mpegts.md`](../../design/mpegts.md)), which `run.py` and
 `speed.py` do not guard against today. A command that is
 refused in strict-safe mode has no output and no time, so it misses R1 or
