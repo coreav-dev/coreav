@@ -10,7 +10,7 @@ denominator and are reported separately from direct agreement.
 
 These entries restate, for the hardened crate, the divergences that Spike C
 documented and that the oracle policy accepts as known divergences. Predicates use container
-and codec properties, never fixture names. The oracle is `ffprobe` 7.0.2.
+and codec properties, never fixture names. The oracle is `ffprobe` 9.0.2.
 
 ## Evidence the overlay checks
 
@@ -56,7 +56,7 @@ the QuickTime File Format), and an entry applies only where the two agree:
 The entries whose shift applies to a whole stream (`KD-CTTS`,
 `KD-CTTS-UNSIGNED`, `KD-TRUN-SHIFT`, `KD-EDIT-SNAP`) also need it to show on
 every paired packet of the stream: none may agree with the reference on the
-shifted field. `KD-STRICT`, `KD-DECLARED-SIZE`, `KD-QT-TEXT`,
+shifted field. `KD-STRICT`, `KD-DECLARED-SIZE`, `KD-HEVC-WINDOW`, `KD-QT-TEXT`,
 `KD-NOT-ALLOWED` and `KD-COVER-ART` read their evidence from the file or
 from the reference already. The audit that motivated these checks, and the
 mutations it tries, is in `docs/measurements/kd-audit.md`.
@@ -159,7 +159,9 @@ directly.
 - Fields: `duration_ts` and, where it follows, `format_duration_us`.
 - When: a fragmented stream whose first fragment starts at a decode time
   after 0 (its first `tfdt`), as in a CMAF segment or a stream cut from a
-  longer one.
+  longer one; or a fragmented stream with a segment index (`sidx`) whose
+  end lies after the stream's samples' span, even when its first fragment
+  starts at 0.
 - What each reports: CoreAV reports the stream's samples' span, the sum of
   the fragment sample durations. `ffprobe`
   counts from decode time 0, so its duration is the first `tfdt` more.
@@ -171,7 +173,7 @@ directly.
   its length.
 - Coverage requires: the adapter's `fragment_start_ticks` (the first
   `tfdt` CoreAV read, reported only for a stream whose samples are all in
-  fragments) is above 0, and the reference `duration_ts` equals the
+  fragments) is above 0 (0 or above with a segment index), and the reference `duration_ts` equals the
   candidate's plus it exactly. With a segment index (`sidx`) for the
   stream, `ffprobe` takes the index's end instead (its earliest
   presentation time plus its subsegment durations, `sidx_end_ticks`, from
@@ -180,7 +182,10 @@ directly.
   exceed it, and a kept stream's value must equal its samples' summed
   durations (`stts_duration_ticks`). A stream the allowlist dropped counts
   with the timing the adapter reports for it (`duration_ticks`, its
-  fragment start). The format duration is covered as for `KD-STTS-SHORT`.
+  fragment start). The format duration is covered as for `KD-STTS-SHORT`,
+  except that a stream whose index ends after its samples' span plus its
+  first `tfdt` starts that much later in the reference's span: `ffprobe`
+  9.0.2 reports `fragmented_sidx.mp4` as 20.16 s, CoreAV as 20.08 s.
 
 ## KD-EDIT-UNPLACED
 
@@ -596,3 +601,23 @@ directly.
   coded size the bitstream gives, as `ffprobe` does; its fixtures with a
   declared size other than the decoded one are set aside under this record
   (`tools/compat-corpus/run.py`, `SET_ASIDE`).
+
+## KD-HEVC-WINDOW
+
+- Fields: stream `profile`, `level` and `color_range`.
+- When: an HEVC stream whose sequence parameter set has a conformance
+  window that leaves no picture, which H.265 7.4.3.2.1 does not allow (the
+  window's left and right offsets must leave part of the width, and its
+  top and bottom offsets part of the height).
+- What each reports: `ffprobe` 9.0.2 drops the whole parameter set
+  ("SPS 0 does not exist") and prints none of the three fields. CoreAV
+  reports the profile and level, which come before the window in the set
+  (H.265 7.3.3), and the colour range. `ffprobe` 7.0.2 printed them too.
+  Examples: `size_hevc_window.mp4` and `size_hevc_mixed_window.mp4`.
+- Why: the profile and level are readable whatever the window says, and a
+  policy gate needs them.
+- Coverage requires: the codec is HEVC on both sides, the reference has none
+  of the three fields, and `scripts/oracle_kd.py` reads the first sequence
+  parameter set of the sample entry's `hvcC` itself (ISO/IEC 14496-15
+  8.3.3.1): its window leaves no picture, and its `general_profile_idc` and
+  `general_level_idc` give CoreAV's profile and level.

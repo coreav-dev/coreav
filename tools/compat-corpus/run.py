@@ -85,11 +85,16 @@ def load_commands():
 # one side list and the other not. Any other difference fails.
 DECLARED_SIZE = ('KD-DECLARED-SIZE (docs/known-divergences.md)',
                  {'streams.width', 'streams.height', 'streams.display_aspect_ratio'})
+# ffprobe drops the parameter set, so it prints none of what the set gives.
+HEVC_WINDOW = ('KD-HEVC-WINDOW (docs/known-divergences.md)',
+               {'streams.profile', 'streams.level', 'streams.color_range', 'streams.pix_fmt',
+                'streams.chroma_location', 'streams.coded_width', 'streams.coded_height',
+                'streams.has_b_frames'})
 SET_ASIDE = {
     'size_entry_understated.mp4': DECLARED_SIZE,
     'size_prores_understated.mov': DECLARED_SIZE,
-    'size_hevc_window.mp4': DECLARED_SIZE,
-    'size_hevc_mixed_window.mp4': DECLARED_SIZE,
+    'size_hevc_window.mp4': HEVC_WINDOW,
+    'size_hevc_mixed_window.mp4': HEVC_WINDOW,
     'ts_duplicates.ts': ('KD-TS-DUPLICATE (docs/known-divergences-ts.md)',
                          {'packets.*', 'streams.bit_rate', 'programs.streams.bit_rate'}),
 }
