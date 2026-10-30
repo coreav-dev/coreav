@@ -1,5 +1,5 @@
 build: (cd <worktree at rev> && CARGO_TARGET_DIR=<tgt-name> cargo build --locked --profile dist --example decode -p coreav-h264)
-before = 3d4c2e63 (main with #386), after = d81655fd (perf/h264-combine)
+before = 3d4c2e63 (main with the luma interpolation round), after = d81655fd (perf/h264-combine)
 da270bc7a20fa6e965d1f8b765403a46ddc13f0e6725d51e8a5f3f77273b257c  $HOME/ab/combine/w/decode-before
 24ac24900f2cf2619dd76d59f0d130b99714b3220d422aa0b54d82ff66319d3f  $HOME/ab/combine/w/decode-after
 rustc 1.99.1 (58cf8f9c3 2026-10-13)

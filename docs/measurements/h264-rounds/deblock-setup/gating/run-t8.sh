@@ -1,6 +1,6 @@
 #!/bin/bash
-# The eight-thread calls of the deblock-setup gating run, run again with the harness of main acf3ee2f (#485: the in-call
-# gate's baseline after a discarded warm sample). The first t8.sd call of the run (harness of #478) read the gate's cold
+# The eight-thread calls of the deblock-setup gating run, run again with the harness of main acf3ee2f (the in-call
+# gate's baseline after a discarded warm sample). The first t8.sd call of the run (the harness before that fix) read the gate's cold
 # first sample as the baseline, so every later sample drifted -24% and every stream ended unresolved; it is kept, void,
 # in t8-aborted/. The binaries, the identity check and the one-thread calls (g) are those of run-ab-helper.sh's first
 # part, unchanged. Same options as run-ab-helper.sh's t8 calls.

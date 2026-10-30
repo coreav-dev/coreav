@@ -159,8 +159,8 @@ speed bar against FFmpeg comes with the library operations' bars.
   Should forward key frames or intra-only frames make `ffprobe` do the
   same in real files, every later frame would differ, which a corpus
   recheck shows; none does in corpus v1 (the 64 MP4 and MOV files with an
-  AV1 stream, rechecked against the stage 3 gate results for pull request
-  187: identical streams and packets).
+  AV1 stream, rechecked against the stage 3 gate results for the AV1 keyframe
+  change: identical streams and packets).
 - **Not read:** HEVC (IRAP pictures) and H.264 in the byte stream format
   (Annex B, some Matroska files) have no keyframe disagreement in the
   corpus and are left for when one shows; redundant coded pictures are not

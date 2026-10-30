@@ -1068,7 +1068,7 @@ def several_edit_variants(media, work):
     probe oracle has no model of what `ffprobe` lists for a timed text
     track with such a list (`docs/design/edit-lists.md`, "What `ffprobe`
     lists", measured for video and audio only), so a fixture carrying one
-    would leave packets uncovered there (#332)."""
+    would leave packets uncovered there."""
     craft = pathlib.Path(__file__).resolve().parent / "elst_craft.py"
     sources = {name for name, _track, _label, _edits, _why in SEVERAL_EDITS}
     present = {name for name in sources if (pathlib.Path(media) / name).exists()}

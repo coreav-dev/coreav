@@ -1,5 +1,5 @@
 #!/bin/bash
-# Gating run for WP-1..WP-4: run.sh BEFORE AFTER (main with #386, perf/h264-combine tip). Paths adapted to the A/B helper's VM.
+# Gating run for WP-1..WP-4: run.sh BEFORE AFTER (main with the luma interpolation round, perf/h264-combine tip). Paths adapted to the A/B helper's VM.
 set -euo pipefail
 BEFORE=$1; AFTER=$2
 OUT=$HOME/ab/combine/out; W=$HOME/ab/combine/w; mkdir -p $OUT $W
@@ -16,7 +16,7 @@ for pair in "before $BEFORE" "after $AFTER"; do
 done
 {
   echo "build: (cd <worktree at rev> && CARGO_TARGET_DIR=<tgt-name> cargo build --locked --profile dist --example decode -p coreav-h264)"
-  echo "before = $BEFORE (main with #386), after = $AFTER (perf/h264-combine)"
+  echo "before = $BEFORE (main with the luma interpolation round), after = $AFTER (perf/h264-combine)"
   sha256sum $W/decode-before $W/decode-after
   rustc -vV
   grep -m1 "model name" /proc/cpuinfo

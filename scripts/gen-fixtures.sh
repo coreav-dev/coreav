@@ -302,11 +302,11 @@ try_gen audio_aac.m4a "${ASRC[@]}" -c:a aac -b:a 128k
 try_gen audio_51.m4a "${ASRC[@]}" -af "pan=5.1|c0=c0|c1=c0|c2=c0|c3=c0|c4=c0|c5=c0" -c:a aac
 try_gen audio_opus.mp4 "${ASRC[@]}" -c:a libopus -b:a 64k
 try_gen audio_mp3.mp4 "${ASRC[@]}" -c:a libmp3lame -b:a 128k
-# QuickTime's own MP3 sound sample entry, `.mp3` (#57).
+# QuickTime's own MP3 sound sample entry, `.mp3`.
 try_gen audio_mp3.mov "${ASRC[@]}" -c:a libmp3lame -b:a 128k
 # AAC whose channels are in a program config element (channelConfiguration
 # 0; ffmpeg writes one for a hexagonal layout, 6 channels), under a sample
-# entry that says 2 (#56): a copy with the mp4a channelcount (20 bytes after
+# entry that says 2: a copy with the mp4a channelcount (20 bytes after
 # the entry type) rewritten.
 try_gen audio_pce_source.m4a "${ASRC[@]}" -af "aformat=channel_layouts=hexagonal" -c:a aac
 if [ -f "$OUT/audio_pce_source.m4a" ]; then

@@ -135,7 +135,7 @@ for them.
 ### What has spent it
 
 - The held-out set for the `hls index` comparison: run `w1-01` of
-  [`spikes/w1-227/README.md`](spikes/w1-227/README.md) used it. The replacement is
+  [`spikes/w1-remeasure/README.md`](spikes/w1-remeasure/README.md) used it. The replacement is
   `v2-heldout`.
 - The thumbnail and decode bars were measured on v1, and every
   change since was made in answer to those runs, so another run of v1 is
@@ -245,9 +245,9 @@ draw's operation.
 
 | Draw | For | Operation | `real` | Files | GB | Status |
 |---|---|---|---:|---:|---:|---|
-| 1 | `hls index` | `hls` | 40 | 96 | 4.85 | spent: runs `w2-01` to `w2-04` of [`spikes/w2-248/README.md`](spikes/w2-248/README.md) |
-| 2 | `hls index` and packet index, re-measurement | `hls` | 46 | 121 | 3.32 | spent: run `w3-01` of [`spikes/w2-248/README.md`](spikes/w2-248/README.md) |
-| 3 | `hls index` and packet index | `hls` | 46 | 102 | 3.13 | spent: run `w4-01` of [`spikes/w3-308/README.md`](spikes/w3-308/README.md) |
+| 1 | `hls index` | `hls` | 40 | 96 | 4.85 | spent: runs `w2-01` to `w2-04` of [`spikes/w2-hls-index/README.md`](spikes/w2-hls-index/README.md) |
+| 2 | `hls index` and packet index, re-measurement | `hls` | 46 | 121 | 3.32 | spent: run `w3-01` of [`spikes/w2-hls-index/README.md`](spikes/w2-hls-index/README.md) |
+| 3 | `hls index` and packet index | `hls` | 46 | 102 | 3.13 | spent: run `w4-01` of [`spikes/w3-sample-walk/README.md`](spikes/w3-sample-walk/README.md) |
 | 4 | thumbnail and decode | `thumbnail` | 52 | 80 | 1.71 | spent: the joint confirmation of [`spikes/thumbnail-bench/README.md`](spikes/thumbnail-bench/README.md) |
 | 5 | MPEG-TS demux | `ts-probe` | 37 | 48 | 1.7 | spent: [`measurements/ts-demux.md`](measurements/ts-demux.md) |
 

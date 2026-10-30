@@ -1,4 +1,4 @@
-# cachegrind --cache-sim=yes --branch-sim=yes, --discard, main 056bd25 (dw-4cb168e) vs round 24 (rejected/h264-mb-layer 3535661, mbl-451); 40 pictures (4k: 12). python3 -I cgcmp.py A B 12
+# cachegrind --cache-sim=yes --branch-sim=yes, --discard, main 056bd25 (dw-4cb168e) vs round 24 (rejected/h264-mb-layer 3535661, mbl-r24); 40 pictures (4k: 12). python3 -I cgcmp.py A B 12
 == 6f7799768413
 total   Ir 65.43M->64.44M (0.9849)  I1m 0.04M->0.03M (0.9835)  D1m 1.10M->1.10M (1.0012)  LLm 0.08M->0.08M (1.0000)  Br 8.21M->8.03M (0.9780)  Bm 0.05M->0.05M (1.0553)  est 92.44M->91.50M (0.9898)
 function                                                                             Ir              I1m              D1m              LLm               Br               Bm              est

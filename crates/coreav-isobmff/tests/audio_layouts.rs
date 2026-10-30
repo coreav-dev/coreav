@@ -332,8 +332,8 @@ fn aac_parametric_stereo_counts_as_stereo() {
 }
 
 /// The sample entry's rate is kept as stored, for the writers that copy it
-/// into a version 0 sound entry; the configuration's output rate is apart
-/// (#219): the core rate, or the explicit SBR extension's.
+/// into a version 0 sound entry; the configuration's output rate is apart:
+/// the core rate, or the explicit SBR extension's.
 #[test]
 fn the_configured_rate_is_apart_from_the_stored_one() {
     // LC at 96 kHz (index 0), stereo; the entry says 48 kHz.

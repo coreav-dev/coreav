@@ -1109,7 +1109,7 @@ def check(entry, ffprobe, ffmpeg, mediainfo):
         media_duration = Fraction(oh["traks"][out_index]["mdhd"][1], timescale)
         expected_duration = media_duration if segment is None else min(segment, media_duration)
         # The edit itself, not capped by the media duration: the media
-        # header could hide an edit one tick long (#324).
+        # header could hide an edit one tick long.
         written = media_duration if segment is None else segment
         if kind == "video" and written != end - zero:
             found.append(("video:edit", f"video edit {float(written)} s, clip {float(end - zero)} s"))

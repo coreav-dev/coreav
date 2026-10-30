@@ -242,7 +242,7 @@ files, which those bars measured before, so this is a parity check rather
 than a fresh held-out result. One run of `overhead.py --only check`. The
 wheel and `overhead` were built `dist` from `main` with an earlier change.
 
-Result (`overhead-check-251.json` and its summary): calls of 1 ms or
+Result (`overhead-check-wheel.json` and its summary): calls of 1 ms or
 more **1.042** (19
 inputs), shorter calls **+16.4 µs** (14). Both are met. The third bars had
 1.161 (21 inputs) and +49.2 µs (12); an earlier change moved two calls under 1 ms.
@@ -283,7 +283,7 @@ ran once.
     # check again: the same selection, check alone
     python overhead.py --overhead target/dist/overhead --media DIR --fetch \
        --only check --policy ../../docs/schema/policy-examples/web-upload.json \
-       --out evidence/overhead-check-251.json
+       --out evidence/overhead-check-wheel.json
 
 `$LAV` is the prefix of the pinned LGPL package; `perf.py` takes `probe`,
 `remux`, `subs` and `chapters`.

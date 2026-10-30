@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The hostile-file demo (docs/design/stage3-report.md, issue #77): the same
+# The hostile-file demo (docs/design/stage3-report.md): the same
 # uploaded file reaches a decoder in default FFmpeg, and is rejected by
 # CoreAV at probe time, on the command line.
 #

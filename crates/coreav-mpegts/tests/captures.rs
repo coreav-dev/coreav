@@ -1,6 +1,6 @@
 //! Hand-built transport streams of structures the real captures of the
 //! corpus set `v1-ts-audio` (`docs/corpus.md`) showed, each the shape of a
-//! case the reader once read wrongly (docs/design/mpegts.md, #208).
+//! case the reader once read wrongly (docs/design/mpegts.md).
 #![allow(
     clippy::disallowed_types,
     clippy::indexing_slicing,

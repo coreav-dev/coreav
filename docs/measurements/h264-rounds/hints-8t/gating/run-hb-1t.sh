@@ -1,5 +1,5 @@
 #!/bin/bash
-# Gating run of PR #539 (HB-4: one thread pinned, discard and write, six rounds): base = main 641fb937, k = perf/h264-8t-hints rebased on it (d728aba9; the branch head is 6bb8ab1a). Adapted from the first-touch round's run-ft-1t.sh: the same binaries as the Compute Engine arms (w/decode-base, w/decode-k).
+# Gating run of the banded hints round (HB-4: one thread pinned, discard and write, six rounds): base = main 641fb937, k = perf/h264-8t-hints rebased on it (d728aba9; the branch head is 6bb8ab1a). Adapted from the first-touch round's run-ft-1t.sh: the same binaries as the Compute Engine arms (w/decode-base, w/decode-k).
 # Gating run for the boundary-strength kernel round, one-thread arms: run-ab-helper.sh BASE K (BASE: main, the commit
 # the branch is based on; K: the branch's code commit). Bars BS-1 to BS-3 and BS-5's identity of docs/design/h264.md,
 # "Kernel round: boundary strengths in vector registers"; the eight-thread arms (BS-4) run on Compute Engine

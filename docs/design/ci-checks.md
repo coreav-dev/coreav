@@ -215,6 +215,33 @@ round's bars: one analyzer, complete reports"). It runs there, not in
 alone, which `ci.yml`'s filter skips. A new step of an existing job, so
 the required-check list does not change.
 
+## Issue references
+
+The code here started in another repository, and its comments, tests,
+scripts, notes and file names cited that repository's issues and pull
+requests by number. Those numbers mean nothing here, or name an unrelated
+issue of this repository. `deny.yml` runs `scripts/issue_refs_check.py`
+and its tests: every tracked text file and every tracked path fails on a
+bare `#N` and on `issue N`, `PR #N`, `prN`, `pull request N` and
+the like, a name wrapped onto the next line included. The error names the
+fix: say what the issue or pull request is about, or, for one of this
+repository, write `coreav-dev/coreav#N`.
+
+- **By form, not by number.** Both repositories number from 1, so no
+  number or range tells them apart, and a list of the other repository's
+  numbers would publish them. Naming the repository is the one form that
+  is unambiguous, and it costs a few characters in a comment.
+- **Not references:** libFuzzer's status lines, `uname`'s build number,
+  ffmpeg's stream specifiers, ffprobe's read intervals, the host gate's run
+  counters, and the salts of held-out draws, whose text fixes the draw.
+  The test data of the pull request text checks, where GitHub reads `#N`
+  as this repository's, are exempt by file.
+- **Not caught:** a number alone in a file name or a build label
+  (`summary-123.json`, `mbl-123`), which names hold for counts, dates
+  and sizes too, and the contents of compressed files. Review stops those.
+- **In `deny.yml`,** which nothing filters: a comment can change in any
+  file, a documentation-only one included.
+
 ## Labels
 
 The repository's labels are kept as code in `.github/labels.yml`: area labels (`area:h264`, `area:compat` and so on), kind labels (`bug`, `perf`, `feature`, `docs`, `tracking`) and resolution labels (`duplicate`, `wontfix`). `labels.yml` in `.github/workflows` runs `scripts/label_sync.py` on a push to main that changes the file, the script or the workflow, and by hand: it creates or updates every label in the file and deletes the ones listed under `retired` (GitHub's default labels this set replaces). `deny.yml` runs `label_sync.py --check` on every pull request, so a file the script would refuse, or an issue form that sets a label the file does not define (GitHub drops such a label silently), fails before it merges, not after.

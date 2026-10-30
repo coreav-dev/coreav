@@ -111,7 +111,7 @@ impl StreamInfo {
     /// Reads the configuration a container carries: Matroska's
     /// `CodecPrivate` (`fLaC` and the metadata blocks), the payload of an
     /// MP4 `dfLa` box (version and flags, then the metadata blocks), or a
-    /// bare 34-byte streaminfo body (#209's raw and Ogg demuxers).
+    /// bare 34-byte streaminfo body (the raw and Ogg demuxers).
     pub fn from_config(config: &[u8]) -> Result<Self, Error> {
         if let Some(rest) = config.strip_prefix(b"fLaC") {
             return Self::from_metadata_blocks(rest);

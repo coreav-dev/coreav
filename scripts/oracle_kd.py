@@ -2549,7 +2549,7 @@ def stream_item(detail, reference, candidate, defects, media_dir='', file='', fa
 
     # The entries that cover each differing field, for the compat check
     # (scripts/compat_check.py), which counts a compat key as covered only
-    # where the field it follows was (#219).
+    # where the field it follows was.
     paths = {}
     for diff in detail['gating_differences']:
         path = diff['path']

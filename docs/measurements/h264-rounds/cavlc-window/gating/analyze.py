@@ -1,4 +1,4 @@
-"""python3 -I analyze-cw.py DIR1 [DIR8]: the bars CW-1 to CW-5 of #507 (docs/design/h264.md, 'CAVLC round: one bit window across a macroblock's residual', Bars)
+"""python3 -I analyze-cw.py DIR1 [DIR8]: the bars CW-1 to CW-5 of the CAVLC window round (docs/design/h264.md, 'CAVLC round: one bit window across a macroblock's residual', Bars)
 from the calls' reports: g.<class>.json in DIR1 (one thread pinned, 32 training streams, arms `base` and `k`), t8.<class>.json in DIR8 (eight threads, the
 32 training streams, Compute Engine) and in h.<class>.json in DIR1 (one thread pinned, the 64 held-out streams). Per call and mode: the median per-stream ratio `k` over `base` with a
 bootstrap 95% interval (2,000 resamples over streams), over all streams, per class and over the six CAVLC streams, and the ratios to FFmpeg with the

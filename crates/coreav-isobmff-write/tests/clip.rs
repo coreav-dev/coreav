@@ -508,7 +508,7 @@ fn refusals_fail_before_writing() {
         ExtractError::Source(Error::NoSuchTrack)
     ));
     // Encrypted video (`encv`), which the default allowlist drops: the
-    // clip has no video because its codec is not allowed (#61).
+    // clip has no video because its codec is not allowed.
     let mut video = ibbp_video(25, 25);
     video.entry = *b"encv";
     let encrypted = movie(&[video, aac_audio(50, vec![])]);
@@ -527,7 +527,7 @@ fn refusals_fail_before_writing() {
             fourcc: FourCc(f)
         }) if &f == b"encv"
     ));
-    // MP3 in QuickTime's `.mp3` entry (#57) is audio the default choice
+    // MP3 in QuickTime's `.mp3` entry is audio the default choice
     // finds, and only AAC can be copied into a clip, as for MP3 in `mp4a`.
     let mut mp3 = aac_audio(50, vec![]);
     mp3.entry = *b".mp3";

@@ -1,4 +1,4 @@
-"""The corpus compat check (#219): one file's record
+"""The corpus compat check: one file's record
 from compat_check.py's report, and the per-key bar over a family."""
 import json
 import pathlib

@@ -8,11 +8,11 @@ Parts:
   2. seeded byte mutations of the generated MP4/MOV fixtures;
   3. PixelSmash-class files (MagicYUV in AVI and in MOV), made with the pinned
      ffmpeg binary as a black box;
-  6. MPEG transport stream structures ffmpeg never writes ("mpegts", issue
-     #208): tables that point at themselves or lie about their lengths, PES
+  6. MPEG transport stream structures ffmpeg never writes ("mpegts"):
+     tables that point at themselves or lie about their lengths, PES
      packets that never end, frame headers whose lengths do not advance,
      damaged and duplicated packets, and timestamps at the 33-bit wrap.
-  5. Matroska block lacing and content compression ("matroska", issue #108):
+  5. Matroska block lacing and content compression ("matroska"):
      lacing edge cases of RFC 9559 10.3 (Xiph, EBML and fixed-size, valid
      and broken) and tracks whose frames are zlib-compressed (a valid one, a
      decompression bomb, broken and truncated streams) or use the other
@@ -139,9 +139,9 @@ def structural(out: pathlib.Path) -> list:
     emit('zero_timescale.mp4', box(b'ftyp', b'isom') + box(b'mdat', b'\xAB' * 400) + zero_ts,
          'reject', 'media timescale of zero')
 
-    # Movie fragments that declare samples the file does not back (issue
-    # #289). A `trun` can put every per-sample value in the `trex` and
-    # `tfhd` defaults, so its count alone claims the fragment. Probe never
+    # Movie fragments that declare samples the file does not back. A
+    # `trun` can put every per-sample value in the `trex` and `tfhd`
+    # defaults, so its count alone claims the fragment. Probe never
     # reads a fragment, so each file is `bounded`: it probes, and the
     # commands that do read the fragment (`--ffprobe-compat`, which scans
     # by default, and `--scan-fragments`) must refuse it rather than report
@@ -156,7 +156,7 @@ def structural(out: pathlib.Path) -> list:
          'four samples whose only size is a default sample size of zero')
     emit('trun_count_past_mdat.mp4', fragmented_file(sample_count=5), 'bounded',
          'five samples of 100 bytes where the mdat holds four')
-    # The measured residue (issue #289): samples that write a size of zero
+    # The measured residue: samples that write a size of zero
     # cost four bytes each in the trun, so the box bounds them, and CoreAV
     # reads this file as it reads a stsz of zero sizes. FFmpeg refuses any
     # zero-sized sample in a trun, so this one is a known divergence in the
@@ -496,7 +496,7 @@ def matroska(out: pathlib.Path) -> list:
     return cases
 
 
-# --------------------------------------------- MPEG transport streams (#208)
+# --------------------------------------------- MPEG transport streams
 
 TS_SYNC = 0x47
 

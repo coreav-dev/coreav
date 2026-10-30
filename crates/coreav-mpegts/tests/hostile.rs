@@ -470,7 +470,7 @@ impl coreav_mpegts::Source for FailingAt<'_> {
     }
 }
 
-/// A read that fails is not a tail the reader cannot use (#594): wherever
+/// A read that fails is not a tail the reader cannot use: wherever
 /// the failure falls, including the tail read for the durations, the probe
 /// fails with it.
 #[test]

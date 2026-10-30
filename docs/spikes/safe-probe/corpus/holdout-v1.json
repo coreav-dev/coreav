@@ -1,5 +1,5 @@
 {
- "source": "corpus v1 (Decision 22), pull request 14, commit 7346e2a, the private corpus bucket, corpus v1 manifest",
+ "source": "corpus v1 (Decision 22), commit 7346e2a, the private corpus bucket, corpus v1 manifest",
  "manifest_sha256": "5aac0e74d352ea62abf72ffd24b58a5e6492b347bfeb63336a266f7772b7413e",
  "rule": "real files with holdout true (salted hash, 30% per category) whose container is ISO base media or QuickTime (Decision 21 amendment, point 1)",
  "holdout_total": 407,

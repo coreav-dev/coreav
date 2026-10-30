@@ -1,9 +1,9 @@
-"""#486's PMU records by kernel family: CoreAV's kernels against FFmpeg's assembly counterparts, per class.
+"""The acf3ee2f PMU profile's records by kernel family: CoreAV's kernels against FFmpeg's assembly counterparts, per class.
 
 Usage: python3 -I kernels_pmu.py RES CORE_BIN > kernels.txt
 
-RES is #486's `res/` (raw.tar.gz on measured/h264-profile-acf3ee2f-pmu) and CORE_BIN a build of `acf3ee2f` with line
-tables that reproduces #486's `run/stages.txt` byte for byte (the check that its code layout is the profiled one).
+RES is the acf3ee2f profile's `res/` (raw.tar.gz on measured/h264-profile-acf3ee2f-pmu) and CORE_BIN a build of `acf3ee2f` with line
+tables that reproduces the acf3ee2f profile's `run/stages.txt` byte for byte (the check that its code layout is the profiled one).
 
 - A CoreAV sample's family is the first match, from the innermost inline frame outwards, among the frames in the
   `coreav-kernels-h264` crate (KERNEL_RULES, on the function name; `prefetch.rs` by file). Helper frames (`b1`,
@@ -11,12 +11,12 @@ tables that reproduces #486's `run/stages.txt` byte for byte (the check that its
   `intra4x4_mb`, an IDCT helper's sample is the IDCT's and a prediction helper's the prediction's, as FFmpeg's
   separate functions split them. A sample in the crate that matches no rule is the motion compensation driver's
   (`mc-driver`, against FFmpeg's `mc_part`/`mc_dir_part`/`hl_motion`) where a frame is in a `predict.rs`, the view
-  constructors' (`views`) where one is in `views.rs`, else `glue:kernels`. Outside the crate: `deblock.rs` strengths (`bs`), and the rest by #486's stage
+  constructors' (`views`) where one is in `views.rs`, else `glue:kernels`. Outside the crate: `deblock.rs` strengths (`bs`), and the rest by the acf3ee2f profile's stage
   (`glue:<stage>`).
-- An FFmpeg sample's family is FF_RULES on its function symbol (function level only), else `glue:<stage>` by #486's
+- An FFmpeg sample's family is FF_RULES on its function symbol (function level only), else `glue:<stage>` by the acf3ee2f profile's
   FF_RULES.
 - Cycles are a share of the same stream's FFmpeg cycles (the attribution build, same kind of record), mean of the
-  rounds, then mean over the class's streams, as in #486. Instructions per macroblock likewise.
+  rounds, then mean over the class's streams, as in the acf3ee2f profile. Instructions per macroblock likewise.
 """
 import ast, bisect, collections, glob, json, os, re, subprocess, sys
 
@@ -24,7 +24,7 @@ res, core_bin = sys.argv[1], sys.argv[2]
 here = os.path.dirname(os.path.abspath(__file__))
 pmu = os.path.join(here, '..', 'profile-acf3ee2f-pmu')
 
-# #486's stage classifiers and constants, taken from its files rather than copied.
+# The acf3ee2f profile's stage classifiers and constants, taken from its files rather than copied.
 src = open(os.path.join(pmu, 'stages_pmu.py')).read()
 ns = {'re': re, 'os': os, 'ast': ast, 'here': pmu}
 for n in ast.parse(src).body:

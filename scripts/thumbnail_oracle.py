@@ -36,7 +36,7 @@ TIMEOUT = 600
 # sets one without them.
 ENV = None
 # Extra arguments of every `decode-oracle` run (a larger memory budget for a
-# re-run on a larger host, #279).
+# re-run on a larger host).
 DECODE_ORACLE_ARGS = []
 # The fixtures gate's image floor: gross errors only (a wrong frame, matrix,
 # range or rotation costs far more); the corpus bars are in

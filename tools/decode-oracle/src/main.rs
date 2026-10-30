@@ -96,7 +96,7 @@ fn run(args: &[String]) -> Result<Value, String> {
             "--in-process" => in_process = true,
             // A larger memory budget for each sandboxed decoder process, in
             // GiB, on a host that has it: for frames too large for the
-            // default with 120 packets sent ahead (#279).
+            // default with 120 packets sent ahead.
             "--max-memory-gib" => {
                 let gib: u64 = it
                     .next()

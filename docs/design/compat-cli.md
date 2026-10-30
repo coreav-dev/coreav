@@ -810,7 +810,7 @@ a second. Rejected: generating the whole record from the JSON, which
 would turn each round's account of why numbers moved into a template; and
 checking the tables alone, which would have passed round 6 as first
 written, when its prose gave `format.duration` as 97.81% and the table
-below it 97.71% (#21).
+below it 97.71% (coreav-dev/coreav#21).
 
 ### How the values are derived
 

@@ -7,7 +7,7 @@
 //! ([`crate::Packets`], when the scan asks for it): before the listing reads
 //! an element, the audit walks up to and past the same element, so both
 //! read the same bytes at about the same time and a file is read once
-//! rather than once per walk (#135). The two walks stay independent: each
+//! rather than once per walk. The two walks stay independent: each
 //! has its own work count, and the audit's verdict does not depend on the
 //! listing's. When the listing stops early (an error, or the end of the
 //! Segment), the audit walks on alone to the end of the file, and its

@@ -501,7 +501,7 @@ fn compat_stream(segment: &Segment, track: &Track) -> Value {
     );
     if let Some(a) = track.audio.filter(|_| track.kind == TrackKind::Audio) {
         // The output rate, as a decoder reports it: an SBR track stores its
-        // core rate as `SamplingFrequency` (#219).
+        // core rate as `SamplingFrequency`.
         put(
             &mut s,
             "sample_rate",
@@ -521,7 +521,7 @@ fn compat_stream(segment: &Segment, track: &Track) -> Value {
     // The stored `Language` element (ISO 639-2), as ffprobe's tag: not the
     // `LanguageBCP47` that overrides it, nor the default `eng` of a track
     // that stores none (RFC 9559 5.1.4.1.19), which the native document
-    // reports (#219).
+    // reports.
     if let Some(language) = track
         .language_iso639
         .as_deref()
