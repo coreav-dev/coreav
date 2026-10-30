@@ -125,6 +125,8 @@ def main():
         finally:
             if setting == 'host':
                 host_thp(default)
+        if rec['rc'] != 0:
+            sys.exit(f"{arm}: x264 exited with {rec['rc']}")
         return dict(rec, arm=arm, setting=setting, anon_huge_kib=seen[0],
                     sha256=sha(cmd[cmd.index('--output') + 1]))
 
