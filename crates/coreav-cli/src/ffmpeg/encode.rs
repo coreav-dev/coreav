@@ -11,12 +11,12 @@ use coreav_thumbnail::ThumbnailOptions;
 use coreav_transcode::PixelFormat;
 use coreav_transcode::encoder::{MAX_BITRATE, MAX_THREADS, PRESETS};
 
-use super::args::{Command, Encoding};
+use super::args::{Codec, Command, Encoding};
 use super::{NotNative, Refusal, Stop};
 use crate::error::Failure;
 use crate::fallback::Reason;
 use crate::output::{self, WriteFailure};
-use crate::strict_safe::StrictSafe;
+use crate::strict_safe::{Encoder, StrictSafe};
 use crate::transcode::{self, Request};
 
 /// Strict-safe mode's refusal (`crate::strict_safe`), as a command that is
@@ -60,11 +60,25 @@ fn kbps(text: &str) -> Option<u32> {
     u32::try_from(bits / 1_000).ok()
 }
 
-/// The request for the pipeline from the command's encoder options and the
-/// audio streams it copies.
+/// The encoder of a command that encodes with `libx264`, as strict-safe
+/// mode allows it, from the command line alone: refused before the input
+/// is read. `None` for a command that names no `libx264`.
+pub fn encoder(command: &Command, strict_safe: StrictSafe) -> Result<Option<Encoder>, Refusal> {
+    if !command.codecs.iter().any(|(_, c)| *c == Codec::Libx264) {
+        return Ok(None);
+    }
+    strict_safe
+        .encoder("auto", None)
+        .map(Some)
+        .map_err(refused_strict)
+}
+
+/// The request for the pipeline from the command's encoder options, its
+/// `encoder` and the audio streams it copies.
 pub fn request(
     command: &Command,
     audio: &[usize],
+    encoder: Encoder,
     strict_safe: StrictSafe,
 ) -> Result<Request, Refusal> {
     let Encoding {
@@ -162,7 +176,7 @@ pub fn request(
         audio_streams: Some(audio.to_vec()),
         pixel_format,
         one_size: true,
-        encoder: strict_safe.encoder("auto", None).map_err(refused_strict)?,
+        encoder,
         x264: None,
         ffmpeg: None,
         threads,
@@ -366,9 +380,10 @@ pub fn write(
     video: usize,
     audio: &[usize],
     reordered: bool,
+    encoder: Encoder,
     strict_safe: StrictSafe,
 ) -> Result<serde_json::Value, Stop> {
-    let request = request(command, audio, strict_safe)?;
+    let request = request(command, audio, encoder, strict_safe)?;
     let input = Path::new(&command.input);
     check_source(command, video, audio, reordered, input)?;
     let this = std::env::current_exe()

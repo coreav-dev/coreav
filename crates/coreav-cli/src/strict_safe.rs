@@ -9,9 +9,11 @@
 //! fallback asks [`StrictSafe::on`], a transcode's encoder is an
 //! [`Encoder`], which only [`StrictSafe::encoder`] makes, and the decoder
 //! backends are a [`Decoders`], to which only [`Decoders::push_ffmpeg`] adds the
-//! FFmpeg fallback.
+//! FFmpeg fallback. The hidden entries this program runs as
+//! (`crate::thumbnail::run_worker`) ask it too: the decode worker
+//! [`StrictSafe::worker`], the sandbox launcher [`StrictSafe::program`].
 
-#[cfg(feature = "transcode")]
+#[cfg(feature = "thumbnail")]
 use std::path::Path;
 #[cfg(feature = "thumbnail")]
 use std::sync::{Arc, OnceLock};
@@ -49,6 +51,44 @@ impl StrictSafe {
     /// Whether the mode is on.
     pub fn on(self) -> bool {
         self.on
+    }
+
+    /// Whether the decode worker hosts `backend`: in strict-safe mode not
+    /// the FFmpeg fallback. Err is the refusal's message.
+    #[cfg(any(feature = "ffmpeg-fallback", feature = "dav1d", feature = "libvpx"))]
+    pub fn worker(self, backend: coreav_worker::WorkerBackend) -> Result<(), String> {
+        if self.on && backend == coreav_worker::WorkerBackend::Ffmpeg {
+            return Err(format!(
+                "strict-safe mode never runs the ffmpeg program, so the decode worker does not \
+                 host the FFmpeg fallback, {OFF}"
+            ));
+        }
+        Ok(())
+    }
+
+    /// Whether the sandbox launcher runs `program`: in strict-safe mode not
+    /// an `ffmpeg` or `ffprobe` program, one whose file name, or the name
+    /// of the file it links to, begins with `ffmpeg` or `ffprobe` in any
+    /// case. Err is the refusal's message.
+    #[cfg(feature = "thumbnail")]
+    pub fn program(self, program: &Path) -> Result<(), String> {
+        if !self.on {
+            return Ok(());
+        }
+        let named = |path: &Path| {
+            path.file_name().is_some_and(|name| {
+                let name = name.to_string_lossy().to_ascii_lowercase();
+                name.starts_with("ffmpeg") || name.starts_with("ffprobe")
+            })
+        };
+        let linked = std::fs::canonicalize(program).is_ok_and(|target| named(&target));
+        if named(program) || linked {
+            return Err(format!(
+                "strict-safe mode never runs the ffmpeg program, so it does not run {}, {OFF}",
+                program.display()
+            ));
+        }
+        Ok(())
     }
 
     /// The encoder `--encoder` names (`auto`, `x264` or `ffmpeg`), where

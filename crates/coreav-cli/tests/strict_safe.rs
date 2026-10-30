@@ -24,7 +24,8 @@
 use serde_json::Value;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
 
 const NATIVE: bool = cfg!(feature = "native-h264");
 const FALLBACK: bool = cfg!(feature = "ffmpeg-fallback");
@@ -109,6 +110,39 @@ struct Run {
 /// `COREAV_FFMPEG` name the stand-in `ffmpeg`, and `COREAV_X264` the
 /// stand-in `x264` when `x264` is set.
 fn coreav(dir: &Path, mode: Mode, x264: bool, args: &[&str]) -> Run {
+    let out = command(dir, mode, x264, args).output().unwrap();
+    Run {
+        code: out.status.code().unwrap(),
+        stderr: String::from_utf8(out.stderr).unwrap(),
+    }
+}
+
+/// [`coreav`] for a run that may block: failed when it has not ended
+/// within ten seconds.
+fn coreav_promptly(dir: &Path, mode: Mode, args: &[&str]) -> Run {
+    let mut child = command(dir, mode, false, args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let start = Instant::now();
+    while child.try_wait().unwrap().is_none() {
+        if start.elapsed() > Duration::from_secs(10) {
+            child.kill().unwrap();
+            child.wait().unwrap();
+            panic!("{args:?} {mode:?}: still running after ten seconds");
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let out = child.wait_with_output().unwrap();
+    Run {
+        code: out.status.code().unwrap(),
+        stderr: String::from_utf8(out.stderr).unwrap(),
+    }
+}
+
+fn command(dir: &Path, mode: Mode, x264: bool, args: &[&str]) -> Command {
     let mut command = Command::new(bin());
     command
         .current_dir(dir)
@@ -127,11 +161,8 @@ fn coreav(dir: &Path, mode: Mode, x264: bool, args: &[&str]) -> Run {
             command.env("COREAV_STRICT_SAFE", "1");
         }
     }
-    let out = command.args(args).output().unwrap();
-    Run {
-        code: out.status.code().unwrap(),
-        stderr: String::from_utf8(out.stderr).unwrap(),
-    }
+    command.args(args);
+    command
 }
 
 /// A refusal of strict-safe mode with exit status 4: the reason, the way
@@ -298,4 +329,109 @@ fn ffmpeg_libx264_lines_run_no_ffmpeg() {
     let run = coreav(&dir, Mode::Off, false, &line);
     assert_ne!(run.code, 0);
     assert!(ran(&dir, "ffmpeg"), "{}", run.stderr);
+}
+
+#[test]
+fn ffmpeg_libx264_lines_are_refused_before_the_input_is_read() {
+    let dir = dir("ffmpeg-libx264-early");
+    let made = Command::new("mkfifo")
+        .arg(dir.join("fifo.mp4"))
+        .status()
+        .unwrap();
+    assert!(made.success());
+    // A missing input, and a pipe no one writes to, which blocks a read.
+    for input in ["missing.mp4", "fifo.mp4"] {
+        let line = [
+            "ffmpeg",
+            "-i",
+            input,
+            "-an",
+            "-c:v",
+            "libx264",
+            "-fps_mode",
+            "passthrough",
+            "out.mp4",
+        ];
+        for mode in [Mode::Flag, Mode::Variable] {
+            let run = coreav_promptly(&dir, mode, &line);
+            refused(&run, &dir, "install x264");
+            assert!(run.stderr.starts_with("coreav ffmpeg: "), "{}", run.stderr);
+            assert!(!ran(&dir, "ffmpeg") && !ran(&dir, "x264"), "{mode:?}");
+        }
+    }
+}
+
+#[test]
+fn the_sandbox_launcher_runs_no_ffmpeg() {
+    let dir = dir("exec");
+    std::os::unix::fs::symlink(dir.join("bin/ffmpeg"), dir.join("encoder")).unwrap();
+    // The programs by their names, and a link of another name to one.
+    for (program, standin) in [
+        ("bin/ffmpeg", "ffmpeg"),
+        ("bin/ffprobe", "ffprobe"),
+        ("encoder", "ffmpeg"),
+    ] {
+        let path = dir.join(program);
+        let line = ["__coreav_exec", "--", path.to_str().unwrap(), "-version"];
+        let run = coreav(&dir, Mode::Variable, false, &line);
+        assert_eq!(run.code, 126, "{}", run.stderr);
+        assert!(
+            run.stderr
+                .contains("strict-safe mode never runs the ffmpeg program"),
+            "{}",
+            run.stderr
+        );
+        assert!(!ran(&dir, standin), "{program}");
+        let run = coreav(&dir, Mode::Off, false, &line);
+        assert!(ran(&dir, standin), "{program}: {}", run.stderr);
+        forget(&dir);
+    }
+    // The encoder the launcher is there for still runs.
+    let x264 = dir.join("x264/x264");
+    let line = ["__coreav_exec", "--", x264.to_str().unwrap()];
+    let run = coreav(&dir, Mode::Variable, false, &line);
+    assert_eq!(run.code, 1, "{}", run.stderr);
+    assert!(ran(&dir, "x264"));
+}
+
+#[cfg(feature = "ffmpeg-fallback")]
+#[test]
+fn the_decode_worker_runs_no_ffmpeg() {
+    use coreav_decode::{Backend, Codec, Limits, StreamConfig};
+    use coreav_worker::{SandboxedBackend, WorkerBackend, WorkerCommand, WorkerOptions};
+    let dir = dir("worker");
+    for strict in [true, false] {
+        // The worker run directly, with the variable set or not.
+        let mut args: Vec<std::ffi::OsString> = Vec::new();
+        if strict {
+            args.push("COREAV_STRICT_SAFE=1".into());
+        }
+        args.extend([bin().into(), "__coreav_worker".into()]);
+        let backend = SandboxedBackend {
+            backend: WorkerBackend::Ffmpeg,
+            options: WorkerOptions {
+                ffmpeg: Some(dir.join("bin/ffmpeg")),
+                ..WorkerOptions::new(WorkerCommand {
+                    program: "/usr/bin/env".into(),
+                    args,
+                })
+            },
+        };
+        let opened = backend.open(&StreamConfig::new(Codec::H264), &Limits::default());
+        if strict {
+            let Err(error) = opened else {
+                panic!("the FFmpeg fallback opened in strict-safe mode")
+            };
+            assert!(
+                error
+                    .message
+                    .contains("strict-safe mode never runs the ffmpeg program"),
+                "{error}"
+            );
+            assert!(!ran(&dir, "ffmpeg"));
+        } else {
+            drop(opened);
+            assert!(ran(&dir, "ffmpeg"));
+        }
+    }
 }

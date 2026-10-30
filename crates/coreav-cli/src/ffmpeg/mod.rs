@@ -123,9 +123,13 @@ enum Container {
 /// own command prints (`coreav remux`, `clip`, `split`, `extract-audio`,
 /// `join`), which `coreav ffmpeg` does not print; the fixture tests check
 /// outputs with it. `strict_safe` is `coreav --strict-safe`: an encode
-/// then runs no `ffmpeg` program (`crate::strict_safe`).
+/// then runs no `ffmpeg` program (`crate::strict_safe`), and its encoder
+/// is decided from the command line, before the input is read.
+#[cfg_attr(not(feature = "transcode"), allow(unused_variables))]
 pub fn run(args: &[String], strict_safe: StrictSafe) -> Result<serde_json::Value, Stop> {
     let command = args::parse(args)?;
+    #[cfg(feature = "transcode")]
+    let encoder = encode::encoder(&command, strict_safe)?;
     let io = |e| WriteFailure::Rejected(Failure::io(e));
     let input = PathBuf::from(&command.input);
     std::fs::metadata(&input).map_err(io)?;
@@ -143,7 +147,19 @@ pub fn run(args: &[String], strict_safe: StrictSafe) -> Result<serde_json::Value
         .map_err(WriteFailure::Rejected)?
         .report;
     let job = plan(&command, &report, list)?;
-    write(&command, &job, strict_safe)
+    #[cfg(feature = "transcode")]
+    if let (
+        Job::Transcode {
+            video,
+            audio,
+            reordered,
+        },
+        Some(encoder),
+    ) = (&job, encoder)
+    {
+        return encode::write(&command, *video, audio, *reordered, encoder, strict_safe);
+    }
+    write(&command, &job)
 }
 
 /// The files a concat list names (`crate::concat::read`). A directive or a
@@ -781,9 +797,9 @@ pub(crate) fn check_output(command: &Command, path: &Path) -> Result<bool, Refus
 }
 
 /// Writes the output of `job`: to a temporary file next to each output,
-/// moved into place only once the whole job succeeded.
-#[cfg_attr(not(feature = "transcode"), allow(unused_variables))]
-fn write(command: &Command, job: &Job, strict_safe: StrictSafe) -> Result<serde_json::Value, Stop> {
+/// moved into place only once the whole job succeeded. A transcode is
+/// [`encode::write`]'s, in a build that has it.
+fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
     let input = Path::new(&command.input);
     let (allowlist, mkv_allowlist) = crate::matroska::allowlists(None, false).map_err(|_| {
         Refusal::Usage("the default codec allowlists could not be built".to_owned())
@@ -791,21 +807,8 @@ fn write(command: &Command, job: &Job, strict_safe: StrictSafe) -> Result<serde_
     if let Job::Split(options) = job {
         return split(command, options, &allowlist);
     }
-    if let Job::Transcode {
-        video,
-        audio,
-        reordered,
-    } = job
-    {
-        #[cfg(feature = "transcode")]
-        return encode::write(command, *video, audio, *reordered, strict_safe);
-        #[cfg(not(feature = "transcode"))]
-        {
-            let _ = (video, audio, reordered);
-            return Err(
-                Refusal::not_native("encoding, in a build without a decoder backend").into(),
-            );
-        }
+    if let Job::Transcode { .. } = job {
+        return Err(Refusal::not_native("encoding, in a build without a decoder backend").into());
     }
     let path = PathBuf::from(&command.output);
     let force = check_output(command, &path)?;

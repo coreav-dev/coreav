@@ -59,20 +59,28 @@ fn sexagesimal(units: &[&str], seconds: &str) -> Option<Rational> {
 /// program's first argument is [`WORKER_ARG`], or the sandbox launcher
 /// (`coreav_worker::exec`, the encoder of `coreav transcode`) in any build
 /// with a decoder backend when it is `coreav_worker::EXEC_ARG`; `None`
-/// otherwise. A build without a decoder backend does nothing here, not even
-/// read its arguments, which every command's start-up would pay for
-/// (`docs/design/benchmarks.md`).
+/// otherwise. Each hosts or runs only what strict-safe mode, from
+/// `COREAV_STRICT_SAFE`, allows (`crate::strict_safe`). A build without a
+/// decoder backend does nothing here, not even read its arguments, which
+/// every command's start-up would pay for (`docs/design/benchmarks.md`).
 pub fn run_worker() -> Option<std::process::ExitCode> {
     #[cfg(feature = "thumbnail")]
     {
+        use crate::strict_safe::StrictSafe;
         let mut args = std::env::args_os().skip(1);
         let first = args.next();
         #[cfg(any(feature = "ffmpeg-fallback", feature = "dav1d", feature = "libvpx"))]
         if first.as_deref() == Some(std::ffi::OsStr::new(WORKER_ARG)) {
-            return Some(coreav_worker::worker_main());
+            let strict_safe = StrictSafe::new(false);
+            return Some(coreav_worker::worker_main(|backend| {
+                strict_safe.worker(backend)
+            }));
         }
         if first.as_deref() == Some(std::ffi::OsStr::new(coreav_worker::EXEC_ARG)) {
-            return Some(coreav_worker::sandbox_exec_main(args));
+            let strict_safe = StrictSafe::new(false);
+            return Some(coreav_worker::sandbox_exec_main(args, |program| {
+                strict_safe.program(program)
+            }));
         }
     }
     None

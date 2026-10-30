@@ -225,7 +225,8 @@ picture for the same file.
 Third-party decoders run in a worker process by default. The parent treats the worker as untrusted and possibly
 compromised.
 
-**Process.** The worker is a program that calls `coreav_worker::worker_main`:
+**Process.** The worker is a program that calls `coreav_worker::worker_main`
+with a check of the backends it hosts (`coreav`'s is strict-safe mode's):
 the `coreav` binary itself, run again with a hidden argument, or the
 `coreav-worker` binary of the crate for library users. The parent starts
 it with `std::process` (no shell), a cleared environment, and pipes for
@@ -250,8 +251,9 @@ decoder backend (the `thumbnail` feature), the native H.264 decoder alone
 included. The program must be a path: with no
 environment there is no `PATH`, and a search would depend on the
 launcher's defaults. A launcher that cannot set the limits or start the
-program exits with 125, 126 (not runnable) or 127 (not found), after one
-line on standard error. The parent side builds the command (its own
+program exits with 125, 126 (not runnable, or refused by the check its
+caller gives `sandbox_exec_main`: strict-safe mode's in `coreav`) or 127
+(not found), after one line on standard error. The parent side builds the command (its own
 process group, empty environment, piped streams), and `exec` also holds
 the two process-control calls the keepers need (`kill_group`, and
 `has_exited`, Linux's `waitid` with `WNOWAIT`), so `coreav-transcode`
@@ -509,7 +511,10 @@ exit status 4, naming the build that decodes it without FFmpeg; a stream
 another backend opens decodes there, and the summary lists the fallback as
 skipped (`not run in strict-safe mode`). The order is not changed, so
 `--exact` still tries the fallback first and, in strict-safe mode, decodes
-H.264 with the native decoder.
+H.264 with the native decoder. The worker run directly with
+`COREAV_STRICT_SAFE` set refuses an `Open` of the fallback
+(`StrictSafe::worker`, through `worker_main`'s check), and the launcher a
+program named `ffmpeg` or `ffprobe` (`StrictSafe::program`).
 
 CoreAV demuxes; FFmpeg only decodes. The worker writes the packets to
 FFmpeg's standard input as a Matroska stream that it writes itself (RFC
