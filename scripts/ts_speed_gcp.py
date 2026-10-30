@@ -13,11 +13,15 @@ and the spend bound checked against --cap-usd before the VM is made. On the VM, 
 samples, and runs `ts_speed.py` on core 2 into `report.json`. With --coreav-cli, the command arms time that CLI's
 `probe` and the `ffprobe` of the same FFmpeg build (DIR/bin/ffprobe) as information.
 
-DIR gets the VM's output, `run.json` (the files and the options) and `verdict.json`. The run is void, and is run
-again on a new VM into a new DIR, when the VM does not report `turboMode` ALL_CORE_MAX or a Xeon 8581C, does not have
-4 vCPUs with SMT off, a frequency sample is missing or more than 3% from 3.1 GHz, the timing ended early or left a
-file out, or the null arm is outside its band (scripts/ts_speed_bars.py). The exit status is 0 for a run that is not
-void, 3 for a void run and 4 when `gcp_vm_job.py` failed (no verdict; a reason outside the VM). `--dry-run` builds the
+DIR gets the VM's output, `run.json` (the files and the options) and `verdict.json`. The run is void, a host fault that
+lets it be run again on a new VM into a new DIR, when the VM does not report `turboMode` ALL_CORE_MAX or a Xeon 8581C,
+does not have 4 vCPUs with SMT off, a frequency sample is missing or more than 3% from 3.1 GHz, the timing ended early
+or left a file out, or the null arm's times are outside their band (scripts/ts_speed_bars.py). The run failed, and
+stands as it is, when `ts_speed_bars.py` refuses the report of the files it timed: a run of an engine failed or has no
+time, CoreAV and its null copy list different access units, or a file is over the large class. Those are the
+engines' outcome, not the host's, so a failure is never void, whatever host fault is recorded beside it. The exit
+status is 0 for a run that is not void, 3 for a void run, 5 for a failed run and 4 when `gcp_vm_job.py` failed (no
+verdict; a reason outside the VM). `--dry-run` builds the
 upload and prints what would run. When this script stops before the end, `--collect DIR` finishes the run through
 `gcp_vm_job.py --collect DIR.gcpjob` and writes the verdict from `run.json`; it is safe to run again. DIR.gcpjob names
 the cloud project: keep it out of published results. The bars themselves are judged by `ts_speed_bars.py
@@ -113,25 +117,48 @@ def problems(out, run):
         if not isinstance(ghz, (int, float)) or not math.isfinite(ghz) or abs(ghz / FREQ - 1) > FREQ_TOL:
             found.append(f'frequency sample {s.get("label")!r}: {ghz if ghz is not None else s.get("error")}, '
                          f'not {FREQ} GHz within {FREQ_TOL:.0%}')
-    try:
-        summary = ts_speed_bars.analyze(report)
-        if summary['void']:
-            found.append(f'the null arm is {summary["null"]["median"]:.4f}, outside {ts_speed_bars.NULL_BAND}')
-    except ts_speed_bars.Refused as e:
-        found.append(f'the report is refused: {e}')
+    if report.get('files'):
+        try:
+            summary = ts_speed_bars.analyze(report)
+            if summary['void']:
+                found.append(f'the null arm is {summary["null"]["median"]:.4f}, outside {ts_speed_bars.NULL_BAND}')
+        except ts_speed_bars.Refused:
+            pass
     return found
+
+
+def failures(out):
+    """Why the run failed, from what the engines did on the files it timed: a refused report (an engine's run failed
+    or has no time, CoreAV and its null copy list different access units, a file is over the large class). These are
+    not host faults, so they do not void the run: it stands, as a failure."""
+    try:
+        with open(os.path.join(out, 'report.json')) as f:
+            report = json.load(f)
+    except (OSError, ValueError):
+        return []
+    if not report.get('files'):
+        return []
+    try:
+        ts_speed_bars.analyze(report)
+    except ts_speed_bars.Refused as e:
+        return [f'the report is refused: {e}']
+    return []
 
 
 def judge(out, rc, run):
     if rc != 0:
         print(f'gcp_vm_job.py exited {rc}: no verdict', flush=True)
         return 4
+    failed = failures(out)
     reasons = problems(out, run)
     with open(os.path.join(out, 'verdict.json'), 'w') as f:
-        json.dump({'void': bool(reasons), 'reasons': reasons}, f, indent=1)
+        json.dump({'failed': bool(failed), 'failures': failed, 'void': bool(reasons) and not failed,
+                   'reasons': reasons}, f, indent=1)
+    for failure in failed:
+        print('failed:', failure, flush=True)
     for reason in reasons:
-        print('void:', reason, flush=True)
-    return 3 if reasons else 0
+        print('host fault:' if not failed else 'host fault (the run failed all the same):', reason, flush=True)
+    return 5 if failed else 3 if reasons else 0
 
 
 def main():

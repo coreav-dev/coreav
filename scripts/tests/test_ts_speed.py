@@ -171,6 +171,41 @@ class Verdict(unittest.TestCase):
                       "no frequency sample 'after f2'", "'after f1': 3.3", "no frequency sample 'after missing'"):
             self.assertIn(words, text)
 
+    def judge(self, d, files, rep, **host):
+        out = self.out(d, files, rep=rep, **host)
+        rc = ts_speed_gcp.judge(out, 0, {'files': [f['name'] for f in files]})
+        return rc, json.loads((pathlib.Path(out) / 'verdict.json').read_text())
+
+    def test_an_engine_refusal_fails_the_run_and_does_not_void_it(self):
+        files = [entry(f'f{i}', MB, 90, 100) for i in range(5)]
+        rep = report(files)
+        rep['files'][1]['runs']['lav'][0] = {'ok': False, 'ns': None}
+        with tempfile.TemporaryDirectory() as d:
+            rc, verdict = self.judge(d, files, rep)
+        self.assertEqual(rc, 5)
+        self.assertEqual((verdict['failed'], verdict['void']), (True, False))
+        self.assertIn('f1: a run of lav failed', verdict['failures'][0])
+
+    def test_a_null_copy_that_lists_other_units_fails_the_run_even_beside_a_host_fault(self):
+        files = [entry(f'f{i}', MB, 90, 100) for i in range(5)]
+        rep = report(files)
+        for run in rep['files'][2]['runs']['null']:
+            run['count'] = 11
+        with tempfile.TemporaryDirectory() as d:
+            rc, verdict = self.judge(d, files, rep, turbo=None)
+        self.assertEqual(rc, 5)
+        self.assertEqual((verdict['failed'], verdict['void']), (True, False))
+        self.assertIn('null arm list different access units', verdict['failures'][0])
+        self.assertTrue(any('turboMode' in r for r in verdict['reasons']))
+
+    def test_a_job_cut_short_before_any_file_is_void_not_failed(self):
+        files = [entry('f0', MB, 90, 100)]
+        rep = report([])
+        with tempfile.TemporaryDirectory() as d:
+            rc, verdict = self.judge(d, files, rep, rc=1)
+        self.assertEqual(rc, 3)
+        self.assertEqual((verdict['failed'], verdict['void']), (False, True))
+
     def test_the_job_names_its_class(self):
         script = ts_speed_gcp.job_script({'files': ['a.ts'], 'rounds': 7, 'commands': False})
         self.assertIn('--core 2 --rounds 7 --tmp /dev/shm', script)
