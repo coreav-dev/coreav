@@ -238,8 +238,8 @@ jobs:
           env -u CI cargo test -p coreav-backend-libvpx --features libvpx
       - run: env -u CI cargo test --workspace
       - run: |
-          env -u CI cargo test -p coreav-cli --features ffmpeg-fallback --test strict_safe
-          env -u CI cargo test -p coreav-cli --features native-h264 --test strict_safe
+          env -u CI cargo test -p coreav-cli --features ffmpeg-fallback --test strict_safe --test strict_safe_limit
+          env -u CI cargo test -p coreav-cli --features native-h264 --test strict_safe --test strict_safe_limit
       - run: cargo test -p coreav-cli --features ffmpeg-fallback --test docs_site
       - run: |
           cargo test --release -p coreav-isobmff --test hostile -- --ignored
@@ -287,8 +287,8 @@ jobs:
         run: env -u CI cargo test --workspace --no-fail-fast
       - if: ${{ !cancelled() }}
         run: |
-          env -u CI cargo test -p coreav-cli --features ffmpeg-fallback --test strict_safe
-          env -u CI cargo test -p coreav-cli --features native-h264 --test strict_safe
+          env -u CI cargo test -p coreav-cli --features ffmpeg-fallback --test strict_safe --test strict_safe_limit
+          env -u CI cargo test -p coreav-cli --features native-h264 --test strict_safe --test strict_safe_limit
       - if: ${{ !cancelled() }}
         run: cargo test -p coreav-cli --features ffmpeg-fallback --test docs_site
       - if: ${{ !cancelled() }}
