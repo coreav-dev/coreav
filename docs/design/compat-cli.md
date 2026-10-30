@@ -73,7 +73,7 @@ every encoder value of a codec option, `-f lavfi`, `-f image2`,
 `-analyzeduration`, `-protocol_whitelist`, `-bufsize`, `-maxrate`, `-g`,
 `-pass`, `-vpre`, `-q:*`, `-qscale`, `-framerate`, `-video_size`,
 `-pattern_type`, `-metadata:*`, `-level`, `-id3v2_version`,
-`-stream_loop`, `-aspect`, and the informational queries (`-h`, `-formats`,
+`-stream_loop`, `-aspect`, and the informational queries (`-h` with a topic, `-formats`,
 `-encoders`, `-decoders`, `-filters`, `-muxers`, `-pix_fmts`,
 `-sample_fmts`, `-layouts`, `-sections`, `-version`).
 
@@ -475,7 +475,8 @@ subcommand name is handed to the compatibility parser untouched, so
 `coreav ffprobe -v error -show_entries stream=width -of csv=p=0 in.mp4`
 means what it means to `ffprobe`. `coreav ffprobe --help` is therefore not
 clap's help either: `--help`, `-h` and `-help` print a short usage text that
-names this note.
+names this note, and so do `coreav ffmpeg`'s when nothing follows them
+("`coreav ffmpeg`" below).
 
 **Multicall.** When the program is started under the name `ffprobe` or
 `ffmpeg` (the file name of `argv[0]`, with an `.exe` extension removed and
@@ -694,10 +695,40 @@ leaves the files as they were, so FFmpeg finds them so: most come before
 any output is written, the ones found once the input is read included (an
 output that exists without `-y` or `-n`), and a join's come at its end,
 with the join written to a temporary file that is then removed. A file CoreAV
-rejects exits 1, a malformed command 2, an unreadable input 3. `-h`,
-`-help` and `--help` are refused like the other informational queries
-(unlike `coreav ffprobe -h`, which prints a usage text): `commands-v1` lists
-them as out-of-scope `ffmpeg` commands, which B1 requires to exit non-zero.
+rejects exits 1, a malformed command 2, an unreadable input 3.
+
+**Help.** `-h`, `-?`, `-help` and `--help` with nothing after them, read
+as an option once every argument before them is in the vocabulary, print
+`coreav ffmpeg`'s own usage text on standard output and exit 0, as
+`coreav ffprobe -h` does, in strict-safe mode or not: no `ffmpeg` program
+runs and the fallback log gets no line. The text names the jobs that run
+natively (the `ffmpeg` shapes of `commands-0.1.0`), says that any other
+command line is refused in strict-safe mode and goes to the real `ffmpeg`
+otherwise, and names the documentation. `ffmpeg`'s documentation gives
+the help option an optional topic, and FFmpeg's `-h full` listing has it
+take a value: with any argument after it (`-h long`, `-h full`,
+`-h encoder=libx264`, `-help OUTPUT`) the query asks about FFmpeg's own
+options and components, so it is refused by name, `-h` and its topic,
+like any other command that is not native. The parser reads left to
+right as it does for every command line, so an option outside the
+vocabulary before the help option (`-filter_complex null -h`) is refused
+first, and without strict-safe mode FFmpeg answers that command line as it
+would. Chosen for 0.1.0 so that a
+user who types `coreav ffmpeg --help` learns what CoreAV runs,
+not what FFmpeg does. Rejected: answering topic queries from CoreAV
+(a listing of FFmpeg's components is not CoreAV's to print), and refusing
+the bare forms as before (they then printed FFmpeg's help, which describes
+a program that is not the one running most of the user's commands).
+
+`commands-v1` keeps `ffmpeg -h` and `ffmpeg --help` labelled
+`out-of-scope`, since the set's labels are step 1's (`classify.py`). B1's
+check of `ffmpeg` commands (`run.py`, `ffmpeg_refusals`) counts those two
+apart, as `help`: each must exit 0 with the whole usage text on standard
+output (the documentation site's snippet of it) and nothing on standard
+error, and write no file, and a command that does anything else fails as a B1
+failure does. B1 is judged on the other `out-of-scope` `ffmpeg` commands,
+`-h OUTPUT` and `-help OUTPUT` included, which are help on a topic.
+The `ffprobe` commands of the set hold no help query.
 
 **R3 on the fixtures (CI).** The `the_0_1_0_commands_on_the_fixtures` test of
 `coreav-cli` runs every `ffmpeg` command of `commands-0.1.0` on every
