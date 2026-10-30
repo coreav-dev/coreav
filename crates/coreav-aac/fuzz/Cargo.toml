@@ -1,0 +1,27 @@
+# cargo-fuzz project for coreav-aac (docs/design/audio-decode.md, "AAC-LC");
+# outside the workspace, never published.
+[package]
+name = "coreav-aac-fuzz"
+version = "0.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+coreav-aac = { path = ".." }
+
+[[bin]]
+name = "aac_frame"
+path = "fuzz_targets/aac_frame.rs"
+test = false
+doc = false
+bench = false
+
+[lints.rust]
+unsafe_code = "forbid"
