@@ -512,8 +512,9 @@ fn the_decode_worker_runs_no_ffmpeg() {
 fn no_sandboxed_decoder_starts_without_an_enforced_memory_limit() {
     use coreav_decode::{Backend, Codec, Limits, StreamConfig};
     use coreav_worker::{SandboxedBackend, WorkerBackend, WorkerCommand, WorkerOptions};
-    // A backend strict-safe mode allows, which this build does not have:
-    // where the limit holds the worker refuses it for that.
+    // A backend strict-safe mode allows. Where the limit holds, the worker
+    // opens it in a build with dav1d and refuses it for its absence in one
+    // without.
     let backend = SandboxedBackend {
         backend: WorkerBackend::Dav1d,
         options: WorkerOptions::new(WorkerCommand {
@@ -521,8 +522,13 @@ fn no_sandboxed_decoder_starts_without_an_enforced_memory_limit() {
             args: vec!["__coreav_worker".into(), "--strict-safe".into()],
         }),
     };
-    let Err(error) = backend.open(&StreamConfig::new(Codec::Av1), &Limits::default()) else {
-        panic!("a worker without dav1d decoded AV1")
+    let opened = backend.open(&StreamConfig::new(Codec::Av1), &Limits::default());
+    if cfg!(feature = "dav1d") && !no_limit() {
+        assert!(opened.is_ok(), "a worker with dav1d did not open AV1");
+        return;
+    }
+    let Err(error) = opened else {
+        panic!("a worker opened AV1 without dav1d, or without an enforced limit")
     };
     assert_eq!(error.message.contains(NO_LIMIT), no_limit(), "{error}");
 }
