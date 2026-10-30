@@ -25,6 +25,7 @@ FAMILIES = {
 # transport streams with broadcast text (docs/design/mpegts.md). Both tools
 # get it, so that they run in the same environment.
 NO_GCONV = '/nonexistent/gconv'
+UNMEASURED = 3
 
 # The sections of the set's key names (`stream.codec_name`,
 # `stream_tags.rotate`) and the prefixes of the same keys in the flattened
@@ -88,10 +89,9 @@ def environment(log=None):
 
 def fallback_verdict(log):
     """The fallback log of a run: its lines, the refusals of strict-safe
-    mode among them, and whether the run is void. A refusal ran nothing,
-    and the command it refused misses its bar on its own; any other line
-    means a program other than CoreAV ran, or could have, so the run is
-    void (docs/design/compat-cli.md, "The 0.1.0 bars")."""
+    mode among them (counted for diagnosis), and whether the run is void.
+    A run whose log holds any line is void, a refusal included
+    (docs/measurements/compat-0.1.0/README.md, "The commit")."""
     path = pathlib.Path(log)
     lines = [line for line in path.read_text(errors='replace').splitlines()
              if line.strip()] if path.exists() else []
@@ -101,4 +101,4 @@ def fallback_verdict(log):
             refused += json.loads(line).get('not_run') == 'strict_safe'
         except (ValueError, AttributeError):
             pass
-    return {'lines': len(lines), 'refused': refused, 'void': refused != len(lines)}
+    return {'lines': len(lines), 'refused': refused, 'void': bool(lines)}
