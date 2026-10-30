@@ -19,6 +19,9 @@ impl From<TextError> for WriteFailure {
     fn from(error: TextError) -> Self {
         match error {
             TextError::Source(error) => Self::Rejected(Failure::library(error)),
+            TextError::LimitExceeded { limit, offset } => {
+                Self::Rejected(Failure::TextLimit { limit, offset })
+            }
             TextError::Write(kind) => Self::output(&std::io::Error::from(kind)),
         }
     }
@@ -90,6 +93,7 @@ pub fn run_chapters_source<S: coreav_isobmff::Source>(
 fn failure(error: TextError) -> Failure {
     match error {
         TextError::Source(error) => Failure::library(error),
+        TextError::LimitExceeded { limit, offset } => Failure::TextLimit { limit, offset },
         // `read_chapters` writes nothing.
         TextError::Write(kind) => Failure::Io(kind),
     }

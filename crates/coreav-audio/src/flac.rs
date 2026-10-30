@@ -23,6 +23,7 @@
 
 use crate::bits::Bits;
 use crate::crc::{crc8, crc16};
+use crate::limits::check_channels;
 use crate::{Error, Limits, Pcm};
 
 /// The streaminfo metadata block (RFC 9639 8.2).
@@ -197,9 +198,7 @@ pub struct FlacDecoder {
 impl FlacDecoder {
     /// A decoder for the stream `info` describes.
     pub fn new(info: StreamInfo, limits: &Limits) -> Result<Self, Error> {
-        if u32::from(info.channels) > limits.max_channels {
-            return Err(Error::LimitExceeded(crate::LimitKind::Channels));
-        }
+        check_channels(usize::from(info.channels), limits.max_channels)?;
         Ok(Self {
             info,
             wide: Vec::new(),
