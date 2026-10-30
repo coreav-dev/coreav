@@ -448,6 +448,200 @@ command outside the set. Until that round, `coreav ffmpeg` is labelled
 experimental where users see it (`coreav --help` and the documentation
 site), as `coreav ffprobe` is; after it, the label stays on the `ffmpeg` commands outside the set.
 
+## The 0.1.0 codec coverage bars
+
+Release 0.1.0 also widens what CoreAV decodes and encodes without FFmpeg,
+so that `coreav transcode` and `coreav ffmpeg` cover more codecs
+(maintainer decision, 2026-10-31). Two bars measure that breadth and a
+third number is reported beside them. This section is written before any
+run of them; nothing registered above changes.
+
+| | Bar |
+|---|---|
+| **V1 Decode breadth** | at least **74%** of the corpus v1 `real` files with a video stream decode in the full build without the FFmpeg fallback, every frame agreeing with the pinned FFmpeg's |
+| **V2 Encode breadth** | at least **40%** of the 505 commands of the encode set run to completion in the full build, every option handled by CoreAV and every output passing the oracle of its job |
+| **V3 Native share** | reported, with no bar: V2's count over all 630 filter-free usable `ffmpeg` commands |
+
+**The build.** Two release builds are decided: a default build, which links
+no codec on the patent list, and a full build, which adds CoreAV's H.264
+and AAC decoders. Every measure here runs the full build's
+`x86_64-unknown-linux-musl` archive, built from the release candidate
+commit of the 0.1.0 round (`docs/measurements/compat-0.1.0/README.md`,
+"The commit"), on Linux x86-64. Its video decoders are CoreAV's H.264
+decoder, dav1d for AV1, and libvpx for VP9 and, added for V1 (maintainer
+decision, 2026-10-31), for VP8. If the full build
+of that commit lacks one of them, it is measured as it is: the bar was set
+for these four codecs, so a missing one shows as a miss, not as a reason to
+move the bar. The default build is not measured here.
+
+### V1, decode breadth
+
+- **Files.** Every `real` file of corpus v1, 1,351, development and
+  held-out alike: the bar counts what decodes and makes no speed claim.
+- **The stream.** The video stream `coreav thumbnail` and `coreav
+  transcode` decode: FFmpeg's default choice, the highest resolution, the
+  first on a tie. A stream with the attached-picture disposition (cover
+  art) is not a video stream here.
+- **Denominator.** The files on which the pinned `ffprobe` lists such a
+  stream and the pinned `ffmpeg` decodes it: the `framemd5` command of
+  `decode.md`'s bar 1, with FFmpeg's default decoder for the codec, exits 0
+  and lists at least one frame. A file with no
+  reference decode has nothing to agree with; their number is reported.
+- **Numerator.** The files whose stream, with `COREAV_STRICT_SAFE=1`, goes
+  through the decode boundary with the full build's backends in the CLI's
+  order, and:
+  - the backend that opens it is not the FFmpeg fallback (in strict-safe
+    mode only its stand-in is on the list, and it opens nothing);
+  - every packet of the stream is sent, and the decode ends without an
+    error, a decode limit included;
+  - the frames agree with the pinned FFmpeg's as bar 1 of `decode.md`
+    compares them (its preparation of both sides, its FFmpeg decoder for
+    each backend, its recorded known divergences), with every packet sent
+    in place of the first 120. For VP8 through libvpx, FFmpeg's decoder is
+    its own `vp8`, as bar 1 takes its own `vp9` for VP9.
+
+  A file CoreAV refuses (a container refusal by design, a stream outside a
+  decoder's scope, a codec only FFmpeg decodes) stays in the denominator,
+  not decoded. The result lists the misses by reason.
+- **Tool.** `tools/decode-oracle`, built from the release candidate with the
+  full build's decoder features and the dav1d and libvpx versions its
+  archive links. The archive has no command that decodes a whole stream
+  without encoding it, and a transcode would count encoder and writer
+  failures as decoding ones. Before the run, the tool gains, in its own
+  pull request, a mode that chooses the backend as the CLI does in
+  strict-safe mode, sends every packet and records which backend decoded
+  each file, tested on the fixtures and on spent files.
+- **Host.** GitHub-hosted Linux x86-64 runners, with the read-only corpus
+  credentials of the 0.1.0 round's workflow. Nothing is timed. macOS does
+  not qualify: there, strict-safe mode refuses the sandboxed backends.
+- **Result.** The share, its numerator and denominator, the share per
+  codec, and the misses by reason.
+
+**The ceiling, from the committed tags** (`docs/corpus-coverage.md`; tags
+are per file, not per stream, so this is an estimate). 1,190 of the 1,351
+`real` files are not tagged audio-only. 878 of them (73.8%) carry only the
+H.264, AV1 or VP9 tag, so without VP8 the bar could not be met even if each
+of them decoded; with VP8, 931 (78.2%). CoreAV's H.264 decoder takes 8-bit
+4:2:0 progressive pictures (`h264.md`, "Scope"), and 10 of those H.264
+files are tagged 10-bit or interlaced: 921 (77.4%). If the 21 encrypted
+video files have no reference decode, they leave both sides: 902 of 1,169
+(77.2%). The bar then needs 866 files, so about 96% of the files the full
+build's decoders take must decode and agree.
+
+### V2, encode breadth
+
+- **The set.** [`commands-0.1.0/coverage.json`](../../tools/compat-corpus/commands-0.1.0/coverage.json),
+  derived from `commands-v1` by
+  [`coverage_set.py`](../../tools/compat-corpus/coverage_set.py): the usable
+  `ffmpeg` commands with no filter option (`-vf`, `-af`, `-filter`,
+  `-filter_complex`, `-lavfi` and the script forms), 630 of 976, and of
+  those the 505 whose output is a media file in a known container (class
+  `media`). The other 125 are 94 whose container cannot be known (no `-f`
+  and a name with no extension, or one that names no container), 12 that
+  only decode (`-f null`), 8 subtitle files and 11 other outputs (network,
+  devices, metadata). `tools/compat-corpus/tests/` derives the file again
+  and fails when it, or a number of this section, differs.
+- **How the output container is known.** `commands-v1` replaces each output
+  name with `OUTPUT`, and FFmpeg takes the container from the name unless
+  `-f` names one. `coverage_set.py fetch` reads, through the public Stack
+  Exchange API, every answer a usable `ffmpeg` command was found in, and
+  `coverage_set.py outputs` runs `extract.py`'s extraction over them again.
+  For each command it records the output of every invocation that
+  normalizes to it, reduced to `OUTPUT` with the name's number pattern and
+  extension (`OUTPUT%03d.jpg`), or the pipe it names:
+  [`commands-v1/outputs.json`](../../tools/compat-corpus/commands-v1/outputs.json),
+  read on 2026-10-30, with no post body. A command's output is the first
+  invocation's in its highest-scored answer. Its container is the one the
+  `-f` after its last input names (for `-f segment`, its
+  `-segment_format`), else the one that output's extension names. The
+  script's tables class every name that occurs, and a new name fails the
+  derivation until it is classed.
+- **Programs.** The operator's encoders, run as `transcode.md` ("The encoder
+  program") runs them: the `x264` program `scripts/install-x264.sh` builds,
+  for H.264, and the pinned FFmpeg 9.x that `scripts/install-oracle-ffmpeg.sh`
+  installs, as `ffmpeg`, for AAC (`-c:a aac`).
+  Each is named to CoreAV through a wrapper that appends the arguments of
+  each start to the run's program log and then runs the program.
+- **Mode.** Strict-safe mode refuses an `ffmpeg` program in every role, the
+  encoder's included, so V2 runs outside it, as the checks that need FFmpeg
+  as the encoder do ("Strict-safe mode", above): `COREAV_FALLBACK` names no
+  program, so a refusal stands and nothing is handed to FFmpeg, and
+  `COREAV_FALLBACK_LOG` names a file of the run.
+- **Inputs.** Each input placeholder takes one of five generated fixtures,
+  in this order: `basic.mp4` (H.264 and AAC), `mkv_h264_aac.mkv`,
+  `webm_vp9_opus.webm`, `ts_h264_aac.ts`, `audio_aac.m4a`. The input of
+  `-f concat` is a list that names the fixture twice. The assignments are
+  tried in lexicographic order, and the command's input is the first on
+  which the pinned `ffmpeg` runs the command to success (exit 0, the output
+  written). CoreAV runs the command on that input only, writing where
+  `OUTPUT` stands in the command's `output`.
+- **Counted.** A command counts when, on its input, `coreav ffmpeg` exits 0
+  and:
+  - the fallback log has no line for it;
+  - every program the program log shows it started is an encoder: `x264`,
+    or an `ffmpeg` whose only input is raw samples on its standard input
+    and whose only output is one AAC stream. An `ffmpeg` that reads the
+    input file, decodes video or writes the container is FFmpeg doing the
+    job;
+  - the output passes the oracles of what the command does: a command that
+    only copies, as R3 checks it; an H.264 encode, as `transcode.md`'s B9
+    checks a `coreav ffmpeg` encode against the pinned `ffmpeg` running the
+    same command line (B1, B2, B3 for the streams it copies, and B4 with Q1
+    at least −0.50 dB and Q2 at least 30 dB); an AAC encode, or an image
+    CoreAV's JPEG or PNG encoder writes, as the oracle its own design note
+    registers before the run, which also says how the streams copied
+    beside it are checked;
+  - the output lists the same streams, by kind and codec, in the same
+    order, as the pinned `ffmpeg`'s output of the same command.
+
+  A command with no input the pinned `ffmpeg` runs, one CoreAV refuses,
+  one whose job has no registered oracle at the release candidate, and one
+  that fails a check above stay in the denominator, not run. The result
+  lists the misses by reason.
+- **Host.** A GitHub-hosted Linux x86-64 runner. Nothing is timed and no
+  corpus file is read.
+- **Result.** The share of the 505, the count per output container, and the
+  misses by reason.
+
+**The ceiling, from encoder availability alone** (each input taken to hold
+video and audio, an output without a codec option taken to need its
+container's default encoders, and no other option or oracle checked, so an
+upper bound). Copies into MP4 or HLS: 78 (15.4%). With H.264 through
+`x264`: 91 (18.0%). With AAC: 213 (42.2%). With JPEG and PNG image outputs:
+253 (50.1%). The bar needs 202 commands, so about 80% of those 253 must also
+have every other option handled by CoreAV and pass the oracles. On `main`
+today, a check of the options against `transcode.md`'s list finds 3
+commands that encode H.264 with every option on it.
+
+### V3, the native share
+
+V2's count over the 630 filter-free commands of `coverage.json`: the 505
+of V2, and the 125 others with their outputs written as `output` names
+them. A command whose container cannot be known runs as its answer wrote
+it, so whether the pinned `ffmpeg` finds an input for it decides whether
+it can count at all. Reported as a share of 630, beside the 79 commands
+`classify.py` labels `native`; no bar.
+
+### When they run, and what voids a run
+
+All three run once on the release candidate commit, after the tools they
+need have merged and run on the fixtures and on spent files. The record is
+`docs/measurements/compat-0.1.0.md`, beside the round's other bars; corpus
+file names and hashes go only to the private evidence store, as the round's
+workflow keeps them.
+
+- **A run is void,** and repeated on the same commit, when a file of V1's
+  set or a command of V2's has no result (a lost or crashed job); when any
+  FFmpeg decoder ran on a file V1 counts, or V2's fallback log shows a
+  program that ran; when the binary or the tool was not built from the
+  release candidate with the full build's features (the record gives the
+  SHA-256 of each); or when the `ffmpeg`, `ffprobe` or `x264` is not the
+  one that commit pins. The record keeps a void run, with its reason.
+- **A run that is not void is final for its commit.** A miss stands for
+  that commit. A later release candidate, with new code, is measured
+  again, and the record lists every run. A run is never repeated because a
+  miss is narrow, and the method does not change after a result.
+
 ## The command
 
 This part is written in the pull request that builds `coreav ffprobe`,
