@@ -246,9 +246,9 @@ vetted crate, not through CoreAV-authored `unsafe`.
 encoder of `coreav transcode` (`docs/design/transcode.md`, "Sandbox").
 `coreav_worker::exec` is a second hidden entry of the same programs
 (`__coreav_exec`, in `coreav` and in `coreav-worker`): its arguments are
-the limits, then `--` and the program's path and arguments. It sets the
+the limits, an optional `--no-huge-pages`, then `--` and the program's path and arguments. It sets the
 limits on itself with the worker's code (also no core files and
-`RLIMIT_FSIZE` 0) and replaces itself with the program through `std`'s
+`RLIMIT_FSIZE` 0), with `--no-huge-pages` turns transparent huge pages off for itself on Linux (`PR_SET_THP_DISABLE` through `rustix`'s safe API; `exec` keeps it), and replaces itself with the program through `std`'s
 `CommandExt::exec`, with the standard streams it was given and an empty
 environment, so the program inherits the limits and no process sits
 between it and the parent's pipes. The launcher is in every build with a
@@ -393,9 +393,14 @@ decoder that spins without doing I/O, even if the parent has gone.
 - The budget is per process: a worker and its FFmpeg may each use it.
   The parent has no address-space limit; the frames and packets it holds
   are bounded by the frame and pending limits above.
-- The limit is enforced on Linux. On other systems `RLIMIT_AS` may not be
-  enforced, and outside Unix there is none; there the budget only fits the
-  threads.
+- The limit is enforced on Linux. macOS refuses (`EINVAL`) any
+  `RLIMIT_AS` below the address space a process reserves from its start,
+  hundreds of GiB, so the worker sets none there. On macOS, on other
+  systems where `RLIMIT_AS` may not be enforced, and outside Unix, the
+  budget is advisory: it only fits the threads, and a decoder can use
+  more. `coreav_worker::enforces_memory_limit` says which case a build is
+  in, and strict-safe mode starts no sandboxed process where it says no
+  (`compat-cli.md`, "Strict-safe mode").
 
 A decoder that runs into the limit fails with `Limit`. FFmpeg exits by
 itself with an error code after an allocation was refused or a thread

@@ -3,7 +3,9 @@
 //! input they did not make. In it CoreAV never runs an `ffmpeg` or
 //! `ffprobe` program, in any build and for any command: not in place of a
 //! `coreav ffprobe` or `coreav ffmpeg` command that is not native, not as
-//! the decoder, not as the encoder.
+//! the decoder, not as the encoder. Where the sandbox's memory limit
+//! cannot be enforced (`coreav_worker::enforces_memory_limit`: macOS) it
+//! starts no sandboxed decoder or encoder at all ([`StrictSafe::sandbox`]).
 //!
 //! [`StrictSafe`] decides it, and nothing else does: the command-line
 //! fallback asks [`StrictSafe::on`], a transcode's encoder is an
@@ -19,7 +21,9 @@ use std::path::Path;
 use std::sync::{Arc, OnceLock};
 
 #[cfg(feature = "thumbnail")]
-use coreav_decode::{Backend, Codec};
+use coreav_decode::Backend;
+#[cfg(any(feature = "ffmpeg-fallback", feature = "dav1d", feature = "libvpx"))]
+use coreav_decode::Codec;
 #[cfg(feature = "transcode")]
 use coreav_transcode::encoder::{EncoderChoice, find_encoder};
 
@@ -31,6 +35,10 @@ use crate::output::WriteFailure;
 /// How to turn the mode off, the way out every refusal names.
 #[cfg(feature = "thumbnail")]
 const OFF: &str = "or run without --strict-safe and COREAV_STRICT_SAFE";
+
+/// The reason strict-safe mode starts no sandboxed process here.
+#[cfg(feature = "thumbnail")]
+const NO_LIMIT: &str = "strict-safe: no enforceable memory limit for the sandbox on this platform";
 
 /// The argument that turns the mode on, after a command's name or after a
 /// hidden entry's ([`StrictSafe::entry`]).
@@ -81,13 +89,29 @@ impl StrictSafe {
                  host the FFmpeg fallback, {OFF}"
             ));
         }
+        self.sandbox()
+    }
+
+    /// Whether a sandboxed process (the decode worker, or a program under
+    /// the sandbox launcher) may start: in strict-safe mode only where the
+    /// sandbox's memory limit is enforced
+    /// (`coreav_worker::enforces_memory_limit`). Err is the refusal's
+    /// message.
+    #[cfg(feature = "thumbnail")]
+    pub fn sandbox(self) -> Result<(), String> {
+        if self.on && !coreav_worker::enforces_memory_limit() {
+            return Err(format!(
+                "{NO_LIMIT}, so it starts no sandboxed decoder or encoder, {OFF}"
+            ));
+        }
         Ok(())
     }
 
     /// Whether the sandbox launcher runs `program`: in strict-safe mode not
     /// an `ffmpeg` or `ffprobe` program, one whose file name, or the name
     /// of the file it links to, begins with `ffmpeg` or `ffprobe` in any
-    /// case. Err is the refusal's message.
+    /// case, and nothing that [`StrictSafe::sandbox`] refuses. Err is the
+    /// refusal's message.
     #[cfg(feature = "thumbnail")]
     pub fn program(self, program: &Path) -> Result<(), String> {
         if !self.on {
@@ -106,15 +130,16 @@ impl StrictSafe {
                 program.display()
             ));
         }
-        Ok(())
+        self.sandbox()
     }
 
     /// The encoder `--encoder` names (`auto`, `x264` or `ffmpeg`), where
     /// the x264 program is the one `--x264` names, if any. In strict-safe
     /// mode `ffmpeg` is refused, `auto` is the x264 program alone, refused
     /// when there is none, and an x264 program [`StrictSafe::program`]
-    /// refuses is refused; all before the input is read. Err is the
-    /// refusal's message.
+    /// refuses is refused, and so is every encoder where
+    /// [`StrictSafe::sandbox`] refuses; all before the input is read. Err is
+    /// the refusal's message.
     #[cfg(feature = "transcode")]
     pub fn encoder(self, name: &str, x264: Option<&Path>) -> Result<Encoder, String> {
         let choice = match name {
@@ -135,7 +160,9 @@ impl StrictSafe {
             Some(program) => self
                 .program(program.path())
                 .map(|()| Encoder(EncoderChoice::X264)),
-            None if choice == EncoderChoice::X264 => Ok(Encoder(EncoderChoice::X264)),
+            None if choice == EncoderChoice::X264 => {
+                self.sandbox().map(|()| Encoder(EncoderChoice::X264))
+            }
             None => Err(format!(
                 "strict-safe mode never runs the ffmpeg program, so the encoder is an x264 \
                  program, and none was found: install x264 (on PATH, or named by COREAV_X264 \
@@ -158,25 +185,42 @@ impl Encoder {
     }
 }
 
-/// The decoder backends of a run (`crate::thumbnail::backends`), and the
-/// codec strict-safe mode refused the FFmpeg fallback for, once the
-/// policy's order reached it.
+/// The decoder backends of a run (`crate::thumbnail::backends`), and why
+/// strict-safe mode refused the first backend it replaced with a stand-in,
+/// once the policy's order reached it.
 #[cfg(feature = "thumbnail")]
 #[derive(Default)]
 pub struct Decoders {
     owned: Vec<Box<dyn Backend>>,
-    refused: Arc<OnceLock<Codec>>,
+    refused: Arc<OnceLock<String>>,
 }
 
 #[cfg(feature = "thumbnail")]
 impl Decoders {
-    /// Adds a backend that runs no `ffmpeg` program.
-    #[cfg_attr(
-        not(any(feature = "native-h264", feature = "dav1d", feature = "libvpx")),
-        allow(dead_code)
-    )]
+    /// Adds a backend that runs in this process.
+    #[cfg(feature = "native-h264")]
     pub(crate) fn push(&mut self, backend: Box<dyn Backend>) {
         self.owned.push(backend);
+    }
+
+    /// Adds a sandboxed backend that runs no `ffmpeg` program (dav1d,
+    /// libvpx), or a stand-in in its place where [`StrictSafe::sandbox`]
+    /// refuses: it says which streams the backend would take and opens none.
+    #[cfg(any(feature = "dav1d", feature = "libvpx"))]
+    pub(crate) fn push_sandboxed(
+        &mut self,
+        strict: StrictSafe,
+        backend: coreav_worker::SandboxedBackend,
+    ) {
+        if strict.sandbox().is_ok() {
+            self.owned.push(Box::new(backend));
+            return;
+        }
+        self.owned.push(Box::new(Refused {
+            backend,
+            why: no_limit,
+            refused: Arc::clone(&self.refused),
+        }));
     }
 
     /// Adds the FFmpeg fallback, or in strict-safe mode a stand-in in its
@@ -190,7 +234,8 @@ impl Decoders {
         if strict.on {
             self.owned.push(Box::new(Refused {
                 backend,
-                codec: Arc::clone(&self.refused),
+                why: ffmpeg_refused,
+                refused: Arc::clone(&self.refused),
             }));
         } else {
             self.owned.push(Box::new(backend));
@@ -202,19 +247,16 @@ impl Decoders {
         self.owned.iter().map(|b| b.as_ref()).collect()
     }
 
-    /// `failure` as strict-safe mode's refusal (exit status 4) when the
-    /// FFmpeg fallback was refused and no other backend decoded the
-    /// stream; otherwise `failure` unchanged.
+    /// `failure` as strict-safe mode's refusal (exit status 4) when a
+    /// backend was refused and no other backend decoded the stream;
+    /// otherwise `failure` unchanged.
     pub fn explain(&self, failure: WriteFailure) -> WriteFailure {
         match (self.refused.get(), failure) {
-            (Some(codec), WriteFailure::Rejected(Failure::VideoDecode(error)))
+            (Some(why), WriteFailure::Rejected(Failure::VideoDecode(error)))
                 if error.kind == coreav_decode::ErrorKind::Unsupported =>
             {
                 WriteFailure::Rejected(Failure::StrictSafe(format!(
-                    "strict-safe mode never runs the ffmpeg program, so it cannot decode the \
-                     {} video, and no other decoder of this build does: {}, {OFF} ({})",
-                    codec.name(),
-                    build_hint(*codec),
+                    "{why}, {OFF} ({})",
                     error.message
                 )))
             }
@@ -223,8 +265,29 @@ impl Decoders {
     }
 }
 
+/// Why the FFmpeg fallback did not decode `codec` in strict-safe mode.
+#[cfg(feature = "ffmpeg-fallback")]
+fn ffmpeg_refused(codec: Codec) -> String {
+    format!(
+        "strict-safe mode never runs the ffmpeg program, so it cannot decode the {} video, and \
+         no other decoder of this build does: {}",
+        codec.name(),
+        build_hint(codec)
+    )
+}
+
+/// Why a sandboxed backend did not decode `codec` in strict-safe mode.
+#[cfg(any(feature = "dav1d", feature = "libvpx"))]
+fn no_limit(codec: Codec) -> String {
+    format!(
+        "{NO_LIMIT}, so it cannot decode the {} video in the sandboxed decoder, and no other \
+         decoder of this build does",
+        codec.name()
+    )
+}
+
 /// The build that decodes `codec` without FFmpeg.
-#[cfg(feature = "thumbnail")]
+#[cfg(feature = "ffmpeg-fallback")]
 fn build_hint(codec: Codec) -> &'static str {
     match codec {
         Codec::H264 => "build coreav with the native-h264 feature",
@@ -234,14 +297,17 @@ fn build_hint(codec: Codec) -> &'static str {
     }
 }
 
-/// The FFmpeg fallback in strict-safe mode.
-#[cfg(feature = "ffmpeg-fallback")]
+/// A sandboxed backend strict-safe mode does not start: the FFmpeg
+/// fallback, or any sandboxed backend where [`StrictSafe::sandbox`]
+/// refuses. `why` says why, for [`Decoders::explain`].
+#[cfg(any(feature = "ffmpeg-fallback", feature = "dav1d", feature = "libvpx"))]
 struct Refused {
     backend: coreav_worker::SandboxedBackend,
-    codec: Arc<OnceLock<Codec>>,
+    why: fn(Codec) -> String,
+    refused: Arc<OnceLock<String>>,
 }
 
-#[cfg(feature = "ffmpeg-fallback")]
+#[cfg(any(feature = "ffmpeg-fallback", feature = "dav1d", feature = "libvpx"))]
 impl Backend for Refused {
     fn kind(&self) -> coreav_decode::BackendKind {
         self.backend.kind()
@@ -260,7 +326,7 @@ impl Backend for Refused {
         stream: &coreav_decode::StreamConfig,
         _limits: &coreav_decode::Limits,
     ) -> Result<Box<dyn coreav_decode::Decoder>, coreav_decode::Error> {
-        let _ = self.codec.set(stream.codec);
+        let _ = self.refused.set((self.why)(stream.codec));
         Err(coreav_decode::Error::new(
             coreav_decode::ErrorKind::Unsupported,
             "not run in strict-safe mode",

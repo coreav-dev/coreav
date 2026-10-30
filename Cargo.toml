@@ -29,6 +29,7 @@ members = [
     "tools/isobmff-adapter",
     "tools/mkv-adapter",
     "tools/ts-adapter",
+    "tools/ts-speed",
     "tools/edge-native",
     "tools/decode-oracle",
     "tools/counting-alloc",
