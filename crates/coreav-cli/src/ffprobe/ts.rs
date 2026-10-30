@@ -41,7 +41,8 @@
 //!   after, [`reported_end`]), from the last
 //!   250,000 bytes of the file, or 500,000 for a stream not found there
 //!   ([`TAIL_BYTES`]); a stream whose end is not found has no duration.
-//!   H.264 never reports closed captions. HE-AAC is read from the SBR data
+//!   H.264 never reports closed captions, nor MPEG video whose first
+//!   picture is no key picture ([`Head::undecoded`]). HE-AAC is read from the SBR data
 //!   that ends its frames ([`params::aac_ends_with_sbr`]); Blu-ray LPCM
 //!   from its frame header ([`params::bluray_lpcm`]); MPEG-2 video's bit
 //!   rate is the header's unless the stream is of variable rate. LATM AAC
@@ -134,18 +135,7 @@ pub fn probe<'a, S: Source + 'a>(
         }
     }
     let mut report = Report::default();
-    // `ffprobe` numbers first the streams of the first Program Map Table
-    // it reads, then the others in the order the file shows them from its
-    // start: a table that names them, or their data (KD-TS-STREAM-ORDER,
-    // `Stream::found_at`); the probe's order breaks ties.
-    let mut order: Vec<usize> = (0..ts.streams.len()).collect();
-    order.sort_by_key(|&i| {
-        ts.streams
-            .get(i)
-            .map_or((true, u64::MAX, usize::MAX), |st| {
-                (!st.with_first_table, st.found_at, st.stream_index)
-            })
-    });
+    let order = ts.listing_order();
     let facts: Vec<Facts> = ts
         .streams
         .iter()
@@ -437,27 +427,45 @@ type OpenField = Option<(bool, Option<i64>, Option<i64>)>;
 /// interlaced capture of the v1-ts-audio corpus, in the first field's PES
 /// packet or in one of its own; any other such picture has none, as
 /// `ffprobe` reports on streams crafted with two frames to a PES packet
-/// and with frames in PES packets that state no time. `open` tracks the
-/// first field of a frame.
+/// and with frames in PES packets that state no time; but a picture whose
+/// timing message states its `dpb_output_delay` (a sequence with an HRD)
+/// decodes when the picture before it ends and is shown that delay later,
+/// as `ffprobe` gives it on a capture of the corpus and on streams crafted
+/// with `nal-hrd`, with and without B-pictures, five frames to a PES
+/// packet. `open` tracks the first field of a frame, `next` when the
+/// picture after this one decodes.
 fn field_times(
     clock: &Clock,
     picture: Option<params::Picture>,
     untimed: bool,
-    times: (Option<i64>, Option<i64>),
+    mut times: (Option<i64>, Option<i64>),
     open: &mut OpenField,
+    next: &mut Option<i64>,
 ) -> (Option<i64>, Option<i64>) {
     let field = picture.and_then(|p| p.field);
+    let ticks = picture.map_or(2, params::Picture::ticks);
     if untimed {
         if let (Some(bottom), Some((first, pts, dts))) = (field, *open) {
             if bottom != first {
                 *open = None;
                 let step = clock.field_step();
                 let later = |t: Option<i64>| t.zip(step).map(|(t, s)| t + s);
-                return (later(pts), later(dts));
+                times = (later(pts), later(dts));
+                *next = times.1.zip(clock.duration(ticks)).map(|(d, t)| d + t);
+                return times;
             }
+        }
+        if let (Some(delay), Some(dts)) = (picture.and_then(|p| p.output_delay), *next) {
+            let delay = if delay == 0 {
+                Some(0)
+            } else {
+                clock.duration(delay)
+            };
+            times = (delay.map(|d| dts + d), Some(dts));
         }
     }
     *open = field.map(|bottom| (bottom, times.0, times.1));
+    *next = times.1.zip(clock.duration(ticks)).map(|(d, t)| d + t);
     times
 }
 
@@ -482,12 +490,20 @@ struct Head {
     clock: Option<Clock>,
     /// The first field of a frame whose second is awaited.
     field: OpenField,
+    /// When the picture after the last decodes ([`field_times`]).
+    next: Option<i64>,
     /// The first access unit that carries the stream's configuration: the
     /// parameter sets of a coded video stream, the sequence header of
     /// MPEG video, the first frame of audio.
     unit: Option<Vec<u8>>,
     /// A picture carried ATSC A/53 closed captions.
     captions: bool,
+    /// MPEG video whose first picture is not a key picture: `ffprobe`
+    /// decodes none of the pictures it reads for the stream's parameters,
+    /// so it reports no captions whatever they carry (a capture of the
+    /// corpus whose four MPEG-2 streams start mid-group, one with
+    /// captions in its first key picture).
+    undecoded: bool,
     /// The parity of a field whose second field is awaited, for telling
     /// the frames of an H.264 stream from their second fields.
     pairing: Option<bool>,
@@ -908,7 +924,7 @@ fn head<S: Source>(
             if let Some(clock) = h.clock {
                 let picture = clock.picture(&packet.data);
                 let untimed = packet.pts.is_none() && packet.dts.is_none();
-                times = field_times(&clock, picture, untimed, times, &mut h.field);
+                times = field_times(&clock, picture, untimed, times, &mut h.field, &mut h.next);
                 ticks = Some(picture.map_or(2, params::Picture::ticks));
                 // A frame, or the first field of one, is a frame of the
                 // order; a second field is not.
@@ -949,7 +965,10 @@ fn head<S: Source>(
                 } else {
                     times.1.or(times.0)
                 });
-                if st.kind == Kind::Video && has_captions(&packet.data) {
+                if mpeg && h.times.len() == 1 && !packet.keyframe {
+                    h.undecoded = true;
+                }
+                if st.kind == Kind::Video && !h.undecoded && has_captions(&packet.data) {
                     h.captions = true;
                 }
             }
@@ -1184,7 +1203,10 @@ fn mpeg_rate(m: &Mpeg2) -> Option<(u32, u32)> {
 /// Frame rates of the video in common use, as fractions, which a stream
 /// whose pictures do not fall on whole ticks (23.976 frames a second is
 /// 3,753.75 ticks a picture) is matched against.
-const COMMON_RATES: [(u64, u64); 16] = [
+const COMMON_RATES: [(u64, u64); 19] = [
+    (12_000, 1001),
+    (15_000, 1001),
+    (48_000, 1001),
     (24_000, 1001),
     (24, 1),
     (25, 1),
@@ -2398,7 +2420,8 @@ impl<S: Source> PacketSource for TsPackets<S> {
         let known = self.listed.len();
         let mut decode: Vec<DecodeTimes> =
             self.listed.iter().map(|_| DecodeTimes::default()).collect();
-        let mut fields: Vec<OpenField> = self.listed.iter().map(|_| None).collect();
+        let mut fields: Vec<(OpenField, Option<i64>)> =
+            self.listed.iter().map(|_| (None, None)).collect();
         let mut mpeg: Vec<MpegTimes> = self.listed.iter().map(|_| MpegTimes::default()).collect();
         // Per stream, how many of its first frames were timed back, or
         // `None` once a frame stated a time.
@@ -2462,9 +2485,9 @@ impl<S: Source> PacketSource for TsPackets<S> {
             }
             let clock = listed.and_then(|l| l.clock);
             let picture = clock.and_then(|c| c.picture(&p.data));
-            if let (Some(clock), Some(open)) = (clock, fields.get_mut(p.stream)) {
+            if let (Some(clock), Some((open, next))) = (clock, fields.get_mut(p.stream)) {
                 let untimed = p.pts.is_none() && p.dts.is_none();
-                (pts, dts) = field_times(&clock, picture, untimed, (pts, dts), open);
+                (pts, dts) = field_times(&clock, picture, untimed, (pts, dts), open, next);
             }
             let duration = match clock {
                 Some(c) if c.tick.is_some() => {
@@ -2730,7 +2753,14 @@ mod tests {
 
     #[test]
     fn picture_ticks_follow_fields_and_pic_struct() {
-        let ticks = |field, pic_struct| params::Picture { field, pic_struct }.ticks();
+        let ticks = |field, pic_struct| {
+            params::Picture {
+                field,
+                pic_struct,
+                output_delay: None,
+            }
+            .ticks()
+        };
         assert_eq!(ticks(Some(false), Some(1)), 1);
         assert_eq!(ticks(None, None), 2);
         assert_eq!(ticks(None, Some(0)), 2);
@@ -2747,30 +2777,86 @@ mod tests {
         let field = |bottom| {
             Some(params::Picture {
                 field: Some(bottom),
-                pic_struct: None,
+                ..Default::default()
             })
         };
-        let mut open = None;
+        let (mut open, mut next) = (None, None);
         let first = field_times(
             &clock,
             field(false),
             false,
             (Some(100), Some(90)),
             &mut open,
+            &mut next,
         );
         assert_eq!(first, (Some(100), Some(90)));
-        let second = field_times(&clock, field(true), true, (None, None), &mut open);
+        let second = field_times(
+            &clock,
+            field(true),
+            true,
+            (None, None),
+            &mut open,
+            &mut next,
+        );
         assert_eq!(second, (Some(1900), Some(1890)));
         // A frame the file gives no time of its own takes none.
         let frame = Some(params::Picture::default());
         assert_eq!(
-            field_times(&clock, frame, true, (None, None), &mut open),
+            field_times(&clock, frame, true, (None, None), &mut open, &mut next),
             (None, None)
         );
         // Nor does a field of the same parity as the open one.
-        field_times(&clock, field(false), false, (Some(5), None), &mut open);
+        field_times(
+            &clock,
+            field(false),
+            false,
+            (Some(5), None),
+            &mut open,
+            &mut next,
+        );
         assert_eq!(
-            field_times(&clock, field(false), true, (None, None), &mut open),
+            field_times(
+                &clock,
+                field(false),
+                true,
+                (None, None),
+                &mut open,
+                &mut next
+            ),
+            (None, None)
+        );
+    }
+
+    #[test]
+    fn a_picture_with_an_output_delay_decodes_after_the_one_before() {
+        let mut sps = Sps::default();
+        sps.vui.timing = Some((1001, 30_000));
+        let clock = Clock::of(sps);
+        let frame = |delay| {
+            Some(params::Picture {
+                output_delay: Some(delay),
+                ..Default::default()
+            })
+        };
+        let (mut open, mut next) = (None, None);
+        let stated = (Some(138_012), Some(126_000));
+        assert_eq!(
+            field_times(&clock, frame(4), false, stated, &mut open, &mut next),
+            stated
+        );
+        // Two ticks of 3,003 later it decodes, and is shown its delay later.
+        assert_eq!(
+            field_times(&clock, frame(8), true, (None, None), &mut open, &mut next),
+            (Some(156_030), Some(132_006))
+        );
+        assert_eq!(
+            field_times(&clock, frame(0), true, (None, None), &mut open, &mut next),
+            (Some(138_012), Some(138_012))
+        );
+        // A picture without the message still takes no time.
+        let plain = Some(params::Picture::default());
+        assert_eq!(
+            field_times(&clock, plain, true, (None, None), &mut open, &mut next),
             (None, None)
         );
     }

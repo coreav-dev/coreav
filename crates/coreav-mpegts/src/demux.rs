@@ -199,6 +199,10 @@ pub(crate) struct Demux {
     /// The base of the last program clock reference of each PID, while
     /// splice sections are kept; bounded by `max_streams`.
     pcrs: PidMap<u64>,
+    /// The Event Information Table section listed for the last packet of
+    /// its PID, to list again if the next packet completes no section
+    /// (`Demux::section_payload`).
+    eit_again: Option<Vec<u8>>,
     /// PIDs whose PES packets are reassembled whatever the tables say
     /// (the streams a probe kept), besides those the tables keep.
     pub always: std::collections::BTreeSet<u16>,
@@ -246,6 +250,7 @@ impl Demux {
             keep_epg: false,
             keep_splices: false,
             pcrs: PidMap::streams(limits),
+            eit_again: None,
             always: std::collections::BTreeSet::new(),
             pieces: None,
         }
@@ -287,6 +292,7 @@ impl Demux {
             keep_epg: false,
             keep_splices: false,
             pcrs: self.pcrs.cleared(),
+            eit_again: None,
             always: self.always.clone(),
             pieces: None,
         }
@@ -817,7 +823,11 @@ impl Demux {
         if let Err(reason) = assembler.push(payload, unit_start, &mut sections) {
             warn(warnings, Warning::BadSection { pid, reason });
         }
-        for data in sections {
+        let first_started = sections.len().saturating_sub(assembler.started());
+        let opened = unit_start && assembler.is_open();
+        let completed = !sections.is_empty();
+        let mut eit_listed = None;
+        for (i, data) in sections.into_iter().enumerate() {
             let (long, body) = match section::long(&data) {
                 Ok(parsed) => parsed,
                 Err(reason) => {
@@ -847,8 +857,7 @@ impl Demux {
                         .and_then(|&index| self.streams.get(index))
                         .is_some_and(|entry| entry.kept);
                     if self.keep_epg && listed {
-                        self.sections_listed
-                            .push_back((EIT_PID, data.clone(), None));
+                        eit_listed = Some((data.clone(), i >= first_started));
                     }
                 }
                 (SDT_PID, SDT_ACTUAL) => {
@@ -881,6 +890,25 @@ impl Demux {
                 }
                 (_, PMT) => self.pmt(pid, long.id, long.version, body, warnings)?,
                 _ => {}
+            }
+        }
+        // `ffprobe` lists at most one section of the table per packet of
+        // its PID, the last the packet completes. When that section
+        // started in the packet and the packet opens another, and the
+        // next packet completes none, it lists the section again (a
+        // capture of the corpus, all 680 sections in `ffprobe`'s order).
+        if pid == EIT_PID {
+            match eit_listed {
+                Some((data, started)) => {
+                    self.eit_again = (started && opened).then(|| data.clone());
+                    self.sections_listed.push_back((EIT_PID, data, None));
+                }
+                None => {
+                    let again = self.eit_again.take();
+                    if let Some(data) = again.filter(|_| !completed && !unit_start) {
+                        self.sections_listed.push_back((EIT_PID, data, None));
+                    }
+                }
             }
         }
         Ok(())

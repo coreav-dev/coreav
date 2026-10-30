@@ -489,7 +489,8 @@ impl<S: Source> Packets<'_, S> {
     ///   one is listed once that one's header is read, even when the end of
     ///   the PES packet cuts it;
     /// - at the end of the file, what each stream still holds is listed
-    ///   stream by stream.
+    ///   stream by stream, in the order `ffprobe` numbers them
+    ///   ([`TransportStream::listing_order`]).
     #[must_use]
     pub fn listing_as_ffprobe(mut self) -> Self {
         self.as_ffprobe = true;
@@ -1513,7 +1514,9 @@ impl<S: Source> Packets<'_, S> {
             // end of the file leaves open; a unit held for the one after
             // it; a frame cut short.
             self.carried = 0;
-            for index in 0..self.frames.len() {
+            let probed = self.ts.listing_order();
+            let added = probed.len()..self.frames.len();
+            for index in probed.into_iter().chain(added) {
                 self.flush_open(index);
                 self.flush_held(index);
             }
