@@ -60,7 +60,7 @@ jobs:
   check:
     needs: ci-changes
     if: needs.ci-changes.outputs.run == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     # About 6 minutes with a warm cache; a cold one rebuilds every clippy
     # configuration and the release tests.
     timeout-minutes: 60
@@ -72,7 +72,7 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: ${{ github.ref == 'refs/heads/main' || github.head_ref == 'ci/blacksmith-trial' }}
       - run: cargo fmt --all --check
       # docs/unsafe-sites.md lists every unsafe site.
       - run: python3 -I scripts/unsafe_sites_check.py
@@ -171,7 +171,7 @@ jobs:
     # newer language feature or std API raises it in the same PR.
     needs: ci-changes
     if: needs.ci-changes.outputs.run == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     # Under a minute with a warm cache; `cargo check` only.
     timeout-minutes: 20
     steps:
@@ -189,7 +189,7 @@ jobs:
         env:
           RUSTUP_TOOLCHAIN: ${{ steps.msrv.outputs.version }}
         with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: ${{ github.ref == 'refs/heads/main' || github.head_ref == 'ci/blacksmith-trial' }}
       - run: cargo check --workspace --all-targets --locked
         env:
           RUSTUP_TOOLCHAIN: ${{ steps.msrv.outputs.version }}
