@@ -88,8 +88,8 @@ def encodes():
     return out
 
 
-def run(args, **kw):
-    return subprocess.run([str(a) for a in args], capture_output=True, timeout=TIMEOUT, **kw)
+def run(args, timeout=TIMEOUT, **kw):
+    return subprocess.run([str(a) for a in args], capture_output=True, timeout=timeout, **kw)
 
 
 def prepare(a):
@@ -233,7 +233,8 @@ def judge(a):
     gen = [r for r in meta['inputs'] if r['status'] == 'encoded']
     files = [work / 'gen' / f"{r['name']}.m4a" for r in gen]
     check = run([sys.executable, '-I', ROOT / 'scripts' / 'decode_audio_check.py', '--coreav', a.coreav,
-                 '--ffmpeg', a.ffmpeg, '--ffprobe', a.ffprobe, '--out', work / 'edit-lists.json', *files])
+                 '--ffmpeg', a.ffmpeg, '--ffprobe', a.ffprobe, '--out', work / 'edit-lists.json', *files],
+                timeout=TIMEOUT * len(files))
     results = json.loads((work / 'edit-lists.json').read_text())['results']
     bar3 = []
     for r, f, res in zip(gen, files, results):
@@ -281,7 +282,8 @@ def judge(a):
                          'ffmpeg_length': len(theirs) // channels, 'rms': (sq / max(n, 1)) ** 0.5, 'max': worst})
     out['bar4'] = bar4
     out['bar5'] = {'inputs': len(bar5), 'same': sum(r['same'] for r in bar5), 'results': bar5}
-    bad = (out['bar2']['passed'] != out['bar2']['counted'] or out['bar3']['passed'] != out['bar3']['gating']
+    bad = (0 in (out['bar2']['counted'], out['bar3']['gating'], out['bar5']['inputs'])
+           or out['bar2']['passed'] != out['bar2']['counted'] or out['bar3']['passed'] != out['bar3']['gating']
            or out['bar5']['same'] != out['bar5']['inputs'])
     out['verdict'] = 'missed' if bad else 'met'
     a.out.write_text(json.dumps(out, indent=1) + '\n')

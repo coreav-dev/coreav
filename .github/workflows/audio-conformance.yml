@@ -184,10 +184,13 @@ jobs:
         run: |
           set -euo pipefail
           W="$RUNNER_TEMP/aac-agreement"
+          status=0
           python3 -I scripts/aac_agreement.py judge --coreav target/release/coreav \
             --ffmpeg "$RUNNER_TEMP/ffmpeg9/ffmpeg" --ffprobe "$RUNNER_TEMP/ffmpeg9/ffprobe" \
-            --work "$W" --out "$W/aac-agree.json" | tee "$W/summary.json"
+            --work "$W" --out "$W/aac-agree.json" > "$W/summary.json" || status=$?
+          cat "$W/summary.json"
           { echo '```json'; cat "$W/summary.json"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
       - name: Keep the results
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
