@@ -1117,9 +1117,10 @@ earlier run has seen. Fixed here before any of its files is fetched:
    input decodes to the same bits as before the change. The RFC 8251
    vectors show it before the run (their decoded output is pinned by hash
    in `crates/coreav-opus/tests/vectors.rs`). In the run, every input is
-   also decoded by a dist build of the change's base commit, and its
-   `coreav decode-audio --format s16` output must equal the change's byte
-   for byte. One input that differs fails the round, whatever the speed.
+   also decoded by a dist build of the change's base commit, and the two
+   builds' `coreav decode-audio --format s16` outputs must be equal
+   byte-for-byte. One input that differs fails the round, whatever the
+   speed.
 2. **Set.** The derived set of "Opus sets", built by the same rule and the
    same script (`make_opus_inputs.py`, with the pinned `ffmpeg` 7.0.2),
    from new sources: the `real` files of `v2-heldout` draw 8
