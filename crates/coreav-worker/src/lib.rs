@@ -35,6 +35,7 @@ pub use parent::{
     find_on_path,
 };
 pub use protocol::{SandboxLimits, WorkerBackend};
+pub use sandbox::enforces_memory_limit;
 
 /// The argument after which the `coreav` binary runs as a worker.
 pub const WORKER_ARG: &str = "__coreav_worker";
