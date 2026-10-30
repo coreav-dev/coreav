@@ -24,10 +24,11 @@
         Standard output must be identical to ffprobe's on every file ffprobe
         reads, after the known divergences B3a sets aside (the fixtures of
         SET_ASIDE, and a rejection KD-STRICT covers); there is no baseline, so
-        every difference misses. Counts per command and per family; exit 1
-        when any command misses, 2 when the run is void (its fallback log
-        holds a line), 3 when it measured nothing (no file of the set's
-        families, or none that ffprobe reads).
+        every difference misses, and so does a (command, family) pair of a
+        family given whose files ffprobe reads none of. Counts per command and
+        per family; exit 1 when any pair misses, 2 when the run is void (its
+        fallback log holds a line), 3 when it measured nothing (no file of
+        the set's families, or none that ffprobe reads).
 
     run.py keys --set 0.1.0 --coreav PATH --media DIR [DIR...] [--list FILE]
                 [--records FILE] [--report FILE] [--summary FILE]
@@ -37,9 +38,9 @@
         in fewer are pooled into one row gated on their occurrences.
         --records writes one line per file (its name, family and keys:
         private, as the files are); --summary writes the counts alone, with
-        no file named. Exit 1 when a gated row of a family is below the bar,
-        2 when the run is void, 3 when it measured nothing (no file that
-        ffprobe reads).
+        no file named. Exit 1 when a gated row of a family is below the bar
+        or a family given has no file that ffprobe reads, 2 when the run is
+        void, 3 when it measured nothing (no file that ffprobe reads).
 
     run.py keys-report [--records FILE...] [--summaries FILE...] [--report FILE] [--summary FILE]
         The same report from the records or the summaries of several
@@ -566,10 +567,12 @@ def cmd_commands_010(opts):
         families[fam].update(c)
     missed = [f"{r['id']}.{r['command']} {r['family']}" for r in rows
               if r.get('different', 0) or r.get('coreav fails', 0)]
+    unmeasured = [f"{r['id']}.{r['command']} {r['family']}" for r in rows
+                  if not any(r.get(k, 0) for k in ('identical', 'different', 'set aside', 'coreav fails'))]
     verdict = release_round.fallback_verdict(ENV['COREAV_FALLBACK_LOG'])
     report = {'set': '0.1.0', 'bar': 'R1',
               'files': dict(collections.Counter(release_round.family(p) for p in files)),
-              'families': families, 'commands': rows, 'missed': missed,
+              'families': families, 'commands': rows, 'missed': missed, 'unmeasured': unmeasured,
               'set aside': dict(set_aside), 'fallback_log': verdict, 'failures': failures}
     if opts.report:
         pathlib.Path(opts.report).write_text(json.dumps(report, indent=1) + '\n')
@@ -577,13 +580,17 @@ def cmd_commands_010(opts):
     for line in missed[:opts.top]:
         print(f'MISSED {line}')
     print(f'{len(missed)} (command, family) pairs miss R1')
+    for line in unmeasured[:opts.top]:
+        print(f'UNMEASURED {line}')
     if verdict['void']:
         print('VOID: the fallback log holds a line')
         return 2
-    if not any(c[k] for c in families.values() for k in ('identical', 'different', 'set aside', 'coreav fails')):
+    if len(unmeasured) == len(rows):
         print('UNMEASURED: no file of the set that ffprobe reads')
         return release_round.UNMEASURED
-    return 1 if missed else 0
+    if unmeasured:
+        print(f'{len(unmeasured)} (command, family) pairs have no file ffprobe reads: they miss R1')
+    return 1 if missed or unmeasured else 0
 
 
 def key_record(path, result, patterns):
@@ -678,6 +685,8 @@ def keys_report(counts, bar):
             row['below'] = row['gated'] and row['agree'] * 100.0 < bar * total
         out['families'][name] = {'files': fam['files'], 'keys': rows,
                                  'below': [r['key'] for r in rows if r['below']]}
+    out['unmeasured'] = [name for name, d in sorted(out['families'].items())
+                         if not any(n for k, n in d['files'].items() if k != 'ffprobe failed')]
     return out
 
 
@@ -694,10 +703,12 @@ def print_keys_report(summary, top):
     if summary['fallback_log']['void']:
         print('VOID: the fallback log holds a line')
         return 2
-    if not any(n for d in summary['families'].values() for k, n in d['files'].items() if k != 'ffprobe failed'):
+    if len(summary['unmeasured']) == len(summary['families']):
         print('UNMEASURED: no file of the set that ffprobe reads')
         return release_round.UNMEASURED
-    return 1 if any(d['below'] for d in summary['families'].values()) else 0
+    for name in summary['unmeasured']:
+        print(f'UNMEASURED {name}: no file of the family that ffprobe reads, so it misses R2')
+    return 1 if summary['unmeasured'] or any(d['below'] for d in summary['families'].values()) else 0
 
 
 def write_keys_outputs(opts, records, counts):

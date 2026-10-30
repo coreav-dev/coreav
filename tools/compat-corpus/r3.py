@@ -23,7 +23,9 @@ bars"; docs/measurements/compat-0.1.0/README.md, "Before the round", item 2).
         Per command and per family: the pairs ffmpeg ran to success, how
         many passed, and the commands no file could take. A command meets
         R3 when at least BAR% of its counted pairs pass. --summary names no
-        file, and the summaries of several runs add up. Exit 1 when a
+        file, and the summaries of several runs add up. A command no file
+        can take is reported, not counted; one whose files the pinned ffprobe
+        or ffmpeg failed on every time is unmeasured and misses. Exit 1 when a
         command misses, 2 when a run is void (its fallback log holds a
         line, a strict-safe refusal included), 3 when no pair was counted.
         `run` exits 3 when it has no file to run.
@@ -276,10 +278,14 @@ def summarize(c, bar):
         totals.append({'command': cmd, 'counted': counted, 'passed': t['passed'],
                        'rate': round(100.0 * t['passed'] / counted, 2) if counted else None,
                        'meets': t['passed'] * 100.0 >= bar * counted if counted else None})
+    unmeasured = [cmd for cmd, t in sorted(commands.items())
+                  if not t['passed'] + t['failed'] and (t['ffmpeg fails'] or t['ffprobe fails'])]
     return {'bar': bar, 'fallback_log': c['fallback_log'], 'files': dict(sorted(c['files'].items())),
             'cells': rows, 'commands': totals,
             'missed': [t['command'] for t in totals if t['meets'] is False],
-            'taken_by_no_file': [t['command'] for t in totals if not t['counted']], 'counts': c}
+            'unmeasured': unmeasured,
+            'taken_by_no_file': [t['command'] for t in totals if not t['counted'] and t['command'] not in unmeasured],
+            'counts': c}
 
 
 def cmd_report(opts):
@@ -292,7 +298,8 @@ def cmd_report(opts):
         failures = [line for line in lines if line.get('outcome') == 'failed']
         pathlib.Path(opts.report).write_text(json.dumps({**summary, 'failures': failures}, indent=1) + '\n')
     print(json.dumps({'files': summary['files'], 'commands': len(summary['commands']),
-                      'missed': summary['missed'], 'taken_by_no_file': summary['taken_by_no_file'],
+                      'missed': summary['missed'], 'unmeasured': summary['unmeasured'],
+                      'taken_by_no_file': summary['taken_by_no_file'],
                       'fallback_log': summary['fallback_log']}))
     if summary['fallback_log']['void']:
         print('VOID: the fallback log holds a line')
@@ -300,7 +307,9 @@ def cmd_report(opts):
     if not any(t['counted'] for t in summary['commands']):
         print('UNMEASURED: no pair that ffmpeg ran to success')
         return release_round.UNMEASURED
-    return 1 if summary['missed'] else 0
+    for cmd in summary['unmeasured']:
+        print(f'UNMEASURED {cmd}: files took it but the pinned ffprobe or ffmpeg failed on every one, so it misses R3')
+    return 1 if summary['missed'] or summary['unmeasured'] else 0
 
 
 def main():

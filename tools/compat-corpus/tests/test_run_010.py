@@ -35,7 +35,8 @@ if coreav:
 if not coreav and any(e in a for e in os.environ.get('FAKE_FFPROBE_FAILS', '').split(',') if e for a in args):
     sys.exit(1)
 names = [a for a in args if not a.startswith('/')]
-print(' '.join(names) + (' other' if coreav and any('stream=height' in a for a in args) else ''))
+differs = coreav and not os.environ.get('FAKE_AGREE') and any('stream=height' in a for a in args)
+print(' '.join(names) + (' other' if differs else ''))
 '''
 
 
@@ -143,6 +144,18 @@ class KeysReport(unittest.TestCase):
                    {'fallback_log': {'lines': 2, 'refused': 1, 'void': True}}]
         self.assertEqual(run.keys_counts(records)['fallback_log'], {'lines': 2, 'refused': 1, 'void': True})
 
+    def test_a_family_with_no_file_ffprobe_reads_misses(self):
+        records = [record('mp4-mov', {'format.duration': True}) for _ in range(5)]
+        records += [{'file': 'g', 'family': 'mpegts', 'ffprobe_failed': True}]
+        summary = run.keys_report(run.keys_counts(records), 98.0)
+        self.assertEqual(summary['unmeasured'], ['mpegts'])
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(run.print_keys_report(summary, 0), 1)
+        self.assertIn('UNMEASURED mpegts', out.getvalue())
+        summary = run.keys_report(run.keys_counts(records[:5]), 98.0)
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(run.print_keys_report(summary, 0), 0)
+
     def test_counts_with_no_file_ffprobe_reads_are_unmeasured(self):
         for records in ([], [{'file': 'g', 'family': 'mp4-mov', 'ffprobe_failed': True}]):
             summary = run.keys_report(run.keys_counts(records), 98.0)
@@ -206,6 +219,16 @@ class Commands010(unittest.TestCase):
         _, report, _ = self.r1(FAKE_FFPROBE_FAILS='.mkv')
         mkv = report['families']['matroska-webm']
         self.assertEqual(set(mkv), {'ffprobe fails'})
+
+    def test_a_family_ffprobe_reads_no_file_of_misses(self):
+        code, report, out = self.r1(FAKE_FFPROBE_FAILS='.mkv', FAKE_AGREE='1')
+        self.assertEqual(code, 1)
+        self.assertFalse(report['missed'])
+        self.assertTrue(report['unmeasured'])
+        self.assertTrue(all(u.endswith(' matroska-webm') for u in report['unmeasured']))
+        self.assertIn('UNMEASURED', out)
+        code, report, _ = self.r1(FAKE_AGREE='1')
+        self.assertEqual((code, report['missed'], report['unmeasured']), (0, [], []))
 
     def test_a_fallback_voids_the_run(self):
         code, report, out = self.r1(FAKE_LOG_LINE=json.dumps({'ran': '/usr/bin/ffprobe'}))
