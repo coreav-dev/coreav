@@ -376,7 +376,10 @@ leave it out. As the round's plan registers, a run whose fallback log holds
 any line is void, a strict-safe refusal included; the tools count the
 refusals among the lines for diagnosis. A run that measured nothing (no
 file of the set's families, or none the pinned `ffprobe` reads) exits 3,
-never 0, so a missing input cannot pass a bar.
+never 0, so a missing input cannot pass a bar; and in a run that measured
+something, a family given that measured nothing misses (in R1, each of its
+(command, family) pairs whose files the pinned `ffprobe` reads none of; in
+R2, a family with no file it reads).
 
 **The R4 host, registered before the run.** A GCP `c4-standard-16` VM with
 SMT off (one thread per core), started through `scripts/gcp_vm_job.py`, the
