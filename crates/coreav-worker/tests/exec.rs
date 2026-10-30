@@ -55,13 +55,14 @@ fn limits_are_in_force_in_the_program() {
     assert!(out.status.success(), "{out:?}");
     let text = String::from_utf8(out.stdout).unwrap();
     let lines: Vec<&str> = text.lines().collect();
-    // `ulimit -v` counts KiB; the hard limit is the soft one.
-    let kib = (3u64 << 30) / 1024;
-    assert_eq!(
-        lines,
-        ["0", &kib.to_string(), "77", "48", "0", &kib.to_string()],
-        "{text}"
-    );
+    // `ulimit -v` counts KiB; the hard limit is the soft one. macOS gets no
+    // address-space limit (`sandbox::apply`).
+    let space = if cfg!(target_vendor = "apple") {
+        "unlimited".to_string()
+    } else {
+        ((3u64 << 30) / 1024).to_string()
+    };
+    assert_eq!(lines, ["0", &space, "77", "48", "0", &space], "{text}");
 }
 
 #[test]

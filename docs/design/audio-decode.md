@@ -567,7 +567,7 @@ Fixed before the measured runs; the evidence goes to
 6. **Safety.** The `decode` fuzz target with conversions (16 kHz mono, 48
    kHz, 7,919 Hz mono, stereo); the `fir` target of
    `coreav-kernels-audio` (the AVX loop against the portable one, bit for
-   bit); 60 seconds each in CI. Pinned tests: refused rates and channel
+   bit); 15 minutes each in the daily fuzz run. Pinned tests: refused rates and channel
    counts, the output limit reached by upsampling, the same bytes on 1, 2
    and 8 threads, the stream's own rate and channels unchanged.
 7. **Regression guard.** `decode-audio-16k-mono` (the MP3 fixture to 16
@@ -698,7 +698,7 @@ Fixed before the measured runs; the evidence goes to
    `avcodec_send_packet`/`avcodec_receive_frame`).
 4. **Safety.** Fuzz targets `flac_frame` (the decoder on arbitrary frames
    under arbitrary streaminfo values) and `decode` (the whole pipeline on
-   arbitrary files) in `crates/coreav-audio/fuzz`, 60 seconds each in CI; a pinned test that a flood of constant subframes stops
+   arbitrary files) in `crates/coreav-audio/fuzz`, 15 minutes each in the daily fuzz run; a pinned test that a flood of constant subframes stops
    at `max_output_samples`; no panics.
 5. **Regression guard.** A `decode-audio-flac` case of the CI benchmark
    guard (`docs/design/benchmarks.md`) on a generated FLAC fixture.
@@ -898,7 +898,7 @@ Fixed before the measured runs; the evidence goes to
    set.
 4. **Safety.** A fuzz target `mp3_frame` (the decoder on arbitrary frames,
    with arbitrary earlier frames in its reservoir) beside `decode` (the
-   whole pipeline), 60 seconds each in CI; no panics.
+   whole pipeline), 15 minutes each in the daily fuzz run; no panics.
 5. **Regression guard.** A `decode-audio-mp3` case of the CI benchmark
    guard on a generated MP3 fixture.
 
@@ -1069,7 +1069,7 @@ either decoder.
    (SILK, hybrid, CELT) of the derived set.
 4. **Safety.** A fuzz target `opus_packet` (the decoder on arbitrary
    packets after arbitrary earlier ones, every channel mapping) beside
-   `decode`, 60 seconds each in CI; no panics. Limits, checked before
+   `decode`, 15 minutes each in the daily fuzz run; no panics. Limits, checked before
    any decoding: `OpusHead` as RFC 7845 5.1.1 bounds it (output channels
    1 to 255 and at most `max_channels`; at least one stream; coupled
    streams at most the streams, and the two together at most 255; every

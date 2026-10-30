@@ -243,15 +243,21 @@ pub(crate) fn backends(
             })
         };
         #[cfg(feature = "dav1d")]
-        out.push(Box::new(SandboxedBackend {
-            backend: WorkerBackend::Dav1d,
-            options: options.clone(),
-        }));
+        out.push_sandboxed(
+            strict_safe,
+            SandboxedBackend {
+                backend: WorkerBackend::Dav1d,
+                options: options.clone(),
+            },
+        );
         #[cfg(feature = "libvpx")]
-        out.push(Box::new(SandboxedBackend {
-            backend: WorkerBackend::Libvpx,
-            options: options.clone(),
-        }));
+        out.push_sandboxed(
+            strict_safe,
+            SandboxedBackend {
+                backend: WorkerBackend::Libvpx,
+                options: options.clone(),
+            },
+        );
         #[cfg(feature = "ffmpeg-fallback")]
         out.push_ffmpeg(
             strict_safe,

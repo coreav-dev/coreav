@@ -128,7 +128,7 @@ The changed files come from git, which is why each changes job checks out
 with `fetch-depth: 2`:
 
 - a pull request: the merge commit against its first parent, the base —
-  the diff `ci.yml`'s fuzz job already used to choose its targets;
+  the diff `ci.yml`'s `fuzz-changes` job also uses to choose its targets;
 - a push: the event's `before` commit against the event's commit;
 - a manual or scheduled run, an unreachable commit, or a failing diff:
   everything runs, the safe direction.
@@ -183,6 +183,19 @@ by its job's name, not by its workflow.
 - **Rejected: calling the old workflows from `ci.yml`** as reusable
   workflows. A called workflow's job reports as `<caller job> / <job>`,
   which renames every required check it holds.
+
+## The fuzz runs
+
+Fuzzing runs in two places, and a push to main is neither.
+
+- **A pull request** fuzzes the targets it can affect. `fuzz-changes` lists every target of each fuzz project whose own directory, or a workspace crate it depends on, the change touches (`scripts/fuzz_plan.py --changed`); `fuzz` runs only when that list is not empty, so a pull request that reaches no fuzz project starts no fuzz job and `ci-report` still covers both. The targets share 480 seconds, 5 to 30 each: a change to one container parser (7 to 24 targets) gets 20 to 30 seconds per target, and a change that reaches every project (the lock file, `ci.yml`, `scripts/fuzz_plan.py`) gets a pass of 7 seconds over each of the 66 targets instead of the 20 each that took about 38 minutes.
+- **`fuzz-nightly.yml`**, once a day and by hand, runs every target (`scripts/fuzz_plan.py --all`) for 15 minutes, in shards of six that run side by side, six at a time. It is not a required check: it never runs on a pull request.
+
+Main stopped fuzzing on push because the run had outgrown its job. Every target for 60 seconds was 66 minutes of fuzzing in a job with a 50-minute timeout, so every push to main ended cancelled, `ci-report` red, after about 40 targets, and the last 26 were never fuzzed on main. A timed-out job also skips its cache step, so no fuzz build was ever cached. The daily run gives every target 15 minutes a day; a day of pushes gave about 40 of them 60 seconds per push.
+
+**One build, cached.** `scripts/fuzz_run.sh` builds every project into one target directory, `target/fuzz`, with a pinned nightly toolchain (the pin is in the script). The daily run's first job builds every project, removes what is rebuilt from the checkout anyway (CoreAV's own crates and the fuzz binaries) and caches the rest; its shards, and every pull request's fuzz job, restore that cache, keyed by the script and the lock files. The pin keeps the cache valid from one day to the next; an unpinned nightly would change the compiler, and the cache with it, every day. `rust-cache` is not used here: it cleans a target directory once per workspace and keeps only that workspace's dependencies, and the 21 fuzz projects share one directory.
+
+**Nothing a fuzzer prints reaches the log.** Each target's output goes to a file. A target that ends in a finding leaves that output and its libFuzzer artifacts aside, and the log names the target only (libFuzzer prints a failing input as bytes and as base64, and `cargo fuzz` prints its `Debug` form). The daily run uploads them to the private bucket and logs the object key; a pull request's run keeps nothing, and the author finds the input again locally with the same command (docs/design/fuzz-campaign.md, "Findings").
 
 ## DCO sign-off
 
@@ -337,7 +350,7 @@ when a job above it failed.
 | Check | Workflow | Note |
 |---|---|---|
 | `deny` | `deny.yml` | `cargo deny check`, the fuzz projects' own graphs, and the DCO sign-off. No filter at all: it runs in full on every pull request |
-| `ci-report` | `ci.yml` | `cargo fmt`, `clippy`, the workspace tests, the MSRV build and the fuzz run |
+| `ci-report` | `ci.yml` | `cargo fmt`, `clippy`, the workspace tests, the MSRV build and, on a pull request, the fuzz run of the targets it can affect |
 | `fixtures-report` | `ci.yml` | The ISO base media oracle: ffprobe, MediaInfo, the command and the writers |
 | `mkv-fixtures-report` | `ci.yml` | The Matroska and WebM oracle |
 | `ts-fixtures-report` | `ci.yml` | The transport-stream oracle |
