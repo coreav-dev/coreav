@@ -10,8 +10,11 @@ publish = false
 
 [features]
 default = []
-# Links the system's libopus (opusic-sys without its bundled build; the
-# linker's search path, or OPUS_LIB_DIR). Off by default so that
+# Links the system's libopus (opusic-sys without its bundled build), found
+# on the linker's search path. The encoder process runs with a cleared
+# environment, so a libopus outside the loader's default path needs a
+# runtime search path in the binary: OPUS_LIB_DIR=DIR with
+# RUSTFLAGS="-C link-arg=-Wl,-rpath,DIR". Off by default so that
 # the workspace builds without it (docs/design/transcode.md, "Opus audio").
 libopus = ["dep:opusic-c"]
 

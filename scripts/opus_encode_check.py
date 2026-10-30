@@ -53,6 +53,20 @@ def timed(args):
     return done, time.perf_counter() - start
 
 
+def arms(coreav, ffmpeg, source, ours, theirs, rate):
+    """The two command lines of one input, as the note fixes them: CoreAV
+    with `--audio opus` and FFmpeg with `-c:a libopus`, each with the
+    rate (kbit/s) when one is given."""
+    ours_args = [coreav, 'transcode', source, ours, '--force', '--audio', 'opus',
+                 '--encoder', 'ffmpeg', '--ffmpeg', ffmpeg]
+    theirs_args = [ffmpeg, '-nostdin', '-v', 'error', '-y', '-i', source,
+                   '-c:v', 'libx264', '-c:a', 'libopus']
+    if rate:
+        ours_args += ['--audio-bitrate', str(rate)]
+        theirs_args += ['-b:a', f'{rate}k']
+    return ours_args, theirs_args + [theirs]
+
+
 def make_sources(ffmpeg, work):
     paths = {}
     for name, audio, options, container, _ in SOURCES:
@@ -128,13 +142,7 @@ def main():
             label = f'{name}-{rate or "default"}'
             ours = os.path.join(args.work, f'{label}.coreav.mp4')
             theirs = os.path.join(args.work, f'{label}.ffmpeg.mp4')
-            ours_args = [args.coreav, 'transcode', sources[name], ours, '--force', '--audio', 'opus',
-                         '--encoder', 'ffmpeg', '--ffmpeg', args.ffmpeg]
-            theirs_args = [args.ffmpeg, '-nostdin', '-v', 'error', '-y', '-i', sources[name],
-                           '-c:v', 'libx264', '-c:a', 'libopus', theirs]
-            if rate:
-                ours_args[6:6] = ['--audio-bitrate', str(rate)]
-                theirs_args[-1:-1] = ['-b:a', f'{rate}k']
+            ours_args, theirs_args = arms(args.coreav, args.ffmpeg, sources[name], ours, theirs, rate)
             times = {'coreav': [], 'ffmpeg': []}
             summary = None
             failed = None
