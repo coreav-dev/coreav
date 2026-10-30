@@ -85,23 +85,29 @@ pub(crate) fn reported_color(track: &Track) -> Color {
 /// [`reported_color`] from its inputs: the codec, the box's colour, the
 /// parameter set's (raw), and whether the track has frames in the file.
 fn precedence(codec: Codec, boxed: Color, set: Option<Color>, frames: bool) -> Color {
-    match (codec, set) {
-        (Codec::H264, Some(set)) if frames => {
-            let described = set.primaries.is_some();
-            let pick = |own: Option<u16>, other: Option<u16>| if described { own } else { other };
-            Color {
-                primaries: pick(set.primaries, boxed.primaries),
-                transfer: pick(set.transfer, boxed.transfer),
-                matrix: pick(set.matrix, boxed.matrix),
-                full_range: set.full_range.or(boxed.full_range),
-            }
-        }
-        (Codec::Hevc, Some(set)) => Color {
-            full_range: Some(set.full_range.unwrap_or(false)),
-            ..set
+    let reads_set = match codec {
+        Codec::H264 => frames,
+        Codec::Hevc | Codec::Av1 => true,
+        _ => false,
+    };
+    let pick = |own: Option<u16>, other: Option<u16>| own.filter(|&code| code != 2).or(other);
+    let color = match set.filter(|_| reads_set) {
+        None => boxed,
+        Some(set) => Color {
+            primaries: pick(boxed.primaries, set.primaries),
+            transfer: pick(boxed.transfer, set.transfer),
+            matrix: pick(boxed.matrix, set.matrix),
+            full_range: boxed.full_range.or(set.full_range),
         },
-        (Codec::Av1, Some(set)) => set,
-        _ => boxed,
+    };
+    let limited = match codec {
+        Codec::Hevc => set.is_some(),
+        Codec::ProRes => true,
+        _ => false,
+    };
+    Color {
+        full_range: color.full_range.or(limited.then_some(false)),
+        ..color
     }
 }
 
@@ -432,33 +438,34 @@ mod colour_tests {
         let sps = c(Some(6), Some(6), Some(6), Some(false));
         let range_only = c(None, None, None, Some(false));
         let silent = Color::default();
-        // H.264: the SPS's description and range when signalled, else the
-        // box's; the box's for a track without frames.
-        assert_eq!(precedence(Codec::H264, boxed, Some(sps), true), sps);
-        assert_eq!(precedence(Codec::H264, boxed, Some(sps), false), boxed);
-        assert_eq!(
-            precedence(Codec::H264, boxed, Some(range_only), true),
-            c(Some(1), Some(1), Some(1), Some(false))
-        );
         let unspecified = c(Some(2), Some(2), Some(2), None);
+        // H.264 with frames, HEVC and AV1: each code of the box unless it is
+        // 2 (unspecified), else the parameter set's; the range likewise.
+        assert_eq!(precedence(Codec::H264, boxed, Some(sps), true), boxed);
+        assert_eq!(precedence(Codec::H264, unspecified, Some(sps), true), sps);
+        assert_eq!(precedence(Codec::H264, silent, Some(sps), true), sps);
+        assert_eq!(precedence(Codec::Hevc, boxed, Some(sps), true), boxed);
         assert_eq!(
-            precedence(Codec::H264, boxed, Some(unspecified), true),
-            c(Some(2), Some(2), Some(2), Some(true))
-        );
-        assert_eq!(precedence(Codec::H264, boxed, None, true), boxed);
-        // HEVC: the SPS's always, an unsignalled range limited; the box's
-        // only without a parameter set in the record.
-        assert_eq!(
-            precedence(Codec::Hevc, boxed, Some(silent), true),
-            c(None, None, None, Some(false))
-        );
-        assert_eq!(precedence(Codec::Hevc, boxed, Some(sps), false), sps);
-        assert_eq!(precedence(Codec::Hevc, boxed, None, true), boxed);
-        // AV1: the sequence header's; other codecs: the box's.
-        assert_eq!(
-            precedence(Codec::Av1, boxed, Some(range_only), true),
+            precedence(Codec::Av1, silent, Some(range_only), true),
             range_only
         );
-        assert_eq!(precedence(Codec::Vp9, boxed, Some(sps), true), boxed);
+        assert_eq!(precedence(Codec::Av1, boxed, Some(sps), true), boxed);
+        // H.264 without frames, or without a parameter set: the box's.
+        assert_eq!(
+            precedence(Codec::H264, unspecified, Some(sps), false),
+            unspecified
+        );
+        assert_eq!(precedence(Codec::H264, boxed, None, true), boxed);
+        // HEVC with a parameter set, and ProRes: an unsignalled range is
+        // limited.
+        assert_eq!(
+            precedence(Codec::Hevc, silent, Some(silent), true),
+            range_only
+        );
+        assert_eq!(precedence(Codec::Hevc, silent, None, true), silent);
+        assert_eq!(precedence(Codec::ProRes, silent, None, true), range_only);
+        assert_eq!(precedence(Codec::ProRes, boxed, None, true), boxed);
+        // Other codecs: the box's.
+        assert_eq!(precedence(Codec::Vp9, silent, Some(sps), true), silent);
     }
 }
