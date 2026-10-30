@@ -86,6 +86,7 @@ before any benchmark:
 | v2-heldout draw 4 | `coreav-corpus-v2-heldout-draw4:` | every `real` file |
 | v2-heldout draw 5 | `coreav-corpus-v2-heldout-ts:` | every `real` file |
 | v2-heldout draw 6 | `coreav-corpus-v2-heldout-compat:` | every `real` file |
+| v2-heldout draw 7 | `coreav-corpus-v2-heldout-ts-speed:` | every `real` file |
 
 Held-out files are used only for reported numbers, never for profiling
 or tuning. Where a whole draw is held out, the salt still orders each
@@ -252,6 +253,7 @@ draw's operation.
 | 4 | thumbnail and decode | `thumbnail` | 52 | 80 | 1.71 | spent: the joint confirmation of [`spikes/thumbnail-bench/README.md`](spikes/thumbnail-bench/README.md) |
 | 5 | MPEG-TS demux | `ts-probe` | 37 | 48 | 1.7 | spent: [`measurements/ts-demux.md`](measurements/ts-demux.md) |
 | 6 | the 0.1.0 bars R2 to R4 | `compat` | 300 | 332 | 13.62 | unspent |
+| 7 | MPEG-TS demux speed, round 2 | `ts-probe` | | | | rules committed, not yet collected |
 
 No `hls` draw is unspent, so the next `hls index` measurement needs a
 draw of its own before it can run.
@@ -481,6 +483,20 @@ the first fetch.
   signature not already held. R2, R3 and R4 report that family as it is;
   its results speak mostly for one publisher's encodes.
 
+### Draw 7
+
+The held-out draw of the second round of the transport stream speed bars ([`design/mpegts.md`](design/mpegts.md), "Speed bars, round 2"), after draw 5 was spent. Operation `ts-probe`, salt `coreav-corpus-v2-heldout-ts-speed:`. The rules were committed before any file was fetched.
+
+- **Form:** files unchanged, at most 200 MB (1 MB = 10^6 bytes).
+- **Extensions:** `ts`, `m2ts`, `mts` and `m2t`, and nothing else.
+- **Classes**, by size: `small` under 16 MB, `medium` 16 MB to under 64 MB, `large` 64 MB to 200 MB.
+- **Coverage:** 40 to 60 `real` transport streams; at least 10 and at most 20 in each class, and at least 15 in `large`. A class stops taking files at 20, and the draw stops when each class holds 20 or the candidates run out. A class under its minimum is reported short, not filled by relaxing a rule.
+- **Candidates:** the transport stream candidates of the listings of draws 5 and 6 that neither draw fetched, and new listings made under the same rules, taken in turn across their sources so that no source fills a class first; the result reports the largest share one source holds in each class.
+- **Sets:** the shared rules. A file the pinned `ffprobe` reads without error and lists a stream in is `real`, run with `GCONV_PATH` as `scripts/oracle-ffprobe.sh` sets it; a file it rejects is `edge`; a crash or a run over 30 s is `hostile`. A transport stream media segment of an HLS stream is a whole transport stream and is `real`.
+- **Nothing seen before:** a candidate whose SHA-256 or URL is in corpus v1, `v1-fmp4-large`, `v1-ts-audio`, `mediarecorder-v1` or draws 1 to 6 is dropped.
+- **Diversity:** draw 5's structural signature, across this draw, draw 5 and `v1-ts-audio`'s transport streams.
+- **Holdout:** every `real` file. Each class's `real` files are ordered by `sha256("coreav-corpus-v2-heldout-ts-speed:" + sha256)`.
+- **The collection runs no measurement:** `ffprobe` is the only tool run over the files, and no `coreav` command runs on the draw before the round that opens it.
 
 ### Rules withdrawn or not held
 
