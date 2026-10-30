@@ -18,11 +18,13 @@ bars"; docs/measurements/compat-0.1.0/README.md, "Before the round", item 2).
         written output by the oracle of its job. Outputs are deleted chunk
         by chunk. FILE gets one line per pair (the file's name: private).
 
-    r3.py report --records FILE [FILE...] [--report FILE] [--summary FILE] [--bar 98]
+    r3.py report [--records FILE...] [--summaries FILE...] [--report FILE]
+                 [--summary FILE] [--bar 98]
         Per command and per family: the pairs ffmpeg ran to success, how
         many passed, and the commands no file could take. A command meets
         R3 when at least BAR% of its counted pairs pass. --summary names no
-        file. Exit 1 when a command misses, 2 when a run is void.
+        file, and the summaries of several runs add up. Exit 1 when a
+        command misses, 2 when a run is void.
 
 Both tools run with no gconv modules; the binary's runs share a fallback
 log. ffmpeg, ffprobe and MediaInfo are black boxes. Python 3 standard
@@ -215,44 +217,70 @@ def cmd_run(opts):
     return 0
 
 
-def summarize(lines, bar):
-    """R3's counts: per command (`id.n`) and family, and per command over
-    its families, with no file named."""
-    out = {'bar': bar, 'fallback_log': {'lines': 0, 'refused': 0, 'void': False}}
+def counts(lines):
+    """R3's counts from per-pair lines: per (command, family) cell, the
+    pairs by outcome; the files per family; the fallback log. They name no
+    file, so the counts of several runs add up."""
+    log = {'lines': 0, 'refused': 0, 'void': False}
     cells = collections.defaultdict(collections.Counter)
     files = collections.defaultdict(set)
     for line in lines:
         if 'fallback_log' in line:
-            log = out['fallback_log']
-            log['lines'] += line['fallback_log']['lines']
-            log['refused'] += line['fallback_log']['refused']
-            log['void'] = log['void'] or line['fallback_log']['void']
+            add_log(log, line['fallback_log'])
             continue
         files[line['family']].add(line['file'])
-        c = cells[(f"{line['id']}.{line['command']}", line['family'])]
+        c = cells[f"{line['id']}.{line['command']}|{line['family']}"]
         c[line['outcome']] += 1
         if line['outcome'] == 'failed':
             c['failed: ' + line['reason']] += 1
+    return {'fallback_log': log, 'files': {f: len(s) for f, s in files.items()},
+            'cells': {k: dict(c) for k, c in cells.items()}}
+
+
+def add_log(into, log):
+    into['lines'] += log['lines']
+    into['refused'] += log['refused']
+    into['void'] = into['void'] or log['void']
+
+
+def merge(parts):
+    out = {'fallback_log': {'lines': 0, 'refused': 0, 'void': False}, 'files': collections.Counter(),
+           'cells': collections.defaultdict(collections.Counter)}
+    for part in parts:
+        add_log(out['fallback_log'], part['fallback_log'])
+        out['files'].update(part['files'])
+        for k, c in part['cells'].items():
+            out['cells'][k].update(c)
+    return {'fallback_log': out['fallback_log'], 'files': dict(out['files']),
+            'cells': {k: dict(c) for k, c in out['cells'].items()}}
+
+
+def summarize(c, bar):
+    """R3 from its counts: per command (`id.n`) over its families, the
+    counted pairs (those ffmpeg ran to success), how many passed, and
+    whether at least BAR% did."""
     commands = collections.defaultdict(collections.Counter)
     rows = []
-    for (cmd, fam), c in sorted(cells.items()):
-        rows.append({'command': cmd, 'family': fam, **c})
-        commands[cmd].update(c)
+    for key in sorted(c['cells']):
+        cmd, fam = key.split('|')
+        rows.append({'command': cmd, 'family': fam, **c['cells'][key]})
+        commands[cmd].update(c['cells'][key])
     totals = []
-    for cmd, c in sorted(commands.items()):
-        counted = c['passed'] + c['failed']
-        totals.append({'command': cmd, 'counted': counted, 'passed': c['passed'],
-                       'rate': round(100.0 * c['passed'] / counted, 2) if counted else None,
-                       'meets': c['passed'] * 100.0 >= bar * counted if counted else None})
-    out.update(files={f: len(s) for f, s in sorted(files.items())}, cells=rows, commands=totals,
-               missed=[t['command'] for t in totals if t['meets'] is False],
-               taken_by_no_file=[t['command'] for t in totals if not t['counted']])
-    return out
+    for cmd, t in sorted(commands.items()):
+        counted = t['passed'] + t['failed']
+        totals.append({'command': cmd, 'counted': counted, 'passed': t['passed'],
+                       'rate': round(100.0 * t['passed'] / counted, 2) if counted else None,
+                       'meets': t['passed'] * 100.0 >= bar * counted if counted else None})
+    return {'bar': bar, 'fallback_log': c['fallback_log'], 'files': dict(sorted(c['files'].items())),
+            'cells': rows, 'commands': totals,
+            'missed': [t['command'] for t in totals if t['meets'] is False],
+            'taken_by_no_file': [t['command'] for t in totals if not t['counted']], 'counts': c}
 
 
 def cmd_report(opts):
     lines = [json.loads(line) for path in opts.records for line in open(path) if line.strip()]
-    summary = summarize(lines, opts.bar)
+    parts = [counts(lines)] + [json.loads(pathlib.Path(p).read_text())['counts'] for p in opts.summaries]
+    summary = summarize(merge(parts), opts.bar)
     if opts.summary:
         pathlib.Path(opts.summary).write_text(json.dumps(summary, indent=1) + '\n')
     if opts.report:
@@ -283,7 +311,8 @@ def main():
     p.add_argument('--jobs', type=int, default=4)
     p.add_argument('--chunk', type=int, default=16, help='pairs whose outputs are on disk at once, per file')
     p = sub.add_parser('report')
-    p.add_argument('--records', nargs='+', required=True)
+    p.add_argument('--records', nargs='+', default=[])
+    p.add_argument('--summaries', nargs='+', default=[], help='--summary files of other runs, added up')
     p.add_argument('--report')
     p.add_argument('--summary')
     p.add_argument('--bar', type=float, default=98.0)

@@ -39,9 +39,10 @@
         no file named. Exit 1 when a gated row of a family is below the bar,
         2 when the run is void.
 
-    run.py keys-report --records FILE [FILE...] [--report FILE] [--summary FILE]
-        The same report from the records of several `keys --set 0.1.0` runs,
-        for a run split over hosts.
+    run.py keys-report [--records FILE...] [--summaries FILE...] [--report FILE] [--summary FILE]
+        The same report from the records or the summaries of several
+        `keys --set 0.1.0` runs, for a run split over hosts: a summary holds
+        the counts R2 is judged on and names no file, so summaries add up.
 
 Both tools run with no gconv modules (release_round.NO_GCONV), and in the
 0.1.0 modes with a fallback log of the run. ffprobe is a black box: only
@@ -597,53 +598,79 @@ def key_record(path, result, patterns):
 TAGS_POOLED = '(tag keys in fewer than 5 files, together)'
 
 
-def keys_report(records, bar):
-    """R2's counts from per-file records: per family, each key's files and
-    agreeing files; a key in at least five files is gated alone, the tag
-    keys in fewer are pooled into one row gated on their occurrences, and
-    any other key in fewer is listed but not gated. No file is named."""
-    out = {'bar': bar, 'fallback_log': {'lines': 0, 'refused': 0, 'void': False}, 'families': {}}
-    by_family = collections.defaultdict(list)
+def keys_counts(records):
+    """The counts R2 is judged on, from per-file records: per family, the
+    files by outcome and, per key, [files it is in, files where it agrees,
+    files where a known divergence covered it]. They name no file, so the
+    counts of several runs add up (`keys-report --summaries`)."""
+    out = {'fallback_log': {'lines': 0, 'refused': 0, 'void': False}, 'families': {}}
     for r in records:
         if 'fallback_log' in r:
-            log = out['fallback_log']
-            log['lines'] += r['fallback_log']['lines']
-            log['refused'] += r['fallback_log']['refused']
-            log['void'] = log['void'] or r['fallback_log']['void']
-        elif r.get('family'):
-            by_family[r['family']].append(r)
-    for fam in sorted(by_family):
-        seen, agree, covered = collections.Counter(), collections.Counter(), collections.Counter()
-        files = collections.Counter()
-        for r in by_family[fam]:
-            if r.get('ffprobe_failed'):
-                files['ffprobe failed'] += 1
-                continue
-            files['compared'] += 1
-            if r['rejected']:
-                files['rejected, uncovered' if r['rejected'] == 'uncovered' else 'rejected, covered'] += 1
-            for k, ok in r['keys'].items():
-                seen[k] += 1
-                agree[k] += ok
-            covered.update(r['via_known_divergence'])
+            merge_log(out['fallback_log'], r['fallback_log'])
+            continue
+        if not r.get('family'):
+            continue
+        fam = out['families'].setdefault(r['family'], {'files': {}, 'keys': {}})
+        if r.get('ffprobe_failed'):
+            outcome = 'ffprobe failed'
+        elif r['rejected']:
+            outcome = 'rejected, uncovered' if r['rejected'] == 'uncovered' else 'rejected, covered'
+        else:
+            outcome = 'compared'
+        fam['files'][outcome] = fam['files'].get(outcome, 0) + 1
+        for k, ok in r.get('keys', {}).items():
+            c = fam['keys'].setdefault(k, [0, 0, 0])
+            c[0] += 1
+            c[1] += ok
+            c[2] += k in r['via_known_divergence']
+    return out
+
+
+def merge_log(into, log):
+    into['lines'] += log['lines']
+    into['refused'] += log['refused']
+    into['void'] = into['void'] or log['void']
+
+
+def merge_counts(parts):
+    out = {'fallback_log': {'lines': 0, 'refused': 0, 'void': False}, 'families': {}}
+    for part in parts:
+        merge_log(out['fallback_log'], part['fallback_log'])
+        for name, fam in part['families'].items():
+            into = out['families'].setdefault(name, {'files': {}, 'keys': {}})
+            for k, n in fam['files'].items():
+                into['files'][k] = into['files'].get(k, 0) + n
+            for k, c in fam['keys'].items():
+                into['keys'][k] = [a + b for a, b in zip(into['keys'].get(k, [0, 0, 0]), c)]
+    return out
+
+
+def keys_report(counts, bar):
+    """R2 from its counts: per family, a key in at least five files is
+    gated alone, the tag keys in fewer are pooled into one row gated on
+    their occurrences, and any other key in fewer is listed but not
+    gated."""
+    out = {'bar': bar, 'fallback_log': counts['fallback_log'], 'families': {}, 'counts': counts}
+    for name in sorted(counts['families']):
+        fam = counts['families'][name]
         rows, pooled = [], {'key': TAGS_POOLED, 'keys': 0, 'occurrences': 0, 'agree': 0}
-        for k in sorted(seen):
-            if seen[k] < 5 and '.tags.' in k:
+        for k in sorted(fam['keys']):
+            seen, agree, covered = fam['keys'][k]
+            if seen < 5 and '.tags.' in k:
                 pooled['keys'] += 1
-                pooled['occurrences'] += seen[k]
-                pooled['agree'] += agree[k]
+                pooled['occurrences'] += seen
+                pooled['agree'] += agree
                 continue
-            rows.append({'key': k, 'files': seen[k], 'agree': agree[k],
-                         'via_known_divergence': covered[k], 'gated': seen[k] >= 5,
-                         'rate': round(100.0 * agree[k] / seen[k], 2)})
+            rows.append({'key': k, 'files': seen, 'agree': agree, 'via_known_divergence': covered,
+                         'gated': seen >= 5, 'rate': round(100.0 * agree / seen, 2)})
         if pooled['keys']:
             pooled.update(gated=True, rate=round(100.0 * pooled['agree'] / pooled['occurrences'], 2))
             rows.append(pooled)
         for row in rows:
             total = row.get('files', row.get('occurrences'))
             row['below'] = row['gated'] and row['agree'] * 100.0 < bar * total
-        out['families'][fam] = {'files': dict(files), 'keys': rows,
-                                'below': [r['key'] for r in rows if r['below']]}
+        out['families'][name] = {'files': fam['files'], 'keys': rows,
+                                 'below': [r['key'] for r in rows if r['below']]}
     return out
 
 
@@ -663,8 +690,8 @@ def print_keys_report(summary, top):
     return 1 if any(d['below'] for d in summary['families'].values()) else 0
 
 
-def write_keys_outputs(opts, records):
-    summary = keys_report(records, opts.bar)
+def write_keys_outputs(opts, records, counts):
+    summary = keys_report(counts, opts.bar)
     if opts.summary:
         pathlib.Path(opts.summary).write_text(json.dumps(summary, indent=1) + '\n')
     if opts.report:
@@ -692,12 +719,13 @@ def cmd_keys_010(opts):
     records.append({'fallback_log': release_round.fallback_verdict(ENV['COREAV_FALLBACK_LOG'])})
     if opts.records:
         pathlib.Path(opts.records).write_text(''.join(json.dumps(r) + '\n' for r in records))
-    return write_keys_outputs(opts, records)
+    return write_keys_outputs(opts, records, keys_counts(records))
 
 
 def cmd_keys_report(opts):
     records = [json.loads(line) for path in opts.records for line in open(path) if line.strip()]
-    return write_keys_outputs(opts, records)
+    parts = [keys_counts(records)] + [json.loads(pathlib.Path(p).read_text())['counts'] for p in opts.summaries]
+    return write_keys_outputs(opts, records, merge_counts(parts))
 
 
 def main():
@@ -721,7 +749,8 @@ def main():
             p.add_argument('--records', help='with --set 0.1.0: one line per file (private)')
             p.add_argument('--summary', help='with --set 0.1.0: the counts, with no file named')
     p = sub.add_parser('keys-report')
-    p.add_argument('--records', nargs='+', required=True)
+    p.add_argument('--records', nargs='+', default=[], help='per-file records of `keys --set 0.1.0`')
+    p.add_argument('--summaries', nargs='+', default=[], help='--summary files of other runs, added up')
     p.add_argument('--report')
     p.add_argument('--summary')
     p.add_argument('--top', type=int, default=40)
