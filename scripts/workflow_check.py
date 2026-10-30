@@ -19,7 +19,8 @@
 - a workflow cancels a superseded run job by job (it is in
   `JOB_GROUPS`, or a job carries a `concurrency:` block) and a job other
   than a report job has no group, or not exactly `GROUP` with its own job
-  id and `cancel-in-progress: CANCEL`, or a report job has a group, or the
+  id (and `MATRIX` after it for a job with a `strategy:`, whose legs would
+  otherwise share one group) and `cancel-in-progress: CANCEL`, or a report job has a group, or the
   workflow has a group of its own as well: a workflow group keeps the next
   run waiting for the old run's report jobs, a group two jobs share
   cancels one of them in every run, a gate job without one can start an
@@ -69,6 +70,9 @@ LABELS = 'github.event.pull_request.labels'
 GROUP = ('${{ github.workflow }}-JOB_ID-'
          "${{ github.event_name == 'pull_request' && github.ref || github.run_id }}")
 CANCEL = "${{ github.event_name == 'pull_request' }}"
+# After JOB_ID in the group of a job with a `strategy:`: each leg of its
+# matrix in a group of its own.
+MATRIX = '-${{ strategy.job-index }}'
 # The workflows that cancel job by job, so that removing every group from
 # one fails rather than leaving nothing to check.
 JOB_GROUPS = {'ci.yml'}
@@ -90,7 +94,7 @@ def load_changed_paths(root):
 
 def jobs_of(lines):
     """{job id: {'name': str | None, 'needs': [str], 'always': bool, 'if': str,
-    'concurrency': {'group': str, 'cancel-in-progress': str} | None}}.
+    'concurrency': {'group': str, 'cancel-in-progress': str} | None, 'matrix': bool}}.
 
     `needs:` is read in its inline forms, `needs: a` and `needs: [a, b]`; a
     block sequence reads as no dependency at all, which the caller sees as
@@ -108,7 +112,7 @@ def jobs_of(lines):
             break
         match = JOB.match(line)
         if match:
-            current = {'name': None, 'needs': [], 'always': False, 'if': '', 'concurrency': None}
+            current = {'name': None, 'needs': [], 'always': False, 'if': '', 'concurrency': None, 'matrix': False}
             reading_if = reading_concurrency = False
             jobs[match.group(1)] = current
             continue
@@ -135,6 +139,8 @@ def jobs_of(lines):
         elif key == 'concurrency':
             current['concurrency'] = {'group': value} if value else {}
             reading_concurrency = not value
+        elif key == 'strategy':
+            current['matrix'] = True
     return jobs
 
 
@@ -154,7 +160,7 @@ def concurrency_problems(workflow, lines, jobs):
                 out.append(f'{workflow}: remove `{job}`\'s `concurrency:`: a report job has to run in a '
                            'cancelled run too, and in another job\'s group it can cancel that job')
             continue
-        group = GROUP.replace('JOB_ID', job)
+        group = GROUP.replace('JOB_ID', job + (MATRIX if fields['matrix'] else ''))
         if fields['concurrency'] != {'group': group, 'cancel-in-progress': CANCEL}:
             out.append(f'{workflow}: give `{job}` exactly `concurrency: {{group: {group}, '
                        f'cancel-in-progress: {CANCEL}}}`, as a block (docs/design/ci-checks.md, "Concurrency")')

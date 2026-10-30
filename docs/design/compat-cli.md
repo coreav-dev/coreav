@@ -694,7 +694,7 @@ first one's, those of the pinned `ffmpeg`'s output of the same command.
 The audio packets are not compared one for one there: where a file's audio
 runs past its edit, `ffmpeg`'s muxer moves the next file's first packet to
 one tick after the overlap (black box), so the placement check stands for
-them. Threshold: 100% of the outputs, in `ci.yml`'s `isobmff-fixtures` and
+them. Threshold: 100% of the outputs, in `ci.yml`'s `isobmff-writers` and
 `mkv-fixtures` jobs.
 
 **Not covered: refused by name (exit 4 in strict-safe mode, else run by

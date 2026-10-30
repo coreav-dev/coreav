@@ -199,6 +199,10 @@ class Repository(unittest.TestCase):
         found = check.check(self.root)
         self.assertTrue(any(p.startswith('ci.yml: give `check` exactly') for p in found), found)
 
+    def test_matrix_legs_sharing_a_group_are_reported(self):
+        found = self.ci('-b9-shard-${{ strategy.job-index }}-', '-b9-shard-')
+        self.assertTrue(any(p.startswith('ci.yml: give `b9-shard` exactly') for p in found), found)
+
     def test_a_report_job_with_a_group_is_reported(self):
         found = self.ci('  ci-report:\n', '  ci-report:\n    concurrency:\n      group: x\n')
         self.assertTrue(any(p.startswith('ci.yml: remove `ci-report`') for p in found), found)
