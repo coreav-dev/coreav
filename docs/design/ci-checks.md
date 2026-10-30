@@ -297,7 +297,7 @@ failed.
 | Check | Workflow | Note |
 |---|---|---|
 | `deny` | `deny.yml` | `cargo deny check`, the fuzz projects' own graphs, and the DCO sign-off. No filter at all: it runs in full on every pull request |
-| `ci-report` | `ci.yml` | `cargo fmt`, `clippy`, the workspace tests, the MSRV build and the fuzz run |
+| `ci-report` | `ci.yml` | `cargo fmt`, `clippy` and the workspace tests on Linux, `clippy` and the workspace tests on macOS arm64, the MSRV build and the fuzz run |
 | `fixtures-report` | `fixtures.yml` | The ISO base media oracle: ffprobe, MediaInfo, the command and the writers |
 | `mkv-fixtures-report` | `mkv-fixtures.yml` | The Matroska and WebM oracle |
 | `ts-fixtures-report` | `ts-fixtures.yml` | The transport-stream oracle |

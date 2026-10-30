@@ -2,8 +2,9 @@
 //! packets of 15 MiB that each decode to one sample, all pointing at the
 //! same bytes of a small MP4 file, must not pile up in memory when several
 //! threads decode. Run in release by CI (pinned, like the demuxers' hostile
-//! tests); a debug build copies the packets too slowly.
-
+//! tests); a debug build copies the packets too slowly. Linux only: the
+//! peak memory comes from `/proc/self/status`.
+#![cfg(target_os = "linux")]
 #![allow(
     clippy::indexing_slicing,
     clippy::unwrap_used,
@@ -159,7 +160,6 @@ fn peak_kib() -> u64 {
 
 #[test]
 #[ignore = "release only, run by CI"]
-#[cfg(target_os = "linux")]
 fn large_packets_do_not_pile_up_in_the_pool() {
     run(&vec![15 << 20; 400], 400);
 }
@@ -168,7 +168,6 @@ fn large_packets_do_not_pile_up_in_the_pool() {
 /// the large packets' memory outside the bound.
 #[test]
 #[ignore = "release only, run by CI"]
-#[cfg(target_os = "linux")]
 fn reused_buffers_do_not_keep_large_packets() {
     let mut sizes = Vec::new();
     let mut seed = 1u32;
