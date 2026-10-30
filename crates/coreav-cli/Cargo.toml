@@ -63,7 +63,7 @@ libopus = ["transcode", "dep:coreav-worker", "coreav-worker/libopus"]
 # and never in a default build: decoding AAC may need a patent licence
 # where you are (`crates/coreav-aac/README.md`). Nothing here is legal
 # advice.
-aac = ["coreav-audio/aac"]
+aac = ["coreav-audio/aac", "coreav-transcode?/aac"]
 
 [dependencies]
 coreav-audio = { path = "../coreav-audio" }

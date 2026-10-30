@@ -114,13 +114,15 @@ jobs:
           cargo test -p coreav-backend-libvpx --features libvpx
       # libopus for the Opus encoder of `coreav transcode --audio opus`, a
       # non-default feature that links the system's libopus
-      # (docs/design/transcode.md, "Opus audio").
+      # (docs/design/transcode.md, "Opus audio"); with `aac` too, whose
+      # decoder the Opus encode passes over.
       - run: sudo apt-get install -y --no-install-recommends libopus-dev
       - run: |
           cargo clippy -p coreav-cli -p coreav-backend-libopus -p coreav-worker \
             --features coreav-cli/libopus,coreav-cli/native-h264,coreav-backend-libopus/libopus,coreav-worker/libopus \
             --all-targets -- -D warnings
           cargo clippy -p coreav-cli --features libopus,ffmpeg-fallback --all-targets -- -D warnings
+          cargo clippy -p coreav-cli --features aac,libopus,native-h264 --all-targets -- -D warnings
           cargo test -p coreav-backend-libopus --features libopus
           cargo test -p coreav-worker --features libopus
       # The encoder programs of `coreav transcode`, black boxes for

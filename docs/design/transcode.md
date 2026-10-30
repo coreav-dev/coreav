@@ -553,7 +553,9 @@ too, 64 kbit/s for mono and 96 kbit/s for stereo.
 the encode does not take is refused before the video encoder starts:
 
 1. `coreav-audio`'s `decode` reads the stream (`--audio opus` takes the
-   first audio stream it decodes) through the existing demuxers, applies the container's trimming (an MP4 edit list,
+   first audio stream it decodes; in a build with the opt-in `aac`
+   feature, AAC is passed over or refused as a build without it does, so
+   the stream taken does not depend on the build) through the existing demuxers, applies the container's trimming (an MP4 edit list,
    Matroska's `CodecDelay` and `DiscardPadding`; leading empty edits are
    silence) and resamples to 48 kHz 32-bit float
    (`docs/design/audio-decode.md`, "Resampling and downmixing"). Sample 0
@@ -606,7 +608,9 @@ and `coreav-cli`'s `tests/transcode.rs` with the pinned FFmpeg, on
 FLAC in MP4 and Matroska and MP3 in Matroska: the summary validated, two
 streams, the Opus stream's `initial_padding` the summary's pre-skip, its
 `start_pts` 0 and `duration_ts` the presented samples, a clean decode;
-AAC and six channels refused first. `tests/strict_safe.rs` checks that
+AAC and six channels refused first, and AAC passed over for the FLAC
+stream after it, both in a build with `aac` too (`fixtures.yml`).
+`tests/strict_safe.rs` checks that
 `--audio opus` runs no `ffmpeg` program in strict-safe mode.
 
 ### Opus bars
