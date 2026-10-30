@@ -30,7 +30,7 @@ coreav clip --start 1 --end 3 input.mp4 clip.mp4  # cuts from the keyframe at or
 coreav remux input.mkv output.mp4                 # writes MP4 with the movie header first
 ```
 
-`coreav --help` lists every command, and `coreav <command> --help` describes one.
+`coreav --help` lists every command, and `coreav <command> --help` describes one. `coreav ffmpeg` has no help text of its own: strict-safe mode refuses `coreav ffmpeg --help` with exit status 4, and otherwise it prints the real `ffmpeg`'s help. [Its reference](https://coreav.dev/docs/commands/ffmpeg) lists what it runs.
 
 ## Read untrusted files in strict-safe mode
 
