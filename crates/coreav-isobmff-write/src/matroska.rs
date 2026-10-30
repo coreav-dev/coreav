@@ -1832,11 +1832,14 @@ fn sample_entry(track: &Track, plan: &Plan) -> Result<Vec<u8>, MatroskaRemuxErro
             .into());
         }
     };
-    // Colour as Matroska states it, for the codecs whose configuration
-    // record may not (VP9's vpcC carries it).
+    // Colour as Matroska states it, a range alone included, for the codecs
+    // whose configuration record may not (VP9's vpcC carries it).
     let color = track.color;
     if track.codec != Codec::Vp9
-        && (color.primaries.is_some() || color.transfer.is_some() || color.matrix.is_some())
+        && (color.primaries.is_some()
+            || color.transfer.is_some()
+            || color.matrix.is_some()
+            || color.full_range.is_some())
     {
         let mut nclx = b"nclx".to_vec();
         for code in [color.primaries, color.transfer, color.matrix] {
