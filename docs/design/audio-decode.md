@@ -1254,6 +1254,18 @@ question every pipeline user's.
   the conformance bar found it). No two decoders write the same noise, so the bars below compare
   those samples by level only. A pair of channels whose band is noise in
   both with `ms_used` set shares one random vector (4.6.13.3).
+- **Intensity under an all-ones M/S mask**: in a channel pair whose
+  `ms_mask_present` is 2 (`ms_used` all ones), an intensity-coded band
+  keeps its direction: ISO/IEC 13818-7 12.2.3 defines
+  `invert_intensity(group, sfb)` as 1 - 2 × `ms_used` only when
+  `ms_mask_present` is 1, and +1 otherwise. `ffmpeg`'s decoder reverses
+  those bands (black box: on its own encoder's `-aac_ms 1` output, its
+  right channel's intensity bands have the opposite sign of CoreAV's, and
+  the two agree to 6 × 10^-8 when CoreAV reverses them too). CoreAV follows
+  the standard and reports the bands per frame
+  (`Frame::intensity_all_ms_bands`); the bars compare those frames by
+  level ("AAC-LC bars"). Rejected: matching `ffmpeg`, which departs from
+  the standard's pseudo-code.
 - **Damage**: a frame that fails to decode resets the decoder's state
   (the overlap is zeroed, the window shape is the sine), so the state
   after any packet depends on that packet alone. A frame of an LC stream
@@ -1324,6 +1336,13 @@ for every comparison:
   with its neighbours adds a random term that a few blocks do not average
   out. The median over blocks of the per-block |20 log10 (RMS CoreAV / RMS
   other)| is reported, not gating.
+- **Intensity under an all-ones mask**: a frame k with intensity bands
+  under an `ms_mask_present` of 2 (`Frame::intensity_all_ms_bands`, a raw
+  value) makes blocks k and k + 1 differ in sign where a decoder reads that
+  mask the other way ("Choices"), so they are treated as noise blocks:
+  excluded from the sample comparisons, counted, and compared by level
+  with the rule above. Added after the bars above and before the first
+  run, from a development encode on which `ffmpeg` reverses those bands.
 - **Tolerance**: twice full accuracy, per channel: the RMS of the
   difference at most 2 × 2^-15 / √12 (1.8 × 10^-5) and no difference above
   2 × 2^-14 (1.2 × 10^-4) of full scale, as for MP3.
@@ -1364,8 +1383,9 @@ for every comparison:
    condition, never by file. Reported: the largest difference, the share
    of samples in noise blocks, the noise level per block.
 3. **Edit lists (gating).** On every MP4 input of the generated set
-   without noise bands (every frame's `Frame::noise_bands` is 0 in bar
-   2's decode): `scripts/decode_audio_check.py`'s presentation model
+   without noise bands or intensity bands under an all-ones mask (every
+   frame's `Frame::noise_bands` and `Frame::intensity_all_ms_bands` are 0
+   in bar 2's decode): `scripts/decode_audio_check.py`'s presentation model
    ("Edit list bars", bar 1): CoreAV's `decode-audio --format f32` output
    equals `ffmpeg -ignore_editlist 1`'s decode cut by the edit list as the
    oracle's own reader reads it, within the tolerance, the length exact,
