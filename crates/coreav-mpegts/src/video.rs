@@ -337,11 +337,21 @@ pub(crate) fn keyframe(nal: Nal, data: &[u8], max_num_ref_frames: Option<u32>) -
                 while let Some(at) = next_start_code(data, i) {
                     i = at + 3;
                     if data.get(i).is_some_and(|h| matches!(h & 0x1F, 1 | 2 | 5)) {
-                        end = end.min(i.saturating_add(SLICE_HEADER_BYTES));
-                        // A unit's trailing zeros are dropped before its
-                        // header is read: never cut it where they would be.
-                        while end < data.len() && data.get(end - 1) == Some(&0) {
-                            end += 1;
+                        let header_end = i.saturating_add(SLICE_HEADER_BYTES);
+                        let window = data.get(..header_end.saturating_add(2).min(data.len()))?;
+                        match next_start_code(window, i) {
+                            // A unit that starts within those bytes is cut
+                            // off before it, not through its header.
+                            Some(next) if next <= header_end => end = next,
+                            _ => {
+                                end = end.min(header_end);
+                                // A unit's trailing zeros are dropped before
+                                // its header is read: never cut it where they
+                                // would be.
+                                while end < data.len() && data.get(end - 1) == Some(&0) {
+                                    end += 1;
+                                }
+                            }
                         }
                         break;
                     }
@@ -635,6 +645,20 @@ pub(crate) fn mpeg2_keyframe(data: &[u8]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_slice_that_starts_within_the_first_slices_header_bytes_keeps_the_key_frame() {
+        let mut data = vec![0, 0, 1, 0x65, 0xB8];
+        data.extend([0x55; 25]);
+        data.extend([0, 0, 1, 0x65, 0x01, 0x00, 0xC0, 0xFF]);
+        for refs in [Some(1), Some(4), None] {
+            assert_eq!(
+                keyframe(Nal::H264, &data, refs),
+                Some(true),
+                "max_num_ref_frames {refs:?}"
+            );
+        }
+    }
 
     #[test]
     fn nal_units_between_start_codes() {

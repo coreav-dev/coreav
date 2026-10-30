@@ -132,6 +132,8 @@ struct Builder {
     /// is.
     header: Option<PesHeader>,
     data: Vec<u8>,
+    /// The room `data` started with, counted in [`Demux::reserved`].
+    room: usize,
     random_access: bool,
     corrupt: bool,
 }
@@ -151,6 +153,10 @@ pub(crate) struct Demux {
     /// once shared out across the streams, so that what the buffers
     /// reserve together stays within `max_buffered_bytes`.
     max_room: usize,
+    /// The room the buffers of `builders` started with, together: never
+    /// more than `max_buffered_bytes`, however many PIDs start a PES
+    /// packet before the tables name the streams.
+    reserved: usize,
     /// Bytes held by `builders`.
     buffered: usize,
     /// The last packet with a payload of each PID, to tell a duplicate.
@@ -258,6 +264,7 @@ impl Demux {
                 limits.max_buffered_bytes / u64::from(limits.max_streams.max(1)),
             )
             .unwrap_or(usize::MAX),
+            reserved: 0,
             buffered: 0,
             last: PidMap::pids(),
             first_pes: PidMap::streams(limits),
@@ -301,6 +308,7 @@ impl Demux {
             max_packet: self.max_packet,
             max_buffered: self.max_buffered,
             max_room: self.max_room,
+            reserved: 0,
             buffered: 0,
             last: self.last.cleared(),
             first_pes: self.first_pes.cleared(),
@@ -565,8 +573,10 @@ impl Demux {
                     usize::from(u16::from_be_bytes([l0, l1])) + 6 + TS_PACKET
                 }
                 _ => self.sizes.get(&pid).copied().unwrap_or(0),
-            };
-            let _ = self.builders.set(
+            }
+            .min(self.max_room)
+            .min(self.max_buffered.saturating_sub(self.reserved));
+            let started = self.builders.set(
                 pid,
                 Builder {
                     offset,
@@ -574,11 +584,15 @@ impl Demux {
                         pes::Parsed::Done(header) => Some(header),
                         _ => None,
                     },
-                    data: Vec::with_capacity(room.min(self.max_room)),
+                    data: Vec::with_capacity(room),
+                    room,
                     random_access: header.adaptation.is_some_and(|a| a.random_access),
                     corrupt: false,
                 },
             );
+            if started.is_ok() {
+                self.reserved = self.reserved.saturating_add(room);
+            }
         }
         let Some(builder) = self.builders.get_mut(&pid) else {
             // No unit start seen yet on this PID.
@@ -708,6 +722,7 @@ impl Demux {
         let Some(builder) = self.builders.remove(&pid) else {
             return;
         };
+        self.reserved = self.reserved.saturating_sub(builder.room);
         let largest = self
             .sizes
             .get(&pid)

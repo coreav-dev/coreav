@@ -401,8 +401,8 @@ nothing is ignored whole, as a decoder ignores it.
   recovery point SEI message, or only I slices when the SPS keeps at most
   one reference frame; for HEVC an IRAP picture; for MPEG-1 and MPEG-2
   video an I picture; every audio frame. For H.264 only the NAL units up
-  to the first coded slice, and that slice's first 32 bytes, are read
-  unless the SPS keeps at most one reference frame: those units decide an
+  to the first coded slice, and that slice's first 32 bytes or up to the
+  next unit when it starts sooner, are read unless the SPS keeps at most one reference frame: those units decide an
   IDR picture and a recovery point (ITU-T H.264 7.4.1.2.3), and the
   slices after them, nearly all of an access unit's bytes, matter only to
   the intra rule. Rejected: the
@@ -788,9 +788,11 @@ unbounded allocation.
 A PES packet being reassembled starts with room for its stated length
 and one more transport packet or, with no stated length, for the longest
 unit read on its PID so far, so that the buffer of a coded picture is not
-copied each time it doubles; either is capped at `max_buffered_bytes`
-over `max_streams`, so the room the buffers reserve together stays within
-`max_buffered_bytes`. When the first transport packet holds the whole PES
+copied each time it doubles. Either is capped at `max_buffered_bytes`
+over `max_streams`, and at what `max_buffered_bytes` leaves of the room
+the buffers in progress started with, so the room they reserve together
+stays within `max_buffered_bytes` however many PIDs start a PES packet,
+before the tables name the streams too. When the first transport packet holds the whole PES
 header, the header is parsed there and only the payload is kept, so the
 completed payload is handed on without moving its bytes; the header
 still counts toward `max_packet_bytes` and `max_buffered_bytes`.
