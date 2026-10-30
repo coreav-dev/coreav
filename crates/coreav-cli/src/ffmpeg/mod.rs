@@ -25,7 +25,7 @@ use crate::strict_safe::StrictSafe;
 use args::{Codec, Command, Demuxer, Muxer, Overwrite, Spec};
 use coreav_isobmff::{Allowlist, FileSource, Limits, Rational, Track};
 use coreav_isobmff_write::{
-    AudioChoice, AudioClipOptions, ClipOptions, JoinAudio, JoinOptions, JoinSummary, JoinedInput,
+    AudioChoice, AudioClipOptions, ClipOptions, JoinAudio, JoinOptions, JoinSummary,
     MatroskaRemuxOptions, OnUnsupported, RemuxOptions, SplitAt, SplitOptions, TrackChoice,
     VideoChoice,
 };
@@ -109,6 +109,8 @@ pub enum Job {
     Join {
         /// The files.
         paths: Vec<PathBuf>,
+        /// The video stream.
+        video: usize,
         /// The audio kept.
         audio: JoinAudio,
     },
@@ -196,7 +198,9 @@ fn list(path: &Path, safe: bool) -> Result<Vec<PathBuf>, Stop> {
 }
 
 /// The writer and options for `command` on the input `report` describes,
-/// or on the first file of the concat list `list` when the input is one.
+/// or on the first file of the concat list `list` when the input is one:
+/// the streams of that file, as the concat demuxer exposes them, with
+/// every disposition flag cleared (black box: `ffprobe` of the list).
 pub fn plan(
     command: &Command,
     report: &Report,
@@ -212,7 +216,24 @@ pub fn plan(
         }
         _ => return Err(Refusal::not_native("an input of this container")),
     };
-    let streams = &report.streams;
+    let exposed: Vec<Stream>;
+    let streams = if list.is_some() {
+        exposed = report
+            .streams
+            .iter()
+            .cloned()
+            .map(|mut stream| {
+                stream.attached_pic = false;
+                for (_, value) in &mut stream.disposition {
+                    *value = Value::Int(0);
+                }
+                stream
+            })
+            .collect();
+        &exposed
+    } else {
+        &report.streams
+    };
     let selected = select(command, streams)?;
     let kind = |i: usize| streams.get(i).map(|s| s.kind);
     let of = |k: StreamKind| {
@@ -283,18 +304,24 @@ pub fn plan(
         if !selected.iter().any(|i| kind(*i) == Some(StreamKind::Video)) {
             return Err(Refusal::not_native("a join without video"));
         }
-        let first = |k: StreamKind| streams.iter().position(|s| s.kind == k);
-        let video = first(StreamKind::Video);
-        let audio = match selected.as_slice() {
-            [v] if Some(*v) == video => JoinAudio::None,
-            [v, a] if Some(*v) == video && Some(*a) == first(StreamKind::Audio) => JoinAudio::First,
+        let (video, audio) = match selected.as_slice() {
+            [v] if kind(*v) == Some(StreamKind::Video) => (*v, JoinAudio::None),
+            [v, a]
+                if kind(*v) == Some(StreamKind::Video) && kind(*a) == Some(StreamKind::Audio) =>
+            {
+                (*v, JoinAudio::Stream(*a))
+            }
             _ => {
                 return Err(Refusal::not_native(
-                    "a join of other streams than the first video and audio stream",
+                    "a join of other streams than one video and at most one audio stream",
                 ));
             }
         };
-        return Ok(Job::Join { paths, audio });
+        return Ok(Job::Join {
+            paths,
+            video,
+            audio,
+        });
     }
     if command.muxer == Muxer::Segment {
         if trims {
@@ -546,10 +573,8 @@ fn placed_as_concat(summary: &JoinSummary, offsets: &[i128]) -> bool {
             .all(|(input, expected)| from_first(input.offset) == Some(*expected))
 }
 
-/// Why a join is not native: a file holds the streams it copies at other
-/// indexes than the first file, where the demuxer pairs streams by index
-/// and the join takes each file's first video and audio; a track it copies
-/// has more than one edit in its file (an empty one included), which the demuxer reads by its own
+/// Why a join is not native: a track it copies has more than one edit in
+/// its file (an empty one included), which the demuxer reads by its own
 /// edit model (docs/design/edit-list-writers.md) where the join keeps the
 /// edits, or it places an input elsewhere than the concat demuxer
 /// ([`placed_as_concat`]). The edits are counted in each file, as edits
@@ -559,17 +584,6 @@ fn concat_timing(
     summary: &JoinSummary,
     offsets: &[i128],
 ) -> Result<Option<&'static str>, WriteFailure> {
-    let indexes = |input: &JoinedInput| {
-        (
-            input.video.stream_index,
-            input.audio.as_ref().map(|a| a.stream_index),
-        )
-    };
-    let mut inputs = summary.inputs.iter().map(indexes);
-    let first = inputs.next();
-    if inputs.any(|i| Some(i) != first) {
-        return Ok(Some("a join of files whose streams are at other indexes"));
-    }
     for (path, input) in paths.iter().zip(&summary.inputs) {
         let file = FileSource::open(path)?;
         let movie = coreav_isobmff::probe(file, &Limits::default(), &Allowlist::listing())
@@ -875,9 +889,17 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
             .map(|summary| crate::clip::document(&summary)),
         Job::AudioClip(options) => crate::clip::run_audio(input, options, &allowlist, out)
             .map(|summary| crate::clip::audio_document(&summary)),
-        Job::Join { paths, audio } => {
-            let summary = crate::join::run(paths, &JoinOptions { audio: *audio }, &allowlist, out)
-                .map_err(|failure| {
+        Job::Join {
+            paths,
+            video,
+            audio,
+        } => {
+            let options = JoinOptions {
+                video: VideoChoice::Stream(*video),
+                audio: *audio,
+            };
+            let summary =
+                crate::join::run(paths, &options, &allowlist, out).map_err(|failure| {
                     refused = failure.not_native;
                     WriteFailure::from(failure)
                 })?;

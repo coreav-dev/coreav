@@ -2143,7 +2143,10 @@ fn run_join(args: &JoinArgs) -> ExitCode {
         Some("none") => JoinAudio::None,
         Some(_) => return usage("--audio takes only `none`"),
     };
-    let options = JoinOptions { audio };
+    let options = JoinOptions {
+        video: VideoChoice::First,
+        audio,
+    };
     // The output may name none of the inputs; `write_output` checks the
     // first, and whether the output exists.
     if args.output != "-" {
