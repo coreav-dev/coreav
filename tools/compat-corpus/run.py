@@ -890,12 +890,18 @@ def differing_keys(a, b, name, options):
 def full_outputs(coreav, args, path, ref_out, out):
     """(writer, options, [ffprobe's output, coreav's]) with every key, section
     name and wrapper shown, or None when the writer is not one of
-    WRITER_FULL or either tool's output under them does not give back what
-    it printed."""
+    WRITER_FULL, either tool's output under them does not give back what
+    it printed, or the JSON writer printed something that is not JSON."""
     name, options = writer_of(args)
     if name not in WRITER_FULL:
         return None
     printed = [ref_out.decode('utf-8', 'replace'), out.decode('utf-8', 'replace')]
+    if name == 'json':
+        try:
+            for text in printed:
+                json.loads(text)
+        except ValueError:
+            return None
     full = full_args(args, name, options)
     if full is None:
         return name, options, printed
