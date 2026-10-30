@@ -118,7 +118,11 @@
                 "hevc",
                 "av1",
                 "vp9",
-                "aac"
+                "aac",
+                "flac",
+                "alac",
+                "ac3",
+                "eac3"
               ]
             },
             {

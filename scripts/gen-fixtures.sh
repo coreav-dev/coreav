@@ -583,6 +583,11 @@ try_gen codec_ac3_stereo.mp4 "${KAUD[@]}" -c:a ac3
 try_gen codec_ac3_51.mp4 "${KAUD[@]}" "${KSIX[@]}" -c:a ac3
 try_gen codec_eac3_stereo.mp4 "${KAUD[@]}" -c:a eac3
 try_gen codec_eac3_51.mp4 "${KAUD[@]}" "${KSIX[@]}" -c:a eac3
+try_gen codec_flac.mp4 "${KAUD[@]}" -c:a flac -strict -2
+# Video beside each audio codec the clip, split and join writers copy.
+for codec in flac alac ac3 eac3; do
+  try_gen "av_$codec.mp4" "${SRC[@]}" "${VID[@]}" -c:a "$codec" -strict -2 -shortest
+done
 try_gen codec_vorbis.mp4 "${KAUD[@]}" -c:a libvorbis -strict -2
 # Entries without pasp: the frame's own aspect ratio, or the DV system's.
 for src in codec_mjpeg_sar.mov codec_png_sar.mov codec_h263.3gp codec_dv_ntsc.mov codec_dv_pal.mov \

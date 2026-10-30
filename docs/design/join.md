@@ -54,7 +54,9 @@ and track header of each output track describe:
 - an audio track in all inputs or in none (or `--audio none`); and for the
   audio, the codec, channel count, sample rate, the AAC decoder
   configuration (object type and decoder-specific information from `esds`)
-  and the media timescale.
+  or the other codecs' configuration box (FLAC's `STREAMINFO` and the
+  Apple Lossless cookie without the fields that describe one whole stream,
+  `remux.md`, "Audio sample entries") and the media timescale.
 
 Anything else fails before anything is written, with `JoinError::Mismatch`
 naming the input and the difference, for example `input 2 cannot be joined

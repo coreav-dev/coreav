@@ -3,9 +3,12 @@
 //! samples, the movie box first. Written from ISO/IEC 14496-12 (boxes,
 //! sample tables, edit lists), ISO/IEC 14496-14 (MP4), ISO/IEC 14496-15
 //! (AVC and HEVC sample entries), the AV1 and VP codec ISO media file
-//! format bindings, the Opus in ISOBMFF encapsulation and the QuickTime
-//! File Format (its sound sample entry versions and language codes).
+//! format bindings, the Opus in ISOBMFF encapsulation, the FLAC-in-ISOBMFF
+//! mapping, Apple's ALAC magic cookie description, ETSI TS 102 366 Annex F
+//! (AC-3 and E-AC-3) and the QuickTime File Format (its sound sample entry
+//! versions and language codes).
 
+use crate::audio;
 use crate::copy::Shared;
 use crate::moov::UNITY;
 use crate::moov::{TrackFlags, language, overflow, rescale};
@@ -41,7 +44,7 @@ const MAX_REPORTED: usize = 256;
 ///
 /// The source is probed with `limits` and `allowlist`. Every stream that
 /// MP4 can carry is kept, or those `options` names: H.264, HEVC, AV1 and
-/// VP9 video, AAC, MP3 and Opus audio. Other streams (ProRes, PCM, timed
+/// VP9 video, AAC, MP3, Opus, FLAC, ALAC, AC-3 and E-AC-3 audio. Other streams (ProRes, PCM, timed
 /// text, timecode, data) are dropped and listed in the summary, or fail
 /// the remux under [`OnUnsupported::Fail`]. Every sample of a kept stream
 /// is copied unchanged, with its duration, composition offset and sync
@@ -1085,21 +1088,20 @@ fn plan<'m, S: Source>(
             (media, entry)
         }
         (None, TrackKind::Audio) => {
-            let (fourcc, config): (&[u8; 4], &[u8; 4]) =
-                match (description.codec, &description.fourcc.0) {
-                    (Codec::Aac | Codec::Mp3, b"mp4a") => (b"mp4a", b"esds"),
-                    (Codec::Opus, b"Opus") => (b"Opus", b"dOps"),
-                    (Codec::Pcm, _) => return Err(unsupported("PCM audio is not copied to MP4")),
-                    _ => {
-                        return Err(unsupported(
-                            "audio other than AAC, MP3 or Opus in their MP4 sample entries",
-                        ));
-                    }
-                };
+            if description.codec == Codec::Pcm {
+                return Err(unsupported("PCM audio is not copied to MP4"));
+            }
+            let fourcc = description.fourcc;
+            let config = audio::config_kind(fourcc)
+                .filter(|_| description.codec != Codec::Other)
+                .ok_or(unsupported(
+                    "audio other than AAC, MP3, Opus, FLAC, ALAC, AC-3 or E-AC-3 in their MP4 \
+                     sample entries",
+                ))?;
             let codec_config = description
                 .codec_config
                 .as_ref()
-                .filter(|c| &c.kind.0 == config)
+                .filter(|c| c.kind == config)
                 .ok_or(unsupported(
                     "the audio sample entry has no codec configuration",
                 ))?;
@@ -1109,9 +1111,12 @@ fn plan<'m, S: Source>(
                 .ok_or(unsupported(
                     "channel count outside the version 0 sound entry",
                 ))?;
-            let rate = description
+            let mut rate = description
                 .sample_rate
                 .ok_or(unsupported("the audio sample entry has no sample rate"))?;
+            if matches!(description.codec, Codec::Flac | Codec::Alac) {
+                rate = audio::entry_rate(rate);
+            }
             // An ISO version 0 entry: the configuration box first, then the
             // other children as stored. QuickTime's `wave` wrapper holds the
             // configuration box (and its format, `frma`); anything else in
@@ -1121,13 +1126,22 @@ fn plan<'m, S: Source>(
                 u64::try_from(codec_config.data.len()).unwrap_or(u64::MAX),
                 0,
             )?;
+            let mut payload = codec_config.data.clone();
+            if keep.is_some() && config.0 == *b"dfLa" {
+                let (only, changed) = audio::dfla_streaminfo_only(&payload)
+                    .ok_or(unsupported("the FLAC configuration does not parse"))?;
+                if changed {
+                    clear(ClearedField::SampleEntryExtras);
+                }
+                payload = only;
+            }
             let mut children = vec![RawBox {
-                kind: FourCc(*config),
-                payload: codec_config.data.clone(),
+                kind: config,
+                payload,
             }];
             for child in &trak.entry_children {
                 match &child.kind.0 {
-                    kind if kind == config => {}
+                    kind if *kind == config.0 => {}
                     b"wave" => {
                         let wave_path = entry_path.with(child.kind);
                         for inner in &trak.wave_children {
@@ -1166,7 +1180,13 @@ fn plan<'m, S: Source>(
                     }
                 }
             }
-            let entry = audio_sample_entry(FourCc(*fourcc), channels, rate, &children)?;
+            let entry = audio_sample_entry(
+                fourcc,
+                channels,
+                audio::sample_size(codec_config),
+                rate,
+                &children,
+            )?;
             (
                 TrackMedia::Audio {
                     volume: flags.volume,

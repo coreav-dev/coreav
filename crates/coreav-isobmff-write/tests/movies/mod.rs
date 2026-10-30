@@ -4,7 +4,29 @@
 
 use crate::common::{bx, cat, full, u32s};
 use coreav_isobmff::access::{read_av1_sync, read_frame_access};
-use coreav_isobmff::{Codec, Movie, Packet, SliceSource, Track, TrackKind};
+use coreav_isobmff::{Codec, CodecConfig, Movie, Packet, SliceSource, Track, TrackKind};
+
+/// The configuration a copy of part of a stream carries: `source` with the
+/// fields that describe the whole stream unknown. FLAC's `STREAMINFO` (RFC
+/// 9639 8.2) without frame sizes, total samples and MD5 signature; Apple
+/// Lossless's cookie without `maxFrameBytes` and `avgBitRate`.
+pub fn excerpt_config(source: &Option<CodecConfig>) -> Option<CodecConfig> {
+    let mut config = source.clone()?;
+    match &config.kind.0 {
+        b"dfLa" => {
+            let info = &mut config.data[8..42];
+            info[4..10].fill(0);
+            info[13] &= 0xF0;
+            info[14..].fill(0);
+        }
+        b"alac" => {
+            let at = if config.data[..4] == [0; 4] { 4 } else { 0 };
+            config.data[at + 12..at + 20].fill(0);
+        }
+        _ => {}
+    }
+    Some(config)
+}
 
 /// One synthetic sample: size, decode duration, composition offset, sync.
 #[derive(Clone, Copy)]

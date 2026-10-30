@@ -47,7 +47,7 @@ Rules:
 | `stream_index` | integer | Position among all tracks of the file, dropped ones included (`ffprobe`'s `index`). |
 | `track_id` | integer | `track_ID` of `tkhd`. |
 | `kind` | string | From the handler: `video`, `audio`, `subtitle`, `timecode`, `data`. |
-| `codec` | string | `h264`, `hevc`, `av1`, `vp9`, `prores`, `aac`, `mp3`, `opus`, `flac`, `pcm`, `timed_text`, `timecode`, `other`. These are also the names `--allow` takes, except `other`, which can never be allowed. `flac` (sample entry `fLaC`) is not on the default allowlist. |
+| `codec` | string | `h264`, `hevc`, `av1`, `vp9`, `prores`, `aac`, `mp3`, `opus`, `flac`, `alac`, `ac3`, `eac3`, `pcm`, `timed_text`, `timecode`, `other`. These are also the names `--allow` takes, except `other`, which can never be allowed. |
 | `fourcc` | string | Sample entry type of the first sample description. |
 | `handler`, `handler_name` | string; string or `null` | `hdlr` type and name: a counted string in a QuickTime file, else the bytes up to the first NUL (ISO/IEC 14496-12 8.4.3), whose first byte is text even when it equals the length of the rest. |
 | `language` | string or `null` | ISO 639-2/T code from `mdhd`; `null` for QuickTime Macintosh codes and for packed values that are not three letters. |

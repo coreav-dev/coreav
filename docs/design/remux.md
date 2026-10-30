@@ -7,7 +7,9 @@ MP4", and the stage 3 stream-copy
 primitives. Written from ISO/IEC 14496-12 (boxes, sample tables, edit
 lists, sample groups), ISO/IEC 14496-14 (MP4), ISO/IEC 14496-15 (AVC and
 HEVC sample entries), the AV1 and VP codec ISO media file format bindings,
-the Opus in ISOBMFF encapsulation, ISO/IEC 14496-3 (AAC) and the QuickTime
+the Opus in ISOBMFF encapsulation, ISO/IEC 14496-3 (AAC), the FLAC in
+ISOBMFF mapping (RFC 9639 10.3), Apple's ALAC magic cookie description,
+ETSI TS 102 366 Annex F (AC-3 and E-AC-3) and the QuickTime
 File Format (sound sample entry versions, Macintosh language codes). No
 multimedia implementation source is read; `ffmpeg`,
 `ffprobe` and MediaInfo are black-box oracles only.
@@ -74,9 +76,11 @@ unchanged byte for byte (checked on every fixture).
 ## Streams
 
 - **Kept:** H.264 (`avc1`, `avc3`), HEVC (`hvc1`, `hev1`), AV1 (`av01`) and
-  VP9 (`vp09`) video; AAC and MP3 (`mp4a` with `esds`) and Opus (`Opus`
-  with `dOps`) audio: the allowlisted codecs whose MP4 sample entries the
-  cited bindings define. Unlike a clip, a whole-file copy keeps every
+  VP9 (`vp09`) video; AAC and MP3 (`mp4a` with `esds`), Opus (`Opus`
+  with `dOps`), FLAC (`fLaC` with `dfLa`), Apple Lossless (`alac` with
+  its `alac` cookie box), AC-3 (`ac-3` with `dac3`) and E-AC-3 (`ec-3`
+  with `dec3`) audio: the allowlisted codecs whose MP4 sample entries the
+  cited bindings define ("Audio sample entries" below). Unlike a clip, a whole-file copy keeps every
   sample, so in-band parameter sets of `avc3`/`hev1` are copied too and
   those entries are kept.
 - **Dropped and reported** (`unsupported`, with a reason): ProRes (its
@@ -164,6 +168,58 @@ round (below), so:
   of it in its fragments, which the output does not, so there it is
   dropped and reported. Boxes with file offsets (`saiz`/`saio`) are dropped
   and reported.
+
+## Audio sample entries
+
+Every command that copies audio into MP4 (`coreav remux` from MP4/MOV and
+from Matroska/WebM, `clip`, `split`, `join`, and `coreav ffmpeg` with
+`-c copy` or `-f concat ... -c copy`) writes the same entries, in
+`src/audio.rs`. None decodes the audio: copying AC-3 and E-AC-3 links no
+AC-3 decoder, so these entries are in the default build.
+
+| Codec | Entry | Configuration | From MP4/MOV | From Matroska |
+|---|---|---|---|---|
+| FLAC | `fLaC` | `dfLa`: version 0, then the metadata blocks | as stored | `CodecPrivate` (`fLaC`, then the blocks, RFC 9639 10.2) |
+| Apple Lossless | `alac` | `alac`: version 0, then the magic cookie | as stored | `CodecPrivate`, the cookie (24 or 48 bytes, with or without a 12-byte atom header) |
+| AC-3 | `ac-3` | `dac3` (F.4) | as stored | the first syncframe's `bsi()` |
+| E-AC-3 | `ec-3` | `dec3` (F.6) | as stored | the first sample's substreams |
+
+- **Sample entry fields.** `samplesize` is FLAC's bits per sample
+  (`STREAMINFO`) or the cookie's `bitDepth`, else 16. The 16.16
+  `samplerate` cannot hold more than 65,535 Hz; FLAC in ISOBMFF 3.3.1 has
+  it hold the rate divided by the smallest power of two that fits (96 kHz
+  is written 48,000), and Apple Lossless gets the same rule. The
+  configuration keeps the real rate, and the media timescale is the real
+  rate, so sample times are exact. Annex F has readers take AC-3's and
+  E-AC-3's channels from `dac3`/`dec3`, whatever the entry says.
+- **Samples.** One FLAC frame (FLAC in ISOBMFF 3.3.3), one Apple Lossless
+  packet, one AC-3 syncframe, or one E-AC-3 sample: the syncframes that
+  together deliver six blocks of every substream (F.2), 1,536 samples.
+  From Matroska, a FLAC frame lasts its header's block size (RFC 9639
+  9.1.1), an Apple Lossless packet the cookie's `frameLength`, an AC-3 or
+  E-AC-3 frame 1,536 samples. The stream is dropped with a reason when its
+  first frame is not one AC-3 syncframe of the size its header states, is
+  not E-AC-3 syncframes of six audio blocks in all,
+  holds independent substreams out of order (E.1.3.1.2), or is larger than
+  288 KiB.
+- **`dac3` and `dec3` from the bitstream.** `fscod`, `bsid`, `bsmod`,
+  `acmod` and `lfeon` come from the first frame's `bsi()` (4.4.2,
+  E.1.3); `bit_rate_code` from `frmsizecod`; E-AC-3's `data_rate` is the
+  first sample's size times 8 over its 1,536 samples, in kbit/s, and each
+  independent substream lists its dependent substreams' channel locations
+  (`chan_loc`, from `chanmap`).
+- **Parts of a stream.** A clip, a split segment and a join hold part of
+  a stream, or parts of several: `STREAMINFO`'s frame sizes, total samples
+  and MD5 signature, and the cookie's `maxFrameBytes` and `avgBitRate`,
+  describe the whole stream, so they are written as unknown (0, RFC 9639
+  8.2 and the cookie description). A join compares inputs' configurations
+  without these fields.
+- **Sanitize** keeps `dfLa`'s `STREAMINFO` and drops its other blocks
+  (Vorbis comments, pictures and application data carry text and images);
+  no other configuration carries metadata.
+- **Not taken:** HLS packages AAC only, and `extract-audio` copies AAC
+  only; a `coreav ffmpeg` line that encodes video (`-c:v libx264`) still
+  refuses to copy these codecs beside it.
 
 ## Metadata and other boxes
 
@@ -410,6 +466,18 @@ once per output.
   specifications are in
   [`known-divergences-remux.md`](../known-divergences-remux.md). Threshold:
   100% of the fixtures.
+- Audio sample entries, in CI: `scripts/audio_copy_check.py` makes FLAC,
+  Apple Lossless, AC-3 and E-AC-3 sources in MP4, MOV, M4A and Matroska
+  with the pinned FFmpeg 9.0.2 (stereo, 5.1, 44.1 kHz and 96 kHz
+  variants, and files with H.264 video), runs remux, `coreav ffmpeg -c
+  copy`, clip, split, join and `coreav ffmpeg -f concat -c copy` on them,
+  and checks with FFmpeg 9.0.2's `ffprobe` and `ffmpeg` that each output
+  has the source's codec, channels and sample rate and the source's
+  packets (a run of them for a clip, all of them across a split's
+  segments, twice for a join of a file with itself), and that a copy of a
+  whole file decodes to the source's audio, by MD5. Threshold: 100% of the
+  cases. `tests/remux.rs` and `tests/mkv_remux.rs` check the four
+  entries on synthetic files, `dac3` and `dec3` byte for byte.
 
 ### Corpus v1 bars (fixed 2026-10-19, before the corpus run)
 

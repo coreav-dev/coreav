@@ -1613,3 +1613,212 @@ fn block_additions_of_dropped_streams_do_not_count() {
     );
     assert_eq!(summary.dropped_additions_not_listed, 0);
 }
+
+/// Bit fields `(value, width)` packed most significant bit first, padded
+/// with zero bits to a whole byte.
+fn pack(fields: &[(u32, u32)]) -> Vec<u8> {
+    let mut out = Vec::new();
+    let mut used = 0u32;
+    for &(value, width) in fields {
+        for bit in (0..width).rev() {
+            if used % 8 == 0 {
+                out.push(0);
+            }
+            *out.last_mut().unwrap() |= (((value >> bit) & 1) as u8) << (7 - used % 8);
+            used += 1;
+        }
+    }
+    out
+}
+
+/// A FLAC `STREAMINFO` (RFC 9639 8.2) of 1,152-sample blocks.
+fn streaminfo(rate: u32, channels: u32, bits: u32) -> Vec<u8> {
+    let mut info = pack(&[
+        (1152, 16),
+        (1152, 16),
+        (20, 24),
+        (40, 24),
+        (rate, 20),
+        (channels - 1, 3),
+        (bits - 1, 5),
+        (0, 4),
+        (1152 * 6, 32),
+    ]);
+    info.extend([0x5A; 16]);
+    info
+}
+
+/// Six frames of each codec, one per block, at its frame duration: each
+/// copied unchanged into its MP4 sample entry with the configuration box
+/// its binding names, at the source's times.
+#[test]
+fn flac_alac_ac3_and_eac3_get_their_sample_entries() {
+    // FLAC (RFC 9639 10.1): `fLaC` and the last metadata block,
+    // STREAMINFO; frames of 1,152 samples (block size code 3), stereo,
+    // 16 bits, at 96 kHz.
+    let mut flac_private = b"fLaC".to_vec();
+    flac_private.extend([0x80, 0, 0, 34]);
+    flac_private.extend(streaminfo(96_000, 2, 16));
+    let flac = |n: usize| cat(&[vec![0xFF, 0xF8, 0x30, 0x18, n as u8, 0], frame(n, 20)]);
+    // The Apple Lossless magic cookie: 4,096-sample frames, 16 bits, two
+    // channels at 44.1 kHz.
+    let cookie = pack(&[
+        (4096, 32),
+        (0, 8),
+        (16, 8),
+        (40, 8),
+        (10, 8),
+        (14, 8),
+        (2, 8),
+        (255, 16),
+        (40, 32),
+        (64_000, 32),
+        (44_100, 32),
+    ]);
+    // An AC-3 syncframe (ETSI TS 102 366 4.3): 48 kHz, 32 kbit/s (64
+    // words), bsid 8, bsmod 0, stereo without LFE.
+    let ac3 = |n: usize| {
+        let mut f = pack(&[
+            (0x0B77, 16),
+            (0, 16),
+            (0, 2),
+            (0, 6),
+            (8, 5),
+            (0, 3),
+            (2, 3),
+            (0, 2),
+            (0, 1),
+        ]);
+        f.extend(frame(n, 128 - f.len()));
+        f
+    };
+    // An E-AC-3 frame (E.1.2): an independent substream of six blocks at
+    // 48 kHz, stereo, bsid 16, 128 words.
+    let eac3 = |n: usize| {
+        let mut f = pack(&[
+            (0x0B77, 16),
+            (0, 2),
+            (0, 3),
+            (127, 11),
+            (0, 2),
+            (3, 2),
+            (2, 3),
+            (0, 1),
+            (16, 5),
+            (31, 5),
+            (0, 1),
+            (0, 1),
+            (0, 1),
+            (0, 1),
+        ]);
+        f.extend(frame(n, 256 - f.len()));
+        f
+    };
+    // (codec ID, CodecPrivate, Audio rate, frame, frame in ms, sample
+    // entry, configuration box and payload, timescale, frame samples).
+    type Case<'a> = (
+        &'a str,
+        Vec<u8>,
+        f64,
+        &'a dyn Fn(usize) -> Vec<u8>,
+        f64,
+        [u8; 4],
+        [u8; 4],
+        Vec<u8>,
+        u32,
+        u32,
+    );
+    let alac = |n: usize| frame(n, 40);
+    let cases: [Case<'_>; 4] = [
+        (
+            "A_FLAC",
+            flac_private.clone(),
+            96_000.0,
+            &flac,
+            12.0,
+            *b"fLaC",
+            *b"dfLa",
+            cat(&[vec![0, 0, 0, 0], flac_private[4..].to_vec()]),
+            96_000,
+            1152,
+        ),
+        (
+            "A_ALAC",
+            cookie.clone(),
+            44_100.0,
+            &alac,
+            4096.0 / 44.1,
+            *b"alac",
+            *b"alac",
+            cat(&[vec![0, 0, 0, 0], cookie.clone()]),
+            44_100,
+            4096,
+        ),
+        (
+            "A_AC3",
+            Vec::new(),
+            48_000.0,
+            &ac3,
+            32.0,
+            *b"ac-3",
+            *b"dac3",
+            // fscod 0, bsid 8, bsmod 0, acmod 2, lfeon 0, bit_rate_code 0
+            // (F.4).
+            vec![0x10, 0x10, 0x00],
+            48_000,
+            1536,
+        ),
+        (
+            "A_EAC3",
+            Vec::new(),
+            48_000.0,
+            &eac3,
+            32.0,
+            *b"ec-3",
+            *b"dec3",
+            // data_rate 64 kbit/s, one independent substream: fscod 0,
+            // bsid 16, bsmod 0, acmod 2, lfeon 0, no dependent substream
+            // (F.6).
+            vec![0x02, 0x00, 0x20, 0x04, 0x00],
+            48_000,
+            1536,
+        ),
+    ];
+    for (codec_id, private, rate, make, ms, fourcc, kind, payload, timescale, samples) in cases {
+        let blocks: Vec<Vec<u8>> = (0..6)
+            .map(|n| simple_block(1, (n as f64 * ms).round() as i16, true, &make(n)))
+            .collect();
+        let extra = if private.is_empty() {
+            Vec::new()
+        } else {
+            el(CODEC_PRIVATE, &private)
+        };
+        let source = file(
+            "matroska",
+            &[
+                info(None),
+                tracks(&[entry(1, 2, codec_id, &audio_el(rate, 2), &extra)]),
+                cluster(0, &blocks),
+            ],
+        );
+        let (summary, output) = remux(&source);
+        assert!(summary.dropped_tracks.is_empty(), "{codec_id}: {summary:?}");
+        let out = assert_round_trip(&source, &output, &summary);
+        let track = &out.tracks[0];
+        assert_eq!(track.timescale, timescale, "{codec_id}");
+        let d = &track.description;
+        assert_eq!(d.fourcc, FourCc(fourcc), "{codec_id}");
+        assert_eq!(d.channels, Some(2), "{codec_id}");
+        let config = d.codec_config.as_ref().unwrap();
+        assert_eq!(
+            (config.kind, &config.data),
+            (FourCc(kind), &payload),
+            "{codec_id}"
+        );
+        let packets = mp4_packets(&output, &out, 0);
+        let times: Vec<i64> = packets.iter().map(|p| p.dts).collect();
+        let expected: Vec<i64> = (0..6).map(|n| n * i64::from(samples)).collect();
+        assert_eq!(times, expected, "{codec_id}");
+        assert!(packets.iter().all(|p| p.keyframe), "{codec_id}");
+    }
+}

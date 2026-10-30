@@ -604,7 +604,7 @@ implies:
 | a copy to `.mp4` (or `-f mp4`) | `coreav remux`, MP4/MOV or Matroska/WebM input, the selected streams, failing rather than dropping a stream MP4 cannot carry |
 | a copy of one audio stream to `.m4a` (or `-f ipod`) | `coreav extract-audio` |
 | `-ss`, `-t` or `-to`, before or after `-i` | `coreav clip`: one video stream and at most one audio stream |
-| the same, with no video selected | the clip of audio alone (`clip_audio_mp4` of `coreav-isobmff-write`): one AAC stream |
+| the same, with no video selected | the clip of audio alone (`clip_audio_mp4` of `coreav-isobmff-write`): one AAC, FLAC, Apple Lossless, AC-3 or E-AC-3 stream |
 | `-f segment` with MP4 segments | `coreav split --every` the `-segment_time` (2 s when absent) |
 | `-f concat` with an MP4 output | `coreav join` of the list's files (`coreav_cli::concat::read`, with the demuxer's `safe` option): the first video stream and, unless `-an`, the first audio stream, which is what `ffmpeg` selects from the first file when the selection is that |
 
@@ -714,15 +714,16 @@ FFmpeg).**
   copy (PCM audio, say). The join runs to a temporary file and finds these
   at its end; the output is left as it was.
 - A segmented output of a file without video (C32 on such files): `coreav
-  split` cuts at video. A clip without video of other than one AAC
-  stream, or written as M4A.
+  split` cuts at video. A clip without video of other than one AAC,
+  FLAC, Apple Lossless, AC-3 or E-AC-3 stream, or written as M4A.
 - A clip whose range presents no video, or without video no audio (a
   start past the end): `coreav clip` and the clip of audio alone refuse
   it, where `ffmpeg` writes a short file anyway (black box: `-ss 60` on a
   30 s file writes about 2 s; `-ss 3` before `-i` on 2 s of AAC writes one
   frame, after `-i` a file without packets).
 - What the writers do not copy to MP4: subtitle streams, PCM and MP3
-  audio (MP3 by the remux), other audio in a clip than AAC, video other than
+  audio (MP3 by the remux), other audio in a clip than AAC, FLAC, Apple
+  Lossless, AC-3 or E-AC-3, video other than
   H.264 `avc1`, HEVC `hvc1`, AV1 or VP9 in a clip, an M4A file of other than
   one audio stream (C20's `-map 0:a` on a file with several), a clip or
   segments of more than one video or audio stream.

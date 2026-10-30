@@ -994,6 +994,41 @@ jobs:
           cargo test --locked --release -p coreav-cli --test ffmpeg the_0_1_0_commands_on_the_fixtures -- --ignored
           python3 -I tools/compat-corpus/copy_check.py --records "$COREAV_FFMPEG_OUT/records.json" \
             --mediainfo mediainfo --report "$RUNNER_TEMP/mkv-ffmpeg.json"
+      # docs/design/remux.md, "Audio sample entries": FLAC, ALAC, AC-3 and
+      # E-AC-3 copied into MP4 by remux, clip, split, join and coreav ffmpeg
+      # (-c copy, -f concat) from sources the pinned FFmpeg 9.0.2 makes, the
+      # archive audio-conformance.yml pins. ffprobe reads each output's
+      # codec, channels and sample rate as the source's, every packet is the
+      # source's, and a copy of the whole file decodes to the source's audio.
+      # Threshold: 100% of the cases.
+      - name: Cache FFmpeg 9.0.2
+        id: ffmpeg9
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/ffmpeg9
+          key: ffmpeg-n9.0.2-17-g2a571b6068-68ee646831adaae2495618346f3bba94ff207ff83bbd34d643e7004730d66269
+      - name: Install FFmpeg 9.0.2
+        if: steps.ffmpeg9.outputs.cache-hit != 'true'
+        env:
+          FFMPEG9_URL: https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-30-13-08/ffmpeg-n9.0.2-17-g2a571b6068-linux64-gpl-9.0.tar.xz
+          FFMPEG9_SHA256: 68ee646831adaae2495618346f3bba94ff207ff83bbd34d643e7004730d66269
+          FFMPEG9_ARCHIVE: ffmpeg-n9.0.2-17-g2a571b6068-linux64-gpl-9.0
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ffmpeg9"
+          cd "$RUNNER_TEMP"
+          curl -fsSL --retry 5 -o ffmpeg9.tar.xz "$FFMPEG9_URL"
+          echo "$FFMPEG9_SHA256  ffmpeg9.tar.xz" | sha256sum --check --strict
+          tar -xJf ffmpeg9.tar.xz "$FFMPEG9_ARCHIVE/bin/ffmpeg" "$FFMPEG9_ARCHIVE/bin/ffprobe"
+          install -m 755 "$FFMPEG9_ARCHIVE/bin/ffmpeg" "$FFMPEG9_ARCHIVE/bin/ffprobe" "$RUNNER_TEMP/ffmpeg9/"
+          rm -rf ffmpeg9.tar.xz "$FFMPEG9_ARCHIVE"
+      - name: Copy FLAC, ALAC, AC-3 and E-AC-3 into MP4 and check with FFmpeg 9.0.2
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          python3 -I scripts/audio_copy_check.py --coreav target/release/coreav \
+            --ffmpeg "$RUNNER_TEMP/ffmpeg9/ffmpeg" --ffprobe "$RUNNER_TEMP/ffmpeg9/ffprobe" \
+            --work "$RUNNER_TEMP/audio-copy" --report "$RUNNER_TEMP/audio-copy.json"
       # docs/design/policy-matroska.md: `coreav check` with the example
       # policies and the tight test policy on every Matroska fixture: no
       # crash, the same bytes twice, the reasons of scripts/policy_ref.py
@@ -1038,6 +1073,7 @@ jobs:
             ${{ runner.temp }}/mkv-compat.json
             ${{ runner.temp }}/mkv-compat-commands.json
             ${{ runner.temp }}/mkv-policy-fixtures.json
+            ${{ runner.temp }}/audio-copy.json
           if-no-files-found: ignore
 
   # docs/design/mpegts.md: the transport stream fixtures through

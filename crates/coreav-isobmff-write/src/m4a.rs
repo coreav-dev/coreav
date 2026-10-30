@@ -1,12 +1,13 @@
 //! Audio extraction to M4A, written from ISO/IEC 14496-12
 //! (boxes), ISO/IEC 14496-14 (MP4 file format) and ISO/IEC 14496-3 (AAC).
 
-use crate::boxes::Node;
+use crate::audio;
 use crate::copy::{COPY_BUFFER, ReadPlan, Window};
 use crate::moov::{
     EditEntry, Media, MovieBox, Ties, TrackBox, TrackFlags, UNIT_RATE, ftyp, language, overflow,
     rescale, write_head,
 };
+use crate::mux::RawBox;
 use crate::tables::Tables;
 use crate::{ExtractError, Summary, TrackChoice};
 use coreav_isobmff::{
@@ -234,45 +235,51 @@ fn select(movie: &Movie, choice: TrackChoice) -> Result<&Track, Error> {
     Ok(track)
 }
 
-/// The `mp4a` sample entry (14496-14 5.6, 14496-12 12.2.3): an ISO version 0
-/// sound entry with the source's channel count (as probe reports it: from
-/// the `AudioSpecificConfig` where that names one) and sample rate, followed by
-/// the source's `esds` box as stored. QuickTime version 1 and 2 layouts have
-/// no place in an M4A file and are written as version 0.
+/// The `stsd` payload of a copy that holds part of an audio track's samples
+/// (an M4A file, a clip, a split) or begins a join: the track's sample entry
+/// (14496-12 12.2.3; 14496-14 5.6 for `mp4a`) as an ISO version 0 sound
+/// entry with the source's channel count (as probe reports it: for AAC,
+/// from the `AudioSpecificConfig` where that names one) and sample rate,
+/// followed by the source's configuration box with the fields that describe
+/// the whole source stream unknown ([`audio::excerpt_config`]). QuickTime
+/// version 1 and 2 layouts have no place in MP4 and are written as
+/// version 0. The callers choose which codecs they copy.
 pub(crate) fn audio_sample_entry(track: &Track) -> Result<Vec<u8>, Error> {
     let description = &track.description;
+    let kind = audio::config_kind(description.fourcc)
+        .filter(|_| description.codec != Codec::Other)
+        .ok_or(unsupported("the audio has no MP4 sample entry"))?;
     let config = description
         .codec_config
         .as_ref()
-        .filter(|c| c.kind.0 == *b"esds")
-        .ok_or(unsupported("the AAC sample entry has no esds box"))?;
+        .filter(|c| c.kind == kind)
+        .ok_or(unsupported(
+            "the audio sample entry has no codec configuration",
+        ))?;
     let channels = description
         .channels
         .and_then(|c| u16::try_from(c).ok())
         .ok_or(unsupported(
             "channel count outside the version 0 sound entry",
         ))?;
-    let rate = description
+    let mut rate = description
         .sample_rate
-        .and_then(|r| u16::try_from(r).ok())
-        .ok_or(unsupported("sample rate above 65535 Hz"))?;
-    let mut entry = Vec::with_capacity(28usize.saturating_add(8).saturating_add(config.data.len()));
-    entry.extend_from_slice(&[0; 6]);
-    entry.extend_from_slice(&1u16.to_be_bytes()); // data_reference_index
-    entry.extend_from_slice(&[0; 8]); // version 0, reserved
-    entry.extend_from_slice(&channels.to_be_bytes());
-    entry.extend_from_slice(&16u16.to_be_bytes()); // samplesize
-    entry.extend_from_slice(&[0; 4]); // pre_defined, reserved
-    entry.extend_from_slice(&(u32::from(rate) << 16).to_be_bytes());
-    let mut esds = Vec::new();
-    Node::leaf(b"esds", config.data.clone())
-        .write(&mut esds)
-        .map_err(|_| overflow())?;
-    entry.extend_from_slice(&esds);
+        .ok_or(unsupported("the audio sample entry has no sample rate"))?;
+    if matches!(description.codec, Codec::Flac | Codec::Alac) {
+        rate = audio::entry_rate(rate);
+    }
+    let entry = crate::mux::audio_sample_entry(
+        description.fourcc,
+        channels,
+        audio::sample_size(config),
+        rate,
+        &[RawBox {
+            kind,
+            payload: audio::excerpt_config(config),
+        }],
+    )?;
     let mut stsd = 1u32.to_be_bytes().to_vec();
-    Node::leaf(b"mp4a", entry)
-        .write(&mut stsd)
-        .map_err(|_| overflow())?;
+    stsd.extend_from_slice(&entry);
     Ok(stsd)
 }
 

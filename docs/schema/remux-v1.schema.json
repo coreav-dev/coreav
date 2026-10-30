@@ -215,7 +215,11 @@
                 "vp9",
                 "aac",
                 "mp3",
-                "opus"
+                "opus",
+                "flac",
+                "alac",
+                "ac3",
+                "eac3"
               ]
             },
             {

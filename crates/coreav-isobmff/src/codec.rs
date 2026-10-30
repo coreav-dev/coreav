@@ -27,8 +27,16 @@ pub enum Codec {
     /// Opus (`Opus`).
     Opus,
     /// FLAC (`fLaC`, configured by `dfLa`; the FLAC-in-ISOBMFF mapping of
-    /// RFC 9639 10.3). Not on the default allowlist.
+    /// RFC 9639 10.3).
     Flac,
+    /// Apple Lossless (`alac`, configured by its `alac` box holding the
+    /// magic cookie).
+    Alac,
+    /// AC-3 (`ac-3`, configured by `dac3`; ETSI TS 102 366 Annex F).
+    Ac3,
+    /// Enhanced AC-3 (`ec-3`, configured by `dec3`; ETSI TS 102 366
+    /// Annex F).
+    Eac3,
     /// Uncompressed linear PCM.
     Pcm,
     /// 3GPP timed text (`tx3g`).
@@ -119,6 +127,10 @@ impl Default for Allowlist {
             Codec::Aac,
             Codec::Mp3,
             Codec::Opus,
+            Codec::Flac,
+            Codec::Alac,
+            Codec::Ac3,
+            Codec::Eac3,
             Codec::Pcm,
             Codec::TimedText,
             Codec::Timecode,
@@ -357,7 +369,8 @@ pub struct DeclaredBitRate {
 /// A codec configuration box as stored.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CodecConfig {
-    /// Box type: `avcC`, `hvcC`, `av1C`, `vpcC`, `esds`, `dOps` or `dfLa`.
+    /// Box type: `avcC`, `hvcC`, `av1C`, `vpcC`, `esds`, `dOps`, `dfLa`,
+    /// `alac`, `dac3`, `dec3` or `QDCA`.
     pub kind: FourCc,
     /// Box payload.
     pub data: Vec<u8>,
@@ -1076,6 +1089,9 @@ fn codec_from_fourcc(fourcc: FourCc) -> Codec {
         b"apco" | b"apcs" | b"apcn" | b"apch" | b"ap4h" | b"ap4x" => Codec::ProRes,
         b"Opus" => Codec::Opus,
         b"fLaC" => Codec::Flac,
+        b"alac" => Codec::Alac,
+        b"ac-3" => Codec::Ac3,
+        b"ec-3" => Codec::Eac3,
         // QuickTime's MPEG-1 Layer 3 sound sample description.
         b".mp3" => Codec::Mp3,
         b"sowt" | b"twos" | b"in24" | b"in32" | b"fl32" | b"fl64" | b"lpcm" | b"ipcm" | b"fpcm"

@@ -33,6 +33,7 @@
 //! assert!(out.is_empty());
 //! ```
 
+mod audio;
 mod boxes;
 mod clip;
 mod copy;
@@ -699,6 +700,10 @@ fn codec_name(codec: Codec) -> &'static str {
         Codec::Aac => "AAC",
         Codec::Mp3 => "MP3",
         Codec::Opus => "Opus",
+        Codec::Flac => "FLAC",
+        Codec::Alac => "ALAC",
+        Codec::Ac3 => "AC-3",
+        Codec::Eac3 => "E-AC-3",
         Codec::Pcm => "PCM",
         Codec::TimedText => "timed text",
         Codec::Timecode => "timecode",

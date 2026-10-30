@@ -446,12 +446,12 @@ fn the_allowlist_drops_or_rejects() {
         TRACKS,
         &cat(&[
             video_track(1, "V_VP9", 64, 64, &[]),
-            audio_track(2, "A_AC3", 48_000.0, 6, &[]),
+            audio_track(2, "A_DTS", 48_000.0, 6, &[]),
             audio_track(3, "A_REAL/COOK", 44_100.0, 2, &[]),
         ]),
     );
     let blocks = vec![
-        simple_block(2, 0, true, &[0x0b, 0x77]),
+        simple_block(2, 0, true, &[0x7f, 0xfe, 0x80, 0x01]),
         simple_block(1, 0, true, &VP9_KEY_FRAME),
     ];
     let data = file("matroska", &[info(None), tracks, cluster(0, &blocks)]);
@@ -463,7 +463,7 @@ fn the_allowlist_drops_or_rejects() {
             .iter()
             .map(|d| (d.stream_index, d.codec))
             .collect::<Vec<_>>(),
-        [(1, Codec::Ac3), (2, Codec::Other)]
+        [(1, Codec::Dts), (2, Codec::Other)]
     );
     // Blocks of dropped tracks never come out.
     assert_eq!(packets(&segment, &data).len(), 1);
@@ -483,7 +483,7 @@ fn the_allowlist_drops_or_rejects() {
         strict.unwrap_err(),
         Error::CodecNotAllowed {
             track_number: 2,
-            codec: Codec::Ac3
+            codec: Codec::Dts
         }
     );
 }

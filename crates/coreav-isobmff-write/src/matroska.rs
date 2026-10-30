@@ -6,6 +6,7 @@
 //! second copies the samples in the writer's chunk order through one
 //! [`CopyWindow`]. Nothing is decoded.
 
+use crate::audio;
 use crate::mux::{
     CopyWindow, Edit, FileType, MovieHeader, Muxer, RawBox, Sample, TrackHeader, TrackMedia,
     audio_sample_entry, visual_sample_entry,
@@ -36,6 +37,15 @@ const MAX_TIME_NS: u64 = 1 << 62;
 
 /// Movie and video timescale when a Segment Tick does not divide a second.
 const FALLBACK_TIMESCALE: u32 = 90_000;
+
+/// Largest first frame of an AC-3 or E-AC-3 stream read to configure its
+/// sample entry: an E-AC-3 sample of eight independent substreams, each with
+/// eight dependent ones, in syncframes of up to 4,096 bytes.
+const MAX_FIRST_FRAME: u32 = 8 * 9 * 4096;
+
+/// Bytes of a FLAC frame header read to find its block size: the longest
+/// header up to the block size (RFC 9639 9.1).
+const FLAC_HEAD: usize = 13;
 
 /// Why a Matroska remux failed. Nothing about the source's bytes is
 /// included.
@@ -236,6 +246,9 @@ struct Plan {
     samples: Records,
     /// Parameter sets from the first keyframe (Annex B), in order.
     parameter_sets: Vec<Vec<u8>>,
+    /// The `dac3` or `dec3` payload, built from the first frame of an
+    /// AC-3 or E-AC-3 stream.
+    audio_config: Vec<u8>,
     /// Why the stream cannot be copied after all, found while listing it.
     failure: Option<&'static str>,
     /// `DiscardPadding` of the last frame, in nanoseconds: not presented.
@@ -371,7 +384,8 @@ struct Record {
     block_ns: i64,
     block_duration_ns: Option<i64>,
     /// Audio: the frame's duration in media ticks, from the codec (the Opus
-    /// TOC byte; one AAC frame); 0 when unknown.
+    /// TOC byte, the FLAC frame header; one AAC or ALAC frame, 1,536
+    /// samples of AC-3 or E-AC-3); 0 when unknown.
     frame: u32,
     keyframe: bool,
 }
@@ -830,6 +844,27 @@ fn plan(track: &Track) -> Result<Plan, &'static str> {
     let (timescale, quantum) = match (media, track.codec) {
         (Media::Video, Codec::H264 | Codec::Hevc | Codec::Av1 | Codec::Vp9) => (0, 1),
         (Media::Audio, Codec::Opus) => (48_000, 120),
+        (Media::Audio, Codec::Flac) => {
+            let (_, info) = track
+                .codec_private
+                .as_deref()
+                .and_then(audio::dfla_from_codec_private)
+                .ok_or("FLAC without its STREAMINFO in CodecPrivate")?;
+            (info.rate, 1)
+        }
+        (Media::Audio, Codec::Alac) => {
+            let (_, config) = track
+                .codec_private
+                .as_deref()
+                .and_then(audio::alac_from_codec_private)
+                .ok_or("ALAC without its magic cookie in CodecPrivate")?;
+            (config.rate, u64::from(config.frame_length))
+        }
+        // The first frame's header gives the sample rate (`list_samples`).
+        (Media::Audio, Codec::Ac3 | Codec::Eac3) => (
+            track.audio.and_then(|a| a.sample_rate()).unwrap_or(48_000),
+            u64::from(audio::AC3_FRAME),
+        ),
         (Media::Audio, Codec::Aac) => {
             let rate = track
                 .audio
@@ -887,6 +922,7 @@ fn plan(track: &Track) -> Result<Plan, &'static str> {
         prefix,
         samples: Records::default(),
         parameter_sets: Vec::new(),
+        audio_config: Vec::new(),
         failure: None,
         end_padding_ns: 0,
         entry: Vec::new(),
@@ -909,6 +945,7 @@ fn replaced_plan(track: &Track, codec: Codec) -> Plan {
         prefix: Vec::new(),
         samples: Records::default(),
         parameter_sets: Vec::new(),
+        audio_config: Vec::new(),
         failure: None,
         end_padding_ns: 0,
         entry: Vec::new(),
@@ -1044,9 +1081,7 @@ fn replaced_timing<R>(
 
 fn unsupported_codec(codec: Codec) -> &'static str {
     match codec {
-        Codec::Flac => "FLAC is not copied to MP4 by this remux",
         Codec::Mp3 => "MP3 is not copied to MP4 by this remux",
-        Codec::Ac3 | Codec::Eac3 => "AC-3 and E-AC-3 are not copied to MP4 by this remux",
         Codec::Pcm => "PCM audio is not copied to MP4",
         Codec::ProRes => "ProRes has no MP4 sample entry",
         _ => "MP4 cannot carry this codec by stream copy",
@@ -1187,24 +1222,55 @@ fn list_samples<S: Source>(
             .and_then(|d| scale.checked_mul(i128::from(d)))
             .and_then(in_range);
         plan.end_padding_ns = packet.discard_padding.unwrap_or(0).max(0);
-        // Opus frames: their duration from the TOC byte (RFC 6716 3.1),
-        // read as the listing passes the frame rather than in a pass of its
-        // own, which over a network would read the file a second time.
-        let frame = if plan.codec == Codec::Opus {
-            let mut head = [0u8; 2];
-            let mut filled = 0;
-            for (slot, byte) in head.iter_mut().zip(&plan.prefix) {
-                *slot = *byte;
-                filled += 1;
+        // Frame durations from the frame's own header (the Opus TOC byte,
+        // RFC 6716 3.1; the FLAC frame header, RFC 9639 9.1.1), and the
+        // AC-3 or E-AC-3 configuration from the first frame, read as the
+        // listing passes the frame rather than in a pass of their own,
+        // which over a network would read the file a second time.
+        let source = packets.source_mut();
+        let frame = match plan.codec {
+            Codec::Opus => {
+                let mut head = [0u8; 2];
+                let filled = frame_head(source, &plan.prefix, packet.offset, stored, &mut head)?;
+                opus_samples(&head, filled).unwrap_or(0)
             }
-            let wanted = (2 - filled).min(usize::try_from(stored).unwrap_or(0));
-            if let Some(rest) = head.get_mut(filled..filled + wanted) {
-                packets.source_mut().read_exact_at(packet.offset, rest)?;
-                filled += wanted;
+            Codec::Flac => {
+                let mut head = [0u8; FLAC_HEAD];
+                let filled = frame_head(source, &plan.prefix, packet.offset, stored, &mut head)?;
+                head.get(..filled)
+                    .and_then(audio::flac_block_size)
+                    .unwrap_or(0)
             }
-            opus_samples(&head, filled).unwrap_or(0)
-        } else {
-            u32::try_from(plan.quantum).unwrap_or(0)
+            Codec::Ac3 | Codec::Eac3 => {
+                if plan.audio_config.is_empty() {
+                    if size > MAX_FIRST_FRAME {
+                        plan.fail("an AC-3 or E-AC-3 frame larger than 288 KiB");
+                        continue;
+                    }
+                    let mut first = vec![0u8; usize::try_from(size).unwrap_or(0)];
+                    frame_head(source, &plan.prefix, packet.offset, stored, &mut first)?;
+                    let built = if plan.codec == Codec::Ac3 {
+                        audio::dac3(&first)
+                            .filter(|(_, _, bytes)| bytes.is_none_or(|b| b == first.len()))
+                            .map(|(config, rate, _)| (config, rate))
+                            .ok_or("AC-3 frames that are not one syncframe each")
+                    } else {
+                        audio::dec3(&first)
+                    };
+                    match built {
+                        Ok((config, rate)) => {
+                            plan.audio_config = config;
+                            plan.timescale = rate;
+                        }
+                        Err(reason) => {
+                            plan.fail(reason);
+                            continue;
+                        }
+                    }
+                }
+                audio::AC3_FRAME
+            }
+            _ => u32::try_from(plan.quantum).unwrap_or(0),
         };
         plan.samples.push(Record {
             offset: packet.offset,
@@ -1294,6 +1360,30 @@ fn parameter_sets<S: Source>(
         }
     }
     Ok(sets)
+}
+
+/// Fills `head` with the first bytes of a frame as a decoder sees them:
+/// the track's header-stripping prefix, then the stored bytes at `offset`.
+/// Returns how many bytes it filled, fewer than `head` holds when the
+/// frame is shorter.
+fn frame_head<S: Source>(
+    source: &mut S,
+    prefix: &[u8],
+    offset: u64,
+    stored: u32,
+    head: &mut [u8],
+) -> Result<usize, MatroskaRemuxError> {
+    let mut filled = 0;
+    for (slot, byte) in head.iter_mut().zip(prefix) {
+        *slot = *byte;
+        filled += 1;
+    }
+    let wanted = (head.len() - filled).min(usize::try_from(stored).unwrap_or(0));
+    if let Some(rest) = head.get_mut(filled..filled + wanted) {
+        source.read_exact_at(offset, rest)?;
+        filled += wanted;
+    }
+    Ok(filled)
 }
 
 /// The samples at 48 kHz in an Opus packet whose first `len` bytes (at
@@ -1512,8 +1602,8 @@ fn stream_timing(track: &Track, plan: &Plan) -> Result<Timing, MatroskaRemuxErro
     }
 }
 
-/// Audio times: each frame lasts what it decodes to (the Opus TOC; one AAC
-/// frame), unless the next frame's time is more than half a frame away
+/// Audio times: each frame lasts what it decodes to (see [`Record::frame`]),
+/// unless the next frame's time is more than half a frame away
 /// from where this one ends (a pause, a lost frame, timestamps that do not
 /// follow the frames): then it lasts up to that time, rounded to the
 /// codec's quantum, at least one quantum, as Matroska's times are the
@@ -1807,8 +1897,60 @@ fn sample_entry(track: &Track, plan: &Plan) -> Result<Vec<u8>, MatroskaRemuxErro
             return Ok(audio_sample_entry(
                 FourCc(*b"Opus"),
                 channels,
+                16,
                 48_000,
                 &[raw(b"dOps", dops)],
+            )?);
+        }
+        Codec::Flac => {
+            let (dfla, info) = track
+                .codec_private
+                .as_deref()
+                .and_then(audio::dfla_from_codec_private)
+                .ok_or(coreav_mkv::Error::Unsupported {
+                    reason: "FLAC without its STREAMINFO in CodecPrivate",
+                })?;
+            return Ok(audio_sample_entry(
+                FourCc(*b"fLaC"),
+                info.channels,
+                info.bits,
+                audio::entry_rate(info.rate),
+                &[raw(b"dfLa", dfla)],
+            )?);
+        }
+        Codec::Alac => {
+            let (cookie, config) = track
+                .codec_private
+                .as_deref()
+                .and_then(audio::alac_from_codec_private)
+                .ok_or(coreav_mkv::Error::Unsupported {
+                    reason: "ALAC without its magic cookie in CodecPrivate",
+                })?;
+            return Ok(audio_sample_entry(
+                FourCc(*b"alac"),
+                config.channels,
+                config.bits,
+                audio::entry_rate(config.rate),
+                &[raw(b"alac", cookie)],
+            )?);
+        }
+        Codec::Ac3 | Codec::Eac3 => {
+            let (fourcc, kind) = if track.codec == Codec::Ac3 {
+                (b"ac-3", b"dac3")
+            } else {
+                (b"ec-3", b"dec3")
+            };
+            // Annex F has readers ignore the entry's channel count and take
+            // the configuration's.
+            let channels = track
+                .audio
+                .map_or(2, |a| u16::try_from(a.channels).unwrap_or(2));
+            return Ok(audio_sample_entry(
+                FourCc(*fourcc),
+                channels,
+                16,
+                plan.timescale,
+                &[raw(kind, plan.audio_config.clone())],
             )?);
         }
         Codec::Aac => {
@@ -1821,6 +1963,7 @@ fn sample_entry(track: &Track, plan: &Plan) -> Result<Vec<u8>, MatroskaRemuxErro
             return Ok(audio_sample_entry(
                 FourCc(*b"mp4a"),
                 channels,
+                16,
                 plan.timescale,
                 &[raw(b"esds", esds(&config))],
             )?);
