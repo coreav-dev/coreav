@@ -12,7 +12,7 @@ import Help from '/snippets/help/thumbnail.mdx';
 
 `coreav thumbnail --output FILE INPUT` writes an image of an MP4, MOV, Matroska or WebM file: the keyframe at or before `--at`, or with `--exact` the frame at that time. The image is resized to `--width` or `--height`, keeping the display aspect ratio, and encoded as JPEG, PNG or WebP. The summary ([`coreav.thumbnail/1`](https://github.com/coreav-dev/coreav/blob/main/docs/schema/thumbnail-v1.md)) names the backend that decoded the frame.
 
-Only the codecs on `--allow` are decoded, by default H.264, HEVC, AV1, VP9, VP8 and ProRes. Decoding stops after `--timeout` seconds.
+Only the codecs on `--allow` are decoded, by default H.264, HEVC, AV1, VP9, VP8 and ProRes. Decoding stops after `--timeout` seconds. In [strict-safe mode](/strict-safe#what-strict-safe-mode-covers) the `ffmpeg-fallback` backend does not decode, and a video only it would decode is refused with exit status 4.
 
 ## Examples
 
