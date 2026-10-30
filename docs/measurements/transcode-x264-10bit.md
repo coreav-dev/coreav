@@ -363,3 +363,40 @@ In every arm, over 99.99% of `get_frame`'s cycle samples lie in this loop. Betwe
 5. **Why does 16-bit plus a mapped input avoid it? Because only then does the loop read its input from the mapping, which is what separates the arms.** A 10-bit input is first widened into a buffer the program owns, whether it comes from a file or a pipe. A pipe's input is read into a buffer the program owns. In both cases the stalled spot after the second read of each input sample waits. Only 16-bit samples from a mapped file or memfd go to the loop directly, and then that spot does not wait. Where the program keeps its input copy is decided inside the program. A caller reaches the fast path only by handing over the whole video as a 16-bit file or memfd, which the input-method round showed cannot stream. So no caller-side lever follows. The page does not name what that spot waits on when the input is the program's own buffer, and it does not confirm that the second read is the instruction held up. Neither the aliasing counter nor the 4K and 64 KiB placement rules explain it. Precise or load-latency sampling would show both, and this guest offers neither.
 
 The raw results are in `transcode/x264-10bit/why/annotate/` (`why4.jsonl`: the sampled events this host allowed, the timed runs, and per arm and event the samples per offset in `get_frame`; `perf/`: the top symbols on the main thread per arm and event) and `transcode/x264-10bit/why/registers/` (`why5.jsonl`: per arm, the loop's samples, where its input address lies, and the page-offset and distance counts). The annotated disassembly, the memory maps and the raw samples are not published.
+
+## Huge pages
+
+Status: planned. The question, the arms and what each result would mean are committed before the run.
+
+The instruction-level view found one placement pattern it had not registered: in every slow arm the loop's input and output rows lie a multiple of 2 MiB apart, and in no fast arm. 2 MiB is the size of a transparent huge page on x86-64. A development check (an AMD host, where the stall does not occur, 3 frames) showed that the x264 program asks the kernel for huge pages itself. On 5 frames of the 10-bit pipe arm it made 23 `madvise(MADV_HUGEPAGE)` calls, and on 3 frames it held 366 MiB of anonymous huge pages, on a host whose setting gives huge pages only where a program asks for them (`madvise`). A caller can turn transparent huge pages off for one process and the programs it runs, with `prctl(PR_SET_THP_DISABLE)`, which the kernel keeps across `execve`. `coreav transcode` starts the encoder through its own launcher (`coreav-worker`'s `sandbox_exec_main`), which could set that flag before it runs the program. This run asks whether doing so removes the stall.
+
+**Host and inputs.** One Compute Engine `c4-standard-8` (Intel Xeon Platinum 8581C, standard PMU, two threads a core, not preemptible), by `scripts/gcp_vm_job.py`, as above. The host's own transparent huge page settings are recorded and left as they are, except in the host arm. The input is the 129 frames of the 4K ProRes development file above, decoded once by the pinned `ffmpeg` to `yuv420p10le`, `yuv422p10le` and `yuv420p`. The runner is [`thp.py`](transcode/x264-10bit/thp.py), run by [`thp-job.sh`](transcode/x264-10bit/thp-job.sh). The x264 program and its arguments are those of the input-method run; the 8-bit arms use `--input-depth 8 --output-depth 8`.
+
+**Arms.** Each is the pinned x264 program, through a 64 KiB pipe unless named "file", in one of three settings: `default` (the host's), `process` (huge pages off for the x264 process alone, set by a launcher that then runs x264) or `host` (the host's setting `never`, restored after the run).
+
+| Arm | Input | Setting |
+|---|---|---|
+| `d10-pipe` | 10-bit 4:2:0 | default |
+| `d10-pipe-nothp` | 10-bit 4:2:0 | process |
+| `d10-pipe-never` | 10-bit 4:2:0 | host |
+| `d10-file-nothp` | 10-bit 4:2:0, file | process |
+| `d16-pipe-nothp` | 16-bit 4:2:0 | process |
+| `d16-file` | 16-bit 4:2:0, file | default (the fast arm above) |
+| `d10-422-pipe` | 10-bit 4:2:2 | default |
+| `d10-422-pipe-nothp` | 10-bit 4:2:2 | process |
+| `d8-pipe` | 8-bit 4:2:0 | default |
+| `d8-pipe-nothp` | 8-bit 4:2:0 | process |
+
+**Observations.** Per arm: 3 timed runs in rotated order (wall time, the main thread's CPU time, the output's hash), the largest `AnonHugePages` of the x264 process seen during each run, and one `perf stat` of the main thread (cycles, instructions, cycles bound on loads, all stall cycles; one group, not multiplexed). One `strace` of `d10-pipe` on 5 frames counts its anonymous mappings of 1 MiB or more, how many start on a 2 MiB boundary, and its `madvise` calls.
+
+**Criteria.**
+
+1. **The switch works.** Every `default` arm's x264 process holds anonymous huge pages in every run, and no `process` or `host` arm's does. If this fails, the run says nothing about huge pages.
+2. **Lever at 4:2:0.** `d10-pipe-nothp`'s median wall time is at most 0.90 times `d10-pipe`'s, all 3 of its times are below `d10-pipe`'s fastest, and the two give the same stream.
+3. **Lever at 4:2:2.** The same rule for `d10-422-pipe-nothp` against `d10-422-pipe`.
+4. **The stall goes.** `d10-pipe-nothp`'s main-thread cycles bound on loads are at most 0.5 times `d10-pipe`'s.
+5. **8-bit input.** `d8-pipe-nothp`'s median wall time is at most 1.02 times `d8-pipe`'s.
+6. **The process flag does what the host setting does.** `d10-pipe-never`'s median wall time is within 5% of `d10-pipe-nothp`'s.
+
+**What follows from the result.** If 1 to 4 hold, the launcher turns huge pages off for the x264 program, and a corpus round with its own bars, committed before it runs, judges that change through `coreav transcode`. If 5 also holds, it does so for every input; if 5 fails, only for input of more than 8 bits. If 2 or 3 fails, huge pages are not the lever, and the page records that and stops there. `d10-file-nothp` and `d16-pipe-nothp` judge nothing; they show whether, with huge pages off, the 10-bit file and 16-bit pipe arms reach the fast arm too.
+
