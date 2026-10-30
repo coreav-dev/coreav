@@ -5,6 +5,7 @@ committed from here on").
 
     h264_parity_gcp.py --out DIR --es-dir ES --decoder NAME=PATH [--decoder ...] --ffmpeg PATH \\
         --gate-stream PATH [--null-arm NAME] [--rounds 10] [--seed N] [--cap-usd 5]
+    h264_parity_gcp.py --collect DIR
 
 Builds one upload directory (the decoders, FFmpeg, `scripts/h264_parity.py`, the elementary streams of the
 calls, the gate stream and a generated `job.sh`), runs `scripts/gcp_vm_job.py` with a `c4-standard-16`, one
@@ -16,7 +17,10 @@ unresolved streams, when a call produced no report or fewer streams than it was 
 have 8 vCPUs with SMT off. The exit status is 0 for a run that is not void, 3 for a void run (its files stay in
 DIR, which must be new: a run that is run again takes a new DIR), and 4 when `gcp_vm_job.py` itself failed (no
 verdict is written). `--dry-run` builds the upload directory and prints what would run, without touching
-Compute Engine.
+Compute Engine. The VM job's state and ssh key are kept in DIR.gcpjob; when this script stops before the end (the
+machine that runs it restarts), `--collect DIR` finishes the run: `gcp_vm_job.py --collect DIR.gcpjob` brings the
+reports back and deletes the VM, and the verdict is written from `run.json` (the calls and the class of the run, which
+the run writes into DIR), with the same exit statuses. It is safe to run again.
 
 `--one-thread-class` runs the one-thread arms on a `c4-standard-8` with one thread a core (4 vCPUs, the CPU class of the
 one-thread bars): each call is `--pin 2 --threads 1` with no repeat, the reports are `g.<class>.json`, and the host-health
@@ -319,16 +323,30 @@ def verdict(out, calls, threads=8, one_thread_class=False, turbo=None):
     return v
 
 
+def state_dir(out):
+    return os.path.abspath(out) + '.gcpjob'
+
+
+def judge(out, rc, run):
+    """The exit status of a run whose VM job ended with `rc`: 4 with no verdict when it failed, else the verdict's."""
+    if rc != 0:
+        print(f'gcp_vm_job.py exited {rc}: no verdict', flush=True)
+        return 4
+    v = verdict(out, run['calls'], run['threads'], run['one_thread_class'], run['turbo'])
+    print(json.dumps(v), flush=True)
+    return 3 if v['void'] else 0
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
-    ap.add_argument('--out', required=True, help='directory that receives the reports and verdict.json')
-    ap.add_argument('--es-dir', required=True, help='elementary streams named <id>.<track>.<class>.h264')
-    ap.add_argument('--decoder', action='append', required=True, metavar='NAME=PATH',
-                    help='NAME is letters, digits, - and _')
-    ap.add_argument('--ffmpeg', required=True, help='the FFmpeg binary to upload (a static build)')
-    ap.add_argument('--gate-stream', required=True, help='the reference stream of the in-call gate and of the host check')
+    ap.add_argument('--collect', metavar='DIR', help='finish the run of DIR after this script stopped (no other options)')
+    ap.add_argument('--out', help='directory that receives the reports and verdict.json')
+    ap.add_argument('--es-dir', help='elementary streams named <id>.<track>.<class>.h264')
+    ap.add_argument('--decoder', action='append', metavar='NAME=PATH', help='NAME is letters, digits, - and _')
+    ap.add_argument('--ffmpeg', help='the FFmpeg binary to upload (a static build)')
+    ap.add_argument('--gate-stream', help='the reference stream of the in-call gate and of the host check')
     ap.add_argument('--gate-frames', type=int, default=900)
-    ap.add_argument('--null-arm', required=True, metavar='NAME', help='the decoder whose binary is timed twice')
+    ap.add_argument('--null-arm', metavar='NAME', help='the decoder whose binary is timed twice')
     ap.add_argument('--classes', default=','.join(CLASSES))
     ap.add_argument('--limit-per-class', type=int, metavar='N', help='the first N streams of each class (a smoke run)')
     ap.add_argument('--rounds', type=int, default=10)
@@ -357,6 +375,14 @@ def main():
                                          'elsewhere)')
     ap.add_argument('--dry-run', action='store_true')
     args = ap.parse_args()
+    if args.collect:
+        with open(os.path.join(args.collect, 'run.json')) as f:
+            run = json.load(f)
+        cmd = [sys.executable, os.path.join(HERE, 'gcp_vm_job.py'), '--collect', state_dir(args.collect)]
+        return judge(args.collect, subprocess.run(cmd).returncode, run)
+    missing = [n for n in ('out', 'es_dir', 'decoder', 'ffmpeg', 'gate_stream', 'null_arm') if getattr(args, n) is None]
+    if missing:
+        ap.error('the following arguments are required: ' + ', '.join('--' + n.replace('_', '-') for n in missing))
     if args.one_thread_class:
         args.machine, args.usd_per_hour = MACHINE_1T, USD_PER_HOUR_1T
         if args.threads not in (None, 1):
@@ -461,29 +487,22 @@ def main():
             f.write(job_script(args, calls))
         size = sum(os.path.getsize(os.path.join(r, n)) for r, _, ns in os.walk(up) for n in ns)
         cmd = [sys.executable, os.path.join(HERE, 'gcp_vm_job.py'), '--upload', up, '--job', 'job.sh',
-               '--download', args.out, '--zone', args.zone, '--machine', args.machine, '--provisioning', 'standard',
-               '--threads-per-core', '1',
+               '--download', args.out, '--state', state_dir(args.out), '--zone', args.zone, '--machine', args.machine,
+               '--provisioning', 'standard', '--threads-per-core', '1',
                '--usd-per-hour', str(args.usd_per_hour), '--max-hours', str(args.max_hours), '--cap-usd', str(args.cap_usd)]
         if args.turbo == 'all-core-max':
             cmd += ['--turbo-mode', 'ALL_CORE_MAX']
         print(f'upload {size / 1e6:.0f} MB, {sum(len(f) for _, f in calls)} streams in {len(calls)} calls; '
               f'spend bound {args.max_hours * args.usd_per_hour:.2f} USD of {args.cap_usd:.2f}', flush=True)
-        if args.dry_run:
-            kept = os.path.abspath(args.out)
-            os.makedirs(kept, exist_ok=True)
-            shutil.copy(os.path.join(up, 'job.sh'), os.path.join(kept, 'job.sh'))
-            print('dry run:', ' '.join(shlex.quote(c) for c in cmd))
-            return 0
         os.makedirs(args.out, exist_ok=True)
         shutil.copy(os.path.join(up, 'job.sh'), os.path.join(args.out, 'job.sh'))
-        rc = subprocess.run(cmd).returncode
-        if rc != 0:
-            print(f'gcp_vm_job.py exited {rc}: no verdict', flush=True)
-        if rc != 0:
-            return 4
-        v = verdict(args.out, calls, args.threads, args.one_thread_class, args.turbo)
-        print(json.dumps(v), flush=True)
-        return 3 if v['void'] else 0
+        run = {'calls': calls, 'threads': args.threads, 'one_thread_class': args.one_thread_class, 'turbo': args.turbo}
+        with open(os.path.join(args.out, 'run.json'), 'w') as f:
+            json.dump(run, f, indent=1)
+        if args.dry_run:
+            print('dry run:', ' '.join(shlex.quote(c) for c in cmd))
+            return 0
+        return judge(args.out, subprocess.run(cmd).returncode, run)
     finally:
         if not args.upload_dir:
             shutil.rmtree(up, ignore_errors=True)
