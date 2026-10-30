@@ -1,0 +1,118 @@
+name: fuzz-nightly
+
+# The deep fuzz run: every target of every fuzz project
+# (scripts/fuzz_plan.py --all) for 15 minutes, once a day, in shards that
+# run side by side (docs/design/ci-checks.md, "The fuzz runs"). Pushes to
+# main do not fuzz; pull requests fuzz the targets they can affect, briefly
+# (ci.yml). This is not the release campaign (docs/design/fuzz-campaign.md).
+#
+# A finding fails the run. Its input and stack trace go to the private
+# bucket, never to this log or to an artifact: the log names the target and
+# the object key only (docs/design/fuzz-campaign.md, "Findings").
+#
+# workflow-check: not required
+
+on:
+  schedule:
+    # 02:23 in Seoul, when the queue is quiet.
+    - cron: '23 17 * * *'
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: Seconds per target
+        type: number
+        default: 900
+
+permissions:
+  contents: read
+
+concurrency:
+  # One run at a time; a run is never cancelled for the next.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # Six targets of 15 minutes, with the build, fit a shard's timeout.
+  SHARD_SIZE: 6
+
+jobs:
+  fuzz-build:
+    # Builds every fuzz project once into target/fuzz, caches it for the
+    # shards and for pull requests, and splits the plan into shards.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      shards: ${{ steps.plan.outputs.shards }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - run: scripts/fuzz_run.sh setup
+      - id: plan
+        run: |
+          set -euo pipefail
+          python3 scripts/fuzz_plan.py --all > "$RUNNER_TEMP/fuzz-plan.txt"
+          n=$(wc -l < "$RUNNER_TEMP/fuzz-plan.txt")
+          echo "shards=$(jq -c -n --argjson n "$n" --argjson k "$SHARD_SIZE" '[range(0; ($n + $k - 1) / $k | floor)]')" >> "$GITHUB_OUTPUT"
+          echo "### $n fuzz targets, $SHARD_SIZE per shard" >> "$GITHUB_STEP_SUMMARY"
+      - id: cache
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: target/fuzz
+          key: fuzz-target-${{ hashFiles('scripts/fuzz_run.sh', 'Cargo.lock', 'crates/*/fuzz/Cargo.lock') }}
+          restore-keys: fuzz-target-
+      - run: scripts/fuzz_run.sh build "$RUNNER_TEMP/fuzz-plan.txt"
+      - if: steps.cache.outputs.cache-hit != 'true'
+        run: scripts/fuzz_run.sh prune
+      - if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: target/fuzz
+          key: fuzz-target-${{ hashFiles('scripts/fuzz_run.sh', 'Cargo.lock', 'crates/*/fuzz/Cargo.lock') }}
+
+  fuzz-shard:
+    needs: fuzz-build
+    runs-on: ubuntu-24.04
+    # Six targets of 15 minutes and the build of their projects.
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        shard: ${{ fromJSON(needs.fuzz-build.outputs.shards) }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - run: scripts/fuzz_run.sh setup
+      - uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: target/fuzz
+          key: fuzz-target-${{ hashFiles('scripts/fuzz_run.sh', 'Cargo.lock', 'crates/*/fuzz/Cargo.lock') }}
+          restore-keys: fuzz-target-
+      - name: Build this shard's projects
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          set -euo pipefail
+          python3 scripts/fuzz_plan.py --all | sed -n "$((SHARD * SHARD_SIZE + 1)),$(((SHARD + 1) * SHARD_SIZE))p" > "$RUNNER_TEMP/fuzz-plan.txt"
+          sed 's/^/- /' "$RUNNER_TEMP/fuzz-plan.txt" >> "$GITHUB_STEP_SUMMARY"
+          scripts/fuzz_run.sh build "$RUNNER_TEMP/fuzz-plan.txt"
+      - id: fuzz
+        name: Run each target
+        env:
+          FUZZ_SECONDS: ${{ inputs.seconds || 900 }}
+          # The fuzz campaign's AddressSanitizer options
+          # (docs/design/fuzz-campaign.md, tools/fuzz-campaign/campaign.py).
+          ASAN_OPTIONS: quarantine_size_mb=64
+        run: scripts/fuzz_run.sh run "$RUNNER_TEMP/fuzz-plan.txt" "$FUZZ_SECONDS" "$RUNNER_TEMP/fuzz"
+      - name: Keep the findings in the private bucket
+        if: failure() && steps.fuzz.outcome == 'failure'
+        env:
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+          SHARD: ${{ matrix.shard }}
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet 'boto3==1.35.36'
+          "$RUNNER_TEMP/venv/bin/python" -I scripts/fuzz_upload.py "$RUNNER_TEMP/fuzz/findings" \
+            "fuzz-nightly/$(date -u +%F)/$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT/shard-$SHARD"
