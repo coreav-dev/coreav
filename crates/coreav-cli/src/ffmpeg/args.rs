@@ -253,7 +253,8 @@ fn not_native(option: &str, value: Option<&str>, why: &str) -> Refusal {
 /// `subfile,,start,0,,:in.mp4`, `:in.mp4`). A name that starts with `/` or
 /// `./` is a path, and on Windows so is a drive letter before a separator
 /// (`C:\in.mp4`, `C:/in.mp4`); elsewhere `ffmpeg` reads `C` as a protocol.
-fn local(name: &str, windows: bool) -> bool {
+/// The concat demuxer reads the paths of a list the same way.
+pub(crate) fn local(name: &str, windows: bool) -> bool {
     let drive = windows
         && matches!(name.as_bytes(), [letter, b':', b'\\' | b'/', ..] if letter.is_ascii_alphabetic());
     let separator = |c: char| c == '/' || (windows && c == '\\');

@@ -150,6 +150,15 @@ that a pull request changing the fixture generator, the pinned FFmpeg
 installer or the web-upload policy now measures as well — rare, and the
 safe direction.
 
+## The platform jobs
+
+`check-macos` (Apple Silicon) and `check-windows` (x86-64, MSVC) run the tests and `clippy` configurations of `check` that build there. They are the slowest jobs of `ci.yml` and contend for the smallest runner pools, so a pull request runs them only when it changes code that differs between the platforms. `ci-changes` decides it with a second `paths` list beside its `paths-ignore` list, and a push to main or a manual run always runs them.
+
+- **What is on the list.** The sandbox and the processes it starts (`coreav-worker`, `coreav-transcode`, `coreav-cli`, whose launcher entry, external programs and file outputs have Unix and non-Unix halves), the dav1d and libvpx backends (the macOS job links them against Homebrew's libraries), positioned file reads (`coreav-isobmff/src/source.rs`), the crates with code for one target architecture (`coreav-h264`, whose default `fast` feature has x86-64 paths and whose decode example has a Unix half, `coreav-kernels-h264`, with x86-64 and AArch64 kernels, and `coreav-kernels-audio`, with x86-64 kernels), every `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`, `clippy.toml`, `ci.yml` and the filter action. A file outside it that grows a `cfg(unix)`, `cfg(windows)`, `target_os` or `target_arch` condition belongs on it.
+- **Covered by `ci-report`.** A job the filter skipped has nothing to say, so the report may cover it (section "What a report job must not hide"). The condition reads only the changed files, which belong to the commit.
+- **No label to force them.** A label such as `ci:all-platforms` would make the condition read the pull request's labels, which is the case that section rules out and `workflow_check.py` refuses for a covered job. To run them on a pull request outside the list, start `ci.yml` by hand on its branch: a manual run is never filtered.
+- **Every step of `check-windows` runs**, even after one fails (`if: ${{ !cancelled() }}`), so one run lists every failure there; the job still fails.
+
 ## One changes job
 
 `ci.yml` holds the jobs of what used to be six workflows: itself,
@@ -435,7 +444,7 @@ failed.
 | Check | Workflow | Note |
 |---|---|---|
 | `deny` | `deny.yml` | `cargo deny check`, the fuzz projects' own graphs, and the DCO sign-off. No filter at all: it runs in full on every pull request |
-| `ci-report` | `ci.yml` | Every job of `ci.yml`: `cargo fmt`, `clippy`, the workspace tests, the MSRV build, on a pull request the fuzz run of the targets it can affect, the ISO base media, Matroska and transport stream oracles, H.264 conformance (bar C1 of `docs/design/h264.md`) and the instruction-count guard |
+| `ci-report` | `ci.yml` | Every job of `ci.yml`: `cargo fmt`, `clippy` and the workspace tests on Linux, `clippy` and the workspace tests on macOS arm64 and Windows x86-64, the MSRV build, on a pull request the fuzz run of the targets it can affect, the ISO base media, Matroska and transport stream oracles, H.264 conformance (bar C1 of `docs/design/h264.md`) and the instruction-count guard |
 | `python-report` | `python.yml` | The abi3 wheel and its tests |
 | `npm-report` | `npm.yml` | The npm packages, the launcher and the smoke tests |
 
