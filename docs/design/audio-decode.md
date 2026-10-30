@@ -1113,11 +1113,13 @@ where it loses. Round 2 measures that pair again, for a change to the CELT
 path that keeps every decoded sample bit for bit, on a held-out set no
 earlier run has seen. Fixed here before any of its files is fetched:
 
-1. **What may change.** Only the speed of CELT frames: every input decodes
-   to the same bits as before the change. The RFC 8251 vectors show it
-   before the run (their decoded output is pinned by hash in
-   `crates/coreav-opus/tests/vectors.rs`), and bar 2 checks it again in
-   the run.
+1. **What may change (gating).** Only the speed of CELT frames: every
+   input decodes to the same bits as before the change. The RFC 8251
+   vectors show it before the run (their decoded output is pinned by hash
+   in `crates/coreav-opus/tests/vectors.rs`). In the run, every input is
+   also decoded by a dist build of the change's base commit, and its
+   `coreav decode-audio --format s16` output must equal the change's byte
+   for byte. One input that differs fails the round, whatever the speed.
 2. **Set.** The derived set of "Opus sets", built by the same rule and the
    same script (`make_opus_inputs.py`, with the pinned `ffmpeg` 7.0.2),
    from new sources: the `real` files of `v2-heldout` draw 8
@@ -1127,11 +1129,13 @@ earlier run has seen. Fixed here before any of its files is fetched:
    in memory against libavformat and libavcodec 9.0.2 in-process with
    `opus` and `swr_convert` to `s16`, one thread each; the median
    per-input ratio at most **1.00** overall and for each class (MP4,
-   Matroska/WebM), over the inputs that pass bar 2 in the same run.
+   Matroska/WebM), over the inputs that pass bar 2 in the same run. A
+   class with no timed input fails.
 4. **Reported, not gating.** Each median's 95% bootstrap interval
    (`summarize.py`: seed 206, 10,000 resamples), the share of inputs on
    which CoreAV is faster, the command pair, the decoder alone overall and
-   for each Opus mode (SILK, hybrid, CELT), and bar 2's result on the set.
+   for each Opus mode (SILK, hybrid, CELT), and bar 2's result on the set,
+   every input that fails it listed with its reason.
 5. **Method.** Bar 3's speed run, unchanged: `perf.py`, 5 rounds after a
    warm-up, outputs on a tmpfs, against `lav_audio` built against the LGPL
    package of FFmpeg 9.0.2 and the pinned `ffmpeg` 9.0.2, on GCP
@@ -1139,15 +1143,20 @@ earlier run has seen. Fixed here before any of its files is fetched:
    otherwise idle, one shard of about equal decode time each. Each VM
    checks that its CPU is the one bar 3's run measured on (Intel Xeon
    Platinum 8581C) before its shard starts, rebuilds its shard's inputs,
-   runs bar 2's check (`agree_opus.py`) on each and times those that pass;
-   an input that fails bar 2 or does not run is listed and not timed, as
-   in bar 3's run. The binaries are one dist build of the change's head
-   commit.
+   and gives every input the check of item 1 and bar 2's check
+   (`agree_opus.py`); it times those that pass both. An input that fails
+   bar 2 is listed and not timed, as in bar 3's run. A shard that leaves
+   any input without both outcomes, or a passing input without a timing,
+   is incomplete: its numbers are not used and it is run again whole. The
+   binaries are one dist build each of the change's head commit and of its
+   base.
 6. **One run, judged once.** No `coreav` command runs on draw 8's files or
    their derived inputs before this run, and the run spends draw 8. A miss
    is final for that code. The run is repeated only for a recorded host
-   fault (a VM with another CPU, a preemption, a suspended VM, a crashed
-   run), and then only the shards it hit.
+   fault, and then only the shards it hit: a VM with another CPU, a
+   preemption, a suspended VM, or a VM or job killed by its host. A crash
+   or error of a binary under test is a result, never a host fault: the
+   input fails.
 
 The evidence goes to `docs/spikes/audio-decode-bench/` ("Opus round 2").
 
