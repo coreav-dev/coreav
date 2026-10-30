@@ -1,11 +1,14 @@
 """r3.py and the R3 parts of release_round.py: which files a command can
 take, and the counts of a report. No FFmpeg, no media."""
+import json
 import pathlib
+import subprocess
 import sys
 import tempfile
 import unittest
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+HERE = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(HERE))
 
 import r3  # noqa: E402
 import release_round  # noqa: E402
@@ -70,7 +73,7 @@ class Report(unittest.TestCase):
         lines += [line('g', 'C01.0', 'failed', 'refused'), line('h', 'C01.0', 'ffmpeg fails')]
         lines += [line('f1', 'C01.1', 'passed'), line('f2', 'C01.1', 'failed', 'oracle', 'matroska-webm')]
         lines += [line('f1', 'C02.0', 'cannot take'), line('f2', 'C02.0', 'ffmpeg fails')]
-        lines += [{'fallback_log': {'lines': 1, 'refused': 1, 'void': False}}]
+        lines += [{'fallback_log': {'lines': 1, 'refused': 1, 'void': True}}]
         s = r3.summarize(r3.counts(lines), 98.0)
         totals = {t['command']: t for t in s['commands']}
         self.assertEqual((totals['C01.0']['counted'], totals['C01.0']['passed'], totals['C01.0']['meets']),
@@ -81,7 +84,7 @@ class Report(unittest.TestCase):
         self.assertEqual(s['taken_by_no_file'], ['C02.0'])
         self.assertEqual(s['files'], {'matroska-webm': 1, 'mp4-mov': 51})
         self.assertNotIn('f1', str(s))
-        self.assertEqual(s['fallback_log'], {'lines': 1, 'refused': 1, 'void': False})
+        self.assertEqual(s['fallback_log'], {'lines': 1, 'refused': 1, 'void': True})
 
     def test_summaries_add_up(self):
         line = lambda f, cmd, outcome, reason=None: {  # noqa: E731
@@ -93,6 +96,24 @@ class Report(unittest.TestCase):
         whole = r3.summarize(r3.counts(lines), 98.0)
         split = r3.summarize(r3.merge([r3.counts(lines[:10]), r3.counts(lines[10:])]), 98.0)
         self.assertEqual(split, whole)
+
+    def test_nothing_counted_is_unmeasured(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            records = pathlib.Path(tmp) / 'r.jsonl'
+            records.write_text(''.join(json.dumps(x) + '\n' for x in (
+                {'file': 'f', 'family': 'mp4-mov', 'id': 'C01', 'command': 0, 'job': 'remux',
+                 'outcome': 'ffmpeg fails', 'reason': None},
+                {'fallback_log': {'lines': 0, 'refused': 0, 'void': False}})))
+            empty = pathlib.Path(tmp) / 'media'
+            empty.mkdir()
+            for argv in (['report'], ['report', '--records', str(records)],
+                         ['run', '--coreav', 'x', '--harness', 'x', '--ffmpeg', 'x', '--ffprobe', 'x',
+                          '--media', str(empty), '--work', str(pathlib.Path(tmp) / 'w'),
+                          '--records', str(pathlib.Path(tmp) / 'out.jsonl')]):
+                done = subprocess.run([sys.executable, '-I', str(HERE / 'r3.py')] + argv,
+                                      capture_output=True, text=True, timeout=60)
+                self.assertEqual(done.returncode, release_round.UNMEASURED, argv)
+                self.assertIn('UNMEASURED', done.stdout)
 
     def test_the_binarys_exit_statuses(self):
         self.assertEqual([r3.binary_outcome(c) for c in (0, 4, 1, None)], ['written', 'refused', 'failed', 'failed'])

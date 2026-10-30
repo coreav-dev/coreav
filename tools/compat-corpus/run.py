@@ -26,7 +26,8 @@
         SET_ASIDE, and a rejection KD-STRICT covers); there is no baseline, so
         every difference misses. Counts per command and per family; exit 1
         when any command misses, 2 when the run is void (its fallback log
-        holds a line that is not a strict-safe refusal).
+        holds a line), 3 when it measured nothing (no file of the set's
+        families, or none that ffprobe reads).
 
     run.py keys --set 0.1.0 --coreav PATH --media DIR [DIR...] [--list FILE]
                 [--records FILE] [--report FILE] [--summary FILE]
@@ -37,12 +38,15 @@
         --records writes one line per file (its name, family and keys:
         private, as the files are); --summary writes the counts alone, with
         no file named. Exit 1 when a gated row of a family is below the bar,
-        2 when the run is void.
+        2 when the run is void, 3 when it measured nothing (no file that
+        ffprobe reads).
 
     run.py keys-report [--records FILE...] [--summaries FILE...] [--report FILE] [--summary FILE]
         The same report from the records or the summaries of several
         `keys --set 0.1.0` runs, for a run split over hosts: a summary holds
         the counts R2 is judged on and names no file, so summaries add up.
+        Exit statuses as `keys`: no input, or inputs with no file that
+        ffprobe reads, is 3.
 
 Both tools run with no gconv modules (release_round.NO_GCONV), and in the
 0.1.0 modes with a fallback log of the run. ffprobe is a black box: only
@@ -574,8 +578,11 @@ def cmd_commands_010(opts):
         print(f'MISSED {line}')
     print(f'{len(missed)} (command, family) pairs miss R1')
     if verdict['void']:
-        print('VOID: the fallback log holds a line that is not a strict-safe refusal')
+        print('VOID: the fallback log holds a line')
         return 2
+    if not any(c[k] for c in families.values() for k in ('identical', 'different', 'set aside', 'coreav fails')):
+        print('UNMEASURED: no file of the set that ffprobe reads')
+        return release_round.UNMEASURED
     return 1 if missed else 0
 
 
@@ -685,8 +692,11 @@ def print_keys_report(summary, top):
             total = r.get('files', r.get('occurrences'))
             print(f"{fam:13} {r['rate']:6.2f}% {r['agree']}/{total} {r['key']}")
     if summary['fallback_log']['void']:
-        print('VOID: the fallback log holds a line that is not a strict-safe refusal')
+        print('VOID: the fallback log holds a line')
         return 2
+    if not any(n for d in summary['families'].values() for k, n in d['files'].items() if k != 'ffprobe failed'):
+        print('UNMEASURED: no file of the set that ffprobe reads')
+        return release_round.UNMEASURED
     return 1 if any(d['below'] for d in summary['families'].values()) else 0
 
 

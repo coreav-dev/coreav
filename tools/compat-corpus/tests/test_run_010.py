@@ -1,5 +1,7 @@
 """run.py's 0.1.0 modes (R1, R2) and the shared parts of the round in
 release_round.py, run against stand-in programs: no FFmpeg, no media."""
+import contextlib
+import io
 import json
 import os
 import pathlib
@@ -30,7 +32,7 @@ if coreav:
     if os.environ.get('FAKE_LOG_LINE'):
         with open(os.environ['COREAV_FALLBACK_LOG'], 'a') as f:
             f.write(os.environ['FAKE_LOG_LINE'] + '\n')
-if os.environ.get('FAKE_FFPROBE_FAILS') and not coreav and any('.mkv' in a for a in args):
+if not coreav and any(e in a for e in os.environ.get('FAKE_FFPROBE_FAILS', '').split(',') if e for a in args):
     sys.exit(1)
 names = [a for a in args if not a.startswith('/')]
 print(' '.join(names) + (' other' if coreav and any('stream=height' in a for a in args) else ''))
@@ -73,12 +75,12 @@ class Shared(unittest.TestCase):
         self.assertEqual(env['COREAV_FALLBACK_LOG'], '/tmp/log')
         self.assertNotIn('COREAV_FALLBACK', env)
 
-    def test_only_a_line_that_is_not_a_strict_safe_refusal_voids_a_run(self):
+    def test_any_line_voids_a_run_a_refusal_included(self):
         with tempfile.TemporaryDirectory() as tmp:
             log = pathlib.Path(tmp) / 'log'
             self.assertEqual(release_round.fallback_verdict(log), {'lines': 0, 'refused': 0, 'void': False})
             log.write_text(json.dumps({'ran': None, 'not_run': 'strict_safe'}) + '\n')
-            self.assertFalse(release_round.fallback_verdict(log)['void'])
+            self.assertEqual(release_round.fallback_verdict(log), {'lines': 1, 'refused': 1, 'void': True})
             for line in (json.dumps({'ran': '/usr/bin/ffprobe'}), json.dumps({'ran': None, 'not_run': 'no_program'}),
                          'not json'):
                 log.write_text(json.dumps({'not_run': 'strict_safe'}) + '\n' + line + '\n')
@@ -137,9 +139,16 @@ class KeysReport(unittest.TestCase):
         self.assertEqual((row['agree'], row['rate'], row['below']), (1028, 98.0, True))
 
     def test_shards_merge_their_fallback_logs(self):
-        records = [{'fallback_log': {'lines': 1, 'refused': 1, 'void': False}},
+        records = [{'fallback_log': {'lines': 0, 'refused': 0, 'void': False}},
                    {'fallback_log': {'lines': 2, 'refused': 1, 'void': True}}]
-        self.assertEqual(run.keys_counts(records)['fallback_log'], {'lines': 3, 'refused': 2, 'void': True})
+        self.assertEqual(run.keys_counts(records)['fallback_log'], {'lines': 2, 'refused': 1, 'void': True})
+
+    def test_counts_with_no_file_ffprobe_reads_are_unmeasured(self):
+        for records in ([], [{'file': 'g', 'family': 'mp4-mov', 'ffprobe_failed': True}]):
+            summary = run.keys_report(run.keys_counts(records), 98.0)
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(run.print_keys_report(summary, 0), release_round.UNMEASURED)
+            self.assertIn('UNMEASURED', out.getvalue())
 
     def test_summaries_add_up_to_the_report_of_all_files(self):
         records = [record('mp4-mov', {'format.duration': i % 7 != 0, 'format.tags.title': True}) for i in range(9)]
@@ -194,7 +203,7 @@ class Commands010(unittest.TestCase):
         self.assertFalse(report['fallback_log']['void'])
 
     def test_a_file_ffprobe_does_not_read_is_not_compared(self):
-        _, report, _ = self.r1(FAKE_FFPROBE_FAILS='1')
+        _, report, _ = self.r1(FAKE_FFPROBE_FAILS='.mkv')
         mkv = report['families']['matroska-webm']
         self.assertEqual(set(mkv), {'ffprobe fails'})
 
@@ -203,6 +212,31 @@ class Commands010(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertTrue(report['fallback_log']['void'])
         self.assertIn('VOID', out)
+
+    def test_a_strict_safe_refusal_voids_the_run(self):
+        code, report, _ = self.r1(FAKE_LOG_LINE=json.dumps({'ran': None, 'not_run': 'strict_safe'}))
+        self.assertEqual(code, 2)
+        self.assertEqual(report['fallback_log']['refused'], report['fallback_log']['lines'])
+
+    def test_no_file_ffprobe_reads_is_unmeasured(self):
+        code, report, out = self.r1(FAKE_FFPROBE_FAILS='.mp4,.mkv,.ts')
+        self.assertEqual(code, release_round.UNMEASURED)
+        self.assertIn('UNMEASURED', out)
+        self.assertFalse(report['missed'])
+
+    def test_no_input_is_unmeasured(self):
+        empty = self.dir / 'empty'
+        empty.mkdir()
+        (empty / 'x.m4b').write_bytes(b'')
+        for argv in (['commands', '--set', '0.1.0', '--coreav', '/does/not/exist'],
+                     ['commands', '--set', '0.1.0', '--coreav', str(self.coreav), '--media', str(empty)],
+                     ['keys', '--set', '0.1.0', '--coreav', '/does/not/exist'],
+                     ['keys', '--set', '0.1.0', '--coreav', str(self.coreav), '--media', str(empty)],
+                     ['keys-report']):
+            done = subprocess.run([sys.executable, '-I', str(HERE / 'run.py')] + argv,
+                                  env=self.env, capture_output=True, text=True, timeout=60)
+            self.assertEqual(done.returncode, release_round.UNMEASURED, argv)
+            self.assertIn('UNMEASURED', done.stdout)
 
     def test_r1_takes_no_baseline(self):
         done = subprocess.run([sys.executable, '-I', str(HERE / 'run.py'), 'commands', '--set', '0.1.0',
