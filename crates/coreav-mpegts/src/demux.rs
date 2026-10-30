@@ -193,9 +193,9 @@ pub(crate) struct Demux {
     by_pid: PidMap<usize>,
     sections: PidMap<Assembler>,
     builders: PidMap<Builder>,
-    /// Per PID, the length its last PES packet of no stated length
-    /// reached: the room the next one starts with, so that a packet of
-    /// coded video is not copied each time its buffer doubles.
+    /// Per PID, the length the last unit read on it reached: the room the
+    /// next one of no stated length starts with, so that a packet of coded
+    /// video is not copied each time its buffer doubles.
     sizes: PidMap<usize>,
     /// Per PID, the header of the PES packet in progress once a piece of
     /// it was delivered ([`Demux::pieces`]), its times cleared: what the
@@ -548,8 +548,10 @@ impl Demux {
         if header.unit_start {
             self.complete(pid, warnings);
             let room = match *payload {
+                // Its stated length, and the rest of the transport packet
+                // that completes it, cut off once it is there.
                 [0, 0, 1, _, l0, l1, ..] if u16::from_be_bytes([l0, l1]) > 0 => {
-                    usize::from(u16::from_be_bytes([l0, l1])) + 6
+                    usize::from(u16::from_be_bytes([l0, l1])) + 6 + TS_PACKET
                 }
                 _ => self.sizes.get(&pid).copied().unwrap_or(0),
             };
@@ -682,9 +684,7 @@ impl Demux {
         let Some(builder) = self.builders.remove(&pid) else {
             return;
         };
-        if let [0, 0, 1, _, 0, 0, ..] = *builder.data {
-            let _ = self.sizes.set(pid, builder.data.len());
-        }
+        let _ = self.sizes.set(pid, builder.data.len());
         self.buffered = self.buffered.saturating_sub(builder.data.len());
         // The last piece of a PES packet delivered in pieces.
         if let Some(header) = self.pieces.and_then(|_| self.continued.remove(&pid)) {
