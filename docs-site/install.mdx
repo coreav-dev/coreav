@@ -47,7 +47,7 @@ The Python module builds from `crates/coreav-py` with [maturin](https://www.matu
 
 These are planned for the first release ([the 0.1.0 release issue](https://github.com/coreav-dev/coreav/issues/43)):
 
-- `coreav` binaries for Linux, macOS and Windows on GitHub Releases, with checksums.
-- The npm package `coreav`, which installs the native binary where one exists and runs the WebAssembly build elsewhere.
+- `coreav` binaries for Linux (x86-64 and arm64, static against musl) and macOS (arm64 and x86-64) on GitHub Releases, with checksums.
+- The npm package `coreav`, which installs the native binary where one exists and runs the WebAssembly build elsewhere. On Windows, install the npm package: it runs the WebAssembly build.
 
 The Python and Rust library packages come in a later release.

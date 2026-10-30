@@ -29,9 +29,9 @@ The native binaries also read inputs at `https://` URLs by byte ranges, as
 the command does. The WASI build has no network, so it refuses URLs with a
 usage error (exit 2) and reads local files only. It is built without the
 command's `net` feature.
-They get the native command on Linux (x86-64 and arm64, glibc or musl),
-macOS (arm64 and x86-64) and Windows (x86-64), and the WASI build
-elsewhere, with the same output, output files and exit codes.
+They get the native command on Linux (x86-64 and arm64, glibc or musl)
+and macOS (arm64 and x86-64), and the WASI build elsewhere, Windows
+included, with the same output, output files and exit codes.
 
 ## Design
 
@@ -46,7 +46,7 @@ through npm would misrepresent the native command, which takes 0.13 to
 esbuild and Biome:
 
 - **One package per platform**, `@coreav/cli-linux-x64`, `-linux-arm64`,
-  `-darwin-arm64`, `-darwin-x64` and `-win32-x64`. Each holds only its
+  `-darwin-arm64` and `-darwin-x64`. Each holds only its
   binary and is selected by npm through its `os` and `cpu` fields. The
   main package lists all of them as `optionalDependencies` of its own
   version, so npm installs the one that fits and skips the others.
@@ -75,10 +75,9 @@ esbuild and Biome:
   architecture starts through `/bin/sh` and exits 126. The install script
   has run the binary once already. On Windows only SIGINT and SIGTERM are
   forwarded. These cases go through it:
-  - Windows, where npm's command shims always run Node;
   - installs without scripts (`--ignore-scripts`), and package managers
     that skip dependencies' scripts by default (pnpm 10 and later, Bun);
-  - platforms without a package.
+  - platforms without a package, Windows among them.
 
   It costs about 28 ms of Node start-up per call. `COREAV_BINARY` names
   another binary, for tests and for platforms the packages do not cover.
@@ -96,8 +95,6 @@ esbuild and Biome:
     runtime linked is Rust's own self-contained musl. Rejected: a
     musl GCC, which Ubuntu packages for the host architecture only, and
     building without URL support, which the native command has).
-  - Windows binaries link the C runtime statically (`crt-static`), so they
-    need no Visual C++ redistributable.
   - macOS binaries are built on their own architecture.
 
 Rejected:
@@ -111,7 +108,7 @@ Rejected:
 - **A `postinstall` that downloads the binary.** It needs network access
   during install, which locked-down installs refuse, and it moves integrity
   checks out of npm's lockfile.
-- **One package with every binary.** Each install would download all five,
+- **One package with every binary.** Each install would download all four,
   about 11 MB, to use one.
 - **glibc Linux binaries.** They tie the binary to the oldest glibc of the
   build machine and do not run on musl systems. A static musl binary runs
@@ -154,7 +151,7 @@ Node's WASI is not a security boundary (Node's documentation says so), and
 the launcher does not use it as one: the WASI build reads and writes what
 the user names, with the user's permissions, as the native command does.
 
-With the WASI build on Windows (installs without the native package), the
+With the WASI build on Windows, the
 root is that of the working directory's drive. Arguments,
 and the values of `--name=value` arguments, are rewritten before they
 reach the module: `\` becomes `/` and a leading drive letter equal to the
@@ -260,8 +257,9 @@ wording and keywords are positioning and the maintainer's to decide.
   with Node 20, 22 and 24, macOS arm64 and Windows with 20 and 24, and
   macOS x86-64 with 24. The Linux arm64 binary runs its checks under QEMU
   in its build job, without the npm smoke test:
-  - once with the platform's package, where on Linux and macOS the
-    installed command must be the binary itself;
+  - once with the platform's package, where the installed command must be
+    the binary itself, or, on Windows, which has no package, a plain
+    install, which runs the WASI build;
   - once without optional packages, which runs the WASI build.
 
   Each run checks relative and absolute paths in the platform's form, also
@@ -278,7 +276,7 @@ vCPU, Node 24), as the median of `--version` runs:
 | Way to start the command | Time |
 |---|---:|
 | The installed native binary (`coreav` after install) | about 0.7 ms |
-| The Node launcher, then the binary (Windows, installs without scripts) | about 28 ms |
+| The Node launcher, then the binary (installs without scripts) | about 28 ms |
 | The WASI build under Node (platforms without a package) | about 54 ms |
 | `npx coreav`, the package installed | about 220 ms |
 

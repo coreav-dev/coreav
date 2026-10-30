@@ -3,10 +3,9 @@
 # (docs/design/npm-cli.md, "Native binaries"):
 #   scripts/platform.sh PLATFORM [RUST_TARGET]
 # PLATFORM is `${process.platform}-${process.arch}` (linux-x64,
-# linux-arm64, darwin-arm64, darwin-x64, win32-x64); RUST_TARGET defaults
-# to that platform's target. The binary is `coreav` built with the `dist`
-# profile, stripped; Linux binaries are static (musl), Windows ones carry the C
-# runtime (crt-static). Prints the binary's SHA-256. The release archives
+# linux-arm64, darwin-arm64, darwin-x64); RUST_TARGET defaults to that
+# platform's target. The binary is `coreav` built with the `dist` profile,
+# stripped; Linux binaries are static (musl). Prints the binary's SHA-256. The release archives
 # take the same binary (.github/workflows/release.yml).
 set -euo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd)"
@@ -17,15 +16,9 @@ case "$platform" in
   linux-arm64) default=aarch64-unknown-linux-musl ;;
   darwin-arm64) default=aarch64-apple-darwin ;;
   darwin-x64) default=x86_64-apple-darwin ;;
-  win32-x64) default=x86_64-pc-windows-msvc ;;
   *) echo "error: unknown platform $platform" >&2; exit 2 ;;
 esac
 target="${2:-$default}"
-exe=coreav
-if [ "${platform%%-*}" = win32 ]; then
-  exe=coreav.exe
-  export RUSTFLAGS="${RUSTFLAGS:-} -C target-feature=+crt-static"
-fi
 # Linux: static musl binaries. The crates that compile C (ring, for HTTPS)
 # use zig as a musl C compiler for both architectures (scripts/zig.sh;
 # ZIG names the command that runs zig).
@@ -53,8 +46,8 @@ CARGO_PROFILE_DIST_STRIP=symbols \
 out="$here/npm/$platform"
 rm -rf "$out"
 mkdir -p "$out/bin"
-cp "$root/target/$target/dist/$exe" "$out/bin/$exe"
-chmod 755 "$out/bin/$exe"
+cp "$root/target/$target/dist/coreav" "$out/bin/coreav"
+chmod 755 "$out/bin/coreav"
 cp "$root/LICENSE-MIT" "$root/LICENSE-APACHE" "$out/"
 node "$here/scripts/platform-package.js" "$platform" "$out"
-if command -v sha256sum > /dev/null; then sha256sum "$out/bin/$exe"; else shasum -a 256 "$out/bin/$exe"; fi
+if command -v sha256sum > /dev/null; then sha256sum "$out/bin/coreav"; else shasum -a 256 "$out/bin/coreav"; fi

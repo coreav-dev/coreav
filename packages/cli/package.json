@@ -1,7 +1,7 @@
 {
   "name": "coreav",
   "version": "0.0.1",
-  "description": "Media probing and stream copy (probe, check, clip, remux, sanitize, split, extract audio, subtitles and chapters) for MP4, MOV, Matroska and WebM: the coreav command, native on Linux, macOS and Windows, WebAssembly elsewhere",
+  "description": "Media probing and stream copy (probe, check, clip, remux, sanitize, split, extract audio, subtitles and chapters) for MP4, MOV, Matroska and WebM: the coreav command, native on Linux and macOS, WebAssembly elsewhere",
   "keywords": [
     "probe",
     "remux",
@@ -49,7 +49,6 @@
     "@coreav/cli-linux-x64": "0.0.1",
     "@coreav/cli-linux-arm64": "0.0.1",
     "@coreav/cli-darwin-arm64": "0.0.1",
-    "@coreav/cli-darwin-x64": "0.0.1",
-    "@coreav/cli-win32-x64": "0.0.1"
+    "@coreav/cli-darwin-x64": "0.0.1"
   }
 }

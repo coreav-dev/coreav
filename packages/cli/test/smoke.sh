@@ -5,14 +5,15 @@
 # PACKAGES holds the main package's tarball and PLATFORM's; EXPECTED the
 # native command's outputs for basic.mp4 (probe.json, check.json, clip.mp4,
 # clip.json) and web-upload.json. Two projects: with PLATFORM's package
-# (the native binary; on Linux and macOS the installed command must be the
-# binary itself), and without optional packages (the WASI build).
+# (the native binary, which the installed command must be), or a plain
+# install where PLATFORM has no package (Windows: the WASI build); and
+# without optional packages (the WASI build).
 set -euo pipefail
 platform="$1"
 packages="$2"
 expected="$3"
 main="$(ls "$packages"/coreav-[0-9]*.tgz)"
-native="$(ls "$packages"/coreav-cli-"$platform"-*.tgz)"
+native="$(ls "$packages"/coreav-cli-"$platform"-*.tgz 2> /dev/null || true)"
 
 checks() {
   npx --no-install coreav --version
@@ -45,11 +46,17 @@ project() {
   echo '{"name": "smoke", "private": true}' > package.json
 }
 
-echo "== native: $platform"
-project "$RUNNER_TEMP/smoke-native"
-npm install --no-audit --no-fund "$native" "$main"
-if [ "$RUNNER_OS" != Windows ]; then
+if [ -n "$native" ]; then
+  echo "== native: $platform"
+  project "$RUNNER_TEMP/smoke-native"
+  npm install --no-audit --no-fund "$native" "$main"
   cmp node_modules/coreav/bin/coreav "node_modules/@coreav/cli-$platform/bin/coreav"
+else
+  echo "== no native package for $platform: the WASI build"
+  project "$RUNNER_TEMP/smoke-plain"
+  npm install --no-audit --no-fund "$main"
+  [ ! -e node_modules/@coreav ]
+  head -c 2 node_modules/coreav/bin/coreav | grep -q '#!'
 fi
 checks
 

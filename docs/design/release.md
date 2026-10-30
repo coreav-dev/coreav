@@ -22,13 +22,13 @@ Publishing the draft, and pushing the tag before it, are the maintainer's steps.
 | `aarch64-unknown-linux-musl` | Linux x86-64, cross-built | QEMU |
 | `aarch64-apple-darwin` | macOS arm64 | the build machine |
 | `x86_64-apple-darwin` | macOS x86-64 | the build machine |
-| `x86_64-pc-windows-msvc` | Windows x86-64 | the build machine |
 
-These are the five platforms of the npm packages, built by the same script (`packages/cli/scripts/platform.sh`): the `dist` profile, stripped; Linux static against musl, with zig as the C compiler of `ring`; Windows with the C runtime linked statically. One binary per platform therefore has one definition, and its reasons are in `npm-cli.md`, "Native binaries".
+These are the four platforms of the npm packages, built by the same script (`packages/cli/scripts/platform.sh`): the `dist` profile, stripped; Linux static against musl, with zig as the C compiler of `ring`. One binary per platform therefore has one definition, and its reasons are in `npm-cli.md`, "Native binaries".
 
 - **Linux is musl only.** A static musl binary runs on glibc and musl systems alike, and has no oldest-glibc floor. A glibc build would add an archive that runs on fewer systems; the npm round 2 measured the installed musl command at 0.09 to 0.20 times FFmpeg's time.
 - **macOS x86-64 is kept.** Intel Macs are still in use, the npm package already ships the binary, and the hosted Intel runner builds and runs it natively at no cost. When that runner image is retired, the target can be cross-built on arm64 and lose only its run check.
-- **Not built:** Windows arm64 and other architectures, which the npm packages do not cover either.
+- **Windows is not built.** On Windows the npm package runs the WebAssembly build (`npm-cli.md`), so Windows users have the command without a native archive.
+- **Not built:** other architectures, which the npm packages do not cover either.
 
 ## Features
 
@@ -36,7 +36,7 @@ The default features, `cli` and `net`. The 0.1.0 command set (`compat-cli.md`) i
 
 ## The archive
 
-`coreav-VERSION-TARGET.tar.gz` (`.zip` for Windows) holds one directory of the same name with `coreav` (`coreav.exe`), `LICENSE-MIT`, `LICENSE-APACHE` and `NOTICE`. `NOTICE` is in every archive, whatever the features (`docs/release/notices.md`): its statements are each conditional on what a build includes, so it is never wrong to ship, and an archive cannot lose it when the features change.
+`coreav-VERSION-TARGET.tar.gz` holds one directory of the same name with `coreav`, `LICENSE-MIT`, `LICENSE-APACHE` and `NOTICE`. `NOTICE` is in every archive, whatever the features (`docs/release/notices.md`): its statements are each conditional on what a build includes, so it is never wrong to ship, and an archive cannot lose it when the features change.
 
 `SHA256SUMS` lists the SHA-256 of every archive, in `sha256sum`'s format. Each archive and `SHA256SUMS` carry a build-provenance attestation (Sigstore, through GitHub's attestation store), which ties the file to this workflow, the tag and the commit:
 
@@ -48,7 +48,7 @@ The default features, `cli` and `net`. The 0.1.0 command set (`compat-cli.md`) i
 On each target, under `COREAV_STRICT_SAFE=1`, so no FFmpeg is installed or run:
 
 - `coreav --version` prints the tag's version (a tag run).
-- `coreav ffprobe -v error -of json -show_format -show_streams` on a committed file (`crates/coreav-audio/fuzz/regressions/decode/edit-rounding.mp4`) succeeds, and the five targets' outputs are identical.
+- `coreav ffprobe -v error -of json -show_format -show_streams` on a committed file (`crates/coreav-audio/fuzz/regressions/decode/edit-rounding.mp4`) succeeds, and the four targets' outputs are identical.
 - `coreav ffprobe -show_frames`, a command that is not native, exits 4, and so does the same command run as `ffprobe` (a copy of the binary under that name).
 
 ## Supply chain

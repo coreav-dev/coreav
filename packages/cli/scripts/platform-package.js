@@ -8,7 +8,6 @@ const path = require("node:path");
 const [platform, dir] = process.argv.slice(2);
 const main = require("../package.json");
 const [os, cpu] = platform.split("-");
-const exe = os === "win32" ? "coreav.exe" : "coreav";
 const pkg = {
   name: `@coreav/cli-${platform}`,
   version: main.version,
@@ -18,7 +17,7 @@ const pkg = {
   homepage: main.homepage,
   os: [os],
   cpu: [cpu],
-  files: [`bin/${exe}`, "README.md", "LICENSE-MIT", "LICENSE-APACHE"],
+  files: ["bin/coreav", "README.md", "LICENSE-MIT", "LICENSE-APACHE"],
   preferUnplugged: true,
 };
 fs.writeFileSync(path.join(dir, "package.json"), `${JSON.stringify(pkg, null, 2)}\n`);

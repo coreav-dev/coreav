@@ -1,16 +1,16 @@
 "use strict";
 // The coreav command from npm (docs/design/npm-cli.md): the native binary
 // of this platform's package, `@coreav/cli-<platform>-<arch>`, an optional
-// dependency; where there is none, the WASI build (`wasi.mjs`). On
-// platforms where the install script could not make the native binary the
-// `coreav` command itself (Windows, or installs without scripts), npm's
+// dependency; where there is none (Windows, other platforms), the WASI
+// build (`wasi.mjs`). Where the install script could not make the native
+// binary the `coreav` command itself (installs without scripts), npm's
 // `coreav` runs this file, which starts the binary.
 
 const { spawn } = require("node:child_process");
 const { constants } = require("node:os");
 
 /** Platforms with a native package: `${process.platform}-${process.arch}`. */
-const PLATFORMS = ["linux-x64", "linux-arm64", "darwin-arm64", "darwin-x64", "win32-x64"];
+const PLATFORMS = ["linux-x64", "linux-arm64", "darwin-arm64", "darwin-x64"];
 
 /**
  * The native binary to run: `COREAV_BINARY` when set (a path) and
@@ -20,9 +20,8 @@ function nativeBinary({ override = true } = {}) {
   if (override && process.env.COREAV_BINARY) return process.env.COREAV_BINARY;
   const platform = `${process.platform}-${process.arch}`;
   if (!PLATFORMS.includes(platform)) return null;
-  const name = process.platform === "win32" ? "coreav.exe" : "coreav";
   try {
-    return require.resolve(`@coreav/cli-${platform}/bin/${name}`);
+    return require.resolve(`@coreav/cli-${platform}/bin/coreav`);
   } catch {
     return null;
   }

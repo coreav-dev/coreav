@@ -21,7 +21,6 @@ const bin = process.env.COREAV_BIN;
 const dirs = (process.env.COREAV_FIXTURE_DIRS ?? "").split(",").filter(Boolean);
 const needsBin = bin ? false : "needs COREAV_BIN";
 const platform = `${process.platform}-${process.arch}`;
-const exe = process.platform === "win32" ? "coreav.exe" : "coreav";
 
 function run(command, args, env = {}, cwd = undefined) {
   const done = spawnSync(command, args, { cwd, env: { ...process.env, ...env }, maxBuffer: 64 << 20 });
@@ -55,7 +54,7 @@ test("the launcher runs the native binary with the caller's arguments, streams a
 test("a binary that cannot start falls back to the WASI build", { skip: needsBin }, () => {
   const scratch = mkdtempSync(join(tmpdir(), "coreav-native-"));
   try {
-    const broken = join(scratch, exe);
+    const broken = join(scratch, "coreav");
     writeFileSync(broken, "not a program");
     chmodSync(broken, 0o644);
     assert.deepEqual(run(process.execPath, [main, "--version"], { COREAV_BINARY: broken }), run(bin, ["--version"]));
@@ -72,14 +71,14 @@ function installed(scratch, binary) {
   if (binary !== undefined) {
     const native = join(project, "@coreav", `cli-${platform}`);
     mkdirSync(join(native, "bin"), { recursive: true });
-    cpSync(binary, join(native, "bin", exe));
-    chmodSync(join(native, "bin", exe), 0o755);
+    cpSync(binary, join(native, "bin", "coreav"));
+    chmodSync(join(native, "bin", "coreav"), 0o755);
     writeFileSync(join(native, "package.json"), JSON.stringify({ name: `@coreav/cli-${platform}`, version: pkg.version }));
   }
   return copy;
 }
 
-test("the install script makes the command the native binary", { skip: needsBin || (process.platform === "win32" && "the launcher stays on Windows") }, () => {
+test("the install script makes the command the native binary", { skip: needsBin }, () => {
   const scratch = mkdtempSync(join(tmpdir(), "coreav-install-"));
   try {
     const copy = installed(scratch, bin);
@@ -98,7 +97,7 @@ test("the install script leaves the launcher for another version's binary, or no
     const other = join(scratch, "other");
     writeFileSync(other, "#!/bin/sh\necho coreav 9.9.9\n");
     chmodSync(other, 0o755);
-    for (const binary of [process.platform === "win32" ? undefined : other, undefined]) {
+    for (const binary of [other, undefined]) {
       rmSync(join(scratch, "node_modules"), { recursive: true, force: true });
       const copy = installed(scratch, binary);
       const launcher = readFileSync(join(copy, "bin", "coreav"));
@@ -111,7 +110,7 @@ test("the install script leaves the launcher for another version's binary, or no
   }
 });
 
-test("the install script changes nothing outside node_modules, and ignores COREAV_BINARY", { skip: needsBin || (process.platform === "win32" && "the launcher stays on Windows") }, () => {
+test("the install script changes nothing outside node_modules, and ignores COREAV_BINARY", { skip: needsBin }, () => {
   const scratch = mkdtempSync(join(tmpdir(), "coreav-install-"));
   try {
     // A checkout: no node_modules in the path, a platform package beside it.

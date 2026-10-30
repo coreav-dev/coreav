@@ -47,7 +47,6 @@ jobs:
           - { platform: linux-arm64, target: aarch64-unknown-linux-musl, os: ubuntu-24.04 }
           - { platform: darwin-arm64, target: aarch64-apple-darwin, os: macos-15 }
           - { platform: darwin-x64, target: x86_64-apple-darwin, os: macos-15-intel }
-          - { platform: win32-x64, target: x86_64-pc-windows-msvc, os: windows-2025 }
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     permissions:
@@ -59,9 +58,6 @@ jobs:
       run:
         shell: bash
     steps:
-      # The licence files and NOTICE ship as committed, without CRLF.
-      - if: runner.os == 'Windows'
-        run: git config --global core.autocrlf false
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
@@ -91,8 +87,7 @@ jobs:
           TAG: ${{ github.event_name == 'push' && github.ref_name || '' }}
         run: |
           set -euo pipefail
-          exe=coreav; [ "$RUNNER_OS" = Windows ] && exe=coreav.exe
-          bin="$PWD/packages/cli/npm/$PLATFORM/bin/$exe"
+          bin="$PWD/packages/cli/npm/$PLATFORM/bin/coreav"
           version="$("$bin" --version | tr -d '\r')"
           version="${version#coreav }"
           if [ -n "$TAG" ] && [ "v$version" != "$TAG" ]; then
@@ -102,14 +97,14 @@ jobs:
           echo "VERSION=$version" >> "$GITHUB_ENV"
           mkdir -p "$RUNNER_TEMP/dist/smoke" "$RUNNER_TEMP/multicall"
           # The 0.1.0 command, in strict-safe mode: no FFmpeg is installed
-          # or run. The five targets' outputs must agree (release-checksums).
+          # or run. The four targets' outputs must agree (release-checksums).
           "$bin" ffprobe -v error -of json -show_format -show_streams \
             crates/coreav-audio/fuzz/regressions/decode/edit-rounding.mp4 \
             > "$RUNNER_TEMP/dist/smoke/$TARGET.json"
           # A command that is not native is refused with exit status 4,
           # also under the name `ffprobe` (multicall).
-          cp "$bin" "$RUNNER_TEMP/multicall/${exe/coreav/ffprobe}"
-          for program in "$bin" "$RUNNER_TEMP/multicall/${exe/coreav/ffprobe}"; do
+          cp "$bin" "$RUNNER_TEMP/multicall/ffprobe"
+          for program in "$bin" "$RUNNER_TEMP/multicall/ffprobe"; do
             args=(-show_frames missing.mp4)
             [ "$program" = "$bin" ] && args=(ffprobe "${args[@]}")
             status=0
@@ -125,15 +120,11 @@ jobs:
           name="coreav-$VERSION-$TARGET"
           stage="$RUNNER_TEMP/stage/$name"
           mkdir -p "$stage"
-          cp "packages/cli/npm/$PLATFORM/bin/"coreav* "$stage/"
+          cp "packages/cli/npm/$PLATFORM/bin/coreav" "$stage/"
           # NOTICE in every archive (docs/release/notices.md).
           cp LICENSE-MIT LICENSE-APACHE NOTICE "$stage/"
           cd "$RUNNER_TEMP/stage"
-          if [ "$RUNNER_OS" = Windows ]; then
-            7z a -tzip "$RUNNER_TEMP/dist/$name.zip" "$name"
-          else
-            tar --no-xattrs -czf "$RUNNER_TEMP/dist/$name.tar.gz" "$name"
-          fi
+          tar --no-xattrs -czf "$RUNNER_TEMP/dist/$name.tar.gz" "$name"
           ls -l "$RUNNER_TEMP/dist"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -159,10 +150,10 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s nullglob
-          archives=(coreav-*.tar.gz coreav-*.zip)
+          archives=(coreav-*.tar.gz)
           outputs=(smoke/*.json)
-          if [ "${#archives[@]}" != 5 ] || [ "${#outputs[@]}" != 5 ]; then
-            echo "::error::expected 5 archives and 5 outputs, found ${archives[*]} ${outputs[*]}"
+          if [ "${#archives[@]}" != 4 ] || [ "${#outputs[@]}" != 4 ]; then
+            echo "::error::expected 4 archives and 4 outputs, found ${archives[*]} ${outputs[*]}"
             exit 1
           fi
           for output in "${outputs[@]}"; do

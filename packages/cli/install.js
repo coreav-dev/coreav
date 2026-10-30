@@ -3,9 +3,8 @@
 // installed `coreav` command this platform's native binary itself, so that
 // a call does not start Node first. It leaves the Node launcher in place,
 // which starts the binary or the WASI build, wherever that cannot be done:
-// on Windows (npm's command shims there run Node), without a platform
-// package, or with a binary that does not run here. It never fails the
-// install.
+// without a platform package (Windows among them), or with a binary that
+// does not run here. It never fails the install.
 
 const { execFileSync } = require("node:child_process");
 const fs = require("node:fs");
@@ -15,8 +14,6 @@ function install() {
   // Only as an installed package: in the repository, the tracked launcher
   // must stay what `npm pack` ships.
   if (!__dirname.split(path.sep).includes("node_modules")) return;
-  // npm's command shims on Windows run Node.
-  if (process.platform === "win32") return;
   const { nativeBinary } = require("./lib/main.js");
   // This platform's package only, never a binary named by the environment.
   const binary = nativeBinary({ override: false });
