@@ -666,7 +666,8 @@ output that exists without `-y` or `-n`), and a join's come at its end,
 with the join written to a temporary file that is then removed. A file CoreAV
 rejects exits 1, a malformed command 2, an unreadable input 3.
 
-**Help.** `-h`, `-?`, `-help` and `--help` with nothing after them print
+**Help.** `-h`, `-?`, `-help` and `--help` with nothing after them, read
+as an option once every argument before them is in the vocabulary, print
 `coreav ffmpeg`'s own usage text on standard output and exit 0, as
 `coreav ffprobe -h` does, in strict-safe mode or not: no `ffmpeg` program
 runs and the fallback log gets no line. The text names the jobs that run
@@ -677,7 +678,11 @@ the help option an optional topic, and FFmpeg's `-h full` listing has it
 take a value: with any argument after it (`-h long`, `-h full`,
 `-h encoder=libx264`, `-help OUTPUT`) the query asks about FFmpeg's own
 options and components, so it is refused by name, `-h` and its topic,
-like any other command that is not native. Chosen for 0.1.0 so that a
+like any other command that is not native. The parser reads left to
+right as it does for every command line, so an option outside the
+vocabulary before the help option (`-filter_complex null -h`) is refused
+first, and without strict-safe mode FFmpeg answers that command line as it
+would. Chosen for 0.1.0 so that a
 user who types `coreav ffmpeg --help` learns what CoreAV runs,
 not what FFmpeg does. Rejected: answering topic queries from CoreAV
 (a listing of FFmpeg's components is not CoreAV's to print), and refusing
@@ -687,8 +692,9 @@ a program that is not the one running most of the user's commands).
 `commands-v1` keeps `ffmpeg -h` and `ffmpeg --help` labelled
 `out-of-scope`, since the set's labels are step 1's (`classify.py`). B1's
 check of `ffmpeg` commands (`run.py`, `ffmpeg_refusals`) counts those two
-apart, as `help`: each must exit 0 with the usage text on standard output
-and write no file, and a command that does anything else fails as a B1
+apart, as `help`: each must exit 0 with the whole usage text on standard
+output (the documentation site's snippet of it) and nothing on standard
+error, and write no file, and a command that does anything else fails as a B1
 failure does. B1 is judged on the other `out-of-scope` `ffmpeg` commands,
 `-h OUTPUT` and `-help OUTPUT` included, which are help on a topic.
 The `ffprobe` commands of the set hold no help query.

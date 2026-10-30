@@ -250,6 +250,15 @@ def failure_key(f):
 
 
 HELP_QUERIES = [[flag] for flag in ('-h', '-?', '-help', '--help')]
+# `coreav ffmpeg`'s usage text, as docs-site/snippets/help/ffmpeg.mdx shows
+# it; crates/coreav-cli/tests/docs_site.rs keeps the snippet equal to it.
+FFMPEG_USAGE = HERE.parents[1] / 'docs-site' / 'snippets' / 'help' / 'ffmpeg.mdx'
+
+
+@functools.cache
+def ffmpeg_usage():
+    text = FFMPEG_USAGE.read_text()
+    return text.removeprefix('```text\n').removesuffix('```\n').encode()
 
 
 def ffmpeg_refusals(opts, files, b1, failures):
@@ -257,8 +266,9 @@ def ffmpeg_refusals(opts, files, b1, failures):
     set exits non-zero with a message, prints nothing and writes no output
     file. The output placeholders name files in a new directory, which
     must stay empty. A help query with no topic (`-h`, `--help`) is
-    counted apart, as `help`: it must exit 0 and print `coreav ffmpeg`'s
-    usage text instead (docs/design/compat-cli.md, "Help")."""
+    counted apart, as `help`: it must exit 0, print `coreav ffmpeg`'s
+    whole usage text and nothing on standard error, and write no file
+    (docs/design/compat-cli.md, "Help")."""
     import tempfile
     target = str(files[0]) if files else 'INPUT'
     for r in load_commands():
@@ -276,7 +286,7 @@ def ffmpeg_refusals(opts, files, b1, failures):
             code, out, err = run([opts.coreav, 'ffmpeg'] + argv)
             wrote = any(pathlib.Path(tmp).iterdir())
         if argv in HELP_QUERIES:
-            ok = code == 0 and out.startswith(b'usage: coreav ffmpeg') and not wrote
+            ok = code == 0 and out == ffmpeg_usage() and not err and not wrote
             b1['help' if ok else 'fail'] += 1
         else:
             ok = code not in (0, None) and not out and err.strip() and not wrote

@@ -105,6 +105,7 @@ fn commands_outside_the_vocabulary_are_refused_by_name() {
         (vec!["-h", "full"], "-h full"),
         (vec!["--help", "encoder=libx264"], "--help encoder=libx264"),
         (vec!["-help", o], "-help"),
+        (vec!["-filter_complex", "null", "-h"], "-filter_complex"),
     ] {
         let r = ffmpeg(&args);
         assert_eq!(r.code, 4, "{args:?}: {}", r.stderr);
