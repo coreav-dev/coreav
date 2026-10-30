@@ -614,6 +614,11 @@ directly.
   reports the profile and level, which come before the window in the set
   (H.265 7.3.3), and the colour range. `ffprobe` 7.0.2 printed them too.
   Examples: `size_hevc_window.mp4` and `size_hevc_mixed_window.mp4`.
+  Decoding changed with the parameter set: `ffmpeg` 9.0.2 decodes no
+  picture of such a stream and fails, where 7.0.2 ignored the window and
+  decoded the coded size. `coreav transcode` and `coreav ffmpeg` reject
+  the stream as an invalid structure before decoding
+  (`docs/design/transcode.md`, "Pipeline").
 - Why: the profile and level are readable whatever the window says, and a
   policy gate needs them.
 - Coverage requires: the codec is HEVC on both sides, the reference has none

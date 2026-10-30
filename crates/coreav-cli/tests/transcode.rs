@@ -1175,6 +1175,43 @@ fn ffmpeg_libx264_refuses_before_encoding() {
     nothing_left(&dir);
 }
 
+/// An HEVC stream whose conformance window leaves no picture is not valid
+/// HEVC (ITU-T H.265 7.4.3.2.1): `coreav transcode` and `coreav ffmpeg`
+/// reject it as an invalid structure before decoding, and write nothing.
+#[test]
+fn an_hevc_window_that_leaves_no_picture_is_rejected() {
+    let Some(tools) = tools() else { return };
+    let dir = dir("hevc-window");
+    let out = dir.join("out.mp4");
+    let out_s = out.to_str().unwrap();
+    for name in ["size_hevc_window.mp4", "size_hevc_mixed_window.mp4"] {
+        let source = tools.fixtures.join(name);
+        let source_s = source.to_str().unwrap();
+        let run = transcode(Some(&tools), &[source_s, out_s]);
+        assert_eq!(run.code, 1, "{name}: {}", run.stderr);
+        let error: Value = serde_json::from_str(run.stderr.trim()).unwrap();
+        assert_eq!(error["kind"], "invalid_structure", "{name}");
+        assert!(!out.exists(), "{name}");
+        if !cfg!(feature = "ffmpeg-fallback") {
+            // No decoder of this build takes HEVC: `coreav ffmpeg` refuses
+            // the stream before the transcode reads it.
+            continue;
+        }
+        let run = Command::new(bin())
+            .args(["ffmpeg", "-i", source_s, "-c:v", "libx264", out_s])
+            .env("COREAV_X264", &tools.x264)
+            .env("COREAV_FFMPEG", &tools.ffmpeg)
+            .env("COREAV_STRICT_SAFE", "1")
+            .output()
+            .unwrap();
+        let stderr = String::from_utf8_lossy(&run.stderr);
+        assert_eq!(run.status.code(), Some(1), "{name}: {stderr}");
+        assert!(stderr.contains("invalid structure"), "{name}: {stderr}");
+        assert!(!out.exists(), "{name}");
+    }
+    nothing_left(&dir);
+}
+
 /// In a build whose decoders do not take the source's video (here HEVC,
 /// with the native H.264 decoder alone), the command is refused with exit
 /// status 4, so the fallback hands it to FFmpeg.
