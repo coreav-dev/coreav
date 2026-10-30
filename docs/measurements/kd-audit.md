@@ -70,7 +70,7 @@ Over the 91 fixtures, after this change: 5,084 caught, 418 no effect, 5
 unlisted, none covered. With the two mutations added after the KD-TEXT-END
 audit (a stream of another codec named `mov_text`, and the media header's
 duration reported as the stream's), on `main` at 1666715: 5,267 caught,
-418 no effect, 5 unlisted, 1 agrees, none covered. CI runs this audit on every change (`fixtures.yml`,
+418 no effect, 5 unlisted, 1 agrees, none covered. CI runs this audit on every change (`ci.yml`'s `isobmff-fixtures` job,
 "Audit the known divergences").
 
 Per entry: what it covers, the holes found (with how many of the 85
