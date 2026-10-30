@@ -127,9 +127,20 @@ pub(crate) struct ProgramEntry {
 
 struct Builder {
     offset: u64,
+    /// The PES header, when the first transport packet held all of it:
+    /// `data` then holds the payload alone, so that it is handed on as it
+    /// is.
+    header: Option<PesHeader>,
     data: Vec<u8>,
     random_access: bool,
     corrupt: bool,
+}
+
+impl Builder {
+    /// Bytes read for the PES packet, its header included.
+    fn held(&self) -> usize {
+        self.header.map_or(0, |pes| pes.header_len) + self.data.len()
+    }
 }
 
 pub(crate) struct Demux {
@@ -559,6 +570,10 @@ impl Demux {
                 pid,
                 Builder {
                     offset,
+                    header: match pes::parse(payload) {
+                        pes::Parsed::Done(header) => Some(header),
+                        _ => None,
+                    },
                     data: Vec::with_capacity(room.min(self.max_room)),
                     random_access: header.adaptation.is_some_and(|a| a.random_access),
                     corrupt: false,
@@ -569,12 +584,18 @@ impl Demux {
             // No unit start seen yet on this PID.
             return Ok(());
         };
-        builder.data.extend_from_slice(payload);
+        let skip = match builder.header {
+            Some(pes) if builder.data.is_empty() && header.unit_start => pes.header_len,
+            _ => 0,
+        };
+        builder
+            .data
+            .extend_from_slice(payload.get(skip..).unwrap_or_default());
         if header.error {
             builder.corrupt = true;
         }
         self.buffered = self.buffered.saturating_add(payload.len());
-        if builder.data.len() > self.max_packet {
+        if builder.held() > self.max_packet {
             return Err(Error::LimitExceeded {
                 limit: LimitKind::PacketBytes,
                 offset,
@@ -589,16 +610,17 @@ impl Demux {
         // A PES packet with a length is complete once that many bytes are
         // there; the rest of the packet is stuffing. (Only a packet of no
         // stated length is long enough to be delivered in pieces.)
-        let declared = match *builder.data.as_slice() {
-            [0, 0, 1, _, l0, l1, ..]
-                if self.pieces.is_none() || !self.continued.contains_key(&pid) =>
-            {
-                usize::from(u16::from_be_bytes([l0, l1]))
+        let opened = self.pieces.is_none() || !self.continued.contains_key(&pid);
+        let declared = match (builder.header, builder.data.as_slice()) {
+            (Some(pes), _) if opened => usize::from(pes.packet_length),
+            (None, [0, 0, 1, _, l0, l1, ..]) if opened => {
+                usize::from(u16::from_be_bytes([*l0, *l1]))
             }
             _ => 0,
         };
-        if declared > 0 && builder.data.len() >= declared + 6 {
-            builder.data.truncate(declared + 6);
+        if declared > 0 && builder.held() >= declared + 6 {
+            let header_len = builder.header.map_or(0, |pes| pes.header_len);
+            builder.data.truncate(declared + 6 - header_len);
             self.complete(pid, warnings);
         } else if let Some(size) = self.pieces {
             self.deliver_pieces(pid, size);
@@ -629,9 +651,10 @@ impl Demux {
         };
         loop {
             let continued = self.continued.get(&pid).copied();
-            let (header, skip) = match continued {
-                Some(header) => (header, 0),
-                None => match pes::parse(&builder.data) {
+            let (header, skip) = match (continued, builder.header) {
+                (Some(header), _) => (header, 0),
+                (None, Some(header)) => (header, 0),
+                (None, None) => match pes::parse(&builder.data) {
                     pes::Parsed::Done(header) => (header, header.header_len),
                     _ => return,
                 },
@@ -650,7 +673,8 @@ impl Demux {
                 corrupt: builder.corrupt,
             });
             builder.data.drain(..end);
-            self.buffered = self.buffered.saturating_sub(end);
+            let header_len = builder.header.take().map_or(0, |pes| pes.header_len);
+            self.buffered = self.buffered.saturating_sub(end + header_len);
             let _ = self.continued.set(
                 pid,
                 PesHeader {
@@ -684,8 +708,8 @@ impl Demux {
         let Some(builder) = self.builders.remove(&pid) else {
             return;
         };
-        let _ = self.sizes.set(pid, builder.data.len());
-        self.buffered = self.buffered.saturating_sub(builder.data.len());
+        let _ = self.sizes.set(pid, builder.held());
+        self.buffered = self.buffered.saturating_sub(builder.held());
         // The last piece of a PES packet delivered in pieces.
         if let Some(header) = self.pieces.and_then(|_| self.continued.remove(&pid)) {
             self.ready.push_back(Pes {
@@ -699,10 +723,14 @@ impl Demux {
             });
             return;
         }
-        match pes::parse(&builder.data) {
+        let parsed = match builder.header {
+            Some(header) => pes::Parsed::Done(header),
+            None => pes::parse(&builder.data),
+        };
+        match parsed {
             pes::Parsed::Done(header) => {
                 let declared = usize::from(header.packet_length);
-                let truncated = declared > 0 && builder.data.len() < declared + 6;
+                let truncated = declared > 0 && builder.held() < declared + 6;
                 if truncated {
                     warn(warnings, Warning::TruncatedPes { pid });
                 }
@@ -710,8 +738,12 @@ impl Demux {
                     pid,
                     offset: builder.offset,
                     header,
+                    start: if builder.header.is_some() {
+                        0
+                    } else {
+                        header.header_len
+                    },
                     data: builder.data,
-                    start: header.header_len,
                     random_access: builder.random_access,
                     corrupt: builder.corrupt || truncated,
                 });
