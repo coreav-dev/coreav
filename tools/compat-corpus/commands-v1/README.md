@@ -135,8 +135,10 @@ whose output no `-f` names does not say which container it writes.
 [`outputs.json`](outputs.json) records it for every usable `ffmpeg`
 command: the output of each invocation in the command's own answers that
 normalizes to it, reduced to `OUTPUT` with the name's number pattern and
-extension (`OUTPUT.mp4`, `OUTPUT%03d.jpg`), or the pipe it names (`-`,
-`pipe:1`), and an empty string for an invocation with no output position.
+extension (`OUTPUT.mp4`, `OUTPUT%03d.jpg`), the pipe or null device it
+names (`-`, `pipe:1`, `/dev/null`, `NUL`), a URL as its scheme
+(`rtmp://OUTPUT`) or another device as `/dev/OUTPUT`, and an empty string
+for an invocation with no output position.
 `tools/compat-corpus/coverage_set.py` reads the answers again through the
 public API and writes it. They were read on 2026-10-30, ten days after the
 snapshot, and each of the 976 commands was found in at least one of its own

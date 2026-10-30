@@ -7,6 +7,9 @@
     coverage_set.py                        writes commands-0.1.0/coverage.json
     coverage_set.py --check                exits 1 when the committed file differs
 
+Writing or checking the set also prints the ceiling estimate of
+compat-cli.md's V2 ("The ceiling").
+
 `commands-v1` replaces every output name with `OUTPUT`, and FFmpeg picks an
 output's container from its name unless `-f` names one. So the output
 containers come from the answers themselves: `fetch` asks the public Stack
@@ -14,21 +17,24 @@ Exchange API for every answer a usable `ffmpeg` command was found in, with
 its body, and `outputs` runs `extract.py`'s own extraction over those bodies
 again and keeps, for each command, the output of each invocation that
 normalizes to it, reduced to what a run needs: `OUTPUT` with the name's
-number pattern and extension (`OUTPUT%03d.jpg`), or the pipe it names. The
+number pattern and extension (`OUTPUT%03d.jpg`), the pipe or null device it
+names, or a URL's scheme (`rtmp://OUTPUT`). The
 bodies are not committed; those templates are, in `commands-v1/outputs.json`.
 
 The set is the usable `ffmpeg` commands with no filter option. Each one's
 output is the first invocation's of its highest-scored answer, the order
 `commands.jsonl` keeps its sources in, and its container is the one the
 `-f` after its last input names (for `-f segment`, its `-segment_format`),
-else the one that output's extension names. The tables below class every
-name that occurs; a name they do not class is an error, not a guess.
+else the one that output's extension names. An output to a network address
+or a device is not a media file, whatever `-f` names. The tables below class
+every name that occurs; a name they do not class is an error, not a guess.
 Python 3.11 standard library only.
 """
 import argparse
 import importlib.util
 import json
 import pathlib
+import re
 import sys
 import time
 
@@ -51,6 +57,7 @@ FILTERS = {'-vf', '-af', '-filter', '-filter_complex', '-lavfi',
            '-filter_script', '-filter_complex_script'}
 VALUES = classify.FFMPEG_VALUE | set(classify.FFMPEG_CODEC) | {'-segment_format'}
 SEGMENT_MUXERS = {'segment', 'ssegment'}
+URL = re.compile(r'\A([A-Za-z][A-Za-z0-9+.-]*)://')
 
 # The classes of an output. `media` outputs make the encode breadth set.
 MEDIA, DECODE_ONLY, SUBTITLES, OTHER, UNKNOWN = (
@@ -89,6 +96,28 @@ NOT_MEDIA = {
 # answer used as a name, a muxer FFmpeg does not have.
 NO_CONTAINER = {'', '66', 'media', 'file', 'nul'}
 
+# The ceiling estimate: the encoders FFmpeg takes, by muxer or extension, for
+# an output of a container CoreAV writes whose command names none (each input
+# taken to hold video and audio), and the encoders each stage adds.
+DEFAULT_ENCODERS = {
+    'mp4': ('H.264', 'AAC'), 'm4v': ('H.264', 'AAC'), 'ismv': ('H.264', 'AAC'),
+    'hls': ('H.264', 'AAC'), 'm3u8': ('H.264', 'AAC'), 'ipod': (None, 'AAC'),
+    'm4a': (None, 'AAC'), 'm4b': (None, 'AAC'), '3gp': ('H.263', 'AMR'),
+    'jpg': ('JPEG', None), 'jpeg': ('JPEG', None), 'png': ('PNG', None),
+    'bmp': ('BMP', None), 'singlejpeg': ('JPEG', None),
+}
+ENCODERS = {
+    'copy': 'copy', 'libx264': 'H.264', 'libx264rgb': 'H.264', 'h264': 'H.264',
+    'aac': 'AAC', 'libfdk_aac': 'AAC', 'libfaac': 'AAC', 'libvo_aacenc': 'AAC',
+    'mjpeg': 'JPEG', 'png': 'PNG',
+}
+STAGES = (
+    ('copies', {'MP4', 'HLS', 'copy'}),
+    ('H.264 through x264', {'H.264'}),
+    ('AAC', {'AAC'}),
+    ('JPEG and PNG images', {'image', 'JPEG', 'PNG'}),
+)
+
 
 def filter_free(args):
     options, _ = classify.walk(args, VALUES)
@@ -96,10 +125,20 @@ def filter_free(args):
 
 
 def template(name):
-    """The output name reduced to what a run needs: a pipe as it is, a file
-    as `OUTPUT` with its number pattern and extension."""
-    if name == '-' or name.startswith('pipe:'):
+    """The output name reduced to what a run needs: a pipe or a null device
+    as it is, a URL as its scheme, another device as `/dev/OUTPUT`, a file as
+    `OUTPUT` with its number pattern and extension."""
+    if name == '-' or name.startswith('pipe:') or name == '/dev/null':
         return name
+    if name.upper() == 'NUL':
+        return 'NUL'
+    url = URL.match(name)
+    if url:
+        return url.group(1).lower() + '://OUTPUT'
+    if name.startswith('/dev/'):
+        return '/dev/OUTPUT'
+    if name.startswith('file:'):
+        name = name[len('file:'):]
     tail = name.rsplit('/', 1)[-1].rsplit('\\', 1)[-1]
     numbered = classify.NUMBERED.search(tail)
     extension = classify.extension(name)
@@ -141,7 +180,10 @@ def derive(records, outputs):
         found = by_args[tuple(record['args'])]
         output = found[0] if found else 'OUTPUT'
         kind, name = container_name(record['args'], output)
-        cls, container = classed(kind, name)
+        if URL.match(output) or output.startswith('/dev/') or output == 'NUL':
+            cls, container = (DECODE_ONLY if (kind, name) == ('-f', 'null') else OTHER), None
+        else:
+            cls, container = classed(kind, name)
         commands.append({'args': record['args'], 'output': output,
                          'muxer': name if kind == '-f' else None,
                          'class': cls, 'container': container})
@@ -155,6 +197,37 @@ def derive(records, outputs):
         'classes': dict(sorted(classes.items())),
         'commands': commands,
     }
+
+
+def needs(command):
+    """The container and the encoders a media command's output takes; `?`
+    for a stream whose encoder the tables do not know."""
+    options, _ = classify.walk(command['args'], VALUES)
+    muxer = command['muxer']
+    name = muxer if muxer not in (None, 'image2') else classify.extension(command['output'])
+    video, audio = DEFAULT_ENCODERS.get(name, ('?', '?'))
+    for option, value in options:
+        kind, _, stream = option.partition(':')
+        if option == '-vn':
+            video = None
+        if option == '-an':
+            audio = None
+        named = kind in ('-c', '-codec') and value
+        if video and (named and stream[:1] in ('', 'v') or kind == '-vcodec'):
+            video = ENCODERS.get(value, value)
+        if audio and (named and stream[:1] in ('', 'a') or kind == '-acodec'):
+            audio = ENCODERS.get(value, value)
+    return {command['container'], video, audio} - {None}
+
+
+def ceilings(document):
+    """The media commands each stage of STAGES could count, cumulatively."""
+    media = [needs(c) for c in document['commands'] if c['class'] == MEDIA]
+    have, counts = set(), []
+    for _, added in STAGES:
+        have |= added
+        counts.append(sum(n <= have for n in media))
+    return counts
 
 
 def dumps(document):
@@ -223,6 +296,9 @@ def main():
     records = [json.loads(line) for line in COMMANDS.read_text(encoding='utf-8').splitlines()]
     derived = derive(records, json.loads(OUTPUTS.read_text(encoding='utf-8')))
     text = dumps(derived)
+    media = derived['classes'][MEDIA]
+    for (stage, _), count in zip(STAGES, ceilings(derived)):
+        print(f'ceiling, + {stage}: {count} of {media} ({100 * count / media:.1f}%)')
     if args.check:
         if OUT.read_text(encoding='utf-8') != text:
             print(f'{OUT} differs from what coverage_set.py derives', file=sys.stderr)

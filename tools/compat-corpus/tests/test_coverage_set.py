@@ -15,7 +15,8 @@ coverage_set = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(coverage_set)
 NOTE = ROOT / 'docs' / 'design' / 'compat-cli.md'
 # What an answer's output may become in the committed file: never a name.
-TEMPLATE = re.compile(r'\A(OUTPUT(%\d*d)?(\.[a-z0-9]+)?|-|pipe:\d*|)\Z')
+TEMPLATE = re.compile(r'\A(OUTPUT(%\d*d)?(\.[a-z0-9]+)?|-|pipe:\d*|/dev/null|NUL'
+                      r'|[a-z][a-z0-9+.-]*://OUTPUT|/dev/OUTPUT|)\Z')
 
 
 class CoverageSet(unittest.TestCase):
@@ -42,6 +43,18 @@ class CoverageSet(unittest.TestCase):
             for output in command['outputs']:
                 self.assertRegex(output, TEMPLATE, command['args'])
 
+    def test_a_network_or_device_output_is_not_a_media_file(self):
+        self.assertEqual(coverage_set.template('rtmp://example.invalid/live/stream'), 'rtmp://OUTPUT')
+        self.assertEqual(coverage_set.template('/dev/video0'), '/dev/OUTPUT')
+        args = ['-i', 'INPUT', '-c:v', 'libx264', '-f', 'flv', 'OUTPUT']
+        outputs = {'read': '', 'commands': [{'args': args, 'outputs': ['rtmp://OUTPUT']}]}
+        record = {'tool': 'ffmpeg', 'label': 'transcode', 'args': args}
+        command, = coverage_set.derive([record], outputs)['commands']
+        self.assertEqual((command['class'], command['container']), ('other', None))
+        for command in self.committed['commands']:
+            if command['class'] == 'media':
+                self.assertNotRegex(command['output'], r'://|\A/dev/|\ANUL\Z', command['args'])
+
     def test_the_note_quotes_the_derived_numbers(self):
         d, classes = self.derived, self.derived['classes']
         media = classes['media']
@@ -53,8 +66,17 @@ class CoverageSet(unittest.TestCase):
             f'{classes["subtitles"]} subtitle files and {classes["other"]} other outputs',
             f'read on {d["outputs_read"]}',
             f'The share of the {media},',
-            f'over the {d["filter_free"]} filter-free commands',
+            f'The share of the {d["filter_free"]} filter-free commands',
             f'Reported as a share of {d["filter_free"]},',
+        ]
+        copies, x264, aac, images = (f'{n} ({100 * n / media:.1f}%)'
+                                     for n in coverage_set.ceilings(d))
+        expected += [
+            f'The bar needs {-(-40 * media // 100)} commands.',
+            f'Copies alone reach {copies.split()[0]} of the {media} ({copies.split()[1][1:-1]})',
+            f'with H.264 through `x264` {x264}',
+            f'with AAC {aac}',
+            f'with JPEG and PNG images {images}.',
         ]
         for text in expected:
             self.assertIn(text, self.note, 'docs/design/compat-cli.md does not quote coverage.json')
