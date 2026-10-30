@@ -264,14 +264,16 @@ try_gen size_left_crop_source.mp4 -f lavfi -i "testsrc2=size=1280x720:rate=25:du
 understate_entry size_left_crop_source.mp4 size_left_crop.mp4 avc1 1232 720
 rm -f "$OUT/size_left_crop_source.mp4"; sed -i '/^generated size_left_crop_source.mp4$/d' "$MANIFEST"
 # An HEVC conformance window that leaves nothing (left 1250 + right 40 of
-# 1280): decoders ignore it as a whole; the entry says 1240x720.
+# 1280, conf_win offsets 625 + 20 in 4:2:0), on purpose: ITU-T H.265
+# 7.4.3.2.1 does not allow it, so the stream is not valid HEVC and CoreAV
+# refuses it (KD-HEVC-WINDOW); the entry says 1240x720.
 try_gen size_window_source.mp4 -f lavfi -i "testsrc2=size=1280x720:rate=25:duration=1" \
   -c:v libx265 -x265-params log-level=error -tag:v hvc1 \
   -bsf:v hevc_metadata=crop_left=1250:crop_right=40
 understate_entry size_window_source.mp4 size_hevc_window.mp4 hvc1 1240 720
 rm -f "$OUT/size_window_source.mp4"; sed -i '/^generated size_window_source.mp4$/d' "$MANIFEST"
 # A window invalid in width (left 1250 + right 40 of 1280) with a valid
-# bottom padding crop (30): ignored in both dimensions; the entry says
+# bottom padding crop (30): not valid HEVC either; the entry says
 # 1280x690.
 try_gen size_mixed_source.mp4 -f lavfi -i "testsrc2=size=1280x720:rate=25:duration=1" \
   -c:v libx265 -x265-params log-level=error -tag:v hvc1 \

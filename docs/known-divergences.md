@@ -618,7 +618,11 @@ directly.
   picture of such a stream and fails, where 7.0.2 ignored the window and
   decoded the coded size. `coreav transcode`, `coreav ffmpeg` and
   `coreav thumbnail` reject the stream as an invalid structure before
-  decoding (`docs/design/transcode.md`, "Pipeline").
+  decoding (`docs/design/transcode.md`, "Pipeline"), and the writers that
+  copy it (clip, split, join, HLS, remux, sanitize) refuse it as an
+  invalid stream (`docs/design/remux.md`, "Streams"): the window makes it
+  a bitstream that does not conform (H.265 C.4), which no conforming
+  decoder has to decode (C.5.1).
 - Why: the profile and level are readable whatever the window says, and a
   policy gate needs them.
 - Coverage requires: the codec is HEVC on both sides, the reference has none

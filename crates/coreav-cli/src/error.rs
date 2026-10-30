@@ -145,6 +145,7 @@ impl Failure {
                     // has none of the kind asked for, or no stream with the
                     // index given. A refusal like the other unsupported cases.
                     Error::NoSuchTrack => ("unsupported_feature", None),
+                    Error::InvalidStream { .. } => ("invalid_structure", None),
                     Error::Io(_) => ("io", None),
                 };
                 let limit = match error {

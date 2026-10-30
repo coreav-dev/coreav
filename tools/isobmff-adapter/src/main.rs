@@ -56,7 +56,9 @@ fn open(path: &str) -> Result<Movie, Error> {
 fn rejection(schema: &str, name: &str, error: &Error) -> Value {
     let kind = match error {
         Error::Truncated { .. } => "truncated_structure",
-        Error::InvalidBox { .. } | Error::Overflow { .. } => "invalid_structure",
+        Error::InvalidBox { .. } | Error::Overflow { .. } | Error::InvalidStream { .. } => {
+            "invalid_structure"
+        }
         Error::LimitExceeded { .. } => "limit",
         Error::NotIsobmff => "unsupported_container",
         Error::Unsupported { .. } => "unsupported_feature",

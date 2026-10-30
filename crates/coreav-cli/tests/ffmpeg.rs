@@ -566,7 +566,8 @@ fn stream_kinds(path: &Path) -> Option<Vec<StreamKind>> {
 /// matches no stream of it, or a selection left empty, which `ffmpeg` fails
 /// too) is recorded as not taken. Every entry runs
 /// natively on at least one fixture of each of its families; a refusal or a
-/// rejection leaves no file behind. With `COREAV_FFMPEG_OUT` the outputs and
+/// rejection leaves no file behind, and the fixtures whose video is not
+/// valid HEVC give no output. With `COREAV_FFMPEG_OUT` the outputs and
 /// `records.json` (each run, its outcome and its writer's summary) are
 /// written there for `tools/compat-corpus/copy_check.py`.
 #[test]
@@ -676,6 +677,11 @@ fn the_0_1_0_commands_on_the_fixtures() {
                         ("rejected", failure.to_json())
                     }
                 };
+                // Not valid HEVC (ITU-T H.265 7.4.3.2.1): no command writes
+                // an output from these, a copy included.
+                if ["size_hevc_mixed_window.mp4", "size_hevc_window.mp4"].contains(&name.as_str()) {
+                    assert_ne!(status, "written", "{label}");
+                }
                 let files = std::fs::read_dir(&work).unwrap().count();
                 if status == "written" {
                     assert!(files > 0, "{label}: no output");

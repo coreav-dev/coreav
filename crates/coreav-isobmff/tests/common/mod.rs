@@ -4,6 +4,11 @@
 pub mod fragments;
 pub mod sound;
 
+/// Fixtures of `scripts/gen-fixtures.sh` whose video stream is not valid
+/// HEVC: its conformance window leaves no picture (ITU-T H.265
+/// 7.4.3.2.1). Every writer refuses them as an invalid stream.
+pub const INVALID_STREAMS: [&str; 2] = ["size_hevc_mixed_window.mp4", "size_hevc_window.mp4"];
+
 pub fn bx(kind: &[u8; 4], payload: &[u8]) -> Vec<u8> {
     let mut out = ((payload.len() + 8) as u32).to_be_bytes().to_vec();
     out.extend_from_slice(kind);

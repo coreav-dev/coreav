@@ -124,8 +124,9 @@ structure (`invalid_structure`, exit status 1). The check is in
 `coreav ffmpeg` and `coreav thumbnail` reject it alike: the pinned
 FFmpeg 9.0.2 drops such a parameter set and decodes nothing, where 7.0.2
 ignored the window (`KD-HEVC-WINDOW`; `size_hevc_window.mp4`,
-`size_hevc_mixed_window.mp4`). The bars set the two fixtures apart as
-they set any rejected file apart.
+`size_hevc_mixed_window.mp4`). The writers that copy the stream refuse it
+too (`docs/design/remux.md`, "Streams"). The bars set the two fixtures
+apart as they set any rejected file apart.
 
 ### The encoder program
 
