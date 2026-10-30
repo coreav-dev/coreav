@@ -847,8 +847,12 @@ fn head<S: Source>(movie: &Movie, track: &Track, source: &mut S, limits: &Limits
     let Ok(iter) = movie.packets(track.index, &mut *source, limits, &mut budget) else {
         return Head::default();
     };
-    let packets: Vec<coreav_isobmff::Packet> =
-        iter.take(START_PACKETS).map_while(Result::ok).collect();
+    let read: Vec<coreav_isobmff::Packet> = iter
+        .take(START_PACKETS.max(RATE_TIMES.end))
+        .map_while(Result::ok)
+        .collect();
+    let decode_times = read.iter().map(|p| p.dts).collect();
+    let packets = read.get(..START_PACKETS).unwrap_or(&read);
     let pts: Vec<i64> = packets
         .iter()
         .filter_map(|p| p.pts.and_then(|r| i64::try_from(r.round()).ok()))
@@ -866,7 +870,7 @@ fn head<S: Source>(movie: &Movie, track: &Track, source: &mut S, limits: &Limits
             .min(),
         reorder,
         first: packets.first().map(|p| (p.offset, p.size)),
-        decode_times: packets.iter().map(|p| p.dts).collect(),
+        decode_times,
         first_pts: packets
             .first()
             .and_then(|p| p.pts)
@@ -1331,7 +1335,12 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
                 "1/0".to_owned()
             }
         } else {
-            real_rate(&head.decode_times, track.timescale).unwrap_or_else(|| "0/0".to_owned())
+            // An H.264 picture lasts two ticks of its clock (E.2.1).
+            let tick = info
+                .frame_rate
+                .filter(|_| codec_name.as_deref() == Some("h264"))
+                .map(|(n, d)| (n, d / 2));
+            real_rate(&head.decode_times, track.timescale, tick).unwrap_or_else(|| "0/0".to_owned())
         };
         e.push(("r_frame_rate", s(real)));
         e.push(("avg_frame_rate", s(avg)));
@@ -1596,23 +1605,61 @@ fn stream_duration(movie: &Movie, track: &Track) -> Option<i64> {
     }
 }
 
-/// How many decode times of a track's first packets `ffprobe`'s frame
-/// rate estimate fits, found on the development set (21 agreed best of 21,
-/// 41, 64, 128 and 256).
-const RATE_WINDOW: usize = 21;
+/// Which of a track's first decode times `ffprobe`'s frame rate estimate
+/// fits: the 4th to the 99th, once the track has [`RATE_SKIP_FROM`] of
+/// them, else all. On files crafted with one interval out of step, only an
+/// interval between two of these moves the estimate.
+const RATE_TIMES: std::ops::Range<usize> = 3..99;
 
-/// `r_frame_rate`, `ffprobe`'s guess at the base frame rate: the estimate
-/// of the first decode times that the Matroska builder uses too
-/// (`mkv::estimate_rate`: the standard rate whose grid the times fit, else
-/// the rate every interval is a whole number of frames of). The rate a
-/// stream's own timing states plays no part: taking it where there is one
-/// agreed with `ffprobe` on 206 of the 224 development files, the estimate
-/// alone on 212.
-fn real_rate(times: &[i64], timescale: u32) -> Option<String> {
-    let window = times.get(..RATE_WINDOW.min(times.len())).unwrap_or(times);
-    super::mkv::estimate_rate(window, (1, i64::from(timescale.max(1))))
-        .map(super::mkv::estimate_fraction)
-        .and_then(|(n, d)| rate(n, d))
+/// How many decode times a track needs before the estimate leaves out its
+/// first three: crafted tracks of 6 to 16 frames show every interval, of
+/// 17 to 21 frames only those after the 4th time.
+const RATE_SKIP_FROM: usize = 17;
+
+/// Below how many intervals a second the step every interval of the
+/// window is a whole number of is the rate itself: crafted files whose
+/// intervals share a step of 181 ticks of a 90 kHz clock (497 a second)
+/// report that rate, and those whose step is 180 ticks (500 a second) the
+/// standard rate their times fit.
+const STEP_RATES: u64 = 500;
+
+/// `r_frame_rate`, `ffprobe`'s guess at the base frame rate, from the
+/// decode times of [`RATE_TIMES`]: the rate of the step every interval
+/// is a whole number of when that is a slow one ([`STEP_RATES`]), else
+/// the estimate the
+/// Matroska builder uses too (`mkv::estimate_rate`: the exact rate of
+/// equal intervals, else the standard rate whose grid the times fit). When
+/// no standard rate fits uneven intervals it is the rate of the H.264
+/// clock's `tick` (`time_scale` over `num_units_in_tick`), else of the
+/// timescale: crafted files whose intervals share a step of 30 to 180
+/// ticks of a 90 kHz clock report `90000/1` without timing in their
+/// sequence parameter sets, and with it, whatever the step, the rate of
+/// its tick (`50/1` for 1 in 50, `60000/1001` for 1,001 in 60,000).
+fn real_rate(times: &[i64], timescale: u32, tick: Option<(u64, u64)>) -> Option<String> {
+    let window = if times.len() >= RATE_SKIP_FROM {
+        times
+            .get(RATE_TIMES.start..RATE_TIMES.end.min(times.len()))
+            .unwrap_or(times)
+    } else {
+        times
+    };
+    let step = window
+        .windows(2)
+        .filter_map(|w| match *w {
+            [a, b] if b > a => u64::try_from(b - a).ok(),
+            _ => None,
+        })
+        .fold(0, compat::gcd);
+    if step > 0 && u64::from(timescale) < STEP_RATES.saturating_mul(step) {
+        return rate(u64::from(timescale), step);
+    }
+    match super::mkv::estimate_rate(window, (1, i64::from(timescale.max(1))))? {
+        super::mkv::Estimate::Standard(n, d) | super::mkv::Estimate::Base(n, d, true) => rate(n, d),
+        super::mkv::Estimate::Base(_, _, false) => {
+            let (n, d) = tick.unwrap_or((u64::from(timescale), 1));
+            rate(n, d)
+        }
+    }
 }
 
 /// `N/D` in lowest terms, as `ffprobe` prints a rate; `0/0` for nothing.
@@ -3239,6 +3286,39 @@ impl<S: Source> PacketSource for IsoPackets<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Decode times from a first time of 0 and these intervals.
+    fn times(steps: &[i64]) -> Vec<i64> {
+        std::iter::once(0)
+            .chain(steps.iter().scan(0, |t, d| {
+                *t += d;
+                Some(*t)
+            }))
+            .collect()
+    }
+
+    /// The rates the pinned `ffprobe` printed for crafted tracks.
+    #[test]
+    fn the_base_rate_follows_the_estimate_window() {
+        let rate = |steps: &[i64], tick| real_rate(&times(steps), 90_000, tick);
+        // 362 ticks a frame with one of 363: left out when it is among the
+        // first three intervals of a long track, not of a short one.
+        let mut long = vec![362; 30];
+        long[1] = 363;
+        assert_eq!(rate(&long, None).as_deref(), Some("45000/181"));
+        long[3] = 363;
+        assert_eq!(rate(&long, None).as_deref(), Some("90000/1"));
+        let mut short = vec![362; 10];
+        short[1] = 363;
+        assert_eq!(rate(&short, None).as_deref(), Some("240/1"));
+        // Uneven intervals of no standard rate: the timescale's rate, or
+        // that of the H.264 clock's tick.
+        let uneven: Vec<i64> = (0..60).map(|i| 90 * (15 + (i * 7) % 46)).collect();
+        assert_eq!(rate(&uneven, None).as_deref(), Some("90000/1"));
+        assert_eq!(rate(&uneven, Some((50, 1))).as_deref(), Some("50/1"));
+        // Equal intervals are their own rate.
+        assert_eq!(rate(&[150; 40], Some((50, 1))).as_deref(), Some("600/1"));
+    }
 
     /// The rotations the pinned `ffprobe` printed for these matrices.
     #[test]
