@@ -298,6 +298,41 @@ fn opus_audio_runs_no_ffmpeg() {
     assert!(ran(&dir, "ffmpeg"), "{}", run.stderr);
 }
 
+/// Without the opt-in libopus feature, `--audio opus` is refused before the
+/// input is opened (a missing file, or a pipe no one writes to, which blocks
+/// an open), in every mode, and nothing runs.
+#[cfg(not(feature = "libopus"))]
+#[test]
+fn opus_audio_without_libopus_is_refused_before_the_input_is_read() {
+    let dir = dir("opus-unbuilt");
+    let made = Command::new("mkfifo")
+        .arg(dir.join("fifo.mp4"))
+        .status()
+        .unwrap();
+    assert!(made.success());
+    for input in ["missing.mp4", "fifo.mp4"] {
+        let line = ["transcode", input, "out.mp4", "--audio", "opus"];
+        for mode in [Mode::Off, Mode::Flag, Mode::Variable] {
+            let run = coreav_promptly(&dir, mode, &line);
+            assert_eq!(run.code, 1, "{input} {mode:?}: {}", run.stderr);
+            let error: Value = serde_json::from_str(run.stderr.trim()).unwrap();
+            assert_eq!(error["kind"], "unsupported_feature", "{input} {mode:?}");
+            assert!(
+                error["message"]
+                    .as_str()
+                    .unwrap()
+                    .contains("opt-in libopus feature"),
+                "{input} {mode:?}: {error}"
+            );
+            assert!(
+                !ran(&dir, "ffmpeg") && !ran(&dir, "x264"),
+                "{input} {mode:?}"
+            );
+            assert!(!dir.join("out.mp4").exists());
+        }
+    }
+}
+
 #[test]
 fn thumbnail_runs_no_ffmpeg() {
     let dir = dir("thumbnail");

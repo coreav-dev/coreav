@@ -527,7 +527,9 @@ stream to Opus (RFC 6716) with libopus, as policy record 0042 allows an
 encoder backend: a crate of its own, `coreav-backend-libopus`, built only
 with the `libopus` feature, which links the system's libopus (BSD-3-Clause)
 through the `opus` crate and its `audiopus_sys` binding. No default build
-links it. The crate has no `unsafe` of its own: the FFI surface is the
+links it, and a build without the feature refuses `--audio opus`
+(`unsupported_feature`, exit status 1) before it opens the input; its help
+says so. The crate has no `unsafe` of its own: the FFI surface is the
 binding's, and the safe API it uses is `Encoder::new` (48 kHz, mono or
 stereo, `Application::Audio`), `set_bitrate`, `set_vbr(true)`,
 `set_vbr_constraint(false)`, `get_lookahead` and `encode_float`, one

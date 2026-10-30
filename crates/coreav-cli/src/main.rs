@@ -312,12 +312,13 @@ struct TranscodeArgs {
     /// `copy` every audio stream MP4 can carry (the others are dropped and
     /// listed), `none`, or `opus`: the first audio stream CoreAV decodes
     /// (FLAC or MP3, mono or stereo) encoded to Opus by libopus, the others
-    /// dropped and listed; `opus` needs a build with the libopus feature.
+    /// dropped and listed. `opus` needs a coreav built with the opt-in
+    /// libopus feature; other builds refuse it.
     #[arg(long, value_name = "MODE", default_value = "copy",
           value_parser = ["copy", "none", "opus"])]
     audio: String,
-    /// With --audio opus, the Opus bit rate in kbit/s, 6 to 510 (default:
-    /// 64 for mono, 96 for stereo).
+    /// With --audio opus (opt-in libopus builds only), the Opus bit rate in
+    /// kbit/s, 6 to 510 (default: 64 for mono, 96 for stereo).
     #[arg(long, value_name = "KBPS", value_parser = clap::value_parser!(u32).range(6..=510))]
     audio_bitrate: Option<u32>,
     /// The encoder program: `x264`, `ffmpeg` (with libx264), or `auto`:
@@ -977,6 +978,14 @@ fn run(cli: Cli, this: Option<PathBuf>) -> ExitCode {
 #[cfg(feature = "transcode")]
 fn run_transcode(args: &TranscodeArgs, this: Option<&Path>, strict_safe: StrictSafe) -> ExitCode {
     use coreav_cli::transcode;
+    if args.audio == "opus" && !cfg!(feature = "libopus") {
+        let refusal = Failure::Unsupported(
+            "--audio opus: this coreav is built without the Opus encoder: build it with the opt-in libopus feature"
+                .into(),
+        );
+        let _ = writeln!(std::io::stderr(), "{}", refusal.to_json());
+        return ExitCode::from(EXIT_REJECTED);
+    }
     let scale = match args.scale.as_deref().map(transcode::scale).transpose() {
         Ok(scale) => scale,
         Err(message) => return usage(&message),

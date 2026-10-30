@@ -93,12 +93,6 @@ pub fn make<S: Source>(
             "cannot find the path of the running coreav command, which runs the encoder".into(),
         )));
     };
-    if request.opus.is_some() && !cfg!(feature = "libopus") {
-        return Err(WriteFailure::Rejected(Failure::Unsupported(
-            "this coreav is built without the Opus encoder: build it with the libopus feature"
-                .into(),
-        )));
-    }
     let matroska = crate::matroska::detect_source(&mut source).map_err(WriteFailure::Rejected)?;
     let kind = if matroska {
         SourceKind::Matroska
