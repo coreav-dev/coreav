@@ -604,7 +604,7 @@ demuxers' own limits inside it:
 
 | Limit | Default | Why |
 |---|---|---|
-| `max_channels` | 32 | FLAC has at most 8; Opus mapping families go higher. |
+| `max_channels` | 32 | FLAC has at most 8; Opus mapping families go higher. Checked for every codec when its decoder is made: FLAC's streaminfo count, MP3's first frame's (or the count the decoder is given). |
 | `max_packet_bytes` | 16 MiB | Eight times the largest FLAC frame (65,535 verbatim 32-bit samples on 8 channels). |
 | `max_output_samples` | 2^33 | About 24 hours of 48 kHz stereo. Decoding multiplies sizes (a 49-byte FLAC frame codes 2 MiB, RFC 9639 section 11), so the output is bounded by itself, not by the input's size. |
 | `max_decode_errors` | 100 | Concealed packets before the request fails. |
