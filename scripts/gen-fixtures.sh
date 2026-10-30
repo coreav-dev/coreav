@@ -174,7 +174,9 @@ ESRC=(-f lavfi -i "testsrc2=size=160x120:rate=30:duration=10")
 EGOP=(-g 30 -keyint_min 30 -sc_threshold 0 -video_track_timescale 600 -pix_fmt yuv420p)
 try_gen edit_src_h264.mp4 "${ESRC[@]}" -c:v libx264 -bf 0 "${EGOP[@]}"
 try_gen edit_src_bframes.mp4 "${ESRC[@]}" -c:v libx264 -bf 2 "${EGOP[@]}"
-try_gen edit_src_aac.mp4 -f lavfi -i "sine=d=10:r=44100" -c:a aac
+# Without perceptual noise substitution, as edit_src_av.mp4 below: clips of
+# audio alone restart its decoder too.
+try_gen edit_src_aac.mp4 -f lavfi -i "sine=d=10:r=44100" -c:a aac -aac_pns 0
 # Two edits joined at a sync sample, skipping a second of media.
 elst_entry edit_src_h264.mp4 edit_multi_splice.mp4 0 3000:0 3000:2400
 # B-frames; the second edit starts inside a group of pictures.

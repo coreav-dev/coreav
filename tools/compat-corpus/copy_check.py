@@ -173,7 +173,14 @@ def range_problems(record, ffprobe):
     ratio = lambda r: fractions.Fraction(r["num"], r["den"]) if r else None  # noqa: E731
     theirs = requested(record["args"], start_time(ffprobe, record["source"]))
     ours = (ratio(summary["start"]["requested"]), ratio(summary["end"].get("requested")))
-    return [] if ours == theirs else ["requested range: coreav %s, the command names %s" % (ours, theirs)]
+    problems = [] if ours == theirs else ["requested range: coreav %s, the command names %s" % (ours, theirs)]
+    # A clip without video is not snapped to a sync sample: it starts where
+    # the command says.
+    snapped = writer_corpus.ratio(summary["start"]["snapped"])
+    if not any(s["kind"] == "video" for s in summary["streams"]) and fractions.Fraction(
+            snapped["num"], snapped["den"]) != theirs[0]:
+        problems.append(f"start: the audio clip starts at {snapped}, the command names {theirs[0]}")
+    return problems
 
 
 def micros(value):
@@ -260,7 +267,7 @@ def entry(record, src_movie, source_streams):
                 "end": {"num": requested["num"], "den": requested["den"]} if requested else None,
                 "snapped_start": writer_corpus.ratio(summary["start"]["snapped"]),
                 "written_end": writer_corpus.ratio(summary["end"]["written"]),
-                "video": writer_corpus.kept_track(src_movie, kinds["video"]),
+                "video": writer_corpus.kept_track(src_movie, kinds["video"]) if "video" in kinds else None,
                 "audio": writer_corpus.kept_track(src_movie, kinds["audio"]) if "audio" in kinds else None}
     if job == "join":
         inputs = []

@@ -5,7 +5,10 @@ use crate::names;
 use crate::native::{rational, time};
 use crate::output::WriteFailure;
 use coreav_isobmff::{Allowlist, BufferedSource, FileSource, Limits, Rational, SliceSource};
-use coreav_isobmff_write::{ClipOptions, ClipSummary, ClipTrack, LeftOut, LeftOutReason, clip_mp4};
+use coreav_isobmff_write::{
+    AudioClipOptions, AudioClipSummary, ClipOptions, ClipSummary, ClipTrack, LeftOut,
+    LeftOutReason, clip_audio_mp4, clip_mp4,
+};
 use serde_json::{Value, json};
 use std::io::Write;
 use std::path::Path;
@@ -54,6 +57,24 @@ pub fn run<W: Write>(
 ) -> Result<ClipSummary, ClipFailure> {
     let source = BufferedSource::new(FileSource::open(path)?);
     Ok(clip_mp4(
+        source,
+        &Limits::default(),
+        allowlist,
+        options,
+        out,
+    )?)
+}
+
+/// Clips the audio of the file at `path` alone into `out` with the library
+/// defaults (`coreav ffmpeg`'s clips without video).
+pub fn run_audio<W: Write>(
+    path: &Path,
+    options: &AudioClipOptions,
+    allowlist: &Allowlist,
+    out: W,
+) -> Result<AudioClipSummary, ClipFailure> {
+    let source = BufferedSource::new(FileSource::open(path)?);
+    Ok(clip_audio_mp4(
         source,
         &Limits::default(),
         allowlist,
@@ -115,6 +136,28 @@ pub fn document(summary: &ClipSummary) -> Value {
         "streams": streams,
         "left_out": left_out(&summary.left_out),
         "boxes_left_out": boxes,
+    })
+}
+
+/// The summary of a clip of audio alone, in the shape of `coreav.clip/1`
+/// with the audio as its only stream and its times in the audio's media
+/// ticks; its start is not snapped.
+pub fn audio_document(summary: &AudioClipSummary) -> Value {
+    let timescale = summary.audio.timescale;
+    json!({
+        "schema": "coreav.clip/1",
+        "output": {"bytes": summary.bytes_written},
+        "start": {
+            "requested": rational(summary.start),
+            "snapped": seconds_as_time(summary.start, timescale),
+        },
+        "end": {
+            "requested": summary.end.map_or(Value::Null, rational),
+            "written": seconds_as_time(summary.written_end, timescale),
+        },
+        "streams": [stream("audio", &summary.audio)],
+        "left_out": left_out(&summary.left_out),
+        "boxes_left_out": [],
     })
 }
 
