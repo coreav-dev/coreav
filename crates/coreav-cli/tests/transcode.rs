@@ -733,9 +733,21 @@ fn video_md5(tools: &Tools, path: &Path, args: &[&str]) -> String {
 /// encoder, the same decoded frames with x264 (whose headers differ).
 #[test]
 fn variable_rate_sources_encode_as_ffmpeg_does() {
+    encodes_as_ffmpeg_does("vfr.mp4");
+}
+
+/// A source of one frame: no times to find a rate from, so FFmpeg is told
+/// the source's (`coreav-transcode`'s `rawmkv`), as it finds it in the
+/// source itself, and the encode is the baseline's.
+#[test]
+fn a_single_frame_encodes_as_ffmpeg_does() {
+    encodes_as_ffmpeg_does("codec_h264_one_frame.mp4");
+}
+
+fn encodes_as_ffmpeg_does(name: &str) {
     let Some(tools) = tools() else { return };
-    let dir = dir("vfr");
-    let source = tools.fixtures.join("vfr.mp4");
+    let dir = dir(name);
+    let source = tools.fixtures.join(name);
     let baseline = dir.join("baseline.mp4");
     let status = Command::new(&tools.ffmpeg)
         .args(["-nostdin", "-v", "error", "-y", "-noautorotate", "-i"])
