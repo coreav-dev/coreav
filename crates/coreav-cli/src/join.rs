@@ -61,7 +61,11 @@ impl JoinFailure {
                 error: ExtractError::Source(Error::CodecNotAllowed { .. }),
                 ..
             } => Some("a codec that CoreAV does not copy"),
-            JoinError::Mismatch { .. } => Some("a join of files whose streams differ"),
+            JoinError::Input {
+                error: ExtractError::Source(Error::NoSuchTrack),
+                ..
+            }
+            | JoinError::Mismatch { .. } => Some("a join of files whose streams differ"),
             _ => None,
         };
         Self {

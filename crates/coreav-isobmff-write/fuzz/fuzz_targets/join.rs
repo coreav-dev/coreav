@@ -7,7 +7,7 @@
 #![no_main]
 
 use coreav_isobmff::{Allowlist, Budget, Limits, Packet, SliceSource, Source, TrackKind, probe};
-use coreav_isobmff_write::{JoinAudio, JoinOptions, join_mp4};
+use coreav_isobmff_write::{JoinAudio, JoinOptions, VideoChoice, join_mp4};
 use libfuzzer_sys::fuzz_target;
 
 /// Every packet of the first track of `kind`, `None` when some packet
@@ -48,6 +48,7 @@ fuzz_target!(|data: &[u8]| {
     let (a, b) = rest.split_at(cut);
     let inputs: Vec<&[u8]> = if audio & 2 == 0 { vec![a, b] } else { vec![a, a] };
     let options = JoinOptions {
+        video: VideoChoice::First,
         audio: if audio & 1 == 0 {
             JoinAudio::First
         } else {

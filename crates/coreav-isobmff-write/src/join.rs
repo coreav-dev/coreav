@@ -25,7 +25,7 @@ use crate::rational::{add, ceil, int, lt, max, min, round, scale, sub, to_i64, t
 use crate::tables::Tables;
 use crate::{
     AudioChoice, ClipTrack, ExtractError, JoinAudio, JoinError, JoinOptions, JoinSummary,
-    JoinTrack, JoinedInput, LeftOut, LeftOutReason, Mismatch, VideoChoice,
+    JoinTrack, JoinedInput, LeftOut, LeftOutReason, Mismatch,
 };
 use core::cell::RefCell;
 use coreav_isobmff::{
@@ -95,7 +95,7 @@ pub fn join_mp4<S: Source, W: Write>(
     }
     let mut picks = Vec::new();
     for (input, movie) in movies.iter().enumerate() {
-        picks.push(Pick::of(movie, options.audio).map_err(|e| at(input, e))?);
+        picks.push(Pick::of(movie, options).map_err(|e| at(input, e))?);
     }
     let first = picks.first().ok_or(JoinError::NoInputs)?;
     for (input, pick) in picks.iter().enumerate().skip(1) {
@@ -525,10 +525,10 @@ struct PickAudio<'a> {
 }
 
 impl<'a> Pick<'a> {
-    fn of(movie: &'a Movie, audio: JoinAudio) -> Result<Self, Error> {
-        let video = select_video(movie, VideoChoice::First)?;
+    fn of(movie: &'a Movie, options: &JoinOptions) -> Result<Self, Error> {
+        let video = select_video(movie, options.video)?;
         let video_entry = video_sample_entry(video)?;
-        let audio = match audio {
+        let audio = match options.audio {
             JoinAudio::None => None,
             JoinAudio::First => select_audio(movie, AudioChoice::First)?,
             JoinAudio::Stream(index) => select_audio(movie, AudioChoice::Stream(index))?,
