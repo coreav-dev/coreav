@@ -376,7 +376,10 @@ leave it out. As the round's plan registers, a run whose fallback log holds
 any line is void, a strict-safe refusal included; the tools count the
 refusals among the lines for diagnosis. A run that measured nothing (no
 file of the set's families, or none the pinned `ffprobe` reads) exits 3,
-never 0, so a missing input cannot pass a bar.
+never 0, so a missing input cannot pass a bar; and in a run that measured
+something, a family given that measured nothing misses (in R1, each of its
+(command, family) pairs whose files the pinned `ffprobe` reads none of; in
+R2, a family with no file it reads).
 
 `tools/compat-corpus/r3.py` runs R3 on files other than the fixtures. A
 file can take a command when its family is the command's, the pinned
