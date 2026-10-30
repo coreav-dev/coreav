@@ -90,7 +90,7 @@ fn the_defaults_are_the_documented_limits() {
 }
 
 #[test]
-fn tables_past_max_probe_bytes_are_not_found() {
+fn tables_past_max_probe_bytes_are_refused_with_the_limit() {
     let fillers = 6;
     let mut mux = Mux::default();
     filler(&mut mux, fillers);
@@ -107,7 +107,37 @@ fn tables_past_max_probe_bytes_are_not_found() {
         max_probe_bytes: tables_end - TS_PACKET,
         ..Limits::default()
     };
-    assert_eq!(probe_with(&mux.out, &limits).err(), Some(Error::NoPrograms));
+    assert_eq!(
+        probe_with(&mux.out, &limits).err(),
+        Some(Error::LimitExceeded {
+            limit: LimitKind::ProbeBytes,
+            offset: tables_end - TS_PACKET,
+        })
+    );
+}
+
+/// A file that names no program is refused for that when the probe read
+/// all of it, and for the limit when the budget left packets unread.
+#[test]
+fn a_file_without_tables_read_whole_within_max_probe_bytes_names_no_program() {
+    let mut mux = Mux::default();
+    filler(&mut mux, 6);
+    let len = mux.out.len() as u64;
+    let limits = |max_probe_bytes| Limits {
+        max_probe_bytes,
+        ..Limits::default()
+    };
+    assert_eq!(
+        probe_with(&mux.out, &limits(len)).err(),
+        Some(Error::NoPrograms)
+    );
+    assert_eq!(
+        probe_with(&mux.out, &limits(len - TS_PACKET)).err(),
+        Some(Error::LimitExceeded {
+            limit: LimitKind::ProbeBytes,
+            offset: len - TS_PACKET,
+        })
+    );
 }
 
 #[test]

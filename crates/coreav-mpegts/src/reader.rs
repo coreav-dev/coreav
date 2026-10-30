@@ -94,6 +94,13 @@ impl Reader {
         self.at
     }
 
+    /// Whether no whole stored packet is left before the end of the file.
+    pub(crate) fn exhausted(&self) -> bool {
+        self.at
+            .saturating_add(self.size.prefix() + TS_PACKET as u64)
+            > self.len
+    }
+
     /// Makes `[offset, offset + want)` available in the chunk, as far as
     /// the file goes; returns the bytes there are.
     fn window<S: Source>(
@@ -130,7 +137,7 @@ impl Reader {
     ) -> Result<Option<(u64, [u8; TS_PACKET])>, Error> {
         let (stride, prefix) = (self.size.stride(), self.size.prefix());
         loop {
-            if self.at.saturating_add(prefix + TS_PACKET as u64) > self.len {
+            if self.exhausted() {
                 return Ok(None);
             }
             let at = self.at;
