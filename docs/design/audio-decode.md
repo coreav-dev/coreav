@@ -1147,8 +1147,11 @@ question every pipeline user's.
 - **Decoded**: audio object type 2 (AAC LC), and MPEG-2 AAC LC (the MP4
   object type indications 0x40 and 0x67), with frames of 1,024 or 960
   samples (`frameLengthFlag`), every sample rate of Table 1.18, channel
-  configurations 1 to 7 and a `program_config_element` (configuration
-  0). The elements: SCE, CPE, LFE, CCE (coupling, 4.6.8.3), DSE and FIL
+  configurations 1 to 7, the configurations 11 (6.1), 12 (7.1 with back
+  surrounds) and 14 (7.1 with front heights) that ISO/IEC
+  14496-3:2009/Amd.4:2013 adds (as ITU-R BS.1196-6 Table 2 quotes its
+  Table 1.19), and a `program_config_element` (configuration 0).
+  Configuration 13 (22.2) is refused by name. The elements: SCE, CPE, LFE, CCE (coupling, 4.6.8.3), DSE and FIL
   (skipped), PCE (only the configuration's counts), END. The tools:
   section data, scalefactors with intensity and noise positions, pulse
   data, spectral data of codebooks 1 to 11 with escapes, M/S stereo,
@@ -1187,7 +1190,10 @@ question every pipeline user's.
 - **Channel order and elements**: output is in WAV's order (front left,
   right, centre, LFE, back, side), the order `ffmpeg` writes:
   configuration 3 (C, L, R) becomes L, R, C, configuration 6 L, R, C,
-  LFE, Ls, Rs, and so on (Table 1.19). A PCE's channels go front, side,
+  LFE, Ls, Rs, and so on (Table 1.19); configuration 11's surround pair
+  beside its back centre is WAV's side pair, and 12's pairs at ±90° and
+  ±135° are the side and back pairs, so 6.1 and 7.1 come out as
+  `ffmpeg` writes them. A PCE's channels go front, side,
   back, then LFE, in the PCE's order within each; its WAV mask is that of
   configurations 1 to 7 when the layout is one of theirs, else 0. An
   element goes to the slot its configuration names its
@@ -1443,3 +1449,46 @@ and a timed run on a fixed host ("Speed" above records the design).
   configuration for) is listed and not counted.
 - Not used: corpus files. ADTS and LATM are not read by the pipeline
   ("Scope"), so they have no set.
+
+### AAC-LC results
+
+**Round 1**, on `fa508ad`, in the `aac` job of `audio-conformance`
+against FFmpeg `n9.0.2-17-g2a571b6068`: bar 1 met (336 LC streams within
+full accuracy, 105 HE-AAC streams refused by name); bars 2, 3 and 5
+missed, final for that code. Bar 2: 322 of 481 counted inputs. Every one
+of the 145 generated MP4 inputs missed the length rule alone:
+`ffmpeg -ignore_editlist 1` 9.0.2 writes the samples its packets'
+durations state (481,024 for a 10-second input at 48 kHz, with the
+encoder's 1,024 priming samples), not every packet's 1,024. The rule
+assumed every packet's, as FFmpeg 8.1 writes. Their samples agreed to
+4.8 × 10^-7 at most (RMS 5.8 × 10^-8), and the noise level to 0.0001 dB
+on the 28 channels with 100 or more noise blocks. The 24 streams of
+`al03` (every rate, both frame lengths; one channel, a program
+configuration) missed on samples, with an RMS of 1.8 to 3.9 × 10^-3. Bar
+1 found CoreAV within 3.5 × 10^-8 of the reference on these streams, so
+FFmpeg is that far from the reference. One generated input, 7.1, was
+refused: FFmpeg 9.0.2 writes 7.1 as channel configuration 12, which this
+code did not read. Bar 3: 119 of 122. The 3 misses (6.1, and 6.1 and 7.1
+with `-aac_pce 1`) are program configurations whose channels FFmpeg
+orders differently ("Choices"). Bar 5: 290 of 292, the two being the
+refused 7.1 input.
+
+**Round 2**, fixed here before its run, on new code: channel
+configurations 11, 12 and 14 ("Scope"). Three changes to the method,
+each found after round 1:
+
+1. Bar 2's lengths: CoreAV's is still the packets times the frame
+   length. FFmpeg's must be the samples its packets' durations state
+   (`ffprobe -ignore_editlist 1`, in the stream's time base), and at
+   most the packets times the frame length. The samples are compared
+   over FFmpeg's length.
+2. Bar 2 lists a conformance stream as FFmpeg's divergence from the
+   reference, with both measures, and does not count it, when CoreAV's
+   output is within bar 1's full accuracy of the stream's reference and
+   FFmpeg's is not, measured as bar 1 measures.
+3. Bar 3 reports, and does not gate, an input with a program
+   configuration whose channels bar 2 matched to FFmpeg's in another
+   order: a PCE's channel order is the decoder's choice ("Choices").
+
+The tolerances, the level rule, the sets and the other bars are
+unchanged.
