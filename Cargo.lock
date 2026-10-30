@@ -217,6 +217,7 @@ dependencies = [
  "coreav-isobmff",
  "coreav-kernels-audio",
  "coreav-mkv",
+ "coreav-opus",
 ]
 
 [[package]]

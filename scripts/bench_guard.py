@@ -113,12 +113,14 @@ CASES = {
     # Across the splice at 3 s: two output edits (docs/design/edit-list-writers.md).
     "clip-multi-edit": ("edit_multi_splice.mp4", ["clip", "--start", "0.5", "--end", "4", "{}", "-"]),
     "extract-audio": ("basic.mp4", ["extract-audio", "{}", "-"]),
-    # docs/design/audio-decode.md: FLAC and MP3 in Matroska and MP4 to WAV.
+    # docs/design/audio-decode.md: FLAC and MP3 in Matroska and MP4, and Opus
+    # in WebM, to WAV.
     # One thread: counts that do not move with the runner's CPUs.
     "decode-audio-flac-mkv": ("flac.mka", ["decode-audio", "--threads", "1", "{}", "-"]),
     "decode-audio-flac-mp4": ("flac.m4a", ["decode-audio", "--threads", "1", "{}", "-"]),
     "decode-audio-mp3-mkv": ("mp3.mka", ["decode-audio", "--threads", "1", "{}", "-"]),
     "decode-audio-mp3-mp4": ("mp3.m4a", ["decode-audio", "--threads", "1", "{}", "-"]),
+    "decode-audio-opus": ("opus.webm", ["decode-audio", "--threads", "1", "{}", "-"]),
     # The fixtures' mono 44.1 kHz audio resampled to 16 kHz, as for
     # transcription, and to 48 kHz stereo ("Resampling and downmixing").
     "decode-audio-16k-mono": ("mp3.mka", ["decode-audio", "--threads", "1", "--rate", "16000", "--channels", "1", "{}", "-"]),
@@ -169,11 +171,12 @@ INPUTS = {
 }
 
 # Fixtures written here: name: (fixture it is written from, format, how):
-# by stream copy, or with its audio encoded to FLAC or MP3 (the encoders are
-# deterministic, and `+bitexact` keeps version strings out).
+# by stream copy, or with its audio encoded to FLAC, MP3 or Opus (the encoders
+# are deterministic, and `+bitexact` keeps version strings out).
 COPY = ("-map", "0", "-c", "copy")
 FLAC = ("-map", "0:a", "-c:a", "flac")
 MP3 = ("-map", "0:a", "-c:a", "libmp3lame", "-b:a", "128k")
+OPUS = ("-map", "0:a", "-c:a", "libopus", "-b:a", "64k")
 DERIVED = {
     "basic.mkv": ("basic.mp4", "matroska", COPY),
     "vp9.webm": ("vp9.mp4", "webm", COPY),
@@ -182,6 +185,7 @@ DERIVED = {
     "flac.m4a": ("basic.mp4", "mp4", FLAC),
     "mp3.mka": ("basic.mp4", "matroska", MP3),
     "mp3.m4a": ("basic.mp4", "mp4", MP3),
+    "opus.webm": ("basic.mp4", "webm", OPUS),
 }
 
 # Cases that need a decoder backend, which the shipped (default) build does
