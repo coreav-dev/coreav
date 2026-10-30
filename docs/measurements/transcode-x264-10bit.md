@@ -431,3 +431,24 @@ The main thread's CPU time comes from `/proc` in every arm, and the huge-page fi
 
 **What follows.** `coreav transcode` starts the encoder through its launcher (`coreav_worker::exec`), which now turns transparent huge pages off (`PR_SET_THP_DISABLE`, through `rustix`'s safe API) before it runs the x264 program on input of more than 8 bits, and leaves them as they are for 8-bit input and for `ffmpeg`. A corpus round with its own bars judges that change through the command.
 
+
+### The command on the corpus
+
+Status: planned. The files, the method and the bars are committed before the run.
+
+This round times `coreav transcode` with the change above against FFmpeg on the corpus files of round 2's speed selection, to see how much of the `x264` arm's gap on 10-bit sources the change closes.
+
+- **Code:** this branch, built with `cargo build --release -p coreav-cli --features native-h264,dav1d,ffmpeg-fallback`, the features of round 2.
+- **FFmpeg and x264:** FFmpeg 9.0.2 (the BtbN static build `n9.0.2-17-g2a571b6068`) and the x264 program built at `0480cb0`, the libx264 that build links, as pinned by the change that moves the oracle to FFmpeg 9 (#69). Both arms then run the same encoder, and the baseline is the FFmpeg version the maintainer named for comparisons.
+- **Files:** round 2's speed selection ([`transcode/speed-selection.json`](transcode/speed-selection.json)), classes HEVC, AV1 and ProRes, which hold every 10-bit source of the selection (10 files) and 8 files with 8-bit sources. They carried round 2's result, so they are not held out; rounds 1 and 2 also shared one selection.
+- **Host and method:** one Compute Engine `c4-standard-8` (two threads a core, not preemptible), by `scripts/transcode_speed_gcp.py` with `--classes hevc,av1,prores`, which runs `scripts/transcode_speed.py` as in round 2: the two arms (`--encoder x264` and `--encoder ffmpeg`) and the baseline, 3 rounds in rotated order a file, and the gate before and after (void above 5%). The gate file is 20 s of 1280x720 `testsrc2` at 30 frames a second, encoded by the pinned `ffmpeg` with libx264 at `-preset medium -crf 23`.
+
+**Bars.** A file's `x264`-over-`ffmpeg` ratio is its `x264` arm's median time over its `ffmpeg` arm's. Both arms decode the same way, so the ratio isolates the encoder program. A file counts as 10-bit when the selection gives its source more than 8 bits a sample.
+
+1. **10-bit sources.** The median of the 10-bit files' `x264`-over-`ffmpeg` ratios is at most **1.30**. Round 2 had 1.428 on the same files.
+2. **8-bit sources.** The median of the 8-bit files' ratios is at most **1.01**. Round 2 had 0.990. The change does not apply to them.
+
+Bar B5 of the design note (each arm's median ratio against the baseline at most 1.05 per class) is reported for both arms and is not changed here. The share of files where each arm is faster than the baseline is reported beside it.
+
+**What follows from the result.** If both bars hold, the change stays and the page reports how far the `x264` arm still is from B5 on 10-bit sources. If bar 1 misses, the corpus does not show the gain of the frame run, and the change is reported as not judged effective on the command. If bar 2 misses, the run shows a cost that the change does not touch, and the page says so; the cause is found before merging.
+
