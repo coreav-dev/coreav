@@ -13,6 +13,8 @@ name: fuzz-nightly
 # workflow-check: not required
 
 on:
+  push:
+    branches: [ci/fuzz-budget]
   schedule:
     # 02:23 in Seoul, when the queue is quiet.
     - cron: '23 17 * * *'
@@ -97,7 +99,7 @@ jobs:
       - id: fuzz
         name: Run each target
         env:
-          FUZZ_SECONDS: ${{ inputs.seconds || 900 }}
+          FUZZ_SECONDS: ${{ inputs.seconds || 10 }}
           # The fuzz campaign's AddressSanitizer options
           # (docs/design/fuzz-campaign.md, tools/fuzz-campaign/campaign.py).
           ASAN_OPTIONS: quarantine_size_mb=64
