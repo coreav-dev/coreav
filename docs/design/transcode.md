@@ -1027,5 +1027,7 @@ What the misses are, in the measurement: a 16 GB host's memory cap at
 one 8K AV1 stream through `--encoder ffmpeg`, and, for speed, the cost of
 the sandboxed decoders above the 5% that B5 allows. On the `x264` arm, 10-bit
 sources add the x264 program's own conversion of 10-bit input, which no input
-CoreAV can stream avoids
+CoreAV can stream avoids. With transparent huge pages off for that program its
+median over the `ffmpeg` arm on 10-bit sources went from 1.428 to 1.172, still
+above B5
 ([`docs/measurements/transcode-x264-10bit.md`](../measurements/transcode-x264-10bit.md)).
