@@ -527,7 +527,10 @@ stream to Opus (RFC 6716) with libopus, as policy record 0042 allows an
 encoder backend: a crate of its own, `coreav-backend-libopus`, built only
 with the `libopus` feature, which links the system's libopus (BSD-3-Clause)
 through the `opusic-c` crate and its `opusic-sys` binding (both
-BSD-3-Clause), with their bundled build of libopus turned off. No default build
+BSD-3-Clause), with their bundled build of libopus turned off: the library
+is found where the loader looks by default, or through a runtime search
+path built into the binary, since the encoder process runs with a cleared
+environment (`LD_LIBRARY_PATH` does not reach it). No default build
 links it, and a build without the feature refuses `--audio opus`
 (`unsupported_feature`, exit status 1) before it opens the input; its help
 says so. The crate has no `unsafe` of its own: the FFI surface is the
