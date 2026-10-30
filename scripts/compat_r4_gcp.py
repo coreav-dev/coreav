@@ -19,8 +19,9 @@ creates the VM (STANDARD provisioning, one thread a core), runs job.sh and bring
    and its report (r4.json, r4.report.json). A failed gate leaves the draw unread.
 
 Then the files are deleted, and verdict.json is written: `r4` when the gate passed and R4 ran on the class asked for,
-`gate failed` (a host fault: the round goes on with a new VM of the same class), or `void` (a VM of another class, a
-missing report, a void fallback log). Exit status 0 for `r4`, 3 for a failed gate, 5 for a void run, 4 when
+`gate failed` (a gate report found the host out of its band: a host fault, the round goes on with a new VM of the
+same class), or `void` (a VM of another class, a missing report, a report that measured nothing, a gate arm that
+did not finish, a fallback log with any line). Exit status 0 for `r4`, 3 for a failed gate, 5 for a void run, 4 when
 gcp_vm_job.py brought nothing back.
 
 Limits: the VM deletes itself at --max-hours (gcp_vm_job.py's maxRunDuration and its timeout), and job.sh powers it
@@ -90,8 +91,10 @@ trap finish EXIT
 {fetch} --files gate.json --dest data/gate > out/fetch-gate.log 2>&1 || {{ echo 'fetch failed' > out/gate.verdict; exit 1; }}
 gate=pass
 for arm in aa null; do
-  {r4} --arm "$arm" --files data/gate/files.json --out "out/gate-$arm.json" 2> "out/gate-$arm.log" || gate=fail
-  {report} --gate --results "out/gate-$arm.json" --out "out/gate-$arm.report.json" > "out/gate-$arm.report.txt" || gate=fail
+  {r4} --arm "$arm" --files data/gate/files.json --out "out/gate-$arm.json" 2> "out/gate-$arm.log" || gate=error
+  rc=0
+  {report} --gate --results "out/gate-$arm.json" --out "out/gate-$arm.report.json" > "out/gate-$arm.report.txt" || rc=$?
+  if [ "$rc" -gt 1 ]; then gate=error; elif [ "$rc" = 1 ] && [ "$gate" = pass ]; then gate=fail; fi
 done
 echo "$gate" > out/gate.verdict
 rm -rf data/gate
@@ -151,6 +154,8 @@ def judge(out, rc, run):
     for name in ('gate-aa', 'gate-null', 'r4'):
         if reports[name] and reports[name]['fallback_log']['void']:
             reasons.append(f'the fallback log of {name} is void')
+        if reports[name] and not reports[name]['classes']:
+            reasons.append(f'{name} measured nothing')
     if (gate == 'pass' or run['rehearsal']) and not reports['r4']:
         reasons.append('R4 produced no report')
     if gate not in ('pass', 'fail'):

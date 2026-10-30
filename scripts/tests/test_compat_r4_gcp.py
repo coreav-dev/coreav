@@ -109,6 +109,24 @@ class Job(unittest.TestCase):
         self.assertIn('sudo shutdown -P', job)
         self.assertIn('[ "$gate" = pass ] || [ true = true ]', compat_r4_gcp.job_script(5, '4-7', rehearsal=True))
 
+    def test_only_a_failing_gate_report_fails_the_gate(self):
+        for codes, verdict in (((0, 0), 'pass'), ((1, 0), 'fail'), ((0, 3), 'error'), ((1, 2), 'error'),
+                               ((2, 1), 'error')):
+            with tempfile.TemporaryDirectory() as tmp:
+                d = pathlib.Path(tmp)
+                job = compat_r4_gcp.job_script(1, '0', rehearsal=False)
+                job = job.replace('python3 -I repo/tools/compat-corpus/speed.py r4-report', 'sh ./report.sh')
+                job = job.replace('python3 -I repo/tools/compat-corpus/speed.py r4 ', 'true ')
+                job = job.replace('python3 -I repo/tools/compat-corpus/round_files.py fetch', 'true')
+                job = job.replace('chmod 700 bin/coreav bin/ffmpeg bin/ffprobe', 'true')
+                job = job.replace('bin/ffmpeg -version', 'echo')
+                (d / 'report.sh').write_text('n=$(cat n 2>/dev/null || echo 0); echo $((n + 1)) > n\n'
+                                             f'[ "$n" = 0 ] && exit {codes[0]}; exit {codes[1]}\n')
+                (d / 'r2.env').write_text('')
+                subprocess.run(['bash', '-c', job.split('python3 -I - > out/host.json')[0]
+                                + job.split('\nPY\n', 1)[1], 'job', '0'], cwd=d, capture_output=True, timeout=60)
+                self.assertEqual((d / 'out' / 'gate.verdict').read_text().strip(), verdict, codes)
+
     def test_the_job_is_valid_bash(self):
         with tempfile.NamedTemporaryFile('w', suffix='.sh') as f:
             f.write(compat_r4_gcp.job_script(5, '4-7', rehearsal=False))
@@ -133,7 +151,7 @@ class Verdict(unittest.TestCase):
     HOST = {'instance.json': {'machine_type': 'c4-standard-16', 'provisioning': 'STANDARD',
                               'advanced_machine_features': {'threadsPerCore': 1}},
             'host.json': {'smt_active': '0'}, 'job.status': '0'}
-    REPORT = {'fallback_log': {'void': False}, 'failing': []}
+    REPORT = {'fallback_log': {'void': False}, 'failing': [], 'classes': [{'class': 'probe', 'family': 'all'}]}
 
     def test_r4(self):
         out, run = self.vm({**self.HOST, 'gate.verdict': 'pass', 'gate-aa.report.json': self.REPORT,
@@ -160,6 +178,15 @@ class Verdict(unittest.TestCase):
         out, run = self.vm({**self.HOST, 'gate.verdict': 'pass', 'gate-aa.report.json': self.REPORT,
                             'gate-null.report.json': self.REPORT,
                             'r4.report.json': {**self.REPORT, 'fallback_log': {'void': True}}})
+        self.assertEqual(compat_r4_gcp.judge(str(out), 0, run), 5)
+
+    def test_a_report_that_measured_nothing_voids_the_run(self):
+        out, run = self.vm({**self.HOST, 'gate.verdict': 'pass', 'gate-aa.report.json': self.REPORT,
+                            'gate-null.report.json': self.REPORT, 'r4.report.json': {**self.REPORT, 'classes': []}})
+        self.assertEqual(compat_r4_gcp.judge(str(out), 0, run), 5)
+        self.assertIn('r4 measured nothing', json.loads((out / 'verdict.json').read_text())['reasons'])
+        out, run = self.vm({**self.HOST, 'gate.verdict': 'error', 'gate-aa.report.json': self.REPORT,
+                            'gate-null.report.json': {**self.REPORT, 'classes': []}})
         self.assertEqual(compat_r4_gcp.judge(str(out), 0, run), 5)
 
     def test_nothing_came_back(self):
