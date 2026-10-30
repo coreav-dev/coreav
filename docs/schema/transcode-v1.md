@@ -74,4 +74,10 @@ the decoder and the checks before the encoder starts) reports
 `invalid_structure`; the encoding side reports `decode` (or `limit`, or
 `io` for an I/O error), so that a defect there never reads as a refusal. Usage errors (an invalid `--scale`,
 `--crf` with `--bitrate`, an output that is the input, exists without
-`--force`, or is `-`) exit with 2.
+`--force`, or is `-`) exit with 2. In strict-safe mode (`--strict-safe`,
+`COREAV_STRICT_SAFE`) what would run an `ffmpeg` program, the `ffmpeg`
+encoder (`--encoder ffmpeg`, or `auto` without an `x264` program) or the
+FFmpeg decoder for a video no other decoder of the build takes, is refused
+with exit status 4 and kind `unsupported_feature`, leaving no output; its
+message names the way out (`docs/design/compat-cli.md`, "Strict-safe
+mode").

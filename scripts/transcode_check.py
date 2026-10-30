@@ -213,7 +213,11 @@ def child_env(ffmpeg=None):
     env = {k: v for k, v in os.environ.items()
            if not k.startswith(('R2_', 'AWS_', 'COREAV_GCP_', 'CORPUS_R2'))}
     env['PYTHONDONTWRITEBYTECODE'] = '1'
-    env['COREAV_STRICT_SAFE'] = '1'
+    # A refused `coreav ffmpeg` command stays refused (exit status 4) instead of running FFmpeg in its place: the
+    # fallback names no program. Not strict-safe mode, which would also refuse the FFmpeg decoder and encoder the arms
+    # run (docs/design/compat-cli.md, "Strict-safe mode").
+    env['COREAV_FALLBACK'] = '/nonexistent/coreav-fallback'
+    env.pop('COREAV_STRICT_SAFE', None)
     if ffmpeg:
         env['COREAV_FFMPEG'] = ffmpeg
     return env

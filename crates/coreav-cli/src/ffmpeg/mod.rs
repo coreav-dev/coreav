@@ -21,6 +21,7 @@ use crate::ffprobe::model::Value;
 use crate::ffprobe::{Report, Stream, StreamKind};
 use crate::output::{self, WriteFailure};
 use crate::split::Pattern;
+use crate::strict_safe::StrictSafe;
 use args::{Codec, Command, Demuxer, Muxer, Overwrite, Spec};
 use coreav_isobmff::{Allowlist, FileSource, Limits, Rational, Track};
 use coreav_isobmff_write::{
@@ -121,8 +122,9 @@ enum Container {
 /// Parses, plans and runs a command line. Returns the summary its writer's
 /// own command prints (`coreav remux`, `clip`, `split`, `extract-audio`,
 /// `join`), which `coreav ffmpeg` does not print; the fixture tests check
-/// outputs with it.
-pub fn run(args: &[String]) -> Result<serde_json::Value, Stop> {
+/// outputs with it. `strict_safe` is `coreav --strict-safe`: an encode
+/// then runs no `ffmpeg` program (`crate::strict_safe`).
+pub fn run(args: &[String], strict_safe: StrictSafe) -> Result<serde_json::Value, Stop> {
     let command = args::parse(args)?;
     let io = |e| WriteFailure::Rejected(Failure::io(e));
     let input = PathBuf::from(&command.input);
@@ -141,7 +143,7 @@ pub fn run(args: &[String]) -> Result<serde_json::Value, Stop> {
         .map_err(WriteFailure::Rejected)?
         .report;
     let job = plan(&command, &report, list)?;
-    write(&command, &job)
+    write(&command, &job, strict_safe)
 }
 
 /// The files a concat list names (`crate::concat::read`). A directive or a
@@ -780,7 +782,8 @@ pub(crate) fn check_output(command: &Command, path: &Path) -> Result<bool, Refus
 
 /// Writes the output of `job`: to a temporary file next to each output,
 /// moved into place only once the whole job succeeded.
-fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
+#[cfg_attr(not(feature = "transcode"), allow(unused_variables))]
+fn write(command: &Command, job: &Job, strict_safe: StrictSafe) -> Result<serde_json::Value, Stop> {
     let input = Path::new(&command.input);
     let (allowlist, mkv_allowlist) = crate::matroska::allowlists(None, false).map_err(|_| {
         Refusal::Usage("the default codec allowlists could not be built".to_owned())
@@ -795,7 +798,7 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
     } = job
     {
         #[cfg(feature = "transcode")]
-        return encode::write(command, *video, audio, *reordered);
+        return encode::write(command, *video, audio, *reordered, strict_safe);
         #[cfg(not(feature = "transcode"))]
         {
             let _ = (video, audio, reordered);

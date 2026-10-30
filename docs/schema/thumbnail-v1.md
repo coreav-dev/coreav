@@ -43,4 +43,8 @@ failed on the data, or its worker failed), `out_of_range` (the time is at
 or after the end of the video), `limit` with `limit` `timeout` (decoding
 took longer than `--timeout`), `codec_not_allowed` (the codec is not on the
 decode allowlist) and `unsupported_feature` (for example no decoder backend
-in this build for the stream).
+in this build for the stream). In strict-safe mode (`--strict-safe`,
+`COREAV_STRICT_SAFE`) a video only the FFmpeg decoder would decode is
+refused with exit status 4 and kind `unsupported_feature`, leaving no
+output; its message names the build that decodes it without FFmpeg
+(`docs/design/compat-cli.md`, "Strict-safe mode").

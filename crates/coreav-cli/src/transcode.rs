@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use coreav_isobmff::Source;
-use coreav_transcode::encoder::{EncoderChoice, RateControl};
+use coreav_transcode::encoder::RateControl;
 use coreav_transcode::{
     AudioMode, PixelFormat, Remuxed, Scale, SourceKind, Summary, TranscodeOptions, parse_scale,
 };
@@ -20,6 +20,7 @@ use serde_json::{Value, json};
 
 use crate::error::Failure;
 use crate::output::WriteFailure;
+use crate::strict_safe::{Encoder, StrictSafe};
 
 /// What `coreav transcode` asks for, from its arguments.
 #[derive(Clone, Debug)]
@@ -41,8 +42,8 @@ pub struct Request {
     pub pixel_format: Option<PixelFormat>,
     /// Refuse a stream whose frame size changes, instead of resizing it.
     pub one_size: bool,
-    /// `--encoder`: `auto`, `x264` or `ffmpeg`.
-    pub encoder: String,
+    /// `--encoder`, as strict-safe mode allows it.
+    pub encoder: Encoder,
     /// `--x264`.
     pub x264: Option<PathBuf>,
     /// `--ffmpeg`.
@@ -51,6 +52,8 @@ pub struct Request {
     pub threads: Option<u32>,
     /// `--timeout`, in seconds.
     pub timeout: u64,
+    /// `--strict-safe`: no FFmpeg decoder.
+    pub strict_safe: StrictSafe,
 }
 
 /// The `--scale` value, or the usage message.
@@ -99,11 +102,7 @@ pub fn make<S: Source>(
             (Some(streams), false) => AudioMode::Streams(streams.clone()),
             (None, false) => AudioMode::Copy,
         },
-        encoder: match request.encoder.as_str() {
-            "x264" => EncoderChoice::X264,
-            "ffmpeg" => EncoderChoice::Ffmpeg,
-            _ => EncoderChoice::Auto,
-        },
+        encoder: request.encoder.choice(),
         x264: request.x264.clone(),
         ffmpeg: request.ffmpeg.clone(),
         threads: request.threads,
@@ -119,18 +118,17 @@ pub fn make<S: Source>(
     // The decoder's own thread choice; the default policy's order (native,
     // dav1d and libvpx before the fallback), as `coreav thumbnail` without
     // `--exact`.
-    let owned = crate::thumbnail::backends(Some(this), 0);
-    let backends: Vec<&dyn coreav_decode::Backend> = owned.iter().map(|b| b.as_ref()).collect();
+    let decoders = crate::thumbnail::backends(Some(this), 0, request.strict_safe);
     let summary = coreav_transcode::transcode(
         &mut source,
         kind,
         &options,
-        &backends,
+        &decoders.list(),
         Some(&launcher),
         output,
         out,
     )
-    .map_err(failure)?;
+    .map_err(|e| decoders.explain(failure(e)))?;
     Ok(document(&summary))
 }
 

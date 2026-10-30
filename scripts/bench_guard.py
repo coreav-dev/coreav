@@ -274,14 +274,17 @@ REFS = re.compile(r"^==\d+== I\s+refs:\s+([\d,]+)\s*$", re.MULTILINE)
 
 
 def instructions(coreav, args):
-    """The instructions `coreav ARGS` executes, or the error. In strict-safe
-    mode, so that a command that stopped being native fails here instead of
-    being handed to FFmpeg."""
+    """The instructions `coreav ARGS` executes, or the error. With a fallback
+    that names no program, so that a command that stopped being native fails
+    here instead of being handed to FFmpeg; not in strict-safe mode, which
+    would also refuse the FFmpeg decoder and encoder of the thumbnail and
+    transcode cases (docs/design/compat-cli.md, "Strict-safe mode")."""
     done = subprocess.run(
         ["valgrind", "--tool=cachegrind", "--cache-sim=no", "--cachegrind-out-file=/dev/null",
          coreav, *args],
         stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, timeout=600,
-        env={**os.environ, "COREAV_STRICT_SAFE": "1"})
+        env={**{k: v for k, v in os.environ.items() if k != "COREAV_STRICT_SAFE"},
+             "COREAV_FALLBACK": "/nonexistent/coreav-fallback"})
     if done.returncode != 0:
         return None, f"exit {done.returncode}: {done.stderr[-500:]}"
     match = REFS.search(done.stderr)

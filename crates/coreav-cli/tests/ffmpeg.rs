@@ -17,6 +17,7 @@ use common::{Spec, aac_entry, av_movie, av_movie_with};
 use coreav_cli::fallback::Reason;
 use coreav_cli::ffmpeg::{Refusal, Stop};
 use coreav_cli::ffprobe::StreamKind;
+use coreav_cli::strict_safe::StrictSafe;
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -115,7 +116,7 @@ fn commands_outside_the_vocabulary_are_refused_by_name() {
 fn a_refusal_carries_its_reason() {
     let refusal = |list: &[&str]| {
         let args: Vec<String> = list.iter().map(|a| (*a).to_owned()).collect();
-        match coreav_cli::ffmpeg::run(&args) {
+        match coreav_cli::ffmpeg::run(&args, StrictSafe::new(false)) {
             Err(Stop::Refused(Refusal::NotNative(refusal))) => refusal.reason,
             _ => panic!("{list:?} was not refused"),
         }
@@ -159,7 +160,7 @@ fn a_concat_list_is_joined() {
         .into_iter()
         .map(str::to_owned)
         .collect();
-    let Ok(summary) = coreav_cli::ffmpeg::run(&args) else {
+    let Ok(summary) = coreav_cli::ffmpeg::run(&args, StrictSafe::new(false)) else {
         panic!("{args:?} did not run");
     };
     assert_eq!(summary["schema"], "coreav.join/1");
@@ -506,7 +507,7 @@ fn clip_times_count_from_the_input_start_time() {
         .chain(["-c", "copy", output.to_str().unwrap()])
         .map(str::to_owned)
         .collect();
-    let Ok(summary) = coreav_cli::ffmpeg::run(&args) else {
+    let Ok(summary) = coreav_cli::ffmpeg::run(&args, StrictSafe::new(false)) else {
         panic!("{args:?} did not run");
     };
     assert_eq!(summary["start"]["requested"], json!({"num": 8, "den": 25}));
@@ -666,7 +667,8 @@ fn the_0_1_0_commands_on_the_fixtures() {
                     })
                     .collect();
                 let label = format!("{id} {} on {name}", template.join(" "));
-                let (status, detail) = match coreav_cli::ffmpeg::run(&args) {
+                let (status, detail) = match coreav_cli::ffmpeg::run(&args, StrictSafe::new(false))
+                {
                     Ok(summary) => {
                         native.insert((id, family));
                         ("written", summary)

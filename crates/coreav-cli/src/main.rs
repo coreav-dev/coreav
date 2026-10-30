@@ -34,7 +34,9 @@
 //!
 //! Exit codes: 0 success (for `check`, the file is accepted), 1 the file was
 //! rejected, 2 usage error (for `check`, also an invalid policy), 3 I/O
-//! error, 141 standard output closed by its reader.
+//! error, 4 refused: a `coreav ffprobe` or `coreav ffmpeg` command that is
+//! not native, or what strict-safe mode refuses (`strict_safe`), 141
+//! standard output closed by its reader.
 //!
 //! Every write to standard output is checked: the JSON documents, the
 //! summaries, the output written to `-`, and `--help` and `--version`. A
@@ -73,7 +75,7 @@ use coreav_cli::output::{self, WriteFailure};
 use coreav_cli::remote::{self, RemoteSource};
 use coreav_cli::{
     check, clip, compat, decode_audio, error::Failure, extract, hls, join, matroska, mcp, mpegts,
-    names, native, probe, remux, split, text, thumbnail,
+    names, native, probe, remux, split, strict_safe::StrictSafe, text, thumbnail,
 };
 use coreav_isobmff::BufferedSource;
 use coreav_isobmff_write::hls::{HlsIndex, HlsOptions, Resource};
@@ -90,11 +92,13 @@ use serde_json::Value;
 #[derive(Parser)]
 #[command(name = "coreav", version, about, long_about = None)]
 struct Cli {
-    /// For services that read untrusted input: `coreav ffprobe` and
-    /// `coreav ffmpeg` never run FFmpeg in place of a command that is not
-    /// native, and refuse it (exit status 4), as COREAV_STRICT_SAFE=1 does.
-    /// Without it, such a command runs the ffmpeg or ffprobe program found
-    /// on PATH (or named by COREAV_FALLBACK), which is FFmpeg's C code.
+    /// For services that read untrusted input: CoreAV never runs an ffmpeg
+    /// or ffprobe program, which is FFmpeg's C code, as COREAV_STRICT_SAFE=1
+    /// does. `coreav ffprobe` and `coreav ffmpeg` refuse a command that is
+    /// not native (exit status 4) instead of running it with FFmpeg, and a
+    /// thumbnail or transcode never decodes or encodes with FFmpeg: a video
+    /// only FFmpeg would decode, and an encode without an x264 program, are
+    /// refused (exit status 4).
     #[arg(long)]
     strict_safe: bool,
     #[command(subcommand)]
@@ -313,7 +317,8 @@ struct TranscodeArgs {
     #[arg(long, value_name = "MODE", default_value = "copy", value_parser = ["copy", "none"])]
     audio: String,
     /// The encoder program: `x264`, `ffmpeg` (with libx264), or `auto`:
-    /// x264 when there is one, else ffmpeg.
+    /// x264 when there is one, else ffmpeg. With --strict-safe, `ffmpeg`
+    /// is refused and `auto` is x264 only.
     #[arg(long, value_name = "ENCODER", default_value = "auto",
           value_parser = ["auto", "x264", "ffmpeg"])]
     encoder: String,
@@ -781,9 +786,17 @@ fn main() -> ExitCode {
     let args: Vec<OsString> = std::env::args_os().collect();
     match args.first().and_then(compat_cmd::multicall) {
         Some("ffprobe") => {
-            return compat_cmd::run_ffprobe(args.get(1..).unwrap_or_default(), false);
+            return compat_cmd::run_ffprobe(
+                args.get(1..).unwrap_or_default(),
+                StrictSafe::new(false),
+            );
         }
-        Some(_) => return compat_cmd::run_ffmpeg(args.get(1..).unwrap_or_default(), false),
+        Some(_) => {
+            return compat_cmd::run_ffmpeg(
+                args.get(1..).unwrap_or_default(),
+                StrictSafe::new(false),
+            );
+        }
         None => {}
     }
     main_with(args, std::env::current_exe().ok())
@@ -939,8 +952,12 @@ impl<W: Write> Write for Watched<W> {
 fn run(cli: Cli, this: Option<PathBuf>) -> ExitCode {
     match cli.command {
         Command::Mcp(args) => run_mcp(&args, this),
-        Command::Ffprobe(args) => compat_cmd::run_ffprobe(&args.args, cli.strict_safe),
-        Command::Ffmpeg(args) => compat_cmd::run_ffmpeg(&args.args, cli.strict_safe),
+        Command::Ffprobe(args) => {
+            compat_cmd::run_ffprobe(&args.args, StrictSafe::new(cli.strict_safe))
+        }
+        Command::Ffmpeg(args) => {
+            compat_cmd::run_ffmpeg(&args.args, StrictSafe::new(cli.strict_safe))
+        }
         Command::Probe(args) => run_probe(&args),
         Command::Clip(args) => run_clip(&args),
         Command::Check(args) => run_check(&args),
@@ -962,18 +979,33 @@ fn run(cli: Cli, this: Option<PathBuf>) -> ExitCode {
         Command::Hls(HlsCommand::Get(args)) => run_hls_get(&args),
         Command::Hls(HlsCommand::Package(args)) => run_hls_package(&args),
         #[cfg(feature = "thumbnail")]
-        Command::Thumbnail(args) => run_thumbnail(&args, this.as_deref()),
+        Command::Thumbnail(args) => {
+            run_thumbnail(&args, this.as_deref(), StrictSafe::new(cli.strict_safe))
+        }
         #[cfg(feature = "transcode")]
-        Command::Transcode(args) => run_transcode(&args, this.as_deref()),
+        Command::Transcode(args) => {
+            run_transcode(&args, this.as_deref(), StrictSafe::new(cli.strict_safe))
+        }
     }
 }
 
 #[cfg(feature = "transcode")]
-fn run_transcode(args: &TranscodeArgs, this: Option<&Path>) -> ExitCode {
+fn run_transcode(args: &TranscodeArgs, this: Option<&Path>, strict_safe: StrictSafe) -> ExitCode {
     use coreav_cli::transcode;
     let scale = match args.scale.as_deref().map(transcode::scale).transpose() {
         Ok(scale) => scale,
         Err(message) => return usage(&message),
+    };
+    let encoder = match strict_safe.encoder(&args.encoder, args.x264.as_deref()) {
+        Ok(encoder) => encoder,
+        Err(message) => {
+            let _ = writeln!(
+                std::io::stderr(),
+                "{}",
+                Failure::StrictSafe(message).to_json()
+            );
+            return ExitCode::from(compat_cmd::EXIT_UNSUPPORTED);
+        }
     };
     let request = transcode::Request {
         crf: args.crf,
@@ -984,11 +1016,12 @@ fn run_transcode(args: &TranscodeArgs, this: Option<&Path>) -> ExitCode {
         audio_streams: None,
         pixel_format: None,
         one_size: false,
-        encoder: args.encoder.clone(),
+        encoder,
         x264: args.x264.clone(),
         ffmpeg: args.ffmpeg.clone(),
         threads: args.threads,
         timeout: args.timeout,
+        strict_safe,
     };
     if args.output.as_os_str() == "-" {
         return usage("the output must be a file: the MP4 is written with its movie box first");
@@ -1020,7 +1053,7 @@ fn run_transcode(args: &TranscodeArgs, this: Option<&Path>) -> ExitCode {
 }
 
 #[cfg(feature = "thumbnail")]
-fn run_thumbnail(args: &ThumbnailArgs, this: Option<&Path>) -> ExitCode {
+fn run_thumbnail(args: &ThumbnailArgs, this: Option<&Path>, strict_safe: StrictSafe) -> ExitCode {
     let Some(at) = thumbnail::parse_at(&args.at) else {
         return usage("--at must be a time such as 12, 12.5s, 1500ms or 1:02.5");
     };
@@ -1041,6 +1074,7 @@ fn run_thumbnail(args: &ThumbnailArgs, this: Option<&Path>) -> ExitCode {
         allow: args.allow.clone(),
         threads: args.threads,
         timeout: args.timeout,
+        strict_safe,
     };
     let mut remote = match open_remote(&args.input) {
         Ok(remote) => remote,
@@ -1459,6 +1493,8 @@ fn write_output_core<T>(
         Err(failure) => {
             let code = if failure.is_io() {
                 EXIT_IO
+            } else if failure.is_strict_safe() {
+                compat_cmd::EXIT_UNSUPPORTED
             } else {
                 EXIT_REJECTED
             };

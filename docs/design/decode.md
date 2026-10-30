@@ -191,7 +191,8 @@ CoreAV's own H.264 decoder is the `native` backend
 (`crates/coreav-backend-h264`, `docs/design/h264.md`), dav1d decodes
 AV1 (section "dav1d") and libvpx decodes VP9 (section "libvpx"); all
 three are opt-in and never in a default build. The other codecs go
-through the fallback.
+through the fallback, except in strict-safe mode, which never runs it
+(section "The FFmpeg fallback").
 
 **A caller may order the backends by the work it is about to ask for.**
 The order is the policy's, and `coreav thumbnail` sets two of them
@@ -497,6 +498,18 @@ the `ffmpeg-fallback` feature. It runs an `ffmpeg` binary, the system's or
 one the operator names, as a child of the worker, so FFmpeg's C code never
 runs in the parent process. FFmpeg's libraries are never linked: binding
 them would mean reading their headers, which are FFmpeg source.
+
+**Strict-safe mode** (`coreav --strict-safe`, `COREAV_STRICT_SAFE`;
+`compat-cli.md`, "Strict-safe mode") never runs it. The CLI's backend list
+(`coreav-cli`, `strict_safe::Decoders`) then holds a stand-in in its place:
+the same `supports`, and an `open` that fails with `unsupported`, so
+selection goes on to the next backend in the policy's order as for any
+backend that fails to open. A stream no other backend opens is refused with
+exit status 4, naming the build that decodes it without FFmpeg; a stream
+another backend opens decodes there, and the summary lists the fallback as
+skipped (`not run in strict-safe mode`). The order is not changed, so
+`--exact` still tries the fallback first and, in strict-safe mode, decodes
+H.264 with the native decoder.
 
 CoreAV demuxes; FFmpeg only decodes. The worker writes the packets to
 FFmpeg's standard input as a Matroska stream that it writes itself (RFC

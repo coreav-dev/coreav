@@ -16,7 +16,17 @@ use super::{NotNative, Refusal, Stop};
 use crate::error::Failure;
 use crate::fallback::Reason;
 use crate::output::{self, WriteFailure};
+use crate::strict_safe::StrictSafe;
 use crate::transcode::{self, Request};
+
+/// Strict-safe mode's refusal (`crate::strict_safe`), as a command that is
+/// not native: refused with exit status 4, and never handed to FFmpeg.
+fn refused_strict(message: String) -> Refusal {
+    Refusal::NotNative(NotNative {
+        reason: Reason::Property("strict-safe mode"),
+        message,
+    })
+}
 
 fn refused(option: &str, value: &str, why: &str) -> Refusal {
     Refusal::NotNative(NotNative {
@@ -52,7 +62,11 @@ fn kbps(text: &str) -> Option<u32> {
 
 /// The request for the pipeline from the command's encoder options and the
 /// audio streams it copies.
-pub fn request(command: &Command, audio: &[usize]) -> Result<Request, Refusal> {
+pub fn request(
+    command: &Command,
+    audio: &[usize],
+    strict_safe: StrictSafe,
+) -> Result<Request, Refusal> {
     let Encoding {
         crf,
         bitrate,
@@ -148,11 +162,12 @@ pub fn request(command: &Command, audio: &[usize]) -> Result<Request, Refusal> {
         audio_streams: Some(audio.to_vec()),
         pixel_format,
         one_size: true,
-        encoder: "auto".to_owned(),
+        encoder: strict_safe.encoder("auto", None).map_err(refused_strict)?,
         x264: None,
         ffmpeg: None,
         threads,
         timeout: 3600,
+        strict_safe,
     })
 }
 
@@ -351,8 +366,9 @@ pub fn write(
     video: usize,
     audio: &[usize],
     reordered: bool,
+    strict_safe: StrictSafe,
 ) -> Result<serde_json::Value, Stop> {
-    let request = request(command, audio)?;
+    let request = request(command, audio, strict_safe)?;
     let input = Path::new(&command.input);
     check_source(command, video, audio, reordered, input)?;
     let this = std::env::current_exe()
@@ -364,6 +380,9 @@ pub fn write(
         transcode::make(&request, Some(&this), BufferedSource::new(file), &path, out)
     })
     .map_err(|failure| match failure {
+        WriteFailure::Rejected(Failure::StrictSafe(message)) => {
+            Stop::Refused(refused_strict(message))
+        }
         WriteFailure::Rejected(Failure::Unsupported(what)) => {
             Stop::Refused(Refusal::NotNative(NotNative {
                 reason: Reason::Property("a source the transcode pipeline does not take"),

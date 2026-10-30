@@ -122,6 +122,8 @@ pub struct Request {
     pub threads: u32,
     /// `--timeout`, in seconds.
     pub timeout: u64,
+    /// `--strict-safe`: no FFmpeg decoder.
+    pub strict_safe: crate::strict_safe::StrictSafe,
 }
 
 /// Makes the thumbnail `request` asks for from `source`: the image and the
@@ -161,9 +163,9 @@ pub fn make<S: Source>(
         options.policy.allowlist = coreav_decode::DecodeAllowlist::new(&codecs);
     }
     options.policy.order = order(request.exact);
-    let owned = backends(this, request.threads);
-    let backends: Vec<&dyn coreav_decode::Backend> = owned.iter().map(|b| b.as_ref()).collect();
-    let made = coreav_thumbnail::thumbnail(source, &options, &backends).map_err(failure)?;
+    let decoders = backends(this, request.threads, request.strict_safe);
+    let made = coreav_thumbnail::thumbnail(source, &options, &decoders.list())
+        .map_err(|e| decoders.explain(failure(e)))?;
     let document = document(&made, request.at);
     Ok((made.image, document))
 }
@@ -198,8 +200,9 @@ fn order(exact: bool) -> Vec<coreav_decode::BackendKind> {
 /// The decoder backends of this build: CoreAV's own H.264 decoder with
 /// the `native-h264` feature, and, run by this program as its sandboxed
 /// worker, dav1d with the `dav1d` feature, libvpx with the `libvpx` feature
-/// and the FFmpeg fallback with the `ffmpeg-fallback` feature. The policy's order decides between them
-/// (`docs/design/decode.md`).
+/// and the FFmpeg fallback with the `ffmpeg-fallback` feature, which
+/// strict-safe mode refuses (`crate::strict_safe`). The policy's order
+/// decides between them (`docs/design/decode.md`).
 #[cfg(feature = "thumbnail")]
 #[cfg_attr(
     not(any(
@@ -210,20 +213,13 @@ fn order(exact: bool) -> Vec<coreav_decode::BackendKind> {
     )),
     allow(unused_mut)
 )]
-#[cfg_attr(
-    not(any(feature = "ffmpeg-fallback", feature = "dav1d", feature = "libvpx")),
-    allow(unused_variables)
-)]
-// With one backend in the build, the vector is made and pushed to once.
-#[cfg_attr(
-    not(all(feature = "ffmpeg-fallback", feature = "native-h264")),
-    allow(clippy::vec_init_then_push)
-)]
+#[cfg_attr(not(feature = "ffmpeg-fallback"), allow(unused_variables))]
 pub(crate) fn backends(
     this: Option<&std::path::Path>,
     threads: u32,
-) -> Vec<Box<dyn coreav_decode::Backend>> {
-    let mut out: Vec<Box<dyn coreav_decode::Backend>> = Vec::new();
+    strict_safe: crate::strict_safe::StrictSafe,
+) -> crate::strict_safe::Decoders {
+    let mut out = crate::strict_safe::Decoders::default();
     #[cfg(feature = "native-h264")]
     out.push(Box::new(coreav_backend_h264::NativeH264::new()));
     #[cfg(any(feature = "ffmpeg-fallback", feature = "dav1d", feature = "libvpx"))]
@@ -247,10 +243,13 @@ pub(crate) fn backends(
             options: options.clone(),
         }));
         #[cfg(feature = "ffmpeg-fallback")]
-        out.push(Box::new(SandboxedBackend {
-            backend: WorkerBackend::Ffmpeg,
-            options,
-        }));
+        out.push_ffmpeg(
+            strict_safe,
+            SandboxedBackend {
+                backend: WorkerBackend::Ffmpeg,
+                options,
+            },
+        );
     }
     out
 }

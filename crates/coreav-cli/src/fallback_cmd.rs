@@ -13,6 +13,7 @@ use std::process::{Command, ExitCode};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use coreav_cli::fallback::{self, NotNative, NotRun, Tool, executable};
+use coreav_cli::strict_safe::StrictSafe;
 
 use super::compat_cmd::{EXIT_UNSUPPORTED, multicall};
 
@@ -26,8 +27,13 @@ const SECONDS_1904_TO_1970: u64 = 2_082_844_800;
 
 /// A command that is not native: the program that runs in its place, whose
 /// exit status becomes this one's, or the refusal with exit status 4.
-pub fn refuse(tool: Tool, args: &[String], refusal: NotNative, strict_safe: bool) -> ExitCode {
-    let found = if strict_safe || on("COREAV_STRICT_SAFE") {
+pub fn refuse(
+    tool: Tool,
+    args: &[String],
+    refusal: NotNative,
+    strict_safe: StrictSafe,
+) -> ExitCode {
+    let found = if strict_safe.on() {
         Err((NotRun::StrictSafe, None))
     } else if std::env::var_os(GUARD).is_some() {
         Err((
@@ -68,12 +74,6 @@ pub fn refuse(tool: Tool, args: &[String], refusal: NotNative, strict_safe: bool
 
 fn message(tool: Tool, text: &str) {
     let _ = writeln!(std::io::stderr(), "coreav {}: {text}", tool.name());
-}
-
-/// Whether a variable is set to anything but empty and `0`, so that a
-/// mistyped value turns the mode on.
-fn on(variable: &str) -> bool {
-    std::env::var_os(variable).is_some_and(|v| !v.is_empty() && v != "0")
 }
 
 /// The program to run: the one `COREAV_FALLBACK` names, a directory's or a

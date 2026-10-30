@@ -1150,15 +1150,63 @@ commands CoreAV does not implement.
 
 ### Strict-safe mode, for services that read untrusted input
 
-`COREAV_STRICT_SAFE=1`, or `coreav --strict-safe ffprobe ...` and
-`coreav --strict-safe ffmpeg ...`, never runs another program: a command that
-is not native is refused by name with exit status 4, as without the
-fallback. Under a link named `ffprobe` or `ffmpeg` every argument is the tool's,
-so only the variable works there. Any value but empty and `0` turns it on,
-so a mistyped value fails closed. This is the mode for a service that reads
+`COREAV_STRICT_SAFE=1`, or `coreav --strict-safe COMMAND ...`, never runs an
+`ffmpeg` or `ffprobe` program, in any build and for any command (maintainer
+decision, 2026-10-30):
+
+- **In place of a command.** A `coreav ffprobe` or `coreav ffmpeg` command
+  that is not native is refused by name with exit status 4, as without the
+  fallback.
+- **As the decoder.** In a build with the `ffmpeg-fallback` backend
+  (`decode.md`, "The FFmpeg fallback"), the backend is replaced by a
+  stand-in that says which streams it would take and opens none. The
+  policy's order is unchanged, so the native, dav1d and libvpx backends
+  decode what they decode, `--exact` included, where the fallback comes
+  first. When the order reaches the stand-in and no backend after it opens
+  the stream, `coreav thumbnail`, `coreav transcode` and the `libx264`
+  lines of `coreav ffmpeg` are refused with exit status 4, and the message
+  names the codec, the build that decodes it without FFmpeg (`native-h264`,
+  `dav1d`, `libvpx`) and turning the mode off. The refusal comes once the
+  container is read and before any frame is decoded; the output path is
+  never created, and the temporary file next to it is removed.
+- **As the encoder** (`transcode.md`, "The encoder program").
+  `--encoder ffmpeg` is refused, and `--encoder auto`, the default and what
+  the `libx264` lines of `coreav ffmpeg` use, takes an `x264` program only
+  and is refused when there is none, with exit status 4 and a message that
+  names installing x264 and turning the mode off. Both come before the
+  input is read.
+
+`coreav thumbnail` and `coreav transcode` print the refusal as a
+`coreav.error/1` object of kind `unsupported_feature`; `coreav ffmpeg` as
+its other refusals, with the log line's `not_run` `strict_safe`.
+
+One type decides all three, `StrictSafe` (`coreav-cli`, `strict_safe.rs`),
+made from the flag and the variable: the fallback asks it, a transcode's
+encoder is an `Encoder` only it makes, and the FFmpeg backend reaches the
+decoder list only through `Decoders::push_ffmpeg`, which takes it. A new
+command that decodes or encodes goes through the same list and the same
+type. Rejected: a check in each command, which a new command could leave
+out; and leaving the FFmpeg backend out of the list in strict-safe mode,
+which would make a stream only FFmpeg decodes a rejected file (exit 1, "no
+decoder") instead of a refusal that names the way out.
+
+Under a link named `ffprobe` or `ffmpeg` every argument is the tool's, so
+only the variable works there. Any value but empty and `0` turns it on, so
+a mistyped value fails closed. This is the mode for a service that reads
 files it did not make, and the user documentation and the commands' help
 text present it first: only in this mode does no FFmpeg code run on the
-service's input. Every bar of this note is measured in it.
+service's input, in every build. Every bar of this note is measured in it.
+A check that needs FFmpeg as the decoder or the encoder (`transcode.md`, B9;
+the instruction counts of `thumbnail` and `transcode` in
+`scripts/bench_guard.py`) runs outside it, with `COREAV_FALLBACK` naming no
+program so that a refusal still stands.
+
+The tests (`crates/coreav-cli/tests/strict_safe.rs`, in CI with the
+fallback alone and with the native H.264 decoder alone) put a stand-in
+`ffmpeg` on `PATH` and in `COREAV_FFMPEG` that leaves a file behind when it
+runs, and check that none runs in the mode for `coreav thumbnail` (with
+and without `--exact`), `coreav transcode` and a `coreav ffmpeg` `libx264`
+line, and that it does run outside the mode.
 
 ### Which program runs
 
@@ -1294,9 +1342,12 @@ redaction, which keeps the values of options it does not know.
 A native command reads none of this: no lookup, no notice, no log line.
 
 **What the fallback means for claims.** With the fallback, a command that
-is not native runs FFmpeg's C code on its input. The statement that no C
-code runs holds in strict-safe mode only, and every place that makes it
-says so.
+is not native runs FFmpeg's C code on its input, and in a build with a
+decoder backend FFmpeg can decode or encode the video. The statement that no
+FFmpeg code runs holds in strict-safe mode only, in every build, and every
+place that makes it says so. It is not a statement that no C code runs: the
+`dav1d` and `libvpx` backends are C libraries, sandboxed, in the builds that
+have them.
 
 **Not in 0.1.0: a shadow mode** that runs both tools and reports their
 differences. It waits for what the fallback logs show (0.1.x).

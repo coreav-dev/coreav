@@ -49,6 +49,11 @@ impl WriteFailure {
         }
     }
 
+    /// Strict-safe mode's refusal: exit status 4.
+    pub fn is_strict_safe(&self) -> bool {
+        matches!(self, Self::Rejected(failure) if failure.is_strict_safe())
+    }
+
     /// An output that could not be created, written or put in place.
     pub fn output(error: &std::io::Error) -> Self {
         Self::Io(io_object(&format!("write error: {}", error.kind())))

@@ -130,6 +130,15 @@ jobs:
         env:
           COREAV_FFMPEG: ${{ runner.temp }}/coreav-encoders/ffmpeg
           COREAV_X264: ${{ runner.temp }}/coreav-encoders/x264
+      # Strict-safe mode runs no ffmpeg program, as the decoder, the encoder
+      # or in place of a command (docs/design/compat-cli.md, "Strict-safe
+      # mode"): in a build with the FFmpeg fallback and in one with CoreAV's
+      # own H.264 decoder alone. The pinned FFmpeg only makes the source.
+      - run: |
+          cargo test -p coreav-cli --features ffmpeg-fallback --test strict_safe
+          cargo test -p coreav-cli --features native-h264 --test strict_safe
+        env:
+          COREAV_FFMPEG: ${{ runner.temp }}/coreav-encoders/ffmpeg
       # Pinned limit test: 2.2 GB virtual fragmented
       # file with 20,000 fragments, reads bounded to 1 MiB.
       - run: cargo test --release -p coreav-isobmff --test hostile -- --ignored
