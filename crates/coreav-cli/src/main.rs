@@ -72,8 +72,8 @@ use coreav_cli::output::{self, WriteFailure};
 #[cfg(feature = "net")]
 use coreav_cli::remote::{self, RemoteSource};
 use coreav_cli::{
-    check, clip, compat, decode_audio, error::Failure, extract, hls, join, matroska, mcp, mpegts,
-    names, native, probe, remux, split, text, thumbnail,
+    check, clip, compat, decode_audio, error::Failure, extract, hls, join, matroska, mpegts, names,
+    native, probe, remux, split, text, thumbnail,
 };
 use coreav_isobmff::BufferedSource;
 use coreav_isobmff_write::hls::{HlsIndex, HlsOptions, Resource};
@@ -215,9 +215,6 @@ enum Command {
     /// Join MP4/MOV files that share a codec configuration into one MP4,
     /// without re-encoding.
     Join(Deferred<JoinArgs>),
-    /// Serve these commands as Model Context Protocol tools over standard
-    /// input and output, for agents (docs/design/mcp.md).
-    Mcp(Deferred<McpArgs>),
     /// Serve an MP4/MOV file as HLS with fragmented MP4 (CMAF) segments,
     /// without re-encoding.
     #[command(subcommand)]
@@ -393,25 +390,6 @@ struct ThumbnailArgs {
     /// Overwrite OUTPUT if it exists.
     #[arg(long)]
     force: bool,
-}
-
-#[derive(Args)]
-struct McpArgs {
-    /// A directory the tools may read and write in; repeat it for more.
-    /// Paths outside every root are refused. Default: the current
-    /// directory.
-    #[arg(long, value_name = "DIR")]
-    root: Vec<PathBuf>,
-    /// Seconds one tool call may run before it is stopped.
-    #[arg(long, value_name = "SECONDS", default_value_t = 600,
-          value_parser = clap::value_parser!(u64).range(1..=86_400))]
-    timeout: u64,
-    /// Which URLs the tools read: `public` (https:// URLs of public
-    /// addresses), `any` (as the command line, private addresses and
-    /// http:// included) or `none`.
-    #[arg(long, value_name = "WHICH", default_value = "public",
-          value_parser = ["public", "any", "none"])]
-    urls: String,
 }
 
 #[derive(Args)]
@@ -790,8 +768,8 @@ fn main() -> ExitCode {
 }
 
 /// Parses `args` (the program name first) and runs the command; `this` is
-/// the command itself, which `coreav mcp` runs for each tool call. `--help`,
-/// `--version` and usage errors are printed as the argument parser prints
+/// the command itself, which `coreav thumbnail` and `coreav transcode` start
+/// again as their sandboxed workers. `--help`, `--version` and usage errors are printed as the argument parser prints
 /// them, with the write checked. The Python package's `coreav` command
 /// calls this with its own arguments (`docs/design/python.md`).
 pub(crate) fn main_with(
@@ -936,9 +914,9 @@ impl<W: Write> Write for Watched<W> {
 }
 
 /// Runs the command `cli` describes.
+#[cfg_attr(not(feature = "thumbnail"), allow(unused_variables))]
 fn run(cli: Cli, this: Option<PathBuf>) -> ExitCode {
     match cli.command {
-        Command::Mcp(args) => run_mcp(&args, this),
         Command::Ffprobe(args) => compat_cmd::run_ffprobe(&args.args, cli.strict_safe),
         Command::Ffmpeg(args) => compat_cmd::run_ffmpeg(&args.args, cli.strict_safe),
         Command::Probe(args) => run_probe(&args),
@@ -1058,51 +1036,6 @@ fn run_thumbnail(args: &ThumbnailArgs, this: Option<&Path>) -> ExitCode {
             .map_err(|e| WriteFailure::output(&e))?;
         Ok(document)
     })
-}
-
-fn run_mcp(args: &McpArgs, this: Option<PathBuf>) -> ExitCode {
-    // The server runs the command as a child process for each tool call;
-    // a WASI module (the npm package's fallback) has no processes.
-    if cfg!(target_os = "wasi") {
-        return usage(
-            "coreav mcp needs the native coreav command; this WebAssembly build cannot start processes",
-        );
-    }
-    // Never a `coreav` found on PATH, which may be another program.
-    let Some(this) = this else {
-        let _ = writeln!(
-            std::io::stderr(),
-            "error: cannot find the path of the running coreav command"
-        );
-        return ExitCode::from(EXIT_IO);
-    };
-    let roots = if args.root.is_empty() {
-        vec![PathBuf::from(".")]
-    } else {
-        args.root.clone()
-    };
-    let config = mcp::Config {
-        roots,
-        command: this,
-        timeout: std::time::Duration::from_secs(args.timeout),
-        urls: match args.urls.as_str() {
-            "any" => mcp::Urls::Any,
-            "none" => mcp::Urls::None,
-            _ => mcp::Urls::Public,
-        },
-    };
-    let mut server = match mcp::Server::new(config) {
-        Ok(server) => server,
-        Err(message) => return usage(&message),
-    };
-    match mcp::serve(
-        &mut server,
-        std::io::stdin().lock(),
-        std::io::stdout().lock(),
-    ) {
-        Ok(()) => ExitCode::SUCCESS,
-        Err(error) => write_error(&error),
-    }
 }
 
 /// A WASI module starts in `/`. The npm launcher (`packages/cli`) preopens

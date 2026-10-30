@@ -20,10 +20,7 @@ The native binaries and the WebAssembly build are those of the npm package `core
 
 ## The npm package
 
-The npm package needs Node 20 or later. It runs the native binary on Linux (x86-64 and arm64, glibc or musl), macOS (arm64 and x86-64) and Windows (x86-64), and the WebAssembly build elsewhere. Both give the same output, output files and exit statuses. The WebAssembly build has two limits:
-
-- It reads local files only. An input that names a URL is refused with exit status 2.
-- It cannot run [`coreav mcp`](/commands/mcp), which starts the command as a child process for each tool call. It exits with status 2 and says so.
+The npm package needs Node 20 or later. It runs the native binary on Linux (x86-64 and arm64, glibc or musl), macOS (arm64 and x86-64) and Windows (x86-64), and the WebAssembly build elsewhere. Both give the same output, output files and exit statuses. The WebAssembly build reads local files only: an input that names a URL is refused with exit status 2.
 
 [The npm package's design note](https://github.com/coreav-dev/coreav/blob/main/docs/design/npm-cli.md) covers how the package picks a binary.
 
