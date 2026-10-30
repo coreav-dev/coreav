@@ -146,7 +146,8 @@ class Report(unittest.TestCase):
 # Stand-ins for the harness, the binary and copy_check.py. The harness writes
 # `out.mp4` for every pair (or refuses every one with FAKE_STATUS=refused); the
 # binary does the same, writing a fallback-log line when it refuses; the check
-# writes a fresh report, or with FAKE_CHECK=crash exits 1 and writes none.
+# writes a fresh report, or with FAKE_CHECK=crash exits 1 and writes none, or
+# with FAKE_CHECK=hang never returns.
 HARNESS = r'''#!/usr/bin/env python3
 import json, os, pathlib
 status = os.environ.get('FAKE_STATUS', 'written')
@@ -174,6 +175,9 @@ import collections, json, os, sys
 args = dict(zip(sys.argv[1::2], sys.argv[2::2]))
 if os.environ.get('FAKE_CHECK') == 'crash':
     sys.exit(1)
+if os.environ.get('FAKE_CHECK') == 'hang':
+    import time
+    time.sleep(600)
 counts = collections.defaultdict(collections.Counter)
 for r in json.load(open(args['--records'])):
     counts[r['id']][r['status']] += 1
@@ -212,6 +216,11 @@ class Judge(unittest.TestCase):
         self.assertEqual(self.judge(['C01']), {('C01', 0): ('passed', None)})
         self.assertEqual(self.judge(['C02'], FAKE_CHECK='crash'), {('C02', 0): ('failed', 'copy_check crashed')})
 
+    def test_a_hung_check_times_out_and_fails_its_chunk(self):
+        timeout, r3.TIMEOUT = r3.TIMEOUT, 5
+        self.addCleanup(setattr, r3, 'TIMEOUT', timeout)
+        self.assertEqual(self.judge(['C01'], FAKE_CHECK='hang'), {('C01', 0): ('failed', 'copy_check crashed')})
+
     def test_a_refusal_runs_the_binary_and_reaches_the_fallback_log(self):
         self.assertEqual(self.judge(['C01'], FAKE_STATUS='refused'), {('C01', 0): ('failed', 'refused')})
         self.assertEqual(release_round.fallback_verdict(self.log), {'lines': 1, 'refused': 1, 'void': True})
@@ -227,10 +236,13 @@ class Judge(unittest.TestCase):
 
 
 class Run(unittest.TestCase):
-    def run_lines(self, lines, log_line=None):
+    def run_lines(self, lines, log_line=None, stale_line=None):
         with tempfile.TemporaryDirectory() as tmp:
             d = pathlib.Path(tmp)
             (d / 'a.mp4').write_bytes(b'')
+            if stale_line:
+                (d / 'w').mkdir()
+                (d / 'w' / 'fallback.log').write_text(stale_line + '\n')
 
             def one_file(opts, path, env):
                 if log_line:
@@ -255,6 +267,9 @@ class Run(unittest.TestCase):
         self.assertEqual(self.run_lines([self.line('passed')]), 0)
         self.assertEqual(self.run_lines([self.line('passed')], json.dumps({'not_run': 'strict_safe'})), 2)
         self.assertEqual(self.run_lines([self.line('failed', 'oracle')]), 1)
+
+    def test_a_log_left_by_an_earlier_run_does_not_void_the_run(self):
+        self.assertEqual(self.run_lines([self.line('passed')], stale_line=json.dumps({'not_run': 'strict_safe'})), 0)
 
     def test_a_set_aside_pair_leaves_its_command_unmeasured(self):
         lines = [self.line('passed')] * 99 + [self.line('set aside', 'no oracle models a picture size change')]

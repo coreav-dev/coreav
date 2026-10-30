@@ -179,8 +179,11 @@ def judge(opts, pairs, scratch, env):
         if opts.mediainfo:
             cmd += ['--mediainfo', opts.mediainfo]
         with open(opts.log, 'ab') as log:
-            code = subprocess.run(cmd, stdin=subprocess.DEVNULL, stdout=log, stderr=log, env=env,
-                                  check=False).returncode
+            try:
+                code = subprocess.run(cmd, stdin=subprocess.DEVNULL, stdout=log, stderr=log, env=env,
+                                      check=False, timeout=TIMEOUT * len(judged)).returncode
+            except subprocess.TimeoutExpired:
+                code = None
         report = json.loads(check.read_text()) if code in (0, 1) and check.exists() else None
         if report and sum(c.get('written', 0) for c in report['counts'].values()) != len(judged):
             report = None
@@ -246,6 +249,7 @@ def cmd_run(opts):
     pathlib.Path(opts.work).mkdir(parents=True, exist_ok=True)
     opts.log = str(pathlib.Path(opts.records).with_suffix('.copy_check.log'))
     log = pathlib.Path(opts.work) / 'fallback.log'
+    log.unlink(missing_ok=True)
     env = release_round.environment(log)
     with concurrent.futures.ThreadPoolExecutor(opts.jobs) as pool:
         per_file = list(pool.map(lambda p: one_file(opts, p, env), files))
