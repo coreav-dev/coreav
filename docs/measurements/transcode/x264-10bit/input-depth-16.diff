@@ -1,0 +1,152 @@
+diff --git a/crates/coreav-transcode/src/encoder.rs b/crates/coreav-transcode/src/encoder.rs
+index 0e8729a..772a460 100644
+--- a/crates/coreav-transcode/src/encoder.rs
++++ b/crates/coreav-transcode/src/encoder.rs
+@@ -463,6 +463,16 @@ fn color_options(
+         .collect()
+ }
+ 
++/// The depth the x264 program reads samples of `depth` bits at: 16 for
++/// 10-bit frames, their samples shifted up by 6 bits ([`Encoder`] shifts
++/// them). The program converts every input deeper than 8 bits on its main
++/// thread, and on the measured host that conversion took half the time
++/// from 16 bits that it took from 10, for the same stream out
++/// (`docs/measurements/transcode-x264-10bit.md`).
++fn x264_input_depth(depth: u8) -> u8 {
++    if depth > 8 { 16 } else { depth }
++}
++
+ /// x264's arguments for `settings` (`docs/design/transcode.md`, "The
+ /// encoder program"): raw frames on standard input, an Annex B stream on
+ /// standard output.
+@@ -484,7 +494,7 @@ pub fn x264_args(settings: &EncoderSettings) -> Result<Vec<String>, Error> {
+         s("--output-csp"),
+         s(csp),
+         s("--input-depth"),
+-        depth.to_string(),
++        x264_input_depth(depth).to_string(),
+         s("--output-depth"),
+         depth.to_string(),
+         s("--input-res"),
+@@ -800,6 +810,9 @@ pub struct Encoder<S: Sink> {
+     settings: EncoderSettings,
+     name: &'static str,
+     frame_bytes: usize,
++    /// Bits each 16-bit sample is shifted up by before it is written: the
++    /// depth the program reads ([`x264_input_depth`]) less the frames'.
++    shift: u32,
+     deadline: Instant,
+     frames: u64,
+     /// FFmpeg with the frames' times: the Matroska stream's time scale, and
+@@ -898,6 +911,13 @@ impl<S: Sink> Encoder<S> {
+             .map(OsString::from)
+             .collect();
+         let frame_bytes = settings.frame_bytes()?;
++        let shift = match program {
++            EncoderProgram::X264(_) => {
++                let (_, depth) = input_format(settings.format)?;
++                u32::from(x264_input_depth(depth) - depth)
++            }
++            EncoderProgram::Ffmpeg(_) => 0,
++        };
+         // Checked before the encoder starts: an error after it would leave
+         // the process to no keeper.
+         let blocks = match (program, &settings.timing) {
+@@ -1017,6 +1037,7 @@ impl<S: Sink> Encoder<S> {
+             settings: settings.clone(),
+             name,
+             frame_bytes,
++            shift,
+             deadline,
+             frames: 0,
+             blocks,
+@@ -1103,6 +1124,17 @@ impl<S: Sink> Encoder<S> {
+                 "frame of the wrong size",
+             ));
+         }
++        if self.shift > 0 {
++            for sample in bytes
++                .get_mut(head..)
++                .unwrap_or_default()
++                .chunks_exact_mut(2)
++            {
++                if let [lo, hi] = sample {
++                    [*lo, *hi] = (u16::from_le_bytes([*lo, *hi]) << self.shift).to_le_bytes();
++                }
++            }
++        }
+         let outcome = {
+             let Ok(mut queue) = self.shared.queue.lock() else {
+                 return Err(self.fail(Error::new(ErrorKind::Backend, "encoder state lost")));
+@@ -1522,7 +1554,7 @@ mod tests {
+         assert_eq!(
+             x264_args(&s).unwrap(),
+             split(
+-                "--demuxer raw --input-csp i422 --output-csp i422 --input-depth 10 \
++                "--demuxer raw --input-csp i422 --output-csp i422 --input-depth 16 \
+                  --output-depth 10 --input-res 1920x1080 --fps 30000/1001 \
+                  --colorprim bt2020 --transfer smpte2084 --colormatrix bt2020nc \
+                  --input-range pc --range pc --sar 10:11 --preset veryfast \
+diff --git a/crates/coreav-transcode/tests/encoder.rs b/crates/coreav-transcode/tests/encoder.rs
+index 44959c4..4d77aed 100644
+--- a/crates/coreav-transcode/tests/encoder.rs
++++ b/crates/coreav-transcode/tests/encoder.rs
+@@ -12,8 +12,10 @@
+ 
+ mod common;
+ 
++use std::process::Command;
++
+ use coreav_frame::{Chroma, ColorInfo, PixelFormat};
+-use coreav_transcode::encoder::EncoderSettings;
++use coreav_transcode::encoder::{EncoderProgram, EncoderSettings, x264_args};
+ 
+ use common::*;
+ 
+@@ -258,3 +260,46 @@ fn a_frame_that_differs_from_the_settings_is_refused() {
+         "{error:?}"
+     );
+ }
++
++/// 10-bit frames reach the x264 program at 16 bits, shifted up
++/// (`encoder::x264_args`), and come out as the stream x264 makes from the
++/// same frames given at 10 bits, in each chroma format and both ranges.
++#[test]
++fn ten_bit_frames_encode_as_at_ten_bits() {
++    let Some(program) = programs()
++        .into_iter()
++        .find(|p| matches!(p, EncoderProgram::X264(_)))
++    else {
++        return;
++    };
++    let x264 = program.path();
++    let dir = scratch("ten-bit");
++    let input = dir.join("frames.yuv");
++    for chroma in [Chroma::Cs420, Chroma::Cs422, Chroma::Cs444] {
++        for full_range in [None, Some(true)] {
++            let format = yuv(chroma, 10);
++            let frames: Vec<_> = (0..8).map(|n| moving(96, 64, format, n)).collect();
++            let s = EncoderSettings {
++                color: ColorInfo {
++                    full_range,
++                    ..ColorInfo::default()
++                },
++                ..settings(96, 64, format)
++            };
++            let ours = encode(&program, &s, None, &frames).unwrap();
++            let mut raw = Vec::new();
++            for frame in &frames {
++                frame.write_packed(&mut raw).unwrap();
++            }
++            std::fs::write(&input, &raw).unwrap();
++            let mut args = x264_args(&s).unwrap();
++            let depth = args.iter().position(|a| a == "--input-depth").unwrap() + 1;
++            args[depth] = "10".into();
++            *args.last_mut().unwrap() = input.to_string_lossy().into_owned();
++            let theirs = Command::new(x264).args(&args).output().unwrap();
++            assert!(theirs.status.success(), "{format:?} {full_range:?}");
++            assert!(ours == theirs.stdout, "{format:?} {full_range:?}");
++        }
++    }
++    std::fs::remove_dir_all(&dir).unwrap();
++}

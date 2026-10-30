@@ -1,0 +1,11 @@
+# started on Thu Oct 29 12:53:51 2026
+
+
+ Performance counter stats for thread id '5270':
+
+          17431.25 msec task-clock                       #    0.756 CPUs utilized             
+       55071643372      cycles                           #    3.159 GHz                       
+       41361142469      instructions                     #    0.75  insn per cycle            
+
+      23.048620837 seconds time elapsed
+

@@ -1,0 +1,14 @@
+# started on Thu Oct 29 13:21:07 2026
+
+
+ Performance counter stats for thread id '1969':
+
+       55140982471      cycles                                                                
+       41430082695      instructions                     #    0.75  insn per cycle            
+        1708221570      exe_activity.bound_on_stores                                          
+       27831276828      exe_activity.bound_on_loads                                           
+        2427275455      resource_stalls.sb                                                    
+        2121115066      l1d_pend_miss.fb_full                                                 
+
+      22.240933373 seconds time elapsed
+

@@ -1,0 +1,14 @@
+# started on Thu Oct 29 13:24:39 2026
+
+
+ Performance counter stats for thread id '2254':
+
+       27623794568      cycles                                                                
+       42154510223      instructions                     #    1.53  insn per cycle            
+             62437      machine_clears.memory_ordering                                        
+          75752860      resource_stalls.scoreboard                                            
+        1787881135      memory_activity.stalls_l1d_miss                                       
+            108354      mem_inst_retired.stlb_miss_loads                                      
+
+      18.071535002 seconds time elapsed
+

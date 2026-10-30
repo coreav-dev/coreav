@@ -1,0 +1,37 @@
+{"kind": "input", "frames": 129, "samples": 1604966400}
+{"rc": 0, "wall": 22.625, "main_cpu": 16.64, "total_cpu": 117.63, "threads": 17, "err": "", "kind": "stat", "arm": "x264-d10-file", "input": "file", "what": "group-alias", "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 22.285, "main_cpu": 16.6, "total_cpu": 117.61, "threads": 17, "err": "", "kind": "stat", "arm": "x264-d10-file", "input": "file", "what": "group-tlb", "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 22.252, "main_cpu": 16.62, "total_cpu": 117.84, "threads": 17, "err": "", "kind": "stat", "arm": "x264-d10-file", "input": "file", "what": "group-bound", "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 22.328, "main_cpu": 16.61, "total_cpu": 117.62, "threads": 17, "err": "", "kind": "stat", "arm": "x264-d10-file", "input": "file", "what": "group-other", "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 21.747, "main_cpu": 16.0, "total_cpu": 118.3, "threads": 17, "err": "", "kind": "stat", "arm": "x264-d10-file", "input": "file", "what": "metric-level3", "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 22.271, "main_cpu": 16.68, "total_cpu": 117.74, "threads": 17, "err": "", "kind": "stat", "arm": "x264-d10-file", "input": "file", "what": "metric-l1", "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 22.27, "main_cpu": 16.65, "total_cpu": 117.88, "threads": 17, "err": "", "kind": "stat", "arm": "x264-d10-file", "input": "file", "what": "metric-store", "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 23.219, "main_cpu": 0.2, "total_cpu": 0.2, "threads": 2, "err": "", "kind": "counters", "arm": "x264-d10-file", "input": "file", "group": "alias"}
+{"rc": 0, "wall": 22.561, "main_cpu": 0.0, "total_cpu": 0.0, "threads": 1, "err": "", "kind": "sched", "arm": "x264-d10-file", "input": "file", "main_tid": 2142, "main_lines": 385, "x264_tasks": 17}
+{"rc": 0, "wall": 18.084, "main_cpu": 8.13, "total_cpu": 108.54, "threads": 17, "err": "", "kind": "stat", "arm": "x264-d16-file", "input": "file", "what": "group-alias", "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 17.975, "main_cpu": 8.15, "total_cpu": 108.76, "threads": 17, "err": "", "kind": "stat", "arm": "x264-d16-file", "input": "file", "what": "group-tlb", "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 17.984, "main_cpu": 8.16, "total_cpu": 109.12, "threads": 17, "err": "", "kind": "stat", "arm": "x264-d16-file", "input": "file", "what": "group-bound", "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 18.082, "main_cpu": 8.16, "total_cpu": 108.96, "threads": 17, "err": "", "kind": "stat", "arm": "x264-d16-file", "input": "file", "what": "group-other", "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 18.061, "main_cpu": 8.19, "total_cpu": 108.82, "threads": 17, "err": "", "kind": "stat", "arm": "x264-d16-file", "input": "file", "what": "metric-level3", "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 18.132, "main_cpu": 8.2, "total_cpu": 109.19, "threads": 17, "err": "", "kind": "stat", "arm": "x264-d16-file", "input": "file", "what": "metric-l1", "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 18.085, "main_cpu": 8.18, "total_cpu": 108.51, "threads": 17, "err": "", "kind": "stat", "arm": "x264-d16-file", "input": "file", "what": "metric-store", "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 18.124, "main_cpu": 0.14, "total_cpu": 0.14, "threads": 2, "err": "", "kind": "counters", "arm": "x264-d16-file", "input": "file", "group": "alias"}
+{"rc": 0, "wall": 19.551, "main_cpu": 0.0, "total_cpu": 0.0, "threads": 1, "err": "", "kind": "sched", "arm": "x264-d16-file", "input": "file", "main_tid": 2394, "main_lines": 623, "x264_tasks": 17}
+{"rc": 0, "wall": 22.493, "main_cpu": 16.38, "total_cpu": 118.09, "threads": 17, "err": "", "kind": "stat", "arm": "x264-d10-pipe", "input": "pipe", "what": "group-alias", "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 22.825, "main_cpu": 16.8, "total_cpu": 118.31, "threads": 17, "err": "", "kind": "stat", "arm": "x264-d10-pipe", "input": "pipe", "what": "group-tlb", "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 22.547, "main_cpu": 16.56, "total_cpu": 117.01, "threads": 17, "err": "", "kind": "stat", "arm": "x264-d10-pipe", "input": "pipe", "what": "group-bound", "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 23.053, "main_cpu": 16.89, "total_cpu": 119.57, "threads": 17, "err": "", "kind": "stat", "arm": "x264-d10-pipe", "input": "pipe", "what": "group-other", "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 23.209, "main_cpu": 17.1, "total_cpu": 120.87, "threads": 17, "err": "", "kind": "stat", "arm": "x264-d10-pipe", "input": "pipe", "what": "metric-level3", "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 23.178, "main_cpu": 17.12, "total_cpu": 120.22, "threads": 17, "err": "", "kind": "stat", "arm": "x264-d10-pipe", "input": "pipe", "what": "metric-l1", "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 22.933, "main_cpu": 16.74, "total_cpu": 119.79, "threads": 17, "err": "", "kind": "stat", "arm": "x264-d10-pipe", "input": "pipe", "what": "metric-store", "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 23.145, "main_cpu": 0.15, "total_cpu": 0.15, "threads": 2, "err": "", "kind": "counters", "arm": "x264-d10-pipe", "input": "pipe", "group": "alias"}
+{"rc": 0, "wall": 23.55, "main_cpu": 0.0, "total_cpu": 0.0, "threads": 1, "err": "", "kind": "sched", "arm": "x264-d10-pipe", "input": "pipe", "main_tid": 2667, "main_lines": 1173, "x264_tasks": 17}
+{"rc": 0, "wall": 22.87, "main_cpu": 16.85, "total_cpu": 117.67, "threads": 17, "err": "", "kind": "stat", "arm": "x264-d16-pipe", "input": "pipe", "what": "group-alias", "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 22.442, "main_cpu": 16.12, "total_cpu": 118.1, "threads": 17, "err": "", "kind": "stat", "arm": "x264-d16-pipe", "input": "pipe", "what": "group-tlb", "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 22.466, "main_cpu": 16.29, "total_cpu": 117.24, "threads": 17, "err": "", "kind": "stat", "arm": "x264-d16-pipe", "input": "pipe", "what": "group-bound", "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 22.876, "main_cpu": 16.82, "total_cpu": 118.02, "threads": 17, "err": "", "kind": "stat", "arm": "x264-d16-pipe", "input": "pipe", "what": "group-other", "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 22.966, "main_cpu": 16.84, "total_cpu": 120.74, "threads": 17, "err": "", "kind": "stat", "arm": "x264-d16-pipe", "input": "pipe", "what": "metric-level3", "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 23.234, "main_cpu": 17.17, "total_cpu": 119.25, "threads": 17, "err": "", "kind": "stat", "arm": "x264-d16-pipe", "input": "pipe", "what": "metric-l1", "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 23.26, "main_cpu": 17.13, "total_cpu": 119.66, "threads": 17, "err": "", "kind": "stat", "arm": "x264-d16-pipe", "input": "pipe", "what": "metric-store", "sha256": "9a8e114defcef62a"}
+{"rc": 0, "wall": 23.175, "main_cpu": 0.15, "total_cpu": 0.15, "threads": 2, "err": "", "kind": "counters", "arm": "x264-d16-pipe", "input": "pipe", "group": "alias"}
+{"rc": 0, "wall": 23.553, "main_cpu": 0.0, "total_cpu": 0.0, "threads": 1, "err": "", "kind": "sched", "arm": "x264-d16-pipe", "input": "pipe", "main_tid": 2945, "main_lines": 782, "x264_tasks": 17}

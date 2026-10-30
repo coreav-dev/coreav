@@ -1,0 +1,11 @@
+# started on Thu Oct 29 12:50:37 2026
+
+
+ Performance counter stats for thread id '5026':
+
+          17270.64 msec task-clock                       #    0.762 CPUs utilized             
+       55176999125      cycles                           #    3.195 GHz                       
+       41430132510      instructions                     #    0.75  insn per cycle            
+
+      22.656040015 seconds time elapsed
+

@@ -249,7 +249,16 @@ otherwise the `ffmpeg` program the fallback uses (`--ffmpeg PATH`,
     time from the first. `TimestampScale` is the source time base in
     nanoseconds when that is a whole number (78,125 for 1/12,800), so
     FFmpeg's stream keeps the source's time base, and 1 ns otherwise (the
-    times rounded to it; a millisecond time base gave the same encode). On
+    times rounded to it; a millisecond time base gave the same encode).
+    FFmpeg finds the stream's frame rate from the frames' times and hands
+    it to libx264. From one frame's time it finds none and took the
+    inverse of the time base, and `codec_h264_one_frame.mp4` came out 7 dB
+    below the baseline in PSNR (bar B9's `x11`). So a stream of one frame
+    names the rate, the track's `DefaultDuration` at the summary's
+    `frame_rate`, and its encode is the baseline's; CoreAV holds the
+    first frame until the second or the end of the input says which. A
+    stream of more frames names none: FFmpeg times the frames by a rate it
+    is told, which changed the encode of frames at irregular times. On
     `vfr.mp4` the H.264 stream is then byte for byte the baseline's
     (`ffmpeg -noautorotate -i vfr.mp4 -map 0:0 -c:v libx264 -preset
     veryfast -crf 23 -fps_mode passthrough`), and x264's decodes to the
@@ -261,7 +270,8 @@ otherwise the `ffmpeg` program the fallback uses (`--ffmpeg PATH`,
     decodes cleanly from both arms. The summary's `frame_rate` is the
     presented frames' average rate (frames over the first frame's time to
     the last one's plus its packet duration), snapped to `N×1000/1001` or
-    an integer rate within 0.1% of one, for information.
+    an integer rate within 0.1% of one, for information, and the rate
+    FFmpeg is told for a stream of one frame.
 - **Options.** `--preset` (x264's names), `--crf` (default 23, x264's and
   FFmpeg's default) or `--bitrate` (single pass, ABR), and `--threads`
   (default: the encoder's own choice). Nothing else of x264's option space
@@ -1011,4 +1021,7 @@ above are unchanged. Round 2 (`e4b215ed`):
 What the misses are, in the measurement: a 16 GB host's memory cap at
 8K, the pacing on one HEVC stream, repeated millisecond times in WebM,
 one 8K AV1 stream through `--encoder ffmpeg`, and, for speed, the cost of
-the sandboxed decoders above the 5% that B5 allows.
+the sandboxed decoders above the 5% that B5 allows. On the `x264` arm, 10-bit
+sources add the x264 program's own conversion of 10-bit input, which no input
+CoreAV can stream avoids
+([`docs/measurements/transcode-x264-10bit.md`](../measurements/transcode-x264-10bit.md)).

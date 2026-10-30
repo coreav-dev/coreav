@@ -15,6 +15,16 @@
 //! time base in nanoseconds when that is a whole number (78,125 for
 //! 1/12,800), so FFmpeg's stream keeps the source's time base; otherwise one
 //! nanosecond, the times rounded to it.
+//!
+//! A stream of one frame also names the frame rate: the track's
+//! `DefaultDuration`, one frame at the source's rate. FFmpeg finds a
+//! stream's rate from its frames' times and hands it to libx264; from one
+//! frame's time it finds none and takes the inverse of the time base
+//! (12,800 frames a second at 1/12,800), and libx264 then encoded the frame
+//! 7 dB below `ffmpeg -c:v libx264` on the source. A stream of more frames
+//! names no rate: FFmpeg times the frames by a rate it is told, which
+//! changed the encode of frames at irregular times (both checked as a black
+//! box).
 
 use coreav_frame::{Chroma, PixelFormat};
 
@@ -89,9 +99,26 @@ pub fn fourcc(format: PixelFormat) -> Option<[u8; 4]> {
     }
 }
 
+/// One frame at `num / den` frames a second in nanoseconds, rounded to the
+/// nearest; `None` when that is 0 or a term is.
+pub fn frame_duration_ns(num: u32, den: u32) -> Option<u64> {
+    let num = u64::from(num);
+    if num == 0 {
+        return None;
+    }
+    Some((u64::from(den) * 1_000_000_000 + num / 2) / num).filter(|ns| *ns > 0)
+}
+
 /// The EBML header, the start of a Segment of unknown size, its Info and
-/// its one track: `width` × `height` frames of `fourcc`.
-pub fn header(width: u32, height: u32, fourcc: [u8; 4], timescale: &Timescale) -> Vec<u8> {
+/// its one track: `width` × `height` frames of `fourcc`, each
+/// `frame_ns` long by default when that is given.
+pub fn header(
+    width: u32,
+    height: u32,
+    fourcc: [u8; 4],
+    timescale: &Timescale,
+    frame_ns: Option<u64>,
+) -> Vec<u8> {
     let mut out = Vec::new();
     let mut ebml = Vec::new();
     uint(&mut ebml, 0x4286, 1); // EBMLVersion
@@ -119,6 +146,9 @@ pub fn header(width: u32, height: u32, fourcc: [u8; 4], timescale: &Timescale) -
     uint(&mut entry, 0x83, 1); // TrackType: video
     uint(&mut entry, 0x9C, 0); // FlagLacing
     element(&mut entry, 0x86, b"V_UNCOMPRESSED"); // CodecID
+    if let Some(ns) = frame_ns {
+        uint(&mut entry, 0x23_E383, ns); // DefaultDuration
+    }
     element(&mut entry, 0xE0, &video);
     let mut tracks = Vec::new();
     element(&mut tracks, 0xAE, &entry);
@@ -199,6 +229,15 @@ mod tests {
         assert_eq!(Timescale::new(1, 0), None);
     }
 
+    #[test]
+    fn frame_durations() {
+        assert_eq!(frame_duration_ns(25, 1), Some(40_000_000));
+        assert_eq!(frame_duration_ns(30_000, 1001), Some(33_366_667));
+        assert_eq!(frame_duration_ns(0, 1), None);
+        assert_eq!(frame_duration_ns(25, 0), None);
+        assert_eq!(frame_duration_ns(u32::MAX, 1), None);
+    }
+
     /// One element's header at `at`: (id, header length, size).
     fn element_at(stream: &[u8], at: usize) -> (u32, usize, Option<u64>) {
         match parse_element_header(&stream[at..], at as u64, 8).unwrap() {
@@ -211,7 +250,13 @@ mod tests {
     fn the_stream_reads_back() {
         // 4 x 2 frames of 4:2:0: 12 bytes each.
         let t = Timescale::new(1, 12_800).unwrap();
-        let mut stream = header(4, 2, fourcc(PixelFormat::YUV420P).unwrap(), &t);
+        let mut stream = header(
+            4,
+            2,
+            fourcc(PixelFormat::YUV420P).unwrap(),
+            &t,
+            frame_duration_ns(25, 1),
+        );
         let frames: Vec<Vec<u8>> = (0..3u8).map(|n| vec![n; 12]).collect();
         for (frame, time) in frames.iter().zip([0i64, 512, 2048]) {
             stream.extend(cluster_head(t.ticks(time).unwrap(), 12));
@@ -224,6 +269,8 @@ mod tests {
         assert_eq!(segment.timestamp_scale, 78_125);
         assert_eq!(segment.dropped.len(), 1);
         assert_eq!(segment.dropped[0].codec_id, "V_UNCOMPRESSED");
+        let default_duration = [0x23, 0xE3, 0x83, 0x84, 0x02, 0x62, 0x5A, 0x00];
+        assert!(stream.windows(8).any(|w| w == default_duration));
         // The clusters, walked element by element.
         let (ebml, len, size) = element_at(&stream, 0);
         assert_eq!(ebml, 0x1A45_DFA3);
