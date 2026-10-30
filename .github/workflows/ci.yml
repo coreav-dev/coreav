@@ -83,6 +83,7 @@ jobs:
             crates/coreav-kernels-h264/**
             scripts/h264_conformance.py
             scripts/h264_modes_identity.py
+            scripts/oracle-ffmpeg.env
             .github/workflows/ci.yml
             .github/actions/changed-paths/**
       - id: bench-guard
@@ -95,6 +96,7 @@ jobs:
             rust-toolchain.toml
             scripts/gen-fixtures.sh
             scripts/install-oracle-ffmpeg.sh
+            scripts/oracle-ffmpeg.env
             scripts/bench_guard.py
             scripts/ts_craft.py
             docs/schema/policy-examples/web-upload.json
@@ -382,7 +384,7 @@ jobs:
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ runner.temp }}/coreav-oracle-bin
-          key: linux-x64-ffmpeg-7.0.2-mediainfo-26.10-${{ hashFiles('scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
+          key: linux-x64-oracle-mediainfo-26.10-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
       # MediaInfo is a gating oracle for extracted M4A files only; elsewhere it stays informational.
       - name: Install pinned FFmpeg, ffprobe and MediaInfo
         if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
@@ -395,7 +397,7 @@ jobs:
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ runner.temp }}/coreav-fixtures
-          key: linux-x64-fixtures-ffmpeg-7.0.2-${{ hashFiles('scripts/gen-fixtures.sh') }}
+          key: linux-x64-fixtures-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/gen-fixtures.sh') }}
       # Regenerate even after a cache hit: every run must exercise
       # generation, and required cases must never silently disappear.
       - name: Generate all required fixtures
@@ -570,7 +572,7 @@ jobs:
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ runner.temp }}/coreav-x264
-          key: linux-x64-x264-4613ac3-${{ hashFiles('scripts/install-x264.sh') }}
+          key: linux-x64-x264-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-x264.sh') }}
       - name: Build x264
         if: steps.x264-cache.outputs.cache-hit != 'true'
         run: |
@@ -815,7 +817,7 @@ jobs:
           cargo test --locked --release -p coreav-isobmff-write --test hls fixtures_round_trip -- --ignored
           python3 -I scripts/hls_check.py --coreav target/release/coreav --media "$COREAV_FIXTURES" \
             --mediainfo "$RUNNER_TEMP/coreav-oracle-bin/mediainfo" --master-decode \
-            --expect-refused "audio_mp3.mp4,audio_mp3.mov,audio_opus.mp4,edit_multi_*,h264_avc3.mp4,hevc_hev1.mp4,nested_10000.mp4,pcm_*,prores_*,truncated.mp4,size_prores_understated.mov,ambient*.mov,chapter_pictures_src.mov,codec_ac3_*,codec_alac*,codec_amr_*,codec_dv*,codec_eac3_*,codec_h263.*,codec_mjpeg*,codec_mpeg4_color.mp4,codec_png*,codec_qtrle*,codec_vorbis.mp4,entry_stereo_*,matrix_*.mov,movie_matrix_*.mov,nopasp_*" \
+            --expect-refused "audio_mp3.mp4,audio_mp3.mov,audio_opus.mp4,edit_multi_*,h264_avc3.mp4,hevc_hev1.mp4,nested_10000.mp4,pcm_*,prores_*,truncated.mp4,size_prores_understated.mov,ambient*.mov,chapter_pictures_src.mov,codec_ac3_*,codec_alac*,codec_amr_*,codec_dv*,codec_eac3_*,codec_h263.*,codec_mjpeg*,codec_mpeg4_color.mp4,codec_png*,codec_qtrle*,codec_vorbis.mp4,entry_stereo_*,matrix_*.mov,movie_matrix_*.mov,nopasp_*,size_hevc_window.mp4,size_hevc_mixed_window.mp4" \
             --report "$RUNNER_TEMP/coreav-hls.json"
       # docs/design/join.md: every fixture with a video track the clip writer
       # accepts is split every second and joined back (which must give back
@@ -931,7 +933,7 @@ jobs:
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ runner.temp }}/coreav-oracle-bin
-          key: linux-x64-ffmpeg-7.0.2-mediainfo-26.10-${{ hashFiles('scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
+          key: linux-x64-oracle-mediainfo-26.10-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
       - name: Install pinned FFmpeg, ffprobe and MediaInfo
         if: steps.bin-cache.outputs.cache-hit != 'true'
         run: |
@@ -1126,7 +1128,7 @@ jobs:
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ runner.temp }}/coreav-oracle-bin
-          key: linux-x64-ffmpeg-7.0.2-mediainfo-26.10-${{ hashFiles('scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
+          key: linux-x64-oracle-mediainfo-26.10-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
       - name: Install pinned FFmpeg and ffprobe
         if: steps.bin-cache.outputs.cache-hit != 'true'
         run: |
@@ -1393,7 +1395,7 @@ jobs:
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ runner.temp }}/coreav-oracle-bin
-          key: linux-x64-ffmpeg-7.0.2-${{ hashFiles('scripts/install-oracle-ffmpeg.sh') }}
+          key: linux-x64-oracle-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh') }}
       - name: Install the pinned FFmpeg
         if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
         run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
@@ -1635,7 +1637,7 @@ jobs:
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ runner.temp }}/coreav-oracle-bin
-          key: linux-x64-ffmpeg-7.0.2-${{ hashFiles('scripts/install-oracle-ffmpeg.sh') }}
+          key: linux-x64-oracle-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh') }}
       - name: Install the pinned FFmpeg
         if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
         run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
