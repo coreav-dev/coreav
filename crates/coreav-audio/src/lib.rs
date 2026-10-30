@@ -8,6 +8,9 @@
 //!
 //! - [`flac`]: FLAC (RFC 9639), native.
 //! - [`mp3`]: MPEG audio Layer III (ISO/IEC 11172-3, 13818-3), native.
+//! - AAC LC (ISO/IEC 14496-3) through `coreav-aac`, only with the opt-in
+//!   feature `aac`, off by default: decoding AAC may need a patent licence
+//!   where you are. Without it an AAC stream is `codec aac is not decoded`.
 //! - [`decode()`]: the audio track of an MP4/MOV or Matroska/WebM file to
 //!   interleaved PCM, through the existing demuxers, into a [`Sink`] such
 //!   as [`WavSink`] ([`wav`]), at the stream's rate and channels or
@@ -24,6 +27,8 @@
 //! assert!(StreamInfo::from_config(b"not a configuration").is_err());
 //! ```
 
+#[cfg(feature = "aac")]
+mod aac;
 mod bits;
 mod conversion;
 mod convert;

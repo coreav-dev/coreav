@@ -393,7 +393,11 @@ through `coreav_cli::ffmpeg::run` in the ignored test
 through the binary, which must write the same bytes; a pair passes when
 both wrote and `copy_check.py` finds no problem. A refusal, a rejection, a
 `-map` the CLI finds empty, or a binary that writes otherwise, fails the
-pair. A command meets R3 when at least 98% of its counted pairs pass, each
+pair. A pair whose output no oracle checks (`copy_check.py` skips the job's
+oracle for the clips, segments and joins of a file whose picture size
+changes inside the track) is set aside rather than passed when its stream
+selection matches FFmpeg's, and its command is unmeasured and misses; a
+selection that differs fails it. A command meets R3 when at least 98% of its counted pairs pass, each
 spelling of the set counted on its own, as the bar says "each command".
 
 `speed.py r4` times R4 and both gate arms: `r4` CoreAV against FFmpeg,
@@ -465,7 +469,9 @@ draw with its own salt, and development uses spent sets only.
 the commands of the set are supported in 0.1.0: the experimental label of
 `coreav ffprobe` no longer applies to them, and stays on every other
 `ffprobe` command until B3a is met. B1 is unchanged and still applies to every
-command outside the set.
+command outside the set. Until that round, `coreav ffmpeg` is labelled
+experimental where users see it (`coreav --help` and the documentation
+site), as `coreav ffprobe` is; after it, the label stays on the `ffmpeg` commands outside the set.
 
 ## The command
 
@@ -549,6 +555,19 @@ read: a property of the source that `coreav ffmpeg` does not copy, an
 output that already exists, or an encoder value it does not implement
 (`-crf 90`).
 
+**Help in `coreav ffprobe`.** `-h`, `-?`, `-help` and `--help` with
+nothing after them print `coreav ffprobe`'s own usage text on standard
+output and exit 0, in strict-safe mode or not: no `ffprobe` program runs
+and the fallback log gets no line. `ffprobe`'s documentation gives the
+help option an optional topic, and FFmpeg's `-h full` listing has it take
+a value: with any argument after it (`-h long`, `-h full`,
+`-h demuxer=mov`, `-help INPUT`) the query asks about FFmpeg's own options
+and components, so it is refused by name, the option and its topic, like
+any other command that is not native. This is the rule `coreav ffmpeg`
+follows. Rejected: answering topic queries from CoreAV (a listing of
+FFmpeg's components is not CoreAV's to print). The `ffprobe` commands of
+`commands-v1` hold no help query, so B1 is judged on the same commands.
+
 A refused command runs FFmpeg's `ffmpeg` or `ffprobe` instead unless
 strict-safe mode is on (`COREAV_STRICT_SAFE=1`, `coreav --strict-safe`),
 the mode for services that read untrusted input: see "Fallback to FFmpeg".
@@ -625,7 +644,7 @@ implies:
 | `-ss`, `-t` or `-to`, before or after `-i` | `coreav clip`: one video stream and at most one audio stream |
 | the same, with no video selected | the clip of audio alone (`clip_audio_mp4` of `coreav-isobmff-write`): one AAC stream |
 | `-f segment` with MP4 segments | `coreav split --every` the `-segment_time` (2 s when absent) |
-| `-f concat` with an MP4 output | `coreav join` of the list's files (`coreav_cli::concat::read`, with the demuxer's `safe` option): the first video stream and, unless `-an`, the first audio stream, which is what `ffmpeg` selects from the first file when the selection is that |
+| `-f concat` with an MP4 output | `coreav join` of the list's files (`coreav_cli::concat::read`, with the demuxer's `safe` option): one video stream and at most one audio stream, as `ffmpeg` selects them from the streams the demuxer exposes (below); each is the stream at that index in every file, as the demuxer pairs streams, so a stream the join does not copy (MPEG-4 Visual video or FLAC audio, say) is refused, never left out or replaced |
 
 Every other output container, MOV and 3GP included, is refused: the MOV
 muxer's output is not the MP4 writer's.
@@ -639,7 +658,12 @@ type alone (`-c:s`, `-codec:s`, `-scodec`): neither `-c` nor `-c:s:0` selects
 one. With `-map`: the selectors in order, a leading `-` subtracting. `-vn`,
 `-an`, `-sn` and `-dn` remove their type either way. Every selected stream
 must be covered by a `copy` codec option, since `ffmpeg` would encode the
-others, and kept in the input's order, which the writers keep.
+others, and kept in the input's order, which the writers keep. The concat
+demuxer exposes the streams of the list's first file, in its order, with
+every disposition flag cleared (the pinned `ffmpeg` 9.0.2, black box:
+`ffprobe` of a list), so a join's selection goes by picture size and
+channels alone: of a mono AAC stream with the default disposition and a
+stereo one without, the stereo one.
 
 **Times.** Every time counts from the input's start time (`ffprobe`'s
 `format.start_time`, 0 when it has none): on a file presented from 5 s,
@@ -708,14 +732,14 @@ first one's, those of the pinned `ffmpeg`'s output of the same command.
 The audio packets are not compared one for one there: where a file's audio
 runs past its edit, `ffmpeg`'s muxer moves the next file's first packet to
 one tick after the overlap (black box), so the placement check stands for
-them. Threshold: 100% of the outputs, in `fixtures.yml` and
-`mkv-fixtures.yml`.
+them. Threshold: 100% of the outputs, in `ci.yml`'s `isobmff-fixtures` and
+`mkv-fixtures` jobs.
 
 **Not covered: refused by name (exit 4 in strict-safe mode, else run by
 FFmpeg).**
 
-- A join of other streams than the first video and audio stream of the
-  list's first file, a join without video (`join_mp4` cuts at video), a
+- A join of other streams than one video and at most one audio stream, a
+  join without video (`join_mp4` cuts at video), a
   join that also seeks or trims, and a list with a directive other than
   `file` and `ffconcat version 1.0` (`duration`, `inpoint`, ...) or a path
   that names a protocol. A list `ffmpeg` fails too (an unsafe file name
@@ -727,10 +751,10 @@ FFmpeg).**
   box: a 0.3 s video with 1 s of audio, listed twice, is 2.021333 s from
   `ffmpeg`), and inputs whose tracks have several edits, which the demuxer
   reads by its own edit model. Also inputs that do not match the first
-  (codec, configuration, size, time base), inputs that hold the copied
-  streams at other indexes than the first (the demuxer pairs streams by
-  index, `join_mp4` takes each file's first video and audio), and streams `join_mp4` does not
-  copy (PCM audio, say). The join runs to a temporary file and finds these
+  (codec, configuration, size, time base), inputs without a stream of the
+  selected kind at a selected index (the demuxer pairs streams by index,
+  and `join_mp4` copies the streams at the selected indexes), and streams
+  `join_mp4` does not copy (MPEG-4 Visual video, PCM or FLAC audio, say). The join runs to a temporary file and finds these
   at its end; the output is left as it was.
 - A segmented output of a file without video (C32 on such files): `coreav
   split` cuts at video. A clip without video of other than one AAC
@@ -1266,11 +1290,33 @@ decision, 2026-10-30):
   travels in the arguments: in the mode the command starts them with
   `--strict-safe` right after the entry argument (`StrictSafe::entry`),
   and run directly they also read the variable. In the mode the
-  worker refuses to host the FFmpeg backend, and the launcher refuses a
-  program whose file name, or the name of the file it links to, begins
-  with `ffmpeg` or `ffprobe`, with exit status 126. A copy of FFmpeg under
+  worker refuses to host the FFmpeg backend (it sends an `Unsupported`
+  error and exits with status 1), and the launcher refuses a program whose
+  file name, or the name of the file it links to, begins with `ffmpeg` or
+  `ffprobe` (exit status 126). A copy of FFmpeg under
   another name is not recognised, as an `x264` program that is FFmpeg
   under another name is not: the mode trusts the names the operator gives.
+- **Without an enforced memory limit.** Where the sandbox's address-space
+  limit cannot be enforced (`coreav_worker::enforces_memory_limit`: macOS,
+  and outside Unix; `decode.md`, "Memory"), the mode starts no sandboxed
+  process at all, so a stream that decodes to more than it declares cannot
+  take the host's memory through one (maintainer decision, 2026-10-30).
+  Every encoder is refused before the input is read, with exit status 4.
+  The dav1d and libvpx backends are stand-ins like the FFmpeg one: a
+  stream only they would decode is refused with exit status 4 when the
+  decoder is chosen. That comes after CoreAV's own demuxer has read the
+  container's headers and sample index in the `coreav` process, under the
+  parse limits that hold in every mode, because the codec decides whether
+  a sandboxed decoder is needed at all: the native H.264 decoder needs
+  none. No packet is read for decoding and no decoder starts before the
+  refusal. Run directly, the worker reads its `Open` message (at most
+  2 MiB) and then refuses every backend, exiting with status 1; the
+  launcher refuses every program before it starts one, with exit status
+  126. The
+  message begins `strict-safe: no enforceable memory limit for the sandbox
+  on this platform`. The native H.264 decoder runs in the calling process,
+  not in the sandbox, and still decodes. Outside the mode the budget stays
+  advisory there.
 
 `coreav thumbnail` and `coreav transcode` print the refusal as a
 `coreav.error/1` object of kind `unsupported_feature`; `coreav ffmpeg` as
@@ -1279,8 +1325,10 @@ its other refusals, with the log line's `not_run` `strict_safe`.
 One type decides all of them, `StrictSafe` (`coreav-cli`, `strict_safe.rs`),
 made from the flag and the variable: the fallback asks it, a transcode's
 encoder is an `Encoder` only it makes, the FFmpeg backend reaches the
-decoder list only through `Decoders::push_ffmpeg`, which takes it, and
-the hidden entries ask it, the worker `StrictSafe::worker` and the
+decoder list only through `Decoders::push_ffmpeg`, which takes it, the
+dav1d and libvpx backends only through `Decoders::push_sandboxed`, which
+asks `StrictSafe::sandbox` (the one place that reads
+`coreav_worker::enforces_memory_limit`), and the hidden entries ask it, the worker `StrictSafe::worker` and the
 launcher `StrictSafe::program` (`coreav_worker::worker_main` and
 `sandbox_exec_main` take the check from their caller), with the mode
 carried to them by `StrictSafe::entry`. A new

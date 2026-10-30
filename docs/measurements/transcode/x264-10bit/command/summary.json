@@ -1,0 +1,207 @@
+{
+ "void": false,
+ "reasons": [],
+ "gate": [
+  {
+   "which": "before",
+   "times": [
+    2.728314304999998,
+    2.7145590110000057,
+    2.7697332239999923
+   ],
+   "median": 2.728314304999998
+  },
+  {
+   "which": "after",
+   "times": [
+    2.7117795890007983,
+    2.6832606620009756,
+    2.7235919430004287
+   ],
+   "median": 2.7117795890007983
+  }
+ ],
+ "arms": {
+  "ffmpeg": {
+   "hevc": {
+    "timed": 8,
+    "topup": 0,
+    "median_ratio": 1.056494604895053,
+    "ci95": [
+     1.0471905691000214,
+     1.0747914717082627
+    ],
+    "met": false,
+    "faster_claim": false,
+    "share_faster": 0.0,
+    "failed": 0,
+    "median_ratio_to_information_command": 1.0540026691405318,
+    "apart": {},
+    "backends": {
+     "ffmpeg": 8
+    },
+    "selection_apart": {
+     "video longer than 120 s": 11,
+     "over budget": 9,
+     "video shorter than 1 s": 1
+    }
+   },
+   "av1": {
+    "timed": 6,
+    "topup": 0,
+    "median_ratio": 1.0685228093771246,
+    "ci95": [
+     1.043206903572926,
+     1.0848174336546577
+    ],
+    "met": false,
+    "faster_claim": false,
+    "share_faster": 0.0,
+    "failed": 0,
+    "median_ratio_to_information_command": 1.064825693957683,
+    "apart": {},
+    "backends": {
+     "dav1d": 6
+    },
+    "selection_apart": {
+     "video longer than 120 s": 19,
+     "over budget": 3
+    }
+   },
+   "prores": {
+    "timed": 4,
+    "topup": 0,
+    "median_ratio": 1.1187412739868665,
+    "ci95": [
+     1.113971381127797,
+     1.1469243554997361
+    ],
+    "met": false,
+    "faster_claim": false,
+    "share_faster": 0.0,
+    "failed": 0,
+    "median_ratio_to_information_command": 1.116725568738595,
+    "apart": {
+     "refused: unsupported_feature": 2
+    },
+    "backends": {
+     "ffmpeg": 4
+    },
+    "selection_apart": {},
+    "reserve_used_up": true
+   },
+   "all": {
+    "timed": 18,
+    "topup": 0,
+    "median_ratio": 1.0685228093771246,
+    "ci95": [
+     1.056494604895053,
+     1.0872058096605892
+    ],
+    "met": false,
+    "faster_claim": false,
+    "share_faster": 0.0,
+    "failed": 0,
+    "median_ratio_to_information_command": 1.064825693957683,
+    "apart": {
+     "refused: unsupported_feature": 2
+    },
+    "backends": {
+     "ffmpeg": 12,
+     "dav1d": 6
+    }
+   }
+  },
+  "x264": {
+   "hevc": {
+    "timed": 8,
+    "topup": 0,
+    "median_ratio": 1.146163719617237,
+    "ci95": [
+     1.059575393695986,
+     1.2444149146031964
+    ],
+    "met": false,
+    "faster_claim": false,
+    "share_faster": 0.0,
+    "failed": 0,
+    "median_ratio_to_information_command": 1.138061080773593,
+    "apart": {},
+    "backends": {
+     "ffmpeg": 8
+    },
+    "selection_apart": {
+     "video longer than 120 s": 11,
+     "over budget": 9,
+     "video shorter than 1 s": 1
+    }
+   },
+   "av1": {
+    "timed": 6,
+    "topup": 0,
+    "median_ratio": 1.0719265539840133,
+    "ci95": [
+     1.045034255248901,
+     1.1516517848722807
+    ],
+    "met": false,
+    "faster_claim": false,
+    "share_faster": 0.0,
+    "failed": 0,
+    "median_ratio_to_information_command": 1.0660081022265473,
+    "apart": {},
+    "backends": {
+     "dav1d": 6
+    },
+    "selection_apart": {
+     "video longer than 120 s": 19,
+     "over budget": 3
+    }
+   },
+   "prores": {
+    "timed": 4,
+    "topup": 0,
+    "median_ratio": 1.4068522257553564,
+    "ci95": [
+     1.3426435207693033,
+     1.561059732078792
+    ],
+    "met": false,
+    "faster_claim": false,
+    "share_faster": 0.0,
+    "failed": 0,
+    "median_ratio_to_information_command": 1.4022867939998944,
+    "apart": {
+     "refused: unsupported_feature": 2
+    },
+    "backends": {
+     "ffmpeg": 4
+    },
+    "selection_apart": {},
+    "reserve_used_up": true
+   },
+   "all": {
+    "timed": 18,
+    "topup": 0,
+    "median_ratio": 1.146163719617237,
+    "ci95": [
+     1.0684673601861752,
+     1.2578684410694554
+    ],
+    "met": false,
+    "faster_claim": false,
+    "share_faster": 0.0,
+    "failed": 0,
+    "median_ratio_to_information_command": 1.138061080773593,
+    "apart": {
+     "refused: unsupported_feature": 2
+    },
+    "backends": {
+     "ffmpeg": 12,
+     "dav1d": 6
+    }
+   }
+  }
+ },
+ "gate_drift": -0.006060414655634561
+}

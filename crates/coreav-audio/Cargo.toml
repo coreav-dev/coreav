@@ -1,6 +1,6 @@
 [package]
 name = "coreav-audio"
-description = "Memory-safe audio decoding to PCM: FLAC decoding, WAV output, and decoding the audio tracks of MP4/MOV and Matroska/WebM files"
+description = "Memory-safe audio decoding to PCM: FLAC, MP3 and Opus decoding, WAV output, and decoding the audio tracks of MP4/MOV and Matroska/WebM files"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -14,10 +14,21 @@ publish = false
 coreav-isobmff = { path = "../coreav-isobmff" }
 # The Matroska and WebM demuxer.
 coreav-mkv = { path = "../coreav-mkv" }
+# The Opus decoder, in its own crate for the notice of the reference code
+# it is written from (`docs/design/audio-decode.md`, "Opus").
+coreav-opus = { path = "../coreav-opus" }
 # The resampler's filter loop: AVX on x86-64, a bit-identical portable
 # twin elsewhere (`docs/design/audio-decode.md`, "Resampling and
 # downmixing").
 coreav-kernels-audio = { path = "../coreav-kernels-audio" }
+# AAC LC, only with the feature `aac`.
+coreav-aac = { path = "../coreav-aac", optional = true }
+
+[features]
+# AAC LC decoding through `coreav-aac`. Off by default and never in a
+# default build: decoding AAC may need a patent licence where you are
+# (`crates/coreav-aac/README.md`). Nothing here is legal advice.
+aac = ["dep:coreav-aac"]
 
 [lints]
 workspace = true

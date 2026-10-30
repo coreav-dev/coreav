@@ -283,6 +283,30 @@ fn decodes_an_mp3_track() {
 }
 
 #[test]
+fn decodes_an_opus_track() {
+    // OpusHead (RFC 7845 5.1): version 1, 2 channels, no pre-skip, 48 kHz,
+    // no gain, mapping family 0.
+    let mut head = b"OpusHead\x01\x02\x00\x00".to_vec();
+    head.extend_from_slice(&48_000u32.to_le_bytes());
+    head.extend_from_slice(&[0, 0, 0]);
+    // A CELT-only 20 ms stereo packet whose one frame is empty (RFC 6716
+    // 3.1-3.2): decoded as a lost frame.
+    let frames = vec![vec![0xFC]; 3];
+    let input = file("da_opus.mka", &matroska("A_OPUS", &head, &frames));
+    let out = path("da_opus.wav");
+    let result = run(&[input.to_str().unwrap(), out.to_str().unwrap()]);
+    assert_eq!(result.code, 0, "{}", result.stderr);
+    let summary = json(std::str::from_utf8(&result.stdout).unwrap());
+    assert_matches(&summary);
+    assert_eq!(summary["stream"]["codec"], "opus");
+    assert_eq!(summary["stream"]["bits_per_sample"], Value::Null);
+    assert_eq!(summary["stream"]["packets"], 3);
+    assert_eq!(summary["output"]["samples"], 3 * 960);
+    let wav = std::fs::read(&out).unwrap();
+    assert_eq!(wav.len(), 44 + 3 * 960 * 4);
+}
+
+#[test]
 fn writes_wav_to_standard_output() {
     let input = flac_file("da_stdout.mka");
     let result = run(&["--format", "s24", input.to_str().unwrap(), "-"]);
@@ -412,4 +436,114 @@ fn a_full_standard_output_exits_3() {
         .output()
         .unwrap();
     assert_eq!(out.status.code(), Some(3));
+}
+
+/// A silent AAC LC frame of two channels: a CPE of two empty long
+/// windows, then END. Its configuration: AAC LC, 44.1 kHz, stereo.
+fn silent_aac() -> (Vec<u8>, Vec<u8>) {
+    (
+        vec![0x12, 0x10],
+        vec![0x21, 0x00, 0x49, 0x90, 0x02, 0x19, 0x00, 0x23, 0x80],
+    )
+}
+
+/// Without the opt-in feature `aac`, an AAC track is named and refused.
+#[cfg(not(feature = "aac"))]
+#[test]
+fn aac_is_not_decoded_by_a_default_build() {
+    let (config, frame) = silent_aac();
+    let input = file("da_aac.mka", &matroska("A_AAC", &config, &[frame]));
+    let out = path("da_aac.wav");
+    let result = run(&[input.to_str().unwrap(), out.to_str().unwrap()]);
+    assert_error(&result, 1, "unsupported_feature");
+    assert!(result.stderr.contains("codec aac"), "{}", result.stderr);
+    assert!(!out.exists());
+}
+
+#[cfg(feature = "aac")]
+#[test]
+fn decodes_an_aac_track() {
+    let (config, frame) = silent_aac();
+    let input = file("da_aac.mka", &matroska("A_AAC", &config, &vec![frame; 3]));
+    let out = path("da_aac.wav");
+    let result = run(&[input.to_str().unwrap(), out.to_str().unwrap()]);
+    assert_eq!(result.code, 0, "{}", result.stderr);
+    let summary = json(std::str::from_utf8(&result.stdout).unwrap());
+    assert_matches(&summary);
+    assert_eq!(summary["stream"]["codec"], "aac");
+    assert_eq!(summary["output"]["samples"], 3 * 1024);
+    let wav = std::fs::read(&out).unwrap();
+    assert!(wav[44..].iter().all(|&b| b == 0));
+}
+
+/// An MP4 file (its configuration in `esds`) that the pinned `ffmpeg`
+/// encodes, decoded as `ffmpeg` decodes it: within twice full accuracy
+/// (`docs/design/audio-decode.md`, "AAC-LC bars", bar 2), on 1 and 4
+/// threads alike. Skipped without the pinned `ffmpeg`, except in CI.
+#[cfg(feature = "aac")]
+#[test]
+fn decodes_an_mp4_aac_track_as_ffmpeg_does() {
+    let ffmpeg = std::env::var_os("COREAV_FFMPEG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("/opt/coreav-oracle-bin/ffmpeg"));
+    if !ffmpeg.is_file() {
+        assert!(std::env::var_os("CI").is_none(), "no pinned ffmpeg");
+        eprintln!("skipping: no pinned ffmpeg (set COREAV_FFMPEG)");
+        return;
+    }
+    let input = path("da_aac.m4a");
+    let status = Command::new(&ffmpeg)
+        .args(["-v", "error", "-f", "lavfi", "-i"])
+        .arg("sine=frequency=440:duration=8,aformat=channel_layouts=stereo")
+        .args(["-c:a", "aac", "-aac_pns", "0", "-b:a", "128k"])
+        .arg(&input)
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let reference = Command::new(&ffmpeg)
+        .args(["-v", "error", "-i"])
+        .arg(&input)
+        .args(["-f", "f32le", "-"])
+        .output()
+        .unwrap();
+    assert!(reference.status.success());
+    let floats = |bytes: &[u8]| -> Vec<f32> {
+        bytes
+            .chunks_exact(4)
+            .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+            .collect()
+    };
+    let theirs = floats(&reference.stdout);
+    let mut outputs = Vec::new();
+    for threads in ["1", "4"] {
+        let result = run(&[
+            "--format",
+            "f32",
+            "--threads",
+            threads,
+            input.to_str().unwrap(),
+            "-",
+        ]);
+        assert_eq!(result.code, 0, "{}", result.stderr);
+        outputs.push(result.stdout);
+    }
+    assert!(outputs[0] == outputs[1]);
+    let data = outputs[0].windows(4).position(|w| w == b"data").unwrap() + 8;
+    let ours = floats(&outputs[0][data..]);
+    assert!(
+        ours.len().abs_diff(theirs.len()) <= 2 * 1024,
+        "{} values, ffmpeg {}",
+        ours.len(),
+        theirs.len()
+    );
+    let n = ours.len().min(theirs.len());
+    assert!(n >= 2 * (8 * 44_100 - 1024), "{n} values compared");
+    let (mut sum, mut max) = (0f64, 0f64);
+    for (a, b) in ours[..n].iter().zip(&theirs[..n]) {
+        let d = f64::from(a - b).abs();
+        sum += d * d;
+        max = max.max(d);
+    }
+    let rms = (sum / n as f64).sqrt();
+    assert!(rms <= 1.8e-5 && max <= 1.2e-4, "rms {rms:e}, max {max:e}");
 }

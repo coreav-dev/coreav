@@ -69,7 +69,7 @@ faster overall and in each category. One audio-only file is at 1.01.
 
 ## CI regression guard
 
-The guard is in `.github/workflows/bench-guard.yml`, run by
+The guard is the `bench-guard` job of `.github/workflows/ci.yml`, run by
 `scripts/bench_guard.py`, as one job of a few minutes:
 
 - on pushes to `main` that change the crates, and on manual runs, against

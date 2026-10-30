@@ -636,6 +636,7 @@ Reads MP4, MOV, Matroska, WebM and MPEG-TS files and HTTP(S) URLs.
 For untrusted input, set COREAV_STRICT_SAFE=1: anything else is then
 refused (exit status 4). Without it, anything else runs the ffprobe
 program on PATH instead (or the one COREAV_FALLBACK names), which is
-FFmpeg's C code, and says so on standard error.
+FFmpeg's C code, and says so on standard error. Help on a topic
+(-h long, -h full, -h demuxer=NAME, ...) is handled the same way.
 See docs/design/compat-cli.md.
 ";
