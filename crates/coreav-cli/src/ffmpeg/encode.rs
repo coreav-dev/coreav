@@ -175,6 +175,7 @@ pub fn request(
         no_audio: audio.is_empty(),
         audio_streams: Some(audio.to_vec()),
         opus: None,
+        aac: None,
         pixel_format,
         one_size: true,
         encoder,

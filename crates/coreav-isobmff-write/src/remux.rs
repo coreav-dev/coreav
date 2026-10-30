@@ -161,9 +161,10 @@ fn remux<S: Source, R: Source, W: Write>(
         Some(r) => Some(validate(r, limits)?),
         None => None,
     };
-    if let Some(a) = audio.as_mut() {
-        validate_audio(a, limits)?;
-    }
+    let audio_codec = match audio.as_mut() {
+        Some(a) => Some(validate_audio(a, limits)?),
+        None => None,
+    };
     let mut source = source;
     let movie = probe(&mut source, limits, allowlist)?;
     // The boxes this copies are read from the file's movie box, which in a
@@ -323,7 +324,9 @@ fn remux<S: Source, R: Source, W: Write>(
                 cleared.extend(plan.cleared);
                 let codec = match (plan.replaced, replaced_codec) {
                     (Some(Replaced::Video), Some(codec)) => codec.isobmff(),
-                    (Some(Replaced::Audio), _) => Codec::Opus,
+                    (Some(Replaced::Audio), _) => {
+                        audio_codec.map_or(plan.track.description.codec, |c| c.isobmff())
+                    }
                     _ => plan.track.description.codec,
                 };
                 kept.push(Kept {

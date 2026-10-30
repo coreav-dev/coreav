@@ -1180,9 +1180,9 @@ jobs:
         run: |
           cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus --test transcode \
             --target-dir target/fallback
-          # The Opus encode passes over AAC in a build that decodes it.
+          # The Opus and AAC encodes pass over AAC in a build that decodes it.
           cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,libopus,aac --test transcode \
-            --target-dir target/fallback -- opus_encode
+            --target-dir target/fallback -- opus_encode aac_encode
       - name: Frames and thumbnails of the fixtures against FFmpeg
         env:
           PYTHONDONTWRITEBYTECODE: '1'

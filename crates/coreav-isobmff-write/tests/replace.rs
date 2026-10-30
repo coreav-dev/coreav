@@ -26,7 +26,7 @@ use coreav_isobmff::{
     Allowlist, Budget, Codec, EditList, Error, LimitKind, Limits, Movie, Packet, Rational,
     SliceSource, Source, TrackKind, probe,
 };
-use coreav_isobmff_write::mux::{Nclx, RawBox, audio_sample_entry, avc1_sample_entry};
+use coreav_isobmff_write::mux::{Nclx, RawBox, audio_sample_entry, avc1_sample_entry, esds};
 use coreav_isobmff_write::{
     AudioReplacement, AudioSample, BoxDropReason, ExtractError, MatroskaRemuxError,
     MatroskaRemuxOptions, MatroskaRemuxSummary, RemuxOptions, RemuxSummary, Replacement,
@@ -1328,15 +1328,16 @@ fn fixtures_present_as_the_plain_remux() {
 
 // ------------------------------------------------------------- audio
 
-/// An Opus stream of `count` 20 ms packets: `dOps` for stereo with a
-/// pre-skip of 312, packets whose bytes are their number.
-struct OpusStream {
+/// An encoded audio stream: its sample entry, its samples, and their bytes.
+struct EncodedStream {
     entry: Vec<u8>,
     samples: Vec<AudioSample>,
     data: Vec<u8>,
 }
 
-fn opus_stream(count: usize, last: u32) -> OpusStream {
+/// An Opus stream of `count` 20 ms packets: `dOps` for stereo with a
+/// pre-skip of 312, packets whose bytes are their number.
+fn opus_stream(count: usize, last: u32) -> EncodedStream {
     let mut dops = vec![0, 2];
     dops.extend_from_slice(&312u16.to_be_bytes());
     dops.extend_from_slice(&44_100u32.to_be_bytes());
@@ -1359,14 +1360,14 @@ fn opus_stream(count: usize, last: u32) -> OpusStream {
         let duration = if n + 1 == count { last } else { 960 };
         samples.push(AudioSample { size, duration });
     }
-    OpusStream {
+    EncodedStream {
         entry,
         samples,
         data,
     }
 }
 
-impl OpusStream {
+impl EncodedStream {
     fn replacement(
         &self,
         stream_index: usize,
@@ -1395,7 +1396,7 @@ fn find_box<'a>(data: &'a [u8], kind: &[u8; 4]) -> &'a [u8] {
     &data[at + 4..at - 4 + size]
 }
 
-fn assert_opus_track(out: &[u8], movie: &Movie, index: usize, opus: &OpusStream, empty: u64) {
+fn assert_opus_track(out: &[u8], movie: &Movie, index: usize, opus: &EncodedStream, empty: u64) {
     let track = &movie.tracks[index];
     assert_eq!(track.kind, TrackKind::Audio);
     assert_eq!(track.description.codec, Codec::Opus);
@@ -1537,7 +1538,7 @@ fn audio_replacements_are_checked_before_anything_is_written() {
     let entry = avc1_sample_entry(64, 48, &[1, 100, 0, 30, 0xFF, 0xE0, 0], None, None).unwrap();
     let mut video_entry = opus.replacement(1, 0);
     video_entry.sample_entry = &entry;
-    assert!(run(video_entry).contains("not Opus"));
+    assert!(run(video_entry).contains("not Opus or mp4a"));
     let short = &opus.data[..opus.data.len() - 1];
     let mut cut = opus.replacement(1, 0);
     cut.data = SliceSource::new(short);
@@ -1572,4 +1573,136 @@ fn matroska_audio_replaced_after_an_empty_edit() {
     assert_opus_track(&out, &b, 1, &opus, 144);
     assert_eq!(presentation(&plain_out, &a, 0), presentation(&out, &b, 0));
     assert_eq!(copied(&plain_out, &a, 0), copied(&out, &b, 0));
+}
+
+/// An AAC-LC stream of `count` frames at 44.1 kHz, stereo, with a delay
+/// of 1,024 samples and 300 samples of padding: an `mp4a` entry with its
+/// `esds`, frames whose bytes are their number.
+fn aac_stream(count: usize) -> EncodedStream {
+    let entry = audio_sample_entry(
+        coreav_isobmff::FourCc(*b"mp4a"),
+        2,
+        44_100,
+        &[RawBox {
+            kind: coreav_isobmff::FourCc(*b"esds"),
+            payload: esds(&[0x12, 0x10, 0x56, 0xE5, 0x00]),
+        }],
+    )
+    .unwrap();
+    let mut samples = Vec::new();
+    let mut data = Vec::new();
+    for n in 0..count {
+        let size = 200 + (n % 9) as u32;
+        data.extend(std::iter::repeat_n(n as u8, size as usize));
+        samples.push(AudioSample {
+            size,
+            duration: 1024,
+        });
+    }
+    EncodedStream {
+        entry,
+        samples,
+        data,
+    }
+}
+
+fn aac_replacement(
+    aac: &EncodedStream,
+    stream_index: usize,
+) -> AudioReplacement<'_, SliceSource<'_>> {
+    AudioReplacement {
+        stream_index,
+        sample_entry: &aac.entry,
+        timescale: 44_100,
+        samples: &aac.samples,
+        start: 0,
+        priming: 1024,
+        presented: aac.samples.len() as u64 * 1024 - 1024 - 300,
+        roll: 1,
+        data: SliceSource::new(&aac.data),
+    }
+}
+
+fn assert_aac_track(out: &[u8], movie: &Movie, index: usize, aac: &EncodedStream) {
+    let track = &movie.tracks[index];
+    assert_eq!(track.kind, TrackKind::Audio);
+    assert_eq!(track.description.codec, Codec::Aac);
+    assert_eq!(track.description.sample_rate, Some(44_100));
+    assert_eq!(track.description.channels, Some(2));
+    assert_eq!(track.timescale, 44_100);
+    let EditList::Simple {
+        empty, media_time, ..
+    } = track.edit_list
+    else {
+        panic!("{:?}", track.edit_list);
+    };
+    assert_eq!((empty, media_time), (0, 1024));
+    let written = packets(out, movie, index);
+    assert_eq!(written.len(), aac.samples.len());
+    let mut at = 0;
+    for (p, s) in written.iter().zip(&aac.samples) {
+        assert_eq!((p.size, p.duration, p.keyframe), (s.size, 1024, true));
+        assert_eq!(
+            bytes(out, p.offset, p.size),
+            aac.data[at..at + s.size as usize]
+        );
+        at += s.size as usize;
+    }
+    // The roll group: one frame outside it, the rest at a distance of -1.
+    assert_eq!(
+        find_box(out, b"sgpd"),
+        [
+            1, 0, 0, 0, b'r', b'o', b'l', b'l', 0, 0, 0, 2, 0, 0, 0, 1, 0xFF, 0xFF
+        ]
+    );
+}
+
+#[test]
+fn an_aac_replacement_takes_the_audio_streams_place() {
+    let source = av_movie();
+    let aac = aac_stream(40);
+    let mut out = Vec::new();
+    let summary = remux_mp4_replacing(
+        SliceSource::new(&source),
+        &Limits::default(),
+        &Allowlist::default(),
+        &RemuxOptions::default(),
+        Replacements {
+            video: None,
+            audio: Some(aac_replacement(&aac, 1)),
+        },
+        &mut out,
+    )
+    .unwrap();
+    let track = &summary.tracks[1];
+    assert!(track.replaced);
+    assert_eq!(
+        (track.codec, track.timescale, track.samples),
+        (Codec::Aac, 44_100, 40)
+    );
+    assert_aac_track(&out, &probe_out(&out), 1, &aac);
+    assert!(!find_box(&out, b"ftyp").windows(4).any(|w| w == b"Opus"));
+}
+
+#[test]
+fn matroska_audio_replaced_with_aac() {
+    let source = mkv_source("V_MPEG4/ISO/AVC");
+    let aac = aac_stream(12);
+    let mut out = Vec::new();
+    let summary = remux_matroska_replacing(
+        SliceSource::new(&source),
+        &coreav_mkv::Limits::default(),
+        &Limits::default(),
+        &coreav_mkv::Allowlist::default(),
+        &MatroskaRemuxOptions::default(),
+        Replacements {
+            video: None,
+            audio: Some(aac_replacement(&aac, 1)),
+        },
+        &mut out,
+    )
+    .unwrap();
+    assert!(summary.tracks[1].replaced);
+    assert_eq!(summary.tracks[1].codec, coreav_mkv::Codec::Aac);
+    assert_aac_track(&out, &probe_out(&out), 1, &aac);
 }

@@ -8,7 +8,7 @@
 
 use crate::mux::{
     CopyWindow, Edit, FileType, MovieHeader, Muxer, RawBox, Sample, TrackHeader, TrackMedia,
-    audio_sample_entry, visual_sample_entry,
+    audio_sample_entry, esds, visual_sample_entry,
 };
 use crate::replace::{
     Replacement, Replacements, audio_edits, roll_boxes, validate, validate_audio,
@@ -474,9 +474,10 @@ fn remux<S: Source, R: Source, W: Write>(
         Some(r) => Some(validate(r, mux)?),
         None => None,
     };
-    if let Some(a) = audio.as_mut() {
-        validate_audio(a, mux)?;
-    }
+    let audio_codec = match audio.as_mut() {
+        Some(a) => Some(validate_audio(a, mux)?),
+        None => None,
+    };
     let segment = coreav_mkv::probe(&mut source, demux, allowlist)?;
     if let Some(r) = &replacement {
         check_replaced(&segment, r.stream_index, TrackKind::Video, options)?;
@@ -535,9 +536,9 @@ fn remux<S: Source, R: Source, W: Write>(
                 continue;
             }
         }
-        if let Some(a) = &audio {
+        if let (Some(a), Some(codec)) = (&audio, audio_codec) {
             if a.stream_index == track.stream_index {
-                plans.push(audio_plan(track, a.timescale));
+                plans.push(audio_plan(track, codec.matroska(), a.timescale));
                 continue;
             }
         }
@@ -1011,10 +1012,10 @@ fn replaced_plan(track: &Track, codec: Codec) -> Plan {
 
 /// The plan of the replaced audio stream: its samples come from the
 /// replacement, at its media timescale.
-fn audio_plan(track: &Track, timescale: u32) -> Plan {
+fn audio_plan(track: &Track, codec: Codec, timescale: u32) -> Plan {
     Plan {
         track: track.index,
-        codec: Codec::Opus,
+        codec,
         media: Media::Audio,
         timescale,
         quantum: 1,
@@ -2265,35 +2266,6 @@ fn aac_frame_length(track: &Track) -> u64 {
     } else {
         1024
     }
-}
-
-/// An `esds` payload (ISO/IEC 14496-1 7.2.6.5): an ES descriptor with a
-/// decoder configuration for AAC (object type 0x40, audio stream) holding
-/// `config`, and the predefined SL configuration 2.
-fn esds(config: &[u8]) -> Vec<u8> {
-    fn descriptor(tag: u8, body: &[u8]) -> Vec<u8> {
-        let mut out = vec![tag];
-        let mut len = body.len();
-        let mut bytes = [0u8; 4];
-        for slot in bytes.iter_mut().rev() {
-            *slot = u8::try_from(len & 0x7F).unwrap_or(0);
-            len >>= 7;
-        }
-        for (i, b) in bytes.iter().enumerate() {
-            out.push(if i < 3 { b | 0x80 } else { *b });
-        }
-        out.extend_from_slice(body);
-        out
-    }
-    let mut decoder = vec![0x40, 0x15, 0, 0, 0];
-    decoder.extend_from_slice(&[0; 8]);
-    decoder.extend(descriptor(0x05, config));
-    let mut es = vec![0, 0, 0];
-    es.extend(descriptor(0x04, &decoder));
-    es.extend(descriptor(0x06, &[0x02]));
-    let mut out = vec![0, 0, 0, 0];
-    out.extend(descriptor(0x03, &es));
-    out
 }
 
 #[cfg(test)]

@@ -21,7 +21,7 @@ change.
 | `output.bytes` | integer | Bytes written. |
 | `video` | video | The re-encoded video stream. |
 | `audio` | array of stream | The audio streams copied, in source order. |
-| `encoded_audio` | encoded audio or `null` | With `--audio opus`, the audio stream encoded to Opus; `null` otherwise. |
+| `encoded_audio` | encoded audio or `null` | With `--audio opus` or `--audio aac`, the audio stream encoded to Opus or to AAC-LC; `null` otherwise. |
 | `other` | array of other stream | Streams copied that are neither the re-encoded video nor audio (another video stream, MP4 text), in source order: the remux keeps every stream MP4 can carry. |
 | `dropped` | array of dropped stream | Streams of the source that are not in the output, in source order. |
 
@@ -44,15 +44,15 @@ change.
 
 | Key | Type | Meaning |
 |---|---|---|
-| `stream_index` | integer | The source stream's position among all of its streams. The output's Opus stream keeps its place in the track order. |
+| `stream_index` | integer | The source stream's position among all of its streams. The output's encoded stream keeps its place in the track order. |
 | `codec` | string | The source stream's codec: `flac` or `mp3`. |
-| `sample_rate` | integer | The source stream's sample rate in Hz. The Opus stream is always 48 kHz: other rates are resampled. |
-| `encoder` | string | Always `libopus`. |
-| `channels` | integer | The Opus stream's channels, 1 or 2: the source's. |
-| `bit_rate` | integer | The bit rate the encoder was asked for, in bits a second (`--audio-bitrate` times 1,000, else 64,000 for mono and 96,000 for stereo). |
-| `samples` | integer | Samples per channel at 48 kHz that the output presents: the decoded source stream's. |
-| `pre_skip` | integer | The encoder's delay in samples at 48 kHz, which the edit list leaves out (`ffprobe`'s `initial_padding`). |
-| `packets` | integer | Opus packets written, 20 ms each. |
+| `sample_rate` | integer | The source stream's sample rate in Hz. The Opus stream is always 48 kHz: other rates are resampled. The AAC stream has the source's rate, 8 to 64 kHz. |
+| `encoder` | string | `libopus` for Opus; `aac`, FFmpeg's built-in AAC encoder, for AAC-LC. |
+| `channels` | integer | The encoded stream's channels, 1 or 2: the source's. |
+| `bit_rate` | integer or `null` | The bit rate the encoder was asked for, in bits a second: `--audio-bitrate` times 1,000, else for Opus 64,000 for mono and 96,000 for stereo, and for AAC `null` (the `aac` encoder's own default). |
+| `samples` | integer | Samples per channel that the output presents, at the encoded stream's rate: the decoded source stream's. |
+| `pre_skip` | integer | The encoder's delay in samples at the encoded stream's rate, which the edit list leaves out (for Opus, `ffprobe`'s `initial_padding`). |
+| `packets` | integer | Packets written: Opus packets of 20 ms, or AAC frames of 1,024 samples. |
 
 ## Stream
 
