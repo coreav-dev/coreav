@@ -14,7 +14,7 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Output;
 
-use coreav_worker::{ExecLauncher, SandboxLimits, WorkerCommand};
+use coreav_worker::{ExecLauncher, HugePages, SandboxLimits, WorkerCommand};
 
 fn launcher() -> ExecLauncher {
     ExecLauncher {
@@ -26,8 +26,12 @@ fn launcher() -> ExecLauncher {
 }
 
 fn run(limits: &SandboxLimits, program: &str, args: &[&str]) -> Output {
+    run_with(limits, HugePages::Kept, program, args)
+}
+
+fn run_with(limits: &SandboxLimits, huge_pages: HugePages, program: &str, args: &[&str]) -> Output {
     let args: Vec<OsString> = args.iter().map(OsString::from).collect();
-    let mut command = launcher().command(limits, Path::new(program), &args);
+    let mut command = launcher().command(limits, huge_pages, Path::new(program), &args);
     // The test feeds nothing on standard input.
     command.stdin(std::process::Stdio::null());
     command.output().expect("the launcher starts")
@@ -80,6 +84,32 @@ fn a_regular_file_cannot_be_written() {
     let written = std::fs::metadata(&file).map(|m| m.len()).unwrap_or(0);
     assert_eq!(written, 0, "{out:?}");
     std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn huge_pages_are_off_in_the_program_when_asked() {
+    let none = SandboxLimits {
+        address_space: None,
+        cpu_seconds: None,
+        open_files: None,
+    };
+    let thp = |huge_pages| {
+        let out = run_with(
+            &none,
+            huge_pages,
+            "/bin/grep",
+            &["^THP_enabled:", "/proc/self/status"],
+        );
+        assert!(out.status.success(), "{out:?}");
+        String::from_utf8(out.stdout)
+            .unwrap()
+            .split_whitespace()
+            .nth(1)
+            .map(str::to_owned)
+    };
+    assert_eq!(thp(HugePages::Off).as_deref(), Some("0"));
+    assert_eq!(thp(HugePages::Kept).as_deref(), Some("1"));
 }
 
 #[test]
