@@ -12,8 +12,10 @@ name: npm
 #   binary, the tests, and the smoke test on Linux with Node 20, 22 and 24;
 # - tags, manual runs, a weekly run, and pull requests labelled `binaries`:
 #   also the Linux arm64, macOS arm64 and x86-64 and Windows x86-64
-#   binaries, each run on its platform (Linux arm64 under QEMU) and
-#   smoke-tested there with Node 20 and 24. The label is read from the pull
+#   binaries, each built and run on its platform and smoke-tested there
+#   with Node 20 and 24.
+# The binaries are the release's default build, with dav1d and libvpx
+# linked statically (docs/design/release.md, "Two builds"). The label is read from the pull
 #   request, so any event of a labelled pull request builds them, not only
 #   the labelling itself.
 # Draft pull requests skip it.
@@ -123,7 +125,20 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/zig"
           "$RUNNER_TEMP/zig/bin/pip" install --require-hashes -r packages/cli/scripts/zig-requirements.txt
           echo "ZIG=$RUNNER_TEMP/zig/bin/python -m ziglang" >> "$GITHUB_ENV"
+      # dav1d and libvpx, static (scripts/codecs.sh), kept until the
+      # script that builds them changes.
+      - name: Cache the C decoders
+        id: codecs-cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/codecs
+          key: codecs-x86_64-unknown-linux-musl-${{ hashFiles('packages/cli/scripts/codecs.sh', 'packages/cli/scripts/zig.sh', 'packages/cli/scripts/zig-requirements.txt') }}
+      - name: Install the C decoders' build tools
+        if: steps.codecs-cache.outputs.cache-hit != 'true'
+        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends meson ninja-build nasm
       - name: Build the Linux x86-64 package
+        env:
+          COREAV_CODECS: ${{ runner.temp }}/codecs
         run: packages/cli/scripts/platform.sh linux-x64
       - name: Cache pinned black-box binaries
         id: ffmpeg-cache
@@ -150,6 +165,27 @@ jobs:
           COREAV_BIN: ${{ github.workspace }}/packages/cli/npm/linux-x64/bin/coreav
           COREAV_FIXTURE_DIRS: ${{ runner.temp }}/coreav-fixtures,${{ runner.temp }}/coreav-mkv-fixtures
         run: npm test
+      - name: Cache the x264 program
+        id: x264-cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/coreav-x264
+          key: linux-x64-x264-4613ac3-${{ hashFiles('scripts/install-x264.sh') }}
+      - name: Build x264
+        if: steps.x264-cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get install -y --no-install-recommends nasm
+          scripts/install-x264.sh "$RUNNER_TEMP/coreav-x264"
+      # The package's decoders, as the release checks them
+      # (docs/design/release.md, "Dry run"), in strict-safe mode.
+      - name: Transcode generated clips with the package's binary
+        env:
+          COREAV_STRICT_SAFE: '1'
+          COREAV_X264: ${{ runner.temp }}/coreav-x264/x264
+        run: |
+          set -euo pipefail
+          packages/cli/test/release-clips.sh "$RUNNER_TEMP/release-clips"
+          python3 -I packages/cli/test/release-smoke.py default packages/cli/npm/linux-x64/bin/coreav "$RUNNER_TEMP/release-clips"
       - name: Pack and dry-run the publish step
         run: |
           set -euo pipefail
@@ -214,9 +250,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Cross-built on Linux and run under QEMU.
           - platform: linux-arm64
-            os: ubuntu-24.04
+            os: ubuntu-24.04-arm
             target: aarch64-unknown-linux-musl
           - platform: darwin-arm64
             os: macos-15
@@ -245,21 +280,35 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24'
-      - if: matrix.platform == 'linux-arm64'
-        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
-        with:
-          platforms: arm64
       - name: Install zig (the musl C compiler of the Linux packages)
         if: matrix.platform == 'linux-arm64'
         run: |
           python3 -m venv "$RUNNER_TEMP/zig"
           "$RUNNER_TEMP/zig/bin/pip" install --require-hashes -r packages/cli/scripts/zig-requirements.txt
           echo "ZIG=$RUNNER_TEMP/zig/bin/python -m ziglang" >> "$GITHUB_ENV"
+      # dav1d and libvpx (scripts/codecs.sh); Windows links neither.
+      - name: Cache the C decoders
+        id: codecs-cache
+        if: runner.os != 'Windows'
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/codecs
+          key: codecs-${{ matrix.target }}-${{ hashFiles('packages/cli/scripts/codecs.sh', 'packages/cli/scripts/zig.sh', 'packages/cli/scripts/zig-requirements.txt') }}
+      - name: Install the C decoders' build tools
+        if: runner.os == 'Linux' && steps.codecs-cache.outputs.cache-hit != 'true'
+        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends meson ninja-build nasm
+      - name: Install the C decoders' build tools
+        if: runner.os == 'macOS' && steps.codecs-cache.outputs.cache-hit != 'true'
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+        run: brew install meson ninja nasm
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: npm-expected
           path: expected
       - name: Build the package
+        env:
+          COREAV_CODECS: ${{ runner.temp }}/codecs
         run: packages/cli/scripts/platform.sh ${{ matrix.platform }} ${{ matrix.target }}
       - name: Run the binary on its platform
         run: |
