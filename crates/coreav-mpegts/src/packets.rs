@@ -593,7 +593,7 @@ impl<S: Source> Packets<'_, S> {
                     offset,
                 });
             }
-            self.demux.feed(offset, &packet, &mut self.warnings)?;
+            self.demux.feed(offset, packet, &mut self.warnings)?;
             self.drain()?;
         }
         Ok(())

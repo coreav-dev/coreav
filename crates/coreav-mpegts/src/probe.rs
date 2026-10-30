@@ -508,7 +508,7 @@ fn read_tail<S: Source>(
         };
         match next {
             Some((offset, packet)) => {
-                if tail.feed(offset, &packet, tail_warnings).is_err() {
+                if tail.feed(offset, packet, tail_warnings).is_err() {
                     break;
                 }
             }
@@ -697,7 +697,7 @@ fn read_head<S: Source>(
             ran_out = true;
             break;
         };
-        demux.feed(offset, &packet, warnings)?;
+        demux.feed(offset, packet, warnings)?;
         learnt.resize_with(demux.streams.len(), Learn::default);
         learn_ready(demux, learnt, reference);
         // A stream whose codec this crate cannot name has no parameters to
