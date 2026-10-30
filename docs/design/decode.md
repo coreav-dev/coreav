@@ -239,9 +239,9 @@ vetted crate, not through CoreAV-authored `unsafe`.
 encoder of `coreav transcode` (`docs/design/transcode.md`, "Sandbox").
 `coreav_worker::exec` is a second hidden entry of the same programs
 (`__coreav_exec`, in `coreav` and in `coreav-worker`): its arguments are
-the limits, then `--` and the program's path and arguments. It sets the
+the limits, an optional `--no-huge-pages`, then `--` and the program's path and arguments. It sets the
 limits on itself with the worker's code (also no core files and
-`RLIMIT_FSIZE` 0) and replaces itself with the program through `std`'s
+`RLIMIT_FSIZE` 0), with `--no-huge-pages` turns transparent huge pages off for itself on Linux (`PR_SET_THP_DISABLE` through `rustix`'s safe API; `exec` keeps it), and replaces itself with the program through `std`'s
 `CommandExt::exec`, with the standard streams it was given and an empty
 environment, so the program inherits the limits and no process sits
 between it and the parent's pipes. The launcher is in every build with a

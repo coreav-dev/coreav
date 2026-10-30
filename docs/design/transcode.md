@@ -197,7 +197,11 @@ otherwise the `ffmpeg` program the fallback uses (`--ffmpeg PATH`,
   limits: the address-space budget (`Limits::max_memory_bytes`), no core
   files, no regular-file writes (`RLIMIT_FSIZE` 0; the encoder writes only
   to its pipe), a small descriptor count, and CPU seconds bounded by the
-  timeout times the CPU count. It runs in its own process group with a
+  timeout times the CPU count. For the x264 program on input of more than
+  8 bits the launcher also turns transparent huge pages off: its conversion
+  of that input stalls on them, and without them it takes about 0.84 times
+  as long on 4K frames (`docs/measurements/transcode-x264-10bit.md`, "Huge
+  pages"). 8-bit input and `ffmpeg` keep them. It runs in its own process group with a
   cleared environment, and is killed with its group at the deadline, on an
   error, or when the transcode is dropped. Its keeper looks every 20 ms
   whether it has exited (Linux's `waitid` with `WNOWAIT`, which leaves it

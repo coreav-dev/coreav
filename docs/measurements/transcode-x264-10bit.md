@@ -366,7 +366,7 @@ The raw results are in `transcode/x264-10bit/why/annotate/` (`why4.jsonl`: the s
 
 ## Huge pages
 
-Status: planned. The question, the arms and what each result would mean are committed before the run.
+Status: measured. The question, the arms and what each result would mean were committed before the run (`fca6c51`). The answer is yes: with transparent huge pages off for the x264 process, the stall goes, and 10-bit input through a pipe runs as fast as the fast arm. The launcher now turns them off for the x264 program when the input has more than 8 bits.
 
 The instruction-level view found one placement pattern it had not registered: in every slow arm the loop's input and output rows lie a multiple of 2 MiB apart, and in no fast arm. 2 MiB is the size of a transparent huge page on x86-64. A development check (an AMD host, where the stall does not occur, 3 frames) showed that the x264 program asks the kernel for huge pages itself. On 5 frames of the 10-bit pipe arm it made 23 `madvise(MADV_HUGEPAGE)` calls, and on 3 frames it held 366 MiB of anonymous huge pages, on a host whose setting gives huge pages only where a program asks for them (`madvise`). A caller can turn transparent huge pages off for one process and the programs it runs, with `prctl(PR_SET_THP_DISABLE)`, which the kernel keeps across `execve`. `coreav transcode` starts the encoder through its own launcher (`coreav-worker`'s `sandbox_exec_main`), which could set that flag before it runs the program. This run asks whether doing so removes the stall.
 
@@ -399,4 +399,35 @@ The instruction-level view found one placement pattern it had not registered: in
 6. **The process flag does what the host setting does.** `d10-pipe-never`'s median wall time is within 5% of `d10-pipe-nothp`'s.
 
 **What follows from the result.** If 1 to 4 hold, the launcher turns huge pages off for the x264 program, and a corpus round with its own bars, committed before it runs, judges that change through `coreav transcode`. If 5 also holds, it does so for every input; if 5 fails, only for input of more than 8 bits. If 2 or 3 fails, huge pages are not the lever, and the page records that and stops there. `d10-file-nothp` and `d16-pipe-nothp` judge nothing; they show whether, with huge pages off, the 10-bit file and 16-bit pipe arms reach the fast arm too.
+
+
+### What the huge-page run found
+
+With huge pages off, every 10-bit and 16-bit arm runs at one speed, whether its input comes from a pipe or a file, and the main thread's CPU time halves. The host's setting was `always` (`[always] madvise never`; defrag `madvise`). The evidence is in [`transcode/x264-10bit/thp/`](transcode/x264-10bit/thp): `thp.jsonl` (each run), `stat/` (one `perf stat` file per arm) and `host.txt`.
+
+| Arm | Wall, 3 runs (s) | Median (s) | Main thread on CPU (s) | Anonymous huge pages (MiB) | Output hash |
+|---|---|---|---|---|---|
+| `d10-pipe` | 22.34, 22.74, 22.96 | 22.74 | 16.87 | 3,706 | `9a8e114d` |
+| `d10-pipe-nothp` | 18.93, 19.16, 19.71 | 19.16 | 8.63 | 0 | `9a8e114d` |
+| `d10-pipe-never` | 19.09, 19.20, 19.22 | 19.20 | 8.68 | 0 | `9a8e114d` |
+| `d10-file-nothp` | 18.95, 19.00, 19.05 | 19.00 | 8.64 | 0 | `9a8e114d` |
+| `d16-pipe-nothp` | 18.90, 18.97, 19.25 | 18.96 | 8.62 | 0 | `9a8e114d` |
+| `d16-file` | 18.00, 18.08, 18.08 | 18.08 | 8.20 | 3,658 | `9a8e114d` |
+| `d10-422-pipe` | 28.36, 28.58, 28.95 | 28.58 | 22.01 | 4,332 | `c2babd7b` |
+| `d10-422-pipe-nothp` | 24.00, 24.04, 24.27 | 24.04 | 11.68 | 0 | `c2babd7b` |
+| `d8-pipe` | 12.23, 12.45, 12.48 | 12.45 | 0.97 | 2,120 | `c3679dc8` |
+| `d8-pipe-nothp` | 12.70, 12.79, 13.34 | 12.79 | 1.28 | 0 | `c3679dc8` |
+
+The main thread's CPU time comes from `/proc` in every arm, and the huge-page figure is the largest `AnonHugePages` seen in a run. On 5 frames of `d10-pipe`, the program made 68 anonymous mappings of 1 MiB or more, 1 of them on a 2 MiB boundary, and 52 `madvise(MADV_HUGEPAGE)` and 3 `madvise(MADV_DONTNEED)` calls.
+
+1. **The switch works: met.** Every `default` run held 2,116 to 4,332 MiB of anonymous huge pages, and every `process` and `host` run held none.
+2. **Lever at 4:2:0: met.** 19.16 s against 22.74 s, 0.843 times. All three times are below 22.34 s, and the stream is the same.
+3. **Lever at 4:2:2: met.** 24.04 s against 28.58 s, 0.841 times. All three are below 28.36 s, and the stream is the same.
+4. **The stall goes: not judged as registered.** In the `process` arms, `perf stat` attached to the launcher before it ran x264, so its counters followed every thread x264 started (369 billion cycles in `d10-pipe-nothp`, the whole program), not the main thread. This was found after the run. The `host` arm has the same setting without a launcher, and criterion 6 shows it behaves as the `process` arm. Its main thread had 4.87 billion cycles bound on loads against 28.23 billion in `d10-pipe` (0.17 times), and `d16-file` had 4.14 billion. The main thread's CPU time also halves in every `process` arm (8.63 s against 16.87 s).
+5. **8-bit input: missed.** 12.79 s against 12.45 s, 1.027 times, above 1.02. Huge pages help the rest of the encoder a little, so they stay on for 8-bit input.
+6. **The process flag does what the host setting does: met.** 19.20 s against 19.16 s, 0.2% apart.
+
+`d10-file-nothp` and `d16-pipe-nothp` reach the fast arm's speed too: with huge pages off, neither the depth nor a pipe matters. `d16-file`, the fast arm with huge pages on, is still 5% faster (18.08 s) than every arm without them, as the 8-bit arms are. So the stall needs both the program's own anonymous buffers and huge pages under them, which fits the 2 MiB distance that the register view recorded: on huge pages, the input and output rows then agree in their low 21 address bits, physical as well as virtual. No counter on this host names the block, so that remains the likely mechanism, not a proven one.
+
+**What follows.** `coreav transcode` starts the encoder through its launcher (`coreav_worker::exec`), which now turns transparent huge pages off (`PR_SET_THP_DISABLE`, through `rustix`'s safe API) before it runs the x264 program on input of more than 8 bits, and leaves them as they are for 8-bit input and for `ffmpeg`. A corpus round with its own bars judges that change through the command.
 
