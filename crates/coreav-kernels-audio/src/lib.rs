@@ -29,9 +29,11 @@
 #[cfg(target_arch = "x86_64")]
 mod avx;
 mod checked;
+mod fft;
 mod portable;
 
 use checked::Checked;
+pub use fft::{Fft, Twiddles};
 
 /// Taps are a multiple of this: the kernels' lanes.
 pub const LANES: usize = 8;
