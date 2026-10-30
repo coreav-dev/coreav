@@ -111,15 +111,16 @@ jobs:
           cargo test -p coreav-backend-libvpx --features libvpx
       # The encoder programs of `coreav transcode`, black boxes for
       # coreav-transcode's tests (docs/design/transcode.md): the pinned
-      # FFmpeg (libx264 4613ac3) and an x264 program built from the same
-      # commit, its source deleted after the build. With `CI` set the tests
+      # FFmpeg and an x264 program built from the commit of its libx264
+      # (scripts/oracle-ffmpeg.env), its source deleted after the build.
+      # With `CI` set the tests
       # fail instead of skipping when either is missing.
       - name: Cache the encoder programs
         id: encoders-cache
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ runner.temp }}/coreav-encoders
-          key: linux-x64-ffmpeg-7.0.2-x264-4613ac3-${{ hashFiles('scripts/install-oracle-ffmpeg.sh', 'scripts/install-x264.sh') }}
+          key: linux-x64-encoders-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh', 'scripts/install-x264.sh') }}
       - name: Install the pinned FFmpeg and build x264
         if: steps.encoders-cache.outputs.cache-hit != 'true'
         run: |

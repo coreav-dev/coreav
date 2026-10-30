@@ -1,22 +1,24 @@
 #!/usr/bin/env bash
 # Build the pinned x264 command-line program, a test-only black box for
 # `coreav transcode`'s encoder (docs/design/transcode.md, "The encoder
-# program"): commit 4613ac3 (r3191), the libx264 of the pinned FFmpeg 7.0.2.
+# program"): X264_COMMIT of scripts/oracle-ffmpeg.env, the libx264 of the
+# pinned FFmpeg.
 # The source is fetched into a temporary directory outside the repository,
 # built without reading it (x264 is a program here), and deleted;
 # only the `x264` executable is kept. Nothing of it is ever committed.
 # Needs git, a C compiler, make and nasm.
 set -euo pipefail
 DEST="${1:?usage: install-x264.sh /absolute/bin/dir}"
-COMMIT=4613ac3c15fd75cebc4b9f65b7fb95e70a3acce1
+# shellcheck source=oracle-ffmpeg.env
+source "$(dirname "${BASH_SOURCE[0]}")/oracle-ffmpeg.env"
 REPO=https://code.videolan.org/videolan/x264.git
 mkdir -p "$DEST"
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/coreav-x264.XXXXXX")
 trap 'rm -rf "$WORK"' EXIT
 # The commit history without file contents, then the files of the pinned
-# commit only: x264's version string counts the commits (0.164.3191).
+# commit only: x264's version string counts the commits (0.165.3223).
 git clone --quiet --filter=blob:none --no-checkout --no-tags "$REPO" "$WORK/x264"
-git -C "$WORK/x264" -c advice.detachedHead=false checkout --quiet "$COMMIT"
+git -C "$WORK/x264" -c advice.detachedHead=false checkout --quiet "$X264_COMMIT"
 # The flags of the CI image's build: every bit depth and chroma format, no
 # input or output libraries (raw frames in, Annex B out), no swscale.
 (

@@ -67,6 +67,7 @@ jobs:
             Cargo.lock
             # The policy examples both test suites run over.
             docs/schema/policy-examples/**
+            scripts/oracle-ffmpeg.env
             .github/workflows/python.yml
             .github/actions/changed-paths/**
 
@@ -89,7 +90,7 @@ jobs:
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ runner.temp }}/coreav-oracle-bin
-          key: linux-x64-ffmpeg-7.0.2-${{ hashFiles('scripts/install-oracle-ffmpeg.sh') }}
+          key: linux-x64-oracle-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh') }}
       - name: Install the pinned FFmpeg
         if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
         run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"

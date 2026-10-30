@@ -1,7 +1,7 @@
 //! `coreav transcode` end to end (`docs/design/transcode.md`): usage and
 //! rejected files always; with the pinned FFmpeg
 //! (`/opt/coreav-oracle-bin`, or `COREAV_FFMPEG`), the pinned x264
-//! (`/opt/x264-4613ac3/bin/x264`, or `COREAV_X264`) and the fixtures of
+//! (`/opt/coreav-oracle-bin/x264`, or `COREAV_X264`) and the fixtures of
 //! `scripts/gen-fixtures.sh` (`COREAV_FIXTURES`, else
 //! `/opt/coreav-fixtures`), transcodes of the fixtures with both encoders,
 //! each summary validated against `docs/schema/transcode-v1.schema.json`,
@@ -51,7 +51,7 @@ fn ffmpeg() -> Option<(PathBuf, PathBuf)> {
 fn x264() -> Option<PathBuf> {
     let path = std::env::var_os("COREAV_X264")
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("/opt/x264-4613ac3/bin/x264"));
+        .unwrap_or_else(|| PathBuf::from("/opt/coreav-oracle-bin/x264"));
     path.is_file().then_some(path)
 }
 

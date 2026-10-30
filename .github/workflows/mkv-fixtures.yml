@@ -79,7 +79,7 @@ jobs:
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ runner.temp }}/coreav-oracle-bin
-          key: linux-x64-ffmpeg-7.0.2-mediainfo-26.10-${{ hashFiles('scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
+          key: linux-x64-oracle-mediainfo-26.10-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
       - name: Install pinned FFmpeg, ffprobe and MediaInfo
         if: steps.bin-cache.outputs.cache-hit != 'true'
         run: |
