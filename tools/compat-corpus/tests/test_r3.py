@@ -1,5 +1,8 @@
 """r3.py and the R3 parts of release_round.py: which files a command can
 take, and the counts of a report. No FFmpeg, no media."""
+import argparse
+import contextlib
+import io
 import json
 import pathlib
 import subprocess
@@ -138,6 +141,111 @@ class Report(unittest.TestCase):
 
     def test_the_binarys_exit_statuses(self):
         self.assertEqual([r3.binary_outcome(c) for c in (0, 4, 1, None)], ['written', 'refused', 'failed', 'failed'])
+
+
+# Stand-ins for the harness, the binary and copy_check.py. The harness writes
+# `out.mp4` for every pair (or refuses every one with FAKE_STATUS=refused); the
+# binary does the same, writing a fallback-log line when it refuses; the check
+# writes a fresh report, or with FAKE_CHECK=crash exits 1 and writes none.
+HARNESS = r'''#!/usr/bin/env python3
+import json, os, pathlib
+status = os.environ.get('FAKE_STATUS', 'written')
+records = []
+for p in json.load(open(os.environ['COREAV_R3_PAIRS'])):
+    pathlib.Path(p['work']).mkdir(parents=True, exist_ok=True)
+    files = []
+    if status == 'written':
+        pathlib.Path(p['output']).write_bytes(b'x')
+        files = [p['output']]
+    records.append({'id': p['id'], 'command': p['command'], 'job': p['job'], 'source': p['source'],
+                    'input': p['input'], 'work': p['work'], 'status': status, 'files': files, 'detail': {}})
+json.dump(records, open(os.environ['COREAV_R3_RECORDS'], 'w'))
+'''
+BINARY = r'''#!/usr/bin/env python3
+import json, os, pathlib, sys
+if os.environ.get('FAKE_STATUS') == 'refused':
+    with open(os.environ['COREAV_FALLBACK_LOG'], 'a') as f:
+        f.write(json.dumps({'reason': 'a codec that CoreAV does not copy', 'ran': None, 'not_run': 'strict_safe'}) + '\n')
+    sys.exit(4)
+pathlib.Path(sys.argv[-1]).write_bytes(b'x')
+'''
+CHECK = r'''#!/usr/bin/env python3
+import collections, json, os, sys
+args = dict(zip(sys.argv[1::2], sys.argv[2::2]))
+if os.environ.get('FAKE_CHECK') == 'crash':
+    sys.exit(1)
+counts = collections.defaultdict(collections.Counter)
+for r in json.load(open(args['--records'])):
+    counts[r['id']][r['status']] += 1
+json.dump({'counts': counts, 'failures': []}, open(args['--report'], 'w'))
+'''
+
+
+class Judge(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        d = self.d = pathlib.Path(self.tmp.name)
+        for name, text in (('harness', HARNESS), ('coreav', BINARY), ('copy_check.py', CHECK)):
+            (d / name).write_text(text)
+            (d / name).chmod(0o755)
+        (d / 'src.mp4').write_bytes(b'')
+        self.log = d / 'fallback.log'
+        self.opts = argparse.Namespace(harness=str(d / 'harness'), coreav=str(d / 'coreav'), ffmpeg='ffmpeg',
+                                       ffprobe='ffprobe', mediainfo=None, log=str(d / 'check.log'))
+        here, r3.HERE = r3.HERE, d
+        self.addCleanup(setattr, r3, 'HERE', here)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def pairs(self, ids):
+        return [{'id': i, 'job': 'remux', 'command': 0, 'args': ['-i', 'INPUT', '-c', 'copy', 'OUTPUT'],
+                 'source': str(self.d / 'src.mp4'), 'family': 'mp4-mov', 'input': str(self.d / 'src.mp4')}
+                for i in ids]
+
+    def judge(self, ids, **env):
+        scratch = self.d / 'scratch'
+        scratch.mkdir(exist_ok=True)
+        return r3.judge(self.opts, self.pairs(ids), scratch, {**release_round.environment(self.log), **env})
+
+    def test_a_crashed_check_fails_its_chunk_and_never_reads_an_old_report(self):
+        self.assertEqual(self.judge(['C01']), {('C01', 0): ('passed', None)})
+        self.assertEqual(self.judge(['C02'], FAKE_CHECK='crash'), {('C02', 0): ('failed', 'copy_check crashed')})
+
+    def test_a_refusal_runs_the_binary_and_reaches_the_fallback_log(self):
+        self.assertEqual(self.judge(['C01'], FAKE_STATUS='refused'), {('C01', 0): ('failed', 'refused')})
+        self.assertEqual(release_round.fallback_verdict(self.log), {'lines': 1, 'refused': 1, 'void': True})
+
+
+class Run(unittest.TestCase):
+    def run_lines(self, lines, log_line=None):
+        with tempfile.TemporaryDirectory() as tmp:
+            d = pathlib.Path(tmp)
+            (d / 'a.mp4').write_bytes(b'')
+
+            def one_file(opts, path, env):
+                if log_line:
+                    pathlib.Path(env['COREAV_FALLBACK_LOG']).write_text(log_line + '\n')
+                return lines
+
+            opts = argparse.Namespace(list=None, media=[str(d)], work=str(d / 'w'), records=str(d / 'r.jsonl'),
+                                      jobs=1, bar=98.0)
+            original, r3.one_file = r3.one_file, one_file
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    return r3.cmd_run(opts)
+            finally:
+                r3.one_file = original
+
+    def line(self, outcome, reason=None):
+        return {'file': 'a.mp4', 'family': 'mp4-mov', 'id': 'C01', 'command': 0, 'job': 'remux',
+                'outcome': outcome, 'reason': reason}
+
+    def test_run_exits_as_its_report(self):
+        self.assertEqual(self.run_lines([self.line('ffprobe fails')]), release_round.UNMEASURED)
+        self.assertEqual(self.run_lines([self.line('passed')]), 0)
+        self.assertEqual(self.run_lines([self.line('passed')], json.dumps({'not_run': 'strict_safe'})), 2)
+        self.assertEqual(self.run_lines([self.line('failed', 'oracle')]), 1)
 
 
 if __name__ == '__main__':

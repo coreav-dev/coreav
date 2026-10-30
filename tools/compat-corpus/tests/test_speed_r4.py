@@ -167,6 +167,34 @@ class Report(unittest.TestCase):
         gate['results'].append({'class': 'clip', 'family': 'mpegts', 'id': 'C05', 'command': 0, 'exit': [1, 0]})
         self.assertEqual(speed.r4_summary(gate, gate=True)['failing'], ['clip all'])
 
+    def test_a_timed_failure_fails_the_run_and_the_gate(self):
+        for arm, gate, base in (('r4', [], 0.9), ('aa', ['--gate'], 1.0), ('null', ['--gate'], 1.0)):
+            data = results(arm, [('probe', 'mp4-mov', base + 0.001 * (i % 3 - 1)) for i in range(21)])
+            data['results'].append({'class': 'probe', 'family': 'mp4-mov', 'id': 'C04', 'command': 0,
+                                    'file': 'mp4-mov:7', 'a': [0.1], 'b': [0.1], 'exit': [0, 1]})
+            s = speed.r4_summary(data, gate=bool(gate))
+            self.assertEqual((s['failing'], s['incomplete']), ([], ['C04.0 mp4-mov:7']))
+            self.assertEqual(s['no_ratio'], {'timed run failed': 1})
+            with tempfile.TemporaryDirectory() as tmp:
+                path = pathlib.Path(tmp) / 'r.json'
+                for extra, code in ((data['results'][-1:], 1), ([], 0)):
+                    path.write_text(json.dumps({**data, 'results': data['results'][:-1] + extra}))
+                    done = subprocess.run([sys.executable, '-I', str(HERE / 'speed.py'), 'r4-report',
+                                           '--results', str(path)] + gate, capture_output=True, text=True, timeout=60)
+                    self.assertEqual(done.returncode, code, (arm, done.stdout))
+                    self.assertEqual('INCOMPLETE C04.0 mp4-mov:7' in done.stdout, bool(extra))
+
+    def test_an_untimed_failure_is_counted_by_its_side(self):
+        data = results('r4', [('probe', 'mp4-mov', 0.9)] * 5)
+        data['results'] += [{'class': 'probe', 'family': 'mp4-mov', 'id': 'C04', 'command': 0, 'exit': [1, 0]},
+                            {'class': 'probe', 'family': 'mp4-mov', 'id': 'C04', 'command': 1, 'exit': [0, 1]},
+                            {'class': 'probe', 'family': 'mp4-mov', 'id': 'C04', 'command': 2, 'exit': [4, 0],
+                             'refused': True}]
+        s = speed.r4_summary(data, gate=False)
+        self.assertEqual(s['no_ratio'], {'untimed run failed: coreav': 1, 'untimed run failed: ffmpeg': 1,
+                                         'refused': 1})
+        self.assertEqual(s['incomplete'], [])
+
     def test_no_ratio_is_unmeasured(self):
         with tempfile.TemporaryDirectory() as tmp:
             for arm, gate in (('r4', []), ('aa', ['--gate'])):
