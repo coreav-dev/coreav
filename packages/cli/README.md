@@ -61,9 +61,10 @@ their 0.1.0 bars.
 `coreav ffmpeg`, which has no help text of its own: strict-safe mode refuses
 `coreav ffmpeg --help` (exit code 4), and otherwise it prints the real
 `ffmpeg`'s help (<https://coreav.dev/docs/commands/ffmpeg> lists what it
-runs). `OUTPUT` may be `-` to write the file to stdout, and the summary then goes to stderr. An
-existing output file is kept unless `--force` is given, and a failed run
-leaves no partial file (`split` keeps the segments it finished).
+runs). `OUTPUT` may be `-` to write the file to stdout, and the summary
+then goes to stderr. An existing output file is kept unless `--force` is
+given, and a failed run leaves no partial file (`split` keeps the segments
+it finished).
 
 Examples:
 
