@@ -221,7 +221,7 @@ impl coreav_isobmff::Source for FailingAt<'_> {
     }
 }
 
-/// A read that fails is not a damaged box (#594): a failed read of a track
+/// A read that fails is not a damaged box: a failed read of a track
 /// reference box, or of a box after a dropped stream's media, fails the
 /// probe with the I/O error instead of leaving the reference out.
 #[test]

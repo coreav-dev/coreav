@@ -1,4 +1,4 @@
-"""#135, bar W5 (docs/design/policy-matroska.md, "One walk"): M7's method
+"""The one-pass Matroska walk, bar W5 (docs/design/policy-matroska.md, "One walk"): M7's method
 (spikes/policy-matroska/run.py speed) on the held-out real Matroska and
 WebM files of corpus v1: one warm-up run each, then five rounds of
 `coreav check --policy web-upload.json` and `ffprobe -v error

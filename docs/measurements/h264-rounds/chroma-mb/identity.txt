@@ -2,6 +2,6 @@ Output of the 32 training streams (class frame counts: sd 1800, 720p 900, 1080p 
 the decode example (dist builds): main 051e1692 at one thread against this branch at one and at eight threads.
 identical 32, different 0
 
-After rebasing onto main da8bab55 (#430, a reference's interior in motion compensation, and #434, docs; neither touches
+After rebasing onto main da8bab55 (a reference's interior in motion compensation, and round 18's documentation; neither touches
 the deblocking filter): the rebased branch at one and eight threads against main da8bab55 at one thread.
 identical 32, different 0

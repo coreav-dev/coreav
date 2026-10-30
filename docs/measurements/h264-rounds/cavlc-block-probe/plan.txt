@@ -2,7 +2,7 @@ CAVLC residual block parse probe, part-only (written before the run).
 
 Question: does the CAVLC residual block parse (cavlc.rs block_body, residual_block_cavlc() of clause 7.3.5.3.2) cost
 time in proportion to the instructions a cut of it would remove? The entropy re-measure on an earlier change's code
-(entropy-after-483) puts the CAVLC streams' entropy and MB-layer excess at +657 instructions a macroblock over FFmpeg,
+(entropy-after-decision-asm) puts the CAVLC streams' entropy and MB-layer excess at +657 instructions a macroblock over FFmpeg,
 8% to 24% of the instructions of five of the six CAVLC streams, with block_body its largest piece. counts.txt gives
 block_body at 0.5% to 26.8% of a CAVLC stream's instructions (5.2% and 9.6% the middle two), 239 to 566 a call.
 

@@ -4328,262 +4328,262 @@
    "pre_bar": [],
    "added_after_the_bars": {
     "KD-STRICT": {
-     "added": "#12 dd853a6",
+     "added": "dd853a6",
      "changed": [
-      "#116 88a660b"
+      "88a660b"
      ]
     },
     "KD-STTS-SHORT": {
-     "added": "#12 dd853a6",
+     "added": "dd853a6",
      "changed": [
-      "#105 2199176",
-      "#109 0bca9b9",
-      "#160 d7d79c2",
-      "#162 5316840",
-      "#161 1666715",
-      "#187 f9fa510",
-      "#254 8470744"
+      "2199176",
+      "0bca9b9",
+      "d7d79c2",
+      "5316840",
+      "1666715",
+      "f9fa510",
+      "8470744"
      ]
     },
     "KD-EDIT-DISCARD": {
-     "added": "#12 dd853a6",
+     "added": "dd853a6",
      "changed": [
-      "#118 35f1801",
-      "#125 a213539",
-      "#162 5316840",
-      "#161 1666715",
-      "#187 f9fa510",
-      "#254 8470744"
+      "35f1801",
+      "a213539",
+      "5316840",
+      "1666715",
+      "f9fa510",
+      "8470744"
      ]
     },
     "KD-CTTS": {
-     "added": "#12 dd853a6",
+     "added": "dd853a6",
      "changed": [
-      "#118 35f1801",
-      "#142 36b1878",
-      "#162 5316840",
-      "#161 1666715",
-      "#187 f9fa510",
-      "#254 8470744"
+      "35f1801",
+      "36b1878",
+      "5316840",
+      "1666715",
+      "f9fa510",
+      "8470744"
      ]
     },
     "KD-PCM": {
-     "added": "#12 dd853a6",
+     "added": "dd853a6",
      "changed": [
-      "#118 35f1801",
-      "#125 a213539",
-      "#126 c6236a6",
-      "#162 5316840",
-      "#161 1666715",
-      "#187 f9fa510",
-      "#254 8470744"
+      "35f1801",
+      "a213539",
+      "c6236a6",
+      "5316840",
+      "1666715",
+      "f9fa510",
+      "8470744"
      ]
     },
     "KD-AAC-IMPLICIT-SBR": {
-     "added": "#16 1bce9e8",
+     "added": "1bce9e8",
      "changed": [
-      "#162 5316840",
-      "#161 1666715",
-      "#187 f9fa510",
-      "#254 8470744"
+      "5316840",
+      "1666715",
+      "f9fa510",
+      "8470744"
      ]
     },
     "KD-AAC-LC-UNNAMED": {
-     "added": "#16 1bce9e8",
+     "added": "1bce9e8",
      "changed": [
-      "#162 5316840",
-      "#161 1666715",
-      "#187 f9fa510",
-      "#254 8470744"
+      "5316840",
+      "1666715",
+      "f9fa510",
+      "8470744"
      ]
     },
     "KD-DECLARED-SIZE": {
-     "added": "#70 060ed50",
+     "added": "060ed50",
      "changed": []
     },
     "KD-QT-TEXT": {
-     "added": "#69 364d038",
+     "added": "364d038",
      "changed": [
-      "#104 3c771c2",
-      "#136 6aaafb2",
-      "#148 61a60b8"
+      "3c771c2",
+      "6aaafb2",
+      "61a60b8"
      ]
     },
     "KD-EDIT-SNAP": {
-     "added": "#107 2d79137",
+     "added": "2d79137",
      "changed": [
-      "#142 36b1878",
-      "#162 5316840",
-      "#161 1666715",
-      "#187 f9fa510",
-      "#254 8470744"
+      "36b1878",
+      "5316840",
+      "1666715",
+      "f9fa510",
+      "8470744"
      ]
     },
     "KD-EDIT-DURATION": {
-     "added": "#109 0bca9b9",
+     "added": "0bca9b9",
      "changed": [
-      "#153 31b3951",
-      "#142 36b1878",
-      "#160 d7d79c2",
-      "#162 5316840",
-      "#161 1666715",
-      "#187 f9fa510",
-      "#254 8470744"
+      "31b3951",
+      "36b1878",
+      "d7d79c2",
+      "5316840",
+      "1666715",
+      "f9fa510",
+      "8470744"
      ]
     },
     "KD-FRAG-START": {
-     "added": "#142 36b1878",
+     "added": "36b1878",
      "changed": [
-      "#160 d7d79c2",
-      "#162 5316840",
-      "#161 1666715",
-      "#187 f9fa510",
-      "#254 8470744"
+      "d7d79c2",
+      "5316840",
+      "1666715",
+      "f9fa510",
+      "8470744"
      ]
     },
     "KD-NOT-ALLOWED": {
-     "added": "#104 3c771c2",
+     "added": "3c771c2",
      "changed": [
-      "#136 6aaafb2",
-      "#148 61a60b8"
+      "6aaafb2",
+      "61a60b8"
      ]
     },
     "KD-COVER-ART": {
-     "added": "#136 6aaafb2",
+     "added": "6aaafb2",
      "changed": [
-      "#148 61a60b8"
+      "61a60b8"
      ]
     },
     "KD-CHAPTER-TEXT": {
-     "added": "#148 61a60b8",
+     "added": "61a60b8",
      "changed": [
-      "#162 5316840",
-      "#161 1666715",
-      "#187 f9fa510",
-      "#254 8470744"
+      "5316840",
+      "1666715",
+      "f9fa510",
+      "8470744"
      ]
     },
     "KD-EDIT-MULTI": {
-     "added": "#153 31b3951",
+     "added": "31b3951",
      "changed": [
-      "#162 5316840",
-      "#161 1666715",
-      "#187 f9fa510",
-      "#254 8470744"
+      "5316840",
+      "1666715",
+      "f9fa510",
+      "8470744"
      ]
     },
     "KD-TRUN-SHIFT": {
-     "added": "#160 d7d79c2",
+     "added": "d7d79c2",
      "changed": [
-      "#162 5316840",
-      "#161 1666715",
-      "#187 f9fa510",
-      "#254 8470744"
+      "5316840",
+      "1666715",
+      "f9fa510",
+      "8470744"
      ]
     },
     "KD-CTTS-UNSIGNED": {
-     "added": "#160 d7d79c2",
+     "added": "d7d79c2",
      "changed": [
-      "#162 5316840",
-      "#161 1666715",
-      "#187 f9fa510",
-      "#254 8470744"
+      "5316840",
+      "1666715",
+      "f9fa510",
+      "8470744"
      ]
     },
     "KD-PCM-END": {
-     "added": "#160 d7d79c2",
+     "added": "d7d79c2",
      "changed": [
-      "#162 5316840",
-      "#161 1666715",
-      "#187 f9fa510",
-      "#254 8470744"
+      "5316840",
+      "1666715",
+      "f9fa510",
+      "8470744"
      ]
     },
     "KD-EDIT-UNPLACED": {
-     "added": "#160 d7d79c2",
+     "added": "d7d79c2",
      "changed": [
-      "#162 5316840",
-      "#161 1666715",
-      "#187 f9fa510",
-      "#254 8470744"
+      "5316840",
+      "1666715",
+      "f9fa510",
+      "8470744"
      ]
     },
     "KD-TEXT-END": {
-     "added": "#161 1666715",
+     "added": "1666715",
      "changed": [
-      "#187 f9fa510",
-      "#254 8470744"
+      "f9fa510",
+      "8470744"
      ]
     },
     "KD-MKV-DTS": {
-     "added": "#51 13600fb",
+     "added": "13600fb",
      "changed": []
     },
     "KD-MKV-LACE-UNTIMED": {
-     "added": "#51 13600fb",
+     "added": "13600fb",
      "changed": []
     },
     "KD-MKV-LACE-SPLIT": {
-     "added": "#51 13600fb",
+     "added": "13600fb",
      "changed": []
     },
     "KD-MKV-AUDIO-KEYFRAME": {
-     "added": "#51 13600fb",
+     "added": "13600fb",
      "changed": []
     },
     "KD-MKV-VFW-TIMESTAMPS": {
-     "added": "#51 13600fb",
+     "added": "13600fb",
      "changed": []
     },
     "KD-MKV-WEBM-WEBVTT": {
-     "added": "#51 13600fb",
+     "added": "13600fb",
      "changed": []
     },
     "KD-MKV-ENCRYPTED": {
-     "added": "#51 13600fb",
+     "added": "13600fb",
      "changed": []
     },
     "KD-MKV-STREAM-DURATION": {
-     "added": "#51 13600fb",
+     "added": "13600fb",
      "changed": []
     },
     "KD-MKV-FMT-ROUNDING": {
-     "added": "#51 13600fb",
+     "added": "13600fb",
      "changed": []
     },
     "KD-MKV-UNREAD-BITSTREAM": {
-     "added": "#51 13600fb",
+     "added": "13600fb",
      "changed": []
     },
     "KD-MKV-HEVC-RANGE": {
-     "added": "#51 13600fb",
+     "added": "13600fb",
      "changed": []
     },
     "KD-MKV-ATTACHMENT": {
-     "added": "#51 13600fb",
+     "added": "13600fb",
      "changed": []
     },
     "KD-MKV-DECLARED-SIZE": {
-     "added": "#90 5b3148e",
+     "added": "5b3148e",
      "changed": []
     },
     "KD-MKV-TAG-LANGUAGE": {
-     "added": "#255 bc1adbd",
+     "added": "bc1adbd",
      "changed": []
     },
     "KD-TS-END-ESTIMATE": {
-     "added": "#247 dde526b",
+     "added": "dde526b",
      "changed": []
     },
     "KD-TS-DUPLICATE": {
-     "added": "#247 dde526b",
+     "added": "dde526b",
      "changed": []
     }
    },
    "retired": {
     "KD-FMT-ORIGIN": {
-     "added": "#12 dd853a6",
-     "retired": "#105 2199176"
+     "added": "dd853a6",
+     "retired": "2199176"
     }
    }
   }

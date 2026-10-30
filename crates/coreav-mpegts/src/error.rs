@@ -5,7 +5,8 @@ use core::fmt;
 /// Which limit of [`crate::Limits`] a file exceeded.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LimitKind {
-    /// `max_probe_bytes`.
+    /// `max_probe_bytes`: the probe read that many bytes, the file goes on,
+    /// and they name no program.
     ProbeBytes,
     /// `max_resync_bytes`.
     ResyncBytes,
@@ -32,7 +33,9 @@ pub enum Error {
     NotTransportStream,
     /// A Program Association Table and none of its Program Map Tables,
     /// or neither a Program Association Table nor a PES packet, was found
-    /// within `max_probe_bytes`.
+    /// in a file read to its end within `max_probe_bytes`. A file that goes
+    /// on after them gets `LimitExceeded` with [`LimitKind::ProbeBytes`]
+    /// instead.
     NoPrograms,
     /// A structure is invalid in a way the reader cannot skip.
     Invalid {

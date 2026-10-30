@@ -68,6 +68,28 @@ impl Default for TextLimits {
     }
 }
 
+/// Which limit of [`TextLimits`] a request went past.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TextLimitKind {
+    /// [`TextLimits::max_sample_bytes`].
+    SampleBytes,
+    /// [`TextLimits::max_chapters`].
+    Chapters,
+    /// [`TextLimits::max_title_bytes`].
+    TitleBytes,
+}
+
+impl TextLimitKind {
+    /// The limit's field name in [`TextLimits`].
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::SampleBytes => "max_sample_bytes",
+            Self::Chapters => "max_chapters",
+            Self::TitleBytes => "max_title_bytes",
+        }
+    }
+}
+
 /// Which subtitle track to extract.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TrackChoice {
@@ -82,10 +104,17 @@ pub enum TrackChoice {
 /// Why extraction failed. Nothing about the source's bytes is included.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TextError {
-    /// The source could not be read, is malformed, exceeds a limit, or has
-    /// no track that can be extracted (`Error::Unsupported`,
-    /// `Error::NoSuchTrack`).
+    /// The source could not be read, is malformed, exceeds a limit of the
+    /// parser's `Limits`, or has no track that can be extracted
+    /// (`Error::Unsupported`, `Error::NoSuchTrack`).
     Source(Error),
+    /// A limit of [`TextLimits`] was exceeded.
+    LimitExceeded {
+        /// The limit.
+        limit: TextLimitKind,
+        /// Offset of the sample at which it was exceeded.
+        offset: u64,
+    },
     /// Writing the output failed; the output is incomplete.
     Write(std::io::ErrorKind),
 }
@@ -94,6 +123,9 @@ impl fmt::Display for TextError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Source(error) => error.fmt(f),
+            Self::LimitExceeded { limit, offset } => {
+                write!(f, "limit {} exceeded at offset {offset}", limit.name())
+            }
             Self::Write(kind) => write!(f, "write error: {kind}"),
         }
     }

@@ -118,7 +118,7 @@
         "/streams/*/packets/extra/pts": "media_cts - edits.media_time + presentation_offset_ticks, rounded half away from zero; dts likewise from media_dts"
       },
       "predicate": "edit_discard",
-      "basis": "proposal 5.2 (one packet per sample, simple edit list applied exactly); first registered in the parsing-guard spike, as C-EDIT-DISCARD (pull request 8)"
+      "basis": "proposal 5.2 (one packet per sample, simple edit list applied exactly); first registered in the parsing-guard spike, as C-EDIT-DISCARD"
     },
     {
       "id": "KD-CTTS",
@@ -291,7 +291,7 @@
         "evidence": "the file's AudioSpecificConfig is plain LC (Facts.aac_plain_lc)"
       },
       "predicate": "aac_implicit_sbr",
-      "basis": "Decision 25 point 1 (profile from the configuration, no decoding); ISO/IEC 14496-3 implicit SBR signalling; registered as a known divergence in pull request 16"
+      "basis": "Decision 25 point 1 (profile from the configuration, no decoding); ISO/IEC 14496-3 implicit SBR signalling"
     },
     {
       "id": "KD-AAC-LC-UNNAMED",
@@ -309,7 +309,7 @@
         "evidence": "the file's AudioSpecificConfig is plain LC (Facts.aac_plain_lc)"
       },
       "predicate": "aac_lc_unnamed",
-      "basis": "Decision 25 point 14; ISO/IEC 14496-3 AudioSpecificConfig; registered as a known divergence in pull request 16"
+      "basis": "Decision 25 point 14; ISO/IEC 14496-3 AudioSpecificConfig"
     },
     {
       "id": "KD-QT-TEXT",

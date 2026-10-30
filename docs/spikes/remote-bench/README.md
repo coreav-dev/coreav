@@ -141,7 +141,7 @@ selection rule, method and bar.
 Bars and method are fixed in `docs/design/remote.md` ("The other commands")
 before the runs. Evidence: `evidence/<operation>-01.json`, with summaries
 in `evidence/summary-<operation>-01.json`, and the run's log
-`evidence/url-223-01.log`.
+`evidence/url-commands-01.log`.
 - **Build:** the `dist` profile of `main` at `ecee36b`.
 - **Machine and inputs:** the same machine and URLs as above.
 - **Round:** round 1 for each operation over URLs.

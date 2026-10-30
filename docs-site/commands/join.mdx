@@ -1,0 +1,21 @@
+---
+title: "coreav join"
+sidebarTitle: "join"
+description: "Join MP4 or MOV files that share a codec configuration into one MP4, without re-encoding."
+---
+
+import Help from '/snippets/help/join.mdx';
+
+`coreav join -o OUTPUT INPUTS...` joins MP4 or MOV files, in the order given, into one MP4 file by stream copy. The inputs must share a codec configuration, as the parts of one recording do. The summary is [`coreav.join/1`](https://github.com/coreav-dev/coreav/blob/main/docs/schema/join-v1.md).
+
+## Example
+
+```sh
+coreav join -o joined.mp4 part-0.mp4 part-1.mp4 part-2.mp4
+```
+
+The same join is available as `coreav ffmpeg -f concat` ([`coreav ffmpeg`](/commands/ffmpeg)).
+
+## Options
+
+<Help />

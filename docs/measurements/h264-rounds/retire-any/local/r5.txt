@@ -3,7 +3,7 @@ R5, output, on the measured commit 80dfef38 (the decoder code of the branch tip)
 
 identity: `decode --threads N` of the branch (dist) at 1, 2, 3 and 8 threads against `decode` of main 678bd699
   (dist) at 1 thread, md5 of the raw output, the 32 training streams: identity identical 128/128
-  (main 678bd699 and 5dcfed70 decode the same samples; #412 changed no sample).
+  (main 678bd699 and 5dcfed70 decode the same samples; the memory budget fix changed no sample).
 conformance: scripts/h264_conformance.py --threads 1,2,8: {"streams": 97, "passed": 97, "failed": 0,
   "kernels": "detect", "threads": "1,2,8"}; --kernels scalar --threads 1: {"streams": 97, "passed": 97,
   "failed": 0, "kernels": "scalar", "threads": "1"}

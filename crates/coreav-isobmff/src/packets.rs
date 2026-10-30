@@ -456,7 +456,7 @@ impl<S: Source> Packets<'_, S> {
     /// Appends up to `limit` runs of at most `max` samples each to `out`,
     /// the same runs [`next_run`](Self::next_run) returns one by one, and
     /// returns how many it appended: 0 after the last sample. For callers
-    /// that index every sample (#30): runs from the sample tables are read
+    /// that index every sample: runs from the sample tables are read
     /// in one loop, without the per-run calls, while every check of
     /// `next_run` still applies to each run; runs of movie fragments come
     /// one per call of `next_run`. After an error, every later call returns
@@ -515,7 +515,7 @@ impl<S: Source> Packets<'_, S> {
 
     /// Visits every remaining sample of the track in decode order, each as
     /// the tables store it, and returns how many it visited. For a caller
-    /// that indexes every sample (#30, #308): the samples come without one
+    /// that indexes every sample: the samples come without one
     /// record per sample in memory, so the walk and the caller's own record
     /// are one loop, and the sizes of a chunk are read in one pass of the
     /// table. Every check of [`next_run`](Self::next_run) applies to each

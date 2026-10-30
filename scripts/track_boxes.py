@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """An independent reader of an MP4 or MOV file's tracks, for the writer
-oracles' box checks (`scripts/writer_boxes.py`, #324).
+oracles' box checks (`scripts/writer_boxes.py`).
 
 Written from ISO/IEC 14496-12 (and the QuickTime File Format for sound
 sample entry versions 1 and 2), apart from CoreAV's parser: it reads the

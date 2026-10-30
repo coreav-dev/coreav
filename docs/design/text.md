@@ -146,7 +146,9 @@ Clean room, from public specifications only:
 Reading uses the parser's `Limits` (box, table, packet and fragment limits).
 `TextLimits` adds: `max_sample_bytes` (1 MiB; TS 26.245 asks for at most
 2,048 bytes of text), `max_chapters` (10,000) and `max_title_bytes` (4 MiB
-of titles in total). Subtitles are written one sample at a time through one
+of titles in total). Going past one of them fails with
+`TextError::LimitExceeded`, whose `TextLimitKind` names the field; the
+parser's limits fail with its own error inside `TextError::Source`. Subtitles are written one sample at a time through one
 reused buffer, so memory is the text track's sample tables plus one sample,
 whatever the file size; the chapter list holds the titles, bounded by the
 limits above.

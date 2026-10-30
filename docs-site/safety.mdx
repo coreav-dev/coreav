@@ -1,0 +1,40 @@
+---
+title: "Safety"
+description: "How CoreAV reads files it did not make, and what enforces each property."
+---
+
+CoreAV is built to read untrusted media files: uploads, objects in storage, streams from other services. Each property below names what enforces it, so you can check it yourself.
+
+## No panics in production code
+
+Production code has no `unwrap`, `expect`, `panic!`, `todo!`, `unimplemented!` or slice indexing. The workspace lints in [`Cargo.toml`](https://github.com/coreav-dev/coreav/blob/main/Cargo.toml) deny them, and CI runs clippy with warnings as errors. A damaged or hostile file gives an error with a stable `kind` ([errors](/commands#errors)), not a crash.
+
+## Memory safety
+
+`unsafe` is forbidden in the whole workspace, except at the sites that [`docs/unsafe-sites.md`](https://github.com/coreav-dev/coreav/blob/main/docs/unsafe-sites.md) lists, each with the precondition that makes it sound. A CI check fails when a file uses `unsafe` and has no row there.
+
+In production code, the listed sites are in the H.264 decoder and its SIMD kernels, the audio resampler's SIMD kernel, the decode worker's shared memory and the libvpx bindings. The container parsers (MP4 and MOV, Matroska and WebM, MPEG-TS), the writers and the policy check have none.
+
+## Limits on memory and work
+
+Every parser takes a `Limits` value, and every field of each crate's limits is tested at its boundary. The memory bounds are measured: under 32 MiB of peak growth while a 2.2 GB fragmented file is demuxed, and no allocation that follows a count the file declares ([the pinned memory bounds](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/0004-limit-bounds.md)). A suite of 289 hostile files is rejected or bounded with no crash ([correctness report](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/stage3-correctness.md)).
+
+## Fuzzing
+
+CI fuzzes the targets that a change can affect. Before a release, every fuzz target runs in a campaign of at least 24 CPU-hours that must end with no finding ([fuzz campaigns](https://github.com/coreav-dev/coreav/blob/main/docs/design/fuzz-campaign.md)). Campaign 2, a run of that release gate, did not pass: it had two findings. Their fixes and reruns are on [its page](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/fuzz-campaign-2.md), and the gate runs again on the release commit.
+
+## Third-party decoders run in a worker
+
+Builds with a decoder backend run dav1d, libvpx and the `ffmpeg` program in a separate worker process with resource limits. The parent process treats the worker as untrusted and validates every frame descriptor it sends back ([the sandboxed worker](https://github.com/coreav-dev/coreav/blob/main/docs/design/decode.md#the-sandboxed-worker)). A default build has no third-party decoder at all ([build features](/build-features)).
+
+## Strict-safe mode turns off the FFmpeg fallback
+
+`coreav ffprobe` and `coreav ffmpeg` hand the command lines they do not implement to the real FFmpeg, unless strict-safe mode is on. In strict-safe mode they refuse those command lines. In a default build, which the release binaries planned for 0.1.0 are, no FFmpeg code then runs. A build with a decoder backend can still run an `ffmpeg` program in strict-safe mode: as the encoder of `transcode` and `libx264` command lines when no `x264` program is used, and, with the `ffmpeg-fallback` feature, as the decoder of those and `thumbnail`. FFmpeg then gets frames or packets that CoreAV sends it, never the input file ([what strict-safe mode covers](/strict-safe#what-strict-safe-mode-covers)).
+
+## Written from specifications
+
+CoreAV is written from public specifications, such as ISO/IEC 14496-12 and 14496-15, ISO/IEC 13818-1, RFC 9559, ITU-T H.264 and RFC 6716. FFmpeg is used only as a program: as the fallback, and as the reference that the measurements compare with.
+
+## Report a vulnerability
+
+A file that makes CoreAV panic, go past its limits or get a rejected file through a policy check is a security problem. Report it privately, as [`SECURITY.md`](https://github.com/coreav-dev/coreav/blob/main/SECURITY.md) describes, and do not open a public issue.

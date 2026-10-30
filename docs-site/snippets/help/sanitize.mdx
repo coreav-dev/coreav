@@ -1,0 +1,18 @@
+```text
+Rewrite an MP4/MOV file as MP4 without its metadata (location, device, dates), keeping only allowlisted boxes, without re-encoding
+
+Usage: coreav sanitize [OPTIONS] <INPUT> <OUTPUT>
+
+Arguments:
+  <INPUT>   The file to rewrite
+  <OUTPUT>  Where to write the MP4 file: a new file, or `-` for standard output
+
+Options:
+      --streams <STREAM>     Stream indexes to keep, comma separated (default: every stream MP4 can carry)
+      --fail-on-unsupported  Fail instead of dropping a stream that MP4 cannot carry
+      --allow <CODEC>        Codecs to accept, comma separated, as for `coreav probe`
+      --strict               Reject the whole file when a stream's codec is not allowed
+      --force                Overwrite OUTPUT if it exists (a symbolic link is replaced, not written through; the new file keeps the old one's permissions)
+      --keep <FIELD>         What to keep, comma separated: `rotation`, `language`, `dates` (creation times), `gapless` (encoder delay and padding), `kinds` (track roles), or `none` [default: rotation,language,gapless,kinds]
+  -h, --help                 Print help
+```

@@ -12,7 +12,7 @@ reference decoded files:
   COREAV_H264_THREADS=1,2,8   pass
   COREAV_H264_KERNELS=scalar  pass
 
-After rebasing onto `main` at fbb309f (#373, the kernels of the training
+After rebasing onto `main` at fbb309f (the kernels of the training
 set), checked again: the rebased branch (4dbe34a) against `main` at
 fbb309f, the same 32 streams and frame counts, the base at one thread and
 the branch at one and at eight threads: identical 64/64; conformance pass

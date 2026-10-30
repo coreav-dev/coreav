@@ -147,9 +147,12 @@ to 35 while the development count stayed at 6.
 B2 misses on refusals by design (the
 commands without a section, intervals that need a seek) and on the
 fixtures CoreAV rejects, not on wrong values, so it does not gate the
-label. B3b is checked on the fixtures for the `commands-0.1.0` commands
-(R3, "`coreav ffmpeg`" below) and not yet measured over `commands-v1`. The
-bars stay as registered. Until
+label. B3b is checked on the fixtures for the `commands-0.1.0` commands:
+R3 on the fixtures is met and gated in CI for every `ffmpeg` shape of the
+set, each run natively on at least one fixture of each family it takes,
+the clips of audio alone (C15, C19) included ("`coreav ffmpeg`" below).
+R3 on the held-out draw, and B3b over `commands-v1`, are not yet measured.
+The bars stay as registered. Until
 B3a is met, `coreav ffprobe` is labelled experimental where users see it
 (its help and `coreav --help`), with these numbers; the label goes when a
 later round, run on new code, meets B3a.
@@ -466,8 +469,8 @@ documented syntax:
 An option outside the vocabulary, a value of an accepted option CoreAV
 does not implement (a writer, a specifier form, a section, a key), or a
 command whose only output would be what CoreAV does not produce, is
-**refused before the input is opened**: one line on standard error naming
-the option or property and why, nothing on standard output, and **exit
+**refused**: one line on standard error naming the option or property and
+why, nothing on standard output, no output written or changed, and **exit
 status 4**, a status no other `coreav` command uses, so a script can tell
 "not supported here" from a failure. Rejected: reusing 1 (a rejected file)
 or 2 (a usage error), which would make a refusal look like a bad file or a
@@ -479,6 +482,12 @@ refuses those), 3 the input could not be read (missing, unreadable, a
 failed remote read), 141 standard output closed by its reader. `ffprobe`
 itself exits 1 for all of 1 to 3; a script that tests for success sees the
 same answer.
+
+A refusal while the command line is parsed comes before the input is
+opened. A refusal while the job is planned or run comes once the input is
+read: a property of the source that `coreav ffmpeg` does not copy, an
+output that already exists, or an encoder value it does not implement
+(`-crf 90`).
 
 A refused command runs FFmpeg's `ffmpeg` or `ffprobe` instead unless
 strict-safe mode is on (`COREAV_STRICT_SAFE=1`, `coreav --strict-safe`),
@@ -554,6 +563,7 @@ implies:
 | a copy to `.mp4` (or `-f mp4`) | `coreav remux`, MP4/MOV or Matroska/WebM input, the selected streams, failing rather than dropping a stream MP4 cannot carry |
 | a copy of one audio stream to `.m4a` (or `-f ipod`) | `coreav extract-audio` |
 | `-ss`, `-t` or `-to`, before or after `-i` | `coreav clip`: one video stream and at most one audio stream |
+| the same, with no video selected | the clip of audio alone (`clip_audio_mp4` of `coreav-isobmff-write`): one AAC stream |
 | `-f segment` with MP4 segments | `coreav split --every` the `-segment_time` (2 s when absent) |
 | `-f concat` with an MP4 output | `coreav join` of the list's files (`coreav_cli::concat::read`, with the demuxer's `safe` option): the first video stream and, unless `-an`, the first audio stream, which is what `ffmpeg` selects from the first file when the selection is that |
 
@@ -584,6 +594,16 @@ copy` differs: it writes no video before the next keyframe, so a range
 shorter than a GOP has no video at all (black box: `-ss 100ms -t 600ms` on
 the fixtures). The clip oracle is the bar, at its own rules.
 
+A clip without video is not snapped: it presents the range exactly, through
+an edit list in the audio's media timescale, from one frame of pre-roll
+before the frame the start falls in, as a clip's audio does, and its time 0
+is the start. `ffmpeg`'s differs at its ends: with the seek after `-i` it
+starts at the first frame at or after the start and places it there with an
+empty edit, and with either seek it ends at the end of the frame the end
+falls in (black box: `-ss 0.5 -t 1` on 48 kHz AAC presents 0.512 s to
+1.514667 s of the input with the seek after `-i`, 0.5 s to 1.514 s with it
+before). The clip oracle, run without video, is the bar.
+
 **Segments.** `coreav split` cuts at the latest clean cut point at or before
 each multiple of `-segment_time`; `ffmpeg`'s segment muxer cuts at the first
 keyframe at or after it (black box: segments from 0, 6, 10 and 16 s at
@@ -612,14 +632,14 @@ them as out-of-scope `ffmpeg` commands, which B1 requires to exit non-zero.
 generated fixture of its container families that has none of the stream
 types its `input_without` names, writing `out.mp4`, `out.m4a` for an audio
 extraction or `out%03d.mp4` for segments. Every entry must run natively on
-at least one fixture of each of its families, except the three below that
-no writer takes. `tools/compat-corpus/copy_check.py` then checks every
-output twice: the pinned `ffmpeg`, run on the same command, must map the
+at least one fixture of each of its families.
+`tools/compat-corpus/copy_check.py` then checks every output twice: the pinned `ffmpeg`, run on the same command, must map the
 same input streams to the same output streams, and the oracle of the job
 (`remux_check` or `mkv_remux_check`, `clip_check`, `split_check`,
 `extract_check`, `join_check` with `--ffmpeg-concat`'s comparison) must pass it
 at its own rules, which set aside the two fixtures whose picture size
-changes inside the track for the clip, split and join oracles. A join's
+changes inside the track for the clip, split and join oracles. A clip
+without video must also start where the command says. A join's
 list names the fixture twice, and its timing is held to `ffmpeg -f concat`'s
 with no tolerance: every input placed where the demuxer places it (after
 the files before it, each as long as its format duration, less its own
@@ -652,13 +672,14 @@ FFmpeg).**
   index, `join_mp4` takes each file's first video and audio), and streams `join_mp4` does not
   copy (PCM audio, say). The join runs to a temporary file and finds these
   at its end; the output is left as it was.
-- **C15 and C19**, a clip of an audio-only file: `coreav clip` and `coreav
-  split` need a video stream to cut at, and no writer clips audio alone. A
-  clip or a segmented output of any file without video is refused the
-  same way (C05, C18 and C32 on such files).
-- A clip whose range presents no video (a start past the end): `coreav
-  clip` refuses it, where `ffmpeg` writes a short file anyway (black box:
-  `-ss 60` on a 30 s file writes about 2 s).
+- A segmented output of a file without video (C32 on such files): `coreav
+  split` cuts at video. A clip without video of other than one AAC
+  stream, or written as M4A.
+- A clip whose range presents no video, or without video no audio (a
+  start past the end): `coreav clip` and the clip of audio alone refuse
+  it, where `ffmpeg` writes a short file anyway (black box: `-ss 60` on a
+  30 s file writes about 2 s; `-ss 3` before `-i` on 2 s of AAC writes one
+  frame, after `-i` a file without packets).
 - What the writers do not copy to MP4: subtitle streams, PCM and MP3
   audio (MP3 by the remux), other audio in a clip than AAC, video other than
   H.264 `avc1`, HEVC `hvc1`, AV1 or VP9 in a clip, an M4A file of other than
@@ -810,7 +831,7 @@ a second. Rejected: generating the whole record from the JSON, which
 would turn each round's account of why numbers moved into a template; and
 checking the tables alone, which would have passed round 6 as first
 written, when its prose gave `format.duration` as 97.81% and the table
-below it 97.71% (#21).
+below it 97.71% (coreav-dev/coreav#21).
 
 ### How the values are derived
 
@@ -1181,9 +1202,11 @@ service's input. Every bar of this note is measured in it.
 Only a refusal is handed on. A file CoreAV rejects (exit 1), a malformed
 command (2) and an input that cannot be read (3) keep their status: the
 rejection of a file is CoreAV's verdict on that file, and handing it on
-would send FFmpeg exactly the files the checks stopped. A refusal comes
-before the input is opened and before any output is written, so FFmpeg
-gets standard input unread and no partial output exists. Rejected: falling
+would send FFmpeg exactly the files the checks stopped. No refusal writes
+output, so no partial output exists. A refusal while the command line is
+parsed comes before the input is opened, so FFmpeg gets standard input
+unread; one while the job is planned or run comes once the input is read
+("Refusal and exit codes"). Rejected: falling
 back on exit 1 too, which a drop-in would like but which defeats the
 checks; and a per-tool pair of variables, where one directory is how FFmpeg
 installs both tools.

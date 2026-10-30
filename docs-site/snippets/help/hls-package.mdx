@@ -1,0 +1,18 @@
+```text
+Build the index and write every resource into a directory
+
+Usage: coreav hls package [OPTIONS] <INPUT> <DIR>
+
+Arguments:
+  <INPUT>  The file to package
+  <DIR>    A new or empty directory for the index and the resources (not `-`: a package is several files; `./-` names a directory called `-`)
+
+Options:
+      --segment-duration <TIME>  Target segment duration in seconds [default: 6]
+      --video <STREAM|none>      The video stream index, or `none` for audio alone (default: the first video stream)
+      --audio <STREAM|none>      The audio stream index, or `none` (default: the first audio stream)
+      --allow <CODEC>            Codecs to accept, comma separated, as for `coreav probe`
+      --strict                   Reject the whole file when a stream's codec is not allowed
+      --tag <TEXT>               Text stored in the index to identify the source version (for example its entity tag), at most 255 bytes [default: ""]
+  -h, --help                     Print help
+```

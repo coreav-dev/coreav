@@ -567,7 +567,7 @@ fn planned<S: Source>(source: &mut S, options: &ThumbnailOptions) -> Result<(Pla
         .ok_or_else(|| Error::Unsupported("time out of range".into()))?;
     let mut choice = choose(source, &plan, at, options.exact);
     // A source that fails to read fails the plan; the full listing below
-    // is for a window that cannot choose, not for a failed read (#594).
+    // is for a window that cannot choose, not for a failed read.
     if let Err(error @ Error::Isobmff(coreav_isobmff::Error::Io(_))) = choice {
         return Err(error);
     }

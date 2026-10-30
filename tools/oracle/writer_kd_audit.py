@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mutation audit of the writers' known divergences (#225): can an entry of
+"""Mutation audit of the writers' known divergences: can an entry of
 docs/known-divergences-{clip,split,remux,extract}.md cover a real CoreAV
 bug? As tools/oracle/kd_audit.py does for the probe entries, each mutation
 injects one bug-shaped change, here into a writer's output file, and the

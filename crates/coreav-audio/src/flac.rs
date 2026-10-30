@@ -23,6 +23,7 @@
 
 use crate::bits::Bits;
 use crate::crc::{crc8, crc16};
+use crate::limits::check_channels;
 use crate::{Error, Limits, Pcm};
 
 /// The streaminfo metadata block (RFC 9639 8.2).
@@ -111,7 +112,7 @@ impl StreamInfo {
     /// Reads the configuration a container carries: Matroska's
     /// `CodecPrivate` (`fLaC` and the metadata blocks), the payload of an
     /// MP4 `dfLa` box (version and flags, then the metadata blocks), or a
-    /// bare 34-byte streaminfo body (#209's raw and Ogg demuxers).
+    /// bare 34-byte streaminfo body (the raw and Ogg demuxers).
     pub fn from_config(config: &[u8]) -> Result<Self, Error> {
         if let Some(rest) = config.strip_prefix(b"fLaC") {
             return Self::from_metadata_blocks(rest);
@@ -197,9 +198,7 @@ pub struct FlacDecoder {
 impl FlacDecoder {
     /// A decoder for the stream `info` describes.
     pub fn new(info: StreamInfo, limits: &Limits) -> Result<Self, Error> {
-        if u32::from(info.channels) > limits.max_channels {
-            return Err(Error::LimitExceeded(crate::LimitKind::Channels));
-        }
+        check_channels(usize::from(info.channels), limits.max_channels)?;
         Ok(Self {
             info,
             wide: Vec::new(),

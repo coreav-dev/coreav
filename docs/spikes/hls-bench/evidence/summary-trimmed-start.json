@@ -1,0 +1,490 @@
+{
+ "first_version": {
+  "change": "the start of a trimmed source",
+  "method": "docs/design/hls.md, 'The start of a trimmed source'; affected.py with main's binary (old) and this change's (new) on every input of evidence/inputs.json, then check.py at the default target with MediaInfo on every affected input, each with its own tree's scripts/hls_check.py and known divergences; one machine (8 vCPU, AWS), the same oracle binaries",
+  "binaries": {
+   "old": "origin/main 3548e488",
+   "new": "this change"
+  },
+  "affected": {
+   "inputs": 904,
+   "affected": 5,
+   "errors": 0,
+   "files": [
+    {
+     "sha256": "05f55a4982d897fb358a633405a7f51092cbad62f737841965d3b84a7a428f0f",
+     "differ": [
+      "master.m3u8",
+      "video-0.m4s"
+     ]
+    },
+    {
+     "sha256": "4b9c6ac26c9b2996b625845c0ff5f7283e415d88edfe4f6fea86498ee2941e8d",
+     "differ": [
+      "master.m3u8",
+      "video-0.m4s"
+     ]
+    },
+    {
+     "sha256": "ae16bb7c7192c88ddf7d9823ce4a0993f37d109667d150e1ef7652b6ac4975e9",
+     "differ": [
+      "audio-0.m4s",
+      "master.m3u8",
+      "video-0.m4s"
+     ]
+    },
+    {
+     "sha256": "e137204903add66ce3bc07e67815b59372594c28213c44f022400551a09d8810",
+     "differ": [
+      "master.m3u8",
+      "video-0.m4s"
+     ]
+    },
+    {
+     "sha256": "fcb01fd0c5650e9cc0cad1a007495cab1def60afa935bcfeaef9b00a04c4a2c2",
+     "differ": [
+      "audio-0.m4s",
+      "master.m3u8",
+      "video-0.m4s"
+     ]
+    }
+   ]
+  },
+  "check": {
+   "old": {
+    "05f55a4982d897fb358a633405a7f51092cbad62f737841965d3b84a7a428f0f": {
+     "status": "covered",
+     "packets_agree": 1550,
+     "packets_disagree": 0,
+     "failures": [],
+     "divergences": [
+      {
+       "id": "KD-HLS-2",
+       "detail": "video: 60 leading packets"
+      },
+      {
+       "id": "KD-HLS-1",
+       "detail": "video packet times +0.06666666666666667 s"
+      },
+      {
+       "id": "KD-HLS-2",
+       "detail": "video: 60 frames the edit hides"
+      }
+     ]
+    },
+    "4b9c6ac26c9b2996b625845c0ff5f7283e415d88edfe4f6fea86498ee2941e8d": {
+     "status": "covered",
+     "packets_agree": 1836,
+     "packets_disagree": 0,
+     "failures": [],
+     "divergences": [
+      {
+       "id": "KD-HLS-2",
+       "detail": "video: 60 leading packets"
+      },
+      {
+       "id": "KD-HLS-1",
+       "detail": "video packet times +0.05 s"
+      },
+      {
+       "id": "KD-HLS-2",
+       "detail": "video: 60 frames the edit hides"
+      }
+     ]
+    },
+    "ae16bb7c7192c88ddf7d9823ce4a0993f37d109667d150e1ef7652b6ac4975e9": {
+     "status": "covered",
+     "packets_agree": 1137,
+     "packets_disagree": 0,
+     "failures": [],
+     "divergences": [
+      {
+       "id": "KD-HLS-2",
+       "detail": "video: 60 leading packets"
+      },
+      {
+       "id": "KD-HLS-1",
+       "detail": "video packet times +0.016666666666666666 s"
+      },
+      {
+       "id": "KD-HLS-2",
+       "detail": "video: 60 frames the edit hides"
+      }
+     ]
+    },
+    "e137204903add66ce3bc07e67815b59372594c28213c44f022400551a09d8810": {
+     "status": "covered",
+     "packets_agree": 1064,
+     "packets_disagree": 0,
+     "failures": [],
+     "divergences": [
+      {
+       "id": "KD-HLS-2",
+       "detail": "video: 30 leading packets"
+      },
+      {
+       "id": "KD-HLS-1",
+       "detail": "video packet times +0.03333333333333333 s"
+      },
+      {
+       "id": "KD-HLS-2",
+       "detail": "video: 30 frames the edit hides"
+      }
+     ]
+    },
+    "fcb01fd0c5650e9cc0cad1a007495cab1def60afa935bcfeaef9b00a04c4a2c2": {
+     "status": "covered",
+     "packets_agree": 652,
+     "packets_disagree": 0,
+     "failures": [],
+     "divergences": [
+      {
+       "id": "KD-HLS-2",
+       "detail": "video: 60 leading packets"
+      },
+      {
+       "id": "KD-HLS-1",
+       "detail": "video packet times +0.016666666666666666 s"
+      },
+      {
+       "id": "KD-HLS-2",
+       "detail": "video: 60 frames the edit hides"
+      }
+     ]
+    }
+   },
+   "new": {
+    "05f55a4982d897fb358a633405a7f51092cbad62f737841965d3b84a7a428f0f": {
+     "status": "covered",
+     "packets_agree": 1490,
+     "packets_disagree": 0,
+     "failures": [],
+     "divergences": [
+      {
+       "id": "KD-HLS-1",
+       "detail": "video packet times +0.06666666666666667 s"
+      }
+     ]
+    },
+    "4b9c6ac26c9b2996b625845c0ff5f7283e415d88edfe4f6fea86498ee2941e8d": {
+     "status": "covered",
+     "packets_agree": 1776,
+     "packets_disagree": 0,
+     "failures": [],
+     "divergences": [
+      {
+       "id": "KD-HLS-1",
+       "detail": "video packet times +0.03333333333333333 s"
+      }
+     ]
+    },
+    "ae16bb7c7192c88ddf7d9823ce4a0993f37d109667d150e1ef7652b6ac4975e9": {
+     "status": "covered",
+     "packets_agree": 1077,
+     "packets_disagree": 0,
+     "failures": [],
+     "divergences": [
+      {
+       "id": "KD-HLS-1",
+       "detail": "video packet times +0.016666666666666666 s"
+      },
+      {
+       "id": "KD-HLS-2",
+       "detail": "audio: 12 discarded leading packets left out"
+      },
+      {
+       "id": "KD-HLS-2",
+       "detail": "audio: 13 frames of the discarded leading packets"
+      }
+     ]
+    },
+    "e137204903add66ce3bc07e67815b59372594c28213c44f022400551a09d8810": {
+     "status": "covered",
+     "packets_agree": 1034,
+     "packets_disagree": 0,
+     "failures": [],
+     "divergences": [
+      {
+       "id": "KD-HLS-1",
+       "detail": "video packet times +0.03333333333333333 s"
+      }
+     ]
+    },
+    "fcb01fd0c5650e9cc0cad1a007495cab1def60afa935bcfeaef9b00a04c4a2c2": {
+     "status": "covered",
+     "packets_agree": 592,
+     "packets_disagree": 0,
+     "failures": [],
+     "divergences": [
+      {
+       "id": "KD-HLS-1",
+       "detail": "video packet times +0.016666666666666666 s"
+      },
+      {
+       "id": "KD-HLS-2",
+       "detail": "audio: 15 discarded leading packets left out"
+      },
+      {
+       "id": "KD-HLS-2",
+       "detail": "audio: 16 frames of the discarded leading packets"
+      }
+     ]
+    }
+   },
+   "new_strict_oracle": {
+    "05f55a4982d897fb358a633405a7f51092cbad62f737841965d3b84a7a428f0f": {
+     "status": "covered",
+     "packets_agree": 1490,
+     "packets_disagree": 0,
+     "failures": [],
+     "divergences": [
+      {
+       "id": "KD-HLS-1",
+       "detail": "video packet times +0.06666666666666667 s"
+      }
+     ]
+    },
+    "4b9c6ac26c9b2996b625845c0ff5f7283e415d88edfe4f6fea86498ee2941e8d": {
+     "status": "covered",
+     "packets_agree": 1776,
+     "packets_disagree": 0,
+     "failures": [],
+     "divergences": [
+      {
+       "id": "KD-HLS-1",
+       "detail": "video packet times +0.03333333333333333 s"
+      }
+     ]
+    },
+    "ae16bb7c7192c88ddf7d9823ce4a0993f37d109667d150e1ef7652b6ac4975e9": {
+     "status": "fail",
+     "packets_agree": 1077,
+     "packets_disagree": 0,
+     "failures": [
+      "audio: 13 decoded frames of the source differ or are missing (425 against 437)"
+     ],
+     "divergences": [
+      {
+       "id": "KD-HLS-1",
+       "detail": "video packet times +0.016666666666666666 s"
+      },
+      {
+       "id": "KD-HLS-2",
+       "detail": "audio: 12 discarded leading packets left out"
+      }
+     ]
+    },
+    "e137204903add66ce3bc07e67815b59372594c28213c44f022400551a09d8810": {
+     "status": "covered",
+     "packets_agree": 1034,
+     "packets_disagree": 0,
+     "failures": [],
+     "divergences": [
+      {
+       "id": "KD-HLS-1",
+       "detail": "video packet times +0.03333333333333333 s"
+      }
+     ]
+    },
+    "fcb01fd0c5650e9cc0cad1a007495cab1def60afa935bcfeaef9b00a04c4a2c2": {
+     "status": "fail",
+     "packets_agree": 592,
+     "packets_disagree": 0,
+     "failures": [
+      "audio: 16 decoded frames of the source differ or are missing (218 against 233)"
+     ],
+     "divergences": [
+      {
+       "id": "KD-HLS-1",
+       "detail": "video packet times +0.016666666666666666 s"
+      },
+      {
+       "id": "KD-HLS-2",
+       "detail": "audio: 15 discarded leading packets left out"
+      }
+     ]
+    }
+   }
+  },
+  "kd_audit": {
+   "command": "tools/oracle/writer_kd_audit_cli.py --oracle hls on the two inputs that reach KD-HLS-2's leading packets (ae16bb7c7192, fcb01fd0c565)",
+   "counts": {
+    "caught": 28,
+    "no effect": 6,
+    "n/a": 2
+   },
+   "not_caught": [
+    {
+     "file": "ae16bb7c7192.mov",
+     "mutation": "hls-video:sync flag cleared",
+     "verdict": "no effect"
+    },
+    {
+     "file": "fcb01fd0c565.mov",
+     "mutation": "hls-video:sync flag cleared",
+     "verdict": "no effect"
+    },
+    {
+     "file": "ae16bb7c7192.mov",
+     "mutation": "hls-audio:composition offset +512",
+     "verdict": "n/a"
+    },
+    {
+     "file": "fcb01fd0c565.mov",
+     "mutation": "hls-audio:composition offset +512",
+     "verdict": "n/a"
+    },
+    {
+     "file": "ae16bb7c7192.mov",
+     "mutation": "hls-audio:sync flag cleared",
+     "verdict": "no effect"
+    },
+    {
+     "file": "fcb01fd0c565.mov",
+     "mutation": "hls-audio:sync flag cleared",
+     "verdict": "no effect"
+    },
+    {
+     "file": "ae16bb7c7192.mov",
+     "mutation": "hls-audio:init channels +1",
+     "verdict": "no effect"
+    },
+    {
+     "file": "fcb01fd0c565.mov",
+     "mutation": "hls-audio:init channels +1",
+     "verdict": "no effect"
+    }
+   ],
+   "note": "run with the first oracle; moot after the strict oracle fails both files at baseline"
+  },
+  "spend_usd": 0,
+  "oracle_fix": "The leading-packet frame branch of KD-HLS-2 never required the frames it covers to be unpresented. With the branch limited to audio and to frames before the source's first presented packet ('new_strict_oracle'), ae16bb7c7192 and fcb01fd0c565 fail: their 13 and 16 differing frames are presented audio. A binary with no audio lead (AUDIO_LEAD 0) is covered by the first oracle and fails with the strict one.",
+  "cause": {
+   "finding": "ffmpeg applies the audio rendition's edit media time (37824) counting from its first sample's decode time (tfdt 15360) instead of from media time 0, so it drops 15360 samples (0.348 s) of presented audio; the rendition is as ISO/IEC 14496-12 8.6.6 reads it.",
+   "test": "fcb01fd0c565: the audio rendition with its init's elst media time set to 37824 - 15360 decodes in the pinned ffmpeg to the source's 233 frames, hash for hash"
+  }
+ },
+ "second_version": {
+  "code": "6de4c9fb (audio keeps every sample; scripts/hls_check.py is main's)",
+  "affected": {
+   "inputs": 904,
+   "affected": 5,
+   "errors": 0,
+   "index_compared": true,
+   "files": [
+    {
+     "sha256": "05f55a4982d897fb358a633405a7f51092cbad62f737841965d3b84a7a428f0f",
+     "differ": [
+      "index.cavhls",
+      "master.m3u8",
+      "video-0.m4s"
+     ]
+    },
+    {
+     "sha256": "4b9c6ac26c9b2996b625845c0ff5f7283e415d88edfe4f6fea86498ee2941e8d",
+     "differ": [
+      "index.cavhls",
+      "master.m3u8",
+      "video-0.m4s"
+     ]
+    },
+    {
+     "sha256": "ae16bb7c7192c88ddf7d9823ce4a0993f37d109667d150e1ef7652b6ac4975e9",
+     "differ": [
+      "index.cavhls",
+      "master.m3u8",
+      "video-0.m4s"
+     ]
+    },
+    {
+     "sha256": "e137204903add66ce3bc07e67815b59372594c28213c44f022400551a09d8810",
+     "differ": [
+      "index.cavhls",
+      "master.m3u8",
+      "video-0.m4s"
+     ]
+    },
+    {
+     "sha256": "fcb01fd0c5650e9cc0cad1a007495cab1def60afa935bcfeaef9b00a04c4a2c2",
+     "differ": [
+      "index.cavhls",
+      "master.m3u8",
+      "video-0.m4s"
+     ]
+    }
+   ]
+  },
+  "check": {
+   "old": "check.old above: main's binary, the same oracle (main's scripts/hls_check.py)",
+   "new": {
+    "05f55a4982d897fb358a633405a7f51092cbad62f737841965d3b84a7a428f0f": {
+     "status": "covered",
+     "packets_agree": 1490,
+     "packets_disagree": 0,
+     "failures": [],
+     "divergences": [
+      {
+       "id": "KD-HLS-1",
+       "detail": "video packet times +0.06666666666666667 s"
+      }
+     ]
+    },
+    "4b9c6ac26c9b2996b625845c0ff5f7283e415d88edfe4f6fea86498ee2941e8d": {
+     "status": "covered",
+     "packets_agree": 1776,
+     "packets_disagree": 0,
+     "failures": [],
+     "divergences": [
+      {
+       "id": "KD-HLS-1",
+       "detail": "video packet times +0.03333333333333333 s"
+      }
+     ]
+    },
+    "ae16bb7c7192c88ddf7d9823ce4a0993f37d109667d150e1ef7652b6ac4975e9": {
+     "status": "covered",
+     "packets_agree": 1077,
+     "packets_disagree": 0,
+     "failures": [],
+     "divergences": [
+      {
+       "id": "KD-HLS-1",
+       "detail": "video packet times +0.016666666666666666 s"
+      }
+     ]
+    },
+    "e137204903add66ce3bc07e67815b59372594c28213c44f022400551a09d8810": {
+     "status": "covered",
+     "packets_agree": 1034,
+     "packets_disagree": 0,
+     "failures": [],
+     "divergences": [
+      {
+       "id": "KD-HLS-1",
+       "detail": "video packet times +0.03333333333333333 s"
+      }
+     ]
+    },
+    "fcb01fd0c5650e9cc0cad1a007495cab1def60afa935bcfeaef9b00a04c4a2c2": {
+     "status": "covered",
+     "packets_agree": 592,
+     "packets_disagree": 0,
+     "failures": [],
+     "divergences": [
+      {
+       "id": "KD-HLS-1",
+       "detail": "video packet times +0.016666666666666666 s"
+      }
+     ]
+    }
+   }
+  }
+ },
+ "spend_usd": 0,
+ "final_recheck": {
+  "what": "affected.py --index, the run's binary (6de4c9fb) against the final one (the segment-index check gated on an edit list instead of a media time above 0)",
+  "inputs": 904,
+  "affected": 0,
+  "errors": 0
+ }
+}

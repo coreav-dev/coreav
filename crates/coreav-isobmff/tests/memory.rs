@@ -273,7 +273,7 @@ fn a_box_claiming_four_gib_is_rejected_without_allocating() {
     assert!(result.is_err(), "{result:?}");
 }
 
-/// Issue #289, where this test pinned the gap it closes: a `trun` sample
+/// This test pinned the gap that the `trun` count check closes: a `trun` sample
 /// count is checked against the bytes that back it, so a scan can no
 /// longer report what a kilobyte claims (2^32 − 1 samples of 100 bytes
 /// were 5.45 years of video). Probe still succeeds on the file, because it

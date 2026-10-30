@@ -1,0 +1,28 @@
+---
+title: "coreav transcode"
+sidebarTitle: "transcode"
+description: "Re-encode the video of a file to H.264 in MP4 and copy its audio. Builds with a decoder backend only."
+---
+
+import Help from '/snippets/help/transcode.mdx';
+
+<Note>
+`coreav transcode` is only in builds with a decoder backend ([build features](/build-features)). It is supported for H.264 sources. Other source codecs (HEVC, AV1, VP9, VP8, ProRes) are experimental.
+</Note>
+
+`coreav transcode INPUT OUTPUT` re-encodes the video of an MP4, MOV, Matroska or WebM file to H.264 in MP4 and copies its audio, as `ffmpeg -i IN -c:v libx264 -c:a copy OUT.mp4` does. CoreAV decodes the video with the backends of the build, and the encoder is a separate program that you install: an `x264` program, or an `ffmpeg` program built with libx264. CoreAV runs the encoder as a resource-limited process and gives it only raw frames.
+
+With an H.264 source, the options and the summary ([`coreav.transcode/1`](https://github.com/coreav-dev/coreav/blob/main/docs/schema/transcode-v1.md)) are stable. With other source codecs, what the command does may change, while its options and summary stay the same ([measurements](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/transcode.md)).
+
+## Examples
+
+```sh
+coreav transcode input.mp4 output.mp4
+coreav transcode --crf 20 --preset slow --scale 1280:-2 input.mkv output.mp4
+```
+
+[The transcode design note](https://github.com/coreav-dev/coreav/blob/main/docs/design/transcode.md) has the pipeline, the limits and the bars.
+
+## Options
+
+<Help />

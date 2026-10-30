@@ -371,8 +371,7 @@ impl Timing {
             // The pinned ffmpeg applies at most the first media edit of
             // a fragmented rendition, and one media edit has nowhere to
             // hide a sample a presented sample needs (both measured in
-            // docs/design/edit-list-writers.md, "The HLS writers";
-            // issue #328).
+            // docs/design/edit-list-writers.md, "The HLS writers").
             EditList::Multiple => Err(unsupported(
                 "edit list with several edits (multi-edit), not supported here yet",
             )),
@@ -595,8 +594,8 @@ fn list<S: Source>(
     // The finished segment's buffer, handed to the next one: one segment's
     // samples are held at a time, so one allocation serves the track.
     let mut spare: Vec<Sample> = Vec::new();
-    // Every sample is visited, so the listing takes them sample by sample
-    // (#308): the walk needs no record per sample of its own, and it
+    // Every sample is visited, so the listing takes them sample by sample:
+    // the walk needs no record per sample of its own, and it
     // charges one visit each, as listing them packet by packet charged
     // them. The listing needs the stored values alone, not
     // the presentation times each packet carries.
@@ -637,7 +636,7 @@ fn list<S: Source>(
                 // sample is presented before; nothing presented depends on
                 // what is left out. The first presented sample can restart
                 // the video too: a sync sample presented at or across the
-                // edit's start is the latest one at or before it (#344).
+                // edit's start is the latest one at or before it.
                 // Audio keeps every sample (design note, "Timing").
                 if !any_presented {
                     let mut restart = match rendition {

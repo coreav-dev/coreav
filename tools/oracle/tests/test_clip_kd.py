@@ -52,7 +52,7 @@ def evidence(video=None, audio=None, streams=None, mvhd=(12800, 0)):
     return {
         'output_headers': {'brand': 'isom', 'mvhd': mvhd, 'traks': traks},
         'output_streams': streams or [{'duration_ts': 19456}, {'duration_ts': 34816, 'sample_rate': '48000'}],
-        'entry': {'source': '/nonexistent', 'audio': None},
+        'entry': {'source': '/nonexistent', 'video': {'stream_index': 0}, 'audio': None},
         'ffmpeg': 'ffmpeg',
     }
 
@@ -72,7 +72,7 @@ class Decode(unittest.TestCase):
             self.assertEqual(cc.decode(["ffmpeg", "-threads", "2", "-i", "x"]), b"ok")
             self.assertEqual(calls[1], ["ffmpeg", "-threads", "1", "-i", "x"])
             # Without a thread option (ffmpeg's frame-threaded default, as in
-            # the corpus runs) one thread is set before the input (#576).
+            # the corpus runs) one thread is set before the input.
             calls.clear()
             self.assertEqual(cc.decode(["ffmpeg", "-v", "error", "-i", "x"]), b"ok")
             self.assertEqual(calls[1], ["ffmpeg", "-threads", "1", "-v", "error", "-i", "x"])
@@ -93,7 +93,7 @@ def box(kind, payload):
 
 class CompressedMovie(unittest.TestCase):
     """A QuickTime movie whose `moov` holds only a compressed movie (`cmov`)
-    is read through it (#576: the source then read as having no tracks)."""
+    is read through it (the source then read as having no tracks)."""
 
     def write(self, moov_payload):
         tmp = pathlib.Path(tempfile.mkdtemp())
@@ -158,7 +158,7 @@ class Predicates(unittest.TestCase):
         c['source_headers']['traks'][1]['stts'] = [(100, 1024)]
         self.assertTrue(cc.empty_edit_duration('audio:duration', set(), c))
         self.assertFalse(cc.empty_edit_duration('audio:pcm', set(), c))
-        # The output's media timescale other than the source's (#225).
+        # The output's media timescale other than the source's.
         wrong = copy.deepcopy(c)
         wrong['source_headers']['traks'][1]['mdhd'] = (44100, 34816)
         self.assertFalse(cc.empty_edit_duration('audio:duration', set(), wrong))
@@ -276,7 +276,7 @@ class Predicates(unittest.TestCase):
         with mock.patch.object(cc, '_audio_window_kept', return_value=True), \
                 mock.patch.object(cc, '_audio_media_time_is_the_sources', return_value=True):
             self.assertTrue(cc._audio_timing_is_the_sources(c, audio, 0))
-            # Decode durations one tick short, or one sample fewer (#225).
+            # Decode durations one tick short, or one sample fewer.
             short = copy.deepcopy(audio)
             short['stts'] = [(34, 1023)]
             self.assertFalse(cc._audio_timing_is_the_sources(c, short, 0))
@@ -315,6 +315,15 @@ class Predicates(unittest.TestCase):
         mp3 = copy.deepcopy(c)
         mp3['audio_source_stream']['codec_name'] = 'mp3'
         self.assertFalse(cc.aac_profile('audio:profile', set(), mp3))
+
+    def test_the_audio_of_a_clip_without_video_is_the_first_output_stream(self):
+        c = evidence(video=trak([[20480, 1024]], (48000, 20480), 19456), streams=[
+            {'codec_name': 'aac', 'profile': 'unknown'}])
+        c['entry']['video'] = None
+        c['audio_source_stream'] = {'codec_name': 'aac', 'profile': 'LC'}
+        c['audio_source_extradata'] = c['audio_output_extradata'] = '00000000: 1190'
+        self.assertEqual(cc.audio_trak(c), c['output_headers']['traks'][0])
+        self.assertTrue(cc.aac_profile('audio:profile', set(), c))
 
     def test_ctts_unsigned_needs_the_table_and_frames_in_order(self):
         c = evidence()
@@ -447,7 +456,7 @@ class Predicates(unittest.TestCase):
     def test_audio_window_is_one_preroll_packet_then_the_clip(self):
         from fractions import Fraction
         # Frames of 1,024 ticks; a clip from 2,500 to 10,000 ticks: pre-roll
-        # #1, then #2 (presented at 2,500) to #9 (presented at 10,000).
+        # frame 1, then frames 2 (presented at 2,500) to 9 (presented at 10,000).
         src = [{'pts': 1024 * i, 'duration': 1024, 'flags': 'K__'} for i in range(20)]
 
         def case(start, count, zero=2500, end=10000):
@@ -569,7 +578,7 @@ class Predicates(unittest.TestCase):
         c['source_headers']['traks'][0]['ctts_min'] = -400
         c['output_headers']['traks'][0]['ctts_min'] = -200
         self.assertTrue(cc.dts_shift('video:packets', set(), c))
-        # Another constant than the offsets give (#225).
+        # Another constant than the offsets give.
         other = copy.deepcopy(c)
         other['source_headers']['traks'][0]['ctts_min'] = -500
         self.assertFalse(cc.dts_shift('video:packets', set(), other))

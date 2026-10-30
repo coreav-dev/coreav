@@ -40,8 +40,9 @@ and from the path filters an earlier change put on the heavy workflows:
 - Workflows that are **not** required keep their trigger filters: the
   informational `mediainfo-oracle`, the spikes (`spike-build`, `h264-n1`,
   `h264-n2`, `h264-n2-arm-speed`, which build spike code and are kept
-  with it out of the public tree), the nightly `pr-redirect`, `labels` and
-  `pr-text`.
+  with it out of the public tree), the nightly `pr-redirect`, `labels`,
+  `pr-text`, `docs-site`, and `release`, whose pull-request run is the dry
+  run of a change to the release build (`docs/design/release.md`).
 
 `scripts/workflow_check.py` runs in `deny.yml` — the workflow nothing
 filters — and fails when the required-check table and the workflows
@@ -214,6 +215,43 @@ round's bars: one analyzer, complete reports"). It runs there, not in
 `ci.yml`, because a round's measurements often change `docs/measurements`
 alone, which `ci.yml`'s filter skips. A new step of an existing job, so
 the required-check list does not change.
+
+## Issue references
+
+The code here started in another repository, and its comments, tests,
+scripts, notes and file names cited that repository's issues and pull
+requests by number. Those numbers mean nothing here, or name an unrelated
+issue of this repository. `deny.yml` runs `scripts/issue_refs_check.py`
+and its tests: every tracked text file and every tracked path fails on a
+bare `#N` and on `issue N`, `PR #N`, `prN`, `pull request N` and
+the like, a name wrapped onto the next line included. The error names the
+fix: say what the issue or pull request is about, or, for one of this
+repository, write `coreav-dev/coreav#N`.
+
+- **By form, not by number.** Both repositories number from 1, so no
+  number or range tells them apart, and a list of the other repository's
+  numbers would publish them. Naming the repository is the one form that
+  is unambiguous, and it costs a few characters in a comment.
+- **Not references:** libFuzzer's status lines, `uname`'s build number,
+  ffmpeg's stream specifiers, ffprobe's read intervals, the host gate's run
+  counters, and the salts of held-out draws, whose text fixes the draw.
+  The test data of the pull request text checks, where GitHub reads `#N`
+  as this repository's, are exempt by file.
+- **Not caught:** a number alone in a file name or a build label
+  (`summary-123.json`, `mbl-123`), which names hold for counts, dates
+  and sizes too, and the contents of compressed files. Review stops those.
+- **In `deny.yml`,** which nothing filters: a comment can change in any
+  file, a documentation-only one included.
+
+## The documentation site
+
+Three checks keep the documentation site in `docs-site/` true to the code (`docs/design/docs-site.md`, "Checks"), each in a workflow that already runs where its input changes:
+
+- `crates/coreav-cli/tests/docs_site.rs` compares each command's `--help` with the help text its page shows, and fails on a command without a page. `cargo test --workspace` runs it in the default build; one more step of `ci.yml`'s `check` job runs it with `--features ffmpeg-fallback`, for `coreav thumbnail` and `coreav transcode`.
+- `scripts/tests/test_docs_site.py` checks the page list, the links into the repository and between pages, the measurements index and the public text. It is one of the tests `deny.yml` already discovers in `scripts/tests`, so it runs on every pull request, including one that only renames a design note a page links.
+- `docs-site.yml` runs Mintlify's strict build and its link check with the CLI's npm package at a pinned version and no account, on changes to `docs-site/`. It is not required (`# workflow-check: not required`): requiring it would change the branch ruleset, and the two checks above, which are, cover what a broken page costs most often.
+
+None of them adds a required check name, so the table below is unchanged.
 
 ## Labels
 

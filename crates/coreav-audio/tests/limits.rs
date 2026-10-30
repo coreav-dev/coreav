@@ -7,7 +7,8 @@
     clippy::panic
 )]
 
-use coreav_audio::{Error, LimitKind, Limits, Options, OutputFormat, Sink, decode};
+use coreav_audio::mp3::Mp3Decoder;
+use coreav_audio::{Error, LimitKind, Limits, Options, OutputFormat, Pcm, Sink, decode};
 use coreav_isobmff::SliceSource;
 
 const RATE: u32 = 44_100;
@@ -127,6 +128,12 @@ fn uint(id: &[u8], value: u64) -> Vec<u8> {
 }
 
 fn matroska(channels: u32, packets: &[Vec<u8>]) -> Vec<u8> {
+    matroska_track(b"A_FLAC", &flac_private(channels), channels, packets)
+}
+
+/// A Matroska file with one audio track of `codec_id` and one SimpleBlock
+/// per entry of `packets`.
+fn matroska_track(codec_id: &[u8], private: &[u8], channels: u32, packets: &[Vec<u8>]) -> Vec<u8> {
     let mut header = Vec::new();
     header.extend(uint(&[0x42, 0x86], 1));
     header.extend(uint(&[0x42, 0xF7], 1));
@@ -142,8 +149,8 @@ fn matroska(channels: u32, packets: &[Vec<u8>]) -> Vec<u8> {
     let mut entry = uint(&[0xD7], 1);
     entry.extend(uint(&[0x73, 0xC5], 1));
     entry.extend(uint(&[0x83], 2));
-    entry.extend(element(&[0x86], b"A_FLAC"));
-    entry.extend(element(&[0x63, 0xA2], &flac_private(channels)));
+    entry.extend(element(&[0x86], codec_id));
+    entry.extend(element(&[0x63, 0xA2], private));
     entry.extend(element(&[0xE1], &audio));
     let tracks = element(&[0x16, 0x54, 0xAE, 0x6B], &element(&[0xAE], &entry));
     let mut cluster = uint(&[0xE7], 0);
@@ -157,6 +164,22 @@ fn matroska(channels: u32, packets: &[Vec<u8>]) -> Vec<u8> {
     segment.extend(element(&[0x1F, 0x43, 0xB6, 0x75], &cluster));
     file.extend(element(&[0x18, 0x53, 0x80, 0x67], &segment));
     file
+}
+
+/// A silent MPEG-1 Layer III frame at 44.1 kHz and 128 kbit/s, joint
+/// stereo or mono (ISO/IEC 11172-3 2.4.1): the header, side information of
+/// zeros (no main data before the frame, no bits in any granule) and 417
+/// bytes in all.
+fn mp3_frame(channels: u8) -> Vec<u8> {
+    let (mode, side) = if channels == 2 {
+        (0x64, 32)
+    } else {
+        (0xC4, 17)
+    };
+    let mut frame = vec![0xFF, 0xFB, 0x90, mode];
+    frame.resize(4 + side, 0);
+    frame.resize(417, 0);
+    frame
 }
 
 fn bx(kind: &[u8; 4], payload: &[u8]) -> Vec<u8> {
@@ -366,6 +389,50 @@ fn a_stream_of_exactly_max_channels_decodes_and_one_more_is_refused() {
         limit_of(run(&file, &Options::default(), &limits(7))),
         LimitKind::Channels
     );
+}
+
+#[test]
+fn an_mp3_stream_of_exactly_max_channels_decodes_and_one_more_is_refused() {
+    let file = matroska_track(b"A_MPEG/L3", &[], 2, &[mp3_frame(2), mp3_frame(2)]);
+    let limits = |max_channels| Limits {
+        max_channels,
+        ..Limits::default()
+    };
+    assert_eq!(
+        run(&file, &Options::default(), &limits(2))
+            .unwrap()
+            .channels,
+        2
+    );
+    assert_eq!(
+        limit_of(run(&file, &Options::default(), &limits(1))),
+        LimitKind::Channels
+    );
+}
+
+/// The MP3 decoder on its own: the channels it is given, or else its first
+/// frame's.
+#[test]
+fn an_mp3_decoder_refuses_more_than_max_channels_given_or_found_in_the_first_frame() {
+    let limits = |max_channels| Limits {
+        max_channels,
+        ..Limits::default()
+    };
+    assert!(Mp3Decoder::new(Some(1), &limits(1)).is_ok());
+    assert!(matches!(
+        Mp3Decoder::new(Some(2), &limits(1)),
+        Err(Error::LimitExceeded(LimitKind::Channels))
+    ));
+    let mut pcm = Pcm::new();
+    let mut decoder = Mp3Decoder::new(None, &limits(1)).unwrap();
+    assert!(decoder.decode(&mp3_frame(1), &mut pcm).is_ok());
+    let mut decoder = Mp3Decoder::new(None, &limits(1)).unwrap();
+    assert!(matches!(
+        decoder.decode(&mp3_frame(2), &mut pcm),
+        Err(Error::LimitExceeded(LimitKind::Channels))
+    ));
+    let mut decoder = Mp3Decoder::new(None, &limits(2)).unwrap();
+    assert!(decoder.decode(&mp3_frame(2), &mut pcm).is_ok());
 }
 
 #[test]

@@ -202,7 +202,6 @@ with the three example policies (8,913 cases).
 
 The first run, on the first version of this design (`2f4212b`), met B1 to
 B4 and B7 and missed B5 with 97.12% direct agreement and no documented
-divergence. Its investigation found two probe defects (fixed in pull
-request 50), errors in the oracle mapping, and the five documented
-differences. This note's decisions 4 and 5 and the `multiple_descriptions` rule close ways
+divergence. Its investigation found two probe defects (fixed since), errors in the oracle
+mapping, and the five documented differences. This note's decisions 4 and 5 and the `multiple_descriptions` rule close ways
 a file could pass a policy it breaks, and came before the final run.

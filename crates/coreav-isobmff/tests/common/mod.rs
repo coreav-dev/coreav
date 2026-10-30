@@ -2,6 +2,7 @@
 #![allow(dead_code)]
 
 pub mod fragments;
+pub mod sound;
 
 pub fn bx(kind: &[u8; 4], payload: &[u8]) -> Vec<u8> {
     let mut out = ((payload.len() + 8) as u32).to_be_bytes().to_vec();

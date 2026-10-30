@@ -418,7 +418,7 @@ CODECS = {
 # The sample entry types behind each CoreAV codec name: ffprobe's codec counts only with one of these tags, so that, for
 # example, mu-law (`ulaw`, pcm_mulaw) is not linear PCM and QuickTime text
 # (`text`, mov_text) is not 3GPP timed text. MP3 counts in `mp4a` and in
-# QuickTime's `.mp3` (#57).
+# QuickTime's `.mp3`.
 TAGS = {
     'h264': {'avc1', 'avc3'}, 'hevc': {'hvc1', 'hev1'}, 'av1': {'av01'}, 'vp9': {'vp09'},
     'prores': {'apco', 'apcs', 'apcn', 'apch', 'ap4h', 'ap4x'}, 'aac': {'mp4a'},

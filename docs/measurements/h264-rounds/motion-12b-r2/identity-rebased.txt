@@ -1,2 +1,2 @@
-Output of the branch rebased onto main 93f7d870 (#440, Intra_8x8 in vectors, and #439, documentation) against that main: dist builds on the development VM, raw frames of the 32 training streams at their class frame counts, main at one thread against the branch at one and at eight threads.
+Output of the branch rebased onto main 93f7d870 (Intra_8x8 in vectors, and a documentation change) against that main: dist builds on the development VM, raw frames of the 32 training streams at their class frame counts, main at one thread against the branch at one and at eight threads.
 identical 32, different 0

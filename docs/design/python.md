@@ -132,9 +132,10 @@ install:
   as a module (`#[path]`). Every subcommand, option, help text, output and
   exit code is therefore the binary's: `main` and the module both call its
   `main_with(args)`. Python ignores `SIGPIPE` as Rust does, so a closed
-  pipe gives the same exit status 141. `coreav mcp` (`docs/design/mcp.md`)
-  runs the command for each tool call; from the wheel that is the installed
-  script, the first argument, since the executable is Python. The tests
+  pipe gives the same exit status 141. The command's own path, which
+  `coreav thumbnail` and `coreav transcode` start again as their sandboxed
+  workers in builds with those features, is the installed script from the
+  wheel (the first argument), since the executable is Python. The tests
   compare the installed command's stdout, stderr and exit code with the
   binary's on every fixture.
 - Rejected:
@@ -390,7 +391,7 @@ a parity check of the binding, not a fresh held-out result. One run of
 `overhead.py --only check` (both sides read the file from its path), the
 wheel and the `overhead` binary built `dist` from `main` with an earlier change.
 
-**Result: met** (`docs/spikes/parity-bench/`, `overhead-check-251.json` and its
+**Result: met** (`docs/spikes/parity-bench/`, `overhead-check-wheel.json` and its
 summary). Calls of 1 ms or more: median ratio **1.042** over 19 inputs (per input 0.98 to
 1.42); shorter calls: **+16.4 µs** over 14. The third bars measured 1.161
 (21 inputs) and +49.2 µs (12) on the same files; an earlier change made two calls

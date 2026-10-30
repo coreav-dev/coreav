@@ -413,7 +413,7 @@ mod tests {
     /// A Cues listing is kept when it holds a block `select::keyframe`
     /// would give, so `cut_point_before` must find a block exactly when
     /// keyframe mode chooses one: a listing it accepts without one gives
-    /// the frame at the time instead of a keyframe (PR #16, finding 5).
+    /// the frame at the time instead of a keyframe (coreav-dev/coreav#16, finding 5).
     #[test]
     fn cut_point_before_offers_what_keyframe_mode_gives() {
         let at = r(2);

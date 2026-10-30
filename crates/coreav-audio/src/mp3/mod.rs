@@ -22,6 +22,7 @@ mod synth;
 mod tables;
 mod trig;
 
+use crate::limits::check_channels;
 use crate::{Error, Limits, Pcm};
 use layer3::{Channel, Granule};
 use synth::Synthesis;
@@ -200,6 +201,9 @@ pub(crate) const RESERVOIR: usize = 511;
 pub struct Mp3Decoder {
     /// The output's channel count.
     channels: Option<usize>,
+    /// [`Limits::max_channels`], for a stream whose channels are its
+    /// first frame's.
+    max_channels: u32,
     /// Frame samples before they are mapped to another channel count.
     scratch: Vec<f32>,
     sample_rate: Option<u32>,
@@ -219,16 +223,21 @@ impl Mp3Decoder {
     /// those of the first frame; a frame with another count (the mode may
     /// change from frame to frame) is mapped to it: one channel is copied
     /// to both, two are averaged into one. The sample rate of the first
-    /// frame must not change.
+    /// frame must not change. The output's channels are checked against
+    /// `limits.max_channels`: here when they are given, else at the first
+    /// frame.
     pub fn new(channels: Option<u16>, limits: &Limits) -> Result<Self, Error> {
-        let _ = limits;
         let channels = match channels {
             None => None,
-            Some(n @ 1..=2) => Some(usize::from(n)),
+            Some(n @ 1..=2) => {
+                check_channels(usize::from(n), limits.max_channels)?;
+                Some(usize::from(n))
+            }
             Some(_) => return Err(Error::Invalid("MP3 has one or two channels")),
         };
         Ok(Self {
             channels,
+            max_channels: limits.max_channels,
             scratch: Vec::new(),
             sample_rate: None,
             reservoir: Vec::with_capacity(RESERVOIR + 2048),
@@ -266,7 +275,13 @@ impl Mp3Decoder {
                 "an MP3 frame with another sample rate than the stream's",
             ));
         }
-        let output_channels = *self.channels.get_or_insert(channels);
+        let output_channels = match self.channels {
+            Some(n) => n,
+            None => {
+                check_channels(channels, self.max_channels)?;
+                *self.channels.insert(channels)
+            }
+        };
         self.sample_rate = Some(header.sample_rate);
         let frame_bytes = header
             .frame_bytes()

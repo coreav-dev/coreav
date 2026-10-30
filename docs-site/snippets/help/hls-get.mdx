@@ -1,0 +1,15 @@
+```text
+Write one resource (`master.m3u8`, `video.m3u8`, `video-init.mp4`, `video-0.m4s`, ...) from an index and its source
+
+Usage: coreav hls get [OPTIONS] <INDEX> <INPUT> <NAME> <OUTPUT>
+
+Arguments:
+  <INDEX>   The index built by `coreav hls index`
+  <INPUT>   The file the index was built from
+  <NAME>    The resource name
+  <OUTPUT>  Where to write it: a new file, or `-` for standard output
+
+Options:
+      --force  Overwrite OUTPUT if it exists (a symbolic link is replaced, not written through; the new file keeps the old one's permissions)
+  -h, --help   Print help
+```

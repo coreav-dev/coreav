@@ -12,9 +12,8 @@ outputs, documents and exit codes are those of a local file. A read that
 fails is an I/O error (exit 3) whose `coreav.error/1` message gives the
 remote reason (`remote: HTTP 404`, a refused redirect, a cap).
 
-The Python module (`coreav.probe("https://…")`) and the MCP server
-(`docs/design/mcp.md`) read URLs the same way, with the stricter network
-rules below.
+The Python module (`coreav.probe("https://…")`) reads URLs the same way,
+with the stricter network rules below.
 
 ## Choices
 
@@ -94,7 +93,7 @@ rules below.
      `https://`, the environment's proxy variables. The user runs the
      command on their own URL, and a server on the local network is a
      normal input.
-   - The MCP server and the Python module (`Options::guarded`): `https://`
+   - The Python module (`Options::guarded`): `https://`
      only, public addresses only, no proxies. A host name is resolved and
      every address it resolves to is checked (loopback, private, link-local,
      shared CGNAT, unspecified, broadcast, multicast, documentation,
@@ -105,10 +104,11 @@ rules below.
      so a second DNS answer cannot redirect it (DNS rebinding), and every
      redirect hop is checked again. A URL with credentials is refused.
      Python callers that read their own local servers pass
-     `private_network=True`; the MCP server takes `--urls any`.
+     `private_network=True`.
    Rejected: one rule for all, which either blocks local servers on the
-   command line or leaves an agent free to reach the cloud metadata
-   address (169.254.169.254) or a database on localhost.
+   command line or leaves a service that reads the URLs it is given free to
+   reach the cloud metadata address (169.254.169.254) or a database on
+   localhost.
 7. **Object storage through presigned URLs, not `s3://` with SigV4.** A
    presigned GET URL (S3, R2, GCS) is an HTTPS URL with ranges, so it needs
    nothing more; it carries its own expiry and scope, and the credentials

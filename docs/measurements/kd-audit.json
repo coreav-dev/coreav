@@ -2,8 +2,8 @@
  "schema": "coreav/kd-audit/1",
  "tool": "tools/oracle/kd_audit.py",
  "overlays": {
-  "before": "main at d7d79c2 (#160 merged)",
-  "after": "this change (#162)"
+  "before": "main at d7d79c2",
+  "after": "this change"
  },
  "cases": {
   "13ffc348f17d": {

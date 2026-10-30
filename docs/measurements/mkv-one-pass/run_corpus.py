@@ -1,4 +1,4 @@
-"""#135, bars W1 to W3 on corpus v1 (docs/design/policy-matroska.md, "One
+"""The one-pass Matroska walk, bars W1 to W3 on corpus v1 (docs/design/policy-matroska.md, "One
 walk"): every Matroska and WebM file is downloaded from R2 (SHA-256
 checked) into its own directory, run through `harness.rs` built against
 fbf5824 (`h-main`) and against this change (`h-new`), and checked with

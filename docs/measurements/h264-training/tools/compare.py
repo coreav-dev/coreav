@@ -74,7 +74,7 @@ def main():
 def calibration():
     """The machine calibration: the held-out binary on 16 held-out streams
     on this machine (`reports/calibration-ca5e4bc8.<class>.json`), per
-    stream against #366's report for the same stream."""
+    stream against step 6's held-out report for the same stream."""
     import os
     if not os.path.exists(f'{T}/reports/calibration-ca5e4bc8.sd.json'):
         return
@@ -94,7 +94,7 @@ def calibration():
             q['ours'].append(ours / was)
     print('calibration, n', len(q['discard']))
     for name, r in q.items():
-        print(f'  {name} here over #366:', interval(r))
+        print(f'  {name} here over step 6:', interval(r))
 
 
 if __name__ == '__main__':

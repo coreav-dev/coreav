@@ -1,4 +1,4 @@
-# round 16 rebased onto main 3443dfc (#420), against 3443dfc: stream md5(main, 1 thread), then round 16 at 1 and 8 threads
+# round 16 rebased onto main 3443dfc, against 3443dfc: stream md5(main, 1 thread), then round 16 at 1 and 8 threads
 175433794e02.0.1080p.h264 04a7e42407098333041360dc5d7a9098 r16-1=04a7e424 r16-8=04a7e424 same
 1d4b1775d78a.0.720p.h264 56fea60138a4e7d564c2b0a79b94e981 r16-1=56fea601 r16-8=56fea601 same
 278dbf5a63bb.0.720p.h264 498ef22ceccc797d3d1663cae86a490b r16-1=498ef22c r16-8=498ef22c same

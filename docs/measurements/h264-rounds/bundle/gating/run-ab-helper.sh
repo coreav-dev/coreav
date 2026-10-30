@@ -1,5 +1,5 @@
 #!/bin/bash
-# Gating run for the small-bundle round (#460): run-ab-helper.sh BEFORE AFTER (BEFORE: main; AFTER: the bundle commit). Bars BN-1 to BN-4 of docs/design/h264.md, "Round 25: five small changes together". Derived from the deblock-driver round's script; arm names before and after as the analysis expects; g at ten rounds.
+# Gating run for the small-bundle round: run-ab-helper.sh BEFORE AFTER (BEFORE: main; AFTER: the bundle commit). Bars BN-1 to BN-4 of docs/design/h264.md, "Round 25: five small changes together". Derived from the deblock-driver round's script; arm names before and after as the analysis expects; g at ten rounds.
 # Every timing call is bracketed by the host gate (HOST-GATE.md, HOSTGATE below): a gate before it (retried a minute apart, at most 10 times) and after it; a failed after-gate
 # voids the call (kept as *.void<N>) and it runs again, at most 3 attempts. One thread pinned to core 2 at ten rounds (g), eight threads unpinned at ten rounds (t8),
 # per class. Paths are this VM's.

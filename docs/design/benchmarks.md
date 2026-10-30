@@ -62,7 +62,7 @@ where the upper bound of the bootstrap 95% interval is below 1.00.
 (The engines ran pinned to one shared core, one request at a time, rather
 than each to its own core as written above; requests never overlap, so the
 timings are the same.)
-**Result: met** (`docs/spikes/w1-227/`, run `w1-01` on the crates of `1114aa6`, round 2): CoreAV
+**Result: met** (`docs/spikes/w1-remeasure/`, run `w1-01` on the crates of `1114aa6`, round 2): CoreAV
 takes 0.316 (95% CI 0.294 to 0.343) of libavformat's time over 232 files.
 Every category is at most 0.553, every upper bound below 1.00, so CoreAV is
 faster overall and in each category. One audio-only file is at 1.01.
@@ -130,7 +130,7 @@ The guard is in `.github/workflows/bench-guard.yml`, run by
   relative relocations (`DT_RELR`), which need glibc 2.36 at run time; a
   non-PIE binary, which loses address-space randomization. The stored
   baseline holds `dist` counts. The entries a `workflow_dispatch` guard
-  run with `update: true` (run 40828255844, on #32's head) counted lower
+  run with `update: true` (run 40828255844, on coreav-dev/coreav#32's head) counted lower
   were lowered to its counts, and the cases it counted for the first time
   (`ffprobe-*`) were added; every entry it counted higher kept its earlier
   limit, since no stated cost covers the rise, and so did start-up and the
@@ -198,7 +198,6 @@ The guard is in `.github/workflows/bench-guard.yml`, run by
   (`docs/design/join.md`, "Speed guard in CI"); `extract-audio`;
   `sanitize`; `extract-subtitles`; `chapters`; and `hls index`, `hls get`
   and `hls package`, and the URL cases below.
-  Not yet guarded: the `mcp` server's own request handling.
 - **URL cases**: every command but `hls` reads HTTP(S) URLs by byte
   ranges (`docs/design/remote.md`), and a change to the read plan
   (`crates/coreav-range`) that adds round trips or bytes costs time over a
@@ -320,7 +319,7 @@ fixtures):
   it parses anything, `coreav --version` included: each subcommand's
   arguments, value parsers and help strings are allocated and copied. The
   `split` subcommand added 24,200 instructions on the runners (nine
-  arguments), the `mcp` server 49,900, and `hls` about
+  arguments), the `mcp` server 49,900 (since removed), and `hls` about
   61,000. This is the cost of offering the subcommand, paid once per
   process (some tens of thousands of instructions, a few microseconds);
   the baseline's start-up is raised by what the merged subcommands add

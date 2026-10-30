@@ -1,0 +1,128 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "CoreAV",
+  "description": "A Rust-based media toolkit, built to be safe and fast. It aims to become a modern alternative to FFmpeg.",
+  "colors": {
+    "primary": "#DD6222",
+    "light": "#F97C3D",
+    "dark": "#DD6222"
+  },
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg",
+    "href": "https://coreav.dev"
+  },
+  "favicon": "/favicon.svg",
+  "appearance": {
+    "default": "dark"
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "GitHub",
+        "href": "https://github.com/coreav-dev/coreav"
+      }
+    ]
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get started",
+            "pages": [
+              "index",
+              "install",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "strict-safe",
+              "python"
+            ]
+          },
+          {
+            "group": "Reference",
+            "pages": [
+              "platforms",
+              "build-features"
+            ]
+          },
+          {
+            "group": "Project",
+            "pages": [
+              "safety",
+              "measurements"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Commands",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "commands/index"
+            ]
+          },
+          {
+            "group": "Inspect",
+            "pages": [
+              "commands/probe",
+              "commands/check",
+              "commands/chapters"
+            ]
+          },
+          {
+            "group": "Cut and rewrite",
+            "pages": [
+              "commands/clip",
+              "commands/split",
+              "commands/join",
+              "commands/remux",
+              "commands/sanitize"
+            ]
+          },
+          {
+            "group": "Extract and decode",
+            "pages": [
+              "commands/extract-audio",
+              "commands/extract-subtitles",
+              "commands/decode-audio"
+            ]
+          },
+          {
+            "group": "Serve",
+            "pages": [
+              "commands/hls"
+            ]
+          },
+          {
+            "group": "FFmpeg command lines",
+            "pages": [
+              "commands/ffprobe",
+              "commands/ffmpeg"
+            ]
+          },
+          {
+            "group": "Builds with a decoder backend",
+            "pages": [
+              "commands/thumbnail",
+              "commands/transcode"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/coreav-dev/coreav"
+    }
+  }
+}
