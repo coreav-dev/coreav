@@ -92,9 +92,16 @@ fn the_command_reference_matches_the_help() {
             continue;
         }
         let have = std::fs::read_to_string(&path).unwrap_or_default();
+        let first = have
+            .lines()
+            .zip(want.lines())
+            .find(|(h, w)| h != w)
+            .map_or_else(String::new, |(h, w)| {
+                format!(" (first difference: {h:?} in the page, {w:?} in the help)")
+            });
         assert!(
             have == want,
-            "docs-site/snippets/help/{name}.mdx is not the command's --help: run `COREAV_BLESS_DOCS=1 cargo test -p coreav-cli --test docs_site` (and with `--features ffmpeg-fallback` for thumbnail and transcode), then check that the page beside it still says what the help says"
+            "docs-site/snippets/help/{name}.mdx is not the command's --help{first}: run `COREAV_BLESS_DOCS=1 cargo test -p coreav-cli --test docs_site` (and with `--features ffmpeg-fallback` for thumbnail and transcode), then check that the page beside it still says what the help says"
         );
     }
     if cfg!(not(feature = "thumbnail")) {

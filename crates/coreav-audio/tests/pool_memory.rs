@@ -2,8 +2,8 @@
 //! packets of 15 MiB that each decode to one sample, all pointing at the
 //! same bytes of a small MP4 file, must not pile up in memory when several
 //! threads decode. Run in release by CI (pinned, like the demuxers' hostile
-//! tests); a debug build copies the packets too slowly.
-
+//! tests); a debug build copies the packets too slowly. Linux only: the
+//! peak memory comes from `/proc/self/status`.
 #![cfg(target_os = "linux")]
 #![allow(
     clippy::indexing_slicing,

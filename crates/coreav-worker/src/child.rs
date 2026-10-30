@@ -88,13 +88,7 @@ fn run(
     if let Some(space) = sandbox::address_space() {
         open.limits.max_memory_bytes = open.limits.max_memory_bytes.min(space);
     }
-    let mut output = Output {
-        #[cfg(target_os = "linux")]
-        shared: Shared::open(&open)?,
-        acks: None,
-        reader_out_of_memory: Arc::new(AtomicBool::new(false)),
-        seq: 0,
-    };
+    let mut output = Output::new(&open)?;
     let mut decoder = make_decoder(&open)?;
     WorkerMessage::Ready(decoder.info().decoder.clone())
         .write(out)
@@ -274,78 +268,80 @@ fn drain(
 
 /// Where frames go: slots of the shared memory, or inline.
 struct Output {
-    /// `None` sends every frame inline.
     #[cfg(target_os = "linux")]
-    shared: Option<Shared>,
+    memory: Option<crate::shm::WorkerMemory>,
+    #[cfg(target_os = "linux")]
+    slots: u32,
+    #[cfg(target_os = "linux")]
+    slot_size: u64,
+    #[cfg(target_os = "linux")]
+    free: VecDeque<u32>,
     acks: Option<Receiver<u32>>,
     /// The input reader stopped because a message did not fit the memory
     /// limit.
     reader_out_of_memory: Arc<AtomicBool>,
     seq: u64,
-}
-
-/// The parent's memory, mapped through `/proc`, and which of its slots are
-/// free.
-#[cfg(target_os = "linux")]
-struct Shared {
-    memory: crate::shm::WorkerMemory,
-    slots: u32,
-    slot_size: u64,
-    free: VecDeque<u32>,
+    #[cfg(target_os = "linux")]
     deadline: Instant,
 }
 
-#[cfg(target_os = "linux")]
-impl Shared {
-    /// The slots `open` offers, or `None` for a pipe transfer and where
-    /// the memory cannot be mapped (a sandbox without `/proc`): every frame
-    /// then goes inline.
-    fn open(open: &Open) -> Result<Option<Self>, Error> {
-        let deadline = open.limits.deadline();
-        let Transfer::Shared {
-            path,
+impl Output {
+    #[cfg(target_os = "linux")]
+    fn new(open: &Open) -> Result<Self, Error> {
+        let (slots, slot_size) = match &open.transfer {
+            Transfer::Shared {
+                slots, slot_size, ..
+            } => (*slots, *slot_size),
+            Transfer::Pipe => (0, 0),
+        };
+        let memory = match &open.transfer {
+            Transfer::Shared { path, .. } => {
+                let len = u64::from(slots)
+                    .checked_mul(slot_size)
+                    .ok_or_else(|| Error::new(ErrorKind::Backend, "memory size overflows"))?;
+                // Where the memory cannot be mapped (a sandbox without
+                // `/proc`), every frame goes inline instead.
+                crate::shm::WorkerMemory::open(path, len).ok()
+            }
+            Transfer::Pipe => None,
+        };
+        Ok(Self {
+            memory,
             slots,
             slot_size,
-        } = &open.transfer
-        else {
-            return Ok(None);
-        };
-        let len = u64::from(*slots)
-            .checked_mul(*slot_size)
-            .ok_or_else(|| Error::new(ErrorKind::Backend, "memory size overflows"))?;
-        let Ok(memory) = crate::shm::WorkerMemory::open(path, len) else {
-            return Ok(None);
-        };
-        Ok(Some(Self {
-            memory,
-            slots: *slots,
-            slot_size: *slot_size,
-            free: (0..*slots).collect(),
-            deadline,
-        }))
+            free: (0..slots).collect(),
+            acks: None,
+            reader_out_of_memory: Arc::new(AtomicBool::new(false)),
+            seq: 0,
+            deadline: open.limits.deadline(),
+        })
     }
-}
 
-impl Output {
+    /// Outside Linux there is no shared memory: every frame goes inline.
+    #[cfg(not(target_os = "linux"))]
+    fn new(_: &Open) -> Result<Self, Error> {
+        Ok(Self {
+            acks: None,
+            reader_out_of_memory: Arc::new(AtomicBool::new(false)),
+            seq: 0,
+        })
+    }
+
     /// A free slot, waiting for the parent's acknowledgement if none is.
     #[cfg(target_os = "linux")]
     fn take_slot(&mut self) -> Result<u32, Error> {
-        let shared = self
-            .shared
-            .as_mut()
-            .ok_or_else(|| Error::new(ErrorKind::Backend, "no memory"))?;
         loop {
-            if let Some(slot) = shared.free.pop_front() {
+            if let Some(slot) = self.free.pop_front() {
                 return Ok(slot);
             }
             let acks = self
                 .acks
                 .as_ref()
                 .ok_or_else(|| Error::new(ErrorKind::Backend, "no acknowledgements"))?;
-            let remaining = shared.deadline.saturating_duration_since(Instant::now());
+            let remaining = self.deadline.saturating_duration_since(Instant::now());
             match acks.recv_timeout(remaining) {
-                Ok(slot) if slot < shared.slots && !shared.free.contains(&slot) => {
-                    shared.free.push_back(slot);
+                Ok(slot) if slot < self.slots && !self.free.contains(&slot) => {
+                    self.free.push_back(slot);
                 }
                 Ok(_) => {}
                 Err(RecvTimeoutError::Timeout) => {
@@ -383,8 +379,6 @@ impl Output {
             });
             offset = offset.saturating_add(len);
         }
-        #[cfg(target_os = "linux")]
-        let total = offset;
         let descriptor = FrameDescriptor {
             seq: self.seq,
             slot: INLINE,
@@ -397,23 +391,18 @@ impl Output {
         };
         self.seq += 1;
         #[cfg(target_os = "linux")]
-        if self
-            .shared
-            .as_ref()
-            .is_some_and(|shared| total <= shared.slot_size)
-        {
+        if self.memory.is_some() && offset <= self.slot_size {
             let slot = self.take_slot()?;
-            let shared = self
-                .shared
-                .as_mut()
-                .ok_or_else(|| Error::new(ErrorKind::Backend, "no memory"))?;
-            let base = u64::from(slot) * shared.slot_size;
+            let base = u64::from(slot) * self.slot_size;
             let start =
                 usize::try_from(base).map_err(|_| Error::new(ErrorKind::Backend, "slot offset"))?;
-            let len =
-                usize::try_from(total).map_err(|_| Error::new(ErrorKind::Backend, "frame size"))?;
-            let target = shared
+            let len = usize::try_from(offset)
+                .map_err(|_| Error::new(ErrorKind::Backend, "frame size"))?;
+            let memory = self
                 .memory
+                .as_mut()
+                .ok_or_else(|| Error::new(ErrorKind::Backend, "no memory"))?;
+            let target = memory
                 .bytes_mut()
                 .get_mut(start..start + len)
                 .ok_or_else(|| Error::new(ErrorKind::Backend, "slot outside the memory"))?;

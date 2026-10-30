@@ -530,6 +530,19 @@ read: a property of the source that `coreav ffmpeg` does not copy, an
 output that already exists, or an encoder value it does not implement
 (`-crf 90`).
 
+**Help in `coreav ffprobe`.** `-h`, `-?`, `-help` and `--help` with
+nothing after them print `coreav ffprobe`'s own usage text on standard
+output and exit 0, in strict-safe mode or not: no `ffprobe` program runs
+and the fallback log gets no line. `ffprobe`'s documentation gives the
+help option an optional topic, and FFmpeg's `-h full` listing has it take
+a value: with any argument after it (`-h long`, `-h full`,
+`-h demuxer=mov`, `-help INPUT`) the query asks about FFmpeg's own options
+and components, so it is refused by name, the option and its topic, like
+any other command that is not native. This is the rule `coreav ffmpeg`
+follows. Rejected: answering topic queries from CoreAV (a listing of
+FFmpeg's components is not CoreAV's to print). The `ffprobe` commands of
+`commands-v1` hold no help query, so B1 is judged on the same commands.
+
 A refused command runs FFmpeg's `ffmpeg` or `ffprobe` instead unless
 strict-safe mode is on (`COREAV_STRICT_SAFE=1`, `coreav --strict-safe`),
 the mode for services that read untrusted input: see "Fallback to FFmpeg".
@@ -606,7 +619,7 @@ implies:
 | `-ss`, `-t` or `-to`, before or after `-i` | `coreav clip`: one video stream and at most one audio stream |
 | the same, with no video selected | the clip of audio alone (`clip_audio_mp4` of `coreav-isobmff-write`): one AAC stream |
 | `-f segment` with MP4 segments | `coreav split --every` the `-segment_time` (2 s when absent) |
-| `-f concat` with an MP4 output | `coreav join` of the list's files (`coreav_cli::concat::read`, with the demuxer's `safe` option): the first video stream and, unless `-an`, the first audio stream, which is what `ffmpeg` selects from the first file when the selection is that |
+| `-f concat` with an MP4 output | `coreav join` of the list's files (`coreav_cli::concat::read`, with the demuxer's `safe` option): one video stream and at most one audio stream, as `ffmpeg` selects them from the streams the demuxer exposes (below); each is the stream at that index in every file, as the demuxer pairs streams, so a stream the join does not copy (MPEG-4 Visual video or FLAC audio, say) is refused, never left out or replaced |
 
 Every other output container, MOV and 3GP included, is refused: the MOV
 muxer's output is not the MP4 writer's.
@@ -620,7 +633,12 @@ type alone (`-c:s`, `-codec:s`, `-scodec`): neither `-c` nor `-c:s:0` selects
 one. With `-map`: the selectors in order, a leading `-` subtracting. `-vn`,
 `-an`, `-sn` and `-dn` remove their type either way. Every selected stream
 must be covered by a `copy` codec option, since `ffmpeg` would encode the
-others, and kept in the input's order, which the writers keep.
+others, and kept in the input's order, which the writers keep. The concat
+demuxer exposes the streams of the list's first file, in its order, with
+every disposition flag cleared (the pinned `ffmpeg` 9.0.2, black box:
+`ffprobe` of a list), so a join's selection goes by picture size and
+channels alone: of a mono AAC stream with the default disposition and a
+stereo one without, the stereo one.
 
 **Times.** Every time counts from the input's start time (`ffprobe`'s
 `format.start_time`, 0 when it has none): on a file presented from 5 s,
@@ -695,8 +713,8 @@ them. Threshold: 100% of the outputs, in `ci.yml`'s `isobmff-fixtures` and
 **Not covered: refused by name (exit 4 in strict-safe mode, else run by
 FFmpeg).**
 
-- A join of other streams than the first video and audio stream of the
-  list's first file, a join without video (`join_mp4` cuts at video), a
+- A join of other streams than one video and at most one audio stream, a
+  join without video (`join_mp4` cuts at video), a
   join that also seeks or trims, and a list with a directive other than
   `file` and `ffconcat version 1.0` (`duration`, `inpoint`, ...) or a path
   that names a protocol. A list `ffmpeg` fails too (an unsafe file name
@@ -708,10 +726,10 @@ FFmpeg).**
   box: a 0.3 s video with 1 s of audio, listed twice, is 2.021333 s from
   `ffmpeg`), and inputs whose tracks have several edits, which the demuxer
   reads by its own edit model. Also inputs that do not match the first
-  (codec, configuration, size, time base), inputs that hold the copied
-  streams at other indexes than the first (the demuxer pairs streams by
-  index, `join_mp4` takes each file's first video and audio), and streams `join_mp4` does not
-  copy (PCM audio, say). The join runs to a temporary file and finds these
+  (codec, configuration, size, time base), inputs without a stream of the
+  selected kind at a selected index (the demuxer pairs streams by index,
+  and `join_mp4` copies the streams at the selected indexes), and streams
+  `join_mp4` does not copy (MPEG-4 Visual video, PCM or FLAC audio, say). The join runs to a temporary file and finds these
   at its end; the output is left as it was.
 - A segmented output of a file without video (C32 on such files): `coreav
   split` cuts at video. A clip without video of other than one AAC
