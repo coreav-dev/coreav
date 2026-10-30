@@ -95,6 +95,13 @@ class Limits(unittest.TestCase):
         self.assertIn('above --cap-usd', self.refused('--max-hours', '9'))
         self.assertIn('--usd-per-hour is required', self.refused('--machine', 'c4-standard-4'))
 
+    def test_limits_must_be_finite_and_positive(self):
+        for flag, value in (('--cap-usd', 'nan'), ('--cap-usd', 'inf'), ('--max-hours', 'nan'), ('--max-hours', '-1'),
+                            ('--cap-usd', '0')):
+            self.assertIn('must be a finite number above 0', self.refused(flag, value, '--dry-run'), (flag, value))
+        self.assertIn('must be a finite number above 0',
+                      self.refused('--machine', 'c4-standard-4', '--usd-per-hour', 'nan', '--dry-run'))
+
     def test_the_store_credentials(self):
         env = {k: '' for k in compat_r4_gcp.CREDENTIALS}
         self.assertIn('must be set', self.refused(env=env))
@@ -150,8 +157,39 @@ class Verdict(unittest.TestCase):
 
     HOST = {'instance.json': {'machine_type': 'c4-standard-16', 'provisioning': 'STANDARD',
                               'advanced_machine_features': {'threadsPerCore': 1}},
-            'host.json': {'smt_active': '0'}, 'job.status': '0'}
+            'host.json': {'smt_active': '0', 'vcpus': 8}, 'job.status': '0'}
     REPORT = {'fallback_log': {'void': False}, 'failing': [], 'classes': [{'class': 'probe', 'family': 'all'}]}
+    GOOD = {**HOST, 'gate.verdict': 'pass', 'gate-aa.report.json': REPORT, 'gate-null.report.json': REPORT,
+            'r4.report.json': REPORT}
+
+    def reasons(self, files, rc=0):
+        out, run = self.vm(files)
+        code = compat_r4_gcp.judge(str(out), rc, run)
+        return code, json.loads((out / 'verdict.json').read_text())['reasons']
+
+    def test_a_partial_collection_is_void(self):
+        code, reasons = self.reasons(self.GOOD, rc=1)
+        self.assertEqual(code, 5)
+        self.assertIn('gcp_vm_job.py exited 1: the output did not come back whole', reasons)
+
+    def test_both_gate_reports_are_required(self):
+        for verdict in ('pass', 'fail'):
+            files = {k: v for k, v in self.GOOD.items() if k != 'gate-null.report.json'}
+            code, reasons = self.reasons({**files, 'gate.verdict': verdict})
+            self.assertEqual(code, 5, verdict)
+            self.assertIn('gate-null produced no report', reasons)
+
+    def test_an_r4_report_with_a_failed_timed_run_is_void(self):
+        code, reasons = self.reasons({**self.GOOD, 'r4.report.json': {**self.REPORT, 'incomplete': ['C04.0 mpegts:3']}})
+        self.assertEqual(code, 5)
+        self.assertIn('r4 has 1 pairs whose timed run failed (a crashed run)', reasons)
+
+    def test_the_vcpu_count_and_the_host_metadata(self):
+        code, reasons = self.reasons({**self.GOOD, 'host.json': {'smt_active': '0', 'vcpus': 2}})
+        self.assertEqual(code, 5)
+        self.assertIn('the VM has 2 vCPUs, not 8 (one thread a core)', reasons)
+        files = {k: v for k, v in self.GOOD.items() if k != 'host.json'}
+        self.assertIn('instance.json or host.json did not come back', self.reasons(files)[1])
 
     def test_r4(self):
         out, run = self.vm({**self.HOST, 'gate.verdict': 'pass', 'gate-aa.report.json': self.REPORT,

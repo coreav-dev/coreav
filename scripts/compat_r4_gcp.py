@@ -20,8 +20,10 @@ creates the VM (STANDARD provisioning, one thread a core), runs job.sh and bring
 
 Then the files are deleted, and verdict.json is written: `r4` when the gate passed and R4 ran on the class asked for,
 `gate failed` (a gate report found the host out of its band: a host fault, the round goes on with a new VM of the
-same class), or `void` (a VM of another class, a missing report, a report that measured nothing or left a group
-with pairs and no ratio, a gate arm that did not finish, a fallback log with any line). Exit status 0 for `r4`, 3 for a failed gate, 5 for a void run, 4 when
+same class), or `void` (a VM of another class or with another vCPU count, an output that did not come back whole, a
+missing report of either gate arm or of R4, a report that measured nothing or left a group with pairs and no ratio,
+an R4 report with a failed timed run, a gate arm that did not finish, a fallback log with any line). --cap-usd,
+--max-hours and --usd-per-hour must be finite and above 0. Exit status 0 for `r4`, 3 for a failed gate, 5 for a void run, 4 when
 gcp_vm_job.py brought nothing back.
 
 Limits: the VM deletes itself at --max-hours (gcp_vm_job.py's maxRunDuration and its timeout), and job.sh powers it
@@ -42,6 +44,7 @@ R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and R2_BUCKET, which the VM gets to read 
 import argparse
 import hashlib
 import json
+import math
 import os
 import shlex
 import shutil
@@ -141,8 +144,17 @@ def judge(out, rc, run):
         print(f'gcp_vm_job.py exited {rc}: nothing came back, no verdict', flush=True)
         return 4
     reasons = []
+    if rc != 0:
+        reasons.append(f'gcp_vm_job.py exited {rc}: the output did not come back whole')
     if not run['local']:
-        inst, host = read(os.path.join(vm, 'instance.json')) or {}, read(os.path.join(vm, 'host.json')) or {}
+        inst, host = read(os.path.join(vm, 'instance.json')), read(os.path.join(vm, 'host.json'))
+        if inst is None or host is None:
+            reasons.append('instance.json or host.json did not come back')
+        inst, host = inst or {}, host or {}
+        size = run['machine'].rsplit('-', 1)[-1]
+        vcpus = int(size) // 2 if size.isdigit() else None
+        if host.get('vcpus') != vcpus:
+            reasons.append(f"the VM has {host.get('vcpus')} vCPUs, not {vcpus} (one thread a core)")
         if inst.get('machine_type') != run['machine']:
             reasons.append(f"the VM is {inst.get('machine_type')}, not {run['machine']}")
         if (inst.get('advanced_machine_features') or {}).get('threadsPerCore') != 1 or host.get('smt_active') == '1':
@@ -151,6 +163,11 @@ def judge(out, rc, run):
             reasons.append('the VM is not on-demand')
     gate = open(os.path.join(vm, 'gate.verdict')).read().strip() if os.path.exists(os.path.join(vm, 'gate.verdict')) else None
     reports = {name: read(os.path.join(vm, f'{name}.report.json')) for name in ('gate-aa', 'gate-null', 'r4')}
+    for name in ('gate-aa', 'gate-null'):
+        if not reports[name]:
+            reasons.append(f'{name} produced no report')
+    if reports['r4'] and reports['r4'].get('incomplete'):
+        reasons.append(f"r4 has {len(reports['r4']['incomplete'])} pairs whose timed run failed (a crashed run)")
     for name in ('gate-aa', 'gate-null', 'r4'):
         if reports[name] and reports[name]['fallback_log']['void']:
             reasons.append(f'the fallback log of {name} is void')
@@ -205,6 +222,9 @@ def main():
         if args.machine != MACHINE:
             ap.error('--usd-per-hour is required with a machine other than ' + MACHINE)
         args.usd_per_hour = USD_PER_HOUR
+    for name in ('cap_usd', 'max_hours', 'usd_per_hour'):
+        if not (math.isfinite(getattr(args, name)) and getattr(args, name) > 0):
+            ap.error(f"--{name.replace('_', '-')} must be a finite number above 0")
     if args.cap_usd > CAP_USD:
         ap.error(f'--cap-usd is at most {CAP_USD:g} (the per-task spend limit)')
     if args.max_hours * args.usd_per_hour > args.cap_usd:
