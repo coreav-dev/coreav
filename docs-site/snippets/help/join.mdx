@@ -1,0 +1,16 @@
+```text
+Join MP4/MOV files that share a codec configuration into one MP4, without re-encoding
+
+Usage: coreav join [OPTIONS] --output <OUTPUT> <INPUTS>...
+
+Arguments:
+  <INPUTS>...  The files to join, in order
+
+Options:
+  -o, --output <OUTPUT>  Where to write the joined file: a new file, or `-` for standard output
+      --audio <none>     `none` to join the video only (default: the first audio stream of every input)
+      --allow <CODEC>    Codecs to accept, comma separated, as for `coreav probe`
+      --strict           Reject an input when a stream's codec is not allowed
+      --force            Overwrite OUTPUT if it exists
+  -h, --help             Print help
+```

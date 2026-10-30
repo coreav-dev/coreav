@@ -1,0 +1,33 @@
+---
+title: "Platforms and Rust version"
+description: "The Rust version CoreAV needs, and the platforms CI builds and tests."
+---
+
+## Rust
+
+CoreAV needs Rust 1.89 or later. The version is `rust-version` in the workspace's [`Cargo.toml`](https://github.com/coreav-dev/coreav/blob/main/Cargo.toml), and a CI job checks that this version builds the workspace. A change that needs a newer Rust raises the version in the same change.
+
+## What CI builds and tests
+
+| Artifact | Platforms |
+|---|---|
+| Workspace tests | Linux x86-64. The H.264 conformance suite also runs on Linux arm64. |
+| Native `coreav` binaries, built and smoke-tested | Linux x86-64 and arm64, macOS arm64 and x86-64, Windows x86-64 |
+| WebAssembly build | The command built for `wasm32-wasip1`, run under Node's WASI |
+| Python wheels | Linux x86-64 and arm64, macOS arm64. Python 3.9 or later. |
+
+The native binaries and the WebAssembly build are those of the npm package `coreav`. None of these artifacts is published yet ([Install](/install)).
+
+## The npm package
+
+The npm package needs Node 20 or later. It runs the native binary on Linux (x86-64 and arm64, glibc or musl), macOS (arm64 and x86-64) and Windows (x86-64), and the WebAssembly build elsewhere. Both give the same output, output files and exit statuses. The WebAssembly build has two limits:
+
+- It reads local files only. An input that names a URL is refused with exit status 2.
+- It cannot run [`coreav mcp`](/commands/mcp), which starts the command as a child process for each tool call. It exits with status 2 and says so.
+
+[The npm package's design note](https://github.com/coreav-dev/coreav/blob/main/docs/design/npm-cli.md) covers how the package picks a binary.
+
+## Known gaps
+
+- The fallback's tests do not run on Windows yet ([issue #43](https://github.com/coreav-dev/coreav/issues/43)).
+- The macOS wheel is built on macOS arm64 only. There is no x86-64 macOS wheel.

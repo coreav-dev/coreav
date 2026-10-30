@@ -1,0 +1,17 @@
+```text
+Describe an MP4, MOV, Matroska or WebM file as JSON
+
+Usage: coreav probe [OPTIONS] <FILE>
+
+Arguments:
+  <FILE>  The file to probe
+
+Options:
+      --ffprobe-compat     Print the `ffprobe -of json -show_format -show_streams` shape, limited to fields checked against `ffprobe`
+      --scan-fragments     Read every movie fragment so that fragmented streams get their durations (the default with --ffprobe-compat)
+      --no-scan-fragments  Do not read movie fragments, even with --ffprobe-compat
+      --scan-frame-sizes   Read the parameter sets and frame headers in every sample of each video stream for `video.scanned_size` (docs/design/frame-sizes.md). Reads the headers of every sample, not their coded data. For Matroska and WebM, the same pass also gives each stream's `duration`, `frame_count` and `bit_rate`
+      --allow <CODEC>      Codecs to accept, comma separated (for example `h264,aac`); streams with any other codec are dropped. Default: every supported codec. Unsupported codecs (`other`) can never be allowed. Names of codecs a container cannot hold are ignored for that container
+      --strict             Reject the whole file when a stream's codec is not allowed, instead of dropping that stream
+  -h, --help               Print help
+```

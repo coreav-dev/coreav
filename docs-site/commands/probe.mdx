@@ -1,0 +1,29 @@
+---
+title: "coreav probe"
+sidebarTitle: "probe"
+description: "Describe an MP4, MOV, Matroska, WebM or MPEG-TS file as JSON."
+---
+
+import Help from '/snippets/help/probe.mdx';
+
+`coreav probe FILE` describes a media file as a JSON document on standard output: its container, its duration and each stream's codec, size, timing and metadata. It reads MP4, MOV, Matroska, WebM and MPEG transport stream files. The document's schema depends on the container:
+
+| Container | Schema |
+|---|---|
+| MP4 and MOV | [`coreav.probe/1`](https://github.com/coreav-dev/coreav/blob/main/docs/schema/probe-v1.md) |
+| Matroska and WebM | [`coreav.probe-matroska/1`](https://github.com/coreav-dev/coreav/blob/main/docs/schema/probe-matroska-v1.md) |
+| MPEG-TS | [`coreav.probe-mpegts/1`](https://github.com/coreav-dev/coreav/blob/main/docs/schema/probe-mpegts-v1.md) |
+
+## Examples
+
+```sh
+coreav probe input.mp4
+coreav probe https://example.com/video.mp4
+coreav probe --allow h264,aac --strict upload.mp4
+```
+
+`--allow` keeps only the streams whose codec is on the list, and `--strict` rejects the whole file (exit status 1) instead of dropping a stream. `--ffprobe-compat` prints the shape of `ffprobe -of json -show_format -show_streams` instead, limited to the fields that are checked against `ffprobe`.
+
+## Options
+
+<Help />

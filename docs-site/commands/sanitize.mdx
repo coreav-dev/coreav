@@ -1,0 +1,20 @@
+---
+title: "coreav sanitize"
+sidebarTitle: "sanitize"
+description: "Rewrite an MP4 or MOV file without its metadata, keeping only allowlisted boxes."
+---
+
+import Help from '/snippets/help/sanitize.mdx';
+
+`coreav sanitize INPUT OUTPUT` rewrites an MP4 or MOV file as MP4 by stream copy, keeping only the boxes on an allowlist. That drops location, device, dates and other metadata. `--keep` chooses what survives: by default the rotation, the languages, the gapless playback data and the track roles. The summary is [`coreav.remux/1`](https://github.com/coreav-dev/coreav/blob/main/docs/schema/remux-v1.md), with the dropped boxes listed.
+
+## Examples
+
+```sh
+coreav sanitize upload.mp4 clean.mp4
+coreav sanitize --keep none upload.mp4 clean.mp4
+```
+
+## Options
+
+<Help />
