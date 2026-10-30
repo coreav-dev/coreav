@@ -307,6 +307,7 @@ fn failure(error: coreav_thumbnail::Error) -> WriteFailure {
     let failure = match error {
         Error::Isobmff(e) => Failure::Library(e),
         Error::Matroska(e) => Failure::Matroska(e),
+        Error::Invalid(what) => Failure::Invalid(what),
         Error::Decode(e) => Failure::VideoDecode(e),
         Error::TimeOutOfRange => Failure::OutOfRange,
         Error::NoVideo => Failure::Unsupported("no video stream".into()),

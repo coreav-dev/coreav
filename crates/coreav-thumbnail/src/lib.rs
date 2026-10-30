@@ -37,7 +37,10 @@ mod skip;
 
 use core::fmt;
 
-use coreav_decode::{Backend, Codec, Decoder, DecoderInfo, Packet, Policy, Skipped, StreamConfig};
+use coreav_decode::{
+    Backend, Codec, CodecConfig, ConfigKind, Decoder, DecoderInfo, Packet, Policy, Skipped,
+    StreamConfig,
+};
 use coreav_frame::{ChromaUpsampling, Filter, Frame, FrameError, Picture};
 use coreav_isobmff::{Rational, Source};
 
@@ -161,6 +164,9 @@ pub enum Error {
     Isobmff(coreav_isobmff::Error),
     /// The Matroska parser rejected the file or could not read it.
     Matroska(coreav_mkv::Error),
+    /// The video stream is not valid for its codec's specification: the
+    /// rule broken. Found before decoding.
+    Invalid(&'static str),
     /// Decoding failed, or no backend could decode the stream.
     Decode(coreav_decode::Error),
     /// A frame operation failed.
@@ -180,6 +186,7 @@ impl fmt::Display for Error {
         match self {
             Self::Isobmff(e) => write!(f, "{e}"),
             Self::Matroska(e) => write!(f, "{e}"),
+            Self::Invalid(what) => write!(f, "invalid structure: {what}"),
             Self::Decode(e) => write!(f, "decoding: {e}"),
             Self::Frame(e) => write!(f, "frame: {e}"),
             Self::NoVideo => f.write_str("no video stream"),
@@ -329,6 +336,16 @@ fn plan<S: Source>(
     } else {
         mp4::plan(source, options, first)?
     };
+    if let Some(CodecConfig {
+        kind: ConfigKind::Hvcc,
+        data,
+    }) = &plan.stream.config
+        && coreav_isobmff::hevc_window_empty(data)
+    {
+        return Err(Error::Invalid(
+            "the HEVC conformance window leaves no picture (ITU-T H.265 7.4.3.2.1)",
+        ));
+    }
     // The colour a decoder applies: the coded data's or the container's,
     // per codec, as FFmpeg's decoders do.
     let header = first_keyframe_header(source, &plan)?;

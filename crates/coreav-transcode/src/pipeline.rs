@@ -231,7 +231,7 @@ pub enum Error {
     /// The Matroska parser rejected the source or could not read it.
     Matroska(coreav_mkv::Error),
     /// The video stream is not valid for its codec's specification: the
-    /// rule broken. Found before the decoder opens.
+    /// rule broken (`coreav_thumbnail::Error::Invalid`).
     Invalid(&'static str),
     /// Decoding failed, no backend could decode the stream, or the
     /// deadline passed while decoding.
@@ -278,6 +278,7 @@ impl From<coreav_thumbnail::Error> for Error {
         match e {
             T::Isobmff(e) => Self::Isobmff(e),
             T::Matroska(e) => Self::Matroska(e),
+            T::Invalid(what) => Self::Invalid(what),
             T::Decode(e) => Self::Decode(e),
             T::Frame(e) => Self::Unsupported(e.to_string()),
             T::NoVideo => Self::Unsupported("no video stream".into()),
@@ -327,16 +328,6 @@ pub fn transcode<S: Source, W: Write>(
     match (kind, video.container) {
         (SourceKind::Mp4, Container::Mp4) | (SourceKind::Matroska, Container::Matroska) => {}
         _ => return Err(unsupported("the source is not of the container named")),
-    }
-    if let Some(coreav_decode::CodecConfig {
-        kind: coreav_decode::ConfigKind::Hvcc,
-        data,
-    }) = &video.stream.config
-        && coreav_isobmff::hevc_window_empty(data)
-    {
-        return Err(Error::Invalid(
-            "the HEVC conformance window leaves no picture (ITU-T H.265 7.4.3.2.1)",
-        ));
     }
     if let Some(warning) = video.warnings.first() {
         // The packets' times would not be the sample tables' the writer

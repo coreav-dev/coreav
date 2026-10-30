@@ -1176,8 +1176,9 @@ fn ffmpeg_libx264_refuses_before_encoding() {
 }
 
 /// An HEVC stream whose conformance window leaves no picture is not valid
-/// HEVC (ITU-T H.265 7.4.3.2.1): `coreav transcode` and `coreav ffmpeg`
-/// reject it as an invalid structure before decoding, and write nothing.
+/// HEVC (ITU-T H.265 7.4.3.2.1): `coreav transcode`, `coreav thumbnail`
+/// and `coreav ffmpeg` reject it as an invalid structure before decoding,
+/// and write nothing.
 #[test]
 fn an_hevc_window_that_leaves_no_picture_is_rejected() {
     let Some(tools) = tools() else { return };
@@ -1192,6 +1193,17 @@ fn an_hevc_window_that_leaves_no_picture_is_rejected() {
         let error: Value = serde_json::from_str(run.stderr.trim()).unwrap();
         assert_eq!(error["kind"], "invalid_structure", "{name}");
         assert!(!out.exists(), "{name}");
+        let image = dir.join("out.png");
+        let run = Command::new(bin())
+            .args(["thumbnail", source_s, "-o"])
+            .arg(&image)
+            .env("COREAV_FFMPEG", &tools.ffmpeg)
+            .output()
+            .unwrap();
+        assert_eq!(run.status.code(), Some(1), "{name}");
+        let error: Value = serde_json::from_slice(&run.stderr).unwrap();
+        assert_eq!(error["kind"], "invalid_structure", "{name}");
+        assert!(!image.exists(), "{name}");
         if !cfg!(feature = "ffmpeg-fallback") {
             // No decoder of this build takes HEVC: `coreav ffmpeg` refuses
             // the stream before the transcode reads it.
