@@ -112,11 +112,14 @@ fn real_encoders() {
 
 /// A script that stands in for the encoder.
 fn script(name: &str, body: &str) -> PathBuf {
-    use std::os::unix::fs::PermissionsExt;
     let dir = scratch("hostile");
     let path = dir.join(format!("{name}.sh"));
     std::fs::write(&path, format!("#!/bin/sh\nPATH=/usr/bin:/bin\n{body}\n")).unwrap();
-    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
     path
 }
 

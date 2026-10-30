@@ -536,6 +536,11 @@ pub enum JoinAudio {
     /// The first audio track of every input, which must be AAC; the inputs
     /// must all have one or all have none.
     First,
+    /// The audio stream at this index (`Track::stream_index`) of every
+    /// input, which must be AAC, as the concat demuxer of `ffmpeg` pairs
+    /// streams by index; a stream the allowlist leaves out fails with
+    /// `Error::CodecNotAllowed` instead of being skipped.
+    Stream(usize),
     /// No audio.
     None,
 }
@@ -543,6 +548,12 @@ pub enum JoinAudio {
 /// What [`join_mp4`] keeps.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct JoinOptions {
+    /// The video: the first video track of every input the allowlist keeps
+    /// (`VideoChoice::First`), or the stream at this index of every input
+    /// (`VideoChoice::Stream`, which `coreav ffmpeg` uses as the concat
+    /// demuxer pairs streams by index; a stream the allowlist leaves out
+    /// fails with `Error::CodecNotAllowed` instead of being skipped).
+    pub video: VideoChoice,
     /// The audio.
     pub audio: JoinAudio,
 }
