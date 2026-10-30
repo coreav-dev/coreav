@@ -797,8 +797,11 @@ limit for the second. Rejected: removing the kind and keeping
 Every map the crate keys by PID is a `PidMap` (`src/pid_map.rs`), which is
 built only from a limit of `Limits` or from the 8,192 PIDs a packet can
 name, and which refuses a PID it does not hold yet once it holds that
-many; its reads are inlined calls on the `BTreeMap` inside it. The
-crate's `clippy.toml` forbids `BTreeMap` and `HashMap` everywhere else in
+many. It keeps its values in PID order beside a table over the PID space
+(a `u16` a PID, 16 KiB, made on the first insertion) that says where each
+PID's value is, so the lookups made for every transport packet are one
+index, not a search; a `BTreeMap` there took 4 to 11% of the listing on
+large captures. The crate's `clippy.toml` forbids `BTreeMap` and `HashMap` everywhere else in
 the crate, with a reason that names `PidMap`, so a new per-PID fact
 cannot be kept without choosing its bound. Each map keeps the bound and
 the refusal it had before the type:
@@ -834,10 +837,11 @@ can leave out, as `pcrs` did; bounding every map by `max_streams`, which
 would stop telling lost packets on a file with more PIDs than streams
 and change which PIDs a listing reads; arrays of 8,192 entries, which
 hold the whole PID space for a file of three PIDs (1.5 MiB for `last`
-alone, again for each pass over the tail); forbidding `BTreeSet` and
-`HashSet` too, since the one set of PIDs (`Demux::always`, the probe's
-streams) holds two bytes a PID and the parameter sets of `video.rs` are
-not kept per PID. Clippy reads only the `clippy.toml` nearest a crate, so
+alone, again for each pass over the tail), where the table of places
+holds two bytes a PID and the values only the PIDs read; forbidding
+`BTreeSet` and `HashSet` too, since the PIDs read whatever the tables
+say (`Demux::always`, the probe's streams) are a `PidMap<()>` and the
+parameter sets of `video.rs` are not kept per PID. Clippy reads only the `clippy.toml` nearest a crate, so
 the crate's repeats the workspace's settings, which
 `tests/clippy_config.rs` checks; putting `disallowed-types` in the
 workspace's file was rejected because it would forbid the maps of every
