@@ -146,6 +146,10 @@ jobs:
       # `coreav transcode`, which only builds with a decoder backend include
       # (docs/design/docs-site.md); `cargo test --workspace` checks the rest.
       - run: cargo test -p coreav-cli --features ffmpeg-fallback --test docs_site
+      # The unit tests of what only a build with a decoder backend has
+      # (`coreav ffmpeg`'s encode, `coreav transcode`), which
+      # `cargo test --workspace` does not build.
+      - run: cargo test -p coreav-cli --features ffmpeg-fallback --lib
       # The AAC LC pipeline and command, with the opt-in feature
       # (docs/design/audio-decode.md, "AAC-LC").
       - run: |
