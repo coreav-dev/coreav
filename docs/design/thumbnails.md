@@ -671,6 +671,16 @@ one; no threshold changed:
   discards (`D` flag) has no FFmpeg image and is counted apart.
 - Times given to FFmpeg are on FFmpeg's timeline, from the packet's exact
   pts (known divergence KD-EDIT-SNAP), not CoreAV's.
+- Since the oracle moved to FFmpeg 9.0.2: for Matroska and WebM, the time
+  is CoreAV's less the difference between the two tools' file starts
+  (`format.start_time` of the pinned `ffprobe` and of `coreav ffprobe`).
+  FFmpeg 9.0.2 starts a file whose audio has a `CodecDelay` at its first
+  block, where CoreAV, as FFmpeg 7.0.2 did, starts it that delay earlier
+  (6.5 ms on `browser.webm`), so CoreAV's time named the next frame in
+  FFmpeg. No threshold changed. That `TIME` therefore counts from a start
+  that differs from FFmpeg 9.0.2's by the delay is a known 9.x difference
+  of the start time, with `ffprobe`'s `start_time` key
+  (coreav-dev/coreav#24).
 - Speed: each file also records, untimed, the PSNR between CoreAV's and
   FFmpeg's PNG of S2's and S3's frame; a bar's results count the files
   where they differ (under 30 dB). A bar whose command failed on a file

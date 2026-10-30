@@ -162,13 +162,27 @@ def thumb(coreav, path, t, out, exact=False):
     return json.loads(r.stdout), None
 
 
-def ffmpeg_time(ffprobe, path, summary):
+def start_shift(coreav, ffprobe, path):
+    """How much later FFmpeg's file start is than CoreAV's, in seconds, as
+    each one's `ffprobe` prints `format.start_time`. FFmpeg 9 starts a
+    Matroska file whose audio has a `CodecDelay` at the first block's
+    time; CoreAV, as FFmpeg 7 did, starts it that delay earlier."""
+    from fractions import Fraction
+    starts = []
+    for tool in ([ffprobe], [coreav, 'ffprobe']):
+        r = run([*tool, '-v', 'error', '-show_entries', 'format=start_time', '-of', 'csv=p=0', str(path)])
+        text = r.stdout.decode().strip()
+        starts.append(Fraction(text) if text and text != 'N/A' else Fraction(0))
+    return starts[0] - starts[1]
+
+
+def ffmpeg_time(ffprobe, path, summary, shift=0):
     """FFmpeg's `-ss` time for the frame CoreAV chose, rounded down to the
     microsecond: for MP4/MOV, the pts `ffprobe` lists for the packet at the
     same byte offset (FFmpeg's timeline can differ from CoreAV's by known
     divergence KD-EDIT-SNAP), exactly from its integer pts and time base,
     less the file's start time, from which `-ss` counts; else CoreAV's own
-    time, which counts from the start already."""
+    time, which counts from CoreAV's start, less `shift` (`start_shift`)."""
     if path.suffix.lstrip('.').lower() in MP4_EXTS:
         stream = summary.get('stream_index')
         r = run([ffprobe, '-v', 'error', '-select_streams', str(stream), '-show_entries',
@@ -192,10 +206,13 @@ def ffmpeg_time(ffprobe, path, summary):
                 sign = '-' if micros < 0 else ''
                 micros = abs(micros)
                 return f'{sign}{micros // 1_000_000}.{micros % 1_000_000:06d}'
-    return floor_us(summary['time']['frame'])
+    from fractions import Fraction
+    frame = summary['time']['frame']
+    t = Fraction(frame['num'], frame['den']) - Fraction(shift)
+    return floor_us({'num': t.numerator, 'den': t.denominator})
 
 
-def reference(ffmpeg, path, summary, out, extra=('-pix_fmt', 'rgb24'), ffprobe='ffprobe'):
+def reference(ffmpeg, path, summary, out, extra=('-pix_fmt', 'rgb24'), ffprobe='ffprobe', shift=0):
     """FFmpeg's image of the frame CoreAV chose, at the same size: True when
     written, False when FFmpeg failed, None when FFmpeg discards that
     frame. FFmpeg seeks its input to the keyframe CoreAV decoded from and,
@@ -204,7 +221,7 @@ def reference(ffmpeg, path, summary, out, extra=('-pix_fmt', 'rgb24'), ffprobe='
     that does not start decoding, in a file without a true sync table)."""
     from fractions import Fraction
     w, h = summary['output']['width'], summary['output']['height']
-    at = ffmpeg_time(ffprobe, path, summary)
+    at = ffmpeg_time(ffprobe, path, summary, shift)
     if at is None:
         return None
     frame, start = summary['time']['frame'], summary['time'].get('decode_start') or summary['time']['frame']
@@ -234,7 +251,8 @@ def images(coreav, ffmpeg, ffprobe, path, t, tmp):
     out['size'] = [key['output']['width'], key['output']['height']]
     out['backend'] = key['decoder']['backend']
     out['keyframe'] = key['keyframe']
-    made = reference(ffmpeg, path, key, tmp / 'r.png', ffprobe=ffprobe)
+    shift = 0 if path.suffix.lstrip('.').lower() in MP4_EXTS else start_shift(coreav, ffprobe, path)
+    made = reference(ffmpeg, path, key, tmp / 'r.png', ffprobe=ffprobe, shift=shift)
     if made is None:
         return {'status': 'ffmpeg_discards', **out}
     if not made:
@@ -244,7 +262,7 @@ def images(coreav, ffmpeg, ffprobe, path, t, tmp):
     jpg, err = thumb(coreav, path, t, tmp / 'k.jpg')
     if err is not None:
         out['I3_error'] = err
-    elif not reference(ffmpeg, path, key, tmp / 'f.jpg', extra=(), ffprobe=ffprobe):
+    elif not reference(ffmpeg, path, key, tmp / 'f.jpg', extra=(), ffprobe=ffprobe, shift=shift):
         out['I3_error'] = 'ffmpeg failed'
     else:
         out['I3_ours'] = psnr(rgb(tmp / 'k.jpg', ffmpeg), ref)
@@ -254,7 +272,7 @@ def images(coreav, ffmpeg, ffprobe, path, t, tmp):
     if err is not None:
         out['I2_error'] = err
     else:
-        made = reference(ffmpeg, path, exact, tmp / 'rx.png', ffprobe=ffprobe)
+        made = reference(ffmpeg, path, exact, tmp / 'rx.png', ffprobe=ffprobe, shift=shift)
         if made:
             out['I2'] = psnr(rgb(tmp / 'x.png', ffmpeg), rgb(tmp / 'rx.png', ffmpeg))
             out['exact_frame'] = exact['time']['frame']
