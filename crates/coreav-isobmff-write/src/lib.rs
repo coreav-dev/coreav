@@ -60,7 +60,7 @@ pub use matroska::{
     remux_matroska_replacing,
 };
 pub use remux::{remux_mp4, remux_mp4_replacing, sanitize_mp4};
-pub use replace::{Replacement, ReplacementSample};
+pub use replace::{AudioReplacement, AudioSample, Replacement, ReplacementSample, Replacements};
 pub use split::split_mp4;
 
 use core::fmt;

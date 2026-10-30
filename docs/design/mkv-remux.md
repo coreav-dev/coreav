@@ -144,12 +144,19 @@ sources. No sample is decoded or re-encoded.
 - The movie timescale is the video timescale (Segment Ticks per second, or
   90,000), so empty edits keep the source's precision.
 
-## One video stream replaced
+## Replaced streams
 
-`remux_matroska_replacing` is `remux_matroska` with one video stream's
-samples taken from the caller (`coreav transcode`'s writer;
-[`remux.md`](remux.md), "One video stream replaced", has the replacement,
-its validation and the rejected alternatives). Matroska specifics:
+`remux_matroska_replacing` is `remux_matroska` with the samples of one
+video stream, one audio stream, or one of each taken from the caller
+(`coreav transcode`'s writer; [`remux.md`](remux.md), "Replaced streams",
+has the replacements, their validation and the rejected alternatives).
+Matroska specifics:
+
+- **A replaced audio stream** gets the audio replacement's own timeline
+  and edits (`remux.md`, "One audio stream replaced"). With one, the movie
+  timescale is the least common multiple of the video timescale below and
+  the replacement's (48,000), when that fits 32 bits, so that its edits are
+  exact.
 
 - **Times** are Segment Ticks on the segment's timeline, the blocks'
   timestamps as `coreav_mkv::Packet::pts` gives them for video (no

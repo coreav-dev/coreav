@@ -1,0 +1,21 @@
+[package]
+name = "coreav-backend-libopus"
+description = "CoreAV's Opus encoder backend: encodes 48 kHz float PCM with libopus through its Rust binding; inside a sandboxed process by default"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[features]
+default = []
+# Links the system's libopus (found with pkg-config). Off by default so that
+# the workspace builds without it (docs/design/transcode.md, "Opus audio").
+libopus = ["dep:opus"]
+
+[dependencies]
+opus = { version = "0.3", optional = true }
+
+[lints]
+workspace = true

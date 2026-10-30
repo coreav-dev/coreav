@@ -5,7 +5,7 @@
   "description": "The summary coreav transcode prints (docs/design/transcode.md). Keys and meanings: docs/schema/transcode-v1.md.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "output", "video", "audio", "other", "dropped"],
+  "required": ["schema", "output", "video", "audio", "encoded_audio", "other", "dropped"],
   "properties": {
     "schema": {"const": "coreav.transcode/1"},
     "output": {
@@ -77,6 +77,32 @@
           "kind": {"type": "string"},
           "codec": {"type": "string"}
         }
+      }
+    },
+    "encoded_audio": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": [
+        "stream_index",
+        "codec",
+        "sample_rate",
+        "encoder",
+        "channels",
+        "bit_rate",
+        "samples",
+        "pre_skip",
+        "packets"
+      ],
+      "properties": {
+        "stream_index": {"type": "integer", "minimum": 0},
+        "codec": {"enum": ["flac", "mp3"]},
+        "sample_rate": {"type": "integer", "minimum": 1},
+        "encoder": {"const": "libopus"},
+        "channels": {"enum": [1, 2]},
+        "bit_rate": {"type": "integer", "minimum": 6000, "maximum": 510000},
+        "samples": {"type": "integer", "minimum": 1},
+        "pre_skip": {"type": "integer", "minimum": 0, "maximum": 3840},
+        "packets": {"type": "integer", "minimum": 1}
       }
     },
     "dropped": {

@@ -26,11 +26,12 @@ use coreav_isobmff::{
     Allowlist, Budget, Codec, EditList, Error, LimitKind, Limits, Movie, Packet, Rational,
     SliceSource, Source, TrackKind, probe,
 };
-use coreav_isobmff_write::mux::{Nclx, avc1_sample_entry};
+use coreav_isobmff_write::mux::{Nclx, RawBox, audio_sample_entry, avc1_sample_entry};
 use coreav_isobmff_write::{
-    BoxDropReason, ExtractError, MatroskaRemuxError, MatroskaRemuxOptions, MatroskaRemuxSummary,
-    RemuxOptions, RemuxSummary, Replacement, ReplacementSample, remux_matroska,
-    remux_matroska_replacing, remux_mp4, remux_mp4_replacing,
+    AudioReplacement, AudioSample, BoxDropReason, ExtractError, MatroskaRemuxError,
+    MatroskaRemuxOptions, MatroskaRemuxSummary, RemuxOptions, RemuxSummary, Replacement,
+    ReplacementSample, Replacements, remux_matroska, remux_matroska_replacing, remux_mp4,
+    remux_mp4_replacing,
 };
 use movies::{S, TrackSpec, aac_audio, av_movie, ibbp_video, movie};
 use std::path::Path;
@@ -78,15 +79,18 @@ struct Own {
 }
 
 impl Own {
-    fn replacement(&self) -> Replacement<'_, SliceSource<'_>> {
-        Replacement {
-            stream_index: self.stream_index,
-            sample_entry: &self.entry,
-            width: self.width,
-            height: self.height,
-            samples: &self.samples,
-            last_duration: self.last_duration,
-            data: SliceSource::new(&self.data),
+    fn replacement(&self) -> Replacements<'_, SliceSource<'_>> {
+        Replacements {
+            video: Some(Replacement {
+                stream_index: self.stream_index,
+                sample_entry: &self.entry,
+                width: self.width,
+                height: self.height,
+                samples: &self.samples,
+                last_duration: self.last_duration,
+                data: SliceSource::new(&self.data),
+            }),
+            audio: None,
         }
     }
 
@@ -1320,4 +1324,252 @@ fn fixtures_present_as_the_plain_remux() {
     own.height = 240 << 16;
     check_with_oracle("h264_aac.mkv", &source, &out, &own, false, true);
     std::fs::remove_dir_all(&out).unwrap();
+}
+
+// ------------------------------------------------------------- audio
+
+/// An Opus stream of `count` 20 ms packets: `dOps` for stereo with a
+/// pre-skip of 312, packets whose bytes are their number.
+struct OpusStream {
+    entry: Vec<u8>,
+    samples: Vec<AudioSample>,
+    data: Vec<u8>,
+}
+
+fn opus_stream(count: usize, last: u32) -> OpusStream {
+    let mut dops = vec![0, 2];
+    dops.extend_from_slice(&312u16.to_be_bytes());
+    dops.extend_from_slice(&44_100u32.to_be_bytes());
+    dops.extend_from_slice(&[0, 0, 0]);
+    let entry = audio_sample_entry(
+        coreav_isobmff::FourCc(*b"Opus"),
+        2,
+        48_000,
+        &[RawBox {
+            kind: coreav_isobmff::FourCc(*b"dOps"),
+            payload: dops,
+        }],
+    )
+    .unwrap();
+    let mut samples = Vec::new();
+    let mut data = Vec::new();
+    for n in 0..count {
+        let size = 20 + (n % 9) as u32;
+        data.extend(std::iter::repeat_n(n as u8, size as usize));
+        let duration = if n + 1 == count { last } else { 960 };
+        samples.push(AudioSample { size, duration });
+    }
+    OpusStream {
+        entry,
+        samples,
+        data,
+    }
+}
+
+impl OpusStream {
+    fn replacement(
+        &self,
+        stream_index: usize,
+        start: u64,
+    ) -> AudioReplacement<'_, SliceSource<'_>> {
+        let total: u64 = self.samples.iter().map(|s| u64::from(s.duration)).sum();
+        AudioReplacement {
+            stream_index,
+            sample_entry: &self.entry,
+            timescale: 48_000,
+            samples: &self.samples,
+            start,
+            priming: 312,
+            presented: total - 312,
+            roll: 4,
+            data: SliceSource::new(&self.data),
+        }
+    }
+}
+
+/// The payload of the first box of `kind` in `data` (a plain byte search,
+/// for boxes whose type appears once).
+fn find_box<'a>(data: &'a [u8], kind: &[u8; 4]) -> &'a [u8] {
+    let at = data.windows(4).position(|w| w == kind).unwrap();
+    let size = u32::from_be_bytes(data[at - 4..at].try_into().unwrap()) as usize;
+    &data[at + 4..at - 4 + size]
+}
+
+fn assert_opus_track(out: &[u8], movie: &Movie, index: usize, opus: &OpusStream, empty: u64) {
+    let track = &movie.tracks[index];
+    assert_eq!(track.kind, TrackKind::Audio);
+    assert_eq!(track.description.codec, Codec::Opus);
+    assert_eq!(track.timescale, 48_000);
+    let presented: u64 = opus
+        .samples
+        .iter()
+        .map(|s| u64::from(s.duration))
+        .sum::<u64>()
+        - 312;
+    // Sample-exact: the movie timescale is a multiple of 48 kHz.
+    assert_eq!(movie.timescale % 48_000, 0);
+    let scale = u64::from(movie.timescale / 48_000);
+    assert_eq!(
+        track.edit_list,
+        EditList::Simple {
+            empty: empty * scale,
+            media_time: 312,
+            segment: presented * scale,
+        }
+    );
+    let written = packets(out, movie, index);
+    assert_eq!(written.len(), opus.samples.len());
+    let mut at = 0;
+    for (p, s) in written.iter().zip(&opus.samples) {
+        assert_eq!((p.size, p.duration, p.keyframe), (s.size, s.duration, true));
+        assert_eq!(
+            bytes(out, p.offset, p.size),
+            opus.data[at..at + s.size as usize]
+        );
+        at += s.size as usize;
+    }
+    // Every sample a sync sample (no `stss` but the video's), and the roll
+    // group: four samples outside it, the rest at a distance of -4.
+    assert_eq!(out.windows(4).filter(|w| *w == b"stss").count(), 1);
+    assert_eq!(
+        find_box(out, b"sgpd"),
+        [
+            1, 0, 0, 0, b'r', b'o', b'l', b'l', 0, 0, 0, 2, 0, 0, 0, 1, 0xFF, 0xFC
+        ]
+    );
+    let rest = (opus.samples.len() - 4) as u32;
+    let mut sbgp = vec![
+        0, 0, 0, 0, b'r', b'o', b'l', b'l', 0, 0, 0, 2, 0, 0, 0, 4, 0, 0, 0, 0,
+    ];
+    sbgp.extend_from_slice(&rest.to_be_bytes());
+    sbgp.extend_from_slice(&1u32.to_be_bytes());
+    assert_eq!(find_box(out, b"sbgp"), sbgp);
+}
+
+#[test]
+fn an_opus_replacement_takes_the_audio_streams_place() {
+    let source = av_movie();
+    let (plain_summary, plain_out) = plain(&source);
+    let opus = opus_stream(60, 500);
+    let mut out = Vec::new();
+    let summary = remux_mp4_replacing(
+        SliceSource::new(&source),
+        &Limits::default(),
+        &Allowlist::default(),
+        &RemuxOptions::default(),
+        Replacements {
+            video: None,
+            audio: Some(opus.replacement(1, 0)),
+        },
+        &mut out,
+    )
+    .unwrap();
+    assert_eq!(summary.bytes_written, out.len() as u64);
+    assert_eq!(summary.tracks[0], plain_summary.tracks[0]);
+    let track = &summary.tracks[1];
+    assert!(track.replaced);
+    assert_eq!(
+        (track.codec, track.timescale, track.samples),
+        (Codec::Opus, 48_000, 60)
+    );
+    let (a, b) = (probe_out(&plain_out), probe_out(&out));
+    assert_eq!(b.tracks[1].language, a.tracks[1].language);
+    assert_opus_track(&out, &b, 1, &opus, 0);
+    // The video is copied as the plain remux copies it, and presented at
+    // the same times though the movie timescale changed.
+    assert_eq!(copied(&plain_out, &a, 0), copied(&out, &b, 0));
+    assert_eq!(presentation(&plain_out, &a, 0), presentation(&out, &b, 0));
+    assert!(find_box(&out, b"ftyp").windows(4).any(|w| w == b"iso2"));
+}
+
+#[test]
+fn video_and_audio_replaced_together() {
+    let source = av_movie();
+    let own = own_samples(&source, 0);
+    let opus = opus_stream(9, 960);
+    let mut replacements = own.replacement();
+    replacements.audio = Some(opus.replacement(1, 0));
+    let mut out = Vec::new();
+    let summary = remux_mp4_replacing(
+        SliceSource::new(&source),
+        &Limits::default(),
+        &Allowlist::default(),
+        &RemuxOptions::default(),
+        replacements,
+        &mut out,
+    )
+    .unwrap();
+    assert!(summary.tracks.iter().all(|t| t.replaced));
+    let (plain_summary, plain_out) = plain(&source);
+    assert_eq!(summary.tracks[0].samples, plain_summary.tracks[0].samples);
+    let (a, b) = (probe_out(&plain_out), probe_out(&out));
+    assert_eq!(presentation(&plain_out, &a, 0), presentation(&out, &b, 0));
+    assert_opus_track(&out, &b, 1, &opus, 0);
+}
+
+#[test]
+fn audio_replacements_are_checked_before_anything_is_written() {
+    let source = av_movie();
+    let opus = opus_stream(9, 960);
+    let run = |audio: AudioReplacement<'_, SliceSource<'_>>| {
+        let mut out = Vec::new();
+        let result = remux_mp4_replacing(
+            SliceSource::new(&source),
+            &Limits::default(),
+            &Allowlist::default(),
+            &RemuxOptions::default(),
+            Replacements {
+                video: None,
+                audio: Some(audio),
+            },
+            &mut out,
+        );
+        assert!(out.is_empty());
+        unsupported(result.map(|s| (s, Vec::new())))
+    };
+    assert!(run(opus.replacement(0, 0)).contains("not an audio stream"));
+    let mut too_long = opus.replacement(1, 0);
+    too_long.presented += 1;
+    assert!(run(too_long).contains("more than its samples hold"));
+    let mut nothing = opus.replacement(1, 0);
+    nothing.presented = 0;
+    assert!(run(nothing).contains("presents nothing"));
+    let entry = avc1_sample_entry(64, 48, &[1, 100, 0, 30, 0xFF, 0xE0, 0], None, None).unwrap();
+    let mut video_entry = opus.replacement(1, 0);
+    video_entry.sample_entry = &entry;
+    assert!(run(video_entry).contains("not Opus"));
+    let short = &opus.data[..opus.data.len() - 1];
+    let mut cut = opus.replacement(1, 0);
+    cut.data = SliceSource::new(short);
+    assert!(run(cut).contains("past the end of its data"));
+}
+
+#[test]
+fn matroska_audio_replaced_after_an_empty_edit() {
+    let source = mkv_source("V_MPEG4/ISO/AVC");
+    let (plain_summary, plain_out) = mkv_plain(&source);
+    let opus = opus_stream(12, 7);
+    // The source's audio starts 3 ms into the segment: 144 ticks at 48 kHz.
+    let mut out = Vec::new();
+    let summary = remux_matroska_replacing(
+        SliceSource::new(&source),
+        &coreav_mkv::Limits::default(),
+        &Limits::default(),
+        &coreav_mkv::Allowlist::default(),
+        &MatroskaRemuxOptions::default(),
+        Replacements {
+            video: None,
+            audio: Some(opus.replacement(1, 144)),
+        },
+        &mut out,
+    )
+    .unwrap();
+    assert_eq!(summary.bytes_written, out.len() as u64);
+    assert_eq!(summary.tracks[0], plain_summary.tracks[0]);
+    assert!(summary.tracks[1].replaced);
+    assert_eq!(summary.tracks[1].codec, coreav_mkv::Codec::Opus);
+    let (a, b) = (probe_out(&plain_out), probe_out(&out));
+    assert_opus_track(&out, &b, 1, &opus, 144);
+    assert_eq!(presentation(&plain_out, &a, 0), presentation(&out, &b, 0));
+    assert_eq!(copied(&plain_out, &a, 0), copied(&out, &b, 0));
 }

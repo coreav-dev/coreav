@@ -58,8 +58,9 @@ fn sexagesimal(units: &[&str], seconds: &str) -> Option<Rational> {
 /// Runs the decode worker when this build has a sandboxed backend and the
 /// program's first argument is [`WORKER_ARG`], or the sandbox launcher
 /// (`coreav_worker::exec`, the encoder of `coreav transcode`) in any build
-/// with a decoder backend when it is `coreav_worker::EXEC_ARG`; `None`
-/// otherwise. Each hosts or runs only what strict-safe mode allows
+/// with a decoder backend when it is `coreav_worker::EXEC_ARG`, or the Opus
+/// encoder of `coreav transcode --audio opus` in a build with `libopus` when
+/// it is `coreav_worker::opus::ENCODE_ARG`; `None` otherwise. Each hosts or runs only what strict-safe mode allows
 /// (`crate::strict_safe`), on with `--strict-safe` right after the entry
 /// argument, which every launch in the mode passes
 /// (`StrictSafe::entry`), or with `COREAV_STRICT_SAFE`. A build without a
@@ -83,6 +84,10 @@ pub fn run_worker() -> Option<std::process::ExitCode> {
             return Some(coreav_worker::sandbox_exec_main(args, |program| {
                 strict_safe.program(program)
             }));
+        }
+        #[cfg(feature = "libopus")]
+        if first.as_deref() == Some(std::ffi::OsStr::new(coreav_worker::opus::ENCODE_ARG)) {
+            return Some(coreav_worker::opus::encode_main(args));
         }
     }
     None

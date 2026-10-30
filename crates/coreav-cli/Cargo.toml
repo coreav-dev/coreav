@@ -53,6 +53,12 @@ dav1d = ["thumbnail", "transcode", "dep:coreav-worker", "coreav-worker/dav1d"]
 # libvpx for VP9 in `coreav thumbnail` and `coreav transcode`, in the same
 # sandboxed worker; links the system's libvpx.
 libvpx = ["thumbnail", "transcode", "dep:coreav-worker", "coreav-worker/libvpx"]
+# libopus for `coreav transcode --audio opus` and `coreav ffmpeg -c:a
+# libopus`: the command runs itself as the Opus encoder, a sandboxed process
+# of its own (docs/design/transcode.md, "Opus audio"); links the system's
+# libopus. Without a decoder backend feature there is no transcode, so it
+# needs one beside it.
+libopus = ["transcode", "dep:coreav-worker", "coreav-worker/libopus"]
 
 [dependencies]
 coreav-audio = { path = "../coreav-audio" }

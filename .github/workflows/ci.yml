@@ -109,6 +109,17 @@ jobs:
             --all-targets -- -D warnings
           cargo clippy -p coreav-cli --features libvpx,dav1d,ffmpeg-fallback --all-targets -- -D warnings
           cargo test -p coreav-backend-libvpx --features libvpx
+      # libopus for the Opus encoder of `coreav transcode --audio opus`, a
+      # non-default feature that links the system's libopus
+      # (docs/design/transcode.md, "Opus audio").
+      - run: sudo apt-get install -y --no-install-recommends libopus-dev
+      - run: |
+          cargo clippy -p coreav-cli -p coreav-backend-libopus -p coreav-worker \
+            --features coreav-cli/libopus,coreav-cli/native-h264,coreav-backend-libopus/libopus,coreav-worker/libopus \
+            --all-targets -- -D warnings
+          cargo clippy -p coreav-cli --features libopus,ffmpeg-fallback --all-targets -- -D warnings
+          cargo test -p coreav-backend-libopus --features libopus
+          cargo test -p coreav-worker --features libopus
       # The encoder programs of `coreav transcode`, black boxes for
       # coreav-transcode's tests (docs/design/transcode.md): the pinned
       # FFmpeg (libx264 4613ac3) and an x264 program built from the same
@@ -137,6 +148,7 @@ jobs:
       - run: |
           cargo test -p coreav-cli --features ffmpeg-fallback --test strict_safe
           cargo test -p coreav-cli --features native-h264 --test strict_safe
+          cargo test -p coreav-cli --features native-h264,libopus --test strict_safe
         env:
           COREAV_FFMPEG: ${{ runner.temp }}/coreav-encoders/ffmpeg
       # Checks the documentation site's help text of `coreav thumbnail` and

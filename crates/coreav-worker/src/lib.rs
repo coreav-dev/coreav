@@ -11,7 +11,8 @@
 //!
 //! The same crate holds the sandbox launcher ([`exec`]): the program that
 //! sets the worker's limits on itself and replaces itself with another
-//! program, the encoder of `coreav transcode`.
+//! program, the encoder of `coreav transcode`; and the Opus encoder process
+//! with its reader ([`opus`]).
 //!
 //! `unsafe` is denied crate-wide and allowed only in [`shm`], for the
 //! worker's `memmap2` mapping call and the parent's pointer copy out of its
@@ -22,6 +23,7 @@
 mod child;
 pub mod descriptor;
 pub mod exec;
+pub mod opus;
 mod parent;
 pub mod protocol;
 mod sandbox;

@@ -16,6 +16,8 @@ ffmpeg = ["dep:coreav-backend-ffmpeg"]
 dav1d = ["dep:coreav-backend-dav1d", "coreav-backend-dav1d/dav1d"]
 # libvpx for VP9 (links the system's libvpx).
 libvpx = ["dep:coreav-backend-libvpx", "coreav-backend-libvpx/libvpx"]
+# libopus for the Opus encoder process (links the system's libopus).
+libopus = ["dep:coreav-backend-libopus", "coreav-backend-libopus/libopus"]
 
 [dependencies]
 coreav-decode = { path = "../coreav-decode" }
@@ -23,6 +25,7 @@ coreav-frame = { path = "../coreav-frame" }
 coreav-backend-ffmpeg = { path = "../coreav-backend-ffmpeg", optional = true }
 coreav-backend-dav1d = { path = "../coreav-backend-dav1d", optional = true }
 coreav-backend-libvpx = { path = "../coreav-backend-libvpx", optional = true }
+coreav-backend-libopus = { path = "../coreav-backend-libopus", optional = true }
 
 [target.'cfg(unix)'.dependencies]
 rustix = { version = "1", default-features = false, features = ["std", "process"] }

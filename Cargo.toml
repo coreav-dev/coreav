@@ -22,6 +22,7 @@ members = [
     "crates/coreav-backend-libvpx",
     "crates/coreav-backend-ffmpeg",
     "crates/coreav-backend-h264",
+    "crates/coreav-backend-libopus",
     "crates/coreav-worker",
     "crates/coreav-thumbnail",
     "crates/coreav-transcode",

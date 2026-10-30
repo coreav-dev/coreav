@@ -21,6 +21,7 @@ change.
 | `output.bytes` | integer | Bytes written. |
 | `video` | video | The re-encoded video stream. |
 | `audio` | array of stream | The audio streams copied, in source order. |
+| `encoded_audio` | encoded audio or `null` | With `--audio opus`, the audio stream encoded to Opus; `null` otherwise. |
 | `other` | array of other stream | Streams copied that are neither the re-encoded video nor audio (another video stream, MP4 text), in source order: the remux keeps every stream MP4 can carry. |
 | `dropped` | array of dropped stream | Streams of the source that are not in the output, in source order. |
 
@@ -39,6 +40,20 @@ change.
 | `sample_aspect` | string or `null` | The output's sample aspect ratio as `N:D` when it is not 1:1 (`--scale` changes it to keep the display aspect ratio, as FFmpeg's `scale` filter does); `null` otherwise. |
 | `frame_rate.num`, `frame_rate.den` | integer | The presented frames' average rate in frames a second, snapped to an integer or `N×1000/1001` rate within 0.1% of one, for information: the encoder is given every frame's own time (`docs/design/transcode.md`, "Rate control and timestamps"), and the output's timestamps are the source's. |
 
+## Encoded audio
+
+| Key | Type | Meaning |
+|---|---|---|
+| `stream_index` | integer | The source stream's position among all of its streams. The output's Opus stream keeps its place in the track order. |
+| `codec` | string | The source stream's codec: `flac` or `mp3`. |
+| `sample_rate` | integer | The source stream's sample rate in Hz. The Opus stream is always 48 kHz: other rates are resampled. |
+| `encoder` | string | Always `libopus`. |
+| `channels` | integer | The Opus stream's channels, 1 or 2: the source's. |
+| `bit_rate` | integer | The bit rate the encoder was asked for, in bits a second (`--audio-bitrate` times 1,000, else 64,000 for mono and 96,000 for stereo). |
+| `samples` | integer | Samples per channel at 48 kHz that the output presents: the decoded source stream's. |
+| `pre_skip` | integer | The encoder's delay in samples at 48 kHz, which the edit list leaves out (`ffprobe`'s `initial_padding`). |
+| `packets` | integer | Opus packets written, 20 ms each. |
+
 ## Stream
 
 | Key | Type | Meaning |
@@ -53,7 +68,7 @@ An other stream has `kind` too (`video`, `subtitle`, ...).
 | Key | Type | Meaning |
 |---|---|---|
 | `stream_index` | integer | Position of the stream among all streams of the source. |
-| `reason` | string | `not_selected` (`--audio none` drops every stream but the video), `codec_not_allowed` (left out by the container's default allowlist) or `unsupported` (MP4 cannot carry it, as `coreav remux` drops it: Vorbis, PCM in MOV, a timecode track). |
+| `reason` | string | `not_selected` (`--audio none` drops every stream but the video, `--audio opus` every stream but the video and the encoded audio), `codec_not_allowed` (left out by the container's default allowlist) or `unsupported` (MP4 cannot carry it, as `coreav remux` drops it: Vorbis, PCM in MOV, a timecode track). |
 | `message` | string or `null` | For `unsupported`, why. |
 
 ## Errors
@@ -63,7 +78,9 @@ standard error ([`probe-v1.md`](probe-v1.md), "Errors") with exit code 1,
 or 3 for an I/O error, and leaves no output and no spool file. Besides the
 probe's kinds: `unsupported_feature` for refusals by design (a pixel format
 the encoder does not take, an odd size without `--scale`, an edit list
-outside the simple model, no encoder program), `decode` (the decoder failed
+outside the simple model, no encoder program; with `--audio opus`, audio
+CoreAV does not decode, more than two channels, or a build without the
+`libopus` feature), `decode` (the decoder failed
 on the data: the message starts with `decoding:`; or the encoding side
 failed: the encoder program, the reading of its output, which must be one
 picture for each frame sent, or the MP4 writer: the message starts with

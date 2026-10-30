@@ -211,9 +211,11 @@ jobs:
       # dav1d for AV1 (docs/design/decode.md, "dav1d") links the system's
       # libdav1d; the pinned FFmpeg's libdav1d is the reference. libvpx for
       # VP9 ("libvpx") links the system's libvpx; the pinned FFmpeg's own VP9
-      # decoder is the reference.
-      - name: Install libdav1d and libvpx
-        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends libdav1d-dev libvpx-dev
+      # decoder is the reference. libopus is the Opus encoder of
+      # `coreav transcode --audio opus` (docs/design/transcode.md, "Opus
+      # audio"), tested with the transcode suite below.
+      - name: Install libdav1d, libvpx and libopus
+        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends libdav1d-dev libvpx-dev libopus-dev
       - name: Build coreav with the FFmpeg fallback, dav1d and libvpx, and the decode oracle
         run: |
           cargo build --locked --release -p coreav-cli -p coreav-decode-oracle \
@@ -255,7 +257,8 @@ jobs:
       # fixtures with both encoders (the pinned FFmpeg's libx264 and an x264
       # program built from the same commit, its source deleted after the
       # build), checked against ffprobe of the source and FFmpeg's own
-      # encode, and hostile encoder scripts. A missing program or fixture
+      # encode, hostile encoder scripts, and Opus audio from sources the
+      # pinned FFmpeg makes. A missing program or fixture
       # fails here instead of skipping.
       - name: Cache the x264 program
         id: x264-cache
@@ -275,7 +278,7 @@ jobs:
           COREAV_X264: ${{ runner.temp }}/coreav-x264/x264
           COREAV_FIXTURES: ${{ runner.temp }}/coreav-fixtures
         run: |
-          cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx --test transcode \
+          cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx,libopus --test transcode \
             --target-dir target/fallback
       # docs/design/transcode.md, bar B9: the coreav ffmpeg command lines that
       # encode with libx264, on the fixtures, each arm against FFmpeg running

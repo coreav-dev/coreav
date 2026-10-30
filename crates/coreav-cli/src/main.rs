@@ -310,9 +310,16 @@ struct TranscodeArgs {
     #[arg(long, value_name = "W:H", allow_hyphen_values = true)]
     scale: Option<String>,
     /// `copy` every audio stream MP4 can carry (the others are dropped and
-    /// listed), or `none`.
-    #[arg(long, value_name = "MODE", default_value = "copy", value_parser = ["copy", "none"])]
+    /// listed), `none`, or `opus`: the first audio stream CoreAV decodes
+    /// (FLAC or MP3, mono or stereo) encoded to Opus by libopus, the others
+    /// dropped and listed; `opus` needs a build with the libopus feature.
+    #[arg(long, value_name = "MODE", default_value = "copy",
+          value_parser = ["copy", "none", "opus"])]
     audio: String,
+    /// With --audio opus, the Opus bit rate in kbit/s, 6 to 510 (default:
+    /// 64 for mono, 96 for stereo).
+    #[arg(long, value_name = "KBPS", value_parser = clap::value_parser!(u32).range(6..=510))]
+    audio_bitrate: Option<u32>,
     /// The encoder program: `x264`, `ffmpeg` (with libx264), or `auto`:
     /// x264 when there is one, else ffmpeg. With --strict-safe, `ffmpeg`
     /// is refused and `auto` is x264 only.
@@ -992,6 +999,10 @@ fn run_transcode(args: &TranscodeArgs, this: Option<&Path>, strict_safe: StrictS
         scale,
         no_audio: args.audio == "none",
         audio_streams: None,
+        opus: (args.audio == "opus").then_some(transcode::OpusRequest {
+            stream: None,
+            bitrate: args.audio_bitrate.map(|k| k * 1000),
+        }),
         pixel_format: None,
         one_size: false,
         encoder,
@@ -1001,6 +1012,9 @@ fn run_transcode(args: &TranscodeArgs, this: Option<&Path>, strict_safe: StrictS
         timeout: args.timeout,
         strict_safe,
     };
+    if args.audio_bitrate.is_some() && args.audio != "opus" {
+        return usage("--audio-bitrate is the Opus bit rate: it needs --audio opus");
+    }
     if args.output.as_os_str() == "-" {
         return usage("the output must be a file: the MP4 is written with its movie box first");
     }
