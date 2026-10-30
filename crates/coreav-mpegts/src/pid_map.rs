@@ -86,9 +86,10 @@ impl<T> PidMap<T> {
     /// Gives the entries from `from` on their places in the table.
     fn renumber(&mut self, from: usize) {
         for (place, (pid, _)) in self.entries.iter().enumerate().skip(from) {
-            if let (Some(slot), Ok(place)) =
-                (self.places.get_mut(usize::from(*pid)), u16::try_from(place + 1))
-            {
+            if let (Some(slot), Ok(place)) = (
+                self.places.get_mut(usize::from(*pid)),
+                u16::try_from(place + 1),
+            ) {
                 *slot = place;
             }
         }
@@ -145,7 +146,10 @@ impl<T> PidMap<T> {
         value: impl FnOnce() -> T,
     ) -> Result<&mut T, Full> {
         let place = self.place_or_insert_with(pid, value)?;
-        self.entries.get_mut(place).map(|(_, held)| held).ok_or(Full)
+        self.entries
+            .get_mut(place)
+            .map(|(_, held)| held)
+            .ok_or(Full)
     }
 
     #[inline]
