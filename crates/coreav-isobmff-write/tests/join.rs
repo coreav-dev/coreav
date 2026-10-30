@@ -551,16 +551,19 @@ fn frames_composed_past_the_declared_media_are_kept() {
     // leaving a hole before it: its frames end 1.04 s after the edit's
     // start, while the media header declares the sum of the decode
     // durations (1 s). The edit (1.04 s) shows every frame, so the input
-    // ends where its last frame does.
-    let mut video = ibbp_video(25, 25);
-    video.samples[22].offset += 512;
-    video.edits = vec![(1040, 1024)];
-    let source = movie(&[video]);
-    let inputs: Vec<&[u8]> = vec![&source, &source];
-    let (summary, out) = join_with(&inputs, JoinAudio::None).unwrap();
-    assert_join(&inputs, &out, &summary);
-    assert_eq!(summary.inputs[0].video_end, q(26, 25));
-    assert_eq!(summary.inputs[1].offset, q(26, 25));
+    // ends where its last frame does; an edit that holds the last frame a
+    // frame longer (1.08 s) ends it there.
+    for (edit, end) in [(1040, q(26, 25)), (1080, q(27, 25))] {
+        let mut video = ibbp_video(25, 25);
+        video.samples[22].offset += 512;
+        video.edits = vec![(edit, 1024)];
+        let source = movie(&[video]);
+        let inputs: Vec<&[u8]> = vec![&source, &source];
+        let (summary, out) = join_with(&inputs, JoinAudio::None).unwrap();
+        assert_join(&inputs, &out, &summary);
+        assert_eq!(summary.inputs[0].video_end, end, "{edit}");
+        assert_eq!(summary.inputs[1].offset, end, "{edit}");
+    }
 }
 
 #[test]

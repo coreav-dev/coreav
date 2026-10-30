@@ -909,15 +909,11 @@ fn video_span<'a, S: Source>(
     // before the last frame its one edit presents (the sum of the decode
     // durations, as ISO/IEC 14496-12 8.4.2.3 has it, when frames are
     // composed further apart than they are decoded): the stream then
-    // ends where that frame does.
+    // ends where that frame does, or where the edit taken above holds it.
     if timeline.has_windows() {
         end = timeline.presented_until(end)?;
-    } else if let Some(duration) = track.duration {
-        let mut stream_end = add(window_start, duration)?;
-        if window_end.is_some() {
-            stream_end = max(stream_end, scaled.ticks(last)?)?;
-        }
-        end = min(end, stream_end)?;
+    } else if let (Some(duration), None) = (track.duration, window_end) {
+        end = min(end, add(window_start, duration)?)?;
     }
     let start = max(scaled.ticks(first)?, window_start)?;
     if !lt(start, end)? {
