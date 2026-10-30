@@ -147,7 +147,7 @@ class Report(unittest.TestCase):
 # `out.mp4` for every pair (or refuses every one with FAKE_STATUS=refused); the
 # binary does the same, writing a fallback-log line when it refuses; the check
 # writes a fresh report, or with FAKE_CHECK=crash exits 1 and writes none, or
-# with FAKE_CHECK=hang never returns.
+# with FAKE_CHECK=slow takes 3 seconds first.
 HARNESS = r'''#!/usr/bin/env python3
 import json, os, pathlib
 status = os.environ.get('FAKE_STATUS', 'written')
@@ -175,9 +175,9 @@ import collections, json, os, sys
 args = dict(zip(sys.argv[1::2], sys.argv[2::2]))
 if os.environ.get('FAKE_CHECK') == 'crash':
     sys.exit(1)
-if os.environ.get('FAKE_CHECK') == 'hang':
+if os.environ.get('FAKE_CHECK') == 'slow':
     import time
-    time.sleep(600)
+    time.sleep(3)
 counts = collections.defaultdict(collections.Counter)
 for r in json.load(open(args['--records'])):
     counts[r['id']][r['status']] += 1
@@ -216,10 +216,10 @@ class Judge(unittest.TestCase):
         self.assertEqual(self.judge(['C01']), {('C01', 0): ('passed', None)})
         self.assertEqual(self.judge(['C02'], FAKE_CHECK='crash'), {('C02', 0): ('failed', 'copy_check crashed')})
 
-    def test_a_hung_check_times_out_and_fails_its_chunk(self):
-        timeout, r3.TIMEOUT = r3.TIMEOUT, 5
+    def test_a_slow_check_is_not_cut_short(self):
+        timeout, r3.TIMEOUT = r3.TIMEOUT, 1
         self.addCleanup(setattr, r3, 'TIMEOUT', timeout)
-        self.assertEqual(self.judge(['C01'], FAKE_CHECK='hang'), {('C01', 0): ('failed', 'copy_check crashed')})
+        self.assertEqual(self.judge(['C01'], FAKE_CHECK='slow'), {('C01', 0): ('passed', None)})
 
     def test_a_refusal_runs_the_binary_and_reaches_the_fallback_log(self):
         self.assertEqual(self.judge(['C01'], FAKE_STATUS='refused'), {('C01', 0): ('failed', 'refused')})

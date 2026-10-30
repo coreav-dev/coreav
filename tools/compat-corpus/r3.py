@@ -179,11 +179,8 @@ def judge(opts, pairs, scratch, env):
         if opts.mediainfo:
             cmd += ['--mediainfo', opts.mediainfo]
         with open(opts.log, 'ab') as log:
-            try:
-                code = subprocess.run(cmd, stdin=subprocess.DEVNULL, stdout=log, stderr=log, env=env,
-                                      check=False, timeout=TIMEOUT * len(judged)).returncode
-            except subprocess.TimeoutExpired:
-                code = None
+            code = subprocess.run(cmd, stdin=subprocess.DEVNULL, stdout=log, stderr=log, env=env,
+                                  check=False).returncode
         report = json.loads(check.read_text()) if code in (0, 1) and check.exists() else None
         if report and sum(c.get('written', 0) for c in report['counts'].values()) != len(judged):
             report = None
