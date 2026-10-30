@@ -1106,6 +1106,7 @@ and Matroska 0.523); the library not met overall (1.002, 95% CI 0.992 to
 where it loses (decoder alone 1.069 on CELT inputs; SILK 0.784). Bars 4
 and 5 in CI.
 
+<<<<<<< HEAD
 ### Opus speed, round 2
 
 Bar 3's library pair missed by little (above), and the CELT decoder is
@@ -1151,6 +1152,8 @@ earlier run has seen. Fixed here before any of its files is fetched:
 
 The evidence goes to `docs/spikes/audio-decode-bench/` ("Opus round 2").
 
+=======
+>>>>>>> origin/main
 ### Opus sets
 
 - **Derived (gating for speed, counted for agreement).** The sources of

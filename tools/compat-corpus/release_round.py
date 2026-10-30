@@ -7,6 +7,7 @@ fallback log. Python 3 standard library only.
 import json
 import os
 import pathlib
+import shutil
 
 HERE = pathlib.Path(__file__).resolve().parent
 SET = HERE / 'commands-0.1.0' / 'commands.json'
@@ -102,3 +103,77 @@ def fallback_verdict(log):
         except (ValueError, AttributeError):
             pass
     return {'lines': len(lines), 'refused': refused, 'void': bool(lines)}
+
+
+# The stream types an `input_without` letter names, as ffprobe's
+# `codec_type` spells them.
+KINDS = {'v': 'video', 'a': 'audio', 's': 'subtitle', 'd': 'data', 't': 'attachment'}
+
+
+def selected(spec, streams):
+    """The indexes of the streams of input 0 a stream specifier of `-map`
+    selects (`0`, `0:1`, `0:a`, `0:a:3`, `0:m:language:eng`), from
+    ffprobe's stream listing."""
+    parts = spec.split(':')[1:]
+    if not parts:
+        return {s['index'] for s in streams}
+    if parts[0].isdigit():
+        return {s['index'] for s in streams if s['index'] == int(parts[0])}
+    if parts[0] == 'm' and len(parts) == 3:
+        return {s['index'] for s in streams if s.get('tags', {}).get(parts[1]) == parts[2]}
+    of_kind = [s['index'] for s in streams if s.get('codec_type') == KINDS.get(parts[0])]
+    if len(parts) > 1:
+        n = int(parts[1])
+        return {of_kind[n]} if n < len(of_kind) else set()
+    return set(of_kind)
+
+
+def can_take(entry, command, fam, streams):
+    """Whether a file of family `fam` with these streams (ffprobe's
+    listing) can take an `ffmpeg` command: the command runs on the family,
+    the file has none of the stream types its `input_without` names, every
+    `-map` that adds streams selects one, and what the maps leave is not
+    empty (docs/design/compat-cli.md, "The 0.1.0 bars": R3's rule)."""
+    if fam not in containers(entry, command) or not streams:
+        return False
+    kinds = {s.get('codec_type') for s in streams}
+    if any(KINDS[k] in kinds for k in command.get('input_without', [])):
+        return False
+    args = command['args']
+    maps = [args[i + 1] for i, a in enumerate(args[:-1]) if a == '-map']
+    chosen = set()
+    for m in maps:
+        if not m.startswith('-'):
+            picked = selected(m, streams)
+            if not picked:
+                return False
+            chosen |= picked
+    for m in maps:
+        if m.startswith('-'):
+            chosen -= selected(m[1:], streams)
+    return not maps or bool(chosen)
+
+
+def output_name(job):
+    """The output of an `ffmpeg` command, as the fixture test names it."""
+    return {'extract-audio': 'out.m4a', 'split': 'out%03d.mp4'}.get(job, 'out.mp4')
+
+
+def concat_list(directory, source):
+    """A concat list in `directory` that names `source` twice by its name
+    alone, beside a link to it, as the fixture test writes it."""
+    directory = pathlib.Path(directory)
+    directory.mkdir(parents=True, exist_ok=True)
+    copy = directory / pathlib.Path(source).name
+    if not copy.exists():
+        try:
+            os.link(source, copy)
+        except OSError:
+            shutil.copyfile(source, copy)
+    listing = directory / 'list.txt'
+    listing.write_text(f"file '{copy.name}'\n" * 2)
+    return listing
+
+
+def fill(args, input_path, output_path):
+    return [str(input_path) if a == 'INPUT' else str(output_path) if a == 'OUTPUT' else a for a in args]

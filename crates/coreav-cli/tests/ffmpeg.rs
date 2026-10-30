@@ -710,3 +710,58 @@ fn the_0_1_0_commands_on_the_fixtures() {
     )
     .unwrap();
 }
+
+/// The R3 runner's half in Rust (`tools/compat-corpus/r3.py`): each pair
+/// of `COREAV_R3_PAIRS` (a JSON array whose objects carry `args`, the
+/// `coreav ffmpeg` arguments with every placeholder filled, and `work`,
+/// the directory that holds the pair's output and nothing else) is run
+/// through [`coreav_cli::ffmpeg::run`], the function `coreav ffmpeg` runs,
+/// in strict-safe mode. The object is written back to `COREAV_R3_RECORDS`
+/// with its `status` (`written`, `refused`, `not taken`, `usage`,
+/// `rejected` or `io`), its `detail` (the writer's summary, which the
+/// binary does not print, or the reason) and the number of files left in
+/// `work`, which `tools/compat-corpus/copy_check.py` reads. Unlike
+/// [`the_0_1_0_commands_on_the_fixtures`], an outcome is recorded, never
+/// asserted: the files are not the fixtures, and the runner judges.
+#[test]
+#[ignore = "run by tools/compat-corpus/r3.py; set COREAV_R3_PAIRS and COREAV_R3_RECORDS"]
+fn the_0_1_0_commands_on_listed_pairs() {
+    let pairs: Vec<Value> = serde_json::from_str(
+        &std::fs::read_to_string(std::env::var("COREAV_R3_PAIRS").expect("set COREAV_R3_PAIRS"))
+            .unwrap(),
+    )
+    .unwrap();
+    let mut records = Vec::with_capacity(pairs.len());
+    for mut pair in pairs {
+        let args: Vec<String> = pair["args"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|a| a.as_str().unwrap().to_owned())
+            .collect();
+        let work = PathBuf::from(pair["work"].as_str().unwrap());
+        std::fs::create_dir_all(&work).unwrap();
+        let (status, detail) = match coreav_cli::ffmpeg::run(&args, StrictSafe::new(true)) {
+            Ok(summary) => ("written", summary),
+            Err(Stop::Refused(Refusal::NotNative(refusal))) => ("refused", json!(refusal.message)),
+            Err(Stop::Refused(Refusal::Usage(text))) => {
+                let taken = text.starts_with("A -map matches no streams")
+                    || text == "Output file does not contain any stream";
+                (if taken { "not taken" } else { "usage" }, json!(text))
+            }
+            Err(Stop::Failed(failure)) => (
+                if failure.is_io() { "io" } else { "rejected" },
+                failure.to_json(),
+            ),
+        };
+        pair["status"] = json!(status);
+        pair["detail"] = detail;
+        pair["files"] = json!(std::fs::read_dir(&work).unwrap().count());
+        records.push(pair);
+    }
+    std::fs::write(
+        std::env::var("COREAV_R3_RECORDS").expect("set COREAV_R3_RECORDS"),
+        serde_json::to_string(&Value::Array(records)).unwrap(),
+    )
+    .unwrap();
+}

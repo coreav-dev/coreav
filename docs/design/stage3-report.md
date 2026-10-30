@@ -31,9 +31,9 @@ The bars were fixed before this tool existed.
    Matroska/WebM, with the known divergences applied; `--ffprobe-compat`
    output against `ffprobe`; and the fixture checks of every stream-copy
    primitive that CI runs (extraction, clip, remux, sanitize, split, text,
-   policy, Matroska remux, HLS packaging), each run as `fixtures.yml` and
-   `mkv-fixtures.yml` run it: the HLS check takes the list of inputs the
-   packager is expected to refuse from `fixtures.yml` itself, so the two
+   policy, Matroska remux, HLS packaging), each run as `ci.yml`'s
+   `isobmff-fixtures` and `mkv-fixtures` jobs run it: the HLS check takes the
+   list of inputs the packager is expected to refuse from `ci.yml` itself, so the two
    cannot drift apart. Bar: **100%** of each (for HLS, of the inputs it
    packages).
 2. **Real-file corpus**, probe, every `set: real` file of corpus v1, the
