@@ -133,6 +133,10 @@ fn session(command: WorkerCommand) -> Result<usize, ErrorKind> {
 }
 
 #[test]
+#[cfg_attr(
+    not(target_os = "linux"),
+    ignore = "its frame comes through shared memory, which only Linux uses"
+)]
 fn a_well_behaved_fake_works() {
     let mut bytes = ready();
     bytes.extend(frame(0, u32::MAX, 4, 2, YUV420, &PLANES_4X2, &[9; 12]));

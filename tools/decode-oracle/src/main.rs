@@ -33,7 +33,7 @@ const LOOKAHEAD: usize = 64;
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.first().map(String::as_str) == Some(coreav_worker::WORKER_ARG) {
-        return coreav_worker::worker_main();
+        return coreav_worker::worker_main(|_| Ok(()));
     }
     let result = if args.first().map(String::as_str) == Some("thumbnail") {
         run_thumbnail(args.get(1..).unwrap_or(&[]))

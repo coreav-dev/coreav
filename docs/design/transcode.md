@@ -187,7 +187,13 @@ input's depth, from both programs. The chroma location is not passed.
 `--encoder x264|ffmpeg` picks one; the default, `auto`, takes an `x264`
 program when one is named (`--x264 PATH`, `COREAV_X264`) or on `PATH`, and
 otherwise the `ffmpeg` program the fallback uses (`--ffmpeg PATH`,
-`COREAV_FFMPEG`, `PATH`), which must have `libx264`.
+`COREAV_FFMPEG`, `PATH`), which must have `libx264`. In strict-safe mode
+(`coreav --strict-safe`, `COREAV_STRICT_SAFE`; `compat-cli.md`,
+"Strict-safe mode") no `ffmpeg` program runs: `--encoder ffmpeg` is
+refused, and `auto` takes an `x264` program only, refused when there is
+none; both with exit status 4, before the input is read, with a message that
+names installing x264 and turning the mode off. The decoder is held to the
+same rule (`decode.md`, "The FFmpeg fallback").
 
 - **Why both.** An operator who installs x264 gets the encoder with no
   FFmpeg at all; with a decoder backend of CoreAV's own (native H.264,
@@ -205,10 +211,16 @@ otherwise the `ffmpeg` program the fallback uses (`--ffmpeg PATH`,
   again with a hidden argument (`coreav_worker::exec`), which sets the limits on itself through `rustix`'s
   safe `setrlimit` and replaces itself with the encoder through `std`'s
   safe `exec`, so no process sits between the pipes and the encoder. The
-  limits: the address-space budget (`Limits::max_memory_bytes`), no core
+  limits: the address-space budget (`Limits::max_memory_bytes`; advisory
+  on macOS, `docs/design/decode.md`, "Memory", so strict-safe mode starts
+  no encoder there), no core
   files, no regular-file writes (`RLIMIT_FSIZE` 0; the encoder writes only
   to its pipe), a small descriptor count, and CPU seconds bounded by the
-  timeout times the CPU count. It runs in its own process group with a
+  timeout times the CPU count. For the x264 program on input of more than
+  8 bits the launcher also turns transparent huge pages off: its conversion
+  of that input stalls on them, and without them it takes about 0.84 times
+  as long on 4K frames (`docs/measurements/transcode-x264-10bit.md`, "Huge
+  pages"). 8-bit input and `ffmpeg` keep them. It runs in its own process group with a
   cleared environment, and is killed with its group at the deadline, on an
   error, or when the transcode is dropped. Its keeper looks every 20 ms
   whether it has exited (Linux's `waitid` with `WNOWAIT`, which leaves it
@@ -529,7 +541,10 @@ output. The command line is read by the compatibility parser and its
 stream selection, the same as for `-c copy`; a command that selects a
 video stream for `libx264` is routed here before the refusal of encoder
 values, and every option this section does not list is still refused,
-naming it (exit status 4).
+naming it (exit status 4). The encoder is `--encoder auto`'s ("The encoder
+program"); in strict-safe mode that is an `x264` program only, and a
+command without one, or with a video only the FFmpeg decoder would decode,
+is refused (exit status 4) and never handed to FFmpeg.
 
 | Option | Taken as |
 |---|---|
@@ -1004,9 +1019,12 @@ information command once).
    checks the changed code.
 
    A CI job runs B9 on every change (`scripts/transcode_check.py
-   --compat`), in strict-safe mode (`COREAV_STRICT_SAFE=1`), so that a
-   refusal stands and is not handed to FFmpeg (`compat-cli.md`, "Fallback
-   to FFmpeg").
+   --compat`), with `COREAV_FALLBACK` naming no program, so that a refusal
+   stands and is not handed to FFmpeg (`compat-cli.md`, "Fallback to
+   FFmpeg"). Until 2026-10-30 it ran in strict-safe mode for that; strict-safe
+   mode now also refuses the FFmpeg decoder and the `ffmpeg` encoder that
+   B9's build and its `ffmpeg` arm use (`compat-cli.md`, "Strict-safe
+   mode"). The bar, its commands and its arms are unchanged.
 
 Spend: the correctness and speed runs together are capped at 10 USD in
 the scripts that run them, and the actual spend is reported with the
@@ -1034,5 +1052,7 @@ What the misses are, in the measurement: a 16 GB host's memory cap at
 one 8K AV1 stream through `--encoder ffmpeg`, and, for speed, the cost of
 the sandboxed decoders above the 5% that B5 allows. On the `x264` arm, 10-bit
 sources add the x264 program's own conversion of 10-bit input, which no input
-CoreAV can stream avoids
+CoreAV can stream avoids. With transparent huge pages off for that program its
+median over the `ffmpeg` arm on 10-bit sources went from 1.428 to 1.172, still
+above B5
 ([`docs/measurements/transcode-x264-10bit.md`](../measurements/transcode-x264-10bit.md)).

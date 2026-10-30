@@ -39,6 +39,10 @@ pub enum Failure {
     Encode(coreav_decode::Error),
     /// The time asked for is at or after the end of the video.
     OutOfRange,
+    /// Strict-safe mode refused what would run an `ffmpeg` program, for
+    /// the reason given, which names the way out (`crate::strict_safe`):
+    /// exit status 4.
+    StrictSafe(String),
 }
 
 impl Failure {
@@ -69,9 +73,15 @@ impl Failure {
         ) || matches!(self, Self::VideoDecode(e) | Self::Encode(e) if e.kind == coreav_decode::ErrorKind::Io)
     }
 
+    /// Strict-safe mode's refusal: exit status 4.
+    pub fn is_strict_safe(&self) -> bool {
+        matches!(self, Self::StrictSafe(_))
+    }
+
     /// The error object.
     pub fn to_json(&self) -> Value {
         match self {
+            Self::StrictSafe(message) => object("unsupported_feature", None, None, message),
             Self::Io(kind) => object("io", None, None, &format!("I/O error: {kind}")),
             Self::Remote(reason) => object("io", None, None, &format!("remote: {reason}")),
             Self::Decode(value) => value.clone(),

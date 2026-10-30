@@ -29,7 +29,7 @@ Some parts are experimental, not measured yet, or not in a default build:
 | Part | Where it stands |
 |---|---|
 | [`coreav ffprobe`](/commands/ffprobe) | Experimental. Its values can differ from `ffprobe`'s for MP4, MOV and MPEG-TS files ([measurements](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/compat-ffprobe.md)). |
-| [`coreav ffmpeg`](/commands/ffmpeg) | Its outputs pass the job oracles on the fixtures in CI. Its 0.1.0 bars on held-out files are not measured yet. |
+| [`coreav ffmpeg`](/commands/ffmpeg) | Experimental until it meets its 0.1.0 bars, R1 to R4. Its outputs pass the job oracles on the fixtures in CI, and the bars on held-out files are not measured yet. |
 | [`coreav transcode`](/commands/transcode) | Supported for H.264 sources. Experimental for other source codecs. Only in builds with a decoder backend. |
 | [`coreav thumbnail`](/commands/thumbnail) | Only in builds with a decoder backend. |
 | The native H.264 decoder | Opt-in and never in a default build ([build features](/build-features)). |

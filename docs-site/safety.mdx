@@ -27,9 +27,9 @@ CI fuzzes the targets that a change can affect. Before a release, every fuzz tar
 
 Builds with a decoder backend run dav1d, libvpx and the `ffmpeg` program in a separate worker process with resource limits. The parent process treats the worker as untrusted and validates every frame descriptor it sends back ([the sandboxed worker](https://github.com/coreav-dev/coreav/blob/main/docs/design/decode.md#the-sandboxed-worker)). A default build has no third-party decoder at all ([build features](/build-features)).
 
-## Strict-safe mode turns off the FFmpeg fallback
+## Strict-safe mode runs no FFmpeg code
 
-`coreav ffprobe` and `coreav ffmpeg` hand the command lines they do not implement to the real FFmpeg, unless strict-safe mode is on. In strict-safe mode they refuse those command lines. In a default build, which the release binaries planned for 0.1.0 are, no FFmpeg code then runs. A build with a decoder backend can still run an `ffmpeg` program in strict-safe mode: as the encoder of `transcode` and `libx264` command lines when no `x264` program is used, and, with the `ffmpeg-fallback` feature, as the decoder of those and `thumbnail`. FFmpeg then gets frames or packets that CoreAV sends it, never the input file ([what strict-safe mode covers](/strict-safe#what-strict-safe-mode-covers)).
+`coreav ffprobe` and `coreav ffmpeg` hand the command lines they do not implement to the real FFmpeg, unless strict-safe mode is on. In strict-safe mode CoreAV never runs an `ffmpeg` or `ffprobe` program, in any build: those command lines are refused, `thumbnail`, `transcode` and the `libx264` command lines decode only with the build's own backends (`native-h264`, `dav1d`, `libvpx`), and the encoder is an `x264` program only. What would need FFmpeg is refused with exit status 4 ([what strict-safe mode covers](/strict-safe#what-strict-safe-mode-covers)). Outside strict-safe mode, FFmpeg as a decoder or an encoder gets packets or frames that CoreAV sends it, never the input file.
 
 ## Written from specifications
 

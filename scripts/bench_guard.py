@@ -119,6 +119,11 @@ CASES = {
     "decode-audio-flac-mp4": ("flac.m4a", ["decode-audio", "--threads", "1", "{}", "-"]),
     "decode-audio-mp3-mkv": ("mp3.mka", ["decode-audio", "--threads", "1", "{}", "-"]),
     "decode-audio-mp3-mp4": ("mp3.m4a", ["decode-audio", "--threads", "1", "{}", "-"]),
+    # AAC LC (docs/design/audio-decode.md, "AAC-LC", bar 6): opt-in, so run
+    # with --decoder-coreav, whose build has the feature `aac`
+    # (DECODER_CASES); basic.mp4's own AAC stream, copied.
+    "decode-audio-aac-mkv": ("aac.mka", ["decode-audio", "--threads", "1", "{}", "-"]),
+    "decode-audio-aac-mp4": ("aac.m4a", ["decode-audio", "--threads", "1", "{}", "-"]),
     # The fixtures' mono 44.1 kHz audio resampled to 16 kHz, as for
     # transcription, and to 48 kHz stereo ("Resampling and downmixing").
     "decode-audio-16k-mono": ("mp3.mka", ["decode-audio", "--threads", "1", "--rate", "16000", "--channels", "1", "{}", "-"]),
@@ -174,6 +179,7 @@ INPUTS = {
 COPY = ("-map", "0", "-c", "copy")
 FLAC = ("-map", "0:a", "-c:a", "flac")
 MP3 = ("-map", "0:a", "-c:a", "libmp3lame", "-b:a", "128k")
+AUDIO_COPY = ("-map", "0:a", "-c", "copy")
 DERIVED = {
     "basic.mkv": ("basic.mp4", "matroska", COPY),
     "vp9.webm": ("vp9.mp4", "webm", COPY),
@@ -182,12 +188,14 @@ DERIVED = {
     "flac.m4a": ("basic.mp4", "mp4", FLAC),
     "mp3.mka": ("basic.mp4", "matroska", MP3),
     "mp3.m4a": ("basic.mp4", "mp4", MP3),
+    "aac.mka": ("basic.mp4", "matroska", AUDIO_COPY),
+    "aac.m4a": ("basic.mp4", "mp4", AUDIO_COPY),
 }
 
-# Cases that need a decoder backend, which the shipped (default) build does
-# not have: run with --decoder-coreav, a build with the FFmpeg fallback, and
-# counted beyond that build's own start-up.
-DECODER_CASES = {"thumbnail", "transcode"}
+# Cases that need a decoder the shipped (default) build does not have: run
+# with --decoder-coreav, a build with the FFmpeg fallback and the opt-in AAC
+# decoder, and counted beyond that build's own start-up.
+DECODER_CASES = {"thumbnail", "transcode", "decode-audio-aac-mkv", "decode-audio-aac-mp4"}
 
 # URL cases: name: (fixture, command arguments with {url} for the fixture's
 # URL and {dir} for a fresh output directory).
@@ -273,14 +281,17 @@ REFS = re.compile(r"^==\d+== I\s+refs:\s+([\d,]+)\s*$", re.MULTILINE)
 
 
 def instructions(coreav, args):
-    """The instructions `coreav ARGS` executes, or the error. In strict-safe
-    mode, so that a command that stopped being native fails here instead of
-    being handed to FFmpeg."""
+    """The instructions `coreav ARGS` executes, or the error. With a fallback
+    that names no program, so that a command that stopped being native fails
+    here instead of being handed to FFmpeg; not in strict-safe mode, which
+    would also refuse the FFmpeg decoder and encoder of the thumbnail and
+    transcode cases (docs/design/compat-cli.md, "Strict-safe mode")."""
     done = subprocess.run(
         ["valgrind", "--tool=cachegrind", "--cache-sim=no", "--cachegrind-out-file=/dev/null",
          coreav, *args],
         stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, timeout=600,
-        env={**os.environ, "COREAV_STRICT_SAFE": "1"})
+        env={**{k: v for k, v in os.environ.items() if k != "COREAV_STRICT_SAFE"},
+             "COREAV_FALLBACK": "/nonexistent/coreav-fallback"})
     if done.returncode != 0:
         return None, f"exit {done.returncode}: {done.stderr[-500:]}"
     match = REFS.search(done.stderr)

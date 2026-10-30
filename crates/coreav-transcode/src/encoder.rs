@@ -36,7 +36,7 @@ use std::time::{Duration, Instant};
 use coreav_decode::{Error, ErrorKind};
 use coreav_frame::{Chroma, ColorInfo, Picture, PixelFormat};
 use coreav_worker::exec;
-use coreav_worker::{ExecLauncher, SandboxLimits};
+use coreav_worker::{ExecLauncher, HugePages, SandboxLimits};
 
 /// The encoder program.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -70,6 +70,17 @@ impl EncoderProgram {
         match self {
             Self::X264(_) => x264_args(settings),
             Self::Ffmpeg(_) => ffmpeg_args(settings),
+        }
+    }
+
+    /// Whether the program may use transparent huge pages on frames of
+    /// `format`: not x264 on samples of more than 8 bits, whose conversion
+    /// of its input stalls on them
+    /// (`docs/measurements/transcode-x264-10bit.md`, "Huge pages").
+    pub fn huge_pages(&self, format: PixelFormat) -> HugePages {
+        match (self, format) {
+            (Self::X264(_), PixelFormat::Yuv { depth, .. }) if depth > 8 => HugePages::Off,
+            _ => HugePages::Kept,
         }
     }
 }
@@ -963,7 +974,12 @@ impl<S: Sink> Encoder<S> {
                     cpu_seconds: Some(cpu_seconds),
                     open_files: limits.open_files,
                 };
-                launcher.command(&sandbox, program.path(), &args)
+                launcher.command(
+                    &sandbox,
+                    program.huge_pages(settings.format),
+                    program.path(),
+                    &args,
+                )
             }
             None => exec::direct_command(program.path(), &args),
         };
@@ -1825,6 +1841,19 @@ mod tests {
                 .unwrap()
                 .contains(&"sar=65535/65534".to_owned())
         );
+    }
+
+    #[test]
+    fn x264_runs_without_huge_pages_on_samples_of_more_than_8_bits() {
+        let x264 = EncoderProgram::X264(PathBuf::from("/opt/x264"));
+        let ffmpeg = EncoderProgram::Ffmpeg(PathBuf::from("/opt/ffmpeg"));
+        for chroma in [Chroma::Cs420, Chroma::Cs422, Chroma::Cs444] {
+            let at = |depth| PixelFormat::Yuv { chroma, depth };
+            assert_eq!(x264.huge_pages(at(10)), HugePages::Off);
+            assert_eq!(x264.huge_pages(at(8)), HugePages::Kept);
+            assert_eq!(ffmpeg.huge_pages(at(10)), HugePages::Kept);
+            assert_eq!(ffmpeg.huge_pages(at(8)), HugePages::Kept);
+        }
     }
 
     #[test]
