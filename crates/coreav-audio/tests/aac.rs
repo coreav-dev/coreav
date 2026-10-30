@@ -210,6 +210,109 @@ fn aac_file(channels: u32, frames: &[Vec<u8>]) -> Vec<u8> {
     )
 }
 
+fn bx(kind: &[u8; 4], payload: &[u8]) -> Vec<u8> {
+    let mut out = ((payload.len() + 8) as u32).to_be_bytes().to_vec();
+    out.extend_from_slice(kind);
+    out.extend_from_slice(payload);
+    out
+}
+
+/// An `esds` payload (ISO/IEC 14496-1 7.2.6.5, 7.2.6.6) with the
+/// `objectTypeIndication` `object_type` and the `DecoderSpecificInfo`
+/// `specific`; `truncated` ends its `ES_Descriptor` inside the
+/// `DecoderConfigDescriptor`.
+fn esds(object_type: u8, specific: Option<&[u8]>, truncated: bool) -> Vec<u8> {
+    let mut decoder = vec![object_type, 0x15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    if let Some(specific) = specific {
+        decoder.extend([5, specific.len() as u8]);
+        decoder.extend_from_slice(specific);
+    }
+    let mut es = vec![0, 1, 0, 4, decoder.len() as u8];
+    es.extend(decoder);
+    es.extend([6, 1, 2]);
+    let len = if truncated { 3 + 2 + 5 } else { es.len() };
+    [vec![0, 0, 0, 0, 3, len as u8], es].concat()
+}
+
+/// An M4A file of stereo 44.1 kHz `frames` whose `mp4a` sample entry
+/// carries the `esds` payload `esds`.
+fn mp4(esds: &[u8], frames: &[Vec<u8>]) -> Vec<u8> {
+    let count = frames.len() as u32;
+    let ftyp = bx(b"ftyp", b"M4A \0\0\0\0isom");
+    let mdat = bx(b"mdat", &frames.concat());
+    let offset = (ftyp.len() + 8) as u32;
+    let matrix: Vec<u8> = [0x0001_0000u32, 0, 0, 0, 0x0001_0000, 0, 0, 0, 0x4000_0000]
+        .iter()
+        .flat_map(|v| v.to_be_bytes())
+        .collect();
+    let mut mvhd = vec![0u8; 12];
+    mvhd.extend_from_slice(&44_100u32.to_be_bytes());
+    mvhd.extend_from_slice(&(count * 1024).to_be_bytes());
+    mvhd.extend_from_slice(&[0, 1, 0, 0, 1, 0]);
+    mvhd.extend_from_slice(&[0; 10]);
+    mvhd.extend_from_slice(&matrix);
+    mvhd.extend_from_slice(&[0; 24]);
+    mvhd.extend_from_slice(&2u32.to_be_bytes());
+    let mut tkhd = vec![0, 0, 0, 3];
+    tkhd.extend_from_slice(&[0; 8]);
+    tkhd.extend_from_slice(&1u32.to_be_bytes());
+    tkhd.extend_from_slice(&[0; 4]);
+    tkhd.extend_from_slice(&(count * 1024).to_be_bytes());
+    tkhd.extend_from_slice(&[0; 8]);
+    tkhd.extend_from_slice(&[0, 0, 0, 0, 0x01, 0x00, 0, 0]);
+    tkhd.extend_from_slice(&matrix);
+    tkhd.extend_from_slice(&[0; 8]);
+    let mut mdhd = vec![0u8; 12];
+    mdhd.extend_from_slice(&44_100u32.to_be_bytes());
+    mdhd.extend_from_slice(&(count * 1024).to_be_bytes());
+    mdhd.extend_from_slice(&[0x55, 0xC4, 0, 0]);
+    let mut hdlr = vec![0u8; 8];
+    hdlr.extend_from_slice(b"soun");
+    hdlr.extend_from_slice(&[0; 13]);
+    let mut entry = vec![0u8; 6];
+    entry.extend_from_slice(&1u16.to_be_bytes());
+    entry.extend_from_slice(&[0; 8]);
+    entry.extend_from_slice(&2u16.to_be_bytes());
+    entry.extend_from_slice(&16u16.to_be_bytes());
+    entry.extend_from_slice(&[0; 4]);
+    entry.extend_from_slice(&(44_100u32 << 16).to_be_bytes());
+    entry.extend(bx(b"esds", esds));
+    let mut stsd = vec![0, 0, 0, 0, 0, 0, 0, 1];
+    stsd.extend(bx(b"mp4a", &entry));
+    let mut stts = vec![0, 0, 0, 0, 0, 0, 0, 1];
+    stts.extend_from_slice(&count.to_be_bytes());
+    stts.extend_from_slice(&1024u32.to_be_bytes());
+    let mut stsc = vec![0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1];
+    stsc.extend_from_slice(&count.to_be_bytes());
+    stsc.extend_from_slice(&1u32.to_be_bytes());
+    let mut stsz = vec![0u8; 8];
+    stsz.extend_from_slice(&count.to_be_bytes());
+    for f in frames {
+        stsz.extend_from_slice(&(f.len() as u32).to_be_bytes());
+    }
+    let mut stco = vec![0, 0, 0, 0, 0, 0, 0, 1];
+    stco.extend_from_slice(&offset.to_be_bytes());
+    let stbl = [
+        bx(b"stsd", &stsd),
+        bx(b"stts", &stts),
+        bx(b"stsc", &stsc),
+        bx(b"stsz", &stsz),
+        bx(b"stco", &stco),
+    ]
+    .concat();
+    let dref = [&[0u8, 0, 0, 0, 0, 0, 0, 1][..], &bx(b"url ", &[0, 0, 0, 1])].concat();
+    let minf = [
+        bx(b"smhd", &[0; 8]),
+        bx(b"dinf", &bx(b"dref", &dref)),
+        bx(b"stbl", &stbl),
+    ]
+    .concat();
+    let mdia = [bx(b"mdhd", &mdhd), bx(b"hdlr", &hdlr), bx(b"minf", &minf)].concat();
+    let trak = [bx(b"tkhd", &tkhd), bx(b"mdia", &mdia)].concat();
+    let moov = [bx(b"mvhd", &mvhd), bx(b"trak", &trak)].concat();
+    [ftyp, mdat, bx(b"moov", &moov)].concat()
+}
+
 fn decode_with(file: &[u8], threads: usize, limits: &Limits) -> Result<(Summary, Vec<u8>), Error> {
     let mut sink = Keep::default();
     let options = Options {
@@ -372,4 +475,54 @@ fn a_legacy_codec_id_decodes_from_the_tracks_rate_and_channels() {
     assert_eq!(summary.stream.sample_rate, 44_100);
     let (_, configured) = decode_with(&aac_file(2, &frames), 1, &Limits::default()).unwrap();
     assert!(bytes == configured);
+}
+
+/// MP4 has no fallback configuration: a track without a usable
+/// `DecoderSpecificInfo` is refused, and MPEG-2 AAC Main and SSR are
+/// refused by their `objectTypeIndication` whatever the information says.
+#[test]
+fn an_mp4_track_needs_its_decoder_specific_info() {
+    let frames = stream(20, 2, 6);
+    let lc = config(2, 2);
+    let (summary, bytes) = decode_with(
+        &mp4(&esds(0x40, Some(&lc), false), &frames),
+        1,
+        &Limits::default(),
+    )
+    .unwrap();
+    assert_eq!(summary.stream.codec, Codec::Aac);
+    let (_, matroska) = decode_with(&aac_file(2, &frames), 1, &Limits::default()).unwrap();
+    assert!(bytes == matroska);
+    for (object_type, specific, truncated) in [
+        (0x40, None, false),
+        (0x40, Some(&[][..]), false),
+        (0x40, Some(&lc[..]), true),
+        (0x67, None, false),
+    ] {
+        let result = decode_with(
+            &mp4(&esds(object_type, specific, truncated), &frames),
+            1,
+            &Limits::default(),
+        );
+        assert!(
+            matches!(result, Err(Error::Invalid(_))),
+            "{object_type:#x} {specific:?} {truncated}: {result:?}"
+        );
+    }
+    for (object_type, specific, want) in [
+        (0x66, None, "AAC Main"),
+        (0x66, Some(&lc[..]), "AAC Main"),
+        (0x68, None, "AAC SSR"),
+        (0x68, Some(&lc[..]), "AAC SSR"),
+    ] {
+        let result = decode_with(
+            &mp4(&esds(object_type, specific, false), &frames),
+            1,
+            &Limits::default(),
+        );
+        assert!(
+            matches!(&result, Err(Error::CodecNotDecoded(name)) if name == want),
+            "{want}: {result:?}"
+        );
+    }
 }

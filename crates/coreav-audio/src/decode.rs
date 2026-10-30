@@ -333,12 +333,16 @@ fn decode_mp4<'scope, 'env, S: Source>(
         .as_ref()
         .map(|c| c.data.as_slice())
         .unwrap_or_default();
-    // AAC's configuration is the `DecoderSpecificInfo` inside `esds`.
+    // AAC's configuration is the `DecoderSpecificInfo` inside `esds`;
+    // MP4 has no fallback without it.
     #[cfg(feature = "aac")]
     let config = if codec == Codec::Aac {
-        mp4::esds_decoder_specific_info(config)
-            .and_then(|(_, specific)| specific)
-            .unwrap_or_default()
+        match mp4::esds_decoder_specific_info(config) {
+            Some((0x66, _)) => return Err(not_decoded("AAC Main")),
+            Some((0x68, _)) => return Err(not_decoded("AAC SSR")),
+            Some((_, Some(specific))) if !specific.is_empty() => specific,
+            _ => return Err(Error::Invalid("an AAC track without a DecoderSpecificInfo")),
+        }
     } else {
         config
     };

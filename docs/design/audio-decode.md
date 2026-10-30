@@ -1177,7 +1177,10 @@ question every pipeline user's.
   Every channel is written, at the stream's own level.
 - **Configuration**: the `AudioSpecificConfig` in MP4's `esds` (its
   `DecoderSpecificInfo`, which `coreav_isobmff::esds_decoder_specific_info`
-  returns) or in Matroska's `CodecPrivate`. A Matroska track with a legacy
+  returns) or in Matroska's `CodecPrivate`. An MP4 track without a
+  `DecoderSpecificInfo`, or with an empty or truncated one, is refused as
+  invalid; one whose `objectTypeIndication` is MPEG-2 AAC Main (0x66) or
+  SSR (0x68) is refused by name. A Matroska track with a legacy
   codec ID (`A_AAC/MPEG4/LC`, `A_AAC/MPEG2/LC`) and no `CodecPrivate` gets
   the configuration its ID, sample rate and channels state (channel
   configurations 1 to 6 for 1 to 6 channels, 7 for 8); the legacy IDs of
