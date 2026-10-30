@@ -283,6 +283,30 @@ fn decodes_an_mp3_track() {
 }
 
 #[test]
+fn decodes_an_opus_track() {
+    // OpusHead (RFC 7845 5.1): version 1, 2 channels, no pre-skip, 48 kHz,
+    // no gain, mapping family 0.
+    let mut head = b"OpusHead\x01\x02\x00\x00".to_vec();
+    head.extend_from_slice(&48_000u32.to_le_bytes());
+    head.extend_from_slice(&[0, 0, 0]);
+    // A CELT-only 20 ms stereo packet whose one frame is empty (RFC 6716
+    // 3.1-3.2): decoded as a lost frame.
+    let frames = vec![vec![0xFC]; 3];
+    let input = file("da_opus.mka", &matroska("A_OPUS", &head, &frames));
+    let out = path("da_opus.wav");
+    let result = run(&[input.to_str().unwrap(), out.to_str().unwrap()]);
+    assert_eq!(result.code, 0, "{}", result.stderr);
+    let summary = json(std::str::from_utf8(&result.stdout).unwrap());
+    assert_matches(&summary);
+    assert_eq!(summary["stream"]["codec"], "opus");
+    assert_eq!(summary["stream"]["bits_per_sample"], Value::Null);
+    assert_eq!(summary["stream"]["packets"], 3);
+    assert_eq!(summary["output"]["samples"], 3 * 960);
+    let wav = std::fs::read(&out).unwrap();
+    assert_eq!(wav.len(), 44 + 3 * 960 * 4);
+}
+
+#[test]
 fn writes_wav_to_standard_output() {
     let input = flac_file("da_stdout.mka");
     let result = run(&["--format", "s24", input.to_str().unwrap(), "-"]);

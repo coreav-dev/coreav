@@ -17,15 +17,25 @@ name: ci
 # - `fuzz-plan`: the fuzz targets a ready pull request can affect, empty on
 #   any other event.
 #
-# Each group ends in its own report job, which a branch ruleset requires.
+# One report job, `ci-report`, waits for every job; the branch ruleset
+# requires it.
 # The licence, advisory and DCO checks are not filtered; they live in
 # .github/workflows/deny.yml and run on every pull request. A manual run is
 # never filtered.
 #
 # The filter sits on the jobs, not on the trigger: a workflow a trigger
-# filter skips reports no check at all, and each report job has to appear
-# on every pull request for the branch ruleset to require it
+# filter skips reports no check at all, and `ci-report` has to appear on
+# every pull request for the branch ruleset to require it
 # (docs/design/ci-checks.md).
+#
+# A new push to a pull request cancels the previous run job by job: every
+# job but `ci-report` has its own concurrency group. A group on the whole
+# workflow would keep the new run waiting until the old run's `ci-report`,
+# which `always()` runs in a cancelled run too, had found a runner and
+# ended. `ci-changes` has a group as well, so an old run's jobs enter their
+# groups before the new run's and never cancel them. Pushes to main and
+# manual runs each get their own groups, so none is dropped
+# (docs/design/ci-checks.md, "Concurrency").
 on:
   push:
     branches: [main]
@@ -41,17 +51,14 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  # PRs: one run per branch, a new push cancels the previous one. Pushes to
-  # main and manual runs each get their own group, so none is dropped.
-  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
 jobs:
   ci-changes:
     # Whether this event's changed files need the jobs below at all. A
     # manual run, and anything whose changed files cannot be read, runs
     # them (docs/design/ci-checks.md).
+    concurrency:
+      group: ${{ github.workflow }}-ci-changes-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
@@ -157,6 +164,9 @@ jobs:
   check:
     needs: ci-changes
     if: needs.ci-changes.outputs.run == 'true'
+    concurrency:
+      group: ${{ github.workflow }}-check-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     # About 6 minutes with a warm cache; a cold one rebuilds every clippy
     # configuration and the release tests.
@@ -289,6 +299,9 @@ jobs:
     # those that need them skip, as on a developer's Mac.
     needs: ci-changes
     if: needs.ci-changes.outputs.run == 'true' && needs.ci-changes.outputs.platforms == 'true'
+    concurrency:
+      group: ${{ github.workflow }}-check-macos-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: macos-15
     timeout-minutes: 45
     env:
@@ -345,6 +358,9 @@ jobs:
     # unset, as on macOS.
     needs: ci-changes
     if: needs.ci-changes.outputs.run == 'true' && needs.ci-changes.outputs.platforms == 'true'
+    concurrency:
+      group: ${{ github.workflow }}-check-windows-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: windows-2025
     timeout-minutes: 60
     defaults:
@@ -396,6 +412,9 @@ jobs:
     # newer language feature or std API raises it in the same PR.
     needs: ci-changes
     if: needs.ci-changes.outputs.run == 'true'
+    concurrency:
+      group: ${{ github.workflow }}-msrv-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     # Under a minute with a warm cache; `cargo check` only.
     timeout-minutes: 20
@@ -437,6 +456,9 @@ jobs:
     # artifacts (scripts/fuzz_run.sh), and are found again locally.
     needs: ci-changes
     if: needs.ci-changes.outputs.fuzz-plan != ''
+    concurrency:
+      group: ${{ github.workflow }}-fuzz-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
@@ -471,43 +493,17 @@ jobs:
             exit 1
           fi
 
-  ci-report:
-    # Always runs, including when the filter above skipped every job, so
-    # that the branch ruleset has one check name this workflow reports on
-    # every pull request, a documentation-only one included
-    # (docs/design/ci-checks.md).
-    needs: [ci-changes, check, check-macos, check-windows, msrv, fuzz]
-    if: always()
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - name: Fail if a job above failed or was cancelled
-        env:
-          RESULTS: ${{ toJSON(needs) }}
-        run: |
-          set -euo pipefail
-          { echo '| job | result |'
-            echo '|---|---|'
-            jq -r 'to_entries[] | "| \(.key) | \(.value.result) |"' <<< "$RESULTS"
-          } >> "$GITHUB_STEP_SUMMARY"
-          bad=$(jq -r '[to_entries[]
-            | select(.value.result == "failure" or .value.result == "cancelled")
-            | .key] | join(", ")' <<< "$RESULTS")
-          if [ -n "$bad" ]; then
-            echo "::error::failed or cancelled: $bad"
-            exit 1
-          fi
-
   # The ISO base media oracle: ffprobe, MediaInfo, the command and the
-  # writers. It follows ci-changes' `run`, as the jobs above do, and
-  # `fixtures-report` reports it.
-
+  # writers. It follows ci-changes' `run`, as the jobs above do.
   isobmff-fixtures:
     # Draft PRs skip it (workflow_dispatch still runs it on demand).
     needs: ci-changes
     if: >-
       needs.ci-changes.outputs.run == 'true' &&
       (github.event_name != 'pull_request' || !github.event.pull_request.draft)
+    concurrency:
+      group: ${{ github.workflow }}-isobmff-fixtures-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -1017,46 +1013,21 @@ jobs:
             ${{ runner.temp }}/coreav-b9/evidence
           if-no-files-found: ignore
 
-  fixtures-report:
-    # Always runs, including when the filter above skipped every job, so
-    # that the branch ruleset has one check name this workflow reports on
-    # every pull request, a documentation-only one included
-    # (docs/design/ci-checks.md).
-    needs: [ci-changes, isobmff-fixtures]
-    if: always()
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - name: Fail if a job above failed or was cancelled
-        env:
-          RESULTS: ${{ toJSON(needs) }}
-        run: |
-          set -euo pipefail
-          { echo '| job | result |'
-            echo '|---|---|'
-            jq -r 'to_entries[] | "| \(.key) | \(.value.result) |"' <<< "$RESULTS"
-          } >> "$GITHUB_STEP_SUMMARY"
-          bad=$(jq -r '[to_entries[]
-            | select(.value.result == "failure" or .value.result == "cancelled")
-            | .key] | join(", ")' <<< "$RESULTS")
-          if [ -n "$bad" ]; then
-            echo "::error::failed or cancelled: $bad"
-            exit 1
-          fi
-
   # docs/design/mkv.md: the Matroska and WebM fixtures through coreav-mkv and
   # the coreav binary, against the pinned ffprobe on every change (100% after
   # the documented divergences of docs/known-divergences-mkv.md), and against
   # MediaInfo as the informational second oracle; and every
   # fixture remuxed to MP4 (docs/design/mkv-remux.md).
-  # It follows ci-changes' `run`; `mkv-fixtures-report` reports it.
-
+  # It follows ci-changes' `run`.
   mkv-fixtures:
     # Draft PRs skip it (workflow_dispatch still runs it on demand).
     needs: ci-changes
     if: >-
       needs.ci-changes.outputs.run == 'true' &&
       (github.event_name != 'pull_request' || !github.event.pull_request.draft)
+    concurrency:
+      group: ${{ github.workflow }}-mkv-fixtures-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -1066,7 +1037,12 @@ jobs:
           toolchain: stable
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          # isobmff-fixtures' cache, restored only: that job builds every
+          # crate and feature this one does, and one entry instead of three
+          # keeps the repository's caches under GitHub's limit
+          # (docs/design/ci-checks.md, "Caches").
+          shared-key: isobmff-fixtures
+          save-if: false
       - name: Cache pinned black-box binaries
         id: bin-cache
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
@@ -1212,46 +1188,21 @@ jobs:
             ${{ runner.temp }}/mkv-policy-fixtures.json
           if-no-files-found: ignore
 
-  mkv-fixtures-report:
-    # Always runs, including when the filter above skipped every job, so
-    # that the branch ruleset has one check name this workflow reports on
-    # every pull request, a documentation-only one included
-    # (docs/design/ci-checks.md).
-    needs: [ci-changes, mkv-fixtures]
-    if: always()
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - name: Fail if a job above failed or was cancelled
-        env:
-          RESULTS: ${{ toJSON(needs) }}
-        run: |
-          set -euo pipefail
-          { echo '| job | result |'
-            echo '|---|---|'
-            jq -r 'to_entries[] | "| \(.key) | \(.value.result) |"' <<< "$RESULTS"
-          } >> "$GITHUB_STEP_SUMMARY"
-          bad=$(jq -r '[to_entries[]
-            | select(.value.result == "failure" or .value.result == "cancelled")
-            | .key] | join(", ")' <<< "$RESULTS")
-          if [ -n "$bad" ]; then
-            echo "::error::failed or cancelled: $bad"
-            exit 1
-          fi
-
   # docs/design/mpegts.md: the transport stream fixtures through
   # coreav-mpegts and the coreav binary, against the pinned ffprobe on every
   # change (100% after the documented divergences of
   # docs/known-divergences-ts.md), the binary against the library adapter and
   # against the schema, and the transport stream hostile cases.
-  # It follows ci-changes' `run`; `ts-fixtures-report` reports it.
-
+  # It follows ci-changes' `run`.
   ts-fixtures:
     # Draft PRs skip it (workflow_dispatch still runs it on demand).
     needs: ci-changes
     if: >-
       needs.ci-changes.outputs.run == 'true' &&
       (github.event_name != 'pull_request' || !github.event.pull_request.draft)
+    concurrency:
+      group: ${{ github.workflow }}-ts-fixtures-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -1261,7 +1212,12 @@ jobs:
           toolchain: stable
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          # isobmff-fixtures' cache, restored only: that job builds every
+          # crate and feature this one does, and one entry instead of three
+          # keeps the repository's caches under GitHub's limit
+          # (docs/design/ci-checks.md, "Caches").
+          shared-key: isobmff-fixtures
+          save-if: false
       - name: Cache pinned black-box binaries
         id: bin-cache
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
@@ -1375,33 +1331,6 @@ jobs:
             ${{ runner.temp }}/ts-compat-commands.json
           if-no-files-found: ignore
 
-  ts-fixtures-report:
-    # Always runs, including when the filter above skipped every job, so
-    # that the branch ruleset has one check name this workflow reports on
-    # every pull request, a documentation-only one included
-    # (docs/design/ci-checks.md).
-    needs: [ci-changes, ts-fixtures]
-    if: always()
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - name: Fail if a job above failed or was cancelled
-        env:
-          RESULTS: ${{ toJSON(needs) }}
-        run: |
-          set -euo pipefail
-          { echo '| job | result |'
-            echo '|---|---|'
-            jq -r 'to_entries[] | "| \(.key) | \(.value.result) |"' <<< "$RESULTS"
-          } >> "$GITHUB_STEP_SUMMARY"
-          bad=$(jq -r '[to_entries[]
-            | select(.value.result == "failure" or .value.result == "cancelled")
-            | .key] | join(", ")' <<< "$RESULTS")
-          if [ -n "$bad" ]; then
-            echo "::error::failed or cancelled: $bad"
-            exit 1
-          fi
-
   # Bars C1 and C3 of docs/design/h264.md: every in-scope JVT conformance
   # bitstream decodes bit-exactly, and every SIMD kernel gives what the
   # scalar reference gives. The suite is fetched from the ITU-T site, one stream
@@ -1410,14 +1339,16 @@ jobs:
   # 1.6 GB and are cached between runs.
   #
   # Runs only when the decoder, its kernels or their scripts change
-  # (ci-changes' `h264-conformance`); `h264-conformance-report` reports it.
-
+  # (ci-changes' `h264-conformance`).
   conformance:
     # Draft pull requests skip it, as every other heavy job does.
     needs: ci-changes
     if: >-
       needs.ci-changes.outputs.h264-conformance == 'true' &&
       (github.event_name != 'pull_request' || !github.event.pull_request.draft)
+    concurrency:
+      group: ${{ github.workflow }}-conformance-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
@@ -1475,6 +1406,9 @@ jobs:
     # that is when a kernel's author times it.
     needs: ci-changes
     if: needs.ci-changes.outputs.h264-conformance == 'true'
+    concurrency:
+      group: ${{ github.workflow }}-vector-width-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -1519,6 +1453,9 @@ jobs:
     if: >-
       needs.ci-changes.outputs.h264-conformance == 'true' &&
       (github.event_name != 'pull_request' || !github.event.pull_request.draft)
+    concurrency:
+      group: ${{ github.workflow }}-modes-identity-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -1568,6 +1505,9 @@ jobs:
       (github.event_name != 'pull_request' ||
        (!github.event.pull_request.draft &&
         github.event.pull_request.head.repo.full_name == github.repository))
+    concurrency:
+      group: ${{ github.workflow }}-training-identity-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
@@ -1650,6 +1590,9 @@ jobs:
     # per-kernel timings the dispatch rules come from. The conformance
     # suite follows on a push to main, where the arm64 runner's cost is
     # paid once rather than per push to a branch.
+    concurrency:
+      group: ${{ github.workflow }}-kernels-arm64-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 30
     steps:
@@ -1679,6 +1622,9 @@ jobs:
     if: >-
       needs.ci-changes.outputs.h264-conformance == 'true' &&
       github.event_name == 'push'
+    concurrency:
+      group: ${{ github.workflow }}-conformance-arm64-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 120
     steps:
@@ -1708,33 +1654,6 @@ jobs:
           path: ${{ runner.temp }}/conformance-arm64.json
           if-no-files-found: ignore
 
-  h264-conformance-report:
-    # Always runs, including when the filter above skipped every job, so
-    # that the branch ruleset has one check name this workflow reports on
-    # every pull request, a documentation-only one included
-    # (docs/design/ci-checks.md).
-    needs: [ci-changes, conformance, vector-width, modes-identity, training-identity, kernels-arm64, conformance-arm64]
-    if: always()
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - name: Fail if a job above failed or was cancelled
-        env:
-          RESULTS: ${{ toJSON(needs) }}
-        run: |
-          set -euo pipefail
-          { echo '| job | result |'
-            echo '|---|---|'
-            jq -r 'to_entries[] | "| \(.key) | \(.value.result) |"' <<< "$RESULTS"
-          } >> "$GITHUB_STEP_SUMMARY"
-          bad=$(jq -r '[to_entries[]
-            | select(.value.result == "failure" or .value.result == "cancelled")
-            | .key] | join(", ")' <<< "$RESULTS")
-          if [ -n "$bad" ]; then
-            echo "::error::failed or cancelled: $bad"
-            exit 1
-          fi
-
   # The CI benchmark guard (docs/design/benchmarks.md):
   # instruction counts of the coreav command on generated fixtures.
   # - Pushes to main that change what the binary or the fixtures are built
@@ -1746,13 +1665,15 @@ jobs:
   # request that replaces the baseline. ci-changes' `bench-guard` is the
   # filter, one list for both events: a pull request that changes the
   # fixture generator, the pinned FFmpeg installer or the web-upload policy
-  # measures too, which is the safe direction. `bench-guard-report` reports it.
-
+  # measures too, which is the safe direction.
   bench-guard:
     needs: ci-changes
     if: >-
       needs.ci-changes.outputs.bench-guard == 'true' &&
       (github.event_name != 'pull_request' || !github.event.pull_request.draft)
+    concurrency:
+      group: ${{ github.workflow }}-bench-guard-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -1771,6 +1692,12 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
+          # A count over the tolerance fails the job after its builds, and
+          # those builds are still worth keeping for the next run.
+          cache-on-failure: true
+          # Since the decoder build moved to target/decoder: an entry saved
+          # before has none, and rust-cache does not save over an exact hit.
+          key: decoder
       - name: Cache the pinned FFmpeg
         id: ffmpeg-cache
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
@@ -1800,10 +1727,12 @@ jobs:
           # into, as of this run.
           BASE=$(git rev-parse HEAD^1)
           git worktree add "$RUNNER_TEMP/base" "$BASE"
-          # Its own target directory, seeded with the restored dependencies:
-          # a shared one would let cargo take the base's build for the head's.
-          mkdir -p target
-          cp -a target "$RUNNER_TEMP/base-target"
+          # Its own target directories, seeded with the restored
+          # dependencies: a shared one would let cargo take the base's build
+          # for the head's. The head's decoder build is in target/decoder.
+          mkdir -p target/decoder
+          rsync -a --exclude=/decoder target/ "$RUNNER_TEMP/base-target/"
+          cp -a target/decoder "$RUNNER_TEMP/base-decoder-target"
           # The shipped profile, or `release` for a base that predates it.
           PROFILE=release
           if grep -q '^\[profile\.dist\]' "$RUNNER_TEMP/base/Cargo.toml"; then PROFILE=dist; fi
@@ -1859,12 +1788,13 @@ jobs:
         # encoder is the pinned ffmpeg on PATH, and AAC LC's decode-audio,
         # opt-in): a second build with the FFmpeg fallback and the feature
         # `aac`, in its own target directory, so that the shipped binary
-        # above stays the one counted for every other case.
+        # above stays the one counted for every other case. It is under
+        # target/, so rust-cache keeps its dependencies too.
         run: |
           if grep -q '^ffmpeg-fallback' crates/coreav-cli/Cargo.toml; then
             cargo build --locked --profile dist -p coreav-cli --bin coreav --features ffmpeg-fallback,aac \
-              --target-dir "$RUNNER_TEMP/decoder-target"
-            echo "DECODER=--decoder-coreav $RUNNER_TEMP/decoder-target/dist/coreav" >> "$GITHUB_ENV"
+              --target-dir target/decoder
+            echo "DECODER=--decoder-coreav $GITHUB_WORKSPACE/target/decoder/dist/coreav" >> "$GITHUB_ENV"
           fi
       - name: Count instructions
         env:
@@ -1887,12 +1817,14 @@ jobs:
           path: ${{ runner.temp }}/counts.json
           retention-days: 14
 
-  bench-guard-report:
+  ci-report:
     # Always runs, including when the filter above skipped every job, so
     # that the branch ruleset has one check name this workflow reports on
     # every pull request, a documentation-only one included
-    # (docs/design/ci-checks.md).
-    needs: [ci-changes, bench-guard]
+    # (docs/design/ci-checks.md). It waits for every job of the workflow,
+    # and its summary names each job's result. It has no concurrency group:
+    # it has to report on a cancelled run too.
+    needs: [ci-changes, check, check-macos, check-windows, msrv, fuzz, isobmff-fixtures, mkv-fixtures, ts-fixtures, conformance, vector-width, modes-identity, training-identity, kernels-arm64, conformance-arm64, bench-guard]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5

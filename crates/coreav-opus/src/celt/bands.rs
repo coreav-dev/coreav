@@ -82,18 +82,16 @@ fn cache(band: usize, lm: i32) -> &'static [u8] {
 }
 
 /// The pulse count, as a cache index, whose cost is closest to `bits`.
+/// A row's costs do not fall with the index, so the index below `bits` is the
+/// count of those below it, which takes no branch (the reference searches
+/// the row by halves, to the same index).
 fn bits_to_pulses(cache: &[u8], bits: i32) -> usize {
     let cost = |q: usize| i32::from(at(cache, q));
     let bits = bits - 1;
-    let (mut lo, mut hi) = (0, usize::from(at(cache, 0)));
-    for _ in 0..6 {
-        let mid = (lo + hi + 1) >> 1;
-        if cost(mid) >= bits {
-            hi = mid;
-        } else {
-            lo = mid;
-        }
-    }
+    let max = usize::from(at(cache, 0));
+    let row = cache.get(1..=max).unwrap_or(&[]);
+    let lo = row.iter().filter(|&&c| i32::from(c) < bits).count();
+    let hi = (lo + 1).min(max);
     let below = if lo == 0 { -1 } else { cost(lo) };
     if bits - below <= cost(hi) - bits {
         lo
@@ -121,9 +119,29 @@ fn pulses(q: usize) -> usize {
     }
 }
 
+/// The dot product of `a` and `b`, in eight running sums so that the
+/// additions do not wait on one another.
+fn dot(a: &[f32], b: &[f32]) -> f32 {
+    const LANES: usize = 8;
+    let mut sums = [0f32; LANES];
+    let (a8, b8) = (a.chunks_exact(LANES), b.chunks_exact(LANES));
+    let tail: f32 = a8
+        .remainder()
+        .iter()
+        .zip(b8.remainder())
+        .map(|(a, b)| a * b)
+        .sum();
+    for (a, b) in a8.zip(b8) {
+        for ((s, a), b) in sums.iter_mut().zip(a).zip(b) {
+            *s += a * b;
+        }
+    }
+    sums.iter().sum::<f32>() + tail
+}
+
 /// Scales `x` to the norm `gain`.
 fn renormalize(x: &mut [f32], gain: f32) {
-    let energy = 1e-15 + x.iter().map(|v| v * v).sum::<f32>();
+    let energy = 1e-15 + dot(x, x);
     let g = gain / energy.sqrt();
     for v in x {
         *v *= g;
@@ -194,12 +212,8 @@ fn interleave(x: &mut [f32], n: usize, stride: usize, hadamard: bool) {
 /// Mid and side, decoded with unit norm and the side scaled by its gain,
 /// to left and right (4.3.4.4).
 fn mid_side_to_left_right(x: &mut [f32], y: &mut [f32], mid: f32) {
-    let (mut cross, mut side) = (0f32, 0f32);
-    for (&a, &b) in x.iter().zip(y.iter()) {
-        cross += a * b;
-        side += b * b;
-    }
-    let cross = mid * cross;
+    let cross = mid * dot(x, y);
+    let side = dot(y, y);
     let left = mid * mid + side - 2.0 * cross;
     let right = mid * mid + side + 2.0 * cross;
     if right < 6e-4 || left < 6e-4 {
@@ -840,7 +854,7 @@ pub(super) fn anti_collapse(
         let n0 = width(band);
         let n = n0 << lm;
         let depth = (1 + at(shape, band)) / n as i32;
-        let threshold = 0.5 * (-0.125 * depth as f32).exp2();
+        let threshold = 0.5 * crate::math::exp2(-0.125 * depth as f32);
         let scale = 1.0 / (n as f32).sqrt();
         for (c, row) in x.iter_mut().enumerate() {
             let get = |e: &[[f32; BANDS]; 2], c: usize| e.get(c).map_or(0.0, |e| at(e, band));
@@ -851,7 +865,7 @@ pub(super) fn anti_collapse(
                 p2 = p2.max(get(previous2, 1));
             }
             let diff = (get(energy, c) - p1.min(p2)).max(0.0);
-            let mut r = 2.0 * (-diff).exp2();
+            let mut r = 2.0 * crate::math::exp2(-diff);
             if lm == 3 {
                 r *= core::f32::consts::SQRT_2;
             }
@@ -881,6 +895,55 @@ pub(super) fn anti_collapse(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pulse_cache_rows_rise() {
+        // bits_to_pulses counts the costs below a budget: each row's costs
+        // must not fall with the index, and a row holds at most 64 of them,
+        // as many as six halvings search.
+        for &start in t::PULSE_CACHE_INDEX.iter().filter(|&&i| i >= 0) {
+            let row = &t::PULSE_CACHE_BITS[start as usize..];
+            let max = usize::from(row[0]);
+            assert!(max <= 64);
+            assert!(
+                row[1..=max].windows(2).all(|w| w[0] <= w[1]),
+                "row at {start}"
+            );
+        }
+    }
+
+    #[test]
+    fn bits_to_pulses_is_the_search_by_halves() {
+        fn halves(cache: &[u8], bits: i32) -> usize {
+            let cost = |q: usize| i32::from(cache[q]);
+            let bits = bits - 1;
+            let (mut lo, mut hi) = (0, usize::from(cache[0]));
+            for _ in 0..6 {
+                let mid = (lo + hi + 1) >> 1;
+                if cost(mid) >= bits {
+                    hi = mid;
+                } else {
+                    lo = mid;
+                }
+            }
+            let below = if lo == 0 { -1 } else { cost(lo) };
+            if bits - below <= cost(hi) - bits {
+                lo
+            } else {
+                hi
+            }
+        }
+        for &start in t::PULSE_CACHE_INDEX.iter().filter(|&&i| i >= 0) {
+            let row = &t::PULSE_CACHE_BITS[start as usize..];
+            for bits in -8..2000 {
+                assert_eq!(
+                    bits_to_pulses(row, bits),
+                    halves(row, bits),
+                    "row at {start}, {bits} bits"
+                );
+            }
+        }
+    }
 
     #[test]
     fn integer_sqrt() {

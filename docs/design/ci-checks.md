@@ -33,13 +33,13 @@ and from the path filters an earlier change put on the heavy workflows:
   `ci-changes`, and it gives one output per group of jobs (`run`,
   `h264-conformance`, `bench-guard`; "One changes job" below);
   `python.yml` and `npm.yml` keep their own `<workflow>-changes`.
-- **Each group ends in a report job** (`ci-report`, `fixtures-report` and
-  so on), which carries `if: always()`, waits for the changes job and every
-  job of its group, prints their results and fails when one failed or was
-  cancelled. A job the filter skipped reports `skipped` and passes. That
-  name is the required check: it appears on every pull request, including
-  one that changes documentation only. Every job of a workflow with a
-  required report job is waited for by one of them.
+- **Each required workflow ends in a report job** (`ci-report`,
+  `python-report`, `npm-report`), which carries `if: always()`, waits for
+  the changes job and every other job, prints their results and fails when
+  one failed or was cancelled. A job the filter skipped reports `skipped`
+  and passes. That name is the required check: it appears on every pull
+  request, including one that changes documentation only. Every job of a
+  workflow with a required report job is waited for by one of them.
 - Workflows that are **not** required keep their trigger filters: the
   informational `mediainfo-oracle`, the spikes (`spike-build`, `h264-n1`,
   `h264-n2`, `h264-n2-arm-speed`, which build spike code and are kept
@@ -52,7 +52,9 @@ filters — and fails when the required-check table and the workflows
 disagree: a listed name no job reports, a report job missing from the
 table, a required workflow that grew a trigger filter again or lost its
 `pull_request:` trigger, a report job without `if: always()`, a job of a
-required workflow that no report job waits for, two jobs that would report the same check name, a filter
+required workflow that no report job waits for, a job without its own
+concurrency group in a workflow that cancels job by job ("Concurrency"
+below), two jobs that would report the same check name, a filter
 pattern the action would read differently from GitHub, a filter written
 in a form the checker cannot read, or a step (in a `.yml` or `.yaml` workflow,
 in a local action, or in any local action or workflow a step calls with
@@ -173,10 +175,12 @@ targets is its `fuzz-plan` output, which a job of its own,
 change, so neither did a required check name: the ruleset matches a check
 by its job's name, not by its workflow.
 
-- **The report jobs stay one per group.** One report over every job would
-  have saved four more jobs per push, but it would rename four required
-  checks, and a failing H.264 conformance run would then show as a red
-  `ci-report`, not under its own name.
+- **One report job for the whole workflow.** `ci-report` waits for every
+  job of `ci.yml`; five reports, one per group of jobs, cost five more
+  jobs on every push and five more required names. The price is that a
+  failing H.264 conformance run shows as a red `ci-report`, not under its
+  own name; the job's own check, and the table in `ci-report`'s summary,
+  still name it.
 - **A list names `ci.yml` where it named its old workflow file,** so a
   change to `ci.yml` runs the H.264 conformance suite and the guard. That
   is the safe direction: a change to those jobs runs them.
@@ -207,6 +211,85 @@ Main stopped fuzzing on push because the run had outgrown its job. Every target 
 **One build, cached.** `scripts/fuzz_run.sh` builds every project into one target directory, `target/fuzz`, with a pinned nightly toolchain (the pin is in the script). The daily run's first job builds every project, removes what is rebuilt from the checkout anyway (CoreAV's own crates and the fuzz binaries) and caches the rest; its shards, and every pull request's fuzz job, restore that cache, keyed by the script and the lock files. The pin keeps the cache valid from one day to the next; an unpinned nightly would change the compiler, and the cache with it, every day. `rust-cache` is not used here: it cleans a target directory once per workspace and keeps only that workspace's dependencies, and the 21 fuzz projects share one directory.
 
 **Nothing a fuzzer prints reaches the log.** Each target's output goes to a file. A target that ends in a finding leaves that output and its libFuzzer artifacts aside, and the log names the target only (libFuzzer prints a failing input as bytes and as base64, and `cargo fuzz` prints its `Debug` form). The daily run uploads them to the private bucket and logs the object key; a pull request's run keeps nothing, and the author finds the input again locally with the same command (docs/design/fuzz-campaign.md, "Findings").
+
+## Concurrency
+
+A new push to a pull request supersedes the run of the previous one.
+`ci.yml` cancels that run job by job: every job but `ci-report` carries
+
+```yaml
+concurrency:
+  group: ${{ github.workflow }}-<job id>-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+```
+
+When the new run's job joins its group, GitHub cancels the old run's job
+of the same id. A push to main and a manual run get a group of their own
+run, so nothing on main is cancelled or dropped.
+
+- **Not one group for the workflow.** That was the earlier shape. A
+  cancelled run is over only when every job has ended, and `always()`
+  starts `ci-report` in a cancelled run too, so the new run waited, with
+  no job created, until the old report had found a runner and ended. On
+  2026-10-30, 163 of 680 runs in four hours waited more than two minutes
+  for their first job, a median of 6.5 minutes and up to 25. With the
+  groups on the jobs the old report still runs, on the superseded commit,
+  but nothing waits for it.
+- **Not `if: ${{ !cancelled() }}` on the report.** It frees the next run as
+  well, and saves the old report's runner. But a run cancelled by hand on
+  a pull request's head would then report `ci-report` as skipped, which
+  the ruleset counts as passing. With `always()` that run's `ci-report`
+  fails, as before.
+- **`ci-changes` has a group too.** GitHub does not order the jobs of one
+  group by run: whichever joins last cancels the other. Every other job
+  waits for `ci-changes`, so an old run's jobs join their groups when its
+  `ci-changes` ends. If that is before the new run starts, they join before
+  the new run's jobs; if not, the new run's `ci-changes` cancels the old
+  one and the old run's jobs never start. Either way an old job never
+  cancels a new one.
+- **The cost.** An old run's job now runs until the new run's job of the
+  same id joins its group, one changes job after the push (a median of
+  5.5 minutes), and a job the new run skips is not cancelled at all. Over
+  the same four hours that would have been about 106 more runner-minutes,
+  against 1,254 minutes that pull requests waited on a held run.
+- **Re-running an old run's job** cancels the head's job of the same id,
+  whose `ci-report` then fails: re-run the head's run instead.
+- `github.job` is not available where GitHub reads a job's `concurrency`,
+  so each group names its job id. `workflow_check.py` fails on a job
+  without its group, a group other than exactly this one, a report job
+  with a group (in another job's group it could cancel that job), and a
+  workflow group beside job groups. It names `ci.yml` as a workflow that
+  cancels job by job, so removing every group fails too. `python.yml` and
+  `npm.yml` keep one group for the workflow.
+
+## Caches
+
+The repository has 10 GB of Actions cache; beyond it GitHub evicts the
+least recently used entries. `Swatinem/rust-cache` saves on main only
+(`save-if`), so a pull request restores what main last built. Its default
+key is one entry per job id, toolchain and `Cargo.lock`.
+
+- **The Matroska and transport stream oracles restore `isobmff-fixtures`'
+  cache** (`shared-key: isobmff-fixtures`, `save-if: false`). That job
+  builds every crate, profile and feature the other two build, so their
+  own entries, 164 MB each per `Cargo.lock`, repeated part of its 257 MB.
+  The key is the one `isobmff-fixtures` already writes, so no run starts
+  cold.
+- **`check` keeps its own entry.** Clippy's metadata-only builds are not
+  what the fixture jobs build, and the other way round.
+- **bench-guard's decoder build is under `target/`** (`target/decoder`), so
+  rust-cache keeps its dependencies; in `$RUNNER_TEMP` it rebuilt every
+  dependency on every run. The base commit's two builds stay in
+  `$RUNNER_TEMP`, seeded from `target/` and `target/decoder`: main never
+  builds them, so no cache would hold them, and a target directory shared
+  with the head would let cargo take the base's build for the head's.
+- **bench-guard saves on failure too** (`cache-on-failure`). On main the
+  job fails when a count is over the tolerance, after its builds, and
+  without it main's only bench-guard entry was two `Cargo.lock` versions
+  old. Its key carries `decoder`: an entry saved before the decoder build
+  moved holds no `target/decoder`, and rust-cache saves nothing over an
+  exact hit, so an old key could have kept it out for as long as the
+  `Cargo.lock` did not change.
 
 ## DCO sign-off
 
@@ -355,20 +438,15 @@ These are the names a branch ruleset requires, exactly as written. Only a check 
 **appears on every pull request** can be required: a workflow its path filter skips
 reports nothing, and a required check that never reports leaves the pull request
 pending for ever. Each required workflow therefore filters in its jobs, not in its
-trigger, and each group of its jobs ends in a report job that always runs and fails
-when a job above it failed.
+trigger, and ends in one report job that always runs and fails when a job above it
+failed.
 
 | Check | Workflow | Note |
 |---|---|---|
 | `deny` | `deny.yml` | `cargo deny check`, the fuzz projects' own graphs, and the DCO sign-off. No filter at all: it runs in full on every pull request |
-| `ci-report` | `ci.yml` | `cargo fmt`, `clippy` and the workspace tests on Linux, `clippy` and the workspace tests on macOS arm64 and Windows x86-64, the MSRV build and, on a pull request, the fuzz run of the targets it can affect |
-| `fixtures-report` | `ci.yml` | The ISO base media oracle: ffprobe, MediaInfo, the command and the writers |
-| `mkv-fixtures-report` | `ci.yml` | The Matroska and WebM oracle |
-| `ts-fixtures-report` | `ci.yml` | The transport-stream oracle |
-| `bench-guard-report` | `ci.yml` | The instruction-count guard |
+| `ci-report` | `ci.yml` | Every job of `ci.yml`: `cargo fmt`, `clippy` and the workspace tests on Linux, `clippy` and the workspace tests on macOS arm64 and Windows x86-64, the MSRV build, on a pull request the fuzz run of the targets it can affect, the ISO base media, Matroska and transport stream oracles, H.264 conformance (bar C1 of `docs/design/h264.md`) and the instruction-count guard |
 | `python-report` | `python.yml` | The abi3 wheel and its tests |
 | `npm-report` | `npm.yml` | The npm packages, the launcher and the smoke tests |
-| `h264-conformance-report` | `ci.yml` | Bar C1 of `docs/design/h264.md`: every in-scope JVT conformance bitstream decodes bit-exactly |
 
 ## The pull request's shape
 
@@ -390,17 +468,21 @@ cross-repository token and no private secret.
 
 ## Cost
 
-A report job per group and a changes job per workflow (one for `ci.yml`,
-which used to be six), about a minute each billed, so about eleven minutes
-of runner time per pull-request event, whatever the change touches; a
-documentation-only pull request paid about one before the report jobs. Three
-smaller additions on top: `python.yml` and `npm.yml` now also start on a
-push to main and on a label whatever the paths, where their trigger filter
-used to stop them; and because the report jobs carry `if: always()`, a run
-cancelled by a new push starts its report jobs too, which then report the
-cancellation as a failure on the superseded commit. `!cancelled()` would
-avoid that, at the price of saying nothing when a heavy job is genuinely
-cancelled, which is the case worth seeing.
+A report job and a changes job per required workflow (`ci.yml`'s used to be
+six of each), about a minute each billed, so about six minutes of runner time
+per pull-request event, whatever the change touches; a documentation-only
+pull request paid about one before the report jobs. Three smaller additions
+on top: `python.yml` and `npm.yml` now also start on a push to main and on a
+label whatever the paths, where their trigger filter used to stop them; and
+because the report jobs carry `if: always()`, a run superseded by a new push
+starts its report job too, which then reports the cancellation as a failure
+on the superseded commit ("Concurrency" above says why not `!cancelled()`).
+
+Measured on 2026-10-30, a pull request push that changes `ci.yml` (every job
+of `ci.yml` runs, and the changes and report jobs of `python.yml` and
+`npm.yml`): 25 jobs started, 11 of them changes or report jobs, with one
+report per group of `ci.yml`'s jobs; 20 jobs, 6 of them changes or report
+jobs, with one `ci-report`.
 
 The heavy jobs are still skipped, which is where the minutes of an earlier change and
 of the shorter pull request fuzz runs actually are. The whole cost falls to nothing when the
