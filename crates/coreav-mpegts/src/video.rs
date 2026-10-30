@@ -4,48 +4,7 @@
 //! start at them; and the MPEG-1 and MPEG-2 video sequence header (ISO/IEC
 //! 11172-2 2.4.2.3, 13818-2 6.2.2.1). Sans-IO.
 
-use coreav_isobmff::SliceSource;
-use coreav_isobmff::access::{AccessFormat, read_frame_access};
-
-/// The next start code (`00 00 01`) at or after `from`, as the offset of
-/// its first zero byte.
-///
-/// Eight bytes at a time while none of them is zero, since a start code
-/// has two; then three at a time, since a start code ends in a byte of 1,
-/// so a byte above 1 rules out every position a code could begin at within
-/// those three and a byte of 1 leaves only the first. A byte-at-a-time
-/// scan of the elementary stream was the hottest part of the packet
-/// listing (43% of `pbench packets-ts` on a 110 MB capture).
-fn next_start_code(data: &[u8], from: usize) -> Option<usize> {
-    // A word has a zero byte when borrowing from every byte leaves a high
-    // bit set that the word itself does not have.
-    const LOW: u64 = 0x0101_0101_0101_0101;
-    const HIGH: u64 = 0x8080_8080_8080_8080;
-    let mut i = from;
-    loop {
-        while let Some(eight) = data.get(i..i.checked_add(8)?) {
-            let Ok(bytes) = <[u8; 8]>::try_from(eight) else {
-                break;
-            };
-            let word = u64::from_le_bytes(bytes);
-            if word.wrapping_sub(LOW) & !word & HIGH != 0 {
-                break;
-            }
-            i = i.checked_add(8)?;
-        }
-        let third = *data.get(i.checked_add(2)?)?;
-        if third > 1 {
-            i = i.checked_add(3)?;
-        } else if third == 1 {
-            if data.get(i) == Some(&0) && data.get(i.checked_add(1)?) == Some(&0) {
-                return Some(i);
-            }
-            i = i.checked_add(3)?;
-        } else {
-            i = i.checked_add(1)?;
-        }
-    }
-}
+use coreav_isobmff::access::{annex_b_frame_access, next_start_code};
 
 /// The NAL units of an access unit in byte stream format: the bytes
 /// between start codes (`00 00 01`, or `00 00 00 01`), trailing zeros
@@ -346,6 +305,10 @@ fn count(list: &[Vec<u8>]) -> Option<u8> {
     u8::try_from(list.len()).ok().filter(|n| *n < 32)
 }
 
+/// The bytes of a coded slice read for its header, as the isobmff walk reads
+/// them.
+const SLICE_HEADER_BYTES: usize = 32;
+
 /// Whether this access unit is a keyframe as the coded data defines one,
 /// the rule `ffprobe` follows (`tools/oracle/SPEC.md`, "Keyframes"): for
 /// H.264, an IDR picture, a recovery point SEI message (whatever its
@@ -360,23 +323,31 @@ pub(crate) fn keyframe(nal: Nal, data: &[u8], max_num_ref_frames: Option<u32>) -
                 .is_some_and(|h| (16..=23).contains(&(h >> 1 & 0x3F)))
         })),
         Nal::H264 => {
-            // The isobmff reader walks length-prefixed NAL units: rewrite
-            // the access unit that way.
-            let mut prefixed = Vec::with_capacity(data.len() + 16);
-            for unit in nal_units(data) {
-                prefixed.extend(u32::try_from(unit.len()).ok()?.to_be_bytes());
-                prefixed.extend(unit);
+            if next_start_code(data, 0).is_none() {
+                return Some(false);
             }
-            let len = prefixed.len() as u64;
-            let mut source = SliceSource::new(&prefixed);
-            let access = read_frame_access(
-                AccessFormat::H264 { length_size: 4 },
-                &mut source,
-                0,
-                len,
-                &mut || Ok(()),
-            )
-            .ok()??;
+            // The units up to the first coded slice decide whether it is an
+            // IDR picture or a recovery point (7.4.1.2.3, 7.4.1.2.4): the
+            // slices after it, often nearly all of the unit's bytes, are
+            // read only for the intra rule.
+            let whole = max_num_ref_frames.is_some_and(|refs| refs <= 1);
+            let mut end = data.len();
+            if !whole {
+                let mut i = 0;
+                while let Some(at) = next_start_code(data, i) {
+                    i = at + 3;
+                    if data.get(i).is_some_and(|h| matches!(h & 0x1F, 1 | 2 | 5)) {
+                        end = end.min(i.saturating_add(SLICE_HEADER_BYTES));
+                        // A unit's trailing zeros are dropped before its
+                        // header is read: never cut it where they would be.
+                        while end < data.len() && data.get(end - 1) == Some(&0) {
+                            end += 1;
+                        }
+                        break;
+                    }
+                }
+            }
+            let access = annex_b_frame_access(data.get(..end)?, end == data.len())?;
             Some(
                 access.idr
                     || access.recovery_frames.is_some()
@@ -721,37 +692,6 @@ mod tests {
         sets.add(Nal::H264, &au);
         assert_eq!(sets.sps.len(), MAX_PER_KIND);
         assert!(sets.record(Nal::H264).is_none());
-    }
-
-    #[test]
-    fn start_codes_are_found_whatever_the_stride_skips() {
-        // Against a byte-at-a-time reference, on data with runs of zeros,
-        // of bytes of 1 and of bytes above 1, so that each of the scan's
-        // three cases is taken at every alignment.
-        fn reference(data: &[u8], from: usize) -> Option<usize> {
-            (from..data.len().saturating_sub(2)).find(|&i| data[i..i + 3] == [0, 0, 1])
-        }
-        let mut data = Vec::new();
-        let mut state = 12345u64;
-        for _ in 0..4000 {
-            state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
-            data.push(match (state >> 33) % 5 {
-                0 | 1 => 0,
-                2 => 1,
-                other => other as u8 + 40,
-            });
-        }
-        for from in 0..data.len() {
-            assert_eq!(
-                next_start_code(&data, from),
-                reference(&data, from),
-                "from {from}"
-            );
-        }
-        assert_eq!(next_start_code(&[0, 0, 1], 0), Some(0));
-        assert_eq!(next_start_code(&[0, 0], 0), None);
-        assert_eq!(next_start_code(&[], 0), None);
-        assert_eq!(next_start_code(&[0, 0, 1], 1), None);
     }
 
     /// An I-picture of MPEG-2 video: its header, a picture coding
