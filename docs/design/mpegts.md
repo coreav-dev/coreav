@@ -779,7 +779,10 @@ Opus access unit by 2 MiB). Parameter sets are kept up to 31 of a kind
 and 64 KiB per stream. Every limit is an error, never a panic or an
 unbounded allocation.
 
-`max_probe_bytes` stops the head's read. Streams that showed no decodable
+`max_probe_bytes` stops the head's read. It bounds every byte the head
+reads: the packet reader is given the budget as the end of the file, so
+a packet only partly inside it is not read, and a resynchronisation does
+not search past it. Streams that showed no decodable
 start by then are listed without parameters. A head that names no program
 by then is refused with `LimitExceeded` and `LimitKind::ProbeBytes` when
 the file goes on after the budget, and with `NoPrograms` only when the

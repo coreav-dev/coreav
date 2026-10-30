@@ -5,7 +5,7 @@ use crate::codec::{Allowlist, Codec, StreamKind};
 use crate::demux::{Demux, Pes};
 use crate::error::Warning;
 use crate::frames::{self, Syntax};
-use crate::packet::PacketSize;
+use crate::packet::{PacketSize, TS_PACKET};
 use crate::pid_map::PidMap;
 use crate::reader::{Reader, detect};
 use crate::section::{Descriptor, Service};
@@ -681,12 +681,19 @@ fn read_head<S: Source>(
     reference: &mut Option<u64>,
     warnings: &mut Vec<Warning>,
 ) -> Result<Option<u64>, Error> {
-    let mut reader = Reader::new(at.packet_size, at.len, at.first_packet, limits);
+    // The budget is where the reader's file ends: a packet is read only
+    // when all of it is inside the budget.
     let budget_end = at.first_packet.saturating_add(limits.max_probe_bytes);
-    let mut at_end = false;
-    while reader.position() < budget_end {
+    let mut reader = Reader::new(
+        at.packet_size,
+        at.len.min(budget_end),
+        at.first_packet,
+        limits,
+    );
+    let mut ran_out = false;
+    loop {
         let Some((offset, packet)) = reader.next(source, warnings)? else {
-            at_end = true;
+            ran_out = true;
             break;
         };
         demux.feed(offset, &packet, warnings)?;
@@ -717,12 +724,16 @@ fn read_head<S: Source>(
     // level they describe. Only the end of the file flushes: a PES packet
     // cut by the probe's budget is incomplete, and its payload would
     // describe the stream from bytes the file does not end at.
-    if at_end {
+    let packet_end = reader
+        .position()
+        .saturating_add(at.packet_size.prefix() + TS_PACKET as u64);
+    let budget_spent = ran_out && packet_end <= at.len;
+    if ran_out && !budget_spent {
         demux.finish(warnings);
         learnt.resize_with(demux.streams.len(), Learn::default);
         learn_ready(demux, learnt, reference);
     }
-    Ok((reader.position() >= budget_end && !reader.exhausted()).then_some(budget_end))
+    Ok(budget_spent.then_some(budget_end))
 }
 
 /// Reads the tables and each kept stream's parameters, and the last
