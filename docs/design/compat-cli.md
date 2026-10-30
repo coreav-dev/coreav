@@ -381,6 +381,25 @@ something, a family given that measured nothing misses (in R1, each of its
 (command, family) pairs whose files the pinned `ffprobe` reads none of; in
 R2, a family with no file it reads).
 
+`tools/compat-corpus/r3.py` runs R3 on files other than the fixtures. A
+file can take a command when its family is the command's, the pinned
+`ffprobe` lists none of the stream types `input_without` names, every
+`-map` that adds streams selects one, and the maps leave a stream. The
+pinned `ffmpeg` runs each such pair first, and only the pairs it runs to
+success are counted. The `coreav ffmpeg` binary prints no summary, and
+`copy_check.py` needs the writer's summary, so each counted pair runs
+through `coreav_cli::ffmpeg::run` in the ignored test
+`the_0_1_0_commands_on_listed_pairs`, as the fixture half does, and then
+through the binary, which must write the same bytes; a pair passes when
+both wrote and `copy_check.py` finds no problem. A refusal, a rejection, a
+`-map` the CLI finds empty, or a binary that writes otherwise, fails the
+pair. A pair whose output no oracle checks (`copy_check.py` skips the job's
+oracle for the clips, segments and joins of a file whose picture size
+changes inside the track) is set aside rather than passed when its stream
+selection matches FFmpeg's, and its command is unmeasured and misses; a
+selection that differs fails it. A command meets R3 when at least 98% of its counted pairs pass, each
+spelling of the set counted on its own, as the bar says "each command".
+
 **The R4 host, registered before the run.** A GCP `c4-standard-16` VM with
 SMT off (one thread per core), started through `scripts/gcp_vm_job.py`, the
 rest of the VM idle, and both tools' processes pinned to the same four
