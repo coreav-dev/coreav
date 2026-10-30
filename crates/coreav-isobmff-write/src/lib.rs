@@ -536,6 +536,11 @@ pub enum JoinAudio {
     /// The first audio track of every input, which must be AAC; the inputs
     /// must all have one or all have none.
     First,
+    /// The audio stream at this index (`Track::stream_index`) of every
+    /// input, which must be AAC, as the concat demuxer of `ffmpeg` pairs
+    /// streams by index; a stream the allowlist leaves out fails with
+    /// `Error::CodecNotAllowed` instead of being skipped.
+    Stream(usize),
     /// No audio.
     None,
 }

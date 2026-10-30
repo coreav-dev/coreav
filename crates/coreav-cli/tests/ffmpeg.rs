@@ -269,7 +269,8 @@ fn joins_ffmpeg_would_time_or_read_otherwise_are_refused() {
     video("edits.mp4", vec![(160, 0), (160, 2048)]);
     video("plain.mp4", vec![(320, 0)]);
     // The same tracks with the audio first: the demuxer pairs its first
-    // stream with the first file's video.
+    // stream with the first file's video, and its second, the video, with
+    // the first file's audio.
     let mut bytes = av_movie_with(aac_entry(), false);
     let traks: Vec<usize> = (4..bytes.len())
         .filter(|&i| bytes[i..].starts_with(b"trak"))
@@ -296,7 +297,7 @@ fn joins_ffmpeg_would_time_or_read_otherwise_are_refused() {
         ),
         (
             "file in.mp4\nfile swapped.mp4\n",
-            "streams are at other indexes",
+            "the stream is not an audio track",
         ),
     ] {
         let list = dir.join("list.txt");

@@ -42,8 +42,9 @@ const AUDIO_ID: u32 = 2;
 ///
 /// Each input is probed with `limits` and `allowlist`; its first video
 /// track (H.264 `avc1`, HEVC `hvc1`, AV1 or VP9) and, with
-/// [`JoinAudio::First`], its first audio track (AAC) are kept, checked as a
-/// clip checks them. Every input must match the first: the same codecs,
+/// [`JoinAudio::First`], its first audio track (AAC), or with
+/// [`JoinAudio::Stream`], its audio stream at that index (AAC), are kept,
+/// checked as a clip checks them. Every input must match the first: the same codecs,
 /// sample entry types, codec configurations, coded size, `pasp`, `clap` and
 /// `colr` boxes, channels, sample rate, media timescales, track matrix and
 /// display size, and an audio track in all or none. Anything else fails with
@@ -530,6 +531,7 @@ impl<'a> Pick<'a> {
         let audio = match audio {
             JoinAudio::None => None,
             JoinAudio::First => select_audio(movie, AudioChoice::First)?,
+            JoinAudio::Stream(index) => select_audio(movie, AudioChoice::Stream(index))?,
         };
         let audio = match audio {
             Some(track) => Some(PickAudio {

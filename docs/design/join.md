@@ -19,7 +19,10 @@ and ISO/IEC 14496-3 (AAC). No multimedia implementation source was read.
 
 `join_mp4(inputs, limits, allowlist, options, out)` probes every input,
 keeps its first video track and, unless the caller asks for video only, its
-first audio track (chosen and checked as for a clip), and writes one `moov`-first MP4 with one video track and at most one
+first audio track or the audio stream at the index the caller names
+(`JoinAudio::Stream`, which `coreav ffmpeg` uses: a stream the allowlist
+leaves out fails instead of being skipped), chosen and checked as for a
+clip, and writes one `moov`-first MP4 with one video track and at most one
 audio track. `coreav join [--audio none] -o OUTPUT INPUT...` prints a
 `coreav.join/1` summary ([`docs/schema/join-v1.md`](../schema/join-v1.md)).
 

@@ -287,7 +287,9 @@ pub fn plan(
         let video = first(StreamKind::Video);
         let audio = match selected.as_slice() {
             [v] if Some(*v) == video => JoinAudio::None,
-            [v, a] if Some(*v) == video && Some(*a) == first(StreamKind::Audio) => JoinAudio::First,
+            [v, a] if Some(*v) == video && Some(*a) == first(StreamKind::Audio) => {
+                JoinAudio::Stream(*a)
+            }
             _ => {
                 return Err(Refusal::not_native(
                     "a join of other streams than the first video and audio stream",

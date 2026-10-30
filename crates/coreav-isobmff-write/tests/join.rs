@@ -909,6 +909,28 @@ fn inputs_that_cannot_be_joined_on_their_own() {
     };
 }
 
+/// [`JoinAudio::Stream`] joins the audio stream it names, or fails when
+/// the allowlist leaves that stream out, where [`JoinAudio::First`]
+/// takes the first audio stream the allowlist keeps (none for FLAC).
+#[test]
+fn a_named_audio_stream_is_joined_or_refused() {
+    let source = av_movie();
+    let (summary, _) = join_with(&[&source, &source], JoinAudio::Stream(1)).unwrap();
+    for input in &summary.inputs {
+        assert_eq!(input.audio.as_ref().map(|a| a.stream_index), Some(1));
+    }
+    let flac = common::av_movie(b"fLaC");
+    match join_with(&[&flac, &flac], JoinAudio::Stream(1)) {
+        Err(JoinError::Input {
+            input: 0,
+            error: ExtractError::Source(Error::CodecNotAllowed { fourcc, .. }),
+        }) => assert_eq!(fourcc, FourCc(*b"fLaC")),
+        other => panic!("{:?}", other.map(|r| r.0)),
+    }
+    let (summary, _) = join_with(&[&flac, &flac], JoinAudio::First).unwrap();
+    assert!(summary.inputs.iter().all(|input| input.audio.is_none()));
+}
+
 fn json_string(s: &str) -> String {
     let mut out = String::from("\"");
     for c in s.chars() {
