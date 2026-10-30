@@ -177,7 +177,7 @@ try_gen edit_src_bframes.mp4 "${ESRC[@]}" -c:v libx264 -bf 2 "${EGOP[@]}"
 # Without perceptual noise substitution, as edit_src_av.mp4 below: clips of
 # audio alone restart its decoder too.
 # The edits below count in a movie timescale of 1000: FFmpeg 9 otherwise
-# takes an audio-only file's movie timescale from its track (44100).
+# takes a file's movie timescale from its audio track (44100).
 try_gen edit_src_aac.mp4 -f lavfi -i "sine=d=10:r=44100" -c:a aac -aac_pns 0 -movie_timescale 1000
 # Two edits joined at a sync sample, skipping a second of media.
 elst_entry edit_src_h264.mp4 edit_multi_splice.mp4 0 3000:0 3000:2400
@@ -195,7 +195,7 @@ iso_patch edit_multi_audio.mp4 edit_multi_audio_average.mp4 average 0 12345
 # decoded from a clip's restart would not be sample-exact against the
 # source's (measured: about 1e-5 off from the second frame on).
 try_gen edit_src_av.mp4 "${ESRC[@]}" -f lavfi -i "sine=d=10:r=44100" -map 0:v -map 1:a \
-  -c:v libx264 -bf 0 "${EGOP[@]}" -c:a aac -aac_pns 0
+  -c:v libx264 -bf 0 "${EGOP[@]}" -c:a aac -aac_pns 0 -movie_timescale 1000
 elst_entry edit_src_av.mp4 edit_multi_av.mp4 1 4000:1024 3000:180000 2500:320000
 # One media edit that presents 6.5 s of 10: CoreAV's bit rate counts every
 # sample over the presented time (KD-P-EDITED-BIT-RATE).
