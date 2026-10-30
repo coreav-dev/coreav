@@ -994,7 +994,7 @@ The speed bars above are met overall and in every class of input 4, but four of 
 
 | Operation | Against | Bar |
 |---|---|---|
-| the packet listing in process (`tools/ts-speed/`: the probe, then every access unit of every kept stream) | libavformat of FFmpeg 9.0.2 in process (`tools/ts-speed/lav_ts.c`): open with the format given, find stream info, read every packet; both sides read 64 KiB at a time | median at most **1.00** and the upper bound of the interval at most **1.00**, overall and in `small`, `medium` and `large` |
+| the packet listing in process (`tools/ts-speed/`: the probe, then every access unit of every kept stream) | libavformat of FFmpeg 9.0.2 in process (`tools/ts-speed/lav_ts.c`): open with the format given, find stream info, read every packet; libavformat reads through a 64 KiB buffer, CoreAV 512 packets a read, both with `pread` | median at most **1.00** and the upper bound of the interval at most **1.00**, overall and in `small`, `medium` and `large` |
 
 The size classes are the draw's: `small` under 16 MB, `medium` 16 MB to under 64 MB, `large` 64 MB to 200 MB (1 MB = 10^6 bytes). The bound on the interval is the tracking issue's goal, no class whose interval reaches above 1.00; a claim that CoreAV is faster needs it below 1.00. The report also gives the share of files on which CoreAV is faster, overall and per class, and, as information and not a bar, `coreav probe` against `ffprobe -v error -of json -show_format -show_streams` of FFmpeg 9.0.2, both as commands.
 
