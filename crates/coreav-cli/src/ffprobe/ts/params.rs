@@ -784,9 +784,10 @@ fn h264_pps_bottom_poc(nal: &[u8]) -> Option<bool> {
     bits.flag()
 }
 
-/// `pic_struct` of the picture timing message (D.1.3, D.2.3) of an H.264
-/// SEI NAL unit, if it has one.
-fn h264_pic_struct(nal: &[u8], syntax: &SliceSyntax) -> Option<u32> {
+/// What the picture timing message (D.1.3, D.2.3) of an H.264 SEI NAL
+/// unit states, if it has one: its `dpb_output_delay`, when the sequence
+/// has an HRD, and its `pic_struct`, when the sequence has it state one.
+fn h264_pic_timing(nal: &[u8], syntax: &SliceSyntax) -> Option<(Option<u32>, Option<u32>)> {
     let mut rest = nal.get(1..)?;
     loop {
         let mut kind = 0u32;
@@ -810,15 +811,18 @@ fn h264_pic_struct(nal: &[u8], syntax: &SliceSyntax) -> Option<u32> {
         let payload = rest.get(..size)?;
         rest = rest.get(size..)?;
         if kind == 1 {
-            if !syntax.pic_struct_present {
-                return None;
-            }
             let mut bits = Bits::new(payload);
+            let mut output_delay = None;
             if let Some((cpb, dpb)) = syntax.delays {
                 bits.skip(cpb)?;
-                bits.skip(dpb)?;
+                output_delay = Some(bits.bits(dpb)?);
             }
-            return bits.bits(4);
+            let pic_struct = if syntax.pic_struct_present {
+                Some(bits.bits(4)?)
+            } else {
+                None
+            };
+            return Some((output_delay, pic_struct));
         }
     }
 }
@@ -836,6 +840,9 @@ pub struct Picture {
     /// `Some(bottom_field_flag)` for a field picture.
     pub field: Option<bool>,
     pub pic_struct: Option<u32>,
+    /// `dpb_output_delay` of its picture timing message, in ticks of the
+    /// sequence's clock, when the sequence has an HRD (C.1.2).
+    pub output_delay: Option<u32>,
 }
 
 impl Picture {
@@ -897,10 +904,11 @@ pub fn h264_picture(unit: &[u8], sps: &Sps) -> Option<Picture> {
     let syntax = sps.slices;
     let units = units_to_first_slice(unit);
     let kind = |nal: &[u8]| nal.first().map(|b| b & 0x1F);
-    let pic_struct = units
+    let (output_delay, pic_struct) = units
         .iter()
         .filter(|nal| kind(nal) == Some(6))
-        .find_map(|nal| h264_pic_struct(&rbsp(nal), &syntax));
+        .find_map(|nal| h264_pic_timing(&rbsp(nal), &syntax))
+        .unwrap_or_default();
     let slice = units.iter().find(|nal| matches!(kind(nal), Some(1 | 5)))?;
     let slice = rbsp(slice.get(..64).unwrap_or(slice));
     let mut bits = Bits::new(slice.get(1..)?);
@@ -916,7 +924,11 @@ pub fn h264_picture(unit: &[u8], sps: &Sps) -> Option<Picture> {
     } else {
         None
     };
-    Some(Picture { field, pic_struct })
+    Some(Picture {
+        field,
+        pic_struct,
+        output_delay,
+    })
 }
 
 /// The field order `ffprobe` reports for an H.264 stream whose sequence
@@ -935,7 +947,7 @@ pub fn h264_field_order(unit: &[u8], sps: &Sps) -> Option<&'static str> {
     let pic_struct = units
         .iter()
         .filter(|(_, nal)| kind(nal) == Some(6))
-        .find_map(|(_, nal)| h264_pic_struct(&rbsp(nal), &syntax));
+        .find_map(|(_, nal)| h264_pic_timing(&rbsp(nal), &syntax)?.1);
     let (_, slice) = units
         .iter()
         .find(|(_, nal)| matches!(kind(nal), Some(1 | 5)))?;
@@ -1768,28 +1780,38 @@ pub fn aac_ends_with_sbr(block: &[u8]) -> bool {
         if read(body_end, 3) != Some(0b111) {
             continue;
         }
-        // A fill element of `count` bytes: 3 + 4 bits of header, 8 more
-        // when `count` is 15 (`esc_count`).
-        for count in 1..=MAX_FILL_BYTES {
-            for header in [7usize, 15] {
-                let Some(start) = body_end
-                    .checked_sub(count * 8)
-                    .and_then(|s| s.checked_sub(header))
-                else {
-                    continue;
-                };
-                if read(start, 3) != Some(0b110) {
-                    continue;
+        // Empty fill elements (`110` and a `count` of 0) may follow the
+        // one that carries SBR data.
+        let mut fill_end = body_end;
+        loop {
+            // A fill element of `count` bytes: 3 + 4 bits of header, 8
+            // more when `count` is 15 (`esc_count`).
+            for count in 1..=MAX_FILL_BYTES {
+                for header in [7usize, 15] {
+                    let Some(start) = fill_end
+                        .checked_sub(count * 8)
+                        .and_then(|s| s.checked_sub(header))
+                    else {
+                        continue;
+                    };
+                    if read(start, 3) != Some(0b110) {
+                        continue;
+                    }
+                    let stated = match (header, read(start + 3, 4)) {
+                        (7, Some(c)) if c < 15 => Some(c as usize),
+                        (15, Some(15)) => read(start + 7, 8).map(|e| 15 + e as usize - 1),
+                        _ => None,
+                    };
+                    if stated == Some(count)
+                        && matches!(read(start + header, 4), Some(0b1101 | 0b1110))
+                    {
+                        return true;
+                    }
                 }
-                let stated = match (header, read(start + 3, 4)) {
-                    (7, Some(c)) if c < 15 => Some(c as usize),
-                    (15, Some(15)) => read(start + 7, 8).map(|e| 15 + e as usize - 1),
-                    _ => None,
-                };
-                if stated == Some(count) && matches!(read(start + header, 4), Some(0b1101 | 0b1110))
-                {
-                    return true;
-                }
+            }
+            match fill_end.checked_sub(7) {
+                Some(before) if read(before, 7) == Some(0b110_0000) => fill_end = before,
+                _ => break,
             }
         }
     }
@@ -2072,6 +2094,17 @@ mod tests {
             .collect();
         assert!(!aac_ends_with_sbr(&block));
         assert!(!aac_ends_with_sbr(&[]));
+        // SBR data followed by two empty fill elements before ID_END.
+        let mut padded = format!("{}{}111", &bits[..bits.len() - 3], "1100000".repeat(2));
+        while padded.len() % 8 != 0 {
+            padded.push('0');
+        }
+        let block: Vec<u8> = padded
+            .as_bytes()
+            .chunks(8)
+            .map(|c| u8::from_str_radix(std::str::from_utf8(c).unwrap(), 2).unwrap())
+            .collect();
+        assert!(aac_ends_with_sbr(&block));
     }
 
     #[test]

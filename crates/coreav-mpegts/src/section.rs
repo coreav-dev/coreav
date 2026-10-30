@@ -41,6 +41,8 @@ pub(crate) struct Assembler {
     open: bool,
     /// Most bytes of a section of this PID's table.
     max: usize,
+    /// How many of the sections the last payload completed started in it.
+    started: usize,
 }
 
 impl Assembler {
@@ -50,7 +52,18 @@ impl Assembler {
             buffer: Vec::new(),
             open: false,
             max,
+            started: 0,
         }
+    }
+
+    /// How many of the sections the last payload completed started in it.
+    pub(crate) fn started(&self) -> usize {
+        self.started
+    }
+
+    /// Whether a section has started and is not complete.
+    pub(crate) fn is_open(&self) -> bool {
+        self.open
     }
 
     /// Takes the payload of the next packet of the PID and returns the
@@ -62,6 +75,7 @@ impl Assembler {
         unit_start: bool,
         out: &mut Vec<Vec<u8>>,
     ) -> Result<(), &'static str> {
+        self.started = 0;
         if !unit_start {
             if self.open {
                 self.buffer.extend_from_slice(payload);
@@ -101,6 +115,7 @@ impl Assembler {
             match at.get(..total) {
                 Some(section) => {
                     out.push(section.to_vec());
+                    self.started += 1;
                     at = at.get(total..).unwrap_or_default();
                 }
                 None => {
