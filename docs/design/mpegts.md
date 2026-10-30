@@ -785,7 +785,8 @@ a packet only partly inside it is not read, and a resynchronisation does
 not search past it. Streams that showed no decodable
 start by then are listed without parameters. A head that names no program
 by then is refused with `LimitExceeded` and `LimitKind::ProbeBytes` when
-the file goes on after the budget, and with `NoPrograms` only when the
+the reader came to the budget's end before the file's (by a
+resynchronisation too), and with `NoPrograms` only when the
 probe read the whole file: a caller can then tell a file that names no
 program from one whose tables come later than it allowed, and raise the
 limit for the second. Rejected: removing the kind and keeping

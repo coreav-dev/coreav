@@ -5,7 +5,7 @@ use crate::codec::{Allowlist, Codec, StreamKind};
 use crate::demux::{Demux, Pes};
 use crate::error::Warning;
 use crate::frames::{self, Syntax};
-use crate::packet::{PacketSize, TS_PACKET};
+use crate::packet::PacketSize;
 use crate::pid_map::PidMap;
 use crate::reader::{Reader, detect};
 use crate::section::{Descriptor, Service};
@@ -670,8 +670,9 @@ struct HeadAt {
 /// Reads the head of the file, from its first packet, until the tables are
 /// complete (or the demultiplexer was given its streams without them) and
 /// every stream has shown what it states, or `max_probe_bytes` are read.
-/// Returns where the budget stopped the read when packets were left after
-/// it, `None` when the read stopped for another reason.
+/// Returns where the budget stopped the read when the reader came to the
+/// budget's end before the file's, a resynchronisation that ran to it
+/// included, `None` when the read stopped for another reason.
 fn read_head<S: Source>(
     source: &mut S,
     at: &HeadAt,
@@ -724,10 +725,7 @@ fn read_head<S: Source>(
     // level they describe. Only the end of the file flushes: a PES packet
     // cut by the probe's budget is incomplete, and its payload would
     // describe the stream from bytes the file does not end at.
-    let packet_end = reader
-        .position()
-        .saturating_add(at.packet_size.prefix() + TS_PACKET as u64);
-    let budget_spent = ran_out && packet_end <= at.len;
+    let budget_spent = ran_out && budget_end < at.len;
     if ran_out && !budget_spent {
         demux.finish(warnings);
         learnt.resize_with(demux.streams.len(), Learn::default);

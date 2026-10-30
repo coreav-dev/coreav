@@ -104,7 +104,7 @@ fn tables_past_max_probe_bytes_are_refused_with_the_limit() {
     let ts = probe_with(&mux.out, &limits).unwrap();
     assert_eq!(ts.streams.len(), 1);
     // A budget that ends inside the PMT's packet does not read it.
-    for max_probe_bytes in [tables_end - TS_PACKET, tables_end - 1] {
+    for max_probe_bytes in tables_end - TS_PACKET..tables_end {
         let limits = Limits {
             max_probe_bytes,
             ..Limits::default()
@@ -135,13 +135,43 @@ fn a_file_without_tables_read_whole_within_max_probe_bytes_names_no_program() {
         probe_with(&mux.out, &limits(len)).err(),
         Some(Error::NoPrograms)
     );
-    for max_probe_bytes in [len - TS_PACKET, len - 1] {
+    for max_probe_bytes in len - TS_PACKET..len {
         assert_eq!(
             probe_with(&mux.out, &limits(max_probe_bytes)).err(),
             Some(Error::LimitExceeded {
                 limit: LimitKind::ProbeBytes,
                 offset: max_probe_bytes,
             })
+        );
+    }
+}
+
+/// Bytes without a sync byte before the PMT: the resynchronisation that
+/// skips them stops at the budget, and a PMT the budget ends inside is
+/// the limit's, not a file without programs.
+#[test]
+fn a_pmt_the_budget_ends_inside_after_lost_sync_is_refused_with_the_limit() {
+    let mut mux = Mux::default();
+    filler(&mut mux, 6);
+    mux.pat(&[(1, 0x1000)]);
+    mux.out.extend([0u8; 200]);
+    let pmt_start = mux.out.len() as u64;
+    mux.pmt(0x1000, 1, &[(0x0F, 0x101)]);
+    let len = mux.out.len() as u64;
+    let limits = |max_probe_bytes| Limits {
+        max_probe_bytes,
+        ..Limits::default()
+    };
+    let ts = probe_with(&mux.out, &limits(len)).unwrap();
+    assert_eq!(ts.streams.len(), 1);
+    for max_probe_bytes in pmt_start - 200..len {
+        assert_eq!(
+            probe_with(&mux.out, &limits(max_probe_bytes)).err(),
+            Some(Error::LimitExceeded {
+                limit: LimitKind::ProbeBytes,
+                offset: max_probe_bytes,
+            }),
+            "max_probe_bytes {max_probe_bytes}"
         );
     }
 }
