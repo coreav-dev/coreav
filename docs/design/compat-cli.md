@@ -406,9 +406,8 @@ the commands of the set are supported in 0.1.0: the experimental label of
 `coreav ffprobe` no longer applies to them, and stays on every other
 `ffprobe` command until B3a is met. B1 is unchanged and still applies to every
 command outside the set. Until that round, `coreav ffmpeg` is labelled
-experimental where users see it (`coreav --help`, the README,
-`packages/cli/README.md` and the documentation site), as `coreav ffprobe`
-is; after it, the label stays on the `ffmpeg` commands outside the set.
+experimental where users see it (`coreav --help` and the documentation
+site), as `coreav ffprobe` is; after it, the label stays on the `ffmpeg` commands outside the set.
 
 ## The command
 

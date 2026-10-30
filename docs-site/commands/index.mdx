@@ -36,7 +36,7 @@ An input is a local file. In native builds, the commands that read one media fil
 
 ## Outputs
 
-- A command that writes a file writes it under a temporary name and renames it into place, so a failed run leaves no partial output.
+- A command that writes a file writes it under a temporary name and renames it into place, so a failed run leaves no partial output. `split` keeps the segments it finished.
 - A command refuses to overwrite an existing file unless you pass `--force`, and never writes over its input.
 - Most commands take `-` as the output, for standard output. The JSON summary then goes to standard error.
 - Each JSON document names its schema, such as `coreav.probe/1`. The schemas are in [`docs/schema`](https://github.com/coreav-dev/coreav/tree/main/docs/schema).
