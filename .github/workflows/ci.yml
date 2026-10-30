@@ -1598,7 +1598,6 @@ jobs:
   #   request's merge commit against its base commit, both built and counted
   #   in this job, so a regression shows before it merges. Drafts skip it.
   # A manual run with `update` keeps the counts as an artifact for a pull
-  # A manual run with `update` keeps the counts as an artifact for a pull
   # request that replaces the baseline. ci-changes' `bench-guard` is the
   # filter, one list for both events: a pull request that changes the
   # fixture generator, the pinned FFmpeg installer or the web-upload policy
