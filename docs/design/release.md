@@ -24,7 +24,7 @@ Publishing the draft, and pushing the tag before it, are the maintainer's steps.
 | `x86_64-apple-darwin` | macOS x86-64 |
 | `x86_64-pc-windows-msvc` | Windows x86-64 |
 
-These are the five platforms of the npm packages, built by the same script (`packages/cli/scripts/platform.sh`): the `dist` profile, stripped; Linux static against musl, with zig as the C compiler of `ring`, dav1d and libvpx; Windows with the C runtime linked statically. One binary per platform and build therefore has one definition, and its reasons are in `npm-cli.md`, "Native binaries".
+These are the five platforms of the npm packages, built by the same script (`packages/cli/scripts/platform.sh`): the `dist` profile, stripped; Linux static against musl, with zig as the C compiler of `ring` and musl-gcc as that of dav1d and libvpx; Windows with the C runtime linked statically. One binary per platform and build therefore has one definition, and its reasons are in `npm-cli.md`, "Native binaries".
 
 - **Linux is musl only.** A static musl binary runs on glibc and musl systems alike, and has no oldest-glibc floor. A glibc build would add an archive that runs on fewer systems; the npm round 2 measured the installed musl command at 0.09 to 0.20 times FFmpeg's time.
 - **Linux arm64 is built on arm64.** GitHub's arm64 runner is free on a public repository. On it, the C libraries need no cross-compiler, and the checks run the binary and the `x264` program natively; before the C decoders, the binary was cross-built on x86-64 and checked under QEMU.
@@ -51,7 +51,7 @@ Both libraries are built from source as static libraries and linked into the `co
 
 - `packages/cli/scripts/codecs.sh TARGET PREFIX` downloads each library's release tarball, checks its SHA-256 against the pinned value, builds it static into `PREFIX`, and copies its licence files to `PREFIX/licenses`. Pinned: dav1d 1.5.3 (the binding needs 1.3 or later) and libvpx 1.14.1 (the decoder ABI that `coreav-backend-libvpx` declares), each with its decoders only. `platform.sh` runs it into `COREAV_CODECS` unless that holds them already, so the two builds of a job share one.
 - The crates find them as they do for system libraries, through `pkg-config` with `PKG_CONFIG_PATH=PREFIX/lib/pkgconfig`. `PREFIX` holds the static libraries only, so the linker takes them. On the musl targets the pkg-config files drop `-lm` and `-lpthread`: musl's `libc.a`, which Rust links, holds both, and the flags would find the build machine's glibc copies.
-- **Linux:** compiled with zig as the musl C compiler (`zig.sh`, as for `ring`), with nasm for the x86-64 assembly.
+- **Linux:** compiled natively with `musl-gcc` (Ubuntu's `musl-tools`), with nasm for the x86-64 assembly. zig, the C compiler of `ring`, is not used for them: meson cannot identify its linker.
 - **macOS:** compiled with the runner's clang, each architecture on its own, at the deployment targets Rust builds for (11.0 on arm64, 10.12 on x86-64).
 - **Windows:** nothing is built (above).
 
@@ -72,7 +72,7 @@ The WebAssembly fallback stays the `cli` feature alone and carries no decoder. W
 
 The directory holds `coreav` (`coreav.exe`), `LICENSE-MIT`, `LICENSE-APACHE` and `NOTICE`, and, in a build that links dav1d and libvpx, `licenses/` with their licence files as the pinned tarballs carry them (`docs/release/notices.md`). `NOTICE` is in every archive, whatever the features: its statements are each conditional on what a build includes, so it is never wrong to ship, and an archive cannot lose it when the features change.
 
-`SHA256SUMS` lists the SHA-256 of all ten archives, in `sha256sum`'s format. Each archive and `SHA256SUMS` carry a build-provenance attestation (Sigstore, through GitHub's attestation store), which ties the file to this workflow, the tag and the commit:
+`SHA256SUMS` lists the SHA-256 of all ten archives, in `sha256sum`'s format. `packages/cli/scripts/release_assets.py` fails the run when the release's files are anything other than those ten archives and `SHA256SUMS`, or when `SHA256SUMS` lists other files: once after the checksums are written, and again in the draft job before anything is attested or attached. The smoke test's clips travel as the `smoke-clips` artifact, outside the `release-TARGET` artifacts that the checksum job gathers. Each archive and `SHA256SUMS` carry a build-provenance attestation (Sigstore, through GitHub's attestation store), which ties the file to this workflow, the tag and the commit:
 
     sha256sum -c SHA256SUMS --ignore-missing
     gh attestation verify coreav-0.1.0-x86_64-unknown-linux-musl.tar.gz --repo coreav-dev/coreav

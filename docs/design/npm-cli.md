@@ -96,9 +96,10 @@ esbuild and Biome:
     glibc and musl systems alike. CI builds each architecture on its own
     runner; a local arm64 build on x86-64 links with the toolchain's own
     `rust-lld`.
-  - The C code, `ring` for the HTTPS of URL inputs and dav1d and libvpx
-    (`scripts/codecs.sh`), is compiled with zig as the musl C compiler for
-    both architectures (`scripts/zig.sh`). CI
+  - dav1d and libvpx are compiled with `musl-gcc` (`scripts/codecs.sh`),
+    natively on each architecture.
+  - The crates that compile C, `ring` for the HTTPS of URL inputs, use zig
+    as the musl C compiler for both architectures (`scripts/zig.sh`). CI
     installs zig from PyPI (`ziglang`, MIT), pinned by version and hash.
     It is a build tool: of it, only musl's C headers are used; the C
     runtime linked is Rust's own self-contained musl. Rejected: a

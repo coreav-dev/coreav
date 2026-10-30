@@ -132,10 +132,10 @@ jobs:
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ runner.temp }}/codecs
-          key: codecs-x86_64-unknown-linux-musl-${{ hashFiles('packages/cli/scripts/codecs.sh', 'packages/cli/scripts/zig.sh', 'packages/cli/scripts/zig-requirements.txt') }}
+          key: codecs-x86_64-unknown-linux-musl-${{ hashFiles('packages/cli/scripts/codecs.sh') }}
       - name: Install the C decoders' build tools
         if: steps.codecs-cache.outputs.cache-hit != 'true'
-        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends meson ninja-build nasm
+        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends meson ninja-build nasm musl-tools
       - name: Build the Linux x86-64 package
         env:
           COREAV_CODECS: ${{ runner.temp }}/codecs
@@ -293,10 +293,10 @@ jobs:
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ runner.temp }}/codecs
-          key: codecs-${{ matrix.target }}-${{ hashFiles('packages/cli/scripts/codecs.sh', 'packages/cli/scripts/zig.sh', 'packages/cli/scripts/zig-requirements.txt') }}
+          key: codecs-${{ matrix.target }}-${{ hashFiles('packages/cli/scripts/codecs.sh') }}
       - name: Install the C decoders' build tools
         if: runner.os == 'Linux' && steps.codecs-cache.outputs.cache-hit != 'true'
-        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends meson ninja-build nasm
+        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends meson ninja-build nasm musl-tools
       - name: Install the C decoders' build tools
         if: runner.os == 'macOS' && steps.codecs-cache.outputs.cache-hit != 'true'
         env:

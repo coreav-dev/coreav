@@ -30,6 +30,7 @@ on:
       - packages/cli/scripts/zig.sh
       - packages/cli/scripts/zig-requirements.txt
       - packages/cli/scripts/codecs.sh
+      - packages/cli/scripts/release_assets.py
       - packages/cli/test/release-clips.sh
       - packages/cli/test/release-smoke.py
       - scripts/install-x264.sh
@@ -59,9 +60,11 @@ jobs:
           set -euo pipefail
           scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/ffmpeg"
           PATH="$RUNNER_TEMP/ffmpeg:$PATH" packages/cli/test/release-clips.sh "$RUNNER_TEMP/clips"
+      # Not named release-*: release-checksums gathers every artifact of
+      # that name into the release's files.
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: release-clips
+          name: smoke-clips
           path: ${{ runner.temp }}/clips
           if-no-files-found: error
           retention-days: 7
@@ -84,9 +87,6 @@ jobs:
     env:
       PLATFORM: ${{ matrix.platform }}
       TARGET: ${{ matrix.target }}
-      # dav1d and libvpx, built once for both builds (scripts/codecs.sh).
-      COREAV_CODECS: ${{ runner.temp }}/codecs
-      COREAV_X264: ${{ runner.temp }}/x264/x264
     defaults:
       run:
         shell: bash
@@ -94,6 +94,13 @@ jobs:
       # The licence files and NOTICE ship as committed, without CRLF.
       - if: runner.os == 'Windows'
         run: git config --global core.autocrlf false
+      # dav1d and libvpx, built once for both builds (scripts/codecs.sh), and
+      # the x264 program of the smoke test. The runner context is not
+      # available in a job's env, so the paths are set here.
+      - name: Set the build paths
+        run: |
+          echo "COREAV_CODECS=$RUNNER_TEMP/codecs" >> "$GITHUB_ENV"
+          echo "COREAV_X264=$RUNNER_TEMP/x264/x264" >> "$GITHUB_ENV"
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
@@ -114,7 +121,7 @@ jobs:
       # (docs/design/release.md, "Two builds").
       - name: Install the C build tools
         if: runner.os == 'Linux'
-        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends meson ninja-build nasm
+        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends meson ninja-build nasm musl-tools
       - name: Install the C build tools
         if: runner.os == 'macOS'
         env:
@@ -131,7 +138,7 @@ jobs:
           packages/cli/scripts/platform.sh "$PLATFORM" "$TARGET" full
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: release-clips
+          name: smoke-clips
           path: ${{ runner.temp }}/clips
       - name: Check the command on its platform
         env:
@@ -226,9 +233,13 @@ jobs:
     permissions:
       contents: read
     steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      # The five build jobs' artifacts (release-TARGET) only.
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          pattern: release-*
+          pattern: release-*-*
           path: dist
           merge-multiple: true
       - name: Compare the targets and write SHA256SUMS
@@ -250,6 +261,11 @@ jobs:
           sha256sum "${archives[@]}" > SHA256SUMS
           sha256sum -c SHA256SUMS
           { echo '```'; cat SHA256SUMS; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      # The release's files are exactly the ten archives and SHA256SUMS.
+      - name: Check the release's file list
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 -I packages/cli/scripts/release_assets.py dist
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-dist
@@ -270,10 +286,18 @@ jobs:
       id-token: write
       attestations: write
     steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: release-dist
           path: dist
+      # Again right before anything is attested or attached.
+      - name: Check the release's file list
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 -I packages/cli/scripts/release_assets.py dist
       - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: dist/*

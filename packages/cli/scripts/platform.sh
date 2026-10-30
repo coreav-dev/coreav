@@ -82,7 +82,7 @@ out="$here/npm/$platform"
 [ "$build" = full ] && out="$here/full/$platform"
 rm -rf "$out"
 mkdir -p "$out/bin"
-cp "$root/target/$target/dist/$exe" "$out/bin/$exe"
+cp "${CARGO_TARGET_DIR:-$root/target}/$target/dist/$exe" "$out/bin/$exe"
 chmod 755 "$out/bin/$exe"
 # NOTICE with every binary (docs/release/notices.md), and the licence
 # files of the C libraries it links.
