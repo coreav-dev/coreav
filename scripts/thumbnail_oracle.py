@@ -162,57 +162,48 @@ def thumb(coreav, path, t, out, exact=False):
     return json.loads(r.stdout), None
 
 
-def start_shift(coreav, ffprobe, path):
-    """How much later FFmpeg's file start is than CoreAV's, in seconds, as
-    each one's `ffprobe` prints `format.start_time`. FFmpeg 9 starts a
-    Matroska file whose audio has a `CodecDelay` at the first block's
-    time; CoreAV, as FFmpeg 7 did, starts it that delay earlier."""
-    from fractions import Fraction
-    starts = []
-    for tool in ([ffprobe], [coreav, 'ffprobe']):
-        r = run([*tool, '-v', 'error', '-show_entries', 'format=start_time', '-of', 'csv=p=0', str(path)])
-        text = r.stdout.decode().strip()
-        starts.append(Fraction(text) if text and text != 'N/A' else Fraction(0))
-    return starts[0] - starts[1]
-
-
-def ffmpeg_time(ffprobe, path, summary, shift=0):
+def ffmpeg_time(ffprobe, path, summary):
     """FFmpeg's `-ss` time for the frame CoreAV chose, rounded down to the
-    microsecond: for MP4/MOV, the pts `ffprobe` lists for the packet at the
-    same byte offset (FFmpeg's timeline can differ from CoreAV's by known
-    divergence KD-EDIT-SNAP), exactly from its integer pts and time base,
-    less the file's start time, from which `-ss` counts; else CoreAV's own
-    time, which counts from CoreAV's start, less `shift` (`start_shift`)."""
-    if path.suffix.lstrip('.').lower() in MP4_EXTS:
-        stream = summary.get('stream_index')
-        r = run([ffprobe, '-v', 'error', '-select_streams', str(stream), '-show_entries',
-                 'packet=pos,pts,flags:stream=time_base:format=start_time', '-of', 'json', str(path)])
-        try:
-            d = json.loads(r.stdout)
-        except ValueError:
-            d = {}
-        from fractions import Fraction
-        base = (d.get('streams') or [{}])[0].get('time_base', '1/1')
-        start = Fraction(str(d.get('format', {}).get('start_time', '0') or '0'))
-        offset = str(summary['packet']['offset'])
-        for p in d.get('packets', []):
-            if str(p.get('pos')) == offset and 'D' in str(p.get('flags', '')):
-                # FFmpeg discards the packet's frame (known divergence
-                # KD-EDIT-SNAP: CoreAV presents it): no reference exists.
-                return None
-            if str(p.get('pos')) == offset and p.get('pts') not in (None, 'N/A'):
-                t = Fraction(int(p['pts'])) * Fraction(base) - start
-                micros = (t * 1_000_000).__floor__()
-                sign = '-' if micros < 0 else ''
-                micros = abs(micros)
-                return f'{sign}{micros // 1_000_000}.{micros % 1_000_000:06d}'
+    microsecond: the pts `ffprobe` lists for the packet that holds the frame's
+    bytes, exactly from its integer pts and time base, less the file's start
+    time, from which `-ss` counts; CoreAV's own time when `ffprobe` lists no
+    such packet. In MP4/MOV that packet starts at the frame's byte offset;
+    elsewhere it is the stream's last packet that starts before it, as a
+    Matroska block or an MPEG-TS PES starts with a header. So FFmpeg's
+    timeline may differ from CoreAV's: by known divergence KD-EDIT-SNAP in
+    MP4, and by the later start FFmpeg 9.0.2 gives a Matroska file whose
+    audio has a `CodecDelay` (KD-FF9-MKV-START)."""
     from fractions import Fraction
-    frame = summary['time']['frame']
-    t = Fraction(frame['num'], frame['den']) - Fraction(shift)
+    mp4 = path.suffix.lstrip('.').lower() in MP4_EXTS
+    r = run([ffprobe, '-v', 'error', '-select_streams', str(summary.get('stream_index')), '-show_entries',
+             'packet=pos,pts,flags:stream=time_base:format=start_time', '-of', 'json', str(path)])
+    try:
+        d = json.loads(r.stdout)
+    except ValueError:
+        d = {}
+    offset, held = int(summary['packet']['offset']), None
+    for p in d.get('packets', []):
+        pos = str(p.get('pos'))
+        if not pos.isdigit():
+            continue
+        if int(pos) == offset:
+            held = p
+            break
+        if not mp4 and int(pos) < offset and (held is None or int(pos) > int(held['pos'])):
+            held = p
+    if held is None or held.get('pts') in (None, 'N/A'):
+        return floor_us(summary['time']['frame'])
+    if 'D' in str(held.get('flags', '')):
+        # FFmpeg discards the packet's frame (known divergence
+        # KD-EDIT-SNAP: CoreAV presents it): no reference exists.
+        return None
+    base = (d.get('streams') or [{}])[0].get('time_base', '1/1')
+    start = Fraction(str(d.get('format', {}).get('start_time', '0') or '0'))
+    t = Fraction(int(held['pts'])) * Fraction(base) - start
     return floor_us({'num': t.numerator, 'den': t.denominator})
 
 
-def reference(ffmpeg, path, summary, out, extra=('-pix_fmt', 'rgb24'), ffprobe='ffprobe', shift=0):
+def reference(ffmpeg, path, summary, out, extra=('-pix_fmt', 'rgb24'), ffprobe='ffprobe'):
     """FFmpeg's image of the frame CoreAV chose, at the same size: True when
     written, False when FFmpeg failed, None when FFmpeg discards that
     frame. FFmpeg seeks its input to the keyframe CoreAV decoded from and,
@@ -221,7 +212,7 @@ def reference(ffmpeg, path, summary, out, extra=('-pix_fmt', 'rgb24'), ffprobe='
     that does not start decoding, in a file without a true sync table)."""
     from fractions import Fraction
     w, h = summary['output']['width'], summary['output']['height']
-    at = ffmpeg_time(ffprobe, path, summary, shift)
+    at = ffmpeg_time(ffprobe, path, summary)
     if at is None:
         return None
     frame, start = summary['time']['frame'], summary['time'].get('decode_start') or summary['time']['frame']
@@ -251,8 +242,7 @@ def images(coreav, ffmpeg, ffprobe, path, t, tmp):
     out['size'] = [key['output']['width'], key['output']['height']]
     out['backend'] = key['decoder']['backend']
     out['keyframe'] = key['keyframe']
-    shift = 0 if path.suffix.lstrip('.').lower() in MP4_EXTS else start_shift(coreav, ffprobe, path)
-    made = reference(ffmpeg, path, key, tmp / 'r.png', ffprobe=ffprobe, shift=shift)
+    made = reference(ffmpeg, path, key, tmp / 'r.png', ffprobe=ffprobe)
     if made is None:
         return {'status': 'ffmpeg_discards', **out}
     if not made:
@@ -262,7 +252,7 @@ def images(coreav, ffmpeg, ffprobe, path, t, tmp):
     jpg, err = thumb(coreav, path, t, tmp / 'k.jpg')
     if err is not None:
         out['I3_error'] = err
-    elif not reference(ffmpeg, path, key, tmp / 'f.jpg', extra=(), ffprobe=ffprobe, shift=shift):
+    elif not reference(ffmpeg, path, key, tmp / 'f.jpg', extra=(), ffprobe=ffprobe):
         out['I3_error'] = 'ffmpeg failed'
     else:
         out['I3_ours'] = psnr(rgb(tmp / 'k.jpg', ffmpeg), ref)
@@ -272,7 +262,7 @@ def images(coreav, ffmpeg, ffprobe, path, t, tmp):
     if err is not None:
         out['I2_error'] = err
     else:
-        made = reference(ffmpeg, path, exact, tmp / 'rx.png', ffprobe=ffprobe, shift=shift)
+        made = reference(ffmpeg, path, exact, tmp / 'rx.png', ffprobe=ffprobe)
         if made:
             out['I2'] = psnr(rgb(tmp / 'x.png', ffmpeg), rgb(tmp / 'rx.png', ffmpeg))
             out['exact_frame'] = exact['time']['frame']
