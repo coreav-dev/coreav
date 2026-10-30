@@ -690,9 +690,10 @@ impl Presented {
 
     /// The presented frames' average rate (frames over the presented
     /// span, the last frame's duration included), snapped to an integer or
-    /// `N × 1000/1001` rate within 0.1% of one: for the summary. The
-    /// encoder is given every frame's own time, not a rate
-    /// (`docs/design/transcode.md`, "Rate control and timestamps").
+    /// `N × 1000/1001` rate within 0.1% of one: for the summary, and for
+    /// FFmpeg when it gets one frame. The encoder is otherwise given every
+    /// frame's own time, not a rate (`docs/design/transcode.md`, "Rate
+    /// control and timestamps").
     fn frame_rate(&self, time_base: Rational) -> FrameRate {
         const FALLBACK: FrameRate = FrameRate { num: 25, den: 1 };
         let n = self.times.len() as u128;
