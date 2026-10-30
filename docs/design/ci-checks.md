@@ -464,6 +464,12 @@ because the report jobs carry `if: always()`, a run superseded by a new push
 starts its report job too, which then reports the cancellation as a failure
 on the superseded commit ("Concurrency" above says why not `!cancelled()`).
 
+Measured on 2026-10-30, a pull request push that changes `ci.yml` (every job
+of `ci.yml` runs, and the changes and report jobs of `python.yml` and
+`npm.yml`): 25 jobs started, 11 of them changes or report jobs, with one
+report per group of `ci.yml`'s jobs; 20 jobs, 6 of them changes or report
+jobs, with one `ci-report`.
+
 The heavy jobs are still skipped, which is where the minutes of an earlier change and
 of the shorter pull request fuzz runs actually are. The whole cost falls to nothing when the
 repository is public and standard runners are free.
