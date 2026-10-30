@@ -44,12 +44,15 @@ class OraclePin(unittest.TestCase):
             'scripts/names.py': "VERSION = '7.0.2'\n",
             'scripts/install.sh': 'curl https://johnvansickle.com/ffmpeg/releases/ffmpeg-7.0.2-amd64-static.tar.xz\n',
             'scripts/x264.sh': 'COMMIT=4613ac3c15fd75cebc4b9f65b7fb95e70a3acce1\n',
+            'scripts/x264_pin.py': "X264_COMMIT = '4613ac3c15fd75cebc4b9f65b7fb95e70a3acce1'\n",
+            'scripts/ffmpeg_pin.py': "FFMPEG_VERSION = '10.0'\n",
             'crates/a/tests/t.rs': f'// {pin["X264_COMMIT"][:7]}\n',
             'docs/measurements/r/job.sh': 'curl https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz\n',
         })
         found = [p.split(':')[0] for p in oracle_pin.problems(root)]
-        self.assertEqual(sorted(found), ['.github/workflows/a.yml', 'crates/a/tests/t.rs', 'scripts/install.sh',
-                                         'scripts/names.py', 'scripts/x264.sh'])
+        self.assertEqual(sorted(found), ['.github/workflows/a.yml', 'crates/a/tests/t.rs', 'scripts/ffmpeg_pin.py',
+                                         'scripts/install.sh', 'scripts/names.py', 'scripts/x264.sh',
+                                         'scripts/x264_pin.py'])
 
 
 if __name__ == '__main__':

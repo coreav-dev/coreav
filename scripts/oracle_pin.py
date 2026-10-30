@@ -36,8 +36,10 @@ PATTERNS = (
         r'johnvansickle\.com/ffmpeg|BtbN/FFmpeg-Builds|ffmpeg\.org/releases/', re.I)),
     ('an FFmpeg version in a cache key', re.compile(rf'\bkey:.*\bffmpeg-{VERSION}\b', re.I)),
     ('an FFmpeg archive name', re.compile(rf'\bffmpeg-{VERSION}[-.]', re.I)),
-    ('an FFmpeg version assignment', re.compile(r'''\bVERSION\s*=\s*['"]?n?\d+\.\d+\.\d+\b''')),
-    ('an x264 commit', re.compile(r'\bx264-[0-9a-f]{7,40}\b|\A\s*COMMIT=[0-9a-f]{7,40}\b')),
+    ('an FFmpeg version assignment', re.compile(
+        r'''\bVERSION\s*=\s*['"]?n?\d+\.\d+\.\d+\b|\bFFMPEG_VERSION\s*=\s*['"]?n?\d+\.\d+\b''')),
+    ('an x264 commit', re.compile(
+        r'''\bx264-[0-9a-f]{7,40}\b|\A\s*(?:X264_)?COMMIT\s*=\s*['"]?[0-9a-f]{7,40}\b''')),
 )
 
 

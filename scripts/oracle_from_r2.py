@@ -27,6 +27,7 @@ import oracle_pin  # noqa: E402
 import r2pool  # noqa: E402
 
 PART = 8 << 20
+CAP = 512 << 20
 
 
 def credentials():
@@ -48,9 +49,12 @@ def main():
         return 1
     pin = oracle_pin.load()
     key = f"tools/{pin['ARCHIVE']}.tar.xz"
-    pool = r2pool.Pool(creds, 4, r2pool.Limits(requests=200, bytes_=512 << 20), timeout=300)
+    pool = r2pool.Pool(creds, 4, r2pool.Limits(requests=200, bytes_=CAP), timeout=300)
     try:
         size, etag = pool.head(key)
+        if size > CAP:
+            print(f"oracle_from_r2.py: {key} is {size} bytes, more than {CAP}", file=sys.stderr)
+            return 1
         data = bytearray(size)
 
         def sink(pos, chunk):
