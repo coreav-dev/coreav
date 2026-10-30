@@ -99,7 +99,7 @@ and `remux` on ISO base media and on Matroska and WebM.
 
 | Bar | Runs | Host | Opens the draw |
 |---|---|---|---|
-| R1 | `run.py commands` on the 0.1.0 `ffprobe` commands, each fixture family, with no baseline file: a failure a baseline lists is still a miss | GitHub-hosted runners, in the fixture workflows (`fixtures.yml`, `mkv-fixtures.yml`, `ts-fixtures.yml`) of the commit | no |
+| R1 | `run.py commands` on the 0.1.0 `ffprobe` commands, each fixture family, with no baseline file: a failure a baseline lists is still a miss | GitHub-hosted runners, in `ci.yml`'s fixture jobs (`isobmff-fixtures`, `mkv-fixtures`, `ts-fixtures`) of the commit | no |
 | R2 | `run.py keys` on every `real` file of draw 6, both tools, counting only the set's keys as the note says | GitHub-hosted runners, the workflow of item 5 | yes |
 | R3 | the R3 runner on every `real` file of draw 6 that each command can take, then `copy_check.py`; and the fixture half as `ci.yml`'s `isobmff-fixtures` and `mkv-fixtures` jobs run it today (`the_0_1_0_commands_on_the_fixtures`, then `copy_check.py`) | GitHub-hosted runners, the workflow of item 5 | yes |
 | R4 | the gate, then the R4 selection: 5 rounds, the tools alternating, wall time of the whole process, file in the page cache after one untimed run of each | one Compute Engine `c4-standard-16` VM with one thread per core, both tools pinned to the same four cores, on-demand provisioning | yes |
