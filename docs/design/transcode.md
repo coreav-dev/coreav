@@ -205,7 +205,9 @@ same rule (`decode.md`, "The FFmpeg fallback").
   again with a hidden argument (`coreav_worker::exec`), which sets the limits on itself through `rustix`'s
   safe `setrlimit` and replaces itself with the encoder through `std`'s
   safe `exec`, so no process sits between the pipes and the encoder. The
-  limits: the address-space budget (`Limits::max_memory_bytes`), no core
+  limits: the address-space budget (`Limits::max_memory_bytes`; advisory
+  on macOS, `docs/design/decode.md`, "Memory", so strict-safe mode starts
+  no encoder there), no core
   files, no regular-file writes (`RLIMIT_FSIZE` 0; the encoder writes only
   to its pipe), a small descriptor count, and CPU seconds bounded by the
   timeout times the CPU count. For the x264 program on input of more than
