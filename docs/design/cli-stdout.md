@@ -35,7 +35,7 @@ Both are safe Rust; the workspace keeps `forbid(unsafe_code)`. Before the
 duplicate is taken, Rust's own stdout buffer is flushed, so nothing printed
 through `Stdout` earlier can land after the media. Text keeps going through
 `Stdout`, line-buffered: the JSON documents, the summaries, `--help` and
-`--version`, and the MCP server's messages. When the output is `-`, the
+`--version`. When the output is `-`, the
 summary goes to standard error after the media are flushed, as before.
 Nothing else writes to standard output while the media are written.
 

@@ -132,9 +132,10 @@ install:
   as a module (`#[path]`). Every subcommand, option, help text, output and
   exit code is therefore the binary's: `main` and the module both call its
   `main_with(args)`. Python ignores `SIGPIPE` as Rust does, so a closed
-  pipe gives the same exit status 141. `coreav mcp` (`docs/design/mcp.md`)
-  runs the command for each tool call; from the wheel that is the installed
-  script, the first argument, since the executable is Python. The tests
+  pipe gives the same exit status 141. The command's own path, which
+  `coreav thumbnail` and `coreav transcode` start again as their sandboxed
+  workers in builds with those features, is the installed script from the
+  wheel (the first argument), since the executable is Python. The tests
   compare the installed command's stdout, stderr and exit code with the
   binary's on every fixture.
 - Rejected:

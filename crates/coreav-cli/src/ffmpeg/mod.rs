@@ -5,10 +5,10 @@
 //! vocabulary. [`plan`] reads the input's streams as `coreav ffprobe` lists
 //! them, selects the streams as `ffmpeg` does (`-map`, or one video, one
 //! audio and one subtitle stream chosen automatically, less `-vn`, `-an`,
-//! `-sn`, `-dn`), and picks the writer: a remux, a clip, a split or an
-//! audio extraction. [`run`] writes the output. Whatever a writer does not
-//! implement is a [`NotNative`] refusal, found before any output is
-//! written.
+//! `-sn`, `-dn`), and picks the writer: a remux, a clip (of audio alone
+//! when no video is selected), a split or an audio extraction. [`run`]
+//! writes the output. Whatever a writer does not implement is a
+//! [`NotNative`] refusal, found before any output is written.
 
 pub mod args;
 #[cfg(feature = "transcode")]
@@ -24,7 +24,7 @@ use crate::split::Pattern;
 use args::{Codec, Command, Demuxer, Muxer, Overwrite, Spec};
 use coreav_isobmff::{Allowlist, FileSource, Limits, Rational, Track};
 use coreav_isobmff_write::{
-    AudioChoice, ClipOptions, JoinAudio, JoinOptions, JoinSummary, JoinedInput,
+    AudioChoice, AudioClipOptions, ClipOptions, JoinAudio, JoinOptions, JoinSummary, JoinedInput,
     MatroskaRemuxOptions, OnUnsupported, RemuxOptions, SplitAt, SplitOptions, TrackChoice,
     VideoChoice,
 };
@@ -90,6 +90,8 @@ pub enum Job {
     },
     /// A keyframe-aligned clip.
     Clip(ClipOptions),
+    /// A clip of one AAC stream alone, presenting the range exactly.
+    AudioClip(AudioClipOptions),
     /// Segments, written to the names of the output pattern.
     Split(SplitOptions),
     /// The video stream encoded with libx264 and these audio streams copied,
@@ -210,7 +212,7 @@ pub fn plan(
             )),
             ([video], [audio]) => Ok((*video, AudioChoice::Stream(*audio))),
             ([video], []) => Ok((*video, AudioChoice::None)),
-            ([], _) => Err(Refusal::not_native("a clip or a segment without video")),
+            ([], _) => Err(Refusal::not_native("a segment without video")),
             _ => Err(Refusal::not_native(
                 "a clip or a segment of more than one video or audio stream",
             )),
@@ -302,9 +304,23 @@ pub fn plan(
         if command.muxer != Muxer::Mp4 {
             return Err(Refusal::not_native("a clip written as M4A"));
         }
-        let (video, audio) = one_video_one_audio()?;
         let (start, end) = clip_range(command, input_start(report))
             .ok_or(Refusal::not_native("a time CoreAV cannot represent"))?;
+        if of(StreamKind::Video).next().is_none() {
+            return match selected.as_slice() {
+                [stream] if kind(*stream) == Some(StreamKind::Audio) => {
+                    Ok(Job::AudioClip(AudioClipOptions {
+                        audio: TrackChoice::Stream(*stream),
+                        start,
+                        end,
+                    }))
+                }
+                _ => Err(Refusal::not_native(
+                    "a clip without video of other than one audio stream",
+                )),
+            };
+        }
+        let (video, audio) = one_video_one_audio()?;
         return Ok(Job::Clip(ClipOptions {
             video: VideoChoice::Stream(video),
             audio,
@@ -851,6 +867,8 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
         }
         Job::Clip(options) => crate::clip::run(input, options, &allowlist, out)
             .map(|summary| crate::clip::document(&summary)),
+        Job::AudioClip(options) => crate::clip::run_audio(input, options, &allowlist, out)
+            .map(|summary| crate::clip::audio_document(&summary)),
         Job::Join { paths, audio } => {
             let summary = crate::join::run(paths, &JoinOptions { audio: *audio }, &allowlist, out)
                 .map_err(|failure| {
