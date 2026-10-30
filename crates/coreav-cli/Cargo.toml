@@ -59,6 +59,11 @@ libvpx = ["thumbnail", "transcode", "dep:coreav-worker", "coreav-worker/libvpx"]
 # libopus. Without a decoder backend feature there is no transcode, so it
 # needs one beside it.
 libopus = ["transcode", "dep:coreav-worker", "coreav-worker/libopus"]
+# AAC LC decoding in `coreav decode-audio` (`coreav-aac`). Off by default
+# and never in a default build: decoding AAC may need a patent licence
+# where you are (`crates/coreav-aac/README.md`). Nothing here is legal
+# advice.
+aac = ["coreav-audio/aac"]
 
 [dependencies]
 coreav-audio = { path = "../coreav-audio" }
