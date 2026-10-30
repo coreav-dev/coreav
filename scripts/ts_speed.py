@@ -13,8 +13,9 @@ arms time, as information and as whole commands, `coreav probe FILE` and `ffprob
 
 One file at a time: it is copied to --tmp (a tmpfs) and read once, then each arm runs once as a warm-up and then
 --rounds times, the order of the arms rotated by one each round; every run is pinned to --core with taskset. After
-each file, and once before the first, the frequency of the core is sampled (`perf stat -e cycles,task-clock` over a
-CoreAV run on the file, cycles over task-clock). The report holds every run's time and output and every sample; it is
+each file, and once before the first, the frequency of the core is sampled (`perf stat -e cycles,task-clock` over
+half a second of a busy loop on the core, cycles over task-clock: a run of a few milliseconds is mostly the start of a
+process, and its ratio reads low on a core that holds its frequency). The report holds every run's time and output and every sample; it is
 written after each file, so a run cut short keeps the files it finished. scripts/ts_speed_bars.py judges it.
 """
 import argparse
@@ -51,12 +52,15 @@ def run_arm(arm, args, path):
     return {k: line.get(k) for k in ('ok', 'ns', 'count', 'bytes', 'error') if k in line}
 
 
-def frequency(args, path, label):
-    """A frequency sample of the timing core: cycles over task-clock of one CoreAV run."""
+SPIN = 'import time\nstart = time.perf_counter()\nwhile time.perf_counter() - start < 0.5:\n    pass\n'
+
+
+def frequency(args, label):
+    """A frequency sample of the timing core: cycles over task-clock of half a second of a busy loop on it."""
     sample = {'label': label, 'time': time.strftime('%H:%M:%SZ', time.gmtime())}
     try:
         r = subprocess.run(['perf', 'stat', '-x,', '-e', 'cycles,task-clock', '--'] +
-                           pinned(args.core, [args.coreav, 'packets', path]),
+                           pinned(args.core, [sys.executable, '-c', SPIN]),
                            capture_output=True, text=True, check=True)
         counts = {}
         for line in r.stderr.splitlines():
@@ -113,14 +117,14 @@ def main():
             while f.read(1 << 20):
                 pass
         if i == 0:
-            report['freq'].append(frequency(args, path, 'start'))
+            report['freq'].append(frequency(args, 'start'))
         entry = {'name': os.path.basename(src), 'bytes': os.path.getsize(path), 'sha256': sha256(path),
                  'warm': {arm: run_arm(arm, args, path) for arm in arms}, 'runs': {arm: [] for arm in arms}}
         for r in range(args.rounds):
             for arm in arms[r % len(arms):] + arms[:r % len(arms)]:
                 entry['runs'][arm].append(run_arm(arm, args, path))
         report['files'].append(entry)
-        report['freq'].append(frequency(args, path, f'after {entry["name"]}'))
+        report['freq'].append(frequency(args, f'after {entry["name"]}'))
         os.remove(path)
         save()
         print(f'{i + 1}/{len(args.files)} {entry["name"]}', flush=True)

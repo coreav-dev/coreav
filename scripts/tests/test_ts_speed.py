@@ -112,6 +112,23 @@ class Timing(unittest.TestCase):
             self.assertEqual([s['label'] for s in r['freq']], ['start', 'after a.ts', 'after b.ts'])
             self.assertEqual(ts_speed_bars.analyze(r)['overall']['median'], 0.5)
 
+    def test_the_frequency_is_sampled_over_a_busy_loop_not_a_file(self):
+        import ts_speed
+        seen = []
+
+        def run(argv, **kwargs):
+            seen.append(argv)
+            return subprocess.CompletedProcess(argv, 0, '', '1550000000,,cycles:u,\n500.0,msec,task-clock:u,\n')
+
+        real, ts_speed.subprocess.run = ts_speed.subprocess.run, run
+        try:
+            sample = ts_speed.frequency(type('A', (), {'core': 2})(), 'start')
+        finally:
+            ts_speed.subprocess.run = real
+        self.assertAlmostEqual(sample['ghz'], 3.1)
+        self.assertEqual(seen[0][-2:], ['-c', ts_speed.SPIN])
+        self.assertIn('2', seen[0])
+
     def test_the_null_arm_must_be_the_same_binary(self):
         with tempfile.TemporaryDirectory() as d:
             d = pathlib.Path(d)
