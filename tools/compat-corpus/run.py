@@ -960,8 +960,12 @@ def cmd_commands_010(opts):
         argv = substitute(args, path)
         ref_code, ref_out, _ = run(['ffprobe'] + argv)
         if ref_code != 0:
-            return path, ref_code, ref_out, None, b'', b''
-        return (path, ref_code, ref_out) + run([opts.coreav, 'ffprobe'] + argv)
+            return path, ref_code, ref_out, None, b'', b'', None
+        code, out, err = run([opts.coreav, 'ffprobe'] + argv)
+        entries = None
+        if code == 0 and out != ref_out and not aside.get(path.name) and path.name in ffmpeg9():
+            entries, _ = ffmpeg9_covers(opts.coreav, args, path, ref_out, out)
+        return path, ref_code, ref_out, code, out, err, entries
 
     strict = {}
 
@@ -976,7 +980,7 @@ def cmd_commands_010(opts):
         targets = [p for p in files if release_round.family(p) in families]
         with concurrent.futures.ThreadPoolExecutor(opts.jobs) as pool:
             results = list(pool.map(lambda p: both(args, p), targets))
-        for path, ref_code, ref_out, code, out, err in results:
+        for path, ref_code, ref_out, code, out, err, entries in results:
             c = counts[(entry['id'], n, release_round.family(path))]
             if ref_code != 0:
                 c['ffprobe fails'] += 1
@@ -992,6 +996,9 @@ def cmd_commands_010(opts):
             elif aside.get(path.name):
                 c['set aside'] += 1
                 set_aside[aside[path.name]] += 1
+            elif entries:
+                c['set aside'] += 1
+                set_aside.update(entries)
             else:
                 c['different'] += 1
                 failures.append({'id': entry['id'], 'command': n, 'args': args, 'file': path.name,
