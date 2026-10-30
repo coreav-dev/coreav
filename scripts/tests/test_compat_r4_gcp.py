@@ -185,6 +185,11 @@ class Verdict(unittest.TestCase):
                             'gate-null.report.json': self.REPORT, 'r4.report.json': {**self.REPORT, 'classes': []}})
         self.assertEqual(compat_r4_gcp.judge(str(out), 0, run), 5)
         self.assertIn('r4 measured nothing', json.loads((out / 'verdict.json').read_text())['reasons'])
+        out, run = self.vm({**self.HOST, 'gate.verdict': 'fail', 'gate-aa.report.json': self.REPORT,
+                            'gate-null.report.json': {**self.REPORT, 'failing': ['clip all'],
+                                                      'unmeasured': ['clip all']}})
+        self.assertEqual(compat_r4_gcp.judge(str(out), 0, run), 5)
+        self.assertIn('gate-null left clip all unmeasured', json.loads((out / 'verdict.json').read_text())['reasons'])
         out, run = self.vm({**self.HOST, 'gate.verdict': 'error', 'gate-aa.report.json': self.REPORT,
                             'gate-null.report.json': {**self.REPORT, 'classes': []}})
         self.assertEqual(compat_r4_gcp.judge(str(out), 0, run), 5)

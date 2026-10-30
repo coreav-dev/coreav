@@ -20,8 +20,8 @@ creates the VM (STANDARD provisioning, one thread a core), runs job.sh and bring
 
 Then the files are deleted, and verdict.json is written: `r4` when the gate passed and R4 ran on the class asked for,
 `gate failed` (a gate report found the host out of its band: a host fault, the round goes on with a new VM of the
-same class), or `void` (a VM of another class, a missing report, a report that measured nothing, a gate arm that
-did not finish, a fallback log with any line). Exit status 0 for `r4`, 3 for a failed gate, 5 for a void run, 4 when
+same class), or `void` (a VM of another class, a missing report, a report that measured nothing or left a group
+with pairs and no ratio, a gate arm that did not finish, a fallback log with any line). Exit status 0 for `r4`, 3 for a failed gate, 5 for a void run, 4 when
 gcp_vm_job.py brought nothing back.
 
 Limits: the VM deletes itself at --max-hours (gcp_vm_job.py's maxRunDuration and its timeout), and job.sh powers it
@@ -156,6 +156,8 @@ def judge(out, rc, run):
             reasons.append(f'the fallback log of {name} is void')
         if reports[name] and not reports[name]['classes']:
             reasons.append(f'{name} measured nothing')
+        elif reports[name] and reports[name].get('unmeasured'):
+            reasons.append(f"{name} left {', '.join(reports[name]['unmeasured'])} unmeasured")
     if (gate == 'pass' or run['rehearsal']) and not reports['r4']:
         reasons.append('R4 produced no report')
     if gate not in ('pass', 'fail'):
