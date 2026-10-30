@@ -315,7 +315,9 @@ def r4(opts):
         warm = (timed_run(a, env, out_dir)[1], timed_run(b, env, out_dir)[1])
         if warm != (0, 0):
             row['exit'] = list(warm)
-            row['refused'] = 'coreav' in (left, right) and 4 in warm
+            # Refused: every CoreAV side refused (exit 4) where every FFmpeg side ran.
+            row['refused'] = 'coreav' in (left, right) and all(
+                code == (4 if side == 'coreav' else 0) for side, code in zip((left, right), warm))
             results.append(row)
             continue
         times, codes = ([], []), set()
