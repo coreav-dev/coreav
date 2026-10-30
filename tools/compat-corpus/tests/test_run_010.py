@@ -29,7 +29,7 @@ if coreav:
     args = args[1:]
     if os.environ.get('FAKE_LOG_LINE'):
         with open(os.environ['COREAV_FALLBACK_LOG'], 'a') as f:
-            f.write(os.environ['FAKE_LOG_LINE'] + '\\n')
+            f.write(os.environ['FAKE_LOG_LINE'] + '\n')
 if os.environ.get('FAKE_FFPROBE_FAILS') and not coreav and any('.mkv' in a for a in args):
     sys.exit(1)
 names = [a for a in args if not a.startswith('/')]

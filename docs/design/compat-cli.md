@@ -392,6 +392,17 @@ both wrote and `copy_check.py` finds no problem. A refusal, a rejection, a
 pair. A command meets R3 when at least 98% of its counted pairs pass, each
 spelling of the set counted on its own, as the bar says "each command".
 
+`speed.py r4` times R4 and both gate arms: `r4` CoreAV against FFmpeg,
+`aa` FFmpeg against itself and `null` CoreAV against itself, the same
+command for both sides, on every file of its families that R3's rule lets
+take it. The runner pins itself to the CPUs of `--cpus`, so every timed
+process runs there; an `ffmpeg` command writes into a scratch directory on
+the local disk that is emptied after every run. A pair whose untimed run
+fails on either side has no ratio and is reported, a strict-safe refusal
+apart. `speed.py r4-report --gate` judges the gate on each class's ratios
+over the three families, as the gate names "every class's median"; the
+families' rows are reported and not gated.
+
 **The R4 host, registered before the run.** A GCP `c4-standard-16` VM with
 SMT off (one thread per core), started through `scripts/gcp_vm_job.py`, the
 rest of the VM idle, and both tools' processes pinned to the same four
