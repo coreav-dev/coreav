@@ -36,13 +36,31 @@ pub(crate) struct Pes {
     /// Offset of the stored packet that starts it.
     pub offset: u64,
     pub header: PesHeader,
-    pub payload: Vec<u8>,
+    /// The bytes read for it: its header and then its payload, or a piece
+    /// of its payload.
+    data: Vec<u8>,
+    /// Where the payload starts in `data`.
+    start: usize,
     /// The adaptation field of its first packet set the random access
     /// indicator.
     pub random_access: bool,
     /// A packet of it was lost (a continuity counter skipped) or repeated
     /// while it was read.
     pub corrupt: bool,
+}
+
+impl Pes {
+    pub(crate) fn payload(&self) -> &[u8] {
+        self.data.get(self.start..).unwrap_or_default()
+    }
+
+    /// The payload, moved out without a copy of its bytes into a new
+    /// buffer.
+    pub(crate) fn into_payload(self) -> Vec<u8> {
+        let mut data = self.data;
+        data.drain(..self.start.min(data.len()));
+        data
+    }
 }
 
 /// Most payload bytes, and PES packets, read to learn the codec of a
@@ -118,6 +136,10 @@ pub(crate) struct Demux {
     allowlist: Allowlist,
     max_packet: usize,
     max_buffered: usize,
+    /// The most room a PES packet's buffer starts with: the bytes held at
+    /// once shared out across the streams, so that what the buffers
+    /// reserve together stays within `max_buffered_bytes`.
+    max_room: usize,
     /// Bytes held by `builders`.
     buffered: usize,
     /// The last packet with a payload of each PID, to tell a duplicate.
@@ -171,6 +193,10 @@ pub(crate) struct Demux {
     by_pid: PidMap<usize>,
     sections: PidMap<Assembler>,
     builders: PidMap<Builder>,
+    /// Per PID, the length its last PES packet of no stated length
+    /// reached: the room the next one starts with, so that a packet of
+    /// coded video is not copied each time its buffer doubles.
+    sizes: PidMap<usize>,
     /// Per PID, the header of the PES packet in progress once a piece of
     /// it was delivered ([`Demux::pieces`]), its times cleared: what the
     /// later pieces carry. Kept apart from the builders, so that reading
@@ -217,6 +243,10 @@ impl Demux {
             allowlist: allowlist.clone(),
             max_packet: usize::try_from(limits.max_packet_bytes).unwrap_or(usize::MAX),
             max_buffered: usize::try_from(limits.max_buffered_bytes).unwrap_or(usize::MAX),
+            max_room: usize::try_from(
+                limits.max_buffered_bytes / u64::from(limits.max_streams.max(1)),
+            )
+            .unwrap_or(usize::MAX),
             buffered: 0,
             last: PidMap::pids(),
             first_pes: PidMap::streams(limits),
@@ -238,6 +268,7 @@ impl Demux {
             by_pid: PidMap::streams(limits),
             sections: PidMap::pids(),
             builders: PidMap::pids(),
+            sizes: PidMap::pids(),
             continued: PidMap::pids(),
             counters: PidMap::pids(),
             ready: VecDeque::new(),
@@ -258,6 +289,7 @@ impl Demux {
             allowlist: self.allowlist.clone(),
             max_packet: self.max_packet,
             max_buffered: self.max_buffered,
+            max_room: self.max_room,
             buffered: 0,
             last: self.last.cleared(),
             first_pes: self.first_pes.cleared(),
@@ -279,6 +311,7 @@ impl Demux {
             by_pid: self.by_pid.clone(),
             sections: self.sections.cleared(),
             builders: self.builders.cleared(),
+            sizes: self.sizes.cleared(),
             continued: self.continued.cleared(),
             counters: self.counters.cleared(),
             ready: VecDeque::new(),
@@ -351,7 +384,8 @@ impl Demux {
             if entry.sniff {
                 let (data, packets) = &mut entry.sniffed;
                 let room = SNIFF_BYTES.saturating_sub(data.len());
-                data.extend_from_slice(pes.payload.get(..room).unwrap_or(&pes.payload));
+                let payload = pes.payload();
+                data.extend_from_slice(payload.get(..room).unwrap_or(payload));
                 *packets = packets.saturating_add(1);
                 let codec = crate::codec::sniff(pes.header.stream_id, data);
                 if codec != Codec::Other || data.len() >= SNIFF_BYTES || *packets >= SNIFF_PACKETS {
@@ -513,11 +547,17 @@ impl Demux {
         }
         if header.unit_start {
             self.complete(pid, warnings);
+            let room = match *payload {
+                [0, 0, 1, _, l0, l1, ..] if u16::from_be_bytes([l0, l1]) > 0 => {
+                    usize::from(u16::from_be_bytes([l0, l1])) + 6
+                }
+                _ => self.sizes.get(&pid).copied().unwrap_or(0),
+            };
             let _ = self.builders.set(
                 pid,
                 Builder {
                     offset,
-                    data: Vec::new(),
+                    data: Vec::with_capacity(room.min(self.max_room)),
                     random_access: header.adaptation.is_some_and(|a| a.random_access),
                     corrupt: false,
                 },
@@ -602,7 +642,8 @@ impl Demux {
                 pid,
                 offset: builder.offset,
                 header,
-                payload: payload.to_vec(),
+                data: payload.to_vec(),
+                start: 0,
                 random_access: builder.random_access && continued.is_none(),
                 corrupt: builder.corrupt,
             });
@@ -641,6 +682,9 @@ impl Demux {
         let Some(builder) = self.builders.remove(&pid) else {
             return;
         };
+        if let [0, 0, 1, _, 0, 0, ..] = *builder.data {
+            let _ = self.sizes.set(pid, builder.data.len());
+        }
         self.buffered = self.buffered.saturating_sub(builder.data.len());
         // The last piece of a PES packet delivered in pieces.
         if let Some(header) = self.pieces.and_then(|_| self.continued.remove(&pid)) {
@@ -648,7 +692,8 @@ impl Demux {
                 pid,
                 offset: builder.offset,
                 header,
-                payload: builder.data,
+                data: builder.data,
+                start: 0,
                 random_access: false,
                 corrupt: builder.corrupt,
             });
@@ -661,16 +706,12 @@ impl Demux {
                 if truncated {
                     warn(warnings, Warning::TruncatedPes { pid });
                 }
-                let payload = builder
-                    .data
-                    .get(header.header_len..)
-                    .unwrap_or_default()
-                    .to_vec();
                 self.ready.push_back(Pes {
                     pid,
                     offset: builder.offset,
                     header,
-                    payload,
+                    data: builder.data,
+                    start: header.header_len,
                     random_access: builder.random_access,
                     corrupt: builder.corrupt || truncated,
                 });

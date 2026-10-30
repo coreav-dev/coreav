@@ -343,7 +343,7 @@ impl Learn {
         if self.done {
             return;
         }
-        let data = pes.payload.as_slice();
+        let data = pes.payload();
         if let Some(nal) = nal_of(codec) {
             self.parameters.add(nal, data);
             if let Some(record) = self.parameters.record(nal) {
@@ -547,7 +547,7 @@ fn read_tail<S: Source>(
                 .get(index)
                 .and_then(|l| l.audio)
                 .map(|a| a.sample_rate);
-            let span = pes_span(entry.codec, &pes.payload, rate);
+            let span = pes_span(entry.codec, pes.payload(), rate);
             if let Some(list) = out.times.get_mut(index) {
                 list.push(pts);
             }
