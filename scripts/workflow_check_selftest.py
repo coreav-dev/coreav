@@ -175,6 +175,29 @@ class Repository(unittest.TestCase):
         ci.write_text(text.replace('    needs: [ci-changes, bench-guard]\n', '    needs: [ci-changes]\n'))
         self.assertIn('ci.yml: no report job waits for bench-guard', check.check(self.root))
 
+    def test_a_pin_change_starts_every_workflow_that_installs_the_oracle(self):
+        workflows = self.root / '.github' / 'workflows'
+        audio = workflows / 'audio-conformance.yml'
+        text = audio.read_text()
+        self.assertEqual(text.count(' "scripts/install-oracle-ffmpeg.sh",'), 2)
+        audio.write_text(text.replace(' "scripts/install-oracle-ffmpeg.sh",', ''))
+        mediainfo = workflows / 'mediainfo-oracle.yml'
+        text = mediainfo.read_text()
+        self.assertIn("      - '*.md'\n", text)
+        self.assertIn('      - scripts/oracle-ffmpeg.env\n', text)
+        mediainfo.write_text(text.replace("      - '*.md'\n", "      - '*.md'\n      - 'scripts/*.env'\n")
+                             .replace('      - scripts/oracle-ffmpeg.env\n', ''))
+
+        def problem(workflow, pin, fix, key, event):
+            return (f'{workflow}: runs the oracle FFmpeg installer, but a change of scripts/{pin} '
+                    f'does not start it: {fix} the `{key}` of `{event}`')
+        self.assertEqual(sorted(check.check(self.root)), sorted([
+            problem('audio-conformance.yml', 'install-oracle-ffmpeg.sh', 'add it to', 'paths', 'push'),
+            problem('audio-conformance.yml', 'install-oracle-ffmpeg.sh', 'add it to', 'paths', 'pull_request'),
+            problem('mediainfo-oracle.yml', 'oracle-ffmpeg.env', 'take it out of', 'paths-ignore', 'push'),
+            problem('mediainfo-oracle.yml', 'oracle-ffmpeg.env', 'add it to', 'paths', 'pull_request'),
+        ]))
+
     def test_a_local_ref_to_nothing_is_reported(self):
         self.call_local('./tools/none')
         self.assertTrue(any('names no action or workflow file' in p for p in check.check(self.root)))

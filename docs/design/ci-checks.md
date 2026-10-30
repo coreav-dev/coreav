@@ -54,7 +54,10 @@ table, a required workflow that grew a trigger filter again or lost its
 `pull_request:` trigger, a report job without `if: always()`, a job of a
 required workflow that no report job waits for, two jobs that would report the same check name, a filter
 pattern the action would read differently from GitHub, a filter written
-in a form the checker cannot read, or a step (in a `.yml` or `.yaml` workflow,
+in a form the checker cannot read, a workflow that runs the oracle
+FFmpeg's installer whose trigger filter a change of the pin
+(`scripts/oracle-ffmpeg.env`, `scripts/install-oracle-ffmpeg.sh`) does not
+pass, or a step (in a `.yml` or `.yaml` workflow,
 in a local action, or in any local action or workflow a step calls with
 `./...`) that uses an action by a tag or branch rather than a full
 lowercase commit sha: a tag can be moved to other code, so every step names
