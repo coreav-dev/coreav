@@ -27,7 +27,7 @@ never committed to the repository.
 | [v1](#corpus-v1) | the oracles and the speed measurements in general | 1,351 | 407 |
 | [v1-fmp4-large](#top-up-v1-fmp4-large) | adaptive routing of large fragmented MP4 | 21 | 6 |
 | [v1-ts-audio](#top-up-v1-ts-audio) | the MPEG-TS demux, the audio containers | per family, below | per family |
-| [v2-heldout](#v2-heldout) | held-out confirmation runs, in draws | 40, 46, 46, 52 and 37 | all |
+| [v2-heldout](#v2-heldout) | held-out confirmation runs, in draws | 40, 46, 46, 52, 37 and 300 | all |
 | [mediarecorder-v1](#mediarecorder-recordings) | the Matroska and WebM run | 41 (synthetic) | none |
 | [commands-v1](#command-coverage-set-commands-v1) | the compatibility command | 1,147 commands | none |
 
@@ -251,7 +251,7 @@ draw's operation.
 | 3 | `hls index` and packet index | `hls` | 46 | 102 | 3.13 | spent: run `w4-01` of [`spikes/w3-308/README.md`](spikes/w3-308/README.md) |
 | 4 | thumbnail and decode | `thumbnail` | 52 | 80 | 1.71 | spent: the joint confirmation of [`spikes/thumbnail-bench/README.md`](spikes/thumbnail-bench/README.md) |
 | 5 | MPEG-TS demux | `ts-probe` | 37 | 48 | 1.7 | spent: [`measurements/ts-demux.md`](measurements/ts-demux.md) |
-| 6 | the 0.1.0 bars R2 to R4 | `compat` | | | | collecting |
+| 6 | the 0.1.0 bars R2 to R4 | `compat` | 300 | 332 | 13.62 | unspent |
 
 No `hls` draw is unspent, so the next `hls index` measurement needs a
 draw of its own before it can run.
@@ -462,7 +462,25 @@ the first fetch.
   over the files, and no `coreav` command runs on the draw before the
   round that opens it.
 
-Collection has not finished; the counts follow it here.
+**Result.** 332 files, 13.62 GB: 300 `real`, every one held out, and 32
+`edge`; no `hostile` file. Every family reached its ceiling.
+
+| Family | `real` | GB | Video codecs of the `real` files | Largest share of one source |
+|---|---:|---:|---|---:|
+| ISO base media | 100 | 3.68 | H.264 87, HEVC 3, AV1 3, others and audio only 7 | 34% |
+| Matroska and WebM | 100 | 5.66 | VP9 64, VP8 26, AV1 8, H.264 2 | 94% |
+| Transport stream | 100 | 4.28 | H.264 73, MPEG-2 18, audio only 6, others 3 | 18% |
+
+- The 32 `edge` files are ISO base media initialization segments, which
+  list streams and hold no sample.
+- **Not taken:** 137 repeating a structural signature, 81 bytes an earlier
+  corpus or this draw already held, 31 downloads that failed and 14 over
+  200 MB, besides the candidates left unread once their family held 100.
+- **One source holds 94% of the Matroska and WebM family.** The rules set
+  no source cap, and few other candidates of that family carried a
+  signature not already held. R2, R3 and R4 report that family as it is;
+  its results speak mostly for one publisher's encodes.
+
 
 ### Rules withdrawn or not held
 
@@ -498,6 +516,18 @@ a subset of it.
 - **Draw 5's first pass was discarded** when more candidates were added,
   and its candidate lists were narrowed to the four extensions the rules
   name.
+- **Draw 6's oracle crashed on 30 transport streams** in the first part of
+  the collection: the pinned static `ffprobe` loaded the collecting host's
+  gconv modules ([`design/mpegts.md`](design/mpegts.md), "The oracle's
+  environment"), and the collector filed the 30 files as `hostile`. Before
+  the collection went on, `GCONV_PATH` was set as
+  `scripts/oracle-ffprobe.sh` sets it, the 30 files were judged again (all
+  30 are `real`) and the decisions after them were replayed in order, which
+  dropped 5 files taken later whose signature was then already held. Draw
+  5's signatures, computed with the same crash, were computed again first.
+- **Draw 6's first 16 candidates** were taken in an order that counted each
+  data set of one site as its own source; the collector then counted the
+  site once, as the rule above intends. The 16 decisions stand.
 
 ## MediaRecorder recordings
 

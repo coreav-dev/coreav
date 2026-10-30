@@ -128,10 +128,11 @@ before R2 and R3 because its gate must pass before the draw is opened.
 
 R4 times at most 5,940 (command, file) pairs per arm (133 commands over
 the families each runs on, 20 files a family), 12 processes a pair, in
-three arms: the gate's two and the draw's. That is an estimated five to
-six hours on the VM, from the size of the selected files and the
-process times of earlier rounds; the driver's time limit is set from it
-before the run. R1 runs within the fixture workflows' own time. R2 and R3 read
+three arms: the gate's two and the draw's. The draw's R4 selection is
+2.6 GB over 60 files (median 14 MB), so most pairs are dominated by
+process start-up; that gives an estimated four to six hours on the VM,
+the gate's larger spent files included. The driver's time limit is set
+from this estimate before the run. R1 runs within the fixture workflows' own time. R2 and R3 read
 draw 6 once each and fit one workflow run.
 
 ## Deviations
