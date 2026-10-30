@@ -102,6 +102,9 @@ def fake_run(cmd, *args, **kw):
         env = dict(os.environ, HOME=str(h), PATH=str(cloud() / 'bin') + os.pathsep + os.environ['PATH'])
         return REAL_RUN(['bash', '-c', ' '.join(cmd[cmd.index(host) + 1:])], *args, cwd=h, env=env, **kw)
     if cmd[0] == 'scp':
+        if (cloud() / 'scp-breaks').exists():
+            shutil.copy(os.path.join(local(cmd[-2]), 'job.status'), local(cmd[-1]))
+            return subprocess.CompletedProcess(cmd, 1)
         shutil.copytree(local(cmd[-2]), local(cmd[-1]), dirs_exist_ok=True)
         return subprocess.CompletedProcess(cmd, 0)
     return REAL_RUN(cmd, *args, **kw)
@@ -181,6 +184,11 @@ class Restart(unittest.TestCase):
 
     def test_collect_finishes_a_run_whose_controller_was_killed(self):
         job = self.killed_run()
+        root = pathlib.Path(self.tmp.name)
+        REAL_RUN(['git', 'init', '-q', str(root)], check=True)
+        for n in ('id', 'state.json'):
+            self.assertEqual(REAL_RUN(['git', '-C', str(root), 'check-ignore', '-q', f'out.gcpjob/{n}']).returncode, 0,
+                             f'git would stage {n}')
         (job / 'release').touch()
         vm_job('--collect', self.state)
         self.assertEqual((self.out / 'result.txt').read_text(), 'done\n')
@@ -193,6 +201,21 @@ class Restart(unittest.TestCase):
         vm_job('--collect', self.state)
         self.assertEqual((cloud() / 'calls.log').read_text(), calls, 'a second collect calls Compute Engine again')
         self.assertEqual((self.out / 'spend.json').read_text(), spend)
+
+    def test_a_partial_copy_is_a_failure_even_with_job_status_on_disk(self):
+        job = self.killed_run()
+        (job / 'release').touch()
+        (cloud() / 'scp-breaks').touch()
+        with self.assertRaises(SystemExit) as e:
+            vm_job('--collect', self.state)
+        self.assertIn('did not come back', str(e.exception))
+        self.assertTrue((self.out / 'job.status').exists())
+        self.assertFalse((self.out / 'result.txt').exists())
+        self.assertEqual(vms(), {}, 'the VM is deleted all the same')
+        self.assertIn('did not come back', json.loads((self.out / 'spend.json').read_text())['status'])
+        (cloud() / 'scp-breaks').unlink()
+        with self.assertRaises(SystemExit):
+            vm_job('--collect', self.state)
 
     def test_collect_past_the_time_limit_deletes_the_vm_without_waiting(self):
         self.killed_run()

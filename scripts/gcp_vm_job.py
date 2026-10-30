@@ -19,12 +19,14 @@ VM, also when a step before fails (not when its insert is refused as a name in u
 
 After a restart: the ssh key and the job's state (the VM's name, zone and project, RESULTS_DIR, the hours, the price
 bound, the cap and the start time) are kept in STATE_DIR (default RESULTS_DIR.gcpjob; it must be new or empty), not in a
-temporary directory. When this script stops before the end, for example because the machine that runs it restarts,
-`--collect STATE_DIR` finishes the job as the run would have: it waits for the job's exit status, copies `~/job/out`
-back, deletes the VM and writes spend.json. It keeps the run's time limit, counted from the saved start time: past it, it
-deletes the VM without waiting. It is safe to run again: once the VM is gone, it only prints the recorded outcome. The ssh
-key is deleted with the VM. The exit status is 0 when the job's output came back, whatever the job's own exit status (in
-RESULTS_DIR/job.status), and 1 when it did not. STATE_DIR names the cloud project: keep it out of published results.
+temporary directory, and a .gitignore in it keeps git from staging them. When this script stops before the end, for
+example because the machine that runs it restarts, `--collect STATE_DIR` finishes the job as the run would have: it
+waits for the job's exit status, copies `~/job/out` back, deletes the VM and writes spend.json. It keeps the run's time
+limit, counted from the saved start time: past it, it deletes the VM without waiting. It is safe to run again: once the
+VM is gone, it only prints the recorded outcome. The ssh key is deleted with the VM. The output counts as come back only
+when its whole copy ended without an error (three attempts); otherwise the VM is deleted all the same and the run fails.
+The exit status is 0 when the job's output came back, whatever the job's own exit status (in RESULTS_DIR/job.status),
+and 1 when it did not. STATE_DIR names the cloud project: keep it out of published results.
 
 Credentials: COREAV_GCP_SA_KEY (a service-account key, JSON text or a path to it) and COREAV_GCP_PROJECT (`--collect`
 reads the project from STATE_DIR). The key is
@@ -180,16 +182,13 @@ def zone_path(s):
 
 def fetch(gce, s, state_dir):
     """Wait for ~/job/job.status until the deadline, then copy ~/job/out to the download directory: the job's status
-    and whether its output came back."""
-    done = os.path.join(s['download'], 'job.status')
+    and whether its output came back. Only a copy that ended without an error is recorded as come back, in the
+    state, before the VM is deleted: a file of the output on disk does not show that the rest of it came too."""
     opts = ssh_opts(state_dir)
     print('waiting for the job', flush=True)
     while True:
         inst = gce.call('GET', f'{zone_path(s)}/instances/{s["name"]}', ok404=True)
         if inst is None:
-            # An earlier collect copied the output and stopped before it recorded the VM's deletion.
-            if os.path.exists(done):
-                return 'job status ' + open(done).read().strip(), True
             return 'the VM is gone', False
         if inst.get('status') in ('STOPPING', 'STOPPED', 'SUSPENDING', 'SUSPENDED', 'TERMINATED'):
             return f'the VM is {inst["status"]}', False
@@ -208,13 +207,22 @@ def fetch(gce, s, state_dir):
         if word not in ('', 'running'):
             break
         time.sleep(POLL)
-    subprocess.run(ssh + ['mkdir -p job/out && cp job/job.log job/job.status job/out/'], timeout=120)
     os.makedirs(s['download'], exist_ok=True)
-    subprocess.run(['scp', '-q', '-r'] + opts + [f'coreav@{ip}:job/out/.', s['download']],
-                   timeout=max(60, int(s['deadline'] - time.time() + 240)))
-    if not os.path.exists(done):
-        return f'job status {word}, but its output did not come back', False
-    return f'job status {word}', True
+    for attempt in range(3):
+        try:
+            ok = (subprocess.run(ssh + ['mkdir -p job/out && cp job/job.log job/job.status job/out/'],
+                                 timeout=120).returncode == 0
+                  and subprocess.run(['scp', '-q', '-r'] + opts + [f'coreav@{ip}:job/out/.', s['download']],
+                                     timeout=max(60, int(s['deadline'] - time.time() + 240))).returncode == 0)
+        except subprocess.TimeoutExpired:
+            ok = False
+        if ok:
+            s.update(status=f'job status {word}', came_back=True)
+            save(state_dir, s)
+            return s['status'], True
+        print(f'copying the output failed (attempt {attempt + 1} of 3)', flush=True)
+        time.sleep(POLL)
+    return f'job status {word}, but its output did not come back whole', False
 
 
 def finish(gce, state_dir, s, status, came_back):
@@ -321,6 +329,9 @@ def main():
                          '--state')
     os.makedirs(state_dir, exist_ok=True)
     os.chmod(state_dir, 0o700)
+    # Wherever STATE_DIR is, git never stages its key or the project's name.
+    with open(os.path.join(state_dir, '.gitignore'), 'w') as f:
+        f.write('*\n')
     z = f'projects/{project}/zones/{a.zone}'
     model = a.provisioning.upper()
     features = {'performanceMonitoringUnit': a.pmu}
