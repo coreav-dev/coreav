@@ -47,7 +47,11 @@
         class's median over the families is within 0.98 to 1.02 and its
         interval holds 1.00. A group with pairs and no ratio (a class in a
         family, or a class over the families, which alone the gate judges) is
-        unmeasured and fails. Exit 1 when a class misses or the gate fails,
+        unmeasured and fails. A pair whose untimed runs both succeeded and
+        a timed run then failed or timed out makes the run incomplete, which
+        fails it (R4) or fails the gate; a pair whose untimed run failed has
+        no ratio, as the plan registers, and is counted by the side that
+        failed. Exit 1 when a class misses or the gate fails,
         2 when the run is void (its fallback log holds a line, a strict-safe
         refusal included), 3 when no pair has a ratio. `r4` exits 3 when it
         has no pair to time.
@@ -376,13 +380,16 @@ def r4_summary(data, gate):
         rows.append(row)
     per_command = [{'command': c, 'n': len(v), 'median': statistics.median(v)} for c, v in sorted(commands.items())]
     no_ratio = collections.Counter(
-        'refused' if r.get('refused') else 'failed' for r in data['results'] if 'ratio' not in r)
+        'refused' if r.get('refused') else 'timed run failed' if 'a' in r
+        else f"untimed run failed: {' and '.join(s for s, c in zip(data['sides'], r['exit']) if c != 0) or 'neither'}"
+        for r in data['results'] if 'ratio' not in r)
+    incomplete = [f"{r['id']}.{r['command']} {r['file']}" for r in data['results'] if 'ratio' not in r and 'a' in r]
     failing = [r for r in rows if r.get('passes') is False or r.get('meets') is False]
     present = {key for r in data['results'] for key in ((r['class'], r['family']), (r['class'], 'all'))}
     unmeasured = sorted(f'{cls} {fam}' for cls, fam in present - set(groups) if not gate or fam == 'all')
     return {'arm': data['arm'], 'sides': data['sides'], 'files': data['files'], 'gate': gate,
             'fallback_log': data['fallback_log'], 'pairs': len(data['results']), 'no_ratio': dict(no_ratio),
-            'classes': rows, 'commands': per_command, 'unmeasured': unmeasured,
+            'classes': rows, 'commands': per_command, 'unmeasured': unmeasured, 'incomplete': incomplete,
             'failing': [f"{r['class']} {r['family']}" for r in failing] + unmeasured}
 
 
@@ -399,14 +406,17 @@ def r4_report(opts):
               f"ci95=[{r['ci95'][0]:.3f}, {r['ci95'][1]:.3f}] faster={r['faster_share']:.0%} {verdict}")
     for group in summary['unmeasured']:
         print(f'UNMEASURED {group}: pairs ran but none has a ratio, so it fails')
-    print(json.dumps({k: summary[k] for k in ('arm', 'pairs', 'no_ratio', 'failing', 'unmeasured', 'fallback_log')}))
+    for pair in summary['incomplete']:
+        print(f'INCOMPLETE {pair}: a timed run failed after both untimed runs succeeded, so the run fails')
+    print(json.dumps({k: summary[k] for k in ('arm', 'pairs', 'no_ratio', 'failing', 'unmeasured', 'incomplete',
+                                              'fallback_log')}))
     if summary['fallback_log']['void']:
         print('VOID: the fallback log holds a line')
         return 2
     if not summary['classes']:
         print('UNMEASURED: no pair has a ratio')
         return release_round.UNMEASURED
-    return 1 if summary['failing'] else 0
+    return 1 if summary['failing'] or summary['incomplete'] else 0
 
 
 def main():
