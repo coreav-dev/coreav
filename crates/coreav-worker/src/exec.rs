@@ -42,6 +42,7 @@ const LAUNCH_FAILED: u8 = 125;
 /// Exit status when the program exists but cannot be run.
 const CANNOT_RUN: u8 = 126;
 /// Exit status when the program does not exist.
+#[cfg(unix)]
 const NOT_FOUND: u8 = 127;
 
 /// What the launcher was asked to run.
