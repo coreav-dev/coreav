@@ -37,6 +37,24 @@ const TAPS: usize = 8;
 /// The longest input delay.
 const MAX_DELAY: usize = 7;
 
+/// The interpolation's taps for each of the 12 positions: the position's
+/// half of the table, then the mirrored position's half reversed.
+#[allow(clippy::indexing_slicing)] // Constant evaluation: out of range fails the build.
+const PHASES: [[i16; TAPS]; 12] = {
+    let mut phases = [[0; TAPS]; 12];
+    let mut p = 0;
+    while p < 12 {
+        let mut k = 0;
+        while k < TAPS / 2 {
+            phases[p][k] = t::INTERPOLATION_FIR[p][k];
+            phases[p][TAPS - 1 - k] = t::INTERPOLATION_FIR[11 - p][k];
+            k += 1;
+        }
+        p += 1;
+    }
+    phases
+};
+
 /// An upsampler of one channel from a SILK rate to 48 kHz.
 #[derive(Clone, Debug)]
 pub(crate) struct Upsampler {
@@ -91,7 +109,7 @@ impl Upsampler {
         if len < khz {
             return;
         }
-        let mut out = out.iter_mut();
+        let mut written = 0;
 
         // The first millisecond: the delayed samples, then the input's
         // first ones.
@@ -103,19 +121,19 @@ impl Upsampler {
         if let (Some(dst), Some(src)) = (first.get_mut(delay..khz), input.get(..head)) {
             dst.copy_from_slice(src);
         }
-        self.batch(first.get(..khz).unwrap_or(&[]), &mut out);
+        written += self.batch(first.get(..khz).unwrap_or(&[]), out);
 
         // The rest, up to the samples the next frame delays, in batches.
         for batch in input.get(head..len - delay).unwrap_or(&[]).chunks(10 * khz) {
-            self.batch(batch, &mut out);
+            written += self.batch(batch, out.get_mut(written..).unwrap_or(&mut []));
         }
         if let (Some(dst), Some(src)) = (self.delayed.get_mut(..delay), input.get(len - delay..)) {
             dst.copy_from_slice(src);
         }
     }
 
-    /// Upsamples a batch of at most 10 ms.
-    fn batch<'a>(&mut self, input: &[i16], out: &mut impl Iterator<Item = &'a mut i16>) {
+    /// Upsamples a batch of at most 10 ms, returning the samples written.
+    fn batch(&mut self, input: &[i16], out: &mut [i16]) -> usize {
         let n = input.len().min(MAX_BATCH);
         // The 2x signal, after the last batch's tail.
         let mut up = [0i16; TAPS + 2 * MAX_BATCH];
@@ -141,27 +159,31 @@ impl Upsampler {
         // Interpolation at the output's positions.
         let end = (2 * n as i32) << 16;
         let mut position = 0i32;
-        while position < end {
-            let phase = ((position & 0xffff) * 12) >> 16;
+        let mut written = 0;
+        for o in out.iter_mut() {
+            if position >= end {
+                break;
+            }
+            let phase = (((position & 0xffff) * 12) >> 16) as usize;
             let at = (position >> 16) as usize;
-            let window = up.get(at..at + TAPS).unwrap_or(&[]);
-            let near = t::INTERPOLATION_FIR.get(phase as usize);
-            let far = t::INTERPOLATION_FIR.get(11 - phase as usize);
-            let (Some(near), Some(far)) = (near, far) else {
+            let (Some(window), Some(taps)) = (
+                up.get(at..at + TAPS)
+                    .and_then(|w| <&[i16; TAPS]>::try_from(w).ok()),
+                PHASES.get(phase),
+            ) else {
                 break;
             };
-            let taps = near.iter().chain(far.iter().rev());
             let sum = window.iter().zip(taps).fold(0i32, |acc, (&x, &c)| {
                 acc.wrapping_add(i32::from(x) * i32::from(c))
             });
-            if let Some(o) = out.next() {
-                *o = sat16(round_shift(sum, 15));
-            }
+            *o = sat16(round_shift(sum, 15));
+            written += 1;
             position += self.step;
         }
         if let Some(src) = up.get(2 * n..2 * n + TAPS) {
             self.tail.copy_from_slice(src);
         }
+        written
     }
 }
 

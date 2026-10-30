@@ -653,6 +653,141 @@ to 3, and run 3 is the measurement of record.
 
 `$LAV` is the prefix of the pinned LGPL package.
 
+## Opus
+
+The bars of the design note (`docs/design/audio-decode.md`, "Opus bars"
+and "Opus sets"). Method, fixed before the runs:
+
+- `make_opus_inputs.py` builds the three sets by the rule of "Opus sets"
+  with the pinned `ffmpeg` 7.0.2 and the libopus it links. The record keeps,
+  per input, its parameters, its hash and the mode and frame size of every
+  packet's TOC byte (read from an Ogg remux by stream copy).
+- `agree_opus.py`, bar 2: per input, its first Opus stream through `coreav
+  decode-audio --format s16` against libopus's float output (`ffmpeg
+  -request_sample_fmt flt -c:a libopus -i IN -map 0:K -f f32le -`) rounded
+  to 16-bit with hard clipping. Matroska and WebM: the lengths equal, and passing
+  `opus_compare -r 48000` (`-s` for two channels, each channel alone above
+  two; a mono reference is given as two equal channels, since
+  `opus_compare` reads its first file as stereo). MP4: the edit list is
+  the timeline (design note, "Edit lists"), so CoreAV's output is held to
+  the presentation model of `scripts/decode_audio_check.py`: libopus's decode of
+  every sample (`-ignore_editlist 1`, which drops the pre-skip), as above, cut by the edit
+  list as `scripts/oracle_kd.py` reads it, the priming samples never
+  presented. The length must equal the model's and `opus_compare` must
+  pass against it; `ffmpeg`'s own output must be as long as the entries of
+  `docs/known-divergences-decode-audio.md` give for the list, so a length
+  difference from `ffmpeg` is a recorded divergence, never a tolerance.
+  Reported against `ffmpeg`'s default decoder (`opus`): within
+  `opus_compare`, the SNR and the largest difference in 16-bit steps, over
+  the samples both write from the start.
+- Hosts: the agreement run, not timed, on one GCP `c4-highcpu-48`, and
+  the inputs its time limit left unrun, resumed from its results with the
+  same binaries, on one `c4-standard-16` and then one `n2-highmem-48`. The speed run, `perf.py` as
+  for FLAC and MP3 (5 rounds after a warm-up, outputs on a tmpfs), against
+  `lav_audio` built against the LGPL package of FFmpeg 9.0.2 (conda-forge
+  `ffmpeg-9.0.2-lgpl_hceb5412_805`) and the pinned `ffmpeg` 9.0.2
+  (`n9.0.2-17-g2a571b6068`), on GCP `c4-standard-4` VMs with simultaneous
+  multithreading off (2 cores, one vCPU each), each otherwise idle: the
+  inputs are split into shards of about equal decode time, one VM a shard,
+  and each VM rebuilds its shard's inputs with `make_opus_inputs.py` and
+  checks their hashes against the agreement run's record. The per-mode
+  report puts each input in the mode most of its packets carry.
+
+## Results at a glance (Opus)
+
+| Bar | Result | Status |
+|---|---|---|
+| Conformance: the 24 decodes of the RFC 8251 vectors | All 24, in CI (`.github/workflows/audio-conformance.yml`) | **Met** |
+| Agreement with libopus on every input `ffmpeg` decodes without an error | **606 of 607** counted (504 of 504 derived, 90 of 90 corpus, 12 of 13 multichannel); lowest quality 99.7; 4 derived MP4 inputs not run | **Not met**: 1 input, below; 4 inputs not run |
+| Library, median ours / libav at most 1.00, held-out, overall and per class | **1.002** (95% CI 0.992 to 1.009), 512 inputs; MP4 1.004, Matroska 0.997 | **Not met**: overall and MP4 |
+| Command, median ours / `ffmpeg` at most 1.00, held-out, overall and per class | **0.523** (95% CI 0.505 to 0.543), 512 inputs; MP4 0.523, Matroska 0.523 | **Met**, faster |
+
+Share of held-out inputs where CoreAV is faster: library **49.2%** (MP4
+46.5%, Matroska 51.9%), command **94.7%**. The command's interval ends
+below 1.00, so the command is faster than `ffmpeg` on these inputs; the
+library pair is level with libavcodec's `opus` decoder, and CELT is where
+it loses (below).
+
+## Speed (`evidence/opus-perf.json`, derived set, held out)
+
+| Pair | Class | Inputs | Median | 95% CI | Faster (ratio < 1.00) | Max |
+|---|---|---:|---:|---|---:|---:|
+| library (gates) | all | 512 | 1.002 | 0.992 to 1.009 | 49.2% | 1.264 |
+| library (gates) | mp4 | 254 | 1.004 | 0.993 to 1.015 | 46.5% | 1.249 |
+| library (gates) | matroska | 258 | 0.997 | 0.980 to 1.010 | 51.9% | 1.264 |
+| command (gates) | all | 512 | 0.523 | 0.505 to 0.543 | 94.7% | 1.065 |
+| command (gates) | mp4 | 254 | 0.523 | 0.496 to 0.574 | 94.9% | 1.062 |
+| command (gates) | matroska | 258 | 0.523 | 0.499 to 0.551 | 94.6% | 1.065 |
+| library vs `find_stream_info` (reference) | all | 512 | 1.017 | 1.006 to 1.022 | 42.6% | 1.263 |
+| decoder alone (reported) | all | 512 | 1.059 | 1.052 to 1.063 | 23.0% | 2.060 |
+
+By mode (the mode most of an input's packets carry; reported, not
+gating), medians:
+
+| Mode | Inputs | Library | Command | Decoder alone | Library faster |
+|---|---:|---:|---:|---:|---:|
+| SILK | 60 | 0.777 | 0.423 | 0.784 | 100.0% |
+| Hybrid | 66 | 0.943 | 0.612 | 1.033 | 57.6% |
+| CELT | 386 | 1.015 | 0.520 | 1.069 | 39.9% |
+
+The CELT decoder is the next speed item for this crate: 6.7% of the CELT
+inputs decode faster than with libavcodec's decoder in the decoder-alone
+pair, and the library pair's lead elsewhere comes from the pipeline around
+the decoder. By bitrate, the library pair runs from 0.794 at 12 kbit/s
+(SILK) to 1.045 at 128 kbit/s and 1.037 at 256 kbit/s.
+
+The 512 held-out inputs are the derived inputs bar 2 passed: the 4 MP4
+inputs bar 2 did not run are not timed, and the 8 listed apart for
+`ffmpeg`'s message (below), which passed, are. The shards rebuilt every
+input: 604 of 604 have the agreement run's packets and 345 its bytes; the
+others are the 258 Matroska files, whose muxer writes a random segment UID,
+and one MP4 file. Hosts: 8 `c4-standard-4` VMs, SMT off, all Intel Xeon
+Platinum 8581C. The corpus set (92 inputs; not held out, gates nothing)
+gives library 1.035 (32.6% faster) and command 0.812 (96.7%)
+(`summarize.py --set corpus`). Commit of the measured binaries: `22a0a9d`.
+
+## Agreement (`evidence/opus-agree.json`)
+
+- 630 inputs (516 derived, 14 multichannel, 100 corpus; the corpus's 4 Ogg
+  files are not read yet, and 2 derived encodes have no audio stream). 626
+  have a result; 607 are counted and 606 pass, the lowest quality 99.7. MP4
+  lengths match the presentation model through the entries `KD-A-EDIT-END`
+  and `KD-A-LEADING-EMPTY`.
+- The miss: the multichannel input of mapping family 255 at 3 channels
+  (`d51c01fc…`). Family 255 gives no channel layout, so its channels have
+  no order beyond the coded one; libopus, through `ffmpeg`, reorders 3
+  channels as Vorbis does (channels 1 and 2 swapped), while CoreAV and
+  `ffmpeg`'s default `opus` decoder give them in coded order and agree
+  channel for channel. With the channels matched it passes (quality 99.9,
+  at most 1 step). Recorded as a miss, with the decoder and the method
+  unchanged.
+- Not run: 4 derived MP4 inputs of 1.6 to 3.8 hours each (`3d8f6047…`,
+  `6024f3b8…`, `9af8b16f…`, `b7d3b1ab…`; `not_run` in the record),
+  which the last resume's time limit left. Their Matroska counterparts, the
+  same encodes, pass.
+- Listed apart, as the bar says (19): 10 corpus inputs `ffmpeg` decodes
+  with errors; 2 corpus MP4 inputs refused by name (IAMF); 9
+  inputs (8 derived Matroska, 1 multichannel) whose only message is the
+  `f32le` muxer's on the reference side, a timestamp equal to the one
+  before it. All 9 of those pass.
+- Against `ffmpeg`'s default decoder (`opus`; reported): 549 of 607
+  within `opus_compare`, every length equal, SNR median 92.5 dB, lowest
+  -0.95 dB, largest difference 49,677 steps.
+
+## Runs (Opus)
+
+1. **Agreement run 1: crashed**, no record.
+2. **Agreement run 2**: stopped by its time limit, then resumed from its
+   results by three runs on the same binaries, the second of them
+   preempted. Results are keyed by set, source and class (a rebuilt
+   Matroska file differs in its segment UID only). After the first resume,
+   run 2's corpus copies were found to take their source's hash as file
+   name, so a corpus file that is also a derived source had been
+   overwritten by its derived WebM: 17 of run 2's corpus results and 18 of the first resume's were on
+   the wrong file. They are dropped (`dropped` in the record) and those
+   inputs measured again with the copies named `corpus-<hash>`.
+3. **Speed run**: all 604 inputs, every engine without a failure.
+
 ## Opus: the decoder-choice probe
 
 Indicative, not a bar: one input of the choice between a native Opus
@@ -666,9 +801,10 @@ that build may be the cause, `opus_probe/libopus_loop.c` timed the
 distribution's libopus 1.3.1 (Amazon Linux 2023) decoding packets held
 in memory, decode time only, on 5 of them: 0.85 to 1.08 of FFmpeg's
 whole command with its own decoder. Record:
-`evidence/opus-backend-probe.json`, with the commands that rebuild the inputs (`reproduce`). The probe has no warm-up run and one run per input above 1,000 s, and its two comparisons are unequal (the loop is spared demuxing, writing and process start): an indication, not a measurement. No Opus bar has been measured.
+`evidence/opus-backend-probe.json`, with the commands that rebuild the inputs (`reproduce`). The probe has no warm-up run and one run per input above 1,000 s, and its two comparisons are unequal (the loop is spared demuxing, writing and process start): an indication, not a measurement.
 
 ## Spend
 
-None: every run was on the development machine; the corpus was read from R2
-(no egress charge).
+FLAC, MP3 and resampling: none; every run was on the development machine,
+and the corpus was read from R2 (no egress charge). Opus: the runs above,
+on GCP VMs.

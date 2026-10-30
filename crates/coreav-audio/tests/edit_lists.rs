@@ -18,6 +18,7 @@ use coreav_isobmff::SliceSource;
 
 const RATE: u32 = 44_100;
 const BLOCK: u16 = 1000;
+const PRE_SKIP: u16 = 312;
 
 #[derive(Default)]
 struct Keep(Vec<u8>);
@@ -89,11 +90,70 @@ fn mp4(count: usize, edits: Option<&[(u64, i64)]>, movie_timescale: u32) -> Vec<
     let frames: Vec<Vec<u8>> = (0..count)
         .map(|k| frame(k as u8, (k as i16 + 1) * 100))
         .collect();
+    let media = (count * usize::from(BLOCK)) as u32;
+    // The dfLa box: the streaminfo block, last.
+    let mut streaminfo = Vec::new();
+    streaminfo.extend_from_slice(&BLOCK.to_be_bytes());
+    streaminfo.extend_from_slice(&BLOCK.to_be_bytes());
+    streaminfo.extend_from_slice(&[0; 6]);
+    let packed: u64 = (u64::from(RATE) << 44) | (15 << 36) | media as u64;
+    streaminfo.extend_from_slice(&packed.to_be_bytes());
+    streaminfo.extend_from_slice(&[0; 16]);
+    let mut dfla = vec![0, 0, 0, 0, 0x80, 0, 0, 34];
+    dfla.extend_from_slice(&streaminfo);
+    let entry = sample_entry(b"fLaC", RATE, &bx(b"dfLa", &dfla));
+    movie(
+        &frames,
+        &entry,
+        RATE,
+        u32::from(BLOCK),
+        edits,
+        movie_timescale,
+    )
+}
+
+/// An MP4 Opus file of `count` mono 20 ms packets with a pre-skip of
+/// `PRE_SKIP` samples, each packet one empty CELT frame (RFC 6716 3.2.1),
+/// which decodes to silence.
+fn opus_mp4(count: usize, edits: Option<&[(u64, i64)]>) -> Vec<u8> {
+    let frames = vec![vec![0xF8]; count];
+    let mut dops = vec![0, 1];
+    dops.extend_from_slice(&PRE_SKIP.to_be_bytes());
+    dops.extend_from_slice(&48_000u32.to_be_bytes());
+    dops.extend_from_slice(&[0, 0, 0]);
+    let entry = sample_entry(b"Opus", 48_000, &bx(b"dOps", &dops));
+    movie(&frames, &entry, 48_000, 960, edits, 1000)
+}
+
+/// A mono 16-bit audio sample entry `kind` at `rate` holding `config`.
+fn sample_entry(kind: &[u8; 4], rate: u32, config: &[u8]) -> Vec<u8> {
+    let mut entry = vec![0u8; 6];
+    entry.extend_from_slice(&1u16.to_be_bytes());
+    entry.extend_from_slice(&[0; 8]);
+    entry.extend_from_slice(&1u16.to_be_bytes());
+    entry.extend_from_slice(&16u16.to_be_bytes());
+    entry.extend_from_slice(&[0; 4]);
+    entry.extend_from_slice(&(rate << 16).to_be_bytes());
+    entry.extend_from_slice(config);
+    bx(kind, &entry)
+}
+
+/// An MP4 file of one audio track, sample entry `entry`, of `frames` of
+/// `block` samples at `rate`.
+fn movie(
+    frames: &[Vec<u8>],
+    entry: &[u8],
+    rate: u32,
+    block: u32,
+    edits: Option<&[(u64, i64)]>,
+    movie_timescale: u32,
+) -> Vec<u8> {
+    let count = frames.len();
     let ftyp = bx(b"ftyp", b"isom\0\0\0\0isom");
     let data: Vec<u8> = frames.concat();
     let mdat = bx(b"mdat", &data);
     let offset = (ftyp.len() + 8) as u32;
-    let media = (count * usize::from(BLOCK)) as u32;
+    let media = count as u32 * block;
     let matrix: Vec<u8> = [0x0001_0000u32, 0, 0, 0, 0x0001_0000, 0, 0, 0, 0x4000_0000]
         .iter()
         .flat_map(|v| v.to_be_bytes())
@@ -134,41 +194,23 @@ fn mp4(count: usize, edits: Option<&[(u64, i64)]>, movie_timescale: u32) -> Vec<
         trak.extend(bx(b"edts", &bx(b"elst", &elst)));
     }
     let mut mdhd = vec![0u8; 12];
-    mdhd.extend_from_slice(&RATE.to_be_bytes());
+    mdhd.extend_from_slice(&rate.to_be_bytes());
     mdhd.extend_from_slice(&media.to_be_bytes());
     mdhd.extend_from_slice(&[0x55, 0xC4, 0, 0]);
     let mut hdlr = vec![0u8; 8];
     hdlr.extend_from_slice(b"soun");
     hdlr.extend_from_slice(&[0; 13]);
-    // fLaC sample entry with its dfLa box (the streaminfo block, last).
-    let mut streaminfo = Vec::new();
-    streaminfo.extend_from_slice(&BLOCK.to_be_bytes());
-    streaminfo.extend_from_slice(&BLOCK.to_be_bytes());
-    streaminfo.extend_from_slice(&[0; 6]);
-    let packed: u64 = (u64::from(RATE) << 44) | (15 << 36) | media as u64;
-    streaminfo.extend_from_slice(&packed.to_be_bytes());
-    streaminfo.extend_from_slice(&[0; 16]);
-    let mut dfla = vec![0, 0, 0, 0, 0x80, 0, 0, 34];
-    dfla.extend_from_slice(&streaminfo);
-    let mut entry = vec![0u8; 6];
-    entry.extend_from_slice(&1u16.to_be_bytes());
-    entry.extend_from_slice(&[0; 8]);
-    entry.extend_from_slice(&1u16.to_be_bytes());
-    entry.extend_from_slice(&16u16.to_be_bytes());
-    entry.extend_from_slice(&[0; 4]);
-    entry.extend_from_slice(&(RATE << 16).to_be_bytes());
-    entry.extend(bx(b"dfLa", &dfla));
     let mut stsd = vec![0, 0, 0, 0, 0, 0, 0, 1];
-    stsd.extend(bx(b"fLaC", &entry));
+    stsd.extend_from_slice(entry);
     let mut stts = vec![0, 0, 0, 0, 0, 0, 0, 1];
     stts.extend_from_slice(&(count as u32).to_be_bytes());
-    stts.extend_from_slice(&u32::from(BLOCK).to_be_bytes());
+    stts.extend_from_slice(&block.to_be_bytes());
     let mut stsc = vec![0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1];
     stsc.extend_from_slice(&(count as u32).to_be_bytes());
     stsc.extend_from_slice(&1u32.to_be_bytes());
     let mut stsz = vec![0u8; 8];
     stsz.extend_from_slice(&(count as u32).to_be_bytes());
-    for f in &frames {
+    for f in frames {
         stsz.extend_from_slice(&(f.len() as u32).to_be_bytes());
     }
     let mut stco = vec![0, 0, 0, 0, 0, 0, 0, 1];
@@ -224,6 +266,20 @@ fn without_an_edit_list_every_sample_is_written() {
     assert!(samples == media(0, 10_000));
     assert_eq!(summary.timeline.start, 0);
     assert!(summary.timeline.silence.is_empty());
+}
+
+#[test]
+fn opus_priming_samples_are_never_presented() {
+    let length = |edits: Option<&[(u64, i64)]>| {
+        let (summary, samples) = run(&opus_mp4(10, edits), 1, &Limits::default()).unwrap();
+        assert_eq!(summary.timeline.start, 0);
+        samples.len()
+    };
+    let pre_skip = usize::from(PRE_SKIP);
+    assert_eq!(length(None), 9600 - pre_skip);
+    assert_eq!(length(Some(&[(190, 0)])), 9120 - pre_skip);
+    assert_eq!(length(Some(&[(180, 312)])), 8640);
+    assert_eq!(length(Some(&[(180, 100)])), 8640 + 100 - pre_skip);
 }
 
 #[test]

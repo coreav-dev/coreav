@@ -23,8 +23,6 @@
 //!   marks the frame corrupt, rather than panicking; with consistent
 //!   arguments none of it overflows. Rejected: a `Result` from every read,
 //!   a branch on the hot path for states valid streams never reach.
-//! - Not yet here: shrinking the frame once a redundant CELT frame's size
-//!   is known (4.5.1.3), which the hybrid layer adds with its first use.
 
 /// The range above which the state is normalized (4.1.2.1): `rng > 2**23`.
 const NORM: u32 = 1 << 23;
@@ -229,6 +227,16 @@ impl<'a> RangeDecoder<'a> {
         out
     }
 
+    /// Takes the last `bytes` bytes off the frame, as a redundant CELT
+    /// frame's size does once it is known (4.5.1.3): raw bits then come
+    /// from the new end, and reads past it give zeros.
+    pub(crate) fn shrink(&mut self, bytes: usize) {
+        self.data = self
+            .data
+            .get(..self.data.len().saturating_sub(bytes))
+            .unwrap_or(&[]);
+    }
+
     /// The size of the frame in bits.
     pub(crate) fn storage_bits(&self) -> u32 {
         (8 * self.data.len()) as u32
@@ -279,19 +287,55 @@ fn tell(total: u32, rng: u32) -> u32 {
     total.wrapping_sub(ilog(rng))
 }
 
-/// `tell_frac` of the same (4.1.6.2).
+/// `tell_frac` of the same (4.1.6.2): the three fraction bits that
+/// squaring the top 16 bits of `rng` three times gives grow with those bits,
+/// so they are the count of [`FRACTION_STEPS`] at or below them.
 fn tell_frac(total: u32, rng: u32) -> u32 {
-    let mut lg = ilog(rng);
-    // rng > 2**23 after normalization, so lg >= 24.
-    let mut r = rng >> lg.saturating_sub(16);
-    for _ in 0..3 {
-        r = (r * r) >> 15;
-        let bit = r >> 16;
-        lg = 2 * lg + bit;
-        r >>= bit;
-    }
-    total.wrapping_mul(8).wrapping_sub(lg)
+    let lg = ilog(rng);
+    // rng > 2**23 after normalization, so lg >= 24 and r >= 2**15.
+    let r = rng >> lg.saturating_sub(16);
+    let fraction = if lg >= 16 {
+        FRACTION_STEPS.iter().filter(|&&step| r >= step).count() as u32
+    } else {
+        fraction_by_squaring(r)
+    };
+    total.wrapping_mul(8).wrapping_sub(8 * lg + fraction)
 }
+
+/// The three bits below the binary point of log2 of `r` / 2^15, by
+/// squaring three times (4.1.6.2).
+const fn fraction_by_squaring(mut r: u32) -> u32 {
+    let mut fraction = 0;
+    let mut i = 0;
+    while i < 3 {
+        r = r.wrapping_mul(r) >> 15;
+        let bit = r >> 16;
+        fraction = 2 * fraction + bit;
+        r >>= bit;
+        i += 1;
+    }
+    fraction
+}
+
+/// For each fraction from 1 to 7, the least `r` from 2^15 that
+/// [`fraction_by_squaring`] gives it or more.
+#[allow(clippy::indexing_slicing)] // Constant evaluation: out of range fails the build.
+const FRACTION_STEPS: [u32; 7] = {
+    let mut steps = [1 << 16; 7];
+    let mut r = 1 << 15;
+    while r < 1 << 16 {
+        let f = fraction_by_squaring(r) as usize;
+        let mut j = 0;
+        while j < f {
+            if r < steps[j] {
+                steps[j] = r;
+            }
+            j += 1;
+        }
+        r += 1;
+    }
+    steps
+};
 
 /// The number of bits needed to store `x`: 0 for 0 (`ilog`, RFC 6716
 /// section 1.1.10).
@@ -302,6 +346,21 @@ pub(crate) fn ilog(x: u32) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tell_frac_counts_the_squarings() {
+        for r in 1u32 << 15..1 << 16 {
+            for shift in [8, 15] {
+                let rng = r << shift;
+                let lg = ilog(rng);
+                assert_eq!(
+                    tell_frac(100, rng),
+                    800 - 8 * lg - fraction_by_squaring(r),
+                    "rng {rng}"
+                );
+            }
+        }
+    }
 
     /// A range encoder written from RFC 6716 section 5.1, for round trips:
     /// the encoder's `rng` after each symbol must equal the decoder's
