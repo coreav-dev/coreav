@@ -10,12 +10,13 @@ publish = false
 
 [features]
 default = []
-# Links the system's libopus (found with pkg-config). Off by default so that
+# Links the system's libopus (opusic-sys without its bundled build; the
+# linker's search path, or OPUS_LIB_DIR). Off by default so that
 # the workspace builds without it (docs/design/transcode.md, "Opus audio").
-libopus = ["dep:opus"]
+libopus = ["dep:opusic-c"]
 
 [dependencies]
-opus = { version = "0.3", optional = true }
+opusic-c = { version = "1.6", default-features = false, optional = true }
 
 [lints]
 workspace = true
