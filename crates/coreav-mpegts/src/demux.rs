@@ -227,7 +227,7 @@ pub(crate) struct Demux {
     pcrs: PidMap<u64>,
     /// PIDs whose PES packets are reassembled whatever the tables say
     /// (the streams a probe kept), besides those the tables keep.
-    pub always: std::collections::BTreeSet<u16>,
+    pub always: PidMap<()>,
     /// When set, the PES packets of H.264, HEVC, MPEG-1 and MPEG-2 video
     /// streams are delivered in pieces of this many payload bytes as they
     /// arrive, the later pieces with no times, rather than whole once the
@@ -277,7 +277,7 @@ impl Demux {
             keep_epg: false,
             keep_splices: false,
             pcrs: PidMap::streams(limits),
-            always: std::collections::BTreeSet::new(),
+            always: PidMap::pids(),
             pieces: None,
         }
     }
@@ -533,7 +533,7 @@ impl Demux {
             .get(&pid)
             .and_then(|&index| self.streams.get(index));
         let sniffing = stream.is_some_and(|s| s.sniff);
-        let wanted = self.always.contains(&pid) || sniffing || stream.is_some_and(|s| s.kept);
+        let wanted = self.always.contains_key(&pid) || sniffing || stream.is_some_and(|s| s.kept);
         if !wanted {
             return Ok(());
         }

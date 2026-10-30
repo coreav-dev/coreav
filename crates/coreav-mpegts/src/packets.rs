@@ -416,7 +416,9 @@ impl TransportStream {
         let mut demux = Demux::new(&self.allowlist, limits);
         // The streams the probe kept (sniffed codecs included) are read
         // whatever the tables say; others when a PMT names them.
-        demux.always = self.streams.iter().map(|s| s.pid).collect();
+        for stream in &self.streams {
+            let _ = demux.always.set(stream.pid, ());
+        }
         // The Event Information Table is listed as a stream, so its
         // sections are its packets.
         demux.keep_epg = true;
