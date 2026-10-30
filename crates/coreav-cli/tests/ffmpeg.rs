@@ -186,6 +186,29 @@ fn a_concat_list_is_joined() {
     );
 }
 
+/// A join copies the audio stream `ffmpeg` selects or refuses the
+/// command: FLAC, which the join does not copy, is refused (exit status 4),
+/// never left out of an output written without it.
+#[test]
+fn a_join_refuses_audio_it_does_not_copy() {
+    let dir = scratch("ffmpeg-concat-flac");
+    std::fs::write(dir.join("in.mp4"), av_movie(b"fLaC")).unwrap();
+    let list = dir.join("list.txt");
+    std::fs::write(&list, "file in.mp4\nfile in.mp4\n").unwrap();
+    let output = dir.join("out.mp4");
+    let (l, o) = (list.to_str().unwrap(), output.to_str().unwrap());
+    let r = ffmpeg(&["-f", "concat", "-i", l, "-c", "copy", o]);
+    assert_eq!(r.code, 4, "{}", r.stderr);
+    assert!(
+        r.stderr.contains("a codec that CoreAV does not copy"),
+        "{}",
+        r.stderr
+    );
+    assert!(!output.exists());
+    let r = ffmpeg(&["-f", "concat", "-i", l, "-an", "-c", "copy", o]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+}
+
 /// [`movie`] with words changed: each `(n, from, to)` writes the 32-bit
 /// big-endian words `to` over the `n`th (from 1) run of the words `from`.
 fn patched_movie(dir: &Path, name: &str, patch: &[(usize, &[u32], &[u32])]) -> String {
