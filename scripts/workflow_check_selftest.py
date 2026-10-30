@@ -198,6 +198,26 @@ class Repository(unittest.TestCase):
             problem('mediainfo-oracle.yml', 'oracle-ffmpeg.env', 'add it to', 'paths', 'pull_request'),
         ]))
 
+    def test_only_a_workflow_that_runs_the_installer_must_start_on_the_pin(self):
+        def workflow(*steps):
+            return ('# workflow-check: not required\non:\n  pull_request:\n'
+                    '    paths: ["scripts/install-oracle-ffmpeg.sh"]\njobs:\n  probe:\n'
+                    '    runs-on: ubuntu-24.04\n    steps:\n' + ''.join(f'      {step}\n' for step in steps))
+        missing = ('probe.yml: runs the oracle FFmpeg installer, but a change of scripts/oracle-ffmpeg.env '
+                   'does not start it: add it to the `paths` of `pull_request`')
+        for steps in (['- run: bash -n scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: shellcheck scripts/install-oracle-ffmpeg.sh'],
+                      ['# scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/bin"', '- run: echo none']):
+            with self.subTest(steps=steps):
+                self.write('.github/workflows/probe.yml', workflow(*steps))
+                self.assertEqual(check.check(self.root), [])
+        for steps in (['- run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/bin"'],
+                      ['- name: x', '  run: bash scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: |', '    set -e', '', '    ./scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/bin"']):
+            with self.subTest(steps=steps):
+                self.write('.github/workflows/probe.yml', workflow(*steps))
+                self.assertEqual(check.check(self.root), [missing])
+
     def test_a_local_ref_to_nothing_is_reported(self):
         self.call_local('./tools/none')
         self.assertTrue(any('names no action or workflow file' in p for p in check.check(self.root)))

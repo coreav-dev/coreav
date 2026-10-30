@@ -18,9 +18,9 @@
   failure could pass unnoticed;
 - a filter pattern passed to .github/actions/changed-paths is one GitHub
   and the action would read differently;
-- a workflow that runs the oracle FFmpeg's installer has a trigger `paths`
-  or `paths-ignore` filter that a change of the pin (ORACLE_PIN) does not
-  pass, so a new oracle would not start it;
+- a workflow with a step whose `run:` script calls the oracle FFmpeg's
+  installer has a trigger `paths` or `paths-ignore` filter that a change of
+  the pin (ORACLE_PIN) does not pass, so a new oracle would not start it;
 - a step in a workflow (.yml or .yaml), in a local action
   (.github/actions/*/action.yml or .yaml) or in a local action or workflow
   a step calls (`./...`) uses an action by a tag or branch instead of a
@@ -65,6 +65,9 @@ UNLISTED = '# workflow-check: not required'
 # The oracle FFmpeg's pin and its installer: a workflow that runs the
 # installer starts when either changes.
 ORACLE_PIN = ('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh')
+# A script line that calls the installer, as a command or through a shell;
+# `bash -n` and other options before the path only read it.
+INSTALLS = re.compile(r'''\A\s*['"]?(?:sudo\s+)?(?:(?:ba)?sh\s+)?(?:\./)?''' + re.escape(ORACLE_PIN[1]) + r'(?:\s|\Z)')
 
 
 def load_changed_paths(root):
@@ -144,6 +147,22 @@ def trigger(lines):
         elif seen_pull_request and TRIGGER.match(line):
             seen_pull_request = False
     return filtered, pull_request
+
+
+def run_lines(lines):
+    """Each line of every step's `run:` script, a block scalar's to where its
+    indentation ends."""
+    for i, line in enumerate(lines):
+        match = re.match(r'\A(\s*(?:-\s+)?)run:\s*(.*?)\s*\Z', line)
+        if not match:
+            continue
+        if not match.group(2).startswith(('|', '>')):
+            yield match.group(2)
+            continue
+        for item in lines[i + 1:]:
+            if item.strip() and len(item) - len(item.lstrip()) <= len(match.group(1)):
+                break
+            yield item
 
 
 def trigger_filters(lines):
@@ -372,7 +391,7 @@ def check(root):
                 changed_paths.to_regex(pattern)
             except SystemExit as error:
                 problems.append(f'{path.name}: {key}: {error}')
-        if any(ORACLE_PIN[1] in line for line in lines):
+        if any(INSTALLS.match(line) for line in run_lines(lines)):
             for event, key, listed in trigger_filters(lines):
                 if listed is None:
                     problems.append(f'{path.name}: the `{key}` filter of `{event}` is not a list this check reads')
