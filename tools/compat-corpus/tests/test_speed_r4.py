@@ -152,6 +152,21 @@ class Report(unittest.TestCase):
         tight = [('probe', 'mpegts', 1.015 + rng.uniform(-0.001, 0.001)) for _ in range(40)]
         self.assertEqual(speed.r4_summary(results('null', tight), gate=True)['failing'], ['probe all'])
 
+    def test_a_group_with_pairs_and_no_ratio_fails(self):
+        rows = [('remux', 'mp4-mov', 0.9)] * 10
+        data = results('r4', rows)
+        data['results'].append({'class': 'remux', 'family': 'mpegts', 'id': 'C01', 'command': 0, 'exit': [1, 0]})
+        data['results'].append({'class': 'clip', 'family': 'mpegts', 'id': 'C05', 'command': 0, 'exit': [1, 0]})
+        s = speed.r4_summary(data, gate=False)
+        self.assertEqual(s['unmeasured'], ['clip all', 'clip mpegts', 'remux mpegts'])
+        self.assertEqual(s['failing'], s['unmeasured'])
+        steady = [('remux', f, 1.0) for f in ('mp4-mov', 'mpegts') for _ in range(20)]
+        gate = results('aa', steady)
+        gate['results'].append({'class': 'remux', 'family': 'matroska-webm', 'id': 'C01', 'command': 0, 'exit': [1, 0]})
+        self.assertEqual(speed.r4_summary(gate, gate=True)['failing'], [])
+        gate['results'].append({'class': 'clip', 'family': 'mpegts', 'id': 'C05', 'command': 0, 'exit': [1, 0]})
+        self.assertEqual(speed.r4_summary(gate, gate=True)['failing'], ['clip all'])
+
     def test_no_ratio_is_unmeasured(self):
         with tempfile.TemporaryDirectory() as tmp:
             for arm, gate in (('r4', []), ('aa', ['--gate'])):

@@ -45,7 +45,9 @@
         Without --gate, a class meets R4 when its median is at most 1.00;
         with --gate (the `aa` and `null` arms), the host passes when every
         class's median over the families is within 0.98 to 1.02 and its
-        interval holds 1.00. Exit 1 when a class misses or the gate fails,
+        interval holds 1.00. A group with pairs and no ratio (a class in a
+        family, or a class over the families, which alone the gate judges) is
+        unmeasured and fails. Exit 1 when a class misses or the gate fails,
         2 when the run is void (its fallback log holds a line, a strict-safe
         refusal included), 3 when no pair has a ratio. `r4` exits 3 when it
         has no pair to time.
@@ -376,10 +378,12 @@ def r4_summary(data, gate):
     no_ratio = collections.Counter(
         'refused' if r.get('refused') else 'failed' for r in data['results'] if 'ratio' not in r)
     failing = [r for r in rows if r.get('passes') is False or r.get('meets') is False]
+    present = {key for r in data['results'] for key in ((r['class'], r['family']), (r['class'], 'all'))}
+    unmeasured = sorted(f'{cls} {fam}' for cls, fam in present - set(groups) if not gate or fam == 'all')
     return {'arm': data['arm'], 'sides': data['sides'], 'files': data['files'], 'gate': gate,
             'fallback_log': data['fallback_log'], 'pairs': len(data['results']), 'no_ratio': dict(no_ratio),
-            'classes': rows, 'commands': per_command,
-            'failing': [f"{r['class']} {r['family']}" for r in failing]}
+            'classes': rows, 'commands': per_command, 'unmeasured': unmeasured,
+            'failing': [f"{r['class']} {r['family']}" for r in failing] + unmeasured}
 
 
 def r4_report(opts):
@@ -393,7 +397,9 @@ def r4_report(opts):
             verdict = 'meets' if r['meets'] else 'MISSES'
         print(f"{r['class']:14} {r['family']:13} n={r['n']:5} median={r['median']:.3f} "
               f"ci95=[{r['ci95'][0]:.3f}, {r['ci95'][1]:.3f}] faster={r['faster_share']:.0%} {verdict}")
-    print(json.dumps({k: summary[k] for k in ('arm', 'pairs', 'no_ratio', 'failing', 'fallback_log')}))
+    for group in summary['unmeasured']:
+        print(f'UNMEASURED {group}: pairs ran but none has a ratio, so it fails')
+    print(json.dumps({k: summary[k] for k in ('arm', 'pairs', 'no_ratio', 'failing', 'unmeasured', 'fallback_log')}))
     if summary['fallback_log']['void']:
         print('VOID: the fallback log holds a line')
         return 2
