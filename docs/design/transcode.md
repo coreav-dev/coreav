@@ -695,6 +695,50 @@ Speed is reported for information only, from the same shared runner (the
 wall time of each arm's whole command, median of three): GitHub-hosted
 runners vary in CPU model between jobs, so no claim is made from it.
 
+## AAC audio
+
+`coreav transcode --audio aac [--audio-bitrate KBPS]` encodes one audio
+stream to AAC-LC with FFmpeg's built-in `aac` encoder, run as an
+operator-provided program under policy record 0042, point 5, as
+`ffmpeg -c:v libx264` is: nothing is linked.
+
+### AAC bars
+
+Fixed before the run, judged by `scripts/aac_encode_check.py` in the
+`aac-encode` workflow against FFmpeg 9.0.2 (the oracle FFmpeg that
+`scripts/install-oracle-ffmpeg.sh` installs, the build the Opus bars name).
+The same FFmpeg is both arms' encoder: CoreAV runs it as its AAC encoder
+program. While the oracle is another FFmpeg version, the workflow runs no
+bar. Each input runs two arms on the same source:
+
+    coreav transcode SRC OUT.mp4 --audio aac [--audio-bitrate K] --encoder ffmpeg --ffmpeg FFMPEG9
+    FFMPEG9 -i SRC -c:v libx264 -c:a aac [-b:a Kk] OUT.mp4
+
+The set: the six sources of the Opus bars (S1 to S6, made the same way),
+each at three rates (the encoder's default, 64 and 192 kbit/s), 18 inputs.
+
+1. **A1, decodes.** FFmpeg 9.0.2 decodes the audio of every CoreAV output
+   (`-v error -map 0:a -f null -`) with exit status 0 and no message:
+   18 of 18.
+2. **A2, the timeline.** For every CoreAV output, `ffprobe` 9.0.2 gives
+   the audio stream `codec_name` `aac`, `profile` `LC`, the source's
+   `sample_rate`, `start_pts` 0, and `duration_ts` equal to the
+   summary's `samples` and to the FFmpeg arm's `duration_ts`, exactly:
+   neither arm resamples. 18 of 18.
+3. **A3, the bit rate.** The ratio of the AAC stream's `bit_rate`
+   (`ffprobe`) to the FFmpeg arm's is within 0.95 to 1.05 on every input,
+   and its median over the 18 within 0.98 to 1.02. Both arms run the same
+   encoder with the same settings; only the samples' way to it differs
+   (CoreAV's decoder and a pipe, against FFmpeg's decoder).
+4. **A4, quality.** On the tonal sources (S1, S2, S3 and S6, 12 inputs),
+   the SNR against the source, every output decoded by FFmpeg 9.0.2 to
+   48 kHz float (the source too) and compared over the presented samples,
+   of CoreAV's output is at least the FFmpeg arm's minus 0.5 dB, per
+   input. Noise (S4, S5) is judged on A1 to A3 only, as for Opus.
+
+Speed is reported for information only, from the same shared runner (the
+wall time of each arm's whole command, median of three), as for Opus.
+
 ## Through `coreav ffmpeg`
 
 `coreav ffmpeg` ([`compat-cli.md`](compat-cli.md)) runs the common
