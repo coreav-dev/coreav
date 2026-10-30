@@ -8,7 +8,7 @@ and frame extraction. This note records the boundary
 backend is chosen, the sandboxed worker (`crates/coreav-worker`) and the
 backends behind it: the FFmpeg fallback (`crates/coreav-backend-ffmpeg`),
 dav1d for AV1 (`crates/coreav-backend-dav1d`), libvpx for VP9
-(`crates/coreav-backend-libvpx`) and NVDEC (`crates/coreav-backend-nvdec`). Frame operations and thumbnails are in
+(`crates/coreav-backend-libvpx`), and NVDEC, which is planned and not built yet (section "NVDEC"). Frame operations and thumbnails are in
 `docs/design/thumbnails.md`.
 
 Specifications: ISO/IEC 14496-15 (AVC and HEVC configuration records and
@@ -35,7 +35,7 @@ multimedia implementation source was read.
 | `coreav-backend-h264` | CoreAV's own H.264 decoder, in the calling process | forbidden |
 | `coreav-backend-dav1d` | dav1d through the `dav1d` crate | forbidden (the binding's own `unsafe` is a dependency's) |
 | `coreav-backend-libvpx` | libvpx through CoreAV's declarations of its decoder API; the frame sizes of each packet, read in safe Rust | `deny`, allowed only in its FFI module |
-| `coreav-backend-nvdec` | NVDEC through FFI | `deny`, allowed only in its FFI module |
+| `coreav-backend-nvdec` (planned, not in the workspace yet) | NVDEC through FFI | `deny`, allowed only in its FFI module |
 
 The container crates do not depend on any of them, and `coreav-decode`
 depends on no container crate: callers translate a container's track into

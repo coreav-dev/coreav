@@ -978,3 +978,28 @@ and does not yet read the large multi-programme multiplex; the largest
 single item is `KD-TS-STREAM-ORDER`, whose predicate was settled
 against one capture and does not fire on two multiplexes whose stream
 list is an exact permutation of `ffprobe`'s.
+
+### Speed bars, round 2: large files against FFmpeg 9.0.2
+
+The speed bars above are met overall and in every class of input 4, but four of its files, three off-air captures of 84 to 135 MB and a 196 MB HLS segment, take 1.06 to 1.43 of libavformat 7.0.2's time on the packet listing, and the `group-h` interval reaches 1.019. Against FFmpeg 9.0.2 the gap is wider: on the same four files, timed on a development machine (not a bar), the packet listing takes 1.35 to 1.75 of libavformat 9.0.2's time. This round closes that gap and is judged on files the reader has not seen. Input 4 is spent and is a tuning pool for this round.
+
+**What limits it** (instruction counts with Valgrind on four of input 4's large files, `main` at the commit before this section; a profile, not a bar). The listing spends its instructions in four places:
+
+- H.264 key frames: each access unit is copied into a length-prefixed buffer and every NAL unit of it walked, to read slice types that only a stream keeping at most one reference frame needs. On the 196 MB segment that is 39% of the listing. The NAL units up to the first coded slice decide the key frame of a conforming stream (ITU-T H.264 7.4.1.2.3: SEI messages precede the first slice of the primary coded picture; the slices of a picture are all IDR slices or none is). Removing the step bounds the gain at 40% on that file.
+- Copies of the PES payload: from the read chunk into a packet, into the PES packet being reassembled (grown by doubling), into the completed payload, and into the access unit. Handing the reassembled bytes on without a copy and sizing the buffer once bounds the gain at 8% to 23% across the four files.
+- Per-PID lookups, several ordered-map lookups a packet: a lookup by index into the PID space bounds the gain at 4% to 11%.
+- Reading packets: each packet is copied out of the read chunk before it is parsed. On a capture of many small PES packets this and the window check are 30% of the listing.
+
+**Bars.** On the `real` transport streams of draw 7 of v2-heldout ([`docs/corpus.md`](../corpus.md#draw-7)), the median per-file ratio of CoreAV's time to libavformat's, with a bootstrap 95% interval (10,000 resamples, seed 89), overall and in each size class of at least 5 files (smaller classes are reported):
+
+| Operation | Against | Bar |
+|---|---|---|
+| the packet listing in process (`tools/ts-speed/`: the probe, then every access unit of every kept stream) | libavformat of FFmpeg 9.0.2 in process (`tools/ts-speed/lav_ts.c`): open with the format given, find stream info, read every packet; libavformat reads through a 64 KiB buffer, CoreAV 512 packets a read, both with `pread` | median at most **1.00** and the upper bound of the interval at most **1.00**, overall and in `small`, `medium` and `large` |
+
+The size classes are the draw's: `small` under 16 MB, `medium` 16 MB to under 64 MB, `large` 64 MB to 200 MB (1 MB = 10^6 bytes). The bound on the interval is the tracking issue's goal, no class whose interval reaches above 1.00; a claim that CoreAV is faster needs it below 1.00. The report also gives the share of files on which CoreAV is faster, overall and per class, and, as information and not a bar, `coreav probe` against `ffprobe -v error -of json -show_format -show_streams` of FFmpeg 9.0.2, both as commands.
+
+**Method.** FFmpeg 9.0.2 is the BtbN build `n9.0.2-17-g2a571b6068`: its LGPL shared libraries on the in-process side (archive SHA-256 `7a1ba2af36e5beeb98151e766a903b1d115f2206a86571f17f873cd7292c424f`), and the build of `docs/design/h264.md` for the commands. `lav_ts.c` refuses another library version, or a GPL or nonfree configuration. The host is the one-thread class at a fixed frequency of `docs/design/h264.md` (`c4-standard-8`, one thread a core, `turboMode=ALL_CORE_MAX`, Xeon Platinum 8581C, every timed command on one core), through `scripts/gcp_vm_job.py` with a cap in the script. One file at a time, its bytes on a tmpfs and read once before timing; per file one warm-up run of each engine, then 7 rounds with the engines' order rotated; a file's time per engine is the median of its rounds. Each round also times a second, byte-identical copy of CoreAV's binary, the null arm.
+
+A run is void, and is run again on a new VM, when the VM does not report the turbo mode and the 8581C, a frequency sample of the timing core is more than 3% from 3.1 GHz, the null arm's median per-file ratio is outside 0.99 to 1.01, or the job ends for a reason outside the VM. A run that misses a bar is final for that bar.
+
+**When the code goes to the draw.** Draw 7 is opened once, with the final binary, after the last code change and review. Before that, the code is timed on input 4's 37 files (spent, a tuning pool) on the same class by the same method, and goes to draw 7 only when that gives a median of at most 0.90 overall and at most 0.95 on its 11 files of 64 MB or more. Those numbers decide whether to spend the draw and are reported beside the result, not as evidence for the bars.
