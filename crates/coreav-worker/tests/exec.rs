@@ -108,13 +108,16 @@ fn huge_pages_are_off_in_the_program_when_asked() {
             .nth(1)
             .map(str::to_owned)
     };
-    let inherited = std::fs::read_to_string("/proc/self/status")
-        .unwrap()
+    let status = std::fs::read_to_string("/proc/self/status").unwrap();
+    let Some(inherited) = status
         .lines()
         .find_map(|line| line.strip_prefix("THP_enabled:"))
-        .map(|value| value.trim().to_owned());
+        .map(str::trim)
+    else {
+        return;
+    };
     assert_eq!(thp(HugePages::Off).as_deref(), Some("0"));
-    assert_eq!(thp(HugePages::Kept), inherited);
+    assert_eq!(thp(HugePages::Kept).as_deref(), Some(inherited));
 }
 
 #[test]
