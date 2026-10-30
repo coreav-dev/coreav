@@ -1,0 +1,22 @@
+---
+title: "coreav split"
+sidebarTitle: "split"
+description: "Split an MP4 or MOV file at keyframes into MP4 segments, without re-encoding."
+---
+
+import Help from '/snippets/help/split.mdx';
+
+`coreav split INPUT OUTPUT` splits an MP4 or MOV file into MP4 segments by stream copy. Each cut is at the latest keyframe at or before a time you give: every `--every` seconds, or at each time of `--at`. Together the segments hold every packet of the kept streams exactly once.
+
+`OUTPUT` is a file name with `%d` (or `%03d` for three digits), which becomes the segment number from 0. The summary is [`coreav.split/1`](https://github.com/coreav-dev/coreav/blob/main/docs/schema/split-v1.md).
+
+## Examples
+
+```sh
+coreav split --every 10 input.mp4 'seg-%03d.mp4'
+coreav split --at 10,25.5 input.mp4 'part-%d.mp4'
+```
+
+## Options
+
+<Help />

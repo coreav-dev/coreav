@@ -1,0 +1,37 @@
+---
+title: "coreav ffmpeg"
+sidebarTitle: "ffmpeg"
+description: "Run an ffmpeg stream-copy command line (-c copy) with CoreAV's own writers."
+---
+
+`coreav ffmpeg ARGS` takes an `ffmpeg` command line in `ffmpeg`'s own syntax and runs it with CoreAV's own writers, when it is a stream copy (`-c copy`) that CoreAV implements. It selects streams as `ffmpeg` does, with or without `-map`.
+
+| The command line | What runs |
+|---|---|
+| A copy to `.mp4` (or `-f mp4`) from MP4, MOV, Matroska or WebM | [`coreav remux`](/commands/remux) of the selected streams |
+| A copy of one audio stream to `.m4a` (or `-f ipod`) | [`coreav extract-audio`](/commands/extract-audio) |
+| `-ss`, `-t` or `-to`, before or after `-i` | [`coreav clip`](/commands/clip) |
+| `-f segment` with MP4 segments | [`coreav split --every`](/commands/split) at `-segment_time` |
+| `-f concat` with an MP4 output | [`coreav join`](/commands/join) of the list's files |
+
+In a build with a decoder backend, it also runs a command line that encodes the video with `libx264`, through [`coreav transcode`](/commands/transcode). The build's backends decode the video, and an `x264` program encodes it, or an `ffmpeg` program built with libx264 when no `x264` program is found. Strict-safe mode changes neither ([what strict-safe mode covers](/strict-safe#what-strict-safe-mode-covers)).
+
+Any other command line is refused in strict-safe mode, and goes to the real `ffmpeg` otherwise ([strict-safe mode and the fallback](/strict-safe)). The outputs pass the job oracles on the fixtures in CI. The 0.1.0 bars on held-out files are not measured yet ([issue #43](https://github.com/coreav-dev/coreav/issues/43)).
+
+## Examples
+
+```sh
+coreav --strict-safe ffmpeg -i input.mkv -c copy -movflags +faststart output.mp4
+coreav --strict-safe ffmpeg -ss 10 -t 5 -i input.mp4 -c copy clip.mp4
+coreav --strict-safe ffmpeg -f concat -safe 0 -i list.txt -c copy joined.mp4
+```
+
+`coreav ffmpeg` prints nothing on success. It writes the output to a temporary file and moves it into place only when the whole job succeeded.
+
+## Use it in place of ffmpeg
+
+A link named `ffmpeg` that points to `coreav` behaves as `coreav ffmpeg` with the whole argument list. Under that name, only `COREAV_STRICT_SAFE=1` turns on strict-safe mode.
+
+## Options
+
+`coreav ffmpeg` has no help text of its own. `coreav ffmpeg --help` is an informational query, which CoreAV does not implement: strict-safe mode refuses it, and otherwise it prints the real `ffmpeg`'s help through the fallback. [The compatibility command's design note](https://github.com/coreav-dev/coreav/blob/main/docs/design/compat-cli.md) lists the options it implements.

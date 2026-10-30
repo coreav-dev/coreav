@@ -139,6 +139,10 @@ jobs:
           cargo test -p coreav-cli --features native-h264 --test strict_safe
         env:
           COREAV_FFMPEG: ${{ runner.temp }}/coreav-encoders/ffmpeg
+      # Checks the documentation site's help text of `coreav thumbnail` and
+      # `coreav transcode`, which only builds with a decoder backend include
+      # (docs/design/docs-site.md); `cargo test --workspace` checks the rest.
+      - run: cargo test -p coreav-cli --features ffmpeg-fallback --test docs_site
       # Pinned limit test: 2.2 GB virtual fragmented
       # file with 20,000 fragments, reads bounded to 1 MiB.
       - run: cargo test --release -p coreav-isobmff --test hostile -- --ignored
