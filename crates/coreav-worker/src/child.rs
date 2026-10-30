@@ -5,20 +5,25 @@
 
 #![forbid(unsafe_code)]
 
+#[cfg(target_os = "linux")]
 use std::collections::VecDeque;
 use std::io::{self, Write};
 use std::process::ExitCode;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
-use std::time::{Duration, Instant};
+use std::time::Duration;
+#[cfg(target_os = "linux")]
+use std::time::Instant;
 
 use coreav_decode::{Decoder, Error, ErrorKind, Packet};
 use coreav_frame::Frame;
 
+#[cfg(target_os = "linux")]
+use crate::protocol::Transfer;
 use crate::protocol::{
     FrameDescriptor, INLINE, Incoming, Open, ParentMessage, PlaneDescriptor, ProtocolError,
-    Transfer, WorkerBackend, WorkerMessage, format_code, read_message,
+    WorkerBackend, WorkerMessage, format_code, read_message,
 };
 use crate::sandbox;
 
@@ -83,8 +88,13 @@ fn run(
     if let Some(space) = sandbox::address_space() {
         open.limits.max_memory_bytes = open.limits.max_memory_bytes.min(space);
     }
-    let deadline = open.limits.deadline();
-    let mut output = Output::new(&open, deadline)?;
+    let mut output = Output {
+        #[cfg(target_os = "linux")]
+        shared: Shared::open(&open)?,
+        acks: None,
+        reader_out_of_memory: Arc::new(AtomicBool::new(false)),
+        seq: 0,
+    };
     let mut decoder = make_decoder(&open)?;
     WorkerMessage::Ready(decoder.info().decoder.clone())
         .write(out)
@@ -264,66 +274,78 @@ fn drain(
 
 /// Where frames go: slots of the shared memory, or inline.
 struct Output {
+    /// `None` sends every frame inline.
     #[cfg(target_os = "linux")]
-    memory: Option<crate::shm::WorkerMemory>,
-    slots: u32,
-    slot_size: u64,
-    free: VecDeque<u32>,
+    shared: Option<Shared>,
     acks: Option<Receiver<u32>>,
     /// The input reader stopped because a message did not fit the memory
     /// limit.
     reader_out_of_memory: Arc<AtomicBool>,
     seq: u64,
+}
+
+/// The parent's memory, mapped through `/proc`, and which of its slots are
+/// free.
+#[cfg(target_os = "linux")]
+struct Shared {
+    memory: crate::shm::WorkerMemory,
+    slots: u32,
+    slot_size: u64,
+    free: VecDeque<u32>,
     deadline: Instant,
 }
 
-impl Output {
-    fn new(open: &Open, deadline: Instant) -> Result<Self, Error> {
-        let (slots, slot_size) = match &open.transfer {
-            Transfer::Shared {
-                slots, slot_size, ..
-            } => (*slots, *slot_size),
-            Transfer::Pipe => (0, 0),
-        };
-        #[cfg(target_os = "linux")]
-        let memory = match &open.transfer {
-            Transfer::Shared { path, .. } => {
-                let len = u64::from(slots)
-                    .checked_mul(slot_size)
-                    .ok_or_else(|| Error::new(ErrorKind::Backend, "memory size overflows"))?;
-                // Where the memory cannot be mapped (a sandbox without
-                // `/proc`), every frame goes inline instead.
-                crate::shm::WorkerMemory::open(path, len).ok()
-            }
-            Transfer::Pipe => None,
-        };
-        Ok(Self {
-            #[cfg(target_os = "linux")]
-            memory,
+#[cfg(target_os = "linux")]
+impl Shared {
+    /// The slots `open` offers, or `None` for a pipe transfer and where
+    /// the memory cannot be mapped (a sandbox without `/proc`): every frame
+    /// then goes inline.
+    fn open(open: &Open) -> Result<Option<Self>, Error> {
+        let deadline = open.limits.deadline();
+        let Transfer::Shared {
+            path,
             slots,
             slot_size,
-            free: (0..slots).collect(),
-            acks: None,
-            reader_out_of_memory: Arc::new(AtomicBool::new(false)),
-            seq: 0,
+        } = &open.transfer
+        else {
+            return Ok(None);
+        };
+        let len = u64::from(*slots)
+            .checked_mul(*slot_size)
+            .ok_or_else(|| Error::new(ErrorKind::Backend, "memory size overflows"))?;
+        let Ok(memory) = crate::shm::WorkerMemory::open(path, len) else {
+            return Ok(None);
+        };
+        Ok(Some(Self {
+            memory,
+            slots: *slots,
+            slot_size: *slot_size,
+            free: (0..*slots).collect(),
             deadline,
-        })
+        }))
     }
+}
 
+impl Output {
     /// A free slot, waiting for the parent's acknowledgement if none is.
+    #[cfg(target_os = "linux")]
     fn take_slot(&mut self) -> Result<u32, Error> {
+        let shared = self
+            .shared
+            .as_mut()
+            .ok_or_else(|| Error::new(ErrorKind::Backend, "no memory"))?;
         loop {
-            if let Some(slot) = self.free.pop_front() {
+            if let Some(slot) = shared.free.pop_front() {
                 return Ok(slot);
             }
             let acks = self
                 .acks
                 .as_ref()
                 .ok_or_else(|| Error::new(ErrorKind::Backend, "no acknowledgements"))?;
-            let remaining = self.deadline.saturating_duration_since(Instant::now());
+            let remaining = shared.deadline.saturating_duration_since(Instant::now());
             match acks.recv_timeout(remaining) {
-                Ok(slot) if slot < self.slots && !self.free.contains(&slot) => {
-                    self.free.push_back(slot);
+                Ok(slot) if slot < shared.slots && !shared.free.contains(&slot) => {
+                    shared.free.push_back(slot);
                 }
                 Ok(_) => {}
                 Err(RecvTimeoutError::Timeout) => {
@@ -361,8 +383,9 @@ impl Output {
             });
             offset = offset.saturating_add(len);
         }
+        #[cfg(target_os = "linux")]
         let total = offset;
-        let mut descriptor = FrameDescriptor {
+        let descriptor = FrameDescriptor {
             seq: self.seq,
             slot: INLINE,
             pts: frame.pts,
@@ -374,18 +397,23 @@ impl Output {
         };
         self.seq += 1;
         #[cfg(target_os = "linux")]
-        if self.memory.is_some() && total <= self.slot_size {
+        if self
+            .shared
+            .as_ref()
+            .is_some_and(|shared| total <= shared.slot_size)
+        {
             let slot = self.take_slot()?;
-            let base = u64::from(slot) * self.slot_size;
+            let shared = self
+                .shared
+                .as_mut()
+                .ok_or_else(|| Error::new(ErrorKind::Backend, "no memory"))?;
+            let base = u64::from(slot) * shared.slot_size;
             let start =
                 usize::try_from(base).map_err(|_| Error::new(ErrorKind::Backend, "slot offset"))?;
             let len =
                 usize::try_from(total).map_err(|_| Error::new(ErrorKind::Backend, "frame size"))?;
-            let memory = self
+            let target = shared
                 .memory
-                .as_mut()
-                .ok_or_else(|| Error::new(ErrorKind::Backend, "no memory"))?;
-            let target = memory
                 .bytes_mut()
                 .get_mut(start..start + len)
                 .ok_or_else(|| Error::new(ErrorKind::Backend, "slot outside the memory"))?;
@@ -398,8 +426,7 @@ impl Output {
                     written += row.len();
                 }
             }
-            descriptor.slot = slot;
-            return WorkerMessage::Frame(descriptor, Vec::new())
+            return WorkerMessage::Frame(FrameDescriptor { slot, ..descriptor }, Vec::new())
                 .write(out)
                 .map_err(io_error);
         }

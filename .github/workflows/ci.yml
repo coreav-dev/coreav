@@ -147,6 +147,7 @@ jobs:
         with:
           toolchain: stable
           components: rustfmt, clippy
+          targets: aarch64-apple-darwin, x86_64-pc-windows-msvc
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -159,6 +160,12 @@ jobs:
         env:
           PYTHONDONTWRITEBYTECODE: '1'
       - run: cargo clippy --workspace --all-targets -- -D warnings
+      # Code gated to Linux or Unix leaves nothing unused on macOS and
+      # Windows. Checked from here for the crates that build no C for their
+      # target; ring (through coreav-cli) needs that system's SDK.
+      - run: |
+          cargo clippy -p coreav-worker -p coreav-audio --all-targets --target aarch64-apple-darwin -- -D warnings
+          cargo clippy -p coreav-worker -p coreav-audio --all-targets --target x86_64-pc-windows-msvc -- -D warnings
       # The H.264 decoder's safe mode, without its default feature `fast`
       # (docs/design/h264.md).
       - run: cargo clippy -p coreav-h264 --no-default-features --all-targets -- -D warnings
