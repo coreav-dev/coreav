@@ -1,8 +1,12 @@
 ---
 title: "coreav ffmpeg"
 sidebarTitle: "ffmpeg"
-description: "Run an ffmpeg stream-copy command line (-c copy) with CoreAV's own writers."
+description: "Experimental. Run an ffmpeg stream-copy command line (-c copy) with CoreAV's own writers."
 ---
+
+<Warning>
+`coreav ffmpeg` is experimental until it meets its 0.1.0 bars, R1 to R4, on held-out files. Its outputs pass the job oracles on the fixtures in CI, but those bars are not measured yet ([issue #43](https://github.com/coreav-dev/coreav/issues/43)).
+</Warning>
 
 `coreav ffmpeg ARGS` takes an `ffmpeg` command line in `ffmpeg`'s own syntax and runs it with CoreAV's own writers, when it is a stream copy (`-c copy`) that CoreAV implements. It selects streams as `ffmpeg` does, with or without `-map`.
 
@@ -16,7 +20,7 @@ description: "Run an ffmpeg stream-copy command line (-c copy) with CoreAV's own
 
 In a build with a decoder backend, it also runs a command line that encodes the video with `libx264`, through [`coreav transcode`](/commands/transcode). The build's backends decode the video, and an `x264` program encodes it, or an `ffmpeg` program built with libx264 when no `x264` program is found. Strict-safe mode changes neither ([what strict-safe mode covers](/strict-safe#what-strict-safe-mode-covers)).
 
-Any other command line is refused in strict-safe mode, and goes to the real `ffmpeg` otherwise ([strict-safe mode and the fallback](/strict-safe)). The outputs pass the job oracles on the fixtures in CI. The 0.1.0 bars on held-out files are not measured yet ([issue #43](https://github.com/coreav-dev/coreav/issues/43)).
+Any other command line is refused in strict-safe mode, and goes to the real `ffmpeg` otherwise ([strict-safe mode and the fallback](/strict-safe)).
 
 ## Examples
 

@@ -247,9 +247,9 @@ enum Command {
     /// as `ffprobe` does the same.
     #[command(disable_help_flag = true)]
     Ffprobe(Deferred<ToolArgs>),
-    /// Runs an ffmpeg stream-copy command line (-c copy) with CoreAV's own
-    /// writers: remuxing to MP4, clipping, segmenting and audio extraction
-    /// to M4A, with ffmpeg's stream selection. With --strict-safe
+    /// Experimental. Runs an ffmpeg stream-copy command line (-c copy) with
+    /// CoreAV's own writers: remuxing to MP4, clipping, segmenting and audio
+    /// extraction to M4A, with ffmpeg's stream selection. With --strict-safe
     /// (COREAV_STRICT_SAFE=1), for untrusted input, anything else is refused
     /// with exit status 4; without it, anything else runs the ffmpeg program
     /// on PATH, FFmpeg's C code (docs/design/compat-cli.md). `coreav` run as

@@ -21,6 +21,22 @@ errors are those of the native command on every platform (tested on every
 fixture); in the WebAssembly build an error's `message` may word its cause
 differently.
 
+## Untrusted input: strict-safe mode
+
+If you run `coreav` on files you did not make, such as uploads, turn on
+strict-safe mode: set `COREAV_STRICT_SAFE=1`, or pass `--strict-safe`
+before the command (`coreav --strict-safe ffprobe ...`). Any value of
+`COREAV_STRICT_SAFE` other than empty or `0` turns it on.
+
+The mode concerns `coreav ffprobe` and `coreav ffmpeg`, which take
+`ffprobe` and `ffmpeg -c copy` command lines. CoreAV implements a subset of
+those command lines. Without strict-safe mode, a command line outside it
+runs the real `ffprobe` or `ffmpeg` program on `PATH` (or the one
+`COREAV_FALLBACK` names), which is FFmpeg's C code, and CoreAV prints a
+one-line notice on stderr. In strict-safe mode CoreAV refuses it with exit
+code 4 instead, and no FFmpeg code runs. The other commands never run
+FFmpeg. Details: <https://coreav.dev/docs/strict-safe>.
+
 ## Commands
 
 | Command | What it does | Prints on stdout |
@@ -35,10 +51,11 @@ differently.
 | `coreav extract-subtitles INPUT OUTPUT.vtt` | Writes the text subtitles (mov_text) of an MP4/MOV file as WebVTT | `coreav.extract-subtitles/1` summary |
 | `coreav split --every S INPUT DIR/%03d.mp4` | Splits an MP4/MOV file at keyframes into MP4 segments | `coreav.split/1` summary |
 | `coreav chapters FILE` | Lists the QuickTime chapters of an MP4/MOV file | `coreav.chapters/1` JSON |
+| `coreav ffprobe ARGS` | Experimental. Runs an `ffprobe` command line over CoreAV's own probes | What `ffprobe` prints, in its writers |
+| `coreav ffmpeg ARGS` | Experimental. Runs an `ffmpeg -c copy` command line with CoreAV's own writers | Nothing |
 
-`coreav mcp` (the MCP server) runs with the native binaries; the
-WebAssembly build cannot start the processes it needs and refuses it
-(exit 2).
+`coreav ffprobe` and `coreav ffmpeg` stay experimental until they meet
+their 0.1.0 bars.
 
 `coreav --help` and `coreav COMMAND --help` list every option. `OUTPUT` may
 be `-` to write the file to stdout, and the summary then goes to stderr. An
@@ -78,6 +95,7 @@ the repository's `docs/schema/`:
 | 1 | The file was rejected (unsupported, damaged, not allowed); for `check`, the verdict is on stdout |
 | 2 | Usage error (bad arguments, invalid policy) |
 | 3 | I/O error (missing file, unwritable output) |
+| 4 | `coreav ffprobe` or `coreav ffmpeg` refused a command line it does not implement (see strict-safe mode) |
 | 141 | Stdout was closed by its reader (for example `coreav probe f \| head`) |
 | 70 | The WebAssembly module could not run (the WebAssembly build only) |
 
@@ -127,6 +145,6 @@ repository's `docs/measurements/npx-coreav.md`.
 
 ## More
 
-Source, design notes, schemas and measurements:
-<https://github.com/coreav-dev/coreav>. Licensed under MIT or Apache-2.0,
+Documentation: <https://coreav.dev/docs>. Source, design notes, schemas and
+measurements: <https://github.com/coreav-dev/coreav>. Licensed under MIT or Apache-2.0,
 at your option.
