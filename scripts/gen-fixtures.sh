@@ -576,12 +576,26 @@ try_gen codec_mjpeg_one_frame.mov "${KSRC[@]}" -frames:v 1 -c:v mjpeg
 try_gen codec_alac16.m4a "${KAUD[@]}" -c:a alac -sample_fmt s16p
 try_gen codec_alac24.m4a "${KAUD[@]}" -c:a alac -sample_fmt s32p
 try_gen codec_amr_nb.3gp -f lavfi -i "sine=frequency=440:duration=1:sample_rate=8000" -c:a libopencore_amrnb -ar 8000 -ac 1
-try_gen codec_amr_wb.3gp -f lavfi -i "sine=frequency=440:duration=1:sample_rate=16000" -c:a libvo_amrwbenc -ar 16000 -ac 1
+# The pinned FFmpeg has no AMR-WB encoder: 50 frames of mode 8 (23.85
+# kbit/s, a one-byte header and 60 bytes of speech bits, here a fixed
+# pattern) in the AMR-WB storage format (RFC 4867, section 5), copied into
+# 3GP as an encoder's output would be.
+python3 -I -c 'import sys; sys.stdout.buffer.write(b"#!AMR-WB\n" + (b"\x44" + bytes(range(60))) * 50)' \
+  > "$OUT/.codec_amr_wb.awb"
+try_gen codec_amr_wb.3gp -f amr -i "$OUT/.codec_amr_wb.awb" -c:a copy
+rm -f "$OUT/.codec_amr_wb.awb"
 try_gen codec_ac3_stereo.mp4 "${KAUD[@]}" -c:a ac3
 try_gen codec_ac3_51.mp4 "${KAUD[@]}" "${KSIX[@]}" -c:a ac3
 try_gen codec_eac3_stereo.mp4 "${KAUD[@]}" -c:a eac3
 try_gen codec_eac3_51.mp4 "${KAUD[@]}" "${KSIX[@]}" -c:a eac3
-try_gen codec_vorbis.mp4 "${KAUD[@]}" -c:a libvorbis -strict -2
+# The pinned FFmpeg's MP4 muxer refuses libvorbis packets straight from the
+# encoder (Invalid data) and takes the same stream copied from Ogg.
+if "${FF[@]}" "${KAUD[@]}" -c:a libvorbis "$OUT/.codec_vorbis.ogg" 2> "$OUT/codec_vorbis.mp4.log"; then
+  try_gen codec_vorbis.mp4 -i "$OUT/.codec_vorbis.ogg" -c:a copy -strict -2
+else
+  skip codec_vorbis.mp4 "ffmpeg-failed(see-codec_vorbis.mp4.log)"
+fi
+rm -f "$OUT/.codec_vorbis.ogg"
 # Entries without pasp: the frame's own aspect ratio, or the DV system's.
 for src in codec_mjpeg_sar.mov codec_png_sar.mov codec_h263.3gp codec_dv_ntsc.mov codec_dv_pal.mov \
     codec_dv50.mov codec_dv_hd720.mov; do
