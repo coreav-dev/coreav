@@ -176,7 +176,9 @@ try_gen edit_src_h264.mp4 "${ESRC[@]}" -c:v libx264 -bf 0 "${EGOP[@]}"
 try_gen edit_src_bframes.mp4 "${ESRC[@]}" -c:v libx264 -bf 2 "${EGOP[@]}"
 # Without perceptual noise substitution, as edit_src_av.mp4 below: clips of
 # audio alone restart its decoder too.
-try_gen edit_src_aac.mp4 -f lavfi -i "sine=d=10:r=44100" -c:a aac -aac_pns 0
+# The edits below count in a movie timescale of 1000: FFmpeg 9 otherwise
+# takes an audio-only file's movie timescale from its track (44100).
+try_gen edit_src_aac.mp4 -f lavfi -i "sine=d=10:r=44100" -c:a aac -aac_pns 0 -movie_timescale 1000
 # Two edits joined at a sync sample, skipping a second of media.
 elst_entry edit_src_h264.mp4 edit_multi_splice.mp4 0 3000:0 3000:2400
 # B-frames; the second edit starts inside a group of pictures.
