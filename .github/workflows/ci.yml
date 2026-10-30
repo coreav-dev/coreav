@@ -79,7 +79,8 @@ jobs:
             .context/**
             docs/spikes/**
       # The code that differs between Linux, macOS and Windows (the sandbox,
-      # the processes it starts, positioned file reads), the backends the
+      # the processes it starts, positioned file reads, code that differs by
+      # target architecture), the backends the
       # macOS job links against Homebrew's libraries, what the build depends
       # on, and these jobs themselves (docs/design/ci-checks.md, "The
       # platform jobs").
@@ -94,7 +95,9 @@ jobs:
             crates/coreav-backend-dav1d/**
             crates/coreav-backend-libvpx/**
             crates/coreav-isobmff/src/source.rs
-            crates/coreav-h264/examples/decode.rs
+            crates/coreav-h264/**
+            crates/coreav-kernels-h264/**
+            crates/coreav-kernels-audio/**
             Cargo.toml
             **/Cargo.toml
             Cargo.lock
