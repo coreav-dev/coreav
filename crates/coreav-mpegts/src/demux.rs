@@ -204,9 +204,9 @@ pub(crate) struct Demux {
     by_pid: PidMap<usize>,
     sections: PidMap<Assembler>,
     builders: PidMap<Builder>,
-    /// Per PID, the length the last unit read on it reached: the room the
-    /// next one of no stated length starts with, so that a packet of coded
-    /// video is not copied each time its buffer doubles.
+    /// Per PID, the length the longest unit read on it reached: the room
+    /// the next one of no stated length starts with, so that a packet of
+    /// coded video is not copied each time its buffer doubles.
     sizes: PidMap<usize>,
     /// Per PID, the header of the PES packet in progress once a piece of
     /// it was delivered ([`Demux::pieces`]), its times cleared: what the
@@ -708,7 +708,13 @@ impl Demux {
         let Some(builder) = self.builders.remove(&pid) else {
             return;
         };
-        let _ = self.sizes.set(pid, builder.held());
+        let largest = self
+            .sizes
+            .get(&pid)
+            .copied()
+            .unwrap_or(0)
+            .max(builder.held());
+        let _ = self.sizes.set(pid, largest);
         self.buffered = self.buffered.saturating_sub(builder.held());
         // The last piece of a PES packet delivered in pieces.
         if let Some(header) = self.pieces.and_then(|_| self.continued.remove(&pid)) {
