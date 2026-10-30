@@ -16,14 +16,15 @@
 - a report job does not carry `if: always()`, or a job of a workflow
   with a required report job is waited for by none of them, so that its
   failure could pass unnoticed;
-- a workflow cancels a superseded run job by job (a job carries a
-  `concurrency:` block) and a job other than a report job has no group, or
-  not exactly `GROUP` with its own job id and `cancel-in-progress: CANCEL`,
-  or the workflow has a group of its own as well: a workflow group keeps
-  the next run waiting for the old run's report jobs, a group two jobs
-  share cancels one of them in every run, and a gate job without one can
-  start an old run's jobs after the new run's, which then cancel the new
-  ones;
+- a workflow cancels a superseded run job by job (it is in
+  `JOB_GROUPS`, or a job carries a `concurrency:` block) and a job other
+  than a report job has no group, or not exactly `GROUP` with its own job
+  id and `cancel-in-progress: CANCEL`, or a report job has a group, or the
+  workflow has a group of its own as well: a workflow group keeps the next
+  run waiting for the old run's report jobs, a group two jobs share
+  cancels one of them in every run, a gate job without one can start an
+  old run's jobs after the new run's, which then cancel the new ones, and
+  a report job in another job's group can cancel that job;
 - a filter pattern passed to .github/actions/changed-paths is one GitHub
   and the action would read differently;
 - a step in a workflow (.yml or .yaml), in a local action
@@ -68,6 +69,9 @@ LABELS = 'github.event.pull_request.labels'
 GROUP = ('${{ github.workflow }}-JOB_ID-'
          "${{ github.event_name == 'pull_request' && github.ref || github.run_id }}")
 CANCEL = "${{ github.event_name == 'pull_request' }}"
+# The workflows that cancel job by job, so that removing every group from
+# one fails rather than leaving nothing to check.
+JOB_GROUPS = {'ci.yml'}
 # A step's ref: a full lowercase commit sha, or a Docker image by digest.
 PINNED = re.compile(r'\A[^@\s]+@[0-9a-f]{40}\Z|\Adocker://[^@\s]+@sha256:[0-9a-f]{64}\Z')
 WORKFLOW_SUFFIXES = ('.yml', '.yaml')
@@ -136,8 +140,9 @@ def jobs_of(lines):
 
 def concurrency_problems(workflow, lines, jobs):
     """What is wrong with the concurrency groups of a workflow that cancels
-    a superseded run job by job, one whose jobs carry `concurrency:`."""
-    if all(fields['concurrency'] is None for fields in jobs.values()):
+    a superseded run job by job: one in JOB_GROUPS, or whose jobs carry
+    `concurrency:`."""
+    if workflow not in JOB_GROUPS and all(fields['concurrency'] is None for fields in jobs.values()):
         return []
     out = []
     if any(re.match(r'\Aconcurrency:', line) for line in lines):
@@ -145,6 +150,9 @@ def concurrency_problems(workflow, lines, jobs):
                    '`concurrency:`: it keeps the next run waiting until the report jobs of this one end')
     for job, fields in sorted(jobs.items()):
         if job.endswith('-report'):
+            if fields['concurrency'] is not None:
+                out.append(f'{workflow}: remove `{job}`\'s `concurrency:`: a report job has to run in a '
+                           'cancelled run too, and in another job\'s group it can cancel that job')
             continue
         group = GROUP.replace('JOB_ID', job)
         if fields['concurrency'] != {'group': group, 'cancel-in-progress': CANCEL}:

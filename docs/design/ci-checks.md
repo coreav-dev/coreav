@@ -247,9 +247,11 @@ run, so nothing on main is cancelled or dropped.
   whose `ci-report` then fails: re-run the head's run instead.
 - `github.job` is not available where GitHub reads a job's `concurrency`,
   so each group names its job id. `workflow_check.py` fails on a job
-  without its group, a group other than exactly this one, and a workflow
-  group beside job groups. `python.yml` and `npm.yml` keep one group for
-  the workflow.
+  without its group, a group other than exactly this one, a report job
+  with a group (in another job's group it could cancel that job), and a
+  workflow group beside job groups. It names `ci.yml` as a workflow that
+  cancels job by job, so removing every group fails too. `python.yml` and
+  `npm.yml` keep one group for the workflow.
 
 ## Caches
 
@@ -275,7 +277,10 @@ key is one entry per job id, toolchain and `Cargo.lock`.
 - **bench-guard saves on failure too** (`cache-on-failure`). On main the
   job fails when a count is over the tolerance, after its builds, and
   without it main's only bench-guard entry was two `Cargo.lock` versions
-  old.
+  old. Its key carries `decoder`: an entry saved before the decoder build
+  moved holds no `target/decoder`, and rust-cache saves nothing over an
+  exact hit, so an old key could have kept it out for as long as the
+  `Cargo.lock` did not change.
 
 ## DCO sign-off
 

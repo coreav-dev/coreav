@@ -4,6 +4,7 @@ review found passing or failing wrongly, on fixtures and on a copy of this
 repository's workflows."""
 import importlib.util
 import pathlib
+import re
 import shutil
 import tempfile
 import unittest
@@ -188,6 +189,19 @@ class Repository(unittest.TestCase):
     def test_a_group_another_job_has_is_reported(self):
         found = self.ci('${{ github.workflow }}-msrv-', '${{ github.workflow }}-check-')
         self.assertTrue(any(p.startswith('ci.yml: give `msrv` exactly') for p in found), found)
+
+    def test_a_workflow_without_any_job_group_is_reported(self):
+        ci = self.root / '.github' / 'workflows' / 'ci.yml'
+        text = ci.read_text()
+        bare = re.sub(r'    concurrency:\n      group: .*\n      cancel-in-progress: .*\n', '', text)
+        self.assertNotIn('concurrency:', bare)
+        ci.write_text(bare)
+        found = check.check(self.root)
+        self.assertTrue(any(p.startswith('ci.yml: give `check` exactly') for p in found), found)
+
+    def test_a_report_job_with_a_group_is_reported(self):
+        found = self.ci('  ci-report:\n', '  ci-report:\n    concurrency:\n      group: x\n')
+        self.assertTrue(any(p.startswith('ci.yml: remove `ci-report`') for p in found), found)
 
     def test_a_workflow_group_beside_the_job_groups_is_reported(self):
         found = self.ci('\njobs:\n', '\nconcurrency:\n  group: ci\n\njobs:\n')
