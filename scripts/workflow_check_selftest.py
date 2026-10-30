@@ -168,12 +168,30 @@ class Repository(unittest.TestCase):
         for file in ('tools/probe/action.yml', '.github/actions/probe/action.yaml', 'tools/anchored/action.yml'):
             self.assertTrue(any(p.startswith(f'{file}: line ') and 'actions/checkout@v4' in p for p in found), (file, found))
 
-    def test_a_job_no_report_waits_for_is_reported(self):
+    def ci(self, old, new):
         ci = self.root / '.github' / 'workflows' / 'ci.yml'
         text = ci.read_text()
-        self.assertIn('    needs: [ci-changes, bench-guard]\n', text)
-        ci.write_text(text.replace('    needs: [ci-changes, bench-guard]\n', '    needs: [ci-changes]\n'))
-        self.assertIn('ci.yml: no report job waits for bench-guard', check.check(self.root))
+        self.assertIn(old, text)
+        ci.write_text(text.replace(old, new, 1))
+        return check.check(self.root)
+
+    def test_a_job_no_report_waits_for_is_reported(self):
+        found = self.ci(', conformance-arm64, bench-guard]\n', ', conformance-arm64]\n')
+        self.assertIn('ci.yml: no report job waits for bench-guard', found)
+
+    def test_a_job_without_its_concurrency_group_is_reported(self):
+        group = ('    concurrency:\n      group: ${{ github.workflow }}-msrv-'
+                 "${{ github.event_name == 'pull_request' && github.ref || github.run_id }}\n"
+                 "      cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n")
+        self.assertTrue(any(p.startswith('ci.yml: give `msrv` exactly') for p in self.ci(group, '')))
+
+    def test_a_group_another_job_has_is_reported(self):
+        found = self.ci('${{ github.workflow }}-msrv-', '${{ github.workflow }}-check-')
+        self.assertTrue(any(p.startswith('ci.yml: give `msrv` exactly') for p in found), found)
+
+    def test_a_workflow_group_beside_the_job_groups_is_reported(self):
+        found = self.ci('\njobs:\n', '\nconcurrency:\n  group: ci\n\njobs:\n')
+        self.assertTrue(any('remove the workflow\'s own `concurrency:`' in p for p in found), found)
 
     def test_a_local_ref_to_nothing_is_reported(self):
         self.call_local('./tools/none')
