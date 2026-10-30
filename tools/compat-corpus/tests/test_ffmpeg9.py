@@ -1,6 +1,7 @@
 """tools/compat-corpus/run.py: a B3 difference on a fixture is set aside only
 when the two outputs agree once the keys ffmpeg9.json names for that file,
-and nothing else, are taken out of both, in the command's own writer.
+and nothing else, are taken out of both, in the command's own writer, and
+every value that differs on them is the difference the entry accepts.
 ffmpeg9.json and docs/known-divergences-ffprobe9.md name the same entries.
 
     python3 -I -m unittest discover -s tools/compat-corpus/tests -p 'test_*.py'
@@ -11,6 +12,7 @@ import pathlib
 import re
 import sys
 import unittest
+from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 sys.dont_write_bytecode = True
@@ -120,6 +122,69 @@ class Narrowing(unittest.TestCase):
         self.assertIsNone(run.full_args(['-of', 'json'], *run.writer_of(['-of', 'json'])))
 
 
+def packets(*durations):
+    """A default-writer packet listing: (codec_type, stream_index, duration
+    in ms) per packet."""
+    return ''.join(f'[PACKET]\ncodec_type={kind}\nstream_index={index}\nduration={ms}\n'
+                   f'duration_time={ms / 1000:.6f}\n[/PACKET]\n' for kind, index, ms in durations)
+
+
+class Accepts(unittest.TestCase):
+    """Each entry sets aside only the difference it names, on the stream or
+    packet it names, as the whole file's listing shows it."""
+    PATH = pathlib.Path('mkv_h264_aac.mkv')
+
+    def covers(self, ref, out, listing):
+        def canonical(coreav, path):
+            return {f'packets.{key}': [(f'{f / scale:.6f}' if scale > 1 else str(f),
+                                        f'{c / scale:.6f}' if scale > 1 else str(c), context)
+                                       for f, c, context in listing]
+                    for key, scale in (('duration', 1), ('duration_time', 1000))}
+        with mock.patch.object(run, 'canonical', canonical):
+            return run.ffmpeg9_covers('coreav', ['-show_packets'], self.PATH, ref.encode(), out.encode())[0]
+
+    def test_only_the_last_aac_packet_is_cut(self):
+        video = {'codec_type': 'video', 'codec_name': 'h264', 'last': True}
+        aac = {'codec_type': 'audio', 'codec_name': 'aac', 'last': True}
+        listing = [(40, 40, video), (16, 21, aac)]
+        ref = packets(('video', 0, 40), ('audio', 1, 16))
+        entry = ['KD-FF9-FIXTURE-MKV-LAST-DURATION']
+        self.assertEqual(self.covers(ref, packets(('video', 0, 40), ('audio', 1, 21)), listing), entry)
+        # An earlier video packet's duration differs too: not the case named.
+        self.assertIsNone(self.covers(ref, packets(('video', 0, 999), ('audio', 1, 21)), listing))
+        self.assertIsNone(self.covers(ref, packets(('video', 0, 40), ('audio', 1, 21)),
+                                      [(40, 999, video), (16, 21, aac)]))
+        # Nor an AAC packet before the last, nor a longer last one.
+        self.assertIsNone(self.covers(ref, packets(('video', 0, 40), ('audio', 1, 21)),
+                                      [(40, 40, video), (16, 21, dict(aac, last=False))]))
+        self.assertIsNone(self.covers(packets(('video', 0, 40), ('audio', 1, 30)),
+                                      packets(('video', 0, 40), ('audio', 1, 21)),
+                                      [(40, 40, video), (30, 21, aac)]))
+
+    def test_values_as_the_formatting_options_print_them(self):
+        F = run.fractions.Fraction
+        self.assertEqual(run.plain('0:00:-0.007000'), F(-7, 1000))
+        self.assertEqual(run.plain('0:00:20.160000'), F(2016, 100))
+        self.assertEqual(run.plain('844.284000 Kbit/s'), 844_284)
+        self.assertEqual(run.plain('1.5 Kibyte'), 1536)
+        self.assertIsNone(run.plain('N/A'))
+        self.assertIsNone(run.plain('unknown'))
+        self.assertEqual(run.plain('hexagonal'), 'hexagonal')
+
+    def test_side_data_coreav_lists_on_only_some_packets(self):
+        rule = {'only': 'part of ffprobe'}
+        key = 'packets.side_data_list[MPEGTS Stream ID]'
+        a, b = '{"id": 224}', '{"id": 192}'
+
+        def accepts(ref, out, listing):
+            with mock.patch.object(run, 'canonical', lambda coreav, path: {key: listing}):
+                return run.accepts('coreav', self.PATH, key, rule, ref, out)
+        self.assertTrue(accepts([a, b, b], [a, b], [(a, a, {}), (b, b, {}), (b, 'N/A', {})]))
+        self.assertFalse(accepts([a, b], [a, 'c'], [(a, a, {}), (b, 'c', {})]))
+        # Each value is one ffprobe lists, but on another packet.
+        self.assertFalse(accepts([a, b], [b], [(a, b, {}), (b, 'N/A', {})]))
+
+
 class Table(unittest.TestCase):
     def test_every_entry_is_documented_and_every_pair_listed_once(self):
         table = json.loads((ROOT / 'tools' / 'compat-corpus' / 'ffmpeg9.json').read_text())
@@ -133,6 +198,10 @@ class Table(unittest.TestCase):
                 for name in files:
                     self.assertNotIn((key, name), seen)
                     seen.add((key, name))
+            self.assertEqual(sorted(entry['accepts']), sorted(entry['keys']), entry['id'])
+            for key, rule in entry['accepts'].items():
+                if isinstance(rule, dict) and 'packets' in rule:
+                    self.assertEqual(sorted(rule['packets']), entry['keys'][key], key)
 
 
 if __name__ == '__main__':

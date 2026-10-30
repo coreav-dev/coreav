@@ -56,11 +56,13 @@ its output is read. Python 3 standard library only.
 import argparse
 import collections
 import concurrent.futures
+import fractions
 import functools
 import importlib.util
 import json
 import os
 import pathlib
+import re
 import subprocess
 import sys
 import tempfile
@@ -305,7 +307,8 @@ def first_difference(a, b):
 # differs on, under the entry of docs/known-divergences-ffprobe9.md that says
 # why. A B3 difference is set aside only when the two outputs are byte for
 # byte the same once those keys of that file, and nothing else, are taken out
-# of both, in the command's own output format.
+# of both, in the command's own output format, and every value that differs
+# on those keys is one the entry accepts (its `accepts`, [accepts]).
 FFMPEG9 = HERE / 'ffmpeg9.json'
 WRITER_FLAGS = ('-of', '-print_format', '-output_format')
 WRITER_OPTIONS = {'nokey': 'nk', 'noprint_wrappers': 'nw', 'print_section': 'p',
@@ -332,6 +335,183 @@ def ffmpeg9():
             for name in names:
                 out[name][key] = entry['id']
     return out
+
+
+@functools.cache
+def ffmpeg9_rules():
+    """{entry id: {key: rule}} from ffmpeg9.json."""
+    return {entry['id']: entry['accepts'] for entry in json.loads(FFMPEG9.read_text())['entries']}
+
+
+CANONICAL_ARGS = ['-v', 'error', '-of', 'json', '-show_format', '-show_streams', '-show_programs',
+                  '-show_packets']
+
+
+def listed_values(doc):
+    """[(section, {key: value}, context)] for the format, each stream, each
+    program's streams and each packet of a JSON listing, a packet's side
+    data under `side_data_list[<type>]`. A stream's and a packet's context
+    name its stream's codec; a
+    packet's also its position in the listing, whether it is its stream's
+    last, and whether it carries Skip Samples side data."""
+    def leaves(node, prefix, flat):
+        for k, v in node.items():
+            if isinstance(v, dict):
+                leaves(v, f'{prefix}{k}.', flat)
+            elif not isinstance(v, list):
+                flat[prefix + k] = str(v)
+        return flat
+
+    def codec(stream):
+        return {'codec_type': stream.get('codec_type'), 'codec_name': stream.get('codec_name')}
+
+    streams = {s.get('index'): s for s in doc.get('streams', [])}
+    items = [('format', leaves(doc.get('format', {}), '', {}), {})]
+    items += [('streams', leaves(s, '', {}), codec(s)) for s in doc.get('streams', [])]
+    items += [('programs.streams', leaves(s, '', {}), codec(s))
+              for program in doc.get('programs', []) for s in program.get('streams', [])]
+    packets = doc.get('packets', [])
+    last = {p.get('stream_index'): i for i, p in enumerate(packets)}
+    for i, packet in enumerate(packets):
+        index = packet.get('stream_index')
+        skip = any(s.get('side_data_type') == 'Skip Samples' for s in packet.get('side_data_list', []))
+        context = {**codec(streams.get(index, {})), 'last': last[index] == i, 'skip': skip, 'position': i}
+        flat = leaves(packet, '', {})
+        for side in packet.get('side_data_list', []):
+            key = f"side_data_list[{side.get('side_data_type', '')}]"
+            flat[key] = flat.get(key, '') + json.dumps(side, sort_keys=True)
+        items.append(('packets', flat, context))
+    return items
+
+
+@functools.cache
+def canonical(coreav, path):
+    """{key: [(ffprobe's value, coreav's, context)], or None where the two
+    list a different number of items} over the whole file, a value one
+    tool leaves out N/A (the JSON writer does not print an N/A), the context
+    ffprobe's; None when either tool fails."""
+    sides = []
+    for tool in (['ffprobe'], [coreav, 'ffprobe']):
+        code, out, _ = run(tool + CANONICAL_ARGS + [str(path)])
+        try:
+            sides.append(listed_values(json.loads(out)) if code == 0 else None)
+        except ValueError:
+            return None
+        if sides[-1] is None:
+            return None
+    names = collections.defaultdict(dict)
+    for section, flat, _ in sides[0] + sides[1]:
+        names[section].update(dict.fromkeys(flat))
+    ref, got = ([(f'{section}.{k}', flat.get(k, 'N/A'), context)
+                 for section, flat, context in side for k in names[section]] for side in sides)
+    if [k for k, _, _ in ref] != [k for k, _, _ in got]:
+        return {}
+    out = collections.defaultdict(list)
+    for (key, f, context), (_, c, _) in zip(ref, got):
+        out[key].append((f, c, context))
+    return out
+
+
+def number(text):
+    try:
+        return fractions.Fraction(text)
+    except (ValueError, ZeroDivisionError):
+        return None
+
+
+PREFIXES = {'': 1, 'K': 1000, 'M': 1000 ** 2, 'G': 1000 ** 3, 'Ki': 1024, 'Mi': 1024 ** 2, 'Gi': 1024 ** 3}
+
+
+def plain(value):
+    """A value as -pretty, -sexagesimal, -unit or -prefix leave it or not:
+    a number, None for N/A, unknown or nothing, else the text."""
+    text = value.strip()
+    if text in ('', 'N/A', 'unknown', '[]'):
+        return None
+    clock = re.fullmatch(r'(-?)(\d+):(\d\d):(-?[\d.]+)', text)
+    if clock:
+        sign = -1 if clock[1] else 1
+        return sign * (int(clock[2]) * 3600 + int(clock[3]) * 60 + fractions.Fraction(clock[4]))
+    unit = re.fullmatch(r'(-?[\d.]+) ?(Ki|Mi|Gi|K|M|G)?(bit/s|byte|B|s|Hz)', text)
+    if unit:
+        return fractions.Fraction(unit[1]) * PREFIXES[unit[2] or '']
+    return number(text) if number(text) is not None else text
+
+
+RELATIONS = {
+    'ffprobe greater': lambda f, c: f > c,
+    'ffprobe smaller': lambda f, c: f < c,
+    'ffprobe double': lambda f, c: f == 2 * c,
+}
+
+
+def satisfies(rule, f, c, context):
+    """Whether one pair of differing values over the whole file, ffprobe's
+    `f` and coreav's `c` of one stream or packet, is the difference
+    `rule` accepts; a list of rules accepts what any of them does."""
+    if isinstance(rule, list):
+        return any(satisfies(r, f, c, context) for r in rule)
+    where = rule.get('where', {})
+    if any(context.get(k) != where[k] for k in ('codec_type', 'codec_name') if k in where):
+        return False
+    if where.get('packet') == 'last' and not context.get('last'):
+        return False
+    if where.get('packet') == 'skip samples' and not context.get('skip'):
+        return False
+    if f != rule.get('ffprobe', f) or c != rule.get('coreav', c):
+        return False
+    if 'pairs' in rule and [f, c] not in rule['pairs']:
+        return False
+    if 'at' in rule and [context.get('position'), f, c] not in rule['at']:
+        return False
+    if rule.get('relation') == 'ffprobe joins coreav':
+        return ';' in f and c in f.split(';')
+    if 'relation' in rule or 'difference' in rule:
+        x, y = number(f), number(c)
+        if x is None or y is None:
+            return False
+        if 'difference' in rule and x - y not in rule['difference']:
+            return False
+        return 'relation' not in rule or RELATIONS[rule['relation']](x, y)
+    return True
+
+
+def accepts(coreav, path, key, rule, ref_values, values):
+    """Whether `rule` accepts every difference of one key of one command's
+    two outputs (ffprobe's values `ref_values`, coreav's `values`): a
+    key one tool alone prints, side data CoreAV lists on only some of the
+    packets ffprobe lists it on, the same on each ([canonical]), or values
+    that differ only where they differ over the whole file, each
+    difference there the one the rule names."""
+    only = rule.get('only') if isinstance(rule, dict) else None
+    if only == 'ffprobe':
+        return all(plain(v) is None for v in values)
+    if only == 'coreav':
+        return all(plain(v) is None for v in ref_values)
+    if only == 'part of ffprobe':
+        if collections.Counter(values) - collections.Counter(ref_values):
+            return False
+        if key.endswith('[]'):
+            return True
+        pairs = (canonical(coreav, path) or {}).get(key)
+        return pairs is not None and all(c in ('N/A', f) for f, c, _ in pairs)
+    pairs = (canonical(coreav, path) or {}).get(key)
+    if pairs is None:
+        return False
+    if isinstance(rule, dict) and 'packets' in rule:
+        rule = {'at': rule['packets'].get(path.name, [])}
+    differ = [(f, c, context) for f, c, context in pairs if f != c]
+    if not all(satisfies(rule, f, c, context) for f, c, context in differ):
+        return False
+    allowed = {(plain(f), plain(c)) for f, c, _ in differ}
+    got = [(plain(f), plain(c)) for f, c in zip(ref_values, values)]
+    if len(ref_values) == len(values):
+        return all(f == c or (f, c) in allowed for f, c in got)
+    # The JSON writer leaves an N/A out, so the items no longer pair.
+    ref_only = collections.Counter(map(plain, ref_values)) - collections.Counter(map(plain, values))
+    only_here = collections.Counter(map(plain, values)) - collections.Counter(map(plain, ref_values))
+    return (not ref_only - collections.Counter(f for f, _ in allowed)
+            and not only_here - collections.Counter(c for _, c in allowed))
 
 
 def writer_of(args):
@@ -673,6 +853,29 @@ def without(text, name, options, keys):
     return ''.join(out) + text[at:]
 
 
+def item_value(text, name, options):
+    """The value of one item of a key, as `item_spans` cuts it."""
+    if name == 'json':
+        value = text.partition(':')[2].strip()
+        try:
+            return str(json.loads(value))
+        except ValueError:
+            return value
+    value = text.rstrip('\n').partition('=')[2]
+    if name == 'flat' and value.startswith('"'):
+        return value[1:-1]
+    if name == 'csv' and value.startswith('"'):
+        return value[1:-1].replace('""', '"')
+    return value
+
+
+def item_values(text, name, options):
+    out = collections.defaultdict(list)
+    for key, start, end in sorted(item_spans(text, name, options), key=lambda s: s[1]):
+        out[key].append(item_value(text[start:end], name, options))
+    return out
+
+
 def differing_keys(a, b, name, options):
     """The keys whose items differ between two outputs of one writer."""
     def items(text):
@@ -718,6 +921,10 @@ def ffmpeg9_covers(coreav, args, path, ref_out, out):
     allowed = ffmpeg9().get(path.name, {})
     if not allowed or without(a, name, options, allowed) != without(b, name, options, allowed):
         return None, keys
+    ref_values, values = item_values(a, name, options), item_values(b, name, options)
+    for k in keys:
+        if k in allowed and not accepts(coreav, path, k, ffmpeg9_rules()[allowed[k]][k], ref_values[k], values[k]):
+            return None, keys
     return sorted({allowed[k] for k in keys if k in allowed}) or None, keys
 
 

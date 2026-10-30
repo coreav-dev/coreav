@@ -749,7 +749,10 @@ it writes show of CoreAV, is set aside key by key and fixture by fixture:
 `tools/compat-corpus/ffmpeg9.json` names the keys of each fixture under the
 entries of `docs/known-divergences-ffprobe9.md`, and a command's difference
 is set aside only when the two outputs are identical once those keys, and
-nothing else, are taken out of both, in the command's own output format.
+nothing else, are taken out of both, in the command's own output format,
+and every value that differs on those keys is the difference its entry
+accepts, on the stream or packet the entry names, as both tools' listing
+of the whole file shows it.
 
 **B3a on the corpus.** Every corpus v1 `real` file whose container
 `coreav ffprobe` reads (MP4, MOV, M4A, M4B, M4V, 3GP, Matroska, WebM), and
