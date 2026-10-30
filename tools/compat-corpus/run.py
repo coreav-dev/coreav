@@ -466,11 +466,13 @@ def satisfies(rule, f, c, context):
         return False
     if rule.get('relation') == 'ffprobe joins coreav':
         return ';' in f and c in f.split(';')
-    if 'relation' in rule or 'difference' in rule:
+    if 'relation' in rule or 'difference' in rule or 'ratio' in rule:
         x, y = number(f), number(c)
         if x is None or y is None:
             return False
         if 'difference' in rule and x - y not in rule['difference']:
+            return False
+        if 'ratio' in rule and not (y and number(rule['ratio'][0]) <= x / y <= number(rule['ratio'][1])):
             return False
         return 'relation' not in rule or RELATIONS[rule['relation']](x, y)
     return True

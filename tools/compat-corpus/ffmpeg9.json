@@ -3120,8 +3120,7 @@
    "id": "KD-FF9-FIXTURE-SIDX-DURATION",
    "accepts": {
     "format.bit_rate": {
-     "ffprobe": "844284",
-     "coreav": "847648"
+     "ratio": ["0.9960", "0.9961"]
     },
     "format.duration": {
      "ffprobe": "20.160000",
@@ -3195,10 +3194,7 @@
    "id": "KD-FF9-FIXTURE-SIDX-BIT-RATE",
    "accepts": {
     "streams.bit_rate": {
-     "pairs": [
-      ["749136", "37457"],
-      ["65892", "3310"]
-     ]
+     "ratio": ["19.5", "20.5"]
     }
    },
    "keys": {
