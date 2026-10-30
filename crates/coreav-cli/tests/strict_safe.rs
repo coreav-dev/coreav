@@ -13,6 +13,10 @@
 //! H.264 MP4 made by the pinned FFmpeg (`COREAV_FFMPEG`, else
 //! `/opt/coreav-oracle-bin/ffmpeg`, else `ffmpeg` on `PATH`); without one
 //! the cases that need it skip, or fail in CI.
+//!
+//! Where the sandbox's memory limit cannot be enforced (macOS), the mode
+//! also starts no sandboxed decoder or encoder, x264 included
+//! ([`no_limit`]).
 #![cfg(all(unix, feature = "transcode"))]
 #![allow(
     clippy::indexing_slicing,
@@ -53,6 +57,15 @@ fn dir(name: &str) -> PathBuf {
     }
     dir
 }
+
+/// Whether strict-safe mode starts no sandboxed process here, because the
+/// sandbox's memory limit is not enforced (macOS).
+fn no_limit() -> bool {
+    !coreav_worker::enforces_memory_limit()
+}
+
+/// The reason strict-safe mode gives where [`no_limit`].
+const NO_LIMIT: &str = "strict-safe: no enforceable memory limit for the sandbox on this platform";
 
 /// Whether the stand-in `program` ran.
 fn ran(dir: &Path, program: &str) -> bool {
@@ -192,6 +205,44 @@ fn refused(run: &Run, dir: &Path, also: &str) {
     assert!(names.is_empty(), "left behind: {names:?}");
 }
 
+/// A refusal of strict-safe mode where [`no_limit`], with exit status 4:
+/// the reason and turning the mode off; nothing written.
+fn refused_without_limit(run: &Run, dir: &Path) {
+    assert_eq!(run.code, 4, "{}", run.stderr);
+    assert!(run.stderr.contains(NO_LIMIT), "{}", run.stderr);
+    assert!(
+        run.stderr
+            .contains("run without --strict-safe and COREAV_STRICT_SAFE"),
+        "{}",
+        run.stderr
+    );
+    assert!(!dir.join("out.mp4").exists() && !dir.join("out.jpg").exists());
+}
+
+#[test]
+fn no_sandboxed_encoder_starts_without_an_enforced_memory_limit() {
+    let dir = dir("no-limit");
+    for mode in [Mode::Flag, Mode::Variable] {
+        let run = coreav(&dir, mode, true, &["transcode", "missing.mp4", "out.mp4"]);
+        if no_limit() {
+            // Refused before the input is read: the input is missing.
+            refused_without_limit(&run, &dir);
+            error(&run);
+        } else {
+            assert_eq!(run.code, 3, "{}", run.stderr);
+            assert!(!run.stderr.contains(NO_LIMIT), "{}", run.stderr);
+        }
+        assert!(!ran(&dir, "x264") && !ran(&dir, "ffmpeg"), "{mode:?}");
+    }
+    let run = coreav(
+        &dir,
+        Mode::Off,
+        true,
+        &["transcode", "missing.mp4", "out.mp4"],
+    );
+    assert_eq!(run.code, 3, "{}", run.stderr);
+}
+
 /// The `coreav.error/1` object of a refusal of `coreav transcode` or
 /// `coreav thumbnail`.
 fn error(run: &Run) -> Value {
@@ -242,7 +293,11 @@ fn transcode_runs_no_ffmpeg() {
     let Some(_) = source(&dir) else { return };
     for mode in [Mode::Flag, Mode::Variable] {
         let run = coreav(&dir, mode, true, &["transcode", "in.mp4", "out.mp4"]);
-        if NATIVE {
+        if no_limit() {
+            refused_without_limit(&run, &dir);
+            error(&run);
+            assert!(!ran(&dir, "x264"));
+        } else if NATIVE {
             // CoreAV's decoder, then the stand-in x264, which fails.
             assert_eq!(run.code, 1, "{}", run.stderr);
             assert!(ran(&dir, "x264"));
@@ -316,7 +371,10 @@ fn ffmpeg_libx264_lines_run_no_ffmpeg() {
         refused(&run, &dir, "install x264");
         assert!(run.stderr.starts_with("coreav ffmpeg: "), "{}", run.stderr);
         let run = coreav(&dir, mode, true, &line);
-        if NATIVE {
+        if no_limit() {
+            refused_without_limit(&run, &dir);
+            assert!(!ran(&dir, "x264"));
+        } else if NATIVE {
             assert_eq!(run.code, 1, "{}", run.stderr);
             assert!(ran(&dir, "x264"));
         } else {
@@ -386,12 +444,19 @@ fn the_sandbox_launcher_runs_no_ffmpeg() {
         assert!(ran(&dir, standin), "{program}: {}", run.stderr);
         forget(&dir);
     }
-    // The encoder the launcher is there for still runs.
+    // The encoder the launcher is there for still runs, where the sandbox's
+    // memory limit holds.
     let x264 = dir.join("x264/x264");
     let line = ["__coreav_exec", "--", x264.to_str().unwrap()];
     let run = coreav(&dir, Mode::Variable, false, &line);
-    assert_eq!(run.code, 1, "{}", run.stderr);
-    assert!(ran(&dir, "x264"));
+    if no_limit() {
+        assert_eq!(run.code, 126, "{}", run.stderr);
+        assert!(run.stderr.contains(NO_LIMIT), "{}", run.stderr);
+        assert!(!ran(&dir, "x264"));
+    } else {
+        assert_eq!(run.code, 1, "{}", run.stderr);
+        assert!(ran(&dir, "x264"));
+    }
 }
 
 #[cfg(feature = "ffmpeg-fallback")]
@@ -440,6 +505,26 @@ fn the_decode_worker_runs_no_ffmpeg() {
             assert!(ran(&dir, "ffmpeg"));
         }
     }
+}
+
+#[cfg(feature = "ffmpeg-fallback")]
+#[test]
+fn no_sandboxed_decoder_starts_without_an_enforced_memory_limit() {
+    use coreav_decode::{Backend, Codec, Limits, StreamConfig};
+    use coreav_worker::{SandboxedBackend, WorkerBackend, WorkerCommand, WorkerOptions};
+    // A backend strict-safe mode allows, which this build does not have:
+    // where the limit holds the worker refuses it for that.
+    let backend = SandboxedBackend {
+        backend: WorkerBackend::Dav1d,
+        options: WorkerOptions::new(WorkerCommand {
+            program: bin().into(),
+            args: vec!["__coreav_worker".into(), "--strict-safe".into()],
+        }),
+    };
+    let Err(error) = backend.open(&StreamConfig::new(Codec::Av1), &Limits::default()) else {
+        panic!("a worker without dav1d decoded AV1")
+    };
+    assert_eq!(error.message.contains(NO_LIMIT), no_limit(), "{error}");
 }
 
 #[test]
@@ -505,7 +590,8 @@ fn every_launch_carries_the_mode_in_its_arguments() {
     // The arguments a run in the mode starts the launcher with, and no
     // variable: the launch clears the environment.
     let entry = StrictSafe::new(true).entry(coreav_worker::EXEC_ARG);
-    for (program, standin, code) in [("bin/ffmpeg", "ffmpeg", 126), ("x264/x264", "x264", 1)] {
+    let x264 = if no_limit() { 126 } else { 1 };
+    for (program, standin, code) in [("bin/ffmpeg", "ffmpeg", 126), ("x264/x264", "x264", x264)] {
         let out = command(&dir, Mode::Off, false, &[])
             .args(&entry)
             .arg("--")

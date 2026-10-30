@@ -397,7 +397,10 @@ decoder that spins without doing I/O, even if the parent has gone.
   `RLIMIT_AS` below the address space a process reserves from its start,
   hundreds of GiB, so the worker sets none there. On macOS, on other
   systems where `RLIMIT_AS` may not be enforced, and outside Unix, the
-  budget is advisory: it only fits the threads.
+  budget is advisory: it only fits the threads, and a decoder can use
+  more. `coreav_worker::enforces_memory_limit` says which case a build is
+  in, and strict-safe mode starts no sandboxed process where it says no
+  (`compat-cli.md`, "Strict-safe mode").
 
 A decoder that runs into the limit fails with `Limit`. FFmpeg exits by
 itself with an error code after an allocation was refused or a thread

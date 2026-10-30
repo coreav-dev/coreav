@@ -9,9 +9,9 @@ use crate::protocol::SandboxLimits;
 /// Applies `limits`, plus no core files and no regular-file writes
 /// (`RLIMIT_FSIZE` 0: decoders write only to pipes). Each limit is set as
 /// both the soft and the hard value, so the worker cannot raise it again;
-/// an inherited limit (soft or hard) below the one asked for is kept. On
-/// macOS the address space is not limited, so the budget is advisory there
-/// (`docs/design/decode.md`, "Memory").
+/// an inherited limit (soft or hard) below the one asked for is kept. The
+/// address space is limited only where [`enforces_memory_limit`]; elsewhere
+/// the budget is advisory (`docs/design/decode.md`, "Memory").
 #[cfg(unix)]
 pub fn apply(limits: &SandboxLimits) -> std::io::Result<()> {
     use rustix::process::{Resource, Rlimit, getrlimit, setrlimit};
@@ -34,10 +34,7 @@ pub fn apply(limits: &SandboxLimits) -> std::io::Result<()> {
     };
     set(Resource::Core, 0)?;
     set(Resource::Fsize, 0)?;
-    // macOS refuses (EINVAL) any `RLIMIT_AS` below the address space a
-    // process already reserves, hundreds of GiB from its start.
-    #[cfg(not(target_vendor = "apple"))]
-    if let Some(bytes) = limits.address_space {
+    if let Some(bytes) = limits.address_space.filter(|_| enforces_memory_limit()) {
         set(Resource::As, bytes)?;
     }
     if let Some(seconds) = limits.cpu_seconds {
@@ -47,6 +44,16 @@ pub fn apply(limits: &SandboxLimits) -> std::io::Result<()> {
         set(Resource::Nofile, files)?;
     }
     Ok(())
+}
+
+/// Whether this platform holds a sandboxed process to its memory budget
+/// (`RLIMIT_AS`): Unix but not macOS, which refuses (`EINVAL`) any limit
+/// below the address space a process already reserves, hundreds of GiB
+/// from its start. Where it does not, the budget is advisory and
+/// strict-safe mode starts no sandboxed process (`docs/design/decode.md`,
+/// "Memory").
+pub fn enforces_memory_limit() -> bool {
+    cfg!(all(unix, not(target_vendor = "apple")))
 }
 
 /// The address-space limit in force (the soft one), if any.

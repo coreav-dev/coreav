@@ -1211,6 +1211,19 @@ decision, 2026-10-30):
   with `ffmpeg` or `ffprobe`, with exit status 126. A copy of FFmpeg under
   another name is not recognised, as an `x264` program that is FFmpeg
   under another name is not: the mode trusts the names the operator gives.
+- **Without an enforced memory limit.** Where the sandbox's address-space
+  limit cannot be enforced (`coreav_worker::enforces_memory_limit`: macOS,
+  and outside Unix; `decode.md`, "Memory"), the mode starts no sandboxed
+  process at all, so a stream that decodes to more than it declares cannot
+  take the host's memory through one (maintainer decision, 2026-10-30).
+  Every encoder is refused before the input is read, with exit status 4;
+  the dav1d and libvpx backends are stand-ins like the FFmpeg one, refused
+  with exit status 4 once the container is read; the worker refuses every
+  backend and the launcher every program, with exit status 126. The
+  message begins `strict-safe: no enforceable memory limit for the sandbox
+  on this platform`. The native H.264 decoder runs in the calling process,
+  not in the sandbox, and still decodes. Outside the mode the budget stays
+  advisory there.
 
 `coreav thumbnail` and `coreav transcode` print the refusal as a
 `coreav.error/1` object of kind `unsupported_feature`; `coreav ffmpeg` as
@@ -1219,8 +1232,10 @@ its other refusals, with the log line's `not_run` `strict_safe`.
 One type decides all of them, `StrictSafe` (`coreav-cli`, `strict_safe.rs`),
 made from the flag and the variable: the fallback asks it, a transcode's
 encoder is an `Encoder` only it makes, the FFmpeg backend reaches the
-decoder list only through `Decoders::push_ffmpeg`, which takes it, and
-the hidden entries ask it, the worker `StrictSafe::worker` and the
+decoder list only through `Decoders::push_ffmpeg`, which takes it, the
+dav1d and libvpx backends only through `Decoders::push_sandboxed`, which
+asks `StrictSafe::sandbox` (the one place that reads
+`coreav_worker::enforces_memory_limit`), and the hidden entries ask it, the worker `StrictSafe::worker` and the
 launcher `StrictSafe::program` (`coreav_worker::worker_main` and
 `sandbox_exec_main` take the check from their caller), with the mode
 carried to them by `StrictSafe::entry`. A new
