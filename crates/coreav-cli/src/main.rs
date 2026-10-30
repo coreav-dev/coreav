@@ -90,7 +90,7 @@ use serde_json::Value;
 
 /// Memory-safe media probing.
 #[derive(Parser)]
-#[command(name = "coreav", version, about, long_about = None)]
+#[command(name = "coreav", bin_name = "coreav", version, about, long_about = None)]
 struct Cli {
     /// For services that read untrusted input: CoreAV never runs an ffmpeg
     /// or ffprobe program, which is FFmpeg's C code, as COREAV_STRICT_SAFE=1
@@ -2143,7 +2143,10 @@ fn run_join(args: &JoinArgs) -> ExitCode {
         Some("none") => JoinAudio::None,
         Some(_) => return usage("--audio takes only `none`"),
     };
-    let options = JoinOptions { audio };
+    let options = JoinOptions {
+        video: VideoChoice::First,
+        audio,
+    };
     // The output may name none of the inputs; `write_output` checks the
     // first, and whether the output exists.
     if args.output != "-" {

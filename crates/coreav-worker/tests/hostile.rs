@@ -1,6 +1,7 @@
 //! A hostile worker (decode.md, bar 3): a shell that writes chosen bytes
 //! instead of the worker. Every case must end in an error, never a panic, a
 //! fault or a hang past the deadline.
+#![cfg(unix)]
 // Test-only sources outside `#[test]` functions.
 #![allow(
     clippy::expect_used,

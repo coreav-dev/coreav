@@ -26,7 +26,7 @@ use crate::rational::{add, ceil, int, lt, max, min, round, scale, sub, to_i64, t
 use crate::tables::Tables;
 use crate::{
     AudioChoice, ClipTrack, ExtractError, JoinAudio, JoinError, JoinOptions, JoinSummary,
-    JoinTrack, JoinedInput, LeftOut, LeftOutReason, Mismatch, VideoChoice,
+    JoinTrack, JoinedInput, LeftOut, LeftOutReason, Mismatch,
 };
 use core::cell::RefCell;
 use coreav_isobmff::{
@@ -43,9 +43,10 @@ const AUDIO_ID: u32 = 2;
 ///
 /// Each input is probed with `limits` and `allowlist`; its first video
 /// track (H.264 `avc1`, HEVC `hvc1`, AV1 or VP9) and, with
-/// [`JoinAudio::First`], its first audio track (AAC, FLAC, ALAC, AC-3 or
-/// E-AC-3) are kept, checked as a
-/// clip checks them. Every input must match the first: the same codecs,
+/// [`JoinAudio::First`], its first audio track, or with
+/// [`JoinAudio::Stream`], its audio stream at that index (AAC, FLAC, ALAC,
+/// AC-3 or E-AC-3), are kept, checked as a clip checks them. Every input
+/// must match the first: the same codecs,
 /// sample entry types, codec configurations, coded size, `pasp`, `clap` and
 /// `colr` boxes, channels, sample rate, media timescales, track matrix and
 /// display size, and an audio track in all or none. Anything else fails with
@@ -96,7 +97,7 @@ pub fn join_mp4<S: Source, W: Write>(
     }
     let mut picks = Vec::new();
     for (input, movie) in movies.iter().enumerate() {
-        picks.push(Pick::of(movie, options.audio).map_err(|e| at(input, e))?);
+        picks.push(Pick::of(movie, options).map_err(|e| at(input, e))?);
     }
     let first = picks.first().ok_or(JoinError::NoInputs)?;
     for (input, pick) in picks.iter().enumerate().skip(1) {
@@ -526,12 +527,13 @@ struct PickAudio<'a> {
 }
 
 impl<'a> Pick<'a> {
-    fn of(movie: &'a Movie, audio: JoinAudio) -> Result<Self, Error> {
-        let video = select_video(movie, VideoChoice::First)?;
+    fn of(movie: &'a Movie, options: &JoinOptions) -> Result<Self, Error> {
+        let video = select_video(movie, options.video)?;
         let video_entry = video_sample_entry(video)?;
-        let audio = match audio {
+        let audio = match options.audio {
             JoinAudio::None => None,
             JoinAudio::First => select_audio(movie, AudioChoice::First)?,
+            JoinAudio::Stream(index) => select_audio(movie, AudioChoice::Stream(index))?,
         };
         let audio = match audio {
             Some(track) => Some(PickAudio {
