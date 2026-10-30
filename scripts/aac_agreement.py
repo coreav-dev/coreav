@@ -232,10 +232,13 @@ def judge(a):
     # Bar 3: the generated MP4 inputs, gating where no frame codes noise.
     gen = [r for r in meta['inputs'] if r['status'] == 'encoded']
     files = [work / 'gen' / f"{r['name']}.m4a" for r in gen]
-    check = run([sys.executable, '-I', ROOT / 'scripts' / 'decode_audio_check.py', '--coreav', a.coreav,
-                 '--ffmpeg', a.ffmpeg, '--ffprobe', a.ffprobe, '--out', work / 'edit-lists.json', *files],
-                timeout=TIMEOUT * len(files))
-    results = json.loads((work / 'edit-lists.json').read_text())['results']
+    results, check_exit = [], None
+    if files:
+        check = run([sys.executable, '-I', ROOT / 'scripts' / 'decode_audio_check.py', '--coreav', a.coreav,
+                     '--ffmpeg', a.ffmpeg, '--ffprobe', a.ffprobe, '--out', work / 'edit-lists.json', *files],
+                    timeout=TIMEOUT * len(files))
+        results = json.loads((work / 'edit-lists.json').read_text())['results']
+        check_exit = check.returncode
     bar3 = []
     for r, f, res in zip(gen, files, results):
         d = decoded.get(str(f))
@@ -253,7 +256,7 @@ def judge(a):
     out['bar3'] = {'gating': len(gating), 'passed': sum(r['pass'] for r in gating),
                    'reported': [[r['input'], r['pass']] for r in bar3 if not r['gating']],
                    'ffmpeg_default': {v: sum(r['ffmpeg'] == v for r in bar3) for v in ('equal', 'covered', 'uncovered')},
-                   'check_exit': check.returncode, 'results': bar3}
+                   'check_exit': check_exit, 'results': bar3}
     # Bars 4 and 5.
     bar4, bar5 = [], []
     for r in gen:
