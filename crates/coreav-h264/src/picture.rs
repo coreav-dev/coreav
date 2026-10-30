@@ -1349,14 +1349,7 @@ mod tests {
     /// the one the reading rule gives.
     #[test]
     fn band_reading_by_shift_follows_the_reading_rule() {
-        for (mb_h, shift) in [
-            (23, 0),
-            (30, 1),
-            (45, 2),
-            (68, 2),
-            (135, 3),
-            (12, 3),
-        ] {
+        for (mb_h, shift) in [(23, 0), (30, 1), (45, 2), (68, 2), (135, 3), (12, 3)] {
             let g = Geometry::new(4, mb_h, 1 << shift);
             for h in [4, 8, 16] {
                 for yi in -80..(mb_h as isize + 8) * 16 {
