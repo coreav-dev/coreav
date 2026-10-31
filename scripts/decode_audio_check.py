@@ -57,6 +57,9 @@ AUDIT_LIMIT = 256 << 20
 # twice ISO/IEC 11172-4's full accuracy limits.
 MP3_RMS = 2 * 2.0 ** -15 / math.sqrt(12)
 MP3_MAX = 2 * 2.0 ** -14
+# The tolerance of a lossy codec's comparisons: the MP3 one unless
+# --tolerance names another bar's ("HE-AAC bars").
+TOLERANCE = (MP3_RMS, MP3_MAX)
 UNIT_RATE = 0x0001_0000
 
 # Every entry of docs/known-divergences-decode-audio.json was written after
@@ -359,7 +362,7 @@ class Compare:
             return False
         if not self.lossy or not self.count:
             return True
-        return math.sqrt(self.square / self.count) <= MP3_RMS and self.worst <= MP3_MAX
+        return math.sqrt(self.square / self.count) <= TOLERANCE[0] and self.worst <= TOLERANCE[1]
 
 
 def differences(a, b):
@@ -459,7 +462,7 @@ def verdicts(open_streams, ref, entries, summary):
     if not applied:
         ops = None
     model_ok, ffmpeg_ok = stream_compare(*open_streams(), ref, ops)
-    result = {'model': model_ok, 'timeline': summary == timeline(ref['plan'], ref['total'])}
+    result = {'model': model_ok, 'length': lengths_ok, 'timeline': summary == timeline(ref['plan'], ref['total'])}
     if ref['ffmpeg_failed']:
         result['ffmpeg'] = 'not decoded'
     elif ops is None:
@@ -767,7 +770,13 @@ def main():
     parser.add_argument('--ffprobe', default='ffprobe')
     parser.add_argument('--audit', action='store_true')
     parser.add_argument('--out', type=pathlib.Path)
+    parser.add_argument('--tolerance', type=float, nargs=2, metavar=('RMS', 'MAX'),
+                        help='RMS of the difference and largest difference allowed for a lossy codec '
+                             '(default: the MP3 agreement tolerance)')
     tools = parser.parse_args()
+    global TOLERANCE
+    if tools.tolerance:
+        TOLERANCE = tuple(tools.tolerance)
     entries = known_divergences()
     results = [check(f, tools, entries) for f in tools.files]
     ok = [r for r in results if r['status'] == 'ok']
