@@ -665,8 +665,18 @@ fn fixtures_round_trip() {
                     eprintln!("{name} {label}: {e}");
                     continue;
                 }
+                Err(ExtractError::Source(e @ Error::InvalidStream { .. }))
+                    if common::INVALID_STREAMS.contains(&name.as_str()) =>
+                {
+                    eprintln!("{name} {label}: refused: {e}");
+                    continue;
+                }
                 Err(e) => panic!("{name} {label}: {e}"),
             };
+            assert!(
+                !common::INVALID_STREAMS.contains(&name.as_str()),
+                "{name} {label}: written"
+            );
             assert_partition(&source, &outputs, &summary);
             split_files.insert(name.clone());
             // Picture sizes that change inside the track (docs/design/

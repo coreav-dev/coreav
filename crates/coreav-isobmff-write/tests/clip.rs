@@ -17,9 +17,12 @@ use coreav_isobmff::{
     Allowlist, Budget, Codec, EditList, Error, FourCc, Limits, Movie, Packet, Rational,
     SliceSource, Source, TrackKind, probe,
 };
+use coreav_isobmff_write::hls::{HlsOptions, build_index};
 use coreav_isobmff_write::{
     AudioChoice, AudioClipOptions, AudioClipSummary, ClipOptions, ClipSummary, ClipTrack,
-    ExtractError, LeftOutReason, TrackChoice, VideoChoice, clip_audio_mp4, clip_mp4,
+    ExtractError, JoinAudio, JoinError, JoinOptions, Keep, LeftOutReason, RemuxOptions, SplitAt,
+    SplitOptions, TrackChoice, VideoChoice, clip_audio_mp4, clip_mp4, join_mp4, remux_mp4,
+    sanitize_mp4, split_mp4,
 };
 use std::path::Path;
 
@@ -588,6 +591,133 @@ fn a_last_sample_at_the_stream_end_is_not_copied() {
     }
 }
 
+/// An HEVC stream whose conformance window leaves no picture is not valid
+/// HEVC (ITU-T H.265 7.4.3.2.1), so no writer copies it: each refuses it
+/// as an invalid stream and writes nothing.
+#[test]
+fn an_hevc_window_that_leaves_no_picture_is_refused_by_every_writer() {
+    let mut video = ibbp_video(25, 25);
+    video.entry = *b"hvc1";
+    let source = movie(&[video, aac_audio(50, vec![])]);
+    let parsed = probe(
+        SliceSource::new(&source),
+        &Limits::default(),
+        &Allowlist::default(),
+    )
+    .unwrap();
+    assert_eq!(parsed.tracks[0].description.codec, Codec::Hevc);
+    let invalid = |error: Error| {
+        assert!(
+            matches!(
+                error,
+                Error::InvalidStream {
+                    track_id: 1,
+                    reason: "the HEVC conformance window leaves no picture (ITU-T H.265 7.4.3.2.1)",
+                }
+            ),
+            "{error:?}"
+        );
+    };
+    let source_error = |error: ExtractError| match error {
+        ExtractError::Source(error) => invalid(error),
+        other => panic!("{other:?}"),
+    };
+    let (limits, allowlist) = (Limits::default(), Allowlist::default());
+    let mut out = Vec::new();
+    source_error(
+        clip_mp4(
+            SliceSource::new(&source),
+            &limits,
+            &allowlist,
+            &options(q(0, 1), None),
+            &mut out,
+        )
+        .unwrap_err(),
+    );
+    let split = SplitOptions {
+        video: VideoChoice::First,
+        audio: AudioChoice::First,
+        at: SplitAt::Every(q(1, 2)),
+    };
+    let mut opened = 0;
+    source_error(
+        split_mp4(
+            SliceSource::new(&source),
+            &limits,
+            &allowlist,
+            &split,
+            |_| {
+                opened += 1;
+                Ok(Vec::new())
+            },
+        )
+        .unwrap_err(),
+    );
+    assert_eq!(opened, 0);
+    match join_mp4(
+        vec![SliceSource::new(&source), SliceSource::new(&source)],
+        &limits,
+        &allowlist,
+        &JoinOptions {
+            video: VideoChoice::First,
+            audio: JoinAudio::First,
+        },
+        &mut out,
+    )
+    .unwrap_err()
+    {
+        JoinError::Input {
+            input: 0,
+            error: ExtractError::Source(error),
+        } => invalid(error),
+        other => panic!("{other:?}"),
+    }
+    source_error(
+        build_index(
+            SliceSource::new(&source),
+            &limits,
+            &allowlist,
+            &HlsOptions::default(),
+        )
+        .unwrap_err(),
+    );
+    source_error(
+        remux_mp4(
+            SliceSource::new(&source),
+            &limits,
+            &allowlist,
+            &RemuxOptions::default(),
+            &mut out,
+        )
+        .unwrap_err(),
+    );
+    source_error(
+        sanitize_mp4(
+            SliceSource::new(&source),
+            &limits,
+            &allowlist,
+            Keep::default(),
+            &mut out,
+        )
+        .unwrap_err(),
+    );
+    assert!(out.is_empty());
+    // The audio alone is still taken.
+    let audio = AudioClipOptions {
+        audio: TrackChoice::FirstAudio,
+        start: q(0, 1),
+        end: None,
+    };
+    clip_audio_mp4(
+        SliceSource::new(&source),
+        &limits,
+        &allowlist,
+        &audio,
+        &mut out,
+    )
+    .unwrap();
+}
+
 #[test]
 fn refusals_fail_before_writing() {
     let source = av_movie();
@@ -917,8 +1047,18 @@ fn fixtures_round_trip() {
                     eprintln!("{name} {label}: refused: {reason}");
                     continue;
                 }
+                Err(ExtractError::Source(e @ Error::InvalidStream { .. }))
+                    if common::INVALID_STREAMS.contains(&name.as_str()) =>
+                {
+                    eprintln!("{name} {label}: refused: {e}");
+                    continue;
+                }
                 Err(e) => panic!("{name} {label}: {e}"),
             };
+            assert!(
+                !common::INVALID_STREAMS.contains(&name.as_str()),
+                "{name} {label}: written"
+            );
             assert_round_trip(&source, &output, &summary);
             clipped.insert(name.clone());
             eprintln!(

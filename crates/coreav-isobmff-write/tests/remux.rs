@@ -2176,10 +2176,18 @@ fn fixtures(out_var: &str, keep: Option<Keep>) {
             metadata: keep.map_or(Metadata::Copy, Metadata::Sanitize),
             ..RemuxOptions::default()
         };
+        let invalid = common::INVALID_STREAMS.contains(&name.as_str());
         let (summary, output) = match remux(&source, &options) {
-            Ok(done) => done,
+            Ok(done) => {
+                assert!(!invalid, "{name}: written");
+                done
+            }
             Err(error) => {
                 assert!(!REQUIRED.contains(&name.as_str()), "{name}: {error}");
+                assert!(
+                    !invalid || matches!(error, ExtractError::Source(Error::InvalidStream { .. })),
+                    "{name}: {error}"
+                );
                 eprintln!("{name}: refused: {error}");
                 continue;
             }

@@ -69,6 +69,19 @@
       "basis": "the edit list is copied, and a tag that does not add up is ignored"
     },
     {
+      "id": "KD-X-FRAG-LAST-FRAME",
+      "level": ["frames"],
+      "fields": ["framemd5"],
+      "filename_pattern": "*",
+      "conditions": {
+        "source": "declares fragments (mvex)",
+        "packets": "the last packet's duration is the same in both files",
+        "framemd5": "every frame but the last is equal; the last has the same times, lasts the stored duration on the output and longer on the source"
+      },
+      "predicate": "fragment_last_frame",
+      "basis": "the sample durations are copied (ISO/IEC 14496-12 8.6.1.2 and 8.8.8); ffmpeg 9.0.2 cuts the last decoded frame to the stored duration on the output only"
+    },
+    {
       "id": "KD-X-PROFILE-UNNAMED",
       "level": ["streams"],
       "fields": ["profile"],

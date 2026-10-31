@@ -669,8 +669,19 @@ one; no threshold changed:
   start from another keyframe on files whose sync table is not exact, so
   the two tools decoded different references. A frame whose packet FFmpeg
   discards (`D` flag) has no FFmpeg image and is counted apart.
-- Times given to FFmpeg are on FFmpeg's timeline, from the packet's exact
-  pts (known divergence KD-EDIT-SNAP), not CoreAV's.
+- Times given to FFmpeg are on FFmpeg's timeline, not CoreAV's: the exact
+  pts `ffprobe` lists for the packet that holds the frame's bytes, less
+  its `format.start_time`, from which `-ss` counts. In MP4 and MOV that
+  packet starts at the frame's byte offset; in Matroska and MPEG-TS it is
+  the chosen stream's last packet that starts at or before it, since a block or
+  a PES starts with a header. The timelines differ by known divergence
+  KD-EDIT-SNAP in MP4 and, since the oracle moved to FFmpeg 9.0.2, by
+  KD-FF9-MKV-START in Matroska and WebM: FFmpeg 9.0.2 starts a file whose
+  audio has a `CodecDelay` at its first block, where CoreAV, as FFmpeg
+  7.0.2 did, starts it that delay earlier (6.5 ms on `browser.webm`). The
+  packet, not the two tools' file starts, carries the time across, so the
+  tracks each tool counts in its start do not move the reference. No
+  threshold changed.
 - Speed: each file also records, untimed, the PSNR between CoreAV's and
   FFmpeg's PNG of S2's and S3's frame; a bar's results count the files
   where they differ (under 30 dB). A bar whose command failed on a file

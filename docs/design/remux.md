@@ -93,6 +93,15 @@ unchanged byte for byte (checked on every fixture).
   sound entry's limit), or a missing codec configuration. Streams outside
   the allowlist are reported as `codec_not_allowed`; `--streams` leaves the
   others out as `not_selected`.
+- **Refused** (`invalid_structure`), never dropped: a stream whose coded
+  data its codec's specification does not allow, so that no output
+  carries it. That is an HEVC stream whose first sequence parameter set has
+  a conformance window that leaves no picture (ITU-T H.265 7.4.3.2.1); a
+  conforming decoder needs to decode only conforming bitstreams (C.5.1).
+  The clip, split, join and HLS writers refuse it alike: `conforming` in
+  `clip.rs` is the one check, which their video sample entry and this
+  remux's stream plan call. Dropping it would hand on a file that lost its
+  picture without saying why it cannot be played.
 - **Choice:** drop and report by default (the issue asks for it, and an
   upload pipeline usually wants the playable streams);
   `OnUnsupported::Fail` (`--fail-on-unsupported`) fails before writing

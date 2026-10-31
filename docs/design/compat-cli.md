@@ -826,6 +826,15 @@ differences are set aside, and counted apart, only when every key the two
 tools print differently over the whole file (the stream and the packet
 listings of `run.py keys`) is one of those. The size fixtures stand under
 `KD-DECLARED-SIZE`, `ts_duplicates.ts` under `KD-TS-DUPLICATE`.
+What FFmpeg 9.0.2 prints otherwise than 7.0.2 did, and what the fixtures
+it writes show of CoreAV, is set aside key by key and fixture by fixture:
+`tools/compat-corpus/ffmpeg9.json` names the keys of each fixture under the
+entries of `docs/known-divergences-ffprobe9.md`, and a command's difference
+is set aside only when the two outputs are identical once those keys, and
+nothing else, are taken out of both, in the command's own output format,
+and every value that differs on those keys is the difference its entry
+accepts, on the stream or packet the entry names, as both tools' listing
+of the whole file shows it.
 
 **B3a on the corpus.** Every corpus v1 `real` file whose container
 `coreav ffprobe` reads (MP4, MOV, M4A, M4B, M4V, 3GP, Matroska, WebM), and

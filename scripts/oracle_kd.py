@@ -30,6 +30,8 @@ import zlib
 from fractions import Fraction
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / 'scripts'))
+import oracle_kd_ts  # noqa: E402
 KD_FILE = ROOT / 'docs' / 'known-divergences.json'
 IN_SCOPE = ('.mp4', '.mov', '.m4a')
 
@@ -304,7 +306,9 @@ def frag_start_stream(reference, candidate, index):
     """KD-FRAG-START: a fragmented stream whose first fragment starts at a
     decode time t after 0 (`tfdt`): CoreAV's duration is its samples' span,
     the reference counts from decode time 0, so its duration is t more; with
-    a segment index (`sidx`) for the track, the index's end."""
+    a segment index (`sidx`) for the track, the index's end, which can lie
+    after the span when t is 0 too (an index whose earliest presentation
+    time is the first composition offset)."""
     try:
         r, c = reference['streams'][index], paired(reference, candidate)[index]
     except (IndexError, KeyError):
@@ -313,7 +317,7 @@ def frag_start_stream(reference, candidate, index):
         return False
     p = props(c)
     start, sidx_end, duration = p.get('fragment_start_ticks'), p.get('sidx_end_ticks'), c.get('duration_ts')
-    if not isinstance(start, int) or start <= 0 or not isinstance(duration, int):
+    if not isinstance(start, int) or start < 0 or not isinstance(duration, int):
         return False
     # The reference counts from decode time 0: the first `tfdt` more than
     # CoreAV's span of the samples, or, with a segment index, the index's
@@ -325,7 +329,7 @@ def frag_start_stream(reference, candidate, index):
         if not p.get('dropped') and duration != p.get('stts_duration_ticks'):
             return False
         return r.get('duration_ts') == sidx_end and sidx_end >= duration + start
-    return r.get('duration_ts') == duration + start
+    return start > 0 and r.get('duration_ts') == duration + start
 
 
 def duration_format(reference, candidate):
@@ -372,9 +376,20 @@ def duration_format(reference, candidate):
         if (_span_us(pick(starts), pick(rdur), pick(kinds)) != _span_us(starts, rdur, kinds)
                 or _span_us(pick(starts), pick(cdur), pick(ckinds)) != _span_us(starts, cdur, ckinds)):
             return None
+    # A segment index whose end lies after the first decode time plus the
+    # samples' span starts that stream later on the reference side too: its
+    # format duration counts the index's earliest presentation time once in
+    # the stream's end and again as its start.
+    rstarts = list(starts)
+    for i, c in enumerate(cstreams):
+        p = props(c)
+        end, span, first = p.get('sidx_end_ticks'), p.get('stts_duration_ticks'), p.get('fragment_start_ticks')
+        if (isinstance(end, int) and isinstance(span, int) and isinstance(first, int)
+                and end > span + first and frag_start_stream(reference, candidate, i)):
+            rstarts[i] += Fraction(end - span - first, c['timescale'])
     # Each side's format duration follows from its own stream durations, so
     # no other format difference can hide behind the covered streams.
-    if (reference.get('format_duration_us') == _span_us(starts, rdur, kinds)
+    if (reference.get('format_duration_us') == _span_us(rstarts, rdur, kinds)
             and candidate.get('format_duration_us') == _span_us(starts, cdur, ckinds)):
         return ids
     return None
@@ -931,41 +946,120 @@ def quicktime_text_dropped(reference, candidate):
     return all(s.get('codec_fourcc') == 'text' for s in rstreams if s.get('index') in dropped_indexes)
 
 
-def _visual_entry_size(path, index):
-    """Width and height the first sample entry of the file's track at
-    position `index` declares, from the box headers (ISO/IEC 14496-12
-    8.5.2 and 12.1.3: the visual entry's width and height follow 24 bytes
-    of reserved and predefined fields after its header)."""
-    def boxes(data, start, end):
-        at = start
-        while at + 8 <= end:
-            size = int.from_bytes(data[at:at + 4], 'big')
-            header = 8
-            if size == 1:
-                size, header = int.from_bytes(data[at + 8:at + 16], 'big'), 16
-            elif size == 0:
-                size = end - at
-            if size < header or at + size > end:
-                return
-            yield data[at + 4:at + 8], at + header, at + size
-            at += size
+def _boxes(data, start, end):
+    at = start
+    while at + 8 <= end:
+        size = int.from_bytes(data[at:at + 4], 'big')
+        header = 8
+        if size == 1:
+            size, header = int.from_bytes(data[at + 8:at + 16], 'big'), 16
+        elif size == 0:
+            size = end - at
+        if size < header or at + size > end:
+            return
+        yield data[at + 4:at + 8], at + header, at + size
+        at += size
 
-    def child(data, start, end, kind):
-        return next(((s, e) for k, s, e in boxes(data, start, end) if k == kind), None)
 
+def _child(data, start, end, kind):
+    return next(((s, e) for k, s, e in _boxes(data, start, end) if k == kind), None)
+
+
+def _first_sample_entry(path, index):
+    """The file's bytes and the payload span of the first sample entry of its
+    track at position `index`, from the box headers (ISO/IEC 14496-12 8.5.2),
+    or None."""
     data = pathlib.Path(path).read_bytes()
-    moov = child(data, 0, len(data), b'moov')
-    traks = [(s, e) for k, s, e in boxes(data, *moov) if k == b'trak'] if moov else []
+    moov = _child(data, 0, len(data), b'moov')
+    traks = [(s, e) for k, s, e in _boxes(data, *moov) if k == b'trak'] if moov else []
     if index >= len(traks):
         return None
     box = traks[index]
     for name in (b'mdia', b'minf', b'stbl', b'stsd'):
-        box = child(data, *box, name) if box else None
-    if not box or box[1] - box[0] < 8 + 36:
+        box = _child(data, *box, name) if box else None
+    # The sample description's version, flags and entry count.
+    entry = next(_boxes(data, box[0] + 8, box[1]), None) if box else None
+    return (data, entry[1], entry[2]) if entry else None
+
+
+def _visual_entry_size(path, index):
+    """Width and height the first sample entry of the file's track at
+    position `index` declares (ISO/IEC 14496-12 12.1.3: they follow 24 bytes
+    of reserved and predefined fields)."""
+    found = _first_sample_entry(path, index)
+    if found is None or found[2] - found[1] < 28:
         return None
-    entry = box[0] + 8
-    return (int.from_bytes(data[entry + 32:entry + 34], 'big'),
-            int.from_bytes(data[entry + 34:entry + 36], 'big'))
+    data, at, _ = found
+    return int.from_bytes(data[at + 24:at + 26], 'big'), int.from_bytes(data[at + 26:at + 28], 'big')
+
+
+# general_profile_idc as ffprobe names it (H.265 annex A).
+HEVC_PROFILES = {1: 'Main', 2: 'Main 10', 3: 'Main Still Picture', 4: 'Rext'}
+
+
+def _hevc_sps(path, index):
+    """(general_profile_idc, general_level_idc, whether the conformance window
+    leaves a picture) of the first sequence parameter set in the `hvcC` of the
+    first sample entry of the track at position `index`, or None.
+    ISO/IEC 14496-15 8.3.3.1 (the record: 22 bytes, then arrays of NAL units),
+    H.265 7.3.2.2.1 and 7.3.3 (the set up to the window) and 7.4.3.2.1 (the
+    window must leave width and height above zero)."""
+    found = _first_sample_entry(path, index)
+    if found is None:
+        return None
+    data, start, end = found
+    # The visual sample entry's fields come before its boxes.
+    record = _child(data, start + 78, end, b'hvcC')
+    if record is None or record[1] - record[0] < 23:
+        return None
+    at, sps = record[0] + 23, None
+    for _ in range(data[record[0] + 22]):
+        if at + 3 > record[1]:
+            return None
+        kind, count, at = data[at] & 0x3F, int.from_bytes(data[at + 1:at + 3], 'big'), at + 3
+        for _ in range(count):
+            length = int.from_bytes(data[at:at + 2], 'big')
+            if sps is None and kind == 33:
+                sps = data[at + 2:at + 2 + length]
+            at += 2 + length
+    if sps is None:
+        return None
+    # The payload without its two-byte header or emulation prevention bytes.
+    bits = oracle_kd_ts.Bits(sps[2:].replace(b'\x00\x00\x03', b'\x00\x00'))
+
+    def ue():
+        zeros = 0
+        while bits.read(1) == 0:
+            zeros += 1
+            if zeros > 31:
+                return None
+        rest = bits.read(zeros)
+        return None if rest is None else (1 << zeros) - 1 + rest
+
+    bits.read(4)
+    sub_layers = bits.read(3)
+    bits.read(1 + 2 + 1)
+    profile = bits.read(5)
+    bits.read(32 + 48)
+    level = bits.read(8)
+    if sub_layers is None or level is None:
+        return None
+    present = [(bits.read(1), bits.read(1)) for _ in range(sub_layers)]
+    bits.read(2 * (8 - sub_layers) if sub_layers else 0)
+    for has_profile, has_level in present:
+        bits.read(88 * (has_profile or 0) + 8 * (has_level or 0))
+    ue()
+    chroma = ue()
+    if chroma == 3:
+        bits.read(1)
+    width, height = ue(), ue()
+    flag = bits.read(1)
+    window = [ue() for _ in range(4)] if flag else [0, 0, 0, 0]
+    if None in (chroma, width, height, flag, *window):
+        return None
+    sub_width, sub_height = {1: (2, 2), 2: (2, 1)}.get(chroma, (1, 1))
+    left, right, top, bottom = window
+    return profile, level, sub_width * (left + right) < width and sub_height * (top + bottom) < height
 
 
 def _first_frame_size(path, index):
@@ -994,6 +1088,20 @@ def declared_size(media_dir, file, reference, candidate, index):
     ours, theirs = (c.get('width'), c.get('height')), (r.get('width'), r.get('height'))
     return (declared is not None and ours == declared and theirs != declared
             and _first_frame_size(path, index) == theirs)
+
+
+def hevc_window_dropped(media_dir, file, reference, candidate, index):
+    """ffprobe drops an HEVC sequence parameter set whose conformance window
+    leaves no picture, and prints no profile, level or colour range from it;
+    CoreAV reports the profile and level, which precede the window."""
+    r, c = by_index(reference, index), by_index(candidate, index)
+    if r is None or c is None or not r.get('codec_name') == c.get('codec_name') == 'hevc':
+        return False
+    if any(r.get(k) is not None for k in ('profile', 'level', 'color_range')):
+        return False
+    sps = _hevc_sps(pathlib.Path(media_dir) / file, index)
+    return (sps is not None and not sps[2] and c.get('level') == sps[1]
+            and c.get('profile') == HEVC_PROFILES.get(sps[0]))
 
 
 # Protected sample entries (ISO/IEC 14496-12 8.12): the entry type names the
@@ -1613,6 +1721,7 @@ def allowlist_dropped(reference, candidate, protected=None):
 
 PREDICATES = {
     'declared_size': declared_size,
+    'hevc_window_dropped': hevc_window_dropped,
     'strict_rejection': strict_rejection,
     'stts_short': stts_short_stream,
     'edit_duration': edit_duration_stream,
@@ -2570,6 +2679,10 @@ def stream_item(detail, reference, candidate, defects, media_dir='', file='', fa
               and path.rsplit('/', 1)[1] in ('width', 'height', 'display_aspect_ratio')
               and declared_size(media_dir, file, reference, candidate, int(path.split('/')[1]))):
             found = {'KD-DECLARED-SIZE'}
+        elif (path.startswith('streams/') and path.count('/') == 2
+              and path.rsplit('/', 1)[1] in ('profile', 'level', 'color_range')
+              and hevc_window_dropped(media_dir, file, reference, candidate, int(path.split('/')[1]))):
+            found = {'KD-HEVC-WINDOW'}
         elif (path.startswith('streams/') and path.count('/') == 2 and path.rsplit('/', 1)[1] in ('kind', 'codec_name')
               and chapter_text(reference, candidate, int(path.split('/')[1]), chapters)):
             found = {'KD-CHAPTER-TEXT'}

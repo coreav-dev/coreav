@@ -27,8 +27,10 @@ import thumbnail_oracle  # noqa: E402
 
 CODECS = ('h264', 'hevc')
 # The messages of refusals that are a file's, not the check's: the
-# container parsers' structure errors, a time past the end, no keyframe.
+# container parsers' structure errors, a video stream its codec's
+# specification does not allow, a time past the end, no keyframe.
 KNOWN_REFUSALS = ('truncated structure at offset', "invalid '", 'invalid element 0x', 'invalid sample table',
+                  'invalid structure: ',
                   'the time is at or after the end of the video',
                   'no keyframe before the frame at that time')
 
