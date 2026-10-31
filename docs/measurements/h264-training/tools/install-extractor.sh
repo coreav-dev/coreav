@@ -11,7 +11,8 @@ ARCHIVE="$WORK/ffmpeg.tar.xz"
 OK=
 # The publisher can answer 200 with a short page that is not the archive
 # (seen from runner addresses), which curl accepts: the hash decides, a
-# mismatch is tried again, and its first bytes are shown when it is small.
+# mismatch is tried again. Only the size and hash of the answer are logged:
+# its text could carry workflow commands.
 for AREA in releases old-releases; do
   for ATTEMPT in 1 2 3; do
     if ! curl --fail --location --retry 5 --retry-connrefused --retry-delay 10 \
@@ -24,11 +25,7 @@ for AREA in releases old-releases; do
       OK=1
       break 2
     fi
-    if [[ $(wc -c < "$ARCHIVE") -lt 65536 ]]; then
-      echo "$AREA answered with $(wc -c < "$ARCHIVE") bytes that are not the archive:" >&2
-      head -c 300 "$ARCHIVE" | tr -c '[:print:]\n' '?' >&2
-      echo >&2
-    fi
+    echo "$AREA answered with $(wc -c < "$ARCHIVE" | tr -d ' ') bytes (sha256 $(sha256sum "$ARCHIVE" | cut -d' ' -f1)) that are not the archive" >&2
     sleep 20
   done
 done
