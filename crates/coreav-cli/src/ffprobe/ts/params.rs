@@ -118,9 +118,8 @@ pub fn annex_b(data: &[u8]) -> Vec<(usize, &[u8])> {
     out
 }
 
-/// The bytes `ffprobe` keeps as a coded video stream's extradata: from the
-/// start code of its first parameter set to the start code of the first
-/// NAL unit after its parameter sets.
+/// The parameter sets retained with four-byte start codes and the
+/// byte stream's padding between them.
 pub fn annex_b_extradata(data: &[u8], hevc: bool) -> Option<usize> {
     let units = annex_b(data);
     let is_set = |nal: &[u8]| {
@@ -135,19 +134,21 @@ pub fn annex_b_extradata(data: &[u8], hevc: bool) -> Option<usize> {
     };
     let first = units.iter().position(|(_, nal)| is_set(nal))?;
     let (start, _) = *units.get(first)?;
-    let end = units
+    let count = units
         .iter()
         .skip(first)
-        .find(|(_, nal)| !is_set(nal))
-        .map_or(data.len(), |(at, _)| *at);
-    end.checked_sub(start)
+        .take_while(|(_, nal)| is_set(nal))
+        .count();
+    let end = units.get(first + count).map_or(data.len(), |(at, _)| *at);
+    end.checked_sub(start)?.checked_add(count)
 }
 
 /// The parameter sets of a coded video stream that `ffprobe` keeps as its
 /// extradata, read one access unit after another: from the first
 /// sequence parameter set (or H.265 video parameter set) to the first
 /// slice after it, every parameter set, each from its three-byte start
-/// code prefix to the next NAL unit's (as [`annex_b_extradata`] counts a
+/// code prefix to the next NAL unit's, with its prefix expanded to four
+/// bytes (as [`annex_b_extradata`] counts a
 /// run of them). That takes in the sets a PES packet of sets alone carries
 /// before the first picture and those repeated before its slices with
 /// other NAL units between (two captures of the corpus), and leaves out
@@ -178,7 +179,9 @@ pub fn sets_before_slice(data: &[u8], hevc: bool, state: &mut (usize, bool)) -> 
         }
         if set {
             let end = units.get(k + 1).map_or(data.len(), |(at, _)| *at);
-            state.0 = state.0.saturating_add(end.saturating_sub(start));
+            state.0 = state
+                .0
+                .saturating_add(end.saturating_sub(start).saturating_add(1));
         }
     }
     false
@@ -1201,6 +1204,81 @@ pub struct Ac3 {
     /// carries Dolby Atmos; `false` when the header does not set it or
     /// cannot be read that far.
     pub atmos: bool,
+    pub downmix: Downmix,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Downmix {
+    mode: u32,
+    levels: [Option<u32>; 4],
+}
+
+impl Downmix {
+    pub fn entries(self) -> super::super::Entries {
+        use super::super::model::s;
+        const LEVELS: [&str; 8] = [
+            "1.414214", "1.189207", "1.000000", "0.840896", "0.707107", "0.594604", "0.500000",
+            "0.000000",
+        ];
+        let mut entries = vec![("dmix_mode", s(self.mode.to_string()))];
+        let [ltrtc, loroc, ltrts, loros] = self.levels;
+        for (key, level) in [
+            "ltrt_cmixlev",
+            "ltrt_surmixlev",
+            "loro_cmixlev",
+            "loro_surmixlev",
+        ]
+        .into_iter()
+        .zip([ltrtc, ltrts, loroc, loros])
+        {
+            let value = level
+                .and_then(|n| usize::try_from(n).ok())
+                .and_then(|n| LEVELS.get(n))
+                .copied()
+                .unwrap_or("0.000000");
+            entries.push((key, s(value)));
+        }
+        entries
+    }
+}
+
+fn extended_downmix(bits: &mut Bits<'_>, acmod: u8, downmix: &mut Downmix) -> Option<()> {
+    let [ltrtc, loroc, ltrts, loros] = &mut downmix.levels;
+    if acmod > 2 {
+        downmix.mode = bits.bits(2)?;
+    }
+    if acmod & 1 != 0 && acmod > 2 {
+        *ltrtc = Some(bits.bits(3)?);
+        *loroc = Some(bits.bits(3)?);
+    }
+    if acmod & 4 != 0 {
+        *ltrts = Some(bits.bits(3)?);
+        *loros = Some(bits.bits(3)?);
+    }
+    Some(())
+}
+
+fn ac3_downmix(bits: &mut Bits<'_>, acmod: u8, bsid: u8) -> Option<Downmix> {
+    let mut downmix = Downmix::default();
+    if bsid != 6 {
+        return Some(downmix);
+    }
+    for _ in 0..if acmod == 0 { 2 } else { 1 } {
+        bits.skip(5)?;
+        for width in [8, 8, 7] {
+            if bits.flag()? {
+                bits.skip(width)?;
+            }
+        }
+    }
+    bits.skip(2)?;
+    if bits.flag()? {
+        downmix.mode = bits.bits(2)?;
+        for level in &mut downmix.levels {
+            *level = Some(bits.bits(3)?);
+        }
+    }
+    Some(downmix)
 }
 
 /// Reads an AC-3 (A/52 5.3.1) or E-AC-3 (A/52 E.1.2) frame header.
@@ -1239,6 +1317,7 @@ pub fn ac3(header: &[u8]) -> Option<Ac3> {
             acmod,
             lfe,
             atmos: false,
+            downmix: ac3_downmix(&mut bits, acmod, bsid).unwrap_or_default(),
         });
     }
     if bsid > 16 {
@@ -1284,11 +1363,14 @@ pub fn ac3(header: &[u8]) -> Option<Ac3> {
         acmod,
         lfe,
     };
+    let mut downmix = Downmix::default();
+    let atmos = eac3_atmos(&mut bits, &info, &mut downmix).unwrap_or(false);
     Some(Ac3 {
         bit_rate: u32::try_from(bit_rate).ok()?,
         acmod,
         lfe,
-        atmos: eac3_atmos(&mut bits, &info).unwrap_or(false),
+        atmos,
+        downmix,
     })
 }
 
@@ -1308,7 +1390,7 @@ struct Eac3Info {
 /// then the flag). Files crafted from a capture with Atmos, the flag
 /// cleared and the reserved bits set, show `ffprobe` reading the flag
 /// alone.
-fn eac3_atmos(bits: &mut Bits<'_>, f: &Eac3Info) -> Option<bool> {
+fn eac3_atmos(bits: &mut Bits<'_>, f: &Eac3Info, downmix: &mut Downmix) -> Option<bool> {
     let acmod = f.acmod;
     bits.skip(5 + 5)?; // bsid, dialnorm
     if bits.flag()? {
@@ -1325,15 +1407,7 @@ fn eac3_atmos(bits: &mut Bits<'_>, f: &Eac3Info) -> Option<bool> {
     }
     if bits.flag()? {
         // mixmdate
-        if acmod > 2 {
-            bits.skip(2)?; // dmixmod
-        }
-        if acmod & 1 != 0 && acmod > 2 {
-            bits.skip(6)?; // ltrtcmixlev, lorocmixlev
-        }
-        if acmod & 4 != 0 {
-            bits.skip(6)?; // ltrtsurmixlev, lorosurmixlev
-        }
+        extended_downmix(bits, acmod, downmix)?;
         if f.lfe && bits.flag()? {
             bits.skip(5)?; // lfemixlevcod
         }
@@ -1960,7 +2034,7 @@ mod tests {
         .concat();
         let mut state = (0, false);
         assert!(sets_before_slice(&unit, false, &mut state));
-        assert_eq!(state.0, 2 * (8 + 6));
+        assert_eq!(state.0, 2 * (9 + 7));
         // A unit of a picture parameter set and slices before the first
         // sequence parameter set counts nothing, and does not end it.
         let lead = [nal(&four, &[0x68, 4]), nal(&four, &[0x41, 9])].concat();
@@ -2022,7 +2096,7 @@ mod tests {
         data.extend([0, 0, 1, 0x06, 5]);
         data.extend([0, 0, 1, 0x65, 6]);
         // From the SPS's three-byte prefix to the SEI's.
-        assert_eq!(annex_b_extradata(&data, false), Some(3 + 4 + 4 + 2));
+        assert_eq!(annex_b_extradata(&data, false), Some(4 + 4 + 5 + 2));
         assert_eq!(annex_b_extradata(&[0, 0, 1, 0x65], false), None);
     }
 
@@ -2141,6 +2215,83 @@ mod tests {
             }
         }
         out
+    }
+
+    #[test]
+    fn ac3_extended_downmix_levels() {
+        let header = pack(&[
+            (0x0b77, 16),
+            (0, 16),
+            (0, 2),
+            (10, 6),
+            (6, 5),
+            (0, 3),
+            (7, 3),
+            (0, 2),
+            (0, 2),
+            (1, 1),
+            (31, 5),
+            (0, 1),
+            (0, 1),
+            (0, 1),
+            (0, 2),
+            (1, 1),
+            (2, 2),
+            (0, 3),
+            (1, 3),
+            (4, 3),
+            (6, 3),
+        ]);
+        let parsed = ac3(&header).unwrap();
+        assert_eq!(
+            parsed.downmix,
+            Downmix {
+                mode: 2,
+                levels: [Some(0), Some(1), Some(4), Some(6)]
+            }
+        );
+        assert_eq!(
+            parsed.downmix.entries(),
+            vec![
+                ("dmix_mode", super::super::super::model::s("2")),
+                ("ltrt_cmixlev", super::super::super::model::s("1.414214")),
+                ("ltrt_surmixlev", super::super::super::model::s("0.707107")),
+                ("loro_cmixlev", super::super::super::model::s("1.189207")),
+                ("loro_surmixlev", super::super::super::model::s("0.500000")),
+            ]
+        );
+        assert_eq!(ac3(&header[..5]), None);
+    }
+
+    #[test]
+    fn eac3_mixing_metadata_controls_downmix() {
+        let header = pack(&[
+            (0x0b77, 16),
+            (0, 2),
+            (0, 3),
+            (127, 11),
+            (0, 2),
+            (3, 2),
+            (7, 3),
+            (0, 1),
+            (16, 5),
+            (31, 5),
+            (0, 1),
+            (1, 1),
+            (1, 2),
+            (2, 3),
+            (3, 3),
+            (5, 3),
+            (7, 3),
+            (0, 16),
+        ]);
+        assert_eq!(
+            ac3(&header).unwrap().downmix,
+            Downmix {
+                mode: 1,
+                levels: [Some(2), Some(3), Some(5), Some(7)]
+            }
+        );
     }
 
     /// An extension substream of 116 bytes with one asset of `bits` bits,

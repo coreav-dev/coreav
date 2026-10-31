@@ -1,6 +1,6 @@
 {
   "schema": "coreav/known-divergences/1",
-  "applies_to": "coreav-mpegts through tools/ts-adapter, ffprobe 7.0.2",
+  "applies_to": "coreav-mpegts through tools/ts-adapter, ffprobe 9.0.2",
   "entries": [
     {
       "id": "KD-TS-END-ESTIMATE",

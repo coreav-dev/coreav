@@ -11,6 +11,7 @@
 pub mod args;
 mod iso;
 mod iso_meta;
+mod metadata;
 mod mkv;
 pub mod model;
 mod names;

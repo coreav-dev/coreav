@@ -214,6 +214,29 @@ above move with it in this note.
   the set is frozen as `commands-v1`; a later snapshot is `commands-v2`,
   in the pull request that measures against it.
 
+## FFmpeg 9 stream listings
+
+`coreav ffprobe` prints the pinned oracle's stream vocabulary: the
+`multilayer` disposition flag, MIME codec strings for AVC, AAC, AV1,
+VP9, AC-3, E-AC-3, Opus and FLAC, HEVC view fields, and the Dolby
+downmix metadata of the first audio frame. Decoder-only `refs`,
+`closed_captions` and `film_grain` are no longer printed. MIME strings
+use RFC 6381 and the AV1 and VP codec ISOBMFF bindings. A VP9 stream
+without a configuration record uses the first level whose picture size,
+sample rate, bit rate and edge limits cover the known stream values
+([VP9 levels](https://www.webmproject.org/vp9/levels/)); this is a
+listing estimate, not a check of every level constraint of every frame.
+Dolby downmix fields come from ATSC A/52's extended bitstream information
+or E-AC-3 mixing metadata; absent metadata prints zero, not inferred
+speaker gains.
+
+AVC and HEVC Annex B extradata lengths include the retained parameter
+sets with four-byte start codes and their intervening padding. Every
+MPEG-TS access unit carries its PES identifier as packet side data,
+including further audio frames of one PES packet and the EOF flush.
+ISO base media packets keep the decode durations in `stts` and `trun`,
+even when the stream has composition offsets.
+
 ## The 0.1.0 command set
 
 ### ffprobe round 8 measurement plan
@@ -227,7 +250,8 @@ known divergences name their reason rather than lowering it. MPEG-TS
 held-out inputs inspected during this work are no longer independent
 validation, and the report will say so.
 
-B4 is remeasured on its registered 20 held-out files per container and
+B4 is remeasured on its registered selection of up to 20 held-out files
+per container (20 ISO base media, 20 Matroska/WebM and 17 MPEG-TS) and
 the native ffprobe commands of commands-v1, five alternating timed pairs
 after one untimed pair. The fixed host class is a GCP c4-standard-8 with
 SMT disabled, with both tools on the same pinned core. Before the B4
@@ -237,6 +261,9 @@ contains 1.00. A failed calibration voids the host, not the bar. A failed
 or timed-out command has no speed ratio and is counted separately.
 The B4 bar remains at most 1.00 per command, overall and per container;
 the report includes the 95% intervals and the share of pairs below 1.00.
+Calibration uses the first selected input of each container with
+`-show_format -show_streams` and with `-show_packets`, five timed pairs
+after one untimed pair per arm and command.
 
 Release 0.1.0 does not wait for B2, B3a and B3b over the whole vocabulary.
 It ships the commands that upload and preprocessing pipelines run most, the
