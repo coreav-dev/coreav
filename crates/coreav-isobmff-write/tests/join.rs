@@ -942,7 +942,7 @@ fn inputs_that_cannot_be_joined_on_their_own() {
 
 /// [`JoinAudio::Stream`] joins the audio stream it names, or fails when
 /// the allowlist leaves that stream out, where [`JoinAudio::First`]
-/// takes the first audio stream the allowlist keeps (none for FLAC).
+/// takes the first audio stream the allowlist keeps (none for AMR).
 #[test]
 fn a_named_audio_stream_is_joined_or_refused() {
     let source = av_movie();
@@ -950,15 +950,15 @@ fn a_named_audio_stream_is_joined_or_refused() {
     for input in &summary.inputs {
         assert_eq!(input.audio.as_ref().map(|a| a.stream_index), Some(1));
     }
-    let flac = common::av_movie(b"fLaC");
-    match join_with(&[&flac, &flac], JoinAudio::Stream(1)) {
+    let amr = common::av_movie(b"samr");
+    match join_with(&[&amr, &amr], JoinAudio::Stream(1)) {
         Err(JoinError::Input {
             input: 0,
             error: ExtractError::Source(Error::CodecNotAllowed { fourcc, .. }),
-        }) => assert_eq!(fourcc, FourCc(*b"fLaC")),
+        }) => assert_eq!(fourcc, FourCc(*b"samr")),
         other => panic!("{:?}", other.map(|r| r.0)),
     }
-    let (summary, _) = join_with(&[&flac, &flac], JoinAudio::First).unwrap();
+    let (summary, _) = join_with(&[&amr, &amr], JoinAudio::First).unwrap();
     assert!(summary.inputs.iter().all(|input| input.audio.is_none()));
 }
 

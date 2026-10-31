@@ -418,9 +418,8 @@ fn header_durations_are_ignored_when_fragments_exist() {
 
 #[test]
 fn disallowed_audio_is_dropped_and_video_kept() {
-    // Video plus AC-3 audio, like the corpus large.mp4: AC-3 is not on the
-    // default allowlist.
-    let data = av_movie(b"ac-3");
+    // Video plus DTS audio: DTS is not on the default allowlist.
+    let data = av_movie(b"dtsc");
     let limits = Limits::default();
     let movie = probe(SliceSource::new(&data), &limits, &Allowlist::default()).unwrap();
     assert_eq!(movie.tracks.len(), 1);
@@ -430,7 +429,7 @@ fn disallowed_audio_is_dropped_and_video_kept() {
     assert_eq!(movie.dropped.len(), 1);
     let audio = movie.dropped[0];
     assert_eq!((audio.stream_index, audio.track_id), (1, 2));
-    assert_eq!(audio.fourcc.0, *b"ac-3");
+    assert_eq!(audio.fourcc.0, *b"dtsc");
     // Only the kept stream is reachable; its packets are the video samples.
     let mut budget = Budget::new(&limits);
     let offsets: Vec<u64> = movie
@@ -462,7 +461,7 @@ fn disallowed_audio_is_dropped_and_video_kept() {
 /// in the repository; set COREAV_CORPUS_DIR to run this check locally.
 #[test]
 #[ignore = "needs the private corpus; set COREAV_CORPUS_DIR"]
-fn corpus_large_mp4_drops_ac3() {
+fn corpus_large_mp4_keeps_ac3() {
     let dir = std::env::var("COREAV_CORPUS_DIR").expect("COREAV_CORPUS_DIR");
     let path = std::path::Path::new(&dir).join("large.mp4");
     let limits = Limits::default();
@@ -485,9 +484,12 @@ fn corpus_large_mp4_drops_ac3() {
             .iter()
             .any(|t| t.description.codec == Codec::H264)
     );
-    assert!(movie.dropped.iter().any(|d| d.fourcc.0 == *b"ac-3"));
-    let source = coreav_isobmff::FileSource::open(&path).unwrap();
-    assert!(probe(source, &limits, &Allowlist::default().strict()).is_err());
+    assert!(
+        movie
+            .tracks
+            .iter()
+            .any(|t| t.description.codec == Codec::Ac3)
+    );
 }
 
 #[test]

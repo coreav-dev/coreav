@@ -320,7 +320,7 @@ def check_segment(n, segment, entry, src_streams, ffprobe, ffmpeg, mediainfo, sr
         "written_end": segment["end"],
     }
     evidence = {"source_headers": cc.cached((source, "headers"), lambda: cc.headers(source)),
-                "output_headers": oh, "entry": clip_entry, "ffmpeg": ffmpeg,
+                "output_headers": oh, "entry": clip_entry, "ffmpeg": ffmpeg, "ffprobe": ffprobe,
                 "output_streams": probe["streams"]}
     brand = probe["format"].get("tags", {}).get("major_brand")
     if "mp4" not in probe["format"].get("format_name", "") or brand != "isom":

@@ -44,6 +44,8 @@ enum Kind {
     Aac { quicktime: bool },
     /// Little-endian 16-bit PCM (`sowt`).
     Pcm,
+    /// An audio sample entry of this type holding this configuration box.
+    Sound([u8; 4], Vec<u8>),
     /// QuickTime timecode.
     Timecode,
 }
@@ -253,6 +255,7 @@ fn sample_entry(t: &T) -> Vec<u8> {
             sound(b"mp4a", 1, &[wave, chan])
         }
         Kind::Pcm => sound(b"sowt", 0, &[]),
+        Kind::Sound(kind, config) => sound(kind, 0, std::slice::from_ref(config)),
         Kind::Timecode => bx(b"tmcd", &[0u8; 26]),
     }
 }
@@ -260,7 +263,7 @@ fn sample_entry(t: &T) -> Vec<u8> {
 fn handler(t: &T) -> &'static [u8; 4] {
     match t.kind {
         Kind::Video(_) => b"vide",
-        Kind::Aac { .. } | Kind::Pcm => b"soun",
+        Kind::Aac { .. } | Kind::Pcm | Kind::Sound(..) => b"soun",
         Kind::Timecode => b"tmcd",
     }
 }
@@ -339,7 +342,7 @@ fn trak(t: &T, id: u32, chunk_offset: u32) -> Vec<u8> {
     );
     let media_header = match t.kind {
         Kind::Video(_) => full(b"vmhd", 0, 1, &[0; 8]),
-        Kind::Aac { .. } | Kind::Pcm => full(b"smhd", 0, 0, &[0; 4]),
+        Kind::Aac { .. } | Kind::Pcm | Kind::Sound(..) => full(b"smhd", 0, 0, &[0; 4]),
         Kind::Timecode => full(b"nmhd", 0, 0, &[]),
     };
     let minf = bx(
@@ -1044,6 +1047,56 @@ fn streams_mp4_cannot_carry_are_dropped_and_reported() {
             reason: "PCM audio is not copied to MP4"
         }))
     );
+}
+
+#[test]
+fn flac_alac_ac3_and_eac3_keep_their_sample_entries() {
+    // FLAC's STREAMINFO (RFC 9639 8.2): 1,152-sample blocks, 48 kHz, two
+    // channels, 16 bits, 6,912 samples, an MD5 signature.
+    let mut streaminfo = vec![0x04, 0x80, 0x04, 0x80, 0, 0, 20, 0, 0, 40];
+    streaminfo.extend([0x0B, 0xB8, 0x02, 0xF0, 0, 0, 0x1B, 0]);
+    streaminfo.extend([0x5A; 16]);
+    // The Apple Lossless magic cookie: 4,096-sample frames, 16 bits, two
+    // channels at 48 kHz.
+    let cookie = [
+        0, 0, 0x10, 0, 0, 16, 40, 10, 14, 2, 0, 0xFF, 0, 0, 0, 40, 0, 0, 0xFA, 0, 0, 0, 0xBB, 0x80,
+    ];
+    let entries = [
+        (
+            *b"fLaC",
+            full(b"dfLa", 0, 0, &cat(&[vec![0x80, 0, 0, 34], streaminfo])),
+            1152,
+        ),
+        (*b"alac", full(b"alac", 0, 0, &cookie), 4096),
+        // ETSI TS 102 366 F.4 and F.6: 48 kHz stereo.
+        (*b"ac-3", bx(b"dac3", &[0x10, 0x10, 0x00]), 1536),
+        (*b"ec-3", bx(b"dec3", &[0x02, 0x00, 0x20, 0x04, 0x00]), 1536),
+    ];
+    let tracks = entries
+        .into_iter()
+        .map(|(kind, config, frame)| {
+            let mut t = other(Kind::Sound(kind, config), 6);
+            t.timescale = 48_000;
+            for (n, s) in t.samples.iter_mut().enumerate() {
+                s.duration = frame;
+                s.size = 30 + n as u32;
+            }
+            t
+        })
+        .collect();
+    let source = build(&file(tracks));
+    let (summary, output) = remux(&source, &RemuxOptions::default()).unwrap();
+    assert!(summary.dropped_tracks.is_empty(), "{summary:?}");
+    assert_eq!(summary.tracks.len(), 4);
+    assert_round_trip(&source, &output, &summary);
+    let out = probe(
+        SliceSource::new(&output),
+        &Limits::default(),
+        &Allowlist::default(),
+    )
+    .unwrap();
+    let codecs: Vec<Codec> = out.tracks.iter().map(|t| t.description.codec).collect();
+    assert_eq!(codecs, [Codec::Flac, Codec::Alac, Codec::Ac3, Codec::Eac3]);
 }
 
 #[test]

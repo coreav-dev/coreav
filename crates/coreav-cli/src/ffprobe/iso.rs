@@ -83,6 +83,9 @@
 //!   composition offset) the one stored first wins, else the one due
 //!   first. The comparison is pairwise, so the result depends on the
 //!   stream order, as `ffprobe`'s does.
+//! - An AC-3 or E-AC-3 packet is listed when the next one of its track has
+//!   been taken, after any packet of another track taken in between; the
+//!   last ones at the end.
 //! - Audio of constant-size samples is grouped into packets of up to 1,024
 //!   ticks of one chunk, as raw audio; a coded format's frames (AAC, AC-3
 //!   and the like) are listed one by one even when all have one size.
@@ -434,7 +437,8 @@ pub fn probe<S: Source>(source: &mut S, size: u64, name: &str) -> Result<IsoProb
         report
             .time_bases
             .push((1, i64::from(track.timescale.max(1))));
-        let mut stream = stream(movie, track, &head, info);
+        let frame_bit_rate = eac3_frame_bit_rate(track, &audio_header);
+        let mut stream = stream(movie, track, &head, info, frame_bit_rate);
         super::metadata::downmix(&mut stream.entries, &audio_header);
         if skip > 0 {
             if let Some((_, padding)) = stream
@@ -718,11 +722,10 @@ fn aac_layout(d: &coreav_isobmff::SampleDescription) -> Option<Option<&'static s
 }
 
 /// What an AC-3 (`dac3`) or E-AC-3 (`dec3`) specific box says (ETSI TS
-/// 102 366 F.4 and F.6): the channels of the (first independent) stream,
-/// `ffprobe`'s name for their layout, the bit rate and `bsmod`, the
-/// service type.
+/// 102 366 F.4 and F.6): `ffprobe`'s name for the layout of the (first
+/// independent) stream's channels, which the sample description counts,
+/// the bit rate and `bsmod`, the service type.
 struct Ac3Config {
-    channels: u32,
     layout: Option<&'static str>,
     bit_rate: Option<i64>,
     service: u32,
@@ -757,19 +760,17 @@ fn ac3_config(d: &coreav_isobmff::SampleDescription) -> Option<Ac3Config> {
         }
         _ => return None,
     };
-    let (front, layouts): (u32, [Option<&'static str>; 2]) = match acmod {
-        1 => (1, [Some("mono"), None]),
-        2 => (2, [Some("stereo"), Some("2.1")]),
-        3 => (3, [Some("3.0"), Some("3.1")]),
-        4 => (3, [Some("3.0(back)"), None]),
-        5 => (4, [Some("4.0"), Some("4.1")]),
-        6 => (4, [Some("quad(side)"), None]),
-        7 => (5, [Some("5.0(side)"), Some("5.1(side)")]),
-        _ => (2, [None, None]),
+    let [plain, with_lfe]: [Option<&'static str>; 2] = match acmod {
+        1 => [Some("mono"), None],
+        2 => [Some("stereo"), Some("2.1")],
+        3 => [Some("3.0"), Some("3.1")],
+        4 => [Some("3.0(back)"), None],
+        5 => [Some("4.0"), Some("4.1")],
+        6 => [Some("quad(side)"), None],
+        7 => [Some("5.0(side)"), Some("5.1(side)")],
+        _ => [None, None],
     };
-    let [plain, with_lfe] = layouts;
     Some(Ac3Config {
-        channels: front + u32::from(lfe),
         layout: if dependent > 0 {
             None
         } else if lfe {
@@ -978,6 +979,35 @@ fn video_info<S: Source>(track: &Track, head: &Head, source: &mut S) -> Option<V
     }
 }
 
+/// The bit rate of an E-AC-3 track's first syncframe, which `ffprobe`
+/// states over `dec3`'s `data_rate` (found black box: at 44.1 kHz the
+/// frames' sizes differ, and the first one's is taken): its size
+/// (`frmsiz`) over the audio blocks it holds (`numblkscod`), at its rate
+/// (`fscod`, `fscod2`; ETSI TS 102 366 E.1.2.1). `header` is the
+/// first syncframe's first bytes.
+fn eac3_frame_bit_rate(track: &Track, header: &[u8]) -> Option<i64> {
+    if track.description.codec != Codec::Eac3 {
+        return None;
+    }
+    let mut bits = video::Bits::new(header);
+    if bits.bits(16)? != 0x0B77 {
+        return None;
+    }
+    bits.bits(2 + 3)?;
+    let bytes = (i64::from(bits.bits(11)?) + 1) * 2;
+    let (rate, blocks): (i64, i64) = match bits.bits(2)? {
+        3 => (
+            *[24_000, 22_050, 16_000].get(usize::try_from(bits.bits(2)?).ok()?)?,
+            6,
+        ),
+        fscod => (
+            *[48_000, 44_100, 32_000].get(usize::try_from(fscod).ok()?)?,
+            *[1, 2, 3, 6].get(usize::try_from(bits.bits(2)?).ok()?)?,
+        ),
+    };
+    Some(bytes * 8 * rate / (blocks * 256))
+}
+
 /// Whether a QuickTime chapter track is listed as binary data, as
 /// `ffprobe` lists a track a `chap` reference names
 /// (`KD-CHAPTER-TEXT`).
@@ -1073,7 +1103,13 @@ fn int(v: impl TryInto<i64>) -> Value {
     v.try_into().map_or(Value::Na, Value::Int)
 }
 
-fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) -> Stream {
+fn stream(
+    movie: &Movie,
+    track: &Track,
+    head: &Head,
+    info: Option<VideoInfo>,
+    frame_bit_rate: Option<i64>,
+) -> Stream {
     let start = head.start;
     let info = info.unwrap_or_default();
     let d = &track.description;
@@ -1261,8 +1297,6 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
         let rate = amr.or(d.configured_sample_rate).or(d.sample_rate);
         let channels = if d.implicit_ps_possible || amr.is_some() {
             Some(1)
-        } else if let Some(a) = &ac3 {
-            Some(a.channels)
         } else {
             d.channels
         };
@@ -1275,7 +1309,7 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
                 .checked_mul(i64::from(r))?
                 .checked_mul(i64::from(c))
         });
-        if let Some(rate) = ac3.as_ref().and_then(|a| a.bit_rate) {
+        if let Some(rate) = frame_bit_rate.or(ac3.as_ref().and_then(|a| a.bit_rate)) {
             coded_rate = Some(rate);
         }
         // QDesign's `QDCA` atom states the bit rate after its version,
@@ -3165,6 +3199,9 @@ impl<S: Source> PacketSource for IsoPackets<S> {
         // sample of a movie with fragments (measured, not explained).
         let mut video_listed: u64 = 0;
         let has_video = movie.tracks.iter().any(|t| t.kind == TrackKind::Video);
+        // An AC-3 or E-AC-3 packet is listed when its track's next one is
+        // read, or at the end, as `ffprobe` lists them (found black box).
+        let mut held: Vec<Option<Packet>> = vec![None; tracks];
         loop {
             // The packet stored first, unless one of another track is due
             // more than a second earlier, as `ffprobe` interleaves a file
@@ -3204,6 +3241,11 @@ impl<S: Source> PacketSource for IsoPackets<S> {
                 })
                 .map(|(i, _)| i);
             let Some(i) = next else {
+                for packet in held.into_iter().flatten() {
+                    if !f(packet)? {
+                        break;
+                    }
+                }
                 return Ok(());
             };
             let Some((p, trimmed, description)) = queues.get_mut(i).and_then(VecDeque::pop_front)
@@ -3342,6 +3384,14 @@ impl<S: Source> PacketSource for IsoPackets<S> {
                 } else {
                     Vec::new()
                 },
+            };
+            let packet = if matches!(track.description.codec, Codec::Ac3 | Codec::Eac3) {
+                match held.get_mut(i).and_then(|h| h.replace(packet)) {
+                    Some(previous) => previous,
+                    None => continue,
+                }
+            } else {
+                packet
             };
             if !f(packet)? {
                 return Ok(());

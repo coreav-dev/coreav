@@ -127,20 +127,21 @@ impl Reader {
         &mut self,
         source: &mut S,
         warnings: &mut Vec<Warning>,
-    ) -> Result<Option<(u64, [u8; TS_PACKET])>, Error> {
+    ) -> Result<Option<(u64, &[u8; TS_PACKET])>, Error> {
         let (stride, prefix) = (self.size.stride(), self.size.prefix());
         loop {
             if self.at.saturating_add(prefix + TS_PACKET as u64) > self.len {
                 return Ok(None);
             }
             let at = self.at;
-            let bytes = self.window(source, at + prefix, TS_PACKET as u64)?;
-            if bytes.first() == Some(&SYNC) {
-                let mut packet = [0u8; TS_PACKET];
-                if let Some(src) = bytes.get(..TS_PACKET) {
-                    packet.copy_from_slice(src);
-                }
+            if self.window(source, at + prefix, TS_PACKET as u64)?.first() == Some(&SYNC) {
                 self.at = at + stride;
+                let from = usize::try_from(at + prefix - self.chunk_start).unwrap_or(usize::MAX);
+                let packet = self
+                    .chunk
+                    .get(from..from.saturating_add(TS_PACKET))
+                    .and_then(|bytes| <&[u8; TS_PACKET]>::try_from(bytes).ok())
+                    .ok_or(Error::Io(std::io::ErrorKind::UnexpectedEof))?;
                 return Ok(Some((at, packet)));
             }
             self.resync(source, warnings)?;

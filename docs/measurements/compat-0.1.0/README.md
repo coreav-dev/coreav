@@ -26,7 +26,11 @@ rules then stated; R2 and R3 run on every `real` file of the draw,
 with the 9.x build as the reference.
 
 Every run sets `COREAV_STRICT_SAFE=1` and `COREAV_FALLBACK_LOG`, as the
-note requires; a run whose log holds a line is void. Every run of the pinned
+note requires; R1 to R3 keep the rule that any log line voids the run.
+R4's [refusal timing-set plan](r4-refusal-plan.md) registers the exception
+for run-observed strict-safe refusals and the required coverage beside
+speed results. Its implementation must merge separately before the run;
+other log events keep their existing validity rules. Every run of the pinned
 `ffmpeg` or `ffprobe` sets `GCONV_PATH` to a directory with no gconv
 modules, as `scripts/oracle-ffprobe.sh` does, and CoreAV's runs get the
 same environment: the static 7.0.2 build crashed on transport streams
@@ -45,7 +49,11 @@ still being built:
 
 - **Every command of the set runs natively.** Today the `ffmpeg` commands
   do, the clips of audio alone (C15, C19) included, and coreav-dev/coreav#24 is open.
-  A command still refused when the round runs misses its bar.
+  A command still refused when the round runs misses its correctness bar.
+  For R4 only, qualifying strict-safe refusals observed during the run
+  leave the timing set and appear in coverage under the
+  [refusal plan](r4-refusal-plan.md). Non-refusal failures keep their
+  existing handling, and an unmeasured group still cannot pass.
 - **The tools below exist, each merged through its own pull request** and
   tested on the fixtures and on spent sets:
   1. `tools/compat-corpus/run.py`: `commands` and `keys` restricted to

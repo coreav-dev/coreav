@@ -33,6 +33,7 @@
 //! assert!(out.is_empty());
 //! ```
 
+mod audio;
 mod boxes;
 mod clip;
 mod copy;
@@ -543,11 +544,12 @@ pub struct SplitSummary {
 /// Which audio [`join_mp4`] keeps.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum JoinAudio {
-    /// The first audio track of every input, which must be AAC; the inputs
-    /// must all have one or all have none.
+    /// The first audio track of every input, which must be AAC, FLAC, ALAC,
+    /// AC-3 or E-AC-3; the inputs must all have one or all have none.
     First,
     /// The audio stream at this index (`Track::stream_index`) of every
-    /// input, which must be AAC, as the concat demuxer of `ffmpeg` pairs
+    /// input, which must be AAC, FLAC, ALAC, AC-3 or E-AC-3, as the concat
+    /// demuxer of `ffmpeg` pairs
     /// streams by index; a stream the allowlist leaves out fails with
     /// `Error::CodecNotAllowed` instead of being skipped.
     Stream(usize),
@@ -720,6 +722,10 @@ fn codec_name(codec: Codec) -> &'static str {
         Codec::Aac => "AAC",
         Codec::Mp3 => "MP3",
         Codec::Opus => "Opus",
+        Codec::Flac => "FLAC",
+        Codec::Alac => "ALAC",
+        Codec::Ac3 => "AC-3",
+        Codec::Eac3 => "E-AC-3",
         Codec::Pcm => "PCM",
         Codec::TimedText => "timed text",
         Codec::Timecode => "timecode",

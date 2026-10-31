@@ -14,11 +14,11 @@
       "filename_pattern": "*",
       "conditions": {
         "segment audio track": "no edit list, or one media edit after at most one empty edit",
-        "decoded segment": "equals, sample for sample, the source's packets of the segment (one ADTS frame per sample, edit lists ignored) decoded from the segment's first audio packet, from the edit's media time on (from the first sample without an edit list), at that exact sample",
+        "decoded segment": "equals, sample for sample, the source's packets of the segment (one raw frame per sample: AAC as ADTS, AC-3 and E-AC-3 as syncframes cut at the source's stored sample sizes; edit lists ignored) decoded from the segment's first audio packet, from the edit's media time on (from the first sample without an edit list), at that exact sample",
         "decode durations": "exactly the source's stored ones for the segment's samples (stts, then fragments), from both files"
       },
       "predicate": "audio_restart",
-      "basis": "ISO/IEC 14496-3 (a decoder's output depends on its state; perceptual noise substitution fills bands with noise the bitstream does not define); docs/design/split.md (every packet is copied once, so a segment's audio has no pre-roll)"
+      "basis": "ISO/IEC 14496-3 (a decoder's output depends on its state; perceptual noise substitution fills bands with noise the bitstream does not define); ATSC A/52 7.3.4 (AC-3 and E-AC-3 dither mantissas coded with no bits from a generator whose state the bitstream does not define); docs/design/split.md (every packet is copied once, so a segment's audio has no pre-roll)"
     },
     {
       "id": "KD-S-EDIT-MIDFRAME",

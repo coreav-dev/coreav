@@ -293,7 +293,7 @@
         "track_id": {"type": "integer", "minimum": 0},
         "kind": {"enum": ["video", "audio", "subtitle", "timecode", "data"]},
         "codec": {"enum": ["h264", "hevc", "av1", "vp9", "prores", "aac", "mp3", "opus", "flac",
-                           "pcm", "timed_text", "timecode", "other"]},
+                           "alac", "ac3", "eac3", "pcm", "timed_text", "timecode", "other"]},
         "fourcc": {"type": "string"},
         "handler": {"type": "string"},
         "handler_name": {"type": ["string", "null"]},
