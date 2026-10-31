@@ -212,3 +212,26 @@ file names.
   joined file's do not, at least one; and, with edit lists ignored, the
   joined file's flagged packets exactly the ones `ffmpeg` decodes as key
   frames.
+
+## KD-J-AUDIO-LAST-CUT
+
+- Field: the decoded audio of a join of a source's segments.
+- When: the source's last AAC sample is stored shorter than its frame (the
+  end of the encoded audio), and `ffmpeg` 9.0.2 reads padding to discard
+  on that frame in one of the two files only: in the joined file's sample
+  table and not in a fragmented source's track run (`fragmented.mp4`),
+  or at the joined file's edit end and not at the end of a source whose
+  edit list starts with an empty edit (`edit_list.mp4`).
+- What each reports: every packet and every frame but the last is the
+  same; the last frame starts at the same time, and `ffmpeg` decodes it
+  cut to the end the side data gives in one file (136 or 133 samples) and
+  whole (1,024) in the other. `ffmpeg` 7.0.2 cut it in neither.
+- Why: the join copies the samples and their stored durations, and the
+  last segment's edit ends where the source's media does; which of the
+  files `ffmpeg` reads Skip Samples side data from is its own. The same
+  cause as KD-R-FRAG-LAST-TRIM and KD-X-FRAG-LAST-FRAME.
+- Coverage requires: no packet difference; every decoded frame but the
+  last equal at the same time, the last ones starting at the same time;
+  and Skip Samples on the last audio packet of exactly one of the files,
+  skipping nothing and discarding exactly what that file's last frame
+  lacks of the other's.

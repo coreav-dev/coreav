@@ -1089,11 +1089,30 @@ pub(crate) fn usable(track: &Track) -> Result<(), Error> {
     }
 }
 
+/// Refuses a stream whose coded data its codec's specification does not
+/// allow, so that no writer copies it: an HEVC stream whose conformance
+/// window leaves no picture (ITU-T H.265 7.4.3.2.1), which no conforming
+/// decoder has to decode (C.5.1).
+pub(crate) fn conforming(track: &Track) -> Result<(), Error> {
+    match &track.description.codec_config {
+        Some(config)
+            if &config.kind.0 == b"hvcC" && coreav_isobmff::hevc_window_empty(&config.data) =>
+        {
+            Err(Error::InvalidStream {
+                track_id: track.track_id,
+                reason: "the HEVC conformance window leaves no picture (ITU-T H.265 7.4.3.2.1)",
+            })
+        }
+        _ => Ok(()),
+    }
+}
+
 /// The visual sample entry (ISO/IEC 14496-12 12.1.3): the source's coded
 /// width and height, then its codec configuration box and its `pasp`,
 /// `clap`, `colr` and `btrt` boxes as stored; its other children are left
-/// out.
+/// out. A stream [`conforming`] refuses has none.
 pub(crate) fn video_sample_entry(track: &Track) -> Result<Vec<u8>, Error> {
+    conforming(track)?;
     let description = &track.description;
     let expected: &[u8; 4] = match (description.codec, &description.fourcc.0) {
         (Codec::H264, b"avc1") => b"avcC",

@@ -1,7 +1,7 @@
 //! `coreav transcode` end to end (`docs/design/transcode.md`): usage and
 //! rejected files always; with the pinned FFmpeg
 //! (`/opt/coreav-oracle-bin`, or `COREAV_FFMPEG`), the pinned x264
-//! (`/opt/x264-4613ac3/bin/x264`, or `COREAV_X264`) and the fixtures of
+//! (`/opt/coreav-oracle-bin/x264`, or `COREAV_X264`) and the fixtures of
 //! `scripts/gen-fixtures.sh` (`COREAV_FIXTURES`, else
 //! `/opt/coreav-fixtures`), transcodes of the fixtures with both encoders,
 //! each summary validated against `docs/schema/transcode-v1.schema.json`,
@@ -58,7 +58,7 @@ fn ffmpeg() -> Option<(PathBuf, PathBuf)> {
 fn x264() -> Option<PathBuf> {
     let path = std::env::var_os("COREAV_X264")
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("/opt/x264-4613ac3/bin/x264"));
+        .unwrap_or_else(|| PathBuf::from("/opt/coreav-oracle-bin/x264"));
     path.is_file().then_some(path)
 }
 
@@ -498,6 +498,7 @@ fn repeated_webm_times_keep_every_frame() {
         .args(["-nostdin", "-v", "error", "-y", "-f", "lavfi", "-i"])
         .arg("testsrc=size=64x48:rate=30,settb=1/10000,setpts=floor(N/3)*400+mod(N\\,3)")
         .args(["-frames:v", "12", "-fps_mode", "passthrough"])
+        .args(["-enc_time_base:v", "1/10000"])
         .args(["-c:v", "libvpx", "-pix_fmt", "yuv420p"])
         .arg(&source)
         .status()
@@ -1199,6 +1200,55 @@ fn ffmpeg_libx264_refuses_before_encoding() {
         "{stderr}"
     );
     assert!(!Path::new(&out).exists());
+    nothing_left(&dir);
+}
+
+/// An HEVC stream whose conformance window leaves no picture is not valid
+/// HEVC (ITU-T H.265 7.4.3.2.1): `coreav transcode`, `coreav thumbnail`
+/// and `coreav ffmpeg` reject it as an invalid structure before decoding,
+/// and write nothing.
+#[test]
+fn an_hevc_window_that_leaves_no_picture_is_rejected() {
+    let Some(tools) = tools() else { return };
+    let dir = dir("hevc-window");
+    let out = dir.join("out.mp4");
+    let out_s = out.to_str().unwrap();
+    for name in ["size_hevc_window.mp4", "size_hevc_mixed_window.mp4"] {
+        let source = tools.fixtures.join(name);
+        let source_s = source.to_str().unwrap();
+        let run = transcode(Some(&tools), &[source_s, out_s]);
+        assert_eq!(run.code, 1, "{name}: {}", run.stderr);
+        let error: Value = serde_json::from_str(run.stderr.trim()).unwrap();
+        assert_eq!(error["kind"], "invalid_structure", "{name}");
+        assert!(!out.exists(), "{name}");
+        let image = dir.join("out.png");
+        let run = Command::new(bin())
+            .args(["thumbnail", source_s, "-o"])
+            .arg(&image)
+            .env("COREAV_FFMPEG", &tools.ffmpeg)
+            .output()
+            .unwrap();
+        assert_eq!(run.status.code(), Some(1), "{name}");
+        let error: Value = serde_json::from_slice(&run.stderr).unwrap();
+        assert_eq!(error["kind"], "invalid_structure", "{name}");
+        assert!(!image.exists(), "{name}");
+        if !cfg!(feature = "ffmpeg-fallback") {
+            // No decoder of this build takes HEVC: `coreav ffmpeg` refuses
+            // the stream before the transcode reads it.
+            continue;
+        }
+        let run = Command::new(bin())
+            .args(["ffmpeg", "-i", source_s, "-c:v", "libx264", out_s])
+            .env("COREAV_X264", &tools.x264)
+            .env("COREAV_FFMPEG", &tools.ffmpeg)
+            .env("COREAV_STRICT_SAFE", "1")
+            .output()
+            .unwrap();
+        let stderr = String::from_utf8_lossy(&run.stderr);
+        assert_eq!(run.status.code(), Some(1), "{name}: {stderr}");
+        assert!(stderr.contains("invalid structure"), "{name}: {stderr}");
+        assert!(!out.exists(), "{name}");
+    }
     nothing_left(&dir);
 }
 

@@ -56,7 +56,9 @@ fn open(path: &str) -> Result<Movie, Error> {
 fn rejection(schema: &str, name: &str, error: &Error) -> Value {
     let kind = match error {
         Error::Truncated { .. } => "truncated_structure",
-        Error::InvalidBox { .. } | Error::Overflow { .. } => "invalid_structure",
+        Error::InvalidBox { .. } | Error::Overflow { .. } | Error::InvalidStream { .. } => {
+            "invalid_structure"
+        }
         Error::LimitExceeded { .. } => "limit",
         Error::NotIsobmff => "unsupported_container",
         Error::Unsupported { .. } => "unsupported_feature",
@@ -213,15 +215,14 @@ fn codec_name(track: &Track) -> Option<String> {
 /// keeps apart (`docs/design/probe-color.md`): the sample entry's `colr`
 /// box (`color`, whose range falls back to the codec configuration's flag)
 /// and the parameter set of the codec configuration, raw
-/// (`parameter_set_color`). `ffprobe` 7.0.2, measured as a black box,
-/// takes for H.264 the parameter set's colour description when its video
-/// usability information carries one ("unspecified" included) and its
-/// range when it signals one, else the box's (the box's also for a track
-/// without frames in the file, as `ffprobe` applies the SPS only to a
-/// decoded frame); for HEVC and AV1 always the
-/// parameter set, with HEVC's range inferred as limited when the parameter
-/// set does not signal it (ITU-T H.265 E.3.1: `video_full_range_flag`
-/// inferred 0); for other codecs the box. `coreav probe --ffprobe-compat`
+/// (`parameter_set_color`). `ffprobe` 9.0.2, measured as a black box,
+/// takes for H.264 (in a track with frames in the file; `ffprobe` applies
+/// the SPS only to a decoded frame), HEVC and AV1 each code of the box
+/// unless it is missing or 2 (unspecified), else the parameter set's, and
+/// the box's range, else the parameter set's; an unsignalled range is
+/// limited for HEVC with a parameter set (ITU-T H.265 E.3.1:
+/// `video_full_range_flag` inferred 0) and for ProRes; other codecs take
+/// the box. `coreav probe --ffprobe-compat`
 /// (`crates/coreav-cli/src/compat.rs`) reports the same.
 fn reported_color(track: &Track) -> Color {
     let d = &track.description;
@@ -235,23 +236,29 @@ fn reported_color(track: &Track) -> Color {
 /// [`reported_color`] from its inputs: the codec, the box's colour, the
 /// parameter set's (raw), and whether the track has frames in the file.
 fn precedence(codec: Codec, boxed: Color, set: Option<Color>, frames: bool) -> Color {
-    match (codec, set) {
-        (Codec::H264, Some(set)) if frames => {
-            let described = set.primaries.is_some();
-            let pick = |own: Option<u16>, other: Option<u16>| if described { own } else { other };
-            Color {
-                primaries: pick(set.primaries, boxed.primaries),
-                transfer: pick(set.transfer, boxed.transfer),
-                matrix: pick(set.matrix, boxed.matrix),
-                full_range: set.full_range.or(boxed.full_range),
-            }
-        }
-        (Codec::Hevc, Some(set)) => Color {
-            full_range: Some(set.full_range.unwrap_or(false)),
-            ..set
+    let reads_set = match codec {
+        Codec::H264 => frames,
+        Codec::Hevc | Codec::Av1 => true,
+        _ => false,
+    };
+    let pick = |own: Option<u16>, other: Option<u16>| own.filter(|&code| code != 2).or(other);
+    let color = match set.filter(|_| reads_set) {
+        None => boxed,
+        Some(set) => Color {
+            primaries: pick(boxed.primaries, set.primaries),
+            transfer: pick(boxed.transfer, set.transfer),
+            matrix: pick(boxed.matrix, set.matrix),
+            full_range: boxed.full_range.or(set.full_range),
         },
-        (Codec::Av1, Some(set)) => set,
-        _ => boxed,
+    };
+    let limited = match codec {
+        Codec::Hevc => set.is_some(),
+        Codec::ProRes => true,
+        _ => false,
+    };
+    Color {
+        full_range: color.full_range.or(limited.then_some(false)),
+        ..color
     }
 }
 

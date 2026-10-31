@@ -81,7 +81,6 @@
   "B2|-v 0 -show_entries packet=pts,duration -of compact=p=0:nk=1 -read_intervals 999999 -select_streams v INPUT|webm_vp8_vorbis.webm",
   "B2|-v 0 -show_entries packet=pts,duration -of compact=p=0:nk=1 -read_intervals 999999 -select_streams v INPUT|webm_vp9_opus.webm",
   "B2|-v 0 -show_entries packet=pts,duration -of compact=p=0:nk=1 -read_intervals 999999 -select_streams v INPUT|webm_webvtt.webm",
-  "B2|-v quiet -f mpegts -print_format json -show_streams INPUT|mkv_hevc.mkv",
   "B2|INPUT -hide_banner|mkv_ac3.mkv",
   "B2|INPUT -hide_banner|mkv_attachment.mkv",
   "B2|INPUT -hide_banner|mkv_block_groups.mkv",

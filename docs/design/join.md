@@ -100,7 +100,11 @@ media edits kept:
   time the input's own edit presents first, for as long as the input
   presents video:
   until its edit ends, its samples end, or its track ends, whichever comes
-  first; but until its edit ends when the edit lies within the media's
+  first, its track ending no earlier than its last presented frame (the
+  media header's duration, the sum of the decode durations, ends before
+  that frame where frames are composed further apart than they are
+  decoded: variable frame rate, or a frame left out of a reordered
+  stream); but until its edit ends when the edit lies within the media's
   declared duration (a sample is shown until the next one's composition
   time, the last until the edit ends: where decode durations are shorter
   than the frames' spacing, variable frame rate, the last frame's own

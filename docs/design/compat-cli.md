@@ -825,6 +825,15 @@ differences are set aside, and counted apart, only when every key the two
 tools print differently over the whole file (the stream and the packet
 listings of `run.py keys`) is one of those. The size fixtures stand under
 `KD-DECLARED-SIZE`, `ts_duplicates.ts` under `KD-TS-DUPLICATE`.
+What FFmpeg 9.0.2 prints otherwise than 7.0.2 did, and what the fixtures
+it writes show of CoreAV, is set aside key by key and fixture by fixture:
+`tools/compat-corpus/ffmpeg9.json` names the keys of each fixture under the
+entries of `docs/known-divergences-ffprobe9.md`, and a command's difference
+is set aside only when the two outputs are identical once those keys, and
+nothing else, are taken out of both, in the command's own output format,
+and every value that differs on those keys is the difference its entry
+accepts, on the stream or packet the entry names, as both tools' listing
+of the whole file shows it.
 
 **B3a on the corpus.** Every corpus v1 `real` file whose container
 `coreav ffprobe` reads (MP4, MOV, M4A, M4B, M4V, 3GP, Matroska, WebM), and
@@ -1061,7 +1070,14 @@ prints keep its derivations, which the stream oracle checks. The others:
   by the list of speaker positions, as `ffprobe` names every layout
   `ffmpeg` writes, and none without the box; Opus's `initial_padding` is
   the `dOps` pre-skip; integer PCM of 24 and 32 bits has a
-  `bits_per_raw_sample`.
+  `bits_per_raw_sample`. FLAC's and ALAC's `sample_rate`, `sample_fmt`
+  and `bits_per_raw_sample` are their configuration's: the `STREAMINFO`
+  block of `dfLa` (RFC 9639 8.2) and the ALAC magic cookie
+  (`ALACSpecificConfig`), never the sample entry's 16.16 rate, which
+  cannot hold 65,536 Hz or more (writers store 48 kHz or 0 there for 96
+  and 192 kHz). A configuration that is missing or that RFC 9639 or the
+  cookie description does not allow is a `MalformedCodecConfig` warning and leaves the sample entry's rate and
+  no bit depth (`codec_flac*`, `codec_alac*` at 44.1 to 192 kHz).
 - A timecode stream's `avg_frame_rate` is its `tmcd` entry's timescale
   over its frame duration, unreduced.
 - A protected stream of a movie with protection system headers (`pssh`)

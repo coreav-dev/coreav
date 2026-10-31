@@ -20,12 +20,12 @@ use coreav_transcode::encoder::{
 };
 use coreav_worker::ExecLauncher;
 
-/// The pinned x264 program: `COREAV_X264`, else the CI image's build of
-/// 4613ac3.
+/// The pinned x264 program: `COREAV_X264`, else the oracle's (the build of
+/// `scripts/install-x264.sh`).
 pub fn x264() -> Option<PathBuf> {
     std::env::var_os("COREAV_X264")
         .map(PathBuf::from)
-        .or_else(|| Some(PathBuf::from("/opt/x264-4613ac3/bin/x264")))
+        .or_else(|| Some(PathBuf::from("/opt/coreav-oracle-bin/x264")))
         .filter(|p| p.is_file())
 }
 

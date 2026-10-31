@@ -83,6 +83,14 @@ pub enum Error {
     },
     /// The caller asked for a track index that does not exist.
     NoSuchTrack,
+    /// A track's coded data breaks a rule of its codec's specification, so
+    /// no writer copies it.
+    InvalidStream {
+        /// The track's `track_ID`.
+        track_id: u32,
+        /// The rule, and its clause.
+        reason: &'static str,
+    },
     /// The underlying source failed.
     Io(std::io::ErrorKind),
 }
@@ -106,6 +114,9 @@ impl fmt::Display for Error {
                 write!(f, "codec '{fourcc}' of track {track_id} is not allowed")
             }
             Self::NoSuchTrack => f.write_str("no such track"),
+            Self::InvalidStream { track_id, reason } => {
+                write!(f, "invalid stream in track {track_id}: {reason}")
+            }
             Self::Io(kind) => write!(f, "I/O error: {kind}"),
         }
     }

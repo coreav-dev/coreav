@@ -120,6 +120,8 @@ jobs:
             crates/coreav-kernels-h264/**
             scripts/h264_conformance.py
             scripts/h264_modes_identity.py
+            scripts/oracle-ffmpeg.env
+            docs/measurements/h264-training/**
             .github/workflows/ci.yml
             .github/actions/changed-paths/**
       - id: bench-guard
@@ -132,6 +134,7 @@ jobs:
             rust-toolchain.toml
             scripts/gen-fixtures.sh
             scripts/install-oracle-ffmpeg.sh
+            scripts/oracle-ffmpeg.env
             scripts/bench_guard.py
             scripts/ts_craft.py
             docs/schema/policy-examples/web-upload.json
@@ -221,21 +224,24 @@ jobs:
           cargo test -p coreav-backend-libvpx --features libvpx
       # The encoder programs of `coreav transcode`, black boxes for
       # coreav-transcode's tests (docs/design/transcode.md): the pinned
-      # FFmpeg (libx264 4613ac3) and an x264 program built from the same
-      # commit, its source deleted after the build. With `CI` set the tests
+      # FFmpeg and an x264 program built from the commit of its libx264
+      # (scripts/oracle-ffmpeg.env), its source deleted after the build.
+      # With `CI` set the tests
       # fail instead of skipping when either is missing.
       - name: Cache the encoder programs
         id: encoders-cache
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ runner.temp }}/coreav-encoders
-          key: linux-x64-ffmpeg-7.0.2-x264-4613ac3-${{ hashFiles('scripts/install-oracle-ffmpeg.sh', 'scripts/install-x264.sh') }}
+          key: linux-x64-encoders-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh', 'scripts/install-x264.sh') }}
       - name: Install the pinned FFmpeg and build x264
         if: steps.encoders-cache.outputs.cache-hit != 'true'
         run: |
           sudo apt-get install -y --no-install-recommends nasm
           scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-encoders"
           scripts/install-x264.sh "$RUNNER_TEMP/coreav-encoders"
+      - name: Verify the pinned encoder oracle
+        run: python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-encoders"
       - run: cargo test --workspace
         env:
           COREAV_FFMPEG: ${{ runner.temp }}/coreav-encoders/ffmpeg
@@ -531,7 +537,7 @@ jobs:
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ runner.temp }}/coreav-oracle-bin
-          key: linux-x64-ffmpeg-7.0.2-mediainfo-26.10-${{ hashFiles('scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
+          key: linux-x64-oracle-mediainfo-26.10-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
       # MediaInfo is a gating oracle for extracted M4A files only; elsewhere it stays informational.
       - name: Install pinned FFmpeg, ffprobe and MediaInfo
         if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
@@ -539,7 +545,9 @@ jobs:
           scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
           scripts/install-oracle-mediainfo.sh "$RUNNER_TEMP/coreav-oracle-bin"
       - name: Use pinned binaries
-        run: echo "$RUNNER_TEMP/coreav-oracle-bin" >> "$GITHUB_PATH"
+        run: |
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
+          echo "$RUNNER_TEMP/coreav-oracle-bin" >> "$GITHUB_PATH"
       # Generated on every run: every run must exercise generation, and
       # required cases must never silently disappear.
       - name: Generate all required fixtures
@@ -782,7 +790,7 @@ jobs:
         run: |
           set -euo pipefail
           helpers=$(grep -o '\$SCRIPTS/[A-Za-z0-9_.-]*' scripts/gen-fixtures.sh | sed 's|^\$SCRIPTS/|scripts/|' | sort -u)
-          echo "key=linux-x64-fixtures-$(cat scripts/gen-fixtures.sh scripts/install-oracle-ffmpeg.sh $helpers | sha256sum | cut -c1-32)" >> "$GITHUB_OUTPUT"
+          echo "key=linux-x64-fixtures-$(cat scripts/gen-fixtures.sh scripts/install-oracle-ffmpeg.sh scripts/oracle-ffmpeg.env $helpers | sha256sum | cut -c1-32)" >> "$GITHUB_OUTPUT"
       - name: Restore the fixtures
         id: fixtures
         uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
@@ -795,7 +803,7 @@ jobs:
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ runner.temp }}/coreav-oracle-bin
-          key: linux-x64-ffmpeg-7.0.2-mediainfo-26.10-${{ hashFiles('scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
+          key: linux-x64-oracle-mediainfo-26.10-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
       - name: Install pinned FFmpeg, ffprobe and MediaInfo
         if: steps.fixtures.outputs.cache-hit != 'true' && steps.ffmpeg-cache.outputs.cache-hit != 'true'
         run: |
@@ -806,6 +814,7 @@ jobs:
         env:
           COREAV_REQUIRE_ALL_FIXTURES: '1'
         run: |
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
           export PATH="$RUNNER_TEMP/coreav-oracle-bin:$PATH"
           scripts/gen-fixtures.sh "$RUNNER_TEMP/coreav-fixtures"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -847,7 +856,7 @@ jobs:
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ runner.temp }}/coreav-oracle-bin
-          key: linux-x64-ffmpeg-7.0.2-mediainfo-26.10-${{ hashFiles('scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
+          key: linux-x64-oracle-mediainfo-26.10-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
       # MediaInfo is a gating oracle for extracted M4A files only; elsewhere it stays informational.
       - name: Install pinned FFmpeg, ffprobe and MediaInfo
         if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
@@ -855,7 +864,9 @@ jobs:
           scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
           scripts/install-oracle-mediainfo.sh "$RUNNER_TEMP/coreav-oracle-bin"
       - name: Use pinned binaries
-        run: echo "$RUNNER_TEMP/coreav-oracle-bin" >> "$GITHUB_PATH"
+        run: |
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
+          echo "$RUNNER_TEMP/coreav-oracle-bin" >> "$GITHUB_PATH"
       # The one fixture set of this run (isobmff-fixture-set).
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
@@ -960,7 +971,7 @@ jobs:
           cargo test --locked --release -p coreav-isobmff-write --test hls fixtures_round_trip -- --ignored
           python3 -I scripts/hls_check.py --coreav target/release/coreav --media "$COREAV_FIXTURES" \
             --mediainfo "$RUNNER_TEMP/coreav-oracle-bin/mediainfo" --master-decode \
-            --expect-refused "audio_mp3.mp4,audio_mp3.mov,audio_opus.mp4,edit_multi_*,h264_avc3.mp4,hevc_hev1.mp4,nested_10000.mp4,pcm_*,prores_*,truncated.mp4,size_prores_understated.mov,ambient*.mov,chapter_pictures_src.mov,codec_ac3_*,codec_alac*,codec_amr_*,codec_dv*,codec_eac3_*,codec_h263.*,codec_mjpeg*,codec_mpeg4_color.mp4,codec_png*,codec_qtrle*,codec_vorbis.mp4,entry_stereo_*,matrix_*.mov,movie_matrix_*.mov,nopasp_*" \
+            --expect-refused "audio_mp3.mp4,audio_mp3.mov,audio_opus.mp4,edit_multi_*,h264_avc3.mp4,hevc_hev1.mp4,nested_10000.mp4,pcm_*,prores_*,truncated.mp4,size_prores_understated.mov,ambient*.mov,chapter_pictures_src.mov,codec_ac3_*,codec_alac*,codec_amr_*,codec_flac*,codec_dv*,codec_eac3_*,codec_h263.*,codec_mjpeg*,codec_mpeg4_color.mp4,codec_png*,codec_qtrle*,codec_vorbis.mp4,entry_stereo_*,matrix_*.mov,movie_matrix_*.mov,nopasp_*,size_hevc_window.mp4,size_hevc_mixed_window.mp4" \
             --report "$RUNNER_TEMP/coreav-hls.json"
       # docs/design/join.md: every fixture with a video track the clip writer
       # accepts is split every second and joined back (which must give back
@@ -1037,7 +1048,7 @@ jobs:
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ runner.temp }}/coreav-oracle-bin
-          key: linux-x64-ffmpeg-7.0.2-mediainfo-26.10-${{ hashFiles('scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
+          key: linux-x64-oracle-mediainfo-26.10-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
       # MediaInfo is a gating oracle for extracted M4A files only; elsewhere it stays informational.
       - name: Install pinned FFmpeg, ffprobe and MediaInfo
         if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
@@ -1045,7 +1056,9 @@ jobs:
           scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
           scripts/install-oracle-mediainfo.sh "$RUNNER_TEMP/coreav-oracle-bin"
       - name: Use pinned binaries
-        run: echo "$RUNNER_TEMP/coreav-oracle-bin" >> "$GITHUB_PATH"
+        run: |
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
+          echo "$RUNNER_TEMP/coreav-oracle-bin" >> "$GITHUB_PATH"
       # The one fixture set of this run (isobmff-fixture-set).
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
@@ -1113,7 +1126,7 @@ jobs:
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ runner.temp }}/coreav-x264
-          key: linux-x64-x264-4613ac3-${{ hashFiles('scripts/install-x264.sh') }}
+          key: linux-x64-x264-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-x264.sh') }}
       - name: Build x264
         if: steps.x264-cache.outputs.cache-hit != 'true'
         run: |
@@ -1213,7 +1226,7 @@ jobs:
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ runner.temp }}/coreav-oracle-bin
-          key: linux-x64-ffmpeg-7.0.2-mediainfo-26.10-${{ hashFiles('scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
+          key: linux-x64-oracle-mediainfo-26.10-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
       # MediaInfo is a gating oracle for extracted M4A files only; elsewhere it stays informational.
       - name: Install pinned FFmpeg, ffprobe and MediaInfo
         if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
@@ -1221,7 +1234,9 @@ jobs:
           scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
           scripts/install-oracle-mediainfo.sh "$RUNNER_TEMP/coreav-oracle-bin"
       - name: Use pinned binaries
-        run: echo "$RUNNER_TEMP/coreav-oracle-bin" >> "$GITHUB_PATH"
+        run: |
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
+          echo "$RUNNER_TEMP/coreav-oracle-bin" >> "$GITHUB_PATH"
       # The one fixture set of this run (isobmff-fixture-set).
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
@@ -1240,7 +1255,7 @@ jobs:
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ runner.temp }}/coreav-x264
-          key: linux-x64-x264-4613ac3-${{ hashFiles('scripts/install-x264.sh') }}
+          key: linux-x64-x264-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-x264.sh') }}
       - name: Build x264
         if: steps.x264-cache.outputs.cache-hit != 'true'
         run: |
@@ -1282,6 +1297,21 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Cache the pinned oracle
+        id: ffmpeg-cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/coreav-oracle-bin
+          key: linux-x64-oracle-mediainfo-26.10-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
+      - name: Install the pinned oracle
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        run: |
+          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
+          scripts/install-oracle-mediainfo.sh "$RUNNER_TEMP/coreav-oracle-bin"
+      - name: Use pinned binaries
+        run: |
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
+          echo "$RUNNER_TEMP/coreav-oracle-bin" >> "$GITHUB_PATH"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           pattern: b9-shard-*
@@ -1292,6 +1322,26 @@ jobs:
         run: |
           python3 -I scripts/transcode_check.py --out "$RUNNER_TEMP/coreav-b9" --merge \
             "$RUNNER_TEMP/b9-shards/b9-shard-1" "$RUNNER_TEMP/b9-shards/b9-shard-2" "$RUNNER_TEMP/b9-shards/b9-shard-3"
+      - name: Check that B9 judged the pinned oracle
+        run: |
+          python3 -I - <<'PY'
+          import hashlib
+          import json
+          import os
+          import pathlib
+          import subprocess
+          root = pathlib.Path(os.environ['RUNNER_TEMP'])
+          run = json.loads((root / 'coreav-b9/run.json').read_text())
+          tools = run['tools'] if isinstance(run['tools'], list) else [run['tools']]
+          for name in ('ffmpeg', 'ffprobe'):
+              binary = root / 'coreav-oracle-bin' / name
+              digest = hashlib.sha256(binary.read_bytes()).hexdigest()
+              if not tools or any(t[name]['sha256'] != digest for t in tools):
+                  raise SystemExit(f'B9 did not use the pinned {name}')
+          version = subprocess.check_output([str(root / 'coreav-oracle-bin/ffmpeg'), '-version']).decode().splitlines()[:1]
+          if run['ffmpeg_version'] != version:
+              raise SystemExit('B9 did not record the pinned FFmpeg version')
+          PY
       - name: Preserve the B9 evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -1334,14 +1384,16 @@ jobs:
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ runner.temp }}/coreav-oracle-bin
-          key: linux-x64-ffmpeg-7.0.2-mediainfo-26.10-${{ hashFiles('scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
+          key: linux-x64-oracle-mediainfo-26.10-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
       - name: Install pinned FFmpeg, ffprobe and MediaInfo
         if: steps.bin-cache.outputs.cache-hit != 'true'
         run: |
           scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
           scripts/install-oracle-mediainfo.sh "$RUNNER_TEMP/coreav-oracle-bin"
       - name: Use pinned binaries
-        run: echo "$RUNNER_TEMP/coreav-oracle-bin" >> "$GITHUB_PATH"
+        run: |
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
+          echo "$RUNNER_TEMP/coreav-oracle-bin" >> "$GITHUB_PATH"
       # Generated on every run; required fixtures cannot be skipped.
       - name: Generate the Matroska fixtures
         env:
@@ -1509,14 +1561,16 @@ jobs:
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ runner.temp }}/coreav-oracle-bin
-          key: linux-x64-ffmpeg-7.0.2-mediainfo-26.10-${{ hashFiles('scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
+          key: linux-x64-oracle-mediainfo-26.10-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
       - name: Install pinned FFmpeg and ffprobe
         if: steps.bin-cache.outputs.cache-hit != 'true'
         run: |
           scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
           scripts/install-oracle-mediainfo.sh "$RUNNER_TEMP/coreav-oracle-bin"
       - name: Use pinned binaries
-        run: echo "$RUNNER_TEMP/coreav-oracle-bin" >> "$GITHUB_PATH"
+        run: |
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
+          echo "$RUNNER_TEMP/coreav-oracle-bin" >> "$GITHUB_PATH"
       # Generated on every run; required fixtures cannot be skipped.
       - name: Generate the transport stream fixtures
         env:
@@ -1757,12 +1811,13 @@ jobs:
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ runner.temp }}/coreav-oracle-bin
-          key: linux-x64-ffmpeg-7.0.2-${{ hashFiles('scripts/install-oracle-ffmpeg.sh') }}
+          key: linux-x64-oracle-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh') }}
       - name: Install the pinned FFmpeg
         if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
         run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
       - name: Decode the synthetic set in both modes
         run: |
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
           python3 -I scripts/h264_modes_identity.py \
             --generate "$RUNNER_TEMP/coreav-oracle-bin/ffmpeg" \
             --streams "$RUNNER_TEMP/synthetic" \
@@ -1827,13 +1882,10 @@ jobs:
         if: steps.creds.outputs.present == 'true'
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Install the pinned FFmpeg and boto3
+      - name: Install the historical training extractor and boto3
         if: steps.creds.outputs.present == 'true'
         run: |
-          # extract.py stream-copies with the pinned FFmpeg at this path.
-          sudo mkdir -p /opt/coreav-oracle-bin
-          sudo chown "$USER" /opt/coreav-oracle-bin
-          scripts/install-oracle-ffmpeg.sh /opt/coreav-oracle-bin
+          bash docs/measurements/h264-training/tools/install-extractor.sh
           python3 -m venv "$RUNNER_TEMP/venv"
           "$RUNNER_TEMP/venv/bin/pip" install --quiet 'boto3==1.35.36'
       - name: Cache the training set's elementary streams
@@ -1989,7 +2041,7 @@ jobs:
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ runner.temp }}/coreav-oracle-bin
-          key: linux-x64-ffmpeg-7.0.2-${{ hashFiles('scripts/install-oracle-ffmpeg.sh') }}
+          key: linux-x64-oracle-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh') }}
       - name: Install the pinned FFmpeg
         if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
         run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
@@ -2000,6 +2052,7 @@ jobs:
           COREAV_REQUIRE_ALL_FIXTURES: '1'
           PYTHONDONTWRITEBYTECODE: '1'
         run: |
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
           echo "$RUNNER_TEMP/coreav-oracle-bin" >> "$GITHUB_PATH"
           export PATH="$RUNNER_TEMP/coreav-oracle-bin:$PATH"
           scripts/gen-fixtures.sh "$RUNNER_TEMP/fixtures"
