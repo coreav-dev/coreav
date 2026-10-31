@@ -127,6 +127,10 @@ impl<T: FromArgMatches> FromArgMatches for Deferred<T> {
         T::from_arg_matches(matches).map(Self)
     }
 
+    fn from_arg_matches_mut(matches: &mut clap::ArgMatches) -> Result<Self, clap::Error> {
+        T::from_arg_matches_mut(matches).map(Self)
+    }
+
     fn update_from_arg_matches(&mut self, matches: &clap::ArgMatches) -> Result<(), clap::Error> {
         self.0.update_from_arg_matches(matches)
     }
@@ -170,6 +174,10 @@ impl Args for Sanitize {
 impl FromArgMatches for Sanitize {
     fn from_arg_matches(matches: &clap::ArgMatches) -> Result<Self, clap::Error> {
         SanitizeArgs::from_arg_matches(matches).map(Self)
+    }
+
+    fn from_arg_matches_mut(matches: &mut clap::ArgMatches) -> Result<Self, clap::Error> {
+        SanitizeArgs::from_arg_matches_mut(matches).map(Self)
     }
 
     fn update_from_arg_matches(&mut self, matches: &clap::ArgMatches) -> Result<(), clap::Error> {
