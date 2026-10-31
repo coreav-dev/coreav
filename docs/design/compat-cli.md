@@ -427,10 +427,10 @@ those sections that B3a measures; what drops out is the program keys of
 Every run of these bars sets `COREAV_STRICT_SAFE=1`, so a command that is
 not native is refused and never handed to FFmpeg ("Fallback to FFmpeg",
 below), and sets `COREAV_FALLBACK_LOG` to a file of the run. R1 to R3 keep
-the rule that any log line voids the run. The registered
+the rule that any log line voids the run. R4 implements the registered
 [R4 refusal timing-set plan](../measurements/compat-0.1.0/r4-refusal-plan.md)
-changes only R4's handling of run-observed strict-safe refusals, with
-coverage published beside speed; its tools follow in a separate change.
+by excluding only run-observed strict-safe refusals, with coverage
+published beside speed.
 An executed fallback still voids a native run: it would pass every
 comparison by being FFmpeg.
 
@@ -508,11 +508,13 @@ command for both sides, on every file of its families that R3's rule lets
 take it. The runner pins itself to the CPUs of `--cpus`, so every timed
 process runs there; an `ffmpeg` command writes into a scratch directory on
 the local disk that is emptied after every run. A pair whose untimed run
-fails on either side has no ratio and is reported. The current runner
-voids the run on a strict-safe refusal's log line; the separate
-[R4 refusal plan](../measurements/compat-0.1.0/r4-refusal-plan.md) registers
-its replacement and the required coverage accounting before the tools
-implement it. A timed run that fails or
+fails on either side has no ratio and is reported. A pair is a refusal
+only when every CoreAV side exits with the refusal status and writes an
+attributed `not_run: strict_safe`, `ran: null` record with its reason, and
+every oracle side succeeds without a log. Each invocation gets its own
+log, appended to the retained run log after the process exits. No prior
+log line can qualify a later pair. Mixed outcomes are failures, never
+refusals. Other log events still void the run. A timed run that fails or
 times out after both untimed runs succeeded makes the run incomplete, which
 fails R4 and fails the gate, never passes them on the timings left. `speed.py r4-report --gate` judges the gate on each class's ratios
 over the three families, as the gate names "every class's median"; the
@@ -525,6 +527,25 @@ warm-up rule excludes. This corrects the timing method,
 not the selection or the bars. Existing R4 reports remain readable with
 their stored ratios; reading them does not remeasure or rescore them.
 Timings collected with timeout polling cannot substantiate current speed bars.
+
+R4 reports eligible, refused, timed, failed, oracle-failed and unprocessed pair counts,
+the share of eligible pairs timed, and refusal counts by reason group and
+command. Every median and interval is accompanied by coverage, and every
+registered command is listed even when no eligible file reaches it. The
+committed exact-match reason table assigns each refused pair one group;
+unmatched reasons and mixed groups on the two null-arm sides use `unknown`.
+Duplicate records do not multiply pair counts. The raw log's line counts
+remain diagnostics, not refused-pair totals. New results identify this
+method as `r4-refusal-coverage-v1`; historical ratios remain readable
+without reclassification or rescoring. An all-refused group is still
+unmeasured, not a pass.
+The full eligible roster is fixed before execution and written even when
+an infrastructure exception aborts the arm. Completed outcomes are kept;
+the interrupted pair is failed and later pairs remain unprocessed, never
+refused or timed. The eligible total is the sum of those five exclusive
+outcomes. The exception still propagates. Both the reporter and host
+driver reject an aborted arm or any unprocessed pair, even when completed
+ratios meet their bars, and retain the nonpassing public report.
 
 `scripts/compat_r4_gcp.py` runs the R4 host over `scripts/gcp_vm_job.py`:
 one on-demand `c4-standard-16` with one thread a core, the three binaries
@@ -792,7 +813,10 @@ All three run once on the release candidate commit, after the tools they
 need have merged and run on the fixtures and on spent files. The record is
 `docs/measurements/compat-0.1.0.md`, beside the round's other bars; corpus
 file names and hashes go only to the private evidence store, as the round's
-workflow keeps them.
+workflow keeps them. What the note leaves to the run (the builds, the
+construction of each denominator, the oracle of each job and the reasons a
+miss is listed under) is fixed before it in
+[`compat-0.1.0/codec-coverage-plan.md`](../measurements/compat-0.1.0/codec-coverage-plan.md).
 
 - **A run is void,** and repeated on the same commit, when:
   - a file of V1's set or a command of V2's or V3's has no result (a lost
