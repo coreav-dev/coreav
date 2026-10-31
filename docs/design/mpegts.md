@@ -146,9 +146,10 @@ reading, up to `max_resync_bytes`.
 Every program of the PAT is read, and a PID that two programs share is
 listed once. ISO/IEC 13818-1 2.4.4 makes a transport stream a set of
 programs, not a list of streams, so the order is a reader's choice; the
-streams are listed in `ffprobe`'s: those of the first Program Map Table
-completed after the PAT in table order, then the others where the file
-first shows them from its start, a table or a PES packet that is not
+streams are listed in `ffprobe`'s: those a table has named by the time
+the file completes its first Program Map Table after the PAT (that
+table's in its order, and an Event Information Table read before it),
+then the others where the file first shows them from its start, a table or a PES packet that is not
 padding (`Stream::found_at`), the tables' order breaking ties. Both are in
 the file's bytes, so `stream_index` is `ffprobe`'s index and `-map 0:N`
 names the same stream on both sides for a file of several programs too.
@@ -158,7 +159,8 @@ carries `pmt_index`, its place in its own table's loop, so that the
 table's order is in the document too.
 
 A PID that carries PES packets and that no table declares is listed too,
-after the declared streams and with no stream type of its own: its packets
+where the file first shows its PES packets and with no stream type of its
+own: its packets
 are the file's, and `ffprobe` lists them (not one whose PES packets are all
 padding, `stream_id` 0xBE, which `ffprobe` does not list either), named by their payload ("Codecs
 that the PMT leaves unnamed"). One broadcast capture of

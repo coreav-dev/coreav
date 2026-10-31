@@ -172,11 +172,12 @@ pub struct TransportStream {
     pub services_first: bool,
     /// Programs, in PAT order.
     pub programs: Vec<Program>,
-    /// Kept streams, in the order `ffprobe` numbers them: first those of
-    /// the first Program Map Table the file completes after its first PAT,
-    /// in that table's order, then the others in the order the file shows
-    /// them from its start ([`Stream::found_at`]), table order breaking
-    /// ties. ISO/IEC 13818-1 2.4.4 gives the streams of a transport stream
+    /// Kept streams, in the order `ffprobe` numbers them: first those a
+    /// table has named by the time the file completes its first Program
+    /// Map Table after its first PAT (that table's, and an Event
+    /// Information Table read before it), then the others, each group in
+    /// the order the file shows them from its start
+    /// ([`Stream::found_at`]), table order breaking ties. ISO/IEC 13818-1 2.4.4 gives the streams of a transport stream
     /// no order of their own; this is the one `ffprobe`'s `index` and
     /// `ffmpeg`'s `-map 0:N` name them by.
     pub streams: Vec<Stream>,
