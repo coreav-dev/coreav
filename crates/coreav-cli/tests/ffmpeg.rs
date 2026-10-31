@@ -267,6 +267,107 @@ fn track(trak: &[u8], id: u32, enabled: bool, from: &[u8], to: &[u8]) -> Vec<u8>
     trak
 }
 
+/// Streams are written in the order `ffmpeg` maps them (its `Stream
+/// mapping`, black box): the automatic selection's video before its audio
+/// whatever their order in the file, `-map`s in their order, a stream
+/// mapped twice as two tracks. A clip writes its video first, so a clip
+/// that maps its audio first is refused.
+#[test]
+fn streams_are_written_in_the_order_they_are_mapped() {
+    let dir = scratch("ffmpeg-order");
+    let input = movie(&dir);
+    let audio_first = dir.join("audio-first.mp4");
+    std::fs::write(&audio_first, retracked(|v, a| vec![a.to_vec(), v.to_vec()])).unwrap();
+    let audio_first = audio_first.to_str().unwrap();
+    assert_eq!(listed(Path::new(audio_first)).0, [A, V]);
+    let output = dir.join("out.mp4");
+    let o = output.to_str().unwrap();
+    for (args, expected) in [
+        (vec!["-i", audio_first, "-c", "copy"], vec![V, A]),
+        (
+            vec![
+                "-i",
+                audio_first,
+                "-map",
+                "0:v",
+                "-map",
+                "0:a",
+                "-c",
+                "copy",
+            ],
+            vec![V, A],
+        ),
+        (
+            vec!["-i", &input, "-map", "0:a", "-map", "0:v", "-c", "copy"],
+            vec![A, V],
+        ),
+        (
+            vec!["-i", &input, "-map", "0:v", "-map", "0", "-c", "copy"],
+            vec![V, V, A],
+        ),
+        (
+            vec!["-i", audio_first, "-ss", "0", "-t", "1", "-c", "copy"],
+            vec![V, A],
+        ),
+    ] {
+        let r = ffmpeg(&[&["-y"], args.as_slice(), &[o]].concat());
+        assert_eq!(r.code, 0, "{args:?}: {}", r.stderr);
+        assert_eq!(listed(&output).0, expected, "{args:?}");
+    }
+    let r = ffmpeg(&[
+        "-y", "-i", &input, "-map", "0:a", "-map", "0:v", "-ss", "0", "-t", "1", "-c", "copy", o,
+    ]);
+    assert_eq!(r.code, 4, "{}", r.stderr);
+    assert!(
+        r.stderr.contains("audio selected before the video"),
+        "{}",
+        r.stderr
+    );
+}
+
+/// More output streams than CoreAV writes to one file (`Limits::max_tracks`)
+/// are refused before any stream is planned, counted once `-an` and the
+/// negative maps have removed theirs: 20,000 `-map 0` on a file of two
+/// streams would otherwise plan 40,000 outputs, and 513 `-map 0` less the
+/// audio are 513 video tracks.
+#[test]
+fn a_selection_larger_than_an_output_holds_is_refused() {
+    let dir = scratch("ffmpeg-many-maps");
+    let input = movie(&dir);
+    let output = dir.join("out.mp4");
+    let o = output.to_str().unwrap();
+    for less in [vec!["-an"], vec!["-map", "-0:a"]] {
+        let mut args = vec!["-y", "-i", input.as_str()];
+        for _ in 0..513 {
+            args.extend(["-map", "0"]);
+        }
+        args.extend(less.iter().copied());
+        args.extend(["-c", "copy", o]);
+        let r = ffmpeg(&args);
+        assert_eq!(r.code, 0, "{less:?}: {}", r.stderr);
+        assert_eq!(listed(&output).0, vec![V; 513], "{less:?}");
+    }
+    std::fs::remove_file(&output).unwrap();
+    for maps in [513, 20_000] {
+        let mut args = vec!["-y", "-i", input.as_str()];
+        for _ in 0..maps {
+            args.extend(["-map", "0"]);
+        }
+        args.extend(["-c", "copy", o]);
+        let started = std::time::Instant::now();
+        let r = ffmpeg(&args);
+        assert_eq!(r.code, 4, "{maps}: {}", r.stderr);
+        assert!(
+            r.stderr
+                .contains("more output streams than CoreAV writes to one file"),
+            "{}",
+            r.stderr
+        );
+        assert!(started.elapsed() < std::time::Duration::from_secs(30));
+        assert!(!output.exists());
+    }
+}
+
 /// A join copies the video stream `ffmpeg` selects or refuses the command:
 /// of two video streams of one size, the first, which the join does not
 /// copy (MPEG-4 Visual), is refused (exit status 4), never replaced by the
