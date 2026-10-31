@@ -33,6 +33,7 @@ import pathlib
 import shutil
 import subprocess
 import sys
+from fractions import Fraction
 
 TIMEOUT = 300
 VIDEO = ["-f", "lavfi", "-i", "testsrc2=size=320x240:rate=25:duration=2"]
@@ -73,6 +74,12 @@ SOURCES = [
     ("eac3.mkv", tone(48_000) + STEREO + CODECS["eac3"]),
 ] + [(f"av_{codec}.{ext}", VIDEO + tone(48_000) + H264 + STEREO + args + ["-shortest"])
      for codec, args in CODECS.items() for ext in ("mp4", "mkv")]
+
+# Sources whose audio every command must refuse or drop, naming the reason:
+# an Apple Lossless packet's own sample count, which may be fewer than the
+# cookie's frameLength, is in a header no public specification describes.
+REFUSED = {"alac.mkv", "av_alac.mkv"}
+REFUSED_REASON = "Apple Lossless from Matroska: a packet's sample count is not publicly specified"
 
 EXPECTED = {
     "run": lambda a, b: bool(b) and any(a[i:i + len(b)] == b for i in range(len(a) - len(b) + 1)),
@@ -115,6 +122,35 @@ def decodes(problems, ffmpeg, path):
     return md5
 
 
+def stored_durations(problems, tools, path):
+    """A problem unless every audio packet's stored duration, edit lists
+    ignored, is its number of samples, the last one included: for FLAC and
+    ALAC, whose packets state their own length, the samples it decodes to;
+    for AC-3 and E-AC-3, whose samples always hold 1,536 (ETSI TS 102 366
+    F.2), that (ffmpeg trims a last frame it decodes)."""
+    found = ffprobe_json(tools.ffprobe, "-ignore_editlist", "1", "-select_streams", "a:0", "-show_entries",
+                         "packet=duration:stream=time_base,codec_name,sample_rate", str(path))
+    stream = found["streams"][0]
+    base = Fraction(stream["time_base"])
+    stored = [int(p["duration"]) * base for p in found["packets"]]
+    if stream["codec_name"] in ("ac3", "eac3"):
+        decoded = [Fraction(1536, int(stream["sample_rate"]))] * len(stored)
+    else:
+        out = run([tools.ffmpeg, "-v", "error", "-ignore_editlist", "1", "-i", str(path), "-map", "0:a:0",
+                   "-f", "framemd5", "-"])
+        base, decoded = None, []
+        for line in out.stdout.decode().splitlines():
+            if line.startswith("#tb"):
+                base = Fraction(line.split(":", 1)[1].strip())
+            elif line and not line.startswith("#"):
+                decoded.append(int(line.split(",")[3]) * base)
+    if stored != decoded:
+        first = next((n for n, (a, b) in enumerate(zip(stored, decoded)) if a != b), min(len(stored), len(decoded)))
+        problems.append(f"{path.name}: {len(stored)} packets stored, {len(decoded)} decoded; packet {first} "
+                        f"stored {float(stored[first]) if first < len(stored) else None} s, decoded "
+                        f"{float(decoded[first]) if first < len(decoded) else None} s")
+
+
 def same_stream(problems, ffprobe, source, output):
     a, b = audio_stream(ffprobe, source), audio_stream(ffprobe, output)
     if a != b:
@@ -133,6 +169,7 @@ def check_copy(tools, source, output, problems):
         if late:
             n = late[0]
             problems.append(f"{len(late)} packets at other times, the first {n}: {a[n][2]} s, output {b[n][2]} s")
+    stored_durations(problems, tools, output)
     want, got = decodes(problems, tools.ffmpeg, source), decodes(problems, tools.ffmpeg, output)
     if want != got:
         problems.append(f"decoded audio: source {want}, output {got}")
@@ -144,6 +181,7 @@ def check_packets(tools, source, outputs, problems, expected):
     for output in outputs:
         same_stream(problems, tools.ffprobe, source, output)
         decodes(problems, tools.ffmpeg, output)
+        stored_durations(problems, tools, output)
     a = [p[:2] for p in packets(tools.ffprobe, source, True)]
     b = [p[:2] for o in outputs for p in packets(tools.ffprobe, o, True)]
     if not outputs or not expected(a, b):
@@ -200,7 +238,12 @@ def main():
             # case alone; the other cases still run and the report is kept.
             try:
                 done = run([tools.coreav, "--strict-safe", *args])
-                if done.returncode != 0:
+                if name in REFUSED:
+                    said = (done.stdout + done.stderr).decode(errors="replace")
+                    if REFUSED_REASON not in said or (done.returncode == 0
+                                                      and audio_stream(tools.ffprobe, outputs()[0])):
+                        problems.append(f"not refused with its reason (exit {done.returncode}): {said[:300]}")
+                elif done.returncode != 0:
                     problems.append(f"exit {done.returncode}: {done.stderr.decode(errors='replace').strip()[:500]}")
                 elif kind == "copy":
                     check_copy(tools, source, outputs()[0], problems)
