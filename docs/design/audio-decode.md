@@ -1638,8 +1638,10 @@ The bars:
 2. **Against FFmpeg (gating).** On every input of every set, MP4 and
    Matroska: CoreAV's `coreav_aac::Decoder` on every packet in order
    against `ffmpeg -flags2 +skip_manual -i IN -map 0:a:0 -f f32le -`,
-   with `-ignore_editlist 1` before `-i` on MP4 and MOV only (every
-   packet's samples: no edit list applied and no codec delay removed).
+   with `-ignore_editlist 1` before `-i` on every file the MP4 reader
+   reads (`mp4`, `m4a`, `m4b`, `mov`, `3gp`) and on no Matroska file
+   (every packet's samples: no edit list applied and no codec delay
+   removed).
    `-ignore_editlist` is an option of the MP4 reader, which the Matroska
    reader refuses (`ffmpeg` exits with 8); `+skip_manual` is a flag of
    the audio decoder and applies to both. The rules above apply; CoreAV
@@ -1695,8 +1697,11 @@ The bars:
    generated inputs, and the corpus's Matroska files with their MP4 copies,
    sets), CoreAV's decode of the Matroska file (the configuration from
    `CodecPrivate`, every packet of its blocks in order) equals its decode
-   of the MP4 file bit for bit, a check beside bar 2, which holds each
-   Matroska file to FFmpeg's decode of it. Reported: `coreav decode-audio
+   of the MP4 file (every packet of its samples in order) bit for bit.
+   Neither decode applies an edit list, `CodecDelay` or `DiscardPadding`,
+   so timing the copy maps differently cannot change the comparison. It
+   is a check beside bar 2, which holds each Matroska file to FFmpeg's
+   decode of it. Reported: `coreav decode-audio
    --format f32` on the Matroska file against `ffmpeg -i IN -map 0:a:0 -f
    f32le -`, sample 0 to sample 0 over the common length with the rules
    above, and both lengths.
