@@ -41,12 +41,33 @@ a difference even when both listings contain the same set of PIDs.
 The PID prerequisite follows the required frozen record source, not a
 convention in the record's identifier or an optional adapter flag.
 
-Each adapter returns the exact expected oracle and candidate values,
-established independently from the media bytes. Both values must be
-present and non-null before any adapter is called. An absent value on
-either side cannot be excluded, even when a byte reader expects absence.
+Each ordinary adapter returns a `Pair` of exact expected oracle and
+candidate values, established independently from the media bytes. Both
+values must be present and non-null before an ordinary adapter is called.
 Both observed values must match that pair. A broad stream
 classification predicate cannot certify unrelated fields or packets.
+
+There is one registered exception. `KD-FF9-EMPTY-EDIT-PADDING`, sourced
+from `tools/compat-corpus/ffmpeg9.json`, may return a distinct
+`ProvenAbsence(oracle, track_id, offset, size, sample_end, edit_end)` for
+CoreAV's missing `packets.side_data_list.discard_padding`. Its frozen
+record must carry `corpus_absence: "last-sample-within-media-edit"`.
+The byte predicate must positively derive these values. The certificate
+requires the sample to end at or before the media edit's end, in the same
+media ticks, and the exact positive oracle value. It binds both packets'
+offset, size, stream index and track identity, requires that this is the
+last packet of the track on both sides, and checks equal packet counts and
+agreement of every other packet. The packet summary comes from the
+captured listings, not a claim in CoreAV's output. No stream search or
+reordering is introduced.
+Only absence-enabled comparisons build the extra packet summary; audit
+replay scans it again for each mutation. That work is outside timed
+commands and does not change the performance bars.
+
+`Pair(value, None)` never certifies absence. An unproven deletion, a missing
+oracle value, an explicit null or any other KD's missing value remains
+uncovered. The unproven both-present cases get no new coverage. The
+production registry remains empty until the records and byte helpers land.
 
 The accumulator visits every reference-listed leaf, including differences
 after the first saved example. A file/key row is excluded only when it
@@ -74,7 +95,8 @@ The raw comparison's blind spots are reported, not credited as catches:
 candidate-only leaves and trailing packets are not reference-listed,
 repeated compact side-data keys overwrite earlier values, and missing
 candidate leaves compare like null in the historical raw method. The
-coverage boundary refuses both absence and an explicit null.
+coverage boundary refuses explicit null and unproven absence; the one
+registered absence certificate is checked independently.
 
 ## Capture and reporting
 

@@ -12,6 +12,7 @@ import dataclasses
 import decimal
 import hashlib
 import json
+import itertools
 import math
 import os
 import pathlib
@@ -30,6 +31,9 @@ AMENDMENT = '## Corpus key-row exclusions'
 CONTAINERS = ('isobmff', 'matroska', 'mpegts')
 ROUND_FILES = 1315
 POOLED_TAGS = '(tag keys in fewer than 5 files, together)'
+ABSENCE_KD = 'KD-FF9-EMPTY-EDIT-PADDING'
+ABSENCE_KEY = 'packets.side_data_list.discard_padding'
+ABSENCE_CASE = 'last-sample-within-media-edit'
 BLIND_SPOTS = [
     'Only reference-listed leaves are gated; extra candidate leaves and trailing packets are not.',
     'Compact packet parsing overwrites repeated same-name side-data keys.',
@@ -44,11 +48,31 @@ class Pair:
 
 
 @dataclasses.dataclass(frozen=True)
+class ProvenAbsence:
+    oracle: int
+    track_id: int
+    offset: int
+    size: int
+    sample_end: int
+    edit_end: int
+
+
+@dataclasses.dataclass(frozen=True)
+class PacketSummary:
+    sole_difference: object
+    same_count: bool
+    last_reference: dict
+    last_candidate: dict
+
+
+@dataclasses.dataclass(frozen=True)
 class Context:
     reference: dict
     candidate: dict
     reference_packet: dict = dataclasses.field(default_factory=dict)
     candidate_packet: dict = dataclasses.field(default_factory=dict)
+    packet_index: object = None
+    packet_summary: object = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -77,6 +101,11 @@ class Rule:
     @property
     def requires_pid(self):
         return self.document == 'docs/known-divergences-ts.json'
+
+    @property
+    def permits_absence(self):
+        return self.identifier == ABSENCE_KD and self.document == 'tools/compat-corpus/ffmpeg9.json' \
+            and self.record.get('corpus_absence') == ABSENCE_CASE and ABSENCE_KEY in self.keys
 
 
 def record_hash(record):
@@ -113,7 +142,11 @@ class Registry:
     def records(self):
         return [{'id': r.identifier, 'path': r.document, 'sha256': record_hash(r.record),
                  'basis': r.record['basis'], 'record': r.record, 'keys': list(r.keys),
-                 'requires_pid': r.requires_pid} for r in self.rules]
+                 'requires_pid': r.requires_pid, 'permits_absence': r.permits_absence} for r in self.rules]
+
+    @property
+    def permits_absence(self):
+        return any(rule.permits_absence for rule in self.rules)
 
     def validate(self, inventory):
         if inventory['records'] != self.records():
@@ -128,8 +161,7 @@ class Registry:
             return None
 
     def covers(self, occurrence, facts):
-        if not occurrence.different or not occurrence.successful or facts is None \
-                or not occurrence.present or occurrence.reference is None or occurrence.candidate is None:
+        if not occurrence.different or not occurrence.successful or facts is None or occurrence.reference is None:
             return frozenset()
         found = set()
         for rule in self.rules:
@@ -137,8 +169,15 @@ class Registry:
                 continue
             if rule.requires_pid and not same_pid(occurrence):
                 continue
+            if not occurrence.present or occurrence.candidate is None:
+                if rule.permits_absence and occurrence.key == ABSENCE_KEY \
+                        and not occurrence.present and occurrence.candidate is None:
+                    proof = rule.expected(facts, occurrence)
+                    if type(proof) is ProvenAbsence and valid_absence(proof, occurrence):
+                        found.add(rule.identifier)
+                continue
             pair = rule.expected(facts, occurrence)
-            if pair is not None and type(pair.reference) is type(occurrence.reference) \
+            if type(pair) is Pair and type(pair.reference) is type(occurrence.reference) \
                     and pair.reference == occurrence.reference \
                     and type(pair.candidate) is type(occurrence.candidate) \
                     and pair.candidate == occurrence.candidate:
@@ -148,6 +187,34 @@ class Registry:
 
 def production_registry():
     return Registry((), lambda path: None)
+
+
+def valid_absence(proof, occurrence):
+    context, summary = occurrence.context, occurrence.context.packet_summary
+    values = (proof.oracle, proof.track_id, proof.offset, proof.size, proof.sample_end, proof.edit_end)
+    if any(type(value) is not int for value in values) or proof.oracle <= 0 or proof.track_id <= 0 \
+            or proof.offset < 0 or proof.size <= 0 or not 0 <= proof.sample_end <= proof.edit_end \
+            or type(context.packet_index) is not int \
+            or occurrence.path != f'packets[{context.packet_index}].side_data_list.discard_padding' \
+            or occurrence.reference != str(proof.oracle) or summary is None or not summary.same_count \
+            or summary.sole_difference != context.packet_index:
+        return False
+    reference, candidate = context.reference_packet, context.candidate_packet
+    index = reference.get('stream_index')
+    if index != candidate.get('stream_index') or summary.last_reference.get(index) != context.packet_index \
+            or summary.last_candidate.get(index) != context.packet_index:
+        return False
+    for packet, document in ((reference, context.reference), (candidate, context.candidate)):
+        if packet.get('pos') != str(proof.offset) or packet.get('size') != str(proof.size):
+            return False
+        try:
+            stream_index = int(index)
+            streams = document['streams']
+            if not 0 <= stream_index < len(streams) or int(str(streams[stream_index]['id']), 0) != proof.track_id:
+                return False
+        except (KeyError, TypeError, ValueError):
+            return False
+    return True
 
 
 def same_pid(occurrence):
@@ -270,16 +337,35 @@ def validate_packets(path, sections):
         raise ValueError('empty packet capture')
 
 
-def occurrences(capture, attack=None):
+def packet_summary(capture, attack):
+    transform = attack.packets if attack else None
+    reference = packet_rows(capture.reference_packets)
+    candidate = packet_rows(capture.candidate_packets, transform) if capture.packet_code == 0 else iter(())
+    last_reference, last_candidate, differences, count_equal = {}, {}, [], True
+    for i, (ref, got) in enumerate(itertools.zip_longest(reference, candidate)):
+        if ref is None or got is None:
+            count_equal = False
+        if ref is not None and 'stream_index' in ref:
+            last_reference[ref['stream_index']] = i
+        if got is not None and 'stream_index' in got:
+            last_candidate[got['stream_index']] = i
+        if ref != got and len(differences) < 2:
+            differences.append(i)
+    return PacketSummary(differences[0] if len(differences) == 1 else None,
+                         count_equal, last_reference, last_candidate)
+
+
+def occurrences(capture, attack=None, *, permit_absence=False):
     candidate = capture.candidate if attack is None or attack.sections is None else attack.sections
     context = Context(capture.reference, candidate)
     for path, key, ref, present, got in run.key_pairs(run.flatten(capture.reference), run.flatten(candidate)):
         yield Occurrence(path, key, ref, present, got, context, capture.section_code == 0)
     transform = attack.packets if attack else None
+    summary = packet_summary(capture, attack) if permit_absence else None
     got = iter(packet_rows(capture.candidate_packets, transform)) if capture.packet_code == 0 else iter(())
     for i, ref in enumerate(packet_rows(capture.reference_packets)):
         other = next(got, {})
-        context = Context(capture.reference, candidate, ref, other)
+        context = Context(capture.reference, candidate, ref, other, i, summary)
         for path, key, value, present, actual in run.key_pairs(ref, other, f'packets[{i}].'):
             yield Occurrence(path, key, value, present, actual, context, capture.packet_code == 0)
 
@@ -287,7 +373,7 @@ def occurrences(capture, attack=None):
 def compare(capture, media, registry):
     facts = registry.evidence(media)
     keys, differences, validated, by_kd, examples = {}, collections.Counter(), collections.Counter(), {}, {}
-    for item in occurrences(capture):
+    for item in occurrences(capture, permit_absence=registry.permits_absence):
         keys[item.key] = keys.get(item.key, True) and not item.different
         if not item.different:
             continue
@@ -377,7 +463,8 @@ def audit(capture, media, registry, attacks=None):
         attacks = mutations(capture) if registry.rules else ()
     for attack in attacks:
         caught, covered, changed = 0, 0, 0
-        for before, after in zip(occurrences(capture), occurrences(capture, attack), strict=True):
+        for before, after in zip(occurrences(capture, permit_absence=registry.permits_absence),
+                                 occurrences(capture, attack, permit_absence=registry.permits_absence), strict=True):
             old_ids, new_ids = registry.covers(before, facts), registry.covers(after, facts)
             new_difference = after.different and (not before.different or
                               (before.present, before.candidate) != (after.present, after.candidate))
