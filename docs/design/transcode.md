@@ -792,11 +792,13 @@ input is read.
 ### AAC bars
 
 Fixed before the run, judged by `scripts/aac_encode_check.py` in the
-`aac-encode` workflow against FFmpeg 9.0.2 (the oracle FFmpeg that
-`scripts/install-oracle-ffmpeg.sh` installs, the build the Opus bars name).
-The same FFmpeg is both arms' encoder: CoreAV runs it as its AAC encoder
-program. While the oracle is another FFmpeg version, the workflow runs no
-bar. Each input runs two arms on the same source:
+`aac-encode` workflow against the pinned oracle FFmpeg (the build
+`scripts/oracle-ffmpeg.env` names, checked by `scripts/oracle_pin.py
+--verify-bin`), the one the Opus bars use. The same FFmpeg is both arms'
+encoder: CoreAV runs it as its AAC encoder program. Only a manual run of
+the workflow judges the bars; a run for a pull request or a push builds
+CoreAV and checks the oracle, and judges nothing. Each input runs two arms
+on the same source:
 
     coreav transcode SRC OUT.mp4 --audio aac [--audio-bitrate K] --encoder ffmpeg --ffmpeg FFMPEG9
     FFMPEG9 -i SRC -c:v libx264 -c:a aac [-b:a Kk] OUT.mp4

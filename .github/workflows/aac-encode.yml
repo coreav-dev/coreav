@@ -2,19 +2,19 @@ name: aac-encode
 
 # The AAC bars of docs/design/transcode.md ("AAC bars"): `coreav transcode
 # --audio aac` against FFmpeg's `-c:a aac` on the same sources, judged by
-# scripts/aac_encode_check.py. The same FFmpeg is both arms' AAC encoder.
-# The bars are judged against FFmpeg 9.0.2 only: while the oracle FFmpeg
-# that scripts/install-oracle-ffmpeg.sh installs is another version, the
-# job says so and runs no bar. Runs when the encode or this workflow
-# changes, and on demand.
+# scripts/aac_encode_check.py against the pinned oracle FFmpeg
+# (scripts/oracle-ffmpeg.env), which is also both arms' AAC encoder. Only a
+# manual run judges the bars, so the judged run is one started on purpose;
+# a run for a change to the encoder or this workflow builds coreav and
+# checks the oracle, and judges nothing.
 
 on:
   push:
     branches: [main]
-    paths: ["crates/coreav-transcode/src/aac.rs", "crates/coreav-transcode/src/audio.rs", "scripts/aac_encode_check.py", "scripts/opus_encode_check.py", ".github/workflows/aac-encode.yml"]
+    paths: ["crates/coreav-transcode/src/aac.rs", "crates/coreav-transcode/src/audio.rs", "scripts/aac_encode_check.py", "scripts/opus_encode_check.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", ".github/workflows/aac-encode.yml"]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths: ["crates/coreav-transcode/src/aac.rs", "crates/coreav-transcode/src/audio.rs", "scripts/aac_encode_check.py", "scripts/opus_encode_check.py", ".github/workflows/aac-encode.yml"]
+    paths: ["crates/coreav-transcode/src/aac.rs", "crates/coreav-transcode/src/audio.rs", "scripts/aac_encode_check.py", "scripts/opus_encode_check.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", ".github/workflows/aac-encode.yml"]
   workflow_dispatch:
 
 permissions:
@@ -37,40 +37,29 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Cache the oracle FFmpeg
-        id: oracle-cache
+      - name: Cache the pinned FFmpeg
+        id: ffmpeg-cache
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
-          path: ${{ runner.temp }}/coreav-oracle
-          key: linux-x64-oracle-ffmpeg-${{ hashFiles('scripts/install-oracle-ffmpeg.sh', 'scripts/oracle-ffmpeg.env') }}
-      - name: Install the oracle FFmpeg
-        if: steps.oracle-cache.outputs.cache-hit != 'true'
-        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle"
-      - name: Check the oracle is FFmpeg 9.0.2
-        id: oracle
-        run: |
-          set -euo pipefail
-          line=$("$RUNNER_TEMP/coreav-oracle/ffmpeg" -version | head -n 1)
-          echo "$line"
-          if [[ "$line" == *" version n9.0.2-"* || "$line" == *" version 9.0.2 "* ]]; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::notice::The oracle FFmpeg is not 9.0.2 ($line): the AAC bars are judged against 9.0.2 only, so no bar runs."
-            echo "run=false" >> "$GITHUB_OUTPUT"
-          fi
+          path: ${{ runner.temp }}/coreav-oracle-bin
+          key: linux-x64-oracle-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh') }}
+      - name: Install the pinned FFmpeg
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
+      - name: Check the pinned FFmpeg
+        run: python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
       - name: Build coreav
-        if: steps.oracle.outputs.run == 'true'
         run: cargo build --locked --release -p coreav-cli --features native-h264
       - name: Judge the AAC bars
-        if: steps.oracle.outputs.run == 'true'
+        if: github.event_name == 'workflow_dispatch'
         env:
           PYTHONDONTWRITEBYTECODE: '1'
         run: |
           python3 -I scripts/aac_encode_check.py --coreav target/release/coreav \
-            --ffmpeg "$RUNNER_TEMP/coreav-oracle/ffmpeg" --ffprobe "$RUNNER_TEMP/coreav-oracle/ffprobe" \
+            --ffmpeg "$RUNNER_TEMP/coreav-oracle-bin/ffmpeg" --ffprobe "$RUNNER_TEMP/coreav-oracle-bin/ffprobe" \
             --work "$RUNNER_TEMP/aac-encode" --out "$RUNNER_TEMP/aac-encode-report.json"
       - name: Keep the report
-        if: always() && steps.oracle.outputs.run == 'true'
+        if: always() && github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: aac-encode-report
