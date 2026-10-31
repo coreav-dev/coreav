@@ -3050,8 +3050,12 @@ def aac_lc_frame(asc, rate):
     """The samples one frame of a plain AAC LC configuration decodes to (960
     or 1,024 by `frameLengthFlag`, ISO/IEC 14496-3 1.6.2.1 and 4.4.1), when
     its sampling rate is `rate` and nothing but the extension that rules
-    SBR out follows it; None otherwise."""
+    SBR out follows it; None otherwise. At a core rate that can carry
+    implicit SBR (1.6.5, 4.6.18; [aac_implicit_sbr]), which would double
+    the frame, that extension is required."""
     if asc is None or len(asc) < 2 or asc[2:] not in (b'', NO_SBR_EXTENSION):
+        return None
+    if asc[2:] == b'' and rate <= MAX_IMPLICIT_SBR_CORE_RATE:
         return None
     object_type, rate_index, flags = asc[0] >> 3, (asc[0] & 7) << 1 | asc[1] >> 7, asc[1] & 7
     if object_type != 2 or rate_index >= len(AAC_RATES) or AAC_RATES[rate_index] != rate or flags & 3:
@@ -3059,12 +3063,31 @@ def aac_lc_frame(asc, rate):
     return 960 if flags & 4 else 1024
 
 
+def single_description(facts, track_id):
+    """Whether the track has exactly one sample description and every chunk
+    names it (ISO/IEC 14496-12 8.5.2, 8.7.4), so the first description
+    describes the last sample."""
+    tables = facts.tracks[track_id]['tables']
+    if b'stsd' not in tables or b'stsc' not in tables:
+        return False
+    try:
+        with facts._open_movie() as f:
+            facts._f = f
+            stsd, stsc = facts._payload(tables[b'stsd']), _entries(facts._payload(tables[b'stsc']), 12)
+    except (OSError, ValueError):
+        return False
+    finally:
+        facts._f = None
+    return len(stsd) >= 8 and _u32(stsd, 4) == 1 and len(stsc) > 0 and all(_u32(e, 8) == 1 for e in stsc)
+
+
 def empty_edit_padding(facts):
     """KD-FF9-EMPTY-EDIT-PADDING evidence, from the file's bytes alone. For
     each AAC LC track, unfragmented, without composition offsets, at its
     configured rate, whose edit list is an empty edit and then one media
     edit to the end of its samples, whose media header agrees with the
-    samples, and whose last sample is shorter than a frame: that sample's
+    samples, of one sample description, and whose last sample, shorter
+    than a frame, starts inside the media edit: that sample's
     track, offset and size, and the Skip Samples `discard_padding` each tool
     lists on its packet. CoreAV's (`coreav`) is what the frame decodes past
     the media edit's end, where 14496-12 8.6.6 ends the presentation.
@@ -3090,6 +3113,8 @@ def empty_edit_padding(facts):
         (empty, empty_time, empty_rate), (segment, media_time, rate) = edits
         if empty_time != -1 or empty_rate != 1 << 16 or rate != 1 << 16 or media_time < 0:
             continue
+        if not single_description(facts, track_id):
+            continue
         frame = aac_lc_frame(facts.audio_specific_config(track_id), timescale)
         samples = facts.samples(track_id)
         if frame is None or not samples:
@@ -3097,7 +3122,7 @@ def empty_edit_padding(facts):
         last, end = samples[-1], samples[-1].dts + samples[-1].duration
         shift, edit = ticks(empty, timescale), ticks(segment, timescale)
         if not empty or shift is None or edit is None or media_time + edit < end or track['mdhd_duration'] != end \
-                or not 0 < last.duration < frame:
+                or not 0 < last.duration < frame or not media_time <= last.dts:
             continue
         presented = last.dts - media_time + shift
         if presented + last.duration <= end:

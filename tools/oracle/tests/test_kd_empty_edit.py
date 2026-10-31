@@ -33,9 +33,11 @@ def esds(asc):
 
 
 def movie(edits=((50, -1, 1 << 16), (100, 1024, 1 << 16)), stts=((5, 1024), (1, 700)), asc=LC_48K,
-          timescale=48000, mdhd=None, handler=b'soun', ctts=False, mvex=False, elst_version=0):
+          timescale=48000, mdhd=None, handler=b'soun', ctts=False, mvex=False, elst_version=0, more=(), index=1):
     """One audio track of 10-byte samples in one chunk, timed by `stts`
-    (count, delta) at `timescale`, in a movie of 1,000 ticks a second."""
+    (count, delta) at `timescale`, in a movie of 1,000 ticks a second;
+    `more` configurations follow in further descriptions, and the chunk
+    names description `index`."""
     count = sum(n for n, _ in stts)
     mdhd = sum(n * d for n, d in stts) if mdhd is None else mdhd
     mvhd = full_box(b'mvhd', 0, 0, b'\0' * 8 + struct.pack('>II', 1000, 0) + b'\0' * 80)
@@ -44,12 +46,12 @@ def movie(edits=((50, -1, 1 << 16), (100, 1024, 1 << 16)), stts=((5, 1024), (1, 
     hdlr = full_box(b'hdlr', 0, 0, b'\0' * 4 + handler + b'\0' * 13)
     entry = (struct.pack('>QqI', d, t, r) if elst_version else struct.pack('>IiI', d, t, r) for d, t, r in edits)
     elst = full_box(b'elst', elst_version, 0, struct.pack('>I', len(edits)) + b''.join(entry))
-    mp4a = box(b'mp4a', b'\0' * 6 + b'\0\x01' + b'\0' * 8 + struct.pack('>HHHHI', 2, 16, 0, 0, timescale << 16)
-               + esds(asc))
-    tables = (full_box(b'stsd', 0, 0, struct.pack('>I', 1) + mp4a)
+    mp4a = b''.join(box(b'mp4a', b'\0' * 6 + b'\0\x01' + b'\0' * 8
+                        + struct.pack('>HHHHI', 2, 16, 0, 0, timescale << 16) + esds(c)) for c in (asc,) + tuple(more))
+    tables = (full_box(b'stsd', 0, 0, struct.pack('>I', 1 + len(more)) + mp4a)
               + full_box(b'stts', 0, 0, struct.pack('>I', len(stts)) + b''.join(struct.pack('>II', *e) for e in stts))
               + full_box(b'stsz', 0, 0, struct.pack('>II', 10, count))
-              + full_box(b'stsc', 0, 0, struct.pack('>IIII', 1, 1, count, 1)))
+              + full_box(b'stsc', 0, 0, struct.pack('>IIII', 1, 1, count, index)))
     if ctts:
         tables += full_box(b'ctts', 0, 0, struct.pack('>III', 1, count, 0))
     extra = box(b'mvex', full_box(b'trex', 0, 0, struct.pack('>IIIII', 1, 1, 0, 0, 0))) if mvex else b''
@@ -129,11 +131,38 @@ class EmptyEditPadding(unittest.TestCase):
 
     def test_an_empty_edit_halfway_between_two_ticks_gives_no_evidence(self):
         # At 7,350 Hz (index 12) 20 ms is 147 ticks, 10 ms 73.5.
-        rate = bytes([2 << 3 | 12 >> 1, (12 & 1) << 7 | 1 << 3])
+        rate = bytes([2 << 3 | 12 >> 1, (12 & 1) << 7 | 1 << 3]) + kd.NO_SBR_EXTENSION
         data, last = movie(edits=((20, -1, 1 << 16), (1000, 0, 1 << 16)), asc=rate, timescale=7350)
         self.assertEqual(self.evidence(data), [kd.EmptyEditPadding(1, last, 10, 5267 + 1024 - 5820, 324)])
         data, _ = movie(edits=((10, -1, 1 << 16), (1000, 0, 1 << 16)), asc=rate, timescale=7350)
         self.assertEqual(self.evidence(data), [])
+
+    def test_the_last_samples_description_gives_the_frame(self):
+        # A second description of 960-sample frames, named by the chunk: the
+        # first one's 1,024 would give 324 where 260 is due.
+        flag = bytes([LC_48K[0], LC_48K[1] | 4])
+        self.assertEqual(self.evidence(movie(more=(flag,), index=2)[0]), [])
+        self.assertEqual(self.evidence(movie(more=(flag,))[0]), [])
+        self.assertEqual(self.evidence(movie(index=2)[0]), [])
+
+    def test_a_rate_that_can_carry_implicit_sbr_needs_the_extension(self):
+        # LC at 24 kHz (index 6) may hold implicit SBR, which doubles the
+        # frame; the extension that rules it out settles it.
+        lc_24k = bytes([2 << 3 | 6 >> 1, (6 & 1) << 7 | 2 << 3])
+        stts = ((5, 1024), (1, 700))
+        self.assertEqual(self.evidence(movie(asc=lc_24k, timescale=24000, stts=stts,
+                                             edits=((100, -1, 1 << 16), (300, 1024, 1 << 16)))[0]), [])
+        data, last = movie(asc=lc_24k + kd.NO_SBR_EXTENSION, timescale=24000, stts=stts,
+                           edits=((100, -1, 1 << 16), (300, 1024, 1 << 16)))
+        self.assertEqual(self.evidence(data), [kd.EmptyEditPadding(1, last, 10, None, 324)])
+
+    def test_the_last_sample_must_start_inside_the_media_edit(self):
+        # A media edit from 10,000, past the samples' end at 5,820, presents
+        # none of them, and one from 5,500 starts inside the last sample.
+        self.assertEqual(self.evidence(movie(edits=((1000, -1, 1 << 16), (100, 10000, 1 << 16)))[0]), [])
+        self.assertEqual(self.evidence(movie(edits=((1000, -1, 1 << 16), (100, 5500, 1 << 16)))[0]), [])
+        data, last = movie(edits=((1000, -1, 1 << 16), (100, 5120, 1 << 16)))
+        self.assertEqual(self.evidence(data), [kd.EmptyEditPadding(1, last, 10, None, 324)])
 
     def test_a_version_1_edit_list_reads_the_same(self):
         data, last = movie(elst_version=1)
