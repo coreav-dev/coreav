@@ -243,12 +243,16 @@ class Repository(unittest.TestCase):
                    'does not start it: add it to the `paths` of `pull_request`')
         for steps in (['- run: bash -n scripts/install-oracle-ffmpeg.sh'],
                       ['- run: shellcheck scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: bash -en scripts/install-oracle-ffmpeg.sh'],
                       ['# scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/bin"', '- run: echo none']):
             with self.subTest(steps=steps):
                 self.write('.github/workflows/probe.yml', workflow(*steps))
                 self.assertEqual(check.check(self.root), [])
         for steps in (['- run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/bin"'],
                       ['- name: x', '  run: bash scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash -e scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: bash -eo pipefail scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: sudo bash --norc -x scripts/install-oracle-ffmpeg.sh /opt/bin'],
                       ['- run: |', '    set -e', '', '    ./scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/bin"']):
             with self.subTest(steps=steps):
                 self.write('.github/workflows/probe.yml', workflow(*steps))
