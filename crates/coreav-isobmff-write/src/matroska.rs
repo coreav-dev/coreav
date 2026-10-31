@@ -140,7 +140,7 @@ pub struct MatroskaRemuxTrack {
     pub stream_index: usize,
     /// `TrackNumber` in the source.
     pub track_number: u64,
-    /// `track_ID` in the output, numbered from 1 in source order.
+    /// `track_ID` in the output, numbered from 1 in output order.
     pub track_id: u32,
     /// The track's kind (video or audio).
     pub kind: TrackKind,
@@ -190,9 +190,10 @@ pub struct DroppedAdditions {
 /// What [`remux_matroska`] copies.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct MatroskaRemuxOptions {
-    /// Stream indexes to keep (`Track::stream_index`); `None` for every
-    /// stream that can be copied. A named stream that cannot be copied
-    /// fails the remux; streams not named are left out.
+    /// Stream indexes to keep (`Track::stream_index`), in the output's
+    /// order, a stream named twice written as two tracks; `None` for every
+    /// stream that can be copied, in source order. A named stream that
+    /// cannot be copied fails the remux; streams not named are left out.
     pub streams: Option<Vec<usize>>,
     /// What happens to a stream that cannot be copied:
     /// [`OnUnsupported::Drop`] leaves audio, subtitle and data streams out
@@ -211,7 +212,7 @@ pub const MAX_LISTED_ADDITIONS: usize = 256;
 /// What [`remux_matroska`] wrote.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MatroskaRemuxSummary {
-    /// The kept streams, in source order.
+    /// The kept streams, in output order (`MatroskaRemuxOptions::streams`).
     pub tracks: Vec<MatroskaRemuxTrack>,
     /// The streams of the source that are not in the output, in source
     /// order.
@@ -513,6 +514,19 @@ fn remux<S: Source, R: Source, W: Write>(
             .into());
         }
     }
+    if (replacement.is_some() || audio.is_some())
+        && options.streams.as_ref().is_some_and(|wanted| {
+            wanted
+                .iter()
+                .enumerate()
+                .any(|(n, i)| wanted.iter().skip(n.saturating_add(1)).any(|j| j == i))
+        })
+    {
+        return Err(coreav_mkv::Error::Unsupported {
+            reason: "a stream named twice beside a replaced stream",
+        }
+        .into());
+    }
     // A video stream that would be lost fails the remux once every stream
     // is planned, unless the caller named the streams or asked for it to be
     // dropped: the first such stream, and its reason (`None` when the
@@ -717,8 +731,28 @@ fn remux<S: Source, R: Source, W: Write>(
         },
         mux,
     )?;
+    // The output's tracks, in the order named: a stream named twice is
+    // written twice.
+    let order: Vec<usize> = match &options.streams {
+        None => (0..kept.len()).collect(),
+        Some(wanted) => wanted
+            .iter()
+            .filter_map(|i| {
+                kept.iter().position(|plan| {
+                    segment
+                        .tracks
+                        .get(plan.track)
+                        .is_some_and(|t| t.stream_index == *i)
+                })
+            })
+            .collect(),
+    };
     let mut tracks = Vec::new();
-    for plan in &kept {
+    let mut written = Vec::new();
+    for k in order {
+        let Some(plan) = kept.get(k) else {
+            continue;
+        };
         let track = segment
             .tracks
             .get(plan.track)
@@ -755,6 +789,7 @@ fn remux<S: Source, R: Source, W: Write>(
             boxes: Vec::new(),
         };
         let id = muxer.add_track(header)?;
+        written.push(k);
         if let Some(r) = replaced {
             for (sample, (duration, offset)) in r.samples.iter().zip(&timing.samples) {
                 muxer.push_sample(
@@ -831,10 +866,11 @@ fn remux<S: Source, R: Source, W: Write>(
         let sizes = a.samples.iter().map(|s| s.size).collect::<Vec<_>>();
         (a.data, sizes, CopyWindow::new(), 0u64)
     });
-    let mut next = vec![0usize; kept.len()];
+    let mut next = vec![0usize; written.len()];
     let mut nals = Vec::new();
     muxer.for_each_chunk(|index, count| -> Result<(), MatroskaRemuxError> {
-        let (Some(plan), Some(position)) = (kept.get(index), next.get_mut(index)) else {
+        let plan = written.get(index).and_then(|k| kept.get(*k));
+        let (Some(plan), Some(position)) = (plan, next.get_mut(index)) else {
             return Err(MatroskaRemuxError::SourceChanged);
         };
         for _ in 0..count {

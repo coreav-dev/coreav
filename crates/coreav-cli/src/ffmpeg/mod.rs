@@ -83,7 +83,7 @@ impl From<WriteFailure> for Stop {
 pub enum Job {
     /// The whole input, these streams (`Track::stream_index`), as MP4.
     Remux {
-        /// The tracks, in input order.
+        /// The tracks, in the output's order, a stream mapped twice twice.
         streams: Vec<usize>,
         /// The cover pictures that are not selected, as
         /// `RemuxOptions::left_out_covers` names them.
@@ -132,6 +132,11 @@ pub struct TranscodeJob {
     /// `RemuxOptions::left_out_covers` names them; a selected one is copied.
     pub left_out_covers: Vec<u64>,
 }
+
+/// Why a clip, a segment or a join of audio selected before its video is
+/// refused: its writer writes the video first, where `ffmpeg` keeps the
+/// selection's order.
+const AUDIO_FIRST: &str = "audio selected before the video in a clip, a segment or a join (CoreAV writes the video first)";
 
 /// The container families CoreAV reads.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -284,6 +289,9 @@ pub fn plan(
             _ if videos.len() + audios.len() != selected.len() => Err(Refusal::not_native(
                 "a clip or a segment of other streams than one video and one audio stream",
             )),
+            ([_], [audio]) if selected.first() == Some(audio) => {
+                Err(Refusal::not_native(AUDIO_FIRST))
+            }
             ([video], [audio]) => Ok((*video, AudioChoice::Stream(*audio))),
             ([video], []) => Ok((*video, AudioChoice::None)),
             ([], _) => Err(Refusal::not_native("a segment without video")),
@@ -307,16 +315,16 @@ pub fn plan(
         .iter()
         .filter_map(|i| streams.get(*i).map(|s| (*i, s)))
         .collect();
-    let encoded: Vec<usize> = selected
-        .iter()
-        .copied()
-        .filter(|i| codec(command, &output, *i) == Some(Codec::Libx264))
-        .collect();
-    let opus: Vec<usize> = selected
-        .iter()
-        .copied()
-        .filter(|i| codec(command, &output, *i) == Some(Codec::Libopus))
-        .collect();
+    let coded = |wanted: Codec| -> Vec<usize> {
+        output
+            .iter()
+            .enumerate()
+            .filter(|(position, _)| codec(command, &output, *position) == Some(wanted))
+            .map(|(_, (index, _))| *index)
+            .collect()
+    };
+    let encoded = coded(Codec::Libx264);
+    let opus = coded(Codec::Libopus);
     if !encoded.is_empty() {
         if list.is_some() {
             return Err(Refusal::not_native("encoding the files of a concat list"));
@@ -355,6 +363,11 @@ pub fn plan(
                 if kind(*v) == Some(StreamKind::Video) && kind(*a) == Some(StreamKind::Audio) =>
             {
                 (*v, JoinAudio::Stream(*a))
+            }
+            [a, v]
+                if kind(*v) == Some(StreamKind::Video) && kind(*a) == Some(StreamKind::Audio) =>
+            {
+                return Err(Refusal::not_native(AUDIO_FIRST));
             }
             _ => {
                 return Err(Refusal::not_native(
@@ -444,6 +457,18 @@ pub fn plan(
         return Ok(Job::ExtractAudio { stream: *stream });
     }
     let tracks: Vec<usize> = selected.iter().copied().filter(|i| !cover(*i)).collect();
+    let pictures: Vec<usize> = selected
+        .iter()
+        .copied()
+        .skip_while(|i| !cover(*i))
+        .collect();
+    if pictures.iter().any(|i| !cover(*i))
+        || pictures.windows(2).any(|w| matches!(w, [a, b] if a >= b))
+    {
+        return Err(Refusal::not_native(
+            "cover pictures mapped twice, out of the input's order or before a track (an MP4 file lists them after its tracks, in its own order)",
+        ));
+    }
     if tracks.is_empty() {
         return Err(Refusal::not_native(
             "cover pictures alone (ffmpeg writes an MP4 file without a track, which ISO/IEC 14496-12 8.3.1 does not allow)",
@@ -478,6 +503,14 @@ fn transcode_job(
     opus: &[usize],
     trims: bool,
 ) -> Result<Job, Refusal> {
+    if output
+        .windows(2)
+        .any(|w| matches!(w, [(a, _), (b, _)] if a >= b))
+    {
+        return Err(Refusal::not_native(
+            "a selection that maps a stream twice or out of the input's order",
+        ));
+    }
     let cover = |i: usize| report.covers.iter().any(|(c, _)| *c == i);
     if encoded.iter().chain(opus).any(|i| cover(*i)) {
         return Err(Refusal::not_native("encoding a cover picture"));
@@ -587,14 +620,16 @@ fn opus_source(stream: &Stream) -> Result<(), Refusal> {
     Ok(())
 }
 
-/// The codec option that decides stream `index` of `output`: the last one
-/// that names it, as in `ffmpeg` (`-c:v libx264 -c copy` copies the video).
-fn codec(command: &Command, output: &[(usize, &Stream)], index: usize) -> Option<Codec> {
+/// The codec option that decides the output stream at `position` of
+/// `output`: the last one that names it, as in `ffmpeg` (`-c:v libx264 -c
+/// copy` copies the video). Options name output streams, so a stream
+/// mapped twice is decided once for each place it has.
+fn codec(command: &Command, output: &[(usize, &Stream)], position: usize) -> Option<Codec> {
     command
         .codecs
         .iter()
         .rev()
-        .find(|(spec, _)| matching(spec, output).contains(&index))
+        .find(|(spec, _)| matching(spec, output).contains(&position))
         .map(|(_, codec)| *codec)
 }
 
@@ -770,12 +805,11 @@ fn is_kind(kind: Kind2, stream: &Stream) -> bool {
     }
 }
 
-/// The indexes of `streams` that `spec` names, in order. `position` is
-/// where each of them sits among `streams`.
+/// The positions in `streams` of the streams that `spec` names, in order.
 fn matching(spec: &Spec, streams: &[(usize, &Stream)]) -> Vec<usize> {
     let mut kind_seen = 0;
     let mut out = Vec::new();
-    for (position, (index, stream)) in streams.iter().enumerate() {
+    for (position, (_, stream)) in streams.iter().enumerate() {
         let hit = match spec {
             Spec::All => true,
             Spec::Index(n) => *n == position,
@@ -795,7 +829,7 @@ fn matching(spec: &Spec, streams: &[(usize, &Stream)]) -> Vec<usize> {
             },
         };
         if hit {
-            out.push(*index);
+            out.push(position);
         }
     }
     out
@@ -806,11 +840,11 @@ fn matching(spec: &Spec, streams: &[(usize, &Stream)]) -> Vec<usize> {
 /// type alone (`-c:s`, `-scodec`; neither `-c` nor `-c:s:0` does).
 const TEXT_SUBTITLES: [&str; 7] = ["mov_text", "subrip", "srt", "ass", "ssa", "webvtt", "text"];
 
-/// The streams `ffmpeg` would write, in order: `-map`, or the automatic
-/// selection (the video and the audio stream with the default disposition
-/// first, then the largest picture or the most channels, the first of
-/// equals), less the disabled types. Each must be covered by a `copy`
-/// codec option, appear once and keep the input's order.
+/// The streams `ffmpeg` would write, in its order: `-map`, a stream as
+/// often as the maps name it, or the automatic selection (the video, then
+/// the audio stream, each with the default disposition first, then the
+/// largest picture or the most channels, the first of equals), less the
+/// disabled types. Each must be covered by a `copy` codec option.
 fn select(command: &Command, streams: &[Stream]) -> Result<Vec<usize>, Refusal> {
     let all: Vec<(usize, &Stream)> = streams.iter().enumerate().collect();
     let disabled = |s: &Stream| match s.kind {
@@ -877,19 +911,11 @@ fn select(command: &Command, streams: &[Stream]) -> Result<Vec<usize>, Refusal> 
             "Output file does not contain any stream".to_owned(),
         ));
     }
-    if selected.windows(2).any(|w| matches!(w, [a, b] if a >= b)) {
-        return Err(Refusal::not_native(
-            "a selection that maps a stream twice or out of the input's order",
-        ));
-    }
     let output: Vec<(usize, &Stream)> = selected
         .iter()
         .filter_map(|i| streams.get(*i).map(|s| (*i, s)))
         .collect();
-    if selected
-        .iter()
-        .any(|i| codec(command, &output, *i).is_none())
-    {
+    if (0..output.len()).any(|position| codec(command, &output, position).is_none()) {
         return Err(Refusal::not_native(
             "a selected stream that no -c copy option covers (it would be encoded)",
         ));

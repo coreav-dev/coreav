@@ -267,6 +267,64 @@ fn track(trak: &[u8], id: u32, enabled: bool, from: &[u8], to: &[u8]) -> Vec<u8>
     trak
 }
 
+/// Streams are written in the order `ffmpeg` maps them (its `Stream
+/// mapping`, black box): the automatic selection's video before its audio
+/// whatever their order in the file, `-map`s in their order, a stream
+/// mapped twice as two tracks. A clip writes its video first, so a clip
+/// that maps its audio first is refused.
+#[test]
+fn streams_are_written_in_the_order_they_are_mapped() {
+    let dir = scratch("ffmpeg-order");
+    let input = movie(&dir);
+    let audio_first = dir.join("audio-first.mp4");
+    std::fs::write(&audio_first, retracked(|v, a| vec![a.to_vec(), v.to_vec()])).unwrap();
+    let audio_first = audio_first.to_str().unwrap();
+    assert_eq!(listed(Path::new(audio_first)).0, [A, V]);
+    let output = dir.join("out.mp4");
+    let o = output.to_str().unwrap();
+    for (args, expected) in [
+        (vec!["-i", audio_first, "-c", "copy"], vec![V, A]),
+        (
+            vec![
+                "-i",
+                audio_first,
+                "-map",
+                "0:v",
+                "-map",
+                "0:a",
+                "-c",
+                "copy",
+            ],
+            vec![V, A],
+        ),
+        (
+            vec!["-i", &input, "-map", "0:a", "-map", "0:v", "-c", "copy"],
+            vec![A, V],
+        ),
+        (
+            vec!["-i", &input, "-map", "0:v", "-map", "0", "-c", "copy"],
+            vec![V, V, A],
+        ),
+        (
+            vec!["-i", audio_first, "-ss", "0", "-t", "1", "-c", "copy"],
+            vec![V, A],
+        ),
+    ] {
+        let r = ffmpeg(&[&["-y"], args.as_slice(), &[o]].concat());
+        assert_eq!(r.code, 0, "{args:?}: {}", r.stderr);
+        assert_eq!(listed(&output).0, expected, "{args:?}");
+    }
+    let r = ffmpeg(&[
+        "-y", "-i", &input, "-map", "0:a", "-map", "0:v", "-ss", "0", "-t", "1", "-c", "copy", o,
+    ]);
+    assert_eq!(r.code, 4, "{}", r.stderr);
+    assert!(
+        r.stderr.contains("audio selected before the video"),
+        "{}",
+        r.stderr
+    );
+}
+
 /// A join copies the video stream `ffmpeg` selects or refuses the command:
 /// of two video streams of one size, the first, which the join does not
 /// copy (MPEG-4 Visual), is refused (exit status 4), never replaced by the

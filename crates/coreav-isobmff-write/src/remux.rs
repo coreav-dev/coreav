@@ -219,18 +219,40 @@ fn remux<S: Source, R: Source, W: Write>(
     let mut dropped_tracks = Vec::new();
     let drop_unsupported =
         options.on_unsupported == OnUnsupported::Drop && options.streams.is_none();
+    // The output's tracks, in the order named: a stream named twice is
+    // written twice.
+    let order: Vec<&Track> = match &options.streams {
+        None => movie.tracks.iter().collect(),
+        Some(wanted) => {
+            for track in &movie.tracks {
+                if !wanted.contains(&track.stream_index) {
+                    dropped_tracks.push(dropped(track, TrackDropReason::NotSelected));
+                }
+            }
+            if (replacement.is_some() || audio.is_some())
+                && wanted
+                    .iter()
+                    .enumerate()
+                    .any(|(n, i)| wanted.iter().skip(n.saturating_add(1)).any(|j| j == i))
+            {
+                return Err(unsupported("a stream named twice beside a replaced stream").into());
+            }
+            wanted
+                .iter()
+                .map(|i| {
+                    movie
+                        .tracks
+                        .iter()
+                        .find(|t| t.stream_index == *i)
+                        .ok_or(Error::NoSuchTrack)
+                })
+                .collect::<Result<_, _>>()?
+        }
+    };
     // What every kept stream needs (its sample entry and edit list) is read
     // first; the optional metadata gets what `max_retained_bytes` leaves.
     let mut plans = Vec::new();
-    for track in &movie.tracks {
-        let selected = options
-            .streams
-            .as_ref()
-            .is_none_or(|s| s.contains(&track.stream_index));
-        if !selected {
-            dropped_tracks.push(dropped(track, TrackDropReason::NotSelected));
-            continue;
-        }
+    for track in order {
         let trak = file.traks.get(track.stream_index).ok_or_else(overflow)?;
         let before = retained.left;
         let replace = match (&replacement, &audio) {

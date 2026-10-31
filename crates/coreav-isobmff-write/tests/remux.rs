@@ -1049,6 +1049,37 @@ fn streams_mp4_cannot_carry_are_dropped_and_reported() {
     );
 }
 
+/// Named streams are written in the order named, a stream named twice as
+/// two tracks with the same samples, as `ffmpeg` writes its `-map`s.
+#[test]
+fn named_streams_keep_their_order_and_repeats() {
+    let source = build(&file(vec![video(30, 10), aac(40, false)]));
+    let named = |streams: Vec<usize>| RemuxOptions {
+        streams: Some(streams),
+        ..RemuxOptions::default()
+    };
+    let (summary, output) = remux(&source, &named(vec![1, 0, 0])).unwrap();
+    assert_round_trip(&source, &output, &summary);
+    assert_eq!(
+        summary
+            .tracks
+            .iter()
+            .map(|t| t.stream_index)
+            .collect::<Vec<_>>(),
+        [1, 0, 0]
+    );
+    assert!(summary.dropped_tracks.is_empty());
+    let (summary, _) = remux(&source, &named(vec![1])).unwrap();
+    assert_eq!(
+        summary
+            .dropped_tracks
+            .iter()
+            .map(|d| (d.stream_index, d.reason))
+            .collect::<Vec<_>>(),
+        [(0, TrackDropReason::NotSelected)]
+    );
+}
+
 #[test]
 fn flac_alac_ac3_and_eac3_keep_their_sample_entries() {
     // FLAC's STREAMINFO (RFC 9639 8.2): 1,152-sample blocks, 48 kHz, two
