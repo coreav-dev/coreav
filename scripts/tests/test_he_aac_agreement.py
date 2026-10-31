@@ -1,13 +1,20 @@
 """The HE-AAC harness (scripts/he_aac_agreement.py) without media: the
 set, the signalling it reads, and the verdicts of each bar on made-up rows."""
+import argparse
+import contextlib
+import io
+import json
 import pathlib
 import struct
+import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
+import decode_audio_check as dc  # noqa: E402
 import he_aac_agreement as h  # noqa: E402
 
 
@@ -101,6 +108,203 @@ class Files(unittest.TestCase):
             self.assertEqual(names('al960_sbr_e_32_1'), [])
 
 
+def item(key, variant, of=None, container='mp4', set='generated', **kw):
+    """One input of set.json; its path is its key unless given."""
+    return {**ref(), 'key': key, 'set': set, 'path': key, 'variant': variant, 'of': of, 'references': [],
+            'container': container, **kw}
+
+
+def done(args, code=0, out=b'', err=b''):
+    return subprocess.CompletedProcess([str(a) for a in args], code, out, err)
+
+
+def wav(samples, channels=2, rate=48000):
+    data = struct.pack(f'<{len(samples)}f', *samples)
+    fmt = struct.pack('<HHIIHH', 3, channels, rate, rate * 4 * channels, 4 * channels, 32)
+    return (b'RIFF' + struct.pack('<I', 4 + 8 + len(fmt) + 8 + len(data)) + b'WAVE' + b'fmt ' + struct.pack('<I', len(fmt))
+            + fmt + b'data' + struct.pack('<I', len(data)) + data)
+
+
+class Variants(unittest.TestCase):
+    """Finding: a required variant a conversion did not make must fail the
+    bars it belongs to, never drop out of them."""
+
+    def test_variants_reports_a_partial_failure(self):
+        sig = h.signalling(bytes.fromhex('131056e598'))
+        refuse = lambda args, **kw: done(args, 1 if str(args[-1]).endswith('.implicit.m4a') else 0, err=b'refused')  # noqa: E731
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(h, 'run', refuse):
+            made, failed = h.variants(argparse.Namespace(ffmpeg='ffmpeg'), 'in.m4a', sig, pathlib.Path(tmp), 'k')
+        self.assertEqual(sorted(made), ['mka'])
+        self.assertEqual(failed, {'implicit': 'refused'})
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(h, 'run', lambda args, **kw: done(args)):
+            _, failed = h.variants(argparse.Namespace(ffmpeg='ffmpeg'), 'in.m4a', None, pathlib.Path(tmp), 'k')
+        self.assertEqual(failed, {'implicit': 'no AudioSpecificConfig'})
+
+    def test_prepare_keeps_a_variant_it_could_not_make(self):
+        stated = {'codec': 'aac', 'profile': 'HE-AAC', 'packets': 10, 'stated_samples': 20480, 'asc': '131056e598'}
+        made = {'returncode': 0, 'warnings': False, 'stderr': '', 'rate': 48000, 'channels': 2, 'mask': 3,
+                'samples': 20480}
+        refuse = lambda args, **kw: done(args, 1 if str(args[-1]).endswith('.implicit.m4a') else 0,  # noqa: E731
+                                         out=b'ffmpeg version x\n', err=b'refused')
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            (tmp / 'conf' / 'compressedMp4').mkdir(parents=True)
+            (tmp / 'conf' / 'referencesWav' / 'add-opt').mkdir(parents=True)
+            (tmp / 'conf' / 'compressedMp4' / 'al_sbr_e_32_2.mp4').write_bytes(b'')
+            (tmp / 'gen').mkdir()
+            (tmp / 'gen' / 'encoded.json').write_text(json.dumps({'runner': {}, 'encodes': []}))
+            with mock.patch.object(h, 'run', refuse), mock.patch.object(h, 'probe', lambda f, p: dict(stated)), \
+                    mock.patch.object(h, 'oracle', lambda a, p, o: dict(made)), contextlib.redirect_stdout(io.StringIO()):
+                h.prepare(argparse.Namespace(ffmpeg='ffmpeg', ffprobe='ffprobe', work=tmp / 'w',
+                                             conformance=tmp / 'conf', generated=tmp / 'gen'))
+            meta = json.loads((tmp / 'w' / 'set.json').read_text())
+            tsv = (tmp / 'w' / 'agreement.tsv').read_text().splitlines()
+        rows = {r['key']: r for r in meta['inputs']}
+        key = 'conf-al_sbr_e_32_2'
+        self.assertEqual(sorted(rows), [key, key + '.implicit', key + '.mka'])
+        self.assertIsNone(rows[key + '.implicit']['path'])
+        self.assertEqual(rows[key + '.implicit']['not_made'], 'refused')
+        self.assertEqual(len(tsv), 2)
+        decoded = {r['path']: row() for r in meta['inputs'] if r['path']}
+        _, bar2, bar4, bar5 = h.judge_rows(meta, decoded)
+        self.assertEqual(bar4, [{'input': key + '.implicit', 'pass': False, 'reason': 'not made: refused'}])
+        self.assertTrue(bar2[-1]['verdict'].startswith('FAIL'))
+        self.assertEqual([r['pass'] for r in bar5], [True])
+
+
+class Judge(unittest.TestCase):
+    """The judge on a made-up run: which inputs each bar judges, and what bars
+    2 and 5 report, from the commands it runs."""
+
+    def run_judge(self, inputs, decoded):
+        calls = []
+
+        def fake(args, timeout=None, **kw):
+            args = [str(a) for a in args]
+            calls.append(args)
+            if 'decode_audio_check.py' in ' '.join(args):
+                files = args[args.index('--out') + 2:]
+                results = [{'status': 'ok', 'model': True, 'length': True, 'timeline': True, 'ffmpeg': 'equal'}
+                           for _ in files]
+                pathlib.Path(args[args.index('--out') + 1]).write_text(json.dumps({'results': results}))
+                return done(args)
+            if args[1] == 'decode-audio' and '--threads' in args:
+                return done(args, out=b'same')
+            if args[1] == 'decode-audio':
+                return done(args, out=wav([0.5, -0.5] * 30))
+            return done(args, out=struct.pack('<40f', *([0.5, -0.5] * 20)))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            work = pathlib.Path(tmp)
+            (work / 'set.json').write_text(json.dumps({'ffmpeg': 'f', 'encoder': {}, 'not_encoded': [],
+                                                       'inputs': inputs}))
+            (work / 'decoder.jsonl').write_text(''.join(json.dumps({'input': k, **v}) + '\n' for k, v in decoded.items()))
+            a = argparse.Namespace(coreav='coreav', ffmpeg='ffmpeg', ffprobe='ffprobe', work=work, out=work / 'o.json')
+            with mock.patch.object(h, 'run', fake), contextlib.redirect_stdout(io.StringIO()):
+                code = h.judge(a)
+            return code, json.loads(a.out.read_text()), calls
+
+    def inputs(self):
+        return [item('conf-x', 'mp4', set='conformance'), item('conf-x.mka', 'mka', 'conf-x', container='matroska',
+                                                                set='conformance'),
+                item('g', 'mp4'), item('g.mka', 'mka', 'g', container='matroska'), item('g.implicit', 'implicit', 'g'),
+                item('c', 'matroska', container='matroska', set='corpus'), item('c.copy', 'copy', 'c', set='corpus'),
+                item('m', 'mp4', set='corpus')]
+
+    def test_bars_3_and_6_judge_every_input_the_bars_name(self):
+        inputs = self.inputs()
+        code, out, calls = self.run_judge(inputs, {r['path']: row(level_blocks=[]) for r in inputs})
+        check = next(c for c in calls if 'decode_audio_check.py' in ' '.join(c))
+        self.assertEqual(check[check.index('--out') + 2:], ['g', 'g.implicit', 'c.copy', 'm'])
+        self.assertEqual(check[check.index('--tolerance') + 1:check.index('--tolerance') + 3],
+                         [str(h.MAX_RMS), str(h.MAX_ABS)])
+        self.assertEqual([r['input'] for r in out['bar3']['results']], ['g', 'g.implicit', 'c.copy', 'm'])
+        self.assertEqual([r['input'] for r in out['bar6']['results']], ['g', 'g.mka', 'g.implicit', 'c', 'c.copy', 'm'])
+        self.assertEqual((code, out['verdict']), (1, 'missed'))
+
+    def test_an_input_not_made_fails_bars_3_and_6(self):
+        inputs = self.inputs()
+        inputs[4] = item('g.implicit', 'implicit', 'g', path=None, oracle=None, not_made='refused')
+        _, out, calls = self.run_judge(inputs, {r['path']: row(level_blocks=[]) for r in inputs if r['path']})
+        check = next(c for c in calls if 'decode_audio_check.py' in ' '.join(c))
+        self.assertEqual(check[check.index('--out') + 2:], ['g', 'c.copy', 'm'])
+        for bar in ('bar3', 'bar6'):
+            failed = [r for r in out[bar]['results'] if r['input'] == 'g.implicit']
+            self.assertEqual([(r['pass'], r['reason']) for r in failed], [(False, 'not made: refused')], bar)
+
+    def test_bar5_reports_decode_audio_against_ffmpeg_with_both_lengths(self):
+        inputs = self.inputs()
+        _, out, calls = self.run_judge(inputs, {r['path']: row(level_blocks=[]) for r in inputs})
+        for path in ('conf-x.mka', 'g.mka', 'c'):
+            self.assertIn(['coreav', 'decode-audio', '--format', 'f32', path, '-'], calls)
+            self.assertIn(['ffmpeg', '-v', 'error', '-threads:a', '1', '-i', path, '-map', '0:a:0', '-f', 'f32le', '-'],
+                          calls)
+        reported = {r['input']: r['reported'] for r in out['bar5']['results']}
+        self.assertEqual(sorted(reported), ['c', 'conf-x.mka', 'g.mka'])
+        for r in reported.values():
+            self.assertEqual((r['coreav_length'], r['ffmpeg_length']), (30, 20))
+            self.assertEqual([c['rms'] for c in r['per_channel']], [0.0, 0.0])
+        self.assertIn('per_channel', out['bar2']['results'][0])
+        self.assertIn('largest_noise_share', out['bar2'])
+
+    def test_level_blocks_are_compared_by_level_only(self):
+        mine = struct.pack('<8f', 1, 1, 1, 1, 0.5, 0.5, 0.5, 0.5)
+        theirs = struct.pack('<8f', 1, 1, 1, 0.9, 0.25, 0.5, 0.25, 0.5)
+        got = h.channel_differences(mine, theirs, 2, 2, {1})
+        self.assertEqual([c['max'] for c in got], [0.0, 0.10000002384185791])
+        self.assertAlmostEqual(got[0]['level_db'], 10 * __import__('math').log10(0.5 / 0.125))
+        self.assertAlmostEqual(got[1]['level_db'], 0.0)
+
+
+class AudioCheck(unittest.TestCase):
+    """scripts/decode_audio_check.py's --tolerance holds each channel to the
+    HE-AAC tolerance; without it every channel is pooled as before."""
+
+    def six(self, diff, frames=1000):
+        return struct.pack('<6f', *[0.5] * 6) * frames, struct.pack('<6f', 0.5 + diff, *[0.5] * 5) * frames
+
+    def test_one_channel_over_the_bar_fails_when_the_pool_would_pass(self):
+        a, b = self.six(3e-5)
+        with mock.patch.object(dc, 'TOLERANCE', (h.MAX_RMS, h.MAX_ABS)):
+            pooled, per = dc.Compare(True), dc.Compare(True, 6)
+            pooled.add(a, b)
+            per.add(a, b)
+            self.assertTrue(pooled.ok())
+            self.assertFalse(per.ok())
+            ok = dc.Compare(True, 6)
+            ok.add(*self.six(1e-5))
+            self.assertTrue(ok.ok())
+
+    def reference(self, out):
+        full = struct.pack('<6f', *[0.5] * 6) * 1000
+        return {'plan': None, 'full': full, 'frame': 24, 'lossy': True, 'ffmpeg': out, 'edges': list(range(0, 1001, 100)),
+                'edits': [], 'first_dts': 0, 'rate': 1000, 'timescale': 1000, 'movie_timescale': 1000,
+                'fragmented': False, 'total': 1000, 'ffmpeg_failed': False}
+
+    def evaluate(self, out, ffmpeg):
+        ref = self.reference(ffmpeg)
+        return dc.verdicts(dc.in_memory(out, ref['full'], ffmpeg, ref), ref, dc.known_divergences(),
+                           dc.timeline(ref['plan'], ref['total']))
+
+    def test_the_override_applies_per_channel_and_the_default_stays_pooled(self):
+        full, off = self.six(3e-5)
+        self.assertEqual(self.evaluate(full, off)['ffmpeg'], 'equal')
+        argv = ['decode_audio_check.py', '--coreav', 'coreav', '--tolerance', str(h.MAX_RMS), str(h.MAX_ABS), 'x.m4a']
+        with mock.patch.object(dc, 'TOLERANCE', dc.TOLERANCE), mock.patch.object(dc, 'PER_CHANNEL', False), \
+                mock.patch.object(sys, 'argv', argv), mock.patch.object(dc, 'check', lambda *x: {'status': 'not read'}), \
+                contextlib.redirect_stdout(io.StringIO()):
+            dc.main()
+            self.assertEqual((dc.TOLERANCE, dc.PER_CHANNEL), ((h.MAX_RMS, h.MAX_ABS), True))
+            self.assertEqual(self.evaluate(full, off)['ffmpeg'], 'uncovered')
+            self.assertEqual(self.evaluate(full, full)['ffmpeg'], 'equal')
+
+    def test_the_length_result(self):
+        full, _ = self.six(0)
+        self.assertTrue(self.evaluate(full, full)['length'])
+        self.assertFalse(self.evaluate(full[:-24], full)['length'])
+        self.assertFalse(self.evaluate(full + full[:24], full)['length'])
+
+
 class Bars(unittest.TestCase):
     def test_bar2_passes_a_clean_input(self):
         self.assertEqual(h.bar2_verdict(row(), ref()), 'pass')
@@ -188,20 +392,19 @@ class Bars(unittest.TestCase):
         self.assertFalse(h.bar3_pass({'status': 'ok', 'model': True, 'length': True, 'timeline': False}, False))
 
     def meta(self):
-        def item(key, variant, of=None, path=None, container='mp4', **kw):
-            return {**ref(), 'key': key, 'set': 'generated', 'path': path or key, 'variant': variant, 'of': of,
-                    'references': [], 'container': container, **kw}
         return {'inputs': [
             item('g', 'mp4'), item('g.mka', 'mka', 'g', container='matroska'), item('g.implicit', 'implicit', 'g'),
-            item('c', 'matroska', container='matroska'), item('c.copy', 'copy', 'c'),
-            item('d', 'matroska', container='matroska', copy_failed='error')]}
+            item('c', 'matroska', container='matroska', set='corpus'), item('c.copy', 'copy', 'c', set='corpus'),
+            item('d', 'matroska', container='matroska', set='corpus'),
+            item('d.copy', 'copy', 'd', set='corpus', path=None, oracle=None, not_made='error')]}
 
     def test_signalling_and_matroska_pairs(self):
         meta = self.meta()
         decoded = {k: row() for k in ('g', 'g.mka', 'g.implicit', 'c', 'c.copy', 'd')}
         bar1, bar2, bar4, bar5 = h.judge_rows(meta, decoded)
         self.assertEqual(bar1, [])
-        self.assertEqual([r['input'] for r in bar2], ['g', 'g.mka', 'g.implicit', 'c', 'd'])
+        self.assertEqual([r['input'] for r in bar2], ['g', 'g.mka', 'g.implicit', 'c', 'c.copy', 'd', 'd.copy'])
+        self.assertEqual(bar2[-1]['verdict'], 'FAIL: not made: error')
         self.assertEqual(bar4, [{'input': 'g.implicit', 'pass': True}])
         self.assertEqual([(r['input'], r['pass']) for r in bar5], [('g.mka', True), ('c', True), ('d', False)])
         decoded['g.implicit'] = row(sha256='b')
@@ -216,6 +419,14 @@ class Bars(unittest.TestCase):
         decoded = {k: row() for k in ('g', 'g.mka', 'g.implicit', 'c', 'c.copy', 'd')}
         _, _, bar4, _ = h.judge_rows(meta, decoded)
         self.assertFalse(bar4[0]['pass'])
+
+    def test_bar2_reports_each_channel_and_the_share_in_noise_blocks(self):
+        channels = [{'rms': 1e-7, 'max': 1e-6, 'noise_db': 0.01, 'noise_blocks': 3, 'noise_block_db': [0.0, 0.02, 0.01]},
+                    {'rms': 2e-7, 'max': 3e-6, 'noise_db': 0.02, 'noise_blocks': 3, 'noise_block_db': [0.0, 0.01, 0.02]}]
+        got = h.bar2_row(row(per_channel=channels, noise_frames=1), item('g', 'mp4'))
+        self.assertEqual(got['per_channel'], channels)
+        self.assertAlmostEqual(got['noise_share'], 0.3)
+        self.assertEqual((got['rms'], got['max']), (2e-7, 3e-6))
 
     def test_an_empty_bar_is_a_miss(self):
         full = {f'bar{n}': {'counted': 2, 'passed': 2} for n in range(1, 7)}

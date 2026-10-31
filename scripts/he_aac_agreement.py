@@ -26,9 +26,11 @@ Standard library only, except select (boto3); ffmpeg, ffprobe and
 afconvert are black boxes.
 """
 import argparse
+import array
 import concurrent.futures
 import hashlib
 import json
+import math
 import os
 import pathlib
 import platform
@@ -38,6 +40,7 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / 'scripts'))
 from aac_agreement import source  # noqa: E402
+from decode_audio_check import wav_data  # noqa: E402
 from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT  # noqa: E402
 
 # "HE-AAC bars": the tolerance against an ISO reference, and twice it
@@ -305,18 +308,29 @@ def oracle(a, path, out):
 
 def variants(a, path, sig, folder, stem):
     """The Matroska copy of an MP4 input and, where the round trip keeps the
-    stream, its implicit-signalling variant."""
-    made = {}
+    stream, its implicit-signalling variant ("HE-AAC sets"): {kind: path}
+    of those made, and {kind: error} of those required and not made."""
+    made, failed = {}, {}
     mka = folder / f'{stem}.mka'
-    if run([a.ffmpeg, '-v', 'error', '-y', '-i', path, '-map', '0:a:0', '-c', 'copy', mka]).returncode == 0:
+    done = run([a.ffmpeg, '-v', 'error', '-y', '-i', path, '-map', '0:a:0', '-c', 'copy', mka])
+    if done.returncode == 0:
         made['mka'] = mka
-    if has_implicit_variant(sig):
+    else:
+        failed['mka'] = done.stderr.decode(errors='replace')[-300:] or f'exit {done.returncode}'
+    if sig is None:
+        failed['implicit'] = 'no AudioSpecificConfig'
+    elif has_implicit_variant(sig):
         adts, implicit = folder / f'{stem}.adts', folder / f'{stem}.implicit.m4a'
-        first = run([a.ffmpeg, '-v', 'error', '-y', '-i', path, '-map', '0:a:0', '-c', 'copy', '-f', 'adts', adts])
-        if first.returncode == 0 and run([a.ffmpeg, '-v', 'error', '-y', '-i', adts, '-c', 'copy', implicit]).returncode == 0:
+        for step in ([a.ffmpeg, '-v', 'error', '-y', '-i', path, '-map', '0:a:0', '-c', 'copy', '-f', 'adts', adts],
+                     [a.ffmpeg, '-v', 'error', '-y', '-i', adts, '-c', 'copy', implicit]):
+            done = run(step)
+            if done.returncode != 0:
+                failed['implicit'] = done.stderr.decode(errors='replace')[-300:] or f'exit {done.returncode}'
+                break
+        else:
             made['implicit'] = implicit
         adts.unlink(missing_ok=True)
-    return made
+    return made, failed
 
 
 def references(conformance, name):
@@ -356,23 +370,30 @@ def prepare(a):
         matroska = i['path'].suffix in MATROSKA
         row = {'key': i['key'], 'set': i['set'], 'path': str(i['path']), 'variant': 'matroska' if matroska else 'mp4',
                'of': None, 'references': [str(r) for r in i['references']], **stated, 'signalling': sig}
-        made = {}
-        if i['set'] != 'corpus' and sig:
-            made = variants(a, i['path'], sig, work / 'var', i['key'])
+        made, failed = {}, {}
+        if i['set'] != 'corpus':
+            made, failed = variants(a, i['path'], sig, work / 'var', i['key'])
         elif matroska:
             copy = work / 'var' / f"{i['key']}.mp4"
             done = run([a.ffmpeg, '-v', 'error', '-y', '-i', i['path'], '-map', '0:a:0', '-c', 'copy', copy])
             if done.returncode == 0:
                 made = {'copy': copy}
             else:
-                row['copy_failed'] = done.stderr.decode(errors='replace')[-300:]
+                failed = {'copy': done.stderr.decode(errors='replace')[-300:] or f'exit {done.returncode}'}
         derived = []
         for kind, path in made.items():
             more = probe(a.ffprobe, path)
             derived.append({**row, 'key': f"{i['key']}.{kind}", 'path': str(path), 'variant': kind, 'of': i['key'],
                             'references': [], **more,
                             'signalling': signalling(bytes.fromhex(more['asc'])) if more['asc'] else None})
+        for kind, error in failed.items():
+            derived.append({**row, 'key': f"{i['key']}.{kind}", 'path': None, 'variant': kind, 'of': i['key'],
+                            'references': [], 'stated_samples': None, 'signalling': None, 'oracle': None,
+                            'container': 'matroska' if kind == 'mka' else 'mp4', 'not_made': error})
         for r in [row] + derived:
+            if r['path'] is None:
+                rows.append(r)
+                continue
             ref = work / 'ref' / f"{r['key']}.f32"
             r['oracle'] = oracle(a, r['path'], ref)
             r['container'] = container(r['path'])
@@ -386,8 +407,10 @@ def prepare(a):
         'not_encoded': [e['name'] for e in encoded['encodes'] if e['status'] != 'encoded'], 'inputs': rows},
         indent=1) + '\n')
     counts = {s: sum(r['set'] == s and r['of'] is None for r in rows) for s in ('conformance', 'generated', 'corpus')}
-    decoded = sum(r['oracle']['returncode'] == 0 for r in rows)
-    print(f'{len(rows)} inputs with variants (originals: {counts}), {decoded} decoded by the oracle')
+    decoded = sum(r['path'] is not None and r['oracle']['returncode'] == 0 for r in rows)
+    not_made = [r['key'] for r in rows if r['path'] is None]
+    print(f'{len(rows)} inputs with variants (originals: {counts}), {decoded} decoded by the oracle, '
+          f'{len(not_made)} not made: {not_made}')
 
 
 def candidate(row):
@@ -538,6 +561,25 @@ def bar2_verdict(r, ref):
     return 'pass (waived: samples not compared)' if excused else 'pass'
 
 
+def bars_of(r):
+    """The bars that judge an input of set.json ("HE-AAC bars"): 1 where it
+    has references; 2 every input; 3 every MP4 file of the generated and
+    corpus sets; 4 every implicit variant; 5 every Matroska file, with its
+    MP4 pair; 6 every input of the generated and corpus sets."""
+    bars = {2}
+    if r['references']:
+        bars.add(1)
+    if r['variant'] == 'implicit':
+        bars.add(4)
+    if r['container'] == 'matroska':
+        bars.add(5)
+    if r['set'] in ('generated', 'corpus'):
+        bars.add(6)
+        if r['container'] == 'mp4':
+            bars.add(3)
+    return bars
+
+
 def passed(row):
     return row.get('verdict', '').startswith('pass') or row.get('pass') is True
 
@@ -547,36 +589,109 @@ def same_decode(r, other):
             and r['sha256'] == other['sha256'] and (r['rate'], r['channels']) == (other['rate'], other['channels']))
 
 
+def bar2_row(r, ref):
+    """Bar 2's verdict on one input, with what the bar reports: the largest
+    differences, the share of output blocks compared by level only, and each
+    channel's comparison (noise blocks and their level)."""
+    made = ref['path'] is not None
+    row = {'input': ref['key'], 'set': ref['set'],
+           'verdict': bar2_verdict(r, ref) if made else 'FAIL: not made: ' + ref['not_made']}
+    if r and r['status'] == 'decoded':
+        row |= {'rms': max((c['rms'] for c in r['per_channel']), default=0),
+                'max': max((c['max'] for c in r['per_channel']), default=0),
+                'noise_frames': r.get('noise_frames'), 'rate': r['rate'], 'channels': r['channels'],
+                'noise_share': max((c['noise_blocks'] for c in r['per_channel']), default=0) / r['packets']
+                if r['packets'] else 0.0,
+                'per_channel': r['per_channel']}
+    if made and (ref['oracle']['warnings'] or ref['oracle']['returncode']):
+        row['ffmpeg_stderr'] = ref['oracle']['stderr']
+    return row
+
+
+def bar5_row(ref, pair, decoded):
+    """Bar 5's gate on one Matroska file: CoreAV's decode of it equals its
+    decode of the MP4 file of the same packets."""
+    row = {'input': ref['key']}
+    if ref['path'] is None:
+        return row | {'pass': False, 'reason': 'not copied into Matroska: ' + ref['not_made']}
+    if pair is None or pair['path'] is None:
+        return row | {'pass': False, 'reason': 'not copied into MP4: ' + (pair or {}).get('not_made', 'no copy')}
+    return row | {'pass': same_decode(decoded.get(ref['path']), decoded.get(pair['path']))}
+
+
 def judge_rows(meta, decoded):
     """Bars 1, 2, 4 and 5: the oracle's statements against the decoder
-    test's rows (keyed by input path)."""
+    test's rows (keyed by input path). An input that was not made fails
+    every bar it belongs to."""
     by_key = {r['key']: r for r in meta['inputs']}
     bar1, bar2, bar4, bar5 = [], [], [], []
     for ref in meta['inputs']:
-        r = decoded.get(ref['path'])
-        if ref['references']:
+        bars = bars_of(ref)
+        r = decoded.get(ref['path']) if ref['path'] is not None else None
+        if 1 in bars:
             bar1.append({'input': ref['key'], 'verdict': bar1_verdict(r), 'reference': (r or {}).get('reference')})
-        if ref['variant'] != 'copy':
-            row = {'input': ref['key'], 'set': ref['set'], 'verdict': bar2_verdict(r, ref)}
-            if r and r['status'] == 'decoded':
-                row |= {'rms': max((c['rms'] for c in r['per_channel']), default=0),
-                        'max': max((c['max'] for c in r['per_channel']), default=0),
-                        'noise_frames': r.get('noise_frames'), 'rate': r['rate'], 'channels': r['channels']}
-            if ref['oracle']['warnings'] or ref['oracle']['returncode']:
-                row['ffmpeg_stderr'] = ref['oracle']['stderr']
-            bar2.append(row)
-        if ref['variant'] == 'implicit':
-            o = ref['oracle']
-            ok = same_decode(r, decoded.get(by_key[ref['of']]['path'])) and (o['rate'], o['channels']) == (
-                r['rate'], r['channels'])
-            bar4.append({'input': ref['key'], 'pass': ok})
-        if ref['variant'] == 'mka':
-            bar5.append({'input': ref['key'], 'pass': same_decode(r, decoded.get(by_key[ref['of']]['path']))})
-        if ref['variant'] == 'copy':
-            bar5.append({'input': ref['of'], 'pass': same_decode(decoded.get(by_key[ref['of']]['path']), r)})
-        if ref['variant'] == 'matroska' and 'copy_failed' in ref:
-            bar5.append({'input': ref['key'], 'pass': False, 'reason': 'not copied into MP4'})
+        if 2 in bars:
+            bar2.append(bar2_row(r, ref))
+        if 4 in bars:
+            row = {'input': ref['key'], 'pass': False}
+            if ref['path'] is None:
+                row['reason'] = 'not made: ' + ref['not_made']
+            else:
+                o = ref['oracle']
+                row['pass'] = same_decode(r, decoded.get(by_key[ref['of']]['path'])) and (
+                    o['rate'], o['channels']) == (r['rate'], r['channels'])
+            bar4.append(row)
+        if 5 in bars:
+            pair = by_key.get(ref['of']) if ref['of'] else by_key.get(ref['key'] + '.copy')
+            bar5.append(bar5_row(ref, pair, decoded))
     return bar1, bar2, bar4, bar5
+
+
+def channel_differences(mine, theirs, channels, block, level_blocks):
+    """Two interleaved f32 decodes per channel, sample 0 against sample 0
+    over their common length ("HE-AAC bars", the rules): the RMS and the
+    largest difference outside the output blocks compared by level, and the
+    level difference in dB inside them."""
+    x, y = array.array('f', mine), array.array('f', theirs)
+    if sys.byteorder != 'little':
+        x.byteswap()
+        y.byteswap()
+    n = min(len(x), len(y)) // channels
+    out = []
+    for c in range(channels):
+        p, q = x[c::channels][:n], y[c::channels][:n]
+        square = worst = energy_p = energy_q = 0.0
+        count = 0
+        for start in range(0, n, block):
+            u, v = p[start:start + block], q[start:start + block]
+            if start // block in level_blocks:
+                energy_p += sum(s * s for s in u)
+                energy_q += sum(t * t for t in v)
+                continue
+            for s, t in zip(u, v):
+                d = abs(s - t)
+                square, worst = square + d * d, max(worst, d)
+            count += len(u)
+        out.append({'rms': math.sqrt(square / count) if count else 0.0, 'max': worst,
+                    'level_db': abs(10 * math.log10(energy_p / energy_q)) if energy_p > 0 and energy_q > 0 else None})
+    return out
+
+
+def bar5_report(a, ref, r):
+    """What bar 5 reports of one Matroska file: `coreav decode-audio --format
+    f32` against ffmpeg's default decode, over the common length with the
+    rules, and both lengths."""
+    cv = run([a.coreav, 'decode-audio', '--format', 'f32', ref['path'], '-'])
+    ff = run([a.ffmpeg, '-v', 'error', *AUDIO_DECODE_INPUT, '-i', ref['path'], '-map', '0:a:0', '-f', 'f32le', '-'])
+    out = {'coreav_exit': cv.returncode, 'ffmpeg_exit': ff.returncode}
+    mine = wav_data(cv.stdout) if cv.returncode == 0 else None
+    if mine is None or ff.returncode != 0 or r is None or r['status'] != 'decoded':
+        return out
+    channels = wav_format(cv.stdout)[1]
+    out |= {'coreav_length': len(mine) // 4 // channels, 'ffmpeg_length': len(ff.stdout) // 4 // channels,
+            'level_blocks_known': 'level_blocks' in r,
+            'per_channel': channel_differences(mine, ff.stdout, channels, r['frame'], set(r.get('level_blocks') or ()))}
+    return out
 
 
 def bar3_pass(res, samples):
@@ -610,17 +725,26 @@ def judge(a):
         'samples_not_compared': [[r['input'], r['verdict']] for r in bar2 if r['verdict'].startswith('pass (')],
         'largest_difference': max((r['max'] for r in bar2 if r['verdict'] == 'pass'), default=0),
         'largest_rms': max((r['rms'] for r in bar2 if r['verdict'] == 'pass'), default=0),
+        'largest_noise_share': max((r.get('noise_share', 0) for r in bar2), default=0),
         'results': bar2}
-    # Bar 3: the generated and corpus MP4 files.
-    mp4s = [r for r in meta['inputs'] if r['set'] in ('generated', 'corpus') and r['variant'] == 'mp4']
+    # Bar 3: every MP4 file of the generated and corpus sets.
+    timeline_inputs = [r for r in meta['inputs'] if 3 in bars_of(r)]
+    present = [r for r in timeline_inputs if r['path'] is not None]
     results = []
-    if mp4s:
+    if present:
         run([sys.executable, '-I', ROOT / 'scripts' / 'decode_audio_check.py', '--coreav', a.coreav,
              '--ffmpeg', a.ffmpeg, '--ffprobe', a.ffprobe, '--tolerance', MAX_RMS, MAX_ABS,
-             '--out', work / 'timeline.json', *[r['path'] for r in mp4s]], timeout=TIMEOUT * len(mp4s))
-        results = json.loads((work / 'timeline.json').read_text())['results']
+             '--out', work / 'timeline.json', *[r['path'] for r in present]], timeout=TIMEOUT * len(present))
+        if (work / 'timeline.json').exists():
+            results = json.loads((work / 'timeline.json').read_text())['results']
+    by_path = dict(zip([r['path'] for r in present], results)) if len(results) == len(present) else {}
     bar3 = []
-    for r, res in zip(mp4s, results):
+    for r in timeline_inputs:
+        res = by_path.get(r['path'])
+        if res is None:
+            bar3.append({'input': r['key'], 'pass': False, 'ffmpeg': None,
+                         'reason': 'not made: ' + r['not_made'] if r['path'] is None else 'no result'})
+            continue
         d = decoded.get(r['path'])
         samples = d is not None and level_only(d) == 0
         bar3.append({'input': r['key'], 'samples_compared': samples, 'pass': bar3_pass(res, samples),
@@ -629,14 +753,23 @@ def judge(a):
         'ffmpeg_default': {v: sum(r['ffmpeg'] == v for r in bar3) for v in ('equal', 'covered', 'uncovered')},
         'results': bar3}
     out['bar4'] = summary_of(bar4) | {'results': bar4}
+    by_key = {r['key']: r for r in meta['inputs']}
+    for row in bar5:
+        ref = by_key[row['input']]
+        if ref['path'] is not None:
+            row['reported'] = bar5_report(a, ref, decoded.get(ref['path']))
     out['bar5'] = summary_of(bar5) | {'results': bar5}
-    # Bar 6: thread counts on the generated and corpus sets, both containers.
+    # Bar 6: thread counts on every input of the generated and corpus sets.
     bar6 = []
     for r in meta['inputs']:
-        if r['set'] in ('generated', 'corpus') and r['variant'] != 'implicit':
-            outs = [run([a.coreav, 'decode-audio', '--format', 'f32', '--threads', t, r['path'], '-']) for t in ('1', '8')]
-            bar6.append({'input': r['key'],
-                         'pass': all(o.returncode == 0 for o in outs) and outs[0].stdout == outs[1].stdout})
+        if 6 not in bars_of(r):
+            continue
+        if r['path'] is None:
+            bar6.append({'input': r['key'], 'pass': False, 'reason': 'not made: ' + r['not_made']})
+            continue
+        outs = [run([a.coreav, 'decode-audio', '--format', 'f32', '--threads', t, r['path'], '-']) for t in ('1', '8')]
+        bar6.append({'input': r['key'],
+                     'pass': all(o.returncode == 0 for o in outs) and outs[0].stdout == outs[1].stdout})
     out['bar6'] = summary_of(bar6) | {'results': bar6}
     out['verdict'] = verdict(out)
     a.out.write_text(json.dumps(out, indent=1) + '\n')

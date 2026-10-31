@@ -57,9 +57,11 @@ AUDIT_LIMIT = 256 << 20
 # twice ISO/IEC 11172-4's full accuracy limits.
 MP3_RMS = 2 * 2.0 ** -15 / math.sqrt(12)
 MP3_MAX = 2 * 2.0 ** -14
-# The tolerance of a lossy codec's comparisons: the MP3 one unless
-# --tolerance names another bar's ("HE-AAC bars").
+# The tolerance of a lossy codec's comparisons: the MP3 one over all
+# channels at once, unless --tolerance names another bar's, which holds
+# each channel to it ("HE-AAC bars").
 TOLERANCE = (MP3_RMS, MP3_MAX)
+PER_CHANNEL = False
 UNIT_RATE = 0x0001_0000
 
 # Every entry of docs/known-divergences-decode-audio.json was written after
@@ -338,11 +340,13 @@ class Source:
 
 class Compare:
     """The comparison of two sample streams, chunk by chunk: equal bytes, or
-    for MP3 (f32) equal lengths within the MP3 agreement tolerance over the
-    whole stream."""
+    for a lossy codec (f32) equal lengths within TOLERANCE over the whole
+    stream, with each of `channels` interleaved channels held to it (one:
+    all samples at once)."""
 
-    def __init__(self, lossy):
-        self.lossy, self.ok_so_far, self.square, self.worst, self.count = lossy, True, 0.0, 0.0, 0
+    def __init__(self, lossy, channels=1):
+        self.lossy, self.ok_so_far, self.count = lossy, True, 0
+        self.square, self.worst = [0.0] * channels, [0.0] * channels
 
     def add(self, a, b):
         if len(a) != len(b):
@@ -350,24 +354,26 @@ class Compare:
         elif not self.lossy:
             self.ok_so_far &= a == b
         elif a:
-            square, worst = differences(a, b)
-            if not math.isfinite(square):
+            per = differences(a, b, len(self.square))
+            if not all(math.isfinite(square) for square, _ in per):
                 self.ok_so_far = False
             else:
-                self.square, self.worst = self.square + square, max(self.worst, worst)
-                self.count += len(a) // 4
+                for c, (square, worst) in enumerate(per):
+                    self.square[c], self.worst[c] = self.square[c] + square, max(self.worst[c], worst)
+                self.count += len(a) // 4 // len(self.square)
 
     def ok(self):
         if not self.ok_so_far:
             return False
         if not self.lossy or not self.count:
             return True
-        return math.sqrt(self.square / self.count) <= TOLERANCE[0] and self.worst <= TOLERANCE[1]
+        return all(math.sqrt(square / self.count) <= TOLERANCE[0] and worst <= TOLERANCE[1]
+                   for square, worst in zip(self.square, self.worst))
 
 
-def differences(a, b):
-    """The sum of squared differences of two f32 sample runs, and the
-    largest difference."""
+def differences(a, b, channels=1):
+    """Per channel of two runs of interleaved f32 samples: the sum of squared
+    differences and the largest difference."""
     try:
         import numpy as np
     except ImportError:
@@ -375,15 +381,19 @@ def differences(a, b):
         if sys.byteorder != 'little':
             x.byteswap()
             y.byteswap()
-        worst, square = 0.0, 0.0
-        for p, q in zip(x, y):
-            d = abs(p - q)
-            worst, square = max(worst, d), square + d * d
-        return square, worst
+        out = []
+        for c in range(channels):
+            worst, square = 0.0, 0.0
+            for p, q in zip(x[c::channels], y[c::channels]):
+                d = abs(p - q)
+                worst, square = max(worst, d), square + d * d
+            out.append((square, worst))
+        return out
     d = np.frombuffer(a, '<f4').astype(np.float64) - np.frombuffer(b, '<f4').astype(np.float64)
     if not np.isfinite(d).all():
-        return math.inf, math.inf
-    return float(np.dot(d, d)), float(np.abs(d).max())
+        return [(math.inf, math.inf)] * channels
+    d = d.reshape(-1, channels)
+    return [(float(np.dot(col, col)), float(np.abs(col).max())) for col in d.T]
 
 
 def stream_compare(cv, full, ffmpeg, ref, ops):
@@ -396,7 +406,8 @@ def stream_compare(cv, full, ffmpeg, ref, ops):
     plan = effective(ref['plan'], total)
     if ops is None:
         ops = [([('cv', 0, length(p))], []) for p in plan]
-    bar1, bar2, checks = Compare(lossy), Compare(lossy), Compare(lossy)
+    channels = frame // 4 if lossy and PER_CHANNEL else 1
+    bar1, bar2, checks = Compare(lossy, channels), Compare(lossy, channels), Compare(lossy, channels)
     # Whether CoreAV wrote the plan's samples, no fewer and no more: an entry
     # rewrites CoreAV's pieces, so it covers nothing else.
     zeros_ok = lengths_ok = True
@@ -772,12 +783,12 @@ def main():
     parser.add_argument('--audit', action='store_true')
     parser.add_argument('--out', type=pathlib.Path)
     parser.add_argument('--tolerance', type=float, nargs=2, metavar=('RMS', 'MAX'),
-                        help='RMS of the difference and largest difference allowed for a lossy codec '
-                             '(default: the MP3 agreement tolerance)')
+                        help='RMS of the difference and largest difference allowed for a lossy codec on '
+                             'each channel (default: the MP3 agreement tolerance over all channels at once)')
     tools = parser.parse_args()
-    global TOLERANCE
+    global TOLERANCE, PER_CHANNEL
     if tools.tolerance:
-        TOLERANCE = tuple(tools.tolerance)
+        TOLERANCE, PER_CHANNEL = tuple(tools.tolerance), True
     entries = known_divergences()
     results = [check(f, tools, entries) for f in tools.files]
     ok = [r for r in results if r['status'] == 'ok']
