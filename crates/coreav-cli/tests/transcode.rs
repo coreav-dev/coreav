@@ -1640,6 +1640,7 @@ fn the_aac_encode_takes_the_place_of_the_source_audio() {
     nothing_left(&dir);
 }
 
+#[cfg(unix)]
 #[test]
 fn audio_the_aac_encode_does_not_take_is_refused_first() {
     let Some(tools) = tools() else { return };
