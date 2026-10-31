@@ -2842,6 +2842,11 @@ impl<S: Source> PacketSource for IsoPackets<S> {
                 size: u64::from(p.size),
                 pos: Some(p.offset),
                 keyframe: true,
+                data: if payloads.get(track.stream_index).copied().unwrap_or(false) {
+                    super::frames::read(&mut Shared(&self.source), p.offset, u64::from(p.size))?
+                } else {
+                    Vec::new()
+                },
                 ..Packet::default()
             };
             if !f(packet)? {

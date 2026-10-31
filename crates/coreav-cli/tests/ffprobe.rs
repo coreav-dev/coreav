@@ -307,6 +307,61 @@ fn pcm_movie(name: &str) -> String {
 }
 
 #[test]
+fn chapter_picture_packets_include_requested_payloads() {
+    let mut bytes = common::av_movie(b"sowt");
+    let moov = bytes.windows(4).position(|b| b == b"moov").unwrap() - 4;
+    let track = bytes
+        .windows(4)
+        .enumerate()
+        .filter(|(_, b)| *b == b"trak")
+        .nth(1)
+        .unwrap()
+        .0
+        - 4;
+    let reference = common::bx(b"tref", &common::bx(b"chap", &1u32.to_be_bytes()));
+    for at in [moov, track] {
+        let size = u32::from_be_bytes(bytes[at..at + 4].try_into().unwrap());
+        bytes[at..at + 4].copy_from_slice(&(size + reference.len() as u32).to_be_bytes());
+    }
+    bytes.extend_from_slice(&reference);
+    for wanted in [true, false] {
+        let mut source = coreav_isobmff::SliceSource::new(&bytes);
+        let mut probed = coreav_cli::ffprobe::probe(
+            &mut source,
+            bytes.len() as u64,
+            "chapter-picture.mp4",
+            None,
+        )
+        .unwrap_or_else(|_| panic!("chapter-picture probe failed"));
+        assert!(
+            probed.report.streams[0]
+                .disposition
+                .iter()
+                .any(|(key, value)| *key == "timed_thumbnails"
+                    && matches!(value, coreav_cli::ffprobe::model::Value::Int(1)))
+        );
+        let mut first = None;
+        assert!(
+            probed
+                .packets
+                .visit(&[wanted, false], &mut |packet| {
+                    first = Some(packet);
+                    Ok(false)
+                })
+                .is_ok()
+        );
+        let packet = first.unwrap();
+        assert_eq!(packet.stream, 0);
+        if wanted {
+            let at = packet.pos.unwrap() as usize;
+            assert_eq!(packet.data, bytes[at..at + packet.size as usize]);
+        } else {
+            assert!(packet.data.is_empty());
+        }
+    }
+}
+
+#[test]
 fn audio_frames_are_listed_and_counted() {
     let path = pcm_movie("ffprobe-frames.mov");
     let r = ffprobe(&[
@@ -347,6 +402,29 @@ fn audio_frames_are_listed_and_counted() {
     ]);
     assert_eq!(r.code, 0, "{}", r.stderr);
     assert_eq!(r.stdout, format!("{0},{0}\n", lines.len()));
+}
+
+#[test]
+fn frame_counts_do_not_require_frame_records() {
+    let path = pcm_movie("ffprobe-count-only.mov");
+    let r = ffprobe(&[
+        "-v",
+        "error",
+        "-select_streams",
+        "a",
+        "-read_intervals",
+        "%+#1",
+        "-count_frames",
+        "-show_entries",
+        "stream=nb_read_frames",
+        "-of",
+        "json",
+        &path,
+    ]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    let doc: serde_json::Value = serde_json::from_str(&r.stdout).unwrap();
+    assert_eq!(doc["streams"][0]["nb_read_frames"], "1");
+    assert!(doc.get("frames").is_none());
 }
 
 #[test]

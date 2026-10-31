@@ -987,8 +987,8 @@ rounds differently.
 
 **`nb_read_packets`** is the number of packets read when there is one, and
 unknown when no packet of the stream was read, with `-count_packets` too.
-`nb_read_frames` is the number of frames listed, the same way, with
-`-count_frames` ("Frames", below).
+`nb_read_frames` is the number of frames decoded for the selected interval
+with `-count_frames`, even without `-show_frames` ("Frames", below).
 
 **`-read_intervals`.** One interval from the start of the file with an
 end (`%END`, `%+DURATION`, `%+#PACKETS`); reading stops at the first packet
