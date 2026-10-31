@@ -514,7 +514,12 @@ attributed `not_run: strict_safe`, `ran: null` record with its reason, and
 every oracle side succeeds without a log. Each invocation gets its own
 log, appended to the retained run log after the process exits. No prior
 log line can qualify a later pair. Mixed outcomes are failures, never
-refusals. Other log events still void the run. A timed run that fails or
+refusals. On an oracle-failed warm-up pair, a valid CoreAV refusal log is
+retained as a diagnostic without voiding the arm. The same complete
+invocation predicate applies, including the terminating newline and exact
+tool match. Other log events still void the run. A CoreAV failure without
+a valid refusal record beside a failed oracle also voids the arm, even
+without a log. A timed run that fails or
 times out after both untimed runs succeeded makes the run incomplete, which
 fails R4 and fails the gate, never passes them on the timings left. `speed.py r4-report --gate` judges the gate on each class's ratios
 over the three families, as the gate names "every class's median"; the
@@ -530,14 +535,22 @@ Timings collected with timeout polling cannot substantiate current speed bars.
 
 R4 reports eligible, refused, timed, failed, oracle-failed and unprocessed pair counts,
 the share of eligible pairs timed, and refusal counts by reason group and
-command. Every median and interval is accompanied by coverage, and every
+command. Oracle-failed pairs keep their exclusive outcome and no ratio.
+Their `oracle_refusal_pairs` subset and `oracle_refusal_reasons` counts
+appear beside speed at every coverage level, separately from refused
+pairs. Each distinct diagnostic reason counts once per pair; repeated log
+records do not multiply counts. `fallback_log.diagnostic_lines` retains
+the separate raw line count. No diagnostic exception applies to null-arm
+mixed outcomes or late timed failures. Every median and interval is
+accompanied by coverage, and every
 registered command is listed even when no eligible file reaches it. The
 committed exact-match reason table assigns each refused pair one group;
 unmatched reasons and mixed groups on the two null-arm sides use `unknown`.
 Duplicate records do not multiply pair counts. The raw log's line counts
 remain diagnostics, not refused-pair totals. New results identify this
 method as `r4-refusal-coverage-v1`; historical ratios remain readable
-without reclassification or rescoring. An all-refused group is still
+without reclassification or rescoring, including their stored log-void
+verdicts. An all-refused group is still
 unmeasured, not a pass.
 The full eligible roster is fixed before execution and written even when
 an infrastructure exception aborts the arm. Completed outcomes are kept;
