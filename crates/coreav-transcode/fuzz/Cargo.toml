@@ -13,7 +13,15 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
+coreav-mkv = { path = "../../coreav-mkv" }
 coreav-transcode = { path = ".." }
+
+[[bin]]
+name = "aac_output"
+path = "fuzz_targets/aac_output.rs"
+test = false
+doc = false
+bench = false
 
 [[bin]]
 name = "annexb"

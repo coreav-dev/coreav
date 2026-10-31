@@ -14,6 +14,8 @@
 //! FFmpeg fallback. The hidden entries this program runs as
 //! (`crate::thumbnail::run_worker`) ask it too: the decode worker
 //! [`StrictSafe::worker`], the sandbox launcher [`StrictSafe::program`].
+//! A transcode's AAC encoder, the `ffmpeg` program, asks
+//! [`StrictSafe::aac`].
 
 #[cfg(feature = "thumbnail")]
 use std::path::Path;
@@ -169,6 +171,22 @@ impl StrictSafe {
                  or coreav transcode's --x264), {OFF}"
             )),
         }
+    }
+}
+
+impl StrictSafe {
+    /// `--audio aac`, whose encoder is the `ffmpeg` program: refused in
+    /// strict-safe mode, before the input is read. Err is the refusal's
+    /// message.
+    #[cfg(feature = "transcode")]
+    pub fn aac(self) -> Result<(), String> {
+        if self.on {
+            return Err(format!(
+                "strict-safe mode never runs the ffmpeg program, so it cannot encode AAC \
+                 audio: use --audio copy, none or opus, {OFF}"
+            ));
+        }
+        Ok(())
     }
 }
 

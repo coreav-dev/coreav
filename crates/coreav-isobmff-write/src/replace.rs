@@ -87,6 +87,8 @@ pub(crate) enum EntryCodec {
     Hevc,
     Av1,
     Vp9,
+    Opus,
+    Aac,
 }
 
 impl EntryCodec {
@@ -96,6 +98,8 @@ impl EntryCodec {
             Self::Hevc => coreav_isobmff::Codec::Hevc,
             Self::Av1 => coreav_isobmff::Codec::Av1,
             Self::Vp9 => coreav_isobmff::Codec::Vp9,
+            Self::Opus => coreav_isobmff::Codec::Opus,
+            Self::Aac => coreav_isobmff::Codec::Aac,
         }
     }
 
@@ -105,6 +109,8 @@ impl EntryCodec {
             Self::Hevc => coreav_mkv::Codec::Hevc,
             Self::Av1 => coreav_mkv::Codec::Av1,
             Self::Vp9 => coreav_mkv::Codec::Vp9,
+            Self::Opus => coreav_mkv::Codec::Opus,
+            Self::Aac => coreav_mkv::Codec::Aac,
         }
     }
 }
@@ -259,7 +265,8 @@ pub struct AudioSample {
 
 /// Samples that replace one audio stream of a remuxed source: an encoded
 /// stream on a timeline of its own (Opus in ISOBMFF, opus-codec.org
-/// "Encapsulation of Opus in ISO Base Media File Format", 4.3 and 4.4).
+/// "Encapsulation of Opus in ISO Base Media File Format", 4.3 and 4.4; AAC
+/// in `mp4a`, ISO/IEC 14496-14 and 14496-3 1.6).
 ///
 /// The output track keeps the source track's place in the track order and
 /// its language and flags (MP4 sources also keep its volume and
@@ -279,7 +286,7 @@ pub struct AudioReplacement<'a, R> {
     /// source, which must be an audio stream.
     pub stream_index: usize,
     /// One complete sample entry box, header included, for example from
-    /// [`crate::mux::audio_sample_entry`]. Its type must be `Opus`, and it
+    /// [`crate::mux::audio_sample_entry`]. Its type must be `Opus` or `mp4a`, and it
     /// must be an audio sample entry (ISO/IEC 14496-12 12.2.3) with data
     /// reference index 1; its contents are written as given.
     pub sample_entry: &'a [u8],
@@ -304,15 +311,15 @@ pub struct AudioReplacement<'a, R> {
 }
 
 /// Checks an audio replacement against itself, its data and `limits`,
-/// before anything is written: a sample entry of type `Opus` that is one
+/// before anything is written: a sample entry of type `Opus` or `mp4a` that is one
 /// audio sample entry box with data reference 1, a timescale, at least one
 /// sample, durations of at least 1, a presentation of at least one tick
 /// within the samples, a roll distance that fits, and every sample's bytes
-/// within the data.
+/// within the data. Returns the codec of the sample entry.
 pub(crate) fn validate_audio<R: Source>(
     replacement: &mut AudioReplacement<'_, R>,
     limits: &Limits,
-) -> Result<(), Error> {
+) -> Result<EntryCodec, Error> {
     let entry = replacement.sample_entry;
     let size = entry
         .get(..4)
@@ -327,11 +334,15 @@ pub(crate) fn validate_audio<R: Source>(
             offset: 0,
         });
     }
-    if entry.get(4..8) != Some(&b"Opus"[..]) {
-        return Err(unsupported(
-            "the audio replacement's sample entry is not Opus",
-        ));
-    }
+    let codec = match entry.get(4..8) {
+        Some(b"Opus") => EntryCodec::Opus,
+        Some(b"mp4a") => EntryCodec::Aac,
+        _ => {
+            return Err(unsupported(
+                "the audio replacement's sample entry is not Opus or mp4a",
+            ));
+        }
+    };
     // An audio sample entry (ISO/IEC 14496-12 12.2.3): 28 bytes of fields
     // after the header, six reserved zero bytes, then data reference 1.
     if entry.len() < 36
@@ -392,7 +403,7 @@ pub(crate) fn validate_audio<R: Source>(
             "the replacement's samples run past the end of its data",
         ));
     }
-    Ok(())
+    Ok(codec)
 }
 
 /// The audio replacement's edit list in `movie_timescale` ticks, each
