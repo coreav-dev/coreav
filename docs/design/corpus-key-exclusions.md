@@ -49,12 +49,18 @@ classification predicate cannot certify unrelated fields or packets.
 
 There is one registered exception. `KD-FF9-EMPTY-EDIT-PADDING`, sourced
 from `tools/compat-corpus/ffmpeg9.json`, may return a distinct
-`ProvenAbsence(oracle, track_id, offset, size, sample_end, edit_end)` for
+keyword-only `ProvenAbsence(oracle, track_id, offset, size, last_dts,
+frame_length_flag, core_sample_rate, timescale, edit_end)` for
 CoreAV's missing `packets.side_data_list.discard_padding`. Its frozen
 record must carry `corpus_absence: "last-sample-within-media-edit"`.
 The byte predicate must positively derive these values. The certificate
-requires the sample to end at or before the media edit's end, in the same
-media ticks, and the exact positive oracle value. It binds both packets'
+requires the track timescale to equal the ASC core sample rate and derives
+the frame span once, as 960 ticks for flag 1 or 1,024 for flag 0. It checks
+`last_dts + frame_span <= edit_end`, in media time, and the exact positive
+oracle value. SBR doubles samples and rate together, not this span.
+Stored sample duration is not an accepted frame-bound input. Deleting
+required padding 324 from a 700-tick last sample must remain uncovered.
+The certificate binds both packets'
 offset, size, stream index and track identity, requires that this is the
 last packet of the track on both sides, and checks equal packet counts and
 agreement of every other packet. The packet summary comes from the

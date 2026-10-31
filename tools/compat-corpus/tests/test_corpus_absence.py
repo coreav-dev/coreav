@@ -27,7 +27,8 @@ class Absence(unittest.TestCase):
         self.candidate.write_text(self.first + self.last + '\n')
         sections = {'streams': [{'index': 0, 'id': '0x1'}]}
         self.capture = kd.Capture(sections, copy.deepcopy(sections), self.reference, self.candidate)
-        self.proof = kd.ProvenAbsence(20, 1, 108, 8, 200, 200)
+        self.proof = kd.ProvenAbsence(oracle=20, track_id=1, offset=108, size=8, last_dts=100,
+                                     frame_length_flag=0, core_sample_rate=48000, timescale=48000, edit_end=1124)
         record = {'id': kd.ABSENCE_KD, 'basis': 'ISO/IEC 14496-12 8.6.6',
                   'level': ['packets'], 'fields': ['side_data_list.discard_padding'],
                   'corpus_absence': kd.ABSENCE_CASE}
@@ -80,11 +81,32 @@ class Absence(unittest.TestCase):
             kd.inventory(self.root, 'a' * 40, self.registry, '0' * 64)
 
     def test_a_sample_past_the_edit_and_unbound_expected_values_are_not_certificates(self):
-        for field, value in (('sample_end', 201), ('oracle', 21), ('track_id', 2), ('offset', 109),
-                             ('size', 9), ('edit_end', 199), ('sample_end', -1), ('oracle', True)):
+        original = self.proof
+        for field, value in (('last_dts', 101), ('oracle', 21), ('track_id', 2), ('offset', 109),
+                             ('size', 9), ('edit_end', 1123), ('last_dts', -1), ('oracle', True),
+                             ('frame_length_flag', 2), ('core_sample_rate', 0), ('timescale', 96000),
+                             ('frame_length_flag', True)):
             with self.subTest(field=field, value=value):
-                self.proof = dataclasses.replace(kd.ProvenAbsence(20, 1, 108, 8, 200, 200), **{field: value})
+                self.proof = dataclasses.replace(original, **{field: value})
                 self.assertEqual(self.compare()['excluded'], {})
+
+    def test_960_tick_frame_bound_is_selected_by_the_byte_derived_flag(self):
+        self.proof = dataclasses.replace(self.proof, frame_length_flag=1, edit_end=1060,
+                                         core_sample_rate=44100, timescale=44100)
+        self.assertIn(kd.ABSENCE_KEY, self.compare()['excluded'])
+        self.proof = dataclasses.replace(self.proof, frame_length_flag=0)
+        self.assertEqual(self.compare()['excluded'], {})
+
+    def test_sbr_output_rate_does_not_change_the_core_frame_span_in_media_ticks(self):
+        self.capture.reference['streams'][0].update(sample_rate='96000', profile='HE-AAC')
+        self.capture.candidate['streams'][0].update(sample_rate='96000', profile='HE-AAC')
+        self.assertIn(kd.ABSENCE_KEY, self.compare()['excluded'])
+        self.proof = dataclasses.replace(self.proof, timescale=96000)
+        self.assertEqual(self.compare()['excluded'], {})
+
+    def test_stored_sample_end_cannot_be_supplied_as_a_frame_bound(self):
+        with self.assertRaises(TypeError):
+            kd.ProvenAbsence(oracle=20, track_id=1, offset=108, size=8, sample_end=200, edit_end=200)
 
     def test_every_other_packet_must_agree_even_on_a_different_key(self):
         self.candidate.write_text(self.first.replace('pts=0', 'pts=1') + self.last + '\n')
@@ -126,6 +148,21 @@ class Absence(unittest.TestCase):
         audit = kd.audit(self.capture, self.media, self.registry, [kd.Attack('unproven missing field', packets=remove)])
         self.assertTrue(audit['passed'])
         self.assertEqual(audit['attacks'][0]['verdict'], 'caught')
+
+    def test_deleting_required_324_padding_from_the_700_tick_straddle_stays_a_failure(self):
+        self.reference.write_text(self.first + self.last + '|side_data_list.discard_padding=740\n')
+        self.candidate.write_text(self.first + self.last + '|side_data_list.discard_padding=324\n')
+        self.proof = kd.ProvenAbsence(oracle=740, track_id=1, offset=108, size=8, last_dts=5120,
+                                     frame_length_flag=0, core_sample_rate=48000, timescale=48000, edit_end=5820)
+        def delete_required_padding(i, fields):
+            return ({key: value for key, value in fields.items() if key != 'side_data_list.discard_padding'},) if i == 1 else (fields,)
+        attack = kd.Attack('700-tick straddle: required 324 padding deleted', packets=delete_required_padding)
+        result = kd.audit(self.capture, self.media, self.registry, [attack])
+        self.assertTrue(result['passed'])
+        self.assertEqual(result['attacks'][0]['verdict'], 'caught')
+        self.candidate.write_text(self.first + self.last + '\n')
+        self.assertFalse(self.compare()['keys'][kd.ABSENCE_KEY])
+        self.assertEqual(self.compare()['excluded'], {})
 
     def test_bug_shaped_value_and_identity_mutations_stay_visible(self):
         attacks = []

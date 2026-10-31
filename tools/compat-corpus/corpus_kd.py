@@ -47,14 +47,21 @@ class Pair:
     candidate: object
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class ProvenAbsence:
     oracle: int
     track_id: int
     offset: int
     size: int
-    sample_end: int
+    last_dts: int
+    frame_length_flag: int
+    core_sample_rate: int
+    timescale: int
     edit_end: int
+
+    @property
+    def frame_span(self):
+        return 960 if self.frame_length_flag else 1024
 
 
 @dataclasses.dataclass(frozen=True)
@@ -191,9 +198,12 @@ def production_registry():
 
 def valid_absence(proof, occurrence):
     context, summary = occurrence.context, occurrence.context.packet_summary
-    values = (proof.oracle, proof.track_id, proof.offset, proof.size, proof.sample_end, proof.edit_end)
+    values = (proof.oracle, proof.track_id, proof.offset, proof.size, proof.last_dts,
+              proof.frame_length_flag, proof.core_sample_rate, proof.timescale, proof.edit_end)
     if any(type(value) is not int for value in values) or proof.oracle <= 0 or proof.track_id <= 0 \
-            or proof.offset < 0 or proof.size <= 0 or not 0 <= proof.sample_end <= proof.edit_end \
+            or proof.offset < 0 or proof.size <= 0 or proof.frame_length_flag not in (0, 1) \
+            or proof.core_sample_rate <= 0 or proof.timescale != proof.core_sample_rate \
+            or proof.last_dts < 0 or proof.last_dts + proof.frame_span > proof.edit_end \
             or type(context.packet_index) is not int \
             or occurrence.path != f'packets[{context.packet_index}].side_data_list.discard_padding' \
             or occurrence.reference != str(proof.oracle) or summary is None or not summary.same_count \
