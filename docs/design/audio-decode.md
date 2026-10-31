@@ -1542,3 +1542,196 @@ equals the presentation model on 120 inputs. Bar 4: 146 Matroska inputs,
 lengths equal to `ffmpeg`'s on all of them; on the 123 without noise or
 intensity frames, samples agreed within the tolerance except on those
 three program configurations (channel order). Bar 5: 292 of 292.
+## HE-AAC (SBR and parametric stereo)
+
+HE-AAC adds spectral band replication (SBR, audio object type 5) and
+parametric stereo (PS, object type 29) to an AAC LC core. The decoder is
+written from the SBR and PS clauses of ISO/IEC 14496-3:2009 and their
+tables alone, in
+`coreav-aac`, behind the same feature `aac` and with the same packaging
+as AAC-LC ("Packaging"). Its design is recorded with the code; the bars
+and sets below are fixed first, before any run of the decoder.
+
+### HE-AAC bars
+
+Fixed before the first measured run, which runs on GitHub Actions
+(`.github/workflows/audio-conformance.yml`); the evidence goes to
+`docs/spikes/audio-decode-bench/` and the tests named below. The oracle is
+the pinned FFmpeg (`scripts/oracle-ffmpeg.env`, 9.0.2), its default AAC
+decoder `aac`, floating point, every audio decode with the input options
+of `scripts/oracle-audio-args.txt`. SBR and PS output is floating point
+and two decoders do not agree bit for bit, so the bars compare samples
+within tolerances.
+
+The tolerances come from a calibration of the oracle alone, before any
+CoreAV decoder existed: the pinned `ffmpeg` on the 105 HE-AAC streams of
+the conformance package (bar 1). Against the high-quality SBR and
+unrestricted PS references, 125 of its 133 channel comparisons were
+within an RMS of 7.8 × 10^-7 and a largest difference of 5.7 × 10^-5, all
+at offset 0. The other 8 are `al_sbr_cm_48_5` (one channel, two
+blocks wrong by up to 0.15), the three `al_sbr_i_*_new` streams (RMS up to
+8.7 × 10^-3, where `ffmpeg` warns) and both channels of `al_sbr_ps_04`
+and its `_new` copy (RMS up to 1.1 × 10^-6). Its length was the
+packets' stated durations at the output rate on all 105, and no stream
+has an edit list. Its output rate and channels were ffprobe's on all 105:
+twice the core rate except where the configuration signals downsampled
+SBR (8 streams, the core rate), and two channels for every mono core with
+SBR, the two equal sample for sample.
+
+Rules for every comparison:
+
+- **Full scale** is ±1.0. References are integer PCM, scaled by
+  2^(bits - 1); CoreAV's and FFmpeg's samples are clipped to the
+  reference's range before a difference with it.
+- **Tolerance against a reference** (bar 1), per channel over the whole
+  comparison: the RMS of the difference at most 2^-15 / √12 (8.8 ×
+  10^-6), the full-accuracy RMS bound of the AAC-LC and MP3 bars, and no
+  difference above 2^-12 (2.4 × 10^-4), four times the oracle's largest
+  difference on the clean comparisons above (the AAC-LC bound, 2^-14,
+  is within 7% of that largest difference).
+- **Tolerance against FFmpeg** (bars 2, 3 and 5), per channel: twice the
+  above, since two decoders within it of one reference are within twice
+  it of each other: RMS at most 2 × 2^-15 / √12 (1.8 × 10^-5), no
+  difference above 2^-11 (4.9 × 10^-4).
+- **Alignment**: none. Sample 0 is compared with sample 0, against FFmpeg
+  and against the references (the oracle met the references at offset 0
+  on every clean comparison).
+- **Noise blocks**: the AAC-LC rules ("AAC-LC bars": noise bands, and
+  intensity under an all-ones mask) apply to the core, with the reach of
+  a core frame widened by SBR's delay. A frame k that codes a noise band,
+  or intensity bands under an `ms_mask_present` of 2, in any channel
+  makes output blocks k, k + 1 and k + 2 (blocks of the output frame
+  length) random or sign-dependent: they are excluded from the sample
+  comparisons, counted, and compared by level, |10 log10 (energy CoreAV /
+  energy other)| at most **0.1 dB** per channel on every channel with at
+  least 100 such blocks, fewer reported. SBR's own noise floor and
+  added sinusoids are compared as samples: the oracle reproduced the
+  references, which carry them, to the RMS above.
+- **Rate, channels, layout**: CoreAV's output rate and channel count are
+  those of the WAV `ffmpeg -i IN -map 0:a:0 -f wav` writes; its channels
+  are in that WAV's order, and its WAV channel mask is that WAV's, except
+  for a program configuration, whose channels are matched by the smallest
+  RMS difference and reported, as in the AAC-LC bars.
+- **Length**: CoreAV writes every packet's samples, the packets times the
+  output frame length (2,048 or 1,920, or 1,024 or 960 for downsampled
+  SBR). FFmpeg's length must be the packets' stated durations at the
+  output rate (`ffprobe -ignore_editlist 1`: their sum times the output
+  rate over the time base's rate) and at most CoreAV's; samples are
+  compared over FFmpeg's length.
+
+The bars:
+
+1. **Conformance against the ISO references (gating).** Every stream of
+   the package with a reference (sets, "Conformance"): CoreAV's
+   `coreav_aac::Decoder` on every packet in order, nothing trimmed,
+   against its high-quality SBR reference (`al_sbr_hq_*`), or for the PS
+   streams `al_sbr_ps_NN` and `al_sbr_ps_NN_new` the unrestricted PS
+   reference `al_sbr_ps_NN_ur`, with the tolerance against a reference.
+   A mono reference is compared with each of CoreAV's channels; a
+   multichannel stream's per-channel references are matched to its
+   channels by the smallest RMS difference. Not used: the low-power SBR
+   and baseline PS references, whose decoders are restricted versions of
+   the one written here. Nothing panics. Bar: every counted stream.
+2. **Against FFmpeg (gating).** On every MP4 input of every set: CoreAV's
+   `coreav_aac::Decoder` on every packet in order against `ffmpeg
+   -ignore_editlist 1 -i IN -map 0:a:0 -f f32le -`, with the rules above;
+   CoreAV damages no frame. Bar: 100% of the counted inputs. Not counted, each listed with its reason: an input that
+   `ffmpeg` decodes with an error or a warning (`-v warning` prints a
+   line; in the calibration the six `al960_sbr_i_*` streams,
+   `al960_sbr_ps_04` and the three `al_sbr_i_*_new` streams); and a
+   conformance stream on which CoreAV meets bar 1 and FFmpeg's output,
+   measured as bar 1 measures, does not (in the calibration `ffmpeg`
+   missed `al_sbr_cm_48_5` on one channel, and the three
+   `al_sbr_i_*_new` streams). A divergence found in a run is a known
+   divergence only where a raw value of the input shows its condition,
+   never by file. Reported: the largest difference, the share of samples
+   in noise blocks, the noise level per block.
+3. **Timeline (gating).** On every MP4 input of the generated and corpus
+   sets without noise blocks: `scripts/decode_audio_check.py`'s
+   presentation model ("Edit list bars", bar 1), as AAC-LC bar 3 runs it:
+   CoreAV's `decode-audio --format f32` output equals `ffmpeg
+   -ignore_editlist 1`'s decode cut by the edit list as the oracle's
+   reader reads it, within the tolerance against FFmpeg, the length
+   exact, and the summary's `timeline` is the model's, in samples of
+   the output rate while the track's time scale is often the core's.
+   Bar: 100% of those inputs. Reported: the inputs with noise blocks, and
+   every input's comparison with `ffmpeg`'s default output.
+4. **Signalling (gating).** The same stream signalled three ways decodes
+   the same: on every input that has an implicit variant (sets), CoreAV's
+   output of the implicit variant equals its output of the explicit
+   original sample for sample, at the same rate and channel count, and
+   that rate and count are `ffmpeg`'s for the variant. The conformance
+   streams that signal SBR hierarchically (object type 5 first,
+   `al_sbr_sig_*_sig1`), backward-compatibly (the 0x2b7 extension) and
+   implicitly (an LC configuration, SBR found in the stream) are covered
+   by bars 1 and 2.
+5. **Matroska (gating).** On every Matroska copy, CoreAV's decode of the
+   copy (the configuration from `CodecPrivate`, every packet of its blocks
+   in order) equals its decode of the MP4 bit for bit. Reported: `coreav
+   decode-audio --format f32` on the copy against `ffmpeg -i COPY -map
+   0:a:0 -f f32le -`, sample 0 to sample 0 over the common length with
+   the rules above, and both lengths.
+6. **Threads (gating).** On every input of the generated and corpus sets,
+   both containers, the output of `--threads 8` is byte-identical to that
+   of `--threads 1`; tests pin 1, 2, 3 and 8 threads on HE-AAC fixtures
+   with noise bands and damaged packets.
+7. **Safety.** The fuzz target `aac_frame` reaches the SBR and PS
+   decoders (configurations that signal them, and SBR payloads in fill
+   elements) and the `decode` target with the `aac` feature, for the
+   fuzz job's time per target in CI; pinned tests that a flood of frames
+   stops at `max_output_samples` counted at the output rate and that a
+   configuration past `max_channels`, counted after PS, is refused; no
+   panics.
+8. **Pipelines.** Every command that decodes AAC through `coreav-audio`
+   decodes HE-AAC with it: a test per command on a committed HE-AAC
+   fixture (an Apple-encoded synthetic tone) checks the rate, the
+   channels and the length of the audio it writes. Regression guard:
+   `decode-audio-he-aac-mp4`, a case of the CI benchmark guard in its
+   decoder build, on that fixture.
+
+No speed against FFmpeg is claimed.
+
+### HE-AAC sets
+
+- **Conformance**: the 105 HE-AAC streams in MP4 of the ISO/IEC
+  14496-26:2010 package (`compressedMp4/al_sbr_*` and `al960_sbr_*`,
+  already pinned in `crates/coreav-aac/tests/conformance.sha256`), and the
+  80 high-quality SBR and unrestricted PS references of the package's
+  first disc (`referencesWav/add-opt/al_sbr_hq_*` and
+  `al_sbr_ps_*_ur`), added to that manifest by SHA-256. The package has
+  no reference for the `al960_sbr_*` streams, so 71 streams count in
+  bar 1 and all 105 are inputs of bar 2. Each stream is also copied into
+  Matroska (`ffmpeg -c copy`), and, except the `al960_sbr_*` streams
+  (ADTS cannot carry frames of 960 samples) and those whose configuration
+  signals downsampled SBR (the ADTS round trip loses it and the stream
+  becomes another), given an implicit variant: `ffmpeg -c copy -f adts`
+  and back into MP4 by `ffmpeg -c copy`, which keeps the core's
+  configuration and drops the SBR and PS signalling.
+- **Generated**: sources written by the pinned `ffmpeg` from the AAC-LC
+  set's synthesized signals (`tones`, `noise`, `clicks`, `sweep`,
+  `tones+clicks`; `scripts/aac_agreement.py`), 10 seconds each, as WAV,
+  then encoded on GitHub's macOS runner by Apple's encoder (`afconvert -f
+  m4af`, HE-AAC `aach` and HE-AAC v2 `aacp`), whose MP4 signals SBR
+  and PS backward-compatibly; the runner image and the encoder's version
+  are recorded with each run. The groups:
+  - **HE-AAC**: each source but `tones+clicks` at 32, 44.1 and 48 kHz,
+    mono and stereo, at the encoder's default bit rate (24 encodes);
+  - **HE-AAC v2**: the same sources and rates, stereo (12);
+  - **Rates**: `tones` and `clicks` at 48 kHz stereo, `aach` and
+    `aacp`, at 24 and 64 kbit/s (`-b`; 8);
+  - **Layouts**: `tones+clicks` at 48 kHz in 5.1, `aach` (1).
+  Each encode is copied into Matroska and given an implicit variant as the
+  conformance streams are. An encode the encoder refuses is listed and not
+  counted.
+- **Corpus**: every file of corpus v1, v1-fmp4-large and v1-ts-audio
+  (`docs/corpus.md`) that its manifest does not hold out, with the
+  extension `mp4`, `m4a`, `m4b`, `mov`, `3gp`, `mkv` or `mka`, whose
+  first audio stream the pinned `ffprobe` reports as `aac` with the
+  profile `HE-AAC` or `HE-AACv2` (`-show_streams`, on the file read from
+  the corpus store). The selection runs in the job, with the read-only
+  credentials only this repository's own runs receive; without them the
+  job says so and the set is empty. No held-out file is used, so the
+  draws' rules do not apply. Reports give counts and aggregate numbers,
+  never a file.
+- Not used: ADTS and LATM files (raw `.aac`, MPEG-TS), which the pipeline
+  does not read ("AAC-LC", "Scope").
