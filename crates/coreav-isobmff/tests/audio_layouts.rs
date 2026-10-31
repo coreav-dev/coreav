@@ -10,7 +10,7 @@
 
 mod common;
 
-use common::{av_movie_with, bx, cat, full, u32s};
+use common::{alac_cookie, av_movie_with, bx, cat, dfla, full, lossless_entry, u32s};
 use coreav_isobmff::{
     Allowlist, Budget, Codec, Limits, Movie, SampleDescription, SliceSource, TrackKind, probe,
 };
@@ -421,4 +421,118 @@ fn the_configured_rate_is_apart_from_the_stored_one() {
     // A reserved index: no configured rate.
     let reserved = aac_description(2, &pack(&[(2, 5), (13, 4), (2, 4), (0, 3)]));
     assert_eq!(reserved.configured_sample_rate, None);
+}
+
+fn lossless_description(entry: Vec<u8>) -> (SampleDescription, Vec<coreav_isobmff::Warning>) {
+    let movie = probe(
+        SliceSource::new(&av_movie_with(entry, false)),
+        &Limits::default(),
+        &Allowlist::listing(),
+    )
+    .unwrap();
+    let audio = movie
+        .tracks
+        .iter()
+        .find(|t| t.kind == TrackKind::Audio)
+        .unwrap();
+    (audio.description.clone(), audio.warnings.clone())
+}
+
+/// FLAC's and ALAC's rate and bit depth come from their configuration: the
+/// sample entry's 16.16 rate cannot hold 65,536 Hz or more, and a writer
+/// stores something else there for higher rates.
+#[test]
+fn lossless_rates_and_depths_come_from_the_configuration() {
+    for (rate, bits) in [
+        (44_100, 16),
+        (48_000, 24),
+        (88_200, 16),
+        (96_000, 24),
+        (192_000, 16),
+        (655_350, 32),
+        (655_351, 24),
+        (1_048_575, 24),
+    ] {
+        let (flac, warnings) = lossless_description(lossless_entry(b"fLaC", dfla(rate, bits)));
+        assert_eq!(flac.codec, Codec::Flac);
+        assert_eq!(flac.sample_rate, Some(48_000));
+        assert_eq!(flac.configured_sample_rate, Some(rate));
+        assert_eq!(flac.configured_bits, Some(u16::try_from(bits).unwrap()));
+        assert!(warnings.is_empty(), "{warnings:?}");
+        let depth = u8::try_from(bits.min(24)).unwrap();
+        let (alac, warnings) =
+            lossless_description(lossless_entry(b"alac", alac_cookie(rate, depth)));
+        assert_eq!(alac.sample_rate, Some(48_000));
+        assert_eq!(alac.configured_sample_rate, Some(rate));
+        assert_eq!(alac.configured_bits, Some(u16::from(depth)));
+        assert!(warnings.is_empty(), "{warnings:?}");
+    }
+}
+
+/// A configuration that cannot be read leaves the rate to the sample entry
+/// and the bit depth unknown, with a warning that names the box.
+#[test]
+fn a_malformed_lossless_configuration_is_refused() {
+    let malformed = |kind: &[u8; 4]| {
+        coreav_isobmff::Warning::MalformedCodecConfig(coreav_isobmff::FourCc(*kind))
+    };
+    let mut version_1 = dfla(96_000, 24);
+    version_1[8] = 1;
+    let mut not_streaminfo = dfla(96_000, 24);
+    not_streaminfo[12] = 0x84;
+    let mut short_block = dfla(96_000, 24);
+    short_block[15] = 33;
+    let mut truncated = dfla(96_000, 24);
+    truncated.truncate(30);
+    truncated[3] = 30;
+    let mut tiny_blocks = dfla(96_000, 24);
+    tiny_blocks[16..20].copy_from_slice(&[0, 15, 0, 15]);
+    let mut min_above_max = dfla(96_000, 24);
+    min_above_max[16..20].copy_from_slice(&[0x10, 0, 0x0F, 0xFF]);
+    for config in [
+        version_1,
+        not_streaminfo,
+        short_block,
+        truncated,
+        tiny_blocks,
+        min_above_max,
+        dfla(0, 16),
+        dfla(96_000, 3),
+    ] {
+        let (flac, warnings) = lossless_description(lossless_entry(b"fLaC", config));
+        assert_eq!(flac.sample_rate, Some(48_000));
+        assert_eq!(flac.configured_sample_rate, None);
+        assert_eq!(flac.configured_bits, None);
+        assert_eq!(warnings, vec![malformed(b"dfLa")]);
+    }
+    let mut version_1 = alac_cookie(96_000, 24);
+    version_1[8] = 1;
+    let mut truncated = alac_cookie(96_000, 24);
+    truncated.truncate(35);
+    truncated[3] = 35;
+    let mut compatible_1 = alac_cookie(96_000, 24);
+    compatible_1[16] = 1;
+    for config in [
+        version_1,
+        truncated,
+        compatible_1,
+        alac_cookie(96_000, 0),
+        alac_cookie(96_000, 33),
+        alac_cookie(0, 16),
+    ] {
+        let (alac, warnings) = lossless_description(lossless_entry(b"alac", config));
+        assert_eq!(alac.sample_rate, Some(48_000));
+        assert_eq!(alac.configured_sample_rate, None);
+        assert_eq!(alac.configured_bits, None);
+        assert_eq!(warnings, vec![malformed(b"alac")]);
+    }
+    for (kind, config) in [(b"fLaC", b"dfLa"), (b"alac", b"alac")] {
+        let (description, warnings) = lossless_description(common::audio_entry(kind));
+        assert_eq!(description.configured_sample_rate, None);
+        assert_eq!(
+            warnings,
+            vec![malformed(config)],
+            "{kind:?} without {config:?}"
+        );
+    }
 }
