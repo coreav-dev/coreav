@@ -4,6 +4,11 @@
 pub mod fragments;
 pub mod sound;
 
+/// Fixtures of `scripts/gen-fixtures.sh` whose video stream is not valid
+/// HEVC: its conformance window leaves no picture (ITU-T H.265
+/// 7.4.3.2.1). Every writer refuses them as an invalid stream.
+pub const INVALID_STREAMS: [&str; 2] = ["size_hevc_mixed_window.mp4", "size_hevc_window.mp4"];
+
 pub fn bx(kind: &[u8; 4], payload: &[u8]) -> Vec<u8> {
     let mut out = ((payload.len() + 8) as u32).to_be_bytes().to_vec();
     out.extend_from_slice(kind);
@@ -511,6 +516,36 @@ pub fn audio_entry(kind: &[u8; 4]) -> Vec<u8> {
     body.extend_from_slice(&[0u8; 4]);
     body.extend_from_slice(&(48_000u32 << 16).to_be_bytes());
     bx(kind, &body)
+}
+
+/// A sound sample entry of type `kind` whose 16.16 rate field holds what
+/// a 96 kHz or 192 kHz stream's writer stores there (48 kHz), with `config`
+/// as its only child box.
+pub fn lossless_entry(kind: &[u8; 4], config: Vec<u8>) -> Vec<u8> {
+    let mut body = audio_entry(kind).split_off(8);
+    body.extend_from_slice(&config);
+    bx(kind, &body)
+}
+
+/// A `dfLa` box holding one `STREAMINFO` block (RFC 9639 8.1 and 8.2):
+/// block sizes of 4096, unknown frame sizes, `rate`, stereo, `bits`.
+pub fn dfla(rate: u32, bits: u32) -> Vec<u8> {
+    let mut block = vec![0x80, 0, 0, 34, 0x10, 0, 0x10, 0, 0, 0, 0, 0, 0, 0];
+    let packed = u64::from(rate) << 44 | 1 << 41 | u64::from(bits - 1) << 36;
+    block.extend_from_slice(&packed.to_be_bytes());
+    block.extend_from_slice(&[0u8; 16]);
+    full(b"dfLa", 0, 0, &block)
+}
+
+/// An ALAC magic cookie (`ALACSpecificConfig`) in its `alac` box: frame
+/// length 4096, compatible version 0, `bits`, the tuning parameters 40,
+/// 10 and 14, stereo, maximum run 255, then the frame size and bit rate
+/// left unknown, and `rate`.
+pub fn alac_cookie(rate: u32, bits: u8) -> Vec<u8> {
+    let mut cookie = 4096u32.to_be_bytes().to_vec();
+    cookie.extend_from_slice(&[0, bits, 40, 10, 14, 2, 0, 255]);
+    cookie.extend_from_slice(&u32s(&[0, 0, rate]));
+    full(b"alac", 0, 0, &cookie)
 }
 
 /// A two-track movie: H.264 video (track 1) and audio with sample entry

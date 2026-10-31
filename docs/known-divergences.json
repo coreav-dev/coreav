@@ -1,6 +1,6 @@
 {
   "schema": "coreav/known-divergences/1",
-  "applies_to": "coreav-isobmff through tools/isobmff-adapter, ffprobe 7.0.2",
+  "applies_to": "coreav-isobmff through tools/isobmff-adapter, ffprobe 9.0.2",
   "entries": [
     {
       "id": "KD-STRICT",
@@ -77,9 +77,9 @@
       ],
       "filename_pattern": "*",
       "conditions": {
-        "/streams/*/properties/fragment_start_ticks": "above 0 (the first tfdt)",
+        "/streams/*/properties/fragment_start_ticks": "above 0 (the first tfdt); 0 or above with a segment index",
         "/streams/*/duration_ts": "reference = candidate + fragment_start_ticks; or, with a segment index (sidx_end_ticks, the first sidx for the track in its timescale), reference = sidx_end_ticks >= candidate + fragment_start_ticks, and a kept stream's candidate = stts_duration_ticks; a dropped stream counts with the timing the adapter reports for it",
-        "/format_duration_us": "each side = the span of its own streams as ffprobe counts a format duration (audio and video, plus other streams ending less than 1 s after them; starts = empty edits rounded to stream ticks, shared by both sides; starts and durations rounded to microseconds each), from its own stream durations and kinds, every other stream agreeing or covered; a dropped stream that differs only when it decides neither span",
+        "/format_duration_us": "each side = the span of its own streams as ffprobe counts a format duration (audio and video, plus other streams ending less than 1 s after them; starts = empty edits rounded to stream ticks, shared by both sides; starts and durations rounded to microseconds each; on the reference side, a stream whose sidx_end_ticks lies after its stts_duration_ticks plus its fragment_start_ticks starts that much later), from its own stream durations and kinds, every other stream agreeing or covered; a dropped stream that differs only when it decides neither span",
         "evidence": "stream values checked against the file (Facts.stream_ok), for every stream in the format clause"
       },
       "predicate": "frag_start",
@@ -405,6 +405,25 @@
       },
       "predicate": "declared_size",
       "basis": "docs/design/frame-sizes.md decision 1 (the declared size is kept; verified sizes are printed apart)"
+    },
+    {
+      "id": "KD-HEVC-WINDOW",
+      "level": [
+        "streams"
+      ],
+      "fields": [
+        "profile",
+        "level",
+        "color_range"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "/streams/*/codec_name": "hevc on both sides",
+        "/streams/*/profile,level,color_range": "reference null for all three",
+        "box headers": "the first sequence parameter set of the first sample entry's hvcC has a conformance window that leaves no picture (H.265 7.4.3.2.1 requires SubWidthC * (left + right) below the width and SubHeightC * (top + bottom) below the height), and its general_profile_idc and general_level_idc give the candidate's profile and level"
+      },
+      "predicate": "hevc_window_dropped",
+      "basis": "H.265 7.3.3 (the profile and level precede the window in the set); ffprobe 9.0.2 drops the whole set"
     }
   ]
 }

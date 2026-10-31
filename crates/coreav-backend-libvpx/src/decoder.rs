@@ -10,7 +10,9 @@ use coreav_decode::{
 };
 use coreav_frame::{Chroma, ColorInfo, Frame, Picture, PixelFormat, Pixels, Plane};
 
-use crate::ffi::{self, FMT_HIGH_BIT_DEPTH, Failure, View, Vp9};
+use std::borrow::Cow;
+
+use crate::ffi::{self, FMT_HIGH_BIT_DEPTH, Failure, Interface, View, Vpx};
 use crate::header;
 
 /// Options of the libvpx backend.
@@ -33,10 +35,10 @@ impl Backend for LibvpxBackend {
     }
 
     fn supports(&self, stream: &StreamConfig, _: &StreamTraits) -> Support {
-        if stream.codec == Codec::Vp9 {
+        if interface(stream.codec).is_some() {
             Support::Yes
         } else {
-            Support::No("libvpx here decodes VP9 only".into())
+            Support::No(ONLY.into())
         }
     }
 
@@ -49,15 +51,29 @@ impl Backend for LibvpxBackend {
     }
 }
 
-/// A VP9 decoder: one libvpx instance.
+/// What the backend says of a codec other than VP8 and VP9.
+const ONLY: &str = "libvpx here decodes VP8 and VP9 only";
+
+/// The libvpx interface that decodes `codec`.
+fn interface(codec: Codec) -> Option<Interface> {
+    match codec {
+        Codec::Vp8 => Some(Interface::Vp8),
+        Codec::Vp9 => Some(Interface::Vp9),
+        _ => None,
+    }
+}
+
+/// A VP8 or VP9 decoder: one libvpx instance.
 ///
-/// A packet is one frame or superframe (the VP9 ISOBMFF and Matroska
-/// mappings). libvpx decodes it at once and makes ready the frame it shows,
-/// if any, which takes the packet's pts; VP9 has no reordering. Frames are
+/// A packet is one frame (VP8), or one frame or superframe (VP9), as the
+/// VP codec ISOBMFF binding and the Matroska mappings store them. libvpx
+/// decodes it at once and makes ready the frame it shows, if any, which
+/// takes the packet's pts; neither codec reorders frames. Frames are
 /// copied out of libvpx's images into packed planes at once, so libvpx's
 /// buffers are never held.
 pub struct LibvpxDecoder {
-    vp9: Vp9,
+    vpx: Vpx,
+    interface: Interface,
     info: DecoderInfo,
     limits: Limits,
     color: ColorInfo,
@@ -73,35 +89,37 @@ pub struct LibvpxDecoder {
 }
 
 impl LibvpxDecoder {
-    /// Opens a decoder for a VP9 stream. A stream above 8 bits is refused
-    /// when this libvpx was built without high bit depth, and one whose
-    /// references do not fit the memory budget (see [`fits_memory`]).
+    /// Opens a decoder for a VP8 or VP9 stream. A VP9 stream above 8 bits
+    /// is refused when this libvpx was built without high bit depth, and a
+    /// stream whose references do not fit the memory budget (see
+    /// [`fits_memory`]).
     pub fn open(
         options: &LibvpxOptions,
         stream: &StreamConfig,
         limits: &Limits,
     ) -> Result<Self, Error> {
-        if stream.codec != Codec::Vp9 {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "libvpx here decodes VP9 only",
-            ));
-        }
-        if stream.traits().bit_depth.is_some_and(|d| d > 8) && !ffi::high_bit_depth() {
+        let Some(interface) = interface(stream.codec) else {
+            return Err(Error::new(ErrorKind::Unsupported, ONLY));
+        };
+        if interface == Interface::Vp9
+            && stream.traits().bit_depth.is_some_and(|d| d > 8)
+            && !ffi::high_bit_depth()
+        {
             return Err(Error::new(
                 ErrorKind::Unsupported,
                 "this libvpx decodes VP9 at 8 bits only (built without high bit depth)",
             ));
         }
-        fits_memory(stream, limits)?;
+        fits_memory(interface, stream, limits)?;
         let threads = match options.threads {
             0 => std::thread::available_parallelism()
                 .map_or(1, |n| u32::try_from(n.get()).unwrap_or(u32::MAX)),
             n => n,
         };
-        let vp9 = Vp9::open(threads).map_err(|e| failure("opening", &e))?;
+        let vpx = Vpx::open(interface, threads).map_err(|e| failure("opening", &e))?;
         Ok(Self {
-            vp9,
+            vpx,
+            interface,
             info: DecoderInfo {
                 backend: BackendKind::Libvpx,
                 isolation: Isolation::InProcess,
@@ -129,18 +147,32 @@ impl LibvpxDecoder {
         Ok(())
     }
 
-    /// Checks the sizes the packet's frames state, then decodes it with
-    /// its superframe index, so that libvpx decodes those frames only.
+    /// Checks the sizes the packet's frames state, then decodes it: a VP9
+    /// packet with its superframe index, so that libvpx decodes those
+    /// frames only, a VP8 packet as it is.
     fn decode(&mut self, packet: &Packet<'_>, pts: i64) -> Result<(), Error> {
-        let malformed =
-            |e: header::Malformed| Error::new(ErrorKind::InvalidData, format!("VP9 packet: {e}"));
-        let data = header::indexed(packet.data).map_err(malformed)?;
-        for size in header::frame_sizes(&data).map_err(malformed)? {
-            self.limits.check_frame(size.width, size.height, 0)?;
-        }
+        let malformed = |codec: &str, e: header::Malformed| {
+            Error::new(ErrorKind::InvalidData, format!("{codec} packet: {e}"))
+        };
+        let data = match self.interface {
+            Interface::Vp9 => {
+                let data = header::indexed(packet.data).map_err(|e| malformed("VP9", e))?;
+                for size in header::frame_sizes(&data).map_err(|e| malformed("VP9", e))? {
+                    self.limits.check_frame(size.width, size.height, 0)?;
+                }
+                data
+            }
+            Interface::Vp8 => {
+                let size = header::vp8_frame_size(packet.data).map_err(|e| malformed("VP8", e))?;
+                if let Some(size) = size {
+                    self.limits.check_frame(size.width, size.height, 0)?;
+                }
+                Cow::Borrowed(packet.data)
+            }
+        };
         let (color, limits) = (self.color, &self.limits);
         let mut made = Vec::new();
-        self.vp9
+        self.vpx
             .decode(&data, |view| {
                 if packet.discard {
                     let (width, height) = view.size();
@@ -217,22 +249,28 @@ impl Decoder for LibvpxDecoder {
 /// The fixed part of libvpx's memory in [`fits_memory`]'s estimate.
 const FIXED_MEMORY: u64 = 64 << 20;
 
-/// Frames libvpx holds in [`fits_memory`]'s estimate: VP9's 8 reference
-/// frames, the frame being decoded and the frame being output.
-const FRAMES_HELD: u64 = 10;
+/// Frames libvpx holds in [`fits_memory`]'s estimate: the reference
+/// frames (VP9's 8; VP8's last, golden and alternate reference frames),
+/// the frame being decoded and the frame being output.
+fn frames_held(interface: Interface) -> u64 {
+    match interface {
+        Interface::Vp8 => 5,
+        Interface::Vp9 => 10,
+    }
+}
 
 /// Refuses, with `Limit`, a stream whose declared size needs more than
 /// `limits.max_memory_bytes` to decode: [`FIXED_MEMORY`] and
-/// [`FRAMES_HELD`] decoded frames at the declared size. Like the dav1d
+/// [`frames_held`] decoded frames at the declared size. Like the dav1d
 /// backend's, the estimate trusts the declared size and is advisory: the
 /// sizes each packet states are checked against the frame limits, and in
 /// the worker the address-space limit is what holds.
-fn fits_memory(stream: &StreamConfig, limits: &Limits) -> Result<(), Error> {
+fn fits_memory(interface: Interface, stream: &StreamConfig, limits: &Limits) -> Result<(), Error> {
     let (Some(w), Some(h)) = (stream.width, stream.height) else {
         return Ok(());
     };
     let need = decoded_frame_bytes(stream, w, h)
-        .saturating_mul(FRAMES_HELD)
+        .saturating_mul(frames_held(interface))
         .saturating_add(FIXED_MEMORY);
     if need > limits.max_memory_bytes {
         return Err(Error::new(
@@ -381,16 +419,25 @@ mod tests {
             max_memory_bytes: gib << 30,
             ..Limits::default()
         };
+        let vp9 = Interface::Vp9;
         // 1080p, no record: 12 MiB a frame, 10 frames and 64 MiB fit 1 GiB.
-        assert!(fits_memory(&stream(1920, 1080), &limits(1)).is_ok());
+        assert!(fits_memory(vp9, &stream(1920, 1080), &limits(1)).is_ok());
         // 8K: 190 MiB a frame; 1 GiB holds none of it, 2 GiB all.
         assert_eq!(
-            fits_memory(&stream(7680, 4320), &limits(1))
+            fits_memory(vp9, &stream(7680, 4320), &limits(1))
                 .err()
                 .map(|e| e.kind),
             Some(ErrorKind::Limit)
         );
-        assert!(fits_memory(&stream(7680, 4320), &limits(2)).is_ok());
-        assert!(fits_memory(&StreamConfig::new(Codec::Vp9), &limits(1)).is_ok());
+        assert!(fits_memory(vp9, &stream(7680, 4320), &limits(2)).is_ok());
+        assert!(fits_memory(vp9, &StreamConfig::new(Codec::Vp9), &limits(1)).is_ok());
+        // VP8 holds 5 frames: 8K's 950 MiB and 64 MiB fit 1 GiB.
+        assert!(fits_memory(Interface::Vp8, &stream(7680, 4320), &limits(1)).is_ok());
+        assert_eq!(
+            fits_memory(Interface::Vp8, &stream(7680, 8640), &limits(1))
+                .err()
+                .map(|e| e.kind),
+            Some(ErrorKind::Limit)
+        );
     }
 }

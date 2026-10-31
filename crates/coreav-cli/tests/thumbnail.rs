@@ -207,7 +207,8 @@ mod with_ffmpeg {
                     assert_eq!(code, 0, "{name} {format} exact={exact}: {stderr}");
                     let summary: Value = serde_json::from_str(&stdout).unwrap();
                     schema::validate(&summary, &schema, &schema, "$").unwrap();
-                    let backend = if name == "vp9.webm" && cfg!(feature = "libvpx") {
+                    let libvpx = matches!(name, "vp9.webm" | "vp8.webm");
+                    let backend = if libvpx && cfg!(feature = "libvpx") {
                         "libvpx"
                     } else {
                         "ffmpeg"

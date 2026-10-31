@@ -40,8 +40,8 @@ shared shape `time` is that of `probe-v1.md`.
 | Key | Type | Meaning |
 |---|---|---|
 | `stream_index` | integer | Position of the stream among all tracks of the file (`ffprobe`'s `index`). |
-| `codec` | string | The codec name of `coreav probe`: `flac`, `mp3`, or `aac` in a build with the opt-in feature `aac`. |
-| `sample_rate` | integer | The sample rate the codec configuration gives. |
+| `codec` | string | The codec name of `coreav probe`: `flac`, `mp3`, `opus`, or `aac` in a build with the opt-in feature `aac`. |
+| `sample_rate` | integer | The sample rate the codec configuration gives; for Opus 48,000, the rate it decodes to (its header's input rate is informative only). |
 | `channels` | integer | The channel count the codec configuration gives. |
 | `bits_per_sample` | integer or null | Bits per sample of a lossless codec; `null` for a lossy one. |
 | `packets` | integer | Packets read, the ones that could not be decoded included. |

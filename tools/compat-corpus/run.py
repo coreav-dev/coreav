@@ -56,11 +56,13 @@ its output is read. Python 3 standard library only.
 import argparse
 import collections
 import concurrent.futures
+import fractions
 import functools
 import importlib.util
 import json
 import os
 import pathlib
+import re
 import subprocess
 import sys
 import tempfile
@@ -121,11 +123,16 @@ def load_commands():
 # one side list and the other not. Any other difference fails.
 DECLARED_SIZE = ('KD-DECLARED-SIZE (docs/known-divergences.md)',
                  {'streams.width', 'streams.height', 'streams.display_aspect_ratio'})
+# ffprobe drops the parameter set, so it prints none of what the set gives.
+HEVC_WINDOW = ('KD-HEVC-WINDOW (docs/known-divergences.md)',
+               {'streams.profile', 'streams.level', 'streams.color_range', 'streams.pix_fmt',
+                'streams.chroma_location', 'streams.coded_width', 'streams.coded_height',
+                'streams.has_b_frames'})
 SET_ASIDE = {
     'size_entry_understated.mp4': DECLARED_SIZE,
     'size_prores_understated.mov': DECLARED_SIZE,
-    'size_hevc_window.mp4': DECLARED_SIZE,
-    'size_hevc_mixed_window.mp4': DECLARED_SIZE,
+    'size_hevc_window.mp4': HEVC_WINDOW,
+    'size_hevc_mixed_window.mp4': HEVC_WINDOW,
     'ts_duplicates.ts': ('KD-TS-DUPLICATE (docs/known-divergences-ts.md)',
                          {'packets.*', 'streams.bit_rate', 'programs.streams.bit_rate'}),
 }
@@ -138,12 +145,14 @@ def covered_by_record(coreav, path):
     record, fields = SET_ASIDE.get(path.name, (None, set()))
     if record is None:
         return None
+    fields = fields | set(ffmpeg9().get(path.name, {}))
     _, ref_out, _ = run(['ffprobe'] + SECTION_ARGS + [str(path)])
     code, out, _ = run([coreav, 'ffprobe'] + SECTION_ARGS + [str(path)])
     try:
-        extra = set(flatten(json.loads(out))) - set(flatten(json.loads(ref_out)))
+        extra = {key_name(k) for k in set(flatten(json.loads(out))) - set(flatten(json.loads(ref_out)))}
     except ValueError:
         return None
+    extra -= fields
     if code != 0 or extra:
         return None
     if 'packets.*' not in fields:
@@ -164,6 +173,8 @@ def covered_by_record(coreav, path):
 
 def cmd_commands(opts):
     files = media_files(opts.media)
+    for path in files:
+        av1_nclx_fixture(opts.coreav, path)
     records = [r for r in load_commands() if r['tool'] == 'ffprobe']
     aside = {p.name: covered_by_record(opts.coreav, p) for p in files if p.name in SET_ASIDE}
     set_aside = collections.Counter()
@@ -190,11 +201,14 @@ def cmd_commands(opts):
             argv = substitute(args, path)
             ref_code, ref_out, _ = run(['ffprobe'] + argv)
             if ref_code != 0:
-                return path, None
-            return path, (ref_out,) + run([opts.coreav, 'ffprobe'] + argv)
+                return path, None, (None, None)
+            got = run([opts.coreav, 'ffprobe'] + argv)
+            if got[0] != 0 or got[1] == ref_out or aside.get(path.name):
+                return path, (ref_out,) + got, (None, None)
+            return path, (ref_out,) + got, ffmpeg9_covers(opts.coreav, args, path, ref_out, got[1])
         with concurrent.futures.ThreadPoolExecutor(opts.jobs) as pool:
             pairs = list(pool.map(both, files))
-        for path, pair in pairs:
+        for path, pair, (entries, keys) in pairs:
             if pair is None:
                 continue
             ref_out, code, out, err = pair
@@ -209,10 +223,13 @@ def cmd_commands(opts):
             elif aside.get(path.name):
                 b3['set aside'] += 1
                 set_aside[aside[path.name]] += 1
+            elif entries:
+                b3['set aside'] += 1
+                set_aside.update(entries)
             else:
                 b3['fail'] += 1
                 failures.append({'bar': 'B3', 'args': args, 'file': path.name,
-                                 'diff': first_difference(ref_out, out)})
+                                 'diff': first_difference(ref_out, out), 'keys': keys})
     b1_ffmpeg, _ = ffmpeg_refusals(opts, files, collections.Counter(), failures)
     report = {'B1': dict(b1), 'B1 ffmpeg': dict(b1_ffmpeg), 'B2': dict(b2), 'B3': dict(b3),
               'set aside': dict(set_aside), 'failures': failures}
@@ -249,11 +266,26 @@ def failure_key(f):
     return '|'.join([f['bar'], ' '.join(f['args']), f.get('file', '')])
 
 
+HELP_QUERIES = [[flag] for flag in ('-h', '-?', '-help', '--help')]
+# `coreav ffmpeg`'s usage text, as docs-site/snippets/help/ffmpeg.mdx shows
+# it; crates/coreav-cli/tests/docs_site.rs keeps the snippet equal to it.
+FFMPEG_USAGE = HERE.parents[1] / 'docs-site' / 'snippets' / 'help' / 'ffmpeg.mdx'
+
+
+@functools.cache
+def ffmpeg_usage():
+    text = FFMPEG_USAGE.read_text()
+    return text.removeprefix('```text\n').removesuffix('```\n').encode()
+
+
 def ffmpeg_refusals(opts, files, b1, failures):
     """B1 for `coreav ffmpeg`: every out-of-scope `ffmpeg` command of the
     set exits non-zero with a message, prints nothing and writes no output
     file. The output placeholders name files in a new directory, which
-    must stay empty."""
+    must stay empty. A help query with no topic (`-h`, `--help`) is
+    counted apart, as `help`: it must exit 0, print `coreav ffmpeg`'s
+    whole usage text and nothing on standard error, and write no file
+    (docs/design/compat-cli.md, "Help")."""
     import tempfile
     target = str(files[0]) if files else 'INPUT'
     for r in load_commands():
@@ -269,8 +301,13 @@ def ffmpeg_refusals(opts, files, b1, failures):
                 else:
                     argv.append(a)
             code, out, err = run([opts.coreav, 'ffmpeg'] + argv)
-            ok = code not in (0, None) and not out and err.strip() and not any(pathlib.Path(tmp).iterdir())
-        b1['pass' if ok else 'fail'] += 1
+            wrote = any(pathlib.Path(tmp).iterdir())
+        if argv in HELP_QUERIES:
+            ok = code == 0 and out == ffmpeg_usage() and not err and not wrote
+            b1['help' if ok else 'fail'] += 1
+        else:
+            ok = code not in (0, None) and not out and err.strip() and not wrote
+            b1['pass' if ok else 'fail'] += 1
         if not ok:
             failures.append({'bar': 'B1', 'tool': 'ffmpeg', 'args': r['args'], 'exit': code})
     return b1, failures
@@ -284,6 +321,716 @@ def first_difference(a, b):
         if x != y:
             return {'line': i + 1, 'ffprobe': x[:300], 'coreav': y[:300]}
     return {'line': None}
+
+
+# Differences that come from FFmpeg 9.0.2 itself, not from CoreAV: keys it
+# prints that `coreav ffprobe` does not yet print, keys it no longer prints,
+# and values it gives otherwise. ffmpeg9.json names each key and the files it
+# differs on, under the entry of docs/known-divergences-ffprobe9.md that says
+# why. A B3 difference is set aside only when the two outputs are byte for
+# byte the same once those keys of that file, and nothing else, are taken out
+# of both, in the command's own output format, and every value that differs
+# on those keys is one the entry accepts (its `accepts`, [accepts]).
+FFMPEG9 = HERE / 'ffmpeg9.json'
+WRITER_FLAGS = ('-of', '-print_format', '-output_format')
+WRITER_OPTIONS = {'nokey': 'nk', 'noprint_wrappers': 'nw', 'print_section': 'p',
+                  'item_sep': 's', 'sep_char': 's', 'escape': 'e', 'compact': 'c'}
+WRITER_DEFAULTS = {'default': {'nk': '0', 'nw': '0'},
+                   'compact': {'nk': '0', 'p': '1', 's': '|', 'e': 'c'},
+                   'csv': {'nk': '1', 'p': '1', 's': ',', 'e': 'csv'},
+                   'flat': {'s': '.'},
+                   'json': {}}
+# The options under which a writer shows every key, section name and wrapper.
+WRITER_FULL = {'default': {'nk': '0', 'nw': '0'},
+               'compact': {'nk': '0', 'p': '1'},
+               'csv': {'nk': '0', 'p': '1'},
+               'flat': {'s': '.'},
+               'json': {}}
+
+
+@functools.cache
+def ffmpeg9():
+    """{file name: {key: entry id}} from ffmpeg9.json."""
+    out = collections.defaultdict(dict)
+    for entry in json.loads(FFMPEG9.read_text())['entries']:
+        for key, names in entry['keys'].items():
+            for name in names:
+                out[name][key] = entry['id']
+    return out
+
+
+@functools.cache
+def ffmpeg9_rules():
+    """{entry id: {key: rule}} from ffmpeg9.json."""
+    return {entry['id']: entry['accepts'] for entry in json.loads(FFMPEG9.read_text())['entries']}
+
+
+@functools.cache
+def av1_nclx_fixture(coreav, path):
+    """Validate the one AV1 fixture's bytes and exact oracle disagreement;
+    an oracle that starts agreeing must retire this exception."""
+    if path.name != 'color_av1_colr_ignored.mp4':
+        return False
+    prefix = 'KD-FF9-AV1-NCLX: '
+    try:
+        if path.stat().st_size > 8 * 1024 * 1024:
+            raise ValueError('fixture exceeds the evidence reader limit')
+        data = path.read_bytes()
+
+        def one(start, end, kind):
+            found = []
+            while start < end:
+                if start + 8 > end:
+                    raise ValueError('truncated box header')
+                size = int.from_bytes(data[start:start + 4], 'big')
+                if size < 8 or start + size > end:
+                    raise ValueError('changed or invalid box layout')
+                if data[start + 4:start + 8] == kind:
+                    found.append((start + 8, start + size))
+                start += size
+            if len(found) != 1:
+                raise ValueError('expected exactly one ' + kind.decode('ascii') + ' box')
+            return found[0]
+
+        start, end = 0, len(data)
+        for kind in (b'moov', b'trak', b'mdia', b'minf', b'stbl', b'stsd'):
+            start, end = one(start, end, kind)
+        if data[start:start + 8] != b'\0\0\0\0\0\0\0\1':
+            raise ValueError('changed sample-description header')
+        start, end = one(start + 8, end, b'av01')
+        start += 78
+        a, b = one(start, end, b'colr')
+        colour = data[a:b]
+        if colour != b'nclx\0\6\0\6\0\6\x80':
+            raise ValueError('changed nclx colour or range bytes')
+        a, b = one(start, end, b'av1C')
+        record = data[a:b]
+        if len(record) < 4 or record[0] != 0x81:
+            raise ValueError('changed AV1 configuration record')
+        profile, level, flags = record[1] >> 5, record[1] & 31, record[2]
+        tier = 'H' if flags & 128 else 'M'
+        depth = 12 if profile == 2 and flags & 32 and flags & 64 else 10 if flags & 64 else 8
+        mono, x, y = (int(bool(flags & mask)) for mask in (16, 8, 4))
+        position = flags & 3 if x and y else 0
+        p, t, m = (int.from_bytes(colour[i:i + 2], 'big') for i in (4, 6, 8))
+        expected = (f'av01.{profile}.{level:02}{tier}.{depth:02}.{mono}.{x}{y}{position}'
+                    f'.{p:02}.{t:02}.{m:02}.{int(bool(colour[10] & 128))}')
+        if expected != 'av01.0.00M.08.0.110.06.06.06.1':
+            raise ValueError('changed AV1 configuration or expected codec string')
+    except (OSError, ValueError) as error:
+        raise SystemExit(prefix + str(error)) from error
+    sides = []
+    args = ['-v', 'error', '-of', 'json', '-show_entries',
+            'stream=codec_name,codec_tag_string,mime_codec_string', str(path)]
+    for tool in (['ffprobe'], [coreav, 'ffprobe']):
+        code, out, _ = run(tool + args)
+        try:
+            sides.append(json.loads(out)['streams'] if code == 0 else None)
+        except (ValueError, KeyError, TypeError) as error:
+            raise SystemExit(prefix + 'invalid stream listing') from error
+    stream = {'codec_name': 'av1', 'codec_tag_string': 'av01'}
+    if sides[0] == sides[1] == [dict(stream, mime_codec_string=expected)]:
+        raise SystemExit(prefix + 'oracle now agrees; remove the obsolete exception')
+    if sides != [[dict(stream, mime_codec_string='av01.0.00M.08')],
+                 [dict(stream, mime_codec_string=expected)]]:
+        raise SystemExit(prefix + 'the exact codec-string disagreement changed')
+    return True
+
+
+CANONICAL_ARGS = ['-v', 'error', '-of', 'json', '-show_format', '-show_streams', '-show_programs',
+                  '-show_packets']
+
+
+def listed_values(doc):
+    """[(section, {key: value}, context)] for the format, each stream, each
+    program's streams and each packet of a JSON listing, a packet's side
+    data under `side_data_list[<type>]`. A stream's and a packet's context
+    name its stream's codec; a
+    packet's also its position in the listing, whether it is its stream's
+    last, and whether it carries Skip Samples side data."""
+    def leaves(node, prefix, flat):
+        for k, v in node.items():
+            if isinstance(v, dict):
+                leaves(v, f'{prefix}{k}.', flat)
+            elif not isinstance(v, list):
+                flat[prefix + k] = str(v)
+        return flat
+
+    def codec(stream):
+        return {'codec_type': stream.get('codec_type'), 'codec_name': stream.get('codec_name')}
+
+    streams = {s.get('index'): s for s in doc.get('streams', [])}
+    items = [('format', leaves(doc.get('format', {}), '', {}), {})]
+    items += [('streams', leaves(s, '', {}), codec(s)) for s in doc.get('streams', [])]
+    items += [('programs.streams', leaves(s, '', {}), codec(s))
+              for program in doc.get('programs', []) for s in program.get('streams', [])]
+    packets = doc.get('packets', [])
+    last = {p.get('stream_index'): i for i, p in enumerate(packets)}
+    for i, packet in enumerate(packets):
+        index = packet.get('stream_index')
+        skip = any(s.get('side_data_type') == 'Skip Samples' for s in packet.get('side_data_list', []))
+        context = {**codec(streams.get(index, {})), 'last': last[index] == i, 'skip': skip, 'position': i}
+        flat = leaves(packet, '', {})
+        for side in packet.get('side_data_list', []):
+            key = f"side_data_list[{side.get('side_data_type', '')}]"
+            flat[key] = flat.get(key, '') + json.dumps(side, sort_keys=True)
+        items.append(('packets', flat, context))
+    return items
+
+
+@functools.cache
+def canonical(coreav, path):
+    """{key: [(ffprobe's value, coreav's, context)], or None where the two
+    list a different number of items} over the whole file, a value one
+    tool leaves out N/A (the JSON writer does not print an N/A), the context
+    ffprobe's; None when either tool fails."""
+    sides = []
+    for tool in (['ffprobe'], [coreav, 'ffprobe']):
+        code, out, _ = run(tool + CANONICAL_ARGS + [str(path)])
+        try:
+            sides.append(listed_values(json.loads(out)) if code == 0 else None)
+        except ValueError:
+            return None
+        if sides[-1] is None:
+            return None
+    names = collections.defaultdict(dict)
+    for section, flat, _ in sides[0] + sides[1]:
+        names[section].update(dict.fromkeys(flat))
+    ref, got = ([(f'{section}.{k}', flat.get(k, 'N/A'), context)
+                 for section, flat, context in side for k in names[section]] for side in sides)
+    if [k for k, _, _ in ref] != [k for k, _, _ in got]:
+        return {}
+    out = collections.defaultdict(list)
+    for (key, f, context), (_, c, _) in zip(ref, got):
+        out[key].append((f, c, context))
+    return out
+
+
+def number(text):
+    try:
+        return fractions.Fraction(text)
+    except (ValueError, ZeroDivisionError):
+        return None
+
+
+PREFIXES = {'': 1, 'K': 1000, 'M': 1000 ** 2, 'G': 1000 ** 3, 'Ki': 1024, 'Mi': 1024 ** 2, 'Gi': 1024 ** 3}
+
+
+def plain(value):
+    """A value as -pretty, -sexagesimal, -unit or -prefix leave it or not:
+    a number, None for N/A, unknown or nothing, else the text."""
+    text = value.strip()
+    if text in ('', 'N/A', 'unknown', '[]'):
+        return None
+    clock = re.fullmatch(r'(-?)(\d+):(\d\d):(-?[\d.]+)', text)
+    if clock:
+        sign = -1 if clock[1] else 1
+        return sign * (int(clock[2]) * 3600 + int(clock[3]) * 60 + fractions.Fraction(clock[4]))
+    unit = re.fullmatch(r'(-?[\d.]+) ?(Ki|Mi|Gi|K|M|G)?(bit/s|byte|B|s|Hz)', text)
+    if unit:
+        return fractions.Fraction(unit[1]) * PREFIXES[unit[2] or '']
+    return number(text) if number(text) is not None else text
+
+
+RELATIONS = {
+    'ffprobe greater': lambda f, c: f > c,
+    'ffprobe smaller': lambda f, c: f < c,
+    'ffprobe double': lambda f, c: f == 2 * c,
+}
+
+
+def satisfies(rule, f, c, context):
+    """Whether one pair of differing values over the whole file, ffprobe's
+    `f` and coreav's `c` of one stream or packet, is the difference
+    `rule` accepts; a list of rules accepts what any of them does."""
+    if isinstance(rule, list):
+        return any(satisfies(r, f, c, context) for r in rule)
+    where = rule.get('where', {})
+    if any(context.get(k) != where[k] for k in ('codec_type', 'codec_name') if k in where):
+        return False
+    if where.get('packet') == 'last' and not context.get('last'):
+        return False
+    if where.get('packet') == 'skip samples' and not context.get('skip'):
+        return False
+    if f != rule.get('ffprobe', f) or c != rule.get('coreav', c):
+        return False
+    if 'pairs' in rule and [f, c] not in rule['pairs']:
+        return False
+    if 'at' in rule and [context.get('position'), f, c] not in rule['at']:
+        return False
+    if rule.get('relation') == 'ffprobe joins coreav':
+        return ';' in f and c in f.split(';')
+    if 'relation' in rule or 'difference' in rule or 'ratio' in rule:
+        x, y = number(f), number(c)
+        if x is None or y is None:
+            return False
+        if 'difference' in rule and x - y not in rule['difference']:
+            return False
+        if 'ratio' in rule and not (y and number(rule['ratio'][0]) <= x / y <= number(rule['ratio'][1])):
+            return False
+        return 'relation' not in rule or RELATIONS[rule['relation']](x, y)
+    return True
+
+
+def accepts(coreav, path, key, rule, ref_values, values):
+    """Whether `rule` accepts every difference of one key of one command's
+    two outputs (ffprobe's values `ref_values`, coreav's `values`): a
+    key one tool alone prints, side data CoreAV lists on only some of the
+    packets ffprobe lists it on, the same on each ([canonical]), or values
+    that differ only where they differ over the whole file, each
+    difference there the one the rule names."""
+    if isinstance(rule, dict) and rule.get('evidence') == 'av1 nclx':
+        if key != 'streams.mime_codec_string' or not av1_nclx_fixture(coreav, path):
+            return False
+    only = rule.get('only') if isinstance(rule, dict) else None
+    if only == 'ffprobe':
+        return all(plain(v) is None for v in values)
+    if only == 'coreav':
+        return all(plain(v) is None for v in ref_values)
+    if only == 'part of ffprobe':
+        if collections.Counter(values) - collections.Counter(ref_values):
+            return False
+        if key.endswith('[]'):
+            return True
+        pairs = (canonical(coreav, path) or {}).get(key)
+        return pairs is not None and all(c in ('N/A', f) for f, c, _ in pairs)
+    pairs = (canonical(coreav, path) or {}).get(key)
+    if pairs is None:
+        return False
+    if isinstance(rule, dict) and 'packets' in rule:
+        rule = {'at': rule['packets'].get(path.name, [])}
+    differ = [(f, c, context) for f, c, context in pairs if f != c]
+    if not all(satisfies(rule, f, c, context) for f, c, context in differ):
+        return False
+    allowed = {(plain(f), plain(c)) for f, c, _ in differ}
+    got = [(plain(f), plain(c)) for f, c in zip(ref_values, values)]
+    if len(ref_values) == len(values):
+        return all(f == c or (f, c) in allowed for f, c in got)
+    # The JSON writer leaves an N/A out, so the items no longer pair.
+    ref_only = collections.Counter(map(plain, ref_values)) - collections.Counter(map(plain, values))
+    only_here = collections.Counter(map(plain, values)) - collections.Counter(map(plain, ref_values))
+    return (not ref_only - collections.Counter(f for f, _ in allowed)
+            and not only_here - collections.Counter(c for _, c in allowed))
+
+
+def writer_of(args):
+    """The writer a command prints with, and its options, defaults included."""
+    spec = 'default'
+    for flag, value in zip(args, args[1:]):
+        if flag in WRITER_FLAGS:
+            spec = value
+    name, _, rest = spec.partition('=')
+    options = dict(WRITER_DEFAULTS.get(name, {}))
+    for item in filter(None, rest.split(':')):
+        k, _, v = item.partition('=')
+        options[WRITER_OPTIONS.get(k, k)] = v
+    return name, options
+
+
+def on(options, name):
+    return options.get(name, '0') not in ('0', '')
+
+
+def full_args(args, name, options):
+    """`args` with the writer set to show every key, section name and
+    wrapper, or None when it already does."""
+    full = {**options, **WRITER_FULL[name]}
+    if full == options:
+        return None
+    spec = name + '=' + ':'.join(f'{k}={v}' for k, v in full.items())
+    return [spec if i and args[i - 1] in WRITER_FLAGS else a for i, a in enumerate(args)]
+
+
+def records(text, escape):
+    """(start, line) for each line of a compact or CSV output; a CSV value in
+    quotes may hold line ends."""
+    out, start, quoted = [], 0, False
+    for i, ch in enumerate(text):
+        if escape == 'csv' and ch == '"':
+            quoted = not quoted
+        elif ch == '\n' and not quoted:
+            out.append((start, text[start:i]))
+            start = i + 1
+    return out + [(start, text[start:])]
+
+
+def split_items(line, sep, escape):
+    """A compact or CSV line cut at each separator that is not escaped."""
+    items, start, quoted, i = [], 0, False, 0
+    while i < len(line):
+        ch = line[i]
+        if escape == 'c' and ch == '\\':
+            i += 2
+            continue
+        if escape == 'csv' and ch == '"':
+            quoted = not quoted
+        elif ch == sep and not quoted:
+            items.append(line[start:i])
+            start = i + 1
+        i += 1
+    items.append(line[start:])
+    return items
+
+
+def derive(text, name, options):
+    """What a writer prints under `options`, from what it prints under
+    WRITER_FULL."""
+    lines = text.split('\n')
+    if name == 'default':
+        if on(options, 'nw'):
+            lines = [x for x in lines if not (x.startswith('[') and x.endswith(']'))]
+        if on(options, 'nk'):
+            lines = [x.split('=', 1)[-1] for x in lines]
+    elif name in ('compact', 'csv'):
+        out = []
+        for _, x in records(text, options['e']):
+            items = split_items(x, options['s'], options['e']) if x else []
+            while items and not on(options, 'p') and '=' not in items[0]:
+                items = items[1:]
+            if on(options, 'nk'):
+                items = [i.split('=', 1)[-1] for i in items]
+            out.append(options['s'].join(items))
+        lines = out
+    elif name == 'flat':
+        lines = [x.partition('=')[0].replace('.', options['s']) + ''.join(x.partition('=')[1:])
+                 for x in lines]
+    return '\n'.join(lines)
+
+
+def section_key(name):
+    """`STREAM` -> `streams`, `FORMAT` -> `format`: a section as
+    `key_name` names it."""
+    name = name.lower()
+    return name if name == 'format' else name + 's'
+
+
+def leaf_key(path, key):
+    for prefix, sub in (('TAG:', 'tags.'), ('DISPOSITION:', 'disposition.'),
+                        ('tag:', 'tags.'), ('disposition:', 'disposition.')):
+        if key.startswith(prefix):
+            key = sub + key[len(prefix):]
+    return '.'.join(path + [key])
+
+
+# A stream group (FFmpeg 9.0.2 makes one of a QuickTime timecode track) is
+# one item, `stream_groups`, in every writer.
+def side_data_key(path, kind):
+    """One side data entry, by its type: `packets.side_data_list[Skip Samples]`."""
+    return '.'.join(path + ['side_data_list']) + f'[{kind}]'
+
+
+def parse_default(text):
+    """[(key, start, end)]: each line of a key, and each side data section,
+    of the default writer."""
+    spans, path, group, opaque, pos = [], [], None, None, 0
+    for line in text.split('\n'):
+        end = pos + len(line) + 1
+        if opaque is not None:
+            if line == '[/STREAM_GROUP]':
+                spans.append(('stream_groups', opaque, end))
+                opaque = None
+        elif line == '[STREAM_GROUP]':
+            opaque = pos
+        elif line.startswith('[') and line.endswith(']'):
+            close, section = line.startswith('[/'), line.strip('[/]')
+            if section == 'SIDE_DATA':
+                if close and group:
+                    spans.append((side_data_key(path, group[1]), group[0], end))
+                group = None if close else [pos, '']
+            elif close:
+                path = path[:-1]
+            else:
+                path = path + [section_key(section)]
+        elif group is not None:
+            if line.startswith('side_data_type='):
+                group[1] = line.split('=', 1)[1]
+        elif '=' in line:
+            spans.append((leaf_key(path, line.split('=', 1)[0]), pos, end))
+        pos = end
+    return spans
+
+
+def parse_compact(text, options):
+    """[(key, start, end)]: each item of a key with the separator before it,
+    and each side data entry, of the compact and CSV writers."""
+    spans, sep, opaque = [], options['s'], None
+    for pos, line in records(text, options['e']):
+        items = split_items(line, sep, options['e'])
+        if opaque is not None or items[0] == 'stream_group':
+            opaque = pos if opaque is None else opaque
+            if not line:
+                spans.append(('stream_groups', opaque, pos + 1))
+                opaque = None
+            continue
+        path = [section_key(items[0])] if items[0] else []
+        at, groups = pos + len(items[0]), {}
+        for item in items[1:]:
+            start, at = at, at + len(sep) + len(item)
+            key, eq, value = item.partition('=')
+            prefix, colon, rest = key.partition(':')
+            if not eq:
+                groups[start] = [start, at, '']
+            elif colon and prefix.startswith('side_datum/'):
+                g = groups.setdefault(prefix, [start, at, ''])
+                g[1] = at
+                if rest == 'side_data_type':
+                    g[2] = value
+            else:
+                spans.append((leaf_key(path, key), start, at))
+        spans += [(side_data_key(path, kind), s, e) for s, e, kind in groups.values()]
+    return spans
+
+
+def parse_flat(text):
+    """[(key, start, end)]: each line of a key of the flat writer, and the
+    lines of each side data entry together."""
+    spans, groups, pos = [], {}, 0
+    for line in text.split('\n'):
+        end = pos + len(line) + 1
+        name, eq, value = line.partition('=')
+        parts, path, i, group = name.split('.'), [], 0, None
+        while i < len(parts):
+            if i + 2 < len(parts) and parts[i + 2].isdigit():
+                if parts[i] == 'side_data_list':
+                    group = '.'.join(parts[:i + 3])
+                    break
+                path.append(parts[i])
+                i += 3
+            else:
+                path.append(parts[i])
+                i += 1
+        if parts[0] == 'stream_groups':
+            g = groups.setdefault('stream_groups', [None, pos, end, ''])
+            g[2] = end
+        elif group:
+            g = groups.setdefault(group, [path, pos, end, ''])
+            g[2] = end
+            if parts[-1] == 'side_data_type':
+                g[3] = value.strip('"')
+        elif eq:
+            spans.append(('.'.join(path), pos, end))
+        pos = end
+    return spans + [(side_data_key(p, kind) if p is not None else 'stream_groups', s, e)
+                    for p, s, e, kind in groups.values()]
+
+
+class JsonNode:
+    def __init__(self, key, start):
+        self.key, self.start, self.end = key, start, start
+        self.open, self.children, self.value = None, [], None
+
+
+def parse_json_text(text):
+    """The JSON writer's output as a tree; a member's span covers its name
+    and its value."""
+    pos = 0
+
+    def ws():
+        nonlocal pos
+        while pos < len(text) and text[pos] in ' \t\r\n':
+            pos += 1
+
+    def string():
+        nonlocal pos
+        start = pos
+        pos += 1
+        while text[pos] != '"':
+            pos += 2 if text[pos] == '\\' else 1
+        pos += 1
+        return json.loads(text[start:pos])
+
+    def value(node):
+        nonlocal pos
+        ch = text[pos]
+        if ch in '{[':
+            node.open, close = ch, '}' if ch == '{' else ']'
+            pos += 1
+            ws()
+            while text[pos] != close:
+                child = JsonNode(node.key, pos)
+                if ch == '{':
+                    name = string()
+                    ws()
+                    pos += 1
+                    ws()
+                    child.key = f'{node.key}.{name}' if node.key else name
+                value(child)
+                child.end = pos
+                node.children.append(child)
+                ws()
+                if text[pos] == ',':
+                    pos += 1
+                    ws()
+            pos += 1
+        elif ch == '"':
+            node.value = string()
+        else:
+            start = pos
+            while pos < len(text) and text[pos] not in ',}] \t\r\n':
+                pos += 1
+            node.value = text[start:pos]
+
+    root = JsonNode('', 0)
+    ws()
+    if pos < len(text):
+        value(root)
+    root.start, root.end = 0, len(text)
+    return root
+
+
+def json_side_data(node):
+    """The side data key of an entry of a `side_data_list`."""
+    kind = next((c.value for c in node.children if c.key.endswith('.side_data_type')), '')
+    base = node.key[:-len('side_data_list')].rstrip('.')
+    return side_data_key([base] if base else [], kind)
+
+
+def parse_json(text):
+    """[(key, start, end)]: each leaf member, and each side data entry, of
+    the JSON writer."""
+    spans = []
+
+    def walk(node, in_list):
+        for child in node.children:
+            if in_list:
+                spans.append((json_side_data(child), child.start, child.end))
+            elif child.key == 'stream_groups':
+                spans.append((child.key, child.start, child.end))
+            elif child.open:
+                walk(child, child.open == '[' and child.key.endswith('side_data_list'))
+            else:
+                spans.append((child.key, child.start, child.end))
+    walk(parse_json_text(text), False)
+    return spans
+
+
+def json_without(text, keys):
+    """The JSON writer's output with the members of `keys` taken out, the
+    separators between those left kept, and a container left empty taken
+    out too."""
+    def render(node, in_list):
+        if in_list:
+            return None if json_side_data(node) in keys else text[node.start:node.end]
+        if not node.open or node.key == 'stream_groups':
+            return None if node.key in keys else text[node.start:node.end]
+        kids = node.children
+        if not kids:
+            return text[node.start:node.end]
+        inner = node.open == '[' and node.key.endswith('side_data_list')
+        kept = [(i, r) for i, r in ((i, render(c, inner)) for i, c in enumerate(kids)) if r is not None]
+        if not kept:
+            return None
+        out = [text[node.start:kids[0].start]]
+        for j, (i, r) in enumerate(kept):
+            if j:
+                out.append(text[kids[i - 1].end:kids[i].start])
+            out.append(r)
+        out.append(text[kids[-1].end:node.end])
+        return ''.join(out)
+    return render(parse_json_text(text), False) or ''
+
+
+def item_spans(text, name, options):
+    if name == 'default':
+        return parse_default(text)
+    if name in ('compact', 'csv'):
+        return parse_compact(text, options)
+    if name == 'flat':
+        return parse_flat(text)
+    return parse_json(text)
+
+
+def without(text, name, options, keys):
+    """`text` with every item of `keys` taken out."""
+    if name == 'json':
+        return json_without(text, keys)
+    out, at = [], 0
+    for key, start, end in sorted(item_spans(text, name, options), key=lambda s: s[1]):
+        if key in keys:
+            out.append(text[at:start])
+            at = end
+    return ''.join(out) + text[at:]
+
+
+def item_value(text, name, options):
+    """The value of one item of a key, as `item_spans` cuts it."""
+    if name == 'json':
+        value = text.partition(':')[2].strip()
+        try:
+            return str(json.loads(value))
+        except ValueError:
+            return value
+    value = text.rstrip('\n').partition('=')[2]
+    if name == 'flat' and value.startswith('"'):
+        return value[1:-1]
+    if name == 'csv' and value.startswith('"'):
+        return value[1:-1].replace('""', '"')
+    return value
+
+
+def item_values(text, name, options):
+    out = collections.defaultdict(list)
+    for key, start, end in sorted(item_spans(text, name, options), key=lambda s: s[1]):
+        out[key].append(item_value(text[start:end], name, options))
+    return out
+
+
+def differing_keys(a, b, name, options):
+    """The keys whose items differ between two outputs of one writer."""
+    def items(text):
+        out = collections.defaultdict(list)
+        for key, start, end in item_spans(text, name, options):
+            out[key].append(text[start:end].strip(' ,\n' + options.get('s', '')))
+        return out
+    x, y = items(a), items(b)
+    return sorted(k for k in set(x) | set(y) if x.get(k) != y.get(k))
+
+
+def full_outputs(coreav, args, path, ref_out, out):
+    """(writer, options, [ffprobe's output, coreav's]) with every key, section
+    name and wrapper shown, or None when the writer is not one of
+    WRITER_FULL, either tool's output under them does not give back what
+    it printed, or the JSON writer printed something that is not JSON."""
+    name, options = writer_of(args)
+    if name not in WRITER_FULL:
+        return None
+    printed = [ref_out.decode('utf-8', 'replace'), out.decode('utf-8', 'replace')]
+    if name == 'json':
+        try:
+            for text in printed:
+                json.loads(text)
+        except ValueError:
+            return None
+    full = full_args(args, name, options)
+    if full is None:
+        return name, options, printed
+    texts = []
+    for tool, text in zip((['ffprobe'], [coreav, 'ffprobe']), printed):
+        code, again, _ = run(tool + substitute(full, path))
+        again = again.decode('utf-8', 'replace')
+        if code != 0 or derive(again, name, options) != text:
+            return None
+        texts.append(again)
+    return name, {**options, **WRITER_FULL[name]}, texts
+
+
+def ffmpeg9_covers(coreav, args, path, ref_out, out):
+    """For two outputs of one command on one file that differ: the
+    ffmpeg9.json entries that explain every difference, or None, and the
+    keys that differ, or None when the writer's output cannot be read."""
+    found = full_outputs(coreav, args, path, ref_out, out)
+    if found is None:
+        return None, None
+    name, options, (a, b) = found
+    keys = differing_keys(a, b, name, options)
+    allowed = ffmpeg9().get(path.name, {})
+    if not allowed or without(a, name, options, allowed) != without(b, name, options, allowed):
+        return None, keys
+    ref_values, values = item_values(a, name, options), item_values(b, name, options)
+    for k in keys:
+        if k in allowed and not accepts(coreav, path, k, ffmpeg9_rules()[allowed[k]][k], ref_values[k], values[k]):
+            return None, keys
+    return sorted({allowed[k] for k in keys if k in allowed}) or None, keys
 
 
 SECTION_ARGS = ['-v', 'error', '-of', 'json', '-show_format', '-show_streams',
@@ -516,6 +1263,8 @@ def cmd_commands_010(opts):
     if opts.baseline or opts.write_baseline:
         raise SystemExit('R1 has no baseline: --set 0.1.0 takes no --baseline or --write-baseline')
     files = [p for p in media_files(opts.media) if release_round.family(p)]
+    for path in files:
+        av1_nclx_fixture(opts.coreav, path)
     aside = {p.name: covered_by_record(opts.coreav, p) for p in files if p.name in SET_ASIDE}
     counts = collections.defaultdict(collections.Counter)
     set_aside = collections.Counter()
@@ -525,8 +1274,12 @@ def cmd_commands_010(opts):
         argv = substitute(args, path)
         ref_code, ref_out, _ = run(['ffprobe'] + argv)
         if ref_code != 0:
-            return path, ref_code, ref_out, None, b'', b''
-        return (path, ref_code, ref_out) + run([opts.coreav, 'ffprobe'] + argv)
+            return path, ref_code, ref_out, None, b'', b'', None
+        code, out, err = run([opts.coreav, 'ffprobe'] + argv)
+        entries = None
+        if code == 0 and out != ref_out and not aside.get(path.name) and path.name in ffmpeg9():
+            entries, _ = ffmpeg9_covers(opts.coreav, args, path, ref_out, out)
+        return path, ref_code, ref_out, code, out, err, entries
 
     strict = {}
 
@@ -541,7 +1294,7 @@ def cmd_commands_010(opts):
         targets = [p for p in files if release_round.family(p) in families]
         with concurrent.futures.ThreadPoolExecutor(opts.jobs) as pool:
             results = list(pool.map(lambda p: both(args, p), targets))
-        for path, ref_code, ref_out, code, out, err in results:
+        for path, ref_code, ref_out, code, out, err, entries in results:
             c = counts[(entry['id'], n, release_round.family(path))]
             if ref_code != 0:
                 c['ffprobe fails'] += 1
@@ -557,6 +1310,9 @@ def cmd_commands_010(opts):
             elif aside.get(path.name):
                 c['set aside'] += 1
                 set_aside[aside[path.name]] += 1
+            elif entries:
+                c['set aside'] += 1
+                set_aside.update(entries)
             else:
                 c['different'] += 1
                 failures.append({'id': entry['id'], 'command': n, 'args': args, 'file': path.name,

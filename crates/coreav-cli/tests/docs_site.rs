@@ -45,8 +45,6 @@ fn subcommands(help: &str) -> Vec<String> {
 
 /// Each snippet's file name and the help it shows: `coreav.mdx` for
 /// `coreav --help`, `hls-index.mdx` for `coreav hls index --help`.
-/// `coreav ffmpeg --help` is not native (it runs `ffmpeg --help` through
-/// the fallback), so it has none.
 fn snippets(commands: &[String]) -> Vec<(String, String)> {
     let mut out = Vec::new();
     if cfg!(not(feature = "thumbnail")) {
@@ -54,7 +52,7 @@ fn snippets(commands: &[String]) -> Vec<(String, String)> {
     }
     for command in commands {
         let decoder = DECODER_COMMANDS.contains(&command.as_str());
-        if command == "ffmpeg" || decoder != cfg!(feature = "thumbnail") {
+        if decoder != cfg!(feature = "thumbnail") {
             continue;
         }
         let text = help(&[command]);
@@ -92,9 +90,16 @@ fn the_command_reference_matches_the_help() {
             continue;
         }
         let have = std::fs::read_to_string(&path).unwrap_or_default();
+        let first = have
+            .lines()
+            .zip(want.lines())
+            .find(|(h, w)| h != w)
+            .map_or_else(String::new, |(h, w)| {
+                format!(" (first difference: {h:?} in the page, {w:?} in the help)")
+            });
         assert!(
             have == want,
-            "docs-site/snippets/help/{name}.mdx is not the command's --help: run `COREAV_BLESS_DOCS=1 cargo test -p coreav-cli --test docs_site` (and with `--features ffmpeg-fallback` for thumbnail and transcode), then check that the page beside it still says what the help says"
+            "docs-site/snippets/help/{name}.mdx is not the command's --help{first}: run `COREAV_BLESS_DOCS=1 cargo test -p coreav-cli --test docs_site` (and with `--features ffmpeg-fallback` for thumbnail and transcode), then check that the page beside it still says what the help says"
         );
     }
     if cfg!(not(feature = "thumbnail")) {
@@ -133,7 +138,7 @@ fn every_command_has_a_page() {
             "docs-site/docs.json does not list commands/{command}"
         );
         assert!(
-            command == "ffmpeg" || page.contains(&format!("from '/snippets/help/{command}.mdx'")),
+            page.contains(&format!("from '/snippets/help/{command}.mdx'")),
             "docs-site/commands/{command}.mdx does not show its snippet, /snippets/help/{command}.mdx"
         );
     }

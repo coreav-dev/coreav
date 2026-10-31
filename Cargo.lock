@@ -225,6 +225,7 @@ dependencies = [
  "coreav-isobmff",
  "coreav-kernels-audio",
  "coreav-mkv",
+ "coreav-opus",
 ]
 
 [[package]]
@@ -271,6 +272,9 @@ dependencies = [
  "coreav-decode",
  "coreav-frame",
  "coreav-isobmff",
+ "coreav-isobmff-write",
+ "coreav-thumbnail",
+ "md-5",
  "pkg-config",
 ]
 

@@ -47,6 +47,7 @@ mod pvq;
 use crate::range::RangeDecoder;
 use crate::tables::celt as t;
 use mdct::OVERLAP;
+pub(crate) use mdct::window;
 
 /// The number of bands (4.3, Table 55).
 pub(crate) const BANDS: usize = 21;
@@ -120,6 +121,23 @@ pub(crate) struct Frame {
     pub(crate) bands: Bands,
 }
 
+/// Working buffers of [`Celt::decode`]; each frame writes what it reads.
+#[derive(Clone, Debug)]
+struct Scratch {
+    /// The frame's coefficients, per channel.
+    x: [[f32; MAX_FRAME]; 2],
+    mdct: mdct::Scratch,
+}
+
+impl Default for Scratch {
+    fn default() -> Self {
+        Self {
+            x: [[0.0; MAX_FRAME]; 2],
+            mdct: mdct::Scratch::default(),
+        }
+    }
+}
+
 /// The pitch post-filter's parameters (4.3.7.1).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 struct PostFilter {
@@ -132,8 +150,12 @@ struct PostFilter {
 #[derive(Clone, Debug)]
 pub(crate) struct Celt {
     /// Per output channel: the post-filtered signal of the last
-    /// [`HISTORY`] samples, then room for a frame.
-    signal: Box<[[f32; HISTORY + MAX_FRAME]; 2]>,
+    /// [`HISTORY`] samples, then room for a frame and the inverse MDCT's
+    /// overlap after it.
+    signal: Box<[[f32; HISTORY + MAX_FRAME + OVERLAP]; 2]>,
+    /// The bands' coefficients and the inverse MDCT's buffers, kept to
+    /// spare clearing them for each frame.
+    scratch: Box<Scratch>,
     /// The inverse MDCT's tail, to add to the next frame.
     overlap: [[f32; OVERLAP]; 2],
     /// The de-emphasis filter's state.
@@ -153,7 +175,8 @@ pub(crate) struct Celt {
 impl Default for Celt {
     fn default() -> Self {
         Self {
-            signal: Box::new([[0.0; HISTORY + MAX_FRAME]; 2]),
+            signal: Box::new([[0.0; HISTORY + MAX_FRAME + OVERLAP]; 2]),
+            scratch: Box::default(),
             overlap: [[0.0; OVERLAP]; 2],
             deemphasis: [0.0; 2],
             filter: PostFilter::default(),
@@ -295,8 +318,8 @@ impl Celt {
         energy::decode_fine(rd, bands, &allocation.fine, energy);
 
         // The bands' shapes, then what is left for the energy.
-        let mut x = [[0f32; MAX_FRAME]; 2];
-        let [x0, x1] = &mut x;
+        let Scratch { x, mdct: scratch } = &mut *self.scratch;
+        let [x0, x1] = x;
         let mut rows: [&mut [f32]; 2] = [&mut x0[..], &mut x1[..]];
         let rows = rows.get_mut(..coded).unwrap_or(&mut []);
         let shape = bands::Frame {
@@ -342,16 +365,19 @@ impl Celt {
         }
         let m = 1 << lm;
         for (row, energy) in rows.iter_mut().zip(&self.energy) {
+            // The buffer holds the last frame's values outside the coded
+            // bands: they are cleared, not scaled.
             for band in 0..BANDS {
-                let amplitude = if silence || !bands.range().contains(&band) {
-                    0.0
-                } else {
-                    let mean = f32::from(at(&t::ENERGY_MEANS, band)) / 16.0;
-                    (at(energy, band) + mean).min(32.0).exp2()
+                let Some(bins) = row.get_mut(m * edge(band)..m * edge(band + 1)) else {
+                    continue;
                 };
-                if let Some(bins) = row.get_mut(m * edge(band)..m * edge(band + 1)) {
-                    bins.iter_mut().for_each(|v| *v *= amplitude);
+                if silence || !bands.range().contains(&band) {
+                    bins.fill(0.0);
+                    continue;
                 }
+                let mean = f32::from(at(&t::ENERGY_MEANS, band)) / 16.0;
+                let amplitude = crate::math::exp2((at(energy, band) + mean).min(32.0));
+                bins.iter_mut().for_each(|v| *v *= amplitude);
             }
             if let Some(above) = row.get_mut(m * edge(BANDS)..) {
                 above.fill(0.0);
@@ -381,33 +407,30 @@ impl Celt {
             ) else {
                 continue;
             };
-            let mut tmp = [0f32; MAX_FRAME + OVERLAP];
-            if let Some(head) = tmp.get_mut(..OVERLAP) {
+            // The frame goes after the history, its first samples the last
+            // frame's overlap, which the inverse MDCT adds to.
+            let frame = signal.get_mut(HISTORY..).unwrap_or(&mut []);
+            if let Some(head) = frame.get_mut(..OVERLAP) {
                 head.copy_from_slice(overlap);
             }
             for b in 0..blocks {
                 let coeffs = coeffs.get(b..).unwrap_or(&[]);
-                if let Some(block) = tmp.get_mut(b * size..) {
-                    mdct::inverse(coeffs, blocks, size, block);
+                if let Some(block) = frame.get_mut(b * size..) {
+                    mdct::inverse(coeffs, blocks, size, block, scratch);
                 }
             }
-            if let Some(tail) = tmp.get(n..n + OVERLAP) {
+            if let Some(tail) = frame.get(n..n + OVERLAP) {
                 overlap.copy_from_slice(tail);
-            }
-            if let (Some(dst), Some(src)) = (signal.get_mut(HISTORY..HISTORY + n), tmp.get(..n)) {
-                dst.copy_from_slice(src);
             }
             comb(signal, HISTORY, SHORT, old, current, window);
             if lm != 0 {
                 comb(signal, HISTORY + SHORT, n - SHORT, current, filter, window);
             }
-            let mut m = *memory;
-            for (o, &v) in out.iter_mut().zip(signal.iter().skip(HISTORY).take(n)) {
-                let y = v + m;
-                m = PREEMPHASIS * y;
-                *o = y * (1.0 / 32768.0);
-            }
-            *memory = m;
+            *memory = deemphasis(
+                signal.get(HISTORY..HISTORY + n).unwrap_or(&[]),
+                *memory,
+                out,
+            );
             signal.copy_within(n..n + HISTORY, 0);
         }
         self.filter_old = current;
@@ -460,6 +483,36 @@ impl PostFilter {
             ..self
         }
     }
+}
+
+/// De-emphasis (4.3.7.2), `y[i] = x[i] + PREEMPHASIS y[i - 1]`, of `x`
+/// into `out` at full scale 1.0, from `memory`, `PREEMPHASIS` times the
+/// last output; returns the new memory. Eight samples at a time, so that
+/// the recurrence's chain is one step per eight: within a block each output
+/// is its inputs' response plus a power of the pole times the memory.
+/// Every frame is a multiple of eight samples.
+fn deemphasis(x: &[f32], mut memory: f32, out: &mut [f32]) -> f32 {
+    const C: f32 = PREEMPHASIS;
+    const SCALE: f32 = 1.0 / 32768.0;
+    const BLOCK: usize = 8;
+    // C^k for k from 0 to BLOCK - 1: the memory is C times the last output.
+    let powers: [f32; BLOCK] = core::array::from_fn(|k| (0..k).fold(1.0, |p, _| p * C));
+    for (o, v) in out.chunks_exact_mut(BLOCK).zip(x.chunks_exact(BLOCK)) {
+        // The block's response to its own inputs, from a zero memory.
+        let mut p = [0f32; BLOCK];
+        let mut last = 0.0;
+        for (p, &v) in p.iter_mut().zip(v) {
+            last = v + C * last;
+            *p = last;
+        }
+        let mut y = 0.0;
+        for ((o, &p), &power) in o.iter_mut().zip(&p).zip(&powers) {
+            y = p + power * memory;
+            *o = y * SCALE;
+        }
+        memory = C * y;
+    }
+    memory
 }
 
 /// The time-frequency resolution change of each band (4.3.4.5).
@@ -518,35 +571,73 @@ fn comb(
     if from.gain == 0.0 && to.gain == 0.0 {
         return;
     }
+    let (from, to) = (from.clamped(), to.clamped());
     let taps = |f: PostFilter| {
         let t = TAPS.get(f.tapset).copied().unwrap_or_default();
         [f.gain * t[0], f.gain * t[1], f.gain * t[2]]
     };
     let (a, b) = (taps(from), taps(to));
-    let tap = |x: &[f32], i: usize, period: usize, g: &[f32; 3]| -> f32 {
-        let p = |d: isize| {
-            i.checked_add_signed(d - period as isize)
-                .and_then(|j| x.get(j))
-                .copied()
-                .unwrap_or(0.0)
-        };
-        g[0] * p(0) + g[1] * (p(-1) + p(1)) + g[2] * (p(-2) + p(2))
+    // A period beyond the history leaves the samples as they are.
+    let reach = from.period.max(to.period) + 2;
+    let Some(base) = start.checked_sub(reach) else {
+        return;
     };
-    for i in 0..len {
-        let pos = start + i;
-        let mut y = at(x, pos);
-        if i < OVERLAP {
-            let w = at(window, i);
-            let f = w * w;
-            if from.gain != 0.0 {
-                y += (1.0 - f) * tap(x, pos, from.period, &a);
+    let Some(x) = x.get_mut(base..start + len) else {
+        return;
+    };
+    let overlap = OVERLAP.min(len);
+    // Blocks of samples whose taps all lie before the block, at least the
+    // period less two back, so they are already filtered, as in the
+    // reference's in-place filter; the cross-fade's blocks end where it
+    // does.
+    let mut done = 0;
+    while done < len {
+        let fading = done < overlap;
+        let period = if fading {
+            from.period.min(to.period)
+        } else {
+            to.period
+        };
+        let end = if fading { overlap } else { len };
+        let n = (end - done).min(period - 2);
+        let i = reach + done;
+        let (past, rest) = x.split_at_mut(i);
+        let Some(block) = rest.get_mut(..n) else {
+            return;
+        };
+        let source = |period: usize| past.get(i - period - 2..i - period + 2 + n).unwrap_or(&[]);
+        let (sa, sb) = (source(from.period), source(to.period));
+        if fading {
+            let fades = window.get(done..done + n).unwrap_or(&[]);
+            let taps = sa.windows(5).zip(sb.windows(5));
+            for ((y, &w), (wa, wb)) in block.iter_mut().zip(fades).zip(taps) {
+                let f = w * w;
+                *y += (1.0 - f) * five(wa, a) + f * five(wb, b);
             }
-            if to.gain != 0.0 {
-                y += f * tap(x, pos, to.period, &b);
+        } else if to.gain == 0.0 {
+            return;
+        } else {
+            let [g0, g1, g2] = b;
+            let view = |d: usize| sb.get(d..d + n).unwrap_or(&[]);
+            let taps = view(0)
+                .iter()
+                .zip(view(1))
+                .zip(view(2))
+                .zip(view(3))
+                .zip(view(4));
+            for (y, ((((&v0, &v1), &v2), &v3), &v4)) in block.iter_mut().zip(taps) {
+                *y += g0 * v2 + g1 * (v1 + v3) + g2 * (v0 + v4);
             }
-        } else if to.gain != 0.0 {
-            y += tap(x, pos, to.period, &b);
         }
-        set(x, pos, y);
+        done += n;
+    }
+}
+
+/// The post-filter's five taps around the middle sample of `x`.
+#[inline(always)]
+fn five(x: &[f32], [g0, g1, g2]: [f32; 3]) -> f32 {
+    match x {
+        &[x0, x1, x2, x3, x4] => g0 * x2 + g1 * (x1 + x3) + g2 * (x0 + x4),
+        _ => 0.0,
     }
 }

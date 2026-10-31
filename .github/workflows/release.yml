@@ -1,7 +1,8 @@
 name: release
 
-# Builds the `coreav` command for each release target and packs it with the
-# licence files (docs/design/release.md, docs/release/notices.md).
+# Builds the `coreav` command for each release target, in its two builds
+# (default and full), and packs each with the licence files
+# (docs/design/release.md, "Two builds"; docs/release/notices.md).
 #
 # - A pushed `v*` tag: builds every target, checks that the tag names the
 #   version the command prints, writes SHA256SUMS, attests the files'
@@ -28,6 +29,14 @@ on:
       - packages/cli/scripts/platform-package.js
       - packages/cli/scripts/zig.sh
       - packages/cli/scripts/zig-requirements.txt
+      - packages/cli/scripts/codecs.sh
+      - packages/cli/scripts/release_assets.py
+      - packages/cli/test/release-clips.sh
+      - packages/cli/test/release-smoke.py
+      - scripts/install-x264.sh
+      - scripts/oracle-ffmpeg.env
+      - scripts/install-oracle-ffmpeg.sh
+      - crates/coreav-cli/Cargo.toml
   workflow_dispatch:
 
 permissions: {}
@@ -37,19 +46,44 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  release-clips:
+    # The generated clips every target's smoke test transcodes, made once by
+    # the pinned FFmpeg (packages/cli/test/release-clips.sh).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Generate the clips with the pinned FFmpeg
+        run: |
+          set -euo pipefail
+          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/ffmpeg"
+          PATH="$RUNNER_TEMP/ffmpeg:$PATH" packages/cli/test/release-clips.sh "$RUNNER_TEMP/clips"
+      # Not named release-*: release-checksums gathers every artifact of
+      # that name into the release's files.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: smoke-clips
+          path: ${{ runner.temp }}/clips
+          if-no-files-found: error
+          retention-days: 7
+
   release-build:
+    needs: release-clips
     strategy:
       fail-fast: false
       matrix:
         include:
           - { platform: linux-x64, target: x86_64-unknown-linux-musl, os: ubuntu-24.04 }
-          # Cross-built on Linux x86-64 and run under QEMU, as the npm package.
-          - { platform: linux-arm64, target: aarch64-unknown-linux-musl, os: ubuntu-24.04 }
+          - { platform: linux-arm64, target: aarch64-unknown-linux-musl, os: ubuntu-24.04-arm }
           - { platform: darwin-arm64, target: aarch64-apple-darwin, os: macos-15 }
           - { platform: darwin-x64, target: x86_64-apple-darwin, os: macos-15-intel }
           - { platform: win32-x64, target: x86_64-pc-windows-msvc, os: windows-2025 }
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    timeout-minutes: 90
     permissions:
       contents: read
     env:
@@ -62,6 +96,13 @@ jobs:
       # The licence files and NOTICE ship as committed, without CRLF.
       - if: runner.os == 'Windows'
         run: git config --global core.autocrlf false
+      # dav1d, libvpx and libopus, built once for both builds (scripts/codecs.sh), and
+      # the x264 program of the smoke test. The runner context is not
+      # available in a job's env, so the paths are set here.
+      - name: Set the build paths
+        run: |
+          echo "COREAV_CODECS=$RUNNER_TEMP/codecs" >> "$GITHUB_ENV"
+          echo "COREAV_X264=$RUNNER_TEMP/x264/x264" >> "$GITHUB_ENV"
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
@@ -71,20 +112,36 @@ jobs:
         with:
           toolchain: stable
           targets: ${{ matrix.target }}
-      - if: matrix.platform == 'linux-arm64'
-        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
-        with:
-          platforms: arm64
       - name: Install zig (the musl C compiler of the Linux builds)
         if: runner.os == 'Linux'
         run: |
           python3 -m venv "$RUNNER_TEMP/zig"
           "$RUNNER_TEMP/zig/bin/pip" install --require-hashes -r packages/cli/scripts/zig-requirements.txt
           echo "ZIG=$RUNNER_TEMP/zig/bin/python -m ziglang" >> "$GITHUB_ENV"
-      - name: Build the command
+      # The C decoders' build tools (scripts/codecs.sh) and the x264
+      # program's (scripts/install-x264.sh); Windows builds neither
+      # (docs/design/release.md, "Two builds").
+      - name: Install the C build tools
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends meson ninja-build nasm musl-tools
+      - name: Install the C build tools
+        if: runner.os == 'macOS'
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+        run: brew install meson ninja nasm
+      - name: Build the x264 program of the smoke test
+        if: runner.os != 'Windows'
+        run: scripts/install-x264.sh "$RUNNER_TEMP/x264"
+      - name: Build the command, default and full
         run: |
+          set -euo pipefail
           rustc -Vv
-          packages/cli/scripts/platform.sh "$PLATFORM" "$TARGET"
+          packages/cli/scripts/platform.sh "$PLATFORM" "$TARGET" default
+          packages/cli/scripts/platform.sh "$PLATFORM" "$TARGET" full
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: smoke-clips
+          path: ${{ runner.temp }}/clips
       - name: Check the command on its platform
         env:
           COREAV_STRICT_SAFE: '1'
@@ -92,48 +149,77 @@ jobs:
         run: |
           set -euo pipefail
           exe=coreav; [ "$RUNNER_OS" = Windows ] && exe=coreav.exe
-          bin="$PWD/packages/cli/npm/$PLATFORM/bin/$exe"
-          version="$("$bin" --version | tr -d '\r')"
-          version="${version#coreav }"
-          if [ -n "$TAG" ] && [ "v$version" != "$TAG" ]; then
-            echo "::error::the tag $TAG does not name the command's version $version"
-            exit 1
-          fi
-          echo "VERSION=$version" >> "$GITHUB_ENV"
-          mkdir -p "$RUNNER_TEMP/dist/smoke" "$RUNNER_TEMP/multicall"
-          # The 0.1.0 command, in strict-safe mode: no FFmpeg is installed
-          # or run. The five targets' outputs must agree (release-checksums).
-          "$bin" ffprobe -v error -of json -show_format -show_streams \
-            crates/coreav-audio/fuzz/regressions/decode/edit-rounding.mp4 \
-            > "$RUNNER_TEMP/dist/smoke/$TARGET.json"
-          # A command that is not native is refused with exit status 4,
-          # also under the name `ffprobe` (multicall).
-          cp "$bin" "$RUNNER_TEMP/multicall/${exe/coreav/ffprobe}"
-          for program in "$bin" "$RUNNER_TEMP/multicall/${exe/coreav/ffprobe}"; do
-            args=(-show_frames missing.mp4)
-            [ "$program" = "$bin" ] && args=(ffprobe "${args[@]}")
-            status=0
-            "$program" "${args[@]}" || status=$?
-            if [ "$status" != 4 ]; then
-              echo "::error::$program ${args[*]} exited $status, not 4"
+          mkdir -p "$RUNNER_TEMP/dist/smoke"
+          for build in default full; do
+            dir=npm; [ "$build" = full ] && dir=full
+            bin="$PWD/packages/cli/$dir/$PLATFORM/bin/$exe"
+            version="$("$bin" --version | tr -d '\r')"
+            version="${version#coreav }"
+            if [ -n "$TAG" ] && [ "v$version" != "$TAG" ]; then
+              echo "::error::the tag $TAG does not name the $build build's version $version"
               exit 1
             fi
+            echo "VERSION=$version" >> "$GITHUB_ENV"
+            # The 0.1.0 command, in strict-safe mode: no FFmpeg is installed
+            # or run. Every target's and build's outputs must agree
+            # (release-checksums).
+            "$bin" ffprobe -v error -of json -show_format -show_streams \
+              crates/coreav-audio/fuzz/regressions/decode/edit-rounding.mp4 \
+              > "$RUNNER_TEMP/dist/smoke/$build-$TARGET.json"
+            # A command that is not native is refused with exit status 4,
+            # also under the name `ffprobe` (multicall).
+            multicall="$RUNNER_TEMP/multicall-$build"
+            mkdir -p "$multicall"
+            cp "$bin" "$multicall/${exe/coreav/ffprobe}"
+            for program in "$bin" "$multicall/${exe/coreav/ffprobe}"; do
+              args=(-show_data -show_packets missing.mp4)
+              [ "$program" = "$bin" ] && args=(ffprobe "${args[@]}")
+              status=0
+              "$program" "${args[@]}" || status=$?
+              if [ "$status" != 4 ]; then
+                echo "::error::$program ${args[*]} exited $status, not 4"
+                exit 1
+              fi
+            done
           done
-      - name: Pack the archive
+      # The decoders of each build on generated clips: AV1, VP8 and VP9 in
+      # both, H.264 and AAC in the full build only (the default build
+      # refuses them). In strict-safe mode on Linux, so no FFmpeg runs;
+      # macOS has no enforceable memory limit, so strict-safe mode would
+      # start no sandboxed decoder there (docs/design/decode.md, "Memory").
+      - name: Transcode the clips with each build
         run: |
           set -euo pipefail
-          name="coreav-$VERSION-$TARGET"
-          stage="$RUNNER_TEMP/stage/$name"
-          mkdir -p "$stage"
-          cp "packages/cli/npm/$PLATFORM/bin/"coreav* "$stage/"
-          # NOTICE in every archive (docs/release/notices.md).
-          cp LICENSE-MIT LICENSE-APACHE NOTICE "$stage/"
-          cd "$RUNNER_TEMP/stage"
-          if [ "$RUNNER_OS" = Windows ]; then
-            7z a -tzip "$RUNNER_TEMP/dist/$name.zip" "$name"
-          else
-            tar --no-xattrs -czf "$RUNNER_TEMP/dist/$name.tar.gz" "$name"
-          fi
+          exe=coreav; python=python3
+          if [ "$RUNNER_OS" = Windows ]; then exe=coreav.exe; python=python; fi
+          [ "$RUNNER_OS" = Linux ] && export COREAV_STRICT_SAFE=1
+          status=0
+          "$python" -I packages/cli/test/release-smoke.py default "packages/cli/npm/$PLATFORM/bin/$exe" "$RUNNER_TEMP/clips" || status=1
+          "$python" -I packages/cli/test/release-smoke.py full "packages/cli/full/$PLATFORM/bin/$exe" "$RUNNER_TEMP/clips" || status=1
+          exit "$status"
+      - name: Pack the archives
+        run: |
+          set -euo pipefail
+          for build in default full; do
+            dir=npm name="coreav-$VERSION-$TARGET"
+            [ "$build" = full ] && dir=full name="coreav-full-$VERSION-$TARGET"
+            from="$PWD/packages/cli/$dir/$PLATFORM"
+            stage="$RUNNER_TEMP/stage/$name"
+            mkdir -p "$stage"
+            cp "$from/bin/"coreav* "$stage/"
+            # NOTICE in every archive, and the licence files of the C
+            # libraries a build links (docs/release/notices.md).
+            cp LICENSE-MIT LICENSE-APACHE NOTICE "$stage/"
+            if [ -d "$from/licenses" ]; then cp -R "$from/licenses" "$stage/licenses"; fi
+            (
+              cd "$RUNNER_TEMP/stage"
+              if [ "$RUNNER_OS" = Windows ]; then
+                7z a -tzip "$RUNNER_TEMP/dist/$name.zip" "$name"
+              else
+                tar --no-xattrs -czf "$RUNNER_TEMP/dist/$name.tar.gz" "$name"
+              fi
+            )
+          done
           ls -l "$RUNNER_TEMP/dist"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -149,9 +235,13 @@ jobs:
     permissions:
       contents: read
     steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      # The five build jobs' artifacts (release-TARGET) only.
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          pattern: release-*
+          pattern: release-*-*
           path: dist
           merge-multiple: true
       - name: Compare the targets and write SHA256SUMS
@@ -161,8 +251,9 @@ jobs:
           shopt -s nullglob
           archives=(coreav-*.tar.gz coreav-*.zip)
           outputs=(smoke/*.json)
-          if [ "${#archives[@]}" != 5 ] || [ "${#outputs[@]}" != 5 ]; then
-            echo "::error::expected 5 archives and 5 outputs, found ${archives[*]} ${outputs[*]}"
+          # Five targets, two builds each.
+          if [ "${#archives[@]}" != 10 ] || [ "${#outputs[@]}" != 10 ]; then
+            echo "::error::expected 10 archives and 10 outputs, found ${archives[*]} ${outputs[*]}"
             exit 1
           fi
           for output in "${outputs[@]}"; do
@@ -172,6 +263,11 @@ jobs:
           sha256sum "${archives[@]}" > SHA256SUMS
           sha256sum -c SHA256SUMS
           { echo '```'; cat SHA256SUMS; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      # The release's files are exactly the ten archives and SHA256SUMS.
+      - name: Check the release's file list
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 -I packages/cli/scripts/release_assets.py dist
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-dist
@@ -192,10 +288,18 @@ jobs:
       id-token: write
       attestations: write
     steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: release-dist
           path: dist
+      # Again right before anything is attested or attached.
+      - name: Check the release's file list
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 -I packages/cli/scripts/release_assets.py dist
       - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: dist/*

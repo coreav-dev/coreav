@@ -50,6 +50,7 @@ from fractions import Fraction
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 import writer_boxes  # noqa: E402
+from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT  # noqa: E402
 
 IN_SCOPE = (".mp4", ".mov", ".m4a")
 
@@ -123,7 +124,7 @@ def framemd5(ffmpeg, path, index, raw=False):
     # applies the edits itself (docs/design/edit-list-writers.md, common
     # decision 3).
     out = run([ffmpeg, "-v", "error", "-copyts", *(("-ignore_editlist", "1") if raw else ()),
-               "-i", path, "-map", f"0:{index}", "-f", "framemd5", "-"])
+               *AUDIO_DECODE_INPUT, "-i", path, "-map", f"0:{index}", "-f", "framemd5", "-"])
     return [line for line in out.decode().splitlines() if line and not line.startswith("#")]
 
 
@@ -560,6 +561,31 @@ def gapless_conflict(field, c):
     return any(decoded[i:i + len(inner)] == inner for i in range(len(decoded) - len(inner) + 1))
 
 
+def fragment_last_frame(field, c):
+    """KD-X-FRAG-LAST-FRAME."""
+    if field != "framemd5" or not c.get("fragmented"):
+        return False
+    a, b = _frames(c["source_frames"]), _frames(c["output_frames"])
+    packets = c["output_packets"]
+    if not a or b is None or len(a) != len(b) or len(packets) != len(c["source_packets"]):
+        return False
+    if not packets:
+        return False
+    durations = []
+    for stream, packet in ((c["source_stream"], c["source_packets"][-1]), (c["output_stream"], packets[-1])):
+        try:
+            num, den = (int(x) for x in stream["time_base"].split("/"))
+            ticks = int(packet["duration"]) * num * int(stream["sample_rate"])
+        except (KeyError, AttributeError, TypeError, ValueError):
+            return False
+        if den <= 0 or ticks % den:
+            return False
+        durations.append(ticks // den)
+    stored = durations[1]
+    return (a[:-1] == b[:-1] and a[-1][:2] == b[-1][:2] and durations[0] == stored
+            and b[-1][2] == stored and a[-1][2] > stored)
+
+
 def profile_unnamed(field, c):
     """KD-X-PROFILE-UNNAMED."""
     return (field == "stream:profile" and c["source_stream"].get("profile") is None
@@ -573,6 +599,7 @@ PREDICATES = {
     "edit_multi": edit_multi,
     "gapless_edit": gapless_edit,
     "gapless_conflict": gapless_conflict,
+    "fragment_last_frame": fragment_last_frame,
     "profile_unnamed": profile_unnamed,
 }
 
@@ -666,6 +693,7 @@ def check(entry, ffprobe, ffmpeg, mediainfo):
             "source_elst": src_elst,
             "output_elst": full_elst(output, 0),
             "first_dts": first_dts,
+            "fragmented": has_fragments(source),
         }
         kds = known_divergences()
         for field, message in found:

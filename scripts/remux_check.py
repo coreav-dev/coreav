@@ -553,6 +553,25 @@ def _packet(line):
         return None
 
 
+def last_skip_samples(ffprobe, path, index):
+    """(skip_samples, discard_padding) of the Skip Samples side data
+    ffprobe lists on the last packet of stream `index`, or None."""
+    text = run([ffprobe, "-v", "error", "-select_streams", str(index), "-show_entries",
+                "packet=pts:packet_side_data=side_data_type,skip_samples,discard_padding",
+                "-of", "compact=p=0", path]).decode(errors="replace")
+    lines = text.splitlines()
+    if not lines:
+        return None
+    fields = dict(part.split("=", 1) for part in lines[-1].split("|") if "=" in part)
+    if fields.get("side_datum/skip_samples:side_data_type") != "Skip Samples":
+        return None
+    try:
+        return (int(fields["side_datum/skip_samples:skip_samples"]),
+                int(fields["side_datum/skip_samples:discard_padding"]))
+    except (KeyError, ValueError):
+        return None
+
+
 def problem(field, message, **data):
     return {"field": field, "message": message, "data": data}
 
@@ -1031,6 +1050,92 @@ def fragment_duration(found, c):
     return b[3] == last_fragment_duration(c["entry"]["source"], c["kept"][i])
 
 
+def fragment_last_trim(found, c):
+    """KD-R-FRAG-LAST-TRIM: ffmpeg reads Skip Samples side data on the last
+    packet of an audio stream from the unfragmented output, discarding the
+    end of its frame past the stored duration, and none from the fragmented
+    source. Holds for the last packet of a stream, equal in every other
+    field, whose side data skips nothing at the start and discards as many
+    samples as the packet before it lasts beyond this one."""
+    d = found["data"]
+    if d.get("next_output") is not None or not _fragmented(c):
+        return False
+    a, b = _packet(d["source"]), _packet(d["output"])
+    if not (a and b and a[:5] == b[:5] and len(a[5]) == 1 and len(b[5]) == 4
+            and b[5][:3] == (a[5][0], "S=1", "10")):
+        return False
+    i = _stream(found["field"])
+    out = c["entry"]["output"]
+    text = run([c["ffprobe"], "-v", "error", "-select_streams", str(i), "-show_entries",
+                "packet=duration", "-of", "csv=p=0", out]).decode(errors="replace").split()
+    text = [line.split(",")[0] for line in text]
+    if len(text) < 2 or last_skip_samples(c["ffprobe"], c["entry"]["source"], c["kept"][i]) is not None:
+        return False
+    try:
+        before, last = int(text[-2]), int(text[-1])
+    except ValueError:
+        return False
+    return last == b[3] and last_skip_samples(c["ffprobe"], out, i) == (0, before - last) and before > last
+
+
+def _segment_index(path, track_id):
+    """(timescale, earliest presentation time, sum of subsegment durations)
+    of the one top-level segment index of a track, or None (ISO/IEC
+    14496-12 8.16.3)."""
+    found = []
+    with open(path, "rb") as f:
+        for kind, at, end in _boxes(f, 0, f.seek(0, 2)):
+            if kind != "sidx":
+                continue
+            f.seek(at)
+            body = f.read(end - at)
+            if len(body) < 12 or struct.unpack(">I", body[4:8])[0] != track_id:
+                continue
+            timescale = struct.unpack(">I", body[8:12])[0]
+            wide = body[0] == 1
+            at_count = 28 if wide else 20
+            if len(body) < at_count + 4:
+                return None
+            ept = struct.unpack(">Q" if wide else ">I", body[12:20] if wide else body[12:16])[0]
+            count = struct.unpack(">H", body[at_count + 2:at_count + 4])[0]
+            refs = body[at_count + 4:at_count + 4 + 12 * count]
+            if len(refs) != 12 * count:
+                return None
+            total = sum(struct.unpack(">I", refs[k + 4:k + 8])[0] for k in range(0, len(refs), 12))
+            found.append((timescale, ept, total))
+    return found[0] if len(found) == 1 else None
+
+
+def index_start(found, c):
+    """KD-R-FRAG-INDEX-START: ffprobe ends a fragmented source's stream
+    without an edit list where its segment index's earliest presentation
+    time plus the subsegment durations reach; the output's media header
+    duration is the sum of the samples' stored durations. Holds when the
+    source's one segment index of the track, in the track's timescale,
+    starts after 0, its durations add up to the output's duration, and the
+    source's duration is that start later."""
+    field = found["field"]
+    if not _fragmented(c) or not field.endswith(":duration_ts"):
+        return False
+    i = _stream(field)
+    src = c["entry"]["source"]
+    index = c["kept"][i]
+    tkhd, mdhd = trak_box(src, index, ["tkhd"]), trak_box(src, index, ["mdia", "mdhd"])
+    if not tkhd or not mdhd or trak_box(src, index, ["edts"]) is not None:
+        return False
+    track_id = struct.unpack(">I", tkhd[20:24] if tkhd[0] == 1 else tkhd[12:16])[0]
+    timescale = struct.unpack(">I", mdhd[20:24] if mdhd[0] == 1 else mdhd[12:16])[0]
+    sidx = _segment_index(src, track_id)
+    d = found["data"]
+    if sidx is None or sidx[0] != timescale or sidx[1] <= 0:
+        return False
+    try:
+        source, output = int(d["source"]), int(d["output"])
+    except (KeyError, TypeError, ValueError):
+        return False
+    return output == sidx[2] and source == sidx[1] + sidx[2]
+
+
 def dropped_timecode(found, c):
     """KD-R-TIMECODE-TAG: ffprobe shows a timecode track's start as a tag of
     the video stream and of the file; the timecode track is dropped and
@@ -1320,6 +1425,8 @@ PREDICATES = {
     "fragment_edit_to_end": fragment_edit_to_end,
     "fragment_frame_count": fragment_frame_count,
     "fragment_duration": fragment_duration,
+    "fragment_last_trim": fragment_last_trim,
+    "index_start": index_start,
     "dropped_timecode": dropped_timecode,
     "quicktime_channel_layout": quicktime_channel_layout,
 }

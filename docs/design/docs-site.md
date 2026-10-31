@@ -24,7 +24,6 @@ Each page under `docs-site/commands/` shows its command's `--help` text from `do
 
 - `COREAV_BLESS_DOCS=1 cargo test -p coreav-cli --test docs_site` rewrites the snippets after a change to the help text; with `--features ffmpeg-fallback` it rewrites those of `thumbnail` and `transcode`, which exist only in builds with a decoder backend. The page's own prose is then read again, by hand, against the new text.
 - `cargo test --workspace` runs the test in the default build, and `ci.yml` runs it once more with `--features ffmpeg-fallback` for the two decoder commands. In a default build the test also fails if either of those two appears, since the pages say they need a decoder backend.
-- `coreav ffmpeg --help` is not native (strict-safe mode refuses it, the fallback runs `ffmpeg --help`), so `ffmpeg` has a page and no snippet.
 - Rejected: generating whole pages from the help, which would leave no place for examples and for what the help does not say; and a script that a workflow runs on a built binary, where a test under `cargo test` runs wherever the command is built and tested already.
 
 ## Checks

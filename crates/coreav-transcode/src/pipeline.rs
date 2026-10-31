@@ -236,6 +236,9 @@ pub enum Error {
     Isobmff(coreav_isobmff::Error),
     /// The Matroska parser rejected the source or could not read it.
     Matroska(coreav_mkv::Error),
+    /// The video stream is not valid for its codec's specification: the
+    /// rule broken (`coreav_thumbnail::Error::Invalid`).
+    Invalid(&'static str),
     /// Decoding failed, no backend could decode the stream, or the
     /// deadline passed while decoding.
     Decode(coreav_decode::Error),
@@ -265,6 +268,7 @@ impl fmt::Display for Error {
         match self {
             Self::Isobmff(e) => write!(f, "{e}"),
             Self::Matroska(e) => write!(f, "{e}"),
+            Self::Invalid(what) => write!(f, "invalid structure: {what}"),
             Self::Decode(e) => write!(f, "decoding: {}", e.message),
             Self::Encode(e) => write!(f, "encoding: {}", e.message),
             Self::Unsupported(what) => write!(f, "unsupported: {what}"),
@@ -284,6 +288,7 @@ impl From<coreav_thumbnail::Error> for Error {
         match e {
             T::Isobmff(e) => Self::Isobmff(e),
             T::Matroska(e) => Self::Matroska(e),
+            T::Invalid(what) => Self::Invalid(what),
             T::Decode(e) => Self::Decode(e),
             T::Frame(e) => Self::Unsupported(e.to_string()),
             T::NoVideo => Self::Unsupported("no video stream".into()),
@@ -565,7 +570,7 @@ pub fn transcode<S: Source, W: Write>(
             remux_mp4_replacing(
                 &mut source,
                 &options.isobmff_limits,
-                &mp4_allowlist(audio.as_ref().map(|a| a.summary.codec)),
+                &isobmff_allowlist(video.stream.codec, audio.as_ref().map(|a| a.summary.codec)),
                 &RemuxOptions {
                     streams,
                     on_unsupported: OnUnsupported::Drop,
@@ -628,20 +633,28 @@ fn spool_read(error: coreav_isobmff::Error) -> Error {
     }
 }
 
-/// The MP4 allowlist of the writer: the default, and the codec of the audio
-/// stream encoded to Opus (FLAC, which the default leaves out), so that the
-/// replaced stream is kept.
-fn mp4_allowlist(audio: Option<coreav_audio::Codec>) -> coreav_isobmff::Allowlist {
+/// The ISOBMFF allowlist of the writer: the default, VP8 when it is the
+/// video stream's codec, and the codec of the audio stream encoded to Opus
+/// (FLAC), which the default leaves out, so that the replaced streams are
+/// kept.
+fn isobmff_allowlist(
+    codec: Codec,
+    audio: Option<coreav_audio::Codec>,
+) -> coreav_isobmff::Allowlist {
     use coreav_isobmff::Codec as I;
     let mut codecs = coreav_isobmff::Allowlist::default().codecs().to_vec();
-    let own = audio.map(|codec| match codec {
+    let video = (codec == Codec::Vp8).then_some(I::Vp8);
+    let audio = audio.map(|codec| match codec {
         coreav_audio::Codec::Flac => I::Flac,
         coreav_audio::Codec::Mp3 => I::Mp3,
+        coreav_audio::Codec::Opus => I::Opus,
         #[cfg(feature = "aac")]
         coreav_audio::Codec::Aac => I::Aac,
     });
-    if let Some(own) = own.filter(|c| !codecs.contains(c)) {
-        codecs.push(own);
+    for own in video.into_iter().chain(audio) {
+        if !codecs.contains(&own) {
+            codecs.push(own);
+        }
     }
     coreav_isobmff::Allowlist::new(&codecs)
 }
@@ -670,6 +683,7 @@ fn matroska_allowlist(codec: Codec, audio: Option<coreav_audio::Codec>) -> corea
     let audio = audio.map(|codec| match codec {
         coreav_audio::Codec::Flac => M::Flac,
         coreav_audio::Codec::Mp3 => M::Mp3,
+        coreav_audio::Codec::Opus => M::Opus,
         #[cfg(feature = "aac")]
         coreav_audio::Codec::Aac => M::Aac,
     });

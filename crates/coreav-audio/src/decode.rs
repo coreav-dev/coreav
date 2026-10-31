@@ -22,6 +22,8 @@ pub enum Codec {
     Flac,
     /// MPEG audio Layer III (ISO/IEC 11172-3, 13818-3).
     Mp3,
+    /// Opus (RFC 6716, RFC 7845), decoded to 48 kHz.
+    Opus,
     /// AAC LC (ISO/IEC 14496-3, 13818-7), with the opt-in feature `aac`.
     #[cfg(feature = "aac")]
     Aac,
@@ -33,6 +35,7 @@ impl Codec {
         match self {
             Self::Flac => "flac",
             Self::Mp3 => "mp3",
+            Self::Opus => "opus",
             #[cfg(feature = "aac")]
             Self::Aac => "aac",
         }
@@ -98,9 +101,11 @@ pub struct Options {
     pub stream: Option<usize>,
     /// The output sample format.
     pub format: SampleFormat,
-    /// Threads that decode packets in parallel, for codecs whose packets
-    /// decode independently (FLAC): 1 decodes on the caller's thread, 0
-    /// uses one per CPU, at most 16. Default 1.
+    /// Threads that decode packets in parallel (FLAC, and MP3 with each
+    /// job primed by the frames before it): 1 decodes on the caller's
+    /// thread, 0 uses one per CPU, at most 16. Default 1. Opus always
+    /// decodes on the caller's thread: its frames carry the decoder's state
+    /// forward, and no priming reproduces it exactly.
     pub threads: usize,
     /// The output's sample rate in Hz, 1,000 to 768,000; `None` keeps the
     /// stream's. Another rate is resampled
@@ -240,6 +245,7 @@ fn mp4_codec(codec: mp4::Codec) -> Option<Codec> {
     match codec {
         mp4::Codec::Flac => Some(Codec::Flac),
         mp4::Codec::Mp3 => Some(Codec::Mp3),
+        mp4::Codec::Opus => Some(Codec::Opus),
         #[cfg(feature = "aac")]
         mp4::Codec::Aac => Some(Codec::Aac),
         _ => None,
@@ -251,6 +257,7 @@ fn mkv_codec(codec: mkv::Codec) -> Option<Codec> {
     match codec {
         mkv::Codec::Flac => Some(Codec::Flac),
         mkv::Codec::Mp3 => Some(Codec::Mp3),
+        mkv::Codec::Opus => Some(Codec::Opus),
         #[cfg(feature = "aac")]
         mkv::Codec::Aac => Some(Codec::Aac),
         _ => None,
@@ -376,7 +383,15 @@ fn decode_mp4<'scope, 'env, S: Source>(
     let rate = u64::from(stream.out.format.sample_rate);
     let first_dts = first.as_ref().map_or(0, |p| p.dts);
     match track.edit_list {
-        mp4::EditList::None => {}
+        // Without an edit list to present, the codec's priming samples are
+        // still dropped: Opus's pre-skip, which the Opus-in-ISOBMFF mapping
+        // leaves to the edit list.
+        mp4::EditList::None => {
+            stream.out.plan = VecDeque::from([Piece::Media {
+                from: stream.pre_skip,
+                to: u64::MAX,
+            }]);
+        }
         mp4::EditList::Simple { .. } | mp4::EditList::Multiple => {
             let edits = track
                 .edits
@@ -389,6 +404,17 @@ fn decode_mp4<'scope, 'env, S: Source>(
                 timescale,
                 u64::from(movie.timescale),
             );
+            // Opus's priming samples are never presented: a window that
+            // starts inside the pre-skip starts after it, as for a file
+            // whose edit list starts at media time 0 and leaves the
+            // pre-skip to `dOps`.
+            let pre_skip = stream.pre_skip;
+            for piece in &mut stream.out.plan {
+                if let Piece::Media { from, to } = piece {
+                    *from = (*from).max(pre_skip);
+                    *to = (*to).max(*from);
+                }
+            }
             // Past the last media edit nothing is presented: packets that
             // start at or after its end are not decoded, by their
             // timestamps, nor frames cut from packets, by their own
@@ -409,6 +435,10 @@ fn decode_mp4<'scope, 'env, S: Source>(
         }
         mp4::EditList::Unsupported => {
             stream.out.warnings.push(Warning::EditListIgnored);
+            stream.out.plan = VecDeque::from([Piece::Media {
+                from: stream.pre_skip,
+                to: u64::MAX,
+            }]);
         }
     }
     stream.sink_started(sink)?;
@@ -545,9 +575,14 @@ fn decode_matroska<'scope, 'env, S: Source>(
         None => sink,
     };
     let rate = u64::from(stream.out.format.sample_rate);
-    // `CodecDelay` (RFC 9559 5.1.4.1.24): samples to drop from the start.
+    // `CodecDelay` (RFC 9559 5.1.4.1.24): samples to drop from the start;
+    // without one, the codec's own priming samples (Opus's pre-skip).
+    let delay = match track.codec_delay {
+        0 => stream.pre_skip,
+        ns => scale(ns, rate, 1_000_000_000),
+    };
     stream.out.plan = VecDeque::from([Piece::Media {
-        from: scale(track.codec_delay, rate, 1_000_000_000),
+        from: delay,
         to: u64::MAX,
     }]);
     stream.sink_started(sink)?;

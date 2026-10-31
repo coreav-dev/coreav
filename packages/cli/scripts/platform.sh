@@ -1,13 +1,21 @@
 #!/usr/bin/env bash
 # Builds one native package, @coreav/cli-PLATFORM, into npm/PLATFORM/
-# (docs/design/npm-cli.md, "Native binaries"):
-#   scripts/platform.sh PLATFORM [RUST_TARGET]
+# (docs/design/npm-cli.md, "Native binaries"), or the binary of the
+# release's full build into full/PLATFORM/:
+#   scripts/platform.sh PLATFORM [RUST_TARGET [BUILD]]
 # PLATFORM is `${process.platform}-${process.arch}` (linux-x64,
 # linux-arm64, darwin-arm64, darwin-x64, win32-x64); RUST_TARGET defaults
-# to that platform's target. The binary is `coreav` built with the `dist`
-# profile, stripped; Linux binaries are static (musl), Windows ones carry the C
-# runtime (crt-static). Prints the binary's SHA-256. The release archives
-# take the same binary (.github/workflows/release.yml).
+# to that platform's target. BUILD is `default` (the npm package and the
+# archives coreav-VERSION-TARGET) or `full` (the archives
+# coreav-full-VERSION-TARGET, never an npm package; docs/design/release.md,
+# "Two builds"). The binary is `coreav` built with the `dist` profile,
+# stripped; Linux binaries are static (musl), Windows ones carry the C
+# runtime (crt-static). dav1d, libvpx and libopus are linked statically,
+# built by scripts/codecs.sh into COREAV_CODECS (default
+# target/codecs/RUST_TARGET) unless it holds them already, and the binary
+# is checked to load none of them, or anything else outside the system, at
+# run time. Prints the binary's SHA-256. The release archives take the same
+# binary (.github/workflows/release.yml).
 set -euo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd)"
 root="$(cd "$here/../.." && pwd)"
@@ -21,6 +29,30 @@ case "$platform" in
   *) echo "error: unknown platform $platform" >&2; exit 2 ;;
 esac
 target="${2:-$default}"
+build="${3:-default}"
+case "$build-$platform" in
+  # Windows has no sandbox for the decoder worker or the encoder program
+  # (docs/design/release.md, "Two builds"): the default features, and AAC
+  # in the full build.
+  default-win32-*) features=cli,net ;;
+  full-win32-*) features=cli,net,aac ;;
+  default-*) features=release-default ;;
+  full-*) features=release-full ;;
+  *) echo "error: unknown build $build" >&2; exit 2 ;;
+esac
+codecs=
+if [ "${platform%%-*}" != win32 ]; then
+  codecs="${COREAV_CODECS:-$root/target/codecs/$target}"
+  if [ ! -f "$codecs/lib/pkgconfig/vpx.pc" ] || [ ! -f "$codecs/lib/pkgconfig/dav1d.pc" ] ||
+    [ ! -f "$codecs/lib/pkgconfig/opus.pc" ]; then
+    "$here/scripts/codecs.sh" "$target" "$codecs"
+  fi
+  # The musl targets differ from the build machine's, which pkg-config
+  # counts as cross-compiling. opusic-sys reads no pkg-config file: it
+  # links the libopus.a of OPUS_LIB_DIR, statically.
+  export PKG_CONFIG_PATH="$codecs/lib/pkgconfig" PKG_CONFIG_ALLOW_CROSS=1
+  export OPUS_LIB_DIR="$codecs/lib" OPUS_LIB_STATIC=true
+fi
 exe=coreav
 if [ "${platform%%-*}" = win32 ]; then
   exe=coreav.exe
@@ -49,12 +81,37 @@ if [ "$target" = aarch64-unknown-linux-musl ] && [ "$(uname -m)" != aarch64 ]; t
 fi
 # The `dist` profile, stripped for the package.
 CARGO_PROFILE_DIST_STRIP=symbols \
-  cargo build --locked --manifest-path "$root/Cargo.toml" -p coreav-cli --profile dist --target "$target"
+  cargo build --locked --manifest-path "$root/Cargo.toml" -p coreav-cli --profile dist --target "$target" \
+  --features "$features"
 out="$here/npm/$platform"
+[ "$build" = full ] && out="$here/full/$platform"
 rm -rf "$out"
 mkdir -p "$out/bin"
-cp "$root/target/$target/dist/$exe" "$out/bin/$exe"
+cp "${CARGO_TARGET_DIR:-$root/target}/$target/dist/$exe" "$out/bin/$exe"
 chmod 755 "$out/bin/$exe"
-cp "$root/LICENSE-MIT" "$root/LICENSE-APACHE" "$out/"
-node "$here/scripts/platform-package.js" "$platform" "$out"
+# The C libraries are in the binary, not loaded from the machine: a Linux
+# binary needs no shared library at all, and a macOS one only the system's.
+loaded=
+case "$target" in
+  *-linux-musl)
+    dynamic="$(readelf -d "$out/bin/$exe")"
+    loaded="$(grep '(NEEDED)' <<< "$dynamic" || true)"
+    ;;
+  *-apple-darwin)
+    # A path with a . or .. component is not taken as the system's.
+    dynamic="$(otool -L "$out/bin/$exe" | tail -n +2)"
+    loaded="$( { grep -v -E '^[[:space:]]+(/usr/lib/|/System/Library/)' <<< "$dynamic"
+      grep -E '/\.\.?/' <<< "$dynamic"; } || true)"
+    ;;
+esac
+if [ -n "$loaded" ]; then
+  echo "$loaded" >&2
+  echo "error: $out/bin/$exe loads the libraries above at run time; link them statically" >&2
+  exit 1
+fi
+# NOTICE with every binary (docs/release/notices.md), and the licence
+# files of the C libraries it links.
+cp "$root/LICENSE-MIT" "$root/LICENSE-APACHE" "$root/NOTICE" "$out/"
+[ -n "$codecs" ] && cp -R "$codecs/licenses" "$out/licenses"
+[ "$build" = default ] && node "$here/scripts/platform-package.js" "$platform" "$out"
 if command -v sha256sum > /dev/null; then sha256sum "$out/bin/$exe"; else shasum -a 256 "$out/bin/$exe"; fi

@@ -13,13 +13,24 @@ use crate::{
     Window,
 };
 
+/// The ISOBMFF allowlist: the default, and VP8 when the decode policy
+/// allows it (the default leaves VP8 out, since the commands that copy
+/// streams do not write it).
+fn allowlist(options: &ThumbnailOptions) -> Allowlist {
+    let mut codecs = Allowlist::default().codecs().to_vec();
+    if options.policy.allowlist.allows(Codec::Vp8) {
+        codecs.push(coreav_isobmff::Codec::Vp8);
+    }
+    Allowlist::new(&codecs)
+}
+
 pub(crate) fn plan<S: Source>(
     source: &mut S,
     options: &ThumbnailOptions,
     first: Option<usize>,
 ) -> Result<Plan, Error> {
     let limits = &options.isobmff_limits;
-    let mut movie = probe(&mut *source, limits, &Allowlist::default())?;
+    let mut movie = probe(&mut *source, limits, &allowlist(options))?;
     if movie.needs_fragment_scan() {
         movie.scan_fragments(&mut *source, limits)?;
     }
@@ -48,6 +59,7 @@ pub(crate) fn plan<S: Source>(
         coreav_isobmff::Codec::Hevc => Codec::Hevc,
         coreav_isobmff::Codec::Av1 => Codec::Av1,
         coreav_isobmff::Codec::Vp9 => Codec::Vp9,
+        coreav_isobmff::Codec::Vp8 => Codec::Vp8,
         coreav_isobmff::Codec::ProRes => Codec::ProRes,
         other => {
             return Err(Error::Unsupported(format!(

@@ -4,7 +4,7 @@
 
 Downloads each listed file from corpus v1 (the bucket and credentials in
 the R2_* environment variables, R2_BUCKET included; `key` in the list is `<sha256>.<ext>` and is looked up in the bucket), stream-copies its video track to Annex B with the
-repository's pinned FFmpeg, the first F access units of the class (no
+training extractor installed under RUNNER_TEMP, the first F access units of the class (no
 decode), writes OUT_DIR/<sha256[:12]>.<track>.<class>.h264 and prints
 es.json (the SHA-256 and size of every elementary stream) to stdout.
 """
@@ -31,13 +31,12 @@ def store_key(s3, name):
                 _INDEX[o['Key'].rsplit('/', 1)[-1]] = o['Key']
     return _INDEX[name]
 
-FFMPEG = '/opt/coreav-oracle-bin/ffmpeg'
-
 
 def main():
     listing, out = sys.argv[1], sys.argv[2]
     L = json.load(open(listing))
     F = L['meta']['frames_per_class']
+    ffmpeg = os.path.join(os.environ['RUNNER_TEMP'], 'coreav-training-extractor', 'ffmpeg')
     s3 = boto3.client('s3', endpoint_url=os.environ['R2_ENDPOINT'],
                       aws_access_key_id=os.environ['R2_ACCESS_KEY_ID'],
                       aws_secret_access_key=os.environ['R2_SECRET_ACCESS_KEY'], region_name='auto')
@@ -49,7 +48,7 @@ def main():
         if not (os.path.exists(dst) and os.path.getsize(dst) > 0):
             tmp = os.path.join(out, 'src' + os.path.splitext(s['key'])[1])
             s3.download_file(os.environ['R2_BUCKET'], store_key(s3, s['key']), tmp)
-            r = subprocess.run([FFMPEG, '-nostdin', '-v', 'error', '-y', '-i', tmp,
+            r = subprocess.run([ffmpeg, '-nostdin', '-v', 'error', '-y', '-i', tmp,
                                 '-map', f"0:v:{s['track']}", '-c:v', 'copy',
                                 '-bsf:v', 'h264_mp4toannexb', '-frames:v', str(F[s['class']]),
                                 '-f', 'h264', dst], capture_output=True, text=True)

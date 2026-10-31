@@ -4,6 +4,7 @@ review found passing or failing wrongly, on fixtures and on a copy of this
 repository's workflows."""
 import importlib.util
 import pathlib
+import re
 import shutil
 import tempfile
 import unittest
@@ -167,6 +168,91 @@ class Repository(unittest.TestCase):
         found = check.check(self.root)
         for file in ('tools/probe/action.yml', '.github/actions/probe/action.yaml', 'tools/anchored/action.yml'):
             self.assertTrue(any(p.startswith(f'{file}: line ') and 'actions/checkout@v4' in p for p in found), (file, found))
+
+    def ci(self, old, new):
+        ci = self.root / '.github' / 'workflows' / 'ci.yml'
+        text = ci.read_text()
+        self.assertIn(old, text)
+        ci.write_text(text.replace(old, new, 1))
+        return check.check(self.root)
+
+    def test_a_job_no_report_waits_for_is_reported(self):
+        found = self.ci(', conformance-arm64, bench-guard]\n', ', conformance-arm64]\n')
+        self.assertIn('ci.yml: no report job waits for bench-guard', found)
+
+    def test_a_job_without_its_concurrency_group_is_reported(self):
+        group = ('    concurrency:\n      group: ${{ github.workflow }}-msrv-'
+                 "${{ github.event_name == 'pull_request' && github.ref || github.run_id }}\n"
+                 "      cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n")
+        self.assertTrue(any(p.startswith('ci.yml: give `msrv` exactly') for p in self.ci(group, '')))
+
+    def test_a_group_another_job_has_is_reported(self):
+        found = self.ci('${{ github.workflow }}-msrv-', '${{ github.workflow }}-check-')
+        self.assertTrue(any(p.startswith('ci.yml: give `msrv` exactly') for p in found), found)
+
+    def test_a_workflow_without_any_job_group_is_reported(self):
+        ci = self.root / '.github' / 'workflows' / 'ci.yml'
+        text = ci.read_text()
+        bare = re.sub(r'    concurrency:\n      group: .*\n      cancel-in-progress: .*\n', '', text)
+        self.assertNotIn('concurrency:', bare)
+        ci.write_text(bare)
+        found = check.check(self.root)
+        self.assertTrue(any(p.startswith('ci.yml: give `check` exactly') for p in found), found)
+
+    def test_matrix_legs_sharing_a_group_are_reported(self):
+        found = self.ci('-b9-shard-${{ strategy.job-index }}-', '-b9-shard-')
+        self.assertTrue(any(p.startswith('ci.yml: give `b9-shard` exactly') for p in found), found)
+
+    def test_a_report_job_with_a_group_is_reported(self):
+        found = self.ci('  ci-report:\n', '  ci-report:\n    concurrency:\n      group: x\n')
+        self.assertTrue(any(p.startswith('ci.yml: remove `ci-report`') for p in found), found)
+
+    def test_a_workflow_group_beside_the_job_groups_is_reported(self):
+        found = self.ci('\njobs:\n', '\nconcurrency:\n  group: ci\n\njobs:\n')
+        self.assertTrue(any('remove the workflow\'s own `concurrency:`' in p for p in found), found)
+
+    def test_a_pin_change_starts_every_workflow_that_installs_the_oracle(self):
+        workflows = self.root / '.github' / 'workflows'
+        audio = workflows / 'audio-conformance.yml'
+        text = audio.read_text()
+        self.assertEqual(text.count(' "scripts/install-oracle-ffmpeg.sh",'), 2)
+        audio.write_text(text.replace(' "scripts/install-oracle-ffmpeg.sh",', ''))
+        mediainfo = workflows / 'mediainfo-oracle.yml'
+        text = mediainfo.read_text()
+        self.assertIn("      - '*.md'\n", text)
+        self.assertIn('      - scripts/oracle-ffmpeg.env\n', text)
+        mediainfo.write_text(text.replace("      - '*.md'\n", "      - '*.md'\n      - 'scripts/*.env'\n")
+                             .replace('      - scripts/oracle-ffmpeg.env\n', ''))
+
+        def problem(workflow, pin, fix, key, event):
+            return (f'{workflow}: runs the oracle FFmpeg installer, but a change of scripts/{pin} '
+                    f'does not start it: {fix} the `{key}` of `{event}`')
+        self.assertEqual(sorted(check.check(self.root)), sorted([
+            problem('audio-conformance.yml', 'install-oracle-ffmpeg.sh', 'add it to', 'paths', 'push'),
+            problem('audio-conformance.yml', 'install-oracle-ffmpeg.sh', 'add it to', 'paths', 'pull_request'),
+            problem('mediainfo-oracle.yml', 'oracle-ffmpeg.env', 'take it out of', 'paths-ignore', 'push'),
+            problem('mediainfo-oracle.yml', 'oracle-ffmpeg.env', 'add it to', 'paths', 'pull_request'),
+        ]))
+
+    def test_only_a_workflow_that_runs_the_installer_must_start_on_the_pin(self):
+        def workflow(*steps):
+            return ('# workflow-check: not required\non:\n  pull_request:\n'
+                    '    paths: ["scripts/install-oracle-ffmpeg.sh"]\njobs:\n  probe:\n'
+                    '    runs-on: ubuntu-24.04\n    steps:\n' + ''.join(f'      {step}\n' for step in steps))
+        missing = ('probe.yml: runs the oracle FFmpeg installer, but a change of scripts/oracle-ffmpeg.env '
+                   'does not start it: add it to the `paths` of `pull_request`')
+        for steps in (['- run: bash -n scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: shellcheck scripts/install-oracle-ffmpeg.sh'],
+                      ['# scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/bin"', '- run: echo none']):
+            with self.subTest(steps=steps):
+                self.write('.github/workflows/probe.yml', workflow(*steps))
+                self.assertEqual(check.check(self.root), [])
+        for steps in (['- run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/bin"'],
+                      ['- name: x', '  run: bash scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: |', '    set -e', '', '    ./scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/bin"']):
+            with self.subTest(steps=steps):
+                self.write('.github/workflows/probe.yml', workflow(*steps))
+                self.assertEqual(check.check(self.root), [missing])
 
     def test_a_local_ref_to_nothing_is_reported(self):
         self.call_local('./tools/none')

@@ -259,7 +259,8 @@ fn not_native(option: &str, value: Option<&str>, why: &str) -> Refusal {
 /// `subfile,,start,0,,:in.mp4`, `:in.mp4`). A name that starts with `/` or
 /// `./` is a path, and on Windows so is a drive letter before a separator
 /// (`C:\in.mp4`, `C:/in.mp4`); elsewhere `ffmpeg` reads `C` as a protocol.
-fn local(name: &str, windows: bool) -> bool {
+/// The concat demuxer reads the paths of a list the same way.
+pub(crate) fn local(name: &str, windows: bool) -> bool {
     let drive = windows
         && matches!(name.as_bytes(), [letter, b':', b'\\' | b'/', ..] if letter.is_ascii_alphabetic());
     let separator = |c: char| c == '/' || (windows && c == '\\');
@@ -424,11 +425,14 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
         let arg = arg.as_str();
         i += 1;
         if matches!(arg, "-h" | "-help" | "--help" | "-?") {
-            return Err(not_native(
-                arg,
-                None,
-                "an informational query; coreav ffmpeg runs stream-copy command lines only (docs/design/compat-cli.md)",
-            ));
+            return match args.get(i) {
+                None => Err(Refusal::Help),
+                Some(topic) => Err(not_native(
+                    arg,
+                    Some(topic),
+                    "help on a topic describes FFmpeg's own components; coreav ffmpeg prints only its own usage (docs/design/compat-cli.md)",
+                )),
+            };
         }
         if !arg.starts_with('-') || arg == "-" {
             outputs.push((arg, std::mem::take(&mut group)));
@@ -809,6 +813,22 @@ mod tests {
             Err(Refusal::NotNative(n)) => n.reason,
             other => panic!("{text}: {other:?}"),
         }
+    }
+
+    #[test]
+    fn help_is_coreavs_without_a_topic_and_ffmpegs_with_one() {
+        for text in ["-h", "-?", "-help", "--help", "-i in.mp4 -c copy -h"] {
+            assert_eq!(parse(&args(text)), Err(Refusal::Help), "{text}");
+        }
+        assert_eq!(
+            refused("-h long"),
+            Reason::Option("-h".to_owned(), Some("long".to_owned()))
+        );
+        assert_eq!(
+            refused("--help muxer=mp4"),
+            Reason::Option("--help".to_owned(), Some("muxer=mp4".to_owned()))
+        );
+        assert_ne!(parse(&args("-i -h -c copy out.mp4")), Err(Refusal::Help));
     }
 
     #[test]

@@ -128,6 +128,26 @@ records is itself a file name, a host name or a URL an answer used — a
 stream the answer was setting up. A test keeps the two positions that
 are file names clean and keeps every record free of a home directory.
 
+## Output names
+
+`commands.jsonl` replaces every output name with `OUTPUT`, so a command
+whose output no `-f` names does not say which container it writes.
+[`outputs.json`](outputs.json) records it for every usable `ffmpeg`
+command: the output of each invocation in the command's own answers that
+normalizes to it, reduced to `OUTPUT` with the name's number pattern and
+extension (`OUTPUT.mp4`, `OUTPUT%03d.jpg`), the pipe or null device it
+names (`-`, `pipe:1`, `/dev/null`, `NUL`), a URL as its scheme
+(`rtmp://OUTPUT`) or another device as `/dev/OUTPUT`, and an empty string
+for an invocation with no output position.
+`tools/compat-corpus/coverage_set.py` reads the answers again through the
+public API and writes it. They were read on 2026-10-30, ten days after the
+snapshot, and each of the 976 commands was found in at least one of its own
+answers. Like the set, the file holds no post body and no file name. An
+answer edited later can give another output, so this file, not a new
+reading, is what the encode breadth measure uses
+([`docs/design/compat-cli.md`](../../../docs/design/compat-cli.md), "The 0.1.0
+codec coverage bars").
+
 ## Taking the snapshot again
 
     python3 -I tools/compat-corpus/collect.py --tag ffprobe --questions 500 \

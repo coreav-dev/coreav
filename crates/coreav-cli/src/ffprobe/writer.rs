@@ -70,6 +70,9 @@ struct Frame {
     items: usize,
     /// Elements printed so far, for an array.
     elements: usize,
+    /// Of those, how many of each section, for an array that holds two
+    /// kinds (`packets_and_frames`).
+    kinds: Vec<(Sid, usize)>,
     /// What the text writers put before a key: `TAG:`, `tag:`,
     /// `streams.stream.0.`.
     prefix: String,
@@ -121,6 +124,7 @@ impl Writer {
             sid,
             items: 0,
             elements: 0,
+            kinds: Vec::new(),
             prefix: String::new(),
             element: false,
             inline: false,
@@ -205,7 +209,12 @@ impl Writer {
                         base
                     };
                 } else if parent_array {
-                    let n = self.stack.last().map_or(0, |f| f.elements);
+                    let n = self.stack.last().map_or(0, |f| {
+                        f.kinds
+                            .iter()
+                            .find(|(s, _)| *s == sid)
+                            .map_or(0, |(_, n)| *n)
+                    });
                     frame.prefix = format!("{base}{}{sep}{n}{sep}", def.name);
                 } else {
                     frame.prefix = format!("{base}{}{sep}", def.name);
@@ -243,6 +252,10 @@ impl Writer {
             }
         }
         self.stack.push(frame);
+        // `json` names the kind of each element of a mixed array.
+        if parent == Some(Sid::PacketsAndFrames) && matches!(self.kind, Kind::Json { .. }) {
+            self.entry(out, "type", &Value::Str(def.name.to_owned()));
+        }
     }
 
     /// A section ends.
@@ -291,6 +304,10 @@ impl Writer {
         }
         if let Some(parent) = self.stack.last_mut() {
             parent.elements += 1;
+            match parent.kinds.iter_mut().find(|(s, _)| *s == frame.sid) {
+                Some((_, n)) => *n += 1,
+                None => parent.kinds.push((frame.sid, 1)),
+            }
             if !matches!(self.kind, Kind::Compact { .. }) {
                 parent.items += 1;
             }

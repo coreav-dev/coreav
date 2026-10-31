@@ -60,7 +60,7 @@ pub enum BackendKind {
     Native,
     /// dav1d, for AV1.
     Dav1d,
-    /// libvpx, for VP9.
+    /// libvpx, for VP8 and VP9.
     Libvpx,
     /// FFmpeg's decoders, run in the sandboxed worker.
     Fallback,

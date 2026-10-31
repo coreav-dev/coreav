@@ -22,6 +22,9 @@ pub enum Failure {
     Io(std::io::ErrorKind),
     /// The file cannot be processed as asked, for the reason given.
     Unsupported(String),
+    /// The video stream breaks a rule of its codec's specification, the
+    /// one given.
+    Invalid(&'static str),
     /// A remote object could not be read, for the reason given (an I/O
     /// error: exit 3).
     Remote(String),
@@ -82,6 +85,12 @@ impl Failure {
             Self::Io(kind) => object("io", None, None, &format!("I/O error: {kind}")),
             Self::Remote(reason) => object("io", None, None, &format!("remote: {reason}")),
             Self::Decode(value) => value.clone(),
+            Self::Invalid(what) => object(
+                "invalid_structure",
+                None,
+                None,
+                &format!("invalid structure: {what}"),
+            ),
             Self::OutOfRange => object(
                 "out_of_range",
                 None,
@@ -136,6 +145,7 @@ impl Failure {
                     // has none of the kind asked for, or no stream with the
                     // index given. A refusal like the other unsupported cases.
                     Error::NoSuchTrack => ("unsupported_feature", None),
+                    Error::InvalidStream { .. } => ("invalid_structure", None),
                     Error::Io(_) => ("io", None),
                 };
                 let limit = match error {

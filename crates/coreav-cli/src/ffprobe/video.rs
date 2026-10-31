@@ -23,6 +23,12 @@ pub struct VideoInfo {
     /// An H.264 picture's cropped size, when the cropping keeps its top
     /// left corner: the size a sample entry may narrow (`iso.rs`).
     pub h264_corner: Option<(u32, u32)>,
+    /// The columns an H.264 picture crops on its left, in luma samples.
+    pub h264_crop_left: Option<u32>,
+    /// An H.264 stream's video signal type (E.2.1): `video_full_range_flag`
+    /// and, when described, `colour_primaries`, `transfer_characteristics`
+    /// and `matrix_coefficients`.
+    pub h264_signal: Option<(bool, Option<[u32; 3]>)>,
     /// The frame rate the stream's own clock states, as a fraction
     /// (ITU-T H.264 E.2.1, where a frame lasts two ticks; H.265 E.3.1,
     /// where a picture lasts one).
@@ -94,7 +100,7 @@ impl<'a> Bits<'a> {
         self.bit().map(|b| b == 1)
     }
 
-    fn ue(&mut self) -> Option<u32> {
+    pub(super) fn ue(&mut self) -> Option<u32> {
         let mut zeros = 0u32;
         while self.bit()? == 0 {
             zeros += 1;
@@ -114,7 +120,7 @@ impl<'a> Bits<'a> {
 
 /// The RBSP of a NAL unit: its header bytes skipped and emulation
 /// prevention bytes removed.
-fn rbsp(nal: &[u8], header: usize) -> Vec<u8> {
+pub(super) fn rbsp(nal: &[u8], header: usize) -> Vec<u8> {
     let mut out = Vec::with_capacity(nal.len());
     let mut zeros = 0;
     for &b in nal.iter().skip(header) {
@@ -269,6 +275,7 @@ pub fn avc_sps(nal: &[u8], full_range: bool) -> Option<VideoInfo> {
         pix_fmt: yuv(shown, bit_depth, full_range),
         coded_size: cropped,
         h264_corner: cropped.filter(|_| left == 0 && top == 0),
+        h264_crop_left: left.checked_mul(unit_x),
         bits_per_raw_sample: Some(bit_depth),
         field_order: frame_mbs_only.then_some("progressive"),
         chroma_location: (shown > 0).then_some("left"),
@@ -296,10 +303,14 @@ pub fn avc_sps(nal: &[u8], full_range: bool) -> Option<VideoInfo> {
         b.bit()?;
     }
     if b.flag()? {
-        b.bits(4)?;
-        if b.flag()? {
-            b.bits(24)?;
-        }
+        b.bits(3)?;
+        let full_range = b.flag()?;
+        let described = if b.flag()? {
+            Some([b.bits(8)?, b.bits(8)?, b.bits(8)?])
+        } else {
+            None
+        };
+        info.h264_signal = Some((full_range, described));
     }
     if b.flag()? {
         let top = b.ue()?;
@@ -441,6 +452,8 @@ pub fn hevc_sps(nal: &[u8], full_range: bool) -> Option<VideoInfo> {
         bits_per_raw_sample: None,
         coded_size: Some((width, height)),
         h264_corner: None,
+        h264_crop_left: None,
+        h264_signal: None,
         frame_rate: None,
         sar: None,
         profile: None,
@@ -627,6 +640,8 @@ pub fn av1(av1c: &[u8]) -> Option<VideoInfo> {
         bits_per_raw_sample: None,
         coded_size: None,
         h264_corner: None,
+        h264_crop_left: None,
+        h264_signal: None,
         frame_rate: None,
         sar: None,
         profile: None,
@@ -637,10 +652,13 @@ pub fn av1(av1c: &[u8]) -> Option<VideoInfo> {
     })
 }
 
-/// A `vpcC` record (version 1).
-pub fn vp9(vpcc: &[u8]) -> Option<VideoInfo> {
+/// A `vpcC` record, shared by VP8 and VP9.
+pub fn vp(vpcc: &[u8]) -> Option<VideoInfo> {
     let packed = *vpcc.get(6)?;
     let bits = u32::from(packed >> 4);
+    if !matches!(bits, 8 | 10 | 12) {
+        return None;
+    }
     let chroma_format = match (packed >> 1) & 0x07 {
         0 | 1 => 1,
         2 => 2,
@@ -656,6 +674,8 @@ pub fn vp9(vpcc: &[u8]) -> Option<VideoInfo> {
         bits_per_raw_sample: None,
         coded_size: None,
         h264_corner: None,
+        h264_crop_left: None,
+        h264_signal: None,
         frame_rate: None,
         sar: None,
         profile: None,
@@ -728,6 +748,8 @@ pub fn prores(frame: &[u8]) -> Option<VideoInfo> {
         bits_per_raw_sample: Some(bits),
         coded_size: Some((width, height)),
         h264_corner: None,
+        h264_crop_left: None,
+        h264_signal: None,
         frame_rate: None,
         sar: None,
         profile: None,
@@ -940,4 +962,24 @@ mod tests {
         assert_eq!(hevc(&[1; 10], false), None);
         assert_eq!(av1(&[0x81]), None);
     }
+}
+#[test]
+fn vp_configuration_maps_depth_and_subsampling_without_a_jpeg_range_format() {
+    for (packed, expected) in [
+        (0x80, "yuv420p"),
+        (0x82, "yuv420p"),
+        (0x84, "yuv422p"),
+        (0x86, "yuv444p"),
+        (0xa0, "yuv420p10le"),
+        (0xc4, "yuv422p12le"),
+    ] {
+        for range in [0, 1] {
+            let info = vp(&[1, 0, 0, 0, 0, 0, packed | range, 1, 1, 1, 0, 0]).unwrap();
+            assert_eq!(info.pix_fmt.as_deref(), Some(expected));
+        }
+    }
+    for packed in [0x88, 0x90, 0xf0] {
+        assert_eq!(vp(&[1, 0, 0, 0, 0, 0, packed, 1, 1, 1, 0, 0]), None);
+    }
+    assert_eq!(vp(&[1, 0, 0, 0]), None);
 }

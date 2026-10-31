@@ -1,6 +1,6 @@
 [package]
 name = "coreav-backend-libvpx"
-description = "CoreAV's VP9 backend: decodes packets with libvpx; inside the sandboxed worker by default"
+description = "CoreAV's VP8 and VP9 backend: decodes packets with libvpx; inside the sandboxed worker by default"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -40,3 +40,6 @@ unimplemented = "deny"
 
 [dev-dependencies]
 coreav-isobmff = { path = "../coreav-isobmff" }
+coreav-isobmff-write = { path = "../coreav-isobmff-write" }
+coreav-thumbnail = { path = "../coreav-thumbnail" }
+md-5 = "0.10"

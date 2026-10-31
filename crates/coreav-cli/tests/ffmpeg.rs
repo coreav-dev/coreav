@@ -101,14 +101,38 @@ fn commands_outside_the_vocabulary_are_refused_by_name() {
             vec!["-i", i, "-c", "copy", "-movflags", "+frag_keyframe", o],
             "frag_keyframe",
         ),
-        (vec!["-h"], "-h"),
-        (vec!["--help"], "--help"),
+        (vec!["-h", "long"], "-h long"),
+        (vec!["-h", "full"], "-h full"),
+        (vec!["--help", "encoder=libx264"], "--help encoder=libx264"),
+        (vec!["-help", o], "-help"),
+        (vec!["-filter_complex", "null", "-h"], "-filter_complex"),
     ] {
         let r = ffmpeg(&args);
         assert_eq!(r.code, 4, "{args:?}: {}", r.stderr);
         assert!(r.stdout.is_empty(), "{args:?}");
         assert!(r.stderr.contains(named), "{args:?}: {}", r.stderr);
         assert!(!output.exists(), "{args:?}");
+    }
+}
+
+#[test]
+fn help_without_a_topic_is_the_usage_text() {
+    for args in [
+        vec!["-h"],
+        vec!["-?"],
+        vec!["-help"],
+        vec!["--help"],
+        vec!["-hide_banner", "-h"],
+        vec!["-i", "in.mp4", "-c", "copy", "--help"],
+    ] {
+        let r = ffmpeg(&args);
+        assert_eq!(r.code, 0, "{args:?}: {}", r.stderr);
+        assert_eq!(
+            String::from_utf8(r.stdout).unwrap(),
+            coreav_cli::ffmpeg::USAGE,
+            "{args:?}"
+        );
+        assert!(r.stderr.is_empty(), "{args:?}: {}", r.stderr);
     }
 }
 
@@ -186,6 +210,150 @@ fn a_concat_list_is_joined() {
     );
 }
 
+/// A join copies the audio stream `ffmpeg` selects or refuses the
+/// command: FLAC, which the join does not copy, is refused (exit status 4),
+/// never left out of an output written without it.
+#[test]
+fn a_join_refuses_audio_it_does_not_copy() {
+    let dir = scratch("ffmpeg-concat-flac");
+    std::fs::write(dir.join("in.mp4"), av_movie(b"fLaC")).unwrap();
+    let list = dir.join("list.txt");
+    std::fs::write(&list, "file in.mp4\nfile in.mp4\n").unwrap();
+    let output = dir.join("out.mp4");
+    let (l, o) = (list.to_str().unwrap(), output.to_str().unwrap());
+    let r = ffmpeg(&["-f", "concat", "-i", l, "-c", "copy", o]);
+    assert_eq!(r.code, 4, "{}", r.stderr);
+    assert!(
+        r.stderr.contains("a codec that CoreAV does not copy"),
+        "{}",
+        r.stderr
+    );
+    assert!(!output.exists());
+    let r = ffmpeg(&["-f", "concat", "-i", l, "-an", "-c", "copy", o]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+}
+
+/// [`movie`]'s file with other tracks: `traks` takes its video and audio
+/// `trak` boxes and returns the boxes the movie holds instead, in order.
+fn retracked(traks: impl Fn(&[u8], &[u8]) -> Vec<Vec<u8>>) -> Vec<u8> {
+    let mut bytes = av_movie_with(aac_entry(), false);
+    let boxes = |kind: &[u8]| -> Vec<usize> {
+        (4..bytes.len())
+            .filter(|&i| bytes[i..].starts_with(kind))
+            .map(|i| i - 4)
+            .collect()
+    };
+    let (moov, at) = (boxes(b"moov")[0], boxes(b"trak"));
+    // The audio `trak` ends the movie box, which ends the file.
+    let new = traks(&bytes[at[0]..at[1]], &bytes[at[1]..]).concat();
+    bytes.truncate(at[0]);
+    bytes.extend_from_slice(&new);
+    let size = u32::try_from(bytes.len() - moov).unwrap();
+    bytes[moov..moov + 4].copy_from_slice(&size.to_be_bytes());
+    bytes
+}
+
+/// `trak` (as [`av_movie_with`] writes it, `tkhd` first) with track ID
+/// `id`, enabled (the default disposition) or not, and the first run of
+/// the bytes `from` written over with `to`.
+fn track(trak: &[u8], id: u32, enabled: bool, from: &[u8], to: &[u8]) -> Vec<u8> {
+    let mut trak = trak.to_vec();
+    trak[19] = if enabled { 3 } else { 2 };
+    trak[28..32].copy_from_slice(&id.to_be_bytes());
+    let at = (0..trak.len())
+        .find(|&i| trak[i..].starts_with(from))
+        .unwrap();
+    trak[at..at + to.len()].copy_from_slice(to);
+    trak
+}
+
+/// A join copies the video stream `ffmpeg` selects or refuses the command:
+/// of two video streams of one size, the first, which the join does not
+/// copy (MPEG-4 Visual), is refused (exit status 4), never replaced by the
+/// other. Named by `-map`, the other is joined.
+#[test]
+fn a_join_refuses_video_it_does_not_copy() {
+    let dir = scratch("ffmpeg-concat-mp4v");
+    let movie = retracked(|video, audio| {
+        vec![
+            track(video, 1, true, b"avc1", b"mp4v"),
+            track(video, 3, true, b"avc1", b"avc1"),
+            audio.to_vec(),
+        ]
+    });
+    std::fs::write(dir.join("in.mp4"), movie).unwrap();
+    let list = dir.join("list.txt");
+    std::fs::write(&list, "file in.mp4\nfile in.mp4\n").unwrap();
+    let output = dir.join("out.mp4");
+    let (l, o) = (list.to_str().unwrap(), output.to_str().unwrap());
+    let r = ffmpeg(&["-f", "concat", "-i", l, "-c", "copy", o]);
+    assert_eq!(r.code, 4, "{}", r.stderr);
+    assert!(
+        r.stderr.contains("a codec that CoreAV does not copy"),
+        "{}",
+        r.stderr
+    );
+    assert!(!output.exists());
+    let args: Vec<String> = [
+        "-f", "concat", "-i", l, "-map", "0:1", "-map", "0:2", "-c", "copy", o,
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect();
+    let Ok(summary) = coreav_cli::ffmpeg::run(&args, StrictSafe::new(false)) else {
+        panic!("{args:?} did not run");
+    };
+    for input in summary["inputs"].as_array().unwrap() {
+        let streams = input["streams"].as_array().unwrap();
+        let indexes: Vec<&Value> = streams.iter().map(|s| &s["stream_index"]).collect();
+        assert_eq!(indexes, [1, 2], "{summary}");
+    }
+}
+
+/// The concat demuxer exposes the first file's streams with every
+/// disposition flag cleared (black box: `ffprobe` of a list), so `ffmpeg`
+/// selects among them by picture size and channels alone: of a mono AAC
+/// stream with the default disposition and a stereo one without, the
+/// stereo one, which the join copies.
+#[test]
+fn a_join_selects_the_streams_the_concat_demuxer_exposes() {
+    let dir = scratch("ffmpeg-concat-selection");
+    let channels = |n: u8| -> Vec<u8> { [&b"mp4a"[..], &[0; 7], &[1], &[0; 9], &[n]].concat() };
+    let movie = retracked(|video, audio| {
+        vec![
+            video.to_vec(),
+            track(audio, 2, true, &channels(2), &channels(1)),
+            track(audio, 3, false, &channels(2), &channels(2)),
+        ]
+    });
+    std::fs::write(dir.join("in.mp4"), movie).unwrap();
+    let probed = stream_channels(&dir.join("in.mp4"));
+    assert_eq!(probed, [None, Some(1), Some(2)]);
+    let list = dir.join("list.txt");
+    std::fs::write(&list, "file in.mp4\nfile in.mp4\n").unwrap();
+    let output = dir.join("out.mp4");
+    let args: Vec<String> = [
+        "-f",
+        "concat",
+        "-i",
+        list.to_str().unwrap(),
+        "-c",
+        "copy",
+        output.to_str().unwrap(),
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect();
+    let Ok(summary) = coreav_cli::ffmpeg::run(&args, StrictSafe::new(false)) else {
+        panic!("{args:?} did not run");
+    };
+    for input in summary["inputs"].as_array().unwrap() {
+        let streams = input["streams"].as_array().unwrap();
+        let indexes: Vec<&Value> = streams.iter().map(|s| &s["stream_index"]).collect();
+        assert_eq!(indexes, [0, 2], "{summary}");
+    }
+}
+
 /// [`movie`] with words changed: each `(n, from, to)` writes the 32-bit
 /// big-endian words `to` over the `n`th (from 1) run of the words `from`.
 fn patched_movie(dir: &Path, name: &str, patch: &[(usize, &[u32], &[u32])]) -> String {
@@ -246,18 +414,13 @@ fn joins_ffmpeg_would_time_or_read_otherwise_are_refused() {
     video("edits.mp4", vec![(160, 0), (160, 2048)]);
     video("plain.mp4", vec![(320, 0)]);
     // The same tracks with the audio first: the demuxer pairs its first
-    // stream with the first file's video.
-    let mut bytes = av_movie_with(aac_entry(), false);
-    let traks: Vec<usize> = (4..bytes.len())
-        .filter(|&i| bytes[i..].starts_with(b"trak"))
-        .map(|i| i - 4)
-        .collect();
-    let size = |at: usize| u32::from_be_bytes(bytes[at..at + 4].try_into().unwrap()) as usize;
-    let (video_trak, audio_trak) = (traks[0], traks[1]);
-    let end = audio_trak + size(audio_trak);
-    let swapped = [&bytes[audio_trak..end], &bytes[video_trak..audio_trak]].concat();
-    bytes.splice(video_trak..end, swapped);
-    std::fs::write(dir.join("swapped.mp4"), bytes).unwrap();
+    // stream with the first file's video, and its second, the video, with
+    // the first file's audio.
+    let swapped = retracked(|video, audio| vec![audio.to_vec(), video.to_vec()]);
+    std::fs::write(dir.join("swapped.mp4"), swapped).unwrap();
+    // The video alone: the first file's audio has no stream to pair with.
+    let video_only = retracked(|video, _| vec![video.to_vec()]);
+    std::fs::write(dir.join("video.mp4"), video_only).unwrap();
     let output = dir.join("out.mp4");
     let o = output.to_str().unwrap();
     for (files, named) in [
@@ -273,8 +436,9 @@ fn joins_ffmpeg_would_time_or_read_otherwise_are_refused() {
         ),
         (
             "file in.mp4\nfile swapped.mp4\n",
-            "streams are at other indexes",
+            "the stream is not a video track",
         ),
+        ("file in.mp4\nfile video.mp4\n", "streams differ"),
     ] {
         let list = dir.join("list.txt");
         std::fs::write(&list, files).unwrap();
@@ -548,6 +712,23 @@ fn stream_kind(letter: &str) -> StreamKind {
     }
 }
 
+/// The channels of each stream of `path`, `None` for a stream without.
+fn stream_channels(path: &Path) -> Vec<Option<i64>> {
+    let size = std::fs::metadata(path).unwrap().len();
+    let mut file = coreav_isobmff::FileSource::open(path).unwrap();
+    let name = path.display().to_string();
+    let Ok(probed) = coreav_cli::ffprobe::probe(&mut file, size, &name, None) else {
+        panic!("{name} is rejected");
+    };
+    let channels = |s: &coreav_cli::ffprobe::Stream| {
+        s.entries.iter().find_map(|(k, v)| match v {
+            coreav_cli::ffprobe::model::Value::Int(n) if *k == "channels" => Some(*n),
+            _ => None,
+        })
+    };
+    probed.report.streams.iter().map(channels).collect()
+}
+
 /// The kinds of the streams of `path`, or `None` when the probe rejects it.
 fn stream_kinds(path: &Path) -> Option<Vec<StreamKind>> {
     let size = std::fs::metadata(path).ok()?.len();
@@ -566,7 +747,8 @@ fn stream_kinds(path: &Path) -> Option<Vec<StreamKind>> {
 /// matches no stream of it, or a selection left empty, which `ffmpeg` fails
 /// too) is recorded as not taken. Every entry runs
 /// natively on at least one fixture of each of its families; a refusal or a
-/// rejection leaves no file behind. With `COREAV_FFMPEG_OUT` the outputs and
+/// rejection leaves no file behind, and the fixtures whose video is not
+/// valid HEVC give no output. With `COREAV_FFMPEG_OUT` the outputs and
 /// `records.json` (each run, its outcome and its writer's summary) are
 /// written there for `tools/compat-corpus/copy_check.py`.
 #[test]
@@ -671,11 +853,17 @@ fn the_0_1_0_commands_on_the_fixtures() {
                         );
                         ("not taken", json!(text))
                     }
+                    Err(Stop::Refused(Refusal::Help)) => panic!("{label}: read as a help query"),
                     Err(Stop::Failed(failure)) => {
                         assert!(!failure.is_io(), "{label}: {}", failure.to_json());
                         ("rejected", failure.to_json())
                     }
                 };
+                // Not valid HEVC (ITU-T H.265 7.4.3.2.1): no command writes
+                // an output from these, a copy included.
+                if ["size_hevc_mixed_window.mp4", "size_hevc_window.mp4"].contains(&name.as_str()) {
+                    assert_ne!(status, "written", "{label}");
+                }
                 let files = std::fs::read_dir(&work).unwrap().count();
                 if status == "written" {
                     assert!(files > 0, "{label}: no output");
@@ -707,6 +895,62 @@ fn the_0_1_0_commands_on_the_fixtures() {
     std::fs::write(
         out.join("records.json"),
         serde_json::to_string_pretty(&Value::Array(records)).unwrap(),
+    )
+    .unwrap();
+}
+
+/// The R3 runner's half in Rust (`tools/compat-corpus/r3.py`): each pair
+/// of `COREAV_R3_PAIRS` (a JSON array whose objects carry `args`, the
+/// `coreav ffmpeg` arguments with every placeholder filled, and `work`,
+/// the directory that holds the pair's output and nothing else) is run
+/// through [`coreav_cli::ffmpeg::run`], the function `coreav ffmpeg` runs,
+/// in strict-safe mode. The object is written back to `COREAV_R3_RECORDS`
+/// with its `status` (`written`, `refused`, `not taken`, `usage`,
+/// `rejected` or `io`), its `detail` (the writer's summary, which the
+/// binary does not print, or the reason) and the number of files left in
+/// `work`, which `tools/compat-corpus/copy_check.py` reads. Unlike
+/// [`the_0_1_0_commands_on_the_fixtures`], an outcome is recorded, never
+/// asserted: the files are not the fixtures, and the runner judges.
+#[test]
+#[ignore = "run by tools/compat-corpus/r3.py; set COREAV_R3_PAIRS and COREAV_R3_RECORDS"]
+fn the_0_1_0_commands_on_listed_pairs() {
+    let pairs: Vec<Value> = serde_json::from_str(
+        &std::fs::read_to_string(std::env::var("COREAV_R3_PAIRS").expect("set COREAV_R3_PAIRS"))
+            .unwrap(),
+    )
+    .unwrap();
+    let mut records = Vec::with_capacity(pairs.len());
+    for mut pair in pairs {
+        let args: Vec<String> = pair["args"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|a| a.as_str().unwrap().to_owned())
+            .collect();
+        let work = PathBuf::from(pair["work"].as_str().unwrap());
+        std::fs::create_dir_all(&work).unwrap();
+        let (status, detail) = match coreav_cli::ffmpeg::run(&args, StrictSafe::new(true)) {
+            Ok(summary) => ("written", summary),
+            Err(Stop::Refused(Refusal::NotNative(refusal))) => ("refused", json!(refusal.message)),
+            Err(Stop::Refused(Refusal::Usage(text))) => {
+                let taken = text.starts_with("A -map matches no streams")
+                    || text == "Output file does not contain any stream";
+                (if taken { "not taken" } else { "usage" }, json!(text))
+            }
+            Err(Stop::Refused(Refusal::Help)) => panic!("{args:?}: read as a help query"),
+            Err(Stop::Failed(failure)) => (
+                if failure.is_io() { "io" } else { "rejected" },
+                failure.to_json(),
+            ),
+        };
+        pair["status"] = json!(status);
+        pair["detail"] = detail;
+        pair["files"] = json!(std::fs::read_dir(&work).unwrap().count());
+        records.push(pair);
+    }
+    std::fs::write(
+        std::env::var("COREAV_R3_RECORDS").expect("set COREAV_R3_RECORDS"),
+        serde_json::to_string(&Value::Array(records)).unwrap(),
     )
     .unwrap();
 }
