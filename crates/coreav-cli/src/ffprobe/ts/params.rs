@@ -1271,11 +1271,23 @@ fn ac3_downmix(bits: &mut Bits<'_>, acmod: u8, bsid: u8) -> Option<Downmix> {
     }
     bits.skip(2)?;
     if bits.flag()? {
-        downmix.mode = bits.bits(2)?;
-        downmix.ltrt_center = Some(bits.bits(3)?);
-        downmix.ltrt_surround = Some(bits.bits(3)?);
-        downmix.loro_center = Some(bits.bits(3)?);
-        downmix.loro_surround = Some(bits.bits(3)?);
+        let [mode, ltrt_center, ltrt_surround, loro_center, loro_surround] =
+            [2, 3, 3, 3, 3].map(|width| bits.bits(width));
+        // Annex D 2.3.1.2 to 2.3.1.6: each field means what its table says
+        // only for the channel modes that have what it mixes (the same
+        // conditions under which E-AC-3 codes it); for the others its
+        // meaning is reserved.
+        if acmod > 2 {
+            downmix.mode = mode?;
+        }
+        if acmod & 1 != 0 && acmod > 2 {
+            downmix.ltrt_center = Some(ltrt_center?);
+            downmix.loro_center = Some(loro_center?);
+        }
+        if acmod & 4 != 0 {
+            downmix.ltrt_surround = Some(ltrt_surround?);
+            downmix.loro_surround = Some(loro_surround?);
+        }
     }
     Some(downmix)
 }
@@ -2306,6 +2318,59 @@ mod tests {
             ]
         );
         assert_eq!(ac3(&header[..5]), None);
+    }
+
+    #[test]
+    fn ac3_extended_downmix_levels_follow_the_channel_mode() {
+        let header = |acmod: u32| {
+            let mut fields = vec![
+                (0x0b77, 16),
+                (0, 16),
+                (0, 2),
+                (10, 6),
+                (6, 5),
+                (0, 3),
+                (acmod, 3),
+            ];
+            if acmod & 1 != 0 && acmod != 1 {
+                fields.push((0, 2));
+            }
+            if acmod & 4 != 0 {
+                fields.push((0, 2));
+            }
+            if acmod == 2 {
+                fields.push((0, 2));
+            }
+            fields.extend([(0, 1), (31, 5), (0, 1), (0, 1), (0, 1), (0, 2), (1, 1)]);
+            fields.extend([(1, 2), (4, 3), (5, 3), (3, 3), (6, 3), (0, 1), (0, 1)]);
+            ac3(&pack(&fields)).unwrap().downmix
+        };
+        let both = Downmix {
+            mode: 1,
+            ltrt_center: Some(4),
+            ltrt_surround: Some(5),
+            loro_center: Some(3),
+            loro_surround: Some(6),
+        };
+        assert_eq!(header(2), Downmix::default());
+        assert_eq!(header(1), Downmix::default());
+        assert_eq!(
+            header(3),
+            Downmix {
+                ltrt_surround: None,
+                loro_surround: None,
+                ..both
+            }
+        );
+        assert_eq!(
+            header(6),
+            Downmix {
+                ltrt_center: None,
+                loro_center: None,
+                ..both
+            }
+        );
+        assert_eq!(header(7), both);
     }
 
     #[test]
