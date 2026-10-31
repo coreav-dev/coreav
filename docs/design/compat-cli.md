@@ -426,9 +426,13 @@ those sections that B3a measures; what drops out is the program keys of
 
 Every run of these bars sets `COREAV_STRICT_SAFE=1`, so a command that is
 not native is refused and never handed to FFmpeg ("Fallback to FFmpeg",
-below), and sets `COREAV_FALLBACK_LOG` to a file of the run; a run whose log
-holds any line is void. A fallback would pass every comparison by being
-FFmpeg.
+below), and sets `COREAV_FALLBACK_LOG` to a file of the run. R1 to R3 keep
+the rule that any log line voids the run. The registered
+[R4 refusal timing-set plan](../measurements/compat-0.1.0/r4-refusal-plan.md)
+changes only R4's handling of run-observed strict-safe refusals, with
+coverage published beside speed; its tools follow in a separate change.
+An executed fallback still voids a native run: it would pass every
+comparison by being FFmpeg.
 
 | | Bar | Refines |
 |---|---|---|
@@ -504,8 +508,11 @@ command for both sides, on every file of its families that R3's rule lets
 take it. The runner pins itself to the CPUs of `--cpus`, so every timed
 process runs there; an `ffmpeg` command writes into a scratch directory on
 the local disk that is emptied after every run. A pair whose untimed run
-fails on either side has no ratio and is reported, a strict-safe refusal
-apart (its fallback-log line voids the run). A timed run that fails or
+fails on either side has no ratio and is reported. The current runner
+voids the run on a strict-safe refusal's log line; the separate
+[R4 refusal plan](../measurements/compat-0.1.0/r4-refusal-plan.md) registers
+its replacement and the required coverage accounting before the tools
+implement it. A timed run that fails or
 times out after both untimed runs succeeded makes the run incomplete, which
 fails R4 and fails the gate, never passes them on the timings left. `speed.py r4-report --gate` judges the gate on each class's ratios
 over the three families, as the gate names "every class's median"; the
