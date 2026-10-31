@@ -217,7 +217,74 @@ above move with it in this note.
   the set is frozen as `commands-v1`; a later snapshot is `commands-v2`,
   in the pull request that measures against it.
 
+## FFmpeg 9 stream listings
+
+`coreav ffprobe` prints the pinned oracle's stream vocabulary: the
+`multilayer` disposition flag, MIME codec strings for AVC, AAC, AV1,
+VP8, VP9, MPEG-4 Part 2, MPEG audio, Vorbis, AC-3, E-AC-3, Opus and FLAC,
+HEVC view fields, and the Dolby
+downmix metadata of the first audio frame. Decoder-only `refs`,
+`closed_captions` and `film_grain` are no longer printed. MIME strings
+use RFC 6381, the WebM container guidelines, and the AV1 and VP codec
+ISOBMFF bindings. AAC uses the configuration's initial audio object
+type, not a profile inferred after decoding an implicit extension. A VP9 stream
+without a configuration record uses the first level whose picture size,
+sample rate, bit rate and edge limits cover the known stream values
+([VP9 levels](https://www.webmproject.org/vp9/levels/)); this is a
+listing estimate, not a check of every level constraint of every frame.
+VP8 and VP9 ISO sample entries share the
+[`vpcC` pixel-format reader](https://www.webmproject.org/vp9/mp4/):
+bit depth and chroma subsampling select the planar format; full range
+is reported separately as `color_range`, not as a JPEG pixel format.
+Dolby downmix fields come from ATSC A/52's extended bitstream information
+or E-AC-3 mixing metadata; absent metadata prints zero, not inferred
+speaker gains.
+
+AV1 strings keep the sequence's level index (including 31, maximum
+parameters) and append all optional fields together when they differ
+from the defaults. Raw colour code points, including explicit 2/2/2,
+come from the sequence header unless an ISO `nclx` box overrides them,
+as the [AV1 binding section 5](https://aomediacodec.github.io/av1-isobmff/#codecsparam)
+requires. Some pinned-oracle strings disagree with these requirements.
+The known-divergence note records them; one generated fixture has an
+exact-pair exception backed by its `nclx` bytes, with a stale-exception
+gate that fails when the oracle starts agreeing. It excludes no corpus
+file or other field from B3a.
+
+AVC and HEVC Annex B extradata lengths include the retained parameter
+sets with four-byte start codes and their intervening padding. Every
+MPEG-TS access unit carries its PES identifier as packet side data,
+including further audio frames of one PES packet and the EOF flush.
+ISO base media packets keep the decode durations in `stts` and `trun`,
+even when the stream has composition offsets.
+
 ## The 0.1.0 command set
+
+### ffprobe round 8 measurement plan (historical)
+
+Round 8 remeasures B3a on the same 1,315 files as round 7 with the
+shared FFmpeg oracle pin. Both the base and candidate binaries use that
+oracle, so changes in the oracle are not counted as candidate gains.
+Every key is reported by container and by development or held-out part,
+including keys newly printed by the oracle. The bar remains 98% per key;
+known divergences name their reason rather than lowering it. MPEG-TS
+held-out inputs inspected during this work are no longer independent
+validation, and the report will say so.
+
+B4 is remeasured on its registered selection of up to 20 held-out files
+per container (20 ISO base media, 20 Matroska/WebM and 17 MPEG-TS) and
+the native ffprobe commands of commands-v1, five alternating timed pairs
+after one untimed pair. The fixed host class is a GCP c4-standard-8 with
+SMT disabled, with both tools on the same pinned core. Before the B4
+arm, FFmpeg/FFmpeg and CoreAV/CoreAV calibration arms must each have an
+overall median ratio in [0.98, 1.02], with a bootstrap 95% interval that
+contains 1.00. A failed calibration voids the host, not the bar. A failed
+or timed-out command has no speed ratio and is counted separately.
+The B4 bar remains at most 1.00 per command, overall and per container;
+the report includes the 95% intervals and the share of pairs below 1.00.
+Calibration uses the first selected input of each container with
+`-show_format -show_streams` and with `-show_packets`, five timed pairs
+after one untimed pair per arm and command.
 
 Release 0.1.0 does not wait for B2, B3a and B3b over the whole vocabulary.
 It ships the commands that upload and preprocessing pipelines run most, the

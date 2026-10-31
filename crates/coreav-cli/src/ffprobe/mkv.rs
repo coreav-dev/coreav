@@ -585,7 +585,9 @@ fn params(track: &Track, early: &Early) -> (Option<video::Params>, Option<usize>
                         .copied()
                         .filter(|n| n.first().is_some_and(|b| matches!(b & 0x1F, 7 | 8)))
                         .collect();
-                    let size = sets.iter().map(|n| n.len() + 4).sum::<usize>();
+                    let mut state = (0, false);
+                    super::ts::params::sets_before_slice(frame, false, &mut state);
+                    let size = state.0;
                     (video::first_h264_sps(sets), Some(size).filter(|s| *s > 0))
                 }
                 None => (None, None),
@@ -1603,6 +1605,7 @@ fn stream(
     if let Some(n) = extradata_size(track, info) {
         e.push(("extradata_size", int(n)));
     }
+    super::metadata::stream(&mut e, codec_config(track), &info.first, None);
     let mut tags = meta.dict();
     if let Some(lang) = track_language(track) {
         tags.set("language", &lang);
@@ -2428,6 +2431,17 @@ fn extradata_size(track: &Track, info: &Info) -> Option<usize> {
     match track.codec {
         Codec::Vp9 | Codec::Vp8 | Codec::Ac3 | Codec::Eac3 | Codec::Mp3 | Codec::Mp2 => None,
         Codec::H264 if track.codec_private.is_none() => info.in_band,
+        Codec::H264
+            if track
+                .codec_private
+                .as_ref()
+                .is_some_and(|c| c.first() != Some(&1)) =>
+        {
+            track
+                .codec_private
+                .as_deref()
+                .and_then(|c| super::ts::params::annex_b_extradata(c, false))
+        }
         Codec::Flac => track
             .codec_private
             .as_deref()
@@ -2477,6 +2491,7 @@ fn disposition(track: &Track) -> Entries {
         ("metadata", false),
         ("dependent", false),
         ("still_image", false),
+        ("multilayer", false),
     ]
     .into_iter()
     .map(|(k, v)| (k, Value::Int(i64::from(v))))
@@ -2507,6 +2522,7 @@ fn disposition_flags(set: &[&str]) -> Entries {
         "metadata",
         "dependent",
         "still_image",
+        "multilayer",
     ]
     .into_iter()
     .map(|k| (k, Value::Int(i64::from(set.contains(&k)))))

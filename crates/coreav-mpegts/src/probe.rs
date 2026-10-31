@@ -191,6 +191,23 @@ pub struct TransportStream {
 }
 
 impl TransportStream {
+    /// The positions in `streams` in the order `ffprobe` numbers the
+    /// streams: first those of the first Program Map Table it reads, then
+    /// the others in the order the file shows them from its start
+    /// ([`Stream::found_at`]); the order of `streams` breaks ties
+    /// (KD-TS-STREAM-ORDER).
+    pub fn listing_order(&self) -> Vec<usize> {
+        let mut order: Vec<usize> = (0..self.streams.len()).collect();
+        order.sort_by_key(|&i| {
+            self.streams
+                .get(i)
+                .map_or((true, u64::MAX, usize::MAX), |st| {
+                    (!st.with_first_table, st.found_at, st.stream_index)
+                })
+        });
+        order
+    }
+
     /// The earliest start of a stream (90 kHz).
     pub fn start(&self) -> Option<i64> {
         self.streams.iter().filter_map(|s| s.start).min()
