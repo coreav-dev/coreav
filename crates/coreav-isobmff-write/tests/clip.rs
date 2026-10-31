@@ -659,6 +659,7 @@ fn an_hevc_window_that_leaves_no_picture_is_refused_by_every_writer() {
         &limits,
         &allowlist,
         &JoinOptions {
+            video: VideoChoice::First,
             audio: JoinAudio::First,
         },
         &mut out,

@@ -124,9 +124,38 @@ fn a_missing_file_is_named() {
 
 #[test]
 fn help_is_the_usage_text() {
-    let r = ffprobe(&["-h"]);
-    assert_eq!(r.code, 0);
-    assert!(r.stdout.contains("usage: coreav ffprobe"));
+    for args in [
+        vec!["-h"],
+        vec!["-?"],
+        vec!["-help"],
+        vec!["--help"],
+        vec!["-hide_banner", "-h"],
+    ] {
+        let r = ffprobe(&args);
+        assert_eq!(r.code, 0, "{args:?}: {}", r.stderr);
+        assert_eq!(r.stdout, coreav_cli::ffprobe::USAGE, "{args:?}");
+        assert!(r.stderr.is_empty(), "{args:?}: {}", r.stderr);
+    }
+}
+
+#[test]
+fn help_on_a_topic_is_refused_by_name() {
+    for (args, named) in [
+        (vec!["-h", "long"], "'-h long'"),
+        (vec!["-h", "full"], "'-h full'"),
+        (vec!["--help", "demuxer=mov"], "'--help demuxer=mov'"),
+        (vec!["-hide_banner", "-help", "in.mp4"], "'-help in.mp4'"),
+    ] {
+        let r = ffprobe(&args);
+        assert_eq!(r.code, 4, "{args:?}: {}", r.stderr);
+        assert!(r.stdout.is_empty(), "{args:?}");
+        assert!(
+            r.stderr
+                .starts_with(&format!("coreav ffprobe: {named} is not supported: ")),
+            "{args:?}: {}",
+            r.stderr
+        );
+    }
 }
 
 #[test]
@@ -161,7 +190,9 @@ fn the_common_forms_print_what_ffprobe_prints() {
     assert_eq!(doc["format"]["filename"], path.as_str());
     assert_eq!(doc["format"]["nb_streams"], 2);
     let r = ffprobe(&["-show_entries", "format=filename", "-of", "flat", &path]);
-    assert_eq!(r.stdout, format!("format.filename=\"{path}\"\n"));
+    // The flat writer escapes a backslash, as in a Windows path.
+    let escaped = path.replace('\\', "\\\\");
+    assert_eq!(r.stdout, format!("format.filename=\"{escaped}\"\n"));
 }
 
 #[test]

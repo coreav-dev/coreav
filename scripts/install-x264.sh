@@ -26,7 +26,7 @@ git -C "$WORK/x264" -c advice.detachedHead=false checkout --quiet "$X264_COMMIT"
   ./configure --enable-static --disable-lavf --disable-ffms --disable-gpac \
     --disable-lsmash --disable-swscale --bit-depth=all --chroma-format=all \
     >/dev/null
-  make -j"$(nproc)" x264 >/dev/null 2>&1
+  make -j"$(getconf _NPROCESSORS_ONLN)" x264 >/dev/null 2>&1
 )
 install -m 755 "$WORK/x264/x264" "$DEST/x264"
 "$DEST/x264" --version | head -1

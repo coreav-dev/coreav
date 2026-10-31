@@ -83,6 +83,15 @@ impl From<coreav_mkv::Error> for Error {
     }
 }
 
+impl From<coreav_opus::Error> for Error {
+    fn from(error: coreav_opus::Error) -> Self {
+        match error {
+            coreav_opus::Error::Invalid(what) => Self::Invalid(what),
+            coreav_opus::Error::Unsupported(what) => Self::Unsupported(what),
+        }
+    }
+}
+
 /// A recoverable problem, reported with the result.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Warning {

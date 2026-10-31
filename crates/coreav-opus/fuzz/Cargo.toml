@@ -32,3 +32,10 @@ path = "fuzz_targets/opus_decode.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "opus_packet"
+path = "fuzz_targets/opus_packet.rs"
+test = false
+doc = false
+bench = false

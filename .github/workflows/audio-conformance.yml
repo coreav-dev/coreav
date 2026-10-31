@@ -258,7 +258,7 @@ jobs:
           rm -rf libopus.tar.gz opus-1.6.1
       - name: The generated tables are what scripts/opus_tables.py makes from the RFC's code
         run: python3 -I scripts/opus_tables.py --check --cache "$RUNNER_TEMP/pinned-sources"
-      - name: Read every packet and decode the SILK-only and CELT-only vectors (durations against the reference outputs, range state of every packet, opus_compare above 90)
+      - name: Read every packet and decode the twelve vectors (durations against the reference outputs, range state of every packet, opus_compare above 90)
         env:
           COREAV_OPUS_VECTORS: ${{ runner.temp }}/opus-vectors/opus_newvectors
           COREAV_OPUS_COMPARE: ${{ runner.temp }}/opus-compare/opus_compare

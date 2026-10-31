@@ -36,4 +36,6 @@ COREAV_STRICT_SAFE=1 ffprobe -v error -show_format input.mp4
 
 <Help />
 
+Help on a topic, such as `-h long`, `-h full` or `-h demuxer=mov`, asks about FFmpeg's own components, so it is refused in strict-safe mode and goes to the real `ffprobe` otherwise.
+
 [The compatibility command's design note](https://github.com/coreav-dev/coreav/blob/main/docs/design/compat-cli.md) has the grammar and the bars.

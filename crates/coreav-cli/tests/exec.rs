@@ -9,7 +9,15 @@ use std::process::Command;
 #[test]
 fn the_launcher_runs_a_program_under_its_limits() {
     let out = Command::new(env!("CARGO_BIN_EXE_coreav"))
-        .args(["__coreav_exec", "--open-files", "32", "--", "/bin/true"])
+        .args([
+            "__coreav_exec",
+            "--open-files",
+            "32",
+            "--",
+            "/bin/sh",
+            "-c",
+            "exit 0",
+        ])
         .output()
         .unwrap();
     assert!(out.status.success(), "{out:?}");

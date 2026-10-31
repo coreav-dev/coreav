@@ -807,6 +807,7 @@ fn encodes_as_ffmpeg_does(name: &str) {
 }
 
 /// A stand-in encoder: a `/bin/sh` script given as the x264 program.
+#[cfg(unix)]
 fn script(dir: &Path, name: &str, body: &str) -> PathBuf {
     use std::os::unix::fs::PermissionsExt;
     let path = dir.join(format!("{name}.sh"));
@@ -815,6 +816,7 @@ fn script(dir: &Path, name: &str, body: &str) -> PathBuf {
     path
 }
 
+#[cfg(unix)]
 #[test]
 fn hostile_encoders_end_in_an_error_and_leave_nothing() {
     let Some(tools) = tools() else { return };
