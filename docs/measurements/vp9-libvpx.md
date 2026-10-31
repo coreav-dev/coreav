@@ -74,3 +74,81 @@ Evidence: `vp9-libvpx/transcode-b5/`.
 ## The read on a native VP9 decoder
 
 The rule was fixed with the bars: when the libvpx build misses S3 or B5 and the decoder-alone median is at or below 1.10, the cost is around the decoder, and a native decoder is not the first change to make. The libvpx build meets S1 to S5 and misses B5, and the decoder-alone median is 1.036. So the thumbnail bars need no native VP9 decoder, and for B5 a native decoder is not the first change: libvpx alone is within 4% of FFmpeg's own decoder, so most of the 7.5% that CoreAV's transcode takes over FFmpeg's is spent outside the decoder.
+
+## Attribution of the B5 gap
+
+Where the extra time of the transcode goes, measured after B5 on main at `7304293` against FFmpeg 9.0.2, the pinned build (`scripts/oracle-ffmpeg.env`, checked with `oracle_pin.py --verify-bin`). This is a diagnosis on the 10 files B5 timed, not a run of the bar: it judges nothing. The method and the arms were written down before the run.
+
+**Host and builds.** One `c4-standard-8` as above (Intel Xeon Platinum 8581C, SMT off, 4 cores, standard provisioning), Debian 13 with libvpx 1.15.0 (`libvpx9`) and `perf` 6.12. `coreav` built with `--release` and `native-h264,dav1d,libvpx,ffmpeg-fallback`; the x264 program from `scripts/install-x264.sh`. For the decode-alone arms, `tools/decode-oracle` was built with `libvpx` and, in a local copy that is not committed, without its per-frame MD5 and packed copy, so it decodes to nothing.
+
+**Arms.** Each command a process tree timed from outside, with the user and system CPU time of the tree; per file, the source in the page cache, outputs on tmpfs, 3 rounds in rotated order, a command's time the median of its rounds.
+
+| Arm | Command |
+|---|---|
+| `base`, `base2` | B5's baseline, twice (A/A) |
+| `c_ff`, `c_x264` | `coreav transcode` with `--encoder ffmpeg` and `--encoder x264` |
+| `f_split` | FFmpeg's decoder in one process, raw frames as NUT through a pipe, FFmpeg's libx264 in a second process |
+| `f_dec_vp9`, `f_dec_vpx` | `ffmpeg -f null` with its own `vp9` decoder, and with its own `libvpx-vp9` |
+| `c_dec_ip`, `c_dec_w` | CoreAV's libvpx backend in the process, and in the sandboxed worker with frames through shared memory |
+| `f_enc`, `x_enc` | libx264 in FFmpeg, and the x264 program with `coreav transcode`'s arguments, on the decoded frames from a tmpfs file (the 7 files whose raw video fits 4 GB); `*_pipe`: the same through a pipe |
+| `*_an` | the two files with audio, without it (`-an`, `--audio none`) |
+
+Then one profiled pass: `perf record -a -e cpu-clock` of the full commands and the decode arms, each sample counted by process, thread, library and function (none for FFmpeg's own code). FFmpeg names its threads (demuxer, decoder, filter, encoder, muxer), x264's threads are those its encoder thread starts, and CoreAV's are the worker, its threads, the main thread, the encoder pipe threads and the encoder process. On 4 cores, 4 × wall = CPU + idle, so the gap splits exactly into each stage's extra CPU over 4 and the change in idle time; a stage's CPU is the command's measured CPU times the stage's share of its samples. The profile's CPU and the timed CPU agree within 3% on every full command.
+
+**Host checks.** The baseline's gate file took 2.864 s before and 2.852 s after (0.4% apart). `base2` over `base`: 0.996 (0.982 to 1.004).
+
+### Results
+
+| Ratio (median of 10 files) | Median | 95% CI | Files below 1.00 |
+|---|---|---|---|
+| `c_ff` / `base` | 1.074 | 1.017 to 1.121 | 2 |
+| `c_x264` / `base` | 1.074 | 1.019 to 1.109 | 2 |
+| `f_split` / `base` | 1.032 | 1.012 to 1.070 | 1 |
+| `c_x264` / `f_split` | 1.035 | 0.994 to 1.056 | 3 |
+| `x_enc` / `f_enc` (7 files) | 0.966 | 0.917 to 0.975 | 6 |
+| `c_x264_an` / `c_x264` (2 files) | 1.002 | | 0 |
+
+The two files that are faster are the two 400x250 files of about 0.11 s, where process start-up is most of the time. Splitting FFmpeg's own command into two processes over a pipe (`f_split`) costs 3.2%; CoreAV adds another 3.5% on top of that.
+
+Per stage, the extra time of the CoreAV commands over the baseline. Seconds are summed over the 10 files (their share of the summed gap in brackets); the percentages are the median over files of each stage's extra time as a share of the baseline's time, so they do not add up to the median gap.
+
+| Stage | `c_x264`, seconds | `c_x264`, median file | `c_ff`, seconds | `c_ff`, median file |
+|---|---|---|---|---|
+| Decode | +7.05 (23%) | +0.2% | +7.27 (24%) | +0.2% |
+| Frames to the encoder | +21.94 (71%) | +3.9% | +23.08 (75%) | +4.4% |
+| Encode | +2.26 (7%) | −0.1% | +2.93 (9%) | +0.8% |
+| Mux and demux | −0.11 | 0.0% | −0.08 | 0.0% |
+| Start-up and other | +1.05 (3%) | +0.7% | +0.48 (2%) | +0.3% |
+| Idle cores | −1.08 (−3%) | −0.8% | −2.78 (−9%) | −1.9% |
+| Gap | +31.11 | +7.4% | +30.90 | +7.4% |
+
+Per file, `c_x264`, each stage's extra time as a share of the baseline's (`c_ff`'s gap beside it):
+
+| File | Size | Baseline (s) | Gap | `c_ff` gap | Decode | Frames | Encode | Other | Idle |
+|---|---|---|---|---|---|---|---|---|---|
+| `f51a56ed5718` | 3840x2160 4:2:0 | 99.79 | +6.9 | +6.4 | +2.5 | +3.7 | +1.4 | +0.1 | −0.7 |
+| `a084bd45168c` | 400x250 4:4:4 | 0.11 | −1.7 | −1.3 | −0.6 | +3.0 | −3.4 | +0.7 | −1.4 |
+| `70eec00bc7d2` | 640x352 4:2:0 | 2.85 | +3.1 | +1.7 | +1.0 | +2.2 | +0.5 | +0.5 | −0.9 |
+| `9ffa165e752a` | 8000x4500 4:2:0 | 107.99 | +15.1 | +14.8 | +2.6 | +11.3 | +0.8 | +0.6 | −0.2 |
+| `584a16b906bb` | 1217x689 4:4:4 | 0.99 | +13.1 | +16.6 | +0.3 | +11.8 | −0.1 | +3.6 | −2.4 |
+| `ea684713a5be` | 3840x2160 4:2:0 | 82.81 | +8.7 | +9.4 | +2.1 | +6.5 | −0.1 | +0.2 | +0.1 |
+| `bb5d39d47357` | 2548x1354 4:2:0 | 1.85 | +8.7 | +11.9 | −1.4 | +11.9 | −0.5 | +1.8 | −3.0 |
+| `b267a2ddac45` | 1920x1080 4:2:0 | 6.47 | +5.4 | +5.9 | +0.1 | +3.9 | +1.5 | +0.5 | −0.6 |
+| `f944c05afaa1` | 400x250 4:4:4 | 0.11 | −2.2 | −2.2 | −0.7 | +3.2 | −3.1 | +0.8 | −2.3 |
+| `59ad8ee403b3` | 640x480 4:2:0 | 0.18 | +7.9 | +8.5 | +0.2 | +3.9 | −3.3 | +2.9 | +4.4 |
+
+On the files under 0.2 s the split is noisy: their profiles are 20 runs each, and process start-up is spread over every stage.
+
+### What the gap is
+
+- **It is extra work, not stalls.** Idle core time goes down in CoreAV's runs (−0.8% and −1.9% of the baseline, median): its stages overlap at least as well as FFmpeg's, and every core stays busy, so each extra CPU second costs a quarter of a second.
+- **Frames to the encoder: about 70% of the extra seconds.** Each frame is copied five times on its way to x264: from libvpx's image into a buffer in the worker, from that buffer into a shared-memory slot, from the slot into a buffer in the main process, into the pipe, and out of the pipe in the encoder. FFmpeg's single command has none of these steps between its decoder and libx264. In the median file the copies through the worker cost 2.4% of the baseline's time (4.5% on the 8000x4500 file) and the pipe write 0.7%. The rest is fresh pages zeroed by the kernel: 4.7% on the 8000x4500 file, whose 54 MB frames are above glibc's largest `mmap` threshold (32 MiB), so each frame's buffers are mapped and zeroed again (an inference from the profile: the zeroing is there at 8K and not at 4K), and, on the files under a second, likely the start-up of three processes instead of one. With `--encoder ffmpeg` the stage is a little larger (median +4.4% against +3.9%): FFmpeg reads the raw Matroska stream where the x264 program reads raw planes.
+- **Decode: about 23% of the extra seconds, all on the large files.** In the transcode, Debian's libvpx 1.15.0 takes 17 to 27% more CPU than FFmpeg's own `vp9` decoder on the 4K and 8K files (2.1 to 2.6% of the baseline's time); on the smaller files it costs between 13% less and 14% more, at most 1% of the baseline's time. Decoding alone, `c_dec_ip` takes 1.28 times `f_dec_vp9`'s CPU (median), and FFmpeg's own build of libvpx 1.07 times; the worker adds another 1.18 times on top of the in-process CPU. On wall time alone libvpx looks faster (`c_dec_ip` / `f_dec_vp9` 0.908), because it spreads one frame over every core, which a transcode does not leave free.
+- **Encode: within about 1%.** x264 runs with the same options on both sides: its settings string in every output has `threads=6 lookahead_threads=1 sliced_threads=0 rc_lookahead=40` and the same values for every other option, except `keyint_min`, which follows the frame rate x264 is told. With `--encoder x264` it is 25 on every file where the baseline has 5, 5, 20, 23 or 10 (6 files), and with `--encoder ffmpeg` on 3 of those files. On the raw frames alone the x264 program is 3.4% faster than FFmpeg's libx264, and inside the transcode the encode stage is −0.1 to +1.4% of the baseline's time on the 4K and 8K files; where it is higher, sharing memory bandwidth with the copies is a likely cause, not measured.
+- **Mux and audio: none.** Without the audio, both commands change by less than 1.1%, and the Annex B reader, spool file and MP4 writer are under 0.1%.
+
+### A native VP9 decoder
+
+The decode stage is 5 to 18% of a CoreAV transcode's CPU (10 to 17% on the 4K and 8K files). A native decoder with the CPU cost of FFmpeg's `vp9`, in the process, would remove the extra decode time and the copies through the worker: the median gap would go from 7.4% to about 2.3% with `--encoder x264` and 3.1% with `--encoder ffmpeg` (the pipe, the remaining page faults and start-up stay). Of those 5 points, only the decode part, 0.2% in the median file and 2 to 2.6% on the 4K and 8K files, needs a new decoder; the copies through the worker can be removed with libvpx where it is.
+
+Evidence: `vp9-libvpx/attribution/`: `timed.jsonl` (every run: arm, round, wall, user and system time, and the commands), `stages.json` (per file and arm: median wall and CPU, CPU per stage, the gap per stage, the parts of the frames stage, and x264's options; the ratios above with their intervals), `gate.json`, `host.txt` and `instance.json`.
