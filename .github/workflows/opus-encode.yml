@@ -12,10 +12,10 @@ name: opus-encode
 on:
   push:
     branches: [main]
-    paths: ["crates/coreav-backend-libopus/**", "crates/coreav-worker/src/opus.rs", "crates/coreav-transcode/src/audio.rs", "scripts/opus_encode_check.py", "packages/cli/scripts/codecs.sh", ".github/workflows/opus-encode.yml"]
+    paths: ["crates/coreav-backend-libopus/**", "crates/coreav-worker/src/opus.rs", "crates/coreav-transcode/src/audio.rs", "scripts/opus_encode_check.py", "packages/cli/scripts/codecs.sh", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", ".github/workflows/opus-encode.yml"]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths: ["crates/coreav-backend-libopus/**", "crates/coreav-worker/src/opus.rs", "crates/coreav-transcode/src/audio.rs", "scripts/opus_encode_check.py", "packages/cli/scripts/codecs.sh", ".github/workflows/opus-encode.yml"]
+    paths: ["crates/coreav-backend-libopus/**", "crates/coreav-worker/src/opus.rs", "crates/coreav-transcode/src/audio.rs", "scripts/opus_encode_check.py", "packages/cli/scripts/codecs.sh", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", ".github/workflows/opus-encode.yml"]
   workflow_dispatch:
 
 permissions:
