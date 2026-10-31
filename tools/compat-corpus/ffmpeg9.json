@@ -1633,34 +1633,12 @@
     "packets.duration": [
      "audio_mp3.mov",
      "audio_mp3.mp4",
-     "browser.webm",
-     "edit_trim_audio.mp4",
-     "mkv_ac3.mkv",
-     "mkv_live_clusters.webm",
-     "mkv_timestamp_scale.webm",
-     "size_vp8_understated.webm",
-     "webm_audio_opus.webm",
-     "webm_av1_opus.webm",
-     "webm_live.webm",
-     "webm_many_clusters.webm",
-     "webm_vp8_vorbis.webm",
-     "webm_vp9_opus.webm"
+     "edit_trim_audio.mp4"
     ],
     "packets.duration_time": [
      "audio_mp3.mov",
      "audio_mp3.mp4",
-     "browser.webm",
-     "edit_trim_audio.mp4",
-     "mkv_ac3.mkv",
-     "mkv_live_clusters.webm",
-     "mkv_timestamp_scale.webm",
-     "size_vp8_understated.webm",
-     "webm_audio_opus.webm",
-     "webm_av1_opus.webm",
-     "webm_live.webm",
-     "webm_many_clusters.webm",
-     "webm_vp8_vorbis.webm",
-     "webm_vp9_opus.webm"
+     "edit_trim_audio.mp4"
     ],
     "packets.side_data_list[Skip Samples]": [
      "audio_51.m4a",
@@ -2100,51 +2078,6 @@
        [140, "400000", "N/A"],
        [141, "400000", "N/A"]
       ],
-      "mkv_lace_ac3_44k.mkv": [
-       [1, "35", "34"],
-       [2, "35", "34"],
-       [3, "35", "34"],
-       [5, "35", "34"],
-       [6, "35", "34"],
-       [7, "35", "34"],
-       [9, "35", "34"],
-       [10, "35", "34"],
-       [11, "35", "34"],
-       [13, "35", "34"],
-       [14, "35", "34"],
-       [15, "35", "34"],
-       [17, "35", "34"],
-       [18, "35", "34"],
-       [19, "35", "34"],
-       [21, "35", "34"],
-       [22, "35", "34"],
-       [23, "35", "34"],
-       [25, "35", "34"],
-       [26, "35", "34"],
-       [27, "35", "34"],
-       [29, "35", "34"],
-       [30, "35", "34"],
-       [31, "35", "34"],
-       [33, "35", "34"],
-       [34, "35", "34"],
-       [35, "35", "34"],
-       [37, "35", "34"],
-       [38, "35", "34"],
-       [39, "35", "34"],
-       [41, "35", "34"],
-       [42, "35", "34"],
-       [43, "35", "34"],
-       [45, "35", "34"],
-       [46, "35", "34"],
-       [47, "35", "34"],
-       [49, "35", "34"],
-       [50, "35", "34"],
-       [51, "35", "34"],
-       [53, "35", "34"],
-       [54, "35", "34"],
-       [55, "35", "34"],
-       [57, "35", "34"]
-      ],
       "vfr.mp4": [
        [26, "1536", "512"],
        [27, "1536", "512"],
@@ -2480,51 +2413,6 @@
        [140, "0.400000", "N/A"],
        [141, "0.400000", "N/A"]
       ],
-      "mkv_lace_ac3_44k.mkv": [
-       [1, "0.035000", "0.034000"],
-       [2, "0.035000", "0.034000"],
-       [3, "0.035000", "0.034000"],
-       [5, "0.035000", "0.034000"],
-       [6, "0.035000", "0.034000"],
-       [7, "0.035000", "0.034000"],
-       [9, "0.035000", "0.034000"],
-       [10, "0.035000", "0.034000"],
-       [11, "0.035000", "0.034000"],
-       [13, "0.035000", "0.034000"],
-       [14, "0.035000", "0.034000"],
-       [15, "0.035000", "0.034000"],
-       [17, "0.035000", "0.034000"],
-       [18, "0.035000", "0.034000"],
-       [19, "0.035000", "0.034000"],
-       [21, "0.035000", "0.034000"],
-       [22, "0.035000", "0.034000"],
-       [23, "0.035000", "0.034000"],
-       [25, "0.035000", "0.034000"],
-       [26, "0.035000", "0.034000"],
-       [27, "0.035000", "0.034000"],
-       [29, "0.035000", "0.034000"],
-       [30, "0.035000", "0.034000"],
-       [31, "0.035000", "0.034000"],
-       [33, "0.035000", "0.034000"],
-       [34, "0.035000", "0.034000"],
-       [35, "0.035000", "0.034000"],
-       [37, "0.035000", "0.034000"],
-       [38, "0.035000", "0.034000"],
-       [39, "0.035000", "0.034000"],
-       [41, "0.035000", "0.034000"],
-       [42, "0.035000", "0.034000"],
-       [43, "0.035000", "0.034000"],
-       [45, "0.035000", "0.034000"],
-       [46, "0.035000", "0.034000"],
-       [47, "0.035000", "0.034000"],
-       [49, "0.035000", "0.034000"],
-       [50, "0.035000", "0.034000"],
-       [51, "0.035000", "0.034000"],
-       [53, "0.035000", "0.034000"],
-       [54, "0.035000", "0.034000"],
-       [55, "0.035000", "0.034000"],
-       [57, "0.035000", "0.034000"]
-      ],
       "vfr.mp4": [
        [26, "0.120000", "0.040000"],
        [27, "0.120000", "0.040000"],
@@ -2551,7 +2439,6 @@
      "fragmented_moov.mp4",
      "fragmented_sidx.mp4",
      "fragmented_text.mp4",
-     "mkv_lace_ac3_44k.mkv",
      "vfr.mp4"
     ],
     "packets.duration_time": [
@@ -2568,7 +2455,6 @@
      "fragmented_moov.mp4",
      "fragmented_sidx.mp4",
      "fragmented_text.mp4",
-     "mkv_lace_ac3_44k.mkv",
      "vfr.mp4"
     ]
    }
@@ -2962,6 +2848,33 @@
    }
   },
   {
+   "id": "KD-FF9-FIXTURE-MKV-MP3-DURATION",
+   "accepts": {
+    "packets.duration": {
+     "where": {
+      "codec_name": "mp3",
+      "packet": "last"
+     },
+     "pairs": [["24", "7"]]
+    },
+    "packets.duration_time": {
+     "where": {
+      "codec_name": "mp3",
+      "packet": "last"
+     },
+     "pairs": [["0.024000", "0.007000"]]
+    }
+   },
+   "keys": {
+    "packets.duration": [
+     "mkv_mp3.mkv"
+    ],
+    "packets.duration_time": [
+     "mkv_mp3.mkv"
+    ]
+   }
+  },
+  {
    "id": "KD-FF9-FIXTURE-COLOUR-RANGE",
    "accepts": {
     "streams.pix_fmt": {
@@ -3005,53 +2918,6 @@
    "keys": {
     "streams.bit_rate": [
      "fragmented_sidx.mp4"
-    ]
-   }
-  },
-  {
-   "id": "KD-FF9-FIXTURE-MKV-LAST-DURATION",
-   "accepts": {
-    "packets.duration": {
-     "where": {
-      "codec_name": "aac",
-      "packet": "last"
-     },
-     "relation": "ffprobe smaller"
-    },
-    "packets.duration_time": {
-     "where": {
-      "codec_name": "aac",
-      "packet": "last"
-     },
-     "relation": "ffprobe smaller"
-    }
-   },
-   "keys": {
-    "packets.duration": [
-     "mkv_attachment.mkv",
-     "mkv_block_groups.mkv",
-     "mkv_duration_understated.mkv",
-     "mkv_h264_aac.mkv",
-     "mkv_h264_annexb.mkv",
-     "mkv_header_strip.mkv",
-     "mkv_multitrack.mkv",
-     "mkv_rotate_ccw270.mkv",
-     "mkv_rotate_ccw90.mkv",
-     "size_h264_annexb_understated.mkv",
-     "size_h264_understated.mkv"
-    ],
-    "packets.duration_time": [
-     "mkv_attachment.mkv",
-     "mkv_block_groups.mkv",
-     "mkv_duration_understated.mkv",
-     "mkv_h264_aac.mkv",
-     "mkv_h264_annexb.mkv",
-     "mkv_header_strip.mkv",
-     "mkv_multitrack.mkv",
-     "mkv_rotate_ccw270.mkv",
-     "mkv_rotate_ccw90.mkv",
-     "size_h264_annexb_understated.mkv",
-     "size_h264_understated.mkv"
     ]
    }
   },

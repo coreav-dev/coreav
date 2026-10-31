@@ -50,10 +50,10 @@ a stream group as `stream_groups`.
 
 The first ten entries are changes in what FFmpeg 9.0.2 prints: CoreAV
 prints what 7.0.2 printed, and coreav-dev/coreav#24 follows 9.0.2. The
-eleventh is an FFmpeg error on a fixture 9.0.2 writes, which ISO/IEC
-14496-12 decides for CoreAV. The next four are CoreAV differences that the
-fixtures 9.0.2 writes expose: both FFmpeg versions print the same value
-there, and CoreAV another. The final entry validates an AV1 fixture's
+eleventh and twelfth are FFmpeg errors on fixtures 9.0.2 writes, which
+ISO/IEC 14496-12 and RFC 9559 decide for CoreAV. The next three are CoreAV
+differences that the fixtures 9.0.2 writes expose: both FFmpeg versions
+print the same value there, and CoreAV another. The final entry validates an AV1 fixture's
 stored `nclx` bytes and fails when its exact oracle disagreement changes.
 
 ## KD-FF9-NEW-KEYS
@@ -85,11 +85,11 @@ stored `nclx` bytes and fails when its exact oracle disagreement changes.
   list or a Matroska `CodecDelay` states) and those it discards at its
   end. FFmpeg 7.0.2 listed one of the two (the start of an MP4 stream, the
   end of a Matroska one). In MP4 CoreAV lists what 7.0.2 did; in Matroska
-  and WebM it lists both, as 9.0.2 does, so the entry lists no Matroska or
-  WebM fixture for the side data keys. A packet that
+  and WebM it lists both, as 9.0.2 does, and gives the durations 9.0.2
+  gives, so the entry lists no Matroska or WebM fixture. A packet that
   carries the side data gets another duration than 7.0.2 gave it (the
   whole MP3 frame at the end of an MP4 edit list, for example, where 7.0.2
-  gave the part the list keeps); CoreAV gives 7.0.2's.
+  gave the part the list keeps); in MP4 CoreAV gives 7.0.2's.
 - Accepts: side data entries CoreAV lists only some of, each of them one
   `ffprobe` lists too; another duration only on an audio packet that
   carries Skip Samples side data in `ffprobe`'s listing.
@@ -105,8 +105,7 @@ stored `nclx` bytes and fails when its exact oracle disagreement changes.
   the samples next to the edits of `edit_multi_*`, the first audio sample
   and the timed text of a movie with fragments); the last AAC frame an
   edit or the stream's end cuts gets the part kept, where 7.0.2 gave the
-  whole frame (1,024 samples); the laced AC-3 blocks of
-  `mkv_lace_ac3_44k.mkv` get 35 ms, where 7.0.2 rounded to 34 ms.
+  whole frame (1,024 samples).
 - Accepts: only the packets listed in the twin, each by its position in
   the whole file's listing and with the two values found there.
 
@@ -199,6 +198,21 @@ stored `nclx` bytes and fails when its exact oracle disagreement changes.
   file's size, depends on the number of processors of the machine that
   generates the fixtures.
 
+## KD-FF9-FIXTURE-MKV-MP3-DURATION
+
+- Keys: `packets.duration` and `packets.duration_time` (`mkv_mp3.mkv`).
+- Cause: FFmpeg 9.0.2 ends the MP3 track of this fixture with a block of
+  one 24 ms frame whose `BlockGroup` states a `BlockDuration` of 7 ms and a
+  `DiscardPadding` of the rest. RFC 9559 5.1.3.5.3 makes `BlockDuration` the
+  duration of the block, and CoreAV prints it for every audio codec. The
+  pinned ffprobe prints the frame's 24 ms. On the last block of an MP2,
+  AAC, AC-3, E-AC-3, FLAC or Vorbis track that the pinned `ffmpeg` writes
+  the same way, and of an Opus track, it prints the stated duration; of
+  the codecs checked, only MPEG-1 Layer III falls back to its frame
+  header. An FFmpeg error, which RFC 9559 decides for CoreAV.
+- Accepts: on the last packet of an MP3 stream, 24 ms from `ffprobe` and
+  7 ms from CoreAV, and no other packet's.
+
 ## KD-FF9-FIXTURE-COLOUR-RANGE
 
 - Key: `streams.pix_fmt` (`color_hevc_colr_ignored.mp4`,
@@ -230,16 +244,6 @@ stored `nclx` bytes and fails when its exact oracle disagreement changes.
   20.5 times CoreAV's (20.0 for the video, 19.9 for the audio here); the
   bit rates themselves follow the file's size, which the fixture machine
   changes (KD-FF9-FIXTURE-SIDX-DURATION).
-
-## KD-FF9-FIXTURE-MKV-LAST-DURATION
-
-- Keys: `packets.duration` and `packets.duration_time`.
-- Cause: FFmpeg 9.0.2 writes a `DiscardPadding` on the last AAC block of
-  these Matroska fixtures, and both FFmpeg versions shorten that block's
-  duration by it (16 ms against 21 ms; 3 ms against 23 on one fixture);
-  CoreAV does not. A CoreAV difference, for a follow-up.
-- Accepts: a shorter duration from `ffprobe` on the last packet of an AAC
-  stream, and no other packet's.
 
 ## KD-FF9-AV1-NCLX
 
