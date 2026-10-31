@@ -51,6 +51,7 @@ dependencies = [
  "coreav-isobmff",
  "coreav-kernels-audio",
  "coreav-mkv",
+ "coreav-opus",
 ]
 
 [[package]]
@@ -90,6 +91,10 @@ dependencies = [
  "coreav-isobmff",
  "miniz_oxide",
 ]
+
+[[package]]
+name = "coreav-opus"
+version = "0.0.1"
 
 [[package]]
 name = "coreav-thumbnail"

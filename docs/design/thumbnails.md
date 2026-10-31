@@ -675,9 +675,9 @@ one; no threshold changed:
   packet starts at the frame's byte offset; in Matroska and MPEG-TS it is
   the chosen stream's last packet that starts at or before it, since a block or
   a PES starts with a header. The timelines differ by known divergence
-  KD-EDIT-SNAP in MP4 and, since the oracle moved to FFmpeg 9.0.2, by
-  KD-FF9-MKV-START in Matroska and WebM: FFmpeg 9.0.2 starts a file whose
-  audio has a `CodecDelay` at its first block, where CoreAV, as FFmpeg
+  KD-EDIT-SNAP in MP4 and, since the oracle moved to FFmpeg 9.0.2, in
+  Matroska and WebM: FFmpeg 9.0.2 starts a file whose audio has a
+  `CodecDelay` at its first block, where CoreAV's timeline, as FFmpeg
   7.0.2 did, starts it that delay earlier (6.5 ms on `browser.webm`). The
   packet, not the two tools' file starts, carries the time across, so the
   tracks each tool counts in its start do not move the reference. No

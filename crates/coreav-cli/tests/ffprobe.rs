@@ -12,6 +12,8 @@
 
 #[path = "../../coreav-isobmff/tests/common/mod.rs"]
 mod common;
+#[path = "../../coreav-mkv/tests/common/mod.rs"]
+mod mkv;
 #[path = "../../coreav-mpegts/tests/common/mod.rs"]
 mod ts;
 
@@ -649,4 +651,132 @@ fn transport_streams_are_numbered_and_their_programs_listed_as_ffprobe_does() {
         "1,0x100\n0x101\n\n2,0x202\n0x201\n0x200\n\n3,0x300\n\n\
          0x100\n0x101\n0x201\n0x300\n0x202\n0x200\n"
     );
+}
+
+/// A WebM file of one Opus track with a 6.5 ms `CodecDelay` (312 samples
+/// at 48 kHz): a 20 ms frame per block from `first` ms, each block with
+/// its `DiscardPadding` in nanoseconds when it has one.
+fn opus_webm(name: &str, first: u64, paddings: &[Option<i64>]) -> String {
+    use mkv::{BLOCK_GROUP, TRACKS, audio_track, cat, cluster, el, info, sint, uint};
+    let frame = [0xFC, 1, 2, 3];
+    let blocks: Vec<Vec<u8>> = paddings
+        .iter()
+        .zip(0i16..)
+        .map(|(padding, i)| match padding {
+            None => mkv::simple_block(1, i * 20, true, &frame),
+            Some(ns) => {
+                let mut block = vec![0x81];
+                block.extend((i * 20).to_be_bytes());
+                block.push(0);
+                block.extend(frame);
+                el(BLOCK_GROUP, &cat(&[el(0xA1, &block), sint(0x75A2, *ns)]))
+            }
+        })
+        .collect();
+    let track = audio_track(
+        1,
+        "A_OPUS",
+        48_000.0,
+        2,
+        &cat(&[
+            uint(0x56AA, 6_500_000),
+            el(0x63A2, b"OpusHead\x01\x02\x38\x01\x80\xbb\0\0\0\0\0"),
+        ]),
+    );
+    let data = mkv::file(
+        "webm",
+        &[
+            info(Some(100.0)),
+            el(TRACKS, &track),
+            cluster(first, &blocks),
+        ],
+    );
+    file(name, &data).to_string_lossy().into_owned()
+}
+
+fn packet_lines(path: &str) -> Vec<String> {
+    let r = ffprobe(&["-v", "error", "-of", "compact", "-show_packets", path]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    r.stdout.lines().map(str::to_owned).collect()
+}
+
+fn skip_samples(skip: u64, discard: u64) -> String {
+    format!(
+        "side_datum/skip_samples:side_data_type=Skip Samples|\
+         side_datum/skip_samples:skip_samples={skip}|\
+         side_datum/skip_samples:discard_padding={discard}|\
+         side_datum/skip_samples:skip_reason=0|side_datum/skip_samples:discard_reason=0"
+    )
+}
+
+#[test]
+fn an_audio_stream_starts_with_the_first_sample_its_codec_delay_leaves() {
+    // RFC 9559 `CodecDelay`: presentation times are 6.5 ms (7 ticks)
+    // before the block timestamps, and the 312 samples of that delay are
+    // discarded, so the first one played is at the first block's own
+    // timestamp. Values found on the pinned ffprobe with the same file.
+    let path = opus_webm("ffprobe-codec-delay.webm", 1000, &[None, None, None]);
+    let r = ffprobe(&[
+        "-v",
+        "error",
+        "-of",
+        "compact",
+        "-show_entries",
+        "stream=start_pts,start_time,initial_padding:format=start_time",
+        &path,
+    ]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    assert_eq!(
+        r.stdout,
+        "stream|initial_padding=312|start_pts=1000|start_time=1.000000\n\
+         format|start_time=1.000000\n"
+    );
+    let packets = packet_lines(&path);
+    assert!(packets[0].contains("|pts=993|"), "{}", packets[0]);
+    assert!(
+        packets[0].ends_with(&skip_samples(312, 0)),
+        "{}",
+        packets[0]
+    );
+    assert!(packets[1].ends_with("flags=K__"), "{}", packets[1]);
+}
+
+#[test]
+fn discard_padding_is_discarded_at_the_end_or_skipped_at_the_start_by_its_sign() {
+    // RFC 9559 `DiscardPadding`: padding at the end of a block when
+    // positive, at its start when negative; none when zero. Samples round
+    // to the nearest (577 and 241 here), as the pinned ffprobe gives them.
+    let path = opus_webm(
+        "ffprobe-discard-padding.webm",
+        0,
+        &[None, Some(12_010_417), Some(-5_010_417), Some(0)],
+    );
+    let packets = packet_lines(&path);
+    assert!(
+        packets[0].ends_with(&skip_samples(312, 0)),
+        "{}",
+        packets[0]
+    );
+    assert!(
+        packets[1].ends_with(&skip_samples(0, 577)),
+        "{}",
+        packets[1]
+    );
+    assert!(
+        packets[2].ends_with(&skip_samples(241, 0)),
+        "{}",
+        packets[2]
+    );
+    assert!(packets[3].ends_with("flags=K__"), "{}", packets[3]);
+}
+
+#[test]
+fn a_first_block_discards_its_padding_beside_the_codec_delay() {
+    // Both elements name samples a decoder discards (RFC 9559), so a first
+    // block with padding has both. The pinned ffprobe drops the padding of
+    // the first block (docs/known-divergences-ffprobe9.md).
+    let path = opus_webm("ffprobe-first-padding.webm", 0, &[Some(12_000_000), None]);
+    assert!(packet_lines(&path)[0].ends_with(&skip_samples(312, 576)));
+    let path = opus_webm("ffprobe-first-negative.webm", 0, &[Some(-5_000_000), None]);
+    assert!(packet_lines(&path)[0].ends_with(&skip_samples(552, 0)));
 }
