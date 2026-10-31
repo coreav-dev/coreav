@@ -76,14 +76,19 @@ every encoder value of a codec option, `-f lavfi`, `-f image2`,
 `-sample_fmts`, `-layouts`, `-sections`, `-version`).
 
 One encode is taken since: in a build with a decoder backend, a command
-line that encodes the video with `libx264`, with the few options
+line that encodes the video with `libx264`, and in a build with the
+`libopus` feature also its audio with `libopus` (`-c:a libopus`, `-b:a`),
+with the few options
 [`transcode.md`](transcode.md) lists under "Through `coreav ffmpeg`", runs
 through `coreav transcode`'s pipeline, and its bar is B9 there. The
 vocabulary above and the labels of the command-coverage set stay step 1's,
 so those command lines remain `out-of-scope` in the set, and B1 holds for
 the default build, which has no decoder backend and refuses them. B1 on a
 build with a decoder backend needs those lines relabelled first, a change
-to `classify.py` this step does not make.
+to `classify.py` this step does not make. A build with the `libopus`
+feature encodes a `-c:a libopus` line natively; in any other build such a
+line is not native, so it runs FFmpeg outside strict-safe mode ("Fallback
+to FFmpeg") and is refused in strict-safe mode, where nothing runs.
 
 Every one of those is refused by **naming it**: the error says which
 option or property is not supported, and the exit status is non-zero. A
@@ -284,6 +289,29 @@ Calibration uses the first selected input of each container with
 `-show_format -show_streams` and with `-show_packets`, five timed pairs
 after one untimed pair per arm and command.
 
+The [round 9 plan](../measurements/compat-ffprobe/round9-plan.md) fixes the
+B4 runner corrections before measurement. `speed.py run --oracle-bin DIR
+--cpus CPU` verifies the shared oracle pin and each selected file's size
+and SHA-256, pins one CPU, and requires both calibration arms to pass
+before running B4. On the registered Linux host, a process-exit descriptor
+provides an event-driven 600-second deadline, followed by a blocking reap;
+no timeout polling sleeps enter successful timings. Failed calls
+retain both exit statuses and their phase, but have no ratio. Strict-safe
+refusal records are counted separately from executed fallbacks; an
+execution or an unreadable fallback record invalidates the native arm.
+
+`speed.py report` keeps the median over command/input ratios, but draws
+whole files with replacement within each container for every group's
+95% interval: 10,000 draws, seed 0, percentile positions 249 and 9,749.
+Each drawn file carries every contributing command ratio, including
+repeated draws of the same file. Calibration retains its median over the
+30 alternating call ratios and draws whole files without container
+strata. Every reported group gets an interval unless
+it has no ratios. Missing or failed eligible pairs and unmeasured groups
+prevent a clean B4 verdict. The versioned result format rejects historical
+unversioned results rather than re-scoring them. The R4 runner and its
+historical reporting rules are unchanged.
+
 Release 0.1.0 does not wait for B2, B3a and B3b over the whole vocabulary.
 It ships the commands that upload and preprocessing pipelines run most, the
 `ffprobe` listings and the `ffmpeg -c copy` jobs, as **`commands-0.1.0`**, and
@@ -467,6 +495,8 @@ changes inside the track) is set aside rather than passed when its stream
 selection matches FFmpeg's, and its command is unmeasured and misses; a
 selection that differs fails it. A command meets R3 when at least 98% of its counted pairs pass, each
 spelling of the set counted on its own, as the bar says "each command".
+The summary lists every command of the set, including one with no file of
+its families, as taken by no file and not counted.
 
 `speed.py r4` times R4 and both gate arms: `r4` CoreAV against FFmpeg,
 `aa` FFmpeg against itself and `null` CoreAV against itself, the same

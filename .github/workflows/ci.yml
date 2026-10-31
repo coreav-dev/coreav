@@ -662,6 +662,25 @@ jobs:
           python3 -I tools/compat-corpus/frames.py --coreav target/native/release/coreav \
             --media "$RUNNER_TEMP/coreav-fixtures" --native-h264 \
             --baseline tools/compat-corpus/baseline-frames.json --report "$RUNNER_TEMP/coreav-frames.json"
+      # R1 of the 0.1.0 round (docs/measurements/compat-0.1.0/README.md): the
+      # 0.1.0 ffprobe commands on these fixtures, with no baseline. The round
+      # reads its verdict from the job summary; a miss or a void run does not
+      # fail the job, so that a change of the oracle's output (FFmpeg 9 prints
+      # keys 7.0.2 did not) is reported here rather than blocking unrelated
+      # pull requests. A run that measured nothing fails it.
+      - name: R1 of the 0.1.0 round
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          cargo build --locked --profile dist -p coreav-cli
+          sha256sum target/dist/coreav > "$RUNNER_TEMP/coreav-r1.sha256"
+          code=0
+          python3 -I tools/compat-corpus/run.py commands --set 0.1.0 --coreav target/dist/coreav \
+            --media "$RUNNER_TEMP/coreav-fixtures" --report "$RUNNER_TEMP/coreav-r1.json" > "$RUNNER_TEMP/coreav-r1.txt" || code=$?
+          case "$code" in 0) verdict=met ;; 1) verdict=missed ;; 2) verdict=void ;; *) verdict="not measured (exit $code)" ;; esac
+          [ -s "$RUNNER_TEMP/coreav-r1.json" ] || { verdict='not measured (no report)'; code=3; }
+          { echo "### R1 of the 0.1.0 round, ISO base media fixtures: $verdict"; echo '```'; cat "$RUNNER_TEMP/coreav-r1.sha256"; tail -n 15 "$RUNNER_TEMP/coreav-r1.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          [ "$code" -le 2 ]
       - name: Check the coreav binary against the library adapter
         env:
           PYTHONDONTWRITEBYTECODE: '1'
@@ -796,6 +815,8 @@ jobs:
             ${{ runner.temp }}/coreav-compat.json
             ${{ runner.temp }}/coreav-compat-commands.json
             ${{ runner.temp }}/coreav-frames.json
+            ${{ runner.temp }}/coreav-r1.json
+            ${{ runner.temp }}/coreav-r1.sha256
             ${{ runner.temp }}/coreav-extract.json
             ${{ runner.temp }}/coreav-extract-cli.json
             ${{ runner.temp }}/coreav-text.json
@@ -1490,6 +1511,25 @@ jobs:
           python3 -I tools/compat-corpus/frames.py --coreav target/native/release/coreav \
             --media "$RUNNER_TEMP/mkv-fixtures" --native-h264 \
             --baseline tools/compat-corpus/baseline-frames.json --report "$RUNNER_TEMP/mkv-frames.json"
+      # R1 of the 0.1.0 round (docs/measurements/compat-0.1.0/README.md): the
+      # 0.1.0 ffprobe commands on these fixtures, with no baseline. The round
+      # reads its verdict from the job summary; a miss or a void run does not
+      # fail the job, so that a change of the oracle's output (FFmpeg 9 prints
+      # keys 7.0.2 did not) is reported here rather than blocking unrelated
+      # pull requests. A run that measured nothing fails it.
+      - name: R1 of the 0.1.0 round
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          cargo build --locked --profile dist -p coreav-cli
+          sha256sum target/dist/coreav > "$RUNNER_TEMP/mkv-r1.sha256"
+          code=0
+          python3 -I tools/compat-corpus/run.py commands --set 0.1.0 --coreav target/dist/coreav \
+            --media "$RUNNER_TEMP/mkv-fixtures" --report "$RUNNER_TEMP/mkv-r1.json" > "$RUNNER_TEMP/mkv-r1.txt" || code=$?
+          case "$code" in 0) verdict=met ;; 1) verdict=missed ;; 2) verdict=void ;; *) verdict="not measured (exit $code)" ;; esac
+          [ -s "$RUNNER_TEMP/mkv-r1.json" ] || { verdict='not measured (no report)'; code=3; }
+          { echo "### R1 of the 0.1.0 round, Matroska and WebM fixtures: $verdict"; echo '```'; cat "$RUNNER_TEMP/mkv-r1.sha256"; tail -n 15 "$RUNNER_TEMP/mkv-r1.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          [ "$code" -le 2 ]
       - name: Check the coreav binary against the library adapter
         env:
           PYTHONDONTWRITEBYTECODE: '1'
@@ -1572,6 +1612,8 @@ jobs:
             ${{ runner.temp }}/mkv-compat.json
             ${{ runner.temp }}/mkv-compat-commands.json
             ${{ runner.temp }}/mkv-frames.json
+            ${{ runner.temp }}/mkv-r1.json
+            ${{ runner.temp }}/mkv-r1.sha256
             ${{ runner.temp }}/mkv-policy-fixtures.json
           if-no-files-found: ignore
 
@@ -1676,6 +1718,25 @@ jobs:
           python3 -I tools/compat-corpus/frames.py --coreav target/native/release/coreav \
             --media "$RUNNER_TEMP/ts-fixtures" --native-h264 \
             --baseline tools/compat-corpus/baseline-frames.json --report "$RUNNER_TEMP/ts-frames.json"
+      # R1 of the 0.1.0 round (docs/measurements/compat-0.1.0/README.md): the
+      # 0.1.0 ffprobe commands on these fixtures, with no baseline. The round
+      # reads its verdict from the job summary; a miss or a void run does not
+      # fail the job, so that a change of the oracle's output (FFmpeg 9 prints
+      # keys 7.0.2 did not) is reported here rather than blocking unrelated
+      # pull requests. A run that measured nothing fails it.
+      - name: R1 of the 0.1.0 round
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          cargo build --locked --profile dist -p coreav-cli
+          sha256sum target/dist/coreav > "$RUNNER_TEMP/ts-r1.sha256"
+          code=0
+          python3 -I tools/compat-corpus/run.py commands --set 0.1.0 --coreav target/dist/coreav \
+            --media "$RUNNER_TEMP/ts-fixtures" --report "$RUNNER_TEMP/ts-r1.json" > "$RUNNER_TEMP/ts-r1.txt" || code=$?
+          case "$code" in 0) verdict=met ;; 1) verdict=missed ;; 2) verdict=void ;; *) verdict="not measured (exit $code)" ;; esac
+          [ -s "$RUNNER_TEMP/ts-r1.json" ] || { verdict='not measured (no report)'; code=3; }
+          { echo "### R1 of the 0.1.0 round, MPEG-TS fixtures: $verdict"; echo '```'; cat "$RUNNER_TEMP/ts-r1.sha256"; tail -n 15 "$RUNNER_TEMP/ts-r1.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          [ "$code" -le 2 ]
       - name: Check the coreav binary against the library adapter
         env:
           PYTHONDONTWRITEBYTECODE: '1'
@@ -1725,6 +1786,8 @@ jobs:
             ${{ runner.temp }}/ts-compat.json
             ${{ runner.temp }}/ts-compat-commands.json
             ${{ runner.temp }}/ts-frames.json
+            ${{ runner.temp }}/ts-r1.json
+            ${{ runner.temp }}/ts-r1.sha256
           if-no-files-found: ignore
 
   # Bars C1 and C3 of docs/design/h264.md: every in-scope JVT conformance

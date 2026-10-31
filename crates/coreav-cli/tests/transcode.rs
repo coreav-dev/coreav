@@ -1774,3 +1774,93 @@ fn audio_the_aac_encode_does_not_take_is_refused_first() {
     }
     nothing_left(&dir);
 }
+
+/// `coreav ffmpeg` lines that encode the audio with libopus beside the
+/// video with libx264 (`docs/design/transcode.md`, "Through `coreav
+/// ffmpeg`"): run natively, with no fallback, and `-b:a` taken as the
+/// Opus bit rate; the lines the pipeline does not take refused.
+#[cfg(feature = "libopus")]
+#[test]
+fn ffmpeg_libopus_lines_encode_the_audio() {
+    let Some(tools) = tools() else { return };
+    let dir = dir("ffmpeg-libopus");
+    let source = made(&tools, &dir, "in.mp4", &["-ac", "2", "-c:a", "flac"]);
+    let log = dir.join("fallback.log");
+    let ffmpeg = |args: &[&str], strict: bool| {
+        let mut command = Command::new(bin());
+        if strict {
+            command.env("COREAV_STRICT_SAFE", "1");
+        }
+        let out = command
+            .arg("ffmpeg")
+            .args(args)
+            .env("COREAV_FFMPEG", &tools.ffmpeg)
+            .env("COREAV_X264", &tools.x264)
+            .env("COREAV_FALLBACK_LOG", &log)
+            .output()
+            .unwrap();
+        (
+            out.status.code().unwrap(),
+            String::from_utf8(out.stderr).unwrap(),
+        )
+    };
+    let input = source.to_str().unwrap();
+    let mut rates = Vec::new();
+    for (name, rate) in [("default.mp4", None), ("low.mp4", Some("24k"))] {
+        let out = dir.join(name);
+        let mut args = vec!["-i", input, "-c:v", "libx264", "-c:a", "libopus"];
+        args.extend(rate.iter().flat_map(|r| ["-b:a", *r]));
+        args.push(out.to_str().unwrap());
+        let (code, stderr) = ffmpeg(&args, false);
+        assert_eq!(code, 0, "{name}: {stderr}");
+        assert!(
+            !log.exists() || std::fs::read(&log).unwrap().is_empty(),
+            "{name}: fell back"
+        );
+        let streams = probe_json(
+            &tools,
+            &[
+                "-show_entries",
+                "stream=codec_name,channels,start_pts,bit_rate",
+            ],
+            &out,
+        );
+        let streams = streams["streams"].as_array().unwrap();
+        assert_eq!(streams.len(), 2, "{name}");
+        assert_eq!(streams[1]["codec_name"], "opus");
+        assert_eq!(streams[1]["channels"], 2);
+        assert_eq!(streams[1]["start_pts"], 0);
+        rates.push(
+            streams[1]["bit_rate"]
+                .as_str()
+                .unwrap()
+                .parse::<u64>()
+                .unwrap(),
+        );
+        decodes_cleanly(&tools, &out);
+    }
+    assert!(rates[1] < rates[0], "{rates:?}");
+    let out = dir.join("refused.mp4");
+    let out = out.to_str().unwrap();
+    for (args, says) in [
+        (
+            vec![
+                "-i", input, "-c:v", "libx264", "-c:a", "libopus", "-b:a", "4k", out,
+            ],
+            "-b:a",
+        ),
+        (
+            vec!["-i", input, "-c:v", "copy", "-c:a", "libopus", out],
+            "libopus",
+        ),
+        (
+            vec!["-i", input, "-c:v", "libx264", "-b:a", "64k", out],
+            "-b:a",
+        ),
+    ] {
+        let (code, stderr) = ffmpeg(&args, true);
+        assert_eq!(code, 4, "{args:?}: {stderr}");
+        assert!(stderr.contains(says), "{args:?}: {stderr}");
+    }
+    nothing_left(&dir);
+}

@@ -10,17 +10,20 @@
         Writes DIR/selection.json. R2 credentials come from the environment
         and are never printed.
 
-    speed.py run --coreav PATH --dir DIR --out RESULTS.json [--rounds 5]
+    speed.py run --coreav PATH --oracle-bin DIR --cpus CPU --dir DIR --out RESULTS.json
         Every native `ffprobe` command of commands-v1 on every selected
         file: `coreav ffprobe` and `ffprobe` alternate, one process at a
         time, wall time of the whole process, after one untimed run of each
         (the page cache). A pair's ratio is the median of CoreAV's rounds
         over the median of ffprobe's. A command coreav refuses is reported
-        as refused and has no ratio.
+        as refused and has no ratio. Verify the frozen files and pinned
+        oracle first, then require both calibration arms to pass before
+        any B4 pair runs. Each process has a 600-second timeout.
 
     speed.py report --results RESULTS.json
         Per command, per container and overall: the median ratio and its
-        bootstrap 95% interval (10,000 resamples of the files, seed 0).
+        bootstrap 95% interval (10,000 stratified file-cluster resamples,
+        seed 0). Historical unversioned results are not re-scored.
 
     speed.py r4 --arm r4|aa|null --coreav PATH --ffmpeg PATH --ffprobe PATH
                 (--files FILES.json | --media DIR [DIR...]) --scratch DIR
@@ -63,9 +66,11 @@ import argparse
 import collections
 import hashlib
 import json
+import math
 import os
 import pathlib
 import random
+import select as select_event
 import shutil
 import statistics
 import subprocess
@@ -137,87 +142,248 @@ def native_commands():
     return out
 
 
-# `coreav` in strict-safe mode, so that a command it refuses is reported as
-# refused and never timed as the `ffprobe` on PATH.
-ENV = release_round.environment()
+B4_METHOD = 'b4-file-cluster-v1'
+B4_TIMEOUT = 600
 
 
-def timed(argv):
+def timed(argv, env):
     start = time.perf_counter()
-    p = subprocess.run(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=ENV)
-    return time.perf_counter() - start, p.returncode
+    try:
+        with subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL, env=env) as process:
+            try:
+                fd = os.pidfd_open(process.pid)
+                try:
+                    ready = select_event.select([fd], [], [], max(0, B4_TIMEOUT - (time.perf_counter() - start)))[0]
+                finally:
+                    os.close(fd)
+                if ready:
+                    code = process.wait()
+                else:
+                    process.kill()
+                    code = None
+                elapsed = time.perf_counter() - start
+            except BaseException:
+                process.kill()
+                raise
+    except OSError:
+        return time.perf_counter() - start, -1
+    return elapsed, code
 
 
-def run(opts):
-    d = pathlib.Path(opts.dir)
-    selection = json.loads((d / 'selection.json').read_text())
-    commands = native_commands()
-    results = []
-    for n, args in enumerate(commands):
-        for e in selection:
-            path = str(d / f"{e['sha256']}.{e['ext']}")
-            argv = [path if a == 'INPUT' else a for a in args]
-            ours = [opts.coreav, 'ffprobe'] + argv
-            theirs = ['ffprobe'] + argv
-            _, code = timed(ours)
-            timed(theirs)
-            row = {'command': n, 'class': e['class'], 'file': e['sha256'][:12]}
-            if code == 4:
-                row['refused'] = True
-                results.append(row)
-                continue
-            a, b = [], []
-            for _ in range(opts.rounds):
-                a.append(timed(ours)[0])
-                b.append(timed(theirs)[0])
-            row.update({'coreav': a, 'ffprobe': b,
-                        'ratio': statistics.median(a) / statistics.median(b)})
-            results.append(row)
-        print(f'{n + 1}/{len(commands)}', file=sys.stderr, flush=True)
-    pathlib.Path(opts.out).write_text(json.dumps(
-        {'commands': [' '.join(c) for c in commands], 'rounds': opts.rounds,
-         'results': results}) + '\n')
+def eligible(args, family):
+    if '-f' not in args:
+        return True
+    if args[args.index('-f') + 1:][:1] != ['mpegts']:
+        raise ValueError('B4 only registers the forced format -f mpegts')
+    return family == 'mpegts'
 
 
-def interval(ratios, rng):
-    if not ratios:
+def b4_fallback(log):
+    counts = {'lines': 0, 'refused': 0, 'executed': 0, 'invalid': 0}
+    for line in pathlib.Path(log).read_text(errors='replace').splitlines() if pathlib.Path(log).exists() else []:
+        if not line.strip():
+            continue
+        counts['lines'] += 1
+        try:
+            event = json.loads(line)
+            if event.get('ran') is not None:
+                counts['executed'] += 1
+            elif event.get('not_run') == 'strict_safe':
+                counts['refused'] += 1
+            else:
+                counts['invalid'] += 1
+        except (ValueError, AttributeError):
+            counts['invalid'] += 1
+    return {**counts, 'void': bool(counts['executed'] or counts['invalid'])}
+
+
+def b4_pair(left, right, env, refuse=False):
+    warm = [timed(argv, env)[1] for argv in (left, right)]
+    row = {'warmup_exit': warm}
+    if refuse and warm == [4, 0]:
+        return {**row, 'refused': True}
+    if warm != [0, 0]:
+        return {**row, 'failed': {'phase': 'warmup', 'exit': warm}}
+    row.update(a=[], b=[], timed_exit=[])
+    for i in range(5):
+        a, ac = timed(left, env)
+        b, bc = timed(right, env)
+        row['a'].append(a)
+        row['b'].append(b)
+        row['timed_exit'].append([ac, bc])
+        if [ac, bc] != [0, 0] or a <= 0 or b <= 0:
+            row['failed'] = {'phase': 'timed', 'round': i, 'exit': [ac, bc]}
+            return row
+    row['ratio'] = statistics.median(row['a']) / statistics.median(row['b'])
+    return row
+
+
+def interval(rows, stratified=True):
+    if not rows:
         return None
+    clusters = collections.defaultdict(lambda: collections.defaultdict(list))
+    for row in rows:
+        clusters[row['class'] if stratified else 'all'][row['file']].append(row['ratio'])
+    strata = [list(files.values()) for _, files in sorted(clusters.items())]
+    rng = random.Random(0)
     meds = []
     for _ in range(10000):
-        sample = [rng.choice(ratios) for _ in ratios]
+        sample = [ratio for files in strata for cluster in rng.choices(files, k=len(files)) for ratio in cluster]
         meds.append(statistics.median(sample))
     meds.sort()
     return [meds[249], meds[9749]]
 
 
+def calibrate(selection, directory, coreav, ffprobe, env, log):
+    first = {family: next(e for e in selection if e['class'] == family) for family in CLASSES}
+    commands = [['-show_format', '-show_streams'], ['-show_packets']]
+    arms = {}
+    for arm, binary in (('aa', [ffprobe]), ('null', [coreav, 'ffprobe'])):
+        rows = []
+        for family, entry in first.items():
+            path = str(directory / f"{entry['sha256']}.{entry['ext']}")
+            for command, args in enumerate(commands):
+                argv = binary + args + [path]
+                rows.append({'class': family, 'file': entry['file'], 'command': command,
+                             **b4_pair(argv, argv, env)})
+        successful = [r for r in rows if 'ratio' in r]
+        calls = [{'class': r['class'], 'file': r['file'], 'ratio': a / b}
+                 for r in successful for a, b in zip(r['a'], r['b'])]
+        median = statistics.median(r['ratio'] for r in calls) if calls else None
+        ci = interval(calls, stratified=False)
+        passed = (len(successful) == len(rows) and median is not None
+                  and GATE[0] <= median <= GATE[1] and ci[0] <= 1.0 <= ci[1]
+                  and b4_fallback(log)['lines'] == 0)
+        arms[arm] = {'commands': commands, 'results': rows, 'median': median, 'ci95': ci, 'passes': passed}
+    return arms
+
+
+def verify_selection(selection, directory):
+    seen = set()
+    for i, entry in enumerate(selection):
+        family, digest = entry['class'], entry['sha256']
+        if (family not in CLASSES or entry['ext'] not in CLASSES[family][1]
+                or len(digest) != 64 or any(c not in '0123456789abcdef' for c in digest)):
+            raise ValueError('invalid B4 selection identity')
+        if digest in seen:
+            raise ValueError('duplicate file in B4 selection')
+        seen.add(digest)
+        path = directory / f"{digest}.{entry['ext']}"
+        actual = hashlib.sha256()
+        with path.open('rb') as source:
+            for block in iter(lambda: source.read(1024 * 1024), b''):
+                actual.update(block)
+        if actual.hexdigest() != digest or path.stat().st_size != entry['size']:
+            raise ValueError('B4 file differs from the frozen selection')
+        entry['file'] = f'{family}:{i}'
+    if {e['class'] for e in selection} != set(CLASSES):
+        raise ValueError('B4 calibration requires every registered container')
+
+
+def run(opts):
+    cpus = cpu_list(opts.cpus)
+    if len(cpus) != 1 or opts.rounds != 5:
+        raise ValueError('B4 requires one pinned CPU and five timed pairs')
+    os.sched_setaffinity(0, cpus)
+    subprocess.run([sys.executable, str(ROOT / 'scripts' / 'oracle_pin.py'), '--verify-bin', opts.oracle_bin],
+                   check=True)
+    d = pathlib.Path(opts.dir)
+    selection = json.loads((d / 'selection.json').read_text())
+    verify_selection(selection, d)
+    commands = native_commands()
+    if not commands:
+        raise ValueError('B4 has no native commands to measure')
+    log = pathlib.Path(opts.out).with_suffix('.fallback.jsonl')
+    log.unlink(missing_ok=True)
+    env = release_round.environment(log)
+    ffprobe = str(pathlib.Path(opts.oracle_bin) / 'ffprobe')
+    calibration = calibrate(selection, d, opts.coreav, ffprobe, env, log)
+    results = []
+    for n, args in enumerate(commands if all(a['passes'] for a in calibration.values()) else []):
+        for e in selection:
+            row = {'command': n, 'class': e['class'], 'file': e['file']}
+            if not eligible(args, e['class']):
+                results.append({**row, 'ineligible': True})
+                continue
+            path = str(d / f"{e['sha256']}.{e['ext']}")
+            argv = [path if a == 'INPUT' else a for a in args]
+            results.append({**row, **b4_pair([opts.coreav, 'ffprobe'] + argv, [ffprobe] + argv, env, refuse=True)})
+        print(f'{n + 1}/{len(commands)}', file=sys.stderr, flush=True)
+    data = {'method': B4_METHOD, 'sides': ['coreav', 'ffprobe'], 'commands': commands, 'rounds': opts.rounds,
+            'selection': [{k: e[k] for k in ('class', 'file')} for e in selection],
+            'calibration': calibration, 'fallback_log': b4_fallback(log), 'results': results}
+    pathlib.Path(opts.out).write_text(json.dumps(data) + '\n')
+    return int(not all(a['passes'] for a in calibration.values()) or data['fallback_log']['void']
+               or any(r.get('failed') for r in results))
+
+
+def b4_summary(data):
+    if data.get('method') != B4_METHOD:
+        raise ValueError('historical B4 results cannot be re-scored with the file-cluster method')
+    if data['rounds'] != 5:
+        raise ValueError('B4 requires five timed pairs')
+    groups = {}
+    expected = {(n, e['file']): e['class'] for n in range(len(data['commands'])) for e in data['selection']}
+    actual = set()
+    for r in data['results']:
+        key = (r['command'], r['file'])
+        if key not in expected or r['class'] != expected[key] or key in actual:
+            raise ValueError('unexpected or duplicate B4 command/input pair')
+        if bool(r.get('ineligible')) == eligible(data['commands'][r['command']], r['class']):
+            raise ValueError('B4 pair eligibility differs from the registered command family')
+        if sum((bool(r.get('ineligible')), bool(r.get('refused')), 'failed' in r, 'ratio' in r)) != 1:
+            raise ValueError('B4 pair must have exactly one outcome')
+        if 'ratio' in r and (not math.isfinite(r['ratio']) or r['ratio'] <= 0):
+            raise ValueError('B4 ratios must be finite and positive')
+        actual.add(key)
+    measured = {(r['command'], r['file']): r for r in data['results'] if 'ratio' in r}
+    for (n, file), family in expected.items():
+        if not eligible(data['commands'][n], family):
+            continue
+        for key in (('all', 'all'), ('class', family), ('command', n), ('command-class', f'{n}:{family}')):
+            group = groups.setdefault(key, [])
+            if (n, file) in measured:
+                group.append(measured[(n, file)])
+    rows = []
+    for (kind, name), ratios in sorted(groups.items(), key=lambda kv: (kv[0][0], str(kv[0][1]))):
+        values = [r['ratio'] for r in ratios]
+        rows.append({'group': kind, 'name': name, 'n': len(ratios),
+                     'files': len({r['file'] for r in ratios}),
+                     'median': statistics.median(values) if values else None,
+                     'ci95': interval(ratios),
+                     'faster_share': sum(x < 1.0 for x in values) / len(values) if values else None})
+    refused = sorted({' '.join(data['commands'][r['command']]) for r in data['results'] if r.get('refused')})
+    missed = [r for r in rows if r['median'] is not None and r['median'] > 1.0]
+    unmeasured = [r for r in rows if r['median'] is None]
+    failed = [r for r in data['results'] if r.get('failed')]
+    eligible_pairs = {key for key, family in expected.items() if eligible(data['commands'][key[0]], family)}
+    coverage = {'total': len(expected), 'ineligible': len(expected) - len(eligible_pairs),
+                'refused': sum(r.get('refused', False) for r in data['results']),
+                'failed': len(failed), 'timed': len(measured), 'missing': len(eligible_pairs - actual)}
+    coverage['eligible'] = coverage['total'] - coverage['ineligible']
+    passes = (bool(rows) and not (missed or unmeasured or failed or coverage['missing'])
+              and all(data['calibration'][a]['passes'] for a in ('aa', 'null'))
+              and not data['fallback_log']['void'])
+    return {'method': B4_METHOD, 'rows': rows, 'refused': refused, 'missed': missed,
+            'unmeasured': unmeasured, 'failed': failed, 'coverage': coverage,
+            'calibration': data['calibration'], 'fallback_log': data['fallback_log'], 'passes': passes}
+
+
 def report(opts):
     data = json.loads(pathlib.Path(opts.results).read_text())
-    rng = random.Random(0)
-    rows = []
-    groups = {}
-    for r in data['results']:
-        if 'ratio' not in r:
-            continue
-        groups.setdefault(('all', 'all'), []).append(r['ratio'])
-        groups.setdefault(('class', r['class']), []).append(r['ratio'])
-        groups.setdefault(('command', r['command']), []).append(r['ratio'])
-        groups.setdefault(('command-class', f"{r['command']}:{r['class']}"), []).append(r['ratio'])
-    for (kind, name), ratios in sorted(groups.items(), key=lambda kv: (kv[0][0], str(kv[0][1]))):
-        rows.append({'group': kind, 'name': name, 'n': len(ratios),
-                     'median': statistics.median(ratios),
-                     'ci95': interval(ratios, rng) if kind != 'command-class' else None})
-    refused = sorted({data['commands'][r['command']] for r in data['results'] if r.get('refused')})
-    missed = [r for r in rows if r['median'] > 1.0]
-    out = {'rows': rows, 'refused': refused, 'missed': missed}
+    out = b4_summary(data)
     if opts.out:
         pathlib.Path(opts.out).write_text(json.dumps(out, indent=1) + '\n')
-    for r in rows:
+    for r in out['rows']:
         if r['group'] in ('all', 'class'):
-            print(f"{r['group']:6} {r['name']:9} n={r['n']:5} median={r['median']:.3f} ci95={r['ci95']}")
-    worst = max((r for r in rows if r['group'] == 'command'), key=lambda r: r['median'], default=None)
+            print(f"{r['group']:6} {r['name']:9} n={r['n']:5} median={r['median']} ci95={r['ci95']}")
+    worst = max((r for r in out['rows'] if r['group'] == 'command' and r['median'] is not None),
+                key=lambda r: r['median'], default=None)
     if worst:
-        print(f"slowest command: {data['commands'][worst['name']]} median={worst['median']:.3f}")
-    print(f"groups over 1.00: {len(missed)}; commands refused: {len(refused)}")
+        print(f"slowest command: {' '.join(data['commands'][worst['name']])} median={worst['median']:.3f}")
+    print(json.dumps({k: out[k] for k in ('coverage', 'passes', 'fallback_log')}))
+    return 0 if out['passes'] else 1
 
 
 # The sides of each arm of the 0.1.0 round: the program on the left of a
@@ -426,6 +592,8 @@ def main():
     p.add_argument('--out', required=True)
     p = sub.add_parser('run')
     p.add_argument('--coreav', required=True)
+    p.add_argument('--oracle-bin', required=True)
+    p.add_argument('--cpus', required=True)
     p.add_argument('--dir', required=True)
     p.add_argument('--out', required=True)
     p.add_argument('--rounds', type=int, default=5)

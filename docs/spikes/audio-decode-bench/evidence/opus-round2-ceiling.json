@@ -1,0 +1,495 @@
+{
+ "what": "Ceiling of the CELT decode work before any of it was changed: throwaway builds of the base that each delete one stage, decoder alone (MultistreamDecoder::decode), on six derived inputs of the round-1 set",
+ "base": "18e6a07, whose crates/coreav-opus/src/celt is that of dd60c57 on main",
+ "measured_utc": "2026-10-30 12:43 to 12:53",
+ "first_candidate_build_utc": "2026-10-30 12:55",
+ "instructions": "callgrind instruction count, collection inside MultistreamDecoder::decode only",
+ "ns": "wall time on one development machine, loop mode, minimum of 5 after a first pass; for orientation only",
+ "projection": "An estimate from instruction counts, not a measured time ceiling. library_median_if_cut: the round-1 library medians (evidence/opus-perf.json) with each CELT input library time reduced by (1 - instructions_ratio_median) times its decoder-alone time; library_median_if_smallest_cut: the same with the smallest saving of the six inputs. Both apply one saving to every CELT input and take an instruction saving as an equal time saving; the ns figures, single development runs, do not confirm that stage by stage",
+ "library_median_round1": {
+  "all": 1.00248,
+  "mp4": 1.00424,
+  "matroska": 0.99692
+ },
+ "inputs": [
+  "0143692e31b6-64k-20",
+  "035282649322-128k-20",
+  "04e45b2f41df-256k-20",
+  "0177b6709d4f-128k-10",
+  "061589fae6b7-128k-5",
+  "0d6a8c0c0228-256k-2.5"
+ ],
+ "base_instructions": {
+  "0143692e31b6-64k-20": 795597611,
+  "035282649322-128k-20": 968575440,
+  "04e45b2f41df-256k-20": 824240733,
+  "0177b6709d4f-128k-10": 205453700,
+  "061589fae6b7-128k-5": 791098863,
+  "0d6a8c0c0228-256k-2.5": 1430028360
+ },
+ "base_ns": {
+  "0143692e31b6-64k-20": 66083608,
+  "035282649322-128k-20": 91235136,
+  "04e45b2f41df-256k-20": 77524110,
+  "0177b6709d4f-128k-10": 17538245,
+  "061589fae6b7-128k-5": 48559924,
+  "0d6a8c0c0228-256k-2.5": 95713888
+ },
+ "variants": {
+  "no_mdct": {
+   "removed": "the whole inverse MDCT of a CELT frame (pre-rotation, FFT, post-rotation and the overlap window) removed",
+   "instructions": {
+    "0143692e31b6-64k-20": 600527833,
+    "035282649322-128k-20": 769857198,
+    "04e45b2f41df-256k-20": 712133799,
+    "0177b6709d4f-128k-10": 173489745,
+    "061589fae6b7-128k-5": 684210434,
+    "0d6a8c0c0228-256k-2.5": 1319572311
+   },
+   "ns": {
+    "0143692e31b6-64k-20": 54208464,
+    "035282649322-128k-20": 80048057,
+    "04e45b2f41df-256k-20": 71057983,
+    "0177b6709d4f-128k-10": 15848321,
+    "061589fae6b7-128k-5": 40711048,
+    "0d6a8c0c0228-256k-2.5": 86678364
+   },
+   "instructions_ratio_median": 0.8542,
+   "time_ratio_median": 0.8905,
+   "instructions_saving_range": [
+    0.0772,
+    0.2452
+   ],
+   "library_median_if_cut": {
+    "all": 0.8691,
+    "mp4": 0.87138,
+    "matroska": 0.86699
+   },
+   "library_median_if_smallest_cut": {
+    "all": 0.92996,
+    "mp4": 0.93258,
+    "matroska": 0.92434
+   }
+  },
+  "no_fft": {
+   "removed": "the FFT passes after the first removed",
+   "instructions": {
+    "0143692e31b6-64k-20": 720246418,
+    "035282649322-128k-20": 894727584,
+    "04e45b2f41df-256k-20": 780728943,
+    "0177b6709d4f-128k-10": 194461657,
+    "061589fae6b7-128k-5": 755050879,
+    "0d6a8c0c0228-256k-2.5": 1402279315
+   },
+   "ns": {
+    "0143692e31b6-64k-20": 61269065,
+    "035282649322-128k-20": 87753892,
+    "04e45b2f41df-256k-20": 77223597,
+    "0177b6709d4f-128k-10": 16857291,
+    "061589fae6b7-128k-5": 45762225,
+    "0d6a8c0c0228-256k-2.5": 91612468
+   },
+   "instructions_ratio_median": 0.9469,
+   "time_ratio_median": 0.9592,
+   "instructions_saving_range": [
+    0.0194,
+    0.0947
+   ],
+   "library_median_if_cut": {
+    "all": 0.95175,
+    "mp4": 0.95411,
+    "matroska": 0.94629
+   },
+   "library_median_if_smallest_cut": {
+    "all": 0.98368,
+    "mp4": 0.9857,
+    "matroska": 0.97816
+   }
+  },
+  "no_first": {
+   "removed": "the first FFT pass removed",
+   "instructions": {
+    "0143692e31b6-64k-20": 749165322,
+    "035282649322-128k-20": 923048293,
+    "04e45b2f41df-256k-20": 797425301,
+    "0177b6709d4f-128k-10": 197696228,
+    "061589fae6b7-128k-5": 769151169,
+    "0d6a8c0c0228-256k-2.5": 1410299538
+   },
+   "ns": {
+    "0143692e31b6-64k-20": 62102349,
+    "035282649322-128k-20": 89566566,
+    "04e45b2f41df-256k-20": 81031804,
+    "0177b6709d4f-128k-10": 17763366,
+    "061589fae6b7-128k-5": 49400391,
+    "0d6a8c0c0228-256k-2.5": 94691071
+   },
+   "instructions_ratio_median": 0.9649,
+   "time_ratio_median": 1.0011,
+   "instructions_saving_range": [
+    0.0138,
+    0.0584
+   ],
+   "library_median_if_cut": {
+    "all": 0.96866,
+    "mp4": 0.97146,
+    "matroska": 0.96293
+   },
+   "library_median_if_smallest_cut": {
+    "all": 0.98914,
+    "mp4": 0.99112,
+    "matroska": 0.98358
+   }
+  },
+  "no_pre": {
+   "removed": "the pre-rotation removed",
+   "instructions": {
+    "0143692e31b6-64k-20": 782553314,
+    "035282649322-128k-20": 955249849,
+    "04e45b2f41df-256k-20": 816745248,
+    "0177b6709d4f-128k-10": 203208374,
+    "061589fae6b7-128k-5": 783995430,
+    "0d6a8c0c0228-256k-2.5": 1422276037
+   },
+   "ns": {
+    "0143692e31b6-64k-20": 64317487,
+    "035282649322-128k-20": 91575860,
+    "04e45b2f41df-256k-20": 79014970,
+    "0177b6709d4f-128k-10": 18019007,
+    "061589fae6b7-128k-5": 49080797,
+    "0d6a8c0c0228-256k-2.5": 97637433
+   },
+   "instructions_ratio_median": 0.99,
+   "time_ratio_median": 1.015,
+   "instructions_saving_range": [
+    0.0054,
+    0.0164
+   ],
+   "library_median_if_cut": {
+    "all": 0.9928,
+    "mp4": 0.99478,
+    "matroska": 0.98724
+   },
+   "library_median_if_smallest_cut": {
+    "all": 0.99724,
+    "mp4": 0.99912,
+    "matroska": 0.99168
+   }
+  },
+  "no_post": {
+   "removed": "the post-rotation removed",
+   "instructions": {
+    "0143692e31b6-64k-20": 781920937,
+    "035282649322-128k-20": 954822929,
+    "04e45b2f41df-256k-20": 816357090,
+    "0177b6709d4f-128k-10": 203101418,
+    "061589fae6b7-128k-5": 784634646,
+    "0d6a8c0c0228-256k-2.5": 1422593375
+   },
+   "ns": {
+    "0143692e31b6-64k-20": 75667176,
+    "035282649322-128k-20": 96029651,
+    "04e45b2f41df-256k-20": 81165436,
+    "0177b6709d4f-128k-10": 17973718,
+    "061589fae6b7-128k-5": 52238500,
+    "0d6a8c0c0228-256k-2.5": 96343263
+   },
+   "instructions_ratio_median": 0.9895,
+   "time_ratio_median": 1.0498,
+   "instructions_saving_range": [
+    0.0052,
+    0.0172
+   ],
+   "library_median_if_cut": {
+    "all": 0.99232,
+    "mp4": 0.9943,
+    "matroska": 0.98676
+   },
+   "library_median_if_smallest_cut": {
+    "all": 0.99745,
+    "mp4": 0.99933,
+    "matroska": 0.99189
+   }
+  },
+  "no_gather": {
+   "removed": "the input gather removed",
+   "instructions": {
+    "0143692e31b6-64k-20": 777909437,
+    "035282649322-128k-20": 952748950,
+    "04e45b2f41df-256k-20": 813917751,
+    "0177b6709d4f-128k-10": 202445360,
+    "061589fae6b7-128k-5": 781709134,
+    "0d6a8c0c0228-256k-2.5": 1418027860
+   },
+   "ns": {
+    "0143692e31b6-64k-20": 63917871,
+    "035282649322-128k-20": 94237087,
+    "04e45b2f41df-256k-20": 77777951,
+    "0177b6709d4f-128k-10": 17859627,
+    "061589fae6b7-128k-5": 49505121,
+    "0d6a8c0c0228-256k-2.5": 95608927
+   },
+   "instructions_ratio_median": 0.9864,
+   "time_ratio_median": 1.0108,
+   "instructions_saving_range": [
+    0.0084,
+    0.0222
+   ],
+   "library_median_if_cut": {
+    "all": 0.98934,
+    "mp4": 0.99133,
+    "matroska": 0.98379
+   },
+   "library_median_if_smallest_cut": {
+    "all": 0.99436,
+    "mp4": 0.99632,
+    "matroska": 0.98881
+   }
+  },
+  "no_unpack": {
+   "removed": "the output unpacking removed",
+   "instructions": {
+    "0143692e31b6-64k-20": 778190692,
+    "035282649322-128k-20": 951118383,
+    "04e45b2f41df-256k-20": 814220745,
+    "0177b6709d4f-128k-10": 202539720,
+    "061589fae6b7-128k-5": 782236089,
+    "0d6a8c0c0228-256k-2.5": 1420955994
+   },
+   "ns": {
+    "0143692e31b6-64k-20": 66991514,
+    "035282649322-128k-20": 120105743,
+    "04e45b2f41df-256k-20": 101509539,
+    "0177b6709d4f-128k-10": 18232909,
+    "061589fae6b7-128k-5": 53520969,
+    "0d6a8c0c0228-256k-2.5": 100586744
+   },
+   "instructions_ratio_median": 0.9868,
+   "time_ratio_median": 1.0765,
+   "instructions_saving_range": [
+    0.0063,
+    0.0219
+   ],
+   "library_median_if_cut": {
+    "all": 0.98974,
+    "mp4": 0.99173,
+    "matroska": 0.98419
+   },
+   "library_median_if_smallest_cut": {
+    "all": 0.99634,
+    "mp4": 0.99825,
+    "matroska": 0.99079
+   }
+  },
+  "no_window": {
+   "removed": "the overlap window removed",
+   "instructions": {
+    "0143692e31b6-64k-20": 781679445,
+    "035282649322-128k-20": 952960896,
+    "04e45b2f41df-256k-20": 816364242,
+    "0177b6709d4f-128k-10": 202496467,
+    "061589fae6b7-128k-5": 778206495,
+    "0d6a8c0c0228-256k-2.5": 1409838803
+   },
+   "ns": {
+    "0143692e31b6-64k-20": 66059868,
+    "035282649322-128k-20": 90659713,
+    "04e45b2f41df-256k-20": 91762990,
+    "0177b6709d4f-128k-10": 18266228,
+    "061589fae6b7-128k-5": 51118331,
+    "0d6a8c0c0228-256k-2.5": 96796807
+   },
+   "instructions_ratio_median": 0.9847,
+   "time_ratio_median": 1.0264,
+   "instructions_saving_range": [
+    0.0096,
+    0.0175
+   ],
+   "library_median_if_cut": {
+    "all": 0.98772,
+    "mp4": 0.98971,
+    "matroska": 0.98217
+   },
+   "library_median_if_smallest_cut": {
+    "all": 0.99324,
+    "mp4": 0.99522,
+    "matroska": 0.98768
+   }
+  },
+  "no_clear": {
+   "removed": "the per-frame zeroing of the folding buffers removed (kept across frames)",
+   "instructions": {
+    "0143692e31b6-64k-20": 774173699,
+    "035282649322-128k-20": 947222520,
+    "04e45b2f41df-256k-20": 811982084,
+    "0177b6709d4f-128k-10": 198395527,
+    "061589fae6b7-128k-5": 710739704,
+    "0d6a8c0c0228-256k-2.5": 1272060445
+   },
+   "ns": {
+    "0143692e31b6-64k-20": 65631635,
+    "035282649322-128k-20": 89950518,
+    "04e45b2f41df-256k-20": 75924929,
+    "0177b6709d4f-128k-10": 17445425,
+    "061589fae6b7-128k-5": 48723126,
+    "0d6a8c0c0228-256k-2.5": 93930116
+   },
+   "instructions_ratio_median": 0.9694,
+   "time_ratio_median": 0.9895,
+   "instructions_saving_range": [
+    0.0149,
+    0.1105
+   ],
+   "library_median_if_cut": {
+    "all": 0.97308,
+    "mp4": 0.97552,
+    "matroska": 0.9673
+   },
+   "library_median_if_smallest_cut": {
+    "all": 0.9881,
+    "mp4": 0.99008,
+    "matroska": 0.98254
+   }
+  },
+  "no_rotate": {
+   "removed": "the PVQ spreading rotation removed",
+   "instructions": {
+    "0143692e31b6-64k-20": 693235705,
+    "035282649322-128k-20": 911091488,
+    "04e45b2f41df-256k-20": 783542828,
+    "0177b6709d4f-128k-10": 187457815,
+    "061589fae6b7-128k-5": 790132086,
+    "0d6a8c0c0228-256k-2.5": 1428217506
+   },
+   "ns": {
+    "0143692e31b6-64k-20": 61582066,
+    "035282649322-128k-20": 84913541,
+    "04e45b2f41df-256k-20": 75049681,
+    "0177b6709d4f-128k-10": 15946464,
+    "061589fae6b7-128k-5": 49521031,
+    "0d6a8c0c0228-256k-2.5": 95752688
+   },
+   "instructions_ratio_median": 0.9456,
+   "time_ratio_median": 0.95,
+   "instructions_saving_range": [
+    0.0012,
+    0.1287
+   ],
+   "library_median_if_cut": {
+    "all": 0.9506,
+    "mp4": 0.95291,
+    "matroska": 0.94511
+   },
+   "library_median_if_smallest_cut": {
+    "all": 1.0013,
+    "mp4": 1.00309,
+    "matroska": 0.99574
+   }
+  },
+  "no_postfilter": {
+   "removed": "the pitch post-filter removed",
+   "instructions": {
+    "0143692e31b6-64k-20": 777134010,
+    "035282649322-128k-20": 946389417,
+    "04e45b2f41df-256k-20": 762610302,
+    "0177b6709d4f-128k-10": 197763942,
+    "061589fae6b7-128k-5": 782979238,
+    "0d6a8c0c0228-256k-2.5": 1390373025
+   },
+   "ns": {
+    "0143692e31b6-64k-20": 63322119,
+    "035282649322-128k-20": 89978909,
+    "04e45b2f41df-256k-20": 74422358,
+    "0177b6709d4f-128k-10": 17350773,
+    "061589fae6b7-128k-5": 48226772,
+    "0d6a8c0c0228-256k-2.5": 100424681
+   },
+   "instructions_ratio_median": 0.9745,
+   "time_ratio_median": 0.9878,
+   "instructions_saving_range": [
+    0.0103,
+    0.0748
+   ],
+   "library_median_if_cut": {
+    "all": 0.97786,
+    "mp4": 0.97983,
+    "matroska": 0.9723
+   },
+   "library_median_if_smallest_cut": {
+    "all": 0.99255,
+    "mp4": 0.99454,
+    "matroska": 0.987
+   }
+  },
+  "no_deemphasis": {
+   "removed": "the de-emphasis filter removed",
+   "instructions": {
+    "0143692e31b6-64k-20": 763847541,
+    "035282649322-128k-20": 936790213,
+    "04e45b2f41df-256k-20": 805969064,
+    "0177b6709d4f-128k-10": 200164336,
+    "061589fae6b7-128k-5": 775578330,
+    "0d6a8c0c0228-256k-2.5": 1415002636
+   },
+   "ns": {
+    "0143692e31b6-64k-20": 84038716,
+    "035282649322-128k-20": 117939566,
+    "04e45b2f41df-256k-20": 76424792,
+    "0177b6709d4f-128k-10": 17737837,
+    "061589fae6b7-128k-5": 48094040,
+    "0d6a8c0c0228-256k-2.5": 95466037
+   },
+   "instructions_ratio_median": 0.976,
+   "time_ratio_median": 1.0044,
+   "instructions_saving_range": [
+    0.0105,
+    0.0399
+   ],
+   "library_median_if_cut": {
+    "all": 0.9793,
+    "mp4": 0.98129,
+    "matroska": 0.97376
+   },
+   "library_median_if_smallest_cut": {
+    "all": 0.99232,
+    "mp4": 0.9943,
+    "matroska": 0.98676
+   }
+  },
+  "no_denorm": {
+   "removed": "the band denormalisation removed",
+   "instructions": {
+    "0143692e31b6-64k-20": 779525374,
+    "035282649322-128k-20": 952496236,
+    "04e45b2f41df-256k-20": 814979336,
+    "0177b6709d4f-128k-10": 200855525,
+    "061589fae6b7-128k-5": 785372677,
+    "0d6a8c0c0228-256k-2.5": 1393301469
+   },
+   "ns": {
+    "0143692e31b6-64k-20": 63276528,
+    "035282649322-128k-20": 91031325,
+    "04e45b2f41df-256k-20": 78608106,
+    "0177b6709d4f-128k-10": 18168139,
+    "061589fae6b7-128k-5": 48536605,
+    "0d6a8c0c0228-256k-2.5": 89821937
+   },
+   "instructions_ratio_median": 0.9816,
+   "time_ratio_median": 0.9986,
+   "instructions_saving_range": [
+    0.0072,
+    0.0257
+   ],
+   "library_median_if_cut": {
+    "all": 0.98466,
+    "mp4": 0.98667,
+    "matroska": 0.97913
+   },
+   "library_median_if_smallest_cut": {
+    "all": 0.99548,
+    "mp4": 0.99741,
+    "matroska": 0.98992
+   }
+  }
+ }
+}
