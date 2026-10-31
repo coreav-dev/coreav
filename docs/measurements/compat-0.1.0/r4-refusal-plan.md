@@ -89,6 +89,10 @@ voiding the arm only when all of these conditions hold:
 - There is no other log event on the pair. An oracle-side log line cannot
   qualify as a CoreAV diagnostic.
 
+Diagnostic qualification inherits the complete existing refusal predicate,
+including a terminating `\n` in the raw log and exact equality between each
+record's `tool` and the invocation tool.
+
 Retain the oracle failure and the CoreAV refusal reasons. This exception
 changes only whether those valid CoreAV lines void the arm. It does not
 give the pair a timing ratio or a correctness pass, change its outcome,
