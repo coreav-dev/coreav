@@ -12,7 +12,7 @@
     "note": "the file name says 1080p; the stream is 828x1792 portrait"
   },
   "production": {
-    "binary": "/tmp/wt-340/target/dist/examples/decode",
+    "binary": "/tmp/wt-base/target/dist/examples/decode",
     "sha256": "0abf10cf859948048a9552130ef32abf8771c51fdc18af4387e9d1b99952ed6e",
     "tree": "1c3c9b1dc0b3013a88b6d01b41684d2308630592",
     "profile": "dist"

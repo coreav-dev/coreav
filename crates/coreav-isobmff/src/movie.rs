@@ -1080,7 +1080,7 @@ impl<S: Source> Walker<'_, S> {
         data.try_reserve_exact(size)
             .map_err(|_| Error::LimitExceeded { limit, offset: at })?;
         // Read into the reserved capacity: the bytes are written once,
-        // not zeroed first (#30: a large sample table is megabytes).
+        // not zeroed first (a large sample table is megabytes).
         self.source.read_append(at, size, &mut data)?;
         Ok(data)
     }
@@ -2293,7 +2293,7 @@ fn stsz_total(tables: &SampleTables, work: &mut Work, offset: u64) -> Result<Opt
 /// Each entry is read as a little-endian word, and its four bytes are summed
 /// in separate 16-bit lanes of two 32-bit accumulators, 256 entries at a
 /// time (256 × 255 fits 16 bits), then weighted by their places: no byte
-/// swap per entry, which WebAssembly has no instruction for (#30: tables of
+/// swap per entry, which WebAssembly has no instruction for (tables of
 /// a million entries).
 fn sum_be_u32(entries: &[u8]) -> u64 {
     let mut total = 0u64;
@@ -2469,7 +2469,7 @@ fn parse_dref(payload: &[u8], offset: u64) -> Result<Vec<bool>, Error> {
 
 /// The `hdlr` name: QuickTime stores a counted string (a length byte equal
 /// to the rest of the field), ISO/IEC 14496-12 a null-terminated one, whose
-/// first byte is text even when it happens to equal the length (#219).
+/// first byte is text even when it happens to equal the length.
 fn handler_name(raw: &[u8], quicktime: bool) -> Option<String> {
     let text = match raw.split_first() {
         Some((&len, tail)) if quicktime && usize::from(len) == tail.len() && len > 0 => tail,
@@ -2497,7 +2497,7 @@ fn rotation(m: &[i32; 9]) -> Option<u16> {
 #[cfg(test)]
 mod tests {
     /// A counted string only in QuickTime files; in ISO files the first byte
-    /// is text, even when it equals the length of the rest (#219).
+    /// is text, even when it equals the length of the rest.
     #[test]
     fn handler_names_follow_the_files_kind() {
         use super::handler_name;
@@ -2528,7 +2528,7 @@ mod tests {
     }
 
     /// The lane sum equals the plain big-endian sum, around block bounds
-    /// and with every byte at its largest (#30).
+    /// and with every byte at its largest.
     #[test]
     fn stsz_lane_sum_matches_the_plain_sum() {
         use super::sum_be_u32;

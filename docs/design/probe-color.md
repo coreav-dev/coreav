@@ -38,22 +38,28 @@ disagrees with their parameter set.
    codec (below). A raw value next to a derived one would also need the
    derivation rule to be part of the schema.
 2. **Values are not normalized.** "Unspecified" stays 2 in
-   `parameter_set_color`, because a parameter set that says "unspecified"
-   overrides a `colr` box for H.264 decoders, while one that says nothing
-   does not (below); `null` and 2 mean different things.
+   `parameter_set_color`: whether "unspecified" counts as saying something
+   is a reader's choice, and `ffprobe`'s changed between 7.0.2 and 9.0.2
+   (below); `null` and 2 mean different things.
 3. **`ffprobe`'s precedence is measured, not assumed, and lives in the
    mapping to `ffprobe`'s fields.** The stream oracle's adapter
    (`tools/isobmff-adapter`) and `coreav probe --ffprobe-compat` report what
-   `ffprobe` reports, from the two raw sources. `ffprobe` 7.0.2, measured as
+   `ffprobe` reports, from the two raw sources. `ffprobe` 9.0.2, measured as
    a black box on files whose `colr` box was rewritten
    (`scripts/colr_craft.py`):
 
    | Codec | primaries, transfer, matrix | range |
    |---|---|---|
-   | H.264 | the parameter set's when its VUI has a colour description (2 included, which reports nothing), else the box's; the box's for a track without frames in the file | the parameter set's when it signals a video signal type, else the box's; the box's for a track without frames |
-   | HEVC | always the parameter set's; a missing colour description reports nothing, whatever the box says | the parameter set's, else limited (ITU-T H.265 E.3.1 infers `video_full_range_flag` 0) |
-   | AV1 | always the sequence header's | always the sequence header's (`color_range` is always coded) |
+   | H.264 | each code of the box unless it is missing or 2 (unspecified), else the parameter set's; the box's alone for a track without frames in the file | the box's, else the parameter set's; the box's alone for a track without frames |
+   | HEVC | each code of the box unless it is missing or 2, else the parameter set's | the box's, else the parameter set's, else limited when the record holds a parameter set (ITU-T H.265 E.3.1 infers `video_full_range_flag` 0) |
+   | AV1 | each code of the box unless it is missing or 2, else the sequence header's | the box's, else the sequence header's (`color_range` is always coded) |
+   | ProRes | the box's | the box's, else limited |
    | other | the box's | the box's, else the codec configuration's |
+
+   `ffprobe` 7.0.2 took the parameter set's codes first (for H.264 when its
+   VUI had a colour description, 2 included; for HEVC and AV1 always) and
+   reported no range for ProRes without one; the mapping follows 9.0.2, the
+   pinned oracle.
 
    `ffprobe` applies an H.264 parameter set's colour only to a frame it
    decodes: an initialization segment (a track without samples, or one

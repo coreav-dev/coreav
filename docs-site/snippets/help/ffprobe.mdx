@@ -1,0 +1,24 @@
+```text
+usage: coreav ffprobe [OPTIONS] INPUT
+
+Experimental: values can differ from ffprobe's for MP4/MOV and MPEG-TS
+(measured on 1,315 files: of the keys outside the tags, 9 of 101
+MP4/MOV and 35 of 157 MPEG-TS agree on fewer than 98% of files);
+Matroska/WebM agree on 98% or more of files for all 101 keys.
+See docs/measurements/compat-ffprobe.md.
+
+The common ffprobe invocations, over CoreAV's own probes. Options:
+  -show_format -show_streams -show_chapters -show_programs -show_packets
+  -show_error -count_packets -show_entries SECTION[=KEYS][:...]
+  -select_streams SPEC -read_intervals INTERVALS -f FORMAT
+  -of|-print_format default|compact|csv|flat|json[=OPTIONS]
+  -pretty -sexagesimal -v LEVEL -loglevel LEVEL -hide_banner -nostdin
+Reads MP4, MOV, Matroska, WebM and MPEG-TS files and HTTP(S) URLs.
+
+For untrusted input, set COREAV_STRICT_SAFE=1: anything else is then
+refused (exit status 4). Without it, anything else runs the ffprobe
+program on PATH instead (or the one COREAV_FALLBACK names), which is
+FFmpeg's C code, and says so on standard error. Help on a topic
+(-h long, -h full, -h demuxer=NAME, ...) is handled the same way.
+See docs/design/compat-cli.md.
+```

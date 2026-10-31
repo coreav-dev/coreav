@@ -13,7 +13,10 @@ use crate::moov::{
 };
 use crate::rational::{add, ceil, int, lt, max, min, round, scale, sub, to_i64, to_u64};
 use crate::tables::Tables;
-use crate::{AudioChoice, ClipOptions, ClipSummary, ClipTrack, LeftOut, LeftOutReason};
+use crate::{
+    AudioChoice, AudioClipOptions, AudioClipSummary, ClipOptions, ClipSummary, ClipTrack, LeftOut,
+    LeftOutReason, TrackChoice,
+};
 use crate::{ExtractError, VideoChoice};
 use core::cell::{Cell, RefCell};
 use coreav_isobmff::{
@@ -23,9 +26,11 @@ use coreav_isobmff::{
 use std::collections::VecDeque;
 use std::io::Write;
 
-/// Output track IDs: the video is track 1, the audio track 2.
+/// Output track IDs: the video is track 1, the audio track 2; audio alone
+/// is track 1.
 const VIDEO_ID: u32 = 1;
 const AUDIO_ID: u32 = 2;
+const AUDIO_ALONE_ID: u32 = 1;
 
 /// Cuts a keyframe-aligned clip of `source` into an MP4 file written to
 /// `out`.
@@ -85,12 +90,13 @@ pub fn clip_mp4<S: Source, W: Write>(
         Some(track) => {
             let gapless = gapless(&movie, track, &mut source)?;
             let timeline = Timeline::with_several(track, &movie, gapless)?;
+            let ta = track.timescale;
             plan_audio(
                 &movie,
                 track,
                 timeline,
-                &plan,
-                video.timescale,
+                scale(plan.origin, ta, video.timescale)?,
+                Some(scale(plan.end, ta, video.timescale)?),
                 &mut source,
                 limits,
                 &mut budget,
@@ -228,6 +234,156 @@ pub fn clip_mp4<S: Source, W: Write>(
         bytes_written: head.data_start.saturating_add(head.data_bytes),
         left_out,
         boxes_left_out: video.description.other_boxes.clone(),
+    })
+}
+
+/// Cuts a clip of one AAC track of `source`, a file without video or one
+/// whose video is not wanted, into an MP4 file written to `out`.
+///
+/// The clip presents `options.start` to `options.end` (the end of the
+/// track without one) exactly, through an edit list in the audio's media
+/// timescale, which is also the movie timescale: it keeps the samples
+/// presented in that range and one sample of pre-roll before them, as
+/// [`clip_mp4`] keeps its audio. Its time 0 is `options.start`. The source
+/// is listed three times, as for [`clip_mp4`], so `out` receives `ftyp`,
+/// `moov` and `mdat` in that order without seeking; give it a buffered
+/// writer.
+///
+/// Fails before writing anything when the file cannot be probed or clipped
+/// (not AAC, an unsupported sample entry or edit list, no audio presented
+/// in the range); fails with a partial output when the source cannot be
+/// read later on, changes between the listings, or the writer fails.
+pub fn clip_audio_mp4<S: Source, W: Write>(
+    source: S,
+    limits: &Limits,
+    allowlist: &Allowlist,
+    options: &AudioClipOptions,
+    mut out: W,
+) -> Result<AudioClipSummary, ExtractError> {
+    let mut source = source;
+    let movie = probe(&mut source, limits, allowlist)?;
+    let choice = match options.audio {
+        TrackChoice::FirstAudio => AudioChoice::First,
+        TrackChoice::Stream(index) => AudioChoice::Stream(index),
+    };
+    let track =
+        select_audio(&movie, choice)?.ok_or_else(|| no_allowed_track(&movie, TrackKind::Audio))?;
+    let entry = audio_sample_entry(track)?;
+    let start = nonnegative(options.start)?;
+    let end = options.end.map(nonnegative).transpose()?;
+    if let Some(end) = end {
+        if !lt(start, end)? {
+            return Err(unsupported("the clip ends at or before its start").into());
+        }
+    }
+    let mut budget = Budget::new(limits);
+    let ta = track.timescale;
+
+    // Listing 1: the samples presented in the range, with counters only.
+    let gapless = gapless(&movie, track, &mut source)?;
+    let timeline = Timeline::with_several(track, &movie, gapless)?;
+    let Some(plan) = plan_audio(
+        &movie,
+        track,
+        timeline,
+        scale(start, ta, 1)?,
+        end.map(|e| scale(e, ta, 1)).transpose()?,
+        &mut source,
+        limits,
+        &mut budget,
+    )?
+    else {
+        return Err(unsupported("the clip presents no audio").into());
+    };
+
+    // Listing 2: the output tables of the kept run.
+    let tables = build_tables(
+        &movie,
+        track,
+        plan.first,
+        plan.last,
+        false,
+        None,
+        &mut source,
+        limits,
+        &mut budget,
+    )?;
+    let first = plan.first;
+    let mut audio = CutAudio {
+        track,
+        entry,
+        plan,
+        tables,
+        keep_identity: false,
+    };
+    let (trak, kept) = audio_track(&movie, &mut audio, ta, AUDIO_ALONE_ID)?;
+    let presented = trak.duration;
+    let (data_start, data_bytes) = write_head(
+        &mut out,
+        ftyp(b"isom", &[b"isom", b"mp42"]),
+        &MovieBox {
+            timescale: ta,
+            created: movie.creation_time,
+            duration: presented,
+            extra: Vec::new(),
+        },
+        vec![trak],
+        Ties::TrackOrder,
+    )?;
+
+    // Listing 3: the samples.
+    let shared = RefCell::new(source);
+    let remaining = limits.max_sample_work.saturating_sub(budget.used());
+    let copy_limits = Limits {
+        max_sample_work: remaining,
+        ..*limits
+    };
+    let mut copy_budget = Budget::new(&copy_limits);
+    let mut packets =
+        movie.packets(track.index, Shared(&shared), &copy_limits, &mut copy_budget)?;
+    let run = Run::new(&mut packets, first, &audio.tables.0)?;
+    let mut window = Window::new(COPY_BUFFER);
+    copy_cut(&shared, run, None, &mut window, &mut out)?;
+    drop((packets, window));
+    if copy_budget.used() > remaining {
+        return Err(Error::LimitExceeded {
+            limit: coreav_isobmff::LimitKind::SampleWork,
+            offset: 0,
+        }
+        .into());
+    }
+    out.flush()?;
+
+    let mut left_out: Vec<LeftOut> = movie
+        .tracks
+        .iter()
+        .filter(|t| t.index != track.index)
+        .map(|t| LeftOut {
+            stream_index: t.stream_index,
+            track_id: t.track_id,
+            reason: LeftOutReason::NotSelected,
+        })
+        .chain(movie.dropped.iter().map(|d| LeftOut {
+            stream_index: d.stream_index,
+            track_id: d.track_id,
+            reason: LeftOutReason::CodecNotAllowed,
+        }))
+        .collect();
+    left_out.sort_by_key(|l| l.stream_index);
+    Ok(AudioClipSummary {
+        audio: kept,
+        start,
+        end,
+        written_end: add(
+            start,
+            scale(
+                int(i64::try_from(presented).map_err(|_| overflow())?),
+                1,
+                ta,
+            )?,
+        )?,
+        bytes_written: data_start.saturating_add(data_bytes),
+        left_out,
     })
 }
 
@@ -420,154 +576,11 @@ pub(crate) fn write_cut_head<W: Write>(
     }];
     let mut movie_duration = video_duration;
     let mut audio_summary = None;
-    if let Some(CutAudio {
-        track,
-        entry,
-        plan: a,
-        tables: (tables, a_first_dts, _),
-        keep_identity,
-    }) = &mut cut.audio
-    {
-        let ta = track.timescale;
-        let media_duration = media_duration(movie, track, tables, a.keeps_last)?;
-        let several = a.timeline.has_windows();
-        // The empty edit is rounded to the movie timescale (exact when it is a
-        // common multiple of both timescales);
-        // the media time is then that of the rounded start, so that audio
-        // stays within half an audio tick of its source times.
-        // Rounded up instead when rounding down would start before the
-        // first kept sample. With several edits the exact media time
-        // decides, not the rounded one: the edits below take the exact
-        // one, and a start half a movie tick before the run's first
-        // sample would give them a negative media time. A segment's audio
-        // has no pre-roll (docs/design/split.md), so its run starts at the
-        // first sample it presents and rounding down always dips below.
-        let exact_empty = scale(sub(a.start, a.clip_start)?, tm, ta)?;
-        let mut empty = 0;
-        let mut start = a.start;
-        let mut media_time = -1;
-        let mut placed = false;
-        for rounded in [round(exact_empty), ceil(exact_empty)?] {
-            empty = to_u64(rounded)?;
-            start = add(a.clip_start, scale(int(to_i64(rounded)?), ta, tm)?)?;
-            let exact = sub(a.timeline.media(start)?, int(*a_first_dts))?;
-            media_time = to_i64(round(exact))?;
-            placed = if several {
-                exact.num >= 0
-            } else {
-                media_time >= 0
-            };
-            if placed {
-                break;
-            }
-        }
-        if !placed {
-            return Err(overflow().into());
-        }
-        let segment = to_u64(round(scale(sub(a.end, start)?, tm, ta)?))?;
-        // Audio that overlaps the clip by less than half a movie tick would
-        // get a media edit of duration 0, which presents nothing in a file
-        // without fragments; the clip is refused rather than written so.
-        // Only possible when the movie timescale is not a multiple of the
-        // audio's (their least common multiple does not fit 32 bits).
-        if segment == 0 {
-            return Err(unsupported(
-                "the audio overlaps the clip by less than one tick of the movie timescale",
-            )
-            .into());
-        }
-        let identity = !several
-            && !*keep_identity
-            && empty == 0
-            && media_time == 0
-            && segment == rescale(media_duration, ta, tm)?;
-        let mut edits = Vec::new();
-        if several {
-            // The audio's windows inside the clip, each a media edit, rounded
-            // to the nearest tick of the movie timescale, as a single audio
-            // edit is.
-            if empty > 0 {
-                edits.push(EditEntry {
-                    duration: empty,
-                    media_time: -1,
-                    rate: UNIT_RATE,
-                });
-            }
-            // Each edit ends at its exact end rounded, so that rounding does
-            // not add up over many edits; an edit shorter than half a movie
-            // tick is left out (a media edit of duration 0 is outside the
-            // edit model).
-            let mut exact_at = int(0);
-            let mut rounded_at = 0u64;
-            for part in WindowEdits::new(&a.timeline, start, a.end, *a_first_dts) {
-                let (duration, media) = part?;
-                exact_at = add(exact_at, duration)?;
-                let boundary = to_u64(round(scale(exact_at, tm, ta)?))?;
-                let ticks = boundary.checked_sub(rounded_at).ok_or_else(overflow)?;
-                rounded_at = boundary;
-                if ticks == 0 {
-                    continue;
-                }
-                edits.push(EditEntry {
-                    duration: ticks,
-                    media_time: match media {
-                        Some(m) => to_i64(round(m))?,
-                        None => -1,
-                    },
-                    rate: UNIT_RATE,
-                });
-            }
-        } else if !identity {
-            if empty > 0 {
-                edits.push(EditEntry {
-                    duration: empty,
-                    media_time: -1,
-                    rate: UNIT_RATE,
-                });
-            }
-            edits.push(EditEntry {
-                duration: segment,
-                media_time,
-                rate: UNIT_RATE,
-            });
-        }
-        a.timeline.release();
-        let duration = if identity {
-            rescale(media_duration, ta, tm)?
-        } else if several {
-            edits
-                .iter()
-                .try_fold(0u64, |sum, e| sum.checked_add(e.duration))
-                .ok_or_else(overflow)?
-        } else {
-            empty.checked_add(segment).ok_or_else(overflow)?
-        };
-        movie_duration = movie_duration.max(duration);
-        audio_summary = Some(ClipTrack {
-            stream_index: track.stream_index,
-            track_id: track.track_id,
-            codec: track.description.codec,
-            first_sample: a.first,
-            samples: tables.samples(),
-            timescale: ta,
-            duration: tables.duration,
-        });
-        tracks.push(TrackBox {
-            track_id: AUDIO_ID,
-            media: Media::Audio,
-            header: TrackFlags::DEFAULT,
-            created: track.creation_time,
-            media_created: track.media_creation_time,
-            language: language(track.language),
-            media_timescale: ta,
-            media_duration,
-            duration,
-            edits: edits.into(),
-            stsd: std::mem::take(entry),
-            tables,
-            extra: Vec::new(),
-            stbl_extra: Vec::new(),
-        });
+    if let Some(audio) = &mut cut.audio {
+        let (track, summary) = audio_track(movie, audio, tm, AUDIO_ID)?;
+        movie_duration = movie_duration.max(track.duration);
+        audio_summary = Some(summary);
+        tracks.push(track);
     }
     // The window tables of several edits are not needed past the edits
     // above: released before the head is built and the samples are copied,
@@ -608,33 +621,195 @@ pub(crate) fn write_cut_head<W: Write>(
     })
 }
 
-/// Listing 3 of a cut: copies the samples of `video` and `audio` in the
-/// order of the chunks in `mdat`, through `window`. Fails with
+/// The audio track of a cut in the movie timescale `tm`, as track
+/// `track_id`: its edits present `[start, end)` of its plan from the
+/// output's time 0, rounded to whole movie ticks (exact when `tm` is a
+/// multiple of the audio's timescale), with the plan's pre-roll sample
+/// before them. Returns the track and its summary.
+pub(crate) fn audio_track<'t>(
+    movie: &Movie,
+    audio: &'t mut CutAudio<'_>,
+    tm: u32,
+    track_id: u32,
+) -> Result<(TrackBox<'t>, ClipTrack), ExtractError> {
+    let CutAudio {
+        track,
+        entry,
+        plan: a,
+        tables: (tables, a_first_dts, _),
+        keep_identity,
+    } = audio;
+    let track = *track;
+    let ta = track.timescale;
+    let media_duration = media_duration(movie, track, tables, a.keeps_last)?;
+    let several = a.timeline.has_windows();
+    // The empty edit is rounded to the movie timescale (exact when it is a
+    // common multiple of both timescales);
+    // the media time is then that of the rounded start, so that audio
+    // stays within half an audio tick of its source times.
+    // Rounded up instead when rounding down would start before the
+    // first kept sample. With several edits the exact media time
+    // decides, not the rounded one: the edits below take the exact
+    // one, and a start half a movie tick before the run's first
+    // sample would give them a negative media time. A segment's audio
+    // has no pre-roll (docs/design/split.md), so its run starts at the
+    // first sample it presents and rounding down always dips below.
+    let exact_empty = scale(sub(a.start, a.clip_start)?, tm, ta)?;
+    let mut empty = 0;
+    let mut start = a.start;
+    let mut media_time = -1;
+    let mut placed = false;
+    for rounded in [round(exact_empty), ceil(exact_empty)?] {
+        empty = to_u64(rounded)?;
+        start = add(a.clip_start, scale(int(to_i64(rounded)?), ta, tm)?)?;
+        let exact = sub(a.timeline.media(start)?, int(*a_first_dts))?;
+        media_time = to_i64(round(exact))?;
+        placed = if several {
+            exact.num >= 0
+        } else {
+            media_time >= 0
+        };
+        if placed {
+            break;
+        }
+    }
+    if !placed {
+        return Err(overflow().into());
+    }
+    let segment = to_u64(round(scale(sub(a.end, start)?, tm, ta)?))?;
+    // Audio that overlaps the clip by less than half a movie tick would
+    // get a media edit of duration 0, which presents nothing in a file
+    // without fragments; the clip is refused rather than written so.
+    // Only possible when the movie timescale is not a multiple of the
+    // audio's (their least common multiple does not fit 32 bits).
+    if segment == 0 {
+        return Err(unsupported(
+            "the audio overlaps the clip by less than one tick of the movie timescale",
+        )
+        .into());
+    }
+    let identity = !several
+        && !*keep_identity
+        && empty == 0
+        && media_time == 0
+        && segment == rescale(media_duration, ta, tm)?;
+    let mut edits = Vec::new();
+    if several {
+        // The audio's windows inside the clip, each a media edit, rounded
+        // to the nearest tick of the movie timescale, as a single audio
+        // edit is.
+        if empty > 0 {
+            edits.push(EditEntry {
+                duration: empty,
+                media_time: -1,
+                rate: UNIT_RATE,
+            });
+        }
+        // Each edit ends at its exact end rounded, so that rounding does
+        // not add up over many edits; an edit shorter than half a movie
+        // tick is left out (a media edit of duration 0 is outside the
+        // edit model).
+        let mut exact_at = int(0);
+        let mut rounded_at = 0u64;
+        for part in WindowEdits::new(&a.timeline, start, a.end, *a_first_dts) {
+            let (duration, media) = part?;
+            exact_at = add(exact_at, duration)?;
+            let boundary = to_u64(round(scale(exact_at, tm, ta)?))?;
+            let ticks = boundary.checked_sub(rounded_at).ok_or_else(overflow)?;
+            rounded_at = boundary;
+            if ticks == 0 {
+                continue;
+            }
+            edits.push(EditEntry {
+                duration: ticks,
+                media_time: match media {
+                    Some(m) => to_i64(round(m))?,
+                    None => -1,
+                },
+                rate: UNIT_RATE,
+            });
+        }
+    } else if !identity {
+        if empty > 0 {
+            edits.push(EditEntry {
+                duration: empty,
+                media_time: -1,
+                rate: UNIT_RATE,
+            });
+        }
+        edits.push(EditEntry {
+            duration: segment,
+            media_time,
+            rate: UNIT_RATE,
+        });
+    }
+    a.timeline.release();
+    let duration = if identity {
+        rescale(media_duration, ta, tm)?
+    } else if several {
+        edits
+            .iter()
+            .try_fold(0u64, |sum, e| sum.checked_add(e.duration))
+            .ok_or_else(overflow)?
+    } else {
+        empty.checked_add(segment).ok_or_else(overflow)?
+    };
+    let summary = ClipTrack {
+        stream_index: track.stream_index,
+        track_id: track.track_id,
+        codec: track.description.codec,
+        first_sample: a.first,
+        samples: tables.samples(),
+        timescale: ta,
+        duration: tables.duration,
+    };
+    let track_box = TrackBox {
+        track_id,
+        media: Media::Audio,
+        header: TrackFlags::DEFAULT,
+        created: track.creation_time,
+        media_created: track.media_creation_time,
+        language: language(track.language),
+        media_timescale: ta,
+        media_duration,
+        duration,
+        edits: edits.into(),
+        stsd: std::mem::take(entry),
+        tables,
+        extra: Vec::new(),
+        stbl_extra: Vec::new(),
+    };
+    Ok((track_box, summary))
+}
+
+/// Listing 3 of a cut: copies the samples of the `first` track (the video,
+/// or the audio of a clip without video) and the `second` in the order of
+/// the chunks in `mdat`, through `window`. Fails with
 /// [`ExtractError::SourceChanged`] when a run holds other samples than its
 /// tables.
 pub(crate) fn copy_cut<'p, 'a, S: Source, W: Write>(
     shared: &'a RefCell<S>,
-    mut video: Run<'p, 'a, S>,
-    mut audio: Option<Run<'p, 'a, S>>,
+    mut first: Run<'p, 'a, S>,
+    mut second: Option<Run<'p, 'a, S>>,
     window: &mut Window,
     out: &mut W,
 ) -> Result<(), ExtractError> {
     let both;
     let one;
-    let layout: &[&Tables] = match &audio {
+    let layout: &[&Tables] = match &second {
         Some(run) => {
-            both = [video.tables, run.tables];
+            both = [first.tables, run.tables];
             &both
         }
         None => {
-            one = [video.tables];
+            one = [first.tables];
             &one
         }
     };
     // Tell the source where the copy starts and how many bytes it takes,
     // so that a remote source can read them ahead in large requests rather
     // than ramping up from small ones.
-    let extents = [video.extent(), audio.as_ref().and_then(Run::extent)];
+    let extents = [first.extent(), second.as_ref().and_then(Run::extent)];
     if let Some(start) = extents.iter().flatten().map(|(offset, _)| *offset).min() {
         let bytes = extents
             .iter()
@@ -649,8 +824,8 @@ pub(crate) fn copy_cut<'p, 'a, S: Source, W: Write>(
         Ties::TrackOrder,
         |track, chunk| -> Result<(), ExtractError> {
             let run = match track {
-                0 => &mut video,
-                _ => audio.as_mut().ok_or_else(overflow)?,
+                0 => &mut first,
+                _ => second.as_mut().ok_or_else(overflow)?,
             };
             for _ in 0..chunk.samples {
                 let (offset, size) = run.next()?;
@@ -660,7 +835,7 @@ pub(crate) fn copy_cut<'p, 'a, S: Source, W: Write>(
         },
     )?;
     let complete = |run: &Run<'_, '_, S>| run.copied == run.tables.samples();
-    if !complete(&video) || audio.as_ref().is_some_and(|run| !complete(run)) {
+    if !complete(&first) || second.as_ref().is_some_and(|run| !complete(run)) {
         return Err(ExtractError::SourceChanged);
     }
     Ok(())
@@ -914,11 +1089,30 @@ pub(crate) fn usable(track: &Track) -> Result<(), Error> {
     }
 }
 
+/// Refuses a stream whose coded data its codec's specification does not
+/// allow, so that no writer copies it: an HEVC stream whose conformance
+/// window leaves no picture (ITU-T H.265 7.4.3.2.1), which no conforming
+/// decoder has to decode (C.5.1).
+pub(crate) fn conforming(track: &Track) -> Result<(), Error> {
+    match &track.description.codec_config {
+        Some(config)
+            if &config.kind.0 == b"hvcC" && coreav_isobmff::hevc_window_empty(&config.data) =>
+        {
+            Err(Error::InvalidStream {
+                track_id: track.track_id,
+                reason: "the HEVC conformance window leaves no picture (ITU-T H.265 7.4.3.2.1)",
+            })
+        }
+        _ => Ok(()),
+    }
+}
+
 /// The visual sample entry (ISO/IEC 14496-12 12.1.3): the source's coded
 /// width and height, then its codec configuration box and its `pasp`,
 /// `clap`, `colr` and `btrt` boxes as stored; its other children are left
-/// out.
+/// out. A stream [`conforming`] refuses has none.
 pub(crate) fn video_sample_entry(track: &Track) -> Result<Vec<u8>, Error> {
+    conforming(track)?;
     let description = &track.description;
     let expected: &[u8; 4] = match (description.codec, &description.fourcc.0) {
         (Codec::H264, b"avc1") => b"avcC",
@@ -2062,27 +2256,25 @@ pub(crate) struct AudioPlan<'a> {
     pub(crate) keeps_last: bool,
 }
 
-/// Listing 1 for the audio: the samples presented in the clip, one sample
-/// of pre-roll before them. `None` when no
+/// Listing 1 for the audio: the samples presented in the clip
+/// `[clip_start, clip_end)`, in audio media ticks (to the end of the track
+/// without `clip_end`), one sample of pre-roll before them. `None` when no
 /// audio is presented in the clip.
 #[allow(clippy::too_many_arguments)]
 fn plan_audio<'a, S: Source>(
     movie: &Movie,
     track: &Track,
     timeline: Timeline<'a>,
-    video: &VideoPlan,
-    video_timescale: u32,
+    clip_start: Rational,
+    clip_end: Option<Rational>,
     source: &mut S,
     limits: &Limits,
     budget: &mut Budget,
 ) -> Result<Option<AudioPlan<'a>>, Error> {
-    let ta = track.timescale;
-    let clip_start = scale(video.origin, ta, video_timescale)?;
-    let clip_end = scale(video.end, ta, video_timescale)?;
     let scaled = Scaled::of(&timeline)?;
     // A sample at whole unit `q` starts at or after the clip's end when
     // `q >= ceil(end)`, and ends after its start when `q_end > floor(start)`.
-    let end_ceil = scaled.ceil(clip_end)?;
+    let end_ceil = clip_end.map(|end| scaled.ceil(end)).transpose()?;
     let start_floor = scaled.floor(clip_start)?;
     let mut first: Option<(u64, i64)> = None;
     let mut last: Option<(u64, i64)> = None;
@@ -2096,7 +2288,7 @@ fn plan_audio<'a, S: Source>(
         }
         last_sample = Some(packet.sample);
         let q = scaled.present(packet.dts)?;
-        if q >= end_ceil {
+        if end_ceil.is_some_and(|end| q >= end) {
             exhausted = false;
             break;
         }
@@ -2121,7 +2313,10 @@ fn plan_audio<'a, S: Source>(
     // its first presented sample starts later.
     let (window_start, window_end) = timeline.window()?;
     let start = max(max(clip_start, window_start)?, first_at)?;
-    let mut end = min(clip_end, last_end)?;
+    let mut end = match clip_end {
+        Some(clip_end) => min(clip_end, last_end)?,
+        None => last_end,
+    };
     if let Some(window_end) = window_end {
         end = min(end, window_end)?;
     }

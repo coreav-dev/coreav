@@ -77,7 +77,7 @@ not kept.
 
 ## Results
 
-**What was measured.** Commit `8a4d603`, kept as branch `bench/thumbnail-207-measured`, since the pull request's history was rebased and squashed afterwards.
+**What was measured.** Commit `8a4d603`, kept on a branch, since the pull request's history was rebased and squashed afterwards.
 - FFmpeg 7.0.2 is the pinned static build (`scripts/install-oracle-ffmpeg.sh`).
 - CoreAV is the release `coreav` with `ffmpeg-fallback`, so every class ran on the sandboxed FFmpeg fallback.
 

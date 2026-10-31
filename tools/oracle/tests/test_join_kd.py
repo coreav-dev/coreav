@@ -8,6 +8,7 @@ import pathlib
 import re
 import sys
 import unittest
+from unittest import mock
 from fractions import Fraction
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
@@ -95,6 +96,38 @@ class LaterEdit(unittest.TestCase):
         held[5] = (held[4][0], held[5][1], held[5][2])
         self.assertFalse(jc.video_later_edit('video:framemd5', set(),
                                              self.evidence(expected, held, [3, 6], [Fraction(2), Fraction(1)])))
+
+
+class AudioLastCut(unittest.TestCase):
+    """fragmented.mp4's segments joined: ffmpeg 9 cuts the last AAC frame of
+    the joined file (136 of 1,024 samples) and not of the source."""
+
+    FRAMES = [(Fraction(n * 1024, 44100), 2048, f'h{n}') for n in range(3)]
+
+    def evidence(self, actual_last=(Fraction(2048, 44100), 272, 'cut'), short=136, sides=(None, (0, 888)), source=1024):
+        actual = self.FRAMES[:-1] + [actual_last]
+        c = {'ffprobe': 'ffprobe',
+             'source_audio_last': (self.FRAMES, actual, [1024, 1024, source], [1024, 1024, short],
+                                   ('source.mp4', 1), ('joined.mp4', 1))}
+        files = dict(zip(('source.mp4', 'joined.mp4'), sides))
+        with mock.patch.object(jc.remux_check, 'last_skip_samples', side_effect=lambda _, path, __: files[path]):
+            return jc.audio_last_cut('audio:framemd5', {'audio:framemd5'}, c)
+
+    def test_the_last_frame_cut_in_one_file(self):
+        self.assertTrue(self.evidence())
+        self.assertTrue(self.evidence(short=1024, source=136, sides=((0, 888), None),
+                                      actual_last=(Fraction(2048, 44100), 2048, 'whole')))
+
+    def test_rejects_near_misses(self):
+        self.assertFalse(self.evidence(sides=(None, None)))
+        self.assertFalse(self.evidence(sides=((0, 888), (0, 888))))
+        self.assertFalse(self.evidence(sides=(None, (0, 887))))
+        self.assertFalse(self.evidence(sides=(None, (1, 888))))
+        self.assertFalse(self.evidence(actual_last=(Fraction(2049, 44100), 272, 'cut')))
+        c = {'ffprobe': 'ffprobe', 'source_audio_last': (self.FRAMES, self.FRAMES[:1] + [(0, 0, 'x')] + self.FRAMES[2:],
+                                                         [1024] * 3, [1024] * 3, ('s', 1), ('j', 1))}
+        self.assertFalse(jc.audio_last_cut('audio:framemd5', {'audio:framemd5'}, c))
+        self.assertFalse(jc.audio_last_cut('audio:framemd5', {'audio:framemd5', 'audio:packets'}, c))
 
 
 class EditEnd(unittest.TestCase):
@@ -262,7 +295,7 @@ def output_mutations(packets, half):
 class PacketMutations(unittest.TestCase):
     """Each packet known divergence covers its pattern, and a bug-shaped
     change to the output's packets on top of it stays visible: an
-    uncovered difference (the #162 method, on the packet evidence)."""
+    uncovered difference (the known-divergence audit's method, on the packet evidence)."""
 
     def test_each_pattern_is_covered(self):
         for name, (make, kd) in SCENARIOS.items():

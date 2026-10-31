@@ -1,0 +1,19 @@
+```text
+Cut a keyframe-aligned clip of an MP4/MOV file to MP4, without re-encoding
+
+Usage: coreav clip [OPTIONS] --start <TIME> <INPUT> <OUTPUT>
+
+Arguments:
+  <INPUT>   The file to clip
+  <OUTPUT>  Where to write the clip: a new file, or `-` for standard output
+
+Options:
+      --start <TIME>         Start in seconds (for example `12.5`). The clip starts at the latest keyframe at or before it
+      --end <TIME>           End in seconds; the end of the video when absent
+      --video <STREAM>       The video stream index (default: the first video stream)
+      --audio <STREAM|none>  The audio stream index, or `none` (default: the first audio stream)
+      --allow <CODEC>        Codecs to accept, comma separated, as for `coreav probe`
+      --strict               Reject the whole file when a stream's codec is not allowed
+      --force                Overwrite OUTPUT if it exists (a symbolic link is replaced, not written through; the new file keeps the old one's permissions)
+  -h, --help                 Print help
+```

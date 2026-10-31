@@ -3,8 +3,8 @@
 //! Three entry points, none of which decodes anything: [`extract_audio`]
 //! copies one AAC track of an MP4/MOV file into a new M4A file,
 //! [`clip_mp4`] cuts a keyframe-aligned clip of one video track and at most
-//! one AAC track into a new MP4 file, and
-//! [`remux_mp4`] rewrites a whole MP4/MOV file as an MP4 file with the
+//! one AAC track into a new MP4 file, [`clip_audio_mp4`] a clip of one AAC
+//! track alone, and [`remux_mp4`] rewrites a whole MP4/MOV file as an MP4 file with the
 //! movie box first (`docs/design/remux.md`), and [`remux_matroska`]
 //! rewrites a Matroska or WebM file as MP4 (`docs/design/mkv-remux.md`);
 //! [`remux_mp4_replacing`] and [`remux_matroska_replacing`] do the same
@@ -51,7 +51,7 @@ mod scan;
 mod split;
 mod tables;
 
-pub use clip::clip_mp4;
+pub use clip::{clip_audio_mp4, clip_mp4};
 pub use join::join_mp4;
 pub use m4a::extract_audio;
 pub use matroska::{
@@ -168,6 +168,36 @@ pub struct LeftOut {
     pub track_id: u32,
     /// Why.
     pub reason: LeftOutReason,
+}
+
+/// What [`clip_audio_mp4`] cuts.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AudioClipOptions {
+    /// The audio track: the first one the allowlist keeps, or the track at
+    /// a position among all tracks of the file.
+    pub audio: TrackChoice,
+    /// Start on the source's presentation timeline, in seconds, at least 0.
+    pub start: Rational,
+    /// End in seconds, after `start`; `None` for the end of the track.
+    pub end: Option<Rational>,
+}
+
+/// What [`clip_audio_mp4`] wrote. Times are exact, in seconds on the
+/// source's presentation timeline.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AudioClipSummary {
+    /// The audio track.
+    pub audio: ClipTrack,
+    /// The requested start: the output's time 0.
+    pub start: Rational,
+    /// The requested end, `None` for the end of the track.
+    pub end: Option<Rational>,
+    /// Where the clip ends: the end of the audio's edits as written.
+    pub written_end: Rational,
+    /// Bytes written to the output.
+    pub bytes_written: u64,
+    /// Tracks of the source that are not in the clip.
+    pub left_out: Vec<LeftOut>,
 }
 
 /// What [`clip_mp4`] wrote. Times are exact, in seconds on the source's
@@ -506,6 +536,11 @@ pub enum JoinAudio {
     /// The first audio track of every input, which must be AAC; the inputs
     /// must all have one or all have none.
     First,
+    /// The audio stream at this index (`Track::stream_index`) of every
+    /// input, which must be AAC, as the concat demuxer of `ffmpeg` pairs
+    /// streams by index; a stream the allowlist leaves out fails with
+    /// `Error::CodecNotAllowed` instead of being skipped.
+    Stream(usize),
     /// No audio.
     None,
 }
@@ -513,6 +548,12 @@ pub enum JoinAudio {
 /// What [`join_mp4`] keeps.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct JoinOptions {
+    /// The video: the first video track of every input the allowlist keeps
+    /// (`VideoChoice::First`), or the stream at this index of every input
+    /// (`VideoChoice::Stream`, which `coreav ffmpeg` uses as the concat
+    /// demuxer pairs streams by index; a stream the allowlist leaves out
+    /// fails with `Error::CodecNotAllowed` instead of being skipped).
+    pub video: VideoChoice,
     /// The audio.
     pub audio: JoinAudio,
 }

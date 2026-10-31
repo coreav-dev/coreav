@@ -43,7 +43,7 @@ reader can tell a redaction from the output of a tool.
 - Box-drawn log output (`│ … │`) keeps its width: the four characters the
   shorter `$HOME` frees are padded back before the closing border, so the
   box still lines up.
-- `docs/spikes/clip-bench/evidence/commit-speed-185/speed.py` is a script, not a
+- `docs/spikes/clip-bench/evidence/commit-speed-candidate-queue/speed.py` is a script, not a
   log, so it reads `os.environ['HOME']` where the path was: `$HOME` in a
   Python string literal would be a path that does not exist.
 - The later rows were made by a redaction script, which can be run again on new evidence. It takes the strings to redact as

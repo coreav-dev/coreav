@@ -301,7 +301,7 @@ fn with_per_sample_sizes(base: &[u8], sizes: &[u32]) -> Vec<u8> {
     data
 }
 
-/// Issue #289: a `trun` cannot declare samples the file does not back. Each
+/// A `trun` cannot declare samples the file does not back. Each
 /// of the three things that can back one is checked on a file of its own,
 /// and the fragment is refused where it is read, as a sample table its file
 /// cannot back is. FFmpeg 7.0.2 refuses each of these files when it reads
@@ -398,7 +398,7 @@ fn a_trun_cannot_declare_samples_the_file_does_not_back() {
 /// A track whose media is in another file gets no
 /// packets, and the file is still read. Its `trun` offsets are offsets into
 /// that file, so this file can neither check them nor report what they
-/// declare (issue #289): its fragments are not read at all, while the
+/// declare: its fragments are not read at all, while the
 /// samples of the track that is here must not be lost because of the track
 /// that is not.
 #[test]
@@ -445,8 +445,8 @@ fn fragments_of_a_track_with_external_media_are_not_read() {
 }
 
 /// A stream the allowlist dropped is never exposed, so a fragment of it
-/// this file cannot back costs that stream its timing rather than the file
-/// (issue #289): it cannot lend the movie a duration nothing backs, and it
+/// this file cannot back costs that stream its timing rather than the file:
+/// it cannot lend the movie a duration nothing backs, and it
 /// cannot refuse a file whose kept tracks are sound.
 #[test]
 fn a_dropped_stream_cannot_lend_the_movie_a_duration() {

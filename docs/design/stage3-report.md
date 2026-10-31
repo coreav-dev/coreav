@@ -31,9 +31,9 @@ The bars were fixed before this tool existed.
    Matroska/WebM, with the known divergences applied; `--ffprobe-compat`
    output against `ffprobe`; and the fixture checks of every stream-copy
    primitive that CI runs (extraction, clip, remux, sanitize, split, text,
-   policy, Matroska remux, HLS packaging), each run as `fixtures.yml` and
-   `mkv-fixtures.yml` run it: the HLS check takes the list of inputs the
-   packager is expected to refuse from `fixtures.yml` itself, so the two
+   policy, Matroska remux, HLS packaging), each run as `ci.yml`'s
+   `isobmff-fixtures`, `isobmff-writers` and `mkv-fixtures` jobs run it: the HLS check takes the
+   list of inputs the packager is expected to refuse from `ci.yml` itself, so the two
    cannot drift apart. Bar: **100%** of each (for HLS, of the inputs it
    packages).
 2. **Real-file corpus**, probe, every `set: real` file of corpus v1, the
@@ -132,8 +132,8 @@ after the bars were fixed moves the goalposts unless the report says so.
 The bars were fixed before any entry existed:
 no entry is from before them. `tools/stage3-report/report.py` therefore
 holds `PRE_BAR`, empty; `ADDED_AFTER_THE_BARS`, every entry of the probe
-overlays (MP4/MOV and Matroska) with the merged pull request and squash
-commit that added it, those that later changed its predicate or coverage,
+overlays (MP4/MOV and Matroska) with the squash commit of the merged pull
+request that added it, those that later changed its predicate or coverage,
 and a fingerprint (its JSON record and its predicate's source); and
 `RETIRED`, entries no longer in the overlays. The dates come from the
 merged pull requests: the one that added the entry's id to its JSON twin,

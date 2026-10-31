@@ -110,7 +110,7 @@ fragments with their media data (8.16.1), and the boxes between them
 (`styp`, `emsg`, a segment index of its own) are skipped. Building the index reads the
 movie box, the segment index and the first fragment, which is the work
 libavformat's open does on such a file; listing every fragment is not
-(measured in `docs/spikes/w2-248/`).
+(measured in `docs/spikes/w2-hls-index/`).
 
 - **The segments are the subsegments**, one each. The target duration
   (`--segment-duration`) does not apply to such a rendition: a subsegment
@@ -128,7 +128,7 @@ libavformat's open does on such a file; listing every fragment is not
   followed as indexed: segment starts then drift from the samples' times by
   those gaps (`KD-HLS-10`; 28 ms over 12 minutes on the corpus's one such
   file). Rejected: correcting the starts from every fragment's `tfdt`,
-  which needs every fragment read (#248). `EXT-X-INDEPENDENT-SEGMENTS`
+  which needs every fragment read. `EXT-X-INDEPENDENT-SEGMENTS`
   is carried only
   where every reference states a `SAP_type` of 1 or 2, which present
   nothing before the subsegment's first decoded sample (Annex I); a type
@@ -472,7 +472,7 @@ measurements), and every `real` m4a or m4b file tagged `a:aac`.
     (The engines ran pinned to one shared core, one request at a time,
     rather than each to its own core as written above; requests never
     overlap, so the timings are the same.)
-    **Result: missed** (`docs/spikes/w1-227/`, run `w1-01`): 0.699 (0.610 to
+    **Result: missed** (`docs/spikes/w1-remeasure/`, run `w1-01`): 0.699 (0.610 to
     0.821) overall over 232 inputs, but group-a 1.967, group-c 1.406 and group-g
     2.971.
     - Group-g: its slowest inputs (4.2 to 36.8) are the seven fragmented files
@@ -488,7 +488,7 @@ measurements), and every `real` m4a or m4b file tagged `a:aac`.
   - **Index against FFmpeg again (fixed before the run).** The
     method above, unchanged: engine A-hls against B-lean, in process,
     through a read-only mapping, long-lived processes pinned to one core,
-    one warm-up pass and 15 rounds, summarized by `docs/spikes/w2-248/`.
+    one warm-up pass and 15 rounds, summarized by `docs/spikes/w2-hls-index/`.
     Inputs: a draw of corpus **v2-heldout** whose
     rules and salt were committed before it was collected; `w1-01`'s set
     is spent, and so is each draw once a number comes from it. Classes: the corpus categories of
@@ -500,7 +500,7 @@ measurements), and every `real` m4a or m4b file tagged `a:aac`.
     five inputs is reported without a verdict, since one input would
     decide it; the overall bar still covers them.
     **Result: met overall and in every class with a verdict but group-a**
-    (`docs/spikes/w2-248/`, run `w3-01`, on draw 2 of the set): 0.613 (0.497
+    (`docs/spikes/w2-hls-index/`, run `w3-01`, on draw 2 of the set): 0.613 (0.497
     to 0.752) over 41 inputs, with group-c 0.613, group-e 0.465 and group-g
     0.500 — each, and the whole, faster than libavformat's open, since
     every one of those intervals ends below 1.00 — group-b 0.271 on its
@@ -558,7 +558,7 @@ measurements), and every `real` m4a or m4b file tagged `a:aac`.
     reported as unchanged rather than as a regression. Every median is
     reported with the share of inputs CoreAV is faster on.
     **Result: met overall and in every class with a verdict but group-a,
-    and missed in group-a again, by less** (`docs/spikes/w3-308/`, run `w4-01`,
+    and missed in group-a again, by less** (`docs/spikes/w3-sample-walk/`, run `w4-01`,
     on draw 3 of the set): **0.622** (0.479 to 0.809) over 32 inputs,
     with group-c 0.463 and group-g 0.479 — both, and the whole, faster than
     libavformat's open — group-e 0.589 on two inputs without a verdict,
@@ -619,7 +619,7 @@ above, with `scripts/hls_check.py` at the default target and MediaInfo,
   --oracle hls` on the corpus files that reach it covers and absorbs
   nothing.
 
-Results (`docs/spikes/hls-bench/evidence/summary-344.json`): **the first bar
+Results (`docs/spikes/hls-bench/evidence/summary-trimmed-start.json`): **the first bar
 is missed** for two of the five files; the miss is final for this change.
 Packaging all 904 inputs with both binaries changes the output of exactly
 the five files; every other package is byte for byte the same, and the
@@ -655,7 +655,7 @@ resources differ or whose refusal changes:
 - inputs whose resources are byte for byte the same keep their verdicts,
   oracle and outputs being the same.
 
-Results (`summary-344.json`, `second_version`): every bar is met. Of the
+Results (`summary-trimmed-start.json`, `second_version`): every bar is met. Of the
 904 inputs, the resources of exactly the five files differ from `main`'s:
 the video segment, the master playlist (bit rates) and the index; every
 audio segment is `main`'s, byte for byte. All five agree with both

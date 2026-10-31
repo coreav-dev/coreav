@@ -174,7 +174,11 @@ ESRC=(-f lavfi -i "testsrc2=size=160x120:rate=30:duration=10")
 EGOP=(-g 30 -keyint_min 30 -sc_threshold 0 -video_track_timescale 600 -pix_fmt yuv420p)
 try_gen edit_src_h264.mp4 "${ESRC[@]}" -c:v libx264 -bf 0 "${EGOP[@]}"
 try_gen edit_src_bframes.mp4 "${ESRC[@]}" -c:v libx264 -bf 2 "${EGOP[@]}"
-try_gen edit_src_aac.mp4 -f lavfi -i "sine=d=10:r=44100" -c:a aac
+# Without perceptual noise substitution, as edit_src_av.mp4 below: clips of
+# audio alone restart its decoder too.
+# The edits below count in a movie timescale of 1000: FFmpeg 9 otherwise
+# takes a file's movie timescale from its audio track (44100).
+try_gen edit_src_aac.mp4 -f lavfi -i "sine=d=10:r=44100" -c:a aac -aac_pns 0 -movie_timescale 1000
 # Two edits joined at a sync sample, skipping a second of media.
 elst_entry edit_src_h264.mp4 edit_multi_splice.mp4 0 3000:0 3000:2400
 # B-frames; the second edit starts inside a group of pictures.
@@ -191,7 +195,7 @@ iso_patch edit_multi_audio.mp4 edit_multi_audio_average.mp4 average 0 12345
 # decoded from a clip's restart would not be sample-exact against the
 # source's (measured: about 1e-5 off from the second frame on).
 try_gen edit_src_av.mp4 "${ESRC[@]}" -f lavfi -i "sine=d=10:r=44100" -map 0:v -map 1:a \
-  -c:v libx264 -bf 0 "${EGOP[@]}" -c:a aac -aac_pns 0
+  -c:v libx264 -bf 0 "${EGOP[@]}" -c:a aac -aac_pns 0 -movie_timescale 1000
 elst_entry edit_src_av.mp4 edit_multi_av.mp4 1 4000:1024 3000:180000 2500:320000
 # One media edit that presents 6.5 s of 10: CoreAV's bit rate counts every
 # sample over the presented time (KD-P-EDITED-BIT-RATE).
@@ -260,14 +264,16 @@ try_gen size_left_crop_source.mp4 -f lavfi -i "testsrc2=size=1280x720:rate=25:du
 understate_entry size_left_crop_source.mp4 size_left_crop.mp4 avc1 1232 720
 rm -f "$OUT/size_left_crop_source.mp4"; sed -i '/^generated size_left_crop_source.mp4$/d' "$MANIFEST"
 # An HEVC conformance window that leaves nothing (left 1250 + right 40 of
-# 1280): decoders ignore it as a whole; the entry says 1240x720.
+# 1280, conf_win offsets 625 + 20 in 4:2:0), on purpose: ITU-T H.265
+# 7.4.3.2.1 does not allow it, so the stream is not valid HEVC and CoreAV
+# refuses it (KD-HEVC-WINDOW); the entry says 1240x720.
 try_gen size_window_source.mp4 -f lavfi -i "testsrc2=size=1280x720:rate=25:duration=1" \
   -c:v libx265 -x265-params log-level=error -tag:v hvc1 \
   -bsf:v hevc_metadata=crop_left=1250:crop_right=40
 understate_entry size_window_source.mp4 size_hevc_window.mp4 hvc1 1240 720
 rm -f "$OUT/size_window_source.mp4"; sed -i '/^generated size_window_source.mp4$/d' "$MANIFEST"
 # A window invalid in width (left 1250 + right 40 of 1280) with a valid
-# bottom padding crop (30): ignored in both dimensions; the entry says
+# bottom padding crop (30): not valid HEVC either; the entry says
 # 1280x690.
 try_gen size_mixed_source.mp4 -f lavfi -i "testsrc2=size=1280x720:rate=25:duration=1" \
   -c:v libx265 -x265-params log-level=error -tag:v hvc1 \
@@ -302,11 +308,11 @@ try_gen audio_aac.m4a "${ASRC[@]}" -c:a aac -b:a 128k
 try_gen audio_51.m4a "${ASRC[@]}" -af "pan=5.1|c0=c0|c1=c0|c2=c0|c3=c0|c4=c0|c5=c0" -c:a aac
 try_gen audio_opus.mp4 "${ASRC[@]}" -c:a libopus -b:a 64k
 try_gen audio_mp3.mp4 "${ASRC[@]}" -c:a libmp3lame -b:a 128k
-# QuickTime's own MP3 sound sample entry, `.mp3` (#57).
+# QuickTime's own MP3 sound sample entry, `.mp3`.
 try_gen audio_mp3.mov "${ASRC[@]}" -c:a libmp3lame -b:a 128k
 # AAC whose channels are in a program config element (channelConfiguration
 # 0; ffmpeg writes one for a hexagonal layout, 6 channels), under a sample
-# entry that says 2 (#56): a copy with the mp4a channelcount (20 bytes after
+# entry that says 2: a copy with the mp4a channelcount (20 bytes after
 # the entry type) rewritten.
 try_gen audio_pce_source.m4a "${ASRC[@]}" -af "aformat=channel_layouts=hexagonal" -c:a aac
 if [ -f "$OUT/audio_pce_source.m4a" ]; then
@@ -575,13 +581,36 @@ try_gen codec_h264_one_frame.mp4 "${KSRC[@]}" -frames:v 1 -c:v libx264 -pix_fmt 
 try_gen codec_mjpeg_one_frame.mov "${KSRC[@]}" -frames:v 1 -c:v mjpeg
 try_gen codec_alac16.m4a "${KAUD[@]}" -c:a alac -sample_fmt s16p
 try_gen codec_alac24.m4a "${KAUD[@]}" -c:a alac -sample_fmt s32p
+# FLAC and ALAC at rates the sample entry's 16.16 rate cannot hold: the
+# rate and bit depth are dfLa's STREAMINFO and the ALAC magic cookie's.
+lossless_src() { echo "sine=frequency=440:duration=1:sample_rate=$1"; }
+try_gen codec_flac16_44k.mp4 -f lavfi -i "$(lossless_src 44100)" -c:a flac -sample_fmt s16
+try_gen codec_flac24_96k.mp4 -f lavfi -i "$(lossless_src 96000)" -c:a flac -sample_fmt s32 -bits_per_raw_sample 24
+try_gen codec_flac24_192k.mp4 -f lavfi -i "$(lossless_src 192000)" -c:a flac -sample_fmt s32 -bits_per_raw_sample 24
+try_gen codec_alac16_88k.m4a -f lavfi -i "$(lossless_src 88200)" -c:a alac -sample_fmt s16p
+try_gen codec_alac24_96k.m4a -f lavfi -i "$(lossless_src 96000)" -c:a alac -sample_fmt s32p
+try_gen codec_alac16_192k.m4a -f lavfi -i "$(lossless_src 192000)" -c:a alac -sample_fmt s16p
 try_gen codec_amr_nb.3gp -f lavfi -i "sine=frequency=440:duration=1:sample_rate=8000" -c:a libopencore_amrnb -ar 8000 -ac 1
-try_gen codec_amr_wb.3gp -f lavfi -i "sine=frequency=440:duration=1:sample_rate=16000" -c:a libvo_amrwbenc -ar 16000 -ac 1
+# The pinned FFmpeg has no AMR-WB encoder: 50 frames of mode 8 (23.85
+# kbit/s, a one-byte header and 60 bytes of speech bits, here a fixed
+# pattern) in the AMR-WB storage format (RFC 4867, section 5), copied into
+# 3GP as an encoder's output would be.
+python3 -I -c 'import sys; sys.stdout.buffer.write(b"#!AMR-WB\n" + (b"\x44" + bytes(range(60))) * 50)' \
+  > "$OUT/.codec_amr_wb.awb"
+try_gen codec_amr_wb.3gp -f amr -i "$OUT/.codec_amr_wb.awb" -c:a copy
+rm -f "$OUT/.codec_amr_wb.awb"
 try_gen codec_ac3_stereo.mp4 "${KAUD[@]}" -c:a ac3
 try_gen codec_ac3_51.mp4 "${KAUD[@]}" "${KSIX[@]}" -c:a ac3
 try_gen codec_eac3_stereo.mp4 "${KAUD[@]}" -c:a eac3
 try_gen codec_eac3_51.mp4 "${KAUD[@]}" "${KSIX[@]}" -c:a eac3
-try_gen codec_vorbis.mp4 "${KAUD[@]}" -c:a libvorbis -strict -2
+# The pinned FFmpeg's MP4 muxer refuses libvorbis packets straight from the
+# encoder (Invalid data) and takes the same stream copied from Ogg.
+if "${FF[@]}" "${KAUD[@]}" -c:a libvorbis "$OUT/.codec_vorbis.ogg" 2> "$OUT/codec_vorbis.mp4.log"; then
+  try_gen codec_vorbis.mp4 -i "$OUT/.codec_vorbis.ogg" -c:a copy -strict -2
+else
+  skip codec_vorbis.mp4 "ffmpeg-failed(see-codec_vorbis.mp4.log)"
+fi
+rm -f "$OUT/.codec_vorbis.ogg"
 # Entries without pasp: the frame's own aspect ratio, or the DV system's.
 for src in codec_mjpeg_sar.mov codec_png_sar.mov codec_h263.3gp codec_dv_ntsc.mov codec_dv_pal.mov \
     codec_dv50.mov codec_dv_hd720.mov; do

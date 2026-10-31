@@ -75,6 +75,8 @@ other consumer of that mapping was checked for the same mistake:
 So `coreav-text` was the only one, and the rule in decision 2 now says it
 is for packets only.
 
+The MCP server (`coreav mcp`) in this table has since been removed.
+
 ## Corpus
 
 Of the 59 corpus files whose edit list is outside the simple model, seven

@@ -1,5 +1,5 @@
 //! Probe followed by packet iteration of every track, one packet at a time,
-//! in sample runs and sample by sample (#308).
+//! in sample runs and sample by sample.
 #![no_main]
 
 use coreav_isobmff::{Allowlist, Budget, BufferedSource, Limits, SliceSource, probe};

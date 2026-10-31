@@ -6,7 +6,7 @@ unpinned, and p.{sd,720p,1080p,4k}.json, timed with one thread pinned (`--pin 2`
 each pairing (discard, write): the median per-stream ratio with a 95% bootstrap interval (2,000
 resamples, random.Random(20261023)) and how many streams are faster, at 8 threads (the t run) and at
 1 thread (the p run), overall, per class and over the 17 training streams with B pictures; where the
-run times `pre` (main before #412) too, the base over it at one thread; then bars R1 to R4 (docs/design/h264.md, "Threading round: a finished worker takes the next picture").
+run times `pre` (main before the memory budget fix) too, the base over it at one thread; then bars R1 to R4 (docs/design/h264.md, "Threading round: a finished worker takes the next picture").
 Information: each build's scaling against
 FFmpeg's, (ours_8 / ffmpeg_8) / (ours_1 / ffmpeg_1) per stream, whose median per class is bar P3's
 quantity (target 1.10); each build's ratio to FFmpeg at 8 threads and pinned at 1, with the streams
@@ -78,7 +78,7 @@ for pre, tag in (('t', '@8'), ('p', '')):
         res['scaling'] = {b: {p: {g: summary([x['ratio'][f'scaling:{b}:{p}@8'] for x in sel])
                                   for g, sel in groups(ok).items()} for p in pairs} for b in builds}
     out[pre] = res
-# Information, not a bar of this round: the base over `pre`, main before #412 (e9555171), where the run
+# Information, not a bar of this round: the base over `pre`, main before the memory budget fix (e9555171), where the run
 # times it as a third decoder, at one thread pinned, per class; a follow-up is opened if it is above
 # 1.005 overall or in any class.
 rows, _ = load('p')
@@ -112,7 +112,7 @@ for pre, name in (('t', '8 threads, unpinned'), ('p', '1 thread, pinned')):
             print(f"{b:4} scaling against FFmpeg's (P3) {p:7} " + ' '.join(
                 f"{g} {v['median']:.3f} [{v['ci95'][0]:.3f},{v['ci95'][1]:.3f}]" for g, v in gs.items()))
 for p, gs in out.get('base/pre', {}).items():
-    print(f"#412 (base) over main before it (pre), 1 thread pinned, {p}: " + ' '.join(
+    print(f"The memory budget fix (base) over main before it (pre), 1 thread pinned, {p}: " + ' '.join(
         f"{g} {v['median']:.4f} [{v['ci95'][0]:.4f},{v['ci95'][1]:.4f}]" for g, v in gs.items()))
 for k, v in out['bars'].items():
     print(k, 'passes' if v else 'FAILS')

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Gating run for round 11 (PR #392): base main 555689b, m 6e24c3c, p 171463d, mp 532d88d. Paths adapted to the A/B helper's VM.
+# Gating run for round 11: base main 555689b, m 6e24c3c, p 171463d, mp 532d88d. Paths adapted to the A/B helper's VM.
 set -euo pipefail
 OUT=$HOME/ab/r11/out; W=$HOME/ab/r11/w; mkdir -p $OUT $W
 REPO=$HOME/coreav; E=$HOME/tr/es

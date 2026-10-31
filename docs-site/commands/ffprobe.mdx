@@ -1,0 +1,41 @@
+---
+title: "coreav ffprobe"
+sidebarTitle: "ffprobe"
+description: "Experimental. Run an ffprobe command line over CoreAV's own probes."
+---
+
+import Help from '/snippets/help/ffprobe.mdx';
+
+<Warning>
+`coreav ffprobe` is experimental. Its values can differ from `ffprobe`'s for MP4, MOV and MPEG-TS files. [The measurement page](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/compat-ffprobe.md) has the agreement of every key.
+</Warning>
+
+`coreav ffprobe ARGS` takes an `ffprobe` command line in `ffprobe`'s own syntax and answers it from CoreAV's own probes. It prints the format, stream, chapter, program and packet sections that the container describes, in `ffprobe`'s writers (`default`, `compact`, `csv`, `flat` and `json`). It reads MP4, MOV, Matroska, WebM and MPEG-TS files, and `https://` URLs.
+
+A command line outside what it implements, such as `-show_frames`, which needs a decoder, is refused in strict-safe mode and goes to the real `ffprobe` otherwise ([strict-safe mode and the fallback](/strict-safe)).
+
+## Examples
+
+```sh
+coreav --strict-safe ffprobe -v error -show_format -show_streams -of json input.mp4
+coreav --strict-safe ffprobe -v error -show_entries stream=codec_name,width,height -of csv=p=0 input.mp4
+```
+
+## Use it in place of ffprobe
+
+A link named `ffprobe` that points to `coreav` behaves as `coreav ffprobe` with the whole argument list, so a script that runs `ffprobe` can run CoreAV without changes. Under that name, only `COREAV_STRICT_SAFE=1` turns on strict-safe mode, since every argument belongs to the tool:
+
+```sh
+ln -s "$(command -v coreav)" /usr/local/bin/ffprobe
+COREAV_STRICT_SAFE=1 ffprobe -v error -show_format input.mp4
+```
+
+## Options
+
+`coreav ffprobe --help` prints a usage text of its own, not the full `ffprobe` option list:
+
+<Help />
+
+Help on a topic, such as `-h long`, `-h full` or `-h demuxer=mov`, asks about FFmpeg's own components, so it is refused in strict-safe mode and goes to the real `ffprobe` otherwise.
+
+[The compatibility command's design note](https://github.com/coreav-dev/coreav/blob/main/docs/design/compat-cli.md) has the grammar and the bars.

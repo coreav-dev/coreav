@@ -113,7 +113,7 @@ fn refill_range(
 
 /// The bytes a copy pass through a [`Window`] reads, listed before the pass
 /// from the same samples in the same order, by the same decisions and
-/// without reading (#31): each refill, and each sample larger than the
+/// without reading: each refill, and each sample larger than the
 /// window, as one region, regions that touch or overlap joined. A remote
 /// source given them as advice ([`Source::will_read_regions`]) can fetch
 /// them and skip the bytes between them, which in a file that interleaves

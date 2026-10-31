@@ -1,5 +1,5 @@
 #!/bin/bash
-# #403 gating with the host-health gate before and after each call (the method from 2026-10-23).
+# Gating of the band publication round with the host-health gate before and after each call (the method from 2026-10-23).
 # base = main 9cc143d3, a = 9d7aca35 (decoder code of 544f954e). Paths are this VM's; adapt them for another host.
 set -uo pipefail
 BEFORE=9cc143d3; AFTER=9d7aca35

@@ -839,7 +839,7 @@ fn plan(track: &Track) -> Result<Plan, &'static str> {
             (rate, aac_frame_length(track))
         }
         // VP8 in MP4 (the binding's `vp08`) does not play in Safari, while
-        // the WebM plays in Chrome, Firefox and Safari (#68).
+        // the WebM plays in Chrome, Firefox and Safari.
         (_, Codec::Vp8) => {
             return Err(
                 "VP8 in MP4 does not play in Safari; keep the WebM, which plays in Chrome, \
@@ -1832,11 +1832,14 @@ fn sample_entry(track: &Track, plan: &Plan) -> Result<Vec<u8>, MatroskaRemuxErro
             .into());
         }
     };
-    // Colour as Matroska states it, for the codecs whose configuration
-    // record may not (VP9's vpcC carries it).
+    // Colour as Matroska states it, a range alone included, for the codecs
+    // whose configuration record may not (VP9's vpcC carries it).
     let color = track.color;
     if track.codec != Codec::Vp9
-        && (color.primaries.is_some() || color.transfer.is_some() || color.matrix.is_some())
+        && (color.primaries.is_some()
+            || color.transfer.is_some()
+            || color.matrix.is_some()
+            || color.full_range.is_some())
     {
         let mut nclx = b"nclx".to_vec();
         for code in [color.primaries, color.transfer, color.matrix] {

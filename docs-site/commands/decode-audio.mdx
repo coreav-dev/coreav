@@ -1,0 +1,22 @@
+---
+title: "coreav decode-audio"
+sidebarTitle: "decode-audio"
+description: "Decode a FLAC, MP3 or Opus track of an MP4, MOV, Matroska or WebM file to WAV."
+---
+
+import Help from '/snippets/help/decode-audio.mdx';
+
+`coreav decode-audio INPUT OUTPUT` decodes an audio track of an MP4, MOV, Matroska or WebM file to a WAV file. It decodes FLAC, MP3 and Opus (to 48 kHz). It can also resample (`--rate`), downmix (`--channels`) and change the sample format (`--format`). The summary is [`coreav.decode-audio/1`](https://github.com/coreav-dev/coreav/blob/main/docs/schema/decode-audio-v1.md).
+
+## Examples
+
+```sh
+coreav decode-audio input.mkv output.wav
+coreav decode-audio --rate 16000 --channels 1 input.mp4 speech.wav
+```
+
+The second example writes 16 kHz mono, a common input format for speech recognition.
+
+## Options
+
+<Help />

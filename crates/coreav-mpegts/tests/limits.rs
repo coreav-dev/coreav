@@ -90,7 +90,7 @@ fn the_defaults_are_the_documented_limits() {
 }
 
 #[test]
-fn tables_past_max_probe_bytes_are_not_found() {
+fn tables_past_max_probe_bytes_are_refused_with_the_limit() {
     let fillers = 6;
     let mut mux = Mux::default();
     filler(&mut mux, fillers);
@@ -103,11 +103,77 @@ fn tables_past_max_probe_bytes_are_not_found() {
     };
     let ts = probe_with(&mux.out, &limits).unwrap();
     assert_eq!(ts.streams.len(), 1);
-    let limits = Limits {
-        max_probe_bytes: tables_end - TS_PACKET,
+    // A budget that ends inside the PMT's packet does not read it.
+    for max_probe_bytes in tables_end - TS_PACKET..tables_end {
+        let limits = Limits {
+            max_probe_bytes,
+            ..Limits::default()
+        };
+        assert_eq!(
+            probe_with(&mux.out, &limits).err(),
+            Some(Error::LimitExceeded {
+                limit: LimitKind::ProbeBytes,
+                offset: max_probe_bytes,
+            })
+        );
+    }
+}
+
+/// A file that names no program is refused for that when the probe read
+/// all of it, and for the limit when the budget left packets unread, a
+/// packet the budget ends inside included.
+#[test]
+fn a_file_without_tables_read_whole_within_max_probe_bytes_names_no_program() {
+    let mut mux = Mux::default();
+    filler(&mut mux, 6);
+    let len = mux.out.len() as u64;
+    let limits = |max_probe_bytes| Limits {
+        max_probe_bytes,
         ..Limits::default()
     };
-    assert_eq!(probe_with(&mux.out, &limits).err(), Some(Error::NoPrograms));
+    assert_eq!(
+        probe_with(&mux.out, &limits(len)).err(),
+        Some(Error::NoPrograms)
+    );
+    for max_probe_bytes in len - TS_PACKET..len {
+        assert_eq!(
+            probe_with(&mux.out, &limits(max_probe_bytes)).err(),
+            Some(Error::LimitExceeded {
+                limit: LimitKind::ProbeBytes,
+                offset: max_probe_bytes,
+            })
+        );
+    }
+}
+
+/// Bytes without a sync byte before the PMT: the resynchronisation that
+/// skips them stops at the budget, and a PMT the budget ends inside is
+/// the limit's, not a file without programs.
+#[test]
+fn a_pmt_the_budget_ends_inside_after_lost_sync_is_refused_with_the_limit() {
+    let mut mux = Mux::default();
+    filler(&mut mux, 6);
+    mux.pat(&[(1, 0x1000)]);
+    mux.out.extend([0u8; 200]);
+    let pmt_start = mux.out.len() as u64;
+    mux.pmt(0x1000, 1, &[(0x0F, 0x101)]);
+    let len = mux.out.len() as u64;
+    let limits = |max_probe_bytes| Limits {
+        max_probe_bytes,
+        ..Limits::default()
+    };
+    let ts = probe_with(&mux.out, &limits(len)).unwrap();
+    assert_eq!(ts.streams.len(), 1);
+    for max_probe_bytes in pmt_start - 200..len {
+        assert_eq!(
+            probe_with(&mux.out, &limits(max_probe_bytes)).err(),
+            Some(Error::LimitExceeded {
+                limit: LimitKind::ProbeBytes,
+                offset: max_probe_bytes,
+            }),
+            "max_probe_bytes {max_probe_bytes}"
+        );
+    }
 }
 
 #[test]

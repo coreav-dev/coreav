@@ -176,6 +176,6 @@ factor of 65,536 in the declared count are still equal.
   measured region, as the run printed it.
 - [`run.txt`](0004-limit-bounds/run.txt): the whole run, with the home
   directory redacted as [`README.md`](README.md) describes.
-- [`after-289/measurements.jsonl`](0004-limit-bounds/after-289/measurements.jsonl)
-  and [`after-289/run.txt`](0004-limit-bounds/after-289/run.txt): the same
+- [`after-trun-count-check/measurements.jsonl`](0004-limit-bounds/after-trun-count-check/measurements.jsonl)
+  and [`after-trun-count-check/run.txt`](0004-limit-bounds/after-trun-count-check/run.txt): the same
   two files from the run on the fixed tree, made the same way.

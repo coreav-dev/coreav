@@ -1,0 +1,62 @@
+```text
+Re-encode the video of an MP4, MOV, Matroska or WebM file to H.264 in MP4 and copy its audio, as `ffmpeg -i IN -c:v libx264 -c:a copy OUT.mp4` does (docs/design/transcode.md).
+
+With an H.264 source it is supported: the options and the coreav.transcode/1 summary are stable. Other source codecs (HEVC, AV1, VP9, VP8, ProRes) are experimental: measured slower than FFmpeg's command and with known defects (docs/measurements/transcode.md). The encoder is a separate program the operator installs: an x264 program, or an ffmpeg program built with libx264; CoreAV runs it as a resource-limited process and gives it only raw frames.
+
+Usage: coreav transcode [OPTIONS] <INPUT> <OUTPUT>
+
+Arguments:
+  <INPUT>
+          The file (or http(s) URL) to transcode
+
+  <OUTPUT>
+          Where to write the MP4 file: a new file (not the input; an existing one only with --force)
+
+Options:
+      --crf <Q>
+          Constant rate factor, 0 to 51 (default 23)
+
+      --bitrate <KBPS>
+          Average bit rate in kbit/s, one pass, instead of --crf
+
+      --preset <PRESET>
+          x264's preset, fastest to slowest: ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow, placebo
+          
+          [default: medium]
+          [possible values: ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow, placebo]
+
+      --scale <W:H>
+          Output size as FFmpeg's scale filter takes it: W:H, each side in pixels, -1 (from the other side, keeping the aspect ratio) or -2 (the same, even). Default: the source's size
+
+      --audio <MODE>
+          `copy` every audio stream MP4 can carry (the others are dropped and listed), or `none`
+          
+          [default: copy]
+          [possible values: copy, none]
+
+      --encoder <ENCODER>
+          The encoder program: `x264`, `ffmpeg` (with libx264), or `auto`: x264 when there is one, else ffmpeg. With --strict-safe, `ffmpeg` is refused and `auto` is x264 only
+          
+          [default: auto]
+          [possible values: auto, x264, ffmpeg]
+
+      --x264 <PATH>
+          The x264 program (default: COREAV_X264, else x264 on PATH)
+
+      --ffmpeg <PATH>
+          The ffmpeg program (default: COREAV_FFMPEG, else ffmpeg on PATH)
+
+      --threads <N>
+          Encoder threads (default: the encoder's own choice)
+
+      --timeout <SECONDS>
+          Seconds the whole transcode may take before it is stopped
+          
+          [default: 3600]
+
+      --force
+          Overwrite OUTPUT if it exists
+
+  -h, --help
+          Print help (see a summary with '-h')
+```

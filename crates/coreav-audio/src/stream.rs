@@ -3,6 +3,8 @@
 //! with several threads, the pool that decodes packets in parallel
 //! (`docs/design/audio-decode.md`, "Threads").
 
+#[cfg(feature = "aac")]
+use crate::aac::{self, AacDecoder};
 use crate::conversion::Plan;
 use crate::convert::{default_mask, interleave};
 use crate::decode::{
@@ -11,6 +13,7 @@ use crate::decode::{
 use crate::flac::{FlacDecoder, StreamInfo};
 use crate::mp3::{self, Mp3Decoder};
 use crate::{Error, LimitKind, Limits, Pcm, Warning};
+use coreav_opus::{Head, MultistreamDecoder};
 use std::collections::{BTreeMap, VecDeque};
 use std::sync::{Arc, Mutex, mpsc};
 use std::thread::{Scope, ScopedJoinHandle};
@@ -57,6 +60,21 @@ const MAX_CONCEALED: u64 = 1 << 16;
 enum Decoder {
     Flac(FlacDecoder),
     Mp3(Box<Mp3Decoder>),
+    Opus(Box<Opus>),
+    #[cfg(feature = "aac")]
+    Aac(Box<AacDecoder>),
+}
+
+/// An Opus track's decoder, the order of its channels in the output and
+/// the planes of the sample being decoded.
+#[derive(Clone)]
+struct Opus {
+    decoder: MultistreamDecoder,
+    layout: coreav_opus::Layout,
+    /// The output order is the header's, so the planes are taken as they
+    /// are.
+    in_order: bool,
+    planes: Vec<f32>,
 }
 
 /// A decoder with its buffer: the one of a single-threaded request, or one
@@ -80,11 +98,20 @@ struct Decoded {
 impl Worker {
     /// Starts a job: a decoder whose frames depend on the ones before
     /// forgets them (the job's priming packets set its state again).
-    fn reset(&mut self) {
+    /// A job's first packet, its priming included, is packet `position`
+    /// of the stream (counted from 0): AAC's noise depends on it.
+    fn reset(&mut self, position: u64) {
         match &mut self.decoder {
             Decoder::Flac(_) => {}
             Decoder::Mp3(decoder) => decoder.reset(),
+            Decoder::Opus(opus) => opus.decoder.reset(),
+            #[cfg(feature = "aac")]
+            Decoder::Aac(decoder) => {
+                decoder.reset();
+                decoder.set_position(position);
+            }
         }
+        let _ = position;
     }
 
     /// The packets at the end of `packets` that a job starting after them
@@ -101,10 +128,13 @@ impl Worker {
     /// At most [`MAX_PRIMING`] packets and [`MAX_PRIMING_BYTES`] bytes: a
     /// stream that needs more (frames without main data, long runs of one
     /// channel) is primed with that much, and its job boundaries may then
-    /// differ from one pass.
+    /// differ from one pass. An AAC frame needs the overlap and window
+    /// shape of the frame before, which that frame alone sets: one packet.
     fn priming(&self, packets: &[&[u8]], stereo: bool) -> usize {
         match &self.decoder {
-            Decoder::Flac(_) => 0,
+            Decoder::Flac(_) | Decoder::Opus(_) => 0,
+            #[cfg(feature = "aac")]
+            Decoder::Aac(_) => packets.len().min(1),
             Decoder::Mp3(_) => {
                 let mut count = 0;
                 let mut bytes = 0usize;
@@ -157,6 +187,33 @@ impl Worker {
                     trailing: frame.bytes < data.len(),
                 }
             }
+            Decoder::Opus(opus) => {
+                let frames = opus.decoder.decode(data, &mut opus.planes)?;
+                let channels = opus.decoder.channels();
+                if opus.in_order {
+                    self.pcm.swap_float(channels, frames, &mut opus.planes);
+                } else {
+                    let planes = self.pcm.float_buffer(channels, frames);
+                    // WAV's channel order, from the header's.
+                    for (channel, plane) in planes.chunks_exact_mut(frames.max(1)).enumerate() {
+                        let first = opus.layout.opus_channel(channel) * frames;
+                        if let Some(decoded) = opus.planes.get(first..first + frames) {
+                            plane.copy_from_slice(decoded);
+                        }
+                    }
+                }
+                Decoded {
+                    frames: frames as u64,
+                    crc_ok: true,
+                    trailing: false,
+                }
+            }
+            #[cfg(feature = "aac")]
+            Decoder::Aac(decoder) => Decoded {
+                frames: decoder.decode(data, &mut self.pcm)?,
+                crc_ok: true,
+                trailing: false,
+            },
         };
         interleave(&self.pcm, 0, self.pcm.frames(), self.format, out, at);
         Ok(decoded)
@@ -167,6 +224,9 @@ impl Worker {
         match &self.decoder {
             Decoder::Flac(_) => crate::flac::frame_samples(data).map(u64::from),
             Decoder::Mp3(_) => mp3::Header::parse(data).ok().map(|h| h.samples() as u64),
+            Decoder::Opus(_) => None,
+            #[cfg(feature = "aac")]
+            Decoder::Aac(decoder) => Some(decoder.frame_length() as u64),
         }
     }
 }
@@ -182,6 +242,8 @@ struct Pending {
 struct Job {
     seq: u64,
     cost: u64,
+    /// The stream position of the job's first packet, priming included.
+    position: u64,
     /// Copies of the packets before `packets`, decoded first for the
     /// decoder's state, their samples dropped ([`Worker::priming`]).
     prime: Vec<Pending>,
@@ -240,6 +302,8 @@ struct Pool<'scope> {
     prime_cost: u64,
     /// Whether an MP3 frame of two channels has been handed out.
     stereo: bool,
+    /// Packets handed to the pool so far.
+    handed: u64,
     next_seq: u64,
     next_commit: u64,
     waiting: BTreeMap<u64, Done>,
@@ -279,7 +343,7 @@ impl<'scope> Pool<'scope> {
                         let Ok(job) = job else {
                             break;
                         };
-                        worker.reset();
+                        worker.reset(job.position);
                         for pending in &job.prime {
                             let _ = worker.decode(&pending.data, &mut scratch, 0);
                         }
@@ -315,6 +379,7 @@ impl<'scope> Pool<'scope> {
             prime: Vec::new(),
             prime_cost: 0,
             stereo: false,
+            handed: 0,
             next_seq: 0,
             next_commit: 0,
             waiting: BTreeMap::new(),
@@ -523,6 +588,10 @@ pub(crate) struct Stream<'scope> {
     /// The conversion to another rate or channel count, taken by the
     /// caller to wrap its sink.
     pub(crate) plan: Option<Plan>,
+    /// Samples per channel the codec configuration says to drop from the
+    /// start (Opus's pre-skip, RFC 7845 4.2), for a container that says
+    /// nothing of its own.
+    pub(crate) pre_skip: u64,
     pub(crate) out: Output,
 }
 
@@ -547,6 +616,8 @@ impl<'scope> Stream<'scope> {
         scope: &'scope Scope<'scope, 'env>,
     ) -> Result<Self, Error> {
         let mut reframer = None;
+        let mut mask = None;
+        let mut pre_skip = 0;
         let (decoder, format) = match codec {
             Codec::Flac => {
                 let info = StreamInfo::from_config(config)?;
@@ -604,10 +675,61 @@ impl<'scope> Stream<'scope> {
                 reframer = Some(mp3::frames::Reframer::new(&header));
                 (Decoder::Mp3(Box::new(decoder)), format)
             }
+            Codec::Opus => {
+                let head = Head::from_config(config)?;
+                if u32::from(head.channels()) > limits.max_channels {
+                    return Err(Error::LimitExceeded(LimitKind::Channels));
+                }
+                // Every Opus stream decodes to 48 kHz, the rate of its
+                // timestamps (RFC 7845 4); the header's input rate is the
+                // encoder's input's, informative only.
+                let format = StreamFormat {
+                    codec,
+                    sample_rate: 48_000,
+                    channels: u16::from(head.channels()),
+                    bits_per_sample: None,
+                };
+                let layout = head.layout();
+                mask = Some(layout.mask);
+                pre_skip = u64::from(head.pre_skip());
+                let opus = Opus {
+                    decoder: MultistreamDecoder::new(&head)?,
+                    in_order: (0..usize::from(head.channels()))
+                        .all(|c| layout.opus_channel(c) == c),
+                    layout,
+                    planes: Vec::new(),
+                };
+                (Decoder::Opus(Box::new(opus)), format)
+            }
+            #[cfg(feature = "aac")]
+            Codec::Aac => {
+                // No configuration: the container's rate and channels
+                // (Matroska's legacy codec IDs).
+                let source = if config.is_empty() {
+                    aac::Source::Declared {
+                        sample_rate: container.sample_rate,
+                        channels: container.channels,
+                    }
+                } else {
+                    aac::Source::Config(config)
+                };
+                let decoder = AacDecoder::new(source, first, limits)?;
+                let format = StreamFormat {
+                    codec,
+                    sample_rate: decoder.config().sample_rate(),
+                    channels: u16::try_from(decoder.config().channels())
+                        .map_err(|_| Error::LimitExceeded(LimitKind::Channels))?,
+                    bits_per_sample: None,
+                };
+                // AAC's channels are in WAV's order for its configuration,
+                // whose mask may differ from the default for the count.
+                mask = Some(decoder.config().channel_mask());
+                (Decoder::Aac(Box::new(decoder)), format)
+            }
         };
         let mut warnings = Vec::new();
         // The container's values are cross-checked; the codec
-        // configuration wins (#209's interface).
+        // configuration wins.
         if let Some(rate) = container
             .sample_rate
             .filter(|&r| r != 0 && r != format.sample_rate)
@@ -635,7 +757,7 @@ impl<'scope> Stream<'scope> {
         let output = OutputFormat {
             sample_rate: format.sample_rate,
             channels: format.channels,
-            channel_mask: default_mask(format.channels),
+            channel_mask: mask.unwrap_or_else(|| default_mask(format.channels)),
             format: options.format,
         };
         // Another rate or channel count: the stream is written in floating
@@ -655,9 +777,10 @@ impl<'scope> Stream<'scope> {
             },
             ..output
         };
-        let threads = match options.threads {
-            0 => std::thread::available_parallelism().map_or(1, usize::from),
-            n => n,
+        let threads = match (&decoder, options.threads) {
+            (Decoder::Opus(_), _) => 1,
+            (_, 0) => std::thread::available_parallelism().map_or(1, usize::from),
+            (_, n) => n,
         }
         .clamp(1, MAX_THREADS);
         let worker = Worker {
@@ -676,6 +799,7 @@ impl<'scope> Stream<'scope> {
             end: None,
             reframed: false,
             plan,
+            pre_skip,
             out: Output {
                 format,
                 output,
@@ -814,6 +938,7 @@ impl<'scope> Stream<'scope> {
             duration,
             discard,
         });
+        pool.handed += 1;
         pool.job_cost = pool.job_cost.saturating_add(packet_cost);
         if pool.job_cost >= JOB_BYTES || pool.job.len() >= JOB_PACKETS {
             submit(pool, &self.worker, &mut self.out, sink)?;
@@ -909,8 +1034,12 @@ fn submit(
             discard: pending.discard,
         });
     }
+    let position = pool
+        .handed
+        .saturating_sub((prime.len() + packets.len()) as u64);
     let job = Job {
         seq: pool.next_seq,
+        position,
         // The priming packets are held until the job is written.
         cost: pool.job_cost.saturating_add(pool.prime_cost),
         prime,

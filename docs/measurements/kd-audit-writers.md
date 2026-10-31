@@ -205,7 +205,7 @@ it compare raw values from both files?
 
 ## In CI
 
-`fixtures.yml` runs the text audit on the fixtures (about two minutes)
+`ci.yml`'s `isobmff-fixtures` job runs the text audit on the fixtures (about two minutes)
 and fails on a COVERED or ABSORBED verdict, or when nothing is caught
 (the wrapper or the oracle did not run). The other audits take up to an
 hour each and run on demand; the unit tests above guard their fixes.
@@ -216,7 +216,7 @@ The "no effect" verdicts above were limits of the oracles. An earlier change clo
 them with checks that read both files' own boxes
 ([`writer-oracle-boxes.md`](../design/writer-oracle-boxes.md), whose pass
 criteria were committed before these runs). Data:
-[`kd-audit-writers-324.json`](kd-audit-writers-324.json), counts only.
+[`kd-audit-writers-box-checks.json`](kd-audit-writers-box-checks.json), counts only.
 "Before" is `main`'s oracles, "after" this change's, with the same outputs,
 `coreav` binary and black boxes (`ffmpeg` and `ffprobe` 7.0.2, MediaInfo
 26.10) on one machine.

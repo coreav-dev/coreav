@@ -16,6 +16,7 @@ use coreav_cli::error::Failure;
 use coreav_cli::fallback::{NotNative, Tool};
 use coreav_cli::ffmpeg::{self, Refusal, Stop};
 use coreav_cli::ffprobe::{self, args::Refusal as ProbeRefusal};
+use coreav_cli::strict_safe::StrictSafe;
 use coreav_isobmff::{BufferedSource, FileSource, Source};
 
 use super::{EXIT_IO, EXIT_REJECTED, EXIT_USAGE, fallback_cmd};
@@ -63,14 +64,14 @@ fn strings(tool: &str, args: &[OsString]) -> Result<Vec<String>, ExitCode> {
         })
 }
 
-/// `coreav ffmpeg` with `ffmpeg`'s arguments. `strict_safe` is
-/// `coreav --strict-safe`.
-pub fn run_ffmpeg(args: &[OsString], strict_safe: bool) -> ExitCode {
+/// `coreav ffmpeg` with `ffmpeg`'s arguments, in `coreav --strict-safe`'s
+/// mode or not.
+pub fn run_ffmpeg(args: &[OsString], strict_safe: StrictSafe) -> ExitCode {
     let args = match strings("ffmpeg", args) {
         Ok(args) => args,
         Err(code) => return code,
     };
-    match ffmpeg::run(&args) {
+    match ffmpeg::run(&args, strict_safe) {
         Ok(_) => ExitCode::SUCCESS,
         Err(Stop::Refused(Refusal::NotNative(refusal))) => {
             fallback_cmd::refuse(Tool::Ffmpeg, &args, refusal, strict_safe)
@@ -79,6 +80,7 @@ pub fn run_ffmpeg(args: &[OsString], strict_safe: bool) -> ExitCode {
             message("ffmpeg", &text);
             ExitCode::from(EXIT_USAGE)
         }
+        Err(Stop::Refused(Refusal::Help)) => print_usage(ffmpeg::USAGE),
         Err(Stop::Failed(failure)) => {
             let json = failure.to_json();
             let text = json
@@ -95,6 +97,15 @@ pub fn run_ffmpeg(args: &[OsString], strict_safe: bool) -> ExitCode {
     }
 }
 
+/// A tool's usage text on standard output, for `-h` and `--help`.
+fn print_usage(text: &str) -> ExitCode {
+    let mut out = std::io::stdout().lock();
+    match out.write_all(text.as_bytes()).and_then(|()| out.flush()) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => super::write_error(&error),
+    }
+}
+
 /// The value of the first `-i`, to name the input in a message.
 fn args_input(args: &[String]) -> &str {
     args.iter()
@@ -103,25 +114,16 @@ fn args_input(args: &[String]) -> &str {
         .map_or("", String::as_str)
 }
 
-/// `coreav ffprobe` with `ffprobe`'s arguments. `strict_safe` is
-/// `coreav --strict-safe`.
-pub fn run_ffprobe(args: &[OsString], strict_safe: bool) -> ExitCode {
+/// `coreav ffprobe` with `ffprobe`'s arguments, in `coreav --strict-safe`'s
+/// mode or not.
+pub fn run_ffprobe(args: &[OsString], strict_safe: StrictSafe) -> ExitCode {
     let args = match strings("ffprobe", args) {
         Ok(args) => args,
         Err(code) => return code,
     };
     let options = match ffprobe::args::parse(&args) {
         Ok(options) => options,
-        Err(ProbeRefusal::Help) => {
-            let mut out = std::io::stdout().lock();
-            return match out
-                .write_all(ffprobe::USAGE.as_bytes())
-                .and_then(|()| out.flush())
-            {
-                Ok(()) => ExitCode::SUCCESS,
-                Err(error) => super::write_error(&error),
-            };
-        }
+        Err(ProbeRefusal::Help) => return print_usage(ffprobe::USAGE),
         Err(ProbeRefusal::Unsupported(refusal)) => {
             return fallback_cmd::refuse(Tool::Ffprobe, &args, refusal, strict_safe);
         }

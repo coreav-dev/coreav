@@ -4,6 +4,7 @@ review found passing or failing wrongly, on fixtures and on a copy of this
 repository's workflows."""
 import importlib.util
 import pathlib
+import re
 import shutil
 import tempfile
 import unittest
@@ -167,6 +168,48 @@ class Repository(unittest.TestCase):
         found = check.check(self.root)
         for file in ('tools/probe/action.yml', '.github/actions/probe/action.yaml', 'tools/anchored/action.yml'):
             self.assertTrue(any(p.startswith(f'{file}: line ') and 'actions/checkout@v4' in p for p in found), (file, found))
+
+    def ci(self, old, new):
+        ci = self.root / '.github' / 'workflows' / 'ci.yml'
+        text = ci.read_text()
+        self.assertIn(old, text)
+        ci.write_text(text.replace(old, new, 1))
+        return check.check(self.root)
+
+    def test_a_job_no_report_waits_for_is_reported(self):
+        found = self.ci(', conformance-arm64, bench-guard]\n', ', conformance-arm64]\n')
+        self.assertIn('ci.yml: no report job waits for bench-guard', found)
+
+    def test_a_job_without_its_concurrency_group_is_reported(self):
+        group = ('    concurrency:\n      group: ${{ github.workflow }}-msrv-'
+                 "${{ github.event_name == 'pull_request' && github.ref || github.run_id }}\n"
+                 "      cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n")
+        self.assertTrue(any(p.startswith('ci.yml: give `msrv` exactly') for p in self.ci(group, '')))
+
+    def test_a_group_another_job_has_is_reported(self):
+        found = self.ci('${{ github.workflow }}-msrv-', '${{ github.workflow }}-check-')
+        self.assertTrue(any(p.startswith('ci.yml: give `msrv` exactly') for p in found), found)
+
+    def test_a_workflow_without_any_job_group_is_reported(self):
+        ci = self.root / '.github' / 'workflows' / 'ci.yml'
+        text = ci.read_text()
+        bare = re.sub(r'    concurrency:\n      group: .*\n      cancel-in-progress: .*\n', '', text)
+        self.assertNotIn('concurrency:', bare)
+        ci.write_text(bare)
+        found = check.check(self.root)
+        self.assertTrue(any(p.startswith('ci.yml: give `check` exactly') for p in found), found)
+
+    def test_matrix_legs_sharing_a_group_are_reported(self):
+        found = self.ci('-b9-shard-${{ strategy.job-index }}-', '-b9-shard-')
+        self.assertTrue(any(p.startswith('ci.yml: give `b9-shard` exactly') for p in found), found)
+
+    def test_a_report_job_with_a_group_is_reported(self):
+        found = self.ci('  ci-report:\n', '  ci-report:\n    concurrency:\n      group: x\n')
+        self.assertTrue(any(p.startswith('ci.yml: remove `ci-report`') for p in found), found)
+
+    def test_a_workflow_group_beside_the_job_groups_is_reported(self):
+        found = self.ci('\njobs:\n', '\nconcurrency:\n  group: ci\n\njobs:\n')
+        self.assertTrue(any('remove the workflow\'s own `concurrency:`' in p for p in found), found)
 
     def test_a_local_ref_to_nothing_is_reported(self):
         self.call_local('./tools/none')

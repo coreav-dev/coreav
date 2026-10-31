@@ -27,7 +27,7 @@ never committed to the repository.
 | [v1](#corpus-v1) | the oracles and the speed measurements in general | 1,351 | 407 |
 | [v1-fmp4-large](#top-up-v1-fmp4-large) | adaptive routing of large fragmented MP4 | 21 | 6 |
 | [v1-ts-audio](#top-up-v1-ts-audio) | the MPEG-TS demux, the audio containers | per family, below | per family |
-| [v2-heldout](#v2-heldout) | held-out confirmation runs, in draws | 40, 46, 46, 52 and 37 | all |
+| [v2-heldout](#v2-heldout) | held-out confirmation runs, in draws | 40, 46, 46, 52, 37 and 300 | all |
 | [mediarecorder-v1](#mediarecorder-recordings) | the Matroska and WebM run | 41 (synthetic) | none |
 | [commands-v1](#command-coverage-set-commands-v1) | the compatibility command | 1,147 commands | none |
 
@@ -85,6 +85,8 @@ before any benchmark:
 | v2-heldout draw 3 | `coreav-corpus-v2-heldout-draw3:` | every `real` file |
 | v2-heldout draw 4 | `coreav-corpus-v2-heldout-draw4:` | every `real` file |
 | v2-heldout draw 5 | `coreav-corpus-v2-heldout-ts:` | every `real` file |
+| v2-heldout draw 6 | `coreav-corpus-v2-heldout-compat:` | every `real` file |
+| v2-heldout draw 7 | `coreav-corpus-v2-heldout-ts-speed:` | every `real` file |
 
 Held-out files are used only for reported numbers, never for profiling
 or tuning. Where a whole draw is held out, the salt still orders each
@@ -135,7 +137,7 @@ for them.
 ### What has spent it
 
 - The held-out set for the `hls index` comparison: run `w1-01` of
-  [`spikes/w1-227/README.md`](spikes/w1-227/README.md) used it. The replacement is
+  [`spikes/w1-remeasure/README.md`](spikes/w1-remeasure/README.md) used it. The replacement is
   `v2-heldout`.
 - The thumbnail and decode bars were measured on v1, and every
   change since was made in answer to those runs, so another run of v1 is
@@ -245,11 +247,13 @@ draw's operation.
 
 | Draw | For | Operation | `real` | Files | GB | Status |
 |---|---|---|---:|---:|---:|---|
-| 1 | `hls index` | `hls` | 40 | 96 | 4.85 | spent: runs `w2-01` to `w2-04` of [`spikes/w2-248/README.md`](spikes/w2-248/README.md) |
-| 2 | `hls index` and packet index, re-measurement | `hls` | 46 | 121 | 3.32 | spent: run `w3-01` of [`spikes/w2-248/README.md`](spikes/w2-248/README.md) |
-| 3 | `hls index` and packet index | `hls` | 46 | 102 | 3.13 | spent: run `w4-01` of [`spikes/w3-308/README.md`](spikes/w3-308/README.md) |
+| 1 | `hls index` | `hls` | 40 | 96 | 4.85 | spent: runs `w2-01` to `w2-04` of [`spikes/w2-hls-index/README.md`](spikes/w2-hls-index/README.md) |
+| 2 | `hls index` and packet index, re-measurement | `hls` | 46 | 121 | 3.32 | spent: run `w3-01` of [`spikes/w2-hls-index/README.md`](spikes/w2-hls-index/README.md) |
+| 3 | `hls index` and packet index | `hls` | 46 | 102 | 3.13 | spent: run `w4-01` of [`spikes/w3-sample-walk/README.md`](spikes/w3-sample-walk/README.md) |
 | 4 | thumbnail and decode | `thumbnail` | 52 | 80 | 1.71 | spent: the joint confirmation of [`spikes/thumbnail-bench/README.md`](spikes/thumbnail-bench/README.md) |
 | 5 | MPEG-TS demux | `ts-probe` | 37 | 48 | 1.7 | spent: [`measurements/ts-demux.md`](measurements/ts-demux.md) |
+| 6 | the 0.1.0 bars R2 to R4 | `compat` | 300 | 332 | 13.62 | unspent |
+| 7 | MPEG-TS demux speed, round 2 | `ts-probe` | | | | rules committed, not yet collected |
 
 No `hls` draw is unspent, so the next `hls index` measurement needs a
 draw of its own before it can run.
@@ -414,6 +418,86 @@ rule are met, one of them by a single file.
 
 The draw was opened once, on 2026-10-21, and is spent.
 
+### Draw 6
+
+The held-out draw of the 0.1.0 bars R2, R3 and R4
+([`design/compat-cli.md`](design/compat-cli.md), "The held-out draw"),
+operation `compat`, salt `coreav-corpus-v2-heldout-compat:`. The rules are
+that note's, committed with it before any file was fetched; the collector's
+choices below, where the note leaves one open, were committed here before
+the first fetch.
+
+- **Form:** files unchanged, at most 200 MB.
+- **Families**, by what the pinned `ffprobe` names the container:
+  `mov,mp4,m4a,3gp,3g2,mj2` is ISO base media, `matroska,webm` is Matroska
+  and WebM, and `mpegts` is a transport stream. Candidates are taken only
+  with an extension the rules list (`mp4`, `mov`, `m4v`, `m4a`, `3gp`,
+  `mkv`, `webm`, `ts`, `m2ts`, `mts`). A file whose container is not
+  the family its extension names is `edge`.
+- **Coverage:** 60 to 100 `real` files per family. A family stops taking
+  `real` files at 100; the families are collected side by side, and the
+  draw stops when each family holds 100 or the candidates run out. A
+  family under 60 is reported short, not filled by relaxing a rule.
+- **Sets:** the shared rules. A file `ffprobe` reads without error and
+  lists a stream in is `real`; a conformance vector, an ISO base media
+  initialization segment (no sample) or media segment (no movie box), and
+  a file `ffprobe` rejects are `edge`; a crash or a run over 30 s is
+  `hostile`. A transport-stream media segment of an HLS stream is a
+  whole transport stream and is `real`, as in `v1-ts-audio` and draw 5.
+- **Nothing seen before:** a candidate whose SHA-256 is in corpus v1,
+  `v1-fmp4-large`, `v1-ts-audio`, `mediarecorder-v1` or draws 1 to 5 is
+  dropped.
+- **Diversity:** draw 4's structural signature (the container brands, the
+  streams' codecs, profiles, sizes, channels, sample rates and pixel
+  formats, the structural tags and the encoder or device key), across this
+  draw and draws 1 to 5. Draws 1 to 4 recorded that signature when they
+  were collected; draw 5 recorded its own, so draw 4's is computed for its
+  files with `ffprobe` before the collection starts.
+- **No cap on a source or a device** beyond the signature: the note sets
+  none. Candidates are taken in turn across their sources, so that no
+  source fills a family first, and the result reports the largest share
+  one source holds in each family.
+- **Holdout:** every `real` file. Each family's `real` files are ordered
+  by `sha256("coreav-corpus-v2-heldout-compat:" + sha256)`; R4's own
+  order is the note's.
+- **The collection runs no measurement:** `ffprobe` is the only tool run
+  over the files, and no `coreav` command runs on the draw before the
+  round that opens it.
+
+**Result.** 332 files, 13.62 GB: 300 `real`, every one held out, and 32
+`edge`; no `hostile` file. Every family reached its ceiling.
+
+| Family | `real` | GB | Video codecs of the `real` files | Largest share of one source |
+|---|---:|---:|---|---:|
+| ISO base media | 100 | 3.68 | H.264 87, HEVC 3, AV1 3, others and audio only 7 | 34% |
+| Matroska and WebM | 100 | 5.66 | VP9 64, VP8 26, AV1 8, H.264 2 | 94% |
+| Transport stream | 100 | 4.28 | H.264 73, MPEG-2 18, audio only 6, others 3 | 18% |
+
+- The 32 `edge` files are ISO base media initialization segments, which
+  list streams and hold no sample.
+- **Not taken:** 137 repeating a structural signature, 81 bytes an earlier
+  corpus or this draw already held, 31 downloads that failed and 14 over
+  200 MB, besides the candidates left unread once their family held 100.
+- **One source holds 94% of the Matroska and WebM family.** The rules set
+  no source cap, and few other candidates of that family carried a
+  signature not already held. R2, R3 and R4 report that family as it is;
+  its results speak mostly for one publisher's encodes.
+
+### Draw 7
+
+The held-out draw of the second round of the transport stream speed bars ([`design/mpegts.md`](design/mpegts.md), "Speed bars, round 2"), after draw 5 was spent. Operation `ts-probe`, salt `coreav-corpus-v2-heldout-ts-speed:`. The rules were committed before any file was fetched.
+
+- **Form:** files unchanged, at most 200 MB (1 MB = 10^6 bytes).
+- **Extensions:** `ts`, `m2ts`, `mts` and `m2t`, and nothing else.
+- **Classes**, by size: `small` under 16 MB, `medium` 16 MB to under 64 MB, `large` 64 MB to 200 MB.
+- **Coverage:** 40 to 60 `real` transport streams; at least 10 and at most 20 in each class, and at least 15 in `large`. A class stops taking files at 20, and the draw stops when each class holds 20 or the candidates run out. A class under its minimum is reported short, not filled by relaxing a rule.
+- **Candidates:** the transport stream candidates of the listings of draws 5 and 6 that neither draw fetched, and new listings made under the same rules, taken in turn across their sources so that no source fills a class first; the result reports the largest share one source holds in each class.
+- **Sets:** the shared rules. A file the pinned `ffprobe` reads without error and lists a stream in is `real`, run with `GCONV_PATH` as `scripts/oracle-ffprobe.sh` sets it; a file it rejects is `edge`; a crash or a run over 30 s is `hostile`. A transport stream media segment of an HLS stream is a whole transport stream and is `real`.
+- **Nothing seen before:** a candidate whose SHA-256 or URL is in corpus v1, `v1-fmp4-large`, `v1-ts-audio`, `mediarecorder-v1` or draws 1 to 6 is dropped.
+- **Diversity:** draw 5's structural signature, across this draw, draw 5 and `v1-ts-audio`'s transport streams.
+- **Holdout:** every `real` file. Each class's `real` files are ordered by `sha256("coreav-corpus-v2-heldout-ts-speed:" + sha256)`.
+- **The collection runs no measurement:** `ffprobe` is the only tool run over the files, and no `coreav` command runs on the draw before the round that opens it.
+
 ### Rules withdrawn or not held
 
 Each of these is recorded rather than corrected after the fact: taking
@@ -448,6 +532,18 @@ a subset of it.
 - **Draw 5's first pass was discarded** when more candidates were added,
   and its candidate lists were narrowed to the four extensions the rules
   name.
+- **Draw 6's oracle crashed on 30 transport streams** in the first part of
+  the collection: the pinned static `ffprobe` loaded the collecting host's
+  gconv modules ([`design/mpegts.md`](design/mpegts.md), "The oracle's
+  environment"), and the collector filed the 30 files as `hostile`. Before
+  the collection went on, `GCONV_PATH` was set as
+  `scripts/oracle-ffprobe.sh` sets it, the 30 files were judged again (all
+  30 are `real`) and the decisions after them were replayed in order, which
+  dropped 5 files taken later whose signature was then already held. Draw
+  5's signatures, computed with the same crash, were computed again first.
+- **Draw 6's first 16 candidates** were taken in an order that counted each
+  data set of one site as its own source; the collector then counted the
+  site once, as the rule above intends. The 16 decisions stand.
 
 ## MediaRecorder recordings
 

@@ -33,7 +33,7 @@ tolerance, or a case or command could not run; without a baseline file it
 only reports. --write saves the counts in the baseline's format, for a
 pull request that updates it.
 
-URL cases (#215) run a command on a fixture served by a local HTTP server
+URL cases run a command on a fixture served by a local HTTP server
 that answers range requests, and count what the read plan
 (crates/coreav-range) asks for: the requests and the bytes received, as
 `COREAV_REMOTE_STATS` reports them, and what the server sees: the requests
@@ -97,11 +97,10 @@ CASES = {
     "ffprobe-packets-mkv": ("basic.mkv", ["ffprobe", "-v", "error", "-show_packets", "{}"]),
     "ffprobe-packets-ts": ("basic.ts", ["ffprobe", "-v", "error", "-show_packets", "{}"]),
     # A payload that is no frame of the syntax its table names: the
-    # probe searches every one of them whole (#317).
+    # probe searches every one of them whole.
     "probe-ts-no-frames": ("ts_no_frames.ts", ["probe", "{}"]),
     # Access units that wait for a picture period the stream never
-    # shows: what the listing holds, and what it costs to hold it
-    # (#316).
+    # shows: what the listing holds, and what it costs to hold it.
     "probe-packets-ts-no-period": ("ts_no_period.ts", ["probe", "--scan-frame-sizes", "{}"]),
     # Every frame header (and, for Matroska, the block scan).
     "probe-frame-sizes-mp4": ("basic.mp4", ["probe", "--scan-frame-sizes", "{}"]),
@@ -114,12 +113,19 @@ CASES = {
     # Across the splice at 3 s: two output edits (docs/design/edit-list-writers.md).
     "clip-multi-edit": ("edit_multi_splice.mp4", ["clip", "--start", "0.5", "--end", "4", "{}", "-"]),
     "extract-audio": ("basic.mp4", ["extract-audio", "{}", "-"]),
-    # docs/design/audio-decode.md: FLAC and MP3 in Matroska and MP4 to WAV.
+    # docs/design/audio-decode.md: FLAC and MP3 in Matroska and MP4, and Opus
+    # in WebM, to WAV.
     # One thread: counts that do not move with the runner's CPUs.
     "decode-audio-flac-mkv": ("flac.mka", ["decode-audio", "--threads", "1", "{}", "-"]),
     "decode-audio-flac-mp4": ("flac.m4a", ["decode-audio", "--threads", "1", "{}", "-"]),
     "decode-audio-mp3-mkv": ("mp3.mka", ["decode-audio", "--threads", "1", "{}", "-"]),
     "decode-audio-mp3-mp4": ("mp3.m4a", ["decode-audio", "--threads", "1", "{}", "-"]),
+    "decode-audio-opus": ("opus.webm", ["decode-audio", "--threads", "1", "{}", "-"]),
+    # AAC LC (docs/design/audio-decode.md, "AAC-LC", bar 6): opt-in, so run
+    # with --decoder-coreav, whose build has the feature `aac`
+    # (DECODER_CASES); basic.mp4's own AAC stream, copied.
+    "decode-audio-aac-mkv": ("aac.mka", ["decode-audio", "--threads", "1", "{}", "-"]),
+    "decode-audio-aac-mp4": ("aac.m4a", ["decode-audio", "--threads", "1", "{}", "-"]),
     # The fixtures' mono 44.1 kHz audio resampled to 16 kHz, as for
     # transcription, and to 48 kHz stereo ("Resampling and downmixing").
     "decode-audio-16k-mono": ("mp3.mka", ["decode-audio", "--threads", "1", "--rate", "16000", "--channels", "1", "{}", "-"]),
@@ -170,11 +176,13 @@ INPUTS = {
 }
 
 # Fixtures written here: name: (fixture it is written from, format, how):
-# by stream copy, or with its audio encoded to FLAC or MP3 (the encoders are
-# deterministic, and `+bitexact` keeps version strings out).
+# by stream copy, or with its audio encoded to FLAC, MP3 or Opus (the encoders
+# are deterministic, and `+bitexact` keeps version strings out).
 COPY = ("-map", "0", "-c", "copy")
 FLAC = ("-map", "0:a", "-c:a", "flac")
 MP3 = ("-map", "0:a", "-c:a", "libmp3lame", "-b:a", "128k")
+OPUS = ("-map", "0:a", "-c:a", "libopus", "-b:a", "64k")
+AUDIO_COPY = ("-map", "0:a", "-c", "copy")
 DERIVED = {
     "basic.mkv": ("basic.mp4", "matroska", COPY),
     "vp9.webm": ("vp9.mp4", "webm", COPY),
@@ -183,12 +191,15 @@ DERIVED = {
     "flac.m4a": ("basic.mp4", "mp4", FLAC),
     "mp3.mka": ("basic.mp4", "matroska", MP3),
     "mp3.m4a": ("basic.mp4", "mp4", MP3),
+    "opus.webm": ("basic.mp4", "webm", OPUS),
+    "aac.mka": ("basic.mp4", "matroska", AUDIO_COPY),
+    "aac.m4a": ("basic.mp4", "mp4", AUDIO_COPY),
 }
 
-# Cases that need a decoder backend, which the shipped (default) build does
-# not have: run with --decoder-coreav, a build with the FFmpeg fallback, and
-# counted beyond that build's own start-up.
-DECODER_CASES = {"thumbnail", "transcode"}
+# Cases that need a decoder the shipped (default) build does not have: run
+# with --decoder-coreav, a build with the FFmpeg fallback and the opt-in AAC
+# decoder, and counted beyond that build's own start-up.
+DECODER_CASES = {"thumbnail", "transcode", "decode-audio-aac-mkv", "decode-audio-aac-mp4"}
 
 # URL cases: name: (fixture, command arguments with {url} for the fixture's
 # URL and {dir} for a fresh output directory).
@@ -232,7 +243,7 @@ GENERATED = {
 
 # Transport streams `scripts/ts_craft.py` writes from a GENERATED one,
 # for the two costs a reader pays on a file that is not what it says it
-# is (#316, #317): name: (source, operation and its arguments).
+# is: name: (source, operation and its arguments).
 CRAFTED = {
     # Every PES payload of the sound is bytes that are no frame header,
     # so the probe searches each one whole and learns nothing from any.
@@ -274,14 +285,17 @@ REFS = re.compile(r"^==\d+== I\s+refs:\s+([\d,]+)\s*$", re.MULTILINE)
 
 
 def instructions(coreav, args):
-    """The instructions `coreav ARGS` executes, or the error. In strict-safe
-    mode, so that a command that stopped being native fails here instead of
-    being handed to FFmpeg."""
+    """The instructions `coreav ARGS` executes, or the error. With a fallback
+    that names no program, so that a command that stopped being native fails
+    here instead of being handed to FFmpeg; not in strict-safe mode, which
+    would also refuse the FFmpeg decoder and encoder of the thumbnail and
+    transcode cases (docs/design/compat-cli.md, "Strict-safe mode")."""
     done = subprocess.run(
         ["valgrind", "--tool=cachegrind", "--cache-sim=no", "--cachegrind-out-file=/dev/null",
          coreav, *args],
         stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, timeout=600,
-        env={**os.environ, "COREAV_STRICT_SAFE": "1"})
+        env={**{k: v for k, v in os.environ.items() if k != "COREAV_STRICT_SAFE"},
+             "COREAV_FALLBACK": "/nonexistent/coreav-fallback"})
     if done.returncode != 0:
         return None, f"exit {done.returncode}: {done.stderr[-500:]}"
     match = REFS.search(done.stderr)

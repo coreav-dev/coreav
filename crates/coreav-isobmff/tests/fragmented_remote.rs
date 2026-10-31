@@ -698,8 +698,7 @@ fn a_moof_larger_than_the_window_is_predicted() {
 }
 
 /// Near the byte bar with every `moof` larger than its window: the walk
-/// reads only the rest of each `moof`, so an approved plan stays in budget
-/// (review finding on pull request 17).
+/// reads only the rest of each `moof`, so an approved plan stays in budget.
 #[test]
 fn large_fragment_headers_near_the_budget_stay_in_budget() {
     let mut indexed = 0;

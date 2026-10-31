@@ -21,61 +21,62 @@ except ImportError:
 # were set before any entry was written, so no entry is
 # from before them: PRE_BAR is empty, and the report gives every number
 # with all entries and with the pre-bar entries only, side by side.
-# Each entry: the merged pull request and squash commit that added it; those
-# that later changed its predicate or coverage; and the fingerprint of its
+# Each entry: the squash commit of the merged pull request that added it;
+# those that later changed its predicate or coverage; and the fingerprint of its
 # JSON record and predicate source that the last of them left, which
 # tools/oracle/tests/test_kd.py recomputes, so a change to either is dated
 # here in the pull request that makes it.
 PRE_BAR = ()
 ADDED_AFTER_THE_BARS = {
-    'KD-STRICT': ('#12 dd853a6', ('#116 88a660b',), '3cc36879938e'),
-    'KD-STTS-SHORT': ('#12 dd853a6', ('#105 2199176', '#109 0bca9b9', '#160 d7d79c2', '#162 5316840', '#161 1666715', '#187 f9fa510', '#254 8470744'), 'e3bab2becda4'),
-    'KD-EDIT-DISCARD': ('#12 dd853a6', ('#118 35f1801', '#125 a213539', '#162 5316840', '#161 1666715', '#187 f9fa510', '#254 8470744', '#283 7d10512'), '00ca89874db3'),
-    'KD-CTTS': ('#12 dd853a6', ('#118 35f1801', '#142 36b1878', '#162 5316840', '#161 1666715', '#187 f9fa510', '#254 8470744'), '6681e0087ac7'),
-    'KD-PCM': ('#12 dd853a6', ('#118 35f1801', '#125 a213539', '#126 c6236a6', '#162 5316840', '#161 1666715', '#187 f9fa510', '#254 8470744'), 'b26be50da76e'),
-    'KD-AAC-IMPLICIT-SBR': ('#16 1bce9e8', ('#162 5316840', '#161 1666715', '#187 f9fa510', '#254 8470744', '#283 7d10512'), 'ff0f07706190'),
-    'KD-AAC-LC-UNNAMED': ('#16 1bce9e8', ('#162 5316840', '#161 1666715', '#187 f9fa510', '#254 8470744', '#283 7d10512'), '757f9b8cb849'),
-    'KD-DECLARED-SIZE': ('#70 060ed50', (), '998a82b33727'),
-    'KD-QT-TEXT': ('#69 364d038', ('#104 3c771c2', '#136 6aaafb2', '#148 61a60b8'), 'f5ed8c040971'),
-    'KD-EDIT-SNAP': ('#107 2d79137', ('#142 36b1878', '#162 5316840', '#161 1666715', '#187 f9fa510', '#254 8470744'), '4e3bedc4881c'),
-    'KD-EDIT-DURATION': ('#109 0bca9b9', ('#153 31b3951', '#142 36b1878', '#160 d7d79c2', '#162 5316840', '#161 1666715', '#187 f9fa510', '#254 8470744'), 'c8d41e6376f5'),
-    'KD-FRAG-START': ('#142 36b1878', ('#160 d7d79c2', '#162 5316840', '#161 1666715', '#187 f9fa510', '#254 8470744'), 'dab4e31f9571'),
-    'KD-NOT-ALLOWED': ('#104 3c771c2', ('#136 6aaafb2', '#148 61a60b8'), '76cfde005b13'),
-    'KD-COVER-ART': ('#136 6aaafb2', ('#148 61a60b8',), 'ff33419ddff0'),
-    'KD-CHAPTER-TEXT': ('#148 61a60b8', ('#162 5316840', '#161 1666715', '#187 f9fa510', '#254 8470744'), 'ce5fcdd8cf77'),
-    'KD-EDIT-MULTI': ('#153 31b3951', ('#162 5316840', '#161 1666715', '#187 f9fa510', '#254 8470744'), 'b6af7fc381cb'),
-    'KD-TRUN-SHIFT': ('#160 d7d79c2', ('#162 5316840', '#161 1666715', '#187 f9fa510', '#254 8470744'), '37c58ff8d579'),
-    'KD-CTTS-UNSIGNED': ('#160 d7d79c2', ('#162 5316840', '#161 1666715', '#187 f9fa510', '#254 8470744'), '2f637a1ceb60'),
-    'KD-PCM-END': ('#160 d7d79c2', ('#162 5316840', '#161 1666715', '#187 f9fa510', '#254 8470744'), 'ce6556508853'),
-    'KD-EDIT-UNPLACED': ('#160 d7d79c2', ('#162 5316840', '#161 1666715', '#187 f9fa510', '#254 8470744'), 'f10d5ea0fd6b'),
-    'KD-TEXT-END': ('#161 1666715', ('#187 f9fa510', '#254 8470744'), 'b312da9faf02'),
-    'KD-MKV-DTS': ('#51 13600fb', (), 'ca5bbdc45a5d'),
-    'KD-MKV-LACE-UNTIMED': ('#51 13600fb', (), 'a4b31d54f98f'),
-    'KD-MKV-LACE-SPLIT': ('#51 13600fb', (), '3452a757df1d'),
-    'KD-MKV-AUDIO-KEYFRAME': ('#51 13600fb', (), 'c6f638244bea'),
-    'KD-MKV-VFW-TIMESTAMPS': ('#51 13600fb', (), '9f0e067225d2'),
-    'KD-MKV-WEBM-WEBVTT': ('#51 13600fb', (), '1a8d72d9e3c8'),
-    'KD-MKV-ENCRYPTED': ('#51 13600fb', (), '9a5455902d33'),
-    'KD-MKV-STREAM-DURATION': ('#51 13600fb', (), 'c3f8ba82ff6e'),
-    'KD-MKV-FMT-ROUNDING': ('#51 13600fb', (), 'b0efb6716132'),
-    'KD-MKV-UNREAD-BITSTREAM': ('#51 13600fb', (), '35665ca38010'),
-    'KD-MKV-HEVC-RANGE': ('#51 13600fb', (), 'a775c14aa3bb'),
-    'KD-MKV-ATTACHMENT': ('#51 13600fb', (), '54934863283f'),
-    'KD-MKV-DECLARED-SIZE': ('#90 5b3148e', (), 'a635171c5ba2'),
-    'KD-MKV-TAG-LANGUAGE': ('#255 bc1adbd', (), 'bd755749a2c6'),
-    'KD-TS-END-ESTIMATE': ('#247 cdcd6e4', ('#284 f7f135e', '#307 e4f177a'), '452d4fb988a3'),
-    'KD-TS-DUPLICATE': ('#247 cdcd6e4', ('#284 f7f135e', '#307 e4f177a'), '19529b41a401'),
-    'KD-TS-FRAME-TIME': ('#284 f7f135e', ('#307 e4f177a',), 'a7fd80dbbbca'),
-    'KD-TS-STREAM-TIMING': ('#284 f7f135e', ('#307 e4f177a',), '1db561204950'),
-    'KD-TS-AAC-PROFILE': ('#284 f7f135e', ('#307 e4f177a',), '0a767a96a39c'),
-    'KD-TS-STREAM-ORDER': ('#284 f7f135e', ('#307 e4f177a',), '300db2247a8f'),
-    'KD-TS-TELETEXT-SIZE': ('#284 f7f135e', ('#307 e4f177a',), '35b0c12741d3'),
-    'KD-TS-DECODE-TIME': ('#307 e4f177a', (), '75c3c491dffa'),
-    'KD-TS-POSITION': ('#284 f7f135e', ('#307 e4f177a',), '4950c91d1682'),
+    'KD-STRICT': ('dd853a6', ('88a660b',), '3cc36879938e'),
+    'KD-STTS-SHORT': ('dd853a6', ('2199176', '0bca9b9', 'd7d79c2', '5316840', '1666715', 'f9fa510', '8470744', '480836e', '1aa8e25'), 'dd59b212d543'),
+    'KD-EDIT-DISCARD': ('dd853a6', ('35f1801', 'a213539', '5316840', '1666715', 'f9fa510', '8470744', '7d10512', '480836e', '1aa8e25'), 'c97535eb7ae3'),
+    'KD-CTTS': ('dd853a6', ('35f1801', '36b1878', '5316840', '1666715', 'f9fa510', '8470744', '480836e', '1aa8e25'), 'f533f9589b93'),
+    'KD-PCM': ('dd853a6', ('35f1801', 'a213539', 'c6236a6', '5316840', '1666715', 'f9fa510', '8470744', '480836e', '1aa8e25'), '03237db3d23c'),
+    'KD-AAC-IMPLICIT-SBR': ('1bce9e8', ('5316840', '1666715', 'f9fa510', '8470744', '7d10512', '480836e', '1aa8e25'), '4f0b4e977ace'),
+    'KD-AAC-LC-UNNAMED': ('1bce9e8', ('5316840', '1666715', 'f9fa510', '8470744', '7d10512', '480836e', '1aa8e25'), '911cb617e00c'),
+    'KD-DECLARED-SIZE': ('060ed50', (), '998a82b33727'),
+    'KD-QT-TEXT': ('364d038', ('3c771c2', '6aaafb2', '61a60b8'), 'f5ed8c040971'),
+    'KD-EDIT-SNAP': ('2d79137', ('36b1878', '5316840', '1666715', 'f9fa510', '8470744', '480836e', '1aa8e25'), 'baa3ccd83d06'),
+    'KD-EDIT-DURATION': ('0bca9b9', ('31b3951', '36b1878', 'd7d79c2', '5316840', '1666715', 'f9fa510', '8470744', '480836e', '1aa8e25'), '633ba300d5e1'),
+    'KD-FRAG-START': ('36b1878', ('d7d79c2', '5316840', '1666715', 'f9fa510', '8470744', '480836e', '1aa8e25'), '5409988f5ce5'),
+    'KD-NOT-ALLOWED': ('3c771c2', ('6aaafb2', '61a60b8'), '76cfde005b13'),
+    'KD-COVER-ART': ('6aaafb2', ('61a60b8',), 'ff33419ddff0'),
+    'KD-CHAPTER-TEXT': ('61a60b8', ('5316840', '1666715', 'f9fa510', '8470744', '480836e', '1aa8e25'), '5c5c5528d228'),
+    'KD-EDIT-MULTI': ('31b3951', ('5316840', '1666715', 'f9fa510', '8470744', '480836e', '1aa8e25'), '8ea7390e65cd'),
+    'KD-TRUN-SHIFT': ('d7d79c2', ('5316840', '1666715', 'f9fa510', '8470744', '480836e', '1aa8e25'), '556fd3c05ee6'),
+    'KD-CTTS-UNSIGNED': ('d7d79c2', ('5316840', '1666715', 'f9fa510', '8470744', '480836e', '1aa8e25'), 'df640c51e6f2'),
+    'KD-PCM-END': ('d7d79c2', ('5316840', '1666715', 'f9fa510', '8470744', '480836e', '1aa8e25'), '6273200687bd'),
+    'KD-EDIT-UNPLACED': ('d7d79c2', ('5316840', '1666715', 'f9fa510', '8470744', '480836e', '1aa8e25'), 'e61e9f775f8e'),
+    'KD-TEXT-END': ('1666715', ('f9fa510', '8470744', '480836e', '1aa8e25'), '50c44b13250b'),
+    'KD-HEVC-WINDOW': ('1aa8e25', (), 'a567a9c38f61'),
+    'KD-MKV-DTS': ('13600fb', (), 'ca5bbdc45a5d'),
+    'KD-MKV-LACE-UNTIMED': ('13600fb', (), 'a4b31d54f98f'),
+    'KD-MKV-LACE-SPLIT': ('13600fb', (), '3452a757df1d'),
+    'KD-MKV-AUDIO-KEYFRAME': ('13600fb', (), 'c6f638244bea'),
+    'KD-MKV-VFW-TIMESTAMPS': ('13600fb', (), '9f0e067225d2'),
+    'KD-MKV-WEBM-WEBVTT': ('13600fb', (), '1a8d72d9e3c8'),
+    'KD-MKV-ENCRYPTED': ('13600fb', (), '9a5455902d33'),
+    'KD-MKV-STREAM-DURATION': ('13600fb', (), 'c3f8ba82ff6e'),
+    'KD-MKV-FMT-ROUNDING': ('13600fb', (), 'b0efb6716132'),
+    'KD-MKV-UNREAD-BITSTREAM': ('13600fb', (), '35665ca38010'),
+    'KD-MKV-HEVC-RANGE': ('13600fb', (), 'a775c14aa3bb'),
+    'KD-MKV-ATTACHMENT': ('13600fb', (), '54934863283f'),
+    'KD-MKV-DECLARED-SIZE': ('5b3148e', (), 'a635171c5ba2'),
+    'KD-MKV-TAG-LANGUAGE': ('bc1adbd', (), 'bd755749a2c6'),
+    'KD-TS-END-ESTIMATE': ('cdcd6e4', ('f7f135e', 'e4f177a'), '452d4fb988a3'),
+    'KD-TS-DUPLICATE': ('cdcd6e4', ('f7f135e', 'e4f177a'), '19529b41a401'),
+    'KD-TS-FRAME-TIME': ('f7f135e', ('e4f177a',), 'a7fd80dbbbca'),
+    'KD-TS-STREAM-TIMING': ('f7f135e', ('e4f177a',), '1db561204950'),
+    'KD-TS-AAC-PROFILE': ('f7f135e', ('e4f177a',), '0a767a96a39c'),
+    'KD-TS-STREAM-ORDER': ('f7f135e', ('e4f177a',), '300db2247a8f'),
+    'KD-TS-TELETEXT-SIZE': ('f7f135e', ('e4f177a',), '35b0c12741d3'),
+    'KD-TS-DECODE-TIME': ('e4f177a', (), '75c3c491dffa'),
+    'KD-TS-POSITION': ('f7f135e', ('e4f177a',), '4950c91d1682'),
 }
-# Entries no longer in the overlays: the pull request and commit that added
-# them, and the one that retired them.
-RETIRED = {'KD-FMT-ORIGIN': ('#12 dd853a6', '#105 2199176')}
+# Entries no longer in the overlays: the commit that added them, and the
+# one that retired them.
+RETIRED = {'KD-FMT-ORIGIN': ('dd853a6', '2199176')}
 FAMILIES = {'isobmff': 'MP4/MOV/M4A/3GP', 'matroska': 'Matroska/WebM',
             'mpegts': 'MPEG transport streams'}
 FILE_BAR, PACKET_BAR = 98, 99

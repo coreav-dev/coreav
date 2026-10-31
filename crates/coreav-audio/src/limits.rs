@@ -1,5 +1,7 @@
 //! Resource limits (`docs/design/audio-decode.md`).
 
+use crate::{Error, LimitKind};
+
 /// Bounds on the work and memory of one decoding request.
 ///
 /// Every entry point takes a `Limits` value; [`Limits::default`] gives the
@@ -11,7 +13,9 @@ pub struct Limits {
     pub isobmff: coreav_isobmff::Limits,
     /// The Matroska/WebM demuxer's limits.
     pub matroska: coreav_mkv::Limits,
-    /// Channels of one stream. Default 32.
+    /// Channels of one stream, whatever its codec: FLAC's streaminfo
+    /// count, MP3's first frame's (or the count its decoder is given).
+    /// Default 32.
     pub max_channels: u32,
     /// Bytes of one packet read into memory. Default 16 MiB, eight times
     /// the largest FLAC frame (65,535 verbatim 32-bit samples on each of 8
@@ -39,4 +43,13 @@ impl Default for Limits {
             max_decode_errors: 100,
         }
     }
+}
+
+/// Refuses a stream of more than `max_channels` channels
+/// ([`Limits::max_channels`]).
+pub(crate) fn check_channels(channels: usize, max_channels: u32) -> Result<(), Error> {
+    if !u32::try_from(channels).is_ok_and(|n| n <= max_channels) {
+        return Err(Error::LimitExceeded(LimitKind::Channels));
+    }
+    Ok(())
 }

@@ -73,7 +73,7 @@ Rules:
 |---|---|---|
 | `schema` | string | Always `coreav.error/1`. |
 | `kind` | string | `invalid_structure`, `truncated_structure`, `limit`, `unsupported_container`, `unsupported_feature`, `codec_not_allowed`, and for `coreav thumbnail` also `decode` and `out_of_range` (`thumbnail-v1.md`), for `coreav transcode` also `decode` (`transcode-v1.md`) (exit code 1), or `io` (exit code 3). |
-| `limit` | string or `null` | For `limit`: the `Limits` field that was exceeded, for example `max_depth`. |
+| `limit` | string or `null` | For `limit`: the `Limits` field that was exceeded, for example `max_depth`, or for `coreav chapters` and `coreav extract-subtitles` the `TextLimits` field: `max_sample_bytes`, `max_chapters` or `max_title_bytes`. |
 | `offset` | integer or `null` | Byte offset of the offending structure, when known. |
 | `message` | string | Human-readable description. |
 

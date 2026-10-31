@@ -36,7 +36,7 @@ TIMEOUT = 600
 # sets one without them.
 ENV = None
 # Extra arguments of every `decode-oracle` run (a larger memory budget for a
-# re-run on a larger host, #279).
+# re-run on a larger host).
 DECODE_ORACLE_ARGS = []
 # The fixtures gate's image floor: gross errors only (a wrong frame, matrix,
 # range or rotation costs far more); the corpus bars are in
@@ -164,35 +164,43 @@ def thumb(coreav, path, t, out, exact=False):
 
 def ffmpeg_time(ffprobe, path, summary):
     """FFmpeg's `-ss` time for the frame CoreAV chose, rounded down to the
-    microsecond: for MP4/MOV, the pts `ffprobe` lists for the packet at the
-    same byte offset (FFmpeg's timeline can differ from CoreAV's by known
-    divergence KD-EDIT-SNAP), exactly from its integer pts and time base,
-    less the file's start time, from which `-ss` counts; else CoreAV's own
-    time, which counts from the start already."""
-    if path.suffix.lstrip('.').lower() in MP4_EXTS:
-        stream = summary.get('stream_index')
-        r = run([ffprobe, '-v', 'error', '-select_streams', str(stream), '-show_entries',
-                 'packet=pos,pts,flags:stream=time_base:format=start_time', '-of', 'json', str(path)])
-        try:
-            d = json.loads(r.stdout)
-        except ValueError:
-            d = {}
-        from fractions import Fraction
-        base = (d.get('streams') or [{}])[0].get('time_base', '1/1')
-        start = Fraction(str(d.get('format', {}).get('start_time', '0') or '0'))
-        offset = str(summary['packet']['offset'])
-        for p in d.get('packets', []):
-            if str(p.get('pos')) == offset and 'D' in str(p.get('flags', '')):
-                # FFmpeg discards the packet's frame (known divergence
-                # KD-EDIT-SNAP: CoreAV presents it): no reference exists.
-                return None
-            if str(p.get('pos')) == offset and p.get('pts') not in (None, 'N/A'):
-                t = Fraction(int(p['pts'])) * Fraction(base) - start
-                micros = (t * 1_000_000).__floor__()
-                sign = '-' if micros < 0 else ''
-                micros = abs(micros)
-                return f'{sign}{micros // 1_000_000}.{micros % 1_000_000:06d}'
-    return floor_us(summary['time']['frame'])
+    microsecond: the pts `ffprobe` lists for the packet that holds the frame's
+    bytes, exactly from its integer pts and time base, less the file's start
+    time, from which `-ss` counts; CoreAV's own time when `ffprobe` lists no
+    such packet. In MP4/MOV that packet starts at the frame's byte offset;
+    elsewhere it is the stream's last packet that starts before it, as a
+    Matroska block or an MPEG-TS PES starts with a header. So FFmpeg's
+    timeline may differ from CoreAV's: by known divergence KD-EDIT-SNAP in
+    MP4, and by the later start FFmpeg 9.0.2 gives a Matroska file whose
+    audio has a `CodecDelay` (KD-FF9-MKV-START)."""
+    from fractions import Fraction
+    mp4 = path.suffix.lstrip('.').lower() in MP4_EXTS
+    r = run([ffprobe, '-v', 'error', '-select_streams', str(summary.get('stream_index')), '-show_entries',
+             'packet=pos,pts,flags:stream=time_base:format=start_time', '-of', 'json', str(path)])
+    try:
+        d = json.loads(r.stdout)
+    except ValueError:
+        d = {}
+    offset, held = int(summary['packet']['offset']), None
+    for p in d.get('packets', []):
+        pos = str(p.get('pos'))
+        if not pos.isdigit():
+            continue
+        if int(pos) == offset:
+            held = p
+            break
+        if not mp4 and int(pos) < offset and (held is None or int(pos) > int(held['pos'])):
+            held = p
+    if held is None or held.get('pts') in (None, 'N/A'):
+        return floor_us(summary['time']['frame'])
+    if 'D' in str(held.get('flags', '')):
+        # FFmpeg discards the packet's frame (known divergence
+        # KD-EDIT-SNAP: CoreAV presents it): no reference exists.
+        return None
+    base = (d.get('streams') or [{}])[0].get('time_base', '1/1')
+    start = Fraction(str(d.get('format', {}).get('start_time', '0') or '0'))
+    t = Fraction(int(held['pts'])) * Fraction(base) - start
+    return floor_us({'num': t.numerator, 'den': t.denominator})
 
 
 def reference(ffmpeg, path, summary, out, extra=('-pix_fmt', 'rgb24'), ffprobe='ffprobe'):

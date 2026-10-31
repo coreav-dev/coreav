@@ -28,7 +28,7 @@ coreav-backend-libvpx = { path = "../coreav-backend-libvpx", optional = true }
 rustix = { version = "1", default-features = false, features = ["std", "process"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-rustix = { version = "1", default-features = false, features = ["std", "fs", "process"] }
+rustix = { version = "1", default-features = false, features = ["std", "fs", "process", "thread"] }
 memmap2 = "0.9"
 
 # An exception crate copies the workspace lint table with only

@@ -8,7 +8,7 @@
 fn main() -> std::process::ExitCode {
     let mut args = std::env::args_os().skip(1);
     if args.next().as_deref() == Some(std::ffi::OsStr::new(coreav_worker::EXEC_ARG)) {
-        return coreav_worker::sandbox_exec_main(args);
+        return coreav_worker::sandbox_exec_main(args, |_| Ok(()));
     }
-    coreav_worker::worker_main()
+    coreav_worker::worker_main(|_| Ok(()))
 }

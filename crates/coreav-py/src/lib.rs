@@ -1067,8 +1067,9 @@ fn _cli(py: Python<'_>) -> PyResult<()> {
         "signal",
         (signal.getattr("SIGINT")?, signal.getattr("SIG_DFL")?),
     )?;
-    // `coreav mcp` runs the command itself for each tool call: here the
-    // installed script, which is the first argument.
+    // `coreav thumbnail` and `coreav transcode` (with their features) start
+    // the command again as their sandboxed workers: here the installed
+    // script, which is the first argument.
     let this = argv.first().map(std::path::PathBuf::from);
     let code = py.detach(|| command::main_with(argv, this));
     // `ExitCode` holds the command's 0 to 255; there is no stable way to

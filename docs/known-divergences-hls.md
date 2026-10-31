@@ -216,7 +216,7 @@ predicates rely on are the source's.
   (`docs/design/hls.md`, "The segments are the subsegments"), and each
   segment's `tfdt` is its first sample's decode time; the samples are
   copied as stored. The writer does not read every fragment
-  to build the playlist (#248). ISO/IEC 14496-12 8.8.12 makes a fragment's
+  to build the playlist. ISO/IEC 14496-12 8.8.12 makes a fragment's
   decode time the sum of the earlier samples' durations; the source's
   `tfdt` values break it, so its index (8.16.3.3) disagrees with its own
   fragments.
@@ -231,3 +231,26 @@ predicates rely on are the source's.
   segment start, moved by its gaps, starting as the oracle requires without
   the entry (a video segment at its first frame's time, an audio segment
   within one frame of it, after one constant origin).
+
+## KD-HLS-11
+
+- Field: an audio rendition's decoded frames.
+- When: the source keeps its samples in a sample table and its last audio
+  sample's stored duration is shorter than its frame (the end of the
+  encoded audio). Example: the last AAC sample of `basic.mp4` is stored
+  with 136 ticks of a 1,024-sample frame.
+- What each reports: `ffmpeg` 9.0.2 reads Skip Samples side data on the
+  source's last packet that discards the 888 samples past the stored
+  duration, and decodes that frame cut; it reads none from the rendition's
+  track runs and decodes the frame whole. Every other frame is the same.
+  `ffmpeg` 7.0.2 cut the frame in neither.
+- Why: each sample's stored duration is copied into the track runs (ISO/IEC
+  14496-12 8.8.8, 8.6.1.2); which layout `ffmpeg` turns it into padding
+  to discard for is its own. The same cause as KD-R-FRAG-LAST-TRIM and
+  KD-X-FRAG-LAST-FRAME, from the other side.
+- Coverage requires: an audio rendition; every source frame but the last
+  matched, the last matched by none, and the one output frame left over at
+  its time; the last packets of the source and the rendition with the same
+  bytes and duration; and Skip Samples on the source's last packet that
+  skip nothing and discard samples at its end, and none on the
+  rendition's.

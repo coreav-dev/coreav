@@ -1,5 +1,5 @@
 """causes.py PER_STREAM_JSON: the training streams ranked by their one-thread ratio to FFmpeg on the bar class
-(`../mb-layout-2/gating/analysis.txt`, call `g`, discard, `after` = `main` from #473 on), with their coding features
+(`../mb-layout-2/gating/analysis.txt`, call `g`, discard, `after` = `main` from the MB-layer storage round on), with their coding features
 (`../snapshot-outliers/features.tsv`; bits a macroblock from `../../h264-training/es.json`) and the PMU profile's
 excess over FFmpeg by group (per_stream.py's output): entropy and the MB layer together, and each of inter prediction,
 reconstruction and deblocking split into the driver (CoreAV's Rust around the kernels; FFmpeg's C functions) and the

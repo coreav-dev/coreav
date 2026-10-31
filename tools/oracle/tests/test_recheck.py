@@ -186,7 +186,7 @@ class Fingerprint(unittest.TestCase):
             (release / name).write_bytes(name.encode())
         self.bin = pathlib.Path(self.tmp.name) / 'bin'
         self.bin.mkdir()
-        self.tool('ffprobe', 'ffprobe version 7.0.2-static')
+        self.tool('ffprobe', 'ffprobe version n9.0.2-test')
         self.tool('mediainfo', 'MediaInfo Command line,\nMediaInfoLib - v26.10')
         self.root = root
         saved = (corpus.ROOT, dict(os.environ))
@@ -237,7 +237,7 @@ class Fingerprint(unittest.TestCase):
         self.assertEqual(self.stale(), 2)
 
     def test_a_changed_coreav_command_makes_every_record_stale(self):
-        # The compat check runs `coreav probe --ffprobe-compat` (#219).
+        # The compat check runs `coreav probe --ffprobe-compat`.
         (self.root / 'release' / 'coreav').write_bytes(b'coreav, rebuilt')
         self.assertEqual(self.stale(), 2)
 
@@ -265,7 +265,7 @@ class Fingerprint(unittest.TestCase):
 
     def test_the_versions_are_recorded(self):
         made = corpus.tools('isobmff')
-        self.assertTrue(made['ffprobe'].startswith('ffprobe version 7.0.2-static sha256:'))
+        self.assertTrue(made['ffprobe'].startswith('ffprobe version n9.0.2-test sha256:'))
         self.assertTrue(made['mediainfo'].startswith('MediaInfoLib - v26.10 sha256:'))
 
 if __name__ == '__main__':

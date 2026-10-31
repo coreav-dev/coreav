@@ -405,7 +405,7 @@ impl coreav_mkv::Source for FailingAt<'_> {
     }
 }
 
-/// A read that fails is not a frame without its atom header (#594):
+/// A read that fails is not a frame without its atom header:
 /// wherever the failure falls, the scan fails with it.
 #[test]
 fn a_read_failure_fails_the_scan_wherever_it_falls() {
@@ -631,7 +631,7 @@ fn the_scan_is_bounded_by_the_work_limit() {
     ));
 }
 
-/// The audit walks with the listing (#135), but its verdict still comes
+/// The audit walks with the listing, but its verdict still comes
 /// first: an error of the listing, or of the scan reading the frames,
 /// gives way to an audit error found later in the file, as when the audit
 /// ran first.

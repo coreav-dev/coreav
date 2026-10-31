@@ -1,5 +1,5 @@
 Layout test, written before the run. Builds of identical source: dw-4cb168e (main 056bd25 code, dist) vs r25-mA (same, -align-all-functions=6
--align-all-nofallthru-blocks=5) vs r25-mF (functions=6 only). Round 24: mbl-451 (default) and r25-rA (aligned like mA).
+-align-all-nofallthru-blocks=5) vs r25-mF (functions=6 only). Round 24: mbl-r24 (default) and r25-rA (aligned like mA).
 Readings: (1) |mA/m0 - 1| or |mF/m0 - 1| >= 0.003 overall, or >= 0.005 in a class => layout alone moves time by round-24's gain or more.
 (2) rA/mA <= 0.995 while r0/m0 >= 0.996 => round 24's gain is there once layout is pinned. (3) rA/mA ~ r0/m0 ~ 0.997 => layout is not why.
 ab3.py, 7 rounds, all 32, pinned cpu 3, quiet VM.

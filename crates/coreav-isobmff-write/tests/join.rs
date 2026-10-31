@@ -39,12 +39,20 @@ fn sum(a: Rational, b: Rational) -> Rational {
 }
 
 fn join_with(inputs: &[&[u8]], audio: JoinAudio) -> Result<(JoinSummary, Vec<u8>), JoinError> {
+    join_choosing(inputs, VideoChoice::First, audio)
+}
+
+fn join_choosing(
+    inputs: &[&[u8]],
+    video: VideoChoice,
+    audio: JoinAudio,
+) -> Result<(JoinSummary, Vec<u8>), JoinError> {
     let mut out = Vec::new();
     let summary = join_mp4(
         inputs.iter().map(|i| SliceSource::new(i)).collect(),
         &Limits::default(),
         &Allowlist::default(),
-        &JoinOptions { audio },
+        &JoinOptions { video, audio },
         &mut out,
     )?;
     assert_eq!(summary.bytes_written, out.len() as u64);
@@ -546,6 +554,27 @@ fn an_edit_within_the_declared_media_ends_the_input() {
 }
 
 #[test]
+fn frames_composed_past_the_declared_media_are_kept() {
+    // A second of video whose last P frame is composed a frame later,
+    // leaving a hole before it: its frames end 1.04 s after the edit's
+    // start, while the media header declares the sum of the decode
+    // durations (1 s). The edit (1.04 s) shows every frame, so the input
+    // ends where its last frame does; an edit that holds the last frame a
+    // frame longer (1.08 s) ends it there.
+    for (edit, end) in [(1040, q(26, 25)), (1080, q(27, 25))] {
+        let mut video = ibbp_video(25, 25);
+        video.samples[22].offset += 512;
+        video.edits = vec![(edit, 1024)];
+        let source = movie(&[video]);
+        let inputs: Vec<&[u8]> = vec![&source, &source];
+        let (summary, out) = join_with(&inputs, JoinAudio::None).unwrap();
+        assert_join(&inputs, &out, &summary);
+        assert_eq!(summary.inputs[0].video_end, end, "{edit}");
+        assert_eq!(summary.inputs[1].offset, end, "{edit}");
+    }
+}
+
+#[test]
 fn the_work_limit_is_checked_before_writing() {
     // Each listing visits an input's samples once: a limit that the first
     // two listings fit in but not the copy is refused before any byte.
@@ -564,6 +593,7 @@ fn the_work_limit_is_checked_before_writing() {
             &limits,
             &Allowlist::default(),
             &JoinOptions {
+                video: VideoChoice::First,
                 audio: JoinAudio::First,
             },
             &mut out,
@@ -894,6 +924,7 @@ fn inputs_that_cannot_be_joined_on_their_own() {
             &Limits::default(),
             &Allowlist::default(),
             &JoinOptions {
+                video: VideoChoice::First,
                 audio: JoinAudio::First
             },
             Vec::new()
@@ -907,6 +938,61 @@ fn inputs_that_cannot_be_joined_on_their_own() {
         offset: 0,
         sync: true,
     };
+}
+
+/// [`JoinAudio::Stream`] joins the audio stream it names, or fails when
+/// the allowlist leaves that stream out, where [`JoinAudio::First`]
+/// takes the first audio stream the allowlist keeps (none for FLAC).
+#[test]
+fn a_named_audio_stream_is_joined_or_refused() {
+    let source = av_movie();
+    let (summary, _) = join_with(&[&source, &source], JoinAudio::Stream(1)).unwrap();
+    for input in &summary.inputs {
+        assert_eq!(input.audio.as_ref().map(|a| a.stream_index), Some(1));
+    }
+    let flac = common::av_movie(b"fLaC");
+    match join_with(&[&flac, &flac], JoinAudio::Stream(1)) {
+        Err(JoinError::Input {
+            input: 0,
+            error: ExtractError::Source(Error::CodecNotAllowed { fourcc, .. }),
+        }) => assert_eq!(fourcc, FourCc(*b"fLaC")),
+        other => panic!("{:?}", other.map(|r| r.0)),
+    }
+    let (summary, _) = join_with(&[&flac, &flac], JoinAudio::First).unwrap();
+    assert!(summary.inputs.iter().all(|input| input.audio.is_none()));
+}
+
+/// The video stream a caller names is joined, or the join fails: never
+/// another video stream in its place. By default the first video stream
+/// the allowlist keeps is joined.
+#[test]
+fn a_named_video_stream_is_joined_or_refused() {
+    let source = movies::movie(&[
+        movies::TrackSpec {
+            entry: *b"mp4v",
+            ..movies::ibbp_video(100, 25)
+        },
+        movies::ibbp_video(100, 25),
+        movies::aac_audio(190, vec![(4000, 2112)]),
+    ]);
+    let video = |choice| {
+        join_choosing(&[&source, &source], choice, JoinAudio::None).map(|(summary, _)| {
+            summary
+                .inputs
+                .iter()
+                .map(|input| input.video.stream_index)
+                .collect::<Vec<_>>()
+        })
+    };
+    assert_eq!(video(VideoChoice::Stream(1)).unwrap(), [1, 1]);
+    assert_eq!(video(VideoChoice::First).unwrap(), [1, 1]);
+    match video(VideoChoice::Stream(0)) {
+        Err(JoinError::Input {
+            input: 0,
+            error: ExtractError::Source(Error::CodecNotAllowed { fourcc, .. }),
+        }) => assert_eq!(fourcc, FourCc(*b"mp4v")),
+        other => panic!("{other:?}"),
+    }
 }
 
 fn json_string(s: &str) -> String {

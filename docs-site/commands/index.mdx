@@ -1,0 +1,71 @@
+---
+title: "Commands"
+description: "Every coreav command, and what inputs, outputs, exit statuses and errors they share."
+---
+
+import Help from '/snippets/help/coreav.mdx';
+
+The `coreav` command has one subcommand per job. Each page here shows the command's `--help` text, as the command prints it.
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| [`probe`](/commands/probe) | Describes an MP4, MOV, Matroska, WebM or MPEG-TS file as JSON. |
+| [`check`](/commands/check) | Checks a file against an upload policy and prints the verdict. |
+| [`chapters`](/commands/chapters) | Prints the QuickTime chapter list of an MP4 or MOV file. |
+| [`clip`](/commands/clip) | Cuts a keyframe-aligned clip of an MP4 or MOV file. |
+| [`split`](/commands/split) | Splits an MP4 or MOV file at keyframes into MP4 segments. |
+| [`join`](/commands/join) | Joins MP4 or MOV files that share a codec configuration. |
+| [`remux`](/commands/remux) | Rewrites MP4, MOV, Matroska or WebM as MP4 with the movie header first. |
+| [`sanitize`](/commands/sanitize) | Rewrites an MP4 or MOV file without its metadata. |
+| [`extract-audio`](/commands/extract-audio) | Copies the AAC track of an MP4 or MOV file into M4A. |
+| [`extract-subtitles`](/commands/extract-subtitles) | Writes the text subtitles of an MP4 or MOV file as WebVTT. |
+| [`decode-audio`](/commands/decode-audio) | Decodes a FLAC, MP3 or Opus track to WAV. |
+| [`hls`](/commands/hls) | Serves an MP4 or MOV file as HLS. |
+| [`ffprobe`](/commands/ffprobe) | Experimental. Runs an `ffprobe` command line. |
+| [`ffmpeg`](/commands/ffmpeg) | Experimental. Runs an `ffmpeg -c copy` command line. |
+| [`thumbnail`](/commands/thumbnail) | Writes an image of the frame at a time. Builds with a decoder backend only. |
+| [`transcode`](/commands/transcode) | Re-encodes the video to H.264 in MP4. Builds with a decoder backend only. |
+
+Only `decode-audio`, `thumbnail` and `transcode` decode anything, and only `transcode` encodes. The other commands copy the coded data as it is.
+
+## Inputs
+
+An input is a local file. In native builds, the commands that read one media file (`probe`, `check`, `clip`, `split`, `extract-audio`, `remux`, `sanitize`, `extract-subtitles` and `chapters`) also read an `https://` URL, by byte ranges, never downloading the whole file ([remote media](https://github.com/coreav-dev/coreav/blob/main/docs/design/remote.md)).
+
+## Outputs
+
+- A command that writes a file writes it under a temporary name and renames it into place, so a failed run leaves no partial output. `split` keeps the segments it finished.
+- A command refuses to overwrite an existing file unless you pass `--force`, and never writes over its input.
+- Most commands take `-` as the output, for standard output. The JSON summary then goes to standard error.
+- Each JSON document names its schema, such as `coreav.probe/1`. The schemas are in [`docs/schema`](https://github.com/coreav-dev/coreav/tree/main/docs/schema).
+
+## Exit statuses
+
+| Status | Meaning |
+|---|---|
+| 0 | Success. For `check`, the file is accepted. |
+| 1 | The file was rejected: unsupported, damaged or not allowed. For `check`, the verdict is on standard output. |
+| 2 | Usage error: bad arguments or an invalid policy. |
+| 3 | I/O error: a missing file, an unreadable URL or an unwritable output. |
+| 4 | Refused: `coreav ffprobe` or `coreav ffmpeg` refused a command line it does not implement, or strict-safe mode refused what would run an `ffmpeg` program ([strict-safe mode](/strict-safe)). |
+| 141 | Standard output was closed by its reader, as in `coreav probe input.mp4 \| head`. |
+
+## Errors
+
+On exit status 1 and 3, standard error holds one JSON object (`coreav.error/1`), except a rejection by `check`, whose verdict is on standard output:
+
+```json
+{"kind":"unsupported_container","limit":null,"message":"not an ISO base media or QuickTime file","offset":null,"schema":"coreav.error/1"}
+```
+
+`kind` is stable and meant for programs. `message` is for people. Usage errors are plain text that starts with `error:`.
+
+## Global options
+
+<Help />
+
+## How this reference stays in agreement with the help
+
+The help text on each page is generated from the command's `--help`. A test, `crates/coreav-cli/tests/docs_site.rs`, runs every command's `--help` and fails when a page's text differs, or when a command has no page. CI runs it in the default build and in a build with a decoder backend.

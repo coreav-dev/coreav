@@ -15,7 +15,7 @@ mod common;
 #[path = "../../coreav-mpegts/tests/common/mod.rs"]
 mod ts;
 
-use common::{aac_entry, av_movie_with};
+use common::{aac_entry, alac_cookie, av_movie_with, dfla, lossless_entry};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -124,9 +124,38 @@ fn a_missing_file_is_named() {
 
 #[test]
 fn help_is_the_usage_text() {
-    let r = ffprobe(&["-h"]);
-    assert_eq!(r.code, 0);
-    assert!(r.stdout.contains("usage: coreav ffprobe"));
+    for args in [
+        vec!["-h"],
+        vec!["-?"],
+        vec!["-help"],
+        vec!["--help"],
+        vec!["-hide_banner", "-h"],
+    ] {
+        let r = ffprobe(&args);
+        assert_eq!(r.code, 0, "{args:?}: {}", r.stderr);
+        assert_eq!(r.stdout, coreav_cli::ffprobe::USAGE, "{args:?}");
+        assert!(r.stderr.is_empty(), "{args:?}: {}", r.stderr);
+    }
+}
+
+#[test]
+fn help_on_a_topic_is_refused_by_name() {
+    for (args, named) in [
+        (vec!["-h", "long"], "'-h long'"),
+        (vec!["-h", "full"], "'-h full'"),
+        (vec!["--help", "demuxer=mov"], "'--help demuxer=mov'"),
+        (vec!["-hide_banner", "-help", "in.mp4"], "'-help in.mp4'"),
+    ] {
+        let r = ffprobe(&args);
+        assert_eq!(r.code, 4, "{args:?}: {}", r.stderr);
+        assert!(r.stdout.is_empty(), "{args:?}");
+        assert!(
+            r.stderr
+                .starts_with(&format!("coreav ffprobe: {named} is not supported: ")),
+            "{args:?}: {}",
+            r.stderr
+        );
+    }
 }
 
 #[test]
@@ -161,7 +190,47 @@ fn the_common_forms_print_what_ffprobe_prints() {
     assert_eq!(doc["format"]["filename"], path.as_str());
     assert_eq!(doc["format"]["nb_streams"], 2);
     let r = ffprobe(&["-show_entries", "format=filename", "-of", "flat", &path]);
-    assert_eq!(r.stdout, format!("format.filename=\"{path}\"\n"));
+    // The flat writer escapes a backslash, as in a Windows path.
+    let escaped = path.replace('\\', "\\\\");
+    assert_eq!(r.stdout, format!("format.filename=\"{escaped}\"\n"));
+}
+
+/// FLAC's and ALAC's rate and bit depth are their configuration's, not
+/// the sample entry's 16.16 rate, which cannot hold 96 kHz or 192 kHz.
+#[test]
+fn lossless_audio_takes_its_rate_and_depth_from_its_configuration() {
+    for (name, entry, expected) in [
+        (
+            "ffprobe-flac.mp4",
+            lossless_entry(b"fLaC", dfla(96_000, 24)),
+            "flac,s32,96000,24\n",
+        ),
+        (
+            "ffprobe-flac16.mp4",
+            lossless_entry(b"fLaC", dfla(44_100, 16)),
+            "flac,s16,44100,16\n",
+        ),
+        (
+            "ffprobe-alac.m4a",
+            lossless_entry(b"alac", alac_cookie(192_000, 16)),
+            "alac,s16p,192000,16\n",
+        ),
+    ] {
+        let path = file(name, &av_movie_with(entry, false));
+        let r = ffprobe(&[
+            "-v",
+            "error",
+            "-select_streams",
+            "a",
+            "-show_entries",
+            "stream=codec_name,sample_fmt,sample_rate,bits_per_raw_sample",
+            "-of",
+            "csv=p=0",
+            path.to_str().unwrap(),
+        ]);
+        assert_eq!(r.code, 0, "{}", r.stderr);
+        assert_eq!(r.stdout, expected, "{name}");
+    }
 }
 
 #[test]

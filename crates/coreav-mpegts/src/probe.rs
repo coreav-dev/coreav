@@ -10,7 +10,7 @@ use crate::pid_map::PidMap;
 use crate::reader::{Reader, detect};
 use crate::section::{Descriptor, Service};
 use crate::video::{self, Nal, ParameterSets};
-use crate::{Error, Limits, Source};
+use crate::{Error, LimitKind, Limits, Source};
 use coreav_isobmff::{
     Color, ConfigRecord, FourCc, Profile, describe_audio_specific_config, describe_config_record,
 };
@@ -687,6 +687,9 @@ struct HeadAt {
 /// Reads the head of the file, from its first packet, until the tables are
 /// complete (or the demultiplexer was given its streams without them) and
 /// every stream has shown what it states, or `max_probe_bytes` are read.
+/// Returns where the budget stopped the read when the reader came to the
+/// budget's end before the file's, a resynchronisation that ran to it
+/// included, `None` when the read stopped for another reason.
 fn read_head<S: Source>(
     source: &mut S,
     at: &HeadAt,
@@ -695,13 +698,20 @@ fn read_head<S: Source>(
     learnt: &mut Vec<Learn>,
     reference: &mut Option<u64>,
     warnings: &mut Vec<Warning>,
-) -> Result<(), Error> {
-    let mut reader = Reader::new(at.packet_size, at.len, at.first_packet, limits);
+) -> Result<Option<u64>, Error> {
+    // The budget is where the reader's file ends: a packet is read only
+    // when all of it is inside the budget.
     let budget_end = at.first_packet.saturating_add(limits.max_probe_bytes);
-    let mut at_end = false;
-    while reader.position() < budget_end {
+    let mut reader = Reader::new(
+        at.packet_size,
+        at.len.min(budget_end),
+        at.first_packet,
+        limits,
+    );
+    let mut ran_out = false;
+    loop {
         let Some((offset, packet)) = reader.next(source, warnings)? else {
-            at_end = true;
+            ran_out = true;
             break;
         };
         demux.feed(offset, &packet, warnings)?;
@@ -732,12 +742,13 @@ fn read_head<S: Source>(
     // level they describe. Only the end of the file flushes: a PES packet
     // cut by the probe's budget is incomplete, and its payload would
     // describe the stream from bytes the file does not end at.
-    if at_end {
+    let budget_spent = ran_out && budget_end < at.len;
+    if ran_out && !budget_spent {
         demux.finish(warnings);
         learnt.resize_with(demux.streams.len(), Learn::default);
         learn_ready(demux, learnt, reference);
     }
-    Ok(())
+    Ok(budget_spent.then_some(budget_end))
 }
 
 /// Reads the tables and each kept stream's parameters, and the last
@@ -746,10 +757,12 @@ fn read_head<S: Source>(
 /// # Errors
 ///
 /// [`Error::NotTransportStream`] when no packet size fits the start of the
-/// file, [`Error::NoPrograms`] when a PAT is found within
-/// `max_probe_bytes` and none of the PMTs it names, or neither a PAT nor a
-/// PES packet is (a file without a PAT lists the PIDs that carry PES
-/// packets), and errors of the source.
+/// file, [`Error::NoPrograms`] when a PAT is found and none of the PMTs it
+/// names, or neither a PAT nor a PES packet is (a file without a PAT lists
+/// the PIDs that carry PES packets), in a file read to its end,
+/// [`LimitKind::ProbeBytes`] when that is so of the first
+/// `max_probe_bytes` and the file goes on after them, and errors of the
+/// source.
 pub fn probe<S: Source>(
     mut source: S,
     limits: &Limits,
@@ -767,7 +780,7 @@ pub fn probe<S: Source>(
     demux.name_undeclared = true;
     let mut learnt: Vec<Learn> = Vec::new();
     let mut reference: Option<u64> = None;
-    read_head(
+    let budget_spent = read_head(
         &mut source,
         &at,
         limits,
@@ -804,7 +817,16 @@ pub fn probe<S: Source>(
         && !demux.tables_complete()
         && demux.programs.iter().all(|p| p.pmt_version.is_none())
     {
-        return Err(Error::NoPrograms);
+        // The tables may come after the budget: the limit, so that a
+        // caller can tell a file that names no program from one whose
+        // head is longer than it allowed.
+        return Err(match budget_spent {
+            Some(offset) => Error::LimitExceeded {
+                limit: LimitKind::ProbeBytes,
+                offset,
+            },
+            None => Error::NoPrograms,
+        });
     }
     // A program has a system time base of its own (ISO/IEC 13818-1
     // 2.4.2.1): the reference for the 33-bit wrap is the program's own

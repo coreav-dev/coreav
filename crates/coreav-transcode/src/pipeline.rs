@@ -230,6 +230,9 @@ pub enum Error {
     Isobmff(coreav_isobmff::Error),
     /// The Matroska parser rejected the source or could not read it.
     Matroska(coreav_mkv::Error),
+    /// The video stream is not valid for its codec's specification: the
+    /// rule broken (`coreav_thumbnail::Error::Invalid`).
+    Invalid(&'static str),
     /// Decoding failed, no backend could decode the stream, or the
     /// deadline passed while decoding.
     Decode(coreav_decode::Error),
@@ -256,6 +259,7 @@ impl fmt::Display for Error {
         match self {
             Self::Isobmff(e) => write!(f, "{e}"),
             Self::Matroska(e) => write!(f, "{e}"),
+            Self::Invalid(what) => write!(f, "invalid structure: {what}"),
             Self::Decode(e) => write!(f, "decoding: {}", e.message),
             Self::Encode(e) => write!(f, "encoding: {}", e.message),
             Self::Unsupported(what) => write!(f, "unsupported: {what}"),
@@ -274,6 +278,7 @@ impl From<coreav_thumbnail::Error> for Error {
         match e {
             T::Isobmff(e) => Self::Isobmff(e),
             T::Matroska(e) => Self::Matroska(e),
+            T::Invalid(what) => Self::Invalid(what),
             T::Decode(e) => Self::Decode(e),
             T::Frame(e) => Self::Unsupported(e.to_string()),
             T::NoVideo => Self::Unsupported("no video stream".into()),
@@ -690,9 +695,10 @@ impl Presented {
 
     /// The presented frames' average rate (frames over the presented
     /// span, the last frame's duration included), snapped to an integer or
-    /// `N × 1000/1001` rate within 0.1% of one: for the summary. The
-    /// encoder is given every frame's own time, not a rate
-    /// (`docs/design/transcode.md`, "Rate control and timestamps").
+    /// `N × 1000/1001` rate within 0.1% of one: for the summary, and for
+    /// FFmpeg when it gets one frame. The encoder is otherwise given every
+    /// frame's own time, not a rate (`docs/design/transcode.md`, "Rate
+    /// control and timestamps").
     fn frame_rate(&self, time_base: Rational) -> FrameRate {
         const FALLBACK: FrameRate = FrameRate { num: 25, den: 1 };
         let n = self.times.len() as u128;

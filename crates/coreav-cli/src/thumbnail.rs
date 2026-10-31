@@ -59,20 +59,30 @@ fn sexagesimal(units: &[&str], seconds: &str) -> Option<Rational> {
 /// program's first argument is [`WORKER_ARG`], or the sandbox launcher
 /// (`coreav_worker::exec`, the encoder of `coreav transcode`) in any build
 /// with a decoder backend when it is `coreav_worker::EXEC_ARG`; `None`
-/// otherwise. A build without a decoder backend does nothing here, not even
-/// read its arguments, which every command's start-up would pay for
-/// (`docs/design/benchmarks.md`).
+/// otherwise. Each hosts or runs only what strict-safe mode allows
+/// (`crate::strict_safe`), on with `--strict-safe` right after the entry
+/// argument, which every launch in the mode passes
+/// (`StrictSafe::entry`), or with `COREAV_STRICT_SAFE`. A build without a
+/// decoder backend does nothing here, not even read its arguments, which
+/// every command's start-up would pay for (`docs/design/benchmarks.md`).
 pub fn run_worker() -> Option<std::process::ExitCode> {
     #[cfg(feature = "thumbnail")]
     {
-        let mut args = std::env::args_os().skip(1);
+        use crate::strict_safe::{FLAG, StrictSafe};
+        let mut args = std::env::args_os().skip(1).peekable();
         let first = args.next();
         #[cfg(any(feature = "ffmpeg-fallback", feature = "dav1d", feature = "libvpx"))]
         if first.as_deref() == Some(std::ffi::OsStr::new(WORKER_ARG)) {
-            return Some(coreav_worker::worker_main());
+            let strict_safe = StrictSafe::new(args.next_if(|a| a == FLAG).is_some());
+            return Some(coreav_worker::worker_main(|backend| {
+                strict_safe.worker(backend)
+            }));
         }
         if first.as_deref() == Some(std::ffi::OsStr::new(coreav_worker::EXEC_ARG)) {
-            return Some(coreav_worker::sandbox_exec_main(args));
+            let strict_safe = StrictSafe::new(args.next_if(|a| a == FLAG).is_some());
+            return Some(coreav_worker::sandbox_exec_main(args, |program| {
+                strict_safe.program(program)
+            }));
         }
     }
     None
@@ -122,6 +132,8 @@ pub struct Request {
     pub threads: u32,
     /// `--timeout`, in seconds.
     pub timeout: u64,
+    /// `--strict-safe`: no FFmpeg decoder.
+    pub strict_safe: crate::strict_safe::StrictSafe,
 }
 
 /// Makes the thumbnail `request` asks for from `source`: the image and the
@@ -161,9 +173,9 @@ pub fn make<S: Source>(
         options.policy.allowlist = coreav_decode::DecodeAllowlist::new(&codecs);
     }
     options.policy.order = order(request.exact);
-    let owned = backends(this, request.threads);
-    let backends: Vec<&dyn coreav_decode::Backend> = owned.iter().map(|b| b.as_ref()).collect();
-    let made = coreav_thumbnail::thumbnail(source, &options, &backends).map_err(failure)?;
+    let decoders = backends(this, request.threads, request.strict_safe);
+    let made = coreav_thumbnail::thumbnail(source, &options, &decoders.list())
+        .map_err(|e| decoders.explain(failure(e)))?;
     let document = document(&made, request.at);
     Ok((made.image, document))
 }
@@ -198,8 +210,9 @@ fn order(exact: bool) -> Vec<coreav_decode::BackendKind> {
 /// The decoder backends of this build: CoreAV's own H.264 decoder with
 /// the `native-h264` feature, and, run by this program as its sandboxed
 /// worker, dav1d with the `dav1d` feature, libvpx with the `libvpx` feature
-/// and the FFmpeg fallback with the `ffmpeg-fallback` feature. The policy's order decides between them
-/// (`docs/design/decode.md`).
+/// and the FFmpeg fallback with the `ffmpeg-fallback` feature, which
+/// strict-safe mode refuses (`crate::strict_safe`). The policy's order
+/// decides between them (`docs/design/decode.md`).
 #[cfg(feature = "thumbnail")]
 #[cfg_attr(
     not(any(
@@ -210,20 +223,13 @@ fn order(exact: bool) -> Vec<coreav_decode::BackendKind> {
     )),
     allow(unused_mut)
 )]
-#[cfg_attr(
-    not(any(feature = "ffmpeg-fallback", feature = "dav1d", feature = "libvpx")),
-    allow(unused_variables)
-)]
-// With one backend in the build, the vector is made and pushed to once.
-#[cfg_attr(
-    not(all(feature = "ffmpeg-fallback", feature = "native-h264")),
-    allow(clippy::vec_init_then_push)
-)]
+#[cfg_attr(not(feature = "ffmpeg-fallback"), allow(unused_variables))]
 pub(crate) fn backends(
     this: Option<&std::path::Path>,
     threads: u32,
-) -> Vec<Box<dyn coreav_decode::Backend>> {
-    let mut out: Vec<Box<dyn coreav_decode::Backend>> = Vec::new();
+    strict_safe: crate::strict_safe::StrictSafe,
+) -> crate::strict_safe::Decoders {
+    let mut out = crate::strict_safe::Decoders::default();
     #[cfg(feature = "native-h264")]
     out.push(Box::new(coreav_backend_h264::NativeH264::new()));
     #[cfg(any(feature = "ffmpeg-fallback", feature = "dav1d", feature = "libvpx"))]
@@ -233,24 +239,33 @@ pub(crate) fn backends(
             threads,
             ..WorkerOptions::new(WorkerCommand {
                 program: program.to_path_buf(),
-                args: vec![WORKER_ARG.into()],
+                args: strict_safe.entry(WORKER_ARG),
             })
         };
         #[cfg(feature = "dav1d")]
-        out.push(Box::new(SandboxedBackend {
-            backend: WorkerBackend::Dav1d,
-            options: options.clone(),
-        }));
+        out.push_sandboxed(
+            strict_safe,
+            SandboxedBackend {
+                backend: WorkerBackend::Dav1d,
+                options: options.clone(),
+            },
+        );
         #[cfg(feature = "libvpx")]
-        out.push(Box::new(SandboxedBackend {
-            backend: WorkerBackend::Libvpx,
-            options: options.clone(),
-        }));
+        out.push_sandboxed(
+            strict_safe,
+            SandboxedBackend {
+                backend: WorkerBackend::Libvpx,
+                options: options.clone(),
+            },
+        );
         #[cfg(feature = "ffmpeg-fallback")]
-        out.push(Box::new(SandboxedBackend {
-            backend: WorkerBackend::Ffmpeg,
-            options,
-        }));
+        out.push_ffmpeg(
+            strict_safe,
+            SandboxedBackend {
+                backend: WorkerBackend::Ffmpeg,
+                options,
+            },
+        );
     }
     out
 }
@@ -307,6 +322,7 @@ fn failure(error: coreav_thumbnail::Error) -> WriteFailure {
     let failure = match error {
         Error::Isobmff(e) => Failure::Library(e),
         Error::Matroska(e) => Failure::Matroska(e),
+        Error::Invalid(what) => Failure::Invalid(what),
         Error::Decode(e) => Failure::VideoDecode(e),
         Error::TimeOutOfRange => Failure::OutOfRange,
         Error::NoVideo => Failure::Unsupported("no video stream".into()),

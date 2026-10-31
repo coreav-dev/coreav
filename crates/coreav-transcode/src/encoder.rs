@@ -10,7 +10,9 @@
 //! these threads:
 //!
 //! - a writer, which writes the frames [`Encoder::send_frame`] queued (at
-//!   most [`QUEUED_FRAMES`]) to its standard input;
+//!   most [`QUEUED_FRAMES`]; with FFmpeg and the frames' times, the first
+//!   frame is held until the second or the end of the input, which decide
+//!   the stream's header) to its standard input;
 //! - a reader, which hands every byte of its standard output to the
 //!   [`Sink`], so the encoder never blocks on a full output pipe;
 //! - a standard-error reader, which keeps the last [`KEPT_STDERR`] bytes
@@ -34,7 +36,7 @@ use std::time::{Duration, Instant};
 use coreav_decode::{Error, ErrorKind};
 use coreav_frame::{Chroma, ColorInfo, Picture, PixelFormat};
 use coreav_worker::exec;
-use coreav_worker::{ExecLauncher, SandboxLimits};
+use coreav_worker::{ExecLauncher, HugePages, SandboxLimits};
 
 /// The encoder program.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -68,6 +70,17 @@ impl EncoderProgram {
         match self {
             Self::X264(_) => x264_args(settings),
             Self::Ffmpeg(_) => ffmpeg_args(settings),
+        }
+    }
+
+    /// Whether the program may use transparent huge pages on frames of
+    /// `format`: not x264 on samples of more than 8 bits, whose conversion
+    /// of its input stalls on them
+    /// (`docs/measurements/transcode-x264-10bit.md`, "Huge pages").
+    pub fn huge_pages(&self, format: PixelFormat) -> HugePages {
+        match (self, format) {
+            (Self::X264(_), PixelFormat::Yuv { depth, .. }) if depth > 8 => HugePages::Off,
+            _ => HugePages::Kept,
         }
     }
 }
@@ -223,7 +236,9 @@ pub struct EncoderSettings {
     /// The frames' format: [`PixelFormat::Yuv`] at 4:2:0, 4:2:2 or 4:4:4,
     /// 8 or 10 bits.
     pub format: PixelFormat,
-    /// The constant rate the encoder is told with [`Timing::Constant`].
+    /// The constant rate the encoder is told with [`Timing::Constant`];
+    /// with [`Timing::Timestamps`], the rate FFmpeg is told when it gets
+    /// one frame, whose time gives it none ([`crate::rawmkv`]).
     pub frame_rate: FrameRate,
     /// Constant rate or each frame's own time.
     pub timing: Timing,
@@ -813,8 +828,13 @@ pub struct Encoder<S: Sink> {
 #[derive(Clone, Debug)]
 struct Blocks {
     timescale: crate::rawmkv::Timescale,
-    /// The stream's header, until it goes out before the first frame.
-    header: Option<Vec<u8>>,
+    /// The stream's header for more than one frame, and for one frame
+    /// (naming the frame rate, which FFmpeg cannot find from one frame's
+    /// time: [`crate::rawmkv`]), until one goes out before the first frame.
+    headers: Option<(Vec<u8>, Vec<u8>)>,
+    /// The first frame, held until a second one or the end of the input
+    /// says which header goes before it.
+    held: Option<Vec<u8>>,
     first: Option<i64>,
     last: Option<i64>,
 }
@@ -916,11 +936,24 @@ impl<S: Sink> Encoder<S> {
                         ),
                     ));
                 }
-                let header =
-                    crate::rawmkv::header(settings.width, settings.height, fourcc, &timescale);
+                let header = |frame_ns| {
+                    crate::rawmkv::header(
+                        settings.width,
+                        settings.height,
+                        fourcc,
+                        &timescale,
+                        frame_ns,
+                    )
+                };
+                let frame_ns = crate::rawmkv::frame_duration_ns(
+                    settings.frame_rate.num,
+                    settings.frame_rate.den,
+                );
+                let headers = (header(None), header(frame_ns));
                 Some(Blocks {
                     timescale,
-                    header: Some(header),
+                    headers: Some(headers),
+                    held: None,
                     first: None,
                     last: None,
                 })
@@ -941,7 +974,12 @@ impl<S: Sink> Encoder<S> {
                     cpu_seconds: Some(cpu_seconds),
                     open_files: limits.open_files,
                 };
-                launcher.command(&sandbox, program.path(), &args)
+                launcher.command(
+                    &sandbox,
+                    program.huge_pages(settings.format),
+                    program.path(),
+                    &args,
+                )
             }
             None => exec::direct_command(program.path(), &args),
         };
@@ -1087,9 +1125,7 @@ impl<S: Sink> Encoder<S> {
                     .and_then(|t| blocks.timescale.ticks(t))
                     .ok_or_else(|| Error::new(ErrorKind::Limit, "a frame time is out of range"))?;
                 blocks.last = Some(time);
-                let mut bytes = blocks.header.take().unwrap_or_default();
-                bytes.extend(crate::rawmkv::cluster_head(ticks, self.frame_bytes as u64));
-                bytes
+                crate::rawmkv::cluster_head(ticks, self.frame_bytes as u64)
             }
             None => Vec::new(),
         };
@@ -1103,6 +1139,28 @@ impl<S: Sink> Encoder<S> {
                 "frame of the wrong size",
             ));
         }
+        if let Some(blocks) = self.blocks.as_mut() {
+            match blocks.held.take() {
+                None if blocks.headers.is_some() => {
+                    blocks.held = Some(bytes);
+                    self.frames += 1;
+                    return Ok(());
+                }
+                Some(held) => {
+                    let (many, _) = blocks.headers.take().unwrap_or_default();
+                    self.enqueue([many, held].concat())?;
+                }
+                None => {}
+            }
+        }
+        self.enqueue(bytes)?;
+        self.frames += 1;
+        Ok(())
+    }
+
+    /// Queues one frame's bytes for the writer, waiting while
+    /// [`QUEUED_FRAMES`] are queued, at most until the deadline.
+    fn enqueue(&mut self, bytes: Vec<u8>) -> Result<(), Error> {
         let outcome = {
             let Ok(mut queue) = self.shared.queue.lock() else {
                 return Err(self.fail(Error::new(ErrorKind::Backend, "encoder state lost")));
@@ -1135,7 +1193,6 @@ impl<S: Sink> Encoder<S> {
         match outcome {
             Ok(()) => {
                 self.shared.changed.notify_all();
-                self.frames += 1;
                 Ok(())
             }
             Err(e) => Err(self.fail(e)),
@@ -1150,6 +1207,13 @@ impl<S: Sink> Encoder<S> {
     pub fn finish(mut self) -> Result<S, Error> {
         if let Some(e) = self.error.take() {
             return Err(e);
+        }
+        let held = self
+            .blocks
+            .as_mut()
+            .and_then(|b| Some((b.headers.take()?.1, b.held.take()?)));
+        if let Some((one, held)) = held {
+            self.enqueue([one, held].concat())?;
         }
         if let Ok(mut queue) = self.shared.queue.lock() {
             queue.input_done = true;
@@ -1777,6 +1841,19 @@ mod tests {
                 .unwrap()
                 .contains(&"sar=65535/65534".to_owned())
         );
+    }
+
+    #[test]
+    fn x264_runs_without_huge_pages_on_samples_of_more_than_8_bits() {
+        let x264 = EncoderProgram::X264(PathBuf::from("/opt/x264"));
+        let ffmpeg = EncoderProgram::Ffmpeg(PathBuf::from("/opt/ffmpeg"));
+        for chroma in [Chroma::Cs420, Chroma::Cs422, Chroma::Cs444] {
+            let at = |depth| PixelFormat::Yuv { chroma, depth };
+            assert_eq!(x264.huge_pages(at(10)), HugePages::Off);
+            assert_eq!(x264.huge_pages(at(8)), HugePages::Kept);
+            assert_eq!(ffmpeg.huge_pages(at(10)), HugePages::Kept);
+            assert_eq!(ffmpeg.huge_pages(at(8)), HugePages::Kept);
+        }
     }
 
     #[test]

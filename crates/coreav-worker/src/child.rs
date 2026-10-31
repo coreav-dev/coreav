@@ -5,20 +5,25 @@
 
 #![forbid(unsafe_code)]
 
+#[cfg(target_os = "linux")]
 use std::collections::VecDeque;
 use std::io::{self, Write};
 use std::process::ExitCode;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
-use std::time::{Duration, Instant};
+use std::time::Duration;
+#[cfg(target_os = "linux")]
+use std::time::Instant;
 
 use coreav_decode::{Decoder, Error, ErrorKind, Packet};
 use coreav_frame::Frame;
 
+#[cfg(target_os = "linux")]
+use crate::protocol::Transfer;
 use crate::protocol::{
     FrameDescriptor, INLINE, Incoming, Open, ParentMessage, PlaneDescriptor, ProtocolError,
-    Transfer, WorkerBackend, WorkerMessage, format_code, read_message,
+    WorkerBackend, WorkerMessage, format_code, read_message,
 };
 use crate::sandbox;
 
@@ -33,10 +38,12 @@ const IDLE_DRAIN: Duration = Duration::from_millis(2);
 /// Runs the worker on standard input and output until the parent closes
 /// the session. Call it from a program's `main` when the parent started it
 /// as a worker (the `coreav` binary does with a hidden argument; the
-/// `coreav-worker` binary always does).
-pub fn worker_main() -> ExitCode {
+/// `coreav-worker` binary always does). `allow` says whether this program
+/// hosts a backend: an `Open` of one it refuses gets an error with its
+/// message, before the worker does anything else.
+pub fn worker_main(allow: impl Fn(WorkerBackend) -> Result<(), String>) -> ExitCode {
     let mut out = io::BufWriter::new(io::stdout());
-    match run(&mut out) {
+    match run(&mut out, &allow) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             let _ = WorkerMessage::Error(e.kind, e.message).write(&mut out);
@@ -61,7 +68,10 @@ enum Command {
     OutOfMemory,
 }
 
-fn run(out: &mut impl Write) -> Result<(), Error> {
+fn run(
+    out: &mut impl Write,
+    allow: &impl Fn(WorkerBackend) -> Result<(), String>,
+) -> Result<(), Error> {
     let mut stdin = io::stdin();
     let mut open = match read_message(&mut stdin, |_| MAX_OPEN) {
         Ok(Incoming::Message(kind, payload)) => match ParentMessage::decode(kind, &payload) {
@@ -70,6 +80,7 @@ fn run(out: &mut impl Write) -> Result<(), Error> {
         },
         _ => return Err(Error::new(ErrorKind::Backend, "expected Open")),
     };
+    allow(open.backend).map_err(|message| Error::new(ErrorKind::Unsupported, message))?;
     sandbox::apply(&open.sandbox)
         .map_err(|e| Error::new(ErrorKind::Backend, format!("cannot limit the worker: {e}")))?;
     // The backend fits itself to the address-space limit in force, which an
@@ -77,8 +88,7 @@ fn run(out: &mut impl Write) -> Result<(), Error> {
     if let Some(space) = sandbox::address_space() {
         open.limits.max_memory_bytes = open.limits.max_memory_bytes.min(space);
     }
-    let deadline = open.limits.deadline();
-    let mut output = Output::new(&open, deadline)?;
+    let mut output = Output::new(&open)?;
     let mut decoder = make_decoder(&open)?;
     WorkerMessage::Ready(decoder.info().decoder.clone())
         .write(out)
@@ -260,26 +270,30 @@ fn drain(
 struct Output {
     #[cfg(target_os = "linux")]
     memory: Option<crate::shm::WorkerMemory>,
+    #[cfg(target_os = "linux")]
     slots: u32,
+    #[cfg(target_os = "linux")]
     slot_size: u64,
+    #[cfg(target_os = "linux")]
     free: VecDeque<u32>,
     acks: Option<Receiver<u32>>,
     /// The input reader stopped because a message did not fit the memory
     /// limit.
     reader_out_of_memory: Arc<AtomicBool>,
     seq: u64,
+    #[cfg(target_os = "linux")]
     deadline: Instant,
 }
 
 impl Output {
-    fn new(open: &Open, deadline: Instant) -> Result<Self, Error> {
+    #[cfg(target_os = "linux")]
+    fn new(open: &Open) -> Result<Self, Error> {
         let (slots, slot_size) = match &open.transfer {
             Transfer::Shared {
                 slots, slot_size, ..
             } => (*slots, *slot_size),
             Transfer::Pipe => (0, 0),
         };
-        #[cfg(target_os = "linux")]
         let memory = match &open.transfer {
             Transfer::Shared { path, .. } => {
                 let len = u64::from(slots)
@@ -292,7 +306,6 @@ impl Output {
             Transfer::Pipe => None,
         };
         Ok(Self {
-            #[cfg(target_os = "linux")]
             memory,
             slots,
             slot_size,
@@ -300,11 +313,22 @@ impl Output {
             acks: None,
             reader_out_of_memory: Arc::new(AtomicBool::new(false)),
             seq: 0,
-            deadline,
+            deadline: open.limits.deadline(),
+        })
+    }
+
+    /// Outside Linux there is no shared memory: every frame goes inline.
+    #[cfg(not(target_os = "linux"))]
+    fn new(_: &Open) -> Result<Self, Error> {
+        Ok(Self {
+            acks: None,
+            reader_out_of_memory: Arc::new(AtomicBool::new(false)),
+            seq: 0,
         })
     }
 
     /// A free slot, waiting for the parent's acknowledgement if none is.
+    #[cfg(target_os = "linux")]
     fn take_slot(&mut self) -> Result<u32, Error> {
         loop {
             if let Some(slot) = self.free.pop_front() {
@@ -355,8 +379,7 @@ impl Output {
             });
             offset = offset.saturating_add(len);
         }
-        let total = offset;
-        let mut descriptor = FrameDescriptor {
+        let descriptor = FrameDescriptor {
             seq: self.seq,
             slot: INLINE,
             pts: frame.pts,
@@ -368,13 +391,13 @@ impl Output {
         };
         self.seq += 1;
         #[cfg(target_os = "linux")]
-        if self.memory.is_some() && total <= self.slot_size {
+        if self.memory.is_some() && offset <= self.slot_size {
             let slot = self.take_slot()?;
             let base = u64::from(slot) * self.slot_size;
             let start =
                 usize::try_from(base).map_err(|_| Error::new(ErrorKind::Backend, "slot offset"))?;
-            let len =
-                usize::try_from(total).map_err(|_| Error::new(ErrorKind::Backend, "frame size"))?;
+            let len = usize::try_from(offset)
+                .map_err(|_| Error::new(ErrorKind::Backend, "frame size"))?;
             let memory = self
                 .memory
                 .as_mut()
@@ -392,8 +415,7 @@ impl Output {
                     written += row.len();
                 }
             }
-            descriptor.slot = slot;
-            return WorkerMessage::Frame(descriptor, Vec::new())
+            return WorkerMessage::Frame(FrameDescriptor { slot, ..descriptor }, Vec::new())
                 .write(out)
                 .map_err(io_error);
         }

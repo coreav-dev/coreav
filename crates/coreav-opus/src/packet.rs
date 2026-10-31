@@ -258,8 +258,21 @@ impl<'a> Packet<'a> {
 /// Cuts the sample of a multistream track (RFC 7845 3, the Opus-in-ISOBMFF
 /// mapping 4.3.3) into its `streams` packets: each self-delimited but the
 /// last. Calls `each` with the stream's index and its packet, in order,
-/// and returns the samples per channel, the same for every stream.
+/// and returns the samples per channel, the same for every stream. Every
+/// stream's packet is cut and checked before `each` sees the first, so a
+/// damaged sample decodes in no stream rather than in some.
 pub fn for_each_stream<'a>(
+    data: &'a [u8],
+    streams: usize,
+    each: impl FnMut(usize, &Packet<'a>) -> Result<(), Error>,
+) -> Result<u32, Error> {
+    if streams > 1 {
+        split(data, streams, |_, _| Ok(()))?;
+    }
+    split(data, streams, each)
+}
+
+fn split<'a>(
     data: &'a [u8],
     streams: usize,
     mut each: impl FnMut(usize, &Packet<'a>) -> Result<(), Error>,
@@ -468,7 +481,17 @@ mod tests {
         assert_eq!(samples, 960);
         assert_eq!(seen, [(0, vec![0xAA]), (1, vec![0xBB, 0xCC])]);
         // A 10 ms packet beside a 20 ms one.
-        assert!(for_each_stream(&[0, 1, 0xAA, 8, 0xBB], 2, |_, _| Ok(())).is_err());
+        let mut visited = 0;
+        assert!(
+            for_each_stream(&[0, 1, 0xAA, 8, 0xBB], 2, |_, _| {
+                visited += 1;
+                Ok(())
+            })
+            .is_err()
+        );
+        assert_eq!(visited, 0);
+        // A second stream cut short.
+        assert!(for_each_stream(&[8, 1, 0xAA, 8 | 3], 2, |_, _| panic!("decoded")).is_err());
         assert!(for_each_stream(&[8], 0, |_, _| Ok(())).is_err());
     }
 }

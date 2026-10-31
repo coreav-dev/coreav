@@ -10,9 +10,9 @@
 #[path = "../../coreav-isobmff/tests/common/text_movie.rs"]
 mod text_movie;
 
-use coreav_isobmff::{Codec, Error, LimitKind, Limits, Rational, SliceSource};
+use coreav_isobmff::{Codec, Error, Limits, Rational, SliceSource};
 use coreav_text::{
-    MODIFIERS, OTHER_MODIFIER, SubtitleSummary, TextError, TextLimits, TrackChoice,
+    MODIFIERS, OTHER_MODIFIER, SubtitleSummary, TextError, TextLimitKind, TextLimits, TrackChoice,
     extract_subtitles, read_chapters,
 };
 use text_movie::{TrackSpec, bx, movie, styl, text_sample};
@@ -390,10 +390,10 @@ fn large_samples_hit_the_limit() {
     };
     assert!(matches!(
         extract_with(&data, TrackChoice::First, &limits),
-        Err(TextError::Source(Error::LimitExceeded {
-            limit: LimitKind::PacketBytes,
+        Err(TextError::LimitExceeded {
+            limit: TextLimitKind::SampleBytes,
             ..
-        }))
+        })
     ));
 }
 
@@ -541,7 +541,10 @@ fn chapter_limits() {
     };
     assert!(matches!(
         read(few),
-        Err(TextError::Source(Error::LimitExceeded { .. }))
+        Err(TextError::LimitExceeded {
+            limit: TextLimitKind::Chapters,
+            ..
+        })
     ));
     let short = TextLimits {
         max_title_bytes: 99,
@@ -549,6 +552,9 @@ fn chapter_limits() {
     };
     assert!(matches!(
         read(short),
-        Err(TextError::Source(Error::LimitExceeded { .. }))
+        Err(TextError::LimitExceeded {
+            limit: TextLimitKind::TitleBytes,
+            ..
+        })
     ));
 }

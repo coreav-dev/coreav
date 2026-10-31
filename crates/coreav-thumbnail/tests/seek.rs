@@ -106,7 +106,7 @@ impl coreav_isobmff::Source for FailingAt<'_> {
 }
 
 /// A read that fails while a frame of the window is checked is not a
-/// window that cannot choose (#594): wherever the failure falls, planning
+/// window that cannot choose: wherever the failure falls, planning
 /// fails with it rather than falling back to the full listing.
 #[test]
 fn a_read_failure_fails_the_plan_wherever_it_falls() {

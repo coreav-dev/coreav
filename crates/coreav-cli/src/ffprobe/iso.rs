@@ -762,19 +762,6 @@ fn ac3_config(d: &coreav_isobmff::SampleDescription) -> Option<Ac3Config> {
     })
 }
 
-/// The bit depth an ALAC magic cookie states (`ALACSpecificConfig`, after
-/// the box's version and flags: `frameLength`, `compatibleVersion`,
-/// `bitDepth`).
-fn alac_depth(d: &coreav_isobmff::SampleDescription) -> Option<u16> {
-    let config = d.codec_config.as_ref().filter(|c| c.kind.0 == *b"alac")?;
-    config
-        .data
-        .get(9)
-        .copied()
-        .map(u16::from)
-        .filter(|b| *b > 0)
-}
-
 /// `bits_per_raw_sample` of integer PCM of 24 and 32 bits, which
 /// `ffprobe` states and does not for 16 bits or floating point.
 fn pcm_raw_bits(track: &Track) -> Option<u32> {
@@ -1071,7 +1058,7 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
     let video = track.kind == TrackKind::Video;
     let audio = track.kind == TrackKind::Audio;
     let codec_name = codec_name(movie, track);
-    let alac = alac_depth(d).filter(|_| audio);
+    let lossless_bits = d.configured_bits.filter(|_| audio);
     let matrix = compose(&track.matrix, &movie.matrix);
     let mut e: Entries = Vec::with_capacity(48);
     e.push(("index", int(track.stream_index)));
@@ -1286,7 +1273,7 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
             "sample_fmt",
             codec_name
                 .as_deref()
-                .and_then(|n| names::sample_fmt(n, bits.or(alac)))
+                .and_then(|n| names::sample_fmt(n, bits.or(lossless_bits)))
                 .map_or(Value::Unset("unknown"), s),
         ));
         e.push((
@@ -1430,7 +1417,7 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
         "bits_per_raw_sample",
         info.bits_per_raw_sample
             .or_else(|| pcm_raw_bits(track))
-            .or(alac.map(u32::from))
+            .or(lossless_bits.map(u32::from))
             .map_or(Value::Na, |b| s(b.to_string())),
     ));
     // The samples of the movie box's tables: `ffprobe` counts none of a

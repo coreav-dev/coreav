@@ -173,16 +173,35 @@ that crate's `tests/limits.rs` (`coreav-isobmff`, `coreav-mkv`,
 one past it is refused with the error that names that limit, or, for a
 limit that does not fail the request, gets the documented fallback (a
 Matroska frame past `max_inflated_bytes` has no inflated size; cues past
-`max_elements` or `max_index_bytes` give way to a cluster scan). The
+`max_elements` or `max_index_bytes` give way to a cluster scan; a
+transport stream whose first access units are past `max_probe_bytes` has
+no parameters; a QuickTime compressed audio frame past `max_packet_bytes`
+leaves its track listed by its sample tables as stored,
+`docs/design/sample-tables.md`). The
 expected count or byte total comes from the input itself, not from a
 search of what the code accepts, and one test per file asserts the
 documented defaults. Where an older test elsewhere already pins a field,
 the file does not repeat it. These run in the ordinary
-`cargo test --workspace`. Four `coreav-decode` limits are enforced in the
-backends (`max_decoded_bytes`, `max_pending_bytes`,
-`max_reference_frames`, `max_memory_bytes`); their boundary tests there
-need `ffmpeg` and run in the fixtures workflow, and `tests/limits.rs`
-pins only their defaults.
+`cargo test --workspace`.
+
+Each limit is named by an error of its own crate: `coreav-audio` checks
+`max_channels` for every codec when its decoder is made, `coreav-text`
+reports its three limits as `TextError::LimitExceeded` with a
+`TextLimitKind`, and `coreav-mpegts` reports a head that names no program
+within `max_probe_bytes` of a longer file as `LimitKind::ProbeBytes`.
+
+`coreav-decode` checks the frame limits and `max_packet_bytes` itself, on
+every decoder `open` returns, whatever the backend checks; its
+`tests/limits.rs` pins them through a backend that checks nothing. Four
+of its limits are the backends' to enforce (`max_decoded_bytes`,
+`max_pending_bytes`, `max_reference_frames`, `max_memory_bytes`). Their
+boundary tests on the native H.264 backend use streams built bit by bit
+and need no `ffmpeg` (`crates/coreav-backend-h264/tests/limits.rs`); the
+other backends' need `ffmpeg` for their fixtures and run in the fixtures
+workflow. Past `max_pending_bytes` of frames, the in-process backends
+(native, dav1d, libvpx) refuse with `Limit`, while the sandboxed worker
+waits for the caller to receive them (`docs/design/decode.md`, "Threads
+and backpressure").
 
 ## Results
 

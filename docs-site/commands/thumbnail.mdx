@@ -1,0 +1,28 @@
+---
+title: "coreav thumbnail"
+sidebarTitle: "thumbnail"
+description: "Write a JPEG, PNG or WebP image of the frame at a time. Builds with a decoder backend only."
+---
+
+import Help from '/snippets/help/thumbnail.mdx';
+
+<Note>
+`coreav thumbnail` is only in builds with a decoder backend: `ffmpeg-fallback`, `dav1d`, `libvpx` or `native-h264` ([build features](/build-features)).
+</Note>
+
+`coreav thumbnail --output FILE INPUT` writes an image of an MP4, MOV, Matroska or WebM file: the keyframe at or before `--at`, or with `--exact` the frame at that time. The image is resized to `--width` or `--height`, keeping the display aspect ratio, and encoded as JPEG, PNG or WebP. The summary ([`coreav.thumbnail/1`](https://github.com/coreav-dev/coreav/blob/main/docs/schema/thumbnail-v1.md)) names the backend that decoded the frame.
+
+Only the codecs on `--allow` are decoded, by default H.264, HEVC, AV1, VP9, VP8 and ProRes. Decoding stops after `--timeout` seconds. In [strict-safe mode](/strict-safe#what-strict-safe-mode-covers) the `ffmpeg-fallback` backend does not decode, and a video only it would decode is refused with exit status 4.
+
+## Examples
+
+```sh
+coreav thumbnail --at 12.5 --width 320 -o poster.jpg input.mp4
+coreav thumbnail --at 00:01:30 --exact --format webp -o frame.webp input.mkv
+```
+
+[The thumbnails design note](https://github.com/coreav-dev/coreav/blob/main/docs/design/thumbnails.md) has the details.
+
+## Options
+
+<Help />

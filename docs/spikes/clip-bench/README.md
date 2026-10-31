@@ -345,12 +345,12 @@ stands.
   set, so the draw only needs to be broad and not chosen by hand.
 - **Run.** `memory.py` runs `cbench-mem` on every clip of every file, on
   the development machine: the counting allocator counts the same bytes on
-  any machine. `memory.py --summary mem-216` writes the evidence.
+  any machine. `memory.py --summary mem-rerun` writes the evidence.
 - **Bar.** Every clip within the output tables plus
   the 64 KiB window.
 - **Result (`main` at 1114aa6): not met by three clips.** 822 of 825
-  clips of the 265 files are within the bound (`evidence/mem-216.json.gz`,
-  `summary-mem-216.json`). No file or clip failed to measure. 18 clips
+  clips of the 265 files are within the bound (`evidence/mem-rerun.json.gz`,
+  `summary-mem-rerun.json`). No file or clip failed to measure. 18 clips
   were not cut, by the writer's own refusals (16 `hev1`, 2 with no video
   in range), and 10 encrypted files have no video track the allowlist
   keeps, so no clip. An earlier change's fix holds: no clip has the candidate queue's
@@ -361,7 +361,7 @@ stands.
   a separate cause: the cut kept the video sample entry's bytes (2,230)
   through the copy, outside the bound. With its fix, all four clips of that file are within the bound, measured
   again with `memory.py` on `main` at b8e0bb2
-  (`evidence/mem-216-a2d42b189482-b8e0bb2.json`): head 66,548 against
+  (`evidence/mem-rerun-a2d42b189482-b8e0bb2.json`): head 66,548 against
   68,380, middle 66,784 against 68,604, tail 66,740 against 68,536, whole
   271,040 against 275,432. That closes an earlier change by its second
   branch: every clip still over the bound has an issue of its own, now
@@ -504,7 +504,7 @@ CLIP_CHECK_THREADS=2 python3 -I check.py --inputs evidence/inputs.json \
 ## Clip speed across earlier changes (development files, one machine)
 
 A check that the cut point work did not slow clips down
-(`evidence/commit-speed-185/`): `speed.py` times clips of the 24
+(`evidence/commit-speed-candidate-queue/`): `speed.py` times clips of the 24
 non-held-out inputs with the lowest SHA-256 among those of at most 150 MB
 (69 clips of 21 files; the other 3 are refused), with `cbench time` built
 at five commits (`commits.txt`). Per clip: one warm-up of every build, then

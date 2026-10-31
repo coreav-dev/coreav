@@ -1,7 +1,7 @@
 //! `coreav transcode` end to end (`docs/design/transcode.md`): usage and
 //! rejected files always; with the pinned FFmpeg
 //! (`/opt/coreav-oracle-bin`, or `COREAV_FFMPEG`), the pinned x264
-//! (`/opt/x264-4613ac3/bin/x264`, or `COREAV_X264`) and the fixtures of
+//! (`/opt/coreav-oracle-bin/x264`, or `COREAV_X264`) and the fixtures of
 //! `scripts/gen-fixtures.sh` (`COREAV_FIXTURES`, else
 //! `/opt/coreav-fixtures`), transcodes of the fixtures with both encoders,
 //! each summary validated against `docs/schema/transcode-v1.schema.json`,
@@ -25,6 +25,13 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 const TRANSCODE_SCHEMA: &str = include_str!("../../../docs/schema/transcode-v1.schema.json");
+
+/// What `COREAV_FALLBACK` names for the `coreav ffmpeg` commands: no
+/// program, so that a command `coreav ffmpeg` refuses stays refused (exit
+/// status 4) instead of running FFmpeg in its place, while the pinned FFmpeg
+/// still decodes and encodes, which strict-safe mode would refuse too
+/// (`docs/design/compat-cli.md`, "Fallback to FFmpeg").
+const NO_FALLBACK: &str = "/nonexistent/coreav-fallback";
 
 fn bin() -> &'static str {
     env!("CARGO_BIN_EXE_coreav")
@@ -51,7 +58,7 @@ fn ffmpeg() -> Option<(PathBuf, PathBuf)> {
 fn x264() -> Option<PathBuf> {
     let path = std::env::var_os("COREAV_X264")
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("/opt/x264-4613ac3/bin/x264"));
+        .unwrap_or_else(|| PathBuf::from("/opt/coreav-oracle-bin/x264"));
     path.is_file().then_some(path)
 }
 
@@ -472,8 +479,7 @@ fn times_in_decode_order_keep_every_frame() {
 /// WebM blocks whose millisecond times repeat (bursts of three frames
 /// 40 ms apart, at 0, 0, 0, 40, 40, 40, ... ms): every frame is encoded,
 /// each repeat one tick after the frame before, where dropping each frame
-/// whose time is not above the last one's dropped two thirds of them
-/// (#586).
+/// whose time is not above the last one's dropped two thirds of them.
 #[test]
 fn repeated_webm_times_keep_every_frame() {
     // VP8 decodes through the fallback.
@@ -487,6 +493,7 @@ fn repeated_webm_times_keep_every_frame() {
         .args(["-nostdin", "-v", "error", "-y", "-f", "lavfi", "-i"])
         .arg("testsrc=size=64x48:rate=30,settb=1/10000,setpts=floor(N/3)*400+mod(N\\,3)")
         .args(["-frames:v", "12", "-fps_mode", "passthrough"])
+        .args(["-enc_time_base:v", "1/10000"])
         .args(["-c:v", "libvpx", "-pix_fmt", "yuv420p"])
         .arg(&source)
         .status()
@@ -734,9 +741,21 @@ fn video_md5(tools: &Tools, path: &Path, args: &[&str]) -> String {
 /// encoder, the same decoded frames with x264 (whose headers differ).
 #[test]
 fn variable_rate_sources_encode_as_ffmpeg_does() {
+    encodes_as_ffmpeg_does("vfr.mp4");
+}
+
+/// A source of one frame: no times to find a rate from, so FFmpeg is told
+/// the source's (`coreav-transcode`'s `rawmkv`), as it finds it in the
+/// source itself, and the encode is the baseline's.
+#[test]
+fn a_single_frame_encodes_as_ffmpeg_does() {
+    encodes_as_ffmpeg_does("codec_h264_one_frame.mp4");
+}
+
+fn encodes_as_ffmpeg_does(name: &str) {
     let Some(tools) = tools() else { return };
-    let dir = dir("vfr");
-    let source = tools.fixtures.join("vfr.mp4");
+    let dir = dir(name);
+    let source = tools.fixtures.join(name);
     let baseline = dir.join("baseline.mp4");
     let status = Command::new(&tools.ffmpeg)
         .args(["-nostdin", "-v", "error", "-y", "-noautorotate", "-i"])
@@ -788,6 +807,7 @@ fn variable_rate_sources_encode_as_ffmpeg_does() {
 }
 
 /// A stand-in encoder: a `/bin/sh` script given as the x264 program.
+#[cfg(unix)]
 fn script(dir: &Path, name: &str, body: &str) -> PathBuf {
     use std::os::unix::fs::PermissionsExt;
     let path = dir.join(format!("{name}.sh"));
@@ -796,6 +816,7 @@ fn script(dir: &Path, name: &str, body: &str) -> PathBuf {
     path
 }
 
+#[cfg(unix)]
 #[test]
 fn hostile_encoders_end_in_an_error_and_leave_nothing() {
     let Some(tools) = tools() else { return };
@@ -933,7 +954,7 @@ fn ffmpeg_libx264_commands_run_the_pipeline() {
             }))
             .env("COREAV_X264", &tools.x264)
             .env("COREAV_FFMPEG", &tools.ffmpeg)
-            .env("COREAV_STRICT_SAFE", "1");
+            .env("COREAV_FALLBACK", NO_FALLBACK);
         let out = command.output().unwrap();
         (
             out.status.code().unwrap(),
@@ -1044,7 +1065,7 @@ fn ffmpeg_libx264_refuses_a_matrix_ffmpeg_would_apply() {
             .args(args)
             .env("COREAV_X264", &tools.x264)
             .env("COREAV_FFMPEG", &tools.ffmpeg)
-            .env("COREAV_STRICT_SAFE", "1")
+            .env("COREAV_FALLBACK", NO_FALLBACK)
             .output()
             .unwrap();
         (
@@ -1076,7 +1097,8 @@ fn ffmpeg_libx264_refuses_a_matrix_ffmpeg_would_apply() {
 
 /// Sources the pipeline would encode with another result than `ffmpeg`,
 /// or fail on only after the encode, are refused before it: copied PCM
-/// audio (MOV and Matroska), repeated frame times without
+/// audio (MOV and Matroska), copied FLAC audio from MP4 (a codec the MP4
+/// writer's allowlist leaves out), repeated frame times without
 /// `-fps_mode passthrough`, an H.264 left crop, and a concat list.
 #[test]
 fn ffmpeg_libx264_refuses_before_encoding() {
@@ -1105,6 +1127,17 @@ fn ffmpeg_libx264_refuses_before_encoding() {
     let (mov, mkv, repeated) = (path("pcm.mov"), path("pcm.mkv"), path("repeated.mkv"));
     ffmpeg(&[&video[..], &pcm[..], &[mov.as_str()]].concat());
     ffmpeg(&[&video[..], &pcm[..], &[mkv.as_str()]].concat());
+    let flac = path("flac.mp4");
+    ffmpeg(
+        &[
+            &video[..],
+            &[
+                "-f", "lavfi", "-i", "sine=d=1", "-c:v", "libx264", "-c:a", "flac",
+            ],
+            &[flac.as_str()],
+        ]
+        .concat(),
+    );
     ffmpeg(&[
         "-f",
         "lavfi",
@@ -1127,6 +1160,7 @@ fn ffmpeg_libx264_refuses_before_encoding() {
     for (source, why) in [
         (mov.as_str(), "copying audio the MP4 writer does not take"),
         (mkv.as_str(), "copying audio the MP4 writer does not take"),
+        (flac.as_str(), "copying audio the MP4 writer does not take"),
         (repeated.as_str(), "not evenly spaced"),
         (crop.to_str().unwrap(), "cropped at its left or top edge"),
     ] {
@@ -1136,7 +1170,7 @@ fn ffmpeg_libx264_refuses_before_encoding() {
             ])
             .env("COREAV_X264", &tools.x264)
             .env("COREAV_FFMPEG", &tools.ffmpeg)
-            .env("COREAV_STRICT_SAFE", "1")
+            .env("COREAV_FALLBACK", NO_FALLBACK)
             .output()
             .unwrap();
         let stderr = String::from_utf8_lossy(&run.stderr);
@@ -1150,7 +1184,7 @@ fn ffmpeg_libx264_refuses_before_encoding() {
         .args(["ffmpeg", "-f", "concat", "-safe", "0", "-i", &list])
         .args(["-c:v", "libx264", "-c:a", "copy", &out])
         .env("COREAV_X264", &tools.x264)
-        .env("COREAV_STRICT_SAFE", "1")
+        .env("COREAV_FALLBACK", NO_FALLBACK)
         .output()
         .unwrap();
     let stderr = String::from_utf8_lossy(&run.stderr);
@@ -1160,6 +1194,55 @@ fn ffmpeg_libx264_refuses_before_encoding() {
         "{stderr}"
     );
     assert!(!Path::new(&out).exists());
+    nothing_left(&dir);
+}
+
+/// An HEVC stream whose conformance window leaves no picture is not valid
+/// HEVC (ITU-T H.265 7.4.3.2.1): `coreav transcode`, `coreav thumbnail`
+/// and `coreav ffmpeg` reject it as an invalid structure before decoding,
+/// and write nothing.
+#[test]
+fn an_hevc_window_that_leaves_no_picture_is_rejected() {
+    let Some(tools) = tools() else { return };
+    let dir = dir("hevc-window");
+    let out = dir.join("out.mp4");
+    let out_s = out.to_str().unwrap();
+    for name in ["size_hevc_window.mp4", "size_hevc_mixed_window.mp4"] {
+        let source = tools.fixtures.join(name);
+        let source_s = source.to_str().unwrap();
+        let run = transcode(Some(&tools), &[source_s, out_s]);
+        assert_eq!(run.code, 1, "{name}: {}", run.stderr);
+        let error: Value = serde_json::from_str(run.stderr.trim()).unwrap();
+        assert_eq!(error["kind"], "invalid_structure", "{name}");
+        assert!(!out.exists(), "{name}");
+        let image = dir.join("out.png");
+        let run = Command::new(bin())
+            .args(["thumbnail", source_s, "-o"])
+            .arg(&image)
+            .env("COREAV_FFMPEG", &tools.ffmpeg)
+            .output()
+            .unwrap();
+        assert_eq!(run.status.code(), Some(1), "{name}");
+        let error: Value = serde_json::from_slice(&run.stderr).unwrap();
+        assert_eq!(error["kind"], "invalid_structure", "{name}");
+        assert!(!image.exists(), "{name}");
+        if !cfg!(feature = "ffmpeg-fallback") {
+            // No decoder of this build takes HEVC: `coreav ffmpeg` refuses
+            // the stream before the transcode reads it.
+            continue;
+        }
+        let run = Command::new(bin())
+            .args(["ffmpeg", "-i", source_s, "-c:v", "libx264", out_s])
+            .env("COREAV_X264", &tools.x264)
+            .env("COREAV_FFMPEG", &tools.ffmpeg)
+            .env("COREAV_STRICT_SAFE", "1")
+            .output()
+            .unwrap();
+        let stderr = String::from_utf8_lossy(&run.stderr);
+        assert_eq!(run.status.code(), Some(1), "{name}: {stderr}");
+        assert!(stderr.contains("invalid structure"), "{name}: {stderr}");
+        assert!(!out.exists(), "{name}");
+    }
     nothing_left(&dir);
 }
 

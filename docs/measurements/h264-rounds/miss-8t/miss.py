@@ -5,7 +5,7 @@ A sample's stage is classified as ../profile-ae609547-pmu/stages_pmu.py does (Co
 `core_stage` of its inline chain, FFmpeg by the function symbol's name with that script's FF_RULES); a CoreAV item is
 the innermost frame in a coreav- crate (`file:function`). Every quantity is a count per macroblock (weights, the summed
 sample periods, over the stream's macroblocks), averaged over the rounds and then over the streams of a class (mean,
-each stream counting equally), as #528 reports cycles a macroblock. `cycles` is the mean of the groups' estimates.
+each stream counting equally), as the ae609547 PMU profile reports cycles a macroblock. `cycles` is the mean of the groups' estimates.
 Δ_total = p8 - p1, Δ_band = p81 - p1, Δ_cross = p8 - p81 (README.md, "Questions and criteria"). Writes RES/miss.json
 and prints the tables."""
 import ast, bisect, collections, glob, json, os, re, statistics, subprocess, sys

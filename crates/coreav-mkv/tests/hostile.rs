@@ -443,7 +443,7 @@ fn a_large_live_recording_streams_with_bounded_reads() {
 }
 
 /// The hostile suite's lacing cases (tools/hostile/generate.py,
-/// part `matroska`, issue #108), as SimpleBlocks of track 1 after the
+/// part `matroska`), as SimpleBlocks of track 1 after the
 /// track number, timestamp and flags: each lists every frame or fails with
 /// a structured error, never past the block.
 #[test]
@@ -575,7 +575,7 @@ fn inflated_sizes(data: &[u8], limits: &Limits) -> Result<Vec<Option<u64>>, Erro
         .collect()
 }
 
-/// zlib-compressed frames (issue #108): sized by inflating them only when
+/// zlib-compressed frames: sized by inflating them only when
 /// the listing asks, within `max_packet_bytes` per frame and
 /// `max_inflated_bytes` per listing (inflated bytes plus 4 KiB per frame);
 /// a frame that does not inflate within them has an unknown size and never

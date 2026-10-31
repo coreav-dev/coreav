@@ -4,6 +4,7 @@
     transcode_check.py --coreav PATH --arm NAME=ARGS [--arm ...] --fixtures DIR --out DIR
     transcode_check.py --coreav PATH --arm NAME=ARGS [--arm ...] --corpus --work DIR --out DIR
     transcode_check.py --summarize --out DIR
+    transcode_check.py --merge SHARD_EVIDENCE... --out DIR
 
 `--arm ffmpeg="--encoder ffmpeg --ffmpeg /opt/coreav-oracle-bin/ffmpeg"` and
 `--arm x264="--encoder x264 --x264 /path/x264"` are the two arms of the note;
@@ -97,6 +98,15 @@ video stream and the audio streams `coreav remux` keeps), and refusals of
 files whose baseline succeeds are listed by file. A file whose baseline
 fails to run is counted apart for B4 ("baseline failed"), and judged on B1
 to B3. The baseline's own B2 and B3 misses are counted and listed.
+
+`--shard K/N` (with `--fixtures`) runs the K-th of every N inputs in name
+order, K from 1. A shard judges no bar: it writes its results and, with
+`--compat`, its OUT/evidence, and exits 1 only when an input has no complete
+result. `--merge` takes the evidence directories of shards 1 to N of one
+run, each once, with the same command lines, arms and fixtures, and
+summarizes and judges their inputs as one run, writing OUT/run.json,
+OUT/summary.json and OUT/evidence as one run does; the programs' SHA-256
+are listed by shard when the shards' builds differ.
 
 Output: OUT/results/<config>/<file>.json per input (a run that stops
 resumes: inputs with a complete result are skipped), OUT/summary.json with
@@ -213,7 +223,11 @@ def child_env(ffmpeg=None):
     env = {k: v for k, v in os.environ.items()
            if not k.startswith(('R2_', 'AWS_', 'COREAV_GCP_', 'CORPUS_R2'))}
     env['PYTHONDONTWRITEBYTECODE'] = '1'
-    env['COREAV_STRICT_SAFE'] = '1'
+    # A refused `coreav ffmpeg` command stays refused (exit status 4) instead of running FFmpeg in its place: the
+    # fallback names no program. Not strict-safe mode, which would also refuse the FFmpeg decoder and encoder the arms
+    # run (docs/design/compat-cli.md, "Strict-safe mode").
+    env['COREAV_FALLBACK'] = '/nonexistent/coreav-fallback'
+    env.pop('COREAV_STRICT_SAFE', None)
     if ffmpeg:
         env['COREAV_FFMPEG'] = ffmpeg
     return env
@@ -1035,7 +1049,8 @@ def export_evidence(args, out, run_info):
     ev.mkdir(parents=True, exist_ok=True)
     rows = []
     with tarfile.open(ev / 'results.tar.gz', 'w:gz') as tar:
-        for p in [out / 'run.json', out / 'summary.json'] + sorted((out / 'results').rglob('*.json')):
+        for p in [p for p in (out / 'run.json', out / 'summary.json') if p.exists()] + \
+                sorted((out / 'results').rglob('*.json')):
             data = clean(p.read_text()).encode()
             info = tarfile.TarInfo(str(p.relative_to(out)))
             info.size = len(data)
@@ -1559,10 +1574,13 @@ def main():
     mode.add_argument('--fixtures', metavar='DIR')
     mode.add_argument('--corpus', action='store_true')
     mode.add_argument('--summarize', action='store_true', help='only summarize OUT/results')
+    mode.add_argument('--merge', nargs='+', metavar='SHARD_EVIDENCE',
+                      help='judge the evidence directories of shards 1 to N of one --compat run as one run')
     p.add_argument('--out', required=True)
     p.add_argument('--work', help='corpus downloads (default OUT/work)')
     p.add_argument('--tmp', default=None, help='where outputs are written (tmpfs if it is large enough)')
     p.add_argument('--jobs', type=int, default=1)
+    p.add_argument('--shard', metavar='K/N', help='with --fixtures: the K-th of every N inputs in name order')
     p.add_argument('--classes', default=','.join(CLASSES))
     p.add_argument('--keep-files', action='store_true')
     p.add_argument('--only', help='comma-separated file names or SHA-256 prefixes')
@@ -1585,6 +1603,11 @@ def main():
         rep['run'] = info
         print(table(rep))
         return verdict_status(rep)
+    if args.merge:
+        return merge(args)
+    shard = re.fullmatch(r'([1-9][0-9]*)/([1-9][0-9]*)', args.shard or '')
+    if args.shard and (not shard or int(shard[1]) > int(shard[2]) or not args.fixtures):
+        p.error('--shard K/N: 1 <= K <= N, with --fixtures')
     args.work = args.work or str(pathlib.Path(args.out) / 'work')
     if args.compat and not args.fixtures:
         p.error('--compat runs on --fixtures')
@@ -1612,6 +1635,10 @@ def main():
         keys = args.only.split(',')
         items = [i for i in items if any(i['key'].startswith(k) for k in keys)]
         run_info['only'] = keys
+    if shard:
+        k, n = int(shard[1]), int(shard[2])
+        items = items[k - 1::n]
+        run_info['shard'] = [k, n]
     expected = {}
     for i in items:
         for c in i['configs']:
@@ -1627,6 +1654,15 @@ def main():
     with concurrent.futures.ThreadPoolExecutor(max(1, args.jobs)) as ex:
         for fut in [ex.submit(process, args, i) for i in items]:
             fut.result()
+    if shard:
+        if args.compat:
+            export_evidence(args, out, run_info)
+        missing = [f'{c} {key}' for c, files in expected.items() for key in files
+                   if not _complete(result_path(out, c, key))]
+        for m in missing:
+            print('FAIL: no complete result:', m)
+        log(f'shard {args.shard}: {len(items)} inputs; --merge judges the bars over every shard')
+        return 1 if missing else 0
     rep = summarize(args.out, bool(args.fixtures), expected, [n for n, _ in args.arms], args.compat)
     rep['run'] = run_info
     if not args.fixtures:
@@ -1634,6 +1670,75 @@ def main():
     _write(out / 'summary.json', rep)
     if args.compat:
         export_evidence(args, out, run_info)
+    print(table(rep))
+    return verdict_status(rep)
+
+
+def merge(args):
+    """--merge: the evidence of shards 1 to N of one run, summarized and judged as one run."""
+    out = pathlib.Path(args.out)
+    if (out / 'results').exists():
+        raise SystemExit(f'--merge: {out} already holds results')
+    infos, manifests, rows = {}, [], []
+    for d in map(pathlib.Path, args.merge):
+        manifests.append(json.loads((d / 'manifest.json').read_text()))
+        rows += [json.loads(line) for line in (d / 'calls.jsonl').read_text().splitlines()]
+        with tarfile.open(d / 'results.tar.gz') as tar:
+            for m in tar.getmembers():
+                parts = pathlib.PurePosixPath(m.name).parts
+                if not m.isfile() or '..' in parts or not (parts == ('run.json',) or
+                                                           (len(parts) == 3 and parts[0] == 'results')):
+                    raise SystemExit(f'--merge: {d}: unexpected member {m.name!r}')
+                data = tar.extractfile(m).read()
+                if parts == ('run.json',):
+                    info = json.loads(data)
+                    k = (info.get('shard') or [None])[0]
+                    if k is None or k in infos:
+                        raise SystemExit(f'--merge: {d} is no shard, or a shard given twice')
+                    infos[k] = info
+                    continue
+                path = out.joinpath(*parts)
+                if path.exists():
+                    raise SystemExit(f'--merge: {m.name} is in two shards')
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(data)
+    counts = {info['shard'][1] for info in infos.values()}
+    if len(counts) != 1 or sorted(infos) != list(range(1, counts.pop() + 1)):
+        raise SystemExit(f'--merge: shards {sorted(infos)} are not shards 1 to N of one run, each once')
+
+    fixtures = [m.get('fixtures') or {} for m in manifests]
+    differ = sorted(n for n in set().union(*fixtures) if any(f.get(n) != fixtures[0].get(n) for f in fixtures))
+    if differ:
+        raise SystemExit(f'--merge: the shards ran on different bytes of {", ".join(differ)}: '
+                         'give every shard the one fixture set of the run')
+
+    def common(d):
+        return {k: v for k, v in d.items() if k not in ('shard', 'expected', 'tools')}
+    if any(common(i) != common(infos[1]) for i in infos.values()) or \
+            any(common(m) != common(manifests[0]) for m in manifests):
+        raise SystemExit('--merge: the shards ran different command lines, arms or fixtures')
+    tools = [infos[k]['tools'] for k in sorted(infos)]
+    expected = {}
+    for k in sorted(infos):
+        for config, files in infos[k]['expected'].items():
+            if set(files) & set(expected.get(config, {})):
+                raise SystemExit(f'--merge: {config}: an input is in two shards')
+            expected.setdefault(config, {}).update(files)
+    run_info = common(infos[1]) | {'tools': tools[0] if all(t == tools[0] for t in tools) else tools,
+                                   'expected': expected}
+    _write(out / 'run.json', run_info)
+    rep = summarize(out, run_info['mode'] == 'fixtures', expected, list(run_info['arms']),
+                    run_info.get('compat') is not None)
+    rep['run'] = run_info
+    _write(out / 'summary.json', rep)
+    ev = out / 'evidence'
+    ev.mkdir(parents=True, exist_ok=True)
+    with tarfile.open(ev / 'results.tar.gz', 'w:gz') as tar:
+        for p in [out / 'run.json', out / 'summary.json'] + sorted((out / 'results').rglob('*.json')):
+            tar.add(p, arcname=str(p.relative_to(out)))
+    rows.sort(key=lambda r: (r['config'] or '', r['file'] or ''))
+    (ev / 'calls.jsonl').write_text(''.join(json.dumps(x, sort_keys=True) + '\n' for x in rows))
+    _write(ev / 'manifest.json', manifests[0] | {'tools': run_info['tools']})
     print(table(rep))
     return verdict_status(rep)
 
