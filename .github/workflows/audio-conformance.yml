@@ -2,16 +2,16 @@ name: audio-conformance
 
 # The conformance bars of docs/design/audio-decode.md: each decoder of
 # crates/coreav-audio, crates/coreav-aac and crates/coreav-opus against its standard's test
-# vectors, fetched at a pinned commit or checksum. Runs when either crate or
-# this workflow changes, and weekly.
+# vectors, fetched at a pinned commit or checksum. Runs when either crate,
+# the oracle FFmpeg's pin or this workflow changes, and weekly.
 
 on:
   push:
     branches: [main]
-    paths: ["crates/coreav-audio/**", "crates/coreav-aac/**", "scripts/aac_agreement.py", "scripts/decode_audio_check.py", "crates/coreav-opus/**", "scripts/opus_tables.py", "scripts/pinned_sources.py", ".github/workflows/audio-conformance.yml"]
+    paths: ["crates/coreav-audio/**", "crates/coreav-aac/**", "scripts/aac_agreement.py", "scripts/decode_audio_check.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "crates/coreav-opus/**", "scripts/opus_tables.py", "scripts/pinned_sources.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", ".github/workflows/audio-conformance.yml"]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths: ["crates/coreav-audio/**", "crates/coreav-aac/**", "scripts/aac_agreement.py", "scripts/decode_audio_check.py", "crates/coreav-opus/**", "scripts/opus_tables.py", "scripts/pinned_sources.py", ".github/workflows/audio-conformance.yml"]
+    paths: ["crates/coreav-audio/**", "crates/coreav-aac/**", "scripts/aac_agreement.py", "scripts/decode_audio_check.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "crates/coreav-opus/**", "scripts/opus_tables.py", "scripts/pinned_sources.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", ".github/workflows/audio-conformance.yml"]
   schedule:
     - cron: '17 6 * * 2'
   workflow_dispatch:
@@ -145,35 +145,22 @@ jobs:
           COREAV_AAC_VECTORS: ${{ runner.temp }}/aac
         run: cargo test --locked --release -p coreav-aac --test conformance conformance_streams -- --ignored --nocapture
       # Bars 2 to 5 (docs/design/audio-decode.md, "AAC-LC bars"): against
-      # the pinned FFmpeg 9.0.2, the build scripts/oracle-ffmpeg.env pins
-      # once that pin lands; until then the same archive by its SHA-256.
-      - name: Cache FFmpeg 9.0.2
-        id: ffmpeg9
+      # the pinned oracle FFmpeg (scripts/oracle-ffmpeg.env).
+      - name: Cache the pinned FFmpeg
+        id: ffmpeg-cache
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
-          path: ${{ runner.temp }}/ffmpeg9
-          key: ffmpeg-n9.0.2-17-g2a571b6068-68ee646831adaae2495618346f3bba94ff207ff83bbd34d643e7004730d66269
-      - name: Install FFmpeg 9.0.2
-        if: steps.ffmpeg9.outputs.cache-hit != 'true'
-        env:
-          FFMPEG9_URL: https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-30-13-08/ffmpeg-n9.0.2-17-g2a571b6068-linux64-gpl-9.0.tar.xz
-          FFMPEG9_SHA256: 68ee646831adaae2495618346f3bba94ff207ff83bbd34d643e7004730d66269
-          FFMPEG9_ARCHIVE: ffmpeg-n9.0.2-17-g2a571b6068-linux64-gpl-9.0
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/ffmpeg9"
-          cd "$RUNNER_TEMP"
-          curl -fsSL --retry 5 -o ffmpeg9.tar.xz "$FFMPEG9_URL"
-          echo "$FFMPEG9_SHA256  ffmpeg9.tar.xz" | sha256sum --check --strict
-          tar -xJf ffmpeg9.tar.xz "$FFMPEG9_ARCHIVE/bin/ffmpeg" "$FFMPEG9_ARCHIVE/bin/ffprobe"
-          install -m 755 "$FFMPEG9_ARCHIVE/bin/ffmpeg" "$FFMPEG9_ARCHIVE/bin/ffprobe" "$RUNNER_TEMP/ffmpeg9/"
-          rm -rf ffmpeg9.tar.xz "$FFMPEG9_ARCHIVE"
+          path: ${{ runner.temp }}/coreav-oracle-bin
+          key: linux-x64-oracle-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh') }}
+      - name: Install the pinned FFmpeg
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
       - name: Build the command with the feature aac
         run: cargo build --locked --release -p coreav-cli --features aac
       - name: The generated set and the references
         run: |
-          "$RUNNER_TEMP/ffmpeg9/ffmpeg" -version | head -1
-          python3 -I scripts/aac_agreement.py prepare --ffmpeg "$RUNNER_TEMP/ffmpeg9/ffmpeg" \
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
+          python3 -I scripts/aac_agreement.py prepare --ffmpeg "$RUNNER_TEMP/coreav-oracle-bin/ffmpeg" \
             --work "$RUNNER_TEMP/aac-agreement" --conformance "$RUNNER_TEMP/aac"
       - name: Decode every MP4 input (bar 2)
         env:
@@ -186,7 +173,7 @@ jobs:
           W="$RUNNER_TEMP/aac-agreement"
           status=0
           python3 -I scripts/aac_agreement.py judge --coreav target/release/coreav \
-            --ffmpeg "$RUNNER_TEMP/ffmpeg9/ffmpeg" --ffprobe "$RUNNER_TEMP/ffmpeg9/ffprobe" \
+            --ffmpeg "$RUNNER_TEMP/coreav-oracle-bin/ffmpeg" --ffprobe "$RUNNER_TEMP/coreav-oracle-bin/ffprobe" \
             --work "$W" --out "$W/aac-agree.json" > "$W/summary.json" || status=$?
           cat "$W/summary.json"
           { echo '```json'; cat "$W/summary.json"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

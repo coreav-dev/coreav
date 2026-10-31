@@ -246,6 +246,7 @@ def cmd_run(opts):
     pathlib.Path(opts.work).mkdir(parents=True, exist_ok=True)
     opts.log = str(pathlib.Path(opts.records).with_suffix('.copy_check.log'))
     log = pathlib.Path(opts.work) / 'fallback.log'
+    log.unlink(missing_ok=True)
     env = release_round.environment(log)
     with concurrent.futures.ThreadPoolExecutor(opts.jobs) as pool:
         per_file = list(pool.map(lambda p: one_file(opts, p, env), files))

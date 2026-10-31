@@ -136,6 +136,24 @@
       },
       "predicate": "sync_verified",
       "basis": "ISO/IEC 14496-12 8.6.2 (without a sync sample table every sample is a sync sample); ISO/IEC 14496-15 and ITU-T H.265 7.4.2.2 (an HEVC sync sample holds an IRAP picture, nal_unit_type 16 to 23); docs/design/cut-points.md (the output's sync flags are the samples the coded data agrees with)"
+    },
+    {
+      "id": "KD-J-AUDIO-LAST-CUT",
+      "level": [
+        "frames"
+      ],
+      "fields": [
+        "decoded audio"
+      ],
+      "field_pattern": "audio:framemd5",
+      "filename_pattern": "*",
+      "conditions": {
+        "packets": "equal to the source's (no audio:packets difference)",
+        "decoded audio": "every frame but the last equal at the same time; the last ones starting at the same time",
+        "side data": "ffprobe lists Skip Samples on the last audio packet of exactly one of the two files, skipping 0 samples and discarding as many as that file's last frame lasts less than the other's"
+      },
+      "predicate": "audio_last_cut",
+      "basis": "ISO/IEC 14496-12 8.6.1.2 and 8.6.6: the samples and their stored durations are copied; ffmpeg 9.0.2 reads padding to discard on a last frame in some layouts and not in others"
     }
   ]
 }

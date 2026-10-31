@@ -105,7 +105,9 @@ try_gen mkv_full_range.mkv "${VSRC[@]}" \
   -vf "setparams=color_primaries=smpte170m:color_trc=smpte170m:colorspace=smpte170m:range=pc" \
   "${H264[@]}"
 try_gen mkv_vp9_10bit.mkv "${VSRC[@]}" "${VP9[@]}" -pix_fmt yuv420p10le
-try_gen mkv_pcm.mkv "${ASRC[@]}" -c:a pcm_s16le -frame_size 1024
+# 1024 samples a block. The pinned FFmpeg aborts on -frame_size with PCM;
+# the filter cuts the same blocks, the last one short.
+try_gen mkv_pcm.mkv "${ASRC[@]}" -af asetnsamples=n=1024:p=0 -c:a pcm_s16le
 try_gen mkv_flac.mkv "${ASRC[@]}" -c:a flac
 try_gen mkv_mp3.mkv "${ASRC[@]}" -c:a libmp3lame -b:a 128k
 try_gen mkv_ac3.mkv "${ASRC[@]}" -c:a ac3

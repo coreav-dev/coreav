@@ -46,6 +46,47 @@ file names.
   field (stream, decode and presentation times, size, checksum, side data),
   and the output's duration equal to the gap to the output's next packet.
 
+## KD-R-FRAG-LAST-TRIM
+
+- Field: the side data of an audio stream's last packet in the
+  `framemd5` checksums.
+- When: the source is fragmented and its last audio sample's stored
+  duration is shorter than its frame (the end of the encoded audio).
+  Example: the last AAC sample of `fragmented.mp4` is stored with 136
+  ticks of a 1,024-sample frame.
+- What each reports: `ffmpeg` 9.0.2 reads Skip Samples side data on that
+  packet from the output's sample table, discarding the 888 samples past the
+  stored duration, and none from the source's track run; every other field
+  of the packet is the same. `ffmpeg` 7.0.2 read none from either.
+- Why: the remux copies each sample's stored duration (ISO/IEC 14496-12
+  8.8.8, 8.6.1.2); which layout `ffmpeg` turns it into padding to discard
+  for is its own.
+- Coverage requires: a fragmented source; the last packet of the stream,
+  equal in every other field; on the source no Skip Samples, and on the
+  output Skip Samples that skip nothing at the start and discard exactly as
+  many samples as the packet before it lasts beyond this one.
+
+## KD-R-FRAG-INDEX-START
+
+- Field: a stream's `duration_ts`.
+- When: the source is fragmented, its track has no edit list, and its one
+  segment index (`sidx`) of the track gives an earliest presentation time
+  above 0, as `ffmpeg` 9.0.2 writes it for video whose first frame is
+  composed after its decode time. Example: `fragmented_sidx.mp4`, 1,024
+  ticks at 12,800 per second.
+- What each reports: `ffprobe` ends the source's stream at that start plus
+  the index's subsegment durations, and the output's at the sum of the
+  samples' stored durations, its media header duration: 257,024 against
+  256,000 ticks.
+- Why: the remux copies the samples and their stored durations, and the
+  media header duration is their sum (ISO/IEC 14496-12 8.4.2); the index
+  is not copied.
+- Coverage requires: a fragmented source without an edit list on the
+  track; one top-level segment index of the track, in the track's
+  timescale, with an earliest presentation time above 0; the output's
+  `duration_ts` equal to the index's subsegment durations added up, and
+  the source's that sum plus the earliest presentation time.
+
 ## KD-R-FRAG-EDIT-END
 
 - Fields: a stream's `duration_ts`; MediaInfo's `Duration` and

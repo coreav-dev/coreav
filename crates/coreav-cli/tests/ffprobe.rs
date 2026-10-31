@@ -15,7 +15,7 @@ mod common;
 #[path = "../../coreav-mpegts/tests/common/mod.rs"]
 mod ts;
 
-use common::{aac_entry, av_movie_with};
+use common::{aac_entry, alac_cookie, av_movie_with, dfla, lossless_entry};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -63,14 +63,134 @@ fn movie(name: &str) -> String {
 }
 
 #[test]
+fn composition_offsets_do_not_replace_the_stored_sample_durations() {
+    let bytes = common::movie(&common::Spec {
+        stts: Some(vec![(1, 256), (1, 512), (1, 768), (1, 1024)]),
+        ctts: Some(vec![(4, 0)]),
+        elst: None,
+        ..common::Spec::default()
+    });
+    let path = file("ffprobe-stored-durations.mp4", &bytes);
+    let r = ffprobe(&[
+        "-v",
+        "error",
+        "-show_packets",
+        "-show_entries",
+        "packet=duration",
+        "-of",
+        "csv=p=0",
+        &path.to_string_lossy(),
+    ]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    assert_eq!(r.stdout, "256\n512\n768\n1024\n");
+}
+
+#[test]
+fn quicktime_keeps_its_zero_vendor_identifier() {
+    for (brand, expected, name) in [
+        (b"qt  ", true, "ffprobe-quicktime-vendor.mov"),
+        (b"isom", false, "ffprobe-iso-vendor.mp4"),
+    ] {
+        let mut bytes = av_movie_with(aac_entry(), false);
+        bytes[8..12].copy_from_slice(brand);
+        let path = file(name, &bytes);
+        let result = ffprobe(&[
+            "-v",
+            "error",
+            "-show_entries",
+            "stream_tags=vendor_id",
+            "-of",
+            "json",
+            &path.to_string_lossy(),
+        ]);
+        assert_eq!(result.code, 0, "{}", result.stderr);
+        assert_eq!(
+            result.stdout.contains("[0][0][0][0]"),
+            expected,
+            "{}",
+            result.stdout
+        );
+    }
+}
+
+#[test]
+fn aac_mime_keeps_the_stored_object_type_with_a_sync_extension() {
+    let mut body = common::audio_entry(b"mp4a").split_off(8);
+    body.extend_from_slice(&common::full(
+        b"esds",
+        0,
+        0,
+        &[
+            3, 25, 0, 0, 0, 4, 20, 0x40, 0x15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 5, 0x13, 0x10,
+            0x56, 0xe5, 0x98,
+        ],
+    ));
+    let bytes = av_movie_with(common::bx(b"mp4a", &body), false);
+    let path = file("ffprobe-aac-sync-mime.mp4", &bytes);
+    let result = ffprobe(&[
+        "-v",
+        "error",
+        "-select_streams",
+        "a",
+        "-show_entries",
+        "stream=profile,mime_codec_string",
+        "-of",
+        "csv=p=0",
+        &path.to_string_lossy(),
+    ]);
+    assert_eq!(result.code, 0, "{}", result.stderr);
+    assert_eq!(result.stdout, "HE-AAC,mp4a.40.2\n");
+}
+
+#[test]
+fn vp8_mp4_reads_the_configuration_pixel_format_and_range() {
+    for (flag, range) in [(0, "tv"), (1, "pc")] {
+        let mut bytes = common::movie(&common::Spec {
+            sample_entry: *b"vp08",
+            ..common::Spec::default()
+        });
+        let at = bytes.windows(4).position(|b| b == b"avcC").unwrap() - 4;
+        let old = u32::from_be_bytes(bytes[at..at + 4].try_into().unwrap()) as usize;
+        let config = common::bx(b"vpcC", &[1, 0, 0, 0, 0, 0, 0x80 | flag, 1, 1, 1, 0, 0]);
+        for kind in [
+            b"moov", b"trak", b"mdia", b"minf", b"stbl", b"stsd", b"vp08",
+        ] {
+            let header = bytes.windows(4).position(|b| b == kind).unwrap() - 4;
+            let size = u32::from_be_bytes(bytes[header..header + 4].try_into().unwrap());
+            let size = size + u32::try_from(config.len() - old).unwrap();
+            bytes[header..header + 4].copy_from_slice(&size.to_be_bytes());
+        }
+        bytes.splice(at..at + old, config);
+        let path = file(&format!("ffprobe-vp8-{range}.mp4"), &bytes);
+        let result = ffprobe(&[
+            "-v",
+            "error",
+            "-show_entries",
+            "stream=codec_name,pix_fmt,color_range",
+            "-of",
+            "json",
+            &path.to_string_lossy(),
+        ]);
+        assert_eq!(result.code, 0, "{}", result.stderr);
+        let json: serde_json::Value = serde_json::from_str(&result.stdout).unwrap();
+        assert_eq!(json["streams"][0]["codec_name"], "vp8");
+        assert_eq!(json["streams"][0]["pix_fmt"], "yuv420p");
+        assert_eq!(json["streams"][0]["color_range"], range);
+    }
+}
+
+#[test]
 fn an_option_outside_the_vocabulary_is_refused_by_name() {
     let path = movie("ffprobe-refused.mp4");
     for (args, named) in [
-        (vec!["-show_frames", path.as_str()], "-show_frames"),
+        (
+            vec!["-show_data", "-show_packets", path.as_str()],
+            "-show_data",
+        ),
         (vec!["-of", "xml", "-show_streams", path.as_str()], "xml"),
         (
-            vec!["-show_entries", "frame=pict_type", path.as_str()],
-            "frame",
+            vec!["-show_entries", "stream_group=index", path.as_str()],
+            "stream_group",
         ),
         (vec!["-f", "lavfi", "-i", "anullsrc"], "lavfi"),
         (vec!["-unit", "-show_streams", path.as_str()], "-unit"),
@@ -81,10 +201,6 @@ fn an_option_outside_the_vocabulary_is_refused_by_name() {
         (
             vec!["-read_intervals", "10%20", "-show_packets", path.as_str()],
             "10%20",
-        ),
-        (
-            vec!["-show_entries", "stream=nb_read_frames", path.as_str()],
-            "nb_read_frames",
         ),
     ] {
         let r = ffprobe(&args);
@@ -124,9 +240,38 @@ fn a_missing_file_is_named() {
 
 #[test]
 fn help_is_the_usage_text() {
-    let r = ffprobe(&["-h"]);
-    assert_eq!(r.code, 0);
-    assert!(r.stdout.contains("usage: coreav ffprobe"));
+    for args in [
+        vec!["-h"],
+        vec!["-?"],
+        vec!["-help"],
+        vec!["--help"],
+        vec!["-hide_banner", "-h"],
+    ] {
+        let r = ffprobe(&args);
+        assert_eq!(r.code, 0, "{args:?}: {}", r.stderr);
+        assert_eq!(r.stdout, coreav_cli::ffprobe::USAGE, "{args:?}");
+        assert!(r.stderr.is_empty(), "{args:?}: {}", r.stderr);
+    }
+}
+
+#[test]
+fn help_on_a_topic_is_refused_by_name() {
+    for (args, named) in [
+        (vec!["-h", "long"], "'-h long'"),
+        (vec!["-h", "full"], "'-h full'"),
+        (vec!["--help", "demuxer=mov"], "'--help demuxer=mov'"),
+        (vec!["-hide_banner", "-help", "in.mp4"], "'-help in.mp4'"),
+    ] {
+        let r = ffprobe(&args);
+        assert_eq!(r.code, 4, "{args:?}: {}", r.stderr);
+        assert!(r.stdout.is_empty(), "{args:?}");
+        assert!(
+            r.stderr
+                .starts_with(&format!("coreav ffprobe: {named} is not supported: ")),
+            "{args:?}: {}",
+            r.stderr
+        );
+    }
 }
 
 #[test]
@@ -161,7 +306,47 @@ fn the_common_forms_print_what_ffprobe_prints() {
     assert_eq!(doc["format"]["filename"], path.as_str());
     assert_eq!(doc["format"]["nb_streams"], 2);
     let r = ffprobe(&["-show_entries", "format=filename", "-of", "flat", &path]);
-    assert_eq!(r.stdout, format!("format.filename=\"{path}\"\n"));
+    // The flat writer escapes a backslash, as in a Windows path.
+    let escaped = path.replace('\\', "\\\\");
+    assert_eq!(r.stdout, format!("format.filename=\"{escaped}\"\n"));
+}
+
+/// FLAC's and ALAC's rate and bit depth are their configuration's, not
+/// the sample entry's 16.16 rate, which cannot hold 96 kHz or 192 kHz.
+#[test]
+fn lossless_audio_takes_its_rate_and_depth_from_its_configuration() {
+    for (name, entry, expected) in [
+        (
+            "ffprobe-flac.mp4",
+            lossless_entry(b"fLaC", dfla(96_000, 24)),
+            "flac,s32,96000,24\n",
+        ),
+        (
+            "ffprobe-flac16.mp4",
+            lossless_entry(b"fLaC", dfla(44_100, 16)),
+            "flac,s16,44100,16\n",
+        ),
+        (
+            "ffprobe-alac.m4a",
+            lossless_entry(b"alac", alac_cookie(192_000, 16)),
+            "alac,s16p,192000,16\n",
+        ),
+    ] {
+        let path = file(name, &av_movie_with(entry, false));
+        let r = ffprobe(&[
+            "-v",
+            "error",
+            "-select_streams",
+            "a",
+            "-show_entries",
+            "stream=codec_name,sample_fmt,sample_rate,bits_per_raw_sample",
+            "-of",
+            "csv=p=0",
+            path.to_str().unwrap(),
+        ]);
+        assert_eq!(r.code, 0, "{}", r.stderr);
+        assert_eq!(r.stdout, expected, "{name}");
+    }
 }
 
 #[test]
@@ -226,7 +411,208 @@ fn the_binary_named_ffprobe_is_coreav_ffprobe() {
     let direct = ffprobe(&args);
     assert_eq!(through_link.code, 0, "{}", through_link.stderr);
     assert_eq!(through_link.stdout, direct.stdout);
-    assert_eq!(run(&link, &["-show_frames", path.as_str()]).code, 4);
+    assert_eq!(
+        run(&link, &["-show_data", "-show_packets", path.as_str()]).code,
+        4
+    );
+}
+
+fn pcm_movie(name: &str) -> String {
+    file(name, &common::av_movie(b"sowt"))
+        .to_string_lossy()
+        .into_owned()
+}
+
+#[test]
+fn chapter_picture_packets_include_requested_payloads() {
+    let mut bytes = common::av_movie(b"sowt");
+    let moov = bytes.windows(4).position(|b| b == b"moov").unwrap() - 4;
+    let track = bytes
+        .windows(4)
+        .enumerate()
+        .filter(|(_, b)| *b == b"trak")
+        .nth(1)
+        .unwrap()
+        .0
+        - 4;
+    let reference = common::bx(b"tref", &common::bx(b"chap", &1u32.to_be_bytes()));
+    for at in [moov, track] {
+        let size = u32::from_be_bytes(bytes[at..at + 4].try_into().unwrap());
+        bytes[at..at + 4].copy_from_slice(&(size + reference.len() as u32).to_be_bytes());
+    }
+    bytes.extend_from_slice(&reference);
+    for wanted in [true, false] {
+        let mut source = coreav_isobmff::SliceSource::new(&bytes);
+        let mut probed = coreav_cli::ffprobe::probe(
+            &mut source,
+            bytes.len() as u64,
+            "chapter-picture.mp4",
+            None,
+        )
+        .unwrap_or_else(|_| panic!("chapter-picture probe failed"));
+        assert!(
+            probed.report.streams[0]
+                .disposition
+                .iter()
+                .any(|(key, value)| *key == "timed_thumbnails"
+                    && matches!(value, coreav_cli::ffprobe::model::Value::Int(1)))
+        );
+        let mut first = None;
+        assert!(
+            probed
+                .packets
+                .visit(&[wanted, false], &mut |packet| {
+                    first = Some(packet);
+                    Ok(false)
+                })
+                .is_ok()
+        );
+        let packet = first.unwrap();
+        assert_eq!(packet.stream, 0);
+        if wanted {
+            let at = packet.pos.unwrap() as usize;
+            assert_eq!(packet.data, bytes[at..at + packet.size as usize]);
+        } else {
+            assert!(packet.data.is_empty());
+        }
+    }
+}
+
+#[test]
+fn audio_frames_are_listed_and_counted() {
+    let path = pcm_movie("ffprobe-frames.mov");
+    let r = ffprobe(&[
+        "-v",
+        "error",
+        "-select_streams",
+        "a",
+        "-show_entries",
+        "frame=media_type,stream_index,pts,nb_samples,channels",
+        "-of",
+        "csv=p=0",
+        &path,
+    ]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    // Each packet holds whole samples of both channels: 400 bytes of
+    // 16-bit stereo are 100 samples, however they are split into packets.
+    let mut samples = 0;
+    let lines: Vec<&str> = r.stdout.lines().collect();
+    for line in &lines {
+        let fields: Vec<&str> = line.split(',').collect();
+        assert_eq!(fields[..2], ["audio", "1"], "{line}");
+        assert_eq!(fields[4], "2", "{line}");
+        samples += fields[3].parse::<u32>().unwrap();
+    }
+    assert_eq!(samples, 100);
+    let r = ffprobe(&[
+        "-v",
+        "error",
+        "-select_streams",
+        "a",
+        "-count_frames",
+        "-count_packets",
+        "-show_entries",
+        "stream=nb_read_frames,nb_read_packets",
+        "-of",
+        "csv=p=0",
+        &path,
+    ]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    assert_eq!(r.stdout, format!("{0},{0}\n", lines.len()));
+}
+
+#[test]
+fn frame_counts_do_not_require_frame_records() {
+    let path = pcm_movie("ffprobe-count-only.mov");
+    let r = ffprobe(&[
+        "-v",
+        "error",
+        "-select_streams",
+        "a",
+        "-read_intervals",
+        "%+#1",
+        "-count_frames",
+        "-show_entries",
+        "stream=nb_read_frames",
+        "-of",
+        "json",
+        &path,
+    ]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    let doc: serde_json::Value = serde_json::from_str(&r.stdout).unwrap();
+    assert_eq!(doc["streams"][0]["nb_read_frames"], "1");
+    assert!(doc.get("frames").is_none());
+}
+
+#[test]
+fn packets_and_frames_share_one_list() {
+    let path = pcm_movie("ffprobe-packets-and-frames.mov");
+    let r = ffprobe(&[
+        "-v",
+        "error",
+        "-select_streams",
+        "a",
+        "-read_intervals",
+        "%+#2",
+        "-show_entries",
+        "packet=pts:frame=pts",
+        "-of",
+        "json",
+        &path,
+    ]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    let doc: serde_json::Value = serde_json::from_str(&r.stdout).unwrap();
+    let types: Vec<&str> = doc["packets_and_frames"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|item| item["type"].as_str().unwrap())
+        .collect();
+    assert_eq!(types, ["packet", "frame", "packet", "frame"]);
+    let r = ffprobe(&[
+        "-v",
+        "error",
+        "-select_streams",
+        "a",
+        "-read_intervals",
+        "%+#1",
+        "-show_entries",
+        "packet=pts:frame=pts",
+        "-of",
+        "flat",
+        &path,
+    ]);
+    assert_eq!(
+        r.stdout,
+        "packets_and_frames.packet.0.pts=0\npackets_and_frames.frame.0.pts=0\n"
+    );
+}
+
+#[test]
+fn frames_coreav_cannot_decode_are_refused_before_anything_is_printed() {
+    // The movie's video samples are one slice header each, not pictures:
+    // a build without the H.264 decoder refuses the stream, a build with
+    // it stops at the first packet. Either way nothing is printed.
+    let path = movie("ffprobe-frames-refused.mp4");
+    for args in [
+        vec!["-show_frames", path.as_str()],
+        vec!["-select_streams", "a", "-show_frames", path.as_str()],
+        vec![
+            "-count_frames",
+            "-show_entries",
+            "stream=nb_read_frames",
+            path.as_str(),
+        ],
+    ] {
+        let r = ffprobe(&args);
+        assert_eq!(r.code, 4, "{args:?}: {}", r.stderr);
+        assert!(r.stdout.is_empty(), "{args:?}");
+        assert!(
+            r.stderr.contains("needs the frames of stream"),
+            "{args:?}: {}",
+            r.stderr
+        );
+    }
 }
 
 #[test]

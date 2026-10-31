@@ -2725,6 +2725,7 @@ fn hls_package_refuses_standard_output() {
 
 /// Found by review: an existing empty directory, a symlink to one included,
 /// is packaged in place and kept.
+#[cfg(unix)]
 #[test]
 fn hls_package_into_an_existing_empty_directory() {
     let input = file("hls_dir_in.mp4", &av_movie_with(aac_entry(), false));

@@ -233,6 +233,7 @@ fn failure(error: coreav_transcode::Error) -> WriteFailure {
     match error {
         E::Isobmff(e) => WriteFailure::Rejected(Failure::Library(e)),
         E::Matroska(e) => WriteFailure::Rejected(Failure::Matroska(e)),
+        E::Invalid(what) => WriteFailure::Rejected(Failure::Invalid(what)),
         E::Decode(e) => WriteFailure::Rejected(Failure::VideoDecode(e)),
         E::Encode(e) => WriteFailure::Rejected(Failure::Encode(e)),
         E::Unsupported(what) => WriteFailure::Rejected(Failure::Unsupported(what)),

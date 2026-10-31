@@ -118,9 +118,8 @@ pub fn annex_b(data: &[u8]) -> Vec<(usize, &[u8])> {
     out
 }
 
-/// The bytes `ffprobe` keeps as a coded video stream's extradata: from the
-/// start code of its first parameter set to the start code of the first
-/// NAL unit after its parameter sets.
+/// The parameter sets retained with four-byte start codes and the
+/// byte stream's padding between them.
 pub fn annex_b_extradata(data: &[u8], hevc: bool) -> Option<usize> {
     let units = annex_b(data);
     let is_set = |nal: &[u8]| {
@@ -135,19 +134,21 @@ pub fn annex_b_extradata(data: &[u8], hevc: bool) -> Option<usize> {
     };
     let first = units.iter().position(|(_, nal)| is_set(nal))?;
     let (start, _) = *units.get(first)?;
-    let end = units
+    let count = units
         .iter()
         .skip(first)
-        .find(|(_, nal)| !is_set(nal))
-        .map_or(data.len(), |(at, _)| *at);
-    end.checked_sub(start)
+        .take_while(|(_, nal)| is_set(nal))
+        .count();
+    let end = units.get(first + count).map_or(data.len(), |(at, _)| *at);
+    end.checked_sub(start)?.checked_add(count)
 }
 
 /// The parameter sets of a coded video stream that `ffprobe` keeps as its
 /// extradata, read one access unit after another: from the first
 /// sequence parameter set (or H.265 video parameter set) to the first
 /// slice after it, every parameter set, each from its three-byte start
-/// code prefix to the next NAL unit's (as [`annex_b_extradata`] counts a
+/// code prefix to the next NAL unit's, with its prefix expanded to four
+/// bytes (as [`annex_b_extradata`] counts a
 /// run of them). That takes in the sets a PES packet of sets alone carries
 /// before the first picture and those repeated before its slices with
 /// other NAL units between (two captures of the corpus), and leaves out
@@ -178,7 +179,9 @@ pub fn sets_before_slice(data: &[u8], hevc: bool, state: &mut (usize, bool)) -> 
         }
         if set {
             let end = units.get(k + 1).map_or(data.len(), |(at, _)| *at);
-            state.0 = state.0.saturating_add(end.saturating_sub(start));
+            state.0 = state
+                .0
+                .saturating_add(end.saturating_sub(start).saturating_add(1));
         }
     }
     false
@@ -784,9 +787,10 @@ fn h264_pps_bottom_poc(nal: &[u8]) -> Option<bool> {
     bits.flag()
 }
 
-/// `pic_struct` of the picture timing message (D.1.3, D.2.3) of an H.264
-/// SEI NAL unit, if it has one.
-fn h264_pic_struct(nal: &[u8], syntax: &SliceSyntax) -> Option<u32> {
+/// What the picture timing message (D.1.3, D.2.3) of an H.264 SEI NAL
+/// unit states, if it has one: its `dpb_output_delay`, when the sequence
+/// has an HRD, and its `pic_struct`, when the sequence has it state one.
+fn h264_pic_timing(nal: &[u8], syntax: &SliceSyntax) -> Option<(Option<u32>, Option<u32>)> {
     let mut rest = nal.get(1..)?;
     loop {
         let mut kind = 0u32;
@@ -810,15 +814,18 @@ fn h264_pic_struct(nal: &[u8], syntax: &SliceSyntax) -> Option<u32> {
         let payload = rest.get(..size)?;
         rest = rest.get(size..)?;
         if kind == 1 {
-            if !syntax.pic_struct_present {
-                return None;
-            }
             let mut bits = Bits::new(payload);
+            let mut output_delay = None;
             if let Some((cpb, dpb)) = syntax.delays {
                 bits.skip(cpb)?;
-                bits.skip(dpb)?;
+                output_delay = Some(bits.bits(dpb)?);
             }
-            return bits.bits(4);
+            let pic_struct = if syntax.pic_struct_present {
+                Some(bits.bits(4)?)
+            } else {
+                None
+            };
+            return Some((output_delay, pic_struct));
         }
     }
 }
@@ -836,6 +843,9 @@ pub struct Picture {
     /// `Some(bottom_field_flag)` for a field picture.
     pub field: Option<bool>,
     pub pic_struct: Option<u32>,
+    /// `dpb_output_delay` of its picture timing message, in ticks of the
+    /// sequence's clock, when the sequence has an HRD (C.1.2).
+    pub output_delay: Option<u32>,
 }
 
 impl Picture {
@@ -897,10 +907,11 @@ pub fn h264_picture(unit: &[u8], sps: &Sps) -> Option<Picture> {
     let syntax = sps.slices;
     let units = units_to_first_slice(unit);
     let kind = |nal: &[u8]| nal.first().map(|b| b & 0x1F);
-    let pic_struct = units
+    let (output_delay, pic_struct) = units
         .iter()
         .filter(|nal| kind(nal) == Some(6))
-        .find_map(|nal| h264_pic_struct(&rbsp(nal), &syntax));
+        .find_map(|nal| h264_pic_timing(&rbsp(nal), &syntax))
+        .unwrap_or_default();
     let slice = units.iter().find(|nal| matches!(kind(nal), Some(1 | 5)))?;
     let slice = rbsp(slice.get(..64).unwrap_or(slice));
     let mut bits = Bits::new(slice.get(1..)?);
@@ -916,7 +927,11 @@ pub fn h264_picture(unit: &[u8], sps: &Sps) -> Option<Picture> {
     } else {
         None
     };
-    Some(Picture { field, pic_struct })
+    Some(Picture {
+        field,
+        pic_struct,
+        output_delay,
+    })
 }
 
 /// The field order `ffprobe` reports for an H.264 stream whose sequence
@@ -935,7 +950,7 @@ pub fn h264_field_order(unit: &[u8], sps: &Sps) -> Option<&'static str> {
     let pic_struct = units
         .iter()
         .filter(|(_, nal)| kind(nal) == Some(6))
-        .find_map(|(_, nal)| h264_pic_struct(&rbsp(nal), &syntax));
+        .find_map(|(_, nal)| h264_pic_timing(&rbsp(nal), &syntax)?.1);
     let (_, slice) = units
         .iter()
         .find(|(_, nal)| matches!(kind(nal), Some(1 | 5)))?;
@@ -1189,6 +1204,80 @@ pub struct Ac3 {
     /// carries Dolby Atmos; `false` when the header does not set it or
     /// cannot be read that far.
     pub atmos: bool,
+    pub downmix: Downmix,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Downmix {
+    mode: u32,
+    ltrt_center: Option<u32>,
+    ltrt_surround: Option<u32>,
+    loro_center: Option<u32>,
+    loro_surround: Option<u32>,
+}
+
+impl Downmix {
+    pub fn entries(self) -> super::super::Entries {
+        use super::super::model::s;
+        const LEVELS: [&str; 8] = [
+            "1.414214", "1.189207", "1.000000", "0.840896", "0.707107", "0.594604", "0.500000",
+            "0.000000",
+        ];
+        let mut entries = vec![("dmix_mode", s(self.mode.to_string()))];
+        for (key, level) in [
+            ("ltrt_cmixlev", self.ltrt_center),
+            ("ltrt_surmixlev", self.ltrt_surround),
+            ("loro_cmixlev", self.loro_center),
+            ("loro_surmixlev", self.loro_surround),
+        ] {
+            let value = level
+                .and_then(|n| usize::try_from(n).ok())
+                .and_then(|n| LEVELS.get(n))
+                .copied()
+                .unwrap_or("0.000000");
+            entries.push((key, s(value)));
+        }
+        entries
+    }
+}
+
+fn extended_downmix(bits: &mut Bits<'_>, acmod: u8, downmix: &mut Downmix) -> Option<()> {
+    if acmod > 2 {
+        downmix.mode = bits.bits(2)?;
+    }
+    if acmod & 1 != 0 && acmod > 2 {
+        downmix.ltrt_center = Some(bits.bits(3)?);
+        downmix.loro_center = Some(bits.bits(3)?);
+    }
+    if acmod & 4 != 0 {
+        downmix.ltrt_surround = Some(bits.bits(3)?);
+        downmix.loro_surround = Some(bits.bits(3)?);
+    }
+    Some(())
+}
+
+fn ac3_downmix(bits: &mut Bits<'_>, acmod: u8, bsid: u8) -> Option<Downmix> {
+    let mut downmix = Downmix::default();
+    if bsid != 6 {
+        return Some(downmix);
+    }
+    for _ in 0..if acmod == 0 { 2 } else { 1 } {
+        bits.skip(5)?;
+        for width in [8, 8, 7] {
+            if bits.flag()? {
+                bits.skip(width)?;
+            }
+        }
+    }
+    bits.skip(2)?;
+    if bits.flag()? {
+        downmix.mode = bits.bits(2)?;
+        downmix.ltrt_center = Some(bits.bits(3)?);
+        downmix.ltrt_surround = Some(bits.bits(3)?);
+        downmix.loro_center = Some(bits.bits(3)?);
+        downmix.loro_surround = Some(bits.bits(3)?);
+    }
+    Some(downmix)
 }
 
 /// Reads an AC-3 (A/52 5.3.1) or E-AC-3 (A/52 E.1.2) frame header.
@@ -1227,6 +1316,7 @@ pub fn ac3(header: &[u8]) -> Option<Ac3> {
             acmod,
             lfe,
             atmos: false,
+            downmix: ac3_downmix(&mut bits, acmod, bsid).unwrap_or_default(),
         });
     }
     if bsid > 16 {
@@ -1272,11 +1362,14 @@ pub fn ac3(header: &[u8]) -> Option<Ac3> {
         acmod,
         lfe,
     };
+    let mut downmix = Downmix::default();
+    let atmos = eac3_atmos(&mut bits, &info, &mut downmix).unwrap_or(false);
     Some(Ac3 {
         bit_rate: u32::try_from(bit_rate).ok()?,
         acmod,
         lfe,
-        atmos: eac3_atmos(&mut bits, &info).unwrap_or(false),
+        atmos,
+        downmix,
     })
 }
 
@@ -1296,7 +1389,7 @@ struct Eac3Info {
 /// then the flag). Files crafted from a capture with Atmos, the flag
 /// cleared and the reserved bits set, show `ffprobe` reading the flag
 /// alone.
-fn eac3_atmos(bits: &mut Bits<'_>, f: &Eac3Info) -> Option<bool> {
+fn eac3_atmos(bits: &mut Bits<'_>, f: &Eac3Info, downmix: &mut Downmix) -> Option<bool> {
     let acmod = f.acmod;
     bits.skip(5 + 5)?; // bsid, dialnorm
     if bits.flag()? {
@@ -1313,15 +1406,7 @@ fn eac3_atmos(bits: &mut Bits<'_>, f: &Eac3Info) -> Option<bool> {
     }
     if bits.flag()? {
         // mixmdate
-        if acmod > 2 {
-            bits.skip(2)?; // dmixmod
-        }
-        if acmod & 1 != 0 && acmod > 2 {
-            bits.skip(6)?; // ltrtcmixlev, lorocmixlev
-        }
-        if acmod & 4 != 0 {
-            bits.skip(6)?; // ltrtsurmixlev, lorosurmixlev
-        }
+        extended_downmix(bits, acmod, downmix)?;
         if f.lfe && bits.flag()? {
             bits.skip(5)?; // lfemixlevcod
         }
@@ -1768,28 +1853,43 @@ pub fn aac_ends_with_sbr(block: &[u8]) -> bool {
         if read(body_end, 3) != Some(0b111) {
             continue;
         }
-        // A fill element of `count` bytes: 3 + 4 bits of header, 8 more
-        // when `count` is 15 (`esc_count`).
-        for count in 1..=MAX_FILL_BYTES {
-            for header in [7usize, 15] {
-                let Some(start) = body_end
-                    .checked_sub(count * 8)
-                    .and_then(|s| s.checked_sub(header))
-                else {
-                    continue;
-                };
-                if read(start, 3) != Some(0b110) {
-                    continue;
-                }
-                let stated = match (header, read(start + 3, 4)) {
-                    (7, Some(c)) if c < 15 => Some(c as usize),
-                    (15, Some(15)) => read(start + 7, 8).map(|e| 15 + e as usize - 1),
-                    _ => None,
-                };
-                if stated == Some(count) && matches!(read(start + header, 4), Some(0b1101 | 0b1110))
-                {
-                    return true;
-                }
+        // Empty fill elements (`110` and a `count` of 0) may follow the
+        // one that carries SBR data.
+        let mut fill_end = body_end;
+        while let Some(before) = fill_end.checked_sub(7) {
+            if read(before, 7) != Some(0b110_0000) {
+                break;
+            }
+            fill_end = before;
+        }
+        let mut start = fill_end.saturating_sub(MAX_FILL_BYTES * 8 + 15);
+        let stride = if fill_end == body_end { 8 } else { 1 };
+        if stride == 8 {
+            let Some(last) = body_end.checked_sub(7) else {
+                continue;
+            };
+            start += last.saturating_sub(start) % 8;
+        }
+        for start in (start..body_end).step_by(stride) {
+            if read(start, 3) != Some(0b110) {
+                continue;
+            }
+            let (count, header) = match read(start + 3, 4) {
+                Some(0) | None => continue,
+                Some(15) => match read(start + 7, 8) {
+                    Some(escape) => (14 + escape as usize, 15),
+                    None => continue,
+                },
+                Some(count) => (count as usize, 7),
+            };
+            let Some(end) = start.checked_add(header + count * 8) else {
+                continue;
+            };
+            if (fill_end..=body_end).contains(&end)
+                && (body_end - end) % 7 == 0
+                && matches!(read(start + header, 4), Some(0b1101 | 0b1110))
+            {
+                return true;
             }
         }
     }
@@ -1938,7 +2038,7 @@ mod tests {
         .concat();
         let mut state = (0, false);
         assert!(sets_before_slice(&unit, false, &mut state));
-        assert_eq!(state.0, 2 * (8 + 6));
+        assert_eq!(state.0, 2 * (9 + 7));
         // A unit of a picture parameter set and slices before the first
         // sequence parameter set counts nothing, and does not end it.
         let lead = [nal(&four, &[0x68, 4]), nal(&four, &[0x41, 9])].concat();
@@ -2000,7 +2100,7 @@ mod tests {
         data.extend([0, 0, 1, 0x06, 5]);
         data.extend([0, 0, 1, 0x65, 6]);
         // From the SPS's three-byte prefix to the SEI's.
-        assert_eq!(annex_b_extradata(&data, false), Some(3 + 4 + 4 + 2));
+        assert_eq!(annex_b_extradata(&data, false), Some(4 + 4 + 5 + 2));
         assert_eq!(annex_b_extradata(&[0, 0, 1, 0x65], false), None);
     }
 
@@ -2072,6 +2172,55 @@ mod tests {
             .collect();
         assert!(!aac_ends_with_sbr(&block));
         assert!(!aac_ends_with_sbr(&[]));
+        // SBR data followed by two empty fill elements before ID_END.
+        let mut padded = format!("{}{}111", &bits[..bits.len() - 3], "1100000".repeat(2));
+        while padded.len() % 8 != 0 {
+            padded.push('0');
+        }
+        let block: Vec<u8> = padded
+            .as_bytes()
+            .chunks(8)
+            .map(|c| u8::from_str_radix(std::str::from_utf8(c).unwrap(), 2).unwrap())
+            .collect();
+        assert!(aac_ends_with_sbr(&block));
+    }
+
+    #[test]
+    fn sbr_payload_can_end_with_bits_that_look_like_an_empty_fill() {
+        for empty in [0, 2, 300] {
+            let mut fields = vec![(0b110, 3), (2, 4), (0b1101, 4), (0, 5), (0b1100000, 7)];
+            fields.extend(std::iter::repeat_n((0b1100000, 7), empty));
+            fields.push((0b111, 3));
+            assert!(aac_ends_with_sbr(&pack(&fields)));
+        }
+        let mut fields = vec![(0b110, 3), (2, 4), (0b0001, 4), (0, 12)];
+        fields.extend(std::iter::repeat_n((0b1100000, 7), 300));
+        fields.push((0b111, 3));
+        assert!(!aac_ends_with_sbr(&pack(&fields)));
+    }
+
+    #[test]
+    fn sbr_header_positions_cover_every_alignment_and_count_form() {
+        for prefix in 0..8 {
+            for (count, escaped) in [(1, false), (14, false), (14, true), (15, true), (269, true)] {
+                for empty in [0, 1, 2, 8] {
+                    let mut fields = vec![(0, prefix), (0b110, 3)];
+                    if escaped {
+                        fields.extend([(15, 4), (count - 14, 8)]);
+                    } else {
+                        fields.push((count, 4));
+                    }
+                    fields.extend([(0b1101, 4), (0, 4)]);
+                    fields.extend(std::iter::repeat_n((0, 8), count as usize - 1));
+                    fields.extend(std::iter::repeat_n((0b1100000, 7), empty));
+                    fields.push((0b111, 3));
+                    assert!(
+                        aac_ends_with_sbr(&pack(&fields)),
+                        "{prefix} {count} {escaped} {empty}"
+                    );
+                }
+            }
+        }
     }
 
     #[test]
@@ -2108,6 +2257,89 @@ mod tests {
             }
         }
         out
+    }
+
+    #[test]
+    fn ac3_extended_downmix_levels() {
+        let header = pack(&[
+            (0x0b77, 16),
+            (0, 16),
+            (0, 2),
+            (10, 6),
+            (6, 5),
+            (0, 3),
+            (7, 3),
+            (0, 2),
+            (0, 2),
+            (1, 1),
+            (31, 5),
+            (0, 1),
+            (0, 1),
+            (0, 1),
+            (0, 2),
+            (1, 1),
+            (2, 2),
+            (0, 3),
+            (1, 3),
+            (4, 3),
+            (6, 3),
+        ]);
+        let parsed = ac3(&header).unwrap();
+        assert_eq!(
+            parsed.downmix,
+            Downmix {
+                mode: 2,
+                ltrt_center: Some(0),
+                ltrt_surround: Some(1),
+                loro_center: Some(4),
+                loro_surround: Some(6),
+            }
+        );
+        assert_eq!(
+            parsed.downmix.entries(),
+            vec![
+                ("dmix_mode", super::super::super::model::s("2")),
+                ("ltrt_cmixlev", super::super::super::model::s("1.414214")),
+                ("ltrt_surmixlev", super::super::super::model::s("1.189207")),
+                ("loro_cmixlev", super::super::super::model::s("0.707107")),
+                ("loro_surmixlev", super::super::super::model::s("0.500000")),
+            ]
+        );
+        assert_eq!(ac3(&header[..5]), None);
+    }
+
+    #[test]
+    fn eac3_mixing_metadata_controls_downmix() {
+        let header = pack(&[
+            (0x0b77, 16),
+            (0, 2),
+            (0, 3),
+            (127, 11),
+            (0, 2),
+            (3, 2),
+            (7, 3),
+            (0, 1),
+            (16, 5),
+            (31, 5),
+            (0, 1),
+            (1, 1),
+            (1, 2),
+            (2, 3),
+            (3, 3),
+            (5, 3),
+            (7, 3),
+            (0, 16),
+        ]);
+        assert_eq!(
+            ac3(&header).unwrap().downmix,
+            Downmix {
+                mode: 1,
+                ltrt_center: Some(2),
+                ltrt_surround: Some(5),
+                loro_center: Some(3),
+                loro_surround: Some(7),
+            }
+        );
     }
 
     /// An extension substream of 116 bytes with one asset of `bits` bits,

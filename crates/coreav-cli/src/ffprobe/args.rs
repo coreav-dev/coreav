@@ -18,7 +18,9 @@ pub enum Refusal {
     Unsupported(NotNative),
     /// Malformed, as `ffprobe` would also fail it: exit 2.
     Usage(String),
-    /// `-h`, `-help`, `--help`: the usage text, exit 0.
+    /// `-h`, `-?`, `-help` or `--help` with nothing after it: the usage
+    /// text, exit 0. With a topic after it (`-h long`), the query is
+    /// FFmpeg's, so it is [`Refusal::Unsupported`].
     Help,
 }
 
@@ -96,6 +98,8 @@ pub struct Options {
     pub select_streams: Option<StreamSpec>,
     /// `-count_packets`.
     pub count_packets: bool,
+    /// `-count_frames`.
+    pub count_frames: bool,
     /// `-show_error`.
     pub show_error: bool,
     /// `-read_intervals`.
@@ -119,14 +123,16 @@ const VALUE_OPTIONS: [&str; 10] = [
     "-f",
 ];
 
-const FLAG_OPTIONS: [&str; 11] = [
+const FLAG_OPTIONS: [&str; 13] = [
     "-show_format",
     "-show_streams",
     "-show_chapters",
     "-show_programs",
     "-show_packets",
+    "-show_frames",
     "-show_error",
     "-count_packets",
+    "-count_frames",
     "-hide_banner",
     "-pretty",
     "-sexagesimal",
@@ -134,11 +140,9 @@ const FLAG_OPTIONS: [&str; 11] = [
 ];
 
 /// Options `ffprobe` has that `coreav ffprobe` refuses, with the reason.
-const REFUSED: [(&str, &str); 14] = [
-    ("-show_frames", "frames need a decoder"),
-    ("-count_frames", "counting frames needs a decoder"),
-    ("-show_log", "frames need a decoder"),
-    ("-skip_frame", "frames need a decoder"),
+const REFUSED: [(&str, &str); 12] = [
+    ("-show_log", "decoder logs are not printed"),
+    ("-skip_frame", "frames are not skipped"),
     ("-show_data", "packet payloads are not printed"),
     ("-show_data_hash", "packet payloads are not printed"),
     ("-show_stream_groups", "stream groups are not read"),
@@ -161,7 +165,7 @@ const REFUSED: [(&str, &str); 14] = [
 ];
 
 /// The sections `-show_entries` may name.
-const ENTRY_SECTIONS: [&str; 11] = [
+const ENTRY_SECTIONS: [&str; 14] = [
     "format",
     "format_tags",
     "stream",
@@ -169,6 +173,9 @@ const ENTRY_SECTIONS: [&str; 11] = [
     "stream_side_data",
     "packet",
     "packet_tags",
+    "frame",
+    "frame_tags",
+    "frame_side_data",
     "chapter",
     "chapter_tags",
     "program",
@@ -190,6 +197,7 @@ pub fn parse(args: &[String]) -> Result<Options, Refusal> {
     let mut selection = Selection::default();
     let mut select_streams = None;
     let mut count_packets = false;
+    let mut count_frames = false;
     let mut show_error = false;
     let mut read_intervals = Vec::new();
     let mut force = None;
@@ -201,7 +209,16 @@ pub fn parse(args: &[String]) -> Result<Options, Refusal> {
     while let Some(arg) = args.get(i) {
         let arg = arg.as_str();
         if matches!(arg, "-h" | "-help" | "--help" | "-?") {
-            return Err(Refusal::Help);
+            return match args.get(i + 1) {
+                None => Err(Refusal::Help),
+                Some(topic) => Err(unsupported(
+                    arg,
+                    Some(topic),
+                    format!(
+                        "'{arg} {topic}' is not supported: help on a topic describes FFmpeg's own components; coreav ffprobe prints only its own usage (docs/design/compat-cli.md)"
+                    ),
+                )),
+            };
         }
         if is_option(arg) {
             if VALUE_OPTIONS.contains(&arg) {
@@ -293,11 +310,16 @@ pub fn parse(args: &[String]) -> Result<Options, Refusal> {
                 selection.select_all(Sid::Packet);
                 sections = true;
             }
+            "-show_frames" => {
+                selection.select_all(Sid::Frame);
+                sections = true;
+            }
             "-show_error" => {
                 show_error = true;
                 sections = true;
             }
             "-count_packets" => count_packets = true,
+            "-count_frames" => count_frames = true,
             "-pretty" => {
                 style.units = true;
                 style.sexagesimal = true;
@@ -337,6 +359,7 @@ pub fn parse(args: &[String]) -> Result<Options, Refusal> {
         selection,
         select_streams,
         count_packets,
+        count_frames,
         show_error,
         read_intervals,
         force,
@@ -687,11 +710,11 @@ mod tests {
 
     #[test]
     fn refusals_name_the_option() {
-        let Err(Refusal::Unsupported(refusal)) = parse(&args("-show_frames in.mp4")) else {
+        let Err(Refusal::Unsupported(refusal)) = parse(&args("-show_data in.mp4")) else {
             panic!()
         };
-        assert!(refusal.message.contains("-show_frames"));
-        assert_eq!(refusal.reason, Reason::Option("-show_frames".into(), None));
+        assert!(refusal.message.contains("-show_data"));
+        assert_eq!(refusal.reason, Reason::Option("-show_data".into(), None));
         assert!(matches!(
             parse(&args("-of xml in.mp4")),
             Err(Refusal::Unsupported(_))
@@ -701,7 +724,7 @@ mod tests {
             Err(Refusal::Unsupported(_))
         ));
         assert!(matches!(
-            parse(&args("-show_entries frame=pict_type in.mp4")),
+            parse(&args("-show_entries stream_group=index in.mp4")),
             Err(Refusal::Unsupported(_))
         ));
         assert!(matches!(
@@ -720,6 +743,42 @@ mod tests {
             parse(&args("-show_streams -of")),
             Err(Refusal::Usage(_))
         ));
+    }
+
+    #[test]
+    fn help_is_coreavs_without_a_topic_and_ffmpegs_with_one() {
+        for text in [
+            "-h",
+            "-?",
+            "-help",
+            "--help",
+            "-v error -show_streams in.mp4 -h",
+        ] {
+            assert_eq!(parse(&args(text)).map(|_| ()), Err(Refusal::Help), "{text}");
+        }
+        for (text, option, topic) in [
+            ("-h long", "-h", "long"),
+            ("-h full", "-h", "full"),
+            ("--help demuxer=mov", "--help", "demuxer=mov"),
+            ("-help in.mp4", "-help", "in.mp4"),
+            ("-show_streams -? writer=json in.mp4", "-?", "writer=json"),
+        ] {
+            let Err(Refusal::Unsupported(refusal)) = parse(&args(text)) else {
+                panic!("{text}")
+            };
+            assert_eq!(
+                refusal.reason,
+                Reason::Option(option.into(), Some(topic.into())),
+                "{text}"
+            );
+            assert!(
+                refusal
+                    .message
+                    .starts_with(&format!("'{option} {topic}' is not supported: ")),
+                "{text}"
+            );
+        }
+        assert!(parse(&args("-show_streams -v -h in.mp4")).is_err_and(|e| e != Refusal::Help));
     }
 
     #[test]

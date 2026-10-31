@@ -56,7 +56,9 @@ from fractions import Fraction
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import clip_check as cc  # noqa: E402
+import remux_check  # noqa: E402
 import track_boxes  # noqa: E402
+from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT  # noqa: E402
 
 VIDEO_KEYS = ("codec_name", "profile", "width", "height", "pix_fmt")
 AUDIO_KEYS = ("codec_name", "profile", "sample_rate", "channels")
@@ -114,7 +116,7 @@ def packets(path, index):
 
 def frames(path, index=None):
     """(time, hash) of every decoded frame of one stream, `-copyts`."""
-    cmd = ["ffmpeg", "-v", "error", *THREADS, "-copyts", "-i", str(path)]
+    cmd = ["ffmpeg", "-v", "error", *THREADS, "-copyts", *AUDIO_DECODE_INPUT, "-i", str(path)]
     if index is not None:
         cmd += ["-map", f"0:{index}"]
     # Frames keep their decoded times in the stream's own time base: no
@@ -372,6 +374,8 @@ def check_rendition(args, report, source, package, rendition, info, src_stream, 
             covered = ("KD-HLS-5", f"{rendition}: first and last frames")
         elif not extra and kd_left_out_frames(unmatched, left_out):
             covered = ("KD-HLS-2", f"{rendition}: {len(unmatched)} frames of the discarded trailing packets")
+        elif kd_source_last_cut(source, index, whole, src, out, src_frames, unmatched, extra, shift):
+            covered = ("KD-HLS-11", f"{rendition}: the last frame, cut in the source only")
     elif extra:
         kept = [t + shift for _, t, _ in src_frames]
         if kd_hidden_lead(package, rendition, init, extra, kept):
@@ -1121,6 +1125,26 @@ def kd_profile_unnamed(out_stream, src_stream):  # KD-HLS-7
             and src_stream.get("profile") in (None, "unknown") and out_stream.get("profile") == "LC")
 
 
+def kd_source_last_cut(source, index, whole, src, out, src_frames, unmatched, extra, shift):  # KD-HLS-11
+    """KD-HLS-11: ffmpeg cuts the source's last audio frame where Skip
+    Samples side data on its last packet ends it, and reads none from the
+    rendition's track runs, so it decodes that frame whole there. Holds when
+    the one source frame left unmatched is the last, the one output frame
+    left over is at its time, the last packets have the same bytes and
+    duration, and ffprobe lists Skip Samples on the source's last packet that
+    skip nothing and discard samples at its end, and none on the
+    rendition's."""
+    if not (src_frames and src and out) or len(unmatched) != 1 or len(extra) != 1:
+        return False
+    if unmatched[0] != tuple(src_frames[-1][1:]) or extra[0] != unmatched[0][0] + shift:
+        return False
+    if (src[-1]["hash"], src[-1]["duration"]) != (out[-1]["hash"], out[-1]["duration"]):
+        return False
+    cut = remux_check.last_skip_samples("ffprobe", str(source), index)
+    return (cut is not None and cut[0] == 0 and cut[1] > 0
+            and remux_check.last_skip_samples("ffprobe", str(whole), 0) is None)
+
+
 def kd_fragment_reading(source, index, out_frames, work):  # KD-HLS-8
     """KD-HLS-8: ffmpeg decodes a stream from movie fragments to other
     frames than from the source's sample tables. Holds when the rendition's
@@ -1320,7 +1344,8 @@ PREDICATES = {"negative_cto_shift": kd_negative_cto_shift, "hidden_lead": kd_hid
               "midframe_edit": kd_midframe_edit, "gapless_edit": kd_gapless_edit,
               "gapless_conflict": kd_gapless_conflict, "implicit_sbr": kd_implicit_sbr,
               "profile_unnamed": kd_profile_unnamed, "fragment_reading": kd_fragment_reading,
-              "left_top_crop": kd_left_top_crop, "index_drift": kd_index_drift}
+              "left_top_crop": kd_left_top_crop, "index_drift": kd_index_drift,
+              "source_last_cut": kd_source_last_cut}
 
 
 def check_twin():
@@ -1329,7 +1354,7 @@ def check_twin():
     named = {e["predicate"] for e in entries}
     if named != set(PREDICATES) or [e["id"] for e in entries] != ["KD-HLS-1", "KD-HLS-2", "KD-HLS-3", "KD-HLS-4", "KD-HLS-5",
                                                                   "KD-HLS-6", "KD-HLS-7", "KD-HLS-8", "KD-HLS-9",
-                                                                  "KD-HLS-10"]:
+                                                                  "KD-HLS-10", "KD-HLS-11"]:
         sys.exit(f"{KD_FILE} and the predicates of {__file__} disagree")
 
 

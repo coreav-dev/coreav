@@ -50,7 +50,7 @@ transcode = ["thumbnail", "dep:coreav-transcode"]
 # dav1d for AV1 in `coreav thumbnail`, in the same sandboxed worker; links
 # the system's libdav1d.
 dav1d = ["thumbnail", "transcode", "dep:coreav-worker", "coreav-worker/dav1d"]
-# libvpx for VP9 in `coreav thumbnail` and `coreav transcode`, in the same
+# libvpx for VP8 and VP9 in `coreav thumbnail` and `coreav transcode`, in the same
 # sandboxed worker; links the system's libvpx.
 libvpx = ["thumbnail", "transcode", "dep:coreav-worker", "coreav-worker/libvpx"]
 # AAC LC decoding in `coreav decode-audio` (`coreav-aac`). Off by default
@@ -58,6 +58,13 @@ libvpx = ["thumbnail", "transcode", "dep:coreav-worker", "coreav-worker/libvpx"]
 # where you are (`crates/coreav-aac/README.md`). Nothing here is legal
 # advice.
 aac = ["coreav-audio/aac"]
+# The two builds of the release archives (docs/design/release.md, "Two
+# builds"), which packages/cli/scripts/platform.sh passes. The default
+# build, also the npm packages', links no codec on the patent list
+# (scripts/patent_free_check.py checks it); the full build adds CoreAV's
+# H.264 and AAC decoders. Windows builds take neither: see platform.sh.
+release-default = ["cli", "net", "dav1d", "libvpx"]
+release-full = ["release-default", "native-h264", "aac"]
 
 [dependencies]
 coreav-audio = { path = "../coreav-audio" }

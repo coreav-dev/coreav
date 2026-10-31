@@ -1,6 +1,7 @@
 # Built by scripts/build.sh and scripts/platform.sh.
 /wasm/
 /npm/
+/full/
 /LICENSE-MIT
 /LICENSE-APACHE
 node_modules/

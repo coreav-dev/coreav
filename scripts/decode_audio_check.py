@@ -47,6 +47,9 @@ import tempfile
 from fractions import Fraction
 
 HERE = pathlib.Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT  # noqa: E402
+
 TIMEOUT = 3600
 CHUNK = 1 << 22
 AUDIT_LIMIT = 256 << 20
@@ -662,7 +665,7 @@ class Process:
 
 
 def decode_args(tools, path, ref, ignore):
-    return [tools.ffmpeg, '-v', 'error', '-nostdin', *(['-ignore_editlist', '1'] if ignore else []), '-i', path,
+    return [tools.ffmpeg, '-v', 'error', '-nostdin', *(['-ignore_editlist', '1'] if ignore else []), *AUDIO_DECODE_INPUT, '-i', path,
             '-map', f"0:{ref['index']}", '-f', 'f32le' if ref['lossy'] else 's32le', '-']
 
 

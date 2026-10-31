@@ -501,7 +501,9 @@ fn decodes_an_mp4_aac_track_as_ffmpeg_does() {
         .unwrap();
     assert!(status.success());
     let reference = Command::new(&ffmpeg)
-        .args(["-v", "error", "-i"])
+        .args(["-v", "error"])
+        .args(include_str!("../../../scripts/oracle-audio-args.txt").split_whitespace())
+        .arg("-i")
         .arg(&input)
         .args(["-f", "f32le", "-"])
         .output()

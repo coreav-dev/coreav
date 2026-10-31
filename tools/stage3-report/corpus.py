@@ -191,7 +191,7 @@ def run(command, **kw):
 # The local files other than the adapter, the comparator and the overlay
 # that shape a record: the capture scripts, this file, the MediaInfo
 # capture, and the modules an overlay imports.
-HARNESS = ('scripts/oracle-capture.sh', 'scripts/oracle-ffprobe.sh', 'tools/stage3-report/corpus.py',
+HARNESS = ('scripts/oracle-capture.sh', 'scripts/oracle-ffprobe.sh', 'scripts/oracle-audio-args.txt', 'tools/stage3-report/corpus.py',
            'tools/mediainfo-oracle/mediainfo_oracle.py', 'docs/known-divergences.json',
            'docs/known-divergences-mkv.json', 'docs/known-divergences-ts.json',
            'scripts/compat_check.py')
