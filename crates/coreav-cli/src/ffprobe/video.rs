@@ -637,10 +637,13 @@ pub fn av1(av1c: &[u8]) -> Option<VideoInfo> {
     })
 }
 
-/// A `vpcC` record (version 1).
-pub fn vp9(vpcc: &[u8]) -> Option<VideoInfo> {
+/// A `vpcC` record, shared by VP8 and VP9.
+pub fn vp(vpcc: &[u8]) -> Option<VideoInfo> {
     let packed = *vpcc.get(6)?;
     let bits = u32::from(packed >> 4);
+    if !matches!(bits, 8 | 10 | 12) {
+        return None;
+    }
     let chroma_format = match (packed >> 1) & 0x07 {
         0 | 1 => 1,
         2 => 2,
@@ -940,4 +943,24 @@ mod tests {
         assert_eq!(hevc(&[1; 10], false), None);
         assert_eq!(av1(&[0x81]), None);
     }
+}
+#[test]
+fn vp_configuration_maps_depth_and_subsampling_without_a_jpeg_range_format() {
+    for (packed, expected) in [
+        (0x80, "yuv420p"),
+        (0x82, "yuv420p"),
+        (0x84, "yuv422p"),
+        (0x86, "yuv444p"),
+        (0xa0, "yuv420p10le"),
+        (0xc4, "yuv422p12le"),
+    ] {
+        for range in [0, 1] {
+            let info = vp(&[1, 0, 0, 0, 0, 0, packed | range, 1, 1, 1, 0, 0]).unwrap();
+            assert_eq!(info.pix_fmt.as_deref(), Some(expected));
+        }
+    }
+    for packed in [0x88, 0x90, 0xf0] {
+        assert_eq!(vp(&[1, 0, 0, 0, 0, 0, packed, 1, 1, 1, 0, 0]), None);
+    }
+    assert_eq!(vp(&[1, 0, 0, 0]), None);
 }

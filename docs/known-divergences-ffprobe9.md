@@ -5,6 +5,22 @@ been corrected. Matching values need no exception. The corpus notes at
 the end of this page are not fixture exceptions and do not turn a failed
 key comparison into agreement.
 
+## AV1 codec-string colour and chroma
+
+The [AV1 ISOBMFF binding section 5](https://aomediacodec.github.io/av1-isobmff/#codecsparam)
+requires the optional fields of a codec string to describe the actual
+monochrome, chroma and colour values; omitting them implies limited-range
+BT.709 with non-monochrome 4:2:0 samples. It also makes an `nclx` colour
+box override sequence-header colour fields in that string.
+
+On small generated inputs, the pinned oracle omits the suffix of a
+full-range monochrome sequence and of a position-only chroma change,
+prints a full-range RGB sequence's range as 0, and ignores an `nclx`
+override of a BT.2020/PQ sequence. CoreAV follows the specified values
+and omits only the complete default suffix. These are documented oracle
+disagreements, not measurement exceptions: no predicate in `ffmpeg9.json`
+accepts them, and a differing string still fails B3a.
+
 The command-coverage set (`tools/compat-corpus/run.py commands`, bar B3a on
 the fixtures of [`design/compat-cli.md`](design/compat-cli.md)) compares
 every `native` `ffprobe` command byte for byte. Moving the oracle from
@@ -258,8 +274,8 @@ mask them, and the measured agreement rates still count them as failures.
   some SBR payloads but does not decode arbitrary raw data blocks or
   parametric stereo. It leaves the decoded profile, sample rate or channel
   layout unknown where the configuration cannot establish them, rather
-  than assuming that a mono core stays mono. MIME strings depend on the
-  same profile information.
+  than assuming that a mono core stays mono. Without a stored audio
+  configuration, MIME strings depend on the same profile information.
 - **AAC average bit rates.** Neither ADTS nor LATM states an average bit
   rate for a variable-sized stream. CoreAV averages the frames its bounded
   head read sees; FFmpeg's analysis can stop at a different frame. These

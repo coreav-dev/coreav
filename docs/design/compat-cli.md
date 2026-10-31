@@ -232,9 +232,21 @@ without a configuration record uses the first level whose picture size,
 sample rate, bit rate and edge limits cover the known stream values
 ([VP9 levels](https://www.webmproject.org/vp9/levels/)); this is a
 listing estimate, not a check of every level constraint of every frame.
+VP8 and VP9 ISO sample entries share the
+[`vpcC` pixel-format reader](https://www.webmproject.org/vp9/mp4/):
+bit depth and chroma subsampling select the planar format; full range
+is reported separately as `color_range`, not as a JPEG pixel format.
 Dolby downmix fields come from ATSC A/52's extended bitstream information
 or E-AC-3 mixing metadata; absent metadata prints zero, not inferred
 speaker gains.
+
+AV1 strings keep the sequence's level index (including 31, maximum
+parameters) and append all optional fields together when they differ
+from the defaults. Raw colour code points, including explicit 2/2/2,
+come from the sequence header unless an ISO `nclx` box overrides them,
+as the [AV1 binding section 5](https://aomediacodec.github.io/av1-isobmff/#codecsparam)
+requires. Some pinned-oracle strings disagree with these requirements;
+the known-divergence note records them without excluding them from B3a.
 
 AVC and HEVC Annex B extradata lengths include the retained parameter
 sets with four-byte start codes and their intervening padding. Every
@@ -245,7 +257,7 @@ even when the stream has composition offsets.
 
 ## The 0.1.0 command set
 
-### ffprobe round 8 measurement plan
+### ffprobe round 8 measurement plan (historical)
 
 Round 8 remeasures B3a on the same 1,315 files as round 7 with the
 shared FFmpeg oracle pin. Both the base and candidate binaries use that

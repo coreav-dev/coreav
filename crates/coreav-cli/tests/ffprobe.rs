@@ -143,6 +143,43 @@ fn aac_mime_keeps_the_stored_object_type_with_a_sync_extension() {
 }
 
 #[test]
+fn vp8_mp4_reads_the_configuration_pixel_format_and_range() {
+    for (flag, range) in [(0, "tv"), (1, "pc")] {
+        let mut bytes = common::movie(&common::Spec {
+            sample_entry: *b"vp08",
+            ..common::Spec::default()
+        });
+        let at = bytes.windows(4).position(|b| b == b"avcC").unwrap() - 4;
+        let old = u32::from_be_bytes(bytes[at..at + 4].try_into().unwrap()) as usize;
+        let config = common::bx(b"vpcC", &[1, 0, 0, 0, 0, 0, 0x80 | flag, 1, 1, 1, 0, 0]);
+        for kind in [
+            b"moov", b"trak", b"mdia", b"minf", b"stbl", b"stsd", b"vp08",
+        ] {
+            let header = bytes.windows(4).position(|b| b == kind).unwrap() - 4;
+            let size = u32::from_be_bytes(bytes[header..header + 4].try_into().unwrap());
+            let size = size + u32::try_from(config.len() - old).unwrap();
+            bytes[header..header + 4].copy_from_slice(&size.to_be_bytes());
+        }
+        bytes.splice(at..at + old, config);
+        let path = file(&format!("ffprobe-vp8-{range}.mp4"), &bytes);
+        let result = ffprobe(&[
+            "-v",
+            "error",
+            "-show_entries",
+            "stream=codec_name,pix_fmt,color_range",
+            "-of",
+            "json",
+            &path.to_string_lossy(),
+        ]);
+        assert_eq!(result.code, 0, "{}", result.stderr);
+        let json: serde_json::Value = serde_json::from_str(&result.stdout).unwrap();
+        assert_eq!(json["streams"][0]["codec_name"], "vp8");
+        assert_eq!(json["streams"][0]["pix_fmt"], "yuv420p");
+        assert_eq!(json["streams"][0]["color_range"], range);
+    }
+}
+
+#[test]
 fn an_option_outside_the_vocabulary_is_refused_by_name() {
     let path = movie("ffprobe-refused.mp4");
     for (args, named) in [

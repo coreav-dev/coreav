@@ -1605,7 +1605,7 @@ fn stream(
     if let Some(n) = extradata_size(track, info) {
         e.push(("extradata_size", int(n)));
     }
-    super::metadata::stream(&mut e, codec_config(track), &info.first);
+    super::metadata::stream(&mut e, codec_config(track), &info.first, None);
     let mut tags = meta.dict();
     if let Some(lang) = track_language(track) {
         tags.set("language", &lang);

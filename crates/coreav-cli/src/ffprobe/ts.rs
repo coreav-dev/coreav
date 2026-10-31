@@ -1943,6 +1943,7 @@ fn stream(
         &mut e,
         st.config.as_deref(),
         head.unit.as_deref().unwrap_or_default(),
+        None,
     );
     let mut tags = Vec::new();
     if let Some(language) = st

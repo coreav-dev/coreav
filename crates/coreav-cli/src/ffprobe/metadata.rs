@@ -1,7 +1,12 @@
 use super::model::Value;
 use super::{Entries, mkv::video, ts::params};
 
-pub fn stream(entries: &mut Entries, config: Option<&[u8]>, first: &[u8]) {
+pub fn stream(
+    entries: &mut Entries,
+    config: Option<&[u8]>,
+    first: &[u8],
+    color: Option<coreav_isobmff::Color>,
+) {
     let text = |key| {
         entries.iter().find_map(|(k, v)| match v {
             Value::Str(s) if *k == key => Some(s.as_str()),
@@ -60,22 +65,7 @@ pub fn stream(entries: &mut Entries, config: Option<&[u8]>, first: &[u8]) {
         "eac3" => Some("ec-3".to_owned()),
         "opus" => Some("opus".to_owned()),
         "flac" => Some("flac".to_owned()),
-        "av1" => config.and_then(|c| match c {
-            [marker, profile_level, flags, _, ..] if *marker == 0x81 => {
-                let profile = profile_level >> 5;
-                let level = profile_level & 31;
-                let tier = if flags & 0x80 == 0 { 'M' } else { 'H' };
-                let depth = if flags & 0x40 == 0 {
-                    8
-                } else if flags & 0x20 == 0 {
-                    10
-                } else {
-                    12
-                };
-                Some(format!("av01.{profile}.{level:02}{tier}.{depth:02}"))
-            }
-            _ => None,
-        }),
+        "av1" => config.and_then(|c| av1(c, color)),
         "vp9" => vp9(entries, config),
         _ => None,
     };
@@ -97,6 +87,59 @@ pub fn stream(entries: &mut Entries, config: Option<&[u8]>, first: &[u8]) {
         entries.insert(at + 1, ("view_pos_available", Value::Str(String::new())));
     }
     downmix(entries, first);
+}
+
+fn av1(config: &[u8], color: Option<coreav_isobmff::Color>) -> Option<String> {
+    use coreav_isobmff::{FourCc, Profile, describe_config_record, parameter_set_color};
+
+    let [0x81, _, flags, _, ..] = config else {
+        return None;
+    };
+    let kind = FourCc(*b"av1C");
+    let Profile::Av1 {
+        profile,
+        level_idx,
+        high_tier,
+        high_bitdepth,
+        twelve_bit,
+        monochrome,
+    } = describe_config_record(kind, config)?.profile?
+    else {
+        return None;
+    };
+    if profile > 2 || (24..31).contains(&level_idx) {
+        return None;
+    }
+    let depth = if !high_bitdepth {
+        8
+    } else if profile == 2 && twelve_bit {
+        12
+    } else {
+        10
+    };
+    let tier = if high_tier { 'H' } else { 'M' };
+    let mut mime = format!("av01.{profile}.{level_idx:02}{tier}.{depth:02}");
+    let x = u8::from(monochrome || flags & 8 != 0);
+    let y = u8::from(monochrome || flags & 4 != 0);
+    let position = if !monochrome && x == 1 && y == 1 {
+        flags & 3
+    } else {
+        0
+    };
+    let color = color
+        .or_else(|| parameter_set_color(kind, config))
+        .unwrap_or_default();
+    let primaries = color.primaries.unwrap_or(1);
+    let transfer = color.transfer.unwrap_or(1);
+    let matrix = color.matrix.unwrap_or(1);
+    let full = u8::from(color.full_range.unwrap_or(false));
+    let mono = u8::from(monochrome);
+    if (mono, x, y, position, primaries, transfer, matrix, full) != (0, 1, 1, 0, 1, 1, 1, 0) {
+        mime.push_str(&format!(
+            ".{mono}.{x}{y}{position}.{primaries:02}.{transfer:02}.{matrix:02}.{full}"
+        ));
+    }
+    Some(mime)
 }
 
 fn vp9(entries: &Entries, config: Option<&[u8]>) -> Option<String> {
@@ -193,14 +236,14 @@ mod tests {
     fn avc_mime_reads_the_profile_constraints_and_level() {
         for config in [vec![1, 100, 0, 40], vec![0, 0, 1, 0x67, 100, 0, 40]] {
             let mut entries = vec![("codec_name", s("h264")), ("codec_tag", s("0x0000"))];
-            stream(&mut entries, Some(&config), &[]);
+            stream(&mut entries, Some(&config), &[], None);
             assert_eq!(
                 entries.last(),
                 Some(&("mime_codec_string", s("avc1.640028")))
             );
         }
         let mut entries = vec![("codec_name", s("h264"))];
-        stream(&mut entries, Some(&[1, 100]), &[]);
+        stream(&mut entries, Some(&[1, 100]), &[], None);
         assert_eq!(entries, vec![("codec_name", s("h264"))]);
     }
 
@@ -212,7 +255,7 @@ mod tests {
             ("HE-AACv2", "mp4a.40.29"),
         ] {
             let mut entries = vec![("codec_name", s("aac")), ("profile", s(profile))];
-            stream(&mut entries, None, &[]);
+            stream(&mut entries, None, &[], None);
             assert_eq!(entries.last(), Some(&("mime_codec_string", s(mime))));
         }
     }
@@ -225,7 +268,7 @@ mod tests {
             ("closed_captions", Value::Int(0)),
             ("film_grain", Value::Int(0)),
         ];
-        stream(&mut entries, None, &[]);
+        stream(&mut entries, None, &[], None);
         assert_eq!(entries, vec![("codec_name", s("h264"))]);
     }
 
@@ -240,7 +283,7 @@ mod tests {
             ("mp3", "mp4a.40.34"),
         ] {
             let mut entries = vec![("codec_name", s(codec))];
-            stream(&mut entries, None, &[]);
+            stream(&mut entries, None, &[], None);
             assert_eq!(entries.last(), Some(&("mime_codec_string", s(mime))));
         }
     }
@@ -254,7 +297,7 @@ mod tests {
             (vec![0xf8, 0xe6, 0x40], "ELD", "mp4a.40.39"),
         ] {
             let mut entries = vec![("codec_name", s("aac")), ("profile", s(profile))];
-            stream(&mut entries, Some(&config), &[]);
+            stream(&mut entries, Some(&config), &[], None);
             assert_eq!(entries.last(), Some(&("mime_codec_string", s(mime))));
         }
     }
@@ -262,17 +305,69 @@ mod tests {
     #[test]
     fn av1_mime_uses_the_configuration_record() {
         let mut entries = vec![("codec_name", s("av1"))];
-        stream(&mut entries, Some(&[0x81, 0x28, 0xc0, 0]), &[]);
+        stream(&mut entries, Some(&[0x81, 0x28, 0xc0, 0]), &[], None);
         assert_eq!(
             entries.last(),
-            Some(&("mime_codec_string", s("av01.1.08H.10")))
+            Some(&("mime_codec_string", s("av01.1.08H.10.0.000.01.01.01.0")))
         );
+    }
+
+    #[test]
+    fn av1_mime_preserves_raw_colour_and_the_nclx_override() {
+        let hdr = [
+            0x81, 0x00, 0x4e, 0x00, 0x0a, 0x0d, 0x00, 0x00, 0x00, 0x01, 0x9f, 0xf9, 0xb5, 0xf3,
+            0xa1, 0x22, 0x01, 0x28, 0x80,
+        ];
+        assert_eq!(
+            av1(&hdr, None).as_deref(),
+            Some("av01.0.00M.10.0.112.09.16.09.0")
+        );
+        let nclx = coreav_isobmff::Color {
+            primaries: Some(2),
+            transfer: Some(2),
+            matrix: Some(2),
+            full_range: Some(true),
+        };
+        assert_eq!(
+            av1(&hdr, Some(nclx)).as_deref(),
+            Some("av01.0.00M.10.0.112.02.02.02.1")
+        );
+    }
+
+    #[test]
+    fn av1_mime_retains_monochrome_rgb_and_maximum_parameters() {
+        for (record, expected) in [
+            (
+                vec![
+                    0x81, 0x00, 0x1c, 0x00, 0x0a, 0x09, 0, 0, 0, 1, 0x9f, 0xf9, 0xb5, 0xf3, 0x54,
+                ],
+                "av01.0.00M.08.1.110.01.01.01.1",
+            ),
+            (
+                vec![
+                    0x81, 0x20, 0, 0, 0x0a, 0x0c, 0x20, 0, 0, 1, 0x9f, 0xf9, 0xb5, 0xf3, 0x40,
+                    0x43, 0x40, 8,
+                ],
+                "av01.1.00M.08.0.000.01.13.00.1",
+            ),
+            (
+                vec![
+                    0x81, 0x1f, 0x0c, 0, 0x0a, 0x0a, 0, 0, 0, 0xf8, 0xcf, 0xfc, 0xda, 0xf9, 0x80,
+                    0x40,
+                ],
+                "av01.0.31M.08",
+            ),
+        ] {
+            assert_eq!(av1(&record, None).as_deref(), Some(expected));
+        }
+        assert_eq!(av1(&[0x81, 24, 0x0c, 0], None), None);
+        assert_eq!(av1(&[0x81, 0, 0x0c], None), None);
     }
 
     #[test]
     fn vp9_mime_uses_the_record_or_the_required_level() {
         let mut entries = vec![("codec_name", s("vp9"))];
-        stream(&mut entries, Some(&[1, 0, 0, 0, 2, 51, 0xa0]), &[]);
+        stream(&mut entries, Some(&[1, 0, 0, 0, 2, 51, 0xa0]), &[], None);
         assert_eq!(
             entries.last(),
             Some(&("mime_codec_string", s("vp09.02.51.10")))
@@ -286,7 +381,7 @@ mod tests {
                 ("height", Value::Int(height)),
                 ("avg_frame_rate", s("25/1")),
             ];
-            stream(&mut entries, None, &[]);
+            stream(&mut entries, None, &[], None);
             assert_eq!(
                 entries.last(),
                 Some(&("mime_codec_string", s(format!("vp09.00.{level}.08"))))

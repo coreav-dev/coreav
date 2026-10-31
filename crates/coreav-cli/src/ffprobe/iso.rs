@@ -927,8 +927,8 @@ fn video_info<S: Source>(track: &Track, head: &Head, source: &mut S) -> Option<V
         }
         Codec::Hevc => record(b"hvcC").and_then(|r| video::hevc(r, full_range)),
         Codec::Av1 => record(b"av1C").and_then(video::av1),
-        Codec::Vp9 => record(b"vpcC").and_then(video::vp9),
-        Codec::Other | Codec::Vp8 => {
+        Codec::Vp8 | Codec::Vp9 => record(b"vpcC").and_then(video::vp),
+        Codec::Other => {
             let name = codec_name_of(track)?;
             let mut frame = |limit: u32| -> Option<Vec<u8>> {
                 let (offset, size) = head.first?;
@@ -1464,6 +1464,21 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
             }
         }),
         &[],
+        d.entry_boxes.iter().find_map(|c| {
+            if c.kind.0 != *b"colr" {
+                return None;
+            }
+            let [b'n', b'c', b'l', b'x', p0, p1, t0, t1, m0, m1, range, ..] = c.data.as_slice()
+            else {
+                return None;
+            };
+            Some(coreav_isobmff::Color {
+                primaries: Some(u16::from_be_bytes([*p0, *p1])),
+                transfer: Some(u16::from_be_bytes([*t0, *t1])),
+                matrix: Some(u16::from_be_bytes([*m0, *m1])),
+                full_range: Some(range & 0x80 != 0),
+            })
+        }),
     );
     let mut tags = Vec::new();
     if let Some(lang) = cnames::language(track.language) {
