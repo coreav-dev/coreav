@@ -1300,6 +1300,7 @@ fn run_remux(args: &RemuxArgs, metadata: Metadata) -> ExitCode {
             OnUnsupported::Drop
         },
         metadata,
+        left_out_covers: Vec::new(),
     };
     let mut remote = match open_remote(&args.input) {
         Ok(remote) => remote,

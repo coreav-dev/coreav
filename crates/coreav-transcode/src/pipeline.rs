@@ -575,6 +575,7 @@ pub fn transcode<S: Source, W: Write>(
                     streams,
                     on_unsupported: OnUnsupported::Drop,
                     metadata: Metadata::Copy,
+                    left_out_covers: Vec::new(),
                 },
                 replacements,
                 out,

@@ -29,7 +29,7 @@ use crate::{
 use core::cell::RefCell;
 use coreav_isobmff::{
     Allowlist, BoxHeader, Budget, Codec, EditList, Error, FourCc, LimitKind, Limits, Movie,
-    Packets, SliceSource, Source, Track, TrackKind, probe,
+    Packets, Parsed, SliceSource, Source, Track, TrackKind, parse_box_header, probe,
 };
 use std::io::Write;
 
@@ -54,7 +54,8 @@ const MAX_REPORTED: usize = 256;
 /// flag; the edit list, the media and movie timescales, the declared media
 /// duration, the language, the track header flags and matrix, the sample
 /// entry's child boxes and the movie's and tracks' `udta` and `meta` boxes
-/// are copied as stored. A fragmented source becomes an unfragmented file.
+/// are copied as stored, less the cover pictures `options` leaves out. A
+/// fragmented source becomes an unfragmented file.
 /// Every other box is listed in the summary as dropped.
 ///
 /// The source is listed twice per kept stream, once for the sample tables
@@ -574,13 +575,53 @@ fn remux<S: Source, R: Source, W: Write>(
         )?;
         muxer.set_movie_boxes(rewrite(&rewritten)?.into_iter().collect())?;
     } else {
-        let movie_tags = copy_boxes(
-            None,
-            Path::top().with(FourCc(*b"moov")),
-            &file.tags,
-            &mut source,
-            &mut retained,
-        )?;
+        let moov = Path::top().with(FourCc(*b"moov"));
+        let left_out = &options.left_out_covers;
+        let mut movie_tags = Vec::new();
+        let mut found = Vec::new();
+        for header in &file.tags {
+            for tag in copy_boxes(
+                None,
+                moov,
+                core::slice::from_ref(header),
+                &mut source,
+                &mut retained,
+            )? {
+                let at = header.payload_offset();
+                let edited = if left_out.iter().any(|o| at < *o && *o < header.end()) {
+                    without_covers(
+                        Level::of(tag.kind),
+                        &tag.payload,
+                        at,
+                        moov.with(tag.kind),
+                        left_out,
+                        &mut found,
+                        &mut |g| note(&mut movie_gone, &mut movie_more, g),
+                    )?
+                } else {
+                    Edited::Same
+                };
+                movie_tags.push(match edited {
+                    Edited::Changed(payload) => RawBox {
+                        kind: tag.kind,
+                        payload,
+                    },
+                    Edited::Same | Edited::Removed => tag,
+                });
+            }
+        }
+        // A cover inside a box too large to copy is left out with it.
+        let too_large = |offset: u64| {
+            retained.too_large.iter().any(|(stream, s)| {
+                stream.is_none() && s.header.offset < offset && offset < s.header.end()
+            })
+        };
+        if left_out
+            .iter()
+            .any(|o| !found.contains(o) && !too_large(*o))
+        {
+            return Err(Error::NoSuchTrack.into());
+        }
         muxer.set_movie_boxes(movie_tags)?;
     }
     muxer.set_file_type(file_type(&kept))?;
@@ -1011,6 +1052,137 @@ fn copy_boxes<S: Source>(
         }
     }
     Ok(boxes)
+}
+
+/// Where a box sits in the item list layout that [`without_covers`] walks.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Level {
+    /// A user data box (`udta`, ISO/IEC 14496-12 8.10.1).
+    UserData,
+    /// A metadata box (`meta`, 8.11.1, or QuickTime's without version and
+    /// flags).
+    Meta,
+    /// An item list (`ilst`).
+    List,
+    /// One entry of an item list: its `data` boxes and others.
+    Item,
+    /// Anything else, copied as stored.
+    Other,
+}
+
+impl Level {
+    /// The level of a child of the movie box.
+    fn of(kind: FourCc) -> Self {
+        match &kind.0 {
+            b"udta" => Self::UserData,
+            b"meta" => Self::Meta,
+            _ => Self::Other,
+        }
+    }
+
+    /// The level of a child of `kind` at this level.
+    fn child(self, kind: FourCc) -> Self {
+        match (self, &kind.0) {
+            (Self::UserData, b"meta") => Self::Meta,
+            (Self::UserData | Self::Meta, b"ilst") => Self::List,
+            (Self::List, kind) if kind != b"uuid" => Self::Item,
+            _ => Self::Other,
+        }
+    }
+}
+
+/// What [`without_covers`] did to a box.
+enum Edited {
+    Same,
+    Removed,
+    Changed(Vec<u8>),
+}
+
+/// The payload of a box at `level` that starts at `at` in the file
+/// (under `path`, its own type included), without the item list `data`
+/// boxes whose values start at an offset of `left_out`, and without an
+/// item left with no `data` box. Each offset it leaves out is added to
+/// `found`, and each box to `gone`: the item, or the `data` box of an
+/// item that stays. A child list that does not parse ends the walk, the
+/// bytes after it kept as stored.
+fn without_covers(
+    level: Level,
+    payload: &[u8],
+    at: u64,
+    path: Path,
+    left_out: &[u64],
+    found: &mut Vec<u64>,
+    gone: &mut dyn FnMut(Gone),
+) -> Result<Edited, Error> {
+    let start = match level {
+        Level::Meta if payload.get(4..8) != Some(b"hdlr".as_slice()) => 4,
+        Level::UserData | Level::Meta | Level::List | Level::Item => 0,
+        Level::Other => return Ok(Edited::Same),
+    };
+    let mut out = payload.get(..start).ok_or_else(overflow)?.to_vec();
+    let mut removed = Vec::new();
+    let (mut changed, mut data_kept) = (false, false);
+    let mut pos = start;
+    while let Some(child) = payload.get(pos..).and_then(|rest| {
+        let offset = at.checked_add(u64::try_from(pos).ok()?)?;
+        let room = u64::try_from(rest.len()).ok()?;
+        match parse_box_header(rest, offset, room) {
+            Ok(Parsed::Done(header)) => Some(header),
+            _ => None,
+        }
+    }) {
+        let end = usize::try_from(child.size)
+            .ok()
+            .and_then(|size| pos.checked_add(size))
+            .ok_or_else(overflow)?;
+        let bytes = payload.get(pos..end).ok_or_else(overflow)?;
+        pos = end;
+        let edited = if level == Level::Item && child.kind.0 == *b"data" {
+            let value = child.payload_offset().saturating_add(8);
+            if left_out.contains(&value) {
+                found.push(value);
+                Edited::Removed
+            } else {
+                data_kept = true;
+                Edited::Same
+            }
+        } else {
+            let body = bytes
+                .get(usize::from(child.header_len)..)
+                .ok_or_else(overflow)?;
+            without_covers(
+                level.child(child.kind),
+                body,
+                child.payload_offset(),
+                path.with(child.kind),
+                left_out,
+                found,
+                gone,
+            )?
+        };
+        changed |= !matches!(edited, Edited::Same);
+        match edited {
+            Edited::Same => out.extend_from_slice(bytes),
+            Edited::Removed => removed.push(child),
+            Edited::Changed(body) => {
+                let size = u32::try_from(body.len().saturating_add(8)).map_err(|_| overflow())?;
+                out.extend(size.to_be_bytes());
+                out.extend(child.kind.0);
+                out.extend(body);
+            }
+        }
+    }
+    if !changed {
+        return Ok(Edited::Same);
+    }
+    if level == Level::Item && !data_kept {
+        return Ok(Edited::Removed);
+    }
+    for header in removed {
+        gone(Gone::not_carried(path, header));
+    }
+    out.extend_from_slice(payload.get(pos..).unwrap_or_default());
+    Ok(Edited::Changed(out))
 }
 
 /// A required box's payload as stored (a sample entry child): it is copied
