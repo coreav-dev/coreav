@@ -88,8 +88,8 @@ file names.
 
 - Fields: the audio packets' times, and the decoded audio.
 - When: the output's audio has more than one media edit, and an edit after
-  the first starts at a media time inside an AAC frame (a clip's one frame
-  of pre-roll plus the part of a frame before its start, say).
+  the first starts at a media time inside a frame (a clip's one frame of
+  pre-roll plus the part of a frame before its start, say).
 - What each reports: the edit presents its media from its media time.
   `ffmpeg` drops the frame that holds that media time and presents the next
   frame from the edit's start, so that input's audio comes earlier by the
@@ -140,6 +140,33 @@ file names.
   sample, to the output's packets decoded in the order `ffprobe` lists
   them under the output's edits (each packet placed at its first delivery
   not flagged discard), at the media time the edit gives it, every edit
+  after the first read from the first frame boundary at or after its media
+  time (as for `KD-J-AUDIO-EDIT-START`), within one sample.
+
+## KD-J-AUDIO-HELD-FRAME
+
+- Field: the decoded audio.
+- When: the output's AC-3 or E-AC-3 audio has more than one media edit, and
+  an edit after the first starts at a media time inside a frame.
+- What each reports: the edit presents its media from its media time.
+  `ffmpeg` presents the whole frame that holds that media time inside the
+  edit before it, ahead of the edit's start; the next frame is
+  presented from the edit's start, as for `KD-J-AUDIO-EDIT-START`. That
+  frame, and those after it, decode as `ffmpeg` delivers the packets
+  (`KD-J-AUDIO-NOISE`): AC-3's dither for zero-bit mantissas depends on the
+  decoder's history. Example: two clips of `av_ac3.mp4`; the second's edit
+  starts 1,348 samples into a frame, and `ffmpeg` presents that frame from
+  1,536 samples before the edit's start; `av_ac3.mp4` concatenated with
+  itself, 904 samples before.
+- Why: ISO/IEC 14496-12 (an edit presents its media from its media time);
+  `docs/design/join.md` (one edit per input, the input's own pre-roll left
+  unpresented).
+- Coverage requires: for each edit after the first, exactly one decoded
+  frame presented in the edit before it, ahead of the edit's start, that
+  equals, sample for sample, the whole frame of the packet that holds the edit's media
+  time, decoded in the order `ffprobe` lists the packets under the
+  output's edits (as for `KD-J-AUDIO-NOISE`); and every other decoded frame
+  of every edit equal to the packets decoded in that order, each edit
   after the first read from the first frame boundary at or after its media
   time (as for `KD-J-AUDIO-EDIT-START`), within one sample.
 

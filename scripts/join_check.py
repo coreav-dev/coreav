@@ -241,24 +241,94 @@ def adts_concat_decoded(ffmpeg, ffprobe, inputs, index_key, output, out_index):
     return decoded, [(dts, positions.get(n)) for n, dts in enumerate(starts)]
 
 
-def delivered_decoded(ffmpeg, ffprobe, inputs, index_key, output, out_index):
-    """The inputs' audio packets decoded in the order ffmpeg's demuxer
-    delivers the output's packets under its edits (KD-J-AUDIO-NOISE): before
-    an edit after the first it delivers packets from before the edit's
-    media time again, flagged discard, which are decoded and dropped. The
-    same (path, frame starts) as `adts_concat_decoded`, the starts placing
-    each packet's delivery that is not discarded. None when that fails."""
+def input_frames(ffmpeg, ffprobe, inputs, index_key, codec):
+    """The inputs' audio packets in their raw format (`cc.RAW_AUDIO`), one
+    input after another, edit lists ignored: AAC's ADTS frames, AC-3's and
+    E-AC-3's syncframes cut at each input's stored sample sizes. None when
+    that fails."""
+    raw = cc.RAW_AUDIO.get(codec)
+    if raw is None:
+        return None
     frames = []
     for item in inputs:
+        index = item[index_key]
         try:
-            adts = cc.run([ffmpeg, "-v", "error", "-ignore_editlist", "1", "-i", item["path"], "-map",
-                           f"0:{item[index_key]}", "-c", "copy", "-f", "adts", "-"])
+            data = cc.run([ffmpeg, "-v", "error", "-ignore_editlist", "1", "-i", item["path"], "-map",
+                           f"0:{index}", "-c", "copy", "-f", raw[0], "-"])
         except RuntimeError:
             return None
-        part = cc._adts_frames(adts)
+        if raw[0] == "adts":
+            part = cc._adts_frames(data)
+        else:
+            stored = cc.ffprobe_json(ffprobe, "-ignore_editlist", "1", "-select_streams", str(index),
+                                     "-show_entries", "packet=size", "-show_packets", item["path"])
+            part = cc._sized_frames(data, [int(p.get("size") or 0) for p in stored.get("packets", [])])
         if part is None:
             return None
         frames += part
+    return frames
+
+
+def concat_decoded(ffmpeg, ffprobe, inputs, index_key, output, out_index, codec, channels):
+    """The inputs' audio packets decoded in sequence, as
+    `adts_concat_decoded` gives AAC's: AC-3 and E-AC-3 as their syncframes
+    (`input_frames`), concatenated and decoded as one stream; FLAC and
+    Apple Lossless, whose frames decode alone, each input decoded on its own
+    (edit lists ignored) and the PCM concatenated, each packet's frame
+    placed after the samples of the packets before it. None when that fails
+    or the packet counts differ."""
+    if codec not in ("ac3", "eac3", "flac", "alac"):
+        return adts_concat_decoded(ffmpeg, ffprobe, inputs, index_key, output, out_index)
+    times = cc.ffprobe_json(ffprobe, "-ignore_editlist", "1", "-select_streams", str(out_index),
+                            "-show_entries", "packet=dts", "-show_packets", output)
+    starts = [int(p["dts"]) for p in times.get("packets", [])]
+    if codec in cc.RAW_AUDIO:
+        frames = input_frames(ffmpeg, ffprobe, inputs, index_key, codec)
+        if frames is None or len(starts) != len(frames):
+            return None
+        main = _decode_adts(ffmpeg, frames, fmt=cc.RAW_AUDIO[codec][1])
+        if main is None:
+            return None
+        decoded, positions = main
+        return decoded, [(dts, positions.get(n)) for n, dts in enumerate(starts)]
+    pcm, samples = b"", []
+    for item in inputs:
+        index = item[index_key]
+        listing = cc.ffprobe_json(ffprobe, "-ignore_editlist", "1", "-select_streams", str(index),
+                                  "-show_entries", "packet=duration:stream=time_base,sample_rate",
+                                  item["path"])
+        try:
+            stream = listing["streams"][0]
+            base = Fraction(stream["time_base"]) * int(stream["sample_rate"])
+            pcm += cc.run([ffmpeg, "-v", "error", "-ignore_editlist", "1", "-i", item["path"], "-map",
+                           f"0:{index}", "-c:a", "pcm_f32le", "-f", "f32le", "-"])
+        except (KeyError, IndexError, ValueError, ZeroDivisionError, RuntimeError):
+            return None
+        samples += [int(p.get("duration") or 0) * base for p in listing.get("packets", [])]
+    if len(starts) != len(samples) or len(pcm) != sum(samples) * 4 * channels:
+        return None
+    fd, decoded = tempfile.mkstemp(suffix=".f32", dir=cc._work())
+    with os.fdopen(fd, "wb") as f:
+        f.write(pcm)
+    positions, at = [], Fraction(0)
+    for dts, length in zip(starts, samples):
+        positions.append((dts, int(at)))
+        at += length
+    return decoded, positions
+
+
+def delivered_decoded(ffmpeg, ffprobe, inputs, index_key, output, out_index, codec):
+    """The inputs' audio packets (AAC, AC-3 or E-AC-3: `input_frames`)
+    decoded in the order ffmpeg's demuxer delivers the output's packets
+    under its edits (KD-J-AUDIO-NOISE): before an edit after the first it
+    delivers packets from before the edit's media time again, flagged
+    discard, which are decoded and dropped. The same (path, frame starts)
+    as `adts_concat_decoded`, the starts placing each packet's delivery
+    that is not discarded. None when that fails."""
+    frames = input_frames(ffmpeg, ffprobe, inputs, index_key, codec)
+    if frames is None:
+        return None
+    fmt = cc.RAW_AUDIO[codec][1]
     listing = [cc.ffprobe_json(ffprobe, *extra, "-select_streams", str(out_index), "-show_entries",
                                "packet=pos,dts,flags", "-show_packets", output).get("packets", [])
                for extra in (("-ignore_editlist", "1"), ())]
@@ -270,14 +340,14 @@ def delivered_decoded(ffmpeg, ffprobe, inputs, index_key, output, out_index):
         return None
     order = [number[p.get("pos")] for p in delivered]
     shown = [None if "D" in (p.get("flags") or "") else n for p, n in zip(delivered, order)]
-    main = _decode_adts(ffmpeg, [frames[n] for n in order], shown)
+    main = _decode_adts(ffmpeg, [frames[n] for n in order], shown, fmt=fmt)
     if main is None:
         return None
     decoded, positions = main
     # Each packet is placed at its first delivery not flagged discard; one
     # delivered only flagged discard (an edit's pre-roll) at its last
     # delivery, so that an edit starting in it is found.
-    hidden = _decode_positions(ffmpeg, [frames[n] for n in order], order, last=True)
+    hidden = _decode_positions(ffmpeg, [frames[n] for n in order], order, last=True, fmt=fmt)
     if hidden is None:
         pathlib.Path(decoded).unlink(missing_ok=True)
         return None
@@ -286,29 +356,30 @@ def delivered_decoded(ffmpeg, ffprobe, inputs, index_key, output, out_index):
     return decoded, [(int(p["dts"]), positions.get(n)) for n, p in enumerate(stored)]
 
 
-def _decode_adts(ffmpeg, frames, numbers=None):
-    """ADTS frames decoded to float32 PCM: (path, {packet: position in the
-    PCM}), the frames numbered by `numbers` (by default in order; a None
-    number is decoded but not placed). None when decoding fails."""
+def _decode_adts(ffmpeg, frames, numbers=None, fmt="aac"):
+    """ADTS frames (or the raw frames of `fmt`) decoded to float32 PCM:
+    (path, {packet: position in the PCM}), the frames numbered by
+    `numbers` (by default in order; a None number is decoded but not
+    placed). None when decoding fails."""
     fd, decoded = tempfile.mkstemp(suffix=".f32", dir=cc._work())
     os.close(fd)
-    result = subprocess.run([ffmpeg, "-v", "error", "-y", "-f", "aac", "-i", "-", "-c:a", "pcm_f32le", "-f",
+    result = subprocess.run([ffmpeg, "-v", "error", "-y", "-f", fmt, "-i", "-", "-c:a", "pcm_f32le", "-f",
                              "f32le", decoded], input=b"".join(frames), capture_output=True, check=False)
-    positions = _decode_positions(ffmpeg, frames, numbers)
+    positions = _decode_positions(ffmpeg, frames, numbers, fmt=fmt)
     if result.returncode != 0 or positions is None:
         pathlib.Path(decoded).unlink(missing_ok=True)
         return None
     return decoded, positions
 
 
-def _decode_positions(ffmpeg, frames, numbers=None, last=False):
+def _decode_positions(ffmpeg, frames, numbers=None, last=False, fmt="aac"):
     """Where each frame's decoded samples lie in the PCM of `frames`
     decoded: {number: position}, the first frame with a number kept (with
     `last`, the last). The decoder does not output a frame for every
     packet (ffmpeg gives none for the first packet of some streams), so the
     frames' own times say which packet each one decodes. None when that
     fails."""
-    listing = subprocess.run([ffmpeg, "-v", "error", "-f", "aac", "-i", "-", "-f", "framemd5", "-"],
+    listing = subprocess.run([ffmpeg, "-v", "error", "-f", fmt, "-i", "-", "-f", "framemd5", "-"],
                              input=b"".join(frames), capture_output=True, check=False)
     if listing.returncode != 0:
         return None
@@ -738,8 +809,8 @@ def check_audio(entry, ffprobe, ffmpeg, out_index, out, oh, found, evidence):
     channels = int(out.get("channels") or 1)
     if not rate:
         return
-    reference = adts_concat_decoded(ffmpeg, ffprobe, entry["inputs"], "audio_stream", entry["output"],
-                                    out_index)
+    reference = concat_decoded(ffmpeg, ffprobe, entry["inputs"], "audio_stream", entry["output"], out_index,
+                               out.get("codec_name"), channels)
     decoded = cc.pcm(ffmpeg, entry["output"], out_index, channels)
     try:
         if reference is None or decoded is None:
@@ -753,8 +824,10 @@ def check_audio(entry, ffprobe, ffmpeg, out_index, out, oh, found, evidence):
             return
         frame = 4 * channels
         evidence["audio_pieces"] = (pieces, ts, rate, spans, (ref_path, starts), out_path, frame)
+        evidence["audio_codec"] = out.get("codec_name")
         evidence["audio_delivered"] = lambda: delivered_decoded(ffmpeg, ffprobe, entry["inputs"],
-                                                                "audio_stream", entry["output"], out_index)
+                                                                "audio_stream", entry["output"], out_index,
+                                                                out.get("codec_name"))
         problems = compare_pieces(pieces, ts, rate, spans, (ref_path, starts), out_path, frame, rounded=False)
         if problems:
             evidence["audio_problems"] = problems
@@ -768,20 +841,22 @@ def check_audio(entry, ffprobe, ffmpeg, out_index, out, oh, found, evidence):
                 pathlib.Path(reference[0]).unlink(missing_ok=True)
 
 
-def compare_pieces(pieces, ts, rate, spans, ref, out_path, frame, rounded):
+def compare_pieces(pieces, ts, rate, spans, ref, out_path, frame, rounded, held=frozenset()):
     """Per audio edit, every decoded output frame presented in it equals the
     reference at the media time the edit gives its start: the decoded frame
     of the packet that holds that media time, from that point (with
     `rounded`, every edit after the first read from the first frame
     boundary at or after its media time, as `KD-J-AUDIO-EDIT-START`
     describes). An edit's last frame may run past it; only its samples
-    inside the edit are compared. Returns the problems."""
+    inside the edit are compared. The output frames numbered in `held`
+    are left out (`KD-J-AUDIO-HELD-FRAME`). Returns the problems."""
     ref_path, starts = ref
     problems = []
     # The output's frames with their positions in its PCM.
     frames, at = [], 0
-    for t, samples in spans:
-        frames.append((t, samples, at))
+    for k, (t, samples) in enumerate(spans):
+        if k not in held:
+            frames.append((t, samples, at))
         at += samples
     for n, (start, length, media) in enumerate(pieces):
         media = Fraction(media)
@@ -1438,6 +1513,44 @@ def audio_noise(field, fields, c):
         pathlib.Path(delivered[0]).unlink(missing_ok=True)
 
 
+def audio_held_frame(field, fields, c):
+    """KD-J-AUDIO-HELD-FRAME."""
+    if field != "audio:pcm" or c.get("audio_codec") not in ("ac3", "eac3"):
+        return False
+    if not c.get("audio_pieces") or not c.get("audio_delivered"):
+        return False
+    pieces, ts, rate, spans, _, out_path, frame = c["audio_pieces"]
+    if len(pieces) < 2:
+        return False
+    delivered = c["audio_delivered"]()
+    if delivered is None:
+        return False
+    try:
+        held = set()
+        for (before, _, _), (start, _, media) in zip(pieces, pieces[1:]):
+            # The packet that holds the edit's media time, inside it, and
+            # where ffmpeg's delivery decodes it.
+            slot = reference_slot(delivered[1], Fraction(media), rate, ts)
+            if slot is None or not slot[1] or delivered[1][slot[0]][1] is None:
+                return False
+            source = delivered[1][slot[0]][1]
+            # The one output frame presented in the edit before, ahead of
+            # this edit's start, that is that packet's whole frame, sample
+            # for sample.
+            matches, at = [], 0
+            for k, (t, samples) in enumerate(spans):
+                inside = before <= t < start
+                if inside and _same(delivered[0], source * frame, out_path, at * frame, samples * frame):
+                    matches.append(k)
+                at += samples
+            if len(matches) != 1:
+                return False
+            held.add(matches[0])
+        return not compare_pieces(pieces, ts, rate, spans, delivered, out_path, frame, rounded=True, held=held)
+    finally:
+        pathlib.Path(delivered[0]).unlink(missing_ok=True)
+
+
 PREDICATES = {
     "video_later_edit": video_later_edit,
     "sync_verified": sync_verified,
@@ -1446,6 +1559,7 @@ PREDICATES = {
     "audio_edit_start": audio_edit_start,
     "video_edit_end": video_edit_end,
     "audio_noise": audio_noise,
+    "audio_held_frame": audio_held_frame,
 }
 
 

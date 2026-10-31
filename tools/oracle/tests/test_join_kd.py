@@ -6,7 +6,9 @@ import importlib.util
 import json
 import pathlib
 import re
+import struct
 import sys
+import tempfile
 import unittest
 from fractions import Fraction
 
@@ -527,6 +529,61 @@ class ConcatAgree(unittest.TestCase):
     def test_other_data_without_parameter_sets_fails(self):
         stripped = ([self.packet('s')], [self.packet('t')])
         self.assertEqual(jc.concat_agree([self.packet('a')], [self.packet('x')], stripped), [False])
+
+class HeldFrame(unittest.TestCase):
+    """KD-J-AUDIO-HELD-FRAME on PCM made up for it: 10 samples a second,
+    one tick a sample, packets of 4 samples; the second edit presents media
+    from 22, inside the packet at 20."""
+
+    def setUp(self):
+        self.work = tempfile.TemporaryDirectory()
+        self.addCleanup(self.work.cleanup)
+        # The delivered decode: sample n of packet k holds 100 k + n.
+        self.delivered = [100 * (i // 4) + i % 4 for i in range(32)]
+
+    def write(self, name, samples):
+        path = pathlib.Path(self.work.name) / name
+        path.write_bytes(struct.pack(f'<{len(samples)}f', *samples))
+        return str(path)
+
+    def evidence(self, codec='ac3', held=20, held_start=Fraction(6, 10), late=None):
+        # Edit 0: media 0 to 10 from 0 s; the held frame (the packet at
+        # \`held\`, whole); edit 1 from 1 s, read from media 24 on.
+        frames = [(Fraction(0), 0), (Fraction(4, 10), 4), (Fraction(8, 10), 8), (held_start, held),
+                  (Fraction(1), 24), (Fraction(14, 10), 28)]
+        pcm = [s for _, at in frames for s in self.delivered[at:at + 4]]
+        if late is not None:
+            pcm[late] += 1
+        out = self.write('out.f32', pcm)
+        starts = [(4 * k, 4 * k) for k in range(8)]
+
+        def delivered():
+            return self.write(f'delivered{len(list(pathlib.Path(self.work.name).iterdir()))}.f32',
+                              self.delivered), starts
+
+        spans = [(t, 4) for t, _ in frames]
+        pieces = [(Fraction(0), Fraction(1), Fraction(0)), (Fraction(1), Fraction(1), Fraction(22))]
+        return {'audio_codec': codec, 'audio_delivered': delivered,
+                'audio_pieces': (pieces, 10, 10, spans, None, out, 4)}
+
+    def test_the_held_frame_is_covered(self):
+        self.assertTrue(jc.audio_held_frame('audio:pcm', set(), self.evidence()))
+        self.assertTrue(jc.audio_held_frame('audio:pcm', set(), self.evidence(codec='eac3')))
+
+    def test_near_misses(self):
+        cases = {
+            'AAC': self.evidence(codec='aac'),
+            'another packet held': self.evidence(held=16),
+            'held frame before the edit before': self.evidence(held_start=Fraction(-4, 10)),
+            'held frame inside its own edit': self.evidence(held_start=Fraction(12, 10)),
+            'a sample of edit 0 off': self.evidence(late=2),
+            'a sample of edit 1 off': self.evidence(late=17),
+            'a sample of the held frame off': self.evidence(late=13),
+        }
+        for label, c in cases.items():
+            self.assertFalse(jc.audio_held_frame('audio:pcm', set(), c), label)
+        self.assertFalse(jc.audio_held_frame('audio:packets', set(), self.evidence()))
+
 
 if __name__ == '__main__':
     unittest.main()

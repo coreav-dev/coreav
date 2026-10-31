@@ -191,6 +191,8 @@ built on it show:
 - a frame cut short by its edit is shown whole (`KD-J-VIDEO-EDIT-END`);
 - a later audio edit that starts inside a frame starts at the next frame,
   less than a frame (about 21 ms) early (`KD-J-AUDIO-EDIT-START`).
+- for AC-3 and E-AC-3, the frame that holds such an edit's media time is
+  also shown whole, ahead of the edit's start (`KD-J-AUDIO-HELD-FRAME`).
 
 Joins whose inputs meet exactly (the segments of a split) have one edit per
 track and play exactly in `ffmpeg` as well. Clips of one source cut at the
