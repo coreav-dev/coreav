@@ -5,10 +5,12 @@
 //! vocabulary. Each container's builder ([`iso`], [`mkv`], [`ts`]) maps
 //! its native probe result to a [`Report`]: the stream, format, chapter
 //! and program sections, with their entries in `ffprobe`'s order, and the
-//! packets, which are read and written one at a time. [`emit`] prints the
-//! report through the writer the command chose.
+//! packets, which are read and written one at a time. [`frames`] decodes
+//! the frames of those packets. [`emit`] prints the report through the
+//! writer the command chose.
 
 pub mod args;
+mod frames;
 mod iso;
 mod iso_meta;
 mod metadata;
@@ -26,13 +28,11 @@ use model::{Selection, Sid, Value};
 use std::io::Write;
 use writer::Writer;
 
+pub use frames::Setup;
+
 /// Keys `ffprobe` prints that CoreAV leaves unknown, and why: named in
 /// `-show_entries`, they are refused.
-pub const UNKNOWN_KEYS: [(&str, &str, &str); 1] = [(
-    "stream",
-    "nb_read_frames",
-    "counting frames needs a decoder",
-)];
+pub const UNKNOWN_KEYS: [(&str, &str, &str); 0] = [];
 
 /// Why a key named in `-show_entries` is refused, if it is.
 pub fn undecided(section: &str, key: &str) -> Option<&'static str> {
@@ -130,14 +130,24 @@ pub struct Packet {
     pub corrupt: bool,
     /// The side data.
     pub side_data: Vec<SideData>,
+    /// The bytes, when the listing was asked for them.
+    pub data: Vec<u8>,
 }
 
 /// The packets of a file, read one at a time.
 pub trait PacketSource {
     /// Calls `f` with every packet in the order `ffprobe` lists them,
-    /// until it returns `Ok(false)` or the packets end.
-    fn visit(&mut self, f: &mut dyn FnMut(Packet) -> Result<bool, Failure>) -> Result<(), Failure>;
+    /// until it returns `Ok(false)` or the packets end; with each packet's
+    /// bytes when its stream's `payloads` entry is true, as a decoder takes them.
+    fn visit(
+        &mut self,
+        payloads: &[bool],
+        f: &mut dyn FnMut(Packet) -> Result<bool, Failure>,
+    ) -> Result<(), Failure>;
 }
+
+#[cfg(test)]
+mod frames_tests;
 
 /// Everything but the packets.
 #[derive(Clone, Debug, Default)]
@@ -154,6 +164,8 @@ pub struct Report {
     pub chapters: Vec<Chapter>,
     /// The programs.
     pub programs: Vec<Program>,
+    /// What each stream's decoder is given besides its packets.
+    pub setups: Vec<Setup>,
 }
 
 /// A probed file: its report and what lists its packets.
@@ -184,7 +196,7 @@ pub fn probe<'a, S: Source + 'a>(
         match iso::probe(&mut buffered, size, name) {
             Err(failure) if not_isobmff(&failure) => {}
             Ok(iso::IsoProbed {
-                report,
+                mut report,
                 movie,
                 priming,
                 ends,
@@ -193,6 +205,23 @@ pub fn probe<'a, S: Source + 'a>(
                 covers,
                 pictures,
             }) => {
+                report.setups = vec![Setup::default(); report.streams.len()];
+                for track in &movie.tracks {
+                    let description = &track.description;
+                    if let Some(setup) = report.setups.get_mut(track.stream_index) {
+                        *setup = Setup {
+                            config: description
+                                .codec_config
+                                .as_ref()
+                                .filter(|c| matches!(&c.kind.0, b"avcC" | b"dfLa"))
+                                .map(|c| c.data.clone()),
+                            width: description.width.map(u32::from),
+                            height: description.height.map(u32::from),
+                            unreadable: None,
+                            skip: 0,
+                        };
+                    }
+                }
                 let listing = iso::IsoProbedPackets {
                     movie,
                     priming,
@@ -316,17 +345,28 @@ pub fn emit(
     let mut counts = Counts {
         packets: vec![None; n],
     };
-    let read_packets = sel.shown(Sid::Packets) || options.count_packets;
+    let mut frames = frames::Frames::plan(options, report)?;
+    let show_packets = sel.shown(Sid::Packets);
+    let show_frames = frames.is_some() && sel.shown(Sid::Frames);
+    let counted = show_packets || options.count_packets;
     w.header(&mut buf, Sid::Root, None);
-    if read_packets {
-        for (i, c) in counts.packets.iter_mut().enumerate() {
-            if selected(options.select_streams, &report.streams, i) {
-                *c = Some(0);
+    if counted || frames.is_some() {
+        if counted {
+            for (i, c) in counts.packets.iter_mut().enumerate() {
+                if selected(options.select_streams, &report.streams, i) {
+                    *c = Some(0);
+                }
             }
         }
-        let show = sel.shown(Sid::Packets);
-        if show {
-            w.header(&mut buf, Sid::Packets, None);
+        // Packets and frames print in one array when both are asked for.
+        let list = match (show_packets, show_frames) {
+            (true, true) => Some(Sid::PacketsAndFrames),
+            (true, false) => Some(Sid::Packets),
+            (false, true) => Some(Sid::Frames),
+            (false, false) => None,
+        };
+        if let Some(sid) = list {
+            w.header(&mut buf, sid, None);
         }
         let mut intervals = (!options.read_intervals.is_empty()).then(|| IntervalState {
             intervals: options.read_intervals.clone(),
@@ -340,8 +380,17 @@ pub fn emit(
         let packets = &mut counts.packets;
         let w_ref = &mut w;
         let buf_ref = &mut buf;
-        let mut visit =
-            |packet: Packet| -> Result<bool, Failure> {
+        let frames_ref = &mut frames;
+        let payloads = frames_ref
+            .as_ref()
+            .map_or_else(|| vec![false; n], frames::Frames::payloads);
+        // A decoder may stop where `ffprobe`'s goes on: a listing of frames
+        // is held back until it is long, so that the command can still be
+        // handed over whole.
+        let hold = if frames_ref.is_some() { HOLD } else { 1 << 15 };
+        let mut flushed = false;
+        {
+            let mut visit = |packet: Packet| -> Result<bool, Failure> {
                 if !selected(spec, streams, packet.stream) {
                     return Ok(true);
                 }
@@ -362,19 +411,38 @@ pub fn emit(
                 if let Some(Some(c)) = packets.get_mut(packet.stream) {
                     *c += 1;
                 }
-                if show {
-                    print_packet(w_ref, buf_ref, sel, report, &packet, tb);
-                    if buf_ref.len() > 1 << 15 {
-                        flush(buf_ref, &mut *out)?;
+                match frames_ref.as_mut() {
+                    Some(frames) => {
+                        frames
+                            .packet(packet, show_packets)
+                            .map_err(|e| late(e, flushed))?;
+                        print_ready(w_ref, buf_ref, sel, report, frames);
                     }
+                    None if show_packets => {
+                        print_packet(w_ref, buf_ref, sel, report, &packet, tb);
+                    }
+                    None => {}
+                }
+                if buf_ref.len() > hold {
+                    flush(buf_ref, &mut *out)?;
+                    flushed = true;
                 }
                 Ok(true)
             };
-        probed.packets.visit(&mut visit)?;
-        if show {
+            probed.packets.visit(&payloads, &mut visit)?;
+        }
+        if let Some(frames) = frames.as_mut() {
+            frames.finish().map_err(|e| late(e, flushed))?;
+            print_ready(&mut w, &mut buf, sel, report, frames);
+        }
+        if list.is_some() {
             w.footer(&mut buf);
         }
     }
+    let read_frames = match &frames {
+        Some(frames) if options.count_frames => frames.counts(n),
+        _ => vec![None; n],
+    };
     if sel.shown(Sid::Programs) {
         w.header(&mut buf, Sid::Programs, None);
         for program in &report.programs {
@@ -402,7 +470,10 @@ pub fn emit(
                             // under the streams' selection, as `ffprobe`
                             // does.
                             Some(Sid::StreamSideDataList),
-                            counts.packets.get(index).copied().flatten(),
+                            [
+                                counts.packets.get(index).copied().flatten(),
+                                read_frames.get(index).copied().flatten(),
+                            ],
                         );
                     }
                 }
@@ -429,7 +500,10 @@ pub fn emit(
                 stream,
                 [Sid::Stream, Sid::StreamDisposition, Sid::StreamTags],
                 Some(Sid::StreamSideDataList),
-                counts.packets.get(index).copied().flatten(),
+                [
+                    counts.packets.get(index).copied().flatten(),
+                    read_frames.get(index).copied().flatten(),
+                ],
             );
         }
         w.footer(&mut buf);
@@ -507,16 +581,22 @@ fn print_stream(
     stream: &Stream,
     [sid, disposition, tag_sid]: [Sid; 3],
     side_data: Option<Sid>,
-    read_packets: Option<u64>,
+    [read_packets, read_frames]: [Option<u64>; 2],
 ) {
     w.header(buf, sid, None);
     for (key, value) in &stream.entries {
         if !sel.entry(sid, key) {
             continue;
         }
-        if *key == "nb_read_packets" {
-            // A stream none of whose packets was read has no count.
-            let count = read_packets
+        let read = match *key {
+            "nb_read_packets" => Some(read_packets),
+            "nb_read_frames" => Some(read_frames),
+            _ => None,
+        };
+        if let Some(read) = read {
+            // A stream none of whose packets or frames was read has no
+            // count.
+            let count = read
                 .filter(|n| *n > 0)
                 .and_then(|n| i64::try_from(n).ok())
                 .map_or(Value::Na, |n| Value::Str(n.to_string()));
@@ -544,6 +624,57 @@ fn print_stream(
         }
     }
     w.footer(buf);
+}
+
+/// Bytes of a listing of frames held back before any is written.
+const HOLD: usize = 64 << 20;
+
+/// A refusal once part of the listing is written is an error: handing the
+/// command over then would print that part twice.
+fn late(failure: Failure, flushed: bool) -> Failure {
+    match failure {
+        Failure::Unsupported(text) if flushed => Failure::VideoDecode(coreav_decode::Error::new(
+            coreav_decode::ErrorKind::InvalidData,
+            text,
+        )),
+        other => other,
+    }
+}
+
+/// Prints what the frame listing has ready, in order.
+fn print_ready(
+    w: &mut Writer,
+    buf: &mut Vec<u8>,
+    sel: &Selection,
+    report: &Report,
+    frames: &mut frames::Frames,
+) {
+    while let Some(item) = frames.next() {
+        match item {
+            frames::Item::Packet(packet) => {
+                let tb = report
+                    .time_bases
+                    .get(packet.stream)
+                    .copied()
+                    .unwrap_or((1, 1));
+                print_packet(w, buf, sel, report, &packet, tb);
+            }
+            frames::Item::Frame(row) => {
+                w.header(buf, Sid::Frame, None);
+                entries(w, buf, sel, Sid::Frame, &row.entries);
+                if !row.side_data.is_empty() {
+                    w.header(buf, Sid::FrameSideDataList, None);
+                    for data in &row.side_data {
+                        w.header(buf, Sid::FrameSideData, Some(data.typ));
+                        entries(w, buf, sel, Sid::FrameSideData, &data.entries);
+                        w.footer(buf);
+                    }
+                    w.footer(buf);
+                }
+                w.footer(buf);
+            }
+        }
+    }
 }
 
 fn print_packet(
@@ -628,11 +759,14 @@ See docs/measurements/compat-ffprobe.md.
 
 The common ffprobe invocations, over CoreAV's own probes. Options:
   -show_format -show_streams -show_chapters -show_programs -show_packets
-  -show_error -count_packets -show_entries SECTION[=KEYS][:...]
+  -show_frames -show_error -count_packets -count_frames
+  -show_entries SECTION[=KEYS][:...]
   -select_streams SPEC -read_intervals INTERVALS -f FORMAT
   -of|-print_format default|compact|csv|flat|json[=OPTIONS]
   -pretty -sexagesimal -v LEVEL -loglevel LEVEL -hide_banner -nostdin
 Reads MP4, MOV, Matroska, WebM and MPEG-TS files and HTTP(S) URLs.
+Frames are decoded for MP3, FLAC and PCM, and for H.264 in a build
+with CoreAV's H.264 decoder; other codecs' frames are refused.
 
 For untrusted input, set COREAV_STRICT_SAFE=1: anything else is then
 refused (exit status 4). Without it, anything else runs the ffprobe

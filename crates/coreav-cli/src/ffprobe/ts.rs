@@ -2389,7 +2389,11 @@ struct TsPackets<S> {
 }
 
 impl<S: Source> PacketSource for TsPackets<S> {
-    fn visit(&mut self, f: &mut dyn FnMut(Packet) -> Result<bool, Failure>) -> Result<(), Failure> {
+    fn visit(
+        &mut self,
+        payloads: &[bool],
+        f: &mut dyn FnMut(Packet) -> Result<bool, Failure>,
+    ) -> Result<(), Failure> {
         let limits = Limits::default();
         let packets = self
             .ts
@@ -2520,6 +2524,11 @@ impl<S: Source> PacketSource for TsPackets<S> {
                 discard: false,
                 corrupt: p.corrupt,
                 side_data,
+                data: if payloads.get(stream).copied().unwrap_or(false) {
+                    p.data.to_vec()
+                } else {
+                    Vec::new()
+                },
             };
             if !f(packet)? {
                 return Ok(());

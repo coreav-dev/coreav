@@ -2906,7 +2906,11 @@ impl<S: Source> Source for Shared<'_, S> {
 }
 
 impl<S: Source> PacketSource for IsoPackets<S> {
-    fn visit(&mut self, f: &mut dyn FnMut(Packet) -> Result<bool, Failure>) -> Result<(), Failure> {
+    fn visit(
+        &mut self,
+        payloads: &[bool],
+        f: &mut dyn FnMut(Packet) -> Result<bool, Failure>,
+    ) -> Result<(), Failure> {
         // A chapter picture track's first sample comes first, as it is
         // stored, then a cover picture's packet, untimed.
         let limits = Limits::default();
@@ -2932,6 +2936,11 @@ impl<S: Source> PacketSource for IsoPackets<S> {
                 size: u64::from(p.size),
                 pos: Some(p.offset),
                 keyframe: true,
+                data: if payloads.get(track.stream_index).copied().unwrap_or(false) {
+                    super::frames::read(&mut Shared(&self.source), p.offset, u64::from(p.size))?
+                } else {
+                    Vec::new()
+                },
                 ..Packet::default()
             };
             if !f(packet)? {
@@ -3327,6 +3336,11 @@ impl<S: Source> PacketSource for IsoPackets<S> {
                 discard: !p.presented && !fragment,
                 corrupt: false,
                 side_data,
+                data: if payloads.get(track.stream_index).copied().unwrap_or(false) {
+                    super::frames::read(&mut Shared(&self.source), p.offset, u64::from(p.size))?
+                } else {
+                    Vec::new()
+                },
             };
             if !f(packet)? {
                 return Ok(());
