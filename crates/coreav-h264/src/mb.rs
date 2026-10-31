@@ -1089,10 +1089,11 @@ impl<K: Kernels> SliceDecoder<'_, K> {
         let total = self.mb_w * self.mb_h;
         let addr = self.hdr.first_mb as usize;
         require(addr < total, "first_mb_in_slice")?;
-        if self.pps.cabac {
-            self.decode_cabac(tier, rbsp, addr, total)
-        } else {
-            self.decode_cavlc(tier, rbsp, addr, total)
+        match (self.pps.cabac, self.sps.chroma_array_type() != 0) {
+            (true, true) => self.decode_cabac::<T, true>(tier, rbsp, addr, total),
+            (true, false) => self.decode_cabac::<T, false>(tier, rbsp, addr, total),
+            (false, true) => self.decode_cavlc::<T, true>(tier, rbsp, addr, total),
+            (false, false) => self.decode_cavlc::<T, false>(tier, rbsp, addr, total),
         }
     }
 
@@ -1101,7 +1102,7 @@ impl<K: Kernels> SliceDecoder<'_, K> {
     /// takes the CABAC engine's `terminate` and the residual's parse out
     /// of line instead.
     #[inline(never)]
-    fn decode_cabac<T: Tier>(
+    fn decode_cabac<T: Tier, const CHROMA: bool>(
         &mut self,
         tier: T,
         rbsp: &[u8],
@@ -1110,12 +1111,12 @@ impl<K: Kernels> SliceDecoder<'_, K> {
     ) -> Result<()> {
         tier.enter(
             #[inline(always)]
-            || self.decode_cabac_body(tier, rbsp, addr, total),
+            || self.decode_cabac_body::<T, CHROMA>(tier, rbsp, addr, total),
         )
     }
 
     #[inline(always)]
-    fn decode_cabac_body<T: Tier>(
+    fn decode_cabac_body<T: Tier, const CHROMA: bool>(
         &mut self,
         tier: T,
         rbsp: &[u8],
@@ -1155,7 +1156,7 @@ impl<K: Kernels> SliceDecoder<'_, K> {
                 self.decode_skip(tier)?;
                 self.finish_mb::<true>();
             } else {
-                let mut syntax = CabacSyntax { c: &mut c, t: tier };
+                let mut syntax = CabacSyntax::<T, CHROMA> { c: &mut c, t: tier };
                 self.decode_mb(&mut syntax, tier)?;
                 self.finish_mb::<false>();
             }
@@ -1173,7 +1174,7 @@ impl<K: Kernels> SliceDecoder<'_, K> {
     /// so that [`Self::decode_slice_data`] only calls it: the CABAC path's
     /// code does not change with the CAVLC loop's.
     #[inline(never)]
-    fn decode_cavlc<T: Tier>(
+    fn decode_cavlc<T: Tier, const CHROMA: bool>(
         &mut self,
         tier: T,
         rbsp: &[u8],
@@ -1182,7 +1183,7 @@ impl<K: Kernels> SliceDecoder<'_, K> {
     ) -> Result<()> {
         tier.enter(
             #[inline(always)]
-            || self.decode_cavlc_body(tier, rbsp, addr, total),
+            || self.decode_cavlc_body::<T, CHROMA>(tier, rbsp, addr, total),
         )
     }
 
@@ -1190,7 +1191,7 @@ impl<K: Kernels> SliceDecoder<'_, K> {
     /// element of the slice ([`CavlcSyntax`]), and each macroblock starts
     /// in place, its neighbours found from the slice's first address.
     #[inline(always)]
-    fn decode_cavlc_body<T: Tier>(
+    fn decode_cavlc_body<T: Tier, const CHROMA: bool>(
         &mut self,
         tier: T,
         rbsp: &[u8],
@@ -1202,7 +1203,8 @@ impl<K: Kernels> SliceDecoder<'_, K> {
         // more_rbsp_data() (clause 7.2): data remains while the position is
         // below the rbsp_stop_one_bit, and none where no bit is set.
         let stop = stop_bit(rbsp).unwrap_or(0);
-        let mut s = CavlcSyntax::new(Window::at(rbsp, self.hdr.data_bit_offset)?, tier);
+        let mut s =
+            CavlcSyntax::<T, CHROMA>::new(Window::at(rbsp, self.hdr.data_bit_offset)?, tier);
         let mut more = true;
         while more {
             if !st.is_intra() {
@@ -1474,6 +1476,9 @@ impl<K: Kernels> SliceDecoder<'_, K> {
             self.mb.kind = MbKind::I16x16;
             self.mb.i16_mode = ((intra_type - 1) % 4) as u8;
             let chroma = ((intra_type - 1) / 4) % 3;
+            // A monochrome picture's CodedBlockPatternChroma is 0
+            // (clause 7.4.5).
+            require(S::CHROMA || chroma == 0, "mb_type")?;
             let luma = if intra_type >= 13 { 15 } else { 0 };
             self.mb.cbp = (luma | (chroma << 4)) as u8;
         }
@@ -1516,7 +1521,14 @@ impl<K: Kernels> SliceDecoder<'_, K> {
             }
             _ => {}
         }
-        let chroma_mode = s.chroma_pred_mode(self)?;
+        // A monochrome macroblock codes no intra_chroma_pred_mode
+        // (clause 7.3.5.1). DC, 0, predicts its chroma, which is 128 like
+        // every neighbour's (`docs/design/h264.md`, "Monochrome").
+        let chroma_mode = if S::CHROMA {
+            s.chroma_pred_mode(self)?
+        } else {
+            0
+        };
         require(chroma_mode <= 3, "intra_chroma_pred_mode")?;
         self.mb.chroma_mode = chroma_mode;
         self.cur_nb.chroma_mode = chroma_mode;
@@ -1936,7 +1948,7 @@ impl<K: Kernels> SliceDecoder<'_, K> {
     /// orders the instances by symbol name, and this one's falls where the
     /// CAVLC residual's instance was, between those of the CABAC path.
     #[inline(always)]
-    pub(crate) fn residual_cavlc<'w, T: Tier>(
+    pub(crate) fn residual_cavlc<'w, T: Tier, const CHROMA: bool>(
         &mut self,
         tier: T,
         w: Window<'w>,
@@ -1945,7 +1957,7 @@ impl<K: Kernels> SliceDecoder<'_, K> {
         tier.enter(
             #[inline(always)]
             || {
-                let mut s = CavlcSyntax::new(w, tier);
+                let mut s = CavlcSyntax::<T, CHROMA>::new(w, tier);
                 let read = self.parse_residual_cavlc(&mut s);
                 *back = s.w;
                 read

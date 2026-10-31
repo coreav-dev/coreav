@@ -1649,9 +1649,10 @@ On the fixtures, with FFmpeg 9.0.2, they come from what the packets
 themselves print differently (packet durations, which frames take, and
 packet side data), `truncated.mp4` and `nested_10000.mp4`, which
 `-show_packets` rejects too, the track reference stream group `ffprobe` 9
-lists for the timecode track of `timecode.mov`, the damaged H.264 streams, and
-monochrome H.264, which `ffprobe` gives as 4:2:0 and CoreAV's decoder
-does not decode.
+lists for the timecode track of `timecode.mov`, and the damaged H.264 streams.
+Monochrome H.264, which `ffprobe` gives as 4:2:0, is listed natively: the
+decoder gives its pictures as 4:2:0 with neutral chroma
+(`docs/design/h264.md`, "Monochrome").
 
 ## Fallback to FFmpeg
 
