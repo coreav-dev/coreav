@@ -69,9 +69,13 @@ MEDIAINFO_VIDEO = ("Format", "Width", "Height", "Rotation")
 MEDIAINFO_AUDIO = ("Format", "Format_AdditionalFeatures", "SamplingRate", "Channels")
 KD_FILE = pathlib.Path(__file__).resolve().parent.parent / "docs" / "known-divergences-clip.json"
 CHUNK = 4 << 20
-# Decoder threads per ffmpeg run (`CLIP_CHECK_THREADS`), so that parallel
-# checks share the machine; ffmpeg's default otherwise.
+# Decoder threads per ffmpeg video run (`CLIP_CHECK_THREADS`), so that
+# parallel checks share the machine; ffmpeg's default otherwise. Audio
+# decodes on one thread: with frame threads, the pinned ffmpeg's FLAC and
+# ALAC decoders apply a start skip longer than the first frame several
+# frames late, so the decoded samples depend on the thread count.
 THREADS = ["-threads", os.environ["CLIP_CHECK_THREADS"]] if os.environ.get("CLIP_CHECK_THREADS") else []
+AUDIO_THREADS = ["-threads", "1"]
 
 # Results for a source file, shared by its clips: (path, what) -> value.
 # Decoded audio lives in files under WORK, removed by clear_cache().
@@ -186,7 +190,7 @@ def framemd5(ffmpeg, path, index, video=False, raw=False):
     to a frame rate."""
     exact = ["-enc_time_base:v", "demux", "-fps_mode", "passthrough"] if video else []
     ignore = ["-ignore_editlist", "1"] if raw else []
-    out = decode([ffmpeg, "-v", "error", *THREADS, "-copyts", *ignore, "-i", path, "-map", f"0:{index}", *exact,
+    out = decode([ffmpeg, "-v", "error", *(THREADS if video else AUDIO_THREADS), "-copyts", *ignore, "-i", path, "-map", f"0:{index}", *exact,
                   "-f", "framemd5", "-"])
     base, frames = None, []
     for line in out.decode().splitlines():
@@ -214,7 +218,7 @@ def pcm(ffmpeg, path, index, channels, raw=False):
     out = tempfile.mkstemp(suffix=".f32", dir=_work())
     os.close(out[0])
     os.unlink(out[1])
-    decode([ffmpeg, "-v", "error", "-y", *THREADS, "-copyts", *(["-ignore_editlist", "1"] if raw else []),
+    decode([ffmpeg, "-v", "error", "-y", *AUDIO_THREADS, "-copyts", *(["-ignore_editlist", "1"] if raw else []),
             "-i", path, "-map", f"0:{index}", "-c:a", "pcm_f32le", "-f", "f32le", out[1]])
     return spans, channels, out[1]
 
