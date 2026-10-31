@@ -1292,6 +1292,11 @@ output alone, and committed tests before the run. The KD records and
 their scopes freeze at the plan amendment's authoritative commit on
 `main`; the separate tools change cannot add or widen them.
 
+Only `KD-FF9-EMPTY-EDIT-PADDING` may exclude a missing CoreAV padding
+value, under the plan's byte-proven last-sample conditions and exact
+oracle-value check, with every other packet agreeing. Missing values are
+otherwise unexcludable, and the unproven both-present cases stay visible.
+
 Every exclusion must withstand the mutation attacks of
 [`kd-audit.md`](../measurements/kd-audit.md): an injected gating bug must
 remain visible, including when it changes CoreAV's own claimed evidence.

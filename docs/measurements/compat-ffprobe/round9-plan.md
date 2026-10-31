@@ -81,12 +81,23 @@ conditions hold:
    interpretation is not enough.
 2. A predicate validates that reading from the file's bytes. It binds
    the exact differing occurrences to their stream or packet and checks
-   both observed values against the byte-derived readings. CoreAV's own
+   both observed values against the byte-derived readings, except for the
+   single proven-absence case below. CoreAV's own
    output, a file name or a container label alone is not evidence.
    Missing, unsupported or unreadable byte evidence covers nothing.
 3. The predicate and its tests are committed before the run, through the
    separate comparator-and-audit tools change. A prose record alone does
    not activate coverage.
+
+Only `KD-FF9-EMPTY-EDIT-PADDING` may establish a missing CoreAV
+`packets.side_data_list.discard_padding` value as correct. Its registered
+byte predicate must positively prove that the last sample ends at or
+before the media edit's end, derive the exact value printed by the oracle,
+and bind both readings to that same last sample and packet. Every other
+packet must agree. A missing value alone is not proof: an unproven absence,
+a missing oracle value and absence under any other KD remain unexcludable.
+Mutation tests must keep deletions without this byte proof uncovered.
+This case and its predicate must be in scope at the cutoff below.
 
 A row is one file's agreement result for one key, in one container, not
 one occurrence of that key. Exclude it only if every differing occurrence
@@ -113,6 +124,16 @@ documented in [the transport-stream records](../../known-divergences-ts.md).
 Being named here does not grant coverage: each record must be present at
 the cutoff and independently satisfy every condition and audit above.
 The existing `KD-TS-DECODE-TIME` design is not widened by this amendment.
+`KD-FF9-EMPTY-EDIT-PADDING`, documented in
+[the pinned-oracle records](../../known-divergences-ffprobe9.md), is also
+eligible only within its frozen byte-derived scope; its three unproven
+both-present development cases remain disagreements.
+The Matroska/WebM AV1 records `KD-FF9-AV1-DEFAULT-SUFFIX` and
+`KD-FF9-AV1-CHROMA-POSITION` must also land before the cutoff. The first
+follows section 5's SHOULD by omitting the default suffix; the oracle's
+longer form is permitted, not an error. The second concerns an omitted
+suffix that misstates stored `chroma_sample_position` 1 as default 0.
+Each requires its own independent byte predicate and exact string pair.
 
 ### Attack every exclusion
 
