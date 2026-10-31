@@ -423,9 +423,6 @@ R4_REASON_GROUPS = {
     'the first H.264 keyframe has no parameter sets': 'layout',
     'no video sync sample to start from': 'layout',
     'a segment without video': 'layout',
-    'audio selected before the video in a clip, a segment or a join (CoreAV writes the video first)': 'layout',
-    ('cover pictures mapped twice, out of the input\'s order or before a track '
-     '(an MP4 file lists them after its tracks, in its own order)'): 'layout',
 }
 
 
