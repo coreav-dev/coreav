@@ -50,12 +50,12 @@
       "filename_pattern": "*",
       "conditions": {
         "output audio track": "one media edit",
-        "decoded output": "equals, sample for sample, the source's kept audio packets (one ADTS frame per sample, edit lists ignored) decoded from the clip's first kept packet, from the edit's media time on, at that exact sample",
+        "decoded output": "equals, sample for sample, the source's kept audio packets (one raw frame per sample: AAC as ADTS, AC-3 and E-AC-3 as syncframes cut at the source's stored sample sizes; edit lists ignored) decoded from the clip's first kept packet, from the edit's media time on, at that exact sample",
         "kept packets": "from the source's own packet list and times, within one tick: one packet of pre-roll before the first packet presented at the snapped start (a discarded priming packet included; none before the track's first), every packet presented inside the clip, none past the one presented at its end",
         "audio timing": "from the files' own boxes: the kept packets the clip rules name; the edit's media time where the source's edit list presents the clip's start, less the first kept packet's stored decode time, to the nearest tick; decode durations exactly the source's stored ones for the kept samples (its stts, then its fragments' runs)"
       },
       "predicate": "audio_restart",
-      "basis": "ISO/IEC 14496-3 (a decoder's output depends on its state; perceptual noise substitution fills bands with noise the bitstream does not define); the clip keeps one AAC frame of pre-roll"
+      "basis": "ISO/IEC 14496-3 (a decoder's output depends on its state; perceptual noise substitution fills bands with noise the bitstream does not define); ATSC A/52 7.3.4 (AC-3 and E-AC-3 dither mantissas coded with no bits from a generator whose state the bitstream does not define); the clip keeps one frame of pre-roll"
     },
     {
       "id": "KD-C-AAC-PROFILE",
@@ -142,7 +142,7 @@
       "filename_pattern": "*",
       "conditions": {
         "source audio": "stored decode durations of the kept packets that differ from the decoded frames' length (every decoded frame the same length)",
-        "decoded output": "a contiguous run of the source's kept packets (one ADTS frame per sample, edit lists ignored) decoded from the clip's first kept packet, starting within its first two frames",
+        "decoded output": "a contiguous run of the source's kept packets (one raw frame per sample: AAC as ADTS, AC-3 and E-AC-3 as syncframes cut at the source's stored sample sizes; edit lists ignored) decoded from the clip's first kept packet, starting within its first two frames",
         "output audio track": "one media edit",
         "audio timing": "the source's, as for KD-C-AUDIO-RESTART"
       },
@@ -161,7 +161,7 @@
       "filename_pattern": "*",
       "conditions": {
         "output audio track": "one media edit whose media time is not a whole number of frames; a media timescale that divides the decoded sample rate and is smaller than it (HE-AAC with SBR); one decode duration for every kept packet",
-        "decoded output": "equals, sample for sample, the source's kept audio packets (one ADTS frame per sample, edit lists ignored) decoded from the clip's first kept packet, from the position ffmpeg starts at: the whole frames before the media time dropped, and the rest skipped only within the first frame, as that many decoded samples",
+        "decoded output": "equals, sample for sample, the source's kept audio packets (one raw frame per sample: AAC as ADTS, AC-3 and E-AC-3 as syncframes cut at the source's stored sample sizes; edit lists ignored) decoded from the clip's first kept packet, from the position ffmpeg starts at: the whole frames before the media time dropped, and the rest skipped only within the first frame, as that many decoded samples",
         "audio timing": "the source's, as for KD-C-AUDIO-RESTART"
       },
       "predicate": "audio_edit_rate",

@@ -130,7 +130,9 @@ pub mod fuzzing {
             let mut sets = video::ParameterSets::default();
             sets.add(nal, payload);
             let _ = sets.record(nal);
-            let _ = video::keyframe(nal, payload, Some(1));
+            for refs in [Some(1), Some(4), None] {
+                let _ = video::keyframe(nal, payload, refs);
+            }
         }
         let _ = video::mpeg2_size(payload);
         let _ = video::mpeg2_profile(payload);

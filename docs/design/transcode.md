@@ -699,8 +699,9 @@ runners vary in CPU model between jobs, so no claim is made from it.
 
 `coreav ffmpeg` ([`compat-cli.md`](compat-cli.md)) runs the common
 `ffmpeg` command lines of this job through this pipeline: one input, the
-video re-encoded with libx264, the audio copied or dropped, one MP4
-output. The command line is read by the compatibility parser and its
+video re-encoded with libx264, the audio copied, dropped, or (in builds
+with the `libopus` feature) one audio stream encoded with libopus ("Opus
+audio"), one MP4 output. The command line is read by the compatibility parser and its
 stream selection, the same as for `-c copy`; a command that selects a
 video stream for `libx264` is routed here before the refusal of encoder
 values, and every option this section does not list is still refused,
@@ -713,6 +714,8 @@ is refused (exit status 4) and never handed to FFmpeg.
 |---|---|
 | `-c:v`, `-vcodec` (and `-c`/`-codec` with a specifier naming the video) `libx264` | the encoder; the selected video stream must be the one this pipeline encodes (FFmpeg's default choice, "Scope"), and only one |
 | `-c:a`, `-acodec` `copy`, or `-c copy` for the other streams | the selected audio streams copied (`AudioMode::Streams`) |
+| `-c:a`, `-acodec` `libopus` | `--audio opus` for the one selected audio stream ("Opus audio"), beside a video encoded with libx264; refused when other audio is selected beside it, for audio other than FLAC or MP3 (CoreAV decodes only those), for more than two channels (`ffmpeg` writes a surround Opus stream), and without `-c:v libx264`. In a build without the `libopus` feature every `-c:a libopus` line is not native: FFmpeg runs it, or strict-safe mode refuses it and nothing runs |
+| `-b:a RATE` | `--audio-bitrate`: FFmpeg's number syntax, in bits a second, 6k to 510k as libopus takes it; only with `-c:a libopus` |
 | `-an` | no audio |
 | `-crf Q` | `--crf`, 0 to 51, fractions as given |
 | `-b:v RATE` | `--bitrate`: FFmpeg's number syntax (`k`, `M`, a fraction), in bits a second, divided by 1,000 with the remainder dropped as libx264 receives it (`1M` 1,000, `1234567` 1,234 kbit/s, checked on the pinned FFmpeg as a black box); a rate below 1,000 is refused |

@@ -36,13 +36,31 @@ pub(crate) struct Pes {
     /// Offset of the stored packet that starts it.
     pub offset: u64,
     pub header: PesHeader,
-    pub payload: Vec<u8>,
+    /// The bytes read for it: its header and then its payload, or a piece
+    /// of its payload.
+    data: Vec<u8>,
+    /// Where the payload starts in `data`.
+    start: usize,
     /// The adaptation field of its first packet set the random access
     /// indicator.
     pub random_access: bool,
     /// A packet of it was lost (a continuity counter skipped) or repeated
     /// while it was read.
     pub corrupt: bool,
+}
+
+impl Pes {
+    pub(crate) fn payload(&self) -> &[u8] {
+        self.data.get(self.start..).unwrap_or_default()
+    }
+
+    /// The payload, moved out without a copy of its bytes into a new
+    /// buffer.
+    pub(crate) fn into_payload(self) -> Vec<u8> {
+        let mut data = self.data;
+        data.drain(..self.start.min(data.len()));
+        data
+    }
 }
 
 /// Most payload bytes, and PES packets, read to learn the codec of a
@@ -109,15 +127,36 @@ pub(crate) struct ProgramEntry {
 
 struct Builder {
     offset: u64,
+    /// The PES header, when the first transport packet held all of it:
+    /// `data` then holds the payload alone, so that it is handed on as it
+    /// is.
+    header: Option<PesHeader>,
     data: Vec<u8>,
+    /// The room `data` started with, counted in [`Demux::reserved`].
+    room: usize,
     random_access: bool,
     corrupt: bool,
+}
+
+impl Builder {
+    /// Bytes read for the PES packet, its header included.
+    fn held(&self) -> usize {
+        self.header.map_or(0, |pes| pes.header_len) + self.data.len()
+    }
 }
 
 pub(crate) struct Demux {
     allowlist: Allowlist,
     max_packet: usize,
     max_buffered: usize,
+    /// The most room a PES packet's buffer starts with: the bytes held at
+    /// once shared out across the streams, so that what the buffers
+    /// reserve together stays within `max_buffered_bytes`.
+    max_room: usize,
+    /// The room the buffers of `builders` started with, together: never
+    /// more than `max_buffered_bytes`, however many PIDs start a PES
+    /// packet before the tables name the streams.
+    reserved: usize,
     /// Bytes held by `builders`.
     buffered: usize,
     /// The last packet with a payload of each PID, to tell a duplicate.
@@ -171,6 +210,10 @@ pub(crate) struct Demux {
     by_pid: PidMap<usize>,
     sections: PidMap<Assembler>,
     builders: PidMap<Builder>,
+    /// Per PID, the length the longest unit read on it reached: the room
+    /// the next one of no stated length starts with, so that a packet of
+    /// coded video is not copied each time its buffer doubles.
+    sizes: PidMap<usize>,
     /// Per PID, the header of the PES packet in progress once a piece of
     /// it was delivered ([`Demux::pieces`]), its times cleared: what the
     /// later pieces carry. Kept apart from the builders, so that reading
@@ -201,7 +244,7 @@ pub(crate) struct Demux {
     pcrs: PidMap<u64>,
     /// PIDs whose PES packets are reassembled whatever the tables say
     /// (the streams a probe kept), besides those the tables keep.
-    pub always: std::collections::BTreeSet<u16>,
+    pub always: PidMap<()>,
     /// When set, the PES packets of H.264, HEVC, MPEG-1 and MPEG-2 video
     /// streams are delivered in pieces of this many payload bytes as they
     /// arrive, the later pieces with no times, rather than whole once the
@@ -217,6 +260,11 @@ impl Demux {
             allowlist: allowlist.clone(),
             max_packet: usize::try_from(limits.max_packet_bytes).unwrap_or(usize::MAX),
             max_buffered: usize::try_from(limits.max_buffered_bytes).unwrap_or(usize::MAX),
+            max_room: usize::try_from(
+                limits.max_buffered_bytes / u64::from(limits.max_streams.max(1)),
+            )
+            .unwrap_or(usize::MAX),
+            reserved: 0,
             buffered: 0,
             last: PidMap::pids(),
             first_pes: PidMap::streams(limits),
@@ -238,6 +286,7 @@ impl Demux {
             by_pid: PidMap::streams(limits),
             sections: PidMap::pids(),
             builders: PidMap::pids(),
+            sizes: PidMap::pids(),
             continued: PidMap::pids(),
             counters: PidMap::pids(),
             ready: VecDeque::new(),
@@ -246,7 +295,7 @@ impl Demux {
             keep_epg: false,
             keep_splices: false,
             pcrs: PidMap::streams(limits),
-            always: std::collections::BTreeSet::new(),
+            always: PidMap::pids(),
             pieces: None,
         }
     }
@@ -258,6 +307,8 @@ impl Demux {
             allowlist: self.allowlist.clone(),
             max_packet: self.max_packet,
             max_buffered: self.max_buffered,
+            max_room: self.max_room,
+            reserved: 0,
             buffered: 0,
             last: self.last.cleared(),
             first_pes: self.first_pes.cleared(),
@@ -279,6 +330,7 @@ impl Demux {
             by_pid: self.by_pid.clone(),
             sections: self.sections.cleared(),
             builders: self.builders.cleared(),
+            sizes: self.sizes.cleared(),
             continued: self.continued.cleared(),
             counters: self.counters.cleared(),
             ready: VecDeque::new(),
@@ -351,7 +403,8 @@ impl Demux {
             if entry.sniff {
                 let (data, packets) = &mut entry.sniffed;
                 let room = SNIFF_BYTES.saturating_sub(data.len());
-                data.extend_from_slice(pes.payload.get(..room).unwrap_or(&pes.payload));
+                let payload = pes.payload();
+                data.extend_from_slice(payload.get(..room).unwrap_or(payload));
                 *packets = packets.saturating_add(1);
                 let codec = crate::codec::sniff(pes.header.stream_id, data);
                 if codec != Codec::Other || data.len() >= SNIFF_BYTES || *packets >= SNIFF_PACKETS {
@@ -499,7 +552,7 @@ impl Demux {
             .get(&pid)
             .and_then(|&index| self.streams.get(index));
         let sniffing = stream.is_some_and(|s| s.sniff);
-        let wanted = self.always.contains(&pid) || sniffing || stream.is_some_and(|s| s.kept);
+        let wanted = self.always.contains_key(&pid) || sniffing || stream.is_some_and(|s| s.kept);
         if !wanted {
             return Ok(());
         }
@@ -513,26 +566,50 @@ impl Demux {
         }
         if header.unit_start {
             self.complete(pid, warnings);
-            let _ = self.builders.set(
+            let room = match *payload {
+                // Its stated length, and the rest of the transport packet
+                // that completes it, cut off once it is there.
+                [0, 0, 1, _, l0, l1, ..] if u16::from_be_bytes([l0, l1]) > 0 => {
+                    usize::from(u16::from_be_bytes([l0, l1])) + 6 + TS_PACKET
+                }
+                _ => self.sizes.get(&pid).copied().unwrap_or(0),
+            }
+            .min(self.max_room)
+            .min(self.max_buffered.saturating_sub(self.reserved));
+            let started = self.builders.set(
                 pid,
                 Builder {
                     offset,
-                    data: Vec::new(),
+                    header: match pes::parse(payload) {
+                        pes::Parsed::Done(header) => Some(header),
+                        _ => None,
+                    },
+                    data: Vec::with_capacity(room),
+                    room,
                     random_access: header.adaptation.is_some_and(|a| a.random_access),
                     corrupt: false,
                 },
             );
+            if started.is_ok() {
+                self.reserved = self.reserved.saturating_add(room);
+            }
         }
         let Some(builder) = self.builders.get_mut(&pid) else {
             // No unit start seen yet on this PID.
             return Ok(());
         };
-        builder.data.extend_from_slice(payload);
+        let skip = match builder.header {
+            Some(pes) if builder.data.is_empty() && header.unit_start => pes.header_len,
+            _ => 0,
+        };
+        builder
+            .data
+            .extend_from_slice(payload.get(skip..).unwrap_or_default());
         if header.error {
             builder.corrupt = true;
         }
         self.buffered = self.buffered.saturating_add(payload.len());
-        if builder.data.len() > self.max_packet {
+        if builder.held() > self.max_packet {
             return Err(Error::LimitExceeded {
                 limit: LimitKind::PacketBytes,
                 offset,
@@ -547,16 +624,17 @@ impl Demux {
         // A PES packet with a length is complete once that many bytes are
         // there; the rest of the packet is stuffing. (Only a packet of no
         // stated length is long enough to be delivered in pieces.)
-        let declared = match *builder.data.as_slice() {
-            [0, 0, 1, _, l0, l1, ..]
-                if self.pieces.is_none() || !self.continued.contains_key(&pid) =>
-            {
-                usize::from(u16::from_be_bytes([l0, l1]))
+        let opened = self.pieces.is_none() || !self.continued.contains_key(&pid);
+        let declared = match (builder.header, builder.data.as_slice()) {
+            (Some(pes), _) if opened => usize::from(pes.packet_length),
+            (None, [0, 0, 1, _, l0, l1, ..]) if opened => {
+                usize::from(u16::from_be_bytes([*l0, *l1]))
             }
             _ => 0,
         };
-        if declared > 0 && builder.data.len() >= declared + 6 {
-            builder.data.truncate(declared + 6);
+        if declared > 0 && builder.held() >= declared + 6 {
+            let header_len = builder.header.map_or(0, |pes| pes.header_len);
+            builder.data.truncate(declared + 6 - header_len);
             self.complete(pid, warnings);
         } else if let Some(size) = self.pieces {
             self.deliver_pieces(pid, size);
@@ -587,9 +665,10 @@ impl Demux {
         };
         loop {
             let continued = self.continued.get(&pid).copied();
-            let (header, skip) = match continued {
-                Some(header) => (header, 0),
-                None => match pes::parse(&builder.data) {
+            let (header, skip) = match (continued, builder.header) {
+                (Some(header), _) => (header, 0),
+                (None, Some(header)) => (header, 0),
+                (None, None) => match pes::parse(&builder.data) {
                     pes::Parsed::Done(header) => (header, header.header_len),
                     _ => return,
                 },
@@ -602,12 +681,14 @@ impl Demux {
                 pid,
                 offset: builder.offset,
                 header,
-                payload: payload.to_vec(),
+                data: payload.to_vec(),
+                start: 0,
                 random_access: builder.random_access && continued.is_none(),
                 corrupt: builder.corrupt,
             });
             builder.data.drain(..end);
-            self.buffered = self.buffered.saturating_sub(end);
+            let header_len = builder.header.take().map_or(0, |pes| pes.header_len);
+            self.buffered = self.buffered.saturating_sub(end + header_len);
             let _ = self.continued.set(
                 pid,
                 PesHeader {
@@ -641,36 +722,49 @@ impl Demux {
         let Some(builder) = self.builders.remove(&pid) else {
             return;
         };
-        self.buffered = self.buffered.saturating_sub(builder.data.len());
+        self.reserved = self.reserved.saturating_sub(builder.room);
+        let largest = self
+            .sizes
+            .get(&pid)
+            .copied()
+            .unwrap_or(0)
+            .max(builder.held());
+        let _ = self.sizes.set(pid, largest);
+        self.buffered = self.buffered.saturating_sub(builder.held());
         // The last piece of a PES packet delivered in pieces.
         if let Some(header) = self.pieces.and_then(|_| self.continued.remove(&pid)) {
             self.ready.push_back(Pes {
                 pid,
                 offset: builder.offset,
                 header,
-                payload: builder.data,
+                data: builder.data,
+                start: 0,
                 random_access: false,
                 corrupt: builder.corrupt,
             });
             return;
         }
-        match pes::parse(&builder.data) {
+        let parsed = match builder.header {
+            Some(header) => pes::Parsed::Done(header),
+            None => pes::parse(&builder.data),
+        };
+        match parsed {
             pes::Parsed::Done(header) => {
                 let declared = usize::from(header.packet_length);
-                let truncated = declared > 0 && builder.data.len() < declared + 6;
+                let truncated = declared > 0 && builder.held() < declared + 6;
                 if truncated {
                     warn(warnings, Warning::TruncatedPes { pid });
                 }
-                let payload = builder
-                    .data
-                    .get(header.header_len..)
-                    .unwrap_or_default()
-                    .to_vec();
                 self.ready.push_back(Pes {
                     pid,
                     offset: builder.offset,
                     header,
-                    payload,
+                    start: if builder.header.is_some() {
+                        0
+                    } else {
+                        header.header_len
+                    },
+                    data: builder.data,
                     random_access: builder.random_access,
                     corrupt: builder.corrupt || truncated,
                 });

@@ -67,6 +67,9 @@ pub enum Codec {
     /// `libx264`: the video re-encoded (`docs/design/transcode.md`,
     /// "Through `coreav ffmpeg`").
     Libx264,
+    /// `libopus`: one audio stream encoded to Opus beside the re-encoded
+    /// video (`docs/design/transcode.md`, "Opus audio").
+    Libopus,
 }
 
 /// The encoder options of a command that encodes with `libx264`, as given;
@@ -88,6 +91,8 @@ pub struct Encoding {
     pub size: Option<String>,
     /// `-pix_fmt`.
     pub pixel_format: Option<String>,
+    /// `-b:a`, with `libopus`.
+    pub audio_bitrate: Option<String>,
     /// `-fps_mode` or `-vsync`: `passthrough` (or `0`).
     pub passthrough: bool,
 }
@@ -170,7 +175,7 @@ const GLOBAL: [(&str, Arity); 6] = [
 ];
 
 /// Options that apply to the next file named, codec options aside.
-const PER_FILE: [(&str, Arity); 27] = [
+const PER_FILE: [(&str, Arity); 28] = [
     ("-ss", Arity::Value),
     ("-t", Arity::Value),
     ("-to", Arity::Value),
@@ -191,6 +196,7 @@ const PER_FILE: [(&str, Arity); 27] = [
     ("-noautorotate", Arity::Flag),
     ("-crf", Arity::Value),
     ("-b:v", Arity::Value),
+    ("-b:a", Arity::Value),
     ("-preset", Arity::Value),
     ("-vf", Arity::Value),
     ("-filter:v", Arity::Value),
@@ -554,17 +560,19 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
     let mut segment_format = None;
     let mut segment_time = None;
     let mut encoders = Vec::new();
+    let mut audio_encoders = Vec::new();
     for (option, value) in output_options {
         let text = value.unwrap_or_default();
         if let Some(spec) = codec_option(option) {
             let codec = match text {
                 "copy" => Codec::Copy,
                 "libx264" => Codec::Libx264,
+                "libopus" => Codec::Libopus,
                 _ => {
                     return Err(not_native(
                         option,
                         Some(text),
-                        "coreav ffmpeg copies streams (-c copy) and encodes only video, with libx264",
+                        "coreav ffmpeg copies streams (-c copy) and encodes video with libx264 and audio with libopus",
                     ));
                 }
             };
@@ -580,6 +588,7 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             "-vf" | "-filter:v" => encoding.filter = value,
             "-s" => encoding.size = value,
             "-pix_fmt" => encoding.pixel_format = value,
+            "-b:a" => encoding.audio_bitrate = value,
             "-fps_mode" | "-vsync" => {
                 if !matches!(text, "passthrough") && !(option == "-vsync" && text == "0") {
                     return Err(not_native(
@@ -605,6 +614,10 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
                 | "-vsync"
         ) {
             encoders.push(option);
+            continue;
+        }
+        if option == "-b:a" {
+            audio_encoders.push(option);
             continue;
         }
         match option {
@@ -674,7 +687,16 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
         return Err(not_native(
             option,
             None,
-            "it is an encoder option, and coreav ffmpeg encodes only with -c:v libx264",
+            "it is an encoder option, and coreav ffmpeg encodes video only with -c:v libx264",
+        ));
+    }
+    if let Some(option) = audio_encoders.first()
+        && !command.codecs.iter().any(|(_, c)| *c == Codec::Libopus)
+    {
+        return Err(not_native(
+            option,
+            None,
+            "it is an audio encoder option, and coreav ffmpeg encodes audio only with -c:a libopus",
         ));
     }
     command.muxer = muxer(format, output)?;
@@ -1049,8 +1071,29 @@ mod tests {
                 size: text("640x360"),
                 pixel_format: text("yuv420p"),
                 passthrough: true,
+                audio_bitrate: None,
             }
         );
+    }
+
+    #[test]
+    fn libopus_and_its_bit_rate() {
+        let c = parse(&args(
+            "-i in.mkv -c:v libx264 -c:a libopus -b:a 128k out.mp4",
+        ))
+        .unwrap();
+        assert_eq!(
+            c.codecs,
+            vec![
+                (Spec::Kind(Kind2::Video, None), Codec::Libx264),
+                (Spec::Kind(Kind2::Audio, None), Codec::Libopus)
+            ]
+        );
+        assert_eq!(c.encoding.audio_bitrate.as_deref(), Some("128k"));
+        assert!(matches!(
+            parse(&args("-i in.mkv -c:v libx264 -b:a 128k out.mp4")),
+            Err(Refusal::NotNative(_))
+        ));
     }
 
     #[test]

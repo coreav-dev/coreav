@@ -62,8 +62,10 @@ if [ -n "${musl:-}" ]; then
 fi
 work="$(mktemp -d "${TMPDIR:-/tmp}/coreav-codecs.XXXXXX")"
 trap 'rm -rf "$work"' EXIT
+# Every failed attempt is retried, a TLS handshake the host drops included:
+# the SHA-256 below decides which bytes are used either way.
 fetch() {
-  curl -sSfL --retry 5 --retry-connrefused -o "$work/$3" "$1"
+  curl -sSfL --retry 5 --retry-all-errors --retry-delay 10 -o "$work/$3" "$1"
   if command -v sha256sum > /dev/null; then sum=(sha256sum); else sum=(shasum -a 256); fi
   echo "$2  $work/$3" | "${sum[@]}" -c - > /dev/null
   mkdir -p "$work/src/$3"

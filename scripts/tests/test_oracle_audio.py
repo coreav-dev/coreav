@@ -36,7 +36,7 @@ class AudioOracle(unittest.TestCase):
 
     def test_lint_rejects_the_old_clip_hls_and_join_commands(self):
         for rel in ('scripts/clip_check.py', 'scripts/extract_check.py', 'scripts/mkv_remux_check.py', 'scripts/hls_check.py', 'scripts/join_check.py',
-                    'scripts/decode_audio_check.py', 'scripts/aac_agreement.py'):
+                    'scripts/decode_audio_check.py', 'scripts/aac_agreement.py', 'scripts/audio_copy_check.py'):
             old = (ROOT / rel).read_text().replace('*AUDIO_DECODE_INPUT, ', '')
             found = list(oracle_audio.python_problems(old, rel))
             self.assertTrue(found, rel)
@@ -48,7 +48,8 @@ class AudioOracle(unittest.TestCase):
                 "[ffmpeg, *AUDIO_DECODE_INPUT, '-i', source, '-i', other, '-f', 'f32le', '-']",
                 "[ffmpeg, '-i', source, '-c:v', 'copy', '-f', 'f32le', '-']",
                 "[ffmpeg, '-i', source, '-c', 'copy', '-c:a', 'pcm_f32le', '-f', 'f32le', '-']",
-                "[ffmpeg, '-i', source, '-f', 'framemd5', '-']"):
+                "[ffmpeg, '-i', source, '-f', 'framemd5', '-']",
+                "[ffmpeg, '-i', source, '-map', '0:a:0', '-f', 'md5', '-']"):
             text = 'from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT\ndef compare():\n    run(' + command + ')'
             self.assertTrue(list(oracle_audio.python_problems(text, 'tools/new.py')))
 
@@ -125,7 +126,7 @@ class AudioOracle(unittest.TestCase):
 
     def test_every_python_audio_input_places_shared_options_last(self):
         for rel in ('scripts/clip_check.py', 'scripts/extract_check.py', 'scripts/mkv_remux_check.py', 'scripts/hls_check.py', 'scripts/join_check.py',
-                    'scripts/decode_audio_check.py', 'scripts/aac_agreement.py'):
+                    'scripts/decode_audio_check.py', 'scripts/aac_agreement.py', 'scripts/audio_copy_check.py'):
             for seq in ast.walk(ast.parse((ROOT / rel).read_text())):
                 if not isinstance(seq, ast.List):
                     continue

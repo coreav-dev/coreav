@@ -211,12 +211,12 @@ fn a_concat_list_is_joined() {
 }
 
 /// A join copies the audio stream `ffmpeg` selects or refuses the
-/// command: FLAC, which the join does not copy, is refused (exit status 4),
+/// command: AMR, which the join does not copy, is refused (exit status 4),
 /// never left out of an output written without it.
 #[test]
 fn a_join_refuses_audio_it_does_not_copy() {
-    let dir = scratch("ffmpeg-concat-flac");
-    std::fs::write(dir.join("in.mp4"), av_movie(b"fLaC")).unwrap();
+    let dir = scratch("ffmpeg-concat-amr");
+    std::fs::write(dir.join("in.mp4"), av_movie(b"samr")).unwrap();
     let list = dir.join("list.txt");
     std::fs::write(&list, "file in.mp4\nfile in.mp4\n").unwrap();
     let output = dir.join("out.mp4");

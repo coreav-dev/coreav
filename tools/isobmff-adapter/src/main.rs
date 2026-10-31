@@ -189,6 +189,9 @@ fn codec_name(track: &Track) -> Option<String> {
             Codec::Mp3 => "mp3",
             Codec::Opus => "opus",
             Codec::Flac => "flac",
+            Codec::Alac => "alac",
+            Codec::Ac3 => "ac3",
+            Codec::Eac3 => "eac3",
             Codec::TimedText => "mov_text",
             Codec::Pcm => {
                 let pcm = d.pcm?;

@@ -413,7 +413,8 @@ def evaluate(policy, doc):
 
 CODECS = {
     'h264': 'h264', 'hevc': 'hevc', 'av1': 'av1', 'vp9': 'vp9', 'prores': 'prores',
-    'aac': 'aac', 'mp3': 'mp3', 'opus': 'opus', 'mov_text': 'timed_text',
+    'aac': 'aac', 'mp3': 'mp3', 'opus': 'opus', 'flac': 'flac', 'alac': 'alac', 'ac3': 'ac3',
+    'eac3': 'eac3', 'mov_text': 'timed_text',
 }
 # The sample entry types behind each CoreAV codec name: ffprobe's codec counts only with one of these tags, so that, for
 # example, mu-law (`ulaw`, pcm_mulaw) is not linear PCM and QuickTime text
@@ -422,7 +423,8 @@ CODECS = {
 TAGS = {
     'h264': {'avc1', 'avc3'}, 'hevc': {'hvc1', 'hev1'}, 'av1': {'av01'}, 'vp9': {'vp09'},
     'prores': {'apco', 'apcs', 'apcn', 'apch', 'ap4h', 'ap4x'}, 'aac': {'mp4a'},
-    'mp3': {'mp4a', '.mp3'}, 'opus': {'Opus'}, 'timed_text': {'tx3g'}, 'timecode': {'tmcd'},
+    'mp3': {'mp4a', '.mp3'}, 'opus': {'Opus'}, 'flac': {'fLaC'}, 'alac': {'alac'},
+    'ac3': {'ac-3'}, 'eac3': {'ec-3'}, 'timed_text': {'tx3g'}, 'timecode': {'tmcd'},
     'pcm': {'sowt', 'twos', 'in24', 'in32', 'fl32', 'fl64', 'lpcm', 'ipcm', 'fpcm', 'raw '},
 }
 

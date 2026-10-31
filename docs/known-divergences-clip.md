@@ -66,13 +66,19 @@ file names. Probe divergences are listed in
   its start. Example: the fixtures' AAC is encoded with perceptual noise
   substitution, whose noise depends on the decoder's state: a clip of
   `basic.mp4` from 1 s differs by at most 5.7e-4 throughout, while the same
-  clip of an AAC encoding without it is bit-exact.
+  clip of an AAC encoding without it is bit-exact. AC-3 and E-AC-3 differ
+  the same way: a clip of `codec_ac3_51.mp4` from 0.6 s differs in 20096
+  samples.
 - Why: ISO/IEC 14496-3 (a decoder's output depends on its state; the noise
-  of perceptual noise substitution is not defined by the bitstream); the
-  clip keeps one frame of pre-roll.
+  of perceptual noise substitution is not defined by the bitstream); ATSC
+  A/52 7.3.4 (AC-3 and E-AC-3 dither mantissas coded with no bits
+  from a generator whose state the bitstream does not define); the clip
+  keeps one frame of pre-roll.
 - Coverage requires: one media edit on the output's audio; the output's
   decoded samples equal to the source's kept packets, extracted by `ffmpeg`
-  as ADTS frames (one per sample, edit lists ignored) and decoded from the
+  in their raw format (one frame per sample: AAC as ADTS, AC-3 and E-AC-3
+  as syncframes cut at the source's stored sample sizes; edit lists
+  ignored) and decoded from the
   first kept packet, at exactly the edit's media time; and the kept packets
   the ones the clip rules name, judged from the source's own packet list and
   times (within one tick): one packet of pre-roll before the first packet
@@ -230,7 +236,8 @@ file names. Probe divergences are listed in
   is not a whole number of the kept packets' one decode duration; a decoded
   sample rate that is a multiple, above one, of the media timescale; and
   the output's decoded samples equal to the source's kept packets,
-  extracted by `ffmpeg` as ADTS frames (one per sample, edit lists ignored)
+  extracted by `ffmpeg` in their raw format (one frame per sample, as for
+  KD-C-AUDIO-RESTART; edit lists ignored)
   and decoded from the first kept packet, at exactly the position that rule
   gives; and the clip's audio timing the source's, as for
   KD-C-AUDIO-RESTART (the kept packets, the edit's media time and the
