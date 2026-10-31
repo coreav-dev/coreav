@@ -665,6 +665,10 @@ default, 32 and 128 kbit/s), 18 inputs:
 | S5 | noise bursts at a syllable rate (4 Hz), mono, 48 kHz, MP3 at 192 kbit/s | Matroska |
 | S6 | 1 kHz sine, stereo, 44.1 kHz, FLAC | MP4 |
 
+`ci.yml`'s `check` job makes the six sources with the oracle FFmpeg, a
+second each, on every run (`scripts/tests/test_bar_sources.py`), so a
+source it cannot make fails there and not in a judged run.
+
 1. **O1, decodes.** The oracle FFmpeg decodes the audio of every CoreAV
    output (`-v error -map 0:a -f null -`) with exit status 0 and no message:
    18 of 18.

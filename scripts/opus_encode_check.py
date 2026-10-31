@@ -27,25 +27,36 @@ import sys
 import time
 
 DURATION = 10
-VIDEO = ['-f', 'lavfi', '-i', f'testsrc2=size=160x120:rate=25:duration={DURATION}']
-# The comma inside the expression is escaped: a filter graph splits filters at
-# a bare one.
-SWEEP = f'0.5*sin(2*PI*50*{DURATION}/log(300)*(pow(300\\,t/{DURATION})-1))'
-SOURCES = [
-    # name, audio input, audio options, container, judged on O4
-    ('S1', f'sine=frequency=440:sample_rate=48000:duration={DURATION}',
-     ['-ac', '1', '-c:a', 'flac'], 'mp4', True),
-    ('S2', f'aevalsrc=0.5*sin(2*PI*440*t)|0.5*sin(2*PI*660*t):s=48000:c=stereo:d={DURATION}',
-     ['-c:a', 'flac'], 'mp4', True),
-    ('S3', f'aevalsrc={SWEEP}|{SWEEP}:s=48000:c=stereo:d={DURATION}',
-     ['-c:a', 'flac'], 'mkv', True),
-    ('S4', f'anoisesrc=color=pink:sample_rate=48000:amplitude=0.3:seed=1:duration={DURATION}',
-     ['-ac', '2', '-c:a', 'flac'], 'mp4', False),
-    ('S5', f'aevalsrc=(random(0)*2-1)*0.5*(0.5+0.5*sin(2*PI*4*t)):s=48000:c=mono:d={DURATION}',
-     ['-c:a', 'libmp3lame', '-b:a', '192k'], 'mkv', False),
-    ('S6', f'sine=frequency=1000:sample_rate=44100:duration={DURATION}',
-     ['-ac', '2', '-c:a', 'flac'], 'mp4', False),
-]
+
+
+def video(duration):
+    return ['-f', 'lavfi', '-i', f'testsrc2=size=160x120:rate=25:duration={duration}']
+
+
+def sources(duration):
+    """The set, each source `duration` seconds long: name, audio input,
+    audio options, container, and whether O4 judges it."""
+    # The comma inside the expression is escaped: a filter graph splits
+    # filters at a bare one.
+    sweep = f'0.5*sin(2*PI*50*{duration}/log(300)*(pow(300\\,t/{duration})-1))'
+    return [
+        # name, audio input, audio options, container, judged on O4
+        ('S1', f'sine=frequency=440:sample_rate=48000:duration={duration}',
+         ['-ac', '1', '-c:a', 'flac'], 'mp4', True),
+        ('S2', f'aevalsrc=0.5*sin(2*PI*440*t)|0.5*sin(2*PI*660*t):s=48000:c=stereo:d={duration}',
+         ['-c:a', 'flac'], 'mp4', True),
+        ('S3', f'aevalsrc={sweep}|{sweep}:s=48000:c=stereo:d={duration}',
+         ['-c:a', 'flac'], 'mkv', True),
+        ('S4', f'anoisesrc=color=pink:sample_rate=48000:amplitude=0.3:seed=1:duration={duration}',
+         ['-ac', '2', '-c:a', 'flac'], 'mp4', False),
+        ('S5', f'aevalsrc=(random(0)*2-1)*0.5*(0.5+0.5*sin(2*PI*4*t)):s=48000:c=mono:d={duration}',
+         ['-c:a', 'libmp3lame', '-b:a', '192k'], 'mkv', False),
+        ('S6', f'sine=frequency=1000:sample_rate=44100:duration={duration}',
+         ['-ac', '2', '-c:a', 'flac'], 'mp4', False),
+    ]
+
+
+SOURCES = sources(DURATION)
 RATES = [None, 32, 128]
 RUNS = 3
 CODECS = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, 'packages', 'cli', 'scripts',
@@ -79,11 +90,11 @@ def arms(coreav, ffmpeg, source, ours, theirs, rate):
     return ours_args, theirs_args + [theirs]
 
 
-def make_sources(ffmpeg, work):
+def make_sources(ffmpeg, work, duration=DURATION):
     paths = {}
-    for name, audio, options, container, _ in SOURCES:
+    for name, audio, options, container, _ in sources(duration):
         path = os.path.join(work, f'{name}.{container}')
-        done = run([ffmpeg, '-nostdin', '-v', 'error', '-y', *VIDEO, '-f', 'lavfi', '-i', audio,
+        done = run([ffmpeg, '-nostdin', '-v', 'error', '-y', *video(duration), '-f', 'lavfi', '-i', audio,
                     '-c:v', 'libx264', '-pix_fmt', 'yuv420p', *options, path])
         if done.returncode != 0:
             sys.stderr.write(f'cannot make {name}: {done.stderr.decode(errors="replace")}\n')
