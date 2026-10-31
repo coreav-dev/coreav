@@ -141,3 +141,25 @@ file names. Probe divergences are listed in
   as `KD-AAC-LC-UNNAMED`.
 - Coverage requires: `aac` on both sides, no source profile, output `LC`.
   The coreav round trip compares the configuration bytes separately.
+
+## KD-X-SBR-TIMESCALE
+
+- Fields: stream `time_base`, `start_pts` and `duration_ts`, and the
+  packet times.
+- When: an HE-AAC source whose media timescale is its core's rate (22,050
+  for a stream decoded at 44,100, say): the output is written at the
+  decoded rate (`docs/design/edit-list-writers.md`, "HE-AAC timescale").
+- What each reports: `ffprobe` gives each file's media timescale as its
+  time base, so every time of the output is the source's times a whole
+  number (2 for SBR's doubled rate); the times in seconds, the packets and
+  the decoded audio are the same.
+- Why: ISO/IEC 14496-12 12.2.3.3 (an audio timescale matches the sampling
+  rate or is an integer multiple of it); ISO/IEC 14496-3 1.6.5.2 (an HE-AAC
+  decoder outputs SBR's rate). The box checks verify the multiplied
+  durations themselves (`writer_boxes.sbr_scale`).
+- Coverage requires: `ffprobe`'s sample rate for the source (the decoded
+  rate) equal to the output's media timescale and sample rate, and a whole
+  multiple above 1 of the source's media timescale; time bases of one over
+  each file's media timescale; the output's start, duration and every
+  packet's times equal to the source's times that multiple, with the same
+  packet hashes and sizes.

@@ -593,6 +593,36 @@ def profile_unnamed(field, c):
             and c["source_stream"].get("codec_name") == c["output_stream"].get("codec_name") == "aac")
 
 
+def sbr_timescale(field, c):
+    """KD-X-SBR-TIMESCALE."""
+    if field not in ("stream:time_base", "stream:start_pts", "stream:duration_ts", "packets"):
+        return False
+    ss, os_ = c["source_stream"], c["output_stream"]
+    try:
+        rate = int(ss["sample_rate"])
+        src_ts = c["source_trak"]["mdhd"][0]
+        out_ts = c["output_headers"]["traks"][0]["mdhd"][0]
+    except (KeyError, TypeError, ValueError, IndexError):
+        return False
+    if (out_ts != rate or os_.get("sample_rate") != ss["sample_rate"] or not src_ts or rate % src_ts
+            or rate // src_ts < 2):
+        return False
+    scale = rate // src_ts
+    if ss.get("time_base") != f"1/{src_ts}" or os_.get("time_base") != f"1/{rate}":
+        return False
+    if field == "stream:time_base":
+        return True
+    if field in ("stream:start_pts", "stream:duration_ts"):
+        key = field.split(":")[1]
+        return isinstance(ss.get(key), int) and os_.get(key) == ss[key] * scale
+    a, b = c["source_packets"], c["output_packets"]
+    return bool(a) and len(a) == len(b) and all(
+        x.get("data_hash") == y.get("data_hash") and x.get("size") == y.get("size")
+        and isinstance(x.get("pts"), int) and isinstance(x.get("dts"), int)
+        and y.get("pts") == x["pts"] * scale and y.get("dts") == x["dts"] * scale
+        for x, y in zip(a, b))
+
+
 PREDICATES = {
     "tkhd_follows_edits": tkhd_follows_edits,
     "edit_discard": edit_discard,
@@ -601,6 +631,7 @@ PREDICATES = {
     "gapless_conflict": gapless_conflict,
     "fragment_last_frame": fragment_last_frame,
     "profile_unnamed": profile_unnamed,
+    "sbr_timescale": sbr_timescale,
 }
 
 

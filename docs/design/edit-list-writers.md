@@ -791,7 +791,7 @@ edited MP4 out of such a source.
 ## M4A extraction
 
 Extraction copies every sample of one AAC track into a plain MP4, in order,
-keeping the source's media timescale, sample durations and movie timescale. Nothing is cut and no timescale is chosen, so a list
+keeping the source's media timescale, sample durations and movie timescale (an HE-AAC track whose media timescale divides its decoded rate is written at that rate, every media duration and media time multiplied alike: "HE-AAC timescale" below). Nothing is cut and no timescale is chosen, so a list
 of several media edits needs no mapping: the output carries the source's
 entries.
 
@@ -894,6 +894,49 @@ measurement: 0.0725 of FFmpeg's time on that file, 0.0969 to 0.1455 on
 three sources with a simple edit, all four faster than FFmpeg, and
 within 0.4 ms of `main` on the three it also accepts, whose outputs are
 byte identical.
+
+### HE-AAC timescale
+
+An HE-AAC decoder outputs SBR's rate, not the core's (ISO/IEC 14496-3
+1.6.5.2, table 1.22): the extension frequency an explicit signal in the
+`AudioSpecificConfig` gives, or, with implicit signalling (SBR data only
+in the frames), twice the core frequency. Encoders often store such a
+track with the core's rate as its media timescale and sample entry rate
+(22,050 for a stream decoded at 44,100), so a tick is two decoded samples.
+ISO/IEC 14496-12 12.2.3.3 asks for an audio timescale that matches the
+sampling rate or is an integer multiple of it, to enable sample-accurate
+timing, and for a sample entry rate that documents the default output.
+
+Decision: when the source's media timescale divides the decoded rate, the
+extraction writes the decoded rate as the media timescale and every media
+duration and media time (sample durations, the media header's duration,
+each edit's media time) multiplied by the same whole number, so every
+instant is the source's; the sample entry states the decoded rate whenever
+SBR is found. The movie timescale and the edits' durations stay the
+source's. SBR is found from the configuration (`Profile::Aac` with `sbr`),
+or, for an AAC LC configuration of at most 24 kHz (the rates implicit
+signalling can double), from its first frames. One frame ending with an
+SBR fill element (`aac_ends_with_sbr`, which moves from the CLI's MPEG-TS
+listing to `coreav-isobmff`) is not enough: a plain frame read from its
+end shows what looks like SBR data now and then (6 of 96 low-rate AAC LC
+files of the pinned `ffmpeg`'s own encoder had such a frame among their
+first eight, black box), while an HE-AAC stream carries SBR data in every
+frame. So the extraction counts the first 16 frames and takes SBR as
+found only when at most two of them disagree (`aac_sbr_found`, the rule
+the MPEG-TS listing already used, now shared). A stream whose first one
+or two frames carry no SBR data and the rest do is taken as HE-AAC too,
+where the pinned `ffmpeg` keeps the core's rate (black box, crafted
+streams; from the fourth frame on, neither scales). An `iTunSMPB` item is still
+checked against the source's ticks, and the edit it gives is multiplied.
+The JSON summary (`coreav.extract-audio/1`) keeps reporting the source's
+timescale and durations.
+
+The pinned `ffmpeg` 9.0.2 writes the decoded rate as its output's media
+timescale and sample entry rate for every HE-AAC input it was given (black
+box: 46 inputs with 16, 22.05 and 24 kHz cores, implicit, backward
+compatible and hierarchical signalling, with and without parametric
+stereo), and multiplies the sample durations, the media duration and the
+edit's media time the same way.
 
 ## `coreav-text` timing
 

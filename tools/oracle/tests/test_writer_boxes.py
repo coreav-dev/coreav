@@ -205,6 +205,36 @@ class CopyChanges(unittest.TestCase):
                 wb.forget()
                 self.assertNotEqual(wb.check_copy(str(src), str(bad), [1], 'extract'), [], name)
 
+    def test_he_aac_extraction_at_the_decoded_rate(self):
+        """An extracted HE-AAC track may be written at twice its core rate,
+        every duration doubled; a half-scaled copy, and the same for AAC
+        LC at 44.1 kHz, are problems."""
+        # LC at 22.05 kHz (implicit SBR possible), then LC at 44.1 kHz.
+        for config, core, allowed in ((bytes([0x13, 0x90]), 22050, True), (asc(), 44100, False)):
+            with tempfile.TemporaryDirectory() as tmp:
+                src, out = pathlib.Path(tmp) / 'src.mp4', pathlib.Path(tmp) / 'out.m4a'
+                frames = [(bytes([i]) * 9, 1024, 0, True) for i in range(4)]
+                build(src, [track(b'soun', core, mp4a(rate=core, config=config), frames)])
+                doubled = [(b, d * 2, c, s) for b, d, c, s in frames]
+                # Without an edit list, the media duration in movie ticks, rounded.
+                tkhd = round(Fraction(4096 * 1000, core))
+                # (88.2 kHz does not fit the entry's 16.16 rate.)
+                rate = core * 2 if allowed else core
+                build(out, [track(b'soun', core * 2, mp4a(rate=rate, config=config), doubled, tkhd=tkhd)])
+                wb.forget()
+                problems = wb.check_copy(str(src), str(out), [0], 'extract')
+                self.assertEqual(problems == [], allowed, problems)
+                if not allowed:
+                    continue
+                # Durations left at the core rate, or the entry's rate left
+                # at the core's, are problems.
+                build(out, [track(b'soun', core * 2, mp4a(rate=core * 2, config=config), frames, tkhd=tkhd)])
+                wb.forget()
+                self.assertTrue(wb.check_copy(str(src), str(out), [0], 'extract'))
+                build(out, [track(b'soun', core * 2, mp4a(rate=core, config=config), doubled, tkhd=tkhd)])
+                wb.forget()
+                self.assertTrue(wb.check_copy(str(src), str(out), [0], 'extract'))
+
     def test_a_sample_outside_the_edit(self):
         """A sample no edit presents is still compared."""
         with tempfile.TemporaryDirectory() as tmp:
