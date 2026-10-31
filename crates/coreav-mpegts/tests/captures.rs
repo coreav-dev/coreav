@@ -749,7 +749,7 @@ fn as_ffprobe_a_unit_is_listed_once_the_next_one_starts() {
         .listing_as_ffprobe()
         .map(|p| {
             let p = p.unwrap();
-            (ts.streams[p.stream].pid, p.pts, p.fed.is_some())
+            (ts.streams[p.stream].pid, p.pts, p.stream_id.is_some())
         })
         .collect();
     assert_eq!(
@@ -759,8 +759,8 @@ fn as_ffprobe_a_unit_is_listed_once_the_next_one_starts() {
             (0x101, None, true),
             (0x102, Some(90_000), true),
             // The end of the file finishes the last units.
-            (0x101, Some(97_200), false),
-            (0x102, Some(93_600), false),
+            (0x101, Some(97_200), true),
+            (0x102, Some(93_600), true),
         ]
     );
 }
@@ -800,6 +800,28 @@ fn as_ffprobe_a_long_pes_packet_is_read_in_pieces() {
             (0x101, Some(100_800), listed.last().and_then(|l| l.2)),
         ]
     );
+}
+
+#[test]
+fn every_picture_keeps_the_identifier_of_its_own_pes_packet() {
+    let mut mux = Mux::default();
+    mux.pat(&[(1, 0x1000)]);
+    mux.pmt(0x1000, 1, &[(0x1b, 0x101)]);
+    let pair = [picture(None, 120), picture(None, 120)].concat();
+    mux.pes(0x101, 0xe0, 90_000, &pair, false);
+    mux.pes(0x101, 0xe1, 97_200, &picture(None, 120), false);
+    let ts = probe(
+        SliceSource::new(&mux.out),
+        &Limits::default(),
+        &Allowlist::all(),
+    )
+    .unwrap();
+    let ids: Vec<_> = ts
+        .packets(SliceSource::new(&mux.out), &Limits::default())
+        .listing_as_ffprobe()
+        .map(|p| p.unwrap().stream_id)
+        .collect();
+    assert_eq!(ids, [Some(0xe0), Some(0xe0), Some(0xe1)]);
 }
 
 #[test]

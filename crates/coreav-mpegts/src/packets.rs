@@ -48,14 +48,9 @@ pub struct Packet {
     /// A transport packet of the PES packet whose reading released this
     /// unit was lost, repeated or flagged as in error.
     pub corrupt: bool,
-    /// The `stream_id` of the PES packet whose reading released this
-    /// unit, when it is the first unit of its stream that reading
-    /// released. A unit is released once the bytes after it show where it
-    /// ends, commonly the start of the next unit in the next PES packet,
-    /// so a unit is often released by the PES packet after its own.
-    /// `None` for the later units of one reading, and for the units only
-    /// the end of the file released.
-    pub fed: Option<u8>,
+    /// The PES `stream_id`, including on later units of a PES packet and
+    /// on units completed by the end of the file.
+    pub stream_id: Option<u8>,
     /// An audio frame whose header an earlier PES packet held whole, and
     /// whose last bytes a later one gave (a frame cut inside its header
     /// is read again from its start, once whole, and is not).
@@ -66,6 +61,7 @@ pub struct Packet {
 /// packet, and the timeline of its frames.
 #[derive(Default)]
 struct Frames {
+    stream_id: Option<u8>,
     leftover: Vec<u8>,
     /// The length of the frame `leftover` starts, once its header was
     /// read: bytes are appended until it is whole, without reading it
@@ -161,13 +157,8 @@ struct Au {
     pos: Option<u64>,
     pes_offset: u64,
     random_access: bool,
-    /// The `stream_id` of the PES packet whose reading finished the unit,
-    /// when it is the first unit that reading finished ([`Packet::fed`]):
-    /// two fields of a frame in one PES packet are finished by two
-    /// readings, the first by its own and the second by the next. Set only
-    /// in the listing as `ffprobe` gives it, where units are listed as they
-    /// are finished rather than as runs.
-    fed: Option<u8>,
+    /// The identifier of the PES packet where the unit starts.
+    stream_id: Option<u8>,
 }
 
 /// An access unit being read: what it takes from its PES packet, and the
@@ -471,8 +462,6 @@ impl<S: Source> Packets<'_, S> {
     ///   the first one of a PES packet take no time and no position, rather
     ///   than dividing the step to the next stated time between them as a
     ///   run (MPEG video is otherwise listed a PES packet at a time);
-    ///   [`Packet::fed`] is the stream id of the PES packet whose reading
-    ///   finished the unit;
     /// - the bytes before an audio stream's first frame header, over as
     ///   many PES packets as hold none, take the time and position of the
     ///   PES packet they began in, and are a packet of their own (AC-3,
@@ -582,7 +571,7 @@ impl<S: Source> Packets<'_, S> {
             let Some((offset, packet)) = self.reader.next(&mut self.source, &mut self.warnings)?
             else {
                 self.demux.finish(&mut self.warnings);
-                self.drain_at_end()?;
+                self.drain()?;
                 self.flush_leftovers();
                 self.done = true;
                 return Ok(());
@@ -596,33 +585,6 @@ impl<S: Source> Packets<'_, S> {
             }
             self.demux.feed(offset, &packet, &mut self.warnings)?;
             self.drain()?;
-        }
-        Ok(())
-    }
-
-    /// Drains the PES packets the end of the file closed. In the listing
-    /// as `ffprobe` gives it, the last PES packet of a video stream listed
-    /// whole (MPEG-4 Visual, for one), which only the end of the file
-    /// completes, carries no stream id ([`Packet::fed`]): a capture of the
-    /// corpus and streams crafted by `ffmpeg`. The units of H.264, HEVC,
-    /// MPEG-1 and MPEG-2 video are listed as they are cut out of the PES
-    /// packets, and take theirs as the rest of the listing does.
-    fn drain_at_end(&mut self) -> Result<(), Error> {
-        let before = self.queue.len();
-        self.drain()?;
-        if self.as_ffprobe {
-            for packet in self.queue.iter_mut().skip(before) {
-                let whole = self.streams.get(packet.stream).is_some_and(|s| {
-                    s.kind == StreamKind::Video
-                        && !matches!(
-                            s.codec,
-                            Codec::H264 | Codec::Hevc | Codec::Mpeg1Video | Codec::Mpeg2Video
-                        )
-                });
-                if whole {
-                    packet.fed = None;
-                }
-            }
         }
         Ok(())
     }
@@ -665,7 +627,7 @@ impl<S: Source> Packets<'_, S> {
                     keyframe: true,
                     data: section,
                     corrupt: false,
-                    fed: None,
+                    stream_id: None,
                     split: false,
                 });
             }
@@ -674,26 +636,13 @@ impl<S: Source> Packets<'_, S> {
             if let Some(index) = self.index_of(&pes) {
                 let before = self.queue.len();
                 let (stream_id, corrupt) = (pes.header.stream_id, pes.corrupt);
-                // In the listing as `ffprobe` gives it, a coded video
-                // stream's units carry the stream id from the reading that
-                // finished them ([`Au::fed`]).
-                let as_ffprobe = self.as_ffprobe;
-                let coded = as_ffprobe
-                    && self
-                        .streams
-                        .get(index)
-                        .is_some_and(|s| units_of(s.codec, as_ffprobe).is_some());
                 self.pes(index, pes);
                 // What this PES packet released of its stream takes its
-                // damage, and the first of it its stream id.
-                let mut first = !coded;
+                // damage and, unless its own header gave one, its stream id.
                 for packet in self.queue.iter_mut().skip(before) {
                     if packet.stream == index {
                         packet.corrupt = corrupt;
-                        if first {
-                            packet.fed = Some(stream_id);
-                            first = false;
-                        }
+                        packet.stream_id.get_or_insert(stream_id);
                     }
                 }
             }
@@ -749,7 +698,7 @@ impl<S: Source> Packets<'_, S> {
             keyframe,
             data: pes.payload,
             corrupt: false,
-            fed: None,
+            stream_id: Some(pes.header.stream_id),
             split: false,
         };
         self.queue.push_back(packet);
@@ -795,7 +744,7 @@ impl<S: Source> Packets<'_, S> {
             pos: Some(pes.offset),
             pes_offset: pes.offset,
             random_access: pes.random_access,
-            fed: None,
+            stream_id: Some(pes.stream_id),
         };
         // A unit that starts after the first one of this PES packet: the
         // run it joins gives it its times, or, as `ffprobe` gives it, it
@@ -874,13 +823,8 @@ impl<S: Source> Packets<'_, S> {
         state.splitter.drained(taken);
         self.carried = self.carried.saturating_add(open.data.len());
         state.open = Some(open);
-        let mut fed = as_ffprobe.then_some(pes.stream_id);
         for (au, data, starts_run) in done {
             if let Some(data) = data {
-                let au = Au {
-                    fed: fed.take(),
-                    ..au
-                };
                 self.finished(index, nal, au, data);
             }
             if starts_run {
@@ -923,7 +867,7 @@ impl<S: Source> Packets<'_, S> {
             keyframe,
             data,
             corrupt: false,
-            fed: au.fed,
+            stream_id: au.stream_id,
             split: false,
         });
     }
@@ -999,7 +943,7 @@ impl<S: Source> Packets<'_, S> {
                     keyframe: au.random_access,
                     data,
                     corrupt: false,
-                    fed: None,
+                    stream_id: None,
                     split: false,
                 },
                 k,
@@ -1099,6 +1043,7 @@ impl<S: Source> Packets<'_, S> {
         let Some(state) = self.frames.get_mut(index) else {
             return;
         };
+        state.stream_id = Some(pes.header.stream_id);
         // A frame still short of its length takes the payload whole: its
         // header is not read again (linear in the bytes, however long the
         // frame).
@@ -1231,7 +1176,7 @@ impl<S: Source> Packets<'_, S> {
                             keyframe: true,
                             data: bytes,
                             corrupt: false,
-                            fed: None,
+                            stream_id: None,
                             split: false,
                         });
                         state.late = carried > 0;
@@ -1331,7 +1276,7 @@ impl<S: Source> Packets<'_, S> {
                     keyframe: true,
                     data: data.get(..at).unwrap_or_default().to_vec(),
                     corrupt: false,
-                    fed: None,
+                    stream_id: None,
                     split: false,
                 });
             }
@@ -1482,7 +1427,7 @@ impl<S: Source> Packets<'_, S> {
                 keyframe: true,
                 data: bytes,
                 corrupt: false,
-                fed: None,
+                stream_id: state.stream_id,
                 split: at == 0 && header_read,
             };
             if hold {
@@ -1624,7 +1569,7 @@ impl<S: Source> Packets<'_, S> {
                 keyframe: true,
                 data,
                 corrupt: false,
-                fed: None,
+                stream_id: state.stream_id,
                 split: false,
             });
             return;
@@ -1654,7 +1599,7 @@ impl<S: Source> Packets<'_, S> {
             keyframe: true,
             data,
             corrupt: false,
-            fed: None,
+            stream_id: state.stream_id,
             split: false,
         });
     }

@@ -41,8 +41,7 @@
 //!   after, [`reported_end`]), from the last
 //!   250,000 bytes of the file, or 500,000 for a stream not found there
 //!   ([`TAIL_BYTES`]); a stream whose end is not found has no duration.
-//!   H.264 never reports closed captions, nor MPEG video whose first
-//!   picture is no key picture ([`Head::undecoded`]). HE-AAC is read from the SBR data
+//!   HE-AAC is read from the SBR data
 //!   that ends its frames ([`params::aac_ends_with_sbr`]); Blu-ray LPCM
 //!   from its frame header ([`params::bluray_lpcm`]); MPEG-2 video's bit
 //!   rate is the header's unless the stream is of variable rate. LATM AAC
@@ -58,7 +57,7 @@
 //!   ([`file_micros`]). A service the SDT names alone is a program
 //!   ([`programs`]); DVB strings print as [`dvb_text`] has it.
 
-mod params;
+pub(super) mod params;
 
 use super::model::{Unit, Value, s, time};
 use super::names;
@@ -77,7 +76,7 @@ const FORMAT_NAME: &str = "mpegts";
 const FORMAT_LONG_NAME: &str = "MPEG-TS (MPEG-2 Transport Stream)";
 
 /// The score `ffprobe` gives the transport streams it reads.
-const PROBE_SCORE: i64 = 50;
+const PROBE_SCORE: i64 = 100;
 
 /// Transport stream timestamps count 90 kHz ticks (ISO/IEC 13818-1
 /// 2.4.3.7), and `ffprobe`'s time base for every stream is that clock.
@@ -496,14 +495,6 @@ struct Head {
     /// parameter sets of a coded video stream, the sequence header of
     /// MPEG video, the first frame of audio.
     unit: Option<Vec<u8>>,
-    /// A picture carried ATSC A/53 closed captions.
-    captions: bool,
-    /// MPEG video whose first picture is not a key picture: `ffprobe`
-    /// decodes none of the pictures it reads for the stream's parameters,
-    /// so it reports no captions whatever they carry (a capture of the
-    /// corpus whose four MPEG-2 streams start mid-group, one with
-    /// captions in its first key picture).
-    undecoded: bool,
     /// The parity of a field whose second field is awaited, for telling
     /// the frames of an H.264 stream from their second fields.
     pairing: Option<bool>,
@@ -835,13 +826,6 @@ fn h264_sps(unit: &[u8]) -> Option<Sps> {
         .and_then(|nal| params::h264_sps(&nal))
 }
 
-/// ATSC A/53 closed captions in a picture: the `GA94` identifier of
-/// their user data, followed by `user_data_type_code` 3 (A/53 part 4
-/// 6.2.3).
-fn has_captions(data: &[u8]) -> bool {
-    data.windows(5).any(|w| w == *b"GA94\x03")
-}
-
 /// Reads the first access units of every stream, from the start of the
 /// file, until each stream has shown [`HEAD_UNITS`] of them and its
 /// configuration, or [`HEAD_BYTES`] are read.
@@ -965,12 +949,6 @@ fn head<S: Source>(
                 } else {
                     times.1.or(times.0)
                 });
-                if mpeg && h.times.len() == 1 && !packet.keyframe {
-                    h.undecoded = true;
-                }
-                if st.kind == Kind::Video && !h.undecoded && has_captions(&packet.data) {
-                    h.captions = true;
-                }
             }
             if keep {
                 h.unit = Some(packet.data);
@@ -1483,12 +1461,6 @@ fn video_entries(st: &coreav_mpegts::Stream, head: &Head, facts: &Facts, e: &mut
     };
     e.push(("coded_width", int(cw)));
     e.push(("coded_height", int(ch)));
-    // `ffprobe` reports no captions for an H.264 stream whatever its
-    // pictures carry: three captures of the corpus whose pictures carry
-    // A/53 captions, and a stream crafted with valid ones in every
-    // picture (which `-show_frames` does show), report 0.
-    let captions = head.captions && st.codec != Codec::H264;
-    e.push(("closed_captions", Value::Int(i64::from(captions))));
     e.push(("film_grain", Value::Int(0)));
     let sps = facts.sps;
     let mpeg = facts.mpeg;
@@ -1967,6 +1939,11 @@ fn stream(
     if let Some(size) = facts.extradata {
         e.push(("extradata_size", int(size)));
     }
+    super::metadata::stream(
+        &mut e,
+        st.config.as_deref(),
+        head.unit.as_deref().unwrap_or_default(),
+    );
     let mut tags = Vec::new();
     if let Some(language) = st
         .language
@@ -2515,7 +2492,7 @@ impl<S: Source> PacketSource for TsPackets<S> {
             }
             // `ffprobe` gives the stream id of each PES packet it reads to
             // the first packet that reading lists.
-            let side_data = match p.fed {
+            let side_data = match p.stream_id {
                 Some(id) => vec![SideData {
                     typ: "mpegts_stream_id",
                     entries: vec![
@@ -2626,7 +2603,7 @@ mod tests {
             keyframe: false,
             data: vec![0, 0, 1, 0x00, 0x00, (kind << 3) | 0x07, 0xFF, 0xF8],
             corrupt: false,
-            fed: None,
+            stream_id: None,
             split: false,
         };
         assert_eq!(

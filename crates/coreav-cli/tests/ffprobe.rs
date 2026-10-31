@@ -63,6 +63,29 @@ fn movie(name: &str) -> String {
 }
 
 #[test]
+fn composition_offsets_do_not_replace_the_stored_sample_durations() {
+    let bytes = common::movie(&common::Spec {
+        stts: Some(vec![(1, 256), (1, 512), (1, 768), (1, 1024)]),
+        ctts: Some(vec![(4, 0)]),
+        elst: None,
+        ..common::Spec::default()
+    });
+    let path = file("ffprobe-stored-durations.mp4", &bytes);
+    let r = ffprobe(&[
+        "-v",
+        "error",
+        "-show_packets",
+        "-show_entries",
+        "packet=duration",
+        "-of",
+        "csv=p=0",
+        &path.to_string_lossy(),
+    ]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    assert_eq!(r.stdout, "256\n512\n768\n1024\n");
+}
+
+#[test]
 fn an_option_outside_the_vocabulary_is_refused_by_name() {
     let path = movie("ffprobe-refused.mp4");
     for (args, named) in [

@@ -3,11 +3,11 @@
 //!
 //! # Packet durations
 //!
-//! Measured on `ffprobe` 7.0.2 as a black box, with copies of real files
+//! Checked against the pinned `ffprobe` as a black box, with copies of real files
 //! whose boxes or parameter sets were edited one at a time:
 //!
-//! - A sample of the movie box's tables keeps its `stts` duration, but for
-//!   the cases below; a sample of a movie with fragments never does.
+//! - A sample keeps its stored decode duration (`stts` or `trun`),
+//!   including with composition offsets or in a fragmented movie.
 //! - A packet that keeps no sample duration gets one frame:
 //!   - video: the frame rate H.264 parameter sets state (VUI timing,
 //!     `time_scale / (2 × num_units_in_tick)`), rounded down to ticks, none
@@ -26,8 +26,7 @@
 //!     before it, or when it is a movie box sample of a movie with
 //!     fragments (measured on crafted files; the cause is not established);
 //!   - data and other text streams: none.
-//! - Every sample of a video or audio track with a `ctts` box, even an
-//!   all-zero one, and every sample of duration 0 get a frame.
+//! - A sample of duration 0 gets the fallback duration of its codec.
 //! - The last sample of the tables lasts until the stream's duration as
 //!   `ffprobe` reports it (the smallest of the media header's, the `stts`
 //!   sum and the edits' durations added up; for a data or text stream other
@@ -423,10 +422,29 @@ pub fn probe<S: Source>(source: &mut S, size: u64, name: &str) -> Result<IsoProb
         shifts.push(dts_shift(movie, track, &mut *source, &limits));
         steps.push(head.steps.first().copied());
         let info = video_info(track, &head, &mut *source);
+        let mut audio_header = Vec::new();
+        if matches!(&track.description.fourcc.0, b"ac-3" | b"ec-3") {
+            if let Some((offset, size)) = head.first {
+                audio_header.resize(usize::try_from(size.min(256)).unwrap_or(0), 0);
+                if source.read_exact_at(offset, &mut audio_header).is_err() {
+                    audio_header.clear();
+                }
+            }
+        }
         report
             .time_bases
             .push((1, i64::from(track.timescale.max(1))));
         let mut stream = stream(movie, track, &head, info);
+        super::metadata::downmix(&mut stream.entries, &audio_header);
+        if skip > 0 {
+            if let Some((_, padding)) = stream
+                .entries
+                .iter_mut()
+                .find(|(k, _)| *k == "initial_padding")
+            {
+                *padding = Value::Int(skip);
+            }
+        }
         if unwrapped.is_some() && meta.protection_headers {
             stream.side_data.push(SideData {
                 typ: "encryption_initialization_data",
@@ -1436,6 +1454,11 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
     if let Some(size) = extradata_size(track) {
         e.push(("extradata_size", int(size)));
     }
+    super::metadata::stream(
+        &mut e,
+        d.codec_config.as_ref().map(|c| c.data.as_slice()),
+        &[],
+    );
     let mut tags = Vec::new();
     if let Some(lang) = cnames::language(track.language) {
         tags.push(("language".to_owned(), lang));
@@ -1692,6 +1715,7 @@ pub fn disposition(default: bool) -> Entries {
         "metadata",
         "dependent",
         "still_image",
+        "multilayer",
     ]
     .into_iter()
     .map(|k| (k, Value::Int(i64::from(k == "default" && default))))
@@ -3215,13 +3239,13 @@ impl<S: Source> PacketSource for IsoPackets<S> {
             if track.kind == TrackKind::Video {
                 video_listed = video_listed.saturating_add(1);
             }
-            let duration = if fragment || plan.ctts {
+            let duration = if p.duration > 0 && (fragment || plan.ctts) {
+                stored
+            } else if p.duration == 0 {
                 if leading { plan.lead_fill } else { fill }
             } else {
                 match trimmed {
                     Some(trimmed) => trimmed,
-                    // A sample of no duration has none of its own.
-                    None if p.duration == 0 => fill,
                     None => stored,
                 }
             };

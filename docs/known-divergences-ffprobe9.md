@@ -1,5 +1,10 @@
 # Known divergences: `coreav ffprobe` versus `ffprobe` 9.0.2 on the fixtures
 
+The fixture entries below also describe historical output that has since
+been corrected. Matching values need no exception. The corpus notes at
+the end of this page are not fixture exceptions and do not turn a failed
+key comparison into agreement.
+
 The command-coverage set (`tools/compat-corpus/run.py commands`, bar B3a on
 the fixtures of [`design/compat-cli.md`](design/compat-cli.md)) compares
 every `native` `ffprobe` command byte for byte. Moving the oracle from
@@ -234,3 +239,40 @@ there, and CoreAV another.
   CoreAV does not. A CoreAV difference, for a follow-up.
 - Accepts: a shorter duration from `ffprobe` on the last packet of an AAC
   stream, and no other packet's.
+
+## Corpus differences not set aside
+
+These notes explain remaining differences in `run.py keys`. They do not
+mask them, and the measured agreement rates still count them as failures.
+
+- **EPG packets.** An EIT transport packet can finish several sections
+  (ETSI EN 300 468 5.2.4; ISO/IEC 13818-1 2.4.4.2). CoreAV lists every
+  complete section once. FFmpeg can list only the last one completed by
+  a packet and repeat it when a later packet completes none. CoreAV does
+  not discard a complete section or invent a repeat to match this. Once
+  the packet counts differ, positional comparison also differs on the
+  packets after that section.
+- **Implicit AAC extensions.** ADTS and LATM configurations can state
+  AAC LC while raw data blocks carry SBR or parametric stereo (ISO/IEC
+  14496-3 1.5.1.1, 4.6.18 and 8.6.4). The bounded header reader detects
+  some SBR payloads but does not decode arbitrary raw data blocks or
+  parametric stereo. It leaves the decoded profile, sample rate or channel
+  layout unknown where the configuration cannot establish them, rather
+  than assuming that a mono core stays mono. MIME strings depend on the
+  same profile information.
+- **AAC average bit rates.** Neither ADTS nor LATM states an average bit
+  rate for a variable-sized stream. CoreAV averages the frames its bounded
+  head read sees; FFmpeg's analysis can stop at a different frame. These
+  estimates can differ without a sample size or sample rate being wrong.
+- **Estimated base frame rates.** An irregular timestamp sequence need
+  not have one base frame rate. CoreAV estimates it from a bounded decode
+  timestamp window, using the signalled clock when no standard rate fits.
+  FFmpeg's estimator can choose another rate. Neither estimate replaces
+  the stored timestamps; no container clause chooses between them.
+- **Highlight metadata as chapters.** Some movies store highlight times
+  in an `HMMT` user-data atom rather than in a referenced chapter track or
+  a `chpl` list. FFmpeg prints a chapter from that atom. CoreAV reads the
+  documented QuickTime chapter and Nero chapter formats, and leaves this
+  proprietary atom uninterpreted. The chapter formats' specifications do
+  not settle the semantics of `HMMT`; this is unsupported metadata, not a
+  claim that FFmpeg's interpretation is wrong.
