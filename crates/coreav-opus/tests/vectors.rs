@@ -157,6 +157,7 @@ fn output_hash(bit: &[u8], channels: u8) -> u64 {
     let mut pcm = Vec::new();
     let mut hash = 0xcbf2_9ce4_8422_2325u64;
     for (i, (_, data)) in packets(bit).into_iter().enumerate() {
+        pcm.clear();
         decoder
             .decode(data, &mut pcm)
             .unwrap_or_else(|e| panic!("packet {i}: {e}"));
@@ -187,16 +188,16 @@ fn rfc8251_vectors_output_unchanged() {
 
 /// [stereo, mono] per vector, 01 to 12.
 const OUTPUT_HASHES: [[u64; 2]; 12] = [
-    [0xe263_994e_17bd_5e4e, 0x7411_eb3d_6554_1aa1],
-    [0x2f0c_a577_41aa_4e25, 0x3524_99cc_b8bd_5ca5],
-    [0x5610_b5ef_04b6_7425, 0x8a40_44ca_01a5_17a5],
-    [0x3b71_a69b_3292_be25, 0x9a83_5d0c_b272_e8a5],
-    [0x372d_a0a6_a300_3331, 0x3c5a_a413_919b_d707],
-    [0x8bb3_6dfa_de58_261d, 0x741f_f519_10a8_c400],
-    [0xd99e_853a_3eb2_498d, 0x6712_1f11_6feb_da4b],
-    [0x540e_1bb3_fb75_04e9, 0xcc7a_65e5_11a0_d309],
-    [0x5d79_33a6_a37c_1bd1, 0xd44e_80e7_5e32_c006],
-    [0x62da_476b_eff2_c874, 0x7982_098d_53e7_01a7],
-    [0xd93c_ecf2_5839_ee52, 0xbcaa_4218_ed6d_6487],
-    [0x546e_a6e4_ce63_f859, 0x98ae_4060_0359_e409],
+    [0x582a_a15b_2333_049f, 0x0a9a_6f51_551f_7819],
+    [0xb561_5650_dce3_4825, 0xfcc0_ab57_f730_01a5],
+    [0x2e69_2762_25b6_5725, 0xb992_3177_b721_8125],
+    [0xcf3a_a774_0a82_1025, 0x6023_98d7_fea2_f1a5],
+    [0x203b_c907_0a56_ba4d, 0x1bbb_81a0_1d14_bfa0],
+    [0x2e5d_47fd_ae93_c800, 0x29b1_ed13_7017_5d08],
+    [0x36ee_9248_c389_36af, 0x154a_e84d_c55b_2840],
+    [0x1577_e5ab_ed67_19a5, 0x0830_d6e5_9ee1_102f],
+    [0xf5a3_111c_1d4e_bd76, 0x8440_85df_4d21_6379],
+    [0xb7fb_4cf7_d137_d813, 0xb6cd_3eb1_b363_2238],
+    [0x7a3c_bbd0_6be6_150d, 0xf3e6_0f45_6afd_9ede],
+    [0xb98b_9250_c19f_ae05, 0x149f_389d_ca24_63b3],
 ];
