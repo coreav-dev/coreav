@@ -206,11 +206,17 @@ class CopyChanges(unittest.TestCase):
                 self.assertNotEqual(wb.check_copy(str(src), str(bad), [1], 'extract'), [], name)
 
     def test_he_aac_extraction_at_the_decoded_rate(self):
-        """An extracted HE-AAC track may be written at twice its core rate,
-        every duration doubled; a half-scaled copy, and the same for AAC
-        LC at 44.1 kHz, are problems."""
-        # LC at 22.05 kHz (implicit SBR possible), then LC at 44.1 kHz.
-        for config, core, allowed in ((bytes([0x13, 0x90]), 22050, True), (asc(), 44100, False)):
+        """An extracted track whose configuration signals SBR must be
+        written at twice its core rate, every duration doubled; one left at
+        the core's rate, or half-scaled, is a problem. A track that signals
+        none must keep its rate."""
+        # SBR signalled hierarchically and backward-compatibly; LC at 22.05
+        # kHz with no SBR signalled (SBR only in its frames, if at all); LC
+        # at 44.1 kHz; SBR at 96 kHz, beyond the entry's 16.16 rate.
+        for config, core, signalled in ((bytes([0x2b, 0x92, 0x08]), 22050, True),
+                                        (bytes([0x13, 0x90, 0x56, 0xe5, 0xa0]), 22050, True),
+                                        (bytes([0x13, 0x90]), 22050, False), (asc(), 44100, False),
+                                        (bytes([0x29, 0x90, 0x08, 0x00]), 48000, False)):
             with tempfile.TemporaryDirectory() as tmp:
                 src, out = pathlib.Path(tmp) / 'src.mp4', pathlib.Path(tmp) / 'out.m4a'
                 frames = [(bytes([i]) * 9, 1024, 0, True) for i in range(4)]
@@ -218,13 +224,17 @@ class CopyChanges(unittest.TestCase):
                 doubled = [(b, d * 2, c, s) for b, d, c, s in frames]
                 # Without an edit list, the media duration in movie ticks, rounded.
                 tkhd = round(Fraction(4096 * 1000, core))
-                # (88.2 kHz does not fit the entry's 16.16 rate.)
-                rate = core * 2 if allowed else core
-                build(out, [track(b'soun', core * 2, mp4a(rate=rate, config=config), doubled, tkhd=tkhd)])
+                build(out, [track(b'soun', core, mp4a(rate=core, config=config), frames, tkhd=tkhd)])
                 wb.forget()
                 problems = wb.check_copy(str(src), str(out), [0], 'extract')
-                self.assertEqual(problems == [], allowed, problems)
-                if not allowed:
+                self.assertEqual(problems == [], not signalled, (config, problems))
+                if core * 2 > 65535:
+                    continue
+                build(out, [track(b'soun', core * 2, mp4a(rate=core * 2, config=config), doubled, tkhd=tkhd)])
+                wb.forget()
+                problems = wb.check_copy(str(src), str(out), [0], 'extract')
+                self.assertEqual(problems == [], signalled, (config, problems))
+                if not signalled:
                     continue
                 # Durations left at the core rate, or the entry's rate left
                 # at the core's, are problems.

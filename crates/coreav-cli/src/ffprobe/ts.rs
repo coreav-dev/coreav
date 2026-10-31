@@ -42,7 +42,7 @@
 //!   250,000 bytes of the file, or 500,000 for a stream not found there
 //!   ([`TAIL_BYTES`]); a stream whose end is not found has no duration.
 //!   HE-AAC is read from the SBR data
-//!   that ends its frames ([`coreav_isobmff::aac_ends_with_sbr`]); Blu-ray LPCM
+//!   that ends its frames ([`params::aac_ends_with_sbr`]); Blu-ray LPCM
 //!   from its frame header ([`params::bluray_lpcm`]); MPEG-2 video's bit
 //!   rate is the header's unless the stream is of variable rate. LATM AAC
 //!   keeps its `AudioSpecificConfig` as the frames carry it, and explicit
@@ -512,9 +512,9 @@ struct Head {
     /// a longer file would be the last section of its tail, which the
     /// probe does not read; the corpus files have none there.
     splices: Option<(i64, i64)>,
-    /// For an AAC stream: of the first [`coreav_isobmff::SBR_FRAMES`] frames, how many
+    /// For an AAC stream: of the first [`SBR_FRAMES`] frames, how many
     /// were read and how many end with SBR data
-    /// ([`coreav_isobmff::aac_ends_with_sbr`]).
+    /// ([`params::aac_ends_with_sbr`]).
     sbr: (u32, u32),
     /// For an ADTS stream: the bit rate `ffprobe` reports and how many
     /// frames it averages ([`Analysis`]).
@@ -540,6 +540,9 @@ struct Head {
 /// How many frames before an audio stream's first stated time are timed
 /// back from it.
 const MAX_LEAD: usize = 256;
+
+/// How many frames of an AAC stream are read for SBR data.
+const SBR_FRAMES: u32 = 16;
 
 /// The presentation times of the first frames of an H.264 stream, in
 /// decoding order, from which [`Order::reorder`] reads how many frames
@@ -930,9 +933,9 @@ fn head<S: Source>(
                 h.sets.1 =
                     params::sets_before_slice(&packet.data, st.codec == Codec::Hevc, &mut h.sets.0);
             }
-            if st.codec == Codec::Aac && h.sbr.0 < coreav_isobmff::SBR_FRAMES {
+            if st.codec == Codec::Aac && h.sbr.0 < SBR_FRAMES {
                 h.sbr.0 += 1;
-                h.sbr.1 += u32::from(coreav_isobmff::aac_ends_with_sbr(&packet.data));
+                h.sbr.1 += u32::from(params::aac_ends_with_sbr(&packet.data));
             }
             if h.times.len() < HEAD_UNITS {
                 h.ticks.extend(ticks);
@@ -1038,8 +1041,18 @@ impl Facts {
             facts.frames = Some((ticks, pictures.saturating_mul(2)));
         }
         facts.reordered = head.order.reorder();
+        // Reading from the end of a block, a plain AAC frame shows what
+        // looks like SBR data now and then (one frame in twenty of a
+        // capture of the corpus): a stream counts as one or the other
+        // when at most two frames of what was read disagree.
         let (read, with_sbr) = head.sbr;
-        facts.sbr = coreav_isobmff::aac_sbr_found(read, with_sbr);
+        facts.sbr = if with_sbr == 0 || (read >= 8 && with_sbr <= 2) {
+            Some(false)
+        } else if read >= 8 && with_sbr + 2 >= read {
+            Some(true)
+        } else {
+            None
+        };
         facts.unconfigured = head.unit.is_none();
         match st.codec {
             Codec::H264 => {

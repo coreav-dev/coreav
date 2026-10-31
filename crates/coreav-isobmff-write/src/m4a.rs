@@ -11,8 +11,8 @@ use crate::mux::RawBox;
 use crate::tables::Tables;
 use crate::{ExtractError, Summary, TrackChoice};
 use coreav_isobmff::{
-    Allowlist, Budget, Codec, EditList, Error, ItunesGapless, Limits, Movie, Profile, SBR_FRAMES,
-    Source, Track, TrackKind, aac_ends_with_sbr, aac_sbr_found, probe,
+    Allowlist, Budget, Codec, EditList, Error, ItunesGapless, Limits, Movie, Profile, Source,
+    Track, TrackKind, probe,
 };
 use std::io::Write;
 
@@ -34,10 +34,10 @@ const MAX_REGIONS: usize = 1 << 16;
 ///
 /// Timing: the output keeps the source's media timescale, sample durations
 /// and order, and its movie timescale, so its edit list is copied exactly,
-/// except that an HE-AAC track whose media timescale divides its decoded
-/// rate (a 22,050 Hz core decoded at 44,100 Hz, say) is written at that
-/// rate, every media duration and media time multiplied alike, and its
-/// sample entry states that rate ([`sbr_rate`]; ISO/IEC 14496-12 12.2.3.3:
+/// except that an HE-AAC track whose configuration signals SBR and whose
+/// media timescale divides its decoded rate (a 22,050 Hz core decoded at
+/// 44,100 Hz, say) is written at that rate, every media duration and media
+/// time multiplied alike, and its sample entry states that rate ([`sbr_rate`]; ISO/IEC 14496-12 12.2.3.3:
 /// an audio timescale matches the sampling rate or is an integer multiple
 /// of it);
 /// entry by entry, whether it is the simple model's one media edit or
@@ -71,9 +71,9 @@ pub fn extract_audio<S: Source, W: Write>(
     let mut source = source;
     let movie = probe(&mut source, limits, allowlist)?;
     let track = select(&movie, choice)?;
-    let mut budget = Budget::new(limits);
-    let sbr = sbr_rate(&movie, track, &mut source, limits, &mut budget)?;
+    let sbr = sbr_rate(track);
     let entry = audio_sample_entry_at(track, sbr)?;
+    let mut budget = Budget::new(limits);
     // An HE-AAC track whose timescale is the core's is written at the
     // decoded rate, an exact multiple: ISO/IEC 14496-12 12.2.3.3 asks for an
     // audio timescale that matches the sampling rate or is an integer
@@ -256,57 +256,24 @@ fn select(movie: &Movie, choice: TrackChoice) -> Result<&Track, Error> {
     Ok(track)
 }
 
-/// The largest frame read for SBR: an AAC raw data block of eight channels
-/// holds at most 6,144 bits per channel (ISO/IEC 14496-3 4.5.3.1).
-const MAX_SBR_FRAME: u32 = 6_144;
-
-/// The sampling rate an HE-AAC decoder outputs for `track` when its
-/// samples carry SBR (ISO/IEC 14496-3 1.6.5.2, table 1.22): the extension
-/// frequency an explicit signal in the configuration gives; or, for an AAC
-/// LC configuration of at most 24 kHz without one, twice its frequency when
-/// its first frames carry SBR data (implicit signalling; [`aac_sbr_found`]
-/// of the first [`SBR_FRAMES`]). `None` for other tracks.
-fn sbr_rate<S: Source>(
-    movie: &Movie,
-    track: &Track,
-    source: &mut S,
-    limits: &Limits,
-    budget: &mut Budget,
-) -> Result<Option<u32>, Error> {
-    let description = &track.description;
-    let Some(rate) = description.configured_sample_rate else {
-        return Ok(None);
-    };
-    match description.profile {
-        Some(Profile::Aac { sbr: true, .. }) => return Ok(Some(rate)),
-        Some(Profile::Aac {
-            object_type: 2,
-            sbr: false,
-            ..
-        }) if rate <= 24_000 => {}
-        _ => return Ok(None),
+/// The sampling rate an HE-AAC decoder outputs for `track` (ISO/IEC
+/// 14496-3 1.6.5.2, table 1.22) when its `AudioSpecificConfig` signals SBR
+/// (object type 5 or 29, or a backward-compatible extension with
+/// `sbrPresentFlag` 1): the extension frequency it gives, when the sample
+/// entry's 16.16 rate holds it (ISO/IEC 14496-12 12.2.3.2). `None` for
+/// other tracks, including AAC LC whose frames alone carry SBR data (implicit
+/// signalling): only a reader that parses every element of a
+/// `raw_data_block()` can find a fill element, and that parsing is the
+/// opt-in AAC decoder's (`docs/design/edit-list-writers.md`, "HE-AAC
+/// timescale").
+fn sbr_rate(track: &Track) -> Option<u32> {
+    match track.description.profile {
+        Some(Profile::Aac { sbr: true, .. }) => track
+            .description
+            .configured_sample_rate
+            .filter(|rate| *rate <= u32::from(u16::MAX)),
+        _ => None,
     }
-    let mut frame = Vec::new();
-    let (mut read, mut with_sbr) = (0u32, 0u32);
-    let mut packets = movie.packets(track.index, &mut *source, limits, budget)?;
-    while read < SBR_FRAMES {
-        let Some(packet) = packets.next() else {
-            break;
-        };
-        let packet = packet?;
-        read += 1;
-        if packet.size > MAX_SBR_FRAME {
-            continue;
-        }
-        frame.resize(usize::try_from(packet.size).map_err(|_| overflow())?, 0);
-        packets
-            .source_mut()
-            .read_exact_at(packet.offset, &mut frame)?;
-        with_sbr += u32::from(aac_ends_with_sbr(&frame));
-    }
-    Ok((aac_sbr_found(read, with_sbr) == Some(true))
-        .then(|| rate.checked_mul(2))
-        .flatten())
 }
 
 /// The `stsd` payload of a copy that holds part of an audio track's samples

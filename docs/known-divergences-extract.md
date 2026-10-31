@@ -146,9 +146,10 @@ file names. Probe divergences are listed in
 
 - Fields: stream `time_base`, `start_pts` and `duration_ts`, and the
   packet times.
-- When: an HE-AAC source whose media timescale is its core's rate (22,050
-  for a stream decoded at 44,100, say): the output is written at the
-  decoded rate (`docs/design/edit-list-writers.md`, "HE-AAC timescale").
+- When: an HE-AAC source whose configuration signals SBR and whose media
+  timescale is its core's rate (22,050 for a stream decoded at 44,100,
+  say): the output is written at the decoded rate
+  (`docs/design/edit-list-writers.md`, "HE-AAC timescale").
 - What each reports: `ffprobe` gives each file's media timescale as its
   time base, so every time of the output is the source's times a whole
   number (2 for SBR's doubled rate); the times in seconds, the packets and

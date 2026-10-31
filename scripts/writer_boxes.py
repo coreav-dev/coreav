@@ -566,52 +566,58 @@ def aac_config(entry):
 AAC_RATES = (96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350)
 
 
-def aac_head(entry):
-    """(audioObjectType, samplingFrequency) at the start of an `mp4a`
-    entry's AudioSpecificConfig (ISO/IEC 14496-3 1.6.2.1), or None."""
-    config = aac_config(entry)
+def sbr_rate(src_track):
+    """The rate an extraction states for an AAC track (`edit-list-writers.md`,
+    "HE-AAC timescale"): the extension frequency its AudioSpecificConfig
+    gives when it signals SBR (ISO/IEC 14496-3 1.6.2.1, 1.6.5.2): object
+    type 5 or 29, or, after a plain GASpecificConfig (object types 1 to 4
+    with a channel configuration), the backward-compatible extension (sync
+    extension 0x2b7, object type 5, `sbrPresentFlag` 1), and only up to
+    65,535 Hz, the most a sample entry's 16.16 rate holds. Else None, and
+    the entry keeps the source's rate. SBR data in the frames alone
+    (implicit signalling) is not read, as the extraction does not."""
+    config = aac_config(src_track.get("entry"))
     if not config:
         return None
     bits = _Bits(config)
-    try:
-        object_type = bits.read(5)
-        if object_type == 31:
-            object_type = 32 + bits.read(6)
+
+    def object_type():
+        value = bits.read(5)
+        return 32 + bits.read(6) if value == 31 else value
+
+    def frequency():
         index = bits.read(4)
-        rate = bits.read(24) if index == 15 else AAC_RATES[index]
+        return bits.read(24) if index == 15 else (AAC_RATES[index] if index < len(AAC_RATES) else None)
+
+    try:
+        kind = object_type()
+        frequency()
+        channels = bits.read(4)
+        if kind in (5, 29):
+            rate = frequency()
+        elif channels == 0 or kind not in (1, 2, 3, 4):
+            return None
+        else:
+            bits.read(1)
+            if bits.read(1):
+                bits.read(14)
+            bits.read(1)
+            if bits.read(11) != 0x2b7 or object_type() != 5 or bits.read(1) != 1:
+                return None
+            rate = frequency()
     except IndexError:
         return None
-    return object_type, rate
+    return rate if rate and rate <= 65535 else None
 
 
-def sbr_scale(src_track, out_track):
+def sbr_scale(src_track):
     """The whole number an extraction multiplies an HE-AAC track's media
-    ticks by (`edit-list-writers.md`, "HE-AAC timescale"): the output's
-    media timescale over the source's, when that is a whole number above 1,
-    the output's sample entry states that timescale as its rate, and the
-    source's AudioSpecificConfig can carry SBR: object type 5 or 29, or AAC
-    LC at 24 kHz or less, which implicit signalling doubles (ISO/IEC
-    14496-3 1.6.5.2). Else 1. Every scaled duration is then checked exactly."""
-    src_ts, out_ts = src_track["timescale"], out_track["timescale"]
-    head = aac_head(src_track.get("entry"))
-    sbr = head is not None and (head[0] in (5, 29) or (head[0] == 2 and head[1] <= 24000))
-    if not sbr or not src_ts or out_ts % src_ts or out_ts // src_ts < 2:
+    ticks by: [`sbr_rate`] over the source's media timescale, when that is
+    a whole number above 1; else 1. The output must match it exactly."""
+    rate, src_ts = sbr_rate(src_track), src_track["timescale"]
+    if not rate or not src_ts or rate % src_ts or rate // src_ts < 2:
         return 1
-    return out_ts // src_ts if (out_track.get("entry") or {}).get("rate") == out_ts else 1
-
-
-def sbr_rate(src_track, out_track):
-    """The decoded rate an extraction's sample entry states for an HE-AAC
-    track whose rate it changes: the output's media timescale, above the
-    source's entry rate, for a source whose configuration can carry SBR
-    (as [`sbr_scale`]); else None, and the entry keeps the source's."""
-    head = aac_head(src_track.get("entry"))
-    out_rate = (out_track.get("entry") or {}).get("rate")
-    src_rate = (src_track.get("entry") or {}).get("rate")
-    sbr = head is not None and (head[0] in (5, 29) or (head[0] == 2 and head[1] <= 24000))
-    if sbr and out_rate == out_track["timescale"] and src_rate and out_rate > src_rate:
-        return out_rate
-    return None
+    return rate // src_ts
 
 
 class _Bits:
@@ -1124,8 +1130,8 @@ def check_copy(source, output, kept, writer):
             continue
         # Extraction writes an HE-AAC track at its decoded rate.
         extract = writer == "extract" and kind == "audio"
-        scale = sbr_scale(src_track, out_track) if extract else 1
-        rate = sbr_rate(src_track, out_track) if extract else None
+        scale = sbr_scale(src_track) if extract else 1
+        rate = sbr_rate(src_track) if extract else None
         found += compare_samples(kind, source, src_track, [(output, out_track["samples"])], 0, None, scale=scale)
         if kind in ("video", "audio"):
             # Sanitization rewrites H.264 and HEVC configurations to their

@@ -785,20 +785,29 @@ fn aac_22k_movie(config: &[u8], frames: &[Vec<u8>], edit: Option<(u32, i32, u32)
     cat(&[ftyp, mdat, moov])
 }
 
+/// The output's one track.
+fn extracted(source: &[u8]) -> Track {
+    let (_, output) = extract(source, TrackChoice::FirstAudio).unwrap();
+    probe(
+        SliceSource::new(&output),
+        &Limits::default(),
+        &Allowlist::default(),
+    )
+    .unwrap()
+    .tracks
+    .remove(0)
+}
+
 #[test]
 fn he_aac_is_timed_at_its_decoded_rate() {
-    // LC at 22.05 kHz, SBR only in the frames (implicit signalling), and
-    // SBR at 44.1 kHz in the configuration (object type 5, explicit).
-    let implicit = [0x13, 0x90];
-    let explicit = [0x2b, 0x92, 0x08];
-    let sbr = sbr_frame(10);
+    // SBR at 44.1 kHz in the configuration: object type 5 (hierarchical),
+    // and AAC LC with a backward-compatible extension (sync extension
+    // 0x2b7, object type 5, sbrPresentFlag 1, extension index 4).
+    let hierarchical = [0x2b, 0x92, 0x08];
+    let compatible = [0x13, 0x90, 0x56, 0xe5, 0xa0];
     let plain = vec![0u8; 10];
-    for (config, frame, rate) in [
-        (implicit.as_slice(), &sbr, 44_100),
-        (&explicit, &plain, 44_100),
-        (&implicit, &plain, 22_050),
-    ] {
-        let source = aac_22k_movie(config, &vec![frame.clone(); 100], Some((0, 2048, 4000)));
+    for config in [hierarchical.as_slice(), &compatible] {
+        let source = aac_22k_movie(config, &vec![plain.clone(); 100], Some((0, 2048, 4000)));
         let (summary, output) = extract(&source, TrackChoice::FirstAudio).unwrap();
         assert_eq!((summary.timescale, summary.duration), (22_050, 102_400));
         let movie = probe(
@@ -808,9 +817,8 @@ fn he_aac_is_timed_at_its_decoded_rate() {
         )
         .unwrap();
         let track = &movie.tracks[0];
-        let scale = rate / 22_050;
-        assert_eq!(track.timescale, rate, "{config:x?}");
-        assert_eq!(track.description.sample_rate, Some(rate), "{config:x?}");
+        assert_eq!(track.timescale, 44_100, "{config:x?}");
+        assert_eq!(track.description.sample_rate, Some(44_100), "{config:x?}");
         assert_eq!(
             track.description.codec_config,
             probe(
@@ -823,64 +831,93 @@ fn he_aac_is_timed_at_its_decoded_rate() {
                 .description
                 .codec_config
         );
-        assert_eq!(track.mdhd_duration, 102_400 * u64::from(scale));
+        assert_eq!(track.mdhd_duration, 204_800);
         assert_eq!(
             track.edit_list,
             EditList::Simple {
                 empty: 0,
-                media_time: 2048 * i64::from(scale),
+                media_time: 4096,
                 segment: 4000
             }
         );
         let all = packets(&movie, track, &output);
         assert_eq!(all.len(), 100);
-        assert!(all.iter().all(|p| p.duration == 1024 * scale));
-        assert!(all.iter().all(|p| bytes_of(&output, p) == *frame));
+        assert!(all.iter().all(|p| p.duration == 2048));
+        assert!(all.iter().all(|p| bytes_of(&output, p) == plain));
     }
+    // SBR at 96 kHz from a 48 kHz core does not fit the sample entry's
+    // 16.16 rate: the track keeps its own.
+    let wide = cat(&[
+        bx(b"ftyp", b"isom\0\0\x02\0isom"),
+        bx(b"mdat", &plain.repeat(10)),
+    ]);
+    let moov = audio_moov(
+        (&[0x29, 0x90, 0x08, 0x00], 48_000),
+        10,
+        10,
+        None,
+        false,
+        10,
+        &[(wide.len() - 100) as u32],
+    );
+    let track = extracted(&cat(&[wide, moov]));
+    assert_eq!(
+        (track.timescale, track.description.sample_rate),
+        (48_000, Some(48_000))
+    );
+    // A signalled stream of fewer frames than any count is scaled too: the
+    // configuration, not the frames, decides.
+    assert_eq!(
+        extracted(&aac_22k_movie(
+            &hierarchical,
+            std::slice::from_ref(&plain),
+            None
+        ))
+        .timescale,
+        44_100
+    );
     // An `iTunSMPB` item that adds up in the source's ticks (2,112 +
-    // 100,000 + 288 = 102,400) gives the same edit, in the output's ticks.
+    // 100,000 + 288 = 102,400) gives the same edit, in the output's ticks;
+    // 100,000 samples at 22.05 kHz in movie ticks of 1 ms, rounded: 4,535.
     let source = with_moov_children(
-        &aac_22k_movie(&implicit, &vec![sbr.clone(); 100], None),
+        &aac_22k_movie(&hierarchical, &vec![plain.clone(); 100], None),
         &smpb_udta(" 00000000 00000840 00000120 00000000000186A0 00000000"),
     );
-    let (_, output) = extract(&source, TrackChoice::FirstAudio).unwrap();
-    let movie = probe(
-        SliceSource::new(&output),
-        &Limits::default(),
-        &Allowlist::default(),
-    )
-    .unwrap();
-    // A plain frame may look as if it ends with SBR data now and then, and
-    // SBR that starts after the first frames is not looked for: neither
-    // changes the timescale.
-    let mut sporadic = vec![plain.clone(); 100];
-    sporadic[0] = sbr.clone();
-    sporadic[5] = sbr.clone();
-    let mut late = vec![sbr.clone(); 100];
-    late[..4].fill(plain.clone());
-    for frames in [sporadic, late] {
-        let (_, output) = extract(
-            &aac_22k_movie(&implicit, &frames, Some((0, 2048, 4000))),
-            TrackChoice::FirstAudio,
-        )
-        .unwrap();
-        let movie = probe(
-            SliceSource::new(&output),
-            &Limits::default(),
-            &Allowlist::default(),
-        )
-        .unwrap();
-        assert_eq!(movie.tracks[0].timescale, 22_050);
-    }
-    // 100,000 samples at 22.05 kHz in movie ticks of 1 ms, rounded: 4,535.
     assert_eq!(
-        movie.tracks[0].edit_list,
+        extracted(&source).edit_list,
         EditList::Simple {
             empty: 0,
             media_time: 2 * 2112,
             segment: 4535
         }
     );
+}
+
+#[test]
+fn sbr_data_in_the_frames_alone_keeps_the_core_rate() {
+    // AAC LC at 22.05 kHz whose configuration signals no SBR keeps its
+    // rate, whatever its frames end with: every frame ending with an SBR
+    // fill element, none, or a data stream element whose payload ends with
+    // the bits of one (a silent single channel element, a three-byte data
+    // stream element, then ID_END), in every frame or only a few.
+    let stereo = [0x13, 0x90];
+    let mono = [0x13, 0x88];
+    let dse = vec![0x00, 0x00, 0x00, 0x04, 0x00, 0x1b, 0x16, 0x80, 0x07];
+    for (config, frame, n) in [
+        (mono.as_slice(), dse.clone(), 100),
+        (&mono, dse.clone(), 16),
+        (&mono, dse.clone(), 3),
+        (&stereo, sbr_frame(10), 100),
+        (&stereo, vec![0u8; 10], 100),
+    ] {
+        let track = extracted(&aac_22k_movie(config, &vec![frame.clone(); n], None));
+        assert_eq!(track.timescale, 22_050, "{frame:x?} {n}");
+        assert_eq!(
+            track.description.sample_rate,
+            Some(22_050),
+            "{frame:x?} {n}"
+        );
+    }
 }
 
 #[test]

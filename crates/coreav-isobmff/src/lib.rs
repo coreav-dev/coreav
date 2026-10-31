@@ -36,10 +36,9 @@ mod tables;
 
 pub use codec::{
     Allowlist, Codec, CodecConfig, Color, ConfigRecord, DeclaredBitRate, DolbyVision,
-    LosslessConfig, MAX_OTHER_BOXES, PcmFormat, ProResProfile, Profile, SBR_FRAMES,
-    SampleDescription, aac_ends_with_sbr, aac_sbr_found, avc_max_num_ref_frames, avc_timing,
-    describe_audio_specific_config, describe_config_record, esds_decoder_specific_info,
-    hevc_window_empty, lossless_config, parameter_set_color,
+    LosslessConfig, MAX_OTHER_BOXES, PcmFormat, ProResProfile, Profile, SampleDescription,
+    avc_max_num_ref_frames, avc_timing, describe_audio_specific_config, describe_config_record,
+    esds_decoder_specific_info, hevc_window_empty, lossless_config, parameter_set_color,
 };
 pub use error::{Error, LimitKind, Warning};
 pub use fragment::{FragmentSamples, TrackDefaults, subsegment_samples};
