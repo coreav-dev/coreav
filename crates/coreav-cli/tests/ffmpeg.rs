@@ -1508,7 +1508,15 @@ fn covers_agree(name: &str, pictures: &[(&str, &str)], selections: &[&[&str]]) {
             ])
             .output()
             .unwrap();
-        String::from_utf8(out.stdout).unwrap()
+        assert!(out.status.success(), "{} stream {index}", path.display());
+        let digest = String::from_utf8(out.stdout).unwrap();
+        let hex = digest.trim().strip_prefix("MD5=");
+        assert!(
+            hex.is_some_and(|hex| hex.len() == 32),
+            "{} stream {index}: {digest:?}",
+            path.display()
+        );
+        digest
     };
     let picture_md5s = |path: &Path| -> Vec<String> {
         let listed = streams(path);
