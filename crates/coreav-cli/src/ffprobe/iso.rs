@@ -865,10 +865,12 @@ fn head<S: Source>(movie: &Movie, track: &Track, source: &mut S, limits: &Limits
     let Ok(iter) = movie.packets(track.index, &mut *source, limits, &mut budget) else {
         return Head::default();
     };
-    let read: Vec<coreav_isobmff::Packet> = iter
-        .take(START_PACKETS.max(RATE_TIMES.end))
-        .map_while(Result::ok)
-        .collect();
+    let limit = if track.kind == TrackKind::Video {
+        START_PACKETS.max(RATE_TIMES.end)
+    } else {
+        START_PACKETS
+    };
+    let read: Vec<coreav_isobmff::Packet> = iter.take(limit).map_while(Result::ok).collect();
     let decode_times = read.iter().map(|p| p.dts).collect();
     let packets = read.get(..START_PACKETS).unwrap_or(&read);
     let pts: Vec<i64> = packets
@@ -3260,13 +3262,18 @@ impl<S: Source> PacketSource for IsoPackets<S> {
             if track.kind == TrackKind::Video {
                 video_listed = video_listed.saturating_add(1);
             }
-            let duration = if p.duration > 0 && (fragment || plan.ctts) {
-                stored
-            } else if p.duration == 0 {
-                if leading { plan.lead_fill } else { fill }
+            let duration = if fragment || plan.ctts {
+                if p.duration > 0 {
+                    stored
+                } else if leading {
+                    plan.lead_fill
+                } else {
+                    fill
+                }
             } else {
                 match trimmed {
                     Some(trimmed) => trimmed,
+                    None if p.duration == 0 => fill,
                     None => stored,
                 }
             };

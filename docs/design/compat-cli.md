@@ -245,8 +245,11 @@ parameters) and append all optional fields together when they differ
 from the defaults. Raw colour code points, including explicit 2/2/2,
 come from the sequence header unless an ISO `nclx` box overrides them,
 as the [AV1 binding section 5](https://aomediacodec.github.io/av1-isobmff/#codecsparam)
-requires. Some pinned-oracle strings disagree with these requirements;
-the known-divergence note records them without excluding them from B3a.
+requires. Some pinned-oracle strings disagree with these requirements.
+The known-divergence note records them; one generated fixture has an
+exact-pair exception backed by its `nclx` bytes, with a stale-exception
+gate that fails when the oracle starts agreeing. It excludes no corpus
+file or other field from B3a.
 
 AVC and HEVC Annex B extradata lengths include the retained parameter
 sets with four-byte start codes and their intervening padding. Every

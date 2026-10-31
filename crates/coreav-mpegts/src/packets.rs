@@ -943,7 +943,7 @@ impl<S: Source> Packets<'_, S> {
                     keyframe: au.random_access,
                     data,
                     corrupt: false,
-                    stream_id: None,
+                    stream_id: au.stream_id,
                     split: false,
                 },
                 k,
@@ -1043,7 +1043,7 @@ impl<S: Source> Packets<'_, S> {
         let Some(state) = self.frames.get_mut(index) else {
             return;
         };
-        state.stream_id = Some(pes.header.stream_id);
+        let carried_id = state.stream_id;
         // A frame still short of its length takes the payload whole: its
         // header is not read again (linear in the bytes, however long the
         // frame).
@@ -1052,6 +1052,7 @@ impl<S: Source> Packets<'_, S> {
             self.carried = self.carried.saturating_add(pes.payload.len());
             return;
         }
+        state.stream_id = Some(pes.header.stream_id);
         let mut carried = state.leftover.len();
         self.carried = self.carried.saturating_sub(carried);
         // The carried frame's header was read in an earlier PES packet.
@@ -1123,6 +1124,9 @@ impl<S: Source> Packets<'_, S> {
             if data.is_empty() || waits {
                 self.carried = self.carried.saturating_add(data.len());
                 state.leftover = data;
+                if carried > 0 {
+                    state.stream_id = carried_id;
+                }
                 return;
             }
             if let Some(from) = state.lead_from.take() {
@@ -1427,7 +1431,11 @@ impl<S: Source> Packets<'_, S> {
                 keyframe: true,
                 data: bytes,
                 corrupt: false,
-                stream_id: state.stream_id,
+                stream_id: if starts_here {
+                    Some(pes.header.stream_id)
+                } else {
+                    carried_id
+                },
                 split: at == 0 && header_read,
             };
             if hold {
@@ -1445,6 +1453,9 @@ impl<S: Source> Packets<'_, S> {
         // cut, whose length its header bounds.
         if let Some(rest) = data.get(at..) {
             state.leftover = rest.to_vec();
+            if !rest.is_empty() && at < carried {
+                state.stream_id = carried_id;
+            }
             self.carried = self.carried.saturating_add(rest.len());
         }
     }

@@ -1210,7 +1210,10 @@ pub struct Ac3 {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Downmix {
     mode: u32,
-    levels: [Option<u32>; 4],
+    ltrt_center: Option<u32>,
+    ltrt_surround: Option<u32>,
+    loro_center: Option<u32>,
+    loro_surround: Option<u32>,
 }
 
 impl Downmix {
@@ -1221,16 +1224,12 @@ impl Downmix {
             "0.000000",
         ];
         let mut entries = vec![("dmix_mode", s(self.mode.to_string()))];
-        let [ltrtc, loroc, ltrts, loros] = self.levels;
         for (key, level) in [
-            "ltrt_cmixlev",
-            "ltrt_surmixlev",
-            "loro_cmixlev",
-            "loro_surmixlev",
-        ]
-        .into_iter()
-        .zip([ltrtc, ltrts, loroc, loros])
-        {
+            ("ltrt_cmixlev", self.ltrt_center),
+            ("ltrt_surmixlev", self.ltrt_surround),
+            ("loro_cmixlev", self.loro_center),
+            ("loro_surmixlev", self.loro_surround),
+        ] {
             let value = level
                 .and_then(|n| usize::try_from(n).ok())
                 .and_then(|n| LEVELS.get(n))
@@ -1243,17 +1242,16 @@ impl Downmix {
 }
 
 fn extended_downmix(bits: &mut Bits<'_>, acmod: u8, downmix: &mut Downmix) -> Option<()> {
-    let [ltrtc, loroc, ltrts, loros] = &mut downmix.levels;
     if acmod > 2 {
         downmix.mode = bits.bits(2)?;
     }
     if acmod & 1 != 0 && acmod > 2 {
-        *ltrtc = Some(bits.bits(3)?);
-        *loroc = Some(bits.bits(3)?);
+        downmix.ltrt_center = Some(bits.bits(3)?);
+        downmix.loro_center = Some(bits.bits(3)?);
     }
     if acmod & 4 != 0 {
-        *ltrts = Some(bits.bits(3)?);
-        *loros = Some(bits.bits(3)?);
+        downmix.ltrt_surround = Some(bits.bits(3)?);
+        downmix.loro_surround = Some(bits.bits(3)?);
     }
     Some(())
 }
@@ -1274,9 +1272,10 @@ fn ac3_downmix(bits: &mut Bits<'_>, acmod: u8, bsid: u8) -> Option<Downmix> {
     bits.skip(2)?;
     if bits.flag()? {
         downmix.mode = bits.bits(2)?;
-        for level in &mut downmix.levels {
-            *level = Some(bits.bits(3)?);
-        }
+        downmix.ltrt_center = Some(bits.bits(3)?);
+        downmix.ltrt_surround = Some(bits.bits(3)?);
+        downmix.loro_center = Some(bits.bits(3)?);
+        downmix.loro_surround = Some(bits.bits(3)?);
     }
     Some(downmix)
 }
@@ -1857,35 +1856,32 @@ pub fn aac_ends_with_sbr(block: &[u8]) -> bool {
         // Empty fill elements (`110` and a `count` of 0) may follow the
         // one that carries SBR data.
         let mut fill_end = body_end;
-        loop {
-            // A fill element of `count` bytes: 3 + 4 bits of header, 8
-            // more when `count` is 15 (`esc_count`).
-            for count in 1..=MAX_FILL_BYTES {
-                for header in [7usize, 15] {
-                    let Some(start) = fill_end
-                        .checked_sub(count * 8)
-                        .and_then(|s| s.checked_sub(header))
-                    else {
-                        continue;
-                    };
-                    if read(start, 3) != Some(0b110) {
-                        continue;
-                    }
-                    let stated = match (header, read(start + 3, 4)) {
-                        (7, Some(c)) if c < 15 => Some(c as usize),
-                        (15, Some(15)) => read(start + 7, 8).map(|e| 15 + e as usize - 1),
-                        _ => None,
-                    };
-                    if stated == Some(count)
-                        && matches!(read(start + header, 4), Some(0b1101 | 0b1110))
-                    {
-                        return true;
-                    }
-                }
+        while let Some(before) = fill_end.checked_sub(7) {
+            if read(before, 7) != Some(0b110_0000) {
+                break;
             }
-            match fill_end.checked_sub(7) {
-                Some(before) if read(before, 7) == Some(0b110_0000) => fill_end = before,
-                _ => break,
+            fill_end = before;
+        }
+        for start in fill_end.saturating_sub(MAX_FILL_BYTES * 8 + 15)..body_end {
+            if read(start, 3) != Some(0b110) {
+                continue;
+            }
+            let (count, header) = match read(start + 3, 4) {
+                Some(0) | None => continue,
+                Some(15) => match read(start + 7, 8) {
+                    Some(escape) => (14 + escape as usize, 15),
+                    None => continue,
+                },
+                Some(count) => (count as usize, 7),
+            };
+            let Some(end) = start.checked_add(header + count * 8) else {
+                continue;
+            };
+            if (fill_end..=body_end).contains(&end)
+                && (body_end - end) % 7 == 0
+                && matches!(read(start + header, 4), Some(0b1101 | 0b1110))
+            {
+                return true;
             }
         }
     }
@@ -2182,6 +2178,20 @@ mod tests {
     }
 
     #[test]
+    fn sbr_payload_can_end_with_bits_that_look_like_an_empty_fill() {
+        for empty in [0, 2, 300] {
+            let mut fields = vec![(0b110, 3), (2, 4), (0b1101, 4), (0, 5), (0b1100000, 7)];
+            fields.extend(std::iter::repeat_n((0b1100000, 7), empty));
+            fields.push((0b111, 3));
+            assert!(aac_ends_with_sbr(&pack(&fields)));
+        }
+        let mut fields = vec![(0b110, 3), (2, 4), (0b0001, 4), (0, 12)];
+        fields.extend(std::iter::repeat_n((0b1100000, 7), 300));
+        fields.push((0b111, 3));
+        assert!(!aac_ends_with_sbr(&pack(&fields)));
+    }
+
+    #[test]
     fn bluray_lpcm_headers() {
         // 960 bytes, stereo, 48 kHz, 16 bits: 240 samples, 450 ticks.
         let stereo = bluray_lpcm(&[0x03, 0xC0, 0x31, 0x40]).unwrap();
@@ -2247,7 +2257,10 @@ mod tests {
             parsed.downmix,
             Downmix {
                 mode: 2,
-                levels: [Some(0), Some(1), Some(4), Some(6)]
+                ltrt_center: Some(0),
+                ltrt_surround: Some(1),
+                loro_center: Some(4),
+                loro_surround: Some(6),
             }
         );
         assert_eq!(
@@ -2255,8 +2268,8 @@ mod tests {
             vec![
                 ("dmix_mode", super::super::super::model::s("2")),
                 ("ltrt_cmixlev", super::super::super::model::s("1.414214")),
-                ("ltrt_surmixlev", super::super::super::model::s("0.707107")),
-                ("loro_cmixlev", super::super::super::model::s("1.189207")),
+                ("ltrt_surmixlev", super::super::super::model::s("1.189207")),
+                ("loro_cmixlev", super::super::super::model::s("0.707107")),
                 ("loro_surmixlev", super::super::super::model::s("0.500000")),
             ]
         );
@@ -2289,7 +2302,10 @@ mod tests {
             ac3(&header).unwrap().downmix,
             Downmix {
                 mode: 1,
-                levels: [Some(2), Some(3), Some(5), Some(7)]
+                ltrt_center: Some(2),
+                ltrt_surround: Some(5),
+                loro_center: Some(3),
+                loro_surround: Some(7),
             }
         );
     }

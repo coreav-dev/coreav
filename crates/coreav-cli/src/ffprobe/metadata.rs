@@ -32,7 +32,7 @@ pub fn stream(
                 }
                 _ => None,
             }),
-        "aac" | "aac_latm" => {
+        "aac" => {
             let object = config.and_then(|config| {
                 let mut bits = super::video::Bits::new(config);
                 match bits.bits(5)? {
@@ -221,7 +221,7 @@ pub fn downmix(entries: &mut Entries, first: &[u8]) {
     {
         let at = entries
             .iter()
-            .position(|(k, _)| *k == "bits_per_sample")
+            .position(|(k, _)| *k == "initial_padding")
             .map_or(entries.len(), |n| n + 1);
         entries.splice(at..at, mix.entries());
     }
@@ -258,6 +258,39 @@ mod tests {
             stream(&mut entries, None, &[], None);
             assert_eq!(entries.last(), Some(&("mime_codec_string", s(mime))));
         }
+    }
+
+    #[test]
+    fn latm_is_not_listed_as_an_mp4_audio_sample_entry() {
+        let mut entries = vec![("codec_name", s("aac_latm")), ("profile", s("LC"))];
+        let expected = entries.clone();
+        stream(&mut entries, None, &[], None);
+        assert_eq!(entries, expected);
+    }
+
+    #[test]
+    fn dolby_downmix_follows_the_initial_padding_field() {
+        let mut entries = vec![
+            ("codec_name", s("ac3")),
+            ("bits_per_sample", Value::Int(0)),
+            ("initial_padding", Value::Int(0)),
+            ("id", s("0x1")),
+        ];
+        downmix(&mut entries, &[0x0b, 0x77, 0, 0, 0x1e, 0x40, 0xe0, 0x40]);
+        assert_eq!(
+            entries.into_iter().map(|(key, _)| key).collect::<Vec<_>>(),
+            [
+                "codec_name",
+                "bits_per_sample",
+                "initial_padding",
+                "dmix_mode",
+                "ltrt_cmixlev",
+                "ltrt_surmixlev",
+                "loro_cmixlev",
+                "loro_surmixlev",
+                "id",
+            ]
+        );
     }
 
     #[test]

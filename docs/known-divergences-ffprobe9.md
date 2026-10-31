@@ -17,9 +17,9 @@ On small generated inputs, the pinned oracle omits the suffix of a
 full-range monochrome sequence and of a position-only chroma change,
 prints a full-range RGB sequence's range as 0, and ignores an `nclx`
 override of a BT.2020/PQ sequence. CoreAV follows the specified values
-and omits only the complete default suffix. These are documented oracle
-disagreements, not measurement exceptions: no predicate in `ffmpeg9.json`
-accepts them, and a differing string still fails B3a.
+and omits only the complete default suffix. The byte-validated generated
+fixture exception at the end of this page covers one exact `nclx`
+disagreement. Other differing strings still fail B3a on the corpus.
 
 The command-coverage set (`tools/compat-corpus/run.py commands`, bar B3a on
 the fixtures of [`design/compat-cli.md`](design/compat-cli.md)) compares
@@ -48,12 +48,13 @@ entry by its type (`packets.side_data_list[Skip Samples]`, with `[]` for
 an entry the command prints empty because it selects none of its keys);
 a stream group as `stream_groups`.
 
-The first twelve entries are changes in what FFmpeg 9.0.2 prints: CoreAV
+The first eleven entries are changes in what FFmpeg 9.0.2 prints: CoreAV
 prints what 7.0.2 printed, and coreav-dev/coreav#24 follows 9.0.2. The
-thirteenth is an FFmpeg error on a fixture 9.0.2 writes, which ISO/IEC
-14496-12 decides for CoreAV. The last four are CoreAV differences that the
+twelfth is an FFmpeg error on a fixture 9.0.2 writes, which ISO/IEC
+14496-12 decides for CoreAV. The next four are CoreAV differences that the
 fixtures 9.0.2 writes expose: both FFmpeg versions print the same value
-there, and CoreAV another.
+there, and CoreAV another. The final entry validates an AV1 fixture's
+stored `nclx` bytes and fails when its exact oracle disagreement changes.
 
 ## KD-FF9-NEW-KEYS
 
@@ -147,13 +148,6 @@ there, and CoreAV another.
   whose size CoreAV prints: two bytes for H.264, three for HEVC.
 - Accepts: those two bytes more from `ffprobe` on an H.264 stream, three
   on an HEVC stream.
-
-## KD-FF9-TS-PROBE-SCORE
-
-- Key: `format.probe_score`.
-- Cause: FFmpeg 9.0.2 gives an MPEG-TS file a probe score of 100, where
-  7.0.2 and CoreAV give 50.
-- Accepts: 100 from `ffprobe` and 50 from CoreAV.
 
 ## KD-FF9-TIMECODE-GROUP
 
@@ -255,6 +249,25 @@ there, and CoreAV another.
   CoreAV does not. A CoreAV difference, for a follow-up.
 - Accepts: a shorter duration from `ffprobe` on the last packet of an AAC
   stream, and no other packet's.
+
+## KD-FF9-AV1-NCLX
+
+- Key: `streams.mime_codec_string` (`color_av1_colr_ignored.mp4` only).
+- Cause: [AV1 ISOBMFF section 5](https://aomediacodec.github.io/av1-isobmff/#codecsparam)
+  requires an `nclx` box to override the sequence-header colour and
+  range in the codec string. The fixture's stored values are 6/6/6 and
+  full range. The pinned oracle instead prints the short default string.
+- Accepts: exactly `av01.0.00M.08` from the oracle and
+  `av01.0.00M.08.0.110.06.06.06.1` from CoreAV, on a video stream
+  identified as AV1 with the `av01` codec tag. No other field is excluded.
+- Evidence: the runner walks this fixture's boxes, requires one AV1
+  sample entry, reads its `av1C` configuration and the exact `nclx`
+  bytes, and derives the expected string from them. Changed bytes or
+  outputs fail the gate. Both command runners check this before comparing
+  commands, including commands on which the outputs already agree. If
+  the oracle starts agreeing on the codec string, they fail explicitly
+  and require removal of the obsolete exception. Other files, including
+  corpus files, do not use it.
 
 ## Corpus differences not set aside
 

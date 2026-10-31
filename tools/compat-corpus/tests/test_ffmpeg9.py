@@ -224,6 +224,90 @@ class MalformedOutput(unittest.TestCase):
                 self.assertEqual([(f['bar'], f['file'], f['keys']) for f in report['failures']], [('B3', 'a.mp4', None)])
 
 
+class Av1Nclx(unittest.TestCase):
+    COLOUR = b'nclx\0\6\0\6\0\6\x80'
+    SHORT = 'av01.0.00M.08'
+    FULL = 'av01.0.00M.08.0.110.06.06.06.1'
+
+    def setUp(self):
+        run.av1_nclx_fixture.cache_clear()
+
+    def fixture(self, colour=COLOUR, record=b'\x81\0\x0c\0'):
+        def box(kind, body):
+            return (len(body) + 8).to_bytes(4, 'big') + kind + body
+        data = box(b'av01', bytes(78) + box(b'av1C', record) + box(b'colr', colour))
+        data = box(b'stsd', b'\0\0\0\0\0\0\0\1' + data)
+        for kind in (b'stbl', b'minf', b'mdia', b'trak', b'moov'):
+            data = box(kind, data)
+        return data
+
+    def listed(self, mime, tag='av01'):
+        return json.dumps({'streams': [{'codec_name': 'av1', 'codec_tag_string': tag,
+                                       'mime_codec_string': mime}]}).encode()
+
+    def test_the_exact_fixture_bytes_and_pair_are_required(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = pathlib.Path(tmp) / 'color_av1_colr_ignored.mp4'
+            path.write_bytes(self.fixture())
+            def command(argv):
+                return 0, self.listed(self.SHORT if argv[0] == 'ffprobe' else self.FULL), b''
+            with mock.patch.object(run, 'run', command):
+                self.assertTrue(run.av1_nclx_fixture('coreav', path))
+                self.assertFalse(run.av1_nclx_fixture('coreav', path.with_name('another.mp4')))
+                self.assertFalse(run.accepts('coreav', path, 'streams.codec_tag_string',
+                                             {'evidence': 'av1 nclx'}, ['av01'], ['wrong']))
+                ref = (f'[STREAM]\ncodec_name=av1\ncodec_type=video\ncodec_tag_string=av01\n'
+                       f'mime_codec_string={self.SHORT}\n[/STREAM]\n').encode()
+                got = ref.replace(self.SHORT.encode(), self.FULL.encode())
+                canonical = {'streams.mime_codec_string': [
+                    (self.SHORT, self.FULL, {'codec_type': 'video', 'codec_name': 'av1'})]}
+                with mock.patch.object(run, 'canonical', return_value=canonical):
+                    self.assertEqual(run.ffmpeg9_covers('coreav', ['-show_streams'], path, ref, got)[0],
+                                     ['KD-FF9-AV1-NCLX'])
+                    self.assertIsNone(run.ffmpeg9_covers('coreav', ['-show_streams'], path, ref,
+                                                        got.replace(b'codec_tag_string=av01',
+                                                                    b'codec_tag_string=wrong'))[0])
+            for at in range(len(self.COLOUR)):
+                changed = bytearray(self.COLOUR)
+                changed[at] ^= 1
+                path.write_bytes(self.fixture(bytes(changed)))
+                run.av1_nclx_fixture.cache_clear()
+                with self.assertRaisesRegex(SystemExit, 'nclx colour or range bytes'):
+                    run.av1_nclx_fixture('coreav', path)
+            path.write_bytes(self.fixture(record=b'\x81\1\x0c\0'))
+            with self.assertRaisesRegex(SystemExit, 'changed AV1 configuration'):
+                run.av1_nclx_fixture('coreav', path)
+
+    def test_changed_outputs_or_a_stale_exception_fail_loudly(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = pathlib.Path(tmp) / 'color_av1_colr_ignored.mp4'
+            path.write_bytes(self.fixture())
+            for ref, got in [(self.FULL, self.FULL), (self.SHORT, self.SHORT),
+                             (self.SHORT, self.FULL + '.0'), (self.SHORT + '.0', self.FULL)]:
+                run.av1_nclx_fixture.cache_clear()
+                def command(argv):
+                    return 0, self.listed(ref if argv[0] == 'ffprobe' else got), b''
+                with mock.patch.object(run, 'run', command), self.assertRaises(SystemExit):
+                    run.av1_nclx_fixture('coreav', path)
+            run.av1_nclx_fixture.cache_clear()
+            with mock.patch.object(run, 'run', return_value=(0, self.listed(self.FULL), b'')), \
+                    mock.patch.object(run, 'media_files', return_value=[path]), \
+                    self.assertRaisesRegex(SystemExit, 'oracle now agrees'):
+                run.cmd_commands(argparse.Namespace(coreav='coreav', media=[]))
+            run.av1_nclx_fixture.cache_clear()
+            with mock.patch.object(run, 'run', return_value=(0, self.listed(self.FULL), b'')), \
+                    mock.patch.object(run, 'media_files', return_value=[path]), \
+                    self.assertRaisesRegex(SystemExit, 'oracle now agrees'):
+                run.cmd_commands_010(argparse.Namespace(coreav='coreav', media=[], baseline=None,
+                                                       write_baseline=None))
+            run.av1_nclx_fixture.cache_clear()
+            def wrong_tag(argv):
+                return 0, self.listed(self.SHORT if argv[0] == 'ffprobe' else self.FULL,
+                                      tag='wrong'), b''
+            with mock.patch.object(run, 'run', wrong_tag), self.assertRaises(SystemExit):
+                run.av1_nclx_fixture('coreav', path)
+
+
 class Table(unittest.TestCase):
     def test_every_entry_is_documented_and_every_pair_listed_once(self):
         table = json.loads((ROOT / 'tools' / 'compat-corpus' / 'ffmpeg9.json').read_text())

@@ -825,6 +825,64 @@ fn every_picture_keeps_the_identifier_of_its_own_pes_packet() {
 }
 
 #[test]
+fn default_video_runs_keep_the_starting_identifier_through_eof() {
+    let mut mux = Mux::default();
+    mux.pat(&[(1, 0x1000)]);
+    mux.pmt(0x1000, 1, &[(0x1b, 0x101)]);
+    let pair = [picture(None, 120), picture(None, 120)].concat();
+    mux.pes(0x101, 0xe0, 90_000, &pair, false);
+    mux.pes(0x101, 0xe1, 97_200, &picture(None, 120), false);
+    let ts = probe(
+        SliceSource::new(&mux.out),
+        &Limits::default(),
+        &Allowlist::all(),
+    )
+    .unwrap();
+    let ids: Vec<_> = ts
+        .packets(SliceSource::new(&mux.out), &Limits::default())
+        .map(|p| p.unwrap().stream_id)
+        .collect();
+    assert_eq!(ids, [Some(0xe0), Some(0xe0), Some(0xe1)]);
+}
+
+#[test]
+fn an_audio_frame_keeps_its_identifier_across_several_pes_packets() {
+    for cut in [2, 10] {
+        let mut mux = Mux::default();
+        mux.pat(&[(1, 0x1000)]);
+        mux.pmt(0x1000, 1, &[(0x0f, 0x101)]);
+        let frame = adts(40);
+        mux.pes(0x101, 0xc0, 90_000, &frame[..cut], true);
+        mux.pes(0x101, 0xc1, 90_000, &frame[cut..cut + 3], true);
+        mux.pes(
+            0x101,
+            0xc2,
+            91_920,
+            &[&frame[cut + 3..], &adts(40)].concat(),
+            true,
+        );
+        let ts = probe(
+            SliceSource::new(&mux.out),
+            &Limits::default(),
+            &Allowlist::all(),
+        )
+        .unwrap();
+        for compatible in [false, true] {
+            let mut packets = ts.packets(SliceSource::new(&mux.out), &Limits::default());
+            if compatible {
+                packets = packets.listing_as_ffprobe();
+            }
+            let ids: Vec<_> = packets.map(|p| p.unwrap().stream_id).collect();
+            assert_eq!(
+                ids,
+                [Some(0xc0), Some(0xc2)],
+                "cut={cut}, compatible={compatible}"
+            );
+        }
+    }
+}
+
+#[test]
 fn a_long_pes_packet_is_read_whole_by_default() {
     // The stream of `as_ffprobe_a_long_pes_packet_is_read_in_pieces`,
     // listed by default: the long PES packet is read once the next one
