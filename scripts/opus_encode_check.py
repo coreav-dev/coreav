@@ -26,6 +26,9 @@ import subprocess
 import sys
 import time
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT  # noqa: E402
+
 DURATION = 10
 
 
@@ -114,8 +117,8 @@ def probe_audio(ffprobe, path):
 def pcm(ffmpeg, path):
     """The PCM O4 compares: the audio of `path` decoded by FFmpeg to 48 kHz
     float, or None when FFmpeg fails or gives no samples."""
-    done = run([ffmpeg, '-nostdin', '-v', 'error', '-i', path, '-map', '0:a', '-ar', '48000',
-                '-f', 'f32le', '-'])
+    done = run([ffmpeg, '-nostdin', '-v', 'error', *AUDIO_DECODE_INPUT, '-i', path, '-map', '0:a',
+                '-ar', '48000', '-f', 'f32le', '-'])
     return samples(done.returncode, done.stdout)
 
 

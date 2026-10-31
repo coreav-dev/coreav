@@ -1333,7 +1333,9 @@ fn made(tools: &Tools, dir: &Path, name: &str, audio: &[&str]) -> PathBuf {
 #[cfg(feature = "libopus")]
 fn decoded_audio(tools: &Tools, path: &Path) -> (Vec<u8>, String) {
     let out = Command::new(&tools.ffmpeg)
-        .args(["-nostdin", "-v", "error", "-i"])
+        .args(["-nostdin", "-v", "error"])
+        .args(include_str!("../../../scripts/oracle-audio-args.txt").split_whitespace())
+        .arg("-i")
         .arg(path)
         .args(["-map", "0:a", "-ar", "48000", "-f", "s16le", "-"])
         .output()
