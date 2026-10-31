@@ -39,6 +39,11 @@ When a review corrects a mistake, fix it and add its rule here. If the rule is a
 | A frame-oracle timeout or crash fails the run even for a baselined pair, and cannot enter the baseline | `oracle_failed` and unique fixture-name validation in `tools/compat-corpus/frames.py`; `test_baseline_cannot_suppress_or_record_an_oracle_failure` and `test_duplicate_fixture_names_are_refused_before_comparison` (`ci.yml`) |
 | Missing FLAC or ALAC configurations, invalid FLAC block-size bounds, and unsupported ALAC cookie versions produce a malformed-configuration warning, not configured audio values | `a_malformed_lossless_configuration_is_refused` in `coreav-isobmff/tests/audio_layouts.rs`; the library parses these bytes before exposing configured values |
 | Thresholds are committed before the run they judge | Not enforced: judgment (the commit before the run is the evidence) |
+| R3 reports every command of its set, including commands no input file reached | `test_every_command_is_reported_even_without_a_file_of_its_families` in `tools/compat-corpus/tests/test_r3.py` |
+| A rejected R4 rehearsal retains its public reports for diagnosis | `test_reports_survive_a_rejected_rehearsal` in `scripts/tests/test_compat_workflow.py` |
+| Compatibility shards and R4 scans produce nonempty summaries, and aggregation requires every expected shard | Crash and incomplete-input tests in `scripts/tests/test_compat_workflow.py` run the workflow shell blocks |
+| R1 uses the registered dist-profile binary and retains its SHA-256 with each fixture result | `test_r1_uses_the_registered_profile_and_records_its_binary_hash` in `scripts/tests/test_compat_workflow.py` executes all three R1 steps |
+| Measurement workflow checkouts do not persist Git credentials | `test_measurement_checkouts_do_not_persist_credentials` in `scripts/tests/test_compat_workflow.py` |
 | One outcome per pull request; the template's sections; no hard-wrapped body lines | Not enforced: judgment |
 | Design notes change in the same pull request as the design | Not enforced: judgment |
 | Code is written from specifications, never from other implementations' source | The code-similarity check for `coreav-h264`, `coreav-kernels-h264` and `coreav-opus` (`docs/design/ci-checks.md`, "Before opening a pull request"); elsewhere review |
