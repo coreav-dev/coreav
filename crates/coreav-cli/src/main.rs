@@ -80,8 +80,8 @@ use coreav_cli::{
 use coreav_isobmff::BufferedSource;
 use coreav_isobmff_write::hls::{HlsIndex, HlsOptions, Resource};
 use coreav_isobmff_write::{
-    AudioChoice, ClipOptions, JoinAudio, JoinOptions, MatroskaRemuxOptions, Metadata,
-    OnUnsupported, RemuxOptions, SplitAt, SplitOptions, TrackChoice, VideoChoice,
+    AudioChoice, ClipOptions, HeaderMetadata, JoinAudio, JoinOptions, MatroskaRemuxOptions,
+    Metadata, OnUnsupported, RemuxOptions, SplitAt, SplitOptions, TrackChoice, VideoChoice,
 };
 use coreav_policy::Policy;
 #[cfg(not(feature = "net"))]
@@ -1189,7 +1189,7 @@ fn run_extract_audio(args: &ExtractAudioArgs) -> ExitCode {
     };
     write_output(&args.input, &args.output, args.force, |out| {
         let summary = match remote.as_mut() {
-            None => extract::run(&args.input, choice, &allowlist, out),
+            None => extract::run(&args.input, choice, &allowlist, HeaderMetadata::Copy, out),
             Some(source) => {
                 extract::run_source(BufferedSource::new(&mut *source), choice, &allowlist, out)
                     .map_err(|f| explain_write(source, f))

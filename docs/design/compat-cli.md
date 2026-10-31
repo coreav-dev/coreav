@@ -1007,7 +1007,7 @@ implies:
 | The command | The writer |
 |---|---|
 | a copy to `.mp4` (or `-f mp4`) | `coreav remux`, MP4/MOV or Matroska/WebM input, the selected streams, failing rather than dropping a stream MP4 cannot carry; of an MP4/MOV input's cover pictures, the selected ones (below) |
-| a copy of one audio stream to `.m4a` (or `-f ipod`) | `coreav extract-audio` |
+| a copy of one audio stream to `.m4a` (or `-f ipod`) | `coreav extract-audio`; with `-map_metadata -1`, without the input's header metadata (below) |
 | `-ss`, `-t` or `-to`, before or after `-i` | `coreav clip`: one video stream and at most one audio stream |
 | the same, with no video selected | the clip of audio alone (`clip_audio_mp4` of `coreav-isobmff-write`): one AAC, FLAC, Apple Lossless, AC-3 or E-AC-3 stream |
 | `-f segment` with MP4 segments | `coreav split --every` the `-segment_time` (2 s when absent) |
@@ -1015,6 +1015,20 @@ implies:
 
 Every other output container, MOV and 3GP included, is refused: the MOV
 muxer's output is not the MP4 writer's.
+
+**`-map_metadata -1` on an M4A output.** `ffmpeg`'s documentation says "a
+negative file index can be used to create a dummy mapping that just
+disables automatic copying", and the pinned `ffmpeg` 9.0.2 copies none of the input's metadata
+then (black box, an AAC stream tagged `eng` with a handler name, a title and
+a creation time): the media header's language is `und`, the handler name
+its own `SoundHandler`, the creation and modification times of the movie,
+track and media headers 0, and no item of the input's list is written. The
+extraction writes the same with `HeaderMetadata::Clear`: the language
+`und` and the six times 0 (ISO/IEC 14496-12 8.2.2, 8.3.2, 8.4.2). It writes
+no item list and the handler name `SoundHandler` in any case. Its samples,
+sample tables and edit list do not change: they are timing, not metadata.
+`stripped_metadata_agrees_with_the_pinned_ffmpeg` in `tests/ffmpeg.rs`
+checks both outputs' tags in CI.
 
 **Stream selection**, as the pinned `ffmpeg` 7.0.2 makes it (black box: its
 `Stream mapping` for the same command). Without `-map`: the video stream
@@ -1209,12 +1223,14 @@ FFmpeg).**
   one audio stream (C20's `-map 0:a` on a file with several), a clip or
   segments of more than one video or audio stream.
 - Options with a meaning the writers do not reproduce: `-fflags` other than
-  `+genpts` (C26's `+igndts` changes the timestamps `ffmpeg` writes; black
-  box: the decode times of the first audio packets), `-map_metadata` other
-  than `-1` (C25's `0:s:0`), and `-map_metadata -1` except on an M4A
-  output of a stream without a language: the remux and the clip copy the
-  metadata, and the M4A writer keeps the stream's language, which `ffmpeg`
-  drops.
+  `+genpts`, `-map_metadata` other than `-1` (C25's `0:s:0`), and
+  `-map_metadata -1` except on an M4A output: the remux and the clip copy
+  the metadata. C26's `+igndts` has `ffmpeg` drop an MP4 or MOV input's
+  decode times and derive new ones from the presentation times, by rules no
+  specification states (black box, the pinned `ffmpeg` 9.0.2: on 8 of the
+  generated MP4 fixtures the video's decode times, sample durations and edit
+  list change; on Matroska and WebM inputs, whose blocks carry presentation
+  times only, nothing changes).
 - Matroska and WebM inputs to the jobs other than the remux, and
   MPEG-TS inputs to all of them, as "Containers" says.
 - An input or output named with a protocol: standard input or output
