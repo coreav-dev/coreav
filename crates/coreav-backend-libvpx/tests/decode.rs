@@ -34,7 +34,9 @@ fn ffmpeg() -> PathBuf {
 }
 
 /// One second of `testsrc2` at 25 frames a second, encoded with
-/// `encoder` (`libvpx-vp9` or `libvpx`, VP8) into `name`.
+/// `encoder` (`libvpx-vp9` or `libvpx`, VP8) into `name`. The pattern
+/// is drawn in 4:4:4, so an odd `size` stays odd: drawn in 4:2:0 it
+/// would be rounded down to even.
 fn generate(
     dir: &Path,
     name: &str,
@@ -44,9 +46,10 @@ fn generate(
     extra: &[&str],
 ) -> PathBuf {
     let out = dir.join(name);
+    let source = format!("testsrc2=size={size}:rate=25,format=yuv444p");
     let status = Command::new(ffmpeg())
         .args(["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi"])
-        .args(["-i", &format!("testsrc2=size={size}:rate=25"), "-t", "1"])
+        .args(["-i", &source, "-t", "1"])
         .args(["-c:v", encoder, "-g", "10", "-b:v", "300k"])
         .args(["-pix_fmt", pix_fmt])
         .args(extra)
@@ -219,7 +222,7 @@ fn framemd5(file: &Path, codec: &str) -> Vec<(i64, usize, String)> {
         .args(["-hide_banner", "-loglevel", "error", "-c:v", codec, "-i"])
         .arg(file)
         .args(["-map", "0:v:0", "-fps_mode", "passthrough", "-noautoscale"])
-        .args(["-enc_time_base:v", "demux", "-f", "framemd5", "-"])
+        .args(["-enc_time_base:v", "1/1000", "-f", "framemd5", "-"])
         .output()
         .expect("ffmpeg runs");
     assert!(
@@ -408,6 +411,16 @@ fn frames_match_ffmpeg_vp8() {
         let file = generate(&dir, name, "libvpx", size, "yuv420p", extra);
         let ours = agrees_with_ffmpeg_vp8(&file);
         assert_eq!(ours.pts.len(), 25, "{name}: frames");
+        let (width, height) = size.split_once('x').expect("WxH");
+        let size = (
+            width.parse().expect("width"),
+            height.parse().expect("height"),
+        );
+        assert!(
+            ours.sizes.iter().all(|s| *s == size),
+            "{name}: {:?}",
+            ours.sizes.first()
+        );
     }
     // Hidden alternate reference frames: packets of their own that give no
     // frame.
