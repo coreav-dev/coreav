@@ -517,6 +517,14 @@ times out after both untimed runs succeeded makes the run incomplete, which
 fails R4 and fails the gate, never passes them on the timings left. `speed.py r4-report --gate` judges the gate on each class's ratios
 over the three families, as the gate names "every class's median"; the
 families' rows are reported and not gated.
+R4 uses the same event-driven process-exit timer as B4, with a 600-second
+deadline that kills and reaps an overlong child. Timeout polling sleeps
+are not included in the elapsed time. Launch or process-exit descriptor
+errors abort R4 rather than becoming ordinary child failures that its
+warm-up rule excludes. This corrects the timing method,
+not the selection or the bars. Existing R4 reports remain readable with
+their stored ratios; reading them does not remeasure or rescore them.
+Timings collected with timeout polling cannot substantiate current speed bars.
 
 `scripts/compat_r4_gcp.py` runs the R4 host over `scripts/gcp_vm_job.py`:
 one on-demand `c4-standard-16` with one thread a core, the three binaries
