@@ -71,6 +71,13 @@ if it is one, so YAML 1.1's boolean keys (`on`, `yes`), merge keys and
 duplicate keys hide no step. A file that is not one readable YAML
 document, an alias that names no anchor and a `uses` value that is not a
 string fail.
+The same `deny.yml` job runs actionlint (a pinned release, shellcheck and
+pyflakes off) over the workflows, so an expression that names a context
+GitHub does not offer where it stands, such as `runner` in a job's `env:`,
+fails the pull request rather than the first run. That table of contexts is
+GitHub's and actionlint keeps it; `workflow_check.py` reads workflows as
+lines and would have to copy it. The step also runs a workflow with that
+mistake, which has to fail.
 A workflow that carries the line `# workflow-check: not required` is
 outside the table: its report job need not be listed, and the table may
 not list it.
