@@ -107,9 +107,9 @@ jobs:
     env:
       # The MPEG-4 audio conformance bitstreams of ISO/IEC 14496-26:2010,
       # publicly available at standards.iso.org: the AAC streams in MP4
-      # (first DVD) and the reference waveforms of the AAC LC ones (second
-      # DVD), 2.1 GB, each file pinned by SHA-256 in
-      # crates/coreav-aac/tests/conformance.sha256.
+      # and the HE-AAC reference waveforms (first DVD) and the reference
+      # waveforms of the AAC LC streams (second DVD), 2.5 GB, each file
+      # pinned by SHA-256 in crates/coreav-aac/tests/conformance.sha256.
       AAC_VECTORS_BASE: https://standards.iso.org/ittf/PubliclyAvailableStandards/ISO_IEC_14496-26_2010_Bitstreams
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -129,12 +129,12 @@ jobs:
         if: steps.vectors.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/aac/compressedMp4" "$RUNNER_TEMP/aac/referencesWav"
+          mkdir -p "$RUNNER_TEMP/aac/compressedMp4" "$RUNNER_TEMP/aac/referencesWav/add-opt"
           cd "$RUNNER_TEMP/aac"
           awk '{print $2}' "$GITHUB_WORKSPACE/crates/coreav-aac/tests/conformance.sha256" |
             while read -r f; do
               case "$f" in
-                compressedMp4/*) echo "$AAC_VECTORS_BASE/DVD1/mpeg4audio-conformance/$f $f" ;;
+                compressedMp4/* | referencesWav/add-opt/*) echo "$AAC_VECTORS_BASE/DVD1/mpeg4audio-conformance/$f $f" ;;
                 *) echo "$AAC_VECTORS_BASE/DVD2/mpeg4audio-conformance/$f $f" ;;
               esac
             done | xargs -P 8 -n 2 sh -c 'curl -fsSL --retry 3 -o "$1" "$0"'
