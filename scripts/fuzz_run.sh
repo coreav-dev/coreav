@@ -12,12 +12,16 @@
 #
 # Usage:
 #   scripts/fuzz_run.sh setup                 install the toolchain and cargo-fuzz
+#   scripts/fuzz_run.sh shard PLAN K N        print shard K of N of PLAN
 #   scripts/fuzz_run.sh build PLAN            build every project PLAN names
 #   scripts/fuzz_run.sh run PLAN SECONDS OUT  run each target for SECONDS
 #   scripts/fuzz_run.sh prune                 drop what the cache need not keep
 #   scripts/fuzz_run.sh toolchain             print the pinned nightly
 #
 # PLAN holds one "FUZZ_DIR TARGET" line per target (scripts/fuzz_plan.py).
+# A shard takes whole projects, so each project builds in one shard only:
+# each project, in PLAN's order, goes to the shard with the fewest targets
+# so far.
 set -euo pipefail
 
 # Pinned so that the cached build stays valid until the pin moves.
@@ -31,6 +35,11 @@ case "${1:-}" in
   setup)
     rustup toolchain install "$TOOLCHAIN" --profile minimal
     cargo install cargo-fuzz --version "$CARGO_FUZZ" --locked
+    ;;
+  shard)
+    awk -v k="$3" -v n="$4" '
+      !($1 in owner) { best = 1; for (i = 2; i <= n; i++) if (count[i] < count[best]) best = i; owner[$1] = best }
+      { count[owner[$1]]++ } owner[$1] == k' "$2"
     ;;
   build)
     awk '{print $1}' "$2" | uniq | while read -r dir; do
