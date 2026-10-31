@@ -2794,6 +2794,9 @@ struct State {
     /// the samples of the block's frames so far.
     lace_start: Option<i64>,
     lace_samples: Option<u64>,
+    /// Samples of the block's negative `DiscardPadding` that its frames
+    /// so far have not skipped.
+    front: u64,
     /// Packets listed so far.
     count: usize,
 }
@@ -2817,19 +2820,21 @@ impl<S: Source> PacketSource for MkvPackets<S> {
                 previous_samples: None,
                 lace_start: None,
                 lace_samples: None,
+                front: 0,
                 count: 0,
             })
             .collect();
         let mut iter = segment
             .packets(&mut self.source, &limits)
             .with_inflated_sizes();
+        let mut held = Held::default();
         while let Some(item) = iter.next() {
             let p = match item {
                 Ok(p) => p,
                 Err(coreav_mkv::Error::Io(kind)) => {
                     return Err(Failure::Matroska(coreav_mkv::Error::Io(kind)));
                 }
-                Err(_) => return Ok(()),
+                Err(_) => break,
             };
             let (Some(track), Some(info), Some(state)) = (
                 segment.tracks.get(p.track),
@@ -2971,32 +2976,28 @@ impl<S: Source> PacketSource for MkvPackets<S> {
             } else {
                 (pts, None)
             };
-            let mut side_data = Vec::new();
             // The samples a decoder discards (RFC 9559): `CodecDelay`'s
-            // before the first frame, a block's `DiscardPadding` at the end
-            // of its last frame, or at the start of its first when negative.
-            let mut skip = if state.count == 1 { info.skip } else { 0 };
-            let mut discard = 0;
-            if let (Some(padding), Some(rate)) = (p.discard_padding, info.rate) {
-                let samples = samples_in(padding.unsigned_abs(), rate);
-                if padding < 0 && p.lace == 0 {
-                    skip = skip.saturating_add(samples);
-                } else if padding > 0 && p.lace.saturating_add(1) >= p.frames_in_block {
-                    discard = samples;
+            // before the first frame, and a block's `DiscardPadding`, from
+            // the start of its first frames when negative, else from the end
+            // of its last ones, each frame at most its own samples.
+            let (front, end) = match (p.discard_padding, info.rate) {
+                (Some(padding), Some(rate)) => {
+                    let samples = samples_in(padding.unsigned_abs(), rate);
+                    if padding < 0 {
+                        (samples, 0)
+                    } else {
+                        (0, samples)
+                    }
                 }
+                _ => (0, 0),
+            };
+            if p.lace == 0 {
+                state.front = front;
             }
-            if skip > 0 || discard > 0 {
-                side_data.push(SideData {
-                    typ: "skip_samples",
-                    entries: vec![
-                        ("side_data_type", s("Skip Samples")),
-                        ("skip_samples", int(skip)),
-                        ("discard_padding", int(discard)),
-                        ("skip_reason", Value::Int(0)),
-                        ("discard_reason", Value::Int(0)),
-                    ],
-                });
-            }
+            let skipped = samples.map_or(state.front, |n| n.min(state.front));
+            state.front -= skipped;
+            let skip = if state.count == 1 { info.skip } else { 0 }.saturating_add(skipped);
+            let mut side_data = Vec::new();
             if p.block_additions.is_some() {
                 side_data.push(SideData {
                     typ: "matroska_blockadditional",
@@ -3037,12 +3038,74 @@ impl<S: Source> PacketSource for MkvPackets<S> {
                     Vec::new()
                 },
             };
-            if !f(packet)? {
+            if end == 0 {
+                if !f(with_skip_samples(packet, skip, 0))? {
+                    return Ok(());
+                }
+                continue;
+            }
+            held.padding = end;
+            held.frames.push((packet, samples, skip));
+            if p.lace.saturating_add(1) >= p.frames_in_block && !held.release(f)? {
                 return Ok(());
             }
         }
+        held.release(f)?;
         Ok(())
     }
+}
+
+/// The frames of a block whose `DiscardPadding` pads its end, held until
+/// its last frame is read: the padding comes off the last frames.
+#[derive(Default)]
+struct Held {
+    /// Each frame, its samples when known, and the samples it skips.
+    frames: Vec<(Packet, Option<u64>, u64)>,
+    padding: u64,
+}
+
+impl Held {
+    /// Lists the held frames, the padding taken from the last frame
+    /// first, each at most its own samples (all of what is left when they
+    /// are unknown). Returns whether the listing goes on.
+    fn release(
+        &mut self,
+        f: &mut dyn FnMut(Packet) -> Result<bool, Failure>,
+    ) -> Result<bool, Failure> {
+        let mut left = self.padding;
+        let mut discards = vec![0; self.frames.len()];
+        for ((_, samples, _), discard) in self.frames.iter().zip(&mut discards).rev() {
+            *discard = samples.map_or(left, |n| n.min(left));
+            left -= *discard;
+        }
+        for ((packet, _, skip), discard) in self.frames.drain(..).zip(discards) {
+            if !f(with_skip_samples(packet, skip, discard))? {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+}
+
+/// `packet` with Skip Samples side data first when it skips or discards
+/// samples.
+fn with_skip_samples(mut packet: Packet, skip: u64, discard: u64) -> Packet {
+    if skip > 0 || discard > 0 {
+        packet.side_data.insert(
+            0,
+            SideData {
+                typ: "skip_samples",
+                entries: vec![
+                    ("side_data_type", s("Skip Samples")),
+                    ("skip_samples", int(skip)),
+                    ("discard_padding", int(discard)),
+                    ("skip_reason", Value::Int(0)),
+                    ("discard_reason", Value::Int(0)),
+                ],
+            },
+        );
+    }
+    packet
 }
 
 /// `samples` at `rate` in ticks of `tb`, rounded to the nearest.

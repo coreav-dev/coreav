@@ -835,6 +835,51 @@ fn discard_padding_pads_a_laced_block_once() {
 }
 
 #[test]
+fn discard_padding_longer_than_a_frame_spans_the_lace() {
+    // Padding that outlasts one 960-sample frame of a lace comes off the
+    // next frames too, so the samples trimmed are the padding, capped at
+    // the lace's: 35 ms is 1,680 samples, 960 and 720; 80 ms takes the
+    // whole lace of 2,880.
+    let path = opus_blocks(
+        "ffprobe-laced-long-padding.webm",
+        48_000,
+        0,
+        &[
+            (1, None),
+            (3, Some(-35_000_000)),
+            (3, Some(35_000_000)),
+            (3, Some(-80_000_000)),
+            (3, Some(80_000_000)),
+        ],
+    );
+    let packets = packet_lines(&path);
+    assert_eq!(packets.len(), 13, "{packets:?}");
+    let expected = [
+        Some((312, 0)),
+        Some((960, 0)),
+        Some((720, 0)),
+        None,
+        None,
+        Some((0, 720)),
+        Some((0, 960)),
+        Some((960, 0)),
+        Some((960, 0)),
+        Some((960, 0)),
+        Some((0, 960)),
+        Some((0, 960)),
+        Some((0, 960)),
+    ];
+    for (line, expected) in packets.iter().zip(expected) {
+        match expected {
+            Some((skip, discard)) => {
+                assert!(line.ends_with(&skip_samples(skip, discard)), "{line}");
+            }
+            None => assert!(line.ends_with("flags=K__"), "{line}"),
+        }
+    }
+}
+
+#[test]
 fn opus_counts_its_delay_and_padding_at_48_khz() {
     // Opus decodes at 48 kHz whatever input rate the track and its
     // `OpusHead` state (RFC 7845 5.1), so 6.5 ms of `CodecDelay` is 312

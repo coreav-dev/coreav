@@ -279,9 +279,11 @@ mask them, and the measured agreement rates still count them as failures.
   counts both; the pinned ffprobe keeps the delay and drops the padding.
 - **Padding of a laced Matroska block.** RFC 9559 5.1.3.5.7 places a
   block's `DiscardPadding` at the end of the block when positive and at
-  its start when negative, so CoreAV lists it on the last frame of a lace,
-  or on the first. The pinned ffprobe lists the whole padding on every
-  frame of the lace and trims each decoded frame by it.
+  its start when negative. CoreAV takes it from the last frames of a lace,
+  or from the first, each frame at most its own samples, so the samples
+  trimmed are the padding, capped at the lace's. The pinned ffprobe lists
+  the whole padding on every frame of the lace and trims each decoded
+  frame by it.
 - **Opus that states another input rate.** Opus decodes at 48 kHz
   whatever input rate its track and `OpusHead` state (RFC 7845 5.1), and
   both CoreAV and the pinned ffprobe count `CodecDelay` and
