@@ -1798,9 +1798,9 @@ No speed against FFmpeg is claimed.
   only, and the report counts such copies. Every other copy is also an
   input of bars 2, 3 and 6, whose gates hold each input on its own, so
   it can only make them harder; it is left out of every number those
-  bars report over several inputs, so that no content counts twice. No held-out file is
-  used, so the draws' rules do not apply. Reports give counts and
-  aggregate numbers, never a file.
+  bars report over several inputs, so that no content counts twice. No
+  held-out file is used, so the draws' rules do not apply. Reports give
+  counts and aggregate numbers, never a file.
 - **Conversions**: the sources, the encodes and every file the sets
   derive (Matroska copies, implicit variants, the corpus's MP4 copies)
   are made by `ffmpeg` and Apple's encoder, before any CoreAV command.
