@@ -1670,8 +1670,10 @@ The bars:
    generated or corpus input has no waiver: the corpus rule leaves out,
    before the run, any file `ffmpeg` does not decode cleanly (sets). No
    waiver is added after the bars; a divergence found in a run is a
-   miss. Reported: the largest difference, the share of samples in noise
-   blocks, the noise level per block.
+   miss. Each input, the corpus's MP4 copies included (sets), passes or
+   fails on its own. Reported: the largest difference, the share of
+   samples in noise blocks, the noise level per block; the numbers taken
+   over several inputs leave out the corpus's MP4 copies.
 3. **Timeline (gating).** On every MP4 file of the generated and corpus
    sets: `scripts/decode_audio_check.py`'s
    presentation model ("Edit list bars", bar 1), as AAC-LC bar 3 runs it:
@@ -1681,8 +1683,10 @@ The bars:
    exact, and the summary's `timeline` is the model's, in samples of
    the output rate while the track's time scale is often the core's.
    Bar: 100% of those inputs. On an input with noise blocks the length
-   and the `timeline` gate and the samples are reported. Reported: every
-   input's comparison with `ffmpeg`'s default output.
+   and the `timeline` gate and the samples are reported. Each input, the
+   corpus's MP4 copies included (sets), passes or fails on its own.
+   Reported: every input's comparison with `ffmpeg`'s default output;
+   their counts leave out the corpus's MP4 copies.
 4. **Signalling (gating).** The same stream signalled three ways decodes
    the same: on every input that has an implicit variant (sets), CoreAV's
    output of the implicit variant equals its output of the explicit
@@ -1708,7 +1712,8 @@ The bars:
 6. **Threads (gating).** On every input of the generated and corpus sets,
    both containers, the output of `--threads 8` is byte-identical to that
    of `--threads 1`; tests pin 1, 2, 3 and 8 threads on HE-AAC fixtures
-   with noise bands and damaged packets.
+   with noise bands and damaged packets. Each input, the corpus's MP4
+   copies included (sets), passes or fails on its own.
 7. **Safety.** The fuzz target `aac_frame` reaches the SBR and PS
    decoders (configurations that signal them, and SBR payloads in fill
    elements) and the `decode` target with the `aac` feature, for the
@@ -1755,8 +1760,8 @@ No speed against FFmpeg is claimed.
     `aacp`, at 24 and 64 kbit/s (`-b`; 8);
   - **Layouts**: `tones+clicks` at 48 kHz in 5.1, `aach` (1).
   Each encode is copied into Matroska and given an implicit variant as the
-  conformance streams are. An encode the encoder refuses is listed and not
-  counted.
+  conformance streams are. An encode the encoder refuses stops the run
+  at its preparation (Conversions, below).
 - **Corpus**: every file of corpus v1, v1-fmp4-large and v1-ts-audio
   (`docs/corpus.md`) that its manifest does not hold out, with the
   extension `mp4`, `m4a`, `m4b`, `mov`, `3gp`, `mkv` or `mka`, whose
@@ -1772,9 +1777,19 @@ No speed against FFmpeg is claimed.
   and 3GP; Matroska): when `ffprobe` answers for none of the class's
   files, or when the class has HE-AAC files and none decodes cleanly.
   Each Matroska file of the set is copied into MP4 (`ffmpeg -map 0:a:0
-  -c copy`) as its pair in bar 5; a file the copy fails on is counted
-  and fails bar 5. No held-out file is used, so the draws' rules do not
-  apply. Reports give counts and aggregate numbers,
-  never a file.
+  -c copy`) as its pair in bar 5. The copy is also an input of bars 2, 3
+  and 6, whose gates hold each input on its own, so it can only make
+  them harder; it is left out of every number those bars report over
+  several inputs, so that no content counts twice. No held-out file is
+  used, so the draws' rules do not apply. Reports give counts and
+  aggregate numbers, never a file.
+- **Conversions**: the sources, the encodes and every file the sets
+  derive (Matroska copies, implicit variants, the corpus's MP4 copies)
+  are made by `ffmpeg` and Apple's encoder, before any CoreAV command.
+  If one of them is not made, the run stops at its preparation, before
+  any CoreAV command: a fault of the preparation, not a judged result,
+  so it is fixed and the run prepared again without using up the
+  judged run. A file a CoreAV command made would instead be a miss of
+  the judged run; no file of the sets is.
 - Not used: ADTS and LATM files (raw `.aac`, MPEG-TS), which the pipeline
   does not read ("AAC-LC", "Scope").
