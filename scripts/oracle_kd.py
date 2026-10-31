@@ -3100,9 +3100,11 @@ def empty_edit_padding(facts):
     lists the frame's part past it: the packet's time less the media time
     plus the empty edit, plus a frame, less that end. Two shapes are read:
 
-    - the last sample lasts exactly a core frame: it decodes nothing past
-      its end whatever SBR does, so CoreAV lists nothing: a `ProvenAbsence`
-      with `ffprobe`'s value, the sample's end and the media edit's;
+    - the last sample lasts exactly a core frame, so its decoded frame,
+      which spans the same ticks whatever SBR does (the media time scale is
+      the core rate), ends at or before the media edit's end; CoreAV lists
+      nothing: a `ProvenAbsence` with `ffprobe`'s value, the decoded frame's
+      end and the media edit's;
     - the last sample is shorter than a frame, the extension that rules SBR
       out fixes the frame, and the media header agrees with the samples:
       CoreAV lists the frame's part past the end, and `ffprobe` nothing once

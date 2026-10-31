@@ -237,6 +237,18 @@ class EmptyEditPadding(unittest.TestCase):
             args = dict(whole, **extra)
             self.assertEqual(self.evidence(movie(edits=edits, **args)[0]), [], name)
 
+    def test_deleting_coreavs_padding_is_not_a_proven_absence(self):
+        # The last sample lasts 700 ticks of a 1,024-tick frame: its decoded
+        # frame ends 324 past the media's end, so CoreAV's 324 is due and
+        # its absence would be a bug, never a proven absence.
+        data, last = movie(edits=((30, -1, 1 << 16), (100, 1024, 1 << 16)))
+        evidence = self.evidence(data)
+        self.assertEqual(evidence, [kd.EmptyEditPadding(1, last, 10, 740, 324)])
+        self.assertFalse(any(isinstance(e, kd.ProvenAbsence) for e in evidence))
+        # Without the extension the frame is still known in ticks, but the
+        # sample is shorter than it: no evidence at all.
+        self.assertEqual(self.evidence(movie(edits=((30, -1, 1 << 16), (100, 1024, 1 << 16)), asc=LC_48K)[0]), [])
+
     def test_a_version_1_edit_list_reads_the_same(self):
         data, last = movie(elst_version=1)
         self.assertEqual(self.evidence(data), [kd.EmptyEditPadding(1, last, 10, None, 324)])
