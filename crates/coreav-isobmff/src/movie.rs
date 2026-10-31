@@ -2144,21 +2144,11 @@ fn parse_stbl<S: Source>(
                 layout,
                 allowlist,
                 &mut parts.warnings,
+                &mut |bytes, at| w.retain(bytes, at),
             )?;
             if parts.description.is_some() {
                 return Err(invalid(&child, "second sample description box"));
             }
-            let kept = core::iter::once(&parsed.0)
-                .chain(&parsed.1)
-                .flat_map(|d| d.codec_config.iter().chain(&d.entry_boxes))
-                .fold(0usize, |sum, c| sum.saturating_add(c.data.len()))
-                .saturating_add(
-                    parsed
-                        .1
-                        .len()
-                        .saturating_mul(core::mem::size_of::<SampleDescription>()),
-                );
-            w.retain(kept, child.offset)?;
             parts.description = Some(parsed);
             return Ok(());
         }
@@ -2196,6 +2186,7 @@ fn parse_stsd(
     layout: EntryLayout,
     allowlist: &Allowlist,
     warnings: &mut Vec<Warning>,
+    retain: &mut dyn FnMut(usize, u64) -> Result<(), Error>,
 ) -> Result<(SampleDescription, Vec<SampleDescription>, u32, u16), Error> {
     let mut b = Bytes::new(payload, offset);
     b.version_flags()?;
@@ -2227,10 +2218,20 @@ fn parse_stsd(
                 fourcc: description.fourcc,
             });
         }
+        let kept = description
+            .codec_config
+            .iter()
+            .chain(&description.entry_boxes)
+            .fold(0usize, |sum, c| sum.saturating_add(c.data.len()));
         if first.is_none() {
+            retain(kept, entry_offset)?;
             let data_reference = crate::bytes::be_u16_at(entry, 14).unwrap_or(1);
             first = Some((description, data_reference));
         } else {
+            retain(
+                kept.saturating_add(core::mem::size_of::<SampleDescription>()),
+                entry_offset,
+            )?;
             later.push(description);
         }
     }
