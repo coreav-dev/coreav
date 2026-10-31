@@ -10,6 +10,7 @@ VIDEO_ONLY = {
     ('docs/measurements/h264-n2-heldout/tools/identity.py', ''): 'raw H.264 elementary streams only',
     ('scripts/h264_agreement.py', 'ffmpeg_frames'): 'video stream only',
     ('scripts/oracle.py', 'decode'): 'video streams only',
+    ('scripts/stsd_craft.py', 'fixture'): 'video stream only',
     ('scripts/thumbnail_oracle.py', 'framemd5'): 'video stream only',
     ('scripts/transcode_check.py', 'native_conformance'): 'video stream only',
 }
