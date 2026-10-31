@@ -1632,36 +1632,47 @@ The bars:
    channels by the smallest RMS difference. Not used: the low-power SBR
    and baseline PS references, whose decoders are restricted versions of
    the one written here. Nothing panics. Bar: every counted stream.
-2. **Against FFmpeg (gating).** On every MP4 input of every set: CoreAV's
-   `coreav_aac::Decoder` on every packet in order against `ffmpeg
-   -ignore_editlist 1 -i IN -map 0:a:0 -f f32le -`, with the rules above;
-   CoreAV damages no frame. Bar: 100% of the inputs. Two kinds of input
-   leave only the comparison with FFmpeg's samples and FFmpeg's length,
-   each listed with its reason: an input that `ffmpeg` decodes with an
-   error or a warning (`-v warning` prints a line; in the calibration the
-   six `al960_sbr_i_*` streams, `al960_sbr_ps_04` and the three
-   `al_sbr_i_*_new` streams), and a conformance stream on which CoreAV
-   meets bar 1 and FFmpeg's output, measured as bar 1 measures, does not
-   (in the calibration `ffmpeg` missed `al_sbr_cm_48_5` on one channel,
-   and the three `al_sbr_i_*_new` streams). On those inputs the rest of
-   this bar still gates (CoreAV's length, rate, channels and layout, and no
-   damaged frame), and so does every other bar that applies to them: bar
-   1 where the stream has a reference, and bars 3 to 7. A divergence
-   found in a run is a known
-   divergence only where a raw value of the input shows its condition,
-   never by file. Reported: the largest difference, the share of samples
-   in noise blocks, the noise level per block.
-3. **Timeline (gating).** On every MP4 input of the generated and corpus
-   sets without noise blocks: `scripts/decode_audio_check.py`'s
+2. **Against FFmpeg (gating).** On every input of every set, MP4 and
+   Matroska: CoreAV's `coreav_aac::Decoder` on every packet in order
+   against `ffmpeg -ignore_editlist 1 -flags2 +skip_manual -i IN -map 0:a:0
+   -f f32le -` (every packet's samples: no edit list applied and no codec
+   delay removed), with the rules above; CoreAV damages no frame. Bar:
+   100% of the inputs. The only waivers are the conformance streams named
+   here from the calibration, frozen with these bars. Each of them, with
+   its Matroska copy and its implicit variant, is waived from the
+   comparison with FFmpeg's samples and FFmpeg's length and from nothing
+   else: the rest of this bar (CoreAV's length, rate, channels and layout,
+   no damaged frame) and every other bar that applies to it still gate.
+   - `al_sbr_i_32_1_new`, `al_sbr_i_44_1_new`, `al_sbr_i_48_1_new`:
+     `ffmpeg` warns `noise_facs_q 31 is invalid` and is off the
+     high-quality reference from that point on (RMS up to 8.7 × 10^-3).
+     Bar 1 holds CoreAV to the reference.
+   - `al960_sbr_i_32_1`, `al960_sbr_i_32_2`, `al960_sbr_i_44_1`,
+     `al960_sbr_i_44_2`, `al960_sbr_i_48_1`, `al960_sbr_i_48_2`: the same
+     warning, on the 960-sample versions of those streams, which have no
+     reference.
+   - `al960_sbr_ps_04`: `ffmpeg` warns that it read more PS bits than
+     the payload states; no reference.
+   - `al_sbr_cm_48_5`: `ffmpeg` is off the reference on one channel, in
+     two blocks, by up to 0.15. Bar 1 holds CoreAV to the reference.
+
+   Not waived: `al_sbr_ps_04` and `al_sbr_ps_04_new`, on which `ffmpeg`
+   is within bar 1's tolerance of the reference (RMS 1.1 × 10^-6). A
+   generated or corpus input has no waiver: the corpus rule leaves out,
+   before the run, any file `ffmpeg` does not decode cleanly (sets). No
+   waiver is added after the bars; a divergence found in a run is a
+   miss. Reported: the largest difference, the share of samples in noise
+   blocks, the noise level per block.
+3. **Timeline (gating).** On every MP4 file of the generated and corpus
+   sets: `scripts/decode_audio_check.py`'s
    presentation model ("Edit list bars", bar 1), as AAC-LC bar 3 runs it:
    CoreAV's `decode-audio --format f32` output equals `ffmpeg
    -ignore_editlist 1`'s decode cut by the edit list as the oracle's
    reader reads it, within the tolerance against FFmpeg, the length
    exact, and the summary's `timeline` is the model's, in samples of
    the output rate while the track's time scale is often the core's.
-   Bar: 100% of those inputs. On an input that leaves bar 2's sample
-   comparison (above), and on one with noise blocks, the length and the
-   `timeline` still gate and the samples are reported. Reported: every
+   Bar: 100% of those inputs. On an input with noise blocks the length
+   and the `timeline` gate and the samples are reported. Reported: every
    input's comparison with `ffmpeg`'s default output.
 4. **Signalling (gating).** The same stream signalled three ways decodes
    the same: on every input that has an implicit variant (sets), CoreAV's
@@ -1677,8 +1688,8 @@ The bars:
    generated inputs, and the corpus's Matroska files with their MP4 copies,
    sets), CoreAV's decode of the Matroska file (the configuration from
    `CodecPrivate`, every packet of its blocks in order) equals its decode
-   of the MP4 file bit for bit. With bar 2 on the MP4 file, this holds a
-   Matroska file to FFmpeg's samples. Reported: `coreav decode-audio
+   of the MP4 file bit for bit, a check beside bar 2, which holds each
+   Matroska file to FFmpeg's decode of it. Reported: `coreav decode-audio
    --format f32` on the Matroska file against `ffmpeg -i IN -map 0:a:0 -f
    f32le -`, sample 0 to sample 0 over the common length with the rules
    above, and both lengths.
@@ -1739,12 +1750,15 @@ No speed against FFmpeg is claimed.
   extension `mp4`, `m4a`, `m4b`, `mov`, `3gp`, `mkv` or `mka`, whose
   first audio stream the pinned `ffprobe` reports as `aac` with the
   profile `HE-AAC` or `HE-AACv2` (`-show_streams`, on the file read from
-  the corpus store). The selection runs in the job, with the read-only
+  the corpus store), and which the pinned `ffmpeg` decodes cleanly: bar
+  2's decode exits with 0 and prints nothing at `-v warning`. A file that
+  fails the last condition is counted in the report and not used. The
+  selection runs in the job, before any CoreAV command, with the read-only
   credentials only this repository's own runs receive; without them the
   job says so and the set is empty. Each Matroska file of the set is
-  copied into MP4 (`ffmpeg -map 0:a:0 -c copy`), and the copy is an MP4
-  input of bar 2 and the file's pair in bar 5; a file the copy fails on
-  is listed and fails bar 5. No held-out file is used, so the
+  copied into MP4 (`ffmpeg -map 0:a:0 -c copy`) as its pair in bar 5; a
+  file the copy fails on is listed and fails bar 5. No held-out file is
+  used, so the
   draws' rules do not apply. Reports give counts and aggregate numbers,
   never a file.
 - Not used: ADTS and LATM files (raw `.aac`, MPEG-TS), which the pipeline
