@@ -524,9 +524,13 @@ impl Fft {
     /// values as they are) over blocks of `(w.len() + 1) m` values of `re`
     /// and `im`: in each block, butterfly `k` (below `m`) takes values
     /// `k`, `k + m`, ..., and multiplies value `q` (from 1) by twiddle `k`
-    /// of `w[q - 1]` before its sums. A block that does not fit whole, and a
-    /// twiddle past the end of its slices, is left as it is or taken as 1.
+    /// of `w[q - 1]` before its sums. A block that does not fit whole is left
+    /// as it is, and so is every value when a twiddle slice holds fewer than
+    /// `m` values.
     pub fn pass(&self, m: usize, w: &[Twiddles<'_>], re: &mut [f32], im: &mut [f32]) {
+        if w.iter().any(|t| t.re.len() < m || t.im.len() < m) {
+            return;
+        }
         #[cfg(target_arch = "x86_64")]
         if let Some(avx) = self.avx {
             if m % 8 == 0 {
@@ -638,6 +642,20 @@ mod tests {
             let (mut re, mut im) = (vec![1.0f32; 15], vec![2.0f32; 15]);
             fft.pass(8, &w, &mut re, &mut im);
             assert_eq!((re, im), (vec![1.0; 15], vec![2.0; 15]));
+        }
+        for radix in 2..=5usize {
+            for m in [4, 8, 16] {
+                let (wr, wi) = (vec![0.5f32; m - 1], vec![0.25f32; m - 1]);
+                let short: Vec<Twiddles<'_>> =
+                    (1..radix).map(|_| Twiddles { re: &wr, im: &wi }).collect();
+                let n = radix * m * 2;
+                for fft in [Fft::portable(), Fft::detect()] {
+                    let (mut re, mut im) = (values(7, n), values(8, n));
+                    fft.pass(m, &short, &mut re, &mut im);
+                    assert_eq!(bits(&re), bits(&values(7, n)), "radix {radix} m {m}");
+                    assert_eq!(bits(&im), bits(&values(8, n)), "radix {radix} m {m}");
+                }
+            }
         }
     }
 }
