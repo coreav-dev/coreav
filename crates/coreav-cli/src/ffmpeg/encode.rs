@@ -214,6 +214,7 @@ pub fn request(
         audio_streams: Some(audio.clone()),
         left_out_covers: left_out_covers.clone(),
         opus,
+        aac: None,
         pixel_format,
         one_size: true,
         encoder,
