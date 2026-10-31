@@ -564,6 +564,25 @@ others keep their entries. Rejected, as in an earlier change: re-recording every
 which would also reset the drift unrelated to this change (start-up's
 +2.6% over its entry is `main`'s, in both runs).
 
+### The subcommand's own matches
+
+The guard failed on `main` from the first push it counted (coreav-dev/coreav#96) on, for one case: `probe-compat-mkv`, 204,485 instructions at `9f7dd93`, +5.9% over its entry. A bisect by `dist` builds (cachegrind on the development machine) put the step at coreav-dev/coreav#49: 198,268 instructions before it, 206,090 after. Every later change together moved the case by less than 0.3%. Per function, the step was the allocator (`malloc_consolidate` from 3,600 to 6,400 instructions, with more `malloc` and `free` work) and parsing the new `--strict-safe` flag (about 1,900).
+
+The allocator's share came from a copy. `Deferred` and `Sanitize` implemented only `from_arg_matches`, so clap's default `from_arg_matches_mut` cloned the subcommand's matches, built the options from the clone and freed it, all before the command ran. Those are the freed blocks that `main_with` keeps the parser's matches for: freed before the command, glibc merges them at the command's first large allocation. coreav-dev/coreav#49 left more of them for that merge. Both wrappers now forward `from_arg_matches_mut`, so the options come from the matches `main_with` keeps until the command has run. On the development machine `malloc_consolidate` falls to 1,800 instructions in that case, and the case to 185,174.
+
+On the runners (guard run 41204950263, `update: true`, against `main`'s guard run 41198786848 at `9f7dd93`), every case counts less than on `main` except `join-fragmented` (+0.24%), and start-up is unchanged (+1.85% over its entry in both runs). The largest falls:
+
+| Case | `main` | this change | Change |
+|---|---:|---:|---:|
+| `probe-compat-mkv` | 204,485 | 183,108 | −10.5% |
+| `hls-segment` | 214,293 | 196,407 | −8.3% |
+| `probe-fragmented` | 263,798 | 247,149 | −6.3% |
+| `probe-webm` | 315,294 | 297,423 | −5.7% |
+| `extract-subtitles` | 187,135 | 176,581 | −5.6% |
+| `probe-mp4` | 329,517 | 312,606 | −5.1% |
+
+The baseline takes that run's counts and fixture digests for the six cases more than the tolerance below their entries: `probe-compat-mkv` and `hls-segment` from this change, and four transport stream cases (`probe-packets-ts`, `probe-packets-ts-no-period`, `ffprobe-ts` and `ffprobe-packets-ts`) that fell before it, with coreav-dev/coreav#116 and coreav-dev/coreav#90. The others keep their entries, as before. Rejected: raising `probe-compat-mkv`'s entry by coreav-dev/coreav#49's cost, since most of it was the avoidable copy.
+
 ### CodSpeed or a guard of our own
 
 CodSpeed runs benchmarks under the same kind of CPU simulation (instruction
