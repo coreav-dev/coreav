@@ -61,8 +61,8 @@ jobs:
       # holds GitHub's availability table, so it runs here rather than
       # that rule being rewritten in scripts/workflow_check.py's line parser.
       # Its shellcheck and pyflakes passes are off: they judge scripts, not
-      # expressions. The second command is the mistake this step exists for,
-      # which has to fail.
+      # expressions. The fixture it writes is the mistake this step exists
+      # for, which has to fail.
       - name: Check the expressions of the workflows
         env:
           VERSION: 1.7.12
@@ -74,16 +74,12 @@ jobs:
           echo "$SHA256  $RUNNER_TEMP/actionlint.tar.gz" | sha256sum -c -
           tar -xzf "$RUNNER_TEMP/actionlint.tar.gz" -C "$RUNNER_TEMP" actionlint
           "$RUNNER_TEMP/actionlint" -shellcheck= -pyflakes=
-          cat > "$RUNNER_TEMP/runner-in-job-env.yml" <<'EOF'
-          on: push
-          jobs:
-            probe:
-              runs-on: ubuntu-24.04
-              env:
-                DIR: ${{ runner.temp }}/out
-              steps:
-                - run: echo "$DIR"
-          EOF
+          # GitHub expands an expression anywhere in this script before it
+          # runs, so the fixture's opening is put together here.
+          open='$''{{'
+          printf '%s\n' 'on: push' 'jobs:' '  probe:' '    runs-on: ubuntu-24.04' '    env:' \
+            "      DIR: $open runner.temp }}/out" '    steps:' '      - run: echo hi' \
+            > "$RUNNER_TEMP/runner-in-job-env.yml"
           if found=$("$RUNNER_TEMP/actionlint" -shellcheck= -pyflakes= "$RUNNER_TEMP/runner-in-job-env.yml" 2>&1); then
             echo 'actionlint accepted a runner expression in a job env' >&2
             exit 1
