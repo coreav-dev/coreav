@@ -145,11 +145,6 @@ pub fn probe<'a, S: Source + 'a>(
                     Encoding::None | Encoding::HeaderStripping(_) => None,
                     _ => Some("its frames are stored compressed or encrypted"),
                 },
-                skip: info.rate.map_or(0, |rate| {
-                    let samples = (i128::from(track.codec_delay) * i128::from(rate) + 500_000_000)
-                        .div_euclid(1_000_000_000);
-                    i64::try_from(samples).unwrap_or(0)
-                }),
             };
         }
     }
@@ -363,8 +358,12 @@ struct Info {
     /// The frame rates and packet durations of a video track.
     rates: Rates,
     parser: Parser,
-    /// The sample rate packet lengths count in.
+    /// The sample rate packet lengths count in: 48 kHz for Opus, whatever
+    /// input rate its track states (RFC 7845 5.1), else the track's.
     rate: Option<u32>,
+    /// The samples `CodecDelay` has the decoder discard before the first
+    /// one it plays (RFC 9559 5.1.4.1.25), at [`Info::rate`].
+    skip: u64,
     /// Parameter sets of the codec private data or the first frame.
     params: Option<video::Params>,
     /// The parameter sets came from the first frame (no `CodecPrivate`).
@@ -430,7 +429,10 @@ impl Info {
             Codec::Mpeg4 => mpeg4.and_then(|m| m.low_delay).map(|l| u32::from(!l)),
             _ => Some(0),
         };
-        let rate = track.audio.and_then(|a| a.sample_rate());
+        let rate = match track.codec {
+            Codec::Opus => Some(48_000),
+            _ => track.audio.and_then(|a| a.sample_rate()),
+        };
         let parser = match track.codec {
             Codec::Opus => Parser::Opus,
             Codec::Vorbis => audio::vorbis(private).map_or(Parser::None, Parser::Vorbis),
@@ -477,6 +479,7 @@ impl Info {
             rates,
             parser,
             rate,
+            skip: rate.map_or(0, |r| samples_in(track.codec_delay, r)),
             params,
             in_band,
             frame_bit_rate,
@@ -852,7 +855,7 @@ fn report(
             if window.is_some_and(|w| first.2 > w) {
                 return None;
             }
-            start_pts(e, Some(info))
+            start_pts(e, info)
         })
         .collect();
     let format_start = starts
@@ -919,6 +922,12 @@ struct Timing {
     duration: Option<i64>,
 }
 
+/// Samples at `rate` in `ns` nanoseconds, rounded to the nearest.
+fn samples_in(ns: u64, rate: u32) -> u64 {
+    let n = (u128::from(ns) * u128::from(rate) + 500_000_000) / 1_000_000_000;
+    u64::try_from(n).unwrap_or(u64::MAX)
+}
+
 /// Microseconds in ticks of `(num, den)`, rounded to the nearest.
 fn from_micros(us: i64, (num, den): (i64, i64)) -> i64 {
     let n = i128::from(us) * i128::from(den);
@@ -935,9 +944,16 @@ fn to_micros(ticks: i64, (num, den): (i64, i64)) -> Option<i64> {
 }
 
 /// The start of a stream: the smallest presentation time among its first
-/// packets, as many as its decoder may reorder.
-fn start_pts(early: &Early, info: Option<&Info>) -> Option<i64> {
-    let n = info.and_then(|i| i.delay).map_or(1, |d| d as usize + 1);
+/// packets, as many as its decoder may reorder. An audio stream whose
+/// `CodecDelay` its decoder discards starts with the first sample played:
+/// at its first block's own timestamp, which the presentation time is
+/// that delay before (RFC 9559 5.1.4.1.25).
+fn start_pts(early: &Early, info: &Info) -> Option<i64> {
+    if info.skip > 0 {
+        let (first, _, _) = early.packets.first()?;
+        return first.pts.map(|_| first.block_timestamp);
+    }
+    let n = info.delay.map_or(1, |d| d as usize + 1);
     early
         .packets
         .iter()
@@ -2365,11 +2381,7 @@ fn audio_entries(e: &mut Entries, track: &Track, info: &Info, name: Option<&str>
         _ => 0,
     };
     e.push(("bits_per_sample", int(bits_per_sample)));
-    let padding = info
-        .rate
-        .map(|r| (u128::from(track.codec_delay) * u128::from(r) + 500_000_000) / 1_000_000_000)
-        .unwrap_or(0);
-    e.push(("initial_padding", int(padding)));
+    e.push(("initial_padding", int(info.skip)));
 }
 
 /// The channel layout a decoder reports, by codec, found black box: what
@@ -2960,15 +2972,26 @@ impl<S: Source> PacketSource for MkvPackets<S> {
                 (pts, None)
             };
             let mut side_data = Vec::new();
+            // The samples a decoder discards (RFC 9559): `CodecDelay`'s
+            // before the first frame, a block's `DiscardPadding` at the end
+            // of its last frame, or at the start of its first when negative.
+            let mut skip = if state.count == 1 { info.skip } else { 0 };
+            let mut discard = 0;
             if let (Some(padding), Some(rate)) = (p.discard_padding, info.rate) {
-                let samples = (i128::from(padding) * i128::from(rate) + 500_000_000)
-                    .div_euclid(1_000_000_000);
+                let samples = samples_in(padding.unsigned_abs(), rate);
+                if padding < 0 && p.lace == 0 {
+                    skip = skip.saturating_add(samples);
+                } else if padding > 0 && p.lace.saturating_add(1) >= p.frames_in_block {
+                    discard = samples;
+                }
+            }
+            if skip > 0 || discard > 0 {
                 side_data.push(SideData {
                     typ: "skip_samples",
                     entries: vec![
                         ("side_data_type", s("Skip Samples")),
-                        ("skip_samples", Value::Int(0)),
-                        ("discard_padding", int(samples)),
+                        ("skip_samples", int(skip)),
+                        ("discard_padding", int(discard)),
                         ("skip_reason", Value::Int(0)),
                         ("discard_reason", Value::Int(0)),
                     ],

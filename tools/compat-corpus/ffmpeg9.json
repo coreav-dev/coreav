@@ -1633,7 +1633,6 @@
     "packets.duration": [
      "audio_mp3.mov",
      "audio_mp3.mp4",
-     "browser.webm",
      "edit_trim_audio.mp4",
      "mkv_ac3.mkv",
      "mkv_live_clusters.webm",
@@ -1649,7 +1648,6 @@
     "packets.duration_time": [
      "audio_mp3.mov",
      "audio_mp3.mp4",
-     "browser.webm",
      "edit_trim_audio.mp4",
      "mkv_ac3.mkv",
      "mkv_live_clusters.webm",
@@ -1672,7 +1670,6 @@
      "av_eac3.mp4",
      "basic.mov",
      "basic.mp4",
-     "browser.webm",
      "chapter_pictures.mov",
      "chapter_pictures_ref.mov",
      "chapter_pictures_src.mov",
@@ -1706,44 +1703,16 @@
      "hls_hevc.mp4",
      "hls_long_gop.mp4",
      "hls_open_gop.mp4",
-     "mkv_ac3.mkv",
-     "mkv_attachment.mkv",
-     "mkv_block_groups.mkv",
-     "mkv_duration_understated.mkv",
-     "mkv_h264_aac.mkv",
-     "mkv_h264_annexb.mkv",
-     "mkv_header_strip.mkv",
-     "mkv_lace_aac_44k.mkv",
-     "mkv_lace_ac3_44k.mkv",
-     "mkv_lace_ebml.webm",
-     "mkv_lace_xiph.webm",
-     "mkv_live_clusters.webm",
-     "mkv_mp3.mkv",
-     "mkv_multitrack.mkv",
-     "mkv_rotate_ccw270.mkv",
-     "mkv_rotate_ccw90.mkv",
-     "mkv_timestamp_scale.webm",
-     "mkv_truncated.mkv",
      "multitrack.mp4",
      "remux_metadata.mov",
      "remux_metadata.mp4",
      "rotate_ccw180.mp4",
      "rotate_ccw270.mp4",
      "rotate_ccw90.mp4",
-     "size_h264_annexb_understated.mkv",
-     "size_h264_understated.mkv",
-     "size_vp8_understated.webm",
      "split_av1.mp4",
      "split_hevc.mp4",
      "split_vp9.mp4",
-     "text_styled.mp4",
-     "webm_audio_opus.webm",
-     "webm_av1_opus.webm",
-     "webm_live.webm",
-     "webm_live_truncated.webm",
-     "webm_many_clusters.webm",
-     "webm_vp8_vorbis.webm",
-     "webm_vp9_opus.webm"
+     "text_styled.mp4"
     ],
     "packets.side_data_list[]": [
      "audio_51.m4a",
@@ -1755,7 +1724,6 @@
      "av_eac3.mp4",
      "basic.mov",
      "basic.mp4",
-     "browser.webm",
      "chapter_pictures.mov",
      "chapter_pictures_ref.mov",
      "chapter_pictures_src.mov",
@@ -1789,44 +1757,16 @@
      "hls_hevc.mp4",
      "hls_long_gop.mp4",
      "hls_open_gop.mp4",
-     "mkv_ac3.mkv",
-     "mkv_attachment.mkv",
-     "mkv_block_groups.mkv",
-     "mkv_duration_understated.mkv",
-     "mkv_h264_aac.mkv",
-     "mkv_h264_annexb.mkv",
-     "mkv_header_strip.mkv",
-     "mkv_lace_aac_44k.mkv",
-     "mkv_lace_ac3_44k.mkv",
-     "mkv_lace_ebml.webm",
-     "mkv_lace_xiph.webm",
-     "mkv_live_clusters.webm",
-     "mkv_mp3.mkv",
-     "mkv_multitrack.mkv",
-     "mkv_rotate_ccw270.mkv",
-     "mkv_rotate_ccw90.mkv",
-     "mkv_timestamp_scale.webm",
-     "mkv_truncated.mkv",
      "multitrack.mp4",
      "remux_metadata.mov",
      "remux_metadata.mp4",
      "rotate_ccw180.mp4",
      "rotate_ccw270.mp4",
      "rotate_ccw90.mp4",
-     "size_h264_annexb_understated.mkv",
-     "size_h264_understated.mkv",
-     "size_vp8_understated.webm",
      "split_av1.mp4",
      "split_hevc.mp4",
      "split_vp9.mp4",
-     "text_styled.mp4",
-     "webm_audio_opus.webm",
-     "webm_av1_opus.webm",
-     "webm_live.webm",
-     "webm_live_truncated.webm",
-     "webm_many_clusters.webm",
-     "webm_vp8_vorbis.webm",
-     "webm_vp9_opus.webm"
+     "text_styled.mp4"
     ]
    }
   },
@@ -2803,142 +2743,6 @@
      "split_hevc.mp4",
      "split_vp9.mp4",
      "text_styled.mp4"
-    ]
-   }
-  },
-  {
-   "id": "KD-FF9-MKV-START",
-   "accepts": {
-    "format.start_time": {
-     "ffprobe": "0.000000",
-     "relation": "ffprobe greater"
-    },
-    "streams.start_pts": [
-     {
-      "where": {
-       "codec_type": "audio"
-      },
-      "ffprobe": "0",
-      "relation": "ffprobe greater"
-     },
-     {
-      "where": {
-       "codec_type": "attachment"
-      },
-      "ffprobe": "0",
-      "relation": "ffprobe greater"
-     }
-    ],
-    "streams.start_time": [
-     {
-      "where": {
-       "codec_type": "audio"
-      },
-      "ffprobe": "0.000000",
-      "relation": "ffprobe greater"
-     },
-     {
-      "where": {
-       "codec_type": "attachment"
-      },
-      "ffprobe": "0.000000",
-      "relation": "ffprobe greater"
-     }
-    ]
-   },
-   "keys": {
-    "format.start_time": [
-     "browser.webm",
-     "mkv_ac3.mkv",
-     "mkv_attachment.mkv",
-     "mkv_block_groups.mkv",
-     "mkv_duration_understated.mkv",
-     "mkv_h264_aac.mkv",
-     "mkv_h264_annexb.mkv",
-     "mkv_header_strip.mkv",
-     "mkv_lace_aac_44k.mkv",
-     "mkv_lace_ac3_44k.mkv",
-     "mkv_lace_ebml.webm",
-     "mkv_lace_xiph.webm",
-     "mkv_live_clusters.webm",
-     "mkv_mp3.mkv",
-     "mkv_multitrack.mkv",
-     "mkv_rotate_ccw270.mkv",
-     "mkv_rotate_ccw90.mkv",
-     "mkv_timestamp_scale.webm",
-     "mkv_truncated.mkv",
-     "size_h264_annexb_understated.mkv",
-     "size_h264_understated.mkv",
-     "size_vp8_understated.webm",
-     "webm_audio_opus.webm",
-     "webm_av1_opus.webm",
-     "webm_live.webm",
-     "webm_live_truncated.webm",
-     "webm_many_clusters.webm",
-     "webm_vp8_vorbis.webm",
-     "webm_vp9_opus.webm"
-    ],
-    "streams.start_pts": [
-     "browser.webm",
-     "mkv_ac3.mkv",
-     "mkv_attachment.mkv",
-     "mkv_block_groups.mkv",
-     "mkv_duration_understated.mkv",
-     "mkv_h264_aac.mkv",
-     "mkv_h264_annexb.mkv",
-     "mkv_header_strip.mkv",
-     "mkv_lace_aac_44k.mkv",
-     "mkv_lace_ac3_44k.mkv",
-     "mkv_lace_ebml.webm",
-     "mkv_lace_xiph.webm",
-     "mkv_live_clusters.webm",
-     "mkv_mp3.mkv",
-     "mkv_multitrack.mkv",
-     "mkv_rotate_ccw270.mkv",
-     "mkv_rotate_ccw90.mkv",
-     "mkv_timestamp_scale.webm",
-     "mkv_truncated.mkv",
-     "size_h264_annexb_understated.mkv",
-     "size_h264_understated.mkv",
-     "size_vp8_understated.webm",
-     "webm_audio_opus.webm",
-     "webm_av1_opus.webm",
-     "webm_live.webm",
-     "webm_live_truncated.webm",
-     "webm_many_clusters.webm",
-     "webm_vp8_vorbis.webm",
-     "webm_vp9_opus.webm"
-    ],
-    "streams.start_time": [
-     "browser.webm",
-     "mkv_ac3.mkv",
-     "mkv_attachment.mkv",
-     "mkv_block_groups.mkv",
-     "mkv_duration_understated.mkv",
-     "mkv_h264_aac.mkv",
-     "mkv_h264_annexb.mkv",
-     "mkv_header_strip.mkv",
-     "mkv_lace_aac_44k.mkv",
-     "mkv_lace_ac3_44k.mkv",
-     "mkv_lace_ebml.webm",
-     "mkv_lace_xiph.webm",
-     "mkv_live_clusters.webm",
-     "mkv_mp3.mkv",
-     "mkv_multitrack.mkv",
-     "mkv_rotate_ccw270.mkv",
-     "mkv_rotate_ccw90.mkv",
-     "mkv_timestamp_scale.webm",
-     "mkv_truncated.mkv",
-     "size_h264_annexb_understated.mkv",
-     "size_h264_understated.mkv",
-     "size_vp8_understated.webm",
-     "webm_audio_opus.webm",
-     "webm_av1_opus.webm",
-     "webm_live.webm",
-     "webm_live_truncated.webm",
-     "webm_many_clusters.webm",
-     "webm_vp8_vorbis.webm",
-     "webm_vp9_opus.webm"
     ]
    }
   },
