@@ -792,7 +792,10 @@ All three run once on the release candidate commit, after the tools they
 need have merged and run on the fixtures and on spent files. The record is
 `docs/measurements/compat-0.1.0.md`, beside the round's other bars; corpus
 file names and hashes go only to the private evidence store, as the round's
-workflow keeps them.
+workflow keeps them. What the note leaves to the run (the builds, the
+construction of each denominator, the oracle of each job and the reasons a
+miss is listed under) is fixed before it in
+[`compat-0.1.0/codec-coverage-plan.md`](../measurements/compat-0.1.0/codec-coverage-plan.md).
 
 - **A run is void,** and repeated on the same commit, when:
   - a file of V1's set or a command of V2's or V3's has no result (a lost
