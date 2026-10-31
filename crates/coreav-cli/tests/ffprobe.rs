@@ -86,6 +86,34 @@ fn composition_offsets_do_not_replace_the_stored_sample_durations() {
 }
 
 #[test]
+fn quicktime_keeps_its_zero_vendor_identifier() {
+    for (brand, expected, name) in [
+        (b"qt  ", true, "ffprobe-quicktime-vendor.mov"),
+        (b"isom", false, "ffprobe-iso-vendor.mp4"),
+    ] {
+        let mut bytes = av_movie_with(aac_entry(), false);
+        bytes[8..12].copy_from_slice(brand);
+        let path = file(name, &bytes);
+        let result = ffprobe(&[
+            "-v",
+            "error",
+            "-show_entries",
+            "stream_tags=vendor_id",
+            "-of",
+            "json",
+            &path.to_string_lossy(),
+        ]);
+        assert_eq!(result.code, 0, "{}", result.stderr);
+        assert_eq!(
+            result.stdout.contains("[0][0][0][0]"),
+            expected,
+            "{}",
+            result.stdout
+        );
+    }
+}
+
+#[test]
 fn an_option_outside_the_vocabulary_is_refused_by_name() {
     let path = movie("ffprobe-refused.mp4");
     for (args, named) in [
