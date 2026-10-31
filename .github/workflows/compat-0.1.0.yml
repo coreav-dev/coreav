@@ -166,7 +166,8 @@ jobs:
         run: |
           scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
           scripts/install-oracle-mediainfo.sh "$RUNNER_TEMP/oracle"
-          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/oracle"
+      - name: Verify the pinned FFmpeg
+        run: python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/oracle"
       - name: Fetch this shard's files
         env:
           SET: ${{ needs.compat-plan.outputs.set }}
@@ -195,6 +196,7 @@ jobs:
             --list "$RUNNER_TEMP/private/list.txt" --records "$RUNNER_TEMP/private/r2.jsonl" \
             --summary "$RUNNER_TEMP/r2-summary.json" --top 0 || code=$?
           [ "$code" -le 2 ]
+          [ -s "$RUNNER_TEMP/r2-summary.json" ] || { echo '::error::R2 produced no summary'; exit 1; }
       - name: R3, the copy outputs
         env:
           PYTHONDONTWRITEBYTECODE: '1'
@@ -208,10 +210,12 @@ jobs:
             --list "$RUNNER_TEMP/private/list.txt" --work "$RUNNER_TEMP/r3-work" \
             --records "$RUNNER_TEMP/private/r3.jsonl" --jobs 4 || code=$?
           [ "$code" -le 2 ]
+          [ -s "$RUNNER_TEMP/private/r3.jsonl" ] || { echo '::error::R3 produced no records'; exit 1; }
           code=0
           python3 -I tools/compat-corpus/r3.py report --records "$RUNNER_TEMP/private/r3.jsonl" \
             --summary "$RUNNER_TEMP/r3-summary.json" > /dev/null || code=$?
           [ "$code" -le 2 ]
+          [ -s "$RUNNER_TEMP/r3-summary.json" ] || { echo '::error::R3 produced no summary'; exit 1; }
       - name: Seal the per-file records
         if: always()
         run: |
@@ -236,6 +240,7 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: compat-shard-${{ matrix.shard }}
+          if-no-files-found: error
           path: |
             ${{ runner.temp }}/r2-summary.json
             ${{ runner.temp }}/r3-summary.json
@@ -269,7 +274,8 @@ jobs:
         run: |
           scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
           scripts/install-oracle-mediainfo.sh "$RUNNER_TEMP/oracle"
-          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/oracle"
+      - name: Verify the pinned FFmpeg
+        run: python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/oracle"
       - name: Run the R4 host's job here
         env:
           R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
@@ -330,7 +336,8 @@ jobs:
         run: |
           scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
           scripts/install-oracle-mediainfo.sh "$RUNNER_TEMP/oracle"
-          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/oracle"
+      - name: Verify the pinned FFmpeg
+        run: python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/oracle"
       - name: Scan the R4 pairs
         env:
           R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
@@ -425,15 +432,28 @@ jobs:
         run: |
           set -euo pipefail
           [ "$MEASURE" = success ] || { echo "::error::a shard did not finish: no summary"; exit 1; }
+          shards=("$RUNNER_TEMP"/shards/*)
+          [ "${#shards[@]}" -eq "$SHARDS" ] || { echo '::error::wrong number of shard artifacts'; exit 1; }
+          r2_inputs=(); r3_inputs=()
+          for ((shard=0; shard<SHARDS; shard++)); do
+            dir="$RUNNER_TEMP/shards/compat-shard-$shard"
+            [ -s "$dir/r2-summary.json" ] && [ -s "$dir/r3-summary.json" ] || {
+              echo "::error::shard $shard has a missing or empty summary"; exit 1;
+            }
+            r2_inputs+=("$dir/r2-summary.json"); r3_inputs+=("$dir/r3-summary.json")
+          done
           OUT="$RUNNER_TEMP/summary"
           mkdir -p "$OUT"
           # 0 met, 1 missed, 2 void: each is a result; 3 (measured nothing) or a crash is not.
           r2=0; r3=0
-          python3 -I tools/compat-corpus/run.py keys-report --summaries "$RUNNER_TEMP"/shards/*/r2-summary.json \
+          python3 -I tools/compat-corpus/run.py keys-report --summaries "${r2_inputs[@]}" \
             --summary "$OUT/r2.json" --top 0 > /dev/null || r2=$?
-          python3 -I tools/compat-corpus/r3.py report --summaries "$RUNNER_TEMP"/shards/*/r3-summary.json \
+          python3 -I tools/compat-corpus/r3.py report --summaries "${r3_inputs[@]}" \
             --summary "$OUT/r3.json" > /dev/null || r3=$?
-          [ "$r2" -le 2 ] && [ "$r3" -le 2 ] && [ -s "$OUT/r2.json" ] && [ -s "$OUT/r3.json" ]
+          [ "$r2" -le 2 ]
+          [ "$r3" -le 2 ]
+          [ -s "$OUT/r2.json" ]
+          [ -s "$OUT/r3.json" ]
           cp "$RUNNER_TEMP/bin/sha256.txt" "$OUT/"
           python3 -I - "$OUT" "$SET" "$COMMIT" "$r2" "$r3" >> "$GITHUB_STEP_SUMMARY" <<'PY'
           import json, pathlib, sys
