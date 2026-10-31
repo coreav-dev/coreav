@@ -18,7 +18,9 @@ pub enum Refusal {
     Unsupported(NotNative),
     /// Malformed, as `ffprobe` would also fail it: exit 2.
     Usage(String),
-    /// `-h`, `-help`, `--help`: the usage text, exit 0.
+    /// `-h`, `-?`, `-help` or `--help` with nothing after it: the usage
+    /// text, exit 0. With a topic after it (`-h long`), the query is
+    /// FFmpeg's, so it is [`Refusal::Unsupported`].
     Help,
 }
 
@@ -201,7 +203,16 @@ pub fn parse(args: &[String]) -> Result<Options, Refusal> {
     while let Some(arg) = args.get(i) {
         let arg = arg.as_str();
         if matches!(arg, "-h" | "-help" | "--help" | "-?") {
-            return Err(Refusal::Help);
+            return match args.get(i + 1) {
+                None => Err(Refusal::Help),
+                Some(topic) => Err(unsupported(
+                    arg,
+                    Some(topic),
+                    format!(
+                        "'{arg} {topic}' is not supported: help on a topic describes FFmpeg's own components; coreav ffprobe prints only its own usage (docs/design/compat-cli.md)"
+                    ),
+                )),
+            };
         }
         if is_option(arg) {
             if VALUE_OPTIONS.contains(&arg) {
@@ -720,6 +731,42 @@ mod tests {
             parse(&args("-show_streams -of")),
             Err(Refusal::Usage(_))
         ));
+    }
+
+    #[test]
+    fn help_is_coreavs_without_a_topic_and_ffmpegs_with_one() {
+        for text in [
+            "-h",
+            "-?",
+            "-help",
+            "--help",
+            "-v error -show_streams in.mp4 -h",
+        ] {
+            assert_eq!(parse(&args(text)).map(|_| ()), Err(Refusal::Help), "{text}");
+        }
+        for (text, option, topic) in [
+            ("-h long", "-h", "long"),
+            ("-h full", "-h", "full"),
+            ("--help demuxer=mov", "--help", "demuxer=mov"),
+            ("-help in.mp4", "-help", "in.mp4"),
+            ("-show_streams -? writer=json in.mp4", "-?", "writer=json"),
+        ] {
+            let Err(Refusal::Unsupported(refusal)) = parse(&args(text)) else {
+                panic!("{text}")
+            };
+            assert_eq!(
+                refusal.reason,
+                Reason::Option(option.into(), Some(topic.into())),
+                "{text}"
+            );
+            assert!(
+                refusal
+                    .message
+                    .starts_with(&format!("'{option} {topic}' is not supported: ")),
+                "{text}"
+            );
+        }
+        assert!(parse(&args("-show_streams -v -h in.mp4")).is_err_and(|e| e != Refusal::Help));
     }
 
     #[test]

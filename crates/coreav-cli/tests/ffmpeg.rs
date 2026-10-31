@@ -101,14 +101,38 @@ fn commands_outside_the_vocabulary_are_refused_by_name() {
             vec!["-i", i, "-c", "copy", "-movflags", "+frag_keyframe", o],
             "frag_keyframe",
         ),
-        (vec!["-h"], "-h"),
-        (vec!["--help"], "--help"),
+        (vec!["-h", "long"], "-h long"),
+        (vec!["-h", "full"], "-h full"),
+        (vec!["--help", "encoder=libx264"], "--help encoder=libx264"),
+        (vec!["-help", o], "-help"),
+        (vec!["-filter_complex", "null", "-h"], "-filter_complex"),
     ] {
         let r = ffmpeg(&args);
         assert_eq!(r.code, 4, "{args:?}: {}", r.stderr);
         assert!(r.stdout.is_empty(), "{args:?}");
         assert!(r.stderr.contains(named), "{args:?}: {}", r.stderr);
         assert!(!output.exists(), "{args:?}");
+    }
+}
+
+#[test]
+fn help_without_a_topic_is_the_usage_text() {
+    for args in [
+        vec!["-h"],
+        vec!["-?"],
+        vec!["-help"],
+        vec!["--help"],
+        vec!["-hide_banner", "-h"],
+        vec!["-i", "in.mp4", "-c", "copy", "--help"],
+    ] {
+        let r = ffmpeg(&args);
+        assert_eq!(r.code, 0, "{args:?}: {}", r.stderr);
+        assert_eq!(
+            String::from_utf8(r.stdout).unwrap(),
+            coreav_cli::ffmpeg::USAGE,
+            "{args:?}"
+        );
+        assert!(r.stderr.is_empty(), "{args:?}: {}", r.stderr);
     }
 }
 
@@ -828,6 +852,7 @@ fn the_0_1_0_commands_on_the_fixtures() {
                         );
                         ("not taken", json!(text))
                     }
+                    Err(Stop::Refused(Refusal::Help)) => panic!("{label}: read as a help query"),
                     Err(Stop::Failed(failure)) => {
                         assert!(!failure.is_io(), "{label}: {}", failure.to_json());
                         ("rejected", failure.to_json())
@@ -906,6 +931,7 @@ fn the_0_1_0_commands_on_listed_pairs() {
                     || text == "Output file does not contain any stream";
                 (if taken { "not taken" } else { "usage" }, json!(text))
             }
+            Err(Stop::Refused(Refusal::Help)) => panic!("{args:?}: read as a help query"),
             Err(Stop::Failed(failure)) => (
                 if failure.is_io() { "io" } else { "rejected" },
                 failure.to_json(),

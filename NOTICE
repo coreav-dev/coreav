@@ -9,12 +9,25 @@ licensed (MIT OR Apache-2.0) AND IJG:
 
 This software is based in part on the work of the Independent JPEG Group.
 
-Builds with the `libvpx` feature decode VP9 with libvpx
-(https://chromium.googlesource.com/webm/libvpx), copyright The WebM
-Project authors, licensed under the BSD 3-Clause licence, with Google's
-additional IP rights grant for the WebM codecs (libvpx's LICENSE and
-PATENTS files). They link the system's libvpx; a distribution that ships
-libvpx with the command ships those two files with it.
+Builds with the `dav1d` feature decode AV1 with dav1d
+(https://code.videolan.org/videolan/dav1d), copyright VideoLAN and dav1d
+authors, licensed under the BSD 2-Clause licence, with the Alliance for
+Open Media Patent License 1.0. Builds with the `libvpx` feature decode
+VP9 with libvpx (https://chromium.googlesource.com/webm/libvpx), copyright
+The WebM Project authors, licensed under the BSD 3-Clause licence, with
+Google's additional IP rights grant for the WebM codecs. The release
+archives and the npm packages of the coreav command link dav1d 1.5.3 and
+libvpx 1.14.1 into the binary, and ship their licence files in
+licenses/: dav1d's COPYING and PATENTS, libvpx's LICENSE, PATENTS and
+AUTHORS, and the ISC licence of each library's x86 assembly layer. Those
+files are part of this notice. A build that links the system's libraries
+ships none of them; a distribution that ships a library with the command
+ships that library's files with it.
+
+The full builds (the coreav-full release archives, and any build with the
+`native-h264` or `aac` feature) decode H.264 and AAC with CoreAV's own
+decoders. Decoding H.264 or AAC may require a patent licence, depending on
+where you are and what you do with it. Nothing here is legal advice.
 
 The Opus decoder (the coreav-opus crate, crates/coreav-opus) contains tables
 that scripts/opus_tables.py generates from the code of RFC 6716 Appendix A,

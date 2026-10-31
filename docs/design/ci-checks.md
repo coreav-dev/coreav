@@ -199,11 +199,24 @@ by its job's name, not by its workflow.
   workflows. A called workflow's job reports as `<caller job> / <job>`,
   which renames every required check it holds.
 
+## The fixture jobs
+
+`isobmff-fixtures` ran every check of the ISO base media fixtures in one job: a median of 34.9 minutes over the successful jobs of the last 60 completed pull request runs, against 15.2 for `fuzz`, 11.6 for `bench-guard` and under 9 for every other job, so it alone set how long a pull request waited. Its steps now run in six jobs, with the same commands, bars and thresholds:
+
+- `isobmff-fixtures`: fixture generation, the oracle self-checks, the stream and packet oracles against `ffprobe` and their known-divergence audit, `coreav probe` and `coreav ffprobe`, the output schemas, the hostile suite through the `coreav` binary, `coreav check`, audio extraction, subtitles and chapters, and the text known-divergence audit. It generates its own fixtures on every run, as before, so every run exercises generation. Its artifact is `oracle-output`.
+- `isobmff-fixture-set`: the one set of fixtures that the three jobs below check, an artifact of the run. Generation is not byte for byte reproducible (a WebM fixture generated twice with the same FFmpeg differs), so jobs, and B9 shards, that generated their own would check different bytes, and `--merge` refuses shards whose fixtures differ.
+- `isobmff-writers`: clip, remux, video replacement, split, sanitize, HLS, join and the 0.1.0 `ffmpeg` commands. Their reports are the `writer-output` artifact.
+- `isobmff-decode`: the build with the FFmpeg fallback, dav1d and libvpx, then decoding, thumbnails and `coreav transcode` against the pinned FFmpeg, and the hostile suite through `coreav thumbnail` and `coreav transcode`.
+- `b9-shard`, three legs, and `b9`: bar B9 of `docs/design/transcode.md`.
+
+**B9 in three shards, judged once.** B9 was 13.2 minutes of the old job (median): 12 command lines on 83 fixtures, 998 results and 3,078 seconds of encoding over four parallel jobs, 45% of it line x07, which scales to 1920 columns. `scripts/transcode_check.py --shard K/3` runs every third fixture and judges no bar: it keeps its results, calls and manifest as evidence. It fails when a result is missing, and, as a whole run does, when its preflight or setup fails; a failed bar never fails it. `b9` puts the three together with `--merge`, which refuses a missing or repeated shard, and judges every bar over all of them as the single run did. Its `b9-evidence` artifact holds what `oracle-output` held as `coreav-b9/evidence`. Split three ways, the evidence of a single run's artifact merges to the same summary, run record, calls and manifest, and to the same exit status; its shards carry 998, 1,045 and 1,035 seconds of encoding.
+
 ## The fuzz runs
 
 Fuzzing runs in two places, and a push to main is neither.
 
 - **A pull request** fuzzes the targets it can affect. `ci-changes` lists every target of each fuzz project whose own directory, or a workspace crate it depends on, the change touches (`scripts/fuzz_plan.py --changed`); `fuzz` runs only when that list is not empty, so a pull request that reaches no fuzz project starts no fuzz job and `ci-report` still covers it. The targets share 480 seconds, 5 to 30 each: a change to one container parser (7 to 24 targets) gets 20 to 30 seconds per target, and a change that reaches every project (the lock file, `ci.yml`, `scripts/fuzz_plan.py`) gets a pass of 7 seconds over each of the 66 targets instead of the 20 each that took about 38 minutes.
+- **The pull request's fuzz job runs in two shards** of whole projects, side by side: `scripts/fuzz_run.sh shard` gives each project, in the plan's order, to the shard with fewer targets so far, so each project builds in one shard only, and every target runs for the seconds the whole plan gives it, as in one job. In one job, a change that reaches every project took a median of 15.2 minutes (build 5.7, run 6.3), past the 15 the rest of the pull request's checks take.
 - **`fuzz-nightly.yml`**, once a day and by hand, runs every target (`scripts/fuzz_plan.py --all`) for 15 minutes, in shards of six that run side by side, six at a time. It is not a required check: it never runs on a pull request.
 
 Main stopped fuzzing on push because the run had outgrown its job. Every target for 60 seconds was 66 minutes of fuzzing in a job with a 50-minute timeout, so every push to main ended cancelled, `ci-report` red, after about 40 targets, and the last 26 were never fuzzed on main. A timed-out job also skips its cache step, so no fuzz build was ever cached. The daily run gives every target 15 minutes a day; a day of pushes gave about 40 of them 60 seconds per push.
@@ -252,6 +265,7 @@ run, so nothing on main is cancelled or dropped.
   5.5 minutes), and a job the new run skips is not cancelled at all. Over
   the same four hours that would have been about 106 more runner-minutes,
   against 1,254 minutes that pull requests waited on a held run.
+- **A job with a `strategy:`** (`fuzz`, `b9-shard`) puts `-${{ strategy.job-index }}` after its id in the group: its legs would otherwise share one group and cancel each other. `workflow_check.py` takes only that form for such a job.
 - **Re-running an old run's job** cancels the head's job of the same id,
   whose `ci-report` then fails: re-run the head's run instead.
 - `github.job` is not available where GitHub reads a job's `concurrency`,
@@ -269,6 +283,18 @@ least recently used entries. `Swatinem/rust-cache` saves on main only
 (`save-if`), so a pull request restores what main last built. Its default
 key is one entry per job id, toolchain and `Cargo.lock`.
 
+- **The other ISO base media jobs restore it too** (`isobmff-writers`,
+  `isobmff-decode`, `b9-shard`). `isobmff-decode` and `b9-shard` use the build
+  with the FFmpeg fallback, dav1d and libvpx (`target/fallback`), which
+  `isobmff-fixtures` runs on main only, after its checks, so that its entry
+  keeps holding it: one entry for the four jobs instead of a new one for
+  `target/fallback`, with the repository already at its 10 GB.
+- **`isobmff-fixture-set` keeps its fixtures between runs**, saved on main
+  only, under a key of everything that generates them:
+  `scripts/gen-fixtures.sh`, every file of `scripts/` it runs (found in the
+  script itself, so a new helper joins the key without an edit here) and
+  `scripts/install-oracle-ffmpeg.sh`. A pull request that changes one of
+  them generates the fixtures on every push.
 - **The Matroska and transport stream oracles restore `isobmff-fixtures`'
   cache** (`shared-key: isobmff-fixtures`, `save-if: false`). That job
   builds every crate, profile and feature the other two build, so their
@@ -330,7 +356,9 @@ skips it. It holds the list of crates that implement such a codec
 H.264), runs `cargo tree --target all -e normal,build` for the default
 features of every other workspace member, and for each build a package
 script makes with other features (the npm command's
-`--no-default-features --features cli`), and fails when one of those
+`--no-default-features --features cli`, and the release's default build,
+`--features release-default`, which the native npm packages carry too),
+and fails when one of those
 graphs holds a listed crate. It also fails when a listed crate is no
 workspace member, so a renamed crate cannot leave the list checking
 nothing. Opting in stays a feature (`native-h264` of `coreav-cli`), which
