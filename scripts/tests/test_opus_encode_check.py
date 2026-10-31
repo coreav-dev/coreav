@@ -1,6 +1,7 @@
 """scripts/opus_encode_check.py builds the command lines its bars judge
-(docs/design/transcode.md, "Opus bars") as the note fixes them. No media is
-made and no program runs.
+(docs/design/transcode.md, "Opus bars") as the note fixes them, and fails
+O4 when the PCM it compares is missing. No media is made and no program
+runs.
 
     python3 -I -m unittest discover -s scripts/tests -p 'test_*.py'
 """
@@ -37,6 +38,22 @@ class Arms(unittest.TestCase):
             self.assertEqual(pairs['--audio'], 'opus', rate)
             self.assertEqual(pairs['--encoder'], 'ffmpeg', rate)
             self.assertEqual(pairs.get('--audio-bitrate'), rate and str(rate))
+
+
+class Quality(unittest.TestCase):
+    def test_a_missing_pcm_fails_o4(self):
+        self.assertIsNone(opus_encode_check.samples(1, b'\0' * 8))
+        self.assertIsNone(opus_encode_check.samples(0, b''))
+        self.assertEqual(len(opus_encode_check.samples(0, b'\0' * 8)), 2)
+        reference = opus_encode_check.samples(0, b'\0\0\x80\x3f' * 4)
+        self.assertIsNone(opus_encode_check.quality(reference, None))
+        self.assertIsNone(opus_encode_check.quality(reference, opus_encode_check.samples(0, b'')))
+        self.assertIsNone(opus_encode_check.quality(None, reference))
+        self.assertEqual(opus_encode_check.quality(reference, reference), float('inf'))
+        self.assertFalse(opus_encode_check.o4(None, 20.0))
+        self.assertFalse(opus_encode_check.o4(20.0, None))
+        self.assertTrue(opus_encode_check.o4(19.0, 20.0))
+        self.assertFalse(opus_encode_check.o4(18.9, 20.0))
 
 
 if __name__ == '__main__':

@@ -89,13 +89,23 @@ def probe_audio(ffprobe, path):
 
 
 def pcm(ffmpeg, path):
+    """The PCM O4 compares: the audio of `path` decoded by FFmpeg to 48 kHz
+    float, or None when FFmpeg fails or gives no samples."""
     done = run([ffmpeg, '-nostdin', '-v', 'error', '-i', path, '-map', '0:a', '-ar', '48000',
                 '-f', 'f32le', '-'])
-    samples = array.array('f')
-    samples.frombytes(done.stdout[:len(done.stdout) // 4 * 4])
+    return samples(done.returncode, done.stdout)
+
+
+def samples(returncode, stdout):
+    """The float samples of a decode that exited with `returncode`, or None
+    when it failed or gave none."""
+    if returncode != 0 or len(stdout) < 4:
+        return None
+    decoded = array.array('f')
+    decoded.frombytes(stdout[:len(stdout) // 4 * 4])
     if sys.byteorder != 'little':
-        samples.byteswap()
-    return samples
+        decoded.byteswap()
+    return decoded
 
 
 def snr(reference, decoded):
@@ -105,6 +115,19 @@ def snr(reference, decoded):
     if noise == 0:
         return math.inf
     return 10 * math.log10(signal / noise)
+
+
+def quality(reference, decoded):
+    """The SNR of `decoded` against `reference`, or None when either has
+    no samples: snr would score that as infinite."""
+    if not reference or not decoded:
+        return None
+    return snr(reference, decoded)
+
+
+def o4(ours, theirs):
+    """O4 on one input; a missing SNR on either arm fails it."""
+    return ours is not None and theirs is not None and ours >= theirs - 1.0
 
 
 def libopus_vendor(ffmpeg, work):
@@ -184,9 +207,9 @@ def main():
                 and abs(ours_probe.get('duration_ts', 0) - theirs_probe.get('duration_ts', 0)) <= 48
             )
             if tonal:
-                row['snr_coreav'] = snr(references[name], pcm(args.ffmpeg, ours))
-                row['snr_ffmpeg'] = snr(references[name], pcm(args.ffmpeg, theirs))
-                row['o4'] = row['snr_coreav'] >= row['snr_ffmpeg'] - 1.0
+                row['snr_coreav'] = quality(references[name], pcm(args.ffmpeg, ours))
+                row['snr_ffmpeg'] = quality(references[name], pcm(args.ffmpeg, theirs))
+                row['o4'] = o4(row['snr_coreav'], row['snr_ffmpeg'])
     judged = [r for r in rows if not r['failed']]
     ratios = [r['bit_rate_ratio'] for r in judged]
     bars = {
@@ -204,7 +227,10 @@ def main():
         'o2_met': sum(1 for r in judged if r['o2']),
         'bit_rate_ratio': {'min': min(ratios, default=None), 'median': statistics.median(ratios) if ratios else None,
                            'max': max(ratios, default=None)},
-        'snr_delta_db': sorted(round(r['snr_coreav'] - r['snr_ffmpeg'], 3) for r in judged if r['tonal']),
+        'snr_delta_db': sorted(round(r['snr_coreav'] - r['snr_ffmpeg'], 3) for r in judged
+                               if r['tonal'] and None not in (r['snr_coreav'], r['snr_ffmpeg'])),
+        'o4_missing_pcm': [r['input'] for r in judged
+                           if r['tonal'] and None in (r['snr_coreav'], r['snr_ffmpeg'])],
         'seconds_ratio_median': statistics.median(
             [r['seconds']['coreav'] / r['seconds']['ffmpeg'] for r in judged]) if judged else None,
         'bars': bars,
