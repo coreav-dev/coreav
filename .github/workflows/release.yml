@@ -180,7 +180,7 @@ jobs:
               fi
             done
           done
-      # The decoders of each build on generated clips: AV1 and VP9 in
+      # The decoders of each build on generated clips: AV1, VP8 and VP9 in
       # both, H.264 and AAC in the full build only (the default build
       # refuses them). In strict-safe mode on Linux, so no FFmpeg runs;
       # macOS has no enforceable memory limit, so strict-safe mode would

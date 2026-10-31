@@ -13,8 +13,8 @@ Builds with the `dav1d` feature decode AV1 with dav1d
 (https://code.videolan.org/videolan/dav1d), copyright VideoLAN and dav1d
 authors, licensed under the BSD 2-Clause licence, with the Alliance for
 Open Media Patent License 1.0. Builds with the `libvpx` feature decode
-VP9 with libvpx (https://chromium.googlesource.com/webm/libvpx), copyright
-The WebM Project authors, licensed under the BSD 3-Clause licence, with
+VP8 and VP9 with libvpx (https://chromium.googlesource.com/webm/libvpx),
+copyright The WebM Project authors, licensed under the BSD 3-Clause licence, with
 Google's additional IP rights grant for the WebM codecs. The release
 archives and the npm packages of the coreav command link dav1d 1.5.3 and
 libvpx 1.14.1 into the binary, and ship their licence files in
