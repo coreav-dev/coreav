@@ -1635,8 +1635,9 @@ The bars:
 2. **Against FFmpeg (gating).** On every MP4 input of every set: CoreAV's
    `coreav_aac::Decoder` on every packet in order against `ffmpeg
    -ignore_editlist 1 -i IN -map 0:a:0 -f f32le -`, with the rules above;
-   CoreAV damages no frame. Bar: 100% of the counted inputs. Not counted, each listed with its reason: an input that
-   `ffmpeg` decodes with an error or a warning (`-v warning` prints a
+   CoreAV damages no frame. Bar: 100% of the counted inputs. Not
+   counted, each listed with its reason: an input that `ffmpeg` decodes with
+   an error or a warning (`-v warning` prints a
    line; in the calibration the six `al960_sbr_i_*` streams,
    `al960_sbr_ps_04` and the three `al_sbr_i_*_new` streams); and a
    conformance stream on which CoreAV meets bar 1 and FFmpeg's output,
