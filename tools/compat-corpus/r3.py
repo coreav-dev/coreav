@@ -171,32 +171,40 @@ def judge(opts, pairs, scratch, env):
             results[key] = ('failed', 'binary differs')
     judged = [r for r in records if (r['id'], r['command']) not in results]
     if judged:
-        (scratch / 'judged.json').write_text(json.dumps(judged))
-        check = scratch / 'check.json'
-        check.unlink(missing_ok=True)
-        cmd = [sys.executable, '-I', str(HERE / 'copy_check.py'), '--records', str(scratch / 'judged.json'),
-               '--ffmpeg', opts.ffmpeg, '--ffprobe', opts.ffprobe, '--jobs', '1', '--report', str(check)]
-        if opts.mediainfo:
-            cmd += ['--mediainfo', opts.mediainfo]
-        with open(opts.log, 'ab') as log:
-            code = subprocess.run(cmd, stdin=subprocess.DEVNULL, stdout=log, stderr=log, env=env,
-                                  check=False).returncode
-        report = json.loads(check.read_text()) if code in (0, 1) and check.exists() else None
-        if report and sum(c.get('written', 0) for c in report['counts'].values()) != len(judged):
-            report = None
-        failed = {}
-        for f in (report or {}).get('failures', []):
-            failed[(f['id'], tuple(f['args']), f['source'])] = 'selection' if f['selection'] else 'oracle'
-        for r in judged:
-            key = (r['id'], r['command'])
-            if report is None:
-                results[key] = ('failed', 'copy_check crashed')
-            elif (r['id'], tuple(r['args']), r['source']) in failed:
-                results[key] = ('failed', failed[(r['id'], tuple(r['args']), r['source'])])
-            elif pathlib.Path(r['source']).name in copy_check.UNMODELLED.get(r['job'], ()):
-                results[key] = ('set aside', 'no oracle models a picture size change')
-            else:
-                results[key] = ('passed', None)
+        results.update(check_copies(opts, judged, scratch, env))
+    return results
+
+
+def check_copies(opts, judged, scratch, env):
+    """Runs copy_check.py over written harness records: each one's outcome
+    and, for a failure, why."""
+    (scratch / 'judged.json').write_text(json.dumps(judged))
+    check = scratch / 'check.json'
+    check.unlink(missing_ok=True)
+    cmd = [sys.executable, '-I', str(HERE / 'copy_check.py'), '--records', str(scratch / 'judged.json'),
+           '--ffmpeg', opts.ffmpeg, '--ffprobe', opts.ffprobe, '--jobs', '1', '--report', str(check)]
+    if opts.mediainfo:
+        cmd += ['--mediainfo', opts.mediainfo]
+    with open(opts.log, 'ab') as log:
+        code = subprocess.run(cmd, stdin=subprocess.DEVNULL, stdout=log, stderr=log, env=env,
+                              check=False).returncode
+    report = json.loads(check.read_text()) if code in (0, 1) and check.exists() else None
+    if report and sum(c.get('written', 0) for c in report['counts'].values()) != len(judged):
+        report = None
+    failed = {}
+    for f in (report or {}).get('failures', []):
+        failed[(f['id'], tuple(f['args']), f['source'])] = 'selection' if f['selection'] else 'oracle'
+    results = {}
+    for r in judged:
+        key = (r['id'], r['command'])
+        if report is None:
+            results[key] = ('failed', 'copy_check crashed')
+        elif (r['id'], tuple(r['args']), r['source']) in failed:
+            results[key] = ('failed', failed[(r['id'], tuple(r['args']), r['source'])])
+        elif pathlib.Path(r['source']).name in copy_check.UNMODELLED.get(r['job'], ()):
+            results[key] = ('set aside', 'no oracle models a picture size change')
+        else:
+            results[key] = ('passed', None)
     return results
 
 
