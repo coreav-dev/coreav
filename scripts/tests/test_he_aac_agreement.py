@@ -251,10 +251,23 @@ class Judge(unittest.TestCase):
         self.assertEqual((out['bar2']['largest_difference'], out['bar2']['largest_rms']), (1e-6, 1e-7))
         self.assertEqual(out['bar2']['largest_noise_share'], 0.0)
         self.assertEqual(out['bar3']['ffmpeg_default'], {'equal': 3, 'covered': 0, 'uncovered': 0})
-        self.assertEqual(out['bar3']['counted'], 4)
+        counts = {bar: (out[bar]['counted'], out[bar]['passed'], out[bar].get('corpus_mp4_copies'))
+                  for bar in ('bar2', 'bar3', 'bar6')}
+        self.assertEqual(counts, {'bar2': (7, 7, {'counted': 1, 'passed': 1}),
+                                  'bar3': (3, 3, {'counted': 1, 'passed': 1}),
+                                  'bar6': (5, 5, {'counted': 1, 'passed': 1})})
         decoded['c.copy'] = row(level_blocks=[], damaged=1)
         _, out, _ = self.run_judge(inputs, decoded)
         self.assertEqual([r['verdict'] for r in out['bar2']['results'] if r['input'] == 'c.copy'], ['FAIL: damaged frames'])
+        self.assertEqual((out['bar2']['counted'], out['bar2']['passed']), (7, 7))
+        self.assertEqual(out['bar2']['corpus_mp4_copies'], {'counted': 1, 'passed': 0})
+
+    def test_a_failing_copy_alone_misses_the_bar(self):
+        full = {f'bar{n}': {'counted': 2, 'passed': 2} for n in range(1, 7)}
+        self.assertEqual(h.verdict(full | {'bar6': {'counted': 2, 'passed': 2,
+                                                    'corpus_mp4_copies': {'counted': 1, 'passed': 1}}}), 'met')
+        self.assertEqual(h.verdict(full | {'bar6': {'counted': 2, 'passed': 2,
+                                                    'corpus_mp4_copies': {'counted': 1, 'passed': 0}}}), 'missed')
 
     def test_bar5_reports_decode_audio_against_ffmpeg_with_both_lengths(self):
         inputs = self.inputs()

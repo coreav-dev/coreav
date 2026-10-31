@@ -686,13 +686,23 @@ def bar3_pass(res, samples):
     return bool(res.get('model')) or not samples
 
 
-def summary_of(rows):
-    return {'counted': len(rows), 'passed': sum(passed(r) for r in rows)}
+def summary_of(rows, copies=frozenset()):
+    """A bar's counts. The corpus's MP4 copies (`copies`) are counted apart:
+    each passes or fails on its own, but no number over several inputs
+    counts them ("HE-AAC sets", "Corpus")."""
+    own = [r for r in rows if r['input'] not in copies]
+    theirs = [r for r in rows if r['input'] in copies]
+    out = {'counted': len(own), 'passed': sum(passed(r) for r in own)}
+    if theirs:
+        out['corpus_mp4_copies'] = {'counted': len(theirs), 'passed': sum(passed(r) for r in theirs)}
+    return out
 
 
 def verdict(out):
     bars = [out[f'bar{n}'] for n in range(1, 7)]
-    return 'met' if all(b['counted'] and b['passed'] == b['counted'] for b in bars) else 'missed'
+    copies = [b.get('corpus_mp4_copies', {'counted': 0, 'passed': 0}) for b in bars]
+    return 'met' if all(b['counted'] and b['passed'] == b['counted'] for b in bars) and all(
+        c['passed'] == c['counted'] for c in copies) else 'missed'
 
 
 def judge(a):
@@ -709,7 +719,7 @@ def judge(a):
     # sets", "Corpus"); each input still passes or fails on its own.
     copies = {r['key'] for r in meta['inputs'] if r['variant'] == 'copy'}
     clean = [r for r in bar2 if r['verdict'] == 'pass' and r['input'] not in copies]
-    out['bar2'] = summary_of(bar2) | {
+    out['bar2'] = summary_of(bar2, copies) | {
         'samples_not_compared': [[r['input'], r['verdict']] for r in bar2 if r['verdict'].startswith('pass (')],
         'largest_difference': max((r['max'] for r in clean), default=0),
         'largest_rms': max((r['rms'] for r in clean), default=0),
@@ -737,7 +747,7 @@ def judge(a):
         samples = d is not None and level_only(d) == 0
         bar3.append({'input': r['key'], 'samples_compared': samples, 'pass': bar3_pass(res, samples),
                      'samples_within': bool(res.get('model')), 'ffmpeg': res.get('ffmpeg')})
-    out['bar3'] = summary_of(bar3) | {
+    out['bar3'] = summary_of(bar3, copies) | {
         'ffmpeg_default': {v: sum(r['ffmpeg'] == v and r['input'] not in copies for r in bar3)
                            for v in ('equal', 'covered', 'uncovered')},
         'results': bar3}
@@ -755,7 +765,7 @@ def judge(a):
         outs = [run([a.coreav, 'decode-audio', '--format', 'f32', '--threads', t, r['path'], '-']) for t in ('1', '8')]
         bar6.append({'input': r['key'],
                      'pass': all(o.returncode == 0 for o in outs) and outs[0].stdout == outs[1].stdout})
-    out['bar6'] = summary_of(bar6) | {'results': bar6}
+    out['bar6'] = summary_of(bar6, copies) | {'results': bar6}
     out['verdict'] = verdict(out)
     a.out.write_text(json.dumps(out, indent=1) + '\n')
     print(json.dumps({k: {kk: vv for kk, vv in v.items() if kk != 'results'} if isinstance(v, dict) else v
