@@ -132,6 +132,11 @@ in the packets that need them:
   new sequence parameter set could not take effect.
 - A track with several descriptions is listed from its first packet: a
   thumbnail does not plan from a window of its packets (`seek.md`).
+- A sync sample that is a non-IDR intra reference picture starts decoding
+  only when `max_num_ref_frames` is at most 1 (`cut-points.md`); the
+  reader takes the largest of every description's, unknown when one cannot
+  be read, so such a picture under a later description that keeps more
+  reference frames than the first is not taken for a start.
 
 Entries whose records are equal change nothing. `coreav thumbnail`,
 `coreav transcode` and `coreav ffmpeg` encodes read their video through

@@ -19,7 +19,7 @@
 use coreav_backend_h264::NativeH264;
 use coreav_decode::{Backend, Decoder, Packet, Policy};
 use coreav_isobmff::{Rational, SliceSource};
-use coreav_thumbnail::{Error, ThumbnailOptions, first_packets, video_stream};
+use coreav_thumbnail::{Error, ThumbnailOptions, first_packets, oracle_choice, video_stream};
 use md5::{Digest, Md5};
 
 const FIXTURE: &[u8] = include_bytes!("data/two-sample-entries.mp4");
@@ -194,4 +194,56 @@ fn another_nal_unit_length_is_refused() {
         why.contains("packet 10 to a configuration record with another NAL unit length"),
         "{why}"
     );
+}
+
+#[test]
+fn an_intra_sync_sample_starts_decoding_only_if_every_description_keeps_one_reference() {
+    let mut file = FIXTURE.to_vec();
+    // The first entry's sequence parameter set with max_num_ref_frames 1
+    // (ITU-T H.264 7.4.2.1.1): its ue(v) code 00101 (4) becomes 010, the
+    // bits after it move up two places and the emulation prevention bytes
+    // are placed again, in as many bytes. The second entry keeps 4.
+    let first = find(&file, b"stsd") + 16;
+    let avcc = first + find(&file[first..first + be32(&file, first)], b"avcC");
+    let sps = avcc + 16;
+    let (stored, one) = (
+        "6764000aacd9420db011000003000100000300320f122596",
+        "6764000aacda0836c044000003000400000300c83c489658",
+    );
+    let hex = |bytes: &[u8]| bytes.iter().map(|b| format!("{b:02x}")).collect::<String>();
+    assert_eq!(hex(&file[sps..sps + 24]), stored);
+    for (i, byte) in file[sps..sps + 24].iter_mut().enumerate() {
+        *byte = u8::from_str_radix(&one[2 * i..2 * i + 2], 16).unwrap();
+    }
+    let record = |at: usize| file[at + 8..at + be32(&file, at)].to_vec();
+    let second = second_entry(&file);
+    let later = second + find(&file[second..], b"avcC");
+    assert_eq!(
+        coreav_isobmff::avc_max_num_ref_frames(&record(avcc)),
+        Some(1)
+    );
+    assert_eq!(
+        coreav_isobmff::avc_max_num_ref_frames(&record(later)),
+        Some(4)
+    );
+    // Packet 11, under the second entry, becomes an I slice of a reference
+    // picture, not IDR: first_mb_in_slice 0 and slice_type 7 (7.4.3), ue(v)
+    // codes 1 and 0001000 in the byte after the NAL unit header.
+    let stco = find(&file, b"stco");
+    let stsz = find(&file, b"stsz");
+    let packet = be32(&file, stco + 20) + be32(&file, stsz + 20 + 4 * 10);
+    assert_eq!(file[packet + 4], 0x41);
+    file[packet + 5] = 0x88;
+    // The sync samples 1, 11 and 21 become 1, 11 and 12.
+    let stss = find(&file, b"stss");
+    file[stss + 24..stss + 28].copy_from_slice(&12u32.to_be_bytes());
+    // A thumbnail at packet 11's time starts decoding at packet 10, the
+    // second entry's IDR picture: packet 11 may be followed by frames that
+    // reference frames before it.
+    let choice = oracle_choice(
+        SliceSource::new(&file),
+        &ThumbnailOptions::at(Rational::new(3, 5).unwrap()),
+    )
+    .expect("choice");
+    assert_eq!(choice.start, be32(&file, stco + 20) as u64, "{choice:?}");
 }

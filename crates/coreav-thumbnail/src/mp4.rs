@@ -91,12 +91,22 @@ pub(crate) fn plan<S: Source>(
             })
         })
     };
+    // One bound for every packet: the largest of the track's sample
+    // descriptions', unknown when any is (`docs/design/decode.md`,
+    // "Several sample descriptions").
+    let max_num_ref_frames = track
+        .later_descriptions
+        .iter()
+        .map(|d| coreav_isobmff::avc_max_num_ref_frames(&d.codec_config.as_ref()?.data))
+        .fold(movie.max_num_ref_frames(track.index), |max, refs| {
+            Some(max?.max(refs?))
+        });
     let rule = match codec {
         Codec::H264 => movie
             .access_format(track.index)
             .map(|format| CutRule::H264 {
                 format,
-                max_num_ref_frames: movie.max_num_ref_frames(track.index),
+                max_num_ref_frames,
             }),
         Codec::Hevc => config
             .as_ref()
