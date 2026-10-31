@@ -235,6 +235,9 @@ without a configuration record uses the first level whose picture size,
 sample rate, bit rate and edge limits cover the known stream values
 ([VP9 levels](https://www.webmproject.org/vp9/levels/)); this is a
 listing estimate, not a check of every level constraint of every frame.
+The sample rate counts only a stated average frame rate: `r_frame_rate`
+can be a guess from the time base, such as the 1,000 a second of a
+variable-rate Matroska stream's millisecond tick.
 VP8 and VP9 ISO sample entries share the
 [`vpcC` pixel-format reader](https://www.webmproject.org/vp9/mp4/):
 bit depth and chroma subsampling select the planar format; full range
