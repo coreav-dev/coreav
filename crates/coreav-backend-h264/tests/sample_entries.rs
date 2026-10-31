@@ -190,5 +190,8 @@ fn another_nal_unit_length_is_refused() {
     // lengthSizeMinusOne (ISO/IEC 14496-15 5.3.3.1): 4 bytes become 2.
     file[avcc + 12] = (file[avcc + 12] & !3) | 1;
     let why = refusal(&file);
-    assert!(why.contains("another NAL unit length"), "{why}");
+    assert!(
+        why.contains("packet 10 to a configuration record with another NAL unit length"),
+        "{why}"
+    );
 }

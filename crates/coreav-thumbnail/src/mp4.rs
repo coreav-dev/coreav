@@ -7,8 +7,8 @@ use coreav_decode::{Codec, CodecConfig, ConfigKind, StreamConfig};
 use coreav_frame::{ChromaLocation, ColorInfo};
 use coreav_isobmff::access::{AccessFormat, read_frame_access};
 use coreav_isobmff::{
-    Allowlist, Budget, Color, EditList, Movie, Packet, Rational, SampleDescription, Source, Track,
-    TrackKind, probe,
+    Allowlist, Budget, Color, EditList, Limits, Movie, Packet, Rational, SampleDescription, Source,
+    Track, TrackKind, probe,
 };
 
 use crate::select::Sample;
@@ -180,7 +180,7 @@ pub(crate) fn plan<S: Source>(
     };
     let presentation = presentation(&track, movie.timescale);
     let in_band = if several {
-        in_band(&movie, &track, &mut *source, &listing)?
+        in_band(&movie, &track, &mut *source, &listing, limits)?
     } else {
         InBand::default()
     };
@@ -311,12 +311,14 @@ impl Listing {
 /// description's, so that decoding can start there. Refused: a description
 /// of another codec, another codec's record changing, a record with another
 /// NAL unit length than the first's, and a change at a packet that holds no
-/// IDR picture.
+/// IDR picture. The NAL units read to find the IDR pictures, over every
+/// change, count against `max_sample_work`.
 fn in_band<S: Source>(
     movie: &Movie,
     track: &Track,
     source: &mut S,
     listing: &Listing,
+    limits: &Limits,
 ) -> Result<InBand, Error> {
     fn record(d: &SampleDescription) -> Option<&[u8]> {
         d.codec_config.as_ref().map(|c| c.data.as_slice())
@@ -326,6 +328,7 @@ fn in_band<S: Source>(
     let mut in_band = InBand::default();
     let mut slots = BTreeMap::new();
     let mut last = record(first);
+    let mut work = 0u64;
     let packets = listing.packets.iter().zip(&listing.descriptions);
     for (index, (packet, &number)) in packets.enumerate() {
         let entry = match number {
@@ -351,25 +354,21 @@ fn in_band<S: Source>(
         let Some(format @ AccessFormat::H264 { length_size }) = movie.access_format(track.index)
         else {
             return Err(refuse(format!(
-                "changes its {} configuration with its sample description, \
-                 which CoreAV decodes only for H.264",
+                "changes its {} configuration record with its sample description, \
+                 which CoreAV decodes only for H.264 with a readable first record",
                 first.fourcc
             )));
         };
-        let sets = here
-            .filter(|r| r.get(4).map(|b| (b & 3) + 1) == Some(length_size))
-            .and_then(coreav_isobmff::avc_parameter_sets)
-            .ok_or_else(|| {
-                refuse(format!(
-                    "changes at packet {index} to a configuration record that is unreadable \
-                     or has another NAL unit length"
-                ))
-            })?;
+        if here.and_then(|r| r.get(4)).map(|b| (b & 3) + 1) != Some(length_size) {
+            return Err(refuse(format!(
+                "changes at packet {index} to a configuration record with another NAL unit \
+                 length, or to none"
+            )));
+        }
         if changed {
-            let mut work = 0u32;
             let frame = read_frame_access(format, source, packet.offset, packet.size, &mut || {
                 work += 1;
-                if work > 100_000 {
+                if work > limits.max_sample_work {
                     Err(coreav_isobmff::Error::LimitExceeded {
                         limit: coreav_isobmff::LimitKind::SampleWork,
                         offset: packet.offset,
@@ -388,6 +387,13 @@ fn in_band<S: Source>(
         let slot = match slots.get(&number) {
             Some(&slot) => slot,
             None => {
+                let sets = here
+                    .and_then(coreav_isobmff::avc_parameter_sets)
+                    .ok_or_else(|| {
+                        refuse(format!(
+                            "changes at packet {index} to a configuration record that cannot be read"
+                        ))
+                    })?;
                 let width = usize::from(length_size);
                 let mut bytes = Vec::new();
                 for unit in sets {
@@ -401,8 +407,8 @@ fn in_band<S: Source>(
                     bytes.extend_from_slice(low);
                     bytes.extend_from_slice(unit);
                 }
+                let slot = in_band.sets.len();
                 in_band.sets.push(bytes);
-                let slot = in_band.sets.len() - 1;
                 slots.insert(number, slot);
                 slot
             }
