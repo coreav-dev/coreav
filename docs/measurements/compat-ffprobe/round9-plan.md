@@ -142,6 +142,8 @@ follows section 5's SHOULD by omitting the default suffix; the oracle's
 longer form is permitted, not an error. The second concerns an omitted
 suffix that misstates stored `chroma_sample_position` 1 as default 0.
 Each requires its own independent byte predicate and exact string pair.
+`KD-FF9-ANNEX-D-DOWNMIX`, the Matroska AC-3 Annex D record, must also
+land before the cutoff with its byte predicate and tests.
 
 ### Attack every exclusion
 
