@@ -6,13 +6,15 @@ run"):
     release-smoke.py BUILD BINARY CLIPS
 
 BUILD is default or full. Outside Windows, where the builds have decoders,
-both builds transcode av1.mp4 (through dav1d) and vp9.webm (through libvpx)
-to H.264 with the x264 program that COREAV_X264 names; the full build also
-transcodes h264.mp4 (CoreAV's own decoder), which the default build refuses.
+both builds transcode av1.mp4 (through dav1d), vp8.webm and vp9.webm
+(through libvpx) to H.264 with the x264 program that COREAV_X264 names; the
+full build also transcodes h264.mp4 (CoreAV's own decoder), which the
+default build refuses.
 Each output is probed: one H.264 stream of 320x240 and 10 samples, as the
 clip. Both builds also transcode flac.mkv with its audio encoded to Opus
-by libopus, and its output is probed: the H.264 stream and an Opus one. On every platform the full build decodes aac.m4a with decode-audio,
-and the default build refuses it. Strict-safe mode is the caller's choice
+by libopus, and its output is probed: the H.264 stream and an Opus one.
+On every platform the full build decodes aac.m4a with decode-audio, and
+the default build refuses it. Strict-safe mode is the caller's choice
 (COREAV_STRICT_SAFE). Exit status 0 when every check holds, 1 otherwise.
 Python standard library only.
 """
@@ -23,7 +25,7 @@ import sys
 import tempfile
 
 # The clips and the backend that decodes each.
-BACKENDS = {'av1.mp4': 'dav1d', 'vp9.webm': 'libvpx', 'h264.mp4': 'native'}
+BACKENDS = {'av1.mp4': 'dav1d', 'vp8.webm': 'libvpx', 'vp9.webm': 'libvpx', 'h264.mp4': 'native'}
 FULL_ONLY = {'h264.mp4'}
 WIDTH, HEIGHT, FRAMES = 320, 240, 10
 

@@ -153,8 +153,15 @@ impl Backend for SandboxedBackend {
             WorkerBackend::Ffmpeg => Support::Yes,
             WorkerBackend::Dav1d if stream.codec == coreav_decode::Codec::Av1 => Support::Yes,
             WorkerBackend::Dav1d => Support::No("dav1d decodes AV1 only".into()),
-            WorkerBackend::Libvpx if stream.codec == coreav_decode::Codec::Vp9 => Support::Yes,
-            WorkerBackend::Libvpx => Support::No("libvpx here decodes VP9 only".into()),
+            WorkerBackend::Libvpx
+                if matches!(
+                    stream.codec,
+                    coreav_decode::Codec::Vp8 | coreav_decode::Codec::Vp9
+                ) =>
+            {
+                Support::Yes
+            }
+            WorkerBackend::Libvpx => Support::No("libvpx here decodes VP8 and VP9 only".into()),
         }
     }
 

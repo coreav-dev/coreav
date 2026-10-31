@@ -22,11 +22,12 @@ pub const ALLOW_NAMES: [&str; 12] = [
 
 /// CoreAV codec names, as printed in `codec`.
 #[cfg(test)]
-const CODEC_NAMES: [&str; 13] = [
+const CODEC_NAMES: [&str; 14] = [
     "h264",
     "hevc",
     "av1",
     "vp9",
+    "vp8",
     "prores",
     "aac",
     "mp3",
@@ -45,6 +46,9 @@ pub fn codec(codec: Codec) -> &'static str {
         Codec::Hevc => "hevc",
         Codec::Av1 => "av1",
         Codec::Vp9 => "vp9",
+        // Never on a command's allowlist (`ALLOW_NAMES`): only the decoding
+        // commands keep VP8 tracks of MP4 files.
+        Codec::Vp8 => "vp8",
         Codec::ProRes => "prores",
         Codec::Aac => "aac",
         Codec::Mp3 => "mp3",
@@ -118,6 +122,7 @@ pub fn ffprobe_codec(codec: Codec, pcm: Option<PcmFormat>) -> Option<String> {
         Codec::Hevc => "hevc",
         Codec::Av1 => "av1",
         Codec::Vp9 => "vp9",
+        Codec::Vp8 => "vp8",
         Codec::ProRes => "prores",
         Codec::Aac => "aac",
         Codec::Mp3 => "mp3",

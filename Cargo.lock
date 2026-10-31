@@ -272,6 +272,9 @@ dependencies = [
  "coreav-decode",
  "coreav-frame",
  "coreav-isobmff",
+ "coreav-isobmff-write",
+ "coreav-thumbnail",
+ "md-5",
  "pkg-config",
 ]
 

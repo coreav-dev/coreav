@@ -502,10 +502,15 @@ fn times_in_decode_order_keep_every_frame() {
 /// whose time is not above the last one's dropped two thirds of them.
 #[test]
 fn repeated_webm_times_keep_every_frame() {
-    // VP8 decodes through the fallback.
-    if !cfg!(feature = "ffmpeg-fallback") {
+    // VP8 decodes through libvpx, else the fallback.
+    if !cfg!(any(feature = "ffmpeg-fallback", feature = "libvpx")) {
         return;
     }
+    let backend = if cfg!(feature = "libvpx") {
+        "libvpx"
+    } else {
+        "ffmpeg"
+    };
     let Some(tools) = tools() else { return };
     let dir = dir("repeated-times");
     let source = dir.join("repeated-source.webm");
@@ -539,6 +544,7 @@ fn repeated_webm_times_keep_every_frame() {
         let summary: Value = serde_json::from_str(&run.stdout).unwrap();
         assert_eq!(summary["video"]["frames"], 12, "{encoder}");
         assert_eq!(summary["video"]["dropped_frames"], 0, "{encoder}");
+        assert_eq!(summary["video"]["backend"], backend, "{encoder}");
         let (times, base) = frame_times(&tools, &out);
         assert_eq!(base, "1/1000", "{encoder}");
         assert_eq!(

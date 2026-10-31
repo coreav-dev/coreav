@@ -200,7 +200,7 @@ pub fn make<S: Source>(
 /// threads and is ahead of the fallback in both modes: through the
 /// fallback, `--exact` on AV1 was 1.186 of FFmpeg's time, through dav1d
 /// 0.934 (`docs/spikes/thumbnail-bench/`, "AV1 through dav1d"). libvpx
-/// (VP9 only) comes where dav1d does, before the fallback in both modes
+/// (VP8 and VP9) comes where dav1d does, before the fallback in both modes
 /// (`docs/design/decode.md`, "libvpx").
 #[cfg(feature = "thumbnail")]
 fn order(exact: bool) -> Vec<coreav_decode::BackendKind> {

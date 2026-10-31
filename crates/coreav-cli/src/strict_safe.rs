@@ -292,7 +292,7 @@ fn build_hint(codec: Codec) -> &'static str {
     match codec {
         Codec::H264 => "build coreav with the native-h264 feature",
         Codec::Av1 => "build coreav with the dav1d feature",
-        Codec::Vp9 => "build coreav with the libvpx feature",
+        Codec::Vp8 | Codec::Vp9 => "build coreav with the libvpx feature",
         _ => "no CoreAV decoder takes this codec yet",
     }
 }

@@ -570,7 +570,7 @@ pub fn transcode<S: Source, W: Write>(
             remux_mp4_replacing(
                 &mut source,
                 &options.isobmff_limits,
-                &mp4_allowlist(audio.as_ref().map(|a| a.summary.codec)),
+                &isobmff_allowlist(video.stream.codec, audio.as_ref().map(|a| a.summary.codec)),
                 &RemuxOptions {
                     streams,
                     on_unsupported: OnUnsupported::Drop,
@@ -633,21 +633,28 @@ fn spool_read(error: coreav_isobmff::Error) -> Error {
     }
 }
 
-/// The MP4 allowlist of the writer: the default, and the codec of the audio
-/// stream encoded to Opus (FLAC, which the default leaves out), so that the
-/// replaced stream is kept.
-fn mp4_allowlist(audio: Option<coreav_audio::Codec>) -> coreav_isobmff::Allowlist {
+/// The ISOBMFF allowlist of the writer: the default, VP8 when it is the
+/// video stream's codec, and the codec of the audio stream encoded to Opus
+/// (FLAC), which the default leaves out, so that the replaced streams are
+/// kept.
+fn isobmff_allowlist(
+    codec: Codec,
+    audio: Option<coreav_audio::Codec>,
+) -> coreav_isobmff::Allowlist {
     use coreav_isobmff::Codec as I;
     let mut codecs = coreav_isobmff::Allowlist::default().codecs().to_vec();
-    let own = audio.map(|codec| match codec {
+    let video = (codec == Codec::Vp8).then_some(I::Vp8);
+    let audio = audio.map(|codec| match codec {
         coreav_audio::Codec::Flac => I::Flac,
         coreav_audio::Codec::Mp3 => I::Mp3,
         coreav_audio::Codec::Opus => I::Opus,
         #[cfg(feature = "aac")]
         coreav_audio::Codec::Aac => I::Aac,
     });
-    if let Some(own) = own.filter(|c| !codecs.contains(c)) {
-        codecs.push(own);
+    for own in video.into_iter().chain(audio) {
+        if !codecs.contains(&own) {
+            codecs.push(own);
+        }
     }
     coreav_isobmff::Allowlist::new(&codecs)
 }

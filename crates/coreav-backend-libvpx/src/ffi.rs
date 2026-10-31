@@ -1,6 +1,6 @@
-//! libvpx's VP9 decoder API, declared from its public headers
+//! libvpx's VP8 and VP9 decoder API, declared from its public headers
 //! (`vpx/vpx_codec.h`, `vpx/vpx_decoder.h`, `vpx/vpx_image.h`,
-//! `vpx/vp8dx.h`, decoder ABI version 12), behind a safe API: [`Vp9`] owns
+//! `vpx/vp8dx.h`, decoder ABI version 12), behind a safe API: [`Vpx`] owns
 //! one decoder instance and lends each decoded image as a [`View`] whose
 //! rows are slices checked against the image's own geometry. Every
 //! `unsafe` of the crate is here (`docs/unsafe-sites.md`).
@@ -79,6 +79,7 @@ const _: () = {
 };
 
 unsafe extern "C" {
+    fn vpx_codec_vp8_dx() -> *const c_void;
     fn vpx_codec_vp9_dx() -> *const c_void;
     fn vpx_codec_get_caps(iface: *const c_void) -> c_long;
     fn vpx_codec_version_str() -> *const c_char;
@@ -137,24 +138,33 @@ pub(crate) fn high_bit_depth() -> bool {
     unsafe { vpx_codec_get_caps(vpx_codec_vp9_dx()) & CAP_HIGH_BIT_DEPTH != 0 }
 }
 
-/// One VP9 decoder instance.
+/// The libvpx decoder interfaces.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Interface {
+    /// `vpx_codec_vp8_dx`.
+    Vp8,
+    /// `vpx_codec_vp9_dx`.
+    Vp9,
+}
+
+/// One VP8 or VP9 decoder instance.
 ///
 /// Boxed so that neither moves: libvpx keeps a pointer to the
 /// configuration in the context (`config`) and reads it when it starts
 /// decoding.
-pub(crate) struct Vp9 {
+pub(crate) struct Vpx {
     context: Box<Context>,
     _config: Box<Config>,
 }
 
 // SAFETY: a libvpx decoder instance may be used from any thread, one call
-// at a time; `Vp9` gives no shared access (every call takes `&mut self`).
-unsafe impl Send for Vp9 {}
+// at a time; `Vpx` gives no shared access (every call takes `&mut self`).
+unsafe impl Send for Vpx {}
 
-impl Vp9 {
-    /// A decoder on `threads` threads (at least 1), with row-based
-    /// multithreading when there are several.
-    pub fn open(threads: u32) -> Result<Self, Failure> {
+impl Vpx {
+    /// A decoder of `interface` on `threads` threads (at least 1); for
+    /// VP9, with row-based multithreading when there are several.
+    pub fn open(interface: Interface, threads: u32) -> Result<Self, Failure> {
         let mut context = Box::new(Context {
             name: ptr::null(),
             iface: ptr::null(),
@@ -171,35 +181,34 @@ impl Vp9 {
         });
         // SAFETY: `context` and `config` are valid, boxed (they outlive the
         // decoder, which `Drop` destroys first) and laid out as the headers
-        // of ABI version 12 declare; libvpx checks that version.
+        // of ABI version 12 declare; libvpx checks that version. The
+        // interface is libvpx's own static VP8 or VP9 decoder interface.
         let err = unsafe {
-            vpx_codec_dec_init_ver(
-                &mut *context,
-                vpx_codec_vp9_dx(),
-                &*config,
-                0,
-                DECODER_ABI_VERSION,
-            )
+            let iface = match interface {
+                Interface::Vp8 => vpx_codec_vp8_dx(),
+                Interface::Vp9 => vpx_codec_vp9_dx(),
+            };
+            vpx_codec_dec_init_ver(&mut *context, iface, &*config, 0, DECODER_ABI_VERSION)
         };
         if err != 0 {
             // SAFETY: a static string for any code.
             let message = text(unsafe { vpx_codec_err_to_string(err) }).unwrap_or_default();
             return Err(Failure { code: err, message });
         }
-        let mut vp9 = Self {
+        let mut vpx = Self {
             context,
             _config: config,
         };
-        if threads > 1 {
-            // SAFETY: an initialised decoder; `VP9D_SET_ROW_MT` takes one
+        if interface == Interface::Vp9 && threads > 1 {
+            // SAFETY: an initialised VP9 decoder; `VP9D_SET_ROW_MT` takes one
             // `int`.
             let on: c_int = 1;
-            let err = unsafe { vpx_codec_control_(&mut *vp9.context, SET_ROW_MT, on) };
+            let err = unsafe { vpx_codec_control_(&mut *vpx.context, SET_ROW_MT, on) };
             if err != 0 {
-                return Err(vp9.failure(err));
+                return Err(vpx.failure(err));
             }
         }
-        Ok(vp9)
+        Ok(vpx)
     }
 
     fn failure(&self, code: c_int) -> Failure {
@@ -214,8 +223,8 @@ impl Vp9 {
         Failure { code, message }
     }
 
-    /// Decodes one packet (one frame or superframe) and calls `each` with
-    /// every image it makes ready, in order, until `each` fails.
+    /// Decodes one packet (one frame, or a VP9 superframe) and calls `each`
+    /// with every image it makes ready, in order, until `each` fails.
     pub fn decode<E>(
         &mut self,
         data: &[u8],
@@ -254,7 +263,7 @@ impl Vp9 {
     }
 }
 
-impl Drop for Vp9 {
+impl Drop for Vpx {
     fn drop(&mut self) {
         // SAFETY: an initialised decoder, destroyed once; the boxes are
         // freed after this.
@@ -264,7 +273,7 @@ impl Drop for Vp9 {
     }
 }
 
-/// A decoded image, for the duration of [`Vp9::decode`]'s callback.
+/// A decoded image, for the duration of [`Vpx::decode`]'s callback.
 pub(crate) struct View<'a> {
     image: &'a Image,
 }
@@ -342,7 +351,7 @@ impl<'a> View<'a> {
         // So row `row` < the plane's rows starts `row * stride` bytes after
         // `base` and holds `len` <= `stride` bytes, the plane's displayed
         // samples. The image, and so the bytes, stay valid and unwritten for
-        // `'a` (`Vp9::decode`'s callback).
+        // `'a` (`Vpx::decode`'s callback).
         Some(unsafe { std::slice::from_raw_parts(base.add(offset), len) })
     }
 }

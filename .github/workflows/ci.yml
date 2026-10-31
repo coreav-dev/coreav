@@ -213,7 +213,7 @@ jobs:
             --all-targets -- -D warnings
           cargo clippy -p coreav-cli --features dav1d,ffmpeg-fallback --all-targets -- -D warnings
           cargo test -p coreav-backend-dav1d --features dav1d
-      # libvpx for VP9, a non-default feature that links the system's libvpx
+      # libvpx for VP8 and VP9, a non-default feature that links the system's libvpx
       # (docs/design/decode.md, "libvpx"): alone and with the other backends.
       - run: sudo apt-get install -y --no-install-recommends libvpx-dev
       - run: |
@@ -1090,10 +1090,10 @@ jobs:
       # with no crash, signal, hang or out-of-memory.
       # dav1d for AV1 (docs/design/decode.md, "dav1d") links the system's
       # libdav1d; the pinned FFmpeg's libdav1d is the reference. libvpx for
-      # VP9 ("libvpx") links the system's libvpx; the pinned FFmpeg's own VP9
-      # decoder is the reference. libopus is the Opus encoder of
-      # `coreav transcode --audio opus` (docs/design/transcode.md, "Opus
-      # audio"), tested with the transcode suite below.
+      # VP8 and VP9 ("libvpx") links the system's libvpx; the pinned FFmpeg's
+      # own VP8 and VP9 decoders are the reference. libopus is the Opus
+      # encoder of `coreav transcode --audio opus` (docs/design/transcode.md,
+      # "Opus audio"), tested with the transcode suite below.
       - name: Install libdav1d, libvpx and libopus
         run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends libdav1d-dev libvpx-dev libopus-dev
       - name: Build coreav with the FFmpeg fallback, dav1d and libvpx, and the decode oracle

@@ -26,7 +26,7 @@ On macOS (and Windows), the operating system cannot hold CoreAV's sandboxed work
 
 A default build, which the release binaries planned for 0.1.0 are, has no decoder backend, so only the first row applies to it. The `dav1d` and `libvpx` backends are C libraries of their own, not FFmpeg, and run in the sandboxed worker in strict-safe mode too.
 
-To transcode in strict-safe mode, install an `x264` program and use a build whose backends decode your sources: `native-h264` for H.264, `dav1d` for AV1, `libvpx` for VP9 ([build features](/build-features)).
+To transcode in strict-safe mode, install an `x264` program and use a build whose backends decode your sources: `native-h264` for H.264, `dav1d` for AV1, `libvpx` for VP8 and VP9 ([build features](/build-features)).
 
 ## Turn on strict-safe mode
 
