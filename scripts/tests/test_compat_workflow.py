@@ -1,4 +1,5 @@
 """Run the R4 rehearsal step with stand-in reports, without media or network access."""
+import hashlib
 import json
 import os
 import pathlib
@@ -10,9 +11,9 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
-def run_script(name):
-    workflow = (ROOT / '.github/workflows/compat-0.1.0.yml').read_text()
-    step = workflow.split(f'      - name: {name}\n', 1)[1]
+def run_script(name, file='compat-0.1.0.yml', occurrence=0):
+    workflow = (ROOT / '.github/workflows' / file).read_text()
+    step = workflow.split(f'      - name: {name}\n')[occurrence + 1]
     block = step.split('        run: |\n', 1)[1].split('\n      - ', 1)[0]
     return '\n'.join(line[10:] for line in block.splitlines())
 
@@ -49,6 +50,71 @@ class Rehearsal(unittest.TestCase):
                 self.assertEqual(json.loads((public / 'verdict.json').read_text())['reasons'],
                                  [reason] if reason else [])
                 self.assertEqual(len(list(public.iterdir())), 8)
+
+
+class Evidence(unittest.TestCase):
+    def test_r1_uses_the_registered_profile_and_records_its_binary_hash(self):
+        for index, stem in enumerate(('coreav', 'mkv', 'ts')):
+            with self.subTest(stem=stem), tempfile.TemporaryDirectory() as tmp:
+                d = pathlib.Path(tmp)
+                (d / 'bin').mkdir()
+                cargo = d / 'bin' / 'cargo'
+                cargo.write_text('#!/bin/sh\nset -e\nprintf "%s\\n" "$*" > cargo.args\n'
+                                 'mkdir -p target/dist\nprintf binary > target/dist/coreav\n')
+                cargo.chmod(0o755)
+                runner = d / 'runner.py'
+                runner.write_text('import pathlib, sys\n'
+                                  'assert sys.argv[sys.argv.index("--coreav") + 1] == "target/dist/coreav"\n'
+                                  'pathlib.Path(sys.argv[sys.argv.index("--report") + 1]).write_text("{}")\n')
+                script = run_script('R1 of the 0.1.0 round', 'ci.yml', index)
+                script = script.replace('tools/compat-corpus/run.py', str(runner))
+                done = subprocess.run(['bash', '-e', '-c', script], cwd=d,
+                                      env={**os.environ, 'RUNNER_TEMP': tmp, 'PATH': str(d / 'bin') + ':' + os.environ['PATH'],
+                                           'GITHUB_STEP_SUMMARY': str(d / 'summary.md')},
+                                      capture_output=True, timeout=30)
+                self.assertEqual(done.returncode, 0, done.stderr.decode())
+                self.assertEqual((d / 'cargo.args').read_text().strip(), 'build --locked --profile dist -p coreav-cli')
+                digest = hashlib.sha256(b'binary').hexdigest()
+                self.assertIn(digest, (d / f'{stem}-r1.sha256').read_text())
+                self.assertIn(digest, (d / 'summary.md').read_text())
+                self.assertIn(f'${{{{ runner.temp }}}}/{stem}-r1.sha256',
+                              (ROOT / '.github/workflows/ci.yml').read_text())
+
+    def test_a_crashed_scan_cannot_omit_either_summary(self):
+        for mode, accepted in (('none', False), ('first-only', False), ('all', True)):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as tmp:
+                d = pathlib.Path(tmp)
+                (d / 'bin').mkdir()
+                (d / 'bin' / 'coreav').touch()
+                fake = d / 'scan.py'
+                fake.write_text('import json, os, pathlib, sys\n'
+                                'if "--dest" in sys.argv:\n'
+                                '    dest = pathlib.Path(sys.argv[sys.argv.index("--dest") + 1])\n'
+                                '    dest.mkdir(parents=True)\n'
+                                '    (dest / "files.json").write_text("[]")\n'
+                                '    sys.exit(0)\n'
+                                'out = pathlib.Path(sys.argv[sys.argv.index("--out") + 1])\n'
+                                'if "select" in sys.argv:\n'
+                                '    out.write_text("[]")\n'
+                                '    sys.exit(0)\n'
+                                'if os.environ["MODE"] == "all" or (os.environ["MODE"] == "first-only" and out.stem == "r4-gate"):\n'
+                                '    out.write_text(json.dumps({"files": {}, "pairs": 1, "pairs logged": 1,\n'
+                                '          "pairs by cause": {}, "commands logged": [], "commands": {}}))\n'
+                                'sys.exit(1)\n')
+                script = run_script('Scan the R4 pairs').replace('tools/compat-corpus/round_files.py', str(fake))
+                script = script.replace('tools/compat-corpus/r4_scan.py', str(fake))
+                done = subprocess.run(['bash', '-c', script], env={**os.environ, 'RUNNER_TEMP': tmp, 'MODE': mode,
+                                      'GITHUB_STEP_SUMMARY': str(d / 'summary.md')}, capture_output=True, timeout=30)
+                self.assertEqual(done.returncode == 0, accepted, done.stderr.decode())
+                if accepted:
+                    self.assertEqual(len(list((d / 'scan').glob('*.json'))), 2)
+
+    def test_measurement_checkouts_do_not_persist_credentials(self):
+        workflow = (ROOT / '.github/workflows/compat-0.1.0.yml').read_text()
+        checkouts = workflow.split('      - uses: actions/checkout@')[1:]
+        self.assertEqual(len(checkouts), 5)
+        for checkout in checkouts:
+            self.assertIn('          persist-credentials: false', checkout.split('\n      - ', 1)[0])
 
 
 class Shards(unittest.TestCase):

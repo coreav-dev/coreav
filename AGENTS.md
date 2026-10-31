@@ -40,7 +40,9 @@ When a review corrects a mistake, fix it and add its rule here. If the rule is a
 | Thresholds are committed before the run they judge | Not enforced: judgment (the commit before the run is the evidence) |
 | R3 reports every command of its set, including commands no input file reached | `test_every_command_is_reported_even_without_a_file_of_its_families` in `tools/compat-corpus/tests/test_r3.py` |
 | A rejected R4 rehearsal retains its public reports for diagnosis | `test_reports_survive_a_rejected_rehearsal` in `scripts/tests/test_compat_workflow.py` |
-| Compatibility shards produce nonempty summaries, and aggregation requires every expected shard | Crash and incomplete-input tests in `scripts/tests/test_compat_workflow.py` run the workflow shell blocks |
+| Compatibility shards and R4 scans produce nonempty summaries, and aggregation requires every expected shard | Crash and incomplete-input tests in `scripts/tests/test_compat_workflow.py` run the workflow shell blocks |
+| R1 uses the registered dist-profile binary and retains its SHA-256 with each fixture result | `test_r1_uses_the_registered_profile_and_records_its_binary_hash` in `scripts/tests/test_compat_workflow.py` executes all three R1 steps |
+| Measurement workflow checkouts do not persist Git credentials | `test_measurement_checkouts_do_not_persist_credentials` in `scripts/tests/test_compat_workflow.py` |
 | One outcome per pull request; the template's sections; no hard-wrapped body lines | Not enforced: judgment |
 | Design notes change in the same pull request as the design | Not enforced: judgment |
 | Code is written from specifications, never from other implementations' source | The code-similarity check for `coreav-h264`, `coreav-kernels-h264` and `coreav-opus` (`docs/design/ci-checks.md`, "Before opening a pull request"); elsewhere review |
