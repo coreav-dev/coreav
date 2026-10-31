@@ -1085,8 +1085,10 @@ fn fixtures_round_trip() {
                 &Allowlist::default(),
                 &options(seconds),
             );
+            let invalid = common::INVALID_STREAMS.contains(&name.as_str());
             match result {
                 Ok(_) => {
+                    assert!(!invalid, "{name}: packaged");
                     let index = assert_round_trip(&source, &options(seconds));
                     packaged.insert(name.clone());
                     eprintln!(
@@ -1100,6 +1102,10 @@ fn fixtures_round_trip() {
                 }
                 Err(e) => {
                     assert!(!REQUIRED.contains(&name.as_str()), "{name}: {e}");
+                    assert!(
+                        !invalid || matches!(e, ExtractError::Source(Error::InvalidStream { .. })),
+                        "{name}: {e}"
+                    );
                     eprintln!("{name}: refused: {e}");
                 }
             }

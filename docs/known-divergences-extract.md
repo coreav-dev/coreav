@@ -110,6 +110,26 @@ file names. Probe divergences are listed in
   the output has the source's edit list, and every source frame except the
   first and the last appears, in order and unchanged, in the output.
 
+## KD-X-FRAG-LAST-FRAME
+
+- Field: framemd5.
+- When: the source is fragmented and its last sample's stored duration is
+  shorter than the frame it holds (the end of the encoded audio, as
+  `ffmpeg` 9 writes it in a fragment's track run).
+- What each reports: the output stores the same duration in its sample
+  table, and both files list it as the last packet's duration in `ffprobe`
+  9.0.2. `ffmpeg` 9.0.2 cuts the last decoded frame to that duration on the
+  output but not on the fragmented source, so only that frame differs
+  (1,024 samples on the source, 136 on the output in the fixtures).
+  `ffmpeg` 7.0.2 cut neither.
+- Why: the sample durations are copied (ISO/IEC 14496-12 8.6.1.2 and
+  8.8.8); which of the two readers of the same black box applies a
+  duration to the decoded audio is not the writer's choice.
+- Coverage requires: the source declares fragments (`mvex`); every frame
+  but the last is equal, the last at the same times; the last packet's
+  duration is the same in both files, the output's last frame lasts exactly
+  that, and the source's last frame lasts longer.
+
 ## KD-X-PROFILE-UNNAMED
 
 - Field: stream `profile`.

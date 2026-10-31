@@ -178,9 +178,10 @@ def check(source, output, summary, mediainfo_bin=None, selected=None):
             same = a["md5"] == b["md5"] and (annex_b or a["size"] == b["size"])
             # Audio: within half the frame's own duration (frames last what
             # they decode to, while the source's times may jitter), which
-            # ffmpeg reads from the source packet (the Opus TOC; one AAC
-            # frame).
-            frame = (a["duration"] * sbase or b["duration"] * obase) if audio else 0
+            # ffmpeg reads from the packet (the Opus TOC; one AAC frame). The
+            # longer of the two: ffmpeg 9 shortens the source's last packet
+            # by the Matroska discard padding.
+            frame = max(a["duration"] * sbase, b["duration"] * obase) if audio else 0
             tolerance = Fraction(1, 1000) + frame / 2
             close = abs(a["pts"] * sbase - b["pts"] * obase) <= tolerance
             if same and close:

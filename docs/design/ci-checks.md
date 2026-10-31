@@ -199,6 +199,12 @@ by its job's name, not by its workflow.
   workflows. A called workflow's job reports as `<caller job> / <job>`,
   which renames every required check it holds.
 
+## The FFmpeg pin
+
+Current comparisons use FFmpeg 9.0.2, the build in `scripts/oracle-ffmpeg.env`. The installer verifies its archive hash, and `scripts/oracle_pin.py --verify-bin DIR` rejects another FFmpeg or ffprobe version, including on a binary-cache hit.
+
+The sole historical-extraction exception is `training-identity`: `docs/measurements/h264-training/es.json` records bytes extracted by FFmpeg 7.0.2. Extracting one recorded SD stream twice with that version reproduced its hash and 10,750,164 bytes; 9.0.2 consistently produced 10,750,126 bytes. In that reproduction, the per-type NAL payload sequences were identical, but 9.0.2 placed SPS/PPS before SEI and changed Annex-B framing. The historical extractor therefore retains its own archive SHA-256 and version check in `docs/measurements/h264-training/tools/install-extractor.sh`. It installs only FFmpeg under `RUNNER_TEMP/coreav-training-extractor`, never on PATH or in an oracle directory, and only the historical extraction helper reads it. The recorded hashes and exact-byte check remain unchanged; no comparison uses this extractor as its oracle. The pin check rejects references to this installer or directory outside the training job and its measurement directory.
+
 ## The fixture jobs
 
 `isobmff-fixtures` ran every check of the ISO base media fixtures in one job: a median of 34.9 minutes over the successful jobs of the last 60 completed pull request runs, against 15.2 for `fuzz`, 11.6 for `bench-guard` and under 9 for every other job, so it alone set how long a pull request waited. Its steps now run in six jobs, with the same commands, bars and thresholds:
@@ -208,6 +214,8 @@ by its job's name, not by its workflow.
 - `isobmff-writers`: clip, remux, video replacement, split, sanitize, HLS, join and the 0.1.0 `ffmpeg` commands. Their reports are the `writer-output` artifact.
 - `isobmff-decode`: the build with the FFmpeg fallback, dav1d and libvpx, then decoding, thumbnails and `coreav transcode` against the pinned FFmpeg, and the hostile suite through `coreav thumbnail` and `coreav transcode`.
 - `b9-shard`, three legs, and `b9`: bar B9 of `docs/design/transcode.md`.
+
+The generated-fixture and oracle-binary cache keys include `scripts/oracle-ffmpeg.env`, so changing the oracle invalidates both. Each B9 shard runs the pinned FFmpeg and ffprobe. After merging their evidence, `b9` checks its recorded version and each shard's FFmpeg and ffprobe hashes against the installed pin; it does not rerun the encodes. The command-coverage jobs use `tools/compat-corpus/ffmpeg9.json`, including its ratio-based bit-rate rules, unchanged by the split.
 
 **B9 in three shards, judged once.** B9 was 13.2 minutes of the old job (median): 12 command lines on 83 fixtures, 998 results and 3,078 seconds of encoding over four parallel jobs, 45% of it line x07, which scales to 1920 columns. `scripts/transcode_check.py --shard K/3` runs every third fixture and judges no bar: it keeps its results, calls and manifest as evidence. It fails when a result is missing, and, as a whole run does, when its preflight or setup fails; a failed bar never fails it. `b9` puts the three together with `--merge`, which refuses a missing or repeated shard, and judges every bar over all of them as the single run did. Its `b9-evidence` artifact holds what `oracle-output` held as `coreav-b9/evidence`. Split three ways, the evidence of a single run's artifact merges to the same summary, run record, calls and manifest, and to the same exit status; its shards carry 998, 1,045 and 1,035 seconds of encoding.
 

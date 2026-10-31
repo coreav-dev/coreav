@@ -191,6 +191,25 @@
       },
       "predicate": "index_drift",
       "basis": "docs/design/hls.md (each segment's EXTINF is its subsegment_duration, its tfdt the source's); ISO/IEC 14496-12 8.8.12 and 8.16.3.3"
+    },
+    {
+      "id": "KD-HLS-11",
+      "level": [
+        "frames"
+      ],
+      "fields": [
+        "decoded frames"
+      ],
+      "field_pattern": "*:frames",
+      "filename_pattern": "*",
+      "conditions": {
+        "rendition": "audio",
+        "frames": "every source frame but the last matched; the last matched by none, and one output frame left over at its time",
+        "packets": "the last packets of the source and the rendition with the same bytes and duration",
+        "side data": "ffprobe lists Skip Samples on the source's last packet that skip 0 samples and discard more than 0, and none on the rendition's"
+      },
+      "predicate": "source_last_cut",
+      "basis": "ISO/IEC 14496-12 8.8.8 and 8.6.1.2: each sample's stored duration is copied; ffmpeg 9.0.2 reads the end of the last frame past it as padding to discard in a sample table only"
     }
   ]
 }

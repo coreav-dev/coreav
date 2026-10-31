@@ -15,6 +15,19 @@ pub struct S {
     pub sync: bool,
 }
 
+/// The `hvcC` an `hvc1` track gets (ISO/IEC 14496-15 8.3.3.1): a Main
+/// profile record of one sequence parameter set, 1280x720 4:2:0 with a
+/// conformance window of 625 + 20 chroma columns, which leaves no picture
+/// (ITU-T H.265 7.4.3.2.1: 2 * (625 + 20) is not below 1280). The set is
+/// the one `scripts/gen-fixtures.sh` writes into `size_hevc_window.mp4`.
+pub const EMPTY_WINDOW_HVCC: &[u8] = &[
+    0x01, 0x01, 0x60, 0x00, 0x00, 0x00, 0x90, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5d, 0xf0, 0x00, 0xfc,
+    0xfd, 0xf8, 0xf8, 0x00, 0x00, 0x0f, 0x01, 0xa1, 0x00, 0x01, 0x00, 0x2f, 0x42, 0x01, 0x01, 0x01,
+    0x60, 0x00, 0x00, 0x03, 0x00, 0x90, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x5d, 0xa0, 0x02,
+    0x80, 0x80, 0x2d, 0x18, 0x02, 0x72, 0x0a, 0xf9, 0x65, 0x66, 0x92, 0x4c, 0xaf, 0x01, 0x68, 0x08,
+    0x00, 0x00, 0x03, 0x00, 0x08, 0x00, 0x00, 0x03, 0x00, 0xc8, 0x40,
+];
+
 pub struct TrackSpec {
     pub video: bool,
     pub timescale: u32,
@@ -82,8 +95,12 @@ pub fn trak(t: &TrackSpec, id: u32, chunk_offset: u32) -> Vec<u8> {
         body.extend_from_slice(&320u16.to_be_bytes());
         body.extend_from_slice(&240u16.to_be_bytes());
         body.extend_from_slice(&[0u8; 50]);
-        // avcC: version 1, High profile, level 3.0; no parameter sets.
-        body.extend_from_slice(&bx(b"avcC", &[1, 100, 0, 30, 0xff, 0xe0, 0]));
+        if &t.entry == b"hvc1" {
+            body.extend_from_slice(&bx(b"hvcC", EMPTY_WINDOW_HVCC));
+        } else {
+            // avcC: version 1, High profile, level 3.0; no parameter sets.
+            body.extend_from_slice(&bx(b"avcC", &[1, 100, 0, 30, 0xff, 0xe0, 0]));
+        }
         body.extend_from_slice(&bx(b"pasp", &u32s(&[1, 1])));
         body.extend_from_slice(&bx(b"fiel", &[1, 0]));
         bx(&t.entry, &body)

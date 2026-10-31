@@ -819,6 +819,14 @@ pub fn describe_config_record(kind: FourCc, record: &[u8]) -> Option<ConfigRecor
     })
 }
 
+/// Whether the first sequence parameter set of an `hvcC` payload has a
+/// conformance window that leaves no picture, which ITU-T H.265 7.4.3.2.1
+/// does not allow: such a stream is not valid HEVC. `false` when the
+/// payload holds no sequence parameter set or it cannot be read.
+pub fn hevc_window_empty(hvcc: &[u8]) -> bool {
+    crate::size::hvcc_window_empty(hvcc)
+}
+
 /// `max_num_ref_frames` of the first sequence parameter set of an `avcC`
 /// payload (ITU-T H.264 7.4.2.1.1): the most reference frames the
 /// decoding process keeps. `None` when it cannot be read.
