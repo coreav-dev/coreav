@@ -486,6 +486,12 @@ impl Header {
                 language(track.language),
             ),
             HeaderMetadata::Clear => (0, 0, 0, *b"und"),
+            HeaderMetadata::MediaTime => (
+                track.media_creation_time,
+                track.media_creation_time,
+                track.media_creation_time,
+                *b"und",
+            ),
         };
         Ok(Self {
             movie_timescale,
