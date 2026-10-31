@@ -462,7 +462,8 @@ fn fours(v: &[f32]) -> impl Iterator<Item = [f32; 4]> + '_ {
 /// See [`Fft::first_pass`].
 fn first_pass(vr: &[f32], vi: &[f32], positions: &[usize], re: &mut [f32], im: &mut [f32]) {
     let eighth = positions.len();
-    let quads = eighth / 4 * 4;
+    let whole = vr.len() >= 4 * eighth && vi.len() >= 4 * eighth;
+    let quads = if whole { eighth / 4 * 4 } else { 0 };
     let ([r0, r1, r2, r3], [i0, i1, i2, i3]) =
         (quarters(vr, eighth, quads), quarters(vi, eighth, quads));
     let reals = fours(r0).zip(fours(r1)).zip(fours(r2).zip(fours(r3)));
@@ -475,12 +476,7 @@ fn first_pass(vr: &[f32], vi: &[f32], positions: &[usize], re: &mut [f32], im: &
         let real = transpose([a.re, b.re, c.re, d.re]);
         let imag = transpose([a.im, b.im, c.im, d.im]);
         for ((&pos, r4), i4) in targets.iter().zip(real).zip(imag) {
-            if let (Some(r), Some(i)) = (
-                re.get_mut(pos..).and_then(<[f32]>::first_chunk_mut::<4>),
-                im.get_mut(pos..).and_then(<[f32]>::first_chunk_mut::<4>),
-            ) {
-                (*r, *i) = (r4, i4);
-            }
+            store(re, im, pos, r4, i4);
         }
     }
     for (k, &pos) in positions.iter().enumerate().skip(quads) {
@@ -488,10 +484,32 @@ fn first_pass(vr: &[f32], vi: &[f32], positions: &[usize], re: &mut [f32], im: &
             re: vr.get(q * eighth + k).copied().unwrap_or(0.0),
             im: vi.get(q * eighth + k).copied().unwrap_or(0.0),
         });
-        for (q, v) in radix4_unit(values).into_iter().enumerate() {
-            if let (Some(r), Some(i)) = (re.get_mut(pos + q), im.get_mut(pos + q)) {
-                (*r, *i) = (v.re, v.im);
-            }
+        let [a, b, c, d] = radix4_unit(values);
+        store(
+            re,
+            im,
+            pos,
+            [a.re, b.re, c.re, d.re],
+            [a.im, b.im, c.im, d.im],
+        );
+    }
+}
+
+/// Writes four outputs at `pos` and the three after it, skipping those
+/// past the end of `re` or `im`.
+#[inline(always)]
+fn store(re: &mut [f32], im: &mut [f32], pos: usize, r4: [f32; 4], i4: [f32; 4]) {
+    if let (Some(r), Some(i)) = (
+        re.get_mut(pos..).and_then(<[f32]>::first_chunk_mut::<4>),
+        im.get_mut(pos..).and_then(<[f32]>::first_chunk_mut::<4>),
+    ) {
+        (*r, *i) = (r4, i4);
+        return;
+    }
+    for (q, (r, i)) in r4.into_iter().zip(i4).enumerate() {
+        let Some(at) = pos.checked_add(q) else { return };
+        if let (Some(x), Some(y)) = (re.get_mut(at), im.get_mut(at)) {
+            (*x, *y) = (r, i);
         }
     }
 }
@@ -629,6 +647,46 @@ mod tests {
                 assert_eq!(bits(&r1), bits(&r2), "rotate {n}");
                 assert_eq!(bits(&i1), bits(&i2), "rotate {n}");
             }
+        }
+    }
+
+    /// `Fft::first_pass` keeps to its contract at the edges: an output
+    /// position at the end of the address space, a missing input value
+    /// and a short output.
+    #[test]
+    fn first_pass_keeps_to_its_bounds() {
+        let positions = [0, 4, 8, 12];
+        for fft in [Fft::portable(), Fft::detect()] {
+            let (mut re, mut im) = ([99.0f32; 4], [99.0f32; 4]);
+            fft.first_pass(&[1.0; 4], &[0.0; 4], &[usize::MAX], &mut re, &mut im);
+            assert_eq!((re, im), ([99.0; 4], [99.0; 4]));
+
+            let (vr, vi) = (values(9, 15), values(10, 15));
+            let pad = |v: &[f32]| v.iter().copied().chain([0.0]).collect::<Vec<f32>>();
+            let (mut r1, mut i1) = (vec![99.0f32; 16], vec![99.0f32; 16]);
+            fft.first_pass(&pad(&vr), &pad(&vi), &positions, &mut r1, &mut i1);
+            let (mut r2, mut i2) = (vec![99.0f32; 16], vec![99.0f32; 16]);
+            fft.first_pass(&vr, &vi, &positions, &mut r2, &mut i2);
+            assert_eq!(bits(&r1), bits(&r2));
+            assert_eq!(bits(&i1), bits(&i2));
+
+            let (mut re, mut im) = ([99.0f32; 3], [99.0f32; 3]);
+            fft.first_pass(&[1.0; 16], &[0.0; 16], &positions, &mut re, &mut im);
+            assert_eq!((re, im), ([4.0, 0.0, 0.0], [0.0; 3]));
+
+            let (mut re, mut im) = (vec![99.0f32; 14], vec![99.0f32; 14]);
+            fft.first_pass(&[1.0; 16], &[0.0; 16], &positions, &mut re, &mut im);
+            let (mut full_re, mut full_im) = (vec![99.0f32; 16], vec![99.0f32; 16]);
+            fft.first_pass(
+                &[1.0; 16],
+                &[0.0; 16],
+                &positions,
+                &mut full_re,
+                &mut full_im,
+            );
+            full_re.truncate(14);
+            full_im.truncate(14);
+            assert_eq!((bits(&re), bits(&im)), (bits(&full_re), bits(&full_im)));
         }
     }
 
