@@ -90,7 +90,7 @@ use serde_json::Value;
 
 /// Memory-safe media probing.
 #[derive(Parser)]
-#[command(name = "coreav", version, about, long_about = None)]
+#[command(name = "coreav", bin_name = "coreav", version, about, long_about = None)]
 struct Cli {
     /// For services that read untrusted input: CoreAV never runs an ffmpeg
     /// or ffprobe program, which is FFmpeg's C code, as COREAV_STRICT_SAFE=1
@@ -203,7 +203,7 @@ enum Command {
     /// without re-encoding.
     ExtractAudio(Deferred<ExtractAudioArgs>),
     /// Decode an audio track of an MP4/MOV, Matroska or WebM file to a WAV
-    /// file (FLAC, MP3; AAC LC in a build with the feature `aac`).
+    /// file (FLAC, MP3, Opus; AAC LC in a build with the feature `aac`).
     DecodeAudio(Deferred<DecodeAudioArgs>),
     /// Rewrite an MP4/MOV, Matroska or WebM file as MP4 with the movie
     /// header first (faststart), without re-encoding.
@@ -2166,7 +2166,10 @@ fn run_join(args: &JoinArgs) -> ExitCode {
         Some("none") => JoinAudio::None,
         Some(_) => return usage("--audio takes only `none`"),
     };
-    let options = JoinOptions { audio };
+    let options = JoinOptions {
+        video: VideoChoice::First,
+        audio,
+    };
     // The output may name none of the inputs; `write_output` checks the
     // first, and whether the output exists.
     if args.output != "-" {

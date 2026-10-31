@@ -4,6 +4,8 @@ sidebarTitle: "ffmpeg"
 description: "Experimental. Run an ffmpeg stream-copy command line (-c copy) with CoreAV's own writers."
 ---
 
+import Help from '/snippets/help/ffmpeg.mdx';
+
 <Warning>
 `coreav ffmpeg` is experimental until it meets its 0.1.0 bars, R1 to R4, on held-out files. Its outputs pass the job oracles on the fixtures in CI, but those bars are not measured yet ([the 0.1.0 release issue](https://github.com/coreav-dev/coreav/issues/43)).
 </Warning>
@@ -38,4 +40,10 @@ A link named `ffmpeg` that points to `coreav` behaves as `coreav ffmpeg` with th
 
 ## Options
 
-`coreav ffmpeg` has no help text of its own. `coreav ffmpeg --help` is an informational query, which CoreAV does not implement: strict-safe mode refuses it, and otherwise it prints the real `ffmpeg`'s help through the fallback. [The compatibility command's design note](https://github.com/coreav-dev/coreav/blob/main/docs/design/compat-cli.md) lists the options it implements.
+`coreav ffmpeg --help` (or `-h`, `-?`, `-help`) prints a usage text of its own, not the full `ffmpeg` option list, and runs no `ffmpeg` program, in strict-safe mode or not:
+
+<Help />
+
+Help on a topic, such as `-h long`, `-h full` or `-h encoder=libx264`, asks about FFmpeg's own components, so it is refused in strict-safe mode and goes to the real `ffmpeg` otherwise.
+
+[The compatibility command's design note](https://github.com/coreav-dev/coreav/blob/main/docs/design/compat-cli.md) lists the options it implements.

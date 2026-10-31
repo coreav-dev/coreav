@@ -71,6 +71,8 @@ FIELD_KEYS = {
     'kind': {'streams.codec_type'},
     'codec_name': {'streams.codec_name'},
     'profile': {'streams.profile'},
+    'level': {'streams.level'},
+    'color_range': {'streams.color_range'},
 }
 FORMAT_KEYS = {'format_duration_us': {'format.duration', 'format.bit_rate'}}
 # A declared picture size the parameter sets contradict also moves the

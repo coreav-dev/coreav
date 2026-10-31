@@ -1048,6 +1048,7 @@ fn plan<'m, S: Source>(
     };
     // None of a replaced stream's samples or sample entry is read.
     if replace.is_none() {
+        crate::clip::conforming(track)?;
         if track.descriptions != 1 {
             return Err(unsupported("more than one sample description"));
         }

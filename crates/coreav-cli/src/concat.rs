@@ -162,7 +162,7 @@ fn files(text: &str, safe: bool) -> Result<Vec<String>, ListError> {
                 let path = token(&mut rest)
                     .filter(|p| !p.is_empty())
                     .ok_or(ListError::NoPath { line })?;
-                if protocol(&path) {
+                if !crate::ffmpeg::args::local(&path, cfg!(windows)) {
                     return Err(ListError::Protocol { line, path });
                 }
                 if safe && !portable(&path) {
@@ -237,14 +237,6 @@ fn token(rest: &mut &str) -> Option<String> {
     }
     *rest = trimmed.get(end..).unwrap_or("");
     Some(out)
-}
-
-/// Whether a path starts with a protocol name and a colon (`file:`,
-/// `https:`), as the concat demuxer reads it.
-fn protocol(path: &str) -> bool {
-    path.split('/')
-        .next()
-        .is_some_and(|first| first.contains(':'))
 }
 
 /// The `safe` rule: relative, every component non-empty, of the portable

@@ -18,7 +18,8 @@ are ready up to `npm publish --dry-run`.
 | `packages/cli/lib/wasi.mjs` | The WASI fallback: runs `wasm/coreav.wasm` under `node:wasi`. |
 | `packages/cli/install.js` | The install script that makes `coreav` the native binary. |
 | `packages/cli/scripts/build.sh` | Builds `coreav-cli` for `wasm32-wasip1` into `wasm/coreav.wasm`. |
-| `packages/cli/scripts/platform.sh` | Builds one native package into `npm/<platform>/`. |
+| `packages/cli/scripts/platform.sh` | Builds one native package into `npm/<platform>/`: the release's default build (`docs/design/release.md`, "Two builds"). |
+| `packages/cli/scripts/codecs.sh` | Builds dav1d and libvpx as static libraries for the native binaries. |
 | `packages/cli/test` | The WASI build and the launcher against the native command; the install script; `smoke.sh`, CI's install-and-run check. |
 | `bench/npx` | The speed measurement below. |
 
@@ -32,6 +33,11 @@ command's `net` feature.
 They get the native command on Linux (x86-64 and arm64, glibc or musl),
 macOS (arm64 and x86-64) and Windows (x86-64), and the WASI build
 elsewhere, with the same output, output files and exit codes.
+The native binaries outside Windows also have `coreav thumbnail` and
+`coreav transcode`, with dav1d (AV1) and libvpx (VP9) linked statically,
+as the release's default build has them. The WASI build has neither: WASI
+cannot start the sandboxed decoder worker or the encoder program
+(`docs/design/release.md`, "npm").
 
 ## Design
 
@@ -87,8 +93,11 @@ esbuild and Biome:
   "fat"`, one codegen unit), stripped for the package
   (`CARGO_PROFILE_DIST_STRIP=symbols`).
   - Linux binaries are static, linked against musl, so one build runs on
-    glibc and musl systems alike. arm64 is cross-built on x86-64 and links
-    with the toolchain's own `rust-lld`.
+    glibc and musl systems alike. CI builds each architecture on its own
+    runner; a local arm64 build on x86-64 links with the toolchain's own
+    `rust-lld`.
+  - dav1d and libvpx are compiled with `musl-gcc` (`scripts/codecs.sh`),
+    natively on each architecture.
   - The crates that compile C, `ring` for the HTTPS of URL inputs, use zig
     as the musl C compiler for both architectures (`scripts/zig.sh`). CI
     installs zig from PyPI (`ziglang`, MIT), pinned by version and hash.
@@ -220,16 +229,19 @@ wording and keywords are positioning and the maintainer's to decide.
   --profile edge --target wasm32-wasip1`, then `wasm-opt -O3` when binaryen
   is on `PATH` or named by `WASM_OPT` (CI uses binaryen version_133).
 - `packages/cli/scripts/platform.sh PLATFORM`: `cargo build --locked -p
-  coreav-cli --profile dist --target T` and the package around the binary
+  coreav-cli --profile dist --target T --features release-default` (the
+  default features on Windows), with dav1d and libvpx from
+  `scripts/codecs.sh`, and the package around the binary, with `NOTICE`
+  and `licenses/` (`docs/release/notices.md`)
   (`scripts/platform-package.js` writes its `package.json` from the main
   package's, so names, version and metadata cannot drift).
 - The module, the binaries and the license files are build outputs, not
   committed; `npm pack` refuses to run without them (`prepack`).
 - CI builds the WASI module and the Linux x86-64 package on every ready
   pull request. Tags, manual and weekly runs, and pull requests labelled
-  `binaries` also build the four other platforms, each run and
-  smoke-tested on its own platform (Linux arm64 under QEMU), as the Python
-  wheels are built.
+  `binaries` also build the four other platforms, each built, run and
+  smoke-tested on its own platform, as the Python wheels are built. The
+  static dav1d and libvpx are cached per target until `codecs.sh` changes.
 
 ## Verification
 
@@ -258,8 +270,8 @@ wording and keywords are positioning and the maintainer's to decide.
   `npm publish` on every tarball. `test/smoke.sh` then installs the packed
   tarballs into new projects and runs them through `npx`: Linux x86-64
   with Node 20, 22 and 24, macOS arm64 and Windows with 20 and 24, and
-  macOS x86-64 with 24. The Linux arm64 binary runs its checks under QEMU
-  in its build job, without the npm smoke test:
+  macOS x86-64 with 24. The Linux arm64 binary runs its checks in its
+  build job on an arm64 runner, without the npm smoke test:
   - once with the platform's package, where on Linux and macOS the
     installed command must be the binary itself;
   - once without optional packages, which runs the WASI build.
@@ -391,7 +403,7 @@ and every bar passes.
 - `npx` adds 219 ms of npm's start-up per call.
 - The launch costs: native 0.7 ms, Node launcher 28.6 ms, WASI 61.2 ms.
 
-The CI regression guard (`bench-guard.yml`,
+The CI regression guard (`ci.yml`'s `bench-guard` job,
 `docs/design/benchmarks.md`) counts the instructions of the `coreav`
 command, the same source as the native packages' binaries; the npm
 packages add no code to that path.

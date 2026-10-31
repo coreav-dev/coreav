@@ -155,7 +155,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/oracle/tests -p 
 
 The Rust tests cover informational fields, missing/extra packets, position pairing, signed timestamp/edit offsets, reference failures, malformed schemas, and exact threshold boundaries. Python tests cover tick precision, rotation direction, packet-track pairing, framemd5 parsing and manifest validation. End-to-end self-check validates real black-box outputs and mutation detection.
 
-The new `fixtures.yml` installs/caches the pinned binaries, generates all required fixtures on every run even after a cache restore, caches generated files, builds the comparator, runs capture tests and the independent self-check, checks the executable candidate adapter, and uploads normalized JSON/diffs. It does not change the existing workflow. The frame minimum is met by generated fixtures (1,293 video frames with the pinned tool pair in the local run).
+The new `fixtures.yml` (now the `isobmff-fixtures` job of `ci.yml`) installs/caches the pinned binaries, generates all required fixtures on every run even after a cache restore, caches generated files, builds the comparator, runs capture tests and the independent self-check, checks the executable candidate adapter, and uploads normalized JSON/diffs. It does not change the existing workflow. The frame minimum is met by generated fixtures (1,293 video frames with the pinned tool pair in the local run).
 
 Follow-ups: define spec-justified divergence entries when a real candidate exists; extend general-angle transform mapping and private corpus manifest ingestion; run the real-file corpus once available. The harness does not implement or certify CoreAV decoding.
 

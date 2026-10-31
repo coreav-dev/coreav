@@ -172,11 +172,12 @@ def count_hls(stdout, report):
 
 def hls_expected_refused():
     """The inputs the HLS fixture check expects the packager to refuse, as
-    fixtures.yml passes them, so the report runs the check as CI does."""
+    ci.yml's isobmff-writers job passes them, so the report runs the check
+    as CI does."""
     found = re.findall(r'hls_check\.py[^\n]*(?:\\\n[^\n]*)*?--expect-refused "([^"]*)"',
-                       (ROOT / '.github' / 'workflows' / 'fixtures.yml').read_text())
+                       (ROOT / '.github' / 'workflows' / 'ci.yml').read_text())
     if len(found) != 1:
-        sys.exit('fixtures.yml: expected one --expect-refused list for hls_check.py')
+        sys.exit('ci.yml: expected one --expect-refused list for hls_check.py')
     return found[0]
 
 
@@ -249,7 +250,7 @@ def step_fixtures(work, args):
     result = {'generated': generated, 'probe': {}, 'checks': [], 'mediainfo': {}}
     result['probe']['isobmff'] = probe_oracle(work, fx, 'isobmff-adapter', 'oracle_kd.py', 'oracle-isobmff',
                                               ['--media', fx])
-    # KD-MKV-DECLARED-SIZE reads the files' track headers, as in mkv-fixtures.yml.
+    # KD-MKV-DECLARED-SIZE reads the files' track headers, as in the mkv-fixtures job.
     result['probe']['matroska'] = probe_oracle(work, fxm, 'mkv-adapter', 'oracle_kd_mkv.py', 'oracle-matroska',
                                                ['--media', fxm])
     kd = work / 'oracle-isobmff' / 'known-divergences.json'
@@ -292,7 +293,7 @@ def step_fixtures(work, args):
             continue
         checks.append(checker(name, command))
     # HLS: the round trip through coreav-isobmff, then the packages checked
-    # against ffprobe, ffmpeg and MediaInfo (fixtures.yml).
+    # against ffprobe, ffmpeg and MediaInfo (the isobmff-writers job).
     status, _, err = run(cargo_test + ['hls', 'fixtures_round_trip', '--', '--ignored'], timeout=3600,
                          COREAV_FIXTURES=str(fx))
     if status:

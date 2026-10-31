@@ -121,6 +121,18 @@ caller that streams packets ahead of a slower decoder fails with `Limit`)
 does not arise, because the consumer here paces itself by what the
 decoder returns.
 
+Before anything is decoded, an HEVC stream whose first sequence
+parameter set has a conformance window that leaves no picture, which
+ITU-T H.265 7.4.3.2.1 does not allow, is rejected as an invalid
+structure (`invalid_structure`, exit status 1). The check is in
+`coreav-thumbnail`'s reading of the video stream, so `coreav transcode`,
+`coreav ffmpeg` and `coreav thumbnail` reject it alike: the pinned
+FFmpeg 9.0.2 drops such a parameter set and decodes nothing, where 7.0.2
+ignored the window (`KD-HEVC-WINDOW`; `size_hevc_window.mp4`,
+`size_hevc_mixed_window.mp4`). The writers that copy the stream refuse it
+too (`docs/design/remux.md`, "Streams"). The bars set the two fixtures
+apart as they set any rejected file apart.
+
 ### The encoder program
 
 The roadmap leaves the choice between an `x264` binary and
@@ -609,7 +621,8 @@ FLAC in MP4 and Matroska and MP3 in Matroska: the summary validated, two
 streams, the Opus stream's `initial_padding` the summary's pre-skip, its
 `start_pts` 0 and `duration_ts` the presented samples, a clean decode;
 AAC and six channels refused first, and AAC passed over for the FLAC
-stream after it, both in a build with `aac` too (`fixtures.yml`).
+stream after it, both in a build with `aac` too (`ci.yml`, job
+`isobmff-decode`).
 `tests/strict_safe.rs` checks that
 `--audio opus` runs no `ffmpeg` program in strict-safe mode.
 

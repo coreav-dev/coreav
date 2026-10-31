@@ -18,9 +18,13 @@ and ISO/IEC 14496-3 (AAC). No multimedia implementation source was read.
 ## What it does
 
 `join_mp4(inputs, limits, allowlist, options, out)` probes every input,
-keeps its first video track and, unless the caller asks for video only, its
-first audio track (chosen and checked as for a clip), and writes one `moov`-first MP4 with one video track and at most one
-audio track. `coreav join [--audio none] -o OUTPUT INPUT...` prints a
+keeps its first video track or the video stream at the index the caller
+names (`VideoChoice::Stream`) and, unless the caller asks for video only,
+its first audio track or the audio stream at the index the caller names
+(`JoinAudio::Stream`), chosen and checked as for a clip. `coreav ffmpeg`
+names both indexes, and a stream there that the allowlist leaves out fails
+instead of being skipped. It writes one `moov`-first MP4 with one video
+track and at most one audio track. `coreav join [--audio none] -o OUTPUT INPUT...` prints a
 `coreav.join/1` summary ([`docs/schema/join-v1.md`](../schema/join-v1.md)).
 
 The promise:
@@ -96,7 +100,11 @@ media edits kept:
   time the input's own edit presents first, for as long as the input
   presents video:
   until its edit ends, its samples end, or its track ends, whichever comes
-  first; but until its edit ends when the edit lies within the media's
+  first, its track ending no earlier than its last presented frame (the
+  media header's duration, the sum of the decode durations, ends before
+  that frame where frames are composed further apart than they are
+  decoded: variable frame rate, or a frame left out of a reordered
+  stream); but until its edit ends when the edit lies within the media's
   declared duration (a sample is shown until the next one's composition
   time, the last until the edit ends: where decode durations are shorter
   than the frames' spacing, variable frame rate, the last frame's own

@@ -11,7 +11,7 @@
 //! FFmpeg writes for the same stream (`-c copy` to MP4).
 //!
 //! The programs are found through `COREAV_X264` and `COREAV_FFMPEG`, the
-//! pinned paths (`/opt/x264-4613ac3/bin/x264`, `/opt/coreav-oracle-bin/ffmpeg`)
+//! pinned paths (`/opt/coreav-oracle-bin/x264`, `/opt/coreav-oracle-bin/ffmpeg`)
 //! or `PATH`; a test whose program is missing (or an `ffmpeg` without
 //! libx264) prints why and passes, unless `COREAV_REQUIRE_FFMPEG=1` (the
 //! fixtures workflow, which installs the pinned FFmpeg) makes a missing
@@ -47,7 +47,7 @@ fn program(env: &str, pinned: &str, name: &str) -> Option<PathBuf> {
 }
 
 fn x264() -> Option<PathBuf> {
-    program("COREAV_X264", "/opt/x264-4613ac3/bin/x264", "x264")
+    program("COREAV_X264", "/opt/coreav-oracle-bin/x264", "x264")
 }
 
 fn ffmpeg() -> Option<PathBuf> {

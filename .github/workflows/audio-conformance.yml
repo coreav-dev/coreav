@@ -145,35 +145,22 @@ jobs:
           COREAV_AAC_VECTORS: ${{ runner.temp }}/aac
         run: cargo test --locked --release -p coreav-aac --test conformance conformance_streams -- --ignored --nocapture
       # Bars 2 to 5 (docs/design/audio-decode.md, "AAC-LC bars"): against
-      # the pinned FFmpeg 9.0.2, the build scripts/oracle-ffmpeg.env pins
-      # once that pin lands; until then the same archive by its SHA-256.
-      - name: Cache FFmpeg 9.0.2
-        id: ffmpeg9
+      # the pinned oracle FFmpeg (scripts/oracle-ffmpeg.env).
+      - name: Cache the pinned FFmpeg
+        id: ffmpeg-cache
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
-          path: ${{ runner.temp }}/ffmpeg9
-          key: ffmpeg-n9.0.2-17-g2a571b6068-68ee646831adaae2495618346f3bba94ff207ff83bbd34d643e7004730d66269
-      - name: Install FFmpeg 9.0.2
-        if: steps.ffmpeg9.outputs.cache-hit != 'true'
-        env:
-          FFMPEG9_URL: https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-30-13-08/ffmpeg-n9.0.2-17-g2a571b6068-linux64-gpl-9.0.tar.xz
-          FFMPEG9_SHA256: 68ee646831adaae2495618346f3bba94ff207ff83bbd34d643e7004730d66269
-          FFMPEG9_ARCHIVE: ffmpeg-n9.0.2-17-g2a571b6068-linux64-gpl-9.0
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/ffmpeg9"
-          cd "$RUNNER_TEMP"
-          curl -fsSL --retry 5 -o ffmpeg9.tar.xz "$FFMPEG9_URL"
-          echo "$FFMPEG9_SHA256  ffmpeg9.tar.xz" | sha256sum --check --strict
-          tar -xJf ffmpeg9.tar.xz "$FFMPEG9_ARCHIVE/bin/ffmpeg" "$FFMPEG9_ARCHIVE/bin/ffprobe"
-          install -m 755 "$FFMPEG9_ARCHIVE/bin/ffmpeg" "$FFMPEG9_ARCHIVE/bin/ffprobe" "$RUNNER_TEMP/ffmpeg9/"
-          rm -rf ffmpeg9.tar.xz "$FFMPEG9_ARCHIVE"
+          path: ${{ runner.temp }}/coreav-oracle-bin
+          key: linux-x64-oracle-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh') }}
+      - name: Install the pinned FFmpeg
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
       - name: Build the command with the feature aac
         run: cargo build --locked --release -p coreav-cli --features aac
       - name: The generated set and the references
         run: |
-          "$RUNNER_TEMP/ffmpeg9/ffmpeg" -version | head -1
-          python3 -I scripts/aac_agreement.py prepare --ffmpeg "$RUNNER_TEMP/ffmpeg9/ffmpeg" \
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
+          python3 -I scripts/aac_agreement.py prepare --ffmpeg "$RUNNER_TEMP/coreav-oracle-bin/ffmpeg" \
             --work "$RUNNER_TEMP/aac-agreement" --conformance "$RUNNER_TEMP/aac"
       - name: Decode every MP4 input (bar 2)
         env:
@@ -186,7 +173,7 @@ jobs:
           W="$RUNNER_TEMP/aac-agreement"
           status=0
           python3 -I scripts/aac_agreement.py judge --coreav target/release/coreav \
-            --ffmpeg "$RUNNER_TEMP/ffmpeg9/ffmpeg" --ffprobe "$RUNNER_TEMP/ffmpeg9/ffprobe" \
+            --ffmpeg "$RUNNER_TEMP/coreav-oracle-bin/ffmpeg" --ffprobe "$RUNNER_TEMP/coreav-oracle-bin/ffprobe" \
             --work "$W" --out "$W/aac-agree.json" > "$W/summary.json" || status=$?
           cat "$W/summary.json"
           { echo '```json'; cat "$W/summary.json"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
@@ -271,7 +258,7 @@ jobs:
           rm -rf libopus.tar.gz opus-1.6.1
       - name: The generated tables are what scripts/opus_tables.py makes from the RFC's code
         run: python3 -I scripts/opus_tables.py --check --cache "$RUNNER_TEMP/pinned-sources"
-      - name: Read every packet and decode the SILK-only and CELT-only vectors (durations against the reference outputs, range state of every packet, opus_compare above 90)
+      - name: Read every packet and decode the twelve vectors (durations against the reference outputs, range state of every packet, opus_compare above 90)
         env:
           COREAV_OPUS_VECTORS: ${{ runner.temp }}/opus-vectors/opus_newvectors
           COREAV_OPUS_COMPARE: ${{ runner.temp }}/opus-compare/opus_compare
