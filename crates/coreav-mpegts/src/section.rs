@@ -148,19 +148,61 @@ fn section_total(data: &[u8]) -> Option<usize> {
 /// value all ones, no reflection, no final XOR). Over a whole section with
 /// its `CRC_32` field, the result is 0.
 pub(crate) fn crc32(data: &[u8]) -> u32 {
-    let mut crc = u32::MAX;
-    for &byte in data {
-        crc ^= u32::from(byte) << 24;
-        for _ in 0..8 {
-            crc = if crc & 0x8000_0000 != 0 {
-                (crc << 1) ^ 0x04C1_1DB7
-            } else {
-                crc << 1
-            };
-        }
-    }
-    crc
+    let [t0, t1, t2, t3, t4, t5, t6, t7] = &CRC_STEPS;
+    let step =
+        |table: &[u32; 256], byte: u8| table.get(usize::from(byte)).copied().unwrap_or_default();
+    let chunks = data.chunks_exact(8);
+    let tail = chunks.remainder();
+    let crc = chunks.fold(u32::MAX, |crc, chunk| {
+        let Ok([b0, b1, b2, b3, b4, b5, b6, b7]) = <[u8; 8]>::try_from(chunk) else {
+            return crc;
+        };
+        let [r0, r1, r2, r3] = (crc ^ u32::from_be_bytes([b0, b1, b2, b3])).to_be_bytes();
+        step(t7, r0)
+            ^ step(t6, r1)
+            ^ step(t5, r2)
+            ^ step(t4, r3)
+            ^ step(t3, b4)
+            ^ step(t2, b5)
+            ^ step(t1, b6)
+            ^ step(t0, b7)
+    });
+    tail.iter().fold(crc, |crc, &byte| {
+        (crc << 8) ^ step(t0, crc.to_be_bytes()[0] ^ byte)
+    })
 }
+
+/// [`crc32`] eight bytes at a time: row `k`, entry `i`, is what the
+/// polynomial division leaves in the register for a top byte `i`
+/// followed by `k` zero bytes, so the rows of eight bytes added together
+/// step the register over all eight.
+const CRC_STEPS: [[u32; 256]; 8] = {
+    let mut steps = [[0u32; 256]; 8];
+    let mut rows: &mut [[u32; 256]] = &mut steps;
+    let mut zeros = 0;
+    while let [row, later @ ..] = rows {
+        let mut cells: &mut [u32] = row;
+        let mut top = 0u32;
+        while let [cell, rest @ ..] = cells {
+            let mut crc = top << 24;
+            let mut bit = 0;
+            while bit < 8 * (zeros + 1) {
+                crc = if crc & 0x8000_0000 != 0 {
+                    (crc << 1) ^ 0x04C1_1DB7
+                } else {
+                    crc << 1
+                };
+                bit += 1;
+            }
+            *cell = crc;
+            cells = rest;
+            top += 1;
+        }
+        rows = later;
+        zeros += 1;
+    }
+    steps
+};
 
 /// The fields every long-form section shares (2.4.4.4 and 2.4.4.9).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -365,6 +407,26 @@ pub(crate) mod tests {
         let crc = crc32(&s);
         s.extend(crc.to_be_bytes());
         s
+    }
+
+    #[test]
+    fn crc_matches_the_check_value_and_the_bitwise_division() {
+        assert_eq!(crc32(b"123456789"), 0x0376_E6E7);
+        let data: Vec<u8> = (0..40u32).map(|i| (i * 37 + 11) as u8).collect();
+        for end in 0..=data.len() {
+            let mut crc = u32::MAX;
+            for &byte in &data[..end] {
+                crc ^= u32::from(byte) << 24;
+                for _ in 0..8 {
+                    crc = if crc & 0x8000_0000 != 0 {
+                        (crc << 1) ^ 0x04C1_1DB7
+                    } else {
+                        crc << 1
+                    };
+                }
+            }
+            assert_eq!(crc32(&data[..end]), crc, "{end} bytes");
+        }
     }
 
     #[test]

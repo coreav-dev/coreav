@@ -6,14 +6,7 @@
 //! insertion of a PID it does not hold yet is refused once it holds that
 //! many. The crate's `clippy.toml` forbids the standard maps outside this
 //! module, so a new per-PID fact cannot be held without a bound.
-#![expect(
-    clippy::disallowed_types,
-    reason = "the one place a per-PID map wraps the standard map, behind its bound"
-)]
-
 use crate::Limits;
-use std::collections::BTreeMap;
-use std::collections::btree_map::Entry;
 
 /// PIDs a transport packet can name: 13 bits (ISO/IEC 13818-1 2.4.3.2).
 const PIDS: usize = 1 << 13;
@@ -24,9 +17,16 @@ pub(crate) struct Full;
 
 /// A map from PID to `T` that holds at most as many PIDs as the limit it
 /// was built with.
+///
+/// The values are kept in PID order, and a table over the PID space says
+/// where each PID's value is, so that the lookups made for every transport
+/// packet cost one index rather than a search. The table is made on the
+/// first insertion: 16 KiB, whatever the limit.
 #[derive(Clone, Debug)]
 pub(crate) struct PidMap<T> {
-    map: BTreeMap<u16, T>,
+    /// Per PID, the place of its entry plus one; 0 for a PID not held.
+    places: Box<[u16]>,
+    entries: Vec<(u16, T)>,
     limit: usize,
 }
 
@@ -34,7 +34,7 @@ pub(crate) struct PidMap<T> {
 /// their limits.
 impl<T: PartialEq> PartialEq for PidMap<T> {
     fn eq(&self, other: &Self) -> bool {
-        self.map == other.map
+        self.entries == other.entries
     }
 }
 
@@ -58,8 +58,9 @@ impl<T> PidMap<T> {
 
     fn bounded(limit: usize) -> Self {
         Self {
-            map: BTreeMap::new(),
-            limit,
+            places: Box::default(),
+            entries: Vec::new(),
+            limit: limit.min(PIDS),
         }
     }
 
@@ -72,22 +73,55 @@ impl<T> PidMap<T> {
     /// yet would be refused.
     #[inline]
     pub(crate) fn is_full(&self) -> bool {
-        self.map.len() >= self.limit
+        self.entries.len() >= self.limit
+    }
+
+    /// The place of `pid`'s entry, if it holds one.
+    #[inline]
+    fn place(&self, pid: u16) -> Option<usize> {
+        let place = *self.places.get(usize::from(pid))?;
+        usize::from(place).checked_sub(1)
+    }
+
+    /// Gives the entries from `from` on their places in the table.
+    fn renumber(&mut self, from: usize) {
+        for (place, (pid, _)) in self.entries.iter().enumerate().skip(from) {
+            if let (Some(slot), Ok(place)) = (
+                self.places.get_mut(usize::from(*pid)),
+                u16::try_from(place + 1),
+            ) {
+                *slot = place;
+            }
+        }
+    }
+
+    /// The place of `pid`'s entry, made with `value()` first if it has
+    /// none; refused for a PID it does not hold yet once it is full, and
+    /// for a value past the 13 bits of a PID.
+    fn place_or_insert_with(&mut self, pid: u16, value: impl FnOnce() -> T) -> Result<usize, Full> {
+        if let Some(place) = self.place(pid) {
+            return Ok(place);
+        }
+        if self.is_full() || usize::from(pid) >= PIDS {
+            return Err(Full);
+        }
+        if self.places.is_empty() {
+            self.places = vec![0; PIDS].into_boxed_slice();
+        }
+        let place = self.entries.partition_point(|(held, _)| *held < pid);
+        self.entries.insert(place, (pid, value()));
+        self.renumber(place);
+        Ok(place)
     }
 
     /// Sets the value of `pid` and returns the one it replaces; refused
     /// for a PID it does not hold yet once it is full.
     #[inline]
     pub(crate) fn insert(&mut self, pid: u16, value: T) -> Result<Option<T>, Full> {
-        let full = self.is_full();
-        match self.map.entry(pid) {
-            Entry::Occupied(mut held) => Ok(Some(held.insert(value))),
-            Entry::Vacant(_) if full => Err(Full),
-            Entry::Vacant(room) => {
-                room.insert(value);
-                Ok(None)
-            }
+        if let Some(held) = self.get_mut(&pid) {
+            return Ok(Some(std::mem::replace(held, value)));
         }
+        self.place_or_insert_with(pid, || value).map(|_| None)
     }
 
     /// Sets the value of `pid`, dropping the one it replaces in place;
@@ -96,18 +130,11 @@ impl<T> PidMap<T> {
     /// value as large as a transport packet set on every packet.
     #[inline]
     pub(crate) fn set(&mut self, pid: u16, value: T) -> Result<(), Full> {
-        let full = self.is_full();
-        match self.map.entry(pid) {
-            Entry::Occupied(mut held) => {
-                *held.get_mut() = value;
-                Ok(())
-            }
-            Entry::Vacant(_) if full => Err(Full),
-            Entry::Vacant(room) => {
-                room.insert(value);
-                Ok(())
-            }
+        if let Some(held) = self.get_mut(&pid) {
+            *held = value;
+            return Ok(());
         }
+        self.place_or_insert_with(pid, || value).map(|_| ())
     }
 
     /// The value of `pid`, set to `value()` first if it has none; refused
@@ -118,49 +145,56 @@ impl<T> PidMap<T> {
         pid: u16,
         value: impl FnOnce() -> T,
     ) -> Result<&mut T, Full> {
-        let full = self.is_full();
-        match self.map.entry(pid) {
-            Entry::Occupied(held) => Ok(held.into_mut()),
-            Entry::Vacant(_) if full => Err(Full),
-            Entry::Vacant(room) => Ok(room.insert(value())),
-        }
+        let place = self.place_or_insert_with(pid, value)?;
+        self.entries
+            .get_mut(place)
+            .map(|(_, held)| held)
+            .ok_or(Full)
     }
 
     #[inline]
     pub(crate) fn get(&self, pid: &u16) -> Option<&T> {
-        self.map.get(pid)
+        let place = self.place(*pid)?;
+        self.entries.get(place).map(|(_, held)| held)
     }
 
     #[inline]
     pub(crate) fn get_mut(&mut self, pid: &u16) -> Option<&mut T> {
-        self.map.get_mut(pid)
+        let place = self.place(*pid)?;
+        self.entries.get_mut(place).map(|(_, held)| held)
     }
 
     #[inline]
     pub(crate) fn contains_key(&self, pid: &u16) -> bool {
-        self.map.contains_key(pid)
+        self.place(*pid).is_some()
     }
 
     #[inline]
     pub(crate) fn remove(&mut self, pid: &u16) -> Option<T> {
-        self.map.remove(pid)
+        let place = self.place(*pid)?;
+        if let Some(slot) = self.places.get_mut(usize::from(*pid)) {
+            *slot = 0;
+        }
+        let (_, value) = self.entries.remove(place);
+        self.renumber(place);
+        Some(value)
     }
 
     #[inline]
     pub(crate) fn is_empty(&self) -> bool {
-        self.map.is_empty()
+        self.entries.is_empty()
     }
 
     /// The PIDs held, in increasing order.
     #[inline]
     pub(crate) fn keys(&self) -> impl Iterator<Item = &u16> {
-        self.map.keys()
+        self.entries.iter().map(|(pid, _)| pid)
     }
 
     /// The PIDs held and their values, in increasing PID order.
     #[inline]
     pub(crate) fn iter(&self) -> impl Iterator<Item = (&u16, &T)> {
-        self.map.iter()
+        self.entries.iter().map(|(pid, value)| (pid, value))
     }
 }
 
