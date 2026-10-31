@@ -641,27 +641,21 @@ fn items_udta(items: &[Vec<u8>]) -> Vec<u8> {
     bx(b"udta", &meta)
 }
 
-/// `udta`/`meta`/`ilst` with one iTunes `iTunSMPB` item holding `text`.
-fn smpb_udta(text: &str) -> Vec<u8> {
-    let data = cat(&[u32s(&[1, 0]), text.as_bytes().to_vec()]);
-    let item = bx(
+/// An iTunes `iTunSMPB` item list entry holding `text`.
+fn smpb_item(text: &str) -> Vec<u8> {
+    bx(
         b"----",
         &cat(&[
             full(b"mean", 0, 0, b"com.apple.iTunes"),
             full(b"name", 0, 0, b"iTunSMPB"),
-            bx(b"data", &data),
+            bx(b"data", &cat(&[u32s(&[1, 0]), text.as_bytes().to_vec()])),
         ]),
-    );
-    let mut hdlr = u32s(&[0]);
-    hdlr.extend_from_slice(b"mdirappl");
-    hdlr.extend_from_slice(&[0u8; 9]);
-    let meta = full(
-        b"meta",
-        0,
-        0,
-        &cat(&[full(b"hdlr", 0, 0, &hdlr), bx(b"ilst", &item)]),
-    );
-    bx(b"udta", &meta)
+    )
+}
+
+/// `udta`/`meta`/`ilst` with one iTunes `iTunSMPB` item holding `text`.
+fn smpb_udta(text: &str) -> Vec<u8> {
+    items_udta(&[smpb_item(text)])
 }
 
 #[test]
@@ -868,6 +862,109 @@ fn the_source_description_is_copied() {
         }
         assert!(has(&out, b"SoundHandler\0"), "{metadata:?}");
     }
+}
+
+/// `data` extracted with `limits`.
+fn extract_within(data: &[u8], limits: &Limits) -> Vec<u8> {
+    let mut out = Vec::new();
+    extract_audio(
+        SliceSource::new(data),
+        limits,
+        &Allowlist::default(),
+        TrackChoice::FirstAudio,
+        HeaderMetadata::Copy,
+        &mut out,
+    )
+    .unwrap();
+    out
+}
+
+fn has(data: &[u8], what: &[u8]) -> bool {
+    data.windows(what.len()).any(|w| w == what)
+}
+
+#[test]
+fn every_cover_picture_is_left_out() {
+    // A cover item of two pictures in the movie's item list and in the
+    // track's, and an item list that ends in a box that does not parse.
+    let pictures = [b"\xff\xd8\xff\xe0 one".as_slice(), b"\x89PNG two"];
+    let covers = bx(
+        b"covr",
+        &cat(&pictures.map(|p| bx(b"data", &cat(&[u32s(&[13, 0]), p.to_vec()])))),
+    );
+    let hidden = cat(&[u32s(&[0x100]), b"covr".to_vec(), b"\x89PNG three".to_vec()]);
+    let plain = aac_movie(100, 10, None, false);
+    let track_tags = items_udta(&[list_item(b"\xa9nam", 1, b"Track title"), covers.clone()]);
+    let tracked = inserted(&plain, &[b"moov", b"trak"], plain.len(), &track_tags);
+    let source = with_moov_children(
+        &tracked,
+        &items_udta(&[list_item(b"\xa9nam", 1, b"A title"), covers, hidden]),
+    );
+    let (summary, output) = extract(&source, TrackChoice::FirstAudio).unwrap();
+    assert_round_trip(&source, 0, &output, &summary);
+    for picture in [pictures[0], pictures[1], b"\x89PNG three"] {
+        assert!(!has(&output, picture), "{picture:x?}");
+    }
+    assert!(!has(&output, b"covr"));
+    assert!(has(&output, b"A title") && has(&output, b"Track title"));
+}
+
+#[test]
+fn a_cover_past_the_box_size_limit_is_left_out() {
+    // A cover picture larger than `max_box_bytes`.
+    let picture = vec![0xab; 2048];
+    let source = with_moov_children(
+        &aac_movie(100, 10, None, false),
+        &items_udta(&[
+            list_item(b"\xa9nam", 1, b"A title"),
+            list_item(b"covr", 13, &picture),
+        ]),
+    );
+    let output = extract_within(
+        &source,
+        &Limits {
+            max_box_bytes: 1024,
+            ..Limits::default()
+        },
+    );
+    assert!(has(&output, b"A title"));
+    assert!(!has(&output, b"covr") && !has(&output, &picture[..64]));
+}
+
+#[test]
+fn a_gapless_item_past_the_box_count_limit_is_left_out() {
+    // An `iTunSMPB` item that becomes the edit list after more items than
+    // `max_total_boxes` lets a reader of every item see.
+    let mut items: Vec<Vec<u8>> = (0..40)
+        .map(|i| list_item(b"\xa9nam", 1, format!("Title {i}").as_bytes()))
+        .collect();
+    items.push(smpb_item(
+        " 00000000 00000840 00000120 00000000000186A0 00000000",
+    ));
+    let source = with_moov_children(&aac_movie(100, 10, None, false), &items_udta(&items));
+    let output = extract_within(
+        &source,
+        &Limits {
+            max_total_boxes: 64,
+            ..Limits::default()
+        },
+    );
+    let movie = probe(
+        SliceSource::new(&output),
+        &Limits::default(),
+        &Allowlist::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        movie.tracks[0].edit_list,
+        EditList::Simple {
+            empty: 0,
+            media_time: 2112,
+            segment: 2083
+        }
+    );
+    assert!(!has(&output, b"iTunSMPB"));
+    assert!(has(&output, b"Title 39"));
 }
 
 #[test]

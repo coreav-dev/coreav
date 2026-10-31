@@ -682,12 +682,27 @@ impl Movie {
     ///
     /// [`Error::Io`] when `source` fails to read.
     pub fn itunes_gapless<S: Source>(&self, source: S) -> Result<Option<ItunesGapless>, Error> {
+        Ok(self.itunes_gapless_item(source)?.map(|(values, _)| values))
+    }
+
+    /// [`Movie::itunes_gapless`], with the offset in `source` of the `----`
+    /// item box it was read from, for a caller that copies the movie's
+    /// metadata without that item; `None` for a compressed movie, whose
+    /// item was in its inflated movie box.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Io`] when `source` fails to read.
+    pub fn itunes_gapless_item<S: Source>(
+        &self,
+        source: S,
+    ) -> Result<Option<(ItunesGapless, Option<u64>)>, Error> {
         if let Some(found) = self.inflated_gapless {
             // A compressed movie's metadata was read from its inflated box.
-            return Ok(found);
+            return Ok(found.map(|values| (values, None)));
         }
         let mut source = source;
-        gapless::read(&mut source, &self.tag_boxes)
+        Ok(gapless::read(&mut source, &self.tag_boxes)?.map(|(values, at)| (values, Some(at))))
     }
 
     /// Whether [`Movie::scan_fragments`] would tell more than probe: the
@@ -1618,7 +1633,8 @@ fn parse_compressed_moov<S: Source>(
     movie.inflated_gapless = Some(
         gapless::read(&mut SliceSource::new(&inflated), &movie.tag_boxes)
             .ok()
-            .flatten(),
+            .flatten()
+            .map(|(values, _)| values),
     );
     movie.tag_boxes.clear();
     Ok(movie)

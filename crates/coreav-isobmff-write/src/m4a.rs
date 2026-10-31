@@ -8,13 +8,13 @@ use crate::moov::{
     rescale, write_head,
 };
 use crate::mux::{RawBox, copied};
-use crate::remux::{Retained, copy_boxes, movie_tags};
+use crate::remux::{Exclude, Retained, tags_without};
 use crate::scan::Path;
 use crate::tables::Tables;
 use crate::{ExtractError, HeaderMetadata, Summary, TrackChoice};
 use coreav_isobmff::{
     Allowlist, Budget, Codec, EditList, Error, FourCc, ItunesGapless, Limits, Movie, Source, Track,
-    TrackKind, metadata, probe,
+    TrackKind, probe,
 };
 use std::io::Write;
 
@@ -121,9 +121,22 @@ pub fn extract_audio<S: Source, W: Write>(
     } else {
         None
     };
-    let header = Header::new(&movie, track, &tables, first_dts, gapless, metadata)?;
+    let header = Header::new(
+        &movie,
+        track,
+        &tables,
+        first_dts,
+        gapless.map(|(values, _)| values),
+        metadata,
+    )?;
     let described = match metadata {
-        HeaderMetadata::Copy => described(&movie, track, gapless.is_some(), &mut source, limits)?,
+        HeaderMetadata::Copy => described(
+            &movie,
+            track,
+            gapless.and_then(|(_, at)| at),
+            &mut source,
+            limits,
+        )?,
         HeaderMetadata::Clear | HeaderMetadata::MediaTime => Described::default(),
     };
     let (data_start, data_bytes) = write_head(
@@ -302,7 +315,7 @@ fn gapless_edit<S: Source>(
     movie: &Movie,
     source: &mut S,
     tables: &Tables,
-) -> Result<Option<ItunesGapless>, Error> {
+) -> Result<Option<(ItunesGapless, Option<u64>)>, Error> {
     let audio = movie
         .tracks
         .iter()
@@ -311,13 +324,13 @@ fn gapless_edit<S: Source>(
     if audio != 1 {
         return Ok(None);
     }
-    let Some(item) = movie.itunes_gapless(source)? else {
+    let Some((item, at)) = movie.itunes_gapless_item(source)? else {
         return Ok(None);
     };
     let total = u64::from(item.encoder_delay)
         .checked_add(u64::from(item.padding))
         .and_then(|t| t.checked_add(item.original_samples));
-    Ok((item.original_samples > 0 && total == Some(tables.duration)).then_some(item))
+    Ok((item.original_samples > 0 && total == Some(tables.duration)).then_some((item, at)))
 }
 
 /// What describes the source's movie and track beside their headers: their
@@ -331,19 +344,22 @@ struct Described<'m> {
 }
 
 /// The source's `udta` and `meta` boxes of the movie and of `track`, as
-/// stored, without the movie's cover pictures: the output carries one audio
-/// stream, and a cover picture is a stream of its own
-/// (`docs/design/compat-cli.md`, "Cover pictures"), which a remux leaves
-/// out the same way. With `gapless`, the output's edit list stands for the
-/// movie's `iTunSMPB` items, which are left out too, so that the delay and
-/// padding are not given twice. A box larger than what
-/// `max_retained_bytes` leaves is left out. A compressed movie's boxes are
-/// not copied: its file's movie box holds only the compressed data
+/// stored, without their cover pictures: every `covr` item of an item
+/// list, whole, since the output carries one audio stream and a cover
+/// picture is a stream of its own (`docs/design/compat-cli.md`, "Cover
+/// pictures"). With `smpb`, the offset of the movie's `iTunSMPB` item box
+/// that the output's edit list stands for, that item is left out too, so
+/// that the delay and padding are not given twice. The boxes are walked as
+/// copied ([`Exclude::Extraction`]): a list that does not parse to its end
+/// is cut where it stops, and a box holding `smpb` where the walk does not
+/// reach it is left out. A box larger than what `max_retained_bytes`
+/// leaves is left out. A compressed movie's boxes are not copied: its
+/// file's movie box holds only the compressed data
 /// (`docs/design/compressed-movie.md`).
 fn described<'m, S: Source>(
     movie: &Movie,
     track: &'m Track,
-    gapless: bool,
+    smpb: Option<u64>,
     source: &mut S,
     limits: &Limits,
 ) -> Result<Described<'m>, Error> {
@@ -354,51 +370,25 @@ fn described<'m, S: Source>(
             ..Described::default()
         });
     }
-    let left_out: Vec<u64> = if movie.tag_boxes().is_empty() {
-        Vec::new()
-    } else {
-        let read = metadata::read(&mut *source, limits)?;
-        let smpb = read.items.iter().filter_map(|item| match &item.value {
-            metadata::ItemValue::ListItem {
-                key: metadata::ListKey::Free { mean, name },
-                data: Some(data),
-                ..
-            } if gapless
-                && item.track.is_none()
-                && mean.as_deref() == Some(b"com.apple.iTunes".as_slice())
-                && name.as_deref() == Some(b"iTunSMPB".as_slice()) =>
-            {
-                Some(data.offset)
-            }
-            _ => None,
-        });
-        let copied = |at: &u64| {
-            movie
-                .tag_boxes()
-                .iter()
-                .any(|b| b.offset < *at && *at < b.end())
-        };
-        read.covers()
-            .map(|cover| cover.offset)
-            .chain(smpb)
-            .filter(copied)
-            .collect()
-    };
     let mut retained = Retained::new(limits);
-    let movie_boxes = movie_tags(
+    let moov = Path::top().with(FourCc(*b"moov"));
+    let movie_boxes = tags_without(
+        None,
+        moov,
         movie.tag_boxes(),
-        &left_out,
+        Exclude::Extraction { item: smpb },
         source,
         &mut retained,
         &mut |_| {},
     )?;
-    let trak_path = Path::top().with(FourCc(*b"moov")).with(FourCc(*b"trak"));
-    let track_boxes = copy_boxes(
+    let track_boxes = tags_without(
         Some(track.stream_index),
-        trak_path,
+        moov.with(FourCc(*b"trak")),
         track.tag_boxes(),
+        Exclude::Extraction { item: None },
         source,
         &mut retained,
+        &mut |_| {},
     )?;
     Ok(Described {
         movie: movie_boxes,

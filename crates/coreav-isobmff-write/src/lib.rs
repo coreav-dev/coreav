@@ -74,8 +74,9 @@ use coreav_isobmff::{Codec, Error, FourCc, Rational, TrackKind};
 pub enum HeaderMetadata {
     /// The creation times of the movie, track and media headers, the media
     /// header's language, the track's handler name, and the `udta` and
-    /// `meta` boxes of the movie and of the track as stored, without the
-    /// movie's cover pictures.
+    /// `meta` boxes of the movie and of the track as stored, without their
+    /// cover pictures (every `covr` item) and without an `iTunSMPB` item
+    /// that became the output's edit list.
     Copy,
     /// None of them: the times are written as 0 ("not set"), the language
     /// as `und`, the generic handler name, and no `udta` or `meta` box.

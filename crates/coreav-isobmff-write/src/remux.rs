@@ -575,9 +575,11 @@ fn remux<S: Source, R: Source, W: Write>(
         )?;
         muxer.set_movie_boxes(rewrite(&rewritten)?.into_iter().collect())?;
     } else {
-        let movie_tags = movie_tags(
+        let movie_tags = tags_without(
+            None,
+            Path::top().with(FourCc(*b"moov")),
             &file.tags,
-            &options.left_out_covers,
+            Exclude::Values(&options.left_out_covers),
             &mut source,
             &mut retained,
             &mut |g| note(&mut movie_gone, &mut movie_more, g),
@@ -986,38 +988,67 @@ impl Retained {
     }
 }
 
-/// The movie's `udta` and `meta` boxes as stored, without the cover
-/// pictures whose values start at an offset of `left_out`
-/// ([`without_covers`]); each box left out goes to `gone`, and a box
-/// larger than what `retained` leaves is left out and listed there. Fails
-/// with [`Error::NoSuchTrack`] when an offset of `left_out` starts no
-/// `data` value of those boxes, unless it lies in a box left out for size.
-pub(crate) fn movie_tags<S: Source>(
+/// Which item list entries [`tags_without`] leaves out.
+#[derive(Clone, Copy)]
+pub(crate) enum Exclude<'a> {
+    /// The `data` values that start at these offsets (the cover pictures
+    /// of streams a remux does not carry), each of which must be found.
+    Values(&'a [u64]),
+    /// Every cover item (`covr`), whole, and the item box that starts at
+    /// `item`. A user data, metadata or item list box whose children do
+    /// not parse to its end is cut where they stop, so that no such item is
+    /// copied unseen, and a box `item` lies in is left out when the walk
+    /// does not reach the item.
+    Extraction { item: Option<u64> },
+}
+
+/// The `udta` and `meta` boxes `tags`, children of `parent` (of stream
+/// `stream`, or of the movie), as stored, without the item list entries
+/// `exclude` names ([`without_covers`]); each box left out goes to
+/// `gone`, and a box larger than what `retained` leaves is left out and
+/// listed there. Fails with [`Error::NoSuchTrack`] when an offset of
+/// [`Exclude::Values`] starts no `data` value of those boxes, unless it
+/// lies in a box left out for size.
+pub(crate) fn tags_without<S: Source>(
+    stream: Option<usize>,
+    parent: Path,
     tags: &[BoxHeader],
-    left_out: &[u64],
+    exclude: Exclude<'_>,
     source: &mut S,
     retained: &mut Retained,
     gone: &mut dyn FnMut(Gone),
 ) -> Result<Vec<RawBox>, Error> {
-    let moov = Path::top().with(FourCc(*b"moov"));
     let mut boxes = Vec::new();
     let mut found = Vec::new();
     for header in tags {
-        for tag in copy_boxes(None, moov, core::slice::from_ref(header), source, retained)? {
+        for tag in copy_boxes(
+            stream,
+            parent,
+            core::slice::from_ref(header),
+            source,
+            retained,
+        )? {
             let at = header.payload_offset();
-            let edited = if left_out.iter().any(|o| at < *o && *o < header.end()) {
-                without_covers(
+            let inside = |offset: &u64| at < *offset && *offset < header.end();
+            let edited = match exclude {
+                Exclude::Values(left_out) if !left_out.iter().any(inside) => Edited::Same,
+                _ => without_covers(
                     Level::of(tag.kind),
                     &tag.payload,
                     at,
-                    moov.with(tag.kind),
-                    left_out,
+                    parent.with(tag.kind),
+                    exclude,
                     &mut found,
                     gone,
-                )?
-            } else {
-                Edited::Same
+                )?,
             };
+            if let Exclude::Extraction { item: Some(item) } = exclude
+                && inside(&item)
+                && !found.contains(&item)
+            {
+                gone(Gone::not_carried(parent, *header));
+                continue;
+            }
             boxes.push(match edited {
                 Edited::Changed(payload) => RawBox {
                     kind: tag.kind,
@@ -1027,17 +1058,19 @@ pub(crate) fn movie_tags<S: Source>(
             });
         }
     }
-    // A cover inside a box too large to copy is left out with it.
-    let too_large = |offset: u64| {
-        retained.too_large.iter().any(|(stream, s)| {
-            stream.is_none() && s.header.offset < offset && offset < s.header.end()
-        })
-    };
-    if left_out
-        .iter()
-        .any(|o| !found.contains(o) && !too_large(*o))
-    {
-        return Err(Error::NoSuchTrack);
+    if let Exclude::Values(left_out) = exclude {
+        // A cover inside a box too large to copy is left out with it.
+        let too_large = |offset: u64| {
+            retained.too_large.iter().any(|(s, skipped)| {
+                *s == stream && skipped.header.offset < offset && offset < skipped.header.end()
+            })
+        };
+        if left_out
+            .iter()
+            .any(|o| !found.contains(o) && !too_large(*o))
+        {
+            return Err(Error::NoSuchTrack);
+        }
     }
     Ok(boxes)
 }
@@ -1115,18 +1148,20 @@ enum Edited {
 }
 
 /// The payload of a box at `level` that starts at `at` in the file
-/// (under `path`, its own type included), without the item list `data`
-/// boxes whose values start at an offset of `left_out`, and without an
-/// item left with no `data` box. Each offset it leaves out is added to
-/// `found`, and each box to `gone`: the item, or the `data` box of an
-/// item that stays. A child list that does not parse ends the walk, the
-/// bytes after it kept as stored.
+/// (under `path`, its own type included), without the item list entries
+/// `exclude` names: with [`Exclude::Values`], the `data` boxes whose
+/// values start at one of its offsets, and an item left with no `data`
+/// box; with [`Exclude::Extraction`], whole items. Each offset it leaves
+/// out is added to `found`, and each box to `gone`: the item, or the
+/// `data` box of an item that stays. A child list that does not parse ends
+/// the walk; the bytes after it are kept as stored, except that an
+/// extraction cuts them when they could hold a box.
 fn without_covers(
     level: Level,
     payload: &[u8],
     at: u64,
     path: Path,
-    left_out: &[u64],
+    exclude: Exclude<'_>,
     found: &mut Vec<u64>,
     gone: &mut dyn FnMut(Gone),
 ) -> Result<Edited, Error> {
@@ -1153,28 +1188,38 @@ fn without_covers(
             .ok_or_else(overflow)?;
         let bytes = payload.get(pos..end).ok_or_else(overflow)?;
         pos = end;
-        let edited = if level == Level::Item && child.kind.0 == *b"data" {
-            let value = child.payload_offset().saturating_add(8);
-            if left_out.contains(&value) {
-                found.push(value);
-                Edited::Removed
-            } else {
-                data_kept = true;
-                Edited::Same
+        let edited = match exclude {
+            Exclude::Values(left_out) if level == Level::Item && child.kind.0 == *b"data" => {
+                let value = child.payload_offset().saturating_add(8);
+                if left_out.contains(&value) {
+                    found.push(value);
+                    Edited::Removed
+                } else {
+                    data_kept = true;
+                    Edited::Same
+                }
             }
-        } else {
-            let body = bytes
-                .get(usize::from(child.header_len)..)
-                .ok_or_else(overflow)?;
-            without_covers(
-                level.child(child.kind),
-                body,
-                child.payload_offset(),
-                path.with(child.kind),
-                left_out,
-                found,
-                gone,
-            )?
+            Exclude::Extraction { item }
+                if level == Level::List
+                    && (child.kind.0 == *b"covr" || item == Some(child.offset)) =>
+            {
+                found.push(child.offset);
+                Edited::Removed
+            }
+            _ => {
+                let body = bytes
+                    .get(usize::from(child.header_len)..)
+                    .ok_or_else(overflow)?;
+                without_covers(
+                    level.child(child.kind),
+                    body,
+                    child.payload_offset(),
+                    path.with(child.kind),
+                    exclude,
+                    found,
+                    gone,
+                )?
+            }
         };
         changed |= !matches!(edited, Edited::Same);
         match edited {
@@ -1188,7 +1233,12 @@ fn without_covers(
             }
         }
     }
-    if !changed {
+    let tail = payload.get(pos..).unwrap_or_default();
+    // Bytes that could hold a box but do not parse may hide an item an
+    // extraction leaves out.
+    let cut =
+        matches!(exclude, Exclude::Extraction { .. }) && level != Level::Item && tail.len() >= 8;
+    if !changed && !cut {
         return Ok(Edited::Same);
     }
     if level == Level::Item && !data_kept {
@@ -1197,7 +1247,9 @@ fn without_covers(
     for header in removed {
         gone(Gone::not_carried(path, header));
     }
-    out.extend_from_slice(payload.get(pos..).unwrap_or_default());
+    if !cut {
+        out.extend_from_slice(tail);
+    }
     Ok(Edited::Changed(out))
 }
 

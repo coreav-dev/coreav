@@ -1025,35 +1025,62 @@ track's `udta` and `meta` boxes as stored (ISO/IEC 14496-12 8.10.1 and
 it, and both are the output's), the track's handler name (8.4.3.3), its
 language, and the creation times of the movie, track and media headers,
 as the remux does (`remux.md`, "Metadata and other boxes"). Two things
-are left out: the movie's cover pictures, since a cover picture is a
-stream of its own (below) and the output carries one audio stream, as
-the pinned `ffmpeg` leaves it out of `-map 0:a` and `-vn` (black box);
-and, when the extraction turns an `iTunSMPB` item into an edit list, that
-item, so that the delay and padding are not given twice. An empty handler
+are left out: every cover picture item (`covr`, whole, whatever number of
+pictures it holds, in the movie's and the track's item lists), since a
+cover picture is a stream of its own (below) and the output carries one
+audio stream, as the pinned `ffmpeg` leaves it out of `-map 0:a` and
+`-vn` (black box); and, when the extraction turns an `iTunSMPB` item
+into an edit list, that item, located where the timing read it, so that
+the delay and padding are not given twice. The boxes are walked as
+copied, not through a separate reader with its own limits: a list whose
+children do not parse to its end is cut where they stop, so that no such
+item is copied unseen, and a box that holds the `iTunSMPB` item where the
+walk does not reach it is left out. An empty handler
 name is written as `SoundHandler`. Black box, the pinned `ffmpeg` 9.0.2
 on a file with an item list, a track `udta`, a named handler and nonzero
 header times (`plain_extraction_metadata_agrees_with_the_pinned_ffmpeg`
 in `tests/ffmpeg.rs` checks the tags in CI): the same title, artist,
 album, date, comment, genre, track and disc items and the same handler
-name and language. Known divergences, each where `coreav ffmpeg`'s output
-is the one the cited text defines:
+name and language. Known divergences; where a cited text decides one it
+is named, and where none does both readings are given:
 
 - Creation times. `ffmpeg` writes 0 in all six fields of the movie,
-  track and media headers, which ISO/IEC 14496-12 8.2.2.3, 8.3.2.3 and
-  8.4.2.3 read as midnight, 1 January 1904; the media is the source's, and
-  the extraction keeps the times it was given (its modification times are
-  its creation times). `ffprobe` then lists a `creation_time` for the file
-  and the stream on `coreav ffmpeg`'s output and none on `ffmpeg`'s.
-- Items stored in another form. `ffmpeg` rewrites the list it copies: its
-  own encoder name in `©too` instead of the source's, its own item order,
-  locale 0, an 8-byte `disk`; it drops free-form (`----`) items and the
-  track's `udta`, and gathers a `moov/meta` list into `moov/udta/meta`.
-  The extraction copies the boxes as stored, so an `ffprobe` tag
-  `ffmpeg` drops or renames (`encoder`, a free-form item) differs.
-- Handler names that are not a plain null-terminated string. `ffmpeg`
-  writes `SoundHandler` for a name without a terminating NUL and for a
-  QuickTime counted string; the extraction writes the name's text,
-  null-terminated, as 8.4.3.3 has it.
+  track and media headers. ISO/IEC 14496-12 defines each as a creation or
+  modification time in seconds since midnight, 1 January 1904, in UTC
+  (8.2.2.3, 8.3.2.3, 8.4.2.3). It has no value for a time not given; 0 is
+  the one writers use for that by convention (`HeaderMetadata::Clear`
+  too, for `-map_metadata -1`). For the media header the text decides:
+  its `creation_time` declares the creation time of the media in the
+  track, and the output's media is the source's, sample for sample, so
+  the source's time is a true value and 0 gives none. For the movie and
+  track headers it does not: the clauses define the creation time of the
+  presentation and of the track, and do not say whether a stream copy
+  into a new file is the same presentation and track (the source's times)
+  or a new one (the time of the copy). Neither reading gives no time. The
+  extraction keeps the source's times, as the remux does, which also
+  keeps its output the same on every run. `ffprobe` then lists a
+  `creation_time` for the file and the stream on `coreav ffmpeg`'s
+  output and none on `ffmpeg`'s.
+- Items stored in another form. The item list (`ilst`) and its entries
+  are an iTunes convention that ISO/IEC 14496-12 does not define (8.11.1
+  defines the metadata box and its handler, not the list), so no cited
+  text decides between copying the entries as stored and rewriting them.
+  The two readings: the entries as stored, in the source's order, locales
+  and forms, with the source's `©too` (the extraction; the audio is not
+  re-encoded); or the list rewritten as `ffmpeg` writes it, with its own
+  encoder name in `©too`, its own item order, locale 0 and an 8-byte
+  `disk`, without free-form (`----`) items or the track's `udta`, and a
+  `moov/meta` list gathered into `moov/udta/meta`. An `ffprobe` tag
+  `ffmpeg` drops or renames (`encoder`, a free-form item) then differs.
+- Handler names that are not a plain null-terminated string. ISO/IEC
+  14496-12 8.4.3.3 defines the name as a null-terminated UTF-8 string, so
+  the extraction always writes one. A QuickTime source states the name as
+  a counted string (QuickTime File Format, handler reference atom,
+  "component name"); the extraction writes that string's text, and
+  `ffmpeg` writes `SoundHandler` instead. An ISO source whose name has no
+  terminating NUL is malformed, and no cited text says how to read it:
+  as the bytes to the end of the box (the extraction) or as no name
+  (`ffmpeg`, which writes `SoundHandler`).
 
 **`-map_metadata -1` on an M4A output.** `ffmpeg`'s documentation says "a
 negative file index can be used to create a dummy mapping that just
