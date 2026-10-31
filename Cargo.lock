@@ -256,6 +256,8 @@ dependencies = [
  "coreav-frame",
  "coreav-h264",
  "coreav-isobmff",
+ "coreav-thumbnail",
+ "md-5",
 ]
 
 [[package]]

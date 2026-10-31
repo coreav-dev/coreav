@@ -1,16 +1,20 @@
 //! MP4, MOV and other ISO base media files: the video stream, its packets
 //! and their presentation times after the edit list.
 
+use std::collections::BTreeMap;
+
 use coreav_decode::{Codec, CodecConfig, ConfigKind, StreamConfig};
 use coreav_frame::{ChromaLocation, ColorInfo};
+use coreav_isobmff::access::{AccessFormat, read_frame_access};
 use coreav_isobmff::{
-    Allowlist, Budget, Color, EditList, Movie, Packet, Rational, Source, Track, TrackKind, probe,
+    Allowlist, Budget, Color, EditList, Limits, Movie, Packet, Rational, SampleDescription, Source,
+    Track, TrackKind, probe,
 };
 
 use crate::select::Sample;
 use crate::{
-    Container, CutRule, Error, PacketRef, Plan, Presentation, PresentationWindow, ThumbnailOptions,
-    Window,
+    Container, CutRule, Error, InBand, PacketRef, Plan, Presentation, PresentationWindow,
+    ThumbnailOptions, Window,
 };
 
 /// The ISOBMFF allowlist: the default, and VP8 when the decode policy
@@ -123,12 +127,17 @@ pub(crate) fn plan<S: Source>(
     };
     let start = start_time(&movie);
     let timescale = u64::from(track.timescale.max(1));
+    // A track with several sample descriptions is listed from its first
+    // packet, where its descriptions' changes are found (`in_band`).
+    let several = track.descriptions > 1;
     let window = match first {
         // Any error building the window (its work budget included) leaves
         // the plan to the full listing, which then gives its own result.
-        None if options.seek => window(&movie, &track, &mut *source, options, start, timescale)
-            .ok()
-            .flatten(),
+        None if options.seek && !several => {
+            window(&movie, &track, &mut *source, options, start, timescale)
+                .ok()
+                .flatten()
+        }
         _ => None,
     };
     let (mut listing, window, first_keyframe) = match window {
@@ -136,11 +145,15 @@ pub(crate) fn plan<S: Source>(
         None => {
             let mut listing = Listing::new(&track);
             let mut budget = Budget::new(limits);
-            for packet in movie.packets(track.index, &mut *source, limits, &mut budget)? {
+            let mut packets = movie.packets(track.index, &mut *source, limits, &mut budget)?;
+            while let Some(packet) = packets.next() {
                 if first.is_some_and(|n| listing.packets.len() >= n) {
                     break;
                 }
                 listing.push(packet?, timescale);
+                if several {
+                    listing.descriptions.push(packets.description());
+                }
             }
             (listing, None, None)
         }
@@ -166,6 +179,11 @@ pub(crate) fn plan<S: Source>(
         Vec::new()
     };
     let presentation = presentation(&track, movie.timescale);
+    let in_band = if several {
+        in_band(&movie, &track, &mut *source, &listing, limits)?
+    } else {
+        InBand::default()
+    };
     Ok(Plan {
         warnings,
         stream_index: track.stream_index,
@@ -176,6 +194,7 @@ pub(crate) fn plan<S: Source>(
         samples: listing.samples,
         packets: listing.packets,
         prefix: Vec::new(),
+        in_band,
         rule,
         stated: listing.stated,
         window,
@@ -230,6 +249,8 @@ struct Listing {
     unsigned_offsets: bool,
     sync_table: bool,
     table_samples: u64,
+    /// Per packet, its sample description index, for a track with several.
+    descriptions: Vec<Option<u32>>,
 }
 
 impl Listing {
@@ -243,6 +264,7 @@ impl Listing {
             unsigned_offsets: track.ctts_signed() == Some(false),
             sync_table: track.sync_table(),
             table_samples: u64::from(track.sample_count),
+            descriptions: Vec::new(),
         }
     }
 
@@ -276,6 +298,124 @@ impl Listing {
         self.stated
             .push(self.sync_table || p.sample >= self.table_samples);
     }
+}
+
+/// What a decoder configured with the track's first sample description
+/// needs before the packets of a track with several (ISO/IEC 14496-12
+/// 8.5.2 and 8.7.4; `docs/design/decode.md`, "Several sample
+/// descriptions"): the parameter sets of a description's `avcC` (ISO/IEC
+/// 14496-15 5.3.3.1) before each packet whose record differs from the
+/// packet's before it, which must then hold an IDR picture, where a new
+/// sequence parameter set can take effect (ITU-T H.264 7.4.1.2.1), and
+/// before each sync sample whose record differs from the first
+/// description's, so that decoding can start there. Refused: a description
+/// of another codec, another codec's record changing, a record with another
+/// NAL unit length than the first's, and a change at a packet that holds no
+/// IDR picture. The NAL units read to find the IDR pictures, over every
+/// change, count against `max_sample_work`.
+fn in_band<S: Source>(
+    movie: &Movie,
+    track: &Track,
+    source: &mut S,
+    listing: &Listing,
+    limits: &Limits,
+) -> Result<InBand, Error> {
+    fn record(d: &SampleDescription) -> Option<&[u8]> {
+        d.codec_config.as_ref().map(|c| c.data.as_slice())
+    }
+    let first = &track.description;
+    let refuse = |why: String| Error::Unsupported(format!("the video track {why}"));
+    let mut in_band = InBand::default();
+    let mut slots = BTreeMap::new();
+    let mut last = record(first);
+    let mut work = 0u64;
+    let packets = listing.packets.iter().zip(&listing.descriptions);
+    for (index, (packet, &number)) in packets.enumerate() {
+        let entry = match number {
+            Some(1) => Some(first),
+            Some(n) => n
+                .checked_sub(2)
+                .and_then(|i| track.later_descriptions.get(usize::try_from(i).ok()?)),
+            None => None,
+        }
+        .ok_or_else(|| refuse(format!("names no sample description at packet {index}")))?;
+        if entry.codec != first.codec {
+            return Err(refuse(format!(
+                "changes from {} to {} at packet {index}, another codec",
+                first.fourcc, entry.fourcc
+            )));
+        }
+        let here = record(entry);
+        let changed = here != last;
+        last = here;
+        if !changed && !(packet.keyframe && here != record(first)) {
+            continue;
+        }
+        let Some(format @ AccessFormat::H264 { length_size }) = movie.access_format(track.index)
+        else {
+            return Err(refuse(format!(
+                "changes its {} configuration record with its sample description, \
+                 which CoreAV decodes only for H.264 with a readable first record",
+                first.fourcc
+            )));
+        };
+        if here.and_then(|r| r.get(4)).map(|b| (b & 3) + 1) != Some(length_size) {
+            return Err(refuse(format!(
+                "changes at packet {index} to a configuration record with another NAL unit \
+                 length, or to none"
+            )));
+        }
+        if changed {
+            let frame = read_frame_access(format, source, packet.offset, packet.size, &mut || {
+                work += 1;
+                if work > limits.max_sample_work {
+                    Err(coreav_isobmff::Error::LimitExceeded {
+                        limit: coreav_isobmff::LimitKind::SampleWork,
+                        offset: packet.offset,
+                    })
+                } else {
+                    Ok(())
+                }
+            })?;
+            if !frame.is_some_and(|f| f.idr) {
+                return Err(refuse(format!(
+                    "changes its parameter sets at packet {index}, which holds no IDR picture \
+                     (ITU-T H.264 7.4.1.2.1)"
+                )));
+            }
+        }
+        let slot = match slots.get(&number) {
+            Some(&slot) => slot,
+            None => {
+                let sets = here
+                    .and_then(coreav_isobmff::avc_parameter_sets)
+                    .ok_or_else(|| {
+                        refuse(format!(
+                            "changes at packet {index} to a configuration record that cannot be read"
+                        ))
+                    })?;
+                let width = usize::from(length_size);
+                let mut bytes = Vec::new();
+                for unit in sets {
+                    let len = (unit.len() as u64).to_be_bytes();
+                    let (high, low) = len.split_at(len.len().saturating_sub(width));
+                    if high.iter().any(|&b| b != 0) {
+                        return Err(refuse(format!(
+                            "has a parameter set longer than its NAL unit length allows at packet {index}"
+                        )));
+                    }
+                    bytes.extend_from_slice(low);
+                    bytes.extend_from_slice(unit);
+                }
+                let slot = in_band.sets.len();
+                in_band.sets.push(bytes);
+                slots.insert(number, slot);
+                slot
+            }
+        };
+        in_band.before.insert(index, slot);
+    }
+    Ok(in_band)
 }
 
 fn packet_ref(p: &Packet) -> PacketRef {

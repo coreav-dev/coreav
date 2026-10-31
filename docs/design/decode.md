@@ -100,6 +100,48 @@ profile (the `hvcC`, `av1C` and `vpcC` fields; for `avcC`, the profile and,
 for the High profiles, the first sequence parameter set up to
 `bit_depth_chroma_minus8`, ITU-T H.264 7.3.2.1.1).
 
+### Several sample descriptions
+
+An MP4 or MOV track may have several sample entries in its `stsd`, and the
+sample to chunk box says which one describes each chunk's samples (ISO/IEC
+14496-12 8.5.2 and 8.7.4). For H.264 each entry's `avcC` carries its own
+parameter sets (ISO/IEC 14496-15 5.3.3.1), and a recorder that changes the
+resolution at an IDR picture may write a new entry there with a new
+sequence parameter set under the same id, which takes effect at that IDR
+(ITU-T H.264 7.4.1.2.1). `StreamConfig` holds one record, the first
+entry's, so the video reader of `coreav-thumbnail` puts the parameter sets
+in the packets that need them:
+
+- `coreav-isobmff` gives each sample's description index
+  (`Packets::description`) and parses every entry
+  (`Track::later_descriptions`); their records and their size count
+  against `max_retained_bytes`.
+- Before a packet whose description's record differs from the previous
+  packet's (the first packet's previous being the first entry), the reader
+  puts that description's sequence and picture parameter sets, each after
+  a length of the track's NAL unit length size. It does the same before
+  every sync sample whose record differs from the first entry's, because
+  a thumbnail may start decoding there.
+- Refused by name, with `Error::Unsupported`: a later entry of another
+  codec at a sample that uses it; a change of record in another codec
+  than H.264; a record with another NAL unit length size or one that
+  cannot be read; and a change at a sample with no IDR picture, where the
+  new sequence parameter set could not take effect.
+- A track with several descriptions is listed from its first packet: a
+  thumbnail does not plan from a window of its packets (`seek.md`).
+
+Entries whose records are equal change nothing. `coreav thumbnail`,
+`coreav transcode` and `coreav ffmpeg` encodes read their video through
+this reader, so they now decode such a track or refuse it by name, where
+they decoded its later samples with the first entry's parameter sets
+before. `coreav remux`, the clip and split writers and `policy-check`
+still refuse a track with several descriptions, and `coreav ffprobe
+-show_frames` still decodes it with the first entry's record. The test is
+`crates/coreav-backend-h264/tests/sample_entries.rs`: a fixture made by
+`scripts/stsd_craft.py --fixture` with the pinned FFmpeg, a 128x96 part,
+an 80x48 part and the first again, whose 30 frames equal the pinned
+FFmpeg's `framemd5` under V1's flags (`compat-cli.md`).
+
 ## Frame model
 
 `coreav-frame` holds the frame model. A `Frame` is a presentation
