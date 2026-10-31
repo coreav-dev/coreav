@@ -834,16 +834,17 @@ wall time of each arm's whole command, median of three), as for Opus.
 
 `coreav ffmpeg` ([`compat-cli.md`](compat-cli.md)) runs the common
 `ffmpeg` command lines of this job through this pipeline: one input, the
-video re-encoded with libx264, the audio copied, dropped, or (in builds
-with the `libopus` feature) one audio stream encoded with libopus ("Opus
-audio"), one MP4 output. The command line is read by the compatibility parser and its
+video re-encoded with libx264, the audio copied, dropped, or one audio
+stream encoded with libopus (in builds with the `libopus` feature, "Opus
+audio") or with FFmpeg's `aac` ("AAC audio"), one MP4 output. The command line is read by the compatibility parser and its
 stream selection, the same as for `-c copy`; a command that selects a
 video stream for `libx264` is routed here before the refusal of encoder
 values, and every option this section does not list is still refused,
 naming it (exit status 4). The encoder is `--encoder auto`'s ("The encoder
 program"); in strict-safe mode that is an `x264` program only, and a
 command without one, or with a video only the FFmpeg decoder would decode,
-is refused (exit status 4) and never handed to FFmpeg.
+is refused (exit status 4) and never handed to FFmpeg, as is every
+`-c:a aac` command, whose encoder is the `ffmpeg` program.
 
 | Option | Taken as |
 |---|---|
@@ -851,7 +852,8 @@ is refused (exit status 4) and never handed to FFmpeg.
 | `-c:a`, `-acodec` `copy`, or `-c copy` for the other streams | the selected audio streams copied (`AudioMode::Streams`) |
 | `-c:v:N copy`, or `-c copy`, for a selected MP4/MOV cover picture | the cover picture kept in the output's item list, unchanged; a cover picture the selection leaves out (the default selection does) is left out (`TranscodeOptions::left_out_covers`, [`compat-cli.md`](compat-cli.md), "Cover pictures"), and one the command would encode with libx264 is refused (`ffmpeg` fails on it) |
 | `-c:a`, `-acodec` `libopus` | `--audio opus` for the one selected audio stream ("Opus audio"), beside a video encoded with libx264; refused when other audio is selected beside it, for audio other than FLAC or MP3 (CoreAV decodes only those), for more than two channels (`ffmpeg` writes a surround Opus stream), and without `-c:v libx264`. In a build without the `libopus` feature every `-c:a libopus` line is not native: FFmpeg runs it, or strict-safe mode refuses it and nothing runs |
-| `-b:a RATE` | `--audio-bitrate`: FFmpeg's number syntax, in bits a second, 6k to 510k as libopus takes it; only with `-c:a libopus` |
+| `-c:a`, `-acodec` `aac` | `--audio aac` for the one selected audio stream ("AAC audio"), beside a video encoded with libx264, by FFmpeg's built-in `aac` encoder: the `ffmpeg` program `--audio aac` finds without `--ffmpeg` (`COREAV_FFMPEG`, else `PATH`), run as a process of its own. Every build has it. Refused when other audio is selected beside it, for audio other than FLAC or MP3 (CoreAV decodes only those), for more than two channels (`ffmpeg` writes a surround AAC stream), for a sample rate outside 8 to 64 kHz (nothing is resampled; `ffmpeg` encodes 88.2 and 96 kHz as they are), without `-c:v libx264`, when no `ffmpeg` program is found or it has no `aac` encoder (`--audio aac`'s refusals), and always in strict-safe mode. Its other options (`-profile:a`, `-aac_coder`, `-q:a`, `-ar`, `-ac`, `-af`, `-strict`) and other AAC encoders (`libfdk_aac`) are refused as unlisted |
+| `-b:a RATE` | `--audio-bitrate`: FFmpeg's number syntax, in bits a second, 6k to 510k with `-c:a libopus` as libopus takes it, 16k to 512k with `-c:a aac`; without it, the encoder's default; only with `-c:a libopus` or `aac` |
 | `-an` | no audio |
 | `-crf Q` | `--crf`, 0 to 51, fractions as given |
 | `-b:v RATE` | `--bitrate`: FFmpeg's number syntax (`k`, `M`, a fraction), in bits a second, divided by 1,000 with the remainder dropped as libx264 receives it (`1M` 1,000, `1234567` 1,234 kbit/s, checked on the pinned FFmpeg as a black box); a rate below 1,000 is refused |
@@ -912,8 +914,8 @@ output, before the encoder starts:
   audio; this pipeline keeps the source's order. A source whose selected
   audio comes before its video is refused.
 - **Audio.** Without `-c:a copy` or `-an`, FFmpeg re-encodes the
-  selected audio to AAC; audio encoding is not in this pipeline, so a
-  command that selects an audio stream without copying it is refused.
+  selected audio to AAC; a command that selects an audio stream without
+  copying it or naming its encoder (`-c:a libopus` or `aac`) is refused.
   Copied audio the MP4 writer does not take (PCM; anything but AAC or MP3
   in an `mp4a` sample entry and Opus in an `Opus` one from MP4/MOV, AAC
   and Opus from Matroska) is refused before the encode, where the writer

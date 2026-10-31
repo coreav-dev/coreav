@@ -2010,3 +2010,185 @@ fn ffmpeg_libopus_lines_encode_the_audio() {
     }
     nothing_left(&dir);
 }
+
+/// `coreav ffmpeg` lines that encode the audio with FFmpeg's `aac` beside
+/// the video with libx264 (`docs/design/transcode.md`, "Through `coreav
+/// ffmpeg`"): run natively, with no fallback, and `-b:a` taken as the AAC
+/// bit rate; the lines the pipeline does not take refused before anything
+/// is encoded.
+#[cfg(unix)]
+#[test]
+fn ffmpeg_aac_lines_encode_the_audio() {
+    let Some(tools) = tools() else { return };
+    let dir = dir("ffmpeg-aac");
+    let source = made(
+        &tools,
+        &dir,
+        "in.mp4",
+        &["-ac", "2", "-ar", "44100", "-c:a", "flac"],
+    );
+    let log = dir.join("fallback.log");
+    let ffmpeg = |args: &[&str], strict: bool, program: &Path| {
+        let mut command = Command::new(bin());
+        if strict {
+            command.env("COREAV_STRICT_SAFE", "1");
+        }
+        let out = command
+            .arg("ffmpeg")
+            .args(args)
+            .env("COREAV_FFMPEG", program)
+            .env("COREAV_X264", &tools.x264)
+            .env("COREAV_FALLBACK", NO_FALLBACK)
+            .env("COREAV_FALLBACK_LOG", &log)
+            .output()
+            .unwrap();
+        (
+            out.status.code().unwrap(),
+            String::from_utf8(out.stderr).unwrap(),
+        )
+    };
+    let input = source.to_str().unwrap();
+    let mut rates = Vec::new();
+    for (name, rate) in [("default.mp4", None), ("low.mp4", Some("96k"))] {
+        let out = dir.join(name);
+        let mut args = vec!["-i", input, "-c:v", "libx264", "-c:a", "aac"];
+        args.extend(rate.iter().flat_map(|r| ["-b:a", *r]));
+        args.push(out.to_str().unwrap());
+        let (code, stderr) = ffmpeg(&args, false, &tools.ffmpeg);
+        assert_eq!(code, 0, "{name}: {stderr}");
+        assert!(
+            !log.exists() || std::fs::read(&log).unwrap().is_empty(),
+            "{name}: fell back"
+        );
+        let streams = probe_json(
+            &tools,
+            &[
+                "-show_entries",
+                "stream=codec_name,profile,channels,sample_rate,start_pts,bit_rate",
+            ],
+            &out,
+        );
+        let streams = streams["streams"].as_array().unwrap();
+        assert_eq!(streams.len(), 2, "{name}");
+        assert_eq!(streams[1]["codec_name"], "aac");
+        assert_eq!(streams[1]["profile"], "LC");
+        assert_eq!(streams[1]["channels"], 2);
+        assert_eq!(streams[1]["sample_rate"], "44100");
+        assert_eq!(streams[1]["start_pts"], 0);
+        rates.push(
+            streams[1]["bit_rate"]
+                .as_str()
+                .unwrap()
+                .parse::<u64>()
+                .unwrap(),
+        );
+        decodes_cleanly(&tools, &out);
+    }
+    assert!(rates[1] < rates[0], "{rates:?}");
+    // Strict-safe mode refuses the line before the input is read, and says
+    // so in the fallback log.
+    let out = dir.join("refused.mp4");
+    let out = out.to_str().unwrap();
+    let (code, stderr) = ffmpeg(
+        &["-i", "missing.mp4", "-c:v", "libx264", "-c:a", "aac", out],
+        true,
+        &tools.ffmpeg,
+    );
+    assert_eq!(code, 4, "{stderr}");
+    assert!(
+        stderr.contains("cannot encode AAC audio: use -c:a copy or libopus"),
+        "{stderr}"
+    );
+    let lines: Vec<Value> = std::fs::read_to_string(&log)
+        .unwrap()
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect();
+    assert_eq!(lines.len(), 1, "{lines:?}");
+    assert_eq!(lines[0]["tool"], "ffmpeg");
+    assert_eq!(lines[0]["not_run"], "strict_safe");
+    assert_eq!(
+        lines[0]["reason"],
+        "encoding audio with aac in strict-safe mode (its encoder is the ffmpeg program)"
+    );
+    let aac = made(&tools, &dir, "aac.mp4", &["-c:a", "aac"]);
+    let fast = made(&tools, &dir, "96k.mkv", &["-ar", "96000", "-c:a", "flac"]);
+    let two = made(
+        &tools,
+        &dir,
+        "two.mkv",
+        &["-map", "0:v", "-map", "1:a", "-map", "1:a", "-c:a", "flac"],
+    );
+    let without = script(
+        &dir,
+        "ffmpeg-without-aac",
+        "echo \"Codec 'aac' is not recognized by FFmpeg.\"",
+    );
+    let line = |source: &Path, extra: &[&'static str]| {
+        let mut args = vec!["-i".to_owned(), source.to_str().unwrap().to_owned()];
+        args.extend(extra.iter().map(|a| (*a).to_owned()));
+        args.push(out.to_owned());
+        args
+    };
+    let encoded = ["-c:v", "libx264", "-c:a", "aac"];
+    let nowhere = Path::new("/nonexistent/ffmpeg");
+    for (args, program, says) in [
+        (
+            line(&source, &["-c:v", "libx264", "-c:a", "aac", "-b:a", "8k"]),
+            tools.ffmpeg.as_path(),
+            "'-b:a 8k' is not supported: the AAC bit rate must be from 16k to 512k",
+        ),
+        (
+            line(&source, &["-c:v", "copy", "-c:a", "aac"]),
+            tools.ffmpeg.as_path(),
+            "encoding audio with aac without encoding the video with libx264",
+        ),
+        (
+            line(&source, &["-c:v", "libx264", "-c:a", "aac", "-ar", "48000"]),
+            tools.ffmpeg.as_path(),
+            "-ar",
+        ),
+        (
+            line(&aac, &encoded),
+            tools.ffmpeg.as_path(),
+            "encoding audio other than FLAC or MP3 with aac",
+        ),
+        (
+            line(&fast, &encoded),
+            tools.ffmpeg.as_path(),
+            "encoding audio sampled outside 8 to 64 kHz with aac",
+        ),
+        (
+            line(&two, &["-map", "0", "-c:v", "libx264", "-c:a", "aac"]),
+            tools.ffmpeg.as_path(),
+            "encoding more than one audio stream with aac",
+        ),
+        (
+            line(
+                &two,
+                &[
+                    "-map", "0", "-c:v", "libx264", "-c:a", "aac", "-c:a:1", "copy",
+                ],
+            ),
+            tools.ffmpeg.as_path(),
+            "copying audio beside the audio stream aac encodes",
+        ),
+        (
+            line(&source, &encoded),
+            nowhere,
+            "no ffmpeg program for AAC audio",
+        ),
+        (
+            line(&source, &encoded),
+            without.as_path(),
+            "has no aac encoder",
+        ),
+    ] {
+        let args: Vec<&str> = args.iter().map(String::as_str).collect();
+        let (code, stderr) = ffmpeg(&args, false, program);
+        assert_eq!(code, 4, "{args:?}: {stderr}");
+        assert!(stderr.contains(says), "{args:?}: {stderr}");
+        assert!(!Path::new(out).exists(), "{args:?}");
+    }
+    nothing_left(&dir);
+}

@@ -67,9 +67,20 @@ pub enum Codec {
     /// `libx264`: the video re-encoded (`docs/design/transcode.md`,
     /// "Through `coreav ffmpeg`").
     Libx264,
-    /// `libopus`: one audio stream encoded to Opus beside the re-encoded
-    /// video (`docs/design/transcode.md`, "Opus audio").
+    /// An audio encoder: one audio stream encoded beside the re-encoded
+    /// video.
+    Audio(AudioEncoder),
+}
+
+/// The audio encoders of `coreav ffmpeg`, each beside a video encoded with
+/// `libx264` (`docs/design/transcode.md`, "Through `coreav ffmpeg`").
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AudioEncoder {
+    /// `libopus`: Opus (`docs/design/transcode.md`, "Opus audio").
     Libopus,
+    /// `aac`, FFmpeg's built-in encoder: AAC-LC (`docs/design/transcode.md`,
+    /// "AAC audio").
+    Aac,
 }
 
 /// The encoder options of a command that encodes with `libx264`, as given;
@@ -91,7 +102,7 @@ pub struct Encoding {
     pub size: Option<String>,
     /// `-pix_fmt`.
     pub pixel_format: Option<String>,
-    /// `-b:a`, with `libopus`.
+    /// `-b:a`, with `libopus` or `aac`.
     pub audio_bitrate: Option<String>,
     /// `-fps_mode` or `-vsync`: `passthrough` (or `0`).
     pub passthrough: bool,
@@ -567,12 +578,13 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
             let codec = match text {
                 "copy" => Codec::Copy,
                 "libx264" => Codec::Libx264,
-                "libopus" => Codec::Libopus,
+                "libopus" => Codec::Audio(AudioEncoder::Libopus),
+                "aac" => Codec::Audio(AudioEncoder::Aac),
                 _ => {
                     return Err(not_native(
                         option,
                         Some(text),
-                        "coreav ffmpeg copies streams (-c copy) and encodes video with libx264 and audio with libopus",
+                        "coreav ffmpeg copies streams (-c copy) and encodes video with libx264 and audio with libopus or aac",
                     ));
                 }
             };
@@ -691,12 +703,15 @@ pub fn parse(args: &[String]) -> Result<Command, Refusal> {
         ));
     }
     if let Some(option) = audio_encoders.first()
-        && !command.codecs.iter().any(|(_, c)| *c == Codec::Libopus)
+        && !command
+            .codecs
+            .iter()
+            .any(|(_, c)| matches!(c, Codec::Audio(_)))
     {
         return Err(not_native(
             option,
             None,
-            "it is an audio encoder option, and coreav ffmpeg encodes audio only with -c:a libopus",
+            "it is an audio encoder option, and coreav ffmpeg encodes audio only with -c:a libopus or aac",
         ));
     }
     command.muxer = muxer(format, output)?;
@@ -1086,7 +1101,10 @@ mod tests {
             c.codecs,
             vec![
                 (Spec::Kind(Kind2::Video, None), Codec::Libx264),
-                (Spec::Kind(Kind2::Audio, None), Codec::Libopus)
+                (
+                    Spec::Kind(Kind2::Audio, None),
+                    Codec::Audio(AudioEncoder::Libopus)
+                )
             ]
         );
         assert_eq!(c.encoding.audio_bitrate.as_deref(), Some("128k"));
@@ -1094,6 +1112,48 @@ mod tests {
             parse(&args("-i in.mkv -c:v libx264 -b:a 128k out.mp4")),
             Err(Refusal::NotNative(_))
         ));
+    }
+
+    #[test]
+    fn aac_and_its_bit_rate() {
+        for line in [
+            "-i in.mkv -c:v libx264 -c:a aac -b:a 96k out.mp4",
+            "-i in.mkv -c:v libx264 -acodec aac -b:a 96k out.mp4",
+        ] {
+            let c = parse(&args(line)).unwrap();
+            assert_eq!(
+                c.codecs,
+                vec![
+                    (Spec::Kind(Kind2::Video, None), Codec::Libx264),
+                    (
+                        Spec::Kind(Kind2::Audio, None),
+                        Codec::Audio(AudioEncoder::Aac)
+                    )
+                ],
+                "{line}"
+            );
+            assert_eq!(c.encoding.audio_bitrate.as_deref(), Some("96k"), "{line}");
+        }
+        let option = |text: &str| match refused(text) {
+            Reason::Option(name, value) => (name, value),
+            Reason::Property(p) => panic!("{text}: {p}"),
+        };
+        let named = |name: &str, value: Option<&str>| (name.to_owned(), value.map(str::to_owned));
+        for (extra, name, value) in [
+            ("-profile:a aac_low", "-profile:a", None),
+            ("-aac_coder twoloop", "-aac_coder", None),
+            ("-q:a 2", "-q:a", None),
+            ("-vbr 3", "-vbr", None),
+            ("-ar 44100", "-ar", None),
+            ("-ac 1", "-ac", None),
+            ("-af volume=2", "-af", None),
+            ("-strict experimental", "-strict", None),
+            ("-c:a libfdk_aac", "-c:a", Some("libfdk_aac")),
+            ("-c:a aac_at", "-c:a", Some("aac_at")),
+        ] {
+            let line = format!("-i in.mkv -c:v libx264 -c:a aac {extra} out.mp4");
+            assert_eq!(option(&line), named(name, value), "{line}");
+        }
     }
 
     #[test]
