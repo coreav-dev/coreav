@@ -144,6 +144,9 @@ def encode(a):
               'image': os.environ.get('ImageOS'), 'image_version': os.environ.get('ImageVersion')}
     (a.dir / 'encoded.json').write_text(json.dumps({'runner': runner, 'encodes': results}, indent=1) + '\n')
     print(f"{sum(r['status'] == 'encoded' for r in results)} of {len(results)} encoded on {runner['macos']}")
+    refused = [r['name'] for r in results if r['status'] != 'encoded']
+    if refused:
+        sys.exit(f'the run stops at its preparation ("HE-AAC sets", "Conversions"): not encoded: {refused}')
 
 
 class Bits:
@@ -246,7 +249,7 @@ def probe(ffprobe, path):
     samples its packets' durations state at the output rate. Matroska states
     durations in milliseconds, which do not hold an AAC frame exactly, so
     there the samples are the packets times the frame length at the output
-    rate (\"HE-AAC bars\", \"Length\")."""
+    rate ("HE-AAC bars", "Length")."""
     out = run([ffprobe, '-v', 'error', *reader_options(path), '-select_streams', 'a:0', '-show_entries',
                'packet=duration:stream=codec_name,profile,time_base,sample_rate,channels,extradata', '-show_data',
                '-of', 'json', path])
@@ -359,11 +362,11 @@ def prepare(a):
               for f in sorted((a.conformance / 'compressedMp4').glob('al*_sbr_*.mp4'))]
     encoded = json.loads((a.generated / 'encoded.json').read_text())
     inputs += [{'key': f"gen-{e['name']}", 'set': 'generated', 'path': a.generated / 'gen' / f"{e['name']}.m4a",
-                'references': []} for e in encoded['encodes'] if e['status'] == 'encoded']
+                'references': []} for e in encoded['encodes']]
     corpus = work / 'corpus'
     inputs += [{'key': f'corpus-{f.stem}', 'set': 'corpus', 'path': f, 'references': []}
                for f in (sorted(corpus.glob('c*.*')) if corpus.exists() else [])]
-    rows, tsv = [], []
+    rows, tsv, not_made = [], [], {}
     for i in inputs:
         stated = probe(a.ffprobe, i['path'])
         sig = signalling(bytes.fromhex(stated['asc'])) if stated['asc'] else None
@@ -386,31 +389,23 @@ def prepare(a):
             derived.append({**row, 'key': f"{i['key']}.{kind}", 'path': str(path), 'variant': kind, 'of': i['key'],
                             'references': [], **more,
                             'signalling': signalling(bytes.fromhex(more['asc'])) if more['asc'] else None})
-        for kind, error in failed.items():
-            derived.append({**row, 'key': f"{i['key']}.{kind}", 'path': None, 'variant': kind, 'of': i['key'],
-                            'references': [], 'stated_samples': None, 'signalling': None, 'oracle': None,
-                            'container': 'matroska' if kind == 'mka' else 'mp4', 'not_made': error})
+        not_made |= {f"{i['key']}.{kind}": error for kind, error in failed.items()}
         for r in [row] + derived:
-            if r['path'] is None:
-                rows.append(r)
-                continue
             ref = work / 'ref' / f"{r['key']}.f32"
             r['oracle'] = oracle(a, r['path'], ref)
             r['container'] = container(r['path'])
             tsv.append('\t'.join([r['path'], str(ref) if r['oracle']['returncode'] == 0 else '',
                                   ';'.join(r['references'])]))
             rows.append(r)
-    (work / 'agreement.tsv').write_text('\n'.join(tsv) + '\n')
     version = run([a.ffmpeg, '-version']).stdout.decode().splitlines()[0]
     (work / 'set.json').write_text(json.dumps({
-        'ffmpeg': version, 'encoder': encoded['runner'],
-        'not_encoded': [e['name'] for e in encoded['encodes'] if e['status'] != 'encoded'], 'inputs': rows},
-        indent=1) + '\n')
+        'ffmpeg': version, 'encoder': encoded['runner'], 'not_made': not_made, 'inputs': rows}, indent=1) + '\n')
+    if not_made:
+        sys.exit(f'the run stops at its preparation ("HE-AAC sets", "Conversions"): not made: {sorted(not_made)}')
+    (work / 'agreement.tsv').write_text('\n'.join(tsv) + '\n')
     counts = {s: sum(r['set'] == s and r['of'] is None for r in rows) for s in ('conformance', 'generated', 'corpus')}
-    decoded = sum(r['path'] is not None and r['oracle']['returncode'] == 0 for r in rows)
-    not_made = [r['key'] for r in rows if r['path'] is None]
-    print(f'{len(rows)} inputs with variants (originals: {counts}), {decoded} decoded by the oracle, '
-          f'{len(not_made)} not made: {not_made}')
+    decoded = sum(r['oracle']['returncode'] == 0 for r in rows)
+    print(f'{len(rows)} inputs with variants (originals: {counts}), {decoded} decoded by the oracle')
 
 
 def candidate(row):
@@ -441,8 +436,8 @@ def clean_decode(ffmpeg, path, scratch):
 
 
 def dropped_classes(files):
-    """The container classes the corpus selection empties (\"HE-AAC sets\",
-    \"Corpus\"): files is one (class, answered, he_aac, clean) per candidate.
+    """The container classes the corpus selection empties ("HE-AAC sets",
+    "Corpus"): files is one (class, answered, he_aac, clean) per candidate.
     A class is dropped when ffprobe answers for none of its candidates, or
     when it has HE-AAC files and none of them decodes cleanly."""
     dropped = []
@@ -593,9 +588,7 @@ def bar2_row(r, ref):
     """Bar 2's verdict on one input, with what the bar reports: the largest
     differences, the share of output blocks compared by level only, and each
     channel's comparison (noise blocks and their level)."""
-    made = ref['path'] is not None
-    row = {'input': ref['key'], 'set': ref['set'],
-           'verdict': bar2_verdict(r, ref) if made else 'FAIL: not made: ' + ref['not_made']}
+    row = {'input': ref['key'], 'set': ref['set'], 'verdict': bar2_verdict(r, ref)}
     if r and r['status'] == 'decoded':
         row |= {'rms': max((c['rms'] for c in r['per_channel']), default=0),
                 'max': max((c['max'] for c in r['per_channel']), default=0),
@@ -603,7 +596,7 @@ def bar2_row(r, ref):
                 'noise_share': max((c['noise_blocks'] for c in r['per_channel']), default=0) / r['packets']
                 if r['packets'] else 0.0,
                 'per_channel': r['per_channel']}
-    if made and (ref['oracle']['warnings'] or ref['oracle']['returncode']):
+    if ref['oracle']['warnings'] or ref['oracle']['returncode']:
         row['ffmpeg_stderr'] = ref['oracle']['stderr']
     return row
 
@@ -611,36 +604,27 @@ def bar2_row(r, ref):
 def bar5_row(ref, pair, decoded):
     """Bar 5's gate on one Matroska file: CoreAV's decode of it equals its
     decode of the MP4 file of the same packets."""
-    row = {'input': ref['key']}
-    if ref['path'] is None:
-        return row | {'pass': False, 'reason': 'not copied into Matroska: ' + ref['not_made']}
-    if pair is None or pair['path'] is None:
-        return row | {'pass': False, 'reason': 'not copied into MP4: ' + (pair or {}).get('not_made', 'no copy')}
-    return row | {'pass': same_decode(decoded.get(ref['path']), decoded.get(pair['path']))}
+    if pair is None:
+        return {'input': ref['key'], 'pass': False, 'reason': 'no MP4 pair'}
+    return {'input': ref['key'], 'pass': same_decode(decoded.get(ref['path']), decoded.get(pair['path']))}
 
 
 def judge_rows(meta, decoded):
     """Bars 1, 2, 4 and 5: the oracle's statements against the decoder
-    test's rows (keyed by input path). An input that was not made fails
-    every bar it belongs to."""
+    test's rows (keyed by input path)."""
     by_key = {r['key']: r for r in meta['inputs']}
     bar1, bar2, bar4, bar5 = [], [], [], []
     for ref in meta['inputs']:
         bars = bars_of(ref)
-        r = decoded.get(ref['path']) if ref['path'] is not None else None
+        r = decoded.get(ref['path'])
         if 1 in bars:
             bar1.append({'input': ref['key'], 'verdict': bar1_verdict(r), 'reference': (r or {}).get('reference')})
         if 2 in bars:
             bar2.append(bar2_row(r, ref))
         if 4 in bars:
-            row = {'input': ref['key'], 'pass': False}
-            if ref['path'] is None:
-                row['reason'] = 'not made: ' + ref['not_made']
-            else:
-                o = ref['oracle']
-                row['pass'] = same_decode(r, decoded.get(by_key[ref['of']]['path'])) and (
-                    o['rate'], o['channels']) == (r['rate'], r['channels'])
-            bar4.append(row)
+            o = ref['oracle']
+            bar4.append({'input': ref['key'], 'pass': same_decode(r, decoded.get(by_key[ref['of']]['path'])) and (
+                o['rate'], o['channels']) == (r['rate'], r['channels'])})
         if 5 in bars:
             pair = by_key.get(ref['of']) if ref['of'] else by_key.get(ref['key'] + '.copy')
             bar5.append(bar5_row(ref, pair, decoded))
@@ -719,53 +703,54 @@ def judge(a):
         r = json.loads(line)
         decoded[r['input']] = r
     bar1, bar2, bar4, bar5 = judge_rows(meta, decoded)
-    out = {'ffmpeg': meta['ffmpeg'], 'encoder': meta['encoder'], 'not_encoded': meta['not_encoded']}
+    out = {'ffmpeg': meta['ffmpeg'], 'encoder': meta['encoder']}
     out['bar1'] = summary_of(bar1) | {'results': bar1}
+    # Numbers over several inputs leave out the corpus's MP4 copies ("HE-AAC
+    # sets", "Corpus"); each input still passes or fails on its own.
+    copies = {r['key'] for r in meta['inputs'] if r['variant'] == 'copy'}
+    clean = [r for r in bar2 if r['verdict'] == 'pass' and r['input'] not in copies]
     out['bar2'] = summary_of(bar2) | {
         'samples_not_compared': [[r['input'], r['verdict']] for r in bar2 if r['verdict'].startswith('pass (')],
-        'largest_difference': max((r['max'] for r in bar2 if r['verdict'] == 'pass'), default=0),
-        'largest_rms': max((r['rms'] for r in bar2 if r['verdict'] == 'pass'), default=0),
-        'largest_noise_share': max((r.get('noise_share', 0) for r in bar2), default=0),
+        'largest_difference': max((r['max'] for r in clean), default=0),
+        'largest_rms': max((r['rms'] for r in clean), default=0),
+        'largest_noise_share': max((r.get('noise_share', 0) for r in bar2 if r['input'] not in copies), default=0),
         'results': bar2}
     # Bar 3: every MP4 file of the generated and corpus sets.
     timeline_inputs = [r for r in meta['inputs'] if 3 in bars_of(r)]
-    present = [r for r in timeline_inputs if r['path'] is not None]
     results = []
-    if present:
+    if timeline_inputs:
         run([sys.executable, '-I', ROOT / 'scripts' / 'decode_audio_check.py', '--coreav', a.coreav,
              '--ffmpeg', a.ffmpeg, '--ffprobe', a.ffprobe, '--tolerance', MAX_RMS, MAX_ABS,
-             '--out', work / 'timeline.json', *[r['path'] for r in present]], timeout=TIMEOUT * len(present))
+             '--out', work / 'timeline.json', *[r['path'] for r in timeline_inputs]],
+            timeout=TIMEOUT * len(timeline_inputs))
         if (work / 'timeline.json').exists():
             results = json.loads((work / 'timeline.json').read_text())['results']
-    by_path = dict(zip([r['path'] for r in present], results)) if len(results) == len(present) else {}
+    paths = [r['path'] for r in timeline_inputs]
+    by_path = dict(zip(paths, results)) if len(results) == len(paths) else {}
     bar3 = []
     for r in timeline_inputs:
         res = by_path.get(r['path'])
         if res is None:
-            bar3.append({'input': r['key'], 'pass': False, 'ffmpeg': None,
-                         'reason': 'not made: ' + r['not_made'] if r['path'] is None else 'no result'})
+            bar3.append({'input': r['key'], 'pass': False, 'ffmpeg': None, 'reason': 'no result'})
             continue
         d = decoded.get(r['path'])
         samples = d is not None and level_only(d) == 0
         bar3.append({'input': r['key'], 'samples_compared': samples, 'pass': bar3_pass(res, samples),
                      'samples_within': bool(res.get('model')), 'ffmpeg': res.get('ffmpeg')})
     out['bar3'] = summary_of(bar3) | {
-        'ffmpeg_default': {v: sum(r['ffmpeg'] == v for r in bar3) for v in ('equal', 'covered', 'uncovered')},
+        'ffmpeg_default': {v: sum(r['ffmpeg'] == v and r['input'] not in copies for r in bar3)
+                           for v in ('equal', 'covered', 'uncovered')},
         'results': bar3}
     out['bar4'] = summary_of(bar4) | {'results': bar4}
     by_key = {r['key']: r for r in meta['inputs']}
     for row in bar5:
         ref = by_key[row['input']]
-        if ref['path'] is not None:
-            row['reported'] = bar5_report(a, ref, decoded.get(ref['path']))
+        row['reported'] = bar5_report(a, ref, decoded.get(ref['path']))
     out['bar5'] = summary_of(bar5) | {'results': bar5}
     # Bar 6: thread counts on every input of the generated and corpus sets.
     bar6 = []
     for r in meta['inputs']:
         if 6 not in bars_of(r):
-            continue
-        if r['path'] is None:
-            bar6.append({'input': r['key'], 'pass': False, 'reason': 'not made: ' + r['not_made']})
             continue
         outs = [run([a.coreav, 'decode-audio', '--format', 'f32', '--threads', t, r['path'], '-']) for t in ('1', '8')]
         bar6.append({'input': r['key'],

@@ -125,9 +125,10 @@ def wav(samples, channels=2, rate=48000):
             + fmt + b'data' + struct.pack('<I', len(data)) + data)
 
 
-class Variants(unittest.TestCase):
-    """Finding: a required variant a conversion did not make must fail the
-    bars it belongs to, never drop out of them."""
+class Conversions(unittest.TestCase):
+    """A source, encode or derived file that ffmpeg or Apple's encoder does
+    not make stops the run at its preparation, before any CoreAV command
+    ("HE-AAC sets", "Conversions"); it never drops out of a bar."""
 
     def test_variants_reports_a_partial_failure(self):
         sig = h.signalling(bytes.fromhex('131056e598'))
@@ -140,7 +141,7 @@ class Variants(unittest.TestCase):
             _, failed = h.variants(argparse.Namespace(ffmpeg='ffmpeg'), 'in.m4a', None, pathlib.Path(tmp), 'k')
         self.assertEqual(failed, {'implicit': 'no AudioSpecificConfig'})
 
-    def test_prepare_keeps_a_variant_it_could_not_make(self):
+    def test_prepare_stops_when_a_variant_is_not_made(self):
         stated = {'codec': 'aac', 'profile': 'HE-AAC', 'packets': 10, 'stated_samples': 20480, 'asc': '131056e598'}
         made = {'returncode': 0, 'warnings': False, 'stderr': '', 'rate': 48000, 'channels': 2, 'mask': 3,
                 'samples': 20480}
@@ -154,29 +155,41 @@ class Variants(unittest.TestCase):
             (tmp / 'gen').mkdir()
             (tmp / 'gen' / 'encoded.json').write_text(json.dumps({'runner': {}, 'encodes': []}))
             with mock.patch.object(h, 'run', refuse), mock.patch.object(h, 'probe', lambda f, p: dict(stated)), \
-                    mock.patch.object(h, 'oracle', lambda a, p, o: dict(made)), contextlib.redirect_stdout(io.StringIO()):
+                    mock.patch.object(h, 'oracle', lambda a, p, o: dict(made)), \
+                    self.assertRaises(SystemExit) as stop:
                 h.prepare(argparse.Namespace(ffmpeg='ffmpeg', ffprobe='ffprobe', work=tmp / 'w',
                                              conformance=tmp / 'conf', generated=tmp / 'gen'))
             meta = json.loads((tmp / 'w' / 'set.json').read_text())
-            tsv = (tmp / 'w' / 'agreement.tsv').read_text().splitlines()
-        rows = {r['key']: r for r in meta['inputs']}
+            self.assertFalse((tmp / 'w' / 'agreement.tsv').exists())
         key = 'conf-al_sbr_e_32_2'
-        self.assertEqual(sorted(rows), [key, key + '.implicit', key + '.mka'])
-        self.assertIsNone(rows[key + '.implicit']['path'])
-        self.assertEqual(rows[key + '.implicit']['not_made'], 'refused')
-        self.assertEqual(len(tsv), 2)
-        decoded = {r['path']: row() for r in meta['inputs'] if r['path']}
-        _, bar2, bar4, bar5 = h.judge_rows(meta, decoded)
-        self.assertEqual(bar4, [{'input': key + '.implicit', 'pass': False, 'reason': 'not made: refused'}])
-        self.assertTrue(bar2[-1]['verdict'].startswith('FAIL'))
-        self.assertEqual([r['pass'] for r in bar5], [True])
+        self.assertIn('stops at its preparation', str(stop.exception))
+        self.assertEqual(meta['not_made'], {key + '.implicit': 'refused'})
+        self.assertEqual(sorted(r['key'] for r in meta['inputs']), [key, key + '.mka'])
+
+    def test_encode_stops_when_the_encoder_refuses(self):
+        def afconvert(args, **kw):
+            args = [str(a) for a in args]
+            if args[0] == 'afconvert' and 'aacp' not in args:
+                pathlib.Path(args[-1]).write_bytes(b'm4a')
+                return done(args)
+            return done(args, 1 if args[0] == 'afconvert' else 0, out=b'macOS 15', err=b'fmt?')
+        plan = [e for e in h.encodes() if e['name'] in ('he-tones-48000-stereo', 'he2-tones-48000-stereo')]
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            (tmp / 'encodes.json').write_text(json.dumps({'encodes': plan, 'sources': {}}))
+            with mock.patch.object(h, 'run', afconvert), contextlib.redirect_stdout(io.StringIO()), \
+                    self.assertRaises(SystemExit) as stop:
+                h.encode(argparse.Namespace(dir=tmp))
+            encoded = json.loads((tmp / 'encoded.json').read_text())
+        self.assertIn('he2-tones-48000-stereo', str(stop.exception))
+        self.assertEqual([e['status'] for e in encoded['encodes']], ['encoded', 'not encoded'])
 
 
 class Judge(unittest.TestCase):
     """The judge on a made-up run: which inputs each bar judges, and what bars
     2 and 5 report, from the commands it runs."""
 
-    def run_judge(self, inputs, decoded):
+    def run_judge(self, inputs, decoded, drop_result=False):
         calls = []
 
         def fake(args, timeout=None, **kw):
@@ -185,7 +198,7 @@ class Judge(unittest.TestCase):
             if 'decode_audio_check.py' in ' '.join(args):
                 files = args[args.index('--out') + 2:]
                 results = [{'status': 'ok', 'model': True, 'length': True, 'timeline': True, 'ffmpeg': 'equal'}
-                           for _ in files]
+                           for _ in files][drop_result:]
                 pathlib.Path(args[args.index('--out') + 1]).write_text(json.dumps({'results': results}))
                 return done(args)
             if args[1] == 'decode-audio' and '--threads' in args:
@@ -222,15 +235,26 @@ class Judge(unittest.TestCase):
         self.assertEqual([r['input'] for r in out['bar6']['results']], ['g', 'g.mka', 'g.implicit', 'c', 'c.copy', 'm'])
         self.assertEqual((code, out['verdict']), (1, 'missed'))
 
-    def test_an_input_not_made_fails_bars_3_and_6(self):
+    def test_a_missing_result_fails_bar_3(self):
         inputs = self.inputs()
-        inputs[4] = item('g.implicit', 'implicit', 'g', path=None, oracle=None, not_made='refused')
-        _, out, calls = self.run_judge(inputs, {r['path']: row(level_blocks=[]) for r in inputs if r['path']})
-        check = next(c for c in calls if 'decode_audio_check.py' in ' '.join(c))
-        self.assertEqual(check[check.index('--out') + 2:], ['g', 'c.copy', 'm'])
-        for bar in ('bar3', 'bar6'):
-            failed = [r for r in out[bar]['results'] if r['input'] == 'g.implicit']
-            self.assertEqual([(r['pass'], r['reason']) for r in failed], [(False, 'not made: refused')], bar)
+        _, out, _ = self.run_judge(inputs, {r['path']: row(level_blocks=[]) for r in inputs}, drop_result=True)
+        self.assertEqual([(r['input'], r['pass'], r.get('reason')) for r in out['bar3']['results']],
+                         [(k, False, 'no result') for k in ('g', 'g.implicit', 'c.copy', 'm')])
+
+    def test_the_corpus_copies_gate_but_stay_out_of_the_reported_numbers(self):
+        inputs = self.inputs()
+        decoded = {r['path']: row(level_blocks=[]) for r in inputs}
+        wide = [{'rms': 1e-5, 'max': 4e-4, 'noise_db': 0.0, 'noise_blocks': 5}] * 2
+        decoded['c.copy'] = row(level_blocks=[], per_channel=wide)
+        _, out, _ = self.run_judge(inputs, decoded)
+        self.assertEqual([r['verdict'] for r in out['bar2']['results'] if r['input'] == 'c.copy'], ['pass'])
+        self.assertEqual((out['bar2']['largest_difference'], out['bar2']['largest_rms']), (1e-6, 1e-7))
+        self.assertEqual(out['bar2']['largest_noise_share'], 0.0)
+        self.assertEqual(out['bar3']['ffmpeg_default'], {'equal': 3, 'covered': 0, 'uncovered': 0})
+        self.assertEqual(out['bar3']['counted'], 4)
+        decoded['c.copy'] = row(level_blocks=[], damaged=1)
+        _, out, _ = self.run_judge(inputs, decoded)
+        self.assertEqual([r['verdict'] for r in out['bar2']['results'] if r['input'] == 'c.copy'], ['FAIL: damaged frames'])
 
     def test_bar5_reports_decode_audio_against_ffmpeg_with_both_lengths(self):
         inputs = self.inputs()
@@ -395,18 +419,17 @@ class Bars(unittest.TestCase):
         return {'inputs': [
             item('g', 'mp4'), item('g.mka', 'mka', 'g', container='matroska'), item('g.implicit', 'implicit', 'g'),
             item('c', 'matroska', container='matroska', set='corpus'), item('c.copy', 'copy', 'c', set='corpus'),
-            item('d', 'matroska', container='matroska', set='corpus'),
-            item('d.copy', 'copy', 'd', set='corpus', path=None, oracle=None, not_made='error')]}
+            item('d', 'matroska', container='matroska', set='corpus')]}
 
     def test_signalling_and_matroska_pairs(self):
         meta = self.meta()
         decoded = {k: row() for k in ('g', 'g.mka', 'g.implicit', 'c', 'c.copy', 'd')}
         bar1, bar2, bar4, bar5 = h.judge_rows(meta, decoded)
         self.assertEqual(bar1, [])
-        self.assertEqual([r['input'] for r in bar2], ['g', 'g.mka', 'g.implicit', 'c', 'c.copy', 'd', 'd.copy'])
-        self.assertEqual(bar2[-1]['verdict'], 'FAIL: not made: error')
+        self.assertEqual([r['input'] for r in bar2], ['g', 'g.mka', 'g.implicit', 'c', 'c.copy', 'd'])
         self.assertEqual(bar4, [{'input': 'g.implicit', 'pass': True}])
         self.assertEqual([(r['input'], r['pass']) for r in bar5], [('g.mka', True), ('c', True), ('d', False)])
+        self.assertEqual(bar5[-1]['reason'], 'no MP4 pair')
         decoded['g.implicit'] = row(sha256='b')
         decoded['c'] = row(rate=24000)
         _, _, bar4, bar5 = h.judge_rows(meta, decoded)
