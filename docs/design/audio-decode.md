@@ -1623,8 +1623,8 @@ Rules for every comparison:
   the stream's length), off by 8 to 117,768 samples on the 9 MP4
   copies of the corpus's Matroska files, and on Matroska are whole
   milliseconds, which do not hold an AAC frame. Samples are compared
-  over that length. The presentation length is bar 3's: the edit
-  list's windows, as the edit list bars define them.
+  over that length. The presentation length, which the edit list and a
+  shortened last packet set, stays bar 3's, as in the AAC-LC bars.
 
 The bars:
 
@@ -1783,7 +1783,10 @@ No speed against FFmpeg is claimed.
   profile `HE-AAC` or `HE-AACv2` (`-show_streams`, on the file read from
   the corpus store), and which the pinned `ffmpeg` decodes cleanly: bar
   2's decode exits with 0 and prints nothing at `-v warning`. A file that
-  fails the last condition is counted in the report and not used. The
+  fails the last condition is counted in the report and not used. A
+  candidate `ffprobe` times out on or cannot read is asked once more,
+  and the report counts the candidates by `ffprobe`'s answer: an audio
+  stream, no audio stream, a timeout or a file it cannot read. The
   selection runs in the job, before any CoreAV command, with the read-only
   credentials only this repository's own runs receive; without them the
   job says so and the set is empty. The run fails at the selection,
