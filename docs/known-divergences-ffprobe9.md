@@ -209,10 +209,15 @@ stored `nclx` bytes and fails when its exact oracle disagreement changes.
   samples (ISO/IEC 14496-3 4.5.1), 384 and 888 of them past the end of
   the media. The edit presents media time up to that end and no further,
   so CoreAV lists them as the last packet's discard padding, as both
-  tools do for the same track without the empty edit. FFmpeg 9.0.2 places
-  the edit's end on the presentation timeline, after the empty edit
-  (13,376 and 21,026 ticks), but the packet's end in media time, so the
-  packet seems to end before the edit does, and it lists no side data.
+  tools do for the same track without the empty edit. FFmpeg 9.0.2 moves
+  the packet later by the empty edit's length but keeps the edit's end in
+  media time. On these two files the packet so moved starts after that
+  end, and it lists no side data. Where it starts before that end and
+  ends after it, FFmpeg 9.0.2 lists the rest of the frame past the end, so
+  both tools list a value (for example 848 against CoreAV's 10).
+- Corpus scope: the record's `level`, `fields` and `conditions` give the
+  case with both values present, defined by the file's bytes alone; an
+  absent value on either side is never excluded.
 - Accepts: on these two files only, while their bytes still have this
   shape (`empty_edit_padding` in `tools/compat-corpus/run.py` reads
   them), CoreAV's Skip Samples side data on the last audio packet with

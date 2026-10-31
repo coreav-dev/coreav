@@ -2311,6 +2311,17 @@
   },
   {
    "id": "KD-FF9-EMPTY-EDIT-PADDING",
+   "level": ["packets"],
+   "fields": ["side_data_list.discard_padding"],
+   "conditions": {
+    "track": "an audio track of an unfragmented movie, without composition offsets, whose first sample description is mp4a with an AudioSpecificConfig of AAC LC (object type 2) at the media time scale, with no dependsOnCoreCoder or extensionFlag and nothing after it but the extension that rules SBR out (0x2b7, object type 5, sbrPresentFlag 0); its frame is 960 or 1,024 samples by frameLengthFlag",
+    "edits": "exactly an empty edit of nonzero duration, then one media edit at rate 1 from media time 0 or later that reaches the end of the samples; neither edit's duration in media ticks falls halfway between two ticks",
+    "samples": "the media header's duration is the samples' total, and the last sample lasts less than a frame",
+    "candidate": "the frame less the last sample's duration",
+    "reference": "the last sample's time less the media time plus the empty edit's duration in media ticks (p), plus a frame, less the end of the samples, when p is before that end and p plus the last sample's duration is after it",
+    "occurrence": "the last packet of that track, by its offset and size; both values present and different"
+   },
+   "basis": "ISO/IEC 14496-12 8.6.6: the media edit ends the presentation at its end in media time; ffprobe 9.0.2 places the packet after the empty edit but keeps that end in media time",
    "accepts": {
     "packets.side_data_list[Skip Samples]": {
      "evidence": "empty edit padding",

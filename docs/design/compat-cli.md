@@ -1450,7 +1450,8 @@ prints keep its derivations, which the stream oracle checks. The others:
   whose output rate is not the track's time scale `ffprobe` counts the
   skip in the track's ticks instead, and with SBR it lists no padding;
   the development files list the same values either way. After a leading
-  empty edit `ffprobe` places that end later by the empty edit's length
+  empty edit `ffprobe` moves the packet later by the empty edit's length
+  but not that end
   ([KD-FF9-EMPTY-EDIT-PADDING](../known-divergences-ffprobe9.md#kd-ff9-empty-edit-padding)).
 - Stream durations: without an edit list, the shorter of the media
   header's and the samples' (the samples' when fragments follow, and

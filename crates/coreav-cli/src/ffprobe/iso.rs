@@ -49,8 +49,8 @@
 //!   skip are counted at the decoder's output rate (twice the core's with
 //!   SBR). A listing of several edits counts the rest of the
 //!   frame its last presented packet is cut to. With a leading empty edit,
-//!   `ffprobe` places the end after the empty edit
-//!   (`KD-FF9-EMPTY-EDIT-PADDING`); CoreAV does not.
+//!   `ffprobe` moves the packet later by the empty edit but not the end
+//!   (`KD-FF9-EMPTY-EDIT-PADDING`); CoreAV moves neither.
 //! - A track whose samples all last 0 ticks lists no packet.
 //!
 //! # Edit lists
