@@ -2,10 +2,11 @@ name: opus-encode
 
 # The Opus bars of docs/design/transcode.md ("Opus bars"): `coreav transcode
 # --audio opus` against FFmpeg's `-c:a libopus` on the same sources,
-# judged by scripts/opus_encode_check.py. The bars are judged against FFmpeg
-# 9.0.2 only: while the oracle FFmpeg that scripts/install-oracle-ffmpeg.sh
-# installs is another version, the job says so and runs no bar. Runs when
-# the encoder or this workflow changes, and on demand.
+# judged by scripts/opus_encode_check.py against the pinned oracle FFmpeg
+# (scripts/oracle-ffmpeg.env). Only a manual run judges the bars, so the
+# judged run is one started on purpose; a run for a change to the encoder
+# or this workflow builds coreav with libopus and checks the oracle, and
+# judges nothing.
 
 on:
   push:
@@ -43,40 +44,29 @@ jobs:
           set -euo pipefail
           sudo apt-get update -q && sudo apt-get install -y --no-install-recommends libopus-dev
           test "$(pkg-config --modversion opus)" = 1.4
-      - name: Cache the oracle FFmpeg
-        id: oracle-cache
+      - name: Cache the pinned FFmpeg
+        id: ffmpeg-cache
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
-          path: ${{ runner.temp }}/coreav-oracle
-          key: linux-x64-oracle-ffmpeg-${{ hashFiles('scripts/install-oracle-ffmpeg.sh', 'scripts/oracle-ffmpeg.env') }}
-      - name: Install the oracle FFmpeg
-        if: steps.oracle-cache.outputs.cache-hit != 'true'
-        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle"
-      - name: Check the oracle is FFmpeg 9.0.2
-        id: oracle
-        run: |
-          set -euo pipefail
-          line=$("$RUNNER_TEMP/coreav-oracle/ffmpeg" -version | head -n 1)
-          echo "$line"
-          if [[ "$line" == *" version n9.0.2-"* || "$line" == *" version 9.0.2 "* ]]; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::notice::The oracle FFmpeg is not 9.0.2 ($line): the Opus bars are judged against 9.0.2 only, so no bar runs."
-            echo "run=false" >> "$GITHUB_OUTPUT"
-          fi
+          path: ${{ runner.temp }}/coreav-oracle-bin
+          key: linux-x64-oracle-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh') }}
+      - name: Install the pinned FFmpeg
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
+      - name: Check the pinned FFmpeg
+        run: python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
       - name: Build coreav with libopus
-        if: steps.oracle.outputs.run == 'true'
         run: cargo build --locked --release -p coreav-cli --features native-h264,libopus
       - name: Judge the Opus bars
-        if: steps.oracle.outputs.run == 'true'
+        if: github.event_name == 'workflow_dispatch'
         env:
           PYTHONDONTWRITEBYTECODE: '1'
         run: |
           python3 -I scripts/opus_encode_check.py --coreav target/release/coreav \
-            --ffmpeg "$RUNNER_TEMP/coreav-oracle/ffmpeg" --ffprobe "$RUNNER_TEMP/coreav-oracle/ffprobe" \
+            --ffmpeg "$RUNNER_TEMP/coreav-oracle-bin/ffmpeg" --ffprobe "$RUNNER_TEMP/coreav-oracle-bin/ffprobe" \
             --work "$RUNNER_TEMP/opus-encode" --out "$RUNNER_TEMP/opus-encode-report.json"
       - name: Keep the report
-        if: always() && steps.oracle.outputs.run == 'true'
+        if: always() && github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: opus-encode-report

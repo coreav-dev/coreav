@@ -629,19 +629,21 @@ stream after it, both in a build with `aac` too (`ci.yml`, job
 ### Opus bars
 
 Fixed before the run, judged by `scripts/opus_encode_check.py` in the
-`opus-encode` workflow against FFmpeg 9.0.2 (the BtbN Linux build
-`n9.0.2-17-g2a571b6068`, the oracle FFmpeg that
-`scripts/install-oracle-ffmpeg.sh` installs; its libopus is its own), with
+`opus-encode` workflow against the pinned oracle FFmpeg (the build
+`scripts/oracle-ffmpeg.env` names, installed by
+`scripts/install-oracle-ffmpeg.sh` and checked against the pin by
+`scripts/oracle_pin.py --verify-bin`; its libopus is its own), with
 CoreAV linking Ubuntu 24.04's `libopus-dev`, libopus 1.4, which the
-workflow checks. While the oracle is another FFmpeg version, the workflow
-runs no bar. Each input runs two arms on the same source:
+workflow checks. Only a manual run of the workflow judges the
+bars; a run for a pull request or a push builds and checks the oracle and
+judges nothing. Each input runs two arms on the same source:
 
-    coreav transcode SRC OUT.mp4 --audio opus [--audio-bitrate K] --encoder ffmpeg --ffmpeg FFMPEG9
-    FFMPEG9 -i SRC -c:v libx264 -c:a libopus [-b:a Kk] OUT.mp4
+    coreav transcode SRC OUT.mp4 --audio opus [--audio-bitrate K] --encoder ffmpeg --ffmpeg FFMPEG
+    FFMPEG -i SRC -c:v libx264 -c:a libopus [-b:a Kk] OUT.mp4
 
-The set: six sources that FFmpeg 9.0.2 makes from its `lavfi` sources, 10 s
-each with 160x120 H.264 video, each at three rates (the default, 32 and
-128 kbit/s), 18 inputs:
+The set: six sources that the oracle FFmpeg makes from its `lavfi`
+sources, 10 s each with 160x120 H.264 video, each at three rates (the
+default, 32 and 128 kbit/s), 18 inputs:
 
 | Source | Audio | Container |
 |---|---|---|
@@ -652,11 +654,11 @@ each with 160x120 H.264 video, each at three rates (the default, 32 and
 | S5 | noise bursts at a syllable rate (4 Hz), mono, 48 kHz, MP3 at 192 kbit/s | Matroska |
 | S6 | 1 kHz sine, stereo, 44.1 kHz, FLAC | MP4 |
 
-1. **O1, decodes.** FFmpeg 9.0.2 decodes the audio of every CoreAV output
-   (`-v error -map 0:a -f null -`) with exit status 0 and no message:
+1. **O1, decodes.** The oracle FFmpeg decodes the audio of every CoreAV
+   output (`-v error -map 0:a -f null -`) with exit status 0 and no message:
    18 of 18.
-2. **O2, the timeline.** For every CoreAV output, `ffprobe` 9.0.2 gives
-   the Opus stream `start_pts` 0, `initial_padding` equal to the
+2. **O2, the timeline.** For every CoreAV output, the oracle `ffprobe`
+   gives the Opus stream `start_pts` 0, `initial_padding` equal to the
    summary's `pre_skip`, and `duration_ts` equal to the summary's
    `samples` and to the FFmpeg arm's `duration_ts`, within 48 samples
    (1 ms; the two resamplers may end a 44.1 kHz source a sample apart):
@@ -667,7 +669,7 @@ each with 160x120 H.264 video, each at three rates (the default, 32 and
    may differ in version, so the bar allows the drift of variable bit rate
    between them, not a different rate control.
 4. **O4, quality.** On the tonal sources at 48 kHz (S1 to S3, 9 inputs),
-   the SNR against the source, every output decoded by FFmpeg 9.0.2 to
+   the SNR against the source, every output decoded by the oracle FFmpeg to
    48 kHz float (the source too) and compared over the presented samples,
    of CoreAV's output is at least the FFmpeg arm's minus 1.0 dB, per input.
    A waveform SNR does not measure a perceptual codec on noise (S4, S5),
