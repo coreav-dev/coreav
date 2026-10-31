@@ -2204,3 +2204,90 @@ fn fixtures(out_var: &str, keep: Option<Keep>) {
         .unwrap();
     }
 }
+
+/// `left_out_covers` takes cover pictures out of the copied item lists: a
+/// `data` box of an item that keeps another, an item that keeps none (an
+/// `ilst` item, or a QuickTime keyed one), each listed as dropped; every
+/// other box is copied as stored. An offset that starts no `data` value
+/// fails before anything is written.
+#[test]
+fn left_out_covers_leave_the_copied_item_lists() {
+    let data = |kind: u32, value: &[u8]| bx(b"data", &cat(&[u32s(&[kind, 0]), value.to_vec()]));
+    let (jpeg, png, art) = (
+        data(13, &[0xFF, 0xD8, 1]),
+        data(14, &[0x89, b'P', 2]),
+        data(13, &[0xFF, 0xD8, 3]),
+    );
+    let title = bx(b"\xa9nam", &data(1, b"title"));
+    let udta = bx(
+        b"udta",
+        &full(
+            b"meta",
+            0,
+            0,
+            &cat(&[
+                full(b"hdlr", 0, 0, b"\0\0\0\0mdirappl\0\0\0\0\0\0\0\0\0"),
+                bx(
+                    b"ilst",
+                    &cat(&[
+                        title.clone(),
+                        bx(b"covr", &cat(&[jpeg.clone(), png.clone()])),
+                    ]),
+                ),
+            ]),
+        ),
+    );
+    let key = "com.apple.quicktime.artwork";
+    let keys = cat(&[
+        u32s(&[0, 1, key.len() as u32 + 8]),
+        b"mdta".to_vec(),
+        key.as_bytes().to_vec(),
+    ]);
+    let meta = bx(
+        b"meta",
+        &cat(&[
+            full(b"hdlr", 0, 0, b"\0\0\0\0mdta\0\0\0\0\0\0\0\0\0\0\0\0\0"),
+            bx(b"keys", &keys),
+            bx(b"ilst", &bx(&1u32.to_be_bytes(), &art)),
+        ]),
+    );
+    let mut f = file(vec![video(10, 5), aac(10, false)]);
+    f.moov_extra = vec![udta, meta];
+    let source = build(&f);
+    let value =
+        |data: &[u8]| source.windows(data.len()).position(|w| w == data).unwrap() as u64 + 16;
+    let contains = |output: &[u8], needle: &[u8]| output.windows(needle.len()).any(|w| w == needle);
+    let left_out = |offsets: Vec<u64>| {
+        remux(
+            &source,
+            &RemuxOptions {
+                left_out_covers: offsets,
+                ..RemuxOptions::default()
+            },
+        )
+    };
+
+    let (summary, output) = left_out(vec![value(&jpeg)]).unwrap();
+    assert_round_trip(&source, &output, &summary);
+    assert!(contains(&output, &bx(b"covr", &png)) && contains(&output, &title));
+    assert!(!contains(&output, &jpeg) && contains(&output, &art));
+    assert_eq!(paths(&summary), ["moov/udta/meta/ilst/covr/data"]);
+    assert_eq!(summary.dropped_boxes[0].offset, value(&jpeg) - 16);
+    assert_eq!(summary.dropped_boxes[0].reason, BoxDropReason::NotCarried);
+
+    let (summary, output) = left_out(vec![value(&art), value(&png), value(&jpeg)]).unwrap();
+    assert_round_trip(&source, &output, &summary);
+    assert!(contains(&output, &bx(b"ilst", &title)) && contains(&output, &bx(b"keys", &keys)));
+    assert!(!contains(&output, &jpeg) && !contains(&output, &png) && !contains(&output, &art));
+    assert_eq!(summary.dropped_boxes.len(), 2);
+    assert_eq!(paths(&summary)[0], "moov/udta/meta/ilst/covr");
+
+    let (_, output) = remux(&source, &RemuxOptions::default()).unwrap();
+    assert!(contains(&output, &jpeg) && contains(&output, &png) && contains(&output, &art));
+    for offsets in [vec![value(&jpeg) + 1], vec![0]] {
+        assert!(matches!(
+            left_out(offsets),
+            Err(ExtractError::Source(Error::NoSuchTrack))
+        ));
+    }
+}

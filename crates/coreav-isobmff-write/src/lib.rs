@@ -248,6 +248,16 @@ pub struct RemuxOptions {
     pub on_unsupported: OnUnsupported,
     /// What happens to metadata.
     pub metadata: Metadata,
+    /// Cover pictures of the movie's item lists to leave out (`covr`, or
+    /// the QuickTime `com.apple.quicktime.artwork` key), each named by
+    /// where its `data` box's value starts in the file (`ItemData::offset`
+    /// of `coreav_isobmff::metadata`). The `data` box is left out of the
+    /// copied `udta` or `meta` box, with its item when no other `data`
+    /// box remains, and listed as dropped (`not_carried`). An offset that
+    /// starts no `data` value of the movie's item lists fails the remux
+    /// with `NoSuchTrack` before anything is written. Sanitization writes
+    /// no item list, so it ignores this.
+    pub left_out_covers: Vec<u64>,
 }
 
 /// What [`remux_mp4`] does with metadata.

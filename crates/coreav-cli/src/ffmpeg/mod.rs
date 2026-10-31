@@ -83,8 +83,11 @@ impl From<WriteFailure> for Stop {
 pub enum Job {
     /// The whole input, these streams (`Track::stream_index`), as MP4.
     Remux {
-        /// The streams, in input order.
+        /// The tracks, in input order.
         streams: Vec<usize>,
+        /// The cover pictures that are not selected, as
+        /// `RemuxOptions::left_out_covers` names them.
+        left_out_covers: Vec<u64>,
         /// The input is Matroska or WebM.
         matroska: bool,
     },
@@ -276,6 +279,7 @@ pub fn plan(
         &report.streams
     };
     let selected = select(command, streams)?;
+    let cover = |i: usize| report.covers.iter().any(|(c, _)| *c == i);
     let kind = |i: usize| streams.get(i).map(|s| s.kind);
     let of = |k: StreamKind| {
         selected
@@ -284,7 +288,7 @@ pub fn plan(
             .filter(move |i| kind(*i) == Some(k))
     };
     let one_video_one_audio = || {
-        let videos: Vec<usize> = of(StreamKind::Video).collect();
+        let videos: Vec<usize> = of(StreamKind::Video).filter(|i| !cover(*i)).collect();
         let audios: Vec<usize> = of(StreamKind::Audio).collect();
         match (videos.as_slice(), audios.as_slice()) {
             _ if videos.len() + audios.len() != selected.len() => Err(Refusal::not_native(
@@ -449,8 +453,20 @@ pub fn plan(
         }
         return Ok(Job::ExtractAudio { stream: *stream });
     }
+    let (pictures, tracks): (Vec<usize>, Vec<usize>) = selected.iter().partition(|i| cover(**i));
+    if tracks.is_empty() {
+        return Err(Refusal::not_native(
+            "cover pictures alone (ffmpeg writes an MP4 file without a track, which ISO/IEC 14496-12 8.3.1 does not allow)",
+        ));
+    }
     Ok(Job::Remux {
-        streams: selected,
+        streams: tracks,
+        left_out_covers: report
+            .covers
+            .iter()
+            .filter(|(i, _)| !pictures.contains(i))
+            .map(|(_, at)| *at)
+            .collect(),
         matroska: container == Container::Matroska,
     })
 }
@@ -804,8 +820,8 @@ fn select(command: &Command, streams: &[Stream]) -> Result<Vec<usize>, Refusal> 
         let best = |kind: StreamKind, score: &dyn Fn(&Stream) -> i64| {
             all.iter()
                 .filter(|(_, s)| s.kind == kind && !disabled(s))
-                .fold(None::<(usize, (bool, i64))>, |best, (i, s)| {
-                    let value = (is_default(s), score(s));
+                .fold(None::<(usize, (bool, bool, i64))>, |best, (i, s)| {
+                    let value = (!s.attached_pic, is_default(s), score(s));
                     match best {
                         Some((_, top)) if top >= value => best,
                         _ => Some((*i, value)),
@@ -957,11 +973,13 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
     let written = output::to_file(&path, force, |out| match job {
         Job::Remux {
             streams,
+            left_out_covers,
             matroska: false,
         } => {
             let options = RemuxOptions {
                 streams: Some(streams.clone()),
                 on_unsupported: OnUnsupported::Fail,
+                left_out_covers: left_out_covers.clone(),
                 ..RemuxOptions::default()
             };
             crate::remux::run(input, &options, &allowlist, out)
@@ -970,6 +988,7 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
         Job::Remux {
             streams,
             matroska: true,
+            ..
         } => {
             let options = MatroskaRemuxOptions {
                 streams: Some(streams.clone()),

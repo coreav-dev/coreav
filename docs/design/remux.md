@@ -187,6 +187,17 @@ round (below), so:
   the remux when it does not fit; the optional boxes (track and movie
   `udta` and `meta`, per-sample boxes) then get what is left, and one that
   does not fit is left out and reported as `too_large`.
+- Cover pictures `RemuxOptions::left_out_covers` names are taken out of
+  the movie's item lists (`moov/udta/meta/ilst`, `moov/meta/ilst`, or an
+  `ilst` directly in `udta`): each is named by where its `data` box's
+  value starts in the file, the offset `coreav_isobmff::metadata` reports.
+  The `data` box is left out, and its item with it when no other `data`
+  box remains; each is reported as `not_carried`, and every other byte of
+  the copied box stays as stored. An offset that starts no `data` value
+  of those lists fails before anything is written, as a stream that does
+  not exist does. `coreav ffmpeg` leaves out the cover pictures a
+  selection does not name (`compat-cli.md`, "Cover pictures");
+  `coreav remux` and the library default leave out none.
 - Copied from the track header: flags (enabled, in movie, in preview),
   layer, alternate group, volume, matrix (rotation) and presentation size;
   the language, as ISO 639-2/T, with QuickTime Macintosh language codes
