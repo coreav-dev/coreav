@@ -186,20 +186,28 @@ def main():
     results = []
     for name, recipe in SOURCES:
         source = sources / name
-        made = run([tools.ffmpeg, "-hide_banner", "-loglevel", "error", "-y", *recipe, str(source)])
-        if made.returncode != 0:
-            results.append({"source": name, "command": "generate",
-                            "problems": [made.stderr.decode(errors="replace")[:500]]})
+        try:
+            made = run([tools.ffmpeg, "-hide_banner", "-loglevel", "error", "-y", *recipe, str(source)])
+            failure = made.stderr.decode(errors="replace")[:500] if made.returncode != 0 else None
+        except subprocess.TimeoutExpired as error:
+            failure = str(error)
+        if failure is not None:
+            results.append({"source": name, "command": "generate", "problems": [failure]})
             continue
         for command, args, outputs, kind in cases(source, out):
             problems = []
-            done = run([tools.coreav, "--strict-safe", *args])
-            if done.returncode != 0:
-                problems.append(f"exit {done.returncode}: {done.stderr.decode(errors='replace').strip()[:500]}")
-            elif kind == "copy":
-                check_copy(tools, source, outputs()[0], problems)
-            else:
-                check_packets(tools, source, outputs(), problems, EXPECTED[kind])
+            # A tool that times out, fails or leaves no output fails this
+            # case alone; the other cases still run and the report is kept.
+            try:
+                done = run([tools.coreav, "--strict-safe", *args])
+                if done.returncode != 0:
+                    problems.append(f"exit {done.returncode}: {done.stderr.decode(errors='replace').strip()[:500]}")
+                elif kind == "copy":
+                    check_copy(tools, source, outputs()[0], problems)
+                else:
+                    check_packets(tools, source, outputs(), problems, EXPECTED[kind])
+            except (subprocess.TimeoutExpired, RuntimeError, KeyError, IndexError, ValueError) as error:
+                problems.append(f"{type(error).__name__}: {str(error)[:500]}")
             results.append({"source": name, "command": command, "problems": problems})
     for r in results:
         print(f"{'FAIL' if r['problems'] else 'ok  '} {r['command']:24} {r['source']}"
