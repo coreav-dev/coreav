@@ -1330,7 +1330,8 @@ fn covers_agree(name: &str, pictures: &[(&str, &str)], selections: &[&[&str]]) {
         "aac",
         "a.m4a",
     ]);
-    let mut args = vec!["-i", "v.mp4", "-i", "a.m4a", "-map", "0:v", "-map", "1:a"];
+    let mut args = vec!["-i", "v.mp4", "-i", "a.m4a"];
+    let mut maps = vec!["-map", "0:v", "-map", "1:a"];
     let inputs: Vec<String> = (2..2 + pictures.len()).map(|n| n.to_string()).collect();
     let dispositions: Vec<String> = (1..=pictures.len())
         .map(|n| format!("-disposition:v:{n}"))
@@ -1338,8 +1339,10 @@ fn covers_agree(name: &str, pictures: &[(&str, &str)], selections: &[&[&str]]) {
     for (((size, file), input), disposition) in pictures.iter().zip(&inputs).zip(&dispositions) {
         let source = format!("testsrc2=size={size}");
         make(&["-f", "lavfi", "-i", &source, "-frames:v", "1", file]);
-        args.extend(["-i", file, "-map", input, disposition, "attached_pic"]);
+        args.extend(["-i", file]);
+        maps.extend(["-map", input, disposition, "attached_pic"]);
     }
+    args.extend(maps);
     args.extend([
         "-c",
         "copy",
