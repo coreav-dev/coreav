@@ -37,7 +37,7 @@
       "field_pattern": "audio:*",
       "filename_pattern": "*",
       "conditions": {
-        "output audio track": "more than one media edit; an edit after the first whose media time is inside an AAC frame",
+        "output audio track": "more than one media edit; an edit after the first whose media time is inside a frame",
         "packets": "no packet missing or extra and every packet equal in data, size and keyframe flag; the first input's times within a tick; at least one later input's times differing, and for each that does, every pts and every dts off by one constant above 0 and below a frame (the inputs' most common packet duration), equal within less than a tick (an offset that falls between ticks) to the distance from the input's own edit's media time, inside a packet, to the next packet start; the output's edit for each such input the input's own: starting at its offset plus the time before its own first media edit, from its own first media time moved to where its first sample is stored in the output (read from the input's file and from both files' stored decode times)",
         "decoded audio": "equal, edit by edit, to the inputs' packets decoded in sequence, each edit after the first read from the first frame boundary at or after its media time"
       },
@@ -77,6 +77,23 @@
       },
       "predicate": "audio_noise",
       "basis": "ISO/IEC 14496-3 (perceptual noise substitution fills bands with noise the bitstream does not define, so the decoded samples depend on the decoder's history); ISO/IEC 14496-12 (an edit's media is the samples from its media time); the same cause as KD-C-AUDIO-RESTART and KD-S-AUDIO-RESTART"
+    },
+    {
+      "id": "KD-J-AUDIO-HELD-FRAME",
+      "level": [
+        "frames"
+      ],
+      "fields": [
+        "decoded audio"
+      ],
+      "field_pattern": "audio:pcm",
+      "filename_pattern": "*",
+      "conditions": {
+        "output audio track": "AC-3 or E-AC-3; more than one media edit; every edit after the first with its media time inside a frame",
+        "decoded audio": "for each edit after the first, exactly one decoded frame presented in the edit before it, ahead of the edit's start, that equals, sample for sample, the whole frame of the packet that holds the edit's media time, decoded in the order ffprobe lists the packets under the output's edits (as for KD-J-AUDIO-NOISE); every other decoded frame of every edit equal to the packets decoded in that order, each edit after the first read from the first frame boundary at or after its media time (as for KD-J-AUDIO-EDIT-START), within one sample"
+      },
+      "predicate": "audio_held_frame",
+      "basis": "ISO/IEC 14496-12 (an edit presents its media from its media time); docs/design/join.md (one edit per input, the input's own pre-roll left unpresented)"
     },
     {
       "id": "KD-J-DTS-SHIFT",

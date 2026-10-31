@@ -213,7 +213,7 @@ fn assert_track(
         assert_eq!(out_track.timescale, src_track.timescale);
         assert_eq!(
             out_track.description.codec_config,
-            src_track.description.codec_config
+            movies::excerpt_config(&src_track.description.codec_config)
         );
         let written = packets(output, movie, out_track.index);
         assert_eq!(written.len(), kept.samples as usize);

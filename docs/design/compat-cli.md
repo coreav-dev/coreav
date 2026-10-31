@@ -970,9 +970,9 @@ implies:
 | a copy to `.mp4` (or `-f mp4`) | `coreav remux`, MP4/MOV or Matroska/WebM input, the selected streams, failing rather than dropping a stream MP4 cannot carry |
 | a copy of one audio stream to `.m4a` (or `-f ipod`) | `coreav extract-audio` |
 | `-ss`, `-t` or `-to`, before or after `-i` | `coreav clip`: one video stream and at most one audio stream |
-| the same, with no video selected | the clip of audio alone (`clip_audio_mp4` of `coreav-isobmff-write`): one AAC stream |
+| the same, with no video selected | the clip of audio alone (`clip_audio_mp4` of `coreav-isobmff-write`): one AAC, FLAC, Apple Lossless, AC-3 or E-AC-3 stream |
 | `-f segment` with MP4 segments | `coreav split --every` the `-segment_time` (2 s when absent) |
-| `-f concat` with an MP4 output | `coreav join` of the list's files (`coreav_cli::concat::read`, with the demuxer's `safe` option): one video stream and at most one audio stream, as `ffmpeg` selects them from the streams the demuxer exposes (below); each is the stream at that index in every file, as the demuxer pairs streams, so a stream the join does not copy (MPEG-4 Visual video or FLAC audio, say) is refused, never left out or replaced |
+| `-f concat` with an MP4 output | `coreav join` of the list's files (`coreav_cli::concat::read`, with the demuxer's `safe` option): one video stream and at most one audio stream, as `ffmpeg` selects them from the streams the demuxer exposes (below); each is the stream at that index in every file, as the demuxer pairs streams, so a stream the join does not copy (MPEG-4 Visual video or MP3 audio, say) is refused, never left out or replaced |
 
 Every other output container, MOV and 3GP included, is refused: the MOV
 muxer's output is not the MP4 writer's.
@@ -1112,18 +1112,19 @@ FFmpeg).**
   (codec, configuration, size, time base), inputs without a stream of the
   selected kind at a selected index (the demuxer pairs streams by index,
   and `join_mp4` copies the streams at the selected indexes), and streams
-  `join_mp4` does not copy (MPEG-4 Visual video, PCM or FLAC audio, say). The join runs to a temporary file and finds these
+  `join_mp4` does not copy (MPEG-4 Visual video, PCM or MP3 audio, say). The join runs to a temporary file and finds these
   at its end; the output is left as it was.
 - A segmented output of a file without video (C32 on such files): `coreav
-  split` cuts at video. A clip without video of other than one AAC
-  stream, or written as M4A.
+  split` cuts at video. A clip without video of other than one AAC,
+  FLAC, Apple Lossless, AC-3 or E-AC-3 stream, or written as M4A.
 - A clip whose range presents no video, or without video no audio (a
   start past the end): `coreav clip` and the clip of audio alone refuse
   it, where `ffmpeg` writes a short file anyway (black box: `-ss 60` on a
   30 s file writes about 2 s; `-ss 3` before `-i` on 2 s of AAC writes one
   frame, after `-i` a file without packets).
 - What the writers do not copy to MP4: subtitle streams, PCM and MP3
-  audio (MP3 by the remux), other audio in a clip than AAC, video other than
+  audio (MP3 by the remux), other audio in a clip than AAC, FLAC, Apple
+  Lossless, AC-3 or E-AC-3, video other than
   H.264 `avc1`, HEVC `hvc1`, AV1 or VP9 in a clip, an M4A file of other than
   one audio stream (C20's `-map 0:a` on a file with several), a clip or
   segments of more than one video or audio stream.
@@ -1366,7 +1367,10 @@ prints keep its derivations, which the stream oracle checks. The others:
   an edit list lasts at least as long as the longest track, in its own
   ticks rounded to the nearest; a timecode track keeps its own.
 - The stream `bit_rate`: PCM and IMA ADPCM their constant rate (sample
-  rate, channels and bits); otherwise the bytes over a duration,
+  rate, channels and bits); AC-3 the rate `dac3`'s `bit_rate_code`
+  names; E-AC-3 its first syncframe's, the frame's size over the audio
+  blocks it holds at its sample rate, not `dec3`'s `data_rate` (at
+  44.1 kHz the frames' sizes differ: `av_eac3.mp4`); otherwise the bytes over a duration,
   truncated, whatever average `esds` or `btrt` declares. Video and audio
   take their whole media, edits aside: the shorter of the media header's
   duration and the samples' (all 176 audio streams of regular samples in
@@ -1429,7 +1433,9 @@ prints keep its derivations, which the stream oracle checks. The others:
   packet; WebVTT tracks are data streams.
 - Packets: one listing merged from every track, in file order, except that
   a packet due more than a second before the next one stored is listed
-  first (that agreed with every interleaving on the development set); the
+  first (that agreed with every interleaving on the development set), and
+  an AC-3 or E-AC-3 packet listed after the packets of other tracks taken
+  before its track's next one (`av_ac3.mp4`, `av_eac3.mp4`); the
   keyframe flag of H.264 and AV1 from the coded data, as the packet oracle
   sets it; the last packet shown of an audio track, and the one presented
   last of a video track, lasting to the end of the presentation; a

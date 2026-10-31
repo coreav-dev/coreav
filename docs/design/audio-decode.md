@@ -635,9 +635,9 @@ Native, written from RFC 9639 (`coreav_audio::flac`).
   blocks, RFC 9639 10.2), MP4's `dfLa` payload (version, flags, then the
   metadata blocks), or the bare 34-byte streaminfo body. FLAC in
   MP4 needed `coreav-isobmff` to name `fLaC` sample entries
-  (`Codec::Flac`, configuration box `dfLa`); it is not on the demuxer's
-  default allowlist, so `coreav probe` output changes only in the codec
-  name of a dropped FLAC stream (`other` before, `flac` now).
+  (`Codec::Flac`, configuration box `dfLa`). It joined the demuxer's
+  default allowlist when the writers began to copy it into MP4
+  (`remux.md`, "Audio sample entries").
 - **Decoding**: frame header with its CRC-8; constant, verbatim, fixed
   (orders 0 to 4) and linear (orders 1 to 32) subframes; wasted bits;
   4- and 5-bit Rice parameters with escaped partitions; left-side,

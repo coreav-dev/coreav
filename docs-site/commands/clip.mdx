@@ -6,7 +6,7 @@ description: "Cut a keyframe-aligned clip of an MP4 or MOV file, without re-enco
 
 import Help from '/snippets/help/clip.mdx';
 
-`coreav clip --start TIME [--end TIME] INPUT OUTPUT` cuts a clip of an MP4 or MOV file into a new MP4 file by stream copy. The clip starts at the latest keyframe at or before `--start`, so nothing has to be re-encoded, and ends at `--end` or at the end of the video. It keeps one video stream and one audio stream, the first of each unless you name them.
+`coreav clip --start TIME [--end TIME] INPUT OUTPUT` cuts a clip of an MP4 or MOV file into a new MP4 file by stream copy. The clip starts at the latest keyframe at or before `--start`, so nothing has to be re-encoded, and ends at `--end` or at the end of the video. It keeps one video stream and one audio stream, the first of each unless you name them. The audio can be AAC, FLAC, Apple Lossless (ALAC), AC-3 or E-AC-3.
 
 The summary ([`coreav.clip/1`](https://github.com/coreav-dev/coreav/blob/main/docs/schema/clip-v1.md)) on standard output says where the clip starts after the start snaps to a keyframe.
 
