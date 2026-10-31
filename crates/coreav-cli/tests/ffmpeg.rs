@@ -1451,25 +1451,7 @@ fn stripped_metadata_agrees_with_the_pinned_ffmpeg() {
         .status()
         .unwrap();
     assert!(status.success());
-    let tags = |path: &Path| -> Value {
-        let out = Command::new(&ffprobe_bin)
-            .args([
-                "-v",
-                "error",
-                "-select_streams",
-                "a",
-                "-show_entries",
-                "format_tags=creation_time,title:stream_tags=language,creation_time,handler_name",
-                "-of",
-                "json",
-            ])
-            .arg(path)
-            .output()
-            .unwrap();
-        assert!(out.status.success(), "{}", path.display());
-        let listed = serde_json::from_slice::<Value>(&out.stdout).unwrap();
-        json!([listed["format"]["tags"], listed["streams"][0]["tags"]])
-    };
+    let tags = |path: &Path| metadata_tags(&ffprobe_bin, path);
     let source = tags(&input);
     assert_eq!(source[0]["creation_time"], "2020-01-02T03:04:05.000000Z");
     assert_eq!(source[1]["language"], "eng");
@@ -1504,5 +1486,107 @@ fn stripped_metadata_agrees_with_the_pinned_ffmpeg() {
     assert_eq!(
         tags(&ours),
         json!([{}, {"language": "und", "handler_name": "SoundHandler"}])
+    );
+}
+
+/// The tags `ffprobe` lists for `path` that `-map_metadata` decides: the
+/// file's creation time and title, and the first audio stream's language,
+/// creation time and handler name.
+fn metadata_tags(ffprobe: &Path, path: &Path) -> Value {
+    let out = Command::new(ffprobe)
+        .args([
+            "-v",
+            "error",
+            "-select_streams",
+            "a",
+            "-show_entries",
+            "format_tags=creation_time,title:stream_tags=language,creation_time,handler_name",
+            "-of",
+            "json",
+        ])
+        .arg(path)
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{}", path.display());
+    let listed = serde_json::from_slice::<Value>(&out.stdout).unwrap();
+    json!([listed["format"]["tags"], listed["streams"][0]["tags"]])
+}
+
+/// `-map_metadata 0:s:0` on an M4A extraction against the pinned `ffmpeg`,
+/// on an audio-only file it makes with a language, a handler name, a title
+/// and a creation time: the file takes its metadata from the stream (its
+/// creation time), and the stream keeps none of its own (the language
+/// `und`), in both outputs.
+#[test]
+fn stream_metadata_agrees_with_the_pinned_ffmpeg() {
+    let Some((ffmpeg_bin, ffprobe_bin)) = oracle() else {
+        return;
+    };
+    let dir = scratch("ffmpeg-stream-metadata-oracle");
+    let input = dir.join("in.m4a");
+    let status = Command::new(&ffmpeg_bin)
+        .args([
+            "-nostdin",
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:duration=1",
+            "-c:a",
+            "aac",
+            "-metadata",
+            "creation_time=2020-01-02T03:04:05Z",
+            "-metadata",
+            "title=A title",
+            "-metadata:s:a:0",
+            "language=eng",
+            "-metadata:s:a:0",
+            "handler_name=A handler",
+        ])
+        .arg(&input)
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let tags = |path: &Path| metadata_tags(&ffprobe_bin, path);
+    let source = tags(&input);
+    assert_eq!(source[0]["title"], "A title");
+    assert_eq!(source[1]["language"], "eng");
+    let (theirs, ours) = (dir.join("ffmpeg.m4a"), dir.join("coreav.m4a"));
+    let command = |output: &Path| -> Vec<String> {
+        [
+            "-y",
+            "-i",
+            input.to_str().unwrap(),
+            "-acodec",
+            "copy",
+            "-map",
+            "0",
+            "-map_metadata",
+            "0:s:0",
+        ]
+        .iter()
+        .map(|a| (*a).to_owned())
+        .chain([output.display().to_string()])
+        .collect()
+    };
+    let status = Command::new(&ffmpeg_bin)
+        .args(["-nostdin", "-v", "error"])
+        .args(command(&theirs))
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let args = command(&ours);
+    let r = ffmpeg(&args.iter().map(String::as_str).collect::<Vec<_>>());
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    assert_eq!(tags(&ours), tags(&theirs));
+    let created = "2020-01-02T03:04:05.000000Z";
+    assert_eq!(
+        tags(&ours),
+        json!([
+            {"creation_time": created},
+            {"creation_time": created, "language": "und", "handler_name": "SoundHandler"}
+        ])
     );
 }
