@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """The oracle FFmpeg pin (scripts/oracle-ffmpeg.env), for Python readers,
-and the check that it stays the only one.
+and the checks for its pin and shared audio decoding options.
 
 `load()` returns the pin's NAME=value lines as a dict. With `--check`, fails,
 naming the file and line, when a tracked file pins an FFmpeg of its own.
@@ -71,6 +71,10 @@ def tracked(root):
 
 
 def problems(root):
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+    import oracle_audio
+
+    yield from oracle_audio.problems(root)
     pin = load(root)
     own = [re.compile(re.escape(pin[name])) for name in ('BUILD', 'ARCHIVE', 'SHA256', 'LAV_SHA256', 'X264_COMMIT')]
     own.append(re.compile(rf'\b{re.escape(pin["X264_COMMIT"][:7])}\b'))
@@ -128,7 +132,7 @@ def main():
     for problem in found:
         print(problem, file=sys.stderr)
     if found:
-        print(f'oracle_pin.py: {len(found)} oracle pin violation(s)', file=sys.stderr)
+        print(f'oracle_pin.py: {len(found)} oracle policy violation(s)', file=sys.stderr)
         return 1
     return 0
 

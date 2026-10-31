@@ -12,7 +12,9 @@ import Help from '/snippets/help/ffprobe.mdx';
 
 `coreav ffprobe ARGS` takes an `ffprobe` command line in `ffprobe`'s own syntax and answers it from CoreAV's own probes. It prints the format, stream, chapter, program and packet sections that the container describes, in `ffprobe`'s writers (`default`, `compact`, `csv`, `flat` and `json`). It reads MP4, MOV, Matroska, WebM and MPEG-TS files, and `https://` URLs.
 
-A command line outside what it implements, such as `-show_frames`, which needs a decoder, is refused in strict-safe mode and goes to the real `ffprobe` otherwise ([strict-safe mode and the fallback](/strict-safe)).
+`-show_frames` and `-count_frames` decode the selected streams with CoreAV's own decoders: MP3, FLAC and PCM, and H.264 in a build with the `native-h264` feature. A stream of another codec is refused by name.
+
+A command line outside what it implements, such as `-show_data`, or frames of a codec CoreAV does not decode, is refused in strict-safe mode and goes to the real `ffprobe` otherwise ([strict-safe mode and the fallback](/strict-safe)).
 
 ## Examples
 

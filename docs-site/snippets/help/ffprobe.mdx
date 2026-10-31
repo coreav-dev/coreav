@@ -9,11 +9,14 @@ See docs/measurements/compat-ffprobe.md.
 
 The common ffprobe invocations, over CoreAV's own probes. Options:
   -show_format -show_streams -show_chapters -show_programs -show_packets
-  -show_error -count_packets -show_entries SECTION[=KEYS][:...]
+  -show_frames -show_error -count_packets -count_frames
+  -show_entries SECTION[=KEYS][:...]
   -select_streams SPEC -read_intervals INTERVALS -f FORMAT
   -of|-print_format default|compact|csv|flat|json[=OPTIONS]
   -pretty -sexagesimal -v LEVEL -loglevel LEVEL -hide_banner -nostdin
 Reads MP4, MOV, Matroska, WebM and MPEG-TS files and HTTP(S) URLs.
+Frames are decoded for MP3, FLAC and PCM, and for H.264 in a build
+with CoreAV's H.264 decoder; other codecs' frames are refused.
 
 For untrusted input, set COREAV_STRICT_SAFE=1: anything else is then
 refused (exit status 4). Without it, anything else runs the ffprobe

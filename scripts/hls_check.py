@@ -58,6 +58,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import clip_check as cc  # noqa: E402
 import remux_check  # noqa: E402
 import track_boxes  # noqa: E402
+from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT  # noqa: E402
 
 VIDEO_KEYS = ("codec_name", "profile", "width", "height", "pix_fmt")
 AUDIO_KEYS = ("codec_name", "profile", "sample_rate", "channels")
@@ -115,7 +116,7 @@ def packets(path, index):
 
 def frames(path, index=None):
     """(time, hash) of every decoded frame of one stream, `-copyts`."""
-    cmd = ["ffmpeg", "-v", "error", *THREADS, "-copyts", "-i", str(path)]
+    cmd = ["ffmpeg", "-v", "error", *THREADS, "-copyts", *AUDIO_DECODE_INPUT, "-i", str(path)]
     if index is not None:
         cmd += ["-map", f"0:{index}"]
     # Frames keep their decoded times in the stream's own time base: no

@@ -50,6 +50,7 @@ from fractions import Fraction
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 import writer_boxes  # noqa: E402
+from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT  # noqa: E402
 
 IN_SCOPE = (".mp4", ".mov", ".m4a")
 
@@ -123,7 +124,7 @@ def framemd5(ffmpeg, path, index, raw=False):
     # applies the edits itself (docs/design/edit-list-writers.md, common
     # decision 3).
     out = run([ffmpeg, "-v", "error", "-copyts", *(("-ignore_editlist", "1") if raw else ()),
-               "-i", path, "-map", f"0:{index}", "-f", "framemd5", "-"])
+               *AUDIO_DECODE_INPUT, "-i", path, "-map", f"0:{index}", "-f", "framemd5", "-"])
     return [line for line in out.decode().splitlines() if line and not line.startswith("#")]
 
 

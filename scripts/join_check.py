@@ -57,6 +57,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 import clip_check as cc  # noqa: E402
 import remux_check  # noqa: E402
+from oracle_audio import INPUT_ARGS as AUDIO_DECODE_INPUT  # noqa: E402
 
 KD_FILE = pathlib.Path(__file__).resolve().parent.parent / "docs" / "known-divergences-join.json"
 
@@ -367,7 +368,7 @@ def _decode_adts(ffmpeg, frames, numbers=None, fmt="aac"):
     placed). None when decoding fails."""
     fd, decoded = tempfile.mkstemp(suffix=".f32", dir=cc._work())
     os.close(fd)
-    result = subprocess.run([ffmpeg, "-v", "error", "-y", "-f", fmt, "-i", "-", "-c:a", "pcm_f32le", "-f",
+    result = subprocess.run([ffmpeg, "-v", "error", "-y", "-f", fmt, *AUDIO_DECODE_INPUT, "-i", "-", "-c:a", "pcm_f32le", "-f",
                              "f32le", decoded], input=b"".join(frames), capture_output=True, check=False)
     positions = _decode_positions(ffmpeg, frames, numbers, fmt=fmt)
     if result.returncode != 0 or positions is None:
@@ -383,7 +384,7 @@ def _decode_positions(ffmpeg, frames, numbers=None, last=False, fmt="aac"):
     packet (ffmpeg gives none for the first packet of some streams), so the
     frames' own times say which packet each one decodes. None when that
     fails."""
-    listing = subprocess.run([ffmpeg, "-v", "error", "-f", fmt, "-i", "-", "-f", "framemd5", "-"],
+    listing = subprocess.run([ffmpeg, "-v", "error", "-f", fmt, *AUDIO_DECODE_INPUT, "-i", "-", "-f", "framemd5", "-"],
                              input=b"".join(frames), capture_output=True, check=False)
     if listing.returncode != 0:
         return None
