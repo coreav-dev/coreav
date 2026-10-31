@@ -1194,6 +1194,33 @@ fn a_cover_picture_is_copied_only_when_selected() {
     assert_eq!(listed(&output), (vec![V, A], vec![]));
 }
 
+/// A `meta` box needs a handler box (ISO/IEC 14496-12 8.11.1): without one
+/// its item list's cover picture is no stream, as the pinned `ffprobe`
+/// lists it (black box); a handler of any type keeps it.
+#[test]
+fn a_cover_picture_needs_the_meta_handler() {
+    let dir = scratch("ffmpeg-cover-handler");
+    let picture = jpeg(640, 480);
+    let input = covered(
+        &dir,
+        "in.mp4",
+        av_movie_with(aac_entry(), false),
+        &[std::slice::from_ref(&picture)],
+    );
+    let bytes = std::fs::read(&input).unwrap();
+    let hdlr = bytes.windows(4).rposition(|w| w == b"hdlr").unwrap();
+    for (name, at, kind, expected) in [
+        ("unknown.mp4", hdlr + 12, b"zzzz", vec![V, A, PICTURE]),
+        ("none.mp4", hdlr, b"free", vec![V, A]),
+    ] {
+        let mut changed = bytes.clone();
+        changed[at..at + 4].copy_from_slice(kind);
+        let path = dir.join(name);
+        std::fs::write(&path, changed).unwrap();
+        assert_eq!(listed(&path), (expected, vec![picture.clone()]), "{name}");
+    }
+}
+
 /// Of two cover pictures, the one selected stays.
 #[test]
 fn of_two_cover_pictures_the_selected_one_stays() {
