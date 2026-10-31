@@ -312,8 +312,10 @@ pub struct IsoProbed {
     /// Per track, the decode step of its first samples.
     pub steps: Vec<Option<i64>>,
     /// The cover pictures' streams: index, position and size of the one
-    /// packet each, which `ffprobe` lists before every other.
-    pub covers: Vec<(usize, u64, u64)>,
+    /// packet each, which `ffprobe` lists before every other. No position
+    /// for a compressed movie box, whose offsets are in the inflated box,
+    /// not in the file.
+    pub covers: Vec<(usize, Option<u64>, u64)>,
     /// The chapter picture tracks ([`super::iso_meta::IsoMeta::chapter_pictures]`), by
     /// index.
     pub pictures: Vec<usize>,
@@ -556,6 +558,11 @@ pub fn probe<S: Source>(source: &mut S, size: u64, name: &str) -> Result<IsoProb
         .collect();
     let covers = cover_streams(&mut report, &spans, &meta.covers);
     report.covers = covers.iter().map(|(index, at, _)| (*index, *at)).collect();
+    let in_file = !probed.movie.compressed;
+    let covers = covers
+        .into_iter()
+        .map(|(index, at, size)| (index, in_file.then_some(at), size))
+        .collect();
     let pictures = probed
         .movie
         .tracks
@@ -3104,7 +3111,7 @@ pub struct IsoProbedPackets {
     /// See [`IsoProbed::steps`].
     pub steps: Vec<Option<i64>>,
     /// See [`IsoProbed::covers`].
-    pub covers: Vec<(usize, u64, u64)>,
+    pub covers: Vec<(usize, Option<u64>, u64)>,
     /// See [`IsoProbed::pictures`].
     pub pictures: Vec<usize>,
 }
@@ -3134,7 +3141,7 @@ struct IsoPackets<S> {
     /// Per track, the decode step of its first samples.
     steps: Vec<Option<i64>>,
     /// The cover pictures' packets.
-    covers: Vec<(usize, u64, u64)>,
+    covers: Vec<(usize, Option<u64>, u64)>,
     /// See [`IsoProbed::pictures`].
     pictures: Vec<usize>,
 }
@@ -3205,7 +3212,7 @@ impl<S: Source> PacketSource for IsoPackets<S> {
             let packet = Packet {
                 stream,
                 size,
-                pos: Some(pos),
+                pos,
                 keyframe: true,
                 ..Packet::default()
             };

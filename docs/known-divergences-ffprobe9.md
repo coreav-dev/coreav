@@ -311,6 +311,15 @@ mask them, and the measured agreement rates still count them as failures.
   padding it lists on the last packet is off by the empty edit's length,
   or missing. CoreAV lists what the edit list presents (ISO/IEC 14496-12
   8.6.6).
+- **Cover picture positions in a compressed movie.** A cover picture's
+  bytes are stored inside the movie box. When that box is compressed
+  (QuickTime `cmov`, [`design/compressed-movie.md`](design/compressed-movie.md)),
+  the picture has no position in the file. The pinned `ffprobe` (black
+  box) prints the picture's offset inside the inflated movie box as its
+  packet's `pos`. In the file, that offset falls on other bytes (inside
+  `mdat`, on a synthetic file with three pictures). CoreAV lists those
+  packets without a position. Track packets keep their file positions in
+  both.
 - **Highlight metadata as chapters.** Some movies store highlight times
   in an `HMMT` user-data atom rather than in a referenced chapter track or
   a `chpl` list. FFmpeg prints a chapter from that atom. CoreAV reads the

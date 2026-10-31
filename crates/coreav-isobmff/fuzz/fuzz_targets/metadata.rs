@@ -25,7 +25,7 @@ fuzz_target!(|data: &[u8]| {
                         mean.as_ref().map_or(0, Vec::len) + name.as_ref().map_or(0, Vec::len)
                     }
                 };
-                key + data.as_ref().map_or(0, |d| d.value.len())
+                key + data.iter().map(|d| d.value.len()).sum::<usize>()
             }
         };
     }
