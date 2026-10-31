@@ -454,10 +454,16 @@ jobs:
     # change reaches every project (the lock file, this workflow). A finding
     # fails the job; its input and output stay off the log and off the
     # artifacts (scripts/fuzz_run.sh), and are found again locally.
+    # Two shards of whole projects (scripts/fuzz_run.sh shard), each target
+    # for the seconds the whole plan gives it.
     needs: ci-changes
     if: needs.ci-changes.outputs.fuzz-plan != ''
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     concurrency:
-      group: ${{ github.workflow }}-fuzz-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      group: ${{ github.workflow }}-fuzz-${{ strategy.job-index }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
@@ -470,26 +476,32 @@ jobs:
           path: target/fuzz
           key: fuzz-target-${{ hashFiles('scripts/fuzz_run.sh', 'Cargo.lock', 'crates/*/fuzz/Cargo.lock') }}
           restore-keys: fuzz-target-
-      - name: Build the fuzz projects
+      - name: Build the fuzz projects of this shard
         env:
           PLAN: ${{ needs.ci-changes.outputs.fuzz-plan }}
+          SHARD: ${{ matrix.shard }}
         run: |
           printf '%s\n' "$PLAN" > "$RUNNER_TEMP/fuzz-plan.txt"
-          scripts/fuzz_run.sh build "$RUNNER_TEMP/fuzz-plan.txt"
+          scripts/fuzz_run.sh shard "$RUNNER_TEMP/fuzz-plan.txt" "$SHARD" 2 > "$RUNNER_TEMP/fuzz-shard.txt"
+          if [ -s "$RUNNER_TEMP/fuzz-shard.txt" ]; then
+            scripts/fuzz_run.sh build "$RUNNER_TEMP/fuzz-shard.txt"
+          fi
       - name: Run each target
         env:
           FUZZ_BUDGET: 480
           # The fuzz campaign's AddressSanitizer options
           # (docs/design/fuzz-campaign.md, tools/fuzz-campaign/campaign.py).
           ASAN_OPTIONS: quarantine_size_mb=64
+          SHARD: ${{ matrix.shard }}
         run: |
           set -euo pipefail
           n=$(wc -l < "$RUNNER_TEMP/fuzz-plan.txt")
           seconds=$(( FUZZ_BUDGET / n ))
           seconds=$(( seconds > 30 ? 30 : seconds < 5 ? 5 : seconds ))
-          echo "Each of the $n targets runs for $seconds seconds." >> "$GITHUB_STEP_SUMMARY"
-          if ! scripts/fuzz_run.sh run "$RUNNER_TEMP/fuzz-plan.txt" "$seconds" "$RUNNER_TEMP/fuzz"; then
-            echo "A target failed. Run it locally: scripts/fuzz_run.sh run PLAN $seconds OUT, with the plan above; the input and output are in OUT/findings." >> "$GITHUB_STEP_SUMMARY"
+          echo "Each of the $n targets runs for $seconds seconds; this shard runs $(wc -l < "$RUNNER_TEMP/fuzz-shard.txt") of them." >> "$GITHUB_STEP_SUMMARY"
+          if [ ! -s "$RUNNER_TEMP/fuzz-shard.txt" ]; then exit 0; fi
+          if ! scripts/fuzz_run.sh run "$RUNNER_TEMP/fuzz-shard.txt" "$seconds" "$RUNNER_TEMP/fuzz"; then
+            echo "A target failed. Run it locally: scripts/fuzz_run.sh shard PLAN $SHARD 2 > SHARD, then scripts/fuzz_run.sh run SHARD $seconds OUT, with the plan above; the input and output are in OUT/findings." >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
 
@@ -528,19 +540,12 @@ jobs:
           scripts/install-oracle-mediainfo.sh "$RUNNER_TEMP/coreav-oracle-bin"
       - name: Use pinned binaries
         run: echo "$RUNNER_TEMP/coreav-oracle-bin" >> "$GITHUB_PATH"
-      - name: Cache generated fixtures
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
-        with:
-          path: ${{ runner.temp }}/coreav-fixtures
-          key: linux-x64-fixtures-ffmpeg-7.0.2-${{ hashFiles('scripts/gen-fixtures.sh') }}
-      # Regenerate even after a cache hit: every run must exercise
-      # generation, and required cases must never silently disappear.
+      # Generated on every run: every run must exercise generation, and
+      # required cases must never silently disappear.
       - name: Generate all required fixtures
         env:
           COREAV_REQUIRE_ALL_FIXTURES: '1'
-        run: |
-          rm -rf "$RUNNER_TEMP/coreav-fixtures"
-          scripts/gen-fixtures.sh "$RUNNER_TEMP/coreav-fixtures"
+        run: scripts/gen-fixtures.sh "$RUNNER_TEMP/coreav-fixtures"
       - name: Build test-only comparator
         run: cargo build --locked -p coreav-oracle
       - name: Test capture normalization
@@ -645,144 +650,6 @@ jobs:
             "$RUNNER_TEMP/coreav-fixtures" ffmpeg
           python3 scripts/cli_hostile_check.py --coreav target/release/coreav \
             --suite "$RUNNER_TEMP/coreav-hostile"
-      # docs/design/decode.md and docs/design/thumbnails.md: the sandboxed
-      # FFmpeg fallback (a non-default feature) and thumbnails. Bars on the
-      # fixtures: every frame of every allowlisted video fixture equal to
-      # FFmpeg's framemd5 through CoreAV's decoder, every thumbnail at least
-      # 30 dB against FFmpeg's of the same frame and size (gross errors; the
-      # corpus bars are in docs/design/thumbnails.md); the hostile suite
-      # and flipped-byte copies of the fixtures through `coreav thumbnail`
-      # with no crash, signal, hang or out-of-memory.
-      # dav1d for AV1 (docs/design/decode.md, "dav1d") links the system's
-      # libdav1d; the pinned FFmpeg's libdav1d is the reference. libvpx for
-      # VP8 and VP9 ("libvpx") links the system's libvpx; the pinned FFmpeg's
-      # own VP8 and VP9 decoders are the reference.
-      - name: Install libdav1d and libvpx
-        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends libdav1d-dev libvpx-dev
-      - name: Build coreav with the FFmpeg fallback, dav1d and libvpx, and the decode oracle
-        run: |
-          cargo build --locked --release -p coreav-cli -p coreav-decode-oracle \
-            --features coreav-cli/ffmpeg-fallback,coreav-cli/dav1d,coreav-cli/libvpx,coreav-decode-oracle/dav1d,coreav-decode-oracle/libvpx \
-            --target-dir target/fallback
-      - name: Decode boundary and thumbnail tests against the pinned FFmpeg
-        run: |
-          set -euo pipefail
-          cargo test --locked --release -p coreav-backend-ffmpeg --test decode -- --ignored
-          cargo test --locked --release -p coreav-backend-h264 --test decode -- --ignored
-          # The memory budget bounds the decoder's allocation on every thread
-          # (docs/design/limits.md, bar 5); --nocapture puts the numbers in the log.
-          cargo test --locked --release -p coreav-backend-h264 --test memory -- --ignored --nocapture
-          cargo test --locked --release -p coreav-worker --features ffmpeg --test ffmpeg -- --ignored
-          cargo test --locked --release -p coreav-backend-dav1d --features dav1d --test decode \
-            -- --include-ignored
-          cargo test --locked --release -p coreav-backend-libvpx --features libvpx --test decode \
-            -- --include-ignored
-          cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx --test thumbnail \
-            --target-dir target/fallback -- --include-ignored
-      # docs/design/transcode.md: the Annex B reader on the pinned FFmpeg's
-      # libx264 output (and an x264 program's, when the runner has one),
-      # checked by FFmpeg decoding every prefix of the samples. A missing
-      # ffmpeg fails here instead of skipping.
-      - name: The transcode Annex B reader against the pinned FFmpeg
-        env:
-          COREAV_REQUIRE_FFMPEG: '1'
-        run: cargo test --locked --release -p coreav-transcode --test encoders
-      # The FFmpeg-compatible Y'CbCr resize against the pinned FFmpeg's
-      # `scale` (docs/design/thumbnails.md, "Y'CbCr to Y'CbCr"), on
-      # generated pictures and size_vp9_resize.mp4; a missing ffmpeg or
-      # fixture fails here instead of skipping.
-      - name: The Y'CbCr resize against FFmpeg's scale
-        env:
-          COREAV_REQUIRE_FFMPEG: '1'
-          COREAV_FIXTURES: ${{ runner.temp }}/coreav-fixtures
-        run: cargo test --locked --release -p coreav-frame --test ffmpeg_scale
-      # `coreav transcode` end to end (docs/design/transcode.md): the
-      # fixtures with both encoders (the pinned FFmpeg's libx264 and an x264
-      # program built from the same commit, its source deleted after the
-      # build), checked against ffprobe of the source and FFmpeg's own
-      # encode, and hostile encoder scripts. A missing program or fixture
-      # fails here instead of skipping.
-      - name: Cache the x264 program
-        id: x264-cache
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
-        with:
-          path: ${{ runner.temp }}/coreav-x264
-          key: linux-x64-x264-4613ac3-${{ hashFiles('scripts/install-x264.sh') }}
-      - name: Build x264
-        if: steps.x264-cache.outputs.cache-hit != 'true'
-        run: |
-          sudo apt-get install -y --no-install-recommends nasm
-          scripts/install-x264.sh "$RUNNER_TEMP/coreav-x264"
-      - name: coreav transcode on the fixtures, with both encoders
-        env:
-          COREAV_REQUIRE_FFMPEG: '1'
-          COREAV_FFMPEG: ${{ runner.temp }}/coreav-oracle-bin/ffmpeg
-          COREAV_X264: ${{ runner.temp }}/coreav-x264/x264
-          COREAV_FIXTURES: ${{ runner.temp }}/coreav-fixtures
-        run: |
-          cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx --test transcode \
-            --target-dir target/fallback
-      # docs/design/transcode.md, bar B9: the coreav ffmpeg command lines that
-      # encode with libx264, on the fixtures, each arm against FFmpeg running
-      # the same command line. The ffmpeg arm names no x264 program, so the
-      # pipeline falls back to the pinned FFmpeg's libx264.
-      - name: coreav ffmpeg with libx264 on the fixtures (B9)
-        env:
-          PYTHONDONTWRITEBYTECODE: '1'
-        run: |
-          python3 -I scripts/transcode_check.py --compat --coreav target/fallback/release/coreav \
-            --ffmpeg "$RUNNER_TEMP/coreav-oracle-bin/ffmpeg" --ffprobe "$RUNNER_TEMP/coreav-oracle-bin/ffprobe" \
-            --preflight "$RUNNER_TEMP/coreav-fixtures/basic.mp4" --fixtures "$RUNNER_TEMP/coreav-fixtures" \
-            --arm "x264=COREAV_X264=$RUNNER_TEMP/coreav-x264/x264" --arm ffmpeg=COREAV_X264=none \
-            --jobs 4 --out "$RUNNER_TEMP/coreav-b9"
-      - name: Frames and thumbnails of the fixtures against FFmpeg
-        env:
-          PYTHONDONTWRITEBYTECODE: '1'
-        run: |
-          python3 -I scripts/thumbnail_oracle.py --coreav target/fallback/release/coreav \
-            --decode-oracle target/fallback/release/decode-oracle \
-            --fixtures "$RUNNER_TEMP/coreav-fixtures" --report "$RUNNER_TEMP/coreav-thumbnail-oracle.json"
-          python3 -I scripts/thumbnail_oracle.py --coreav target/fallback/release/coreav \
-            --decode-oracle target/fallback/release/decode-oracle --backend dav1d \
-            --fixtures "$RUNNER_TEMP/coreav-fixtures" --report "$RUNNER_TEMP/coreav-thumbnail-oracle-dav1d.json"
-          python3 -I scripts/thumbnail_oracle.py --coreav target/fallback/release/coreav \
-            --decode-oracle target/fallback/release/decode-oracle --backend libvpx \
-            --fixtures "$RUNNER_TEMP/coreav-fixtures" --report "$RUNNER_TEMP/coreav-thumbnail-oracle-libvpx.json"
-      # docs/design/thumbnails.md, "Frames nothing depends on": --exact gives
-      # the same image whether disposable packets are skipped or not.
-      - name: Exact thumbnails with skipped packets against decoding every packet
-        env:
-          PYTHONDONTWRITEBYTECODE: '1'
-        run: |
-          python3 -I scripts/exact_skip_check.py --decode-oracle target/fallback/release/decode-oracle \
-            --times 4 --matroska --fixtures "$RUNNER_TEMP/coreav-fixtures"
-      # docs/design/seek.md: a thumbnail planned from a window of the packets
-      # decodes what one planned from every packet decodes (bar 1), and
-      # packets_from(i) lists what packets() lists after i packets (bar 2).
-      - name: Thumbnails planned from a window against planned from every packet
-        env:
-          PYTHONDONTWRITEBYTECODE: '1'
-          COREAV_FIXTURES: ${{ runner.temp }}/coreav-fixtures
-        run: |
-          python3 -I scripts/seek_check.py --decode-oracle target/fallback/release/decode-oracle \
-            --times 64 --fixtures "$RUNNER_TEMP/coreav-fixtures"
-          cargo test --locked --release -p coreav-isobmff --test seek
-      - name: The hostile-input suite through coreav thumbnail
-        env:
-          PYTHONDONTWRITEBYTECODE: '1'
-        run: |
-          python3 -I scripts/cli_hostile_check.py --coreav target/fallback/release/coreav \
-            --suite "$RUNNER_TEMP/coreav-hostile" --thumbnail --mutate "$RUNNER_TEMP/coreav-fixtures"
-      # docs/design/transcode.md, bar B6: every hostile file, and flipped-byte
-      # copies of the fixtures, through `coreav transcode` with the x264
-      # program: an output or an error object, nothing left behind.
-      - name: The hostile-input suite through coreav transcode
-        env:
-          PYTHONDONTWRITEBYTECODE: '1'
-        run: |
-          python3 -I scripts/cli_hostile_check.py --coreav target/fallback/release/coreav \
-            --suite "$RUNNER_TEMP/coreav-hostile" --mutate "$RUNNER_TEMP/coreav-fixtures" \
-            --transcode "--encoder x264 --x264 $RUNNER_TEMP/coreav-x264/x264"
       # docs/design/policy-check.md: `coreav check` with the example policies
       # and a tight test policy on every fixture and every hostile file. Each
       # verdict is checked for crashes, determinism (two runs, same bytes),
@@ -859,6 +726,147 @@ jobs:
         run: |
           python3 -I tools/oracle/writer_kd_audit_cli.py --oracle text --coreav target/release/coreav \
             --media "$RUNNER_TEMP/coreav-fixtures" --mediainfo "$RUNNER_TEMP/coreav-oracle-bin/mediainfo"
+      # Built on main for the cache only: isobmff-writers, isobmff-decode
+      # and b9-shard restore this job's Rust cache entry, and isobmff-decode and
+      # b9-shard run this build (docs/design/ci-checks.md, "Caches").
+      - name: Install libdav1d and libvpx for the cache
+        if: github.ref == 'refs/heads/main'
+        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends libdav1d-dev libvpx-dev
+      - name: Build coreav with the FFmpeg fallback, dav1d and libvpx, and the decode oracle, for the cache
+        if: github.ref == 'refs/heads/main'
+        run: |
+          cargo build --locked --release -p coreav-cli -p coreav-decode-oracle \
+            --features coreav-cli/ffmpeg-fallback,coreav-cli/dav1d,coreav-cli/libvpx,coreav-decode-oracle/dav1d,coreav-decode-oracle/libvpx \
+            --target-dir target/fallback
+          cargo test --no-run --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx \
+            --test thumbnail --test transcode --target-dir target/fallback
+      - name: Preserve normalized output and diffs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: oracle-output
+          path: |
+            ${{ runner.temp }}/coreav-oracle-check
+            ${{ runner.temp }}/coreav-oracle-executable
+            ${{ runner.temp }}/coreav-isobmff-oracle/known-divergences.json
+            ${{ runner.temp }}/coreav-isobmff-oracle/compare.log
+            ${{ runner.temp }}/coreav-compat.json
+            ${{ runner.temp }}/coreav-compat-commands.json
+            ${{ runner.temp }}/coreav-extract.json
+            ${{ runner.temp }}/coreav-extract-cli.json
+            ${{ runner.temp }}/coreav-text.json
+          if-no-files-found: ignore
+
+
+  # The ISO base media fixtures that isobmff-writers, isobmff-decode and
+  # b9-shard check, generated once a run so that they all, and every B9
+  # shard, check the same bytes: generation is not byte for byte
+  # reproducible. Kept between runs under a key of the generator, every
+  # file it runs from scripts/, and the FFmpeg install; isobmff-fixtures
+  # generates its own on every run (docs/design/ci-checks.md, "The fixture
+  # jobs").
+  isobmff-fixture-set:
+    needs: ci-changes
+    if: >-
+      needs.ci-changes.outputs.run == 'true' &&
+      (github.event_name != 'pull_request' || !github.event.pull_request.draft)
+    concurrency:
+      group: ${{ github.workflow }}-isobmff-fixture-set-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Key the fixtures by what generates them
+        id: key
+        run: |
+          set -euo pipefail
+          helpers=$(grep -o '\$SCRIPTS/[A-Za-z0-9_.-]*' scripts/gen-fixtures.sh | sed 's|^\$SCRIPTS/|scripts/|' | sort -u)
+          echo "key=linux-x64-fixtures-$(cat scripts/gen-fixtures.sh scripts/install-oracle-ffmpeg.sh $helpers | sha256sum | cut -c1-32)" >> "$GITHUB_OUTPUT"
+      - name: Restore the fixtures
+        id: fixtures
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/coreav-fixtures
+          key: ${{ steps.key.outputs.key }}
+      - name: Cache pinned black-box binaries
+        if: steps.fixtures.outputs.cache-hit != 'true'
+        id: ffmpeg-cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/coreav-oracle-bin
+          key: linux-x64-ffmpeg-7.0.2-mediainfo-26.10-${{ hashFiles('scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
+      - name: Install pinned FFmpeg, ffprobe and MediaInfo
+        if: steps.fixtures.outputs.cache-hit != 'true' && steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        run: |
+          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
+          scripts/install-oracle-mediainfo.sh "$RUNNER_TEMP/coreav-oracle-bin"
+      - name: Generate all required fixtures
+        if: steps.fixtures.outputs.cache-hit != 'true'
+        env:
+          COREAV_REQUIRE_ALL_FIXTURES: '1'
+        run: |
+          export PATH="$RUNNER_TEMP/coreav-oracle-bin:$PATH"
+          scripts/gen-fixtures.sh "$RUNNER_TEMP/coreav-fixtures"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: isobmff-fixture-set
+          path: ${{ runner.temp }}/coreav-fixtures
+          if-no-files-found: error
+          retention-days: 1
+      - name: Save the fixtures
+        if: steps.fixtures.outputs.cache-hit != 'true' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/coreav-fixtures
+          key: ${{ steps.key.outputs.key }}
+
+  # The writers' oracles of the ISO base media fixtures, beside
+  # isobmff-fixtures (docs/design/ci-checks.md, "The fixture jobs").
+  isobmff-writers:
+    needs: [ci-changes, isobmff-fixture-set]
+    if: >-
+      needs.ci-changes.outputs.run == 'true' &&
+      (github.event_name != 'pull_request' || !github.event.pull_request.draft)
+    concurrency:
+      group: ${{ github.workflow }}-isobmff-writers-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: isobmff-fixtures
+          save-if: false
+      - name: Cache pinned black-box binaries
+        id: ffmpeg-cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/coreav-oracle-bin
+          key: linux-x64-ffmpeg-7.0.2-mediainfo-26.10-${{ hashFiles('scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
+      # MediaInfo is a gating oracle for extracted M4A files only; elsewhere it stays informational.
+      - name: Install pinned FFmpeg, ffprobe and MediaInfo
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        run: |
+          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
+          scripts/install-oracle-mediainfo.sh "$RUNNER_TEMP/coreav-oracle-bin"
+      - name: Use pinned binaries
+        run: echo "$RUNNER_TEMP/coreav-oracle-bin" >> "$GITHUB_PATH"
+      # The one fixture set of this run (isobmff-fixture-set).
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: isobmff-fixture-set
+          path: ${{ runner.temp }}/coreav-fixtures
+      # The coreav binary. Every key --ffprobe-compat prints is
+      # compared with ffprobe (known divergences from the overlay above apply),
+      # native output is validated against docs/schema/probe-v1.schema.json, and
+      # the hostile-input suite runs through the binary in both output modes.
+      - name: Build the coreav binary
+        run: cargo build --locked --release -p coreav-cli
       # Every MP4 and MOV fixture with a video track the clip writer accepts is
       # clipped at five ranges, and every MP4, MOV and M4A fixture without
       # video whose audio is AAC is clipped alone at five. Each output round-trips
@@ -989,30 +997,308 @@ jobs:
           python3 -I tools/compat-corpus/copy_check.py --records "$COREAV_FFMPEG_OUT/records.json" \
             --mediainfo "$RUNNER_TEMP/coreav-oracle-bin/mediainfo" \
             --report "$RUNNER_TEMP/coreav-ffmpeg.json"
-      - name: Preserve normalized output and diffs
+      - name: Preserve the writers' reports
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: oracle-output
+          name: writer-output
           path: |
-            ${{ runner.temp }}/coreav-oracle-check
-            ${{ runner.temp }}/coreav-oracle-executable
-            ${{ runner.temp }}/coreav-isobmff-oracle/known-divergences.json
-            ${{ runner.temp }}/coreav-isobmff-oracle/compare.log
-            ${{ runner.temp }}/coreav-compat.json
-            ${{ runner.temp }}/coreav-compat-commands.json
-            ${{ runner.temp }}/coreav-extract.json
-            ${{ runner.temp }}/coreav-extract-cli.json
-            ${{ runner.temp }}/coreav-text.json
             ${{ runner.temp }}/coreav-clip.json
             ${{ runner.temp }}/coreav-remux.json
             ${{ runner.temp }}/coreav-split.json
             ${{ runner.temp }}/coreav-sanitize.json
             ${{ runner.temp }}/coreav-hls.json
             ${{ runner.temp }}/coreav-join.json
-            ${{ runner.temp }}/coreav-b9/evidence
           if-no-files-found: ignore
 
+  # The decoders, thumbnails and `coreav transcode` on the ISO base media
+  # fixtures: the build with the FFmpeg fallback, dav1d and libvpx.
+  isobmff-decode:
+    needs: [ci-changes, isobmff-fixture-set]
+    if: >-
+      needs.ci-changes.outputs.run == 'true' &&
+      (github.event_name != 'pull_request' || !github.event.pull_request.draft)
+    concurrency:
+      group: ${{ github.workflow }}-isobmff-decode-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: isobmff-fixtures
+          save-if: false
+      - name: Cache pinned black-box binaries
+        id: ffmpeg-cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/coreav-oracle-bin
+          key: linux-x64-ffmpeg-7.0.2-mediainfo-26.10-${{ hashFiles('scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
+      # MediaInfo is a gating oracle for extracted M4A files only; elsewhere it stays informational.
+      - name: Install pinned FFmpeg, ffprobe and MediaInfo
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        run: |
+          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
+          scripts/install-oracle-mediainfo.sh "$RUNNER_TEMP/coreav-oracle-bin"
+      - name: Use pinned binaries
+        run: echo "$RUNNER_TEMP/coreav-oracle-bin" >> "$GITHUB_PATH"
+      # The one fixture set of this run (isobmff-fixture-set).
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: isobmff-fixture-set
+          path: ${{ runner.temp }}/coreav-fixtures
+      # docs/design/decode.md and docs/design/thumbnails.md: the sandboxed
+      # FFmpeg fallback (a non-default feature) and thumbnails. Bars on the
+      # fixtures: every frame of every allowlisted video fixture equal to
+      # FFmpeg's framemd5 through CoreAV's decoder, every thumbnail at least
+      # 30 dB against FFmpeg's of the same frame and size (gross errors; the
+      # corpus bars are in docs/design/thumbnails.md); the hostile suite
+      # and flipped-byte copies of the fixtures through `coreav thumbnail`
+      # with no crash, signal, hang or out-of-memory.
+      # dav1d for AV1 (docs/design/decode.md, "dav1d") links the system's
+      # libdav1d; the pinned FFmpeg's libdav1d is the reference. libvpx for
+      # VP8 and VP9 ("libvpx") links the system's libvpx; the pinned FFmpeg's
+      # own VP8 and VP9 decoders are the reference.
+      - name: Install libdav1d and libvpx
+        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends libdav1d-dev libvpx-dev
+      - name: Build coreav with the FFmpeg fallback, dav1d and libvpx, and the decode oracle
+        run: |
+          cargo build --locked --release -p coreav-cli -p coreav-decode-oracle \
+            --features coreav-cli/ffmpeg-fallback,coreav-cli/dav1d,coreav-cli/libvpx,coreav-decode-oracle/dav1d,coreav-decode-oracle/libvpx \
+            --target-dir target/fallback
+      - name: Decode boundary and thumbnail tests against the pinned FFmpeg
+        run: |
+          set -euo pipefail
+          cargo test --locked --release -p coreav-backend-ffmpeg --test decode -- --ignored
+          cargo test --locked --release -p coreav-backend-h264 --test decode -- --ignored
+          # The memory budget bounds the decoder's allocation on every thread
+          # (docs/design/limits.md, bar 5); --nocapture puts the numbers in the log.
+          cargo test --locked --release -p coreav-backend-h264 --test memory -- --ignored --nocapture
+          cargo test --locked --release -p coreav-worker --features ffmpeg --test ffmpeg -- --ignored
+          cargo test --locked --release -p coreav-backend-dav1d --features dav1d --test decode \
+            -- --include-ignored
+          cargo test --locked --release -p coreav-backend-libvpx --features libvpx --test decode \
+            -- --include-ignored
+          cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx --test thumbnail \
+            --target-dir target/fallback -- --include-ignored
+      # docs/design/transcode.md: the Annex B reader on the pinned FFmpeg's
+      # libx264 output (and an x264 program's, when the runner has one),
+      # checked by FFmpeg decoding every prefix of the samples. A missing
+      # ffmpeg fails here instead of skipping.
+      - name: The transcode Annex B reader against the pinned FFmpeg
+        env:
+          COREAV_REQUIRE_FFMPEG: '1'
+        run: cargo test --locked --release -p coreav-transcode --test encoders
+      # The FFmpeg-compatible Y'CbCr resize against the pinned FFmpeg's
+      # `scale` (docs/design/thumbnails.md, "Y'CbCr to Y'CbCr"), on
+      # generated pictures and size_vp9_resize.mp4; a missing ffmpeg or
+      # fixture fails here instead of skipping.
+      - name: The Y'CbCr resize against FFmpeg's scale
+        env:
+          COREAV_REQUIRE_FFMPEG: '1'
+          COREAV_FIXTURES: ${{ runner.temp }}/coreav-fixtures
+        run: cargo test --locked --release -p coreav-frame --test ffmpeg_scale
+      # `coreav transcode` end to end (docs/design/transcode.md): the
+      # fixtures with both encoders (the pinned FFmpeg's libx264 and an x264
+      # program built from the same commit, its source deleted after the
+      # build), checked against ffprobe of the source and FFmpeg's own
+      # encode, and hostile encoder scripts. A missing program or fixture
+      # fails here instead of skipping.
+      - name: Cache the x264 program
+        id: x264-cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/coreav-x264
+          key: linux-x64-x264-4613ac3-${{ hashFiles('scripts/install-x264.sh') }}
+      - name: Build x264
+        if: steps.x264-cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get install -y --no-install-recommends nasm
+          scripts/install-x264.sh "$RUNNER_TEMP/coreav-x264"
+      - name: coreav transcode on the fixtures, with both encoders
+        env:
+          COREAV_REQUIRE_FFMPEG: '1'
+          COREAV_FFMPEG: ${{ runner.temp }}/coreav-oracle-bin/ffmpeg
+          COREAV_X264: ${{ runner.temp }}/coreav-x264/x264
+          COREAV_FIXTURES: ${{ runner.temp }}/coreav-fixtures
+        run: |
+          cargo test --locked --release -p coreav-cli --features ffmpeg-fallback,dav1d,libvpx --test transcode \
+            --target-dir target/fallback
+      - name: Frames and thumbnails of the fixtures against FFmpeg
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          python3 -I scripts/thumbnail_oracle.py --coreav target/fallback/release/coreav \
+            --decode-oracle target/fallback/release/decode-oracle \
+            --fixtures "$RUNNER_TEMP/coreav-fixtures" --report "$RUNNER_TEMP/coreav-thumbnail-oracle.json"
+          python3 -I scripts/thumbnail_oracle.py --coreav target/fallback/release/coreav \
+            --decode-oracle target/fallback/release/decode-oracle --backend dav1d \
+            --fixtures "$RUNNER_TEMP/coreav-fixtures" --report "$RUNNER_TEMP/coreav-thumbnail-oracle-dav1d.json"
+          python3 -I scripts/thumbnail_oracle.py --coreav target/fallback/release/coreav \
+            --decode-oracle target/fallback/release/decode-oracle --backend libvpx \
+            --fixtures "$RUNNER_TEMP/coreav-fixtures" --report "$RUNNER_TEMP/coreav-thumbnail-oracle-libvpx.json"
+      # docs/design/thumbnails.md, "Frames nothing depends on": --exact gives
+      # the same image whether disposable packets are skipped or not.
+      - name: Exact thumbnails with skipped packets against decoding every packet
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          python3 -I scripts/exact_skip_check.py --decode-oracle target/fallback/release/decode-oracle \
+            --times 4 --matroska --fixtures "$RUNNER_TEMP/coreav-fixtures"
+      # docs/design/seek.md: a thumbnail planned from a window of the packets
+      # decodes what one planned from every packet decodes (bar 1), and
+      # packets_from(i) lists what packets() lists after i packets (bar 2).
+      - name: Thumbnails planned from a window against planned from every packet
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+          COREAV_FIXTURES: ${{ runner.temp }}/coreav-fixtures
+        run: |
+          python3 -I scripts/seek_check.py --decode-oracle target/fallback/release/decode-oracle \
+            --times 64 --fixtures "$RUNNER_TEMP/coreav-fixtures"
+          cargo test --locked --release -p coreav-isobmff --test seek
+      - name: Generate the hostile-input suite
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 -I tools/hostile/generate.py "$RUNNER_TEMP/coreav-hostile" "$RUNNER_TEMP/coreav-fixtures" ffmpeg
+      - name: The hostile-input suite through coreav thumbnail
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          python3 -I scripts/cli_hostile_check.py --coreav target/fallback/release/coreav \
+            --suite "$RUNNER_TEMP/coreav-hostile" --thumbnail --mutate "$RUNNER_TEMP/coreav-fixtures"
+      # docs/design/transcode.md, bar B6: every hostile file, and flipped-byte
+      # copies of the fixtures, through `coreav transcode` with the x264
+      # program: an output or an error object, nothing left behind.
+      - name: The hostile-input suite through coreav transcode
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          python3 -I scripts/cli_hostile_check.py --coreav target/fallback/release/coreav \
+            --suite "$RUNNER_TEMP/coreav-hostile" --mutate "$RUNNER_TEMP/coreav-fixtures" \
+            --transcode "--encoder x264 --x264 $RUNNER_TEMP/coreav-x264/x264"
+
+  # Bar B9, the longest check of the fixtures: each command line encodes
+  # every fixture three times, one line scaling it to 1920 columns. A third
+  # of the fixtures a job; `b9` judges the bars once over all three
+  # (docs/design/ci-checks.md, "The fixture jobs").
+  b9-shard:
+    needs: [ci-changes, isobmff-fixture-set]
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    if: >-
+      needs.ci-changes.outputs.run == 'true' &&
+      (github.event_name != 'pull_request' || !github.event.pull_request.draft)
+    concurrency:
+      group: ${{ github.workflow }}-b9-shard-${{ strategy.job-index }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: isobmff-fixtures
+          save-if: false
+      - name: Cache pinned black-box binaries
+        id: ffmpeg-cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/coreav-oracle-bin
+          key: linux-x64-ffmpeg-7.0.2-mediainfo-26.10-${{ hashFiles('scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
+      # MediaInfo is a gating oracle for extracted M4A files only; elsewhere it stays informational.
+      - name: Install pinned FFmpeg, ffprobe and MediaInfo
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        run: |
+          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
+          scripts/install-oracle-mediainfo.sh "$RUNNER_TEMP/coreav-oracle-bin"
+      - name: Use pinned binaries
+        run: echo "$RUNNER_TEMP/coreav-oracle-bin" >> "$GITHUB_PATH"
+      # The one fixture set of this run (isobmff-fixture-set).
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: isobmff-fixture-set
+          path: ${{ runner.temp }}/coreav-fixtures
+      # The same build as isobmff-decode's.
+      - name: Install libdav1d and libvpx
+        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends libdav1d-dev libvpx-dev
+      - name: Build coreav with the FFmpeg fallback, dav1d and libvpx, and the decode oracle
+        run: |
+          cargo build --locked --release -p coreav-cli -p coreav-decode-oracle \
+            --features coreav-cli/ffmpeg-fallback,coreav-cli/dav1d,coreav-cli/libvpx,coreav-decode-oracle/dav1d,coreav-decode-oracle/libvpx \
+            --target-dir target/fallback
+      - name: Cache the x264 program
+        id: x264-cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/coreav-x264
+          key: linux-x64-x264-4613ac3-${{ hashFiles('scripts/install-x264.sh') }}
+      - name: Build x264
+        if: steps.x264-cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get install -y --no-install-recommends nasm
+          scripts/install-x264.sh "$RUNNER_TEMP/coreav-x264"
+      # docs/design/transcode.md, bar B9: the coreav ffmpeg command lines that
+      # encode with libx264, on the fixtures, each arm against FFmpeg running
+      # the same command line. The ffmpeg arm names no x264 program, so the
+      # pipeline falls back to the pinned FFmpeg's libx264.
+      - name: coreav ffmpeg with libx264 on a third of the fixtures (B9)
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+          SHARD: ${{ matrix.shard }}
+        run: |
+          python3 -I scripts/transcode_check.py --compat --coreav target/fallback/release/coreav \
+            --ffmpeg "$RUNNER_TEMP/coreav-oracle-bin/ffmpeg" --ffprobe "$RUNNER_TEMP/coreav-oracle-bin/ffprobe" \
+            --preflight "$RUNNER_TEMP/coreav-fixtures/basic.mp4" --fixtures "$RUNNER_TEMP/coreav-fixtures" \
+            --arm "x264=COREAV_X264=$RUNNER_TEMP/coreav-x264/x264" --arm ffmpeg=COREAV_X264=none \
+            --jobs 4 --shard "$SHARD/3" --out "$RUNNER_TEMP/coreav-b9"
+      - name: Keep the shard's evidence for b9
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: b9-shard-${{ matrix.shard }}
+          path: ${{ runner.temp }}/coreav-b9/evidence
+          retention-days: 1
+
+  # B9's bars over the three shards' results, judged as one run judges
+  # them (scripts/transcode_check.py --merge).
+  b9:
+    needs: [ci-changes, b9-shard]
+    if: >-
+      needs.ci-changes.outputs.run == 'true' &&
+      (github.event_name != 'pull_request' || !github.event.pull_request.draft)
+    concurrency:
+      group: ${{ github.workflow }}-b9-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: b9-shard-*
+          path: ${{ runner.temp }}/b9-shards
+      - name: Judge B9 over every shard
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          python3 -I scripts/transcode_check.py --out "$RUNNER_TEMP/coreav-b9" --merge \
+            "$RUNNER_TEMP/b9-shards/b9-shard-1" "$RUNNER_TEMP/b9-shards/b9-shard-2" "$RUNNER_TEMP/b9-shards/b9-shard-3"
+      - name: Preserve the B9 evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: b9-evidence
+          path: ${{ runner.temp }}/coreav-b9/evidence
+          if-no-files-found: ignore
   # docs/design/mkv.md: the Matroska and WebM fixtures through coreav-mkv and
   # the coreav binary, against the pinned ffprobe on every change (100% after
   # the documented divergences of docs/known-divergences-mkv.md), and against
@@ -1824,7 +2110,7 @@ jobs:
     # (docs/design/ci-checks.md). It waits for every job of the workflow,
     # and its summary names each job's result. It has no concurrency group:
     # it has to report on a cancelled run too.
-    needs: [ci-changes, check, check-macos, check-windows, msrv, fuzz, isobmff-fixtures, mkv-fixtures, ts-fixtures, conformance, vector-width, modes-identity, training-identity, kernels-arm64, conformance-arm64, bench-guard]
+    needs: [ci-changes, check, check-macos, check-windows, msrv, fuzz, isobmff-fixtures, isobmff-fixture-set, isobmff-writers, isobmff-decode, b9-shard, b9, mkv-fixtures, ts-fixtures, conformance, vector-width, modes-identity, training-identity, kernels-arm64, conformance-arm64, bench-guard]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5

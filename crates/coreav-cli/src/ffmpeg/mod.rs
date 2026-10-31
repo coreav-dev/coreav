@@ -38,6 +38,10 @@ pub enum Refusal {
     NotNative(NotNative),
     /// Malformed, as `ffmpeg` would also fail it: exit 2.
     Usage(String),
+    /// `-h`, `-?`, `-help` or `--help` with nothing after it: the usage
+    /// text, exit 0. With a topic after it (`-h long`), the query is
+    /// FFmpeg's, so it is [`Refusal::NotNative`].
+    Help,
 }
 
 impl Refusal {
@@ -122,6 +126,31 @@ enum Container {
     Isobmff,
     Matroska,
 }
+
+/// The usage text of `coreav ffmpeg -h`.
+pub const USAGE: &str = "\
+usage: coreav ffmpeg [OPTIONS] -i INPUT [OPTIONS] OUTPUT
+
+Experimental until it meets its 0.1.0 bars, R1 to R4, on held-out files.
+
+The common ffmpeg stream-copy command lines (-c copy), over CoreAV's own
+writers, with ffmpeg's stream selection (-map, -vn, -an, -sn, -dn):
+  a copy to .mp4 (or -f mp4) from MP4, MOV, Matroska or WebM: a remux
+  a copy of one audio stream to .m4a (or -f ipod): an audio extraction
+  -ss, -t or -to, before or after -i: a clip
+  -f segment with MP4 segments: a split every -segment_time
+  -f concat with an MP4 output: a join of the list's files
+Builds with a decoder backend also encode the video with -c:v libx264.
+Prints nothing on success.
+
+For untrusted input, set COREAV_STRICT_SAFE=1: anything else is then
+refused (exit status 4). Without it, anything else runs the ffmpeg
+program on PATH instead (or the one COREAV_FALLBACK names), which is
+FFmpeg's C code, and says so on standard error. Help on a topic
+(-h long, -h full, -h encoder=NAME, ...) is handled the same way.
+Documentation: https://coreav.dev/docs/commands/ffmpeg
+See docs/design/compat-cli.md.
+";
 
 /// Parses, plans and runs a command line. Returns the summary its writer's
 /// own command prints (`coreav remux`, `clip`, `split`, `extract-audio`,

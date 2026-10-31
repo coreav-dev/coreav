@@ -606,7 +606,9 @@ keeps `unsafe` forbidden.
   - The build finds it with `pkg-config` (through `system-deps`;
     `PKG_CONFIG_PATH` for an install elsewhere), and links it as
     `pkg-config` describes it, a shared library on the usual
-    distributions. No C source is vendored or compiled.
+    distributions. No C source is vendored. The release builds link a
+    static dav1d 1.5.3 that `packages/cli/scripts/codecs.sh` builds from
+    a pinned tarball (`docs/design/release.md`, "Two builds").
   - A default build has none of it, so the workspace builds without
     libdav1d.
 - **FFI.** All of it is in the `dav1d` crate, rust-av's binding (MIT,
@@ -700,8 +702,10 @@ use `unsafe`.
   found with `pkg-config` (`PKG_CONFIG_PATH` for an install elsewhere) and
   linked as it describes it, a shared library on the usual distributions.
   The CLI, the worker and the decode oracle each have a `libvpx` feature
-  that turns it on. No C source is vendored or compiled, and a default
-  build has none of it.
+  that turns it on. No C source is vendored, and a default build has
+  none of it. The release builds link a static libvpx 1.14.1 that
+  `packages/cli/scripts/codecs.sh` builds from a pinned tarball
+  (`docs/design/release.md`, "Two builds").
   - The declarations are those of decoder ABI version 12, which libvpx
     1.14's headers declare (built and tested with 1.14, Ubuntu 24.04's). libvpx
     refuses to open a decoder for any other version, so a library with
