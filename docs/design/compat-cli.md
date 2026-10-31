@@ -43,9 +43,9 @@ What `native` means, option by option. Anything not here is refused.
 | | |
 |---|---|
 | With a value | `-i`, `-v`, `-loglevel`, `-of`, `-print_format`, `-output_format`, `-show_entries`, `-select_streams`, `-read_intervals`, `-f` |
-| Flags | `-show_format`, `-show_streams`, `-show_chapters`, `-show_programs`, `-show_packets`, `-show_error`, `-count_packets`, `-hide_banner`, `-pretty`, `-sexagesimal`, `-nostdin` |
+| Flags | `-show_format`, `-show_streams`, `-show_chapters`, `-show_programs`, `-show_packets`, `-show_frames`, `-show_error`, `-count_packets`, `-count_frames`, `-hide_banner`, `-pretty`, `-sexagesimal`, `-nostdin` |
 | Writers (`-of`) | `json`, `default`, `compact`, `csv`, `flat` |
-| `-show_entries` sections | `format`, `stream`, `packet`, `chapter`, `program`, `format_tags`, `stream_tags`, `packet_tags`, `chapter_tags`, `program_tags`, `stream_side_data` |
+| `-show_entries` sections | `format`, `stream`, `packet`, `frame`, `chapter`, `program`, `format_tags`, `stream_tags`, `packet_tags`, `frame_tags`, `chapter_tags`, `program_tags`, `stream_side_data`, `frame_side_data` |
 | Demuxers (`-f`) | `mov,mp4,m4a,3gp,3g2,mj2`, `matroska,webm`, `mpegts` |
 
 **`coreav ffmpeg`**, stream copy only
@@ -62,9 +62,7 @@ What `native` means, option by option. Anything not here is refused.
 | `-f concat` | the input is a list file, and the job is `coreav join` (`docs/design/join.md`), which takes files sharing a codec configuration |
 
 **Refused by design,** although common in the set, each because the job
-itself is not native yet: `-show_frames` and `-count_frames` and any
-`-show_entries frame=…` or `nb_read_frames` (per-frame fields that need a
-decoder), `-vf`, `-af`, `-filter_complex` and `-filter:*` (filtering),
+itself is not native yet: `-vf`, `-af`, `-filter_complex` and `-filter:*` (filtering),
 every encoder value of a codec option, `-f lavfi`, `-f image2`,
 `-f rawvideo`, `-f null`, `-re`, `-loop`, `-ignore_loop`, `-bsf:*`
 (bitstream filters), `-r`, `-frames:v`, `-s`, `-pix_fmt`, `-ar`, `-ac`,
@@ -989,6 +987,8 @@ rounds differently.
 
 **`nb_read_packets`** is the number of packets read when there is one, and
 unknown when no packet of the stream was read, with `-count_packets` too.
+`nb_read_frames` is the number of frames listed, the same way, with
+`-count_frames` ("Frames", below).
 
 **`-read_intervals`.** One interval from the start of the file with an
 end (`%END`, `%+DURATION`, `%+#PACKETS`); reading stops at the first packet
@@ -1283,8 +1283,7 @@ estimate is the fit those crafted tests support (the variance of the times
 around each standard rate's grid); a variant that also fits the grid moved
 by half a frame is not used, since no measured file needs it.
 
-**Gaps, each printed as unknown or left out, never guessed:**
-`nb_read_frames` (refused when named: it needs decoding); the
+**Gaps, each printed as unknown or left out, never guessed:** the
 `amve` ambient viewing environment of MP4 video, and other values only
 decoding shows;
 TrueHD's sample format and DTS-HD profiles in Matroska; `r_frame_rate` where
@@ -1292,6 +1291,71 @@ TrueHD's sample format and DTS-HD profiles in Matroska; `r_frame_rate` where
 lists `ffprobe` rewrites (`KD-EDIT-*` of `docs/known-divergences.md`
 describe the same differences for the packet oracle). Each key's agreement
 is measured below.
+
+### Frames
+
+`-show_frames`, `-count_frames` and `-show_entries frame=…` decode the
+selected streams with CoreAV's own decoders (`ffprobe/frames.rs`): H.264 in
+a build with the `native-h264` feature, MP3, FLAC and PCM. A selected audio
+or video stream of another codec, an attached picture, a subtitle stream, a
+Matroska track stored compressed or encrypted, and an H.264 stream that may
+code fields (`frame_mbs_only_flag` 0: `interlaced_frame`, `top_field_first`
+and `repeat_pict` are not derived) are refused before anything is printed,
+naming the option, the stream and the codec. Outside strict-safe mode the
+command then goes to FFmpeg like any other refusal. Data and attachment
+streams have no frames.
+
+What the pinned `ffprobe` showed, on the fixtures and on files made with
+the pinned `ffmpeg` (none of it read from FFmpeg's source):
+
+- **When a frame is printed.** An audio frame right after its packet; an
+  H.264 picture after as many later packets as the stream reorders
+  (`has_b_frames`), the rest when the input ends. With `-show_packets`, both
+  go in one array, `packets_and_frames`, in that order: `json` gives each
+  element a `"type"`, and `flat` numbers packets and frames apart
+  (`packets_and_frames.packet.0`, `packets_and_frames.frame.0`).
+- **Times.** `pts` and `duration` are the frame's packet's. `pkt_dts` is the
+  decoding time of the packet read when the frame is returned, unknown for
+  the frames returned at the end. `best_effort_timestamp` is `pts`, unless
+  the frames' `pts` went back more often than their `pkt_dts`; then it is
+  `pkt_dts`. Frames of packets an edit list does not present are not listed.
+- **Audio trimming.** The samples a packet's Skip Samples side data names,
+  Matroska's `CodecDelay` at the start of a track, and the end of an MP4 edit
+  list (a packet timed in samples that lasts less than its samples) are cut
+  from `nb_samples`; `pts` and `pkt_dts` move past the samples skipped, and
+  a frame cut whole is not listed.
+- **Pictures.** `key_frame` is an IDR picture or a recovery point SEI
+  message with `recovery_frame_cnt` 0; `pict_type` is the first slice's
+  `slice_type`. `width` and `height` are the decoded picture's, except
+  that a left cropping that is not a multiple of 64 luma samples is not
+  applied. `pix_fmt` and the colour entries are what the sequence
+  parameter set's video signal type states, the stream's where it states
+  none; `sample_aspect_ratio` is the stream's; the `crop_*`, `interlaced_frame`, `top_field_first`,
+  `lossless` and `repeat_pict` entries are 0. Side data: the stream's
+  display matrix and a user data unregistered SEI message.
+- **Where CoreAV's decoder stops.** On a damaged picture, or one outside
+  what it decodes (H.264 above 8 bits), CoreAV's decoder stops where
+  `ffprobe`'s conceals and goes on. So the listing is held in memory, up to
+  64 MiB, and a stop within it is a refusal that hands the whole command
+  over; a stop after it is an error (exit status 1).
+
+`tools/compat-corpus/frames.py` measures this in the fixture workflows: a
+fixed set of commands (every writer, frames alone and with packets, one
+stream type and all, `-count_frames`, an interval) on every fixture, each
+pair either byte for byte what `ffprobe` prints or a refusal of a codec
+CoreAV does not decode (H.264 counts as decoded when `ffprobe` gives it
+as 8-bit 4:2:0). The pairs that do neither are listed in
+`tools/compat-corpus/baseline-frames.json`, and any other fails the run.
+An oracle timeout or crash always fails the run and cannot enter the baseline.
+Fixture names must be unique across the supplied directories because baseline
+keys name fixtures by filename; duplicates are refused before comparisons start.
+On the fixtures, with FFmpeg 9.0.2, they come from what the packets
+themselves print differently (packet durations, which frames take, and
+packet side data), `truncated.mp4` and `nested_10000.mp4`, which
+`-show_packets` rejects too, the track reference stream group `ffprobe` 9
+lists for the timecode track of `timecode.mov`, the damaged H.264 streams, and
+monochrome H.264, which `ffprobe` gives as 4:2:0 and CoreAV's decoder
+does not decode.
 
 ## Fallback to FFmpeg
 

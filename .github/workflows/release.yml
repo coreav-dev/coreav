@@ -172,7 +172,7 @@ jobs:
             mkdir -p "$multicall"
             cp "$bin" "$multicall/${exe/coreav/ffprobe}"
             for program in "$bin" "$multicall/${exe/coreav/ffprobe}"; do
-              args=(-show_frames missing.mp4)
+              args=(-show_data -show_packets missing.mp4)
               [ "$program" = "$bin" ] && args=(ffprobe "${args[@]}")
               status=0
               "$program" "${args[@]}" || status=$?

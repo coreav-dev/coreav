@@ -66,11 +66,14 @@ fn movie(name: &str) -> String {
 fn an_option_outside_the_vocabulary_is_refused_by_name() {
     let path = movie("ffprobe-refused.mp4");
     for (args, named) in [
-        (vec!["-show_frames", path.as_str()], "-show_frames"),
+        (
+            vec!["-show_data", "-show_packets", path.as_str()],
+            "-show_data",
+        ),
         (vec!["-of", "xml", "-show_streams", path.as_str()], "xml"),
         (
-            vec!["-show_entries", "frame=pict_type", path.as_str()],
-            "frame",
+            vec!["-show_entries", "stream_group=index", path.as_str()],
+            "stream_group",
         ),
         (vec!["-f", "lavfi", "-i", "anullsrc"], "lavfi"),
         (vec!["-unit", "-show_streams", path.as_str()], "-unit"),
@@ -81,10 +84,6 @@ fn an_option_outside_the_vocabulary_is_refused_by_name() {
         (
             vec!["-read_intervals", "10%20", "-show_packets", path.as_str()],
             "10%20",
-        ),
-        (
-            vec!["-show_entries", "stream=nb_read_frames", path.as_str()],
-            "nb_read_frames",
         ),
     ] {
         let r = ffprobe(&args);
@@ -295,7 +294,130 @@ fn the_binary_named_ffprobe_is_coreav_ffprobe() {
     let direct = ffprobe(&args);
     assert_eq!(through_link.code, 0, "{}", through_link.stderr);
     assert_eq!(through_link.stdout, direct.stdout);
-    assert_eq!(run(&link, &["-show_frames", path.as_str()]).code, 4);
+    assert_eq!(
+        run(&link, &["-show_data", "-show_packets", path.as_str()]).code,
+        4
+    );
+}
+
+fn pcm_movie(name: &str) -> String {
+    file(name, &common::av_movie(b"sowt"))
+        .to_string_lossy()
+        .into_owned()
+}
+
+#[test]
+fn audio_frames_are_listed_and_counted() {
+    let path = pcm_movie("ffprobe-frames.mov");
+    let r = ffprobe(&[
+        "-v",
+        "error",
+        "-select_streams",
+        "a",
+        "-show_entries",
+        "frame=media_type,stream_index,pts,nb_samples,channels",
+        "-of",
+        "csv=p=0",
+        &path,
+    ]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    // Each packet holds whole samples of both channels: 400 bytes of
+    // 16-bit stereo are 100 samples, however they are split into packets.
+    let mut samples = 0;
+    let lines: Vec<&str> = r.stdout.lines().collect();
+    for line in &lines {
+        let fields: Vec<&str> = line.split(',').collect();
+        assert_eq!(fields[..2], ["audio", "1"], "{line}");
+        assert_eq!(fields[4], "2", "{line}");
+        samples += fields[3].parse::<u32>().unwrap();
+    }
+    assert_eq!(samples, 100);
+    let r = ffprobe(&[
+        "-v",
+        "error",
+        "-select_streams",
+        "a",
+        "-count_frames",
+        "-count_packets",
+        "-show_entries",
+        "stream=nb_read_frames,nb_read_packets",
+        "-of",
+        "csv=p=0",
+        &path,
+    ]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    assert_eq!(r.stdout, format!("{0},{0}\n", lines.len()));
+}
+
+#[test]
+fn packets_and_frames_share_one_list() {
+    let path = pcm_movie("ffprobe-packets-and-frames.mov");
+    let r = ffprobe(&[
+        "-v",
+        "error",
+        "-select_streams",
+        "a",
+        "-read_intervals",
+        "%+#2",
+        "-show_entries",
+        "packet=pts:frame=pts",
+        "-of",
+        "json",
+        &path,
+    ]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    let doc: serde_json::Value = serde_json::from_str(&r.stdout).unwrap();
+    let types: Vec<&str> = doc["packets_and_frames"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|item| item["type"].as_str().unwrap())
+        .collect();
+    assert_eq!(types, ["packet", "frame", "packet", "frame"]);
+    let r = ffprobe(&[
+        "-v",
+        "error",
+        "-select_streams",
+        "a",
+        "-read_intervals",
+        "%+#1",
+        "-show_entries",
+        "packet=pts:frame=pts",
+        "-of",
+        "flat",
+        &path,
+    ]);
+    assert_eq!(
+        r.stdout,
+        "packets_and_frames.packet.0.pts=0\npackets_and_frames.frame.0.pts=0\n"
+    );
+}
+
+#[test]
+fn frames_coreav_cannot_decode_are_refused_before_anything_is_printed() {
+    // The movie's video samples are one slice header each, not pictures:
+    // a build without the H.264 decoder refuses the stream, a build with
+    // it stops at the first packet. Either way nothing is printed.
+    let path = movie("ffprobe-frames-refused.mp4");
+    for args in [
+        vec!["-show_frames", path.as_str()],
+        vec!["-select_streams", "a", "-show_frames", path.as_str()],
+        vec![
+            "-count_frames",
+            "-show_entries",
+            "stream=nb_read_frames",
+            path.as_str(),
+        ],
+    ] {
+        let r = ffprobe(&args);
+        assert_eq!(r.code, 4, "{args:?}: {}", r.stderr);
+        assert!(r.stdout.is_empty(), "{args:?}");
+        assert!(
+            r.stderr.contains("needs the frames of stream"),
+            "{args:?}: {}",
+            r.stderr
+        );
+    }
 }
 
 #[test]
