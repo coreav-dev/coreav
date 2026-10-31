@@ -8,7 +8,7 @@ import Help from '/snippets/help/remux.mdx';
 
 `coreav remux INPUT OUTPUT` rewrites an MP4, MOV, Matroska or WebM file as MP4 by stream copy, with the movie header first (faststart), so a player can start before the whole file has arrived.
 
-Audio is copied as AAC, MP3, Opus, FLAC, Apple Lossless (ALAC; from MP4, MOV or M4A only), AC-3 or E-AC-3, in the MP4 sample entry each codec's specification defines. A stream that MP4 cannot carry is dropped and listed in the summary ([`coreav.remux/1`](https://github.com/coreav-dev/coreav/blob/main/docs/schema/remux-v1.md)). For a Matroska or WebM source, a video stream that MP4 cannot carry fails the remux instead, so a video never silently becomes an audio-only file. `--drop-unsupported` drops it and writes the other streams.
+Audio is copied as AAC, MP3, Opus, FLAC, Apple Lossless (ALAC), AC-3 or E-AC-3, in the MP4 sample entry each codec's specification defines. A stream that MP4 cannot carry is dropped and listed in the summary ([`coreav.remux/1`](https://github.com/coreav-dev/coreav/blob/main/docs/schema/remux-v1.md)). For a Matroska or WebM source, a video stream that MP4 cannot carry fails the remux instead, so a video never silently becomes an audio-only file. `--drop-unsupported` drops it and writes the other streams.
 
 ## Examples
 

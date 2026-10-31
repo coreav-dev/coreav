@@ -384,8 +384,8 @@ struct Record {
     block_ns: i64,
     block_duration_ns: Option<i64>,
     /// Audio: the frame's duration in media ticks, from the codec (the Opus
-    /// TOC byte, the FLAC frame header; one AAC frame, 1,536
-    /// samples of AC-3 or E-AC-3); 0 when unknown.
+    /// TOC byte, the FLAC frame header, the Apple Lossless element header;
+    /// one AAC frame, 1,536 samples of AC-3 or E-AC-3); 0 when unknown.
     frame: u32,
     keyframe: bool,
 }
@@ -852,13 +852,13 @@ fn plan(track: &Track) -> Result<Plan, &'static str> {
                 .ok_or("FLAC without its STREAMINFO in CodecPrivate")?;
             (info.sample_rate, 1)
         }
-        // A packet may hold fewer samples than the cookie's frameLength,
-        // and only its own header, which no public specification describes,
-        // says how many; Matroska's millisecond times cannot.
         (Media::Audio, Codec::Alac) => {
-            return Err(
-                "Apple Lossless from Matroska: a packet's sample count is not publicly specified",
-            );
+            let (_, config) = track
+                .codec_private
+                .as_deref()
+                .and_then(audio::alac_from_codec_private)
+                .ok_or("ALAC without its magic cookie in CodecPrivate")?;
+            (config.sample_rate, u64::from(config.frame_length))
         }
         // The first frame's header gives the sample rate (`list_samples`).
         (Media::Audio, Codec::Ac3 | Codec::Eac3) => (
@@ -1223,7 +1223,8 @@ fn list_samples<S: Source>(
             .and_then(in_range);
         plan.end_padding_ns = packet.discard_padding.unwrap_or(0).max(0);
         // Frame durations from the frame's own header (the Opus TOC byte,
-        // RFC 6716 3.1; the FLAC frame header, RFC 9639 9.1.1), and the
+        // RFC 6716 3.1; the FLAC frame header, RFC 9639 9.1.1; the Apple
+        // Lossless element header), and the
         // AC-3 or E-AC-3 configuration from the first frame, read as the
         // listing passes the frame rather than in a pass of their own,
         // which over a network would read the file a second time.
@@ -1240,6 +1241,21 @@ fn list_samples<S: Source>(
                 head.get(..filled)
                     .and_then(audio::flac_block_size)
                     .unwrap_or(0)
+            }
+            Codec::Alac => {
+                let mut head = [0u8; audio::ALAC_HEAD];
+                let filled = frame_head(source, &plan.prefix, packet.offset, stored, &mut head)?;
+                let fallback = u32::try_from(plan.quantum).unwrap_or(0);
+                match head
+                    .get(..filled)
+                    .and_then(|h| audio::alac_samples(h, fallback))
+                {
+                    Some(samples) => samples,
+                    None => {
+                        plan.fail("an Apple Lossless packet without a valid element header");
+                        continue;
+                    }
+                }
             }
             Codec::Ac3 | Codec::Eac3 => {
                 if plan.audio_config.is_empty() {
@@ -1916,6 +1932,22 @@ fn sample_entry(track: &Track, plan: &Plan) -> Result<Vec<u8>, MatroskaRemuxErro
                 info.bits,
                 audio::entry_rate(info.sample_rate),
                 &[raw(b"dfLa", dfla)],
+            )?);
+        }
+        Codec::Alac => {
+            let (cookie, config) = track
+                .codec_private
+                .as_deref()
+                .and_then(audio::alac_from_codec_private)
+                .ok_or(coreav_mkv::Error::Unsupported {
+                    reason: "ALAC without its magic cookie in CodecPrivate",
+                })?;
+            return Ok(audio_sample_entry(
+                FourCc(*b"alac"),
+                config.channels,
+                config.bits,
+                audio::entry_rate(config.sample_rate),
+                &[raw(b"alac", cookie)],
             )?);
         }
         Codec::Ac3 | Codec::Eac3 => {

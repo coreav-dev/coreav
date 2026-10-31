@@ -1648,22 +1648,10 @@ fn streaminfo(rate: u32, channels: u32, bits: u32) -> Vec<u8> {
     info
 }
 
-/// Six frames of each codec, one per block, at its frame duration: each
-/// copied unchanged into its MP4 sample entry with the configuration box
-/// its binding names, at the source's times. Apple Lossless is dropped
-/// with its reason.
-#[test]
-fn flac_ac3_and_eac3_get_their_sample_entries() {
-    // FLAC (RFC 9639 10.1): `fLaC` and the last metadata block,
-    // STREAMINFO; frames of 1,152 samples (block size code 3), stereo,
-    // 16 bits, at 96 kHz.
-    let mut flac_private = b"fLaC".to_vec();
-    flac_private.extend([0x80, 0, 0, 34]);
-    flac_private.extend(streaminfo(96_000, 2, 16));
-    let flac = |n: usize| cat(&[vec![0xFF, 0xF8, 0x30, 0x18, n as u8, 0], frame(n, 20)]);
-    // The Apple Lossless magic cookie: 4,096-sample frames, 16 bits, two
-    // channels at 44.1 kHz.
-    let cookie = pack(&[
+/// The Apple Lossless magic cookie: 4,096-sample frames, 16 bits, two
+/// channels at 44.1 kHz.
+fn alac_cookie() -> Vec<u8> {
+    pack(&[
         (4096, 32),
         (0, 8),
         (16, 8),
@@ -1675,7 +1663,125 @@ fn flac_ac3_and_eac3_get_their_sample_entries() {
         (40, 32),
         (64_000, 32),
         (44_100, 32),
+    ])
+}
+
+/// An Apple Lossless packet: a channel pair element's header (tag 1,
+/// instance 0, 12 zero bits, the flag for a stated sample count, shift 0,
+/// no escape), the count when stated, then filler.
+fn alac_packet(stated: Option<u32>, seed: usize) -> Vec<u8> {
+    let mut fields = vec![
+        (1, 3),
+        (0, 4),
+        (0, 12),
+        (u32::from(stated.is_some()), 1),
+        (0, 2),
+        (0, 1),
+    ];
+    fields.extend(stated.map(|n| (n, 32)));
+    cat(&[pack(&fields), frame(seed, 40)])
+}
+
+/// A Matroska file of one Apple Lossless track holding `packets`, each
+/// lasting the samples paired with it, at their times in milliseconds.
+fn alac_source(packets: &[(Vec<u8>, u32)]) -> Vec<u8> {
+    let mut at = 0u32;
+    let blocks: Vec<Vec<u8>> = packets
+        .iter()
+        .map(|(packet, samples)| {
+            let ms = (f64::from(at) / 44.1).round() as i16;
+            at += samples;
+            simple_block(1, ms, true, packet)
+        })
+        .collect();
+    file(
+        "matroska",
+        &[
+            info(None),
+            tracks(&[entry(
+                1,
+                2,
+                "A_ALAC",
+                &audio_el(44_100.0, 2),
+                &el(CODEC_PRIVATE, &alac_cookie()),
+            )]),
+            cluster(0, &blocks),
+        ],
+    )
+}
+
+/// Each Apple Lossless packet lasts the samples its header states, else
+/// the cookie's `frameLength`: a short packet in the middle and a short
+/// last one keep their own lengths.
+#[test]
+fn alac_packets_last_the_samples_their_headers_state() {
+    let source = alac_source(&[
+        (alac_packet(None, 0), 4096),
+        (alac_packet(Some(100), 1), 100),
+        (alac_packet(None, 2), 4096),
+        (alac_packet(Some(2184), 3), 2184),
     ]);
+    let (summary, output) = remux(&source);
+    assert!(summary.dropped_tracks.is_empty(), "{summary:?}");
+    let out = assert_round_trip(&source, &output, &summary);
+    let times: Vec<(i64, u32)> = mp4_packets(&output, &out, 0)
+        .iter()
+        .map(|p| (p.dts, p.duration))
+        .collect();
+    assert_eq!(times, [(0, 4096), (4096, 100), (4196, 4096), (8292, 2184)]);
+}
+
+/// A packet whose header is not a channel element's, or states no samples
+/// or more than the cookie's `frameLength`, is refused rather than given
+/// a guessed length.
+#[test]
+fn alac_packets_with_a_malformed_header_are_refused() {
+    let fail = MatroskaRemuxOptions {
+        on_unsupported: OnUnsupported::Fail,
+        ..MatroskaRemuxOptions::default()
+    };
+    let malformed = [
+        // A nonzero bit among the 12 that must be zero.
+        cat(&[pack(&[(1, 3), (0, 4), (1, 12), (0, 4)]), frame(0, 40)]),
+        // Shift 3.
+        cat(&[
+            pack(&[(1, 3), (0, 4), (0, 12), (0, 1), (3, 2), (0, 1)]),
+            frame(0, 40),
+        ]),
+        // A data stream element first (tag 4).
+        cat(&[pack(&[(4, 3), (0, 4), (0, 12), (0, 4)]), frame(0, 40)]),
+        alac_packet(Some(0), 0),
+        alac_packet(Some(4097), 0),
+        // A stated count cut short.
+        pack(&[(1, 3), (0, 4), (0, 12), (1, 1), (0, 2), (0, 1), (100, 16)]),
+    ];
+    for (n, packet) in malformed.into_iter().enumerate() {
+        let source = alac_source(&[(alac_packet(None, 0), 4096), (packet, 4096)]);
+        assert!(
+            matches!(
+                remux_with(&source, &Allowlist::default(), &fail),
+                Err(MatroskaRemuxError::Source(coreav_mkv::Error::Unsupported {
+                    reason: "an Apple Lossless packet without a valid element header"
+                }))
+            ),
+            "case {n}"
+        );
+    }
+}
+
+/// Six frames of each codec, one per block, at its frame duration: each
+/// copied unchanged into its MP4 sample entry with the configuration box
+/// its binding names, at the source's times.
+#[test]
+fn flac_alac_ac3_and_eac3_get_their_sample_entries() {
+    // FLAC (RFC 9639 10.1): `fLaC` and the last metadata block,
+    // STREAMINFO; frames of 1,152 samples (block size code 3), stereo,
+    // 16 bits, at 96 kHz.
+    let mut flac_private = b"fLaC".to_vec();
+    flac_private.extend([0x80, 0, 0, 34]);
+    flac_private.extend(streaminfo(96_000, 2, 16));
+    let flac = |n: usize| cat(&[vec![0xFF, 0xF8, 0x30, 0x18, n as u8, 0], frame(n, 20)]);
+    let cookie = alac_cookie();
     // An AC-3 syncframe (ETSI TS 102 366 4.3): 48 kHz, 32 kbit/s (64
     // words), bsid 8, bsmod 0, stereo without LFE.
     let ac3 = |n: usize| {
@@ -1729,7 +1835,8 @@ fn flac_ac3_and_eac3_get_their_sample_entries() {
         u32,
         u32,
     );
-    let cases: [Case<'_>; 3] = [
+    let alac = |n: usize| alac_packet(None, n);
+    let cases: [Case<'_>; 4] = [
         (
             "A_FLAC",
             flac_private.clone(),
@@ -1741,6 +1848,18 @@ fn flac_ac3_and_eac3_get_their_sample_entries() {
             cat(&[vec![0, 0, 0, 0], flac_private[4..].to_vec()]),
             96_000,
             1152,
+        ),
+        (
+            "A_ALAC",
+            cookie.clone(),
+            44_100.0,
+            &alac,
+            4096.0 / 44.1,
+            *b"alac",
+            *b"alac",
+            cat(&[vec![0, 0, 0, 0], cookie.clone()]),
+            44_100,
+            4096,
         ),
         (
             "A_AC3",
@@ -1809,50 +1928,4 @@ fn flac_ac3_and_eac3_get_their_sample_entries() {
         assert_eq!(times, expected, "{codec_id}");
         assert!(packets.iter().all(|p| p.keyframe), "{codec_id}");
     }
-
-    // A last packet of 100 samples after one of 4,096: only the packet's
-    // own header says so, so the track is dropped rather than stored as two
-    // frames of the cookie's 4,096.
-    let flac_blocks: Vec<Vec<u8>> = (0..2)
-        .map(|n| simple_block(1, n as i16 * 12, true, &flac(n)))
-        .collect();
-    let alac_blocks = vec![
-        simple_block(2, 0, true, &frame(0, 40)),
-        simple_block(2, 93, true, &frame(1, 8)),
-    ];
-    let source = file(
-        "matroska",
-        &[
-            info(None),
-            tracks(&[
-                entry(
-                    1,
-                    2,
-                    "A_FLAC",
-                    &audio_el(96_000.0, 2),
-                    &el(CODEC_PRIVATE, &flac_private),
-                ),
-                entry(
-                    2,
-                    2,
-                    "A_ALAC",
-                    &audio_el(44_100.0, 2),
-                    &el(CODEC_PRIVATE, &cookie),
-                ),
-            ]),
-            cluster(0, &[flac_blocks, alac_blocks].concat()),
-        ],
-    );
-    let (summary, output) = remux(&source);
-    assert_eq!(
-        reasons(&summary),
-        vec![(
-            1,
-            unsupported(
-                "Apple Lossless from Matroska: a packet's sample count is not publicly specified"
-            )
-        )]
-    );
-    let out = assert_round_trip(&source, &output, &summary);
-    assert_eq!(out.tracks.len(), 1);
 }

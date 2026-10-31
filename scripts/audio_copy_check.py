@@ -75,12 +75,6 @@ SOURCES = [
 ] + [(f"av_{codec}.{ext}", VIDEO + tone(48_000) + H264 + STEREO + args + ["-shortest"])
      for codec, args in CODECS.items() for ext in ("mp4", "mkv")]
 
-# Sources whose audio every command must refuse or drop, naming the reason:
-# an Apple Lossless packet's own sample count, which may be fewer than the
-# cookie's frameLength, is in a header no public specification describes.
-REFUSED = {"alac.mkv", "av_alac.mkv"}
-REFUSED_REASON = "Apple Lossless from Matroska: a packet's sample count is not publicly specified"
-
 EXPECTED = {
     "run": lambda a, b: bool(b) and any(a[i:i + len(b)] == b for i in range(len(a) - len(b) + 1)),
     "all": lambda a, b: a == b,
@@ -238,12 +232,7 @@ def main():
             # case alone; the other cases still run and the report is kept.
             try:
                 done = run([tools.coreav, "--strict-safe", *args])
-                if name in REFUSED:
-                    said = (done.stdout + done.stderr).decode(errors="replace")
-                    if REFUSED_REASON not in said or (done.returncode == 0
-                                                      and audio_stream(tools.ffprobe, outputs()[0])):
-                        problems.append(f"not refused with its reason (exit {done.returncode}): {said[:300]}")
-                elif done.returncode != 0:
+                if done.returncode != 0:
                     problems.append(f"exit {done.returncode}: {done.stderr.decode(errors='replace').strip()[:500]}")
                 elif kind == "copy":
                     check_copy(tools, source, outputs()[0], problems)

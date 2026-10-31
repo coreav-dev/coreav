@@ -11,8 +11,10 @@ the Opus in ISOBMFF encapsulation, ISO/IEC 14496-3 (AAC), the FLAC in
 ISOBMFF mapping (RFC 9639 10.3), Apple's ALAC magic cookie description,
 ETSI TS 102 366 Annex F (AC-3 and E-AC-3) and the QuickTime
 File Format (sound sample entry versions, Macintosh language codes). No
-multimedia implementation source is read; `ffmpeg`,
-`ffprobe` and MediaInfo are black-box oracles only.
+multimedia implementation source is read, with one exception: the layout
+of the Apple Lossless packet header ("Apple Lossless packets from
+Matroska", below). `ffmpeg`, `ffprobe` and MediaInfo are black-box
+oracles only.
 
 ## What it does
 
@@ -189,7 +191,7 @@ AC-3 decoder, so these entries are in the default build.
 | Codec | Entry | Configuration | From MP4/MOV | From Matroska |
 |---|---|---|---|---|
 | FLAC | `fLaC` | `dfLa`: version 0, then the metadata blocks | as stored | `CodecPrivate` (`fLaC`, then the blocks, RFC 9639 10.2) |
-| Apple Lossless | `alac` | `alac`: version 0, then the magic cookie | as stored | dropped with a reason (below) |
+| Apple Lossless | `alac` | `alac`: version 0, then the magic cookie | as stored | `CodecPrivate`, the cookie (24 or 48 bytes, with or without a 12-byte atom header) |
 | AC-3 | `ac-3` | `dac3` (F.4) | as stored | the first syncframe's `bsi()` |
 | E-AC-3 | `ec-3` | `dec3` (F.6) | as stored | the first sample's substreams |
 
@@ -205,17 +207,29 @@ AC-3 decoder, so these entries are in the default build.
   packet, one AC-3 syncframe, or one E-AC-3 sample: the syncframes that
   together deliver six blocks of every substream (F.2), 1,536 samples.
   From Matroska, a FLAC frame lasts its header's block size (RFC 9639
-  9.1.1), an AC-3 or E-AC-3 frame 1,536 samples. Apple Lossless from
-  Matroska is dropped with the reason "Apple Lossless from Matroska: a
-  packet's sample count is not publicly specified": the cookie's
-  `frameLength` applies only when a packet's own header states no other
-  count (Apple's cookie description), no public specification describes
-  that header, and Matroska's millisecond times cannot give a count. The
-  stream is dropped with a reason when its
+  9.1.1), an Apple Lossless packet the samples its header states, else the
+  cookie's `frameLength` (below), an AC-3 or
+  E-AC-3 frame 1,536 samples. The stream is dropped with a reason when its
   first frame is not one AC-3 syncframe of the size its header states, is
   not E-AC-3 syncframes of six audio blocks in all,
   holds independent substreams out of order (E.1.3.1.2), or is larger than
   288 KiB.
+- **Apple Lossless packets from Matroska.** Apple's cookie description
+  makes `frameLength` a packet's sample count only when the packet's
+  header states no other, and a shorter packet (always the last one) does
+  state its own; Matroska's millisecond times cannot give the count. The
+  header's layout is taken, under a maintainer-approved clean-room
+  exception (2026-10-31) for the ALAC packet header layout only, from
+  Apple's ALAC reference source, `codec/ALACDecoder.cpp` of the
+  macosforge/alac release (Apache-2.0): a 3-bit element tag (0 for one
+  channel, 1 for a channel pair, 3 for LFE), a 4-bit instance tag, 12
+  bits of zeros, a flag for a stated count, a 2-bit shift other than 3,
+  an escape bit, then, when flagged, the count in 32 bits. Nothing else
+  of that source is used, and CoreAV's reader (`alac_samples` in
+  `src/audio.rs`) is written from this description. A packet that does
+  not start with such a header, or states 0 samples or more than
+  `frameLength`, drops the stream with "an Apple Lossless packet without a
+  valid element header" rather than being given a guessed length.
 - **`dac3` and `dec3` from the bitstream.** `fscod`, `bsid`, `bsmod`,
   `acmod` and `lfeon` come from the first frame's `bsi()` (4.4.2,
   E.1.3); `bit_rate_code` from `frmsizecod`; E-AC-3's `data_rate` is the
@@ -482,7 +496,6 @@ once per output.
   100% of the fixtures.
 - Audio sample entries, in CI: `scripts/audio_copy_check.py` makes FLAC,
   Apple Lossless, AC-3 and E-AC-3 sources in MP4, MOV, M4A and Matroska
-  (whose Apple Lossless every command must refuse or drop with its reason)
   with the pinned FFmpeg 9.0.2 (stereo, 5.1, 44.1 kHz and 96 kHz
   variants, and files with H.264 video), runs remux, `coreav ffmpeg -c
   copy`, clip, split, join and `coreav ffmpeg -f concat -c copy` on them,
