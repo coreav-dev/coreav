@@ -190,6 +190,13 @@ fn remux<S: Source, R: Source, W: Write>(
         .into());
     }
     if let Some(wanted) = &options.streams {
+        if u64::try_from(wanted.len()).unwrap_or(u64::MAX) > u64::from(limits.max_tracks) {
+            return Err(Error::LimitExceeded {
+                limit: LimitKind::Tracks,
+                offset: 0,
+            }
+            .into());
+        }
         for index in wanted {
             if *index >= streams {
                 return Err(Error::NoSuchTrack.into());
@@ -2132,9 +2139,10 @@ fn file_type(kept: &[Kept<'_>]) -> FileType {
 }
 
 /// The summary's dropped boxes: those outside the tracks (with the movie's
-/// sanitized metadata), then each kept stream's in output order, then the
-/// metadata boxes too large to copy; each group in file order; at most
-/// [`MAX_REPORTED`].
+/// sanitized metadata), then each kept source stream's once, in source
+/// order (a stream written twice has its boxes listed once), then the
+/// metadata boxes too large to copy, each once; each group in file order;
+/// at most [`MAX_REPORTED`].
 fn report(
     file: &FileScan,
     movie_gone: &[Gone],
@@ -2185,8 +2193,18 @@ fn report(
     for (s, reason, kind, name) in outside {
         add(None, s, reason, kind, name);
     }
-    let mut trak_more = 0u64;
+    let mut sources: Vec<&Kept<'_>> = Vec::new();
     for k in kept {
+        if !sources
+            .iter()
+            .any(|s| s.track.stream_index == k.track.stream_index)
+        {
+            sources.push(k);
+        }
+    }
+    sources.sort_by_key(|k| k.track.stream_index);
+    let mut trak_more = 0u64;
+    for k in sources {
         let stream = Some(k.track.stream_index);
         let mut mine: Vec<(
             &Skipped,
@@ -2213,8 +2231,11 @@ fn report(
             add(stream, s, reason, kind, name);
         }
     }
+    let mut seen = std::collections::BTreeSet::new();
     for (stream, s) in &retained.too_large {
-        if stream.is_none() || kept.iter().any(|k| Some(k.track.stream_index) == *stream) {
+        if (stream.is_none() || kept.iter().any(|k| Some(k.track.stream_index) == *stream))
+            && seen.insert((*stream, s.header.offset))
+        {
             add(*stream, s, BoxDropReason::TooLarge, None, None);
         }
     }

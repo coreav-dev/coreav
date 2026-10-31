@@ -1069,6 +1069,35 @@ fn named_streams_keep_their_order_and_repeats() {
         [1, 0, 0]
     );
     assert!(summary.dropped_tracks.is_empty());
+    // Each source box is reported once, in file order, however often and
+    // in whatever order its stream is named.
+    let mut tracks = vec![video(30, 10), aac(40, false)];
+    for t in &mut tracks {
+        t.trak_extra = vec![bx(b"zzzz", &[0; 4])];
+    }
+    let marked = build(&file(tracks));
+    let (summary, _) = remux(&marked, &named(vec![1, 0, 0])).unwrap();
+    let reported: Vec<_> = summary
+        .dropped_boxes
+        .iter()
+        .map(|b| (b.stream_index, b.offset))
+        .collect();
+    assert_eq!(reported.len(), 2);
+    assert!(reported.windows(2).all(|w| w[0].1 < w[1].1));
+    assert_eq!(
+        reported.iter().map(|r| r.0).collect::<Vec<_>>(),
+        [Some(0), Some(1)]
+    );
+    // More named streams than an output may hold fail before any is
+    // planned.
+    let most = Limits::default().max_tracks as usize;
+    assert!(matches!(
+        remux(&source, &named(vec![0; most + 1])),
+        Err(ExtractError::Source(Error::LimitExceeded {
+            limit: LimitKind::Tracks,
+            ..
+        }))
+    ));
     let (summary, _) = remux(&source, &named(vec![1])).unwrap();
     assert_eq!(
         summary

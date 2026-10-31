@@ -491,6 +491,15 @@ fn remux<S: Source, R: Source, W: Write>(
         video: mut replacement,
         mut audio,
     } = replacements;
+    if options.streams.as_ref().is_some_and(|wanted| {
+        u64::try_from(wanted.len()).unwrap_or(u64::MAX) > u64::from(mux.max_tracks)
+    }) {
+        return Err(coreav_isobmff::Error::LimitExceeded {
+            limit: coreav_isobmff::LimitKind::Tracks,
+            offset: 0,
+        }
+        .into());
+    }
     let replaced_codec = match replacement.as_mut() {
         Some(r) => Some(validate(r, mux)?),
         None => None,

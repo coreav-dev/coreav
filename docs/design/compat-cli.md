@@ -1047,7 +1047,13 @@ an MP4 file lists after its tracks, so a selection that names one twice,
 before a track or out of its order is refused. The clip, the split and the
 join write their video first: a selection of their audio before their video
 is refused by name. An encode keeps its own rule: its selection keeps the
-input's order and names each stream once. The concat
+input's order and names each stream once. A selection is refused by name
+once its maps name more streams than the writer's track limit
+(`Limits::max_tracks`, 1,024), before any stream is planned, so a short
+command line of repeated `-map 0` costs no more than that limit; the
+remux checks a longer `streams` list against the same limit first. The
+remux reports each source box it drops once, in file order, however often
+its stream is named. The concat
 demuxer exposes the streams of the list's first file, in its order, with
 every disposition flag cleared (the pinned `ffmpeg` 9.0.2, black box:
 `ffprobe` of a list), so a join's selection goes by picture size and

@@ -402,6 +402,20 @@ fn named_streams_keep_their_order_and_repeats() {
         [(1, 1), (0, 2), (0, 3)]
     );
     assert!(summary.dropped_tracks.is_empty());
+    let most = coreav_isobmff::Limits::default().max_tracks as usize;
+    let too_many = MatroskaRemuxOptions {
+        streams: Some(vec![0; most + 1]),
+        ..MatroskaRemuxOptions::default()
+    };
+    assert!(matches!(
+        remux_with(&source, &Allowlist::default(), &too_many),
+        Err(MatroskaRemuxError::Output(
+            coreav_isobmff::Error::LimitExceeded {
+                limit: coreav_isobmff::LimitKind::Tracks,
+                ..
+            }
+        ))
+    ));
 }
 
 #[test]

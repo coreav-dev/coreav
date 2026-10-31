@@ -471,8 +471,10 @@ pub struct RemuxSummary {
     /// The streams of the source that are not in the output, in source
     /// order.
     pub dropped_tracks: Vec<DroppedTrack>,
-    /// Boxes of the source that are not in the output, in file order (those
-    /// of dropped streams are not listed): at most 256.
+    /// Boxes of the source that are not in the output, each once (those
+    /// of dropped streams are not listed): those outside the tracks, then
+    /// each kept stream's in source order, then the boxes too large to
+    /// copy; each group in file order; at most 256.
     pub dropped_boxes: Vec<DroppedBox>,
     /// Dropped boxes beyond those listed.
     pub dropped_boxes_not_listed: u64,

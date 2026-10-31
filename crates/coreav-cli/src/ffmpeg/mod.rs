@@ -315,12 +315,13 @@ pub fn plan(
         .iter()
         .filter_map(|i| streams.get(*i).map(|s| (*i, s)))
         .collect();
+    let decided = codecs(command, &output);
     let coded = |wanted: Codec| -> Vec<usize> {
         output
             .iter()
-            .enumerate()
-            .filter(|(position, _)| codec(command, &output, *position) == Some(wanted))
-            .map(|(_, (index, _))| *index)
+            .zip(&decided)
+            .filter(|(_, codec)| **codec == Some(wanted))
+            .map(|((index, _), _)| *index)
             .collect()
     };
     let encoded = coded(Codec::Libx264);
@@ -620,17 +621,20 @@ fn opus_source(stream: &Stream) -> Result<(), Refusal> {
     Ok(())
 }
 
-/// The codec option that decides the output stream at `position` of
-/// `output`: the last one that names it, as in `ffmpeg` (`-c:v libx264 -c
+/// The codec option that decides each output stream of `output`, by
+/// position: the last one that names it, as in `ffmpeg` (`-c:v libx264 -c
 /// copy` copies the video). Options name output streams, so a stream
 /// mapped twice is decided once for each place it has.
-fn codec(command: &Command, output: &[(usize, &Stream)], position: usize) -> Option<Codec> {
-    command
-        .codecs
-        .iter()
-        .rev()
-        .find(|(spec, _)| matching(spec, output).contains(&position))
-        .map(|(_, codec)| *codec)
+fn codecs(command: &Command, output: &[(usize, &Stream)]) -> Vec<Option<Codec>> {
+    let mut decided = vec![None; output.len()];
+    for (spec, codec) in &command.codecs {
+        for position in matching(spec, output) {
+            if let Some(slot) = decided.get_mut(position) {
+                *slot = Some(*codec);
+            }
+        }
+    }
+    decided
 }
 
 /// Where a clip starts and ends on the input's presentation timeline, in
@@ -891,10 +895,11 @@ fn select(command: &Command, streams: &[Stream]) -> Result<Vec<usize>, Refusal> 
             }
         }
     } else {
+        let most = usize::try_from(Limits::default().max_tracks).unwrap_or(usize::MAX);
         for map in &command.maps {
             let hits = matching(&map.spec, &all);
             if map.remove {
-                selected.retain(|i| !hits.contains(i));
+                selected.retain(|i| hits.binary_search(i).is_err());
             } else if hits.is_empty() {
                 return Err(Refusal::Usage(
                     "A -map matches no streams; to ignore it, add a trailing '?' to the map."
@@ -902,6 +907,11 @@ fn select(command: &Command, streams: &[Stream]) -> Result<Vec<usize>, Refusal> 
                 ));
             } else {
                 selected.extend(hits);
+                if selected.len() > most {
+                    return Err(Refusal::not_native(
+                        "more output streams than CoreAV writes to one file",
+                    ));
+                }
             }
         }
         selected.retain(|i| streams.get(*i).is_some_and(|s| !disabled(s)));
@@ -915,7 +925,7 @@ fn select(command: &Command, streams: &[Stream]) -> Result<Vec<usize>, Refusal> 
         .iter()
         .filter_map(|i| streams.get(*i).map(|s| (*i, s)))
         .collect();
-    if (0..output.len()).any(|position| codec(command, &output, position).is_none()) {
+    if codecs(command, &output).contains(&None) {
         return Err(Refusal::not_native(
             "a selected stream that no -c copy option covers (it would be encoded)",
         ));
