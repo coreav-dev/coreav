@@ -2328,72 +2328,6 @@ def evidence_plain_lc(facts, stream):
     return (object_type == 2 and rate_index < len(AAC_RATES) and AAC_RATES[rate_index] == stream.get('sample_rate')
             and not extension)
 
-EmptyEditPadding = collections.namedtuple('EmptyEditPadding', 'track_id offset size oracle coreav')
-# The backward-compatible extension that rules SBR out (ISO/IEC 14496-3
-# 1.6.2.1): syncExtensionType 0x2b7, object type 5, sbrPresentFlag 0.
-NO_SBR_EXTENSION = b'\x56\xe5\x00'
-
-
-def aac_lc_frame(asc, rate):
-    """The samples one frame of a plain AAC LC configuration decodes to (960
-    or 1,024 by `frameLengthFlag`, ISO/IEC 14496-3 1.6.2.1 and 4.4.1), when
-    its sampling rate is `rate` and nothing but the extension that rules
-    SBR out follows it; None otherwise."""
-    if asc is None or len(asc) < 2 or asc[2:] not in (b'', NO_SBR_EXTENSION):
-        return None
-    object_type, rate_index, flags = asc[0] >> 3, (asc[0] & 7) << 1 | asc[1] >> 7, asc[1] & 7
-    if object_type != 2 or rate_index >= len(AAC_RATES) or AAC_RATES[rate_index] != rate or flags & 3:
-        return None
-    return 960 if flags & 4 else 1024
-
-
-def empty_edit_padding(facts):
-    """KD-FF9-EMPTY-EDIT-PADDING evidence, from the file's bytes alone. For
-    each AAC LC track, unfragmented, without composition offsets, at its
-    configured rate, whose edit list is an empty edit and then one media
-    edit to the end of its samples, whose media header agrees with the
-    samples, and whose last sample is shorter than a frame: that sample's
-    track, offset and size, and the Skip Samples `discard_padding` each tool
-    lists on its packet. CoreAV's (`coreav`) is what the frame decodes past
-    the media edit's end, where 14496-12 8.6.6 ends the presentation.
-    `ffprobe` 9.0.2's (`oracle`, None when it lists none) compares that
-    end, in media time, with the packet moved later by the empty edit, so it
-    lists the frame's end past it, or nothing once the packet starts after
-    it. A track whose two values agree, or of any other shape, is left out;
-    the empty and media edits' ends must not fall halfway between two
-    ticks."""
-    found = []
-    if facts is None or facts.fragmented or not facts.movie_timescale:
-        return found
-    movie = facts.movie_timescale
-
-    def ticks(duration, timescale):
-        whole, part = divmod(duration * timescale, movie)
-        return None if 2 * part == movie else whole + (2 * part > movie)
-
-    for track_id, track in sorted(facts.tracks.items()):
-        edits, timescale = track['edits'], track['timescale']
-        if track['handler'] != b'soun' or track['ctts_version'] is not None or len(edits) != 2 or not timescale:
-            continue
-        (empty, empty_time, empty_rate), (segment, media_time, rate) = edits
-        if empty_time != -1 or empty_rate != 1 << 16 or rate != 1 << 16 or media_time < 0:
-            continue
-        frame = aac_lc_frame(facts.audio_specific_config(track_id), timescale)
-        samples = facts.samples(track_id)
-        if frame is None or not samples:
-            continue
-        last, end = samples[-1], samples[-1].dts + samples[-1].duration
-        shift, edit = ticks(empty, timescale), ticks(segment, timescale)
-        if not empty or shift is None or edit is None or media_time + edit < end or track['mdhd_duration'] != end \
-                or not 0 < last.duration < frame:
-            continue
-        presented = last.dts - media_time + shift
-        if presented + last.duration <= end:
-            continue
-        found.append(EmptyEditPadding(track_id, last.pos, last.size,
-                                      presented + frame - end if presented < end else None, frame - last.duration))
-    return found
-
 
 def evidence_outside_model(facts, candidate, stream):
     """The stream's edit list, as stored in the file, is outside CoreAV's
@@ -3099,6 +3033,78 @@ def overlay(report, reference_dir, candidate_dir, media_dir):
         result['levels'][name] = groups
     result['passed'] = all(levels['in_scope']['passed'] for levels in result['levels'].values())
     return result
+
+
+# ---------------------------------------------------------------- corpus evidence
+
+# Byte evidence for the round-9 corpus comparator's records
+# (tools/compat-corpus/ffmpeg9.json), from the overlay's own reader.
+
+EmptyEditPadding = collections.namedtuple('EmptyEditPadding', 'track_id offset size oracle coreav')
+# The backward-compatible extension that rules SBR out (ISO/IEC 14496-3
+# 1.6.2.1): syncExtensionType 0x2b7, object type 5, sbrPresentFlag 0.
+NO_SBR_EXTENSION = b'\x56\xe5\x00'
+
+
+def aac_lc_frame(asc, rate):
+    """The samples one frame of a plain AAC LC configuration decodes to (960
+    or 1,024 by `frameLengthFlag`, ISO/IEC 14496-3 1.6.2.1 and 4.4.1), when
+    its sampling rate is `rate` and nothing but the extension that rules
+    SBR out follows it; None otherwise."""
+    if asc is None or len(asc) < 2 or asc[2:] not in (b'', NO_SBR_EXTENSION):
+        return None
+    object_type, rate_index, flags = asc[0] >> 3, (asc[0] & 7) << 1 | asc[1] >> 7, asc[1] & 7
+    if object_type != 2 or rate_index >= len(AAC_RATES) or AAC_RATES[rate_index] != rate or flags & 3:
+        return None
+    return 960 if flags & 4 else 1024
+
+
+def empty_edit_padding(facts):
+    """KD-FF9-EMPTY-EDIT-PADDING evidence, from the file's bytes alone. For
+    each AAC LC track, unfragmented, without composition offsets, at its
+    configured rate, whose edit list is an empty edit and then one media
+    edit to the end of its samples, whose media header agrees with the
+    samples, and whose last sample is shorter than a frame: that sample's
+    track, offset and size, and the Skip Samples `discard_padding` each tool
+    lists on its packet. CoreAV's (`coreav`) is what the frame decodes past
+    the media edit's end, where 14496-12 8.6.6 ends the presentation.
+    `ffprobe` 9.0.2's (`oracle`, None when it lists none) compares that
+    end, in media time, with the packet moved later by the empty edit, so it
+    lists the frame's end past it, or nothing once the packet starts after
+    it. A track whose two values agree, or of any other shape, is left out;
+    the empty and media edits' ends must not fall halfway between two
+    ticks."""
+    found = []
+    if facts is None or facts.fragmented or not facts.movie_timescale:
+        return found
+    movie = facts.movie_timescale
+
+    def ticks(duration, timescale):
+        whole, part = divmod(duration * timescale, movie)
+        return None if 2 * part == movie else whole + (2 * part > movie)
+
+    for track_id, track in sorted(facts.tracks.items()):
+        edits, timescale = track['edits'], track['timescale']
+        if track['handler'] != b'soun' or track['ctts_version'] is not None or len(edits) != 2 or not timescale:
+            continue
+        (empty, empty_time, empty_rate), (segment, media_time, rate) = edits
+        if empty_time != -1 or empty_rate != 1 << 16 or rate != 1 << 16 or media_time < 0:
+            continue
+        frame = aac_lc_frame(facts.audio_specific_config(track_id), timescale)
+        samples = facts.samples(track_id)
+        if frame is None or not samples:
+            continue
+        last, end = samples[-1], samples[-1].dts + samples[-1].duration
+        shift, edit = ticks(empty, timescale), ticks(segment, timescale)
+        if not empty or shift is None or edit is None or media_time + edit < end or track['mdhd_duration'] != end \
+                or not 0 < last.duration < frame:
+            continue
+        presented = last.dts - media_time + shift
+        if presented + last.duration <= end:
+            continue
+        found.append(EmptyEditPadding(track_id, last.pos, last.size,
+                                      presented + frame - end if presented < end else None, frame - last.duration))
+    return found
 
 
 def main():
