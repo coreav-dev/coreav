@@ -61,6 +61,20 @@ class Bars(unittest.TestCase):
         self.assertTrue(aac_encode_check.judge([row(tonal=False, a4=False)])['A4'])
         self.assertFalse(aac_encode_check.judge([row(a4=False)])['A4'])
 
+    def test_a_missing_pcm_fails_a4(self):
+        self.assertIsNone(aac_encode_check.samples(1, b'\0' * 8))
+        self.assertIsNone(aac_encode_check.samples(0, b''))
+        self.assertEqual(len(aac_encode_check.samples(0, b'\0' * 8)), 2)
+        reference = aac_encode_check.samples(0, b'\0\0\x80\x3f' * 4)
+        self.assertIsNone(aac_encode_check.quality(reference, None))
+        self.assertIsNone(aac_encode_check.quality(reference, aac_encode_check.samples(0, b'')))
+        self.assertIsNone(aac_encode_check.quality(None, reference))
+        self.assertEqual(aac_encode_check.quality(reference, reference), float('inf'))
+        self.assertFalse(aac_encode_check.a4(None, 20.0))
+        self.assertFalse(aac_encode_check.a4(20.0, None))
+        self.assertTrue(aac_encode_check.a4(19.5, 20.0))
+        self.assertFalse(aac_encode_check.a4(19.4, 20.0))
+
     def test_a_failed_input_misses_every_bar(self):
         failed = {'input': 'x', 'failed': 'exit 1', 'tonal': True}
         self.assertEqual(aac_encode_check.judge([row(), failed]),
