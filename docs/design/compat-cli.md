@@ -241,7 +241,10 @@ bit depth and chroma subsampling select the planar format; full range
 is reported separately as `color_range`, not as a JPEG pixel format.
 Dolby downmix fields come from ATSC A/52's extended bitstream information
 or E-AC-3 mixing metadata; absent metadata prints zero, not inferred
-speaker gains.
+speaker gains. An AC-3 alternate-syntax field that the channel mode
+leaves without a defined meaning (A/52 Annex D 2.3.1.2 to 2.3.1.6: the
+preferred downmix below three channels, a centre level without a centre
+channel, a surround level without surround channels) also prints zero.
 
 AV1 strings keep the sequence's level index (including 31, maximum
 parameters) and append all optional fields together when they differ
