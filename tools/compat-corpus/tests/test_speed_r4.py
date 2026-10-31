@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest import mock
 
 HERE = pathlib.Path(__file__).resolve().parent.parent
@@ -167,11 +168,52 @@ class RealTiming(unittest.TestCase):
             scratch = pathlib.Path(tmp)
             (scratch / 'output').write_text('partial output')
             with mock.patch.object(speed.os, 'pidfd_open', side_effect=OSError('descriptor unavailable')) as opened:
-                _, code = speed.timed_run([shutil.which('sleep'), '0.1'], {}, scratch)
-            self.assertEqual(code, -1)
+                with self.assertRaisesRegex(OSError, 'descriptor unavailable'):
+                    speed.timed_run([shutil.which('sleep'), '0.1'], {}, scratch)
             self.assertFalse(list(scratch.iterdir()))
             with self.assertRaises(ChildProcessError):
                 os.waitpid(opened.call_args.args[0], os.WNOHANG)
+
+    def test_infrastructure_errors_abort_after_a_completed_pair(self):
+        for stage, target, method in (('launch', speed.subprocess, 'Popen'),
+                                      ('descriptor', speed.os, 'pidfd_open')):
+            with self.subTest(stage=stage), tempfile.TemporaryDirectory() as tmp:
+                root = pathlib.Path(tmp)
+                out = root / 'results.json'
+                opts = SimpleNamespace(scratch=str(root), out=str(out), cpus='0', arm='aa', rounds=1,
+                                       ffmpeg=sys.executable, ffprobe=sys.executable, coreav=sys.executable)
+                entry = {'id': 'C01', 'tool': 'ffmpeg', 'job': 'remux'}
+                pairs = [(entry, i, {'args': ['-c', 'pass']}, 'mp4-mov:0', 'mp4-mov', root / 'input.mp4')
+                         for i in range(2)]
+                operation = getattr(target, method)
+                calls = 0
+
+                def fail_fifth(*args, **kwargs):
+                    nonlocal calls
+                    calls += 1
+                    if calls == 5:
+                        (root / 'out' / 'partial').write_text('partial output')
+                        raise OSError('infrastructure unavailable')
+                    return operation(*args, **kwargs)
+
+                with mock.patch.object(speed.os, 'sched_setaffinity'), \
+                        mock.patch.object(speed, 'r4_files', return_value=[]), \
+                        mock.patch.object(speed, 'r4_pairs', return_value=pairs), \
+                        mock.patch.object(target, method, side_effect=fail_fifth):
+                    with self.assertRaisesRegex(OSError, 'infrastructure unavailable'):
+                        speed.r4(opts)
+                self.assertEqual(calls, 5)
+                self.assertFalse(out.exists())
+                self.assertFalse(list((root / 'out').iterdir()))
+
+    def test_nonzero_child_exits_are_still_returned(self):
+        for script, expected in (('import sys; sys.exit(7)', 7),
+                                 ('import os, signal; os.kill(os.getpid(), signal.SIGHUP)', -1)):
+            with self.subTest(expected=expected), tempfile.TemporaryDirectory() as tmp:
+                scratch = pathlib.Path(tmp)
+                _, code = speed.timed_run([sys.executable, '-c', script], {}, scratch)
+                self.assertEqual(code, expected)
+                self.assertFalse(list(scratch.iterdir()))
 
 
 def results(arm, ratios):

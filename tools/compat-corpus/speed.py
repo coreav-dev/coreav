@@ -146,7 +146,7 @@ B4_METHOD = 'b4-file-cluster-v1'
 B4_TIMEOUT = 600
 
 
-def timed(argv, env):
+def timed(argv, env, *, raise_oserror=False):
     start = time.perf_counter()
     try:
         with subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
@@ -167,6 +167,8 @@ def timed(argv, env):
                 process.kill()
                 raise
     except OSError:
+        if raise_oserror:
+            raise
         return time.perf_counter() - start, -1
     return elapsed, code
 
@@ -452,7 +454,7 @@ def timed_run(argv, env, scratch):
     """One process, wall time from start to exit; SCRATCH is emptied after
     it, so every run writes to an empty directory."""
     try:
-        return timed(argv, env)
+        return timed(argv, env, raise_oserror=True)
     finally:
         clear(scratch)
 
