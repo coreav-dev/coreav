@@ -44,6 +44,8 @@ class Set(unittest.TestCase):
         self.assertEqual(groups, {'he-aac': 24, 'he-aac-v2': 12, 'rates': 8, 'layouts': 1})
         self.assertEqual(len({e['name'] for e in plan}), 45)
         self.assertTrue(all(e['layout'] == 'stereo' for e in plan if e['codec'] == 'aacp'))
+        rates = sorted((e['codec'], e['bitrate']) for e in plan if e['group'] == 'rates')
+        self.assertEqual(rates, sorted([('aach', 24000), ('aach', 64000), ('aacp', 24000), ('aacp', 48000)] * 2))
 
     def test_the_corpus_rule_keeps_only_files_not_held_out_in_read_containers(self):
         self.assertTrue(h.candidate({'holdout': False, 'ext': 'm4a'}))
@@ -91,6 +93,20 @@ class Files(unittest.TestCase):
                                                           0x3f) + b'\0' * 16
         self.assertEqual(h.wav_format(plain), (44100, 2, 3))
         self.assertEqual(h.wav_format(ext), (48000, 6, 0x3f))
+
+    def test_the_51_source_declares_no_layout_and_keeps_its_samples(self):
+        data = bytes(range(240)) * 4
+        ext = (b'RIFF\0\0\0\0WAVE' + b'fmt ' + struct.pack('<IHHIIHHHHI', 40, 0xfffe, 6, 48000, 0, 12, 16, 22, 16, 0x3f)
+               + b'\0' * 16 + b'data' + struct.pack('<I', len(data)) + data)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = pathlib.Path(tmp) / 'src.wav'
+            path.write_bytes(ext)
+            h.without_layout(path)
+            out = path.read_bytes()
+        self.assertEqual(h.wav_format(out), (48000, 6, 0))
+        self.assertEqual(struct.unpack_from('<H', out, 20)[0], 1)
+        self.assertEqual(out[-len(data):], data)
+        self.assertEqual(len(out), len(ext))
 
     def test_references_follow_the_package_names(self):
         with tempfile.TemporaryDirectory() as tmp:

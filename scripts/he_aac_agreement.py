@@ -81,9 +81,10 @@ def encodes():
         for rate in RATES:
             out.append({'name': f'he2-{kind}-{rate}-stereo', 'group': 'he-aac-v2', 'kind': kind, 'rate': rate,
                         'layout': 'stereo', 'codec': 'aacp', 'bitrate': None})
+    # Apple's encoder refuses aacp above 48 kbit/s at 48 kHz stereo.
     for kind in ('tones', 'clicks'):
-        for codec in ('aach', 'aacp'):
-            for bitrate in (24000, 64000):
+        for codec, bitrates in (('aach', (24000, 64000)), ('aacp', (24000, 48000))):
+            for bitrate in bitrates:
                 out.append({'name': f'rate-{codec}-{kind}-{bitrate // 1000}k', 'group': 'rates', 'kind': kind,
                             'rate': 48000, 'layout': 'stereo', 'codec': codec, 'bitrate': bitrate})
     out.append({'name': 'layout-5.1', 'group': 'layouts', 'kind': 'tones+clicks', 'rate': 48000, 'layout': '5.1',
@@ -107,6 +108,24 @@ def sha256(path):
     return h.hexdigest()
 
 
+def without_layout(path):
+    """Apple's encoder refuses a six-channel source that declares a channel
+    layout ("HE-AAC sets", "Generated"): the WAV's extensible format becomes
+    plain PCM, which declares none; the samples are unchanged."""
+    blob = bytearray(path.read_bytes())
+    at = 12
+    while at + 8 <= len(blob):
+        kind, size = blob[at:at + 4], int.from_bytes(blob[at + 4:at + 8], 'little')
+        if kind == b'fmt ':
+            if int.from_bytes(blob[at + 8:at + 10], 'little') != 0xfffe:
+                raise SystemExit(f'{path.name}: no extensible format to drop')
+            blob[at + 8:at + 10] = (1).to_bytes(2, 'little')
+            path.write_bytes(blob)
+            return
+        at += 8 + size + (size & 1)
+    raise SystemExit(f'{path.name}: no fmt chunk')
+
+
 def sources(a):
     a.out.mkdir(parents=True, exist_ok=True)
     plan = encodes()
@@ -119,6 +138,8 @@ def sources(a):
         made = run([a.ffmpeg, '-v', 'error', '-y', '-f', 'lavfi', '-i', lavfi, '-c:a', 'pcm_s16le', a.out / name])
         if made.returncode != 0:
             raise SystemExit(f"{name}: {made.stderr.decode(errors='replace')[-300:]}")
+        if CHANNELS[e['layout']] > 2:
+            without_layout(a.out / name)
         written[name] = sha256(a.out / name)
     (a.out / 'encodes.json').write_text(json.dumps({'encodes': plan, 'sources': written}, indent=1) + '\n')
     print(f'{len(written)} sources for {len(plan)} encodes')
