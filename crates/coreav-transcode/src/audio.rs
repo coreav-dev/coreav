@@ -503,6 +503,7 @@ impl Sink for Packets {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
     use std::time::Duration;
 
     /// Runs the Opus encoder process's reading side on `body`, a `/bin/sh`
