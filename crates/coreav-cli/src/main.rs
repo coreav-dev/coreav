@@ -1008,6 +1008,7 @@ fn run_transcode(args: &TranscodeArgs, this: Option<&Path>, strict_safe: StrictS
         scale,
         no_audio: args.audio == "none",
         audio_streams: None,
+        left_out_covers: Vec::new(),
         opus: (args.audio == "opus").then_some(transcode::OpusRequest {
             stream: None,
             bitrate: args.audio_bitrate.map(|k| k * 1000),

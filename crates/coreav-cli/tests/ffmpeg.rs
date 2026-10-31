@@ -15,7 +15,7 @@ mod common;
 
 use common::{Spec, aac_entry, av_movie, av_movie_with, bx, cat, full, u32s};
 use coreav_cli::fallback::Reason;
-use coreav_cli::ffmpeg::{Refusal, Stop};
+use coreav_cli::ffmpeg::{Job, Refusal, Stop};
 use coreav_cli::ffprobe::StreamKind;
 use coreav_cli::strict_safe::StrictSafe;
 use serde_json::{Value, json};
@@ -1131,6 +1131,67 @@ fn cover_pictures_alone_are_refused_by_name() {
         assert!(r.stderr.contains("cover pictures alone"), "{}", r.stderr);
         assert!(!output.exists());
     }
+}
+
+/// An encode follows the cover picture selection of a copy: a selection
+/// that copies the cover picture keeps it, every other leaves it out, and
+/// one that would encode it with libx264 is refused (the pinned `ffmpeg`
+/// fails on it, black box).
+#[test]
+fn an_encode_keeps_a_cover_picture_only_when_it_is_copied() {
+    let dir = scratch("ffmpeg-encode-cover");
+    let input = covered(
+        &dir,
+        "in.mp4",
+        av_movie_with(aac_entry(), false),
+        &[jpeg(32, 32)],
+    );
+    let size = std::fs::metadata(&input).unwrap().len();
+    let mut file = coreav_isobmff::FileSource::open(&input).unwrap();
+    let Ok(probed) = coreav_cli::ffprobe::probe(&mut file, size, &input, None) else {
+        panic!("{input} is rejected");
+    };
+    let report = probed.report;
+    let [(2, at)] = report.covers[..] else {
+        panic!("{:?}", report.covers);
+    };
+    let plan = |words: &[&str]| {
+        let mut args = vec!["-i", input.as_str()];
+        args.extend_from_slice(words);
+        args.push("out.mp4");
+        let args: Vec<String> = args.into_iter().map(str::to_owned).collect();
+        let command = coreav_cli::ffmpeg::args::parse(&args).unwrap();
+        coreav_cli::ffmpeg::plan(&command, &report, None)
+    };
+    let cases: [(&[&str], Vec<u64>); 3] = [
+        (&["-c:v", "libx264", "-c:a", "copy"], vec![at]),
+        (
+            &[
+                "-map", "0:v:0", "-map", "0:a", "-c:v", "libx264", "-c:a", "copy",
+            ],
+            vec![at],
+        ),
+        (
+            &[
+                "-map", "0", "-c:v", "libx264", "-c:v:1", "copy", "-c:a", "copy",
+            ],
+            vec![],
+        ),
+    ];
+    for (words, left_out) in cases {
+        match plan(words) {
+            Ok(Job::Transcode(job)) => {
+                assert_eq!((job.video, job.audio), (0, vec![1]), "{words:?}");
+                assert_eq!(job.left_out_covers, left_out, "{words:?}");
+            }
+            other => panic!("{words:?}: {other:?}"),
+        }
+    }
+    let encoded = plan(&["-map", "0", "-c:v", "libx264", "-c:a", "copy"]);
+    assert!(
+        matches!(&encoded, Err(Refusal::NotNative(n)) if n.message.contains("encoding a cover picture")),
+        "{encoded:?}"
+    );
 }
 
 /// Without `-map`, a video track wins over a cover picture, a larger one
