@@ -154,13 +154,15 @@ is not edited after a corpus run.
 | 2 | `other_stream` | CoreAV decoded another stream than the reference's | |
 | 3 | `codec_not_in_build` | the stream's group is `other` | the codec name |
 | 4 | `out_of_scope` | the group is `h264`, `av1`, `vp9` or `vp8`, and an error of kind `unsupported` ended the decode at any stage | for `h264`, from the stream's `ffprobe` properties, the first that holds: `10bit` (more than 8 bits a sample, by `bits_per_raw_sample` or `pix_fmt`), `chroma` (a `pix_fmt` other than 4:2:0, 4:0:0 included), `interlaced` (a `field_order` other than `progressive` or unknown); else `other`. For the other groups, the table's sub-codes |
-| 5 | `decode_error` | any other error at `open`, `packet` or `eof`, or a crash or signal of the tool or its worker | `limit`, `invalid_data`, `backend`, `crash`, `other` |
-| 6 | `timeout` | the time limit was reached on the rerun host too ("Host limits") | |
+| 5 | `timeout` | the runner stopped the side at its time limit on the rerun host too ("Host limits"), whatever signal or status that left | |
+| 6 | `decode_error` | any other error at `open`, `packet` or `eof`, or a crash or signal of the tool or its worker that the runner did not send | `limit`, `invalid_data`, `backend`, `crash`, `other` |
 | 7 | `frame_count` | the decode finished, and the frame count differs from the reference's (no frame returned included) | |
 | 8 | `md5` | the counts are equal, and at least one frame's MD5 differs | |
 
 For `frame_count` and `md5` the record also keeps both counts and the
-index of the first frame that differs.
+index of the first frame that differs. The runner records each deadline it
+enforces, so a process it kills at its deadline is `timeout`, never
+`crash`.
 
 ### Host limits
 
@@ -196,12 +198,16 @@ index of the first frame that differs.
   a host limit.
 
 Public evidence holds counts only. The per-file records (each file's hash
-and corpus key, its codes and its counts) are sealed before they leave the
-runner, as `.github/workflows/compat-0.1.0.yml` seals them, to
-`tools/compat-corpus/evidence-public.pem`, and also to a second public key
-when the dispatch of the run gives one, so that whoever triages the
-`frame_count` and `md5` files can read them without the maintainer's key.
-The list of those files stays private.
+and corpus key, its codes and its counts) never leave the runner unsealed:
+`codec-coverage.yml`, the workflow the tools add, seals them before it
+uploads them, as `compat-0.1.0.yml` seals its R2 and R3 records, to
+`tools/compat-corpus/evidence-public.pem` alone. The run needs no other
+recipient: whoever holds that key reads the `frame_count` and `md5` files,
+and their list stays private. A second recipient could read every record,
+so it is the maintainer's decision. It is added only if the maintainer
+approves a named key, by an amendment of this page that gives the key's
+fingerprint before any run, and the workflow then seals to it only when
+the fingerprint matches. Until then there is none.
 
 ## V2, encode breadth
 
@@ -251,22 +257,39 @@ encode passes. Every other `ffmpeg` start makes the command `ffmpeg_job`.
 
 ### The oracles of the jobs
 
-The output's streams are listed with the pinned `ffprobe`. Each stream's
-job is what CoreAV did with it:
+A command's jobs are the ones the pinned `ffmpeg` reports for it: on the
+chosen input, its `Stream mapping` names, for each output stream, the
+input stream it comes from and whether that stream is copied or which
+encoder makes it, as `copy_check.py` already reads it. The report is taken
+from a run of the command with its log level set to `info` (the command's
+own `-v` or `-loglevel` value replaced, which changes no output). A copy
+is therefore known by what the command asks, not by comparing packets with
+the whole source, so a join, a clip or a segmented copy is a copy.
+CoreAV's output streams are listed with the pinned `ffprobe` and matched
+to the mapping by order; the stream listing check below requires the same
+order in both outputs.
 
-| Job | How it is known | Oracle |
-|---|---|---|
-| copy | the stream's packets equal the source stream's in count and data (`ffprobe -show_packets -show_data_hash MD5`) | a command whose every stream is copied: R3's oracle, `tools/compat-corpus/copy_check.py`, against the pinned `ffmpeg`'s output of the same command. A stream copied beside an encode: B3 of `design/transcode.md` as `transcode_check.py` checks it, for video and audio alike |
-| H.264 through `x264` | an H.264 stream that is not a copy, with an `x264` start in the program log | B9 of `design/transcode.md`, as `transcode_check.py --compat` applies it: B1, B2, and B4 with Q1 at least −0.50 dB and Q2 at least 30 dB, against the pinned `ffmpeg` running the same command line |
-| Opus through libopus | an Opus stream that is not a copy | O1 to O4 of `design/transcode.md`, "Opus bars", for one output, with the pinned `ffmpeg`'s output of the same command as the FFmpeg arm: O1 as written; O2 with that output in place of the summary (`start_pts` 0, `initial_padding` equal to its, `duration_ts` within 48 samples of its); O3's bound for one input, 0.85 to 1.15 (its median is over a set and does not apply to one command); O4 as written, 1.0 dB |
-| AAC through `ffmpeg -c:a aac` | an AAC stream that is not a copy, with an encoder start in the program log | A1 to A4 of `design/transcode.md`, "AAC bars", for one output in the same way: A1 as written; A2 with the FFmpeg arm's output in place of the summary, exactly; A3's bound for one input, 0.95 to 1.05; A4 as written, 0.5 dB |
-| anything else | a stream of another codec that is not a copy, or an image file | none registered at this plan's commit |
+| Job in the mapping | Oracle |
+|---|---|
+| `copy` | a command whose every stream is copied: R3's oracle, `tools/compat-corpus/copy_check.py`, against the pinned `ffmpeg`'s output of the same command, its range and join checks included. A stream copied beside an H.264 encode: B3, as the note registers it for B9. A stream copied beside an AAC encode with no H.264 encode: `copy_check.py`'s checks of that stream |
+| `libx264` | an `x264` start in CoreAV's program log, then B9 of `design/transcode.md` as `transcode_check.py --compat` applies it: B1, B2, and B4 with Q1 at least −0.50 dB and Q2 at least 30 dB, against the pinned `ffmpeg` running the same command line |
+| `libopus` | CoreAV's stream is not a packet copy of a source stream (equal in count and data: an encode cannot reproduce the source's packets), then O1 to O4 of `design/transcode.md`, "Opus bars", for one output, with the pinned `ffmpeg`'s output of the same command as the FFmpeg arm: O1 as written; O2 with that output in place of the summary (`start_pts` 0, `initial_padding` equal to its, `duration_ts` within 48 samples of its); O3's bound for one input, 0.85 to 1.15 (its median is over a set and does not apply to one command); O4 as written, 1.0 dB, for the sources below |
+| `aac` | an encoder start in CoreAV's program log, then A1 to A4 of `design/transcode.md`, "AAC bars", for one output in the same way: A1 as written; A2 with the FFmpeg arm's output in place of the summary, exactly; A3's bound for one input, 0.95 to 1.05; A4 as written, 0.5 dB, for the sources below |
+| any other encoder, image encoders included | none registered at this plan's commit |
 
-O4 and A4 apply to every Opus and AAC output: the audio of all five
-fixtures is a 440 Hz sine at 48 kHz, a tonal source. Their reference is
-the source's audio decoded by the pinned `ffmpeg` to 48 kHz float with the
-command's own timing options (`-ss`, `-t`, `-to`, `-sseof`, `-itsoffset`),
-and both arms are compared with it over the presented samples.
+The fixtures' audio is a 440 Hz sine, a tonal source: at 48 kHz in
+`mkv_h264_aac.mkv`, `webm_vp9_opus.webm`, `ts_h264_aac.ts` and
+`audio_aac.m4a` (`ASRC` and `A` in the generators), and at 44.1 kHz in
+`basic.mp4`, whose sine in `SRC` sets no rate. O4 and A4 are applied as
+registered, with no extension. O4 judges the tonal sources at 48 kHz and
+leaves out the 44.1 kHz source S6, so it judges an Opus output whose input
+is one of the four 48 kHz fixtures, and an Opus output from `basic.mp4` is
+judged on O1 to O3 only. A4 judges the tonal sources S1, S2, S3 and S6,
+44.1 kHz included, so it judges every AAC output. The fixtures are used as
+the generators make them. The reference of O4 and A4 is the source's audio
+decoded by the pinned `ffmpeg` to 48 kHz float with the command's own
+timing options (`-ss`, `-t`, `-to`, `-sseof`, `-itsoffset`), and both arms
+are compared with it over the presented samples.
 
 If a design note registers an oracle for another job (CoreAV's JPEG and
 PNG images, for example) before the release candidate, this page is
@@ -287,8 +310,8 @@ gets the first code that applies:
 | 1 | `no_input` | no assignment on which the pinned `ffmpeg` succeeds | |
 | 2 | `refused` | exit status 4 | the fallback log line's `reason`, the option CoreAV names, or `none` without a line |
 | 3 | `rejected` | exit status 1 for a truncated or invalid structure | the kind |
-| 4 | `timeout` | the 300 seconds reached | |
-| 5 | `failed` | any other nonzero exit, a signal, or exit 0 with no output | the status and the last line of standard error |
+| 4 | `timeout` | the runner stopped the run at its 300 seconds, whatever signal or status that left | |
+| 5 | `failed` | any other nonzero exit, a signal the runner did not send, or exit 0 with no output | the status and the last line of standard error |
 | 6 | `ffmpeg_job` | a start in the program log that is not an encoder start | |
 | 7 | `no_oracle` | an output stream whose job has no registered oracle | the job |
 | 8 | `oracle` | a check of an oracle fails | the first check that failed (`copy_check`, `B1` to `B4`, `O1` to `O4`, `A1` to `A4`) |
@@ -306,10 +329,9 @@ says.
 - **Unhandled options.** The `refused` commands per logged `reason`, by
   count. A refused command counts once, under the option CoreAV named.
 - **Per encoder.** Each command is put in the groups of the encoders the
-  pinned `ffmpeg` used for its output, known from that output as CoreAV's
-  jobs are: `x264` (an H.264 stream that is not a copy), `libopus` (Opus),
-  `aac` (AAC), `other encoders` (any other codec that is not a copy,
-  images included) and `copy only`. A command can be in several groups.
+  pinned `ffmpeg`'s mapping names for it: `x264` (`libx264`), `libopus`,
+  `aac`, `other encoders` (any other encoder, image encoders included) and
+  `copy only` (every stream copied). A command can be in several groups.
   For each group: its commands, the counted ones and its misses by code.
 
 ## V3, the native share
@@ -345,8 +367,8 @@ container CoreAV does not read). It reads no corpus file.
    `copy_check.py`, the B1 to B4 checks of `transcode_check.py`, and the
    checks of `opus_encode_check.py` and `aac_encode_check.py`, rather than
    copies of them.
-4. A `workflow_dispatch` workflow, `codec-coverage.yml`, with the commit,
-   the set (`rehearsal` or `v1`) and an optional public key as inputs. It
+4. A `workflow_dispatch` workflow, `codec-coverage.yml`, with the commit
+   and the set (`rehearsal` or `v1`) as inputs. It
    builds the manifest's binaries once, runs V1's shards with the corpus
    store's read-only credentials, and runs V2 and V3 in a job of their own
    that reads no corpus file. A pull request that changes the workflow
@@ -362,7 +384,9 @@ container CoreAV does not read). It reads no corpus file.
    `sha256("coreav-codec-rehearsal:" + sha256)`, with V2 and V3 in full.
    Its numbers are not reported; it exists to find the tools' faults. Only
    a fault of a tool (a crash, a wrong record, a step that cannot finish)
-   changes the tools after it, never a result.
+   changes the tools after it, never a result. Its records are kept,
+   sealed as the run's are, and a change it causes is recorded under
+   "Deviations".
 4. The release candidate commit is named in the round's README.
 5. **The run.** The workflow at the release candidate with the set `v1`,
    then the rerun of the files with a host limit, then the result. Once: a
