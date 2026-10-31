@@ -621,6 +621,15 @@ pub(crate) fn parse_sample_entry(
         Codec::ProRes => prores_profile(fourcc).map(Profile::ProRes),
         _ => profile.flatten(),
     };
+    // AC-3 and E-AC-3 record their output channels in `dac3` and `dec3`
+    // too, so those win over the sample entry's count.
+    if let Some(channels) = desc
+        .codec_config
+        .as_ref()
+        .and_then(|c| ac3_channels(desc.codec, c))
+    {
+        desc.channels = Some(channels);
+    }
     desc.declared_bit_rate = btrt.or_else(|| {
         let (buffer_size, maximum, average) = esds.as_ref()?.rates?;
         Some(DeclaredBitRate {
@@ -926,6 +935,27 @@ fn configured_channels(configuration: u8) -> Option<u32> {
         13 => Some(24),
         _ => None,
     }
+}
+
+/// The channels an AC-3 `dac3` or E-AC-3 `dec3` box declares (ETSI TS
+/// 102 366 F.4 and F.6): those its `acmod` (table 4.3) and `lfeon` code,
+/// for E-AC-3 those of the first independent substream. Channels that
+/// dependent substreams add (`chan_loc`) are not counted.
+fn ac3_channels(codec: Codec, config: &CodecConfig) -> Option<u32> {
+    let mut bits = Bits::new(&config.data);
+    match (codec, &config.kind.0) {
+        (Codec::Ac3, b"dac3") => bits.skip(2 + 5 + 3)?,
+        (Codec::Eac3, b"dec3") => bits.skip(13 + 3 + 2 + 5 + 1 + 1 + 3)?,
+        _ => return None,
+    }
+    let full = match bits.bits(3)? {
+        1 => 1,
+        0 | 2 => 2,
+        3 | 4 => 3,
+        5 | 6 => 4,
+        _ => 5,
+    };
+    Some(full + bits.bits(1)?)
 }
 
 /// The output channels of an `AudioSpecificConfig` (ISO/IEC 14496-3

@@ -1,6 +1,6 @@
 //! Sound sample entries whose stored fields need care: QuickTime
-//! uncompressed audio with a constant sample size of 1, and AAC channel
-//! counts from the `AudioSpecificConfig`.
+//! uncompressed audio with a constant sample size of 1, and AAC, AC-3 and
+//! E-AC-3 channel counts from their configuration.
 #![allow(
     clippy::indexing_slicing,
     clippy::unwrap_used,
@@ -222,6 +222,68 @@ fn aac_with(channels: u16, config: &[u8]) -> Vec<u8> {
     body.extend_from_slice(&(48_000u32 << 16).to_be_bytes());
     body.extend_from_slice(&full(b"esds", 0, 0, &esds));
     bx(b"mp4a", &body)
+}
+
+/// The channels probe gives an `ac-3` or `ec-3` entry that says 2 and
+/// whose `dac3` or `dec3` is `config`.
+fn ac3_channels(kind: &[u8; 4], config_kind: &[u8; 4], config: &[u8]) -> Option<u32> {
+    let mut body = vec![0u8; 6];
+    body.extend_from_slice(&1u16.to_be_bytes());
+    body.extend_from_slice(&[0u8; 8]);
+    body.extend_from_slice(&2u16.to_be_bytes());
+    body.extend_from_slice(&16u16.to_be_bytes());
+    body.extend_from_slice(&[0u8; 4]);
+    body.extend_from_slice(&(48_000u32 << 16).to_be_bytes());
+    body.extend_from_slice(&bx(config_kind, config));
+    let movie = probed(&av_movie_with(bx(kind, &body), false));
+    let audio = movie
+        .tracks
+        .iter()
+        .find(|t| t.kind == TrackKind::Audio)
+        .unwrap();
+    audio.description.channels
+}
+
+#[test]
+fn ac3_and_eac3_channels_come_from_the_configuration() {
+    // dac3: fscod, bsid, bsmod, acmod, lfeon, bit_rate_code, reserved.
+    let dac3 = |acmod, lfeon| {
+        pack(&[
+            (0, 2),
+            (8, 5),
+            (0, 3),
+            (acmod, 3),
+            (lfeon, 1),
+            (10, 5),
+            (0, 5),
+        ])
+    };
+    assert_eq!(ac3_channels(b"ac-3", b"dac3", &dac3(7, 1)), Some(6));
+    assert_eq!(ac3_channels(b"ac-3", b"dac3", &dac3(1, 0)), Some(1));
+    // acmod 0 is two independent mono channels.
+    assert_eq!(ac3_channels(b"ac-3", b"dac3", &dac3(0, 0)), Some(2));
+    // dec3: data_rate, num_ind_sub, then the substream's fscod, bsid,
+    // reserved, asvc, bsmod, acmod, lfeon, reserved, num_dep_sub, reserved.
+    let dec3 = |acmod, lfeon| {
+        pack(&[
+            (384, 13),
+            (0, 3),
+            (0, 2),
+            (16, 5),
+            (0, 1),
+            (0, 1),
+            (0, 3),
+            (acmod, 3),
+            (lfeon, 1),
+            (0, 3),
+            (0, 4),
+            (0, 1),
+        ])
+    };
+    assert_eq!(ac3_channels(b"ec-3", b"dec3", &dec3(7, 1)), Some(6));
+    assert_eq!(ac3_channels(b"ec-3", b"dec3", &dec3(6, 0)), Some(4));
+    // A truncated box: the entry's count.
+    assert_eq!(ac3_channels(b"ac-3", b"dac3", &[0x10]), Some(2));
 }
 
 /// Packs `(value, width)` fields most significant bit first.
