@@ -46,8 +46,7 @@ sources. No sample is decoded or re-encoded.
     `CodecPrivate`, or one built from a legacy `A_AAC/...` codec ID and the
     track's sample rate and channels; timescale = sample rate.
   - FLAC → `fLaC` with a `dfLa` holding the metadata blocks of
-    `CodecPrivate`; Apple Lossless (`A_ALAC`) → `alac` with the magic
-    cookie of `CodecPrivate`; AC-3 → `ac-3` with a `dac3` and E-AC-3 →
+    `CodecPrivate`; AC-3 → `ac-3` with a `dac3` and E-AC-3 →
     `ec-3` with a `dec3`, both built from the first frame's headers;
     timescale = sample rate (`remux.md`, "Audio sample entries").
 - **Dropped and reported**, with a precise reason, by default; `--fail-on-
@@ -60,6 +59,9 @@ sources. No sample is decoded or re-encoded.
     and MSE reporting no support; an earlier change records the test and the decision
     not to write `vp08`), "MP4 has no standard sample entry for Vorbis",
     MP3 and PCM;
+  - Apple Lossless (`A_ALAC`): "Apple Lossless from Matroska: a packet's
+    sample count is not publicly specified" (`remux.md`, "Audio sample
+    entries");
   - subtitle and data tracks, tracks whose frames are compressed
     (`ContentCompression` other than header stripping), encrypted tracks,
     tracks with `TrackTimestampScale` other than 1.0;
@@ -120,8 +122,8 @@ sources. No sample is decoded or re-encoded.
   lasts what it decodes to: the duration its Opus TOC byte gives (RFC 6716
   3.1, a 1- or 2-byte read per packet), one AAC frame (1,024 or 960
   samples, from `frameLengthFlag`), the block size of its FLAC frame
-  header (RFC 9639 9.1.1), the Apple Lossless cookie's `frameLength`, or
-  1,536 samples for AC-3 and E-AC-3. Matroska's millisecond times do not:
+  header (RFC 9639 9.1.1), or 1,536 samples for AC-3 and E-AC-3.
+  Matroska's millisecond times do not:
   Chrome's MediaRecorder writes 60 ms Opus frames at times that jitter by up
   to about 8 ms, so their differences would give 52 to 68 ms frames that do
   not match the audio. Times are accumulated from the first frame's, and
@@ -129,7 +131,7 @@ sources. No sample is decoded or re-encoded.
   than half a frame away from where this one ends (a pause in a recording,
   a lost frame, times that do not follow the frames): then the frame lasts
   up to that time, rounded to the codec's quantum (120 samples, 2.5 ms, for
-  Opus; one sample for FLAC; one frame for AAC, Apple Lossless, AC-3 and
+  Opus; one sample for FLAC; one frame for AAC, AC-3 and
   E-AC-3), at least one quantum. Each output time
   therefore stays within half a frame of the source's, except after the
   source's times go backwards: frames then last one quantum each until the

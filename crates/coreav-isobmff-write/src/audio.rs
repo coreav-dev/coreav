@@ -197,24 +197,6 @@ pub(crate) fn flac_block_size(head: &[u8]) -> Option<u32> {
     Some(stored + 1)
 }
 
-/// The `alac` box payload for Matroska's Apple Lossless `CodecPrivate`, the
-/// magic cookie (24 bytes, or 48 with the channel layout), with or without
-/// the 12-byte atom header some writers keep: version 0 and flags, then the
-/// cookie. `None` when the cookie does not parse, or declares no channels
-/// or a frame length of 0.
-pub(crate) fn alac_from_codec_private(private: &[u8]) -> Option<(Vec<u8>, LosslessConfig)> {
-    let cookie = match private.get(4..8) {
-        Some(b"alac") => private.get(12..)?,
-        _ => private,
-    };
-    let length = if cookie.len() < 48 { 24 } else { 48 };
-    let mut payload = vec![0; 4];
-    payload.extend_from_slice(cookie.get(..length)?);
-    let config = coreav_isobmff::lossless_config(FourCc(*b"alac"), &payload)
-        .filter(|c| c.channels > 0 && c.frame_length > 0)?;
-    Some((payload, config))
-}
-
 /// The sample rates of AC-3's and E-AC-3's `fscod` (ETSI TS 102 366 4.4.1.3,
 /// E.1.3.1.4), and of E-AC-3's `fscod2`.
 const RATES: [u32; 3] = [48_000, 44_100, 32_000];
@@ -692,24 +674,9 @@ mod tests {
     }
 
     #[test]
-    fn alac_cookies() {
-        let (payload, config) = alac_from_codec_private(&cookie()).unwrap();
-        assert_eq!(&payload[..4], &[0, 0, 0, 0]);
-        assert_eq!(&payload[4..], &cookie()[..]);
-        assert_eq!(
-            config,
-            LosslessConfig {
-                sample_rate: 44_100,
-                bits: 16,
-                channels: 2,
-                frame_length: 4096
-            }
-        );
-        let mut atom = 36u32.to_be_bytes().to_vec();
-        atom.extend_from_slice(b"alac");
-        atom.extend_from_slice(&[0; 4]);
-        atom.extend_from_slice(&cookie());
-        assert_eq!(alac_from_codec_private(&atom).unwrap().0, payload);
+    fn alac_cookie_excerpt() {
+        let mut payload = vec![0; 4];
+        payload.extend_from_slice(&cookie());
         let config = CodecConfig {
             kind: FourCc(*b"alac"),
             data: payload,
@@ -717,9 +684,6 @@ mod tests {
         let excerpt = excerpt_config(&config);
         assert_eq!(&excerpt[16..24], &[0; 8]);
         assert_eq!(&excerpt[24..], &44_100u32.to_be_bytes());
-        let mut bad = cookie();
-        bad[4] = 1;
-        assert!(alac_from_codec_private(&bad).is_none());
     }
 
     #[test]

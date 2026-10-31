@@ -384,7 +384,7 @@ struct Record {
     block_ns: i64,
     block_duration_ns: Option<i64>,
     /// Audio: the frame's duration in media ticks, from the codec (the Opus
-    /// TOC byte, the FLAC frame header; one AAC or ALAC frame, 1,536
+    /// TOC byte, the FLAC frame header; one AAC frame, 1,536
     /// samples of AC-3 or E-AC-3); 0 when unknown.
     frame: u32,
     keyframe: bool,
@@ -852,13 +852,13 @@ fn plan(track: &Track) -> Result<Plan, &'static str> {
                 .ok_or("FLAC without its STREAMINFO in CodecPrivate")?;
             (info.sample_rate, 1)
         }
+        // A packet may hold fewer samples than the cookie's frameLength,
+        // and only its own header, which no public specification describes,
+        // says how many; Matroska's millisecond times cannot.
         (Media::Audio, Codec::Alac) => {
-            let (_, config) = track
-                .codec_private
-                .as_deref()
-                .and_then(audio::alac_from_codec_private)
-                .ok_or("ALAC without its magic cookie in CodecPrivate")?;
-            (config.sample_rate, u64::from(config.frame_length))
+            return Err(
+                "Apple Lossless from Matroska: a packet's sample count is not publicly specified",
+            );
         }
         // The first frame's header gives the sample rate (`list_samples`).
         (Media::Audio, Codec::Ac3 | Codec::Eac3) => (
@@ -1916,22 +1916,6 @@ fn sample_entry(track: &Track, plan: &Plan) -> Result<Vec<u8>, MatroskaRemuxErro
                 info.bits,
                 audio::entry_rate(info.sample_rate),
                 &[raw(b"dfLa", dfla)],
-            )?);
-        }
-        Codec::Alac => {
-            let (cookie, config) = track
-                .codec_private
-                .as_deref()
-                .and_then(audio::alac_from_codec_private)
-                .ok_or(coreav_mkv::Error::Unsupported {
-                    reason: "ALAC without its magic cookie in CodecPrivate",
-                })?;
-            return Ok(audio_sample_entry(
-                FourCc(*b"alac"),
-                config.channels,
-                config.bits,
-                audio::entry_rate(config.sample_rate),
-                &[raw(b"alac", cookie)],
             )?);
         }
         Codec::Ac3 | Codec::Eac3 => {
