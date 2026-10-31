@@ -834,3 +834,48 @@ fn a_malformed_block_addition_leaves_the_packets_after_it() {
         ["", listed, "", listed]
     );
 }
+
+#[test]
+fn a_block_more_without_its_addition_is_not_listed() {
+    // RFC 9559 5.1.3.5.2.2: a `BlockMore` holds exactly one
+    // `BlockAdditional`. Without it, of `BlockAddID` 1 or empty, the
+    // block carries no addition. Values found on the pinned ffprobe.
+    use mkv::{BLOCK_GROUP, TRACKS, cat, cluster, el, info, uint, video_track};
+    let group = |i: i16, more: Vec<u8>| {
+        let mut block = vec![0x81];
+        block.extend((i * 40).to_be_bytes());
+        block.push(0);
+        block.extend(mkv::VP9_KEY_FRAME);
+        el(
+            BLOCK_GROUP,
+            &cat(&[el(0xA1, &block), el(0x75A1, &el(0xA6, &more))]),
+        )
+    };
+    let addition = el(0xA5, &[1, 2, 3, 4]);
+    let blocks = vec![
+        group(0, uint(0xEE, 1)),
+        group(1, Vec::new()),
+        group(2, cat(&[uint(0xEE, 1), addition.clone()])),
+        group(3, addition),
+    ];
+    let track = video_track(1, "V_VP9", 320, 240, &[]);
+    let data = mkv::file(
+        "matroska",
+        &[info(Some(160.0)), el(TRACKS, &track), cluster(0, &blocks)],
+    );
+    let path = file("ffprobe-empty-block-more.mkv", &data);
+    let r = ffprobe(&[
+        "-v",
+        "error",
+        "-of",
+        "compact",
+        "-show_packets",
+        &path.to_string_lossy(),
+    ]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    let listed = "Matroska BlockAdditional|1";
+    assert_eq!(
+        side_data_values(&r.stdout, "matroska_blockadditional"),
+        ["", "", listed, listed]
+    );
+}
