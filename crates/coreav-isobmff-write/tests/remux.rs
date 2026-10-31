@@ -1049,6 +1049,66 @@ fn streams_mp4_cannot_carry_are_dropped_and_reported() {
     );
 }
 
+/// Named streams are written in the order named, a stream named twice as
+/// two tracks with the same samples, as `ffmpeg` writes its `-map`s.
+#[test]
+fn named_streams_keep_their_order_and_repeats() {
+    let source = build(&file(vec![video(30, 10), aac(40, false)]));
+    let named = |streams: Vec<usize>| RemuxOptions {
+        streams: Some(streams),
+        ..RemuxOptions::default()
+    };
+    let (summary, output) = remux(&source, &named(vec![1, 0, 0])).unwrap();
+    assert_round_trip(&source, &output, &summary);
+    assert_eq!(
+        summary
+            .tracks
+            .iter()
+            .map(|t| t.stream_index)
+            .collect::<Vec<_>>(),
+        [1, 0, 0]
+    );
+    assert!(summary.dropped_tracks.is_empty());
+    // Each source box is reported once, in file order, however often and
+    // in whatever order its stream is named.
+    let mut tracks = vec![video(30, 10), aac(40, false)];
+    for t in &mut tracks {
+        t.trak_extra = vec![bx(b"zzzz", &[0; 4])];
+    }
+    let marked = build(&file(tracks));
+    let (summary, _) = remux(&marked, &named(vec![1, 0, 0])).unwrap();
+    let reported: Vec<_> = summary
+        .dropped_boxes
+        .iter()
+        .map(|b| (b.stream_index, b.offset))
+        .collect();
+    assert_eq!(reported.len(), 2);
+    assert!(reported.windows(2).all(|w| w[0].1 < w[1].1));
+    assert_eq!(
+        reported.iter().map(|r| r.0).collect::<Vec<_>>(),
+        [Some(0), Some(1)]
+    );
+    // More named streams than an output may hold fail before any is
+    // planned.
+    let most = Limits::default().max_tracks as usize;
+    assert!(matches!(
+        remux(&source, &named(vec![0; most + 1])),
+        Err(ExtractError::Source(Error::LimitExceeded {
+            limit: LimitKind::Tracks,
+            ..
+        }))
+    ));
+    let (summary, _) = remux(&source, &named(vec![1])).unwrap();
+    assert_eq!(
+        summary
+            .dropped_tracks
+            .iter()
+            .map(|d| (d.stream_index, d.reason))
+            .collect::<Vec<_>>(),
+        [(0, TrackDropReason::NotSelected)]
+    );
+}
+
 #[test]
 fn flac_alac_ac3_and_eac3_keep_their_sample_entries() {
     // FLAC's STREAMINFO (RFC 9639 8.2): 1,152-sample blocks, 48 kHz, two
