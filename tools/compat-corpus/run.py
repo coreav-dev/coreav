@@ -498,6 +498,10 @@ def empty_edit_padding(data):
     deltas = [(u32(a + 8 + 8 * i), u32(a + 12 + 8 * i)) for i in range(count)]
     total = sum(n * d for n, d in deltas)
     last_start = total - deltas[-1][1]
+    a, b = one(*stbl, b'stsc')
+    count = u32(a + 4)
+    if b - a != 8 + 12 * count or count == 0 or any(u32(a + 16 + 12 * i) != 1 for i in range(count)):
+        raise ValueError('changed sample descriptions')
     a, b = one(*stbl, b'stsd')
     if u32(a + 4) != 1:
         raise ValueError('changed sample descriptions')
@@ -527,8 +531,10 @@ def empty_edit_padding(data):
     # AudioSpecificConfig (ISO/IEC 14496-3 1.6.2.1, 4.4.1): AAC LC, its
     # sampling frequency, channels, then frameLengthFlag, dependsOnCoreCoder
     # and extensionFlag; nothing after but the backward-compatible extension
-    # that rules SBR out (0x2b7, object type 5, sbrPresentFlag 0).
-    if b - a != 2 and data[a + 2:b] != b'\x56\xe5\x00':
+    # that rules SBR out (0x2b7, object type 5, sbrPresentFlag 0), which a
+    # core rate of 24 kHz or less needs to rule implicit SBR out (1.6.5,
+    # 4.6.18).
+    if b - a != 2 and data[a + 2:b] != b'\x56\xe5\x00' or b - a == 2 and scale <= 24000:
         raise ValueError('changed AAC configuration')
     specific = int.from_bytes(data[a:a + 2], 'big')
     rates = [96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350]
@@ -540,7 +546,7 @@ def empty_edit_padding(data):
     end = min(edit_end, duration, total)
     padding = last_start + frame - end
     oracle = padding + (empty * scale + movie_scale // 2) // movie_scale - media_time
-    if not 0 < padding < frame or oracle <= frame:
+    if not 0 < padding < frame or oracle <= frame or media_time > last_start:
         raise ValueError('changed sample timing')
     return padding
 

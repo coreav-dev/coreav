@@ -217,7 +217,10 @@ stored `nclx` bytes and fails when its exact oracle disagreement changes.
   both tools list a value (for example 848 against CoreAV's 10).
 - Corpus scope: the record's `level`, `fields` and `conditions` give the
   case with both values present, defined by the file's bytes alone; an
-  absent value on either side is never excluded.
+  absent value on either side is never excluded. Not excludable yet: no
+  corpus row is excluded until the byte-derived predicate
+  `oracle_kd.empty_edit_padding` (coreav-dev/coreav#160) gates it in the
+  corpus comparator. Only the fixture scope below applies now.
 - Accepts: on these two files only, while their bytes still have this
   shape (`empty_edit_padding` in `tools/compat-corpus/run.py` reads
   them), CoreAV's Skip Samples side data on the last audio packet with

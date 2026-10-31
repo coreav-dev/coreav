@@ -319,10 +319,11 @@ class EmptyEditPadding(unittest.TestCase):
         run.empty_edit_padding_fixture.cache_clear()
 
     @staticmethod
-    def fixture(empty=2691328, last=136, config=b'\x12\x10', edits=None):
+    def fixture(empty=2691328, last=136, config=b'\x12\x10', edits=None, scale=44100, index=1):
         """`edit_list.mp4`'s audio track as FFmpeg 9.0.2 writes it: an
         empty edit, then a media edit from 0 over the media's 89,224 ticks at
-        44.1 kHz, the last of its 88 samples lasting 136 ticks."""
+        44.1 kHz, the last of its 88 samples lasting 136 ticks, all in one
+        chunk of sample description `index`."""
         def box(kind, body):
             return (len(body) + 8).to_bytes(4, 'big') + kind + body
 
@@ -332,14 +333,15 @@ class EmptyEditPadding(unittest.TestCase):
         def u32(*values):
             return b''.join(v.to_bytes(4, 'big') for v in values)
 
-        movie, scale = 5644800, 44100
+        movie = 5644800
         edits = edits if edits is not None else [(empty, 0xFFFFFFFF), (11420672, 0)]
         elst = u32(len(edits)) + b''.join(u32(d, t, 0x10000) for d, t in edits)
         es = bytes([5, len(config)]) + config
         decoder = bytes([4, 13 + len(es), 0x40, 0x15]) + bytes(11) + es
         esds = full(b'esds', bytes([3, 3 + len(decoder) + 3, 0, 1, 0]) + decoder + bytes([6, 1, 2]))
         mp4a = box(b'mp4a', bytes(28) + esds)
-        stbl = box(b'stbl', full(b'stsd', u32(1) + mp4a) + full(b'stts', u32(2, 87, 1024, 1, last)))
+        stbl = box(b'stbl', full(b'stsd', u32(1) + mp4a) + full(b'stts', u32(2, 87, 1024, 1, last))
+                   + full(b'stsc', u32(1, 1, 88, index)))
         mdia = box(b'mdia', full(b'mdhd', u32(0, 0, scale, 87 * 1024 + last, 0))
                    + full(b'hdlr', u32(0) + b'soun' + bytes(12)) + box(b'minf', stbl))
         trak = box(b'trak', full(b'tkhd', bytes(80)) + box(b'edts', full(b'elst', elst)) + mdia)
@@ -375,12 +377,23 @@ class EmptyEditPadding(unittest.TestCase):
         # The extension that rules SBR out, as FFmpeg writes it.
         self.assertEqual(run.empty_edit_padding(self.fixture(config=b'\x12\x10\x56\xe5\x00')), self.PADDING)
         whole = [(2691328, 0xFFFFFFFF), (11534336, 0)]
+        # The media's 89,224 ticks at 24 kHz are 20,985,484.8 movie ticks.
+        at_24k = [(2691328, 0xFFFFFFFF), (20985485, 0)]
+        self.assertEqual(run.empty_edit_padding(self.fixture(config=b'\x13\x10\x56\xe5\x00', scale=24000,
+                                                             edits=at_24k)), self.PADDING)
         bad = [self.fixture(last=1024, edits=whole),  # no padding
                self.fixture(empty=44 * 128),  # ffprobe would list padding too
                self.fixture(edits=[(11420672, 0)]),  # no empty edit
                self.fixture(edits=[(2691328, 0xFFFFFFFF), (11420672, 0), (100, 0)]),
                self.fixture(config=b'\x12\x10\x56\xe5\x98'),  # SBR at 48 kHz
-               self.fixture(config=b'\x11\x90')]  # 48 kHz in a 44.1 kHz track
+               self.fixture(config=b'\x11\x90'),  # 48 kHz in a 44.1 kHz track
+               self.fixture(index=2),  # a chunk of another description
+               # A media edit from inside the last sample, or past it, after
+               # an empty edit of 3 s.
+               self.fixture(edits=[(3 * 5644800, 0xFFFFFFFF), (11420672, 87 * 1024 + 12)]),
+               self.fixture(edits=[(3 * 5644800, 0xFFFFFFFF), (11420672, 100000)]),
+               # LC at 24 kHz without the extension: implicit SBR is open.
+               self.fixture(config=b'\x13\x10', scale=24000, edits=at_24k)]
         for data in bad:
             with self.assertRaises(ValueError):
                 run.empty_edit_padding(data)
