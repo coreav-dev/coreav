@@ -895,26 +895,46 @@ fn select(command: &Command, streams: &[Stream]) -> Result<Vec<usize>, Refusal> 
             }
         }
     } else {
+        // A negative map removes what the maps before it added, so the maps
+        // are read last to first: a stream a map adds stays unless a later
+        // map removes it or its type is disabled. Only the first outputs
+        // past the writer's track limit are kept, so the work is one pass
+        // over the maps whatever they add.
         let most = usize::try_from(Limits::default().max_tracks).unwrap_or(usize::MAX);
-        for map in &command.maps {
+        let mut removed = vec![false; streams.len()];
+        let mut outputs = 0usize;
+        for map in command.maps.iter().rev() {
             let hits = matching(&map.spec, &all);
             if map.remove {
-                selected.retain(|i| hits.binary_search(i).is_err());
+                for i in hits {
+                    if let Some(gone) = removed.get_mut(i) {
+                        *gone = true;
+                    }
+                }
             } else if hits.is_empty() {
                 return Err(Refusal::Usage(
                     "A -map matches no streams; to ignore it, add a trailing '?' to the map."
                         .to_owned(),
                 ));
             } else {
-                selected.extend(hits);
-                if selected.len() > most {
-                    return Err(Refusal::not_native(
-                        "more output streams than CoreAV writes to one file",
-                    ));
+                for i in hits.into_iter().rev() {
+                    if removed.get(i) == Some(&false)
+                        && streams.get(i).is_some_and(|s| !disabled(s))
+                    {
+                        outputs = outputs.saturating_add(1);
+                        if outputs <= most {
+                            selected.push(i);
+                        }
+                    }
                 }
             }
         }
-        selected.retain(|i| streams.get(*i).is_some_and(|s| !disabled(s)));
+        if outputs > most {
+            return Err(Refusal::not_native(
+                "more output streams than CoreAV writes to one file",
+            ));
+        }
+        selected.reverse();
     }
     if selected.is_empty() {
         return Err(Refusal::Usage(

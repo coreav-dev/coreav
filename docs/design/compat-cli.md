@@ -1048,9 +1048,11 @@ before a track or out of its order is refused. The clip, the split and the
 join write their video first: a selection of their audio before their video
 is refused by name. An encode keeps its own rule: its selection keeps the
 input's order and names each stream once. A selection is refused by name
-once its maps name more streams than the writer's track limit
-(`Limits::max_tracks`, 1,024), before any stream is planned, so a short
-command line of repeated `-map 0` costs no more than that limit; the
+when it holds more streams than the writer's track limit
+(`Limits::max_tracks`, 1,024) once `-an`, `-vn` and the negative maps have
+removed theirs, before any stream is planned. The maps are read in one pass,
+last to first, keeping at most that many outputs, so a short command line
+of repeated `-map 0` costs no more than that limit; the
 remux checks a longer `streams` list against the same limit first. The
 remux reports each source box it drops once, in file order, however often
 its stream is named. The concat
