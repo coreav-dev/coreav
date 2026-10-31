@@ -404,6 +404,26 @@ pub(crate) fn latm_audio_specific_config(element: &[u8]) -> Option<Vec<u8>> {
     }
     bits.read(1 + 6 + 4 + 3)?;
     let start = bits.at;
+    skip_audio_specific_config(&mut bits)?;
+    let len = bits.at - start;
+    let mut copy = Bits {
+        data: element,
+        at: start,
+    };
+    let mut out = Vec::with_capacity(len.div_ceil(8));
+    let mut left = len;
+    while left > 0 {
+        let n = left.min(8);
+        let byte = copy.read(u32::try_from(n).ok()?)? << (8 - n);
+        out.push(u8::try_from(byte).ok()?);
+        left -= n;
+    }
+    Some(out)
+}
+
+/// Reads past an `AudioSpecificConfig` whose length its own syntax gives
+/// (see [`latm_audio_specific_config`]); `None` for one it does not.
+fn skip_audio_specific_config(bits: &mut Bits<'_>) -> Option<()> {
     let object_type = |bits: &mut Bits<'_>| -> Option<u32> {
         let object = bits.read(5)?;
         if object == 31 {
@@ -417,12 +437,12 @@ pub(crate) fn latm_audio_specific_config(element: &[u8]) -> Option<Vec<u8>> {
         }
         Some(())
     };
-    let mut object = object_type(&mut bits)?;
-    frequency(&mut bits)?;
+    let mut object = object_type(bits)?;
+    frequency(bits)?;
     let channels = bits.read(4)?;
     if matches!(object, 5 | 29) {
-        frequency(&mut bits)?;
-        object = object_type(&mut bits)?;
+        frequency(bits)?;
+        object = object_type(bits)?;
         if object == 22 {
             bits.read(4)?; // extensionChannelConfiguration
         }
@@ -452,20 +472,77 @@ pub(crate) fn latm_audio_specific_config(element: &[u8]) -> Option<Vec<u8>> {
     if matches!(object, 17 | 19..=23) && bits.read(2)? >= 2 {
         return None; // ErrorProtectionSpecificConfig follows.
     }
-    let len = bits.at - start;
-    let mut copy = Bits {
-        data: element,
-        at: start,
-    };
-    let mut out = Vec::with_capacity(len.div_ceil(8));
-    let mut left = len;
-    while left > 0 {
-        let n = left.min(8);
-        let byte = copy.read(u32::try_from(n).ok()?)? << (8 - n);
-        out.push(u8::try_from(byte).ok()?);
-        left -= n;
+    Some(())
+}
+
+/// The payloads of a LOAS stream's frames (ISO/IEC 14496-3 1.7.3): the
+/// `raw_data_block` of each `AudioMuxElement` whose `StreamMuxConfig`,
+/// its own or the last one before it, has `audioMuxVersion` 0, one
+/// program, one layer, one subframe and `frameLengthType` 0, so that
+/// `PayloadLengthInfo` gives the block's length in bytes.
+#[derive(Default)]
+pub struct LatmBlocks {
+    /// The last `StreamMuxConfig` read has that shape.
+    simple: bool,
+}
+
+impl LatmBlocks {
+    /// The block of one LOAS frame (the sync word, the length and the
+    /// `AudioMuxElement`), copied out to whole bytes; `None` for a frame
+    /// that is not one or whose configuration is not of that shape.
+    pub fn block(&mut self, frame: &[u8]) -> Option<Vec<u8>> {
+        let [0x56, b1, b2, ..] = *frame else {
+            return None;
+        };
+        if b1 & 0xE0 != 0xE0 {
+            return None;
+        }
+        let len = (usize::from(b1 & 0x1F) << 8) | usize::from(b2);
+        let mut bits = Bits {
+            data: frame.get(3..3 + len)?,
+            at: 0,
+        };
+        if bits.read(1)? == 0 {
+            self.simple = simple_stream_mux_config(&mut bits).is_some();
+        }
+        if !self.simple {
+            return None;
+        }
+        let mut slot = 0usize;
+        loop {
+            let byte = bits.read(8)?;
+            slot += usize::try_from(byte).ok()?;
+            if byte != 255 {
+                break;
+            }
+        }
+        (0..slot)
+            .map(|_| bits.read(8).and_then(|b| u8::try_from(b).ok()))
+            .collect()
     }
-    Some(out)
+}
+
+/// Reads past a `StreamMuxConfig` of the shape [`LatmBlocks`] reads;
+/// `None` for another.
+fn simple_stream_mux_config(bits: &mut Bits<'_>) -> Option<()> {
+    // audioMuxVersion 0, allStreamsSameTimeFraming 1, then numSubFrames,
+    // numProgram and numLayer 0.
+    if (bits.read(1)?, bits.read(1)?, bits.read(6 + 4 + 3)?) != (0, 1, 0) {
+        return None;
+    }
+    skip_audio_specific_config(bits)?;
+    if bits.read(3)? != 0 {
+        return None; // frameLengthType
+    }
+    bits.read(8)?; // latmBufferFullness
+    if bits.read(1)? == 1 {
+        // otherDataLenBits, eight bits at a time while otherDataLenEsc.
+        while bits.read(1 + 8)? >> 8 == 1 {}
+    }
+    if bits.read(1)? == 1 {
+        bits.read(8)?; // crcCheckSum
+    }
+    Some(())
 }
 
 /// Reads bits most significant first.
@@ -941,6 +1018,40 @@ mod tests {
         // program config element, whose length is not read.
         assert_eq!(latm_audio_specific_config(&[0x80, 0, 0, 0]), None);
         assert_eq!(latm_audio_specific_config(&[0x00, 0x00, 0x11, 0x80]), None);
+    }
+
+    #[test]
+    fn latm_blocks_follow_the_last_configuration() {
+        // A LOAS frame of one AudioMuxElement: its StreamMuxConfig (the
+        // fifteen bits before the AudioSpecificConfig, then AAC LC, 24
+        // kHz, stereo, frameLengthType 0, latmBufferFullness, no other
+        // data, no CRC) unless useSameStreamMux, then a PayloadLengthInfo
+        // of three bytes and the block.
+        let frame = |mux: Option<u32>| {
+            let mut fields = vec![(u32::from(mux.is_none()), 1)];
+            if let Some(mux) = mux {
+                fields.extend([(mux, 15), (2, 5), (6, 4), (2, 4), (0, 3), (0, 3)]);
+                fields.extend([(0xFF, 8), (0, 1), (0, 1)]);
+            }
+            fields.extend([(3, 8), (0xA1, 8), (0xB2, 8), (0xC3, 8)]);
+            let body = pack(&fields);
+            let mut frame = vec![0x56, 0xE0 | (body.len() >> 8) as u8, body.len() as u8];
+            frame.extend(body);
+            frame
+        };
+        // allStreamsSameTimeFraming, the second of the fifteen bits.
+        let simple = 1 << 13;
+        let mut blocks = LatmBlocks::default();
+        assert_eq!(blocks.block(&frame(None)), None);
+        assert_eq!(
+            blocks.block(&frame(Some(simple))),
+            Some(vec![0xA1, 0xB2, 0xC3])
+        );
+        assert_eq!(blocks.block(&frame(None)), Some(vec![0xA1, 0xB2, 0xC3]));
+        // Two subframes: the lengths of their payloads are not read.
+        assert_eq!(blocks.block(&frame(Some(simple | (1 << 7)))), None);
+        assert_eq!(blocks.block(&frame(None)), None);
+        assert_eq!(blocks.block(&[0x56, 0xE0, 0x10, 0x00]), None);
     }
 
     #[test]
