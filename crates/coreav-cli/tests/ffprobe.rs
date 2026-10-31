@@ -650,3 +650,233 @@ fn transport_streams_are_numbered_and_their_programs_listed_as_ffprobe_does() {
          0x100\n0x101\n0x201\n0x300\n0x202\n0x200\n"
     );
 }
+
+/// A movie of one AAC track (`mdhd` time scale 48,000, movie time scale
+/// 1,000) of 10-byte samples timed by `stts` (count, delta), with
+/// `media_duration` in its `mdhd`, the edit list `elst` (segment duration
+/// in movie ticks, media time) and `udta` after the track
+/// (ISO/IEC 14496-12 8.2 to 8.7).
+fn aac_movie(
+    stts: &[(u32, u32)],
+    media_duration: u32,
+    elst: Option<&[(u32, i32)]>,
+    udta: &[u8],
+) -> Vec<u8> {
+    use common::{bx, cat, full, u32s};
+    let count: u32 = stts.iter().map(|(n, _)| n).sum();
+    let ftyp = bx(b"ftyp", b"isom\0\0\x02\0isom");
+    let mdat = bx(b"mdat", &vec![0xAB; count as usize * 10]);
+    let chunk = (ftyp.len() + 8) as u32;
+    let movie_duration = media_duration / 48;
+    let mut mvhd = u32s(&[0, 0, 1000, movie_duration]);
+    mvhd.extend_from_slice(&[0u8; 16]);
+    mvhd.extend_from_slice(&u32s(&[0x10000, 0, 0, 0, 0x10000, 0, 0, 0, 0x4000_0000]));
+    mvhd.extend_from_slice(&[0u8; 24]);
+    mvhd.extend_from_slice(&u32s(&[2]));
+    let mut tkhd = u32s(&[0, 0, 1, 0, movie_duration, 0, 0, 0, 0x0100_0000]);
+    tkhd.extend_from_slice(&u32s(&[
+        0x10000,
+        0,
+        0,
+        0,
+        0x10000,
+        0,
+        0,
+        0,
+        0x4000_0000,
+        0,
+        0,
+    ]));
+    let mut mdhd = u32s(&[0, 0, 48_000, media_duration]);
+    mdhd.extend_from_slice(&[0x55, 0xc4, 0, 0]);
+    let mut hdlr = u32s(&[0]);
+    hdlr.extend_from_slice(b"soun");
+    hdlr.extend_from_slice(&[0u8; 13]);
+    // AAC LC at 48 kHz, stereo (ISO/IEC 14496-3 1.6.2.1), in the decoder
+    // configuration of an `esds` (ISO/IEC 14496-1 7.2.6.5 to 7.2.6.7).
+    let esds = full(
+        b"esds",
+        0,
+        0,
+        &[
+            3, 25, 0, 0, 0, 4, 17, 0x40, 0x15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 2, 0x11, 0x90,
+            6, 1, 2,
+        ],
+    );
+    let mut entry = common::audio_entry(b"mp4a").split_off(8);
+    entry.extend_from_slice(&esds);
+    let mut stsd = u32s(&[1]);
+    stsd.extend_from_slice(&bx(b"mp4a", &entry));
+    let mut table = u32s(&[stts.len() as u32]);
+    for (n, delta) in stts {
+        table.extend_from_slice(&u32s(&[*n, *delta]));
+    }
+    let stbl = bx(
+        b"stbl",
+        &cat(&[
+            full(b"stsd", 0, 0, &stsd),
+            full(b"stts", 0, 0, &table),
+            full(b"stsc", 0, 0, &u32s(&[1, 1, count, 1])),
+            full(b"stsz", 0, 0, &u32s(&[10, count])),
+            full(b"stco", 0, 0, &u32s(&[1, chunk])),
+        ]),
+    );
+    let dref = full(b"dref", 0, 0, &cat(&[u32s(&[1]), full(b"url ", 0, 1, &[])]));
+    let minf = bx(
+        b"minf",
+        &cat(&[full(b"smhd", 0, 0, &[0u8; 4]), bx(b"dinf", &dref), stbl]),
+    );
+    let mdia = bx(
+        b"mdia",
+        &cat(&[full(b"mdhd", 0, 0, &mdhd), full(b"hdlr", 0, 0, &hdlr), minf]),
+    );
+    let mut trak = vec![full(b"tkhd", 0, 3, &tkhd)];
+    if let Some(edits) = elst {
+        let mut body = u32s(&[edits.len() as u32]);
+        for (segment, media_time) in edits {
+            body.extend_from_slice(&u32s(&[*segment, *media_time as u32, 0x10000]));
+        }
+        trak.push(bx(b"edts", &full(b"elst", 0, 0, &body)));
+    }
+    trak.push(mdia);
+    let moov = bx(
+        b"moov",
+        &cat(&[
+            full(b"mvhd", 0, 0, &mvhd),
+            bx(b"trak", &cat(&trak)),
+            udta.to_vec(),
+        ]),
+    );
+    cat(&[ftyp, mdat, moov])
+}
+
+/// `udta`/`meta`/`ilst` with one iTunes `iTunSMPB` item holding `text`.
+fn smpb_udta(text: &str) -> Vec<u8> {
+    use common::{bx, cat, full, u32s};
+    let data = cat(&[u32s(&[1, 0]), text.as_bytes().to_vec()]);
+    let item = bx(
+        b"----",
+        &cat(&[
+            full(b"mean", 0, 0, b"com.apple.iTunes"),
+            full(b"name", 0, 0, b"iTunSMPB"),
+            bx(b"data", &data),
+        ]),
+    );
+    let mut hdlr = u32s(&[0]);
+    hdlr.extend_from_slice(b"mdirappl");
+    hdlr.extend_from_slice(&[0u8; 9]);
+    bx(
+        b"udta",
+        &full(
+            b"meta",
+            0,
+            0,
+            &cat(&[full(b"hdlr", 0, 0, &hdlr), bx(b"ilst", &item)]),
+        ),
+    )
+}
+
+/// A packet's presentation time, duration and Skip Samples side data
+/// (samples skipped, padding discarded).
+type Gapless = (i64, i64, Option<(i64, i64)>);
+
+/// A file's audio stream's `initial_padding` and its packets, as
+/// `coreav ffprobe` lists them.
+fn gapless(name: &str, bytes: &[u8]) -> (i64, Vec<Gapless>) {
+    let path = file(name, bytes);
+    let r = ffprobe(&[
+        "-v",
+        "error",
+        "-show_streams",
+        "-show_packets",
+        "-of",
+        "json",
+        &path.to_string_lossy(),
+    ]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    let doc: serde_json::Value = serde_json::from_str(&r.stdout).unwrap();
+    let int = |v: &serde_json::Value| v.as_i64().or_else(|| v.as_str()?.parse().ok()).unwrap();
+    let padding = int(&doc["streams"][0]["initial_padding"]);
+    let packets = doc["packets"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| {
+            let skip = p["side_data_list"].as_array().and_then(|list| {
+                list.iter()
+                    .find(|s| s["side_data_type"] == "Skip Samples")
+                    .map(|s| (int(&s["skip_samples"]), int(&s["discard_padding"])))
+            });
+            (int(&p["pts"]), int(&p["duration"]), skip)
+        })
+        .collect();
+    (padding, packets)
+}
+
+#[test]
+fn the_last_aac_packet_discards_what_it_decodes_past_the_media_end() {
+    // Six frames of 1,024 samples; the media header ends the media at
+    // 5,900, so the last frame's 244 samples past it are discarded.
+    let (padding, packets) = gapless(
+        "gapless-mdhd.mp4",
+        &aac_movie(&[(6, 1024)], 5900, None, &[]),
+    );
+    assert_eq!(padding, 0);
+    assert_eq!(packets.last(), Some(&(5120, 1024, Some((0, 244)))));
+    assert!(packets[..5].iter().all(|p| p.2.is_none()));
+    // A last sample of 700 ticks still decodes to a whole frame of 1,024
+    // samples (ISO/IEC 14496-3 4.5.1), 324 of them past the media's end.
+    let (_, packets) = gapless(
+        "gapless-short-last.mp4",
+        &aac_movie(&[(5, 1024), (1, 700)], 5820, None, &[]),
+    );
+    assert_eq!(packets.last(), Some(&(5120, 700, Some((0, 324)))));
+}
+
+#[test]
+fn a_media_edit_skips_the_samples_before_it_and_discards_those_after_it() {
+    // Media time 1,500 for 100 ms (4,800 ticks): the first packet skips
+    // 1,500 samples, and the presentation ends at 6,300, 868 samples
+    // before the end of the frame that starts at 6,144.
+    let bytes = aac_movie(&[(10, 1024)], 10240, Some(&[(100, 1500)]), &[]);
+    let (padding, packets) = gapless("gapless-edit.mp4", &bytes);
+    assert_eq!(padding, 1500);
+    assert_eq!(packets.first(), Some(&(-1500, 1024, Some((1500, 0)))));
+    assert_eq!(packets.last(), Some(&(4644, 1024, Some((0, 868)))));
+    assert_eq!(packets.len(), 7);
+}
+
+#[test]
+fn an_itunes_gapless_item_times_a_track_without_an_edit_list() {
+    // 10,240 samples: 2,112 of encoder delay, 7,828 of content and 300 of
+    // padding.
+    let udta = smpb_udta(" 00000000 00000840 0000012C 0000000000001E94 00000000");
+    let (padding, packets) = gapless(
+        "gapless-itunes.mp4",
+        &aac_movie(&[(10, 1024)], 10240, None, &udta),
+    );
+    assert_eq!(padding, 2112);
+    assert_eq!(packets.first(), Some(&(0, 1024, Some((2112, 0)))));
+    assert_eq!(packets.last(), Some(&(9216, 1024, Some((0, 300)))));
+}
+
+#[test]
+fn an_empty_edit_does_not_move_where_the_media_edit_ends() {
+    // An empty edit of 50 ms, then media time 1,024 for 100 ms: the media
+    // edit still ends at media time 5,824 (ISO/IEC 14496-12 8.6.6), past
+    // the media's end at 5,820, where the last frame has 324 samples left
+    // (`docs/known-divergences-ffprobe9.md`, KD-FF9-EMPTY-EDIT-PADDING).
+    let bytes = aac_movie(
+        &[(5, 1024), (1, 700)],
+        5820,
+        Some(&[(50, -1), (100, 1024)]),
+        &[],
+    );
+    let (padding, packets) = gapless("gapless-empty-edit.mp4", &bytes);
+    assert_eq!(padding, 1024);
+    assert_eq!(packets.first().map(|p| p.2), Some(Some((1024, 0))));
+    assert_eq!(
+        packets.last().map(|p| (p.1, p.2)),
+        Some((700, Some((0, 324))))
+    );
+}

@@ -1429,9 +1429,19 @@ prints keep its derivations, which the stream oracle checks. The others:
 - `start_pts`: with one edit, the leading empty edit in the track's ticks;
   without an edit list, the first packets' earliest time; for audio, after
   the samples the first packet skips.
-- Audio priming: the samples the edit list cuts from the first packet, or
-  without an edit list the iTunes `iTunSMPB` delay, are a "Skip Samples"
-  side data element on the first packet.
+- Audio priming and padding: the samples the edit list cuts from the
+  first packet (counted from the first sample listed), or without an edit
+  list the iTunes `iTunSMPB` delay, are a "Skip Samples" side data
+  element on the first packet and the stream's `initial_padding`. The
+  last packet's element names the samples its frame decodes past the end
+  of the presentation (ISO/IEC 14496-12 8.6.6): the media edit's end,
+  without an edit list the `iTunSMPB` delay plus its samples, else the
+  media header's duration, and never past the samples' end. A frame is the
+  codec's frame size nearest the decode step (AAC, MPEG audio, AC-3,
+  E-AC-3), or the sample's duration when that is longer; the sample keeps
+  its stored duration. After a leading empty edit `ffprobe` places that
+  end later by the empty edit's length
+  ([KD-FF9-EMPTY-EDIT-PADDING](../known-divergences-ffprobe9.md#kd-ff9-empty-edit-padding)).
 - Stream durations: without an edit list, the shorter of the media
   header's and the samples' (the samples' when fragments follow, and
   when every sample is in fragments the first of which is decoded from a

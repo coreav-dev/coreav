@@ -48,9 +48,9 @@ entry by its type (`packets.side_data_list[Skip Samples]`, with `[]` for
 an entry the command prints empty because it selects none of its keys);
 a stream group as `stream_groups`.
 
-The first eleven entries are changes in what FFmpeg 9.0.2 prints: CoreAV
+The first ten entries are changes in what FFmpeg 9.0.2 prints: CoreAV
 prints what 7.0.2 printed, and coreav-dev/coreav#24 follows 9.0.2. The
-twelfth is an FFmpeg error on a fixture 9.0.2 writes, which ISO/IEC
+next two are FFmpeg errors on fixtures 9.0.2 writes, which ISO/IEC
 14496-12 decides for CoreAV. The next four are CoreAV differences that the
 fixtures 9.0.2 writes expose: both FFmpeg versions print the same value
 there, and CoreAV another. The final entry validates an AV1 fixture's
@@ -84,10 +84,10 @@ stored `nclx` bytes and fails when its exact oracle disagreement changes.
   decoder skips at the start of an audio stream (the encoder delay an edit
   list or a Matroska `CodecDelay` states) and those it discards at its
   end. FFmpeg 7.0.2 listed one of the two (the start of an MP4 stream, the
-  end of a Matroska one), and CoreAV lists what 7.0.2 did. A packet that
-  carries the side data gets another duration than 7.0.2 gave it (the
-  whole MP3 frame at the end of an MP4 edit list, for example, where 7.0.2
-  gave the part the list keeps); CoreAV gives 7.0.2's.
+  end of a Matroska one), and CoreAV lists what 7.0.2 did in Matroska and
+  WebM files, which are the files this entry names; in ISO base media
+  files it lists both, as 9.0.2 does. A packet that carries the side data
+  gets another duration than 7.0.2 gave it; CoreAV gives 7.0.2's.
 - Accepts: side data entries CoreAV lists only some of, each of them one
   `ffprobe` lists too; another duration only on an audio packet that
   carries Skip Samples side data in `ffprobe`'s listing.
@@ -96,14 +96,14 @@ stored `nclx` bytes and fails when its exact oracle disagreement changes.
 
 - Keys: `packets.duration` and `packets.duration_time`.
 - Cause: FFmpeg 9.0.2 gives these packets other durations than 7.0.2, and
-  CoreAV gives 7.0.2's on every packet of these files (compared packet by
-  packet with 7.0.2): a sample the decode times give a duration (the next
-  decode time less its own) now gets that duration, where 7.0.2 gave it one
-  frame or none (the samples of a track with a `ctts` box in `vfr.mp4`,
-  the samples next to the edits of `edit_multi_*`, the first audio sample
-  and the timed text of a movie with fragments); the last AAC frame an
-  edit or the stream's end cuts gets the part kept, where 7.0.2 gave the
-  whole frame (1,024 samples); the laced AC-3 blocks of
+  CoreAV gives 7.0.2's (compared packet by packet with 7.0.2). In
+  `edit_multi_audio.mp4`, `edit_multi_audio_average.mp4` and
+  `edit_multi_av.mp4`, whose audio edit list lists some samples twice,
+  9.0.2 gives the 432nd audio packet it lists 680 ticks, the delta of the
+  432nd and last sample of the time-to-sample table. That packet is the
+  354th sample, as its offset and size show, and the table gives each
+  sample its own delta in decoding order (ISO/IEC 14496-12 8.6.1.2): 1,024
+  ticks, which CoreAV gives. The laced AC-3 blocks of
   `mkv_lace_ac3_44k.mkv` get 35 ms, where 7.0.2 rounded to 34 ms.
 - Accepts: only the packets listed in the twin, each by its position in
   the whole file's listing and with the two values found there.
@@ -118,15 +118,6 @@ stored `nclx` bytes and fails when its exact oracle disagreement changes.
   of the file), so not on the further audio frames a PES packet carries.
 - Accepts: the side data on packets where `ffprobe` alone lists it; on
   every packet where both list it, the same side data.
-
-## KD-FF9-AAC-PADDING
-
-- Key: `streams.initial_padding`.
-- Cause: FFmpeg 9.0.2 gives an audio stream's encoder delay as
-  `initial_padding` (1,024 samples for AAC, 256 for AC-3 and E-AC-3,
-  1,105 for MP3 and 50 for AMR-NB in these fixtures), where 7.0.2 and
-  CoreAV print 0.
-- Accepts: on an audio stream, 0 from CoreAV and more from `ffprobe`.
 
 ## KD-FF9-MKV-START
 
@@ -207,6 +198,22 @@ stored `nclx` bytes and fails when its exact oracle disagreement changes.
   The ratio, not the bit rate, is fixed: the encoder's output, and so the
   file's size, depends on the number of processors of the machine that
   generates the fixtures.
+
+## KD-FF9-EMPTY-EDIT-PADDING
+
+- Keys: `packets.side_data_list[Skip Samples]` and
+  `packets.side_data_list[]` (`clip_audio_late.mp4`, `edit_list.mp4`).
+- Cause: each file's audio has an empty edit, then one media edit from
+  media time 0 to the end of its media (ISO/IEC 14496-12 8.6.6). Its last
+  sample lasts 640 and 136 ticks, and decodes to an AAC frame of 1,024
+  samples (ISO/IEC 14496-3 4.5.1), 384 and 888 of them past the end of
+  the media. The edit presents media time up to that end and no further,
+  so CoreAV lists them as the last packet's discard padding, as both
+  tools do for the same track without the empty edit. FFmpeg 9.0.2 places
+  the edit's end on the presentation timeline, after the empty edit
+  (13,376 and 21,026 ticks), but the packet's end in media time, so the
+  packet seems to end before the edit does, and it lists no side data.
+- Accepts: Skip Samples side data CoreAV alone lists.
 
 ## KD-FF9-FIXTURE-COLOUR-RANGE
 
@@ -298,6 +305,12 @@ mask them, and the measured agreement rates still count them as failures.
   timestamp window, using the signalled clock when no standard rate fits.
   FFmpeg's estimator can choose another rate. Neither estimate replaces
   the stored timestamps; no container clause chooses between them.
+- **Discard padding after an empty edit.** As
+  KD-FF9-EMPTY-EDIT-PADDING describes, FFmpeg places the end of an audio
+  track's media edit after the empty edit before it, so the discard
+  padding it lists on the last packet is off by the empty edit's length,
+  or missing. CoreAV lists what the edit list presents (ISO/IEC 14496-12
+  8.6.6).
 - **Highlight metadata as chapters.** Some movies store highlight times
   in an `HMMT` user-data atom rather than in a referenced chapter track or
   a `chpl` list. FFmpeg prints a chapter from that atom. CoreAV reads the
