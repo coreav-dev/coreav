@@ -28,7 +28,9 @@ import time
 
 DURATION = 10
 VIDEO = ['-f', 'lavfi', '-i', f'testsrc2=size=160x120:rate=25:duration={DURATION}']
-SWEEP = f'0.5*sin(2*PI*50*{DURATION}/log(300)*(pow(300,t/{DURATION})-1))'
+# The comma inside the expression is escaped: a filter graph splits filters at
+# a bare one.
+SWEEP = f'0.5*sin(2*PI*50*{DURATION}/log(300)*(pow(300\\,t/{DURATION})-1))'
 SOURCES = [
     # name, audio input, audio options, container, judged on O4
     ('S1', f'sine=frequency=440:sample_rate=48000:duration={DURATION}',
