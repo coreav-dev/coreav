@@ -1028,10 +1028,17 @@ with it when no other picture remains. A selected cover picture stays in
 the output as a cover picture, where `ffmpeg` writes it too (black box:
 `-map 0` keeps it, `-map 0:0 -map 0:1`, no `-map` and `-map -0:2` leave
 it out, and of two pictures the selected one stays, its type and bytes
-unchanged). The other jobs carry no cover picture: their selection rules
-refuse one by name (`one video and one audio stream`, `an M4A output of
-other than one audio stream`, `copying a stream other than audio beside
-the encoded video`).
+unchanged). An encode (`-c:v libx264`, [`transcode.md`](transcode.md),
+"Through `coreav ffmpeg`") follows the same selection: its plan hands the
+cover pictures not selected to the pipeline's remux
+(`TranscodeOptions::left_out_covers`), so the default selection leaves the
+cover picture out and `-map 0 -c:v libx264 -c:v:1 copy -c:a copy` keeps it
+unchanged, as `ffmpeg` does (black box, also with `-c:a libopus`). A
+command that would encode a cover picture (`-map 0 -c:v libx264`) is
+refused (`encoding a cover picture`): `ffmpeg` fails on it, exit status
+234, and writes nothing. The clip, segment and M4A jobs carry no cover
+picture: their selection rules refuse one by name (`one video and one
+audio stream`, `an M4A output of other than one audio stream`).
 
 **Times.** Every time counts from the input's start time (`ffprobe`'s
 `format.start_time`, 0 when it has none): on a file presented from 5 s,

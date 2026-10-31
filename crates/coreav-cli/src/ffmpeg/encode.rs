@@ -13,7 +13,7 @@ use coreav_transcode::encoder::{MAX_BITRATE, MAX_THREADS, PRESETS};
 use coreav_worker::opus::{MAX_BITRATE as MAX_OPUS_BITRATE, MIN_BITRATE};
 
 use super::args::{Codec, Command, Encoding};
-use super::{NotNative, Refusal, Stop};
+use super::{NotNative, Refusal, Stop, TranscodeJob};
 use crate::error::Failure;
 use crate::fallback::Reason;
 use crate::output::{self, WriteFailure};
@@ -84,11 +84,16 @@ pub fn encoder(command: &Command, strict_safe: StrictSafe) -> Result<Option<Enco
 /// libopus (`opus`).
 pub fn request(
     command: &Command,
-    audio: &[usize],
-    opus: bool,
+    job: &TranscodeJob,
     encoder: Encoder,
     strict_safe: StrictSafe,
 ) -> Result<Request, Refusal> {
+    let TranscodeJob {
+        audio,
+        opus,
+        left_out_covers,
+        ..
+    } = job;
     let Encoding {
         crf,
         bitrate,
@@ -100,7 +105,7 @@ pub fn request(
         passthrough: _,
         audio_bitrate,
     } = &command.encoding;
-    let opus = match (opus, audio) {
+    let opus = match (opus, audio.as_slice()) {
         (false, _) => None,
         (true, [stream]) => Some(transcode::OpusRequest {
             stream: Some(*stream),
@@ -206,7 +211,8 @@ pub fn request(
         preset,
         scale,
         no_audio: audio.is_empty(),
-        audio_streams: Some(audio.to_vec()),
+        audio_streams: Some(audio.clone()),
+        left_out_covers: left_out_covers.clone(),
         opus,
         pixel_format,
         one_size: true,
@@ -411,17 +417,14 @@ fn check_source(
 /// encodes the one audio stream with libopus (`opus`).
 pub fn write(
     command: &Command,
-    video: usize,
-    audio: &[usize],
-    opus: bool,
-    reordered: bool,
+    job: &TranscodeJob,
     encoder: Encoder,
     strict_safe: StrictSafe,
 ) -> Result<serde_json::Value, Stop> {
-    let request = request(command, audio, opus, encoder, strict_safe)?;
+    let request = request(command, job, encoder, strict_safe)?;
     let input = Path::new(&command.input);
-    let copied = if opus { &[][..] } else { audio };
-    check_source(command, video, copied, reordered, input)?;
+    let copied = if job.opus { &[][..] } else { &job.audio[..] };
+    check_source(command, job.video, copied, job.reordered, input)?;
     let this = std::env::current_exe()
         .map_err(|_| Refusal::not_native("encoding without the path of the running program"))?;
     let path = PathBuf::from(&command.output);
