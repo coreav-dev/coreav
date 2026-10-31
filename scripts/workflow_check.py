@@ -28,6 +28,9 @@
   a report job in another job's group can cancel that job;
 - a filter pattern passed to .github/actions/changed-paths is one GitHub
   and the action would read differently;
+- a workflow with a step whose `run:` script calls the oracle FFmpeg's
+  installer has a trigger `paths` or `paths-ignore` filter that a change of
+  the pin (ORACLE_PIN) does not pass, so a new oracle would not start it;
 - a step in a workflow (.yml or .yaml), in a local action
   (.github/actions/*/action.yml or .yaml) or in a local action or workflow
   a step calls (`./...`) uses an action by a tag or branch instead of a
@@ -82,6 +85,12 @@ WORKFLOW_SUFFIXES = ('.yml', '.yaml')
 # A workflow whose checks the table does not require, such as one this
 # repository runs for itself alone.
 UNLISTED = '# workflow-check: not required'
+# The oracle FFmpeg's pin and its installer: a workflow that runs the
+# installer starts when either changes.
+ORACLE_PIN = ('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh')
+# A script line that calls the installer, as a command or through a shell;
+# `bash -n` and other options before the path only read it.
+INSTALLS = re.compile(r'''\A\s*['"]?(?:sudo\s+)?(?:(?:ba)?sh\s+)?(?:\./)?''' + re.escape(ORACLE_PIN[1]) + r'(?:\s|\Z)')
 
 
 def load_changed_paths(root):
@@ -193,6 +202,56 @@ def trigger(lines):
         elif seen_pull_request and TRIGGER.match(line):
             seen_pull_request = False
     return filtered, pull_request
+
+
+def run_lines(lines):
+    """Each line of every step's `run:` script, a block scalar's to where its
+    indentation ends."""
+    for i, line in enumerate(lines):
+        match = re.match(r'\A(\s*(?:-\s+)?)run:\s*(.*?)\s*\Z', line)
+        if not match:
+            continue
+        if not match.group(2).startswith(('|', '>')):
+            yield match.group(2)
+            continue
+        for item in lines[i + 1:]:
+            if item.strip() and len(item) - len(item.lstrip()) <= len(match.group(1)):
+                break
+            yield item
+
+
+def trigger_filters(lines):
+    """[(event, key, [pattern] or None)]: each `paths` and `paths-ignore`
+    list of the `on:` block, None where it is not a flow sequence on its
+    own line or a block sequence of plain items."""
+    out, inside, event = [], False, None
+    for i, line in enumerate(lines):
+        if line.rstrip() == 'on:':
+            inside = True
+            continue
+        if not inside:
+            continue
+        if TOP.match(line):
+            break
+        if TRIGGER.match(line):
+            event = line.strip().rstrip(':')
+            continue
+        match = re.match(r'\A {4}(paths|paths-ignore):\s*(.*?)\s*\Z', line)
+        if not match:
+            continue
+        value, patterns = match.group(2), []
+        if value.startswith('[') and value.endswith(']'):
+            patterns = [p.strip().strip('\'"') for p in value[1:-1].split(',') if p.strip()]
+        elif not value:
+            for item in lines[i + 1:]:
+                if item.strip().startswith('#'):
+                    continue
+                entry = re.match(r'\A {4,}- (.+?)\s*\Z', item)
+                if not entry:
+                    break
+                patterns.append(entry.group(1).strip('\'"'))
+        out.append((event, match.group(1), patterns or None))
+    return out
 
 
 def filter_patterns(lines):
@@ -388,6 +447,21 @@ def check(root):
                 changed_paths.to_regex(pattern)
             except SystemExit as error:
                 problems.append(f'{path.name}: {key}: {error}')
+        if any(INSTALLS.match(line) for line in run_lines(lines)):
+            for event, key, listed in trigger_filters(lines):
+                if listed is None:
+                    problems.append(f'{path.name}: the `{key}` filter of `{event}` is not a list this check reads')
+                    continue
+                try:
+                    regexes = [changed_paths.to_regex(pattern) for pattern in listed]
+                except SystemExit as error:
+                    problems.append(f'{path.name}: {key} of `{event}`: {error}')
+                    continue
+                for pin in ORACLE_PIN:
+                    if any(r.match(pin) for r in regexes) == (key == 'paths-ignore'):
+                        fix = 'take it out of' if key == 'paths-ignore' else 'add it to'
+                        problems.append(f'{path.name}: runs the oracle FFmpeg installer, but a change of {pin} '
+                                        f'does not start it: {fix} the `{key}` of `{event}`')
 
     for action in sorted((root / '.github' / 'actions').glob('*/action.y*ml')):
         problems += pin_problems(root, action, seen)

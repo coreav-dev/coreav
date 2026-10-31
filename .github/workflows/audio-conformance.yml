@@ -2,16 +2,16 @@ name: audio-conformance
 
 # The conformance bars of docs/design/audio-decode.md: each decoder of
 # crates/coreav-audio, crates/coreav-aac and crates/coreav-opus against its standard's test
-# vectors, fetched at a pinned commit or checksum. Runs when either crate or
-# this workflow changes, and weekly.
+# vectors, fetched at a pinned commit or checksum. Runs when either crate,
+# the oracle FFmpeg's pin or this workflow changes, and weekly.
 
 on:
   push:
     branches: [main]
-    paths: ["crates/coreav-audio/**", "crates/coreav-aac/**", "scripts/aac_agreement.py", "scripts/decode_audio_check.py", "crates/coreav-opus/**", "scripts/opus_tables.py", "scripts/pinned_sources.py", ".github/workflows/audio-conformance.yml"]
+    paths: ["crates/coreav-audio/**", "crates/coreav-aac/**", "scripts/aac_agreement.py", "scripts/decode_audio_check.py", "crates/coreav-opus/**", "scripts/opus_tables.py", "scripts/pinned_sources.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", ".github/workflows/audio-conformance.yml"]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths: ["crates/coreav-audio/**", "crates/coreav-aac/**", "scripts/aac_agreement.py", "scripts/decode_audio_check.py", "crates/coreav-opus/**", "scripts/opus_tables.py", "scripts/pinned_sources.py", ".github/workflows/audio-conformance.yml"]
+    paths: ["crates/coreav-audio/**", "crates/coreav-aac/**", "scripts/aac_agreement.py", "scripts/decode_audio_check.py", "crates/coreav-opus/**", "scripts/opus_tables.py", "scripts/pinned_sources.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", ".github/workflows/audio-conformance.yml"]
   schedule:
     - cron: '17 6 * * 2'
   workflow_dispatch:

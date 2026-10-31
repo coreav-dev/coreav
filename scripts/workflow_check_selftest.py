@@ -211,6 +211,49 @@ class Repository(unittest.TestCase):
         found = self.ci('\njobs:\n', '\nconcurrency:\n  group: ci\n\njobs:\n')
         self.assertTrue(any('remove the workflow\'s own `concurrency:`' in p for p in found), found)
 
+    def test_a_pin_change_starts_every_workflow_that_installs_the_oracle(self):
+        workflows = self.root / '.github' / 'workflows'
+        audio = workflows / 'audio-conformance.yml'
+        text = audio.read_text()
+        self.assertEqual(text.count(' "scripts/install-oracle-ffmpeg.sh",'), 2)
+        audio.write_text(text.replace(' "scripts/install-oracle-ffmpeg.sh",', ''))
+        mediainfo = workflows / 'mediainfo-oracle.yml'
+        text = mediainfo.read_text()
+        self.assertIn("      - '*.md'\n", text)
+        self.assertIn('      - scripts/oracle-ffmpeg.env\n', text)
+        mediainfo.write_text(text.replace("      - '*.md'\n", "      - '*.md'\n      - 'scripts/*.env'\n")
+                             .replace('      - scripts/oracle-ffmpeg.env\n', ''))
+
+        def problem(workflow, pin, fix, key, event):
+            return (f'{workflow}: runs the oracle FFmpeg installer, but a change of scripts/{pin} '
+                    f'does not start it: {fix} the `{key}` of `{event}`')
+        self.assertEqual(sorted(check.check(self.root)), sorted([
+            problem('audio-conformance.yml', 'install-oracle-ffmpeg.sh', 'add it to', 'paths', 'push'),
+            problem('audio-conformance.yml', 'install-oracle-ffmpeg.sh', 'add it to', 'paths', 'pull_request'),
+            problem('mediainfo-oracle.yml', 'oracle-ffmpeg.env', 'take it out of', 'paths-ignore', 'push'),
+            problem('mediainfo-oracle.yml', 'oracle-ffmpeg.env', 'add it to', 'paths', 'pull_request'),
+        ]))
+
+    def test_only_a_workflow_that_runs_the_installer_must_start_on_the_pin(self):
+        def workflow(*steps):
+            return ('# workflow-check: not required\non:\n  pull_request:\n'
+                    '    paths: ["scripts/install-oracle-ffmpeg.sh"]\njobs:\n  probe:\n'
+                    '    runs-on: ubuntu-24.04\n    steps:\n' + ''.join(f'      {step}\n' for step in steps))
+        missing = ('probe.yml: runs the oracle FFmpeg installer, but a change of scripts/oracle-ffmpeg.env '
+                   'does not start it: add it to the `paths` of `pull_request`')
+        for steps in (['- run: bash -n scripts/install-oracle-ffmpeg.sh'],
+                      ['- run: shellcheck scripts/install-oracle-ffmpeg.sh'],
+                      ['# scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/bin"', '- run: echo none']):
+            with self.subTest(steps=steps):
+                self.write('.github/workflows/probe.yml', workflow(*steps))
+                self.assertEqual(check.check(self.root), [])
+        for steps in (['- run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/bin"'],
+                      ['- name: x', '  run: bash scripts/install-oracle-ffmpeg.sh /opt/bin'],
+                      ['- run: |', '    set -e', '', '    ./scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/bin"']):
+            with self.subTest(steps=steps):
+                self.write('.github/workflows/probe.yml', workflow(*steps))
+                self.assertEqual(check.check(self.root), [missing])
+
     def test_a_local_ref_to_nothing_is_reported(self):
         self.call_local('./tools/none')
         self.assertTrue(any('names no action or workflow file' in p for p in check.check(self.root)))
