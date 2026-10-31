@@ -1016,6 +1016,7 @@ fn run_transcode(args: &TranscodeArgs, this: Option<&Path>, strict_safe: StrictS
         scale,
         no_audio: args.audio == "none",
         audio_streams: None,
+        left_out_covers: Vec::new(),
         opus: (args.audio == "opus").then_some(transcode::OpusRequest {
             stream: None,
             bitrate: args.audio_bitrate.map(|k| k * 1000),
@@ -1308,6 +1309,7 @@ fn run_remux(args: &RemuxArgs, metadata: Metadata) -> ExitCode {
             OnUnsupported::Drop
         },
         metadata,
+        left_out_covers: Vec::new(),
     };
     let mut remote = match open_remote(&args.input) {
         Ok(remote) => remote,

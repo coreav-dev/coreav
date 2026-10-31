@@ -600,6 +600,7 @@ fn remux_document<S: Source, W: Write>(
             streams: options.streams.clone(),
             on_unsupported,
             metadata,
+            left_out_covers: Vec::new(),
         };
         let summary = remux_mp4(source, &limits, &allowlist, &remux_options, &mut out)
             .map_err(|error| to_failure(ClipFailure::from(error)))?;

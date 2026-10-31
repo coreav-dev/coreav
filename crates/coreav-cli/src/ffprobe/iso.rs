@@ -525,6 +525,7 @@ pub fn probe<S: Source>(source: &mut S, size: u64, name: &str) -> Result<IsoProb
         .map(|(st, (_, _, _, duration))| Listed::of(st, *duration))
         .collect();
     let covers = cover_streams(&mut report, &spans, &meta.covers);
+    report.covers = covers.iter().map(|(index, at, _)| (*index, *at)).collect();
     let pictures = probed
         .movie
         .tracks

@@ -166,6 +166,11 @@ pub struct Report {
     pub programs: Vec<Program>,
     /// What each stream's decoder is given besides its packets.
     pub setups: Vec<Setup>,
+    /// The streams that are cover pictures of an ISO base media file's item
+    /// lists, not tracks: each one's index in `streams` and where its
+    /// picture starts in the file, as `RemuxOptions::left_out_covers`
+    /// names it.
+    pub covers: Vec<(usize, u64)>,
 }
 
 /// A probed file: its report and what lists its packets.

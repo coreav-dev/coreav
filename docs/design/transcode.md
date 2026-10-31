@@ -714,6 +714,7 @@ is refused (exit status 4) and never handed to FFmpeg.
 |---|---|
 | `-c:v`, `-vcodec` (and `-c`/`-codec` with a specifier naming the video) `libx264` | the encoder; the selected video stream must be the one this pipeline encodes (FFmpeg's default choice, "Scope"), and only one |
 | `-c:a`, `-acodec` `copy`, or `-c copy` for the other streams | the selected audio streams copied (`AudioMode::Streams`) |
+| `-c:v:N copy`, or `-c copy`, for a selected MP4/MOV cover picture | the cover picture kept in the output's item list, unchanged; a cover picture the selection leaves out (the default selection does) is left out (`TranscodeOptions::left_out_covers`, [`compat-cli.md`](compat-cli.md), "Cover pictures"), and one the command would encode with libx264 is refused (`ffmpeg` fails on it) |
 | `-c:a`, `-acodec` `libopus` | `--audio opus` for the one selected audio stream ("Opus audio"), beside a video encoded with libx264; refused when other audio is selected beside it, for audio other than FLAC or MP3 (CoreAV decodes only those), for more than two channels (`ffmpeg` writes a surround Opus stream), and without `-c:v libx264`. In a build without the `libopus` feature every `-c:a libopus` line is not native: FFmpeg runs it, or strict-safe mode refuses it and nothing runs |
 | `-b:a RATE` | `--audio-bitrate`: FFmpeg's number syntax, in bits a second, 6k to 510k as libopus takes it; only with `-c:a libopus` |
 | `-an` | no audio |

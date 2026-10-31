@@ -83,8 +83,11 @@ impl From<WriteFailure> for Stop {
 pub enum Job {
     /// The whole input, these streams (`Track::stream_index`), as MP4.
     Remux {
-        /// The streams, in input order.
+        /// The tracks, in input order.
         streams: Vec<usize>,
+        /// The cover pictures that are not selected, as
+        /// `RemuxOptions::left_out_covers` names them.
+        left_out_covers: Vec<u64>,
         /// The input is Matroska or WebM.
         matroska: bool,
     },
@@ -102,16 +105,7 @@ pub enum Job {
     /// The video stream encoded with libx264 and these audio streams copied,
     /// or the one audio stream encoded with libopus, as MP4
     /// (`docs/design/transcode.md`, "Through `coreav ffmpeg`").
-    Transcode {
-        /// The video stream.
-        video: usize,
-        /// The audio streams, in input order.
-        audio: Vec<usize>,
-        /// The audio stream, then the only one, is encoded with libopus.
-        opus: bool,
-        /// Whether the decoder reorders the video's frames (B-frames).
-        reordered: bool,
-    },
+    Transcode(TranscodeJob),
     /// The files of a concat list, joined in order.
     Join {
         /// The files.
@@ -121,6 +115,22 @@ pub enum Job {
         /// The audio kept.
         audio: JoinAudio,
     },
+}
+
+/// What [`Job::Transcode`] encodes and copies.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TranscodeJob {
+    /// The video stream.
+    pub video: usize,
+    /// The audio streams, in input order.
+    pub audio: Vec<usize>,
+    /// The audio stream, then the only one, is encoded with libopus.
+    pub opus: bool,
+    /// Whether the decoder reorders the video's frames (B-frames).
+    pub reordered: bool,
+    /// The cover pictures that are not selected, as
+    /// `RemuxOptions::left_out_covers` names them; a selected one is copied.
+    pub left_out_covers: Vec<u64>,
 }
 
 /// The container families CoreAV reads.
@@ -184,25 +194,8 @@ pub fn run(args: &[String], strict_safe: StrictSafe) -> Result<serde_json::Value
         .report;
     let job = plan(&command, &report, list)?;
     #[cfg(feature = "transcode")]
-    if let (
-        Job::Transcode {
-            video,
-            audio,
-            opus,
-            reordered,
-        },
-        Some(encoder),
-    ) = (&job, encoder)
-    {
-        return encode::write(
-            &command,
-            *video,
-            audio,
-            *opus,
-            *reordered,
-            encoder,
-            strict_safe,
-        );
+    if let (Job::Transcode(transcode), Some(encoder)) = (&job, encoder) {
+        return encode::write(&command, transcode, encoder, strict_safe);
     }
     write(&command, &job)
 }
@@ -276,6 +269,7 @@ pub fn plan(
         &report.streams
     };
     let selected = select(command, streams)?;
+    let cover = |i: usize| report.covers.iter().any(|(c, _)| *c == i);
     let kind = |i: usize| streams.get(i).map(|s| s.kind);
     let of = |k: StreamKind| {
         selected
@@ -284,7 +278,7 @@ pub fn plan(
             .filter(move |i| kind(*i) == Some(k))
     };
     let one_video_one_audio = || {
-        let videos: Vec<usize> = of(StreamKind::Video).collect();
+        let videos: Vec<usize> = of(StreamKind::Video).filter(|i| !cover(*i)).collect();
         let audios: Vec<usize> = of(StreamKind::Audio).collect();
         match (videos.as_slice(), audios.as_slice()) {
             _ if videos.len() + audios.len() != selected.len() => Err(Refusal::not_native(
@@ -449,10 +443,28 @@ pub fn plan(
         }
         return Ok(Job::ExtractAudio { stream: *stream });
     }
+    let tracks: Vec<usize> = selected.iter().copied().filter(|i| !cover(*i)).collect();
+    if tracks.is_empty() {
+        return Err(Refusal::not_native(
+            "cover pictures alone (ffmpeg writes an MP4 file without a track, which ISO/IEC 14496-12 8.3.1 does not allow)",
+        ));
+    }
     Ok(Job::Remux {
-        streams: selected,
+        left_out_covers: left_out_covers(report, &selected),
+        streams: tracks,
         matroska: container == Container::Matroska,
     })
+}
+
+/// The cover pictures of `report` that `selected` leaves out, as
+/// `RemuxOptions::left_out_covers` names them.
+fn left_out_covers(report: &Report, selected: &[usize]) -> Vec<u64> {
+    report
+        .covers
+        .iter()
+        .filter(|(i, _)| !selected.contains(i))
+        .map(|(_, at)| *at)
+        .collect()
 }
 
 /// The job of a command that encodes: one video stream with libx264, the
@@ -466,6 +478,10 @@ fn transcode_job(
     opus: &[usize],
     trims: bool,
 ) -> Result<Job, Refusal> {
+    let cover = |i: usize| report.covers.iter().any(|(c, _)| *c == i);
+    if encoded.iter().chain(opus).any(|i| cover(*i)) {
+        return Err(Refusal::not_native("encoding a cover picture"));
+    }
     let [video] = encoded else {
         return Err(Refusal::not_native("encoding more than one stream"));
     };
@@ -500,8 +516,11 @@ fn transcode_job(
              (ffmpeg would repeat its first frame to fill the start)",
         ));
     }
-    let others: Vec<(usize, &Stream)> =
-        output.iter().filter(|(i, _)| i != video).copied().collect();
+    let others: Vec<(usize, &Stream)> = output
+        .iter()
+        .filter(|(i, _)| i != video && !cover(*i))
+        .copied()
+        .collect();
     if others.iter().any(|(i, _)| i < video) {
         return Err(Refusal::not_native(
             "audio before the video in the input (ffmpeg writes the video first; the transcode keeps the input's order)",
@@ -529,14 +548,16 @@ fn transcode_job(
             ));
         }
     };
-    Ok(Job::Transcode {
+    let selected: Vec<usize> = output.iter().map(|(i, _)| *i).collect();
+    Ok(Job::Transcode(TranscodeJob {
         video: *video,
         audio: others.iter().map(|(i, _)| *i).collect(),
         opus: encodes_opus,
         reordered: output
             .iter()
             .any(|(i, s)| i == video && int(s, "has_b_frames") > 0),
-    })
+        left_out_covers: left_out_covers(report, &selected),
+    }))
 }
 
 /// The refusals of an audio stream to encode with libopus where the
@@ -804,8 +825,8 @@ fn select(command: &Command, streams: &[Stream]) -> Result<Vec<usize>, Refusal> 
         let best = |kind: StreamKind, score: &dyn Fn(&Stream) -> i64| {
             all.iter()
                 .filter(|(_, s)| s.kind == kind && !disabled(s))
-                .fold(None::<(usize, (bool, i64))>, |best, (i, s)| {
-                    let value = (is_default(s), score(s));
+                .fold(None::<(usize, (bool, bool, i64))>, |best, (i, s)| {
+                    let value = (!s.attached_pic, is_default(s), score(s));
                     match best {
                         Some((_, top)) if top >= value => best,
                         _ => Some((*i, value)),
@@ -935,7 +956,7 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
     if let Job::Split(options) = job {
         return split(command, options, &allowlist);
     }
-    if let Job::Transcode { .. } = job {
+    if let Job::Transcode(_) = job {
         return Err(Refusal::not_native("encoding, in a build without a decoder backend").into());
     }
     let path = PathBuf::from(&command.output);
@@ -957,11 +978,13 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
     let written = output::to_file(&path, force, |out| match job {
         Job::Remux {
             streams,
+            left_out_covers,
             matroska: false,
         } => {
             let options = RemuxOptions {
                 streams: Some(streams.clone()),
                 on_unsupported: OnUnsupported::Fail,
+                left_out_covers: left_out_covers.clone(),
                 ..RemuxOptions::default()
             };
             crate::remux::run(input, &options, &allowlist, out)
@@ -970,6 +993,7 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
         Job::Remux {
             streams,
             matroska: true,
+            ..
         } => {
             let options = MatroskaRemuxOptions {
                 streams: Some(streams.clone()),
@@ -1012,7 +1036,7 @@ fn write(command: &Command, job: &Job) -> Result<serde_json::Value, Stop> {
                 .and_then(|()| Ok(serde_json::from_slice(&document)?))
                 .map_err(|e| WriteFailure::Rejected(Failure::io(e)))
         }
-        Job::Split(_) | Job::Transcode { .. } => Ok(serde_json::Value::Null),
+        Job::Split(_) | Job::Transcode(_) => Ok(serde_json::Value::Null),
     });
     match (written, refused) {
         (Err(_), Some(words)) => Err(Refusal::not_native(words).into()),

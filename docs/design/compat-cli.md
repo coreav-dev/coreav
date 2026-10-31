@@ -982,7 +982,7 @@ implies:
 
 | The command | The writer |
 |---|---|
-| a copy to `.mp4` (or `-f mp4`) | `coreav remux`, MP4/MOV or Matroska/WebM input, the selected streams, failing rather than dropping a stream MP4 cannot carry |
+| a copy to `.mp4` (or `-f mp4`) | `coreav remux`, MP4/MOV or Matroska/WebM input, the selected streams, failing rather than dropping a stream MP4 cannot carry; of an MP4/MOV input's cover pictures, the selected ones (below) |
 | a copy of one audio stream to `.m4a` (or `-f ipod`) | `coreav extract-audio` |
 | `-ss`, `-t` or `-to`, before or after `-i` | `coreav clip`: one video stream and at most one audio stream |
 | the same, with no video selected | the clip of audio alone (`clip_audio_mp4` of `coreav-isobmff-write`): one AAC, FLAC, Apple Lossless, AC-3 or E-AC-3 stream |
@@ -1007,6 +1007,34 @@ every disposition flag cleared (the pinned `ffmpeg` 9.0.2, black box:
 `ffprobe` of a list), so a join's selection goes by picture size and
 channels alone: of a mono AAC stream with the default disposition and a
 stereo one without, the stereo one.
+
+**Cover pictures.** An MP4/MOV input's cover pictures (`covr` items of the
+movie's item lists, and the QuickTime `artwork` key) are attached-picture
+video streams after the tracks, as `ffprobe` lists them, and selected like
+any other stream. Without `-map`, a video track comes before a cover
+picture whatever their dispositions and sizes; a cover picture is chosen
+only when no video track is there (the pinned `ffmpeg` 9.0.2, black box:
+a 640x480 cover beside a 160x120 video without the default disposition,
+and a cover beside audio alone). The plan splits the selection once
+(`Report::covers` names the cover picture streams and where each picture
+starts in the file): the selected tracks go to the remux as its streams,
+and every cover picture not selected as `RemuxOptions::left_out_covers`,
+which leaves its `data` box out of the copied item list, and the item
+with it when no other picture remains. A selected cover picture stays in
+the output as a cover picture, where `ffmpeg` writes it too (black box:
+`-map 0` keeps it, `-map 0:0 -map 0:1`, no `-map` and `-map -0:2` leave
+it out, and of two pictures the selected one stays, its type and bytes
+unchanged). An encode (`-c:v libx264`, [`transcode.md`](transcode.md),
+"Through `coreav ffmpeg`") follows the same selection: its plan hands the
+cover pictures not selected to the pipeline's remux
+(`TranscodeOptions::left_out_covers`), so the default selection leaves the
+cover picture out and `-map 0 -c:v libx264 -c:v:1 copy -c:a copy` keeps it
+unchanged, as `ffmpeg` does (black box, also with `-c:a libopus`). A
+command that would encode a cover picture (`-map 0 -c:v libx264`) is
+refused (`encoding a cover picture`): `ffmpeg` fails on it, exit status
+234, and writes nothing. The clip, segment and M4A jobs carry no cover
+picture: their selection rules refuse one by name (`one video and one
+audio stream`, `an M4A output of other than one audio stream`).
 
 **Times.** Every time counts from the input's start time (`ffprobe`'s
 `format.start_time`, 0 when it has none): on a file presented from 5 s,
@@ -1129,6 +1157,15 @@ FFmpeg).**
   and `join_mp4` copies the streams at the selected indexes), and streams
   `join_mp4` does not copy (MPEG-4 Visual video, PCM or MP3 audio, say). The join runs to a temporary file and finds these
   at its end; the output is left as it was.
+- Cover pictures alone (C03's `-map 0 -map -0:m:language:eng` on a file
+  whose tracks are tagged `eng`, or `-map 0:2` naming the picture): the
+  pinned `ffmpeg` 9.0.2 writes a movie box with the picture in its item
+  list and no track box (black box: one attached-picture stream, zero
+  `trak` boxes), but ISO/IEC 14496-12 8.3.1 makes the track box mandatory,
+  one or more per movie. A known divergence: `coreav ffmpeg` writes no
+  file that the standard does not allow, and FFmpeg's `ffmpeg` runs the
+  command when strict-safe mode is off. `cover_selections_agree_with_the_pinned_ffmpeg`
+  in `tests/ffmpeg.rs` checks `ffmpeg`'s side of it in CI.
 - A segmented output of a file without video (C32 on such files): `coreav
   split` cuts at video. A clip without video of other than one AAC,
   FLAC, Apple Lossless, AC-3 or E-AC-3 stream, or written as M4A.
