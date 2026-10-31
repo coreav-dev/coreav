@@ -321,21 +321,33 @@ KD-TS-FRAME-TIME.
   to 0x9B. Nothing in the stream declares or carries MPEG audio.
 - Coverage requires, from the file itself (`Facts`): the stream's type is
   0x06 and its descriptors include a VBI_data_descriptor (tag 0x45); every
-  PES packet of its PID that the reader holds starts with such a
-  data_identifier; `ffprobe` lists the stream as `audio` named `mp1`,
-  `mp2` or `mp3`; and CoreAV lists it as `data`.
+  PES packet of its PID in the file starts its payload with such a
+  data_identifier, read while scanning whatever PES packets are kept;
+  both sides describe that PID, by the PID the reference names or, where
+  it names none, by its first packet starting at a PES packet of the PID;
+  `ffprobe` lists the stream as `audio` named `mp1`, `mp2` or `mp3`
+  with a sample rate and channels of 0 or none; CoreAV lists it as `data`
+  named `bin_data` with neither; and every other field the comparator
+  gates a stream on is the same on both sides. A stream difference is
+  covered only in `kind` and `codec_name`. Packet differences are
+  covered only when CoreAV lists exactly one packet for each PES packet of
+  the PID, those before a table names it included, in order, at the position of the transport packet that starts
+  it, of its payload's size, with its presentation time as both times, and
+  as a keyframe.
 
 ## KD-TS-PROGRAM-WRAP
 
-- Fields: in the `coreav ffprobe` listing, stream `start_pts`,
-  `start_time`, and `duration_ts` and `duration` where `ffprobe`
-  prints none.
+- Fields: in the `coreav ffprobe` listing, stream `start_pts` and
+  `start_time`. The `duration_ts` and `duration` that `ffprobe` then
+  leaves out are not covered: nothing here shows CoreAV's duration
+  correct.
 - When: a stream of a file with several programs whose own program's
   timestamps do not wrap.
 - What each reports: `ffprobe` adds 2^33 to the stream's start, with the
   timestamps of another program of the file, and then prints no duration
   for it. CoreAV gives the start as the stream's first PES timestamp.
-- Why: each program has a time base of its own (ISO/IEC 13818-1 2.4.2.1),
+- Why: each program has a time base of its own (ITU-T H.222.0 (08/2018),
+  ISO/IEC 13818-1, 2.4.2.3),
   so another program's timestamps say nothing of where this one's 33-bit
   counter wraps. On a capture of the corpus the shift appears only when
   one particular other program is in the file.
@@ -343,7 +355,10 @@ KD-TS-FRAME-TIME.
   first PES timestamp of the stream's PID; it lies within the 60 second
   window of the first timestamp of the stream's program; that first
   timestamp is more than the window away from both ends of the 33-bit
-  range; and `ffprobe`'s start is CoreAV's plus 2^33.
+  range; both sides use a 90 kHz time base; `ffprobe`'s `start_pts` is
+  CoreAV's plus 2^33 and its `start_time`, where it prints one, is that
+  in seconds; and CoreAV's `start_time`, where it prints one, is its own
+  start in seconds.
 
 ## KD-TS-ANNEX-D-DOWNMIX
 
@@ -361,8 +376,11 @@ KD-TS-FRAME-TIME.
   ATSC A/52 Annex D, whose 2.3.1.2 to 2.3.1.6 give these fields their
   meaning. Annex D 3.2 lets a legacy decoder ignore them; it does not make
   the stream state no downmix.
-- Coverage requires, from the file itself (`Facts`): the first AC-3 frame
-  of the stream's first PES packet has `bsid` 6, more than two channels
+- Coverage requires, from the file itself (`Facts`): the stream is AC-3
+  by its tables; the first AC-3 syncframe of its first PES packet is one:
+  its sample rate and frame size codes are listed (ATSC A/52 tables 5.6
+  and 5.18) and its first 5/8 pass `crc1` (7.10.1); it has `bsid` 6,
+  more than two channels
   (`acmod` above 2) and `xbsi1e` set, and no reserved surround level;
   CoreAV prints exactly what that frame states, read by a reader written
   apart from CoreAV's; `ffprobe` prints `0` and `0.000000` for all

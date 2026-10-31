@@ -348,55 +348,188 @@ def bits(fields):
     return (value << pad).to_bytes((width + pad) // 8, 'big')
 
 
+def with_crc1(frame, words=None):
+    """`frame` with the `crc1` that makes its first 5/8 check (ATSC A/52
+    7.10.1), of `words` words or as many as its header states. The
+    register is linear in `crc1`, so the bits that cancel the rest of the
+    5/8 are solved for."""
+    words = words or kd.ac3_frame_words(frame[4] >> 6, frame[4] & 0x3F)
+    covered = 2 * ((words >> 1) + (words >> 3))
+
+    def remainder(crc1):
+        return kd.ac3_crc(crc1.to_bytes(2, 'big') + bytes(frame[4:covered]))
+
+    target, basis = remainder(0), {}
+    for bit in range(16):
+        v, c = remainder(1 << bit) ^ remainder(0), 1 << bit
+        for top in reversed(range(16)):
+            if not v >> top & 1:
+                continue
+            if top not in basis:
+                basis[top] = (v, c)
+                break
+            v, c = v ^ basis[top][0], c ^ basis[top][1]
+    crc1 = 0
+    for top in reversed(range(16)):
+        if target >> top & 1:
+            target, crc1 = target ^ basis[top][0], crc1 ^ basis[top][1]
+    return frame[:2] + crc1.to_bytes(2, 'big') + frame[4:]
+
+
 def ac3_annex_d(acmod=7, xbsi1e=1, levels=(1, 4, 5, 4, 5)):
-    """The start of an AC-3 frame in the alternate syntax (`bsid` 6) with
-    no optional words before its first extra information."""
-    fields = [(0x0B77, 16), (0, 16), (0, 2), (10, 6), (6, 5), (0, 3), (acmod, 3)]
+    """An AC-3 syncframe of 64 words (48 kHz, 32 kbit/s) in the alternate
+    syntax (`bsid` 6) with no optional words before its first extra
+    information, and a `crc1` that checks."""
+    fields = [(0x0B77, 16), (0, 16), (0, 2), (0, 6), (6, 5), (0, 3), (acmod, 3)]
     fields += [(0, 2)] * ((acmod & 1 and acmod != 1) + bool(acmod & 4) + (acmod == 2))
     fields += [(0, 1), (31, 5), (0, 1), (0, 1), (0, 1), (0, 1), (1, 1), (xbsi1e, 1)]
     if xbsi1e:
         fields += list(zip(levels, (2, 3, 3, 3, 3)))
-    return bits(fields + [(0, 1), (0, 1)]) + b'\x00' * 32
+    frame = bits(fields + [(0, 1), (0, 1)])
+    return with_crc1(frame + bytes(128 - len(frame)))
 
 
 class SpecificationDecides(unittest.TestCase):
-    def vbi_file(self, data_identifier=0x99, descriptor=True):
+    def vbi_file(self, data_identifier=0x99, descriptor=True, keep=(0x101,), later=None):
         mux = Mux()
         tags = bytes([0x45, 6, 0x04, 1, 0xF0, 0x05, 1, 0xF7]) if descriptor else b''
         mux.tables([(0x06, 0x101, tags)])
         for k in range(3):
             unit = bytes([0xC3, 0x2C]) + bytes(44)
-            mux.pes(0x101, 90000 + 3600 * k, bytes([data_identifier]) + unit * 3)
-        return kd.Facts(written(mux.out), keep=[0x101])
+            data = bytes([data_identifier]) + unit * 3
+            if k and later is not None:
+                data = later
+            mux.pes(0x101, 90000 + 3600 * k, data)
+        return kd.Facts(written(mux.out), keep=keep)
+
+    def test_vbi_payloads_are_every_pes_packet_s_whatever_is_kept(self):
+        mpeg_audio = bytes([0xFF, 0xFD, 0xE0, 0xC4]) + bytes(140)
+        for keep in ((), (0x101,)):
+            self.assertTrue(kd.vbi_payloads(self.vbi_file(keep=keep), 0x101))
+            self.assertFalse(kd.vbi_payloads(self.vbi_file(keep=keep, later=mpeg_audio), 0x101))
+        self.assertFalse(kd.vbi_payloads(self.vbi_file(keep=()), 0x102))
+
+    def vbi_documents(self, facts):
+        """Both sides' streams and packets of the VBI stream of `vbi_file`,
+        as the oracle adapters give them: the reference names no PID."""
+        common = {'codec_fourcc': '[6][0][0][0]', 'timescale': 90000, 'duration_ts': 7200}
+        theirs = dict(common, kind='audio', codec_name='mp3', sample_rate=0, channels=0)
+        ours = dict(common, kind='data', codec_name='bin_data', properties={'pid': 0x101})
+        listed = [{'pos': offset, 'size': len(payload), 'pts': pts, 'dts': pts, 'keyframe': True}
+                  for offset, pts, payload in facts.pes[0x101]]
+        theirs_listed = [{'pos': listed[0]['pos'], 'size': 429, 'pts': listed[0]['pts'],
+                          'dts': listed[0]['pts'], 'keyframe': True}]
+        return theirs, ours, listed, theirs_listed
 
     def test_vbi_as_audio_needs_the_descriptor_and_data_identifier(self):
-        theirs = {'kind': 'audio', 'codec_name': 'mp3'}
-        ours = {'kind': 'data', 'codec_name': 'bin_data', 'properties': {'pid': 0x101}}
-        self.assertTrue(kd.vbi_as_audio(theirs, ours, self.vbi_file()))
-        self.assertTrue(kd.vbi_as_audio(theirs, ours, self.vbi_file(0x10)))
-        self.assertTrue(kd.vbi_as_audio({'codec_type': 'audio', 'codec_name': 'mp3'},
-                                        {'codec_type': 'data', 'id': '0x101'}, self.vbi_file()))
-        self.assertFalse(kd.vbi_as_audio(theirs, ours, self.vbi_file(0x20)))
-        self.assertFalse(kd.vbi_as_audio(theirs, ours, self.vbi_file(descriptor=False)))
-        self.assertFalse(kd.vbi_as_audio({'kind': 'data', 'codec_name': 'bin_data'}, ours, self.vbi_file()))
-        self.assertFalse(kd.vbi_as_audio(theirs, dict(ours, kind='audio'), self.vbi_file()))
+        facts = self.vbi_file()
+        theirs, ours, listed, theirs_listed = self.vbi_documents(facts)
+        rlisted = {'packets': theirs_listed}
+        self.assertTrue(kd.vbi_as_audio(theirs, ours, facts, rlisted))
+        self.assertTrue(kd.vbi_as_audio(theirs, ours, self.vbi_file(0x10), rlisted))
+        self.assertTrue(kd.vbi_as_audio({'codec_type': 'audio', 'codec_name': 'mp3', 'id': '0x101'},
+                                        {'codec_type': 'data', 'codec_name': 'bin_data', 'id': '0x101'},
+                                        facts))
+        self.assertFalse(kd.vbi_as_audio(theirs, ours, self.vbi_file(0x20), rlisted))
+        self.assertFalse(kd.vbi_as_audio(theirs, ours, self.vbi_file(descriptor=False), rlisted))
+        self.assertFalse(kd.vbi_as_audio(dict(theirs, kind='data'), ours, facts, rlisted))
+        self.assertFalse(kd.vbi_as_audio(theirs, dict(ours, kind='audio'), facts, rlisted))
+        # Another PID's stream on the reference's side: named, or found by
+        # where its first packet starts.
+        self.assertFalse(kd.vbi_as_audio(dict(theirs, id='0x102'), ours, facts))
+        self.assertFalse(kd.vbi_as_audio(theirs, ours, facts, {'packets': [dict(theirs_listed[0], pos=0)]}))
+        self.assertFalse(kd.vbi_as_audio(theirs, ours, facts))
+        # A candidate field the bytes do not justify.
+        for name, value in (('timescale', 1), ('duration_ts', 999999999), ('codec_name', 'h264'),
+                            ('width', 1920), ('sample_rate', 48000)):
+            self.assertFalse(kd.vbi_as_audio(theirs, dict(ours, **{name: value}), facts, rlisted), name)
+
+    def test_vbi_overlay_covers_only_what_the_bytes_justify(self):
+        media = written(b'')
+        facts = self.vbi_file()
+        media.write_bytes(facts.path.read_bytes())
+        theirs, ours, listed, theirs_listed = self.vbi_documents(facts)
+        reference, packets = {'streams': [theirs]}, {'streams': [{'packets': theirs_listed}]}
+
+        def streams(candidate_stream, paths):
+            kd._FACTS.clear()
+            detail = {'file': media.name, 'gating_differences': [{'path': p} for p in paths]}
+            return kd.stream_item(detail, reference, {'streams': [candidate_stream]}, media.parent,
+                                  packets, {'streams': [dict(candidate_stream, packets=listed)]})[:3]
+
+        self.assertEqual(streams(ours, ['streams/0/kind', 'streams/0/codec_name']),
+                         ('kd', {'KD-TS-VBI-AS-AUDIO'}, []))
+        for name, value in (('timescale', 1), ('duration_ts', 999999999), ('width', 1920)):
+            path = f'streams/0/{name}'
+            status, _, uncovered = streams(dict(ours, **{name: value}), ['streams/0/kind', path])
+            self.assertEqual((status, uncovered), ('uncovered', ['streams/0/kind', path]), name)
+        self.assertEqual(streams(dict(ours, codec_name='h264'), ['streams/0/codec_name'])[0], 'uncovered')
+
+        def units(candidate_listed):
+            kd._FACTS.clear()
+            paths = [f'streams/0/packets/{i}/size' for i in range(len(listed))]
+            detail = {'file': media.name, 'packets_disagree': len(paths),
+                      'gating_differences': [{'path': p} for p in paths]}
+            candidate = {'streams': [dict(ours, packets=candidate_listed)]}
+            return kd.packet_units(detail, candidate, media.parent, reference, {'streams': [ours]},
+                                   packets)[:2]
+
+        self.assertEqual(units(listed), ({'KD-TS-VBI-AS-AUDIO': 3}, 0))
+        first = listed[0]
+        for change in ({'pts': first['pts'] + 1}, {'size': first['size'] + 1}, {'pos': 0},
+                       {'keyframe': False}):
+            self.assertEqual(units([dict(first, **change)] + listed[1:]), ({}, 3), change)
+        self.assertEqual(units(listed + [listed[-1]]), ({}, 3))
+
+    def test_vbi_listing_counts_the_pes_packets_before_the_tables(self):
+        mux = Mux()
+        unit = bytes([0x99]) + (bytes([0xC3, 0x2C]) + bytes(44)) * 3
+        mux.pes(0x101, 86400, unit)
+        mux.tables([(0x06, 0x101, bytes([0x45, 6, 0x04, 1, 0xF0, 0x05, 1, 0xF7]))])
+        for k in range(2):
+            mux.pes(0x101, 90000 + 3600 * k, unit)
+        facts = kd.Facts(written(mux.out), keep=[0x101])
+        self.assertEqual(len(facts.pes_before_tables[0x101]), 1)
+        listed = [{'pos': offset, 'size': len(payload), 'pts': pts, 'dts': pts, 'keyframe': True}
+                  for offset, pts, payload in facts.pes_before_tables[0x101] + facts.pes[0x101]]
+        ours = {'properties': {'pid': 0x101}}
+        self.assertTrue(kd.vbi_listing(dict(ours, packets=listed), facts))
+        self.assertFalse(kd.vbi_listing(dict(ours, packets=listed[1:]), facts))
+        # What is kept for one PID changes nothing else the reader finds.
+        plain = kd.Facts(facts.path)
+        self.assertEqual((plain.first_pts, plain.times, plain.pes_leads),
+                         (facts.first_pts, facts.times, facts.pes_leads))
 
     def wrap_file(self, first=5_479_446_912, other=6_353_039_068):
         mux = Mux()
         mux.programs({1: (0x1000, [(0x02, 0x101)]), 2: (0x1001, [(0x02, 0x102)])})
-        mux.pes(0x101, first, b'\x00' * 100)
+        for k in range(3):
+            mux.pes(0x101, first + 3600 * k, b'\x00' * 100)
         mux.pes(0x102, other, b'\x00' * 100)
         return kd.Facts(written(mux.out))
 
     def test_program_wrap_needs_a_program_that_does_not_wrap(self):
-        start = 5_479_446_912
-        ours = {'id': '0x101', 'start_pts': start}
-        self.assertTrue(kd.program_wrap({'start_pts': start + kd.WRAP}, ours, self.wrap_file()))
-        self.assertFalse(kd.program_wrap({'start_pts': start}, ours, self.wrap_file()))
-        self.assertFalse(kd.program_wrap({'start_pts': start + kd.WRAP},
-                                         dict(ours, start_pts=start + 1), self.wrap_file()))
+        start, base = 5_479_446_912, {'id': '0x101', 'time_base': '1/90000'}
+        theirs = dict(base, start_pts=start + kd.WRAP, start_time=kd.seconds(start + kd.WRAP))
+        ours = dict(base, start_pts=start, start_time=kd.seconds(start))
+        facts = self.wrap_file()
+        self.assertTrue(kd.program_wrap(theirs, ours, facts))
+        self.assertTrue(kd.program_wrap({'start_pts': start + kd.WRAP},
+                                        {'properties': {'pid': 0x101, 'start_pts': start}}, facts))
+        self.assertFalse(kd.program_wrap(dict(theirs, start_pts=start), ours, facts))
+        self.assertFalse(kd.program_wrap(theirs, dict(ours, start_pts=start + 1), facts))
+        # Each timing field the record names, on either side.
+        for side, name, value in (('ours', 'start_time', '-123.456789'), ('ours', 'time_base', '1/1000'),
+                                  ('theirs', 'start_time', kd.seconds(start)),
+                                  ('theirs', 'time_base', '1/1000')):
+            changed = {name: value}
+            if side == 'theirs':
+                self.assertFalse(kd.program_wrap(dict(theirs, **changed), ours, facts), changed)
+            else:
+                self.assertFalse(kd.program_wrap(theirs, dict(ours, **changed), facts), changed)
         near = kd.WRAP - 1000
-        self.assertFalse(kd.program_wrap({'start_pts': near + kd.WRAP}, {'id': '0x101', 'start_pts': near},
+        self.assertFalse(kd.program_wrap(dict(theirs, start_pts=near + kd.WRAP, start_time=None),
+                                         dict(ours, start_pts=near, start_time=None),
                                          self.wrap_file(first=near)))
 
     def ac3_file(self, frame):
@@ -423,6 +556,24 @@ class SpecificationDecides(unittest.TestCase):
                          dict(coded, ltrt_surmixlev='0.000000', loro_surmixlev='0.000000'))
         self.assertEqual(kd.annex_d_downmix(ac3_annex_d(acmod=6)),
                          dict(coded, ltrt_cmixlev='0.000000', loro_cmixlev='0.000000'))
+
+    def test_annex_d_needs_an_ac3_syncframe(self):
+        absent = {'dmix_mode': '0', 'ltrt_cmixlev': '0.000000', 'ltrt_surmixlev': '0.000000',
+                  'loro_cmixlev': '0.000000', 'loro_surmixlev': '0.000000'}
+        frame = ac3_annex_d()
+        ours = dict(kd.annex_d_downmix(frame), id='0x101')
+        # The reserved sample rate code, and a frame size code table 5.18
+        # does not list, each with a crc1 that checks.
+        reserved = with_crc1(frame[:4] + bytes([frame[4] | 0xC0]) + frame[5:], 64)
+        unlisted = with_crc1(frame[:4] + bytes([38]) + frame[5:], 64)
+        corrupt = frame[:20] + bytes([frame[20] ^ 1]) + frame[21:]
+        for bad in (reserved, unlisted, corrupt, frame[:60]):
+            self.assertIsNone(kd.annex_d_downmix(bad))
+            self.assertFalse(kd.annex_d_ignored(absent, ours, self.ac3_file(bad)))
+        mux = Mux()
+        mux.tables([(0x06, 0x101, b'')])
+        mux.pes(0x101, 90000, frame)
+        self.assertFalse(kd.annex_d_ignored(absent, ours, kd.Facts(written(mux.out))))
 
 
 if __name__ == '__main__':

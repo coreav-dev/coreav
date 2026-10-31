@@ -209,10 +209,11 @@
       ],
       "filename_pattern": "*",
       "conditions": {
-        "file": "a private stream (type 0x06) with a VBI_data_descriptor (tag 0x45), every PES packet of it read starting with a VBI data_identifier, 0x10 to 0x1F or 0x99 to 0x9B (Facts)",
+        "file": "a private stream (type 0x06) with a VBI_data_descriptor (tag 0x45), every PES packet of its PID in the file starting its payload with a VBI data_identifier, 0x10 to 0x1F or 0x99 to 0x9B (Facts.pes_leads)",
+        "/streams/*": "both sides describe that PID: the PID the reference names, or its first packet starting at a PES packet of the PID; reference sample_rate and channels 0 or none, candidate none; every other gating field equal on both sides",
         "/streams/*/kind": "candidate = data; reference = audio",
-        "/streams/*/codec_name": "reference = mp1, mp2 or mp3",
-        "/streams/*/packets": "every packet unit of that stream",
+        "/streams/*/codec_name": "candidate = bin_data; reference = mp1, mp2 or mp3",
+        "/streams/*/packets": "every packet unit of that stream, when the candidate lists exactly one packet per PES packet of the PID, those before a table names it included, in order, at the offset of the transport packet that starts it, of its payload's size, with its PTS as both times, each a keyframe",
         "evidence": "the file's tables, descriptors and PES payloads (Facts), read apart from CoreAV"
       },
       "predicate": "vbi_as_audio",
@@ -225,18 +226,16 @@
       ],
       "fields": [
         "start_pts",
-        "start_time",
-        "duration_ts",
-        "duration"
+        "start_time"
       ],
       "filename_pattern": "*",
       "conditions": {
-        "/streams/*/start_pts": "the compat output only: candidate = the first PES timestamp of the stream's PID (Facts.first_pes), within the window of its program's first timestamp (Facts.pid_reference), which is more than the window from both ends of the 33-bit range; reference = candidate + 2^33",
-        "/streams/*/duration_ts": "the compat output only: reference = none",
+        "/streams/*/start_pts": "the compat output only: candidate = the first PES timestamp of the stream's PID (Facts.first_pes), within the window of its program's first timestamp (Facts.pid_reference), which is more than the window from both ends of the 33-bit range; reference = candidate + 2^33; both time bases 1/90000",
+        "/streams/*/start_time": "the compat output only: each side's start_pts in seconds, where printed",
         "evidence": "the file's PES timestamps and programs (Facts), read apart from CoreAV"
       },
       "predicate": "program_wrap",
-      "basis": "ISO/IEC 13818-1 2.4.2.1: each program has a time base of its own"
+      "basis": "ITU-T H.222.0 (08/2018) | ISO/IEC 13818-1 2.4.2.3: the programs of a transport stream have independent time bases"
     },
     {
       "id": "KD-TS-ANNEX-D-DOWNMIX",
@@ -252,7 +251,7 @@
       ],
       "filename_pattern": "*",
       "conditions": {
-        "/streams/*/dmix_mode": "the compat output only: candidate = what the first AC-3 frame states (bsid 6, acmod above 2, xbsi1e 1, no reserved surround level), each field only where Annex D defines it; reference = 0 and 0.000000 for all five; the frame states something else",
+        "/streams/*/dmix_mode": "the compat output only: the stream is AC-3 by its tables; candidate = what the first AC-3 syncframe states (listed fscod and frmsizecod, ATSC A/52 tables 5.6 and 5.18; crc1 passes, 7.10.1; bsid 6, acmod above 2, xbsi1e 1, no reserved surround level), each field only where Annex D defines it; reference = 0 and 0.000000 for all five; the frame states something else",
         "evidence": "the first AC-3 frame of the stream (annex_d_downmix), read apart from CoreAV"
       },
       "predicate": "annex_d_ignored",

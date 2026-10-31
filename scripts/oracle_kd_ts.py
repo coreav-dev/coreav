@@ -280,6 +280,9 @@ class Facts:
         self.first_pes = {}      # pid -> (offset, raw timestamp)
         self.pids_seen = set()   # every PID with a payload
         self.pes_offsets = {}    # pid -> the offsets of its PES packets
+        # pid -> the first payload byte of each of its PES packets, None
+        # for one whose payload does not start in its first packet.
+        self.pes_leads = collections.defaultdict(set)
         # pid -> {the offset of a PES packet: the (pts, dts) its header
         # states}, for the decoding time an entry checks against the file.
         self.stated = collections.defaultdict(dict)
@@ -288,6 +291,9 @@ class Facts:
         self.aac_rate = {}       # pid -> the sampling rate its configuration states
         self.duplicates = collections.defaultdict(list)
         self.pes = collections.defaultdict(list)
+        # For the PIDs asked for, the PES packets that start before a table
+        # names the PID, which `pes` leaves out: (offset, pts, payload).
+        self.pes_before_tables = collections.defaultdict(list)
         self.reference = None
         self._scan(set(keep))
 
@@ -317,7 +323,7 @@ class Facts:
                 at += size
 
     def _scan(self, keep):
-        pmt_pids, sections, counters, building, previous = {0}, {}, {}, {}, {}
+        pmt_pids, sections, counters, building, previous, early = {0}, {}, {}, {}, {}, {}
         for offset, p in self._packets():
             pid = (p[1] & 0x1F) << 8 | p[2]
             control = (p[3] >> 4) & 3
@@ -352,6 +358,13 @@ class Facts:
                 # are the stream's too.
                 self.pes_offsets.setdefault(pid, set()).add(offset)
                 self.offsets_kept += 1
+            if unit_start and bytes(payload[:3]) == b'\x00\x00\x01':
+                head = bytes(payload)
+                if len(head) > 3 and head[3] in BARE_STREAM_IDS:
+                    lead = 6
+                else:
+                    lead = 9 + head[8] if len(head) > 8 else len(head)
+                self.pes_leads[pid].add(head[lead] if lead < len(head) else None)
             if unit_start and pid not in self.first_pes:
                 # The first timestamp of the PID, whether or not a table
                 # names it yet: a stream starts at its first PES packet,
@@ -365,12 +378,26 @@ class Facts:
                     elif flags == 1 and len(head) >= 19:
                         self.first_pes[pid] = (offset, pes_timestamp(head[at + 5:at + 10]))
             if pid not in self.streams:
+                if pid in keep:
+                    if unit_start:
+                        self._early(pid, early.pop(pid, None))
+                        early[pid] = [offset, bytearray(payload)]
+                    elif pid in early:
+                        early[pid][1] += payload
                 continue
+            if pid in early:
+                # A PES packet that started before the table goes on.
+                if not unit_start:
+                    early[pid][1] += payload
+                    continue
+                self._early(pid, early.pop(pid))
             if unit_start:
                 self._end(pid, building.pop(pid, None), keep)
                 building[pid] = [offset, bytearray(payload)]
             elif pid in building:
                 building[pid][1] += payload
+        for pid, unit in early.items():
+            self._early(pid, unit)
         for pid, unit in building.items():
             self._end(pid, unit, keep)
         self._references()
@@ -417,6 +444,21 @@ class Facts:
                 if es not in program:
                     program.append(es)
                 at += 5 + length
+
+    def _early(self, pid, unit):
+        """Keeps a PES packet of `pid` that starts before a table names
+        the PID: (offset, pts, payload)."""
+        if unit is None:
+            return
+        offset, data = unit
+        if len(data) < 9 or data[:3] != b'\x00\x00\x01':
+            return
+        bare = data[3] in BARE_STREAM_IDS
+        flags, header = (0, 6) if bare else (data[7] >> 6, 9 + data[8])
+        declared = data[4] << 8 | data[5]
+        end = 6 + declared if declared else len(data)
+        pts = pes_timestamp(data[9:14]) if flags & 2 and len(data) >= 14 else None
+        self.pes_before_tables[pid].append((offset, pts, bytes(data[header:end])))
 
     def _end(self, pid, unit, keep):
         if unit is None:
@@ -883,40 +925,106 @@ MPEG_AUDIO_NAMES = ('mp1', 'mp2', 'mp3')
 
 def vbi_payloads(facts, pid):
     """The stream on `pid` carries VBI data, as the file states it: a
-    private stream (type 0x06) with a VBI_data_descriptor, every PES
-    packet of it read starting with a VBI data_identifier."""
+    private stream (type 0x06) with a VBI_data_descriptor, and every PES
+    packet of the PID in the file starting its payload with a VBI
+    data_identifier (`Facts.pes_leads`)."""
     stream = facts.streams.get(pid) if facts is not None else None
     if stream is None or stream['type'] != 0x06:
         return False
     if VBI_DATA_DESCRIPTOR not in dict(stream['descriptors']):
         return False
-    payloads = [payload for _, _, payload in facts.pes.get(pid, ())] or [facts.head.get(pid, b'')]
-    return all(payload[:1] and payload[0] in VBI_DATA_IDENTIFIERS for payload in payloads)
+    leads = facts.pes_leads.get(pid)
+    return bool(leads) and leads <= VBI_DATA_IDENTIFIERS
 
 
-def vbi_as_audio(rstream, cstream, facts):
+def same_pid(rstream, cstream, facts, rlisted=None):
+    """The reference's stream is the one on the candidate's PID: the PID it
+    names, or, for a document that names none, its first packet starting
+    at a PES packet of that PID (`Facts.pes_offsets`). `rlisted` is the
+    reference's stream of the packets level, when `rstream` lists none."""
+    pid, theirs = stream_pid(cstream), stream_pid(rstream)
+    if theirs is not None:
+        return theirs == pid
+    packets = rstream.get('packets') or (rlisted or {}).get('packets') or ()
+    if facts is None or not packets or packets[0].get('pos') is None:
+        return False
+    shift = 16 if facts.size[0] == 204 else 0
+    return packets[0]['pos'] + shift in facts.pes_offsets.get(pid, ())
+
+
+def vbi_as_audio(rstream, cstream, facts, rlisted=None):
     """`ffprobe` reads a VBI data stream as MPEG audio, which it finds by
-    probing the payload; CoreAV lists it as the data the file declares."""
+    probing the payload; CoreAV lists it as the data the file declares.
+    The two describe the same PID, and they differ only where audio and
+    data do: the kind and codec name (`bin_data` on CoreAV's side), and
+    the sample rate and channels `ffprobe` gives as 0 and CoreAV not at
+    all; every other field the comparator gates on is the same."""
     if not rstream or not cstream or not vbi_payloads(facts, stream_pid(cstream)):
         return False
-    return (kind_of(rstream) == 'audio' and rstream.get('codec_name') in MPEG_AUDIO_NAMES
-            and kind_of(cstream) == 'data')
+    if not same_pid(rstream, cstream, facts, rlisted):
+        return False
+    if (kind_of(rstream), kind_of(cstream)) != ('audio', 'data'):
+        return False
+    if rstream.get('codec_name') not in MPEG_AUDIO_NAMES or cstream.get('codec_name') != 'bin_data':
+        return False
+    if any(cstream.get(k) is not None or rstream.get(k) not in (None, 0, '0')
+           for k in ('sample_rate', 'channels')):
+        return False
+    return all(rstream.get(k) == cstream.get(k) for k in GATING if k not in ('kind', 'codec_name'))
+
+
+def vbi_listing(cstream, facts):
+    """CoreAV lists the stream as the file gives it: one packet for each
+    PES packet of its PID, those before a table names it included
+    (`Facts.pes_before_tables` and `Facts.pes`, kept for it), at the
+    position of the transport packet that starts it, of its payload's size,
+    with its presentation time as both times, each a keyframe."""
+    pid = stream_pid(cstream)
+    if facts is None or not facts.pes.get(pid):
+        return False
+    pes = facts.pes_before_tables.get(pid, []) + facts.pes[pid]
+    shift = 16 if facts.size[0] == 204 else 0
+    times = [None if pts is None else facts.timeline(pts, pid) for _, pts, _ in pes]
+    expected = [(offset - shift, len(payload), time, time, True)
+                for (offset, _, payload), time in zip(pes, times)]
+    listed = [(p.get('pos'), p.get('size'), p.get('pts'), p.get('dts'), p.get('keyframe'))
+              for p in cstream.get('packets') or ()]
+    return listed == expected
+
+
+def field(stream, name):
+    """A field of a stream, at the top of an `ffprobe` document or among
+    the properties of the oracle adapter's."""
+    value = stream.get(name)
+    return props(stream).get(name) if value is None else value
+
+
+def seconds(ticks):
+    """90 kHz ticks as `ffprobe` prints seconds."""
+    return f'{ticks / 90_000:.6f}'
 
 
 def program_wrap(rstream, cstream, facts):
     """`ffprobe` adds 2^33 to the start of a stream whose own program does
-    not wrap: CoreAV's start is the stream's first PES timestamp, which
+    not wrap. CoreAV's start is the stream's first PES timestamp, which
     lies within the window of its program's first timestamp, and that one
-    is not near either end of the 33-bit range."""
+    is not near either end of the 33-bit range. Both start fields either
+    side states are checked, in ticks and in seconds; the durations
+    `ffprobe` then leaves out are not covered."""
     if facts is None or not rstream or not cstream:
         return False
     pid = stream_pid(cstream)
-    ours, first, reference = cstream.get('start_pts'), facts.first_pes.get(pid), facts.pid_reference.get(pid)
+    ours, first = field(cstream, 'start_pts'), facts.first_pes.get(pid)
+    reference = facts.pid_reference.get(pid)
     if not isinstance(ours, int) or first is None or reference is None or first[1] != ours:
         return False
     if not (abs(ours - reference) <= WINDOW and WINDOW <= reference < WRAP - WINDOW):
         return False
-    return rstream.get('start_pts') == ours + WRAP
+    if any(field(s, 'time_base') not in (None, '1/90000') for s in (rstream, cstream)):
+        return False
+    return (field(rstream, 'start_pts') == ours + WRAP
+            and field(rstream, 'start_time') in (None, seconds(ours + WRAP))
+            and field(cstream, 'start_time') in (None, seconds(ours)))
 
 
 DOWNMIX_KEYS = ('dmix_mode', 'ltrt_cmixlev', 'ltrt_surmixlev', 'loro_cmixlev', 'loro_surmixlev')
@@ -929,15 +1037,50 @@ def mix_level(code):
     return '0.000000' if code == 7 else f'{2 ** ((2 - code) / 4):.6f}'
 
 
+# The bit rates of ATSC A/52 table 5.18, in kbit/s, one for each pair of
+# frame size codes.
+AC3_RATES = (32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384, 448, 512, 576, 640)
+
+
+def ac3_frame_words(fscod, frmsizecod):
+    """The 16-bit words of an AC-3 syncframe (ATSC A/52 table 5.18); None
+    for the reserved sample rate code (table 5.6) or a frame size code the
+    table does not list."""
+    if fscod == 3 or frmsizecod >= 2 * len(AC3_RATES):
+        return None
+    rate = AC3_RATES[frmsizecod >> 1]
+    return (rate * 2, rate * 320 // 147 + (frmsizecod & 1), rate * 3)[fscod]
+
+
+def ac3_crc(data):
+    """What the CRC register of ATSC A/52 7.10.1 (x^16 + x^15 + x^2 + 1,
+    zeroed first) holds after `data`."""
+    crc = 0
+    for byte in data:
+        crc ^= byte << 8
+        for _ in range(8):
+            crc = ((crc << 1) ^ 0x8005 if crc & 0x8000 else crc << 1) & 0xFFFF
+    return crc
+
+
 def annex_d_downmix(payload):
-    """The downmix fields of the first AC-3 frame of `payload` when it uses
-    the alternate syntax (ATSC A/52 Annex D, `bsid` 6) with its first
+    """The downmix fields of the first AC-3 syncframe of `payload` when it
+    uses the alternate syntax (ATSC A/52 Annex D, `bsid` 6) with its first
     extra information (`xbsi1e`) on more than two channels, each field
     only where the notes to D2.2 to D2.6 define it; `None` otherwise, or
     for a reserved surround level (codes 0 to 2), whose gain the stream
-    does not state."""
+    does not state. The syncframe is one when its sample rate and frame
+    size codes are listed (tables 5.6 and 5.18) and its first 5/8, which
+    hold every field read here, pass `crc1` (7.10.1); `None` for any
+    other."""
     at = payload.find(b'\x0b\x77')
-    if at < 0:
+    if at < 0 or len(payload) < at + 5:
+        return None
+    words = ac3_frame_words(payload[at + 4] >> 6, payload[at + 4] & 0x3F)
+    if words is None:
+        return None
+    covered = 2 * ((words >> 1) + (words >> 3))
+    if len(payload) < at + covered or ac3_crc(payload[at + 2:at + covered]):
         return None
     bits = Bits(payload[at + 4:])
 
@@ -979,7 +1122,10 @@ def annex_d_ignored(rstream, cstream, facts):
     states."""
     if facts is None or not rstream or not cstream:
         return False
-    stated = annex_d_downmix(facts.head.get(stream_pid(cstream), b''))
+    pid = stream_pid(cstream)
+    if facts.codec(pid) != 'ac3':
+        return False
+    stated = annex_d_downmix(facts.head.get(pid, b''))
     if stated is None or any(cstream.get(k) != stated[k] for k in DOWNMIX_KEYS):
         return False
     absent = {'dmix_mode': '0', **{k: '0.000000' for k in DOWNMIX_KEYS[1:]}}
@@ -1514,8 +1660,10 @@ def stream_item(detail, reference, candidate, media_dir, packets, candidate_pack
         path = diff['path']
         parts = path.split('/')
         if (len(parts) == 3 and parts[0] == 'streams' and parts[1].isdigit()
+                and parts[2] in ('kind', 'codec_name')
                 and vbi_as_audio(stream_at(reference, int(parts[1])),
-                                 stream_at(candidate, int(parts[1])), facts)):
+                                 stream_at(candidate, int(parts[1])), facts,
+                                 stream_at(packets or {}, int(parts[1])))):
             ids.add('KD-TS-VBI-AS-AUDIO')
             continue
         if path == 'format_duration_us':
@@ -1597,7 +1745,10 @@ def packet_units(detail, candidate, media_dir, reference_streams, candidate_stre
         and read_in_pieces(cstreams[stream], stream_at(reference_packets, stream), facts)
     }
     for (stream, _, _), unit_diffs in units.items():
-        if vbi_as_audio(stream_at(reference_streams, stream), stream_at(candidate_streams, stream), facts):
+        if (stream < len(cstreams)
+                and vbi_as_audio(stream_at(reference_streams, stream), stream_at(candidate_streams, stream),
+                                 facts, stream_at(reference_packets, stream))
+                and vbi_listing(cstreams[stream], facts)):
             covered['KD-TS-VBI-AS-AUDIO'] += 1
             continue
         if stream in pieces:
