@@ -973,20 +973,21 @@ def vbi_as_audio(rstream, cstream, facts, rlisted=None):
     return all(rstream.get(k) == cstream.get(k) for k in GATING if k not in ('kind', 'codec_name'))
 
 
-def ninety_khz(time_base):
-    """The time base is 1/90000, as `ffprobe` prints it (`1/90000`) or as
-    the oracle's packet documents give it (`[1, 90000]`, which the
-    comparator reads as a fraction); a missing one is not."""
-    if isinstance(time_base, str):
-        parts = time_base.split('/')
-        if len(parts) != 2 or not all(part.isdigit() for part in parts):
-            return False
-        time_base = [int(part) for part in parts]
-    if (not isinstance(time_base, list) or len(time_base) != 2
-            or not all(type(part) is int for part in time_base)):
-        return False
-    num, den = time_base
-    return num > 0 and num * 90_000 == den
+I64_MAX = 2 ** 63 - 1
+
+
+def comparator_time_base(value):
+    """A packet stream's `time_base` as the oracle comparator reads it
+    (`parse_time_base_value` in tools/oracle/src/compare.rs): a JSON array
+    whose first two items are integers of the signed 64-bit range, both
+    positive. None for anything else, a string included: the comparator
+    then compares no timestamp of the stream."""
+    if not isinstance(value, list) or len(value) < 2:
+        return None
+    num, den = value[0], value[1]
+    if not all(type(part) is int and 0 < part <= I64_MAX for part in (num, den)):
+        return None
+    return num, den
 
 
 def vbi_listing(cstream, facts):
@@ -996,9 +997,13 @@ def vbi_listing(cstream, facts):
     position of the transport packet that starts it, of its payload's size,
     with its presentation time as both times, each a keyframe. The times
     are 90 kHz ticks, so the packet document's own time base, by which the
-    comparator reads them, must be 1/90000."""
+    comparator reads them, must be one it reads (`comparator_time_base`)
+    and equal 1/90000."""
     pid = stream_pid(cstream)
-    if facts is None or not facts.pes.get(pid) or not ninety_khz(cstream.get('time_base')):
+    time_base = comparator_time_base(cstream.get('time_base'))
+    if facts is None or not facts.pes.get(pid) or time_base is None:
+        return False
+    if time_base[0] * 90_000 != time_base[1]:
         return False
     pes = facts.pes_before_tables.get(pid, []) + facts.pes[pid]
     shift = 16 if facts.size[0] == 204 else 0
@@ -1027,7 +1032,7 @@ def program_wrap(rstream, cstream, facts):
     not wrap, in a file of several programs. CoreAV's start is the
     stream's first PES timestamp, which lies within the window of its
     program's first timestamp, and that one is not near either end of the
-    33-bit range. Both sides state a 90 kHz time base, `ffprobe`'s
+    33-bit range. Both sides print the time base `1/90000`, `ffprobe`'s
     `start_pts` is CoreAV's plus 2^33, and each side states its
     `start_time` as its own `start_pts` in seconds: a field the record
     covers that either side leaves out disqualifies the stream. The
@@ -1041,7 +1046,7 @@ def program_wrap(rstream, cstream, facts):
         return False
     if not (abs(ours - reference) <= WINDOW and WINDOW <= reference < WRAP - WINDOW):
         return False
-    if not all(ninety_khz(field(s, 'time_base')) for s in (rstream, cstream)):
+    if any(field(s, 'time_base') != '1/90000' for s in (rstream, cstream)):
         return False
     return (field(rstream, 'start_pts') == ours + WRAP
             and field(rstream, 'start_time') == seconds(ours + WRAP)

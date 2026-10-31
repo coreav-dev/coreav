@@ -73,8 +73,8 @@ ADDED_AFTER_THE_BARS = {
     'KD-TS-TELETEXT-SIZE': ('f7f135e', ('e4f177a', '2fd7232'), 'c6df9c5e6c99'),
     'KD-TS-DECODE-TIME': ('e4f177a', ('2fd7232',), '35e1f3adeabe'),
     'KD-TS-POSITION': ('f7f135e', ('e4f177a', '2fd7232'), '4807d4bbaffa'),
-    'KD-TS-VBI-AS-AUDIO': ('2fd7232', (), 'c59c1987d1a7'),
-    'KD-TS-PROGRAM-WRAP': ('2fd7232', (), '0aa9838b7575'),
+    'KD-TS-VBI-AS-AUDIO': ('2fd7232', (), 'c17b02aeabc7'),
+    'KD-TS-PROGRAM-WRAP': ('2fd7232', (), 'f8bb86be0bef'),
     'KD-TS-ANNEX-D-DOWNMIX': ('2fd7232', (), '8e7ba75df2b4'),
 }
 # Entries no longer in the overlays: the commit that added them, and the

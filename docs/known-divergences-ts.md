@@ -335,7 +335,8 @@ KD-TS-FRAME-TIME.
   position of the transport packet that starts it, of its payload's size,
   with its presentation time as both times, and as a keyframe, in a packet
   document whose time base, by which the comparator reads those times, is
-  1/90000.
+  one the comparator reads (an array of two positive signed 64-bit
+  integers) and equals 1/90000.
 
 ## KD-TS-PROGRAM-WRAP
 
@@ -358,7 +359,7 @@ KD-TS-FRAME-TIME.
   window of the first timestamp of the stream's program; that first
   timestamp is more than the window away from both ends of the 33-bit
   range; the file's Program Association Table lists more than one
-  program; both sides state a 90 kHz time base; `ffprobe`'s `start_pts`
+  program; both sides print the time base `1/90000`; `ffprobe`'s `start_pts`
   is CoreAV's plus 2^33 and its `start_time` is that in seconds; and
   CoreAV's `start_time` is its own start in seconds. A side that leaves
   out any of these fields disqualifies the stream.

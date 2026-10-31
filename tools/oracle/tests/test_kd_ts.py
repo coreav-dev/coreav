@@ -472,7 +472,7 @@ class SpecificationDecides(unittest.TestCase):
                       'gating_differences': [{'path': p} for p in paths]}
             stream = dict(ours, packets=candidate_listed)
             if time_base is not None:
-                stream['time_base'] = list(time_base)
+                stream['time_base'] = list(time_base) if isinstance(time_base, tuple) else time_base
             candidate = {'streams': [stream]}
             return kd.packet_units(detail, candidate, media.parent, reference, {'streams': [ours]},
                                    packets)[:2]
@@ -487,7 +487,11 @@ class SpecificationDecides(unittest.TestCase):
         # base, so the same ticks on another one, or on none, are not the
         # file's times.
         self.assertEqual(units(listed, (2, 180000)), ({'KD-TS-VBI-AS-AUDIO': 3}, 0))
-        for time_base in ((1, 1), (1, 1000), (0, 0), (1.0, 90000.0), None):
+        for time_base in ((1, 1), (1, 1000), (0, 0), (1.0, 90000.0), (-1, -90000), None):
+            self.assertEqual(units(listed, time_base), ({}, 3), time_base)
+        # Representations the comparator cannot read: a string, and
+        # integers past the signed 64-bit range.
+        for time_base in ('1/90000', [10 ** 20, 9 * 10 ** 24], [2 ** 63, 90000 * 2 ** 63]):
             self.assertEqual(units(listed, time_base), ({}, 3), time_base)
 
     def test_vbi_listing_counts_the_pes_packets_before_the_tables(self):

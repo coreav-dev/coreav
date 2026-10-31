@@ -213,7 +213,7 @@
         "/streams/*": "both sides describe that PID: the PID the reference names, or its first packet starting at a PES packet of the PID; reference sample_rate and channels 0 or none, candidate none; every other gating field equal on both sides",
         "/streams/*/kind": "candidate = data; reference = audio",
         "/streams/*/codec_name": "candidate = bin_data; reference = mp1, mp2 or mp3",
-        "/streams/*/packets": "every packet unit of that stream, when the candidate lists exactly one packet per PES packet of the PID, those before a table names it included, in order, at the offset of the transport packet that starts it, of its payload's size, with its PTS as both times, each a keyframe, in a packet document whose stream time_base is 1/90000",
+        "/streams/*/packets": "every packet unit of that stream, when the candidate lists exactly one packet per PES packet of the PID, those before a table names it included, in order, at the offset of the transport packet that starts it, of its payload's size, with its PTS as both times, each a keyframe, in a packet document whose stream time_base the comparator reads (an array of two positive signed 64-bit integers) and equals 1/90000",
         "evidence": "the file's tables, descriptors and PES payloads (Facts), read apart from CoreAV"
       },
       "predicate": "vbi_as_audio",
@@ -230,7 +230,7 @@
       ],
       "filename_pattern": "*",
       "conditions": {
-        "/streams/*/start_pts": "the compat output only: candidate = the first PES timestamp of the stream's PID (Facts.first_pes), within the window of its program's first timestamp (Facts.pid_reference), which is more than the window from both ends of the 33-bit range; the PAT lists more than one program (Facts.programs); reference = candidate + 2^33; both sides state a time base of 1/90000",
+        "/streams/*/start_pts": "the compat output only: candidate = the first PES timestamp of the stream's PID (Facts.first_pes), within the window of its program's first timestamp (Facts.pid_reference), which is more than the window from both ends of the 33-bit range; the PAT lists more than one program (Facts.programs); reference = candidate + 2^33; both sides print the time base 1/90000",
         "/streams/*/start_time": "the compat output only: each side's start_pts in seconds; a side that prints none disqualifies the stream",
         "evidence": "the file's PES timestamps and programs (Facts), read apart from CoreAV"
       },
