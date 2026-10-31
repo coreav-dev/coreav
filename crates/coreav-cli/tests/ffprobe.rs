@@ -657,30 +657,52 @@ fn transport_streams_are_numbered_and_their_programs_listed_as_ffprobe_does() {
 /// at 48 kHz): a 20 ms frame per block from `first` ms, each block with
 /// its `DiscardPadding` in nanoseconds when it has one.
 fn opus_webm(name: &str, first: u64, paddings: &[Option<i64>]) -> String {
+    let blocks: Vec<(u8, Option<i64>)> = paddings.iter().map(|&p| (1, p)).collect();
+    opus_blocks(name, 48_000, first, &blocks)
+}
+
+/// A WebM file of one Opus track with a 6.5 ms `CodecDelay` that states
+/// `rate` as its input rate: from `first` ms, a block per entry of
+/// `blocks` with that many 20 ms frames (laced when more than one), and
+/// its `DiscardPadding` in nanoseconds when it has one.
+fn opus_blocks(name: &str, rate: u32, first: u64, blocks: &[(u8, Option<i64>)]) -> String {
     use mkv::{BLOCK_GROUP, TRACKS, audio_track, cat, cluster, el, info, sint, uint};
     let frame = [0xFC, 1, 2, 3];
-    let blocks: Vec<Vec<u8>> = paddings
+    let mut at = 0i16;
+    let blocks: Vec<Vec<u8>> = blocks
         .iter()
-        .zip(0i16..)
-        .map(|(padding, i)| match padding {
-            None => mkv::simple_block(1, i * 20, true, &frame),
-            Some(ns) => {
-                let mut block = vec![0x81];
-                block.extend((i * 20).to_be_bytes());
-                block.push(0);
-                block.extend(frame);
-                el(BLOCK_GROUP, &cat(&[el(0xA1, &block), sint(0x75A2, *ns)]))
+        .map(|&(frames, padding)| {
+            let timestamp = at;
+            at += 20 * i16::from(frames);
+            if frames == 1 && padding.is_none() {
+                return mkv::simple_block(1, timestamp, true, &frame);
             }
+            let mut block = vec![0x81];
+            block.extend(timestamp.to_be_bytes());
+            if frames == 1 {
+                block.push(0);
+            } else {
+                block.extend([0x04, frames - 1]);
+            }
+            for _ in 0..frames {
+                block.extend(frame);
+            }
+            let padding = padding.map(|ns| sint(0x75A2, ns)).unwrap_or_default();
+            el(BLOCK_GROUP, &cat(&[el(0xA1, &block), padding]))
         })
         .collect();
+    let mut head = b"OpusHead\x01\x02\x38\x01".to_vec();
+    head.extend(rate.to_le_bytes());
+    head.extend([0, 0, 0]);
     let track = audio_track(
         1,
         "A_OPUS",
-        48_000.0,
+        f64::from(rate),
         2,
         &cat(&[
             uint(0x56AA, 6_500_000),
-            el(0x63A2, b"OpusHead\x01\x02\x38\x01\x80\xbb\0\0\0\0\0"),
+            uint(0x23E383, 20_000_000),
+            el(0x63A2, &head),
         ]),
     );
     let data = mkv::file(
@@ -779,4 +801,114 @@ fn a_first_block_discards_its_padding_beside_the_codec_delay() {
     assert!(packet_lines(&path)[0].ends_with(&skip_samples(312, 576)));
     let path = opus_webm("ffprobe-first-negative.webm", 0, &[Some(-5_000_000), None]);
     assert!(packet_lines(&path)[0].ends_with(&skip_samples(552, 0)));
+}
+
+#[test]
+fn discard_padding_pads_a_laced_block_once() {
+    // RFC 9559 `DiscardPadding` pads the block: the start of its first
+    // frame when negative, the end of its last when positive. The pinned
+    // ffprobe gives every frame of the lace the whole padding
+    // (docs/known-divergences-ffprobe9.md).
+    let path = opus_blocks(
+        "ffprobe-laced-padding.webm",
+        48_000,
+        0,
+        &[(1, None), (3, Some(-5_000_000)), (3, Some(12_000_000))],
+    );
+    let packets = packet_lines(&path);
+    assert_eq!(packets.len(), 7, "{packets:?}");
+    let expected = [
+        Some(skip_samples(312, 0)),
+        Some(skip_samples(240, 0)),
+        None,
+        None,
+        None,
+        None,
+        Some(skip_samples(0, 576)),
+    ];
+    for (line, expected) in packets.iter().zip(expected) {
+        match expected {
+            Some(side_data) => assert!(line.ends_with(&side_data), "{line}"),
+            None => assert!(line.ends_with("flags=K__"), "{line}"),
+        }
+    }
+}
+
+#[test]
+fn opus_counts_its_delay_and_padding_at_48_khz() {
+    // Opus decodes at 48 kHz whatever input rate the track and its
+    // `OpusHead` state (RFC 7845 5.1), so 6.5 ms of `CodecDelay` is 312
+    // samples and 5 ms of padding 240, as the pinned ffprobe gives them.
+    let path = opus_blocks(
+        "ffprobe-opus-24k.webm",
+        24_000,
+        0,
+        &[(1, None), (1, Some(-5_000_000)), (1, Some(5_000_000))],
+    );
+    let r = ffprobe(&[
+        "-v",
+        "error",
+        "-of",
+        "compact",
+        "-show_entries",
+        "stream=initial_padding",
+        &path,
+    ]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    assert_eq!(r.stdout, "stream|initial_padding=312\n");
+    let packets = packet_lines(&path);
+    assert!(packets[0].contains("|duration=20|"), "{}", packets[0]);
+    assert!(
+        packets[0].ends_with(&skip_samples(312, 0)),
+        "{}",
+        packets[0]
+    );
+    assert!(
+        packets[1].ends_with(&skip_samples(240, 0)),
+        "{}",
+        packets[1]
+    );
+    assert!(
+        packets[2].ends_with(&skip_samples(0, 240)),
+        "{}",
+        packets[2]
+    );
+}
+
+#[test]
+fn decoded_frames_discard_the_codec_delay_once() {
+    // An MP3 track whose `CodecDelay` is 1,105 samples at 44.1 kHz: they
+    // come off the first 1,152-sample frame only, as on the pinned ffprobe.
+    use mkv::{TRACKS, audio_track, cat, cluster, el, info, uint};
+    let mut frame = vec![0xFF, 0xFB, 0x90, 0x64];
+    frame.resize(417, 0);
+    let blocks: Vec<Vec<u8>> = (0..3)
+        .map(|i| mkv::simple_block(1, i * 26, true, &frame))
+        .collect();
+    let track = audio_track(
+        1,
+        "A_MPEG/L3",
+        44_100.0,
+        2,
+        &cat(&[uint(0x56AA, 25_056_689)]),
+    );
+    let data = mkv::file(
+        "matroska",
+        &[info(Some(78.0)), el(TRACKS, &track), cluster(0, &blocks)],
+    );
+    let path = file("ffprobe-codec-delay-frames.mkv", &data);
+    let r = ffprobe(&[
+        "-v",
+        "error",
+        "-of",
+        "compact",
+        "-show_entries",
+        "frame=nb_samples",
+        &path.to_string_lossy(),
+    ]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    assert_eq!(
+        r.stdout,
+        "frame|nb_samples=47\nframe|nb_samples=1152\nframe|nb_samples=1152\n"
+    );
 }

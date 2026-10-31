@@ -145,7 +145,6 @@ pub fn probe<'a, S: Source + 'a>(
                     Encoding::None | Encoding::HeaderStripping(_) => None,
                     _ => Some("its frames are stored compressed or encrypted"),
                 },
-                skip: i64::try_from(info.skip).unwrap_or(0),
             };
         }
     }
@@ -359,7 +358,8 @@ struct Info {
     /// The frame rates and packet durations of a video track.
     rates: Rates,
     parser: Parser,
-    /// The sample rate packet lengths count in.
+    /// The sample rate packet lengths count in: 48 kHz for Opus, whatever
+    /// input rate its track states (RFC 7845 5.1), else the track's.
     rate: Option<u32>,
     /// The samples `CodecDelay` has the decoder discard before the first
     /// one it plays (RFC 9559 5.1.4.1.25), at [`Info::rate`].
@@ -429,7 +429,10 @@ impl Info {
             Codec::Mpeg4 => mpeg4.and_then(|m| m.low_delay).map(|l| u32::from(!l)),
             _ => Some(0),
         };
-        let rate = track.audio.and_then(|a| a.sample_rate());
+        let rate = match track.codec {
+            Codec::Opus => Some(48_000),
+            _ => track.audio.and_then(|a| a.sample_rate()),
+        };
         let parser = match track.codec {
             Codec::Opus => Parser::Opus,
             Codec::Vorbis => audio::vorbis(private).map_or(Parser::None, Parser::Vorbis),
@@ -2970,15 +2973,15 @@ impl<S: Source> PacketSource for MkvPackets<S> {
             };
             let mut side_data = Vec::new();
             // The samples a decoder discards (RFC 9559): `CodecDelay`'s
-            // before the first frame, a block's `DiscardPadding` at its
-            // end, or at its start when negative.
+            // before the first frame, a block's `DiscardPadding` at the end
+            // of its last frame, or at the start of its first when negative.
             let mut skip = if state.count == 1 { info.skip } else { 0 };
             let mut discard = 0;
             if let (Some(padding), Some(rate)) = (p.discard_padding, info.rate) {
                 let samples = samples_in(padding.unsigned_abs(), rate);
-                if padding < 0 {
+                if padding < 0 && p.lace == 0 {
                     skip = skip.saturating_add(samples);
-                } else {
+                } else if padding > 0 && p.lace.saturating_add(1) >= p.frames_in_block {
                     discard = samples;
                 }
             }

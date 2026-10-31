@@ -85,7 +85,8 @@ stored `nclx` bytes and fails when its exact oracle disagreement changes.
   list or a Matroska `CodecDelay` states) and those it discards at its
   end. FFmpeg 7.0.2 listed one of the two (the start of an MP4 stream, the
   end of a Matroska one). In MP4 CoreAV lists what 7.0.2 did; in Matroska
-  and WebM it lists both, as 9.0.2 does. A packet that
+  and WebM it lists both, as 9.0.2 does, so the entry lists no Matroska or
+  WebM fixture for the side data keys. A packet that
   carries the side data gets another duration than 7.0.2 gave it (the
   whole MP3 frame at the end of an MP4 edit list, for example, where 7.0.2
   gave the part the list keeps); CoreAV gives 7.0.2's.
@@ -276,6 +277,18 @@ mask them, and the measured agreement rates still count them as failures.
   5.1.4.1.25 and 5.1.3.5.7). When the first block of a track with a codec
   delay also has padding, CoreAV's Skip Samples side data on that packet
   counts both; the pinned ffprobe keeps the delay and drops the padding.
+- **Padding of a laced Matroska block.** RFC 9559 5.1.3.5.7 places a
+  block's `DiscardPadding` at the end of the block when positive and at
+  its start when negative, so CoreAV lists it on the last frame of a lace,
+  or on the first. The pinned ffprobe lists the whole padding on every
+  frame of the lace and trims each decoded frame by it.
+- **Opus that states another input rate.** Opus decodes at 48 kHz
+  whatever input rate its track and `OpusHead` state (RFC 7845 5.1), and
+  both CoreAV and the pinned ffprobe count `CodecDelay` and
+  `DiscardPadding` at 48 kHz. With a stated 24 kHz, a first block at 0
+  and 6.5 ms of delay, the pinned ffprobe starts the stream at 0.006 s;
+  CoreAV starts it at 0, its first block's timestamp and the first sample
+  played.
 - **Implicit AAC extensions.** ADTS and LATM configurations can state
   AAC LC while raw data blocks carry SBR or parametric stereo (ISO/IEC
   14496-3 1.5.1.1, 4.6.18 and 8.6.4). The bounded header reader detects
