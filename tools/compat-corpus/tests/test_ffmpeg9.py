@@ -319,7 +319,7 @@ class EmptyEditPadding(unittest.TestCase):
         run.empty_edit_padding_fixture.cache_clear()
 
     @staticmethod
-    def fixture(empty=2691328, last=136, config=b'\x12\x10', edits=None, scale=44100, index=1):
+    def fixture(empty=2691328, last=136, config=b'\x12\x10\x56\xe5\x00', edits=None, scale=44100, index=1):
         """`edit_list.mp4`'s audio track as FFmpeg 9.0.2 writes it: an
         empty edit, then a media edit from 0 over the media's 89,224 ticks at
         44.1 kHz, the last of its 88 samples lasting 136 ticks, all in one
@@ -373,9 +373,7 @@ class EmptyEditPadding(unittest.TestCase):
 
     def test_the_bytes_give_the_padding_the_clause_explains(self):
         self.assertEqual(run.empty_edit_padding(self.fixture()), self.PADDING)
-        self.assertEqual(run.empty_edit_padding(self.fixture(config=b'\x12\x14')), 960 - 136)
-        # The extension that rules SBR out, as FFmpeg writes it.
-        self.assertEqual(run.empty_edit_padding(self.fixture(config=b'\x12\x10\x56\xe5\x00')), self.PADDING)
+        self.assertEqual(run.empty_edit_padding(self.fixture(config=b'\x12\x14\x56\xe5\x00')), 960 - 136)
         whole = [(2691328, 0xFFFFFFFF), (11534336, 0)]
         # The media's 89,224 ticks at 24 kHz are 20,985,484.8 movie ticks.
         at_24k = [(2691328, 0xFFFFFFFF), (20985485, 0)]
@@ -386,13 +384,16 @@ class EmptyEditPadding(unittest.TestCase):
                self.fixture(edits=[(11420672, 0)]),  # no empty edit
                self.fixture(edits=[(2691328, 0xFFFFFFFF), (11420672, 0), (100, 0)]),
                self.fixture(config=b'\x12\x10\x56\xe5\x98'),  # SBR at 48 kHz
-               self.fixture(config=b'\x11\x90'),  # 48 kHz in a 44.1 kHz track
+               self.fixture(config=b'\x11\x90\x56\xe5\x00'),  # 48 kHz in a 44.1 kHz track
+               # Without the extension that rules SBR out, implicit SBR is
+               # open at any rate.
+               self.fixture(config=b'\x12\x10'),
+               self.fixture(config=b'\x11\x90', scale=48000),
                self.fixture(index=2),  # a chunk of another description
                # A media edit from inside the last sample, or past it, after
                # an empty edit of 3 s.
                self.fixture(edits=[(3 * 5644800, 0xFFFFFFFF), (11420672, 87 * 1024 + 12)]),
                self.fixture(edits=[(3 * 5644800, 0xFFFFFFFF), (11420672, 100000)]),
-               # LC at 24 kHz without the extension: implicit SBR is open.
                self.fixture(config=b'\x13\x10', scale=24000, edits=at_24k)]
         for data in bad:
             with self.assertRaises(ValueError):

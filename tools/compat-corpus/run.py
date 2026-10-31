@@ -530,11 +530,10 @@ def empty_edit_padding(data):
     a, b = descriptor(config + 13, 5)
     # AudioSpecificConfig (ISO/IEC 14496-3 1.6.2.1, 4.4.1): AAC LC, its
     # sampling frequency, channels, then frameLengthFlag, dependsOnCoreCoder
-    # and extensionFlag; nothing after but the backward-compatible extension
-    # that rules SBR out (0x2b7, object type 5, sbrPresentFlag 0), which a
-    # core rate of 24 kHz or less needs to rule implicit SBR out (1.6.5,
-    # 4.6.18).
-    if b - a != 2 and data[a + 2:b] != b'\x56\xe5\x00' or b - a == 2 and scale <= 24000:
+    # and extensionFlag; then the backward-compatible extension that rules
+    # SBR out (0x2b7, object type 5, sbrPresentFlag 0), without which
+    # implicit SBR is open at any core rate (1.6.5.3), and nothing else.
+    if b - a != 5 or data[a + 2:b] != b'\x56\xe5\x00':
         raise ValueError('changed AAC configuration')
     specific = int.from_bytes(data[a:a + 2], 'big')
     rates = [96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350]

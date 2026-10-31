@@ -2314,7 +2314,7 @@
    "level": ["packets"],
    "fields": ["side_data_list.discard_padding"],
    "conditions": {
-    "track": "an audio track of an unfragmented movie, without composition offsets, with one sample description, which every chunk names, an mp4a with an AudioSpecificConfig of AAC LC (object type 2) at the media time scale, with no dependsOnCoreCoder or extensionFlag and nothing after it but the extension that rules SBR out (0x2b7, object type 5, sbrPresentFlag 0), which a rate of 24 kHz or less needs to rule implicit SBR out; its frame is 960 or 1,024 samples by frameLengthFlag",
+    "track": "an audio track of an unfragmented movie, without composition offsets, with one sample description, which every chunk names, an mp4a with an AudioSpecificConfig of AAC LC (object type 2) at the media time scale, with no dependsOnCoreCoder or extensionFlag, then the extension that rules SBR out (0x2b7, object type 5, sbrPresentFlag 0) and nothing else, since without it implicit SBR is open at any core rate (ISO/IEC 14496-3 1.6.5.3); its frame is 960 or 1,024 samples by frameLengthFlag",
     "edits": "exactly an empty edit of nonzero duration, then one media edit at rate 1 from media time 0 or later that reaches the end of the samples; neither edit's duration in media ticks falls halfway between two ticks",
     "samples": "the media header's duration is the samples' total, and the last sample lasts less than a frame and starts inside the media edit",
     "candidate": "the frame less the last sample's duration",
