@@ -1614,13 +1614,17 @@ Rules for every comparison:
   RMS difference and reported, as in the AAC-LC bars.
 - **Length**: CoreAV writes every packet's samples, the packets times the
   output frame length (2,048 or 1,920, or 1,024 or 960 for downsampled
-  SBR). FFmpeg's length must be the packets' stated durations at the
-  output rate (`ffprobe -ignore_editlist 1`: their sum times the output
-  rate over the time base's rate) on MP4, and on Matroska, whose
-  durations are whole milliseconds and so do not hold an AAC frame (400
-  packets of 2,048 samples at 48 kHz were stated as 806,400 samples),
-  the packets times the output frame length; and at most CoreAV's.
-  Samples are compared over FFmpeg's length.
+  SBR). FFmpeg's length must be the same, on every container. The
+  packets' stated durations do not give it: in a dry run of the sets
+  before any CoreAV command, FFmpeg's decode for this bar was the
+  packets times the output frame length on all 457 inputs, while the
+  stated durations were 62 to 3,846 samples shorter on 13 of the 31
+  corpus MP4 files (their writers shorten the last packet's duration to
+  the stream's length), off by 8 to 117,768 samples on the 9 MP4
+  copies of the corpus's Matroska files, and on Matroska are whole
+  milliseconds, which do not hold an AAC frame. Samples are compared
+  over that length. The presentation length is bar 3's: the edit
+  list's windows, as the edit list bars define them.
 
 The bars:
 
@@ -1787,10 +1791,14 @@ No speed against FFmpeg is claimed.
   and 3GP; Matroska): when `ffprobe` answers for none of the class's
   files, or when the class has HE-AAC files and none decodes cleanly.
   Each Matroska file of the set is copied into MP4 (`ffmpeg -map 0:a:0
-  -c copy`) as its pair in bar 5. The copy is also an input of bars 2, 3
-  and 6, whose gates hold each input on its own, so it can only make
-  them harder; it is left out of every number those bars report over
-  several inputs, so that no content counts twice. No held-out file is
+  -map_metadata -1 -map_chapters -1 -c copy`) as its pair in bar 5; with
+  the metadata, 4 of the 9 copies of the dry run made `ffmpeg`'s MP4
+  reader warn (`UDTA parsing failed retrying raw`). A copy whose bar 2
+  decode is not clean (exit 0, nothing at `-v warning`) is bar 5's pair
+  only, and the report counts such copies. Every other copy is also an
+  input of bars 2, 3 and 6, whose gates hold each input on its own, so
+  it can only make them harder; it is left out of every number those
+  bars report over several inputs, so that no content counts twice. No held-out file is
   used, so the draws' rules do not apply. Reports give counts and
   aggregate numbers, never a file.
 - **Conversions**: the sources, the encodes and every file the sets
