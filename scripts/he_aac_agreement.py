@@ -59,6 +59,8 @@ CORPORA = ('v1', 'v1-fmp4-large', 'v1-ts-audio')
 CORPUS_EXTENSIONS = ('mp4', 'm4a', 'm4b', 'mov', '3gp', 'mkv', 'mka')
 HE_PROFILES = ('HE-AAC', 'HE-AACv2')
 MATROSKA = ('.mkv', '.mka')
+# Why ffprobe gave no answer on a corpus candidate; each is asked once more.
+UNANSWERED = ('timeout', 'not read')
 # "HE-AAC bars", bar 2: the only waivers, from the comparison with FFmpeg's
 # samples and length alone, with each stream's Matroska copy and implicit
 # variant.
@@ -266,29 +268,20 @@ def container(path):
 
 
 def probe(ffprobe, path):
-    """What the oracle states of an input's first audio stream, with the
-    samples its packets' durations state at the output rate. Matroska states
-    durations in milliseconds, which do not hold an AAC frame exactly, so
-    there the samples are the packets times the frame length at the output
-    rate ("HE-AAC bars", "Length")."""
+    """What the oracle states of an input's first audio stream: its codec,
+    profile, packet count and configuration."""
     out = run([ffprobe, '-v', 'error', *reader_options(path), '-select_streams', 'a:0', '-show_entries',
-               'packet=duration:stream=codec_name,profile,time_base,sample_rate,channels,extradata', '-show_data',
+               'packet=duration:stream=codec_name,profile,extradata', '-show_data',
                '-of', 'json', path])
     try:
         info = json.loads(out.stdout)
         stream = info['streams'][0]
-        num, den = (int(x) for x in stream['time_base'].split('/'))
-        rate, packets = int(stream['sample_rate']), len(info.get('packets', []))
-        stated = round(sum(int(p.get('duration', 0)) for p in info.get('packets', [])) * num * rate / den)
         extradata = ''.join(line.split(':', 1)[1][:40].replace(' ', '')
                             for line in stream.get('extradata', '').splitlines() if ':' in line)
-        if container(path) == 'matroska':
-            sig = signalling(bytes.fromhex(extradata)) if extradata else None
-            stated = packets * sig['frame'] * rate // sig['core_rate'] if sig and sig['frame'] else None
-        return {'codec': stream.get('codec_name'), 'profile': stream.get('profile'), 'packets': packets,
-                'stated_samples': stated, 'asc': extradata}
+        return {'codec': stream.get('codec_name'), 'profile': stream.get('profile'),
+                'packets': len(info.get('packets', [])), 'asc': extradata}
     except (ValueError, KeyError, IndexError):
-        return {'codec': None, 'profile': None, 'packets': None, 'stated_samples': None, 'asc': None}
+        return {'codec': None, 'profile': None, 'packets': None, 'asc': None}
 
 
 def wav_format(blob):
@@ -399,7 +392,8 @@ def prepare(a):
             made, failed = variants(a, i['path'], sig, work / 'var', i['key'])
         elif matroska:
             copy = work / 'var' / f"{i['key']}.mp4"
-            done = run([a.ffmpeg, '-v', 'error', '-y', '-i', i['path'], '-map', '0:a:0', '-c', 'copy', copy])
+            done = run([a.ffmpeg, '-v', 'error', '-y', '-i', i['path'], '-map', '0:a:0', '-map_metadata', '-1',
+                        '-map_chapters', '-1', '-c', 'copy', copy])
             if done.returncode == 0:
                 made = {'copy': copy}
             else:
@@ -419,14 +413,17 @@ def prepare(a):
                                   ';'.join(r['references'])]))
             rows.append(r)
     version = run([a.ffmpeg, '-version']).stdout.decode().splitlines()[0]
+    pair_only_copies = sum(pair_only(r) for r in rows)
     (work / 'set.json').write_text(json.dumps({
-        'ffmpeg': version, 'encoder': encoded['runner'], 'not_made': not_made, 'inputs': rows}, indent=1) + '\n')
+        'ffmpeg': version, 'encoder': encoded['runner'], 'not_made': not_made,
+        'corpus_mp4_copies_pair_only': pair_only_copies, 'inputs': rows}, indent=1) + '\n')
     if not_made:
         sys.exit(f'the run stops at its preparation ("HE-AAC sets", "Conversions"): not made: {sorted(not_made)}')
     (work / 'agreement.tsv').write_text('\n'.join(tsv) + '\n')
     counts = {s: sum(r['set'] == s and r['of'] is None for r in rows) for s in ('conformance', 'generated', 'corpus')}
     decoded = sum(r['oracle']['returncode'] == 0 for r in rows)
-    print(f'{len(rows)} inputs with variants (originals: {counts}), {decoded} decoded by the oracle')
+    print(f'{len(rows)} inputs with variants (originals: {counts}), {decoded} decoded by the oracle, '
+          f'{pair_only_copies} corpus MP4 copies only bar 5\'s pair')
 
 
 def candidate(row):
@@ -442,6 +439,27 @@ def manifest_candidates(corpus, manifest):
     rows = manifest if isinstance(manifest, list) else manifest['files']
     return [(row['sha256'], row['ext'], row['key'] if row['key'].startswith('corpus/') else f"corpus/{corpus}/{row['key']}")
             for row in rows if candidate(row)]
+
+
+def ffprobe_answer(ffprobe, url, timeout):
+    """The codec and profile ffprobe reads of a candidate's first audio
+    stream, and why there are none: (codec, profile, status), the status
+    'answered', 'no audio' (ffprobe read the file and found no audio stream)
+    or one of UNANSWERED."""
+    try:
+        out = run([ffprobe, '-v', 'error', '-rw_timeout', '30000000', '-select_streams', 'a:0',
+                   '-show_entries', 'stream=codec_name,profile', '-of', 'json', url], timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return None, None, 'timeout'
+    try:
+        streams = json.loads(out.stdout).get('streams', []) if out.returncode == 0 else None
+    except ValueError:
+        streams = None
+    if streams is None:
+        return None, None, 'not read'
+    if not streams:
+        return None, None, 'no audio'
+    return streams[0].get('codec_name'), streams[0].get('profile'), 'answered'
 
 
 def clean_decode(ffmpeg, path, scratch):
@@ -477,22 +495,23 @@ def select(a):
     candidates = sorted(c for corpus in CORPORA for c in manifest_candidates(
         corpus, json.loads(s3.get_object(Bucket=bucket, Key=f'corpus/{corpus}/manifest.json')['Body'].read())))
 
-    def profile(c):
+    def answer(c, timeout=180):
         url = s3.generate_presigned_url('get_object', Params={'Bucket': bucket, 'Key': c[2]}, ExpiresIn=3600)
-        try:
-            out = run([a.ffprobe, '-v', 'error', '-rw_timeout', '30000000', '-select_streams', 'a:0',
-                       '-show_entries', 'stream=codec_name,profile', '-of', 'json', url], timeout=180)
-            stream = (json.loads(out.stdout).get('streams') or [{}])[0]
-            return stream.get('codec_name'), stream.get('profile')
-        except (subprocess.TimeoutExpired, ValueError):
-            return None, None
+        return ffprobe_answer(a.ffprobe, url, timeout)
 
     with concurrent.futures.ThreadPoolExecutor(16) as pool:
-        profiles = list(pool.map(profile, candidates))
+        answers = list(pool.map(answer, candidates))
+    first = [status for _, _, status in answers]
+    with concurrent.futures.ThreadPoolExecutor(4) as pool:
+        again = list(pool.map(lambda i: answer(candidates[i], 600),
+                              [i for i, (_, _, status) in enumerate(answers) if status in UNANSWERED]))
+    retried = iter(again)
+    answers = [next(retried) if status in UNANSWERED else (codec, prof, status) for codec, prof, status in answers]
+    profiles = [(codec, prof) for codec, prof, _ in answers]
     folder = a.work / 'corpus'
     folder.mkdir(parents=True, exist_ok=True)
     files, kept = [], 0
-    for (_, ext, key), (codec, prof) in zip(candidates, profiles):
+    for (_, ext, key), (codec, prof, status) in zip(candidates, answers):
         he_aac, clean = codec == 'aac' and prof in HE_PROFILES, False
         if he_aac:
             path = folder / f'candidate.{ext}'
@@ -503,8 +522,11 @@ def select(a):
                 path.rename(folder / f'c{kept:03d}.{ext}')
             else:
                 path.unlink()
-        files.append((container(f'x.{ext}'), codec is not None, he_aac, clean))
-    summary = {'candidates': len(candidates), 'unanswered': sum(not f[1] for f in files),
+        files.append((container(f'x.{ext}'), status not in UNANSWERED, he_aac, clean))
+    summary = {'candidates': len(candidates),
+               'ffprobe': {s: [st for _, _, st in answers].count(s) for s in ('answered', 'no audio', *UNANSWERED)},
+               'ffprobe_first_try': {s: first.count(s) for s in ('answered', 'no audio', *UNANSWERED)},
+               'unanswered': sum(not f[1] for f in files),
                'he_aac': sum(f[2] for f in files), 'not_decoded_cleanly': sum(f[2] and not f[3] for f in files),
                'selected': kept, 'profiles': {p: sum(prof == p for _, prof in profiles) for p in HE_PROFILES},
                'classes': {cls: {'candidates': sum(f[0] == cls for f in files),
@@ -561,9 +583,7 @@ def bar2_verdict(r, ref):
         gating.add('format')
     if o['returncode'] != 0 or o['warnings']:
         compared.add('ffmpeg error')
-    theirs = ref.get('stated_samples')
-    if (theirs is None or theirs > n or r['reference_length'] != theirs
-            or r['reference_values'] != theirs * r['channels']):
+    if r['reference_length'] != n or r['reference_values'] != n * r['channels']:
         compared.add('ffmpeg length')
     for c in r['per_channel']:
         if c['rms'] > MAX_RMS or c['max'] > MAX_ABS:
@@ -577,11 +597,20 @@ def bar2_verdict(r, ref):
     return 'pass (waived: samples not compared)' if excused else 'pass'
 
 
+def pair_only(r):
+    """A corpus MP4 copy whose bar 2 decode is not clean ("HE-AAC sets",
+    "Corpus")."""
+    return r['variant'] == 'copy' and bool(r['oracle']['returncode'] or r['oracle']['warnings'])
+
+
 def bars_of(r):
     """The bars that judge an input of set.json ("HE-AAC bars"): 1 where it
     has references; 2 every input; 3 every MP4 file of the generated and
     corpus sets; 4 every implicit variant; 5 every Matroska file, with its
-    MP4 pair; 6 every input of the generated and corpus sets."""
+    MP4 pair; 6 every input of the generated and corpus sets. A corpus MP4
+    copy that ffmpeg does not decode cleanly is only bar 5's pair."""
+    if pair_only(r):
+        return set()
     bars = {2}
     if r['references']:
         bars.add(1)
@@ -734,7 +763,8 @@ def judge(a):
         r = json.loads(line)
         decoded[r['input']] = r
     bar1, bar2, bar4, bar5 = judge_rows(meta, decoded)
-    out = {'ffmpeg': meta['ffmpeg'], 'encoder': meta['encoder']}
+    out = {'ffmpeg': meta['ffmpeg'], 'encoder': meta['encoder'],
+           'corpus_mp4_copies_pair_only': sum(pair_only(r) for r in meta['inputs'])}
     out['bar1'] = summary_of(bar1) | {'results': bar1}
     # Numbers over several inputs leave out the corpus's MP4 copies ("HE-AAC
     # sets", "Corpus"); each input still passes or fails on its own.

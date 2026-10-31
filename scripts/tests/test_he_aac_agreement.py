@@ -21,7 +21,7 @@ import he_aac_agreement as h  # noqa: E402
 def row(**kw):
     """A decoder test row of a clean stereo input of 10 packets."""
     r = {'status': 'decoded', 'packets': 10, 'frame': 2048, 'length': 20480, 'damaged': 0, 'rate': 48000,
-         'channels': 2, 'mask': 3, 'pce': False, 'reference_length': 20000, 'reference_values': 40000,
+         'channels': 2, 'mask': 3, 'pce': False, 'reference_length': 20480, 'reference_values': 40960,
          'noise_frames': 0, 'intensity_all_ms_frames': 0, 'sha256': 'a',
          'per_channel': [{'rms': 1e-7, 'max': 1e-6, 'noise_db': 0.0, 'noise_blocks': 0, 'noise_block_db': None}] * 2}
     r.update(kw)
@@ -32,7 +32,7 @@ def ref(**kw):
     """The oracle's statement of the same input."""
     o = {'returncode': 0, 'warnings': False, 'stderr': '', 'rate': 48000, 'channels': 2, 'mask': 3}
     o.update(kw.pop('oracle', {}))
-    return {'key': 'gen-he-tones-48000-stereo', 'set': 'generated', 'stated_samples': 20000, 'oracle': o, **kw}
+    return {'key': 'gen-he-tones-48000-stereo', 'set': 'generated', 'oracle': o, **kw}
 
 
 class Set(unittest.TestCase):
@@ -158,7 +158,7 @@ class Conversions(unittest.TestCase):
         self.assertEqual(failed, {'implicit': 'no AudioSpecificConfig'})
 
     def test_prepare_stops_when_a_variant_is_not_made(self):
-        stated = {'codec': 'aac', 'profile': 'HE-AAC', 'packets': 10, 'stated_samples': 20480, 'asc': '131056e598'}
+        stated = {'codec': 'aac', 'profile': 'HE-AAC', 'packets': 10, 'asc': '131056e598'}
         made = {'returncode': 0, 'warnings': False, 'stderr': '', 'rate': 48000, 'channels': 2, 'mask': 3,
                 'samples': 20480}
         refuse = lambda args, **kw: done(args, 1 if str(args[-1]).endswith('.implicit.m4a') else 0,  # noqa: E731
@@ -278,6 +278,54 @@ class Judge(unittest.TestCase):
         self.assertEqual((out['bar2']['counted'], out['bar2']['passed']), (7, 7))
         self.assertEqual(out['bar2']['corpus_mp4_copies'], {'counted': 1, 'passed': 0})
 
+    def test_a_copy_ffmpeg_does_not_decode_cleanly_is_only_bar_5s_pair(self):
+        inputs = self.inputs()
+        noisy = next(r for r in inputs if r['key'] == 'c.copy')
+        decoded = {r['path']: row(level_blocks=[]) for r in inputs}
+        for oracle in ({'warnings': True}, {'returncode': 1}):
+            noisy['oracle'] = {**ref()['oracle'], **oracle}
+            code, out, calls = self.run_judge(inputs, decoded)
+            for bar in ('bar2', 'bar3', 'bar6'):
+                self.assertNotIn('c.copy', [r['input'] for r in out[bar]['results']], bar)
+                self.assertNotIn('corpus_mp4_copies', out[bar], bar)
+            check = next(c for c in calls if 'decode_audio_check.py' in ' '.join(c))
+            self.assertNotIn('c.copy', check[check.index('--out') + 2:])
+            self.assertEqual([(r['input'], r['pass']) for r in out['bar5']['results'] if r['input'] == 'c'],
+                             [('c', True)])
+            self.assertEqual(out['corpus_mp4_copies_pair_only'], 1)
+            self.assertEqual((out['bar2']['counted'], out['bar3']['counted'], out['bar6']['counted']), (7, 3, 5))
+        self.assertEqual(h.bars_of(item('m', 'mp4', set='corpus', oracle={'warnings': True})), {2, 3, 6})
+        self.assertEqual(h.bars_of(item('g.mka', 'mka', 'g', container='matroska', oracle={'returncode': 1})),
+                         {2, 5, 6})
+
+    def test_the_corpus_copy_drops_metadata_and_chapters(self):
+        calls = []
+
+        def fake(args, **kw):
+            calls.append([str(x) for x in args])
+            return done(args, out=b'ffmpeg version x\n')
+        stated = {'codec': 'aac', 'profile': 'HE-AAC', 'packets': 10, 'asc': '131056e598'}
+        noisy = {'returncode': 0, 'warnings': True, 'stderr': 'w', 'rate': 48000, 'channels': 2, 'mask': 3}
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            (tmp / 'conf' / 'compressedMp4').mkdir(parents=True)
+            (tmp / 'gen').mkdir()
+            (tmp / 'gen' / 'encoded.json').write_text(json.dumps({'runner': {}, 'encodes': []}))
+            (tmp / 'w' / 'corpus').mkdir(parents=True)
+            (tmp / 'w' / 'corpus' / 'c001.mkv').write_bytes(b'')
+            oracle = lambda a, p, o: dict(noisy if str(p).endswith('.mp4') else {**noisy, 'warnings': False})  # noqa: E731
+            with mock.patch.object(h, 'run', fake), mock.patch.object(h, 'probe', lambda f, p: dict(stated)), \
+                    mock.patch.object(h, 'oracle', oracle), contextlib.redirect_stdout(io.StringIO()):
+                h.prepare(argparse.Namespace(ffmpeg='ffmpeg', ffprobe='ffprobe', work=tmp / 'w',
+                                             conformance=tmp / 'conf', generated=tmp / 'gen'))
+            meta = json.loads((tmp / 'w' / 'set.json').read_text())
+            self.assertTrue((tmp / 'w' / 'agreement.tsv').exists())
+        copy = next(c for c in calls if c[-1].endswith('corpus-c001.mp4'))
+        self.assertEqual(copy[copy.index('-map'):-1], ['-map', '0:a:0', '-map_metadata', '-1', '-map_chapters', '-1',
+                                                        '-c', 'copy'])
+        self.assertEqual((meta['not_made'], meta['corpus_mp4_copies_pair_only']), ({}, 1))
+        self.assertEqual([r['key'] for r in meta['inputs']], ['corpus-c001', 'corpus-c001.copy'])
+
     def test_a_failing_copy_alone_misses_the_bar(self):
         full = {f'bar{n}': {'counted': 2, 'passed': 2} for n in range(1, 7)}
         self.assertEqual(h.verdict(full | {'bar6': {'counted': 2, 'passed': 2,
@@ -366,12 +414,19 @@ class Bars(unittest.TestCase):
         self.assertIn('samples', h.bar2_verdict(row(per_channel=[{'rms': 1e-7, 'max': 1e-3, 'noise_db': 0,
                                                                    'noise_blocks': 0}]), ref()))
         self.assertIn('lengths', h.bar2_verdict(row(length=20000), ref()))
-        self.assertIn('ffmpeg length', h.bar2_verdict(row(), ref(stated_samples=30000)))
-        self.assertIn('format', h.bar2_verdict(row(channels=1, reference_values=20000), ref()))
+        self.assertIn('ffmpeg length', h.bar2_verdict(row(reference_length=30000, reference_values=60000), ref()))
+        self.assertIn('format', h.bar2_verdict(row(channels=1, reference_values=20480), ref()))
         self.assertIn('format', h.bar2_verdict(row(mask=4), ref()))
         self.assertEqual(h.bar2_verdict(row(mask=0, pce=True), ref()), 'pass')
         self.assertIn('damaged', h.bar2_verdict(row(damaged=1), ref()))
         self.assertEqual(h.bar2_verdict(None, ref()), 'missing')
+
+    def test_ffmpegs_length_is_the_packets_times_the_frame_whatever_the_container_states(self):
+        for stated in (20000, 20416, None):
+            shorter = row(reference_length=20000, reference_values=40000)
+            self.assertIn('ffmpeg length', h.bar2_verdict(shorter, ref(stated_samples=stated)), stated)
+            self.assertEqual(h.bar2_verdict(row(), ref(stated_samples=stated)), 'pass', stated)
+        self.assertIn('ffmpeg length', h.bar2_verdict(row(reference_values=40000), ref()))
 
     def test_tolerance_edges(self):
         edge = [{'rms': h.MAX_RMS, 'max': h.MAX_ABS, 'noise_db': 0, 'noise_blocks': 0}]
@@ -383,7 +438,7 @@ class Bars(unittest.TestCase):
     def test_a_named_stream_is_waived_from_the_ffmpeg_comparison_only(self):
         bad = [{'rms': 1, 'max': 1, 'noise_db': 0, 'noise_blocks': 0}]
         for key in ('conf-al_sbr_i_32_1_new', 'conf-al960_sbr_ps_04.mka', 'conf-al_sbr_cm_48_5.implicit'):
-            named = ref(key=key, set='conformance', oracle={'warnings': True}, stated_samples=1)
+            named = ref(key=key, set='conformance', oracle={'warnings': True})
             self.assertEqual(h.bar2_verdict(row(per_channel=bad), named), 'pass (waived: samples not compared)')
             self.assertIn('damaged', h.bar2_verdict(row(per_channel=bad, damaged=2), named))
             self.assertIn('lengths', h.bar2_verdict(row(per_channel=bad, length=1), named))
@@ -398,6 +453,24 @@ class Bars(unittest.TestCase):
             self.assertEqual('-ignore_editlist' in cmd, bool(opts), path)
             self.assertIn('+skip_manual', cmd)
             self.assertLess(cmd.index('+skip_manual'), cmd.index('-i'))
+
+    def test_ffprobe_says_why_a_candidate_has_no_answer(self):
+        cases = [(done([], out=b'{"streams": [{"codec_name": "aac", "profile": "HE-AAC"}]}'),
+                  ('aac', 'HE-AAC', 'answered')),
+                 (done([], out=b'{"streams": []}'), (None, None, 'no audio')),
+                 (done([], out=b'{}'), (None, None, 'no audio')),
+                 (done([], 1, err=b'Invalid data found'), (None, None, 'not read')),
+                 (done([], out=b'garbage'), (None, None, 'not read')),
+                 (subprocess.TimeoutExpired('ffprobe', 180), (None, None, 'timeout'))]
+        for result, want in cases:
+            def fake(args, timeout=None, **kw):
+                self.assertEqual(timeout, 180)
+                if isinstance(result, Exception):
+                    raise result
+                return result
+            with mock.patch.object(h, 'run', fake):
+                self.assertEqual(h.ffprobe_answer('ffprobe', 'url', 180), want, want)
+        self.assertEqual(h.UNANSWERED, ('timeout', 'not read'))
 
     def test_both_manifest_shapes_give_the_same_candidates(self):
         rows = [{'sha256': 'b', 'ext': 'm4a', 'key': 'x/b.m4a', 'holdout': False},
