@@ -465,12 +465,15 @@ class SpecificationDecides(unittest.TestCase):
             self.assertEqual((status, uncovered), ('uncovered', ['streams/0/kind', path]), name)
         self.assertEqual(streams(dict(ours, codec_name='h264'), ['streams/0/codec_name'])[0], 'uncovered')
 
-        def units(candidate_listed):
+        def units(candidate_listed, time_base=(1, 90000)):
             kd._FACTS.clear()
             paths = [f'streams/0/packets/{i}/size' for i in range(len(listed))]
             detail = {'file': media.name, 'packets_disagree': len(paths),
                       'gating_differences': [{'path': p} for p in paths]}
-            candidate = {'streams': [dict(ours, packets=candidate_listed)]}
+            stream = dict(ours, packets=candidate_listed)
+            if time_base is not None:
+                stream['time_base'] = list(time_base)
+            candidate = {'streams': [stream]}
             return kd.packet_units(detail, candidate, media.parent, reference, {'streams': [ours]},
                                    packets)[:2]
 
@@ -480,6 +483,12 @@ class SpecificationDecides(unittest.TestCase):
                        {'keyframe': False}):
             self.assertEqual(units([dict(first, **change)] + listed[1:]), ({}, 3), change)
         self.assertEqual(units(listed + [listed[-1]]), ({}, 3))
+        # The comparator reads the ticks by the packet document's own time
+        # base, so the same ticks on another one, or on none, are not the
+        # file's times.
+        self.assertEqual(units(listed, (2, 180000)), ({'KD-TS-VBI-AS-AUDIO': 3}, 0))
+        for time_base in ((1, 1), (1, 1000), (0, 0), (1.0, 90000.0), None):
+            self.assertEqual(units(listed, time_base), ({}, 3), time_base)
 
     def test_vbi_listing_counts_the_pes_packets_before_the_tables(self):
         mux = Mux()
@@ -492,7 +501,7 @@ class SpecificationDecides(unittest.TestCase):
         self.assertEqual(len(facts.pes_before_tables[0x101]), 1)
         listed = [{'pos': offset, 'size': len(payload), 'pts': pts, 'dts': pts, 'keyframe': True}
                   for offset, pts, payload in facts.pes_before_tables[0x101] + facts.pes[0x101]]
-        ours = {'properties': {'pid': 0x101}}
+        ours = {'properties': {'pid': 0x101}, 'time_base': [1, 90000]}
         self.assertTrue(kd.vbi_listing(dict(ours, packets=listed), facts))
         self.assertFalse(kd.vbi_listing(dict(ours, packets=listed[1:]), facts))
         # What is kept for one PID changes nothing else the reader finds.
@@ -514,8 +523,27 @@ class SpecificationDecides(unittest.TestCase):
         ours = dict(base, start_pts=start, start_time=kd.seconds(start))
         facts = self.wrap_file()
         self.assertTrue(kd.program_wrap(theirs, ours, facts))
-        self.assertTrue(kd.program_wrap({'start_pts': start + kd.WRAP},
-                                        {'properties': {'pid': 0x101, 'start_pts': start}}, facts))
+        self.assertTrue(kd.program_wrap(
+            {'start_pts': start + kd.WRAP, 'start_time': kd.seconds(start + kd.WRAP),
+             'time_base': '1/90000'},
+            {'properties': {'pid': 0x101, 'start_pts': start, 'start_time': kd.seconds(start),
+                            'time_base': '1/90000'}}, facts))
+        # A field the record covers that either side leaves out.
+        for name in ('start_time', 'time_base'):
+            for missing in ('absent', None):
+                def without(stream):
+                    return ({k: v for k, v in stream.items() if k != name} if missing == 'absent'
+                            else dict(stream, **{name: None}))
+                self.assertFalse(kd.program_wrap(theirs, without(ours), facts), (name, missing))
+                self.assertFalse(kd.program_wrap(without(theirs), ours, facts), (name, missing))
+        # One program only: there is no other program's time base to take.
+        mux = Mux()
+        mux.programs({1: (0x1000, [(0x02, 0x101)])})
+        for k in range(3):
+            mux.pes(0x101, start + 3600 * k, b'\x00' * 100)
+        single = kd.Facts(written(mux.out))
+        self.assertEqual(single.first_pes[0x101][1], start)
+        self.assertFalse(kd.program_wrap(theirs, ours, single))
         self.assertFalse(kd.program_wrap(dict(theirs, start_pts=start), ours, facts))
         self.assertFalse(kd.program_wrap(theirs, dict(ours, start_pts=start + 1), facts))
         # Each timing field the record names, on either side.

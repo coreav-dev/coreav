@@ -973,14 +973,32 @@ def vbi_as_audio(rstream, cstream, facts, rlisted=None):
     return all(rstream.get(k) == cstream.get(k) for k in GATING if k not in ('kind', 'codec_name'))
 
 
+def ninety_khz(time_base):
+    """The time base is 1/90000, as `ffprobe` prints it (`1/90000`) or as
+    the oracle's packet documents give it (`[1, 90000]`, which the
+    comparator reads as a fraction); a missing one is not."""
+    if isinstance(time_base, str):
+        parts = time_base.split('/')
+        if len(parts) != 2 or not all(part.isdigit() for part in parts):
+            return False
+        time_base = [int(part) for part in parts]
+    if (not isinstance(time_base, list) or len(time_base) != 2
+            or not all(type(part) is int for part in time_base)):
+        return False
+    num, den = time_base
+    return num > 0 and num * 90_000 == den
+
+
 def vbi_listing(cstream, facts):
     """CoreAV lists the stream as the file gives it: one packet for each
     PES packet of its PID, those before a table names it included
     (`Facts.pes_before_tables` and `Facts.pes`, kept for it), at the
     position of the transport packet that starts it, of its payload's size,
-    with its presentation time as both times, each a keyframe."""
+    with its presentation time as both times, each a keyframe. The times
+    are 90 kHz ticks, so the packet document's own time base, by which the
+    comparator reads them, must be 1/90000."""
     pid = stream_pid(cstream)
-    if facts is None or not facts.pes.get(pid):
+    if facts is None or not facts.pes.get(pid) or not ninety_khz(cstream.get('time_base')):
         return False
     pes = facts.pes_before_tables.get(pid, []) + facts.pes[pid]
     shift = 16 if facts.size[0] == 204 else 0
@@ -1006,12 +1024,15 @@ def seconds(ticks):
 
 def program_wrap(rstream, cstream, facts):
     """`ffprobe` adds 2^33 to the start of a stream whose own program does
-    not wrap. CoreAV's start is the stream's first PES timestamp, which
-    lies within the window of its program's first timestamp, and that one
-    is not near either end of the 33-bit range. Both start fields either
-    side states are checked, in ticks and in seconds; the durations
-    `ffprobe` then leaves out are not covered."""
-    if facts is None or not rstream or not cstream:
+    not wrap, in a file of several programs. CoreAV's start is the
+    stream's first PES timestamp, which lies within the window of its
+    program's first timestamp, and that one is not near either end of the
+    33-bit range. Both sides state a 90 kHz time base, `ffprobe`'s
+    `start_pts` is CoreAV's plus 2^33, and each side states its
+    `start_time` as its own `start_pts` in seconds: a field the record
+    covers that either side leaves out disqualifies the stream. The
+    durations `ffprobe` then leaves out are not covered."""
+    if facts is None or len(facts.programs) <= 1 or not rstream or not cstream:
         return False
     pid = stream_pid(cstream)
     ours, first = field(cstream, 'start_pts'), facts.first_pes.get(pid)
@@ -1020,11 +1041,11 @@ def program_wrap(rstream, cstream, facts):
         return False
     if not (abs(ours - reference) <= WINDOW and WINDOW <= reference < WRAP - WINDOW):
         return False
-    if any(field(s, 'time_base') not in (None, '1/90000') for s in (rstream, cstream)):
+    if not all(ninety_khz(field(s, 'time_base')) for s in (rstream, cstream)):
         return False
     return (field(rstream, 'start_pts') == ours + WRAP
-            and field(rstream, 'start_time') in (None, seconds(ours + WRAP))
-            and field(cstream, 'start_time') in (None, seconds(ours)))
+            and field(rstream, 'start_time') == seconds(ours + WRAP)
+            and field(cstream, 'start_time') == seconds(ours))
 
 
 DOWNMIX_KEYS = ('dmix_mode', 'ltrt_cmixlev', 'ltrt_surmixlev', 'loro_cmixlev', 'loro_surmixlev')
