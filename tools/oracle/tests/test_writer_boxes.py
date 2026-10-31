@@ -262,6 +262,23 @@ class Entries(unittest.TestCase):
         qt = bytes(v1[:28]) + b'\x00' * 16 + bytes(v1[28:])
         self.assertEqual(wb.aac_config(dict(entry, payload=qt, sound_version=1, stsd_version=0)), asc(2))
 
+    def test_ac3_and_eac3_channels(self):
+        # dac3 of acmod 7 with the LFE (5.1), and dec3 of the same, under
+        # stereo entries: either count, and nothing else.
+        dac3 = int('00' + '01000' + '000' + '111' + '1' + '01010' + '00000', 2).to_bytes(3, 'big')
+        dec3 = int('0000110000000' + '000' + '00' + '10000' + '0' + '0' + '000' + '111' + '1' + '000' + '0000'
+                   + '0', 2).to_bytes(5, 'big')
+        for kind, config, name in ((b'ac-3', dac3, b'dac3'), (b'ec-3', dec3, b'dec3')):
+            payload = mp4a(2)[8:36] + box(name, config)
+            src = {'entry': {'type': kind.decode(), 'channels': 2, 'rate': 48000.0, 'payload': payload,
+                             'sound_version': 0}}
+            self.assertEqual(wb.ac3_channels(src['entry']), 6)
+            for count in (2, 6):
+                self.assertEqual(wb.compare_entry('audio', src, {'entry': dict(src['entry'], channels=count)}), [])
+            self.assertTrue(wb.compare_entry('audio', src, {'entry': dict(src['entry'], channels=5)}))
+            short = dict(src['entry'], payload=mp4a(2)[8:36] + box(name, config[:1]))
+            self.assertIsNone(wb.ac3_channels(short))
+
     def test_program_config_element(self):
         # channelConfiguration 0, then a GASpecificConfig and a program
         # config element of 2 channel pairs and 1 LFE: 5 channels.

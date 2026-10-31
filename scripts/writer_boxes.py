@@ -445,7 +445,8 @@ def _sound_channels(entry):
     for AAC the one its AudioSpecificConfig states (ISO/IEC 14496-3
     1.6.2.1, table 1.19, or its program config element, 4.4.1.1), which
     decoders follow; a mono configuration that signals parametric stereo
-    (object type 29) also as 2 (8.6.4)."""
+    (object type 29) also as 2 (8.6.4); for AC-3 and E-AC-3 the one their
+    `dac3` or `dec3` states."""
     counts = {entry.get("channels")}
     config = aac_config(entry)
     if config is not None:
@@ -454,7 +455,31 @@ def _sound_channels(entry):
             counts.add(stated)
         if stated == 1 and config and config[0] >> 3 == 29:
             counts.add(2)
+    if ac3_channels(entry):
+        counts.add(ac3_channels(entry))
     return counts
+
+
+def ac3_channels(entry):
+    """The channels an `ac-3` entry's `dac3` or an `ec-3` entry's `dec3`
+    states (ETSI TS 102 366 F.4, F.6): those its `acmod` (table 4.3) and
+    `lfeon` code, for E-AC-3 its first independent substream's; None
+    without one."""
+    box, skip = {"ac-3": (b"dac3", 10), "ec-3": (b"dec3", 28)}.get((entry or {}).get("type"), (None, 0))
+    if box is None:
+        return None
+    payload = entry["payload"]
+    try:
+        found = next(((s, e) for k, s, e in tb.boxes(payload, 28, len(payload)) if k == box), None)
+    except tb.Unreadable:
+        return None
+    need = (skip + 4 + 7) // 8
+    if found is None or found[1] - found[0] < need:
+        return None
+    value = int.from_bytes(bytes(payload[found[0]:found[0] + need]), "big")
+    shift = need * 8 - skip - 3
+    acmod, lfeon = value >> shift & 7, value >> (shift - 1) & 1
+    return {0: 2, 1: 1, 2: 2, 3: 3, 4: 3, 5: 4, 6: 4, 7: 5}[acmod] + lfeon
 
 
 def _descriptor(body, at):
