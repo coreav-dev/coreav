@@ -790,6 +790,7 @@ mod tests {
         let mut sh = std::process::Command::new("/bin/sh")
             .args(["-c", "cat > \"$1\" && chmod 755 \"$1\"", "sh"])
             .arg(path)
+            .env("PATH", "/usr/bin:/bin")
             .stdin(std::process::Stdio::piped())
             .spawn()
             .unwrap();
