@@ -1225,7 +1225,7 @@ fn an_encode_keeps_a_cover_picture_only_when_it_is_copied() {
         &dir,
         "in.mp4",
         av_movie_with(aac_entry(), false),
-        &[jpeg(32, 32)],
+        &[&[jpeg(32, 32)]],
     );
     let size = std::fs::metadata(&input).unwrap().len();
     let mut file = coreav_isobmff::FileSource::open(&input).unwrap();
