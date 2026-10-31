@@ -32,7 +32,7 @@ The bars were fixed before this tool existed.
    output against `ffprobe`; and the fixture checks of every stream-copy
    primitive that CI runs (extraction, clip, remux, sanitize, split, text,
    policy, Matroska remux, HLS packaging), each run as `ci.yml`'s
-   `isobmff-fixtures` and `mkv-fixtures` jobs run it: the HLS check takes the
+   `isobmff-fixtures`, `isobmff-writers` and `mkv-fixtures` jobs run it: the HLS check takes the
    list of inputs the packager is expected to refuse from `ci.yml` itself, so the two
    cannot drift apart. Bar: **100%** of each (for HLS, of the inputs it
    packages).
