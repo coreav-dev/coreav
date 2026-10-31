@@ -183,6 +183,7 @@ fn codec_name(track: &Track) -> Option<String> {
             Codec::Hevc => "hevc",
             Codec::Av1 => "av1",
             Codec::Vp9 => "vp9",
+            Codec::Vp8 => "vp8",
             Codec::ProRes => "prores",
             Codec::Aac => "aac",
             Codec::Mp3 => "mp3",

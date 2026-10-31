@@ -6,11 +6,15 @@ ffmpeg9.json and docs/known-divergences-ffprobe9.md name the same entries.
 
     python3 -I -m unittest discover -s tools/compat-corpus/tests -p 'test_*.py'
 """
+import argparse
+import contextlib
 import importlib.util
+import io
 import json
 import pathlib
 import re
 import sys
+import tempfile
 import unittest
 from unittest import mock
 
@@ -193,6 +197,31 @@ class Accepts(unittest.TestCase):
         self.assertFalse(accepts([a, b], [a, 'c'], [(a, a, {}), (b, 'c', {})]))
         # Each value is one ffprobe lists, but on another packet.
         self.assertFalse(accepts([a, b], [b], [(a, b, {}), (b, 'N/A', {})]))
+
+
+class MalformedOutput(unittest.TestCase):
+    """Output of the JSON writer that is not JSON fails B3 for that command
+    on that file, and the run goes on to the next file."""
+
+    def test_output_that_is_not_json_is_a_b3_failure(self):
+        args = ['-v', 'error', '-of', 'json', '-show_streams', 'INPUT']
+        ref = b'{\n    "streams": [\n        {\n            "index": 0\n        }\n    ]\n}\n'
+        files = [pathlib.Path('a.mp4'), pathlib.Path('b.mp4')]
+        for bad in (ref[:30], ref.replace(b'"index"', b'"in\\qdex"')):
+            with self.subTest(bad=bad), tempfile.TemporaryDirectory() as tmp:
+                def fake_run(cmd):
+                    return 0, bad if cmd[0] == 'coreav' and cmd[-1] == 'a.mp4' else ref, b''
+                opts = argparse.Namespace(media=[], coreav='coreav', jobs=2, report=f'{tmp}/report.json', top=0,
+                                          write_baseline=None, baseline=None)
+                with mock.patch.object(run, 'run', fake_run), \
+                        mock.patch.object(run, 'media_files', lambda dirs: files), \
+                        mock.patch.object(run, 'load_commands',
+                                          lambda: [{'tool': 'ffprobe', 'label': 'native', 'args': args}]), \
+                        contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(run.cmd_commands(opts), 1)
+                report = json.loads(pathlib.Path(opts.report).read_text())
+                self.assertEqual(report['B3'], {'pass': 1, 'fail': 1})
+                self.assertEqual([(f['bar'], f['file'], f['keys']) for f in report['failures']], [('B3', 'a.mp4', None)])
 
 
 class Table(unittest.TestCase):

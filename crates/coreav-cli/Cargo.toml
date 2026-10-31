@@ -50,7 +50,7 @@ transcode = ["thumbnail", "dep:coreav-transcode"]
 # dav1d for AV1 in `coreav thumbnail`, in the same sandboxed worker; links
 # the system's libdav1d.
 dav1d = ["thumbnail", "transcode", "dep:coreav-worker", "coreav-worker/dav1d"]
-# libvpx for VP9 in `coreav thumbnail` and `coreav transcode`, in the same
+# libvpx for VP8 and VP9 in `coreav thumbnail` and `coreav transcode`, in the same
 # sandboxed worker; links the system's libvpx.
 libvpx = ["thumbnail", "transcode", "dep:coreav-worker", "coreav-worker/libvpx"]
 # AAC LC decoding in `coreav decode-audio` (`coreav-aac`). Off by default

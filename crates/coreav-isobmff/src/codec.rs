@@ -17,6 +17,10 @@ pub enum Codec {
     Av1,
     /// VP9 (`vp09`).
     Vp9,
+    /// VP8 (`vp08`, the VP codec ISOBMFF binding). Not on the default
+    /// allowlist: the commands that copy streams do not write it, and
+    /// only decoding callers ask for it.
+    Vp8,
     /// Apple ProRes (SMPTE RDD 36).
     ProRes,
     /// MPEG-4 AAC (`mp4a`, object types 0x40, 0x66, 0x67, 0x68).
@@ -1262,6 +1266,7 @@ fn codec_from_fourcc(fourcc: FourCc) -> Codec {
         b"hvc1" | b"hev1" => Codec::Hevc,
         b"av01" => Codec::Av1,
         b"vp09" => Codec::Vp9,
+        b"vp08" => Codec::Vp8,
         b"apco" | b"apcs" | b"apcn" | b"apch" | b"ap4h" | b"ap4x" => Codec::ProRes,
         b"Opus" => Codec::Opus,
         b"fLaC" => Codec::Flac,

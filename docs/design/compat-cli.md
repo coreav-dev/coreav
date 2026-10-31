@@ -118,6 +118,9 @@ the implementation does not get to choose later:
 
 ## The bars, pre-registered
 
+The [next ffprobe validation arm](../measurements/compat-ffprobe/round9-plan.md)
+registers its method separately. It changes none of the bars below.
+
 Measured over `commands-v1`. Every command's placeholders are
 filled by the runner with a fixture or corpus file, which is why the set
 holds the option sequence and not the names an answer happened to use.
@@ -412,6 +415,18 @@ times out after both untimed runs succeeded makes the run incomplete, which
 fails R4 and fails the gate, never passes them on the timings left. `speed.py r4-report --gate` judges the gate on each class's ratios
 over the three families, as the gate names "every class's median"; the
 families' rows are reported and not gated.
+
+`scripts/compat_r4_gcp.py` runs the R4 host over `scripts/gcp_vm_job.py`:
+one on-demand `c4-standard-16` with one thread a core, the three binaries
+uploaded, the gate's files (`tools/compat-corpus/round_files.py r4-gate`)
+fetched with read-only credentials and their SHA-256 checked, the `aa` and
+`null` arms timed, and only when both pass the draw's files
+(`r4-draw6`) fetched and the `r4` arm timed, so a failed gate leaves the
+draw unread. The VM deletes itself at the time limit and powers itself off
+shortly before it, and the script refuses a time limit whose price bound is
+above its spend cap (at most the per-task limit). `--rehearsal` puts spent
+files (`r4-rehearsal`) in the draw's place and times them whatever the
+gate says, so a rehearsal exercises every step.
 
 **The R4 host, registered before the run.** A GCP `c4-standard-16` VM with
 SMT off (one thread per core), started through `scripts/gcp_vm_job.py`, the

@@ -34,7 +34,7 @@ They get the native command on Linux (x86-64 and arm64, glibc or musl),
 macOS (arm64 and x86-64) and Windows (x86-64), and the WASI build
 elsewhere, with the same output, output files and exit codes.
 The native binaries outside Windows also have `coreav thumbnail` and
-`coreav transcode`, with dav1d (AV1) and libvpx (VP9) linked statically,
+`coreav transcode`, with dav1d (AV1) and libvpx (VP8, VP9) linked statically,
 as the release's default build has them. The WASI build has neither: WASI
 cannot start the sandboxed decoder worker or the encoder program
 (`docs/design/release.md`, "npm").
