@@ -217,7 +217,7 @@ the README:
 
 `package.json` has a plain description, keywords naming what the command
 does and reads, the repository, issue tracker and license (`MIT OR
-Apache-2.0`, with both license files in the tarball). The README is usage
+Apache-2.0`, with both license files and `NOTICE` in the tarball, `docs/release/notices.md`). The README is usage
 documentation for a reader new to the command: every subcommand, its JSON
 output, exit codes, the error object, paths and per-call start-up cost. As
 for the Python package (`docs/design/python.md`), comparative or claim
