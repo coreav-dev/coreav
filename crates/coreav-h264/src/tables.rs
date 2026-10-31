@@ -60,6 +60,10 @@ pub const RUN_BEFORE: [&[(u8, u32, u8)]; 7] = [
 pub const CBP_INTRA: [u8; 48] = [47, 31, 15, 0, 23, 27, 29, 30, 7, 11, 13, 14, 39, 43, 45, 46, 16, 3, 5, 10, 12, 19, 21, 26, 28, 35, 37, 42, 44, 1, 2, 4, 8, 17, 18, 20, 24, 6, 9, 22, 25, 32, 33, 34, 36, 40, 38, 41];
 /// Table 9-4 (ChromaArrayType 1 or 2): coded_block_pattern by codeNum, Inter.
 pub const CBP_INTER: [u8; 48] = [0, 16, 1, 2, 4, 8, 32, 3, 5, 10, 12, 15, 47, 7, 11, 13, 14, 6, 9, 31, 35, 37, 42, 44, 33, 34, 36, 40, 39, 43, 45, 46, 17, 18, 20, 24, 19, 21, 26, 28, 23, 27, 29, 30, 22, 25, 38, 41];
+/// Table 9-4 (ChromaArrayType 0 or 3): coded_block_pattern by codeNum, Intra_4x4/Intra_8x8.
+pub const CBP_INTRA_MONO: [u8; 16] = [15, 0, 7, 11, 13, 14, 3, 5, 10, 12, 1, 2, 4, 8, 6, 9];
+/// Table 9-4 (ChromaArrayType 0 or 3): coded_block_pattern by codeNum, Inter.
+pub const CBP_INTER_MONO: [u8; 16] = [0, 1, 2, 4, 8, 3, 5, 10, 12, 15, 7, 11, 13, 14, 6, 9];
 
 /// Tables 9-12 to 9-33: CABAC (m, n) by ctxIdx; index 0 is I slices, 1 + cabac_init_idc otherwise.
 /// Entries with no value in the specification (ctxIdx 276, and 11..59 for I slices) are (0, 0).

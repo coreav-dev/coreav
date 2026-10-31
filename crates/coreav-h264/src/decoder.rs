@@ -1641,10 +1641,12 @@ fn check_scope(sps: &Sps, pps: &Pps) -> Result<()> {
 
 /// What a sequence parameter set alone decides about the scope.
 fn check_sps_scope(sps: &Sps) -> Result<()> {
-    if sps.chroma_format_idc != 1 {
-        return Err(Error::Unsupported("a chroma format other than 4:2:0"));
+    if sps.chroma_format_idc > 1 {
+        return Err(Error::Unsupported("4:2:2 or 4:4:4 chroma"));
     }
-    if sps.bit_depth_luma != 8 || sps.bit_depth_chroma != 8 {
+    // A monochrome stream's bit_depth_chroma_minus8 is not used (the NOTE
+    // in clause 7.4.2.1.1).
+    if sps.bit_depth_luma != 8 || (sps.chroma_format_idc != 0 && sps.bit_depth_chroma != 8) {
         return Err(Error::Unsupported("a bit depth other than 8"));
     }
     if sps.transform_bypass {

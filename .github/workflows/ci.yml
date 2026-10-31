@@ -120,6 +120,7 @@ jobs:
             crates/coreav-kernels-h264/**
             scripts/h264_conformance.py
             scripts/h264_modes_identity.py
+            scripts/h264_agreement.py
             scripts/oracle-ffmpeg.env
             docs/measurements/h264-training/**
             .github/workflows/ci.yml
@@ -1942,11 +1943,21 @@ jobs:
             --streams "$RUNNER_TEMP/synthetic" \
             --threads 1,8 \
             --report "$RUNNER_TEMP/modes-synthetic.json"
+      # The monochrome streams of that set, frame for frame against the
+      # pinned FFmpeg (docs/design/h264.md, "Monochrome").
+      - name: Compare the monochrome streams with FFmpeg
+        run: |
+          python3 -I scripts/h264_agreement.py --ffmpeg "$RUNNER_TEMP/coreav-oracle-bin/ffmpeg" \
+            --decoder target/modes-identity/fast/release/examples/decode \
+            --report "$RUNNER_TEMP/monochrome-agreement.json" \
+            "$RUNNER_TEMP"/synthetic/gray-*.h264
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: h264-modes-synthetic
-          path: ${{ runner.temp }}/modes-synthetic.json
+          path: |
+            ${{ runner.temp }}/modes-synthetic.json
+            ${{ runner.temp }}/monochrome-agreement.json
           if-no-files-found: ignore
 
   training-identity:

@@ -1,7 +1,8 @@
 # coreav-h264
 
-An H.264 (AVC) decoder in Rust: High profile, 8-bit 4:2:0,
-progressive frames, written from Rec. ITU-T H.264 (08/2024).
+An H.264 (AVC) decoder in Rust: High profile, 8-bit 4:2:0 and monochrome
+(4:0:0, given as 4:2:0 with neutral chroma), progressive frames, written
+from Rec. ITU-T H.264 (08/2024).
 
 ## Read this first
 
