@@ -390,7 +390,8 @@ def stream_compare(cv, full, ffmpeg, ref, ops):
     """One pass over CoreAV's output (`cv`), the full decode and `ffmpeg`'s
     output (Sources): (model, ffmpeg) agreement, the second under `ops`
     (per piece, (ops, checks)); None for the comparison with CoreAV's output
-    as it is."""
+    as it is; and whether CoreAV wrote the plan's samples, no fewer and no
+    more."""
     frame, lossy, total = ref['frame'], ref['lossy'], ref['total']
     plan = effective(ref['plan'], total)
     if ops is None:
@@ -451,7 +452,7 @@ def stream_compare(cv, full, ffmpeg, ref, ops):
     lengths_ok &= cv.ends_at(c_at * frame)
     model_ok = bar1.ok() and lengths_ok
     ffmpeg_ok = bar2.ok() and checks.ok() and zeros_ok and lengths_ok and ffmpeg.ends_at(d_at * frame)
-    return model_ok, ffmpeg_ok
+    return model_ok, ffmpeg_ok, lengths_ok
 
 
 def verdicts(open_streams, ref, entries, summary):
@@ -461,7 +462,7 @@ def verdicts(open_streams, ref, entries, summary):
     ops, applied = planned if planned else (None, [])
     if not applied:
         ops = None
-    model_ok, ffmpeg_ok = stream_compare(*open_streams(), ref, ops)
+    model_ok, ffmpeg_ok, lengths_ok = stream_compare(*open_streams(), ref, ops)
     result = {'model': model_ok, 'length': lengths_ok, 'timeline': summary == timeline(ref['plan'], ref['total'])}
     if ref['ffmpeg_failed']:
         result['ffmpeg'] = 'not decoded'
@@ -472,7 +473,7 @@ def verdicts(open_streams, ref, entries, summary):
         result['entries'] = applied
     else:
         # Not as the entries say: as it is, or uncovered.
-        _, equal = stream_compare(*open_streams(), ref, None)
+        _, equal, _ = stream_compare(*open_streams(), ref, None)
         result['ffmpeg'] = 'equal' if equal else 'uncovered'
     return result
 
