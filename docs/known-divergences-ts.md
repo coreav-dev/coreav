@@ -9,7 +9,7 @@ the twin and the predicates in sync. Each entry covers only the fields it
 names; an item counts as agreement only if every gating difference is
 covered. Covered items stay in the denominator and are reported apart from
 direct agreement. Predicates read the two captures, never file names. The
-oracle is `ffprobe` 7.0.2. The design is in [`design/mpegts.md`](design/mpegts.md).
+oracle is the pinned `ffprobe` 9.0.2. The design is in [`design/mpegts.md`](design/mpegts.md).
 
 The entries describe the default packet listing of `coreav-mpegts`, which
 the oracle adapter and `coreav probe --scan-frame-sizes` use. `coreav

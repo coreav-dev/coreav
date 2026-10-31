@@ -310,8 +310,9 @@ nothing is ignored whole, as a decoder ignores it.
   with its run, once the stated time that closes the run is read; see
   above.) Each unit carries what the PES packet whose reading released it
   says of itself: `corrupt` when a transport packet of it was lost,
-  repeated or flagged in error, or it ended short of its stated length,
-  and, for the first unit that reading released, `fed`, its `stream_id`.
+  repeated or flagged in error, or it ended short of its stated length.
+  Every unit also keeps the `stream_id` of the PES packet where it
+  starts, including later units of one packet and those completed at EOF.
   Rejected: listing a PES packet's units as soon as it is complete,
   which listed the frames of AC-3 and the pictures of MPEG-2 video one
   PES packet earlier than `ffprobe` against the other streams; a stream's
@@ -439,8 +440,8 @@ describe. With it on:
   shows where it ends, with no runs: the units after the first one of a
   PES packet take no time and no position, as `ffprobe` reports them
   (placing a second field is `coreav ffprobe`'s, from the picture's own
-  syntax), and `Packet::fed` is the `stream_id` of the PES packet whose
-  reading finished the unit;
+  syntax). `Packet::stream_id` remains the identifier of the PES packet
+  where the unit starts, as on the default listing;
 - an AAC frame (ADTS or LOAS) a PES packet does not time falls on a grid
   of frames counted from time zero (the base taken to the nearest whole frame of
   that grid, each end of the span since it rounded to the nearest tick),

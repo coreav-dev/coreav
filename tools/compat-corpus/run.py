@@ -173,6 +173,8 @@ def covered_by_record(coreav, path):
 
 def cmd_commands(opts):
     files = media_files(opts.media)
+    for path in files:
+        av1_nclx_fixture(opts.coreav, path)
     records = [r for r in load_commands() if r['tool'] == 'ffprobe']
     aside = {p.name: covered_by_record(opts.coreav, p) for p in files if p.name in SET_ASIDE}
     set_aside = collections.Counter()
@@ -363,6 +365,78 @@ def ffmpeg9_rules():
     return {entry['id']: entry['accepts'] for entry in json.loads(FFMPEG9.read_text())['entries']}
 
 
+@functools.cache
+def av1_nclx_fixture(coreav, path):
+    """Validate the one AV1 fixture's bytes and exact oracle disagreement;
+    an oracle that starts agreeing must retire this exception."""
+    if path.name != 'color_av1_colr_ignored.mp4':
+        return False
+    prefix = 'KD-FF9-AV1-NCLX: '
+    try:
+        if path.stat().st_size > 8 * 1024 * 1024:
+            raise ValueError('fixture exceeds the evidence reader limit')
+        data = path.read_bytes()
+
+        def one(start, end, kind):
+            found = []
+            while start < end:
+                if start + 8 > end:
+                    raise ValueError('truncated box header')
+                size = int.from_bytes(data[start:start + 4], 'big')
+                if size < 8 or start + size > end:
+                    raise ValueError('changed or invalid box layout')
+                if data[start + 4:start + 8] == kind:
+                    found.append((start + 8, start + size))
+                start += size
+            if len(found) != 1:
+                raise ValueError('expected exactly one ' + kind.decode('ascii') + ' box')
+            return found[0]
+
+        start, end = 0, len(data)
+        for kind in (b'moov', b'trak', b'mdia', b'minf', b'stbl', b'stsd'):
+            start, end = one(start, end, kind)
+        if data[start:start + 8] != b'\0\0\0\0\0\0\0\1':
+            raise ValueError('changed sample-description header')
+        start, end = one(start + 8, end, b'av01')
+        start += 78
+        a, b = one(start, end, b'colr')
+        colour = data[a:b]
+        if colour != b'nclx\0\6\0\6\0\6\x80':
+            raise ValueError('changed nclx colour or range bytes')
+        a, b = one(start, end, b'av1C')
+        record = data[a:b]
+        if len(record) < 4 or record[0] != 0x81:
+            raise ValueError('changed AV1 configuration record')
+        profile, level, flags = record[1] >> 5, record[1] & 31, record[2]
+        tier = 'H' if flags & 128 else 'M'
+        depth = 12 if profile == 2 and flags & 32 and flags & 64 else 10 if flags & 64 else 8
+        mono, x, y = (int(bool(flags & mask)) for mask in (16, 8, 4))
+        position = flags & 3 if x and y else 0
+        p, t, m = (int.from_bytes(colour[i:i + 2], 'big') for i in (4, 6, 8))
+        expected = (f'av01.{profile}.{level:02}{tier}.{depth:02}.{mono}.{x}{y}{position}'
+                    f'.{p:02}.{t:02}.{m:02}.{int(bool(colour[10] & 128))}')
+        if expected != 'av01.0.00M.08.0.110.06.06.06.1':
+            raise ValueError('changed AV1 configuration or expected codec string')
+    except (OSError, ValueError) as error:
+        raise SystemExit(prefix + str(error)) from error
+    sides = []
+    args = ['-v', 'error', '-of', 'json', '-show_entries',
+            'stream=codec_name,codec_tag_string,mime_codec_string', str(path)]
+    for tool in (['ffprobe'], [coreav, 'ffprobe']):
+        code, out, _ = run(tool + args)
+        try:
+            sides.append(json.loads(out)['streams'] if code == 0 else None)
+        except (ValueError, KeyError, TypeError) as error:
+            raise SystemExit(prefix + 'invalid stream listing') from error
+    stream = {'codec_name': 'av1', 'codec_tag_string': 'av01'}
+    if sides[0] == sides[1] == [dict(stream, mime_codec_string=expected)]:
+        raise SystemExit(prefix + 'oracle now agrees; remove the obsolete exception')
+    if sides != [[dict(stream, mime_codec_string='av01.0.00M.08')],
+                 [dict(stream, mime_codec_string=expected)]]:
+        raise SystemExit(prefix + 'the exact codec-string disagreement changed')
+    return True
+
+
 CANONICAL_ARGS = ['-v', 'error', '-of', 'json', '-show_format', '-show_streams', '-show_programs',
                   '-show_packets']
 
@@ -505,6 +579,9 @@ def accepts(coreav, path, key, rule, ref_values, values):
     packets ffprobe lists it on, the same on each ([canonical]), or values
     that differ only where they differ over the whole file, each
     difference there the one the rule names."""
+    if isinstance(rule, dict) and rule.get('evidence') == 'av1 nclx':
+        if key != 'streams.mime_codec_string' or not av1_nclx_fixture(coreav, path):
+            return False
     only = rule.get('only') if isinstance(rule, dict) else None
     if only == 'ffprobe':
         return all(plain(v) is None for v in values)
@@ -1186,6 +1263,8 @@ def cmd_commands_010(opts):
     if opts.baseline or opts.write_baseline:
         raise SystemExit('R1 has no baseline: --set 0.1.0 takes no --baseline or --write-baseline')
     files = [p for p in media_files(opts.media) if release_round.family(p)]
+    for path in files:
+        av1_nclx_fixture(opts.coreav, path)
     aside = {p.name: covered_by_record(opts.coreav, p) for p in files if p.name in SET_ASIDE}
     counts = collections.defaultdict(collections.Counter)
     set_aside = collections.Counter()

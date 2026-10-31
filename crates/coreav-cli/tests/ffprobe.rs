@@ -63,6 +63,123 @@ fn movie(name: &str) -> String {
 }
 
 #[test]
+fn composition_offsets_do_not_replace_the_stored_sample_durations() {
+    let bytes = common::movie(&common::Spec {
+        stts: Some(vec![(1, 256), (1, 512), (1, 768), (1, 1024)]),
+        ctts: Some(vec![(4, 0)]),
+        elst: None,
+        ..common::Spec::default()
+    });
+    let path = file("ffprobe-stored-durations.mp4", &bytes);
+    let r = ffprobe(&[
+        "-v",
+        "error",
+        "-show_packets",
+        "-show_entries",
+        "packet=duration",
+        "-of",
+        "csv=p=0",
+        &path.to_string_lossy(),
+    ]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    assert_eq!(r.stdout, "256\n512\n768\n1024\n");
+}
+
+#[test]
+fn quicktime_keeps_its_zero_vendor_identifier() {
+    for (brand, expected, name) in [
+        (b"qt  ", true, "ffprobe-quicktime-vendor.mov"),
+        (b"isom", false, "ffprobe-iso-vendor.mp4"),
+    ] {
+        let mut bytes = av_movie_with(aac_entry(), false);
+        bytes[8..12].copy_from_slice(brand);
+        let path = file(name, &bytes);
+        let result = ffprobe(&[
+            "-v",
+            "error",
+            "-show_entries",
+            "stream_tags=vendor_id",
+            "-of",
+            "json",
+            &path.to_string_lossy(),
+        ]);
+        assert_eq!(result.code, 0, "{}", result.stderr);
+        assert_eq!(
+            result.stdout.contains("[0][0][0][0]"),
+            expected,
+            "{}",
+            result.stdout
+        );
+    }
+}
+
+#[test]
+fn aac_mime_keeps_the_stored_object_type_with_a_sync_extension() {
+    let mut body = common::audio_entry(b"mp4a").split_off(8);
+    body.extend_from_slice(&common::full(
+        b"esds",
+        0,
+        0,
+        &[
+            3, 25, 0, 0, 0, 4, 20, 0x40, 0x15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 5, 0x13, 0x10,
+            0x56, 0xe5, 0x98,
+        ],
+    ));
+    let bytes = av_movie_with(common::bx(b"mp4a", &body), false);
+    let path = file("ffprobe-aac-sync-mime.mp4", &bytes);
+    let result = ffprobe(&[
+        "-v",
+        "error",
+        "-select_streams",
+        "a",
+        "-show_entries",
+        "stream=profile,mime_codec_string",
+        "-of",
+        "csv=p=0",
+        &path.to_string_lossy(),
+    ]);
+    assert_eq!(result.code, 0, "{}", result.stderr);
+    assert_eq!(result.stdout, "HE-AAC,mp4a.40.2\n");
+}
+
+#[test]
+fn vp8_mp4_reads_the_configuration_pixel_format_and_range() {
+    for (flag, range) in [(0, "tv"), (1, "pc")] {
+        let mut bytes = common::movie(&common::Spec {
+            sample_entry: *b"vp08",
+            ..common::Spec::default()
+        });
+        let at = bytes.windows(4).position(|b| b == b"avcC").unwrap() - 4;
+        let old = u32::from_be_bytes(bytes[at..at + 4].try_into().unwrap()) as usize;
+        let config = common::bx(b"vpcC", &[1, 0, 0, 0, 0, 0, 0x80 | flag, 1, 1, 1, 0, 0]);
+        for kind in [
+            b"moov", b"trak", b"mdia", b"minf", b"stbl", b"stsd", b"vp08",
+        ] {
+            let header = bytes.windows(4).position(|b| b == kind).unwrap() - 4;
+            let size = u32::from_be_bytes(bytes[header..header + 4].try_into().unwrap());
+            let size = size + u32::try_from(config.len() - old).unwrap();
+            bytes[header..header + 4].copy_from_slice(&size.to_be_bytes());
+        }
+        bytes.splice(at..at + old, config);
+        let path = file(&format!("ffprobe-vp8-{range}.mp4"), &bytes);
+        let result = ffprobe(&[
+            "-v",
+            "error",
+            "-show_entries",
+            "stream=codec_name,pix_fmt,color_range",
+            "-of",
+            "json",
+            &path.to_string_lossy(),
+        ]);
+        assert_eq!(result.code, 0, "{}", result.stderr);
+        let json: serde_json::Value = serde_json::from_str(&result.stdout).unwrap();
+        assert_eq!(json["streams"][0]["codec_name"], "vp8");
+        assert_eq!(json["streams"][0]["pix_fmt"], "yuv420p");
+        assert_eq!(json["streams"][0]["color_range"], range);
+    }
+}
+
+#[test]
 fn an_option_outside_the_vocabulary_is_refused_by_name() {
     let path = movie("ffprobe-refused.mp4");
     for (args, named) in [

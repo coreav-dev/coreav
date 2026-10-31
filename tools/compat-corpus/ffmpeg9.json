@@ -547,7 +547,6 @@
      "codec_h264_yuv444p.mp4",
      "codec_mpeg4_color.mp4",
      "codec_vorbis.mp4",
-     "color_av1_colr_ignored.mp4",
      "color_bt709.mp4",
      "color_colr_only.mp4",
      "color_colr_vs_sps.mp4",
@@ -3028,64 +3027,6 @@
    }
   },
   {
-   "id": "KD-FF9-TS-PROBE-SCORE",
-   "accepts": {
-    "format.probe_score": {
-     "ffprobe": "100",
-     "coreav": "50"
-    }
-   },
-   "keys": {
-    "format.probe_score": [
-     "ts_204.ts",
-     "ts_aac_latm.ts",
-     "ts_audio_dts.ts",
-     "ts_audio_only.ts",
-     "ts_dts_equals_pts.ts",
-     "ts_duplicates.ts",
-     "ts_h264_1080.ts",
-     "ts_h264_aac.ts",
-     "ts_h264_ac3.m2ts",
-     "ts_h264_ac3.ts",
-     "ts_h264_ac3_51.ts",
-     "ts_h264_eac3.ts",
-     "ts_h264_high10.ts",
-     "ts_h264_intrarefresh.ts",
-     "ts_h264_nobframes.ts",
-     "ts_h264_opengop.ts",
-     "ts_hevc_aac.ts",
-     "ts_hevc_main10.ts",
-     "ts_languages.ts",
-     "ts_long.ts",
-     "ts_lost_packets.ts",
-     "ts_lost_sync.ts",
-     "ts_m2ts.m2ts",
-     "ts_many_audio_per_pes.ts",
-     "ts_mpeg1_mp3.ts",
-     "ts_mpeg2_mp2.ts",
-     "ts_nulls.ts",
-     "ts_one_frame_per_pes.ts",
-     "ts_one_pes.ts",
-     "ts_opus.ts",
-     "ts_pcr_period.ts",
-     "ts_pmt_change.ts",
-     "ts_prefix_junk.ts",
-     "ts_pts_only.ts",
-     "ts_resend_headers.ts",
-     "ts_start_late.ts",
-     "ts_transport_errors.ts",
-     "ts_truncated.ts",
-     "ts_truncated_m2ts.m2ts",
-     "ts_two_programs.ts",
-     "ts_undeclared_first.ts",
-     "ts_undeclared_pid.ts",
-     "ts_video_only.ts",
-     "ts_wrap_far.ts",
-     "ts_wrap_near.ts"
-    ]
-   }
-  },
-  {
    "id": "KD-FF9-TIMECODE-GROUP",
    "accepts": {
     "format.nb_stream_groups": {
@@ -3262,6 +3203,25 @@
      "mkv_rotate_ccw90.mkv",
      "size_h264_annexb_understated.mkv",
      "size_h264_understated.mkv"
+    ]
+   }
+  },
+  {
+   "id": "KD-FF9-AV1-NCLX",
+   "accepts": {
+    "streams.mime_codec_string": {
+     "evidence": "av1 nclx",
+     "ffprobe": "av01.0.00M.08",
+     "coreav": "av01.0.00M.08.0.110.06.06.06.1",
+     "where": {
+      "codec_type": "video",
+      "codec_name": "av1"
+     }
+    }
+   },
+   "keys": {
+    "streams.mime_codec_string": [
+     "color_av1_colr_ignored.mp4"
     ]
    }
   }
