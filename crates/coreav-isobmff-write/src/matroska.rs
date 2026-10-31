@@ -1079,6 +1079,8 @@ fn audio_plan(track: &Track, timescale: u32) -> Plan {
         prefix: Vec::new(),
         samples: Records::default(),
         parameter_sets: Vec::new(),
+        audio_config: Vec::new(),
+        alac_element: 0,
         failure: None,
         end_padding_ns: 0,
         entry: Vec::new(),
