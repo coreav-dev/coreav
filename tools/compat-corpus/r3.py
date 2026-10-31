@@ -301,6 +301,8 @@ def summarize(c, bar):
     counted pairs (those ffmpeg ran to success), how many passed, and
     whether at least BAR% did."""
     commands = collections.defaultdict(collections.Counter)
+    for entry, n, _ in release_round.commands('ffmpeg'):
+        commands[f"{entry['id']}.{n}"] = collections.Counter()
     rows = []
     for key in sorted(c['cells']):
         cmd, fam = key.split('|')

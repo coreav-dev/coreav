@@ -1,0 +1,470 @@
+name: compat-0.1.0
+
+# R2 and R3 of the 0.1.0 compatibility round (docs/measurements/compat-0.1.0/README.md,
+# "The bars"; docs/design/compat-cli.md, "The 0.1.0 bars, pre-registered") on
+# GitHub-hosted runners, at the commit given as input:
+#
+# - build: `coreav` with `--profile dist`, as the round names it, and the
+#   coreav-cli `ffmpeg` test executable that tools/compat-corpus/r3.py drives;
+# - measure: the set's files, split into shards by position, fetched from the
+#   corpus store with its read-only credentials; per shard `run.py keys --set
+#   0.1.0` (R2) and `r3.py run` (R3) with the pinned FFmpeg of the commit;
+# - report: the shards' summaries added up into one, published in the job
+#   summary and the `compat-0.1.0-summary` artifact.
+#
+# The summaries hold counts per key and per command, never a file's name or
+# hash, and the steps print counts only. The per-file records are sealed with
+# tools/compat-corpus/evidence-public.pem (AES-256 with a random key, the key
+# encrypted to that RSA key with OAEP) before they leave the runner, so their
+# artifact can be read only with the private key the maintainer's evidence
+# store keeps. To open one:
+#   openssl pkeyutl -decrypt -inkey PRIVATE.pem -pkeyopt rsa_padding_mode:oaep \
+#     -pkeyopt rsa_oaep_md:sha256 -in key.txt.enc -out key.txt
+#   openssl enc -d -aes-256-cbc -pbkdf2 -pass file:key.txt -in records.tgz.enc -out records.tgz
+#
+# Sets: `rehearsal` (spent files: corpus v1, v1-ts-audio and v2-heldout draws
+# 1 to 5; tools/compat-corpus/round_files.py) also rehearses the R4 host's job
+# on a runner (`compat_r4_gcp.py --local --rehearsal`, a few files a family,
+# one round: its timings mean nothing). `draw6` reads v2-heldout draw 6, which
+# spends it, and only when `open_draw` is set too. A pull request that changes
+# this file runs the rehearsal, so the workflow is proven on spent files
+# before it can open the draw. The rehearsal also scans which R4 pairs write
+# to the fallback log on the gate's and the rehearsal's R4 files
+# (tools/compat-corpus/r4_scan.py), since any such line voids R4. Forks and
+# runs without the credentials measure nothing and say so.
+#
+# A measurement run by hand, not a gate:
+# workflow-check: not required
+on:
+  workflow_dispatch:
+    inputs:
+      set:
+        description: rehearsal (spent files) or draw6 (spends draw 6)
+        type: choice
+        options: [rehearsal, draw6]
+        default: rehearsal
+      open_draw:
+        description: required with draw6, to open the draw
+        type: boolean
+        default: false
+      commit:
+        description: the commit to measure (default the commit this runs on)
+        type: string
+        default: ''
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - .github/workflows/compat-0.1.0.yml
+      - scripts/oracle-ffmpeg.env
+      - scripts/install-oracle-ffmpeg.sh
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  SHARDS: 4
+
+jobs:
+  compat-plan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      set: ${{ steps.plan.outputs.set }}
+      commit: ${{ steps.plan.outputs.commit }}
+      creds: ${{ steps.plan.outputs.creds }}
+    steps:
+      - id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          SET: ${{ inputs.set }}
+          OPEN: ${{ inputs.open_draw }}
+          COMMIT: ${{ inputs.commit }}
+          SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = pull_request ]; then SET=rehearsal; COMMIT=; fi
+          if [ "$SET" = draw6 ] && [ "$OPEN" != true ]; then
+            echo "::error::draw6 spends the draw: set open_draw as well"
+            exit 1
+          fi
+          if [ -n "$R2_ENDPOINT" ] && [ -n "$R2_ACCESS_KEY_ID" ] && [ -n "$R2_SECRET_ACCESS_KEY" ] && [ -n "$R2_BUCKET" ]; then
+            echo "creds=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "creds=false" >> "$GITHUB_OUTPUT"
+            echo "### compat-0.1.0: not run, no corpus credentials" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "set=$SET" >> "$GITHUB_OUTPUT"
+          echo "commit=${COMMIT:-$SHA}" >> "$GITHUB_OUTPUT"
+
+  compat-build:
+    needs: compat-plan
+    if: needs.compat-plan.outputs.creds == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.compat-plan.outputs.commit }}
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: false
+      - name: Build coreav and the R3 harness
+        run: |
+          set -euo pipefail
+          cargo build --locked --profile dist -p coreav-cli
+          HARNESS=$(cargo test --locked --release -p coreav-cli --test ffmpeg --no-run --message-format=json \
+            | python3 -I -c 'import json, sys
+          for line in sys.stdin:
+              d = json.loads(line)
+              if d.get("reason") == "compiler-artifact" and d.get("executable") and d["target"]["name"] == "ffmpeg":
+                  print(d["executable"])')
+          mkdir -p dist
+          cp target/dist/coreav dist/coreav
+          cp "$HARNESS" dist/r3-harness
+          (cd dist && sha256sum coreav r3-harness) | tee dist/sha256.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: compat-binaries
+          path: dist
+          retention-days: 7
+
+  compat-measure:
+    needs: [compat-plan, compat-build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.compat-plan.outputs.commit }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: compat-binaries
+          path: ${{ runner.temp }}/bin
+      - name: Cache the pinned FFmpeg and MediaInfo
+        id: oracle-cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/oracle
+          key: compat-oracle-${{ hashFiles('scripts/install-oracle-ffmpeg.sh', 'scripts/oracle-ffmpeg.env', 'scripts/install-oracle-mediainfo.sh') }}
+      - name: Install the pinned FFmpeg and MediaInfo
+        if: steps.oracle-cache.outputs.cache-hit != 'true'
+        run: |
+          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+          scripts/install-oracle-mediainfo.sh "$RUNNER_TEMP/oracle"
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/oracle"
+      - name: Fetch this shard's files
+        env:
+          SET: ${{ needs.compat-plan.outputs.set }}
+          SHARD: ${{ matrix.shard }}
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+        run: |
+          set -euo pipefail
+          mkdir -m 700 "$RUNNER_TEMP/private"
+          python3 -I tools/compat-corpus/round_files.py select --set "$SET" --out "$RUNNER_TEMP/private/set.json"
+          python3 -I tools/compat-corpus/round_files.py fetch --files "$RUNNER_TEMP/private/set.json" \
+            --dest "$RUNNER_TEMP/media" --shard "$SHARD/$SHARDS"
+          python3 -I -c 'import json, sys; [print(e["path"]) for e in json.load(open(sys.argv[1]))]' \
+            "$RUNNER_TEMP/media/files.json" > "$RUNNER_TEMP/private/list.txt"
+      - name: R2, the keys of the set
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          set -euo pipefail
+          chmod +x "$RUNNER_TEMP/bin/coreav" "$RUNNER_TEMP/bin/r3-harness"
+          export PATH="$RUNNER_TEMP/oracle:$PATH"
+          code=0
+          python3 -I tools/compat-corpus/run.py keys --set 0.1.0 --coreav "$RUNNER_TEMP/bin/coreav" \
+            --list "$RUNNER_TEMP/private/list.txt" --records "$RUNNER_TEMP/private/r2.jsonl" \
+            --summary "$RUNNER_TEMP/r2-summary.json" --top 0 || code=$?
+          [ "$code" -le 2 ]
+      - name: R3, the copy outputs
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          set -euo pipefail
+          # A shard's own verdict (0 met, 1 missed, 2 void) is not the round's: the report step adds the shards up.
+          code=0
+          python3 -I tools/compat-corpus/r3.py run --coreav "$RUNNER_TEMP/bin/coreav" \
+            --harness "$RUNNER_TEMP/bin/r3-harness" --ffmpeg "$RUNNER_TEMP/oracle/ffmpeg" \
+            --ffprobe "$RUNNER_TEMP/oracle/ffprobe" --mediainfo "$RUNNER_TEMP/oracle/mediainfo" \
+            --list "$RUNNER_TEMP/private/list.txt" --work "$RUNNER_TEMP/r3-work" \
+            --records "$RUNNER_TEMP/private/r3.jsonl" --jobs 4 || code=$?
+          [ "$code" -le 2 ]
+          code=0
+          python3 -I tools/compat-corpus/r3.py report --records "$RUNNER_TEMP/private/r3.jsonl" \
+            --summary "$RUNNER_TEMP/r3-summary.json" > /dev/null || code=$?
+          [ "$code" -le 2 ]
+      - name: Seal the per-file records
+        if: always()
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          [ -d private ] || exit 0
+          tar -czf records.tgz private
+          mkdir -p sealed
+          openssl rand -hex -out key.txt 32
+          openssl enc -aes-256-cbc -pbkdf2 -salt -pass file:key.txt -in records.tgz -out sealed/records.tgz.enc
+          openssl pkeyutl -encrypt -pubin -inkey "$GITHUB_WORKSPACE/tools/compat-corpus/evidence-public.pem" \
+            -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 -in key.txt -out sealed/key.txt.enc
+          shred -u key.txt records.tgz
+          rm -rf private media r3-work
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: compat-sealed-${{ matrix.shard }}
+          path: ${{ runner.temp }}/sealed
+          if-no-files-found: ignore
+          retention-days: 30
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: compat-shard-${{ matrix.shard }}
+          path: |
+            ${{ runner.temp }}/r2-summary.json
+            ${{ runner.temp }}/r3-summary.json
+          retention-days: 30
+
+  compat-r4-rehearsal:
+    # The R4 host's job (scripts/compat_r4_gcp.py) end to end on a runner:
+    # the gate's files, both gate arms, then the rehearsal's spent files in
+    # the draw's place, a few files a family and one round. A shared runner
+    # does not qualify for R4, so its timings are a check of the tools only.
+    needs: [compat-plan, compat-build]
+    if: needs.compat-plan.outputs.set == 'rehearsal'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.compat-plan.outputs.commit }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: compat-binaries
+          path: ${{ runner.temp }}/bin
+      - name: Cache the pinned FFmpeg and MediaInfo
+        id: oracle-cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/oracle
+          key: compat-oracle-${{ hashFiles('scripts/install-oracle-ffmpeg.sh', 'scripts/oracle-ffmpeg.env', 'scripts/install-oracle-mediainfo.sh') }}
+      - name: Install the pinned FFmpeg and MediaInfo
+        if: steps.oracle-cache.outputs.cache-hit != 'true'
+        run: |
+          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+          scripts/install-oracle-mediainfo.sh "$RUNNER_TEMP/oracle"
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/oracle"
+      - name: Run the R4 host's job here
+        env:
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          set -euo pipefail
+          chmod +x "$RUNNER_TEMP/bin/coreav"
+          code=0
+          python3 -I scripts/compat_r4_gcp.py --out "$RUNNER_TEMP/r4" --coreav "$RUNNER_TEMP/bin/coreav" \
+            --ffmpeg "$RUNNER_TEMP/oracle/ffmpeg" --ffprobe "$RUNNER_TEMP/oracle/ffprobe" \
+            --rehearsal --per-family 3 --rounds 1 --cpus 2-3 --local || code=$?
+          mkdir -p "$RUNNER_TEMP/r4-public"
+          cp "$RUNNER_TEMP/r4/verdict.json" "$RUNNER_TEMP"/r4/vm/*.report.json "$RUNNER_TEMP"/r4/vm/*.report.txt \
+            "$RUNNER_TEMP/r4/vm/ffmpeg-version.txt" "$RUNNER_TEMP/r4-public/"
+          # 0: R4 ran after a passed gate; 3: the gate failed (expected on a shared runner) and R4 ran all the same;
+          # 5: void, accepted here only when a fallback log (a command CoreAV still refuses) is among the reasons
+          # and every other reason is a group those refusals left with no ratio.
+          [ "$code" -eq 0 ] || [ "$code" -eq 3 ] || { [ "$code" -eq 5 ] && python3 -I -c 'import json, sys
+          r = json.load(open(sys.argv[1]))["reasons"]
+          logs = [x for x in r if x.startswith("the fallback log of ")]
+          sys.exit(not logs or not all(x in logs or x.endswith(" unmeasured") for x in r))' "$RUNNER_TEMP/r4/verdict.json"; }
+          cat "$RUNNER_TEMP/r4/verdict.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: compat-r4-rehearsal
+          path: ${{ runner.temp }}/r4-public
+          if-no-files-found: ignore
+          retention-days: 30
+
+  compat-r4-scan:
+    # Which (command, file) pairs of R4 write to the fallback log, which voids
+    # an R4 run (tools/compat-corpus/r4_scan.py), on the gate's files and on
+    # the rehearsal's spent R4 files: every pair once, nothing timed.
+    needs: [compat-plan, compat-build]
+    if: needs.compat-plan.outputs.set == 'rehearsal'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.compat-plan.outputs.commit }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: compat-binaries
+          path: ${{ runner.temp }}/bin
+      - name: Cache the pinned FFmpeg and MediaInfo
+        id: oracle-cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/oracle
+          key: compat-oracle-${{ hashFiles('scripts/install-oracle-ffmpeg.sh', 'scripts/oracle-ffmpeg.env', 'scripts/install-oracle-mediainfo.sh') }}
+      - name: Install the pinned FFmpeg and MediaInfo
+        if: steps.oracle-cache.outputs.cache-hit != 'true'
+        run: |
+          scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+          scripts/install-oracle-mediainfo.sh "$RUNNER_TEMP/oracle"
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/oracle"
+      - name: Scan the R4 pairs
+        env:
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          set -euo pipefail
+          chmod +x "$RUNNER_TEMP/bin/coreav"
+          mkdir -m 700 "$RUNNER_TEMP/private"
+          mkdir -p "$RUNNER_TEMP/scan"
+          for set in r4-gate r4-rehearsal; do
+            python3 -I tools/compat-corpus/round_files.py select --set "$set" --out "$RUNNER_TEMP/private/$set.json"
+            python3 -I tools/compat-corpus/round_files.py fetch --files "$RUNNER_TEMP/private/$set.json" \
+              --dest "$RUNNER_TEMP/media/$set"
+            code=0
+            python3 -I tools/compat-corpus/r4_scan.py --coreav "$RUNNER_TEMP/bin/coreav" \
+              --ffmpeg "$RUNNER_TEMP/oracle/ffmpeg" --ffprobe "$RUNNER_TEMP/oracle/ffprobe" \
+              --files "$RUNNER_TEMP/media/$set/files.json" --scratch "$RUNNER_TEMP/scratch" \
+              --out "$RUNNER_TEMP/scan/$set.json" --records "$RUNNER_TEMP/private/$set.jsonl" --jobs 4 || code=$?
+            # 0: no pair wrote a line; 1: some did. Anything else is not a scan.
+            [ "$code" -le 1 ]
+            cp "$RUNNER_TEMP/media/$set/files.json" "$RUNNER_TEMP/private/$set.files.json"
+            rm -rf "$RUNNER_TEMP/media/$set"
+          done
+          python3 -I - "$RUNNER_TEMP/scan" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json, pathlib, sys
+          for path in sorted(pathlib.Path(sys.argv[1]).glob('*.json')):
+              s = json.loads(path.read_text())
+              print(f"## R4 pairs that write to the fallback log: {path.stem}\n")
+              print(f"Files {s['files']}, pairs {s['pairs']}, pairs with a line {s['pairs logged']} {s['pairs by cause']}.\n")
+              print('| Command | Class | Pairs | Reason | Files | Every pair | Pinned tool fails too |')
+              print('|---|---|---|---|---|---|---|')
+              for name in s['commands logged']:
+                  c = s['commands'][name]
+                  for reason, g in sorted(c['logged'].items()):
+                      print(f"| {name} | {c['class']} | {c['pairs']} | {reason} | {len(g['files'])} | "
+                            f"{'yes' if g['every pair'] else 'no'} | {len(g['reference fails on'])} |")
+              failed = {n: len(c['failed']) for n, c in s['commands'].items() if c['failed']}
+              print(f"\nFailed with no line in the log: {failed or 'none'}.\n")
+          PY
+      - name: Seal the per-pair records
+        if: always()
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          [ -d private ] || exit 0
+          tar -czf records.tgz private
+          mkdir -p sealed
+          openssl rand -hex -out key.txt 32
+          openssl enc -aes-256-cbc -pbkdf2 -salt -pass file:key.txt -in records.tgz -out sealed/records.tgz.enc
+          openssl pkeyutl -encrypt -pubin -inkey "$GITHUB_WORKSPACE/tools/compat-corpus/evidence-public.pem" \
+            -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 -in key.txt -out sealed/key.txt.enc
+          shred -u key.txt records.tgz
+          rm -rf private media scratch
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: compat-r4-scan-sealed
+          path: ${{ runner.temp }}/sealed
+          if-no-files-found: ignore
+          retention-days: 30
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: compat-r4-scan
+          path: ${{ runner.temp }}/scan
+          retention-days: 30
+
+  compat-report:
+    needs: [compat-plan, compat-build, compat-measure, compat-r4-rehearsal]
+    if: always() && needs.compat-plan.outputs.creds == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.compat-plan.outputs.commit }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: compat-shard-*
+          path: ${{ runner.temp }}/shards
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: compat-binaries
+          path: ${{ runner.temp }}/bin
+      - name: Add up the shards
+        env:
+          SET: ${{ needs.compat-plan.outputs.set }}
+          COMMIT: ${{ needs.compat-plan.outputs.commit }}
+          MEASURE: ${{ needs.compat-measure.result }}
+        run: |
+          set -euo pipefail
+          [ "$MEASURE" = success ] || { echo "::error::a shard did not finish: no summary"; exit 1; }
+          OUT="$RUNNER_TEMP/summary"
+          mkdir -p "$OUT"
+          # 0 met, 1 missed, 2 void: each is a result; 3 (measured nothing) or a crash is not.
+          r2=0; r3=0
+          python3 -I tools/compat-corpus/run.py keys-report --summaries "$RUNNER_TEMP"/shards/*/r2-summary.json \
+            --summary "$OUT/r2.json" --top 0 > /dev/null || r2=$?
+          python3 -I tools/compat-corpus/r3.py report --summaries "$RUNNER_TEMP"/shards/*/r3-summary.json \
+            --summary "$OUT/r3.json" > /dev/null || r3=$?
+          [ "$r2" -le 2 ] && [ "$r3" -le 2 ] && [ -s "$OUT/r2.json" ] && [ -s "$OUT/r3.json" ]
+          cp "$RUNNER_TEMP/bin/sha256.txt" "$OUT/"
+          python3 -I - "$OUT" "$SET" "$COMMIT" "$r2" "$r3" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json, pathlib, sys
+          out, name, commit = pathlib.Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+          verdicts = {'0': 'met', '1': 'missed', '2': 'void (the fallback log holds a line)'}
+          print(f'R2: {verdicts[sys.argv[4]]}. R3: {verdicts[sys.argv[5]]}.\n')
+          r2, r3 = (json.loads((out / f).read_text()) for f in ('r2.json', 'r3.json'))
+          sha = (out / 'sha256.txt').read_text().split()[0]
+          print(f'## compat-0.1.0: {name} at {commit[:12]}\n')
+          print(f'coreav (dist) sha256 `{sha}`. Fallback logs: R2 {r2["fallback_log"]}, R3 {r3["fallback_log"]}.\n')
+          print('### R2: keys of the set, per family\n')
+          print('| Family | Files | Gated rows | Below 98% |')
+          print('|---|---|---|---|')
+          for fam, d in r2['families'].items():
+              files = ', '.join(f'{k} {v}' for k, v in sorted(d['files'].items()))
+              print(f"| {fam} | {files} | {sum(r['gated'] for r in d['keys'])} | {len(d['below'])} |")
+          for fam, d in r2['families'].items():
+              for r in sorted((r for r in d['keys'] if r['below']), key=lambda r: r['rate']):
+                  print(f"- {fam} `{r['key']}`: {r['agree']} of {r.get('files', r.get('occurrences'))} ({r['rate']}%)")
+          print(f"\nFamilies with no file the pinned ffprobe reads (they miss): {r2['unmeasured'] or 'none'}.")
+          print('\n### R3: copy outputs, per command\n')
+          print(f"Files per family: {r3['files']}. Commands no file could take: {r3['taken_by_no_file'] or 'none'}. "
+                f"Commands the pinned tools failed on every file that could take them (they miss): {r3['unmeasured'] or 'none'}.\n")
+          print('| Command | Counted pairs | Passed | Rate | Meets 98% |')
+          print('|---|---|---|---|---|')
+          for t in r3['commands']:
+              if t['counted']:
+                  print(f"| {t['command']} | {t['counted']} | {t['passed']} | {t['rate']}% | {'yes' if t['meets'] else 'no'} |")
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: compat-0.1.0-summary
+          path: ${{ runner.temp }}/summary
+          retention-days: 90

@@ -467,6 +467,8 @@ changes inside the track) is set aside rather than passed when its stream
 selection matches FFmpeg's, and its command is unmeasured and misses; a
 selection that differs fails it. A command meets R3 when at least 98% of its counted pairs pass, each
 spelling of the set counted on its own, as the bar says "each command".
+The summary lists every command of the set, including one with no file of
+its families, as taken by no file and not counted.
 
 `speed.py r4` times R4 and both gate arms: `r4` CoreAV against FFmpeg,
 `aa` FFmpeg against itself and `null` CoreAV against itself, the same
