@@ -505,7 +505,8 @@ directly.
   `CodecNotAllowed`; the reference's streams at exactly those indexes have
   the dropped fourcc and a codec the default allowlist does not hold (as
   `ffprobe` names it: not `h264`, `hevc`, `av1`, `vp9`, `prores`, `aac`,
-  `mp3`, `opus`, `mov_text`, a `pcm_` codec or a `tmcd` track), so an
+  `mp3`, `opus`, `flac`, `alac`, `ac3`, `eac3`, `mov_text`, a `pcm_` codec
+  or a `tmcd` track), so an
   allowed codec CoreAV fails to recognise is never covered; or, for a
   protected sample entry (`enca`, `encv`, `enct`, `encs`, ISO/IEC 14496-12
   8.12), dropped for its protection and reported by `ffprobe` under its

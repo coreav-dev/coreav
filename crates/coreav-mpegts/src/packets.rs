@@ -407,7 +407,9 @@ impl TransportStream {
         let mut demux = Demux::new(&self.allowlist, limits);
         // The streams the probe kept (sniffed codecs included) are read
         // whatever the tables say; others when a PMT names them.
-        demux.always = self.streams.iter().map(|s| s.pid).collect();
+        for stream in &self.streams {
+            let _ = demux.always.set(stream.pid, ());
+        }
         // The Event Information Table is listed as a stream, so its
         // sections are its packets.
         demux.keep_epg = true;
@@ -524,7 +526,7 @@ impl<S: Source> Packets<'_, S> {
             return None;
         }
         let audio = entry.codec.frames().and_then(|syntax| {
-            frames::header(syntax, &pes.payload)
+            frames::header(syntax, pes.payload())
                 .filter(|f| f.sample_rate > 0)
                 .map(|f| Audio {
                     sample_rate: f.sample_rate,
@@ -583,7 +585,7 @@ impl<S: Source> Packets<'_, S> {
                     offset,
                 });
             }
-            self.demux.feed(offset, &packet, &mut self.warnings)?;
+            self.demux.feed(offset, packet, &mut self.warnings)?;
             self.drain()?;
         }
         Ok(())
@@ -669,7 +671,7 @@ impl<S: Source> Packets<'_, S> {
                 index,
                 nal,
                 Piece {
-                    payload: &pes.payload,
+                    payload: pes.payload(),
                     offset: pes.offset,
                     random_access: pes.random_access,
                     stream_id: pes.header.stream_id,
@@ -680,7 +682,7 @@ impl<S: Source> Packets<'_, S> {
             return;
         }
         let keyframe = match stream.codec {
-            Codec::Mpeg1Video | Codec::Mpeg2Video => video::mpeg2_keyframe(&pes.payload),
+            Codec::Mpeg1Video | Codec::Mpeg2Video => video::mpeg2_keyframe(pes.payload()),
             // A stream whose codec is not named: nothing says where
             // decoding can start, since nothing reads the bytes. A
             // private stream (type 0x06) is read as binary data and
@@ -688,6 +690,7 @@ impl<S: Source> Packets<'_, S> {
             Codec::Other if stream.stream_type != 0x06 => false,
             _ => stream.kind != StreamKind::Video || pes.random_access,
         };
+        let stream_id = Some(pes.header.stream_id);
         let packet = Packet {
             stream: index,
             pos: Some(pes.offset),
@@ -696,9 +699,9 @@ impl<S: Source> Packets<'_, S> {
             dts,
             duration: None,
             keyframe,
-            data: pes.payload,
+            data: pes.into_payload(),
             corrupt: false,
-            stream_id: Some(pes.header.stream_id),
+            stream_id,
             split: false,
         };
         self.queue.push_back(packet);
@@ -1047,9 +1050,10 @@ impl<S: Source> Packets<'_, S> {
         // A frame still short of its length takes the payload whole: its
         // header is not read again (linear in the bytes, however long the
         // frame).
-        if state.need > 0 && state.leftover.len() + pes.payload.len() < state.need {
-            state.leftover.extend_from_slice(&pes.payload);
-            self.carried = self.carried.saturating_add(pes.payload.len());
+        let payload = pes.payload();
+        if state.need > 0 && state.leftover.len() + payload.len() < state.need {
+            state.leftover.extend_from_slice(payload);
+            self.carried = self.carried.saturating_add(payload.len());
             return;
         }
         state.stream_id = Some(pes.header.stream_id);
@@ -1062,7 +1066,7 @@ impl<S: Source> Packets<'_, S> {
             state.cut = None;
         }
         let mut data = std::mem::take(&mut state.leftover);
-        data.extend_from_slice(&pes.payload);
+        data.extend_from_slice(payload);
         let mut at = 0usize;
         let mut first_in_pes = true;
         // In the listing as `ffprobe` gives it, the bytes before the

@@ -11,6 +11,7 @@
 //! timeline. Edits of inputs that meet exactly are merged, so the segments
 //! of a split join back into one edit per track.
 
+use crate::audio;
 use crate::clip::{
     Scaled, Timeline, gapless, media_duration, movie_timescale, select_audio, select_video,
     video_sample_entry,
@@ -42,9 +43,10 @@ const AUDIO_ID: u32 = 2;
 ///
 /// Each input is probed with `limits` and `allowlist`; its first video
 /// track (H.264 `avc1`, HEVC `hvc1`, AV1 or VP9) and, with
-/// [`JoinAudio::First`], its first audio track (AAC), or with
-/// [`JoinAudio::Stream`], its audio stream at that index (AAC), are kept,
-/// checked as a clip checks them. Every input must match the first: the same codecs,
+/// [`JoinAudio::First`], its first audio track, or with
+/// [`JoinAudio::Stream`], its audio stream at that index (AAC, FLAC, ALAC,
+/// AC-3 or E-AC-3), are kept, checked as a clip checks them. Every input
+/// must match the first: the same codecs,
 /// sample entry types, codec configurations, coded size, `pasp`, `clap` and
 /// `colr` boxes, channels, sample rate, media timescales, track matrix and
 /// display size, and an audio track in all or none. Anything else fails with
@@ -639,12 +641,18 @@ fn compare(first: &Pick<'_>, this: &Pick<'_>) -> Option<Mismatch> {
         });
     }
     let config = |d: &coreav_isobmff::SampleDescription| {
-        d.codec_config.as_ref().map(|c| decoder_config(&c.data))
+        d.codec_config.as_ref().map(|c| match &c.kind.0 {
+            b"esds" => decoder_config(&c.data),
+            _ => audio::decoding_config(c),
+        })
     };
     if config(a) != config(b) {
         return Some(Mismatch::Configuration {
             track: audio,
-            kind: coreav_isobmff::FourCc(*b"esds"),
+            kind: a
+                .codec_config
+                .as_ref()
+                .map_or(coreav_isobmff::FourCc(*b"esds"), |c| c.kind),
         });
     }
     if fa.track.timescale != ta.track.timescale {

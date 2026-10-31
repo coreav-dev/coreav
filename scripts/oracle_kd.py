@@ -1110,7 +1110,8 @@ PROTECTED = ('enca', 'encv', 'enct', 'encs')
 # The codecs of CoreAV's default allowlist (coreav-isobmff `Allowlist`), as
 # `ffprobe` names them: a stream of one of these that CoreAV drops is a
 # CoreAV bug, never a known divergence.
-ALLOWLISTED_CODEC_NAMES = ('h264', 'hevc', 'av1', 'vp9', 'prores', 'aac', 'mp3', 'opus', 'mov_text')
+ALLOWLISTED_CODEC_NAMES = ('h264', 'hevc', 'av1', 'vp9', 'prores', 'aac', 'mp3', 'opus', 'flac', 'alac',
+                           'ac3', 'eac3', 'mov_text')
 # The sample entry types CoreAV maps to those codecs (ISO/IEC 14496-12 and
 # the codec bindings; Apple ProRes `ap..`; QuickTime PCM): a dropped stream
 # with one of them is a CoreAV bug whatever `ffprobe` calls it.

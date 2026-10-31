@@ -76,14 +76,19 @@ every encoder value of a codec option, `-f lavfi`, `-f image2`,
 `-sample_fmts`, `-layouts`, `-sections`, `-version`).
 
 One encode is taken since: in a build with a decoder backend, a command
-line that encodes the video with `libx264`, with the few options
+line that encodes the video with `libx264`, and in a build with the
+`libopus` feature also its audio with `libopus` (`-c:a libopus`, `-b:a`),
+with the few options
 [`transcode.md`](transcode.md) lists under "Through `coreav ffmpeg`", runs
 through `coreav transcode`'s pipeline, and its bar is B9 there. The
 vocabulary above and the labels of the command-coverage set stay step 1's,
 so those command lines remain `out-of-scope` in the set, and B1 holds for
 the default build, which has no decoder backend and refuses them. B1 on a
 build with a decoder backend needs those lines relabelled first, a change
-to `classify.py` this step does not make.
+to `classify.py` this step does not make. A build with the `libopus`
+feature encodes a `-c:a libopus` line natively; in any other build such a
+line is not native, so it runs FFmpeg outside strict-safe mode ("Fallback
+to FFmpeg") and is refused in strict-safe mode, where nothing runs.
 
 Every one of those is refused by **naming it**: the error says which
 option or property is not supported, and the exit status is non-zero. A
@@ -421,9 +426,13 @@ those sections that B3a measures; what drops out is the program keys of
 
 Every run of these bars sets `COREAV_STRICT_SAFE=1`, so a command that is
 not native is refused and never handed to FFmpeg ("Fallback to FFmpeg",
-below), and sets `COREAV_FALLBACK_LOG` to a file of the run; a run whose log
-holds any line is void. A fallback would pass every comparison by being
-FFmpeg.
+below), and sets `COREAV_FALLBACK_LOG` to a file of the run. R1 to R3 keep
+the rule that any log line voids the run. The registered
+[R4 refusal timing-set plan](../measurements/compat-0.1.0/r4-refusal-plan.md)
+changes only R4's handling of run-observed strict-safe refusals, with
+coverage published beside speed; its tools follow in a separate change.
+An executed fallback still voids a native run: it would pass every
+comparison by being FFmpeg.
 
 | | Bar | Refines |
 |---|---|---|
@@ -499,8 +508,11 @@ command for both sides, on every file of its families that R3's rule lets
 take it. The runner pins itself to the CPUs of `--cpus`, so every timed
 process runs there; an `ffmpeg` command writes into a scratch directory on
 the local disk that is emptied after every run. A pair whose untimed run
-fails on either side has no ratio and is reported, a strict-safe refusal
-apart (its fallback-log line voids the run). A timed run that fails or
+fails on either side has no ratio and is reported. The current runner
+voids the run on a strict-safe refusal's log line; the separate
+[R4 refusal plan](../measurements/compat-0.1.0/r4-refusal-plan.md) registers
+its replacement and the required coverage accounting before the tools
+implement it. A timed run that fails or
 times out after both untimed runs succeeded makes the run incomplete, which
 fails R4 and fails the gate, never passes them on the timings left. `speed.py r4-report --gate` judges the gate on each class's ratios
 over the three families, as the gate names "every class's median"; the
@@ -973,9 +985,9 @@ implies:
 | a copy to `.mp4` (or `-f mp4`) | `coreav remux`, MP4/MOV or Matroska/WebM input, the selected streams, failing rather than dropping a stream MP4 cannot carry |
 | a copy of one audio stream to `.m4a` (or `-f ipod`) | `coreav extract-audio` |
 | `-ss`, `-t` or `-to`, before or after `-i` | `coreav clip`: one video stream and at most one audio stream |
-| the same, with no video selected | the clip of audio alone (`clip_audio_mp4` of `coreav-isobmff-write`): one AAC stream |
+| the same, with no video selected | the clip of audio alone (`clip_audio_mp4` of `coreav-isobmff-write`): one AAC, FLAC, Apple Lossless, AC-3 or E-AC-3 stream |
 | `-f segment` with MP4 segments | `coreav split --every` the `-segment_time` (2 s when absent) |
-| `-f concat` with an MP4 output | `coreav join` of the list's files (`coreav_cli::concat::read`, with the demuxer's `safe` option): one video stream and at most one audio stream, as `ffmpeg` selects them from the streams the demuxer exposes (below); each is the stream at that index in every file, as the demuxer pairs streams, so a stream the join does not copy (MPEG-4 Visual video or FLAC audio, say) is refused, never left out or replaced |
+| `-f concat` with an MP4 output | `coreav join` of the list's files (`coreav_cli::concat::read`, with the demuxer's `safe` option): one video stream and at most one audio stream, as `ffmpeg` selects them from the streams the demuxer exposes (below); each is the stream at that index in every file, as the demuxer pairs streams, so a stream the join does not copy (MPEG-4 Visual video or MP3 audio, say) is refused, never left out or replaced |
 
 Every other output container, MOV and 3GP included, is refused: the MOV
 muxer's output is not the MP4 writer's.
@@ -1115,18 +1127,19 @@ FFmpeg).**
   (codec, configuration, size, time base), inputs without a stream of the
   selected kind at a selected index (the demuxer pairs streams by index,
   and `join_mp4` copies the streams at the selected indexes), and streams
-  `join_mp4` does not copy (MPEG-4 Visual video, PCM or FLAC audio, say). The join runs to a temporary file and finds these
+  `join_mp4` does not copy (MPEG-4 Visual video, PCM or MP3 audio, say). The join runs to a temporary file and finds these
   at its end; the output is left as it was.
 - A segmented output of a file without video (C32 on such files): `coreav
-  split` cuts at video. A clip without video of other than one AAC
-  stream, or written as M4A.
+  split` cuts at video. A clip without video of other than one AAC,
+  FLAC, Apple Lossless, AC-3 or E-AC-3 stream, or written as M4A.
 - A clip whose range presents no video, or without video no audio (a
   start past the end): `coreav clip` and the clip of audio alone refuse
   it, where `ffmpeg` writes a short file anyway (black box: `-ss 60` on a
   30 s file writes about 2 s; `-ss 3` before `-i` on 2 s of AAC writes one
   frame, after `-i` a file without packets).
 - What the writers do not copy to MP4: subtitle streams, PCM and MP3
-  audio (MP3 by the remux), other audio in a clip than AAC, video other than
+  audio (MP3 by the remux), other audio in a clip than AAC, FLAC, Apple
+  Lossless, AC-3 or E-AC-3, video other than
   H.264 `avc1`, HEVC `hvc1`, AV1 or VP9 in a clip, an M4A file of other than
   one audio stream (C20's `-map 0:a` on a file with several), a clip or
   segments of more than one video or audio stream.
@@ -1369,7 +1382,10 @@ prints keep its derivations, which the stream oracle checks. The others:
   an edit list lasts at least as long as the longest track, in its own
   ticks rounded to the nearest; a timecode track keeps its own.
 - The stream `bit_rate`: PCM and IMA ADPCM their constant rate (sample
-  rate, channels and bits); otherwise the bytes over a duration,
+  rate, channels and bits); AC-3 the rate `dac3`'s `bit_rate_code`
+  names; E-AC-3 its first syncframe's, the frame's size over the audio
+  blocks it holds at its sample rate, not `dec3`'s `data_rate` (at
+  44.1 kHz the frames' sizes differ: `av_eac3.mp4`); otherwise the bytes over a duration,
   truncated, whatever average `esds` or `btrt` declares. Video and audio
   take their whole media, edits aside: the shorter of the media header's
   duration and the samples' (all 176 audio streams of regular samples in
@@ -1432,7 +1448,9 @@ prints keep its derivations, which the stream oracle checks. The others:
   packet; WebVTT tracks are data streams.
 - Packets: one listing merged from every track, in file order, except that
   a packet due more than a second before the next one stored is listed
-  first (that agreed with every interleaving on the development set); the
+  first (that agreed with every interleaving on the development set), and
+  an AC-3 or E-AC-3 packet listed after the packets of other tracks taken
+  before its track's next one (`av_ac3.mp4`, `av_eac3.mp4`); the
   keyframe flag of H.264 and AV1 from the coded data, as the packet oracle
   sets it; the last packet shown of an audio track, and the one presented
   last of a video track, lasting to the end of the presentation; a
