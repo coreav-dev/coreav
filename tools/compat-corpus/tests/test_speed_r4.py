@@ -5,11 +5,15 @@ import json
 import os
 import pathlib
 import random
+import shutil
 import stat
+import statistics
 import subprocess
 import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
+from unittest import mock
 
 HERE = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HERE))
@@ -126,12 +130,109 @@ class Runner(unittest.TestCase):
         self.assertEqual({r['file'] for r in data['results']}, {'mp4-mov:0', 'matroska-webm:0', 'mpegts:0'})
 
 
+@unittest.skipUnless(hasattr(os, 'pidfd_open'), 'R4 runs on Linux with process-exit descriptors')
+class RealTiming(unittest.TestCase):
+    def test_short_real_children_retain_their_slowdown_through_r4(self):
+        sleeper = shutil.which('sleep')
+        self.assertIsNotNone(sleeper)
+        times = ([], [])
+        with tempfile.TemporaryDirectory() as tmp:
+            scratch = pathlib.Path(tmp)
+            with mock.patch.object(speed.time, 'sleep', side_effect=AssertionError('R4 must not poll process exit')):
+                for _ in range(5):
+                    for side, delay in ((0, '0.06'), (1, '0.004')):
+                        (scratch / 'output').write_text('temporary output')
+                        elapsed, code = speed.timed_run([sleeper, delay], {}, scratch)
+                        self.assertEqual(code, 0)
+                        self.assertFalse(list(scratch.iterdir()))
+                        times[side].append(elapsed)
+        ratio = statistics.median(times[0]) / statistics.median(times[1])
+        self.assertGreater(ratio, 1.1)
+        summary = speed.r4_summary(results('r4', [('remux', 'mp4-mov', ratio)]), gate=False)
+        self.assertEqual(summary['failing'], ['remux all', 'remux mp4-mov'])
+
+    def test_the_shared_deadline_reaps_the_child_and_cleans_r4_output(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            scratch = pathlib.Path(tmp)
+            (scratch / 'output').write_text('partial output')
+            with mock.patch.object(speed, 'B4_TIMEOUT', 0.01), \
+                    mock.patch.object(speed.os, 'pidfd_open', wraps=os.pidfd_open) as opened:
+                _, code = speed.timed_run([shutil.which('sleep'), '0.1'], {}, scratch)
+            self.assertIsNone(code)
+            self.assertFalse(list(scratch.iterdir()))
+            with self.assertRaises(ChildProcessError):
+                os.waitpid(opened.call_args.args[0], os.WNOHANG)
+
+    def test_descriptor_failure_reaps_the_child_and_cleans_r4_output(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            scratch = pathlib.Path(tmp)
+            (scratch / 'output').write_text('partial output')
+            with mock.patch.object(speed.os, 'pidfd_open', side_effect=OSError('descriptor unavailable')) as opened:
+                with self.assertRaisesRegex(OSError, 'descriptor unavailable'):
+                    speed.timed_run([shutil.which('sleep'), '0.1'], {}, scratch)
+            self.assertFalse(list(scratch.iterdir()))
+            with self.assertRaises(ChildProcessError):
+                os.waitpid(opened.call_args.args[0], os.WNOHANG)
+
+    def test_infrastructure_errors_abort_after_a_completed_pair(self):
+        for stage, target, method in (('launch', speed.subprocess, 'Popen'),
+                                      ('descriptor', speed.os, 'pidfd_open')):
+            with self.subTest(stage=stage), tempfile.TemporaryDirectory() as tmp:
+                root = pathlib.Path(tmp)
+                out = root / 'results.json'
+                opts = SimpleNamespace(scratch=str(root), out=str(out), cpus='0', arm='aa', rounds=1,
+                                       ffmpeg=sys.executable, ffprobe=sys.executable, coreav=sys.executable)
+                entry = {'id': 'C01', 'tool': 'ffmpeg', 'job': 'remux'}
+                pairs = [(entry, i, {'args': ['-c', 'pass']}, 'mp4-mov:0', 'mp4-mov', root / 'input.mp4')
+                         for i in range(2)]
+                operation = getattr(target, method)
+                calls = 0
+
+                def fail_fifth(*args, **kwargs):
+                    nonlocal calls
+                    calls += 1
+                    if calls == 5:
+                        (root / 'out' / 'partial').write_text('partial output')
+                        raise OSError('infrastructure unavailable')
+                    return operation(*args, **kwargs)
+
+                with mock.patch.object(speed.os, 'sched_setaffinity'), \
+                        mock.patch.object(speed, 'r4_files', return_value=[]), \
+                        mock.patch.object(speed, 'r4_pairs', return_value=pairs), \
+                        mock.patch.object(target, method, side_effect=fail_fifth):
+                    with self.assertRaisesRegex(OSError, 'infrastructure unavailable'):
+                        speed.r4(opts)
+                self.assertEqual(calls, 5)
+                self.assertFalse(out.exists())
+                self.assertFalse(list((root / 'out').iterdir()))
+
+    def test_nonzero_child_exits_are_still_returned(self):
+        for script, expected in (('import sys; sys.exit(7)', 7),
+                                 ('import os, signal; os.kill(os.getpid(), signal.SIGHUP)', -1)):
+            with self.subTest(expected=expected), tempfile.TemporaryDirectory() as tmp:
+                scratch = pathlib.Path(tmp)
+                _, code = speed.timed_run([sys.executable, '-c', script], {}, scratch)
+                self.assertEqual(code, expected)
+                self.assertFalse(list(scratch.iterdir()))
+
+
 def results(arm, ratios):
     return {'arm': arm, 'sides': list(speed.ARMS[arm]), 'files': {}, 'fallback_log': {'void': False},
             'results': [{'class': c, 'family': f, 'id': 'C01', 'command': 0, 'ratio': x} for c, f, x in ratios]}
 
 
 class Report(unittest.TestCase):
+    def test_historical_r4_ratios_remain_readable_without_a_method_version(self):
+        data = results('r4', [('remux', 'mp4-mov', 0.8), ('remux', 'mp4-mov', 1.2)])
+        self.assertNotIn('method', data)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = pathlib.Path(tmp) / 'historical.json'
+            path.write_text(json.dumps(data))
+            done = subprocess.run([sys.executable, '-I', str(HERE / 'speed.py'), 'r4-report', '--results', str(path)],
+                                  capture_output=True, text=True, timeout=60)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertIn('remux', done.stdout)
+
     def test_r4_meets_at_or_below_one(self):
         rows = [('remux', 'mp4-mov', 0.9)] * 10 + [('remux', 'matroska-webm', 1.1)] * 10
         s = speed.r4_summary(results('r4', rows), gate=False)
