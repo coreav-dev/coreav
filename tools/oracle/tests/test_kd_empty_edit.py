@@ -66,6 +66,11 @@ def movie(edits=((50, -1, 1 << 16), (100, 1024, 1 << 16)), stts=((5, 1024), (1, 
     return build(len(head) + 8) + box(b'mdat', bytes(10 * count)), len(head) + 8 + 10 * (count - 1)
 
 
+def absence(oracle, offset, last_dts, edit_end, flag=0, rate=48000):
+    return kd.ProvenAbsence(oracle=oracle, track_id=1, offset=offset, size=10, last_dts=last_dts,
+                            frame_length_flag=flag, core_sample_rate=rate, timescale=rate, edit_end=edit_end)
+
+
 class EmptyEditPadding(unittest.TestCase):
     def evidence(self, data):
         directory = tempfile.mkdtemp()
@@ -140,21 +145,21 @@ class EmptyEditPadding(unittest.TestCase):
         for empty, shift in ((10, 74), (30, 221)):
             data, last = movie(edits=((empty, -1, 1 << 16), (1000, 0, 1 << 16)), asc=rate, timescale=7350,
                                stts=((6, 1024),))
-            self.assertEqual(self.evidence(data), [kd.ProvenAbsence(shift, 1, last, 10, 6144, 7350)])
+            self.assertEqual(self.evidence(data), [absence(shift, last, 6144 - 1024, 7350, rate=7350)])
 
     def test_the_media_edit_reaches_the_end_rounded_down(self):
         # 836 ms at 7,350 Hz is 6,144.6 ticks: it reaches 6,144; 835.9 ms
         # cannot be written, so 835 ms (6,137.25) falls short.
         rate = bytes([2 << 3 | 12 >> 1, (12 & 1) << 7 | 1 << 3])
         data, last = movie(edits=((30, -1, 1 << 16), (836, 0, 1 << 16)), asc=rate, timescale=7350, stts=((6, 1024),))
-        self.assertEqual(self.evidence(data), [kd.ProvenAbsence(221, 1, last, 10, 6144, 6144)])
+        self.assertEqual(self.evidence(data), [absence(221, last, 6144 - 1024, 6144, rate=7350)])
         data, _ = movie(edits=((30, -1, 1 << 16), (835, 0, 1 << 16)), asc=rate, timescale=7350, stts=((6, 1024),))
         self.assertEqual(self.evidence(data), [])
 
     def test_zero_bytes_after_the_configuration_signal_no_extension(self):
         whole = dict(edits=((3, -1, 1 << 16), (200, 0, 1 << 16)), stts=((6, 1024),))
         data, last = movie(asc=LC_48K + bytes(14), **whole)
-        self.assertEqual(self.evidence(data), [kd.ProvenAbsence(144, 1, last, 10, 6144, 9600)])
+        self.assertEqual(self.evidence(data), [absence(144, last, 6144 - 1024, 9600)])
         # They do not rule SBR out, so a short last sample gives nothing.
         self.assertEqual(self.evidence(movie(asc=LC_48K + bytes(14))[0]), [])
 
@@ -192,15 +197,15 @@ class EmptyEditPadding(unittest.TestCase):
         # is needed: the frame spans the same time whatever SBR does.
         whole = dict(stts=((6, 1024),), asc=LC_48K)
         data, last = movie(edits=((3, -1, 1 << 16), (200, 0, 1 << 16)), **whole)
-        self.assertEqual(self.evidence(data), [kd.ProvenAbsence(144, 1, last, 10, 6144, 9600)])
+        self.assertEqual(self.evidence(data), [absence(144, last, 6144 - 1024, 9600)])
         # From media time 1,024 after 30 ms: 5,536 + 1,024 - 6,144 = 416; a
         # media header that disagrees with the samples changes nothing.
         data, last = movie(edits=((30, -1, 1 << 16), (200, 1024, 1 << 16)), mdhd=6200, **whole)
-        self.assertEqual(self.evidence(data), [kd.ProvenAbsence(416, 1, last, 10, 6144, 1024 + 9600)])
+        self.assertEqual(self.evidence(data), [absence(416, last, 6144 - 1024, 1024 + 9600)])
         # Frames of 960.
         data, last = movie(edits=((3, -1, 1 << 16), (200, 0, 1 << 16)), stts=((6, 960),),
                            asc=bytes([LC_48K[0], LC_48K[1] | 4]))
-        self.assertEqual(self.evidence(data), [kd.ProvenAbsence(144, 1, last, 10, 5760, 9600)])
+        self.assertEqual(self.evidence(data), [absence(144, last, 5760 - 960, 9600, flag=1)])
 
     def test_the_whole_frame_case_matches_only_its_exact_values(self):
         data, last = movie(edits=((3, -1, 1 << 16), (200, 0, 1 << 16)), stts=((6, 1024),), asc=LC_48K)
@@ -208,9 +213,11 @@ class EmptyEditPadding(unittest.TestCase):
 
         def matches(oracle, coreav):
             # As the comparator binds a proven absence: CoreAV lists nothing
-            # (not 0), ffprobe exactly the value, the sample within the edit.
+            # (not 0), ffprobe exactly the value, the decoded frame within the
+            # media edit.
             return coreav is None and type(oracle) is int and oracle == evidence.oracle \
-                and evidence.sample_end <= evidence.edit_end
+                and evidence.timescale == evidence.core_sample_rate \
+                and evidence.last_dts + (960 if evidence.frame_length_flag else 1024) <= evidence.edit_end
         self.assertIsInstance(evidence, kd.ProvenAbsence)
         self.assertTrue(matches(144, None))
         for oracle, coreav in ((144, 0), (144, 1), (144, 144), (143, None), (145, None), (None, None), ('144', None)):

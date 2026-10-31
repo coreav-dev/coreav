@@ -3041,17 +3041,20 @@ def overlay(report, reference_dir, candidate_dir, media_dir):
 # (tools/compat-corpus/ffmpeg9.json), from the overlay's own reader.
 
 EmptyEditPadding = collections.namedtuple('EmptyEditPadding', 'track_id offset size oracle coreav')
-# The last sample of a track ends within its media edit, so CoreAV rightly
-# lists no padding on its packet, where ffprobe lists `oracle`; `sample_end`
-# and `edit_end` in the track's media ticks.
-ProvenAbsence = collections.namedtuple('ProvenAbsence', 'oracle track_id offset size sample_end edit_end')
+# The last sample's decoded frame ends within its media edit, so CoreAV
+# rightly lists no padding on its packet, where ffprobe lists `oracle`: the
+# byte facts that show it, `last_dts` and `edit_end` in media ticks, and the
+# configuration's `frameLengthFlag` and core sample rate beside the media
+# time scale, from which a frame spans 960 or 1,024 ticks whatever SBR does.
+ProvenAbsence = collections.namedtuple('ProvenAbsence', 'oracle track_id offset size last_dts frame_length_flag '
+                                       'core_sample_rate timescale edit_end')
 # The backward-compatible extension that rules SBR out (ISO/IEC 14496-3
 # 1.6.2.1): syncExtensionType 0x2b7, object type 5, sbrPresentFlag 0.
 NO_SBR_EXTENSION = b'\x56\xe5\x00'
 
 
 def aac_lc_core(asc, rate):
-    """(frame, explicit) of a plain AAC LC configuration at the sampling rate
+    """(frame, explicit, core rate) of a plain AAC LC configuration at the sampling rate
     `rate` (ISO/IEC 14496-3 1.6.2.1 and 4.4.1): the core frame, 960 or 1,024
     samples by `frameLengthFlag`, and whether the extension that rules SBR out
     follows the configuration. Without it implicit SBR, which would double
@@ -3064,7 +3067,7 @@ def aac_lc_core(asc, rate):
     object_type, rate_index, flags = asc[0] >> 3, (asc[0] & 7) << 1 | asc[1] >> 7, asc[1] & 7
     if object_type != 2 or rate_index >= len(AAC_RATES) or AAC_RATES[rate_index] != rate or flags & 3:
         return None
-    return 960 if flags & 4 else 1024, asc[2:] == NO_SBR_EXTENSION
+    return 960 if flags & 4 else 1024, asc[2:] == NO_SBR_EXTENSION, AAC_RATES[rate_index]
 
 def single_description(facts, track_id):
     """Whether the track has exactly one sample description and every chunk
@@ -3103,8 +3106,7 @@ def empty_edit_padding(facts):
     - the last sample lasts exactly a core frame, so its decoded frame,
       which spans the same ticks whatever SBR does (the media time scale is
       the core rate), ends at or before the media edit's end; CoreAV lists
-      nothing: a `ProvenAbsence` with `ffprobe`'s value, the decoded frame's
-      end and the media edit's;
+      nothing: a `ProvenAbsence` with `ffprobe`'s value and those facts;
     - the last sample is shorter than a frame, the extension that rules SBR
       out fixes the frame, and the media header agrees with the samples:
       CoreAV lists the frame's part past the end, and `ffprobe` nothing once
@@ -3135,7 +3137,7 @@ def empty_edit_padding(facts):
         samples = facts.samples(track_id)
         if core is None or not samples:
             continue
-        (frame, explicit), last = core, samples[-1]
+        (frame, explicit, core_rate), last = core, samples[-1]
         end = last.dts + last.duration
         shift, edit = ticks(empty, timescale), segment * timescale // movie
         if not empty or media_time + edit < end or not media_time <= last.dts:
@@ -3146,7 +3148,10 @@ def empty_edit_padding(facts):
         oracle = presented + frame - end if presented < end else None
         if last.duration == frame:
             if oracle is not None:
-                found.append(ProvenAbsence(oracle, track_id, last.pos, last.size, end, media_time + edit))
+                found.append(ProvenAbsence(oracle=oracle, track_id=track_id, offset=last.pos, size=last.size,
+                                           last_dts=last.dts, frame_length_flag=int(frame == 960),
+                                           core_sample_rate=core_rate, timescale=timescale,
+                                           edit_end=media_time + edit))
         elif explicit and track['mdhd_duration'] == end and 0 < last.duration < frame:
             found.append(EmptyEditPadding(track_id, last.pos, last.size, oracle, frame - last.duration))
     return found
