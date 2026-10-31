@@ -219,10 +219,15 @@ fn framemd5(file: &Path, codec: &str) -> Vec<(i64, usize, String)> {
         .args(["-hide_banner", "-loglevel", "error", "-c:v", codec, "-i"])
         .arg(file)
         .args(["-map", "0:v:0", "-fps_mode", "passthrough", "-noautoscale"])
-        .args(["-enc_time_base", "-1", "-f", "framemd5", "-"])
+        .args(["-enc_time_base:v", "demux", "-f", "framemd5", "-"])
         .output()
         .expect("ffmpeg runs");
-    assert!(out.status.success());
+    assert!(
+        out.status.success(),
+        "{}: {}",
+        file.display(),
+        String::from_utf8_lossy(&out.stderr)
+    );
     let text = String::from_utf8(out.stdout).expect("text");
     assert!(
         text.lines().any(|l| l.starts_with("#tb 0: 1/1000")),
