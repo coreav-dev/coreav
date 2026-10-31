@@ -1633,6 +1633,7 @@
     "packets.duration": [
      "audio_mp3.mov",
      "audio_mp3.mp4",
+     "browser.webm",
      "edit_trim_audio.mp4",
      "mkv_ac3.mkv",
      "mkv_live_clusters.webm",
@@ -1648,6 +1649,7 @@
     "packets.duration_time": [
      "audio_mp3.mov",
      "audio_mp3.mp4",
+     "browser.webm",
      "edit_trim_audio.mp4",
      "mkv_ac3.mkv",
      "mkv_live_clusters.webm",
