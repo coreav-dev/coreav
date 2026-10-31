@@ -114,8 +114,11 @@ in the packets that need them:
 
 - `coreav-isobmff` gives each sample's description index
   (`Packets::description`) and parses every entry
-  (`Track::later_descriptions`); their records and their size count
-  against `max_retained_bytes`.
+  (`Track::later_descriptions`); each entry's record and size count
+  against `max_retained_bytes` as it is parsed, and a track dropped for
+  a codec outside the allowlist gives that charge back. A track is
+  external (`Track::external_data`, no packets) when any of its entries
+  names a data reference outside the file.
 - Before a packet whose description's record differs from the previous
   packet's (the first packet's previous being the first entry), the reader
   puts that description's sequence and picture parameter sets, each after
