@@ -121,6 +121,7 @@ jobs:
             scripts/h264_conformance.py
             scripts/h264_modes_identity.py
             scripts/oracle-ffmpeg.env
+            scripts/install-oracle-ffmpeg.sh
             docs/measurements/h264-training/**
             .github/workflows/ci.yml
             .github/actions/changed-paths/**
