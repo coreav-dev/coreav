@@ -1181,7 +1181,7 @@ fn without_covers(
     at: u64,
     path: Path,
     exclude: Exclude<'_>,
-    keys: &[(FourCc, Vec<u8>)],
+    keys: &[(FourCc, &[u8])],
     left: &mut Left<'_>,
 ) -> Result<Edited, Error> {
     let start = match level {

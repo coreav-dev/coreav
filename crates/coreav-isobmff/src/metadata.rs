@@ -266,9 +266,29 @@ impl ListKey {
     /// metadata key `com.apple.quicktime.artwork`.
     pub fn is_cover(&self) -> bool {
         match self {
+            Self::Atom(kind) => KeyView::Atom(*kind),
+            Self::Key { name, .. } => KeyView::Key(name),
+            Self::Free { .. } => KeyView::Free,
+        }
+        .is_cover()
+    }
+}
+
+/// A list entry's key as borrowed data: the one place [`ListKey::is_cover`]'s
+/// rule is written, so that [`is_cover_entry`] can apply it without
+/// copying a key.
+enum KeyView<'a> {
+    Atom(FourCc),
+    Key(&'a [u8]),
+    Free,
+}
+
+impl KeyView<'_> {
+    fn is_cover(&self) -> bool {
+        match self {
             Self::Atom(kind) => kind.0 == *b"covr",
-            Self::Key { name, .. } => name.as_slice() == b"com.apple.quicktime.artwork",
-            Self::Free { .. } => false,
+            Self::Key(name) => *name == b"com.apple.quicktime.artwork",
+            Self::Free => false,
         }
     }
 }
@@ -688,7 +708,7 @@ impl<S: Source> Reader<'_, S> {
             meta.payload_offset().saturating_add(4)
         };
         let mut handler = None;
-        let mut keys: Vec<(FourCc, Vec<u8>)> = Vec::new();
+        let mut keys_box = None;
         let mut lists = Vec::new();
         for child in self.children(start, meta.end())? {
             match &child.kind.0 {
@@ -697,15 +717,16 @@ impl<S: Source> Reader<'_, S> {
                         handler = fourcc(&head, 8);
                     }
                 }
-                b"keys" if keys.is_empty() => {
-                    if let Some(payload) = self.payload(&child)? {
-                        keys = key_list(&payload);
-                    }
+                b"keys" if keys_box.is_none() => {
+                    keys_box = self
+                        .payload(&child)?
+                        .filter(|payload| !key_list(payload).is_empty());
                 }
                 b"ilst" => lists.push(child),
                 _ => {}
             }
         }
+        let keys = keys_box.as_deref().map(key_list).unwrap_or_default();
         for list in lists {
             self.list(&list, track, ListPlace::Meta { handler }, &keys, items)?;
         }
@@ -718,7 +739,7 @@ impl<S: Source> Reader<'_, S> {
         ilst: &BoxHeader,
         track: Option<usize>,
         place: ListPlace,
-        keys: &[(FourCc, Vec<u8>)],
+        keys: &[(FourCc, &[u8])],
         items: &mut Vec<Item>,
     ) -> Result<(), Error> {
         for entry in self.children(ilst.payload_offset(), ilst.end())? {
@@ -752,7 +773,7 @@ impl<S: Source> Reader<'_, S> {
                     }
                     ListKey::Key {
                         namespace: *namespace,
-                        name: key.clone(),
+                        name: key.to_vec(),
                     }
                 }
                 None if entry.kind == FourCc(*b"----") => ListKey::Free { mean, name },
@@ -785,7 +806,7 @@ fn created(head: &[u8]) -> Option<Timestamp> {
 
 /// The key an item list entry of box type `kind` names in `keys`: its
 /// type read as a 1-based index into them.
-fn keyed(kind: FourCc, keys: &[(FourCc, Vec<u8>)]) -> Option<&(FourCc, Vec<u8>)> {
+fn keyed<T>(kind: FourCc, keys: &[T]) -> Option<&T> {
     usize::try_from(u32::from_be_bytes(kind.0))
         .ok()
         .and_then(|i| i.checked_sub(1))
@@ -795,21 +816,19 @@ fn keyed(kind: FourCc, keys: &[(FourCc, Vec<u8>)]) -> Option<&(FourCc, Vec<u8>)>
 /// Whether an item list entry of box type `kind`, in a `meta` box whose
 /// `keys` box holds `keys` ([`keys`]), holds a cover picture, as
 /// [`ListKey::is_cover`] reads its key. A free-form entry (`----`) never
-/// does.
-pub fn is_cover_entry(kind: FourCc, keys: &[(FourCc, Vec<u8>)]) -> bool {
+/// does. The keys are borrowed and none is copied, so classifying many
+/// entries that name one long key costs no more than reading them.
+pub fn is_cover_entry(kind: FourCc, keys: &[(FourCc, &[u8])]) -> bool {
     match keyed(kind, keys) {
-        Some((namespace, name)) => ListKey::Key {
-            namespace: *namespace,
-            name: name.clone(),
-        }
-        .is_cover(),
-        None => ListKey::Atom(kind).is_cover(),
+        Some((_, name)) => KeyView::Key(name),
+        None => KeyView::Atom(kind),
     }
+    .is_cover()
 }
 
-/// The keys of a `keys` box's payload, in order; `None` when it does not
-/// hold every entry its count states.
-pub fn keys(payload: &[u8]) -> Option<Vec<(FourCc, Vec<u8>)>> {
+/// The keys of a `keys` box's payload, in order, borrowed from it; `None`
+/// when it does not hold every entry its count states.
+pub fn keys(payload: &[u8]) -> Option<Vec<(FourCc, &[u8])>> {
     let count = usize::try_from(be_u32(payload, 4)?).ok()?;
     let keys = key_list(payload);
     (keys.len() == count).then_some(keys)
@@ -817,7 +836,7 @@ pub fn keys(payload: &[u8]) -> Option<Vec<(FourCc, Vec<u8>)>> {
 
 /// The entries of a `keys` box: version and flags, an entry count, then per
 /// entry its size, namespace and name. A list cut short keeps the keys read.
-fn key_list(payload: &[u8]) -> Vec<(FourCc, Vec<u8>)> {
+fn key_list(payload: &[u8]) -> Vec<(FourCc, &[u8])> {
     let mut out = Vec::new();
     let count = be_u32(payload, 4).unwrap_or(0);
     let mut at = 8usize;
@@ -836,7 +855,7 @@ fn key_list(payload: &[u8]) -> Vec<(FourCc, Vec<u8>)> {
         if size < 8 {
             break;
         }
-        out.push((namespace, name.to_vec()));
+        out.push((namespace, name));
         at = end;
     }
     out
@@ -1365,5 +1384,43 @@ mod tests {
         );
         assert_eq!(entry.declared_len, 26 + 16);
         assert_eq!(entry.children[0].kind, FourCc(*b"name"));
+    }
+
+    /// A long key named by many entries: the keys borrow the `keys`
+    /// payload and the rule reads them in place, so classifying an entry
+    /// copies no key (the reviewer's case: 128 entries of a 128-KiB key).
+    #[test]
+    fn cover_entries_are_classified_on_borrowed_keys() {
+        let long = vec![b'k'; 128 * 1024];
+        let artwork = b"com.apple.quicktime.artwork";
+        let entry = |name: &[u8]| {
+            [
+                &u32::try_from(8 + name.len()).unwrap().to_be_bytes()[..],
+                b"mdta",
+                name,
+            ]
+            .concat()
+        };
+        let payload = [
+            &[0u8; 4][..],
+            &2u32.to_be_bytes(),
+            &entry(&long),
+            &entry(artwork),
+        ]
+        .concat();
+        let keys: Vec<(FourCc, &[u8])> = keys(&payload).unwrap();
+        assert!(core::ptr::eq(
+            keys[0].1.as_ptr(),
+            payload.get(16..).unwrap().as_ptr()
+        ));
+        for _ in 0..128 {
+            assert!(!is_cover_entry(FourCc(1u32.to_be_bytes()), &keys));
+        }
+        assert!(is_cover_entry(FourCc(2u32.to_be_bytes()), &keys));
+        assert!(is_cover_entry(FourCc(*b"covr"), &[]));
+        assert!(!is_cover_entry(FourCc(3u32.to_be_bytes()), &keys));
+        // A count the box does not hold.
+        let short = [&[0u8; 4][..], &3u32.to_be_bytes(), &entry(artwork)].concat();
+        assert_eq!(super::keys(&short), None);
     }
 }
