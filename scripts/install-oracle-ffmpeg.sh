@@ -34,5 +34,6 @@ if [[ "${COREAV_ORACLE_FROM_R2:-0}" == 1 ]] ||
 fi
 tar -xJf "$ARCHIVE_FILE" -C "$WORK" "$ARCHIVE/bin/ffmpeg" "$ARCHIVE/bin/ffprobe"
 install -m 755 "$WORK/$ARCHIVE/bin/ffmpeg" "$WORK/$ARCHIVE/bin/ffprobe" "$DEST/"
+python3 -I "$HERE/oracle_pin.py" --verify-bin "$DEST"
 "$DEST/ffmpeg" -version
 "$DEST/ffprobe" -version

@@ -159,7 +159,7 @@ jobs:
         run: cargo build --locked --release -p coreav-cli --features aac
       - name: The generated set and the references
         run: |
-          "$RUNNER_TEMP/coreav-oracle-bin/ffmpeg" -version | head -1
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
           python3 -I scripts/aac_agreement.py prepare --ffmpeg "$RUNNER_TEMP/coreav-oracle-bin/ffmpeg" \
             --work "$RUNNER_TEMP/aac-agreement" --conformance "$RUNNER_TEMP/aac"
       - name: Decode every MP4 input (bar 2)
@@ -258,7 +258,7 @@ jobs:
           rm -rf libopus.tar.gz opus-1.6.1
       - name: The generated tables are what scripts/opus_tables.py makes from the RFC's code
         run: python3 -I scripts/opus_tables.py --check --cache "$RUNNER_TEMP/pinned-sources"
-      - name: Read every packet and decode the SILK-only and CELT-only vectors (durations against the reference outputs, range state of every packet, opus_compare above 90)
+      - name: Read every packet and decode the twelve vectors (durations against the reference outputs, range state of every packet, opus_compare above 90)
         env:
           COREAV_OPUS_VECTORS: ${{ runner.temp }}/opus-vectors/opus_newvectors
           COREAV_OPUS_COMPARE: ${{ runner.temp }}/opus-compare/opus_compare

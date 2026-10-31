@@ -16,6 +16,16 @@
 - a report job does not carry `if: always()`, or a job of a workflow
   with a required report job is waited for by none of them, so that its
   failure could pass unnoticed;
+- a workflow cancels a superseded run job by job (it is in
+  `JOB_GROUPS`, or a job carries a `concurrency:` block) and a job other
+  than a report job has no group, or not exactly `GROUP` with its own job
+  id (and `MATRIX` after it for a job with a `strategy:`, whose legs would
+  otherwise share one group) and `cancel-in-progress: CANCEL`, or a report job has a group, or the
+  workflow has a group of its own as well: a workflow group keeps the next
+  run waiting for the old run's report jobs, a group two jobs share
+  cancels one of them in every run, a gate job without one can start an
+  old run's jobs after the new run's, which then cancel the new ones, and
+  a report job in another job's group can cancel that job;
 - a filter pattern passed to .github/actions/changed-paths is one GitHub
   and the action would read differently;
 - a workflow with a step whose `run:` script calls the oracle FFmpeg's
@@ -48,6 +58,7 @@ import sys
 
 JOB = re.compile(r'\A {2}([A-Za-z0-9_-]+):\s*\Z')
 FIELD = re.compile(r'\A {4}([a-z-]+):\s*(.*?)\s*\Z')
+CONCURRENCY = re.compile(r'\A {6}(group|cancel-in-progress):\s*(.*?)\s*\Z')
 TOP = re.compile(r'\A\S')
 FILTER = re.compile(r'\A( +)(paths|paths-ignore):(.*)\Z')
 USES = re.compile(r'\A\s+uses: \./\.github/actions/changed-paths/?\s*\Z')
@@ -56,6 +67,18 @@ TRIGGER = re.compile(r'\A {2}\S')
 ROW = re.compile(r'\A\| `([^`]+)` \| `([^`]+)` \|')
 SECTION = '### Required status checks (exact names)'
 LABELS = 'github.event.pull_request.labels'
+# A job's concurrency group in a workflow that cancels a superseded pull
+# request run job by job (docs/design/ci-checks.md, "Concurrency"). JOB_ID is
+# the job's own id: `github.job` is not available where the group is read.
+GROUP = ('${{ github.workflow }}-JOB_ID-'
+         "${{ github.event_name == 'pull_request' && github.ref || github.run_id }}")
+CANCEL = "${{ github.event_name == 'pull_request' }}"
+# After JOB_ID in the group of a job with a `strategy:`: each leg of its
+# matrix in a group of its own.
+MATRIX = '-${{ strategy.job-index }}'
+# The workflows that cancel job by job, so that removing every group from
+# one fails rather than leaving nothing to check.
+JOB_GROUPS = {'ci.yml'}
 # A step's ref: a full lowercase commit sha, or a Docker image by digest.
 PINNED = re.compile(r'\A[^@\s]+@[0-9a-f]{40}\Z|\Adocker://[^@\s]+@sha256:[0-9a-f]{64}\Z')
 WORKFLOW_SUFFIXES = ('.yml', '.yaml')
@@ -79,13 +102,14 @@ def load_changed_paths(root):
 
 
 def jobs_of(lines):
-    """{job id: {'name': str | None, 'needs': [str], 'always': bool}}.
+    """{job id: {'name': str | None, 'needs': [str], 'always': bool, 'if': str,
+    'concurrency': {'group': str, 'cancel-in-progress': str} | None, 'matrix': bool}}.
 
     `needs:` is read in its inline forms, `needs: a` and `needs: [a, b]`; a
     block sequence reads as no dependency at all, which the caller sees as
     a report job that waits for nothing.
     """
-    jobs, current, reading_if = {}, None, False
+    jobs, current, reading_if, reading_concurrency = {}, None, False, False
     inside = False
     for line in lines:
         if line.rstrip() == 'jobs:':
@@ -97,8 +121,8 @@ def jobs_of(lines):
             break
         match = JOB.match(line)
         if match:
-            current = {'name': None, 'needs': [], 'always': False, 'if': ''}
-            reading_if = False
+            current = {'name': None, 'needs': [], 'always': False, 'if': '', 'concurrency': None, 'matrix': False}
+            reading_if = reading_concurrency = False
             jobs[match.group(1)] = current
             continue
         if current is None:
@@ -107,8 +131,11 @@ def jobs_of(lines):
         if not field:
             if reading_if and line.startswith(' ' * 6):
                 current['if'] += ' ' + line.strip()
+            setting = CONCURRENCY.match(line)
+            if reading_concurrency and setting:
+                current['concurrency'][setting.group(1)] = setting.group(2)
             continue
-        reading_if = False
+        reading_if = reading_concurrency = False
         key, value = field.group(1), field.group(2)
         if key == 'name':
             current['name'] = value
@@ -118,7 +145,35 @@ def jobs_of(lines):
             current['always'] = value == 'always()'
             current['if'] = value
             reading_if = value in ('>-', '>', '|', '|-')
+        elif key == 'concurrency':
+            current['concurrency'] = {'group': value} if value else {}
+            reading_concurrency = not value
+        elif key == 'strategy':
+            current['matrix'] = True
     return jobs
+
+
+def concurrency_problems(workflow, lines, jobs):
+    """What is wrong with the concurrency groups of a workflow that cancels
+    a superseded run job by job: one in JOB_GROUPS, or whose jobs carry
+    `concurrency:`."""
+    if workflow not in JOB_GROUPS and all(fields['concurrency'] is None for fields in jobs.values()):
+        return []
+    out = []
+    if any(re.match(r'\Aconcurrency:', line) for line in lines):
+        out.append(f'{workflow}: its jobs carry concurrency groups, so remove the workflow\'s own '
+                   '`concurrency:`: it keeps the next run waiting until the report jobs of this one end')
+    for job, fields in sorted(jobs.items()):
+        if job.endswith('-report'):
+            if fields['concurrency'] is not None:
+                out.append(f'{workflow}: remove `{job}`\'s `concurrency:`: a report job has to run in a '
+                           'cancelled run too, and in another job\'s group it can cancel that job')
+            continue
+        group = GROUP.replace('JOB_ID', job + (MATRIX if fields['matrix'] else ''))
+        if fields['concurrency'] != {'group': group, 'cancel-in-progress': CANCEL}:
+            out.append(f'{workflow}: give `{job}` exactly `concurrency: {{group: {group}, '
+                       f'cancel-in-progress: {CANCEL}}}`, as a block (docs/design/ci-checks.md, "Concurrency")')
+    return out
 
 
 def trigger(lines):
@@ -384,6 +439,7 @@ def check(root):
         for job, fields in found.items():
             names.setdefault(fields['name'] or job, []).append((path.name, job))
         problems += pin_problems(root, path, seen)
+        problems += concurrency_problems(path.name, lines, found)
         patterns, bad = filter_patterns(lines)
         problems.extend(f'{path.name}: {problem}' for problem in bad)
         for key, pattern in patterns:

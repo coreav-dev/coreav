@@ -33,13 +33,13 @@ and from the path filters an earlier change put on the heavy workflows:
   `ci-changes`, and it gives one output per group of jobs (`run`,
   `h264-conformance`, `bench-guard`; "One changes job" below);
   `python.yml` and `npm.yml` keep their own `<workflow>-changes`.
-- **Each group ends in a report job** (`ci-report`, `fixtures-report` and
-  so on), which carries `if: always()`, waits for the changes job and every
-  job of its group, prints their results and fails when one failed or was
-  cancelled. A job the filter skipped reports `skipped` and passes. That
-  name is the required check: it appears on every pull request, including
-  one that changes documentation only. Every job of a workflow with a
-  required report job is waited for by one of them.
+- **Each required workflow ends in a report job** (`ci-report`,
+  `python-report`, `npm-report`), which carries `if: always()`, waits for
+  the changes job and every other job, prints their results and fails when
+  one failed or was cancelled. A job the filter skipped reports `skipped`
+  and passes. That name is the required check: it appears on every pull
+  request, including one that changes documentation only. Every job of a
+  workflow with a required report job is waited for by one of them.
 - Workflows that are **not** required keep their trigger filters: the
   informational `mediainfo-oracle`, the spikes (`spike-build`, `h264-n1`,
   `h264-n2`, `h264-n2-arm-speed`, which build spike code and are kept
@@ -52,7 +52,9 @@ filters — and fails when the required-check table and the workflows
 disagree: a listed name no job reports, a report job missing from the
 table, a required workflow that grew a trigger filter again or lost its
 `pull_request:` trigger, a report job without `if: always()`, a job of a
-required workflow that no report job waits for, two jobs that would report the same check name, a filter
+required workflow that no report job waits for, a job without its own
+concurrency group in a workflow that cancels job by job ("Concurrency"
+below), two jobs that would report the same check name, a filter
 pattern the action would read differently from GitHub, a filter written
 in a form the checker cannot read, a workflow that runs the oracle
 FFmpeg's installer whose trigger filter a change of the pin
@@ -151,6 +153,15 @@ that a pull request changing the fixture generator, the pinned FFmpeg
 installer or the web-upload policy now measures as well — rare, and the
 safe direction.
 
+## The platform jobs
+
+`check-macos` (Apple Silicon) and `check-windows` (x86-64, MSVC) run the tests and `clippy` configurations of `check` that build there. They are the slowest jobs of `ci.yml` and contend for the smallest runner pools, so a pull request runs them only when it changes code that differs between the platforms. `ci-changes` decides it with a second `paths` list beside its `paths-ignore` list, and a push to main or a manual run always runs them.
+
+- **What is on the list.** The sandbox and the processes it starts (`coreav-worker`, `coreav-transcode`, `coreav-cli`, whose launcher entry, external programs and file outputs have Unix and non-Unix halves), the dav1d and libvpx backends (the macOS job links them against Homebrew's libraries), positioned file reads (`coreav-isobmff/src/source.rs`), the crates with code for one target architecture (`coreav-h264`, whose default `fast` feature has x86-64 paths and whose decode example has a Unix half, `coreav-kernels-h264`, with x86-64 and AArch64 kernels, and `coreav-kernels-audio`, with x86-64 kernels), every `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`, `clippy.toml`, `ci.yml` and the filter action. A file outside it that grows a `cfg(unix)`, `cfg(windows)`, `target_os` or `target_arch` condition belongs on it.
+- **Covered by `ci-report`.** A job the filter skipped has nothing to say, so the report may cover it (section "What a report job must not hide"). The condition reads only the changed files, which belong to the commit.
+- **No label to force them.** A label such as `ci:all-platforms` would make the condition read the pull request's labels, which is the case that section rules out and `workflow_check.py` refuses for a covered job. To run them on a pull request outside the list, start `ci.yml` by hand on its branch: a manual run is never filtered.
+- **Every step of `check-windows` runs**, even after one fails (`if: ${{ !cancelled() }}`), so one run lists every failure there; the job still fails.
+
 ## One changes job
 
 `ci.yml` holds the jobs of what used to be six workflows: itself,
@@ -167,10 +178,12 @@ targets is its `fuzz-plan` output, which a job of its own,
 change, so neither did a required check name: the ruleset matches a check
 by its job's name, not by its workflow.
 
-- **The report jobs stay one per group.** One report over every job would
-  have saved four more jobs per push, but it would rename four required
-  checks, and a failing H.264 conformance run would then show as a red
-  `ci-report`, not under its own name.
+- **One report job for the whole workflow.** `ci-report` waits for every
+  job of `ci.yml`; five reports, one per group of jobs, cost five more
+  jobs on every push and five more required names. The price is that a
+  failing H.264 conformance run shows as a red `ci-report`, not under its
+  own name; the job's own check, and the table in `ci-report`'s summary,
+  still name it.
 - **A list names `ci.yml` where it named its old workflow file,** so a
   change to `ci.yml` runs the H.264 conformance suite and the guard. That
   is the safe direction: a change to those jobs runs them.
@@ -189,11 +202,32 @@ by its job's name, not by its workflow.
   workflows. A called workflow's job reports as `<caller job> / <job>`,
   which renames every required check it holds.
 
+## The FFmpeg pin
+
+Current comparisons use FFmpeg 9.0.2, the build in `scripts/oracle-ffmpeg.env`. The installer verifies its archive hash, and `scripts/oracle_pin.py --verify-bin DIR` rejects another FFmpeg or ffprobe version, including on a binary-cache hit.
+
+The sole historical-extraction exception is `training-identity`: `docs/measurements/h264-training/es.json` records bytes extracted by FFmpeg 7.0.2. Extracting one recorded SD stream twice with that version reproduced its hash and 10,750,164 bytes; 9.0.2 consistently produced 10,750,126 bytes. In that reproduction, the per-type NAL payload sequences were identical, but 9.0.2 placed SPS/PPS before SEI and changed Annex-B framing. The historical extractor therefore retains its own archive SHA-256 and version check in `docs/measurements/h264-training/tools/install-extractor.sh`. It installs only FFmpeg under `RUNNER_TEMP/coreav-training-extractor`, never on PATH or in an oracle directory, and only the historical extraction helper reads it. The recorded hashes and exact-byte check remain unchanged; no comparison uses this extractor as its oracle. The pin check rejects references to this installer or directory outside the training job and its measurement directory.
+
+## The fixture jobs
+
+`isobmff-fixtures` ran every check of the ISO base media fixtures in one job: a median of 34.9 minutes over the successful jobs of the last 60 completed pull request runs, against 15.2 for `fuzz`, 11.6 for `bench-guard` and under 9 for every other job, so it alone set how long a pull request waited. Its steps now run in six jobs, with the same commands, bars and thresholds:
+
+- `isobmff-fixtures`: fixture generation, the oracle self-checks, the stream and packet oracles against `ffprobe` and their known-divergence audit, `coreav probe` and `coreav ffprobe`, the output schemas, the hostile suite through the `coreav` binary, `coreav check`, audio extraction, subtitles and chapters, and the text known-divergence audit. It generates its own fixtures on every run, as before, so every run exercises generation. Its artifact is `oracle-output`.
+- `isobmff-fixture-set`: the one set of fixtures that the three jobs below check, an artifact of the run. Generation is not byte for byte reproducible (a WebM fixture generated twice with the same FFmpeg differs), so jobs, and B9 shards, that generated their own would check different bytes, and `--merge` refuses shards whose fixtures differ.
+- `isobmff-writers`: clip, remux, video replacement, split, sanitize, HLS, join and the 0.1.0 `ffmpeg` commands. Their reports are the `writer-output` artifact.
+- `isobmff-decode`: the build with the FFmpeg fallback, dav1d and libvpx, then decoding, thumbnails and `coreav transcode` against the pinned FFmpeg, and the hostile suite through `coreav thumbnail` and `coreav transcode`.
+- `b9-shard`, three legs, and `b9`: bar B9 of `docs/design/transcode.md`.
+
+The generated-fixture and oracle-binary cache keys include `scripts/oracle-ffmpeg.env`, so changing the oracle invalidates both. Each B9 shard runs the pinned FFmpeg and ffprobe. After merging their evidence, `b9` checks its recorded version and each shard's FFmpeg and ffprobe hashes against the installed pin; it does not rerun the encodes. The command-coverage jobs use `tools/compat-corpus/ffmpeg9.json`, including its ratio-based bit-rate rules, unchanged by the split.
+
+**B9 in three shards, judged once.** B9 was 13.2 minutes of the old job (median): 12 command lines on 83 fixtures, 998 results and 3,078 seconds of encoding over four parallel jobs, 45% of it line x07, which scales to 1920 columns. `scripts/transcode_check.py --shard K/3` runs every third fixture and judges no bar: it keeps its results, calls and manifest as evidence. It fails when a result is missing, and, as a whole run does, when its preflight or setup fails; a failed bar never fails it. `b9` puts the three together with `--merge`, which refuses a missing or repeated shard, and judges every bar over all of them as the single run did. Its `b9-evidence` artifact holds what `oracle-output` held as `coreav-b9/evidence`. Split three ways, the evidence of a single run's artifact merges to the same summary, run record, calls and manifest, and to the same exit status; its shards carry 998, 1,045 and 1,035 seconds of encoding.
+
 ## The fuzz runs
 
 Fuzzing runs in two places, and a push to main is neither.
 
 - **A pull request** fuzzes the targets it can affect. `ci-changes` lists every target of each fuzz project whose own directory, or a workspace crate it depends on, the change touches (`scripts/fuzz_plan.py --changed`); `fuzz` runs only when that list is not empty, so a pull request that reaches no fuzz project starts no fuzz job and `ci-report` still covers it. The targets share 480 seconds, 5 to 30 each: a change to one container parser (7 to 24 targets) gets 20 to 30 seconds per target, and a change that reaches every project (the lock file, `ci.yml`, `scripts/fuzz_plan.py`) gets a pass of 7 seconds over each of the 66 targets instead of the 20 each that took about 38 minutes.
+- **The pull request's fuzz job runs in two shards** of whole projects, side by side: `scripts/fuzz_run.sh shard` gives each project, in the plan's order, to the shard with fewer targets so far, so each project builds in one shard only, and every target runs for the seconds the whole plan gives it, as in one job. In one job, a change that reaches every project took a median of 15.2 minutes (build 5.7, run 6.3), past the 15 the rest of the pull request's checks take.
 - **`fuzz-nightly.yml`**, once a day and by hand, runs every target (`scripts/fuzz_plan.py --all`) for 15 minutes, in shards of six that run side by side, six at a time. It is not a required check: it never runs on a pull request.
 
 Main stopped fuzzing on push because the run had outgrown its job. Every target for 60 seconds was 66 minutes of fuzzing in a job with a 50-minute timeout, so every push to main ended cancelled, `ci-report` red, after about 40 targets, and the last 26 were never fuzzed on main. A timed-out job also skips its cache step, so no fuzz build was ever cached. The daily run gives every target 15 minutes a day; a day of pushes gave about 40 of them 60 seconds per push.
@@ -201,6 +235,98 @@ Main stopped fuzzing on push because the run had outgrown its job. Every target 
 **One build, cached.** `scripts/fuzz_run.sh` builds every project into one target directory, `target/fuzz`, with a pinned nightly toolchain (the pin is in the script). The daily run's first job builds every project, removes what is rebuilt from the checkout anyway (CoreAV's own crates and the fuzz binaries) and caches the rest; its shards, and every pull request's fuzz job, restore that cache, keyed by the script and the lock files. The pin keeps the cache valid from one day to the next; an unpinned nightly would change the compiler, and the cache with it, every day. `rust-cache` is not used here: it cleans a target directory once per workspace and keeps only that workspace's dependencies, and the 21 fuzz projects share one directory.
 
 **Nothing a fuzzer prints reaches the log.** Each target's output goes to a file. A target that ends in a finding leaves that output and its libFuzzer artifacts aside, and the log names the target only (libFuzzer prints a failing input as bytes and as base64, and `cargo fuzz` prints its `Debug` form). The daily run uploads them to the private bucket and logs the object key; a pull request's run keeps nothing, and the author finds the input again locally with the same command (docs/design/fuzz-campaign.md, "Findings").
+
+## Concurrency
+
+A new push to a pull request supersedes the run of the previous one.
+`ci.yml` cancels that run job by job: every job but `ci-report` carries
+
+```yaml
+concurrency:
+  group: ${{ github.workflow }}-<job id>-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+```
+
+When the new run's job joins its group, GitHub cancels the old run's job
+of the same id. A push to main and a manual run get a group of their own
+run, so nothing on main is cancelled or dropped.
+
+- **Not one group for the workflow.** That was the earlier shape. A
+  cancelled run is over only when every job has ended, and `always()`
+  starts `ci-report` in a cancelled run too, so the new run waited, with
+  no job created, until the old report had found a runner and ended. On
+  2026-10-30, 163 of 680 runs in four hours waited more than two minutes
+  for their first job, a median of 6.5 minutes and up to 25. With the
+  groups on the jobs the old report still runs, on the superseded commit,
+  but nothing waits for it.
+- **Not `if: ${{ !cancelled() }}` on the report.** It frees the next run as
+  well, and saves the old report's runner. But a run cancelled by hand on
+  a pull request's head would then report `ci-report` as skipped, which
+  the ruleset counts as passing. With `always()` that run's `ci-report`
+  fails, as before.
+- **`ci-changes` has a group too.** GitHub does not order the jobs of one
+  group by run: whichever joins last cancels the other. Every other job
+  waits for `ci-changes`, so an old run's jobs join their groups when its
+  `ci-changes` ends. If that is before the new run starts, they join before
+  the new run's jobs; if not, the new run's `ci-changes` cancels the old
+  one and the old run's jobs never start. Either way an old job never
+  cancels a new one.
+- **The cost.** An old run's job now runs until the new run's job of the
+  same id joins its group, one changes job after the push (a median of
+  5.5 minutes), and a job the new run skips is not cancelled at all. Over
+  the same four hours that would have been about 106 more runner-minutes,
+  against 1,254 minutes that pull requests waited on a held run.
+- **A job with a `strategy:`** (`fuzz`, `b9-shard`) puts `-${{ strategy.job-index }}` after its id in the group: its legs would otherwise share one group and cancel each other. `workflow_check.py` takes only that form for such a job.
+- **Re-running an old run's job** cancels the head's job of the same id,
+  whose `ci-report` then fails: re-run the head's run instead.
+- `github.job` is not available where GitHub reads a job's `concurrency`,
+  so each group names its job id. `workflow_check.py` fails on a job
+  without its group, a group other than exactly this one, a report job
+  with a group (in another job's group it could cancel that job), and a
+  workflow group beside job groups. It names `ci.yml` as a workflow that
+  cancels job by job, so removing every group fails too. `python.yml` and
+  `npm.yml` keep one group for the workflow.
+
+## Caches
+
+The repository has 10 GB of Actions cache; beyond it GitHub evicts the
+least recently used entries. `Swatinem/rust-cache` saves on main only
+(`save-if`), so a pull request restores what main last built. Its default
+key is one entry per job id, toolchain and `Cargo.lock`.
+
+- **The other ISO base media jobs restore it too** (`isobmff-writers`,
+  `isobmff-decode`, `b9-shard`). `isobmff-decode` and `b9-shard` use the build
+  with the FFmpeg fallback, dav1d and libvpx (`target/fallback`), which
+  `isobmff-fixtures` runs on main only, after its checks, so that its entry
+  keeps holding it: one entry for the four jobs instead of a new one for
+  `target/fallback`, with the repository already at its 10 GB.
+- **`isobmff-fixture-set` keeps its fixtures between runs**, saved on main
+  only, under a key of everything that generates them:
+  `scripts/gen-fixtures.sh`, every file of `scripts/` it runs (found in the
+  script itself, so a new helper joins the key without an edit here) and
+  `scripts/install-oracle-ffmpeg.sh`. A pull request that changes one of
+  them generates the fixtures on every push.
+- **The Matroska and transport stream oracles restore `isobmff-fixtures`'
+  cache** (`shared-key: isobmff-fixtures`, `save-if: false`). That job
+  builds every crate, profile and feature the other two build, so their
+  own entries, 164 MB each per `Cargo.lock`, repeated part of its 257 MB.
+  The key is the one `isobmff-fixtures` already writes, so no run starts
+  cold.
+- **`check` keeps its own entry.** Clippy's metadata-only builds are not
+  what the fixture jobs build, and the other way round.
+- **bench-guard's decoder build is under `target/`** (`target/decoder`), so
+  rust-cache keeps its dependencies; in `$RUNNER_TEMP` it rebuilt every
+  dependency on every run. The base commit's two builds stay in
+  `$RUNNER_TEMP`, seeded from `target/` and `target/decoder`: main never
+  builds them, so no cache would hold them, and a target directory shared
+  with the head would let cargo take the base's build for the head's.
+- **bench-guard saves on failure too** (`cache-on-failure`). On main the
+  job fails when a count is over the tolerance, after its builds, and
+  without it main's only bench-guard entry was two `Cargo.lock` versions
+  old. Its key carries `decoder`: an entry saved before the decoder build
+  moved holds no `target/decoder`, and rust-cache saves nothing over an
+  exact hit, so an old key could have kept it out for as long as the
+  `Cargo.lock` did not change.
 
 ## DCO sign-off
 
@@ -241,7 +367,9 @@ skips it. It holds the list of crates that implement such a codec
 H.264), runs `cargo tree --target all -e normal,build` for the default
 features of every other workspace member, and for each build a package
 script makes with other features (the npm command's
-`--no-default-features --features cli`), and fails when one of those
+`--no-default-features --features cli`, and the release's default build,
+`--features release-default`, which the native npm packages carry too),
+and fails when one of those
 graphs holds a listed crate. It also fails when a listed crate is no
 workspace member, so a renamed crate cannot leave the list checking
 nothing. Opting in stays a feature (`native-h264` of `coreav-cli`), which
@@ -349,20 +477,15 @@ These are the names a branch ruleset requires, exactly as written. Only a check 
 **appears on every pull request** can be required: a workflow its path filter skips
 reports nothing, and a required check that never reports leaves the pull request
 pending for ever. Each required workflow therefore filters in its jobs, not in its
-trigger, and each group of its jobs ends in a report job that always runs and fails
-when a job above it failed.
+trigger, and ends in one report job that always runs and fails when a job above it
+failed.
 
 | Check | Workflow | Note |
 |---|---|---|
 | `deny` | `deny.yml` | `cargo deny check`, the fuzz projects' own graphs, and the DCO sign-off. No filter at all: it runs in full on every pull request |
-| `ci-report` | `ci.yml` | `cargo fmt`, `clippy`, the workspace tests, the MSRV build and, on a pull request, the fuzz run of the targets it can affect |
-| `fixtures-report` | `ci.yml` | The ISO base media oracle: ffprobe, MediaInfo, the command and the writers |
-| `mkv-fixtures-report` | `ci.yml` | The Matroska and WebM oracle |
-| `ts-fixtures-report` | `ci.yml` | The transport-stream oracle |
-| `bench-guard-report` | `ci.yml` | The instruction-count guard |
+| `ci-report` | `ci.yml` | Every job of `ci.yml`: `cargo fmt`, `clippy` and the workspace tests on Linux, `clippy` and the workspace tests on macOS arm64 and Windows x86-64, the MSRV build, on a pull request the fuzz run of the targets it can affect, the ISO base media, Matroska and transport stream oracles, H.264 conformance (bar C1 of `docs/design/h264.md`) and the instruction-count guard |
 | `python-report` | `python.yml` | The abi3 wheel and its tests |
 | `npm-report` | `npm.yml` | The npm packages, the launcher and the smoke tests |
-| `h264-conformance-report` | `ci.yml` | Bar C1 of `docs/design/h264.md`: every in-scope JVT conformance bitstream decodes bit-exactly |
 
 ## The pull request's shape
 
@@ -384,17 +507,21 @@ cross-repository token and no private secret.
 
 ## Cost
 
-A report job per group and a changes job per workflow (one for `ci.yml`,
-which used to be six), about a minute each billed, so about eleven minutes
-of runner time per pull-request event, whatever the change touches; a
-documentation-only pull request paid about one before the report jobs. Three
-smaller additions on top: `python.yml` and `npm.yml` now also start on a
-push to main and on a label whatever the paths, where their trigger filter
-used to stop them; and because the report jobs carry `if: always()`, a run
-cancelled by a new push starts its report jobs too, which then report the
-cancellation as a failure on the superseded commit. `!cancelled()` would
-avoid that, at the price of saying nothing when a heavy job is genuinely
-cancelled, which is the case worth seeing.
+A report job and a changes job per required workflow (`ci.yml`'s used to be
+six of each), about a minute each billed, so about six minutes of runner time
+per pull-request event, whatever the change touches; a documentation-only
+pull request paid about one before the report jobs. Three smaller additions
+on top: `python.yml` and `npm.yml` now also start on a push to main and on a
+label whatever the paths, where their trigger filter used to stop them; and
+because the report jobs carry `if: always()`, a run superseded by a new push
+starts its report job too, which then reports the cancellation as a failure
+on the superseded commit ("Concurrency" above says why not `!cancelled()`).
+
+Measured on 2026-10-30, a pull request push that changes `ci.yml` (every job
+of `ci.yml` runs, and the changes and report jobs of `python.yml` and
+`npm.yml`): 25 jobs started, 11 of them changes or report jobs, with one
+report per group of `ci.yml`'s jobs; 20 jobs, 6 of them changes or report
+jobs, with one `ci-report`.
 
 The heavy jobs are still skipped, which is where the minutes of an earlier change and
 of the shorter pull request fuzz runs actually are. The whole cost falls to nothing when the

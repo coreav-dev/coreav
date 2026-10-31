@@ -175,6 +175,16 @@ class Accepts(unittest.TestCase):
         self.assertIsNone(run.plain('unknown'))
         self.assertEqual(run.plain('hexagonal'), 'hexagonal')
 
+    def test_bit_rates_by_their_ratio_not_the_file_size(self):
+        rule = {'ratio': ['19.5', '20.5']}
+        for f, c in (('749136', '37457'), ('748184', '37409'), ('65892', '3310')):
+            self.assertTrue(run.satisfies(rule, f, c, {}), (f, c))
+        self.assertFalse(run.satisfies(rule, '749136', '749136', {}))
+        self.assertFalse(run.satisfies(rule, '749136', '0', {}))
+        rule = {'ratio': ['0.9960', '0.9961']}
+        self.assertTrue(run.satisfies(rule, '884913', '888439', {}))
+        self.assertFalse(run.satisfies(rule, '884913', '884913', {}))
+
     def test_side_data_coreav_lists_on_only_some_packets(self):
         rule = {'only': 'part of ffprobe'}
         key = 'packets.side_data_list[MPEGTS Stream ID]'

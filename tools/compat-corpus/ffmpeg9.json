@@ -220,7 +220,10 @@
      "codec_ac3_51.mp4",
      "codec_ac3_stereo.mp4",
      "codec_alac16.m4a",
+     "codec_alac16_192k.m4a",
+     "codec_alac16_88k.m4a",
      "codec_alac24.m4a",
+     "codec_alac24_96k.m4a",
      "codec_amr_nb.3gp",
      "codec_amr_wb.3gp",
      "codec_dv50.mov",
@@ -229,6 +232,9 @@
      "codec_dv_pal.mov",
      "codec_eac3_51.mp4",
      "codec_eac3_stereo.mp4",
+     "codec_flac16_44k.mp4",
+     "codec_flac24_192k.mp4",
+     "codec_flac24_96k.mp4",
      "codec_h263.3gp",
      "codec_h263.mov",
      "codec_h264_gray.mp4",
@@ -532,6 +538,9 @@
      "codec_ac3_stereo.mp4",
      "codec_eac3_51.mp4",
      "codec_eac3_stereo.mp4",
+     "codec_flac16_44k.mp4",
+     "codec_flac24_192k.mp4",
+     "codec_flac24_96k.mp4",
      "codec_h264_gray.mp4",
      "codec_h264_one_frame.mp4",
      "codec_h264_yuv422p.mp4",
@@ -1482,11 +1491,17 @@
      "codec_ac3_51.mp4",
      "codec_ac3_stereo.mp4",
      "codec_alac16.m4a",
+     "codec_alac16_192k.m4a",
+     "codec_alac16_88k.m4a",
      "codec_alac24.m4a",
+     "codec_alac24_96k.m4a",
      "codec_amr_nb.3gp",
      "codec_amr_wb.3gp",
      "codec_eac3_51.mp4",
      "codec_eac3_stereo.mp4",
+     "codec_flac16_44k.mp4",
+     "codec_flac24_192k.mp4",
+     "codec_flac24_96k.mp4",
      "codec_h263.3gp",
      "codec_h264_gray.mp4",
      "codec_h264_one_frame.mp4",
@@ -3120,8 +3135,7 @@
    "id": "KD-FF9-FIXTURE-SIDX-DURATION",
    "accepts": {
     "format.bit_rate": {
-     "ffprobe": "844284",
-     "coreav": "847648"
+     "ratio": ["0.9960", "0.9961"]
     },
     "format.duration": {
      "ffprobe": "20.160000",
@@ -3195,10 +3209,7 @@
    "id": "KD-FF9-FIXTURE-SIDX-BIT-RATE",
    "accepts": {
     "streams.bit_rate": {
-     "pairs": [
-      ["749136", "37457"],
-      ["65892", "3310"]
-     ]
+     "ratio": ["19.5", "20.5"]
     }
    },
    "keys": {

@@ -98,7 +98,7 @@ fn rfc8251_vectors_decode() {
     let dir = PathBuf::from(std::env::var_os("COREAV_OPUS_VECTORS").expect("COREAV_OPUS_VECTORS"));
     let compare = std::env::var_os("COREAV_OPUS_COMPARE");
     let tmp = std::env::temp_dir();
-    for n in [1, 2, 3, 4, 7, 11] {
+    for n in 1..=12 {
         let silk = (2..=4).contains(&n);
         let name = format!("testvector{n:02}");
         let bit = std::fs::read(dir.join(format!("{name}.bit"))).expect(".bit");

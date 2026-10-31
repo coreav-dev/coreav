@@ -82,6 +82,7 @@
           "enum": [
             "flac",
             "mp3",
+            "opus",
             "aac"
           ]
         },

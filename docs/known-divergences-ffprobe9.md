@@ -186,8 +186,12 @@ there, and CoreAV another.
   moves FFmpeg's packets after that input back by as much; any other
   difference still fails.
 - Accepts: these values and no other: a file of 20.16 s from `ffprobe`
-  and 20.08 s from CoreAV, its bit rate 844,284 and 847,648, and a video
-  stream of 20.08 s (257,024 ticks) and 20.00 s (256,000 ticks).
+  and 20.08 s from CoreAV, a video stream of 20.08 s (257,024 ticks) and
+  20.00 s (256,000 ticks), and a file bit rate from `ffprobe` that is
+  20.08/20.16 (0.99603) of CoreAV's, the same size over each duration.
+  The ratio, not the bit rate, is fixed: the encoder's output, and so the
+  file's size, depends on the number of processors of the machine that
+  generates the fixtures.
 
 ## KD-FF9-FIXTURE-COLOUR-RANGE
 
@@ -216,8 +220,10 @@ there, and CoreAV another.
   3 kbit/s against 749 and 66); on the same streams without the index
   (`fragmented_many.mp4`) it gives FFmpeg's. A CoreAV difference, for a
   follow-up.
-- Accepts: these two pairs and no other: 749,136 and 37,457, 65,892 and
-  3,310.
+- Accepts: on each stream, a bit rate from `ffprobe` between 19.5 and
+  20.5 times CoreAV's (20.0 for the video, 19.9 for the audio here); the
+  bit rates themselves follow the file's size, which the fixture machine
+  changes (KD-FF9-FIXTURE-SIDX-DURATION).
 
 ## KD-FF9-FIXTURE-MKV-LAST-DURATION
 
