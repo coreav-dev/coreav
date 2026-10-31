@@ -449,16 +449,19 @@ Rejected:
 
 The audio replacement (`AudioReplacement`) is an encoded stream on a
 timeline of its own, Opus in ISO BMFF as opus-codec.org's "Encapsulation
-of Opus in ISO Base Media File Format" (version 0.6.8) lays it out:
+of Opus in ISO Base Media File Format" (version 0.6.8) lays it out, or AAC
+in an `mp4a` sample entry (ISO/IEC 14496-14), laid out the same way:
 
 - **The replacement:** the source `stream_index` (an audio stream the
-  allowlist keeps and `options.streams` selects), one complete `Opus`
-  sample entry box (an ISO audio sample entry with data reference index 1;
-  `coreav-transcode` builds it with `mux::audio_sample_entry` and a
-  `dOps` box), the media timescale (48,000 for Opus), the samples in order
+  allowlist keeps and `options.streams` selects), one complete `Opus` or
+  `mp4a` sample entry box (an ISO audio sample entry with data reference
+  index 1; `coreav-transcode` builds it with `mux::audio_sample_entry` and
+  a `dOps` box, or an `esds` box from `mux::esds`), the media timescale
+  (48,000 for Opus, the sample rate for AAC), the samples in order
   (size and duration, every one a sync sample, so no `stss`), `start`
   (media ticks of silence before the presentation), `priming` (the media
-  ticks at the start that are not presented: Opus's pre-skip),
+  ticks at the start that are not presented: Opus's pre-skip, AAC's
+  encoder delay),
   `presented` (the media ticks presented from there), `roll` (the
   samples a decoder needs before any one it starts at) and the samples'
   bytes back to back.
@@ -467,7 +470,8 @@ of Opus in ISO Base Media File Format" (version 0.6.8) lays it out:
   encoder's delay and the last packet's padding are not presented, and
   the first presented sample is at movie time `start`. The edits are in
   the movie timescale; where they would round there, the movie timescale
-  becomes a common multiple of it and 48,000 when one fits 32 bits (as for
+  becomes a common multiple of it and the replacement's media timescale
+  when one fits 32 bits (as for
   the video replacement, and not when another stream's computed value would
   move), else each boundary rounds to the nearest movie tick.
 - **Roll group** (the spec's 4.3.6.2, ISO/IEC 14496-12 10.1): one `sgpd`
@@ -483,12 +487,13 @@ of Opus in ISO Base Media File Format" (version 0.6.8) lays it out:
   source track's samples or sample entry is read, so it may be a stream MP4
   does not carry as it is (FLAC, which the caller adds to the allowlist).
 - **Refusals,** before anything is written: a sample entry that is not one
-  `Opus` audio sample entry box with data reference 1, a timescale of 0,
+  `Opus` or `mp4a` audio sample entry box with data reference 1, a timescale of 0,
   no samples, a duration of 0, nothing presented or more presented than
   the samples hold after `priming`, a roll distance above 32,767, samples
   that run past the data or above `max_packet_bytes`, and a stream index
   that is not an audio stream kept and selected.
-- **Summary:** the stream is `replaced`, its codec `Opus`.
+- **Summary:** the stream is `replaced`, its codec `Opus` or `AAC`, as its
+  sample entry names it.
 
 Verification, `tests/replace.rs`: an Opus replacement takes the audio
 stream's place in an MP4 source, in a Matroska source after an empty edit,
@@ -496,8 +501,11 @@ and beside a video replacement; read back by `coreav-isobmff`, the track
 is Opus at 48 kHz with the edit list exact in the movie timescale, every
 sample's bytes and duration as given and a sync sample (no `stss` of its
 own), and the roll group's boxes as above; every refusal comes before a
-byte is written. `coreav transcode --audio opus` checks
-the output with the pinned FFmpeg (`transcode.md`, "Opus audio").
+byte is written. An AAC replacement takes the audio stream's place in an
+MP4 and a Matroska source: `mp4a` at its rate, the delay left out by the
+edit, every frame as given, and a roll distance of −1.
+`coreav transcode --audio opus` and `--audio aac` check the output with
+the pinned FFmpeg (`transcode.md`, "Opus audio" and "AAC audio").
 
 Verification: `tests/replace.rs` (synthetic movies and Matroska files:
 the identity replacement, decode times shifted back by two frames and by
