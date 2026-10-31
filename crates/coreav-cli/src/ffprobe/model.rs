@@ -21,6 +21,19 @@ pub enum Sid {
     PacketSideDataList,
     /// One side data element of a packet.
     PacketSideData,
+    /// `packets_and_frames`, which holds the packets and the frames when
+    /// both are printed.
+    PacketsAndFrames,
+    /// `frames`.
+    Frames,
+    /// A decoded frame.
+    Frame,
+    /// A frame's tags.
+    FrameTags,
+    /// A frame's side data.
+    FrameSideDataList,
+    /// One side data element of a frame.
+    FrameSideData,
     /// `programs`.
     Programs,
     /// A program.
@@ -64,7 +77,7 @@ pub enum Sid {
 }
 
 /// How many sections there are.
-pub const SECTIONS: usize = 26;
+pub const SECTIONS: usize = 32;
 
 /// What a section is.
 #[derive(Clone, Copy, Debug)]
@@ -112,6 +125,12 @@ impl Sid {
         Sid::PacketTags,
         Sid::PacketSideDataList,
         Sid::PacketSideData,
+        Sid::PacketsAndFrames,
+        Sid::Frames,
+        Sid::Frame,
+        Sid::FrameTags,
+        Sid::FrameSideDataList,
+        Sid::FrameSideData,
         Sid::Programs,
         Sid::Program,
         Sid::ProgramTags,
@@ -160,6 +179,33 @@ impl Sid {
                 "packet_side_data",
                 "side_datum",
                 PacketSideDataList,
+                false,
+                true,
+            ),
+            PacketsAndFrames => def(
+                "packets_and_frames",
+                "packets_and_frames",
+                "packets_and_frames",
+                Root,
+                true,
+                false,
+            ),
+            Frames => def("frames", "frames", "frames", Root, true, false),
+            Frame => def("frame", "frame", "frame", Frames, false, false),
+            FrameTags => def("tags", "frame_tags", "tag", Frame, false, false),
+            FrameSideDataList => def(
+                "side_data_list",
+                "frame_side_data_list",
+                "side_data_list",
+                Frame,
+                true,
+                false,
+            ),
+            FrameSideData => def(
+                "side_data",
+                "frame_side_data",
+                "side_datum",
+                FrameSideDataList,
                 false,
                 true,
             ),

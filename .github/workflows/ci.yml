@@ -575,6 +575,12 @@ jobs:
         env:
           COREAV_REQUIRE_ALL_FIXTURES: '1'
         run: scripts/gen-fixtures.sh "$RUNNER_TEMP/coreav-fixtures"
+      - name: Check oracle audio input threading
+        env:
+          COREAV_FIXTURES: ${{ runner.temp }}/coreav-fixtures
+          COREAV_FFMPEG: ${{ runner.temp }}/coreav-oracle-bin/ffmpeg
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 -I -m unittest discover -s scripts/tests -p 'test_oracle_audio.py'
       - name: Build test-only comparator
         run: cargo build --locked -p coreav-oracle
       - name: Test capture normalization
@@ -650,6 +656,12 @@ jobs:
           python3 -I tools/compat-corpus/run.py commands --coreav target/release/coreav \
             --media "$RUNNER_TEMP/coreav-fixtures" --baseline tools/compat-corpus/baseline-isobmff.json \
             --report "$RUNNER_TEMP/coreav-compat-commands.json"
+      - name: List frames through coreav ffprobe
+        run: |
+          cargo build --locked --release -p coreav-cli --features native-h264 --target-dir target/native
+          python3 -I tools/compat-corpus/frames.py --coreav target/native/release/coreav \
+            --media "$RUNNER_TEMP/coreav-fixtures" --native-h264 \
+            --baseline tools/compat-corpus/baseline-frames.json --report "$RUNNER_TEMP/coreav-frames.json"
       - name: Check the coreav binary against the library adapter
         env:
           PYTHONDONTWRITEBYTECODE: '1'
@@ -783,6 +795,7 @@ jobs:
             ${{ runner.temp }}/coreav-isobmff-oracle/compare.log
             ${{ runner.temp }}/coreav-compat.json
             ${{ runner.temp }}/coreav-compat-commands.json
+            ${{ runner.temp }}/coreav-frames.json
             ${{ runner.temp }}/coreav-extract.json
             ${{ runner.temp }}/coreav-extract-cli.json
             ${{ runner.temp }}/coreav-text.json
@@ -1471,6 +1484,12 @@ jobs:
           python3 -I tools/compat-corpus/run.py commands --coreav target/release/coreav \
             --media "$RUNNER_TEMP/mkv-fixtures" --baseline tools/compat-corpus/baseline-matroska.json \
             --report "$RUNNER_TEMP/mkv-compat-commands.json"
+      - name: List frames through coreav ffprobe
+        run: |
+          cargo build --locked --release -p coreav-cli --features native-h264 --target-dir target/native
+          python3 -I tools/compat-corpus/frames.py --coreav target/native/release/coreav \
+            --media "$RUNNER_TEMP/mkv-fixtures" --native-h264 \
+            --baseline tools/compat-corpus/baseline-frames.json --report "$RUNNER_TEMP/mkv-frames.json"
       - name: Check the coreav binary against the library adapter
         env:
           PYTHONDONTWRITEBYTECODE: '1'
@@ -1552,6 +1571,7 @@ jobs:
             ${{ runner.temp }}/mkv-oracle/three-way.md
             ${{ runner.temp }}/mkv-compat.json
             ${{ runner.temp }}/mkv-compat-commands.json
+            ${{ runner.temp }}/mkv-frames.json
             ${{ runner.temp }}/mkv-policy-fixtures.json
           if-no-files-found: ignore
 
@@ -1650,6 +1670,12 @@ jobs:
           python3 -I tools/compat-corpus/run.py commands --coreav target/release/coreav \
             --media "$RUNNER_TEMP/ts-fixtures" --baseline tools/compat-corpus/baseline-mpegts.json \
             --report "$RUNNER_TEMP/ts-compat-commands.json"
+      - name: List frames through coreav ffprobe
+        run: |
+          cargo build --locked --release -p coreav-cli --features native-h264 --target-dir target/native
+          python3 -I tools/compat-corpus/frames.py --coreav target/native/release/coreav \
+            --media "$RUNNER_TEMP/ts-fixtures" --native-h264 \
+            --baseline tools/compat-corpus/baseline-frames.json --report "$RUNNER_TEMP/ts-frames.json"
       - name: Check the coreav binary against the library adapter
         env:
           PYTHONDONTWRITEBYTECODE: '1'
@@ -1698,6 +1724,7 @@ jobs:
             ${{ runner.temp }}/ts-oracle/cli-report.json
             ${{ runner.temp }}/ts-compat.json
             ${{ runner.temp }}/ts-compat-commands.json
+            ${{ runner.temp }}/ts-frames.json
           if-no-files-found: ignore
 
   # Bars C1 and C3 of docs/design/h264.md: every in-scope JVT conformance

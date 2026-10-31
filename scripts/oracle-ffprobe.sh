@@ -76,7 +76,8 @@ case "$LEVEL" in
       FFMPEG_ARGS+=(-map "0:$input_index")
     done
     set +e
-    "$FFMPEG" -nostdin -v error -i "$MEDIA_FILE" "${FFMPEG_ARGS[@]}" -fps_mode passthrough -f framemd5 - > "$RAW"
+    mapfile -t AUDIO_DECODE_INPUT < "$ROOT/scripts/oracle-audio-args.txt"
+    "$FFMPEG" -nostdin -v error "${AUDIO_DECODE_INPUT[@]}" -i "$MEDIA_FILE" "${FFMPEG_ARGS[@]}" -fps_mode passthrough -f framemd5 - > "$RAW"
     EXIT_CODE=$?
     set -e
     "$COREAV_ORACLE" normalize frames --file "$FILE_NAME" --exit-code "$EXIT_CODE" --stream-map "$STREAM_MAP" --input "$RAW"
