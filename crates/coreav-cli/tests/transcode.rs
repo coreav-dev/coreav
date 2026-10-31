@@ -835,13 +835,26 @@ fn encodes_as_ffmpeg_does(name: &str) {
     }
 }
 
-/// A stand-in encoder: a `/bin/sh` script given as the x264 program.
+/// A stand-in encoder: a `/bin/sh` script given as the x264 program. A
+/// child process writes it, so this process never holds it open for
+/// writing: a child another test forks would inherit that descriptor until
+/// its exec, and running the script meanwhile fails with ETXTBSY.
 #[cfg(unix)]
 fn script(dir: &Path, name: &str, body: &str) -> PathBuf {
-    use std::os::unix::fs::PermissionsExt;
+    use std::io::Write;
     let path = dir.join(format!("{name}.sh"));
-    std::fs::write(&path, format!("#!/bin/sh\nPATH=/usr/bin:/bin\n{body}\n")).unwrap();
-    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let mut sh = Command::new("/bin/sh")
+        .args(["-c", "cat > \"$1\" && chmod 755 \"$1\"", "sh"])
+        .arg(&path)
+        .stdin(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    sh.stdin
+        .take()
+        .unwrap()
+        .write_all(format!("#!/bin/sh\nPATH=/usr/bin:/bin\n{body}\n").as_bytes())
+        .unwrap();
+    assert!(sh.wait().unwrap().success());
     path
 }
 

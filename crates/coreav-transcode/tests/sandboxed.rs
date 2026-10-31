@@ -110,16 +110,26 @@ fn real_encoders() {
     std::fs::remove_dir_all(&dir).unwrap();
 }
 
-/// A script that stands in for the encoder.
+/// A script that stands in for the encoder. A child process writes it, so
+/// this process never holds it open for writing: a child forked meanwhile
+/// would inherit that descriptor until its exec, and running the script
+/// then fails with ETXTBSY.
 fn script(name: &str, body: &str) -> PathBuf {
+    use std::io::Write;
     let dir = scratch("hostile");
     let path = dir.join(format!("{name}.sh"));
-    std::fs::write(&path, format!("#!/bin/sh\nPATH=/usr/bin:/bin\n{body}\n")).unwrap();
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
-    }
+    let mut sh = std::process::Command::new("/bin/sh")
+        .args(["-c", "cat > \"$1\" && chmod 755 \"$1\"", "sh"])
+        .arg(&path)
+        .stdin(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    sh.stdin
+        .take()
+        .unwrap()
+        .write_all(format!("#!/bin/sh\nPATH=/usr/bin:/bin\n{body}\n").as_bytes())
+        .unwrap();
+    assert!(sh.wait().unwrap().success());
     path
 }
 
