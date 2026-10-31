@@ -129,13 +129,34 @@ class EmptyEditPadding(unittest.TestCase):
         ):
             self.assertEqual(self.evidence(data[0]), [], name)
 
-    def test_an_empty_edit_halfway_between_two_ticks_gives_no_evidence(self):
-        # At 7,350 Hz (index 12) 20 ms is 147 ticks, 10 ms 73.5.
-        rate = bytes([2 << 3 | 12 >> 1, (12 & 1) << 7 | 1 << 3]) + EXT
-        data, last = movie(edits=((20, -1, 1 << 16), (1000, 0, 1 << 16)), asc=rate, timescale=7350)
+    def test_an_empty_edit_halfway_between_two_ticks_rounds_up(self):
+        # At 7,350 Hz (index 12) 20 ms is 147 ticks, 10 ms 73.5 and 30 ms
+        # 220.5, which ffprobe 9.0.2 counts as 74 and 221.
+        rate = bytes([2 << 3 | 12 >> 1, (12 & 1) << 7 | 1 << 3])
+        data, last = movie(edits=((20, -1, 1 << 16), (1000, 0, 1 << 16)), asc=rate + EXT, timescale=7350)
         self.assertEqual(self.evidence(data), [kd.EmptyEditPadding(1, last, 10, 5267 + 1024 - 5820, 324)])
-        data, _ = movie(edits=((10, -1, 1 << 16), (1000, 0, 1 << 16)), asc=rate, timescale=7350)
+        data, last = movie(edits=((10, -1, 1 << 16), (1000, 0, 1 << 16)), asc=rate + EXT, timescale=7350)
+        self.assertEqual(self.evidence(data), [kd.EmptyEditPadding(1, last, 10, 5194 + 1024 - 5820, 324)])
+        for empty, shift in ((10, 74), (30, 221)):
+            data, last = movie(edits=((empty, -1, 1 << 16), (1000, 0, 1 << 16)), asc=rate, timescale=7350,
+                               stts=((6, 1024),))
+            self.assertEqual(self.evidence(data), [kd.ProvenAbsence(shift, 1, last, 10, 6144, 7350)])
+
+    def test_the_media_edit_reaches_the_end_rounded_down(self):
+        # 836 ms at 7,350 Hz is 6,144.6 ticks: it reaches 6,144; 835.9 ms
+        # cannot be written, so 835 ms (6,137.25) falls short.
+        rate = bytes([2 << 3 | 12 >> 1, (12 & 1) << 7 | 1 << 3])
+        data, last = movie(edits=((30, -1, 1 << 16), (836, 0, 1 << 16)), asc=rate, timescale=7350, stts=((6, 1024),))
+        self.assertEqual(self.evidence(data), [kd.ProvenAbsence(221, 1, last, 10, 6144, 6144)])
+        data, _ = movie(edits=((30, -1, 1 << 16), (835, 0, 1 << 16)), asc=rate, timescale=7350, stts=((6, 1024),))
         self.assertEqual(self.evidence(data), [])
+
+    def test_zero_bytes_after_the_configuration_signal_no_extension(self):
+        whole = dict(edits=((3, -1, 1 << 16), (200, 0, 1 << 16)), stts=((6, 1024),))
+        data, last = movie(asc=LC_48K + bytes(14), **whole)
+        self.assertEqual(self.evidence(data), [kd.ProvenAbsence(144, 1, last, 10, 6144, 9600)])
+        # They do not rule SBR out, so a short last sample gives nothing.
+        self.assertEqual(self.evidence(movie(asc=LC_48K + bytes(14))[0]), [])
 
     def test_the_last_samples_description_gives_the_frame(self):
         # A second description of 960-sample frames, named by the chunk: the
@@ -162,6 +183,59 @@ class EmptyEditPadding(unittest.TestCase):
         self.assertEqual(self.evidence(movie(edits=((1000, -1, 1 << 16), (100, 5500, 1 << 16)))[0]), [])
         data, last = movie(edits=((1000, -1, 1 << 16), (100, 5120, 1 << 16)))
         self.assertEqual(self.evidence(data), [kd.EmptyEditPadding(1, last, 10, None, 324)])
+
+    def test_a_whole_last_frame_gives_ffprobe_a_value_and_coreav_none(self):
+        # Six frames of 1,024 at 48 kHz from media time 0 to their end at
+        # 6,144, after an empty edit of 3 ms (144 ticks): the last frame ends
+        # where the presentation does, so CoreAV lists nothing, and ffprobe,
+        # moving it to 5,264, lists 5,264 + 1,024 - 6,144 = 144. No extension
+        # is needed: the frame spans the same time whatever SBR does.
+        whole = dict(stts=((6, 1024),), asc=LC_48K)
+        data, last = movie(edits=((3, -1, 1 << 16), (200, 0, 1 << 16)), **whole)
+        self.assertEqual(self.evidence(data), [kd.ProvenAbsence(144, 1, last, 10, 6144, 9600)])
+        # From media time 1,024 after 30 ms: 5,536 + 1,024 - 6,144 = 416; a
+        # media header that disagrees with the samples changes nothing.
+        data, last = movie(edits=((30, -1, 1 << 16), (200, 1024, 1 << 16)), mdhd=6200, **whole)
+        self.assertEqual(self.evidence(data), [kd.ProvenAbsence(416, 1, last, 10, 6144, 1024 + 9600)])
+        # Frames of 960.
+        data, last = movie(edits=((3, -1, 1 << 16), (200, 0, 1 << 16)), stts=((6, 960),),
+                           asc=bytes([LC_48K[0], LC_48K[1] | 4]))
+        self.assertEqual(self.evidence(data), [kd.ProvenAbsence(144, 1, last, 10, 5760, 9600)])
+
+    def test_the_whole_frame_case_matches_only_its_exact_values(self):
+        data, last = movie(edits=((3, -1, 1 << 16), (200, 0, 1 << 16)), stts=((6, 1024),), asc=LC_48K)
+        (evidence,) = self.evidence(data)
+
+        def matches(oracle, coreav):
+            # As the comparator binds a proven absence: CoreAV lists nothing
+            # (not 0), ffprobe exactly the value, the sample within the edit.
+            return coreav is None and type(oracle) is int and oracle == evidence.oracle \
+                and evidence.sample_end <= evidence.edit_end
+        self.assertIsInstance(evidence, kd.ProvenAbsence)
+        self.assertTrue(matches(144, None))
+        for oracle, coreav in ((144, 0), (144, 1), (144, 144), (143, None), (145, None), (None, None), ('144', None)):
+            self.assertFalse(matches(oracle, coreav), (oracle, coreav))
+
+    def test_the_whole_frame_case_needs_its_shape(self):
+        whole = dict(stts=((6, 1024),), asc=LC_48K)
+        for name, edits, extra in (
+                # The media edit ends at 6,000, before the last sample does.
+                ('edit ending early', ((3, -1, 1 << 16), (125, 0, 1 << 16)), {}),
+                ('a second media edit', ((3, -1, 1 << 16), (100, 0, 1 << 16), (100, 4800, 1 << 16)), {}),
+                ('a second empty edit', ((3, -1, 1 << 16), (200, 0, 1 << 16), (3, -1, 1 << 16)), {}),
+                ('no empty edit', ((200, 0, 1 << 16),), {}),
+                # A last sample shorter than a frame needs the extension.
+                ('a short last sample', ((3, -1, 1 << 16), (200, 0, 1 << 16)), {'stts': ((5, 1024), (1, 1000))}),
+                # Longer than the 960 frame its configuration gives.
+                ('a sample longer than the frame', ((3, -1, 1 << 16), (200, 0, 1 << 16)),
+                 {'asc': bytes([LC_48K[0], LC_48K[1] | 4])}),
+                ('a second description', ((3, -1, 1 << 16), (200, 0, 1 << 16)), {'more': (LC_48K,)}),
+                ('SBR', ((3, -1, 1 << 16), (200, 0, 1 << 16)), {'asc': bytes([5 << 3 | 6 >> 1, 6 << 7 & 0x80 | 2 << 3, 0x18, 0x80])}),
+                # The moved packet starts at 7,184, after the end: both list none.
+                ('both absent', ((50, -1, 1 << 16), (200, 0, 1 << 16)), {}),
+        ):
+            args = dict(whole, **extra)
+            self.assertEqual(self.evidence(movie(edits=edits, **args)[0]), [], name)
 
     def test_a_version_1_edit_list_reads_the_same(self):
         data, last = movie(elst_version=1)

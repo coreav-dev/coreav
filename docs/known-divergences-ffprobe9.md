@@ -215,12 +215,17 @@ stored `nclx` bytes and fails when its exact oracle disagreement changes.
   end, and it lists no side data. Where it starts before that end and
   ends after it, FFmpeg 9.0.2 lists the rest of the frame past the end, so
   both tools list a value (for example 848 against CoreAV's 10).
-- Corpus scope: the record's `level`, `fields` and `conditions` give the
-  case with both values present, defined by the file's bytes alone; an
-  absent value on either side is never excluded. Not excludable yet: no
-  corpus row is excluded until the byte-derived predicate
-  `oracle_kd.empty_edit_padding` (coreav-dev/coreav#160) gates it in the
-  corpus comparator. Only the fixture scope below applies now.
+- Corpus scope: the record's `level`, `fields` and `conditions` give two
+  cases, defined by the file's bytes alone. Both values present: the last
+  sample is shorter than a frame the extension that rules SBR out fixes.
+  CoreAV's value absent (`corpus_absence`, `last-sample-within-media-edit`):
+  the last sample lasts a whole frame and ends at or before the media
+  edit's end, so 8.6.6 leaves nothing past the presentation to discard
+  whatever the frame's length, while FFmpeg 9.0.2 lists the moved packet's
+  part past that end. No corpus row is excluded until the byte-derived
+  predicate `oracle_kd.empty_edit_padding` (coreav-dev/coreav#160) gates it
+  in the corpus comparator; any other absent value is never excluded. Only
+  the fixture scope below applies now.
 - Accepts: on these two files only, while their bytes still have this
   shape (`empty_edit_padding` in `tools/compat-corpus/run.py` reads
   them), CoreAV's Skip Samples side data on the last audio packet with

@@ -2315,14 +2315,16 @@
    "fields": ["side_data_list.discard_padding"],
    "conditions": {
     "track": "an audio track of an unfragmented movie, without composition offsets, with one sample description, which every chunk names, an mp4a with an AudioSpecificConfig of AAC LC (object type 2) at the media time scale, with no dependsOnCoreCoder or extensionFlag, then the extension that rules SBR out (0x2b7, object type 5, sbrPresentFlag 0) and nothing else, since without it implicit SBR is open at any core rate (ISO/IEC 14496-3 1.6.5.3); its frame is 960 or 1,024 samples by frameLengthFlag",
-    "edits": "exactly an empty edit of nonzero duration, then one media edit at rate 1 from media time 0 or later that reaches the end of the samples; neither edit's duration in media ticks falls halfway between two ticks",
+    "edits": "exactly an empty edit of nonzero duration, then one media edit at rate 1 from media time 0 or later that starts at or before the last sample and reaches the end of the samples, its duration counted in media ticks rounded down; the empty edit's duration counted in media ticks rounded to the nearest, halves up as ffprobe 9.0.2 does",
     "samples": "the media header's duration is the samples' total, and the last sample lasts less than a frame and starts inside the media edit",
     "candidate": "the frame less the last sample's duration",
     "reference": "the last sample's time less the media time plus the empty edit's duration in media ticks (p), plus a frame, less the end of the samples, when p is before that end and p plus the last sample's duration is after it",
     "occurrence": "the last packet of that track, by its offset and size; both values present and different",
-    "excludable": "not yet: no corpus row is excluded under these conditions until the byte-derived predicate oracle_kd.empty_edit_padding (coreav-dev/coreav#160) gates them in the corpus comparator; only the fixture scope (keys, accepts) applies"
+    "excludable": "not yet: no corpus row is excluded under these conditions until the byte-derived predicate oracle_kd.empty_edit_padding (coreav-dev/coreav#160) gates them in the corpus comparator; the absence case only through its ProvenAbsence evidence and corpus_absence below; only the fixture scope (keys, accepts) applies now",
+    "absence": "a second case: the last sample lasts exactly the core frame frameLengthFlag gives and ends at or before the media edit's end, so it decodes nothing past the presentation whatever SBR does; the configuration needs no extension (zero bytes after it signal none) and the media header may differ from the samples; CoreAV lists no side data on that packet and ffprobe exactly the value 'reference' gives with that frame, every other packet agreeing"
    },
-   "basis": "ISO/IEC 14496-12 8.6.6: the media edit ends the presentation at its end in media time; ffprobe 9.0.2 places the packet after the empty edit but keeps that end in media time",
+   "basis": "ISO/IEC 14496-12 8.6.6: the media edit ends the presentation at its end in media time, so a last sample ending at or before it has nothing past it to discard; ffprobe 9.0.2 places the packet after the empty edit but keeps that end in media time",
+   "corpus_absence": "last-sample-within-media-edit",
    "accepts": {
     "packets.side_data_list[Skip Samples]": {
      "evidence": "empty edit padding",
