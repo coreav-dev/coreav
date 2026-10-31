@@ -118,6 +118,9 @@ the implementation does not get to choose later:
 
 ## The bars, pre-registered
 
+The [next ffprobe validation arm](../measurements/compat-ffprobe/round9-plan.md)
+registers its method separately. It changes none of the bars below.
+
 Measured over `commands-v1`. Every command's placeholders are
 filled by the runner with a fixture or corpus file, which is why the set
 holds the option sequence and not the names an answer happened to use.
