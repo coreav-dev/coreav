@@ -1061,6 +1061,15 @@ def key_name(path):
     return '.'.join(part.split('[', 1)[0] for part in path.split('.'))
 
 
+def key_pairs(reference, candidate, prefix=''):
+    """Reference-listed leaves with concrete paths and candidate presence.
+    Missing and null retain the existing raw comparator's equality."""
+    for path, value in reference.items():
+        full = prefix + path
+        name = key_name(prefix) + path if prefix else key_name(path)
+        yield full, name, value, path in candidate, candidate.get(path)
+
+
 def packet_fields(line):
     """A compact packet line as {key: value}; side data keys under
     `side_data_list.`."""
@@ -1099,12 +1108,11 @@ def compare_packets(coreav, path):
             for line in ref:
                 other = got.readline() if code == 0 else ''
                 a, b = packet_fields(line), packet_fields(other)
-                for k, v in a.items():
-                    name = 'packets.' + k
-                    ok = b.get(k) == v
+                for concrete, name, v, _, value in key_pairs(a, b, f'packets[{n}].'):
+                    ok = value == v
                     result[name] = result.get(name, True) and ok
                     if not ok and name not in examples:
-                        examples[name] = (f'packets[{n}].{k}', v, b.get(k))
+                        examples[name] = (concrete, v, value)
                 n += 1
         return result, examples, code
 
@@ -1126,12 +1134,11 @@ def compare_file(coreav, path, args):
         got = {}
     result = {}
     examples = {}
-    for k, v in ref.items():
-        name = key_name(k)
-        ok = got.get(k) == v
+    for k, name, v, _, value in key_pairs(ref, got):
+        ok = value == v
         result[name] = result.get(name, True) and ok
         if not ok:
-            examples.setdefault(name, (k, v, got.get(k)))
+            examples.setdefault(name, (k, v, value))
     return result, examples, code
 
 
