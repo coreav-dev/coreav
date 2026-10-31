@@ -327,9 +327,10 @@ fn streams_are_written_in_the_order_they_are_mapped() {
 
 /// More output streams than CoreAV writes to one file (`Limits::max_tracks`)
 /// are refused before any stream is planned, counted once `-an` and the
-/// negative maps have removed theirs: 20,000 `-map 0` on a file of two
-/// streams would otherwise plan 40,000 outputs, and 513 `-map 0` less the
-/// audio are 513 video tracks.
+/// negative maps have removed theirs: 3,000 `-map 0` on a file of two
+/// streams (near the longest command line Windows starts, 32,767
+/// characters) would otherwise plan 6,000 outputs, and 513 `-map 0` less
+/// the audio are 513 video tracks.
 #[test]
 fn a_selection_larger_than_an_output_holds_is_refused() {
     let dir = scratch("ffmpeg-many-maps");
@@ -348,7 +349,7 @@ fn a_selection_larger_than_an_output_holds_is_refused() {
         assert_eq!(listed(&output).0, vec![V; 513], "{less:?}");
     }
     std::fs::remove_file(&output).unwrap();
-    for maps in [513, 20_000] {
+    for maps in [513, 3_000] {
         let mut args = vec!["-y", "-i", input.as_str()];
         for _ in 0..maps {
             args.extend(["-map", "0"]);
