@@ -1862,7 +1862,15 @@ pub fn aac_ends_with_sbr(block: &[u8]) -> bool {
             }
             fill_end = before;
         }
-        for start in fill_end.saturating_sub(MAX_FILL_BYTES * 8 + 15)..body_end {
+        let mut start = fill_end.saturating_sub(MAX_FILL_BYTES * 8 + 15);
+        let stride = if fill_end == body_end { 8 } else { 1 };
+        if stride == 8 {
+            let Some(last) = body_end.checked_sub(7) else {
+                continue;
+            };
+            start += last.saturating_sub(start) % 8;
+        }
+        for start in (start..body_end).step_by(stride) {
             if read(start, 3) != Some(0b110) {
                 continue;
             }
@@ -2189,6 +2197,30 @@ mod tests {
         fields.extend(std::iter::repeat_n((0b1100000, 7), 300));
         fields.push((0b111, 3));
         assert!(!aac_ends_with_sbr(&pack(&fields)));
+    }
+
+    #[test]
+    fn sbr_header_positions_cover_every_alignment_and_count_form() {
+        for prefix in 0..8 {
+            for (count, escaped) in [(1, false), (14, false), (14, true), (15, true), (269, true)] {
+                for empty in [0, 1, 2, 8] {
+                    let mut fields = vec![(0, prefix), (0b110, 3)];
+                    if escaped {
+                        fields.extend([(15, 4), (count - 14, 8)]);
+                    } else {
+                        fields.push((count, 4));
+                    }
+                    fields.extend([(0b1101, 4), (0, 4)]);
+                    fields.extend(std::iter::repeat_n((0, 8), count as usize - 1));
+                    fields.extend(std::iter::repeat_n((0b1100000, 7), empty));
+                    fields.push((0b111, 3));
+                    assert!(
+                        aac_ends_with_sbr(&pack(&fields)),
+                        "{prefix} {count} {escaped} {empty}"
+                    );
+                }
+            }
+        }
     }
 
     #[test]
