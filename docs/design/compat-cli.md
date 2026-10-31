@@ -1605,9 +1605,21 @@ on crafted files and the development set:
   carries, copied to its syntactic end (ISO/IEC 14496-3 1.6.2.1, 4.4.1),
   as `extradata`; explicit SBR (object type 5 or 29) gives `HE-AAC` at the
   extension rate. A configuration this reader cannot end (a program config
-  element, `epConfig` 2 or 3) falls back to the two-byte one. Parametric
-  stereo signalled implicitly inside SBR data is not found: that needs the
-  raw data blocks, as `KD-TS-AAC-PROFILE` describes.
+  element, `epConfig` 2 or 3) falls back to the two-byte one. AAC-LC at
+  24 kHz or less, where SBR is commonly implicit, is read for SBR data as
+  ADTS is: the raw data block of each of the first 16 frames whose
+  `StreamMuxConfig` (its own or the last before it) has one program, one
+  layer, one subframe and `frameLengthType` 0, so that `PayloadLengthInfo`
+  gives its length; the stream is `HE-AAC` at twice the rate when at most
+  two disagree (a DVB capture of the corpus, all 16 frames with SBR data).
+  The scan from a block's end does not read the bits after `ID_END`, which
+  that capture's encoder sets to ones, and allows one fill element of
+  `EXT_FILL_DATA` (fill bytes `10100101` only, ISO/IEC 14496-3 table
+  4.57) between the SBR element and `ID_END`, which 44 of its 114 frames
+  carry; on 2,602 frames of plain AAC-LC from twelve captures that raises
+  the frames that look like SBR from 1.0% to 1.4%, and none of those
+  captures shows more than one in its first 16 frames. Parametric stereo
+  signalled implicitly inside SBR data is not found.
 - Audio frames before a stream's first stated time take that time minus
   the durations between, and the stream's start moves with them (crafted
   AAC, MPEG audio, AC-3 and Opus files). Rejected: leaving them untimed,
