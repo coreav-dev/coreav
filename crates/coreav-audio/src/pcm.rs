@@ -120,6 +120,19 @@ impl Pcm {
     /// Makes the buffer hold `channels × frames` floating-point samples and
     /// returns them, planar. Their values are left over from earlier
     /// packets: the decoder writes every one.
+    /// Takes `samples` as `channels` planes of `frames` samples each, and
+    /// hands back the buffer it held in their place, for reuse.
+    pub(crate) fn swap_float(&mut self, channels: usize, frames: usize, samples: &mut Vec<f32>) {
+        self.channels = channels;
+        self.frames = frames;
+        let mut held = match core::mem::take(&mut self.data) {
+            Data::Float(held) => held,
+            Data::Int { .. } => Vec::new(),
+        };
+        core::mem::swap(&mut held, samples);
+        self.data = Data::Float(held);
+    }
+
     pub(crate) fn float_buffer(&mut self, channels: usize, frames: usize) -> &mut [f32] {
         self.channels = channels;
         self.frames = frames;

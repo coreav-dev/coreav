@@ -43,9 +43,9 @@ What `native` means, option by option. Anything not here is refused.
 | | |
 |---|---|
 | With a value | `-i`, `-v`, `-loglevel`, `-of`, `-print_format`, `-output_format`, `-show_entries`, `-select_streams`, `-read_intervals`, `-f` |
-| Flags | `-show_format`, `-show_streams`, `-show_chapters`, `-show_programs`, `-show_packets`, `-show_error`, `-count_packets`, `-hide_banner`, `-pretty`, `-sexagesimal`, `-nostdin` |
+| Flags | `-show_format`, `-show_streams`, `-show_chapters`, `-show_programs`, `-show_packets`, `-show_frames`, `-show_error`, `-count_packets`, `-count_frames`, `-hide_banner`, `-pretty`, `-sexagesimal`, `-nostdin` |
 | Writers (`-of`) | `json`, `default`, `compact`, `csv`, `flat` |
-| `-show_entries` sections | `format`, `stream`, `packet`, `chapter`, `program`, `format_tags`, `stream_tags`, `packet_tags`, `chapter_tags`, `program_tags`, `stream_side_data` |
+| `-show_entries` sections | `format`, `stream`, `packet`, `frame`, `chapter`, `program`, `format_tags`, `stream_tags`, `packet_tags`, `frame_tags`, `chapter_tags`, `program_tags`, `stream_side_data`, `frame_side_data` |
 | Demuxers (`-f`) | `mov,mp4,m4a,3gp,3g2,mj2`, `matroska,webm`, `mpegts` |
 
 **`coreav ffmpeg`**, stream copy only
@@ -62,9 +62,7 @@ What `native` means, option by option. Anything not here is refused.
 | `-f concat` | the input is a list file, and the job is `coreav join` (`docs/design/join.md`), which takes files sharing a codec configuration |
 
 **Refused by design,** although common in the set, each because the job
-itself is not native yet: `-show_frames` and `-count_frames` and any
-`-show_entries frame=…` or `nb_read_frames` (per-frame fields that need a
-decoder), `-vf`, `-af`, `-filter_complex` and `-filter:*` (filtering),
+itself is not native yet: `-vf`, `-af`, `-filter_complex` and `-filter:*` (filtering),
 every encoder value of a codec option, `-f lavfi`, `-f image2`,
 `-f rawvideo`, `-f null`, `-re`, `-loop`, `-ignore_loop`, `-bsf:*`
 (bitstream filters), `-r`, `-frames:v`, `-s`, `-pix_fmt`, `-ar`, `-ac`,
@@ -73,7 +71,7 @@ every encoder value of a codec option, `-f lavfi`, `-f image2`,
 `-analyzeduration`, `-protocol_whitelist`, `-bufsize`, `-maxrate`, `-g`,
 `-pass`, `-vpre`, `-q:*`, `-qscale`, `-framerate`, `-video_size`,
 `-pattern_type`, `-metadata:*`, `-level`, `-id3v2_version`,
-`-stream_loop`, `-aspect`, and the informational queries (`-h`, `-formats`,
+`-stream_loop`, `-aspect`, and the informational queries (`-h` with a topic, `-formats`,
 `-encoders`, `-decoders`, `-filters`, `-muxers`, `-pix_fmts`,
 `-sample_fmts`, `-layouts`, `-sections`, `-version`).
 
@@ -117,6 +115,9 @@ the implementation does not get to choose later:
   which no such fixture exists rather than counting it against a bar.
 
 ## The bars, pre-registered
+
+The [next ffprobe validation arm](../measurements/compat-ffprobe/round9-plan.md)
+registers its method separately. It changes none of the bars below.
 
 Measured over `commands-v1`. Every command's placeholders are
 filled by the runner with a fixture or corpus file, which is why the set
@@ -214,7 +215,74 @@ above move with it in this note.
   the set is frozen as `commands-v1`; a later snapshot is `commands-v2`,
   in the pull request that measures against it.
 
+## FFmpeg 9 stream listings
+
+`coreav ffprobe` prints the pinned oracle's stream vocabulary: the
+`multilayer` disposition flag, MIME codec strings for AVC, AAC, AV1,
+VP8, VP9, MPEG-4 Part 2, MPEG audio, Vorbis, AC-3, E-AC-3, Opus and FLAC,
+HEVC view fields, and the Dolby
+downmix metadata of the first audio frame. Decoder-only `refs`,
+`closed_captions` and `film_grain` are no longer printed. MIME strings
+use RFC 6381, the WebM container guidelines, and the AV1 and VP codec
+ISOBMFF bindings. AAC uses the configuration's initial audio object
+type, not a profile inferred after decoding an implicit extension. A VP9 stream
+without a configuration record uses the first level whose picture size,
+sample rate, bit rate and edge limits cover the known stream values
+([VP9 levels](https://www.webmproject.org/vp9/levels/)); this is a
+listing estimate, not a check of every level constraint of every frame.
+VP8 and VP9 ISO sample entries share the
+[`vpcC` pixel-format reader](https://www.webmproject.org/vp9/mp4/):
+bit depth and chroma subsampling select the planar format; full range
+is reported separately as `color_range`, not as a JPEG pixel format.
+Dolby downmix fields come from ATSC A/52's extended bitstream information
+or E-AC-3 mixing metadata; absent metadata prints zero, not inferred
+speaker gains.
+
+AV1 strings keep the sequence's level index (including 31, maximum
+parameters) and append all optional fields together when they differ
+from the defaults. Raw colour code points, including explicit 2/2/2,
+come from the sequence header unless an ISO `nclx` box overrides them,
+as the [AV1 binding section 5](https://aomediacodec.github.io/av1-isobmff/#codecsparam)
+requires. Some pinned-oracle strings disagree with these requirements.
+The known-divergence note records them; one generated fixture has an
+exact-pair exception backed by its `nclx` bytes, with a stale-exception
+gate that fails when the oracle starts agreeing. It excludes no corpus
+file or other field from B3a.
+
+AVC and HEVC Annex B extradata lengths include the retained parameter
+sets with four-byte start codes and their intervening padding. Every
+MPEG-TS access unit carries its PES identifier as packet side data,
+including further audio frames of one PES packet and the EOF flush.
+ISO base media packets keep the decode durations in `stts` and `trun`,
+even when the stream has composition offsets.
+
 ## The 0.1.0 command set
+
+### ffprobe round 8 measurement plan (historical)
+
+Round 8 remeasures B3a on the same 1,315 files as round 7 with the
+shared FFmpeg oracle pin. Both the base and candidate binaries use that
+oracle, so changes in the oracle are not counted as candidate gains.
+Every key is reported by container and by development or held-out part,
+including keys newly printed by the oracle. The bar remains 98% per key;
+known divergences name their reason rather than lowering it. MPEG-TS
+held-out inputs inspected during this work are no longer independent
+validation, and the report will say so.
+
+B4 is remeasured on its registered selection of up to 20 held-out files
+per container (20 ISO base media, 20 Matroska/WebM and 17 MPEG-TS) and
+the native ffprobe commands of commands-v1, five alternating timed pairs
+after one untimed pair. The fixed host class is a GCP c4-standard-8 with
+SMT disabled, with both tools on the same pinned core. Before the B4
+arm, FFmpeg/FFmpeg and CoreAV/CoreAV calibration arms must each have an
+overall median ratio in [0.98, 1.02], with a bootstrap 95% interval that
+contains 1.00. A failed calibration voids the host, not the bar. A failed
+or timed-out command has no speed ratio and is counted separately.
+The B4 bar remains at most 1.00 per command, overall and per container;
+the report includes the 95% intervals and the share of pairs below 1.00.
+Calibration uses the first selected input of each container with
+`-show_format -show_streams` and with `-show_packets`, five timed pairs
+after one untimed pair per arm and command.
 
 Release 0.1.0 does not wait for B2, B3a and B3b over the whole vocabulary.
 It ships the commands that upload and preprocessing pipelines run most, the
@@ -381,6 +449,50 @@ something, a family given that measured nothing misses (in R1, each of its
 (command, family) pairs whose files the pinned `ffprobe` reads none of; in
 R2, a family with no file it reads).
 
+`tools/compat-corpus/r3.py` runs R3 on files other than the fixtures. A
+file can take a command when its family is the command's, the pinned
+`ffprobe` lists none of the stream types `input_without` names, every
+`-map` that adds streams selects one, and the maps leave a stream. The
+pinned `ffmpeg` runs each such pair first, and only the pairs it runs to
+success are counted. The `coreav ffmpeg` binary prints no summary, and
+`copy_check.py` needs the writer's summary, so each counted pair runs
+through `coreav_cli::ffmpeg::run` in the ignored test
+`the_0_1_0_commands_on_listed_pairs`, as the fixture half does, and then
+through the binary, which must write the same bytes; a pair passes when
+both wrote and `copy_check.py` finds no problem. A refusal, a rejection, a
+`-map` the CLI finds empty, or a binary that writes otherwise, fails the
+pair. A pair whose output no oracle checks (`copy_check.py` skips the job's
+oracle for the clips, segments and joins of a file whose picture size
+changes inside the track) is set aside rather than passed when its stream
+selection matches FFmpeg's, and its command is unmeasured and misses; a
+selection that differs fails it. A command meets R3 when at least 98% of its counted pairs pass, each
+spelling of the set counted on its own, as the bar says "each command".
+
+`speed.py r4` times R4 and both gate arms: `r4` CoreAV against FFmpeg,
+`aa` FFmpeg against itself and `null` CoreAV against itself, the same
+command for both sides, on every file of its families that R3's rule lets
+take it. The runner pins itself to the CPUs of `--cpus`, so every timed
+process runs there; an `ffmpeg` command writes into a scratch directory on
+the local disk that is emptied after every run. A pair whose untimed run
+fails on either side has no ratio and is reported, a strict-safe refusal
+apart (its fallback-log line voids the run). A timed run that fails or
+times out after both untimed runs succeeded makes the run incomplete, which
+fails R4 and fails the gate, never passes them on the timings left. `speed.py r4-report --gate` judges the gate on each class's ratios
+over the three families, as the gate names "every class's median"; the
+families' rows are reported and not gated.
+
+`scripts/compat_r4_gcp.py` runs the R4 host over `scripts/gcp_vm_job.py`:
+one on-demand `c4-standard-16` with one thread a core, the three binaries
+uploaded, the gate's files (`tools/compat-corpus/round_files.py r4-gate`)
+fetched with read-only credentials and their SHA-256 checked, the `aa` and
+`null` arms timed, and only when both pass the draw's files
+(`r4-draw6`) fetched and the `r4` arm timed, so a failed gate leaves the
+draw unread. The VM deletes itself at the time limit and powers itself off
+shortly before it, and the script refuses a time limit whose price bound is
+above its spend cap (at most the per-task limit). `--rehearsal` puts spent
+files (`r4-rehearsal`) in the draw's place and times them whatever the
+gate says, so a rehearsal exercises every step.
+
 **The R4 host, registered before the run.** A GCP `c4-standard-16` VM with
 SMT off (one thread per core), started through `scripts/gcp_vm_job.py`, the
 rest of the VM idle, and both tools' processes pinned to the same four
@@ -429,6 +541,235 @@ command outside the set. Until that round, `coreav ffmpeg` is labelled
 experimental where users see it (`coreav --help` and the documentation
 site), as `coreav ffprobe` is; after it, the label stays on the `ffmpeg` commands outside the set.
 
+## The 0.1.0 codec coverage bars
+
+Release 0.1.0 also widens what CoreAV decodes and encodes without FFmpeg,
+so that `coreav transcode` and `coreav ffmpeg` cover more codecs
+(maintainer decision, 2026-10-31). Two bars measure that breadth and a
+third number is reported beside them. This section is written before any
+run of them; nothing registered above changes.
+
+| | Bar |
+|---|---|
+| **V1 Decode breadth** | at least **74%** of the corpus v1 `real` files with a video stream decode in the full build without the FFmpeg fallback, every frame agreeing with the pinned FFmpeg's |
+| **V2 Encode breadth** | at least **40%** of the 488 commands of the encode set run to completion in the full build, every option handled by CoreAV and every output passing the oracle of its job |
+| **V3 Native share** | reported, with no bar: the share of all 630 filter-free usable `ffmpeg` commands that count by V2's rules |
+
+**The build.** Two release builds are decided: a default build, which links
+no codec on the patent list, and a full build, which adds CoreAV's H.264
+and AAC decoders. Every measure here runs the full build's
+`x86_64-unknown-linux-musl` archive, built from the release candidate
+commit of the 0.1.0 round (`docs/measurements/compat-0.1.0/README.md`,
+"The commit"), on Linux x86-64. Its video decoders are CoreAV's H.264
+decoder, dav1d for AV1, and libvpx for VP9 and, added for V1 (maintainer
+decision, 2026-10-31), for VP8. If the full build of that commit lacks one
+of them, it is measured as it is: the bar was set for these four codecs,
+so a missing one shows as a miss, not as a reason to move the bar. The
+default build is not measured here.
+
+### V1, decode breadth
+
+- **Files.** Every `real` file of corpus v1, 1,351, development and
+  held-out alike: the bar counts what decodes and makes no speed claim.
+- **The stream.** The video stream `coreav thumbnail` and `coreav
+  transcode` decode: FFmpeg's default choice, the highest resolution, the
+  first on a tie. A stream with the attached-picture disposition (cover
+  art) is not a video stream here. Both sides decode this stream: the
+  pinned `ffmpeg` maps it by its index, never as `0:v:0`.
+- **The reference.** The pinned `ffmpeg`'s `framemd5` of the whole
+  stream, prepared as `decode.md`'s bar 1 prepares it (`-noautorotate`,
+  `-noautoscale`, `-ignore_editlist 1` for MP4 and MOV, the format
+  without alpha for one with alpha, `-fps_mode passthrough`), with the
+  FFmpeg decoder bar 1 names for the backend the full build chooses
+  (`libdav1d` for dav1d, its own `vp9` for libvpx's VP9, its own `vp8` for
+  libvpx's VP8) and FFmpeg's default decoder for a codec no backend of the
+  full build takes. The runner runs it, not CoreAV.
+- **Denominator.** The files on which the pinned `ffprobe` lists such a
+  stream and whose reference exits 0 and lists at least one frame. A file
+  with no reference has nothing to agree with; their number is reported.
+- **Numerator.** The files whose stream, with `COREAV_STRICT_SAFE=1`, goes
+  through the decode boundary with the full build's backends in the CLI's
+  order, and:
+  - the backend that opens it is not the FFmpeg fallback (in strict-safe
+    mode only its stand-in is on the list, and it opens nothing);
+  - every packet of the stream is sent, the end of the stream is sent, and
+    every frame the decoder holds is received, with no error, a decode
+    limit included;
+  - CoreAV returns as many frames as the reference lists, and each frame's
+    MD5 (the planes packed without padding, `framemd5`'s layout) equals
+    the reference's, frame for frame in presentation order, after the
+    known divergences `decode.md` records. The reference is never cut to
+    the frames CoreAV returned: bar 1's rule for a prefix applies to a
+    stream sent in part, and V1 sends all of it.
+
+  A file CoreAV refuses (a container refusal by design, a stream outside a
+  decoder's scope, a codec only FFmpeg decodes) stays in the denominator,
+  not decoded. The result lists the misses by reason.
+- **Tool.** `tools/decode-oracle`, built from the release candidate with the
+  full build's decoder features and the dav1d and libvpx versions its
+  archive links. The archive has no command that decodes a whole stream
+  without encoding it, and a transcode would count encoder and writer
+  failures as decoding ones. Before the run, the tool gains, in its own
+  pull request, a mode that chooses the backend as the CLI does in
+  strict-safe mode, sends every packet and the end of the stream, and
+  records for each file the backend that decoded it and the number of
+  frames, tested on the fixtures and on spent files.
+- **Host.** GitHub-hosted Linux x86-64 runners, with the read-only corpus
+  credentials of the 0.1.0 round's workflow. Nothing is timed. macOS does
+  not qualify: there, strict-safe mode refuses the sandboxed backends.
+- **Result.** The share, its numerator and denominator, the share per
+  codec, and the misses by reason.
+
+**The ceiling, from the committed tags** (`docs/corpus-coverage.md`; tags
+are per file, not per stream, so this is an estimate). 1,190 of the 1,351
+`real` files are not tagged audio-only. 878 of them (73.8%) carry only the
+H.264, AV1 or VP9 tag, so without VP8 the bar could not be met even if each
+of them decoded; with VP8, 931 (78.2%). CoreAV's H.264 decoder takes 8-bit
+4:2:0 progressive pictures (`h264.md`, "Scope"), and 10 of those H.264
+files are tagged 10-bit or interlaced: 921 (77.4%). If the 21 encrypted
+video files have no reference decode, they leave both sides: 902 of 1,169
+(77.2%). The bar then needs 866 files, so about 96% of the files the full
+build's decoders take must decode and agree.
+
+### V2, encode breadth
+
+- **The set.** [`commands-0.1.0/coverage.json`](../../tools/compat-corpus/commands-0.1.0/coverage.json),
+  derived from `commands-v1` by
+  [`coverage_set.py`](../../tools/compat-corpus/coverage_set.py): the usable
+  `ffmpeg` commands with no filter option (`-vf`, `-af`, `-filter`,
+  `-filter_complex`, `-lavfi` and the script forms), 630 of 976, and of
+  those the 488 whose output is a media file in a known container (class
+  `media`). The other 142 are 93 whose container cannot be known (no `-f`
+  and a name with no extension, or one that names no container), 12 that
+  only decode (`-f null`), 8 subtitle files and 29 other outputs (network
+  addresses, devices and the null device, metadata).
+  `tools/compat-corpus/tests/` derives the file again and fails when it,
+  or a number of this section, differs.
+- **How the output container is known.** `commands-v1` replaces each output
+  name with `OUTPUT`, and FFmpeg takes the container from the name unless
+  `-f` names one. `coverage_set.py fetch` reads, through the public Stack
+  Exchange API, every answer a usable `ffmpeg` command was found in, and
+  `coverage_set.py outputs` runs `extract.py`'s extraction over them again.
+  For each command it records the output of every invocation that
+  normalizes to it, reduced to what a run needs: `OUTPUT` with the name's
+  number pattern and extension (`OUTPUT%03d.jpg`), the pipe or null device
+  it names, a URL as its scheme (`rtmp://OUTPUT`), or another device as
+  `/dev/OUTPUT`:
+  [`commands-v1/outputs.json`](../../tools/compat-corpus/commands-v1/outputs.json),
+  read on 2026-10-30, with no post body. A command's output is the first
+  invocation's in its highest-scored answer. An output to a network
+  address or a device is not a media file, whatever `-f` names. Otherwise
+  its container is the one the `-f` after its last input names (for `-f
+  segment`, its `-segment_format`), else the one that output's extension
+  names. The script's tables class every name that occurs, and a new name
+  fails the derivation until it is classed.
+- **Programs.** The operator's encoders, run as `transcode.md` ("The encoder
+  program") runs them: the `x264` program `scripts/install-x264.sh` builds,
+  for H.264, and the pinned FFmpeg 9.x that `scripts/install-oracle-ffmpeg.sh`
+  installs, as `ffmpeg`, for AAC (`-c:a aac`). Each is named to CoreAV
+  through a wrapper that appends the arguments of each start to the run's
+  program log and then runs the program. The runner's own runs of the
+  pinned `ffmpeg` (the reference and the choice of inputs) do not go
+  through the wrapper and are not in the program log.
+- **Mode.** Strict-safe mode refuses an `ffmpeg` program in every role, the
+  encoder's included, so V2 runs outside it, as the checks that need FFmpeg
+  as the encoder do ("Strict-safe mode", above): `COREAV_FALLBACK` names no
+  program, so a refusal stands and nothing is handed to FFmpeg, and
+  `COREAV_FALLBACK_LOG` names a file of the run.
+- **Inputs.** Each input placeholder takes one of five generated fixtures,
+  in this order: `basic.mp4` (H.264 and AAC), `mkv_h264_aac.mkv`,
+  `webm_vp9_opus.webm`, `ts_h264_aac.ts`, `audio_aac.m4a`. The input of
+  `-f concat` is a list that names the fixture twice. The assignments are
+  tried in the order of the list's positions, the first placeholder
+  changing slowest (for one placeholder, `basic.mp4` first and
+  `audio_aac.m4a` last), never in the order of the names. The command's
+  input is the first assignment on which the pinned `ffmpeg` runs the
+  command to success (exit 0, the output written). CoreAV runs the command
+  on that input only, writing where `OUTPUT` stands in the command's
+  `output`.
+- **Counted.** A command counts when, on its input, `coreav ffmpeg` exits 0
+  and:
+  - the fallback log has no line for it;
+  - every program the program log shows it started is an encoder: `x264`,
+    or an `ffmpeg` whose only input is raw samples on its standard input
+    and whose only output is one AAC stream. Any other `ffmpeg` start,
+    such as the full build's FFmpeg decoder backend taking a stream, is
+    FFmpeg doing the job: the command does not count;
+  - the output passes the oracles of what the command does: a command that
+    only copies, as R3 checks it; an H.264 encode, as `transcode.md`'s B9
+    checks a `coreav ffmpeg` encode against the pinned `ffmpeg` running the
+    same command line (B1, B2, B3 for the streams it copies, and B4 with Q1
+    at least −0.50 dB and Q2 at least 30 dB); an AAC encode, or an image
+    CoreAV's JPEG or PNG encoder writes, as the oracle its own design note
+    registers before the run, which also says how the streams copied
+    beside it are checked;
+  - the output lists the same streams, by kind and codec, in the same
+    order, as the pinned `ffmpeg`'s output of the same command.
+
+  A command with no input the pinned `ffmpeg` runs, one CoreAV refuses,
+  one whose job has no registered oracle at the release candidate, and one
+  that fails a check above stay in the denominator, not run. The result
+  lists the misses by reason.
+- **Host.** A GitHub-hosted Linux x86-64 runner. Nothing is timed and no
+  corpus file is read.
+- **Result.** The share of the 488, the count per output container, and the
+  misses by reason.
+
+**The ceiling.** The bar needs 196 commands. `coverage_set.py` estimates
+from encoder availability alone how many could count: an output in MP4 or
+HLS, or a JPEG or PNG image, whose every stream is copied or encoded by an
+encoder of the stage. Each input is taken to hold video and audio, an
+output without a codec option to need the encoders FFmpeg takes for its
+container (the script's table), and no other option or oracle is checked.
+Copies alone reach 77 of the 488 (15.8%), with H.264 through `x264` 88
+(18.0%), with AAC 206 (42.2%), and with JPEG and PNG images 245 (50.2%). So
+most of those commands must also have every other option handled by
+CoreAV.
+
+### V3, the native share
+
+The share of the 630 filter-free commands of `coverage.json` that count by
+V2's rules, on V2's inputs, programs and mode. The numerator is V2's count
+plus the commands of the other 142 that count by the same rules. Each of
+those runs with its output as its `output` names it: a pipe to standard
+output, the null device, or a file with that name. A network address or a
+device other than the null device is not provided, so the pinned `ffmpeg`
+cannot run such a command and it does not count. A command whose container
+cannot be known runs with the name its answer gave, so FFmpeg's own choice
+of a container decides whether an input is found. A command whose job
+(decoding only, subtitles, metadata) has no oracle registered at the
+release candidate does not count. Reported as a share of 630, beside the
+79 commands `classify.py` labels `native`; no bar.
+
+### When they run, and what voids a run
+
+All three run once on the release candidate commit, after the tools they
+need have merged and run on the fixtures and on spent files. The record is
+`docs/measurements/compat-0.1.0.md`, beside the round's other bars; corpus
+file names and hashes go only to the private evidence store, as the round's
+workflow keeps them.
+
+- **A run is void,** and repeated on the same commit, when:
+  - a file of V1's set or a command of V2's or V3's has no result (a lost
+    or crashed job);
+  - the tool's record shows the FFmpeg fallback as the backend of any file
+    of V1's set, counted or not, which strict-safe mode should make
+    impossible;
+  - a fallback log line of V2 or V3 shows a program that ran, which
+    `COREAV_FALLBACK` naming none should make impossible. An `ffmpeg`
+    start in the program log that is not an encoder start does not void
+    the run: it is what the full build does outside strict-safe mode, and
+    the command it belongs to does not count;
+  - the binary or the tool was not built from the release candidate with
+    the full build's features (the record gives the SHA-256 of each);
+  - the `ffmpeg`, `ffprobe` or `x264` is not the one that commit pins.
+
+  The record keeps a void run, with its reason.
+- **A run that is not void is final for its commit.** A miss stands for
+  that commit. A later release candidate, with new code, is measured
+  again, and the record lists every run. A run is never repeated because a
+  miss is narrow, and the method does not change after a result.
+
 ## The command
 
 This part is written in the pull request that builds `coreav ffprobe`,
@@ -443,7 +784,8 @@ subcommand name is handed to the compatibility parser untouched, so
 `coreav ffprobe -v error -show_entries stream=width -of csv=p=0 in.mp4`
 means what it means to `ffprobe`. `coreav ffprobe --help` is therefore not
 clap's help either: `--help`, `-h` and `-help` print a short usage text that
-names this note.
+names this note, and so do `coreav ffmpeg`'s when nothing follows them
+("`coreav ffmpeg`" below).
 
 **Multicall.** When the program is started under the name `ffprobe` or
 `ffmpeg` (the file name of `argv[0]`, with an `.exe` extension removed and
@@ -510,6 +852,19 @@ opened. A refusal while the job is planned or run comes once the input is
 read: a property of the source that `coreav ffmpeg` does not copy, an
 output that already exists, or an encoder value it does not implement
 (`-crf 90`).
+
+**Help in `coreav ffprobe`.** `-h`, `-?`, `-help` and `--help` with
+nothing after them print `coreav ffprobe`'s own usage text on standard
+output and exit 0, in strict-safe mode or not: no `ffprobe` program runs
+and the fallback log gets no line. `ffprobe`'s documentation gives the
+help option an optional topic, and FFmpeg's `-h full` listing has it take
+a value: with any argument after it (`-h long`, `-h full`,
+`-h demuxer=mov`, `-help INPUT`) the query asks about FFmpeg's own options
+and components, so it is refused by name, the option and its topic, like
+any other command that is not native. This is the rule `coreav ffmpeg`
+follows. Rejected: answering topic queries from CoreAV (a listing of
+FFmpeg's components is not CoreAV's to print). The `ffprobe` commands of
+`commands-v1` hold no help query, so B1 is judged on the same commands.
 
 A refused command runs FFmpeg's `ffmpeg` or `ffprobe` instead unless
 strict-safe mode is on (`COREAV_STRICT_SAFE=1`, `coreav --strict-safe`),
@@ -587,7 +942,7 @@ implies:
 | `-ss`, `-t` or `-to`, before or after `-i` | `coreav clip`: one video stream and at most one audio stream |
 | the same, with no video selected | the clip of audio alone (`clip_audio_mp4` of `coreav-isobmff-write`): one AAC stream |
 | `-f segment` with MP4 segments | `coreav split --every` the `-segment_time` (2 s when absent) |
-| `-f concat` with an MP4 output | `coreav join` of the list's files (`coreav_cli::concat::read`, with the demuxer's `safe` option): the first video stream and, unless `-an`, the first audio stream, which is what `ffmpeg` selects from the first file when the selection is that |
+| `-f concat` with an MP4 output | `coreav join` of the list's files (`coreav_cli::concat::read`, with the demuxer's `safe` option): one video stream and at most one audio stream, as `ffmpeg` selects them from the streams the demuxer exposes (below); each is the stream at that index in every file, as the demuxer pairs streams, so a stream the join does not copy (MPEG-4 Visual video or FLAC audio, say) is refused, never left out or replaced |
 
 Every other output container, MOV and 3GP included, is refused: the MOV
 muxer's output is not the MP4 writer's.
@@ -601,7 +956,12 @@ type alone (`-c:s`, `-codec:s`, `-scodec`): neither `-c` nor `-c:s:0` selects
 one. With `-map`: the selectors in order, a leading `-` subtracting. `-vn`,
 `-an`, `-sn` and `-dn` remove their type either way. Every selected stream
 must be covered by a `copy` codec option, since `ffmpeg` would encode the
-others, and kept in the input's order, which the writers keep.
+others, and kept in the input's order, which the writers keep. The concat
+demuxer exposes the streams of the list's first file, in its order, with
+every disposition flag cleared (the pinned `ffmpeg` 9.0.2, black box:
+`ffprobe` of a list), so a join's selection goes by picture size and
+channels alone: of a mono AAC stream with the default disposition and a
+stereo one without, the stereo one.
 
 **Times.** Every time counts from the input's start time (`ffprobe`'s
 `format.start_time`, 0 when it has none): on a file presented from 5 s,
@@ -644,10 +1004,40 @@ leaves the files as they were, so FFmpeg finds them so: most come before
 any output is written, the ones found once the input is read included (an
 output that exists without `-y` or `-n`), and a join's come at its end,
 with the join written to a temporary file that is then removed. A file CoreAV
-rejects exits 1, a malformed command 2, an unreadable input 3. `-h`,
-`-help` and `--help` are refused like the other informational queries
-(unlike `coreav ffprobe -h`, which prints a usage text): `commands-v1` lists
-them as out-of-scope `ffmpeg` commands, which B1 requires to exit non-zero.
+rejects exits 1, a malformed command 2, an unreadable input 3.
+
+**Help.** `-h`, `-?`, `-help` and `--help` with nothing after them, read
+as an option once every argument before them is in the vocabulary, print
+`coreav ffmpeg`'s own usage text on standard output and exit 0, as
+`coreav ffprobe -h` does, in strict-safe mode or not: no `ffmpeg` program
+runs and the fallback log gets no line. The text names the jobs that run
+natively (the `ffmpeg` shapes of `commands-0.1.0`), says that any other
+command line is refused in strict-safe mode and goes to the real `ffmpeg`
+otherwise, and names the documentation. `ffmpeg`'s documentation gives
+the help option an optional topic, and FFmpeg's `-h full` listing has it
+take a value: with any argument after it (`-h long`, `-h full`,
+`-h encoder=libx264`, `-help OUTPUT`) the query asks about FFmpeg's own
+options and components, so it is refused by name, `-h` and its topic,
+like any other command that is not native. The parser reads left to
+right as it does for every command line, so an option outside the
+vocabulary before the help option (`-filter_complex null -h`) is refused
+first, and without strict-safe mode FFmpeg answers that command line as it
+would. Chosen for 0.1.0 so that a
+user who types `coreav ffmpeg --help` learns what CoreAV runs,
+not what FFmpeg does. Rejected: answering topic queries from CoreAV
+(a listing of FFmpeg's components is not CoreAV's to print), and refusing
+the bare forms as before (they then printed FFmpeg's help, which describes
+a program that is not the one running most of the user's commands).
+
+`commands-v1` keeps `ffmpeg -h` and `ffmpeg --help` labelled
+`out-of-scope`, since the set's labels are step 1's (`classify.py`). B1's
+check of `ffmpeg` commands (`run.py`, `ffmpeg_refusals`) counts those two
+apart, as `help`: each must exit 0 with the whole usage text on standard
+output (the documentation site's snippet of it) and nothing on standard
+error, and write no file, and a command that does anything else fails as a B1
+failure does. B1 is judged on the other `out-of-scope` `ffmpeg` commands,
+`-h OUTPUT` and `-help OUTPUT` included, which are help on a topic.
+The `ffprobe` commands of the set hold no help query.
 
 **R3 on the fixtures (CI).** The `the_0_1_0_commands_on_the_fixtures` test of
 `coreav-cli` runs every `ffmpeg` command of `commands-0.1.0` on every
@@ -670,14 +1060,14 @@ first one's, those of the pinned `ffmpeg`'s output of the same command.
 The audio packets are not compared one for one there: where a file's audio
 runs past its edit, `ffmpeg`'s muxer moves the next file's first packet to
 one tick after the overlap (black box), so the placement check stands for
-them. Threshold: 100% of the outputs, in `fixtures.yml` and
-`mkv-fixtures.yml`.
+them. Threshold: 100% of the outputs, in `ci.yml`'s `isobmff-writers` and
+`mkv-fixtures` jobs.
 
 **Not covered: refused by name (exit 4 in strict-safe mode, else run by
 FFmpeg).**
 
-- A join of other streams than the first video and audio stream of the
-  list's first file, a join without video (`join_mp4` cuts at video), a
+- A join of other streams than one video and at most one audio stream, a
+  join without video (`join_mp4` cuts at video), a
   join that also seeks or trims, and a list with a directive other than
   `file` and `ffconcat version 1.0` (`duration`, `inpoint`, ...) or a path
   that names a protocol. A list `ffmpeg` fails too (an unsafe file name
@@ -689,10 +1079,10 @@ FFmpeg).**
   box: a 0.3 s video with 1 s of audio, listed twice, is 2.021333 s from
   `ffmpeg`), and inputs whose tracks have several edits, which the demuxer
   reads by its own edit model. Also inputs that do not match the first
-  (codec, configuration, size, time base), inputs that hold the copied
-  streams at other indexes than the first (the demuxer pairs streams by
-  index, `join_mp4` takes each file's first video and audio), and streams `join_mp4` does not
-  copy (PCM audio, say). The join runs to a temporary file and finds these
+  (codec, configuration, size, time base), inputs without a stream of the
+  selected kind at a selected index (the demuxer pairs streams by index,
+  and `join_mp4` copies the streams at the selected indexes), and streams
+  `join_mp4` does not copy (MPEG-4 Visual video, PCM or FLAC audio, say). The join runs to a temporary file and finds these
   at its end; the output is left as it was.
 - A segmented output of a file without video (C32 on such files): `coreav
   split` cuts at video. A clip without video of other than one AAC
@@ -744,6 +1134,15 @@ differences are set aside, and counted apart, only when every key the two
 tools print differently over the whole file (the stream and the packet
 listings of `run.py keys`) is one of those. The size fixtures stand under
 `KD-DECLARED-SIZE`, `ts_duplicates.ts` under `KD-TS-DUPLICATE`.
+What FFmpeg 9.0.2 prints otherwise than 7.0.2 did, and what the fixtures
+it writes show of CoreAV, is set aside key by key and fixture by fixture:
+`tools/compat-corpus/ffmpeg9.json` names the keys of each fixture under the
+entries of `docs/known-divergences-ffprobe9.md`, and a command's difference
+is set aside only when the two outputs are identical once those keys, and
+nothing else, are taken out of both, in the command's own output format,
+and every value that differs on those keys is the difference its entry
+accepts, on the stream or packet the entry names, as both tools' listing
+of the whole file shows it.
 
 **B3a on the corpus.** Every corpus v1 `real` file whose container
 `coreav ffprobe` reads (MP4, MOV, M4A, M4B, M4V, 3GP, Matroska, WebM), and
@@ -884,6 +1283,8 @@ rounds differently.
 
 **`nb_read_packets`** is the number of packets read when there is one, and
 unknown when no packet of the stream was read, with `-count_packets` too.
+`nb_read_frames` is the number of frames decoded for the selected interval
+with `-count_frames`, even without `-show_frames` ("Frames", below).
 
 **`-read_intervals`.** One interval from the start of the file with an
 end (`%END`, `%+DURATION`, `%+#PACKETS`); reading stops at the first packet
@@ -980,7 +1381,14 @@ prints keep its derivations, which the stream oracle checks. The others:
   by the list of speaker positions, as `ffprobe` names every layout
   `ffmpeg` writes, and none without the box; Opus's `initial_padding` is
   the `dOps` pre-skip; integer PCM of 24 and 32 bits has a
-  `bits_per_raw_sample`.
+  `bits_per_raw_sample`. FLAC's and ALAC's `sample_rate`, `sample_fmt`
+  and `bits_per_raw_sample` are their configuration's: the `STREAMINFO`
+  block of `dfLa` (RFC 9639 8.2) and the ALAC magic cookie
+  (`ALACSpecificConfig`), never the sample entry's 16.16 rate, which
+  cannot hold 65,536 Hz or more (writers store 48 kHz or 0 there for 96
+  and 192 kHz). A configuration that is missing or that RFC 9639 or the
+  cookie description does not allow is a `MalformedCodecConfig` warning and leaves the sample entry's rate and
+  no bit depth (`codec_flac*`, `codec_alac*` at 44.1 to 192 kHz).
 - A timecode stream's `avg_frame_rate` is its `tmcd` entry's timescale
   over its frame duration, unreduced.
 - A protected stream of a movie with protection system headers (`pssh`)
@@ -1171,8 +1579,7 @@ estimate is the fit those crafted tests support (the variance of the times
 around each standard rate's grid); a variant that also fits the grid moved
 by half a frame is not used, since no measured file needs it.
 
-**Gaps, each printed as unknown or left out, never guessed:**
-`nb_read_frames` (refused when named: it needs decoding); the
+**Gaps, each printed as unknown or left out, never guessed:** the
 `amve` ambient viewing environment of MP4 video, and other values only
 decoding shows;
 TrueHD's sample format and DTS-HD profiles in Matroska; `r_frame_rate` where
@@ -1180,6 +1587,71 @@ TrueHD's sample format and DTS-HD profiles in Matroska; `r_frame_rate` where
 lists `ffprobe` rewrites (`KD-EDIT-*` of `docs/known-divergences.md`
 describe the same differences for the packet oracle). Each key's agreement
 is measured below.
+
+### Frames
+
+`-show_frames`, `-count_frames` and `-show_entries frame=…` decode the
+selected streams with CoreAV's own decoders (`ffprobe/frames.rs`): H.264 in
+a build with the `native-h264` feature, MP3, FLAC and PCM. A selected audio
+or video stream of another codec, an attached picture, a subtitle stream, a
+Matroska track stored compressed or encrypted, and an H.264 stream that may
+code fields (`frame_mbs_only_flag` 0: `interlaced_frame`, `top_field_first`
+and `repeat_pict` are not derived) are refused before anything is printed,
+naming the option, the stream and the codec. Outside strict-safe mode the
+command then goes to FFmpeg like any other refusal. Data and attachment
+streams have no frames.
+
+What the pinned `ffprobe` showed, on the fixtures and on files made with
+the pinned `ffmpeg` (none of it read from FFmpeg's source):
+
+- **When a frame is printed.** An audio frame right after its packet; an
+  H.264 picture after as many later packets as the stream reorders
+  (`has_b_frames`), the rest when the input ends. With `-show_packets`, both
+  go in one array, `packets_and_frames`, in that order: `json` gives each
+  element a `"type"`, and `flat` numbers packets and frames apart
+  (`packets_and_frames.packet.0`, `packets_and_frames.frame.0`).
+- **Times.** `pts` and `duration` are the frame's packet's. `pkt_dts` is the
+  decoding time of the packet read when the frame is returned, unknown for
+  the frames returned at the end. `best_effort_timestamp` is `pts`, unless
+  the frames' `pts` went back more often than their `pkt_dts`; then it is
+  `pkt_dts`. Frames of packets an edit list does not present are not listed.
+- **Audio trimming.** The samples a packet's Skip Samples side data names,
+  Matroska's `CodecDelay` at the start of a track, and the end of an MP4 edit
+  list (a packet timed in samples that lasts less than its samples) are cut
+  from `nb_samples`; `pts` and `pkt_dts` move past the samples skipped, and
+  a frame cut whole is not listed.
+- **Pictures.** `key_frame` is an IDR picture or a recovery point SEI
+  message with `recovery_frame_cnt` 0; `pict_type` is the first slice's
+  `slice_type`. `width` and `height` are the decoded picture's, except
+  that a left cropping that is not a multiple of 64 luma samples is not
+  applied. `pix_fmt` and the colour entries are what the sequence
+  parameter set's video signal type states, the stream's where it states
+  none; `sample_aspect_ratio` is the stream's; the `crop_*`, `interlaced_frame`, `top_field_first`,
+  `lossless` and `repeat_pict` entries are 0. Side data: the stream's
+  display matrix and a user data unregistered SEI message.
+- **Where CoreAV's decoder stops.** On a damaged picture, or one outside
+  what it decodes (H.264 above 8 bits), CoreAV's decoder stops where
+  `ffprobe`'s conceals and goes on. So the listing is held in memory, up to
+  64 MiB, and a stop within it is a refusal that hands the whole command
+  over; a stop after it is an error (exit status 1).
+
+`tools/compat-corpus/frames.py` measures this in the fixture workflows: a
+fixed set of commands (every writer, frames alone and with packets, one
+stream type and all, `-count_frames`, an interval) on every fixture, each
+pair either byte for byte what `ffprobe` prints or a refusal of a codec
+CoreAV does not decode (H.264 counts as decoded when `ffprobe` gives it
+as 8-bit 4:2:0). The pairs that do neither are listed in
+`tools/compat-corpus/baseline-frames.json`, and any other fails the run.
+An oracle timeout or crash always fails the run and cannot enter the baseline.
+Fixture names must be unique across the supplied directories because baseline
+keys name fixtures by filename; duplicates are refused before comparisons start.
+On the fixtures, with FFmpeg 9.0.2, they come from what the packets
+themselves print differently (packet durations, which frames take, and
+packet side data), `truncated.mp4` and `nested_10000.mp4`, which
+`-show_packets` rejects too, the track reference stream group `ffprobe` 9
+lists for the timecode track of `timecode.mov`, the damaged H.264 streams, and
+monochrome H.264, which `ffprobe` gives as 4:2:0 and CoreAV's decoder
+does not decode.
 
 ## Fallback to FFmpeg
 

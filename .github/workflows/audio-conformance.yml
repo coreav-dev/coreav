@@ -1,17 +1,17 @@
 name: audio-conformance
 
 # The conformance bars of docs/design/audio-decode.md: each decoder of
-# crates/coreav-audio and crates/coreav-opus against its standard's test
-# vectors, fetched at a pinned commit or checksum. Runs when either crate or
-# this workflow changes, and weekly.
+# crates/coreav-audio, crates/coreav-aac and crates/coreav-opus against its standard's test
+# vectors, fetched at a pinned commit or checksum. Runs when either crate,
+# the oracle FFmpeg's pin or this workflow changes, and weekly.
 
 on:
   push:
     branches: [main]
-    paths: ["crates/coreav-audio/**", "crates/coreav-opus/**", "scripts/opus_tables.py", "scripts/pinned_sources.py", ".github/workflows/audio-conformance.yml"]
+    paths: ["crates/coreav-audio/**", "crates/coreav-aac/**", "scripts/aac_agreement.py", "scripts/decode_audio_check.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "crates/coreav-opus/**", "scripts/opus_tables.py", "scripts/pinned_sources.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", ".github/workflows/audio-conformance.yml"]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths: ["crates/coreav-audio/**", "crates/coreav-opus/**", "scripts/opus_tables.py", "scripts/pinned_sources.py", ".github/workflows/audio-conformance.yml"]
+    paths: ["crates/coreav-audio/**", "crates/coreav-aac/**", "scripts/aac_agreement.py", "scripts/decode_audio_check.py", "scripts/oracle_audio.py", "scripts/oracle-audio-args.txt", "crates/coreav-opus/**", "scripts/opus_tables.py", "scripts/pinned_sources.py", "scripts/oracle-ffmpeg.env", "scripts/install-oracle-ffmpeg.sh", ".github/workflows/audio-conformance.yml"]
   schedule:
     - cron: '17 6 * * 2'
   workflow_dispatch:
@@ -100,6 +100,96 @@ jobs:
           export COREAV_MP3_VECTORS="$(dirname "$(find "$RUNNER_TEMP/mp3" -name compl.bit)")"
           cargo test --locked --release -p coreav-audio --test mp3 compliance_bitstreams -- --ignored --nocapture
 
+  aac:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      # The MPEG-4 audio conformance bitstreams of ISO/IEC 14496-26:2010,
+      # publicly available at standards.iso.org: the AAC streams in MP4
+      # (first DVD) and the reference waveforms of the AAC LC ones (second
+      # DVD), 2.1 GB, each file pinned by SHA-256 in
+      # crates/coreav-aac/tests/conformance.sha256.
+      AAC_VECTORS_BASE: https://standards.iso.org/ittf/PubliclyAvailableStandards/ISO_IEC_14496-26_2010_Bitstreams
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Cache the conformance streams
+        id: vectors
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/aac
+          key: aac-conformance-${{ hashFiles('crates/coreav-aac/tests/conformance.sha256') }}
+      - name: Fetch the conformance streams
+        if: steps.vectors.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/aac/compressedMp4" "$RUNNER_TEMP/aac/referencesWav"
+          cd "$RUNNER_TEMP/aac"
+          awk '{print $2}' "$GITHUB_WORKSPACE/crates/coreav-aac/tests/conformance.sha256" |
+            while read -r f; do
+              case "$f" in
+                compressedMp4/*) echo "$AAC_VECTORS_BASE/DVD1/mpeg4audio-conformance/$f $f" ;;
+                *) echo "$AAC_VECTORS_BASE/DVD2/mpeg4audio-conformance/$f $f" ;;
+              esac
+            done | xargs -P 8 -n 2 sh -c 'curl -fsSL --retry 3 -o "$1" "$0"'
+      - name: Check the streams
+        run: cd "$RUNNER_TEMP/aac" && sha256sum --quiet -c "$GITHUB_WORKSPACE/crates/coreav-aac/tests/conformance.sha256"
+      - name: Decode every stream (full accuracy, HE-AAC refused by name)
+        env:
+          COREAV_AAC_VECTORS: ${{ runner.temp }}/aac
+        run: cargo test --locked --release -p coreav-aac --test conformance conformance_streams -- --ignored --nocapture
+      # Bars 2 to 5 (docs/design/audio-decode.md, "AAC-LC bars"): against
+      # the pinned oracle FFmpeg (scripts/oracle-ffmpeg.env).
+      - name: Cache the pinned FFmpeg
+        id: ffmpeg-cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/coreav-oracle-bin
+          key: linux-x64-oracle-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh') }}
+      - name: Install the pinned FFmpeg
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/coreav-oracle-bin"
+      - name: Build the command with the feature aac
+        run: cargo build --locked --release -p coreav-cli --features aac
+      - name: The generated set and the references
+        run: |
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
+          python3 -I scripts/aac_agreement.py prepare --ffmpeg "$RUNNER_TEMP/coreav-oracle-bin/ffmpeg" \
+            --work "$RUNNER_TEMP/aac-agreement" --conformance "$RUNNER_TEMP/aac"
+      - name: Decode every MP4 input (bar 2)
+        env:
+          COREAV_AAC_AGREEMENT: ${{ runner.temp }}/aac-agreement/agreement.tsv
+          COREAV_AAC_AGREEMENT_OUT: ${{ runner.temp }}/aac-agreement/decoder.jsonl
+        run: cargo test --locked --release -p coreav-aac --test conformance ffmpeg_agreement -- --ignored --nocapture
+      - name: Judge bars 2 to 5
+        run: |
+          set -euo pipefail
+          W="$RUNNER_TEMP/aac-agreement"
+          status=0
+          python3 -I scripts/aac_agreement.py judge --coreav target/release/coreav \
+            --ffmpeg "$RUNNER_TEMP/coreav-oracle-bin/ffmpeg" --ffprobe "$RUNNER_TEMP/coreav-oracle-bin/ffprobe" \
+            --work "$W" --out "$W/aac-agree.json" > "$W/summary.json" || status=$?
+          cat "$W/summary.json"
+          { echo '```json'; cat "$W/summary.json"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+      - name: Keep the results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: aac-agreement
+          path: |
+            ${{ runner.temp }}/aac-agreement/aac-agree.json
+            ${{ runner.temp }}/aac-agreement/edit-lists.json
+            ${{ runner.temp }}/aac-agreement/set.json
+            ${{ runner.temp }}/aac-agreement/decoder.jsonl
+          if-no-files-found: warn
+
   mp3-transforms:
     # The unrolled transforms regenerate from their generators byte for
     # byte. The tables come from two documents (tables/gen_mp3.py pins
@@ -168,7 +258,7 @@ jobs:
           rm -rf libopus.tar.gz opus-1.6.1
       - name: The generated tables are what scripts/opus_tables.py makes from the RFC's code
         run: python3 -I scripts/opus_tables.py --check --cache "$RUNNER_TEMP/pinned-sources"
-      - name: Read every packet and decode the SILK-only and CELT-only vectors (durations against the reference outputs, range state of every packet, opus_compare above 90)
+      - name: Read every packet and decode the twelve vectors (durations against the reference outputs, range state of every packet, opus_compare above 90)
         env:
           COREAV_OPUS_VECTORS: ${{ runner.temp }}/opus-vectors/opus_newvectors
           COREAV_OPUS_COMPARE: ${{ runner.temp }}/opus-compare/opus_compare

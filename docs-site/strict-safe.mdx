@@ -26,7 +26,7 @@ On macOS (and Windows), the operating system cannot hold CoreAV's sandboxed work
 
 A default build, which the release binaries planned for 0.1.0 are, has no decoder backend, so only the first row applies to it. The `dav1d` and `libvpx` backends are C libraries of their own, not FFmpeg, and run in the sandboxed worker in strict-safe mode too.
 
-To transcode in strict-safe mode, install an `x264` program and use a build whose backends decode your sources: `native-h264` for H.264, `dav1d` for AV1, `libvpx` for VP9 ([build features](/build-features)).
+To transcode in strict-safe mode, install an `x264` program and use a build whose backends decode your sources: `native-h264` for H.264, `dav1d` for AV1, `libvpx` for VP8 and VP9 ([build features](/build-features)).
 
 ## Turn on strict-safe mode
 
@@ -47,8 +47,8 @@ coreav --strict-safe ffprobe -v error -show_format input.mp4
 In strict-safe mode, a command line that CoreAV does not implement is refused by name, with exit status 4:
 
 ```console
-$ coreav --strict-safe ffprobe -v error -show_frames input.mp4
-coreav ffprobe: option '-show_frames' is not supported: frames need a decoder
+$ coreav --strict-safe ffprobe -v error -show_data -show_packets input.mp4
+coreav ffprobe: option '-show_data' is not supported: packet payloads are not printed
 $ echo $?
 4
 ```
@@ -71,9 +71,9 @@ A refused encoder (`--encoder ffmpeg`, or no `x264` program) is refused before t
 Without strict-safe mode, a command line that CoreAV does not implement runs the real program instead. That program is FFmpeg's C code, and CoreAV's limits and checks do not apply to it. CoreAV says so in one line on standard error, at every log level, `-v quiet` included:
 
 ```console
-$ coreav ffprobe -v error -show_frames -of csv input.mp4
-coreav: ran /usr/bin/ffprobe instead (not native: -show_frames)
-frame,video,0,1,0,0.000000,...
+$ coreav ffprobe -v error -show_data -show_packets -of csv input.mp4
+coreav: ran /usr/bin/ffprobe instead (not native: -show_data)
+packet,video,0,0,0.000000,...
 ```
 
 Standard output is the program's, byte for byte, and so is the exit status. On Unix CoreAV replaces itself with the program, so its process id and signals are FFmpeg's too.
@@ -99,7 +99,7 @@ Only a refusal goes to FFmpeg. These keep their own exit status and never reach 
 Set `COREAV_FALLBACK_LOG` to a file path, and CoreAV appends one JSON line for each command line that was not native, whether FFmpeg ran it or CoreAV refused it:
 
 ```json
-{"args":["-v","error","-show_frames","-of","csv","INPUT"],"coreav":"0.0.1","ran":"/usr/bin/ffprobe","reason":"-show_frames","time":"2026-10-30T00:51:20Z","tool":"ffprobe"}
+{"args":["-v","error","-show_data","-show_packets","-of","csv","INPUT"],"coreav":"0.0.1","ran":"/usr/bin/ffprobe","reason":"-show_data","time":"2026-10-30T00:51:20Z","tool":"ffprobe"}
 {"args":["-i","INPUT","-vf","VALUE","OUTPUT"],"coreav":"0.0.1","not_run":"strict_safe","ran":null,"reason":"-vf","time":"2026-10-30T00:51:20Z","tool":"ffmpeg"}
 ```
 

@@ -8,6 +8,7 @@ import re
 import struct
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 SPEC = importlib.util.spec_from_file_location('remux_check', ROOT / 'scripts' / 'remux_check.py')
@@ -138,6 +139,55 @@ class Predicates(unittest.TestCase):
         streams = [{'index': 0, 'codec_tag_string': 'avc1'}, {'index': 1, 'codec_tag_string': 'tmcd'}]
         found = rc.problem('format:tag:timecode', '', source='17:19:54:30', output=None)
         self.assertTrue(rc.dropped_timecode(found, self.context(dropped=[1], streams=streams)))
+
+    def test_fragment_last_trim(self):
+        line = '0, 91592, 91592, 136, 5, 47a1'
+        found = rc.problem('stream:0:packet:87', '', source=line, output=line + ', S=1, 10, 3a0a', next_output=None)
+        context = dict(self.context(source='src.mp4', output='out.mp4'), ffprobe='ffprobe')
+
+        def covered(item=found, c=context, out=(0, 888), src=None, durations=b'1024,\n1024,\n136,\n'):
+            sides = {'out.mp4': out, 'src.mp4': src}
+            with mock.patch.object(rc, 'run', return_value=durations), \
+                    mock.patch.object(rc, 'last_skip_samples', side_effect=lambda _, path, __: sides[path]):
+                return rc.fragment_last_trim(item, c)
+
+        self.assertTrue(covered())
+        self.assertFalse(covered(c=dict(context, source_top_level=['ftyp', 'moov', 'mdat'])))
+        self.assertFalse(covered(item=dict(found, data=dict(found['data'], next_output=line))))
+        # The padding is not the rest of the frame, or the start is skipped too.
+        self.assertFalse(covered(out=(0, 887)))
+        self.assertFalse(covered(out=(1, 888)))
+        self.assertFalse(covered(durations=b'1024,\n1000,\n136,\n'))
+        # The source reads the same side data, or another field differs.
+        self.assertFalse(covered(src=(0, 888)))
+        moved = dict(found, data=dict(found['data'], output='0, 91592, 91592, 136, 6, 47a1, S=1, 10, 3a0a'))
+        self.assertFalse(covered(item=moved))
+        two = dict(found, data=dict(found['data'], output=line + ', S=1, 10, 3a0a, S=2, 4, 0000'))
+        self.assertFalse(covered(item=two))
+
+    def test_index_start(self):
+        tkhd = bx(b'tkhd', bytes(4) + struct.pack('>IIII', 0, 0, 1, 0) + bytes(68))
+        mdhd = bx(b'mdhd', bytes(4) + struct.pack('>IIII', 0, 0, 12800, 0) + bytes(4))
+
+        def sidx(ept, timescale=12800, track=1):
+            refs = struct.pack('>III', 100, 128000, 0x90000000) * 2
+            return bx(b'sidx', bytes(4) + struct.pack('>IIIIHH', track, timescale, ept, 0, 0, 2) + refs)
+
+        def source(name, *indexes, edts=b''):
+            moov = bx(b'moov', bx(b'trak', tkhd + edts + bx(b'mdia', mdhd)))
+            return self.write(name, bx(b'ftyp', b'iso6\0\0\0\0') + moov + b''.join(indexes) + bx(b'moof', b''))
+
+        found = rc.problem('stream:0:duration_ts', '', source=257024, output=256000)
+        self.assertTrue(rc.index_start(found, self.context(source=source('a.mp4', sidx(1024)))))
+        self.assertFalse(rc.index_start(found, self.context(fragmented=False, source=source('b.mp4', sidx(1024)))))
+        off = rc.problem('stream:0:duration_ts', '', source=257024, output=256001)
+        self.assertFalse(rc.index_start(off, self.context(source=source('c.mp4', sidx(1024)))))
+        self.assertFalse(rc.index_start(found, self.context(source=source('d.mp4', sidx(0)))))
+        self.assertFalse(rc.index_start(found, self.context(source=source('e.mp4', sidx(1024, timescale=1000)))))
+        self.assertFalse(rc.index_start(found, self.context(source=source('f.mp4', sidx(1024), sidx(1024)))))
+        self.assertFalse(rc.index_start(found, self.context(source=source('g.mp4', sidx(1024, track=2)))))
+        edts = bx(b'edts', bx(b'elst', bytes(4) + struct.pack('>IIIi', 1, 0, 1024, 0x10000)))
+        self.assertFalse(rc.index_start(found, self.context(source=source('h.mp4', sidx(1024), edts=edts))))
 
     def test_fragment_edit_to_end(self):
         def movie(duration, media_time, timescale=44100):

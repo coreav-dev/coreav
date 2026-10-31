@@ -39,6 +39,42 @@
       "basis": "ISO/IEC 14496-12 8.8.8 and 8.6.1.2: each sample's stored duration is copied"
     },
     {
+      "id": "KD-R-FRAG-LAST-TRIM",
+      "level": [
+        "packets"
+      ],
+      "fields": [
+        "framemd5 packet side data"
+      ],
+      "field_pattern": "stream:*:packet:*",
+      "filename_pattern": "*",
+      "conditions": {
+        "source": "fragmented (top-level moof); ffprobe lists no Skip Samples side data on its last packet",
+        "packet": "the last of its stream, equal in stream, dts, pts, duration, size and checksum; the output's alone carries one side data entry",
+        "output side data": "Skip Samples that skip 0 samples and discard as many as the packet before it lasts beyond this one"
+      },
+      "predicate": "fragment_last_trim",
+      "basis": "ISO/IEC 14496-12 8.8.8 and 8.6.1.2: each sample's stored duration is copied; ffmpeg 9.0.2 reads the end of the last frame past it as padding to discard in a sample table only"
+    },
+    {
+      "id": "KD-R-FRAG-INDEX-START",
+      "level": [
+        "streams"
+      ],
+      "fields": [
+        "duration_ts"
+      ],
+      "field_pattern": "stream:*:duration_ts",
+      "filename_pattern": "*",
+      "conditions": {
+        "source": "fragmented (top-level moof), no edit list on the track, one top-level segment index of the track in its media timescale with an earliest presentation time above 0",
+        "output duration_ts": "the sum of the index's subsegment durations",
+        "source duration_ts": "that sum plus the earliest presentation time"
+      },
+      "predicate": "index_start",
+      "basis": "ISO/IEC 14496-12 8.16.3 and 8.4.2: the samples and their stored durations are copied, and the media header duration is their sum"
+    },
+    {
       "id": "KD-R-TIMECODE-TAG",
       "level": [
         "streams"

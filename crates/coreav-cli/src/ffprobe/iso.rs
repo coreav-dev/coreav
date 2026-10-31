@@ -3,11 +3,11 @@
 //!
 //! # Packet durations
 //!
-//! Measured on `ffprobe` 7.0.2 as a black box, with copies of real files
+//! Checked against the pinned `ffprobe` as a black box, with copies of real files
 //! whose boxes or parameter sets were edited one at a time:
 //!
-//! - A sample of the movie box's tables keeps its `stts` duration, but for
-//!   the cases below; a sample of a movie with fragments never does.
+//! - A sample keeps its stored decode duration (`stts` or `trun`),
+//!   including with composition offsets or in a fragmented movie.
 //! - A packet that keeps no sample duration gets one frame:
 //!   - video: the frame rate H.264 parameter sets state (VUI timing,
 //!     `time_scale / (2 × num_units_in_tick)`), rounded down to ticks, none
@@ -26,8 +26,7 @@
 //!     before it, or when it is a movie box sample of a movie with
 //!     fragments (measured on crafted files; the cause is not established);
 //!   - data and other text streams: none.
-//! - Every sample of a video or audio track with a `ctts` box, even an
-//!   all-zero one, and every sample of duration 0 get a frame.
+//! - A sample of duration 0 gets the fallback duration of its codec.
 //! - The last sample of the tables lasts until the stream's duration as
 //!   `ffprobe` reports it (the smallest of the media header's, the `stts`
 //!   sum and the edits' durations added up; for a data or text stream other
@@ -423,10 +422,29 @@ pub fn probe<S: Source>(source: &mut S, size: u64, name: &str) -> Result<IsoProb
         shifts.push(dts_shift(movie, track, &mut *source, &limits));
         steps.push(head.steps.first().copied());
         let info = video_info(track, &head, &mut *source);
+        let mut audio_header = Vec::new();
+        if matches!(&track.description.fourcc.0, b"ac-3" | b"ec-3") {
+            if let Some((offset, size)) = head.first {
+                audio_header.resize(usize::try_from(size.min(256)).unwrap_or(0), 0);
+                if source.read_exact_at(offset, &mut audio_header).is_err() {
+                    audio_header.clear();
+                }
+            }
+        }
         report
             .time_bases
             .push((1, i64::from(track.timescale.max(1))));
         let mut stream = stream(movie, track, &head, info);
+        super::metadata::downmix(&mut stream.entries, &audio_header);
+        if skip > 0 {
+            if let Some((_, padding)) = stream
+                .entries
+                .iter_mut()
+                .find(|(k, _)| *k == "initial_padding")
+            {
+                *padding = Value::Int(skip);
+            }
+        }
         if unwrapped.is_some() && meta.protection_headers {
             stream.side_data.push(SideData {
                 typ: "encryption_initialization_data",
@@ -595,6 +613,7 @@ fn unprotected(track: &Track, wrapped: &super::iso_meta::Protected) -> Track {
         b"hvc1" | b"hev1" => Codec::Hevc,
         b"av01" => Codec::Av1,
         b"vp09" => Codec::Vp9,
+        b"vp08" => Codec::Vp8,
         b"Opus" => Codec::Opus,
         b"fLaC" => Codec::Flac,
         b"mp4a" if matches!(oti, Some(0x69 | 0x6b)) => Codec::Mp3,
@@ -762,19 +781,6 @@ fn ac3_config(d: &coreav_isobmff::SampleDescription) -> Option<Ac3Config> {
     })
 }
 
-/// The bit depth an ALAC magic cookie states (`ALACSpecificConfig`, after
-/// the box's version and flags: `frameLength`, `compatibleVersion`,
-/// `bitDepth`).
-fn alac_depth(d: &coreav_isobmff::SampleDescription) -> Option<u16> {
-    let config = d.codec_config.as_ref().filter(|c| c.kind.0 == *b"alac")?;
-    config
-        .data
-        .get(9)
-        .copied()
-        .map(u16::from)
-        .filter(|b| *b > 0)
-}
-
 /// `bits_per_raw_sample` of integer PCM of 24 and 32 bits, which
 /// `ffprobe` states and does not for 16 bits or floating point.
 fn pcm_raw_bits(track: &Track) -> Option<u32> {
@@ -859,8 +865,14 @@ fn head<S: Source>(movie: &Movie, track: &Track, source: &mut S, limits: &Limits
     let Ok(iter) = movie.packets(track.index, &mut *source, limits, &mut budget) else {
         return Head::default();
     };
-    let packets: Vec<coreav_isobmff::Packet> =
-        iter.take(START_PACKETS).map_while(Result::ok).collect();
+    let limit = if track.kind == TrackKind::Video {
+        START_PACKETS.max(RATE_TIMES.end)
+    } else {
+        START_PACKETS
+    };
+    let read: Vec<coreav_isobmff::Packet> = iter.take(limit).map_while(Result::ok).collect();
+    let decode_times = read.iter().map(|p| p.dts).collect();
+    let packets = read.get(..START_PACKETS).unwrap_or(&read);
     let pts: Vec<i64> = packets
         .iter()
         .filter_map(|p| p.pts.and_then(|r| i64::try_from(r.round()).ok()))
@@ -878,7 +890,7 @@ fn head<S: Source>(movie: &Movie, track: &Track, source: &mut S, limits: &Limits
             .min(),
         reorder,
         first: packets.first().map(|p| (p.offset, p.size)),
-        decode_times: packets.iter().map(|p| p.dts).collect(),
+        decode_times,
         first_pts: packets
             .first()
             .and_then(|p| p.pts)
@@ -917,7 +929,7 @@ fn video_info<S: Source>(track: &Track, head: &Head, source: &mut S) -> Option<V
         }
         Codec::Hevc => record(b"hvcC").and_then(|r| video::hevc(r, full_range)),
         Codec::Av1 => record(b"av1C").and_then(video::av1),
-        Codec::Vp9 => record(b"vpcC").and_then(video::vp9),
+        Codec::Vp8 | Codec::Vp9 => record(b"vpcC").and_then(video::vp),
         Codec::Other => {
             let name = codec_name_of(track)?;
             let mut frame = |limit: u32| -> Option<Vec<u8>> {
@@ -1067,7 +1079,7 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
     let video = track.kind == TrackKind::Video;
     let audio = track.kind == TrackKind::Audio;
     let codec_name = codec_name(movie, track);
-    let alac = alac_depth(d).filter(|_| audio);
+    let lossless_bits = d.configured_bits.filter(|_| audio);
     let matrix = compose(&track.matrix, &movie.matrix);
     let mut e: Entries = Vec::with_capacity(48);
     e.push(("index", int(track.stream_index)));
@@ -1282,7 +1294,7 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
             "sample_fmt",
             codec_name
                 .as_deref()
-                .and_then(|n| names::sample_fmt(n, bits.or(alac)))
+                .and_then(|n| names::sample_fmt(n, bits.or(lossless_bits)))
                 .map_or(Value::Unset("unknown"), s),
         ));
         e.push((
@@ -1343,7 +1355,12 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
                 "1/0".to_owned()
             }
         } else {
-            real_rate(&head.decode_times, track.timescale).unwrap_or_else(|| "0/0".to_owned())
+            // An H.264 picture lasts two ticks of its clock (E.2.1).
+            let tick = info
+                .frame_rate
+                .filter(|_| codec_name.as_deref() == Some("h264"))
+                .map(|(n, d)| (n, d / 2));
+            real_rate(&head.decode_times, track.timescale, tick).unwrap_or_else(|| "0/0".to_owned())
         };
         e.push(("r_frame_rate", s(real)));
         e.push(("avg_frame_rate", s(avg)));
@@ -1421,7 +1438,7 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
         "bits_per_raw_sample",
         info.bits_per_raw_sample
             .or_else(|| pcm_raw_bits(track))
-            .or(alac.map(u32::from))
+            .or(lossless_bits.map(u32::from))
             .map_or(Value::Na, |b| s(b.to_string())),
     ));
     // The samples of the movie box's tables: `ffprobe` counts none of a
@@ -1439,6 +1456,32 @@ fn stream(movie: &Movie, track: &Track, head: &Head, info: Option<VideoInfo>) ->
     if let Some(size) = extradata_size(track) {
         e.push(("extradata_size", int(size)));
     }
+    super::metadata::stream(
+        &mut e,
+        d.codec_config.as_ref().and_then(|c| {
+            if c.kind.0 == *b"esds" {
+                coreav_isobmff::esds_decoder_specific_info(&c.data)?.1
+            } else {
+                Some(c.data.as_slice())
+            }
+        }),
+        &[],
+        d.entry_boxes.iter().find_map(|c| {
+            if c.kind.0 != *b"colr" {
+                return None;
+            }
+            let [b'n', b'c', b'l', b'x', p0, p1, t0, t1, m0, m1, range, ..] = c.data.as_slice()
+            else {
+                return None;
+            };
+            Some(coreav_isobmff::Color {
+                primaries: Some(u16::from_be_bytes([*p0, *p1])),
+                transfer: Some(u16::from_be_bytes([*t0, *t1])),
+                matrix: Some(u16::from_be_bytes([*m0, *m1])),
+                full_range: Some(range & 0x80 != 0),
+            })
+        }),
+    );
     let mut tags = Vec::new();
     if let Some(lang) = cnames::language(track.language) {
         tags.push(("language".to_owned(), lang));
@@ -1608,23 +1651,61 @@ fn stream_duration(movie: &Movie, track: &Track) -> Option<i64> {
     }
 }
 
-/// How many decode times of a track's first packets `ffprobe`'s frame
-/// rate estimate fits, found on the development set (21 agreed best of 21,
-/// 41, 64, 128 and 256).
-const RATE_WINDOW: usize = 21;
+/// Which of a track's first decode times `ffprobe`'s frame rate estimate
+/// fits: the 4th to the 99th, once the track has [`RATE_SKIP_FROM`] of
+/// them, else all. On files crafted with one interval out of step, only an
+/// interval between two of these moves the estimate.
+const RATE_TIMES: std::ops::Range<usize> = 3..99;
 
-/// `r_frame_rate`, `ffprobe`'s guess at the base frame rate: the estimate
-/// of the first decode times that the Matroska builder uses too
-/// (`mkv::estimate_rate`: the standard rate whose grid the times fit, else
-/// the rate every interval is a whole number of frames of). The rate a
-/// stream's own timing states plays no part: taking it where there is one
-/// agreed with `ffprobe` on 206 of the 224 development files, the estimate
-/// alone on 212.
-fn real_rate(times: &[i64], timescale: u32) -> Option<String> {
-    let window = times.get(..RATE_WINDOW.min(times.len())).unwrap_or(times);
-    super::mkv::estimate_rate(window, (1, i64::from(timescale.max(1))))
-        .map(super::mkv::estimate_fraction)
-        .and_then(|(n, d)| rate(n, d))
+/// How many decode times a track needs before the estimate leaves out its
+/// first three: crafted tracks of 6 to 16 frames show every interval, of
+/// 17 to 21 frames only those after the 4th time.
+const RATE_SKIP_FROM: usize = 17;
+
+/// Below how many intervals a second the step every interval of the
+/// window is a whole number of is the rate itself: crafted files whose
+/// intervals share a step of 181 ticks of a 90 kHz clock (497 a second)
+/// report that rate, and those whose step is 180 ticks (500 a second) the
+/// standard rate their times fit.
+const STEP_RATES: u64 = 500;
+
+/// `r_frame_rate`, `ffprobe`'s guess at the base frame rate, from the
+/// decode times of [`RATE_TIMES`]: the rate of the step every interval
+/// is a whole number of when that is a slow one ([`STEP_RATES`]), else
+/// the estimate the
+/// Matroska builder uses too (`mkv::estimate_rate`: the exact rate of
+/// equal intervals, else the standard rate whose grid the times fit). When
+/// no standard rate fits uneven intervals it is the rate of the H.264
+/// clock's `tick` (`time_scale` over `num_units_in_tick`), else of the
+/// timescale: crafted files whose intervals share a step of 30 to 180
+/// ticks of a 90 kHz clock report `90000/1` without timing in their
+/// sequence parameter sets, and with it, whatever the step, the rate of
+/// its tick (`50/1` for 1 in 50, `60000/1001` for 1,001 in 60,000).
+fn real_rate(times: &[i64], timescale: u32, tick: Option<(u64, u64)>) -> Option<String> {
+    let window = if times.len() >= RATE_SKIP_FROM {
+        times
+            .get(RATE_TIMES.start..RATE_TIMES.end.min(times.len()))
+            .unwrap_or(times)
+    } else {
+        times
+    };
+    let step = window
+        .windows(2)
+        .filter_map(|w| match *w {
+            [a, b] if b > a => u64::try_from(b - a).ok(),
+            _ => None,
+        })
+        .fold(0, compat::gcd);
+    if step > 0 && u64::from(timescale) < STEP_RATES.saturating_mul(step) {
+        return rate(u64::from(timescale), step);
+    }
+    match super::mkv::estimate_rate(window, (1, i64::from(timescale.max(1))))? {
+        super::mkv::Estimate::Standard(n, d) | super::mkv::Estimate::Base(n, d, true) => rate(n, d),
+        super::mkv::Estimate::Base(_, _, false) => {
+            let (n, d) = tick.unwrap_or((u64::from(timescale), 1));
+            rate(n, d)
+        }
+    }
 }
 
 /// `N/D` in lowest terms, as `ffprobe` prints a rate; `0/0` for nothing.
@@ -1657,6 +1738,7 @@ pub fn disposition(default: bool) -> Entries {
         "metadata",
         "dependent",
         "still_image",
+        "multilayer",
     ]
     .into_iter()
     .map(|k| (k, Value::Int(i64::from(k == "default" && default))))
@@ -2824,7 +2906,11 @@ impl<S: Source> Source for Shared<'_, S> {
 }
 
 impl<S: Source> PacketSource for IsoPackets<S> {
-    fn visit(&mut self, f: &mut dyn FnMut(Packet) -> Result<bool, Failure>) -> Result<(), Failure> {
+    fn visit(
+        &mut self,
+        payloads: &[bool],
+        f: &mut dyn FnMut(Packet) -> Result<bool, Failure>,
+    ) -> Result<(), Failure> {
         // A chapter picture track's first sample comes first, as it is
         // stored, then a cover picture's packet, untimed.
         let limits = Limits::default();
@@ -2850,6 +2936,11 @@ impl<S: Source> PacketSource for IsoPackets<S> {
                 size: u64::from(p.size),
                 pos: Some(p.offset),
                 keyframe: true,
+                data: if payloads.get(track.stream_index).copied().unwrap_or(false) {
+                    super::frames::read(&mut Shared(&self.source), p.offset, u64::from(p.size))?
+                } else {
+                    Vec::new()
+                },
                 ..Packet::default()
             };
             if !f(packet)? {
@@ -3181,11 +3272,16 @@ impl<S: Source> PacketSource for IsoPackets<S> {
                 video_listed = video_listed.saturating_add(1);
             }
             let duration = if fragment || plan.ctts {
-                if leading { plan.lead_fill } else { fill }
+                if p.duration > 0 {
+                    stored
+                } else if leading {
+                    plan.lead_fill
+                } else {
+                    fill
+                }
             } else {
                 match trimmed {
                     Some(trimmed) => trimmed,
-                    // A sample of no duration has none of its own.
                     None if p.duration == 0 => fill,
                     None => stored,
                 }
@@ -3240,6 +3336,11 @@ impl<S: Source> PacketSource for IsoPackets<S> {
                 discard: !p.presented && !fragment,
                 corrupt: false,
                 side_data,
+                data: if payloads.get(track.stream_index).copied().unwrap_or(false) {
+                    super::frames::read(&mut Shared(&self.source), p.offset, u64::from(p.size))?
+                } else {
+                    Vec::new()
+                },
             };
             if !f(packet)? {
                 return Ok(());
@@ -3251,6 +3352,39 @@ impl<S: Source> PacketSource for IsoPackets<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Decode times from a first time of 0 and these intervals.
+    fn times(steps: &[i64]) -> Vec<i64> {
+        std::iter::once(0)
+            .chain(steps.iter().scan(0, |t, d| {
+                *t += d;
+                Some(*t)
+            }))
+            .collect()
+    }
+
+    /// The rates the pinned `ffprobe` printed for crafted tracks.
+    #[test]
+    fn the_base_rate_follows_the_estimate_window() {
+        let rate = |steps: &[i64], tick| real_rate(&times(steps), 90_000, tick);
+        // 362 ticks a frame with one of 363: left out when it is among the
+        // first three intervals of a long track, not of a short one.
+        let mut long = vec![362; 30];
+        long[1] = 363;
+        assert_eq!(rate(&long, None).as_deref(), Some("45000/181"));
+        long[3] = 363;
+        assert_eq!(rate(&long, None).as_deref(), Some("90000/1"));
+        let mut short = vec![362; 10];
+        short[1] = 363;
+        assert_eq!(rate(&short, None).as_deref(), Some("240/1"));
+        // Uneven intervals of no standard rate: the timescale's rate, or
+        // that of the H.264 clock's tick.
+        let uneven: Vec<i64> = (0..60).map(|i| 90 * (15 + (i * 7) % 46)).collect();
+        assert_eq!(rate(&uneven, None).as_deref(), Some("90000/1"));
+        assert_eq!(rate(&uneven, Some((50, 1))).as_deref(), Some("50/1"));
+        // Equal intervals are their own rate.
+        assert_eq!(rate(&[150; 40], Some((50, 1))).as_deref(), Some("600/1"));
+    }
 
     /// The rotations the pinned `ffprobe` printed for these matrices.
     #[test]

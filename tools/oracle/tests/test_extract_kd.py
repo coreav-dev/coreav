@@ -51,6 +51,7 @@ def evidence(**changes):
         'source_elst': (1000, 48000, [(10000, 1024, 0x10000)]),
         'output_elst': (1000, 48000, [(10000, 1024, 0x10000)]),
         'first_dts': None,
+        'fragmented': False,
     }
     for key, value in changes.items():
         base[key] = value
@@ -62,6 +63,33 @@ def frames(start, n, delay=0):
 
 
 class Predicates(unittest.TestCase):
+    def test_a_fragmented_source_s_last_frame_cut_on_the_output_only(self):
+        source = frames(0, 3)
+        output = source[:-1] + ['0, 2048, 2048, 136, 544, cut']
+        packets = [{'data_hash': f'h{i}', 'size': 9, 'pts': i * 1024, 'dts': i * 1024, 'duration': d}
+                   for i, d in enumerate((1024, 1024, 136))]
+        c = evidence(fragmented=True, source_frames=source, output_frames=output,
+                     source_packets=packets, output_packets=copy.deepcopy(packets))
+        self.assertTrue(ec.fragment_last_frame('framemd5', c))
+        self.assertFalse(ec.fragment_last_frame('packets', c))
+        self.assertFalse(ec.fragment_last_frame('framemd5', dict(c, fragmented=False)))
+        earlier = dict(c, output_frames=output[:1] + ['0, 1024, 1024, 1024, 4096, other'] + output[2:])
+        self.assertFalse(ec.fragment_last_frame('framemd5', earlier))
+        moved = dict(c, output_frames=output[:-1] + ['0, 2049, 2049, 136, 544, cut'])
+        self.assertFalse(ec.fragment_last_frame('framemd5', moved))
+        longer = dict(c, output_frames=output[:-1] + ['0, 2048, 2048, 200, 800, cut'])
+        self.assertFalse(ec.fragment_last_frame('framemd5', longer))
+        stored = copy.deepcopy(packets)
+        stored[-1]['duration'] = 1024
+        self.assertFalse(ec.fragment_last_frame('framemd5', dict(c, source_packets=stored)))
+        ticks = copy.deepcopy(packets)
+        ticks[-1]['duration'] = 272
+        at_96k = {'source_packets': ticks, 'output_packets': copy.deepcopy(ticks),
+                  'source_stream': dict(c['source_stream'], time_base='1/96000'),
+                  'output_stream': dict(c['output_stream'], time_base='1/96000')}
+        self.assertTrue(ec.fragment_last_frame('framemd5', dict(c, **at_96k)))
+        self.assertFalse(ec.fragment_last_frame('framemd5', dict(c, output_packets=copy.deepcopy(ticks))))
+
     def test_tkhd_needs_the_sum_of_the_edits_and_each_files_own_value(self):
         c = evidence()
         self.assertTrue(ec.tkhd_follows_edits('mediainfo:Duration', c))

@@ -204,6 +204,15 @@ video presentation times those commands give.
   `media_time` converted the same way from the first packet's timestamp;
   a media time before it (a fragment's decode time above 0) starts the
   window before the media, which still ends where the edit ends.
+- **Priming samples are never presented**: Opus's pre-skip (RFC 7845
+  4.2) is the decoder's priming, not audio, so a media edit whose window
+  starts inside it starts after it, and a track without an edit list
+  starts after it. The Opus-in-ISOBMFF mapping leaves the pre-skip to the
+  edit list (its `PreSkip` is informative), but `ffmpeg` 7.0.2 writes
+  Opus edit lists from media time 0 and drops the `dOps` pre-skip when it
+  reads them; files that skip it in the edit list decode as before.
+  Rejected: presenting them, which puts the priming (6.5 ms from libopus)
+  before the audio of every such file and delays the audio by as much.
 - **Missing media is not padded**: the clock holds while the media covers
   each window. A window that starts before the first packet, or reaches
   past the last sample, writes only the samples there are, so the output
@@ -928,7 +937,8 @@ in ISO Base Media File Format") and Matroska/WebM (`A_OPUS`, `OpusHead` in
 `CodecPrivate`), decoded to 48 kHz, the rate of every Opus stream's
 timestamps and of `ffmpeg`'s output. Specifications: RFC 6716 as updated
 by RFC 8251 (the codec), RFC 7845 (`OpusHead`, pre-skip, channel mapping
-families 0, 1, 2 and 255).
+families 0, 1, 2 and 255). As for FLAC, an encrypted entry (`enca`) and an
+IAMF stream (`iamf`) that carries Opus are refused with their names.
 Output channels: family 0 and 1 streams in WAV order with their speaker
 mask (family 1's Vorbis order moved to WAV's), so that a downmix reads
 the layout from the mask; families 2 (ambisonics) and 255 (no layout)
@@ -1045,9 +1055,12 @@ either decoder.
    is built in CI from libopus 1.6.1, and run as a black box; its source is not read. Bar: all 24 decodes, in CI
    (`.github/workflows/audio-conformance.yml`).
 2. **Agreement with the reference, through `ffmpeg`.** On every input of
-   the sets below, `coreav decode-audio --format s16` against `ffmpeg
-   -c:a libopus -i IN -map 0:a:K -f s16le -` (libopus is the normative
-   decoder): passing `opus_compare -r 48000`, with `-s` for two channels,
+   the sets below, `coreav decode-audio --format s16` against libopus's
+   output through `ffmpeg -request_sample_fmt flt -c:a libopus -i IN -map
+   0:a:K -f f32le -`, rounded to 16-bit with hard clipping (libopus is the
+   normative decoder; its own 16-bit output soft-clips samples beyond full
+   scale, a step after the decoder that neither CoreAV nor FFmpeg's decoder
+   takes): passing `opus_compare -r 48000`, with `-s` for two channels,
    each channel alone for more than two. The tolerance is the specification's own conformance criterion applied to
    real inputs; Opus decoders are not bit-exact (floating point, a
    non-normative SILK resampler). The lengths must be equal: pre-skip,
@@ -1059,14 +1072,17 @@ either decoder.
    the largest difference in 16-bit steps.
 3. **Speed.** As MP3's bar 3, against FFmpeg's default Opus
    decoder (`opus`): library (`coreav_audio::decode` to `s16` in memory
-   against libavformat and libavcodec 7.0.2 in-process with `opus` and
+   against libavformat and libavcodec 9.0.2 in-process with `opus` and
    `swr_convert` to `s16`, one thread each) and command (`coreav
-   decode-audio IN OUT.wav` against `ffmpeg -i IN -map 0:a:K OUT.wav`,
-   default threads), median per-input ratio at most **1.00** on the
-   held-out set, overall and for each class (MP4, Matroska/WebM),
+   decode-audio IN OUT.wav` against the pinned `ffmpeg` 9.0.2's `ffmpeg
+   -i IN -map 0:a:K OUT.wav`, default threads), median per-input ratio at
+   most **1.00** on the held-out set, overall and for each class (MP4, Matroska/WebM),
    reported with the share of inputs on which CoreAV is faster. Reported,
    not gating: the decoder alone, the corpus set, and each Opus mode
-   (SILK, hybrid, CELT) of the derived set.
+   (SILK, hybrid, CELT) of the derived set. The baseline is FFmpeg 9.0.2,
+   the project's pinned version. The sets and bar 2's reference stay on
+   `ffmpeg` 7.0.2, with which the agreement run was recorded, so that the
+   timed files are the files bar 2 checked.
 4. **Safety.** A fuzz target `opus_packet` (the decoder on arbitrary
    packets after arbitrary earlier ones, every channel mapping) beside
    `decode`, 15 minutes each in the daily fuzz run; no panics. Limits, checked before
@@ -1078,6 +1094,17 @@ either decoder.
    duration, and the frame sizes of RFC 6716 section 3.4.
 5. **Regression guard.** A `decode-audio-opus` case of the CI benchmark
    guard on a generated Opus fixture.
+
+Results (`docs/spikes/audio-decode-bench/`, "Opus"; binaries of
+`22a0a9d`): bar 1 met in CI. Bar 2 not met: 606 of the 607 counted
+inputs pass; the miss is the 3-channel input of mapping family 255, whose
+channels libopus reorders as Vorbis does while CoreAV and `ffmpeg`'s
+`opus` decoder keep the coded order (a family without a layout), and 4
+long derived MP4 inputs were not run. Bar 3: the command met (0.523, MP4
+and Matroska 0.523); the library not met overall (1.002, 95% CI 0.992 to
+1.009) and for MP4 (1.004), met for Matroska (0.997). The CELT decoder is
+where it loses (decoder alone 1.069 on CELT inputs; SILK 0.784). Bars 4
+and 5 in CI.
 
 ### Opus sets
 
@@ -1104,3 +1131,414 @@ either decoder.
   v1 files with an Opus stream in MP4, MOV, Matroska or WebM, as stored
   (104 files; the 4 Ogg ones once an earlier change reads them).
 - Method: as for FLAC.
+
+## AAC-LC
+
+Native, opt-in, written from ISO/IEC 14496-3:2009 (subpart 1: the
+`AudioSpecificConfig`; subpart 4: the general audio syntax, the decoding
+process and the tables of Annex 4.A), with ISO/IEC 13818-7:2004 (MPEG-2
+AAC) as a cross-check of the tables the two share. Crate `coreav-aac`;
+`coreav-audio` and `coreav-cli` reach it through a cargo feature `aac`
+that is off by default.
+
+### Packaging: opt-in, separately packaged, with a disclaimer
+
+The sources disagree on whether patents on AAC-LC are still in force,
+so AAC-LC ships as H.264 does
+(`docs/design/h264.md`, "Packaging"):
+
+1. No default build contains the decoder. `coreav-audio`'s feature `aac`
+   and `coreav-cli`'s feature `aac` turn it on; nothing else depends on
+   `coreav-aac`. A default build reports an AAC stream as today: `codec
+   aac is not decoded` (`unsupported_feature`). The crate is on
+   the patented list of `scripts/patent_free_check.py`, so CI fails when
+   the default build of any workspace member, or a package script's
+   build, links it (`cargo tree`).
+2. `crates/coreav-aac/README.md` and the crate's documentation state the
+   patent position and that the crate is not enabled by default; the
+   feature's comment in each `Cargo.toml` repeats it.
+3. Publishing anything that contains it, and enabling it by default, are
+   the maintainer's, after the patents expire and the project's patent
+   review.
+
+The crate is a workspace member, so CI builds, lints, tests and fuzzes it.
+`coreav-aac` depends on nothing (it has its own bit reader and error
+type), so the decoder can be packaged without the rest of CoreAV, and
+`coreav-audio` wraps it as it wraps its own decoders. Rejected: a module
+of `coreav-audio` behind a feature, which a separate package could not
+hold apart; one crate with the pipeline, which would make the patent
+question every pipeline user's.
+
+### Scope
+
+- **Decoded**: audio object type 2 (AAC LC), and MPEG-2 AAC LC (the MP4
+  object type indications 0x40 and 0x67), with frames of 1,024 or 960
+  samples (`frameLengthFlag`), every sample rate of Table 1.18, channel
+  configurations 1 to 7, the configurations 11 (6.1), 12 (7.1 with back
+  surrounds) and 14 (7.1 with front heights) that ISO/IEC
+  14496-3:2009/Amd.4:2013 adds (as ITU-R BS.1196-6 Table 2 quotes its
+  Table 1.19), and a `program_config_element` (configuration 0).
+  Configuration 13 (22.2) is refused by name. The elements: SCE, CPE, LFE, CCE (coupling, 4.6.8.3), DSE and FIL
+  (skipped), PCE (only the configuration's counts), END. The tools:
+  section data, scalefactors with intensity and noise positions, pulse
+  data, spectral data of codebooks 1 to 11 with escapes, M/S stereo,
+  intensity stereo, perceptual noise substitution (PNS), temporal noise
+  shaping (TNS), and the filterbank with all four window sequences and
+  both window shapes (sine and Kaiser-Bessel derived).
+- **Refused by name** (`codec ... is not decoded`): AAC Main, SSR and LTP
+  (object types 1, 3, 4), the error-resilient and scalable types, and
+  HE-AAC: SBR or PS signalled explicitly (object types 5 and 29, or the
+  backward-compatible extension 0x2b7 with `sbrPresentFlag` set) or
+  implicitly (an SBR extension payload, `EXT_SBR_DATA` or
+  `EXT_SBR_DATA_CRC`, in the first packet). Decoding only the LC core of
+  an HE-AAC stream would write half the sample rate, which is not the
+  stream. HE-AAC goes to the sandboxed fallback
+  once `decode-audio` has one; until then it is refused. An SBR payload
+  in a later packet ends the request (`unsupported_feature`).
+  `dependsOnCoreCoder` is refused as unsupported.
+- **Containers**: MP4/MOV/M4A (`esds`) and Matroska/WebM, the containers
+  `decode-audio` reads. ADTS and LATM framing (raw `.aac` files, MPEG-TS)
+  are not read by the pipeline, so they are not decoded yet.
+- **Not applied**: dynamic range control and the PCE's matrix mixdown
+  (both optional for a decoder, 4.5.2.7 and 4.5.1.2.2), ancillary data.
+  Every channel is written, at the stream's own level.
+- **Configuration**: the `AudioSpecificConfig` in MP4's `esds` (its
+  `DecoderSpecificInfo`, which `coreav_isobmff::esds_decoder_specific_info`
+  returns) or in Matroska's `CodecPrivate`. An MP4 track without a
+  `DecoderSpecificInfo`, or with an empty or truncated one, is refused as
+  invalid; one whose `objectTypeIndication` is MPEG-2 AAC Main (0x66) or
+  SSR (0x68) is refused by name. A Matroska track with a legacy
+  codec ID (`A_AAC/MPEG4/LC`, `A_AAC/MPEG2/LC`) and no `CodecPrivate` gets
+  the configuration its ID, sample rate and channels state (channel
+  configurations 1 to 6 for 1 to 6 channels, 7 for 8); the legacy IDs of
+  SBR (`.../LC/SBR`), AAC Main, SSR and LTP are refused by name. The
+  output's WAV channel mask is the configuration's (above), not the
+  default for its channel count.
+
+### Choices
+
+- **Channel order and elements**: output is in WAV's order (front left,
+  right, centre, LFE, back, side), the order `ffmpeg` writes:
+  configuration 3 (C, L, R) becomes L, R, C, configuration 6 L, R, C,
+  LFE, Ls, Rs, and so on (Table 1.19); configuration 11's surround pair
+  beside its back centre is WAV's side pair, and 12's pairs at ±90° and
+  ±135° are the side and back pairs, so 6.1 and 7.1 come out as
+  `ffmpeg` writes them. A PCE's channels go front, side,
+  back, then LFE, in the PCE's order within each; its WAV mask is that of
+  configurations 1 to 7 when the layout is one of theirs, else 0. An
+  element goes to the slot its configuration names its
+  `element_instance_tag` for (a PCE names a tag per element; the
+  conformance stream `al17` needs this), else to the first free slot of
+  its type, so elements without named tags, and streams whose tags
+  disagree with a channel configuration's, go in their order of
+  appearance. Rejected: tags only, which fails such streams; order only,
+  which swaps the channels of `al17`. A frame that lacks an element of
+  the configuration, or holds one too many, is damaged (concealed).
+- **Coupling channels**: a CCE's spectrum is added to its targets' by
+  gain cc_scale^(-gain), with cc_scale = 2^(2^gain_scale / 8) (4.6.8.3.3,
+  Table 4.154). The standard's pseudo-code writes cc_scale^gain; the
+  conformance references (`al07`) attenuate as the gain element grows,
+  so they decide, and the exponent is negated. Bands the CCE codes as
+  zero (`ZERO_HCB`) are skipped, as the second `couple_channel()` of
+  4.6.8.3.3 does, even where the CCE's own TNS filter has spread energy
+  into them; `al07` at 48 kHz and up needs this (round 1 missed those
+  eight streams without it). A CCE whose target element is not in the
+  frame couples into nothing.
+- **Numerics**: 32-bit floating point throughout, full scale ±1.0 (the
+  standard's 16-bit full scale is 32,768). |q|^(4/3) comes from a table of
+  the 8,192 values a codeword can carry, and 2^((sf - 100) / 4) from the
+  exponent bits times one of four constants; the windows, the FFT's
+  twiddles and the table are generated (`tables/gen_aac.py`), so the
+  decoder links no C math library (the start-up cost recorded under MP3).
+- **IMDCT**: a DCT-IV of N/2 points through a complex FFT of N/4 points
+  (512 and 64 for frames of 1,024; 480 and 60 for 960) between a pre- and
+  a post-twiddle. The FFT is decimation in frequency, in place, by passes
+  of radix 2, 3, 4 and 5 whose butterflies combine values a span apart, on
+  blocks of four complex values (four real parts, then four imaginary
+  parts), so a radix-4 butterfly reads four blocks and one block of
+  twiddles per output. The radices are ordered so that every in-place span
+  is a multiple of four: a butterfly then runs on four values at a time,
+  in arrays of four floats that the compiler keeps in vector registers.
+  Each butterfly (and each step of the twiddles) is a function the
+  compiler does not inline into its loop: inlined, the loop vectorizer
+  may vectorize across iterations instead, gathering lanes one by one,
+  which it did for two of the passes under link-time optimization. The
+  last pass, of radix 4 and span 1, reads its blocks in the order of their
+  outputs, transposes four blocks at a time and writes the outputs in
+  natural order, so no reordering pass (bit reversal) runs. The DCT-IV's
+  output stays in two arrays, its even and its reversed odd values; a long
+  block is windowed and added to the overlap straight from them, two
+  samples at a time, the unfolding to 2N samples folded into the windowing
+  loops. The windows of a long block's halves (long, or LONG_STOP's and
+  LONG_START's zeros, short slope and ones) are built once per stream, so
+  the four long window sequences run one loop. Rejected: a self-sorting
+  (Stockham) FFT out of place, the first version, which spent about 20 µs
+  per long IMDCT on element-wise copies and index arithmetic; separate
+  arrays of real and imaginary parts, which made a radix-4 pass walk 14
+  pointers and spend a third of its instructions moving them between
+  registers; a reordering pass, a gather per value that the transposed last
+  pass avoids.
+- **Noise substitution**: 4.6.13 fills a noise band with random values
+  scaled to the band's energy; the generator is the decoder's choice.
+  CoreAV seeds a 32-bit linear congruential generator per frame from a
+  hash of the packet's bytes and the packet's position in the stream, so a
+  frame's noise is a function of the packet and its index: output is the
+  same on every thread count and on every run. The position matters
+  because encoders write the same packet frame after frame for stationary
+  noise (`al18` of the conformance package does); seeded by the bytes
+  alone, the noise would repeat every frame, a periodic buzz (round 1 of
+  the conformance bar found it). No two decoders write the same noise, so the bars below compare
+  those samples by level only. A pair of channels whose band is noise in
+  both with `ms_used` set shares one random vector (4.6.13.3).
+- **Intensity under an all-ones M/S mask**: in a channel pair whose
+  `ms_mask_present` is 2 (`ms_used` all ones), an intensity-coded band
+  keeps its direction: ISO/IEC 13818-7 12.2.3 defines
+  `invert_intensity(group, sfb)` as 1 - 2 × `ms_used` only when
+  `ms_mask_present` is 1, and +1 otherwise. `ffmpeg`'s decoder reverses
+  those bands (black box: on its own encoder's `-aac_ms 1` output, its
+  right channel's intensity bands have the opposite sign of CoreAV's, and
+  the two agree to 6 × 10^-8 when CoreAV reverses them too). CoreAV follows
+  the standard and reports the bands per frame
+  (`Frame::intensity_all_ms_bands`); the bars compare those frames by
+  level ("AAC-LC bars"). Rejected: matching `ffmpeg`, which departs from
+  the standard's pseudo-code.
+- **Damage**: a frame that fails to decode resets the decoder's state
+  (the overlap is zeroed, the window shape is the sine), so the state
+  after any packet depends on that packet alone. A frame of an LC stream
+  that sets `predictor_data_present` or `gain_control_data_present`
+  (tools of AAC Main and SSR, which an LC stream cannot carry) is damage,
+  not a refusal of the stream.
+- **Threads**: a frame depends on the one before only through the overlap
+  (the second half of its windowed IMDCT output) and its window shape,
+  both set by that one frame. A job after the first is therefore primed
+  with one packet and told its first packet's position
+  (`Decoder::set_position`, for the noise seed), and its first frame
+  decodes as in one pass, bit for bit. Tests compare 1, 2, 3 and 8 threads, with noise bands and with
+  damaged packets.
+- **Limits**: `max_channels` bounds the configuration (a PCE can name 48
+  channels plus LFEs); every frame codes 1,024 or 960 samples per channel,
+  so `max_output_samples` bounds the work; the number of elements in a
+  `raw_data_block` is bounded by its bits and by the configuration (one
+  more element of a type than configured is damage), and each fill
+  element by its 15 + 255 bytes.
+- **Speed** (portable Rust, no claim against FFmpeg; "AAC-LC bars"): Huffman codewords are read with two-level lookup tables
+  (a first level of at most 9 bits, a second level per long prefix). The
+  spectrum's codewords are read through a 64-bit register that a refill
+  tops up to 56 to 63 bits without a branch, once every two codewords (a
+  codeword and its sign bits take at most 20 bits), so the lookup of the
+  next codeword waits on a shift rather than a load; one register serves
+  the whole of `spectral_data()`. All spectrum codebooks share one lookup
+  table and one table of value vectors, both of a power-of-two size, so a
+  masked index needs no bounds check and the tables need no register. A
+  codeword's leaf holds its vector's place, a bit per non-zero value and
+  the number of sign bits that follow; the vector holds |v|^(4/3) of the
+  codeword's values (signed in the signed codebooks), and the sign bits
+  select a mask of sign bits from a table of 256, so a codeword's values
+  are inverse quantized, given their signs and scaled by the band's gain
+  with no branch and no per-value lookup. The only branch on data per
+  codeword is the second-level lookup; signs are random, so a branch on
+  them would mispredict half the time. A band holding a pulse (4.6.3.3,
+  which adds to quantized magnitudes) decodes to integers first: the
+  index's digits, the signs, the pulses, then |q|^(4/3) from the table.
+  Tests pin both paths to the same bits and the same values on random bits
+  through every codebook. TNS filters in place, reading the outputs already
+  written as its state. The noise generator's seed, a hash of the packet's
+  bytes, is computed on the first noise band of a frame, as most frames
+  have none. Rejected: decoding every band to integers and inverse
+  quantizing in a second pass (a pass over the spectrum and a lookup per
+  value).
+
+### AAC-LC bars
+
+Fixed before the measured runs, which run on GitHub Actions
+(`.github/workflows/audio-conformance.yml`, job `aac`); the evidence goes
+to `docs/spikes/audio-decode-bench/` and the tests named below. The
+reference is the pinned FFmpeg 9.0.2 (the build `scripts/oracle-ffmpeg.env`
+names once that pin lands; the job installs the same archive by its SHA-256
+until then), its default AAC decoder `aac`, floating point. Two rules hold
+for every comparison:
+
+- **Noise bands**: a frame k that codes a noise band (codebook 13) in any
+  channel makes output blocks k and k + 1 (its samples and the overlap
+  into the next frame) random by definition. The decoder reports, per
+  frame, how many noise bands it decoded (`Frame::noise_bands`, a raw
+  value of the bitstream). Those blocks are excluded from the sample
+  comparisons and counted. The energy of a noise band is specified and its
+  phase is not, so they are compared by level: per channel, the level of
+  all its noise blocks over the whole stream, |10 log10 (energy CoreAV /
+  energy other)|, must be at most **0.1 dB** (one step of a coded noise
+  energy is 1.5 dB) on every channel with at least **100** noise blocks;
+  a channel with fewer is reported, since the overlap of a noise block
+  with its neighbours adds a random term that a few blocks do not average
+  out. The median over blocks of the per-block |20 log10 (RMS CoreAV / RMS
+  other)| is reported, not gating.
+- **Intensity under an all-ones mask**: a frame k with intensity bands
+  under an `ms_mask_present` of 2 (`Frame::intensity_all_ms_bands`, a raw
+  value) makes blocks k and k + 1 differ in sign where a decoder reads that
+  mask the other way ("Choices"), so they are treated as noise blocks:
+  excluded from the sample comparisons, counted, and compared by level
+  with the rule above. Added after the bars above and before the first
+  run, from a development encode on which `ffmpeg` reverses those bands.
+- **Tolerance**: twice full accuracy, per channel: the RMS of the
+  difference at most 2 × 2^-15 / √12 (1.8 × 10^-5) and no difference above
+  2 × 2^-14 (1.2 × 10^-4) of full scale, as for MP3.
+
+1. **Conformance (ISO/IEC 14496-26:2010, the bitstreams of the MPEG-4
+   audio conformance of 14496-4, public at standards.iso.org, pinned by
+   SHA-256 in `crates/coreav-aac/tests/conformance.sha256`).** Every AAC LC
+   stream in MP4, `compressedMp4/al00` to `al19` at every sample rate and
+   with both frame lengths (`alNN_RR` and `alNNsf_RR`), against its
+   waveform in `referencesWav` (one file per channel for multichannel
+   streams): per channel, the RMS of the difference at most 2^-15 / √12
+   (8.8 × 10^-6) and no difference above 2^-14 (6.1 × 10^-5) of full
+   scale, the full-accuracy bounds of the MP3 bar. The references do not
+   all start with the decoder's first sample, so each stream is aligned at
+   the offset, within ±4,096 samples, with the smallest RMS of the
+   difference over the reference's loudest 8,192 samples, and compared over
+   the overlap; a stream whose frames are mostly noise bands is aligned on
+   its log-energy envelope instead (64-sample hops). The references are
+   integer PCM, so CoreAV's output is clipped to their range before the
+   difference; channels are matched to the reference files by the smallest
+   RMS difference, the files being in the package's order, not WAV's. Every
+   HE-AAC stream of the package in MP4 (`al_sbr_*`, `al960_sbr_*`) is
+   refused by name. Nothing panics. Bar: every counted stream, in CI.
+2. **The decoder against FFmpeg 9.0.2 (gating).** On every stream of bar 1
+   and every MP4 input of the generated set ("AAC-LC sets"): CoreAV's
+   `coreav_aac::Decoder` on every packet in order, nothing trimmed,
+   against `ffmpeg -ignore_editlist 1 -i IN -map 0:a:0 -f f32le -`, which
+   writes every packet's samples from the first packet on. Sample 0 is
+   compared with sample 0; both lengths must be the packets times the frame
+   length; channels are compared in their order (WAV's), except a program
+   configuration (channel configuration 0), whose channels are matched by
+   the smallest RMS difference as in bar 1 and the match reported. The
+   tolerance and the noise rule above; CoreAV damages no frame. Bar: 100%
+   of the inputs `ffmpeg` decodes without an error. An input that `ffmpeg`
+   decodes with an error, or that CoreAV refuses by a choice above, is
+   listed with its reason and does not count. A divergence found in a run
+   is a known divergence only where a raw value of the input shows its
+   condition, never by file. Reported: the largest difference, the share
+   of samples in noise blocks, the noise level per block.
+3. **Edit lists (gating).** On every MP4 input of the generated set
+   without noise bands or intensity bands under an all-ones mask (every
+   frame's `Frame::noise_bands` and `Frame::intensity_all_ms_bands` are 0
+   in bar 2's decode): `scripts/decode_audio_check.py`'s presentation model
+   ("Edit list bars", bar 1): CoreAV's `decode-audio --format f32` output
+   equals `ffmpeg -ignore_editlist 1`'s decode cut by the edit list as the
+   oracle's own reader reads it, within the tolerance, the length exact,
+   and the summary's `timeline` is the model's. Bar: 100% of those inputs.
+   Reported: the same on the inputs with noise bands (their samples differ
+   by definition), and every input's comparison with `ffmpeg`'s default
+   output (edits applied its way: `equal`, `covered` by an entry of
+   `docs/known-divergences-decode-audio.md`, or `uncovered`).
+4. **Matroska (reported).** Every Matroska input of the generated set:
+   `coreav decode-audio --format f32` against `ffmpeg -i IN -map 0:a:0 -f
+   f32le -`, sample 0 to sample 0 over the common length, with the noise
+   rule; both lengths.
+5. **Threads (gating).** On every input of the generated set, both
+   containers, the output of `--threads 8` is byte-identical to that of
+   `--threads 1`; tests pin 1, 2, 3 and 8 threads on fixtures with noise
+   bands and damaged packets.
+6. **Safety.** Fuzz targets `aac_frame` (the decoder on arbitrary frames
+   under arbitrary configurations, `AudioSpecificConfig` and program
+   configuration parsing included) and the `decode` target with the `aac`
+   feature (the `esds` descriptor walk and the pipeline), for the fuzz
+   job's time per target in CI; pinned tests that a flood of frames stops
+   at `max_output_samples` and that a configuration past `max_channels` is
+   refused; no panics.
+7. **Regression guard.** `decode-audio-aac-mp4` and `decode-audio-aac-mkv`
+   cases of the CI benchmark guard, in its decoder build (which gains the
+   `aac` feature), on the AAC audio of `basic.mp4` copied into MP4 and
+   Matroska.
+
+No speed against FFmpeg is claimed for AAC-LC: a claim needs its own bars
+and a timed run on a fixed host ("Speed" above records the design).
+
+### AAC-LC sets
+
+- **Conformance**: the streams of bar 1.
+- **Generated**: written in the job by the pinned `ffmpeg`'s `aac` encoder
+  from sources it synthesizes, 10 seconds each, into MP4 (`.m4a`, with the
+  edit list `ffmpeg` writes) and, by stream copy, into Matroska
+  (`.mka`). `scripts/aac_agreement.py` holds the list. The sources:
+  `tones` (220, 1,000 and 5,000 Hz, amplitude-modulated at 3 Hz), `noise`
+  (pink noise), `clicks` (a 440 Hz tone with a full-scale 1 ms click every
+  250 ms, which makes the encoder switch to short windows) and `sweep` (a
+  linear sweep from 50 Hz to 16 kHz); multichannel inputs give each
+  channel its own frequency. The groups:
+  - **Rates**: each source at 8, 11.025, 16, 22.05, 24, 32, 44.1, 48, 64,
+    88.2 and 96 kHz, mono and stereo, PNS off (88 encodes);
+  - **PNS**: `noise` and `tones`, stereo, at every rate above, the
+    encoder's defaults (PNS on; 22);
+  - **Tools**: each source at 48 kHz stereo with intensity stereo off, M/S
+    forced, TNS off, the fast coder, 32 kbit/s and 256 kbit/s, PNS off
+    (24);
+  - **Layouts**: `tones` with `clicks` at 48 kHz in the layouts 3.0, 4.0,
+    5.0, 5.1, 6.1 and 7.1, with the channel configuration and with a
+    program configuration (`-aac_pce 1`), PNS off (12).
+  An encode the pinned `ffmpeg` refuses (a layout it has no
+  configuration for) is listed and not counted.
+- Not used: corpus files. ADTS and LATM are not read by the pipeline
+  ("Scope"), so they have no set.
+
+### AAC-LC results
+
+**Round 1**, on `fa508ad`, in the `aac` job of `audio-conformance`
+against FFmpeg `n9.0.2-17-g2a571b6068`: bar 1 met (336 LC streams within
+full accuracy, 105 HE-AAC streams refused by name); bars 2, 3 and 5
+missed, final for that code. Bar 2: 322 of 481 counted inputs. Of the
+146 generated MP4 inputs, 135 missed the length rule alone, 10 passed
+and one was refused (below, not counted). `ffmpeg -ignore_editlist 1`
+9.0.2 writes the samples its packets' durations state (481,024 for a
+10-second input at 48 kHz, with the encoder's 1,024 priming samples),
+not every packet's 1,024. The rule assumed every packet's, as FFmpeg 8.1
+writes. The 10 that passed are the 64 kHz inputs, where the stated
+samples are a whole number of packets (641,024, 626 × 1,024). The
+samples of the 145 decoded inputs agreed to
+4.8 × 10^-7 at most (RMS 5.8 × 10^-8), and the noise level to 0.0001 dB
+on the 28 channels with 100 or more noise blocks. The 24 streams of
+`al03` (every rate, both frame lengths; one channel, a program
+configuration) missed on samples, with an RMS of 1.8 to 3.9 × 10^-3. Bar
+1 found CoreAV within 3.5 × 10^-8 of the reference on these streams, so
+FFmpeg is that far from the reference. One generated input, 7.1, was
+refused: FFmpeg 9.0.2 writes 7.1 as channel configuration 12, which this
+code did not read. Bar 3: 119 of 122. The 3 misses (6.1, and 6.1 and 7.1
+with `-aac_pce 1`) are program configurations whose channels FFmpeg
+orders differently ("Choices"). Bar 5: 290 of 292, the two being the
+refused 7.1 input.
+
+**Round 2**, fixed here before its run, on new code: channel
+configurations 11, 12 and 14 ("Scope"). Three changes to the method,
+each found after round 1:
+
+1. Bar 2's lengths: CoreAV's is still the packets times the frame
+   length. FFmpeg's must be the samples its packets' durations state
+   (`ffprobe -ignore_editlist 1`, in the stream's time base), and at
+   most the packets times the frame length. The samples are compared
+   over FFmpeg's length.
+2. Bar 2 lists a conformance stream as FFmpeg's divergence from the
+   reference, with both measures, and does not count it, when CoreAV's
+   output is within bar 1's full accuracy of the stream's reference and
+   FFmpeg's is not, measured as bar 1 measures.
+3. Bar 3 reports, and does not gate, an input with a program
+   configuration whose channels bar 2 matched to FFmpeg's in another
+   order: a PCE's channel order is the decoder's choice ("Choices").
+
+The tolerances, the level rule, the sets and the other bars are
+unchanged.
+
+Round 2 results, on `7deca1b`, against the same FFmpeg build: every bar
+met. Bar 1: 336 of 336 LC streams. Bar 2: 458 of 458 counted inputs (146
+generated, 312 conformance). The largest difference was 3.9 × 10^-5
+(RMS at most 4.1 × 10^-7), and the noise level agreed to 0.0006 dB on the
+76 channels with 100 or more noise blocks. Not counted: 105 HE-AAC
+streams (95 refused by name, and 10 that `ffmpeg` decodes with errors),
+and the 24 streams of `al03`, which FFmpeg decodes off the reference
+(RMS 1.8 to 3.9 × 10^-3 from the reference; CoreAV's at most
+3.5 × 10^-8). Bar 3: 120 of 120 gating inputs. Reported: 23 inputs with
+noise bands or intensity under an all-ones mask, and the program
+configurations 6.1, 6.1 with `-aac_pce 1` and 7.1 with `-aac_pce 1`,
+whose channels FFmpeg orders differently. `ffmpeg`'s default output
+equals the presentation model on 120 inputs. Bar 4: 146 Matroska inputs,
+lengths equal to `ffmpeg`'s on all of them; on the 123 without noise or
+intensity frames, samples agreed within the tolerance except on those
+three program configurations (channel order). Bar 5: 292 of 292.

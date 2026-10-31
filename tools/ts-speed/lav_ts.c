@@ -31,7 +31,9 @@
 #include <libavutil/avutil.h>
 
 #define IO_BUFFER (64 * 1024)
-#define PINNED "n9.0.2-17-g2a571b6068"
+#ifndef PINNED
+#error "PINNED, the oracle FFmpeg's BUILD; tools/ts-speed/build-lav.sh passes it"
+#endif
 
 static uint64_t now_ns(void) {
     struct timespec t;

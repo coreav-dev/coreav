@@ -28,6 +28,9 @@ PATENTED = {
     'coreav-h264': 'H.264',
     'coreav-kernels-h264': 'H.264',
     'coreav-backend-h264': 'H.264',
+    # The sources disagree on whether AAC-LC patents are still in force; the
+    # decoder ships opt-in, as H.264 does (docs/design/audio-decode.md).
+    'coreav-aac': 'AAC',
 }
 
 # Builds that a package script makes with other than the default features:
@@ -36,6 +39,8 @@ PATENTED = {
 BUILDS = [
     ('coreav-cli for npm (packages/cli/scripts/build.sh)',
      ['-p', 'coreav-cli', '--no-default-features', '--features', 'cli']),
+    ('coreav-cli, the release default build (packages/cli/scripts/platform.sh)',
+     ['-p', 'coreav-cli', '--features', 'release-default']),
 ]
 
 

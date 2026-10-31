@@ -6,7 +6,8 @@ name: mediainfo-oracle
 # tool's own unit tests. It is not a required check.
 
 on:
-  # Informational: on main, on demand, and on PRs that change the tool.
+  # Informational: on main, on demand, and on PRs that change the tool or
+  # the oracle FFmpeg's pin.
   # Documentation prose runs nothing: the report comes from the binaries and
   # the fixtures, which that prose does not describe. Neither `docs/` nor
   # markdown is ignored as a whole, because the gates read some of both:
@@ -25,6 +26,8 @@ on:
   pull_request:
     paths:
       - tools/mediainfo-oracle/**
+      - scripts/oracle-ffmpeg.env
+      - scripts/install-oracle-ffmpeg.sh
       - .github/workflows/mediainfo-oracle.yml
   workflow_dispatch:
 
@@ -55,7 +58,7 @@ jobs:
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ runner.temp }}/coreav-oracle-bin
-          key: linux-x64-ffmpeg-7.0.2-mediainfo-26.10-${{ hashFiles('scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
+          key: linux-x64-oracle-mediainfo-26.10-${{ hashFiles('scripts/oracle-ffmpeg.env', 'scripts/install-oracle-ffmpeg.sh', 'scripts/install-oracle-mediainfo.sh') }}
       - name: Install pinned FFmpeg, ffprobe and MediaInfo
         if: steps.bin-cache.outputs.cache-hit != 'true'
         run: |
@@ -63,6 +66,7 @@ jobs:
           scripts/install-oracle-mediainfo.sh "$RUNNER_TEMP/coreav-oracle-bin"
       - name: Use pinned binaries
         run: |
+          python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/coreav-oracle-bin"
           echo "$RUNNER_TEMP/coreav-oracle-bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/coreav-oracle-bin/mediainfo" --Version
       - name: Generate all required fixtures

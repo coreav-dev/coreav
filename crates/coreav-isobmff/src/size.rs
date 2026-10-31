@@ -560,6 +560,17 @@ fn hvcc_first_sps(record: &[u8]) -> Option<&[u8]> {
     None
 }
 
+/// Whether the first sequence parameter set of an `hvcC` record has a
+/// conformance window that leaves no picture: ITU-T H.265 7.4.3.2.1 requires
+/// its left and right offsets to leave part of the width and its top and
+/// bottom offsets part of the height ([`crop_valid`]). `false` when the
+/// record holds no such set or it cannot be read.
+pub(crate) fn hvcc_window_empty(record: &[u8]) -> bool {
+    hvcc_first_sps(record)
+        .and_then(hevc_sps_geometry)
+        .is_some_and(|g| !crop_valid(g.size, g.unit, g.crop))
+}
+
 /// [`configured_size`], telling a record without parameter sets
 /// (`Ok(None)`) from one this crate cannot read (`Err`): a version other
 /// than 1 (`avcC`, `hvcC`; a decoder may then frame samples differently),

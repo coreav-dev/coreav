@@ -10,7 +10,7 @@ The `coreav` command reads media files and rewrites them without re-encoding:
 - It describes MP4, MOV, Matroska, WebM and MPEG transport stream files as JSON.
 - It cuts, splits, joins and sanitizes MP4 and MOV files by stream copy, and remuxes MP4, MOV, Matroska and WebM files to MP4 with the movie header first.
 - It checks a file against an upload policy and prints the verdict.
-- It copies audio, subtitles and chapters out of MP4 and MOV files, and decodes FLAC and MP3 audio to WAV.
+- It copies audio, subtitles and chapters out of MP4 and MOV files, and decodes FLAC, MP3 and Opus audio to WAV.
 - It serves an MP4 or MOV file as HLS.
 - It takes `ffprobe` and `ffmpeg -c copy` command lines. In [strict-safe mode](/strict-safe) it refuses the command lines it does not implement. Without that mode it hands them to the real FFmpeg.
 

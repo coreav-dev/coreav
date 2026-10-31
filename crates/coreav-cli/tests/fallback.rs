@@ -148,20 +148,20 @@ fn the_first_program_on_path_that_is_not_coreav_runs() {
     std::fs::hard_link(bin(), hard.join("ffprobe")).unwrap();
     let path: &[&Path] = &[&links, &hard, stand_in()];
     let expected = format!("coreav: ran {}/ffprobe instead", stand_in().display());
-    let direct = coreav(&["ffprobe", "-show_frames", "in.mp4"], path, &[]);
+    let direct = coreav(&["ffprobe", "-show_data", "in.mp4"], path, &[]);
     let multicall = run(
         &links.join("ffprobe"),
-        &["-show_frames", "in.mp4"],
+        &["-show_data", "in.mp4"],
         path,
         &[],
         "",
     );
     for r in [direct, multicall] {
         assert_eq!(r.code, 7, "{}", r.stderr);
-        assert_eq!(r.stdout, "args: -show_frames in.mp4\n");
+        assert_eq!(r.stdout, "args: -show_data in.mp4\n");
         assert!(
             r.stderr
-                .starts_with(&format!("{expected} (not native: -show_frames)\n")),
+                .starts_with(&format!("{expected} (not native: -show_data)\n")),
             "{}",
             r.stderr
         );
@@ -300,7 +300,7 @@ fn coreav_fallback_that_names_nothing_usable_is_never_replaced_by_path() {
 #[test]
 fn strict_safe_mode_never_runs_another_program() {
     let dir = stand_in().to_str().unwrap();
-    let args = ["ffprobe", "-show_frames", "in.mp4"];
+    let args = ["ffprobe", "-show_data", "in.mp4"];
     for (flag, value) in [(false, "1"), (false, "yes"), (true, "")] {
         let mut all: Vec<&str> = Vec::new();
         if flag {
@@ -316,11 +316,61 @@ fn strict_safe_mode_never_runs_another_program() {
         assert!(r.stdout.is_empty());
         assert_eq!(
             r.stderr,
-            "coreav ffprobe: option '-show_frames' is not supported: frames need a decoder\n"
+            "coreav ffprobe: option '-show_data' is not supported: packet payloads are not printed\n"
         );
     }
     let off = coreav(&args, &[stand_in()], &[("COREAV_STRICT_SAFE", "0")]);
     assert_eq!(off.code, 7, "{}", off.stderr);
+}
+
+#[test]
+fn coreav_ffmpeg_help_runs_no_program() {
+    let dir = stand_in().to_str().unwrap();
+    let log = tmp("help-log").join("fallback.log");
+    let log = log.to_str().unwrap();
+    for strict_safe in ["0", "1"] {
+        for help in ["-h", "-?", "-help", "--help"] {
+            let r = coreav(
+                &["ffmpeg", help],
+                &[stand_in()],
+                &[
+                    ("COREAV_FALLBACK", dir),
+                    ("COREAV_FALLBACK_LOG", log),
+                    ("COREAV_STRICT_SAFE", strict_safe),
+                ],
+            );
+            assert_eq!(r.code, 0, "{help} {strict_safe}: {}", r.stderr);
+            assert_eq!(r.stdout, coreav_cli::ffmpeg::USAGE, "{help} {strict_safe}");
+            assert!(r.stderr.is_empty(), "{help} {strict_safe}: {}", r.stderr);
+        }
+    }
+    assert!(!Path::new(log).exists(), "help wrote a fallback log line");
+}
+
+#[test]
+fn coreav_ffmpeg_help_on_a_topic_is_ffmpegs() {
+    let dir = stand_in().to_str().unwrap();
+    let args = ["ffmpeg", "-h", "encoder=libx264"];
+    let r = coreav(&args, &[stand_in()], &[("COREAV_FALLBACK", dir)]);
+    assert_eq!(r.code, 7, "{}", r.stderr);
+    assert!(
+        r.stdout.starts_with("args: -h encoder=libx264\n"),
+        "{}",
+        r.stdout
+    );
+    let r = coreav(
+        &args,
+        &[stand_in()],
+        &[("COREAV_FALLBACK", dir), ("COREAV_STRICT_SAFE", "1")],
+    );
+    assert_eq!(r.code, 4, "{}", r.stderr);
+    assert!(r.stdout.is_empty());
+    assert!(
+        r.stderr
+            .starts_with("coreav ffmpeg: '-h encoder=libx264' is not supported: "),
+        "{}",
+        r.stderr
+    );
 }
 
 #[test]
@@ -376,14 +426,14 @@ fn the_notice_is_printed_at_every_log_level() {
     for level in ["-v", "-loglevel"] {
         for value in ["quiet", "quiet+repeat", "-8", "error"] {
             let r = coreav(
-                &["ffprobe", level, value, "-show_frames", "in.mp4"],
+                &["ffprobe", level, value, "-show_data", "in.mp4"],
                 &[],
                 &[("COREAV_FALLBACK", dir)],
             );
             assert_eq!(r.code, 7);
             assert!(
                 r.stderr.starts_with(&format!(
-                    "coreav: ran {dir}/ffprobe instead (not native: -show_frames)\n"
+                    "coreav: ran {dir}/ffprobe instead (not native: -show_data)\n"
                 )),
                 "{level} {value}: {}",
                 r.stderr
@@ -419,7 +469,7 @@ fn the_log_gets_one_redacted_line_per_command_that_is_not_native() {
             "-v",
             "quiet",
             "-show_entries",
-            "format_tags=MARKER:frame=MARKER",
+            "format_tags=MARKER:stream_group=MARKER",
             "-of",
             "json",
             &input,
@@ -444,7 +494,7 @@ fn the_log_gets_one_redacted_line_per_command_that_is_not_native() {
         );
     }
     let refused = coreav(
-        &["ffprobe", "-show_frames", &input],
+        &["ffprobe", "-show_data", &input],
         &[],
         &[("COREAV_STRICT_SAFE", "1"), ("COREAV_FALLBACK_LOG", log)],
     );
@@ -472,14 +522,14 @@ fn the_log_gets_one_redacted_line_per_command_that_is_not_native() {
     assert_eq!(lines[0]["tool"], "ffmpeg");
     assert_eq!(lines[0]["reason"], "-headers");
     assert_eq!(lines[0]["ran"], format!("{dir}/ffmpeg"));
-    assert_eq!(lines[1]["reason"], "-show_entries frame");
+    assert_eq!(lines[1]["reason"], "-show_entries stream_group");
     assert_eq!(
         lines[1]["args"],
         serde_json::json!([
             "-v",
             "quiet",
             "-show_entries",
-            "format_tags=KEY:frame=KEY",
+            "format_tags=KEY:stream_group=KEY",
             "-of",
             "json",
             "INPUT"
@@ -540,6 +590,32 @@ fn native_commands_and_rejected_files_are_never_handed_on() {
     let malformed = coreav(&["ffprobe", "-show_streams"], &[], &env);
     assert_eq!(malformed.code, 2);
     assert!(!log.exists());
+}
+
+#[test]
+fn coreav_ffprobe_help_is_its_own_and_help_on_a_topic_is_ffprobes() {
+    let dir = stand_in().to_str().unwrap();
+    let work = tmp("ffprobe-help");
+    let log = work.join("fallback.log");
+    let env = [
+        ("COREAV_FALLBACK", dir),
+        ("COREAV_FALLBACK_LOG", log.to_str().unwrap()),
+    ];
+    for help in ["-h", "-?", "-help", "--help"] {
+        let r = coreav(&["ffprobe", help], &[stand_in()], &env);
+        assert_eq!(r.code, 0, "{help}: {}", r.stderr);
+        assert_eq!(r.stdout, coreav_cli::ffprobe::USAGE, "{help}");
+        assert!(r.stderr.is_empty(), "{help}: {}", r.stderr);
+    }
+    assert!(!log.exists(), "help wrote a fallback log line");
+    let r = coreav(&["ffprobe", "-h", "demuxer=mov"], &[stand_in()], &env);
+    assert_eq!(r.code, 7, "{}", r.stderr);
+    assert!(
+        r.stdout.starts_with("args: -h demuxer=mov\n"),
+        "{}",
+        r.stdout
+    );
+    assert_eq!(log_lines(&log).len(), 1);
 }
 
 #[test]

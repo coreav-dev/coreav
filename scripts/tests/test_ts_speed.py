@@ -18,6 +18,7 @@ import ts_speed_bars  # noqa: E402
 import ts_speed_gcp  # noqa: E402
 
 MB = 10 ** 6
+LINUX_ONLY = unittest.skipUnless(sys.platform == 'linux', 'ts_speed.py pins its runs to a core with taskset, which only Linux has')
 
 
 def entry(name, size, coreav, lav, null=None, count=10, rounds=3):
@@ -88,6 +89,7 @@ class Bars(unittest.TestCase):
 class Timing(unittest.TestCase):
     """ts_speed.py end to end, with stand-in engines that print fixed lines."""
 
+    @LINUX_ONLY
     def test_a_run_records_every_arm_and_round(self):
         with tempfile.TemporaryDirectory() as d:
             d = pathlib.Path(d)
@@ -114,6 +116,7 @@ class Timing(unittest.TestCase):
             self.assertEqual([s['label'] for s in r['freq']], ['start', 'after a.ts', 'after b.ts'])
             self.assertEqual(ts_speed_bars.analyze(r)['overall']['median'], 0.5)
 
+    @LINUX_ONLY
     def test_a_listing_that_exits_nonzero_failed_whatever_its_line_says(self):
         import ts_speed
         with tempfile.TemporaryDirectory() as d:

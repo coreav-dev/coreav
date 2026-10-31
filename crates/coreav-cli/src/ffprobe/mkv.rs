@@ -132,7 +132,27 @@ pub fn probe<'a, S: Source + 'a>(
         .iter()
         .map(|a| attached_picture(a, &mut source))
         .collect();
-    let report = report(&segment, &infos, &early, &pictures, size, name);
+    let mut report = report(&segment, &infos, &early, &pictures, size, name);
+    report.setups = vec![super::Setup::default(); report.streams.len()];
+    for (track, info) in segment.tracks.iter().zip(&infos) {
+        if let Some(setup) = info.stream.and_then(|i| report.setups.get_mut(i)) {
+            let video = track.video.unwrap_or_default();
+            *setup = super::Setup {
+                config: track.codec_private.clone(),
+                width: video.pixel_width.and_then(|v| u32::try_from(v).ok()),
+                height: video.pixel_height.and_then(|v| u32::try_from(v).ok()),
+                unreadable: match track.encoding {
+                    Encoding::None | Encoding::HeaderStripping(_) => None,
+                    _ => Some("its frames are stored compressed or encrypted"),
+                },
+                skip: info.rate.map_or(0, |rate| {
+                    let samples = (i128::from(track.codec_delay) * i128::from(rate) + 500_000_000)
+                        .div_euclid(1_000_000_000);
+                    i64::try_from(samples).unwrap_or(0)
+                }),
+            };
+        }
+    }
     Ok(Probed {
         report,
         packets: Box::new(MkvPackets {
@@ -585,7 +605,9 @@ fn params(track: &Track, early: &Early) -> (Option<video::Params>, Option<usize>
                         .copied()
                         .filter(|n| n.first().is_some_and(|b| matches!(b & 0x1F, 7 | 8)))
                         .collect();
-                    let size = sets.iter().map(|n| n.len() + 4).sum::<usize>();
+                    let mut state = (0, false);
+                    super::ts::params::sets_before_slice(frame, false, &mut state);
+                    let size = state.0;
                     (video::first_h264_sps(sets), Some(size).filter(|s| *s > 0))
                 }
                 None => (None, None),
@@ -1603,6 +1625,7 @@ fn stream(
     if let Some(n) = extradata_size(track, info) {
         e.push(("extradata_size", int(n)));
     }
+    super::metadata::stream(&mut e, codec_config(track), &info.first, None);
     let mut tags = meta.dict();
     if let Some(lang) = track_language(track) {
         tags.set("language", &lang);
@@ -2428,6 +2451,17 @@ fn extradata_size(track: &Track, info: &Info) -> Option<usize> {
     match track.codec {
         Codec::Vp9 | Codec::Vp8 | Codec::Ac3 | Codec::Eac3 | Codec::Mp3 | Codec::Mp2 => None,
         Codec::H264 if track.codec_private.is_none() => info.in_band,
+        Codec::H264
+            if track
+                .codec_private
+                .as_ref()
+                .is_some_and(|c| c.first() != Some(&1)) =>
+        {
+            track
+                .codec_private
+                .as_deref()
+                .and_then(|c| super::ts::params::annex_b_extradata(c, false))
+        }
         Codec::Flac => track
             .codec_private
             .as_deref()
@@ -2477,6 +2511,7 @@ fn disposition(track: &Track) -> Entries {
         ("metadata", false),
         ("dependent", false),
         ("still_image", false),
+        ("multilayer", false),
     ]
     .into_iter()
     .map(|(k, v)| (k, Value::Int(i64::from(v))))
@@ -2507,6 +2542,7 @@ fn disposition_flags(set: &[&str]) -> Entries {
         "metadata",
         "dependent",
         "still_image",
+        "multilayer",
     ]
     .into_iter()
     .map(|k| (k, Value::Int(i64::from(set.contains(&k)))))
@@ -2751,7 +2787,11 @@ struct State {
 }
 
 impl<S: Source> PacketSource for MkvPackets<S> {
-    fn visit(&mut self, f: &mut dyn FnMut(Packet) -> Result<bool, Failure>) -> Result<(), Failure> {
+    fn visit(
+        &mut self,
+        payloads: &[bool],
+        f: &mut dyn FnMut(Packet) -> Result<bool, Failure>,
+    ) -> Result<(), Failure> {
         let limits = Limits::default();
         let segment = &self.segment;
         let tb = time_base(segment);
@@ -2959,6 +2999,20 @@ impl<S: Source> PacketSource for MkvPackets<S> {
                 discard: false,
                 corrupt: false,
                 side_data,
+                data: if payloads.get(stream).copied().unwrap_or(false) {
+                    let mut data = match &track.encoding {
+                        Encoding::HeaderStripping(prefix) => prefix.clone(),
+                        _ => Vec::new(),
+                    };
+                    data.extend(super::frames::read(
+                        iter.source_mut(),
+                        p.offset,
+                        p.stored_size,
+                    )?);
+                    data
+                } else {
+                    Vec::new()
+                },
             };
             if !f(packet)? {
                 return Ok(());
