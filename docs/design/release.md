@@ -37,11 +37,11 @@ The release makes two builds of every target (maintainer decision, 2026-10-31). 
 
 | Build | Cargo feature of `coreav-cli` | Features it turns on | Adds to the default features |
 |---|---|---|---|
-| Default | `release-default` | `cli`, `net`, `dav1d`, `libvpx` | `coreav transcode` and `coreav thumbnail`, with AV1 decoded by dav1d (BSD-2) and VP9 by libvpx (BSD-3) |
+| Default | `release-default` | `cli`, `net`, `dav1d`, `libvpx` | `coreav transcode` and `coreav thumbnail`, with AV1 decoded by dav1d (BSD-2) and VP8 and VP9 by libvpx (BSD-3) |
 | Full | `release-full` | `release-default`, `native-h264`, `aac` | CoreAV's own H.264 decoder for both commands, and AAC LC in `coreav decode-audio` |
 
 - **One definition.** The two features are where a build's feature list is written; `platform.sh` takes the build's name (`default` or `full`) and passes its feature. `patent_free_check.py` checks `release-default` like the other builds a package script makes, so the required `deny` check fails if the default build reaches a crate on the patent list.
-- **No FFmpeg.** Neither build has `ffmpeg-fallback`. HEVC, ProRes and the other codecs stay with the fallback to the `ffmpeg` program, as in the default features. libvpx is built with its VP8 decoder too, so VP8 comes with the `libvpx` feature once `coreav-backend-libvpx` decodes it.
+- **No FFmpeg.** Neither build has `ffmpeg-fallback`. HEVC, ProRes and the other codecs stay with the fallback to the `ffmpeg` program, as in the default features. libvpx is built with its VP8 decoder too, which `coreav-backend-libvpx` uses for VP8.
 - **Encoders.** No encoder is linked. H.264 is encoded by an `x264` or `ffmpeg` program the operator installs (policy record 0042, point 5), in both builds, and AAC by the operator's `ffmpeg -c:a aac` in the same way. Opus encoding with libopus (the `libopus` feature) joins `release-default` when it lands: libopus is BSD-3, off the patent list, and builds as a static library on every target, as dav1d and libvpx do.
 - **Windows.** `coreav transcode` cannot run on Windows: its encoder starts through the sandbox launcher, which sets its resource limits with Unix calls and starts nothing elsewhere (`coreav_worker::exec`), and the decode worker runs there without limits. The Windows default build is therefore the default features, and the Windows full build adds `aac` alone (`platform.sh`). Windows gets the decoders when the worker has a Windows sandbox, which needs its own policy record.
 
@@ -55,7 +55,7 @@ Both libraries are built from source as static libraries and linked into the `co
 - **macOS:** compiled with the runner's clang, each architecture on its own, at the deployment targets Rust builds for (11.0 on arm64, 10.12 on x86-64).
 - **Windows:** nothing is built (above).
 
-**Sandbox (policy record 0001, point 5).** Static linking does not move dav1d or libvpx into the main process. The CLI decodes AV1 and VP9 only in the sandboxed worker, which is the `coreav` binary run again with a hidden argument. The libraries' code is in the binary and runs in the worker alone, as it did with shared libraries. On macOS the memory budget stays advisory, so strict-safe mode starts no worker there (`decode.md`, "Memory").
+**Sandbox (policy record 0001, point 5).** Static linking does not move dav1d or libvpx into the main process. The CLI decodes AV1, VP8 and VP9 only in the sandboxed worker, which is the `coreav` binary run again with a hidden argument. The libraries' code is in the binary and runs in the worker alone, as it did with shared libraries. On macOS the memory budget stays advisory, so strict-safe mode starts no worker there (`decode.md`, "Memory").
 
 ### npm
 
@@ -82,7 +82,7 @@ The directory holds `coreav` (`coreav.exe`), `LICENSE-MIT`, `LICENSE-APACHE` and
 On each target, for both builds:
 
 - Under `COREAV_STRICT_SAFE=1`, so no FFmpeg is installed or run: `coreav --version` prints the tag's version (a tag run); `coreav ffprobe -v error -of json -show_format -show_streams` on a committed file (`crates/coreav-audio/fuzz/regressions/decode/edit-rounding.mp4`) succeeds, and the ten binaries' outputs are identical; `coreav ffprobe -show_frames`, a command that is not native, exits 4, and so does the same command run as `ffprobe` (a copy of the binary under that name).
-- The decoders, on clips that `packages/cli/test/release-clips.sh` generates once with the pinned FFmpeg (one second of a test pattern as AV1, VP9 in WebM and H.264, and a sine tone as AAC), checked by `packages/cli/test/release-smoke.py`. Both builds transcode the AV1 and VP9 clips, through dav1d and libvpx, to H.264 with an `x264` program built from its pinned commit (`scripts/install-x264.sh`); the full build also transcodes the H.264 clip with CoreAV's decoder, which the default build refuses. Each output is probed: one H.264 stream of the clip's size and frame count. The full build decodes the AAC clip with `decode-audio`, which the default build refuses. On Linux these run in strict-safe mode too; macOS has no enforceable memory limit, so strict-safe mode would start no sandboxed decoder there, and they run without it. On Windows only the AAC check applies.
+- The decoders, on clips that `packages/cli/test/release-clips.sh` generates once with the pinned FFmpeg (one second of a test pattern as AV1, VP8 and VP9 in WebM and H.264, and a sine tone as AAC), checked by `packages/cli/test/release-smoke.py`. Both builds transcode the AV1, VP8 and VP9 clips, through dav1d and libvpx, to H.264 with an `x264` program built from its pinned commit (`scripts/install-x264.sh`); the full build also transcodes the H.264 clip with CoreAV's decoder, which the default build refuses. Each output is probed: one H.264 stream of the clip's size and frame count. The full build decodes the AAC clip with `decode-audio`, which the default build refuses. On Linux these run in strict-safe mode too; macOS has no enforceable memory limit, so strict-safe mode would start no sandboxed decoder there, and they run without it. On Windows only the AAC check applies.
 
 ## Supply chain
 

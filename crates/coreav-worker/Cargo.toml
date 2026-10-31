@@ -14,7 +14,7 @@ default = []
 ffmpeg = ["dep:coreav-backend-ffmpeg"]
 # dav1d for AV1 (links the system's libdav1d).
 dav1d = ["dep:coreav-backend-dav1d", "coreav-backend-dav1d/dav1d"]
-# libvpx for VP9 (links the system's libvpx).
+# libvpx for VP8 and VP9 (links the system's libvpx).
 libvpx = ["dep:coreav-backend-libvpx", "coreav-backend-libvpx/libvpx"]
 
 [dependencies]

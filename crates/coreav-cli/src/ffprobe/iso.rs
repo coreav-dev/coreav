@@ -595,6 +595,7 @@ fn unprotected(track: &Track, wrapped: &super::iso_meta::Protected) -> Track {
         b"hvc1" | b"hev1" => Codec::Hevc,
         b"av01" => Codec::Av1,
         b"vp09" => Codec::Vp9,
+        b"vp08" => Codec::Vp8,
         b"Opus" => Codec::Opus,
         b"fLaC" => Codec::Flac,
         b"mp4a" if matches!(oti, Some(0x69 | 0x6b)) => Codec::Mp3,
@@ -905,7 +906,7 @@ fn video_info<S: Source>(track: &Track, head: &Head, source: &mut S) -> Option<V
         Codec::Hevc => record(b"hvcC").and_then(|r| video::hevc(r, full_range)),
         Codec::Av1 => record(b"av1C").and_then(video::av1),
         Codec::Vp9 => record(b"vpcC").and_then(video::vp9),
-        Codec::Other => {
+        Codec::Other | Codec::Vp8 => {
             let name = codec_name_of(track)?;
             let mut frame = |limit: u32| -> Option<Vec<u8>> {
                 let (offset, size) = head.first?;

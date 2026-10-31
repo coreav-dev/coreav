@@ -517,7 +517,7 @@ pub fn transcode<S: Source, W: Write>(
             remux_mp4_replacing(
                 &mut source,
                 &options.isobmff_limits,
-                &coreav_isobmff::Allowlist::default(),
+                &isobmff_allowlist(video.stream.codec),
                 &RemuxOptions {
                     streams,
                     on_unsupported: OnUnsupported::Drop,
@@ -577,6 +577,17 @@ fn spool_read(error: coreav_isobmff::Error) -> Error {
         // The spool file is CoreAV's own: never an input's error.
         other => encode_error(format!("the spool file: {other}")),
     }
+}
+
+/// The ISOBMFF allowlist of the writer: the default, and VP8 when it is
+/// the video stream's codec (the default leaves it out), so that the
+/// replaced stream is kept.
+fn isobmff_allowlist(codec: Codec) -> coreav_isobmff::Allowlist {
+    let mut codecs = coreav_isobmff::Allowlist::default().codecs().to_vec();
+    if codec == Codec::Vp8 {
+        codecs.push(coreav_isobmff::Codec::Vp8);
+    }
+    coreav_isobmff::Allowlist::new(&codecs)
 }
 
 /// The Matroska allowlist of the writer: the default, and the video

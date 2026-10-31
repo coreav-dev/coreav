@@ -1,6 +1,7 @@
-//! The frame sizes a VP9 packet states, read before libvpx sees the
+//! The frame sizes a VP8 or VP9 packet states, read before libvpx sees the
 //! packet (VP9 Bitstream and Decoding Process Specification 0.6, section
-//! 6.2, "Uncompressed header syntax", and Annex B, "Superframes").
+//! 6.2, "Uncompressed header syntax", and Annex B, "Superframes"; RFC 6386,
+//! section 9.1, "Uncompressed Data Chunk", for VP8).
 //!
 //! A packet is one frame, or a superframe: frames one after another and an
 //! index at the end. libvpx reads a packet without an index as frames one
@@ -14,6 +15,13 @@
 //! frame's size (`found_ref`) states none: its size is one an earlier frame
 //! stated. So checking every stated size against the decode limits bounds
 //! every frame libvpx decodes.
+//!
+//! A VP8 packet is one frame: VP8 has no superframes, and WebM and the VP
+//! codec ISOBMFF binding store one frame per block or sample. Only a key
+//! frame states a size ([`vp8_frame_size`]); an inter frame, shown or
+//! not (an alternate reference frame), has the size of the key frame
+//! before it. So checking every key frame's size bounds every VP8 frame
+//! libvpx decodes, and libvpx gets the packet as it is.
 #![forbid(unsafe_code)]
 
 use std::borrow::Cow;
@@ -116,6 +124,35 @@ fn frames(packet: &[u8]) -> Result<Vec<&[u8]>, Malformed> {
         return Err(Malformed("superframe index smaller than its frames"));
     }
     Ok(out)
+}
+
+/// The size a VP8 frame states (RFC 6386, section 9.1): a key frame's,
+/// from the 14-bit width and height after its 3-byte frame tag and start
+/// code (the 2 scale bits above each ask for upscaling after decoding and
+/// do not change the decoded size); none for an inter frame (bit 0 of the
+/// frame tag set).
+pub fn vp8_frame_size(frame: &[u8]) -> Result<Option<FrameSize>, Malformed> {
+    let Some(&tag) = frame.first() else {
+        return Err(Malformed("empty packet"));
+    };
+    if frame.len() < 3 {
+        return Err(Malformed("frame tag shorter than 3 bytes"));
+    }
+    if tag & 1 == 1 {
+        return Ok(None);
+    }
+    let [_, _, _, s0, s1, s2, w0, w1, h0, h1, ..] = *frame else {
+        return Err(Malformed("key frame header shorter than its fields"));
+    };
+    if [s0, s1, s2] != [0x9d, 0x01, 0x2a] {
+        return Err(Malformed("key frame start code is not 9d 01 2a"));
+    }
+    let width = u32::from(u16::from_le_bytes([w0, w1]) & 0x3fff);
+    let height = u32::from(u16::from_le_bytes([h0, h1]) & 0x3fff);
+    if width == 0 || height == 0 {
+        return Err(Malformed("key frame of no width or height"));
+    }
+    Ok(Some(FrameSize { width, height }))
 }
 
 /// The size a frame's uncompressed header states, if any.
@@ -382,6 +419,68 @@ mod tests {
         assert_eq!(frames(&with), Ok(vec![&packet[..]]));
         assert_eq!(frame_sizes(&with), Ok(vec![size(64, 64)]));
         assert_eq!(indexed(&[]), Err(Malformed("empty packet")));
+    }
+
+    /// A VP8 key frame's first 10 bytes (RFC 6386 9.1): frame tag (key
+    /// frame, version 0, shown, first partition of 0x123 bytes), start
+    /// code, then width and height with their scale bits.
+    fn vp8_key(width: u16, height: u16, scale: u16) -> Vec<u8> {
+        let tag = (0x123u32 << 5) | (1 << 4);
+        let mut out = tag.to_le_bytes()[..3].to_vec();
+        out.extend_from_slice(&[0x9d, 0x01, 0x2a]);
+        out.extend_from_slice(&(width | (scale << 14)).to_le_bytes());
+        out.extend_from_slice(&(height | (scale << 14)).to_le_bytes());
+        out
+    }
+
+    #[test]
+    fn vp8_key_frames_state_their_size() {
+        assert_eq!(
+            vp8_frame_size(&vp8_key(176, 144, 0)),
+            Ok(Some(size(176, 144)))
+        );
+        assert_eq!(vp8_frame_size(&vp8_key(75, 51, 3)), Ok(Some(size(75, 51))));
+        assert_eq!(
+            vp8_frame_size(&vp8_key(0x3fff, 0x3fff, 2)),
+            Ok(Some(size(16_383, 16_383)))
+        );
+        let mut tail = vp8_key(64, 48, 0);
+        tail.extend_from_slice(&[0xAA; 32]);
+        assert_eq!(vp8_frame_size(&tail), Ok(Some(size(64, 48))));
+        // Inter frames, shown or not, state none.
+        assert_eq!(vp8_frame_size(&[0x31, 0x02, 0x00]), Ok(None));
+        assert_eq!(vp8_frame_size(&[0x21, 0x02, 0x00, 0xFF]), Ok(None));
+    }
+
+    #[test]
+    fn malformed_vp8_frames_are_errors() {
+        assert_eq!(vp8_frame_size(&[]), Err(Malformed("empty packet")));
+        assert_eq!(
+            vp8_frame_size(&[0x31, 0x02]),
+            Err(Malformed("frame tag shorter than 3 bytes"))
+        );
+        let whole = vp8_key(64, 48, 0);
+        for len in 3..whole.len() {
+            assert_eq!(
+                vp8_frame_size(&whole[..len]),
+                Err(Malformed("key frame header shorter than its fields")),
+                "{len} bytes"
+            );
+        }
+        let mut start = whole.clone();
+        start[4] = 0x02;
+        assert_eq!(
+            vp8_frame_size(&start),
+            Err(Malformed("key frame start code is not 9d 01 2a"))
+        );
+        assert_eq!(
+            vp8_frame_size(&vp8_key(0, 48, 1)),
+            Err(Malformed("key frame of no width or height"))
+        );
+        assert_eq!(
+            vp8_frame_size(&vp8_key(64, 0, 0)),
+            Err(Malformed("key frame of no width or height"))
+        );
     }
 
     #[test]
