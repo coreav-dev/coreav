@@ -1,5 +1,26 @@
 # Known divergences: `coreav ffprobe` versus `ffprobe` 9.0.2 on the fixtures
 
+The fixture entries below also describe historical output that has since
+been corrected. Matching values need no exception. The corpus notes at
+the end of this page are not fixture exceptions and do not turn a failed
+key comparison into agreement.
+
+## AV1 codec-string colour and chroma
+
+The [AV1 ISOBMFF binding section 5](https://aomediacodec.github.io/av1-isobmff/#codecsparam)
+requires the optional fields of a codec string to describe the actual
+monochrome, chroma and colour values; omitting them implies limited-range
+BT.709 with non-monochrome 4:2:0 samples. It also makes an `nclx` colour
+box override sequence-header colour fields in that string.
+
+On small generated inputs, the pinned oracle omits the suffix of a
+full-range monochrome sequence and of a position-only chroma change,
+prints a full-range RGB sequence's range as 0, and ignores an `nclx`
+override of a BT.2020/PQ sequence. CoreAV follows the specified values
+and omits only the complete default suffix. The byte-validated generated
+fixture exception at the end of this page covers one exact `nclx`
+disagreement. Other differing strings still fail B3a on the corpus.
+
 The command-coverage set (`tools/compat-corpus/run.py commands`, bar B3a on
 the fixtures of [`design/compat-cli.md`](design/compat-cli.md)) compares
 every `native` `ffprobe` command byte for byte. Moving the oracle from
@@ -27,12 +48,13 @@ entry by its type (`packets.side_data_list[Skip Samples]`, with `[]` for
 an entry the command prints empty because it selects none of its keys);
 a stream group as `stream_groups`.
 
-The first twelve entries are changes in what FFmpeg 9.0.2 prints: CoreAV
+The first eleven entries are changes in what FFmpeg 9.0.2 prints: CoreAV
 prints what 7.0.2 printed, and coreav-dev/coreav#24 follows 9.0.2. The
-thirteenth is an FFmpeg error on a fixture 9.0.2 writes, which ISO/IEC
-14496-12 decides for CoreAV. The last four are CoreAV differences that the
+twelfth is an FFmpeg error on a fixture 9.0.2 writes, which ISO/IEC
+14496-12 decides for CoreAV. The next four are CoreAV differences that the
 fixtures 9.0.2 writes expose: both FFmpeg versions print the same value
-there, and CoreAV another.
+there, and CoreAV another. The final entry validates an AV1 fixture's
+stored `nclx` bytes and fails when its exact oracle disagreement changes.
 
 ## KD-FF9-NEW-KEYS
 
@@ -126,13 +148,6 @@ there, and CoreAV another.
   whose size CoreAV prints: two bytes for H.264, three for HEVC.
 - Accepts: those two bytes more from `ffprobe` on an H.264 stream, three
   on an HEVC stream.
-
-## KD-FF9-TS-PROBE-SCORE
-
-- Key: `format.probe_score`.
-- Cause: FFmpeg 9.0.2 gives an MPEG-TS file a probe score of 100, where
-  7.0.2 and CoreAV give 50.
-- Accepts: 100 from `ffprobe` and 50 from CoreAV.
 
 ## KD-FF9-TIMECODE-GROUP
 
@@ -234,3 +249,59 @@ there, and CoreAV another.
   CoreAV does not. A CoreAV difference, for a follow-up.
 - Accepts: a shorter duration from `ffprobe` on the last packet of an AAC
   stream, and no other packet's.
+
+## KD-FF9-AV1-NCLX
+
+- Key: `streams.mime_codec_string` (`color_av1_colr_ignored.mp4` only).
+- Cause: [AV1 ISOBMFF section 5](https://aomediacodec.github.io/av1-isobmff/#codecsparam)
+  requires an `nclx` box to override the sequence-header colour and
+  range in the codec string. The fixture's stored values are 6/6/6 and
+  full range. The pinned oracle instead prints the short default string.
+- Accepts: exactly `av01.0.00M.08` from the oracle and
+  `av01.0.00M.08.0.110.06.06.06.1` from CoreAV, on a video stream
+  identified as AV1 with the `av01` codec tag. No other field is excluded.
+- Evidence: the runner walks this fixture's boxes, requires one AV1
+  sample entry, reads its `av1C` configuration and the exact `nclx`
+  bytes, and derives the expected string from them. Changed bytes or
+  outputs fail the gate. Both command runners check this before comparing
+  commands, including commands on which the outputs already agree. If
+  the oracle starts agreeing on the codec string, they fail explicitly
+  and require removal of the obsolete exception. Other files, including
+  corpus files, do not use it.
+
+## Corpus differences not set aside
+
+These notes explain remaining differences in `run.py keys`. They do not
+mask them, and the measured agreement rates still count them as failures.
+
+- **EPG packets.** An EIT transport packet can finish several sections
+  (ETSI EN 300 468 5.2.4; ISO/IEC 13818-1 2.4.4.2). CoreAV lists every
+  complete section once. FFmpeg can list only the last one completed by
+  a packet and repeat it when a later packet completes none. CoreAV does
+  not discard a complete section or invent a repeat to match this. Once
+  the packet counts differ, positional comparison also differs on the
+  packets after that section.
+- **Implicit AAC extensions.** ADTS and LATM configurations can state
+  AAC LC while raw data blocks carry SBR or parametric stereo (ISO/IEC
+  14496-3 1.5.1.1, 4.6.18 and 8.6.4). The bounded header reader detects
+  some SBR payloads but does not decode arbitrary raw data blocks or
+  parametric stereo. It leaves the decoded profile, sample rate or channel
+  layout unknown where the configuration cannot establish them, rather
+  than assuming that a mono core stays mono. Without a stored audio
+  configuration, MIME strings depend on the same profile information.
+- **AAC average bit rates.** Neither ADTS nor LATM states an average bit
+  rate for a variable-sized stream. CoreAV averages the frames its bounded
+  head read sees; FFmpeg's analysis can stop at a different frame. These
+  estimates can differ without a sample size or sample rate being wrong.
+- **Estimated base frame rates.** An irregular timestamp sequence need
+  not have one base frame rate. CoreAV estimates it from a bounded decode
+  timestamp window, using the signalled clock when no standard rate fits.
+  FFmpeg's estimator can choose another rate. Neither estimate replaces
+  the stored timestamps; no container clause chooses between them.
+- **Highlight metadata as chapters.** Some movies store highlight times
+  in an `HMMT` user-data atom rather than in a referenced chapter track or
+  a `chpl` list. FFmpeg prints a chapter from that atom. CoreAV reads the
+  documented QuickTime chapter and Nero chapter formats, and leaves this
+  proprietary atom uninterpreted. The chapter formats' specifications do
+  not settle the semantics of `HMMT`; this is unsupported metadata, not a
+  claim that FFmpeg's interpretation is wrong.

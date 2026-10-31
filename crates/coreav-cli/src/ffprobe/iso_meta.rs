@@ -68,7 +68,7 @@ pub struct IsoMeta {
     /// Per track (index = `Track::index`): the stream tags in `ffprobe`'s
     /// order.
     pub stream_tags: Vec<Vec<(String, String)>>,
-    /// Per track: the 18 disposition flags in `ffprobe`'s order.
+    /// Per track: the disposition flags in `ffprobe`'s order.
     pub dispositions: Vec<Entries>,
     /// Per track: `extradata_size` as `ffprobe` prints it, `None` where it
     /// prints no `extradata_size`.
@@ -113,7 +113,7 @@ pub struct StreamMeta {
     pub field_order: Option<&'static str>,
     /// See [`IsoMeta::pcm_layouts`].
     pub pcm_layout: Option<Option<&'static str>>,
-    /// The 18 disposition flags in `ffprobe`'s order.
+    /// The disposition flags in `ffprobe`'s order.
     pub disposition: Entries,
     /// `extradata_size`, `None` where `ffprobe` prints none.
     pub extradata_size: Option<usize>,
@@ -260,7 +260,7 @@ pub fn read<S: Source>(movie: &Movie, source: &mut S) -> Result<IsoMeta, Failure
         let own = timecodes.get(index).and_then(Option::as_ref);
         let timecode = own_or_referenced_timecode(track, own, &by_id);
         all_streams.push(StreamMeta {
-            tags: stream_tags(track, handler_name, timecode),
+            tags: stream_tags(track, handler_name, timecode, quicktime),
             disposition: disposition(
                 track,
                 kept.is_some_and(|t| chapter_pictures.contains(&t.track_id)),
@@ -809,6 +809,7 @@ fn stream_tags(
     track: &TrackMetadata,
     handler: Option<String>,
     timecode: Option<String>,
+    quicktime: bool,
 ) -> Vec<(String, String)> {
     let mut tags = Vec::new();
     let mut push = |key: &str, value: String| tags.push((key.to_owned(), value));
@@ -822,7 +823,7 @@ fn stream_tags(
         push("handler_name", name);
     }
     if let Some(entry) = &track.sample_entry {
-        if let Some(code) = entry.vendor {
+        if let Some(code) = entry.vendor.filter(|code| quicktime || *code != [0; 4]) {
             push("vendor_id", vendor(code));
         }
         if let Some(name) = entry.compressor_name.as_ref().and_then(compressor) {
