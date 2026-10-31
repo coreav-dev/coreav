@@ -193,6 +193,70 @@
       },
       "predicate": "read_in_pieces",
       "basis": "ISO/IEC 13818-1 2.4.3.7: a PTS and a position belong to the first access unit that commences in a PES packet; how much of a PES packet a reader holds at once is its own affair"
+    },
+    {
+      "id": "KD-TS-VBI-AS-AUDIO",
+      "level": [
+        "streams",
+        "packets"
+      ],
+      "fields": [
+        "kind",
+        "codec_name",
+        "sample_rate",
+        "channels",
+        "packets"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "file": "a private stream (type 0x06) with a VBI_data_descriptor (tag 0x45), every PES packet of it read starting with a VBI data_identifier, 0x10 to 0x1F or 0x99 to 0x9B (Facts)",
+        "/streams/*/kind": "candidate = data; reference = audio",
+        "/streams/*/codec_name": "reference = mp1, mp2 or mp3",
+        "/streams/*/packets": "every packet unit of that stream",
+        "evidence": "the file's tables, descriptors and PES payloads (Facts), read apart from CoreAV"
+      },
+      "predicate": "vbi_as_audio",
+      "basis": "ETSI EN 301 775 4.1, 4.2 and 4.4.2 (table 2), and ETSI EN 300 468 6.2.47: a VBI stream is private data identified by its descriptor and data_identifier"
+    },
+    {
+      "id": "KD-TS-PROGRAM-WRAP",
+      "level": [
+        "streams"
+      ],
+      "fields": [
+        "start_pts",
+        "start_time",
+        "duration_ts",
+        "duration"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "/streams/*/start_pts": "the compat output only: candidate = the first PES timestamp of the stream's PID (Facts.first_pes), within the window of its program's first timestamp (Facts.pid_reference), which is more than the window from both ends of the 33-bit range; reference = candidate + 2^33",
+        "/streams/*/duration_ts": "the compat output only: reference = none",
+        "evidence": "the file's PES timestamps and programs (Facts), read apart from CoreAV"
+      },
+      "predicate": "program_wrap",
+      "basis": "ISO/IEC 13818-1 2.4.2.1: each program has a time base of its own"
+    },
+    {
+      "id": "KD-TS-ANNEX-D-DOWNMIX",
+      "level": [
+        "streams"
+      ],
+      "fields": [
+        "dmix_mode",
+        "ltrt_cmixlev",
+        "ltrt_surmixlev",
+        "loro_cmixlev",
+        "loro_surmixlev"
+      ],
+      "filename_pattern": "*",
+      "conditions": {
+        "/streams/*/dmix_mode": "the compat output only: candidate = what the first AC-3 frame states (bsid 6, acmod above 2, xbsi1e 1, no reserved surround level), each field only where Annex D defines it; reference = 0 and 0.000000 for all five; the frame states something else",
+        "evidence": "the first AC-3 frame of the stream (annex_d_downmix), read apart from CoreAV"
+      },
+      "predicate": "annex_d_ignored",
+      "basis": "ATSC A/52 Annex D 2.3.1.2 to 2.3.1.6: bsid 6 states the alternate syntax, which gives these fields their meaning"
     }
   ]
 }

@@ -338,5 +338,92 @@ class Evidence(unittest.TestCase):
         self.assertEqual(kd.unwrap(500, far), 500 + (1 << 33))
 
 
+def bits(fields):
+    """`fields`, (value, width) pairs, packed most significant first and
+    padded to whole bytes."""
+    value, width = 0, 0
+    for v, n in fields:
+        value, width = value << n | v, width + n
+    pad = -width % 8
+    return (value << pad).to_bytes((width + pad) // 8, 'big')
+
+
+def ac3_annex_d(acmod=7, xbsi1e=1, levels=(1, 4, 5, 4, 5)):
+    """The start of an AC-3 frame in the alternate syntax (`bsid` 6) with
+    no optional words before its first extra information."""
+    fields = [(0x0B77, 16), (0, 16), (0, 2), (10, 6), (6, 5), (0, 3), (acmod, 3)]
+    fields += [(0, 2)] * ((acmod & 1 and acmod != 1) + bool(acmod & 4) + (acmod == 2))
+    fields += [(0, 1), (31, 5), (0, 1), (0, 1), (0, 1), (0, 1), (1, 1), (xbsi1e, 1)]
+    if xbsi1e:
+        fields += list(zip(levels, (2, 3, 3, 3, 3)))
+    return bits(fields + [(0, 1), (0, 1)]) + b'\x00' * 32
+
+
+class SpecificationDecides(unittest.TestCase):
+    def vbi_file(self, data_identifier=0x99, descriptor=True):
+        mux = Mux()
+        tags = bytes([0x45, 6, 0x04, 1, 0xF0, 0x05, 1, 0xF7]) if descriptor else b''
+        mux.tables([(0x06, 0x101, tags)])
+        for k in range(3):
+            unit = bytes([0xC3, 0x2C]) + bytes(44)
+            mux.pes(0x101, 90000 + 3600 * k, bytes([data_identifier]) + unit * 3)
+        return kd.Facts(written(mux.out), keep=[0x101])
+
+    def test_vbi_as_audio_needs_the_descriptor_and_data_identifier(self):
+        theirs = {'kind': 'audio', 'codec_name': 'mp3'}
+        ours = {'kind': 'data', 'codec_name': 'bin_data', 'properties': {'pid': 0x101}}
+        self.assertTrue(kd.vbi_as_audio(theirs, ours, self.vbi_file()))
+        self.assertTrue(kd.vbi_as_audio(theirs, ours, self.vbi_file(0x10)))
+        self.assertTrue(kd.vbi_as_audio({'codec_type': 'audio', 'codec_name': 'mp3'},
+                                        {'codec_type': 'data', 'id': '0x101'}, self.vbi_file()))
+        self.assertFalse(kd.vbi_as_audio(theirs, ours, self.vbi_file(0x20)))
+        self.assertFalse(kd.vbi_as_audio(theirs, ours, self.vbi_file(descriptor=False)))
+        self.assertFalse(kd.vbi_as_audio({'kind': 'data', 'codec_name': 'bin_data'}, ours, self.vbi_file()))
+        self.assertFalse(kd.vbi_as_audio(theirs, dict(ours, kind='audio'), self.vbi_file()))
+
+    def wrap_file(self, first=5_479_446_912, other=6_353_039_068):
+        mux = Mux()
+        mux.programs({1: (0x1000, [(0x02, 0x101)]), 2: (0x1001, [(0x02, 0x102)])})
+        mux.pes(0x101, first, b'\x00' * 100)
+        mux.pes(0x102, other, b'\x00' * 100)
+        return kd.Facts(written(mux.out))
+
+    def test_program_wrap_needs_a_program_that_does_not_wrap(self):
+        start = 5_479_446_912
+        ours = {'id': '0x101', 'start_pts': start}
+        self.assertTrue(kd.program_wrap({'start_pts': start + kd.WRAP}, ours, self.wrap_file()))
+        self.assertFalse(kd.program_wrap({'start_pts': start}, ours, self.wrap_file()))
+        self.assertFalse(kd.program_wrap({'start_pts': start + kd.WRAP},
+                                         dict(ours, start_pts=start + 1), self.wrap_file()))
+        near = kd.WRAP - 1000
+        self.assertFalse(kd.program_wrap({'start_pts': near + kd.WRAP}, {'id': '0x101', 'start_pts': near},
+                                         self.wrap_file(first=near)))
+
+    def ac3_file(self, frame):
+        mux = Mux()
+        mux.tables([(0x06, 0x101, b'\x6a\x01\x00')])
+        mux.pes(0x101, 90000, frame)
+        return kd.Facts(written(mux.out))
+
+    def test_annex_d_downmix_is_what_the_frame_states(self):
+        coded = {'dmix_mode': '1', 'ltrt_cmixlev': '0.707107', 'ltrt_surmixlev': '0.594604',
+                 'loro_cmixlev': '0.707107', 'loro_surmixlev': '0.594604'}
+        absent = {'dmix_mode': '0', 'ltrt_cmixlev': '0.000000', 'ltrt_surmixlev': '0.000000',
+                  'loro_cmixlev': '0.000000', 'loro_surmixlev': '0.000000'}
+        ours = dict(coded, id='0x101')
+        self.assertEqual(kd.annex_d_downmix(ac3_annex_d()), coded)
+        self.assertTrue(kd.annex_d_ignored(absent, ours, self.ac3_file(ac3_annex_d())))
+        self.assertFalse(kd.annex_d_ignored(coded, ours, self.ac3_file(ac3_annex_d())))
+        self.assertFalse(kd.annex_d_ignored(absent, dict(ours, ltrt_cmixlev='1.000000'),
+                                            self.ac3_file(ac3_annex_d())))
+        self.assertIsNone(kd.annex_d_downmix(ac3_annex_d(acmod=2)))
+        self.assertIsNone(kd.annex_d_downmix(ac3_annex_d(xbsi1e=0)))
+        self.assertIsNone(kd.annex_d_downmix(ac3_annex_d(levels=(1, 4, 1, 4, 5))))
+        self.assertEqual(kd.annex_d_downmix(ac3_annex_d(acmod=3)),
+                         dict(coded, ltrt_surmixlev='0.000000', loro_surmixlev='0.000000'))
+        self.assertEqual(kd.annex_d_downmix(ac3_annex_d(acmod=6)),
+                         dict(coded, ltrt_cmixlev='0.000000', loro_cmixlev='0.000000'))
+
+
 if __name__ == '__main__':
     unittest.main()

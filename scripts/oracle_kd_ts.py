@@ -858,6 +858,134 @@ def teletext_size(rstream, cstream, facts):
     return (rstream.get('width'), rstream.get('height')) == TELETEXT_PAGE
 
 
+def stream_pid(stream):
+    """The PID of a stream, as the oracle adapter records it or as
+    `ffprobe -show_streams` prints it (`id`, in hexadecimal)."""
+    pid = props(stream).get('pid')
+    if pid is None and isinstance(stream.get('id'), str):
+        try:
+            pid = int(stream['id'], 16)
+        except ValueError:
+            return None
+    return pid
+
+
+def kind_of(stream):
+    return stream.get('kind', stream.get('codec_type'))
+
+
+# The VBI_data_descriptor (ETSI EN 300 468 6.2.47), and the data_identifier
+# values of PES packets that carry VBI data (ETSI EN 301 775 4.4.2, table 2).
+VBI_DATA_DESCRIPTOR = 0x45
+VBI_DATA_IDENTIFIERS = frozenset(range(0x10, 0x20)) | {0x99, 0x9A, 0x9B}
+MPEG_AUDIO_NAMES = ('mp1', 'mp2', 'mp3')
+
+
+def vbi_payloads(facts, pid):
+    """The stream on `pid` carries VBI data, as the file states it: a
+    private stream (type 0x06) with a VBI_data_descriptor, every PES
+    packet of it read starting with a VBI data_identifier."""
+    stream = facts.streams.get(pid) if facts is not None else None
+    if stream is None or stream['type'] != 0x06:
+        return False
+    if VBI_DATA_DESCRIPTOR not in dict(stream['descriptors']):
+        return False
+    payloads = [payload for _, _, payload in facts.pes.get(pid, ())] or [facts.head.get(pid, b'')]
+    return all(payload[:1] and payload[0] in VBI_DATA_IDENTIFIERS for payload in payloads)
+
+
+def vbi_as_audio(rstream, cstream, facts):
+    """`ffprobe` reads a VBI data stream as MPEG audio, which it finds by
+    probing the payload; CoreAV lists it as the data the file declares."""
+    if not rstream or not cstream or not vbi_payloads(facts, stream_pid(cstream)):
+        return False
+    return (kind_of(rstream) == 'audio' and rstream.get('codec_name') in MPEG_AUDIO_NAMES
+            and kind_of(cstream) == 'data')
+
+
+def program_wrap(rstream, cstream, facts):
+    """`ffprobe` adds 2^33 to the start of a stream whose own program does
+    not wrap: CoreAV's start is the stream's first PES timestamp, which
+    lies within the window of its program's first timestamp, and that one
+    is not near either end of the 33-bit range."""
+    if facts is None or not rstream or not cstream:
+        return False
+    pid = stream_pid(cstream)
+    ours, first, reference = cstream.get('start_pts'), facts.first_pes.get(pid), facts.pid_reference.get(pid)
+    if not isinstance(ours, int) or first is None or reference is None or first[1] != ours:
+        return False
+    if not (abs(ours - reference) <= WINDOW and WINDOW <= reference < WRAP - WINDOW):
+        return False
+    return rstream.get('start_pts') == ours + WRAP
+
+
+DOWNMIX_KEYS = ('dmix_mode', 'ltrt_cmixlev', 'ltrt_surmixlev', 'loro_cmixlev', 'loro_surmixlev')
+
+
+def mix_level(code):
+    """The gain of a mix level code of ATSC A/52 tables D2.3 to D2.6, 1.5 dB
+    a step down from +3 dB, the last code muting, as `ffprobe` prints a
+    gain."""
+    return '0.000000' if code == 7 else f'{2 ** ((2 - code) / 4):.6f}'
+
+
+def annex_d_downmix(payload):
+    """The downmix fields of the first AC-3 frame of `payload` when it uses
+    the alternate syntax (ATSC A/52 Annex D, `bsid` 6) with its first
+    extra information (`xbsi1e`) on more than two channels, each field
+    only where the notes to D2.2 to D2.6 define it; `None` otherwise, or
+    for a reserved surround level (codes 0 to 2), whose gain the stream
+    does not state."""
+    at = payload.find(b'\x0b\x77')
+    if at < 0:
+        return None
+    bits = Bits(payload[at + 4:])
+
+    def take(n):
+        value = bits.read(n)
+        if value is None:
+            raise ValueError('frame header cut short')
+        return value
+
+    try:
+        take(8)                           # fscod, frmsizecod
+        bsid, _, acmod = take(5), take(3), take(3)
+        if bsid != 6 or acmod <= 2:
+            return None
+        take(2 * (acmod & 1) + 2 * bool(acmod & 4) + 1)   # cmixlev, surmixlev, lfeon
+        take(5)                           # dialnorm
+        for width in (8, 8, 7):           # compr, langcod, mixlevel and roomtyp
+            if take(1):
+                take(width)
+        take(2)                           # copyrightb, origbs
+        if not take(1):
+            return None
+        mode, ltrt_c, ltrt_s, loro_c, loro_s = (take(n) for n in (2, 3, 3, 3, 3))
+    except ValueError:
+        return None
+    centre, surround = acmod & 1, acmod & 4
+    if surround and min(ltrt_s, loro_s) < 3:
+        return None
+    return {'dmix_mode': str(mode),
+            'ltrt_cmixlev': mix_level(ltrt_c) if centre else '0.000000',
+            'ltrt_surmixlev': mix_level(ltrt_s) if surround else '0.000000',
+            'loro_cmixlev': mix_level(loro_c) if centre else '0.000000',
+            'loro_surmixlev': mix_level(loro_s) if surround else '0.000000'}
+
+
+def annex_d_ignored(rstream, cstream, facts):
+    """`ffprobe` prints no downmix metadata for an AC-3 stream whose first
+    frame states it in the alternate syntax; CoreAV prints what the frame
+    states."""
+    if facts is None or not rstream or not cstream:
+        return False
+    stated = annex_d_downmix(facts.head.get(stream_pid(cstream), b''))
+    if stated is None or any(cstream.get(k) != stated[k] for k in DOWNMIX_KEYS):
+        return False
+    absent = {'dmix_mode': '0', **{k: '0.000000' for k in DOWNMIX_KEYS[1:]}}
+    return all(rstream.get(k) == absent[k] for k in DOWNMIX_KEYS) and stated != absent
+
+
 def fingerprint(stream):
     """What tells one stream of a file from another: the position and size
     of each of its packets."""
@@ -1343,6 +1471,9 @@ PREDICATES = {
     'after_duplicate': after_duplicate,
     'frame_time': frame_time,
     'stated_decode_time': stated_decode_time,
+    'vbi_as_audio': vbi_as_audio,
+    'program_wrap': program_wrap,
+    'annex_d_ignored': annex_d_ignored,
 }
 
 
@@ -1382,6 +1513,11 @@ def stream_item(detail, reference, candidate, media_dir, packets, candidate_pack
     for diff in detail['gating_differences']:
         path = diff['path']
         parts = path.split('/')
+        if (len(parts) == 3 and parts[0] == 'streams' and parts[1].isdigit()
+                and vbi_as_audio(stream_at(reference, int(parts[1])),
+                                 stream_at(candidate, int(parts[1])), facts)):
+            ids.add('KD-TS-VBI-AS-AUDIO')
+            continue
         if path == 'format_duration_us':
             if format_from_streams(reference, candidate, facts, packets):
                 ids.add('KD-TS-END-ESTIMATE')
@@ -1461,6 +1597,9 @@ def packet_units(detail, candidate, media_dir, reference_streams, candidate_stre
         and read_in_pieces(cstreams[stream], stream_at(reference_packets, stream), facts)
     }
     for (stream, _, _), unit_diffs in units.items():
+        if vbi_as_audio(stream_at(reference_streams, stream), stream_at(candidate_streams, stream), facts):
+            covered['KD-TS-VBI-AS-AUDIO'] += 1
+            continue
         if stream in pieces:
             covered['KD-TS-POSITION'] += 1
             continue
