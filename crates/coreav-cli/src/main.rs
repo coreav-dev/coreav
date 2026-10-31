@@ -251,9 +251,8 @@ enum Command {
     /// untrusted input, anything else is refused with exit status 4;
     /// without it, anything else runs the ffprobe program on PATH, FFmpeg's
     /// C code (docs/design/compat-cli.md). Values can differ from ffprobe's for
-    /// MP4/MOV and MPEG-TS; Matroska/WebM agree on 98% or more of files for
-    /// all 101 keys (docs/measurements/compat-ffprobe.md). `coreav` run
-    /// as `ffprobe` does the same.
+    /// MP4/MOV, Matroska/WebM and MPEG-TS (docs/measurements/compat-ffprobe.md).
+    /// `coreav` run as `ffprobe` does the same.
     #[command(disable_help_flag = true)]
     Ffprobe(Deferred<ToolArgs>),
     /// Experimental. Runs an ffmpeg stream-copy command line (-c copy) with
