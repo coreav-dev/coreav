@@ -13,7 +13,7 @@
 #[path = "../../coreav-isobmff/tests/common/mod.rs"]
 mod common;
 
-use common::{Spec, aac_entry, av_movie, av_movie_with};
+use common::{Spec, aac_entry, av_movie, av_movie_with, bx, cat, full, u32s};
 use coreav_cli::fallback::Reason;
 use coreav_cli::ffmpeg::{Refusal, Stop};
 use coreav_cli::ffprobe::StreamKind;
@@ -953,4 +953,395 @@ fn the_0_1_0_commands_on_listed_pairs() {
         serde_json::to_string(&Value::Array(records)).unwrap(),
     )
     .unwrap();
+}
+
+/// A JPEG picture of `width` by `height` as far as a listing reads it: the
+/// start of image, a baseline frame header of three components at 4:2:0
+/// (ITU-T T.81 B.2.2) and the end of image.
+fn jpeg(width: u16, height: u16) -> Vec<u8> {
+    let ([h0, h1], [w0, w1]) = (height.to_be_bytes(), width.to_be_bytes());
+    vec![
+        0xFF, 0xD8, 0xFF, 0xC0, 0, 17, 8, h0, h1, w0, w1, 3, 1, 0x22, 0, 2, 0x11, 1, 3, 0x11, 1,
+        0xFF, 0xD9,
+    ]
+}
+
+/// `movie` (as [`av_movie_with`] writes it, the movie box last) with its
+/// tracks' language `eng` and, in the movie's item list
+/// (`moov/udta/meta/ilst`), one `covr` item per picture holding it as a
+/// JPEG `data` box (type 13), written to `dir/name`.
+fn covered(dir: &Path, name: &str, mut movie: Vec<u8>, pictures: &[Vec<u8>]) -> String {
+    let at = |bytes: &[u8], kind: &[u8]| -> Vec<usize> {
+        (4..bytes.len())
+            .filter(|&i| bytes[i..].starts_with(kind))
+            .map(|i| i - 4)
+            .collect()
+    };
+    // A version 0 `mdhd`: header, version and flags, four 32-bit fields,
+    // then the packed language.
+    for mdhd in at(&movie, b"mdhd") {
+        movie[mdhd + 28..mdhd + 30].copy_from_slice(&[0x15, 0xc7]);
+    }
+    let items: Vec<u8> = pictures
+        .iter()
+        .flat_map(|p| bx(b"covr", &bx(b"data", &cat(&[u32s(&[13, 0]), p.clone()]))))
+        .collect();
+    let hdlr = full(b"hdlr", 0, 0, b"\0\0\0\0mdirappl\0\0\0\0\0\0\0\0\0");
+    let moov = at(&movie, b"moov")[0];
+    movie.extend_from_slice(&bx(
+        b"udta",
+        &full(b"meta", 0, 0, &cat(&[hdlr, bx(b"ilst", &items)])),
+    ));
+    let size = u32::try_from(movie.len() - moov).unwrap();
+    movie[moov..moov + 4].copy_from_slice(&size.to_be_bytes());
+    let path = dir.join(name);
+    std::fs::write(&path, movie).unwrap();
+    path.to_string_lossy().into_owned()
+}
+
+/// Each stream's kind and whether it is an attached picture, and the
+/// movie's cover pictures as stored.
+type Listing = (Vec<(StreamKind, bool)>, Vec<Vec<u8>>);
+
+/// What `coreav ffprobe` lists of `path`.
+fn listed(path: &Path) -> Listing {
+    let size = std::fs::metadata(path).unwrap().len();
+    let mut file = coreav_isobmff::FileSource::open(path).unwrap();
+    let name = path.display().to_string();
+    let Ok(probed) = coreav_cli::ffprobe::probe(&mut file, size, &name, None) else {
+        panic!("{name} is rejected");
+    };
+    let streams = probed
+        .report
+        .streams
+        .iter()
+        .map(|s| (s.kind, s.attached_pic))
+        .collect();
+    let meta = coreav_isobmff::metadata::read(
+        coreav_isobmff::FileSource::open(path).unwrap(),
+        &coreav_isobmff::Limits::default(),
+    )
+    .unwrap();
+    let covers = meta
+        .items
+        .iter()
+        .filter_map(|item| match &item.value {
+            coreav_isobmff::metadata::ItemValue::ListItem {
+                key: coreav_isobmff::metadata::ListKey::Atom(kind),
+                data: Some(data),
+                ..
+            } if kind.0 == *b"covr" => Some(data.value.clone()),
+            _ => None,
+        })
+        .collect();
+    (streams, covers)
+}
+
+const V: (StreamKind, bool) = (StreamKind::Video, false);
+const A: (StreamKind, bool) = (StreamKind::Audio, false);
+const PICTURE: (StreamKind, bool) = (StreamKind::Video, true);
+
+/// A cover picture is a stream after the tracks (`ffprobe` lists it so):
+/// a selection that names it keeps it as a cover picture, every other
+/// selection leaves it out, as the pinned `ffmpeg` does (black box). A
+/// file without one copies as before.
+#[test]
+fn a_cover_picture_is_copied_only_when_selected() {
+    let dir = scratch("ffmpeg-cover");
+    let picture = jpeg(640, 480);
+    let input = covered(
+        &dir,
+        "in.mp4",
+        av_movie_with(aac_entry(), false),
+        std::slice::from_ref(&picture),
+    );
+    assert_eq!(
+        listed(Path::new(&input)),
+        (vec![V, A, PICTURE], vec![picture.clone()])
+    );
+    let output = dir.join("out.mp4");
+    let o = output.to_str().unwrap();
+    let cases: [(&[&str], Listing); 5] = [
+        (&["-map", "0"], (vec![V, A, PICTURE], vec![picture.clone()])),
+        (
+            &["-map", "0", "-map", "-0:s", "-map", "-0:d"],
+            (vec![V, A, PICTURE], vec![picture]),
+        ),
+        (&[], (vec![V, A], vec![])),
+        (&["-map", "0:0", "-map", "0:1"], (vec![V, A], vec![])),
+        (&["-map", "0", "-map", "-0:2"], (vec![V, A], vec![])),
+    ];
+    for (maps, expected) in cases {
+        let mut args = vec!["-y", "-i", &input, "-c", "copy"];
+        args.extend_from_slice(maps);
+        args.push(o);
+        let r = ffmpeg(&args);
+        assert_eq!(r.code, 0, "{maps:?}: {}", r.stderr);
+        assert_eq!(listed(&output), expected, "{maps:?}");
+    }
+    let plain = movie(&dir);
+    let r = ffmpeg(&["-y", "-i", &plain, "-map", "0", "-c", "copy", o]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    assert_eq!(listed(&output), (vec![V, A], vec![]));
+}
+
+/// Of two cover pictures, the one selected stays.
+#[test]
+fn of_two_cover_pictures_the_selected_one_stays() {
+    let dir = scratch("ffmpeg-two-covers");
+    let (first, second) = (jpeg(32, 32), jpeg(48, 48));
+    let pictures = [first.clone(), second.clone()];
+    let input = covered(&dir, "in.mp4", av_movie_with(aac_entry(), false), &pictures);
+    let output = dir.join("out.mp4");
+    let o = output.to_str().unwrap();
+    for (left_out, kept) in [("-0:2", second), ("-0:3", first)] {
+        let r = ffmpeg(&[
+            "-y", "-i", &input, "-map", "0", "-map", left_out, "-c", "copy", o,
+        ]);
+        assert_eq!(r.code, 0, "{}", r.stderr);
+        assert_eq!(listed(&output), (vec![V, A, PICTURE], vec![kept]));
+    }
+}
+
+/// A selection of cover pictures alone is refused by name: `ffmpeg`
+/// writes a movie without a track for it (black box), which ISO/IEC
+/// 14496-12 8.3.1 does not allow.
+#[test]
+fn cover_pictures_alone_are_refused_by_name() {
+    let dir = scratch("ffmpeg-cover-alone");
+    let input = covered(
+        &dir,
+        "in.mp4",
+        av_movie_with(aac_entry(), false),
+        &[jpeg(32, 32)],
+    );
+    let output = dir.join("out.mp4");
+    let o = output.to_str().unwrap();
+    let selections: [&[&str]; 3] = [
+        &["-map", "0", "-map", "-0:m:language:eng"],
+        &["-map", "0:2"],
+        &["-map", "0:v:1"],
+    ];
+    for maps in selections {
+        let mut args = vec!["-i", &input, "-c", "copy"];
+        args.extend_from_slice(maps);
+        args.push(o);
+        let r = ffmpeg(&args);
+        assert_eq!(r.code, 4, "{maps:?}: {}", r.stderr);
+        assert!(r.stderr.contains("cover pictures alone"), "{}", r.stderr);
+        assert!(!output.exists());
+    }
+}
+
+/// Without `-map`, a video track wins over a cover picture, a larger one
+/// too, when neither has the default disposition (the pinned `ffmpeg`,
+/// black box).
+#[test]
+fn the_automatic_selection_takes_video_before_a_cover_picture() {
+    let dir = scratch("ffmpeg-cover-not-default");
+    let tracks =
+        retracked(|video, audio| vec![track(video, 1, false, b"avc1", b"avc1"), audio.to_vec()]);
+    let input = covered(&dir, "in.mp4", tracks, &[jpeg(640, 480)]);
+    let output = dir.join("out.mp4");
+    let o = output.to_str().unwrap();
+    let r = ffmpeg(&["-i", &input, "-c", "copy", o]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    assert_eq!(listed(&output), (vec![V, A], vec![]));
+}
+
+/// The pinned `ffmpeg` and its `ffprobe`: `None` (a skip) when there are
+/// none, a failure in CI or with `COREAV_REQUIRE_FFMPEG` set.
+fn oracle() -> Option<(PathBuf, PathBuf)> {
+    let ffmpeg = std::env::var_os("COREAV_FFMPEG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("/opt/coreav-oracle-bin/ffmpeg"));
+    let ffprobe = ffmpeg.with_file_name("ffprobe");
+    if ffmpeg.is_file() && ffprobe.is_file() {
+        return Some((ffmpeg, ffprobe));
+    }
+    let required =
+        std::env::var_os("CI").is_some() || std::env::var_os("COREAV_REQUIRE_FFMPEG").is_some();
+    assert!(
+        !required,
+        "no pinned ffmpeg and ffprobe (set COREAV_FFMPEG)"
+    );
+    eprintln!("skipping: no pinned ffmpeg and ffprobe (set COREAV_FFMPEG)");
+    None
+}
+
+/// Cover picture selections against the pinned `ffmpeg`, on a file it
+/// makes: H.264 and AAC tagged `eng`, then a JPEG cover picture. Where
+/// both write, the outputs list the same streams (type, codec, attached
+/// picture) and the same cover picture bytes; for the cover picture alone,
+/// `ffmpeg` writes a movie without a track, which `coreav ffmpeg` refuses.
+#[test]
+fn cover_selections_agree_with_the_pinned_ffmpeg() {
+    let Some((ffmpeg_bin, ffprobe_bin)) = oracle() else {
+        return;
+    };
+    let dir = scratch("ffmpeg-cover-oracle");
+    let make = |args: &[&str]| {
+        let status = Command::new(&ffmpeg_bin)
+            .args(["-nostdin", "-v", "error", "-y"])
+            .args(args)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert!(status.success(), "{args:?}");
+    };
+    make(&[
+        "-f",
+        "lavfi",
+        "-i",
+        "testsrc2=size=160x120:rate=10:duration=1",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "v.mp4",
+    ]);
+    make(&[
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=440:duration=1",
+        "-c:a",
+        "aac",
+        "a.m4a",
+    ]);
+    make(&[
+        "-f",
+        "lavfi",
+        "-i",
+        "testsrc2=size=32x32",
+        "-frames:v",
+        "1",
+        "cover.jpg",
+    ]);
+    make(&[
+        "-i",
+        "v.mp4",
+        "-i",
+        "a.m4a",
+        "-i",
+        "cover.jpg",
+        "-map",
+        "0:v",
+        "-map",
+        "1:a",
+        "-map",
+        "2",
+        "-c",
+        "copy",
+        "-disposition:v:1",
+        "attached_pic",
+        "-metadata:s:v:0",
+        "language=eng",
+        "-metadata:s:a:0",
+        "language=eng",
+        "in.mp4",
+    ]);
+    let input = dir.join("in.mp4");
+    let i = input.to_str().unwrap();
+    let streams = |path: &Path| -> Value {
+        let out = Command::new(&ffprobe_bin)
+            .args([
+                "-v",
+                "error",
+                "-show_entries",
+                "stream=codec_type,codec_name:stream_disposition=attached_pic",
+                "-of",
+                "json",
+            ])
+            .arg(path)
+            .output()
+            .unwrap();
+        assert!(out.status.success(), "{}", path.display());
+        serde_json::from_slice::<Value>(&out.stdout).unwrap()["streams"].clone()
+    };
+    let md5 = |path: &Path, index: usize| -> String {
+        let out = Command::new(&ffmpeg_bin)
+            .args(["-nostdin", "-v", "error", "-i"])
+            .arg(path)
+            .args([
+                "-map",
+                &format!("0:{index}"),
+                "-c",
+                "copy",
+                "-f",
+                "md5",
+                "-",
+            ])
+            .output()
+            .unwrap();
+        String::from_utf8(out.stdout).unwrap()
+    };
+    let pictures = |path: &Path| -> Vec<String> {
+        let listed = streams(path);
+        (0..listed.as_array().unwrap().len())
+            .filter(|n| listed[*n]["disposition"]["attached_pic"] == 1)
+            .map(|n| md5(path, n))
+            .collect()
+    };
+    assert_eq!(pictures(&input).len(), 1);
+    let (theirs, ours) = (dir.join("ffmpeg.mp4"), dir.join("coreav.mp4"));
+    let selections: [&[&str]; 4] = [
+        &["-map", "0"],
+        &["-map", "0:0", "-map", "0:1"],
+        &[],
+        &["-map", "0", "-map", "-0:2"],
+    ];
+    for maps in selections {
+        let run = |program: &Path, output: &Path| {
+            let mut command = Command::new(program);
+            if program == Path::new(bin()) {
+                command.arg("ffmpeg").env("COREAV_STRICT_SAFE", "1");
+            } else {
+                command.args(["-nostdin", "-v", "error"]);
+            }
+            let status = command
+                .args(["-y", "-i", i, "-c", "copy"])
+                .args(maps)
+                .arg(output)
+                .status()
+                .unwrap();
+            assert!(status.success(), "{maps:?}: {}", program.display());
+        };
+        run(&ffmpeg_bin, &theirs);
+        run(Path::new(bin()), &ours);
+        assert_eq!(streams(&ours), streams(&theirs), "{maps:?}");
+        assert_eq!(pictures(&ours), pictures(&theirs), "{maps:?}");
+    }
+    let alone = [
+        "-y",
+        "-i",
+        i,
+        "-c",
+        "copy",
+        "-map",
+        "0",
+        "-map",
+        "-0:m:language:eng",
+    ];
+    let status = Command::new(&ffmpeg_bin)
+        .args(["-nostdin", "-v", "error"])
+        .args(alone)
+        .arg(&theirs)
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let listed = streams(&theirs);
+    assert_eq!(listed.as_array().unwrap().len(), 1);
+    assert_eq!(listed[0]["disposition"]["attached_pic"], 1);
+    let written = std::fs::read(&theirs).unwrap();
+    assert!(
+        !written.windows(4).any(|w| w == b"trak"),
+        "ffmpeg wrote a track"
+    );
+    let _ = std::fs::remove_file(&ours);
+    let mut args = alone.to_vec();
+    args.push(ours.to_str().unwrap());
+    let r = ffmpeg(&args);
+    assert_eq!(r.code, 4, "{}", r.stderr);
+    assert!(!ours.exists());
 }
