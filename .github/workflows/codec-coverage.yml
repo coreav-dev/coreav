@@ -1,0 +1,508 @@
+name: codec-coverage
+
+# V1, V2 and V3 of the 0.1.0 codec coverage bars
+# (docs/measurements/compat-0.1.0/codec-coverage-plan.md; docs/design/compat-cli.md,
+# "The 0.1.0 codec coverage bars") on GitHub-hosted runners, at the commit given as input:
+#
+# - build: the plan's run manifest, once: the full build's `coreav`
+#   (packages/cli/scripts/platform.sh linux-x64 x86_64-unknown-linux-musl full),
+#   `decode-oracle` linked against the same static dav1d and libvpx, the
+#   coreav-cli `ffmpeg` test executable with feature release-full, and x264
+#   (scripts/install-x264.sh);
+# - v1: the set's files split into shards by position, each file fetched from
+#   the corpus store with its read-only credentials when its turn comes and
+#   deleted after its record (tools/compat-corpus/decode_breadth.py run --fetch);
+# - v2-v3: tools/compat-corpus/encode_breadth.py on the fixtures that
+#   scripts/gen-fixtures*.sh make with the pinned FFmpeg; it reads no corpus file;
+# - report: the manifest put together and checked, and the counts.
+#
+# The set is `rehearsal` (the first 40 `real` files of corpus v1 in the
+# rehearsal's order, the plan's "Order", step 3) or `v1` (the 1,351 `real`
+# files of corpus v1). A pull request that changes this workflow or the tools
+# runs V2 and V3 on the fixtures and V1 on the decode fixtures the tests make,
+# and reads no corpus file.
+#
+# V1's per-file records name files by hash and corpus key, so they never leave
+# a runner unsealed: they are sealed to the evidence key the manifest names
+# (AES-256 with a random key, the key encrypted to that RSA key with OAEP), and
+# a runner refuses to seal to a key whose fingerprint (the SHA-256 of its DER
+# SubjectPublicKeyInfo) is not EVIDENCE_KEY_SHA256. To open one:
+#   openssl pkeyutl -decrypt -inkey PRIVATE.pem -pkeyopt rsa_padding_mode:oaep \
+#     -pkeyopt rsa_oaep_md:sha256 -in key.txt.enc -out key.txt
+#   openssl enc -d -aes-256-cbc -pbkdf2 -pass file:key.txt -in records.tgz.enc -out records.tgz
+# The files with a host limit then run again on the rerun host
+# (scripts/codec_coverage_gcp.py), and decode_breadth.py summarize adds both
+# passes up into V1's result. V2's and V3's records name fixtures and commands
+# only and are published as they are.
+#
+# A measurement run by hand, not a gate:
+# workflow-check: not required
+on:
+  workflow_dispatch:
+    inputs:
+      set:
+        description: rehearsal (40 files of corpus v1) or v1 (every real file of corpus v1)
+        type: choice
+        options: [rehearsal, v1]
+        default: rehearsal
+      commit:
+        description: the commit to measure (default the commit this runs on)
+        type: string
+        default: ''
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - .github/workflows/codec-coverage.yml
+      - scripts/oracle-ffmpeg.env
+      - scripts/install-oracle-ffmpeg.sh
+      - scripts/install-x264.sh
+      - scripts/codec_coverage_gcp.py
+      - tools/compat-corpus/decode_breadth.py
+      - tools/compat-corpus/encode_breadth.py
+      - tools/decode-oracle/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  TARGET: x86_64-unknown-linux-musl
+  EVIDENCE_KEY_SHA256: 91624740d81b03a0b2959f0668d72e84d715c271b98f470fd92dafcb5a217240
+  # Minutes from a V1 shard's start after which it starts no file and stops
+  # the sides still running (a host limit, rerun on the rerun host), so that
+  # its records are sealed before the job's own limit.
+  V1_DEADLINE_MINUTES: 320
+
+jobs:
+  coverage-plan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      set: ${{ steps.plan.outputs.set }}
+      commit: ${{ steps.plan.outputs.commit }}
+      shards: ${{ steps.plan.outputs.shards }}
+      count: ${{ steps.plan.outputs.count }}
+    steps:
+      - id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          SET: ${{ inputs.set }}
+          COMMIT: ${{ inputs.commit }}
+          SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = pull_request ]; then SET=fixtures; COMMIT=; fi
+          if [ "$SET" != fixtures ] && ! { [ -n "$R2_ENDPOINT" ] && [ -n "$R2_ACCESS_KEY_ID" ] &&
+              [ -n "$R2_SECRET_ACCESS_KEY" ] && [ -n "$R2_BUCKET" ]; }; then
+            echo "::error::$SET reads the corpus store: its credentials are not set"
+            exit 1
+          fi
+          case "$SET" in
+            v1) count=40 ;;
+            rehearsal) count=4 ;;
+            *) count=0 ;;
+          esac
+          echo "set=$SET" >> "$GITHUB_OUTPUT"
+          echo "commit=${COMMIT:-$SHA}" >> "$GITHUB_OUTPUT"
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          echo "shards=$(python3 -I -c 'import json, sys; print(json.dumps(list(range(int(sys.argv[1])))))' "$count")" \
+            >> "$GITHUB_OUTPUT"
+
+  coverage-build:
+    needs: coverage-plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.coverage-plan.outputs.commit }}
+          persist-credentials: false
+      # No build cache: the binaries are built from the lock file alone, as the
+      # release builds them (.github/workflows/release.yml).
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          toolchain: stable
+          targets: ${{ env.TARGET }}
+      - name: Install zig (the musl C compiler of the Linux builds)
+        run: |
+          python3 -m venv "$RUNNER_TEMP/zig"
+          "$RUNNER_TEMP/zig/bin/pip" install --require-hashes -r packages/cli/scripts/zig-requirements.txt
+          echo "ZIG=$RUNNER_TEMP/zig/bin/python -m ziglang" >> "$GITHUB_ENV"
+      - name: Install the C build tools
+        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends meson ninja-build nasm musl-tools
+      - name: Build the full coreav
+        env:
+          COREAV_CODECS: ${{ runner.temp }}/codecs
+        run: |
+          set -euo pipefail
+          rustc -Vv
+          packages/cli/scripts/platform.sh linux-x64 "$TARGET" full
+          mkdir -p "$RUNNER_TEMP/dist"
+          cp packages/cli/full/linux-x64/bin/coreav "$RUNNER_TEMP/dist/coreav"
+      - name: Build decode-oracle against the same dav1d and libvpx
+        env:
+          COREAV_CODECS: ${{ runner.temp }}/codecs
+        run: |
+          set -euo pipefail
+          export PKG_CONFIG_PATH="$COREAV_CODECS/lib/pkgconfig" PKG_CONFIG_ALLOW_CROSS=1
+          export ZIG_TARGET=x86_64-linux-musl
+          export CC_x86_64_unknown_linux_musl="$PWD/packages/cli/scripts/zig.sh cc"
+          export AR_x86_64_unknown_linux_musl="$PWD/packages/cli/scripts/zig.sh ar"
+          CARGO_PROFILE_DIST_STRIP=symbols cargo build --locked -p coreav-decode-oracle --profile dist \
+            --target "$TARGET" --features native-h264,dav1d,libvpx
+          cp "target/$TARGET/dist/decode-oracle" "$RUNNER_TEMP/dist/decode-oracle"
+          if readelf -d "$RUNNER_TEMP/dist/decode-oracle" | grep -q '(NEEDED)'; then
+            echo '::error::decode-oracle loads shared libraries: it must link them statically'
+            exit 1
+          fi
+      - name: Build the ffmpeg test executable with release-full
+        env:
+          CODECS_GNU: ${{ runner.temp }}/codecs-gnu
+        run: |
+          set -euo pipefail
+          packages/cli/scripts/codecs.sh x86_64-unknown-linux-gnu "$CODECS_GNU"
+          export PKG_CONFIG_PATH="$CODECS_GNU/lib/pkgconfig" OPUS_LIB_DIR="$CODECS_GNU/lib" OPUS_LIB_STATIC=true
+          HARNESS=$(cargo test --locked --release -p coreav-cli --features release-full --test ffmpeg --no-run \
+            --message-format=json | python3 -I -c 'import json, sys
+          for line in sys.stdin:
+              d = json.loads(line)
+              if d.get("reason") == "compiler-artifact" and d.get("executable") and d["target"]["name"] == "ffmpeg":
+                  print(d["executable"])')
+          cp "$HARNESS" "$RUNNER_TEMP/dist/ffmpeg-harness"
+      - name: Build x264
+        run: scripts/install-x264.sh "$RUNNER_TEMP/dist"
+      - name: Record the build's part of the manifest
+        env:
+          COMMIT: ${{ needs.coverage-plan.outputs.commit }}
+        run: |
+          set -euo pipefail
+          python3 -I - "$RUNNER_TEMP/dist" "$COMMIT" > "$RUNNER_TEMP/dist/manifest-build.json" <<'PY'
+          import hashlib, json, pathlib, re, subprocess, sys
+          dist, commit = pathlib.Path(sys.argv[1]), sys.argv[2]
+          sha = lambda name: hashlib.sha256((dist / name).read_bytes()).hexdigest()
+          codecs = pathlib.Path('packages/cli/scripts/codecs.sh').read_text()
+          pin = pathlib.Path('scripts/oracle-ffmpeg.env').read_text()
+          version = lambda name, text: re.search(rf'^{name}=(\S+)$', text, re.M).group(1)
+          der = subprocess.run(['openssl', 'pkey', '-pubin', '-in', 'tools/compat-corpus/evidence-public.pem',
+                                '-outform', 'DER'], capture_output=True, check=True).stdout
+          x264 = subprocess.run([dist / 'x264', '--version'], capture_output=True, text=True, check=True).stdout
+          libraries = {n: version(v, codecs) for n, v in
+                       (('dav1d', 'DAV1D_VERSION'), ('libvpx', 'LIBVPX_VERSION'), ('libopus', 'OPUS_VERSION'))}
+          print(json.dumps({
+              'commit': commit,
+              'coreav': {'sha256': sha('coreav'), 'build': 'platform.sh linux-x64 x86_64-unknown-linux-musl full',
+                         'features': 'release-full', 'profile': 'dist', 'libraries': libraries},
+              'decode-oracle': {'sha256': sha('decode-oracle'), 'features': 'native-h264,dav1d,libvpx',
+                                'profile': 'dist', 'target': 'x86_64-unknown-linux-musl'},
+              'x264': {'sha256': sha('x264'), 'commit': version('X264_COMMIT', pin), 'version': x264.splitlines()[0]},
+              'ffmpeg-harness': {'sha256': sha('ffmpeg-harness'), 'features': 'release-full'},
+              'evidence_key_sha256': hashlib.sha256(der).hexdigest(),
+          }, indent=1))
+          PY
+          cat "$RUNNER_TEMP/dist/manifest-build.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: coverage-binaries
+          path: ${{ runner.temp }}/dist
+          retention-days: 30
+
+  coverage-v1:
+    needs: [coverage-plan, coverage-build]
+    if: needs.coverage-plan.outputs.set != 'fixtures'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 355
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.coverage-plan.outputs.shards) }}
+    steps:
+      - name: Note the shard's deadline
+        run: echo "DEADLINE=$(( $(date +%s) + V1_DEADLINE_MINUTES * 60 ))" >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.coverage-plan.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: coverage-binaries
+          path: ${{ runner.temp }}/bin
+      - name: Cache the pinned FFmpeg
+        id: oracle-cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/oracle
+          key: coverage-oracle-${{ hashFiles('scripts/install-oracle-ffmpeg.sh', 'scripts/oracle-ffmpeg.env') }}
+      - name: Install the pinned FFmpeg
+        if: steps.oracle-cache.outputs.cache-hit != 'true'
+        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+      - name: Verify the pinned FFmpeg
+        run: python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/oracle"
+      - name: Record the host
+        env:
+          JOB: v1-${{ matrix.shard }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/public"
+          python3 -I scripts/codec_coverage_gcp.py host --job "$JOB" --oracle "$RUNNER_TEMP/oracle" \
+            > "$RUNNER_TEMP/public/host-$JOB.json"
+      - name: Choose the set
+        env:
+          SET: ${{ needs.coverage-plan.outputs.set }}
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+        run: |
+          set -euo pipefail
+          mkdir -m 700 "$RUNNER_TEMP/private"
+          name=v1-coverage; [ "$SET" = rehearsal ] && name=v1-coverage-rehearsal
+          python3 -I tools/compat-corpus/round_files.py select --set "$name" --out "$RUNNER_TEMP/private/set.json" \
+            > /dev/null
+      # The corpus store's read-only credentials are in this step's environment
+      # because each file is fetched when its turn comes (a shard's files do not
+      # fit the runner's disk at once); decode_breadth.py passes none of them to
+      # the programs it runs on the files.
+      - name: V1, decode breadth
+        env:
+          SHARD: ${{ matrix.shard }}
+          SHARDS: ${{ needs.coverage-plan.outputs.count }}
+          R2_ENDPOINT: ${{ secrets.COREAV_CORPUS_R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.COREAV_CORPUS_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.COREAV_CORPUS_R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.COREAV_CORPUS_R2_BUCKET }}
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          set -euo pipefail
+          chmod +x "$RUNNER_TEMP/bin/decode-oracle"
+          python3 -I tools/compat-corpus/decode_breadth.py run --decode-oracle "$RUNNER_TEMP/bin/decode-oracle" \
+            --ffmpeg "$RUNNER_TEMP/oracle/ffmpeg" --ffprobe "$RUNNER_TEMP/oracle/ffprobe" \
+            --files "$RUNNER_TEMP/private/set.json" --shard "$SHARD/$SHARDS" --fetch "$RUNNER_TEMP/media" \
+            --deadline "$DEADLINE" --records "$RUNNER_TEMP/private/v1.jsonl" --jobs 2
+      - name: Count what the shard left for the rerun host
+        if: always()
+        env:
+          SHARD: ${{ matrix.shard }}
+          SHARDS: ${{ needs.coverage-plan.outputs.count }}
+        run: |
+          set -euo pipefail
+          [ -f "$RUNNER_TEMP/private/set.json" ] || exit 0
+          touch "$RUNNER_TEMP/private/v1.jsonl"
+          python3 -I tools/compat-corpus/decode_breadth.py pending --records "$RUNNER_TEMP/private/v1.jsonl" \
+            --files "$RUNNER_TEMP/private/set.json" --shard "$SHARD/$SHARDS" --out "$RUNNER_TEMP/private/pending.json"
+          python3 -I - "$RUNNER_TEMP/private" "$SHARD" "$SHARDS" > "$RUNNER_TEMP/public/v1-$SHARD.json" <<'PY'
+          import json, pathlib, sys
+          private, shard, shards = pathlib.Path(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3])
+          files = json.loads((private / 'set.json').read_text())[shard::shards]
+          records = [l for l in (private / 'v1.jsonl').read_text().splitlines() if l.strip()]
+          print(json.dumps({'shard': shard, 'files': len(files), 'records': len(records),
+                            'pending': len(json.loads((private / 'pending.json').read_text()))}))
+          PY
+          cat "$RUNNER_TEMP/public/v1-$SHARD.json" >> "$GITHUB_STEP_SUMMARY"
+      - name: Seal the per-file records
+        if: always()
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          rm -rf media
+          [ -d private ] || exit 0
+          key="$GITHUB_WORKSPACE/tools/compat-corpus/evidence-public.pem"
+          got="$(openssl pkey -pubin -in "$key" -outform DER | sha256sum | cut -d' ' -f1)"
+          if [ "$got" != "$EVIDENCE_KEY_SHA256" ]; then
+            echo "::error::the evidence key at this commit is not the one the manifest names; nothing is sealed"
+            rm -rf private
+            exit 1
+          fi
+          tar -czf records.tgz private
+          mkdir -p sealed
+          openssl rand -hex -out key.txt 32
+          openssl enc -aes-256-cbc -pbkdf2 -salt -pass file:key.txt -in records.tgz -out sealed/records.tgz.enc
+          openssl pkeyutl -encrypt -pubin -inkey "$key" \
+            -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 -in key.txt -out sealed/key.txt.enc
+          shred -u key.txt records.tgz
+          rm -rf private
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: coverage-v1-sealed-${{ matrix.shard }}
+          path: ${{ runner.temp }}/sealed
+          if-no-files-found: ignore
+          retention-days: 90
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: coverage-v1-public-${{ matrix.shard }}
+          path: ${{ runner.temp }}/public
+          if-no-files-found: error
+          retention-days: 90
+
+  coverage-v1-fixtures:
+    # V1's tools on the decode fixtures the tests make with the pinned FFmpeg
+    # (10-bit, 4:2:2 and interlaced H.264, a frame changed, frames missing, a
+    # container CoreAV does not read), with the manifest's binaries. No corpus
+    # file.
+    needs: [coverage-plan, coverage-build]
+    if: needs.coverage-plan.outputs.set == 'fixtures'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.coverage-plan.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: coverage-binaries
+          path: ${{ runner.temp }}/bin
+      - name: Cache the pinned FFmpeg
+        id: oracle-cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/oracle
+          key: coverage-oracle-${{ hashFiles('scripts/install-oracle-ffmpeg.sh', 'scripts/oracle-ffmpeg.env') }}
+      - name: Install the pinned FFmpeg
+        if: steps.oracle-cache.outputs.cache-hit != 'true'
+        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+      - name: Verify the pinned FFmpeg
+        run: python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/oracle"
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          toolchain: stable
+      - name: Install dav1d and libvpx for the decode-oracle test build
+        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends libdav1d-dev libvpx-dev pkg-config
+      - name: decode-oracle stream against the pinned FFmpeg's framemd5
+        env:
+          COREAV_FFMPEG: ${{ runner.temp }}/oracle/ffmpeg
+          COREAV_REQUIRE_FFMPEG: '1'
+        run: cargo test --locked -p coreav-decode-oracle --features native-h264,dav1d,libvpx -- --nocapture
+      - name: V1 on the decode fixtures
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+          COREAV_DECODE_ORACLE: ${{ runner.temp }}/bin/decode-oracle
+          COREAV_FFMPEG: ${{ runner.temp }}/oracle/ffmpeg
+          COREAV_FFPROBE: ${{ runner.temp }}/oracle/ffprobe
+        run: |
+          set -euo pipefail
+          chmod +x "$COREAV_DECODE_ORACLE"
+          python3 -I -m unittest discover -s tools/compat-corpus/tests -p 'test_decode_breadth*.py' -v
+
+  coverage-v2-v3:
+    needs: [coverage-plan, coverage-build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.coverage-plan.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: coverage-binaries
+          path: ${{ runner.temp }}/bin
+      - name: Cache the pinned FFmpeg
+        id: oracle-cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/oracle
+          key: coverage-oracle-${{ hashFiles('scripts/install-oracle-ffmpeg.sh', 'scripts/oracle-ffmpeg.env') }}
+      - name: Install the pinned FFmpeg
+        if: steps.oracle-cache.outputs.cache-hit != 'true'
+        run: scripts/install-oracle-ffmpeg.sh "$RUNNER_TEMP/oracle"
+      - name: Verify the pinned FFmpeg
+        run: python3 -I scripts/oracle_pin.py --verify-bin "$RUNNER_TEMP/oracle"
+      - name: Make the fixtures with the pinned FFmpeg
+        run: |
+          set -euo pipefail
+          export PATH="$RUNNER_TEMP/oracle:$PATH"
+          mkdir -p "$RUNNER_TEMP/fixtures"
+          scripts/gen-fixtures.sh "$RUNNER_TEMP/fixtures"
+          scripts/gen-fixtures-mkv.sh "$RUNNER_TEMP/fixtures"
+          scripts/gen-fixtures-ts.sh "$RUNNER_TEMP/fixtures"
+      - name: Record the host and the fixtures
+        run: |
+          mkdir -p "$RUNNER_TEMP/public"
+          python3 -I scripts/codec_coverage_gcp.py host --job v2-v3 --oracle "$RUNNER_TEMP/oracle" \
+            --fixtures "$RUNNER_TEMP/fixtures" > "$RUNNER_TEMP/public/host-v2-v3.json"
+      - name: V2 and V3, encode breadth and the native share
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          set -euo pipefail
+          chmod +x "$RUNNER_TEMP/bin/coreav" "$RUNNER_TEMP/bin/ffmpeg-harness" "$RUNNER_TEMP/bin/x264"
+          # 0: a complete run; 2: void (a fallback log line that ran, a fault, a missing command), a result all the
+          # same. Anything else is not a run.
+          code=0
+          python3 -I tools/compat-corpus/encode_breadth.py run --coreav "$RUNNER_TEMP/bin/coreav" \
+            --harness "$RUNNER_TEMP/bin/ffmpeg-harness" --ffmpeg "$RUNNER_TEMP/oracle/ffmpeg" \
+            --ffprobe "$RUNNER_TEMP/oracle/ffprobe" --x264 "$RUNNER_TEMP/bin/x264" \
+            --fixtures "$RUNNER_TEMP/fixtures" --work "$RUNNER_TEMP/work" \
+            --records "$RUNNER_TEMP/public/v2-v3.jsonl" --summary "$RUNNER_TEMP/public/v2-v3-summary.json" \
+            --jobs 4 || code=$?
+          [ "$code" -le 2 ]
+          [ -s "$RUNNER_TEMP/public/v2-v3.jsonl" ] || { echo '::error::V2 and V3 produced no records'; exit 1; }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: coverage-v2-v3
+          path: ${{ runner.temp }}/public
+          if-no-files-found: error
+          retention-days: 90
+
+  coverage-report:
+    needs: [coverage-plan, coverage-build, coverage-v1, coverage-v1-fixtures, coverage-v2-v3]
+    if: always() && needs.coverage-plan.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.coverage-plan.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: coverage-v1-public-*
+          path: ${{ runner.temp }}/v1
+          merge-multiple: true
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: coverage-v2-v3
+          path: ${{ runner.temp }}/v2-v3
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: coverage-binaries
+          path: ${{ runner.temp }}/bin
+      - name: Put the manifest together and check it
+        env:
+          SET: ${{ needs.coverage-plan.outputs.set }}
+          SHARDS: ${{ needs.coverage-plan.outputs.count }}
+          V1: ${{ needs.coverage-v1.result }}
+          V1_FIXTURES: ${{ needs.coverage-v1-fixtures.result }}
+          V2V3: ${{ needs.coverage-v2-v3.result }}
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/summary"
+          mkdir -p "$OUT"
+          code=0
+          python3 -I scripts/codec_coverage_gcp.py manifest --build "$RUNNER_TEMP/bin/manifest-build.json" \
+            --hosts "$RUNNER_TEMP"/v1/host-*.json "$RUNNER_TEMP"/v2-v3/host-*.json \
+            --shards "$SHARDS" --shard-counts "$RUNNER_TEMP"/v1/v1-*.json --set "$SET" \
+            --evidence-key "$EVIDENCE_KEY_SHA256" --out "$OUT/manifest.json" >> "$GITHUB_STEP_SUMMARY" || code=$?
+          if [ -s "$RUNNER_TEMP/v2-v3/v2-v3-summary.json" ]; then
+            cp "$RUNNER_TEMP/v2-v3/v2-v3-summary.json" "$OUT/"
+          fi
+          [ "$code" = 0 ] || { echo '::error::the run manifest does not match the plan'; exit 1; }
+          [ "$V2V3" = success ] || { echo '::error::V2 and V3 did not finish'; exit 1; }
+          [ "$V1_FIXTURES" = success ] || [ "$V1_FIXTURES" = skipped ] || { echo '::error::V1 failed on the decode fixtures'; exit 1; }
+          [ "$V1" = success ] || [ "$V1" = skipped ] || echo '::warning::a V1 shard failed: its files go to the rerun host'
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: codec-coverage-summary
+          path: ${{ runner.temp }}/summary
+          if-no-files-found: ignore
+          retention-days: 90

@@ -1004,7 +1004,8 @@ const CAP_BYTES_PER_PIXEL: u64 = 6;
 /// it), or of `max_frame_bytes` where the size is not declared. The
 /// configured default (4 GiB) suits one thumbnail, and is about 55 s of
 /// 1080p.
-fn decoded_bytes_cap(
+#[doc(hidden)]
+pub fn decoded_bytes_cap(
     limits: &coreav_decode::Limits,
     packets: usize,
     size: Option<(u32, u32)>,
