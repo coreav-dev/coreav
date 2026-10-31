@@ -219,6 +219,28 @@ above move with it in this note.
 
 ## The 0.1.0 command set
 
+### ffprobe round 8 measurement plan
+
+Round 8 remeasures B3a on the same 1,315 files as round 7 with the
+shared FFmpeg oracle pin. Both the base and candidate binaries use that
+oracle, so changes in the oracle are not counted as candidate gains.
+Every key is reported by container and by development or held-out part,
+including keys newly printed by the oracle. The bar remains 98% per key;
+known divergences name their reason rather than lowering it. MPEG-TS
+held-out inputs inspected during this work are no longer independent
+validation, and the report will say so.
+
+B4 is remeasured on its registered 20 held-out files per container and
+the native ffprobe commands of commands-v1, five alternating timed pairs
+after one untimed pair. The fixed host class is a GCP c4-standard-8 with
+SMT disabled, with both tools on the same pinned core. Before the B4
+arm, FFmpeg/FFmpeg and CoreAV/CoreAV calibration arms must each have an
+overall median ratio in [0.98, 1.02], with a bootstrap 95% interval that
+contains 1.00. A failed calibration voids the host, not the bar. A failed
+or timed-out command has no speed ratio and is counted separately.
+The B4 bar remains at most 1.00 per command, overall and per container;
+the report includes the 95% intervals and the share of pairs below 1.00.
+
 Release 0.1.0 does not wait for B2, B3a and B3b over the whole vocabulary.
 It ships the commands that upload and preprocessing pipelines run most, the
 `ffprobe` listings and the `ffmpeg -c copy` jobs, as **`commands-0.1.0`**, and
