@@ -286,6 +286,27 @@ Calibration uses the first selected input of each container with
 `-show_format -show_streams` and with `-show_packets`, five timed pairs
 after one untimed pair per arm and command.
 
+The [round 9 plan](../measurements/compat-ffprobe/round9-plan.md) fixes the
+B4 runner corrections before measurement. `speed.py run --oracle-bin DIR
+--cpus CPU` verifies the shared oracle pin and each selected file's size
+and SHA-256, pins one CPU, and requires both calibration arms to pass
+before running B4. Each process has a 600-second timeout. Failed calls
+retain both exit statuses and their phase, but have no ratio. Strict-safe
+refusal records are counted separately from executed fallbacks; an
+execution or an unreadable fallback record invalidates the native arm.
+
+`speed.py report` keeps the median over command/input ratios, but draws
+whole files with replacement within each container for every group's
+95% interval: 10,000 draws, seed 0, percentile positions 249 and 9,749.
+Each drawn file carries every contributing command ratio, including
+repeated draws of the same file. Calibration retains its median over the
+30 alternating call ratios and draws whole files without container
+strata. Every reported group gets an interval unless
+it has no ratios. Missing or failed eligible pairs and unmeasured groups
+prevent a clean B4 verdict. The versioned result format rejects historical
+unversioned results rather than re-scoring them. The R4 runner and its
+historical reporting rules are unchanged.
+
 Release 0.1.0 does not wait for B2, B3a and B3b over the whole vocabulary.
 It ships the commands that upload and preprocessing pipelines run most, the
 `ffprobe` listings and the `ffmpeg -c copy` jobs, as **`commands-0.1.0`**, and
