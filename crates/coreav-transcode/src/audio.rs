@@ -30,7 +30,7 @@ use coreav_worker::opus::{
 use coreav_worker::{ExecLauncher, HugePages};
 
 use crate::aac::{self, AacAudio};
-use crate::encoder::{EncoderLimits, Process, Sink, command};
+use crate::encoder::{EncoderLimits, Process, Sink, command, is_path};
 use crate::pipeline::{Error, Spool, spool_read};
 
 /// The sample rate of every Opus stream (RFC 7845 section 5.1): the
@@ -181,7 +181,7 @@ pub(crate) fn encode<S: Source>(
         )));
     }
     let program = encode.program();
-    if !program.as_os_str().as_encoded_bytes().contains(&b'/') {
+    if !is_path(program) {
         return Err(encoder_error(format!(
             "the {} encoder program must be a path, not a name: {}",
             encode.codec(),
