@@ -42,9 +42,12 @@
 //!   that end (ISO/IEC 14496-12 8.6.6) as `discard_padding`. The end is the
 //!   media edit's; without an edit list the iTunes gapless item's (its
 //!   delay and samples), else the media header's duration; never past the
-//!   samples' end. A frame is the codec's frame size nearest the decode
-//!   step (AAC, MPEG audio, AC-3, E-AC-3), or the sample's duration when
-//!   that is longer. A listing of several edits counts the rest of the
+//!   samples' end. A frame is what the codec decodes one packet to, from
+//!   its configuration or its first frame's header, never from the
+//!   samples' timing (AAC, MPEG audio, AC-3, E-AC-3), or the sample's
+//!   duration when that is longer; the padding and the first packet's
+//!   skip are counted at the decoder's output rate (twice the core's with
+//!   SBR). A listing of several edits counts the rest of the
 //!   frame its last presented packet is cut to. With a leading empty edit,
 //!   `ffprobe` places the end after the empty edit
 //!   (`KD-FF9-EMPTY-EDIT-PADDING`); CoreAV does not.
@@ -1026,6 +1029,14 @@ fn eac3_frame_bit_rate(track: &Track, header: &[u8]) -> Option<i64> {
     if track.description.codec != Codec::Eac3 {
         return None;
     }
+    let (bytes, rate, blocks) = eac3_header(header)?;
+    Some(bytes * 8 * rate / (blocks * 256))
+}
+
+/// An E-AC-3 frame header's size in bytes, sample rate and audio blocks
+/// (ETSI TS 102 366 E.1.2.2 and E.1.3.1): `frmsiz`, `fscod` (with
+/// `fscod2`) and `numblkscod`.
+fn eac3_header(header: &[u8]) -> Option<(i64, i64, i64)> {
     let mut bits = video::Bits::new(header);
     if bits.bits(16)? != 0x0B77 {
         return None;
@@ -1042,7 +1053,7 @@ fn eac3_frame_bit_rate(track: &Track, header: &[u8]) -> Option<i64> {
             *[1, 2, 3, 6].get(usize::try_from(bits.bits(2)?).ok()?)?,
         ),
     };
-    Some(bytes * 8 * rate / (blocks * 256))
+    Some((bytes, rate, blocks))
 }
 
 /// Whether a QuickTime chapter track is listed as binary data, as
@@ -2039,12 +2050,24 @@ pub fn packets<'a, S: Source + 'a>(
         .map(|(i, t)| {
             // The decode step most of the first samples take (a first
             // sample can hold the encoder's priming too).
-            let median = if t.kind == TrackKind::Audio {
-                let mut steps = head(&probed.movie, t, &mut source, &limits).steps;
+            let (median, frame) = if t.kind == TrackKind::Audio {
+                let head = head(&probed.movie, t, &mut source, &limits);
+                let mut steps = head.steps;
                 steps.sort_unstable();
-                steps.get(steps.len() / 2).copied()
+                // An E-AC-3 frame's blocks are in its header.
+                let mut header = Vec::new();
+                if let (Codec::Eac3, Some((offset, size))) = (t.description.codec, head.first) {
+                    header.resize(usize::try_from(size.min(8)).unwrap_or(0), 0);
+                    if source.read_exact_at(offset, &mut header).is_err() {
+                        header.clear();
+                    }
+                }
+                (
+                    steps.get(steps.len() / 2).copied(),
+                    decoded_frame(t, &header),
+                )
             } else {
-                None
+                (None, None)
             };
             plan(
                 &probed.movie,
@@ -2052,6 +2075,7 @@ pub fn packets<'a, S: Source + 'a>(
                 probed.ends.get(i).copied().unwrap_or_default(),
                 probed.steps.get(i).copied().flatten(),
                 median,
+                frame,
                 itunes,
             )
         })
@@ -2613,7 +2637,7 @@ fn edit_plan<S: Source>(
     }
     if audio {
         let c = start_cts?;
-        plan.skip = (m > c).then(|| gapless.unwrap_or(m - c));
+        plan.skip = (m > c).then(|| gapless.unwrap_or_else(|| decoded_samples(track, m - c)));
     } else {
         // Without a composition time at or after the media time, the
         // sample lasting past it starts the presentation.
@@ -2660,7 +2684,27 @@ fn edit_skip<S: Source>(
         .map_while(Result::ok)
         .map(|p| signed_offsets(track, p))
         .find(|p| audio_lists_from(p, m, timescale))?;
-    (m > start.cts).then(|| gapless.unwrap_or(m - start.cts))
+    (m > start.cts).then(|| gapless.unwrap_or_else(|| decoded_samples(track, m - start.cts)))
+}
+
+/// `ticks` of an audio track as the samples its decoder outputs in them, at
+/// its configuration's rate, else its sample entry's (Skip Samples side data
+/// and `initial_padding` count those), rounded to the nearest.
+fn decoded_samples(track: &Track, ticks: i64) -> i64 {
+    let rate = track
+        .description
+        .configured_sample_rate
+        .or(track.description.sample_rate)
+        .map(i128::from)
+        .filter(|r| *r > 0);
+    let timescale = i128::from(track.timescale);
+    match rate {
+        Some(rate) if timescale > 0 && rate != timescale => {
+            i64::try_from((2 * i128::from(ticks) * rate + timescale).div_euclid(2 * timescale))
+                .unwrap_or(ticks)
+        }
+        _ => ticks,
+    }
 }
 
 /// How `ffprobe` times one track's packets (module documentation, "Packet
@@ -2698,7 +2742,7 @@ struct Plan {
 /// edit list (ISO/IEC 14496-12 8.6.6), else the media's duration, ends the
 /// presentation; what the last packet covers past that end is discarded,
 /// as `ffprobe` lists it in the packet's Skip Samples side data
-/// (`discard_padding`), counted in samples at the stream's rate.
+/// (`discard_padding`), counted in samples at the decoder's output rate.
 #[derive(Clone, Copy, Debug)]
 struct Tail {
     /// The end, in media ticks: the edit's end, or the end of the samples
@@ -2708,9 +2752,9 @@ struct Tail {
     /// trims the last packet to the part presented.
     end: Option<i64>,
     /// The samples one packet decodes to, for a codec of fixed-size frames
-    /// ([`codec_frame`]).
+    /// ([`decoded_frame`]).
     frame: Option<i64>,
-    /// The sample rate the padding is counted in.
+    /// The decoder's output rate, which the padding is counted in.
     rate: i64,
     /// The track's ticks a second.
     timescale: i64,
@@ -2746,22 +2790,28 @@ impl Tail {
     }
 }
 
-/// The samples one frame of a fixed-frame codec decodes to: the size of
-/// the codec's frame (ISO/IEC 14496-3 4.5.1: 1,024 or 960 for AAC, twice
-/// that with SBR; ISO/IEC 11172-3 and 13818-3: 384, 576 or 1,152 for MPEG
-/// audio; ETSI TS 102 366: 256 a block, 1,536 for AC-3) nearest to the
-/// regular decode step `step`, in ticks; `None` for other codecs.
-fn codec_frame(track: &Track, rate: i64, step: i64) -> Option<i64> {
-    let sizes: &[i64] = match codec_name_of(track).as_deref()? {
-        "aac" => &[960, 1024, 1920, 2048],
-        "mp1" | "mp2" | "mp3" => &[384, 576, 1152],
-        "ac3" => &[1536],
-        "eac3" => &[256, 512, 768, 1536],
-        _ => return None,
-    };
-    let ts = i128::from(track.timescale.max(1));
-    let estimate = i64::try_from(i128::from(step).checked_mul(i128::from(rate))? / ts).ok()?;
-    sizes.iter().copied().min_by_key(|s| s.abs_diff(estimate))
+/// The samples one frame of an audio codec of fixed-size frames decodes
+/// to, from its configuration or its first frame's header, never from its
+/// timing: AAC's from its `AudioSpecificConfig` (ISO/IEC 14496-3 4.5.1.1,
+/// 4.6.18.2.2); 384 for MPEG audio layer I, 1,152 for layer II and for
+/// layer III at 32 kHz or more, 576 below (ISO/IEC 11172-3 2.4.2.1, ISO/IEC
+/// 13818-3 2.4.2.1); 1,536 for AC-3 and 256 a block for E-AC-3 (ETSI TS
+/// 102 366 4.1, E.1.3.1.4). `None` without that evidence, and for other
+/// codecs.
+fn decoded_frame(track: &Track, header: &[u8]) -> Option<i64> {
+    let rate = track
+        .description
+        .configured_sample_rate
+        .or(track.description.sample_rate);
+    match codec_name_of(track).as_deref()? {
+        "aac" => track.description.aac_frame_length.map(i64::from),
+        "mp1" => Some(384),
+        "mp2" => Some(1152),
+        "mp3" => rate.map(|r| if r >= 32_000 { 1152 } else { 576 }),
+        "ac3" => Some(1536),
+        "eac3" => eac3_header(header).map(|(_, _, blocks)| blocks * 256),
+        _ => None,
+    }
 }
 
 /// An audio track's [`Tail`], when its presentation ends inside its sample
@@ -2770,7 +2820,7 @@ fn tail(
     movie: &Movie,
     track: &Track,
     rate: Option<i64>,
-    step: Option<i64>,
+    frame: Option<i64>,
     gapless: Option<coreav_isobmff::ItunesGapless>,
 ) -> Option<Tail> {
     if track.kind != TrackKind::Audio || movie.has_fragments() {
@@ -2815,7 +2865,7 @@ fn tail(
     };
     Some(Tail {
         end,
-        frame: step.and_then(|s| codec_frame(track, rate, s)),
+        frame,
         rate,
         timescale,
     })
@@ -2951,6 +3001,7 @@ fn plan(
     listed: Listed,
     step: Option<i64>,
     median_step: Option<i64>,
+    frame: Option<i64>,
     gapless: Option<coreav_isobmff::ItunesGapless>,
 ) -> Plan {
     let audio_frame = median_step.map(|s| audio_frame(track, s));
@@ -3027,7 +3078,7 @@ fn plan(
         tail: if grouping(movie, track, step).is_some() {
             None
         } else {
-            tail(movie, track, listed.sample_rate, median_step, gapless)
+            tail(movie, track, listed.sample_rate, frame, gapless)
         },
     }
 }

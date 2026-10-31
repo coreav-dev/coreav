@@ -2313,9 +2313,11 @@
    "id": "KD-FF9-EMPTY-EDIT-PADDING",
    "accepts": {
     "packets.side_data_list[Skip Samples]": {
+     "evidence": "empty edit padding",
      "only": "coreav"
     },
     "packets.side_data_list[]": {
+     "evidence": "empty edit padding",
      "only": "coreav"
     }
    },

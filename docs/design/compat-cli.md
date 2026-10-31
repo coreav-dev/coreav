@@ -1440,11 +1440,17 @@ prints keep its derivations, which the stream oracle checks. The others:
   last packet's element names the samples its frame decodes past the end
   of the presentation (ISO/IEC 14496-12 8.6.6): the media edit's end,
   without an edit list the `iTunSMPB` delay plus its samples, else the
-  media header's duration, and never past the samples' end. A frame is the
-  codec's frame size nearest the decode step (AAC, MPEG audio, AC-3,
-  E-AC-3), or the sample's duration when that is longer; the sample keeps
-  its stored duration. After a leading empty edit `ffprobe` places that
-  end later by the empty edit's length
+  media header's duration, and never past the samples' end. A frame is
+  what the codec decodes one packet to, from its configuration or its
+  first frame's header (AAC's `AudioSpecificConfig`: 960 or 1,024
+  samples, MPEG audio, AC-3, E-AC-3), never from the samples' timing, or
+  the sample's duration when that is longer; the sample keeps its stored
+  duration. Skip and padding are counted at the decoder's output rate,
+  twice the core's with SBR (ISO/IEC 14496-3 4.6.18). On crafted files
+  whose output rate is not the track's time scale `ffprobe` counts the
+  skip in the track's ticks instead, and with SBR it lists no padding;
+  the development files list the same values either way. After a leading
+  empty edit `ffprobe` places that end later by the empty edit's length
   ([KD-FF9-EMPTY-EDIT-PADDING](../known-divergences-ffprobe9.md#kd-ff9-empty-edit-padding)).
 - Stream durations: without an edit list, the shorter of the media
   header's and the samples' (the samples' when fragments follow, and

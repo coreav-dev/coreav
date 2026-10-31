@@ -651,12 +651,31 @@ fn transport_streams_are_numbered_and_their_programs_listed_as_ffprobe_does() {
     );
 }
 
-/// A movie of one AAC track (`mdhd` time scale 48,000, movie time scale
-/// 1,000) of 10-byte samples timed by `stts` (count, delta), with
-/// `media_duration` in its `mdhd`, the edit list `elst` (segment duration
-/// in movie ticks, media time) and `udta` after the track
+/// A movie of one AAC LC track at 48 kHz (`mdhd` time scale 48,000, movie
+/// time scale 1,000) of 10-byte samples timed by `stts` (count, delta),
+/// with `media_duration` in its `mdhd`, the edit list `elst` (segment
+/// duration in movie ticks, media time) and `udta` after the track
 /// (ISO/IEC 14496-12 8.2 to 8.7).
 fn aac_movie(
+    stts: &[(u32, u32)],
+    media_duration: u32,
+    elst: Option<&[(u32, i32)]>,
+    udta: &[u8],
+) -> Vec<u8> {
+    aac_movie_with(48_000, &LC_48K, stts, media_duration, elst, udta)
+}
+
+/// An `AudioSpecificConfig` of AAC LC at 48 kHz, stereo, frames of 1,024
+/// samples (ISO/IEC 14496-3 1.6.2.1, 4.4.1).
+const LC_48K: [u8; 2] = [0x11, 0x90];
+
+/// [`aac_movie`] with the media time scale `timescale` and the
+/// `AudioSpecificConfig` `config` in the `esds` (ISO/IEC 14496-1 7.2.6.5
+/// to 7.2.6.7), which has no decoder-specific information when `config` is
+/// empty.
+fn aac_movie_with(
+    timescale: u32,
+    config: &[u8],
     stts: &[(u32, u32)],
     media_duration: u32,
     elst: Option<&[(u32, i32)]>,
@@ -667,7 +686,7 @@ fn aac_movie(
     let ftyp = bx(b"ftyp", b"isom\0\0\x02\0isom");
     let mdat = bx(b"mdat", &vec![0xAB; count as usize * 10]);
     let chunk = (ftyp.len() + 8) as u32;
-    let movie_duration = media_duration / 48;
+    let movie_duration = (u64::from(media_duration) * 1000 / u64::from(timescale)) as u32;
     let mut mvhd = u32s(&[0, 0, 1000, movie_duration]);
     mvhd.extend_from_slice(&[0u8; 16]);
     mvhd.extend_from_slice(&u32s(&[0x10000, 0, 0, 0, 0x10000, 0, 0, 0, 0x4000_0000]));
@@ -687,22 +706,27 @@ fn aac_movie(
         0,
         0,
     ]));
-    let mut mdhd = u32s(&[0, 0, 48_000, media_duration]);
+    let mut mdhd = u32s(&[0, 0, timescale, media_duration]);
     mdhd.extend_from_slice(&[0x55, 0xc4, 0, 0]);
     let mut hdlr = u32s(&[0]);
     hdlr.extend_from_slice(b"soun");
     hdlr.extend_from_slice(&[0u8; 13]);
-    // AAC LC at 48 kHz, stereo (ISO/IEC 14496-3 1.6.2.1), in the decoder
-    // configuration of an `esds` (ISO/IEC 14496-1 7.2.6.5 to 7.2.6.7).
-    let esds = full(
-        b"esds",
-        0,
-        0,
-        &[
-            3, 25, 0, 0, 0, 4, 17, 0x40, 0x15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 2, 0x11, 0x90,
-            6, 1, 2,
-        ],
-    );
+    let specific = if config.is_empty() {
+        Vec::new()
+    } else {
+        cat(&[vec![5, config.len() as u8], config.to_vec()])
+    };
+    let decoder = cat(&[
+        vec![4, 13 + specific.len() as u8, 0x40, 0x15],
+        vec![0; 11],
+        specific,
+    ]);
+    let es = cat(&[
+        vec![3, 3 + decoder.len() as u8 + 3, 0, 0, 0],
+        decoder,
+        vec![6, 1, 2],
+    ]);
+    let esds = full(b"esds", 0, 0, &es);
     let mut entry = common::audio_entry(b"mp4a").split_off(8);
     entry.extend_from_slice(&esds);
     let mut stsd = u32s(&[1]);
@@ -879,4 +903,66 @@ fn an_empty_edit_does_not_move_where_the_media_edit_ends() {
         packets.last().map(|p| (p.1, p.2)),
         Some((700, Some((0, 324))))
     );
+}
+
+#[test]
+fn the_aac_frame_comes_from_the_audio_specific_config() {
+    // frameLengthFlag set: frames of 960 samples (ISO/IEC 14496-3 4.5.1.1),
+    // so a last sample of 700 ticks decodes 260 past the media's end.
+    let (_, packets) = gapless(
+        "gapless-960.mp4",
+        &aac_movie_with(
+            48_000,
+            &[0x11, 0x94],
+            &[(5, 960), (1, 700)],
+            5500,
+            None,
+            &[],
+        ),
+    );
+    assert_eq!(packets.last(), Some(&(4800, 700, Some((0, 260)))));
+    // A track of one packet has no decode step to go by; the configuration
+    // still gives its frame.
+    let (_, packets) = gapless(
+        "gapless-one.mp4",
+        &aac_movie_with(48_000, &LC_48K, &[(1, 700)], 700, None, &[]),
+    );
+    assert_eq!(packets, [(0, 700, Some((0, 324)))]);
+}
+
+#[test]
+fn the_aac_frame_is_not_taken_from_the_samples_timing() {
+    // Steps of 960 ticks under a configuration of 1,024-sample frames: the
+    // configuration decides, so the padding is 324, not 260.
+    let (_, packets) = gapless(
+        "gapless-steps-960.mp4",
+        &aac_movie_with(48_000, &LC_48K, &[(5, 960), (1, 700)], 5500, None, &[]),
+    );
+    assert_eq!(packets.last(), Some(&(4800, 700, Some((0, 324)))));
+    // Without an AudioSpecificConfig the frame is unknown: no side data.
+    let (_, packets) = gapless(
+        "gapless-no-config.mp4",
+        &aac_movie_with(48_000, &[], &[(5, 1024), (1, 700)], 5820, None, &[]),
+    );
+    assert!(packets.iter().all(|p| p.2.is_none()));
+}
+
+#[test]
+fn sbr_priming_and_padding_are_counted_at_the_output_rate() {
+    // Explicit SBR (ISO/IEC 14496-3 1.6.5): an AAC LC core at 24 kHz, output
+    // at 48 kHz, so a frame decodes to 2,048 samples. A last sample of 700
+    // ticks is 1,400 output samples, 648 short of the frame.
+    let sbr: &[u8] = &[0x2b, 0x11, 0x88, 0x00];
+    let (_, packets) = gapless(
+        "gapless-sbr.mp4",
+        &aac_movie_with(24_000, sbr, &[(5, 1024), (1, 700)], 5820, None, &[]),
+    );
+    assert_eq!(packets.last(), Some(&(5120, 700, Some((0, 648)))));
+    // A media edit from 512 ticks skips 1,024 output samples.
+    let (padding, packets) = gapless(
+        "gapless-sbr-edit.mp4",
+        &aac_movie_with(24_000, sbr, &[(10, 1024)], 10240, Some(&[(200, 512)]), &[]),
+    );
+    assert_eq!(padding, 1024);
+    assert_eq!(packets.first().map(|p| p.2), Some(Some((1024, 0))));
 }

@@ -213,7 +213,12 @@ stored `nclx` bytes and fails when its exact oracle disagreement changes.
   the edit's end on the presentation timeline, after the empty edit
   (13,376 and 21,026 ticks), but the packet's end in media time, so the
   packet seems to end before the edit does, and it lists no side data.
-- Accepts: Skip Samples side data CoreAV alone lists.
+- Accepts: on these two files only, while their bytes still have this
+  shape (`empty_edit_padding` in `tools/compat-corpus/run.py` reads
+  them), CoreAV's Skip Samples side data on the last audio packet with
+  exactly the padding the bytes give, and ffprobe's none; every other
+  packet's side data must agree. Side data on another packet, a shifted
+  padding or a changed skip stays a failure.
 
 ## KD-FF9-FIXTURE-COLOUR-RANGE
 
