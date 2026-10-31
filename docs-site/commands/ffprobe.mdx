@@ -7,7 +7,7 @@ description: "Experimental. Run an ffprobe command line over CoreAV's own probes
 import Help from '/snippets/help/ffprobe.mdx';
 
 <Warning>
-`coreav ffprobe` is experimental. Its values can differ from `ffprobe`'s for MP4, MOV and MPEG-TS files. [The measurement page](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/compat-ffprobe.md) has the agreement of every key.
+`coreav ffprobe` is experimental. Its values can differ from `ffprobe`'s for MP4, MOV, Matroska, WebM and MPEG-TS files. [The measurement page](https://github.com/coreav-dev/coreav/blob/main/docs/measurements/compat-ffprobe.md) has the agreement of every key.
 </Warning>
 
 `coreav ffprobe ARGS` takes an `ffprobe` command line in `ffprobe`'s own syntax and answers it from CoreAV's own probes. It prints the format, stream, chapter, program and packet sections that the container describes, in `ffprobe`'s writers (`default`, `compact`, `csv`, `flat` and `json`). It reads MP4, MOV, Matroska, WebM and MPEG-TS files, and `https://` URLs.
