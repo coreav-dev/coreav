@@ -1017,7 +1017,10 @@ prints keep its derivations, which the stream oracle checks. The others:
   an edit list lasts at least as long as the longest track, in its own
   ticks rounded to the nearest; a timecode track keeps its own.
 - The stream `bit_rate`: PCM and IMA ADPCM their constant rate (sample
-  rate, channels and bits); otherwise the bytes over a duration,
+  rate, channels and bits); AC-3 the rate `dac3`'s `bit_rate_code`
+  names; E-AC-3 its first syncframe's, the frame's size over the audio
+  blocks it holds at its sample rate, not `dec3`'s `data_rate` (at
+  44.1 kHz the frames' sizes differ: `av_eac3.mp4`); otherwise the bytes over a duration,
   truncated, whatever average `esds` or `btrt` declares. Video and audio
   take their whole media, edits aside: the shorter of the media header's
   duration and the samples' (all 176 audio streams of regular samples in
@@ -1080,7 +1083,9 @@ prints keep its derivations, which the stream oracle checks. The others:
   packet; WebVTT tracks are data streams.
 - Packets: one listing merged from every track, in file order, except that
   a packet due more than a second before the next one stored is listed
-  first (that agreed with every interleaving on the development set); the
+  first (that agreed with every interleaving on the development set), and
+  an AC-3 or E-AC-3 packet listed after the packets of other tracks taken
+  before its track's next one (`av_ac3.mp4`, `av_eac3.mp4`); the
   keyframe flag of H.264 and AV1 from the coded data, as the packet oracle
   sets it; the last packet shown of an audio track, and the one presented
   last of a video track, lasting to the end of the presentation; a
