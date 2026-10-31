@@ -817,7 +817,7 @@ By mode (the mode most of an input's packets carry; reported, not gating), media
 | Hybrid | 44 | 1.004 | 0.864 | 1.021 | 47.7% |
 | CELT | 210 | 1.003 | 0.554 | 1.052 | 46.7% |
 
-Bar 2 (`evidence/opus-round2-agree.json`): 288 inputs, 283 counted, all 283 pass, lowest quality 99.7; MP4 lengths match the presentation model through `KD-A-EDIT-END`. Listed apart (5): Matroska inputs whose only message is the reference side's `f32le` muxer, a timestamp equal to the one before it; all 5 pass, and as in round 1 they are timed. Over the 283 counted inputs alone the library medians are 0.993 overall, 0.995 MP4 and 0.988 Matroska. Against `ffmpeg`'s default decoder (reported): 234 of 283 within `opus_compare`, every length equal, SNR median 99.1 dB.
+Bar 2 (`evidence/opus-round2-agree.json`): 288 inputs, 283 counted, all 283 pass, lowest quality 99.7; MP4 lengths match the presentation model through `KD-A-EDIT-END`. Listed apart (5): Matroska inputs whose only message is the reference side's `f32le` muxer reporting non-monotonic timestamps (one equal to or below the one before it); all 5 pass, and as in round 1 they are timed. Over the 283 counted inputs alone the library medians are 0.993 overall, 0.995 MP4 and 0.988 Matroska. Against `ffmpeg`'s default decoder (reported): 234 of 283 within `opus_compare`, every length equal, SNR median 99.1 dB.
 
 ## Opus: the decoder-choice probe
 
