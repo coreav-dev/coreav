@@ -98,8 +98,10 @@ case "$target" in
     loaded="$(grep '(NEEDED)' <<< "$dynamic" || true)"
     ;;
   *-apple-darwin)
-    dynamic="$(otool -L "$out/bin/$exe")"
-    loaded="$(tail -n +2 <<< "$dynamic" | grep -v -E '^[[:space:]]+(/usr/lib/|/System/Library/)' || true)"
+    # A path with a . or .. component is not taken as the system's.
+    dynamic="$(otool -L "$out/bin/$exe" | tail -n +2)"
+    loaded="$( { grep -v -E '^[[:space:]]+(/usr/lib/|/System/Library/)' <<< "$dynamic"
+      grep -E '/\.\.?/' <<< "$dynamic"; } || true)"
     ;;
 esac
 if [ -n "$loaded" ]; then
