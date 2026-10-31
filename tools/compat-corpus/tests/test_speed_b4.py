@@ -124,7 +124,7 @@ class RealTiming(unittest.TestCase):
         sleep = shutil.which('sleep')
         self.assertIsNotNone(sleep)
         with mock.patch.object(speed.time, 'sleep', side_effect=AssertionError('B4 must not poll process exit')):
-            pair = speed.b4_pair([sleep, '0.006'], [sleep, '0.004'], {})
+            pair = speed.b4_pair([sleep, '0.06'], [sleep, '0.004'], {})
         self.assertNotIn('failed', pair)
         self.assertGreater(pair['ratio'], 1.1)
         data = {'method': speed.B4_METHOD, 'rounds': 5, 'commands': [['-show_streams', 'INPUT']],
