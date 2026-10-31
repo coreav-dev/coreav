@@ -87,6 +87,7 @@ before any benchmark:
 | v2-heldout draw 5 | `coreav-corpus-v2-heldout-ts:` | every `real` file |
 | v2-heldout draw 6 | `coreav-corpus-v2-heldout-compat:` | every `real` file |
 | v2-heldout draw 7 | `coreav-corpus-v2-heldout-ts-speed:` | every `real` file |
+| v2-heldout draw 8 | `coreav-corpus-v2-heldout-audio-decode:` | every `real` file |
 
 Held-out files are used only for reported numbers, never for profiling
 or tuning. Where a whole draw is held out, the salt still orders each
@@ -254,6 +255,7 @@ draw's operation.
 | 5 | MPEG-TS demux | `ts-probe` | 37 | 48 | 1.7 | spent: [`measurements/ts-demux.md`](measurements/ts-demux.md) |
 | 6 | the 0.1.0 bars R2 to R4 | `compat` | 300 | 332 | 13.62 | unspent |
 | 7 | MPEG-TS demux speed, round 2 | `ts-probe` | | | | rules committed, not yet collected |
+| 8 | Opus speed, round 2 | `audio-decode` | | | | rules committed, not yet collected |
 
 No `hls` draw is unspent, so the next `hls index` measurement needs a
 draw of its own before it can run.
@@ -506,6 +508,22 @@ The held-out draw of the second round of the transport stream speed bars ([`desi
 - **Sources.** In these two listings each collection of the archive, and each first-named creator of a record in the repository, is its own source. Candidates are taken in turn across sites, and within a site in turn across its sources, so that one uploader's recordings cannot fill a class while others wait. Sites take their turns in the order their first candidate appears in the listings, the listings read in the order above after those of the first collection; a site's sources take theirs in the same way, and each source gives its candidates in its listing's order. The result reports the largest share of one source and of one site in each class. The first 19 files, all from one site, are why: a turn across sources has nothing to spread when one site lists every candidate that is left.
 
 Everything else above holds unchanged: the extensions, the 200 MB cap, the classes, the coverage and its minimums, a short class reported rather than filled, the sets and the pinned `ffprobe`, nothing seen before, the structural signature, the holdout order and the bars it is judged by ([`design/mpegts.md`](design/mpegts.md), "Speed bars, round 2"). A file these listings name that an earlier listing already named is dropped by its URL or its SHA-256 as before.
+
+### Draw 8
+
+The held-out draw of the second Opus speed round ([`design/audio-decode.md`](design/audio-decode.md), "Opus speed, round 2"). Corpus v1's held-out files with audio are spent: they are the sources of the FLAC, MP3 and Opus derived sets. Operation `audio-decode`, salt `coreav-corpus-v2-heldout-audio-decode:`. The rules were committed before any file was fetched.
+
+- **Form:** files unchanged, at most 200 MB (1 MB = 10^6 bytes).
+- **Usable by the operation:** the pinned `ffprobe` lists an audio stream, the first of which lasts 5 seconds to 30 minutes, and the pinned `ffmpeg` 7.0.2 decodes that stream to the derived set's FLAC intermediate without an error. Any other file is `edge`. The round re-encodes every source, so the source's own codec and structure never reach the decoder under test.
+- **Classes**, by the container the pinned `ffprobe` names: `mov,mp4,m4a,3gp,3g2,mj2` is ISO base media, `matroska,webm` is Matroska and WebM, `ogg` is Ogg, and every other container (MP3, FLAC, WAV and the rest) is `other`. The round's own classes are the derived inputs' containers, MP4 and Matroska/WebM, of which every source gives one each; the draw's classes keep one kind of source from taking the draw.
+- **Coverage:** 100 to 160 `real` files. A class stops taking files at 60, and the draw stops when it holds 160 or the candidates run out. A draw under 100 is reported short, not filled by relaxing a rule, and round 2 is not run on it ([`design/audio-decode.md`](design/audio-decode.md), "Opus speed, round 2", item 4). Draw 8's frozen list is never extended: more sources would be a separate draw, with its own list frozen and committed before its first fetch.
+- **Caps:** at most 16 `real` files from one source, which is 10% of a full draw and 16% of the smallest, and at most 3 from one group. The frozen list (below) fixes each candidate's source and groups: a source is a site or an archive, or one data set or one publisher's feed on a host of many; a group is an uploader, an archive item, a feed or a data set's author. A file whose tags name a recording device is also in that device's group. The result reports the largest share one source holds.
+- **No structural signature:** the caps stand in for it, since the round re-encodes every source.
+- **Candidates, frozen before the first fetch:** one list, made from metadata alone (search results, file records, data set trees and feeds; no media byte read) on 2026-10-30 and kept with the draw's private collection record. It holds 1,427 candidates from 257 sources, and its SHA-256 is `586a40828a8257faff8b87a8c5bbb232308aef7fa3be34c915a05e57c5f8fab5`. Listed are files with an audio or video extension that, where the metadata states it, are at most 200 MB and 5 seconds to 30 minutes long, at most 6 per group and 48 per source. Each source's candidates are ordered by `sha256("coreav-corpus-v2-heldout-audio-decode:" + key)`, where the key is the form two URLs of one file share and the list records it with each candidate, and the sources by the same hash of their names, and the list takes the first candidate of each source in turn, then the second, and so on. The collector reads that list in its order, applies the rules here to each candidate as it comes, and fetches nothing outside it; the list is not re-made, extended or reordered for this draw.
+- **Nothing seen before:** a candidate whose URL is in corpus v1, `v1-fmp4-large`, `v1-ts-audio`, `mediarecorder-v1`, or in any listing or ledger of draws 1 to 7 was left out of the list, whether or not that draw fetched it; one whose SHA-256 is in any of them is dropped when it is fetched.
+- **Sets:** the shared rules, with the oracle run with `GCONV_PATH` as `scripts/oracle-ffprobe.sh` sets it. A file a device, an application or a publisher produced that meets the rule above is `real`; a conformance vector, a test signal or a file the oracle rejects is `edge`; a crash or a run over 30 s is `hostile`.
+- **Holdout:** every `real` file. Each class's `real` files are ordered by `sha256("coreav-corpus-v2-heldout-audio-decode:" + sha256)`.
+- **The collection runs no measurement:** `ffprobe` and the pinned `ffmpeg` 7.0.2's FLAC decode are the only tools run over the files, and no `coreav` command runs on the draw before the round that opens it.
 
 ### Rules withdrawn or not held
 
