@@ -191,12 +191,8 @@ pub(crate) fn encode<S: Source>(
     if let Encode::Aac(_, program) = encode {
         probe_aac(program, launcher, deadline)?;
     }
-    #[cfg(feature = "aac")]
     let mut source = source;
-    #[cfg(feature = "aac")]
-    let stream = without_aac(&mut source, requested, limits)?;
-    #[cfg(not(feature = "aac"))]
-    let stream = requested;
+    let stream = flac_or_mp3(&mut source, requested, limits)?;
     let options = coreav_audio::Options {
         stream,
         format: SampleFormat::F32,
@@ -388,14 +384,13 @@ fn probe_aac(
     Ok(())
 }
 
-/// The stream to decode in a build that decodes AAC: the one a build
-/// without the feature decodes, AAC being no source of the Opus or the AAC
-/// encode (`docs/design/transcode.md`, "Opus audio" and "AAC audio"). A named AAC stream is
-/// refused as the decoder refuses it without the feature; with none named,
-/// the first audio stream of FLAC or MP3, else the first audio stream (one
-/// of AAC refused here, any other refused by the decoder).
-#[cfg(feature = "aac")]
-fn without_aac<S: Source>(
+/// The stream to decode. The encodes take FLAC or MP3 only, in every build
+/// (`docs/design/transcode.md`, "Opus audio" and "AAC audio"), though the
+/// decoder also decodes Opus, and AAC with the feature `aac`: a named stream
+/// of either is refused here; with none named, the first audio stream of FLAC
+/// or MP3, else the first audio stream (one of Opus or AAC refused here, any
+/// other refused by the decoder).
+fn flac_or_mp3<S: Source>(
     source: &mut S,
     stream: Option<usize>,
     limits: &coreav_audio::Limits,
@@ -409,21 +404,20 @@ fn without_aac<S: Source>(
             .read_exact_at(0, &mut prefix)
             .map_err(|e| audio_error(e.into()))?;
     }
-    // Each audio stream: its index, whether it is AAC, and whether it is
-    // FLAC or MP3.
-    let audio: Vec<(usize, bool, bool)> = if mkv::sniff(&prefix) {
+    // Each audio stream: its index, and its codec's name when the decoder
+    // decodes it.
+    let audio: Vec<(usize, Option<&str>)> = if mkv::sniff(&prefix) {
         mkv::probe(&mut *source, &limits.matroska, &mkv::Allowlist::all())
             .map_err(|e| audio_error(e.into()))?
             .tracks
             .iter()
             .filter(|t| t.kind == mkv::TrackKind::Audio)
             .map(|t| {
-                let aac = t.codec == mkv::Codec::Aac;
-                (
-                    t.stream_index,
-                    aac,
-                    matches!(t.codec, mkv::Codec::Flac | mkv::Codec::Mp3),
-                )
+                let decoded = matches!(
+                    t.codec,
+                    mkv::Codec::Flac | mkv::Codec::Mp3 | mkv::Codec::Opus | mkv::Codec::Aac
+                );
+                (t.stream_index, decoded.then(|| t.codec.name()))
             })
             .collect()
     } else {
@@ -442,25 +436,30 @@ fn without_aac<S: Source>(
             .iter()
             .filter(|t| t.kind == mp4::TrackKind::Audio)
             .map(|t| {
-                let codec = t.description.codec;
-                let aac = codec == mp4::Codec::Aac;
-                (
-                    t.stream_index,
-                    aac,
-                    matches!(codec, mp4::Codec::Flac | mp4::Codec::Mp3),
-                )
+                let name = match t.description.codec {
+                    mp4::Codec::Flac => Some("flac"),
+                    mp4::Codec::Mp3 => Some("mp3"),
+                    mp4::Codec::Opus => Some("opus"),
+                    mp4::Codec::Aac => Some("aac"),
+                    _ => None,
+                };
+                (t.stream_index, name)
             })
             .collect()
     };
+    let taken = |name: Option<&str>| matches!(name, Some("flac" | "mp3"));
     let chosen = match stream {
-        Some(index) => audio.iter().find(|&&(i, ..)| i == index),
-        None => audio.iter().find(|&&(.., taken)| taken).or(audio.first()),
+        Some(index) => audio.iter().find(|&&(i, _)| i == index),
+        None => audio
+            .iter()
+            .find(|&&(_, name)| taken(name))
+            .or(audio.first()),
     };
     match chosen {
-        Some((_, true, _)) => Err(audio_error(coreav_audio::Error::CodecNotDecoded(
-            "aac".into(),
+        Some(&(_, Some(name))) if !taken(Some(name)) => Err(Error::Unsupported(format!(
+            "codec {name} is not decoded for an audio encode, which takes FLAC or MP3"
         ))),
-        Some(&(index, ..)) => Ok(Some(index)),
+        Some(&(index, _)) => Ok(Some(index)),
         None => Ok(stream),
     }
 }

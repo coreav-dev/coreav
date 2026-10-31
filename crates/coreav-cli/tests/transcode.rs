@@ -1481,6 +1481,45 @@ fn the_opus_encode_passes_over_aac_for_the_flac_after_it() {
     nothing_left(&dir);
 }
 
+fn the_flac_after_an_opus_stream_is_taken(audio: &str) {
+    let Some(tools) = tools() else { return };
+    let dir = dir(&format!("{audio}-after-opus"));
+    let source = made(
+        &tools,
+        &dir,
+        "opus-flac.mp4",
+        &[
+            "-map", "0:v", "-map", "1:a", "-map", "1:a", "-c:a:0", "opus", "-strict", "-2",
+            "-c:a:1", "flac",
+        ],
+    );
+    let out = dir.join("out.mp4");
+    let mut args = vec![
+        source.to_str().unwrap(),
+        out.to_str().unwrap(),
+        "--audio",
+        audio,
+    ];
+    args.extend(["--encoder", "x264", "--x264", tools.x264.to_str().unwrap()]);
+    let run = transcode(Some(&tools), &args);
+    assert_eq!(run.code, 0, "{}", run.stderr);
+    let summary: Value = serde_json::from_str(&run.stdout).unwrap();
+    assert_eq!(summary["encoded_audio"]["stream_index"], 2, "{summary}");
+    assert_eq!(summary["encoded_audio"]["codec"], "flac", "{summary}");
+    nothing_left(&dir);
+}
+
+#[test]
+fn the_aac_encode_takes_the_flac_after_an_opus_stream() {
+    the_flac_after_an_opus_stream_is_taken("aac");
+}
+
+#[cfg(feature = "libopus")]
+#[test]
+fn the_opus_encode_takes_the_flac_after_an_opus_stream() {
+    the_flac_after_an_opus_stream_is_taken("opus");
+}
+
 #[cfg(feature = "libopus")]
 #[test]
 fn audio_the_opus_encode_does_not_take_is_refused_first() {
@@ -1490,6 +1529,12 @@ fn audio_the_opus_encode_does_not_take_is_refused_first() {
     for (name, audio, says) in [
         // The Opus encode takes no AAC, in a build that decodes it too.
         ("aac.mp4", &["-c:a", "aac"][..], "aac is not decoded"),
+        // Nor Opus, which every build decodes.
+        (
+            "opus.mp4",
+            &["-c:a", "opus", "-strict", "-2"][..],
+            "opus is not decoded",
+        ),
         (
             "six.mkv",
             &[
@@ -1659,6 +1704,13 @@ fn audio_the_aac_encode_does_not_take_is_refused_first() {
             made(&tools, &dir, "aac.mp4", &["-c:a", "aac"]),
             None,
             "aac is not decoded",
+        ),
+        // Nor Opus, which every build decodes.
+        (
+            "opus",
+            made(&tools, &dir, "opus.mp4", &["-c:a", "opus", "-strict", "-2"]),
+            None,
+            "opus is not decoded",
         ),
         (
             "six",

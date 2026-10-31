@@ -981,6 +981,27 @@ fn run(cli: Cli, this: Option<PathBuf>) -> ExitCode {
 #[cfg(feature = "transcode")]
 fn run_transcode(args: &TranscodeArgs, this: Option<&Path>, strict_safe: StrictSafe) -> ExitCode {
     use coreav_cli::transcode;
+    let bitrates = match args.audio.as_str() {
+        "opus" => Some(6..=510),
+        "aac" => Some(16..=512),
+        _ => None,
+    };
+    match (args.audio_bitrate, bitrates) {
+        (Some(_), None) => {
+            return usage(
+                "--audio-bitrate is the bit rate of the audio encode: it needs --audio opus or aac",
+            );
+        }
+        (Some(kbps), Some(range)) if !range.contains(&kbps) => {
+            return usage(&format!(
+                "--audio-bitrate for --audio {} is {} to {} kbit/s, not {kbps}",
+                args.audio,
+                range.start(),
+                range.end()
+            ));
+        }
+        _ => {}
+    }
     if args.audio == "opus" && !cfg!(feature = "libopus") {
         let refusal = Failure::Unsupported(
             "--audio opus: this coreav is built without the Opus encoder: build it with the opt-in libopus feature"
@@ -1038,27 +1059,6 @@ fn run_transcode(args: &TranscodeArgs, this: Option<&Path>, strict_safe: StrictS
         timeout: args.timeout,
         strict_safe,
     };
-    let bitrates = match args.audio.as_str() {
-        "opus" => Some(6..=510),
-        "aac" => Some(16..=512),
-        _ => None,
-    };
-    match (args.audio_bitrate, bitrates) {
-        (Some(_), None) => {
-            return usage(
-                "--audio-bitrate is the bit rate of the audio encode: it needs --audio opus or aac",
-            );
-        }
-        (Some(kbps), Some(range)) if !range.contains(&kbps) => {
-            return usage(&format!(
-                "--audio-bitrate for --audio {} is {} to {} kbit/s, not {kbps}",
-                args.audio,
-                range.start(),
-                range.end()
-            ));
-        }
-        _ => {}
-    }
     if args.output.as_os_str() == "-" {
         return usage("the output must be a file: the MP4 is written with its movie box first");
     }
