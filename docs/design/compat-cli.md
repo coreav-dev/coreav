@@ -1487,7 +1487,10 @@ prints keep its derivations, which the stream oracle checks. The others:
 - iTunes cover pictures (`covr`, and the QuickTime `artwork` key) are
   attached-picture video streams after the tracks, one per JPEG or PNG
   `data` box in file order (an item may hold several, as `ffmpeg` writes
-  several pictures), each with its one packet at the picture's bytes;
+  several pictures), each with its one packet at the picture's bytes, or
+  without a position when the movie box is compressed (`cmov`, whose
+  offsets are not the file's; `ffprobe` prints the inflated box's offset,
+  [`known-divergences-ffprobe9.md`](../known-divergences-ffprobe9.md));
   WebVTT tracks are data streams.
 - Packets: one listing merged from every track, in file order, except that
   a packet due more than a second before the next one stored is listed

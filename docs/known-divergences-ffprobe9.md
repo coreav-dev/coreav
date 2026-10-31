@@ -298,6 +298,15 @@ mask them, and the measured agreement rates still count them as failures.
   timestamp window, using the signalled clock when no standard rate fits.
   FFmpeg's estimator can choose another rate. Neither estimate replaces
   the stored timestamps; no container clause chooses between them.
+- **Cover picture positions in a compressed movie.** A cover picture's
+  bytes are stored inside the movie box. When that box is compressed
+  (QuickTime `cmov`, [`design/compressed-movie.md`](design/compressed-movie.md)),
+  the picture has no position in the file. The pinned `ffprobe` (black
+  box) prints the picture's offset inside the inflated movie box as its
+  packet's `pos`. In the file, that offset falls on other bytes (inside
+  `mdat`, on a synthetic file with three pictures). CoreAV lists those
+  packets without a position. Track packets keep their file positions in
+  both.
 - **Highlight metadata as chapters.** Some movies store highlight times
   in an `HMMT` user-data atom rather than in a referenced chapter track or
   a `chpl` list. FFmpeg prints a chapter from that atom. CoreAV reads the

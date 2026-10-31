@@ -1184,6 +1184,67 @@ fn each_picture_of_one_cover_item_is_selected_alone() {
     assert!(!output.exists());
 }
 
+/// In a compressed movie box (QuickTime `cmov`), a picture's offset is in
+/// the inflated box, not in the file, so its packet is listed without a
+/// position; its size stays.
+#[test]
+fn pictures_of_a_compressed_movie_have_no_packet_position() {
+    let dir = scratch("ffprobe-compressed-covers");
+    let plain = covered(
+        &dir,
+        "plain.mp4",
+        av_movie_with(aac_entry(), false),
+        &[&[jpeg(32, 32), jpeg(64, 64), jpeg(48, 48)]],
+    );
+    let file = std::fs::read(&plain).unwrap();
+    let at = file.windows(4).position(|w| w == b"moov").unwrap() - 4;
+    let moov = &file[at..];
+    let packed = miniz_oxide::deflate::compress_to_vec_zlib(moov, 6);
+    let cmvd = bx(
+        b"cmvd",
+        &cat(&[u32s(&[u32::try_from(moov.len()).unwrap()]), packed]),
+    );
+    let cmov = bx(b"cmov", &cat(&[bx(b"dcom", b"zlib"), cmvd]));
+    let compressed = dir.join("compressed.mov");
+    std::fs::write(&compressed, cat(&[file[..at].to_vec(), bx(b"moov", &cmov)])).unwrap();
+    let pictures = |path: &Path| -> Vec<Value> {
+        let out = Command::new(bin())
+            .args([
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_entries",
+                "packet=stream_index,pos,size",
+                "-of",
+                "json",
+            ])
+            .arg(path)
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let listed: Value = serde_json::from_slice(&out.stdout).unwrap();
+        listed["packets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|p| p["stream_index"].as_u64() >= Some(2))
+            .cloned()
+            .collect()
+    };
+    let placed = pictures(Path::new(&plain));
+    assert_eq!(placed.len(), 3);
+    assert!(placed.iter().all(|p| p.get("pos").is_some()), "{placed:?}");
+    let unplaced: Vec<Value> = placed
+        .iter()
+        .map(|p| json!({ "stream_index": p["stream_index"], "size": p["size"] }))
+        .collect();
+    assert_eq!(pictures(&compressed), unplaced);
+}
+
 /// A selection of cover pictures alone is refused by name: `ffmpeg`
 /// writes a movie without a track for it (black box), which ISO/IEC
 /// 14496-12 8.3.1 does not allow.
