@@ -290,7 +290,9 @@ The [round 9 plan](../measurements/compat-ffprobe/round9-plan.md) fixes the
 B4 runner corrections before measurement. `speed.py run --oracle-bin DIR
 --cpus CPU` verifies the shared oracle pin and each selected file's size
 and SHA-256, pins one CPU, and requires both calibration arms to pass
-before running B4. Each process has a 600-second timeout. Failed calls
+before running B4. On the registered Linux host, a process-exit descriptor
+provides an event-driven 600-second deadline, followed by a blocking reap;
+no timeout polling sleeps enter successful timings. Failed calls
 retain both exit statuses and their phase, but have no ratio. Strict-safe
 refusal records are counted separately from executed fallbacks; an
 execution or an unreadable fallback record invalidates the native arm.

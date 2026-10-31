@@ -2,8 +2,10 @@
 import copy
 import hashlib
 import json
+import os
 import pathlib
 import random
+import shutil
 import statistics
 import subprocess
 import sys
@@ -84,17 +86,55 @@ class Pairs(unittest.TestCase):
         self.assertTrue(all(call.args[1] == {'key': 'value'} for call in timed.call_args_list))
 
     def test_timeout_and_launch_failure_are_not_success(self):
-        for error, code in [(subprocess.TimeoutExpired('stand-in', 600), None), (OSError('missing'), -1)]:
-            with mock.patch.object(speed.subprocess, 'run', side_effect=error) as run:
-                _, actual = speed.timed(['stand-in'], {})
-            self.assertEqual(actual, code)
-            self.assertEqual(run.call_args.kwargs['timeout'], 600)
+        with mock.patch.object(speed.subprocess, 'Popen', side_effect=OSError('missing')):
+            _, actual = speed.timed(['stand-in'], {})
+        self.assertEqual(actual, -1)
+        if hasattr(os, 'pidfd_open'):
+            with mock.patch.object(speed, 'B4_TIMEOUT', 0.01):
+                _, actual = speed.timed([shutil.which('sleep'), '0.1'], {})
+            self.assertIsNone(actual)
 
+    @unittest.skipUnless(hasattr(os, 'pidfd_open'), 'B4 runs on Linux with process-exit descriptors')
     def test_a_real_nonzero_process_is_recorded(self):
         row = speed.b4_pair([sys.executable, '-c', 'raise SystemExit(9)'],
                             [sys.executable, '-c', 'pass'], {})
         self.assertEqual(row['failed'], {'phase': 'warmup', 'exit': [9, 0]})
         self.assertNotIn('ratio', row)
+
+
+@unittest.skipUnless(hasattr(os, 'pidfd_open'), 'B4 runs on Linux with process-exit descriptors')
+class RealTiming(unittest.TestCase):
+    def test_a_real_deadline_kills_and_reaps_the_child(self):
+        with mock.patch.object(speed, 'B4_TIMEOUT', 0.01), \
+                mock.patch.object(speed.os, 'pidfd_open', wraps=os.pidfd_open) as opened:
+            elapsed, code = speed.timed([shutil.which('sleep'), '0.1'], {})
+        self.assertIsNone(code)
+        self.assertGreaterEqual(elapsed, 0.01)
+        with self.assertRaises(ChildProcessError):
+            os.waitpid(opened.call_args.args[0], os.WNOHANG)
+
+    def test_a_descriptor_error_also_kills_and_reaps_the_child(self):
+        with mock.patch.object(speed.os, 'pidfd_open', side_effect=OSError('no process descriptor')) as opened:
+            _, code = speed.timed([shutil.which('sleep'), '0.1'], {})
+        self.assertEqual(code, -1)
+        with self.assertRaises(ChildProcessError):
+            os.waitpid(opened.call_args.args[0], os.WNOHANG)
+
+    def test_short_real_children_retain_their_slowdown_through_the_report(self):
+        sleep = shutil.which('sleep')
+        self.assertIsNotNone(sleep)
+        with mock.patch.object(speed.time, 'sleep', side_effect=AssertionError('B4 must not poll process exit')):
+            pair = speed.b4_pair([sleep, '0.006'], [sleep, '0.004'], {})
+        self.assertNotIn('failed', pair)
+        self.assertGreater(pair['ratio'], 1.1)
+        data = {'method': speed.B4_METHOD, 'rounds': 5, 'commands': [['-show_streams', 'INPUT']],
+                'selection': [{'class': 'isobmff', 'file': 'a'}],
+                'calibration': {a: {'passes': True} for a in ('aa', 'null')},
+                'fallback_log': {'void': False},
+                'results': [{'command': 0, 'class': 'isobmff', 'file': 'a', **pair}]}
+        summary = speed.b4_summary(data)
+        self.assertFalse(summary['passes'])
+        self.assertTrue(summary['missed'])
 
 
 class Fallback(unittest.TestCase):

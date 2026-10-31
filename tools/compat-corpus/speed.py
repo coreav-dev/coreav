@@ -70,6 +70,7 @@ import math
 import os
 import pathlib
 import random
+import select as select_event
 import shutil
 import statistics
 import subprocess
@@ -142,18 +143,32 @@ def native_commands():
 
 
 B4_METHOD = 'b4-file-cluster-v1'
+B4_TIMEOUT = 600
 
 
 def timed(argv, env):
     start = time.perf_counter()
     try:
-        code = subprocess.run(argv, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                              stderr=subprocess.DEVNULL, env=env, timeout=600).returncode
-    except subprocess.TimeoutExpired:
-        code = None
+        with subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL, env=env) as process:
+            try:
+                fd = os.pidfd_open(process.pid)
+                try:
+                    ready = select_event.select([fd], [], [], max(0, B4_TIMEOUT - (time.perf_counter() - start)))[0]
+                finally:
+                    os.close(fd)
+                if ready:
+                    code = process.wait()
+                else:
+                    process.kill()
+                    code = None
+                elapsed = time.perf_counter() - start
+            except BaseException:
+                process.kill()
+                raise
     except OSError:
-        code = -1
-    return time.perf_counter() - start, code
+        return time.perf_counter() - start, -1
+    return elapsed, code
 
 
 def eligible(args, family):
