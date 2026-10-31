@@ -1756,9 +1756,19 @@ No speed against FFmpeg is claimed.
   - **HE-AAC**: each source but `tones+clicks` at 32, 44.1 and 48 kHz,
     mono and stereo, at the encoder's default bit rate (24 encodes);
   - **HE-AAC v2**: the same sources and rates, stereo (12);
-  - **Rates**: `tones` and `clicks` at 48 kHz stereo, `aach` and
-    `aacp`, at 24 and 64 kbit/s (`-b`; 8);
-  - **Layouts**: `tones+clicks` at 48 kHz in 5.1, `aach` (1).
+  - **Rates**: `tones` and `clicks` at 48 kHz stereo, `aach` at 24 and
+    64 kbit/s and `aacp` at 24 and 48 kbit/s (`-b`; 8). `aacp` refuses
+    56 and 64 kbit/s at 48 kHz stereo (`'!dat'`, macOS 15.8.2 on the
+    runner and macOS 27.0.1); at 48 kbit/s it still signals parametric
+    stereo (the 0x548 extension after a mono core);
+  - **Layouts**: `tones+clicks` at 48 kHz in 5.1, `aach` (1). The
+    encoder refuses a six-channel source that declares a channel layout
+    (`'!dat'`, the same versions), so the 5.1 source reaches it as plain
+    six-channel PCM without one, the samples unchanged, and the encoder
+    labels its stream 5.1 in its own channel order. No bar compares a
+    decode with a source: every comparison of the generated set is
+    CoreAV against FFmpeg, or CoreAV against itself, on the same
+    encoded stream.
   Each encode is copied into Matroska and given an implicit variant as the
   conformance streams are. An encode the encoder refuses stops the run
   at its preparation (Conversions, below).
