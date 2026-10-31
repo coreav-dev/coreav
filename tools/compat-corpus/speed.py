@@ -451,15 +451,10 @@ def clear(directory):
 def timed_run(argv, env, scratch):
     """One process, wall time from start to exit; SCRATCH is emptied after
     it, so every run writes to an empty directory."""
-    start = time.perf_counter()
     try:
-        code = subprocess.run(argv, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                              stderr=subprocess.DEVNULL, env=env, timeout=600).returncode
-    except subprocess.TimeoutExpired:
-        code = None
-    elapsed = time.perf_counter() - start
-    clear(scratch)
-    return elapsed, code
+        return timed(argv, env)
+    finally:
+        clear(scratch)
 
 
 def r4(opts):
