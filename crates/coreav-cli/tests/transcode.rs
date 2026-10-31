@@ -1524,7 +1524,7 @@ fn audio_the_opus_encode_does_not_take_is_refused_first() {
 }
 
 #[test]
-fn aac_audio_takes_the_place_of_the_source_audio() {
+fn the_aac_encode_takes_the_place_of_the_source_audio() {
     let Some(tools) = tools() else { return };
     let dir = dir("aac");
     let schema: Value = serde_json::from_str(TRANSCODE_SCHEMA).unwrap();
