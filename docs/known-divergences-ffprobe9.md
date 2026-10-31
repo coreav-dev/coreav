@@ -18,8 +18,9 @@ full-range monochrome sequence and of a position-only chroma change,
 prints a full-range RGB sequence's range as 0, and ignores an `nclx`
 override of a BT.2020/PQ sequence. CoreAV follows the specified values
 and omits only the complete default suffix. The byte-validated generated
-fixture exception at the end of this page covers one exact `nclx`
-disagreement. Other differing strings still fail B3a on the corpus.
+fixture exception near the end of this page covers one exact `nclx`
+disagreement, and two corpus records after it describe two exact Matroska
+and WebM shapes. Other differing strings still fail B3a on the corpus.
 
 The command-coverage set (`tools/compat-corpus/run.py commands`, bar B3a on
 the fixtures of [`design/compat-cli.md`](design/compat-cli.md)) compares
@@ -53,8 +54,10 @@ prints what 7.0.2 printed, and coreav-dev/coreav#24 follows 9.0.2. The
 twelfth is an FFmpeg error on a fixture 9.0.2 writes, which ISO/IEC
 14496-12 decides for CoreAV. The next four are CoreAV differences that the
 fixtures 9.0.2 writes expose: both FFmpeg versions print the same value
-there, and CoreAV another. The final entry validates an AV1 fixture's
+there, and CoreAV another. The next entry validates an AV1 fixture's
 stored `nclx` bytes and fails when its exact oracle disagreement changes.
+The last two are corpus records for Matroska and WebM AV1 tracks; they
+name no fixture keys and set nothing aside on the fixtures.
 
 ## KD-FF9-NEW-KEYS
 
@@ -268,6 +271,47 @@ stored `nclx` bytes and fails when its exact oracle disagreement changes.
   the oracle starts agreeing on the codec string, they fail explicitly
   and require removal of the obsolete exception. Other files, including
   corpus files, do not use it.
+
+## KD-FF9-AV1-DEFAULT-SUFFIX
+
+- Key: `streams.mime_codec_string`, on Matroska and WebM corpus files; no
+  fixture.
+- Cause: [AV1 ISOBMFF section 5](https://aomediacodec.github.io/av1-isobmff/#codecsparam)
+  says that a codec string ending with `.0.110.01.01.01.0` (not
+  monochrome, 4:2:0 with chroma sample position 0, BT.709 colour, studio
+  range) SHOULD omit that suffix, and that omitted optional fields take
+  those values. For an AV1 track whose sequence header states exactly
+  these values, CoreAV omits the suffix, as the section recommends. The
+  pinned oracle keeps it, which the section permits. Both strings state
+  the same values.
+- Corpus scope: the record's `level`, `fields` and `conditions` in the
+  twin define the track from the file's bytes alone: its `CodecPrivate`,
+  laid out as the AV1 codec mapping in Matroska requires, the sequence
+  header in it, and any stored `Colour` elements, which must agree with
+  that header. They also give the exact pair of strings.
+  `av1_default_suffix` in `scripts/oracle_kd_mkv.py` reads that evidence,
+  and its tests fail when the pinned oracle stops printing its string.
+  Not excludable yet: no corpus row is excluded until the corpus
+  comparator gates rows on that evidence.
+
+## KD-FF9-AV1-CHROMA-POSITION
+
+- Key: `streams.mime_codec_string`, on Matroska and WebM corpus files; no
+  fixture.
+- Cause: [AV1 ISOBMFF section 5](https://aomediacodec.github.io/av1-isobmff/#codecsparam)
+  requires the third digit of the chroma subsampling field to equal the
+  sequence header's `chroma_sample_position`, and without a colour
+  description in the sequence header the colour fields SHOULD take the
+  default values. A 4:2:0 track with chroma sample position 1 (vertical)
+  and no colour description therefore gets the full string ending in
+  `.0.111.01.01.01.0`, which CoreAV prints. The pinned oracle omits the
+  optional fields, and omitted fields mean chroma subsampling `110`, so its
+  string states position 0: an oracle error. The oracle gives position 2
+  (co-located) without a colour description the same short string; no
+  record covers that case, which still fails.
+- Corpus scope: as for KD-FF9-AV1-DEFAULT-SUFFIX, with its own conditions
+  in the twin and its own evidence, `av1_chroma_position` in
+  `scripts/oracle_kd_mkv.py`.
 
 ## Corpus differences not set aside
 

@@ -5,6 +5,8 @@ import importlib.util
 import json
 import pathlib
 import re
+import shutil
+import subprocess
 import tempfile
 import unittest
 
@@ -172,3 +174,170 @@ class DeclaredSize(unittest.TestCase):
                 self.assertFalse(kd.declared_size(media, 'f.mkv', 0, ours, {'width': 1, 'height': 1}))
             with mock.patch.object(kd, '_first_frame_size', return_value=(640, 480)):
                 self.assertFalse(kd.declared_size(media, 'f.mkv', 0, theirs, ours))
+
+
+
+def ebml(eid, payload=b''):
+    return eid.to_bytes((eid.bit_length() + 7) // 8, 'big') + (1 << 56 | len(payload)).to_bytes(8, 'big') + payload
+
+
+def av1_private(profile=0, level=5, tier=0, depth=8, mono=0, colour=None, full=0, position=0, more=b''):
+    """An AV1 `CodecPrivate`: the four octets, then a sequence header OBU of
+    a 64x64 stream with one operating point, then `more`. `colour` is the
+    described (primaries, transfer, matrix), or None for no description."""
+    bits = []
+
+    def put(value, n):
+        bits.extend(value >> (n - 1 - i) & 1 for i in range(n))
+
+    put(profile, 3), put(0, 2), put(0, 2), put(0, 5), put(0, 12), put(level, 5)
+    if level > 7:
+        put(tier, 1)
+    put(15, 4), put(15, 4), put(63, 16), put(63, 16), put(0, 4), put(0, 5), put(0, 2), put(0, 3)
+    put(int(depth > 8), 1)
+    if profile == 2 and depth > 8:
+        put(int(depth == 12), 1)
+    if profile != 1:
+        put(mono, 1)
+    put(int(colour is not None), 1)
+    for value in colour or ():
+        put(value, 8)
+    put(full, 1)
+    subsampling = (1, 1) if mono or profile == 0 else (0, 0)
+    if not mono:
+        if subsampling == (1, 1):
+            put(position, 2)
+        put(0, 1)
+    put(0, 1), put(1, 1)
+    bits += [0] * (-len(bits) % 8)
+    header = bytes(int(''.join(map(str, bits[i:i + 8])), 2) for i in range(0, len(bits), 8))
+    flags = (tier << 7 | int(depth > 8) << 6 | int(depth == 12) << 5 | mono << 4
+             | subsampling[0] << 3 | subsampling[1] << 2 | (position if subsampling == (1, 1) else 0))
+    return bytes([0x81, profile << 5 | level, flags, 0, 0x0A, len(header)]) + header + more
+
+
+def av1_matroska(private, colour=None, codec=b'V_AV1', encoded=False, before=b''):
+    """A Matroska file whose track entries are `before` and then one AV1
+    video track, number 2 after `before` and 1 otherwise, with `colour` (by
+    element id) as its `Colour`, and one cluster of one empty key frame."""
+    number = 2 if before else 1
+    video = ebml(0xB0, b'\x40') + ebml(0xBA, b'\x40')
+    if colour is not None:
+        video += ebml(0x55B0, b''.join(ebml(eid, bytes([value])) for eid, value in colour.items()))
+    entry = (ebml(0xD7, bytes([number])) + ebml(0x73C5, bytes([number])) + ebml(0x83, b'\x01')
+             + ebml(0x86, codec) + ebml(0x63A2, private) + ebml(0xE0, video))
+    if encoded:
+        entry += ebml(0x6D80, ebml(0x6240, ebml(0x5034, ebml(0x4254, b'\x03') + ebml(0x4255, b'\x00'))))
+    block = ebml(0xA3, bytes([0x80 | number, 0, 0, 0x80]))
+    return (ebml(0x1A45DFA3, ebml(0x4282, b'matroska') + ebml(0x4287, b'\x04') + ebml(0x4285, b'\x02'))
+            + ebml(0x18538067, ebml(0x1549A966, ebml(0x2AD7B1, b'\x0f\x42\x40'))
+                   + ebml(0x1654AE6B, before + ebml(0xAE, entry))
+                   + ebml(0x1F43B675, ebml(0xE7, b'\x00') + block)))
+
+
+def pinned_ffprobe():
+    """Whether the `ffprobe` on the path is the pinned oracle build."""
+    spec = importlib.util.spec_from_file_location('oracle_pin', ROOT / 'scripts' / 'oracle_pin.py')
+    pin = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(pin)
+    try:
+        version = subprocess.run(['ffprobe', '-version'], capture_output=True, timeout=60, check=False).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return version.startswith(f"ffprobe version {pin.load()['BUILD']}-".encode())
+
+
+# Range 1 is studio swing; ChromaSitingHorz 1 and ChromaSitingVert 2 are
+# chroma sample position 1 (the AV1 codec mapping in Matroska).
+BT709 = {0x55B9: 1, 0x55BB: 1, 0x55BA: 1, 0x55B1: 1}
+VERTICAL = {0x55B9: 1, 0x55B7: 1, 0x55B8: 2}
+RECORDS = {kd.av1_default_suffix: 'KD-FF9-AV1-DEFAULT-SUFFIX', kd.av1_chroma_position: 'KD-FF9-AV1-CHROMA-POSITION'}
+
+
+class Av1CodecStrings(unittest.TestCase):
+    SHAPES = {
+        'stated BT.709': (av1_private(colour=(1, 1, 1)), BT709, kd.av1_default_suffix,
+                          'av01.0.05M.08.0.110.01.01.01.0', 'av01.0.05M.08'),
+        'high tier, no Colour': (av1_private(level=23, tier=1, colour=(1, 1, 1)), None, kd.av1_default_suffix,
+                                 'av01.0.23H.08.0.110.01.01.01.0', 'av01.0.23H.08'),
+        'chroma position 1': (av1_private(position=1), VERTICAL, kd.av1_chroma_position,
+                              'av01.0.05M.08', 'av01.0.05M.08.0.111.01.01.01.0'),
+        'chroma position 1, no Colour': (av1_private(level=12, position=1), None, kd.av1_chroma_position,
+                                         'av01.0.12M.08', 'av01.0.12M.08.0.111.01.01.01.0'),
+        'chroma position 1, 10 bits': (av1_private(level=12, depth=10, position=1), None, kd.av1_chroma_position,
+                                       'av01.0.12M.10', 'av01.0.12M.10.0.111.01.01.01.0'),
+    }
+
+    def evidence(self, data):
+        """The file's path, and its default-suffix and chroma-position evidence."""
+        directory = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, directory)
+        path = pathlib.Path(directory) / 'f.mkv'
+        path.write_bytes(data)
+        return path, kd.av1_default_suffix(path), kd.av1_chroma_position(path)
+
+    def test_each_shape_gives_only_its_record_and_strings(self):
+        for name, (private, colour, record, oracle, coreav) in self.SHAPES.items():
+            _, *found = self.evidence(av1_matroska(private, colour))
+            expected = [kd.Av1CodecString(0, 1, oracle, coreav)]
+            self.assertEqual(found, [expected, []] if record is kd.av1_default_suffix else [[], expected], name)
+
+    def test_track_position_and_number(self):
+        opus = ebml(0xAE, ebml(0xD7, b'\x01') + ebml(0x83, b'\x02') + ebml(0x86, b'A_OPUS'))
+        _, _, found = self.evidence(av1_matroska(av1_private(position=1), before=opus))
+        self.assertEqual([(e.position, e.number) for e in found], [(1, 2)])
+
+    def test_the_string_comes_from_the_sequence_header(self):
+        # Octets stating another level and tier, and a last OBU without its
+        # size: the codec string's level and tier are the sequence header's.
+        private = bytearray(av1_private(level=23, tier=1, colour=(1, 1, 1)))
+        private[1], private[2], private[4] = 13, private[2] & 0x7F, 0x08
+        private = bytes(private[:5]) + bytes(private[6:])
+        _, found, _ = self.evidence(av1_matroska(private))
+        self.assertEqual(found, [kd.Av1CodecString(0, 1, 'av01.0.23H.08.0.110.01.01.01.0', 'av01.0.23H.08')])
+        metadata = bytes([5 << 3 | 2, 2, 1, 0])
+        _, _, found = self.evidence(av1_matroska(av1_private(position=1, more=metadata)))
+        self.assertEqual(len(found), 1)
+
+
+    def test_other_shapes_give_no_evidence(self):
+        private = av1_private(colour=(1, 1, 1))
+        for name, data in (
+                ('position 1 with stated colour', av1_matroska(av1_private(position=1, colour=(1, 1, 1)))),
+                ('position 0 without colour', av1_matroska(av1_private())),
+                ('position 2 without colour', av1_matroska(av1_private(position=2))),
+                ('other colour', av1_matroska(av1_private(level=13, tier=1, depth=10, colour=(9, 16, 9)))),
+                ('full range', av1_matroska(av1_private(colour=(1, 1, 1), full=1))),
+                ('monochrome', av1_matroska(av1_private(mono=1, colour=(1, 1, 1)))),
+                ('4:4:4', av1_matroska(av1_private(profile=1, colour=(1, 1, 1)))),
+                ('reserved level', av1_matroska(av1_private(level=24, colour=(1, 1, 1)))),
+                ('full range Colour', av1_matroska(private, BT709 | {0x55B9: 2})),
+                ('other primaries Colour', av1_matroska(private, BT709 | {0x55BB: 9})),
+                ('other depth Colour', av1_matroska(private, {0x55B2: 10})),
+                ('stated primaries without description', av1_matroska(av1_private(position=1), {0x55BB: 1})),
+                ('other siting', av1_matroska(av1_private(position=1), VERTICAL | {0x55B8: 1})),
+                ('siting for position 0', av1_matroska(private, {0x55B7: 1, 0x55B8: 2})),
+                ('octets stating another position', av1_matroska(private[:2] + bytes([private[2] | 1]) + private[3:])),
+                ('another codec', av1_matroska(private, codec=b'V_VP9')),
+                ('content encoding', av1_matroska(private, encoded=True)),
+                ('no sequence header', av1_matroska(private[:4])),
+                ('two sequence headers', av1_matroska(private + private[4:])),
+                ('a temporal delimiter', av1_matroska(private + b'\x12\x00')),
+                ('a short OBU', av1_matroska(private[:-1])),
+                ('a short sequence header', av1_matroska(private[:5] + bytes([4]) + private[6:10])),
+                ('another marker', av1_matroska(b'\x80' + private[1:])),
+        ):
+            self.assertEqual(self.evidence(data)[1:], ([], []), name)
+
+    @unittest.skipUnless(pinned_ffprobe(), 'needs the pinned ffprobe on the path')
+    def test_the_pinned_oracle_still_gives_its_string(self):
+        for name, (private, colour, record, _, _) in self.SHAPES.items():
+            path, *_ = self.evidence(av1_matroska(private, colour))
+            (found,) = record(path)
+            record = RECORDS[record]
+            listed = subprocess.run(['ffprobe', '-v', 'error', '-of', 'json', '-show_entries',
+                                     'stream=mime_codec_string', str(path)],
+                                    capture_output=True, timeout=60, check=True).stdout
+            strings = [s.get('mime_codec_string') for s in json.loads(listed)['streams']]
+            self.assertNotEqual(strings, [found.coreav], f'{record} ({name}): the oracle now agrees; retire the record')
+            self.assertEqual(strings, [found.oracle], f'{record} ({name}): the oracle string changed')

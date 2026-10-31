@@ -915,6 +915,9 @@ def outcome(reasons, excluded):
 MAX_ELEMENTS = 100_000
 EBML_ID, SEGMENT_ID, CLUSTER_ID, TRACKS_ID = 0x1A45DFA3, 0x18538067, 0x1F43B675, 0x1654AE6B
 TAGS_ID = 0x1254C367
+# The integer elements of a video track's `Colour` (RFC 9559 5.1.4.1.28.16).
+COLOUR = {0x55B1: 'MatrixCoefficients', 0x55B2: 'BitsPerChannel', 0x55B7: 'ChromaSitingHorz',
+          0x55B8: 'ChromaSitingVert', 0x55B9: 'Range', 0x55BA: 'TransferCharacteristics', 0x55BB: 'Primaries'}
 # ffprobe `codec_name` to the name `coreav probe` prints for Matroska.
 MATROSKA_FFPROBE = {name: name for name in MATROSKA_CODECS}
 MATROSKA_FFPROBE.update({'hdmv_pgs_subtitle': 'pgs', 'dvd_subtitle': 'vobsub',
@@ -1015,8 +1018,10 @@ def matroska_headers(path, tags=False):
     `DocType`, whether the Segment's size is unknown (live), and for each
     `TrackEntry` in order its `TrackNumber`, `TrackUID`, `TrackType`,
     `CodecID`, `DefaultDuration`, encoding, `PixelWidth` and `PixelHeight`
-    (`pixels`), and its stored `Language` and `LanguageBCP47` (`language`,
-    `language_bcp47`, None when absent).
+    (`pixels`), its stored `Language` and `LanguageBCP47` (`language`,
+    `language_bcp47`), its `CodecPrivate` bytes (`codec_private`) and the
+    integer elements of its `Colour` by name (`colour`, RFC 9559
+    5.1.4.1.28.16), each None when absent.
     With `tags`, also each track's `tag_names`: the `TagName` of every
     `SimpleTag` in a `Tag` whose `Targets` name the track's `TrackUID`
     (RFC 9559 5.1.8), read from the `Tags` before any cluster of unknown
@@ -1048,7 +1053,8 @@ def matroska_headers(path, tags=False):
                             continue
                         track = {'number': None, 'uid': None, 'type': None, 'codec_id': None,
                                  'default_duration': None, 'pixels': None, 'language': None,
-                                 'language_bcp47': None, 'encoding': _encoding(entry)}
+                                 'language_bcp47': None, 'codec_private': None, 'colour': None,
+                                 'encoding': _encoding(entry)}
                         for j, q in _children(entry):
                             if j == 0xD7:
                                 track['number'] = _uint(q)
@@ -1064,10 +1070,15 @@ def matroska_headers(path, tags=False):
                                 track['codec_id'] = _string(q)
                             elif j == 0x23E383:
                                 track['default_duration'] = _uint(q)
+                            elif j == 0x63A2:
+                                track['codec_private'] = bytes(q)
                             elif j == 0xE0:
                                 video = dict(_children(q))
                                 if 0xB0 in video and 0xBA in video:
                                     track['pixels'] = (_uint(video[0xB0]), _uint(video[0xBA]))
+                                if 0x55B0 in video:
+                                    track['colour'] = {COLOUR[k]: _uint(v) for k, v in _children(video[0x55B0])
+                                                       if k in COLOUR}
                         found['tracks'].append(track)
                     if not tags:
                         break

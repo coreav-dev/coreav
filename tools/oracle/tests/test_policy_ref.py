@@ -482,7 +482,8 @@ class Matroska(unittest.TestCase):
             self.assertTrue(found['live'])
             self.assertEqual(found['tracks'], [{'number': 1, 'uid': None, 'type': 2, 'codec_id': 'A_OPUS',
                                                 'default_duration': None, 'pixels': None, 'language': None,
-                                                'language_bcp47': None, 'encoding': 'encrypted'}])
+                                                'language_bcp47': None, 'codec_private': None, 'colour': None,
+                                                'encoding': 'encrypted'}])
             self.assertEqual(ref.laced_tracks(f.name), {1})
         with tempfile.NamedTemporaryFile() as f:
             f.write(b'\x00\x00\x00\x18ftypisom')
