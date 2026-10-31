@@ -581,6 +581,15 @@ try_gen codec_h264_one_frame.mp4 "${KSRC[@]}" -frames:v 1 -c:v libx264 -pix_fmt 
 try_gen codec_mjpeg_one_frame.mov "${KSRC[@]}" -frames:v 1 -c:v mjpeg
 try_gen codec_alac16.m4a "${KAUD[@]}" -c:a alac -sample_fmt s16p
 try_gen codec_alac24.m4a "${KAUD[@]}" -c:a alac -sample_fmt s32p
+# FLAC and ALAC at rates the sample entry's 16.16 rate cannot hold: the
+# rate and bit depth are dfLa's STREAMINFO and the ALAC magic cookie's.
+lossless_src() { echo "sine=frequency=440:duration=1:sample_rate=$1"; }
+try_gen codec_flac16_44k.mp4 -f lavfi -i "$(lossless_src 44100)" -c:a flac -sample_fmt s16
+try_gen codec_flac24_96k.mp4 -f lavfi -i "$(lossless_src 96000)" -c:a flac -sample_fmt s32 -bits_per_raw_sample 24
+try_gen codec_flac24_192k.mp4 -f lavfi -i "$(lossless_src 192000)" -c:a flac -sample_fmt s32 -bits_per_raw_sample 24
+try_gen codec_alac16_88k.m4a -f lavfi -i "$(lossless_src 88200)" -c:a alac -sample_fmt s16p
+try_gen codec_alac24_96k.m4a -f lavfi -i "$(lossless_src 96000)" -c:a alac -sample_fmt s32p
+try_gen codec_alac16_192k.m4a -f lavfi -i "$(lossless_src 192000)" -c:a alac -sample_fmt s16p
 try_gen codec_amr_nb.3gp -f lavfi -i "sine=frequency=440:duration=1:sample_rate=8000" -c:a libopencore_amrnb -ar 8000 -ac 1
 # The pinned FFmpeg has no AMR-WB encoder: 50 frames of mode 8 (23.85
 # kbit/s, a one-byte header and 60 bytes of speech bits, here a fixed
